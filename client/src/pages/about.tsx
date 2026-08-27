@@ -94,38 +94,36 @@ const CLOSED_OR_FREEMIUM_TOOLS: readonly RelatedProject[] = [
   },
 ] as const;
 
-function ProjectGrid({
-  projects,
-  linkLabel,
-}: {
-  projects: readonly RelatedProject[];
-  linkLabel: string;
-}): JSX.Element {
+function ProjectGrid({ projects }: { projects: readonly RelatedProject[] }): JSX.Element {
   return (
     <div className="grid gap-4 sm:grid-cols-2">
       {projects.map((project) => (
         <Card key={project.url} className="flex flex-col">
           <CardHeader className="pb-3">
             <div className="flex items-start justify-between gap-3">
-              <CardTitle className="text-lg leading-6">{project.name}</CardTitle>
+              <CardTitle className="text-lg leading-6">
+                <a
+                  href={project.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="group inline-flex items-start gap-1.5 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                >
+                  <span>{project.name}</span>
+                  <ExternalLink
+                    className="mt-1 h-3.5 w-3.5 shrink-0 text-muted-foreground transition-colors group-hover:text-primary"
+                    aria-hidden
+                  />
+                </a>
+              </CardTitle>
               <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
                 {project.badge}
               </span>
             </div>
           </CardHeader>
-          <CardContent className="flex flex-1 flex-col gap-4">
-            <p className="flex-1 text-sm leading-6 text-muted-foreground">
+          <CardContent>
+            <p className="text-sm leading-6 text-muted-foreground">
               {project.description}
             </p>
-            <a
-              href={project.url}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex w-fit items-center gap-1.5 text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            >
-              {linkLabel}
-              <ExternalLink className="h-3.5 w-3.5" aria-hidden />
-            </a>
           </CardContent>
         </Card>
       ))}
@@ -240,10 +238,7 @@ export default function About(): JSX.Element {
                 project.
               </p>
             </div>
-            <ProjectGrid
-              projects={OPEN_SOURCE_PROJECTS}
-              linkLabel="Visit open-source project"
-            />
+            <ProjectGrid projects={OPEN_SOURCE_PROJECTS} />
           </section>
 
           <section
@@ -262,10 +257,7 @@ export default function About(): JSX.Element {
                 but they are not presented as open-source projects.
               </p>
             </div>
-            <ProjectGrid
-              projects={CLOSED_OR_FREEMIUM_TOOLS}
-              linkLabel="Visit service"
-            />
+            <ProjectGrid projects={CLOSED_OR_FREEMIUM_TOOLS} />
           </section>
         </section>
       </div>

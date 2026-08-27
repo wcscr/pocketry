@@ -161,6 +161,21 @@ describe("App", () => {
     expect(closedSourceTools?.textContent).toContain(
       "not presented as open-source projects",
     );
+    expect(container.textContent).not.toContain("Visit open-source project");
+    expect(container.textContent).not.toContain("Visit service");
+    for (const [name, href] of [
+      ["GridFlock", "https://github.com/yawkat/GridFlock"],
+      [
+        "Perplexing Labs Gridfinity Generator",
+        "https://gridfinity.perplexinglabs.com/",
+      ],
+    ] as const) {
+      const titleLink = container.querySelector<HTMLAnchorElement>(
+        `h3 > a[href="${href}"]`,
+      );
+      expect(titleLink?.textContent).toContain(name);
+      expect(titleLink?.target).toBe("_blank");
+    }
     expect(
       container.querySelector<HTMLAnchorElement>('a[href="/LICENSE.txt"]'),
     ).not.toBeNull();
