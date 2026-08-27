@@ -157,6 +157,15 @@ describe("App", () => {
     expect(closedSourceTools?.textContent).toContain("Perplexing Labs");
     expect(closedSourceTools?.textContent).toContain("ToolTrace.ai");
     expect(closedSourceTools?.textContent).toContain("Systemax DIY");
+    for (const href of [
+      "https://www.tooltrace.ai",
+      "https://www.systemax.no/diy",
+    ]) {
+      const commercialCard = container
+        .querySelector<HTMLAnchorElement>(`a[href="${href}"]`)
+        ?.closest(".rounded-lg");
+      expect(commercialCard?.textContent).toContain("Commercial service");
+    }
     expect(closedSourceTools?.textContent).not.toContain("Tracefinity");
     expect(closedSourceTools?.textContent).toContain(
       "not presented as open-source projects",
