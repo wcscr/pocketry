@@ -140,7 +140,23 @@ describe("App", () => {
     expect(container.textContent).toContain("Gridfinity Rebase");
     expect(container.textContent).toContain("GridFlock");
     expect(container.textContent).toContain(
-      "complement Pocketry or provide alternatives",
+      "complement Pocketry or provide",
+    );
+    const openSourceProjects = container.querySelector<HTMLElement>(
+      '[aria-labelledby="open-source-projects-heading"]',
+    );
+    const closedSourceTools = container.querySelector<HTMLElement>(
+      '[aria-labelledby="closed-source-projects-heading"]',
+    );
+    expect(openSourceProjects?.textContent).toContain("Tracefinity");
+    expect(openSourceProjects?.textContent).toContain("GridFlock");
+    expect(openSourceProjects?.textContent).not.toContain("ToolTrace.ai");
+    expect(openSourceProjects?.textContent).not.toContain("Systemax DIY");
+    expect(closedSourceTools?.textContent).toContain("ToolTrace.ai");
+    expect(closedSourceTools?.textContent).toContain("Systemax DIY");
+    expect(closedSourceTools?.textContent).not.toContain("Tracefinity");
+    expect(closedSourceTools?.textContent).toContain(
+      "not presented as open-source projects",
     );
     expect(
       container.querySelector<HTMLAnchorElement>('a[href="/LICENSE.txt"]'),
