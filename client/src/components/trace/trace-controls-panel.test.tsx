@@ -125,6 +125,21 @@ async function click(testId: string): Promise<void> {
   });
 }
 
+async function changeNumber(id: string, value: string): Promise<void> {
+  await React.act(async () => {
+    const input = host.querySelector<HTMLInputElement>(`#${id}`);
+    expect(input).not.toBeNull();
+    input!.focus();
+    const setter = Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      "value",
+    )!.set!;
+    setter.call(input, value);
+    input!.dispatchEvent(new Event("input", { bubbles: true }));
+    await new Promise((resolve) => window.setTimeout(resolve, 10));
+  });
+}
+
 function section(id: string): HTMLElement | null {
   return host.querySelector<HTMLElement>(`#trace-settings-${id}`);
 }
@@ -271,5 +286,19 @@ describe("TraceControlsPanel guided workflow", () => {
     expect(host.textContent).toContain(
       "Detection starts when you finish",
     );
+  });
+
+  it("updates the displayed manual scale when the reference length changes", async () => {
+    await click("load-source");
+    await click("complete-manual-scale");
+
+    expect(section("scale")?.textContent).toContain("0.500 mm/px");
+    await React.act(async () => {
+      sectionTrigger("scale")?.click();
+      await new Promise((resolve) => window.setTimeout(resolve, 10));
+    });
+    await changeNumber("ruler-length", "200");
+    expect(section("scale")?.textContent).toContain("2.000 mm/px");
+    expect(section("scale")?.textContent).toContain("2 mm/px (0.5 px/mm)");
   });
 });

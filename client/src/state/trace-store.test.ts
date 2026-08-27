@@ -1,3 +1,4 @@
+import { mmPerPixel } from "@shared/geometry/scale";
 import type { Outline } from "@shared/geometry/types";
 import { describe, expect, it } from "vitest";
 
@@ -416,6 +417,45 @@ describe("modes and calibration", () => {
       { type: "SET_CALIBRATION", calibration: { ...calibration, lengthMm: 75 } },
     );
     expect(state.margin).toBe(2.5);
+  });
+
+  it("updates mm/px when a completed manual ruler length changes", () => {
+    const calibration = {
+      startX: 0,
+      startY: 0,
+      endX: 100,
+      endY: 0,
+      lengthMm: 50,
+    };
+    const state = run(
+      initialTraceState,
+      { type: "SET_CALIBRATION", calibration },
+      { type: "SET_RULER_LENGTH", rulerLengthMm: 75 },
+    );
+
+    expect(state.rulerLengthMm).toBe(75);
+    expect(state.calibration?.lengthMm).toBe(75);
+    expect(mmPerPixel(state.calibration)).toBe(0.75);
+  });
+
+  it("does not overwrite an accepted calibration-sheet scale", () => {
+    const calibration = {
+      startX: 0,
+      startY: 0,
+      endX: 100,
+      endY: 0,
+      lengthMm: 50,
+    };
+    const state = run(
+      initialTraceState,
+      { type: "AUTO_CALIBRATION_DETECTED", calibration },
+      { type: "ACCEPT_AUTO_CALIBRATION" },
+      { type: "SET_RULER_LENGTH", rulerLengthMm: 75 },
+    );
+
+    expect(state.rulerLengthMm).toBe(75);
+    expect(state.calibration?.lengthMm).toBe(50);
+    expect(mmPerPixel(state.calibration)).toBe(0.5);
   });
 
   it("retains the margin preference when scale is cleared", () => {
