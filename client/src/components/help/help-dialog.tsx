@@ -5,6 +5,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { downloadCalibrationTemplate } from "@/lib/calibrate/download-template";
 
 export interface HelpDialogProps {
   open: boolean;
@@ -50,9 +51,29 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
               </li>
               <li>
                 Pocketry automatically looks for its calibration-sheet markers
-                when the image loads. If found, it proposes a real-world{" "}
-                <strong>Scale</strong>; check the ruler overlay and accept it
-                before continuing.
+                when the image loads. A4 and US Letter sheets use different
+                markers, so the paper size is identified automatically. If all
+                four markers are visible, Pocketry can also correct camera
+                perspective before tracing. Check the preview, then accept it.
+                If you do not have a sheet yet, download and print the{" "}
+                <button
+                  type="button"
+                  className="font-medium text-primary underline underline-offset-2 hover:no-underline"
+                  onClick={() => downloadCalibrationTemplate("a4")}
+                  data-testid="help-print-template-a4"
+                >
+                  A4 PDF template
+                </button>{" "}
+                or{" "}
+                <button
+                  type="button"
+                  className="font-medium text-primary underline underline-offset-2 hover:no-underline"
+                  onClick={() => downloadCalibrationTemplate("letter")}
+                  data-testid="help-print-template-letter"
+                >
+                  US Letter PDF template
+                </button>{" "}
+                at 100% scale.
               </li>
               <li>
                 If automatic scale detection is unavailable or not sufficiently

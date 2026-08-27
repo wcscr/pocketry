@@ -8,7 +8,9 @@ import { detectArucoMarkers, detectCalibrationSheet, hasArucoSupport } from "./d
 import { solveScaleFromMarkers } from "./solve";
 import {
   TEMPLATE_MARKER_SIZE_MM,
+  TEMPLATE_PAPER_MM,
   templateMarkerCentersMm,
+  type TemplatePaper,
 } from "./template";
 
 /**
@@ -30,16 +32,19 @@ beforeAll(async () => {
 
 const PX_PER_MM = 2;
 
-/** White A4 "photo" with the template's markers rendered at PX_PER_MM. */
-function composeSheet(dictionaryId: () => number): ImageData {
-  const width = Math.round(210 * PX_PER_MM);
-  const height = Math.round(297 * PX_PER_MM);
+/** White template "photo" with its markers rendered at PX_PER_MM. */
+function composeSheet(
+  dictionaryId: () => number,
+  paper: TemplatePaper = "a4",
+): ImageData {
+  const width = Math.round(TEMPLATE_PAPER_MM[paper].width * PX_PER_MM);
+  const height = Math.round(TEMPLATE_PAPER_MM[paper].height * PX_PER_MM);
   const data = new Uint8ClampedArray(width * height * 4).fill(255);
 
   const sizePx = TEMPLATE_MARKER_SIZE_MM * PX_PER_MM; // 60
   const dictionary = cv.getPredefinedDictionary(dictionaryId());
   try {
-    for (const { id, x, y } of templateMarkerCentersMm("a4")) {
+    for (const { id, x, y } of templateMarkerCentersMm(paper)) {
       const marker = new cv.Mat();
       try {
         cv.generateImageMarker(dictionary, id, sizePx, marker, 1);
@@ -85,6 +90,44 @@ describe("aruco detection (closed loop with the shipped bundle)", () => {
       const originY = Math.round(expected.y * PX_PER_MM - sizePx / 2);
       expect(marker.centerPx.x).toBeCloseTo(originX + sizePx / 2 - 0.5, 0);
       expect(marker.centerPx.y).toBeCloseTo(originY + sizePx / 2 - 0.5, 0);
+      expect(marker.cornersPx).toHaveLength(4);
+    }
+  });
+
+  it("keeps decoded corner identity when the sheet is rotated", () => {
+    const scene = composeSheet(() => cv.DICT_4X4_50);
+    const original = detectArucoMarkers(cv, scene, cv.DICT_4X4_50);
+    const source = cv.matFromImageData(scene);
+    const rotated = new cv.Mat();
+    try {
+      cv.rotate(source, rotated, cv.ROTATE_180);
+      const rotatedImage = {
+        data: new Uint8ClampedArray(rotated.data),
+        width: rotated.cols,
+        height: rotated.rows,
+        colorSpace: "srgb",
+      } as ImageData;
+      const detected = detectArucoMarkers(
+        cv,
+        rotatedImage,
+        cv.DICT_4X4_50,
+      );
+      for (const marker of detected) {
+        const before = original.find(({ id }) => id === marker.id)!;
+        for (let index = 0; index < 4; index++) {
+          expect(marker.cornersPx![index].x).toBeCloseTo(
+            scene.width - 1 - before.cornersPx![index].x,
+            0,
+          );
+          expect(marker.cornersPx![index].y).toBeCloseTo(
+            scene.height - 1 - before.cornersPx![index].y,
+            0,
+          );
+        }
+      }
+    } finally {
+      rotated.delete();
+      source.delete();
     }
   });
 
@@ -128,8 +171,13 @@ describe("aruco detection (closed loop with the shipped bundle)", () => {
 });
 
 describe("runAutoCalibration", () => {
-  it("produces a usable Calibration from the template sheet", () => {
-    const result = runAutoCalibration(cv, composeSheet(() => cv.DICT_4X4_50));
+  it.each(["a4", "letter"] as const)(
+    "produces a usable Calibration and identifies a %s sheet",
+    (paper) => {
+    const result = runAutoCalibration(
+      cv,
+      composeSheet(() => cv.DICT_4X4_50, paper),
+    );
     expect(result.kind).toBe("calibrated");
     if (result.kind !== "calibrated") return;
 
@@ -139,7 +187,13 @@ describe("runAutoCalibration", () => {
     const derived = mmPerPixel(result.calibration)!;
     expect(Math.abs(derived - 1 / PX_PER_MM) / (1 / PX_PER_MM)).toBeLessThan(0.005);
     expect(result.solution.maxDeviation).toBeLessThan(0.01);
-  });
+    expect(result.paper).toBe(paper);
+    expect(result.perspectiveProposal?.source).toBe("template");
+    expect(result.perspectiveProposal?.points).toHaveLength(4);
+    expect(result.perspectiveProposal?.correspondences?.source).toHaveLength(16);
+    expect(result.perspectiveProposal?.correspondences?.destinationMm).toHaveLength(16);
+    },
+  );
 
   it("classifies a 6x6 sheet as foreign", () => {
     const result = runAutoCalibration(cv, composeSheet(() => cv.DICT_6X6_250));

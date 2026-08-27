@@ -13,7 +13,10 @@ export interface Calibration {
   lengthMm: number;
 }
 
-/** A calibration still being placed — only the start point is known. */
+/**
+ * A calibration still being placed. The first click sets the start; optional
+ * end coordinates track the pointer until the second click commits it.
+ */
 export type DraftCalibration = Partial<Calibration>;
 
 /** Pixel distance between the two calibration points. */

@@ -134,6 +134,14 @@ describe("App", () => {
     expect(container.textContent).toContain("Gridfinity Extended");
     expect(container.textContent).toContain("Gridfinity Layout Tool");
     expect(container.textContent).toContain("Outline App");
+    expect(container.textContent).toContain("Tracefinity");
+    expect(container.textContent).toContain("ToolTrace.ai");
+    expect(container.textContent).toContain("Systemax DIY");
+    expect(container.textContent).toContain("Gridfinity Rebase");
+    expect(container.textContent).toContain("GridFlock");
+    expect(container.textContent).toContain(
+      "complement Pocketry or provide alternatives",
+    );
     expect(
       container.querySelector<HTMLAnchorElement>('a[href="/LICENSE.txt"]'),
     ).not.toBeNull();
@@ -179,6 +187,15 @@ describe("App", () => {
     expect(help?.textContent).toContain(
       "automatically looks for its calibration-sheet markers",
     );
+    expect(help?.textContent).toContain(
+      "paper size is identified automatically",
+    );
+    expect(
+      help?.querySelector('[data-testid="help-print-template-a4"]'),
+    ).not.toBeNull();
+    expect(
+      help?.querySelector('[data-testid="help-print-template-letter"]'),
+    ).not.toBeNull();
     expect(help?.textContent).toContain("another item with a precisely known dimension");
     expect(help?.textContent).toContain("Before printing the full bin");
     expect(help?.textContent).toContain("Preview/shadow-board layout");

@@ -21,6 +21,8 @@ import {
 export interface DetectedMarker {
   id: number;
   centerPx: Point;
+  /** Canonical marker corners: top-left, top-right, bottom-right, bottom-left. */
+  cornersPx?: [Point, Point, Point, Point];
 }
 
 export interface ScaleSolution {
@@ -43,7 +45,7 @@ export const SKEW_WARN_FRACTION = 0.02;
 
 export function solveScaleFromMarkers(
   markers: readonly DetectedMarker[],
-  paper: TemplatePaper = "a4",
+  paper: TemplatePaper,
 ): ScaleSolution | null {
   const template = new Map(
     templateMarkerCentersMm(paper).map((entry) => [entry.id, entry]),
@@ -51,7 +53,7 @@ export function solveScaleFromMarkers(
   const usable = markers.filter(
     (marker) =>
       template.has(marker.id) &&
-      (TEMPLATE_MARKER_IDS as readonly number[]).includes(marker.id),
+      TEMPLATE_MARKER_IDS[paper].includes(marker.id),
   );
   // Dedupe ids: a reflection or reprint can yield the same id twice; trust
   // neither copy.

@@ -1,11 +1,16 @@
 import { memo, useMemo, type PointerEvent as ReactPointerEvent } from "react";
 
-import { OUTER_RING, type Point, type Rect, type RingRef } from "@shared/geometry/types";
+import type { Calibration, DraftCalibration } from "@shared/geometry/scale";
+import {
+  OUTER_RING,
+  type Outline,
+  type Point,
+  type Rect,
+  type RingRef,
+} from "@shared/geometry/types";
 
 import { iterateRings, sameRingRef } from "@/lib/geometry/outline";
 import { outlineToPathData } from "@/lib/export/svg";
-import type { Outline } from "@shared/geometry/types";
-import type { Calibration, DraftCalibration } from "@shared/geometry/scale";
 
 /** The viewport transform applied to the whole scene. */
 export interface SceneTransform {
@@ -25,6 +30,14 @@ export interface TraceSceneProps {
   regionActive?: boolean;
   calibration: Calibration | null;
   draftCalibration: DraftCalibration | null;
+  /** Known physical length shown beside both preview and completed rulers. */
+  rulerLengthMm: number;
+  /** Template centres or manually selected page corners awaiting correction. */
+  perspectivePoints?: readonly Point[];
+  /** Manual points remain draggable after all four have been placed. */
+  perspectiveEditable?: boolean;
+  /** Pointer-following endpoint while manual corner placement is active. */
+  perspectivePreview?: Point | null;
   /** Dims the outline while a new one is being computed. */
   busy?: boolean;
   /**
@@ -48,8 +61,12 @@ export interface TraceSceneProps {
 /** Screen-space sizes, divided by the scale so they stay constant when zooming. */
 const HANDLE_RADIUS = 5;
 const HANDLE_RADIUS_SELECTED = 7;
-const RULER_HANDLE_RADIUS = 7;
 const RULER_HIT_RADIUS = 12;
+const RULER_MARKER_HALF_SIZE = 7;
+const RULER_LABEL_OFFSET = 18;
+const RULER_LABEL_HEIGHT = 22;
+const PERSPECTIVE_MARKER_RADIUS = 10;
+const PERSPECTIVE_HIT_RADIUS = 15;
 
 /**
  * The canvas scene: one `<svg>` filling the viewport, with the image and every
@@ -83,6 +100,10 @@ export function TraceScene({
   regionActive = false,
   calibration,
   draftCalibration,
+  rulerLengthMm,
+  perspectivePoints = [],
+  perspectiveEditable = false,
+  perspectivePreview = null,
   busy = false,
   hoveredVertexIndex = null,
   onPointerDown,
@@ -219,6 +240,13 @@ export function TraceScene({
         <RulerOverlay
           calibration={calibration}
           draft={draftCalibration}
+          rulerLengthMm={rulerLengthMm}
+          inv={inv}
+        />
+        <PerspectiveOverlay
+          points={perspectivePoints}
+          editable={perspectiveEditable}
+          preview={perspectivePreview}
           inv={inv}
         />
       </g>
@@ -260,10 +288,12 @@ const SourceImage = memo(function SourceImage({
 function RulerOverlay({
   calibration,
   draft,
+  rulerLengthMm,
   inv,
 }: {
   calibration: Calibration | null;
   draft: DraftCalibration | null;
+  rulerLengthMm: number;
   inv: number;
 }): JSX.Element | null {
   const start: Point | null = calibration
@@ -274,46 +304,238 @@ function RulerOverlay({
 
   const end: Point | null = calibration
     ? { x: calibration.endX, y: calibration.endY }
-    : null;
+    : draft?.endX !== undefined && draft?.endY !== undefined
+      ? { x: draft.endX, y: draft.endY }
+      : null;
 
   if (!start) return null;
 
+  const lengthMm = calibration?.lengthMm ?? rulerLengthMm;
+  const markerHalfSize = RULER_MARKER_HALF_SIZE * inv;
+
   return (
-    <g>
+    <g data-testid="ruler-overlay">
       {end && (
-        <line
-          x1={start.x}
-          y1={start.y}
-          x2={end.x}
-          y2={end.y}
-          className="stroke-amber-500"
-          strokeWidth={2}
-          vectorEffect="non-scaling-stroke"
-        />
+        <>
+          <line
+            x1={start.x}
+            y1={start.y}
+            x2={end.x}
+            y2={end.y}
+            className="stroke-white/95"
+            strokeWidth={6}
+            strokeDasharray={calibration ? undefined : "6 4"}
+            vectorEffect="non-scaling-stroke"
+            pointerEvents="none"
+          />
+          <line
+            x1={start.x}
+            y1={start.y}
+            x2={end.x}
+            y2={end.y}
+            className="stroke-amber-500"
+            strokeWidth={2.5}
+            strokeDasharray={calibration ? undefined : "6 4"}
+            vectorEffect="non-scaling-stroke"
+            pointerEvents="none"
+            data-testid="ruler-line"
+            data-ruler-preview={calibration ? undefined : "true"}
+          />
+          <RulerLengthLabel
+            start={start}
+            end={end}
+            lengthMm={lengthMm}
+            inv={inv}
+          />
+        </>
       )}
       {[start, end].map((point, index) =>
         point ? (
-          <g key={index}>
-            {/* An invisible, generously sized hit target: the visible dot is
-                too small to grab reliably, especially on a touchscreen. */}
-            <circle
-              cx={point.x}
-              cy={point.y}
-              r={RULER_HIT_RADIUS * inv}
-              fill="transparent"
-              data-ruler-handle={index === 0 ? "start" : "end"}
-            />
-            <circle
-              cx={point.x}
-              cy={point.y}
-              r={RULER_HANDLE_RADIUS * inv}
-              className="fill-amber-500 stroke-background"
-              strokeWidth={1.5}
+          <g
+            key={index}
+            data-testid="ruler-marker"
+            data-ruler-marker={index === 0 ? "start" : "end"}
+            data-ruler-handle={
+              calibration ? (index === 0 ? "start" : "end") : undefined
+            }
+          >
+            {calibration && (
+              <circle
+                cx={point.x}
+                cy={point.y}
+                r={RULER_HIT_RADIUS * inv}
+                fill="transparent"
+              />
+            )}
+            <path
+              d={rulerMarkerPath(point, markerHalfSize)}
+              fill="none"
+              className="stroke-white/95"
+              strokeWidth={6}
               vectorEffect="non-scaling-stroke"
+              pointerEvents="none"
+            />
+            <path
+              d={rulerMarkerPath(point, markerHalfSize)}
+              fill="none"
+              className="stroke-amber-500"
+              strokeWidth={2.5}
+              strokeLinecap="round"
+              vectorEffect="non-scaling-stroke"
+              pointerEvents="none"
             />
           </g>
         ) : null,
       )}
+    </g>
+  );
+}
+
+function RulerLengthLabel({
+  start,
+  end,
+  lengthMm,
+  inv,
+}: {
+  start: Point;
+  end: Point;
+  lengthMm: number;
+  inv: number;
+}): JSX.Element {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const distance = Math.hypot(dx, dy);
+  const normal =
+    distance > 0 ? { x: -dy / distance, y: dx / distance } : { x: 0, y: -1 };
+  const offset = RULER_LABEL_OFFSET * inv;
+  const x = (start.x + end.x) / 2 + normal.x * offset;
+  const y = (start.y + end.y) / 2 + normal.y * offset;
+  const label = `${formatRulerLength(lengthMm)} mm`;
+  const width = Math.max(46, label.length * 7 + 14) * inv;
+  const height = RULER_LABEL_HEIGHT * inv;
+
+  return (
+    <g data-testid="ruler-length-label" pointerEvents="none">
+      <rect
+        x={x - width / 2}
+        y={y - height / 2}
+        width={width}
+        height={height}
+        rx={6 * inv}
+        className="fill-background/95 stroke-amber-500"
+        strokeWidth={1.5}
+        vectorEffect="non-scaling-stroke"
+      />
+      <text
+        x={x}
+        y={y}
+        textAnchor="middle"
+        dominantBaseline="central"
+        fontSize={12 * inv}
+        className="fill-foreground font-semibold"
+      >
+        {label}
+      </text>
+    </g>
+  );
+}
+
+function rulerMarkerPath(point: Point, halfSize: number): string {
+  return [
+    `M ${point.x - halfSize} ${point.y - halfSize}`,
+    `L ${point.x + halfSize} ${point.y + halfSize}`,
+    `M ${point.x + halfSize} ${point.y - halfSize}`,
+    `L ${point.x - halfSize} ${point.y + halfSize}`,
+  ].join(" ");
+}
+
+function formatRulerLength(lengthMm: number): string {
+  return Number.isFinite(lengthMm) ? String(Number(lengthMm.toPrecision(6))) : "—";
+}
+
+function PerspectiveOverlay({
+  points,
+  editable,
+  preview,
+  inv,
+}: {
+  points: readonly Point[];
+  editable: boolean;
+  preview: Point | null;
+  inv: number;
+}): JSX.Element | null {
+  if (points.length === 0) return null;
+
+  const pathPoints =
+    preview && points.length < 4 ? [...points, preview] : [...points];
+  const path = pathPoints
+    .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`)
+    .join(" ");
+  const closedPath = points.length === 4 ? `${path} Z` : path;
+  const previewing = preview !== null && points.length < 4;
+
+  return (
+    <g data-testid="perspective-overlay">
+      {pathPoints.length > 1 && (
+        <>
+          <path
+            d={closedPath}
+            fill={points.length === 4 ? "rgba(14, 165, 233, 0.08)" : "none"}
+            className="stroke-white/95"
+            strokeWidth={6}
+            strokeDasharray={previewing ? "6 4" : undefined}
+            vectorEffect="non-scaling-stroke"
+            pointerEvents="none"
+          />
+          <path
+            d={closedPath}
+            fill="none"
+            className="stroke-sky-500"
+            strokeWidth={2.5}
+            strokeDasharray={previewing ? "6 4" : undefined}
+            vectorEffect="non-scaling-stroke"
+            pointerEvents="none"
+            data-testid="perspective-outline"
+            data-perspective-preview={previewing || undefined}
+          />
+        </>
+      )}
+      {points.map((point, index) => (
+        <g
+          key={index}
+          data-testid="perspective-marker"
+          data-perspective-handle={editable ? index : undefined}
+        >
+          {editable && (
+            <circle
+              cx={point.x}
+              cy={point.y}
+              r={PERSPECTIVE_HIT_RADIUS * inv}
+              fill="transparent"
+            />
+          )}
+          <circle
+            cx={point.x}
+            cy={point.y}
+            r={PERSPECTIVE_MARKER_RADIUS * inv}
+            className="fill-sky-500 stroke-white"
+            strokeWidth={2}
+            vectorEffect="non-scaling-stroke"
+            pointerEvents="none"
+          />
+          <text
+            x={point.x}
+            y={point.y}
+            textAnchor="middle"
+            dominantBaseline="central"
+            fontSize={11 * inv}
+            className="fill-white font-bold"
+            pointerEvents="none"
+          >
+            {index + 1}
+          </text>
+        </g>
+      ))}
     </g>
   );
 }

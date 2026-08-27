@@ -87,9 +87,12 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
     selection,
     region,
     calibration,
+    calibrationSource,
     pendingAutoCalibration,
     draftCalibration,
     rulerLengthMm,
+    pendingPerspective,
+    manualPerspectivePoints,
     mode,
     processing,
     dispatch,
@@ -99,7 +102,15 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
     undo,
     redo,
   } = store;
-  const displayedCalibration = pendingAutoCalibration ?? calibration;
+  // Detected sheet geometry is useful while the user reviews it, but becomes
+  // visual noise once accepted and the region tool takes over. A manually
+  // placed ruler remains visible so its handles and label stay editable.
+  const displayedCalibration =
+    pendingAutoCalibration ?? (calibrationSource === "manual" ? calibration : null);
+  const perspectiveOverlayPoints =
+    manualPerspectivePoints.length > 0
+      ? manualPerspectivePoints
+      : (pendingPerspective?.points ?? []);
 
   const containerSize = useCanvasViewportSize();
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -119,6 +130,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
   // Mirrors the hook's space tracking so the cursor can promise a pan before
   // the drag starts.
   const [shiftHeld, setShiftHeld] = useState(false);
+  const [perspectivePointer, setPerspectivePointer] = useState<Point | null>(null);
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Shift") setShiftHeld(true);
@@ -136,6 +148,12 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
       window.removeEventListener("blur", onBlur);
     };
   }, []);
+
+  useEffect(() => {
+    if (mode !== "perspective" || manualPerspectivePoints.length >= 4) {
+      setPerspectivePointer(null);
+    }
+  }, [mode, manualPerspectivePoints.length]);
 
   useEffect(() => {
     viewport.attachWheel(svgRef.current);
@@ -173,6 +191,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
     | { kind: "region"; origin: Point }
     | { kind: "vertex"; ref: RingRef; index: number }
     | { kind: "ruler"; end: "start" | "end" }
+    | { kind: "perspective"; index: number }
     | null
   >(null);
 
@@ -241,15 +260,39 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
     const image = toImage(event.clientX, event.clientY);
     if (!image) return;
 
-    // Ruler handles stay draggable in every mode, matching the old behaviour.
-    if (displayedCalibration) {
+    if (manualPerspectivePoints.length > 0) {
       const target = event.target as Element;
-      const handle = target.getAttribute?.("data-ruler-handle");
+      const handle = target
+        .closest?.("[data-perspective-handle]")
+        ?.getAttribute("data-perspective-handle");
+      const index = handle === null ? Number.NaN : Number(handle);
+      if (Number.isInteger(index) && index >= 0 && index < 4) {
+        dragRef.current = { kind: "perspective", index };
+        event.currentTarget.setPointerCapture(event.pointerId);
+        return;
+      }
+    }
+
+    // Ruler handles stay draggable except while the page-corner tool owns the
+    // pointer; its markers may legitimately overlap the scale ruler.
+    if (displayedCalibration && mode !== "perspective") {
+      const target = event.target as Element;
+      const handle = target
+        .closest?.("[data-ruler-handle]")
+        ?.getAttribute("data-ruler-handle");
       if (handle === "start" || handle === "end") {
         dragRef.current = { kind: "ruler", end: handle };
         event.currentTarget.setPointerCapture(event.pointerId);
         return;
       }
+    }
+
+    if (mode === "perspective" && event.button === 0) {
+      dispatch({
+        type: "ADD_PERSPECTIVE_POINT",
+        point: clampPointToImage(image, imageSize),
+      });
+      return;
     }
 
     if (mode === "region" && event.button === 0) {
@@ -263,7 +306,10 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
     }
 
     if (mode === "calibrate" && event.button === 0) {
-      if (!draftCalibration?.startX) {
+      if (
+        draftCalibration?.startX === undefined ||
+        draftCalibration.startY === undefined
+      ) {
         dispatch({
           type: "SET_DRAFT_CALIBRATION",
           draftCalibration: { startX: image.x, startY: image.y },
@@ -273,7 +319,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
           type: "SET_CALIBRATION",
           calibration: {
             startX: draftCalibration.startX,
-            startY: draftCalibration.startY ?? image.y,
+            startY: draftCalibration.startY,
             endX: image.x,
             endY: image.y,
             lengthMm: rulerLengthMm,
@@ -354,6 +400,32 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
 
     const drag = dragRef.current;
     if (!drag) {
+      if (mode === "perspective" && manualPerspectivePoints.length < 4) {
+        const image = toImage(event.clientX, event.clientY);
+        setPerspectivePointer(
+          image ? clampPointToImage(image, imageSize) : null,
+        );
+        return;
+      }
+      if (
+        mode === "calibrate" &&
+        !viewport.isPanning &&
+        draftCalibration?.startX !== undefined &&
+        draftCalibration.startY !== undefined
+      ) {
+        const image = toImage(event.clientX, event.clientY);
+        if (image) {
+          dispatch({
+            type: "SET_DRAFT_CALIBRATION",
+            draftCalibration: {
+              ...draftCalibration,
+              endX: image.x,
+              endY: image.y,
+            },
+          });
+        }
+        return;
+      }
       updateHover(event);
       viewport.handlers.onPointerMove(event);
       return;
@@ -378,6 +450,13 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
             ? { ...displayedCalibration, startX: image.x, startY: image.y }
             : { ...displayedCalibration, endX: image.x, endY: image.y },
       });
+      return;
+    }
+
+    if (drag.kind === "perspective") {
+      const points = [...manualPerspectivePoints];
+      points[drag.index] = clampPointToImage(image, imageSize);
+      dispatch({ type: "SET_PERSPECTIVE_POINTS", points });
       return;
     }
 
@@ -483,7 +562,13 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
     if (viewport.isSpaceHeld || shiftHeld) return "grab";
     // Promise the grab before the drag, too.
     if (hoveredVertexIndex !== null) return "move";
-    if (mode === "region" || mode === "calibrate") return "crosshair";
+    if (
+      mode === "region" ||
+      mode === "calibrate" ||
+      mode === "perspective"
+    ) {
+      return "crosshair";
+    }
     return "default";
   }, [mode, viewport.isPanning, viewport.isSpaceHeld, shiftHeld, hoveredVertexIndex]);
 
@@ -503,11 +588,17 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
           region={region}
           regionActive={mode === "region"}
           calibration={
-            mode === "calibrate" || pendingAutoCalibration
-              ? displayedCalibration
-              : null
+            mode === "perspective"
+              ? null
+              : mode === "calibrate" && draftCalibration?.startX !== undefined
+              ? null
+              : displayedCalibration
           }
           draftCalibration={mode === "calibrate" ? draftCalibration : null}
+          rulerLengthMm={rulerLengthMm}
+          perspectivePoints={perspectiveOverlayPoints}
+          perspectiveEditable={manualPerspectivePoints.length > 0}
+          perspectivePreview={perspectivePointer}
           busy={processing}
           cursor={cursor}
           hoveredVertexIndex={hoveredVertexIndex}
@@ -515,7 +606,10 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
           onPointerMove={handlePointerMove}
           onPointerUp={endDrag}
           onPointerCancel={endDrag}
-          onPointerLeave={() => setHoveredVertexIndex(null)}
+          onPointerLeave={() => {
+            setHoveredVertexIndex(null);
+            setPerspectivePointer(null);
+          }}
           onContextMenu={handleContextMenu}
         />
       ) : (
@@ -692,6 +786,16 @@ function rectFromPoints(
   const right = Math.min(bounds.width, Math.max(a.x, b.x));
   const bottom = Math.min(bounds.height, Math.max(a.y, b.y));
   return { x, y, width: Math.max(0, right - x), height: Math.max(0, bottom - y) };
+}
+
+function clampPointToImage(
+  point: Point,
+  bounds: { width: number; height: number },
+): Point {
+  return {
+    x: Math.max(0, Math.min(Math.max(0, bounds.width - 1), point.x)),
+    y: Math.max(0, Math.min(Math.max(0, bounds.height - 1), point.y)),
+  };
 }
 
 interface ShortcutHandlers {
