@@ -7,6 +7,8 @@ import {
   Image as ImageIcon,
   Layers,
   Ruler,
+  RotateCcw,
+  ScanLine,
   ScanSearch,
   Sparkles,
   Settings2,
@@ -42,6 +44,11 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  validPerspectiveQuad,
+  type PerspectiveProposal,
+  type PerspectiveQuad,
+} from "@/lib/calibrate/perspective";
 import { calibrationTemplateSvg, type TemplatePaper } from "@/lib/calibrate/template";
 import { downloadBlob } from "@/lib/download";
 import { describeScale, exportScale } from "@/lib/export/scale";
@@ -59,6 +66,11 @@ export interface TraceControlsPanelProps {
   onReprocess: () => void;
   /** Re-run ArUco marker detection on the full frame, with feedback. */
   onDetectMarkers: () => void;
+  /** Rectify the selected paper plane and replace the working image. */
+  onApplyPerspective: (
+    proposal: PerspectiveProposal,
+    paper: TemplatePaper,
+  ) => void;
 }
 
 const TRACE_SETTINGS_SECTION_DETAILS = [
@@ -89,6 +101,7 @@ export function TraceControlsPanel({
   onExport,
   onReprocess,
   onDetectMarkers,
+  onApplyPerspective,
 }: TraceControlsPanelProps): JSX.Element {
   const store = useTrace();
   const {
@@ -102,6 +115,10 @@ export function TraceControlsPanel({
     pendingAutoCalibration,
     calibrationSource,
     rulerLengthMm,
+    pendingPerspective,
+    manualPerspectivePoints,
+    perspectiveCorrection,
+    perspectiveOriginalImageUrl,
     region,
     sensitivity,
     tolerancePx,
@@ -109,6 +126,7 @@ export function TraceControlsPanel({
     margin,
     exportFormat,
     extrusionHeight,
+    processing,
   } = store;
 
   const scale = exportScale(calibration, imageSize.height);
@@ -165,6 +183,11 @@ export function TraceControlsPanel({
     "scale" | "region" | "detection" | null
   >(null);
   const [calibrationSheetOpen, setCalibrationSheetOpen] = useState(false);
+  // Marker spacing is identical on A4 and Letter, so detection cannot infer
+  // the page size. Never silently assume one: downloading or explicitly
+  // selecting a template supplies the missing information.
+  const [perspectivePaper, setPerspectivePaper] =
+    useState<TemplatePaper | null>(null);
   const previousSourceRevision = useRef(sourceRevision);
   const previousScaleComplete = useRef(calibration !== null);
   const previousAutoPending = useRef(pendingAutoCalibration !== null);
@@ -255,6 +278,15 @@ export function TraceControlsPanel({
 
   const shapeLibrary = useShapeLibrary();
   const [, navigate] = useLocation();
+
+  const manualPerspectiveProposal: PerspectiveProposal | null =
+    manualPerspectivePoints.length === 4 &&
+    validPerspectiveQuad(manualPerspectivePoints)
+      ? {
+          source: "manual",
+          points: manualPerspectivePoints as PerspectiveQuad,
+        }
+      : null;
 
   const handleAddToBin = () => {
     const shape = normalizeTracedShape(outline, scale, fileName || "Traced tool");
@@ -351,14 +383,61 @@ export function TraceControlsPanel({
                 Pocketry found {displayedScale.mmPerPx?.toFixed(3)} mm/px. Review
                 the ruler on the image, then accept it to continue.
               </p>
-              <Button
-                size="sm"
-                className="w-full"
-                onClick={() => dispatch({ type: "ACCEPT_AUTO_CALIBRATION" })}
-                data-testid="button-accept-auto-scale"
-              >
-                Accept detected scale
-              </Button>
+              {pendingPerspective ? (
+                <>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="auto-perspective-paper" className="text-xs">
+                      Printed paper size
+                    </Label>
+                    <Select
+                      value={perspectivePaper ?? undefined}
+                      onValueChange={(value) =>
+                        setPerspectivePaper(value as TemplatePaper)
+                      }
+                    >
+                      <SelectTrigger id="auto-perspective-paper" className="w-full">
+                        <SelectValue placeholder="Choose A4 or US Letter" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="a4">A4</SelectItem>
+                        <SelectItem value="letter">US Letter</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button
+                    size="sm"
+                    className="w-full"
+                    disabled={processing || perspectivePaper === null}
+                    onClick={() => {
+                      if (perspectivePaper) {
+                        onApplyPerspective(pendingPerspective, perspectivePaper);
+                      }
+                    }}
+                    data-testid="button-apply-auto-perspective"
+                  >
+                    <ScanLine className="mr-1.5 h-4 w-4" />
+                    Correct perspective &amp; use scale
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => dispatch({ type: "ACCEPT_AUTO_CALIBRATION" })}
+                    data-testid="button-accept-auto-scale"
+                  >
+                    Use scale without correction
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  size="sm"
+                  className="w-full"
+                  onClick={() => dispatch({ type: "ACCEPT_AUTO_CALIBRATION" })}
+                  data-testid="button-accept-auto-scale"
+                >
+                  Accept detected scale
+                </Button>
+              )}
             </div>
           )}
 
@@ -427,6 +506,115 @@ export function TraceControlsPanel({
             </Button>
           )}
 
+          <div className="space-y-2 rounded-md border p-3">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <ScanLine className="h-4 w-4 text-amber-600" />
+              Perspective correction
+            </div>
+            {perspectiveCorrection ? (
+              <>
+                <p className="text-xs text-muted-foreground">
+                  Corrected from{" "}
+                  {perspectiveCorrection.source === "template"
+                    ? "four template markers"
+                    : "four manually selected page corners"}{" "}
+                  using{" "}
+                  {perspectiveCorrection.paper === "a4" ? "A4" : "US Letter"}{" "}
+                  dimensions.
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  disabled={!perspectiveOriginalImageUrl}
+                  onClick={() => dispatch({ type: "RESTORE_PERSPECTIVE_SOURCE" })}
+                  data-testid="button-restore-perspective-source"
+                >
+                  <RotateCcw className="mr-1.5 h-4 w-4" />
+                  Restore original photo
+                </Button>
+              </>
+            ) : (
+              <>
+                <p className="text-xs text-muted-foreground">
+                  If markers are unavailable, select the four visible paper
+                  corners: top-left, top-right, bottom-right, then bottom-left.
+                </p>
+                {!pendingPerspective && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="manual-perspective-paper" className="text-xs">
+                      Paper size
+                    </Label>
+                    <Select
+                      value={perspectivePaper ?? undefined}
+                      onValueChange={(value) =>
+                        setPerspectivePaper(value as TemplatePaper)
+                      }
+                    >
+                      <SelectTrigger
+                        id="manual-perspective-paper"
+                        className="w-full"
+                      >
+                        <SelectValue placeholder="Choose A4 or US Letter" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="a4">A4</SelectItem>
+                        <SelectItem value="letter">US Letter</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                <Button
+                  variant={store.mode === "perspective" ? "default" : "outline"}
+                  size="sm"
+                  className="w-full"
+                  onClick={() =>
+                    dispatch({
+                      type:
+                        store.mode === "perspective"
+                          ? "CANCEL_PERSPECTIVE_SELECTION"
+                          : "START_PERSPECTIVE_SELECTION",
+                    })
+                  }
+                  data-testid="button-select-perspective-points"
+                >
+                  {store.mode === "perspective"
+                    ? `Cancel · corner ${manualPerspectivePoints.length + 1} of 4`
+                    : manualPerspectivePoints.length === 4
+                      ? "Reselect page corners"
+                      : "Select four page corners"}
+                </Button>
+                {manualPerspectivePoints.length > 0 && (
+                  <p className="text-[11px] text-muted-foreground" role="status">
+                    {manualPerspectivePoints.length < 4
+                      ? `${manualPerspectivePoints.length} of 4 corners selected.`
+                      : manualPerspectiveProposal
+                        ? "Four corners selected. Drag a numbered marker to refine it, or apply the correction."
+                        : "The selected points cross or collapse. Reselect the corners in clockwise order."}
+                  </p>
+                )}
+                {manualPerspectiveProposal && (
+                  <Button
+                    size="sm"
+                    className="w-full"
+                    disabled={processing || perspectivePaper === null}
+                    onClick={() => {
+                      if (perspectivePaper) {
+                        onApplyPerspective(
+                          manualPerspectiveProposal,
+                          perspectivePaper,
+                        );
+                      }
+                    }}
+                    data-testid="button-apply-manual-perspective"
+                  >
+                    Apply perspective correction
+                  </Button>
+                )}
+              </>
+            )}
+          </div>
+
           <Dialog open={calibrationSheetOpen} onOpenChange={setCalibrationSheetOpen}>
             <Button
               variant="link"
@@ -442,7 +630,8 @@ export function TraceControlsPanel({
                 <DialogTitle>Calibration sheet</DialogTitle>
                 <DialogDescription>
                   Print the sheet once at 100%, then include it beneath tools for
-                  automatic scale detection.
+                  automatic scale detection. The downloaded size is also selected
+                  for perspective correction.
                 </DialogDescription>
               </DialogHeader>
               <Button
@@ -459,15 +648,23 @@ export function TraceControlsPanel({
               </Button>
               <div className="grid grid-cols-2 gap-2">
                 <Button
-                  variant="outline"
-                  onClick={() => downloadCalibrationTemplate("a4")}
+                  variant={perspectivePaper === "a4" ? "default" : "outline"}
+                  aria-pressed={perspectivePaper === "a4"}
+                  onClick={() => {
+                    setPerspectivePaper("a4");
+                    downloadCalibrationTemplate("a4");
+                  }}
                   data-testid="button-template-a4"
                 >
                   A4
                 </Button>
                 <Button
-                  variant="outline"
-                  onClick={() => downloadCalibrationTemplate("letter")}
+                  variant={perspectivePaper === "letter" ? "default" : "outline"}
+                  aria-pressed={perspectivePaper === "letter"}
+                  onClick={() => {
+                    setPerspectivePaper("letter");
+                    downloadCalibrationTemplate("letter");
+                  }}
                   data-testid="button-template-letter"
                 >
                   US Letter

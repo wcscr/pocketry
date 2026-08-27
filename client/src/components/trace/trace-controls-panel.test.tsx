@@ -11,6 +11,8 @@ import { TraceProvider, useTrace } from "@/state/trace-store";
 
 import { TraceControlsPanel } from "./trace-controls-panel";
 
+vi.mock("@/lib/download", () => ({ downloadBlob: vi.fn() }));
+
 const CALIBRATION: Calibration = {
   startX: 0,
   startY: 0,
@@ -18,6 +20,8 @@ const CALIBRATION: Calibration = {
   endY: 0,
   lengthMm: 50,
 };
+
+const applyPerspective = vi.fn();
 
 class NoopResizeObserver implements ResizeObserver {
   observe() {}
@@ -54,6 +58,41 @@ function Harness(): JSX.Element {
         Detect auto scale
       </button>
       <button
+        data-testid="detect-auto-perspective"
+        onClick={() =>
+          dispatch({
+            type: "AUTO_CALIBRATION_DETECTED",
+            calibration: CALIBRATION,
+            perspective: {
+              source: "template",
+              points: [
+                { x: 10, y: 10 },
+                { x: 110, y: 12 },
+                { x: 108, y: 140 },
+                { x: 12, y: 138 },
+              ],
+            },
+          })
+        }
+      >
+        Detect auto perspective
+      </button>
+      <button
+        data-testid="complete-perspective-points"
+        onClick={() => {
+          for (const point of [
+            { x: 10, y: 10 },
+            { x: 790, y: 12 },
+            { x: 788, y: 590 },
+            { x: 12, y: 588 },
+          ]) {
+            dispatch({ type: "ADD_PERSPECTIVE_POINT", point });
+          }
+        }}
+      >
+        Complete perspective points
+      </button>
+      <button
         data-testid="complete-manual-scale"
         onClick={() => dispatch({ type: "SET_CALIBRATION", calibration: CALIBRATION })}
       >
@@ -76,6 +115,7 @@ function Harness(): JSX.Element {
         onExport={() => {}}
         onReprocess={() => {}}
         onDetectMarkers={() => {}}
+        onApplyPerspective={applyPerspective}
       />
     </>
   );
@@ -85,6 +125,7 @@ let host: HTMLDivElement;
 let root: Root;
 
 beforeEach(() => {
+  applyPerspective.mockReset();
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.stubGlobal("ResizeObserver", NoopResizeObserver);
   vi.spyOn(window, "requestAnimationFrame").mockImplementation(
@@ -94,7 +135,6 @@ beforeEach(() => {
   vi.spyOn(window, "cancelAnimationFrame").mockImplementation(
     (handle: number) => window.clearTimeout(handle),
   );
-
   host = document.createElement("div");
   document.body.appendChild(host);
   root = createRoot(host);
@@ -227,6 +267,43 @@ describe("TraceControlsPanel guided workflow", () => {
     expect(document.activeElement).toBe(regionTrigger);
     expect(regionTrigger?.className).toContain(
       "animate-[pulse_1s_ease-in-out_3]",
+    );
+  });
+
+  it("offers automatic and manual perspective correction paths", async () => {
+    await click("load-source");
+    await click("detect-auto-perspective");
+
+    const automaticCorrection = host.querySelector<HTMLButtonElement>(
+      '[data-testid="button-apply-auto-perspective"]',
+    );
+    expect(automaticCorrection).not.toBeNull();
+    expect(automaticCorrection?.disabled).toBe(true);
+    expect(section("scale")?.textContent).toContain("Choose A4 or US Letter");
+
+    await click("button-calibration-sheet-options");
+    await React.act(async () => {
+      document.body
+        .querySelector<HTMLButtonElement>('[data-testid="button-template-letter"]')!
+        .click();
+      await new Promise((resolve) => window.setTimeout(resolve, 10));
+    });
+
+    expect(automaticCorrection?.disabled).toBe(false);
+    await click("button-apply-auto-perspective");
+    expect(applyPerspective).toHaveBeenLastCalledWith(
+      expect.objectContaining({ source: "template" }),
+      "letter",
+    );
+
+    await click("button-select-perspective-points");
+    expect(host.textContent).toContain("corner 1 of 4");
+    await click("complete-perspective-points");
+    expect(host.textContent).toContain("Four corners selected");
+    await click("button-apply-manual-perspective");
+    expect(applyPerspective).toHaveBeenLastCalledWith(
+      expect.objectContaining({ source: "manual" }),
+      "letter",
     );
   });
 
