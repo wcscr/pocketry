@@ -3,6 +3,7 @@ import {
   TEMPLATE_MARKER_SIZE_MM,
   TEMPLATE_PAPER_MM,
   TEMPLATE_PRINT_SAFE_MARGIN_MM,
+  templateHeaderBaselinesMm,
   templateMarkerCentersMm,
   type TemplatePaper,
 } from "./template";
@@ -49,6 +50,7 @@ export function calibrationTemplatePdf(paper: TemplatePaper): Uint8Array {
   const pageWidth = page.width * PDF_POINTS_PER_MM;
   const pageHeight = page.height * PDF_POINTS_PER_MM;
   const centers = templateMarkerCentersMm(paper);
+  const header = templateHeaderBaselinesMm(paper);
   const markerSize = TEMPLATE_MARKER_SIZE_MM * PDF_POINTS_PER_MM;
   const moduleSize = markerSize / ARUCO_4X4_MODULES;
   const commands: string[] = ["1 g", `0 0 ${number(pageWidth)} ${number(pageHeight)} re f`];
@@ -116,14 +118,14 @@ export function calibrationTemplatePdf(paper: TemplatePaper): Uint8Array {
   drawCenteredText(
     `Pocketry ${paper === "a4" ? "A4" : "US Letter"} calibration sheet - print at 100% scale (no fit to page)`,
     centerX,
-    centers[0].y - TEMPLATE_MARKER_SIZE_MM / 2 - 8,
+    header.title,
     5,
     0,
   );
   drawCenteredText(
     "Place the tool between the markers, keep all four visible, shoot from directly above.",
     centerX,
-    centers[0].y - TEMPLATE_MARKER_SIZE_MM / 2 - 2,
+    header.instructions,
     3.5,
     0.2,
   );

@@ -37,6 +37,21 @@ export const TEMPLATE_MARKER_SIZE_MM = 30;
 /** Minimum clearance between printed calibration content and the paper edge. */
 export const TEMPLATE_PRINT_SAFE_MARGIN_MM = 8;
 
+/** Header baselines; A4 uses its extra height to leave more marker clearance. */
+export function templateHeaderBaselinesMm(
+  paper: TemplatePaper,
+): { title: number; instructions: number } {
+  if (paper === "a4") {
+    return {
+      title: TEMPLATE_PRINT_SAFE_MARGIN_MM + 7,
+      instructions: TEMPLATE_PRINT_SAFE_MARGIN_MM + 14,
+    };
+  }
+  const markerTop =
+    templateMarkerCentersMm(paper)[0].y - TEMPLATE_MARKER_SIZE_MM / 2;
+  return { title: markerTop - 8, instructions: markerTop - 2 };
+}
+
 /** Corner assignment, clockwise from top-left, unique to each paper size. */
 export const TEMPLATE_MARKER_IDS: Record<
   TemplatePaper,
@@ -132,6 +147,7 @@ function markerSvg(id: number, centerX: number, centerY: number): string {
 export function calibrationTemplateSvg(paper: TemplatePaper): string {
   const page = TEMPLATE_PAPER_MM[paper];
   const centers = templateMarkerCentersMm(paper);
+  const header = templateHeaderBaselinesMm(paper);
   const cx = page.width / 2;
 
   const markers = centers.map(({ id, x, y }) => markerSvg(id, x, y)).join("\n  ");
@@ -146,8 +162,8 @@ export function calibrationTemplateSvg(paper: TemplatePaper): string {
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${page.width}mm" height="${page.height}mm" viewBox="0 0 ${page.width} ${page.height}">
   <rect width="${page.width}" height="${page.height}" fill="#fff"/>
-  <text x="${cx}" y="${centers[0].y - TEMPLATE_MARKER_SIZE_MM / 2 - 8}" text-anchor="middle" font-size="5" font-family="sans-serif" fill="#000">Pocketry calibration sheet — print at 100% scale (no “fit to page”)</text>
-  <text x="${cx}" y="${centers[0].y - TEMPLATE_MARKER_SIZE_MM / 2 - 2}" text-anchor="middle" font-size="3.5" font-family="sans-serif" fill="#333">Place the tool between the markers, keep all four visible, shoot from directly above.</text>
+  <text x="${cx}" y="${header.title}" text-anchor="middle" font-size="5" font-family="sans-serif" fill="#000">Pocketry calibration sheet — print at 100% scale (no “fit to page”)</text>
+  <text x="${cx}" y="${header.instructions}" text-anchor="middle" font-size="3.5" font-family="sans-serif" fill="#333">Place the tool between the markers, keep all four visible, shoot from directly above.</text>
   ${markers}
   <g>
     <line x1="${rulerX}" y1="${rulerY}" x2="${rulerX + 100}" y2="${rulerY}" stroke="#000" stroke-width="0.5"/>
