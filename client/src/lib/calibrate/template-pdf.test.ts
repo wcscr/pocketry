@@ -92,6 +92,24 @@ describe("printable calibration PDF", () => {
     }
   });
 
+  it("uses A4's extra height to separate the header from the markers", () => {
+    const a4 = pdfText("a4");
+    const letter = pdfText("letter");
+    const instructionBaseline = (pdf: string) =>
+      Number(
+        pdf.match(
+          /BT \/F1 [\d.]+ Tf [\d.]+ ([\d.]+) Td \(Place the tool/,
+        )![1],
+      ) /
+      (72 / 25.4);
+
+    expect(instructionBaseline(a4)).toBeCloseTo(297 - 22, 4);
+    expect(instructionBaseline(letter)).toBeCloseTo(279.4 - 22.7, 4);
+
+    const a4InstructionFromTop = 297 - instructionBaseline(a4);
+    expect(33.5 - a4InstructionFromTop).toBeCloseTo(11.5, 4);
+  });
+
   it("emits a complete single-page PDF with a cross-reference table", () => {
     for (const paper of ["a4", "letter"] as const) {
       const pdf = pdfText(paper);
