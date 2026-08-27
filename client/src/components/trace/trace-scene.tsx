@@ -32,6 +32,12 @@ export interface TraceSceneProps {
   draftCalibration: DraftCalibration | null;
   /** Known physical length shown beside both preview and completed rulers. */
   rulerLengthMm: number;
+  /** Template centres or manually selected page corners awaiting correction. */
+  perspectivePoints?: readonly Point[];
+  /** Manual points remain draggable after all four have been placed. */
+  perspectiveEditable?: boolean;
+  /** Pointer-following endpoint while manual corner placement is active. */
+  perspectivePreview?: Point | null;
   /** Dims the outline while a new one is being computed. */
   busy?: boolean;
   /**
@@ -59,6 +65,8 @@ const RULER_HIT_RADIUS = 12;
 const RULER_MARKER_HALF_SIZE = 7;
 const RULER_LABEL_OFFSET = 18;
 const RULER_LABEL_HEIGHT = 22;
+const PERSPECTIVE_MARKER_RADIUS = 10;
+const PERSPECTIVE_HIT_RADIUS = 15;
 
 /**
  * The canvas scene: one `<svg>` filling the viewport, with the image and every
@@ -93,6 +101,9 @@ export function TraceScene({
   calibration,
   draftCalibration,
   rulerLengthMm,
+  perspectivePoints = [],
+  perspectiveEditable = false,
+  perspectivePreview = null,
   busy = false,
   hoveredVertexIndex = null,
   onPointerDown,
@@ -230,6 +241,12 @@ export function TraceScene({
           calibration={calibration}
           draft={draftCalibration}
           rulerLengthMm={rulerLengthMm}
+          inv={inv}
+        />
+        <PerspectiveOverlay
+          points={perspectivePoints}
+          editable={perspectiveEditable}
+          preview={perspectivePreview}
           inv={inv}
         />
       </g>
@@ -434,6 +451,93 @@ function rulerMarkerPath(point: Point, halfSize: number): string {
 
 function formatRulerLength(lengthMm: number): string {
   return Number.isFinite(lengthMm) ? String(Number(lengthMm.toPrecision(6))) : "—";
+}
+
+function PerspectiveOverlay({
+  points,
+  editable,
+  preview,
+  inv,
+}: {
+  points: readonly Point[];
+  editable: boolean;
+  preview: Point | null;
+  inv: number;
+}): JSX.Element | null {
+  if (points.length === 0) return null;
+
+  const pathPoints =
+    preview && points.length < 4 ? [...points, preview] : [...points];
+  const path = pathPoints
+    .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`)
+    .join(" ");
+  const closedPath = points.length === 4 ? `${path} Z` : path;
+  const previewing = preview !== null && points.length < 4;
+
+  return (
+    <g data-testid="perspective-overlay">
+      {pathPoints.length > 1 && (
+        <>
+          <path
+            d={closedPath}
+            fill={points.length === 4 ? "rgba(14, 165, 233, 0.08)" : "none"}
+            className="stroke-white/95"
+            strokeWidth={6}
+            strokeDasharray={previewing ? "6 4" : undefined}
+            vectorEffect="non-scaling-stroke"
+            pointerEvents="none"
+          />
+          <path
+            d={closedPath}
+            fill="none"
+            className="stroke-sky-500"
+            strokeWidth={2.5}
+            strokeDasharray={previewing ? "6 4" : undefined}
+            vectorEffect="non-scaling-stroke"
+            pointerEvents="none"
+            data-testid="perspective-outline"
+            data-perspective-preview={previewing || undefined}
+          />
+        </>
+      )}
+      {points.map((point, index) => (
+        <g
+          key={index}
+          data-testid="perspective-marker"
+          data-perspective-handle={editable ? index : undefined}
+        >
+          {editable && (
+            <circle
+              cx={point.x}
+              cy={point.y}
+              r={PERSPECTIVE_HIT_RADIUS * inv}
+              fill="transparent"
+            />
+          )}
+          <circle
+            cx={point.x}
+            cy={point.y}
+            r={PERSPECTIVE_MARKER_RADIUS * inv}
+            className="fill-sky-500 stroke-white"
+            strokeWidth={2}
+            vectorEffect="non-scaling-stroke"
+            pointerEvents="none"
+          />
+          <text
+            x={point.x}
+            y={point.y}
+            textAnchor="middle"
+            dominantBaseline="central"
+            fontSize={11 * inv}
+            className="fill-white font-bold"
+            pointerEvents="none"
+          >
+            {index + 1}
+          </text>
+        </g>
+      ))}
+    </g>
+  );
 }
 
 function ringToPath(ring: readonly Point[]): string {

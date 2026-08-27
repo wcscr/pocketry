@@ -134,6 +134,14 @@ describe("App", () => {
     expect(container.textContent).toContain("Gridfinity Extended");
     expect(container.textContent).toContain("Gridfinity Layout Tool");
     expect(container.textContent).toContain("Outline App");
+    expect(container.textContent).toContain("Tracefinity");
+    expect(container.textContent).toContain("ToolTrace.ai");
+    expect(container.textContent).toContain("Systemax DIY");
+    expect(container.textContent).toContain("Gridfinity Rebase");
+    expect(container.textContent).toContain("GridFlock");
+    expect(container.textContent).toContain(
+      "complement Pocketry or provide alternatives",
+    );
     expect(
       container.querySelector<HTMLAnchorElement>('a[href="/LICENSE.txt"]'),
     ).not.toBeNull();

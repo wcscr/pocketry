@@ -89,6 +89,47 @@ function SeedScaleDraft(): null {
   return null;
 }
 
+function SeedPerspectiveSelection(): null {
+  const { dispatch } = useTrace();
+  React.useEffect(() => {
+    dispatch({
+      type: "SOURCE_LOADED",
+      imageUrl: "data:image/png;base64,AA==",
+      fileName: "tool.png",
+    });
+    dispatch({ type: "SOURCE_READY", imageSize: { width: 100, height: 100 } });
+    dispatch({ type: "START_PERSPECTIVE_SELECTION" });
+  }, [dispatch]);
+  return null;
+}
+
+function SeedAutoScale(): JSX.Element {
+  const { dispatch } = useTrace();
+  React.useEffect(() => {
+    dispatch({
+      type: "SOURCE_LOADED",
+      imageUrl: "data:image/png;base64,AA==",
+      fileName: "tool.png",
+    });
+    dispatch({ type: "SOURCE_READY", imageSize: { width: 100, height: 100 } });
+    dispatch({
+      type: "AUTO_CALIBRATION_DETECTED",
+      calibration: {
+        startX: 10,
+        startY: 10,
+        endX: 90,
+        endY: 90,
+        lengthMm: 250,
+      },
+    });
+  }, [dispatch]);
+  return (
+    <button type="button" onClick={() => dispatch({ type: "ACCEPT_AUTO_CALIBRATION" })}>
+      Accept auto scale
+    </button>
+  );
+}
+
 function installIdentitySvgCoordinates(): () => void {
   const ctmDescriptor = Object.getOwnPropertyDescriptor(
     SVGElement.prototype,
@@ -190,6 +231,38 @@ describe("TraceCanvas edit history", () => {
     React.act(() => root.unmount());
   });
 
+  it("hides an accepted sheet ruler before region selection", async () => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const root = createRoot(host);
+
+    await React.act(async () => {
+      root.render(
+        <TraceProvider>
+          <SeedAutoScale />
+          <TooltipProvider>
+            <TraceCanvas onReprocess={() => {}} />
+          </TooltipProvider>
+        </TraceProvider>,
+      );
+      await Promise.resolve();
+    });
+
+    expect(host.querySelector('[data-testid="ruler-line"]')).not.toBeNull();
+    React.act(() =>
+      host
+        .querySelector<HTMLButtonElement>("button")!
+        .dispatchEvent(new MouseEvent("click", { bubbles: true })),
+    );
+
+    expect(host.querySelector('[data-testid="ruler-line"]')).toBeNull();
+    expect(host.querySelectorAll('[data-testid="ruler-marker"]')).toHaveLength(0);
+
+    React.act(() => root.unmount());
+  });
+
   it("extends the draft ruler to follow the pointer after its first marker", async () => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     vi.stubGlobal("ResizeObserver", NoopResizeObserver);
@@ -233,6 +306,61 @@ describe("TraceCanvas edit history", () => {
       expect(host.querySelector('[data-testid="ruler-length-label"]')?.textContent).toBe(
         "100 mm",
       );
+    } finally {
+      React.act(() => root.unmount());
+      restoreSvgCoordinates();
+    }
+  });
+
+  it("places four manual perspective corners and closes the correction quad", async () => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+    const restoreSvgCoordinates = installIdentitySvgCoordinates();
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const root = createRoot(host);
+
+    try {
+      await React.act(async () => {
+        root.render(
+          <TraceProvider>
+            <SeedPerspectiveSelection />
+            <TooltipProvider>
+              <TraceCanvas onReprocess={() => {}} />
+            </TooltipProvider>
+          </TraceProvider>,
+        );
+        await Promise.resolve();
+      });
+
+      const canvas = host.querySelector("svg");
+      expect(canvas).not.toBeNull();
+      const points = [
+        [10, 10],
+        [90, 12],
+        [88, 90],
+        [12, 88],
+      ];
+      for (const [clientX, clientY] of points) {
+        await React.act(async () => {
+          canvas?.dispatchEvent(
+            new MouseEvent("pointerdown", {
+              bubbles: true,
+              button: 0,
+              clientX,
+              clientY,
+            }),
+          );
+        });
+      }
+
+      expect(host.querySelectorAll('[data-testid="perspective-marker"]')).toHaveLength(
+        4,
+      );
+      expect(host.querySelectorAll("[data-perspective-handle]")).toHaveLength(4);
+      expect(
+        host.querySelector('[data-testid="perspective-outline"]')?.getAttribute("d"),
+      ).toContain("Z");
     } finally {
       React.act(() => root.unmount());
       restoreSvgCoordinates();

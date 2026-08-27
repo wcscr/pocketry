@@ -3,6 +3,10 @@ import type { Calibration } from "@shared/geometry/scale";
 import { loadOpenCV } from "@/lib/opencv";
 
 import { detectCalibrationSheet, hasArucoSupport } from "./detect";
+import {
+  proposalFromTemplateMarkers,
+  type PerspectiveProposal,
+} from "./perspective";
 import { solveScaleFromMarkers, type ScaleSolution } from "./solve";
 
 /**
@@ -15,7 +19,13 @@ import { solveScaleFromMarkers, type ScaleSolution } from "./solve";
  * printable template.
  */
 export type AutoCalibrationResult =
-  | { kind: "calibrated"; calibration: Calibration; solution: ScaleSolution }
+  | {
+      kind: "calibrated";
+      calibration: Calibration;
+      solution: ScaleSolution;
+      /** Present only when all four unique template markers can define a homography. */
+      perspectiveProposal: PerspectiveProposal | null;
+    }
   | { kind: "foreign-sheet"; family: string }
   | { kind: "no-markers" }
   | { kind: "unsupported" };
@@ -45,6 +55,7 @@ export function runAutoCalibration(cv: any, image: ImageData): AutoCalibrationRe
       lengthMm: solution.ruler.lengthMm,
     },
     solution,
+    perspectiveProposal: proposalFromTemplateMarkers(detection.markers),
   };
 }
 

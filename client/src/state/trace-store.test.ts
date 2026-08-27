@@ -421,6 +421,78 @@ describe("modes and calibration", () => {
     expect(state.calibration).toBeNull();
   });
 
+  it("collects four manual perspective corners and keeps them editable", () => {
+    const points = [
+      { x: 10, y: 10 },
+      { x: 90, y: 12 },
+      { x: 88, y: 90 },
+      { x: 12, y: 88 },
+    ];
+    const selected = run(
+      initialTraceState,
+      { type: "START_PERSPECTIVE_SELECTION" },
+      ...points.map((point) => ({
+        type: "ADD_PERSPECTIVE_POINT" as const,
+        point,
+      })),
+    );
+
+    expect(selected.manualPerspectivePoints).toEqual(points);
+    expect(selected.mode).toBe("pan");
+
+    const adjusted = traceReducer(selected, {
+      type: "SET_PERSPECTIVE_POINTS",
+      points: [{ x: 8, y: 8 }, ...points.slice(1)],
+    });
+    expect(adjusted.manualPerspectivePoints[0]).toEqual({ x: 8, y: 8 });
+  });
+
+  it("applies a reversible metric perspective correction", () => {
+    const loaded = run(
+      initialTraceState,
+      {
+        type: "SOURCE_LOADED",
+        imageUrl: "data:image/png;base64,original",
+        fileName: "tool",
+      },
+      { type: "SOURCE_READY", imageSize: { width: 800, height: 600 } },
+    );
+    const calibration = {
+      startX: 0,
+      startY: 0,
+      endX: 420,
+      endY: 594,
+      lengthMm: Math.hypot(210, 297),
+    };
+    const corrected = traceReducer(loaded, {
+      type: "PERSPECTIVE_APPLIED",
+      imageUrl: "data:image/png;base64,corrected",
+      imageSize: { width: 421, height: 595 },
+      calibration,
+      source: "manual",
+      paper: "a4",
+    });
+
+    expect(corrected.imageUrl).toContain("corrected");
+    expect(corrected.perspectiveOriginalImageUrl).toContain("original");
+    expect(corrected.perspectiveCorrection).toEqual({
+      source: "manual",
+      paper: "a4",
+    });
+    expect(corrected.calibration).toBe(calibration);
+    expect(corrected.calibrationSource).toBe("sheet");
+    expect(corrected.mode).toBe("region");
+
+    const restored = traceReducer(corrected, {
+      type: "RESTORE_PERSPECTIVE_SOURCE",
+    });
+    expect(restored.imageUrl).toContain("original");
+    expect(restored.perspectiveOriginalImageUrl).toBeNull();
+    expect(restored.perspectiveCorrection).toBeNull();
+    expect(restored.calibration).toBeNull();
+    expect(restored.autoCalibrationAttemptedImageUrl).toBe(restored.imageUrl);
+  });
+
   it("preserves a chosen margin when the scale is replaced", () => {
     const calibration = {
       startX: 0,

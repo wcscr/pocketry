@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import type { Calibration, DraftCalibration } from "@shared/geometry/scale";
+import type { Point } from "@shared/geometry/types";
 
 import { TraceScene } from "./trace-scene";
 
@@ -18,10 +19,16 @@ function renderRuler({
   completed = null,
   draft = null,
   rulerLengthMm = 100,
+  perspectivePoints = [],
+  perspectiveEditable = false,
+  perspectivePreview = null,
 }: {
   completed?: Calibration | null;
   draft?: DraftCalibration | null;
   rulerLengthMm?: number;
+  perspectivePoints?: readonly Point[];
+  perspectiveEditable?: boolean;
+  perspectivePreview?: Point | null;
 }): string {
   return renderToStaticMarkup(
     <TraceScene
@@ -34,6 +41,9 @@ function renderRuler({
       calibration={completed}
       draftCalibration={draft}
       rulerLengthMm={rulerLengthMm}
+      perspectivePoints={perspectivePoints}
+      perspectiveEditable={perspectiveEditable}
+      perspectivePreview={perspectivePreview}
     />,
   );
 }
@@ -73,5 +83,36 @@ describe("TraceScene ruler overlay", () => {
     expect(count(markup, 'data-testid="ruler-marker"')).toBe(1);
     expect(markup).not.toContain('data-testid="ruler-line"');
     expect(markup).not.toContain('data-testid="ruler-length-label"');
+  });
+
+  it("renders four numbered, editable perspective corners as a closed quad", () => {
+    const markup = renderRuler({
+      perspectivePoints: [
+        { x: 10, y: 10 },
+        { x: 190, y: 12 },
+        { x: 188, y: 90 },
+        { x: 12, y: 88 },
+      ],
+      perspectiveEditable: true,
+    });
+
+    expect(count(markup, 'data-testid="perspective-marker"')).toBe(4);
+    expect(count(markup, "data-perspective-handle=")).toBe(4);
+    expect(markup).toContain('data-testid="perspective-outline"');
+    expect(markup).toContain("L 12 88 Z");
+  });
+
+  it("previews the next manual perspective edge at the pointer", () => {
+    const markup = renderRuler({
+      perspectivePoints: [
+        { x: 10, y: 10 },
+        { x: 190, y: 12 },
+      ],
+      perspectiveEditable: true,
+      perspectivePreview: { x: 180, y: 90 },
+    });
+
+    expect(markup).toContain('data-perspective-preview="true"');
+    expect(markup).toContain("L 180 90");
   });
 });

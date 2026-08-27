@@ -139,6 +139,8 @@ describe("runAutoCalibration", () => {
     const derived = mmPerPixel(result.calibration)!;
     expect(Math.abs(derived - 1 / PX_PER_MM) / (1 / PX_PER_MM)).toBeLessThan(0.005);
     expect(result.solution.maxDeviation).toBeLessThan(0.01);
+    expect(result.perspectiveProposal?.source).toBe("template");
+    expect(result.perspectiveProposal?.points).toHaveLength(4);
   });
 
   it("classifies a 6x6 sheet as foreign", () => {

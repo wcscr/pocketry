@@ -9,8 +9,13 @@ import {
 } from "react";
 
 import type { Calibration, DraftCalibration } from "@shared/geometry/scale";
-import type { Outline, Rect, RingRef } from "@shared/geometry/types";
+import type { Outline, Point, Rect, RingRef } from "@shared/geometry/types";
 
+import type {
+  PerspectiveProposal,
+  PerspectiveSource,
+} from "@/lib/calibrate/perspective";
+import type { TemplatePaper } from "@/lib/calibrate/template";
 import { DEFAULT_MARGIN_MM, type Margin } from "@/lib/image-processor";
 
 /**
@@ -30,7 +35,7 @@ import { DEFAULT_MARGIN_MM, type Margin } from "@/lib/image-processor";
  */
 
 /** Exactly one interaction mode is active at a time. */
-export type TraceMode = "pan" | "region" | "edit" | "calibrate";
+export type TraceMode = "pan" | "region" | "edit" | "calibrate" | "perspective";
 
 export type ExportFormat = "svg" | "dxf" | "dwg" | "stl";
 export type CalibrationSource = "manual" | "sheet";
@@ -81,6 +86,18 @@ export interface TraceState {
   draftCalibration: DraftCalibration | null;
   rulerLengthMm: number;
 
+  /** Four detected marker centres awaiting perspective-correction review. */
+  pendingPerspective: PerspectiveProposal | null;
+  /** Page corners placed manually in top-left clockwise order. */
+  manualPerspectivePoints: Point[];
+  /** Original source retained so a correction remains reversible. */
+  perspectiveOriginalImageUrl: string | null;
+  /** How the current working image was rectified, or null for the original. */
+  perspectiveCorrection: {
+    source: PerspectiveSource;
+    paper: TemplatePaper;
+  } | null;
+
   region: Rect | null;
   mode: TraceMode;
   processing: boolean;
@@ -114,6 +131,10 @@ export const initialTraceState: TraceState = {
   calibrationSource: null,
   draftCalibration: null,
   rulerLengthMm: 100,
+  pendingPerspective: null,
+  manualPerspectivePoints: [],
+  perspectiveOriginalImageUrl: null,
+  perspectiveCorrection: null,
   region: null,
   mode: "pan",
   processing: false,
@@ -153,11 +174,28 @@ export type TraceAction =
   | { type: "SET_SMOOTHING"; smoothing: number }
   | { type: "SET_MARGIN"; margin: Margin }
   | { type: "SET_CALIBRATION"; calibration: Calibration | null }
-  | { type: "AUTO_CALIBRATION_DETECTED"; calibration: Calibration }
+  | {
+      type: "AUTO_CALIBRATION_DETECTED";
+      calibration: Calibration;
+      perspective?: PerspectiveProposal | null;
+    }
   | { type: "ACCEPT_AUTO_CALIBRATION" }
   | { type: "AUTO_CALIBRATION_ATTEMPTED"; imageUrl: string }
   | { type: "SET_DRAFT_CALIBRATION"; draftCalibration: DraftCalibration | null }
   | { type: "SET_RULER_LENGTH"; rulerLengthMm: number }
+  | { type: "START_PERSPECTIVE_SELECTION" }
+  | { type: "ADD_PERSPECTIVE_POINT"; point: Point }
+  | { type: "SET_PERSPECTIVE_POINTS"; points: Point[] }
+  | { type: "CANCEL_PERSPECTIVE_SELECTION" }
+  | {
+      type: "PERSPECTIVE_APPLIED";
+      imageUrl: string;
+      imageSize: { width: number; height: number };
+      calibration: Calibration;
+      source: PerspectiveSource;
+      paper: TemplatePaper;
+    }
+  | { type: "RESTORE_PERSPECTIVE_SOURCE" }
   | { type: "SET_EXPORT_FORMAT"; exportFormat: ExportFormat }
   | { type: "SET_EXTRUSION_HEIGHT"; extrusionHeight: number };
 
@@ -307,18 +345,22 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
     case "SELECT_RING":
       return { ...state, selection: action.selection };
 
-    case "SET_MODE":
+    case "SET_MODE": {
       // Leaving calibrate mode abandons a half-placed ruler.
+      // Entering either manual measurement mode rejects an automatic proposal.
+      const rejectsAutomatic =
+        action.mode === "calibrate" || action.mode === "perspective";
       return {
         ...state,
         mode: action.mode,
-        // Choosing the manual ruler is an explicit rejection of an automatic
-        // candidate. Removing it here keeps every manual-entry surface (panel
-        // button and canvas toolbar) from leaving the auto ruler overlaid.
+        // Choosing a manual tool is an explicit rejection of the automatic
+        // candidate, including all of its canvas overlays.
         pendingAutoCalibration:
-          action.mode === "calibrate" ? null : state.pendingAutoCalibration,
+          rejectsAutomatic ? null : state.pendingAutoCalibration,
+        pendingPerspective: rejectsAutomatic ? null : state.pendingPerspective,
         draftCalibration: action.mode === "calibrate" ? state.draftCalibration : null,
       };
+    }
 
     case "SET_REGION":
       if (action.region !== null) return { ...state, region: action.region };
@@ -358,6 +400,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         ...state,
         calibration: action.calibration,
         pendingAutoCalibration: null,
+        pendingPerspective: null,
         calibrationSource: action.calibration === null ? null : "manual",
         margin: state.margin ?? DEFAULT_MARGIN_MM,
         draftCalibration: null,
@@ -368,9 +411,11 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         ...state,
         calibration: null,
         pendingAutoCalibration: action.calibration,
+        pendingPerspective: action.perspective ?? null,
         calibrationSource: null,
         margin: state.margin ?? DEFAULT_MARGIN_MM,
         draftCalibration: null,
+        manualPerspectivePoints: [],
         mode: "pan",
       };
 
@@ -380,6 +425,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         ...state,
         calibration: state.pendingAutoCalibration,
         pendingAutoCalibration: null,
+        pendingPerspective: null,
         calibrationSource: "sheet",
         margin: state.margin ?? DEFAULT_MARGIN_MM,
         draftCalibration: null,
@@ -406,6 +452,83 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
           state.calibrationSource === "manual" && state.calibration
             ? { ...state.calibration, lengthMm: action.rulerLengthMm }
             : state.calibration,
+      };
+
+    case "START_PERSPECTIVE_SELECTION":
+      return {
+        ...state,
+        mode: "perspective",
+        pendingAutoCalibration: null,
+        pendingPerspective: null,
+        manualPerspectivePoints: [],
+        draftCalibration: null,
+      };
+
+    case "ADD_PERSPECTIVE_POINT": {
+      if (state.manualPerspectivePoints.length >= 4) return state;
+      const manualPerspectivePoints = [
+        ...state.manualPerspectivePoints,
+        action.point,
+      ];
+      return {
+        ...state,
+        manualPerspectivePoints,
+        mode: manualPerspectivePoints.length === 4 ? "pan" : "perspective",
+      };
+    }
+
+    case "SET_PERSPECTIVE_POINTS":
+      return action.points.length === 4
+        ? { ...state, manualPerspectivePoints: action.points }
+        : state;
+
+    case "CANCEL_PERSPECTIVE_SELECTION":
+      return {
+        ...state,
+        mode: "pan",
+        manualPerspectivePoints: [],
+      };
+
+    case "PERSPECTIVE_APPLIED":
+      return {
+        ...initialTraceState,
+        imageUrl: action.imageUrl,
+        sourceRevision: state.sourceRevision + 1,
+        fileName: state.fileName,
+        imageSize: action.imageSize,
+        autoCalibrationAttemptedImageUrl: action.imageUrl,
+        sensitivity: state.sensitivity,
+        tolerancePx: state.tolerancePx,
+        smoothing: state.smoothing,
+        margin: state.margin ?? DEFAULT_MARGIN_MM,
+        calibration: action.calibration,
+        calibrationSource: "sheet",
+        rulerLengthMm: state.rulerLengthMm,
+        perspectiveOriginalImageUrl:
+          state.perspectiveOriginalImageUrl ?? state.imageUrl,
+        perspectiveCorrection: { source: action.source, paper: action.paper },
+        mode: "region",
+        exportFormat: state.exportFormat,
+        extrusionHeight: state.extrusionHeight,
+      };
+
+    case "RESTORE_PERSPECTIVE_SOURCE":
+      if (!state.perspectiveOriginalImageUrl) return state;
+      return {
+        ...initialTraceState,
+        imageUrl: state.perspectiveOriginalImageUrl,
+        sourceRevision: state.sourceRevision + 1,
+        fileName: state.fileName,
+        // Do not immediately propose the same correction again. The explicit
+        // Detect sheet action remains available if the user wants another try.
+        autoCalibrationAttemptedImageUrl: state.perspectiveOriginalImageUrl,
+        sensitivity: state.sensitivity,
+        tolerancePx: state.tolerancePx,
+        smoothing: state.smoothing,
+        margin: state.margin,
+        rulerLengthMm: state.rulerLengthMm,
+        exportFormat: state.exportFormat,
+        extrusionHeight: state.extrusionHeight,
       };
 
     case "SET_EXPORT_FORMAT":

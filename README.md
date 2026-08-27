@@ -22,6 +22,13 @@ Pocketry is still subject to physical print validation. Inspect generated files
 and confirm dimensions and printer settings before relying on them for a final
 part.
 
+Perspective correction rectifies the flat reference plane represented by the
+calibration sheet or four selected paper corners. Thick tools extend above that
+plane and can still show parallax when photographed at an angle. A future
+imaging improvement should investigate height-aware or multi-view correction
+for those tools rather than treating a planar homography as a complete 3D
+camera correction.
+
 ## Privacy
 
 The static application processes images and generates models locally in the
