@@ -129,6 +129,11 @@ describe("App", () => {
     expect(window.location.pathname).toBe("/about");
     expect(container.textContent).toContain("About Pocketry");
     expect(container.textContent).toContain("AGPL-3.0-only");
+    const openSourceStatement = container.querySelector<HTMLAnchorElement>(
+      'a[aria-label="Pocketry is fully open source under AGPL-3.0-only"]',
+    );
+    expect(openSourceStatement?.textContent).toContain("Fully open source under");
+    expect(openSourceStatement?.getAttribute("href")).toBe("/LICENSE.txt");
     expect(container.textContent).toContain("OpenCV/OpenCV.js");
     expect(container.textContent).toContain("Gridfinity Rebuilt OpenSCAD");
     expect(container.textContent).toContain("Gridfinity Extended");
