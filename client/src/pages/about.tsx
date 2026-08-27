@@ -11,7 +11,14 @@ import {
 
 const SOURCE_URL = "https://github.com/wcscr/pocketry";
 
-const RELATED_PROJECTS = [
+interface RelatedProject {
+  name: string;
+  description: string;
+  badge: string;
+  url: string;
+}
+
+const OPEN_SOURCE_PROJECTS: readonly RelatedProject[] = [
   {
     name: "Gridfinity Rebuilt OpenSCAD",
     description:
@@ -48,20 +55,6 @@ const RELATED_PROJECTS = [
     url: "https://github.com/tracefinity/tracefinity",
   },
   {
-    name: "ToolTrace.ai",
-    description:
-      "A hosted photo-to-outline service for making custom Gridfinity trays, foam inserts, and shadow-board layouts.",
-    badge: "Web service",
-    url: "https://www.tooltrace.ai",
-  },
-  {
-    name: "Systemax DIY",
-    description:
-      "Photograph tools, build a reusable tool library and drawer layout, then order the resulting Gridfinity organizers or export production files.",
-    badge: "Design service",
-    url: "https://www.systemax.no/diy",
-  },
-  {
     name: "Gridfinity Rebase",
     description:
       "Replace the bases in downloaded Gridfinity STLs with your preferred magnet-hole and attachment setup directly in the browser.",
@@ -76,6 +69,62 @@ const RELATED_PROJECTS = [
     url: "https://github.com/yawkat/GridFlock",
   },
 ] as const;
+
+const CLOSED_OR_FREEMIUM_TOOLS: readonly RelatedProject[] = [
+  {
+    name: "ToolTrace.ai",
+    description:
+      "A hosted photo-to-outline service for making custom Gridfinity trays, foam inserts, and shadow-board layouts.",
+    badge: "Hosted service",
+    url: "https://www.tooltrace.ai",
+  },
+  {
+    name: "Systemax DIY",
+    description:
+      "Photograph tools, build a reusable tool library and drawer layout, then order the resulting Gridfinity organizers or export production files.",
+    badge: "Commercial service",
+    url: "https://www.systemax.no/diy",
+  },
+] as const;
+
+function ProjectGrid({
+  projects,
+  linkLabel,
+}: {
+  projects: readonly RelatedProject[];
+  linkLabel: string;
+}): JSX.Element {
+  return (
+    <div className="grid gap-4 sm:grid-cols-2">
+      {projects.map((project) => (
+        <Card key={project.url} className="flex flex-col">
+          <CardHeader className="pb-3">
+            <div className="flex items-start justify-between gap-3">
+              <CardTitle className="text-lg leading-6">{project.name}</CardTitle>
+              <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                {project.badge}
+              </span>
+            </div>
+          </CardHeader>
+          <CardContent className="flex flex-1 flex-col gap-4">
+            <p className="flex-1 text-sm leading-6 text-muted-foreground">
+              {project.description}
+            </p>
+            <a
+              href={project.url}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex w-fit items-center gap-1.5 text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              {linkLabel}
+              <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+            </a>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
 
 /** Project background, legal notices, and links to related Gridfinity tools. */
 export default function About(): JSX.Element {
@@ -154,51 +203,64 @@ export default function About(): JSX.Element {
           </Card>
         </section>
 
-        <section className="space-y-4" aria-labelledby="related-projects-heading">
+        <section className="space-y-7" aria-labelledby="related-projects-heading">
           <div className="space-y-1">
             <h2
               id="related-projects-heading"
               className="text-2xl font-semibold tracking-tight"
             >
-              More Gridfinity tools
+              Complementary and alternative Gridfinity tools
             </h2>
             <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
-              These independent projects complement Pocketry or provide
-              alternatives to its photo-to-pocket workflow, including configurable
-              bins, baseplates, drawer planning, and alternate outline tools.
+              These projects and services complement Pocketry or provide
+              alternatives to its photo-to-pocket workflow. They are grouped by
+              whether their source is available under an open-source license.
             </p>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            {RELATED_PROJECTS.map((project) => (
-              <Card key={project.url} className="flex flex-col">
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <CardTitle className="text-lg leading-6">
-                      {project.name}
-                    </CardTitle>
-                    <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                      {project.badge}
-                    </span>
-                  </div>
-                </CardHeader>
-                <CardContent className="flex flex-1 flex-col gap-4">
-                  <p className="flex-1 text-sm leading-6 text-muted-foreground">
-                    {project.description}
-                  </p>
-                  <a
-                    href={project.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex w-fit items-center gap-1.5 text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                  >
-                    Visit project
-                    <ExternalLink className="h-3.5 w-3.5" aria-hidden />
-                  </a>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+          <section
+            className="space-y-3"
+            aria-labelledby="open-source-projects-heading"
+          >
+            <div>
+              <h3
+                id="open-source-projects-heading"
+                className="text-xl font-semibold tracking-tight"
+              >
+                Open-source projects
+              </h3>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
+                Public source code is available under the license shown on each
+                project.
+              </p>
+            </div>
+            <ProjectGrid
+              projects={OPEN_SOURCE_PROJECTS}
+              linkLabel="Visit open-source project"
+            />
+          </section>
+
+          <section
+            className="space-y-3 border-t pt-6"
+            aria-labelledby="closed-source-projects-heading"
+          >
+            <div>
+              <h3
+                id="closed-source-projects-heading"
+                className="text-xl font-semibold tracking-tight"
+              >
+                Closed-source and freemium tools
+              </h3>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
+                These hosted or commercial services may be useful alternatives,
+                but they are not presented as open-source projects.
+              </p>
+            </div>
+            <ProjectGrid
+              projects={CLOSED_OR_FREEMIUM_TOOLS}
+              linkLabel="Visit service"
+            />
+          </section>
         </section>
       </div>
     </main>
