@@ -192,7 +192,8 @@ function TraceWorkspace(): JSX.Element {
           });
           const { solution } = result;
           const mmPerPx = mmPerPixel(calibration);
-          const summary = `${solution.markerIds.length} markers · ${(mmPerPx ?? solution.mmPerPx).toFixed(3)} mm/px`;
+          const paperName = result.paper === "a4" ? "A4" : "US Letter";
+          const summary = `${paperName} · ${solution.markerIds.length} markers · ${(mmPerPx ?? solution.mmPerPx).toFixed(3)} mm/px`;
           if (solution.maxDeviation > SKEW_WARN_FRACTION) {
             toast({
               title: "Scale detected — review carefully",
@@ -275,7 +276,7 @@ function TraceWorkspace(): JSX.Element {
         });
         toast({
           title: "Perspective corrected",
-          description: `${paper === "a4" ? "A4" : "US Letter"} plane rectified at ${(1 / corrected.pxPerMm).toFixed(3)} mm/px.`,
+          description: `${paper === "a4" ? "A4" : "US Letter"} plane rectified at ${(1 / corrected.pxPerMm).toFixed(3)} mm/px${corrected.reprojectionErrorPx === null ? "" : ` · ${corrected.reprojectionErrorPx.toFixed(2)} px fit residual`}.`,
         });
       } catch (error) {
         toast({

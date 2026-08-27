@@ -1,6 +1,6 @@
 /**
- * ArUco DICT_4X4 marker patterns — the four markers Pocketry's calibration
- * sheet uses, ported as data from OpenCV.
+ * ArUco DICT_4X4 marker patterns — the eight markers Pocketry's A4 and US
+ * Letter calibration sheets use, ported as data from OpenCV.
  *
  * Upstream: https://github.com/opencv/opencv
  * File:     modules/objdetect/src/aruco/predefined_dictionaries.hpp
@@ -19,12 +19,16 @@
  * dictionary compiled into opencv.js itself.
  */
 
-/** Canonical (rotation 0) bit patterns of DICT_4X4 markers 0–3. */
+/** Canonical (rotation 0) bit patterns of DICT_4X4 markers 0–7. */
 export const ARUCO_4X4_BITS: readonly number[] = [
   0xb532, // id 0
   0x0f9a, // id 1
   0x332d, // id 2
   0x9946, // id 3
+  0x549e, // id 4
+  0x79cd, // id 5
+  0x9e2e, // id 6
+  0xc4f2, // id 7
 ];
 
 /** Marker side length in modules: 4 data cells plus the black border ring. */

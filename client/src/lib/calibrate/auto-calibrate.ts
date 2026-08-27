@@ -8,6 +8,7 @@ import {
   type PerspectiveProposal,
 } from "./perspective";
 import { solveScaleFromMarkers, type ScaleSolution } from "./solve";
+import { paperFromTemplateMarkerIds, type TemplatePaper } from "./template";
 
 /**
  * Detect → solve → Calibration, in one step the UI can act on.
@@ -23,6 +24,8 @@ export type AutoCalibrationResult =
       kind: "calibrated";
       calibration: Calibration;
       solution: ScaleSolution;
+      /** Paper size encoded by this template's unique marker-id family. */
+      paper: TemplatePaper;
       /** Present only when all four unique template markers can define a homography. */
       perspectiveProposal: PerspectiveProposal | null;
     }
@@ -38,12 +41,18 @@ export function runAutoCalibration(cv: any, image: ImageData): AutoCalibrationRe
   if (!detection) return { kind: "no-markers" };
   if (!detection.isTemplate) return { kind: "foreign-sheet", family: detection.family };
 
-  const solution = solveScaleFromMarkers(detection.markers);
-  // 4x4 markers that aren't the template's ids 0–3 are still a foreign sheet.
-  if (!solution) return { kind: "foreign-sheet", family: detection.family };
+  const paper = paperFromTemplateMarkerIds(
+    detection.markers.map((marker) => marker.id),
+  );
+  const solution = paper ? solveScaleFromMarkers(detection.markers, paper) : null;
+  // Other or mixed DICT_4X4_50 ids are still a foreign sheet.
+  if (!paper || !solution) {
+    return { kind: "foreign-sheet", family: detection.family };
+  }
 
   return {
     kind: "calibrated",
+    paper,
     // The synthesised ruler joins the longest detected pair — for the full
     // sheet that is a 250 mm diagonal, the geometry least sensitive to
     // per-marker centre noise.
@@ -55,7 +64,7 @@ export function runAutoCalibration(cv: any, image: ImageData): AutoCalibrationRe
       lengthMm: solution.ruler.lengthMm,
     },
     solution,
-    perspectiveProposal: proposalFromTemplateMarkers(detection.markers),
+    perspectiveProposal: proposalFromTemplateMarkers(detection.markers, paper),
   };
 }
 

@@ -11,6 +11,10 @@ import {
   type PerspectiveProposal,
   type PerspectiveQuad,
 } from "./perspective";
+import {
+  templateMarkerCentersMm,
+  templateMarkerCornersMm,
+} from "./template";
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- opencv.js is untyped */
 let cv: any;
@@ -41,22 +45,59 @@ function pixel(image: ImageData, x: number, y: number): number[] {
   return [...image.data.slice(at, at + 4)];
 }
 
+function marker(id: number, x: number, y: number) {
+  return {
+    id,
+    centerPx: { x, y },
+    cornersPx: [
+      { x: x - 5, y: y - 5 },
+      { x: x + 5, y: y - 5 },
+      { x: x + 5, y: y + 5 },
+      { x: x - 5, y: y + 5 },
+    ] as PerspectiveQuad,
+  };
+}
+
+function transformPoints(points: readonly { x: number; y: number }[], transform: any) {
+  const input = cv.matFromArray(
+    points.length,
+    1,
+    cv.CV_32FC2,
+    points.flatMap(({ x, y }) => [x, y]),
+  );
+  const output = new cv.Mat();
+  try {
+    cv.perspectiveTransform(input, output, transform);
+    return points.map((_, index) => ({
+      x: output.data32F[index * 2],
+      y: output.data32F[index * 2 + 1],
+    }));
+  } finally {
+    output.delete();
+    input.delete();
+  }
+}
+
 describe("perspective geometry", () => {
   it("orders the four unique template ids and rejects incomplete sets", () => {
     const markers = [
-      { id: 2, centerPx: { x: 90, y: 120 } },
-      { id: 0, centerPx: { x: 10, y: 20 } },
-      { id: 3, centerPx: { x: 20, y: 110 } },
-      { id: 1, centerPx: { x: 100, y: 30 } },
+      marker(2, 90, 120),
+      marker(0, 10, 20),
+      marker(3, 20, 110),
+      marker(1, 100, 30),
     ];
-    expect(proposalFromTemplateMarkers(markers)?.points).toEqual([
+    const proposal = proposalFromTemplateMarkers(markers, "a4");
+    expect(proposal?.points).toEqual([
       { x: 10, y: 20 },
       { x: 100, y: 30 },
       { x: 90, y: 120 },
       { x: 20, y: 110 },
     ]);
-    expect(proposalFromTemplateMarkers(markers.slice(0, 3))).toBeNull();
-    expect(proposalFromTemplateMarkers([...markers, markers[0]])).toBeNull();
+    expect(proposal?.paper).toBe("a4");
+    expect(proposal?.correspondences?.source).toHaveLength(16);
+    expect(proposal?.correspondences?.destinationMm).toHaveLength(16);
+    expect(proposalFromTemplateMarkers(markers.slice(0, 3), "a4")).toBeNull();
+    expect(proposalFromTemplateMarkers([...markers, markers[0]], "a4")).toBeNull();
   });
 
   it("maps an A4 sheet to a uniform two-pixels-per-mm plane", () => {
@@ -148,6 +189,7 @@ describe("perspective correction with the shipped OpenCV build", () => {
       expect(corrected.width).toBe(421);
       expect(corrected.height).toBe(595);
       expect(mmPerPixel(corrected.calibration)).toBeCloseTo(0.5, 9);
+      expect(corrected.reprojectionErrorPx).toBeNull();
       expect(pixel(corrected.imageData, 210, 290).slice(0, 3)).toEqual([
         20, 80, 180,
       ]);
@@ -160,6 +202,96 @@ describe("perspective correction with the shipped OpenCV build", () => {
       from.delete();
       photographedMat.delete();
       canonicalMat.delete();
+    }
+  });
+
+  it("uses all sixteen refined marker corners for a precision template fit", () => {
+    const canonical = imageData(421, 595);
+    const canonicalPage: PerspectiveQuad = [
+      { x: 0, y: 0 },
+      { x: 420, y: 0 },
+      { x: 420, y: 594 },
+      { x: 0, y: 594 },
+    ];
+    const photographedPage: PerspectiveQuad = [
+      { x: 65, y: 22 },
+      { x: 452, y: 72 },
+      { x: 494, y: 512 },
+      { x: 31, y: 548 },
+    ];
+    const from = cv.matFromArray(
+      4,
+      1,
+      cv.CV_32FC2,
+      canonicalPage.flatMap(({ x, y }) => [x, y]),
+    );
+    const to = cv.matFromArray(
+      4,
+      1,
+      cv.CV_32FC2,
+      photographedPage.flatMap(({ x, y }) => [x, y]),
+    );
+    const photographTransform = cv.getPerspectiveTransform(from, to);
+    const canonicalMat = cv.matFromImageData(canonical);
+    const photographedMat = new cv.Mat();
+    try {
+      cv.warpPerspective(
+        canonicalMat,
+        photographedMat,
+        photographTransform,
+        new cv.Size(525, 570),
+        cv.INTER_LINEAR,
+        cv.BORDER_CONSTANT,
+        new cv.Scalar(255, 255, 255, 255),
+      );
+
+      const centers = transformPoints(
+        templateMarkerCentersMm("a4").map(({ x, y }) => ({
+          x: x * 2,
+          y: y * 2,
+        })),
+        photographTransform,
+      );
+      const physicalCorners = templateMarkerCornersMm("a4");
+      const photographedCorners = transformPoints(
+        physicalCorners.flatMap(({ corners }) =>
+          corners.map(({ x, y }) => ({ x: x * 2, y: y * 2 })),
+        ),
+        photographTransform,
+      );
+      const markers = templateMarkerCentersMm("a4").map(({ id }, index) => ({
+        id,
+        centerPx: centers[index],
+        cornersPx: photographedCorners.slice(
+          index * 4,
+          index * 4 + 4,
+        ) as PerspectiveQuad,
+      }));
+      const proposal = proposalFromTemplateMarkers(markers, "a4")!;
+      const photographed = {
+        data: new Uint8ClampedArray(photographedMat.data),
+        width: photographedMat.cols,
+        height: photographedMat.rows,
+        colorSpace: "srgb",
+      } as ImageData;
+      const corrected = runPerspectiveCorrection(
+        cv,
+        photographed,
+        proposal,
+        "a4",
+      );
+
+      expect(corrected.reprojectionErrorPx).not.toBeNull();
+      expect(corrected.reprojectionErrorPx!).toBeLessThan(0.01);
+      expect(pixel(corrected.imageData, 210, 290).slice(0, 3)).toEqual([
+        20, 80, 180,
+      ]);
+    } finally {
+      photographedMat.delete();
+      canonicalMat.delete();
+      photographTransform.delete();
+      to.delete();
+      from.delete();
     }
   });
 });

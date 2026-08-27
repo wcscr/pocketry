@@ -7,6 +7,7 @@ server/public
 
 # Local mesh export artifacts (npm run export:bin)
 exports/
+output/pdf/
 
 # Legacy scaffold and pasted-session artifacts
 .replit

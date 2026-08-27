@@ -17,7 +17,7 @@ history of files that appeared likely to have been copied or generated.
 
 | Project | How Pocketry uses it | Licence | Attribution location |
 |---|---|---|---|
-| OpenCV 4.11.0 | Bundled OpenCV.js and four ported ArUco marker patterns | Apache-2.0 | `NOTICE`; source header in `client/src/lib/calibrate/aruco-4x4.ts` |
+| OpenCV 4.11.0 | Bundled OpenCV.js and eight ported ArUco marker patterns | Apache-2.0 | `NOTICE`; source header in `client/src/lib/calibrate/aruco-4x4.ts` |
 | manifold-3d 3.5.1 | Geometry API and redistributed WASM binary | Apache-2.0 | `NOTICE` |
 | gridfinity-rebuilt-openscad | Geometry and constants ported from commit `910e22d8607fd7f5f51ad5e5cbc5287a76810bfd` | MIT | `NOTICE`; `client/src/lib/gridfinity/UPSTREAM.md`; port headers |
 | Gridfinity | Upstream basis acknowledged by Gridfinity Rebuilt | MIT | `NOTICE` |

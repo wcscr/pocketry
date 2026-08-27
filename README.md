@@ -12,7 +12,9 @@ processing, project storage, and model generation kept on the user's device.
 ## What it does
 
 - Detect a tool silhouette from a PNG or JPEG photograph.
-- Calibrate image dimensions and refine exterior contours and interior holes.
+- Calibrate image dimensions with a printable A4 or US Letter PDF sheet, which
+  Pocketry identifies automatically, and correct camera perspective.
+- Refine exterior contours and interior holes.
 - Export traced geometry as SVG, DXF, DWG-compatible DXF, or STL.
 - Arrange traced tools as pockets in Gridfinity bins.
 - Configure full-, half-, and quarter-pitch bins and export STL or 3MF models.
@@ -23,8 +25,10 @@ and confirm dimensions and printer settings before relying on them for a final
 part.
 
 Perspective correction rectifies the flat reference plane represented by the
-calibration sheet or four selected paper corners. Thick tools extend above that
-plane and can still show parallax when photographed at an angle. A future
+calibration sheet or four selected paper corners. The automatic path fits all
+16 refined marker corners for better precision; the marker IDs distinguish A4
+from US Letter without a paper-size prompt. Thick tools extend above that plane
+and can still show parallax when photographed at an angle. A future
 imaging improvement should investigate height-aware or multi-view correction
 for those tools rather than treating a planar homography as a complete 3D
 camera correction.

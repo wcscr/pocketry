@@ -71,6 +71,11 @@ export function detectArucoMarkers(
     cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
     dictionary = cv.getPredefinedDictionary(predefinedDictionary);
     parameters = new cv.aruco_DetectorParameters();
+    // The default is CORNER_REFINE_NONE. Subpixel refinement gives the
+    // homography stable point correspondences without changing the template.
+    if (typeof cv.CORNER_REFINE_SUBPIX === "number") {
+      parameters.cornerRefinementMethod = cv.CORNER_REFINE_SUBPIX;
+    }
     refine = new cv.aruco_RefineParameters(10, 3, true);
     detector = new cv.aruco_ArucoDetector(dictionary, parameters, refine);
     detector.detectMarkers(gray, corners, ids, rejected);
@@ -90,6 +95,7 @@ export function detectArucoMarkers(
         ];
         markers.push({
           id,
+          cornersPx: cornersPx as [Point, Point, Point, Point],
           centerPx: {
             x: (cornersPx[0].x + cornersPx[1].x + cornersPx[2].x + cornersPx[3].x) / 4,
             y: (cornersPx[0].y + cornersPx[1].y + cornersPx[2].y + cornersPx[3].y) / 4,
