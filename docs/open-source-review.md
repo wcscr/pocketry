@@ -1,6 +1,6 @@
 # Direct open-source review
 
-Reviewed: 2026-08-26
+Reviewed: 2026-08-27
 
 ## Scope
 
@@ -61,10 +61,13 @@ smoothing, marching squares, Otsu thresholding, DXF, STL, SVG, and 3MF—do not
 carry evidence of copied implementations. The implementations in this tree
 appear project-authored and contain no external source or licence markers.
 
-The tracked `attached_assets/`, `generated-icon.png`, and test photograph are
-not open-source code and are not part of this notice inventory. Most are not
-shipped by the application. Their authorship or permission should still be
-confirmed before making the repository public if they are retained.
+A repository-hygiene follow-up removed the unreferenced Replit configuration
+and notes, pasted-session `attached_assets/`, root `generated-icon.png`, and an
+unused deprecated point-simplifier compatibility shim. The pasted images and
+prototype material were not shipped by the application and had no confirmed
+provenance, so removing them also eliminated an unnecessary public-release
+risk. The same pass found no tracked build output, logs, caches, editor state,
+or operating-system metadata.
 
 ## Project-licence decision
 
