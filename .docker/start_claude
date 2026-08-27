@@ -1,0 +1,45 @@
+#!/bin/sh
+set -e
+
+# Ensure .claude dir exists on host so the bind-mount doesn't create it as
+# root-owned (which would make settings.json unwritable inside the container).
+mkdir -p "$(pwd)/.claude"
+
+# Keep the container's node_modules in a named volume — the image needs
+# Linux-native binaries (esbuild, bufferutil) that must not mix with any
+# macOS host install.  Drop with: docker volume rm tooltrace-node-modules
+NODE_MODULES_VOLUME=tooltrace-node-modules
+
+# The dev server (npm run dev) listens on 5000 inside the container.  On the
+# host that port is often taken (macOS AirPlay Receiver, another sandbox), so
+# publish the first free host port at or above 5000 instead of hard-coding it.
+# Override with: TOOLTRACE_PORT=<port> ./start_claude
+port_in_use() {
+  nc -z 127.0.0.1 "$1" >/dev/null 2>&1 || nc -z ::1 "$1" >/dev/null 2>&1
+}
+
+HOST_PORT="${TOOLTRACE_PORT:-}"
+if [ -z "$HOST_PORT" ]; then
+  candidate=5000
+  while [ "$candidate" -le 5099 ]; do
+    if ! port_in_use "$candidate"; then
+      HOST_PORT=$candidate
+      break
+    fi
+    candidate=$((candidate + 1))
+  done
+  if [ -z "$HOST_PORT" ]; then
+    echo "[start_claude] No free port in 5000-5099; set TOOLTRACE_PORT=<port>" >&2
+    exit 1
+  fi
+fi
+
+echo "[start_claude] Dev server will be available at http://localhost:${HOST_PORT}"
+
+docker run --rm -it --shm-size=2gb \
+    -v "$(pwd)":/workspace \
+    -v "$NODE_MODULES_VOLUME":/workspace/node_modules \
+    -v "$(pwd)/.claude":/home/agent/.claude \
+    -p "$HOST_PORT":5000 \
+    -e CLAUDE_CODE_OAUTH_TOKEN="$CLAUDE_CODE_OAUTH_TOKEN" \
+    tooltrace-dev-claude "$@"

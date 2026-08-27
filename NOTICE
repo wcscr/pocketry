@@ -1,0 +1,242 @@
+Pocketry
+Copyright (c) 2026 Will Cobb
+
+This product includes third-party software and directly adapted open-source
+work. Pocketry's original work is distributed under the GNU Affero General
+Public License, version 3 only (AGPL-3.0-only; see LICENSE). Third-party
+portions remain under the licences identified below.
+
+This notice inventories projects Pocketry directly depends on, bundles, or
+adapts. Transitive dependencies are not enumerated here; their notices remain
+with their packages. Exact npm versions are recorded in package-lock.json.
+
+================================================================================
+manifold-3d — Apache License 2.0
+================================================================================
+
+Copyright 2020 The Manifold Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+Pocketry redistributes the compiled `manifold.wasm` binary from the
+`manifold-3d` npm package and preserves Manifold's Apache-2.0 attribution here.
+
+================================================================================
+OpenCV / OpenCV.js — Apache License 2.0
+================================================================================
+
+Copyright (c) 2000-2024, OpenCV team and contributors.
+
+Licensed under the Apache License, Version 2.0, the full text of which is
+available at http://www.apache.org/licenses/LICENSE-2.0
+
+Pocketry redistributes an OpenCV.js bundle at
+`client/public/opencv/opencv.js`, built from unmodified OpenCV 4.11.0
+sources with the stock JS module whitelist (which includes the aruco API in
+`objdetect`) — see `scripts/build-opencv-js.sh`.
+
+Pocketry also ports a small amount of OpenCV data: the ArUco DICT_4X4
+marker patterns used by the calibration sheet
+(`client/src/lib/calibrate/aruco-4x4.ts`), taken from
+`modules/objdetect/src/aruco/predefined_dictionaries.hpp` at tag 4.11.0,
+under the same Apache License 2.0.
+
+================================================================================
+gridfinity-rebuilt-openscad — MIT License (ported code)
+================================================================================
+
+The Gridfinity bin generator (shared/gridfinity/ and client/src/lib/gridfinity/)
+is a TypeScript port of geometry and constants from
+https://github.com/kennetek/gridfinity-rebuilt-openscad, pinned at commit
+910e22d8607fd7f5f51ad5e5cbc5287a76810bfd. The per-file provenance table lives
+in client/src/lib/gridfinity/UPSTREAM.md. No .scad files are vendored.
+
+MIT License
+
+Copyright (c) 2023 Kenneth Hodson
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+gridfinity-rebuilt-openscad is itself based on Gridfinity:
+
+MIT License
+
+Copyright (c) 2023 Zachary Freedman and Voidstar Lab LLC
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+================================================================================
+shadcn/ui — MIT License (adapted component source)
+================================================================================
+
+The component source in `client/src/components/ui/` and the related
+`use-mobile` and `use-toast` hooks were scaffolded from shadcn/ui components and
+then adapted for Pocketry.
+
+MIT License
+
+Copyright (c) 2023 shadcn
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+================================================================================
+Direct npm dependencies
+================================================================================
+
+The following direct dependencies are declared in `package.json`. Package
+names are grouped by the licence declared by the installed direct package.
+Each project retains its own copyright and licence notices.
+
+Apache License 2.0:
+
+  class-variance-authority
+  drizzle-orm
+  drizzle-zod
+  idb-keyval
+  manifold-3d (described separately above)
+
+ISC License:
+
+  lucide-react
+
+  Copyright (c) for portions of Lucide are held by Cole Bemis 2013-2022 as
+  part of Feather (MIT). All other copyright (c) for Lucide are held by
+  Lucide Contributors 2022.
+
+Unlicense:
+
+  wouter
+
+MIT License:
+
+  @hookform/resolvers
+  @jridgewell/trace-mapping
+  @neondatabase/serverless
+  @radix-ui/react-* packages declared in package.json
+  @react-three/drei
+  @react-three/fiber
+  @tanstack/react-query
+  clsx
+  cmdk
+  connect-pg-simple
+  date-fns
+  embla-carousel-react
+  express
+  express-session
+  fflate
+  framer-motion
+  input-otp
+  memorystore
+  passport
+  passport-local
+  react
+  react-day-picker
+  react-dom
+  react-dropzone
+  react-hook-form
+  react-icons
+  react-resizable-panels
+  recharts
+  tailwind-merge
+  tailwindcss-animate
+  three
+  vaul
+  ws
+  zod
+  zod-validation-error
+
+Direct development and optional packages are build/test tooling rather than
+Pocketry application code. They are also retained here for acknowledgement:
+
+Apache License 2.0:
+
+  @techstark/opencv-js
+  typescript
+
+MIT License:
+
+  @tailwindcss/typography
+  @types/connect-pg-simple
+  @types/express
+  @types/express-session
+  @types/node
+  @types/passport
+  @types/passport-local
+  @types/react
+  @types/react-dom
+  @types/three
+  @types/ws
+  @vitejs/plugin-react
+  @vitest/coverage-v8
+  autoprefixer
+  bufferutil
+  drizzle-kit
+  esbuild
+  jsdom
+  postcss
+  tailwindcss
+  tsx
+  vite
+  vitest
+
+The full licence text and package-specific copyright notice for an installed
+npm dependency can be found in that package's `node_modules` directory and its
+upstream source repository.

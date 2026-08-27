@@ -1,0 +1,4 @@
+{
+  "//": "opencv.js is an emscriptened UMD bundle written for sloppy-mode script tags. The repo's root package.json declares type:module, which would make Node parse this .js as strict ESM and crash on its implicit globals — this file scopes the directory back to CommonJS so Node tests and scripts can require() the same bundle the browser ships. Vite copies public/ verbatim; this file is inert in the served output.",
+  "type": "commonjs"
+}

@@ -1,0 +1,34 @@
+{
+  "include": [
+    "client/src/**/*",
+    "shared/**/*",
+    "server/**/*",
+    "scripts/**/*",
+    "vite.config.ts",
+    "vitest.config.ts"
+  ],
+  "exclude": ["node_modules", "build", "dist"],
+  "compilerOptions": {
+    "incremental": true,
+    "tsBuildInfoFile": "./node_modules/typescript/tsbuildinfo",
+    "noEmit": true,
+    // Matches Vite's default browser target ("modules" ~ ES2020). Without it
+    // tsc assumes ES5 and rejects iteration over Map/Set, which the emitted
+    // bundle handles natively.
+    "target": "ES2020",
+    "module": "ESNext",
+    "strict": true,
+    "lib": ["esnext", "dom", "dom.iterable"],
+    "jsx": "preserve",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "allowImportingTsExtensions": true,
+    "moduleResolution": "bundler",
+    "baseUrl": ".",
+    "types": ["node", "vite/client"],
+    "paths": {
+      "@/*": ["./client/src/*"],
+      "@shared/*": ["./shared/*"]
+    }
+  }
+}
