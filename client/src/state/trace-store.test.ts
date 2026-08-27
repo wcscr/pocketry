@@ -1,3 +1,4 @@
+import { mmPerPixel } from "@shared/geometry/scale";
 import type { Outline } from "@shared/geometry/types";
 import { describe, expect, it } from "vitest";
 
@@ -401,6 +402,97 @@ describe("modes and calibration", () => {
     expect(state.margin).toBe(1.5);
   });
 
+  it("removes a pending automatic ruler when manual placement begins", () => {
+    const detected = {
+      startX: 0,
+      startY: 0,
+      endX: 100,
+      endY: 0,
+      lengthMm: 50,
+    };
+    const state = run(
+      initialTraceState,
+      { type: "AUTO_CALIBRATION_DETECTED", calibration: detected },
+      { type: "SET_MODE", mode: "calibrate" },
+    );
+
+    expect(state.mode).toBe("calibrate");
+    expect(state.pendingAutoCalibration).toBeNull();
+    expect(state.calibration).toBeNull();
+  });
+
+  it("collects four manual perspective corners and keeps them editable", () => {
+    const points = [
+      { x: 10, y: 10 },
+      { x: 90, y: 12 },
+      { x: 88, y: 90 },
+      { x: 12, y: 88 },
+    ];
+    const selected = run(
+      initialTraceState,
+      { type: "START_PERSPECTIVE_SELECTION" },
+      ...points.map((point) => ({
+        type: "ADD_PERSPECTIVE_POINT" as const,
+        point,
+      })),
+    );
+
+    expect(selected.manualPerspectivePoints).toEqual(points);
+    expect(selected.mode).toBe("pan");
+
+    const adjusted = traceReducer(selected, {
+      type: "SET_PERSPECTIVE_POINTS",
+      points: [{ x: 8, y: 8 }, ...points.slice(1)],
+    });
+    expect(adjusted.manualPerspectivePoints[0]).toEqual({ x: 8, y: 8 });
+  });
+
+  it("applies a reversible metric perspective correction", () => {
+    const loaded = run(
+      initialTraceState,
+      {
+        type: "SOURCE_LOADED",
+        imageUrl: "data:image/png;base64,original",
+        fileName: "tool",
+      },
+      { type: "SOURCE_READY", imageSize: { width: 800, height: 600 } },
+    );
+    const calibration = {
+      startX: 0,
+      startY: 0,
+      endX: 420,
+      endY: 594,
+      lengthMm: Math.hypot(210, 297),
+    };
+    const corrected = traceReducer(loaded, {
+      type: "PERSPECTIVE_APPLIED",
+      imageUrl: "data:image/png;base64,corrected",
+      imageSize: { width: 421, height: 595 },
+      calibration,
+      source: "manual",
+      paper: "a4",
+    });
+
+    expect(corrected.imageUrl).toContain("corrected");
+    expect(corrected.perspectiveOriginalImageUrl).toContain("original");
+    expect(corrected.perspectiveCorrection).toEqual({
+      source: "manual",
+      paper: "a4",
+    });
+    expect(corrected.calibration).toBe(calibration);
+    expect(corrected.calibrationSource).toBe("sheet");
+    expect(corrected.mode).toBe("region");
+
+    const restored = traceReducer(corrected, {
+      type: "RESTORE_PERSPECTIVE_SOURCE",
+    });
+    expect(restored.imageUrl).toContain("original");
+    expect(restored.perspectiveOriginalImageUrl).toBeNull();
+    expect(restored.perspectiveCorrection).toBeNull();
+    expect(restored.calibration).toBeNull();
+    expect(restored.autoCalibrationAttemptedImageUrl).toBe(restored.imageUrl);
+  });
+
   it("preserves a chosen margin when the scale is replaced", () => {
     const calibration = {
       startX: 0,
@@ -416,6 +508,45 @@ describe("modes and calibration", () => {
       { type: "SET_CALIBRATION", calibration: { ...calibration, lengthMm: 75 } },
     );
     expect(state.margin).toBe(2.5);
+  });
+
+  it("updates mm/px when a completed manual ruler length changes", () => {
+    const calibration = {
+      startX: 0,
+      startY: 0,
+      endX: 100,
+      endY: 0,
+      lengthMm: 50,
+    };
+    const state = run(
+      initialTraceState,
+      { type: "SET_CALIBRATION", calibration },
+      { type: "SET_RULER_LENGTH", rulerLengthMm: 75 },
+    );
+
+    expect(state.rulerLengthMm).toBe(75);
+    expect(state.calibration?.lengthMm).toBe(75);
+    expect(mmPerPixel(state.calibration)).toBe(0.75);
+  });
+
+  it("does not overwrite an accepted calibration-sheet scale", () => {
+    const calibration = {
+      startX: 0,
+      startY: 0,
+      endX: 100,
+      endY: 0,
+      lengthMm: 50,
+    };
+    const state = run(
+      initialTraceState,
+      { type: "AUTO_CALIBRATION_DETECTED", calibration },
+      { type: "ACCEPT_AUTO_CALIBRATION" },
+      { type: "SET_RULER_LENGTH", rulerLengthMm: 75 },
+    );
+
+    expect(state.rulerLengthMm).toBe(75);
+    expect(state.calibration?.lengthMm).toBe(50);
+    expect(mmPerPixel(state.calibration)).toBe(0.5);
   });
 
   it("retains the margin preference when scale is cleared", () => {

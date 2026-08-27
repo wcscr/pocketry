@@ -3,17 +3,22 @@ import { describe, expect, it } from "vitest";
 import { ARUCO_4X4_BITS, markerBits } from "./aruco-4x4";
 import {
   calibrationTemplateSvg,
+  paperFromTemplateMarkerIds,
+  TEMPLATE_MARKER_IDS,
   TEMPLATE_MARKER_SIZE_MM,
   TEMPLATE_PAPER_MM,
   TEMPLATE_SPACING_MM,
+  templateMarkerCornersMm,
   templateMarkerCentersMm,
 } from "./template";
 
 describe("ArUco 4x4 dictionary port", () => {
-  it("carries the canonical DICT_4X4 patterns for ids 0-3", () => {
+  it("carries the canonical DICT_4X4 patterns for ids 0-7", () => {
     // Decoded from OpenCV 4.11.0 predefined_dictionaries.hpp (rotation 0 of
     // each marker's byte record) — see the module header for provenance.
-    expect(ARUCO_4X4_BITS).toEqual([0xb532, 0x0f9a, 0x332d, 0x9946]);
+    expect(ARUCO_4X4_BITS).toEqual([
+      0xb532, 0x0f9a, 0x332d, 0x9946, 0x549e, 0x79cd, 0x9e2e, 0xc4f2,
+    ]);
   });
 
   it("decodes id 0 row-major, MSB first", () => {
@@ -26,7 +31,7 @@ describe("ArUco 4x4 dictionary port", () => {
   });
 
   it("rejects unported ids", () => {
-    expect(() => markerBits(7)).toThrow(/no ported pattern/);
+    expect(() => markerBits(8)).toThrow(/no ported pattern/);
   });
 });
 
@@ -34,7 +39,7 @@ describe("calibration template", () => {
   it("places marker centres on the 150×200 rectangle with 3-4-5 diagonals", () => {
     for (const paper of ["a4", "letter"] as const) {
       const centers = templateMarkerCentersMm(paper);
-      expect(centers.map((c) => c.id)).toEqual([0, 1, 2, 3]);
+      expect(centers.map((c) => c.id)).toEqual(TEMPLATE_MARKER_IDS[paper]);
 
       const [tl, tr, br, bl] = centers;
       expect(tr.x - tl.x).toBeCloseTo(TEMPLATE_SPACING_MM.width, 9);
@@ -49,6 +54,28 @@ describe("calibration template", () => {
         expect(y - half).toBeGreaterThanOrEqual(10);
         expect(x + half).toBeLessThanOrEqual(page.width - 10);
         expect(y + half).toBeLessThanOrEqual(page.height - 10);
+      }
+    }
+  });
+
+  it("uses distinct marker families so paper size is automatic", () => {
+    expect(paperFromTemplateMarkerIds([0, 2])).toBe("a4");
+    expect(paperFromTemplateMarkerIds([4, 7])).toBe("letter");
+    expect(paperFromTemplateMarkerIds([0])).toBeNull();
+    expect(paperFromTemplateMarkerIds([0, 4])).toBeNull();
+    expect(paperFromTemplateMarkerIds([12, 13])).toBeNull();
+  });
+
+  it("provides all sixteen physical marker corners for precision fitting", () => {
+    for (const paper of ["a4", "letter"] as const) {
+      const markers = templateMarkerCornersMm(paper);
+      expect(markers).toHaveLength(4);
+      expect(markers.flatMap(({ corners }) => corners)).toHaveLength(16);
+      for (const marker of markers) {
+        expect(marker.corners[1].x - marker.corners[0].x).toBeCloseTo(
+          TEMPLATE_MARKER_SIZE_MM,
+          9,
+        );
       }
     }
   });
@@ -69,7 +96,10 @@ describe("calibration template", () => {
     const whiteCells = svg.match(/fill="#fff"/g) ?? [];
     const popcount = (bits: number) =>
       bits.toString(2).split("").filter((b) => b === "1").length;
-    const expected = ARUCO_4X4_BITS.reduce((sum, bits) => sum + popcount(bits), 0);
+    const expected = TEMPLATE_MARKER_IDS.a4.reduce(
+      (sum, id) => sum + popcount(ARUCO_4X4_BITS[id]),
+      0,
+    );
     // One background rect is white too.
     expect(whiteCells.length).toBe(expected + 1);
     // One black base rect per marker (texts also use #000, hence rect-scoped).
@@ -84,6 +114,10 @@ describe("calibration template", () => {
     expect(svg).toContain("print at 100% scale");
     expect(svg).toContain("id 0");
     expect(svg).toContain("id 3");
+    const letter = calibrationTemplateSvg("letter");
+    expect(letter).toContain("id 4");
+    expect(letter).toContain("id 7");
+    expect(letter).not.toContain("id 0");
   });
 
   it("is deterministic", () => {

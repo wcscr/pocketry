@@ -6,10 +6,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Calibration } from "@shared/geometry/scale";
 
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { downloadBlob } from "@/lib/download";
 import { ShapeLibraryProvider } from "@/state/shape-library";
 import { TraceProvider, useTrace } from "@/state/trace-store";
 
 import { TraceControlsPanel } from "./trace-controls-panel";
+
+vi.mock("@/lib/download", () => ({ downloadBlob: vi.fn() }));
 
 const CALIBRATION: Calibration = {
   startX: 0,
@@ -18,6 +21,8 @@ const CALIBRATION: Calibration = {
   endY: 0,
   lengthMm: 50,
 };
+
+const applyPerspective = vi.fn();
 
 class NoopResizeObserver implements ResizeObserver {
   observe() {}
@@ -54,6 +59,42 @@ function Harness(): JSX.Element {
         Detect auto scale
       </button>
       <button
+        data-testid="detect-auto-perspective"
+        onClick={() =>
+          dispatch({
+            type: "AUTO_CALIBRATION_DETECTED",
+            calibration: CALIBRATION,
+            perspective: {
+              source: "template",
+              paper: "letter",
+              points: [
+                { x: 10, y: 10 },
+                { x: 110, y: 12 },
+                { x: 108, y: 140 },
+                { x: 12, y: 138 },
+              ],
+            },
+          })
+        }
+      >
+        Detect auto perspective
+      </button>
+      <button
+        data-testid="complete-perspective-points"
+        onClick={() => {
+          for (const point of [
+            { x: 10, y: 10 },
+            { x: 790, y: 12 },
+            { x: 788, y: 590 },
+            { x: 12, y: 588 },
+          ]) {
+            dispatch({ type: "ADD_PERSPECTIVE_POINT", point });
+          }
+        }}
+      >
+        Complete perspective points
+      </button>
+      <button
         data-testid="complete-manual-scale"
         onClick={() => dispatch({ type: "SET_CALIBRATION", calibration: CALIBRATION })}
       >
@@ -76,6 +117,7 @@ function Harness(): JSX.Element {
         onExport={() => {}}
         onReprocess={() => {}}
         onDetectMarkers={() => {}}
+        onApplyPerspective={applyPerspective}
       />
     </>
   );
@@ -85,6 +127,8 @@ let host: HTMLDivElement;
 let root: Root;
 
 beforeEach(() => {
+  applyPerspective.mockReset();
+  vi.mocked(downloadBlob).mockReset();
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.stubGlobal("ResizeObserver", NoopResizeObserver);
   vi.spyOn(window, "requestAnimationFrame").mockImplementation(
@@ -94,7 +138,6 @@ beforeEach(() => {
   vi.spyOn(window, "cancelAnimationFrame").mockImplementation(
     (handle: number) => window.clearTimeout(handle),
   );
-
   host = document.createElement("div");
   document.body.appendChild(host);
   root = createRoot(host);
@@ -121,6 +164,21 @@ afterEach(() => {
 async function click(testId: string): Promise<void> {
   await React.act(async () => {
     host.querySelector<HTMLButtonElement>(`[data-testid="${testId}"]`)?.click();
+    await new Promise((resolve) => window.setTimeout(resolve, 10));
+  });
+}
+
+async function changeNumber(id: string, value: string): Promise<void> {
+  await React.act(async () => {
+    const input = host.querySelector<HTMLInputElement>(`#${id}`);
+    expect(input).not.toBeNull();
+    input!.focus();
+    const setter = Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      "value",
+    )!.set!;
+    setter.call(input, value);
+    input!.dispatchEvent(new Event("input", { bubbles: true }));
     await new Promise((resolve) => window.setTimeout(resolve, 10));
   });
 }
@@ -215,6 +273,45 @@ describe("TraceControlsPanel guided workflow", () => {
     );
   });
 
+  it("offers automatic and manual perspective correction paths", async () => {
+    await click("load-source");
+    await click("detect-auto-perspective");
+
+    const automaticCorrection = host.querySelector<HTMLButtonElement>(
+      '[data-testid="button-apply-auto-perspective"]',
+    );
+    expect(automaticCorrection).not.toBeNull();
+    expect(automaticCorrection?.disabled).toBe(false);
+    expect(section("scale")?.textContent).toContain(
+      "US Letter template detected automatically",
+    );
+    await click("button-apply-auto-perspective");
+    expect(applyPerspective).toHaveBeenLastCalledWith(
+      expect.objectContaining({ source: "template" }),
+      "letter",
+    );
+
+    await click("link-print-template-letter");
+    expect(downloadBlob).toHaveBeenLastCalledWith(
+      expect.any(Blob),
+      "pocketry-calibration-letter.pdf",
+    );
+    const downloadedPdf = vi.mocked(downloadBlob).mock.calls.at(-1)![0];
+    expect(downloadedPdf.type).toBe("application/pdf");
+    expect(
+      new TextDecoder().decode(await downloadedPdf.arrayBuffer()).startsWith("%PDF-1.4"),
+    ).toBe(true);
+    await click("button-select-perspective-points");
+    expect(host.textContent).toContain("corner 1 of 4");
+    await click("complete-perspective-points");
+    expect(host.textContent).toContain("Four corners selected");
+    await click("button-apply-manual-perspective");
+    expect(applyPerspective).toHaveBeenLastCalledWith(
+      expect.objectContaining({ source: "manual" }),
+      "letter",
+    );
+  });
+
   it("guides manual scale through region selection into Tool Detection", async () => {
     await click("load-source");
     await click("complete-manual-scale");
@@ -271,5 +368,19 @@ describe("TraceControlsPanel guided workflow", () => {
     expect(host.textContent).toContain(
       "Detection starts when you finish",
     );
+  });
+
+  it("updates the displayed manual scale when the reference length changes", async () => {
+    await click("load-source");
+    await click("complete-manual-scale");
+
+    expect(section("scale")?.textContent).toContain("0.500 mm/px");
+    await React.act(async () => {
+      sectionTrigger("scale")?.click();
+      await new Promise((resolve) => window.setTimeout(resolve, 10));
+    });
+    await changeNumber("ruler-length", "200");
+    expect(section("scale")?.textContent).toContain("2.000 mm/px");
+    expect(section("scale")?.textContent).toContain("2 mm/px (0.5 px/mm)");
   });
 });

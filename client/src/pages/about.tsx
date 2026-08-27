@@ -16,33 +16,68 @@ const RELATED_PROJECTS = [
     name: "Gridfinity Rebuilt OpenSCAD",
     description:
       "Parametric OpenSCAD bins and the upstream geometry foundation directly adapted by Pocketry.",
-    license: "MIT",
+    badge: "MIT",
     url: "https://github.com/kennetek/gridfinity-rebuilt-openscad",
   },
   {
     name: "Gridfinity Extended",
     description:
       "A broad OpenSCAD toolkit for customizable bins, baseplates, drawers, lids, and specialized holders.",
-    license: "GPL-3.0",
+    badge: "GPL-3.0",
     url: "https://github.com/ostat/gridfinity_extended_openscad",
   },
   {
     name: "Gridfinity Layout Tool",
     description:
       "Plan complete drawers in the browser, then generate bins, baseplates, and an optimized print list.",
-    license: "AGPL-3.0",
+    badge: "AGPL-3.0",
     url: "https://github.com/andymai/gridfinity-layout-tool",
   },
   {
     name: "Outline App",
     description:
       "An image-based outline editor and Gridfinity box creator with contour, text, and primitive editing.",
-    license: "AGPL-3.0",
+    badge: "AGPL-3.0",
     url: "https://github.com/georgslazdans/outline-app",
+  },
+  {
+    name: "Tracefinity",
+    description:
+      "A self-hostable photo-to-bin workflow with automatic tool tracing, a reusable tool library, and STL, 3MF, and SVG export.",
+    badge: "MIT",
+    url: "https://github.com/tracefinity/tracefinity",
+  },
+  {
+    name: "ToolTrace.ai",
+    description:
+      "A hosted photo-to-outline service for making custom Gridfinity trays, foam inserts, and shadow-board layouts.",
+    badge: "Web service",
+    url: "https://www.tooltrace.ai",
+  },
+  {
+    name: "Systemax DIY",
+    description:
+      "Photograph tools, build a reusable tool library and drawer layout, then order the resulting Gridfinity organizers or export production files.",
+    badge: "Design service",
+    url: "https://www.systemax.no/diy",
+  },
+  {
+    name: "Gridfinity Rebase",
+    description:
+      "Replace the bases in downloaded Gridfinity STLs with your preferred magnet-hole and attachment setup directly in the browser.",
+    badge: "GPL-3.0",
+    url: "https://gridfinity.tools/rebase",
+  },
+  {
+    name: "GridFlock",
+    description:
+      "Generate large Gridfinity baseplates that split into printable sections and reconnect with open puzzle-style joints.",
+    badge: "MIT / CC-BY",
+    url: "https://github.com/yawkat/GridFlock",
   },
 ] as const;
 
-/** Project background, legal notices, and links to complementary open tools. */
+/** Project background, legal notices, and links to related Gridfinity tools. */
 export default function About(): JSX.Element {
   return (
     <main className="h-full overflow-y-auto">
@@ -125,11 +160,11 @@ export default function About(): JSX.Element {
               id="related-projects-heading"
               className="text-2xl font-semibold tracking-tight"
             >
-              More open-source Gridfinity tools
+              More Gridfinity tools
             </h2>
             <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
-              Pocketry is one option in a healthy ecosystem. These independent
-              projects complement its photo-to-pocket workflow with configurable
+              These independent projects complement Pocketry or provide
+              alternatives to its photo-to-pocket workflow, including configurable
               bins, baseplates, drawer planning, and alternate outline tools.
             </p>
           </div>
@@ -143,7 +178,7 @@ export default function About(): JSX.Element {
                       {project.name}
                     </CardTitle>
                     <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                      {project.license}
+                      {project.badge}
                     </span>
                   </div>
                 </CardHeader>

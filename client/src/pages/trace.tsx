@@ -21,7 +21,13 @@ import {
 import { FileUpload } from "@/components/ui/file-upload";
 import { useToast } from "@/hooks/use-toast";
 import { autoCalibrate } from "@/lib/calibrate/auto-calibrate";
+import {
+  correctPerspective,
+  scalePerspectiveProposal,
+  type PerspectiveProposal,
+} from "@/lib/calibrate/perspective";
 import { SKEW_WARN_FRACTION } from "@/lib/calibrate/solve";
+import type { TemplatePaper } from "@/lib/calibrate/template";
 import { downloadBlob } from "@/lib/download";
 import { generateDXF } from "@/lib/export/dxf";
 import { exportScale } from "@/lib/export/scale";
@@ -36,6 +42,16 @@ export default function TracePage(): JSX.Element {
 }
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
+
+function imageDataToPngUrl(image: ImageData): string {
+  const canvas = document.createElement("canvas");
+  canvas.width = image.width;
+  canvas.height = image.height;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Could not create the corrected image preview.");
+  context.putImageData(image, 0, 0);
+  return canvas.toDataURL("image/png");
+}
 
 function TraceWorkspace(): JSX.Element {
   const store = useTrace();
@@ -167,14 +183,21 @@ function TraceWorkspace(): JSX.Element {
             endY: result.calibration.endY * frame.toWorking,
             lengthMm: result.calibration.lengthMm,
           };
-          dispatch({ type: "AUTO_CALIBRATION_DETECTED", calibration });
+          dispatch({
+            type: "AUTO_CALIBRATION_DETECTED",
+            calibration,
+            perspective: result.perspectiveProposal
+              ? scalePerspectiveProposal(result.perspectiveProposal, frame.toWorking)
+              : null,
+          });
           const { solution } = result;
           const mmPerPx = mmPerPixel(calibration);
-          const summary = `${solution.markerIds.length} markers · ${(mmPerPx ?? solution.mmPerPx).toFixed(3)} mm/px`;
+          const paperName = result.paper === "a4" ? "A4" : "US Letter";
+          const summary = `${paperName} · ${solution.markerIds.length} markers · ${(mmPerPx ?? solution.mmPerPx).toFixed(3)} mm/px`;
           if (solution.maxDeviation > SKEW_WARN_FRACTION) {
             toast({
               title: "Scale detected — review carefully",
-              description: `${summary}. Marker distances disagree by ${(solution.maxDeviation * 100).toFixed(1)}%; shoot straight down for accurate millimetres, or accept the detected result in Scale.`,
+              description: `${summary}. Marker distances disagree by ${(solution.maxDeviation * 100).toFixed(1)}%. ${result.perspectiveProposal ? "Perspective correction is available in Scale." : "Shoot straight down for accurate millimetres."}`,
               variant: "destructive",
               duration: 8000,
             });
@@ -212,6 +235,58 @@ function TraceWorkspace(): JSX.Element {
             });
           }
           break;
+      }
+    },
+    [getDetectionFrame, dispatch, toast],
+  );
+
+  const applyPerspective = useCallback(
+    async (proposal: PerspectiveProposal, paper: TemplatePaper) => {
+      const frame = getDetectionFrame();
+      if (!frame || frame.toWorking <= 0) {
+        toast({
+          title: "Correction unavailable",
+          description: "The source image is not ready yet.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      dispatch({ type: "SET_PROCESSING", processing: true });
+      try {
+        // Canvas points live in working-image coordinates. Correct from the
+        // larger marker-detection raster so the warp preserves source detail.
+        const detectionProposal = scalePerspectiveProposal(
+          proposal,
+          1 / frame.toWorking,
+        );
+        const corrected = await correctPerspective(
+          frame.imageData,
+          detectionProposal,
+          paper,
+        );
+        const imageUrl = imageDataToPngUrl(corrected.imageData);
+        dispatch({
+          type: "PERSPECTIVE_APPLIED",
+          imageUrl,
+          imageSize: { width: corrected.width, height: corrected.height },
+          calibration: corrected.calibration,
+          source: proposal.source,
+          paper,
+        });
+        toast({
+          title: "Perspective corrected",
+          description: `${paper === "a4" ? "A4" : "US Letter"} plane rectified at ${(1 / corrected.pxPerMm).toFixed(3)} mm/px${corrected.reprojectionErrorPx === null ? "" : ` · ${corrected.reprojectionErrorPx.toFixed(2)} px fit residual`}.`,
+        });
+      } catch (error) {
+        toast({
+          title: "Perspective correction failed",
+          description: error instanceof Error ? error.message : String(error),
+          variant: "destructive",
+          duration: 8000,
+        });
+      } finally {
+        dispatch({ type: "SET_PROCESSING", processing: false });
       }
     },
     [getDetectionFrame, dispatch, toast],
@@ -347,6 +422,9 @@ function TraceWorkspace(): JSX.Element {
             onExport={() => void handleExport()}
             onReprocess={() => void runDetection()}
             onDetectMarkers={() => void detectMarkers(true)}
+            onApplyPerspective={(proposal, paper) =>
+              void applyPerspective(proposal, paper)
+            }
           />
         }
         canvas={
