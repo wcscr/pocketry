@@ -82,7 +82,7 @@ const CLOSED_OR_FREEMIUM_TOOLS: readonly RelatedProject[] = [
     name: "ToolTrace.ai",
     description:
       "A hosted photo-to-outline service for making custom Gridfinity trays, foam inserts, and shadow-board layouts.",
-    badge: "Hosted service",
+    badge: "Commercial service",
     url: "https://www.tooltrace.ai",
   },
   {
