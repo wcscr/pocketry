@@ -86,7 +86,7 @@ export interface TraceState {
   draftCalibration: DraftCalibration | null;
   rulerLengthMm: number;
 
-  /** Four detected marker centres awaiting perspective-correction review. */
+  /** Detected sheet geometry awaiting perspective-correction review. */
   pendingPerspective: PerspectiveProposal | null;
   /** Page corners placed manually in top-left clockwise order. */
   manualPerspectivePoints: Point[];

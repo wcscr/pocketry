@@ -49,8 +49,8 @@ import {
   type PerspectiveProposal,
   type PerspectiveQuad,
 } from "@/lib/calibrate/perspective";
-import { calibrationTemplateSvg, type TemplatePaper } from "@/lib/calibrate/template";
-import { downloadBlob } from "@/lib/download";
+import { downloadCalibrationTemplate } from "@/lib/calibrate/download-template";
+import type { TemplatePaper } from "@/lib/calibrate/template";
 import { describeScale, exportScale } from "@/lib/export/scale";
 import { normalizeTracedShape } from "@/lib/gridfinity/traced-shape";
 import { MARGIN_MM_OPTIONS } from "@/lib/image-processor";
@@ -81,13 +81,6 @@ const TRACE_SETTINGS_SECTION_DETAILS = [
   { id: "trace-settings-contours", label: "Contours", tone: "violet" },
   { id: "trace-settings-output", label: "Output", tone: "emerald" },
 ] as const;
-
-function downloadCalibrationTemplate(paper: TemplatePaper): void {
-  downloadBlob(
-    new Blob([calibrationTemplateSvg(paper)], { type: "image/svg+xml" }),
-    `pocketry-calibration-${paper}.svg`,
-  );
-}
 
 /**
  * Everything that used to sit above or below the canvas, moved into the side
@@ -183,9 +176,8 @@ export function TraceControlsPanel({
     "scale" | "region" | "detection" | null
   >(null);
   const [calibrationSheetOpen, setCalibrationSheetOpen] = useState(false);
-  // Marker spacing is identical on A4 and Letter, so detection cannot infer
-  // the page size. Never silently assume one: downloading or explicitly
-  // selecting a template supplies the missing information.
+  // The template marker family identifies paper automatically. A markerless
+  // four-corner fallback still needs the printed paper's dimensions.
   const [perspectivePaper, setPerspectivePaper] =
     useState<TemplatePaper | null>(null);
   const previousSourceRevision = useRef(sourceRevision);
@@ -385,34 +377,21 @@ export function TraceControlsPanel({
               </p>
               {pendingPerspective ? (
                 <>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="auto-perspective-paper" className="text-xs">
-                      Printed paper size
-                    </Label>
-                    <Select
-                      value={perspectivePaper ?? undefined}
-                      onValueChange={(value) =>
-                        setPerspectivePaper(value as TemplatePaper)
-                      }
-                    >
-                      <SelectTrigger id="auto-perspective-paper" className="w-full">
-                        <SelectValue placeholder="Choose A4 or US Letter" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="a4">A4</SelectItem>
-                        <SelectItem value="letter">US Letter</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  <p className="text-xs font-medium text-amber-800 dark:text-amber-200">
+                    {pendingPerspective.paper === "a4" ? "A4" : "US Letter"}{" "}
+                    template detected automatically
+                  </p>
                   <Button
                     size="sm"
                     className="w-full"
-                    disabled={processing || perspectivePaper === null}
-                    onClick={() => {
-                      if (perspectivePaper) {
-                        onApplyPerspective(pendingPerspective, perspectivePaper);
-                      }
-                    }}
+                    disabled={processing || !pendingPerspective.paper}
+                    onClick={() =>
+                      pendingPerspective.paper &&
+                      onApplyPerspective(
+                        pendingPerspective,
+                        pendingPerspective.paper,
+                      )
+                    }
                     data-testid="button-apply-auto-perspective"
                   >
                     <ScanLine className="mr-1.5 h-4 w-4" />
@@ -537,13 +516,14 @@ export function TraceControlsPanel({
             ) : (
               <>
                 <p className="text-xs text-muted-foreground">
-                  If markers are unavailable, select the four visible paper
+                  The printed markers identify A4 or US Letter automatically.
+                  If the markers are unavailable, select the four visible paper
                   corners: top-left, top-right, bottom-right, then bottom-left.
                 </p>
                 {!pendingPerspective && (
                   <div className="space-y-1.5">
                     <Label htmlFor="manual-perspective-paper" className="text-xs">
-                      Paper size
+                      Paper size for manual fallback
                     </Label>
                     <Select
                       value={perspectivePaper ?? undefined}
@@ -615,6 +595,34 @@ export function TraceControlsPanel({
             )}
           </div>
 
+          <p className="text-xs text-muted-foreground">
+            Need a calibration sheet?{" "}
+            <button
+              type="button"
+              className="font-medium text-primary underline underline-offset-2 hover:no-underline"
+              onClick={() => {
+                setPerspectivePaper("a4");
+                downloadCalibrationTemplate("a4");
+              }}
+              data-testid="link-print-template-a4"
+            >
+              Print A4 PDF template
+            </button>{" "}
+            or{" "}
+            <button
+              type="button"
+              className="font-medium text-primary underline underline-offset-2 hover:no-underline"
+              onClick={() => {
+                setPerspectivePaper("letter");
+                downloadCalibrationTemplate("letter");
+              }}
+              data-testid="link-print-template-letter"
+            >
+              Print US Letter PDF template
+            </button>
+            .
+          </p>
+
           <Dialog open={calibrationSheetOpen} onOpenChange={setCalibrationSheetOpen}>
             <Button
               variant="link"
@@ -630,8 +638,9 @@ export function TraceControlsPanel({
                 <DialogTitle>Calibration sheet</DialogTitle>
                 <DialogDescription>
                   Print the sheet once at 100%, then include it beneath tools for
-                  automatic scale detection. The downloaded size is also selected
-                  for perspective correction.
+                  automatic scale and perspective correction. A4 and US Letter
+                  use different marker IDs, so Pocketry identifies the paper size
+                  for you.
                 </DialogDescription>
               </DialogHeader>
               <Button
@@ -656,7 +665,7 @@ export function TraceControlsPanel({
                   }}
                   data-testid="button-template-a4"
                 >
-                  A4
+                  Print A4 PDF
                 </Button>
                 <Button
                   variant={perspectivePaper === "letter" ? "default" : "outline"}
@@ -667,7 +676,7 @@ export function TraceControlsPanel({
                   }}
                   data-testid="button-template-letter"
                 >
-                  US Letter
+                  Print US Letter PDF
                 </Button>
               </div>
             </DialogContent>

@@ -80,7 +80,11 @@ printable calibration sheet sets the scale automatically on image load
 pair disagreement), with a manual "Detect markers" button and a hint toast
 when a non-Pocketry marker sheet (Original ArUco / 5×5 / 6×6 / 7×7 /
 AprilTag) is recognised instead. Detection reads a 1600px frame — small
-markers blur out at the 800×600 working resolution.
+markers blur out at the 800×600 working resolution. A4 and US Letter now use
+distinct marker IDs so paper size is inferred automatically. Perspective
+correction uses subpixel corner refinement and an overdetermined homography
+across all 16 marker corners; the four-page-corner manual fallback remains
+available when markers cannot be used.
 
 G3 delivered the trace → bin integration: "Add to bin" in the trace panel
 (hard-gated on calibration — the uncalibrated-scale footgun stops at the

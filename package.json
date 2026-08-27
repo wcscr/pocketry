@@ -11,6 +11,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "generate:calibration-templates": "tsx scripts/generate-calibration-templates.ts",
     "export:bin": "tsx scripts/export-bin.ts",
     "db:push": "drizzle-kit push"
   },

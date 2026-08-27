@@ -7,6 +7,7 @@ import {
   TEMPLATE_SPACING_MM,
   TEMPLATE_MARKER_IDS,
   TEMPLATE_PAPER_MM,
+  templateMarkerCornersMm,
   templateMarkerCentersMm,
   type TemplatePaper,
 } from "./template";
@@ -21,6 +22,13 @@ export type PerspectiveSource = "template" | "manual";
 export interface PerspectiveProposal {
   source: PerspectiveSource;
   points: PerspectiveQuad;
+  /** Automatically encoded by the marker-id family for template proposals. */
+  paper?: TemplatePaper;
+  /** Redundant marker-corner correspondences for a precision homography. */
+  correspondences?: {
+    source: Point[];
+    destinationMm: Point[];
+  };
 }
 
 export interface PerspectiveLayout {
@@ -33,6 +41,8 @@ export interface PerspectiveLayout {
 export interface PerspectiveCorrectionResult extends PerspectiveLayout {
   imageData: ImageData;
   calibration: Calibration;
+  /** Root-mean-square destination error; null for a four-click manual fit. */
+  reprojectionErrorPx: number | null;
 }
 
 /**
@@ -42,9 +52,13 @@ export interface PerspectiveCorrectionResult extends PerspectiveLayout {
  */
 export const RECTIFIED_PX_PER_MM = 2;
 
+/** Reject a template fit whose residual exceeds 0.75 mm on the output plane. */
+export const MAX_REPROJECTION_RMS_PX = 1.5;
+
 /** Builds an ordered four-marker proposal, or null when any template id is absent. */
 export function proposalFromTemplateMarkers(
   markers: readonly DetectedMarker[],
+  paper: TemplatePaper,
 ): PerspectiveProposal | null {
   const unique = new Map<number, DetectedMarker>();
   const duplicates = new Set<number>();
@@ -54,13 +68,26 @@ export function proposalFromTemplateMarkers(
   }
 
   const ordered: Point[] = [];
-  for (const id of TEMPLATE_MARKER_IDS) {
+  const source: Point[] = [];
+  const destinationMm: Point[] = [];
+  const physicalCorners = new Map(
+    templateMarkerCornersMm(paper).map((marker) => [marker.id, marker.corners]),
+  );
+  for (const id of TEMPLATE_MARKER_IDS[paper]) {
     if (duplicates.has(id)) return null;
     const marker = unique.get(id);
-    if (!marker) return null;
+    const destinationCorners = physicalCorners.get(id);
+    if (!marker?.cornersPx || !destinationCorners) return null;
     ordered.push(marker.centerPx);
+    source.push(...marker.cornersPx);
+    destinationMm.push(...destinationCorners);
   }
-  return { source: "template", points: ordered as PerspectiveQuad };
+  return {
+    source: "template",
+    paper,
+    points: ordered as PerspectiveQuad,
+    correspondences: { source, destinationMm },
+  };
 }
 
 /** Rescales a proposal between detection and working-image coordinate spaces. */
@@ -74,6 +101,15 @@ export function scalePerspectiveProposal(
       x: point.x * factor,
       y: point.y * factor,
     })) as PerspectiveQuad,
+    correspondences: proposal.correspondences
+      ? {
+          ...proposal.correspondences,
+          source: proposal.correspondences.source.map((point) => ({
+            x: point.x * factor,
+            y: point.y * factor,
+          })),
+        }
+      : undefined,
   };
 }
 
@@ -147,26 +183,73 @@ export function runPerspectiveCorrection(
       "The four correction points must form one non-overlapping rectangle in clockwise order.",
     );
   }
+  if (proposal.paper && proposal.paper !== paper) {
+    throw new Error("The detected template paper does not match the requested correction.");
+  }
 
   const layout = perspectiveLayout(proposal, paper, max);
   const source = cv.matFromImageData(image);
   const corrected = new cv.Mat();
+  const precisionFit =
+    proposal.correspondences &&
+    proposal.correspondences.source.length >= 4 &&
+    proposal.correspondences.source.length ===
+      proposal.correspondences.destinationMm.length
+      ? proposal.correspondences
+      : null;
+  const sourceCoordinates = precisionFit?.source ?? proposal.points;
+  const destinationCoordinates = precisionFit
+    ? precisionFit.destinationMm.map(({ x, y }) => ({
+        x: x * layout.pxPerMm,
+        y: y * layout.pxPerMm,
+      }))
+    : layout.destination;
   const sourcePoints = cv.matFromArray(
-    4,
+    sourceCoordinates.length,
     1,
     cv.CV_32FC2,
-    proposal.points.flatMap(({ x, y }) => [x, y]),
+    sourceCoordinates.flatMap(({ x, y }) => [x, y]),
   );
   const destinationPoints = cv.matFromArray(
-    4,
+    destinationCoordinates.length,
     1,
     cv.CV_32FC2,
-    layout.destination.flatMap(({ x, y }) => [x, y]),
+    destinationCoordinates.flatMap(({ x, y }) => [x, y]),
   );
   let transform: any | null = null;
+  const projected = new cv.Mat();
 
   try {
-    transform = cv.getPerspectiveTransform(sourcePoints, destinationPoints);
+    transform = precisionFit
+      ? cv.findHomography(sourcePoints, destinationPoints, 0)
+      : cv.getPerspectiveTransform(sourcePoints, destinationPoints);
+    if (!transform || transform.rows !== 3 || transform.cols !== 3) {
+      throw new Error("The correction points could not define a stable plane.");
+    }
+
+    let reprojectionErrorPx: number | null = null;
+    if (precisionFit) {
+      cv.perspectiveTransform(sourcePoints, projected, transform);
+      const values = projected.data32F as Float32Array;
+      let sumSquared = 0;
+      for (let index = 0; index < destinationCoordinates.length; index++) {
+        const dx = values[index * 2] - destinationCoordinates[index].x;
+        const dy = values[index * 2 + 1] - destinationCoordinates[index].y;
+        sumSquared += dx * dx + dy * dy;
+      }
+      reprojectionErrorPx = Math.sqrt(
+        sumSquared / destinationCoordinates.length,
+      );
+      if (
+        !Number.isFinite(reprojectionErrorPx) ||
+        reprojectionErrorPx > MAX_REPROJECTION_RMS_PX
+      ) {
+        throw new Error(
+          "The template corners disagree too much for a precise correction. Flatten the sheet, avoid the phone's ultra-wide lens, and retake the photo.",
+        );
+      }
+    }
+
     cv.warpPerspective(
       source,
       corrected,
@@ -198,6 +281,7 @@ export function runPerspectiveCorrection(
     return {
       ...layout,
       imageData,
+      reprojectionErrorPx,
       calibration: {
         startX: start.x,
         startY: start.y,
@@ -207,6 +291,7 @@ export function runPerspectiveCorrection(
       },
     };
   } finally {
+    projected.delete();
     transform?.delete?.();
     destinationPoints.delete();
     sourcePoints.delete();

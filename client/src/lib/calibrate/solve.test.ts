@@ -4,8 +4,12 @@ import { solveScaleFromMarkers, SKEW_WARN_FRACTION } from "./solve";
 import { templateMarkerCentersMm } from "./template";
 
 /** Detected markers synthesised from the template at `pxPerMm`. */
-function syntheticMarkers(pxPerMm: number, ids?: number[]) {
-  return templateMarkerCentersMm("a4")
+function syntheticMarkers(
+  pxPerMm: number,
+  ids?: number[],
+  paper: "a4" | "letter" = "a4",
+) {
+  return templateMarkerCentersMm(paper)
     .filter((entry) => !ids || ids.includes(entry.id))
     .map((entry) => ({
       id: entry.id,
@@ -23,6 +27,16 @@ describe("solveScaleFromMarkers", () => {
     expect(solution.maxDeviation).toBeCloseTo(0, 9);
     // The longest pair is a 250 mm diagonal — the 3-4-5 self-check.
     expect(solution.ruler.lengthMm).toBeCloseTo(250, 9);
+  });
+
+  it("recovers Letter scale from its distinct marker family", () => {
+    const solution = solveScaleFromMarkers(
+      syntheticMarkers(2, undefined, "letter"),
+      "letter",
+    )!;
+    expect(solution.mmPerPx).toBeCloseTo(0.5, 9);
+    expect(solution.markerIds).toEqual([4, 5, 6, 7]);
+    expect(solution.pairCount).toBe(6);
   });
 
   it("works from any two markers", () => {

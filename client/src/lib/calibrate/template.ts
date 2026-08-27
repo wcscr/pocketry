@@ -11,8 +11,14 @@ import { ARUCO_4X4_MODULES, markerBits } from "./aruco-4x4";
  * numbers double as a self-check. IDs are fixed per corner, which lets the
  * solver identify orientation however the sheet is rotated in the photo:
  *
- *     id 0 ── top left        id 1 ── top right
- *     id 3 ── bottom left     id 2 ── bottom right
+ *     A4:     id 0 ── top left        id 1 ── top right
+ *             id 3 ── bottom left     id 2 ── bottom right
+ *
+ *     Letter: id 4 ── top left        id 5 ── top right
+ *             id 7 ── bottom left     id 6 ── bottom right
+ *
+ * Distinct marker families let the detector infer the paper size rather than
+ * asking the user which sheet was printed.
  *
  * The SVG's user unit is the millimetre (`width="210mm"` + matching viewBox),
  * so any browser or slicer printing at 100% produces true-size markers; the
@@ -28,8 +34,19 @@ export const TEMPLATE_SPACING_MM = { width: 150, height: 200 } as const;
 /** Printed side length of one marker, border modules included. */
 export const TEMPLATE_MARKER_SIZE_MM = 30;
 
-/** Corner assignment, clockwise from top-left. */
-export const TEMPLATE_MARKER_IDS = [0, 1, 2, 3] as const;
+/** Minimum clearance between printed calibration content and the paper edge. */
+export const TEMPLATE_PRINT_SAFE_MARGIN_MM = 8;
+
+/** Corner assignment, clockwise from top-left, unique to each paper size. */
+export const TEMPLATE_MARKER_IDS: Record<
+  TemplatePaper,
+  readonly [number, number, number, number]
+> = {
+  a4: [0, 1, 2, 3],
+  letter: [4, 5, 6, 7],
+};
+
+export const ALL_TEMPLATE_MARKER_IDS = Object.values(TEMPLATE_MARKER_IDS).flat();
 
 export const TEMPLATE_PAPER_MM: Record<TemplatePaper, { width: number; height: number }> =
   {
@@ -46,12 +63,41 @@ export function templateMarkerCentersMm(
   const cy = page.height / 2;
   const dx = TEMPLATE_SPACING_MM.width / 2;
   const dy = TEMPLATE_SPACING_MM.height / 2;
+  const ids = TEMPLATE_MARKER_IDS[paper];
   return [
-    { id: TEMPLATE_MARKER_IDS[0], x: cx - dx, y: cy - dy },
-    { id: TEMPLATE_MARKER_IDS[1], x: cx + dx, y: cy - dy },
-    { id: TEMPLATE_MARKER_IDS[2], x: cx + dx, y: cy + dy },
-    { id: TEMPLATE_MARKER_IDS[3], x: cx - dx, y: cy + dy },
+    { id: ids[0], x: cx - dx, y: cy - dy },
+    { id: ids[1], x: cx + dx, y: cy - dy },
+    { id: ids[2], x: cx + dx, y: cy + dy },
+    { id: ids[3], x: cx - dx, y: cy + dy },
   ];
+}
+
+/** Known physical corners for every printed marker, in detector order. */
+export function templateMarkerCornersMm(
+  paper: TemplatePaper,
+): { id: number; corners: readonly { x: number; y: number }[] }[] {
+  const half = TEMPLATE_MARKER_SIZE_MM / 2;
+  return templateMarkerCentersMm(paper).map(({ id, x, y }) => ({
+    id,
+    corners: [
+      { x: x - half, y: y - half },
+      { x: x + half, y: y - half },
+      { x: x + half, y: y + half },
+      { x: x - half, y: y + half },
+    ],
+  }));
+}
+
+/** Identifies one Pocketry template from any two or more of its marker ids. */
+export function paperFromTemplateMarkerIds(
+  ids: readonly number[],
+): TemplatePaper | null {
+  const known = [...new Set(ids.filter((id) => ALL_TEMPLATE_MARKER_IDS.includes(id)))];
+  if (known.length < 2) return null;
+  const matches = (Object.keys(TEMPLATE_MARKER_IDS) as TemplatePaper[]).filter(
+    (paper) => known.every((id) => TEMPLATE_MARKER_IDS[paper].includes(id)),
+  );
+  return matches.length === 1 ? matches[0] : null;
 }
 
 /** One marker as SVG: black square with the pattern's white cells punched in. */
@@ -90,12 +136,12 @@ export function calibrationTemplateSvg(paper: TemplatePaper): string {
 
   const markers = centers.map(({ id, x, y }) => markerSvg(id, x, y)).join("\n  ");
 
-  // 100 mm verification bar, centred near the bottom edge.
-  const rulerY = centers[3].y + TEMPLATE_MARKER_SIZE_MM / 2 + 14;
+  // 100 mm verification bar, centred and kept inside common printer margins.
+  const rulerY = page.height - TEMPLATE_PRINT_SAFE_MARGIN_MM;
   const rulerX = cx - 50;
   const ticks = Array.from({ length: 11 }, (_, i) => {
     const x = rulerX + i * 10;
-    return `<line x1="${x}" y1="${rulerY}" x2="${x}" y2="${rulerY + (i % 5 === 0 ? 4 : 2.5)}" stroke="#000" stroke-width="0.3"/>`;
+    return `<line x1="${x}" y1="${rulerY}" x2="${x}" y2="${rulerY - (i % 5 === 0 ? 4 : 2.5)}" stroke="#000" stroke-width="0.3"/>`;
   }).join("");
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${page.width}mm" height="${page.height}mm" viewBox="0 0 ${page.width} ${page.height}">
@@ -106,7 +152,7 @@ export function calibrationTemplateSvg(paper: TemplatePaper): string {
   <g>
     <line x1="${rulerX}" y1="${rulerY}" x2="${rulerX + 100}" y2="${rulerY}" stroke="#000" stroke-width="0.5"/>
     ${ticks}
-    <text x="${cx}" y="${rulerY + 9}" text-anchor="middle" font-size="3.5" font-family="sans-serif" fill="#333">check: this bar is exactly 100 mm — marker centres 150 × 200 mm, diagonals 250 mm</text>
+    <text x="${cx}" y="${rulerY - 6}" text-anchor="middle" font-size="3.5" font-family="sans-serif" fill="#333">check: this bar is exactly 100 mm — marker centres 150 × 200 mm, diagonals 250 mm</text>
   </g>
 </svg>
 `;

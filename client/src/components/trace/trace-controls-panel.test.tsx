@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Calibration } from "@shared/geometry/scale";
 
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { downloadBlob } from "@/lib/download";
 import { ShapeLibraryProvider } from "@/state/shape-library";
 import { TraceProvider, useTrace } from "@/state/trace-store";
 
@@ -65,6 +66,7 @@ function Harness(): JSX.Element {
             calibration: CALIBRATION,
             perspective: {
               source: "template",
+              paper: "letter",
               points: [
                 { x: 10, y: 10 },
                 { x: 110, y: 12 },
@@ -126,6 +128,7 @@ let root: Root;
 
 beforeEach(() => {
   applyPerspective.mockReset();
+  vi.mocked(downloadBlob).mockReset();
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.stubGlobal("ResizeObserver", NoopResizeObserver);
   vi.spyOn(window, "requestAnimationFrame").mockImplementation(
@@ -278,24 +281,26 @@ describe("TraceControlsPanel guided workflow", () => {
       '[data-testid="button-apply-auto-perspective"]',
     );
     expect(automaticCorrection).not.toBeNull();
-    expect(automaticCorrection?.disabled).toBe(true);
-    expect(section("scale")?.textContent).toContain("Choose A4 or US Letter");
-
-    await click("button-calibration-sheet-options");
-    await React.act(async () => {
-      document.body
-        .querySelector<HTMLButtonElement>('[data-testid="button-template-letter"]')!
-        .click();
-      await new Promise((resolve) => window.setTimeout(resolve, 10));
-    });
-
     expect(automaticCorrection?.disabled).toBe(false);
+    expect(section("scale")?.textContent).toContain(
+      "US Letter template detected automatically",
+    );
     await click("button-apply-auto-perspective");
     expect(applyPerspective).toHaveBeenLastCalledWith(
       expect.objectContaining({ source: "template" }),
       "letter",
     );
 
+    await click("link-print-template-letter");
+    expect(downloadBlob).toHaveBeenLastCalledWith(
+      expect.any(Blob),
+      "pocketry-calibration-letter.pdf",
+    );
+    const downloadedPdf = vi.mocked(downloadBlob).mock.calls.at(-1)![0];
+    expect(downloadedPdf.type).toBe("application/pdf");
+    expect(
+      new TextDecoder().decode(await downloadedPdf.arrayBuffer()).startsWith("%PDF-1.4"),
+    ).toBe(true);
     await click("button-select-perspective-points");
     expect(host.textContent).toContain("corner 1 of 4");
     await click("complete-perspective-points");
