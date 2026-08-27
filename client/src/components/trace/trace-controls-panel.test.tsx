@@ -1,0 +1,275 @@
+// @vitest-environment jsdom
+import * as React from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import type { Calibration } from "@shared/geometry/scale";
+
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { ShapeLibraryProvider } from "@/state/shape-library";
+import { TraceProvider, useTrace } from "@/state/trace-store";
+
+import { TraceControlsPanel } from "./trace-controls-panel";
+
+const CALIBRATION: Calibration = {
+  startX: 0,
+  startY: 0,
+  endX: 100,
+  endY: 0,
+  lengthMm: 50,
+};
+
+class NoopResizeObserver implements ResizeObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+
+function Harness(): JSX.Element {
+  const { dispatch } = useTrace();
+  return (
+    <>
+      <button
+        data-testid="load-source"
+        onClick={() => {
+          dispatch({
+            type: "SOURCE_LOADED",
+            imageUrl: "data:image/png;base64,new-source",
+            fileName: "new-source",
+          });
+          dispatch({
+            type: "SOURCE_READY",
+            imageSize: { width: 800, height: 600 },
+          });
+        }}
+      >
+        Load source
+      </button>
+      <button
+        data-testid="detect-auto-scale"
+        onClick={() =>
+          dispatch({ type: "AUTO_CALIBRATION_DETECTED", calibration: CALIBRATION })
+        }
+      >
+        Detect auto scale
+      </button>
+      <button
+        data-testid="complete-manual-scale"
+        onClick={() => dispatch({ type: "SET_CALIBRATION", calibration: CALIBRATION })}
+      >
+        Complete manual scale
+      </button>
+      <button
+        data-testid="commit-region"
+        onClick={() => {
+          dispatch({
+            type: "SET_REGION",
+            region: { x: 10, y: 20, width: 300, height: 200 },
+          });
+          dispatch({ type: "REGION_COMMITTED" });
+        }}
+      >
+        Commit region
+      </button>
+      <TraceControlsPanel
+        onReplaceImage={() => {}}
+        onExport={() => {}}
+        onReprocess={() => {}}
+        onDetectMarkers={() => {}}
+      />
+    </>
+  );
+}
+
+let host: HTMLDivElement;
+let root: Root;
+
+beforeEach(() => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+  vi.spyOn(window, "requestAnimationFrame").mockImplementation(
+    (callback: FrameRequestCallback) =>
+      window.setTimeout(() => callback(performance.now()), 0),
+  );
+  vi.spyOn(window, "cancelAnimationFrame").mockImplementation(
+    (handle: number) => window.clearTimeout(handle),
+  );
+
+  host = document.createElement("div");
+  document.body.appendChild(host);
+  root = createRoot(host);
+  React.act(() => {
+    root.render(
+      <TooltipProvider>
+        <ShapeLibraryProvider>
+          <TraceProvider>
+            <Harness />
+          </TraceProvider>
+        </ShapeLibraryProvider>
+      </TooltipProvider>,
+    );
+  });
+});
+
+afterEach(() => {
+  React.act(() => root.unmount());
+  host.remove();
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
+
+async function click(testId: string): Promise<void> {
+  await React.act(async () => {
+    host.querySelector<HTMLButtonElement>(`[data-testid="${testId}"]`)?.click();
+    await new Promise((resolve) => window.setTimeout(resolve, 10));
+  });
+}
+
+function section(id: string): HTMLElement | null {
+  return host.querySelector<HTMLElement>(`#trace-settings-${id}`);
+}
+
+function sectionTrigger(id: string): HTMLButtonElement | null {
+  return (
+    section(id)?.querySelector<HTMLButtonElement>("[data-panel-section-trigger]") ??
+    null
+  );
+}
+
+describe("TraceControlsPanel guided workflow", () => {
+  it("collapses every section, opens Scale, and pulses its action after source load", async () => {
+    expect(host.textContent).toContain("Choose or drop an image");
+    expect(host.querySelector('[data-testid="button-source-image"]')).toBeNull();
+    expect(sectionTrigger("scale")?.disabled).toBe(true);
+    expect(
+      host.querySelector<HTMLButtonElement>(
+        '[data-testid="trace-settings-jump-scale"]',
+      )?.disabled,
+    ).toBe(true);
+    await click("load-source");
+
+    expect(
+      Array.from(
+        host.querySelectorAll<HTMLElement>('[id^="trace-settings-"]'),
+        (element) => element.id,
+      ),
+    ).toEqual([
+      "trace-settings-source",
+      "trace-settings-scale",
+      "trace-settings-crop",
+      "trace-settings-detect",
+      "trace-settings-contours",
+      "trace-settings-output",
+    ]);
+
+    for (const id of ["source", "detect", "contours", "crop", "output"]) {
+      expect(section(id)?.dataset.state).toBe("closed");
+    }
+    expect(section("scale")?.dataset.state).toBe("open");
+    expect(section("source")?.textContent).toContain("new-source");
+    expect(sectionTrigger("scale")?.disabled).toBe(false);
+    for (const id of ["crop", "detect", "contours", "output"]) {
+      expect(sectionTrigger(id)?.disabled).toBe(true);
+    }
+    expect(document.activeElement).toBe(sectionTrigger("scale"));
+    expect(
+      host.querySelector<HTMLButtonElement>('[data-testid="button-set-scale"]')
+        ?.className,
+    ).toContain("animate-pulse");
+
+    expect(host.textContent).toContain("Calibration sheet options");
+    expect(host.textContent).not.toContain("Print the sheet once");
+
+    await click("button-calibration-sheet-options");
+    expect(document.body.textContent).toContain("Print the sheet once");
+    expect(
+      document.body.querySelector('[data-testid="button-template-letter"]'),
+    ).not.toBeNull();
+  });
+
+  it("makes an auto-detected sheet scale explicit and waits for acceptance", async () => {
+    await click("load-source");
+    await click("detect-auto-scale");
+
+    expect(section("scale")?.dataset.state).toBe("open");
+    expect(host.textContent).toContain("Scale detected from the sheet");
+    expect(host.textContent).toContain("0.500 mm/px");
+    const accept = host.querySelector<HTMLButtonElement>(
+      '[data-testid="button-accept-auto-scale"]',
+    );
+    expect(document.activeElement).toBe(accept);
+
+    await click("button-accept-auto-scale");
+
+    expect(section("scale")?.dataset.state).toBe("closed");
+    expect(section("crop")?.dataset.state).toBe("open");
+    expect(
+      host
+        .querySelector<HTMLButtonElement>('[data-testid="button-set-region"]')
+        ?.getAttribute("aria-pressed"),
+    ).toBe("true");
+    const regionTrigger = sectionTrigger("crop");
+    expect(document.activeElement).toBe(regionTrigger);
+    expect(regionTrigger?.className).toContain(
+      "animate-[pulse_1s_ease-in-out_3]",
+    );
+  });
+
+  it("guides manual scale through region selection into Tool Detection", async () => {
+    await click("load-source");
+    await click("complete-manual-scale");
+
+    expect(section("scale")?.dataset.state).toBe("closed");
+    expect(section("crop")?.dataset.state).toBe("open");
+    expect(section("detect")?.dataset.state).toBe("closed");
+    expect(sectionTrigger("crop")?.disabled).toBe(false);
+    expect(sectionTrigger("detect")?.disabled).toBe(true);
+    expect(document.activeElement).toBe(sectionTrigger("crop"));
+
+    const setRegion = host.querySelector<HTMLButtonElement>(
+      '[data-testid="button-set-region"]',
+    );
+    const emptyClearRegion = host.querySelector<HTMLButtonElement>(
+      '[data-testid="button-clear-region"]',
+    );
+    expect(setRegion?.textContent).toContain("Set Region");
+    expect(setRegion?.getAttribute("aria-pressed")).toBe("true");
+    expect(emptyClearRegion?.textContent).toContain("Clear Region");
+    expect(emptyClearRegion?.disabled).toBe(true);
+    expect(emptyClearRegion?.parentElement?.className).toContain("grid-cols-2");
+    await click("button-set-region");
+    expect(setRegion?.getAttribute("aria-pressed")).toBe("true");
+    await click("commit-region");
+
+    expect(section("crop")?.dataset.state).toBe("closed");
+    expect(section("detect")?.dataset.state).toBe("open");
+    expect(document.activeElement).toBe(sectionTrigger("detect"));
+    expect(sectionTrigger("detect")?.className).toContain(
+      "animate-[pulse_1s_ease-in-out_3]",
+    );
+    expect(
+      section("detect")?.querySelector<HTMLButtonElement>("#margin")?.textContent,
+    ).toContain("1.5 mm");
+    expect(section("detect")?.textContent).not.toContain(
+      "Bin clearance is added on top",
+    );
+
+    await React.act(async () => {
+      sectionTrigger("crop")?.click();
+      await new Promise((resolve) => window.setTimeout(resolve, 10));
+    });
+    const clearRegion = host.querySelector<HTMLButtonElement>(
+      '[data-testid="button-clear-region"]',
+    );
+    expect(clearRegion?.textContent).toContain("Clear Region");
+    expect(clearRegion?.disabled).toBe(false);
+    expect(clearRegion?.parentElement?.className).toContain("grid-cols-2");
+
+    await click("button-clear-region");
+    expect(section("crop")?.dataset.state).toBe("open");
+    expect(sectionTrigger("detect")?.disabled).toBe(true);
+    expect(host.textContent).toContain(
+      "Detection starts when you finish",
+    );
+  });
+});

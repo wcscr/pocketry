@@ -1,0 +1,126 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Design tokens for the shadcn/ui theme.
+ *
+ * These were previously generated at build time from `theme.json` by
+ * `@replit/vite-plugin-shadcn-theme-json`, which injected them as an inline
+ * <style> tag. That plugin has been removed so the app builds without any
+ * Replit-specific tooling; the values below are the exact output it produced
+ * for the "professional" variant (primary hsl(222.2 47.4% 11.2%), radius 0.5).
+ * Edit them here directly.
+ */
+:root {
+  --background: 0 0% 100%;
+  --foreground: 20 14.3% 4.1%;
+  --muted: 60 4.8% 95.9%;
+  --muted-foreground: 25 5.3% 44.7%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 20 14.3% 4.1%;
+  --card: 0 0% 100%;
+  --card-foreground: 20 14.3% 4.1%;
+  --border: 20 5.9% 90%;
+  --input: 20 5.9% 90%;
+  --primary: 222 47% 11%;
+  --primary-foreground: 221 8% 97%;
+  --secondary: 60 4.8% 95.9%;
+  --secondary-foreground: 24 9.8% 10%;
+  --accent: 60 4.8% 95.9%;
+  --accent-foreground: 24 9.8% 10%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 60 9.1% 97.8%;
+  --ring: 20 14.3% 4.1%;
+  --radius: 0.5rem;
+
+  /*
+   * tailwind.config.ts maps `chart-1..5` and `sidebar-*` colours onto these
+   * variables. They were never part of the theme.json output, so every one of
+   * those utilities resolved to an invalid hsl() until they were defined here.
+   * The sidebar set is derived from the tokens above so a panel reads as the
+   * same surface family as the rest of the app; the chart ramp is the stock
+   * shadcn one, chosen for hue separation rather than to match the greys.
+   */
+  --chart-1: 12 76% 61%;
+  --chart-2: 173 58% 39%;
+  --chart-3: 197 37% 24%;
+  --chart-4: 43 74% 66%;
+  --chart-5: 27 87% 67%;
+
+  --sidebar-background: 60 4.8% 97.9%;
+  --sidebar-foreground: 20 14.3% 4.1%;
+  --sidebar-primary: 222 47% 11%;
+  --sidebar-primary-foreground: 221 8% 97%;
+  --sidebar-accent: 60 4.8% 95.9%;
+  --sidebar-accent-foreground: 24 9.8% 10%;
+  --sidebar-border: 20 5.9% 90%;
+  --sidebar-ring: 20 14.3% 4.1%;
+}
+
+.dark {
+  --background: 240 10% 3.9%;
+  --foreground: 0 0% 98%;
+  --muted: 240 3.7% 15.9%;
+  --muted-foreground: 240 5% 64.9%;
+  --popover: 240 10% 3.9%;
+  --popover-foreground: 0 0% 98%;
+  --card: 240 10% 3.9%;
+  --card-foreground: 0 0% 98%;
+  --border: 240 3.7% 15.9%;
+  --input: 240 3.7% 15.9%;
+  --primary: 222 47% 11%;
+  --primary-foreground: 221 8% 97%;
+  --secondary: 240 3.7% 15.9%;
+  --secondary-foreground: 0 0% 98%;
+  --accent: 240 3.7% 15.9%;
+  --accent-foreground: 0 0% 98%;
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 0 0% 98%;
+  --ring: 240 4.9% 83.9%;
+  --radius: 0.5rem;
+
+  /* Dark counterparts of the tokens added to :root above. */
+  --chart-1: 220 70% 50%;
+  --chart-2: 160 60% 45%;
+  --chart-3: 30 80% 55%;
+  --chart-4: 280 65% 60%;
+  --chart-5: 340 75% 55%;
+
+  --sidebar-background: 240 10% 5.9%;
+  --sidebar-foreground: 0 0% 98%;
+  --sidebar-primary: 222 47% 11%;
+  --sidebar-primary-foreground: 221 8% 97%;
+  --sidebar-accent: 240 3.7% 15.9%;
+  --sidebar-accent-foreground: 0 0% 98%;
+  --sidebar-border: 240 3.7% 15.9%;
+  --sidebar-ring: 240 4.9% 83.9%;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  /*
+   * The app is a fixed full-viewport shell, not a scrolling document. The
+   * height chain has to be unbroken from html down to #root, because a
+   * percentage height resolves against the parent's *computed* height — one
+   * `height: auto` link and `h-dvh` inside #root would be measuring a box that
+   * has already collapsed to its content.
+   */
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+    /* Scrolling belongs to the panel and canvas regions, never the page.
+       overscroll-behavior stops a canvas pan at the edge from turning into the
+       browser's rubber-band / pull-to-refresh gesture. */
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+}

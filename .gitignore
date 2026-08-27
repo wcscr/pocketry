@@ -1,0 +1,37 @@
+# Dependencies
+node_modules
+
+# Build output
+dist
+server/public
+
+# Local mesh export artifacts (npm run export:bin)
+exports/
+
+# Replit leftovers
+vite.config.ts.*
+*.tar.gz
+
+# Virtual environments
+.venv*/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude Code container session data (bind-mounted via start_claude)
+.claude/
+
+# OpenCV.js build workspace (scripts/build-opencv-js.sh)
+.opencv-build/
