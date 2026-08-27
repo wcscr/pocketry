@@ -312,6 +312,11 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
       return {
         ...state,
         mode: action.mode,
+        // Choosing the manual ruler is an explicit rejection of an automatic
+        // candidate. Removing it here keeps every manual-entry surface (panel
+        // button and canvas toolbar) from leaving the auto ruler overlaid.
+        pendingAutoCalibration:
+          action.mode === "calibrate" ? null : state.pendingAutoCalibration,
         draftCalibration: action.mode === "calibrate" ? state.draftCalibration : null,
       };
 

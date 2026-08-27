@@ -244,7 +244,9 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
     // Ruler handles stay draggable in every mode, matching the old behaviour.
     if (displayedCalibration) {
       const target = event.target as Element;
-      const handle = target.getAttribute?.("data-ruler-handle");
+      const handle = target
+        .closest?.("[data-ruler-handle]")
+        ?.getAttribute("data-ruler-handle");
       if (handle === "start" || handle === "end") {
         dragRef.current = { kind: "ruler", end: handle };
         event.currentTarget.setPointerCapture(event.pointerId);
@@ -263,7 +265,10 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
     }
 
     if (mode === "calibrate" && event.button === 0) {
-      if (!draftCalibration?.startX) {
+      if (
+        draftCalibration?.startX === undefined ||
+        draftCalibration.startY === undefined
+      ) {
         dispatch({
           type: "SET_DRAFT_CALIBRATION",
           draftCalibration: { startX: image.x, startY: image.y },
@@ -273,7 +278,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
           type: "SET_CALIBRATION",
           calibration: {
             startX: draftCalibration.startX,
-            startY: draftCalibration.startY ?? image.y,
+            startY: draftCalibration.startY,
             endX: image.x,
             endY: image.y,
             lengthMm: rulerLengthMm,
@@ -354,6 +359,25 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
 
     const drag = dragRef.current;
     if (!drag) {
+      if (
+        mode === "calibrate" &&
+        !viewport.isPanning &&
+        draftCalibration?.startX !== undefined &&
+        draftCalibration.startY !== undefined
+      ) {
+        const image = toImage(event.clientX, event.clientY);
+        if (image) {
+          dispatch({
+            type: "SET_DRAFT_CALIBRATION",
+            draftCalibration: {
+              ...draftCalibration,
+              endX: image.x,
+              endY: image.y,
+            },
+          });
+        }
+        return;
+      }
       updateHover(event);
       viewport.handlers.onPointerMove(event);
       return;
@@ -503,11 +527,12 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
           region={region}
           regionActive={mode === "region"}
           calibration={
-            mode === "calibrate" || pendingAutoCalibration
-              ? displayedCalibration
-              : null
+            mode === "calibrate" && draftCalibration?.startX !== undefined
+              ? null
+              : displayedCalibration
           }
           draftCalibration={mode === "calibrate" ? draftCalibration : null}
+          rulerLengthMm={rulerLengthMm}
           busy={processing}
           cursor={cursor}
           hoveredVertexIndex={hoveredVertexIndex}

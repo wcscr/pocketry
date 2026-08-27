@@ -402,6 +402,25 @@ describe("modes and calibration", () => {
     expect(state.margin).toBe(1.5);
   });
 
+  it("removes a pending automatic ruler when manual placement begins", () => {
+    const detected = {
+      startX: 0,
+      startY: 0,
+      endX: 100,
+      endY: 0,
+      lengthMm: 50,
+    };
+    const state = run(
+      initialTraceState,
+      { type: "AUTO_CALIBRATION_DETECTED", calibration: detected },
+      { type: "SET_MODE", mode: "calibrate" },
+    );
+
+    expect(state.mode).toBe("calibrate");
+    expect(state.pendingAutoCalibration).toBeNull();
+    expect(state.calibration).toBeNull();
+  });
+
   it("preserves a chosen margin when the scale is replaced", () => {
     const calibration = {
       startX: 0,
