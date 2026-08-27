@@ -135,6 +135,7 @@ describe("App", () => {
     expect(container.textContent).toContain("Gridfinity Layout Tool");
     expect(container.textContent).toContain("Outline App");
     expect(container.textContent).toContain("Tracefinity");
+    expect(container.textContent).toContain("Perplexing Labs Gridfinity Generator");
     expect(container.textContent).toContain("ToolTrace.ai");
     expect(container.textContent).toContain("Systemax DIY");
     expect(container.textContent).toContain("Gridfinity Rebase");
@@ -150,8 +151,10 @@ describe("App", () => {
     );
     expect(openSourceProjects?.textContent).toContain("Tracefinity");
     expect(openSourceProjects?.textContent).toContain("GridFlock");
+    expect(openSourceProjects?.textContent).not.toContain("Perplexing Labs");
     expect(openSourceProjects?.textContent).not.toContain("ToolTrace.ai");
     expect(openSourceProjects?.textContent).not.toContain("Systemax DIY");
+    expect(closedSourceTools?.textContent).toContain("Perplexing Labs");
     expect(closedSourceTools?.textContent).toContain("ToolTrace.ai");
     expect(closedSourceTools?.textContent).toContain("Systemax DIY");
     expect(closedSourceTools?.textContent).not.toContain("Tracefinity");
