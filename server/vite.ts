@@ -15,6 +15,11 @@ import { nanoid } from "nanoid";
 
 const viteLogger = createLogger();
 
+const legalFiles = [
+  { route: "/LICENSE.txt", source: "LICENSE" },
+  { route: "/NOTICE.txt", source: "NOTICE" },
+] as const;
+
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
     hour: "numeric",
@@ -24,6 +29,20 @@ export function log(message: string, source = "express") {
   });
 
   console.log(`${formattedTime} [${source}] ${message}`);
+}
+
+/** Serve repository legal files before Vite's SPA fallback in development. */
+export function serveLegalFiles(app: Express) {
+  for (const legalFile of legalFiles) {
+    app.get(legalFile.route, (_req, res, next) => {
+      res.type("text/plain").sendFile(
+        path.resolve(__dirname, "..", legalFile.source),
+        (error) => {
+          if (error) next(error);
+        },
+      );
+    });
+  }
 }
 
 export async function setupVite(app: Express, server: Server) {
@@ -47,6 +66,7 @@ export async function setupVite(app: Express, server: Server) {
     appType: "custom",
   });
 
+  serveLegalFiles(app);
   app.use(vite.middlewares);
   app.use("*", async (req, res, next) => {
     const url = req.originalUrl;
