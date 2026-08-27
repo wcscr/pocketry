@@ -9,6 +9,7 @@ import { WORKSPACES } from "@/components/layout/workspaces";
 import { PanelProvider, usePanelState } from "@/components/layout/panel-context";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import About from "@/pages/about";
 import NotFound from "@/pages/not-found";
 import { ShapeLibraryProvider } from "@/state/shape-library";
 import { TraceProvider } from "@/state/trace-store";
@@ -31,6 +32,9 @@ function Router() {
           <Workspace />
         </Route>
       ))}
+      <Route path="/about">
+        <About />
+      </Route>
       <Route component={NotFound} />
     </Switch>
   );
