@@ -1,4 +1,10 @@
-import { CircleHelp, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import {
+  CircleHelp,
+  Github,
+  Info,
+  PanelLeftClose,
+  PanelLeftOpen,
+} from "lucide-react";
 import { Link, useRoute } from "wouter";
 
 import { Button } from "@/components/ui/button";
@@ -31,6 +37,8 @@ export function AppHeader({
   onPanelOpenChange,
   onHelpClick,
 }: AppHeaderProps): JSX.Element {
+  const [isAbout] = useRoute("/about");
+
   return (
     <>
       <Link
@@ -62,25 +70,54 @@ export function AppHeader({
       </nav>
 
       <div className="ml-auto flex items-center gap-1">
+        {!isAbout ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => onPanelOpenChange(!panelOpen)}
+                aria-label={panelOpen ? "Hide controls" : "Show controls"}
+                aria-pressed={panelOpen}
+              >
+                {panelOpen ? (
+                  <PanelLeftClose className="h-4 w-4" />
+                ) : (
+                  <PanelLeftOpen className="h-4 w-4" />
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {panelOpen ? "Hide controls" : "Show controls"} ([)
+            </TooltipContent>
+          </Tooltip>
+        ) : null}
+
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => onPanelOpenChange(!panelOpen)}
-              aria-label={panelOpen ? "Hide controls" : "Show controls"}
-              aria-pressed={panelOpen}
-            >
-              {panelOpen ? (
-                <PanelLeftClose className="h-4 w-4" />
-              ) : (
-                <PanelLeftOpen className="h-4 w-4" />
-              )}
+            <Button asChild variant={isAbout ? "secondary" : "ghost"} size="icon">
+              <Link href="/about" aria-label="About Pocketry">
+                <Info className="h-4 w-4" />
+              </Link>
             </Button>
           </TooltipTrigger>
-          <TooltipContent>
-            {panelOpen ? "Hide controls" : "Show controls"} ([)
-          </TooltipContent>
+          <TooltipContent>About, licenses, and related projects</TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button asChild variant="ghost" size="icon">
+              <a
+                href="https://github.com/wcscr/pocketry"
+                target="_blank"
+                rel="noreferrer"
+                aria-label="Pocketry on GitHub"
+              >
+                <Github className="h-4 w-4" />
+              </a>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>View Pocketry on GitHub</TooltipContent>
         </Tooltip>
 
         <Tooltip>

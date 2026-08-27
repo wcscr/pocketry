@@ -106,6 +106,41 @@ describe("App", () => {
         link.textContent?.trim(),
       ),
     ).toEqual(["Trace", "Bin"]);
+    expect(
+      container
+        .querySelector<HTMLAnchorElement>('[aria-label="Pocketry on GitHub"]')
+        ?.getAttribute("href"),
+    ).toBe("https://github.com/wcscr/pocketry");
+  });
+
+  it("links to a scrollable About page with legal notices and related tools", () => {
+    renderApp();
+    const about = container.querySelector<HTMLAnchorElement>(
+      '[aria-label="About Pocketry"]',
+    );
+    expect(about).not.toBeNull();
+
+    act(() => {
+      about!.dispatchEvent(
+        new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 }),
+      );
+    });
+
+    expect(window.location.pathname).toBe("/about");
+    expect(container.textContent).toContain("About Pocketry");
+    expect(container.textContent).toContain("AGPL-3.0-only");
+    expect(container.textContent).toContain("OpenCV/OpenCV.js");
+    expect(container.textContent).toContain("Gridfinity Rebuilt OpenSCAD");
+    expect(container.textContent).toContain("Gridfinity Extended");
+    expect(container.textContent).toContain("Gridfinity Layout Tool");
+    expect(container.textContent).toContain("Outline App");
+    expect(
+      container.querySelector<HTMLAnchorElement>('a[href="/LICENSE.txt"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector<HTMLAnchorElement>('a[href="/NOTICE.txt"]'),
+    ).not.toBeNull();
+    expect(container.querySelector('[aria-label="Hide controls"]')).toBeNull();
   });
 
   it("no longer registers the retired Baseplate route", () => {
