@@ -71,6 +71,70 @@ function SeedTrace(): null {
   return null;
 }
 
+function SeedScaleDraft(): null {
+  const { dispatch } = useTrace();
+  React.useEffect(() => {
+    dispatch({
+      type: "SOURCE_LOADED",
+      imageUrl: "data:image/png;base64,AA==",
+      fileName: "tool.png",
+    });
+    dispatch({ type: "SOURCE_READY", imageSize: { width: 100, height: 100 } });
+    dispatch({ type: "SET_MODE", mode: "calibrate" });
+    dispatch({
+      type: "SET_DRAFT_CALIBRATION",
+      draftCalibration: { startX: 10, startY: 20 },
+    });
+  }, [dispatch]);
+  return null;
+}
+
+function installIdentitySvgCoordinates(): () => void {
+  const ctmDescriptor = Object.getOwnPropertyDescriptor(
+    SVGElement.prototype,
+    "getScreenCTM",
+  );
+  const pointDescriptor = Object.getOwnPropertyDescriptor(
+    SVGSVGElement.prototype,
+    "createSVGPoint",
+  );
+
+  Object.defineProperty(SVGElement.prototype, "getScreenCTM", {
+    configurable: true,
+    value: () => ({ inverse: () => ({}) }),
+  });
+  Object.defineProperty(SVGSVGElement.prototype, "createSVGPoint", {
+    configurable: true,
+    value: () => {
+      const point = {
+        x: 0,
+        y: 0,
+        matrixTransform: () => ({ x: point.x, y: point.y }),
+      };
+      return point;
+    },
+  });
+
+  return () => {
+    if (ctmDescriptor) {
+      Object.defineProperty(SVGElement.prototype, "getScreenCTM", ctmDescriptor);
+    } else {
+      delete (SVGElement.prototype as unknown as { getScreenCTM?: unknown })
+        .getScreenCTM;
+    }
+    if (pointDescriptor) {
+      Object.defineProperty(
+        SVGSVGElement.prototype,
+        "createSVGPoint",
+        pointDescriptor,
+      );
+    } else {
+      delete (SVGSVGElement.prototype as unknown as { createSVGPoint?: unknown })
+        .createSVGPoint;
+    }
+  };
+}
+
 afterEach(() => {
   vi.unstubAllGlobals();
   document.body.replaceChildren();
@@ -115,10 +179,63 @@ describe("TraceCanvas edit history", () => {
     expect(stroke?.getAttribute("stroke-width")).toBe("2.75");
     expect(stroke?.getAttribute("class")).toContain("stroke-fuchsia-500/95");
     expect(region?.getAttribute("opacity")).toBe("0.4");
-    // Accepted calibration is retained in state but no longer dominates the
-    // canvas after the user leaves scale mode.
-    expect(host.querySelector("[data-ruler-handle]")).toBeNull();
+    // A completed ruler remains visible and editable after scale mode ends.
+    expect(host.querySelectorAll('[data-testid="ruler-marker"]')).toHaveLength(2);
+    expect(host.querySelectorAll("[data-ruler-handle]")).toHaveLength(2);
+    expect(host.querySelector('[data-testid="ruler-line"]')).not.toBeNull();
+    expect(host.querySelector('[data-testid="ruler-length-label"]')?.textContent).toBe(
+      "50 mm",
+    );
 
     React.act(() => root.unmount());
+  });
+
+  it("extends the draft ruler to follow the pointer after its first marker", async () => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+    const restoreSvgCoordinates = installIdentitySvgCoordinates();
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const root = createRoot(host);
+
+    try {
+      await React.act(async () => {
+        root.render(
+          <TraceProvider>
+            <SeedScaleDraft />
+            <TooltipProvider>
+              <TraceCanvas onReprocess={() => {}} />
+            </TooltipProvider>
+          </TraceProvider>,
+        );
+        await Promise.resolve();
+      });
+
+      const canvas = host.querySelector("svg");
+      expect(canvas).not.toBeNull();
+      expect(host.querySelectorAll('[data-testid="ruler-marker"]')).toHaveLength(1);
+
+      await React.act(async () => {
+        canvas?.dispatchEvent(
+          new MouseEvent("pointermove", {
+            bubbles: true,
+            clientX: 70,
+            clientY: 80,
+          }),
+        );
+      });
+
+      const line = host.querySelector('[data-testid="ruler-line"]');
+      expect(line?.getAttribute("data-ruler-preview")).toBe("true");
+      expect(line?.getAttribute("x2")).toBe("70");
+      expect(line?.getAttribute("y2")).toBe("80");
+      expect(host.querySelectorAll('[data-testid="ruler-marker"]')).toHaveLength(2);
+      expect(host.querySelector('[data-testid="ruler-length-label"]')?.textContent).toBe(
+        "100 mm",
+      );
+    } finally {
+      React.act(() => root.unmount());
+      restoreSvgCoordinates();
+    }
   });
 });
