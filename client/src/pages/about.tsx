@@ -141,6 +141,17 @@ export default function About(): JSX.Element {
             <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
               About Pocketry
             </h1>
+            <a
+              href="/LICENSE.txt"
+              target="_blank"
+              rel="noreferrer"
+              aria-label="Pocketry is fully open source under AGPL-3.0-only"
+              className="inline-flex w-fit flex-wrap items-center gap-x-2 gap-y-1 rounded-full border border-primary/20 bg-primary/5 px-3 py-1.5 text-sm font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              <Github className="h-4 w-4" aria-hidden />
+              Fully open source under
+              <span className="font-mono text-xs">AGPL-3.0-only</span>
+            </a>
             <p className="max-w-3xl text-base leading-7 text-muted-foreground">
               Pocketry turns tool photos into editable outlines, fit-check files,
               shadow-board layouts, and printable Gridfinity bins. Image processing,
