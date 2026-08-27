@@ -389,7 +389,19 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
       return { ...state, draftCalibration: action.draftCalibration };
 
     case "SET_RULER_LENGTH":
-      return { ...state, rulerLengthMm: action.rulerLengthMm };
+      return {
+        ...state,
+        rulerLengthMm: action.rulerLengthMm,
+        // A completed manual ruler and its reference-length input describe the
+        // same measurement. Keep them coupled so correcting the known length
+        // immediately corrects mm/px without making the user redraw the line.
+        // Sheet calibration has an independently detected physical scale, so
+        // this preference must not overwrite it.
+        calibration:
+          state.calibrationSource === "manual" && state.calibration
+            ? { ...state.calibration, lengthMm: action.rulerLengthMm }
+            : state.calibration,
+      };
 
     case "SET_EXPORT_FORMAT":
       return { ...state, exportFormat: action.exportFormat };
