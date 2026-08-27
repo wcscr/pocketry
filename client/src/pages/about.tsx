@@ -72,6 +72,13 @@ const OPEN_SOURCE_PROJECTS: readonly RelatedProject[] = [
 
 const CLOSED_OR_FREEMIUM_TOOLS: readonly RelatedProject[] = [
   {
+    name: "Perplexing Labs Gridfinity Generator",
+    description:
+      "A hosted interface for configuring bins, baseplates, lids, labels, and other models from several Gridfinity projects.",
+    badge: "Hosted generator",
+    url: "https://gridfinity.perplexinglabs.com/",
+  },
+  {
     name: "ToolTrace.ai",
     description:
       "A hosted photo-to-outline service for making custom Gridfinity trays, foam inserts, and shadow-board layouts.",
