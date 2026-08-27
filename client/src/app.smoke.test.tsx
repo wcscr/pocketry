@@ -129,19 +129,67 @@ describe("App", () => {
     expect(window.location.pathname).toBe("/about");
     expect(container.textContent).toContain("About Pocketry");
     expect(container.textContent).toContain("AGPL-3.0-only");
+    const openSourceStatement = container.querySelector<HTMLAnchorElement>(
+      'a[aria-label="Pocketry is fully open source under AGPL-3.0-only"]',
+    );
+    expect(openSourceStatement?.textContent).toContain("Fully open source under");
+    expect(openSourceStatement?.getAttribute("href")).toBe("/LICENSE.txt");
     expect(container.textContent).toContain("OpenCV/OpenCV.js");
     expect(container.textContent).toContain("Gridfinity Rebuilt OpenSCAD");
     expect(container.textContent).toContain("Gridfinity Extended");
     expect(container.textContent).toContain("Gridfinity Layout Tool");
     expect(container.textContent).toContain("Outline App");
     expect(container.textContent).toContain("Tracefinity");
+    expect(container.textContent).toContain("Perplexing Labs Gridfinity Generator");
     expect(container.textContent).toContain("ToolTrace.ai");
     expect(container.textContent).toContain("Systemax DIY");
     expect(container.textContent).toContain("Gridfinity Rebase");
     expect(container.textContent).toContain("GridFlock");
     expect(container.textContent).toContain(
-      "complement Pocketry or provide alternatives",
+      "complement Pocketry or provide",
     );
+    const openSourceProjects = container.querySelector<HTMLElement>(
+      '[aria-labelledby="open-source-projects-heading"]',
+    );
+    const closedSourceTools = container.querySelector<HTMLElement>(
+      '[aria-labelledby="closed-source-projects-heading"]',
+    );
+    expect(openSourceProjects?.textContent).toContain("Tracefinity");
+    expect(openSourceProjects?.textContent).toContain("GridFlock");
+    expect(openSourceProjects?.textContent).not.toContain("Perplexing Labs");
+    expect(openSourceProjects?.textContent).not.toContain("ToolTrace.ai");
+    expect(openSourceProjects?.textContent).not.toContain("Systemax DIY");
+    expect(closedSourceTools?.textContent).toContain("Perplexing Labs");
+    expect(closedSourceTools?.textContent).toContain("ToolTrace.ai");
+    expect(closedSourceTools?.textContent).toContain("Systemax DIY");
+    for (const href of [
+      "https://www.tooltrace.ai",
+      "https://www.systemax.no/diy",
+    ]) {
+      const commercialCard = container
+        .querySelector<HTMLAnchorElement>(`a[href="${href}"]`)
+        ?.closest(".rounded-lg");
+      expect(commercialCard?.textContent).toContain("Commercial service");
+    }
+    expect(closedSourceTools?.textContent).not.toContain("Tracefinity");
+    expect(closedSourceTools?.textContent).toContain(
+      "not presented as open-source projects",
+    );
+    expect(container.textContent).not.toContain("Visit open-source project");
+    expect(container.textContent).not.toContain("Visit service");
+    for (const [name, href] of [
+      ["GridFlock", "https://github.com/yawkat/GridFlock"],
+      [
+        "Perplexing Labs Gridfinity Generator",
+        "https://gridfinity.perplexinglabs.com/",
+      ],
+    ] as const) {
+      const titleLink = container.querySelector<HTMLAnchorElement>(
+        `h3 > a[href="${href}"]`,
+      );
+      expect(titleLink?.textContent).toContain(name);
+      expect(titleLink?.target).toBe("_blank");
+    }
     expect(
       container.querySelector<HTMLAnchorElement>('a[href="/LICENSE.txt"]'),
     ).not.toBeNull();
