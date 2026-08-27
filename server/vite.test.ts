@@ -36,7 +36,7 @@ async function listen(app: Express): Promise<string> {
 describe("serveLegalFiles", () => {
   it.each([
     ["LICENSE.txt", "GNU AFFERO GENERAL PUBLIC LICENSE"],
-    ["NOTICE.txt", "Pocketry"],
+    ["NOTICE.txt", "Copyright (c) 2026 Sugarcreek Research, LLC"],
   ])("serves %s as plain text", async (fileName, expectedText) => {
     const app = express();
     serveLegalFiles(app);
