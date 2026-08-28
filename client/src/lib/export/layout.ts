@@ -9,6 +9,7 @@ import { binFootprintMm, BASE_TOP_RADIUS } from "@shared/gridfinity/standard";
 import type { BinSpec } from "@shared/gridfinity/types";
 import { isValidRing } from "@shared/geometry/rings";
 import type { Point, Ring } from "@shared/geometry/types";
+import { footprintOuterRingMm } from "@shared/gridfinity/footprint";
 
 import { budgetOutline } from "@/lib/gridfinity/cutouts";
 
@@ -34,11 +35,13 @@ export function layoutRingsMm(
   shapesById: ReadonlyMap<string, TracedShape>,
 ): Ring[] {
   const rings: Ring[] = [
-    roundedRectRing(
-      binFootprintMm(spec.gridX, spec.gridPitch),
-      binFootprintMm(spec.gridY, spec.gridPitch),
-      BASE_TOP_RADIUS,
-    ),
+    spec.footprint.kind === "custom"
+      ? footprintOuterRingMm(spec, CIRCLE_SEGMENTS)
+      : roundedRectRing(
+          binFootprintMm(spec.gridX, spec.gridPitch),
+          binFootprintMm(spec.gridY, spec.gridPitch),
+          BASE_TOP_RADIUS,
+        ),
   ];
 
   for (const cutout of cutouts) {

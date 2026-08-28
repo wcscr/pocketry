@@ -3,6 +3,7 @@ import {
   TEMPLATE_MARKER_SIZE_MM,
   TEMPLATE_PAPER_MM,
   TEMPLATE_PRINT_SAFE_MARGIN_MM,
+  TEMPLATE_SIGNATURE_VERSION,
   templateHeaderBaselinesMm,
   templateMarkerCentersMm,
   type TemplatePaper,
@@ -116,7 +117,7 @@ export function calibrationTemplatePdf(paper: TemplatePaper): Uint8Array {
 
   const centerX = page.width / 2;
   drawCenteredText(
-    `Pocketry ${paper === "a4" ? "A4" : "US Letter"} calibration sheet - print at 100% scale (no fit to page)`,
+    `Pocketry v${TEMPLATE_SIGNATURE_VERSION} ${paper === "a4" ? "A4" : "US Letter"} calibration sheet - print at 100% scale (no fit to page)`,
     centerX,
     header.title,
     5,

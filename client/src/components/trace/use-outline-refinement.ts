@@ -1,6 +1,9 @@
 import { useEffect, useRef } from "react";
 
-import type { Calibration } from "@shared/geometry/scale";
+import {
+  mmPerPixel,
+  type Calibration,
+} from "@shared/geometry/scale";
 import type { Outline } from "@shared/geometry/types";
 
 import {
@@ -19,12 +22,9 @@ export type OutlineRefiner = (
 ) => Promise<Outline>;
 
 /**
- * Re-derives the displayed outline only when an outline-shaping control moves.
- *
- * Calibration deliberately is not part of the signature. Setting scale changes
- * how pixels map to millimetres; it must not silently replace a contour the user
- * just approved or edited. It remains an effect dependency so a scale change
- * cancels an older in-flight refinement, but it cannot start a new one.
+ * Re-derives the displayed outline when an outline-shaping control or its
+ * physical scale changes. A margin is stored in millimetres, so changing
+ * mm/px must recalculate its pixel offset or the visible clearance lies.
  */
 export function useOutlineRefinement(
   refineOutline: OutlineRefiner = reprocessOutline,
@@ -37,15 +37,20 @@ export function useOutlineRefinement(
     calibration,
     dispatch,
   } = useTrace();
-  const refinementSignature = JSON.stringify([tolerancePx, smoothing, margin]);
+  const refinementSignature = JSON.stringify([
+    tolerancePx,
+    smoothing,
+    margin,
+    margin !== null && margin > 0 ? mmPerPixel(calibration) : null,
+  ]);
   const previousRefinementSignature = useRef(refinementSignature);
 
   useEffect(() => {
     const settingsChanged =
       previousRefinementSignature.current !== refinementSignature;
     previousRefinementSignature.current = refinementSignature;
-    // DETECTED already applies the current settings. This guard also protects
-    // hand edits across navigation and scale placement.
+    // DETECTED already applies the current settings. Once a physical margin is
+    // visible, however, a scale change is itself an outline-shaping change.
     if (!settingsChanged || rawOutline.length === 0) return;
     let cancelled = false;
 

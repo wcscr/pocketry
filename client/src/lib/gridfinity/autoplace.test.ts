@@ -8,6 +8,7 @@ import {
   autoPlaceFresh,
   autoPlaceIncremental,
   fitLayoutToPlacements,
+  fitFootprintToPlacements,
   placementInsetMm,
 } from "./autoplace";
 
@@ -208,6 +209,56 @@ describe("fitLayoutToPlacements", () => {
     expect(fitted.gridX).toBe(1);
     expect(fitted.gridY).toBe(1);
     expect(fitted.cutouts[0].position).toEqual({ x: 0, y: 0 });
+  });
+});
+
+describe("fitFootprintToPlacements", () => {
+  it("trims the unused corner around an L-shaped pocket", () => {
+    const shape: TracedShape = {
+      id: "l-tool",
+      name: "L tool",
+      outlineMm: [{
+        outer: [
+          { x: -30, y: -30 }, { x: 30, y: -30 }, { x: 30, y: -5 },
+          { x: -5, y: -5 }, { x: -5, y: 30 }, { x: -30, y: 30 },
+        ],
+        holes: [],
+      }],
+      bboxMm: { minX: -30, minY: -30, maxX: 30, maxY: 30 },
+      pointCount: 6,
+      sourceMmPerPx: 0.2,
+    };
+    const byId = new Map([[shape.id, shape]]);
+    const cutout = {
+      id: "c-l",
+      shapeId: shape.id,
+      position: { x: 0, y: 0 },
+      rotationDeg: 0,
+      mirrored: false,
+      depth: { mode: "remaining" as const, floorThicknessMm: 7 },
+      clearanceMm: 0,
+      cornerRoundMm: 1,
+      topFilletMm: 0,
+      bottomFilletMm: 2.8,
+      fingerHoles: [],
+    };
+    const result = fitFootprintToPlacements(
+      [cutout],
+      byId,
+      parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6, fill: "solid" }),
+    );
+    expect(result.gridX).toBe(2);
+    expect(result.gridY).toBe(2);
+    expect(result.footprint.kind).toBe("custom");
+    if (result.footprint.kind === "custom") expect(result.footprint.cells).toHaveLength(3);
+    const fittedSpec = parseBinSpec({
+      gridX: result.gridX,
+      gridY: result.gridY,
+      heightUnits: 6,
+      fill: "solid",
+      footprint: result.footprint,
+    });
+    expect(validateLayout(fittedSpec, result.cutouts, byId)).toEqual([]);
   });
 });
 

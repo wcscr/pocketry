@@ -1,5 +1,12 @@
 import { z } from "zod";
 
+import {
+  footprintTopologyError,
+  type BinFootprint,
+  type BoundaryEdge,
+  type GridCell,
+} from "./footprint";
+
 /**
  * The Gridfinity bin specification — what the user asks for, not how it is
  * built. Geometry builders (`client/src/lib/gridfinity`) consume a parsed
@@ -15,6 +22,22 @@ import { z } from "zod";
 export const MAX_GRID = 16;
 export const MAX_HEIGHT_UNITS = 42;
 
+const gridCellSchema = z
+  .object({ x: z.number().int(), y: z.number().int() })
+  .strict();
+
+const footprintSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("rectangle") }).strict(),
+  z
+    .object({ kind: z.literal("custom"), cells: z.array(gridCellSchema).min(1) })
+    .strict(),
+]);
+
+const boundaryEdgeSchema = z.object({
+  cell: gridCellSchema,
+  side: z.enum(["north", "south", "east", "west"]),
+}).strict();
+
 export const binSpecSchema = z
   .object({
     /** Number of 42 mm grid cells along x. */
@@ -23,6 +46,8 @@ export const binSpecSchema = z
     gridY: z.number().int().min(1).max(MAX_GRID),
     /** Standard 42 mm cells, or equal half/quarter-pitch subdivisions. */
     gridPitch: z.enum(["full", "half", "quarter"]).default("full"),
+    /** Rectangular legacy footprint or a canonical connected cell mask. */
+    footprint: footprintSchema.default({ kind: "rectangle" }),
     /** Height in 7 mm units, including the base, excluding the stacking lip. */
     heightUnits: z.number().int().min(1).max(MAX_HEIGHT_UNITS),
     /** Stacking lip on the rim. `none` gives a flush top. */
@@ -58,16 +83,34 @@ export const binSpecSchema = z
     labelTab: z
       .object({
         wall: z.enum(["north", "south", "east", "west"]).default("north"),
+        /** Exact boundary anchor for an irregular footprint; null keeps wall-based rectangle behavior. */
+        edge: boundaryEdgeSchema.nullable().default(null),
         width: z.enum(["full", "center", "left", "right"]).default("full"),
       })
       .strict()
       .nullable()
       .default(null),
   })
-  .strict();
+  .strict()
+  .superRefine((spec, context) => {
+    if (spec.footprint.kind !== "custom") return;
+    const error = footprintTopologyError(
+      spec.gridX,
+      spec.gridY,
+      spec.footprint.cells,
+    );
+    if (error) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["footprint", "cells"],
+        message: error,
+      });
+    }
+  });
 
 export type BinSpec = z.infer<typeof binSpecSchema>;
 export type BinSpecInput = z.input<typeof binSpecSchema>;
+export type { BinFootprint, BoundaryEdge, GridCell };
 
 /** Parses unknown input into a {@link BinSpec}, throwing on invalid shape. */
 export function parseBinSpec(input: unknown): BinSpec {

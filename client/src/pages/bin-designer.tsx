@@ -15,11 +15,13 @@ import {
   type ProjectDoc,
 } from "@shared/gridfinity/project";
 import { placementFootprint } from "@shared/gridfinity/cutout";
+import { parseBinSpec } from "@shared/gridfinity/types";
 
 import {
   autoArrangeLayout,
   autoPlaceFresh,
   autoPlaceIncremental,
+  trimFootprintToPlacements,
 } from "@/lib/gridfinity/autoplace";
 import {
   binDimensionsMm,
@@ -183,11 +185,25 @@ function BinDesignerWorkspace(): JSX.Element {
             shapesById,
           });
 
+    const gridX = Math.max(result.gridX, cutouts.length > 0 ? spec.gridX : 0);
+    const gridY = Math.max(result.gridY, cutouts.length > 0 ? spec.gridY : 0);
+    const nextCutouts = [...cutouts, ...result.cutouts];
+    const footprint = trimFootprintToPlacements(
+      nextCutouts,
+      shapesById,
+      parseBinSpec({
+        ...spec,
+        gridX,
+        gridY,
+        footprint: { kind: "rectangle" },
+      }),
+    );
     dispatch({
       type: "ADD_PLACED",
       cutouts: result.cutouts,
-      gridX: Math.max(result.gridX, cutouts.length > 0 ? spec.gridX : 0),
-      gridY: Math.max(result.gridY, cutouts.length > 0 ? spec.gridY : 0),
+      gridX,
+      gridY,
+      footprint,
     });
     if (spec.fill !== "solid") {
       dispatch({ type: "PATCH_SPEC", patch: { fill: "solid" } });
@@ -291,13 +307,14 @@ function BinDesignerWorkspace(): JSX.Element {
 
   const handleAutoArrange = useCallback(() => {
     const shapesById = new Map(library.shapes.map((shape) => [shape.id, shape]));
-    const result = autoArrangeLayout(cutouts, shapesById, spec.lip, spec.gridPitch);
+    const result = autoArrangeLayout(cutouts, shapesById, spec.lip, spec.gridPitch, spec);
     if (!result) return;
     dispatch({
       type: "REPLACE_LAYOUT",
       cutouts: result.cutouts,
       gridX: result.gridX,
       gridY: result.gridY,
+      footprint: result.footprint,
       historyLabel: "Auto-arrange tool pockets",
     });
     if (result.overflow) {
@@ -314,7 +331,7 @@ function BinDesignerWorkspace(): JSX.Element {
       const shapesById = new Map(library.shapes.map((shape) => [shape.id, shape]));
       const label = `${spec.gridX}x${spec.gridY}${
         spec.gridPitch === "full" ? "" : `-${spec.gridPitch}`
-      }`;
+      }${spec.footprint.kind === "custom" ? `-custom-${spec.footprint.cells.length}cell` : ""}`;
       if (format === "dxf") {
         downloadBlob(
           new Blob([generateLayoutDXF(spec, cutouts, shapesById)], {
@@ -533,7 +550,7 @@ function BinDesignerWorkspace(): JSX.Element {
       try {
         const label = `${spec.gridX}x${spec.gridY}x${spec.heightUnits}${
           spec.gridPitch === "full" ? "" : `-${spec.gridPitch}`
-        }`;
+        }${spec.footprint.kind === "custom" ? `-custom-${spec.footprint.cells.length}cell` : ""}`;
         const multicolor = format === "3mf-multicolor";
         const includePocketFloors =
           multicolor &&

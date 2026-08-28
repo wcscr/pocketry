@@ -8,7 +8,11 @@ import {
   type ReactNode,
 } from "react";
 
-import type { Calibration, DraftCalibration } from "@shared/geometry/scale";
+import {
+  hasCalibrationEndpoints,
+  type Calibration,
+  type DraftCalibration,
+} from "@shared/geometry/scale";
 import type { Outline, Point, Rect, RingRef } from "@shared/geometry/types";
 
 import type {
@@ -176,11 +180,14 @@ export type TraceAction =
   | { type: "SET_CALIBRATION"; calibration: Calibration | null }
   | {
       type: "AUTO_CALIBRATION_DETECTED";
+      /** Source image used by this asynchronous result. */
+      sourceImageUrl: string;
       calibration: Calibration;
       perspective?: PerspectiveProposal | null;
     }
   | { type: "ACCEPT_AUTO_CALIBRATION" }
   | { type: "AUTO_CALIBRATION_ATTEMPTED"; imageUrl: string }
+  | { type: "AUTO_CALIBRATION_FAILED"; sourceImageUrl: string }
   | { type: "SET_DRAFT_CALIBRATION"; draftCalibration: DraftCalibration | null }
   | { type: "SET_RULER_LENGTH"; rulerLengthMm: number }
   | { type: "START_PERSPECTIVE_SELECTION" }
@@ -189,6 +196,8 @@ export type TraceAction =
   | { type: "CANCEL_PERSPECTIVE_SELECTION" }
   | {
       type: "PERSPECTIVE_APPLIED";
+      /** Source image that was corrected; rejects a late result after replacement. */
+      sourceImageUrl: string;
       imageUrl: string;
       imageSize: { width: number; height: number };
       calibration: Calibration;
@@ -346,7 +355,8 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
       return { ...state, selection: action.selection };
 
     case "SET_MODE": {
-      // Leaving calibrate mode abandons a half-placed ruler.
+      // Leaving calibrate mode abandons a half-placed ruler. A complete pair
+      // of endpoints remains visible while the reference length is confirmed.
       // Entering either manual measurement mode rejects an automatic proposal.
       const rejectsAutomatic =
         action.mode === "calibrate" || action.mode === "perspective";
@@ -358,7 +368,11 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         pendingAutoCalibration:
           rejectsAutomatic ? null : state.pendingAutoCalibration,
         pendingPerspective: rejectsAutomatic ? null : state.pendingPerspective,
-        draftCalibration: action.mode === "calibrate" ? state.draftCalibration : null,
+        draftCalibration:
+          action.mode === "calibrate" ||
+          hasCalibrationEndpoints(state.draftCalibration)
+            ? state.draftCalibration
+            : null,
       };
     }
 
@@ -407,17 +421,19 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
       };
 
     case "AUTO_CALIBRATION_DETECTED":
-      return {
-        ...state,
-        calibration: null,
-        pendingAutoCalibration: action.calibration,
-        pendingPerspective: action.perspective ?? null,
-        calibrationSource: null,
-        margin: state.margin ?? DEFAULT_MARGIN_MM,
-        draftCalibration: null,
-        manualPerspectivePoints: [],
-        mode: "pan",
-      };
+      return action.sourceImageUrl === state.imageUrl
+        ? {
+            ...state,
+            calibration: null,
+            pendingAutoCalibration: action.calibration,
+            pendingPerspective: action.perspective ?? null,
+            calibrationSource: null,
+            margin: state.margin ?? DEFAULT_MARGIN_MM,
+            draftCalibration: null,
+            manualPerspectivePoints: [],
+            mode: "pan",
+          }
+        : state;
 
     case "ACCEPT_AUTO_CALIBRATION":
       if (!state.pendingAutoCalibration) return state;
@@ -434,6 +450,16 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
     case "AUTO_CALIBRATION_ATTEMPTED":
       return action.imageUrl === state.imageUrl
         ? { ...state, autoCalibrationAttemptedImageUrl: action.imageUrl }
+        : state;
+
+    case "AUTO_CALIBRATION_FAILED":
+      // Only the automatic upload-time pass may hand off to the manual ruler.
+      // Reject stale results and never interrupt a scale the user has already
+      // placed or a sheet proposal that arrived first.
+      return action.sourceImageUrl === state.imageUrl &&
+        !state.calibration &&
+        !state.pendingAutoCalibration
+        ? { ...state, mode: "calibrate" }
         : state;
 
     case "SET_DRAFT_CALIBRATION":
@@ -490,6 +516,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
       };
 
     case "PERSPECTIVE_APPLIED":
+      if (action.sourceImageUrl !== state.imageUrl) return state;
       return {
         ...initialTraceState,
         imageUrl: action.imageUrl,

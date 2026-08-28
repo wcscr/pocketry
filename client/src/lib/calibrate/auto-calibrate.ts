@@ -4,7 +4,9 @@ import { loadOpenCV } from "@/lib/opencv";
 
 import { detectCalibrationSheet, hasArucoSupport } from "./detect";
 import {
+  MAX_TEMPLATE_REPROJECTION_RMS_MM,
   proposalFromTemplateMarkers,
+  templateReprojectionErrorMm,
   type PerspectiveProposal,
 } from "./perspective";
 import { solveScaleFromMarkers, type ScaleSolution } from "./solve";
@@ -27,9 +29,19 @@ export type AutoCalibrationResult =
       /** Paper size encoded by this template's unique marker-id family. */
       paper: TemplatePaper;
       /** Present only when all four unique template markers can define a homography. */
-      perspectiveProposal: PerspectiveProposal | null;
+      perspectiveProposal: PerspectiveProposal;
+      /** Sixteen-corner template-fit residual on the physical page plane. */
+      templateReprojectionErrorMm: number;
     }
-  | { kind: "foreign-sheet"; family: string }
+  | {
+      kind: "foreign-sheet";
+      family: string;
+      reason:
+        | "different-dictionary"
+        | "incomplete-signature"
+        | "invalid-geometry";
+      markerIds: number[];
+    }
   | { kind: "no-markers" }
   | { kind: "unsupported" };
 
@@ -39,15 +51,57 @@ export type AutoCalibrationResult =
 export function runAutoCalibration(cv: any, image: ImageData): AutoCalibrationResult {
   const detection = detectCalibrationSheet(cv, image);
   if (!detection) return { kind: "no-markers" };
-  if (!detection.isTemplate) return { kind: "foreign-sheet", family: detection.family };
+  const markerIds = detection.markers
+    .map((marker) => marker.id)
+    .sort((a, b) => a - b);
+  if (!detection.isTemplate) {
+    return {
+      kind: "foreign-sheet",
+      family: detection.family,
+      reason: "different-dictionary",
+      markerIds,
+    };
+  }
 
   const paper = paperFromTemplateMarkerIds(
-    detection.markers.map((marker) => marker.id),
+    markerIds,
   );
-  const solution = paper ? solveScaleFromMarkers(detection.markers, paper) : null;
-  // Other or mixed DICT_4X4_50 ids are still a foreign sheet.
-  if (!paper || !solution) {
-    return { kind: "foreign-sheet", family: detection.family };
+  if (!paper) {
+    return {
+      kind: "foreign-sheet",
+      family: detection.family,
+      reason: "incomplete-signature",
+      markerIds,
+    };
+  }
+
+  const perspectiveProposal = proposalFromTemplateMarkers(
+    detection.markers,
+    paper,
+  );
+  const templateReprojectionError = perspectiveProposal
+    ? templateReprojectionErrorMm(cv, perspectiveProposal, paper)
+    : null;
+  if (
+    templateReprojectionError === null ||
+    templateReprojectionError > MAX_TEMPLATE_REPROJECTION_RMS_MM
+  ) {
+    return {
+      kind: "foreign-sheet",
+      family: detection.family,
+      reason: "invalid-geometry",
+      markerIds,
+    };
+  }
+
+  const solution = solveScaleFromMarkers(detection.markers, paper);
+  if (!solution || !perspectiveProposal) {
+    return {
+      kind: "foreign-sheet",
+      family: detection.family,
+      reason: "invalid-geometry",
+      markerIds,
+    };
   }
 
   return {
@@ -64,7 +118,8 @@ export function runAutoCalibration(cv: any, image: ImageData): AutoCalibrationRe
       lengthMm: solution.ruler.lengthMm,
     },
     solution,
-    perspectiveProposal: proposalFromTemplateMarkers(detection.markers, paper),
+    perspectiveProposal,
+    templateReprojectionErrorMm: templateReprojectionError,
   };
 }
 

@@ -11,6 +11,7 @@ function mountNumber(value = 12) {
   document.body.appendChild(host);
   const root = createRoot(host);
   const committed: number[] = [];
+  const explicitlyCommitted: number[] = [];
 
   function Probe(): JSX.Element {
     const [current, setCurrent] = React.useState(value);
@@ -23,6 +24,7 @@ function mountNumber(value = 12) {
           committed.push(next);
           setCurrent(next);
         }}
+        onValueCommit={(next) => explicitlyCommitted.push(next)}
       />
     );
   }
@@ -32,6 +34,7 @@ function mountNumber(value = 12) {
   return {
     input,
     committed,
+    explicitlyCommitted,
     change(next: string) {
       React.act(() => {
         input.focus();
@@ -77,6 +80,18 @@ describe("DraftNumberInput", () => {
     view.blur();
     expect(view.input.value).toBe("12");
     expect(view.committed).toEqual([]);
+    expect(view.explicitlyCommitted).toEqual([]);
+    view.unmount();
+  });
+
+  it("reports an explicit commit only after a valid draft loses focus", () => {
+    const view = mountNumber();
+    view.change("75");
+    expect(view.committed).toEqual([75]);
+    expect(view.explicitlyCommitted).toEqual([]);
+
+    view.blur();
+    expect(view.explicitlyCommitted).toEqual([75]);
     view.unmount();
   });
 });

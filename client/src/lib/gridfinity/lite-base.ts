@@ -9,12 +9,14 @@ import {
   D_WALL,
   gridPitchMm,
 } from "@shared/gridfinity/standard";
+import { cellCenterMm, occupiedCells } from "@shared/gridfinity/footprint";
 
 import type { Kernel } from "@/lib/manifold/runtime";
 
 import { baseCellSolid, type GridSize } from "./base";
 import { baseProfilePolygon, roundedRectPolygon, type ProfilePolygon } from "./profiles";
 import { sweepRounded } from "./sweep";
+import { footprintInteriorSection, footprintOuterSection } from "./footprint-section";
 
 /**
  * The lite base, ported from upstream `gridfinity_base_lite()` /
@@ -107,14 +109,13 @@ function liteLattice(
   const lengthMm = binFootprintMm(grid.gridY, pitch);
   const cellMm = binFootprintMm(1, pitch);
 
+  const plateSection = grid.footprint?.kind === "custom"
+    ? footprintOuterSection(kernel, grid, circularSegments)
+    : arena.track(new CrossSection([
+        roundedRectPolygon(widthMm, lengthMm, BASE_TOP_RADIUS, circularSegments),
+      ]));
   const plate = arena.track(
-    arena
-      .track(
-        new CrossSection([
-          roundedRectPolygon(widthMm, lengthMm, BASE_TOP_RADIUS, circularSegments),
-        ]).extrude(BASE_BRIDGE_HEIGHT),
-      )
-      .translate([0, 0, BASE_PROFILE_HEIGHT]),
+    arena.track(plateSection.extrude(BASE_BRIDGE_HEIGHT)).translate([0, 0, BASE_PROFILE_HEIGHT]),
   );
 
   const openingSection = arena.track(
@@ -150,32 +151,29 @@ function liteLattice(
   );
 
   const cutters: Manifold[] = [];
-  for (let i = 0; i < grid.gridX; i++) {
-    for (let j = 0; j < grid.gridY; j++) {
-      const x = (i - (grid.gridX - 1) / 2) * pitchMm;
-      const y = (j - (grid.gridY - 1) / 2) * pitchMm;
-      cutters.push(
-        arena.track(opening.translate([x, y, 0])),
-        arena.track(chamfer.translate([x, y, 0])),
-      );
-    }
+  for (const occupied of occupiedCells(grid)) {
+    const { x, y } = cellCenterMm(grid, occupied);
+    cutters.push(
+      arena.track(opening.translate([x, y, 0])),
+      arena.track(chamfer.translate([x, y, 0])),
+    );
   }
 
   // The chamfers reach exactly the cell edge; clipping every cutter to the
   // plate inset keeps the outer rim wall intact (upstream intersects with
   // `grid_size_mm − 2·wall`).
+  const insetSection = grid.footprint?.kind === "custom"
+    ? footprintInteriorSection(kernel, grid, circularSegments)
+    : arena.track(new CrossSection([
+        roundedRectPolygon(
+          widthMm - 2 * D_WALL,
+          lengthMm - 2 * D_WALL,
+          BASE_TOP_RADIUS - D_WALL,
+          circularSegments,
+        ),
+      ]));
   const inset = arena.track(
-    arena
-      .track(
-        new CrossSection([
-          roundedRectPolygon(
-            widthMm - 2 * D_WALL,
-            lengthMm - 2 * D_WALL,
-            BASE_TOP_RADIUS - D_WALL,
-            circularSegments,
-          ),
-        ]).extrude(BASE_BRIDGE_HEIGHT + 2),
-      )
+    arena.track(insetSection.extrude(BASE_BRIDGE_HEIGHT + 2))
       .translate([0, 0, BASE_PROFILE_HEIGHT - 1]),
   );
   const clipped = arena.track(arena.track(Manifold.union(cutters)).intersect(inset));
@@ -189,15 +187,11 @@ export function buildLiteBase(
   circularSegments: number,
 ): Manifold {
   const { Manifold, arena } = kernel;
-  const pitchMm = gridPitchMm(grid.gridPitch ?? "full");
   const cell = liteCell(kernel, circularSegments, grid);
   const pieces: Manifold[] = [liteLattice(kernel, grid, circularSegments)];
-  for (let i = 0; i < grid.gridX; i++) {
-    for (let j = 0; j < grid.gridY; j++) {
-      const x = (i - (grid.gridX - 1) / 2) * pitchMm;
-      const y = (j - (grid.gridY - 1) / 2) * pitchMm;
-      pieces.push(arena.track(cell.translate([x, y, 0])));
-    }
+  for (const occupied of occupiedCells(grid)) {
+    const { x, y } = cellCenterMm(grid, occupied);
+    pieces.push(arena.track(cell.translate([x, y, 0])));
   }
   return arena.track(Manifold.union(pieces));
 }

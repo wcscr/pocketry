@@ -52,8 +52,10 @@ export const DETECTION_CANVAS_MAX: Size = { width: 1600, height: 1600 };
 
 export interface DetectionFrame {
   imageData: ImageData;
-  /** Multiply detection-frame coordinates by this to land in working space. */
-  toWorking: number;
+  /** Exact per-axis mapping from rounded detection pixels to working pixels. */
+  toWorking: { x: number; y: number };
+  /** Provenance used to reject a result after the user replaces the image. */
+  sourceImageUrl: string;
 }
 
 /** Sizes the detection frame and the factor back into working space. */
@@ -61,10 +63,16 @@ export function detectionGeometry(
   natural: Size,
   max: Size = IMAGE_CANVAS_MAX,
   detectMax: Size = DETECTION_CANVAS_MAX,
-): { detect: Size; toWorking: number } {
+): { detect: Size; toWorking: { x: number; y: number } } {
   const working = fitWithin(natural, max);
   const detect = fitWithin(natural, detectMax);
-  return { detect, toWorking: working.width / detect.width };
+  return {
+    detect,
+    toWorking: {
+      x: working.width / detect.width,
+      y: working.height / detect.height,
+    },
+  };
 }
 
 export interface UseImageSourceResult {
@@ -108,6 +116,10 @@ export function useImageSource(
   const imageRef = useRef<HTMLImageElement | null>(null);
 
   useEffect(() => {
+    // A render can briefly still expose the previous ready state before this
+    // effect publishes "loading". Clear the decoded pixel source first so no
+    // caller can start another request against the previous image.
+    imageRef.current = null;
     if (!url) {
       setSource({ status: "empty" });
       return;
@@ -194,7 +206,7 @@ export function useImageSource(
     const image = imageRef.current;
     if (!image || source.status !== "ready") return null;
 
-    const { detect, toWorking } = detectionGeometry(source.naturalSize);
+    const { detect, toWorking } = detectionGeometry(source.naturalSize, max);
     const canvas = document.createElement("canvas");
     canvas.width = detect.width;
     canvas.height = detect.height;
@@ -202,8 +214,12 @@ export function useImageSource(
     if (!ctx) return null;
 
     ctx.drawImage(image, 0, 0, detect.width, detect.height);
-    return { imageData: ctx.getImageData(0, 0, detect.width, detect.height), toWorking };
-  }, [source]);
+    return {
+      imageData: ctx.getImageData(0, 0, detect.width, detect.height),
+      toWorking,
+      sourceImageUrl: source.url,
+    };
+  }, [source, max]);
 
   return { source, getImageData, getDetectionFrame };
 }

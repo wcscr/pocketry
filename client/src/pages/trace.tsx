@@ -56,6 +56,8 @@ function imageDataToPngUrl(image: ImageData): string {
 function TraceWorkspace(): JSX.Element {
   const store = useTrace();
   const { dispatch } = store;
+  const activeImageUrlRef = useRef(store.imageUrl);
+  activeImageUrlRef.current = store.imageUrl;
   const { toast } = useToast();
   const { panelOpen, setPanelOpen } = usePanelState();
 
@@ -174,20 +176,35 @@ function TraceWorkspace(): JSX.Element {
       if (!frame) return;
 
       const result = await autoCalibrate(frame.imageData);
+      // OpenCV work cannot be cancelled once running. Bind its result to the
+      // pixels it actually read so an old sheet can never paint overlays or
+      // toasts over a replacement image.
+      if (activeImageUrlRef.current !== frame.sourceImageUrl) return;
+      if (!manual && result.kind !== "calibrated") {
+        dispatch({
+          type: "AUTO_CALIBRATION_FAILED",
+          sourceImageUrl: frame.sourceImageUrl,
+        });
+      }
       switch (result.kind) {
         case "calibrated": {
           const calibration = {
-            startX: result.calibration.startX * frame.toWorking,
-            startY: result.calibration.startY * frame.toWorking,
-            endX: result.calibration.endX * frame.toWorking,
-            endY: result.calibration.endY * frame.toWorking,
+            startX: result.calibration.startX * frame.toWorking.x,
+            startY: result.calibration.startY * frame.toWorking.y,
+            endX: result.calibration.endX * frame.toWorking.x,
+            endY: result.calibration.endY * frame.toWorking.y,
             lengthMm: result.calibration.lengthMm,
           };
           dispatch({
             type: "AUTO_CALIBRATION_DETECTED",
+            sourceImageUrl: frame.sourceImageUrl,
             calibration,
             perspective: result.perspectiveProposal
-              ? scalePerspectiveProposal(result.perspectiveProposal, frame.toWorking)
+              ? scalePerspectiveProposal(
+                  result.perspectiveProposal,
+                  frame.toWorking.x,
+                  frame.toWorking.y,
+                )
               : null,
           });
           const { solution } = result;
@@ -211,9 +228,18 @@ function TraceWorkspace(): JSX.Element {
         }
         case "foreign-sheet":
           toast({
-            title: "Different marker sheet detected",
+            title:
+              result.reason === "incomplete-signature"
+                ? "Incomplete Pocketry sheet detected"
+                : result.reason === "invalid-geometry"
+                  ? "Calibration sheet rejected"
+                  : "Different marker sheet detected",
             description:
-              "These aren't the Pocketry markers. Open Calibration sheet options in Scale and print the Pocketry sheet.",
+              result.reason === "incomplete-signature"
+                ? `Pocketry found ${result.markerIds.length} of the 4 required v2 signature markers. Keep the complete current sheet visible and try again.`
+                : result.reason === "invalid-geometry"
+                  ? "The v2 marker IDs were present, but their 16 corners do not fit Pocketry's signed sheet geometry. No scale was proposed."
+                  : "These are stock or third-party markers, not the Pocketry v2 signature. Print the current Pocketry sheet or set scale manually.",
             duration: 8000,
           });
           break;
@@ -243,7 +269,11 @@ function TraceWorkspace(): JSX.Element {
   const applyPerspective = useCallback(
     async (proposal: PerspectiveProposal, paper: TemplatePaper) => {
       const frame = getDetectionFrame();
-      if (!frame || frame.toWorking <= 0) {
+      if (
+        !frame ||
+        frame.toWorking.x <= 0 ||
+        frame.toWorking.y <= 0
+      ) {
         toast({
           title: "Correction unavailable",
           description: "The source image is not ready yet.",
@@ -258,16 +288,19 @@ function TraceWorkspace(): JSX.Element {
         // larger marker-detection raster so the warp preserves source detail.
         const detectionProposal = scalePerspectiveProposal(
           proposal,
-          1 / frame.toWorking,
+          1 / frame.toWorking.x,
+          1 / frame.toWorking.y,
         );
         const corrected = await correctPerspective(
           frame.imageData,
           detectionProposal,
           paper,
         );
+        if (activeImageUrlRef.current !== frame.sourceImageUrl) return;
         const imageUrl = imageDataToPngUrl(corrected.imageData);
         dispatch({
           type: "PERSPECTIVE_APPLIED",
+          sourceImageUrl: frame.sourceImageUrl,
           imageUrl,
           imageSize: { width: corrected.width, height: corrected.height },
           calibration: corrected.calibration,
@@ -279,6 +312,7 @@ function TraceWorkspace(): JSX.Element {
           description: `${paper === "a4" ? "A4" : "US Letter"} plane rectified at ${(1 / corrected.pxPerMm).toFixed(3)} mm/px${corrected.reprojectionErrorPx === null ? "" : ` · ${corrected.reprojectionErrorPx.toFixed(2)} px fit residual`}.`,
         });
       } catch (error) {
+        if (activeImageUrlRef.current !== frame.sourceImageUrl) return;
         toast({
           title: "Perspective correction failed",
           description: error instanceof Error ? error.message : String(error),
@@ -286,7 +320,9 @@ function TraceWorkspace(): JSX.Element {
           duration: 8000,
         });
       } finally {
-        dispatch({ type: "SET_PROCESSING", processing: false });
+        if (activeImageUrlRef.current === frame.sourceImageUrl) {
+          dispatch({ type: "SET_PROCESSING", processing: false });
+        }
       }
     },
     [getDetectionFrame, dispatch, toast],
@@ -322,9 +358,13 @@ function TraceWorkspace(): JSX.Element {
     const reader = new FileReader();
     reader.onload = (event) => {
       if (!event.target?.result) return;
+      const imageUrl = event.target.result as string;
+      // Invalidate outstanding work before React processes the reducer queue;
+      // the reducer carries the same guard as the final backstop.
+      activeImageUrlRef.current = imageUrl;
       dispatch({
         type: "SOURCE_LOADED",
-        imageUrl: event.target.result as string,
+        imageUrl,
         fileName: file.name.replace(/\.[^/.]+$/, ""),
       });
       setUploadOpen(false);

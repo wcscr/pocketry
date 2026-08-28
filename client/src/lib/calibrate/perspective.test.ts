@@ -7,6 +7,7 @@ import {
   perspectiveLayout,
   proposalFromTemplateMarkers,
   runPerspectiveCorrection,
+  scalePerspectiveProposal,
   validPerspectiveQuad,
   type PerspectiveProposal,
   type PerspectiveQuad,
@@ -118,6 +119,33 @@ describe("perspective geometry", () => {
       { x: 420, y: 594 },
       { x: 0, y: 594 },
     ]);
+  });
+
+  it("maps detection coordinates back with exact independent axis scales", () => {
+    const proposal: PerspectiveProposal = {
+      source: "template",
+      paper: "a4",
+      points: [
+        { x: 100, y: 200 },
+        { x: 300, y: 200 },
+        { x: 300, y: 500 },
+        { x: 100, y: 500 },
+      ],
+      correspondences: {
+        source: [{ x: 80, y: 160 }],
+        destinationMm: [{ x: 15, y: 20 }],
+      },
+    };
+
+    const scaled = scalePerspectiveProposal(proposal, 0.5, 0.4);
+    expect(scaled.points).toEqual([
+      { x: 50, y: 80 },
+      { x: 150, y: 80 },
+      { x: 150, y: 200 },
+      { x: 50, y: 200 },
+    ]);
+    expect(scaled.correspondences?.source).toEqual([{ x: 40, y: 64 }]);
+    expect(scaled.correspondences?.destinationMm).toEqual([{ x: 15, y: 20 }]);
   });
 
   it("rejects a crossed manual selection", () => {

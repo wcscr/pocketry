@@ -5,6 +5,14 @@ import {
 } from "../geometry/rings";
 import type { Bounds, Outline, Point, Ring } from "../geometry/types";
 import {
+  edgeForWall,
+  footprintInteriorRingMm,
+  footprintOuterRingMm,
+  isBoundaryEdge,
+  signedDistanceToFootprintRing,
+  resolveBoundaryRun,
+} from "./footprint";
+import {
   effectiveScoopDepthMm,
   placementFootprint,
   resolvePocketDepth,
@@ -137,6 +145,14 @@ export function validateBinSpec(spec: BinSpec): ValidationResult {
     });
   }
 
+  if (spec.labelTab?.edge && !isBoundaryEdge(spec, spec.labelTab.edge)) {
+    issues.push({
+      code: "label-tab-edge-missing",
+      severity: "error",
+      message: "The selected label-tab edge is no longer part of the bin footprint.",
+    });
+  }
+
   return { issues, ok: issues.every((issue) => issue.severity !== "error") };
 }
 
@@ -149,38 +165,45 @@ export function labelTabStripMm(spec: BinSpec): Bounds | null {
   const tab = spec.labelTab;
   if (!tab) return null;
 
-  const interiorW = binFootprintMm(spec.gridX, spec.gridPitch) - 2 * D_WALL;
-  const interiorL = binFootprintMm(spec.gridY, spec.gridPitch) - 2 * D_WALL;
-  const alongNorth = tab.wall === "north" || tab.wall === "south";
-  const faceDist = (alongNorth ? interiorL : interiorW) / 2;
-  const chord = alongNorth ? interiorW : interiorL;
-
+  const edge = tab.edge ?? edgeForWall(spec, tab.wall);
+  const run = resolveBoundaryRun(spec, edge);
+  if (!run) return null;
+  const horizontal = edge.side === "north" || edge.side === "south";
+  const chord = run.lengthMm - 2 * D_WALL;
   const length = tab.width === "full" ? chord : Math.min(TAB_WIDTH_NOMINAL_MM, chord);
-  // Facing the wall from the bin centre, left is the −x end pre-rotation —
-  // the same frame the builder uses.
-  const startX =
+  const alongStart =
     tab.width === "left"
       ? -chord / 2
       : tab.width === "right"
         ? chord / 2 - length
         : -length / 2;
-  const pre: Bounds = {
-    minX: startX,
-    maxX: startX + length,
-    minY: faceDist - TAB_DEPTH_MM,
-    maxY: faceDist,
+  const alongEnd = alongStart + length;
+  const midpoint = {
+    x: (run.start.x + run.end.x) / 2,
+    y: (run.start.y + run.end.y) / 2,
   };
-
-  switch (tab.wall) {
-    case "north":
-      return pre;
-    case "south":
-      return { minX: -pre.maxX, maxX: -pre.minX, minY: -pre.maxY, maxY: -pre.minY };
-    case "east": // rotate −90°: (x, y) → (y, −x)
-      return { minX: pre.minY, maxX: pre.maxY, minY: -pre.maxX, maxY: -pre.minX };
-    case "west": // rotate +90°: (x, y) → (−y, x)
-      return { minX: -pre.maxY, maxX: -pre.minY, minY: pre.minX, maxY: pre.maxX };
-  }
+  if (edge.side === "north") midpoint.y -= D_WALL;
+  else if (edge.side === "south") midpoint.y += D_WALL;
+  else if (edge.side === "east") midpoint.x -= D_WALL;
+  else midpoint.x += D_WALL;
+  const localCorners: Point[] = [
+    { x: alongStart, y: 0 },
+    { x: alongEnd, y: 0 },
+    { x: alongEnd, y: -TAB_DEPTH_MM },
+    { x: alongStart, y: -TAB_DEPTH_MM },
+  ];
+  const angle = edge.side === "north" ? 0 : edge.side === "east" ? -90 : edge.side === "south" ? 180 : 90;
+  const radians = angle * Math.PI / 180;
+  const corners = localCorners.map((point) => ({
+    x: midpoint.x + point.x * Math.cos(radians) - point.y * Math.sin(radians),
+    y: midpoint.y + point.x * Math.sin(radians) + point.y * Math.cos(radians),
+  }));
+  return {
+    minX: Math.min(...corners.map((point) => point.x)),
+    maxX: Math.max(...corners.map((point) => point.x)),
+    minY: Math.min(...corners.map((point) => point.y)),
+    maxY: Math.max(...corners.map((point) => point.y)),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -320,12 +343,14 @@ function validateAgainstBin(spec: BinSpec, p: PlacedCutout): ValidationIssue[] {
 
   const halfW = binFootprintMm(spec.gridX, spec.gridPitch) / 2;
   const halfL = binFootprintMm(spec.gridY, spec.gridPitch) / 2;
-  if (
-    p.bounds.minX < -halfW ||
-    p.bounds.maxX > halfW ||
-    p.bounds.minY < -halfL ||
-    p.bounds.maxY > halfL
-  ) {
+  const outerBoundary = spec.footprint.kind === "custom" ? footprintOuterRingMm(spec) : null;
+  const outside = outerBoundary
+    ? p.rings.some((ring) => !ringInsideBoundary(ring, outerBoundary))
+    : p.bounds.minX < -halfW ||
+      p.bounds.maxX > halfW ||
+      p.bounds.minY < -halfL ||
+      p.bounds.maxY > halfL;
+  if (outside) {
     issues.push({
       code: "out-of-bounds",
       severity: "error",
@@ -337,19 +362,22 @@ function validateAgainstBin(spec: BinSpec, p: PlacedCutout): ValidationIssue[] {
   // Exact because the interior is convex: min over vertices is the polygon
   // min. The outline gets its fit clearance and top-surface round-over added;
   // feature circles are cut at their drawn size, so their allowance is zero.
+  const interiorBoundary = spec.footprint.kind === "custom"
+    ? footprintInteriorRingMm(spec)
+    : null;
   let minDistOutline = Infinity;
   for (const s of p.outline) {
-    for (const point of s.outer) {
-      const d = signedDistanceToInterior(point, spec);
-      if (d < minDistOutline) minDistOutline = d;
-    }
+    const d = interiorBoundary
+      ? ringSignedClearance(s.outer, interiorBoundary)
+      : Math.min(...s.outer.map((point) => signedDistanceToInterior(point, spec)));
+    if (d < minDistOutline) minDistOutline = d;
   }
   let minDistFeature = Infinity;
   for (const feature of p.features) {
-    for (const point of feature) {
-      const d = signedDistanceToInterior(point, spec);
-      if (d < minDistFeature) minDistFeature = d;
-    }
+    const d = interiorBoundary
+      ? ringSignedClearance(feature, interiorBoundary)
+      : Math.min(...feature.map((point) => signedDistanceToInterior(point, spec)));
+    if (d < minDistFeature) minDistFeature = d;
   }
   const outlineAllowance = cutout.clearanceMm + cutout.topFilletMm;
   const wallMargin = Math.min(minDistOutline - outlineAllowance, minDistFeature);
@@ -455,6 +483,29 @@ function validateAgainstBin(spec: BinSpec, p: PlacedCutout): ValidationIssue[] {
   }
 
   return issues;
+}
+
+function ringInsideBoundary(ring: Ring, boundary: Ring): boolean {
+  if (ring.some((point) => signedDistanceToFootprintRing(point, boundary) < -1e-7)) {
+    return false;
+  }
+  for (let i = 0; i < ring.length; i++) {
+    for (let j = 0; j < boundary.length; j++) {
+      if (segmentsIntersect(
+        ring[i],
+        ring[(i + 1) % ring.length],
+        boundary[j],
+        boundary[(j + 1) % boundary.length],
+      )) return false;
+    }
+  }
+  return true;
+}
+
+function ringSignedClearance(ring: Ring, boundary: Ring): number {
+  return ringInsideBoundary(ring, boundary)
+    ? ringSeparation(ring, boundary)
+    : -ringSeparation(ring, boundary);
 }
 
 /** Orientation-based proper segment intersection (touching counts). */
