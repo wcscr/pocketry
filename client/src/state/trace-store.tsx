@@ -48,6 +48,8 @@ export interface TraceHistoryEntry {
   outline: Outline;
   /** Human-readable operation that produced this state. */
   label: string;
+  /** Physical clearance paired with this exact contour state. */
+  margin: Margin;
 }
 
 export interface TraceState {
@@ -123,7 +125,10 @@ export const initialTraceState: TraceState = {
   detectedImageUrl: null,
   autoCalibrationAttemptedImageUrl: null,
   selection: null,
-  history: { stack: [{ outline: [], label: "Start" }], index: 0 },
+  history: {
+    stack: [{ outline: [], label: "Start", margin: DEFAULT_MARGIN_MM }],
+    index: 0,
+  },
   sensitivity: 128,
   tolerancePx: 1.2,
   smoothing: 1,
@@ -162,6 +167,8 @@ export type TraceAction =
   | { type: "OUTLINE_REFINED"; outline: Outline }
   /** A committed edit: pushes onto the undo stack. */
   | { type: "OUTLINE_COMMITTED"; outline: Outline; label?: string }
+  /** An offset of the current edited contour and its physical setting. */
+  | { type: "MARGIN_COMMITTED"; outline: Outline; margin: Margin }
   /** A mid-drag update: previews without touching the committed history. */
   | { type: "OUTLINE_DRAGGING"; outline: Outline }
   | { type: "UNDO" }
@@ -212,11 +219,12 @@ function pushHistory(
   history: TraceState["history"],
   outline: Outline,
   label: string,
+  margin: Margin,
 ): TraceState["history"] {
   // Anything redone-past is discarded, as in every undo stack.
   const stack = [
     ...history.stack.slice(0, history.index + 1),
-    { outline, label },
+    { outline, label, margin },
   ];
   const trimmed = stack.length > HISTORY_LIMIT ? stack.slice(-HISTORY_LIMIT) : stack;
   return { stack: trimmed, index: trimmed.length - 1 };
@@ -274,7 +282,13 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         detectedImageUrl: action.imageUrl,
         selection: null,
         history: {
-          stack: [{ outline: action.outline, label: "Detected outline" }],
+          stack: [
+            {
+              outline: action.outline,
+              label: "Detected outline",
+              margin: state.margin,
+            },
+          ],
           index: 0,
         },
       };
@@ -305,9 +319,26 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
           state.history,
           action.outline,
           action.label ?? "Edit contour",
+          state.margin,
         ),
       };
     }
+
+    case "MARGIN_COMMITTED":
+      if (state.margin === action.margin && state.outline === action.outline) {
+        return state;
+      }
+      return {
+        ...state,
+        margin: action.margin,
+        outline: action.outline,
+        history: pushHistory(
+          state.history,
+          action.outline,
+          `Set contour margin to ${action.margin ?? 0} mm`,
+          action.margin,
+        ),
+      };
 
     case "OUTLINE_DRAGGING":
       return { ...state, outline: action.outline };
@@ -318,6 +349,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
       return {
         ...state,
         outline: state.history.stack[index].outline,
+        margin: state.history.stack[index].margin,
         selection: null,
         history: { ...state.history, index },
       };
@@ -329,6 +361,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
       return {
         ...state,
         outline: state.history.stack[index].outline,
+        margin: state.history.stack[index].margin,
         selection: null,
         history: { ...state.history, index },
       };
@@ -346,6 +379,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
       return {
         ...state,
         outline: state.history.stack[action.index].outline,
+        margin: state.history.stack[action.index].margin,
         selection: null,
         history: { ...state.history, index: action.index },
       };
@@ -388,7 +422,10 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         svg: null,
         detectedImageUrl: null,
         selection: null,
-        history: { stack: [{ outline: [], label: "Start" }], index: 0 },
+        history: {
+          stack: [{ outline: [], label: "Start", margin: state.margin }],
+          index: 0,
+        },
       };
 
     case "REGION_COMMITTED":

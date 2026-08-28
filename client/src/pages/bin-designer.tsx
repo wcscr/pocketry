@@ -15,13 +15,11 @@ import {
   type ProjectDoc,
 } from "@shared/gridfinity/project";
 import { placementFootprint } from "@shared/gridfinity/cutout";
-import { parseBinSpec } from "@shared/gridfinity/types";
 
 import {
   autoArrangeLayout,
   autoPlaceFresh,
   autoPlaceIncremental,
-  trimFootprintToPlacements,
 } from "@/lib/gridfinity/autoplace";
 import {
   binDimensionsMm,
@@ -187,23 +185,14 @@ function BinDesignerWorkspace(): JSX.Element {
 
     const gridX = Math.max(result.gridX, cutouts.length > 0 ? spec.gridX : 0);
     const gridY = Math.max(result.gridY, cutouts.length > 0 ? spec.gridY : 0);
-    const nextCutouts = [...cutouts, ...result.cutouts];
-    const footprint = trimFootprintToPlacements(
-      nextCutouts,
-      shapesById,
-      parseBinSpec({
-        ...spec,
-        gridX,
-        gridY,
-        footprint: { kind: "rectangle" },
-      }),
-    );
     dispatch({
       type: "ADD_PLACED",
       cutouts: result.cutouts,
       gridX,
       gridY,
-      footprint,
+      // Automatic placement chooses the smallest rectangular Gridfinity bin.
+      // Irregular footprints require the explicit footprint editor.
+      footprint: { kind: "rectangle" },
     });
     if (spec.fill !== "solid") {
       dispatch({ type: "PATCH_SPEC", patch: { fill: "solid" } });
@@ -307,14 +296,21 @@ function BinDesignerWorkspace(): JSX.Element {
 
   const handleAutoArrange = useCallback(() => {
     const shapesById = new Map(library.shapes.map((shape) => [shape.id, shape]));
-    const result = autoArrangeLayout(cutouts, shapesById, spec.lip, spec.gridPitch, spec);
+    const result = autoArrangeLayout(
+      cutouts,
+      shapesById,
+      spec.lip,
+      spec.gridPitch,
+    );
     if (!result) return;
     dispatch({
       type: "REPLACE_LAYOUT",
       cutouts: result.cutouts,
       gridX: result.gridX,
       gridY: result.gridY,
-      footprint: result.footprint,
+      // Rearranging tools must not silently convert the bin into an irregular
+      // footprint. That remains an explicit Layout editing operation.
+      footprint: { kind: "rectangle" },
       historyLabel: "Auto-arrange tool pockets",
     });
     if (result.overflow) {

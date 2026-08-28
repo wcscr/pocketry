@@ -46,14 +46,17 @@ export interface PerspectiveCorrectionResult extends PerspectiveLayout {
 }
 
 /**
- * Two pixels per millimetre nearly fills the existing 800 x 600 working frame
- * for portrait A4 while keeping both A4 and Letter below the cap. More pixels
- * would be discarded by the canvas cap; fewer would throw away source detail.
+ * Perspective correction gets a larger working plane than an ordinary source
+ * image. At four pixels per millimetre A4 is 841 x 1189 and Letter is
+ * 865 x 1119: large enough to retain readable text and sharp marker edges,
+ * while still bounded to roughly one megapixel for interactive tracing.
  */
-export const RECTIFIED_PX_PER_MM = 2;
+export const RECTIFIED_PX_PER_MM = 4;
+export const RECTIFIED_IMAGE_MAX = { width: 1200, height: 1200 } as const;
 
 /** Reject a template fit whose residual exceeds 0.75 mm on the output plane. */
-export const MAX_REPROJECTION_RMS_PX = 1.5;
+export const MAX_REPROJECTION_RMS_PX =
+  0.75 * RECTIFIED_PX_PER_MM;
 export const MAX_TEMPLATE_REPROJECTION_RMS_MM =
   MAX_REPROJECTION_RMS_PX / RECTIFIED_PX_PER_MM;
 
@@ -182,7 +185,7 @@ export function scalePerspectiveProposal(
 export function perspectiveLayout(
   proposal: PerspectiveProposal,
   paper: TemplatePaper,
-  max = { width: 800, height: 600 },
+  max: { width: number; height: number } = RECTIFIED_IMAGE_MAX,
 ): PerspectiveLayout {
   const page = TEMPLATE_PAPER_MM[paper];
   const availableX = Math.max(1, max.width - 1) / page.width;
@@ -237,7 +240,7 @@ export function runPerspectiveCorrection(
   image: ImageData,
   proposal: PerspectiveProposal,
   paper: TemplatePaper,
-  max = { width: 800, height: 600 },
+  max: { width: number; height: number } = RECTIFIED_IMAGE_MAX,
 ): PerspectiveCorrectionResult {
   if (!validPerspectiveQuad(proposal.points)) {
     throw new Error(
@@ -366,6 +369,7 @@ export async function correctPerspective(
   image: ImageData,
   proposal: PerspectiveProposal,
   paper: TemplatePaper,
+  max: { width: number; height: number } = RECTIFIED_IMAGE_MAX,
 ): Promise<PerspectiveCorrectionResult> {
   const cv = await loadOpenCV();
   if (
@@ -374,5 +378,5 @@ export async function correctPerspective(
   ) {
     throw new Error("Perspective correction is unavailable in this browser session.");
   }
-  return runPerspectiveCorrection(cv, image, proposal, paper);
+  return runPerspectiveCorrection(cv, image, proposal, paper, max);
 }

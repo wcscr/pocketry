@@ -57,8 +57,12 @@ import { downloadCalibrationTemplate } from "@/lib/calibrate/download-template";
 import type { TemplatePaper } from "@/lib/calibrate/template";
 import { describeScale, exportScale } from "@/lib/export/scale";
 import { normalizeTracedShape } from "@/lib/gridfinity/traced-shape";
-import { MARGIN_MM_OPTIONS } from "@/lib/image-processor";
+import {
+  adjustOutlineMargin,
+  MARGIN_MM_OPTIONS,
+} from "@/lib/image-processor";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
 import { useShapeLibrary } from "@/state/shape-library";
 import { useTrace, type ExportFormat } from "@/state/trace-store";
 
@@ -132,6 +136,7 @@ export function TraceControlsPanel({
     extrusionHeight,
     processing,
   } = store;
+  const { toast } = useToast();
 
   const scale = exportScale(calibration, imageSize.height);
   const displayedScale = exportScale(
@@ -201,6 +206,60 @@ export function TraceControlsPanel({
   const focusWhenReady = useRef<
     "scale" | "auto" | "length" | "region" | "detection" | null
   >(null);
+  const marginRequest = useRef(0);
+  const latestMarginGeometry = useRef({ outline, margin, calibration });
+  latestMarginGeometry.current = { outline, margin, calibration };
+
+  const handleMarginChange = (nextMargin: number): void => {
+    const request = ++marginRequest.current;
+
+    void (async () => {
+      while (request === marginRequest.current) {
+        const current = latestMarginGeometry.current;
+        if (current.margin === nextMargin) return;
+        if (current.outline.length === 0 || !current.calibration) {
+          dispatch({ type: "SET_MARGIN", margin: nextMargin });
+          return;
+        }
+
+        let adjusted;
+        try {
+          adjusted = await adjustOutlineMargin(
+            current.outline,
+            current.margin,
+            nextMargin,
+            current.calibration,
+          );
+        } catch (cause) {
+          if (request !== marginRequest.current) return;
+          toast({
+            title: "Could not adjust contour margin",
+            description: cause instanceof Error ? cause.message : String(cause),
+            variant: "destructive",
+          });
+          return;
+        }
+
+        if (request !== marginRequest.current) return;
+        const latest = latestMarginGeometry.current;
+        if (
+          latest.outline !== current.outline ||
+          latest.margin !== current.margin ||
+          latest.calibration !== current.calibration
+        ) {
+          // A vertex edit or scale change landed while the offset was running.
+          // Retry against that latest edited contour rather than overwriting it.
+          continue;
+        }
+        dispatch({
+          type: "MARGIN_COMMITTED",
+          outline: adjusted,
+          margin: nextMargin,
+        });
+        return;
+      }
+    })();
+  };
 
   // A new source starts a new guided pass through the controls. Remounting the
   // section body resets every uncontrolled collapsible; once decoding finishes,
@@ -869,11 +928,21 @@ export function TraceControlsPanel({
             className="flex gap-2 rounded-md border border-rose-500/60 bg-rose-500/10 p-3 text-rose-900 ring-2 ring-rose-500/20 dark:text-rose-100"
           >
             <ScanSearch className="mt-0.5 h-4 w-4 shrink-0" />
-            <p className="text-xs leading-relaxed">
-              Adjust <strong>Sensitivity</strong> and <strong>Detail</strong> to
-              fine-tune the contour. Remove any arrant holes / contours by
-              clicking the trash can icon below.
-            </p>
+            <div className="space-y-2">
+              <p
+                data-testid="contour-editing-guidance"
+                className="text-base font-bold leading-snug"
+              >
+                Edit the contour shape: select a shape, then move, add, or delete
+                its detected vertices.
+              </p>
+              <p className="text-xs leading-relaxed">
+                Drag a vertex to move it, click to add one, or right-click a vertex
+                to delete it. Adjust <strong>Sensitivity</strong> and{" "}
+                <strong>Detail</strong> to fine-tune the contour. Remove any arrant
+                holes / contours by clicking the trash can icon below.
+              </p>
+            </div>
           </div>
 
           {/*
@@ -926,9 +995,7 @@ export function TraceControlsPanel({
             </Label>
             <Select
               value={scale.mmPerPx && margin !== null ? String(margin) : undefined}
-              onValueChange={(value) =>
-                dispatch({ type: "SET_MARGIN", margin: Number(value) })
-              }
+              onValueChange={(value) => handleMarginChange(Number(value))}
               disabled={!scale.mmPerPx}
             >
               <SelectTrigger id="margin" className="w-full">
@@ -945,8 +1012,8 @@ export function TraceControlsPanel({
               </SelectContent>
             </Select>
             <p className="text-[11px] text-muted-foreground">
-              Expands the traced contour before it goes to Bin. Defaults to 1.5
-              mm.
+              Offsets the current edited contour without re-detecting it. Margin
+              changes are saved in Edit history. Defaults to 1.5 mm.
             </p>
           </div>
 

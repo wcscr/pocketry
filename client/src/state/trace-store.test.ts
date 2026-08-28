@@ -162,6 +162,31 @@ describe("undo / redo", () => {
     expect(state.outline).toBe(ringB);
     expect(state.history.stack[0].outline).toBe(ringB);
   });
+
+  it("keeps margin changes in history with the edited contour", () => {
+    const changed = run(
+      initialTraceState,
+      detected(ringA),
+      { type: "OUTLINE_COMMITTED", outline: ringB, label: "Move contour node" },
+      { type: "MARGIN_COMMITTED", outline: ringC, margin: 2.5 },
+    );
+
+    expect(changed.outline).toBe(ringC);
+    expect(changed.margin).toBe(2.5);
+    expect(changed.history.stack.map((entry) => entry.label)).toEqual([
+      "Detected outline",
+      "Move contour node",
+      "Set contour margin to 2.5 mm",
+    ]);
+
+    const undone = traceReducer(changed, { type: "UNDO" });
+    expect(undone.outline).toBe(ringB);
+    expect(undone.margin).toBe(1.5);
+
+    const redone = traceReducer(undone, { type: "REDO" });
+    expect(redone.outline).toBe(ringC);
+    expect(redone.margin).toBe(2.5);
+  });
 });
 
 describe("loading a new image", () => {
@@ -326,7 +351,9 @@ describe("modes and calibration", () => {
     expect(state.rawOutline).toEqual([]);
     expect(state.svg).toBeNull();
     expect(state.detectedImageUrl).toBeNull();
-    expect(state.history.stack).toEqual([{ outline: [], label: "Start" }]);
+    expect(state.history.stack).toEqual([
+      { outline: [], label: "Start", margin: 1.5 },
+    ]);
   });
 
   it("ignores a detection result from a region that was replaced", () => {

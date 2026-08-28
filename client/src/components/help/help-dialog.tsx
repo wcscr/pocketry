@@ -124,11 +124,11 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
                 and is most accurate in the 2D Layout view.
               </li>
               <li>
-                <strong>Fit bin to contents</strong> can shrink or grow the bin
-                around the current tools and trim unused grid cells. Use
-                <strong> Edit footprint</strong> in Layout to add or remove cells
-                manually; the footprint must remain one connected piece without holes.
-                Removing a tool offers the same fitting choice.
+                <strong>Fit bin to contents</strong> shrinks or grows a rectangular
+                bin around the current tools. Use <strong>Edit footprint</strong> in
+                Layout only when you intentionally want an irregular bin; custom
+                footprints must remain one connected piece without holes. Removing a
+                tool offers the same rectangular fitting choice.
               </li>
               <li>
                 Label tabs can attach to any highlighted straight footprint edge.
