@@ -28,6 +28,9 @@ import { ARUCO_4X4_MODULES, markerBits } from "./aruco-4x4";
 
 export type TemplatePaper = "a4" | "letter";
 
+/** Printed and machine-readable template generation. */
+export const TEMPLATE_SIGNATURE_VERSION = 2;
+
 /** Centre-to-centre marker spacing. 150-200-250: a 3-4-5 triangle. */
 export const TEMPLATE_SPACING_MM = { width: 150, height: 200 } as const;
 
@@ -103,14 +106,14 @@ export function templateMarkerCornersMm(
   }));
 }
 
-/** Identifies one Pocketry template from any two or more of its marker ids. */
+/** Identifies one Pocketry v2 template only from its complete four-marker signature. */
 export function paperFromTemplateMarkerIds(
   ids: readonly number[],
 ): TemplatePaper | null {
   const known = [...new Set(ids.filter((id) => ALL_TEMPLATE_MARKER_IDS.includes(id)))];
-  if (known.length < 2) return null;
+  if (known.length !== 4) return null;
   const matches = (Object.keys(TEMPLATE_MARKER_IDS) as TemplatePaper[]).filter(
-    (paper) => known.every((id) => TEMPLATE_MARKER_IDS[paper].includes(id)),
+    (paper) => TEMPLATE_MARKER_IDS[paper].every((id) => known.includes(id)),
   );
   return matches.length === 1 ? matches[0] : null;
 }
@@ -162,7 +165,7 @@ export function calibrationTemplateSvg(paper: TemplatePaper): string {
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${page.width}mm" height="${page.height}mm" viewBox="0 0 ${page.width} ${page.height}">
   <rect width="${page.width}" height="${page.height}" fill="#fff"/>
-  <text x="${cx}" y="${header.title}" text-anchor="middle" font-size="5" font-family="sans-serif" fill="#000">Pocketry calibration sheet — print at 100% scale (no “fit to page”)</text>
+  <text x="${cx}" y="${header.title}" text-anchor="middle" font-size="5" font-family="sans-serif" fill="#000">Pocketry v${TEMPLATE_SIGNATURE_VERSION} calibration sheet — print at 100% scale (no “fit to page”)</text>
   <text x="${cx}" y="${header.instructions}" text-anchor="middle" font-size="3.5" font-family="sans-serif" fill="#333">Place the tool between the markers, keep all four visible, shoot from directly above.</text>
   ${markers}
   <g>

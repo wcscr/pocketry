@@ -66,7 +66,7 @@ function mountHook(refiner: OutlineRefiner): {
 }
 
 describe("useOutlineRefinement", () => {
-  it("does not reprocess or change the contour when scale is set", async () => {
+  it("recomputes a displayed physical margin when reference length changes", async () => {
     const refiner = vi.fn<OutlineRefiner>(async () => [
       { ...OUTLINE[0], holes: [[{ x: 2, y: 2 }, { x: 3, y: 2 }, { x: 2, y: 3 }]] },
     ]);
@@ -98,8 +98,28 @@ describe("useOutlineRefinement", () => {
     });
     await React.act(async () => Promise.resolve());
 
-    expect(refiner).not.toHaveBeenCalled();
-    expect(mounted.store().outline).toEqual(OUTLINE);
+    expect(refiner).toHaveBeenCalledOnce();
+    expect(refiner).toHaveBeenLastCalledWith(
+      OUTLINE,
+      expect.objectContaining({
+        margin: 1.5,
+        calibration: expect.objectContaining({ lengthMm: 50 }),
+      }),
+    );
+
+    await React.act(async () => {
+      mounted.store().dispatch({ type: "SET_RULER_LENGTH", rulerLengthMm: 100 });
+      await Promise.resolve();
+    });
+
+    expect(refiner).toHaveBeenCalledTimes(2);
+    expect(refiner).toHaveBeenLastCalledWith(
+      OUTLINE,
+      expect.objectContaining({
+        margin: 1.5,
+        calibration: expect.objectContaining({ lengthMm: 100 }),
+      }),
+    );
     mounted.unmount();
   });
 
@@ -129,6 +149,7 @@ describe("useOutlineRefinement", () => {
       mounted.store().dispatch({ type: "SET_CALIBRATION", calibration });
     });
     await React.act(async () => Promise.resolve());
+    refiner.mockClear();
 
     await React.act(async () => {
       mounted.store().dispatch({ type: "SET_MARGIN", margin: 2 });

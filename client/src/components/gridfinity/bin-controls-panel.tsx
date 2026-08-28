@@ -70,7 +70,8 @@ import {
 } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
-import { fitLayoutToPlacements } from "@/lib/gridfinity/autoplace";
+import { fitFootprintToPlacements } from "@/lib/gridfinity/autoplace";
+import { occupiedCellCount } from "@shared/gridfinity/footprint";
 import {
   binDimensionsMm,
   MULTICOLOR_FLOOR_MAX_THICKNESS_MM,
@@ -336,11 +337,10 @@ export function BinControlsPanel({
     nextCutouts: typeof cutouts,
     historyLabel = "Fit bin to contents",
   ) => {
-    const fitted = fitLayoutToPlacements(
+    const fitted = fitFootprintToPlacements(
       nextCutouts,
       shapesById,
-      spec.lip,
-      spec.gridPitch,
+      spec,
     );
     dispatch({ type: "REPLACE_LAYOUT", ...fitted, historyLabel });
   };
@@ -415,18 +415,27 @@ export function BinControlsPanel({
               </SelectContent>
             </Select>
           </div>
-          <CellSlider
-            label="Width"
-            cells={spec.gridX}
-            pitch={spec.gridPitch}
-            onChange={(gridX, transient) => patchSpec({ gridX }, transient)}
-          />
-          <CellSlider
-            label="Length"
-            cells={spec.gridY}
-            pitch={spec.gridPitch}
-            onChange={(gridY, transient) => patchSpec({ gridY }, transient)}
-          />
+          {spec.footprint.kind === "rectangle" ? (
+            <>
+              <CellSlider
+                label="Width"
+                cells={spec.gridX}
+                pitch={spec.gridPitch}
+                onChange={(gridX, transient) => patchSpec({ gridX }, transient)}
+              />
+              <CellSlider
+                label="Length"
+                cells={spec.gridY}
+                pitch={spec.gridPitch}
+                onChange={(gridY, transient) => patchSpec({ gridY }, transient)}
+              />
+            </>
+          ) : (
+            <div className="rounded-md border bg-muted/30 px-2.5 py-2 text-xs text-muted-foreground">
+              Bounding grid {spec.gridX} × {spec.gridY}. Add or remove cells in the Layout view,
+              or reset to a rectangle to use the size sliders.
+            </div>
+          )}
           <div className="space-y-1.5">
             <div className="flex items-baseline justify-between">
               <Label className="text-xs">Height</Label>
@@ -453,6 +462,10 @@ export function BinControlsPanel({
               ? ` (rim + ${STACKING_LIP_HEIGHT_ACTUAL.toFixed(1)} mm lip)`
               : ""}
           </p>
+          <p className="text-xs text-muted-foreground" data-testid="bin-footprint-summary">
+            {occupiedCellCount(spec)} of {spec.gridX * spec.gridY} cells occupied
+            {spec.footprint.kind === "custom" ? " · custom footprint" : ""}
+          </p>
           {building && (
             <div
               className="flex items-center gap-1.5 rounded-md border border-blue-500/25 bg-blue-500/10 px-2.5 py-1.5 text-xs font-medium text-blue-800 dark:text-blue-100"
@@ -473,6 +486,31 @@ export function BinControlsPanel({
               onClick={() => fitLayout(cutouts)}
             >
               Fit bin to contents
+            </Button>
+          )}
+          <Button
+            variant={editorMode === "footprint" ? "default" : "outline"}
+            size="sm"
+            className="w-full"
+            data-testid="button-edit-footprint"
+            onClick={() => {
+              const editing = editorMode === "footprint";
+              dispatch({ type: "SET_EDITOR_MODE", editorMode: editing ? "placement" : "footprint" });
+              if (!editing) dispatch({ type: "SET_VIEW_MODE", viewMode: "2d" });
+            }}
+          >
+            <LayoutGrid className="mr-1.5 h-3.5 w-3.5" />
+            {editorMode === "footprint" ? "Finish footprint editing" : "Edit footprint"}
+          </Button>
+          {spec.footprint.kind === "custom" && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full"
+              data-testid="button-reset-footprint"
+              onClick={() => patchSpec({ footprint: { kind: "rectangle" } })}
+            >
+              Reset to rectangle
             </Button>
           )}
         </PanelSection>
@@ -565,29 +603,46 @@ export function BinControlsPanel({
               </Select>
             </div>
             {spec.labelTab && (
-              <div className="flex items-center gap-2">
-                <Label className="w-16 shrink-0 text-xs">On wall</Label>
-                <Select
-                  value={spec.labelTab.wall}
-                  onValueChange={(wall) =>
-                    patchSpec({
-                      labelTab: {
-                        ...spec.labelTab!,
-                        wall: wall as "north" | "south" | "east" | "west",
-                      },
-                    })
-                  }
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Label className="w-16 shrink-0 text-xs">On wall</Label>
+                  <Select
+                    value={spec.labelTab.wall}
+                    onValueChange={(wall) =>
+                      patchSpec({
+                        labelTab: {
+                          ...spec.labelTab!,
+                          wall: wall as "north" | "south" | "east" | "west",
+                          edge: null,
+                        },
+                      })
+                    }
+                  >
+                    <SelectTrigger className="h-8 flex-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="north">Back</SelectItem>
+                      <SelectItem value="south">Front</SelectItem>
+                      <SelectItem value="east">Right</SelectItem>
+                      <SelectItem value="west">Left</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button
+                  variant={editorMode === "label-edge" ? "default" : "outline"}
+                  size="sm"
+                  className="w-full"
+                  data-testid="button-choose-label-edge"
+                  onClick={() => {
+                    const editing = editorMode === "label-edge";
+                    dispatch({ type: "SET_EDITOR_MODE", editorMode: editing ? "placement" : "label-edge" });
+                    if (!editing) dispatch({ type: "SET_VIEW_MODE", viewMode: "2d" });
+                  }}
                 >
-                  <SelectTrigger className="h-8 flex-1">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="north">Back</SelectItem>
-                    <SelectItem value="south">Front</SelectItem>
-                    <SelectItem value="east">Right</SelectItem>
-                    <SelectItem value="west">Left</SelectItem>
-                  </SelectContent>
-                </Select>
+                  <MousePointerClick className="mr-1.5 h-3.5 w-3.5" />
+                  {editorMode === "label-edge" ? "Cancel edge selection" : "Choose any edge"}
+                </Button>
               </div>
             )}
             <p className="text-[11px] text-muted-foreground">

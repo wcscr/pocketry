@@ -233,10 +233,10 @@ describe("App", () => {
     expect(help?.textContent).toContain("3MF");
     expect(help?.textContent).toContain("2D Layout view");
     expect(help?.textContent).toContain(
-      "automatically looks for its calibration-sheet markers",
+      "automatically looks for the current v2 calibration-sheet signature",
     );
     expect(help?.textContent).toContain(
-      "paper size is identified automatically",
+      "all four paper-specific markers are required",
     );
     expect(
       help?.querySelector('[data-testid="help-print-template-a4"]'),
@@ -276,10 +276,9 @@ describe("App", () => {
     for (const section of [
       "Source image",
       "Tool Detection",
-      "Edit contours",
       "Scale",
       "Set Detection Region",
-      "Output",
+      "Change Output Format",
     ]) {
       expect(text).toContain(section);
     }
@@ -296,7 +295,6 @@ describe("App", () => {
       ["trace-settings-source", "slate", "open"],
       ["trace-settings-scale", "amber", "closed"],
       ["trace-settings-detect", "blue", "closed"],
-      ["trace-settings-contours", "violet", "closed"],
       ["trace-settings-crop", "rose", "closed"],
       ["trace-settings-output", "emerald", "closed"],
     ] as const) {
@@ -309,16 +307,15 @@ describe("App", () => {
     ].map((section) => section.dataset.tone);
     expect(new Set(tones).size).toBe(tones.length);
     expect(
-      [...container.querySelectorAll<HTMLElement>("#trace-settings-source, #trace-settings-scale, #trace-settings-detect, #trace-settings-contours")]
+      [...container.querySelectorAll<HTMLElement>("#trace-settings-source, #trace-settings-scale, #trace-settings-detect")]
         .map((section) => section.id),
     ).toEqual([
       "trace-settings-source",
       "trace-settings-scale",
       "trace-settings-detect",
-      "trace-settings-contours",
     ]);
 
-    for (const section of ["scale", "crop", "detect", "contours", "output"]) {
+    for (const section of ["scale", "crop", "detect", "output"]) {
       const jump = container.querySelector<HTMLButtonElement>(
         `[aria-controls="trace-settings-${section}"]`,
       );

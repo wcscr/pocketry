@@ -6,7 +6,6 @@ import {
   CHAMFER_ADDITIONAL_RADIUS,
   HOLE_DISTANCE_FROM_BOTTOM_EDGE,
   baseBottomDimensionsMm,
-  GRID_DIMENSIONS_MM,
   LAYER_HEIGHT,
   MAGNET_HOLE_CRUSH_RIB_COUNT,
   MAGNET_HOLE_CRUSH_RIB_INNER_RADIUS,
@@ -14,6 +13,7 @@ import {
   MAGNET_HOLE_RADIUS,
   SCREW_HOLE_RADIUS,
 } from "@shared/gridfinity/standard";
+import { cellCenterMm, occupiedCells } from "@shared/gridfinity/footprint";
 
 import type { Kernel } from "@/lib/manifold/runtime";
 
@@ -289,20 +289,17 @@ export function baseHoleCutters(
 
   const offset = baseBottomDimensionsMm() / 2 - HOLE_DISTANCE_FROM_BOTTOM_EDGE; // 13
   const pieces: Manifold[] = [];
-  for (let i = 0; i < grid.gridX; i++) {
-    for (let j = 0; j < grid.gridY; j++) {
-      const cellX = (i - (grid.gridX - 1) / 2) * GRID_DIMENSIONS_MM;
-      const cellY = (j - (grid.gridY - 1) / 2) * GRID_DIMENSIONS_MM;
-      for (const [sx, sy] of [
-        [1, 1],
-        [-1, 1],
-        [-1, -1],
-        [1, -1],
-      ] as const) {
-        pieces.push(
-          arena.track(cluster.translate([cellX + sx * offset, cellY + sy * offset, 0])),
-        );
-      }
+  for (const occupied of occupiedCells(grid)) {
+    const { x: cellX, y: cellY } = cellCenterMm(grid, occupied);
+    for (const [sx, sy] of [
+      [1, 1],
+      [-1, 1],
+      [-1, -1],
+      [1, -1],
+    ] as const) {
+      pieces.push(
+        arena.track(cluster.translate([cellX + sx * offset, cellY + sy * offset, 0])),
+      );
     }
   }
   return arena.track(Manifold.union(pieces));

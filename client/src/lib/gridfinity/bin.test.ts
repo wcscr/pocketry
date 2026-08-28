@@ -124,6 +124,49 @@ describe("buildStackingLip", () => {
 });
 
 describe("buildBin", () => {
+  it("builds a connected, watertight three-cell L bin with a stacking lip", () => {
+    const { solid, parts } = buildBin(
+      kernel,
+      spec({
+        gridX: 2,
+        gridY: 2,
+        lip: "standard",
+        footprint: {
+          kind: "custom",
+          cells: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }],
+        },
+      }),
+      { circularSegments: SEGMENTS, filletProfileStepMm: 0.25 },
+    );
+    expect(parts.lip?.status()).toBe("NoError");
+    expect(solid.status()).toBe("NoError");
+    expect(solid.decompose()).toHaveLength(1);
+    const box = solid.boundingBox();
+    expect(box.max[0] - box.min[0]).toBeCloseTo(83.5, 6);
+    expect(box.max[1] - box.min[1]).toBeCloseTo(83.5, 6);
+  });
+
+  it("supports the same L mask at full, half, and quarter pitch", () => {
+    for (const gridPitch of ["full", "half", "quarter"] as const) {
+      const { solid } = buildBin(
+        kernel,
+        spec({
+          gridX: 2,
+          gridY: 2,
+          gridPitch,
+          lip: "none",
+          footprint: {
+            kind: "custom",
+            cells: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }],
+          },
+        }),
+        QUALITY,
+      );
+      expect(solid.status()).toBe("NoError");
+      expect(solid.decompose()).toHaveLength(1);
+    }
+  });
+
   it("no-lip empty bin: volume is exactly base + wall (disjoint parts)", () => {
     const { parts, solid } = buildBin(kernel, spec({ lip: "none" }), QUALITY);
     expect(parts.lip).toBeNull();

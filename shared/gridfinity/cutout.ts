@@ -16,6 +16,11 @@ import {
   R_F2,
   STACKING_LIP_SUPPORT_HEIGHT,
 } from "./standard";
+import {
+  footprintInteriorRingMm,
+  signedDistanceToFootprintRing,
+  type BinFootprint,
+} from "./footprint";
 import type { BinSpec } from "./types";
 
 /**
@@ -390,7 +395,7 @@ export interface BinInterior {
 }
 
 type GridFootprintSpec = Pick<BinSpec, "gridX" | "gridY"> &
-  Partial<Pick<BinSpec, "gridPitch">>;
+  Partial<Pick<BinSpec, "gridPitch">> & { footprint?: BinFootprint };
 
 /** The cavity footprint the pockets must stay inside. */
 export function binInteriorMm(spec: GridFootprintSpec): BinInterior {
@@ -410,6 +415,9 @@ export function signedDistanceToInterior(
   point: Point,
   spec: GridFootprintSpec,
 ): number {
+  if (spec.footprint?.kind === "custom") {
+    return signedDistanceToFootprintRing(point, footprintInteriorRingMm(spec));
+  }
   const { widthMm, lengthMm, cornerRadiusMm } = binInteriorMm(spec);
   const halfW = widthMm / 2;
   const halfL = lengthMm / 2;

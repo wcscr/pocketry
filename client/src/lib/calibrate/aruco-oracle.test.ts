@@ -2,7 +2,8 @@ import { createRequire } from "node:module";
 
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { markerBits } from "./aruco-4x4";
+import { POCKETRY_ARUCO_BITS, markerBits } from "./aruco-4x4";
+import { createPocketryTemplateDictionary } from "./detect";
 
 /**
  * Oracle tests for the ported DICT_4X4 patterns, against the aruco-enabled
@@ -32,6 +33,9 @@ describe("shipped opencv.js", () => {
     expect(typeof cv.aruco_DetectorParameters).toBe("function");
     expect(typeof cv.aruco_RefineParameters).toBe("function");
     expect(typeof cv.getPredefinedDictionary).toBe("function");
+    expect(typeof cv.extendDictionary).toBe("function");
+    expect(typeof cv.findHomography).toBe("function");
+    expect(typeof cv.perspectiveTransform).toBe("function");
     expect(typeof cv.generateImageMarker).toBe("function");
     expect(cv.DICT_4X4_50).toBe(0);
     // 6x6 support for pre-existing sheets (like tool_images/test_part.jpg).
@@ -53,8 +57,10 @@ describe("shipped opencv.js", () => {
 });
 
 describe("markerBits vs cv.generateImageMarker (oracle)", () => {
-  it.each([0, 1, 2, 3])("marker id %i matches OpenCV's rendering", (id) => {
-    const dictionary = cv.getPredefinedDictionary(cv.DICT_4X4_50);
+  it.each(POCKETRY_ARUCO_BITS.map((_, id) => id))(
+    "Pocketry v2 marker id %i matches OpenCV's rendering",
+    (id) => {
+    const dictionary = createPocketryTemplateDictionary(cv);
     const image = new cv.Mat();
     try {
       // 6 px side at 1 border bit → exactly one pixel per module.
@@ -75,5 +81,6 @@ describe("markerBits vs cv.generateImageMarker (oracle)", () => {
       image.delete();
       dictionary.delete?.();
     }
-  });
+    },
+  );
 });

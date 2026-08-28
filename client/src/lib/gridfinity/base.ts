@@ -11,12 +11,18 @@ import {
   gridPitchMm,
   type GridPitch,
 } from "@shared/gridfinity/standard";
+import {
+  cellCenterMm,
+  occupiedCells,
+  type BinFootprint,
+} from "@shared/gridfinity/footprint";
 
 import type { Kernel } from "@/lib/manifold/runtime";
 
 import { baseHoleCutters, hasHoles, NO_HOLES, type HoleOptions } from "./holes";
 import { baseProfilePolygon, roundedRectPolygon } from "./profiles";
 import { sweepRounded } from "./sweep";
+import { footprintOuterSection } from "./footprint-section";
 
 /**
  * The Gridfinity base: one swept socket per grid cell plus the bridge plate
@@ -34,6 +40,7 @@ export interface GridSize {
   gridY: number;
   /** Defaults to the standard 42 mm pitch for legacy call sites. */
   gridPitch?: GridPitch;
+  footprint?: BinFootprint;
 }
 
 /**
@@ -93,21 +100,20 @@ export function buildBase(
   const pitchMm = gridPitchMm(pitch);
   const cell = baseCellSolid(kernel, circularSegments, pitch);
   const pieces: Manifold[] = [];
-  for (let i = 0; i < grid.gridX; i++) {
-    for (let j = 0; j < grid.gridY; j++) {
-      const x = (i - (grid.gridX - 1) / 2) * pitchMm;
-      const y = (j - (grid.gridY - 1) / 2) * pitchMm;
-      pieces.push(arena.track(cell.translate([x, y, 0])));
-    }
+  for (const occupied of occupiedCells(grid)) {
+    const { x, y } = cellCenterMm(grid, occupied);
+    pieces.push(arena.track(cell.translate([x, y, 0])));
   }
 
   const widthMm = binFootprintMm(grid.gridX, pitch);
   const lengthMm = binFootprintMm(grid.gridY, pitch);
-  const bridgeSection = arena.track(
-    new CrossSection([
-      roundedRectPolygon(widthMm, lengthMm, BASE_TOP_RADIUS, circularSegments),
-    ]),
-  );
+  const bridgeSection = grid.footprint?.kind === "custom"
+    ? footprintOuterSection(kernel, grid, circularSegments)
+    : arena.track(
+        new CrossSection([
+          roundedRectPolygon(widthMm, lengthMm, BASE_TOP_RADIUS, circularSegments),
+        ]),
+      );
   pieces.push(
     arena.track(
       arena

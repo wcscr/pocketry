@@ -26,8 +26,10 @@ part.
 
 Perspective correction rectifies the flat reference plane represented by the
 calibration sheet or four selected paper corners. The automatic path fits all
-16 refined marker corners for better precision; the marker IDs distinguish A4
-from US Letter without a paper-size prompt. Thick tools extend above that plane
+16 refined marker corners for better precision. The v2 sheets use a Pocketry-only
+custom marker dictionary and require the complete four-marker signature, which
+distinguishes A4 from US Letter without treating stock ArUco IDs as Pocketry.
+Thick tools extend above that plane
 and can still show parallax when photographed at an angle. A future
 imaging improvement should investigate height-aware or multi-view correction
 for those tools rather than treating a planar homography as a complete 3D

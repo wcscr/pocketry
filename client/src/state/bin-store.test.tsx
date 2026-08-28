@@ -140,6 +140,26 @@ describe("bin store", () => {
       act(() => store().dispatch({ type: "PATCH_SPEC", patch: { gridX: 99 } })),
     ).toThrow();
   });
+
+  it("stores a custom footprint in history and resets it on rectangular resize", () => {
+    const { store, act } = mountBin();
+    act(() => store().dispatch({
+      type: "PATCH_SPEC",
+      patch: {
+        footprint: {
+          kind: "custom",
+          cells: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }],
+        },
+      },
+      historyLabel: "Remove footprint cell",
+    }));
+    expect(store().spec.footprint.kind).toBe("custom");
+    act(() => store().dispatch({ type: "UNDO" }));
+    expect(store().spec.footprint).toEqual({ kind: "rectangle" });
+    act(() => store().dispatch({ type: "REDO" }));
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { gridX: 3 } }));
+    expect(store().spec.footprint).toEqual({ kind: "rectangle" });
+  });
 });
 
 describe("bin store history (G4 undo/redo)", () => {
@@ -328,5 +348,52 @@ describe("bin store history (G4 undo/redo)", () => {
     act(() => store().dispatch({ type: "UNDO" }));
     expect(store().spec.gridX).toBe(2);
     expect(store().cutouts[0].rotationDeg).toBe(0);
+  });
+
+  it("replaces a normalized footprint, shifted pockets, and label anchor atomically", () => {
+    const { store, act } = mountBin();
+    act(() =>
+      store().dispatch({ type: "ADD_PLACED", cutouts: [CUTOUT], gridX: 2, gridY: 2 }),
+    );
+    const shifted = [{ ...CUTOUT, position: { x: 21, y: 0 } }];
+    act(() =>
+      store().dispatch({
+        type: "REPLACE_LAYOUT",
+        cutouts: shifted,
+        gridX: 3,
+        gridY: 2,
+        footprint: {
+          kind: "custom",
+          cells: [
+            { x: 0, y: 0 },
+            { x: 1, y: 0 },
+            { x: 2, y: 0 },
+            { x: 1, y: 1 },
+            { x: 2, y: 1 },
+          ],
+        },
+        specPatch: {
+          labelTab: {
+            wall: "north",
+            edge: { cell: { x: 1, y: 1 }, side: "north" },
+            width: "full",
+          },
+        },
+        historyLabel: "Add footprint cell",
+      }),
+    );
+
+    expect(store().spec.gridX).toBe(3);
+    expect(store().spec.footprint.kind).toBe("custom");
+    expect(store().spec.labelTab?.edge).toEqual({
+      cell: { x: 1, y: 1 },
+      side: "north",
+    });
+    expect(store().cutouts[0].position).toEqual({ x: 21, y: 0 });
+
+    act(() => store().dispatch({ type: "UNDO" }));
+    expect(store().spec.gridX).toBe(2);
+    expect(store().spec.labelTab).toBeNull();
+    expect(store().cutouts[0].position).toEqual({ x: 0, y: 0 });
   });
 });

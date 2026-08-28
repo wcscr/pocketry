@@ -5,6 +5,19 @@ are pending** — G1: print `exports/bin-2x3x6.3mf` and verify grid fit and
 stacking; G3: trace a real tool, export its bin, print it, and put the tool in
 the pocket. Optional server persistence remains deferred.
 
+Nonrectangular bin footprints landed on 2026-08-27. A bin can now use a
+connected, hole-free mask at the selected full/half/quarter pitch, so a 2×2
+three-cell mask produces a true L-shaped base, body, wall, and stacking lip.
+**Fit bin to contents** preserves relative pocket placement while pruning safe
+unused boundary cells; Auto-arrange trims after placement, and Layout exposes a
+manual cell editor. The exact footprint is shared by live validation, the 2D
+editor, worker geometry, and layout DXF/SVG export. Label tabs can anchor to a
+specific exterior or re-entrant boundary edge. Rectangular projects retain the
+original geometry path, and schema-v1–v3 projects migrate to an explicit
+rectangular footprint. A shaped-bin physical gate remains: print a full-pitch
+2×2/three-cell L, verify baseplate fit and the concave wall/lip, stack a matching
+footprint, then print an L-tool pocket and check its fit.
+
 G4 delivered per-pocket **finger holes**, now individually selectable as
 straight cylinders sharing the pocket's floor and fillet or spherical scoops
 from the top surface (rim exactly the drawn circle, legal deeper than the
@@ -80,11 +93,14 @@ printable calibration sheet sets the scale automatically on image load
 pair disagreement), with a manual "Detect markers" button and a hint toast
 when a non-Pocketry marker sheet (Original ArUco / 5×5 / 6×6 / 7×7 /
 AprilTag) is recognised instead. Detection reads a 1600px frame — small
-markers blur out at the 800×600 working resolution. A4 and US Letter now use
-distinct marker IDs so paper size is inferred automatically. Perspective
-correction uses subpixel corner refinement and an overdetermined homography
-across all 16 marker corners; the four-page-corner manual fallback remains
-available when markers cannot be used.
+markers blur out at the 800×600 working resolution. Calibration-sheet v2 uses
+a Pocketry-specific custom 4×4 dictionary, requires all four paper-specific
+markers, and rejects the stock 4×4 IDs used by generic generators. Before any
+scale is proposed, all 16 refined corners must fit the signed sheet geometry
+under one homography. Detection and correction results are bound to the source
+image and mapped back with exact per-axis factors, so late work from a replaced
+photo cannot paint stale rulers or markers. The four-page-corner manual fallback
+remains available when markers cannot be used.
 
 G3 delivered the trace → bin integration: "Add to bin" in the trace panel
 (hard-gated on calibration — the uncalibrated-scale footgun stops at the

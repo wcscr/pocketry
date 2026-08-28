@@ -50,11 +50,12 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
                 the cleanest outline.
               </li>
               <li>
-                Pocketry automatically looks for its calibration-sheet markers
-                when the image loads. A4 and US Letter sheets use different
-                markers, so the paper size is identified automatically. If all
-                four markers are visible, Pocketry can also correct camera
-                perspective before tracing. Check the preview, then accept it.
+                Pocketry automatically looks for the current v2 calibration-sheet
+                signature when the image loads. Its custom marker dictionary is
+                separate from stock ArUco sheets, and all four paper-specific
+                markers are required. Pocketry validates their 16 corners before
+                proposing scale or perspective correction. Check the preview, then
+                accept it.
                 If you do not have a sheet yet, download and print the{" "}
                 <button
                   type="button"
@@ -124,7 +125,15 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
               </li>
               <li>
                 <strong>Fit bin to contents</strong> can shrink or grow the bin
-                around the current tools. Removing a tool offers the same choice.
+                around the current tools and trim unused grid cells. Use
+                <strong> Edit footprint</strong> in Layout to add or remove cells
+                manually; the footprint must remain one connected piece without holes.
+                Removing a tool offers the same fitting choice.
+              </li>
+              <li>
+                Label tabs can attach to any highlighted straight footprint edge.
+                A shaped stacking lip is intended to mate with the same footprint;
+                it is not a separate lip around every occupied cell.
               </li>
               <li>
                 View Settings controls preview and 3MF colors for the bin body,
