@@ -19,6 +19,43 @@ export interface Calibration {
  */
 export type DraftCalibration = Partial<Calibration>;
 
+export type CalibrationEndpoints = Omit<Calibration, "lengthMm">;
+
+/** True once both manual ruler endpoints have been placed on the image. */
+export function hasCalibrationEndpoints(
+  draft: DraftCalibration | null | undefined,
+): draft is DraftCalibration & CalibrationEndpoints {
+  return Boolean(
+    draft &&
+      Number.isFinite(draft.startX) &&
+      Number.isFinite(draft.startY) &&
+      Number.isFinite(draft.endX) &&
+      Number.isFinite(draft.endY),
+  );
+}
+
+/** Completes a placed manual ruler only after its known length is confirmed. */
+export function calibrationFromDraft(
+  draft: DraftCalibration | null | undefined,
+  lengthMm: number,
+): Calibration | null {
+  if (
+    !hasCalibrationEndpoints(draft) ||
+    !Number.isFinite(lengthMm) ||
+    lengthMm <= 0
+  ) {
+    return null;
+  }
+  const calibration = {
+    startX: draft.startX,
+    startY: draft.startY,
+    endX: draft.endX,
+    endY: draft.endY,
+    lengthMm,
+  };
+  return rulerPixelLength(calibration) > 0 ? calibration : null;
+}
+
 /** Pixel distance between the two calibration points. */
 export function rulerPixelLength(calibration: Calibration): number {
   return Math.hypot(

@@ -11,9 +11,11 @@ import {
   TAB_WIDTH_NOMINAL_MM,
 } from "@shared/gridfinity/standard";
 import type { BinSpec } from "@shared/gridfinity/types";
+import { edgeForWall, resolveBoundaryRun } from "@shared/gridfinity/footprint";
 
 import { roundedRectPolygon } from "./profiles";
 import type { Kernel } from "@/lib/manifold/runtime";
+import { footprintInteriorSection } from "./footprint-section";
 
 /**
  * Label tab (upstream `src/core/tab.scad` + `TAB_POLYGON`): a shelf hung
@@ -55,13 +57,11 @@ export function buildLabelTab(
   if (!tab) return null;
 
   const { CrossSection, arena } = kernel;
-  const interiorW = binFootprintMm(spec.gridX, spec.gridPitch) - 2 * D_WALL;
-  const interiorL = binFootprintMm(spec.gridY, spec.gridPitch) - 2 * D_WALL;
-  const alongNorth = tab.wall === "north" || tab.wall === "south";
-  /** Distance from the bin centre to the tab's wall face. */
-  const faceDistMm = (alongNorth ? interiorL : interiorW) / 2;
-  /** Interior chord length along that wall. */
-  const chordMm = alongNorth ? interiorW : interiorL;
+  const edge = tab.edge ?? edgeForWall(spec, tab.wall);
+  const run = resolveBoundaryRun(spec, edge);
+  if (!run) return null;
+  const chordMm = run.lengthMm - 2 * D_WALL;
+  if (!(chordMm > 0)) return null;
 
   // Profile in the (x = depth, y = height) plane, depth negated so the tab
   // grows inward (−y after mapping) from the wall face; negation also turns
@@ -84,23 +84,30 @@ export function buildLabelTab(
       : tab.width === "right"
         ? chordMm / 2 - lengthMm
         : -lengthMm / 2;
-  const placed = arena.track(
-    prism.translate([startX, faceDistMm, binHeightMm(spec.heightUnits) - TAB_HEIGHT_MM]),
+  const local = arena.track(
+    prism.translate([startX, 0, binHeightMm(spec.heightUnits) - TAB_HEIGHT_MM]),
   );
+  const rotation = WALL_ROTATION_DEG[edge.side];
   const rotated =
-    WALL_ROTATION_DEG[tab.wall] === 0
-      ? placed
-      : arena.track(placed.rotate([0, 0, WALL_ROTATION_DEG[tab.wall]]));
+    rotation === 0 ? local : arena.track(local.rotate([0, 0, rotation]));
+  const midpoint = {
+    x: (run.start.x + run.end.x) / 2,
+    y: (run.start.y + run.end.y) / 2,
+  };
+  if (edge.side === "north") midpoint.y -= D_WALL;
+  else if (edge.side === "south") midpoint.y += D_WALL;
+  else if (edge.side === "east") midpoint.x -= D_WALL;
+  else midpoint.x += D_WALL;
+  const placed = arena.track(rotated.translate([midpoint.x, midpoint.y, 0]));
 
   // Trim to the rounded interior so the ends follow the corner fillets.
-  const column = arena.track(
-    arena
-      .track(
-        new CrossSection([
-          roundedRectPolygon(interiorW, interiorL, R_F2, circularSegments),
-        ]),
-      )
-      .extrude(binHeightMm(spec.heightUnits) + 1),
-  );
-  return arena.track(rotated.intersect(column));
+  const interiorW = binFootprintMm(spec.gridX, spec.gridPitch) - 2 * D_WALL;
+  const interiorL = binFootprintMm(spec.gridY, spec.gridPitch) - 2 * D_WALL;
+  const columnSection = spec.footprint.kind === "custom"
+    ? footprintInteriorSection(kernel, spec, circularSegments)
+    : arena.track(new CrossSection([
+        roundedRectPolygon(interiorW, interiorL, R_F2, circularSegments),
+      ]));
+  const column = arena.track(columnSection.extrude(binHeightMm(spec.heightUnits) + 1));
+  return arena.track(placed.intersect(column));
 }

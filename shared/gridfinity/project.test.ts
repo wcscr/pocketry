@@ -124,4 +124,13 @@ describe("project file round trip", () => {
     expect(doc!.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
     expect(doc!.cutouts[0].fingerHoles).toEqual([]);
   });
+
+  it("migrates schema v3 projects to a rectangular footprint", () => {
+    const legacy = JSON.parse(JSON.stringify(VALID)) as Record<string, unknown>;
+    legacy.schemaVersion = 3;
+    delete ((legacy.spec as Record<string, unknown>).footprint);
+    const doc = parseProjectDoc(legacy);
+    expect(doc?.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
+    expect(doc?.spec.footprint).toEqual({ kind: "rectangle" });
+  });
 });

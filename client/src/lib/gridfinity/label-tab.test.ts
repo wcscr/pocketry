@@ -50,6 +50,29 @@ function volume(partial: Partial<BinSpecInput>): number {
 }
 
 describe("buildLabelTab (via buildBin)", () => {
+  it("attaches soundly to a selected re-entrant L-footprint edge", () => {
+    const shaped = {
+      gridX: 2,
+      gridY: 2,
+      footprint: {
+        kind: "custom" as const,
+        cells: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }],
+      },
+    };
+    const plain = buildBin(kernel, spec(shaped), QUALITY).solid;
+    const tabbed = buildBin(kernel, spec({
+      ...shaped,
+      labelTab: {
+        wall: "east",
+        width: "center",
+        edge: { cell: { x: 0, y: 1 }, side: "east" },
+      },
+    }), QUALITY).solid;
+    expect(tabbed.status()).toBe("NoError");
+    expect(tabbed.decompose()).toHaveLength(1);
+    expect(tabbed.volume()).toBeGreaterThan(plain.volume());
+  });
+
   it("a centred 42 mm tab adds exactly its prism volume", () => {
     // 3×3, lip none: the tab is clear of the rounded corners and of any lip
     // support, so the added volume is the closed-form profile × width.

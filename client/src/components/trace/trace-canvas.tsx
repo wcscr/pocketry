@@ -19,6 +19,10 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 
+import {
+  calibrationFromDraft,
+  hasCalibrationEndpoints,
+} from "@shared/geometry/scale";
 import type { Point, Rect, RingRef } from "@shared/geometry/types";
 
 import {
@@ -111,6 +115,20 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
     manualPerspectivePoints.length > 0
       ? manualPerspectivePoints
       : (pendingPerspective?.points ?? []);
+  const rulerEditable =
+    (calibrationSource === "manual" && calibration !== null) ||
+    (mode !== "calibrate" && hasCalibrationEndpoints(draftCalibration));
+
+  const handleRulerLengthCommit = useCallback(
+    (lengthMm: number) => {
+      dispatch({ type: "SET_RULER_LENGTH", rulerLengthMm: lengthMm });
+      const completed = calibrationFromDraft(draftCalibration, lengthMm);
+      if (completed) {
+        dispatch({ type: "SET_CALIBRATION", calibration: completed });
+      }
+    },
+    [dispatch, draftCalibration],
+  );
 
   const containerSize = useCanvasViewportSize();
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -130,6 +148,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
   // Mirrors the hook's space tracking so the cursor can promise a pan before
   // the drag starts.
   const [shiftHeld, setShiftHeld] = useState(false);
+  const [rulerPointer, setRulerPointer] = useState<Point | null>(null);
   const [perspectivePointer, setPerspectivePointer] = useState<Point | null>(null);
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -148,6 +167,16 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
       window.removeEventListener("blur", onBlur);
     };
   }, []);
+
+  useEffect(() => {
+    if (
+      mode !== "calibrate" ||
+      draftCalibration?.startX === undefined ||
+      draftCalibration.startY === undefined
+    ) {
+      setRulerPointer(null);
+    }
+  }, [mode, draftCalibration?.startX, draftCalibration?.startY]);
 
   useEffect(() => {
     if (mode !== "perspective" || manualPerspectivePoints.length >= 4) {
@@ -227,7 +256,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
    * - a click on an existing vertex is a no-op (that spot is a grab and
    *   right-click-remove target);
    * - a click beside a *different* contour switches the selection to it,
-   *   mirroring the Edit Contours list;
+   *   mirroring the contour list in Tool Detection;
    * - a click anywhere else adds a vertex to the selected ring, joined at its
    *   nearest edge so the outline reaches out to the clicked point.
    */
@@ -316,15 +345,16 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
         });
       } else {
         dispatch({
-          type: "SET_CALIBRATION",
-          calibration: {
+          type: "SET_DRAFT_CALIBRATION",
+          draftCalibration: {
             startX: draftCalibration.startX,
             startY: draftCalibration.startY,
             endX: image.x,
             endY: image.y,
-            lengthMm: rulerLengthMm,
           },
         });
+        // Endpoint placement alone is not a scale. Keep the dashed ruler as a
+        // draft until the user explicitly confirms its real reference length.
         dispatch({ type: "SET_MODE", mode: "pan" });
       }
       return;
@@ -415,14 +445,10 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
       ) {
         const image = toImage(event.clientX, event.clientY);
         if (image) {
-          dispatch({
-            type: "SET_DRAFT_CALIBRATION",
-            draftCalibration: {
-              ...draftCalibration,
-              endX: image.x,
-              endY: image.y,
-            },
-          });
+          // Hover coordinates are canvas-local preview state, not a committed
+          // second endpoint. Publishing them to the shared store would make
+          // the controls mistake ordinary pointer movement for the second click.
+          setRulerPointer(image);
         }
         return;
       }
@@ -521,7 +547,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
   const handleContextMenu = (event: React.MouseEvent<SVGSVGElement>) => {
     // Right-click removes a vertex wherever its handle is visible: always in
     // edit mode, and in pan mode while a contour is selected for viewing from
-    // the Edit Contours list. Region/calibrate keep the browser menu.
+    // the contour list in Tool Detection. Region/calibrate keep the browser menu.
     const viewingContour = mode === "pan" && selection !== null;
     if (mode !== "edit" && !viewingContour) return;
     if (mode === "edit") event.preventDefault();
@@ -594,8 +620,21 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
               ? null
               : displayedCalibration
           }
-          draftCalibration={mode === "calibrate" ? draftCalibration : null}
+          draftCalibration={
+            mode === "calibrate" &&
+            draftCalibration?.startX !== undefined &&
+            draftCalibration.startY !== undefined &&
+            rulerPointer
+              ? {
+                  ...draftCalibration,
+                  endX: rulerPointer.x,
+                  endY: rulerPointer.y,
+                }
+              : draftCalibration
+          }
           rulerLengthMm={rulerLengthMm}
+          rulerEditable={rulerEditable}
+          onRulerLengthCommit={handleRulerLengthCommit}
           perspectivePoints={perspectiveOverlayPoints}
           perspectiveEditable={manualPerspectivePoints.length > 0}
           perspectivePreview={perspectivePointer}

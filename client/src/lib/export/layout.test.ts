@@ -43,6 +43,23 @@ function cutout(extra: Record<string, unknown> = {}) {
 }
 
 describe("layoutRingsMm", () => {
+  it("exports the actual L footprint instead of its bounding rectangle", () => {
+    const shaped = parseBinSpec({
+      ...SPEC,
+      gridX: 2,
+      gridY: 2,
+      footprint: {
+        kind: "custom",
+        cells: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }],
+      },
+    });
+    const footprint = layoutRingsMm(shaped, [], BY_ID)[0];
+    expect(footprint.some((point) => point.x < 5 && point.y > 5)).toBe(true);
+    expect(Math.abs(signedArea(footprint))).toBeLessThan(
+      binFootprintMm(2) * binFootprintMm(2) * 0.8,
+    );
+  });
+
   it("emits the footprint plus each pocket and feature ring", () => {
     const rings = layoutRingsMm(SPEC, [
       cutout({

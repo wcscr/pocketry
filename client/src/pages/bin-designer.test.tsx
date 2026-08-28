@@ -265,6 +265,32 @@ describe("BinDesignerPage", () => {
     unmount();
   });
 
+  it("restores a custom L footprint and exposes its cell editor", async () => {
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({
+      ...EMPTY_PROJECT,
+      spec: parseBinSpec({
+        gridX: 2,
+        gridY: 2,
+        heightUnits: 6,
+        footprint: {
+          kind: "custom",
+          cells: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }],
+        },
+      }),
+    });
+    const { container, unmount } = renderPage();
+    await flushHydration();
+    expect(container.querySelector('[data-testid="bin-footprint-summary"]')?.textContent)
+      .toContain("3 of 4 cells occupied · custom footprint");
+    const edit = container.querySelector('[data-testid="button-edit-footprint"]') as HTMLButtonElement;
+    React.act(() => edit.click());
+    expect(container.querySelector('[data-testid="layout-canvas"]')).not.toBeNull();
+    expect(container.querySelectorAll('[data-testid="footprint-cell"]')).toHaveLength(4);
+    expect(container.querySelectorAll('[data-testid="footprint-halo-cell"]')).toHaveLength(6);
+    expect(container.querySelector('[data-testid="button-reset-footprint"]')).not.toBeNull();
+    unmount();
+  });
+
   it("shows preview processing beside the size controls", () => {
     binGeometryMock.building = true;
     binGeometryMock.progress = 0.4;

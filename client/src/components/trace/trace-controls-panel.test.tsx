@@ -53,7 +53,11 @@ function Harness(): JSX.Element {
       <button
         data-testid="detect-auto-scale"
         onClick={() =>
-          dispatch({ type: "AUTO_CALIBRATION_DETECTED", calibration: CALIBRATION })
+          dispatch({
+            type: "AUTO_CALIBRATION_DETECTED",
+            sourceImageUrl: "data:image/png;base64,new-source",
+            calibration: CALIBRATION,
+          })
         }
       >
         Detect auto scale
@@ -63,6 +67,7 @@ function Harness(): JSX.Element {
         onClick={() =>
           dispatch({
             type: "AUTO_CALIBRATION_DETECTED",
+            sourceImageUrl: "data:image/png;base64,new-source",
             calibration: CALIBRATION,
             perspective: {
               source: "template",
@@ -96,9 +101,21 @@ function Harness(): JSX.Element {
       </button>
       <button
         data-testid="complete-manual-scale"
-        onClick={() => dispatch({ type: "SET_CALIBRATION", calibration: CALIBRATION })}
+        onClick={() => {
+          dispatch({ type: "SET_MODE", mode: "calibrate" });
+          dispatch({
+            type: "SET_DRAFT_CALIBRATION",
+            draftCalibration: {
+              startX: CALIBRATION.startX,
+              startY: CALIBRATION.startY,
+              endX: CALIBRATION.endX,
+              endY: CALIBRATION.endY,
+            },
+          });
+          dispatch({ type: "SET_MODE", mode: "pan" });
+        }}
       >
-        Complete manual scale
+        Place manual ruler
       </button>
       <button
         data-testid="commit-region"
@@ -183,6 +200,13 @@ async function changeNumber(id: string, value: string): Promise<void> {
   });
 }
 
+async function blurNumber(id: string): Promise<void> {
+  await React.act(async () => {
+    host.querySelector<HTMLInputElement>(`#${id}`)?.blur();
+    await new Promise((resolve) => window.setTimeout(resolve, 10));
+  });
+}
+
 function section(id: string): HTMLElement | null {
   return host.querySelector<HTMLElement>(`#trace-settings-${id}`);
 }
@@ -216,17 +240,16 @@ describe("TraceControlsPanel guided workflow", () => {
       "trace-settings-scale",
       "trace-settings-crop",
       "trace-settings-detect",
-      "trace-settings-contours",
       "trace-settings-output",
     ]);
 
-    for (const id of ["source", "detect", "contours", "crop", "output"]) {
+    for (const id of ["source", "detect", "crop", "output"]) {
       expect(section(id)?.dataset.state).toBe("closed");
     }
     expect(section("scale")?.dataset.state).toBe("open");
     expect(section("source")?.textContent).toContain("new-source");
     expect(sectionTrigger("scale")?.disabled).toBe(false);
-    for (const id of ["crop", "detect", "contours", "output"]) {
+    for (const id of ["crop", "detect", "output"]) {
       expect(sectionTrigger(id)?.disabled).toBe(true);
     }
     expect(document.activeElement).toBe(sectionTrigger("scale"));
@@ -235,11 +258,25 @@ describe("TraceControlsPanel guided workflow", () => {
         ?.className,
     ).toContain("animate-pulse");
 
+    await click("button-set-scale");
+    expect(
+      host.querySelector('[data-testid="button-set-scale"]')?.textContent,
+    ).toBe("Placing ruler");
+    expect(
+      host.querySelector('[data-testid="manual-scale-guidance"]')?.textContent,
+    ).toContain("Auto Calibration Unsuccessful:");
+    expect(
+      host.querySelector('[data-testid="manual-scale-guidance"]')?.textContent,
+    ).toContain("Select two points on the image that are a known distance apart");
+    expect(
+      host.querySelector('[data-testid="manual-scale-guidance"]')?.textContent,
+    ).toContain("Zoom in first for more precise placement");
+
     expect(host.textContent).toContain("Calibration sheet options");
-    expect(host.textContent).not.toContain("Print the sheet once");
+    expect(host.textContent).not.toContain("Print the current v2 sheet once");
 
     await click("button-calibration-sheet-options");
-    expect(document.body.textContent).toContain("Print the sheet once");
+    expect(document.body.textContent).toContain("Print the current v2 sheet once");
     expect(
       document.body.querySelector('[data-testid="button-template-letter"]'),
     ).not.toBeNull();
@@ -282,6 +319,15 @@ describe("TraceControlsPanel guided workflow", () => {
     );
     expect(automaticCorrection).not.toBeNull();
     expect(automaticCorrection?.disabled).toBe(false);
+    expect(automaticCorrection?.className).toContain("whitespace-normal");
+    expect(automaticCorrection?.className).toContain("min-h-9");
+    expect(automaticCorrection?.className).toContain(
+      "text-[clamp(0.75rem,4cqw,0.875rem)]",
+    );
+    expect(
+      host.querySelector('[data-testid="trace-settings-index"]')?.parentElement
+        ?.className,
+    ).toContain("[container-type:inline-size]");
     expect(section("scale")?.textContent).toContain(
       "US Letter template detected automatically",
     );
@@ -294,7 +340,7 @@ describe("TraceControlsPanel guided workflow", () => {
     await click("link-print-template-letter");
     expect(downloadBlob).toHaveBeenLastCalledWith(
       expect.any(Blob),
-      "pocketry-calibration-letter.pdf",
+      "pocketry-calibration-v2-letter.pdf",
     );
     const downloadedPdf = vi.mocked(downloadBlob).mock.calls.at(-1)![0];
     expect(downloadedPdf.type).toBe("application/pdf");
@@ -316,6 +362,24 @@ describe("TraceControlsPanel guided workflow", () => {
     await click("load-source");
     await click("complete-manual-scale");
 
+    expect(section("scale")?.dataset.state).toBe("open");
+    expect(section("crop")?.dataset.state).toBe("closed");
+    expect(sectionTrigger("crop")?.disabled).toBe(true);
+    expect(document.activeElement).toBe(
+      host.querySelector<HTMLInputElement>("#ruler-length"),
+    );
+    expect(
+      host.querySelector('[data-testid="reference-length-setting"]')?.className,
+    ).toContain("ring-2");
+    expect(section("scale")?.textContent).toContain(
+      "Ruler placed. Enter its real length",
+    );
+
+    await changeNumber("ruler-length", "50");
+    expect(section("scale")?.dataset.state).toBe("open");
+    expect(sectionTrigger("crop")?.disabled).toBe(true);
+
+    await blurNumber("ruler-length");
     expect(section("scale")?.dataset.state).toBe("closed");
     expect(section("crop")?.dataset.state).toBe("open");
     expect(section("detect")?.dataset.state).toBe("closed");
@@ -331,6 +395,14 @@ describe("TraceControlsPanel guided workflow", () => {
     );
     expect(setRegion?.textContent).toContain("Set Region");
     expect(setRegion?.getAttribute("aria-pressed")).toBe("true");
+    expect(
+      host.querySelector('[data-testid="detection-region-guidance"]')
+        ?.textContent,
+    ).toContain("Click and drag on the image");
+    expect(
+      host.querySelector('[data-testid="detection-region-guidance"]')
+        ?.textContent,
+    ).toContain("entire tool");
     expect(emptyClearRegion?.textContent).toContain("Clear Region");
     expect(emptyClearRegion?.disabled).toBe(true);
     expect(emptyClearRegion?.parentElement?.className).toContain("grid-cols-2");
@@ -344,6 +416,24 @@ describe("TraceControlsPanel guided workflow", () => {
     expect(sectionTrigger("detect")?.className).toContain(
       "animate-[pulse_1s_ease-in-out_3]",
     );
+    expect(
+      host.querySelector('[data-testid="detection-tuning-guidance"]')
+        ?.textContent,
+    ).toContain("Adjust Sensitivity and Detail to fine-tune the contour");
+    expect(
+      host.querySelector('[data-testid="detection-tuning-guidance"]')
+        ?.textContent,
+    ).toContain(
+      "Remove any arrant holes / contours by clicking the trash can icon below",
+    );
+    expect(
+      host.querySelector('[data-testid="detection-tuning-guidance"]')
+        ?.className,
+    ).toContain("border-rose-500/60");
+    expect(
+      section("detect")?.querySelector("[data-testid='detection-contours']"),
+    ).not.toBeNull();
+    expect(section("contours")).toBeNull();
     expect(
       section("detect")?.querySelector<HTMLButtonElement>("#margin")?.textContent,
     ).toContain("1.5 mm");
@@ -366,13 +456,15 @@ describe("TraceControlsPanel guided workflow", () => {
     expect(section("crop")?.dataset.state).toBe("open");
     expect(sectionTrigger("detect")?.disabled).toBe(true);
     expect(host.textContent).toContain(
-      "Detection starts when you finish",
+      "Click and drag on the image",
     );
   });
 
   it("updates the displayed manual scale when the reference length changes", async () => {
     await click("load-source");
     await click("complete-manual-scale");
+    await changeNumber("ruler-length", "50");
+    await blurNumber("ruler-length");
 
     expect(section("scale")?.textContent).toContain("0.500 mm/px");
     await React.act(async () => {

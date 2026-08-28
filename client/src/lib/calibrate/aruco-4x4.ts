@@ -1,10 +1,9 @@
 /**
- * ArUco DICT_4X4 marker patterns — the eight markers Pocketry's A4 and US
- * Letter calibration sheets use, ported as data from OpenCV.
+ * Pocketry's eight-marker custom 4x4 dictionary for calibration-sheet v2,
+ * ported as data from OpenCV's deterministic `extendDictionary(8, 4)` output.
  *
- * Upstream: https://github.com/opencv/opencv
- * File:     modules/objdetect/src/aruco/predefined_dictionaries.hpp
- * Tag:      4.11.0 (matches the bundled opencv.js build)
+ * Generator: OpenCV `extendDictionary(8, 4)`
+ * Upstream:  https://github.com/opencv/opencv at tag 4.11.0
  * Licence:  Apache-2.0 © OpenCV team — attribution in /NOTICE.
  *
  * Licensing bright line (recorded in docs/gridfinity-plan.md): ArUco *data*
@@ -19,16 +18,16 @@
  * dictionary compiled into opencv.js itself.
  */
 
-/** Canonical (rotation 0) bit patterns of DICT_4X4 markers 0–7. */
-export const ARUCO_4X4_BITS: readonly number[] = [
-  0xb532, // id 0
-  0x0f9a, // id 1
-  0x332d, // id 2
-  0x9946, // id 3
-  0x549e, // id 4
-  0x79cd, // id 5
-  0x9e2e, // id 6
-  0xc4f2, // id 7
+/** Canonical (rotation 0) patterns of Pocketry custom marker ids 0–7. */
+export const POCKETRY_ARUCO_BITS: readonly number[] = [
+  0x532c, // id 0
+  0xaf8f, // id 1
+  0x203f, // id 2
+  0x1296, // id 3
+  0x03f9, // id 4
+  0x9a2f, // id 5
+  0x4754, // id 6
+  0xd870, // id 7
 ];
 
 /** Marker side length in modules: 4 data cells plus the black border ring. */
@@ -39,7 +38,7 @@ export const ARUCO_4X4_MODULES = 6;
  * top-left — the orientation OpenCV's detector reports as rotation 0.
  */
 export function markerBits(id: number): number[][] {
-  const bits = ARUCO_4X4_BITS[id];
+  const bits = POCKETRY_ARUCO_BITS[id];
   if (bits === undefined) {
     throw new Error(`markerBits: no ported pattern for marker id ${id}`);
   }

@@ -12,6 +12,15 @@ import {
   type GridPitch,
 } from "@shared/gridfinity/standard";
 import { MAX_GRID, type BinSpec } from "@shared/gridfinity/types";
+import {
+  canonicalCells,
+  cellCenterMm,
+  footprintTopologyError,
+  rectangleCells,
+  type BinFootprint,
+} from "@shared/gridfinity/footprint";
+import { parseBinSpec } from "@shared/gridfinity/types";
+import { validateBinSpec, validateLayout } from "@shared/gridfinity/validate";
 import { minAreaObb } from "@shared/geometry/obb";
 import type { Bounds, Point } from "@shared/geometry/types";
 
@@ -439,6 +448,80 @@ export interface AutoArrangeResult {
   gridX: number;
   gridY: number;
   overflow: boolean;
+  footprint?: BinFootprint;
+}
+
+const FOOTPRINT_CODES = new Set([
+  "out-of-bounds",
+  "wall-breach",
+  "lip-collision",
+  "thin-material",
+  "label-tab-edge-missing",
+]);
+
+/**
+ * Deterministically prunes safe boundary cells. The result is minimal under
+ * another single-cell removal; this deliberately avoids pretending to be a
+ * global nesting solver.
+ */
+export function trimFootprintToPlacements(
+  cutouts: readonly CutoutPlacement[],
+  shapesById: ReadonlyMap<string, TracedShape>,
+  spec: BinSpec,
+): BinFootprint {
+  let cells = rectangleCells(spec.gridX, spec.gridY);
+  const bounds = existingBounds(cutouts, shapesById);
+  const centre = bounds
+    ? { x: (bounds.minX + bounds.maxX) / 2, y: (bounds.minY + bounds.maxY) / 2 }
+    : { x: 0, y: 0 };
+  let changed = true;
+  while (changed && cells.length > 1) {
+    changed = false;
+    const ordered = [...cells].sort((a, b) => {
+      const ca = cellCenterMm(spec, a);
+      const cb = cellCenterMm(spec, b);
+      return Math.hypot(cb.x - centre.x, cb.y - centre.y) -
+        Math.hypot(ca.x - centre.x, ca.y - centre.y) ||
+        b.y - a.y || b.x - a.x;
+    });
+    for (const cell of ordered) {
+      const candidateCells = cells.filter((item) => item.x !== cell.x || item.y !== cell.y);
+      if (footprintTopologyError(spec.gridX, spec.gridY, candidateCells)) continue;
+      const candidate = parseBinSpec({
+        ...spec,
+        footprint: { kind: "custom", cells: canonicalCells(candidateCells) },
+      });
+      const issues = [
+        ...validateBinSpec(candidate).issues,
+        ...validateLayout(candidate, cutouts, shapesById),
+      ];
+      if (issues.some((issue) => FOOTPRINT_CODES.has(issue.code))) continue;
+      cells = candidateCells;
+      changed = true;
+      break;
+    }
+  }
+  return cells.length === spec.gridX * spec.gridY
+    ? { kind: "rectangle" }
+    : { kind: "custom", cells: canonicalCells(cells) };
+}
+
+export function fitFootprintToPlacements(
+  cutouts: readonly CutoutPlacement[],
+  shapesById: ReadonlyMap<string, TracedShape>,
+  spec: BinSpec,
+): { cutouts: CutoutPlacement[]; gridX: number; gridY: number; footprint: BinFootprint } {
+  const fitted = fitLayoutToPlacements(cutouts, shapesById, spec.lip, spec.gridPitch);
+  const fittedSpec = parseBinSpec({
+    ...spec,
+    gridX: fitted.gridX,
+    gridY: fitted.gridY,
+    footprint: { kind: "rectangle" },
+  });
+  return {
+    ...fitted,
+    footprint: trimFootprintToPlacements(fitted.cutouts, shapesById, fittedSpec),
+  };
 }
 
 /**
@@ -453,6 +536,7 @@ export function autoArrangeLayout(
   shapesById: ReadonlyMap<string, TracedShape>,
   lip: BinSpec["lip"],
   gridPitch: GridPitch = "full",
+  baseSpec?: BinSpec,
 ): AutoArrangeResult | null {
   const items: ArrangeItem[] = [];
   for (const cutout of cutouts) {
@@ -492,11 +576,23 @@ export function autoArrangeLayout(
     if (interior.widthMm <= 0 || interior.heightMm <= 0) continue;
     const block = shelfPack(targets, interior.widthMm);
     if (block.widthMm <= interior.widthMm && block.heightMm <= interior.heightMm) {
+      const placed = placeBlock(block);
+      const arrangedSpec = baseSpec
+        ? parseBinSpec({
+            ...baseSpec,
+            gridX: grid.gridX,
+            gridY: grid.gridY,
+            footprint: { kind: "rectangle" },
+          })
+        : null;
       return {
-        cutouts: placeBlock(block),
+        cutouts: placed,
         gridX: grid.gridX,
         gridY: grid.gridY,
         overflow: false,
+        ...(arrangedSpec
+          ? { footprint: trimFootprintToPlacements(placed, shapesById, arrangedSpec) }
+          : {}),
       };
     }
   }

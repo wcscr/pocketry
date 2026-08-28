@@ -58,13 +58,14 @@ describe("detectionGeometry", () => {
     expect(detect.width).toBeGreaterThan(IMAGE_CANVAS_MAX.width);
     // 4000×3000 → working 800×600, detect 1600×1200: factor 0.5. A marker
     // centre found at detect (1600, 1200) must land at working (800, 600).
-    expect(toWorking).toBeCloseTo(0.5, 9);
+    expect(toWorking.x).toBeCloseTo(0.5, 9);
+    expect(toWorking.y).toBeCloseTo(0.5, 9);
   });
 
   it("uses the identity factor when the photo needs no downscale", () => {
     const { detect, toWorking } = detectionGeometry({ width: 420, height: 594 });
     expect(detect).toEqual({ width: 420, height: 594 });
-    expect(toWorking).toBe(1);
+    expect(toWorking).toEqual({ x: 1, y: 1 });
   });
 
   it("keeps working and detection frames aspect-consistent", () => {
@@ -72,8 +73,10 @@ describe("detectionGeometry", () => {
     const { detect, toWorking } = detectionGeometry(natural);
     const working = fitWithin(natural, IMAGE_CANVAS_MAX);
     // The same factor must map both axes within a rounding pixel.
-    expect(detect.width * toWorking).toBeCloseTo(working.width, 6);
-    expect(Math.abs(detect.height * toWorking - working.height)).toBeLessThan(1);
+    expect(detect.width * toWorking.x).toBeCloseTo(working.width, 9);
+    expect(detect.height * toWorking.y).toBeCloseTo(working.height, 9);
+    expect(detect.width * toWorking.x).toBe(working.width);
+    expect(detect.height * toWorking.y).toBe(working.height);
   });
 });
 

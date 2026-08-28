@@ -1,5 +1,6 @@
 import type { Point } from "@shared/geometry/types";
 
+import { POCKETRY_ARUCO_BITS } from "./aruco-4x4";
 import type { DetectedMarker } from "./solve";
 
 /**
@@ -24,8 +25,8 @@ export interface ArucoDetection {
   isTemplate: boolean;
 }
 
-/** The dictionary the printable Pocketry template uses. */
-export const TEMPLATE_DICTIONARY = "DICT_4X4_50";
+/** Machine-readable namespace of the printable Pocketry v2 template. */
+export const TEMPLATE_DICTIONARY = "POCKETRY_4X4_V2";
 
 /**
  * Families probed when the template dictionary finds nothing, most likely
@@ -36,6 +37,7 @@ export const TEMPLATE_DICTIONARY = "DICT_4X4_50";
  * pass each on this one-shot path.
  */
 const FOREIGN_FAMILIES = [
+  "DICT_4X4_50",
   "DICT_ARUCO_ORIGINAL",
   "DICT_6X6_250",
   "DICT_5X5_250",
@@ -47,15 +49,26 @@ const FOREIGN_FAMILIES = [
 export function hasArucoSupport(cv: Cv): boolean {
   return (
     typeof cv?.aruco_ArucoDetector === "function" &&
-    typeof cv?.getPredefinedDictionary === "function"
+    typeof cv?.getPredefinedDictionary === "function" &&
+    typeof cv?.extendDictionary === "function" &&
+    typeof cv?.findHomography === "function" &&
+    typeof cv?.perspectiveTransform === "function"
   );
 }
 
-/** Runs the detector for one predefined dictionary id. */
-export function detectArucoMarkers(
+/**
+ * Recreates the pinned Pocketry v2 custom dictionary from OpenCV 4.11.0.
+ * The oracle test compares every generated cell with `POCKETRY_ARUCO_BITS`, so
+ * an OpenCV upgrade cannot silently change the printed/detected namespace.
+ */
+export function createPocketryTemplateDictionary(cv: Cv): Cv {
+  return cv.extendDictionary(POCKETRY_ARUCO_BITS.length, 4);
+}
+
+function detectMarkersWithDictionary(
   cv: Cv,
   image: ImageData,
-  predefinedDictionary: number,
+  createDictionary: () => Cv,
 ): DetectedMarker[] {
   const src = cv.matFromImageData(image);
   const gray = new cv.Mat();
@@ -69,7 +82,7 @@ export function detectArucoMarkers(
 
   try {
     cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
-    dictionary = cv.getPredefinedDictionary(predefinedDictionary);
+    dictionary = createDictionary();
     parameters = new cv.aruco_DetectorParameters();
     // The default is CORNER_REFINE_NONE. Subpixel refinement gives the
     // homography stable point correspondences without changing the template.
@@ -119,13 +132,34 @@ export function detectArucoMarkers(
   }
 }
 
+/** Runs the detector for one predefined dictionary id. */
+export function detectArucoMarkers(
+  cv: Cv,
+  image: ImageData,
+  predefinedDictionary: number,
+): DetectedMarker[] {
+  return detectMarkersWithDictionary(cv, image, () =>
+    cv.getPredefinedDictionary(predefinedDictionary),
+  );
+}
+
+/** Detects only Pocketry v2 custom markers, never stock-dictionary lookalikes. */
+export function detectPocketryTemplateMarkers(
+  cv: Cv,
+  image: ImageData,
+): DetectedMarker[] {
+  return detectMarkersWithDictionary(cv, image, () =>
+    createPocketryTemplateDictionary(cv),
+  );
+}
+
 /**
  * Looks for a calibration sheet: the Pocketry template's dictionary first;
  * failing that, the common foreign families, so the UI can point the user at
  * the printable template instead of silently finding nothing.
  */
 export function detectCalibrationSheet(cv: Cv, image: ImageData): ArucoDetection | null {
-  const primary = detectArucoMarkers(cv, image, cv[TEMPLATE_DICTIONARY]);
+  const primary = detectPocketryTemplateMarkers(cv, image);
   if (primary.length >= 2) {
     return { markers: primary, family: TEMPLATE_DICTIONARY, isTemplate: true };
   }

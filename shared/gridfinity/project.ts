@@ -10,10 +10,11 @@ import { binSpecSchema } from "./types";
  * adding a migration in `parseProjectDoc` is the upgrade path when persisted
  * feature models change. Version 2 replaces the one-off scoop with typed,
  * per-finger-hole straight/scoop geometry; version 3 adds a per-pocket top
- * edge fillet.
+ * edge fillet; version 4 adds nonrectangular cell footprints and boundary-edge
+ * label-tab anchors.
  */
 
-export const PROJECT_SCHEMA_VERSION = 3 as const;
+export const PROJECT_SCHEMA_VERSION = 4 as const;
 
 const projectFields = {
   shapes: z.array(tracedShapeSchema),
@@ -50,6 +51,17 @@ const projectDocV2Schema = z
     schemaVersion: PROJECT_SCHEMA_VERSION,
   }));
 
+const projectDocV3Schema = z
+  .object({
+    schemaVersion: z.literal(3),
+    ...projectFields,
+  })
+  .strict()
+  .transform(({ schemaVersion: _legacyVersion, ...doc }) => ({
+    ...doc,
+    schemaVersion: PROJECT_SCHEMA_VERSION,
+  }));
+
 export type ProjectDoc = z.infer<typeof projectDocSchema>;
 
 /**
@@ -60,6 +72,8 @@ export type ProjectDoc = z.infer<typeof projectDocSchema>;
 export function parseProjectDoc(input: unknown): ProjectDoc | null {
   const result = projectDocSchema.safeParse(input);
   if (result.success) return result.data;
+  const migratedV3 = projectDocV3Schema.safeParse(input);
+  if (migratedV3.success) return migratedV3.data;
   const migratedV2 = projectDocV2Schema.safeParse(input);
   if (migratedV2.success) return migratedV2.data;
   const migrated = projectDocV1Schema.safeParse(input);

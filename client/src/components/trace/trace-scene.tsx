@@ -1,4 +1,11 @@
-import { memo, useMemo, type PointerEvent as ReactPointerEvent } from "react";
+import {
+  memo,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 
 import type { Calibration, DraftCalibration } from "@shared/geometry/scale";
 import {
@@ -32,6 +39,9 @@ export interface TraceSceneProps {
   draftCalibration: DraftCalibration | null;
   /** Known physical length shown beside both preview and completed rulers. */
   rulerLengthMm: number;
+  /** Enables the on-image reference-length editor after endpoint placement. */
+  rulerEditable?: boolean;
+  onRulerLengthCommit?: (lengthMm: number) => void;
   /** Template centres or manually selected page corners awaiting correction. */
   perspectivePoints?: readonly Point[];
   /** Manual points remain draggable after all four have been placed. */
@@ -101,6 +111,8 @@ export function TraceScene({
   calibration,
   draftCalibration,
   rulerLengthMm,
+  rulerEditable = false,
+  onRulerLengthCommit,
   perspectivePoints = [],
   perspectiveEditable = false,
   perspectivePreview = null,
@@ -241,6 +253,8 @@ export function TraceScene({
           calibration={calibration}
           draft={draftCalibration}
           rulerLengthMm={rulerLengthMm}
+          editable={rulerEditable}
+          onLengthCommit={onRulerLengthCommit}
           inv={inv}
         />
         <PerspectiveOverlay
@@ -289,11 +303,15 @@ function RulerOverlay({
   calibration,
   draft,
   rulerLengthMm,
+  editable,
+  onLengthCommit,
   inv,
 }: {
   calibration: Calibration | null;
   draft: DraftCalibration | null;
   rulerLengthMm: number;
+  editable: boolean;
+  onLengthCommit?: (lengthMm: number) => void;
   inv: number;
 }): JSX.Element | null {
   const start: Point | null = calibration
@@ -345,6 +363,8 @@ function RulerOverlay({
             start={start}
             end={end}
             lengthMm={lengthMm}
+            editable={editable}
+            onLengthCommit={onLengthCommit}
             inv={inv}
           />
         </>
@@ -395,13 +415,45 @@ function RulerLengthLabel({
   start,
   end,
   lengthMm,
+  editable,
+  onLengthCommit,
   inv,
 }: {
   start: Point;
   end: Point;
   lengthMm: number;
+  editable: boolean;
+  onLengthCommit?: (lengthMm: number) => void;
   inv: number;
 }): JSX.Element {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(formatRulerLength(lengthMm));
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (!editing) setDraft(formatRulerLength(lengthMm));
+  }, [editing, lengthMm]);
+
+  useEffect(() => {
+    if (!editing) return;
+    inputRef.current?.focus({ preventScroll: true });
+    inputRef.current?.select();
+  }, [editing]);
+
+  const startEditing = () => {
+    if (!editable) return;
+    setDraft(formatRulerLength(lengthMm));
+    setEditing(true);
+  };
+
+  const finishEditing = (commit: boolean) => {
+    if (commit) {
+      const value = Number(draft);
+      if (Number.isFinite(value) && value > 0) onLengthCommit?.(value);
+    }
+    setEditing(false);
+  };
+
   const dx = end.x - start.x;
   const dy = end.y - start.y;
   const distance = Math.hypot(dx, dy);
@@ -415,7 +467,44 @@ function RulerLengthLabel({
   const height = RULER_LABEL_HEIGHT * inv;
 
   return (
-    <g data-testid="ruler-length-label" pointerEvents="none">
+    <g
+      data-testid="ruler-length-label"
+      pointerEvents={editable ? "all" : "none"}
+      role={editable ? "button" : undefined}
+      tabIndex={editable ? 0 : undefined}
+      aria-label={editable ? `Edit reference length, currently ${label}` : undefined}
+      style={editable ? { cursor: "text" } : undefined}
+      onPointerDown={
+        editable
+          ? (event) => {
+              // Keep a just-focused Reference Length field from blurring on
+              // the first half of this double-click. The inline editor takes
+              // focus deliberately after the complete gesture.
+              event.preventDefault();
+              event.stopPropagation();
+            }
+          : undefined
+      }
+      onDoubleClick={
+        editable
+          ? (event) => {
+              event.stopPropagation();
+              startEditing();
+            }
+          : undefined
+      }
+      onKeyDown={
+        editable
+          ? (event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                startEditing();
+              }
+            }
+          : undefined
+      }
+    >
+      {editable ? <title>Double-click to edit the reference length</title> : null}
       <rect
         x={x - width / 2}
         y={y - height / 2}
@@ -426,16 +515,54 @@ function RulerLengthLabel({
         strokeWidth={1.5}
         vectorEffect="non-scaling-stroke"
       />
-      <text
-        x={x}
-        y={y}
-        textAnchor="middle"
-        dominantBaseline="central"
-        fontSize={12 * inv}
-        className="fill-foreground font-semibold"
-      >
-        {label}
-      </text>
+      {editing ? (
+        <foreignObject
+          x={x - width / 2}
+          y={y - height / 2}
+          width={width}
+          height={height}
+          data-testid="ruler-length-inline-editor"
+        >
+          <div className="flex h-full w-full items-center overflow-hidden rounded-md border border-amber-500 bg-background px-1 text-foreground shadow-sm">
+            <input
+              ref={inputRef}
+              type="number"
+              min={1}
+              step="any"
+              value={draft}
+              aria-label="Ruler length in millimetres"
+              data-testid="ruler-length-inline-input"
+              className="h-full min-w-0 flex-1 bg-transparent text-center text-xs font-semibold outline-none"
+              onPointerDown={(event) => event.stopPropagation()}
+              onDoubleClick={(event) => event.stopPropagation()}
+              onChange={(event) => setDraft(event.target.value)}
+              onBlur={() => finishEditing(true)}
+              onKeyDown={(event) => {
+                event.stopPropagation();
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  finishEditing(true);
+                } else if (event.key === "Escape") {
+                  event.preventDefault();
+                  finishEditing(false);
+                }
+              }}
+            />
+            <span className="shrink-0 text-[10px] font-medium">mm</span>
+          </div>
+        </foreignObject>
+      ) : (
+        <text
+          x={x}
+          y={y}
+          textAnchor="middle"
+          dominantBaseline="central"
+          fontSize={12 * inv}
+          className="fill-foreground font-semibold"
+        >
+          {label}
+        </text>
+      )}
     </g>
   );
 }
