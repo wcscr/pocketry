@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { ARUCO_4X4_BITS, markerBits } from "./aruco-4x4";
+import { POCKETRY_ARUCO_BITS, markerBits } from "./aruco-4x4";
 import {
   calibrationTemplateSvg,
   paperFromTemplateMarkerIds,
@@ -16,17 +16,17 @@ describe("ArUco 4x4 dictionary port", () => {
   it("carries the canonical DICT_4X4 patterns for ids 0-7", () => {
     // Decoded from OpenCV 4.11.0 predefined_dictionaries.hpp (rotation 0 of
     // each marker's byte record) — see the module header for provenance.
-    expect(ARUCO_4X4_BITS).toEqual([
-      0xb532, 0x0f9a, 0x332d, 0x9946, 0x549e, 0x79cd, 0x9e2e, 0xc4f2,
+    expect(POCKETRY_ARUCO_BITS).toEqual([
+      0x532c, 0xaf8f, 0x203f, 0x1296, 0x03f9, 0x9a2f, 0x4754, 0xd870,
     ]);
   });
 
-  it("decodes id 0 row-major, MSB first", () => {
+  it("decodes Pocketry v2 id 0 row-major, MSB first", () => {
     expect(markerBits(0)).toEqual([
-      [1, 0, 1, 1],
       [0, 1, 0, 1],
       [0, 0, 1, 1],
       [0, 0, 1, 0],
+      [1, 1, 0, 0],
     ]);
   });
 
@@ -58,9 +58,12 @@ describe("calibration template", () => {
     }
   });
 
-  it("uses distinct marker families so paper size is automatic", () => {
-    expect(paperFromTemplateMarkerIds([0, 2])).toBe("a4");
-    expect(paperFromTemplateMarkerIds([4, 7])).toBe("letter");
+  it("requires the complete paper-specific marker signature", () => {
+    expect(paperFromTemplateMarkerIds([0, 1, 2, 3])).toBe("a4");
+    expect(paperFromTemplateMarkerIds([4, 5, 6, 7])).toBe("letter");
+    expect(paperFromTemplateMarkerIds([0, 2])).toBeNull();
+    expect(paperFromTemplateMarkerIds([4, 7])).toBeNull();
+    expect(paperFromTemplateMarkerIds([0, 1, 2, 3, 4])).toBeNull();
     expect(paperFromTemplateMarkerIds([0])).toBeNull();
     expect(paperFromTemplateMarkerIds([0, 4])).toBeNull();
     expect(paperFromTemplateMarkerIds([12, 13])).toBeNull();
@@ -97,7 +100,7 @@ describe("calibration template", () => {
     const popcount = (bits: number) =>
       bits.toString(2).split("").filter((b) => b === "1").length;
     const expected = TEMPLATE_MARKER_IDS.a4.reduce(
-      (sum, id) => sum + popcount(ARUCO_4X4_BITS[id]),
+      (sum, id) => sum + popcount(POCKETRY_ARUCO_BITS[id]),
       0,
     );
     // One background rect is white too.
@@ -112,6 +115,7 @@ describe("calibration template", () => {
     expect(bar).not.toBeNull();
     expect(Number(bar![2]) - Number(bar![1])).toBeCloseTo(100, 9);
     expect(svg).toContain("print at 100% scale");
+    expect(svg).toContain("Pocketry v2 calibration sheet");
     expect(svg).toContain("id 0");
     expect(svg).toContain("id 3");
     const letter = calibrationTemplateSvg("letter");

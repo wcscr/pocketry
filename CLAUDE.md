@@ -104,8 +104,10 @@ disagreed about Y, which shipped mirrored STLs.
   licences and attribution in `NOTICE`, which must be updated whenever a direct
   dependency, bundled artefact, or adapted source is added.
 - ArUco specifics: marker *patterns* and OpenCV's aruco module (Apache-2.0, in
-  `objdetect` since 4.7) are the sanctioned sources — dictionary data is ported in
-  `client/src/lib/calibrate/aruco-4x4.ts` with NOTICE attribution. The standalone
+  `objdetect` since 4.7) are the sanctioned sources — Pocketry's custom v2
+  dictionary is deterministically generated with OpenCV 4.11.0, pinned in
+  `client/src/lib/calibrate/aruco-4x4.ts`, and covered by NOTICE attribution.
+  The standalone
   ArUco library from the University of Córdoba is **GPLv3 and specifically
   off-limits**, including as a porting reference.
 - Keep one major version of Vite in the tree. Vitest must dedupe onto the app's Vite so tests transform what actually ships (this is why Vitest is pinned to v3 while the app is on Vite 5).

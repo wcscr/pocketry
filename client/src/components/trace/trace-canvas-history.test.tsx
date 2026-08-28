@@ -89,6 +89,19 @@ function SeedScaleDraft(): null {
   return null;
 }
 
+function ScaleStateProbe(): JSX.Element {
+  const { mode, calibration, draftCalibration } = useTrace();
+  return (
+    <>
+      <output data-testid="scale-mode">{mode}</output>
+      <output data-testid="scale-committed">
+        {calibration ? "committed" : "pending"}
+      </output>
+      <output data-testid="scale-draft">{JSON.stringify(draftCalibration)}</output>
+    </>
+  );
+}
+
 function SeedPerspectiveSelection(): null {
   const { dispatch } = useTrace();
   React.useEffect(() => {
@@ -114,6 +127,7 @@ function SeedAutoScale(): JSX.Element {
     dispatch({ type: "SOURCE_READY", imageSize: { width: 100, height: 100 } });
     dispatch({
       type: "AUTO_CALIBRATION_DETECTED",
+      sourceImageUrl: "data:image/png;base64,AA==",
       calibration: {
         startX: 10,
         startY: 10,
@@ -224,9 +238,40 @@ describe("TraceCanvas edit history", () => {
     expect(host.querySelectorAll('[data-testid="ruler-marker"]')).toHaveLength(2);
     expect(host.querySelectorAll("[data-ruler-handle]")).toHaveLength(2);
     expect(host.querySelector('[data-testid="ruler-line"]')).not.toBeNull();
-    expect(host.querySelector('[data-testid="ruler-length-label"]')?.textContent).toBe(
-      "50 mm",
+    expect(
+      host.querySelector('[data-testid="ruler-length-label"]')?.textContent,
+    ).toContain("50 mm");
+
+    await React.act(async () => {
+      host
+        .querySelector<SVGGElement>('[data-testid="ruler-length-label"]')
+        ?.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      await Promise.resolve();
+    });
+    const inlineLength = host.querySelector<HTMLInputElement>(
+      '[data-testid="ruler-length-inline-input"]',
     );
+    expect(inlineLength).not.toBeNull();
+    expect(document.activeElement).toBe(inlineLength);
+
+    await React.act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )!.set!;
+      setter.call(inlineLength, "75");
+      inlineLength?.dispatchEvent(new Event("input", { bubbles: true }));
+      inlineLength?.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+      );
+      await Promise.resolve();
+    });
+    expect(
+      host.querySelector('[data-testid="ruler-length-inline-input"]'),
+    ).toBeNull();
+    expect(
+      host.querySelector('[data-testid="ruler-length-label"]')?.textContent,
+    ).toContain("75 mm");
 
     React.act(() => root.unmount());
   });
@@ -276,6 +321,7 @@ describe("TraceCanvas edit history", () => {
         root.render(
           <TraceProvider>
             <SeedScaleDraft />
+            <ScaleStateProbe />
             <TooltipProvider>
               <TraceCanvas onReprocess={() => {}} />
             </TooltipProvider>
@@ -306,6 +352,41 @@ describe("TraceCanvas edit history", () => {
       expect(host.querySelector('[data-testid="ruler-length-label"]')?.textContent).toBe(
         "100 mm",
       );
+      expect(host.querySelector('[data-testid="scale-mode"]')?.textContent).toBe(
+        "calibrate",
+      );
+      expect(host.querySelector('[data-testid="scale-draft"]')?.textContent).toBe(
+        JSON.stringify({ startX: 10, startY: 20 }),
+      );
+      expect(
+        host.querySelector('[data-testid="scale-committed"]')?.textContent,
+      ).toBe("pending");
+
+      await React.act(async () => {
+        canvas?.dispatchEvent(
+          new MouseEvent("pointerdown", {
+            bubbles: true,
+            button: 0,
+            clientX: 70,
+            clientY: 80,
+          }),
+        );
+      });
+
+      expect(host.querySelector('[data-testid="scale-mode"]')?.textContent).toBe(
+        "pan",
+      );
+      expect(
+        host.querySelector('[data-testid="scale-committed"]')?.textContent,
+      ).toBe("pending");
+      expect(host.querySelector('[data-testid="scale-draft"]')?.textContent).toBe(
+        JSON.stringify({ startX: 10, startY: 20, endX: 70, endY: 80 }),
+      );
+      expect(
+        host.querySelector('[data-testid="ruler-line"]')?.getAttribute(
+          "data-ruler-preview",
+        ),
+      ).toBe("true");
     } finally {
       React.act(() => root.unmount());
       restoreSvgCoordinates();

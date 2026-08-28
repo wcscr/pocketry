@@ -1,5 +1,9 @@
 import { ringBounds, signedArea } from "@shared/geometry/rings";
-import type { Calibration } from "@shared/geometry/scale";
+import {
+  calibrationFromDraft,
+  hasCalibrationEndpoints,
+  type Calibration,
+} from "@shared/geometry/scale";
 import type { Outline } from "@shared/geometry/types";
 import { describe, expect, it } from "vitest";
 
@@ -23,6 +27,25 @@ function annulus(): Outline {
 
 const uncalibrated: ExportScale = { mmPerPx: null, imageHeight: 200 };
 const calibrated: ExportScale = { mmPerPx: 0.5, imageHeight: 200 };
+
+describe("manual calibration drafts", () => {
+  it("requires two distinct endpoints and a positive confirmed length", () => {
+    const endpoints = { startX: 10, startY: 20, endX: 110, endY: 20 };
+    expect(hasCalibrationEndpoints({ startX: 10, startY: 20 })).toBe(false);
+    expect(hasCalibrationEndpoints(endpoints)).toBe(true);
+    expect(calibrationFromDraft(endpoints, 50)).toEqual({
+      ...endpoints,
+      lengthMm: 50,
+    });
+    expect(calibrationFromDraft(endpoints, 0)).toBeNull();
+    expect(
+      calibrationFromDraft(
+        { startX: 10, startY: 20, endX: 10, endY: 20 },
+        50,
+      ),
+    ).toBeNull();
+  });
+});
 
 describe("toModelSpace — the Y flip", () => {
   it("flips Y exactly once, about the image height", () => {

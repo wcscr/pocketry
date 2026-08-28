@@ -15,6 +15,7 @@ function markerRectangles(pdf: string): { x: number; y: number }[] {
 describe("printable calibration PDF", () => {
   it("uses exact A4 and US Letter page boxes with print scaling disabled", () => {
     const a4 = pdfText("a4");
+    expect(a4).toContain("Pocketry v2 A4 calibration sheet");
     expect(a4).toContain("/MediaBox [0 0 595.2756 841.8898]");
     expect(a4).toContain("/CropBox [0 0 595.2756 841.8898]");
     expect(a4).toContain("/PrintScaling /None");

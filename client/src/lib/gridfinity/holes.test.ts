@@ -132,6 +132,36 @@ describe("buildBase with holes", () => {
     expect(box.min[1]).toBeCloseTo(-13 - MAGNET_HOLE_RADIUS, 6);
   });
 
+  it("adds hole clusters only beneath occupied custom-footprint cells", () => {
+    const options = {
+      magnet: true,
+      screw: false,
+      supportless: false,
+      chamfer: false,
+    };
+    const rectangular = baseHoleCutters(
+      kernel,
+      { gridX: 2, gridY: 2 },
+      options,
+      SEGMENTS,
+    )!;
+    const shaped = baseHoleCutters(
+      kernel,
+      {
+        gridX: 2,
+        gridY: 2,
+        footprint: {
+          kind: "custom",
+          cells: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }],
+        },
+      },
+      options,
+      SEGMENTS,
+    )!;
+    expect(shaped.status()).toBe("NoError");
+    expect(shaped.volume() / rectangular.volume()).toBeCloseTo(0.75, 9);
+  });
+
   it("screw holes pierce the base: genus 4 per cell on an open bin", () => {
     const spec = parseBinSpec({
       gridX: 1,

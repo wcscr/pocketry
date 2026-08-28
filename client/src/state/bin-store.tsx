@@ -23,7 +23,7 @@ import { parseBinSpec, type BinSpec, type BinSpecInput } from "@shared/gridfinit
  */
 
 export type BinViewMode = "3d" | "2d";
-export type BinEditorMode = "placement" | "contour";
+export type BinEditorMode = "placement" | "contour" | "footprint" | "label-edge";
 
 /** What undo restores. */
 export interface BinDoc {
@@ -78,6 +78,7 @@ export type BinAction =
       cutouts: CutoutPlacement[];
       gridX: number;
       gridY: number;
+      footprint?: BinSpec["footprint"];
       historyLabel?: string;
     }
   | {
@@ -96,6 +97,9 @@ export type BinAction =
       cutouts: CutoutPlacement[];
       gridX: number;
       gridY: number;
+      footprint?: BinSpec["footprint"];
+      /** Additional spec fields that must move atomically with the layout. */
+      specPatch?: Partial<BinSpecInput>;
       historyLabel?: string;
     }
   | { type: "SELECT_CUTOUT"; id: string | null }
@@ -217,8 +221,15 @@ function reducer(state: BinState, action: BinAction): BinState {
     case "MARK_HYDRATED":
       return state.hydrated ? state : { ...state, hydrated: true };
     case "PATCH_SPEC": {
+      const changesGrid = "gridX" in action.patch || "gridY" in action.patch;
       const doc = {
-        spec: parseBinSpec({ ...state.spec, ...action.patch }),
+        spec: parseBinSpec({
+          ...state.spec,
+          ...action.patch,
+          ...(changesGrid && state.spec.footprint.kind === "custom" && !("footprint" in action.patch)
+            ? { footprint: { kind: "rectangle" as const } }
+            : {}),
+        }),
         cutouts: state.cutouts,
       };
       return action.transient
@@ -233,6 +244,7 @@ function reducer(state: BinState, action: BinAction): BinState {
             ...state.spec,
             gridX: action.gridX,
             gridY: action.gridY,
+            ...(action.footprint ? { footprint: action.footprint } : {}),
           }),
           cutouts: [...state.cutouts, ...action.cutouts],
         },
@@ -294,8 +306,10 @@ function reducer(state: BinState, action: BinAction): BinState {
         {
           spec: parseBinSpec({
             ...state.spec,
+            ...action.specPatch,
             gridX: action.gridX,
             gridY: action.gridY,
+            ...(action.footprint ? { footprint: action.footprint } : {}),
           }),
           cutouts: action.cutouts,
         },
@@ -327,6 +341,7 @@ function reducer(state: BinState, action: BinAction): BinState {
             ...state.spec,
             gridX: action.gridX,
             gridY: action.gridY,
+            footprint: { kind: "rectangle" },
           }),
           cutouts: state.cutouts,
         },

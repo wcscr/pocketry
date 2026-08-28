@@ -73,6 +73,18 @@ function codes(
 // 2×2 bin: footprint 83.5, interior half-width 40.8.
 
 describe("validateLayout", () => {
+  it("rejects a pocket placed in a custom footprint's missing corner", () => {
+    const shaped = spec({
+      footprint: {
+        kind: "custom",
+        cells: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }],
+      },
+    });
+    expect(
+      codes(shaped, [makeCutout("c1", "s1", 21, 21)], [makeShape("s1", 10, 10)]),
+    ).toContain("out-of-bounds");
+  });
+
   it("accepts a clean centred layout", () => {
     expect(codes(spec(), [makeCutout("c1", "s1", 0, 0)], [makeShape("s1", 20, 20)])).toEqual(
       [],

@@ -169,6 +169,22 @@ describe("baseCellSolid", () => {
 });
 
 describe("buildBase", () => {
+  it("builds only the occupied sockets of a custom L footprint", () => {
+    const rectangular = buildBase(kernel, { gridX: 2, gridY: 2 }, 32);
+    const shaped = buildBase(kernel, {
+      gridX: 2,
+      gridY: 2,
+      footprint: {
+        kind: "custom",
+        cells: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }],
+      },
+    }, 32);
+    expect(shaped.status()).toBe("NoError");
+    expect(shaped.decompose()).toHaveLength(1);
+    expect(shaped.volume()).toBeLessThan(rectangular.volume() * 0.8);
+    expect(shaped.volume()).toBeGreaterThan(rectangular.volume() * 0.7);
+  });
+
   const segments = 32;
 
   it("2×3 base: exact footprint, genus 0, volume = 6 cells + bridge", () => {

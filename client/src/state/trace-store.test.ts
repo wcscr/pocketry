@@ -271,6 +271,26 @@ describe("loading a new image", () => {
 });
 
 describe("modes and calibration", () => {
+  it("opens manual ruler placement after upload-time calibration fails", () => {
+    const loaded = run(
+      initialTraceState,
+      { type: "SOURCE_LOADED", imageUrl: "image-a", fileName: "a" },
+      { type: "SOURCE_READY", imageSize: { width: 800, height: 600 } },
+    );
+
+    const failed = traceReducer(loaded, {
+      type: "AUTO_CALIBRATION_FAILED",
+      sourceImageUrl: "image-a",
+    });
+    expect(failed.mode).toBe("calibrate");
+
+    const stale = traceReducer(loaded, {
+      type: "AUTO_CALIBRATION_FAILED",
+      sourceImageUrl: "old-image",
+    });
+    expect(stale.mode).toBe("pan");
+  });
+
   it("has exactly one active mode", () => {
     // The four independent booleans this replaces could all be on at once.
     const state = run(
@@ -343,6 +363,24 @@ describe("modes and calibration", () => {
     expect(state.draftCalibration).toEqual({ startX: 1, startY: 2 });
   });
 
+  it("keeps placed ruler endpoints while waiting for reference length", () => {
+    const draftCalibration = {
+      startX: 1,
+      startY: 2,
+      endX: 9,
+      endY: 2,
+    };
+    const state = run(
+      initialTraceState,
+      { type: "SET_MODE", mode: "calibrate" },
+      { type: "SET_DRAFT_CALIBRATION", draftCalibration },
+      { type: "SET_MODE", mode: "pan" },
+    );
+    expect(state.mode).toBe("pan");
+    expect(state.draftCalibration).toEqual(draftCalibration);
+    expect(state.calibration).toBeNull();
+  });
+
   it("clears the draft once the calibration completes", () => {
     const state = run(
       initialTraceState,
@@ -360,6 +398,7 @@ describe("modes and calibration", () => {
   });
 
   it("holds a sheet-detected scale for explicit acceptance", () => {
+    const sourceImageUrl = "data:image/png;base64,source";
     const calibration = {
       startX: 0,
       startY: 0,
@@ -367,10 +406,11 @@ describe("modes and calibration", () => {
       endY: 0,
       lengthMm: 50,
     };
-    const pending = traceReducer(initialTraceState, {
-      type: "AUTO_CALIBRATION_DETECTED",
-      calibration,
-    });
+    const pending = run(
+      initialTraceState,
+      { type: "SOURCE_LOADED", imageUrl: sourceImageUrl, fileName: "source" },
+      { type: "AUTO_CALIBRATION_DETECTED", sourceImageUrl, calibration },
+    );
     expect(pending.calibration).toBeNull();
     expect(pending.pendingAutoCalibration).toBe(calibration);
     expect(pending.calibrationSource).toBeNull();
@@ -382,7 +422,34 @@ describe("modes and calibration", () => {
     expect(accepted.margin).toBe(1.5);
   });
 
+  it("rejects a late automatic calibration from a replaced image", () => {
+    const imageA = "data:image/png;base64,image-a";
+    const imageB = "data:image/png;base64,image-b";
+    const replaced = run(
+      initialTraceState,
+      { type: "SOURCE_LOADED", imageUrl: imageA, fileName: "image-a" },
+      { type: "SOURCE_LOADED", imageUrl: imageB, fileName: "image-b" },
+    );
+    const stale = traceReducer(replaced, {
+      type: "AUTO_CALIBRATION_DETECTED",
+      sourceImageUrl: imageA,
+      calibration: {
+        startX: 10,
+        startY: 10,
+        endX: 90,
+        endY: 90,
+        lengthMm: 250,
+      },
+    });
+
+    expect(stale).toBe(replaced);
+    expect(stale.imageUrl).toBe(imageB);
+    expect(stale.pendingAutoCalibration).toBeNull();
+    expect(stale.pendingPerspective).toBeNull();
+  });
+
   it("manual calibration replaces a pending sheet candidate", () => {
+    const sourceImageUrl = "data:image/png;base64,source";
     const detected = {
       startX: 0,
       startY: 0,
@@ -393,7 +460,8 @@ describe("modes and calibration", () => {
     const manual = { ...detected, lengthMm: 75 };
     const state = run(
       initialTraceState,
-      { type: "AUTO_CALIBRATION_DETECTED", calibration: detected },
+      { type: "SOURCE_LOADED", imageUrl: sourceImageUrl, fileName: "source" },
+      { type: "AUTO_CALIBRATION_DETECTED", sourceImageUrl, calibration: detected },
       { type: "SET_CALIBRATION", calibration: manual },
     );
     expect(state.calibration).toBe(manual);
@@ -403,6 +471,7 @@ describe("modes and calibration", () => {
   });
 
   it("removes a pending automatic ruler when manual placement begins", () => {
+    const sourceImageUrl = "data:image/png;base64,source";
     const detected = {
       startX: 0,
       startY: 0,
@@ -412,7 +481,8 @@ describe("modes and calibration", () => {
     };
     const state = run(
       initialTraceState,
-      { type: "AUTO_CALIBRATION_DETECTED", calibration: detected },
+      { type: "SOURCE_LOADED", imageUrl: sourceImageUrl, fileName: "source" },
+      { type: "AUTO_CALIBRATION_DETECTED", sourceImageUrl, calibration: detected },
       { type: "SET_MODE", mode: "calibrate" },
     );
 
@@ -466,6 +536,7 @@ describe("modes and calibration", () => {
     };
     const corrected = traceReducer(loaded, {
       type: "PERSPECTIVE_APPLIED",
+      sourceImageUrl: "data:image/png;base64,original",
       imageUrl: "data:image/png;base64,corrected",
       imageSize: { width: 421, height: 595 },
       calibration,
@@ -491,6 +562,29 @@ describe("modes and calibration", () => {
     expect(restored.perspectiveCorrection).toBeNull();
     expect(restored.calibration).toBeNull();
     expect(restored.autoCalibrationAttemptedImageUrl).toBe(restored.imageUrl);
+  });
+
+  it("rejects a late perspective correction from a replaced image", () => {
+    const imageA = "data:image/png;base64,image-a";
+    const imageB = "data:image/png;base64,image-b";
+    const replaced = run(
+      initialTraceState,
+      { type: "SOURCE_LOADED", imageUrl: imageA, fileName: "image-a" },
+      { type: "SOURCE_LOADED", imageUrl: imageB, fileName: "image-b" },
+    );
+    const stale = traceReducer(replaced, {
+      type: "PERSPECTIVE_APPLIED",
+      sourceImageUrl: imageA,
+      imageUrl: "data:image/png;base64,corrected-a",
+      imageSize: { width: 421, height: 595 },
+      calibration: { startX: 0, startY: 0, endX: 420, endY: 594, lengthMm: 250 },
+      source: "template",
+      paper: "a4",
+    });
+
+    expect(stale).toBe(replaced);
+    expect(stale.imageUrl).toBe(imageB);
+    expect(stale.calibration).toBeNull();
   });
 
   it("preserves a chosen margin when the scale is replaced", () => {
@@ -530,6 +624,7 @@ describe("modes and calibration", () => {
   });
 
   it("does not overwrite an accepted calibration-sheet scale", () => {
+    const sourceImageUrl = "data:image/png;base64,source";
     const calibration = {
       startX: 0,
       startY: 0,
@@ -539,7 +634,8 @@ describe("modes and calibration", () => {
     };
     const state = run(
       initialTraceState,
-      { type: "AUTO_CALIBRATION_DETECTED", calibration },
+      { type: "SOURCE_LOADED", imageUrl: sourceImageUrl, fileName: "source" },
+      { type: "AUTO_CALIBRATION_DETECTED", sourceImageUrl, calibration },
       { type: "ACCEPT_AUTO_CALIBRATION" },
       { type: "SET_RULER_LENGTH", rulerLengthMm: 75 },
     );

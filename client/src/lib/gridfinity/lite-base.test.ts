@@ -25,6 +25,19 @@ afterAll(() => {
 const SEGMENTS = 32;
 
 describe("buildLiteBase", () => {
+  it("builds a welded three-cell L shell and lattice", () => {
+    const lite = buildLiteBase(kernel, {
+      gridX: 2,
+      gridY: 2,
+      footprint: {
+        kind: "custom",
+        cells: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }],
+      },
+    }, SEGMENTS);
+    expect(lite.status()).toBe("NoError");
+    expect(lite.decompose()).toHaveLength(1);
+  });
+
   it("is one sound, welded solid with no handles", () => {
     const lite = buildLiteBase(kernel, { gridX: 2, gridY: 2 }, SEGMENTS);
     expect(lite.status()).toBe("NoError");

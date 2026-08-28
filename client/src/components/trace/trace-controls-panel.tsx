@@ -5,7 +5,6 @@ import {
   Crop,
   Download,
   Image as ImageIcon,
-  Layers,
   Ruler,
   RotateCcw,
   ScanLine,
@@ -14,6 +13,11 @@ import {
   Settings2,
 } from "lucide-react";
 import { useLocation } from "wouter";
+
+import {
+  calibrationFromDraft,
+  hasCalibrationEndpoints,
+} from "@shared/geometry/scale";
 
 import {
   PanelBody,
@@ -60,6 +64,9 @@ import { useTrace, type ExportFormat } from "@/state/trace-store";
 
 import { RingList } from "./ring-list";
 
+const RESPONSIVE_PANEL_ACTION =
+  "h-auto min-h-9 w-full whitespace-normal break-words px-2 py-2 text-[clamp(0.75rem,4cqw,0.875rem)] leading-tight";
+
 export interface TraceControlsPanelProps {
   onReplaceImage: () => void;
   onExport: () => void;
@@ -78,8 +85,11 @@ const TRACE_SETTINGS_SECTION_DETAILS = [
   { id: "trace-settings-scale", label: "Scale", tone: "amber" },
   { id: "trace-settings-crop", label: "Region", tone: "rose" },
   { id: "trace-settings-detect", label: "Tool Detection", tone: "blue" },
-  { id: "trace-settings-contours", label: "Contours", tone: "violet" },
-  { id: "trace-settings-output", label: "Output", tone: "emerald" },
+  {
+    id: "trace-settings-output",
+    label: "Change Output Format",
+    tone: "emerald",
+  },
 ] as const;
 
 /**
@@ -107,6 +117,7 @@ export function TraceControlsPanel({
     calibration,
     pendingAutoCalibration,
     calibrationSource,
+    draftCalibration,
     rulerLengthMm,
     pendingPerspective,
     manualPerspectivePoints,
@@ -132,6 +143,8 @@ export function TraceControlsPanel({
   const hasDetectionRegion = Boolean(
     region && region.width > 5 && region.height > 5,
   );
+  const manualRulerPending =
+    calibration === null && hasCalibrationEndpoints(draftCalibration);
   const traceSettingsSections = TRACE_SETTINGS_SECTION_DETAILS.map((item) => {
     if (item.id === "trace-settings-source") return item;
     if (item.id === "trace-settings-scale") {
@@ -181,11 +194,12 @@ export function TraceControlsPanel({
   const [perspectivePaper, setPerspectivePaper] =
     useState<TemplatePaper | null>(null);
   const previousSourceRevision = useRef(sourceRevision);
-  const previousScaleComplete = useRef(calibration !== null);
+  const previousScaleComplete = useRef(scale.mmPerPx !== null);
   const previousAutoPending = useRef(pendingAutoCalibration !== null);
+  const previousManualRulerPending = useRef(manualRulerPending);
   const previousMode = useRef(store.mode);
   const focusWhenReady = useRef<
-    "scale" | "auto" | "region" | "detection" | null
+    "scale" | "auto" | "length" | "region" | "detection" | null
   >(null);
 
   // A new source starts a new guided pass through the controls. Remounting the
@@ -200,11 +214,23 @@ export function TraceControlsPanel({
     setSectionEpoch((epoch) => epoch + 1);
   }, [imageUrl, sourceRevision]);
 
-  // Manual completion advances immediately to region selection. An
-  // automatically detected scale is deliberately not complete until the user
-  // accepts the candidate below.
+  // Two placed endpoints are still only a pixel ruler. Keep Scale open and
+  // focus the length field so the default preference cannot silently become a
+  // physical scale without explicit confirmation.
   useEffect(() => {
-    const complete = calibration !== null;
+    const becamePending =
+      !previousManualRulerPending.current && manualRulerPending;
+    previousManualRulerPending.current = manualRulerPending;
+    if (!becamePending) return;
+    setGuidedSection("scale");
+    focusWhenReady.current = "length";
+    setSectionEpoch((epoch) => epoch + 1);
+  }, [manualRulerPending]);
+
+  // A usable manual scale advances only after reference-length confirmation.
+  // An automatically detected scale is likewise incomplete until accepted.
+  useEffect(() => {
+    const complete = scale.mmPerPx !== null;
     const becameComplete = !previousScaleComplete.current && complete;
     previousScaleComplete.current = complete;
     if (!becameComplete) return;
@@ -212,7 +238,7 @@ export function TraceControlsPanel({
     setGuidedSection("region");
     focusWhenReady.current = "region";
     setSectionEpoch((epoch) => epoch + 1);
-  }, [calibration, dispatch]);
+  }, [scale.mmPerPx, dispatch]);
 
   // The canvas returns to pointer mode when a valid detection region is
   // committed. That explicit transition advances the guided workflow without
@@ -249,15 +275,22 @@ export function TraceControlsPanel({
           ? "trace-settings-crop"
           : "trace-settings-scale";
     const section = document.getElementById(sectionId);
-    const focusTarget =
+    const focusTarget: HTMLElement | null | undefined =
       requested === "auto"
         ? section?.querySelector<HTMLButtonElement>(
             '[data-testid="button-accept-auto-scale"]',
           )
-        : section?.querySelector<HTMLButtonElement>("[data-panel-section-trigger]");
+        : requested === "length"
+          ? section?.querySelector<HTMLInputElement>("#ruler-length")
+          : section?.querySelector<HTMLButtonElement>(
+              "[data-panel-section-trigger]",
+            );
     if (!section || !focusTarget) return;
     focusWhenReady.current = null;
     focusTarget.focus({ preventScroll: true });
+    if (requested === "length" && focusTarget instanceof HTMLInputElement) {
+      focusTarget.select();
+    }
 
     const frame = window.requestAnimationFrame(() => {
       section?.parentElement?.scrollTo?.({
@@ -295,8 +328,18 @@ export function TraceControlsPanel({
     setSectionEpoch((epoch) => epoch + 1);
   };
 
+  const handleSetScale = () => {
+    if (manualRulerPending) {
+      dispatch({ type: "SET_DRAFT_CALIBRATION", draftCalibration: null });
+    }
+    dispatch({
+      type: "SET_MODE",
+      mode: store.mode === "calibrate" ? "pan" : "calibrate",
+    });
+  };
+
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col [container-type:inline-size]">
       <PanelSettingsIndex
         ariaLabel="Find trace settings"
         testIdPrefix="trace"
@@ -383,7 +426,7 @@ export function TraceControlsPanel({
                   </p>
                   <Button
                     size="sm"
-                    className="w-full"
+                    className={RESPONSIVE_PANEL_ACTION}
                     disabled={processing || !pendingPerspective.paper}
                     onClick={() =>
                       pendingPerspective.paper &&
@@ -400,7 +443,7 @@ export function TraceControlsPanel({
                   <Button
                     variant="outline"
                     size="sm"
-                    className="w-full"
+                    className={RESPONSIVE_PANEL_ACTION}
                     onClick={() => dispatch({ type: "ACCEPT_AUTO_CALIBRATION" })}
                     data-testid="button-accept-auto-scale"
                   >
@@ -410,7 +453,7 @@ export function TraceControlsPanel({
               ) : (
                 <Button
                   size="sm"
-                  className="w-full"
+                  className={RESPONSIVE_PANEL_ACTION}
                   onClick={() => dispatch({ type: "ACCEPT_AUTO_CALIBRATION" })}
                   data-testid="button-accept-auto-scale"
                 >
@@ -424,31 +467,62 @@ export function TraceControlsPanel({
             variant={store.mode === "calibrate" ? "default" : "outline"}
             size="sm"
             className={cn(
-              "w-full",
+              RESPONSIVE_PANEL_ACTION,
               imageSize.width > 0 &&
                 !calibration &&
                 !pendingAutoCalibration &&
+                !manualRulerPending &&
                 store.mode !== "calibrate" &&
                 "animate-pulse motion-reduce:animate-none",
             )}
             data-testid="button-set-scale"
             disabled={!hasImage}
-            onClick={() =>
-              dispatch({
-                type: "SET_MODE",
-                mode: store.mode === "calibrate" ? "pan" : "calibrate",
-              })
-            }
+            onClick={handleSetScale}
           >
             {store.mode === "calibrate"
-              ? "Placing ruler…"
-              : pendingAutoCalibration
-                ? "Set manually instead"
-                : "Set scale"}
+              ? "Placing ruler"
+              : manualRulerPending
+                ? "Redraw ruler"
+                : pendingAutoCalibration
+                  ? "Set manually instead"
+                  : "Set scale"}
           </Button>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="ruler-length" className="text-xs">
+          {store.mode === "calibrate" ? (
+            <div
+              role="status"
+              data-testid="manual-scale-guidance"
+              className="flex gap-2 rounded-md border border-rose-500/60 bg-rose-500/10 p-3 text-rose-900 ring-2 ring-rose-500/20 dark:text-rose-100"
+            >
+              <Ruler className="mt-0.5 h-4 w-4 shrink-0" />
+              <div className="space-y-1">
+                <p className="text-sm font-semibold">
+                  Auto Calibration Unsuccessful:
+                </p>
+                <p className="text-xs leading-relaxed">
+                  Select two points on the image that are a known distance
+                  apart. Zoom in first for more precise placement.
+                </p>
+              </div>
+            </div>
+          ) : null}
+
+          <div
+            className={cn(
+              "space-y-1.5 rounded-md",
+              manualRulerPending &&
+                "border border-amber-500/60 bg-amber-500/10 p-2 ring-2 ring-amber-500/30",
+            )}
+            data-testid="reference-length-setting"
+          >
+            <Label
+              htmlFor="ruler-length"
+              className={cn(
+                "text-xs",
+                manualRulerPending &&
+                  "font-semibold text-amber-800 dark:text-amber-200",
+              )}
+            >
               Reference length (mm)
             </Label>
             <DraftNumberInput
@@ -457,10 +531,31 @@ export function TraceControlsPanel({
               step="any"
               value={rulerLengthMm}
               disabled={!hasImage}
+              aria-describedby={
+                manualRulerPending ? "reference-length-guidance" : undefined
+              }
               onValueChange={(value) =>
                 dispatch({ type: "SET_RULER_LENGTH", rulerLengthMm: value })
               }
+              onValueCommit={(value) => {
+                const completed = calibrationFromDraft(
+                  draftCalibration,
+                  value,
+                );
+                if (completed) {
+                  dispatch({ type: "SET_CALIBRATION", calibration: completed });
+                }
+              }}
             />
+            {manualRulerPending ? (
+              <p
+                id="reference-length-guidance"
+                className="text-[11px] font-medium text-amber-800 dark:text-amber-200"
+              >
+                Ruler placed. Enter its real length, then press Enter or leave
+                this field.
+              </p>
+            ) : null}
           </div>
 
           <p className="text-[11px] text-muted-foreground">
@@ -516,9 +611,10 @@ export function TraceControlsPanel({
             ) : (
               <>
                 <p className="text-xs text-muted-foreground">
-                  The printed markers identify A4 or US Letter automatically.
-                  If the markers are unavailable, select the four visible paper
-                  corners: top-left, top-right, bottom-right, then bottom-left.
+                  The four Pocketry v2 signature markers identify A4 or US Letter
+                  automatically. Stock or incomplete marker sets are rejected. If
+                  the markers are unavailable, select the four visible paper corners:
+                  top-left, top-right, bottom-right, then bottom-left.
                 </p>
                 {!pendingPerspective && (
                   <div className="space-y-1.5">
@@ -637,10 +733,10 @@ export function TraceControlsPanel({
               <DialogHeader>
                 <DialogTitle>Calibration sheet</DialogTitle>
                 <DialogDescription>
-                  Print the sheet once at 100%, then include it beneath tools for
-                  automatic scale and perspective correction. A4 and US Letter
-                  use different marker IDs, so Pocketry identifies the paper size
-                  for you.
+                  Print the current v2 sheet once at 100%, then include it beneath
+                  tools for automatic scale and perspective correction. Its custom
+                  marker dictionary prevents stock ArUco sheets from being mistaken
+                  for Pocketry; all four markers are required.
                 </DialogDescription>
               </DialogHeader>
               <Button
@@ -700,9 +796,24 @@ export function TraceControlsPanel({
               {Math.round(region.width)} × {Math.round(region.height)} px at{" "}
               {Math.round(region.x)}, {Math.round(region.y)}
             </p>
+          ) : store.mode === "region" ? (
+            <div
+              role="status"
+              data-testid="detection-region-guidance"
+              className="flex gap-2 rounded-md border border-rose-500/60 bg-rose-500/10 p-3 text-rose-900 ring-2 ring-rose-500/20 dark:text-rose-100"
+            >
+              <Crop className="mt-0.5 h-4 w-4 shrink-0" />
+              <div className="space-y-1">
+                <p className="text-sm font-semibold">Draw a box around the tool</p>
+                <p className="text-xs leading-relaxed">
+                  Click and drag on the image to enclose the entire tool inside
+                  the detection region.
+                </p>
+              </div>
+            </div>
           ) : (
             <p className="text-xs text-muted-foreground">
-              Draw a box around the tool. Detection starts when you finish.
+              Choose Set Region, then draw a box around the entire tool.
             </p>
           )}
           <div className="grid grid-cols-2 gap-2">
@@ -752,6 +863,19 @@ export function TraceControlsPanel({
           className="scroll-mt-16"
           disabled={!scale.mmPerPx || !hasDetectionRegion}
         >
+          <div
+            role="note"
+            data-testid="detection-tuning-guidance"
+            className="flex gap-2 rounded-md border border-rose-500/60 bg-rose-500/10 p-3 text-rose-900 ring-2 ring-rose-500/20 dark:text-rose-100"
+          >
+            <ScanSearch className="mt-0.5 h-4 w-4 shrink-0" />
+            <p className="text-xs leading-relaxed">
+              Adjust <strong>Sensitivity</strong> and <strong>Detail</strong> to
+              fine-tune the contour. Remove any arrant holes / contours by
+              clicking the trash can icon below.
+            </p>
+          </div>
+
           {/*
             The threshold is chosen automatically; this biases it. 128 means
             "use the automatic level unchanged", which is why the control is
@@ -825,25 +949,16 @@ export function TraceControlsPanel({
               mm.
             </p>
           </div>
-        </PanelSection>
 
-        <PanelSection
-          key={hasOutline ? "contours-ready" : "contours-empty"}
-          id="trace-settings-contours"
-          title="Edit contours"
-          icon={Layers}
-          tone="violet"
-          summary={`${outline.length}`}
-          defaultOpen={guidedSection === null && sectionEpoch === 0 && hasOutline}
-          className="scroll-mt-16"
-          disabled={!scale.mmPerPx || !hasOutline}
-        >
-          <RingList />
+          <div className="space-y-1.5" data-testid="detection-contours">
+            <p className="text-xs font-semibold">Contours</p>
+            <RingList />
+          </div>
         </PanelSection>
 
         <PanelSection
           id="trace-settings-output"
-          title="Output"
+          title="Change Output Format"
           icon={Download}
           tone="emerald"
           summary={exportFormat.toUpperCase()}

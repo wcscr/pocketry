@@ -54,6 +54,8 @@ export const RECTIFIED_PX_PER_MM = 2;
 
 /** Reject a template fit whose residual exceeds 0.75 mm on the output plane. */
 export const MAX_REPROJECTION_RMS_PX = 1.5;
+export const MAX_TEMPLATE_REPROJECTION_RMS_MM =
+  MAX_REPROJECTION_RMS_PX / RECTIFIED_PX_PER_MM;
 
 /** Builds an ordered four-marker proposal, or null when any template id is absent. */
 export function proposalFromTemplateMarkers(
@@ -90,23 +92,82 @@ export function proposalFromTemplateMarkers(
   };
 }
 
+/**
+ * Fits every detected marker corner to the signed template geometry without
+ * warping the image. A four-point centre quad can fit almost anything; the 16
+ * corners also constrain marker size and orientation relative to the sheet.
+ */
+export function templateReprojectionErrorMm(
+  cv: any,
+  proposal: PerspectiveProposal,
+  paper: TemplatePaper,
+): number | null {
+  const fit = proposal.source === "template" ? proposal.correspondences : null;
+  if (
+    !fit ||
+    fit.source.length !== 16 ||
+    fit.destinationMm.length !== fit.source.length ||
+    !validPerspectiveQuad(proposal.points)
+  ) {
+    return null;
+  }
+
+  const sourcePoints = cv.matFromArray(
+    fit.source.length,
+    1,
+    cv.CV_32FC2,
+    fit.source.flatMap(({ x, y }) => [x, y]),
+  );
+  const destinationPoints = cv.matFromArray(
+    fit.destinationMm.length,
+    1,
+    cv.CV_32FC2,
+    fit.destinationMm.flatMap(({ x, y }) => [x, y]),
+  );
+  const projected = new cv.Mat();
+  let transform: any | null = null;
+
+  try {
+    transform = cv.findHomography(sourcePoints, destinationPoints, 0);
+    if (!transform || transform.rows !== 3 || transform.cols !== 3) return null;
+    cv.perspectiveTransform(sourcePoints, projected, transform);
+    const values = projected.data32F as Float32Array;
+    let sumSquared = 0;
+    for (let index = 0; index < fit.destinationMm.length; index++) {
+      const dx = values[index * 2] - fit.destinationMm[index].x;
+      const dy = values[index * 2 + 1] - fit.destinationMm[index].y;
+      sumSquared += dx * dx + dy * dy;
+    }
+    const error = Math.sqrt(sumSquared / fit.destinationMm.length);
+    return Number.isFinite(error) ? error : null;
+  } catch {
+    return null;
+  } finally {
+    transform?.delete?.();
+    projected.delete();
+    destinationPoints.delete();
+    sourcePoints.delete();
+  }
+}
+
 /** Rescales a proposal between detection and working-image coordinate spaces. */
 export function scalePerspectiveProposal(
   proposal: PerspectiveProposal,
-  factor: number,
+  factorX: number,
+  factorY = factorX,
 ): PerspectiveProposal {
   return {
     ...proposal,
     points: proposal.points.map((point) => ({
-      x: point.x * factor,
-      y: point.y * factor,
+      x: point.x * factorX,
+      y: point.y * factorY,
     })) as PerspectiveQuad,
     correspondences: proposal.correspondences
       ? {
           ...proposal.correspondences,
           source: proposal.correspondences.source.map((point) => ({
-            x: point.x * factor,
-            y: point.y * factor,
+            x: point.x * factorX,
+            y: point.y * factorY,
           })),
         }
       : undefined,

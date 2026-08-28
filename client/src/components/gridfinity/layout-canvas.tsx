@@ -21,10 +21,9 @@ import {
 } from "@shared/gridfinity/cutout";
 import {
   binFootprintMm,
-  D_WALL,
   gridPitchMm,
-  R_F2,
 } from "@shared/gridfinity/standard";
+import { MAX_GRID } from "@shared/gridfinity/types";
 import {
   OUTER_RING,
   type Outline,
@@ -33,6 +32,20 @@ import {
   type RingRef,
 } from "@shared/geometry/types";
 import { validateLayout, type IssueSeverity } from "@shared/gridfinity/validate";
+import {
+  boundaryEdges,
+  canonicalCells,
+  cellCenterMm,
+  footprintInteriorRingMm,
+  footprintOuterRingMm,
+  footprintTopologyError,
+  isBoundaryEdge,
+  normalizeCustomFootprint,
+  occupiedCells,
+  rectangleCells,
+  type BoundaryEdge,
+  type GridCell,
+} from "@shared/gridfinity/footprint";
 
 import {
   CanvasViewport,
@@ -155,14 +168,15 @@ function LayoutStage(): JSX.Element {
   const pitchMm = gridPitchMm(spec.gridPitch);
   const widthMm = binFootprintMm(spec.gridX, spec.gridPitch);
   const lengthMm = binFootprintMm(spec.gridY, spec.gridPitch);
+  const footprintEditorPaddingMm = editorMode === "footprint" ? pitchMm : 0;
 
   const containerSize = useCanvasViewportSize();
   const svgRef = useRef<SVGSVGElement | null>(null);
   const sceneRef = useRef<SVGGElement | null>(null);
 
   const viewport = useViewportTransform({
-    contentWidth: widthMm,
-    contentHeight: lengthMm,
+    contentWidth: widthMm + footprintEditorPaddingMm * 2,
+    contentHeight: lengthMm + footprintEditorPaddingMm * 2,
     containerWidth: containerSize.width,
     containerHeight: containerSize.height,
     panEnabled: false,
@@ -377,6 +391,106 @@ function LayoutStage(): JSX.Element {
     }
     const point = toBin(event.clientX, event.clientY);
     if (!point) return;
+
+    if (editorMode === "footprint") {
+      const cell = pointToGridCell(point, spec, pitchMm, true);
+      if (!cell) return;
+      const current = occupiedCells(spec);
+      const occupied = current.some(
+        (candidate) => candidate.x === cell.x && candidate.y === cell.y,
+      );
+      if (!occupied && !isFaceAdjacentToCells(cell, current)) return;
+      const nextCells = occupied
+        ? current.filter((candidate) => candidate.x !== cell.x || candidate.y !== cell.y)
+        : [...current, cell];
+      if (nextCells.length === 0) return;
+
+      // Empty perimeter rows/columns are discarded after every edit. Pockets
+      // and an explicit label anchor receive the same lattice translation so
+      // their position relative to the retained cells does not jump.
+      const normalized = normalizeCustomFootprint(nextCells);
+      if (normalized.gridX > MAX_GRID || normalized.gridY > MAX_GRID) return;
+      if (
+        footprintTopologyError(
+          normalized.gridX,
+          normalized.gridY,
+          normalized.cells,
+        )
+      ) {
+        return;
+      }
+      const footprint = normalized.cells.length === normalized.gridX * normalized.gridY
+        ? { kind: "rectangle" as const }
+        : { kind: "custom" as const, cells: canonicalCells(normalized.cells) };
+      const delta = footprintEditTranslationMm(
+        spec,
+        normalized.gridX,
+        normalized.gridY,
+        normalized.shiftCells,
+        pitchMm,
+      );
+      const nextCutouts = cutouts.map((cutout) => ({
+        ...cutout,
+        position: {
+          x: cutout.position.x + delta.x,
+          y: cutout.position.y + delta.y,
+        },
+      }));
+      const tabEdge = spec.labelTab?.edge;
+      const nextTabEdge = tabEdge
+        ? {
+            ...tabEdge,
+            cell: {
+              x: tabEdge.cell.x + normalized.shiftCells.x,
+              y: tabEdge.cell.y + normalized.shiftCells.y,
+            },
+          }
+        : null;
+      const nextLabelTab = spec.labelTab
+        ? { ...spec.labelTab, edge: nextTabEdge }
+        : null;
+      const nextSpec = {
+        ...spec,
+        gridX: normalized.gridX,
+        gridY: normalized.gridY,
+        footprint,
+        labelTab: nextLabelTab,
+      };
+      if (nextTabEdge && !isBoundaryEdge(nextSpec, nextTabEdge)) return;
+      dispatch({
+        type: "REPLACE_LAYOUT",
+        cutouts: nextCutouts,
+        gridX: normalized.gridX,
+        gridY: normalized.gridY,
+        footprint,
+        specPatch: { labelTab: nextLabelTab },
+        historyLabel: occupied ? "Remove footprint cell" : "Add footprint cell",
+      });
+      event.preventDefault();
+      return;
+    }
+
+    if (editorMode === "label-edge") {
+      const target = event.target as Element;
+      const x = Number(target.getAttribute("data-edge-cell-x"));
+      const y = Number(target.getAttribute("data-edge-cell-y"));
+      const side = target.getAttribute("data-edge-side") as BoundaryEdge["side"] | null;
+      if (Number.isInteger(x) && Number.isInteger(y) && side) {
+        dispatch({
+          type: "PATCH_SPEC",
+          patch: {
+            labelTab: {
+              ...(spec.labelTab ?? { width: "full" as const, wall: side }),
+              wall: side,
+              edge: { cell: { x, y }, side },
+            },
+          },
+          historyLabel: "Choose label tab edge",
+        });
+        dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" });
+      }
+      return;
+    }
 
     if (rulerActive) {
       const snapped = snapToToolContour(
@@ -662,7 +776,7 @@ function LayoutStage(): JSX.Element {
         event.preventDefault();
         return;
       }
-      if (editorMode === "contour") {
+      if (editorMode !== "placement") {
         if (event.key === "Escape") {
           dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" });
           event.preventDefault();
@@ -737,7 +851,7 @@ function LayoutStage(): JSX.Element {
   const cursor =
     rulerActive
       ? "crosshair"
-      : editorMode === "contour"
+      : editorMode !== "placement"
       ? "crosshair"
       : isRotating
         ? ROTATE_CURSOR
@@ -770,6 +884,15 @@ function LayoutStage(): JSX.Element {
     }
     return lines;
   }, [spec.gridX, spec.gridY, pitchMm, widthMm, lengthMm]);
+
+  const outerFootprint = useMemo(() => footprintOuterRingMm(spec), [spec]);
+  const interiorFootprint = useMemo(() => footprintInteriorRingMm(spec), [spec]);
+  const footprintCells = useMemo(() => occupiedCells(spec), [spec]);
+  const footprintEditorCells = useMemo(
+    () => editableFootprintCells(spec, footprintCells),
+    [spec, footprintCells],
+  );
+  const selectableEdges = useMemo(() => boundaryEdges(spec), [spec]);
 
   const selectedBox = useMemo(() => {
     if (!selected) return null;
@@ -804,26 +927,18 @@ function LayoutStage(): JSX.Element {
       >
         <g
           ref={sceneRef}
-          transform={`translate(${translateX} ${translateY}) scale(${scale})`}
+          transform={`translate(${translateX + footprintEditorPaddingMm * scale} ${translateY + footprintEditorPaddingMm * scale}) scale(${scale})`}
         >
           {/* Bin footprint. */}
-          <rect
-            x={0}
-            y={0}
-            width={widthMm}
-            height={lengthMm}
-            rx={3.75}
+          <path
+            d={ringToCanvasPath(outerFootprint, spec)}
             className="fill-background stroke-foreground/60"
             strokeWidth={1.5}
             vectorEffect="non-scaling-stroke"
           />
           {/* Interior boundary the pockets must respect. */}
-          <rect
-            x={D_WALL}
-            y={D_WALL}
-            width={widthMm - 2 * D_WALL}
-            height={lengthMm - 2 * D_WALL}
-            rx={R_F2}
+          <path
+            d={ringToCanvasPath(interiorFootprint, spec)}
             fill="none"
             className="stroke-muted-foreground/40"
             strokeWidth={1}
@@ -840,6 +955,56 @@ function LayoutStage(): JSX.Element {
               vectorEffect="non-scaling-stroke"
             />
           ))}
+
+          {editorMode === "footprint" &&
+            footprintEditorCells.map((cell) => {
+              const centre = binToCanvas(cellCenterMm(spec, cell), spec);
+              const filled = footprintCells.some(
+                (candidate) => candidate.x === cell.x && candidate.y === cell.y,
+              );
+              const inside =
+                cell.x >= 0 &&
+                cell.y >= 0 &&
+                cell.x < spec.gridX &&
+                cell.y < spec.gridY;
+              return (
+                <rect
+                  key={`footprint-${cell.x}-${cell.y}`}
+                  x={centre.x - pitchMm / 2}
+                  y={centre.y - pitchMm / 2}
+                  width={pitchMm}
+                  height={pitchMm}
+                  className={
+                    filled
+                      ? "fill-blue-500/15 stroke-blue-500/70"
+                      : "fill-muted/20 stroke-muted-foreground/40"
+                  }
+                  strokeWidth={1}
+                  strokeDasharray={filled ? undefined : "3 3"}
+                  vectorEffect="non-scaling-stroke"
+                  data-testid={inside ? "footprint-cell" : "footprint-halo-cell"}
+                />
+              );
+            })}
+
+          {editorMode === "label-edge" &&
+            selectableEdges.map((edge) => {
+              const line = boundaryEdgeCanvasLine(edge, spec, pitchMm);
+              return (
+                <line
+                  key={`${edge.cell.x}-${edge.cell.y}-${edge.side}`}
+                  {...line}
+                  className="stroke-rose-500 hover:stroke-rose-700"
+                  strokeWidth={8}
+                  strokeLinecap="round"
+                  vectorEffect="non-scaling-stroke"
+                  data-edge-cell-x={edge.cell.x}
+                  data-edge-cell-y={edge.cell.y}
+                  data-edge-side={edge.side}
+                  data-testid="label-boundary-edge"
+                />
+              );
+            })}
 
           {placed.map(({ cutout, outline, features }) => {
             const severity = severityByCutout.get(cutout.id);
@@ -1094,6 +1259,10 @@ function LayoutStage(): JSX.Element {
       <div className="pointer-events-none absolute bottom-2 left-2 rounded-md bg-background/85 px-2 py-1 text-[11px] text-muted-foreground shadow-sm backdrop-blur">
         {rulerActive
           ? "Ruler · endpoints snap to tool contours · Esc exits"
+          : editorMode === "footprint"
+          ? "Footprint edit · click cells or the dashed outer halo · Esc finishes"
+          : editorMode === "label-edge"
+          ? "Label tab · click a highlighted boundary edge"
           : !hasPlacedCutouts
           ? "Add a tool from Trace to begin"
           : editorMode === "contour"
@@ -1106,6 +1275,115 @@ function LayoutStage(): JSX.Element {
       </div>
     </>
   );
+}
+
+function pointToGridCell(
+  point: Point,
+  spec: { gridX: number; gridY: number },
+  pitchMm: number,
+  includeHalo = false,
+): GridCell | null {
+  const x = Math.floor((point.x + (spec.gridX * pitchMm) / 2) / pitchMm);
+  const y = Math.floor((point.y + (spec.gridY * pitchMm) / 2) / pitchMm);
+  const minimum = includeHalo ? -1 : 0;
+  const maximumX = includeHalo ? spec.gridX : spec.gridX - 1;
+  const maximumY = includeHalo ? spec.gridY : spec.gridY - 1;
+  return x >= minimum && y >= minimum && x <= maximumX && y <= maximumY
+    ? { x, y }
+    : null;
+}
+
+function isFaceAdjacentToCells(cell: GridCell, cells: readonly GridCell[]): boolean {
+  return cells.some(
+    (candidate) =>
+      Math.abs(candidate.x - cell.x) + Math.abs(candidate.y - cell.y) === 1,
+  );
+}
+
+function editableFootprintCells(
+  spec: { gridX: number; gridY: number },
+  occupied: readonly GridCell[],
+): GridCell[] {
+  const cells = new Map<string, GridCell>();
+  for (const cell of rectangleCells(spec.gridX, spec.gridY)) {
+    cells.set(`${cell.x},${cell.y}`, cell);
+  }
+  for (const cell of occupied) {
+    for (const candidate of [
+      { x: cell.x - 1, y: cell.y },
+      { x: cell.x + 1, y: cell.y },
+      { x: cell.x, y: cell.y - 1 },
+      { x: cell.x, y: cell.y + 1 },
+    ]) {
+      if (
+        candidate.x >= -1 &&
+        candidate.y >= -1 &&
+        candidate.x <= spec.gridX &&
+        candidate.y <= spec.gridY
+      ) {
+        cells.set(`${candidate.x},${candidate.y}`, candidate);
+      }
+    }
+  }
+  return canonicalCells([...cells.values()]);
+}
+
+function footprintEditTranslationMm(
+  previous: { gridX: number; gridY: number },
+  nextGridX: number,
+  nextGridY: number,
+  shiftCells: GridCell,
+  pitchMm: number,
+): Point {
+  return {
+    x: (shiftCells.x + (previous.gridX - nextGridX) / 2) * pitchMm,
+    y: (shiftCells.y + (previous.gridY - nextGridY) / 2) * pitchMm,
+  };
+}
+
+function ringToCanvasPath(
+  ring: Ring,
+  spec: { gridX: number; gridY: number },
+): string {
+  if (ring.length === 0) return "";
+  return `${ring
+    .map((point, index) => {
+      const canvas = binToCanvas(point, spec);
+      return `${index === 0 ? "M" : "L"} ${canvas.x.toFixed(3)} ${canvas.y.toFixed(3)}`;
+    })
+    .join(" ")} Z`;
+}
+
+function boundaryEdgeCanvasLine(
+  edge: BoundaryEdge,
+  spec: { gridX: number; gridY: number },
+  pitchMm: number,
+): { x1: number; y1: number; x2: number; y2: number } {
+  const centre = cellCenterMm(spec, edge.cell);
+  const half = pitchMm / 2;
+  const [a, b]: [Point, Point] =
+    edge.side === "north"
+      ? [
+          { x: centre.x - half, y: centre.y + half },
+          { x: centre.x + half, y: centre.y + half },
+        ]
+      : edge.side === "south"
+        ? [
+            { x: centre.x - half, y: centre.y - half },
+            { x: centre.x + half, y: centre.y - half },
+          ]
+        : edge.side === "east"
+          ? [
+              { x: centre.x + half, y: centre.y - half },
+              { x: centre.x + half, y: centre.y + half },
+            ]
+          : [
+              { x: centre.x - half, y: centre.y - half },
+              { x: centre.x - half, y: centre.y + half },
+            ];
+  const ca = binToCanvas(a, spec);
+  const cb = binToCanvas(b, spec);
+  return { x1: ca.x, y1: ca.y, x2: cb.x, y2: cb.y };
 }
 
 /** Transformed bin-frame outline → SVG path in the y-down canvas frame. */

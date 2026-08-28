@@ -15,6 +15,8 @@ export interface DraftNumberInputProps
   > {
   value: number;
   onValueChange: (value: number) => void;
+  /** Called only when a valid draft is explicitly committed by blur or Enter. */
+  onValueCommit?: (value: number) => void;
   /** Applied before a valid draft is committed (for angle wrapping, for example). */
   normalize?: (value: number) => number;
 }
@@ -29,6 +31,7 @@ export interface DraftNumberInputProps
 export function DraftNumberInput({
   value,
   onValueChange,
+  onValueCommit,
   normalize = (next) => next,
   min,
   max,
@@ -62,7 +65,10 @@ export function DraftNumberInput({
       return;
     }
     onValueChange(parsed);
-    if (revertInvalid) setDraft(String(parsed));
+    if (revertInvalid) {
+      setDraft(String(parsed));
+      onValueCommit?.(parsed);
+    }
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {

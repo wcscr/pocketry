@@ -23,6 +23,7 @@ import { holeOptionsFromSpec } from "./holes";
 import { buildLabelTab } from "./label-tab";
 import { buildLiteBase } from "./lite-base";
 import { roundedRectPolygon } from "./profiles";
+import { footprintOuterSection } from "./footprint-section";
 import { buildStackingLip, buildWallRing } from "./wall";
 
 /**
@@ -133,7 +134,9 @@ export function buildBinParts(
         spec.gridPitch === "full" ? holeOptionsFromSpec(spec) : undefined,
       );
   let wall = buildWallRing(kernel, spec, segments);
-  const lip = spec.lip === "standard" ? buildStackingLip(kernel, spec, segments) : null;
+  const lip = spec.lip === "standard"
+    ? buildStackingLip(kernel, spec, segments, quality.filletProfileStepMm)
+    : null;
 
   // The label tab fuses into the wall part: it is wall material, and keeping
   // BinParts' tag set stable preserves the multicolor hook unchanged.
@@ -147,16 +150,18 @@ export function buildBinParts(
   if (spec.fill === "solid" && fillHeight > 0) {
     // Full footprint like upstream (minus their preview-only TOLLERANCE
     // shave): overlapping the wall is deliberate, the union dedupes it.
-    const section = arena.track(
-      new CrossSection([
-        roundedRectPolygon(
-          binFootprintMm(spec.gridX, spec.gridPitch),
-          binFootprintMm(spec.gridY, spec.gridPitch),
-          BASE_TOP_RADIUS,
-          segments,
-        ),
-      ]),
-    );
+    const section = spec.footprint.kind === "custom"
+      ? footprintOuterSection(kernel, spec, segments)
+      : arena.track(
+          new CrossSection([
+            roundedRectPolygon(
+              binFootprintMm(spec.gridX, spec.gridPitch),
+              binFootprintMm(spec.gridY, spec.gridPitch),
+              BASE_TOP_RADIUS,
+              segments,
+            ),
+          ]),
+        );
     infill = arena.track(
       arena.track(section.extrude(fillHeight)).translate([0, 0, BASE_HEIGHT]),
     );

@@ -19,6 +19,7 @@ function renderRuler({
   completed = null,
   draft = null,
   rulerLengthMm = 100,
+  rulerEditable = false,
   perspectivePoints = [],
   perspectiveEditable = false,
   perspectivePreview = null,
@@ -26,6 +27,7 @@ function renderRuler({
   completed?: Calibration | null;
   draft?: DraftCalibration | null;
   rulerLengthMm?: number;
+  rulerEditable?: boolean;
   perspectivePoints?: readonly Point[];
   perspectiveEditable?: boolean;
   perspectivePreview?: Point | null;
@@ -41,6 +43,7 @@ function renderRuler({
       calibration={completed}
       draftCalibration={draft}
       rulerLengthMm={rulerLengthMm}
+      rulerEditable={rulerEditable}
       perspectivePoints={perspectivePoints}
       perspectiveEditable={perspectiveEditable}
       perspectivePreview={perspectivePreview}
@@ -62,6 +65,21 @@ describe("TraceScene ruler overlay", () => {
     expect(markup).toContain('data-testid="ruler-length-label"');
     expect(markup).toContain("50 mm");
     expect(markup).toContain("M 3 13 L 17 27 M 17 13 L 3 27");
+  });
+
+  it("advertises inline editing only for a committed ruler", () => {
+    const markup = renderRuler({
+      completed: calibration,
+      rulerEditable: true,
+    });
+    expect(markup).toContain('role="button"');
+    expect(markup).toContain("Double-click to edit the reference length");
+    expect(markup).toContain("Edit reference length, currently 50 mm");
+
+    const preview = renderRuler({
+      draft: { startX: 10, startY: 20, endX: 80, endY: 70 },
+    });
+    expect(preview).not.toContain("Double-click to edit the reference length");
   });
 
   it("renders a live dashed ruler from the first marker to the pointer", () => {
