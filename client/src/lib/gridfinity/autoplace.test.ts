@@ -9,6 +9,7 @@ import {
   autoPlaceIncremental,
   fitLayoutToPlacements,
   fitFootprintToPlacements,
+  fitRectangularBinToPlacements,
   placementInsetMm,
 } from "./autoplace";
 
@@ -259,6 +260,24 @@ describe("fitFootprintToPlacements", () => {
       footprint: result.footprint,
     });
     expect(validateLayout(fittedSpec, result.cutouts, byId)).toEqual([]);
+  });
+});
+
+describe("fitRectangularBinToPlacements", () => {
+  it("keeps automatic fitting rectangular while irregular footprints remain opt-in", () => {
+    const shape = rectShape("small", 35, 35);
+    const byId = new Map([[shape.id, shape]]);
+    const cutout = {
+      ...autoPlaceFresh([shape], "standard").cutouts[0],
+      position: { x: -20, y: -20 },
+    };
+    const result = fitRectangularBinToPlacements(
+      [cutout],
+      byId,
+      parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6, fill: "solid" }),
+    );
+
+    expect(result.footprint).toEqual({ kind: "rectangle" });
   });
 });
 

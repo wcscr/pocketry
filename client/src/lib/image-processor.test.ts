@@ -5,6 +5,7 @@ import type { ImageLike } from "./detect/types";
 import { convexHullForTest, polygonArea } from "./geometry/fixtures";
 import { outlineArea, outlineBounds, pointInOutline } from "./geometry/outline";
 import {
+  adjustOutlineMargin,
   MARGIN_MM_OPTIONS,
   marginToPixels,
   processImage,
@@ -167,6 +168,37 @@ describe("processImage: margins", () => {
       margin: null,
     });
     expect(Math.abs(outlineArea(none.outline))).toBeGreaterThan(0);
+  });
+
+  it("adjusts the edited contour without resurrecting a deleted hole", async () => {
+    const edited = [
+      {
+        outer: [
+          { x: 10, y: 10 },
+          { x: 90, y: 10 },
+          { x: 90, y: 80 },
+          { x: 45, y: 70 }, // a manually moved vertex
+          { x: 10, y: 80 },
+        ],
+        holes: [], // an unwanted detected hole was manually removed
+      },
+    ];
+    const calibration = {
+      startX: 0,
+      startY: 0,
+      endX: 100,
+      endY: 0,
+      lengthMm: 50,
+    };
+
+    const adjusted = await adjustOutlineMargin(edited, 1.5, 2, calibration);
+    const before = outlineBounds(edited)!;
+    const after = outlineBounds(adjusted)!;
+
+    expect(adjusted).not.toBe(edited);
+    expect(adjusted).toHaveLength(1);
+    expect(adjusted[0].holes).toEqual([]);
+    expect(after.maxX - after.minX).toBeGreaterThan(before.maxX - before.minX);
   });
 });
 
