@@ -304,7 +304,11 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
 
     // Ruler handles stay draggable except while the page-corner tool owns the
     // pointer; its markers may legitimately overlap the scale ruler.
-    if (displayedCalibration && mode !== "perspective") {
+    if (
+      event.button === 0 &&
+      displayedCalibration &&
+      mode !== "perspective"
+    ) {
       const target = event.target as Element;
       const handle = target
         .closest?.("[data-ruler-handle]")
@@ -469,12 +473,13 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
     }
 
     if (drag.kind === "ruler" && displayedCalibration) {
+      const point = clampPointToImage(image, imageSize);
       dispatch({
         type: "SET_CALIBRATION",
         calibration:
           drag.end === "start"
-            ? { ...displayedCalibration, startX: image.x, startY: image.y }
-            : { ...displayedCalibration, endX: image.x, endY: image.y },
+            ? { ...displayedCalibration, startX: point.x, startY: point.y }
+            : { ...displayedCalibration, endX: point.x, endY: point.y },
       });
       return;
     }

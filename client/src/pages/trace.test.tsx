@@ -8,8 +8,13 @@ import { TraceProvider, useTrace } from "@/state/trace-store";
 
 import TracePage from "./trace";
 
-const { downloadCalibrationTemplateMock, getImageDataMock, processImageMock } =
-  vi.hoisted(() => ({
+const {
+  decodeImageFileMock,
+  downloadCalibrationTemplateMock,
+  getImageDataMock,
+  processImageMock,
+} = vi.hoisted(() => ({
+    decodeImageFileMock: vi.fn(),
     downloadCalibrationTemplateMock: vi.fn(),
     getImageDataMock: vi.fn(),
     processImageMock: vi.fn(),
@@ -70,6 +75,8 @@ vi.mock("@/components/trace/use-image-source", () => {
   };
 
   return {
+    decodeImageFile: decodeImageFileMock,
+    fitWithin: () => ({ width: 800, height: 600 }),
     IMAGE_CANVAS_MAX: { width: 800, height: 600 },
     useImageSource: (url: string | null) => (url ? ready : empty),
   };
@@ -107,6 +114,29 @@ function WorkflowController(): JSX.Element {
     >
       Set region
     </button>
+  );
+}
+
+function SeedReadySource(): null {
+  const { dispatch } = useTrace();
+
+  React.useEffect(() => {
+    dispatch({
+      type: "SOURCE_LOADED",
+      imageUrl: "data:image/png;base64,original",
+      fileName: "original",
+    });
+    dispatch({ type: "SOURCE_READY", imageSize: { width: 400, height: 300 } });
+  }, [dispatch]);
+  return null;
+}
+
+function SourceStateProbe(): JSX.Element {
+  const { imageSize, imageUrl } = useTrace();
+  return (
+    <output data-testid="source-state">
+      {imageUrl ?? "none"}|{imageSize.width}x{imageSize.height}
+    </output>
   );
 }
 
@@ -172,6 +202,64 @@ describe("Trace detection workflow", () => {
 
     expect(downloadCalibrationTemplateMock).toHaveBeenNthCalledWith(1, "a4");
     expect(downloadCalibrationTemplateMock).toHaveBeenNthCalledWith(2, "letter");
+  });
+
+  it("keeps the current photo visible until its replacement is decoded", async () => {
+    let resolveReplacement:
+      | ((value: {
+          imageUrl: string;
+          naturalSize: { width: number; height: number };
+        }) => void)
+      | undefined;
+    decodeImageFileMock.mockReturnValue(
+      new Promise((resolve) => {
+        resolveReplacement = resolve;
+      }),
+    );
+
+    await React.act(async () => {
+      root.render(
+        <PanelProvider>
+          <TraceProvider>
+            <SeedReadySource />
+            <SourceStateProbe />
+            <TracePage />
+          </TraceProvider>
+        </PanelProvider>,
+      );
+      await Promise.resolve();
+    });
+
+    const file = new File(["replacement"], "replacement.png", {
+      type: "image/png",
+    });
+    const input = host.querySelector<HTMLInputElement>('input[type="file"]');
+    Object.defineProperty(input, "files", {
+      configurable: true,
+      value: [file],
+    });
+
+    await React.act(async () => {
+      input?.dispatchEvent(new Event("change", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(decodeImageFileMock).toHaveBeenCalledWith(file);
+    expect(host.querySelector('[data-testid="source-state"]')?.textContent).toBe(
+      "data:image/png;base64,original|800x600",
+    );
+
+    await React.act(async () => {
+      resolveReplacement?.({
+        imageUrl: "data:image/png;base64,replacement",
+        naturalSize: { width: 1600, height: 1200 },
+      });
+      await Promise.resolve();
+    });
+
+    expect(host.querySelector('[data-testid="source-state"]')?.textContent).toBe(
+      "data:image/png;base64,replacement|800x600",
+    );
   });
 
   it("waits for a detection region instead of tracing immediately on image load", async () => {

@@ -3,10 +3,49 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   DETECTION_CANVAS_MAX,
+  decodeImageFile,
   detectionGeometry,
   fitWithin,
   IMAGE_CANVAS_MAX,
 } from "./use-image-source";
+
+describe("decodeImageFile", () => {
+  it("validates a file and reports its natural dimensions before replacement", async () => {
+    class TestFileReader {
+      result: string | ArrayBuffer | null = null;
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+
+      readAsDataURL(): void {
+        this.result = "data:image/png;base64,replacement";
+        queueMicrotask(() => this.onload?.());
+      }
+    }
+
+    class TestImage {
+      naturalWidth = 1600;
+      naturalHeight = 1200;
+      width = 1600;
+      height = 1200;
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+
+      set src(_value: string) {
+        queueMicrotask(() => this.onload?.());
+      }
+    }
+
+    vi.stubGlobal("FileReader", TestFileReader);
+    vi.stubGlobal("Image", TestImage);
+
+    await expect(
+      decodeImageFile(new File(["image"], "replacement.png")),
+    ).resolves.toEqual({
+      imageUrl: "data:image/png;base64,replacement",
+      naturalSize: { width: 1600, height: 1200 },
+    });
+  });
+});
 
 describe("fitWithin", () => {
   it("leaves an image smaller than the cap alone", () => {
@@ -91,4 +130,5 @@ describe("IMAGE_CANVAS_MAX", () => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
