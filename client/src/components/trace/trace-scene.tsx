@@ -6,6 +6,7 @@ import {
   useState,
   type PointerEvent as ReactPointerEvent,
 } from "react";
+import { createPortal } from "react-dom";
 
 import type { Calibration, DraftCalibration } from "@shared/geometry/scale";
 import {
@@ -37,7 +38,7 @@ export interface TraceSceneProps {
   regionActive?: boolean;
   calibration: Calibration | null;
   draftCalibration: DraftCalibration | null;
-  /** Known physical length shown beside both preview and completed rulers. */
+  /** Known physical length shown after both manual-ruler points are placed. */
   rulerLengthMm: number;
   /** Enables the on-image reference-length editor after endpoint placement. */
   rulerEditable?: boolean;
@@ -71,10 +72,14 @@ export interface TraceSceneProps {
 /** Screen-space sizes, divided by the scale so they stay constant when zooming. */
 const HANDLE_RADIUS = 5;
 const HANDLE_RADIUS_SELECTED = 7;
-const RULER_HIT_RADIUS = 12;
+const RULER_HIT_RADIUS = 18;
 const RULER_MARKER_HALF_SIZE = 7;
 const RULER_LABEL_OFFSET = 18;
 const RULER_LABEL_HEIGHT = 22;
+const RULER_LABEL_FONT_SIZE = 12;
+const RULER_LABEL_RADIUS = 6;
+const RULER_EDITOR_MIN_WIDTH = 96;
+const RULER_EDITOR_HEIGHT = 30;
 const PERSPECTIVE_MARKER_RADIUS = 10;
 const PERSPECTIVE_HIT_RADIUS = 15;
 
@@ -359,14 +364,16 @@ function RulerOverlay({
             data-testid="ruler-line"
             data-ruler-preview={calibration ? undefined : "true"}
           />
-          <RulerLengthLabel
-            start={start}
-            end={end}
-            lengthMm={lengthMm}
-            editable={editable}
-            onLengthCommit={onLengthCommit}
-            inv={inv}
-          />
+          {(calibration || editable) && (
+            <RulerLengthLabel
+              start={start}
+              end={end}
+              lengthMm={lengthMm}
+              editable={editable}
+              onLengthCommit={onLengthCommit}
+              inv={inv}
+            />
+          )}
         </>
       )}
       {[start, end].map((point, index) =>
@@ -380,12 +387,18 @@ function RulerOverlay({
             }
           >
             {calibration && (
-              <circle
-                cx={point.x}
-                cy={point.y}
-                r={RULER_HIT_RADIUS * inv}
-                fill="transparent"
-              />
+              <>
+                <title>{`Drag the ${index === 0 ? "start" : "end"} scale point`}</title>
+                <circle
+                  cx={point.x}
+                  cy={point.y}
+                  r={RULER_HIT_RADIUS * inv}
+                  className="cursor-grab fill-transparent stroke-transparent transition-colors hover:fill-amber-500/15 hover:stroke-amber-500/70 active:cursor-grabbing"
+                  strokeWidth={2}
+                  vectorEffect="non-scaling-stroke"
+                  data-testid="ruler-handle-hit-area"
+                />
+              </>
             )}
             <path
               d={rulerMarkerPath(point, markerHalfSize)}
@@ -427,12 +440,14 @@ function RulerLengthLabel({
   inv: number;
 }): JSX.Element {
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(formatRulerLength(lengthMm));
+  const [editorRect, setEditorRect] = useState<{
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const labelRef = useRef<SVGGElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
-
-  useEffect(() => {
-    if (!editing) setDraft(formatRulerLength(lengthMm));
-  }, [editing, lengthMm]);
 
   useEffect(() => {
     if (!editing) return;
@@ -442,16 +457,26 @@ function RulerLengthLabel({
 
   const startEditing = () => {
     if (!editable) return;
-    setDraft(formatRulerLength(lengthMm));
+    const bounds = labelRef.current?.getBoundingClientRect();
+    const width = Math.max(RULER_EDITOR_MIN_WIDTH, bounds?.width ?? 0);
+    const centreX = bounds ? bounds.left + bounds.width / 2 : 0;
+    const centreY = bounds ? bounds.top + bounds.height / 2 : 0;
+    setEditorRect({
+      left: centreX - width / 2,
+      top: centreY - RULER_EDITOR_HEIGHT / 2,
+      width,
+      height: RULER_EDITOR_HEIGHT,
+    });
     setEditing(true);
   };
 
   const finishEditing = (commit: boolean) => {
     if (commit) {
-      const value = Number(draft);
+      const value = Number(inputRef.current?.value);
       if (Number.isFinite(value) && value > 0) onLengthCommit?.(value);
     }
     setEditing(false);
+    setEditorRect(null);
   };
 
   const dx = end.x - start.x;
@@ -463,11 +488,13 @@ function RulerLengthLabel({
   const x = (start.x + end.x) / 2 + normal.x * offset;
   const y = (start.y + end.y) / 2 + normal.y * offset;
   const label = `${formatRulerLength(lengthMm)} mm`;
-  const width = Math.max(46, label.length * 7 + 14) * inv;
+  const displayWidthPx = Math.max(46, label.length * 7 + 14);
+  const width = displayWidthPx * inv;
   const height = RULER_LABEL_HEIGHT * inv;
 
   return (
     <g
+      ref={labelRef}
       data-testid="ruler-length-label"
       pointerEvents={editable ? "all" : "none"}
       role={editable ? "button" : undefined}
@@ -510,59 +537,69 @@ function RulerLengthLabel({
         y={y - height / 2}
         width={width}
         height={height}
-        rx={6 * inv}
+        rx={RULER_LABEL_RADIUS * inv}
         className="fill-background/95 stroke-amber-500"
         strokeWidth={1.5}
         vectorEffect="non-scaling-stroke"
       />
-      {editing ? (
-        <foreignObject
-          x={x - width / 2}
-          y={y - height / 2}
-          width={width}
-          height={height}
-          data-testid="ruler-length-inline-editor"
-        >
-          <div className="flex h-full w-full items-center overflow-hidden rounded-md border border-amber-500 bg-background px-1 text-foreground shadow-sm">
-            <input
-              ref={inputRef}
-              type="number"
-              min={1}
-              step="any"
-              value={draft}
-              aria-label="Ruler length in millimetres"
-              data-testid="ruler-length-inline-input"
-              className="h-full min-w-0 flex-1 bg-transparent text-center text-xs font-semibold outline-none"
-              onPointerDown={(event) => event.stopPropagation()}
-              onDoubleClick={(event) => event.stopPropagation()}
-              onChange={(event) => setDraft(event.target.value)}
-              onBlur={() => finishEditing(true)}
-              onKeyDown={(event) => {
-                event.stopPropagation();
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  finishEditing(true);
-                } else if (event.key === "Escape") {
-                  event.preventDefault();
-                  finishEditing(false);
-                }
+      {editing && editorRect && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              className="fixed z-[60] flex items-center overflow-hidden rounded-md border border-amber-500 bg-background px-2 text-foreground shadow-md"
+              style={{
+                left: editorRect.left,
+                top: editorRect.top,
+                width: editorRect.width,
+                height: editorRect.height,
               }}
-            />
-            <span className="shrink-0 text-[10px] font-medium">mm</span>
-          </div>
-        </foreignObject>
-      ) : (
+              data-testid="ruler-length-inline-editor"
+            >
+              <input
+                ref={inputRef}
+                type="text"
+                inputMode="decimal"
+                defaultValue={formatRulerLength(lengthMm)}
+                aria-label="Ruler length in millimetres"
+                data-testid="ruler-length-inline-input"
+                className="h-full min-w-0 flex-1 bg-transparent text-center text-xs font-semibold text-foreground caret-amber-500 outline-none selection:bg-amber-200 selection:text-slate-950"
+                onPointerDown={(event) => event.stopPropagation()}
+                onDoubleClick={(event) => event.stopPropagation()}
+                onBlur={() => finishEditing(true)}
+                onKeyDown={(event) => {
+                  // Portal events still bubble through the owning SVG <g> in
+                  // React. Stop Enter from reopening the editor immediately.
+                  event.stopPropagation();
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    finishEditing(true);
+                  } else if (event.key === "Escape") {
+                    event.preventDefault();
+                    finishEditing(false);
+                  }
+                }}
+              />
+              <span
+                className="shrink-0 text-[10px] font-medium text-foreground"
+                data-testid="ruler-length-inline-unit"
+              >
+                mm
+              </span>
+            </div>,
+            document.body,
+          )
+        : null}
+      {!editing ? (
         <text
           x={x}
           y={y}
           textAnchor="middle"
           dominantBaseline="central"
-          fontSize={12 * inv}
+          fontSize={RULER_LABEL_FONT_SIZE * inv}
           className="fill-foreground font-semibold"
         >
           {label}
         </text>
-      )}
+      ) : null}
     </g>
   );
 }

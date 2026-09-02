@@ -8,6 +8,8 @@ import { WorkspaceLayout } from "@/components/layout/workspace-layout";
 import { TraceCanvas } from "@/components/trace/trace-canvas";
 import { TraceControlsPanel } from "@/components/trace/trace-controls-panel";
 import {
+  decodeImageFile,
+  fitWithin,
   IMAGE_CANVAS_MAX,
   useImageSource,
 } from "@/components/trace/use-image-source";
@@ -63,6 +65,7 @@ function TraceWorkspace(): JSX.Element {
   const { dispatch } = store;
   const activeImageUrlRef = useRef(store.imageUrl);
   activeImageUrlRef.current = store.imageUrl;
+  const fileSelectionRevisionRef = useRef(0);
   const { toast } = useToast();
   const { panelOpen, setPanelOpen } = usePanelState();
 
@@ -351,7 +354,8 @@ function TraceWorkspace(): JSX.Element {
     store.autoCalibrationAttemptedImageUrl,
   ]);
 
-  const handleFileSelected = (file: File) => {
+  const handleFileSelected = async (file: File) => {
+    const selectionRevision = ++fileSelectionRevisionRef.current;
     if (file.size > MAX_FILE_BYTES) {
       toast({
         title: "File too large",
@@ -361,10 +365,11 @@ function TraceWorkspace(): JSX.Element {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      if (!event.target?.result) return;
-      const imageUrl = event.target.result as string;
+    setUploadOpen(false);
+    try {
+      const { imageUrl, naturalSize } = await decodeImageFile(file);
+      if (selectionRevision !== fileSelectionRevisionRef.current) return;
+
       // Invalidate outstanding work before React processes the reducer queue;
       // the reducer carries the same guard as the final backstop.
       activeImageUrlRef.current = imageUrl;
@@ -373,9 +378,21 @@ function TraceWorkspace(): JSX.Element {
         imageUrl,
         fileName: file.name.replace(/\.[^/.]+$/, ""),
       });
-      setUploadOpen(false);
-    };
-    reader.readAsDataURL(file);
+      // Publish a non-empty canvas in the same React batch as SOURCE_LOADED.
+      // useImageSource will independently decode and confirm the same size,
+      // but the replacement never flashes or gets stranded at the drop zone.
+      dispatch({
+        type: "SOURCE_READY",
+        imageSize: fitWithin(naturalSize, IMAGE_CANVAS_MAX),
+      });
+    } catch (error) {
+      if (selectionRevision !== fileSelectionRevisionRef.current) return;
+      toast({
+        title: "Could not open that image",
+        description: error instanceof Error ? error.message : String(error),
+        variant: "destructive",
+      });
+    }
   };
 
   const handleExport = async () => {

@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { Outline } from "@shared/geometry/types";
+import { mmPerPixel } from "@shared/geometry/scale";
 
 import { TraceProvider, useTrace } from "@/state/trace-store";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -98,6 +99,12 @@ function ScaleStateProbe(): JSX.Element {
         {calibration ? "committed" : "pending"}
       </output>
       <output data-testid="scale-draft">{JSON.stringify(draftCalibration)}</output>
+      <output data-testid="scale-calibration">
+        {calibration ? JSON.stringify(calibration) : "none"}
+      </output>
+      <output data-testid="scale-mm-per-pixel">
+        {mmPerPixel(calibration)?.toFixed(6) ?? "none"}
+      </output>
     </>
   );
 }
@@ -248,7 +255,7 @@ describe("TraceCanvas edit history", () => {
         ?.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
       await Promise.resolve();
     });
-    const inlineLength = host.querySelector<HTMLInputElement>(
+    const inlineLength = document.querySelector<HTMLInputElement>(
       '[data-testid="ruler-length-inline-input"]',
     );
     expect(inlineLength).not.toBeNull();
@@ -261,13 +268,16 @@ describe("TraceCanvas edit history", () => {
       )!.set!;
       setter.call(inlineLength, "75");
       inlineLength?.dispatchEvent(new Event("input", { bubbles: true }));
+      await Promise.resolve();
+    });
+    await React.act(async () => {
       inlineLength?.dispatchEvent(
         new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
       );
       await Promise.resolve();
     });
     expect(
-      host.querySelector('[data-testid="ruler-length-inline-input"]'),
+      document.querySelector('[data-testid="ruler-length-inline-input"]'),
     ).toBeNull();
     expect(
       host.querySelector('[data-testid="ruler-length-label"]')?.textContent,
@@ -349,9 +359,7 @@ describe("TraceCanvas edit history", () => {
       expect(line?.getAttribute("x2")).toBe("70");
       expect(line?.getAttribute("y2")).toBe("80");
       expect(host.querySelectorAll('[data-testid="ruler-marker"]')).toHaveLength(2);
-      expect(host.querySelector('[data-testid="ruler-length-label"]')?.textContent).toBe(
-        "100 mm",
-      );
+      expect(host.querySelector('[data-testid="ruler-length-label"]')).toBeNull();
       expect(host.querySelector('[data-testid="scale-mode"]')?.textContent).toBe(
         "calibrate",
       );
@@ -387,6 +395,138 @@ describe("TraceCanvas edit history", () => {
           "data-ruler-preview",
         ),
       ).toBe("true");
+      expect(
+        host.querySelector('[data-testid="ruler-length-label"]')?.textContent,
+      ).toContain("100 mm");
+    } finally {
+      React.act(() => root.unmount());
+      restoreSvgCoordinates();
+    }
+  });
+
+  it("drags either completed ruler endpoint and recalculates the scale", async () => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+    const restoreSvgCoordinates = installIdentitySvgCoordinates();
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const root = createRoot(host);
+
+    try {
+      await React.act(async () => {
+        root.render(
+          <TraceProvider>
+            <SeedTrace />
+            <ScaleStateProbe />
+            <TooltipProvider>
+              <TraceCanvas onReprocess={() => {}} />
+            </TooltipProvider>
+          </TraceProvider>,
+        );
+        await Promise.resolve();
+      });
+
+      const canvas = host.querySelector("svg");
+      expect(canvas).not.toBeNull();
+      Object.defineProperties(canvas!, {
+        setPointerCapture: { configurable: true, value: vi.fn() },
+        hasPointerCapture: { configurable: true, value: () => false },
+        releasePointerCapture: { configurable: true, value: vi.fn() },
+      });
+
+      const startHandle = host.querySelector(
+        '[data-ruler-handle="start"] [data-testid="ruler-handle-hit-area"]',
+      );
+      expect(startHandle).not.toBeNull();
+      expect(host.querySelector('[data-testid="scale-mm-per-pixel"]')?.textContent).toBe(
+        "0.441942",
+      );
+
+      await React.act(async () => {
+        startHandle?.dispatchEvent(
+          new MouseEvent("pointerdown", {
+            bubbles: true,
+            button: 0,
+            clientX: 10,
+            clientY: 10,
+          }),
+        );
+        canvas?.dispatchEvent(
+          new MouseEvent("pointermove", {
+            bubbles: true,
+            button: 0,
+            clientX: 25,
+            clientY: 30,
+          }),
+        );
+        canvas?.dispatchEvent(
+          new MouseEvent("pointerup", {
+            bubbles: true,
+            button: 0,
+            clientX: 25,
+            clientY: 30,
+          }),
+        );
+      });
+
+      expect(host.querySelector('[data-testid="scale-calibration"]')?.textContent).toBe(
+        JSON.stringify({
+          startX: 25,
+          startY: 30,
+          endX: 90,
+          endY: 90,
+          lengthMm: 50,
+        }),
+      );
+      expect(host.querySelector('[data-testid="scale-mm-per-pixel"]')?.textContent).toBe(
+        "0.565233",
+      );
+      expect(host.querySelector('[data-testid="ruler-line"]')?.getAttribute("x1")).toBe(
+        "25",
+      );
+      expect(host.querySelector('[data-testid="ruler-line"]')?.getAttribute("y1")).toBe(
+        "30",
+      );
+
+      const endHandle = host.querySelector(
+        '[data-ruler-handle="end"] [data-testid="ruler-handle-hit-area"]',
+      );
+      await React.act(async () => {
+        endHandle?.dispatchEvent(
+          new MouseEvent("pointerdown", {
+            bubbles: true,
+            button: 0,
+            clientX: 90,
+            clientY: 90,
+          }),
+        );
+        canvas?.dispatchEvent(
+          new MouseEvent("pointermove", {
+            bubbles: true,
+            button: 0,
+            clientX: 130,
+            clientY: -20,
+          }),
+        );
+        canvas?.dispatchEvent(
+          new MouseEvent("pointerup", {
+            bubbles: true,
+            button: 0,
+            clientX: 130,
+            clientY: -20,
+          }),
+        );
+      });
+
+      expect(host.querySelector('[data-testid="scale-calibration"]')?.textContent).toBe(
+        JSON.stringify({
+          startX: 25,
+          startY: 30,
+          endX: 99,
+          endY: 0,
+          lengthMm: 50,
+        }),
+      );
     } finally {
       React.act(() => root.unmount());
       restoreSvgCoordinates();

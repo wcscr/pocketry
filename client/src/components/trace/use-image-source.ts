@@ -58,6 +58,47 @@ export interface DetectionFrame {
   sourceImageUrl: string;
 }
 
+export interface DecodedImageFile {
+  imageUrl: string;
+  naturalSize: Size;
+}
+
+/**
+ * Reads and validates an image before it replaces the current Trace source.
+ *
+ * Keeping this separate from {@link useImageSource} lets replacement commit
+ * its URL and dimensions together. A slow or invalid second file therefore
+ * cannot clear a perfectly usable first photo and leave the drop zone behind.
+ */
+export function decodeImageFile(file: File): Promise<DecodedImageFile> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("That file could not be read."));
+    reader.onload = () => {
+      if (typeof reader.result !== "string") {
+        reject(new Error("That file could not be read as an image."));
+        return;
+      }
+
+      const imageUrl = reader.result;
+      const image = new Image();
+      image.onerror = () =>
+        reject(new Error("That file could not be decoded as an image."));
+      image.onload = () => {
+        const width = image.naturalWidth || image.width;
+        const height = image.naturalHeight || image.height;
+        if (width <= 0 || height <= 0) {
+          reject(new Error("That image has invalid dimensions."));
+          return;
+        }
+        resolve({ imageUrl, naturalSize: { width, height } });
+      };
+      image.src = imageUrl;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 /** Sizes the detection frame and the factor back into working space. */
 export function detectionGeometry(
   natural: Size,
