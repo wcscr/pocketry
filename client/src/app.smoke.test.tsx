@@ -212,6 +212,9 @@ describe("App", () => {
     renderApp();
     // The dropzone belongs in the empty canvas, not in the controls panel.
     expect(container.textContent).toContain("Trace a tool from a photo");
+    expect(container.textContent).toContain(
+      "Photograph the tool on the provided A4 or US Letter template or plain background",
+    );
     expect(container.textContent).toContain("Drag & drop an image here");
     expect(container.textContent).not.toContain("Untitled");
     expect(container.textContent).not.toContain("0 × 0 px");
