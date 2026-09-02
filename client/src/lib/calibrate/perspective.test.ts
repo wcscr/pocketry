@@ -101,7 +101,7 @@ describe("perspective geometry", () => {
     expect(proposalFromTemplateMarkers([...markers, markers[0]], "a4")).toBeNull();
   });
 
-  it("maps an A4 sheet to a uniform two-pixels-per-mm plane", () => {
+  it("maps an A4 sheet to a high-resolution four-pixels-per-mm plane", () => {
     const proposal: PerspectiveProposal = {
       source: "manual",
       points: [
@@ -112,12 +112,12 @@ describe("perspective geometry", () => {
       ],
     };
     const layout = perspectiveLayout(proposal, "a4");
-    expect(layout).toMatchObject({ width: 421, height: 595, pxPerMm: 2 });
+    expect(layout).toMatchObject({ width: 841, height: 1189, pxPerMm: 4 });
     expect(layout.destination).toEqual([
       { x: 0, y: 0 },
-      { x: 420, y: 0 },
-      { x: 420, y: 594 },
-      { x: 0, y: 594 },
+      { x: 840, y: 0 },
+      { x: 840, y: 1188 },
+      { x: 0, y: 1188 },
     ]);
   });
 
@@ -214,14 +214,14 @@ describe("perspective correction with the shipped OpenCV build", () => {
         "a4",
       );
 
-      expect(corrected.width).toBe(421);
-      expect(corrected.height).toBe(595);
-      expect(mmPerPixel(corrected.calibration)).toBeCloseTo(0.5, 9);
+      expect(corrected.width).toBe(841);
+      expect(corrected.height).toBe(1189);
+      expect(mmPerPixel(corrected.calibration)).toBeCloseTo(0.25, 9);
       expect(corrected.reprojectionErrorPx).toBeNull();
-      expect(pixel(corrected.imageData, 210, 290).slice(0, 3)).toEqual([
+      expect(pixel(corrected.imageData, 420, 580).slice(0, 3)).toEqual([
         20, 80, 180,
       ]);
-      expect(pixel(corrected.imageData, 40, 100).slice(0, 3)).toEqual([
+      expect(pixel(corrected.imageData, 80, 200).slice(0, 3)).toEqual([
         255, 255, 255,
       ]);
     } finally {
@@ -311,7 +311,7 @@ describe("perspective correction with the shipped OpenCV build", () => {
 
       expect(corrected.reprojectionErrorPx).not.toBeNull();
       expect(corrected.reprojectionErrorPx!).toBeLessThan(0.01);
-      expect(pixel(corrected.imageData, 210, 290).slice(0, 3)).toEqual([
+      expect(pixel(corrected.imageData, 420, 580).slice(0, 3)).toEqual([
         20, 80, 180,
       ]);
     } finally {

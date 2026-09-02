@@ -7,9 +7,11 @@ import {
 import type { Outline } from "@shared/geometry/types";
 
 import {
+  marginToPixels,
   reprocessOutline,
   type Margin,
 } from "@/lib/image-processor";
+import { offsetOutline } from "@/lib/geometry/offset";
 import { useTrace } from "@/state/trace-store";
 
 export type OutlineRefiner = (
@@ -21,6 +23,11 @@ export type OutlineRefiner = (
   },
 ) => Promise<Outline>;
 
+export type OutlineOffsetter = (
+  outline: Outline,
+  deltaPx: number,
+) => Promise<Outline>;
+
 /**
  * Re-derives the displayed outline when an outline-shaping control or its
  * physical scale changes. A margin is stored in millimetres, so changing
@@ -28,8 +35,10 @@ export type OutlineRefiner = (
  */
 export function useOutlineRefinement(
   refineOutline: OutlineRefiner = reprocessOutline,
+  offsetEditedOutline: OutlineOffsetter = offsetOutline,
 ): void {
   const {
+    outline,
     rawOutline,
     tolerancePx,
     smoothing,
@@ -37,28 +46,47 @@ export function useOutlineRefinement(
     calibration,
     dispatch,
   } = useTrace();
-  const refinementSignature = JSON.stringify([
-    tolerancePx,
-    smoothing,
-    margin,
-    margin !== null && margin > 0 ? mmPerPixel(calibration) : null,
-  ]);
-  const previousRefinementSignature = useRef(refinementSignature);
+  const detectionSignature = JSON.stringify([tolerancePx, smoothing]);
+  const scaleMmPerPx = mmPerPixel(calibration);
+  const previousDetectionSignature = useRef(detectionSignature);
+  const previousScaleMmPerPx = useRef(scaleMmPerPx);
 
   useEffect(() => {
-    const settingsChanged =
-      previousRefinementSignature.current !== refinementSignature;
-    previousRefinementSignature.current = refinementSignature;
-    // DETECTED already applies the current settings. Once a physical margin is
-    // visible, however, a scale change is itself an outline-shaping change.
-    if (!settingsChanged || rawOutline.length === 0) return;
+    const detectionSettingsChanged =
+      previousDetectionSignature.current !== detectionSignature;
+    const previousMmPerPx = previousScaleMmPerPx.current;
+    const scaleChanged = previousMmPerPx !== scaleMmPerPx;
+    previousDetectionSignature.current = detectionSignature;
+    previousScaleMmPerPx.current = scaleMmPerPx;
+
+    // DETECTED already applies the current settings. Detail and smoothing are
+    // intentionally re-derived from the dense detector result. Margin changes,
+    // by contrast, are committed directly from the current edited contour in
+    // TraceControlsPanel and must never come through this raw-outline path.
+    if ((!detectionSettingsChanged && !scaleChanged) || rawOutline.length === 0) {
+      return;
+    }
     let cancelled = false;
 
-    void refineOutline(rawOutline, {
-      detect: { tolerancePx, smoothing },
-      margin,
-      calibration,
-    }).then((refined) => {
+    const refinement = detectionSettingsChanged
+      ? refineOutline(rawOutline, {
+          detect: { tolerancePx, smoothing },
+          margin,
+          calibration,
+        })
+      : (() => {
+          const previousMarginPx =
+            margin !== null && margin > 0 && previousMmPerPx !== null
+              ? margin / previousMmPerPx
+              : 0;
+          const nextMarginPx = marginToPixels(margin, calibration);
+          const deltaPx = nextMarginPx - previousMarginPx;
+          return deltaPx === 0
+            ? Promise.resolve(outline)
+            : offsetEditedOutline(outline, deltaPx);
+        })();
+
+    void refinement.then((refined) => {
       if (!cancelled) dispatch({ type: "OUTLINE_REFINED", outline: refined });
     });
 
@@ -67,12 +95,14 @@ export function useOutlineRefinement(
     };
   }, [
     rawOutline,
+    outline,
     tolerancePx,
     smoothing,
     margin,
-    calibration,
-    refinementSignature,
+    detectionSignature,
+    scaleMmPerPx,
     dispatch,
     refineOutline,
+    offsetEditedOutline,
   ]);
 }

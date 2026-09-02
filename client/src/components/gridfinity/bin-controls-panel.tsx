@@ -70,7 +70,7 @@ import {
 } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
-import { fitFootprintToPlacements } from "@/lib/gridfinity/autoplace";
+import { fitRectangularBinToPlacements } from "@/lib/gridfinity/autoplace";
 import { occupiedCellCount } from "@shared/gridfinity/footprint";
 import {
   binDimensionsMm,
@@ -337,12 +337,16 @@ export function BinControlsPanel({
     nextCutouts: typeof cutouts,
     historyLabel = "Fit bin to contents",
   ) => {
-    const fitted = fitFootprintToPlacements(
+    const fitted = fitRectangularBinToPlacements(
       nextCutouts,
       shapesById,
       spec,
     );
-    dispatch({ type: "REPLACE_LAYOUT", ...fitted, historyLabel });
+    dispatch({
+      type: "REPLACE_LAYOUT",
+      ...fitted,
+      historyLabel,
+    });
   };
 
   return (

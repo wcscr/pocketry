@@ -8,13 +8,14 @@ the pocket. Optional server persistence remains deferred.
 Nonrectangular bin footprints landed on 2026-08-27. A bin can now use a
 connected, hole-free mask at the selected full/half/quarter pitch, so a 2×2
 three-cell mask produces a true L-shaped base, body, wall, and stacking lip.
-**Fit bin to contents** preserves relative pocket placement while pruning safe
-unused boundary cells; Auto-arrange trims after placement, and Layout exposes a
-manual cell editor. The exact footprint is shared by live validation, the 2D
-editor, worker geometry, and layout DXF/SVG export. Label tabs can anchor to a
-specific exterior or re-entrant boundary edge. Rectangular projects retain the
-original geometry path, and schema-v1–v3 projects migrate to an explicit
-rectangular footprint. A shaped-bin physical gate remains: print a full-pitch
+**Fit bin to contents** preserves relative pocket placement while choosing the
+smallest rectangular grid, and Auto-arrange also returns a rectangle. Irregular
+connected, hole-free masks are an explicit Layout → Edit footprint option. The
+exact footprint is shared by live validation, the 2D editor, worker geometry,
+and layout DXF/SVG export. Label tabs can anchor to a specific exterior or
+re-entrant boundary edge. Rectangular projects retain the original geometry
+path, and schema-v1–v3 projects migrate to an explicit rectangular footprint. A
+shaped-bin physical gate remains: print a full-pitch
 2×2/three-cell L, verify baseplate fit and the concave wall/lip, stack a matching
 footprint, then print an L-tool pocket and check its fit.
 

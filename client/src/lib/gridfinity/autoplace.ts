@@ -525,6 +525,31 @@ export function fitFootprintToPlacements(
 }
 
 /**
+ * Fits and recentres the layout without pruning boundary cells. This is the
+ * normal Bin action; irregular masks are opt-in through footprint editing.
+ */
+export function fitRectangularBinToPlacements(
+  cutouts: readonly CutoutPlacement[],
+  shapesById: ReadonlyMap<string, TracedShape>,
+  spec: BinSpec,
+): {
+  cutouts: CutoutPlacement[];
+  gridX: number;
+  gridY: number;
+  footprint: BinFootprint;
+} {
+  return {
+    ...fitLayoutToPlacements(
+      cutouts,
+      shapesById,
+      spec.lip,
+      spec.gridPitch,
+    ),
+    footprint: { kind: "rectangle" },
+  };
+}
+
+/**
  * Re-lays out *existing* cutouts: each one is rotated to its min-area OBB
  * (features included), shelf-packed, and centred in the smallest grid that
  * holds the block. Depth, clearance, features and mirroring are preserved;

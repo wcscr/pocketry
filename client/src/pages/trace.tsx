@@ -7,7 +7,10 @@ import { usePanelState } from "@/components/layout/panel-context";
 import { WorkspaceLayout } from "@/components/layout/workspace-layout";
 import { TraceCanvas } from "@/components/trace/trace-canvas";
 import { TraceControlsPanel } from "@/components/trace/trace-controls-panel";
-import { useImageSource } from "@/components/trace/use-image-source";
+import {
+  IMAGE_CANVAS_MAX,
+  useImageSource,
+} from "@/components/trace/use-image-source";
 import { useOutlineRefinement } from "@/components/trace/use-outline-refinement";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,6 +26,7 @@ import { useToast } from "@/hooks/use-toast";
 import { autoCalibrate } from "@/lib/calibrate/auto-calibrate";
 import {
   correctPerspective,
+  RECTIFIED_IMAGE_MAX,
   scalePerspectiveProposal,
   type PerspectiveProposal,
 } from "@/lib/calibrate/perspective";
@@ -67,6 +71,7 @@ function TraceWorkspace(): JSX.Element {
   const { source, getImageData, getDetectionFrame } = useImageSource(
     store.imageUrl,
     store.fileName,
+    store.perspectiveCorrection ? RECTIFIED_IMAGE_MAX : IMAGE_CANVAS_MAX,
   );
   useOutlineRefinement();
 

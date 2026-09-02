@@ -13,6 +13,7 @@ import {
 
 import {
   useOutlineRefinement,
+  type OutlineOffsetter,
   type OutlineRefiner,
 } from "./use-outline-refinement";
 
@@ -28,7 +29,10 @@ const OUTLINE: Outline = [
   },
 ];
 
-function mountHook(refiner: OutlineRefiner): {
+function mountHook(
+  refiner: OutlineRefiner,
+  offsetter: OutlineOffsetter = async (outline) => outline,
+): {
   store: () => TraceStore;
   unmount: () => void;
 } {
@@ -40,7 +44,7 @@ function mountHook(refiner: OutlineRefiner): {
 
   function Probe() {
     latest = useTrace();
-    useOutlineRefinement(refiner);
+    useOutlineRefinement(refiner, offsetter);
     return null;
   }
 
@@ -66,23 +70,22 @@ function mountHook(refiner: OutlineRefiner): {
 }
 
 describe("useOutlineRefinement", () => {
-  it("recomputes a displayed physical margin when reference length changes", async () => {
-    const refiner = vi.fn<OutlineRefiner>(async () => [
-      { ...OUTLINE[0], holes: [[{ x: 2, y: 2 }, { x: 3, y: 2 }, { x: 2, y: 3 }]] },
-    ]);
-    const mounted = mountHook(refiner);
-
-    React.act(() => {
-      mounted.store().dispatch({
-        type: "DETECTED",
-        imageUrl: null,
-        outline: OUTLINE,
-        rawOutline: OUTLINE,
-        svg: "<svg/>",
-        region: null,
-      });
-    });
-    await React.act(async () => Promise.resolve());
+  it("recomputes scale-dependent margin from the edited contour", async () => {
+    const rawWithDeletedHole: Outline = [
+      {
+        ...OUTLINE[0],
+        holes: [[{ x: 2, y: 2 }, { x: 3, y: 2 }, { x: 2, y: 3 }]],
+      },
+    ];
+    const edited: Outline = [
+      { ...OUTLINE[0], outer: [...OUTLINE[0].outer, { x: -2, y: 5 }] },
+    ];
+    const adjusted: Outline = [
+      { ...edited[0], outer: [...edited[0].outer, { x: -3, y: 5 }] },
+    ];
+    const refiner = vi.fn<OutlineRefiner>(async () => rawWithDeletedHole);
+    const offsetter = vi.fn<OutlineOffsetter>(async () => adjusted);
+    const mounted = mountHook(refiner, offsetter);
 
     React.act(() => {
       mounted.store().dispatch({
@@ -98,37 +101,43 @@ describe("useOutlineRefinement", () => {
     });
     await React.act(async () => Promise.resolve());
 
-    expect(refiner).toHaveBeenCalledOnce();
-    expect(refiner).toHaveBeenLastCalledWith(
-      OUTLINE,
-      expect.objectContaining({
-        margin: 1.5,
-        calibration: expect.objectContaining({ lengthMm: 50 }),
-      }),
-    );
+    React.act(() => {
+      mounted.store().dispatch({
+        type: "DETECTED",
+        imageUrl: null,
+        outline: OUTLINE,
+        rawOutline: rawWithDeletedHole,
+        svg: "<svg/>",
+        region: null,
+      });
+      mounted.store().dispatch({
+        type: "OUTLINE_COMMITTED",
+        outline: edited,
+        label: "Delete detected hole and move contour node",
+      });
+    });
+    await React.act(async () => Promise.resolve());
 
     await React.act(async () => {
       mounted.store().dispatch({ type: "SET_RULER_LENGTH", rulerLengthMm: 100 });
       await Promise.resolve();
     });
 
-    expect(refiner).toHaveBeenCalledTimes(2);
-    expect(refiner).toHaveBeenLastCalledWith(
-      OUTLINE,
-      expect.objectContaining({
-        margin: 1.5,
-        calibration: expect.objectContaining({ lengthMm: 100 }),
-      }),
-    );
+    expect(refiner).not.toHaveBeenCalled();
+    expect(offsetter).toHaveBeenCalledOnce();
+    expect(offsetter).toHaveBeenCalledWith(edited, -1.5);
+    expect(mounted.store().outline).toEqual(adjusted);
+    expect(mounted.store().outline[0].holes).toEqual([]);
     mounted.unmount();
   });
 
-  it("still applies an explicit contour-setting change using the current scale", async () => {
+  it("does not route a margin selection through raw-outline refinement", async () => {
     const refined: Outline = [
       { ...OUTLINE[0], outer: [...OUTLINE[0].outer, { x: -1, y: 5 }] },
     ];
     const refiner = vi.fn<OutlineRefiner>(async () => refined);
-    const mounted = mountHook(refiner);
+    const offsetter = vi.fn<OutlineOffsetter>(async () => refined);
+    const mounted = mountHook(refiner, offsetter);
     const calibration = {
       startX: 0,
       startY: 0,
@@ -136,6 +145,11 @@ describe("useOutlineRefinement", () => {
       endY: 0,
       lengthMm: 50,
     };
+
+    React.act(() => {
+      mounted.store().dispatch({ type: "SET_CALIBRATION", calibration });
+    });
+    await React.act(async () => Promise.resolve());
 
     React.act(() => {
       mounted.store().dispatch({
@@ -146,22 +160,20 @@ describe("useOutlineRefinement", () => {
         svg: "<svg/>",
         region: null,
       });
-      mounted.store().dispatch({ type: "SET_CALIBRATION", calibration });
     });
     await React.act(async () => Promise.resolve());
     refiner.mockClear();
+    offsetter.mockClear();
 
     await React.act(async () => {
       mounted.store().dispatch({ type: "SET_MARGIN", margin: 2 });
       await Promise.resolve();
     });
 
-    expect(refiner).toHaveBeenCalledOnce();
-    expect(refiner).toHaveBeenCalledWith(
-      OUTLINE,
-      expect.objectContaining({ calibration, margin: 2 }),
-    );
-    expect(mounted.store().outline).toEqual(refined);
+    expect(refiner).not.toHaveBeenCalled();
+    expect(offsetter).not.toHaveBeenCalled();
+    expect(mounted.store().outline).toEqual(OUTLINE);
+    expect(mounted.store().margin).toBe(2);
     mounted.unmount();
   });
 });
