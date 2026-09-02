@@ -76,6 +76,26 @@ export function marginToPixels(
   return margin / mmPerPx;
 }
 
+/**
+ * Changes only the clearance already applied to an edited contour.
+ *
+ * Applying the difference between the old and new physical margins is what
+ * preserves moved/added/deleted vertices and removed holes. Reprocessing the
+ * detector's cached raw outline here would silently resurrect discarded
+ * geometry and throw away manual contour edits.
+ */
+export async function adjustOutlineMargin(
+  outline: Outline,
+  previousMargin: Margin,
+  nextMargin: Margin,
+  calibration: Calibration | null,
+): Promise<Outline> {
+  const deltaPx =
+    marginToPixels(nextMargin, calibration) -
+    marginToPixels(previousMargin, calibration);
+  return deltaPx === 0 ? outline : offsetOutline(outline, deltaPx);
+}
+
 export interface ProcessOptions {
   /** Region of interest, or a region already cropped from the source. */
   region?: Region | CroppedRegionInfo | null;
@@ -167,8 +187,9 @@ export async function processImage(
 /**
  * Re-derives the presentation outline from the cached dense one.
  *
- * Backs the Detail, Smoothing and Margin controls: changing them costs a few
- * milliseconds of polygon work instead of a full re-segmentation.
+ * Backs the Detail and Smoothing controls: changing them costs a few
+ * milliseconds of polygon work instead of a full re-segmentation. Margin is
+ * deliberately handled by adjustOutlineMargin so manual edits survive.
  */
 export async function reprocessOutline(
   rawOutline: Outline,

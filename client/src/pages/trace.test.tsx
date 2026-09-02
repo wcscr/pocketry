@@ -59,6 +59,7 @@ vi.mock("@/components/trace/use-image-source", () => {
   };
 
   return {
+    IMAGE_CANVAS_MAX: { width: 800, height: 600 },
     useImageSource: (url: string | null) => (url ? ready : empty),
   };
 });

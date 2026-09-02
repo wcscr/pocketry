@@ -421,6 +421,22 @@ describe("TraceControlsPanel guided workflow", () => {
         ?.textContent,
     ).toContain("Adjust Sensitivity and Detail to fine-tune the contour");
     expect(
+      host.querySelector('[data-testid="contour-editing-guidance"]')
+        ?.textContent,
+    ).toContain(
+      "Edit the contour shape: select a shape, then move, add, or delete its detected vertices",
+    );
+    expect(
+      host.querySelector('[data-testid="contour-editing-guidance"]')
+        ?.className,
+    ).toContain("text-base font-bold");
+    expect(
+      host.querySelector('[data-testid="detection-tuning-guidance"]')
+        ?.textContent,
+    ).toContain(
+      "Drag a vertex to move it, click to add one, or right-click a vertex to delete it",
+    );
+    expect(
       host.querySelector('[data-testid="detection-tuning-guidance"]')
         ?.textContent,
     ).toContain(
