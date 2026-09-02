@@ -8,10 +8,12 @@ import { TraceProvider, useTrace } from "@/state/trace-store";
 
 import TracePage from "./trace";
 
-const { getImageDataMock, processImageMock } = vi.hoisted(() => ({
-  getImageDataMock: vi.fn(),
-  processImageMock: vi.fn(),
-}));
+const { downloadCalibrationTemplateMock, getImageDataMock, processImageMock } =
+  vi.hoisted(() => ({
+    downloadCalibrationTemplateMock: vi.fn(),
+    getImageDataMock: vi.fn(),
+    processImageMock: vi.fn(),
+  }));
 
 vi.mock("@/components/layout/workspace-layout", () => ({
   WorkspaceLayout: ({
@@ -33,10 +35,19 @@ vi.mock("@/components/trace/trace-controls-panel", () => ({
 }));
 
 vi.mock("@/components/trace/trace-canvas", () => ({
-  TraceCanvas: ({ onReprocess }: { onReprocess: () => void }) => (
-    <button data-testid="run-detection" onClick={onReprocess}>
-      Run detection
-    </button>
+  TraceCanvas: ({
+    emptyState,
+    onReprocess,
+  }: {
+    emptyState?: React.ReactNode;
+    onReprocess: () => void;
+  }) => (
+    <>
+      {emptyState}
+      <button data-testid="run-detection" onClick={onReprocess}>
+        Run detection
+      </button>
+    </>
   ),
 }));
 
@@ -68,6 +79,10 @@ vi.mock("@/lib/image-processor", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/image-processor")>();
   return { ...original, processImage: processImageMock };
 });
+
+vi.mock("@/lib/calibrate/download-template", () => ({
+  downloadCalibrationTemplate: downloadCalibrationTemplateMock,
+}));
 
 function WorkflowController(): JSX.Element {
   const { dispatch } = useTrace();
@@ -123,6 +138,40 @@ describe("Trace detection workflow", () => {
     host.remove();
     vi.clearAllMocks();
     vi.unstubAllGlobals();
+  });
+
+  it("links both calibration-sheet downloads above the empty drop zone", async () => {
+    await React.act(async () => {
+      root.render(
+        <PanelProvider>
+          <TraceProvider>
+            <TracePage />
+          </TraceProvider>
+        </PanelProvider>,
+      );
+    });
+
+    expect(host.textContent).toContain(
+      "Photograph the tool on the provided A4 or US Letter template or plain background",
+    );
+    const emphasizedOr = [...host.querySelectorAll("strong")].find(
+      (candidate) => candidate.textContent === "or",
+    );
+    expect(emphasizedOr?.className).toContain("italic");
+
+    await React.act(async () => {
+      host
+        .querySelector<HTMLButtonElement>('[data-testid="empty-state-template-a4"]')
+        ?.click();
+      host
+        .querySelector<HTMLButtonElement>(
+          '[data-testid="empty-state-template-letter"]',
+        )
+        ?.click();
+    });
+
+    expect(downloadCalibrationTemplateMock).toHaveBeenNthCalledWith(1, "a4");
+    expect(downloadCalibrationTemplateMock).toHaveBeenNthCalledWith(2, "letter");
   });
 
   it("waits for a detection region instead of tracing immediately on image load", async () => {
