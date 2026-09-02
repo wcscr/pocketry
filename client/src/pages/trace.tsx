@@ -24,6 +24,7 @@ import {
 import { FileUpload } from "@/components/ui/file-upload";
 import { useToast } from "@/hooks/use-toast";
 import { autoCalibrate } from "@/lib/calibrate/auto-calibrate";
+import { downloadCalibrationTemplate } from "@/lib/calibrate/download-template";
 import {
   correctPerspective,
   RECTIFIED_IMAGE_MAX,
@@ -479,8 +480,28 @@ function TraceWorkspace(): JSX.Element {
               <div className="w-full max-w-lg space-y-3 text-center">
                 <h2 className="text-lg font-medium">Trace a tool from a photo</h2>
                 <p className="text-sm text-muted-foreground">
-                  Photograph the tool on a plain background that contrasts with
-                  it, and keep the whole tool in frame.
+                  Photograph the tool on the provided{" "}
+                  <button
+                    type="button"
+                    className="font-medium text-primary underline underline-offset-2 hover:no-underline"
+                    onClick={() => downloadCalibrationTemplate("a4")}
+                    data-testid="empty-state-template-a4"
+                  >
+                    A4
+                  </button>{" "}
+                  or{" "}
+                  <button
+                    type="button"
+                    className="font-medium text-primary underline underline-offset-2 hover:no-underline"
+                    onClick={() => downloadCalibrationTemplate("letter")}
+                    data-testid="empty-state-template-letter"
+                  >
+                    US Letter
+                  </button>{" "}
+                  template{" "}
+                  <strong className="font-semibold italic">or</strong>{" "}
+                  plain background that contrasts with it, and keep the whole
+                  tool in frame.
                 </p>
                 {dropzone}
               </div>
