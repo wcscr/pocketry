@@ -1,6 +1,7 @@
 import * as React from "react";
+import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { Calibration, DraftCalibration } from "@shared/geometry/scale";
 import type { Point } from "@shared/geometry/types";
@@ -61,6 +62,11 @@ describe("TraceScene ruler overlay", () => {
 
     expect(count(markup, 'data-testid="ruler-marker"')).toBe(2);
     expect(count(markup, "data-ruler-handle=")).toBe(2);
+    expect(count(markup, 'data-testid="ruler-handle-hit-area"')).toBe(2);
+    expect(markup).toContain('r="18"');
+    expect(markup).toContain("cursor-grab");
+    expect(markup).toContain("Drag the start scale point");
+    expect(markup).toContain("Drag the end scale point");
     expect(markup).toContain('data-testid="ruler-line"');
     expect(markup).toContain('data-testid="ruler-length-label"');
     expect(markup).toContain("50 mm");
@@ -92,7 +98,59 @@ describe("TraceScene ruler overlay", () => {
     expect(count(markup, "data-ruler-handle=")).toBe(0);
     expect(markup).toContain('data-ruler-preview="true"');
     expect(markup).toContain('stroke-dasharray="6 4"');
-    expect(markup).toContain("125.5 mm");
+    expect(markup).not.toContain('data-testid="ruler-length-label"');
+    expect(markup).not.toContain("125.5 mm");
+  });
+
+  it("keeps inline-editor text screen-sized while the scene is zoomed", async () => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const root = createRoot(host);
+
+    try {
+      await React.act(async () => {
+        root.render(
+          <TraceScene
+            imageUrl="data:image/png;base64,AA=="
+            imageSize={{ width: 200, height: 100 }}
+            transform={{ scale: 4, translateX: 0, translateY: 0 }}
+            outline={[]}
+            selection={null}
+            region={null}
+            calibration={calibration}
+            draftCalibration={null}
+            rulerLengthMm={100}
+            rulerEditable
+          />,
+        );
+      });
+
+      await React.act(async () => {
+        host
+          .querySelector<SVGGElement>('[data-testid="ruler-length-label"]')
+          ?.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      });
+
+      const input = document.querySelector<HTMLInputElement>(
+        '[data-testid="ruler-length-inline-input"]',
+      );
+      const editor = document.querySelector<HTMLElement>(
+        '[data-testid="ruler-length-inline-editor"]',
+      );
+      expect(editor?.parentElement).toBe(document.body);
+      expect(editor?.style.position || editor?.className).toContain("fixed");
+      expect(editor?.style.width).toBe("96px");
+      expect(editor?.style.height).toBe("30px");
+      expect(input?.type).toBe("text");
+      expect(input?.className).toContain("text-xs");
+      expect(input?.className).toContain("text-foreground");
+      expect(document.activeElement).toBe(input);
+    } finally {
+      React.act(() => root.unmount());
+      host.remove();
+      vi.unstubAllGlobals();
+    }
   });
 
   it("shows only the first X before the pointer supplies a preview endpoint", () => {
