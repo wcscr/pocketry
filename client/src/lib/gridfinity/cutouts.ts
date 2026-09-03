@@ -5,6 +5,7 @@ import {
   effectiveDeepScoopDepthMm,
   effectiveScoopDepthMm,
   fingerHoleFootprintRing,
+  oblongDeepScoopEndpoints,
   resolvePocketDepth,
   transformOutlinePlacement,
   transformPointPlacement,
@@ -48,16 +49,11 @@ import {
  *  7. an optional outward K-slice flare rounds the contour into the top
  *     surface without changing the vertical wall below it.
  *
- * G4 features ride the same cutter:
- *
- *  - **straight finger holes** union their circles into the cross-section
- *    *after* the offsets (they are cut at their drawn diameter, no fit
- *    clearance), so they share the pocket's depth, floor and bottom fillet;
- *  - **scoop finger holes** are their own solids — round scoops use spherical
- *    caps, while deep scoops use a straight cylindrical shaft ending in a
- *    hemisphere. Their rim is extended through the lip; the deep scoop's full
- *    sphere overlaps inside the shaft so the exposed lower half is a robust,
- *    watertight hemispherical bottom.
+ * Finger holes are built separately in the bin frame. Round scoops use
+ * spherical caps, while deep scoops use straight vertical shafts ending in
+ * rounded bottoms. The oblong version ends in a swept hemisphere
+ * (half-cylinder plus rounded ends). Full spheres and cylinders overlap inside
+ * the shafts for robust, watertight unions.
  *
  * Everything is tracked in `kernel.arena`; the caller owns disposal.
  */
@@ -119,6 +115,12 @@ export interface CutoutBuildOptions {
   /** Builds this much solid material below each flat blind-pocket floor. */
   floorInsertThicknessMm?: number;
 }
+
+const BIN_LOCAL_PLACEMENT = {
+  position: { x: 0, y: 0 },
+  rotationDeg: 0,
+  mirrored: false,
+} as const;
 
 /**
  * Radius of the sphere whose cap of height `h` has rim radius `a`:
@@ -245,6 +247,121 @@ function buildDeepScoopCutter(
   return arena.track(shaft.add(sphere));
 }
 
+/** Capsule shaft with a swept-hemisphere trough bottom. */
+function buildOblongDeepScoopCutter(
+  kernel: Kernel,
+  scoop: FingerHole,
+  placement: Pick<CutoutPlacement, "position" | "rotationDeg" | "mirrored">,
+  pocket: ResolvedPocket,
+  segments: number,
+): Manifold {
+  const { arena, Manifold: M } = kernel;
+  const localEndpoints = oblongDeepScoopEndpoints(scoop);
+  const start = transformPointPlacement(localEndpoints.start, placement);
+  const end = transformPointPlacement(localEndpoints.end, placement);
+  const radius = scoop.diameterMm / 2;
+  const totalDepth = effectiveDeepScoopDepthMm(scoop);
+  const bottomCentreZ = pocket.infillTopZ - totalDepth + radius;
+
+  const ring = fingerHoleFootprintRing(scoop, placement, segments);
+  const section = toCrossSection(kernel, [{ outer: ring, holes: [] }]);
+  const shaft = arena.track(
+    arena.track(section.extrude(pocket.cutterTopZ - bottomCentreZ)).translate([
+      0,
+      0,
+      bottomCentreZ,
+    ]),
+  );
+
+  const startSphere = arena.track(
+    arena.track(M.sphere(radius, segments)).translate([
+      start.x,
+      start.y,
+      bottomCentreZ,
+    ]),
+  );
+  const endSphere = arena.track(
+    arena.track(M.sphere(radius, segments)).translate([
+      end.x,
+      end.y,
+      bottomCentreZ,
+    ]),
+  );
+  const span = Math.hypot(end.x - start.x, end.y - start.y);
+  const angleDeg = (Math.atan2(end.y - start.y, end.x - start.x) * 180) / Math.PI;
+  let trough = arena.track(M.cylinder(span, radius, radius, segments));
+  trough = arena.track(trough.rotate([0, 90, 0]));
+  if (angleDeg !== 0) trough = arena.track(trough.rotate([0, 0, angleDeg]));
+  trough = arena.track(trough.translate([start.x, start.y, bottomCentreZ]));
+
+  const roundedBottom = arena.track(
+    arena.track(startSphere.add(trough)).add(endSphere),
+  );
+  return arena.track(shaft.add(roundedBottom));
+}
+
+/** Builds independent bin-local finger-hole cutters. */
+export function buildFingerHoleCutters(
+  kernel: Kernel,
+  fingerHoles: readonly FingerHole[],
+  spec: BinSpec,
+  quality: BuildQuality,
+): Manifold[] {
+  const { arena } = kernel;
+  const cutters: Manifold[] = [];
+  const segments = quality.circularSegments;
+
+  for (const hole of fingerHoles) {
+    const pocket = resolvePocketDepth(spec, { mode: "mm", value: hole.depthMm });
+    if (hole.kind === "straight") {
+      const floorZ = pocket.floorZ ?? -1;
+      const circle = arena.track(
+        arena
+          .track(kernel.CrossSection.circle(hole.diameterMm / 2, segments))
+          .translate([hole.center.x, hole.center.y]),
+      );
+      cutters.push(
+        arena.track(
+          arena
+            .track(circle.extrude(pocket.cutterTopZ - floorZ))
+            .translate([0, 0, floorZ]),
+        ),
+      );
+    } else if (hole.kind === "scoop") {
+      cutters.push(
+        buildRoundScoopCutter(
+          kernel,
+          hole,
+          BIN_LOCAL_PLACEMENT,
+          pocket,
+          segments,
+        ),
+      );
+    } else if (hole.kind === "deep-scoop") {
+      cutters.push(
+        buildDeepScoopCutter(
+          kernel,
+          hole,
+          BIN_LOCAL_PLACEMENT,
+          pocket,
+          segments,
+        ),
+      );
+    } else if (hole.kind === "oblong-deep-scoop") {
+      cutters.push(
+        buildOblongDeepScoopCutter(
+          kernel,
+          hole,
+          BIN_LOCAL_PLACEMENT,
+          pocket,
+          segments,
+        ),
+      );
+    }
+  }
+  return cutters;
+}
+
 /** Builds one cutter per cutout, skipping (and reporting) collapsed ones. */
 export function buildCutoutCutters(
   kernel: Kernel,
@@ -301,28 +418,7 @@ export function buildCutoutCutters(
     }
     reports.push({ id: cutout.id, emptied: false });
 
-    // Straight holes join after the offsets: cut at their drawn diameter,
-    // they inherit the pocket's depth, floor and bottom fillet through the
-    // shared cross-section. Scoop holes are independent top-surface cutters.
-    for (const hole of cutout.fingerHoles) {
-      if (hole.kind !== "straight") continue;
-      const centre = transformPointPlacement(hole.center, cutout);
-      const circle = arena.track(
-        arena
-          .track(kernel.CrossSection.circle(hole.diameterMm / 2, segments))
-          .translate([centre.x, centre.y]),
-      );
-      section = arena.track(section.add(circle));
-    }
-
     const pocket = resolvePocketDepth(spec, cutout.depth);
-    for (const hole of cutout.fingerHoles) {
-      if (hole.kind === "scoop") {
-        cutters.push(buildRoundScoopCutter(kernel, hole, cutout, pocket, segments));
-      } else if (hole.kind === "deep-scoop") {
-        cutters.push(buildDeepScoopCutter(kernel, hole, cutout, pocket, segments));
-      }
-    }
     let cutter: Manifold;
     if (pocket.floorZ === null) {
       // Through cut: from below the bin to above the lip.

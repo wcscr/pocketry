@@ -2,6 +2,7 @@ import type { ManifoldToplevel } from "manifold-3d";
 
 import {
   cutoutPlacementSchema,
+  fingerHoleSchema,
   tracedShapeSchema,
 } from "@shared/gridfinity/cutout";
 import { parseBinSpec } from "@shared/gridfinity/types";
@@ -83,7 +84,10 @@ export function createBinWorkerHandlers(
     );
     // Re-validate the layout at the boundary, exactly like the spec.
     let layout: BinLayout | null = null;
-    if (payload.layout && payload.layout.cutouts.length > 0) {
+    if (
+      payload.layout &&
+      (payload.layout.cutouts.length > 0 || payload.layout.fingerHoles.length > 0)
+    ) {
       const shapes = payload.layout.shapes.map((shape) =>
         tracedShapeSchema.parse(shape),
       );
@@ -91,6 +95,9 @@ export function createBinWorkerHandlers(
         shapesById: new Map(shapes.map((shape) => [shape.id, shape])),
         cutouts: payload.layout.cutouts.map((cutout) =>
           cutoutPlacementSchema.parse(cutout),
+        ),
+        fingerHoles: payload.layout.fingerHoles.map((hole) =>
+          fingerHoleSchema.parse(hole),
         ),
       };
     }
@@ -270,6 +277,9 @@ export function createBinWorkerHandlers(
       shapesById: new Map(shapes.map((shape) => [shape.id, shape])),
       cutouts: payload.layout.cutouts.map((cutout) =>
         cutoutPlacementSchema.parse(cutout),
+      ),
+      fingerHoles: payload.layout.fingerHoles.map((hole) =>
+        fingerHoleSchema.parse(hole),
       ),
     };
     context.progress(0.05);

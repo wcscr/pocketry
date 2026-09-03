@@ -146,6 +146,7 @@ describe("bin worker handlers", () => {
         layout: {
           shapes: [shape],
           cutouts: [placement],
+          fingerHoles: [],
         },
       },
       context(),
@@ -182,7 +183,7 @@ describe("bin worker handlers", () => {
       {
         spec,
         quality: { circularSegments: 16, cutoutVertexBudget: 150 },
-        layout: { shapes: [shape], cutouts: [placement] },
+        layout: { shapes: [shape], cutouts: [placement], fingerHoles: [] },
         pocketFloorMaterialThicknessMm: 0.8,
         stackingRimMaterialThicknessMm: 1.2,
       },
@@ -450,6 +451,7 @@ describe("complete surface fit test worker handler", () => {
           bottomFilletMm: 0,
         },
       ],
+      fingerHoles: [],
     },
     thicknessMm: 1.2,
     quality: { circularSegments: 32, cutoutVertexBudget: 600 },

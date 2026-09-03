@@ -7,14 +7,14 @@ import {
   type ReactNode,
 } from "react";
 
-import type { CutoutPlacement } from "@shared/gridfinity/cutout";
+import type { CutoutPlacement, FingerHole } from "@shared/gridfinity/cutout";
 import { parseBinSpec, type BinSpec, type BinSpecInput } from "@shared/gridfinity/types";
 
 /**
  * The bin designer's state: spec + placed cutouts + editor selection. Same
  * reducer-provider shape as the trace store, scoped to the /bin page.
  *
- * Undo/redo (G4) covers the **material document** — `{spec, cutouts}` — and
+ * Undo/redo covers the **material document** — `{spec, cutouts, fingerHoles}` — and
  * nothing else: selection, view mode and hydration are transient UI state
  * that undoing should not yank around. The stack holds full snapshots with
  * `index` pointing at the present; drag frames dispatch with
@@ -29,6 +29,7 @@ export type BinEditorMode = "placement" | "contour" | "footprint" | "label-edge"
 export interface BinDoc {
   spec: BinSpec;
   cutouts: CutoutPlacement[];
+  fingerHoles: FingerHole[];
 }
 
 export interface BinHistoryEntry {
@@ -42,7 +43,9 @@ const HISTORY_LIMIT = 50;
 export interface BinState {
   spec: BinSpec;
   cutouts: CutoutPlacement[];
+  fingerHoles: FingerHole[];
   selectedCutoutId: string | null;
+  selectedFingerHoleId: string | null;
   /** Pocket awaiting the user's remove/resize decision. */
   pendingRemovalId: string | null;
   viewMode: BinViewMode;
@@ -65,7 +68,12 @@ export function getCommittedBinDoc(
 }
 
 export type BinAction =
-  | { type: "HYDRATE"; spec: BinSpec; cutouts: CutoutPlacement[] }
+  | {
+      type: "HYDRATE";
+      spec: BinSpec;
+      cutouts: CutoutPlacement[];
+      fingerHoles?: FingerHole[];
+    }
   | { type: "MARK_HYDRATED" }
   | {
       type: "PATCH_SPEC";
@@ -88,6 +96,15 @@ export type BinAction =
       transient?: boolean;
       historyLabel?: string;
     }
+  | { type: "ADD_FINGER_HOLE"; hole: FingerHole }
+  | {
+      type: "UPDATE_FINGER_HOLE";
+      id: string;
+      patch: Partial<FingerHole>;
+      transient?: boolean;
+      historyLabel?: string;
+    }
+  | { type: "REMOVE_FINGER_HOLE"; id: string }
   | { type: "REQUEST_REMOVE_CUTOUT"; id: string }
   | { type: "CANCEL_REMOVE_CUTOUT" }
   | { type: "REMOVE_CUTOUT"; id: string }
@@ -95,6 +112,7 @@ export type BinAction =
   | {
       type: "REPLACE_LAYOUT";
       cutouts: CutoutPlacement[];
+      fingerHoles?: FingerHole[];
       gridX: number;
       gridY: number;
       footprint?: BinSpec["footprint"];
@@ -103,6 +121,7 @@ export type BinAction =
       historyLabel?: string;
     }
   | { type: "SELECT_CUTOUT"; id: string | null }
+  | { type: "SELECT_FINGER_HOLE"; id: string | null }
   | { type: "SET_VIEW_MODE"; viewMode: BinViewMode }
   | { type: "SET_EDITOR_MODE"; editorMode: BinEditorMode }
   | { type: "SET_GRID"; gridX: number; gridY: number; historyLabel?: string }
@@ -119,7 +138,9 @@ export const INITIAL_BIN_SPEC: BinSpec = parseBinSpec({
 const INITIAL: BinState = {
   spec: INITIAL_BIN_SPEC,
   cutouts: [],
+  fingerHoles: [],
   selectedCutoutId: null,
+  selectedFingerHoleId: null,
   pendingRemovalId: null,
   viewMode: "3d",
   editorMode: "placement",
@@ -127,7 +148,7 @@ const INITIAL: BinState = {
   history: {
     stack: [
       {
-        doc: { spec: INITIAL_BIN_SPEC, cutouts: [] },
+        doc: { spec: INITIAL_BIN_SPEC, cutouts: [], fingerHoles: [] },
         label: "Start",
       },
     ],
@@ -152,6 +173,7 @@ function commit(
     ...rest,
     spec: doc.spec,
     cutouts: doc.cutouts,
+    fingerHoles: doc.fingerHoles,
     history: { stack: stack.slice(overflow), index: stack.length - 1 - overflow },
   };
 }
@@ -174,7 +196,6 @@ function cutoutPatchLabel(patch: Partial<CutoutPlacement>): string {
   if ("position" in patch) return "Move tool pocket";
   if ("rotationDeg" in patch) return "Rotate tool pocket";
   if ("mirrored" in patch) return "Mirror tool pocket";
-  if ("fingerHoles" in patch) return "Edit finger holes";
   if ("depth" in patch) return "Change pocket depth";
   if ("clearanceMm" in patch) return "Change pocket clearance";
   if ("cornerRoundMm" in patch) return "Change outline corner round";
@@ -185,7 +206,12 @@ function cutoutPatchLabel(patch: Partial<CutoutPlacement>): string {
 
 /** A transient change: present state moves, the history does not. */
 function preview(state: BinState, doc: BinDoc): BinState {
-  return { ...state, spec: doc.spec, cutouts: doc.cutouts };
+  return {
+    ...state,
+    spec: doc.spec,
+    cutouts: doc.cutouts,
+    fingerHoles: doc.fingerHoles,
+  };
 }
 
 function patchCutouts(
@@ -203,12 +229,18 @@ function reducer(state: BinState, action: BinAction): BinState {
     case "HYDRATE": {
       // A restored project is the new baseline — undo must not walk back
       // into the pre-hydration default document.
-      const doc = { spec: action.spec, cutouts: action.cutouts };
+      const doc = {
+        spec: action.spec,
+        cutouts: action.cutouts,
+        fingerHoles: action.fingerHoles ?? [],
+      };
       return {
         ...state,
         spec: doc.spec,
         cutouts: doc.cutouts,
+        fingerHoles: doc.fingerHoles,
         selectedCutoutId: null,
+        selectedFingerHoleId: null,
         pendingRemovalId: null,
         editorMode: "placement",
         hydrated: true,
@@ -231,6 +263,7 @@ function reducer(state: BinState, action: BinAction): BinState {
             : {}),
         }),
         cutouts: state.cutouts,
+        fingerHoles: state.fingerHoles,
       };
       return action.transient
         ? preview(state, doc)
@@ -247,20 +280,65 @@ function reducer(state: BinState, action: BinAction): BinState {
             ...(action.footprint ? { footprint: action.footprint } : {}),
           }),
           cutouts: [...state.cutouts, ...action.cutouts],
+          fingerHoles: state.fingerHoles,
         },
         action.historyLabel ??
           `Add ${action.cutouts.length === 1 ? "tool pocket" : `${action.cutouts.length} tool pockets`}`,
-        { selectedCutoutId: action.cutouts.at(-1)?.id ?? state.selectedCutoutId },
+        {
+          selectedCutoutId: action.cutouts.at(-1)?.id ?? state.selectedCutoutId,
+          selectedFingerHoleId: null,
+        },
       );
     case "UPDATE_CUTOUT": {
       const doc = {
         spec: state.spec,
         cutouts: patchCutouts(state.cutouts, action.id, action.patch),
+        fingerHoles: state.fingerHoles,
       };
       return action.transient
         ? preview(state, doc)
         : commit(state, doc, action.historyLabel ?? cutoutPatchLabel(action.patch));
     }
+    case "ADD_FINGER_HOLE":
+      return commit(
+        state,
+        {
+          spec: state.spec,
+          cutouts: state.cutouts,
+          fingerHoles: [...state.fingerHoles, action.hole],
+        },
+        "Add finger hole",
+        { selectedCutoutId: null, selectedFingerHoleId: action.hole.id },
+      );
+    case "UPDATE_FINGER_HOLE": {
+      const doc = {
+        spec: state.spec,
+        cutouts: state.cutouts,
+        fingerHoles: state.fingerHoles.map((hole) =>
+          hole.id === action.id ? { ...hole, ...action.patch, id: hole.id } : hole,
+        ),
+      };
+      return action.transient
+        ? preview(state, doc)
+        : commit(state, doc, action.historyLabel ?? "Edit finger hole");
+    }
+    case "REMOVE_FINGER_HOLE":
+      if (!state.fingerHoles.some((hole) => hole.id === action.id)) return state;
+      return commit(
+        state,
+        {
+          spec: state.spec,
+          cutouts: state.cutouts,
+          fingerHoles: state.fingerHoles.filter((hole) => hole.id !== action.id),
+        },
+        "Remove finger hole",
+        {
+          selectedFingerHoleId:
+            state.selectedFingerHoleId === action.id
+              ? null
+              : state.selectedFingerHoleId,
+        },
+      );
     case "REQUEST_REMOVE_CUTOUT":
       return state.cutouts.some((cutout) => cutout.id === action.id)
         ? { ...state, pendingRemovalId: action.id }
@@ -276,6 +354,7 @@ function reducer(state: BinState, action: BinAction): BinState {
         {
           spec: state.spec,
           cutouts: state.cutouts.filter((cutout) => cutout.id !== action.id),
+          fingerHoles: state.fingerHoles,
         },
         "Remove tool pocket",
         {
@@ -295,9 +374,13 @@ function reducer(state: BinState, action: BinAction): BinState {
       };
       return commit(
         state,
-        { spec: state.spec, cutouts: [...state.cutouts, copy] },
+        {
+          spec: state.spec,
+          cutouts: [...state.cutouts, copy],
+          fingerHoles: state.fingerHoles,
+        },
         "Duplicate tool pocket",
-        { selectedCutoutId: copy.id },
+        { selectedCutoutId: copy.id, selectedFingerHoleId: null },
       );
     }
     case "REPLACE_LAYOUT":
@@ -312,6 +395,7 @@ function reducer(state: BinState, action: BinAction): BinState {
             ...(action.footprint ? { footprint: action.footprint } : {}),
           }),
           cutouts: action.cutouts,
+          fingerHoles: action.fingerHoles ?? state.fingerHoles,
         },
         action.historyLabel ?? "Arrange tool pockets",
         {
@@ -320,11 +404,26 @@ function reducer(state: BinState, action: BinAction): BinState {
           )
             ? state.selectedCutoutId
             : null,
+          selectedFingerHoleId: (action.fingerHoles ?? state.fingerHoles).some(
+            (hole) => hole.id === state.selectedFingerHoleId,
+          )
+            ? state.selectedFingerHoleId
+            : null,
           pendingRemovalId: null,
         },
       );
     case "SELECT_CUTOUT":
-      return { ...state, selectedCutoutId: action.id };
+      return {
+        ...state,
+        selectedCutoutId: action.id,
+        selectedFingerHoleId: action.id === null ? state.selectedFingerHoleId : null,
+      };
+    case "SELECT_FINGER_HOLE":
+      return {
+        ...state,
+        selectedFingerHoleId: action.id,
+        selectedCutoutId: action.id === null ? state.selectedCutoutId : null,
+      };
     case "SET_VIEW_MODE":
       return {
         ...state,
@@ -344,6 +443,7 @@ function reducer(state: BinState, action: BinAction): BinState {
             footprint: { kind: "rectangle" },
           }),
           cutouts: state.cutouts,
+          fingerHoles: state.fingerHoles,
         },
         action.historyLabel ?? "Resize bin",
       );
@@ -376,11 +476,17 @@ function restore(state: BinState, entry: BinHistoryEntry, index: number): BinSta
     ...state,
     spec: doc.spec,
     cutouts: doc.cutouts,
+    fingerHoles: doc.fingerHoles,
     history: { ...state.history, index },
     // Selection survives only if the cutout still exists at this point in
     // time.
     selectedCutoutId: doc.cutouts.some((c) => c.id === state.selectedCutoutId)
       ? state.selectedCutoutId
+      : null,
+    selectedFingerHoleId: doc.fingerHoles.some(
+      (hole) => hole.id === state.selectedFingerHoleId,
+    )
+      ? state.selectedFingerHoleId
       : null,
     pendingRemovalId: null,
   };

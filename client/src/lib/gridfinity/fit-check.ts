@@ -14,7 +14,11 @@ import type { Kernel } from "@/lib/manifold/runtime";
 
 import type { BuildQuality } from "./bin";
 import type { BinLayout } from "./bin";
-import { buildCutoutCutters, budgetOutline } from "./cutouts";
+import {
+  buildCutoutCutters,
+  buildFingerHoleCutters,
+  budgetOutline,
+} from "./cutouts";
 import { footprintOuterSection } from "./footprint-section";
 import { roundedRectPolygon } from "./profiles";
 import {
@@ -155,10 +159,14 @@ export function buildSurfaceFitCheckSolid(
     spec,
     quality,
   );
-  if (builtCutouts.cutters.length > 0) {
-    const cutter = builtCutouts.cutters.length === 1
-      ? builtCutouts.cutters[0]
-      : arena.track(Manifold.union(builtCutouts.cutters));
+  const allCutters = [
+    ...builtCutouts.cutters,
+    ...buildFingerHoleCutters(kernel, layout.fingerHoles, spec, quality),
+  ];
+  if (allCutters.length > 0) {
+    const cutter = allCutters.length === 1
+      ? allCutters[0]
+      : arena.track(Manifold.union(allCutters));
     plate = arena.track(plate.subtract(cutter));
   }
 

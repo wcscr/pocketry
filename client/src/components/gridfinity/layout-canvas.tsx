@@ -13,7 +13,11 @@ import {
 import {
   binToCanvas,
   canvasToBin,
+  fingerHoleFootprintRing,
+  oblongDeepScoopEndpoints,
   placementFootprint,
+  resizeFingerHoleFromWidthHandle,
+  resizeOblongDeepScoopFromEndpoint,
   transformPointPlacement,
   untransformPointPlacement,
   type CutoutPlacement,
@@ -160,7 +164,15 @@ export function LayoutCanvas(): JSX.Element {
 }
 
 function LayoutStage(): JSX.Element {
-  const { spec, cutouts, selectedCutoutId, editorMode, dispatch } = useBin();
+  const {
+    spec,
+    cutouts,
+    fingerHoles,
+    selectedCutoutId,
+    selectedFingerHoleId,
+    editorMode,
+    dispatch,
+  } = useBin();
   const { shapes, storeShape } = useShapeLibrary();
   const shapesById = useMemo(
     () => new Map(shapes.map((shape) => [shape.id, shape])),
@@ -229,7 +241,7 @@ function LayoutStage(): JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editorMode, selectedCutoutId]);
 
-  // Transformed outlines + feature handles + per-cutout worst severity,
+  // Transformed pocket outlines, recomputed per change — pure math over
   // recomputed per change — pure math over ≤150-point rings, cheap enough
   // per drag frame.
   const placed = useMemo(
@@ -243,28 +255,61 @@ function LayoutStage(): JSX.Element {
             ? { ...storedShape, outlineMm: draftContour.outline }
             : storedShape;
         const footprint = placementFootprint(shape, cutout);
-        const features = cutout.fingerHoles.map((hole, index) => ({
-          kind: hole.kind,
-          id: hole.id,
-          center: transformPointPlacement(hole.center, cutout),
-          ring: footprint.features[index],
-        }));
-        return [{ cutout, shape, outline: footprint.outline, features }];
+        return [{ cutout, shape, outline: footprint.outline }];
       }),
     [cutouts, shapesById, draftContour],
   );
 
+  const placedFingerHoles = useMemo(
+    () =>
+      fingerHoles.map((hole) => {
+        const endpoints =
+          hole.kind === "oblong-deep-scoop"
+            ? oblongDeepScoopEndpoints(hole)
+            : null;
+        const radians = ((hole.rotationDeg ?? 0) * Math.PI) / 180;
+        return {
+          hole,
+          ring: fingerHoleFootprintRing(hole, {
+            position: { x: 0, y: 0 },
+            rotationDeg: 0,
+            mirrored: false,
+          }),
+          endpoints,
+          widthHandle: {
+            x: hole.center.x - Math.sin(radians) * hole.diameterMm / 2,
+            y: hole.center.y + Math.cos(radians) * hole.diameterMm / 2,
+          },
+        };
+      }),
+    [fingerHoles],
+  );
+
   const severityByCutout = useMemo(() => {
     const map = new Map<string, IssueSeverity>();
-    for (const issue of validateLayout(spec, cutouts, shapesById)) {
+    for (const issue of validateLayout(spec, cutouts, shapesById, fingerHoles)) {
       for (const id of issue.cutoutIds ?? []) {
         if (issue.severity === "error" || !map.has(id)) map.set(id, issue.severity);
       }
     }
     return map;
-  }, [spec, cutouts, shapesById]);
+  }, [spec, cutouts, shapesById, fingerHoles]);
+
+  const severityByFingerHole = useMemo(() => {
+    const map = new Map<string, IssueSeverity>();
+    for (const issue of validateLayout(spec, cutouts, shapesById, fingerHoles)) {
+      for (const id of issue.fingerHoleIds ?? []) {
+        if (issue.severity === "error" || !map.has(id)) {
+          map.set(id, issue.severity);
+        }
+      }
+    }
+    return map;
+  }, [spec, cutouts, shapesById, fingerHoles]);
 
   const selected = placed.find((p) => p.cutout.id === selectedCutoutId) ?? null;
+  const selectedFingerHole =
+    placedFingerHoles.find((item) => item.hole.id === selectedFingerHoleId) ?? null;
 
   const commitContour = (
     cutoutId: string,
@@ -289,12 +334,13 @@ function LayoutStage(): JSX.Element {
   const dragRef = useRef<
     | { kind: "move"; id: string; grabOffset: Point }
     | { kind: "rotate"; id: string; center: Point; startPointerDeg: number; startRotationDeg: number }
+    | { kind: "finger-hole-move"; id: string; grabOffset: Point }
     | {
-        kind: "feature";
-        id: string;
-        feature: { kind: FingerHole["kind"]; id: string };
-        grabOffset: Point;
+        kind: "feature-end";
+        featureId: string;
+        endpoint: "start" | "end";
       }
+    | { kind: "feature-width"; featureId: string }
     | {
         kind: "contour";
         id: string;
@@ -310,21 +356,26 @@ function LayoutStage(): JSX.Element {
   const [rulerActive, setRulerActive] = useState(false);
   const [measurementPoints, setMeasurementPoints] = useState<Point[]>([]);
   const hasPlacedCutouts = placed.length > 0;
+  const hasPlacedObjects = hasPlacedCutouts || placedFingerHoles.length > 0;
 
   useEffect(() => {
-    if (hasPlacedCutouts) return;
+    if (hasPlacedObjects) return;
     setRulerActive(false);
     setMeasurementPoints([]);
-  }, [hasPlacedCutouts]);
+  }, [hasPlacedObjects]);
 
   const hitCutout = (point: Point): CutoutPlacement | null => {
-    // Topmost = later in the list; finger-access rims count as their pocket.
+    // Topmost = later in the list.
     for (let i = placed.length - 1; i >= 0; i--) {
       if (pointInOutline(placed[i].outline, point)) return placed[i].cutout;
-      for (const feature of placed[i].features) {
-        if (pointInRing(feature.ring, point)) {
-          return placed[i].cutout;
-        }
+    }
+    return null;
+  };
+
+  const hitFingerHole = (point: Point): FingerHole | null => {
+    for (let i = placedFingerHoles.length - 1; i >= 0; i--) {
+      if (pointInRing(placedFingerHoles[i].ring, point)) {
+        return placedFingerHoles[i].hole;
       }
     }
     return null;
@@ -335,6 +386,28 @@ function LayoutStage(): JSX.Element {
    * gesture lands in history as a single undo step.
    */
   const commitDrag = (drag: NonNullable<typeof dragRef.current>) => {
+    if (
+      drag.kind === "finger-hole-move" ||
+      drag.kind === "feature-end" ||
+      drag.kind === "feature-width"
+    ) {
+      const id = drag.kind === "finger-hole-move" ? drag.id : drag.featureId;
+      const current = fingerHoles.find((hole) => hole.id === id);
+      if (!current) return;
+      dispatch({
+        type: "UPDATE_FINGER_HOLE",
+        id,
+        patch: current,
+        historyLabel:
+          drag.kind === "finger-hole-move"
+            ? "Move finger hole"
+            : drag.kind === "feature-end"
+              ? "Resize oblong finger hole"
+              : "Resize finger hole diameter",
+      });
+      return;
+    }
+
     const current = cutouts.find((cutout) => cutout.id === drag.id);
     if (!current) return;
     if (drag.kind === "move") {
@@ -350,13 +423,6 @@ function LayoutStage(): JSX.Element {
         id: current.id,
         patch: { rotationDeg: current.rotationDeg },
         historyLabel: "Rotate tool pocket",
-      });
-    } else if (drag.kind === "feature") {
-      dispatch({
-        type: "UPDATE_CUTOUT",
-        id: current.id,
-        patch: { fingerHoles: current.fingerHoles },
-        historyLabel: "Move finger hole",
       });
     }
   };
@@ -589,28 +655,47 @@ function LayoutStage(): JSX.Element {
       return;
     }
 
-    // Finger-access features of the selected pocket grab before the body does,
-    // so a feature overlapping its own outline stays draggable.
-    if (selected) {
-      for (const feature of selected.features) {
-        const nearEdge = feature.ring.some((vertex, index) =>
-          pointSegmentDistance(
-            point,
-            vertex,
-            feature.ring[(index + 1) % feature.ring.length],
-          ) <= pickRadius / 2,
-        );
-        if (pointInRing(feature.ring, point) || nearEdge) {
-          dragRef.current = {
-            kind: "feature",
-            id: selected.cutout.id,
-            feature: { kind: feature.kind, id: feature.id },
-            grabOffset: { x: point.x - feature.center.x, y: point.y - feature.center.y },
-          };
-          event.currentTarget.setPointerCapture(event.pointerId);
-          return;
-        }
-      }
+    const featureEndpoint = target.getAttribute?.("data-feature-end");
+    const featureId = target.getAttribute?.("data-feature-id");
+    if (
+      featureId &&
+      (featureEndpoint === "start" || featureEndpoint === "end") &&
+      selectedFingerHole?.hole.id === featureId &&
+      selectedFingerHole.hole.kind === "oblong-deep-scoop"
+    ) {
+      dragRef.current = {
+        kind: "feature-end",
+        featureId,
+        endpoint: featureEndpoint,
+      };
+      event.currentTarget.setPointerCapture(event.pointerId);
+      return;
+    }
+
+    if (
+      target.getAttribute?.("data-feature-width") &&
+      featureId &&
+      selectedFingerHole?.hole.id === featureId
+    ) {
+      dragRef.current = { kind: "feature-width", featureId };
+      event.currentTarget.setPointerCapture(event.pointerId);
+      return;
+    }
+
+    // Independent finger holes grab before pocket bodies when they overlap.
+    const hitHole = hitFingerHole(point);
+    if (hitHole) {
+      dispatch({ type: "SELECT_FINGER_HOLE", id: hitHole.id });
+      dragRef.current = {
+        kind: "finger-hole-move",
+        id: hitHole.id,
+        grabOffset: {
+          x: point.x - hitHole.center.x,
+          y: point.y - hitHole.center.y,
+        },
+      };
+      event.currentTarget.setPointerCapture(event.pointerId);
+      return;
     }
 
     const hit = hitCutout(point);
@@ -677,23 +762,50 @@ function LayoutStage(): JSX.Element {
       return;
     }
 
-    if (drag.kind === "feature") {
-      const current = cutouts.find((cutout) => cutout.id === drag.id);
+    if (drag.kind === "finger-hole-move") {
+      const current = fingerHoles.find((hole) => hole.id === drag.id);
       if (!current) return;
-      const centreBin = {
-        x: point.x - drag.grabOffset.x,
-        y: point.y - drag.grabOffset.y,
-      };
-      // Feature centres are stored shape-local so they ride the placement.
-      const local = untransformPointPlacement(centreBin, current);
+      let x = point.x - drag.grabOffset.x;
+      let y = point.y - drag.grabOffset.y;
+      if (!event.altKey) {
+        const tolerance = SNAP_TOLERANCE_PX / Math.max(scale, 1e-6);
+        x = snapAxis(x, snapTargets(spec.gridX), tolerance);
+        y = snapAxis(y, snapTargets(spec.gridY), tolerance);
+      }
       dispatch({
-        type: "UPDATE_CUTOUT",
-        id: drag.id,
-        patch: {
-          fingerHoles: current.fingerHoles.map((hole) =>
-            hole.id === drag.feature.id ? { ...hole, center: local } : hole,
-          ),
-        },
+        type: "UPDATE_FINGER_HOLE",
+        id: current.id,
+        patch: { center: { x, y } },
+        transient: true,
+      });
+      return;
+    }
+
+    if (drag.kind === "feature-width") {
+      const current = fingerHoles.find((hole) => hole.id === drag.featureId);
+      if (!current) return;
+      const resized = resizeFingerHoleFromWidthHandle(current, point);
+      dispatch({
+        type: "UPDATE_FINGER_HOLE",
+        id: current.id,
+        patch: resized,
+        transient: true,
+      });
+      return;
+    }
+
+    if (drag.kind === "feature-end") {
+      const current = fingerHoles.find((hole) => hole.id === drag.featureId);
+      if (!current) return;
+      const resized = resizeOblongDeepScoopFromEndpoint(
+        current,
+        drag.endpoint,
+        point,
+      );
+      dispatch({
+        type: "UPDATE_FINGER_HOLE",
+        id: current.id,
+        patch: resized,
         transient: true,
       });
       return;
@@ -728,10 +840,16 @@ function LayoutStage(): JSX.Element {
       if (rulerActive && !viewport.isPanning) return;
       if (click && event.button === 0) {
         const point = toBin(event.clientX, event.clientY);
-        dispatch({
-          type: "SELECT_CUTOUT",
-          id: point ? (hitCutout(point)?.id ?? null) : null,
-        });
+        const hole = point ? hitFingerHole(point) : null;
+        const cutout = !hole && point ? hitCutout(point) : null;
+        if (hole) {
+          dispatch({ type: "SELECT_FINGER_HOLE", id: hole.id });
+        } else if (cutout) {
+          dispatch({ type: "SELECT_CUTOUT", id: cutout.id });
+        } else {
+          dispatch({ type: "SELECT_CUTOUT", id: null });
+          dispatch({ type: "SELECT_FINGER_HOLE", id: null });
+        }
       }
       viewport.handlers.onPointerUp(event);
       return;
@@ -789,9 +907,57 @@ function LayoutStage(): JSX.Element {
         }
         return;
       }
-      if (!selectedCutoutId) return;
       const target = event.target as HTMLElement | null;
       if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
+      if (selectedFingerHoleId) {
+        const hole = fingerHoles.find(
+          (candidate) => candidate.id === selectedFingerHoleId,
+        );
+        if (!hole) return;
+        const nudge = event.shiftKey ? 0.1 : 1;
+        let patch: Partial<FingerHole> | null = null;
+        if (event.key === "ArrowLeft") {
+          patch = { center: { x: hole.center.x - nudge, y: hole.center.y } };
+        } else if (event.key === "ArrowRight") {
+          patch = { center: { x: hole.center.x + nudge, y: hole.center.y } };
+        } else if (event.key === "ArrowUp") {
+          patch = { center: { x: hole.center.x, y: hole.center.y + nudge } };
+        } else if (event.key === "ArrowDown") {
+          patch = { center: { x: hole.center.x, y: hole.center.y - nudge } };
+        } else if (
+          (event.key === "r" || event.key === "R") &&
+          hole.kind === "oblong-deep-scoop"
+        ) {
+          patch = {
+            rotationDeg:
+              (((hole.rotationDeg ?? 0) + (event.shiftKey ? -15 : 15)) % 360 +
+                360) %
+              360,
+          };
+        } else if (event.key === "Delete" || event.key === "Backspace") {
+          dispatch({ type: "REMOVE_FINGER_HOLE", id: hole.id });
+          event.preventDefault();
+          return;
+        } else if (event.key === "Escape") {
+          dispatch({ type: "SELECT_FINGER_HOLE", id: null });
+          event.preventDefault();
+          return;
+        }
+        if (patch) {
+          dispatch({
+            type: "UPDATE_FINGER_HOLE",
+            id: hole.id,
+            patch,
+            historyLabel:
+              "rotationDeg" in patch
+                ? "Rotate oblong finger hole"
+                : "Move finger hole",
+          });
+          event.preventDefault();
+        }
+        return;
+      }
+      if (!selectedCutoutId) return;
       const current = cutouts.find((cutout) => cutout.id === selectedCutoutId);
       if (!current) return;
 
@@ -852,7 +1018,15 @@ function LayoutStage(): JSX.Element {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [selectedCutoutId, cutouts, editorMode, rulerActive, dispatch]);
+  }, [
+    selectedCutoutId,
+    selectedFingerHoleId,
+    cutouts,
+    fingerHoles,
+    editorMode,
+    rulerActive,
+    dispatch,
+  ]);
 
   const cursor =
     rulerActive
@@ -1012,7 +1186,7 @@ function LayoutStage(): JSX.Element {
               );
             })}
 
-          {placed.map(({ cutout, outline, features }) => {
+          {placed.map(({ cutout, outline }) => {
             const severity = severityByCutout.get(cutout.id);
             const isSelected = cutout.id === selectedCutoutId;
             const tone =
@@ -1033,21 +1207,69 @@ function LayoutStage(): JSX.Element {
                   vectorEffect="non-scaling-stroke"
                   data-cutout-id={cutout.id}
                 />
-                {features.map((feature) => {
-                  return (
-                    <g key={`${cutout.id}-${feature.kind}-${feature.id}`}>
-                      <path
-                        d={ringToCanvasPath(feature.ring, spec)}
-                        className={cn(tone, isSelected && "cursor-move")}
-                        strokeWidth={isSelected ? 1.5 : 1}
-                        strokeDasharray={feature.kind === "straight" ? undefined : "3 2"}
-                        vectorEffect="non-scaling-stroke"
-                        data-feature-of={cutout.id}
-                        data-testid={`feature-${feature.kind}-${cutout.id}`}
-                      />
-                    </g>
-                  );
-                })}
+              </g>
+            );
+          })}
+
+          {placedFingerHoles.map(({ hole, ring, endpoints, widthHandle }) => {
+            const severity = severityByFingerHole.get(hole.id);
+            const isSelected = hole.id === selectedFingerHoleId;
+            const tone =
+              severity === "error"
+                ? "fill-destructive/30 stroke-destructive"
+                : severity === "warning"
+                  ? "fill-amber-500/25 stroke-amber-600"
+                  : isSelected
+                    ? "fill-fuchsia-500/30 stroke-fuchsia-700"
+                    : "fill-fuchsia-500/15 stroke-fuchsia-600/70";
+            const widthCanvas = binToCanvas(widthHandle, spec);
+            return (
+              <g key={hole.id}>
+                <path
+                  d={ringToCanvasPath(ring, spec)}
+                  className={cn(tone, "cursor-move")}
+                  strokeWidth={isSelected ? 2 : 1.25}
+                  strokeDasharray={hole.kind === "straight" ? undefined : "3 2"}
+                  vectorEffect="non-scaling-stroke"
+                  data-feature-id={hole.id}
+                  data-testid={`finger-hole-${hole.kind}-${hole.id}`}
+                />
+                {isSelected && (
+                  <>
+                    <circle
+                      cx={widthCanvas.x}
+                      cy={widthCanvas.y}
+                      r={5 * inv}
+                      className="fill-background stroke-fuchsia-700"
+                      strokeWidth={2}
+                      vectorEffect="non-scaling-stroke"
+                      style={{ cursor: "nwse-resize" }}
+                      data-feature-width="diameter"
+                      data-feature-id={hole.id}
+                      data-testid={`finger-hole-width-${hole.id}`}
+                    />
+                    {endpoints
+                      ? (["start", "end"] as const).map((endpoint) => {
+                          const canvasPoint = binToCanvas(endpoints[endpoint], spec);
+                          return (
+                            <circle
+                              key={endpoint}
+                              cx={canvasPoint.x}
+                              cy={canvasPoint.y}
+                              r={5 * inv}
+                              className="fill-background stroke-fuchsia-700"
+                              strokeWidth={2}
+                              vectorEffect="non-scaling-stroke"
+                              style={{ cursor: "grab" }}
+                              data-feature-end={endpoint}
+                              data-feature-id={hole.id}
+                              data-testid={`finger-hole-oblong-end-${endpoint}-${hole.id}`}
+                            />
+                          );
+                        })
+                      : null}
+                  </>
+                )}
               </g>
             );
           })}
@@ -1177,15 +1399,15 @@ function LayoutStage(): JSX.Element {
         </g>
       </svg>
 
-      {!hasPlacedCutouts ? (
+      {!hasPlacedObjects ? (
         <div
           className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center p-6"
           data-testid="layout-empty-state"
         >
           <div className="max-w-sm rounded-lg border border-dashed bg-background/90 px-5 py-4 text-center shadow-sm backdrop-blur">
-            <p className="font-medium">No tool cutouts yet</p>
+            <p className="font-medium">No layout objects yet</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              Trace a tool and choose Add to bin to place it here.
+              Add a tool pocket or a finger hole to place it here.
             </p>
           </div>
         </div>
@@ -1264,15 +1486,17 @@ function LayoutStage(): JSX.Element {
           ? "Footprint edit · click cells or the dashed outer halo · Esc finishes"
           : editorMode === "label-edge"
           ? "Label tab · click a highlighted boundary edge"
-          : !hasPlacedCutouts
-          ? "Add a tool from Trace to begin"
+          : !hasPlacedObjects
+          ? "Add a tool pocket or finger hole to begin"
           : editorMode === "contour"
           ? selectedCutoutId
             ? "Contour edit · drag points · click an edge to add · right-click a point to remove · Esc finishes"
             : "Contour edit · click a pocket to select it"
-          : selectedCutoutId
-          ? "Drag moves · circles drag finger holes · handle rotates · R rotates 15° · arrows nudge · Del removes"
-          : "Click a pocket to select · Shift-drag pans · Ctrl-scroll zooms"}
+          : selectedFingerHoleId
+            ? "Finger hole · drag moves · white handle resizes · arrows nudge · Del removes"
+            : selectedCutoutId
+              ? "Pocket · drag moves · handle rotates · R rotates 15° · arrows nudge · Del removes"
+              : "Click a pocket or finger hole to select · Shift-drag pans · Ctrl-scroll zooms"}
       </div>
     </>
   );
