@@ -24,6 +24,7 @@ function renderRuler({
   perspectivePoints = [],
   perspectiveEditable = false,
   perspectivePreview = null,
+  imageRotation = 0,
 }: {
   completed?: Calibration | null;
   draft?: DraftCalibration | null;
@@ -32,11 +33,13 @@ function renderRuler({
   perspectivePoints?: readonly Point[];
   perspectiveEditable?: boolean;
   perspectivePreview?: Point | null;
+  imageRotation?: 0 | 1 | 2 | 3;
 }): string {
   return renderToStaticMarkup(
     <TraceScene
       imageUrl="data:image/png;base64,AA=="
       imageSize={{ width: 200, height: 100 }}
+      imageRotation={imageRotation}
       transform={{ scale: 1, translateX: 0, translateY: 0 }}
       outline={[]}
       selection={null}
@@ -57,6 +60,17 @@ function count(markup: string, fragment: string): number {
 }
 
 describe("TraceScene ruler overlay", () => {
+  it("rotates the displayed source image into the working frame", () => {
+    const clockwise = renderRuler({ imageRotation: 1 });
+    expect(clockwise).toContain('data-testid="trace-source-image"');
+    expect(clockwise).toContain('width="100"');
+    expect(clockwise).toContain('height="200"');
+    expect(clockwise).toContain('transform="translate(200 0) rotate(90)"');
+
+    const counterclockwise = renderRuler({ imageRotation: 3 });
+    expect(counterclockwise).toContain('transform="translate(0 100) rotate(-90)"');
+  });
+
   it("renders completed endpoints as persistent X markers with a length label", () => {
     const markup = renderRuler({ completed: calibration });
 

@@ -40,6 +40,7 @@ import { generateDXF } from "@/lib/export/dxf";
 import { exportScale } from "@/lib/export/scale";
 import { generateSTL } from "@/lib/export/stl";
 import { generateOutlineSVG } from "@/lib/export/svg";
+import type { ImageRotationDirection } from "@/lib/geometry/image-rotation";
 import { processImage } from "@/lib/image-processor";
 import { useTrace } from "@/state/trace-store";
 
@@ -72,10 +73,14 @@ function TraceWorkspace(): JSX.Element {
   const [uploadOpen, setUploadOpen] = useState(false);
   const [dwgDialogOpen, setDwgDialogOpen] = useState(false);
 
+  const workingImageMax = store.perspectiveCorrection
+    ? RECTIFIED_IMAGE_MAX
+    : IMAGE_CANVAS_MAX;
   const { source, getImageData, getDetectionFrame } = useImageSource(
     store.imageUrl,
     store.fileName,
-    store.perspectiveCorrection ? RECTIFIED_IMAGE_MAX : IMAGE_CANVAS_MAX,
+    workingImageMax,
+    store.imageRotation,
   );
   useOutlineRefinement();
 
@@ -184,92 +189,99 @@ function TraceWorkspace(): JSX.Element {
       const frame = getDetectionFrame();
       if (!frame) return;
 
-      const result = await autoCalibrate(frame.imageData);
-      // OpenCV work cannot be cancelled once running. Bind its result to the
-      // pixels it actually read so an old sheet can never paint overlays or
-      // toasts over a replacement image.
-      if (activeImageUrlRef.current !== frame.sourceImageUrl) return;
-      if (!manual && result.kind !== "calibrated") {
-        dispatch({
-          type: "AUTO_CALIBRATION_FAILED",
-          sourceImageUrl: frame.sourceImageUrl,
-        });
-      }
-      switch (result.kind) {
-        case "calibrated": {
-          const calibration = {
-            startX: result.calibration.startX * frame.toWorking.x,
-            startY: result.calibration.startY * frame.toWorking.y,
-            endX: result.calibration.endX * frame.toWorking.x,
-            endY: result.calibration.endY * frame.toWorking.y,
-            lengthMm: result.calibration.lengthMm,
-          };
+      dispatch({ type: "SET_PROCESSING", processing: true });
+      try {
+        const result = await autoCalibrate(frame.imageData);
+        // OpenCV work cannot be cancelled once running. Bind its result to the
+        // pixels it actually read so an old sheet can never paint overlays or
+        // toasts over a replacement image.
+        if (activeImageUrlRef.current !== frame.sourceImageUrl) return;
+        if (!manual && result.kind !== "calibrated") {
           dispatch({
-            type: "AUTO_CALIBRATION_DETECTED",
+            type: "AUTO_CALIBRATION_FAILED",
             sourceImageUrl: frame.sourceImageUrl,
-            calibration,
-            perspective: result.perspectiveProposal
-              ? scalePerspectiveProposal(
-                  result.perspectiveProposal,
-                  frame.toWorking.x,
-                  frame.toWorking.y,
-                )
-              : null,
           });
-          const { solution } = result;
-          const mmPerPx = mmPerPixel(calibration);
-          const paperName = result.paper === "a4" ? "A4" : "US Letter";
-          const summary = `${paperName} · ${solution.markerIds.length} markers · ${(mmPerPx ?? solution.mmPerPx).toFixed(3)} mm/px`;
-          if (solution.maxDeviation > SKEW_WARN_FRACTION) {
+        }
+        switch (result.kind) {
+          case "calibrated": {
+            const calibration = {
+              startX: result.calibration.startX * frame.toWorking.x,
+              startY: result.calibration.startY * frame.toWorking.y,
+              endX: result.calibration.endX * frame.toWorking.x,
+              endY: result.calibration.endY * frame.toWorking.y,
+              lengthMm: result.calibration.lengthMm,
+            };
+            dispatch({
+              type: "AUTO_CALIBRATION_DETECTED",
+              sourceImageUrl: frame.sourceImageUrl,
+              calibration,
+              perspective: result.perspectiveProposal
+                ? scalePerspectiveProposal(
+                    result.perspectiveProposal,
+                    frame.toWorking.x,
+                    frame.toWorking.y,
+                  )
+                : null,
+            });
+            const { solution } = result;
+            const mmPerPx = mmPerPixel(calibration);
+            const paperName = result.paper === "a4" ? "A4" : "US Letter";
+            const summary = `${paperName} · ${solution.markerIds.length} markers · ${(mmPerPx ?? solution.mmPerPx).toFixed(3)} mm/px`;
+            if (solution.maxDeviation > SKEW_WARN_FRACTION) {
+              toast({
+                title: "Scale detected — review carefully",
+                description: `${summary}. Marker distances disagree by ${(solution.maxDeviation * 100).toFixed(1)}%. ${result.perspectiveProposal ? "Perspective correction is available in Scale." : "Shoot straight down for accurate millimetres."}`,
+                variant: "destructive",
+                duration: 8000,
+              });
+            } else {
+              toast({
+                title: "Scale detected from calibration sheet",
+                description: `${summary}. Review and accept it in Scale.`,
+              });
+            }
+            break;
+          }
+          case "foreign-sheet":
             toast({
-              title: "Scale detected — review carefully",
-              description: `${summary}. Marker distances disagree by ${(solution.maxDeviation * 100).toFixed(1)}%. ${result.perspectiveProposal ? "Perspective correction is available in Scale." : "Shoot straight down for accurate millimetres."}`,
-              variant: "destructive",
+              title:
+                result.reason === "incomplete-signature"
+                  ? "Incomplete Pocketry sheet detected"
+                  : result.reason === "invalid-geometry"
+                    ? "Calibration sheet rejected"
+                    : "Different marker sheet detected",
+              description:
+                result.reason === "incomplete-signature"
+                  ? `Pocketry found ${result.markerIds.length} of the 4 required v2 signature markers. Keep the complete current sheet visible and try again.`
+                  : result.reason === "invalid-geometry"
+                    ? "The v2 marker IDs were present, but their 16 corners do not fit Pocketry's signed sheet geometry. No scale was proposed."
+                    : "These are stock or third-party markers, not the Pocketry v2 signature. Print the current Pocketry sheet or set scale manually.",
               duration: 8000,
             });
-          } else {
-            toast({
-              title: "Scale detected from calibration sheet",
-              description: `${summary}. Review and accept it in Scale.`,
-            });
-          }
-          break;
+            break;
+          case "no-markers":
+            if (manual) {
+              toast({
+                title: "No markers found",
+                description:
+                  "Include the printed calibration sheet in the photo, flat and unobstructed.",
+              });
+            }
+            break;
+          case "unsupported":
+            if (manual) {
+              toast({
+                title: "Marker detection unavailable",
+                description: "OpenCV failed to load in this browser session.",
+                variant: "destructive",
+              });
+            }
+            break;
         }
-        case "foreign-sheet":
-          toast({
-            title:
-              result.reason === "incomplete-signature"
-                ? "Incomplete Pocketry sheet detected"
-                : result.reason === "invalid-geometry"
-                  ? "Calibration sheet rejected"
-                  : "Different marker sheet detected",
-            description:
-              result.reason === "incomplete-signature"
-                ? `Pocketry found ${result.markerIds.length} of the 4 required v2 signature markers. Keep the complete current sheet visible and try again.`
-                : result.reason === "invalid-geometry"
-                  ? "The v2 marker IDs were present, but their 16 corners do not fit Pocketry's signed sheet geometry. No scale was proposed."
-                  : "These are stock or third-party markers, not the Pocketry v2 signature. Print the current Pocketry sheet or set scale manually.",
-            duration: 8000,
-          });
-          break;
-        case "no-markers":
-          if (manual) {
-            toast({
-              title: "No markers found",
-              description:
-                "Include the printed calibration sheet in the photo, flat and unobstructed.",
-            });
-          }
-          break;
-        case "unsupported":
-          if (manual) {
-            toast({
-              title: "Marker detection unavailable",
-              description: "OpenCV failed to load in this browser session.",
-              variant: "destructive",
-            });
-          }
-          break;
+      } finally {
+        if (activeImageUrlRef.current === frame.sourceImageUrl) {
+          dispatch({ type: "SET_PROCESSING", processing: false });
+        }
       }
     },
     [getDetectionFrame, dispatch, toast],
@@ -395,6 +407,18 @@ function TraceWorkspace(): JSX.Element {
     }
   };
 
+  const handleRotateImage = useCallback(
+    (direction: ImageRotationDirection) => {
+      if (source.status !== "ready" || store.processing) return;
+      dispatch({
+        type: "ROTATE_SOURCE",
+        direction,
+        naturalSize: source.naturalSize,
+        maxSize: workingImageMax,
+      });
+    }, [source, store.processing, dispatch, workingImageMax],
+  );
+
   const handleExport = async () => {
     const { outline, imageSize, exportFormat, extrusionHeight, fileName } = store;
     if (outline.length === 0) {
@@ -482,6 +506,7 @@ function TraceWorkspace(): JSX.Element {
         panel={
           <TraceControlsPanel
             onReplaceImage={() => setUploadOpen(true)}
+            onRotateImage={handleRotateImage}
             onExport={() => void handleExport()}
             onReprocess={() => void runDetection()}
             onDetectMarkers={() => void detectMarkers(true)}

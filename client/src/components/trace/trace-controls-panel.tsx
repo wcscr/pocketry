@@ -7,6 +7,7 @@ import {
   Image as ImageIcon,
   Ruler,
   RotateCcw,
+  RotateCw,
   ScanLine,
   ScanSearch,
   Sparkles,
@@ -57,6 +58,7 @@ import { downloadCalibrationTemplate } from "@/lib/calibrate/download-template";
 import type { TemplatePaper } from "@/lib/calibrate/template";
 import { describeScale, exportScale } from "@/lib/export/scale";
 import { normalizeTracedShape } from "@/lib/gridfinity/traced-shape";
+import type { ImageRotationDirection } from "@/lib/geometry/image-rotation";
 import {
   adjustOutlineMargin,
   MARGIN_MM_OPTIONS,
@@ -73,6 +75,7 @@ const RESPONSIVE_PANEL_ACTION =
 
 export interface TraceControlsPanelProps {
   onReplaceImage: () => void;
+  onRotateImage: (direction: ImageRotationDirection) => void;
   onExport: () => void;
   onReprocess: () => void;
   /** Re-run ArUco marker detection on the full frame, with feedback. */
@@ -105,6 +108,7 @@ const TRACE_SETTINGS_SECTION_DETAILS = [
  */
 export function TraceControlsPanel({
   onReplaceImage,
+  onRotateImage,
   onExport,
   onReprocess,
   onDetectMarkers,
@@ -203,6 +207,10 @@ export function TraceControlsPanel({
   const previousAutoPending = useRef(pendingAutoCalibration !== null);
   const previousManualRulerPending = useRef(manualRulerPending);
   const previousMode = useRef(store.mode);
+  // Pointer-down precedes the reference-length input's blur. Remember that
+  // Redraw owns this particular blur so it cannot confirm the ruler the user
+  // is explicitly trying to replace.
+  const redrawRulerRequested = useRef(false);
   const focusWhenReady = useRef<
     "scale" | "auto" | "length" | "region" | "detection" | null
   >(null);
@@ -388,13 +396,16 @@ export function TraceControlsPanel({
   };
 
   const handleSetScale = () => {
-    if (manualRulerPending) {
-      dispatch({ type: "SET_DRAFT_CALIBRATION", draftCalibration: null });
+    const nextMode = store.mode === "calibrate" ? "pan" : "calibrate";
+    if (nextMode === "calibrate") {
+      setGuidedSection("scale");
+      focusWhenReady.current = null;
     }
     dispatch({
       type: "SET_MODE",
-      mode: store.mode === "calibrate" ? "pan" : "calibrate",
+      mode: nextMode,
     });
+    redrawRulerRequested.current = false;
   };
 
   return (
@@ -434,6 +445,28 @@ export function TraceControlsPanel({
               >
                 Choose Source Image
               </Button>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={processing}
+                  onClick={() => onRotateImage("counterclockwise")}
+                  data-testid="button-rotate-image-counterclockwise"
+                >
+                  <RotateCcw className="mr-1.5 h-4 w-4" />
+                  Rotate left 90°
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={processing}
+                  onClick={() => onRotateImage("clockwise")}
+                  data-testid="button-rotate-image-clockwise"
+                >
+                  <RotateCw className="mr-1.5 h-4 w-4" />
+                  Rotate right 90°
+                </Button>
+              </div>
             </>
           ) : (
             <div className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">
@@ -536,6 +569,16 @@ export function TraceControlsPanel({
             )}
             data-testid="button-set-scale"
             disabled={!hasImage}
+            onPointerDown={() => {
+              redrawRulerRequested.current =
+                store.mode !== "calibrate" && manualRulerPending;
+            }}
+            onPointerCancel={() => {
+              redrawRulerRequested.current = false;
+            }}
+            onPointerLeave={() => {
+              redrawRulerRequested.current = false;
+            }}
             onClick={handleSetScale}
           >
             {store.mode === "calibrate"
@@ -597,6 +640,7 @@ export function TraceControlsPanel({
                 dispatch({ type: "SET_RULER_LENGTH", rulerLengthMm: value })
               }
               onValueCommit={(value) => {
+                if (redrawRulerRequested.current) return;
                 const completed = calibrationFromDraft(
                   draftCalibration,
                   value,

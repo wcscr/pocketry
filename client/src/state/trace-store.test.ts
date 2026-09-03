@@ -293,6 +293,77 @@ describe("loading a new image", () => {
     expect(replaced.detectedImageUrl).toBeNull();
     expect(replaced.autoCalibrationAttemptedImageUrl).toBeNull();
   });
+
+  it("rotates the working image, trace geometry, ruler, region, and history", () => {
+    const calibration = {
+      startX: 10,
+      startY: 20,
+      endX: 110,
+      endY: 20,
+      lengthMm: 50,
+    };
+    const ready = run(
+      initialTraceState,
+      { type: "SOURCE_LOADED", imageUrl: "image-a", fileName: "a" },
+      { type: "SOURCE_READY", imageSize: { width: 200, height: 100 } },
+      {
+        type: "DETECTED",
+        imageUrl: "image-a",
+        outline: ringA,
+        rawOutline: ringA,
+        svg: "<svg/>",
+        region: null,
+      },
+      { type: "OUTLINE_COMMITTED", outline: ringB },
+      { type: "SET_CALIBRATION", calibration },
+      { type: "SET_REGION", region: { x: 10, y: 20, width: 40, height: 30 } },
+    );
+
+    const clockwise = traceReducer(ready, {
+      type: "ROTATE_SOURCE",
+      direction: "clockwise",
+      naturalSize: { width: 200, height: 100 },
+      maxSize: { width: 800, height: 600 },
+    });
+
+    expect(clockwise.imageRotation).toBe(1);
+    expect(clockwise.imageSize).toEqual({ width: 100, height: 200 });
+    expect(clockwise.outline[0].outer).toEqual([
+      { x: 100, y: 0 },
+      { x: 100, y: 20 },
+      { x: 80, y: 20 },
+    ]);
+    expect(clockwise.rawOutline[0].outer).toEqual([
+      { x: 100, y: 0 },
+      { x: 100, y: 10 },
+      { x: 90, y: 10 },
+    ]);
+    expect(clockwise.calibration).toEqual({
+      startX: 80,
+      startY: 10,
+      endX: 80,
+      endY: 110,
+      lengthMm: 50,
+    });
+    expect(clockwise.region).toEqual({ x: 50, y: 10, width: 30, height: 40 });
+    expect(clockwise.history.stack[0].outline).toEqual(clockwise.rawOutline);
+    expect(clockwise.history.stack[1].outline).toEqual(clockwise.outline);
+    expect(clockwise.svg).toBeNull();
+
+    const restored = traceReducer(clockwise, {
+      type: "ROTATE_SOURCE",
+      direction: "counterclockwise",
+      naturalSize: { width: 200, height: 100 },
+      maxSize: { width: 800, height: 600 },
+    });
+    expect(restored.imageRotation).toBe(0);
+    expect(restored.imageSize).toEqual({ width: 200, height: 100 });
+    expect(restored.outline).toEqual(ready.outline);
+    expect(restored.rawOutline).toEqual(ready.rawOutline);
+    expect(restored.calibration).toEqual(ready.calibration);
+    expect(restored.region).toEqual(ready.region);
+    expect(restored.history).toEqual(ready.history);
+  });
 });
 
 describe("modes and calibration", () => {
@@ -422,6 +493,44 @@ describe("modes and calibration", () => {
     expect(state.calibration?.endX).toBe(9);
     expect(state.calibrationSource).toBe("manual");
     expect(state.margin).toBe(1.5);
+  });
+
+  it("starts a fresh ruler when replacing a completed manual calibration", () => {
+    const state = run(
+      initialTraceState,
+      {
+        type: "SET_CALIBRATION",
+        calibration: {
+          startX: 1,
+          startY: 2,
+          endX: 9,
+          endY: 2,
+          lengthMm: 10,
+        },
+      },
+      { type: "SET_MODE", mode: "calibrate" },
+    );
+
+    expect(state.mode).toBe("calibrate");
+    expect(state.calibration).toBeNull();
+    expect(state.calibrationSource).toBeNull();
+    expect(state.draftCalibration).toBeNull();
+  });
+
+  it("discards completed draft endpoints when the ruler is redrawn", () => {
+    const state = run(
+      initialTraceState,
+      { type: "SET_MODE", mode: "calibrate" },
+      {
+        type: "SET_DRAFT_CALIBRATION",
+        draftCalibration: { startX: 1, startY: 2, endX: 9, endY: 2 },
+      },
+      { type: "SET_MODE", mode: "pan" },
+      { type: "SET_MODE", mode: "calibrate" },
+    );
+
+    expect(state.mode).toBe("calibrate");
+    expect(state.draftCalibration).toBeNull();
   });
 
   it("holds a sheet-detected scale for explicit acceptance", () => {
@@ -581,13 +690,20 @@ describe("modes and calibration", () => {
     expect(corrected.calibrationSource).toBe("sheet");
     expect(corrected.mode).toBe("region");
 
-    const restored = traceReducer(corrected, {
+    const rotatedCorrected = traceReducer(corrected, {
+      type: "ROTATE_SOURCE",
+      direction: "clockwise",
+      naturalSize: { width: 421, height: 595 },
+      maxSize: { width: 1600, height: 1600 },
+    });
+    const restored = traceReducer(rotatedCorrected, {
       type: "RESTORE_PERSPECTIVE_SOURCE",
     });
     expect(restored.imageUrl).toContain("original");
     expect(restored.perspectiveOriginalImageUrl).toBeNull();
     expect(restored.perspectiveCorrection).toBeNull();
     expect(restored.calibration).toBeNull();
+    expect(restored.imageRotation).toBe(1);
     expect(restored.autoCalibrationAttemptedImageUrl).toBe(restored.imageUrl);
   });
 
