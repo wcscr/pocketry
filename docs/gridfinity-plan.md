@@ -79,9 +79,10 @@ left/center/right on any wall, fused into the wall part, with
 `label-tab-clipped` and `label-tab-shadow` warnings. **Crush ribs** are in
 too — upstream `ribbed_cylinder()`, eight sinusoidal lobes between ⌀5.9
 and ⌀6.5 for glue-free press-fit magnets, a per-spec toggle under Magnet
-holes. The **lite base** landed as well: hollow thin-shell sockets under a
-chamfered bridge lattice with a 1.2 mm floor (`spec.liteBase`; holes are
-ignored there with a warning until bosses are ported). **Half/quarter grid**
+holes. The earlier modeled Lite Base option was removed: ordinary slicer
+infill already provides the intended material savings without permanently
+adding hollow chambers and special pocket-floor support to the exported
+model. **Half/quarter grid**
 landed as explicit 21/10.5 mm pitch modes while retaining the upstream 0.5 mm
 gap; fractional magnet/screw patterns are disabled until the corner-only hole
 layout is ported. Baseplate generation was intentionally removed from
@@ -357,7 +358,7 @@ its licence independently before porting, and drop the feature if it is not perm
 | **G2** | Live 3D preview reacting to sliders without jank | r3f viewport, `/bin` workspace, worker pipeline with supersede/cancel/progress, magnet + screw holes |
 | **G3** | A photographed screwdriver becomes a printable pocket — **print it and put the tool in it** | shape library + `normalizeTracedShape`, cutouts (clearance, corner round, bottom fillet, depth modes), 2D placement editor, live validation |
 | **G4** | 4-tool bin with scoops and finger holes, saved and reloaded | scoop, finger holes, auto-arrange, undo/redo, project save/load, `trimByPlane` section view |
-| **G5** | Parity and polish | label tab, crush ribs, lite base, half/quarter grid, layout DXF/SVG, optional server persistence |
+| **G5** | Parity and polish | label tab, crush ribs, half/quarter grid, layout DXF/SVG, optional server persistence |
 
 **G1 and G3 are physical print gates.** Dimensional correctness is not verifiable any
 other way; no amount of unit testing substitutes for putting the tool in the pocket.

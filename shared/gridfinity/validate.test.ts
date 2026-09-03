@@ -100,21 +100,6 @@ describe("label tab spec rule (G5)", () => {
   });
 });
 
-describe("lite base spec rule (G5)", () => {
-  it("warns when holes are combined with a lite base", () => {
-    const clash = validateBinSpec(
-      parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6, liteBase: true, magnetHoles: true }),
-    );
-    expect(clash.issues.map((issue) => issue.code)).toContain("lite-base-holes");
-    expect(clash.ok).toBe(true);
-
-    const clean = validateBinSpec(
-      parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6, liteBase: true }),
-    );
-    expect(clean.issues.map((issue) => issue.code)).not.toContain("lite-base-holes");
-  });
-});
-
 describe("fractional grid spec rule (G5)", () => {
   it("warns and ignores hole options on fractional sockets", () => {
     const clash = validateBinSpec(

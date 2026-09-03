@@ -298,7 +298,6 @@ export function BinControlsPanel({
   const enabledFeatureCount = [
     spec.lip === "standard",
     spec.fill === "solid",
-    spec.liteBase,
     spec.magnetHoles,
     spec.screwHoles,
     spec.labelTab !== null,
@@ -539,12 +538,6 @@ export function BinControlsPanel({
             description="Material for pockets — required for cutouts"
             checked={spec.fill === "solid"}
             onChange={(on) => patchSpec({ fill: on ? "solid" : "none" })}
-          />
-          <FeatureSwitch
-            label="Lite base"
-            description="Hollow base — less plastic, no magnet holes"
-            checked={spec.liteBase}
-            onChange={(liteBase) => patchSpec({ liteBase })}
           />
           <FeatureSwitch
             label="Magnet holes"

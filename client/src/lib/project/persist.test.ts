@@ -160,4 +160,29 @@ describe("named project library", () => {
       projects: [],
     });
   });
+
+  it("keeps named v4 projects while removing their legacy lite base choice", async () => {
+    const legacyDoc = JSON.parse(JSON.stringify(DOC)) as Record<string, unknown>;
+    legacyDoc.schemaVersion = 4;
+    (legacyDoc.spec as Record<string, unknown>).liteBase = true;
+    memory.set("tooltrace:project-library:v1", {
+      schemaVersion: 1,
+      activeProjectId: "legacy-project",
+      projects: [
+        {
+          id: "legacy-project",
+          name: "Legacy tray",
+          updatedAt: "2026-09-03T12:00:00.000Z",
+          doc: legacyDoc,
+        },
+      ],
+    });
+
+    const library = await loadProjectLibrary();
+    expect(library.projects).toHaveLength(1);
+    expect(library.activeProjectId).toBe("legacy-project");
+    const opened = await openProjectFromLibrary("legacy-project");
+    expect(opened.doc.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
+    expect(opened.doc.spec).not.toHaveProperty("liteBase");
+  });
 });

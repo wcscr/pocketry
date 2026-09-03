@@ -114,15 +114,6 @@ export function validateBinSpec(spec: BinSpec): ValidationResult {
     }
   }
 
-  if (spec.liteBase && (spec.magnetHoles || spec.screwHoles)) {
-    issues.push({
-      code: "lite-base-holes",
-      severity: "warning",
-      message:
-        "Magnet and screw holes are not supported on a lite base yet — the holes are ignored.",
-    });
-  }
-
   if (spec.gridPitch !== "full" && (spec.magnetHoles || spec.screwHoles)) {
     issues.push({
       code: "fractional-grid-holes",
@@ -436,14 +427,6 @@ function validateAgainstBin(spec: BinSpec, p: PlacedCutout): ValidationIssue[] {
           severity: "warning",
           cutoutIds: [cutout.id],
       message: `“${label}” reaches into the base, where the magnet holes live.`,
-        });
-      }
-      if (spec.liteBase && pocket.floorZ <= BASE_HEIGHT) {
-        issues.push({
-          code: "lite-base-floor",
-          severity: "warning",
-          cutoutIds: [cutout.id],
-          message: `“${label}”'s floor rests on the hollow lite base — it may open into the base cavities.`,
         });
       }
     }

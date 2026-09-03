@@ -133,4 +133,24 @@ describe("project file round trip", () => {
     expect(doc?.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
     expect(doc?.spec.footprint).toEqual({ kind: "rectangle" });
   });
+
+  it("migrates schema v4 projects to the ordinary base", () => {
+    const legacy = JSON.parse(JSON.stringify(VALID)) as Record<string, unknown>;
+    legacy.schemaVersion = 4;
+    (legacy.spec as Record<string, unknown>).liteBase = true;
+
+    const doc = parseProjectDoc(legacy);
+    expect(doc?.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
+    expect(doc?.spec).not.toHaveProperty("liteBase");
+  });
+
+  it("rejects the removed lite base field in current project documents", () => {
+    const currentWithRemovedField = JSON.parse(JSON.stringify(VALID)) as Record<
+      string,
+      unknown
+    >;
+    (currentWithRemovedField.spec as Record<string, unknown>).liteBase = true;
+
+    expect(parseProjectDoc(currentWithRemovedField)).toBeNull();
+  });
 });

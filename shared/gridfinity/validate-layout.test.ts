@@ -409,26 +409,3 @@ describe("label tab rules (G5)", () => {
     );
   });
 });
-
-describe("lite base layout rule (G5)", () => {
-  it("warns when a pocket floor rests on the hollow lite base", () => {
-    const shape = makeShape("s1", 20, 20);
-    // Default depth: remaining with a 7 mm floor — exactly the base top.
-    const onBase = codes(
-      spec({ liteBase: true }),
-      [makeCutout("c1", "s1", 0, 0)],
-      [shape],
-    );
-    expect(onBase).toContain("lite-base-floor");
-
-    const shallow = codes(
-      spec({ liteBase: true }),
-      [makeCutout("c1", "s1", 0, 0, { depth: { mode: "mm", value: 10 } })],
-      [shape],
-    );
-    expect(shallow).not.toContain("lite-base-floor");
-
-    const solidBase = codes(spec(), [makeCutout("c1", "s1", 0, 0)], [shape]);
-    expect(solidBase).not.toContain("lite-base-floor");
-  });
-});

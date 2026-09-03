@@ -41,6 +41,13 @@ const projectLibrarySchema = z
   })
   .strict();
 
+// Library version 1 predates several ProjectDoc migrations. Parse its stable
+// envelope independently, then migrate each embedded document below.
+const storedProjectEnvelopeSchema = storedProjectSchema.extend({ doc: z.unknown() });
+const projectLibraryEnvelopeSchema = projectLibrarySchema.extend({
+  projects: z.array(storedProjectEnvelopeSchema),
+});
+
 type StoredProject = z.infer<typeof storedProjectSchema>;
 type StoredProjectLibrary = z.infer<typeof projectLibrarySchema>;
 
@@ -93,14 +100,18 @@ function makeProjectId(): string {
 }
 
 function parseStoredLibrary(input: unknown): StoredProjectLibrary {
-  const result = projectLibrarySchema.safeParse(input);
+  const result = projectLibraryEnvelopeSchema.safeParse(input);
   if (!result.success) return EMPTY_LIBRARY;
-  const activeProjectId = result.data.projects.some(
+  const projects = result.data.projects.flatMap((project) => {
+    const doc = parseProjectDoc(project.doc);
+    return doc ? [{ ...project, doc }] : [];
+  });
+  const activeProjectId = projects.some(
     (project) => project.id === result.data.activeProjectId,
   )
     ? result.data.activeProjectId
     : null;
-  return { ...result.data, activeProjectId };
+  return { ...result.data, projects, activeProjectId };
 }
 
 async function readStoredLibrary(): Promise<StoredProjectLibrary> {
