@@ -1,6 +1,7 @@
 import {
   parseCutoutPlacement,
   type CutoutPlacement,
+  type FingerHole,
   type TracedShape,
 } from "@shared/gridfinity/cutout";
 import { parseBinSpec } from "@shared/gridfinity/types";
@@ -66,8 +67,18 @@ function rectShape(id: string, width: number, height: number, holed = false): Tr
   };
 }
 
-function layoutFor(shapes: TracedShape[], cutouts: CutoutPlacement[]): BinLayout {
-  return { shapesById: new Map(shapes.map((s) => [s.id, s])), cutouts };
+function layoutFor(
+  shapes: TracedShape[],
+  cutouts: CutoutPlacement[],
+  fingerHoles: FingerHole[] = cutouts.flatMap(
+    (placement) => placement.fingerHoles,
+  ),
+): BinLayout {
+  return {
+    shapesById: new Map(shapes.map((s) => [s.id, s])),
+    cutouts,
+    fingerHoles,
+  };
 }
 
 function cutout(
@@ -467,7 +478,14 @@ describe("buildBinWithCutouts", () => {
         [
           cutout("c1", "s1", {
             depth: { mode: "mm", value: depth },
-            fingerHoles: [{ id: "f1", center: { x: 22, y: 0 }, diameterMm: 2 * radius }],
+            fingerHoles: [
+              {
+                id: "f1",
+                center: { x: 22, y: 0 },
+                diameterMm: 2 * radius,
+                depthMm: depth,
+              },
+            ],
           }),
         ],
       ),
@@ -480,6 +498,30 @@ describe("buildBinWithCutouts", () => {
     const expected = (30 * 10 + circleArea) * depth;
     const removed = plain.solid.volume() - pocketed.solid.volume();
     expect(Math.abs(removed - expected) / expected).toBeLessThan(1e-6);
+  });
+
+  it("builds a finger hole without any tool pocket", () => {
+    const depthMm = 5;
+    const radius = 6;
+    const plain = buildBin(kernel, SPEC, QUALITY);
+    const withHole = buildBinWithCutouts(
+      kernel,
+      SPEC,
+      layoutFor([], [], [
+        {
+          id: "independent-hole",
+          center: { x: 0, y: 0 },
+          diameterMm: radius * 2,
+          depthMm,
+          kind: "straight",
+        },
+      ]),
+      QUALITY,
+    );
+    const polygonArea =
+      0.5 * SEGMENTS * radius * radius * Math.sin((2 * Math.PI) / SEGMENTS);
+    const removed = plain.solid.volume() - withHole.solid.volume();
+    expect(Math.abs(removed - polygonArea * depthMm) / removed).toBeLessThan(1e-6);
   });
 
   it("a scoop in open surface removes its spherical cap, within facet error", () => {
@@ -594,7 +636,47 @@ describe("buildBinWithCutouts", () => {
     expect(removed).toBeGreaterThan(0.94 * analytic);
   });
 
-  it("cuts every scoop-style finger hole on the same pocket", () => {
+  it("an oblong deep scoop removes capsule walls and a rounded trough bottom", () => {
+    const shape = rectShape("s1", 12, 8);
+    const base = { depth: { mode: "mm", value: 4 } };
+    const scoop = {
+      id: "f1",
+      kind: "oblong-deep-scoop",
+      center: { x: 0, y: 20 },
+      diameterMm: 10,
+      depthMm: 25,
+      lengthMm: 40,
+      rotationDeg: 0,
+    };
+    const without = buildBinWithCutouts(
+      kernel,
+      SPEC,
+      layoutFor([shape], [cutout("c1", "s1", base)]),
+      QUALITY,
+    );
+    const withScoop = buildBinWithCutouts(
+      kernel,
+      SPEC,
+      layoutFor([shape], [cutout("c1", "s1", { ...base, fingerHoles: [scoop] })]),
+      QUALITY,
+    );
+
+    expect(withScoop.solid.status()).toBe("NoError");
+    expect(withScoop.solid.genus()).toBe(0);
+    const radius = scoop.diameterMm / 2;
+    const span = scoop.lengthMm - scoop.diameterMm;
+    const shaftArea = Math.PI * radius ** 2 + 2 * radius * span;
+    const shaftDepth = scoop.depthMm - radius;
+    const roundedBottomVolume =
+      (Math.PI * radius ** 2 * span) / 2 +
+      (2 * Math.PI * radius ** 3) / 3;
+    const analytic = shaftArea * shaftDepth + roundedBottomVolume;
+    const removed = without.solid.volume() - withScoop.solid.volume();
+    expect(removed).toBeLessThan(analytic);
+    expect(removed).toBeGreaterThan(0.92 * analytic);
+  });
+
+  it("cuts every independent scoop-style finger hole", () => {
     const shape = rectShape("s1", 12, 8);
     const base = { depth: { mode: "mm", value: 4 } };
     const left = {
@@ -628,7 +710,7 @@ describe("buildBinWithCutouts", () => {
     expect(two.solid.volume()).toBeLessThan(one.solid.volume());
   });
 
-  it("mirroring carries finger holes and scoop with the pocket", () => {
+  it("keeps independent finger holes unchanged when a pocket is mirrored", () => {
     const shape = rectShape("s1", 30, 10);
     const features = {
       depth: { mode: "mm", value: 6 },

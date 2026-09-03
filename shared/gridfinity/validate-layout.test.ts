@@ -67,7 +67,10 @@ function codes(
   shapes: TracedShape[],
 ): string[] {
   const byId = new Map(shapes.map((shape) => [shape.id, shape]));
-  return validateLayout(binSpec, cutouts, byId).map((issue) => issue.code);
+  const fingerHoles = cutouts.flatMap((cutout) => cutout.fingerHoles);
+  return validateLayout(binSpec, cutouts, byId, fingerHoles).map(
+    (issue) => issue.code,
+  );
 }
 
 // 2×2 bin: footprint 83.5, interior half-width 40.8.
@@ -312,8 +315,8 @@ describe("validateLayout: finger holes and scoops (G4)", () => {
       fingerHoles: [{ id: "f1", center: { x: 32, y: 0 }, diameterMm: 18 }],
     });
     const result = codes(spec(), [cutout], [shape]);
-    expect(result).toContain("wall-breach");
-    expect(result).not.toContain("out-of-bounds");
+    expect(result).toContain("finger-hole-wall-breach");
+    expect(result).not.toContain("finger-hole-out-of-bounds");
   });
 
   it("validates a deep scoop by its round mouth, not its vertical depth", () => {
@@ -330,8 +333,8 @@ describe("validateLayout: finger holes and scoops (G4)", () => {
       ],
     });
     const result = codes(spec(), [cutout], [shape]);
-    expect(result).not.toContain("wall-breach");
-    expect(result).not.toContain("out-of-bounds");
+    expect(result).not.toContain("finger-hole-wall-breach");
+    expect(result).not.toContain("finger-hole-out-of-bounds");
   });
 
   it("uses the full deep-scoop shaft and hemisphere depth for floor validation", () => {
@@ -348,8 +351,28 @@ describe("validateLayout: finger holes and scoops (G4)", () => {
       ],
     });
     expect(codes(spec({ heightUnits: 2 }), [cutout], [shape])).toContain(
-      "scoop-too-deep",
+      "finger-hole-too-deep",
     );
+  });
+
+  it("validates the full rotated oblong mouth against the bin walls", () => {
+    const shape = makeShape("s1", 20, 20);
+    const cutout = makeCutout("c1", "s1", 0, 0, {
+      fingerHoles: [
+        {
+          id: "f1",
+          kind: "oblong-deep-scoop",
+          center: { x: 0, y: 0 },
+          diameterMm: 10,
+          depthMm: 25,
+          lengthMm: 100,
+          rotationDeg: 0,
+        },
+      ],
+    });
+    const result = codes(spec(), [cutout], [shape]);
+    expect(result).toContain("finger-hole-wall-breach");
+    expect(result).toContain("finger-hole-out-of-bounds");
   });
 
   it("errors when a scoop is deeper than the bin", () => {
@@ -368,7 +391,7 @@ describe("validateLayout: finger holes and scoops (G4)", () => {
     });
     // 2u bin without a lip: top surface at 14 mm, scoop bottom at −1 mm.
     const result = codes(spec({ heightUnits: 2, lip: "none" }), [cutout], [shape]);
-    expect(result).toContain("scoop-too-deep");
+    expect(result).toContain("finger-hole-too-deep");
   });
 
   it("warns when a scoop leaves a paper-thin floor", () => {
@@ -387,11 +410,11 @@ describe("validateLayout: finger holes and scoops (G4)", () => {
     });
     // Scoop bottom at 14 − 13 = 1 mm: below the 1.2 mm floor threshold.
     const result = codes(spec({ heightUnits: 2, lip: "none" }), [cutout], [shape]);
-    expect(result).toContain("floor-too-thin");
-    expect(result).not.toContain("scoop-too-deep");
+    expect(result).toContain("finger-hole-floor-too-thin");
+    expect(result).not.toContain("finger-hole-too-deep");
   });
 
-  it("errors when one pocket's finger hole reaches into another pocket", () => {
+  it("does not treat an independent finger hole as owned by either overlapping pocket", () => {
     // 20-wide pockets at x = 0 and x = 25 are silent without features (5 mm
     // apart); a hole rim reaching x = 21 crosses the second pocket's outline.
     const shapes = [makeShape("s1", 20, 20), makeShape("s2", 20, 20)];
@@ -405,7 +428,7 @@ describe("validateLayout: finger holes and scoops (G4)", () => {
       makeCutout("c2", "s2", 25, 0),
     ];
     const result = codes(spec(), withHole, shapes);
-    expect(result).toContain("cutout-overlap");
+    expect(result).not.toContain("cutout-overlap");
   });
 });
 

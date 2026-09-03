@@ -1,6 +1,14 @@
 import { z } from "zod";
 
-import { cutoutPlacementSchema, tracedShapeSchema } from "./cutout";
+import {
+  cutoutPlacementSchema,
+  fingerHoleSchema,
+  oblongDeepScoopEndpoints,
+  resolvePocketDepth,
+  tracedShapeSchema,
+  transformPointPlacement,
+  type FingerHole,
+} from "./cutout";
 import { binSpecSchema } from "./types";
 
 /**
@@ -11,12 +19,21 @@ import { binSpecSchema } from "./types";
  * feature models change. Version 2 replaces the one-off scoop with typed,
  * per-finger-hole straight/scoop geometry; version 3 adds a per-pocket top
  * edge fillet; version 4 adds nonrectangular cell footprints and boundary-edge
- * label-tab anchors; version 5 adds straight-shaft deep finger scoops.
+ * label-tab anchors; version 5 adds straight-shaft deep finger scoops; version
+ * 6 adds resizable, rotated oblong deep scoops; version 7 promotes finger
+ * holes from pocket-relative children to independent, bin-local objects.
  */
 
-export const PROJECT_SCHEMA_VERSION = 5 as const;
+export const PROJECT_SCHEMA_VERSION = 7 as const;
 
 const projectFields = {
+  shapes: z.array(tracedShapeSchema),
+  spec: binSpecSchema,
+  cutouts: z.array(cutoutPlacementSchema),
+  fingerHoles: z.array(fingerHoleSchema),
+};
+
+const legacyProjectFields = {
   shapes: z.array(tracedShapeSchema),
   spec: binSpecSchema,
   cutouts: z.array(cutoutPlacementSchema),
@@ -29,51 +46,66 @@ export const projectDocSchema = z
   })
   .strict();
 
-const projectDocV1Schema = z
-  .object({
-    schemaVersion: z.literal(1),
-    ...projectFields,
-  })
-  .strict()
-  .transform(({ schemaVersion: _legacyVersion, ...doc }) => ({
-    ...doc,
-    schemaVersion: PROJECT_SCHEMA_VERSION,
-  }));
-
-const projectDocV2Schema = z
-  .object({
-    schemaVersion: z.literal(2),
-    ...projectFields,
-  })
-  .strict()
-  .transform(({ schemaVersion: _legacyVersion, ...doc }) => ({
-    ...doc,
-    schemaVersion: PROJECT_SCHEMA_VERSION,
-  }));
-
-const projectDocV3Schema = z
-  .object({
-    schemaVersion: z.literal(3),
-    ...projectFields,
-  })
-  .strict()
-  .transform(({ schemaVersion: _legacyVersion, ...doc }) => ({
-    ...doc,
-    schemaVersion: PROJECT_SCHEMA_VERSION,
-  }));
-
-const projectDocV4Schema = z
-  .object({
-    schemaVersion: z.literal(4),
-    ...projectFields,
-  })
-  .strict()
-  .transform(({ schemaVersion: _legacyVersion, ...doc }) => ({
-    ...doc,
-    schemaVersion: PROJECT_SCHEMA_VERSION,
-  }));
+const legacyProjectSchemas = [1, 2, 3, 4, 5, 6].map((schemaVersion) =>
+  z
+    .object({
+      schemaVersion: z.literal(schemaVersion),
+      ...legacyProjectFields,
+    })
+    .strict(),
+);
 
 export type ProjectDoc = z.infer<typeof projectDocSchema>;
+
+type LegacyProjectDoc = z.infer<(typeof legacyProjectSchemas)[number]>;
+
+/** Keeps migrated ids unique now that formerly per-pocket arrays share one list. */
+function uniqueFingerHoleId(id: string, used: Set<string>): string {
+  let candidate = id;
+  let suffix = 2;
+  while (used.has(candidate)) candidate = `${id}-${suffix++}`;
+  used.add(candidate);
+  return candidate;
+}
+
+function migrateLegacyProject(doc: LegacyProjectDoc): ProjectDoc {
+  const usedIds = new Set<string>();
+  const fingerHoles: FingerHole[] = [];
+  const cutouts = doc.cutouts.map((cutout) => {
+    const pocket = resolvePocketDepth(doc.spec, cutout.depth);
+    for (const hole of cutout.fingerHoles) {
+      const center = transformPointPlacement(hole.center, cutout);
+      let rotationDeg = hole.rotationDeg;
+      if (hole.kind === "oblong-deep-scoop") {
+        const endpoints = oblongDeepScoopEndpoints(hole);
+        const start = transformPointPlacement(endpoints.start, cutout);
+        const end = transformPointPlacement(endpoints.end, cutout);
+        rotationDeg =
+          ((Math.atan2(end.y - start.y, end.x - start.x) * 180) / Math.PI + 360) %
+          360;
+      }
+      fingerHoles.push({
+        ...hole,
+        id: uniqueFingerHoleId(hole.id, usedIds),
+        center,
+        rotationDeg,
+        // Straight holes formerly inherited the parent pocket floor.
+        depthMm:
+          hole.kind === "straight"
+            ? Math.min(120, Math.max(1, pocket.depthMm ?? pocket.infillTopZ + 1))
+            : hole.depthMm,
+      });
+    }
+    return { ...cutout, fingerHoles: [] };
+  });
+  return projectDocSchema.parse({
+    schemaVersion: PROJECT_SCHEMA_VERSION,
+    shapes: doc.shapes,
+    spec: doc.spec,
+    cutouts,
+    fingerHoles,
+  });
+}
 
 /**
  * Parses a stored document, returning null on any mismatch — a corrupt or
@@ -83,12 +115,9 @@ export type ProjectDoc = z.infer<typeof projectDocSchema>;
 export function parseProjectDoc(input: unknown): ProjectDoc | null {
   const result = projectDocSchema.safeParse(input);
   if (result.success) return result.data;
-  const migratedV4 = projectDocV4Schema.safeParse(input);
-  if (migratedV4.success) return migratedV4.data;
-  const migratedV3 = projectDocV3Schema.safeParse(input);
-  if (migratedV3.success) return migratedV3.data;
-  const migratedV2 = projectDocV2Schema.safeParse(input);
-  if (migratedV2.success) return migratedV2.data;
-  const migrated = projectDocV1Schema.safeParse(input);
-  return migrated.success ? migrated.data : null;
+  for (const schema of [...legacyProjectSchemas].reverse()) {
+    const migrated = schema.safeParse(input);
+    if (migrated.success) return migrateLegacyProject(migrated.data);
+  }
+  return null;
 }
