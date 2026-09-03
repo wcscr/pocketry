@@ -17,9 +17,24 @@ import type { Outline, Point, Rect, RingRef } from "@shared/geometry/types";
 
 import type {
   PerspectiveProposal,
+  PerspectiveQuad,
   PerspectiveSource,
 } from "@/lib/calibrate/perspective";
 import type { TemplatePaper } from "@/lib/calibrate/template";
+import {
+  combineImageRotations,
+  fitImageWithin,
+  nextImageRotation,
+  rotateDraftCalibration,
+  rotateImageCalibration,
+  rotateImageOutline,
+  rotateImagePoint,
+  rotateImageRect,
+  rotatedImageDimensions,
+  type ImageDimensions,
+  type ImageQuarterTurns,
+  type ImageRotationDirection,
+} from "@/lib/geometry/image-rotation";
 import { DEFAULT_MARGIN_MM, type Margin } from "@/lib/image-processor";
 
 /**
@@ -60,6 +75,8 @@ export interface TraceState {
   fileName: string;
   /** Working-resolution image size; the coordinate space of everything below. */
   imageSize: { width: number; height: number };
+  /** Clockwise quarter-turns applied to the decoded source image. */
+  imageRotation: ImageQuarterTurns;
 
   /** Presentation rings, after simplification, smoothing and margin. */
   outline: Outline;
@@ -98,6 +115,8 @@ export interface TraceState {
   manualPerspectivePoints: Point[];
   /** Original source retained so a correction remains reversible. */
   perspectiveOriginalImageUrl: string | null;
+  /** Orientation of the retained source before perspective correction. */
+  perspectiveOriginalImageRotation: ImageQuarterTurns | null;
   /** How the current working image was rectified, or null for the original. */
   perspectiveCorrection: {
     source: PerspectiveSource;
@@ -119,6 +138,7 @@ export const initialTraceState: TraceState = {
   sourceRevision: 0,
   fileName: "",
   imageSize: { width: 0, height: 0 },
+  imageRotation: 0,
   outline: [],
   rawOutline: [],
   svg: null,
@@ -143,6 +163,7 @@ export const initialTraceState: TraceState = {
   pendingPerspective: null,
   manualPerspectivePoints: [],
   perspectiveOriginalImageUrl: null,
+  perspectiveOriginalImageRotation: null,
   perspectiveCorrection: null,
   region: null,
   mode: "pan",
@@ -155,6 +176,13 @@ export type TraceAction =
   | { type: "SOURCE_LOADED"; imageUrl: string; fileName: string }
   | { type: "SOURCE_READY"; imageSize: { width: number; height: number } }
   | { type: "SOURCE_CLEARED" }
+  | {
+      type: "ROTATE_SOURCE";
+      direction: ImageRotationDirection;
+      /** Decoded dimensions before the selected orientation and working cap. */
+      naturalSize: ImageDimensions;
+      maxSize: ImageDimensions;
+    }
   | {
       type: "DETECTED";
       outline: Outline;
@@ -230,6 +258,51 @@ function pushHistory(
   return { stack: trimmed, index: trimmed.length - 1 };
 }
 
+function rotatePerspectiveProposal(
+  proposal: PerspectiveProposal,
+  source: ImageDimensions,
+  target: ImageDimensions,
+  direction: ImageRotationDirection,
+): PerspectiveProposal {
+  let points = proposal.points.map((point) =>
+    rotateImagePoint(point, source, target, direction),
+  ) as PerspectiveQuad;
+  // Manual proposals map array positions to TL/TR/BR/BL destination corners.
+  // A visual quarter-turn changes which original corner is now top-left.
+  if (proposal.source === "manual") {
+    points = (direction === "clockwise"
+      ? [points[3], points[0], points[1], points[2]]
+      : [points[1], points[2], points[3], points[0]]) as PerspectiveQuad;
+  }
+  return {
+    ...proposal,
+    points,
+    correspondences: proposal.correspondences
+      ? {
+          ...proposal.correspondences,
+          source: proposal.correspondences.source.map((point) =>
+            rotateImagePoint(point, source, target, direction),
+          ),
+        }
+      : undefined,
+  };
+}
+
+function rotateManualPerspectivePoints(
+  points: Point[],
+  source: ImageDimensions,
+  target: ImageDimensions,
+  direction: ImageRotationDirection,
+): Point[] {
+  const rotated = points.map((point) =>
+    rotateImagePoint(point, source, target, direction),
+  );
+  if (rotated.length !== 4) return [];
+  return direction === "clockwise"
+    ? [rotated[3], rotated[0], rotated[1], rotated[2]]
+    : [rotated[1], rotated[2], rotated[3], rotated[0]];
+}
+
 export function traceReducer(state: TraceState, action: TraceAction): TraceState {
   switch (action.type) {
     case "SOURCE_LOADED":
@@ -251,6 +324,112 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
 
     case "SOURCE_READY":
       return { ...state, imageSize: action.imageSize };
+
+    case "ROTATE_SOURCE": {
+      if (
+        !state.imageUrl ||
+        state.processing ||
+        state.imageSize.width <= 0 ||
+        state.imageSize.height <= 0
+      ) {
+        return state;
+      }
+      const imageRotation = nextImageRotation(
+        state.imageRotation,
+        action.direction,
+      );
+      const imageSize = fitImageWithin(
+        rotatedImageDimensions(action.naturalSize, imageRotation),
+        action.maxSize,
+      );
+      const rotateCalibration = (calibration: Calibration | null) =>
+        calibration
+          ? rotateImageCalibration(
+              calibration,
+              state.imageSize,
+              imageSize,
+              action.direction,
+            )
+          : null;
+      const hasPartialPerspectiveSelection =
+        state.manualPerspectivePoints.length > 0 &&
+        state.manualPerspectivePoints.length < 4;
+
+      return {
+        ...state,
+        imageSize,
+        imageRotation,
+        outline: rotateImageOutline(
+          state.outline,
+          state.imageSize,
+          imageSize,
+          action.direction,
+        ),
+        rawOutline: rotateImageOutline(
+          state.rawOutline,
+          state.imageSize,
+          imageSize,
+          action.direction,
+        ),
+        // This legacy detector preview is not consumed by the current UI.
+        // Never retain pixel-space markup whose viewBox no longer matches.
+        svg: null,
+        history: {
+          ...state.history,
+          stack: state.history.stack.map((entry) => ({
+            ...entry,
+            outline: rotateImageOutline(
+              entry.outline,
+              state.imageSize,
+              imageSize,
+              action.direction,
+            ),
+          })),
+        },
+        calibration: rotateCalibration(state.calibration),
+        pendingAutoCalibration: rotateCalibration(
+          state.pendingAutoCalibration,
+        ),
+        draftCalibration: state.draftCalibration
+          ? rotateDraftCalibration(
+              state.draftCalibration,
+              state.imageSize,
+              imageSize,
+              action.direction,
+            )
+          : null,
+        region: state.region
+          ? rotateImageRect(
+              state.region,
+              state.imageSize,
+              imageSize,
+              action.direction,
+            )
+          : null,
+        pendingPerspective: state.pendingPerspective
+          ? rotatePerspectiveProposal(
+              state.pendingPerspective,
+              state.imageSize,
+              imageSize,
+              action.direction,
+            )
+          : null,
+        manualPerspectivePoints: rotateManualPerspectivePoints(
+          state.manualPerspectivePoints,
+          state.imageSize,
+          imageSize,
+          action.direction,
+        ),
+        mode:
+          hasPartialPerspectiveSelection && state.mode === "perspective"
+            ? "pan"
+            : state.mode,
+        // Marker detection is rotation-invariant, and any accepted/pending
+        // geometry above has already been turned with the source.
+        autoCalibrationAttemptedImageUrl:
+          state.autoCalibrationAttemptedImageUrl,
+      };
+    }
 
     case "SOURCE_CLEARED":
       return {
@@ -394,19 +573,29 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
       // Entering either manual measurement mode rejects an automatic proposal.
       const rejectsAutomatic =
         action.mode === "calibrate" || action.mode === "perspective";
+      const startsCalibration =
+        action.mode === "calibrate" && state.mode !== "calibrate";
       return {
         ...state,
         mode: action.mode,
+        // Redrawing is a replacement, not a second ruler layered over the
+        // accepted one. Invalidate both the old scale and any completed draft
+        // when manual placement starts; repeat clicks on the active tool leave
+        // the ruler currently being placed alone.
+        calibration: startsCalibration ? null : state.calibration,
+        calibrationSource: startsCalibration ? null : state.calibrationSource,
         // Choosing a manual tool is an explicit rejection of the automatic
         // candidate, including all of its canvas overlays.
         pendingAutoCalibration:
           rejectsAutomatic ? null : state.pendingAutoCalibration,
         pendingPerspective: rejectsAutomatic ? null : state.pendingPerspective,
         draftCalibration:
-          action.mode === "calibrate" ||
-          hasCalibrationEndpoints(state.draftCalibration)
-            ? state.draftCalibration
-            : null,
+          startsCalibration
+            ? null
+            : action.mode === "calibrate" ||
+                hasCalibrationEndpoints(state.draftCalibration)
+              ? state.draftCalibration
+              : null,
       };
     }
 
@@ -570,6 +759,8 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         rulerLengthMm: state.rulerLengthMm,
         perspectiveOriginalImageUrl:
           state.perspectiveOriginalImageUrl ?? state.imageUrl,
+        perspectiveOriginalImageRotation:
+          state.perspectiveOriginalImageRotation ?? state.imageRotation,
         perspectiveCorrection: { source: action.source, paper: action.paper },
         mode: "region",
         exportFormat: state.exportFormat,
@@ -583,6 +774,12 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         imageUrl: state.perspectiveOriginalImageUrl,
         sourceRevision: state.sourceRevision + 1,
         fileName: state.fileName,
+        // A corrected raster starts at rotation 0 even when its source was
+        // already oriented. Carry any later turns back onto the raw source.
+        imageRotation: combineImageRotations(
+          state.perspectiveOriginalImageRotation ?? 0,
+          state.imageRotation,
+        ),
         // Do not immediately propose the same correction again. The explicit
         // Detect sheet action remains available if the user wants another try.
         autoCalibrationAttemptedImageUrl: state.perspectiveOriginalImageUrl,

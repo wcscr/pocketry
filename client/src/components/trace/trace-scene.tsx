@@ -19,6 +19,7 @@ import {
 
 import { iterateRings, sameRingRef } from "@/lib/geometry/outline";
 import { outlineToPathData } from "@/lib/export/svg";
+import type { ImageQuarterTurns } from "@/lib/geometry/image-rotation";
 
 /** The viewport transform applied to the whole scene. */
 export interface SceneTransform {
@@ -30,6 +31,7 @@ export interface SceneTransform {
 export interface TraceSceneProps {
   imageUrl: string;
   imageSize: { width: number; height: number };
+  imageRotation?: ImageQuarterTurns;
   transform: SceneTransform;
   outline: Outline;
   selection: RingRef | null;
@@ -108,6 +110,7 @@ const PERSPECTIVE_HIT_RADIUS = 15;
 export function TraceScene({
   imageUrl,
   imageSize,
+  imageRotation = 0,
   transform,
   outline,
   selection,
@@ -160,7 +163,12 @@ export function TraceScene({
         ref={sceneRef}
         transform={`translate(${translateX} ${translateY}) scale(${scale})`}
       >
-        <SourceImage url={imageUrl} width={imageSize.width} height={imageSize.height} />
+        <SourceImage
+          url={imageUrl}
+          width={imageSize.width}
+          height={imageSize.height}
+          rotation={imageRotation}
+        />
 
         {/* The traced material, with holes punched out by the even-odd rule. */}
         {fillPath && (
@@ -286,20 +294,35 @@ const SourceImage = memo(function SourceImage({
   url,
   width,
   height,
+  rotation,
 }: {
   url: string;
   width: number;
   height: number;
+  rotation: ImageQuarterTurns;
 }) {
   if (width <= 0 || height <= 0) return null;
+  const turned = rotation % 2 === 1;
+  const sourceWidth = turned ? height : width;
+  const sourceHeight = turned ? width : height;
+  const imageTransform =
+    rotation === 1
+      ? `translate(${width} 0) rotate(90)`
+      : rotation === 2
+        ? `translate(${width} ${height}) rotate(180)`
+        : rotation === 3
+          ? `translate(0 ${height}) rotate(-90)`
+          : undefined;
   return (
     <image
       href={url}
       x={0}
       y={0}
-      width={width}
-      height={height}
+      width={sourceWidth}
+      height={sourceHeight}
+      transform={imageTransform}
       preserveAspectRatio="none"
+      data-testid="trace-source-image"
     />
   );
 });

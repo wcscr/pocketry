@@ -2,6 +2,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { Rect } from "@shared/geometry/types";
 
+import {
+  fitImageWithin,
+  rotatedImageDimensions,
+  type ImageQuarterTurns,
+} from "@/lib/geometry/image-rotation";
+
 /**
  * Owns image decoding and the offscreen canvas that pixels are read from.
  *
@@ -132,22 +138,44 @@ export interface UseImageSourceResult {
 
 /** Fits `natural` inside `max` without changing its aspect ratio. */
 export function fitWithin(natural: Size, max: Size): Size {
-  let { width, height } = natural;
-  if (width > max.width) {
-    height = (max.width / width) * height;
-    width = max.width;
+  return fitImageWithin(natural, max);
+}
+
+/** Draws the decoded source into a canvas using its selected quarter-turn. */
+export function drawImageWithRotation(
+  context: CanvasRenderingContext2D,
+  image: CanvasImageSource,
+  target: Size,
+  rotation: ImageQuarterTurns,
+): void {
+  context.save();
+  switch (rotation) {
+    case 1:
+      context.translate(target.width, 0);
+      context.rotate(Math.PI / 2);
+      context.drawImage(image, 0, 0, target.height, target.width);
+      break;
+    case 2:
+      context.translate(target.width, target.height);
+      context.rotate(Math.PI);
+      context.drawImage(image, 0, 0, target.width, target.height);
+      break;
+    case 3:
+      context.translate(0, target.height);
+      context.rotate(-Math.PI / 2);
+      context.drawImage(image, 0, 0, target.height, target.width);
+      break;
+    default:
+      context.drawImage(image, 0, 0, target.width, target.height);
   }
-  if (height > max.height) {
-    width = (max.height / height) * width;
-    height = max.height;
-  }
-  return { width: Math.max(1, Math.round(width)), height: Math.max(1, Math.round(height)) };
+  context.restore();
 }
 
 export function useImageSource(
   url: string | null,
   fileName = "",
   max: Size = IMAGE_CANVAS_MAX,
+  rotation: ImageQuarterTurns = 0,
 ): UseImageSourceResult {
   const [source, setSource] = useState<ImageSource>({ status: "empty" });
   // Created imperatively: it is a pixel buffer, not part of the view.
@@ -178,7 +206,7 @@ export function useImageSource(
       if (cancelled) return;
 
       const naturalSize = { width: image.width, height: image.height };
-      const size = fitWithin(naturalSize, max);
+      const size = fitWithin(rotatedImageDimensions(naturalSize, rotation), max);
 
       const canvas = canvasRef.current ?? document.createElement("canvas");
       canvasRef.current = canvas;
@@ -196,7 +224,7 @@ export function useImageSource(
         return;
       }
 
-      ctx.drawImage(image, 0, 0, size.width, size.height);
+      drawImageWithRotation(ctx, image, size, rotation);
       imageRef.current = image;
       setSource({ status: "ready", url, fileName, size, naturalSize });
     };
@@ -217,7 +245,7 @@ export function useImageSource(
     return () => {
       cancelled = true;
     };
-  }, [url, fileName, max]);
+  }, [url, fileName, max, rotation]);
 
   const getImageData = useCallback(
     (region?: Rect | null): ImageData | null => {
@@ -247,20 +275,24 @@ export function useImageSource(
     const image = imageRef.current;
     if (!image || source.status !== "ready") return null;
 
-    const { detect, toWorking } = detectionGeometry(source.naturalSize, max);
+    const orientedNaturalSize = rotatedImageDimensions(
+      source.naturalSize,
+      rotation,
+    );
+    const { detect, toWorking } = detectionGeometry(orientedNaturalSize, max);
     const canvas = document.createElement("canvas");
     canvas.width = detect.width;
     canvas.height = detect.height;
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
     if (!ctx) return null;
 
-    ctx.drawImage(image, 0, 0, detect.width, detect.height);
+    drawImageWithRotation(ctx, image, detect, rotation);
     return {
       imageData: ctx.getImageData(0, 0, detect.width, detect.height),
       toWorking,
       sourceImageUrl: source.url,
     };
-  }, [source, max]);
+  }, [source, max, rotation]);
 
   return { source, getImageData, getDetectionFrame };
 }
