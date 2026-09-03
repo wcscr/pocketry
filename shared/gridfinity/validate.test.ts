@@ -22,10 +22,12 @@ describe("binSpecSchema", () => {
     expect(() => spec({ gridPitch: "eighth" as never })).toThrow();
   });
 
-  it("rejects non-integer and out-of-range sizes", () => {
+  it("accepts half-unit heights and rejects unsupported or out-of-range sizes", () => {
+    expect(spec({ heightUnits: 6.5 }).heightUnits).toBe(6.5);
     expect(() => spec({ gridX: 0 })).toThrow();
     expect(() => spec({ gridX: 2.5 })).toThrow();
     expect(() => spec({ gridY: 17 })).toThrow();
+    expect(() => spec({ heightUnits: 6.25 })).toThrow();
     expect(() => spec({ heightUnits: 0 })).toThrow();
     expect(() => spec({ heightUnits: 43 })).toThrow();
   });

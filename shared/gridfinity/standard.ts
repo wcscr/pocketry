@@ -38,6 +38,59 @@ export function gridPitchMm(pitch: GridPitch = "full"): number {
   return GRID_DIMENSIONS_MM / GRID_PITCH_DIVISOR[pitch];
 }
 
+/** Selected-pitch grid count expressed in standard 42 mm cells. */
+export function standardCellSpan(
+  gridCount: number,
+  pitch: GridPitch = "full",
+): number {
+  return gridCount / GRID_PITCH_DIVISOR[pitch];
+}
+
+export interface RectangularGridDimensions {
+  gridX: number;
+  gridY: number;
+  gridPitch: GridPitch;
+}
+
+/**
+ * Changes one rectangular dimension in standard-cell units.
+ *
+ * Grid geometry remains an integer lattice internally. When a full-pitch bin
+ * first receives a half-cell dimension, both axes are promoted to half pitch
+ * so the untouched physical span stays fixed. Existing half/quarter pitch is
+ * retained rather than silently changing the socket pattern.
+ */
+export function resizeGridToStandardCellSpan(
+  grid: RectangularGridDimensions,
+  axis: "x" | "y",
+  span: number,
+): RectangularGridDimensions {
+  if (!Number.isFinite(span) || span <= 0) {
+    throw new Error(`Grid span must be positive, got ${span}`);
+  }
+
+  const pitches: readonly GridPitch[] = ["full", "half", "quarter"];
+  const currentIndex = pitches.indexOf(grid.gridPitch);
+  const targetPitch = pitches
+    .slice(currentIndex)
+    .find((pitch) => Number.isInteger(span * GRID_PITCH_DIVISOR[pitch]));
+  if (!targetPitch) {
+    throw new Error(`Grid span must align to a quarter cell, got ${span}`);
+  }
+
+  const currentDivisor = GRID_PITCH_DIVISOR[grid.gridPitch];
+  const targetDivisor = GRID_PITCH_DIVISOR[targetPitch];
+  const promotion = targetDivisor / currentDivisor;
+  const resized = {
+    gridX: grid.gridX * promotion,
+    gridY: grid.gridY * promotion,
+    gridPitch: targetPitch,
+  };
+  if (axis === "x") resized.gridX = Math.round(span * targetDivisor);
+  else resized.gridY = Math.round(span * targetDivisor);
+  return resized;
+}
+
 /** Height of one Gridfinity height unit ("u"). A "6u" bin is 42 mm tall. */
 export const HEIGHT_UNIT_MM = 7;
 

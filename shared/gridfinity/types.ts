@@ -40,16 +40,16 @@ const boundaryEdgeSchema = z.object({
 
 export const binSpecSchema = z
   .object({
-    /** Number of 42 mm grid cells along x. */
+    /** Number of selected-pitch grid cells along x. */
     gridX: z.number().int().min(1).max(MAX_GRID),
-    /** Number of 42 mm grid cells along y. */
+    /** Number of selected-pitch grid cells along y. */
     gridY: z.number().int().min(1).max(MAX_GRID),
     /** Standard 42 mm cells, or equal half/quarter-pitch subdivisions. */
     gridPitch: z.enum(["full", "half", "quarter"]).default("full"),
     /** Rectangular legacy footprint or a canonical connected cell mask. */
     footprint: footprintSchema.default({ kind: "rectangle" }),
     /** Height in 7 mm units, including the base, excluding the stacking lip. */
-    heightUnits: z.number().int().min(1).max(MAX_HEIGHT_UNITS),
+    heightUnits: z.number().min(1).max(MAX_HEIGHT_UNITS).multipleOf(0.5),
     /** Stacking lip on the rim. `none` gives a flush top. */
     lip: z.enum(["standard", "none"]).default("standard"),
     /**
