@@ -252,6 +252,7 @@ function BinDesignerWorkspace(): JSX.Element {
     error,
     buildOnce,
     buildFitCheck,
+    buildSurfaceFitCheck,
   } = useBinGeometry(
     committedSpec,
     PREVIEW_QUALITY,
@@ -725,6 +726,48 @@ function BinDesignerWorkspace(): JSX.Element {
     [buildFitCheck, cutouts, library.shapes, toast],
   );
 
+  const handleExportSurfaceFitCheck = useCallback(
+    async (thicknessMm: number) => {
+      setExporting(true);
+      try {
+        const result = await buildSurfaceFitCheck(thicknessMm, EXPORT_QUALITY);
+        const label = `${spec.gridX}x${spec.gridY}${
+          spec.gridPitch === "full" ? "" : `-${spec.gridPitch}`
+        }${
+          spec.footprint.kind === "custom"
+            ? `-custom-${spec.footprint.cells.length}cell`
+            : ""
+        }`;
+        const thicknessLabel = Number.isInteger(thicknessMm)
+          ? String(thicknessMm)
+          : thicknessMm.toFixed(1);
+        const stl = writeBinarySTL(
+          { positions: result.mesh.positions, indices: result.mesh.indices },
+          `Pocketry ${label} surface fit test ${thicknessLabel} mm`,
+        );
+        downloadBlob(
+          new Blob([stl], { type: "application/octet-stream" }),
+          `bin-${label}-surface-fit-test-${thicknessLabel}mm.stl`,
+        );
+        toast({
+          title: "Surface fit test saved",
+          description: `Exported the complete pocket-layout surface at ${thicknessLabel} mm thick, without the base, walls, label tab, or stacking lip.`,
+        });
+      } catch (cause) {
+        if (!(cause instanceof WorkerCancelledError)) {
+          toast({
+            title: "Surface fit test export failed",
+            description: cause instanceof Error ? cause.message : String(cause),
+            variant: "destructive",
+          });
+        }
+      } finally {
+        setExporting(false);
+      }
+    },
+    [buildSurfaceFitCheck, spec, toast],
+  );
+
   return (
     <WorkspaceLayout
       autoSaveId="tooltrace:bin"
@@ -739,6 +782,9 @@ function BinDesignerWorkspace(): JSX.Element {
           onExport={(format) => void handleExport(format)}
           onExportFitCheck={(cutoutId, depthMm) =>
             void handleExportFitCheck(cutoutId, depthMm)
+          }
+          onExportSurfaceFitCheck={(thicknessMm) =>
+            void handleExportSurfaceFitCheck(thicknessMm)
           }
           onExportLayout={handleExportLayout}
           onAutoArrange={handleAutoArrange}

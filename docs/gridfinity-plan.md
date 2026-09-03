@@ -316,6 +316,12 @@ second, reusing the existing writer in `client/src/lib/export/stl.ts`. A top-dow
 **bin-layout DXF/SVG** from the 2D editor is nearly free and ties the CNC shadow-board
 product back to the bins. A selected pocket can also export a standalone filled
 fit-template STL for a low-material silhouette check before committing to a bin.
+For the more reliable multi-tool check, **Complete surface fit test** exports
+the bin's full pocket-layout plane as one 0.4–3 mm plate (1.2 mm default), with
+the real outer footprint, clearances, top-edge rounds, spacing, and finger
+access. It omits the base, wall height, label tab, and stacking lip and moves
+the plate to the build plane; it therefore tests surface fit, not pocket depth
+or baseplate fit.
 
 Call `manifold.calculateNormals(0, 60)` before `getMesh()` so normals arrive in the
 standard vertex-property channel. Using three's `computeVertexNormals()` instead
