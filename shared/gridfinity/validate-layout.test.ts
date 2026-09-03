@@ -316,6 +316,42 @@ describe("validateLayout: finger holes and scoops (G4)", () => {
     expect(result).not.toContain("out-of-bounds");
   });
 
+  it("validates a deep scoop by its round mouth, not its vertical depth", () => {
+    const shape = makeShape("s1", 20, 20);
+    const cutout = makeCutout("c1", "s1", 0, 0, {
+      fingerHoles: [
+        {
+          id: "f1",
+          kind: "deep-scoop",
+          center: { x: 0, y: 0 },
+          diameterMm: 6,
+          depthMm: 30,
+        },
+      ],
+    });
+    const result = codes(spec(), [cutout], [shape]);
+    expect(result).not.toContain("wall-breach");
+    expect(result).not.toContain("out-of-bounds");
+  });
+
+  it("uses the full deep-scoop shaft and hemisphere depth for floor validation", () => {
+    const shape = makeShape("s1", 20, 20);
+    const cutout = makeCutout("c1", "s1", 0, 0, {
+      fingerHoles: [
+        {
+          id: "f1",
+          kind: "deep-scoop",
+          center: { x: 0, y: 0 },
+          diameterMm: 10,
+          depthMm: 15,
+        },
+      ],
+    });
+    expect(codes(spec({ heightUnits: 2 }), [cutout], [shape])).toContain(
+      "scoop-too-deep",
+    );
+  });
+
   it("errors when a scoop is deeper than the bin", () => {
     const shape = makeShape("s1", 20, 20);
     const cutout = makeCutout("c1", "s1", 0, 0, {

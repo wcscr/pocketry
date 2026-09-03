@@ -11,10 +11,10 @@ import { binSpecSchema } from "./types";
  * feature models change. Version 2 replaces the one-off scoop with typed,
  * per-finger-hole straight/scoop geometry; version 3 adds a per-pocket top
  * edge fillet; version 4 adds nonrectangular cell footprints and boundary-edge
- * label-tab anchors.
+ * label-tab anchors; version 5 adds straight-shaft deep finger scoops.
  */
 
-export const PROJECT_SCHEMA_VERSION = 4 as const;
+export const PROJECT_SCHEMA_VERSION = 5 as const;
 
 const projectFields = {
   shapes: z.array(tracedShapeSchema),
@@ -62,6 +62,17 @@ const projectDocV3Schema = z
     schemaVersion: PROJECT_SCHEMA_VERSION,
   }));
 
+const projectDocV4Schema = z
+  .object({
+    schemaVersion: z.literal(4),
+    ...projectFields,
+  })
+  .strict()
+  .transform(({ schemaVersion: _legacyVersion, ...doc }) => ({
+    ...doc,
+    schemaVersion: PROJECT_SCHEMA_VERSION,
+  }));
+
 export type ProjectDoc = z.infer<typeof projectDocSchema>;
 
 /**
@@ -72,6 +83,8 @@ export type ProjectDoc = z.infer<typeof projectDocSchema>;
 export function parseProjectDoc(input: unknown): ProjectDoc | null {
   const result = projectDocSchema.safeParse(input);
   if (result.success) return result.data;
+  const migratedV4 = projectDocV4Schema.safeParse(input);
+  if (migratedV4.success) return migratedV4.data;
   const migratedV3 = projectDocV3Schema.safeParse(input);
   if (migratedV3.success) return migratedV3.data;
   const migratedV2 = projectDocV2Schema.safeParse(input);

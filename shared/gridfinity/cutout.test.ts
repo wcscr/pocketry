@@ -7,6 +7,7 @@ import {
   binToCanvas,
   canvasToBin,
   cutoutPlacementSchema,
+  effectiveDeepScoopDepthMm,
   effectiveScoopDepthMm,
   parseCutoutPlacement,
   placementFootprint,
@@ -57,6 +58,16 @@ describe("cutout schemas", () => {
     expect(placement.cornerRoundMm).toBeCloseTo(1, 12);
     expect(placement.topFilletMm).toBe(0);
     expect(placement.bottomFilletMm).toBeCloseTo(R_F2, 12);
+    const withHole = parseCutoutPlacement({
+      id: "c2",
+      shapeId: "s1",
+      position: { x: 0, y: 0 },
+      fingerHoles: [{ id: "f1", center: { x: 0, y: 0 }, diameterMm: 18 }],
+    });
+    expect(withHole.fingerHoles[0]).toMatchObject({
+      kind: "straight",
+      depthMm: 12,
+    });
   });
 
   it("rejects unknown keys and malformed outlines", () => {
@@ -311,8 +322,38 @@ describe("typed finger holes (straight and scoop)", () => {
     expect(Math.max(...ys)).toBeCloseTo(13, 9);
   });
 
+  it("uses a round plan-view footprint for a deep scoop", () => {
+    const footprint = placementFootprint({ outlineMm: CHIRAL }, {
+      position: { x: 0, y: 0 },
+      rotationDeg: 90,
+      mirrored: false,
+      fingerHoles: [
+        {
+          id: "f1",
+          center: { x: 10, y: 0 },
+          diameterMm: 6,
+          kind: "deep-scoop",
+          depthMm: 20,
+        },
+      ],
+    });
+    const xs = footprint.features[0].map((point) => point.x);
+    const ys = footprint.features[0].map((point) => point.y);
+    // Local (10, 0) becomes bin (0, 10) after the 90° placement.
+    expect(Math.min(...xs)).toBeCloseTo(-3, 9);
+    expect(Math.max(...xs)).toBeCloseTo(3, 9);
+    expect(Math.min(...ys)).toBeCloseTo(7, 9);
+    expect(Math.max(...ys)).toBeCloseTo(13, 9);
+    expect(signedArea(footprint.features[0])).toBeGreaterThan(0);
+  });
+
   it("clamps the scoop to a hemisphere", () => {
     expect(effectiveScoopDepthMm({ diameterMm: 30, depthMm: 12 })).toBe(12);
     expect(effectiveScoopDepthMm({ diameterMm: 20, depthMm: 25 })).toBe(10);
+  });
+
+  it("keeps a deep scoop at least one radius deep", () => {
+    expect(effectiveDeepScoopDepthMm({ diameterMm: 18, depthMm: 30 })).toBe(30);
+    expect(effectiveDeepScoopDepthMm({ diameterMm: 18, depthMm: 4 })).toBe(9);
   });
 });

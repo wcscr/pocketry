@@ -853,7 +853,7 @@ export function BinControlsPanel({
                   <div>
                     <Label className="text-xs">Finger holes</Label>
                     <p className="text-[11px] text-muted-foreground">
-                      Straight cut or top scoop
+                      Straight cut, top scoop, or deep scoop
                     </p>
                   </div>
                   <Button
@@ -900,7 +900,16 @@ export function BinControlsPanel({
                             patch: {
                               fingerHoles: selectedCutout.fingerHoles.map((h) =>
                                 h.id === hole.id
-                                  ? { ...h, kind: kind as FingerHole["kind"] }
+                                  ? {
+                                      ...h,
+                                      kind: kind as FingerHole["kind"],
+                                      depthMm:
+                                        kind === "scoop"
+                                          ? Math.min(h.depthMm, h.diameterMm / 2)
+                                          : kind === "deep-scoop"
+                                            ? Math.max(h.depthMm, h.diameterMm)
+                                            : h.depthMm,
+                                    }
                                   : h,
                               ),
                             },
@@ -909,7 +918,7 @@ export function BinControlsPanel({
                         }
                       >
                         <SelectTrigger
-                          className="h-7 w-28 px-2 text-xs"
+                          className="h-7 w-36 px-2 text-xs"
                           aria-label={`Finger hole ${index + 1} type`}
                           data-testid={`finger-hole-kind-${index + 1}`}
                         >
@@ -917,7 +926,8 @@ export function BinControlsPanel({
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="straight">Straight</SelectItem>
-                          <SelectItem value="scoop">Scoop</SelectItem>
+                          <SelectItem value="scoop">Round scoop</SelectItem>
+                          <SelectItem value="deep-scoop">Deep scoop</SelectItem>
                         </SelectContent>
                       </Select>
                       <button
@@ -952,7 +962,18 @@ export function BinControlsPanel({
                           id: selectedCutout.id,
                           patch: {
                             fingerHoles: selectedCutout.fingerHoles.map((h) =>
-                              h.id === hole.id ? { ...h, diameterMm } : h,
+                              h.id === hole.id
+                                ? {
+                                    ...h,
+                                    diameterMm,
+                                    depthMm:
+                                      h.kind === "scoop"
+                                        ? Math.min(h.depthMm, diameterMm / 2)
+                                        : h.kind === "deep-scoop"
+                                          ? Math.max(h.depthMm, diameterMm / 2)
+                                          : h.depthMm,
+                                  }
+                                : h,
                             ),
                           },
                           historyLabel: "Resize finger hole",
@@ -960,10 +981,65 @@ export function BinControlsPanel({
                         })
                       }
                     />
+                    {hole.kind === "scoop" && (
+                      <MmSlider
+                        label="Depth"
+                        value={Math.min(hole.depthMm, hole.diameterMm / 2)}
+                        min={1}
+                        max={Math.min(30, hole.diameterMm / 2)}
+                        step={0.5}
+                        onChange={(depthMm, transient) =>
+                          dispatch({
+                            type: "UPDATE_CUTOUT",
+                            id: selectedCutout.id,
+                            patch: {
+                              fingerHoles: selectedCutout.fingerHoles.map((h) =>
+                                h.id === hole.id ? { ...h, depthMm } : h,
+                              ),
+                            },
+                            historyLabel: "Change finger scoop depth",
+                            transient,
+                          })
+                        }
+                      />
+                    )}
+                    {hole.kind === "deep-scoop" && (
+                      <div className="space-y-1">
+                        <MmSlider
+                          label="Total depth"
+                          value={Math.max(hole.depthMm, hole.diameterMm / 2)}
+                          min={hole.diameterMm / 2}
+                          max={120}
+                          step={0.5}
+                          onChange={(depthMm, transient) =>
+                            dispatch({
+                              type: "UPDATE_CUTOUT",
+                              id: selectedCutout.id,
+                              patch: {
+                                fingerHoles: selectedCutout.fingerHoles.map((h) =>
+                                  h.id === hole.id ? { ...h, depthMm } : h,
+                                ),
+                              },
+                              historyLabel: "Change deep scoop depth",
+                              transient,
+                            })
+                          }
+                        />
+                        <p className="pl-16 text-[11px] text-muted-foreground">
+                          Straight shaft: {Math.max(
+                            0,
+                            hole.depthMm - hole.diameterMm / 2,
+                          ).toFixed(1)} mm · hemispherical bottom: {(
+                            hole.diameterMm / 2
+                          ).toFixed(1)} mm
+                        </p>
+                      </div>
+                    )}
                   </div>
                 ))}
                 <p className="text-[11px] text-muted-foreground">
-                  Drag each circle in Layout to position it.
+                  Drag a feature in Layout to position its round mouth. A deep
+                  scoop runs straight down, then ends in a hemisphere.
                 </p>
               </div>
 

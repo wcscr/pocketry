@@ -13,6 +13,7 @@ import {
   resolveBoundaryRun,
 } from "./footprint";
 import {
+  effectiveDeepScoopDepthMm,
   effectiveScoopDepthMm,
   placementFootprint,
   resolvePocketDepth,
@@ -463,8 +464,11 @@ function validateAgainstBin(spec: BinSpec, p: PlacedCutout): ValidationIssue[] {
   // Scoop-style finger holes cut from the top surface regardless of pocket
   // depth, so each gets its own floor arithmetic.
   for (const hole of cutout.fingerHoles) {
-    if (hole.kind !== "scoop") continue;
-    const scoopBottomZ = pocket.infillTopZ - effectiveScoopDepthMm(hole);
+    if (hole.kind !== "scoop" && hole.kind !== "deep-scoop") continue;
+    const cutDepth = hole.kind === "deep-scoop"
+      ? effectiveDeepScoopDepthMm(hole)
+      : effectiveScoopDepthMm(hole);
+    const scoopBottomZ = pocket.infillTopZ - cutDepth;
     if (scoopBottomZ < 0) {
       issues.push({
         code: "scoop-too-deep",
