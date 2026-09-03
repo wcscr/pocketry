@@ -9,8 +9,12 @@ import {
   cutoutPlacementSchema,
   effectiveDeepScoopDepthMm,
   effectiveScoopDepthMm,
+  fingerHoleFootprintRing,
+  oblongDeepScoopEndpoints,
   parseCutoutPlacement,
   placementFootprint,
+  resizeFingerHoleFromWidthHandle,
+  resizeOblongDeepScoopFromEndpoint,
   resolvePocketDepth,
   signedDistanceToInterior,
   tracedShapeSchema,
@@ -296,7 +300,7 @@ describe("typed finger holes (straight and scoop)", () => {
     expect(back.y).toBeCloseTo(5, 12);
   });
 
-  it("footprint carries features through rotation", () => {
+  it("keeps legacy nested features out of the current pocket footprint", () => {
     const shape = { outlineMm: CHIRAL };
     const footprint = placementFootprint(shape, {
       position: { x: 0, y: 0 },
@@ -312,21 +316,14 @@ describe("typed finger holes (straight and scoop)", () => {
         },
       ],
     });
-    expect(footprint.features).toHaveLength(1);
-    // (10, 0) rotated 90° CCW lands at (0, 10); the rim is 3 mm around it.
-    const xs = footprint.features[0].map((p) => p.x);
-    const ys = footprint.features[0].map((p) => p.y);
-    expect(Math.min(...xs)).toBeCloseTo(-3, 9);
-    expect(Math.max(...xs)).toBeCloseTo(3, 9);
-    expect(Math.min(...ys)).toBeCloseTo(7, 9);
-    expect(Math.max(...ys)).toBeCloseTo(13, 9);
+    expect(footprint.features).toEqual([]);
   });
 
   it("uses a round plan-view footprint for a deep scoop", () => {
-    const footprint = placementFootprint({ outlineMm: CHIRAL }, {
+    const hole = parseCutoutPlacement({
+      id: "c1",
+      shapeId: "s1",
       position: { x: 0, y: 0 },
-      rotationDeg: 90,
-      mirrored: false,
       fingerHoles: [
         {
           id: "f1",
@@ -336,15 +333,124 @@ describe("typed finger holes (straight and scoop)", () => {
           depthMm: 20,
         },
       ],
+    }).fingerHoles[0];
+    const ring = fingerHoleFootprintRing(hole, {
+      position: { x: 0, y: 0 },
+      rotationDeg: 0,
+      mirrored: false,
     });
-    const xs = footprint.features[0].map((point) => point.x);
-    const ys = footprint.features[0].map((point) => point.y);
-    // Local (10, 0) becomes bin (0, 10) after the 90° placement.
-    expect(Math.min(...xs)).toBeCloseTo(-3, 9);
-    expect(Math.max(...xs)).toBeCloseTo(3, 9);
-    expect(Math.min(...ys)).toBeCloseTo(7, 9);
-    expect(Math.max(...ys)).toBeCloseTo(13, 9);
-    expect(signedArea(footprint.features[0])).toBeGreaterThan(0);
+    const xs = ring.map((point) => point.x);
+    const ys = ring.map((point) => point.y);
+    expect(Math.min(...xs)).toBeCloseTo(7, 9);
+    expect(Math.max(...xs)).toBeCloseTo(13, 9);
+    expect(Math.min(...ys)).toBeCloseTo(-3, 9);
+    expect(Math.max(...ys)).toBeCloseTo(3, 9);
+    expect(signedArea(ring)).toBeGreaterThan(0);
+  });
+
+  it("uses the rotated capsule mouth for an oblong deep scoop", () => {
+    const hole = parseCutoutPlacement({
+      id: "c1",
+      shapeId: "s1",
+      position: { x: 0, y: 0 },
+      fingerHoles: [
+        {
+          id: "f1",
+          center: { x: 0, y: 0 },
+          diameterMm: 10,
+          kind: "oblong-deep-scoop",
+          depthMm: 30,
+          lengthMm: 30,
+          rotationDeg: 90,
+        },
+      ],
+    }).fingerHoles[0];
+    const endpoints = oblongDeepScoopEndpoints(hole);
+    expect(endpoints.start.x).toBeCloseTo(0, 9);
+    expect(endpoints.start.y).toBeCloseTo(-10, 9);
+    expect(endpoints.end.y).toBeCloseTo(10, 9);
+
+    const ring = fingerHoleFootprintRing(hole, {
+      position: { x: 0, y: 0 },
+      rotationDeg: 0,
+      mirrored: false,
+    });
+    const xs = ring.map((point) => point.x);
+    const ys = ring.map((point) => point.y);
+    expect(Math.min(...xs)).toBeCloseTo(-5, 9);
+    expect(Math.max(...xs)).toBeCloseTo(5, 9);
+    expect(Math.min(...ys)).toBeCloseTo(-15, 9);
+    expect(Math.max(...ys)).toBeCloseTo(15, 9);
+    expect(signedArea(ring)).toBeGreaterThan(0);
+  });
+
+  it("resizes and rotates an oblong scoop by one endpoint while fixing the other", () => {
+    const hole = parseCutoutPlacement({
+      id: "c1",
+      shapeId: "s1",
+      position: { x: 0, y: 0 },
+      fingerHoles: [
+        {
+          id: "f1",
+          center: { x: 0, y: 0 },
+          diameterMm: 10,
+          kind: "oblong-deep-scoop",
+          depthMm: 30,
+          lengthMm: 30,
+          rotationDeg: 0,
+        },
+      ],
+    }).fingerHoles[0];
+    const resized = resizeOblongDeepScoopFromEndpoint(
+      hole,
+      "end",
+      { x: 10, y: 20 },
+    );
+    const endpoints = oblongDeepScoopEndpoints(resized);
+    expect(endpoints.start.x).toBeCloseTo(-10, 9);
+    expect(endpoints.start.y).toBeCloseTo(0, 9);
+    expect(endpoints.end.x).toBeCloseTo(10, 9);
+    expect(endpoints.end.y).toBeCloseTo(20, 9);
+    expect(resized.center).toEqual({ x: 0, y: 10 });
+    expect(resized.lengthMm).toBeCloseTo(10 + Math.hypot(20, 20), 9);
+    expect(resized.rotationDeg).toBeCloseTo(45, 9);
+  });
+
+  it("resizes round diameter and oblong width from a mouse handle", () => {
+    const round = parseCutoutPlacement({
+      id: "c1",
+      shapeId: "s1",
+      position: { x: 0, y: 0 },
+      fingerHoles: [{ id: "f1", center: { x: 4, y: 5 }, diameterMm: 10 }],
+    }).fingerHoles[0];
+    expect(
+      resizeFingerHoleFromWidthHandle(round, { x: 16, y: 5 }).diameterMm,
+    ).toBe(24);
+
+    const shallowDeep = {
+      ...round,
+      kind: "deep-scoop" as const,
+      depthMm: 4,
+    };
+    expect(
+      resizeFingerHoleFromWidthHandle(shallowDeep, { x: 16, y: 5 }).depthMm,
+    ).toBe(12);
+
+    const oblong = {
+      ...round,
+      kind: "oblong-deep-scoop" as const,
+      diameterMm: 10,
+      lengthMm: 30,
+      rotationDeg: 0,
+    };
+    const widened = resizeFingerHoleFromWidthHandle(oblong, { x: 4, y: 15 });
+    expect(widened.diameterMm).toBe(20);
+    expect(widened.depthMm).toBe(12);
+    expect(widened.lengthMm).toBe(40);
+    expect(oblongDeepScoopEndpoints(widened)).toMatchObject({
+      start: { x: -6, y: 5 },
+      end: { x: 14, y: 5 },
+    });
   });
 
   it("clamps the scoop to a hemisphere", () => {

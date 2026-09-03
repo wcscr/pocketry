@@ -1,5 +1,6 @@
 import type {
   CutoutPlacementInput,
+  FingerHole,
   TracedShape,
 } from "@shared/gridfinity/cutout";
 import type { BinSpecInput } from "@shared/gridfinity/types";
@@ -31,6 +32,7 @@ export interface BuildBinLayoutRequest {
    */
   shapes: TracedShape[];
   cutouts: CutoutPlacementInput[];
+  fingerHoles: FingerHole[];
 }
 
 /**

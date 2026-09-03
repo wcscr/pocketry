@@ -1,8 +1,8 @@
 import {
-  circleRing,
+  fingerHoleFootprintRing,
   transformOutlinePlacement,
-  transformPointPlacement,
   type CutoutPlacement,
+  type FingerHole,
   type TracedShape,
 } from "@shared/gridfinity/cutout";
 import { binFootprintMm, BASE_TOP_RADIUS } from "@shared/gridfinity/standard";
@@ -17,7 +17,7 @@ import { dxfFromModelRings } from "./dxf";
 
 /**
  * Top-down bin-layout export: the bin's footprint plus every placed pocket
- * outline and feature circle, in **bin-frame millimetres, y-up** — the CNC
+ * outline and independent finger-hole rim, in **bin-frame millimetres, y-up** — the CNC
  * shadow-board bridge from the design doc ("nearly free from the 2D
  * editor"). The pocket rings are the tool silhouettes at export vertex
  * budget, exactly the curves the pocket cutter starts from; fit clearance
@@ -33,6 +33,7 @@ export function layoutRingsMm(
   spec: BinSpec,
   cutouts: readonly CutoutPlacement[],
   shapesById: ReadonlyMap<string, TracedShape>,
+  fingerHoles: readonly FingerHole[] = [],
 ): Ring[] {
   const rings: Ring[] = [
     spec.footprint.kind === "custom"
@@ -51,15 +52,16 @@ export function layoutRingsMm(
     for (const placedShape of transformOutlinePlacement(budgeted, cutout)) {
       rings.push(placedShape.outer, ...placedShape.holes);
     }
-    for (const hole of cutout.fingerHoles) {
-      rings.push(
-        circleRing(
-          transformPointPlacement(hole.center, cutout),
-          hole.diameterMm / 2,
-          CIRCLE_SEGMENTS,
-        ),
-      );
-    }
+  }
+
+  for (const hole of fingerHoles) {
+    rings.push(
+      fingerHoleFootprintRing(
+        hole,
+        { position: { x: 0, y: 0 }, rotationDeg: 0, mirrored: false },
+        CIRCLE_SEGMENTS,
+      ),
+    );
   }
 
   return rings.filter((ring) => isValidRing(ring));
@@ -99,8 +101,12 @@ export function generateLayoutDXF(
   spec: BinSpec,
   cutouts: readonly CutoutPlacement[],
   shapesById: ReadonlyMap<string, TracedShape>,
+  fingerHoles: readonly FingerHole[] = [],
 ): string {
-  return dxfFromModelRings(layoutRingsMm(spec, cutouts, shapesById), LAYOUT_COMMENT);
+  return dxfFromModelRings(
+    layoutRingsMm(spec, cutouts, shapesById, fingerHoles),
+    LAYOUT_COMMENT,
+  );
 }
 
 /**
@@ -111,10 +117,11 @@ export function generateLayoutSVG(
   spec: BinSpec,
   cutouts: readonly CutoutPlacement[],
   shapesById: ReadonlyMap<string, TracedShape>,
+  fingerHoles: readonly FingerHole[] = [],
 ): string {
   const widthMm = binFootprintMm(spec.gridX, spec.gridPitch);
   const lengthMm = binFootprintMm(spec.gridY, spec.gridPitch);
-  const rings = layoutRingsMm(spec, cutouts, shapesById);
+  const rings = layoutRingsMm(spec, cutouts, shapesById, fingerHoles);
 
   const toView = (point: Point): Point => ({
     x: point.x + widthMm / 2,

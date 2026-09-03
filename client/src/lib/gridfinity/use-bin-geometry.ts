@@ -4,6 +4,7 @@ import type { BufferGeometry } from "three";
 
 import type {
   CutoutPlacement,
+  FingerHole,
   TracedShape,
 } from "@shared/gridfinity/cutout";
 import type { BinSpec } from "@shared/gridfinity/types";
@@ -35,6 +36,7 @@ import {
 export interface BinGeometryLayout {
   shapes: TracedShape[];
   cutouts: CutoutPlacement[];
+  fingerHoles: FingerHole[];
 }
 
 /**
@@ -146,6 +148,7 @@ export function useBinGeometry(
         budget: quality.cutoutVertexBudget,
         filletStep: quality.filletProfileStepMm,
         cutouts: layout?.cutouts ?? [],
+        fingerHoles: layout?.fingerHoles ?? [],
         shapeKeys: layout?.shapes.map((shape) => `${shape.id}:${shape.pointCount}`) ?? [],
         section: section ?? null,
         pocketFloorThicknessMm:
@@ -177,8 +180,12 @@ export function useBinGeometry(
         spec,
         quality,
         layout:
-          layout && layout.cutouts.length > 0
-            ? { shapes: layout.shapes, cutouts: layout.cutouts }
+          layout && (layout.cutouts.length > 0 || layout.fingerHoles.length > 0)
+            ? {
+                shapes: layout.shapes,
+                cutouts: layout.cutouts,
+                fingerHoles: layout.fingerHoles,
+              }
             : undefined,
         section: section ?? undefined,
         pocketFloorMaterialThicknessMm:
@@ -266,8 +273,12 @@ export function useBinGeometry(
         spec,
         quality: exportQuality,
         layout:
-          layout && layout.cutouts.length > 0
-            ? { shapes: layout.shapes, cutouts: layout.cutouts }
+          layout && (layout.cutouts.length > 0 || layout.fingerHoles.length > 0)
+            ? {
+                shapes: layout.shapes,
+                cutouts: layout.cutouts,
+                fingerHoles: layout.fingerHoles,
+              }
             : undefined,
         pocketFloorMaterialThicknessMm:
           options.pocketFloorMaterialThicknessMm,
@@ -307,14 +318,21 @@ export function useBinGeometry(
       thicknessMm: number,
       exportQuality: BuildQuality,
     ): Promise<BuildSurfaceFitCheckResult> => {
-      if (!layout || layout.cutouts.length === 0) {
+      if (
+        !layout ||
+        (layout.cutouts.length === 0 && layout.fingerHoles.length === 0)
+      ) {
         return Promise.reject(
           new Error("Add at least one tool pocket before exporting a surface fit test."),
         );
       }
       const request: BuildSurfaceFitCheckRequest = {
         spec,
-        layout: { shapes: layout.shapes, cutouts: layout.cutouts },
+        layout: {
+          shapes: layout.shapes,
+          cutouts: layout.cutouts,
+          fingerHoles: layout.fingerHoles,
+        },
         thicknessMm,
         quality: exportQuality,
       };

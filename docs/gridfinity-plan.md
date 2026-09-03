@@ -19,17 +19,21 @@ shaped-bin physical gate remains: print a full-pitch
 2×2/three-cell L, verify baseplate fit and the concave wall/lip, stack a matching
 footprint, then print an L-tool pocket and check its fit.
 
-G4 delivered per-pocket **finger holes**, now individually selectable as
-straight cylinders sharing the pocket's floor and fillet, spherical round
-scoops, or deep scoops from the top surface. A deep scoop keeps a round opening,
-runs straight down for the requested shaft depth, and terminates in a true
-hemisphere; total depth can therefore exceed the opening diameter without an
-inward-overhanging cavity. Round-scoop depth remains capped at half the opening
-width. Multiple holes are stored shape-local and draggable by their exact
-circular rim in the Layout view; **auto-arrange**
-(min-area OBB per cutout — features included — then shelf packing into the
-smallest grid, ids preserved); **undo/redo** over the material document
-`{spec, cutouts}` (hand-rolled history in the bin reducer, mirroring the
+G4 delivered **finger holes**, now independent bin-local layout objects rather
+than children of a tool pocket. They can be straight cylinders with their own
+depth, spherical round scoops, round deep scoops, or oblong deep scoops from the
+top surface. Deep
+scoops run straight down for the requested shaft depth and terminate in a
+rounded bottom, so total depth can exceed the opening width without an
+inward-overhanging cavity. The oblong variant has a capsule mouth and swept
+hemisphere bottom; it can be moved as a unit, rotated directly, or resized and
+rotated by dragging either endpoint. Every hole type has a mouse diameter/width
+handle; oblong holes additionally expose both end handles. Round-scoop depth
+remains capped at half the opening width. Moving, duplicating, deleting, or
+auto-arranging a pocket does not move or remove a hole. **Auto-arrange** uses a
+min-area OBB per cutout and shelf-packs pockets into the smallest grid while
+leaving independent holes fixed; **undo/redo** covers the material document
+`{spec, cutouts, fingerHoles}` (hand-rolled history in the bin reducer, mirroring the
 trace store, rather than the zustand+zundo sketched below — drags collapse
 to one step via transient dispatches). Both Trace and Bin expose the labeled
 history beside Undo/Redo and can jump directly to any retained step; contour
@@ -79,7 +83,7 @@ ruler is intentionally unavailable in the 3D preview.
 G5 completed its local software scope (2026-08-24): the 3D camera now re-fits whenever the bin's
 outer dimensions change (preserving the orbit direction), the ground grid
 scales with the bin, and the **top-down layout DXF/SVG export** landed —
-bin footprint plus pocket silhouettes and feature circles in real
+bin footprint plus pocket silhouettes and independent finger-hole rims in real
 millimetres, the CNC shadow-board bridge. The **label tab** is ported
 (upstream `TAB_POLYGON` @ the pinned SHA): full-width or 42 mm
 left/center/right on any wall, fused into the wall part, with
@@ -209,7 +213,7 @@ rewrite. Verify against the code before relying on any detail here.
 | Panel + canvas workspace shell | `client/src/components/layout/workspace-layout.tsx` | `autoSaveId` per workspace |
 | Vitest, node + jsdom projects | `vitest.config.ts` | geometry tests run headless with real WASM |
 
-The previously missing `ProjectDoc` is now implemented with `schemaVersion: 5`,
+The previously missing `ProjectDoc` is now implemented with `schemaVersion: 7`,
 IndexedDB autosave plus a named Project Library, explicit `.pocketry.json`
 backup import/export with legacy `.tooltrace.json` import compatibility, and
 reducer-owned undo/redo.
@@ -271,7 +275,11 @@ interface CutoutPlacement {
   cornerRoundMm: number;    // 1.0 — 2D vertical edge round
   topFilletMm: number;      // 0.0 — top-surface pocket-edge round-over
   bottomFilletMm: number;   // 2.8 (r_f2), clamped to depth/2
-  fingerHoles: FingerHole[]; // 'straight', 'scoop', or vertical 'deep-scoop'
+}
+
+interface ProjectDoc {
+  cutouts: CutoutPlacement[];
+  fingerHoles: FingerHole[]; // independent bin-local layout objects
 }
 ```
 
@@ -291,12 +299,14 @@ export; warnings do not.
 
 `server/storage.ts` has only `MemStorage` (a `Map`, wiped on restart), there is no Drizzle
 implementation and no `migrations/`, and the client never reads anything back. Instead,
-the landed client implementation uses a `ProjectDoc` with **`schemaVersion: 5`**, a
+the landed client implementation uses a `ProjectDoc` with **`schemaVersion: 7`**, a
 hand-rolled reducer history, `idb-keyval` autosave to IndexedDB (not localStorage —
 traced shapes plus thumbnails blow past 5 MB), a browser-local named Project
 Library with active-project autosave, and explicit `.pocketry.json` backup
-import/export (including legacy `.tooltrace.json` imports). The library is
-cross-browser code, not cross-device sync: each
+import/export (including legacy `.tooltrace.json` imports). Schemas 1–6 migrate
+pocket-local finger holes to bin-local coordinates while preserving their
+visible position and oblong orientation. The library is cross-browser code,
+not cross-device sync: each
 browser profile owns its own IndexedDB data.
 
 If server persistence is wanted later it is a `projects` table holding a **JSONB
