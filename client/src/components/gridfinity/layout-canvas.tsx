@@ -17,6 +17,7 @@ import {
   transformPointPlacement,
   untransformPointPlacement,
   type CutoutPlacement,
+  type FingerHole,
   type TracedShape,
 } from "@shared/gridfinity/cutout";
 import {
@@ -31,6 +32,7 @@ import {
   type Ring,
   type RingRef,
 } from "@shared/geometry/types";
+import { pointInRing } from "@shared/geometry/rings";
 import { validateLayout, type IssueSeverity } from "@shared/gridfinity/validate";
 import {
   boundaryEdges,
@@ -241,11 +243,11 @@ function LayoutStage(): JSX.Element {
             ? { ...storedShape, outlineMm: draftContour.outline }
             : storedShape;
         const footprint = placementFootprint(shape, cutout);
-        const features = cutout.fingerHoles.map((hole) => ({
+        const features = cutout.fingerHoles.map((hole, index) => ({
           kind: hole.kind,
           id: hole.id,
           center: transformPointPlacement(hole.center, cutout),
-          radius: hole.diameterMm / 2,
+          ring: footprint.features[index],
         }));
         return [{ cutout, shape, outline: footprint.outline, features }];
       }),
@@ -290,7 +292,7 @@ function LayoutStage(): JSX.Element {
     | {
         kind: "feature";
         id: string;
-        feature: { kind: "straight" | "scoop"; id: string };
+        feature: { kind: FingerHole["kind"]; id: string };
         grabOffset: Point;
       }
     | {
@@ -316,11 +318,11 @@ function LayoutStage(): JSX.Element {
   }, [hasPlacedCutouts]);
 
   const hitCutout = (point: Point): CutoutPlacement | null => {
-    // Topmost = later in the list; feature circles count as their pocket.
+    // Topmost = later in the list; finger-access rims count as their pocket.
     for (let i = placed.length - 1; i >= 0; i--) {
       if (pointInOutline(placed[i].outline, point)) return placed[i].cutout;
       for (const feature of placed[i].features) {
-        if (Math.hypot(point.x - feature.center.x, point.y - feature.center.y) <= feature.radius) {
+        if (pointInRing(feature.ring, point)) {
           return placed[i].cutout;
         }
       }
@@ -587,14 +589,18 @@ function LayoutStage(): JSX.Element {
       return;
     }
 
-    // Feature circles of the selected pocket grab before the body does, so
-    // a hole overlapping its own outline stays draggable.
+    // Finger-access features of the selected pocket grab before the body does,
+    // so a feature overlapping its own outline stays draggable.
     if (selected) {
       for (const feature of selected.features) {
-        if (
-          Math.hypot(point.x - feature.center.x, point.y - feature.center.y) <=
-          feature.radius + pickRadius / 2
-        ) {
+        const nearEdge = feature.ring.some((vertex, index) =>
+          pointSegmentDistance(
+            point,
+            vertex,
+            feature.ring[(index + 1) % feature.ring.length],
+          ) <= pickRadius / 2,
+        );
+        if (pointInRing(feature.ring, point) || nearEdge) {
           dragRef.current = {
             kind: "feature",
             id: selected.cutout.id,
@@ -1028,23 +1034,18 @@ function LayoutStage(): JSX.Element {
                   data-cutout-id={cutout.id}
                 />
                 {features.map((feature) => {
-                  const centre = binToCanvas(feature.center, spec);
                   return (
-                    <circle
-                      key={`${cutout.id}-${feature.kind}-${feature.id}`}
-                      cx={centre.x}
-                      cy={centre.y}
-                      r={feature.radius}
-                      className={cn(
-                        tone,
-                        isSelected && "cursor-move",
-                      )}
-                      strokeWidth={isSelected ? 1.5 : 1}
-                      strokeDasharray={feature.kind === "scoop" ? "3 2" : undefined}
-                      vectorEffect="non-scaling-stroke"
-                      data-feature-of={cutout.id}
-                      data-testid={`feature-${feature.kind}-${cutout.id}`}
-                    />
+                    <g key={`${cutout.id}-${feature.kind}-${feature.id}`}>
+                      <path
+                        d={ringToCanvasPath(feature.ring, spec)}
+                        className={cn(tone, isSelected && "cursor-move")}
+                        strokeWidth={isSelected ? 1.5 : 1}
+                        strokeDasharray={feature.kind === "straight" ? undefined : "3 2"}
+                        vectorEffect="non-scaling-stroke"
+                        data-feature-of={cutout.id}
+                        data-testid={`feature-${feature.kind}-${cutout.id}`}
+                      />
+                    </g>
                   );
                 })}
               </g>

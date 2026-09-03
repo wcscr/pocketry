@@ -559,6 +559,41 @@ describe("buildBinWithCutouts", () => {
     expect(removed).toBeLessThan(capVolume);
   });
 
+  it("a deep scoop removes a straight shaft with a hemispherical bottom", () => {
+    const shape = rectShape("s1", 12, 8);
+    const base = { depth: { mode: "mm", value: 4 } };
+    const scoop = {
+      id: "f1",
+      kind: "deep-scoop",
+      center: { x: -18, y: 20 },
+      diameterMm: 16,
+      depthMm: 30,
+    };
+    const without = buildBinWithCutouts(
+      kernel,
+      SPEC,
+      layoutFor([shape], [cutout("c1", "s1", base)]),
+      QUALITY,
+    );
+    const withScoop = buildBinWithCutouts(
+      kernel,
+      SPEC,
+      layoutFor([shape], [cutout("c1", "s1", { ...base, fingerHoles: [scoop] })]),
+      QUALITY,
+    );
+
+    expect(withScoop.solid.status()).toBe("NoError");
+    expect(withScoop.solid.genus()).toBe(0);
+    const radius = scoop.diameterMm / 2;
+    const shaftDepth = scoop.depthMm - radius;
+    const analytic =
+      Math.PI * radius * radius * shaftDepth +
+      (2 * Math.PI * radius ** 3) / 3;
+    const removed = without.solid.volume() - withScoop.solid.volume();
+    expect(removed).toBeLessThan(analytic);
+    expect(removed).toBeGreaterThan(0.94 * analytic);
+  });
+
   it("cuts every scoop-style finger hole on the same pocket", () => {
     const shape = rectShape("s1", 12, 8);
     const base = { depth: { mode: "mm", value: 4 } };
