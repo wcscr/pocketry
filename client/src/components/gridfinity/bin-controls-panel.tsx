@@ -79,7 +79,13 @@ import {
   MULTICOLOR_MIN_THICKNESS_MM,
   MULTICOLOR_RIM_MAX_THICKNESS_MM,
 } from "@/lib/gridfinity/bin";
-import type { BuildBinSection, BuildBinStats } from "@/lib/gridfinity/worker-api";
+import {
+  SURFACE_FIT_CHECK_DEFAULT_THICKNESS_MM,
+  SURFACE_FIT_CHECK_MAX_THICKNESS_MM,
+  SURFACE_FIT_CHECK_MIN_THICKNESS_MM,
+  type BuildBinSection,
+  type BuildBinStats,
+} from "@/lib/gridfinity/worker-api";
 import type { ProjectLibraryItem } from "@/lib/project/persist";
 import { cn } from "@/lib/utils";
 import { useBin } from "@/state/bin-store";
@@ -199,6 +205,7 @@ export interface BinControlsPanelProps {
   exporting: boolean;
   onExport: (format: "3mf" | "3mf-multicolor" | "stl") => void;
   onExportFitCheck: (cutoutId: string, depthMm: number) => void;
+  onExportSurfaceFitCheck: (thicknessMm: number) => void;
   onExportLayout: (format: "dxf" | "svg") => void;
   onAutoArrange: () => void;
   onExportProject: () => void;
@@ -243,6 +250,7 @@ export function BinControlsPanel({
   exporting,
   onExport,
   onExportFitCheck,
+  onExportSurfaceFitCheck,
   onExportLayout,
   onAutoArrange,
   onExportProject,
@@ -314,6 +322,9 @@ export function BinControlsPanel({
     0,
   );
   const [fitCheckDepthMm, setFitCheckDepthMm] = useState(2);
+  const [surfaceFitCheckThicknessMm, setSurfaceFitCheckThicknessMm] = useState(
+    SURFACE_FIT_CHECK_DEFAULT_THICKNESS_MM,
+  );
   const [threeMfDialogOpen, setThreeMfDialogOpen] = useState(false);
   const [stlWarningOpen, setStlWarningOpen] = useState(false);
   const hasBlindPocket = cutouts.some(
@@ -1504,6 +1515,58 @@ export function BinControlsPanel({
                 these are not the final bin model.
               </p>
             </div>
+
+            {cutouts.length > 0 && (
+              <div
+                className="space-y-2 border-t pt-2.5"
+                data-testid="surface-fit-test-export"
+              >
+                <div>
+                  <Label className="text-xs">Complete surface fit test</Label>
+                  <p className="text-[11px] text-muted-foreground">
+                    The bin's full pocket-layout surface as one thin plate,
+                    without its base, wall height, label tab, or stacking lip.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Label className="w-20 shrink-0 text-xs">Thickness</Label>
+                  <DraftNumberInput
+                    className="h-8"
+                    value={surfaceFitCheckThicknessMm}
+                    min={SURFACE_FIT_CHECK_MIN_THICKNESS_MM}
+                    max={SURFACE_FIT_CHECK_MAX_THICKNESS_MM}
+                    step={0.2}
+                    normalize={(value) =>
+                      Math.min(
+                        SURFACE_FIT_CHECK_MAX_THICKNESS_MM,
+                        Math.max(SURFACE_FIT_CHECK_MIN_THICKNESS_MM, value),
+                      )
+                    }
+                    onValueChange={setSurfaceFitCheckThicknessMm}
+                    aria-label="Surface fit test thickness in millimetres"
+                    data-testid="input-surface-fit-test-thickness"
+                  />
+                  <span className="text-xs text-muted-foreground">mm</span>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  disabled={exporting || hasErrors}
+                  onClick={() =>
+                    onExportSurfaceFitCheck(surfaceFitCheckThicknessMm)
+                  }
+                  data-testid="button-export-surface-fit-test"
+                >
+                  <Download className="mr-1.5 h-3.5 w-3.5" />
+                  {exporting ? "Building…" : "Save surface fit test STL"}
+                </Button>
+                <p className="text-[11px] text-muted-foreground">
+                  Checks every pocket's opening, clearance, spacing, and finger
+                  access together. It does not test pocket depth or baseplate fit.
+                </p>
+              </div>
+            )}
 
             {selectedCutout && selectedShape ? (
               <div className="space-y-2 border-t pt-2.5">

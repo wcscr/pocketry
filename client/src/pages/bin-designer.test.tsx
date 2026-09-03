@@ -86,6 +86,7 @@ vi.mock("@/lib/gridfinity/use-bin-geometry", () => ({
     error: null,
     buildOnce: vi.fn(),
     buildFitCheck: vi.fn(),
+    buildSurfaceFitCheck: vi.fn(),
   }),
 }));
 
@@ -932,6 +933,22 @@ describe("BinDesignerPage", () => {
     openSettingsSection(container, "export");
     expect(container.textContent).toContain("Final printable model");
     expect(container.textContent).toContain("Preview & layout checks");
+    expect(container.textContent).toContain("Complete surface fit test");
+    expect(container.textContent).toContain("Save surface fit test STL");
+    expect(
+      (
+        container.querySelector(
+          '[data-testid="input-surface-fit-test-thickness"]',
+        ) as HTMLInputElement
+      ).value,
+    ).toBe("1.2");
+    expect(
+      (
+        container.querySelector(
+          '[data-testid="button-export-surface-fit-test"]',
+        ) as HTMLButtonElement
+      ).disabled,
+    ).toBe(false);
     expect(container.textContent).toContain("Tool fit template");
     expect(container.textContent).toContain("Save fit template STL");
     React.act(() => {

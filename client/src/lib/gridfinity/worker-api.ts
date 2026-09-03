@@ -18,6 +18,10 @@ import type { CutoutBuildReport } from "./cutouts";
 
 export const BUILD_BIN_METHOD = "buildBin";
 export const BUILD_FIT_CHECK_METHOD = "buildFitCheck";
+export const BUILD_SURFACE_FIT_CHECK_METHOD = "buildSurfaceFitCheck";
+export const SURFACE_FIT_CHECK_MIN_THICKNESS_MM = 0.4;
+export const SURFACE_FIT_CHECK_MAX_THICKNESS_MM = 3;
+export const SURFACE_FIT_CHECK_DEFAULT_THICKNESS_MM = 1.2;
 
 export interface BuildBinLayoutRequest {
   /**
@@ -80,3 +84,12 @@ export interface BuildFitCheckResult {
   mesh: MeshData;
   stats: BuildBinStats;
 }
+
+export interface BuildSurfaceFitCheckRequest {
+  spec: BinSpecInput;
+  layout: BuildBinLayoutRequest;
+  thicknessMm: number;
+  quality: BuildQuality;
+}
+
+export type BuildSurfaceFitCheckResult = BuildFitCheckResult;

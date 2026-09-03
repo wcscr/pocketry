@@ -21,12 +21,15 @@ import type { CutoutBuildReport } from "./cutouts";
 import {
   BUILD_BIN_METHOD,
   BUILD_FIT_CHECK_METHOD,
+  BUILD_SURFACE_FIT_CHECK_METHOD,
   type BuildBinRequest,
   type BuildBinResult,
   type BuildBinSection,
   type BuildBinStats,
   type BuildFitCheckRequest,
   type BuildFitCheckResult,
+  type BuildSurfaceFitCheckRequest,
+  type BuildSurfaceFitCheckResult,
 } from "./worker-api";
 
 export interface BinGeometryLayout {
@@ -79,6 +82,11 @@ export interface BinGeometryState {
     depthMm: number,
     quality: BuildQuality,
   ) => Promise<BuildFitCheckResult>;
+  /** Builds the complete pocket-layout surface as a thin printable plate. */
+  buildSurfaceFitCheck: (
+    thicknessMm: number,
+    quality: BuildQuality,
+  ) => Promise<BuildSurfaceFitCheckResult>;
 }
 
 /**
@@ -294,6 +302,33 @@ export function useBinGeometry(
     [ensureClient],
   );
 
+  const buildSurfaceFitCheck = useCallback(
+    (
+      thicknessMm: number,
+      exportQuality: BuildQuality,
+    ): Promise<BuildSurfaceFitCheckResult> => {
+      if (!layout || layout.cutouts.length === 0) {
+        return Promise.reject(
+          new Error("Add at least one tool pocket before exporting a surface fit test."),
+        );
+      }
+      const request: BuildSurfaceFitCheckRequest = {
+        spec,
+        layout: { shapes: layout.shapes, cutouts: layout.cutouts },
+        thicknessMm,
+        quality: exportQuality,
+      };
+      return ensureClient().call<BuildSurfaceFitCheckResult>(
+        BUILD_SURFACE_FIT_CHECK_METHOD,
+        request,
+        { channel: "surface-fit-check-export" },
+      );
+    },
+    // requestKey encodes the current spec and layout by value.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [requestKey, ensureClient],
+  );
+
   return {
     geometry,
     pocketFloorGeometry,
@@ -308,5 +343,6 @@ export function useBinGeometry(
     error,
     buildOnce,
     buildFitCheck,
+    buildSurfaceFitCheck,
   };
 }
