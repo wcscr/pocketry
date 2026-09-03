@@ -1,7 +1,9 @@
 import {
   cutoutPlacementSchema,
+  fingerHoleFootprintRing,
   placementFootprint,
   type CutoutPlacement,
+  type FingerHole,
   type TracedShape,
 } from "@shared/gridfinity/cutout";
 import {
@@ -231,6 +233,7 @@ export function autoPlaceFresh(
 function existingBounds(
   cutouts: readonly CutoutPlacement[],
   shapesById: ReadonlyMap<string, TracedShape>,
+  fingerHoles: readonly FingerHole[] = [],
 ): Bounds | null {
   let bounds: Bounds | null = null;
   const includePoint = (point: Point, allowanceMm: number) => {
@@ -257,10 +260,15 @@ function existingBounds(
     for (const part of footprint.outline) {
       for (const point of part.outer) includePoint(point, outlineAllowance);
     }
-    for (const ring of footprint.features) {
-      for (const point of ring) {
-        includePoint(point, 0);
-      }
+  }
+  for (const hole of fingerHoles) {
+    const ring = fingerHoleFootprintRing(hole, {
+      position: { x: 0, y: 0 },
+      rotationDeg: 0,
+      mirrored: false,
+    });
+    for (const point of ring) {
+      includePoint(point, 0);
     }
   }
   return bounds;
@@ -367,9 +375,22 @@ export function fitLayoutToPlacements(
   shapesById: ReadonlyMap<string, TracedShape>,
   lip: BinSpec["lip"],
   gridPitch: GridPitch = "full",
-): { cutouts: CutoutPlacement[]; gridX: number; gridY: number } {
-  const bounds = existingBounds(cutouts, shapesById);
-  if (!bounds) return { cutouts: [...cutouts], gridX: 1, gridY: 1 };
+  fingerHoles: readonly FingerHole[] = [],
+): {
+  cutouts: CutoutPlacement[];
+  fingerHoles: FingerHole[];
+  gridX: number;
+  gridY: number;
+} {
+  const bounds = existingBounds(cutouts, shapesById, fingerHoles);
+  if (!bounds) {
+    return {
+      cutouts: [...cutouts],
+      fingerHoles: [...fingerHoles],
+      gridX: 1,
+      gridY: 1,
+    };
+  }
 
   // Cutter bounds already include each pocket's clearance and top round.
   const inset = placementInsetMm(lip, 0);
@@ -392,6 +413,13 @@ export function fitLayoutToPlacements(
         y: cutout.position.y - centreY,
       },
     })),
+    fingerHoles: fingerHoles.map((hole) => ({
+      ...hole,
+      center: {
+        x: hole.center.x - centreX,
+        y: hole.center.y - centreY,
+      },
+    })),
     gridX: fit(halfWNeeded),
     gridY: fit(halfHNeeded),
   };
@@ -403,7 +431,7 @@ export function fitLayoutToPlacements(
 
 interface ArrangeItem {
   cutout: CutoutPlacement;
-  /** Rotation that lays the shape (and its features) down in landscape. */
+  /** Rotation that lays the shape down in landscape. */
   rotationDeg: number;
   /** OBB centre in the pre-rotation local frame (mirror applied). */
   obbCentre: Point;
@@ -412,9 +440,8 @@ interface ArrangeItem {
 }
 
 /**
- * The measured footprint of one cutout at rotation 0 (mirror kept): outline
- * *and* feature circles, because a finger hole protruding from the outline
- * still needs floor space next to its neighbour.
+ * The measured footprint of one tool pocket at rotation 0 (mirror kept).
+ * Independent finger holes are deliberately not moved by auto-arrange.
  */
 function arrangeItem(
   cutout: CutoutPlacement,
@@ -468,9 +495,10 @@ export function trimFootprintToPlacements(
   cutouts: readonly CutoutPlacement[],
   shapesById: ReadonlyMap<string, TracedShape>,
   spec: BinSpec,
+  fingerHoles: readonly FingerHole[] = [],
 ): BinFootprint {
   let cells = rectangleCells(spec.gridX, spec.gridY);
-  const bounds = existingBounds(cutouts, shapesById);
+  const bounds = existingBounds(cutouts, shapesById, fingerHoles);
   const centre = bounds
     ? { x: (bounds.minX + bounds.maxX) / 2, y: (bounds.minY + bounds.maxY) / 2 }
     : { x: 0, y: 0 };
@@ -493,7 +521,7 @@ export function trimFootprintToPlacements(
       });
       const issues = [
         ...validateBinSpec(candidate).issues,
-        ...validateLayout(candidate, cutouts, shapesById),
+        ...validateLayout(candidate, cutouts, shapesById, fingerHoles),
       ];
       if (issues.some((issue) => FOOTPRINT_CODES.has(issue.code))) continue;
       cells = candidateCells;
@@ -510,8 +538,21 @@ export function fitFootprintToPlacements(
   cutouts: readonly CutoutPlacement[],
   shapesById: ReadonlyMap<string, TracedShape>,
   spec: BinSpec,
-): { cutouts: CutoutPlacement[]; gridX: number; gridY: number; footprint: BinFootprint } {
-  const fitted = fitLayoutToPlacements(cutouts, shapesById, spec.lip, spec.gridPitch);
+  fingerHoles: readonly FingerHole[] = [],
+): {
+  cutouts: CutoutPlacement[];
+  fingerHoles: FingerHole[];
+  gridX: number;
+  gridY: number;
+  footprint: BinFootprint;
+} {
+  const fitted = fitLayoutToPlacements(
+    cutouts,
+    shapesById,
+    spec.lip,
+    spec.gridPitch,
+    fingerHoles,
+  );
   const fittedSpec = parseBinSpec({
     ...spec,
     gridX: fitted.gridX,
@@ -520,7 +561,12 @@ export function fitFootprintToPlacements(
   });
   return {
     ...fitted,
-    footprint: trimFootprintToPlacements(fitted.cutouts, shapesById, fittedSpec),
+    footprint: trimFootprintToPlacements(
+      fitted.cutouts,
+      shapesById,
+      fittedSpec,
+      fitted.fingerHoles,
+    ),
   };
 }
 
@@ -532,8 +578,10 @@ export function fitRectangularBinToPlacements(
   cutouts: readonly CutoutPlacement[],
   shapesById: ReadonlyMap<string, TracedShape>,
   spec: BinSpec,
+  fingerHoles: readonly FingerHole[] = [],
 ): {
   cutouts: CutoutPlacement[];
+  fingerHoles: FingerHole[];
   gridX: number;
   gridY: number;
   footprint: BinFootprint;
@@ -544,23 +592,25 @@ export function fitRectangularBinToPlacements(
       shapesById,
       spec.lip,
       spec.gridPitch,
+      fingerHoles,
     ),
     footprint: { kind: "rectangle" },
   };
 }
 
 /**
- * Re-lays out *existing* cutouts: each one is rotated to its min-area OBB
- * (features included), shelf-packed, and centred in the smallest grid that
- * holds the block. Depth, clearance, features and mirroring are preserved;
- * only rotation and position change — same ids, so selection and undo
- * behave.
+ * Re-lays out existing tool pockets: each one is rotated to its min-area OBB,
+ * shelf-packed, and centred in the smallest grid that holds the block. Finger
+ * holes stay fixed in bin coordinates, but still constrain the chosen grid.
+ * Depth, clearance and mirroring are preserved; only pocket rotation and
+ * position change — same ids, so selection and undo behave.
  */
 export function autoArrangeLayout(
   cutouts: readonly CutoutPlacement[],
   shapesById: ReadonlyMap<string, TracedShape>,
   lip: BinSpec["lip"],
   gridPitch: GridPitch = "full",
+  fingerHoles: readonly FingerHole[] = [],
   baseSpec?: BinSpec,
 ): AutoArrangeResult | null {
   const items: ArrangeItem[] = [];
@@ -578,6 +628,13 @@ export function autoArrangeLayout(
     heightMm: item.heightMm,
   }));
   const inset = placementInsetMm(lip);
+  const fixedHoleBounds = existingBounds([], shapesById, fingerHoles);
+  const containsFixedHoles = (widthMm: number, heightMm: number): boolean =>
+    !fixedHoleBounds ||
+    (fixedHoleBounds.minX >= -widthMm / 2 &&
+      fixedHoleBounds.maxX <= widthMm / 2 &&
+      fixedHoleBounds.minY >= -heightMm / 2 &&
+      fixedHoleBounds.maxY <= heightMm / 2);
 
   const placeBlock = (block: PackedBlock): CutoutPlacement[] =>
     block.items.map((packed) => {
@@ -599,6 +656,7 @@ export function autoArrangeLayout(
   for (const grid of gridCandidates()) {
     const interior = interiorMm(grid, inset, gridPitch);
     if (interior.widthMm <= 0 || interior.heightMm <= 0) continue;
+    if (!containsFixedHoles(interior.widthMm, interior.heightMm)) continue;
     const block = shelfPack(targets, interior.widthMm);
     if (block.widthMm <= interior.widthMm && block.heightMm <= interior.heightMm) {
       const placed = placeBlock(block);
@@ -616,7 +674,14 @@ export function autoArrangeLayout(
         gridY: grid.gridY,
         overflow: false,
         ...(arrangedSpec
-          ? { footprint: trimFootprintToPlacements(placed, shapesById, arrangedSpec) }
+          ? {
+              footprint: trimFootprintToPlacements(
+                placed,
+                shapesById,
+                arrangedSpec,
+                fingerHoles,
+              ),
+            }
           : {}),
       };
     }

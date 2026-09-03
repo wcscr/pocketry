@@ -2,6 +2,7 @@ import type { ManifoldToplevel } from "manifold-3d";
 
 import {
   cutoutPlacementSchema,
+  fingerHoleSchema,
   tracedShapeSchema,
 } from "@shared/gridfinity/cutout";
 import { parseBinSpec } from "@shared/gridfinity/types";
@@ -21,14 +22,17 @@ import {
   type BinMaterialParts,
   type BinLayout,
 } from "./bin";
-import { buildFitCheckSolid } from "./fit-check";
+import { buildFitCheckSolid, buildSurfaceFitCheckSolid } from "./fit-check";
 import {
   BUILD_BIN_METHOD,
   BUILD_FIT_CHECK_METHOD,
+  BUILD_SURFACE_FIT_CHECK_METHOD,
   type BuildBinRequest,
   type BuildBinResult,
   type BuildFitCheckRequest,
   type BuildFitCheckResult,
+  type BuildSurfaceFitCheckRequest,
+  type BuildSurfaceFitCheckResult,
 } from "./worker-api";
 
 function parseMaterialThickness(
@@ -80,7 +84,10 @@ export function createBinWorkerHandlers(
     );
     // Re-validate the layout at the boundary, exactly like the spec.
     let layout: BinLayout | null = null;
-    if (payload.layout && payload.layout.cutouts.length > 0) {
+    if (
+      payload.layout &&
+      (payload.layout.cutouts.length > 0 || payload.layout.fingerHoles.length > 0)
+    ) {
       const shapes = payload.layout.shapes.map((shape) =>
         tracedShapeSchema.parse(shape),
       );
@@ -88,6 +95,9 @@ export function createBinWorkerHandlers(
         shapesById: new Map(shapes.map((shape) => [shape.id, shape])),
         cutouts: payload.layout.cutouts.map((cutout) =>
           cutoutPlacementSchema.parse(cutout),
+        ),
+        fingerHoles: payload.layout.fingerHoles.map((hole) =>
+          fingerHoleSchema.parse(hole),
         ),
       };
     }
@@ -255,8 +265,64 @@ export function createBinWorkerHandlers(
     }
   };
 
+  const buildSurfaceFitCheckHandler = async (
+    payload: BuildSurfaceFitCheckRequest,
+    context: HandlerContext,
+  ) => {
+    const spec = parseBinSpec(payload.spec);
+    const shapes = payload.layout.shapes.map((shape) =>
+      tracedShapeSchema.parse(shape),
+    );
+    const layout: BinLayout = {
+      shapesById: new Map(shapes.map((shape) => [shape.id, shape])),
+      cutouts: payload.layout.cutouts.map((cutout) =>
+        cutoutPlacementSchema.parse(cutout),
+      ),
+      fingerHoles: payload.layout.fingerHoles.map((hole) =>
+        fingerHoleSchema.parse(hole),
+      ),
+    };
+    context.progress(0.05);
+
+    const wasm = await loadRuntime();
+    if (context.signal.aborted) throw new WorkerCancelledError();
+
+    const arena = new Arena();
+    try {
+      const kernel = createKernel(wasm, arena);
+      const started = performance.now();
+      const solid = buildSurfaceFitCheckSolid(
+        kernel,
+        spec,
+        layout,
+        payload.thicknessMm,
+        payload.quality,
+      );
+      context.progress(0.7);
+      if (context.signal.aborted) throw new WorkerCancelledError();
+
+      const volumeMm3 = solid.volume();
+      const mesh = extractMeshData(kernel, solid, { normals: true });
+      context.progress(0.9);
+      const value: BuildSurfaceFitCheckResult = {
+        mesh,
+        stats: {
+          triangles: mesh.indices.length / 3,
+          volumeMm3,
+          buildMs: performance.now() - started,
+        },
+      };
+      const transfer: Transferable[] = [mesh.positions.buffer, mesh.indices.buffer];
+      if (mesh.normals) transfer.push(mesh.normals.buffer);
+      return { value, transfer };
+    } finally {
+      arena.dispose();
+    }
+  };
+
   return {
     [BUILD_BIN_METHOD]: buildBinHandler,
     [BUILD_FIT_CHECK_METHOD]: buildFitCheckHandler,
+    [BUILD_SURFACE_FIT_CHECK_METHOD]: buildSurfaceFitCheckHandler,
   } satisfies HandlerMap;
 }

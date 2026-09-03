@@ -125,6 +125,7 @@ describe("bin store", () => {
         type: "HYDRATE",
         spec: { ...store().spec, gridX: 4 },
         cutouts: [CUTOUT],
+        fingerHoles: [],
       }),
     );
     expect(store().hydrated).toBe(true);
@@ -297,11 +298,43 @@ describe("bin store history (G4 undo/redo)", () => {
         type: "HYDRATE",
         spec: store().spec,
         cutouts: [CUTOUT],
+        fingerHoles: [],
       }),
     );
     expect(store().canUndo).toBe(false);
     act(() => store().dispatch({ type: "UNDO" }));
     expect(store().cutouts).toHaveLength(1);
+  });
+
+  it("keeps finger holes independent when a tool pocket is moved or removed", () => {
+    const { store, act } = mountBin();
+    act(() =>
+      store().dispatch({ type: "ADD_PLACED", cutouts: [CUTOUT], gridX: 2, gridY: 2 }),
+    );
+    act(() =>
+      store().dispatch({
+        type: "ADD_FINGER_HOLE",
+        hole: {
+          id: "f1",
+          center: { x: 7, y: -3 },
+          diameterMm: 18,
+          depthMm: 12,
+          kind: "scoop",
+        },
+      }),
+    );
+    act(() =>
+      store().dispatch({
+        type: "UPDATE_CUTOUT",
+        id: "c1",
+        patch: { position: { x: 20, y: 10 } },
+      }),
+    );
+    expect(store().fingerHoles[0].center).toEqual({ x: 7, y: -3 });
+    act(() => store().dispatch({ type: "REMOVE_CUTOUT", id: "c1" }));
+    expect(store().cutouts).toEqual([]);
+    expect(store().fingerHoles).toHaveLength(1);
+    expect(store().selectedFingerHoleId).toBe("f1");
   });
 
   it("duplicate copies everything but identity and offsets the twin", () => {

@@ -13,10 +13,13 @@ import { partitionPocketFloorTriangles } from "./pocket-floor-mesh";
 import {
   BUILD_BIN_METHOD,
   BUILD_FIT_CHECK_METHOD,
+  BUILD_SURFACE_FIT_CHECK_METHOD,
   type BuildBinRequest,
   type BuildBinResult,
   type BuildFitCheckRequest,
   type BuildFitCheckResult,
+  type BuildSurfaceFitCheckRequest,
+  type BuildSurfaceFitCheckResult,
 } from "./worker-api";
 
 /**
@@ -43,6 +46,17 @@ function getFitCheckHandler(): FitCheckHandler {
   return createBinWorkerHandlers(loadManifold)[
     BUILD_FIT_CHECK_METHOD
   ] as unknown as FitCheckHandler;
+}
+
+type SurfaceFitCheckHandler = (
+  payload: BuildSurfaceFitCheckRequest,
+  context: HandlerContext,
+) => Promise<TransferableResult<BuildSurfaceFitCheckResult>>;
+
+function getSurfaceFitCheckHandler(): SurfaceFitCheckHandler {
+  return createBinWorkerHandlers(loadManifold)[
+    BUILD_SURFACE_FIT_CHECK_METHOD
+  ] as unknown as SurfaceFitCheckHandler;
 }
 
 function context(overrides: Partial<HandlerContext> = {}): HandlerContext {
@@ -132,6 +146,7 @@ describe("bin worker handlers", () => {
         layout: {
           shapes: [shape],
           cutouts: [placement],
+          fingerHoles: [],
         },
       },
       context(),
@@ -168,7 +183,7 @@ describe("bin worker handlers", () => {
       {
         spec,
         quality: { circularSegments: 16, cutoutVertexBudget: 150 },
-        layout: { shapes: [shape], cutouts: [placement] },
+        layout: { shapes: [shape], cutouts: [placement], fingerHoles: [] },
         pocketFloorMaterialThicknessMm: 0.8,
         stackingRimMaterialThicknessMm: 1.2,
       },
@@ -386,6 +401,95 @@ describe("fit template worker handler", () => {
           depthMm: 0.1,
           quality: { circularSegments: 16 },
         },
+        context(),
+      ),
+    ).rejects.toThrow("thickness");
+  });
+});
+
+describe("complete surface fit test worker handler", () => {
+  const shape = {
+    id: "surface-shape",
+    name: "Deep pliers",
+    outlineMm: [
+      {
+        outer: [
+          { x: -6, y: -4 },
+          { x: 6, y: -4 },
+          { x: 6, y: 4 },
+          { x: -6, y: 4 },
+        ],
+        holes: [],
+      },
+    ],
+    bboxMm: { minX: -6, minY: -4, maxX: 6, maxY: 4 },
+    pointCount: 4,
+    sourceMmPerPx: 0.2,
+  };
+
+  const request = (lip: "standard" | "none"): BuildSurfaceFitCheckRequest => ({
+    spec: { gridX: 2, gridY: 1, heightUnits: 6, fill: "solid", lip },
+    layout: {
+      shapes: [shape],
+      cutouts: [
+        {
+          id: "surface-cutout-left",
+          shapeId: shape.id,
+          position: { x: -15, y: 0 },
+          clearanceMm: 0,
+          cornerRoundMm: 0,
+          topFilletMm: 0,
+          bottomFilletMm: 0,
+        },
+        {
+          id: "surface-cutout-right",
+          shapeId: shape.id,
+          position: { x: 15, y: 0 },
+          clearanceMm: 0,
+          cornerRoundMm: 0,
+          topFilletMm: 0,
+          bottomFilletMm: 0,
+        },
+      ],
+      fingerHoles: [],
+    },
+    thicknessMm: 1.2,
+    quality: { circularSegments: 32, cutoutVertexBudget: 600 },
+  });
+
+  it("exports the full pocket surface on the build plate without the stacking lip", async () => {
+    const withLip = await getSurfaceFitCheckHandler()(request("standard"), context());
+    const withoutLip = await getSurfaceFitCheckHandler()(request("none"), context());
+    const positions = withLip.value.mesh.positions;
+    const xs: number[] = [];
+    const ys: number[] = [];
+    const zs: number[] = [];
+    for (let index = 0; index < positions.length; index += 3) {
+      xs.push(positions[index]);
+      ys.push(positions[index + 1]);
+      zs.push(positions[index + 2]);
+    }
+
+    expect(Math.min(...xs)).toBeCloseTo(-83.5 / 2, 5);
+    expect(Math.max(...xs)).toBeCloseTo(83.5 / 2, 5);
+    expect(Math.min(...ys)).toBeCloseTo(-41.5 / 2, 5);
+    expect(Math.max(...ys)).toBeCloseTo(41.5 / 2, 5);
+    expect(Math.min(...zs)).toBeCloseTo(0, 6);
+    expect(Math.max(...zs)).toBeCloseTo(1.2, 6);
+    // The source bin's lip choice changes only the source elevation; the
+    // exported surface geometry itself contains no lip.
+    expect(withLip.value.stats.volumeMm3).toBeCloseTo(
+      withoutLip.value.stats.volumeMm3,
+      5,
+    );
+    expect(withLip.transfer).toContain(withLip.value.mesh.positions.buffer);
+    expect(withLip.transfer).toContain(withLip.value.mesh.indices.buffer);
+  });
+
+  it("rejects an unsafe paper-thin surface", async () => {
+    await expect(
+      getSurfaceFitCheckHandler()(
+        { ...request("standard"), thicknessMm: 0.2 },
         context(),
       ),
     ).rejects.toThrow("thickness");

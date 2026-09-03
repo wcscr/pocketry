@@ -31,6 +31,7 @@ export interface PanelSectionProps {
 export type PanelTone =
   | "slate"
   | "blue"
+  | "cyan"
   | "violet"
   | "amber"
   | "rose"
@@ -51,6 +52,13 @@ const TONE_STYLES = {
     open: "data-[state=open]:bg-blue-500/5",
     summary: "bg-blue-500/10 text-blue-700 dark:text-blue-300",
     index: "bg-blue-500/5 text-blue-700 hover:bg-blue-500/10 dark:text-blue-300",
+  },
+  cyan: {
+    marker: "bg-cyan-500",
+    icon: "text-cyan-600 dark:text-cyan-400",
+    open: "data-[state=open]:bg-cyan-500/5",
+    summary: "bg-cyan-500/10 text-cyan-700 dark:text-cyan-300",
+    index: "bg-cyan-500/5 text-cyan-700 hover:bg-cyan-500/10 dark:text-cyan-300",
   },
   violet: {
     marker: "bg-violet-500",
