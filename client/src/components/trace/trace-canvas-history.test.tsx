@@ -318,6 +318,81 @@ describe("TraceCanvas edit history", () => {
     React.act(() => root.unmount());
   });
 
+  it("replaces completed ruler points instead of restoring the old ruler", async () => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+    const restoreSvgCoordinates = installIdentitySvgCoordinates();
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const root = createRoot(host);
+
+    try {
+      await React.act(async () => {
+        root.render(
+          <TraceProvider>
+            <SeedTrace />
+            <ScaleStateProbe />
+            <TooltipProvider>
+              <TraceCanvas onReprocess={() => {}} />
+            </TooltipProvider>
+          </TraceProvider>,
+        );
+        await Promise.resolve();
+      });
+
+      const canvas = host.querySelector("svg");
+      const setScale = host.querySelector<HTMLButtonElement>(
+        '[aria-label="Set scale"]',
+      );
+      expect(canvas).not.toBeNull();
+      expect(setScale).not.toBeNull();
+      expect(host.querySelectorAll('[data-testid="ruler-marker"]')).toHaveLength(2);
+
+      await React.act(async () => {
+        setScale?.click();
+      });
+      expect(host.querySelector('[data-testid="scale-mode"]')?.textContent).toBe(
+        "calibrate",
+      );
+      expect(host.querySelectorAll('[data-testid="ruler-marker"]')).toHaveLength(0);
+
+      for (const [clientX, clientY] of [
+        [20, 30],
+        [75, 85],
+      ]) {
+        await React.act(async () => {
+          canvas?.dispatchEvent(
+            new MouseEvent("pointerdown", {
+              bubbles: true,
+              button: 0,
+              clientX,
+              clientY,
+            }),
+          );
+        });
+      }
+
+      expect(host.querySelector('[data-testid="scale-mode"]')?.textContent).toBe(
+        "pan",
+      );
+      expect(
+        host.querySelector('[data-testid="scale-committed"]')?.textContent,
+      ).toBe("pending");
+      expect(host.querySelector('[data-testid="scale-draft"]')?.textContent).toBe(
+        JSON.stringify({ startX: 20, startY: 30, endX: 75, endY: 85 }),
+      );
+      const line = host.querySelector('[data-testid="ruler-line"]');
+      expect(line?.getAttribute("x1")).toBe("20");
+      expect(line?.getAttribute("y1")).toBe("30");
+      expect(line?.getAttribute("x2")).toBe("75");
+      expect(line?.getAttribute("y2")).toBe("85");
+      expect(line?.getAttribute("data-ruler-preview")).toBe("true");
+    } finally {
+      React.act(() => root.unmount());
+      restoreSvgCoordinates();
+    }
+  });
+
   it("extends the draft ruler to follow the pointer after its first marker", async () => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     vi.stubGlobal("ResizeObserver", NoopResizeObserver);

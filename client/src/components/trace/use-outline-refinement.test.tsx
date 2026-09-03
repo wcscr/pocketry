@@ -176,4 +176,64 @@ describe("useOutlineRefinement", () => {
     expect(mounted.store().margin).toBe(2);
     mounted.unmount();
   });
+
+  it("does not apply the scale-dependent margin a second time after rotation", async () => {
+    const refiner = vi.fn<OutlineRefiner>(async (outline) => outline);
+    const offsetter = vi.fn<OutlineOffsetter>(async (outline) => outline);
+    const mounted = mountHook(refiner, offsetter);
+
+    React.act(() => {
+      mounted.store().dispatch({
+        type: "SOURCE_LOADED",
+        imageUrl: "data:image/png;base64,AA==",
+        fileName: "tool",
+      });
+      mounted.store().dispatch({
+        type: "SOURCE_READY",
+        imageSize: { width: 20, height: 10 },
+      });
+      mounted.store().dispatch({
+        type: "SET_CALIBRATION",
+        calibration: {
+          startX: 0,
+          startY: 0,
+          endX: 20,
+          endY: 0,
+          lengthMm: 10,
+        },
+      });
+      mounted.store().dispatch({
+        type: "DETECTED",
+        imageUrl: "data:image/png;base64,AA==",
+        outline: OUTLINE,
+        rawOutline: OUTLINE,
+        svg: "<svg/>",
+        region: null,
+      });
+    });
+    await React.act(async () => Promise.resolve());
+    refiner.mockClear();
+    offsetter.mockClear();
+
+    await React.act(async () => {
+      mounted.store().dispatch({
+        type: "ROTATE_SOURCE",
+        direction: "clockwise",
+        naturalSize: { width: 20, height: 10 },
+        maxSize: { width: 800, height: 600 },
+      });
+      await Promise.resolve();
+    });
+
+    expect(refiner).not.toHaveBeenCalled();
+    expect(offsetter).not.toHaveBeenCalled();
+    expect(mounted.store().imageSize).toEqual({ width: 10, height: 20 });
+    expect(mounted.store().outline[0].outer).toEqual([
+      { x: 10, y: 0 },
+      { x: 10, y: 20 },
+      { x: 0, y: 20 },
+      { x: 0, y: 0 },
+    ]);
+    mounted.unmount();
+  });
 });

@@ -23,6 +23,7 @@ const CALIBRATION: Calibration = {
 };
 
 const applyPerspective = vi.fn();
+const rotateImage = vi.fn();
 
 class NoopResizeObserver implements ResizeObserver {
   observe() {}
@@ -131,6 +132,7 @@ function Harness(): JSX.Element {
       </button>
       <TraceControlsPanel
         onReplaceImage={() => {}}
+        onRotateImage={rotateImage}
         onExport={() => {}}
         onReprocess={() => {}}
         onDetectMarkers={() => {}}
@@ -145,6 +147,7 @@ let root: Root;
 
 beforeEach(() => {
   applyPerspective.mockReset();
+  rotateImage.mockReset();
   vi.mocked(downloadBlob).mockReset();
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.stubGlobal("ResizeObserver", NoopResizeObserver);
@@ -218,6 +221,13 @@ function sectionTrigger(id: string): HTMLButtonElement | null {
   );
 }
 
+async function clickSection(id: string): Promise<void> {
+  await React.act(async () => {
+    sectionTrigger(id)?.click();
+    await new Promise((resolve) => window.setTimeout(resolve, 10));
+  });
+}
+
 describe("TraceControlsPanel guided workflow", () => {
   it("collapses every section, opens Scale, and pulses its action after source load", async () => {
     expect(host.textContent).toContain("Choose or drop an image");
@@ -280,6 +290,18 @@ describe("TraceControlsPanel guided workflow", () => {
     expect(
       document.body.querySelector('[data-testid="button-template-letter"]'),
     ).not.toBeNull();
+  });
+
+  it("offers clockwise and counterclockwise rotation for a loaded source", async () => {
+    await click("load-source");
+    await clickSection("source");
+
+    expect(section("source")?.textContent).toContain("Rotate left 90°");
+    expect(section("source")?.textContent).toContain("Rotate right 90°");
+    await click("button-rotate-image-counterclockwise");
+    await click("button-rotate-image-clockwise");
+    expect(rotateImage).toHaveBeenNthCalledWith(1, "counterclockwise");
+    expect(rotateImage).toHaveBeenNthCalledWith(2, "clockwise");
   });
 
   it("makes an auto-detected sheet scale explicit and waits for acceptance", async () => {
@@ -474,6 +496,47 @@ describe("TraceControlsPanel guided workflow", () => {
     expect(host.textContent).toContain(
       "Click and drag on the image",
     );
+  });
+
+  it("keeps Scale active when Redraw ruler is clicked from the length field", async () => {
+    await click("load-source");
+    await click("complete-manual-scale");
+    await changeNumber("ruler-length", "50");
+
+    const input = host.querySelector<HTMLInputElement>("#ruler-length");
+    const redraw = host.querySelector<HTMLButtonElement>(
+      '[data-testid="button-set-scale"]',
+    );
+    expect(document.activeElement).toBe(input);
+    expect(redraw?.textContent).toBe("Redraw ruler");
+
+    // A real pointer click transfers focus before `click`, so the input's blur
+    // fires first. The redraw intent must suppress that stale scale commit or
+    // the guided workflow advances and remounts the button mid-interaction.
+    await React.act(async () => {
+      const pointerDown = new MouseEvent("pointerdown", {
+        bubbles: true,
+        cancelable: true,
+      });
+      redraw?.dispatchEvent(pointerDown);
+      input?.blur();
+      await Promise.resolve();
+    });
+    await React.act(async () => {
+      redraw?.dispatchEvent(new MouseEvent("pointerup", { bubbles: true }));
+      redraw?.click();
+      await new Promise((resolve) => window.setTimeout(resolve, 10));
+    });
+
+    expect(section("scale")?.dataset.state).toBe("open");
+    expect(section("crop")?.dataset.state).toBe("closed");
+    expect(sectionTrigger("crop")?.disabled).toBe(true);
+    expect(
+      host.querySelector('[data-testid="button-set-scale"]')?.textContent,
+    ).toBe("Placing ruler");
+    expect(
+      host.querySelector('[data-testid="manual-scale-guidance"]'),
+    ).not.toBeNull();
   });
 
   it("updates the displayed manual scale when the reference length changes", async () => {

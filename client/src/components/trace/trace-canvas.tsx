@@ -87,6 +87,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
   const {
     imageUrl,
     imageSize,
+    imageRotation,
     outline,
     selection,
     region,
@@ -229,6 +230,15 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
   // the start of a (failed) drag.
   const clickRef = useRef<{ clientX: number; clientY: number } | null>(null);
   const CLICK_SLOP_PX = 4;
+
+  useEffect(() => {
+    // Pointer previews and active drags belong to the previous image frame;
+    // committed geometry is rotated atomically by the store.
+    dragRef.current = null;
+    clickRef.current = null;
+    setRulerPointer(null);
+    setPerspectivePointer(null);
+  }, [imageRotation]);
 
   /**
    * The vertex currently under the cursor, on the selected ring. Feedback
@@ -613,6 +623,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
           sceneRef={sceneRef}
           imageUrl={imageUrl}
           imageSize={imageSize}
+          imageRotation={imageRotation}
           transform={viewport.transform}
           outline={outline}
           selection={selection}

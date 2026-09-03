@@ -5,6 +5,7 @@ import {
   DETECTION_CANVAS_MAX,
   decodeImageFile,
   detectionGeometry,
+  drawImageWithRotation,
   fitWithin,
   IMAGE_CANVAS_MAX,
 } from "./use-image-source";
@@ -125,6 +126,43 @@ describe("IMAGE_CANVAS_MAX", () => {
     // calibration. If it ever tracked the display size, exports would silently
     // change dimensions with no visible symptom.
     expect(IMAGE_CANVAS_MAX).toEqual({ width: 800, height: 600 });
+  });
+});
+
+describe("drawImageWithRotation", () => {
+  it("rotates the working raster clockwise into swapped dimensions", () => {
+    const context = {
+      save: vi.fn(),
+      translate: vi.fn(),
+      rotate: vi.fn(),
+      drawImage: vi.fn(),
+      restore: vi.fn(),
+    } as unknown as CanvasRenderingContext2D;
+    const image = {} as CanvasImageSource;
+
+    drawImageWithRotation(context, image, { width: 300, height: 400 }, 1);
+
+    expect(context.translate).toHaveBeenCalledWith(300, 0);
+    expect(context.rotate).toHaveBeenCalledWith(Math.PI / 2);
+    expect(context.drawImage).toHaveBeenCalledWith(image, 0, 0, 400, 300);
+    expect(context.restore).toHaveBeenCalledOnce();
+  });
+
+  it("rotates the detection raster counterclockwise", () => {
+    const context = {
+      save: vi.fn(),
+      translate: vi.fn(),
+      rotate: vi.fn(),
+      drawImage: vi.fn(),
+      restore: vi.fn(),
+    } as unknown as CanvasRenderingContext2D;
+    const image = {} as CanvasImageSource;
+
+    drawImageWithRotation(context, image, { width: 300, height: 400 }, 3);
+
+    expect(context.translate).toHaveBeenCalledWith(0, 400);
+    expect(context.rotate).toHaveBeenCalledWith(-Math.PI / 2);
+    expect(context.drawImage).toHaveBeenCalledWith(image, 0, 0, 400, 300);
   });
 });
 
