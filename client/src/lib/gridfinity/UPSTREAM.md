@@ -23,10 +23,9 @@ vendored into this repository — porting stays explicit.
 | `client/src/lib/gridfinity/holes.ts` | `src/core/gridfinity-rebuilt-holes.scad` `block_base_hole()`, `screw_hole()`, `make_hole_printable()`, `ribbed_circle()`/`ribbed_cylinder()`; `src/core/base.scad` `_base_holes()` | Magnet/screw holes, sequential-bridging ceilings, entry chamfer, crush ribs, hole grid |
 | `client/src/lib/gridfinity/fillet-stack.ts` | — (original) | K-slice stepped bottom fillet for cutout pockets |
 | `client/src/lib/gridfinity/label-tab.ts` | `src/core/tab.scad` `tab()`, `src/core/standard.scad` `TAB_POLYGON` / `TAB_*` | Label tab profile prism, width styles (full / 42 mm left-center-right), wall placement |
-| `client/src/lib/gridfinity/lite-base.ts` | `src/core/base.scad` `gridfinity_base_lite()`, `base_outer_shell()`, `_lite_bridge_chamfer()` | Hollow thin-shell sockets, chamfered bridge lattice, thin floor |
 
-Not ported yet: the Gridfinity Refined hole, hole bosses on lite bases (holes
-are ignored there for now), lite `only_corners`, weighted/skeletonized/screw-together
+Not ported: the Gridfinity Refined hole, Lite Base and its `only_corners`
+variant, weighted/skeletonized/screw-together
 thumbscrew (`src/external/threads-scad` is a third-party vendored library —
 check its licence independently before porting; drop the feature if not
 permissive).
@@ -54,13 +53,6 @@ permissive).
   cuts configurable non-overlapping volumes downward from blind-pocket floors
   and the stacking-lip summit, leaving the original exterior dimensions and
   the rest of the body material unchanged.
-- **The lite base fixes upstream's two parameters at their bin defaults**:
-  `wall_thickness = D_WALL` and `bottom_thickness = 1.2 mm` (six slicer
-  layers; upstream exposes both). The shell's top vertices are nudged 0.2 mm
-  up into the bridge lattice so the union welds volumetrically (same trap as
-  the hole ceilings — abutting faces without shared vertices do not weld),
-  and hole bosses are not yet ported, so magnet/screw holes are ignored on
-  lite bases with a validation warning.
 - **Label tabs are per-bin, not per-compartment.** Upstream hangs tabs on
   compartment walls with an `auto` style resolved per grid element; this bin
   has no compartments, so the tab takes an explicit wall (`north`/…) and

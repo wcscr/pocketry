@@ -47,7 +47,8 @@ describe("parseProjectDoc", () => {
   it("migrates the complete New Airduster Layout without changing any saved geometry or settings", () => {
     const original = JSON.stringify(airdusterV9);
     const doc = parseProjectDoc(airdusterV9);
-    expect(doc).toEqual({ ...airdusterV9, schemaVersion: PROJECT_SCHEMA_VERSION });
+    const { liteBase: _removed, ...spec } = airdusterV9.spec;
+    expect(doc).toEqual({ ...airdusterV9, spec, schemaVersion: PROJECT_SCHEMA_VERSION });
     expect(doc!.shapes).toHaveLength(7);
     expect(doc!.cutouts).toHaveLength(4);
     expect(doc!.fingerHoles).toHaveLength(2);
@@ -322,5 +323,32 @@ describe("project file round trip", () => {
     expect(doc?.fingerHoles[0].center.x).toBeCloseTo(9, 9);
     expect(doc?.fingerHoles[0].center.y).toBeCloseTo(24, 9);
     expect(doc?.fingerHoles[0].rotationDeg).toBeCloseTo(90, 9);
+  });
+});
+
+
+describe("removed Lite Base migration", () => {
+  it.each([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])("migrates v%s with the removed flag", (schemaVersion) => {
+    const legacy = JSON.parse(JSON.stringify(VALID)) as Record<string, unknown>;
+    legacy.schemaVersion = schemaVersion;
+    if (schemaVersion < 7) delete legacy.fingerHoles;
+    (legacy.spec as Record<string, unknown>).liteBase = true;
+    const migrated = parseProjectDoc(legacy);
+    expect(migrated?.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
+    expect(migrated?.spec).not.toHaveProperty("liteBase");
+  });
+
+  it.each([true, false])("migrates v10 liteBase=%s while preserving the project", (liteBase) => {
+    const current = parseProjectDoc(VALID)!;
+    const legacy = { ...current, schemaVersion: 10, name: "My tools", keepBinSize: true,
+      spec: { ...current.spec, liteBase } };
+    expect(parseProjectDoc(legacy)).toEqual({ ...current, name: "My tools", keepBinSize: true });
+    expect(legacy.spec.liteBase).toBe(liteBase);
+  });
+
+  it("rejects malformed legacy flags and removed fields in current documents", () => {
+    const current = parseProjectDoc(VALID)!;
+    expect(parseProjectDoc({ ...current, schemaVersion: 10, spec: { ...current.spec, liteBase: "yes" } })).toBeNull();
+    expect(parseProjectDoc({ ...current, spec: { ...current.spec, liteBase: true } })).toBeNull();
   });
 });

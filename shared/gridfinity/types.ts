@@ -58,12 +58,6 @@ export const binSpecSchema = z
      * default. `none` is the classic hollow storage bin.
      */
     fill: z.enum(["none", "solid"]).default("solid"),
-    /**
-     * Lite base: hollow thin-shell sockets under a chamfered lattice
-     * instead of a solid base — much less plastic and print time. Magnet
-     * and screw holes are not supported on a lite base (yet).
-     */
-    liteBase: z.boolean().default(false),
     /** ⌀6.5 × 2.4 mm magnet pockets, four per cell, opening downward. */
     magnetHoles: z.boolean().default(false),
     /**

@@ -29,7 +29,6 @@ import {
 } from "./cutouts";
 import { holeOptionsFromSpec } from "./holes";
 import { buildLabelTab } from "./label-tab";
-import { buildLiteBase } from "./lite-base";
 import { roundedRectPolygon } from "./profiles";
 import { footprintOuterSection } from "./footprint-section";
 import { buildStackingLip, buildWallRing } from "./wall";
@@ -132,15 +131,12 @@ export function buildBinParts(
   const { CrossSection, arena } = kernel;
   const segments = quality.circularSegments;
 
-  // Lite bases ignore holes (no bosses yet); validation surfaces the clash.
-  const base = spec.liteBase
-    ? buildLiteBase(kernel, spec, segments)
-    : buildBase(
-        kernel,
-        spec,
-        segments,
-        spec.gridPitch === "full" ? holeOptionsFromSpec(spec) : undefined,
-      );
+  const base = buildBase(
+    kernel,
+    spec,
+    segments,
+    spec.gridPitch === "full" ? holeOptionsFromSpec(spec) : undefined,
+  );
   let wall = buildWallRing(kernel, spec, segments);
   const lip = spec.lip === "standard"
     ? buildStackingLip(kernel, spec, segments, quality.filletProfileStepMm)

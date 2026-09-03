@@ -485,6 +485,7 @@ describe("BinDesignerPage", () => {
     ]) {
       expect(constructionText).toContain(label);
     }
+    expect(constructionText).not.toContain("Lite base");
     unmount();
   });
 
