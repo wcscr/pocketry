@@ -60,7 +60,7 @@ describe("parseProjectDoc", () => {
 });
 
 describe("project file round trip", () => {
-  it("preserves straight and scoop finger holes through JSON", () => {
+  it("preserves straight, round-scoop and deep-scoop finger holes through JSON", () => {
     const withFeatures = JSON.parse(JSON.stringify(VALID)) as Record<string, unknown>;
     (withFeatures.cutouts as Record<string, unknown>[])[0] = {
       ...(withFeatures.cutouts as Record<string, unknown>[])[0],
@@ -79,16 +79,28 @@ describe("project file round trip", () => {
           diameterMm: 28,
           depthMm: 10,
         },
+        {
+          id: "f3",
+          kind: "deep-scoop",
+          center: { x: 12, y: 0 },
+          diameterMm: 16,
+          depthMm: 38,
+        },
       ],
     };
     // The exact path the Save file / Open file buttons take.
     const doc = parseProjectDoc(JSON.parse(JSON.stringify(withFeatures)));
     expect(doc).not.toBeNull();
-    expect(doc!.cutouts[0].fingerHoles).toHaveLength(2);
+    expect(doc!.cutouts[0].fingerHoles).toHaveLength(3);
     expect(doc!.cutouts[0].fingerHoles[1]).toMatchObject({
       id: "f2",
       kind: "scoop",
       depthMm: 10,
+    });
+    expect(doc!.cutouts[0].fingerHoles[2]).toMatchObject({
+      id: "f3",
+      kind: "deep-scoop",
+      depthMm: 38,
     });
   });
 
@@ -132,5 +144,55 @@ describe("project file round trip", () => {
     const doc = parseProjectDoc(legacy);
     expect(doc?.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
     expect(doc?.spec.footprint).toEqual({ kind: "rectangle" });
+  });
+
+  it("migrates schema v4 finger holes without changing their geometry", () => {
+    const legacy = JSON.parse(JSON.stringify(VALID)) as Record<string, unknown>;
+    legacy.schemaVersion = 4;
+    (legacy.cutouts as Record<string, unknown>[])[0] = {
+      ...(legacy.cutouts as Record<string, unknown>[])[0],
+      fingerHoles: [
+        {
+          id: "f1",
+          kind: "scoop",
+          center: { x: 4, y: 0 },
+          diameterMm: 18,
+          depthMm: 8,
+        },
+      ],
+    };
+    const doc = parseProjectDoc(legacy);
+    expect(doc?.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
+    expect(doc?.cutouts[0].fingerHoles[0]).toMatchObject({
+      kind: "scoop",
+      diameterMm: 18,
+      depthMm: 8,
+    });
+  });
+
+  it("normalizes the prototype oblong scoop into a vertical deep scoop", () => {
+    const prototype = JSON.parse(JSON.stringify(VALID)) as Record<string, unknown>;
+    (prototype.cutouts as Record<string, unknown>[])[0] = {
+      ...(prototype.cutouts as Record<string, unknown>[])[0],
+      fingerHoles: [
+        {
+          id: "prototype",
+          kind: "oblong-scoop",
+          center: { x: 4, y: 0 },
+          diameterMm: 18,
+          depthMm: 24,
+          reachMm: 30,
+          directionDeg: 180,
+        },
+      ],
+    };
+    const doc = parseProjectDoc(prototype);
+    expect(doc?.cutouts[0].fingerHoles[0]).toEqual({
+      id: "prototype",
+      kind: "deep-scoop",
+      center: { x: 4, y: 0 },
+      diameterMm: 18,
+      depthMm: 24,
+    });
   });
 });

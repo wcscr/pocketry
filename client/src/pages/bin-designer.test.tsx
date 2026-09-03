@@ -8,7 +8,7 @@ import { WORKSPACES } from "@/components/layout/workspaces";
 import * as ShapeLibraryModule from "@/state/shape-library";
 import { ShapeLibraryProvider } from "@/state/shape-library";
 import { PROJECT_SCHEMA_VERSION, type ProjectDoc } from "@shared/gridfinity/project";
-import type { TracedShape } from "@shared/gridfinity/cutout";
+import { parseCutoutPlacement, type TracedShape } from "@shared/gridfinity/cutout";
 import { parseBinSpec } from "@shared/gridfinity/types";
 
 /**
@@ -345,6 +345,58 @@ describe("BinDesignerPage", () => {
     expect(container.querySelectorAll('[data-testid="footprint-cell"]')).toHaveLength(4);
     expect(container.querySelectorAll('[data-testid="footprint-halo-cell"]')).toHaveLength(6);
     expect(container.querySelector('[data-testid="button-reset-footprint"]')).not.toBeNull();
+    unmount();
+  });
+
+  it("restores a deep finger scoop with diameter and total-depth controls", async () => {
+    const shape = rectangularShape("shape-deep", "Deep pliers");
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({
+      ...EMPTY_PROJECT,
+      shapes: [shape],
+      cutouts: [
+        parseCutoutPlacement({
+          id: "cutout-deep",
+          shapeId: shape.id,
+          position: { x: 0, y: 0 },
+          fingerHoles: [
+            {
+              id: "finger-deep",
+              kind: "deep-scoop",
+              center: { x: 15, y: 0 },
+              diameterMm: 16,
+              depthMm: 30,
+            },
+          ],
+        }),
+      ],
+    });
+
+    const { container, unmount } = renderPage();
+    await flushHydration();
+    openSettingsSection(container, "tool-cutouts");
+    React.act(() => {
+      (
+        container.querySelector(
+          '[data-testid="button-select-cutout-deep"]',
+        ) as HTMLButtonElement
+      ).click();
+    });
+
+    expect(
+      container.querySelector('[data-testid="finger-hole-kind-1"]')?.textContent,
+    ).toContain("Deep scoop");
+    expect(container.querySelector('[aria-label="Diameter"]')).not.toBeNull();
+    expect(container.querySelector('[aria-label="Total depth"]')).not.toBeNull();
+    expect(container.querySelector('[aria-label="Reach"]')).toBeNull();
+    expect(container.textContent).toContain("Straight shaft: 22.0 mm");
+    expect(container.textContent).toContain("hemispherical bottom: 8.0 mm");
+
+    React.act(() => {
+      (container.querySelector('[data-testid="view-toggle-2d"]') as HTMLButtonElement).click();
+    });
+    expect(
+      container.querySelector('[data-testid="feature-deep-scoop-cutout-deep"]'),
+    ).not.toBeNull();
     unmount();
   });
 

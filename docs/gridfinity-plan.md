@@ -20,10 +20,13 @@ shaped-bin physical gate remains: print a full-pitch
 footprint, then print an L-tool pocket and check its fit.
 
 G4 delivered per-pocket **finger holes**, now individually selectable as
-straight cylinders sharing the pocket's floor and fillet or spherical scoops
-from the top surface (rim exactly the drawn circle, legal deeper than the
-pocket floor). Multiple holes of either kind are stored shape-local and
-draggable as circles in the Layout view; **auto-arrange**
+straight cylinders sharing the pocket's floor and fillet, spherical round
+scoops, or deep scoops from the top surface. A deep scoop keeps a round opening,
+runs straight down for the requested shaft depth, and terminates in a true
+hemisphere; total depth can therefore exceed the opening diameter without an
+inward-overhanging cavity. Round-scoop depth remains capped at half the opening
+width. Multiple holes are stored shape-local and draggable by their exact
+circular rim in the Layout view; **auto-arrange**
 (min-area OBB per cutout — features included — then shelf packing into the
 smallest grid, ids preserved); **undo/redo** over the material document
 `{spec, cutouts}` (hand-rolled history in the bin reducer, mirroring the
@@ -206,7 +209,7 @@ rewrite. Verify against the code before relying on any detail here.
 | Panel + canvas workspace shell | `client/src/components/layout/workspace-layout.tsx` | `autoSaveId` per workspace |
 | Vitest, node + jsdom projects | `vitest.config.ts` | geometry tests run headless with real WASM |
 
-The previously missing `ProjectDoc` is now implemented with `schemaVersion: 2`,
+The previously missing `ProjectDoc` is now implemented with `schemaVersion: 5`,
 IndexedDB autosave plus a named Project Library, explicit `.pocketry.json`
 backup import/export with legacy `.tooltrace.json` import compatibility, and
 reducer-owned undo/redo.
@@ -268,7 +271,7 @@ interface CutoutPlacement {
   cornerRoundMm: number;    // 1.0 — 2D vertical edge round
   topFilletMm: number;      // 0.0 — top-surface pocket-edge round-over
   bottomFilletMm: number;   // 2.8 (r_f2), clamped to depth/2
-  fingerHoles: FingerHole[]; // each kind is 'straight' or 'scoop'
+  fingerHoles: FingerHole[]; // 'straight', 'scoop', or vertical 'deep-scoop'
 }
 ```
 
@@ -288,7 +291,7 @@ export; warnings do not.
 
 `server/storage.ts` has only `MemStorage` (a `Map`, wiped on restart), there is no Drizzle
 implementation and no `migrations/`, and the client never reads anything back. Instead,
-the landed client implementation uses a `ProjectDoc` with **`schemaVersion: 2`**, a
+the landed client implementation uses a `ProjectDoc` with **`schemaVersion: 5`**, a
 hand-rolled reducer history, `idb-keyval` autosave to IndexedDB (not localStorage —
 traced shapes plus thumbnails blow past 5 MB), a browser-local named Project
 Library with active-project autosave, and explicit `.pocketry.json` backup

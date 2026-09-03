@@ -2,7 +2,9 @@
 import type { Manifold } from "manifold-3d";
 
 import {
+  effectiveDeepScoopDepthMm,
   effectiveScoopDepthMm,
+  fingerHoleFootprintRing,
   resolvePocketDepth,
   transformOutlinePlacement,
   transformPointPlacement,
@@ -51,9 +53,11 @@ import {
  *  - **straight finger holes** union their circles into the cross-section
  *    *after* the offsets (they are cut at their drawn diameter, no fit
  *    clearance), so they share the pocket's depth, floor and bottom fillet;
- *  - **scoop finger holes** are their own solids — spherical caps through the
- *    top surface plus a cylinder clearing the lip above it, overlapped by a
- *    half-layer because abutting unions only weld where faces share vertices.
+ *  - **scoop finger holes** are their own solids — round scoops use spherical
+ *    caps, while deep scoops use a straight cylindrical shaft ending in a
+ *    hemisphere. Their rim is extended through the lip; the deep scoop's full
+ *    sphere overlaps inside the shaft so the exposed lower half is a robust,
+ *    watertight hemispherical bottom.
  *
  * Everything is tracked in `kernel.arena`; the caller owns disposal.
  */
@@ -129,17 +133,15 @@ export function scoopSphereRadiusMm(
   return (a * a + h * h) / (2 * h);
 }
 
-/** The scoop cutter: sphere cap below the top surface + lip-clearing mouth. */
-function buildScoopCutter(
+/** One spherical cap below the top surface, centred in bin-local XY. */
+function buildScoopCapAt(
   kernel: Kernel,
   scoop: FingerHole,
-  placement: Pick<CutoutPlacement, "position" | "rotationDeg" | "mirrored">,
+  centre: { x: number; y: number },
   pocket: ResolvedPocket,
   segments: number,
 ): Manifold {
   const { arena, Manifold: M } = kernel;
-  const centre = transformPointPlacement(scoop.center, placement);
-  const rimRadius = scoop.diameterMm / 2;
   const depth = effectiveScoopDepthMm(scoop);
   const sphereRadius = scoopSphereRadiusMm(scoop);
   const sphereCentreZ = pocket.infillTopZ + sphereRadius - depth;
@@ -167,17 +169,80 @@ function buildScoopCutter(
         pocket.infillTopZ - depth - 1,
       ]),
   );
-  const cap = arena.track(sphere.intersect(keepBelow));
+  return arena.track(sphere.intersect(keepBelow));
+}
 
-  // The mouth above the top surface is the rim circle, extended a half-layer
-  // down into the cap so the union overlaps volumetrically.
+/** Vertical mouth matching the exact plan-view rim and clearing any lip. */
+function buildScoopMouth(
+  kernel: Kernel,
+  scoop: FingerHole,
+  placement: Pick<CutoutPlacement, "position" | "rotationDeg" | "mirrored">,
+  pocket: ResolvedPocket,
+  segments: number,
+): Manifold {
+  const { arena } = kernel;
+  const ring = fingerHoleFootprintRing(scoop, placement, segments);
+  const section = toCrossSection(kernel, [{ outer: ring, holes: [] }]);
+
+  // The mouth above the top surface is the exact round rim, extended
+  // a half-layer down into the dish so the union overlaps volumetrically.
   const mouthBottomZ = pocket.infillTopZ - LAYER_HEIGHT / 2;
-  const mouth = arena.track(
-    arena
-      .track(M.cylinder(pocket.cutterTopZ - mouthBottomZ, rimRadius, rimRadius, segments))
-      .translate([centre.x, centre.y, mouthBottomZ]),
+  return arena.track(
+    arena.track(section.extrude(pocket.cutterTopZ - mouthBottomZ)).translate([
+      0,
+      0,
+      mouthBottomZ,
+    ]),
   );
+}
+
+/** Round, top-surface spherical-cap cutter. */
+function buildRoundScoopCutter(
+  kernel: Kernel,
+  scoop: FingerHole,
+  placement: Pick<CutoutPlacement, "position" | "rotationDeg" | "mirrored">,
+  pocket: ResolvedPocket,
+  segments: number,
+): Manifold {
+  const { arena } = kernel;
+  const centre = transformPointPlacement(scoop.center, placement);
+  const mouth = buildScoopMouth(kernel, scoop, placement, pocket, segments);
+  const cap = buildScoopCapAt(kernel, scoop, centre, pocket, segments);
   return arena.track(cap.add(mouth));
+}
+
+/** Straight cylindrical shaft with an exposed hemispherical bottom. */
+function buildDeepScoopCutter(
+  kernel: Kernel,
+  scoop: FingerHole,
+  placement: Pick<CutoutPlacement, "position" | "rotationDeg" | "mirrored">,
+  pocket: ResolvedPocket,
+  segments: number,
+): Manifold {
+  const { arena, Manifold: M } = kernel;
+  const centre = transformPointPlacement(scoop.center, placement);
+  const radius = scoop.diameterMm / 2;
+  const totalDepth = effectiveDeepScoopDepthMm(scoop);
+  const sphereCentreZ = pocket.infillTopZ - totalDepth + radius;
+  const sphere = arena.track(
+    arena.track(M.sphere(radius, segments)).translate([
+      centre.x,
+      centre.y,
+      sphereCentreZ,
+    ]),
+  );
+  const ring = fingerHoleFootprintRing(scoop, placement, segments);
+  const section = toCrossSection(kernel, [{ outer: ring, holes: [] }]);
+  const shaft = arena.track(
+    arena.track(section.extrude(pocket.cutterTopZ - sphereCentreZ)).translate([
+      0,
+      0,
+      sphereCentreZ,
+    ]),
+  );
+  // The sphere's upper half is contained inside the shaft, giving the union
+  // volumetric overlap while exposing exactly its lower hemisphere.
+  return arena.track(shaft.add(sphere));
 }
 
 /** Builds one cutter per cutout, skipping (and reporting) collapsed ones. */
@@ -253,7 +318,9 @@ export function buildCutoutCutters(
     const pocket = resolvePocketDepth(spec, cutout.depth);
     for (const hole of cutout.fingerHoles) {
       if (hole.kind === "scoop") {
-        cutters.push(buildScoopCutter(kernel, hole, cutout, pocket, segments));
+        cutters.push(buildRoundScoopCutter(kernel, hole, cutout, pocket, segments));
+      } else if (hole.kind === "deep-scoop") {
+        cutters.push(buildDeepScoopCutter(kernel, hole, cutout, pocket, segments));
       }
     }
     let cutter: Manifold;
