@@ -44,20 +44,29 @@ export function useOutlineRefinement(
     smoothing,
     margin,
     calibration,
+    imageRotation,
     dispatch,
   } = useTrace();
   const detectionSignature = JSON.stringify([tolerancePx, smoothing]);
   const scaleMmPerPx = mmPerPixel(calibration);
   const previousDetectionSignature = useRef(detectionSignature);
   const previousScaleMmPerPx = useRef(scaleMmPerPx);
+  const previousImageRotation = useRef(imageRotation);
 
   useEffect(() => {
     const detectionSettingsChanged =
       previousDetectionSignature.current !== detectionSignature;
     const previousMmPerPx = previousScaleMmPerPx.current;
     const scaleChanged = previousMmPerPx !== scaleMmPerPx;
+    const imageRotated = previousImageRotation.current !== imageRotation;
     previousDetectionSignature.current = detectionSignature;
     previousScaleMmPerPx.current = scaleMmPerPx;
+    previousImageRotation.current = imageRotation;
+
+    // ROTATE_SOURCE already transforms the margin-bearing edited outline and
+    // its calibration into the new pixel scale atomically. Applying the usual
+    // scale-change offset again would double-adjust the physical margin.
+    if (imageRotated) return;
 
     // DETECTED already applies the current settings. Detail and smoothing are
     // intentionally re-derived from the dense detector result. Margin changes,
@@ -101,6 +110,7 @@ export function useOutlineRefinement(
     margin,
     detectionSignature,
     scaleMmPerPx,
+    imageRotation,
     dispatch,
     refineOutline,
     offsetEditedOutline,
