@@ -15,10 +15,12 @@ import {
 import {
   effectiveDeepScoopDepthMm,
   effectiveScoopDepthMm,
+  fingerHoleFootprintRing,
   placementFootprint,
   resolvePocketDepth,
   signedDistanceToInterior,
   type CutoutPlacement,
+  type FingerHole,
   type TracedShape,
 } from "./cutout";
 import {
@@ -58,6 +60,8 @@ export interface ValidationIssue {
   message: string;
   /** Cutout(s) the issue is about, for per-cutout highlighting in the editor. */
   cutoutIds?: string[];
+  /** Independent finger-hole object(s) the issue is about. */
+  fingerHoleIds?: string[];
 }
 
 export interface ValidationResult {
@@ -244,15 +248,16 @@ export function validateLayout(
   spec: BinSpec,
   cutouts: readonly CutoutPlacement[],
   shapesById: ReadonlyMap<string, TracedShape>,
+  fingerHoles: readonly FingerHole[] = [],
 ): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
-  if (cutouts.length === 0) return issues;
+  if (cutouts.length === 0 && fingerHoles.length === 0) return issues;
 
   if (spec.fill !== "solid") {
     issues.push({
       code: "cutouts-require-solid-fill",
       severity: "error",
-      message: "Pockets need material to cut into — switch the bin to solid fill.",
+      message: "Cutouts need material to cut into — switch the bin to solid fill.",
     });
   }
 
@@ -315,6 +320,10 @@ export function validateLayout(
     }
   }
 
+  for (const [index, hole] of fingerHoles.entries()) {
+    issues.push(...validateFingerHoleAgainstBin(spec, hole, index));
+  }
+
   // A pocket mouth under the label tab: legal geometry, but the tab shadows
   // the opening and the tool may not come out past it.
   const tabStrip = labelTabStripMm(spec);
@@ -361,8 +370,8 @@ function validateAgainstBin(spec: BinSpec, p: PlacedCutout): ValidationIssue[] {
   }
 
   // Exact because the interior is convex: min over vertices is the polygon
-  // min. The outline gets its fit clearance and top-surface round-over added;
-  // feature circles are cut at their drawn size, so their allowance is zero.
+  // min. The outline gets its fit clearance and top-surface round-over added.
+  // `features` is an empty compatibility collection for legacy placements.
   const interiorBoundary = spec.footprint.kind === "custom"
     ? footprintInteriorRingMm(spec)
     : null;
@@ -461,31 +470,93 @@ function validateAgainstBin(spec: BinSpec, p: PlacedCutout): ValidationIssue[] {
     }
   }
 
-  // Scoop-style finger holes cut from the top surface regardless of pocket
-  // depth, so each gets its own floor arithmetic.
-  for (const hole of cutout.fingerHoles) {
-    if (hole.kind !== "scoop" && hole.kind !== "deep-scoop") continue;
-    const cutDepth = hole.kind === "deep-scoop"
-      ? effectiveDeepScoopDepthMm(hole)
-      : effectiveScoopDepthMm(hole);
-    const scoopBottomZ = pocket.infillTopZ - cutDepth;
-    if (scoopBottomZ < 0) {
-      issues.push({
-        code: "scoop-too-deep",
-        severity: "error",
-        cutoutIds: [cutout.id],
-        message: `“${label}”'s scoop finger hole is deeper than the bin itself.`,
-      });
-    } else if (scoopBottomZ < MIN_FLOOR_MM) {
-      issues.push({
-        code: "floor-too-thin",
-        severity: "warning",
-        cutoutIds: [cutout.id],
-        message: `“${label}”'s scoop finger hole leaves a ${scoopBottomZ.toFixed(1)} mm floor — likely to flex or delaminate.`,
-      });
-    }
+  return issues;
+}
+
+function validateFingerHoleAgainstBin(
+  spec: BinSpec,
+  hole: FingerHole,
+  index: number,
+): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  const label = `Finger hole ${index + 1}`;
+  const ring = fingerHoleFootprintRing(
+    hole,
+    { position: { x: 0, y: 0 }, rotationDeg: 0, mirrored: false },
+  );
+  const bounds = ringBounds(ring);
+  if (!bounds) return issues;
+
+  const halfW = binFootprintMm(spec.gridX, spec.gridPitch) / 2;
+  const halfL = binFootprintMm(spec.gridY, spec.gridPitch) / 2;
+  const outerBoundary =
+    spec.footprint.kind === "custom" ? footprintOuterRingMm(spec) : null;
+  const outside = outerBoundary
+    ? !ringInsideBoundary(ring, outerBoundary)
+    : bounds.minX < -halfW ||
+      bounds.maxX > halfW ||
+      bounds.minY < -halfL ||
+      bounds.maxY > halfL;
+  if (outside) {
+    issues.push({
+      code: "finger-hole-out-of-bounds",
+      severity: "error",
+      fingerHoleIds: [hole.id],
+      message: `${label} extends past the bin's footprint.`,
+    });
   }
 
+  const interiorBoundary =
+    spec.footprint.kind === "custom" ? footprintInteriorRingMm(spec) : null;
+  const wallMargin = interiorBoundary
+    ? ringSignedClearance(ring, interiorBoundary)
+    : Math.min(...ring.map((point) => signedDistanceToInterior(point, spec)));
+  if (wallMargin < 0) {
+    issues.push({
+      code: "finger-hole-wall-breach",
+      severity: "error",
+      fingerHoleIds: [hole.id],
+      message: `${label} cuts into the bin wall.`,
+    });
+  } else if (spec.lip === "standard" && wallMargin < LIP_INTRUSION_MM) {
+    issues.push({
+      code: "finger-hole-lip-collision",
+      severity: "warning",
+      fingerHoleIds: [hole.id],
+      message: `${label} fouls the stacking lip's ${STACKING_LIP_DEPTH} mm overhang.`,
+    });
+  } else if (wallMargin < D_DIV) {
+    issues.push({
+      code: "finger-hole-thin-material",
+      severity: "warning",
+      fingerHoleIds: [hole.id],
+      message: `${label} leaves less than ${D_DIV} mm of material against the wall.`,
+    });
+  }
+
+  const surface = resolvePocketDepth(spec, { mode: "mm", value: hole.depthMm });
+  const cutDepth =
+    hole.kind === "scoop"
+      ? effectiveScoopDepthMm(hole)
+      : hole.kind === "deep-scoop" || hole.kind === "oblong-deep-scoop"
+        ? effectiveDeepScoopDepthMm(hole)
+        : hole.depthMm;
+  const bottomZ = surface.infillTopZ - cutDepth;
+  if (bottomZ < 0) {
+    issues.push({
+      code: "finger-hole-too-deep",
+      severity: "error",
+      fingerHoleIds: [hole.id],
+      message: `${label} is deeper than the bin itself.`,
+    });
+  } else if (bottomZ < MIN_FLOOR_MM) {
+    issues.push({
+      code: "finger-hole-floor-too-thin",
+      severity: "warning",
+      fingerHoleIds: [hole.id],
+      message: `${label} leaves a ${bottomZ.toFixed(1)} mm floor — likely to flex or delaminate.`,
+    });
+  }
   return issues;
 }
 

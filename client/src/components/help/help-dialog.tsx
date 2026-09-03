@@ -167,10 +167,11 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
             <h3 className="mb-1.5 font-medium">4. Check and export</h3>
             <div className="mb-3 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-foreground">
               <strong>Before printing the full bin:</strong> double-check the
-              final dimensions in the 2D Layout view, and print either a thin
-              Tool fit template or a Preview/shadow-board layout. A quick,
-              inexpensive check can catch scale or fit errors before a long
-              bin print.
+              final dimensions in the 2D Layout view, then print the thin
+              Complete surface fit test when checking a multi-tool layout, or
+              use the Preview/shadow-board layout for a flat dimensional
+              review. A quick, inexpensive check can catch scale, spacing, or
+              fit errors before a long bin print.
             </div>
             <ul className="list-disc space-y-1 pl-6 text-muted-foreground">
               <li>
@@ -186,6 +187,12 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
               <li>
                 A selected cutout can be exported as a thin, filled fit-template
                 STL for an inexpensive physical fit check.
+              </li>
+              <li>
+                <strong>Complete surface fit test</strong> exports every pocket
+                and finger-access opening together as one thin STL, without the
+                base, walls, label tab, or stacking lip. It checks the surface
+                layout, but not pocket depth or Gridfinity baseplate fit.
               </li>
               <li>
                 Shadow-board Layout DXF and SVG exports contain the bin footprint

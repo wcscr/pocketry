@@ -1,7 +1,11 @@
 // Type-only import: the kernel is injected (see `Kernel` in ../manifold/runtime).
 import type { Manifold } from "manifold-3d";
 
-import type { CutoutPlacement, TracedShape } from "@shared/gridfinity/cutout";
+import type {
+  CutoutPlacement,
+  FingerHole,
+  TracedShape,
+} from "@shared/gridfinity/cutout";
 import {
   BASE_HEIGHT,
   BASE_TOP_RADIUS,
@@ -18,7 +22,11 @@ import type { BinSpec } from "@shared/gridfinity/types";
 import type { Kernel } from "@/lib/manifold/runtime";
 
 import { buildBase } from "./base";
-import { buildCutoutCutters, type CutoutBuildReport } from "./cutouts";
+import {
+  buildCutoutCutters,
+  buildFingerHoleCutters,
+  type CutoutBuildReport,
+} from "./cutouts";
 import { holeOptionsFromSpec } from "./holes";
 import { buildLabelTab } from "./label-tab";
 import { buildLiteBase } from "./lite-base";
@@ -173,6 +181,7 @@ export function buildBinParts(
 export interface BinLayout {
   shapesById: ReadonlyMap<string, TracedShape>;
   cutouts: readonly CutoutPlacement[];
+  fingerHoles: readonly FingerHole[];
 }
 
 export interface BinMaterialParts {
@@ -214,7 +223,7 @@ export function buildBinWithCutouts(
   let solid = base.solid;
   let floorInserts: Manifold[] = [];
   let reports: CutoutBuildReport[] = [];
-  if (layout && layout.cutouts.length > 0) {
+  if (layout && (layout.cutouts.length > 0 || layout.fingerHoles.length > 0)) {
     const builtCutouts = buildCutoutCutters(
       kernel,
       layout.shapesById,
@@ -225,11 +234,15 @@ export function buildBinWithCutouts(
     );
     floorInserts = builtCutouts.floorInserts;
     reports = builtCutouts.reports;
-    if (builtCutouts.cutters.length > 0) {
+    const allCutters = [
+      ...builtCutouts.cutters,
+      ...buildFingerHoleCutters(kernel, layout.fingerHoles, spec, quality),
+    ];
+    if (allCutters.length > 0) {
       const cutter =
-        builtCutouts.cutters.length === 1
-          ? builtCutouts.cutters[0]
-          : arena.track(Manifold.union(builtCutouts.cutters));
+        allCutters.length === 1
+          ? allCutters[0]
+          : arena.track(Manifold.union(allCutters));
       solid = arena.track(base.solid.subtract(cutter));
     }
   }

@@ -60,21 +60,25 @@ describe("layoutRingsMm", () => {
     );
   });
 
-  it("emits the footprint plus each pocket and feature ring", () => {
-    const rings = layoutRingsMm(SPEC, [
-      cutout({
-        fingerHoles: [
-          { id: "f1", center: { x: 18, y: 0 }, diameterMm: 18 },
-          {
-            id: "f2",
-            kind: "scoop",
-            center: { x: -18, y: 0 },
-            diameterMm: 30,
-            depthMm: 12,
-          },
-        ],
-      }),
-    ], BY_ID);
+  it("emits the footprint plus each pocket and independent finger-hole ring", () => {
+    const rings = layoutRingsMm(SPEC, [cutout()], BY_ID, [
+      {
+        id: "f1",
+        center: { x: 18, y: 0 },
+        diameterMm: 18,
+        kind: "straight",
+        depthMm: 12,
+      },
+      {
+        id: "f2",
+        kind: "oblong-deep-scoop",
+        center: { x: -18, y: 0 },
+        diameterMm: 10,
+        depthMm: 24,
+        lengthMm: 30,
+        rotationDeg: 90,
+      },
+    ]);
     // footprint + outline + hole circle + scoop circle
     expect(rings).toHaveLength(4);
 
