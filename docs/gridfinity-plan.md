@@ -54,6 +54,10 @@ the saved model. A local Node 22 real-WASM probe with two 150-point pockets and
 both top and bottom fillets fell from about 9.1 s to 0.59 s (roughly 15×
 faster). During any remaining rebuild, the last valid model stays visible and
 prominent progress appears both over the 3D view and beside the size controls.
+Width and length are shown in standard 42 mm cells and accept half-cell steps;
+selecting a fractional span promotes a rectangular bin to the existing 21 mm
+half-pitch socket lattice without changing its untouched axis. Height accepts
+0.5u steps (3.5 mm) while retaining the 1u minimum required by the base.
 
 The Bin Layout view also supports **selected-pocket contour editing** without a
 round trip through Trace: drag vertices, click an edge to insert a point, and

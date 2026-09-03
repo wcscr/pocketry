@@ -265,6 +265,63 @@ describe("BinDesignerPage", () => {
     unmount();
   });
 
+  it("sets width, length, and height in half-unit increments", async () => {
+    const { container, unmount } = renderPage();
+    await flushHydration();
+
+    const width = container.querySelector<HTMLElement>(
+      '[aria-label="Width in standard Gridfinity cells"]',
+    );
+    expect(width).not.toBeNull();
+    React.act(() => {
+      width!.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }),
+      );
+      width!.dispatchEvent(
+        new KeyboardEvent("keyup", { key: "ArrowLeft", bubbles: true }),
+      );
+    });
+
+    const sizeSection = container.querySelector("#bin-settings-size");
+    expect(sizeSection?.textContent).toContain("1.5 cells · 62.5 mm");
+    expect(sizeSection?.textContent).toContain("2 cells · 83.5 mm");
+    expect(sizeSection?.textContent).toContain("1.5 × 2 × 6u");
+    expect(
+      container.querySelector('[data-testid="select-grid-pitch"]')?.textContent,
+    ).toContain("Half");
+
+    const length = container.querySelector<HTMLElement>(
+      '[aria-label="Length in standard Gridfinity cells"]',
+    );
+    expect(length).not.toBeNull();
+    React.act(() => {
+      length!.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }),
+      );
+      length!.dispatchEvent(
+        new KeyboardEvent("keyup", { key: "ArrowLeft", bubbles: true }),
+      );
+    });
+    expect(sizeSection?.textContent).toContain("1.5 × 1.5 × 6u");
+
+    const height = container.querySelector<HTMLElement>(
+      '[aria-label="Height in 0.5u increments"]',
+    );
+    expect(height).not.toBeNull();
+    React.act(() => {
+      height!.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }),
+      );
+      height!.dispatchEvent(
+        new KeyboardEvent("keyup", { key: "ArrowRight", bubbles: true }),
+      );
+    });
+
+    expect(sizeSection?.textContent).toContain("6.5 u · 45.5 mm");
+    expect(sizeSection?.textContent).toContain("1.5 × 1.5 × 6.5u");
+    unmount();
+  });
+
   it("restores a custom L footprint and exposes its cell editor", async () => {
     vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({
       ...EMPTY_PROJECT,

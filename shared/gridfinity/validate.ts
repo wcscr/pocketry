@@ -39,9 +39,9 @@ import type { BinSpec } from "./types";
 
 /**
  * Pure validation of a bin specification — no WASM, cheap enough to run on
- * every keystroke. Schema-level shape errors (non-integer grid, out-of-range
- * height) are zod's job in `types.ts`; this module judges *geometry* that is
- * representable but unwise or unbuildable.
+ * every keystroke. Schema-level shape errors (non-integer grid, unsupported
+ * height step, or out-of-range size) are zod's job in `types.ts`; this module
+ * judges *geometry* that is representable but unwise or unbuildable.
  *
  * Severity contract (from the plan): errors block export, warnings do not.
  * The issue list will grow substantially with cutouts (out-of-bounds,

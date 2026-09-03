@@ -91,6 +91,13 @@ describe("buildWallRing", () => {
   it("is null for a 1u bin (zero wall height)", () => {
     expect(buildWallRing(kernel, spec({ heightUnits: 1 }), SEGMENTS)).toBeNull();
   });
+
+  it("builds a wall at a half-unit height", () => {
+    const ring = buildWallRing(kernel, spec({ heightUnits: 2.5 }), SEGMENTS)!;
+    const box = ring.boundingBox();
+    expect(box.min[2]).toBeCloseTo(7, 9);
+    expect(box.max[2]).toBeCloseTo(17.5, 9);
+  });
 });
 
 describe("buildStackingLip", () => {
@@ -124,6 +131,13 @@ describe("buildStackingLip", () => {
 });
 
 describe("buildBin", () => {
+  it("builds a complete half-unit-height bin", () => {
+    const { solid } = buildBin(kernel, spec({ heightUnits: 2.5 }), QUALITY);
+    const box = solid.boundingBox();
+    expect(solid.status()).toBe("NoError");
+    expect(box.max[2]).toBeCloseTo(17.5 + STACKING_LIP_HEIGHT_ACTUAL, 7);
+  });
+
   it("builds a connected, watertight three-cell L bin with a stacking lip", () => {
     const { solid, parts } = buildBin(
       kernel,
