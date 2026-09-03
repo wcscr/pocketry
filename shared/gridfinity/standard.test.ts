@@ -18,6 +18,8 @@ import {
   D_WALL,
   GRID_PITCH_DIVISOR,
   gridPitchMm,
+  resizeGridToStandardCellSpan,
+  standardCellSpan,
   R_F2,
   STACKING_LIP_DEPTH,
   STACKING_LIP_FILLET_RADIUS,
@@ -108,6 +110,25 @@ describe("gridfinity standard constants", () => {
     expect(binFootprintMm(2, "half")).toBe(41.5);
     expect(binFootprintMm(4, "quarter")).toBe(41.5);
     expect(binFootprintMm(1, "quarter")).toBe(10);
+  });
+
+  it("expresses rectangular dimensions in standard cells and promotes fractional spans", () => {
+    expect(standardCellSpan(3, "half")).toBe(1.5);
+    expect(standardCellSpan(5, "quarter")).toBe(1.25);
+    expect(
+      resizeGridToStandardCellSpan(
+        { gridX: 2, gridY: 3, gridPitch: "full" },
+        "x",
+        1.5,
+      ),
+    ).toEqual({ gridX: 3, gridY: 6, gridPitch: "half" });
+    expect(
+      resizeGridToStandardCellSpan(
+        { gridX: 3, gridY: 6, gridPitch: "half" },
+        "y",
+        2.5,
+      ),
+    ).toEqual({ gridX: 3, gridY: 5, gridPitch: "half" });
   });
 });
 

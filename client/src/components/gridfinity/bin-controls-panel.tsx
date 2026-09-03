@@ -25,8 +25,9 @@ import type { FingerHole, TracedShape } from "@shared/gridfinity/cutout";
 import {
   binFootprintMm,
   GRID_PITCH_DIVISOR,
-  gridPitchMm,
+  resizeGridToStandardCellSpan,
   STACKING_LIP_HEIGHT_ACTUAL,
+  standardCellSpan,
   type GridPitch,
 } from "@shared/gridfinity/standard";
 import { MAX_GRID, type BinSpecInput } from "@shared/gridfinity/types";
@@ -89,6 +90,9 @@ const MAX_HEIGHT_UNITS_UI = 12;
 /** Slider ceiling: at most eight full cells, within the schema hard cap. */
 const maxGridUi = (pitch: GridPitch): number =>
   Math.min(MAX_GRID, 8 * GRID_PITCH_DIVISOR[pitch]);
+
+const formatUnitCount = (value: number): string =>
+  Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/0$/, "");
 
 function MaterialColorSwatch({
   id,
@@ -287,6 +291,8 @@ export function BinControlsPanel({
   );
 
   const dims = useMemo(() => binDimensionsMm(spec), [spec]);
+  const widthCellSpan = standardCellSpan(spec.gridX, spec.gridPitch);
+  const lengthCellSpan = standardCellSpan(spec.gridY, spec.gridPitch);
   const issues = useMemo(
     () => [
       ...validateBinSpec(spec).issues,
@@ -320,8 +326,36 @@ export function BinControlsPanel({
   const activeColorCount =
     1 + Number(hasSelectedFloorColor) + Number(hasSelectedRimColor);
 
-  const patchSpec = (patch: Partial<BinSpecInput>, transient = false) =>
-    dispatch({ type: "PATCH_SPEC", patch, transient });
+  const patchSpec = (
+    patch: Partial<BinSpecInput>,
+    transient = false,
+    historyLabel?: string,
+  ) => dispatch({ type: "PATCH_SPEC", patch, transient, historyLabel });
+
+  const setRectangularCellSpan = (
+    axis: "x" | "y",
+    span: number,
+    transient: boolean,
+  ) => {
+    const resized = resizeGridToStandardCellSpan(spec, axis, span);
+    if (resized.gridX > MAX_GRID || resized.gridY > MAX_GRID) return;
+    const promotedToFractionalPitch =
+      resized.gridPitch !== spec.gridPitch && resized.gridPitch !== "full";
+    patchSpec(
+      {
+        ...resized,
+        ...(promotedToFractionalPitch
+          ? {
+              magnetHoles: false,
+              magnetCrushRibs: false,
+              screwHoles: false,
+            }
+          : {}),
+      },
+      transient,
+      axis === "x" ? "Change bin width" : "Change bin length",
+    );
+  };
 
   const selectedCutout = cutouts.find((cutout) => cutout.id === selectedCutoutId) ?? null;
   const selectedShape = selectedCutout
@@ -388,7 +422,7 @@ export function BinControlsPanel({
           title="Bin size"
           icon={Ruler}
           tone="blue"
-          summary={`${spec.gridX} × ${spec.gridY} × ${spec.heightUnits}u`}
+          summary={`${formatUnitCount(widthCellSpan)} × ${formatUnitCount(lengthCellSpan)} × ${formatUnitCount(spec.heightUnits)}u`}
           className="scroll-mt-16"
         >
           <div className="flex items-center gap-2">
@@ -425,13 +459,17 @@ export function BinControlsPanel({
                 label="Width"
                 cells={spec.gridX}
                 pitch={spec.gridPitch}
-                onChange={(gridX, transient) => patchSpec({ gridX }, transient)}
+                onChange={(span, transient) =>
+                  setRectangularCellSpan("x", span, transient)
+                }
               />
               <CellSlider
                 label="Length"
                 cells={spec.gridY}
                 pitch={spec.gridPitch}
-                onChange={(gridY, transient) => patchSpec({ gridY }, transient)}
+                onChange={(span, transient) =>
+                  setRectangularCellSpan("y", span, transient)
+                }
               />
             </>
           ) : (
@@ -444,7 +482,7 @@ export function BinControlsPanel({
             <div className="flex items-baseline justify-between">
               <Label className="text-xs">Height</Label>
               <span className="text-xs tabular-nums text-muted-foreground">
-                {spec.heightUnits} u · {spec.heightUnits * 7} mm
+                {formatUnitCount(spec.heightUnits)} u · {spec.heightUnits * 7} mm
               </span>
             </div>
             <Slider
@@ -455,8 +493,8 @@ export function BinControlsPanel({
               onValueCommit={([heightUnits]) => patchSpec({ heightUnits })}
               min={1}
               max={MAX_HEIGHT_UNITS_UI}
-              step={1}
-              aria-label="Height in 7 mm units"
+              step={0.5}
+              aria-label="Height in 0.5u increments"
             />
           </div>
           <p className="text-xs text-muted-foreground">
@@ -1960,23 +1998,26 @@ function CellSlider({
   pitch: GridPitch;
   onChange: (cells: number, transient: boolean) => void;
 }): JSX.Element {
-  const pitchMm = gridPitchMm(pitch);
+  const divisor = GRID_PITCH_DIVISOR[pitch];
+  const standardCells = standardCellSpan(cells, pitch);
+  const step = pitch === "quarter" ? 0.25 : 0.5;
   return (
     <div className="space-y-1.5">
       <div className="flex items-baseline justify-between">
         <Label className="text-xs">{label}</Label>
         <span className="text-xs tabular-nums text-muted-foreground">
-          {cells} {cells === 1 ? "cell" : "cells"} · {binFootprintMm(cells, pitch).toFixed(1)} mm
+          {formatUnitCount(standardCells)} {standardCells === 1 ? "cell" : "cells"} ·{" "}
+          {binFootprintMm(cells, pitch).toFixed(1)} mm
         </span>
       </div>
       <Slider
-        value={[cells]}
+        value={[standardCells]}
         onValueChange={([value]) => onChange(value, true)}
         onValueCommit={([value]) => onChange(value, false)}
-        min={1}
-        max={maxGridUi(pitch)}
-        step={1}
-        aria-label={`${label} in ${pitchMm} mm cells`}
+        min={step}
+        max={maxGridUi(pitch) / divisor}
+        step={step}
+        aria-label={`${label} in standard Gridfinity cells`}
       />
     </div>
   );
