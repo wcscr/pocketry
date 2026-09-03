@@ -211,6 +211,28 @@ describe("fitLayoutToPlacements", () => {
     expect(fitted.gridY).toBe(1);
     expect(fitted.cutouts[0].position).toEqual({ x: 0, y: 0 });
   });
+
+  it("fits and recentres an independent finger hole without a tool pocket", () => {
+    const hole = {
+      id: "f1",
+      center: { x: 30, y: -12 },
+      diameterMm: 18,
+      kind: "straight" as const,
+      depthMm: 12,
+    };
+    const fitted = fitLayoutToPlacements(
+      [],
+      new Map(),
+      "standard",
+      "full",
+      [hole],
+    );
+
+    expect(fitted.cutouts).toEqual([]);
+    expect(fitted.fingerHoles[0].center).toEqual({ x: 0, y: 0 });
+    expect(fitted.gridX).toBe(1);
+    expect(fitted.gridY).toBe(1);
+  });
 });
 
 describe("fitFootprintToPlacements", () => {
@@ -363,6 +385,40 @@ describe("autoArrangeLayout", () => {
     // OBB's 180° ambiguity.
     const angle = Math.abs(arranged.cutouts[0].rotationDeg);
     expect(Math.min(angle, Math.abs(angle - 180))).toBeCloseTo(30, 6);
+  });
+
+  it("keeps a fixed independent finger hole inside the auto-arranged bin", () => {
+    const shape = rectShape("s1", 20, 10);
+    const byId = new Map([[shape.id, shape]]);
+    const placed = autoPlaceFresh([shape], "standard").cutouts;
+    const hole = {
+      id: "f1",
+      center: { x: 50, y: 0 },
+      diameterMm: 18,
+      kind: "deep-scoop" as const,
+      depthMm: 18,
+    };
+
+    const arranged = autoArrangeLayout(
+      placed,
+      byId,
+      "standard",
+      "full",
+      [hole],
+    )!;
+    const spec = parseBinSpec({
+      gridX: arranged.gridX,
+      gridY: arranged.gridY,
+      heightUnits: 6,
+      fill: "solid",
+    });
+    const boundaryErrors = validateLayout(spec, arranged.cutouts, byId, [hole])
+      .filter((issue) => issue.code === "finger-hole-out-of-bounds" ||
+        issue.code === "finger-hole-wall-breach");
+
+    expect(arranged.gridX).toBeGreaterThan(1);
+    expect(boundaryErrors).toEqual([]);
+    expect(hole.center).toEqual({ x: 50, y: 0 });
   });
 
   it("property: arranged layouts of feature-laden cutouts stay error-free", () => {

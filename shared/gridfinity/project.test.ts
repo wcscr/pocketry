@@ -39,6 +39,7 @@ const VALID = {
       bottomFilletMm: 2.8,
     },
   ],
+  fingerHoles: [],
 };
 
 describe("parseProjectDoc", () => {
@@ -60,11 +61,9 @@ describe("parseProjectDoc", () => {
 });
 
 describe("project file round trip", () => {
-  it("preserves straight, round-scoop and deep-scoop finger holes through JSON", () => {
+  it("preserves round and oblong deep-scoop finger holes through JSON", () => {
     const withFeatures = JSON.parse(JSON.stringify(VALID)) as Record<string, unknown>;
-    (withFeatures.cutouts as Record<string, unknown>[])[0] = {
-      ...(withFeatures.cutouts as Record<string, unknown>[])[0],
-      fingerHoles: [
+    withFeatures.fingerHoles = [
         {
           id: "f1",
           kind: "straight",
@@ -86,27 +85,43 @@ describe("project file round trip", () => {
           diameterMm: 16,
           depthMm: 38,
         },
-      ],
-    };
+        {
+          id: "f4",
+          kind: "oblong-deep-scoop",
+          center: { x: 0, y: 12 },
+          diameterMm: 12,
+          depthMm: 32,
+          lengthMm: 48,
+          rotationDeg: 35,
+        },
+      ];
     // The exact path the Save file / Open file buttons take.
     const doc = parseProjectDoc(JSON.parse(JSON.stringify(withFeatures)));
     expect(doc).not.toBeNull();
-    expect(doc!.cutouts[0].fingerHoles).toHaveLength(3);
-    expect(doc!.cutouts[0].fingerHoles[1]).toMatchObject({
+    expect(doc!.cutouts[0].fingerHoles).toEqual([]);
+    expect(doc!.fingerHoles).toHaveLength(4);
+    expect(doc!.fingerHoles[1]).toMatchObject({
       id: "f2",
       kind: "scoop",
       depthMm: 10,
     });
-    expect(doc!.cutouts[0].fingerHoles[2]).toMatchObject({
+    expect(doc!.fingerHoles[2]).toMatchObject({
       id: "f3",
       kind: "deep-scoop",
       depthMm: 38,
+    });
+    expect(doc!.fingerHoles[3]).toMatchObject({
+      id: "f4",
+      kind: "oblong-deep-scoop",
+      lengthMm: 48,
+      rotationDeg: 35,
     });
   });
 
   it("migrates a schema-v1 scoop into a typed finger hole", () => {
     const legacy = JSON.parse(JSON.stringify(VALID)) as Record<string, unknown>;
     legacy.schemaVersion = 1;
+    delete legacy.fingerHoles;
     (legacy.cutouts as Record<string, unknown>[])[0] = {
       ...(legacy.cutouts as Record<string, unknown>[])[0],
       fingerHoles: [{ id: "f1", center: { x: 4, y: 1 }, diameterMm: 20 }],
@@ -114,16 +129,18 @@ describe("project file round trip", () => {
     };
     const doc = parseProjectDoc(legacy);
     expect(doc?.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
-    expect(doc?.cutouts[0].fingerHoles.map((hole) => hole.kind)).toEqual([
+    expect(doc?.cutouts[0].fingerHoles).toEqual([]);
+    expect(doc?.fingerHoles.map((hole) => hole.kind)).toEqual([
       "straight",
       "scoop",
     ]);
-    expect(doc?.cutouts[0].fingerHoles[1].id).toBe("legacy-scoop");
+    expect(doc?.fingerHoles[1].id).toBe("legacy-scoop");
   });
 
   it("migrates schema v2 with the safe sharp top-edge default", () => {
     const legacy = JSON.parse(JSON.stringify(VALID)) as Record<string, unknown>;
     legacy.schemaVersion = 2;
+    delete legacy.fingerHoles;
     delete (legacy.cutouts as Record<string, unknown>[])[0].topFilletMm;
 
     const doc = parseProjectDoc(legacy);
@@ -132,14 +149,17 @@ describe("project file round trip", () => {
   });
 
   it("still accepts a featureless schema-v1 document", () => {
-    const doc = parseProjectDoc({ ...VALID, schemaVersion: 1 });
+    const { fingerHoles: _currentHoles, ...legacy } = VALID;
+    const doc = parseProjectDoc({ ...legacy, schemaVersion: 1 });
     expect(doc!.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
     expect(doc!.cutouts[0].fingerHoles).toEqual([]);
+    expect(doc!.fingerHoles).toEqual([]);
   });
 
   it("migrates schema v3 projects to a rectangular footprint", () => {
     const legacy = JSON.parse(JSON.stringify(VALID)) as Record<string, unknown>;
     legacy.schemaVersion = 3;
+    delete legacy.fingerHoles;
     delete ((legacy.spec as Record<string, unknown>).footprint);
     const doc = parseProjectDoc(legacy);
     expect(doc?.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
@@ -149,6 +169,7 @@ describe("project file round trip", () => {
   it("migrates schema v4 finger holes without changing their geometry", () => {
     const legacy = JSON.parse(JSON.stringify(VALID)) as Record<string, unknown>;
     legacy.schemaVersion = 4;
+    delete legacy.fingerHoles;
     (legacy.cutouts as Record<string, unknown>[])[0] = {
       ...(legacy.cutouts as Record<string, unknown>[])[0],
       fingerHoles: [
@@ -163,7 +184,8 @@ describe("project file round trip", () => {
     };
     const doc = parseProjectDoc(legacy);
     expect(doc?.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
-    expect(doc?.cutouts[0].fingerHoles[0]).toMatchObject({
+    expect(doc?.cutouts[0].fingerHoles).toEqual([]);
+    expect(doc?.fingerHoles[0]).toMatchObject({
       kind: "scoop",
       diameterMm: 18,
       depthMm: 8,
@@ -172,6 +194,8 @@ describe("project file round trip", () => {
 
   it("normalizes the prototype oblong scoop into a vertical deep scoop", () => {
     const prototype = JSON.parse(JSON.stringify(VALID)) as Record<string, unknown>;
+    prototype.schemaVersion = 4;
+    delete prototype.fingerHoles;
     (prototype.cutouts as Record<string, unknown>[])[0] = {
       ...(prototype.cutouts as Record<string, unknown>[])[0],
       fingerHoles: [
@@ -187,12 +211,48 @@ describe("project file round trip", () => {
       ],
     };
     const doc = parseProjectDoc(prototype);
-    expect(doc?.cutouts[0].fingerHoles[0]).toEqual({
+    expect(doc?.fingerHoles[0]).toEqual({
       id: "prototype",
       kind: "deep-scoop",
       center: { x: 4, y: 0 },
       diameterMm: 18,
       depthMm: 24,
     });
+  });
+
+  it("migrates schema v5 projects before saving oblong deep scoops", () => {
+    const legacy = JSON.parse(JSON.stringify(VALID)) as Record<string, unknown>;
+    legacy.schemaVersion = 5;
+    delete legacy.fingerHoles;
+    const doc = parseProjectDoc(legacy);
+    expect(doc?.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
+    expect(doc?.cutouts).toHaveLength(1);
+  });
+
+  it("migrates v6 pocket-local holes into fixed bin-local positions", () => {
+    const legacy = JSON.parse(JSON.stringify(VALID)) as Record<string, unknown>;
+    legacy.schemaVersion = 6;
+    delete legacy.fingerHoles;
+    (legacy.cutouts as Record<string, unknown>[])[0] = {
+      ...(legacy.cutouts as Record<string, unknown>[])[0],
+      position: { x: 10, y: 20 },
+      rotationDeg: 90,
+      fingerHoles: [
+        {
+          id: "migrated",
+          kind: "oblong-deep-scoop",
+          center: { x: 4, y: 1 },
+          diameterMm: 10,
+          depthMm: 25,
+          lengthMm: 30,
+          rotationDeg: 0,
+        },
+      ],
+    };
+    const doc = parseProjectDoc(legacy);
+    expect(doc?.cutouts[0].fingerHoles).toEqual([]);
+    expect(doc?.fingerHoles[0].center.x).toBeCloseTo(9, 9);
+    expect(doc?.fingerHoles[0].center.y).toBeCloseTo(24, 9);
+    expect(doc?.fingerHoles[0].rotationDeg).toBeCloseTo(90, 9);
   });
 });

@@ -28,6 +28,7 @@ const DOC: ProjectDoc = {
   shapes: [],
   spec: parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6 }),
   cutouts: [],
+  fingerHoles: [],
 };
 
 const WIDE_DOC: ProjectDoc = {

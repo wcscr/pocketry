@@ -83,7 +83,7 @@ function BinDesignerWorkspace(): JSX.Element {
   const { panelOpen, setPanelOpen } = usePanelState();
   const { toast } = useToast();
   const bin = useBin();
-  const { spec, cutouts, viewMode, dispatch } = bin;
+  const { spec, cutouts, fingerHoles, viewMode, dispatch } = bin;
   const library = useShapeLibrary();
   // Sliders and canvas drags update the visible controls transiently, but the
   // history entry remains the last committed design until pointer-up. Feeding
@@ -92,6 +92,7 @@ function BinDesignerWorkspace(): JSX.Element {
   const committedDoc = getCommittedBinDoc(bin);
   const committedSpec = committedDoc.spec;
   const committedCutouts = committedDoc.cutouts;
+  const committedFingerHoles = committedDoc.fingerHoles;
 
   const [exporting, setExporting] = useState(false);
   const [section, setSection] = useState<BuildBinSection | null>(null);
@@ -123,7 +124,12 @@ function BinDesignerWorkspace(): JSX.Element {
       setProjectLibraryReady(true);
       if (doc) {
         library.mergeShapes(doc.shapes);
-        dispatch({ type: "HYDRATE", spec: doc.spec, cutouts: doc.cutouts });
+        dispatch({
+          type: "HYDRATE",
+          spec: doc.spec,
+          cutouts: doc.cutouts,
+          fingerHoles: doc.fingerHoles,
+        });
       } else {
         dispatch({ type: "MARK_HYDRATED" });
       }
@@ -144,8 +150,9 @@ function BinDesignerWorkspace(): JSX.Element {
       shapes: library.shapes,
       spec,
       cutouts,
+      fingerHoles,
     }),
-    [library.shapes, spec, cutouts],
+    [library.shapes, spec, cutouts, fingerHoles],
   );
   useEffect(() => {
     if (!bin.hydrated) return;
@@ -215,8 +222,9 @@ function BinDesignerWorkspace(): JSX.Element {
     return {
       shapes: library.shapes.filter((shape) => referenced.has(shape.id)),
       cutouts,
+      fingerHoles,
     };
-  }, [library.shapes, cutouts]);
+  }, [library.shapes, cutouts, fingerHoles]);
 
   const previewLayout = useMemo(() => {
     const referenced = new Set(
@@ -225,8 +233,9 @@ function BinDesignerWorkspace(): JSX.Element {
     return {
       shapes: library.shapes.filter((shape) => referenced.has(shape.id)),
       cutouts: committedCutouts,
+      fingerHoles: committedFingerHoles,
     };
-  }, [library.shapes, committedCutouts]);
+  }, [library.shapes, committedCutouts, committedFingerHoles]);
 
   const measurementOutlines = useMemo(() => {
     const shapesById = new Map(
@@ -302,6 +311,7 @@ function BinDesignerWorkspace(): JSX.Element {
       shapesById,
       spec.lip,
       spec.gridPitch,
+      fingerHoles,
     );
     if (!result) return;
     dispatch({
@@ -321,7 +331,7 @@ function BinDesignerWorkspace(): JSX.Element {
         variant: "destructive",
       });
     }
-  }, [cutouts, library.shapes, spec.lip, spec.gridPitch, dispatch, toast]);
+  }, [cutouts, fingerHoles, library.shapes, spec.lip, spec.gridPitch, dispatch, toast]);
 
   const handleExportLayout = useCallback(
     (format: "dxf" | "svg") => {
@@ -331,21 +341,21 @@ function BinDesignerWorkspace(): JSX.Element {
       }${spec.footprint.kind === "custom" ? `-custom-${spec.footprint.cells.length}cell` : ""}`;
       if (format === "dxf") {
         downloadBlob(
-          new Blob([generateLayoutDXF(spec, cutouts, shapesById)], {
+          new Blob([generateLayoutDXF(spec, cutouts, shapesById, fingerHoles)], {
             type: "application/dxf",
           }),
           `bin-layout-${label}.dxf`,
         );
       } else {
         downloadBlob(
-          new Blob([generateLayoutSVG(spec, cutouts, shapesById)], {
+          new Blob([generateLayoutSVG(spec, cutouts, shapesById, fingerHoles)], {
             type: "image/svg+xml",
           }),
           `bin-layout-${label}.svg`,
         );
       }
     },
-    [spec, cutouts, library.shapes],
+    [spec, cutouts, fingerHoles, library.shapes],
   );
 
   const handleExportProject = useCallback(() => {
@@ -387,7 +397,12 @@ function BinDesignerWorkspace(): JSX.Element {
       try {
         const saved = await startNewProject(doc);
         library.replaceShapes(doc.shapes);
-        dispatch({ type: "HYDRATE", spec: doc.spec, cutouts: doc.cutouts });
+        dispatch({
+          type: "HYDRATE",
+          spec: doc.spec,
+          cutouts: doc.cutouts,
+          fingerHoles: doc.fingerHoles,
+        });
         setSection(null);
         setProjectLibrary(saved);
         toast({
@@ -413,13 +428,19 @@ function BinDesignerWorkspace(): JSX.Element {
       shapes: [],
       spec: INITIAL_BIN_SPEC,
       cutouts: [],
+      fingerHoles: [],
     };
     setProjectBusy(true);
     saveProject.cancel();
     try {
       const saved = await startNewProject(doc);
       library.replaceShapes([]);
-      dispatch({ type: "HYDRATE", spec: doc.spec, cutouts: doc.cutouts });
+      dispatch({
+        type: "HYDRATE",
+        spec: doc.spec,
+        cutouts: doc.cutouts,
+        fingerHoles: doc.fingerHoles,
+      });
       setSection(null);
       setProjectLibrary(saved);
       toast({
@@ -470,7 +491,12 @@ function BinDesignerWorkspace(): JSX.Element {
     try {
       const opened = await openProjectFromLibrary(projectId);
       library.replaceShapes(opened.doc.shapes);
-      dispatch({ type: "HYDRATE", spec: opened.doc.spec, cutouts: opened.doc.cutouts });
+      dispatch({
+        type: "HYDRATE",
+        spec: opened.doc.spec,
+        cutouts: opened.doc.cutouts,
+        fingerHoles: opened.doc.fingerHoles,
+      });
       setSection(null);
       setProjectLibrary(opened.library);
       toast({

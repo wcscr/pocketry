@@ -110,6 +110,7 @@ const EMPTY_PROJECT: ProjectDoc = {
   shapes: [],
   spec: parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6 }),
   cutouts: [],
+  fingerHoles: [],
 };
 
 function rectangularShape(id: string, name: string): TracedShape {
@@ -225,7 +226,12 @@ function renderPage() {
 
 function openSettingsSection(
   container: HTMLElement,
-  section: "project" | "construction" | "tool-cutouts" | "export",
+  section:
+    | "project"
+    | "construction"
+    | "tool-cutouts"
+    | "finger-holes"
+    | "export",
 ): void {
   React.act(() => {
     (
@@ -359,45 +365,119 @@ describe("BinDesignerPage", () => {
           id: "cutout-deep",
           shapeId: shape.id,
           position: { x: 0, y: 0 },
-          fingerHoles: [
-            {
-              id: "finger-deep",
-              kind: "deep-scoop",
-              center: { x: 15, y: 0 },
-              diameterMm: 16,
-              depthMm: 30,
-            },
-          ],
         }),
+      ],
+      fingerHoles: [
+        {
+          id: "finger-deep",
+          kind: "deep-scoop",
+          center: { x: 15, y: 0 },
+          diameterMm: 16,
+          depthMm: 30,
+        },
       ],
     });
 
     const { container, unmount } = renderPage();
     await flushHydration();
-    openSettingsSection(container, "tool-cutouts");
+    openSettingsSection(container, "finger-holes");
     React.act(() => {
       (
         container.querySelector(
-          '[data-testid="button-select-cutout-deep"]',
+          '[data-testid="button-select-finger-hole-finger-deep"]',
         ) as HTMLButtonElement
       ).click();
     });
 
     expect(
-      container.querySelector('[data-testid="finger-hole-kind-1"]')?.textContent,
+      container.querySelector('[data-testid="selected-finger-hole-kind"]')?.textContent,
     ).toContain("Deep scoop");
     expect(container.querySelector('[aria-label="Diameter"]')).not.toBeNull();
     expect(container.querySelector('[aria-label="Total depth"]')).not.toBeNull();
     expect(container.querySelector('[aria-label="Reach"]')).toBeNull();
-    expect(container.textContent).toContain("Straight shaft: 22.0 mm");
-    expect(container.textContent).toContain("hemispherical bottom: 8.0 mm");
+    expect(container.textContent).toContain("Vertical walls: 22.0 mm");
+    expect(container.textContent).toContain("rounded bottom radius: 8.0 mm");
 
     React.act(() => {
       (container.querySelector('[data-testid="view-toggle-2d"]') as HTMLButtonElement).click();
     });
     expect(
-      container.querySelector('[data-testid="feature-deep-scoop-cutout-deep"]'),
+      container.querySelector('[data-testid="finger-hole-deep-scoop-finger-deep"]'),
     ).not.toBeNull();
+    unmount();
+  });
+
+  it("restores an oblong deep scoop with rotation controls and endpoint handles", async () => {
+    const shape = rectangularShape("shape-oblong-deep", "Long pliers");
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({
+      ...EMPTY_PROJECT,
+      shapes: [shape],
+      cutouts: [
+        parseCutoutPlacement({
+          id: "cutout-oblong-deep",
+          shapeId: shape.id,
+          position: { x: 0, y: 0 },
+        }),
+      ],
+      fingerHoles: [
+        {
+          id: "finger-oblong-deep",
+          kind: "oblong-deep-scoop",
+          center: { x: 0, y: 15 },
+          diameterMm: 12,
+          depthMm: 30,
+          lengthMm: 40,
+          rotationDeg: 0,
+        },
+      ],
+    });
+
+    const { container, unmount } = renderPage();
+    await flushHydration();
+    openSettingsSection(container, "finger-holes");
+    React.act(() => {
+      (
+        container.querySelector(
+          '[data-testid="button-select-finger-hole-finger-oblong-deep"]',
+        ) as HTMLButtonElement
+      ).click();
+    });
+
+    expect(
+      container.querySelector('[data-testid="selected-finger-hole-kind"]')?.textContent,
+    ).toContain("Oblong deep scoop");
+    expect(container.querySelector('[aria-label="Diameter"]')).not.toBeNull();
+    expect(container.querySelector('[aria-label="Total depth"]')).not.toBeNull();
+    expect(container.querySelector('[aria-label="Length"]')).not.toBeNull();
+    const rotateClockwise = container.querySelector(
+      '[aria-label="Rotate oblong finger hole 90 degrees clockwise"]',
+    ) as HTMLButtonElement;
+    expect(rotateClockwise).not.toBeNull();
+    expect(
+      container.querySelector(
+        '[aria-label="Rotate oblong finger hole 90 degrees counterclockwise"]',
+      ),
+    ).not.toBeNull();
+    expect(container.textContent).toContain("Vertical walls: 24.0 mm");
+    expect(container.textContent).toContain("rounded bottom radius: 6.0 mm");
+
+    React.act(() => {
+      (container.querySelector('[data-testid="view-toggle-2d"]') as HTMLButtonElement).click();
+    });
+    const handle = (endpoint: "start" | "end") =>
+      container.querySelector(
+        `[data-testid="finger-hole-oblong-end-${endpoint}-finger-oblong-deep"]`,
+      ) as SVGCircleElement;
+    expect(handle("start")).not.toBeNull();
+    expect(handle("end")).not.toBeNull();
+    expect(
+      Math.abs(Number(handle("end").getAttribute("cx")) - Number(handle("start").getAttribute("cx"))),
+    ).toBeGreaterThan(10);
+
+    React.act(() => rotateClockwise.click());
+    expect(
+      Math.abs(Number(handle("end").getAttribute("cy")) - Number(handle("start").getAttribute("cy"))),
+    ).toBeGreaterThan(10);
     unmount();
   });
 
@@ -451,6 +531,7 @@ describe("BinDesignerPage", () => {
       ["bin-settings-size", "blue", "open"],
       ["bin-settings-construction", "rose", "closed"],
       ["bin-settings-pockets", "violet", "closed"],
+      ["bin-settings-finger-holes", "cyan", "closed"],
       ["bin-settings-view", "amber", "closed"],
       ["bin-settings-export", "emerald", "closed"],
     ] as const;
@@ -642,9 +723,9 @@ describe("BinDesignerPage", () => {
     expect(ruler.title).toContain("Add a tool cutout");
     expect(
       container.querySelector('[data-testid="layout-empty-state"]')?.textContent,
-    ).toContain("Trace a tool and choose Add to bin");
+    ).toContain("Add a tool pocket or a finger hole");
     expect(container.querySelector('[data-testid="layout-ruler-status"]')).toBeNull();
-    expect(container.textContent).toContain("Add a tool from Trace to begin");
+    expect(container.textContent).toContain("Add a tool pocket or finger hole to begin");
     unmount();
   });
 
@@ -904,7 +985,7 @@ describe("BinDesignerPage", () => {
     expect(text).toContain("Outline corner round");
     expect(text).toContain("Top edge round");
     expect(text).toContain("Bottom fillet");
-    expect(text).toContain("Finger holes");
+    expect(text).toContain("Finger Holes");
     const renameButton = container.querySelector(
       '[data-testid="button-edit-shape-name"]',
     ) as HTMLButtonElement;
@@ -975,20 +1056,32 @@ describe("BinDesignerPage", () => {
       ).click();
     });
 
-    // Every finger hole gets its own straight/scoop type control.
-    openSettingsSection(container, "tool-cutouts");
+    // Finger holes live in their own object list and selection context.
+    openSettingsSection(container, "finger-holes");
     const addFingerHole = container.querySelector(
       '[data-testid="button-add-finger-hole"]',
     ) as HTMLButtonElement;
     React.act(() => addFingerHole.click());
     const kind = container.querySelector(
-      '[data-testid="finger-hole-kind-1"]',
+      '[data-testid="selected-finger-hole-kind"]',
     ) as HTMLButtonElement | null;
     expect(kind).not.toBeNull();
     expect(kind!.textContent).toContain("Straight");
     expect(container.textContent).not.toContain("Scoop depth");
 
-    // Editing a selected contour switches to Layout and exposes its vertices.
+    React.act(() => {
+      (container.querySelector('[data-testid="view-toggle-2d"]') as HTMLButtonElement).click();
+    });
+    expect(container.querySelector('[data-testid^="finger-hole-straight-"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid^="finger-hole-width-"]')).not.toBeNull();
+
+    // Selecting the pocket again is independent and exposes contour editing.
+    openSettingsSection(container, "tool-cutouts");
+    React.act(() => {
+      (
+        container.querySelector('[data-testid^="button-select-"]') as HTMLButtonElement
+      ).click();
+    });
     const editContour = container.querySelector(
       '[data-testid="button-edit-contour"]',
     ) as HTMLButtonElement;
@@ -1004,7 +1097,7 @@ describe("BinDesignerPage", () => {
     expect(
       container.querySelectorAll('[data-testid="contour-vertex-handle"]'),
     ).toHaveLength(4);
-    expect(container.querySelector('[data-testid^="feature-straight-"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid^="finger-hole-straight-"]')).not.toBeNull();
     expect(container.querySelector("[data-rotate-handle]")).toBeNull();
 
     React.act(() => {
