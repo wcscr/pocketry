@@ -41,11 +41,11 @@ import type { BinSpec } from "./types";
  * - The 2D editor's SVG view is y-down; that flip is **view-only** and lives
  *   solely in {@link binToCanvas} / {@link canvasToBin}.
  *
- * G4 adds per-pocket **finger holes** whose type is either a vertical cylinder
- * sharing the pocket's floor or a spherical scoop sunk from the top surface.
- * There may be several of either. Their centres are stored **shape-local**, so
- * they travel with the pocket through move / rotate / mirror. Schema-v1's
- * one-off scoop migrates into this per-hole model.
+ * G4 adds per-pocket **finger holes** whose type is either a vertical cylinder,
+ * a spherical scoop, or a deep scoop with a straight shaft and hemispherical
+ * bottom. There may be several of any kind. Their centres are stored
+ * **shape-local**, so they travel with the pocket through move / rotate /
+ * mirror. Schema-v1's one-off scoop migrates into this per-hole model.
  */
 
 // ---------------------------------------------------------------------------
@@ -110,8 +110,10 @@ export type DepthSpec = z.infer<typeof depthSpecSchema>;
 
 /**
  * A draggable finger-access feature. Straight holes are vertical cylinders
- * cut to the pocket floor; scoops are spherical dishes cut from the top.
- * `center` is shape-local, so either kind follows move / rotate / mirror.
+ * cut to the pocket floor; round scoops are spherical dishes cut from the top;
+ * deep scoops descend through a straight cylindrical shaft and finish in a
+ * hemispherical bottom. `center` is shape-local, so every kind follows move /
+ * rotate / mirror.
  */
 export const fingerHoleSchema = z
   .object({
@@ -119,11 +121,23 @@ export const fingerHoleSchema = z
     /** Shape-local mm, same frame as `outlineMm`. */
     center: vec2Schema,
     diameterMm: z.number().min(6).max(80).default(18),
-    kind: z.enum(["straight", "scoop"]).default("straight"),
+    // `oblong-scoop` accepts saves made by the short-lived directed-trough
+    // prototype and normalizes them to the corrected vertical deep scoop.
+    kind: z
+      .enum(["straight", "scoop", "deep-scoop", "oblong-scoop"])
+      .default("straight"),
     /** Used only for scoops; retained on straight holes so type changes are reversible. */
-    depthMm: z.number().min(1).max(30).default(12),
+    depthMm: z.number().min(1).max(120).default(12),
+    /** Compatibility only; removed with the directed-trough prototype. */
+    reachMm: z.number().min(1).max(120).optional(),
+    /** Compatibility only; removed with the directed-trough prototype. */
+    directionDeg: z.number().finite().optional(),
   })
-  .strict();
+  .strict()
+  .transform(({ reachMm: _reach, directionDeg: _direction, kind, ...hole }) => ({
+    ...hole,
+    kind: kind === "oblong-scoop" ? ("deep-scoop" as const) : kind,
+  }));
 
 export type FingerHole = z.infer<typeof fingerHoleSchema>;
 
@@ -153,6 +167,17 @@ export function effectiveScoopDepthMm(
   scoop: Pick<FingerHole, "diameterMm" | "depthMm">,
 ): number {
   return Math.min(scoop.depthMm, scoop.diameterMm / 2);
+}
+
+/**
+ * Total top-to-bottom depth of a deep scoop. The cutter always includes at
+ * least one radius so its bottom remains a true hemisphere even when an old
+ * or hand-edited project requests a shallower value.
+ */
+export function effectiveDeepScoopDepthMm(
+  scoop: Pick<FingerHole, "diameterMm" | "depthMm">,
+): number {
+  return Math.max(scoop.depthMm, scoop.diameterMm / 2);
 }
 
 const cutoutPlacementInputSchema = z
@@ -198,7 +223,11 @@ export const cutoutPlacementSchema = cutoutPlacementInputSchema.transform(
       ...placement,
       fingerHoles: [
         ...placement.fingerHoles,
-        { id, kind: "scoop" as const, ...scoop },
+        {
+          id,
+          kind: "scoop" as const,
+          ...scoop,
+        },
       ],
     };
   },
@@ -274,7 +303,7 @@ export function transformOutlinePlacement(
 }
 
 // ---------------------------------------------------------------------------
-// Placement footprint (outline + feature circles)
+// Placement footprint (outline + finger-access rims)
 // ---------------------------------------------------------------------------
 
 /** A CCW `segments`-gon approximating the circle, for validation geometry. */
@@ -288,6 +317,19 @@ export function circleRing(center: Point, radiusMm: number, segments = 24): Poin
     });
   }
   return ring;
+}
+
+/** Exact plan-view rim used by rendering, validation, and cutter geometry. */
+export function fingerHoleFootprintRing(
+  hole: FingerHole,
+  placement: PlacementTransform,
+  segments = 24,
+): Point[] {
+  const local = circleRing(hole.center, hole.diameterMm / 2, segments);
+  return ensureOrientation(
+    mapRing(local, (point) => transformPointPlacement(point, placement)),
+    OUTER_ORIENTATION,
+  );
 }
 
 export interface PlacementFootprint {
@@ -316,13 +358,7 @@ export function placementFootprint(
 ): PlacementFootprint {
   const features: Point[][] = [];
   for (const hole of placement.fingerHoles) {
-    features.push(
-      circleRing(
-        transformPointPlacement(hole.center, placement),
-        hole.diameterMm / 2,
-        segments,
-      ),
-    );
+    features.push(fingerHoleFootprintRing(hole, placement, segments));
   }
   return {
     outline: transformOutlinePlacement(shape.outlineMm, placement),
