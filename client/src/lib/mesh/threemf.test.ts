@@ -1,6 +1,9 @@
 import { strFromU8, unzipSync } from "fflate";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { parseBinSpec } from "@shared/gridfinity/types";
+
+import { buildBinWithCutouts } from "@/lib/gridfinity/bin";
 import { Arena } from "@/lib/manifold/arena";
 import { createKernel, loadManifold, type Kernel } from "@/lib/manifold/runtime";
 
@@ -35,6 +38,30 @@ function unzipModel(file: Uint8Array): {
   };
 }
 
+function objectEdgeCounts(model: string, name: string): number[] {
+  const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const object = model.match(
+    new RegExp(`<object[^>]*name="${escapedName}"[^>]*>([\\s\\S]*?)<\\/object>`),
+  )?.[1];
+  if (!object) throw new Error(`Missing 3MF object ${name}`);
+
+  const edgeCounts = new Map<string, number>();
+  for (const match of object.matchAll(
+    /<triangle v1="(\d+)" v2="(\d+)" v3="(\d+)"\/>/g,
+  )) {
+    const triangle = match.slice(1).map(Number);
+    for (const [a, b] of [
+      [triangle[0], triangle[1]],
+      [triangle[1], triangle[2]],
+      [triangle[2], triangle[0]],
+    ]) {
+      const key = a < b ? `${a}:${b}` : `${b}:${a}`;
+      edgeCounts.set(key, (edgeCounts.get(key) ?? 0) + 1);
+    }
+  }
+  return [...edgeCounts.values()];
+}
+
 const TRIANGLE: ThreeMfObject = {
   name: "tri",
   mesh: {
@@ -65,36 +92,78 @@ describe("writeThreeMf", () => {
     expect(model.match(/<item objectid="1"\/>/g)).toHaveLength(1);
   });
 
-  it("welds vertices duplicated for sharp preview normals", () => {
-    const cube = arena.track(kernel.Manifold.cube([2, 3, 4], false));
-    const mesh = extractMeshData(kernel, cube, { normals: true });
-    expect(mesh.positions.length / 3).toBeGreaterThan(8);
+  it("preserves vertex identities when closed components touch along an edge", () => {
+    const mesh = {
+      // Two closed tetrahedra intentionally use distinct indices for the same
+      // first edge. Welding vertices 4→0 and 5→1 would give that edge four
+      // incident faces, matching the defect Bambu reported on a 4×4 bin.
+      positions: [
+        0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1,
+        0, 0, 0, 1, 0, 0, 0, -1, 0, 0, 0, -1,
+      ],
+      indices: [
+        0, 2, 1, 0, 1, 3, 1, 2, 3, 2, 0, 3,
+        4, 6, 5, 4, 5, 7, 5, 6, 7, 6, 4, 7,
+      ],
+    };
 
-    const { model } = unzipModel(writeThreeMf([{ name: "creased cube", mesh }]));
+    const { model } = unzipModel(writeThreeMf([{ name: "touching tetrahedra", mesh }]));
     expect(model.match(/<vertex /g)).toHaveLength(8);
-    expect(model.match(/<triangle /g)).toHaveLength(12);
+    expect(model.match(/<triangle /g)).toHaveLength(8);
 
-    const edgeCounts = new Map<string, number>();
-    for (const match of model.matchAll(
-      /<triangle v1="(\d+)" v2="(\d+)" v3="(\d+)"\/>/g,
-    )) {
-      const triangle = match.slice(1).map(Number);
-      for (const [a, b] of [
-        [triangle[0], triangle[1]],
-        [triangle[1], triangle[2]],
-        [triangle[2], triangle[0]],
-      ]) {
-        const key = a < b ? `${a}:${b}` : `${b}:${a}`;
-        edgeCounts.set(key, (edgeCounts.get(key) ?? 0) + 1);
-      }
-    }
-    expect([...edgeCounts.values()].every((count) => count === 2)).toBe(true);
+    expect(
+      objectEdgeCounts(model, "touching tetrahedra").every((count) => count === 2),
+    ).toBe(true);
   });
 
-  it("writes compact 1e-4 mm coordinates", () => {
+  it("keeps a 4x4 multicolor bin body manifold after serialization", () => {
+    const spec = parseBinSpec({ gridX: 4, gridY: 4, heightUnits: 6.5 });
+    const { materialParts } = buildBinWithCutouts(
+      kernel,
+      spec,
+      null,
+      { circularSegments: 32 },
+      { rimInsertThicknessMm: 0.6 },
+    );
+    expect(materialParts?.stackingRim).not.toBeNull();
+
+    const body = extractMeshData(kernel, materialParts!.body);
+    const rim = extractMeshData(kernel, materialParts!.stackingRim!);
+    const bytes = writeThreeMf(
+      [
+        { name: "4x4 body", mesh: body },
+        { name: "4x4 rim", mesh: rim },
+      ],
+      { assemble: true },
+    );
+    const { model } = unzipModel(bytes);
+
+    expect(objectEdgeCounts(model, "4x4 body").every((count) => count === 2)).toBe(
+      true,
+    );
+  });
+
+  it("writes compact round-trippable coordinates", () => {
     const { model } = unzipModel(writeThreeMf([TRIANGLE]));
     expect(model).toContain('<vertex x="0" y="0" z="41.75"/>');
-    expect(model).toContain('<vertex x="0.5" y="1.2346" z="2"/>');
+    expect(model).toContain('<vertex x="0.5" y="1.23456" z="2"/>');
+  });
+
+  it("does not collapse small but distinct coordinates", () => {
+    const { model } = unzipModel(
+      writeThreeMf([
+        {
+          name: "small triangle",
+          mesh: {
+            positions: [0, 0, 0, 0.00001, 0, 0, 0, 0.00001, 0],
+            indices: [0, 1, 2],
+          },
+        },
+      ]),
+    );
+
+    expect(model).toContain('<vertex x="0.00001" y="0" z="0"/>');
+    expect(model).toContain('<vertex x="0" y="0.00001" z="0"/>');
   });
 
   it("emits one object and one build item per part (the multicolor hook)", () => {
@@ -226,14 +295,14 @@ describe("writeThreeMf", () => {
     expect(() =>
       writeThreeMf([
         {
-          name: "too small",
+          name: "degenerate",
           mesh: {
-            positions: [0, 0, 0, 0.00001, 0, 0, 0, 0.00001, 0],
-            indices: [0, 1, 2],
+            positions: [0, 0, 0, 1, 0, 0, 0, 1, 0],
+            indices: [0, 0, 2],
           },
         },
       ]),
-    ).toThrow(/no triangles at 1e-4 mm precision/);
+    ).toThrow(/repeated vertex indices/);
     expect(() =>
       writeThreeMf([
         {
