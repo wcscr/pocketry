@@ -16,12 +16,14 @@ import {
   fingerHoleFootprintRing,
   oblongDeepScoopEndpoints,
   placementFootprint,
+  resizeCutoutPlacementFromHandle,
   resizeFingerHoleFromWidthHandle,
   resizeOblongDeepScoopFromEndpoint,
   transformPointPlacement,
   untransformPointPlacement,
   type CutoutPlacement,
   type FingerHole,
+  type PocketResizeHandle,
   type TracedShape,
 } from "@shared/gridfinity/cutout";
 import {
@@ -59,7 +61,7 @@ import {
 } from "@/components/canvas/canvas-viewport";
 import { Button } from "@/components/ui/button";
 import { useViewportTransform } from "@/hooks/use-viewport-transform";
-import { pointInOutline } from "@/lib/geometry/outline";
+import { outlineBounds, pointInOutline } from "@/lib/geometry/outline";
 import {
   contourRing,
   insertContourPoint,
@@ -97,6 +99,51 @@ const CLICK_SLOP_PX = 4;
 const RULER_SNAP_TOLERANCE_PX = 14;
 /** Circular-arrow pointer, with `grab` as the browser fallback. */
 const ROTATE_CURSOR = 'url("/cursors/rotate.svg") 16 16, grab';
+const POCKET_RESIZE_HANDLES: PocketResizeHandle[] = [
+  "nw",
+  "n",
+  "ne",
+  "e",
+  "se",
+  "s",
+  "sw",
+  "w",
+];
+
+function isPocketResizeHandle(value: string | null): value is PocketResizeHandle {
+  return POCKET_RESIZE_HANDLES.includes(value as PocketResizeHandle);
+}
+
+function resizeCursor(center: Point, handle: Point): string {
+  const angle =
+    ((Math.atan2(handle.y - center.y, handle.x - center.x) * 180) / Math.PI +
+      180) %
+    180;
+  if (angle < 22.5 || angle >= 157.5) return "ew-resize";
+  if (angle < 67.5) return "nwse-resize";
+  if (angle < 112.5) return "ns-resize";
+  return "nesw-resize";
+}
+
+function pocketHandleLocalPoint(
+  bounds: NonNullable<ReturnType<typeof outlineBounds>>,
+  handle: PocketResizeHandle,
+): Point {
+  const centerX = (bounds.minX + bounds.maxX) / 2;
+  const centerY = (bounds.minY + bounds.maxY) / 2;
+  return {
+    x: handle.includes("w")
+      ? bounds.minX
+      : handle.includes("e")
+        ? bounds.maxX
+        : centerX,
+    y: handle.includes("s")
+      ? bounds.minY
+      : handle.includes("n")
+        ? bounds.maxY
+        : centerY,
+  };
+}
 
 function contourHandle(target: Element):
   | { cutoutId: string; ref: RingRef; index: number }
@@ -334,6 +381,13 @@ function LayoutStage(): JSX.Element {
   const dragRef = useRef<
     | { kind: "move"; id: string; grabOffset: Point }
     | { kind: "rotate"; id: string; center: Point; startPointerDeg: number; startRotationDeg: number }
+    | {
+        kind: "resize";
+        id: string;
+        handle: PocketResizeHandle;
+        startPlacement: CutoutPlacement;
+        localBounds: NonNullable<ReturnType<typeof outlineBounds>>;
+      }
     | { kind: "finger-hole-move"; id: string; grabOffset: Point }
     | {
         kind: "feature-end";
@@ -423,6 +477,17 @@ function LayoutStage(): JSX.Element {
         id: current.id,
         patch: { rotationDeg: current.rotationDeg },
         historyLabel: "Rotate tool pocket",
+      });
+    } else if (drag.kind === "resize") {
+      dispatch({
+        type: "UPDATE_CUTOUT",
+        id: current.id,
+        patch: {
+          position: current.position,
+          scaleX: current.scaleX,
+          scaleY: current.scaleY,
+        },
+        historyLabel: "Resize tool pocket",
       });
     }
   };
@@ -640,6 +705,26 @@ function LayoutStage(): JSX.Element {
       return;
     }
 
+    const resizeHandle =
+      target.getAttribute?.("data-pocket-resize-handle") ?? null;
+    if (
+      editorMode === "placement" &&
+      selected &&
+      isPocketResizeHandle(resizeHandle)
+    ) {
+      const localBounds = outlineBounds(selected.shape.outlineMm);
+      if (!localBounds) return;
+      dragRef.current = {
+        kind: "resize",
+        id: selected.cutout.id,
+        handle: resizeHandle,
+        startPlacement: selected.cutout,
+        localBounds,
+      };
+      event.currentTarget.setPointerCapture(event.pointerId);
+      return;
+    }
+
     if (target.getAttribute?.("data-rotate-handle") && selected) {
       const center = selected.cutout.position;
       dragRef.current = {
@@ -806,6 +891,27 @@ function LayoutStage(): JSX.Element {
         type: "UPDATE_FINGER_HOLE",
         id: current.id,
         patch: resized,
+        transient: true,
+      });
+      return;
+    }
+
+    if (drag.kind === "resize") {
+      const resized = resizeCutoutPlacementFromHandle(
+        drag.startPlacement,
+        drag.localBounds,
+        drag.handle,
+        point,
+        event.altKey,
+      );
+      dispatch({
+        type: "UPDATE_CUTOUT",
+        id: drag.id,
+        patch: {
+          position: resized.position,
+          scaleX: resized.scaleX,
+          scaleY: resized.scaleY,
+        },
         transient: true,
       });
       return;
@@ -1074,23 +1180,70 @@ function LayoutStage(): JSX.Element {
   );
   const selectableEdges = useMemo(() => boundaryEdges(spec), [spec]);
 
-  const selectedBox = useMemo(() => {
+  const selectedControls = useMemo(() => {
     if (!selected) return null;
-    let minX = Infinity;
-    let minY = Infinity;
-    let maxX = -Infinity;
-    let maxY = -Infinity;
-    for (const shape of selected.outline) {
-      for (const point of shape.outer) {
-        const c = binToCanvas(point, spec);
-        minX = Math.min(minX, c.x);
-        minY = Math.min(minY, c.y);
-        maxX = Math.max(maxX, c.x);
-        maxY = Math.max(maxY, c.y);
-      }
-    }
-    return { minX, minY, maxX, maxY };
-  }, [selected, spec]);
+    const bounds = outlineBounds(selected.shape.outlineMm);
+    if (!bounds) return null;
+    const localCenter = {
+      x: (bounds.minX + bounds.maxX) / 2,
+      y: (bounds.minY + bounds.maxY) / 2,
+    };
+    const handles = new Map(
+      POCKET_RESIZE_HANDLES.map((handle) => {
+        const point = binToCanvas(
+          transformPointPlacement(
+            pocketHandleLocalPoint(bounds, handle),
+            selected.cutout,
+          ),
+          spec,
+        );
+        return [handle, point] as const;
+      }),
+    );
+    const center = binToCanvas(
+      transformPointPlacement(localCenter, selected.cutout),
+      spec,
+    );
+    // Cursor direction follows an oriented unit square, not the silhouette's
+    // aspect ratio. Otherwise a corner on a wide tool can be misclassified as
+    // horizontal even though it is still a diagonal resize handle.
+    const cursorPlacement = {
+      ...selected.cutout,
+      scaleX: 1,
+      scaleY: 1,
+    };
+    const cursorCenter = binToCanvas(
+      transformPointPlacement(localCenter, cursorPlacement),
+      spec,
+    );
+    const cursors = new Map(
+      POCKET_RESIZE_HANDLES.map((handle) => {
+        const direction = {
+          x: handle.includes("w") ? -1 : handle.includes("e") ? 1 : 0,
+          y: handle.includes("s") ? -1 : handle.includes("n") ? 1 : 0,
+        };
+        const directionPoint = binToCanvas(
+          transformPointPlacement(
+            {
+              x: localCenter.x + direction.x,
+              y: localCenter.y + direction.y,
+            },
+            cursorPlacement,
+          ),
+          spec,
+        );
+        return [handle, resizeCursor(cursorCenter, directionPoint)] as const;
+      }),
+    );
+    const top = handles.get("n")!;
+    const outward = { x: top.x - center.x, y: top.y - center.y };
+    const length = Math.hypot(outward.x, outward.y) || 1;
+    const rotate = {
+      x: top.x + (outward.x / length) * ROTATE_HANDLE_OFFSET_PX * inv,
+      y: top.y + (outward.y / length) * ROTATE_HANDLE_OFFSET_PX * inv,
+    };
+    return { handles, cursors, center, top, rotate };
+  }, [selected, spec, inv]);
 
   return (
     <>
@@ -1361,39 +1514,62 @@ function LayoutStage(): JSX.Element {
               );
             })}
 
-          {editorMode !== "contour" && selectedBox && selected && (
+          {editorMode === "placement" && selectedControls && selected && (
             <g>
-              <rect
-                x={selectedBox.minX}
-                y={selectedBox.minY}
-                width={selectedBox.maxX - selectedBox.minX}
-                height={selectedBox.maxY - selectedBox.minY}
+              <polygon
+                points={(["nw", "ne", "se", "sw"] as const)
+                  .map((handle) => {
+                    const point = selectedControls.handles.get(handle)!;
+                    return `${point.x},${point.y}`;
+                  })
+                  .join(" ")}
                 fill="none"
                 className="stroke-primary/70"
                 strokeWidth={1}
                 strokeDasharray="4 3"
                 vectorEffect="non-scaling-stroke"
               />
-              {/* Rotate handle above the box (screen offset / scale). */}
               <line
-                x1={(selectedBox.minX + selectedBox.maxX) / 2}
-                y1={selectedBox.minY}
-                x2={(selectedBox.minX + selectedBox.maxX) / 2}
-                y2={selectedBox.minY - ROTATE_HANDLE_OFFSET_PX * inv}
+                x1={selectedControls.top.x}
+                y1={selectedControls.top.y}
+                x2={selectedControls.rotate.x}
+                y2={selectedControls.rotate.y}
                 className="stroke-primary/70"
                 strokeWidth={1}
                 vectorEffect="non-scaling-stroke"
               />
               <circle
-                cx={(selectedBox.minX + selectedBox.maxX) / 2}
-                cy={selectedBox.minY - ROTATE_HANDLE_OFFSET_PX * inv}
+                cx={selectedControls.rotate.x}
+                cy={selectedControls.rotate.y}
                 r={6 * inv}
                 className="fill-primary stroke-background"
                 strokeWidth={1.5}
                 vectorEffect="non-scaling-stroke"
                 data-rotate-handle
                 style={{ cursor: ROTATE_CURSOR }}
+                data-testid="pocket-rotate-handle"
               />
+              {POCKET_RESIZE_HANDLES.map((handle) => {
+                const point = selectedControls.handles.get(handle)!;
+                return (
+                  <rect
+                    key={handle}
+                    x={point.x - 5 * inv}
+                    y={point.y - 5 * inv}
+                    width={10 * inv}
+                    height={10 * inv}
+                    rx={1.5 * inv}
+                    className="fill-background stroke-primary"
+                    strokeWidth={1.75}
+                    vectorEffect="non-scaling-stroke"
+                    style={{
+                      cursor: selectedControls.cursors.get(handle),
+                    }}
+                    data-pocket-resize-handle={handle}
+                    data-testid={`pocket-resize-handle-${handle}`}
+                  />
+                );
+              })}
             </g>
           )}
         </g>
@@ -1495,7 +1671,7 @@ function LayoutStage(): JSX.Element {
           : selectedFingerHoleId
             ? "Finger hole · drag moves · white handle resizes · arrows nudge · Del removes"
             : selectedCutoutId
-              ? "Pocket · drag moves · handle rotates · R rotates 15° · arrows nudge · Del removes"
+              ? "Pocket · drag edges/corners to resize · Option resizes from centre · round handle rotates"
               : "Click a pocket or finger hole to select · Shift-drag pans · Ctrl-scroll zooms"}
       </div>
     </>

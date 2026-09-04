@@ -351,6 +351,8 @@ describe("fit template worker handler", () => {
           id: "fit-cutout",
           shapeId: shape.id,
           position: { x: 40, y: -20 },
+          scaleX: 1.5,
+          scaleY: 0.5,
           clearanceMm: 1,
           cornerRoundMm: 0,
           fingerHoles: [
@@ -379,11 +381,12 @@ describe("fit template worker handler", () => {
     expect(Math.min(...zs)).toBeCloseTo(0, 6);
     expect(Math.max(...zs)).toBeCloseTo(2.5, 6);
     // The placement and finger-hole position are intentionally ignored;
-    // clearance grows the 20 mm outline to roughly 22 mm around the origin.
-    expect(Math.min(...xs)).toBeCloseTo(-11, 1);
-    expect(Math.max(...xs)).toBeCloseTo(11, 1);
+    // placement scale is retained while position and finger holes are ignored;
+    // clearance grows the 30 mm wide outline to roughly 32 mm.
+    expect(Math.min(...xs)).toBeCloseTo(-16, 1);
+    expect(Math.max(...xs)).toBeCloseTo(16, 1);
     // Filling the 2x2 interior ring yields the full expanded rectangle.
-    expect(result.value.stats.volumeMm3).toBeCloseTo(22 * 12 * 2.5, -1);
+    expect(result.value.stats.volumeMm3).toBeCloseTo(32 * 7 * 2.5, -1);
     expect(result.transfer).toContain(result.value.mesh.positions.buffer);
     expect(result.transfer).toContain(result.value.mesh.indices.buffer);
   });

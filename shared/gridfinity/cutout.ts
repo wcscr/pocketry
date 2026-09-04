@@ -4,6 +4,7 @@ import { ensureOrientation, mapRing } from "../geometry/rings";
 import {
   HOLE_ORIENTATION,
   OUTER_ORIENTATION,
+  type Bounds,
   type Outline,
   type Point,
 } from "../geometry/types";
@@ -327,6 +328,11 @@ const cutoutPlacementInputSchema = z
     /** CCW-positive in the y-up bin frame. */
     rotationDeg: z.number().finite().default(0),
     mirrored: z.boolean().default(false),
+    /** Independent placement scale; 1 = the traced silhouette's true size. */
+    scaleX: z.number().finite().min(0.05).max(20).default(1),
+    scaleY: z.number().finite().min(0.05).max(20).default(1),
+    /** Editor preference for subsequent mouse/numeric resizing. */
+    aspectRatioLocked: z.boolean().default(true),
     depth: depthSpecSchema.default({
       mode: "remaining",
       floorThicknessMm: BASE_HEIGHT,
@@ -384,8 +390,8 @@ export function parseCutoutPlacement(input: unknown): CutoutPlacement {
 // ---------------------------------------------------------------------------
 
 /**
- * Applies a placement to a shape-local outline: **mirror → rotate →
- * translate**, then re-enforces the ring orientation invariant (mirroring
+ * Applies a placement to a shape-local outline: **scale → mirror → rotate
+ * → translate**, then re-enforces the ring orientation invariant (mirroring
  * negates signed area, and downstream offsetting depends on outer-positive /
  * hole-negative winding).
  *
@@ -395,9 +401,9 @@ export function parseCutoutPlacement(input: unknown): CutoutPlacement {
 export type PlacementTransform = Pick<
   CutoutPlacement,
   "position" | "rotationDeg" | "mirrored"
->;
+> & Partial<Pick<CutoutPlacement, "scaleX" | "scaleY">>;
 
-/** Applies mirror → rotate → translate to one shape-local point. */
+/** Applies scale → mirror → rotate → translate to one shape-local point. */
 export function transformPointPlacement(
   point: Point,
   placement: PlacementTransform,
@@ -405,8 +411,9 @@ export function transformPointPlacement(
   const radians = (placement.rotationDeg * Math.PI) / 180;
   const cos = Math.cos(radians);
   const sin = Math.sin(radians);
-  const x = placement.mirrored ? -point.x : point.x;
-  const y = point.y;
+  const scaledX = point.x * (placement.scaleX ?? 1);
+  const x = placement.mirrored ? -scaledX : scaledX;
+  const y = point.y * (placement.scaleY ?? 1);
   return {
     x: placement.position.x + x * cos - y * sin,
     y: placement.position.y + x * sin + y * cos,
@@ -425,7 +432,11 @@ export function untransformPointPlacement(
   const dy = point.y - placement.position.y;
   const x = dx * cos + dy * sin;
   const y = -dx * sin + dy * cos;
-  return { x: placement.mirrored ? -x : x, y };
+  const unmirroredX = placement.mirrored ? -x : x;
+  return {
+    x: unmirroredX / (placement.scaleX ?? 1),
+    y: y / (placement.scaleY ?? 1),
+  };
 }
 
 export function transformOutlinePlacement(
@@ -439,6 +450,153 @@ export function transformOutlinePlacement(
       ensureOrientation(mapRing(hole, transformPoint), HOLE_ORIENTATION),
     ),
   }));
+}
+
+// ---------------------------------------------------------------------------
+// Placement resizing
+// ---------------------------------------------------------------------------
+
+export type PocketResizeHandle =
+  | "n"
+  | "ne"
+  | "e"
+  | "se"
+  | "s"
+  | "sw"
+  | "w"
+  | "nw";
+
+const MIN_POCKET_SCALE = 0.05;
+const MAX_POCKET_SCALE = 20;
+
+function clampPocketScale(value: number): number {
+  return Math.min(MAX_POCKET_SCALE, Math.max(MIN_POCKET_SCALE, value));
+}
+
+function resizeHandlePoint(bounds: Bounds, handle: PocketResizeHandle): Point {
+  const centerX = (bounds.minX + bounds.maxX) / 2;
+  const centerY = (bounds.minY + bounds.maxY) / 2;
+  return {
+    x: handle.includes("w")
+      ? bounds.minX
+      : handle.includes("e")
+        ? bounds.maxX
+        : centerX,
+    y: handle.includes("s")
+      ? bounds.minY
+      : handle.includes("n")
+        ? bounds.maxY
+        : centerY,
+  };
+}
+
+function oppositeResizeHandle(handle: PocketResizeHandle): PocketResizeHandle {
+  const opposite: Record<PocketResizeHandle, PocketResizeHandle> = {
+    n: "s",
+    ne: "sw",
+    e: "w",
+    se: "nw",
+    s: "n",
+    sw: "ne",
+    w: "e",
+    nw: "se",
+  };
+  return opposite[handle];
+}
+
+/**
+ * Resizes one placed pocket from an oriented edge/corner handle. The opposite
+ * handle remains fixed; `fromCenter` (Option/Alt in the editor) fixes the
+ * bounds centre instead. Rotation and mirroring remain unchanged.
+ */
+export function resizeCutoutPlacementFromHandle(
+  placement: CutoutPlacement,
+  localBounds: Bounds,
+  handle: PocketResizeHandle,
+  draggedBinPoint: Point,
+  fromCenter = false,
+): CutoutPlacement {
+  const moving = resizeHandlePoint(localBounds, handle);
+  const anchor = fromCenter
+    ? {
+        x: (localBounds.minX + localBounds.maxX) / 2,
+        y: (localBounds.minY + localBounds.maxY) / 2,
+      }
+    : resizeHandlePoint(localBounds, oppositeResizeHandle(handle));
+  const anchorBin = transformPointPlacement(anchor, placement);
+
+  const radians = (placement.rotationDeg * Math.PI) / 180;
+  const cos = Math.cos(radians);
+  const sin = Math.sin(radians);
+  const dx = draggedBinPoint.x - anchorBin.x;
+  const dy = draggedBinPoint.y - anchorBin.y;
+  const rotatedX = dx * cos + dy * sin;
+  const localVector = {
+    x: placement.mirrored ? -rotatedX : rotatedX,
+    y: -dx * sin + dy * cos,
+  };
+  const basis = { x: moving.x - anchor.x, y: moving.y - anchor.y };
+  const changesX = handle.includes("e") || handle.includes("w");
+  const changesY = handle.includes("n") || handle.includes("s");
+
+  let scaleX = placement.scaleX;
+  let scaleY = placement.scaleY;
+  if (placement.aspectRatioLocked) {
+    let factor: number;
+    if (changesX && changesY) {
+      const startVector = {
+        x: basis.x * placement.scaleX,
+        y: basis.y * placement.scaleY,
+      };
+      const lengthSq = startVector.x ** 2 + startVector.y ** 2;
+      factor =
+        lengthSq > 0
+          ? (localVector.x * startVector.x + localVector.y * startVector.y) /
+            lengthSq
+          : 1;
+    } else if (changesX && basis.x !== 0) {
+      factor = localVector.x / basis.x / placement.scaleX;
+    } else if (changesY && basis.y !== 0) {
+      factor = localVector.y / basis.y / placement.scaleY;
+    } else {
+      factor = 1;
+    }
+    const minFactor = Math.max(
+      MIN_POCKET_SCALE / placement.scaleX,
+      MIN_POCKET_SCALE / placement.scaleY,
+    );
+    const maxFactor = Math.min(
+      MAX_POCKET_SCALE / placement.scaleX,
+      MAX_POCKET_SCALE / placement.scaleY,
+    );
+    factor = Math.min(maxFactor, Math.max(minFactor, factor));
+    scaleX = placement.scaleX * factor;
+    scaleY = placement.scaleY * factor;
+  } else {
+    if (changesX && basis.x !== 0) {
+      scaleX = clampPocketScale(localVector.x / basis.x);
+    }
+    if (changesY && basis.y !== 0) {
+      scaleY = clampPocketScale(localVector.y / basis.y);
+    }
+  }
+
+  const withoutTranslation = transformPointPlacement(anchor, {
+    position: { x: 0, y: 0 },
+    rotationDeg: placement.rotationDeg,
+    mirrored: placement.mirrored,
+    scaleX,
+    scaleY,
+  });
+  return {
+    ...placement,
+    position: {
+      x: anchorBin.x - withoutTranslation.x,
+      y: anchorBin.y - withoutTranslation.y,
+    },
+    scaleX,
+    scaleY,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -524,7 +682,7 @@ export function placementFootprint(
   placement: Pick<
     CutoutPlacement,
     "position" | "rotationDeg" | "mirrored" | "fingerHoles"
-  >,
+  > & Partial<Pick<CutoutPlacement, "scaleX" | "scaleY">>,
   segments = 24,
 ): PlacementFootprint {
   return {

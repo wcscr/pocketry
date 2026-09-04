@@ -13,6 +13,7 @@ import {
   oblongDeepScoopEndpoints,
   parseCutoutPlacement,
   placementFootprint,
+  resizeCutoutPlacementFromHandle,
   resizeFingerHoleFromWidthHandle,
   resizeOblongDeepScoopFromEndpoint,
   resolvePocketDepth,
@@ -57,6 +58,9 @@ describe("cutout schemas", () => {
     });
     expect(placement.rotationDeg).toBe(0);
     expect(placement.mirrored).toBe(false);
+    expect(placement.scaleX).toBe(1);
+    expect(placement.scaleY).toBe(1);
+    expect(placement.aspectRatioLocked).toBe(true);
     expect(placement.depth).toEqual({ mode: "remaining", floorThicknessMm: BASE_HEIGHT });
     expect(placement.clearanceMm).toBe(0);
     expect(placement.cornerRoundMm).toBeCloseTo(1, 12);
@@ -176,6 +180,83 @@ describe("transformOutlinePlacement", () => {
     const xs = placed[0].outer.map((p) => p.x);
     expect(Math.min(...xs)).toBeCloseTo(-2, 9);
     expect(Math.max(...xs)).toBeCloseTo(0, 9);
+  });
+
+  it("round-trips non-uniform scale with mirror and rotation", () => {
+    const placement = parseCutoutPlacement({
+      id: "scaled",
+      shapeId: "s1",
+      position: { x: 12, y: -7 },
+      rotationDeg: 31,
+      mirrored: true,
+      scaleX: 1.8,
+      scaleY: 0.65,
+    });
+    const point = { x: 4.25, y: -2.5 };
+    const placed = transformPointPlacement(point, placement);
+    expect(untransformPointPlacement(placed, placement).x).toBeCloseTo(point.x, 9);
+    expect(untransformPointPlacement(placed, placement).y).toBeCloseTo(point.y, 9);
+  });
+});
+
+describe("resizeCutoutPlacementFromHandle", () => {
+  const bounds = { minX: -10, minY: -5, maxX: 10, maxY: 5 };
+
+  it("resizes one axis while keeping the opposite edge fixed when unlocked", () => {
+    const placement = parseCutoutPlacement({
+      id: "c1",
+      shapeId: "s1",
+      position: { x: 0, y: 0 },
+      aspectRatioLocked: false,
+    });
+    const resized = resizeCutoutPlacementFromHandle(
+      placement,
+      bounds,
+      "e",
+      { x: 30, y: 0 },
+    );
+    expect(resized.scaleX).toBeCloseTo(2, 9);
+    expect(resized.scaleY).toBeCloseTo(1, 9);
+    expect(transformPointPlacement({ x: -10, y: 0 }, resized).x).toBeCloseTo(-10, 9);
+    expect(transformPointPlacement({ x: 10, y: 0 }, resized).x).toBeCloseTo(30, 9);
+  });
+
+  it("keeps proportions for a corner drag when locked", () => {
+    const placement = parseCutoutPlacement({
+      id: "c1",
+      shapeId: "s1",
+      position: { x: 0, y: 0 },
+    });
+    const resized = resizeCutoutPlacementFromHandle(
+      placement,
+      bounds,
+      "ne",
+      { x: 20, y: 10 },
+    );
+    expect(resized.scaleX).toBeCloseTo(1.5, 9);
+    expect(resized.scaleY).toBeCloseTo(1.5, 9);
+    const fixed = transformPointPlacement({ x: -10, y: -5 }, resized);
+    expect(fixed.x).toBeCloseTo(-10, 9);
+    expect(fixed.y).toBeCloseTo(-5, 9);
+  });
+
+  it("resizes around the centre with Option/Alt", () => {
+    const placement = parseCutoutPlacement({
+      id: "c1",
+      shapeId: "s1",
+      position: { x: 3, y: 4 },
+      aspectRatioLocked: false,
+    });
+    const resized = resizeCutoutPlacementFromHandle(
+      placement,
+      bounds,
+      "e",
+      { x: 23, y: 4 },
+      true,
+    );
+    expect(resized.scaleX).toBeCloseTo(2, 9);
+    expect(resized.scaleY).toBeCloseTo(1, 9);
+    expect(resized.position).toEqual({ x: 3, y: 4 });
   });
 });
 

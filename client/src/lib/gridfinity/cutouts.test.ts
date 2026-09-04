@@ -118,6 +118,31 @@ describe("buildBinWithCutouts", () => {
     expect(Math.abs(removed - 30 * 10 * 5) / (30 * 10 * 5)).toBeLessThan(1e-6);
   });
 
+  it("uses a placement's independent X/Y scale for the generated cutter", () => {
+    const shape = rectShape("scaled-shape", 30, 10);
+    const plain = buildBin(kernel, SPEC, QUALITY);
+    const pocketed = buildBinWithCutouts(
+      kernel,
+      SPEC,
+      layoutFor(
+        [shape],
+        [
+          cutout("scaled-cutout", shape.id, {
+            depth: { mode: "mm", value: 5 },
+            scaleX: 2,
+            scaleY: 0.5,
+          }),
+        ],
+      ),
+      QUALITY,
+    );
+
+    const expectedRemoved = 60 * 5 * 5;
+    const removed = plain.solid.volume() - pocketed.solid.volume();
+    expect(pocketed.solid.status()).toBe("NoError");
+    expect(Math.abs(removed - expectedRemoved) / expectedRemoved).toBeLessThan(1e-6);
+  });
+
   it("splits a blind pocket floor into a non-overlapping printable material volume", () => {
     const shape = rectShape("s1", 30, 10);
     const built = buildBinWithCutouts(
