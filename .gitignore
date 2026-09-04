@@ -10,8 +10,6 @@ exports/
 output/pdf/
 
 # Legacy scaffold and pasted-session artifacts
-.replit
-replit.md
 attached_assets/
 generated-icon.png
 vite.config.ts.*
