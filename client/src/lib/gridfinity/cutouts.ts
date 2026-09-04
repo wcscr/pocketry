@@ -310,54 +310,83 @@ export function buildFingerHoleCutters(
   const { arena } = kernel;
   const cutters: Manifold[] = [];
   const segments = quality.circularSegments;
+  const filletProfileStepMm =
+    quality.filletProfileStepMm ?? FILLET_PROFILE_STEP_MM;
 
   for (const hole of fingerHoles) {
     const pocket = resolvePocketDepth(spec, { mode: "mm", value: hole.depthMm });
+    const ring = fingerHoleFootprintRing(
+      hole,
+      BIN_LOCAL_PLACEMENT,
+      segments,
+    );
+    const section = toCrossSection(kernel, [{ outer: ring, holes: [] }]);
+    let cutter: Manifold;
     if (hole.kind === "straight") {
       const floorZ = pocket.floorZ ?? -1;
-      const circle = arena.track(
-        arena
-          .track(kernel.CrossSection.circle(hole.diameterMm / 2, segments))
-          .translate([hole.center.x, hole.center.y]),
+      const effectiveBottomFillet = Math.min(
+        hole.bottomFilletMm,
+        hole.depthMm / 2,
+        hole.diameterMm / 2,
       );
-      cutters.push(
-        arena.track(
-          arena
-            .track(circle.extrude(pocket.cutterTopZ - floorZ))
-            .translate([0, 0, floorZ]),
-        ),
+      const localCutter = bottomFilletCutter(
+        kernel,
+        section,
+        pocket.cutterTopZ - floorZ,
+        {
+          radiusMm: effectiveBottomFillet,
+          profileStepMm: filletProfileStepMm,
+          circularSegments: segments,
+        },
       );
+      cutter = arena.track(localCutter.translate([0, 0, floorZ]));
     } else if (hole.kind === "scoop") {
-      cutters.push(
-        buildRoundScoopCutter(
-          kernel,
-          hole,
-          BIN_LOCAL_PLACEMENT,
-          pocket,
-          segments,
-        ),
+      cutter = buildRoundScoopCutter(
+        kernel,
+        hole,
+        BIN_LOCAL_PLACEMENT,
+        pocket,
+        segments,
       );
     } else if (hole.kind === "deep-scoop") {
-      cutters.push(
-        buildDeepScoopCutter(
-          kernel,
-          hole,
-          BIN_LOCAL_PLACEMENT,
-          pocket,
-          segments,
-        ),
+      cutter = buildDeepScoopCutter(
+        kernel,
+        hole,
+        BIN_LOCAL_PLACEMENT,
+        pocket,
+        segments,
       );
     } else if (hole.kind === "oblong-deep-scoop") {
-      cutters.push(
-        buildOblongDeepScoopCutter(
-          kernel,
-          hole,
-          BIN_LOCAL_PLACEMENT,
-          pocket,
-          segments,
-        ),
+      cutter = buildOblongDeepScoopCutter(
+        kernel,
+        hole,
+        BIN_LOCAL_PLACEMENT,
+        pocket,
+        segments,
       );
+    } else {
+      continue;
     }
+
+    const cutDepth =
+      hole.kind === "scoop"
+        ? effectiveScoopDepthMm(hole)
+        : hole.kind === "deep-scoop" || hole.kind === "oblong-deep-scoop"
+          ? effectiveDeepScoopDepthMm(hole)
+          : hole.depthMm;
+    const effectiveTopFillet = Math.min(hole.topFilletMm, cutDepth / 2);
+    if (effectiveTopFillet > 0) {
+      const topRound = topEdgeFilletCutter(kernel, section, {
+        radiusMm: effectiveTopFillet,
+        profileStepMm: filletProfileStepMm,
+        circularSegments: segments,
+      });
+      const positionedTopRound = arena.track(
+        topRound.translate([0, 0, pocket.infillTopZ - effectiveTopFillet]),
+      );
+      cutter = arena.track(cutter.add(positionedTopRound));
+    }
+    cutters.push(cutter);
   }
   return cutters;
 }

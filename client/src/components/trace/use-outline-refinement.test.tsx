@@ -125,7 +125,7 @@ describe("useOutlineRefinement", () => {
 
     expect(refiner).not.toHaveBeenCalled();
     expect(offsetter).toHaveBeenCalledOnce();
-    expect(offsetter).toHaveBeenCalledWith(edited, -1.5);
+    expect(offsetter).toHaveBeenCalledWith(edited, -0.5);
     expect(mounted.store().outline).toEqual(adjusted);
     expect(mounted.store().outline[0].holes).toEqual([]);
     mounted.unmount();

@@ -16,7 +16,11 @@ import { Arena } from "@/lib/manifold/arena";
 import { createKernel, loadManifold, type Kernel } from "@/lib/manifold/runtime";
 
 import { buildBin, buildBinWithCutouts, type BinLayout } from "./bin";
-import { budgetOutline, budgetedPointCount } from "./cutouts";
+import {
+  budgetOutline,
+  budgetedPointCount,
+  buildFingerHoleCutters,
+} from "./cutouts";
 
 let arena: Arena;
 let kernel: Kernel;
@@ -539,6 +543,8 @@ describe("buildBinWithCutouts", () => {
           diameterMm: radius * 2,
           depthMm,
           kind: "straight",
+          topFilletMm: 0,
+          bottomFilletMm: 0,
         },
       ]),
       QUALITY,
@@ -548,6 +554,101 @@ describe("buildBinWithCutouts", () => {
     const removed = plain.solid.volume() - withHole.solid.volume();
     expect(Math.abs(removed - polygonArea * depthMm) / removed).toBeLessThan(1e-6);
   });
+
+  it("rounds both edges of a straight finger hole", () => {
+    const plain = buildBin(kernel, SPEC, QUALITY);
+    const makeHole = (topFilletMm: number, bottomFilletMm: number) =>
+      buildBinWithCutouts(
+        kernel,
+        SPEC,
+        layoutFor([], [], [
+          {
+            id: `straight-${topFilletMm}-${bottomFilletMm}`,
+            center: { x: 0, y: 0 },
+            diameterMm: 18,
+            depthMm: 12,
+            kind: "straight",
+            topFilletMm,
+            bottomFilletMm,
+          },
+        ]),
+        QUALITY,
+      ).solid;
+
+    const sharp = makeHole(0, 0);
+    const topRounded = makeHole(1.2, 0);
+    const bottomFilleted = makeHole(0, 2);
+    expect(sharp.status()).toBe("NoError");
+    expect(topRounded.status()).toBe("NoError");
+    expect(bottomFilleted.status()).toBe("NoError");
+    expect(topRounded.volume()).toBeLessThan(sharp.volume());
+    expect(bottomFilleted.volume()).toBeGreaterThan(sharp.volume());
+    expect(topRounded.volume()).toBeLessThan(plain.solid.volume());
+  });
+
+  it.each(["scoop", "deep-scoop", "oblong-deep-scoop"] as const)(
+    "ignores an extra bottom fillet for the already-curved %s bottom",
+    (kind) => {
+      const base = {
+        id: `curved-${kind}`,
+        center: { x: 0, y: 0 },
+        diameterMm: 14,
+        depthMm: kind === "scoop" ? 6 : 24,
+        kind,
+        topFilletMm: 0,
+        bottomFilletMm: 0,
+        ...(kind === "oblong-deep-scoop"
+          ? { lengthMm: 30, rotationDeg: 20 }
+          : {}),
+      } satisfies FingerHole;
+      const sharpBottom = buildFingerHoleCutters(
+        kernel,
+        [base],
+        SPEC,
+        QUALITY,
+      )[0];
+      const requestedBottomFillet = buildFingerHoleCutters(
+        kernel,
+        [{ ...base, bottomFilletMm: 3 }],
+        SPEC,
+        QUALITY,
+      )[0];
+
+      expect(requestedBottomFillet.status()).toBe("NoError");
+      expect(requestedBottomFillet.volume()).toBeCloseTo(
+        sharpBottom.volume(),
+        8,
+      );
+    },
+  );
+
+  it.each(["straight", "scoop", "deep-scoop", "oblong-deep-scoop"] as const)(
+    "adds a top edge round to a %s finger hole",
+    (kind) => {
+      const base = {
+        id: `top-${kind}`,
+        center: { x: 0, y: 0 },
+        diameterMm: 14,
+        depthMm: kind === "scoop" ? 6 : 24,
+        kind,
+        topFilletMm: 0,
+        bottomFilletMm: 0,
+        ...(kind === "oblong-deep-scoop"
+          ? { lengthMm: 30, rotationDeg: 20 }
+          : {}),
+      } satisfies FingerHole;
+      const sharp = buildFingerHoleCutters(kernel, [base], SPEC, QUALITY)[0];
+      const rounded = buildFingerHoleCutters(
+        kernel,
+        [{ ...base, topFilletMm: 5 }],
+        SPEC,
+        QUALITY,
+      )[0];
+
+      expect(rounded.status()).toBe("NoError");
+      expect(rounded.volume()).toBeGreaterThan(sharp.volume());
+    },
+  );
 
   it("a scoop in open surface removes its spherical cap, within facet error", () => {
     // Scoop centred away from the pocket: the extra removal against the

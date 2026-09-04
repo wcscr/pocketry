@@ -349,12 +349,18 @@ describe("typed finger holes (straight and scoop)", () => {
     });
     expect(parsed.fingerHoles[0].diameterMm).toBe(18);
     expect(parsed.fingerHoles[0].kind).toBe("straight");
+    expect(parsed.fingerHoles[0]).toMatchObject({
+      topFilletMm: 0,
+      bottomFilletMm: 0,
+    });
     expect(parsed.fingerHoles[1]).toMatchObject({
       id: "legacy-scoop",
       kind: "scoop",
       center: { x: -5, y: 0 },
       diameterMm: 30,
       depthMm: 12,
+      topFilletMm: 0,
+      bottomFilletMm: 0,
     });
   });
 
@@ -394,6 +400,8 @@ describe("typed finger holes (straight and scoop)", () => {
           diameterMm: 6,
           kind: "straight",
           depthMm: 12,
+          topFilletMm: 0,
+          bottomFilletMm: 0,
         },
       ],
     });

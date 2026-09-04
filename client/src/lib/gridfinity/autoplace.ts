@@ -1,5 +1,6 @@
 import {
   cutoutPlacementSchema,
+  DEFAULT_TOP_EDGE_FILLET_MM,
   fingerHoleFootprintRing,
   placementFootprint,
   type CutoutPlacement,
@@ -38,7 +39,7 @@ import type { Bounds, Point } from "@shared/geometry/types";
  * them.
  */
 
-/** New pockets have no extra clearance; retain one printable divider plus epsilon. */
+/** Gap between expanded cutter bounds: retain one printable divider plus epsilon. */
 const ITEM_GAP_MM = D_DIV + 0.01;
 
 /**
@@ -125,8 +126,14 @@ function shelfPack(targets: readonly PackTarget[], maxWidthMm: number): PackedBl
 function shapeTargets(shapes: readonly TracedShape[]): PackTarget[] {
   return shapes.map((shape) => ({
     key: shape.id,
-    widthMm: shape.bboxMm.maxX - shape.bboxMm.minX,
-    heightMm: shape.bboxMm.maxY - shape.bboxMm.minY,
+    widthMm:
+      shape.bboxMm.maxX -
+      shape.bboxMm.minX +
+      2 * DEFAULT_TOP_EDGE_FILLET_MM,
+    heightMm:
+      shape.bboxMm.maxY -
+      shape.bboxMm.minY +
+      2 * DEFAULT_TOP_EDGE_FILLET_MM,
   }));
 }
 
@@ -174,6 +181,7 @@ function toPlacement(
     // The shape's outline is bbox-centred at ~0; compensate for any residue
     // so the *bbox* centre lands exactly on the packed position.
     position: { x: item.x + offsetX - centre.x, y: item.y + offsetY - centre.y },
+    topFilletMm: DEFAULT_TOP_EDGE_FILLET_MM,
   });
 }
 
@@ -268,7 +276,7 @@ function existingBounds(
       mirrored: false,
     });
     for (const point of ring) {
-      includePoint(point, 0);
+      includePoint(point, hole.topFilletMm);
     }
   }
   return bounds;
@@ -624,8 +632,12 @@ export function autoArrangeLayout(
   const byKey = new Map(items.map((item) => [item.cutout.id, item]));
   const targets: PackTarget[] = items.map((item) => ({
     key: item.cutout.id,
-    widthMm: item.widthMm,
-    heightMm: item.heightMm,
+    widthMm:
+      item.widthMm +
+      2 * (item.cutout.clearanceMm + item.cutout.topFilletMm),
+    heightMm:
+      item.heightMm +
+      2 * (item.cutout.clearanceMm + item.cutout.topFilletMm),
   }));
   const inset = placementInsetMm(lip);
   const fixedHoleBounds = existingBounds([], shapesById, fingerHoles);
