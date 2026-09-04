@@ -1127,6 +1127,20 @@ describe("BinDesignerPage", () => {
     expect(
       container.querySelectorAll('[data-testid^="pocket-resize-handle-"]'),
     ).toHaveLength(8);
+    expect(
+      (
+        container.querySelector(
+          '[data-testid="pocket-resize-handle-ne"]',
+        ) as SVGRectElement
+      ).style.cursor,
+    ).toBe("nesw-resize");
+    expect(
+      (
+        container.querySelector(
+          '[data-testid="pocket-resize-handle-e"]',
+        ) as SVGRectElement
+      ).style.cursor,
+    ).toBe("ew-resize");
     expect(container.querySelector('[data-testid="pocket-rotate-handle"]')).not.toBeNull();
     const editContour = container.querySelector(
       '[data-testid="button-edit-contour"]',
