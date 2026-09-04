@@ -1184,6 +1184,10 @@ function LayoutStage(): JSX.Element {
     if (!selected) return null;
     const bounds = outlineBounds(selected.shape.outlineMm);
     if (!bounds) return null;
+    const localCenter = {
+      x: (bounds.minX + bounds.maxX) / 2,
+      y: (bounds.minY + bounds.maxY) / 2,
+    };
     const handles = new Map(
       POCKET_RESIZE_HANDLES.map((handle) => {
         const point = binToCanvas(
@@ -1197,14 +1201,39 @@ function LayoutStage(): JSX.Element {
       }),
     );
     const center = binToCanvas(
-      transformPointPlacement(
-        {
-          x: (bounds.minX + bounds.maxX) / 2,
-          y: (bounds.minY + bounds.maxY) / 2,
-        },
-        selected.cutout,
-      ),
+      transformPointPlacement(localCenter, selected.cutout),
       spec,
+    );
+    // Cursor direction follows an oriented unit square, not the silhouette's
+    // aspect ratio. Otherwise a corner on a wide tool can be misclassified as
+    // horizontal even though it is still a diagonal resize handle.
+    const cursorPlacement = {
+      ...selected.cutout,
+      scaleX: 1,
+      scaleY: 1,
+    };
+    const cursorCenter = binToCanvas(
+      transformPointPlacement(localCenter, cursorPlacement),
+      spec,
+    );
+    const cursors = new Map(
+      POCKET_RESIZE_HANDLES.map((handle) => {
+        const direction = {
+          x: handle.includes("w") ? -1 : handle.includes("e") ? 1 : 0,
+          y: handle.includes("s") ? -1 : handle.includes("n") ? 1 : 0,
+        };
+        const directionPoint = binToCanvas(
+          transformPointPlacement(
+            {
+              x: localCenter.x + direction.x,
+              y: localCenter.y + direction.y,
+            },
+            cursorPlacement,
+          ),
+          spec,
+        );
+        return [handle, resizeCursor(cursorCenter, directionPoint)] as const;
+      }),
     );
     const top = handles.get("n")!;
     const outward = { x: top.x - center.x, y: top.y - center.y };
@@ -1213,7 +1242,7 @@ function LayoutStage(): JSX.Element {
       x: top.x + (outward.x / length) * ROTATE_HANDLE_OFFSET_PX * inv,
       y: top.y + (outward.y / length) * ROTATE_HANDLE_OFFSET_PX * inv,
     };
-    return { handles, center, top, rotate };
+    return { handles, cursors, center, top, rotate };
   }, [selected, spec, inv]);
 
   return (
@@ -1534,7 +1563,7 @@ function LayoutStage(): JSX.Element {
                     strokeWidth={1.75}
                     vectorEffect="non-scaling-stroke"
                     style={{
-                      cursor: resizeCursor(selectedControls.center, point),
+                      cursor: selectedControls.cursors.get(handle),
                     }}
                     data-pocket-resize-handle={handle}
                     data-testid={`pocket-resize-handle-${handle}`}
