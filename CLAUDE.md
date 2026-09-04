@@ -93,7 +93,6 @@ disagreed about Y, which shipped mirrored STLs.
 
 - Node.js 22, npm with a committed `package-lock.json`.
 - Use `npm ci` for clean installs (sandbox/CI); `npm install` only when intentionally changing dependencies.
-- In the Docker sandbox, `node_modules` lives in a named volume (`tooltrace-node-modules`) so Linux-native binaries (esbuild, bufferutil) never mix with macOS host installs. Never bind-mount the host `node_modules` into a container.
 - New dependencies go into `package.json` with a rationale — no ad-hoc one-off installs.
 - **Licence policy:** record the licence and provenance of every direct dependency,
   bundled artefact, and adapted source. New code must be compatible with Pocketry's
