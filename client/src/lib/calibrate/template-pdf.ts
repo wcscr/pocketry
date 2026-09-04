@@ -1,12 +1,16 @@
 import { ARUCO_4X4_MODULES, markerBits } from "./aruco-4x4";
 import {
-  TEMPLATE_MARKER_SIZE_MM,
   TEMPLATE_PAPER_MM,
-  TEMPLATE_PRINT_SAFE_MARGIN_MM,
   TEMPLATE_SIGNATURE_VERSION,
+  formatTemplateMm,
+  isExperimentalTemplate,
   templateHeaderBaselinesMm,
   templateMarkerCentersMm,
-  type TemplatePaper,
+  templateMarkerSizeMm,
+  templateMarkerSpacingMm,
+  templatePaper,
+  templateVerificationBarMm,
+  type TemplateVariant,
 } from "./template";
 
 export const PDF_POINTS_PER_MM = 72 / 25.4;
@@ -46,13 +50,15 @@ function concatBytes(parts: readonly Uint8Array[]): Uint8Array {
  * Builds a one-page vector PDF whose drawing coordinates are derived directly
  * from the same millimetre template geometry used by the detector.
  */
-export function calibrationTemplatePdf(paper: TemplatePaper): Uint8Array {
+export function calibrationTemplatePdf(template: TemplateVariant): Uint8Array {
+  const paper = templatePaper(template);
   const page = TEMPLATE_PAPER_MM[paper];
   const pageWidth = page.width * PDF_POINTS_PER_MM;
   const pageHeight = page.height * PDF_POINTS_PER_MM;
-  const centers = templateMarkerCentersMm(paper);
-  const header = templateHeaderBaselinesMm(paper);
-  const markerSize = TEMPLATE_MARKER_SIZE_MM * PDF_POINTS_PER_MM;
+  const centers = templateMarkerCentersMm(template);
+  const header = templateHeaderBaselinesMm(template);
+  const markerSizeMm = templateMarkerSizeMm(template);
+  const markerSize = markerSizeMm * PDF_POINTS_PER_MM;
   const moduleSize = markerSize / ARUCO_4X4_MODULES;
   const commands: string[] = ["1 g", `0 0 ${number(pageWidth)} ${number(pageHeight)} re f`];
 
@@ -90,14 +96,14 @@ export function calibrationTemplatePdf(paper: TemplatePaper): Uint8Array {
     );
   };
 
-  for (const { id, x, y } of centers) {
-    const originX = x - TEMPLATE_MARKER_SIZE_MM / 2;
-    const originY = y - TEMPLATE_MARKER_SIZE_MM / 2;
+  for (const [index, { id, x, y }] of centers.entries()) {
+    const originX = x - markerSizeMm / 2;
+    const originY = y - markerSizeMm / 2;
     drawTopOriginRect(
       originX,
       originY,
-      TEMPLATE_MARKER_SIZE_MM,
-      TEMPLATE_MARKER_SIZE_MM,
+      markerSizeMm,
+      markerSizeMm,
       0,
     );
     const bits = markerBits(id);
@@ -112,48 +118,59 @@ export function calibrationTemplatePdf(paper: TemplatePaper): Uint8Array {
         );
       }
     }
-    drawCenteredText(`id ${id}`, x, originY + TEMPLATE_MARKER_SIZE_MM + 5, 3.5, 0.2);
+    const labelY =
+      isExperimentalTemplate(template) && index >= 2
+        ? originY - 3
+        : originY + markerSizeMm + 5;
+    drawCenteredText(`id ${id}`, x, labelY, 3.5, 0.2);
   }
 
   const centerX = page.width / 2;
+  const experimental = isExperimentalTemplate(template);
   drawCenteredText(
-    `Pocketry v${TEMPLATE_SIGNATURE_VERSION} ${paper === "a4" ? "A4" : "US Letter"} calibration sheet - print at 100% scale (no fit to page)`,
+    experimental
+      ? `Pocketry v${TEMPLATE_SIGNATURE_VERSION} experimental - ${paper === "a4" ? "A4" : "US Letter"} - print at 100% scale`
+      : `Pocketry v${TEMPLATE_SIGNATURE_VERSION} ${paper === "a4" ? "A4" : "US Letter"} calibration sheet - print at 100% scale (no fit to page)`,
     centerX,
     header.title,
-    5,
+    experimental ? 4 : 5,
     0,
   );
   drawCenteredText(
-    "Place the tool between the markers, keep all four visible, shoot from directly above.",
+    experimental
+      ? "Keep all four markers visible - camera 1x - shoot straight down."
+      : "Place the tool between the markers, keep all four visible, shoot from directly above.",
     centerX,
     header.instructions,
-    3.5,
+    experimental ? 3 : 3.5,
     0.2,
   );
 
-  const rulerY = page.height - TEMPLATE_PRINT_SAFE_MARGIN_MM;
-  const rulerX = centerX - 50;
+  const ruler = templateVerificationBarMm(template);
   commands.push(
     "0 G",
     `${number(pdfX(0.5))} w`,
-    `${number(pdfX(rulerX))} ${number(pdfY(rulerY))} m ${number(
-      pdfX(rulerX + 100),
-    )} ${number(pdfY(rulerY))} l S`,
+    `${number(pdfX(ruler.startX))} ${number(pdfY(ruler.y))} m ${number(
+      pdfX(ruler.endX),
+    )} ${number(pdfY(ruler.y))} l S`,
   );
   for (let index = 0; index <= 10; index++) {
-    const x = rulerX + index * 10;
+    const x = ruler.startX + index * 10;
     const tick = index % 5 === 0 ? 4 : 2.5;
     commands.push(
       `${number(pdfX(0.3))} w`,
-      `${number(pdfX(x))} ${number(pdfY(rulerY))} m ${number(
+      `${number(pdfX(x))} ${number(pdfY(ruler.y))} m ${number(
         pdfX(x),
-      )} ${number(pdfY(rulerY - tick))} l S`,
+      )} ${number(pdfY(ruler.y - tick))} l S`,
     );
   }
+  const spacing = templateMarkerSpacingMm(template);
   drawCenteredText(
-    "check: this bar is exactly 100 mm - marker centres 150 x 200 mm, diagonals 250 mm",
+    experimental
+      ? `check: this bar is exactly 100 mm - marker centres ${formatTemplateMm(spacing.width)} x ${formatTemplateMm(spacing.height)} mm`
+      : "check: this bar is exactly 100 mm - marker centres 150 x 200 mm, diagonals 250 mm",
     centerX,
-    rulerY - 6,
+    ruler.labelY,
     3.5,
     0.2,
   );

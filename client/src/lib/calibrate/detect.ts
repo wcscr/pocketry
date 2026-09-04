@@ -1,6 +1,9 @@
 import type { Point } from "@shared/geometry/types";
 
-import { POCKETRY_ARUCO_BITS } from "./aruco-4x4";
+import {
+  POCKETRY_ARUCO_BITS,
+  STABLE_TEMPLATE_MARKER_COUNT,
+} from "./aruco-4x4";
 import type { DetectedMarker } from "./solve";
 
 /**
@@ -61,8 +64,11 @@ export function hasArucoSupport(cv: Cv): boolean {
  * The oracle test compares every generated cell with `POCKETRY_ARUCO_BITS`, so
  * an OpenCV upgrade cannot silently change the printed/detected namespace.
  */
-export function createPocketryTemplateDictionary(cv: Cv): Cv {
-  return cv.extendDictionary(POCKETRY_ARUCO_BITS.length, 4);
+export function createPocketryTemplateDictionary(
+  cv: Cv,
+  markerCount = POCKETRY_ARUCO_BITS.length,
+): Cv {
+  return cv.extendDictionary(markerCount, 4);
 }
 
 function detectMarkersWithDictionary(
@@ -143,11 +149,20 @@ export function detectArucoMarkers(
   );
 }
 
-/** Detects only Pocketry v2 custom markers, never stock-dictionary lookalikes. */
+/**
+ * Detects only Pocketry v2 custom markers, never stock-dictionary lookalikes.
+ * Existing sheets are tried against their original eight-marker dictionary
+ * first, preserving its exact decoding/error-correction behaviour. The full
+ * dictionary is only needed for the new experimental marker signatures.
+ */
 export function detectPocketryTemplateMarkers(
   cv: Cv,
   image: ImageData,
 ): DetectedMarker[] {
+  const stable = detectMarkersWithDictionary(cv, image, () =>
+    createPocketryTemplateDictionary(cv, STABLE_TEMPLATE_MARKER_COUNT),
+  );
+  if (stable.length >= 2) return stable;
   return detectMarkersWithDictionary(cv, image, () =>
     createPocketryTemplateDictionary(cv),
   );

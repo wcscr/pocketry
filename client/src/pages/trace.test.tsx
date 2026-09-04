@@ -198,10 +198,28 @@ describe("Trace detection workflow", () => {
           '[data-testid="empty-state-template-letter"]',
         )
         ?.click();
+      host
+        .querySelector<HTMLButtonElement>(
+          '[data-testid="empty-state-template-a4-experimental"]',
+        )
+        ?.click();
+      host
+        .querySelector<HTMLButtonElement>(
+          '[data-testid="empty-state-template-letter-experimental"]',
+        )
+        ?.click();
     });
 
     expect(downloadCalibrationTemplateMock).toHaveBeenNthCalledWith(1, "a4");
     expect(downloadCalibrationTemplateMock).toHaveBeenNthCalledWith(2, "letter");
+    expect(downloadCalibrationTemplateMock).toHaveBeenNthCalledWith(
+      3,
+      "a4-experimental",
+    );
+    expect(downloadCalibrationTemplateMock).toHaveBeenNthCalledWith(
+      4,
+      "letter-experimental",
+    );
   });
 
   it("keeps the current photo visible until its replacement is decoded", async () => {

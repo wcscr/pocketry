@@ -10,7 +10,12 @@ import {
   type PerspectiveProposal,
 } from "./perspective";
 import { solveScaleFromMarkers, type ScaleSolution } from "./solve";
-import { paperFromTemplateMarkerIds, type TemplatePaper } from "./template";
+import {
+  templateFromTemplateMarkerIds,
+  templatePaper,
+  type TemplatePaper,
+  type TemplateVariant,
+} from "./template";
 
 /**
  * Detect → solve → Calibration, in one step the UI can act on.
@@ -28,6 +33,8 @@ export type AutoCalibrationResult =
       solution: ScaleSolution;
       /** Paper size encoded by this template's unique marker-id family. */
       paper: TemplatePaper;
+      /** Exact stable or experimental sheet encoded by the marker ids. */
+      template: TemplateVariant;
       /** Present only when all four unique template markers can define a homography. */
       perspectiveProposal: PerspectiveProposal;
       /** Sixteen-corner template-fit residual on the physical page plane. */
@@ -63,10 +70,8 @@ export function runAutoCalibration(cv: any, image: ImageData): AutoCalibrationRe
     };
   }
 
-  const paper = paperFromTemplateMarkerIds(
-    markerIds,
-  );
-  if (!paper) {
+  const template = templateFromTemplateMarkerIds(markerIds);
+  if (!template) {
     return {
       kind: "foreign-sheet",
       family: detection.family,
@@ -74,13 +79,14 @@ export function runAutoCalibration(cv: any, image: ImageData): AutoCalibrationRe
       markerIds,
     };
   }
+  const paper = templatePaper(template);
 
   const perspectiveProposal = proposalFromTemplateMarkers(
     detection.markers,
-    paper,
+    template,
   );
   const templateReprojectionError = perspectiveProposal
-    ? templateReprojectionErrorMm(cv, perspectiveProposal, paper)
+    ? templateReprojectionErrorMm(cv, perspectiveProposal, template)
     : null;
   if (
     templateReprojectionError === null ||
@@ -94,7 +100,7 @@ export function runAutoCalibration(cv: any, image: ImageData): AutoCalibrationRe
     };
   }
 
-  const solution = solveScaleFromMarkers(detection.markers, paper);
+  const solution = solveScaleFromMarkers(detection.markers, template);
   if (!solution || !perspectiveProposal) {
     return {
       kind: "foreign-sheet",
@@ -107,6 +113,7 @@ export function runAutoCalibration(cv: any, image: ImageData): AutoCalibrationRe
   return {
     kind: "calibrated",
     paper,
+    template,
     // The synthesised ruler joins the longest detected pair — for the full
     // sheet that is a 250 mm diagonal, the geometry least sensitive to
     // per-marker centre noise.

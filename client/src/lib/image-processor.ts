@@ -27,7 +27,7 @@ export type { Point, Outline };
 
 /** The physical clearance choices exposed by the Trace workspace, in mm. */
 export const MARGIN_MM_OPTIONS = [
-  0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5,
+  0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5,
 ] as const;
 
 /** The clearance selected when a Trace image first receives a valid scale. */

@@ -3,6 +3,7 @@ import {
   Loader2,
   Maximize2,
   MousePointer2,
+  MoveDiagonal2,
   Redo2,
   Ruler,
   Spline,
@@ -22,6 +23,7 @@ import {
 import {
   calibrationFromDraft,
   hasCalibrationEndpoints,
+  mmPerPixel,
 } from "@shared/geometry/scale";
 import type { Point, Rect, RingRef } from "@shared/geometry/types";
 
@@ -119,6 +121,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
   const rulerEditable =
     (calibrationSource === "manual" && calibration !== null) ||
     (mode !== "calibrate" && hasCalibrationEndpoints(draftCalibration));
+  const measurementMmPerPx = mmPerPixel(calibration);
 
   const handleRulerLengthCommit = useCallback(
     (lengthMm: number) => {
@@ -150,6 +153,12 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
   // the drag starts.
   const [shiftHeld, setShiftHeld] = useState(false);
   const [rulerPointer, setRulerPointer] = useState<Point | null>(null);
+  const [measurement, setMeasurement] = useState<{
+    start: Point;
+    end: Point | null;
+  } | null>(null);
+  const [measurementPointer, setMeasurementPointer] =
+    useState<Point | null>(null);
   const [perspectivePointer, setPerspectivePointer] = useState<Point | null>(null);
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -184,6 +193,15 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
       setPerspectivePointer(null);
     }
   }, [mode, manualPerspectivePoints.length]);
+
+  useEffect(() => {
+    // Measurements are temporary inspection marks. They never become scale
+    // state and cannot leak into another tool's canvas overlay.
+    if (mode !== "measure") {
+      setMeasurement(null);
+      setMeasurementPointer(null);
+    }
+  }, [mode]);
 
   useEffect(() => {
     viewport.attachWheel(svgRef.current);
@@ -237,6 +255,8 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
     dragRef.current = null;
     clickRef.current = null;
     setRulerPointer(null);
+    setMeasurement(null);
+    setMeasurementPointer(null);
     setPerspectivePointer(null);
   }, [imageRotation]);
 
@@ -374,6 +394,21 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
       return;
     }
 
+    if (
+      mode === "measure" &&
+      event.button === 0 &&
+      measurementMmPerPx !== null
+    ) {
+      const point = clampPointToImage(image, imageSize);
+      setMeasurement((current) =>
+        !current || current.end
+          ? { start: point, end: null }
+          : { start: current.start, end: point },
+      );
+      setMeasurementPointer(null);
+      return;
+    }
+
     if (mode === "edit" && event.button === 0 && !event.shiftKey) {
       const vertex = nearestVertex(outline, image, pickRadius, selection);
       if (vertex) {
@@ -464,6 +499,13 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
           // the controls mistake ordinary pointer movement for the second click.
           setRulerPointer(image);
         }
+        return;
+      }
+      if (mode === "measure" && measurement && !measurement.end) {
+        const image = toImage(event.clientX, event.clientY);
+        setMeasurementPointer(
+          image ? clampPointToImage(image, imageSize) : null,
+        );
         return;
       }
       updateHover(event);
@@ -606,6 +648,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
     if (
       mode === "region" ||
       mode === "calibrate" ||
+      mode === "measure" ||
       mode === "perspective"
     ) {
       return "crosshair";
@@ -630,27 +673,34 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
           region={region}
           regionActive={mode === "region"}
           calibration={
-            mode === "perspective"
+            mode === "perspective" || mode === "measure"
               ? null
               : mode === "calibrate" && draftCalibration?.startX !== undefined
               ? null
               : displayedCalibration
           }
           draftCalibration={
-            mode === "calibrate" &&
-            draftCalibration?.startX !== undefined &&
-            draftCalibration.startY !== undefined &&
-            rulerPointer
-              ? {
-                  ...draftCalibration,
-                  endX: rulerPointer.x,
-                  endY: rulerPointer.y,
-                }
-              : draftCalibration
+            mode === "measure"
+              ? null
+              : mode === "calibrate" &&
+                  draftCalibration?.startX !== undefined &&
+                  draftCalibration.startY !== undefined &&
+                  rulerPointer
+                ? {
+                    ...draftCalibration,
+                    endX: rulerPointer.x,
+                    endY: rulerPointer.y,
+                  }
+                : draftCalibration
           }
           rulerLengthMm={rulerLengthMm}
           rulerEditable={rulerEditable}
           onRulerLengthCommit={handleRulerLengthCommit}
+          measurement={mode === "measure" ? measurement : null}
+          measurementPreview={
+            mode === "measure" ? measurementPointer : null
+          }
+          measurementMmPerPx={measurementMmPerPx}
           perspectivePoints={perspectiveOverlayPoints}
           perspectiveEditable={manualPerspectivePoints.length > 0}
           perspectivePreview={perspectivePointer}
@@ -663,6 +713,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
           onPointerCancel={endDrag}
           onPointerLeave={() => {
             setHoveredVertexIndex(null);
+            setMeasurementPointer(null);
             setPerspectivePointer(null);
           }}
           onContextMenu={handleContextMenu}
@@ -680,6 +731,12 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
             <ModeButton mode="region" icon={Crop} label="Region" />
             <ModeButton mode="edit" icon={Spline} label="Edit points" />
             <ModeButton mode="calibrate" icon={Ruler} label="Set scale" />
+            <ModeButton
+              mode="measure"
+              icon={MoveDiagonal2}
+              label="Measure distance"
+              disabled={measurementMmPerPx === null}
+            />
 
             {/* Always present: outline edits can happen in any pointing mode,
                 and a hidden undo reads as "there is no undo". */}
@@ -746,9 +803,15 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
               )}
             </span>
             <span className="hidden border-l pl-2 pr-1.5 text-[11px] text-muted-foreground md:inline">
-              {selection
-                ? "Drag points to move · Click adds · Right-click removes · Shift-drag pans"
-                : "Shift-drag pans · Ctrl-scroll zooms"}
+              {mode === "measure"
+                ? !measurement
+                  ? "Click the first measurement point"
+                  : measurement.end
+                    ? "Click to start a new measurement"
+                    : "Click the second measurement point"
+                : selection
+                  ? "Drag points to move · Click adds · Right-click removes · Shift-drag pans"
+                  : "Shift-drag pans · Ctrl-scroll zooms"}
             </span>
           </CanvasToolbar>
 
@@ -773,10 +836,12 @@ function ModeButton({
   mode,
   icon: Icon,
   label,
+  disabled = false,
 }: {
   mode: TraceMode;
   icon: React.ComponentType<{ className?: string }>;
   label: string;
+  disabled?: boolean;
 }): JSX.Element {
   const { mode: current, dispatch } = useTrace();
   const active = current === mode;
@@ -790,12 +855,13 @@ function ModeButton({
           className={cn("h-8 w-8", active && "ring-1 ring-primary/40")}
           aria-pressed={active}
           aria-label={label}
+          disabled={disabled}
           onClick={() => dispatch({ type: "SET_MODE", mode })}
         >
           <Icon className="h-4 w-4" />
         </Button>
       </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
+      <TooltipContent side="bottom">{label}</TooltipContent>
     </Tooltip>
   );
 }
@@ -825,7 +891,7 @@ function IconButton({
           <Icon className="h-4 w-4" />
         </Button>
       </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
+      <TooltipContent side="bottom">{label}</TooltipContent>
     </Tooltip>
   );
 }

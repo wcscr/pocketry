@@ -45,6 +45,12 @@ export interface TraceSceneProps {
   /** Enables the on-image reference-length editor after endpoint placement. */
   rulerEditable?: boolean;
   onRulerLengthCommit?: (lengthMm: number) => void;
+  /** Temporary point-to-point inspection ruler, independent of calibration. */
+  measurement?: { start: Point; end: Point | null } | null;
+  /** Pointer-following second point before the measurement is completed. */
+  measurementPreview?: Point | null;
+  /** Accepted physical scale used only to label the inspection ruler. */
+  measurementMmPerPx?: number | null;
   /** Template centres or manually selected page corners awaiting correction. */
   perspectivePoints?: readonly Point[];
   /** Manual points remain draggable after all four have been placed. */
@@ -121,6 +127,9 @@ export function TraceScene({
   rulerLengthMm,
   rulerEditable = false,
   onRulerLengthCommit,
+  measurement = null,
+  measurementPreview = null,
+  measurementMmPerPx = null,
   perspectivePoints = [],
   perspectiveEditable = false,
   perspectivePreview = null,
@@ -268,6 +277,12 @@ export function TraceScene({
           rulerLengthMm={rulerLengthMm}
           editable={rulerEditable}
           onLengthCommit={onRulerLengthCommit}
+          inv={inv}
+        />
+        <MeasurementOverlay
+          measurement={measurement}
+          preview={measurementPreview}
+          mmPerPx={measurementMmPerPx}
           inv={inv}
         />
         <PerspectiveOverlay
@@ -638,6 +653,136 @@ function rulerMarkerPath(point: Point, halfSize: number): string {
 
 function formatRulerLength(lengthMm: number): string {
   return Number.isFinite(lengthMm) ? String(Number(lengthMm.toPrecision(6))) : "—";
+}
+
+function MeasurementOverlay({
+  measurement,
+  preview,
+  mmPerPx,
+  inv,
+}: {
+  measurement: { start: Point; end: Point | null } | null;
+  preview: Point | null;
+  mmPerPx: number | null;
+  inv: number;
+}): JSX.Element | null {
+  if (!measurement || mmPerPx === null) return null;
+
+  const { start } = measurement;
+  const end = measurement.end ?? preview;
+  const previewing = measurement.end === null;
+  const markerRadius = 6 * inv;
+
+  return (
+    <g data-testid="measurement-overlay" pointerEvents="none">
+      {end && (
+        <>
+          <line
+            x1={start.x}
+            y1={start.y}
+            x2={end.x}
+            y2={end.y}
+            className="stroke-white/95"
+            strokeWidth={6}
+            strokeDasharray={previewing ? "6 4" : undefined}
+            vectorEffect="non-scaling-stroke"
+          />
+          <line
+            x1={start.x}
+            y1={start.y}
+            x2={end.x}
+            y2={end.y}
+            className="stroke-cyan-500"
+            strokeWidth={2.5}
+            strokeDasharray={previewing ? "6 4" : undefined}
+            vectorEffect="non-scaling-stroke"
+            data-testid="measurement-line"
+            data-measurement-preview={previewing || undefined}
+          />
+          <MeasurementLabel
+            start={start}
+            end={end}
+            lengthMm={Math.hypot(end.x - start.x, end.y - start.y) * mmPerPx}
+            inv={inv}
+          />
+        </>
+      )}
+      {[start, end].map((point, index) =>
+        point ? (
+          <g key={index} data-testid="measurement-marker">
+            <circle
+              cx={point.x}
+              cy={point.y}
+              r={markerRadius + 2 * inv}
+              className="fill-white/95"
+            />
+            <circle
+              cx={point.x}
+              cy={point.y}
+              r={markerRadius}
+              className="fill-cyan-500 stroke-cyan-950/60"
+              strokeWidth={1.5}
+              vectorEffect="non-scaling-stroke"
+            />
+          </g>
+        ) : null,
+      )}
+    </g>
+  );
+}
+
+function MeasurementLabel({
+  start,
+  end,
+  lengthMm,
+  inv,
+}: {
+  start: Point;
+  end: Point;
+  lengthMm: number;
+  inv: number;
+}): JSX.Element {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const distance = Math.hypot(dx, dy);
+  const normal =
+    distance > 0 ? { x: -dy / distance, y: dx / distance } : { x: 0, y: -1 };
+  const offset = RULER_LABEL_OFFSET * inv;
+  const x = (start.x + end.x) / 2 + normal.x * offset;
+  const y = (start.y + end.y) / 2 + normal.y * offset;
+  const label = `${formatMeasurementLength(lengthMm)} mm`;
+  const width = Math.max(46, label.length * 7 + 14) * inv;
+  const height = RULER_LABEL_HEIGHT * inv;
+
+  return (
+    <g data-testid="measurement-length-label">
+      <rect
+        x={x - width / 2}
+        y={y - height / 2}
+        width={width}
+        height={height}
+        rx={RULER_LABEL_RADIUS * inv}
+        className="fill-background/95 stroke-cyan-500"
+        strokeWidth={1.5}
+        vectorEffect="non-scaling-stroke"
+      />
+      <text
+        x={x}
+        y={y}
+        textAnchor="middle"
+        dominantBaseline="central"
+        fontSize={RULER_LABEL_FONT_SIZE * inv}
+        className="fill-foreground font-semibold"
+      >
+        {label}
+      </text>
+    </g>
+  );
+}
+
+function formatMeasurementLength(lengthMm: number): string {
+  if (!Number.isFinite(lengthMm)) return "—";
+  return lengthMm.toFixed(lengthMm < 10 ? 2 : 1).replace(/\.0+$/, "");
 }
 
 function PerspectiveOverlay({

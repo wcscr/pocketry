@@ -95,6 +95,7 @@ describe("perspective geometry", () => {
       { x: 20, y: 110 },
     ]);
     expect(proposal?.paper).toBe("a4");
+    expect(proposal?.template).toBe("a4");
     expect(proposal?.correspondences?.source).toHaveLength(16);
     expect(proposal?.correspondences?.destinationMm).toHaveLength(16);
     expect(proposalFromTemplateMarkers(markers.slice(0, 3), "a4")).toBeNull();
@@ -118,6 +119,28 @@ describe("perspective geometry", () => {
       { x: 840, y: 0 },
       { x: 840, y: 1188 },
       { x: 0, y: 1188 },
+    ]);
+  });
+
+  it("uses the experimental marker centres on the same A4 paper plane", () => {
+    const proposal: PerspectiveProposal = {
+      source: "template",
+      paper: "a4",
+      template: "a4-experimental",
+      points: [
+        { x: 10, y: 10 },
+        { x: 200, y: 10 },
+        { x: 200, y: 280 },
+        { x: 10, y: 280 },
+      ],
+    };
+    const layout = perspectiveLayout(proposal, "a4-experimental");
+    expect(layout).toMatchObject({ width: 841, height: 1189, pxPerMm: 4 });
+    expect(layout.destination).toEqual([
+      { x: 96, y: 96 },
+      { x: 744, y: 96 },
+      { x: 744, y: 1092 },
+      { x: 96, y: 1092 },
     ]);
   });
 

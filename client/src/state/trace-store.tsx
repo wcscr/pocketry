@@ -20,7 +20,10 @@ import type {
   PerspectiveQuad,
   PerspectiveSource,
 } from "@/lib/calibrate/perspective";
-import type { TemplatePaper } from "@/lib/calibrate/template";
+import type {
+  TemplatePaper,
+  TemplateVariant,
+} from "@/lib/calibrate/template";
 import {
   combineImageRotations,
   fitImageWithin,
@@ -54,7 +57,13 @@ import { DEFAULT_MARGIN_MM, type Margin } from "@/lib/image-processor";
  */
 
 /** Exactly one interaction mode is active at a time. */
-export type TraceMode = "pan" | "region" | "edit" | "calibrate" | "perspective";
+export type TraceMode =
+  | "pan"
+  | "region"
+  | "edit"
+  | "calibrate"
+  | "measure"
+  | "perspective";
 
 export type ExportFormat = "svg" | "dxf" | "dwg" | "stl";
 export type CalibrationSource = "manual" | "sheet";
@@ -121,6 +130,7 @@ export interface TraceState {
   perspectiveCorrection: {
     source: PerspectiveSource;
     paper: TemplatePaper;
+    template?: TemplateVariant;
   } | null;
 
   region: Rect | null;
@@ -238,6 +248,7 @@ export type TraceAction =
       calibration: Calibration;
       source: PerspectiveSource;
       paper: TemplatePaper;
+      template?: TemplateVariant;
     }
   | { type: "RESTORE_PERSPECTIVE_SOURCE" }
   | { type: "SET_EXPORT_FORMAT"; exportFormat: ExportFormat }
@@ -761,7 +772,11 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
           state.perspectiveOriginalImageUrl ?? state.imageUrl,
         perspectiveOriginalImageRotation:
           state.perspectiveOriginalImageRotation ?? state.imageRotation,
-        perspectiveCorrection: { source: action.source, paper: action.paper },
+        perspectiveCorrection: {
+          source: action.source,
+          paper: action.paper,
+          ...(action.template ? { template: action.template } : {}),
+        },
         mode: "region",
         exportFormat: state.exportFormat,
         extrusionHeight: state.extrusionHeight,

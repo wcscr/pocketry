@@ -3,7 +3,7 @@ import type { Point } from "@shared/geometry/types";
 import {
   TEMPLATE_MARKER_IDS,
   templateMarkerCentersMm,
-  type TemplatePaper,
+  type TemplateVariant,
 } from "./template";
 
 /**
@@ -45,15 +45,15 @@ export const SKEW_WARN_FRACTION = 0.02;
 
 export function solveScaleFromMarkers(
   markers: readonly DetectedMarker[],
-  paper: TemplatePaper,
+  templateVariant: TemplateVariant,
 ): ScaleSolution | null {
   const template = new Map(
-    templateMarkerCentersMm(paper).map((entry) => [entry.id, entry]),
+    templateMarkerCentersMm(templateVariant).map((entry) => [entry.id, entry]),
   );
   const usable = markers.filter(
     (marker) =>
       template.has(marker.id) &&
-      TEMPLATE_MARKER_IDS[paper].includes(marker.id),
+      TEMPLATE_MARKER_IDS[templateVariant].includes(marker.id),
   );
   // Dedupe ids: a reflection or reprint can yield the same id twice; trust
   // neither copy.
