@@ -5,12 +5,8 @@
 /*
  * Design tokens for the shadcn/ui theme.
  *
- * These were previously generated at build time from `theme.json` by
- * `@replit/vite-plugin-shadcn-theme-json`, which injected them as an inline
- * <style> tag. That plugin has been removed so the app builds without any
- * Replit-specific tooling; the values below are the exact output it produced
- * for the "professional" variant (primary hsl(222.2 47.4% 11.2%), radius 0.5).
- * Edit them here directly.
+ * These values are maintained directly so the application's theme remains
+ * explicit and portable across build environments.
  */
 :root {
   --background: 0 0% 100%;

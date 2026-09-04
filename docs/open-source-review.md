@@ -61,8 +61,8 @@ smoothing, marching squares, Otsu thresholding, DXF, STL, SVG, and 3MF—do not
 carry evidence of copied implementations. The implementations in this tree
 appear project-authored and contain no external source or licence markers.
 
-A repository-hygiene follow-up removed the unreferenced Replit configuration
-and notes, pasted-session `attached_assets/`, root `generated-icon.png`, and an
+A repository-hygiene follow-up removed obsolete scaffold configuration and
+notes, pasted-session `attached_assets/`, root `generated-icon.png`, and an
 unused deprecated point-simplifier compatibility shim. The pasted images and
 prototype material were not shipped by the application and had no confirmed
 provenance, so removing them also eliminated an unnecessary public-release

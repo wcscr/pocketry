@@ -141,7 +141,7 @@ No linter is configured yet (prefer ESLint when one lands).
 - Shared validation lives in `shared/schema.ts` as Zod schemas derived from Drizzle tables (`drizzle-zod`); never duplicate validation logic client- or server-side.
 - Storage access goes through the `IStorage` interface in `server/storage.ts` — do not reach around it to Drizzle directly from routes.
 - UI: compose shadcn/ui components from `client/src/components/ui`; TailwindCSS for styling, with the shadcn design tokens defined as CSS variables at the top of `client/src/index.css`; `lucide-react` for icons.
-- No Replit-specific tooling. The app builds and runs anywhere with plain Node — do not reintroduce `@replit/*` plugins or a `theme.json`.
+- Keep build tooling platform-independent. The app builds and runs anywhere with plain Node; do not add hosted-IDE-specific build plugins or theme configuration.
 - Server state via TanStack Query; local state via React hooks; routing via wouter.
 - Image processing runs client-side (canvas + OpenCV.js); keep heavy processing off the server.
 - Detection has **one** pipeline (`lib/detect/pipeline.ts`) with two interchangeable
