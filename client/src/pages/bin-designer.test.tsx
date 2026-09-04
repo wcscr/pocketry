@@ -980,6 +980,48 @@ describe("BinDesignerPage", () => {
     // Selected-pocket controls appear for the auto-selected cutout.
     expect(text).not.toContain("Editing selected tool");
     expect(text).toContain("Rotation");
+    expect(text).toContain("Scale");
+    const widthScale = container.querySelector(
+      '[data-testid="input-pocket-scale-x"]',
+    ) as HTMLInputElement;
+    const heightScale = container.querySelector(
+      '[data-testid="input-pocket-scale-y"]',
+    ) as HTMLInputElement;
+    expect(widthScale.value).toBe("100");
+    expect(heightScale.value).toBe("100");
+    const aspectLock = container.querySelector(
+      '[aria-label="Unlock pocket aspect ratio"]',
+    ) as HTMLButtonElement;
+    expect(aspectLock).not.toBeNull();
+    React.act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(
+        widthScale,
+        "150",
+      );
+      widthScale.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(widthScale.value).toBe("150");
+    expect(heightScale.value).toBe("150");
+    React.act(() => aspectLock.click());
+    expect(
+      container.querySelector('[aria-label="Lock pocket aspect ratio"]'),
+    ).not.toBeNull();
+    React.act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(
+        heightScale,
+        "80",
+      );
+      heightScale.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(widthScale.value).toBe("150");
+    expect(heightScale.value).toBe("80");
+    React.act(() => {
+      ([...container.querySelectorAll("button")].find(
+        (button) => button.textContent === "Reset 100%",
+      ) as HTMLButtonElement).click();
+    });
+    expect(widthScale.value).toBe("100");
+    expect(heightScale.value).toBe("100");
     expect(text).toContain("Extra pocket clearance");
     expect(text).toContain("Added after the Trace margin");
     expect(text).toContain("Outline corner round");
@@ -1082,6 +1124,24 @@ describe("BinDesignerPage", () => {
         container.querySelector('[data-testid^="button-select-"]') as HTMLButtonElement
       ).click();
     });
+    expect(
+      container.querySelectorAll('[data-testid^="pocket-resize-handle-"]'),
+    ).toHaveLength(8);
+    expect(
+      (
+        container.querySelector(
+          '[data-testid="pocket-resize-handle-ne"]',
+        ) as SVGRectElement
+      ).style.cursor,
+    ).toBe("nesw-resize");
+    expect(
+      (
+        container.querySelector(
+          '[data-testid="pocket-resize-handle-e"]',
+        ) as SVGRectElement
+      ).style.cursor,
+    ).toBe("ew-resize");
+    expect(container.querySelector('[data-testid="pocket-rotate-handle"]')).not.toBeNull();
     const editContour = container.querySelector(
       '[data-testid="button-edit-contour"]',
     ) as HTMLButtonElement;

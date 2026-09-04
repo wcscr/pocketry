@@ -7,6 +7,7 @@ import {
   FilePlus2,
   FolderOpen,
   LayoutGrid,
+  Lock,
   LoaderCircle,
   Magnet,
   MousePointerClick,
@@ -20,6 +21,7 @@ import {
   Scissors,
   Spline,
   Trash2,
+  Unlock,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useLocation } from "wouter";
@@ -382,6 +384,41 @@ export function BinControlsPanel({
   const selectedShape = selectedCutout
     ? (shapesById.get(selectedCutout.shapeId) ?? null)
     : null;
+
+  const setPocketScale = (axis: "x" | "y", percent: number) => {
+    if (!selectedCutout) return;
+    const requested = Math.min(20, Math.max(0.05, percent / 100));
+    if (!selectedCutout.aspectRatioLocked) {
+      dispatch({
+        type: "UPDATE_CUTOUT",
+        id: selectedCutout.id,
+        patch: axis === "x" ? { scaleX: requested } : { scaleY: requested },
+        historyLabel: "Scale tool pocket",
+      });
+      return;
+    }
+    const changedScale =
+      axis === "x" ? selectedCutout.scaleX : selectedCutout.scaleY;
+    let factor = requested / changedScale;
+    factor = Math.min(
+      20 / selectedCutout.scaleX,
+      20 / selectedCutout.scaleY,
+      Math.max(
+        0.05 / selectedCutout.scaleX,
+        0.05 / selectedCutout.scaleY,
+        factor,
+      ),
+    );
+    dispatch({
+      type: "UPDATE_CUTOUT",
+      id: selectedCutout.id,
+      patch: {
+        scaleX: selectedCutout.scaleX * factor,
+        scaleY: selectedCutout.scaleY * factor,
+      },
+      historyLabel: "Scale tool pocket",
+    });
+  };
   const pendingRemoval =
     cutouts.find((cutout) => cutout.id === pendingRemovalId) ?? null;
   const pendingRemovalShape = pendingRemoval
@@ -895,6 +932,110 @@ export function BinControlsPanel({
                     })
                   }
                 />
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <Label className="w-16 shrink-0 text-xs">Scale</Label>
+                  <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                    <Label
+                      className="text-[11px] text-muted-foreground"
+                      htmlFor="pocket-scale-width"
+                    >
+                      W
+                    </Label>
+                    <DraftNumberInput
+                      id="pocket-scale-width"
+                      className="h-8 min-w-0"
+                      aria-label="Pocket width scale percent"
+                      data-testid="input-pocket-scale-x"
+                      value={Math.round(selectedCutout.scaleX * 1000) / 10}
+                      min={5}
+                      max={2000}
+                      step={1}
+                      onValueChange={(percent) => setPocketScale("x", percent)}
+                    />
+                    <span className="text-xs text-muted-foreground">%</span>
+                    <Label
+                      className="text-[11px] text-muted-foreground"
+                      htmlFor="pocket-scale-height"
+                    >
+                      H
+                    </Label>
+                    <DraftNumberInput
+                      id="pocket-scale-height"
+                      className="h-8 min-w-0"
+                      aria-label="Pocket height scale percent"
+                      data-testid="input-pocket-scale-y"
+                      value={Math.round(selectedCutout.scaleY * 1000) / 10}
+                      min={5}
+                      max={2000}
+                      step={1}
+                      onValueChange={(percent) => setPocketScale("y", percent)}
+                    />
+                    <span className="text-xs text-muted-foreground">%</span>
+                    <Button
+                      type="button"
+                      variant={
+                        selectedCutout.aspectRatioLocked ? "secondary" : "outline"
+                      }
+                      size="icon"
+                      className="h-8 w-8 shrink-0"
+                      aria-label={
+                        selectedCutout.aspectRatioLocked
+                          ? "Unlock pocket aspect ratio"
+                          : "Lock pocket aspect ratio"
+                      }
+                      aria-pressed={selectedCutout.aspectRatioLocked}
+                      title={
+                        selectedCutout.aspectRatioLocked
+                          ? "Aspect ratio locked"
+                          : "Aspect ratio unlocked"
+                      }
+                      onClick={() =>
+                        dispatch({
+                          type: "UPDATE_CUTOUT",
+                          id: selectedCutout.id,
+                          patch: {
+                            aspectRatioLocked: !selectedCutout.aspectRatioLocked,
+                          },
+                          historyLabel: selectedCutout.aspectRatioLocked
+                            ? "Unlock pocket proportions"
+                            : "Lock pocket proportions",
+                        })
+                      }
+                    >
+                      {selectedCutout.aspectRatioLocked ? (
+                        <Lock className="h-3.5 w-3.5" />
+                      ) : (
+                        <Unlock className="h-3.5 w-3.5" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
+                <div className="ml-[4.5rem] flex items-start justify-between gap-2">
+                  <p className="text-[11px] leading-4 text-muted-foreground">
+                    Drag layout edges or corners. Lock preserves proportions.
+                  </p>
+                  {(selectedCutout.scaleX !== 1 || selectedCutout.scaleY !== 1) && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 shrink-0 px-2 text-[11px]"
+                      onClick={() =>
+                        dispatch({
+                          type: "UPDATE_CUTOUT",
+                          id: selectedCutout.id,
+                          patch: { scaleX: 1, scaleY: 1 },
+                          historyLabel: "Reset tool pocket scale",
+                        })
+                      }
+                    >
+                      Reset 100%
+                    </Button>
+                  )}
+                </div>
               </div>
 
               <div className="flex items-center gap-2">

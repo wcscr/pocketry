@@ -48,6 +48,23 @@ describe("parseProjectDoc", () => {
     expect(doc).not.toBeNull();
     expect(doc!.shapes).toHaveLength(1);
     expect(doc!.cutouts[0].shapeId).toBe("s1");
+    expect(doc!.cutouts[0]).toMatchObject({
+      scaleX: 1,
+      scaleY: 1,
+      aspectRatioLocked: true,
+    });
+  });
+
+  it("migrates schema v7 placements with identity scale", () => {
+    const previous = JSON.parse(JSON.stringify(VALID)) as Record<string, unknown>;
+    previous.schemaVersion = 7;
+    const doc = parseProjectDoc(previous);
+    expect(doc?.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
+    expect(doc?.cutouts[0]).toMatchObject({
+      scaleX: 1,
+      scaleY: 1,
+      aspectRatioLocked: true,
+    });
   });
 
   it("returns null rather than throwing on garbage", () => {
