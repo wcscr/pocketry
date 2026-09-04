@@ -320,6 +320,8 @@ describe("bin store history (G4 undo/redo)", () => {
           diameterMm: 18,
           depthMm: 12,
           kind: "scoop",
+          topFilletMm: 0,
+          bottomFilletMm: 0,
         },
       }),
     );

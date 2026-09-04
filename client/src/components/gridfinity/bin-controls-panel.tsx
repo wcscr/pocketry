@@ -28,6 +28,7 @@ import { useLocation } from "wouter";
 
 import {
   DEFAULT_OBLONG_DEEP_SCOOP_LENGTH_MM,
+  DEFAULT_TOP_EDGE_FILLET_MM,
   MAX_OBLONG_DEEP_SCOOP_LENGTH_MM,
   MIN_OBLONG_DEEP_SCOOP_SPAN_MM,
   type FingerHole,
@@ -1122,7 +1123,7 @@ export function BinControlsPanel({
                 label="Top edge round"
                 value={selectedCutout.topFilletMm}
                 min={0}
-                max={3}
+                max={5}
                 step={0.2}
                 onChange={(topFilletMm, transient) =>
                   dispatch({
@@ -1187,6 +1188,8 @@ export function BinControlsPanel({
                       diameterMm: 18,
                       kind: "straight",
                       depthMm: 12,
+                      topFilletMm: DEFAULT_TOP_EDGE_FILLET_MM,
+                      bottomFilletMm: 0,
                     },
                   })
                 }
@@ -1500,6 +1503,44 @@ export function BinControlsPanel({
                       <span className="text-xs text-muted-foreground">°</span>
                     </div>
                   </div>
+                )}
+
+                <MmSlider
+                  label="Top edge round"
+                  value={selectedFingerHole.topFilletMm}
+                  min={0}
+                  max={5}
+                  step={0.2}
+                  onChange={(topFilletMm, transient) =>
+                    dispatch({
+                      type: "UPDATE_FINGER_HOLE",
+                      id: selectedFingerHole.id,
+                      patch: { topFilletMm },
+                      historyLabel: "Change finger hole top edge round",
+                      transient,
+                    })
+                  }
+                  hint="Rounds the opening into the bin's top surface."
+                />
+
+                {selectedFingerHole.kind === "straight" && (
+                  <MmSlider
+                    label="Bottom edge fillet"
+                    value={selectedFingerHole.bottomFilletMm}
+                    min={0}
+                    max={Math.min(4, selectedFingerHole.diameterMm / 2)}
+                    step={0.2}
+                    onChange={(bottomFilletMm, transient) =>
+                      dispatch({
+                        type: "UPDATE_FINGER_HOLE",
+                        id: selectedFingerHole.id,
+                        patch: { bottomFilletMm },
+                        historyLabel: "Change finger hole bottom fillet",
+                        transient,
+                      })
+                    }
+                    hint="Rounds the straight wall into its flat floor."
+                  />
                 )}
                 <p className="text-[11px] text-muted-foreground">
                   Drag the shape to move it. Drag the white size handle to change

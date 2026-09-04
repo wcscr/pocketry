@@ -68,6 +68,8 @@ describe("layoutRingsMm", () => {
         diameterMm: 18,
         kind: "straight",
         depthMm: 12,
+        topFilletMm: 0,
+        bottomFilletMm: 0,
       },
       {
         id: "f2",
@@ -77,6 +79,8 @@ describe("layoutRingsMm", () => {
         depthMm: 24,
         lengthMm: 30,
         rotationDeg: 90,
+        topFilletMm: 0,
+        bottomFilletMm: 0,
       },
     ]);
     // footprint + outline + hole circle + scoop circle

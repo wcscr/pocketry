@@ -319,6 +319,30 @@ describe("validateLayout: finger holes and scoops (G4)", () => {
     expect(result).not.toContain("finger-hole-out-of-bounds");
   });
 
+  it("reserves wall clearance for a finger hole's top edge round", () => {
+    const shape = makeShape("s1", 20, 20);
+    const sharp = makeCutout("c1", "s1", 0, 0, {
+      fingerHoles: [{ id: "f1", center: { x: 31.5, y: 0 }, diameterMm: 18 }],
+    });
+    const rounded = makeCutout("c1", "s1", 0, 0, {
+      fingerHoles: [
+        {
+          id: "f1",
+          center: { x: 31.5, y: 0 },
+          diameterMm: 18,
+          topFilletMm: 0.4,
+        },
+      ],
+    });
+
+    expect(codes(spec(), [sharp], [shape])).not.toContain(
+      "finger-hole-wall-breach",
+    );
+    const roundedCodes = codes(spec(), [rounded], [shape]);
+    expect(roundedCodes).toContain("finger-hole-wall-breach");
+    expect(roundedCodes).not.toContain("finger-hole-out-of-bounds");
+  });
+
   it("validates a deep scoop by its round mouth, not its vertical depth", () => {
     const shape = makeShape("s1", 20, 20);
     const cutout = makeCutout("c1", "s1", 0, 0, {

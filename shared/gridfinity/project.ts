@@ -22,10 +22,11 @@ import { binSpecSchema } from "./types";
  * label-tab anchors; version 5 adds straight-shaft deep finger scoops; version
  * 6 adds resizable, rotated oblong deep scoops; version 7 promotes finger
  * holes from pocket-relative children to independent, bin-local objects;
- * version 8 adds per-placement X/Y scale and an aspect-ratio-lock preference.
+ * version 8 adds per-placement X/Y scale and an aspect-ratio-lock preference;
+ * version 9 adds per-finger-hole top and bottom edge fillets.
  */
 
-export const PROJECT_SCHEMA_VERSION = 8 as const;
+export const PROJECT_SCHEMA_VERSION = 9 as const;
 
 const projectFields = {
   shapes: z.array(tracedShapeSchema),
@@ -43,6 +44,13 @@ const legacyProjectFields = {
 const version7ProjectSchema = z
   .object({
     schemaVersion: z.literal(7),
+    ...projectFields,
+  })
+  .strict();
+
+const version8ProjectSchema = z
+  .object({
+    schemaVersion: z.literal(8),
     ...projectFields,
   })
   .strict();
@@ -123,6 +131,13 @@ function migrateLegacyProject(doc: LegacyProjectDoc): ProjectDoc {
 export function parseProjectDoc(input: unknown): ProjectDoc | null {
   const result = projectDocSchema.safeParse(input);
   if (result.success) return result.data;
+  const version8 = version8ProjectSchema.safeParse(input);
+  if (version8.success) {
+    return projectDocSchema.parse({
+      ...version8.data,
+      schemaVersion: PROJECT_SCHEMA_VERSION,
+    });
+  }
   const version7 = version7ProjectSchema.safeParse(input);
   if (version7.success) {
     return projectDocSchema.parse({

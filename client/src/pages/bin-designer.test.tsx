@@ -374,6 +374,8 @@ describe("BinDesignerPage", () => {
           center: { x: 15, y: 0 },
           diameterMm: 16,
           depthMm: 30,
+          topFilletMm: 0,
+          bottomFilletMm: 0,
         },
       ],
     });
@@ -394,6 +396,15 @@ describe("BinDesignerPage", () => {
     ).toContain("Deep scoop");
     expect(container.querySelector('[aria-label="Diameter"]')).not.toBeNull();
     expect(container.querySelector('[aria-label="Total depth"]')).not.toBeNull();
+    const fingerHoleSection = container.querySelector(
+      '#bin-settings-finger-holes',
+    );
+    expect(
+      fingerHoleSection?.querySelector('[aria-label="Top edge round"]'),
+    ).not.toBeNull();
+    expect(
+      fingerHoleSection?.querySelector('[aria-label="Bottom edge fillet"]'),
+    ).toBeNull();
     expect(container.querySelector('[aria-label="Reach"]')).toBeNull();
     expect(container.textContent).toContain("Vertical walls: 22.0 mm");
     expect(container.textContent).toContain("rounded bottom radius: 8.0 mm");
@@ -428,6 +439,8 @@ describe("BinDesignerPage", () => {
           depthMm: 30,
           lengthMm: 40,
           rotationDeg: 0,
+          topFilletMm: 0,
+          bottomFilletMm: 0,
         },
       ],
     });
@@ -1028,6 +1041,11 @@ describe("BinDesignerPage", () => {
     expect(text).toContain("Top edge round");
     expect(text).toContain("Bottom fillet");
     expect(text).toContain("Finger Holes");
+    const pocketTopRound = container.querySelector(
+      '[aria-label="Top edge round"] [role="slider"]',
+    );
+    expect(pocketTopRound?.getAttribute("aria-valuemax")).toBe("5");
+    expect(pocketTopRound?.getAttribute("aria-valuenow")).toBe("1");
     const renameButton = container.querySelector(
       '[data-testid="button-edit-shape-name"]',
     ) as HTMLButtonElement;
@@ -1110,6 +1128,20 @@ describe("BinDesignerPage", () => {
     expect(kind).not.toBeNull();
     expect(kind!.textContent).toContain("Straight");
     expect(container.textContent).not.toContain("Scoop depth");
+    const fingerHoleSection = container.querySelector(
+      '#bin-settings-finger-holes',
+    );
+    expect(
+      fingerHoleSection?.querySelector('[aria-label="Top edge round"]'),
+    ).not.toBeNull();
+    const fingerTopRoundSlider = fingerHoleSection?.querySelector(
+      '[aria-label="Top edge round"] [role="slider"]',
+    );
+    expect(fingerTopRoundSlider?.getAttribute("aria-valuemax")).toBe("5");
+    expect(fingerTopRoundSlider?.getAttribute("aria-valuenow")).toBe("1");
+    expect(
+      fingerHoleSection?.querySelector('[aria-label="Bottom edge fillet"]'),
+    ).not.toBeNull();
 
     React.act(() => {
       (container.querySelector('[data-testid="view-toggle-2d"]') as HTMLButtonElement).click();

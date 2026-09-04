@@ -53,6 +53,7 @@ describe("autoPlaceFresh", () => {
     expect(result.cutouts).toHaveLength(1);
     expect(result.cutouts[0].position.x).toBeCloseTo(0, 9);
     expect(result.cutouts[0].position.y).toBeCloseTo(0, 9);
+    expect(result.cutouts[0].topFilletMm).toBe(1);
   });
 
   it("packs multiple shapes with a printable divider and stays valid", () => {
@@ -106,7 +107,7 @@ describe("autoPlaceFresh", () => {
   it("sizes and validates placements in quarter-pitch cells", () => {
     const shape = rectShape("small", 12, 6);
     const result = autoPlaceFresh([shape], "none", "quarter");
-    expect(result).toMatchObject({ gridX: 2, gridY: 1, overflow: false });
+    expect(result).toMatchObject({ gridX: 2, gridY: 2, overflow: false });
     const spec = parseBinSpec({
       gridX: result.gridX,
       gridY: result.gridY,
@@ -219,6 +220,8 @@ describe("fitLayoutToPlacements", () => {
       diameterMm: 18,
       kind: "straight" as const,
       depthMm: 12,
+      topFilletMm: 0,
+      bottomFilletMm: 0,
     };
     const fitted = fitLayoutToPlacements(
       [],
@@ -232,6 +235,37 @@ describe("fitLayoutToPlacements", () => {
     expect(fitted.fingerHoles[0].center).toEqual({ x: 0, y: 0 });
     expect(fitted.gridX).toBe(1);
     expect(fitted.gridY).toBe(1);
+  });
+
+  it("includes a finger hole's top edge round when fitting the bin", () => {
+    const baseHole = {
+      id: "f1",
+      center: { x: 0, y: 0 },
+      diameterMm: 32,
+      kind: "straight" as const,
+      depthMm: 12,
+      topFilletMm: 0,
+      bottomFilletMm: 0,
+    };
+    const sharp = fitLayoutToPlacements(
+      [],
+      new Map(),
+      "standard",
+      "full",
+      [baseHole],
+    );
+    const rounded = fitLayoutToPlacements(
+      [],
+      new Map(),
+      "standard",
+      "full",
+      [{ ...baseHole, topFilletMm: 2 }],
+    );
+
+    expect(sharp.gridX).toBe(1);
+    expect(sharp.gridY).toBe(1);
+    expect(rounded.gridX).toBe(2);
+    expect(rounded.gridY).toBe(2);
   });
 });
 
@@ -307,6 +341,28 @@ describe("fitRectangularBinToPlacements", () => {
 });
 
 describe("autoArrangeLayout", () => {
+  it("keeps maximum top-edge rounds separated", () => {
+    const shapes = [rectShape("a", 20, 20), rectShape("b", 20, 20)];
+    const byId = new Map(shapes.map((shape) => [shape.id, shape]));
+    const cutouts = autoPlaceFresh(shapes, "standard").cutouts.map((cutout) => ({
+      ...cutout,
+      topFilletMm: 5,
+    }));
+    const arranged = autoArrangeLayout(cutouts, byId, "standard")!;
+    const arrangedSpec = parseBinSpec({
+      gridX: arranged.gridX,
+      gridY: arranged.gridY,
+      heightUnits: 6,
+      fill: "solid",
+    });
+
+    expect(
+      validateLayout(arrangedSpec, arranged.cutouts, byId).filter(
+        (issue) => issue.severity === "error",
+      ),
+    ).toEqual([]);
+  });
+
   /** A rectangle pre-rotated in its own local frame — OBB bait. */
   function diagonalShape(id: string, width: number, height: number, deg: number): TracedShape {
     const r = (deg * Math.PI) / 180;
@@ -376,6 +432,8 @@ describe("autoArrangeLayout", () => {
           diameterMm: 14,
           kind: "straight" as const,
           depthMm: 12,
+          topFilletMm: 0,
+          bottomFilletMm: 0,
         },
       ],
     }));
@@ -400,6 +458,8 @@ describe("autoArrangeLayout", () => {
       diameterMm: 18,
       kind: "deep-scoop" as const,
       depthMm: 18,
+      topFilletMm: 0,
+      bottomFilletMm: 0,
     };
 
     const arranged = autoArrangeLayout(
@@ -442,6 +502,8 @@ describe("autoArrangeLayout", () => {
           diameterMm: i % 2 === 0 ? 16 : 22,
           kind: i % 2 === 0 ? ("straight" as const) : ("scoop" as const),
           depthMm: i % 2 === 0 ? 12 : 8,
+          topFilletMm: 0,
+          bottomFilletMm: 0,
         },
       ],
     }));

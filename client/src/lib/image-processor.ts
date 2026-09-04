@@ -31,7 +31,7 @@ export const MARGIN_MM_OPTIONS = [
 ] as const;
 
 /** The clearance selected when a Trace image first receives a valid scale. */
-export const DEFAULT_MARGIN_MM = 1.5;
+export const DEFAULT_MARGIN_MM = 0.5;
 
 /** A physical margin in millimetres, or null while the image is unscaled. */
 export type Margin = number | null;

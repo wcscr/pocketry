@@ -528,7 +528,7 @@ describe("TraceControlsPanel guided workflow", () => {
     expect(section("contours")).toBeNull();
     expect(
       section("detect")?.querySelector<HTMLButtonElement>("#margin")?.textContent,
-    ).toContain("1.5 mm");
+    ).toContain("0.5 mm");
     expect(section("detect")?.textContent).not.toContain(
       "Bin clearance is added on top",
     );

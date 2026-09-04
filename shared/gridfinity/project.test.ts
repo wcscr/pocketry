@@ -67,6 +67,27 @@ describe("parseProjectDoc", () => {
     });
   });
 
+  it("migrates schema v8 finger holes with sharp edge defaults", () => {
+    const previous = JSON.parse(JSON.stringify(VALID)) as Record<string, unknown>;
+    previous.schemaVersion = 8;
+    previous.fingerHoles = [
+      {
+        id: "f1",
+        kind: "straight",
+        center: { x: 4, y: 1 },
+        diameterMm: 20,
+        depthMm: 12,
+      },
+    ];
+
+    const doc = parseProjectDoc(previous);
+    expect(doc?.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
+    expect(doc?.fingerHoles[0]).toMatchObject({
+      topFilletMm: 0,
+      bottomFilletMm: 0,
+    });
+  });
+
   it("returns null rather than throwing on garbage", () => {
     expect(parseProjectDoc(undefined)).toBeNull();
     expect(parseProjectDoc({ schemaVersion: 3, shapes: [], spec: {}, cutouts: [] })).toBeNull();
@@ -87,6 +108,8 @@ describe("project file round trip", () => {
           center: { x: 4, y: 1 },
           diameterMm: 20,
           depthMm: 12,
+          topFilletMm: 1.2,
+          bottomFilletMm: 2.4,
         },
         {
           id: "f2",
@@ -117,6 +140,10 @@ describe("project file round trip", () => {
     expect(doc).not.toBeNull();
     expect(doc!.cutouts[0].fingerHoles).toEqual([]);
     expect(doc!.fingerHoles).toHaveLength(4);
+    expect(doc!.fingerHoles[0]).toMatchObject({
+      topFilletMm: 1.2,
+      bottomFilletMm: 2.4,
+    });
     expect(doc!.fingerHoles[1]).toMatchObject({
       id: "f2",
       kind: "scoop",
@@ -234,6 +261,9 @@ describe("project file round trip", () => {
       center: { x: 4, y: 0 },
       diameterMm: 18,
       depthMm: 24,
+      topFilletMm: 0,
+      bottomFilletMm: 0,
+      rotationDeg: undefined,
     });
   });
 

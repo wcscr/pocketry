@@ -486,17 +486,18 @@ function validateFingerHoleAgainstBin(
   );
   const bounds = ringBounds(ring);
   if (!bounds) return issues;
+  const topAllowanceMm = hole.topFilletMm;
 
   const halfW = binFootprintMm(spec.gridX, spec.gridPitch) / 2;
   const halfL = binFootprintMm(spec.gridY, spec.gridPitch) / 2;
   const outerBoundary =
     spec.footprint.kind === "custom" ? footprintOuterRingMm(spec) : null;
   const outside = outerBoundary
-    ? !ringInsideBoundary(ring, outerBoundary)
-    : bounds.minX < -halfW ||
-      bounds.maxX > halfW ||
-      bounds.minY < -halfL ||
-      bounds.maxY > halfL;
+    ? ringSignedClearance(ring, outerBoundary) < topAllowanceMm
+    : bounds.minX - topAllowanceMm < -halfW ||
+      bounds.maxX + topAllowanceMm > halfW ||
+      bounds.minY - topAllowanceMm < -halfL ||
+      bounds.maxY + topAllowanceMm > halfL;
   if (outside) {
     issues.push({
       code: "finger-hole-out-of-bounds",
@@ -508,9 +509,11 @@ function validateFingerHoleAgainstBin(
 
   const interiorBoundary =
     spec.footprint.kind === "custom" ? footprintInteriorRingMm(spec) : null;
-  const wallMargin = interiorBoundary
-    ? ringSignedClearance(ring, interiorBoundary)
-    : Math.min(...ring.map((point) => signedDistanceToInterior(point, spec)));
+  const wallMargin =
+    (interiorBoundary
+      ? ringSignedClearance(ring, interiorBoundary)
+      : Math.min(...ring.map((point) => signedDistanceToInterior(point, spec)))) -
+    topAllowanceMm;
   if (wallMargin < 0) {
     issues.push({
       code: "finger-hole-wall-breach",

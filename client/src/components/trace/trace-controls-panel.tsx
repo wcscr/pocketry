@@ -1088,7 +1088,7 @@ export function TraceControlsPanel({
             </Select>
             <p className="text-[11px] text-muted-foreground">
               Offsets the current edited contour without re-detecting it. Margin
-              changes are saved in Edit history. Defaults to 1.5 mm.
+              changes are saved in Edit history. Defaults to 0.5 mm.
             </p>
           </div>
 

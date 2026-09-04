@@ -134,6 +134,10 @@ export const fingerHoleSchema = z
       .default("straight"),
     /** Used only for scoops; retained on straight holes so type changes are reversible. */
     depthMm: z.number().min(1).max(120).default(12),
+    /** Rounds the hole wall outward into the bin's top surface. */
+    topFilletMm: z.number().min(0).max(5).default(0),
+    /** Used only by straight holes; curved scoop bottoms already provide this transition. */
+    bottomFilletMm: z.number().min(0).max(6).default(0),
     /** Compatibility only; removed with the directed-trough prototype. */
     reachMm: z.number().min(1).max(120).optional(),
     /** Compatibility only; removed with the directed-trough prototype. */
@@ -153,6 +157,8 @@ export type FingerHole = z.infer<typeof fingerHoleSchema>;
 
 export const MIN_FINGER_HOLE_DIAMETER_MM = 6;
 export const MAX_FINGER_HOLE_DIAMETER_MM = 80;
+/** Default top-surface round for newly created pockets and finger holes. */
+export const DEFAULT_TOP_EDGE_FILLET_MM = 1;
 export const DEFAULT_OBLONG_DEEP_SCOOP_LENGTH_MM = 36;
 export const MAX_OBLONG_DEEP_SCOOP_LENGTH_MM = 160;
 export const MIN_OBLONG_DEEP_SCOOP_SPAN_MM = 2;
@@ -372,6 +378,8 @@ export const cutoutPlacementSchema = cutoutPlacementInputSchema.transform(
           id,
           kind: "scoop" as const,
           ...scoop,
+          topFilletMm: 0,
+          bottomFilletMm: 0,
         },
       ],
     };
