@@ -66,6 +66,13 @@ selecting a fractional span promotes a rectangular bin to the existing 21 mm
 half-pitch socket lattice without changing its untouched axis. Height accepts
 0.5u steps (3.5 mm) while retaining the 1u minimum required by the base.
 
+Each placed pocket can also be resized independently without rewriting its
+source trace. The Layout view exposes four edge and four corner handles plus
+numeric width/height percentages. Aspect ratio is locked by default (for both
+mouse and numeric edits), can be unlocked for independent-axis scaling, and an
+Option/Alt drag resizes around the pocket centre. The placement scale is shared
+by validation, cutters, fit checks, auto-placement bounds, and DXF/SVG export.
+
 The Bin Layout view also supports **selected-pocket contour editing** without a
 round trip through Trace: drag vertices, click an edge to insert a point, and
 right-click a point to remove it. Each committed gesture creates an immutable
@@ -213,7 +220,7 @@ rewrite. Verify against the code before relying on any detail here.
 | Panel + canvas workspace shell | `client/src/components/layout/workspace-layout.tsx` | `autoSaveId` per workspace |
 | Vitest, node + jsdom projects | `vitest.config.ts` | geometry tests run headless with real WASM |
 
-The previously missing `ProjectDoc` is now implemented with `schemaVersion: 7`,
+The previously missing `ProjectDoc` is now implemented with `schemaVersion: 8`,
 IndexedDB autosave plus a named Project Library, explicit `.pocketry.json`
 backup import/export with legacy `.tooltrace.json` import compatibility, and
 reducer-owned undo/redo.
@@ -269,6 +276,7 @@ follow that file's shape.
 interface CutoutPlacement {
   id: string; shapeId: string;
   position: Vec2; rotationDeg: number; mirrored: boolean;   // mm, bin-local, Y-up
+  scaleX: number; scaleY: number; aspectRatioLocked: boolean;
   depth: { mode: 'through' } | { mode: 'mm'; value: number }
        | { mode: 'remaining'; floorThicknessMm: number };
   clearanceMm: number;      // 0.0 — optional extra after Trace margin
@@ -284,8 +292,9 @@ interface ProjectDoc {
 ```
 
 v1 layout is **manual placement on a 2D top-down canvas** — drag, rotate handle,
-arrow-key nudge, snapping to 42 mm grid lines, bin edges, and other cutouts. Drag, rotate
-and snap are miserable with a 3D gizmo and excellent on a plane. v2 adds auto-arrange
+eight edge/corner resize handles, percentage scale controls, arrow-key nudge,
+and snapping to 42 mm grid lines, bin edges, and other cutouts. Drag, rotate,
+resize and snap are miserable with a 3D gizmo and excellent on a plane. v2 adds auto-arrange
 (min-area OBB per shape, then shelf packing); true nesting optimisation is out of scope.
 
 **Validation** (`shared/gridfinity/validate.ts`, pure, no WASM, runs every drag frame):
@@ -299,13 +308,14 @@ export; warnings do not.
 
 `server/storage.ts` has only `MemStorage` (a `Map`, wiped on restart), there is no Drizzle
 implementation and no `migrations/`, and the client never reads anything back. Instead,
-the landed client implementation uses a `ProjectDoc` with **`schemaVersion: 7`**, a
+the landed client implementation uses a `ProjectDoc` with **`schemaVersion: 8`**, a
 hand-rolled reducer history, `idb-keyval` autosave to IndexedDB (not localStorage —
 traced shapes plus thumbnails blow past 5 MB), a browser-local named Project
 Library with active-project autosave, and explicit `.pocketry.json` backup
 import/export (including legacy `.tooltrace.json` imports). Schemas 1–6 migrate
 pocket-local finger holes to bin-local coordinates while preserving their
-visible position and oblong orientation. The library is cross-browser code,
+visible position and oblong orientation; schema 7 adds identity placement
+scales while preserving every pocket's size. The library is cross-browser code,
 not cross-device sync: each
 browser profile owns its own IndexedDB data.
 

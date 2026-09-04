@@ -69,6 +69,8 @@ export function buildFitCheckSolid(
     position: { x: 0, y: 0 },
     rotationDeg: 0,
     mirrored: false,
+    scaleX: cutout.scaleX,
+    scaleY: cutout.scaleY,
   });
 
   let section = toCrossSection(kernel, normalized);

@@ -196,6 +196,8 @@ function cutoutPatchLabel(patch: Partial<CutoutPlacement>): string {
   if ("position" in patch) return "Move tool pocket";
   if ("rotationDeg" in patch) return "Rotate tool pocket";
   if ("mirrored" in patch) return "Mirror tool pocket";
+  if ("scaleX" in patch || "scaleY" in patch) return "Scale tool pocket";
+  if ("aspectRatioLocked" in patch) return "Change pocket aspect ratio lock";
   if ("depth" in patch) return "Change pocket depth";
   if ("clearanceMm" in patch) return "Change pocket clearance";
   if ("cornerRoundMm" in patch) return "Change outline corner round";
