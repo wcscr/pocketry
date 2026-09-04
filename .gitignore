@@ -17,6 +17,9 @@ generated-icon.png
 vite.config.ts.*
 *.tar.gz
 
+# Removed local container tooling
+.docker/
+
 # Virtual environments
 .venv*/
 
@@ -35,7 +38,7 @@ vite.config.ts.*
 .DS_Store
 Thumbs.db
 
-# Claude Code container session data (bind-mounted via start_claude)
+# Local Claude Code session data
 .claude/
 
 # OpenCV.js build workspace (scripts/build-opencv-js.sh)

@@ -62,7 +62,6 @@ shared/
   schema.ts           # Drizzle table definitions + Zod schemas (client + server)
   geometry/           # Dependency-free ring types, ring maths, and scale/calibration
   gridfinity/         # Bin/project schemas, constants, placement, and validation
-.docker/              # Claude Code Docker sandbox (see below)
 drizzle.config.ts     # Drizzle Kit migration config (PostgreSQL / Neon)
 vite.config.ts        # Vite build config
 vitest.config.ts      # Test config (mergeConfig over vite.config.ts)
@@ -135,12 +134,6 @@ into the bundled Node server. Two projects are configured: `geometry` (node env,
 Tests are type-checked — `tsconfig.json` deliberately does *not* exclude `*.test.ts`.
 
 No linter is configured yet (prefer ESLint when one lands).
-
-## Docker Sandbox
-
-- `.docker/build_sandbox.sh` — builds the `tooltrace-dev-claude` image (Node 22, Claude Code CLI, host-matched UID).
-- `.docker/start_claude` — runs the sandbox: repo bind-mounted at `/workspace`, `node_modules` in a named volume, the first free host port ≥ 5000 published to the container's port 5000 (override with `TOOLTRACE_PORT=<port>`; the chosen URL is printed at startup), Claude launched in tmux with permissions skipped.
-- `.claude/` at the repo root holds container session data (bind-mounted to `~/.claude` in the sandbox) and is gitignored.
 
 ## Code Conventions
 
