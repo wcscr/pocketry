@@ -132,8 +132,11 @@ export function createBinWorkerHandlers(
           ? payload.section
           : null;
       const displayed = section ? applySectionCut(kernel, solid, section) : solid;
+      const includePreviewNormals = payload.exportTopology !== true;
 
-      const mesh = extractMeshData(kernel, displayed, { normals: true });
+      const mesh = extractMeshData(kernel, displayed, {
+        normals: includePreviewNormals,
+      });
       const displayedPart = (part: BinMaterialParts["body"]) =>
         section ? applySectionCut(kernel, part, section) : part;
       const displayedMaterialParts = materialParts
@@ -150,7 +153,7 @@ export function createBinWorkerHandlers(
       const materialMeshes = displayedMaterialParts
         ? {
             body: extractMeshData(kernel, displayedMaterialParts.body, {
-              normals: true,
+              normals: includePreviewNormals,
             }),
             ...(displayedMaterialParts.pocketFloors &&
             !displayedMaterialParts.pocketFloors.isEmpty()
@@ -158,7 +161,7 @@ export function createBinWorkerHandlers(
                   pocketFloors: extractMeshData(
                     kernel,
                     displayedMaterialParts.pocketFloors,
-                    { normals: true },
+                    { normals: includePreviewNormals },
                   ),
                 }
               : {}),
@@ -168,7 +171,7 @@ export function createBinWorkerHandlers(
                   stackingRim: extractMeshData(
                     kernel,
                     displayedMaterialParts.stackingRim,
-                    { normals: true },
+                    { normals: includePreviewNormals },
                   ),
                 }
               : {}),
