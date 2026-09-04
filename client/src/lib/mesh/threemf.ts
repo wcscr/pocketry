@@ -12,9 +12,9 @@ import { strToU8, zipSync } from "fflate";
  * bin's tagged parts (base / wall / lip / infill) are exported separately, a
  * multi-material workflow needs no restructuring here.
  *
- * Coordinates are emitted in millimetres (`unit="millimeter"`), rounded to
- * 1e-4 mm — an order below any FDM printer's resolution, and it keeps files
- * compact. 3MF stores no normals; topology carries the shape.
+ * Coordinates are emitted in millimetres (`unit="millimeter"`) with enough
+ * significant digits to round-trip the Float32 geometry. 3MF stores no
+ * normals; topology carries the shape.
  */
 
 export interface ThreeMfMesh {
@@ -100,54 +100,27 @@ export function writeThreeMf(
 }
 
 /**
- * 3MF has no normals, so vertices duplicated solely to preserve preview
- * creases must share one exported index. Keying by the emitted coordinates
- * also prevents two equal serialized vertices from becoming an artificial
- * open seam in slicers such as Bambu Studio.
+ * Preserve the kernel's vertex identities exactly. Distinct closed components
+ * can legitimately touch along an edge or at a point. Welding equal positions
+ * across those components turns the shared edge into a four-face,
+ * non-manifold edge in slicers. Export callers therefore provide the kernel's
+ * topology mesh (without preview-only normal splits), and this boundary only
+ * converts coordinates to XML-safe strings.
  */
-function serializeMesh({ name, mesh }: ThreeMfObject): SerializedMesh {
+function serializeMesh({ mesh }: ThreeMfObject): SerializedMesh {
   const vertexCount = mesh.positions.length / 3;
-  const oldToNew = new Uint32Array(vertexCount);
   const vertices: [string, string, string][] = [];
-  const indexByPosition = new Map<string, number>();
 
-  for (let oldIndex = 0; oldIndex < vertexCount; oldIndex++) {
-    const offset = oldIndex * 3;
-    const vertex: [string, string, string] = [
+  for (let index = 0; index < vertexCount; index++) {
+    const offset = index * 3;
+    vertices.push([
       coord(mesh.positions[offset]),
       coord(mesh.positions[offset + 1]),
       coord(mesh.positions[offset + 2]),
-    ];
-    const key = vertex.join("\0");
-    let newIndex = indexByPosition.get(key);
-    if (newIndex === undefined) {
-      newIndex = vertices.length;
-      vertices.push(vertex);
-      indexByPosition.set(key, newIndex);
-    }
-    oldToNew[oldIndex] = newIndex;
+    ]);
   }
 
-  const indices: number[] = [];
-  for (let offset = 0; offset < mesh.indices.length; offset += 3) {
-    const v1 = oldToNew[mesh.indices[offset]];
-    const v2 = oldToNew[mesh.indices[offset + 1]];
-    const v3 = oldToNew[mesh.indices[offset + 2]];
-    if (v1 === v2 || v2 === v3 || v1 === v3) {
-      // The face has no printable area after coordinate quantization. Writing
-      // it would leave an invalid triangle in the archive, so omit it.
-      continue;
-    }
-    indices.push(v1, v2, v3);
-  }
-
-  if (indices.length === 0) {
-    throw new Error(
-      `writeThreeMf: "${name}" has no triangles at 1e-4 mm precision`,
-    );
-  }
-
-  return { vertices, indices };
+  return { vertices, indices: Array.from(mesh.indices) };
 }
 
 function validateMesh({ name, mesh }: ThreeMfObject): void {
@@ -158,10 +131,25 @@ function validateMesh({ name, mesh }: ThreeMfObject): void {
   if (mesh.indices.length === 0 || mesh.indices.length % 3 !== 0) {
     throw new Error(`writeThreeMf: "${name}" indices length ${mesh.indices.length} is not triangles`);
   }
+  for (const coordinate of mesh.positions) {
+    if (!Number.isFinite(coordinate)) {
+      throw new Error(`writeThreeMf: "${name}" has non-finite coordinate ${coordinate}`);
+    }
+  }
   const vertexCount = positionCount / 3;
-  for (const index of mesh.indices) {
+  for (let offset = 0; offset < mesh.indices.length; offset++) {
+    const index = mesh.indices[offset];
     if (!Number.isInteger(index) || index < 0 || index >= vertexCount) {
       throw new Error(`writeThreeMf: "${name}" triangle index ${index} out of range`);
+    }
+    if (offset % 3 === 2) {
+      const v1 = mesh.indices[offset - 2];
+      const v2 = mesh.indices[offset - 1];
+      if (v1 === v2 || v2 === index || v1 === index) {
+        throw new Error(
+          `writeThreeMf: "${name}" triangle has repeated vertex indices`,
+        );
+      }
     }
   }
 }
@@ -322,12 +310,12 @@ function buildBambuModelSettings(
   return parts.join("");
 }
 
-/** 1e-4 mm resolution, trailing zeros trimmed, "-0" normalised. */
+/** Nine significant digits round-trip every finite Float32 coordinate. */
 function coord(value: number): string {
   if (!Number.isFinite(value)) {
     throw new Error(`writeThreeMf: non-finite coordinate ${value}`);
   }
-  const text = value.toFixed(4).replace(/\.?0+$/, "");
+  const text = Number(value.toPrecision(9)).toString();
   return text === "-0" ? "0" : text;
 }
 
