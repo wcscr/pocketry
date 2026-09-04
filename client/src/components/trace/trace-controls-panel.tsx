@@ -55,7 +55,11 @@ import {
   type PerspectiveQuad,
 } from "@/lib/calibrate/perspective";
 import { downloadCalibrationTemplate } from "@/lib/calibrate/download-template";
-import type { TemplatePaper } from "@/lib/calibrate/template";
+import {
+  templateDisplayName,
+  type TemplatePaper,
+  type TemplateVariant,
+} from "@/lib/calibrate/template";
 import { describeScale, exportScale } from "@/lib/export/scale";
 import { normalizeTracedShape } from "@/lib/gridfinity/traced-shape";
 import type { ImageRotationDirection } from "@/lib/geometry/image-rotation";
@@ -83,7 +87,7 @@ export interface TraceControlsPanelProps {
   /** Rectify the selected paper plane and replace the working image. */
   onApplyPerspective: (
     proposal: PerspectiveProposal,
-    paper: TemplatePaper,
+    template: TemplateVariant,
   ) => void;
 }
 
@@ -149,6 +153,8 @@ export function TraceControlsPanel({
   );
   const hasImage = imageSize.width > 0;
   const hasOutline = outline.length > 0;
+  const pendingTemplate =
+    pendingPerspective?.template ?? pendingPerspective?.paper;
   const hasDetectionRegion = Boolean(
     region && region.width > 5 && region.height > 5,
   );
@@ -513,18 +519,20 @@ export function TraceControlsPanel({
               {pendingPerspective ? (
                 <>
                   <p className="text-xs font-medium text-amber-800 dark:text-amber-200">
-                    {pendingPerspective.paper === "a4" ? "A4" : "US Letter"}{" "}
+                    {pendingTemplate
+                      ? templateDisplayName(pendingTemplate)
+                      : "Pocketry"}{" "}
                     template detected automatically
                   </p>
                   <Button
                     size="sm"
                     className={RESPONSIVE_PANEL_ACTION}
-                    disabled={processing || !pendingPerspective.paper}
+                    disabled={processing || !pendingTemplate}
                     onClick={() =>
-                      pendingPerspective.paper &&
+                      pendingTemplate &&
                       onApplyPerspective(
                         pendingPerspective,
-                        pendingPerspective.paper,
+                        pendingTemplate,
                       )
                     }
                     data-testid="button-apply-auto-perspective"
@@ -696,7 +704,9 @@ export function TraceControlsPanel({
                     ? "four template markers"
                     : "four manually selected page corners"}{" "}
                   using{" "}
-                  {perspectiveCorrection.paper === "a4" ? "A4" : "US Letter"}{" "}
+                  {templateDisplayName(
+                    perspectiveCorrection.template ?? perspectiveCorrection.paper,
+                  )}{" "}
                   dimensions.
                 </p>
                 <Button
@@ -836,10 +846,11 @@ export function TraceControlsPanel({
               <DialogHeader>
                 <DialogTitle>Calibration sheet</DialogTitle>
                 <DialogDescription>
-                  Print the current v2 sheet once at 100%, then include it beneath
-                  tools for automatic scale and perspective correction. Its custom
-                  marker dictionary prevents stock ArUco sheets from being mistaken
-                  for Pocketry; all four markers are required.
+                  Print at 100%, then include the sheet beneath tools for automatic
+                  scale and perspective correction. Current sheets remain the stable
+                  default. Experimental sheets use smaller markers closer to the page
+                  corners for a larger photography area and longer correction
+                  baselines. All four markers are required.
                 </DialogDescription>
               </DialogHeader>
               <Button
@@ -854,6 +865,7 @@ export function TraceControlsPanel({
                 <ScanSearch className="mr-1.5 h-4 w-4" />
                 Detect sheet in this image
               </Button>
+              <p className="text-xs font-medium">Current sheets</p>
               <div className="grid grid-cols-2 gap-2">
                 <Button
                   variant={perspectivePaper === "a4" ? "default" : "outline"}
@@ -876,6 +888,25 @@ export function TraceControlsPanel({
                   data-testid="button-template-letter"
                 >
                   Print US Letter PDF
+                </Button>
+              </div>
+              <p className="text-xs font-medium">Experimental corner-marker sheets</p>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => downloadCalibrationTemplate("a4-experimental")}
+                  data-testid="button-template-a4-experimental"
+                >
+                  A4 experimental
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    downloadCalibrationTemplate("letter-experimental")
+                  }
+                  data-testid="button-template-letter-experimental"
+                >
+                  Letter experimental
                 </Button>
               </div>
             </DialogContent>

@@ -14,10 +14,12 @@ import {
 } from "./detect";
 import { solveScaleFromMarkers } from "./solve";
 import {
-  TEMPLATE_MARKER_SIZE_MM,
   TEMPLATE_PAPER_MM,
   templateMarkerCentersMm,
-  type TemplatePaper,
+  templateMarkerSizeMm,
+  templateMarkerSpacingMm,
+  templatePaper,
+  type TemplateVariant,
 } from "./template";
 
 /**
@@ -42,20 +44,23 @@ const PX_PER_MM = 2;
 /** White template "photo" with its markers rendered at PX_PER_MM. */
 function composeSheet(
   createDictionary: () => any,
-  paper: TemplatePaper = "a4",
+  template: TemplateVariant = "a4",
   options: {
     markerSizeMm?: number;
     centers?: ReturnType<typeof templateMarkerCentersMm>;
   } = {},
 ): ImageData {
+  const paper = templatePaper(template);
   const width = Math.round(TEMPLATE_PAPER_MM[paper].width * PX_PER_MM);
   const height = Math.round(TEMPLATE_PAPER_MM[paper].height * PX_PER_MM);
   const data = new Uint8ClampedArray(width * height * 4).fill(255);
 
-  const sizePx = (options.markerSizeMm ?? TEMPLATE_MARKER_SIZE_MM) * PX_PER_MM;
+  const sizePx =
+    (options.markerSizeMm ?? templateMarkerSizeMm(template)) * PX_PER_MM;
   const dictionary = createDictionary();
   try {
-    for (const { id, x, y } of options.centers ?? templateMarkerCentersMm(paper)) {
+    for (const { id, x, y } of
+      options.centers ?? templateMarkerCentersMm(template)) {
       const marker = new cv.Mat();
       try {
         dictionary.generateImageMarker(id, sizePx, marker, 1);
@@ -146,7 +151,7 @@ describe("aruco detection (closed loop with the shipped bundle)", () => {
     const markers = detectPocketryTemplateMarkers(cv, scene);
 
     expect(markers.map((m) => m.id).sort()).toEqual([0, 1, 2, 3]);
-    const sizePx = TEMPLATE_MARKER_SIZE_MM * PX_PER_MM;
+    const sizePx = templateMarkerSizeMm("a4") * PX_PER_MM;
     for (const marker of markers) {
       const expected = templateMarkerCentersMm("a4").find((t) => t.id === marker.id)!;
       // The blit rounds the origin, and cv corner coordinates are
@@ -163,6 +168,17 @@ describe("aruco detection (closed loop with the shipped bundle)", () => {
   it("keeps the Pocketry namespace distinct from the stock 4x4 dictionary", () => {
     const scene = composeSheet(pocketryDictionary);
     expect(detectArucoMarkers(cv, scene, cv.DICT_4X4_50)).toEqual([]);
+  });
+
+  it.each([
+    ["a4-experimental", [8, 9, 10, 11]],
+    ["letter-experimental", [12, 13, 14, 15]],
+  ] as const)("finds all four markers on the %s sheet", (template, expectedIds) => {
+    const scene = composeSheet(pocketryDictionary, template);
+    const markers = detectPocketryTemplateMarkers(cv, scene);
+    expect(markers.map(({ id }) => id).sort((a, b) => a - b)).toEqual(
+      [...expectedIds],
+    );
   });
 
   it("keeps decoded corner identity when the sheet is rotated", () => {
@@ -239,26 +255,37 @@ describe("aruco detection (closed loop with the shipped bundle)", () => {
 });
 
 describe("runAutoCalibration", () => {
-  it.each(["a4", "letter"] as const)(
+  it.each([
+    "a4",
+    "letter",
+    "a4-experimental",
+    "letter-experimental",
+  ] as const)(
     "produces a usable Calibration and identifies a %s sheet",
-    (paper) => {
+    (template) => {
       const result = runAutoCalibration(
         cv,
-        composeSheet(pocketryDictionary, paper),
+        composeSheet(pocketryDictionary, template),
       );
       expect(result.kind).toBe("calibrated");
       if (result.kind !== "calibrated") return;
 
-      // The synthesised ruler spans the longest pair — a 250 mm diagonal — and
+      // The synthesised ruler spans the longest marker-centre pair, and
       // the app's own scale derivation must land on the composed scale.
-      expect(result.calibration.lengthMm).toBeCloseTo(250, 9);
+      const spacing = templateMarkerSpacingMm(template);
+      expect(result.calibration.lengthMm).toBeCloseTo(
+        Math.hypot(spacing.width, spacing.height),
+        9,
+      );
       const derived = mmPerPixel(result.calibration)!;
       expect(
         Math.abs(derived - 1 / PX_PER_MM) / (1 / PX_PER_MM),
       ).toBeLessThan(0.005);
       expect(result.solution.maxDeviation).toBeLessThan(0.01);
-      expect(result.paper).toBe(paper);
+      expect(result.paper).toBe(templatePaper(template));
+      expect(result.template).toBe(template);
       expect(result.perspectiveProposal?.source).toBe("template");
+      expect(result.perspectiveProposal?.template).toBe(template);
       expect(result.perspectiveProposal?.points).toHaveLength(4);
       expect(result.perspectiveProposal?.correspondences?.source).toHaveLength(16);
       expect(

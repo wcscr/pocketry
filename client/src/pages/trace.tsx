@@ -34,7 +34,11 @@ import {
   type PerspectiveProposal,
 } from "@/lib/calibrate/perspective";
 import { SKEW_WARN_FRACTION } from "@/lib/calibrate/solve";
-import type { TemplatePaper } from "@/lib/calibrate/template";
+import {
+  templateDisplayName,
+  templatePaper,
+  type TemplateVariant,
+} from "@/lib/calibrate/template";
 import { downloadBlob } from "@/lib/download";
 import { generateDXF } from "@/lib/export/dxf";
 import { exportScale } from "@/lib/export/scale";
@@ -225,8 +229,8 @@ function TraceWorkspace(): JSX.Element {
             });
             const { solution } = result;
             const mmPerPx = mmPerPixel(calibration);
-            const paperName = result.paper === "a4" ? "A4" : "US Letter";
-            const summary = `${paperName} · ${solution.markerIds.length} markers · ${(mmPerPx ?? solution.mmPerPx).toFixed(3)} mm/px`;
+            const sheetName = templateDisplayName(result.template);
+            const summary = `${sheetName} · ${solution.markerIds.length} markers · ${(mmPerPx ?? solution.mmPerPx).toFixed(3)} mm/px`;
             if (solution.maxDeviation > SKEW_WARN_FRACTION) {
               toast({
                 title: "Scale detected — review carefully",
@@ -288,7 +292,7 @@ function TraceWorkspace(): JSX.Element {
   );
 
   const applyPerspective = useCallback(
-    async (proposal: PerspectiveProposal, paper: TemplatePaper) => {
+    async (proposal: PerspectiveProposal, template: TemplateVariant) => {
       const frame = getDetectionFrame();
       if (
         !frame ||
@@ -315,7 +319,7 @@ function TraceWorkspace(): JSX.Element {
         const corrected = await correctPerspective(
           frame.imageData,
           detectionProposal,
-          paper,
+          template,
         );
         if (activeImageUrlRef.current !== frame.sourceImageUrl) return;
         const imageUrl = imageDataToPngUrl(corrected.imageData);
@@ -326,11 +330,12 @@ function TraceWorkspace(): JSX.Element {
           imageSize: { width: corrected.width, height: corrected.height },
           calibration: corrected.calibration,
           source: proposal.source,
-          paper,
+          paper: templatePaper(template),
+          template,
         });
         toast({
           title: "Perspective corrected",
-          description: `${paper === "a4" ? "A4" : "US Letter"} plane rectified at ${(1 / corrected.pxPerMm).toFixed(3)} mm/px${corrected.reprojectionErrorPx === null ? "" : ` · ${corrected.reprojectionErrorPx.toFixed(2)} px fit residual`}.`,
+          description: `${templateDisplayName(template)} plane rectified at ${(1 / corrected.pxPerMm).toFixed(3)} mm/px${corrected.reprojectionErrorPx === null ? "" : ` · ${corrected.reprojectionErrorPx.toFixed(2)} px fit residual`}.`,
         });
       } catch (error) {
         if (activeImageUrlRef.current !== frame.sourceImageUrl) return;
@@ -544,6 +549,32 @@ function TraceWorkspace(): JSX.Element {
                   <strong className="font-semibold italic">or</strong>{" "}
                   plain background that contrasts with it, and keep the whole
                   tool in frame.
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Experimental sheets place smaller markers nearer the page
+                  corners: {" "}
+                  <button
+                    type="button"
+                    className="font-medium text-primary underline underline-offset-2 hover:no-underline"
+                    onClick={() =>
+                      downloadCalibrationTemplate("a4-experimental")
+                    }
+                    data-testid="empty-state-template-a4-experimental"
+                  >
+                    A4 experimental
+                  </button>{" "}
+                  or {" "}
+                  <button
+                    type="button"
+                    className="font-medium text-primary underline underline-offset-2 hover:no-underline"
+                    onClick={() =>
+                      downloadCalibrationTemplate("letter-experimental")
+                    }
+                    data-testid="empty-state-template-letter-experimental"
+                  >
+                    US Letter experimental
+                  </button>
+                  .
                 </p>
                 {dropzone}
               </div>

@@ -25,6 +25,9 @@ function renderRuler({
   perspectiveEditable = false,
   perspectivePreview = null,
   imageRotation = 0,
+  measurement = null,
+  measurementPreview = null,
+  measurementMmPerPx = null,
 }: {
   completed?: Calibration | null;
   draft?: DraftCalibration | null;
@@ -34,6 +37,9 @@ function renderRuler({
   perspectiveEditable?: boolean;
   perspectivePreview?: Point | null;
   imageRotation?: 0 | 1 | 2 | 3;
+  measurement?: { start: Point; end: Point | null } | null;
+  measurementPreview?: Point | null;
+  measurementMmPerPx?: number | null;
 }): string {
   return renderToStaticMarkup(
     <TraceScene
@@ -51,6 +57,9 @@ function renderRuler({
       perspectivePoints={perspectivePoints}
       perspectiveEditable={perspectiveEditable}
       perspectivePreview={perspectivePreview}
+      measurement={measurement}
+      measurementPreview={measurementPreview}
+      measurementMmPerPx={measurementMmPerPx}
     />,
   );
 }
@@ -173,6 +182,38 @@ describe("TraceScene ruler overlay", () => {
     expect(count(markup, 'data-testid="ruler-marker"')).toBe(1);
     expect(markup).not.toContain('data-testid="ruler-line"');
     expect(markup).not.toContain('data-testid="ruler-length-label"');
+  });
+
+  it("renders a separate point-to-point measurement in physical units", () => {
+    const markup = renderRuler({
+      completed: calibration,
+      measurement: {
+        start: { x: 20, y: 30 },
+        end: { x: 80, y: 30 },
+      },
+      measurementMmPerPx: 0.5,
+    });
+
+    expect(markup).toContain('data-testid="ruler-overlay"');
+    expect(markup).toContain('data-testid="measurement-overlay"');
+    expect(count(markup, 'data-testid="measurement-marker"')).toBe(2);
+    expect(markup).toContain('data-testid="measurement-line"');
+    expect(markup).toContain('data-testid="measurement-length-label"');
+    expect(markup).toContain("30 mm");
+    expect(markup).toContain("stroke-cyan-500");
+  });
+
+  it("previews the measurement from its first point without scale handles", () => {
+    const markup = renderRuler({
+      measurement: { start: { x: 10, y: 10 }, end: null },
+      measurementPreview: { x: 40, y: 50 },
+      measurementMmPerPx: 0.2,
+    });
+
+    expect(markup).toContain('data-measurement-preview="true"');
+    expect(markup).toContain('stroke-dasharray="6 4"');
+    expect(markup).toContain("10 mm");
+    expect(markup).not.toContain("data-ruler-handle");
   });
 
   it("renders four numbered, editable perspective corners as a closed quad", () => {

@@ -90,6 +90,29 @@ function SeedScaleDraft(): null {
   return null;
 }
 
+function SeedMeasurementScale(): null {
+  const { dispatch } = useTrace();
+  React.useEffect(() => {
+    dispatch({
+      type: "SOURCE_LOADED",
+      imageUrl: "data:image/png;base64,AA==",
+      fileName: "tool.png",
+    });
+    dispatch({ type: "SOURCE_READY", imageSize: { width: 100, height: 100 } });
+    dispatch({
+      type: "SET_CALIBRATION",
+      calibration: {
+        startX: 0,
+        startY: 0,
+        endX: 100,
+        endY: 0,
+        lengthMm: 50,
+      },
+    });
+  }, [dispatch]);
+  return null;
+}
+
 function ScaleStateProbe(): JSX.Element {
   const { mode, calibration, draftCalibration } = useTrace();
   return (
@@ -203,6 +226,43 @@ afterEach(() => {
 });
 
 describe("TraceCanvas edit history", () => {
+  it("opens canvas toolbar tips below the toolbar", async () => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const root = createRoot(host);
+
+    try {
+      await React.act(async () => {
+        root.render(
+          <TraceProvider>
+            <SeedTrace />
+            <TooltipProvider delayDuration={0}>
+              <TraceCanvas onReprocess={() => {}} />
+            </TooltipProvider>
+          </TraceProvider>,
+        );
+        await Promise.resolve();
+      });
+
+      const setScale = host.querySelector<HTMLButtonElement>(
+        '[aria-label="Set scale"]',
+      );
+      await React.act(async () => {
+        const hover = new MouseEvent("pointermove", { bubbles: true });
+        Object.defineProperty(hover, "pointerType", { value: "mouse" });
+        setScale?.dispatchEvent(hover);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+
+      expect(host.innerHTML).toContain('data-side="bottom"');
+      expect(host.innerHTML).toContain("Set scale");
+    } finally {
+      React.act(() => root.unmount());
+    }
+  });
+
   it("exposes named history beside the undo and redo controls", async () => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     vi.stubGlobal("ResizeObserver", NoopResizeObserver);
@@ -387,6 +447,119 @@ describe("TraceCanvas edit history", () => {
       expect(line?.getAttribute("x2")).toBe("75");
       expect(line?.getAttribute("y2")).toBe("85");
       expect(line?.getAttribute("data-ruler-preview")).toBe("true");
+    } finally {
+      React.act(() => root.unmount());
+      restoreSvgCoordinates();
+    }
+  });
+
+  it("measures between two points without changing the accepted scale", async () => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+    const restoreSvgCoordinates = installIdentitySvgCoordinates();
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const root = createRoot(host);
+
+    try {
+      await React.act(async () => {
+        root.render(
+          <TraceProvider>
+            <SeedMeasurementScale />
+            <ScaleStateProbe />
+            <TooltipProvider>
+              <TraceCanvas onReprocess={() => {}} />
+            </TooltipProvider>
+          </TraceProvider>,
+        );
+        await Promise.resolve();
+      });
+
+      const canvas = host.querySelector("svg");
+      const measure = host.querySelector<HTMLButtonElement>(
+        '[aria-label="Measure distance"]',
+      );
+      expect(canvas).not.toBeNull();
+      expect(measure?.disabled).toBe(false);
+
+      await React.act(async () => measure?.click());
+      expect(host.querySelector('[data-testid="scale-mode"]')?.textContent).toBe(
+        "measure",
+      );
+      expect(host.querySelector('[data-testid="ruler-overlay"]')).toBeNull();
+
+      await React.act(async () => {
+        canvas?.dispatchEvent(
+          new MouseEvent("pointerdown", {
+            bubbles: true,
+            button: 0,
+            clientX: 20,
+            clientY: 30,
+          }),
+        );
+      });
+      await React.act(async () => {
+        canvas?.dispatchEvent(
+          new MouseEvent("pointermove", {
+            bubbles: true,
+            clientX: 60,
+            clientY: 30,
+          }),
+        );
+      });
+
+      expect(
+        host.querySelectorAll('[data-testid="measurement-marker"]'),
+      ).toHaveLength(2);
+      expect(
+        host
+          .querySelector('[data-testid="measurement-line"]')
+          ?.getAttribute("data-measurement-preview"),
+      ).toBe("true");
+      expect(
+        host.querySelector('[data-testid="measurement-length-label"]')
+          ?.textContent,
+      ).toContain("20 mm");
+
+      await React.act(async () => {
+        canvas?.dispatchEvent(
+          new MouseEvent("pointerdown", {
+            bubbles: true,
+            button: 0,
+            clientX: 60,
+            clientY: 30,
+          }),
+        );
+      });
+      expect(
+        host
+          .querySelector('[data-testid="measurement-line"]')
+          ?.getAttribute("data-measurement-preview"),
+      ).toBeNull();
+      expect(
+        host.querySelector('[data-testid="scale-calibration"]')?.textContent,
+      ).toBe(
+        JSON.stringify({
+          startX: 0,
+          startY: 0,
+          endX: 100,
+          endY: 0,
+          lengthMm: 50,
+        }),
+      );
+
+      await React.act(async () => {
+        host.querySelector<HTMLButtonElement>('[aria-label="Select"]')?.click();
+      });
+      expect(
+        host.querySelector('[data-testid="measurement-overlay"]'),
+      ).toBeNull();
+      expect(
+        host.querySelector('[data-testid="ruler-overlay"]'),
+      ).not.toBeNull();
+      expect(
+        host.querySelector('[data-testid="scale-mm-per-pixel"]')?.textContent,
+      ).toBe("0.500000");
     } finally {
       React.act(() => root.unmount());
       restoreSvgCoordinates();

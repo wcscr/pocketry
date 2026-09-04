@@ -75,6 +75,30 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
                   US Letter PDF template
                 </button>{" "}
                 at 100% scale.
+                Experimental sheets with smaller corner markers are also
+                available for {" "}
+                <button
+                  type="button"
+                  className="font-medium text-primary underline underline-offset-2 hover:no-underline"
+                  onClick={() =>
+                    downloadCalibrationTemplate("a4-experimental")
+                  }
+                  data-testid="help-print-template-a4-experimental"
+                >
+                  A4
+                </button>{" "}
+                and {" "}
+                <button
+                  type="button"
+                  className="font-medium text-primary underline underline-offset-2 hover:no-underline"
+                  onClick={() =>
+                    downloadCalibrationTemplate("letter-experimental")
+                  }
+                  data-testid="help-print-template-letter-experimental"
+                >
+                  US Letter
+                </button>
+                .
               </li>
               <li>
                 If automatic scale detection is unavailable or not sufficiently
@@ -94,7 +118,7 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
                 removes pixel noise.
               </li>
               <li>
-                Choose a physical <strong>Margin</strong> from 0.5–5.0 mm, then
+                Choose a physical <strong>Margin</strong> from 0.0–5.0 mm, then
                 edit, add, move, or remove contour points as needed.
               </li>
               <li>
