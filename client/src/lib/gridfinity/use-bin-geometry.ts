@@ -272,6 +272,7 @@ export function useBinGeometry(
       const request: BuildBinRequest = {
         spec,
         quality: exportQuality,
+        exportTopology: true,
         layout:
           layout && (layout.cutouts.length > 0 || layout.fingerHoles.length > 0)
             ? {

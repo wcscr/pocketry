@@ -4,8 +4,8 @@ import { strToU8, zipSync } from "fflate";
  * 3MF writer — the default mesh export format (per the plan: smaller than
  * STL, carries units, preserves topology; manifold's own docs discourage
  * STL). A 3MF file is an OPC zip containing an XML model; this writer emits
- * the core spec only, which every current slicer (PrusaSlicer, Bambu, Orca,
- * Cura) reads.
+ * the core spec plus the standard Materials extension for display colors,
+ * which current slicers (PrusaSlicer, Bambu, Orca, Cura) read.
  *
  * The writer accepts **multiple objects** and emits one `<object>` plus one
  * `<build>` item each. That is the multicolor hook from the plan: when the
@@ -42,6 +42,16 @@ export interface ThreeMfOptions {
 }
 
 const MODEL_PATH = "3D/3dmodel.model";
+const BAMBU_MODEL_SETTINGS_PATH = "Metadata/model_settings.config";
+
+interface SerializedMesh {
+  vertices: readonly [x: string, y: string, z: string][];
+  indices: readonly number[];
+}
+
+interface SerializedObject extends Omit<ThreeMfObject, "mesh"> {
+  mesh: SerializedMesh;
+}
 
 const CONTENT_TYPES = `<?xml version="1.0" encoding="UTF-8"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
@@ -66,18 +76,78 @@ export function writeThreeMf(
   }
   for (const object of objects) validateMesh(object);
 
-  const model = buildModelXml(objects, options);
+  const serializedObjects = objects.map((object) => ({
+    ...object,
+    mesh: serializeMesh(object),
+  }));
+  const model = buildModelXml(serializedObjects, options);
+  const bambuModelSettings = buildBambuModelSettings(serializedObjects, options);
+  const entries: Record<string, Uint8Array> = {
+    "[Content_Types].xml": strToU8(CONTENT_TYPES),
+    "_rels/.rels": strToU8(RELS),
+    [MODEL_PATH]: strToU8(model),
+  };
+  if (bambuModelSettings !== null) {
+    entries[BAMBU_MODEL_SETTINGS_PATH] = strToU8(bambuModelSettings);
+  }
   return zipSync(
-    {
-      "[Content_Types].xml": strToU8(CONTENT_TYPES),
-      "_rels/.rels": strToU8(RELS),
-      [MODEL_PATH]: strToU8(model),
-    },
+    entries,
     // Deterministic output: fflate stamps "now" into zip entries otherwise,
     // which would make byte-identical exports differ run to run. Zip stores
     // DOS timestamps, whose epoch is 1980 — hence not new Date(0).
     { level: 6, mtime: new Date(2000, 0, 1) },
   );
+}
+
+/**
+ * 3MF has no normals, so vertices duplicated solely to preserve preview
+ * creases must share one exported index. Keying by the emitted coordinates
+ * also prevents two equal serialized vertices from becoming an artificial
+ * open seam in slicers such as Bambu Studio.
+ */
+function serializeMesh({ name, mesh }: ThreeMfObject): SerializedMesh {
+  const vertexCount = mesh.positions.length / 3;
+  const oldToNew = new Uint32Array(vertexCount);
+  const vertices: [string, string, string][] = [];
+  const indexByPosition = new Map<string, number>();
+
+  for (let oldIndex = 0; oldIndex < vertexCount; oldIndex++) {
+    const offset = oldIndex * 3;
+    const vertex: [string, string, string] = [
+      coord(mesh.positions[offset]),
+      coord(mesh.positions[offset + 1]),
+      coord(mesh.positions[offset + 2]),
+    ];
+    const key = vertex.join("\0");
+    let newIndex = indexByPosition.get(key);
+    if (newIndex === undefined) {
+      newIndex = vertices.length;
+      vertices.push(vertex);
+      indexByPosition.set(key, newIndex);
+    }
+    oldToNew[oldIndex] = newIndex;
+  }
+
+  const indices: number[] = [];
+  for (let offset = 0; offset < mesh.indices.length; offset += 3) {
+    const v1 = oldToNew[mesh.indices[offset]];
+    const v2 = oldToNew[mesh.indices[offset + 1]];
+    const v3 = oldToNew[mesh.indices[offset + 2]];
+    if (v1 === v2 || v2 === v3 || v1 === v3) {
+      // The face has no printable area after coordinate quantization. Writing
+      // it would leave an invalid triangle in the archive, so omit it.
+      continue;
+    }
+    indices.push(v1, v2, v3);
+  }
+
+  if (indices.length === 0) {
+    throw new Error(
+      `writeThreeMf: "${name}" has no triangles at 1e-4 mm precision`,
+    );
+  }
+
+  return { vertices, indices };
 }
 
 function validateMesh({ name, mesh }: ThreeMfObject): void {
@@ -96,7 +166,9 @@ function validateMesh({ name, mesh }: ThreeMfObject): void {
   }
 }
 
-function validateMaterial(object: ThreeMfObject): void {
+function validateMaterial(
+  object: Pick<ThreeMfObject, "name" | "material">,
+): void {
   if (!object.material) return;
   if (!/^#[0-9a-f]{6}$/i.test(object.material.displayColor)) {
     throw new Error(
@@ -106,29 +178,33 @@ function validateMaterial(object: ThreeMfObject): void {
 }
 
 function buildModelXml(
-  objects: readonly ThreeMfObject[],
+  objects: readonly SerializedObject[],
   options: ThreeMfOptions,
 ): string {
-  const materials: NonNullable<ThreeMfObject["material"]>[] = [];
-  const materialIndexByKey = new Map<string, number>();
+  const materialColors: string[] = [];
+  const materialIndexByColor = new Map<string, number>();
   const objectMaterialIndices = objects.map((object) => {
     validateMaterial(object);
     if (!object.material) return null;
-    const key = `${object.material.name}\0${object.material.displayColor.toUpperCase()}`;
-    const existing = materialIndexByKey.get(key);
+    const color = object.material.displayColor.toUpperCase();
+    const existing = materialIndexByColor.get(color);
     if (existing !== undefined) return existing;
-    const index = materials.length;
-    materials.push(object.material);
-    materialIndexByKey.set(key, index);
+    const index = materialColors.length;
+    materialColors.push(color);
+    materialIndexByColor.set(color, index);
     return index;
   });
-  const materialResourceId = materials.length > 0 ? 1 : null;
+  const materialResourceId = materialColors.length > 0 ? 1 : null;
   const firstObjectId = materialResourceId === null ? 1 : 2;
 
   const parts: string[] = [];
   parts.push('<?xml version="1.0" encoding="UTF-8"?>\n');
   parts.push(
-    '<model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02">\n',
+    `<model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02"${
+      materialResourceId === null
+        ? ""
+        : ' xmlns:m="http://schemas.microsoft.com/3dmanufacturing/material/2015/02" requiredextensions="m"'
+    }>\n`,
   );
   if (options.title) {
     parts.push(` <metadata name="Title">${escapeXml(options.title)}</metadata>\n`);
@@ -137,13 +213,11 @@ function buildModelXml(
   parts.push(" <resources>\n");
 
   if (materialResourceId !== null) {
-    parts.push(`  <basematerials id="${materialResourceId}">\n`);
-    for (const material of materials) {
-      parts.push(
-        `   <base name="${escapeXml(material.name)}" displaycolor="${material.displayColor.toUpperCase()}"/>\n`,
-      );
+    parts.push(`  <m:colorgroup id="${materialResourceId}">\n`);
+    for (const color of materialColors) {
+      parts.push(`   <m:color color="${color}FF"/>\n`);
     }
-    parts.push("  </basematerials>\n");
+    parts.push("  </m:colorgroup>\n");
   }
 
   objects.forEach((object, index) => {
@@ -156,10 +230,10 @@ function buildModelXml(
     parts.push(
       `  <object id="${id}" type="model" name="${escapeXml(object.name)}"${materialAttributes}>\n   <mesh>\n    <vertices>\n`,
     );
-    const { positions, indices } = object.mesh;
-    for (let i = 0; i < positions.length; i += 3) {
+    const { vertices, indices } = object.mesh;
+    for (const [x, y, z] of vertices) {
       parts.push(
-        `     <vertex x="${coord(positions[i])}" y="${coord(positions[i + 1])}" z="${coord(positions[i + 2])}"/>\n`,
+        `     <vertex x="${x}" y="${y}" z="${z}"/>\n`,
       );
     }
     parts.push("    </vertices>\n    <triangles>\n");
@@ -192,6 +266,59 @@ function buildModelXml(
     });
   }
   parts.push(" </build>\n</model>\n");
+  return parts.join("");
+}
+
+/**
+ * Bambu Studio currently detects standard 3MF colors but does not reliably
+ * retain a uniform color attached to component objects. Its vendor model-
+ * settings entry gives each assembled volume an explicit extruder while other
+ * slicers safely ignore the metadata and use the standard color group.
+ */
+function buildBambuModelSettings(
+  objects: readonly SerializedObject[],
+  options: ThreeMfOptions,
+): string | null {
+  if (options.assemble !== true || objects.length < 2) return null;
+  if (!objects.some((object) => object.material)) return null;
+
+  const materialIndices = new Map<string, number>();
+  for (const object of objects) {
+    if (!object.material) continue;
+    const color = object.material.displayColor.toUpperCase();
+    if (!materialIndices.has(color)) {
+      materialIndices.set(color, materialIndices.size);
+    }
+  }
+
+  const firstObjectId = 2;
+  const assemblyId = firstObjectId + objects.length;
+  const title = options.title ?? "Pocketry multi-material model";
+  const firstExtruder = objects[0].material
+    ? (materialIndices.get(objects[0].material.displayColor.toUpperCase()) ?? 0) +
+      1
+    : 1;
+  const parts: string[] = [
+    '<?xml version="1.0" encoding="UTF-8"?>\n',
+    "<config>\n",
+    ` <object id="${assemblyId}">\n`,
+    `  <metadata key="name" value="${escapeXml(title)}"/>\n`,
+    `  <metadata key="extruder" value="${firstExtruder}"/>\n`,
+  ];
+
+  objects.forEach((object, index) => {
+    const extruder = object.material
+      ? (materialIndices.get(object.material.displayColor.toUpperCase()) ?? 0) + 1
+      : firstExtruder;
+    parts.push(
+      `  <part id="${firstObjectId + index}" subtype="normal_part">\n`,
+      `   <metadata key="name" value="${escapeXml(object.name)}"/>\n`,
+      `   <metadata key="extruder" value="${extruder}"/>\n`,
+      `   <mesh_stat face_count="${object.mesh.indices.length / 3}" edges_fixed="0" degenerate_facets="0" facets_removed="0" facets_reversed="0" backwards_edges="0"/>\n`,
+      "  </part>\n",
+    );
+  });
+  parts.push(" </object>\n</config>\n");
   return parts.join("");
 }
 

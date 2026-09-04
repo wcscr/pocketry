@@ -67,6 +67,22 @@ function context(overrides: Partial<HandlerContext> = {}): HandlerContext {
   };
 }
 
+function nonManifoldEdgeCount(mesh: BuildBinResult["mesh"]): number {
+  const edgeCounts = new Map<string, number>();
+  for (let offset = 0; offset < mesh.indices.length; offset += 3) {
+    const triangle = mesh.indices.subarray(offset, offset + 3);
+    for (const [a, b] of [
+      [triangle[0], triangle[1]],
+      [triangle[1], triangle[2]],
+      [triangle[2], triangle[0]],
+    ]) {
+      const key = a < b ? `${a}:${b}` : `${b}:${a}`;
+      edgeCounts.set(key, (edgeCounts.get(key) ?? 0) + 1);
+    }
+  }
+  return [...edgeCounts.values()].filter((count) => count !== 2).length;
+}
+
 const REQUEST: BuildBinRequest = {
   spec: { gridX: 1, gridY: 1, heightUnits: 2 },
   quality: { circularSegments: 16 },
@@ -251,6 +267,24 @@ describe("bin worker handlers", () => {
       );
       expect(Math.max(...xs)).toBeLessThanOrEqual(0.001);
     }
+  });
+
+  it("returns topology-preserving meshes for export builds", async () => {
+    const result = await getHandler()(
+      {
+        ...REQUEST,
+        exportTopology: true,
+        stackingRimMaterialThicknessMm: 1.2,
+      },
+      context(),
+    );
+
+    expect(result.value.mesh.normals).toBeNull();
+    expect(result.value.materialMeshes?.body.normals).toBeNull();
+    expect(result.value.materialMeshes?.stackingRim?.normals).toBeNull();
+    expect(nonManifoldEdgeCount(result.value.mesh)).toBe(0);
+    expect(nonManifoldEdgeCount(result.value.materialMeshes!.body)).toBe(0);
+    expect(nonManifoldEdgeCount(result.value.materialMeshes!.stackingRim!)).toBe(0);
   });
 
   it("rejects a malformed layout at the boundary", async () => {

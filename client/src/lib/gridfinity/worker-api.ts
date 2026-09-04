@@ -50,6 +50,8 @@ export interface BuildBinRequest {
   quality: BuildQuality;
   layout?: BuildBinLayoutRequest;
   section?: BuildBinSection;
+  /** Return topology-preserving meshes without preview-only vertex normals. */
+  exportTopology?: boolean;
   /** Split this depth below each printable pocket floor. */
   pocketFloorMaterialThicknessMm?: number;
   /** Split this depth down from the stacking-rim summit. */
@@ -64,7 +66,7 @@ export interface BuildBinStats {
 
 export interface BuildBinResult {
   mesh: MeshData;
-  /** Non-overlapping export meshes whose union is `mesh`. */
+  /** Non-overlapping material meshes whose union is `mesh`. */
   materialMeshes?: {
     body: MeshData;
     pocketFloors?: MeshData;
