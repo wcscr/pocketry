@@ -747,6 +747,23 @@ describe("modes and calibration", () => {
     expect(state.margin).toBe(2.5);
   });
 
+  it("preserves an explicit zero margin when the scale is replaced", () => {
+    const calibration = {
+      startX: 0,
+      startY: 0,
+      endX: 100,
+      endY: 0,
+      lengthMm: 50,
+    };
+    const state = run(
+      initialTraceState,
+      { type: "SET_CALIBRATION", calibration },
+      { type: "SET_MARGIN", margin: 0 },
+      { type: "SET_CALIBRATION", calibration: { ...calibration, lengthMm: 75 } },
+    );
+    expect(state.margin).toBe(0);
+  });
+
   it("updates mm/px when a completed manual ruler length changes", () => {
     const calibration = {
       startX: 0,

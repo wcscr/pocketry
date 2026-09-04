@@ -4,12 +4,14 @@ import type { Point } from "@shared/geometry/types";
 import { loadOpenCV } from "@/lib/opencv";
 
 import {
-  TEMPLATE_SPACING_MM,
   TEMPLATE_MARKER_IDS,
   TEMPLATE_PAPER_MM,
   templateMarkerCornersMm,
   templateMarkerCentersMm,
+  templateMarkerSpacingMm,
+  templatePaper,
   type TemplatePaper,
+  type TemplateVariant,
 } from "./template";
 import type { DetectedMarker } from "./solve";
 
@@ -24,6 +26,8 @@ export interface PerspectiveProposal {
   points: PerspectiveQuad;
   /** Automatically encoded by the marker-id family for template proposals. */
   paper?: TemplatePaper;
+  /** Exact stable or experimental sheet encoded by the marker-id family. */
+  template?: TemplateVariant;
   /** Redundant marker-corner correspondences for a precision homography. */
   correspondences?: {
     source: Point[];
@@ -63,7 +67,7 @@ export const MAX_TEMPLATE_REPROJECTION_RMS_MM =
 /** Builds an ordered four-marker proposal, or null when any template id is absent. */
 export function proposalFromTemplateMarkers(
   markers: readonly DetectedMarker[],
-  paper: TemplatePaper,
+  template: TemplateVariant,
 ): PerspectiveProposal | null {
   const unique = new Map<number, DetectedMarker>();
   const duplicates = new Set<number>();
@@ -76,9 +80,9 @@ export function proposalFromTemplateMarkers(
   const source: Point[] = [];
   const destinationMm: Point[] = [];
   const physicalCorners = new Map(
-    templateMarkerCornersMm(paper).map((marker) => [marker.id, marker.corners]),
+    templateMarkerCornersMm(template).map((marker) => [marker.id, marker.corners]),
   );
-  for (const id of TEMPLATE_MARKER_IDS[paper]) {
+  for (const id of TEMPLATE_MARKER_IDS[template]) {
     if (duplicates.has(id)) return null;
     const marker = unique.get(id);
     const destinationCorners = physicalCorners.get(id);
@@ -89,7 +93,8 @@ export function proposalFromTemplateMarkers(
   }
   return {
     source: "template",
-    paper,
+    paper: templatePaper(template),
+    template,
     points: ordered as PerspectiveQuad,
     correspondences: { source, destinationMm },
   };
@@ -103,8 +108,14 @@ export function proposalFromTemplateMarkers(
 export function templateReprojectionErrorMm(
   cv: any,
   proposal: PerspectiveProposal,
-  paper: TemplatePaper,
+  template: TemplateVariant,
 ): number | null {
+  if (
+    (proposal.template && proposal.template !== template) ||
+    (proposal.paper && proposal.paper !== templatePaper(template))
+  ) {
+    return null;
+  }
   const fit = proposal.source === "template" ? proposal.correspondences : null;
   if (
     !fit ||
@@ -184,9 +195,10 @@ export function scalePerspectiveProposal(
  */
 export function perspectiveLayout(
   proposal: PerspectiveProposal,
-  paper: TemplatePaper,
+  template: TemplateVariant,
   max: { width: number; height: number } = RECTIFIED_IMAGE_MAX,
 ): PerspectiveLayout {
+  const paper = templatePaper(template);
   const page = TEMPLATE_PAPER_MM[paper];
   const availableX = Math.max(1, max.width - 1) / page.width;
   const availableY = Math.max(1, max.height - 1) / page.height;
@@ -196,7 +208,7 @@ export function perspectiveLayout(
 
   const destination =
     proposal.source === "template"
-      ? (templateMarkerCentersMm(paper).map(({ x, y }) => ({
+      ? (templateMarkerCentersMm(template).map(({ x, y }) => ({
           x: x * pxPerMm,
           y: y * pxPerMm,
         })) as PerspectiveQuad)
@@ -239,7 +251,7 @@ export function runPerspectiveCorrection(
   cv: any,
   image: ImageData,
   proposal: PerspectiveProposal,
-  paper: TemplatePaper,
+  template: TemplateVariant,
   max: { width: number; height: number } = RECTIFIED_IMAGE_MAX,
 ): PerspectiveCorrectionResult {
   if (!validPerspectiveQuad(proposal.points)) {
@@ -247,11 +259,15 @@ export function runPerspectiveCorrection(
       "The four correction points must form one non-overlapping rectangle in clockwise order.",
     );
   }
+  const paper = templatePaper(template);
   if (proposal.paper && proposal.paper !== paper) {
     throw new Error("The detected template paper does not match the requested correction.");
   }
+  if (proposal.template && proposal.template !== template) {
+    throw new Error("The detected template does not match the requested correction.");
+  }
 
-  const layout = perspectiveLayout(proposal, paper, max);
+  const layout = perspectiveLayout(proposal, template, max);
   const source = cv.matFromImageData(image);
   const corrected = new cv.Mat();
   const precisionFit =
@@ -337,9 +353,10 @@ export function runPerspectiveCorrection(
 
     const start = layout.destination[0];
     const end = layout.destination[2];
+    const markerSpacing = templateMarkerSpacingMm(template);
     const lengthMm =
       proposal.source === "template"
-        ? Math.hypot(TEMPLATE_SPACING_MM.width, TEMPLATE_SPACING_MM.height)
+        ? Math.hypot(markerSpacing.width, markerSpacing.height)
         : Math.hypot(TEMPLATE_PAPER_MM[paper].width, TEMPLATE_PAPER_MM[paper].height);
 
     return {
@@ -368,7 +385,7 @@ export function runPerspectiveCorrection(
 export async function correctPerspective(
   image: ImageData,
   proposal: PerspectiveProposal,
-  paper: TemplatePaper,
+  template: TemplateVariant,
   max: { width: number; height: number } = RECTIFIED_IMAGE_MAX,
 ): Promise<PerspectiveCorrectionResult> {
   const cv = await loadOpenCV();
@@ -378,5 +395,5 @@ export async function correctPerspective(
   ) {
     throw new Error("Perspective correction is unavailable in this browser session.");
   }
-  return runPerspectiveCorrection(cv, image, proposal, paper, max);
+  return runPerspectiveCorrection(cv, image, proposal, template, max);
 }

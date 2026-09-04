@@ -86,6 +86,29 @@ function Harness(): JSX.Element {
         Detect auto perspective
       </button>
       <button
+        data-testid="detect-auto-experimental-perspective"
+        onClick={() =>
+          dispatch({
+            type: "AUTO_CALIBRATION_DETECTED",
+            sourceImageUrl: "data:image/png;base64,new-source",
+            calibration: CALIBRATION,
+            perspective: {
+              source: "template",
+              paper: "a4",
+              template: "a4-experimental",
+              points: [
+                { x: 10, y: 10 },
+                { x: 110, y: 12 },
+                { x: 108, y: 140 },
+                { x: 12, y: 138 },
+              ],
+            },
+          })
+        }
+      >
+        Detect experimental perspective
+      </button>
+      <button
         data-testid="complete-perspective-points"
         onClick={() => {
           for (const point of [
@@ -286,10 +309,24 @@ describe("TraceControlsPanel guided workflow", () => {
     expect(host.textContent).not.toContain("Print the current v2 sheet once");
 
     await click("button-calibration-sheet-options");
-    expect(document.body.textContent).toContain("Print the current v2 sheet once");
+    expect(document.body.textContent).toContain(
+      "Current sheets remain the stable default",
+    );
     expect(
       document.body.querySelector('[data-testid="button-template-letter"]'),
     ).not.toBeNull();
+    const experimental = document.body.querySelector<HTMLButtonElement>(
+      '[data-testid="button-template-a4-experimental"]',
+    );
+    expect(experimental).not.toBeNull();
+    await React.act(async () => {
+      experimental?.click();
+      await new Promise((resolve) => window.setTimeout(resolve, 10));
+    });
+    expect(downloadBlob).toHaveBeenLastCalledWith(
+      expect.any(Blob),
+      "pocketry-calibration-v2-a4-experimental.pdf",
+    );
   });
 
   it("offers clockwise and counterclockwise rotation for a loaded source", async () => {
@@ -377,6 +414,23 @@ describe("TraceControlsPanel guided workflow", () => {
     expect(applyPerspective).toHaveBeenLastCalledWith(
       expect.objectContaining({ source: "manual" }),
       "letter",
+    );
+  });
+
+  it("keeps an experimental sheet variant through perspective correction", async () => {
+    await click("load-source");
+    await click("detect-auto-experimental-perspective");
+
+    expect(section("scale")?.textContent).toContain(
+      "A4 experimental template detected automatically",
+    );
+    await click("button-apply-auto-perspective");
+    expect(applyPerspective).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        source: "template",
+        template: "a4-experimental",
+      }),
+      "a4-experimental",
     );
   });
 

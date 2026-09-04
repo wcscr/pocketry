@@ -200,12 +200,46 @@ describe("processImage: margins", () => {
     expect(adjusted[0].holes).toEqual([]);
     expect(after.maxX - after.minX).toBeGreaterThan(before.maxX - before.minX);
   });
+
+  it("can remove the full applied margin by selecting zero", async () => {
+    const plain = await processImage(photo(200, 180, pliers), { detect: JS });
+    const margined = await processImage(photo(200, 180, pliers), {
+      detect: JS,
+      margin: 1.5,
+      calibration: {
+        startX: 0,
+        startY: 0,
+        endX: 100,
+        endY: 0,
+        lengthMm: 50,
+      },
+    });
+    const restored = await adjustOutlineMargin(
+      margined.outline,
+      1.5,
+      0,
+      {
+        startX: 0,
+        startY: 0,
+        endX: 100,
+        endY: 0,
+        lengthMm: 50,
+      },
+    );
+
+    const plainBounds = outlineBounds(plain.outline)!;
+    const restoredBounds = outlineBounds(restored)!;
+    expect(restoredBounds.minX).toBeCloseTo(plainBounds.minX, 1);
+    expect(restoredBounds.maxX).toBeCloseTo(plainBounds.maxX, 1);
+    expect(restoredBounds.minY).toBeCloseTo(plainBounds.minY, 1);
+    expect(restoredBounds.maxY).toBeCloseTo(plainBounds.maxY, 1);
+  });
 });
 
 describe("marginToPixels", () => {
-  it("offers 0.5-5.0 mm in 0.5 mm steps", () => {
+  it("offers 0.0-5.0 mm in 0.5 mm steps", () => {
     expect(MARGIN_MM_OPTIONS).toEqual([
-      0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5,
+      0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5,
     ]);
   });
 
@@ -245,7 +279,7 @@ describe("marginToPixels", () => {
       endY: 0,
       lengthMm: 100,
     };
-    expect(marginToPixels(0.5, calibration)).toBeCloseTo(1, 6);
+    expect(marginToPixels(0, calibration)).toBe(0);
     expect(marginToPixels(5, calibration)).toBeCloseTo(10, 6);
   });
 });
