@@ -1812,6 +1812,12 @@ export function BinControlsPanel({
             </p>
           ))}
 
+          <p className="text-xs text-muted-foreground">
+            Every STL or 3MF also saves a portable JSON backup of the full project.
+            Both filenames include the project name, bin size, and date/time.
+            Allow multiple downloads if your browser asks.
+          </p>
+
           <div
             className="space-y-2 rounded-md border border-emerald-500/30 bg-emerald-500/5 p-2.5"
             data-testid="export-final-model"

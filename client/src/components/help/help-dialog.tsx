@@ -213,6 +213,14 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
                 STL for an inexpensive physical fit check.
               </li>
               <li>
+                Every bin STL or 3MF export, including fit tests, also downloads
+                a portable <strong>.pocketry.json</strong> backup of the full
+                editable project. The files share a name with the project name
+                (when saved), bin size, and local date/time. Allow multiple
+                downloads if your browser asks, and keep the JSON to restore
+                the design later with Import backup.
+              </li>
+              <li>
                 <strong>Complete surface fit test</strong> exports every pocket
                 and finger-access opening together as one thin STL, without the
                 base, walls, label tab, or stacking lip. It checks the surface

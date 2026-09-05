@@ -31,6 +31,12 @@ import {
 import { useBinGeometry } from "@/lib/gridfinity/use-bin-geometry";
 import type { BuildBinSection } from "@/lib/gridfinity/worker-api";
 import { downloadBlob } from "@/lib/download";
+import {
+  binSizeLabel,
+  downloadModelWithProject,
+  exportFilePart,
+  prepareProjectExport,
+} from "@/lib/project/export";
 import { generateLayoutDXF, generateLayoutSVG } from "@/lib/export/layout";
 import { writeBinarySTL } from "@/lib/export/stl-writer";
 import { writeThreeMf, type ThreeMfObject } from "@/lib/mesh/threemf";
@@ -165,6 +171,17 @@ function BinDesignerWorkspace(): JSX.Element {
         (project) => project.id === projectLibrary.activeProjectId,
       )?.name ?? null,
     [projectLibrary],
+  );
+
+  const exportProjectDoc = useMemo<ProjectDoc>(
+    () => ({
+      schemaVersion: PROJECT_SCHEMA_VERSION,
+      shapes: library.shapes,
+      spec: committedSpec,
+      cutouts: committedCutouts,
+      fingerHoles: committedFingerHoles,
+    }),
+    [library.shapes, committedSpec, committedCutouts, committedFingerHoles],
   );
 
   // Consume shapes freshly arrived from the trace workspace: auto-place them
@@ -359,15 +376,10 @@ function BinDesignerWorkspace(): JSX.Element {
   );
 
   const handleExportProject = useCallback(() => {
-    const baseName = (currentProjectName ?? "project")
-      .trim()
-      .replace(/[^a-z0-9._-]+/gi, "-")
-      .replace(/^-+|-+$/g, "") || "project";
+    const project = prepareProjectExport(currentProjectDoc, currentProjectName);
     downloadBlob(
-      new Blob([JSON.stringify(currentProjectDoc, null, 2)], {
-        type: "application/json",
-      }),
-      `${baseName}.pocketry.json`,
+      project.backup,
+      `${project.baseName}.pocketry.json`,
     );
     toast({
       title: "Backup exported",
@@ -571,16 +583,19 @@ function BinDesignerWorkspace(): JSX.Element {
     async (format: "3mf" | "3mf-multicolor" | "stl") => {
       setExporting(true);
       try {
-        const label = `${spec.gridX}x${spec.gridY}x${spec.heightUnits}${
-          spec.gridPitch === "full" ? "" : `-${spec.gridPitch}`
-        }${spec.footprint.kind === "custom" ? `-custom-${spec.footprint.cells.length}cell` : ""}`;
+        const label = binSizeLabel(exportProjectDoc.spec);
         const multicolor = format === "3mf-multicolor";
+        const project = prepareProjectExport(
+          exportProjectDoc,
+          currentProjectName,
+          multicolor ? "multicolor" : "",
+        );
         const includePocketFloors =
           multicolor &&
           colorPocketFloors &&
-          cutouts.some((cutout) => cutout.depth.mode !== "through");
+          exportProjectDoc.cutouts.some((cutout) => cutout.depth.mode !== "through");
         const includeStackingRim =
-          multicolor && colorStackingRim && spec.lip === "standard";
+          multicolor && colorStackingRim && exportProjectDoc.spec.lip === "standard";
         const result = await buildOnce(EXPORT_QUALITY, {
           pocketFloorMaterialThicknessMm: includePocketFloors
             ? pocketFloorThicknessMm
@@ -637,9 +652,10 @@ function BinDesignerWorkspace(): JSX.Element {
               assemble: true,
             },
           );
-          downloadBlob(
+          downloadModelWithProject(
             new Blob([bytes], { type: "model/3mf" }),
-            `bin-${label}-multicolor.3mf`,
+            "3mf",
+            project,
           );
         } else if (format === "3mf") {
           const bytes = writeThreeMf(
@@ -655,22 +671,23 @@ function BinDesignerWorkspace(): JSX.Element {
             ],
             { title: `Pocketry Gridfinity bin ${label}` },
           );
-          downloadBlob(new Blob([bytes], { type: "model/3mf" }), `bin-${label}.3mf`);
+          downloadModelWithProject(new Blob([bytes], { type: "model/3mf" }), "3mf", project);
         } else {
           const stl = writeBinarySTL(
             { positions: result.mesh.positions, indices: result.mesh.indices },
             `Pocketry Gridfinity bin ${label}`,
           );
-          downloadBlob(
+          downloadModelWithProject(
             new Blob([stl], { type: "application/octet-stream" }),
-            `bin-${label}.stl`,
+            "stl",
+            project,
           );
         }
         toast({
           title: "Saved",
           description: multicolor
-            ? `Exported bin ${label} as a multi-color 3MF at print quality.`
-            : `Exported bin ${label} as ${format.toUpperCase()} at print quality.`,
+            ? `Exported bin ${label} as a multi-color 3MF with a matching portable JSON backup.`
+            : `Exported bin ${label} as ${format.toUpperCase()} with a matching portable JSON backup.`,
         });
       } catch (cause) {
         if (!(cause instanceof WorkerCancelledError)) {
@@ -685,8 +702,8 @@ function BinDesignerWorkspace(): JSX.Element {
       }
     },
     [
-      spec,
-      cutouts,
+      exportProjectDoc,
+      currentProjectName,
       buildOnce,
       colorPocketFloors,
       colorStackingRim,
@@ -701,7 +718,7 @@ function BinDesignerWorkspace(): JSX.Element {
 
   const handleExportFitCheck = useCallback(
     async (cutoutId: string, depthMm: number) => {
-      const cutout = cutouts.find((candidate) => candidate.id === cutoutId);
+      const cutout = exportProjectDoc.cutouts.find((candidate) => candidate.id === cutoutId);
       const shape = cutout
         ? library.shapes.find((candidate) => candidate.id === cutout.shapeId)
         : null;
@@ -716,26 +733,25 @@ function BinDesignerWorkspace(): JSX.Element {
 
       setExporting(true);
       try {
+        const depthLabel = String(depthMm);
+        const project = prepareProjectExport(
+          exportProjectDoc,
+          currentProjectName,
+          `${exportFilePart(shape.name) || "tool"}-fit-template-${depthLabel}mm`,
+        );
         const result = await buildFitCheck(shape, cutout, depthMm, EXPORT_QUALITY);
-        const baseName =
-          shape.name
-            .trim()
-            .replace(/[^a-z0-9._-]+/gi, "-")
-            .replace(/^-+|-+$/g, "") || "tool";
-        const depthLabel = Number.isInteger(depthMm)
-          ? String(depthMm)
-          : depthMm.toFixed(1);
         const stl = writeBinarySTL(
           { positions: result.mesh.positions, indices: result.mesh.indices },
           `Pocketry ${shape.name} fit template ${depthLabel} mm`,
         );
-        downloadBlob(
+        downloadModelWithProject(
           new Blob([stl], { type: "application/octet-stream" }),
-          `${baseName}-fit-template-${depthLabel}mm.stl`,
+          "stl",
+          project,
         );
         toast({
           title: "Fit template saved",
-          description: `Exported “${shape.name}” as a ${depthLabel} mm filled outline.`,
+          description: `Exported “${shape.name}” as a ${depthLabel} mm filled outline with a portable JSON backup of the full project.`,
         });
       } catch (cause) {
         if (!(cause instanceof WorkerCancelledError)) {
@@ -749,35 +765,33 @@ function BinDesignerWorkspace(): JSX.Element {
         setExporting(false);
       }
     },
-    [buildFitCheck, cutouts, library.shapes, toast],
+    [buildFitCheck, exportProjectDoc, currentProjectName, library.shapes, toast],
   );
 
   const handleExportSurfaceFitCheck = useCallback(
     async (thicknessMm: number) => {
       setExporting(true);
       try {
+        const label = binSizeLabel(exportProjectDoc.spec);
+        const thicknessLabel = String(thicknessMm);
+        const project = prepareProjectExport(
+          exportProjectDoc,
+          currentProjectName,
+          `surface-fit-test-${thicknessLabel}mm`,
+        );
         const result = await buildSurfaceFitCheck(thicknessMm, EXPORT_QUALITY);
-        const label = `${spec.gridX}x${spec.gridY}${
-          spec.gridPitch === "full" ? "" : `-${spec.gridPitch}`
-        }${
-          spec.footprint.kind === "custom"
-            ? `-custom-${spec.footprint.cells.length}cell`
-            : ""
-        }`;
-        const thicknessLabel = Number.isInteger(thicknessMm)
-          ? String(thicknessMm)
-          : thicknessMm.toFixed(1);
         const stl = writeBinarySTL(
           { positions: result.mesh.positions, indices: result.mesh.indices },
           `Pocketry ${label} surface fit test ${thicknessLabel} mm`,
         );
-        downloadBlob(
+        downloadModelWithProject(
           new Blob([stl], { type: "application/octet-stream" }),
-          `bin-${label}-surface-fit-test-${thicknessLabel}mm.stl`,
+          "stl",
+          project,
         );
         toast({
           title: "Surface fit test saved",
-          description: `Exported the complete pocket-layout surface at ${thicknessLabel} mm thick, without the base, walls, label tab, or stacking lip.`,
+          description: `Exported the complete pocket-layout surface at ${thicknessLabel} mm thick with a portable JSON backup of the full project.`,
         });
       } catch (cause) {
         if (!(cause instanceof WorkerCancelledError)) {
@@ -791,7 +805,7 @@ function BinDesignerWorkspace(): JSX.Element {
         setExporting(false);
       }
     },
-    [buildSurfaceFitCheck, spec, toast],
+    [buildSurfaceFitCheck, exportProjectDoc, currentProjectName, toast],
   );
 
   return (
