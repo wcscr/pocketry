@@ -130,6 +130,61 @@ describe("named project library", () => {
     expect(second.projects).toHaveLength(2);
   });
 
+  it("migrates older documents inside the named project library", async () => {
+    const version8 = JSON.parse(JSON.stringify(WIDE_DOC)) as Record<string, unknown>;
+    version8.schemaVersion = 8;
+    memory.set("tooltrace:project-library:v1", {
+      schemaVersion: 1,
+      activeProjectId: "legacy-project",
+      projects: [
+        {
+          id: "legacy-project",
+          name: "Layout 2",
+          updatedAt: "2026-09-04T18:30:17.089Z",
+          doc: version8,
+        },
+      ],
+    });
+
+    expect(await loadProjectLibrary()).toEqual({
+      activeProjectId: "legacy-project",
+      projects: [
+        {
+          id: "legacy-project",
+          name: "Layout 2",
+          updatedAt: "2026-09-04T18:30:17.089Z",
+        },
+      ],
+    });
+    const opened = await openProjectFromLibrary("legacy-project");
+    expect(opened.doc.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
+    expect(opened.doc.spec.gridX).toBe(4);
+  });
+
+  it("preserves unreadable project records when saving a readable project", async () => {
+    memory.set("tooltrace:project-library:v1", {
+      schemaVersion: 1,
+      activeProjectId: null,
+      projects: [
+        {
+          id: "future-project",
+          name: "Future project",
+          updatedAt: "2026-09-04T18:30:17.089Z",
+          doc: { schemaVersion: 999 },
+        },
+      ],
+    });
+
+    expect((await loadProjectLibrary()).projects).toEqual([]);
+    await saveProjectToLibrary(DOC, "Current project", null);
+    const stored = memory.get("tooltrace:project-library:v1") as {
+      projects: Array<{ id: string; doc: unknown }>;
+    };
+    expect(stored.projects.find((project) => project.id === "future-project")?.doc).toEqual({
+      schemaVersion: 999,
+    });
+  });
+
   it("deleting the active named project keeps the working copy as an unnamed draft", async () => {
     const created = await saveProjectToLibrary(WIDE_DOC, "Wide tray", null);
     const deleted = await deleteProjectFromLibrary(created.projects[0].id);
