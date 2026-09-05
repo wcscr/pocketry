@@ -3,7 +3,6 @@ import { z } from "zod";
 
 import {
   parseProjectDoc,
-  projectDocSchema,
   type ProjectDoc,
 } from "@shared/gridfinity/project";
 
@@ -29,7 +28,10 @@ const storedProjectSchema = z
     id: z.string().min(1).max(128),
     name: z.string().min(1).max(PROJECT_NAME_MAX_LENGTH),
     updatedAt: z.string().datetime(),
-    doc: projectDocSchema,
+    // Validate and migrate documents separately so a project-schema bump does
+    // not make the entire named library appear empty. Unreadable/future docs
+    // remain in storage instead of being discarded by the next library write.
+    doc: z.record(z.unknown()),
   })
   .strict();
 
@@ -95,12 +97,17 @@ function makeProjectId(): string {
 function parseStoredLibrary(input: unknown): StoredProjectLibrary {
   const result = projectLibrarySchema.safeParse(input);
   if (!result.success) return EMPTY_LIBRARY;
-  const activeProjectId = result.data.projects.some(
-    (project) => project.id === result.data.activeProjectId,
+  const projects = result.data.projects.map((project) => {
+    const doc = parseProjectDoc(project.doc);
+    return doc ? { ...project, doc } : project;
+  });
+  const activeProjectId = projects.some(
+    (project) =>
+      project.id === result.data.activeProjectId && parseProjectDoc(project.doc) !== null,
   )
     ? result.data.activeProjectId
     : null;
-  return { ...result.data, activeProjectId };
+  return { ...result.data, activeProjectId, projects };
 }
 
 async function readStoredLibrary(): Promise<StoredProjectLibrary> {
@@ -115,6 +122,7 @@ function toSnapshot(library: StoredProjectLibrary): ProjectLibrarySnapshot {
   return {
     activeProjectId: library.activeProjectId,
     projects: library.projects
+      .filter((project) => parseProjectDoc(project.doc) !== null)
       .map(({ id, name, updatedAt }) => ({ id, name, updatedAt }))
       .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
   };
@@ -208,11 +216,13 @@ export async function openProjectFromLibrary(
   return mutateLibrary(async (library) => {
     const stored = library.projects.find((project) => project.id === projectId);
     if (!stored) throw new Error("That project is no longer in this browser's library.");
+    const doc = parseProjectDoc(stored.doc);
+    if (!doc) throw new Error("That project was saved by an unsupported Pocketry version.");
     const next = { ...library, activeProjectId: stored.id };
-    await set(CURRENT_PROJECT_KEY, stored.doc);
+    await set(CURRENT_PROJECT_KEY, doc);
     await set(PROJECT_LIBRARY_KEY, next);
     return {
-      doc: stored.doc,
+      doc,
       project: { id: stored.id, name: stored.name, updatedAt: stored.updatedAt },
       library: toSnapshot(next),
     };

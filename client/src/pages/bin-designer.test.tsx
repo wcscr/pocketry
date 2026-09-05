@@ -7,9 +7,10 @@ import { PanelProvider } from "@/components/layout/panel-context";
 import { WORKSPACES } from "@/components/layout/workspaces";
 import * as ShapeLibraryModule from "@/state/shape-library";
 import { ShapeLibraryProvider } from "@/state/shape-library";
-import { PROJECT_SCHEMA_VERSION, type ProjectDoc } from "@shared/gridfinity/project";
-import { parseCutoutPlacement, type TracedShape } from "@shared/gridfinity/cutout";
+import { PROJECT_SCHEMA_VERSION, parseProjectDoc, type ProjectDoc } from "@shared/gridfinity/project";
+import { fingerHoleSchema, parseCutoutPlacement, type TracedShape } from "@shared/gridfinity/cutout";
 import { parseBinSpec } from "@shared/gridfinity/types";
+import { downloadBlob } from "@/lib/download";
 
 /**
  * Structure smoke tests for the bin designer page, following the pattern of
@@ -71,7 +72,12 @@ const binGeometryMock = vi.hoisted(() => ({
   builtSpec: null as ReturnType<typeof parseBinSpec> | null,
   hasPocketFloor: false,
   hasStackingRim: true,
+  buildOnce: vi.fn(),
+  buildFitCheck: vi.fn(),
+  buildSurfaceFitCheck: vi.fn(),
 }));
+
+vi.mock("@/lib/download", () => ({ downloadBlob: vi.fn() }));
 
 vi.mock("@/lib/gridfinity/use-bin-geometry", () => ({
   useBinGeometry: () => ({
@@ -84,9 +90,9 @@ vi.mock("@/lib/gridfinity/use-bin-geometry", () => ({
     building: binGeometryMock.building,
     progress: binGeometryMock.progress,
     error: null,
-    buildOnce: vi.fn(),
-    buildFitCheck: vi.fn(),
-    buildSurfaceFitCheck: vi.fn(),
+    buildOnce: binGeometryMock.buildOnce,
+    buildFitCheck: binGeometryMock.buildFitCheck,
+    buildSurfaceFitCheck: binGeometryMock.buildSurfaceFitCheck,
   }),
 }));
 
@@ -243,6 +249,85 @@ function openSettingsSection(
 }
 
 describe("BinDesignerPage", () => {
+  it.each([
+    ["stl", "", "stl"],
+    ["single-color-3mf", "", "3mf"],
+    ["multicolor-3mf", "-multicolor", "3mf"],
+    ["surface-fit-test", "-surface-fit-test-1.2mm", "stl"],
+    ["fit-check", "-Wrench-fit-template-2mm", "stl"],
+  ])("saves the full portable project beside the %s export", async (kind, suffix, extension) => {
+    const shape = rectangularShape("tool", "Wrench");
+    const project: ProjectDoc = {
+      ...EMPTY_PROJECT,
+      spec: parseBinSpec({ gridX: 4, gridY: 4, heightUnits: 6.5 }),
+      shapes: [shape, rectangularShape("unused", "Unplaced tool")],
+      cutouts: [parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 0, y: 0 } })],
+      fingerHoles: [fingerHoleSchema.parse({ id: "hole", kind: "straight", center: { x: 40, y: 0 } })],
+    };
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(project);
+    vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({
+      activeProjectId: "layout-2",
+      projects: [{ id: "layout-2", name: "Layout 2", updatedAt: "2026-09-05T12:00:00Z" }],
+    });
+    const mesh = {
+      positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1]),
+      indices: new Uint32Array([0, 2, 1, 0, 1, 3, 0, 3, 2, 1, 2, 3]),
+      normals: null,
+    };
+    const result = { mesh, materialMeshes: { body: mesh, pocketFloors: mesh, stackingRim: mesh } };
+    binGeometryMock.buildOnce.mockResolvedValue(result);
+    binGeometryMock.buildFitCheck.mockResolvedValue(result);
+    binGeometryMock.buildSurfaceFitCheck.mockResolvedValue(result);
+    const { container, unmount } = renderPage();
+    await flushHydration();
+    try {
+      if (kind === "fit-check") {
+        openSettingsSection(container, "tool-cutouts");
+        React.act(() => {
+          container.querySelector<HTMLButtonElement>('[data-testid="button-select-pocket"]')!.click();
+        });
+      }
+      openSettingsSection(container, "export");
+      await React.act(async () => {
+        const button = kind.endsWith("3mf") ? "3mf" : kind;
+        container.querySelector<HTMLButtonElement>(`[data-testid="button-export-${button}"]`)!.click();
+      });
+      if (kind.endsWith("3mf") || kind === "stl") {
+        await React.act(async () => {
+          const button = kind === "stl" ? "button-confirm-stl-without-colors" : `button-export-${kind}`;
+          document.querySelector<HTMLButtonElement>(`[data-testid="${button}"]`)!.click();
+        });
+      }
+      expect(downloadBlob).toHaveBeenCalledTimes(2);
+      const [[backup, backupName], [model, modelName]] = vi.mocked(downloadBlob).mock.calls;
+      expect(modelName).toMatch(new RegExp(`^Layout-2-bin-4x4x6\\.5${suffix.replaceAll(".", "\\.")}-\\d{4}-\\d{2}-\\d{2}_\\d{2}-\\d{2}-\\d{2}-\\d{3}\\.${extension}$`));
+      expect(backupName).toBe(modelName.replace(/\.(stl|3mf)$/, ".pocketry.json"));
+      expect(model.size).toBeGreaterThan(84);
+      const json = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(reader.error);
+        reader.readAsText(backup);
+      });
+      expect(parseProjectDoc(JSON.parse(json))).toEqual(project);
+    } finally {
+      unmount();
+    }
+  });
+
+  it("does not download an export pair when geometry generation fails", async () => {
+    binGeometryMock.buildOnce.mockRejectedValueOnce(new Error("Mesh failed"));
+    const { container, unmount } = renderPage();
+    await flushHydration();
+    openSettingsSection(container, "export");
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-export-stl"]')!.click());
+    await React.act(async () => {
+      document.querySelector<HTMLButtonElement>('[data-testid="button-confirm-stl-without-colors"]')!.click();
+    });
+    expect(downloadBlob).not.toHaveBeenCalled();
+    unmount();
+  });
+
   it("is registered as the /bin workspace", () => {
     const entry = WORKSPACES.find((workspace) => workspace.path === "/bin");
     expect(entry).toBeDefined();
