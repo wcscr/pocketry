@@ -87,6 +87,8 @@ export const tracedShapeSchema = z
      * bypassed the calibration gate — validation rejects it.
      */
     sourceMmPerPx: z.number().positive().nullable(),
+    /** Margin already baked into the trace, before placement scaling. Absent in older projects. */
+    traceMarginMm: z.number().finite().min(0).max(5).optional(),
   })
   .strict();
 

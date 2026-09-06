@@ -118,6 +118,9 @@ function BinDesignerWorkspace(): JSX.Element {
   const [projectLibrary, setProjectLibrary] = useState(EMPTY_PROJECT_LIBRARY);
   const [projectLibraryReady, setProjectLibraryReady] = useState(false);
   const [projectBusy, setProjectBusy] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<"saving" | "saved" | "error">("saving");
+  const [draftName, setDraftName] = useState<string | null>(null);
+  const [keepBinSize, setKeepBinSize] = useState(false);
 
   // Restore the saved project before anything else touches state; pending
   // consumption below is gated on `hydrated` so an arrival from the trace
@@ -129,6 +132,8 @@ function BinDesignerWorkspace(): JSX.Element {
       setProjectLibrary(saved);
       setProjectLibraryReady(true);
       if (doc) {
+        setDraftName(doc.name ?? null);
+        setKeepBinSize(doc.keepBinSize ?? false);
         library.mergeShapes(doc.shapes);
         dispatch({
           type: "HYDRATE",
@@ -147,41 +152,47 @@ function BinDesignerWorkspace(): JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const currentProjectName = useMemo(
+    () =>
+      projectLibrary.projects.find(
+        (project) => project.id === projectLibrary.activeProjectId,
+      )?.name ?? draftName,
+    [projectLibrary, draftName],
+  );
+
   // Autosave everything the doc covers, debounced; suppressed until
   // hydration so the empty default never overwrites a real project.
-  const saveProject = useMemo(() => createDebouncedProjectSaver(500), []);
+  const saveProject = useMemo(() => createDebouncedProjectSaver(500, (success) => setSaveStatus(success ? "saved" : "error")), []);
   const currentProjectDoc = useMemo<ProjectDoc>(
     () => ({
       schemaVersion: PROJECT_SCHEMA_VERSION,
+      ...(currentProjectName ? { name: currentProjectName } : {}),
+      keepBinSize,
       shapes: library.shapes,
       spec,
       cutouts,
       fingerHoles,
     }),
-    [library.shapes, spec, cutouts, fingerHoles],
+    [library.shapes, spec, cutouts, fingerHoles, currentProjectName, keepBinSize],
   );
   useEffect(() => {
     if (!bin.hydrated) return;
+    setSaveStatus("saving");
     saveProject(currentProjectDoc);
   }, [bin.hydrated, currentProjectDoc, saveProject]);
 
-  const currentProjectName = useMemo(
-    () =>
-      projectLibrary.projects.find(
-        (project) => project.id === projectLibrary.activeProjectId,
-      )?.name ?? null,
-    [projectLibrary],
-  );
 
   const exportProjectDoc = useMemo<ProjectDoc>(
     () => ({
       schemaVersion: PROJECT_SCHEMA_VERSION,
+      ...(currentProjectName ? { name: currentProjectName } : {}),
+      keepBinSize,
       shapes: library.shapes,
       spec: committedSpec,
       cutouts: committedCutouts,
       fingerHoles: committedFingerHoles,
     }),
-    [library.shapes, committedSpec, committedCutouts, committedFingerHoles],
+    [library.shapes, committedSpec, committedCutouts, committedFingerHoles, currentProjectName, keepBinSize],
   );
 
   // Consume shapes freshly arrived from the trace workspace: auto-place them
@@ -191,12 +202,12 @@ function BinDesignerWorkspace(): JSX.Element {
     if (!bin.hydrated) return;
     const pendingIds = library.consumePending();
     if (pendingIds.length === 0) return;
-    const newShapes = library.shapes.filter((shape) => pendingIds.includes(shape.id));
+    const newShapes = library.shapes.filter((shape) => pendingIds.includes(shape.id) && !cutouts.some((cutout) => cutout.shapeId === shape.id));
     if (newShapes.length === 0) return;
 
     const shapesById = new Map(library.shapes.map((shape) => [shape.id, shape]));
     const result =
-      cutouts.length === 0
+      cutouts.length === 0 && !keepBinSize
         ? autoPlaceFresh(newShapes, spec.lip, spec.gridPitch)
         : autoPlaceIncremental(newShapes, {
             lip: spec.lip,
@@ -204,11 +215,12 @@ function BinDesignerWorkspace(): JSX.Element {
             gridX: spec.gridX,
             gridY: spec.gridY,
             existing: cutouts,
+            keepBinSize,
             shapesById,
           });
 
-    const gridX = Math.max(result.gridX, cutouts.length > 0 ? spec.gridX : 0);
-    const gridY = Math.max(result.gridY, cutouts.length > 0 ? spec.gridY : 0);
+    const gridX = keepBinSize ? spec.gridX : Math.max(result.gridX, cutouts.length > 0 ? spec.gridX : 0);
+    const gridY = keepBinSize ? spec.gridY : Math.max(result.gridY, cutouts.length > 0 ? spec.gridY : 0);
     dispatch({
       type: "ADD_PLACED",
       cutouts: result.cutouts,
@@ -216,8 +228,9 @@ function BinDesignerWorkspace(): JSX.Element {
       gridY,
       // Automatic placement chooses the smallest rectangular Gridfinity bin.
       // Irregular footprints require the explicit footprint editor.
-      footprint: { kind: "rectangle" },
+      footprint: keepBinSize ? spec.footprint : { kind: "rectangle" },
     });
+    if (gridX !== spec.gridX || gridY !== spec.gridY) toast({ title: "Bin resized for new tools", description: "Undo restores the previous layout. Turn on Keep bin size fixed to prevent automatic growth." });
     if (spec.fill !== "solid") {
       dispatch({ type: "PATCH_SPEC", patch: { fill: "solid" } });
     }
@@ -225,7 +238,7 @@ function BinDesignerWorkspace(): JSX.Element {
       toast({
         title: "Tool does not fit",
         description:
-          "Even the largest bin cannot hold this layout — check the trace's scale.",
+          keepBinSize ? "The bin size is fixed. Move the highlighted tools, reduce their size, or enlarge the bin." : "Even the largest bin cannot hold this layout — check the trace's scale.",
         variant: "destructive",
       });
     }
@@ -329,6 +342,8 @@ function BinDesignerWorkspace(): JSX.Element {
       spec.lip,
       spec.gridPitch,
       fingerHoles,
+      undefined,
+      keepBinSize ? spec : undefined,
     );
     if (!result) return;
     dispatch({
@@ -338,17 +353,17 @@ function BinDesignerWorkspace(): JSX.Element {
       gridY: result.gridY,
       // Rearranging tools must not silently convert the bin into an irregular
       // footprint. That remains an explicit Layout editing operation.
-      footprint: { kind: "rectangle" },
+      footprint: keepBinSize ? spec.footprint : { kind: "rectangle" },
       historyLabel: "Auto-arrange tool pockets",
     });
     if (result.overflow) {
       toast({
         title: "Does not fit",
-        description: "Even the largest bin cannot hold this arrangement.",
+        description: keepBinSize ? "The bin size is fixed. Adjust the highlighted pockets or increase the bin size." : "Even the largest bin cannot hold this arrangement.",
         variant: "destructive",
       });
     }
-  }, [cutouts, fingerHoles, library.shapes, spec.lip, spec.gridPitch, dispatch, toast]);
+  }, [cutouts, fingerHoles, library.shapes, spec.lip, spec.gridPitch, dispatch, toast, keepBinSize, spec]);
 
   const handleExportLayout = useCallback(
     (format: "dxf" | "svg") => {
@@ -404,10 +419,13 @@ function BinDesignerWorkspace(): JSX.Element {
         });
         return;
       }
+      doc.name ??= file.name.replace(/\.(?:pocketry|tooltrace)\.json$/i, "").replace(/\.json$/i, "").replace(/[-_]+/g, " ").trim().slice(0, 80) || "Imported project";
       setProjectBusy(true);
       saveProject.cancel();
       try {
         const saved = await startNewProject(doc);
+        setDraftName(doc.name ?? null);
+        setKeepBinSize(doc.keepBinSize ?? false);
         library.replaceShapes(doc.shapes);
         dispatch({
           type: "HYDRATE",
@@ -419,7 +437,7 @@ function BinDesignerWorkspace(): JSX.Element {
         setProjectLibrary(saved);
         toast({
           title: "Backup imported",
-          description: `${doc.shapes.length} shape${doc.shapes.length === 1 ? "" : "s"}, ${doc.cutouts.length} pocket${doc.cutouts.length === 1 ? "" : "s"}. Save it to the library to give it a name.`,
+          description: `${doc.shapes.length} shape${doc.shapes.length === 1 ? "" : "s"}, ${doc.cutouts.length} pocket${doc.cutouts.length === 1 ? "" : "s"}. Opened as “${doc.name}”.`,
         });
       } catch (cause) {
         toast({
@@ -446,6 +464,8 @@ function BinDesignerWorkspace(): JSX.Element {
     saveProject.cancel();
     try {
       const saved = await startNewProject(doc);
+      setDraftName(null);
+      setKeepBinSize(false);
       library.replaceShapes([]);
       dispatch({
         type: "HYDRATE",
@@ -502,6 +522,8 @@ function BinDesignerWorkspace(): JSX.Element {
     saveProject.cancel();
     try {
       const opened = await openProjectFromLibrary(projectId);
+      setDraftName(opened.project.name);
+      setKeepBinSize(opened.doc.keepBinSize ?? false);
       library.replaceShapes(opened.doc.shapes);
       dispatch({
         type: "HYDRATE",
@@ -816,6 +838,9 @@ function BinDesignerWorkspace(): JSX.Element {
       panelTitle="Bin designer"
       panel={
         <BinControlsPanel
+          saveStatus={saveStatus}
+          keepBinSize={keepBinSize}
+          onKeepBinSizeChange={setKeepBinSize}
           stats={stats}
           building={building}
           exporting={exporting}

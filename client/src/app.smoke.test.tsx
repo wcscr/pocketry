@@ -277,11 +277,11 @@ describe("App", () => {
     renderApp();
     const text = container.textContent ?? "";
     for (const section of [
-      "Source image",
-      "Tool Detection",
+      "Photo",
+      "Outline",
       "Scale",
-      "Set Detection Region",
-      "Change Output Format",
+      "Region",
+      "Export outline",
     ]) {
       expect(text).toContain(section);
     }

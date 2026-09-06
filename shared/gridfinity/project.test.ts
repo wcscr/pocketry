@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { parseProjectDoc, PROJECT_SCHEMA_VERSION } from "./project";
 import { parseBinSpec } from "./types";
+import airdusterV9 from "./fixtures/airduster-v9.pocketry.json";
 
 const VALID = {
   schemaVersion: PROJECT_SCHEMA_VERSION,
@@ -43,6 +44,26 @@ const VALID = {
 };
 
 describe("parseProjectDoc", () => {
+  it("migrates the complete New Airduster Layout without changing any saved geometry or settings", () => {
+    const original = JSON.stringify(airdusterV9);
+    const doc = parseProjectDoc(airdusterV9);
+    expect(doc).toEqual({ ...airdusterV9, schemaVersion: PROJECT_SCHEMA_VERSION });
+    expect(doc!.shapes).toHaveLength(7);
+    expect(doc!.cutouts).toHaveLength(4);
+    expect(doc!.fingerHoles).toHaveLength(2);
+    const named = { ...doc!, name: "New Airduster Layout", keepBinSize: true };
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(named)))).toEqual(named);
+    expect(JSON.stringify(airdusterV9)).toBe(original);
+    expect(doc!.shapes.every((shape) => shape.traceMarginMm === undefined)).toBe(true);
+  });
+
+  it("preserves new metadata through repeated round trips", () => {
+    const doc = parseProjectDoc({ ...VALID, name: "Workshop tools", keepBinSize: true,
+      shapes: VALID.shapes.map((shape) => ({ ...shape, traceMarginMm: 0.5 })) });
+    expect(doc).not.toBeNull();
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(doc)))).toEqual(doc);
+    expect(doc!.shapes[0].traceMarginMm).toBe(0.5);
+  });
   it("round-trips a valid document", () => {
     const doc = parseProjectDoc(VALID);
     expect(doc).not.toBeNull();

@@ -283,6 +283,7 @@ function existingBounds(
 }
 
 export interface AutoPlaceIncrementalOptions {
+  keepBinSize?: boolean;
   lip: BinSpec["lip"];
   gridPitch?: GridPitch;
   gridX: number;
@@ -303,6 +304,14 @@ export function autoPlaceIncremental(
 ): AutoPlaceResult {
   const occupied = existingBounds(options.existing, options.shapesById);
   if (!occupied) {
+    if (options.keepBinSize) {
+      const interior = interiorMm(options, placementInsetMm(options.lip), options.gridPitch);
+      const block = shelfPack(shapeTargets(shapes), interior.widthMm);
+      const byId = new Map(shapes.map((shape) => [shape.id, shape]));
+      return { cutouts: block.items.map((item) => toPlacement(item, byId, 0, 0)),
+        gridX: options.gridX, gridY: options.gridY,
+        overflow: block.widthMm > interior.widthMm || block.heightMm > interior.heightMm };
+    }
     const fresh = autoPlaceFresh(shapes, options.lip, options.gridPitch);
     return {
       ...fresh,
@@ -323,7 +332,7 @@ export function autoPlaceIncremental(
   const byId = new Map(shapes.map((shape) => [shape.id, shape]));
   const targets = shapeTargets(shapes);
 
-  for (const grid of gridCandidates(options.gridX, options.gridY)) {
+  for (const grid of options.keepBinSize ? [options] : gridCandidates(options.gridX, options.gridY)) {
     const interior = interiorMm(grid, inset, options.gridPitch);
     const halfW = interior.widthMm / 2;
     const halfH = interior.heightMm / 2;
@@ -365,7 +374,7 @@ export function autoPlaceIncremental(
   const cx = occupied.maxX + ITEM_GAP_MM + block.widthMm / 2;
   return {
     cutouts: block.items.map((item) => toPlacement(item, byId, cx, 0)),
-    gridX: MAX_GRID,
+    gridX: options.keepBinSize ? options.gridX : MAX_GRID,
     gridY: Math.max(options.gridY, 1),
     overflow: true,
   };
@@ -620,6 +629,7 @@ export function autoArrangeLayout(
   gridPitch: GridPitch = "full",
   fingerHoles: readonly FingerHole[] = [],
   baseSpec?: BinSpec,
+  fixedGrid?: { gridX: number; gridY: number },
 ): AutoArrangeResult | null {
   const items: ArrangeItem[] = [];
   for (const cutout of cutouts) {
@@ -665,7 +675,7 @@ export function autoArrangeLayout(
       };
     });
 
-  for (const grid of gridCandidates()) {
+  for (const grid of fixedGrid ? [fixedGrid] : gridCandidates()) {
     const interior = interiorMm(grid, inset, gridPitch);
     if (interior.widthMm <= 0 || interior.heightMm <= 0) continue;
     if (!containsFixedHoles(interior.widthMm, interior.heightMm)) continue;
@@ -701,12 +711,12 @@ export function autoArrangeLayout(
 
   const block = shelfPack(
     targets,
-    interiorMm({ gridX: MAX_GRID, gridY: MAX_GRID }, inset, gridPitch).widthMm,
+    interiorMm(fixedGrid ?? { gridX: MAX_GRID, gridY: MAX_GRID }, inset, gridPitch).widthMm,
   );
   return {
     cutouts: placeBlock(block),
-    gridX: MAX_GRID,
-    gridY: MAX_GRID,
+    gridX: fixedGrid?.gridX ?? MAX_GRID,
+    gridY: fixedGrid?.gridY ?? MAX_GRID,
     overflow: true,
   };
 }

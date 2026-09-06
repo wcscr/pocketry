@@ -23,10 +23,12 @@ import { binSpecSchema } from "./types";
  * 6 adds resizable, rotated oblong deep scoops; version 7 promotes finger
  * holes from pocket-relative children to independent, bin-local objects;
  * version 8 adds per-placement X/Y scale and an aspect-ratio-lock preference;
- * version 9 adds per-finger-hole top and bottom edge fillets.
+ * version 9 adds per-finger-hole top and bottom edge fillets; version 10 adds
+ * optional project names, fixed-size preference, and trace margin provenance.
+ * Existing geometry is retained when migrating versions 7–9 to version 10.
  */
 
-export const PROJECT_SCHEMA_VERSION = 9 as const;
+export const PROJECT_SCHEMA_VERSION = 10 as const;
 
 const projectFields = {
   shapes: z.array(tracedShapeSchema),
@@ -55,10 +57,14 @@ const version8ProjectSchema = z
   })
   .strict();
 
+const version9ProjectSchema = z.object({ schemaVersion: z.literal(9), ...projectFields }).strict();
+
 export const projectDocSchema = z
   .object({
     schemaVersion: z.literal(PROJECT_SCHEMA_VERSION),
     ...projectFields,
+    name: z.string().trim().min(1).max(80).optional(),
+    keepBinSize: z.boolean().optional(),
   })
   .strict();
 
@@ -131,6 +137,8 @@ function migrateLegacyProject(doc: LegacyProjectDoc): ProjectDoc {
 export function parseProjectDoc(input: unknown): ProjectDoc | null {
   const result = projectDocSchema.safeParse(input);
   if (result.success) return result.data;
+  const version9 = version9ProjectSchema.safeParse(input);
+  if (version9.success) return projectDocSchema.parse({ ...version9.data, schemaVersion: PROJECT_SCHEMA_VERSION });
   const version8 = version8ProjectSchema.safeParse(input);
   if (version8.success) {
     return projectDocSchema.parse({

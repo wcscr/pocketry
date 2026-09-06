@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { DraftNumberInput } from "./draft-number-input";
 
-function mountNumber(value = 12) {
+function mountNumber(value = 12, displayPrecision?: number) {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   const host = document.createElement("div");
   document.body.appendChild(host);
@@ -19,6 +19,7 @@ function mountNumber(value = 12) {
       <DraftNumberInput
         aria-label="Measurement"
         value={current}
+        displayPrecision={displayPrecision}
         min={1}
         onValueChange={(next) => {
           committed.push(next);
@@ -62,6 +63,19 @@ afterEach(() => {
 });
 
 describe("DraftNumberInput", () => {
+  it("does not round stored measurements when an unchanged display loses focus", () => {
+    const view = mountNumber(33.4893721, 2);
+    expect(view.input.value).toBe("33.49");
+    React.act(() => view.input.focus());
+    view.blur();
+    expect(view.committed).toEqual([]);
+    expect(view.explicitlyCommitted).toEqual([]);
+    view.change("17.35");
+    view.blur();
+    expect(view.explicitlyCommitted).toEqual([17.35]);
+    view.unmount();
+  });
+
   it("allows the last digit to be deleted before typing a replacement", () => {
     const view = mountNumber();
     view.change("");

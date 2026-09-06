@@ -42,7 +42,7 @@ export function prepareProjectExport(
   ].filter(Boolean).join("-");
   return {
     baseName,
-    backup: new Blob([JSON.stringify(doc, null, 2)], { type: "application/json" }),
+    backup: new Blob([JSON.stringify({ ...doc, ...(projectName?.trim() ? { name: projectName.trim().slice(0, 80) } : {}) }, null, 2)], { type: "application/json" }),
   };
 }
 

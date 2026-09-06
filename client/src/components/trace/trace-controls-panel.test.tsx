@@ -8,7 +8,7 @@ import type { Calibration } from "@shared/geometry/scale";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { downloadBlob } from "@/lib/download";
 import { ShapeLibraryProvider } from "@/state/shape-library";
-import { TraceProvider, useTrace } from "@/state/trace-store";
+import { TraceProvider, useTrace, type TraceStore } from "@/state/trace-store";
 
 import { TraceControlsPanel } from "./trace-controls-panel";
 
@@ -24,6 +24,8 @@ const CALIBRATION: Calibration = {
 
 const applyPerspective = vi.fn();
 const rotateImage = vi.fn();
+const reprocess = vi.fn();
+let trace: TraceStore;
 
 class NoopResizeObserver implements ResizeObserver {
   observe() {}
@@ -32,7 +34,8 @@ class NoopResizeObserver implements ResizeObserver {
 }
 
 function Harness(): JSX.Element {
-  const { dispatch } = useTrace();
+  trace = useTrace();
+  const { dispatch } = trace;
   return (
     <>
       <button
@@ -157,7 +160,7 @@ function Harness(): JSX.Element {
         onReplaceImage={() => {}}
         onRotateImage={rotateImage}
         onExport={() => {}}
-        onReprocess={() => {}}
+        onReprocess={reprocess}
         onDetectMarkers={() => {}}
         onApplyPerspective={applyPerspective}
       />
@@ -171,6 +174,7 @@ let root: Root;
 beforeEach(() => {
   applyPerspective.mockReset();
   rotateImage.mockReset();
+  reprocess.mockReset();
   vi.mocked(downloadBlob).mockReset();
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.stubGlobal("ResizeObserver", NoopResizeObserver);
@@ -495,33 +499,10 @@ describe("TraceControlsPanel guided workflow", () => {
     expect(
       host.querySelector('[data-testid="detection-tuning-guidance"]')
         ?.textContent,
-    ).toContain("Adjust Sensitivity and Detail to fine-tune the contour");
-    expect(
-      host.querySelector('[data-testid="contour-editing-guidance"]')
-        ?.textContent,
-    ).toContain(
-      "Edit the contour shape: select a shape, then move, add, or delete its detected vertices",
-    );
-    expect(
-      host.querySelector('[data-testid="contour-editing-guidance"]')
-        ?.className,
-    ).toContain("text-base font-bold");
-    expect(
-      host.querySelector('[data-testid="detection-tuning-guidance"]')
-        ?.textContent,
-    ).toContain(
-      "Drag a vertex to move it, click to add one, or right-click a vertex to delete it",
-    );
-    expect(
-      host.querySelector('[data-testid="detection-tuning-guidance"]')
-        ?.textContent,
-    ).toContain(
-      "Remove any arrant holes / contours by clicking the trash can icon below",
-    );
-    expect(
-      host.querySelector('[data-testid="detection-tuning-guidance"]')
-        ?.className,
-    ).toContain("border-rose-500/60");
+    ).toContain("Reflections are usually not holes");
+    expect(host.querySelector('[data-testid="contour-editing-guidance"]')?.textContent).toContain("Detail and Smoothing preserve your edits");
+    expect(host.querySelector('#include-interior-holes')?.getAttribute("aria-checked")).toBe("false");
+    expect(host.textContent).toContain("No contours yet");
     expect(
       section("detect")?.querySelector("[data-testid='detection-contours']"),
     ).not.toBeNull();
@@ -607,5 +588,95 @@ describe("TraceControlsPanel guided workflow", () => {
     await changeNumber("ruler-length", "200");
     expect(section("scale")?.textContent).toContain("2.000 mm/px");
     expect(section("scale")?.textContent).toContain("2 mm/px (0.5 px/mm)");
+  });
+});
+
+const detectedOutline = [{
+  outer: [{ x: 30, y: 30 }, { x: 90, y: 30 }, { x: 90, y: 90 }], holes: [],
+}];
+
+async function prepareOutline(): Promise<void> {
+  await click("load-source");
+  await React.act(async () => {
+    trace.dispatch({ type: "SET_CALIBRATION", calibration: CALIBRATION });
+  });
+  await React.act(async () => {
+    trace.dispatch({ type: "SET_REGION", region: { x: 10, y: 20, width: 300, height: 200 } });
+    trace.dispatch({ type: "REGION_COMMITTED" });
+    trace.dispatch({ type: "DETECTED", imageUrl: trace.imageUrl, region: null,
+      outline: detectedOutline, rawOutline: detectedOutline, svg: "" });
+  });
+  if (sectionTrigger("detect")?.getAttribute("aria-expanded") !== "true") {
+    await clickSection("detect");
+  }
+}
+
+async function stepSensitivity(): Promise<void> {
+  await React.act(async () => {
+    host.querySelector('#sensitivity [role="slider"]')!.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }),
+    );
+  });
+}
+
+async function chooseConfirmation(label: string): Promise<void> {
+  await React.act(async () => {
+    [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')]
+      .find((button) => button.textContent === label)!.click();
+  });
+}
+
+describe("automatic sensitivity detection", () => {
+  it("re-detects with the released value without a button or confirmation for automatic history", async () => {
+    await prepareOutline();
+    await stepSensitivity();
+    expect(reprocess).toHaveBeenLastCalledWith({ sensitivity: 129, includeInteriorHoles: false });
+    expect(trace.sensitivity).toBe(129);
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    expect([...host.querySelectorAll("button")].some((button) => button.textContent === "Re-detect outline")).toBe(false);
+    await React.act(async () => {
+      trace.dispatch({ type: "OUTLINE_REFINED", outline: [...detectedOutline] });
+      trace.dispatch({ type: "MARGIN_COMMITTED", outline: [...detectedOutline], margin: 1 });
+    });
+    await stepSensitivity();
+    expect(reprocess).toHaveBeenLastCalledWith({ sensitivity: 130, includeInteriorHoles: false });
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it("keeps manual vertices and the previous sensitivity on cancel, and applies on confirmation", async () => {
+    await prepareOutline();
+    const edited = [{ ...detectedOutline[0], outer: [...detectedOutline[0].outer, { x: 20, y: 60 }] }];
+    await React.act(async () => {
+      trace.dispatch({ type: "OUTLINE_COMMITTED", outline: edited, label: "Add contour node" });
+      trace.dispatch({ type: "OUTLINE_REFINED", outline: edited });
+    });
+    await stepSensitivity();
+    expect(document.querySelector('[role="dialog"]')).not.toBeNull();
+    expect(reprocess).not.toHaveBeenCalled();
+    await chooseConfirmation("Keep my edits");
+    expect(trace.outline).toBe(edited);
+    expect(trace.sensitivity).toBe(128);
+    await stepSensitivity();
+    await chooseConfirmation("Replace manual edits");
+    expect(reprocess).toHaveBeenCalledExactlyOnceWith({ sensitivity: 129, includeInteriorHoles: false });
+    expect(trace.sensitivity).toBe(129);
+  });
+
+  it("does not ask after all manual vertex edits have been undone", async () => {
+    await prepareOutline();
+    await React.act(async () => {
+      trace.dispatch({ type: "OUTLINE_COMMITTED", outline: [...detectedOutline], label: "Remove contour node" });
+      trace.dispatch({ type: "UNDO" });
+    });
+    await stepSensitivity();
+    expect(reprocess).toHaveBeenCalledOnce();
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it("applies the interior-hole option immediately through the same detection flow", async () => {
+    await prepareOutline();
+    await React.act(async () => host.querySelector<HTMLButtonElement>('#include-interior-holes')!.click());
+    expect(reprocess).toHaveBeenCalledExactlyOnceWith({ sensitivity: 128, includeInteriorHoles: true });
+    expect(trace.includeInteriorHoles).toBe(true);
   });
 });

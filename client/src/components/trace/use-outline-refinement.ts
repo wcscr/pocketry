@@ -9,10 +9,12 @@ import type { Outline } from "@shared/geometry/types";
 import {
   marginToPixels,
   reprocessOutline,
+  withoutNewInteriorHoles,
   type Margin,
 } from "@/lib/image-processor";
 import { offsetOutline } from "@/lib/geometry/offset";
 import { useTrace } from "@/state/trace-store";
+import { useToast } from "@/hooks/use-toast";
 
 export type OutlineRefiner = (
   rawOutline: Outline,
@@ -37,6 +39,7 @@ export function useOutlineRefinement(
   refineOutline: OutlineRefiner = reprocessOutline,
   offsetEditedOutline: OutlineOffsetter = offsetOutline,
 ): void {
+  const { toast } = useToast();
   const {
     outline,
     rawOutline,
@@ -45,6 +48,7 @@ export function useOutlineRefinement(
     margin,
     calibration,
     imageRotation,
+    history,
     dispatch,
   } = useTrace();
   const detectionSignature = JSON.stringify([tolerancePx, smoothing]);
@@ -52,6 +56,7 @@ export function useOutlineRefinement(
   const previousDetectionSignature = useRef(detectionSignature);
   const previousScaleMmPerPx = useRef(scaleMmPerPx);
   const previousImageRotation = useRef(imageRotation);
+  const entry = history.stack[history.index];
 
   useEffect(() => {
     const detectionSettingsChanged =
@@ -68,20 +73,26 @@ export function useOutlineRefinement(
     // scale-change offset again would double-adjust the physical margin.
     if (imageRotated) return;
 
-    // DETECTED already applies the current settings. Detail and smoothing are
-    // intentionally re-derived from the dense detector result. Margin changes,
-    // by contrast, are committed directly from the current edited contour in
-    // TraceControlsPanel and must never come through this raw-outline path.
+    // Undo restores both the exact contour and its controls. Do not refine an
+    // already-restored snapshot a second time.
+    if (detectionSettingsChanged && !scaleChanged &&
+        entry?.tolerancePx === tolerancePx && entry?.smoothing === smoothing) return;
+
+    // Detection supplies a dense baseline; a manual edit replaces that base.
+    // Margin changes are committed directly by TraceControlsPanel.
     if ((!detectionSettingsChanged && !scaleChanged) || rawOutline.length === 0) {
       return;
     }
     let cancelled = false;
 
     const refinement = detectionSettingsChanged
-      ? refineOutline(rawOutline, {
+      ? refineOutline(entry?.refinementBase ?? rawOutline, {
           detect: { tolerancePx, smoothing },
-          margin,
+          margin: null,
           calibration,
+        }).then((refined) => {
+          const deltaPx = marginToPixels(margin, calibration) - (entry?.baselineMarginPx ?? 0);
+          return deltaPx === 0 ? refined : offsetEditedOutline(refined, deltaPx);
         })
       : (() => {
           const previousMarginPx =
@@ -96,7 +107,14 @@ export function useOutlineRefinement(
         })();
 
     void refinement.then((refined) => {
-      if (!cancelled) dispatch({ type: "OUTLINE_REFINED", outline: refined });
+      if (!cancelled) {
+        dispatch({
+          type: "OUTLINE_REFINED",
+          outline: withoutNewInteriorHoles(refined, outline),
+        });
+      }
+    }).catch(() => {
+      if (!cancelled) toast({ title: "Could not refine outline", description: "Your current contour has been kept. Try a smaller adjustment.", variant: "destructive" });
     });
 
     return () => {
@@ -112,7 +130,9 @@ export function useOutlineRefinement(
     scaleMmPerPx,
     imageRotation,
     dispatch,
+    entry,
     refineOutline,
     offsetEditedOutline,
+    toast,
   ]);
 }

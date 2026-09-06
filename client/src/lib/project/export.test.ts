@@ -42,7 +42,7 @@ describe("portable model export naming", () => {
     const source = structuredClone(doc);
     const project = prepareProjectExport(source, "Layout 2", "", date);
     source.spec.gridX = 6;
-    expect(parseProjectDoc(JSON.parse(await project.backup.text()))).toEqual(doc);
+    expect(parseProjectDoc(JSON.parse(await project.backup.text()))).toEqual({ ...doc, name: "Layout 2" });
     expect(project.backup.type).toBe("application/json");
   });
 });

@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PROJECT_SCHEMA_VERSION, type ProjectDoc } from "@shared/gridfinity/project";
 import { parseBinSpec } from "@shared/gridfinity/types";
+import airdusterV9 from "@shared/gridfinity/fixtures/airduster-v9.pocketry.json";
+import { prepareProjectExport } from "./export";
 
 const memory = new Map<string, unknown>();
 vi.mock("idb-keyval", () => ({
@@ -45,6 +47,29 @@ afterEach(() => {
 });
 
 describe("current project persistence", () => {
+  it("opens, saves, reloads and exports every item in the v9 Airduster project", async () => {
+    memory.set("tooltrace:project:v1", structuredClone(airdusterV9));
+    const migrated = (await loadProjectDoc())!;
+    expect(migrated).toEqual({ ...airdusterV9, schemaVersion: PROJECT_SCHEMA_VERSION });
+    await saveProjectToLibrary(migrated, "New Airduster Layout", null);
+    const reloaded = (await loadProjectDoc())!;
+    const exported = JSON.parse(await prepareProjectExport(reloaded, reloaded.name!).backup.text());
+    expect(exported).toEqual({ ...airdusterV9, schemaVersion: PROJECT_SCHEMA_VERSION, name: "New Airduster Layout" });
+  });
+  it("never overwrites an unsupported working copy during autosave", async () => {
+    const future = { schemaVersion: 999, valuable: { outlines: [1, 2, 3] } };
+    memory.set("tooltrace:project:v1", future);
+    expect(await saveProjectDoc(DOC)).toBe(false);
+    expect(memory.get("tooltrace:project:v1")).toEqual(future);
+  });
+
+  it("preserves an unreadable library envelope instead of replacing it with an empty library", async () => {
+    const unknownLibrary = { schemaVersion: 99, projects: [{ important: true }] };
+    memory.set("tooltrace:project-library:v1", unknownLibrary);
+    expect(await saveProjectDoc(DOC)).toBe(false);
+    await expect(saveProjectToLibrary(DOC, "New", null)).rejects.toThrow("kept intact");
+    expect(memory.get("tooltrace:project-library:v1")).toEqual(unknownLibrary);
+  });
   it("round-trips the crash-safe working copy", async () => {
     await saveProjectDoc(DOC);
     const loaded = await loadProjectDoc();
@@ -84,7 +109,7 @@ describe("named project library", () => {
     expect(library.projects).toHaveLength(1);
     expect(library.projects[0].name).toBe("Wrench tray");
     expect(library.activeProjectId).toBe(library.projects[0].id);
-    expect(await loadProjectDoc()).toEqual(DOC);
+    expect(await loadProjectDoc()).toEqual({ ...DOC, name: "Wrench tray" });
   });
 
   it("renames and updates the active project instead of duplicating it", async () => {

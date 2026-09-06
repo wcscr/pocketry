@@ -19,6 +19,7 @@ import {
   GRID_PITCH_DIVISOR,
   gridPitchMm,
   resizeGridToStandardCellSpan,
+  changeGridPitchPreservingSize,
   standardCellSpan,
   R_F2,
   STACKING_LIP_DEPTH,
@@ -43,6 +44,14 @@ import {
  * the derived identities go red.
  */
 describe("gridfinity standard constants", () => {
+  it("preserves physical dimensions through pitch changes and refuses incompatible coarsening", () => {
+    const original = { gridX: 4, gridY: 3, gridPitch: "full" as const };
+    const half = changeGridPitchPreservingSize(original, "half")!;
+    expect(half).toEqual({ gridX: 8, gridY: 6, gridPitch: "half" });
+    expect(binFootprintMm(half.gridX, half.gridPitch)).toBe(binFootprintMm(original.gridX));
+    expect(changeGridPitchPreservingSize(half, "full")).toEqual(original);
+    expect(changeGridPitchPreservingSize({ gridX: 7, gridY: 6, gridPitch: "half" }, "full")).toBeNull();
+  });
   it("base profile is the documented chamfer–straight–chamfer line", () => {
     expect(BASE_PROFILE).toEqual([
       [0, 0],

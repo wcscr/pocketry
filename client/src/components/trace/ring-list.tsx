@@ -1,6 +1,7 @@
 import { Circle, Square, Trash2 } from "lucide-react";
 
 import { ringArea } from "@shared/geometry/rings";
+import { mmPerPixel } from "@shared/geometry/scale";
 import { OUTER_RING, type RingRef } from "@shared/geometry/types";
 
 import { Button } from "@/components/ui/button";
@@ -27,14 +28,7 @@ export function RingList(): JSX.Element {
     );
   }
 
-  const mmPerPx =
-    calibration && imageSize.height > 0
-      ? calibration.lengthMm /
-        Math.hypot(
-          calibration.endX - calibration.startX,
-          calibration.endY - calibration.startY,
-        )
-      : null;
+  const mmPerPx = mmPerPixel(calibration);
 
   const describeArea = (areaPx: number): string => {
     if (mmPerPx === null) return `${Math.round(areaPx)} px²`;
@@ -62,8 +56,21 @@ export function RingList(): JSX.Element {
   // A shell may only be deleted while another shape survives; deleting the
   // last one would leave the holes with nothing to belong to.
   const shellCount = outline.length;
+  const tinyShapes = mmPerPx === null ? [] : outline.filter((shape) => ringArea(shape.outer) * mmPerPx ** 2 < 2);
 
   return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-2">
+        <Button size="sm" variant="outline" disabled={!outline.some((shape) => shape.holes.length)}
+          onClick={() => { dispatch({ type: "OUTLINE_COMMITTED", outline: outline.map((shape) => ({ ...shape, holes: [] })), label: "Remove all interior holes" }); dispatch({ type: "SELECT_RING", selection: null }); }}>
+          Remove all holes
+        </Button>
+        <Button size="sm" variant="outline" disabled={!tinyShapes.length || tinyShapes.length === outline.length}
+          onClick={() => { dispatch({ type: "OUTLINE_COMMITTED", outline: outline.filter((shape) => !tinyShapes.includes(shape)), label: "Remove tiny shapes" }); dispatch({ type: "SELECT_RING", selection: null }); }}>
+          Remove specks ({tinyShapes.length})
+        </Button>
+      </div>
+      <p className="text-[11px] text-muted-foreground">Specks are separate shapes smaller than 2 mm². Removal can be undone.</p>
     <ul className="space-y-0.5">
       {rings.map(({ ref, ring }) => {
         const isOuter = ref.ringIndex === OUTER_RING;
@@ -118,5 +125,6 @@ export function RingList(): JSX.Element {
         );
       })}
     </ul>
+    </div>
   );
 }
