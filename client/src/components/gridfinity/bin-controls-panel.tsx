@@ -2106,7 +2106,7 @@ export function BinControlsPanel({
       </AlertDialog>
 
       <Dialog open={threeMfDialogOpen} onOpenChange={setThreeMfDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="w-[calc(100%-2rem)] sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Include multiple colors in the 3MF?</DialogTitle>
             <DialogDescription>
@@ -2114,10 +2114,10 @@ export function BinControlsPanel({
               selected in Materials.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-2">
+          <div className="grid min-w-0 gap-2">
             <Button
               variant="outline"
-              className="h-auto justify-start px-3 py-2.5 text-left"
+              className="h-auto w-full min-w-0 items-start justify-start whitespace-normal px-3 py-2.5 text-left"
               disabled={exporting || hasErrors}
               onClick={() => {
                 setThreeMfDialogOpen(false);
@@ -2125,8 +2125,8 @@ export function BinControlsPanel({
               }}
               data-testid="button-export-single-color-3mf"
             >
-              <Box className="mr-2 h-4 w-4 shrink-0" />
-              <span>
+              <Box className="mr-2 mt-0.5 h-4 w-4 shrink-0" />
+              <span className="min-w-0 flex-1">
                 <span className="block text-sm font-medium">Single-color 3MF</span>
                 <span className="block text-[11px] font-normal text-muted-foreground">
                   One body using the selected bin color.
@@ -2134,7 +2134,7 @@ export function BinControlsPanel({
               </span>
             </Button>
             <Button
-              className="h-auto justify-start px-3 py-2.5 text-left"
+              className="h-auto w-full min-w-0 items-start justify-start whitespace-normal px-3 py-2.5 text-left"
               disabled={exporting || hasErrors || !hasSelectedMulticolor}
               onClick={() => {
                 setThreeMfDialogOpen(false);
@@ -2142,8 +2142,8 @@ export function BinControlsPanel({
               }}
               data-testid="button-export-multicolor-3mf"
             >
-              <Palette className="mr-2 h-4 w-4 shrink-0" />
-              <span>
+              <Palette className="mr-2 mt-0.5 h-4 w-4 shrink-0" />
+              <span className="min-w-0 flex-1">
                 <span className="block text-sm font-medium">Multi-color 3MF</span>
                 <span className="block text-[11px] font-normal opacity-80">
                   {hasSelectedMulticolor
