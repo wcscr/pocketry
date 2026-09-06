@@ -70,6 +70,28 @@ function mountHook(
 }
 
 describe("useOutlineRefinement", () => {
+  it("refines the edited baseline, preserves deleted holes, and undoes without refining again", async () => {
+    const raw: Outline = [{ ...OUTLINE[0], holes: [[{ x: 2, y: 2 }, { x: 3, y: 2 }, { x: 2, y: 3 }]] }];
+    const edited: Outline = [{ ...OUTLINE[0], outer: [...OUTLINE[0].outer, { x: -3, y: 5 }] }];
+    const refiner = vi.fn<OutlineRefiner>(async (outline) => outline.map((shape) => ({ ...shape })));
+    const mounted = mountHook(refiner);
+    try {
+      React.act(() => {
+        mounted.store().dispatch({ type: "DETECTED", imageUrl: null, region: null, outline: raw, rawOutline: raw, svg: "" });
+        mounted.store().dispatch({ type: "OUTLINE_COMMITTED", outline: edited, label: "Remove hole and move point" });
+      });
+      await React.act(async () => { mounted.store().dispatch({ type: "SET_TOLERANCE", tolerancePx: 2 }); });
+      expect(refiner.mock.calls[0][0]).toBe(edited);
+      expect(mounted.store().outline[0].holes).toEqual([]);
+      await React.act(async () => { mounted.store().dispatch({ type: "SET_SMOOTHING", smoothing: 3 }); });
+      expect(refiner.mock.calls[1][0]).toBe(edited);
+      await React.act(async () => { mounted.store().dispatch({ type: "UNDO" }); });
+      expect(mounted.store().outline).toBe(edited);
+      expect(mounted.store().tolerancePx).toBe(1.2);
+      expect(mounted.store().smoothing).toBe(1);
+      expect(refiner).toHaveBeenCalledTimes(2);
+    } finally { mounted.unmount(); }
+  });
   it("recomputes scale-dependent margin from the edited contour", async () => {
     const rawWithDeletedHole: Outline = [
       {

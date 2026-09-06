@@ -34,6 +34,32 @@ const detected = (
 });
 
 describe("undo / redo", () => {
+  it("tracks manual edits independently of detection and refinement history", () => {
+    const hasEdits = (state: TraceState) => state.history.stack[state.history.index].hasManualEdits === true;
+    const automatic = run(initialTraceState, detected(ringA), detected(ringB),
+      { type: "OUTLINE_REFINED", outline: ringC },
+      { type: "MARGIN_COMMITTED", outline: ringB, margin: 1 });
+    expect(hasEdits(automatic)).toBe(false);
+
+    const edited = run(automatic, { type: "OUTLINE_COMMITTED", outline: ringA, label: "Move contour node" });
+    expect(hasEdits(edited)).toBe(true);
+    expect(hasEdits(traceReducer(edited, { type: "UNDO" }))).toBe(false);
+    expect(hasEdits(run(edited, { type: "UNDO" }, { type: "REDO" }))).toBe(true);
+
+    const refined = run(edited, { type: "OUTLINE_REFINED", outline: ringB },
+      { type: "MARGIN_COMMITTED", outline: ringC, margin: 2 });
+    expect(hasEdits(refined)).toBe(true);
+    const redetected = traceReducer(refined, detected(ringB));
+    expect(hasEdits(redetected)).toBe(false);
+    expect(hasEdits(traceReducer(redetected, { type: "UNDO" }))).toBe(true);
+  });
+
+  it("does not replace vertices edited while a detection result was pending", () => {
+    const edited = run(initialTraceState, detected(ringA),
+      { type: "OUTLINE_COMMITTED", outline: ringB });
+    expect(traceReducer(edited, { ...detected(ringC), expectedOutline: ringA })).toBe(edited);
+  });
+
   it("starts with nothing to undo or redo", () => {
     expect(initialTraceState.history.index).toBe(0);
     expect(initialTraceState.history.stack).toHaveLength(1);
@@ -152,15 +178,16 @@ describe("undo / redo", () => {
     expect(state.history.index).toBe(state.history.stack.length - 1);
   });
 
-  it("re-derivation from the sliders is not undoable", () => {
+  it("refinement is undoable and retains the detection baseline", () => {
     const state = run(
       initialTraceState,
       detected(ringA),
       { type: "OUTLINE_REFINED", outline: ringB },
     );
-    expect(state.history.stack).toHaveLength(1);
+    expect(state.history.stack).toHaveLength(2);
     expect(state.outline).toBe(ringB);
-    expect(state.history.stack[0].outline).toBe(ringB);
+    expect(state.history.stack[0].outline).toBe(ringA);
+    expect(traceReducer(state, { type: "UNDO" }).outline).toBe(ringA);
   });
 
   it("keeps margin changes in history with the edited contour", () => {
@@ -242,7 +269,7 @@ describe("loading a new image", () => {
       imageUrl: "c",
       fileName: "c",
     });
-    expect(state.sensitivity).toBe(90);
+    expect(state.sensitivity).toBe(128);
     expect(state.margin).toBe(0.5);
     expect(state.extrusionHeight).toBe(22);
   });

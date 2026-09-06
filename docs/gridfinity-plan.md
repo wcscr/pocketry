@@ -5,6 +5,35 @@ are pending** — G1: print `exports/bin-2x3x6.3mf` and verify grid fit and
 stacking; G3: trace a real tool, export its bin, print it, and put the tool in
 the pocket. Optional server persistence remains deferred.
 
+The September 2026 usability update makes new traces outside-silhouette-only by
+default, including after a margin closes a narrow gap. Interior holes remain an
+explicit detection option. Manual contour edits become the baseline for Detail
+and Smoothing. Sensitivity re-detects automatically on slider release (or a keyboard
+step), asking for confirmation only when the current contour includes manual
+vertex/ring edits. Cancel keeps both the edits and previous detection settings;
+undoing all manual edits removes the need for confirmation. Refinement and
+re-detection are undoable. The ruler icon consistently identifies measurement;
+scale calibration uses a separate scaling icon. Users
+can name separate objects in one photo, queue additional photos, then arrange the
+tools together. The queue survives a tab reload until its placements are saved.
+
+Bin controls now show standard-cell and millimetre dimensions, preserve physical
+size when changing grid pitch, and offer **Keep bin size fixed** for automatic
+placement. Selected pockets expose exact position and dimensions, centring and
+spacing, effective depth/floor measurements, trace-margin provenance, and a direct
+3D section view. Relevant validation messages appear beside the selected object
+and can select the affected objects. **Materials**, **View**, and **Check fit** are
+separate sections, with thin fit checks available before full model export.
+
+Project schema 10 adds optional names, the fixed-size preference, and trace-margin
+metadata. Versions 1–9 remain supported through explicit migration; the supplied
+version-9 Airduster fixture verifies all seven shapes, four placements, and two
+finger-access features survive a library save and portable JSON round trip. New
+outside-only defaults never alter imported contours. Legacy IndexedDB keys are
+retained, unreadable library records are preserved, and autosave refuses to
+overwrite an unreadable working copy. The project header reports save success or
+failure, and STL/3MF exports continue to download the editable project backup first.
+
 Nonrectangular bin footprints landed on 2026-08-27. A bin can now use a
 connected, hole-free mask at the selected full/half/quarter pitch, so a 2×2
 three-cell mask produces a true L-shaped base, body, wall, and stacking lip.
@@ -138,7 +167,7 @@ drei 9 — ^0.180 rather than the planned ^0.185, staying inside drei v9's
 supported window on React 18), the first geometry bound to the worker RPC
 (`bin.worker.ts` + `useBinGeometry`, 120 ms debounce, supersede channel,
 progress, and configurable body, pocket-floor, and stacking-rim material
-groups controlled from View Settings), magnet/screw holes ported from
+groups controlled from Materials), magnet/screw holes ported from
 `gridfinity-rebuilt-holes.scad`
 (sequential-bridging ceilings included; crush ribs later landed in G5, while
 Refined remains deferred), and
@@ -220,7 +249,7 @@ rewrite. Verify against the code before relying on any detail here.
 | Panel + canvas workspace shell | `client/src/components/layout/workspace-layout.tsx` | `autoSaveId` per workspace |
 | Vitest, node + jsdom projects | `vitest.config.ts` | geometry tests run headless with real WASM |
 
-The previously missing `ProjectDoc` is now implemented with `schemaVersion: 8`,
+The previously missing `ProjectDoc` is now implemented with `schemaVersion: 10`,
 IndexedDB autosave plus a named Project Library, explicit `.pocketry.json`
 backup import/export with legacy `.tooltrace.json` import compatibility, and
 reducer-owned undo/redo.
@@ -308,14 +337,16 @@ export; warnings do not.
 
 `server/storage.ts` has only `MemStorage` (a `Map`, wiped on restart), there is no Drizzle
 implementation and no `migrations/`, and the client never reads anything back. Instead,
-the landed client implementation uses a `ProjectDoc` with **`schemaVersion: 8`**, a
+the landed client implementation uses a `ProjectDoc` with **`schemaVersion: 10`**, a
 hand-rolled reducer history, `idb-keyval` autosave to IndexedDB (not localStorage —
 traced shapes plus thumbnails blow past 5 MB), a browser-local named Project
 Library with active-project autosave, and explicit `.pocketry.json` backup
 import/export (including legacy `.tooltrace.json` imports). Schemas 1–6 migrate
 pocket-local finger holes to bin-local coordinates while preserving their
 visible position and oblong orientation; schema 7 adds identity placement
-scales while preserving every pocket's size. The library is cross-browser code,
+scales while preserving every pocket's size. Versions 8 and 9 retain placement
+scales and finger-hole fillets; version 10 adds optional project metadata while
+preserving the imported geometry. The library is cross-browser code,
 not cross-device sync: each
 browser profile owns its own IndexedDB data.
 

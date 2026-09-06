@@ -44,6 +44,18 @@ describe("placementInsetMm", () => {
 });
 
 describe("autoPlaceFresh", () => {
+  it("keeps a fixed bin and retains oversized arrivals for manual adjustment", () => {
+    const shape = rectShape("large", 150, 100);
+    const result = autoPlaceIncremental([shape], { lip: "standard", gridX: 2, gridY: 2,
+      existing: [], shapesById: new Map([[shape.id, shape]]), keepBinSize: true });
+    expect(result.gridX).toBe(2);
+    expect(result.gridY).toBe(2);
+    expect(result.cutouts).toHaveLength(1);
+    expect(result.overflow).toBe(true);
+    const arranged = autoArrangeLayout(result.cutouts, new Map([[shape.id, shape]]), "standard", "full", [], undefined, { gridX: 2, gridY: 2 });
+    expect(arranged).toMatchObject({ gridX: 2, gridY: 2, overflow: true });
+    expect(arranged!.cutouts[0].id).toBe(result.cutouts[0].id);
+  });
   it("centres a single shape in the smallest fitting bin", () => {
     // 60×20 tool: needs interior ≥ 60+2·inset ≈ 68 → 2 cells wide, 1 deep.
     const result = autoPlaceFresh([rectShape("s1", 60, 20)], "standard");

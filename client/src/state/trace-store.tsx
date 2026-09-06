@@ -38,7 +38,7 @@ import {
   type ImageQuarterTurns,
   type ImageRotationDirection,
 } from "@/lib/geometry/image-rotation";
-import { DEFAULT_MARGIN_MM, type Margin } from "@/lib/image-processor";
+import { DEFAULT_MARGIN_MM, marginToPixels, type Margin } from "@/lib/image-processor";
 
 /**
  * The tracing workspace's state.
@@ -74,6 +74,13 @@ export interface TraceHistoryEntry {
   label: string;
   /** Physical clearance paired with this exact contour state. */
   margin: Margin;
+  /** Stable source for refinements; manual edits replace this source. */
+  refinementBase?: Outline;
+  baselineMarginPx?: number;
+  tolerancePx?: number;
+  smoothing?: number;
+  /** Vertex/ring edits since detection; follows undo/redo, unlike general history. */
+  hasManualEdits?: boolean;
 }
 
 export interface TraceState {
@@ -103,6 +110,7 @@ export interface TraceState {
 
   /** Bias on the automatic threshold; 128 is "trust the automatic level". */
   sensitivity: number;
+  includeInteriorHoles: boolean;
   /** Ramer-Douglas-Peucker tolerance, source pixels. */
   tolerancePx: number;
   /** Taubin smoothing passes. */
@@ -160,6 +168,7 @@ export const initialTraceState: TraceState = {
     index: 0,
   },
   sensitivity: 128,
+  includeInteriorHoles: false,
   tolerancePx: 1.2,
   smoothing: 1,
   // The preference exists before calibration, but marginToPixels keeps it
@@ -201,8 +210,11 @@ export type TraceAction =
       imageUrl: string | null;
       /** Region used by this asynchronous result, for stale-result rejection. */
       region: Rect | null;
+      /** Reject a result if a contour edit landed while detection was running. */
+      expectedOutline?: Outline;
     }
   | { type: "OUTLINE_REFINED"; outline: Outline }
+  | { type: "SET_INCLUDE_INTERIOR_HOLES"; include: boolean }
   /** A committed edit: pushes onto the undo stack. */
   | { type: "OUTLINE_COMMITTED"; outline: Outline; label?: string }
   /** An offset of the current edited contour and its physical setting. */
@@ -259,11 +271,12 @@ function pushHistory(
   outline: Outline,
   label: string,
   margin: Margin,
+  refinement: Partial<TraceHistoryEntry> = {},
 ): TraceState["history"] {
   // Anything redone-past is discarded, as in every undo stack.
   const stack = [
     ...history.stack.slice(0, history.index + 1),
-    { outline, label, margin },
+    { ...refinement, outline, label, margin },
   ];
   const trimmed = stack.length > HISTORY_LIMIT ? stack.slice(-HISTORY_LIMIT) : stack;
   return { stack: trimmed, index: trimmed.length - 1 };
@@ -324,8 +337,9 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         imageUrl: action.imageUrl,
         sourceRevision: state.sourceRevision + 1,
         fileName: action.fileName,
-        // Settings are a user preference, not image data, so they carry over.
-        sensitivity: state.sensitivity,
+        // Keep refinement preferences; reset the image-dependent sensitivity.
+        sensitivity: 128,
+        includeInteriorHoles: state.includeInteriorHoles,
         tolerancePx: state.tolerancePx,
         smoothing: state.smoothing,
         exportFormat: state.exportFormat,
@@ -389,6 +403,11 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
           ...state.history,
           stack: state.history.stack.map((entry) => ({
             ...entry,
+            refinementBase: entry.refinementBase && rotateImageOutline(
+              entry.refinementBase, state.imageSize, imageSize, action.direction,
+            ),
+            baselineMarginPx: entry.baselineMarginPx === undefined ? undefined
+              : entry.baselineMarginPx * imageSize.width / state.imageSize.height,
             outline: rotateImageOutline(
               entry.outline,
               state.imageSize,
@@ -454,6 +473,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
       // has loaded or after its region was cleared/replaced. Never let that
       // stale result overwrite the current Trace session.
       if (action.imageUrl !== state.imageUrl) return state;
+      if (action.expectedOutline && action.expectedOutline !== state.outline) return state;
       if (
         action.region !== null &&
         (!state.region ||
@@ -471,31 +491,25 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         svg: action.svg,
         detectedImageUrl: action.imageUrl,
         selection: null,
-        history: {
-          stack: [
-            {
-              outline: action.outline,
-              label: "Detected outline",
-              margin: state.margin,
-            },
-          ],
-          index: 0,
-        },
+        history: pushHistory(
+          state.rawOutline.length > 0 && state.detectedImageUrl === action.imageUrl ? state.history : { stack: [], index: -1 },
+          action.outline, "Detected outline", state.margin,
+          { refinementBase: action.rawOutline, baselineMarginPx: 0, hasManualEdits: false,
+            tolerancePx: state.tolerancePx, smoothing: state.smoothing },
+        ),
       };
 
     case "OUTLINE_REFINED": {
-      // Slider-driven re-derivation is not an undoable edit.
-      // It still becomes the baseline for the next manual edit, otherwise an
-      // undo after moving one node would silently revert all detection sliders.
-      const stack = [...state.history.stack];
-      stack[state.history.index] = {
-        ...stack[state.history.index],
-        outline: action.outline,
-      };
+      const current = state.history.stack[state.history.index];
+      const entry = { ...current, outline: action.outline, label: "Refine outline",
+        tolerancePx: state.tolerancePx, smoothing: state.smoothing };
+      const history = current?.label === "Refine outline"
+        ? { ...state.history, stack: state.history.stack.slice(0, state.history.index + 1).map((item, index) => index === state.history.index ? entry : item) }
+        : pushHistory(state.history, action.outline, entry.label, state.margin, entry);
       return {
         ...state,
         outline: action.outline,
-        history: { ...state.history, stack },
+        history,
       };
     }
 
@@ -510,6 +524,9 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
           action.outline,
           action.label ?? "Edit contour",
           state.margin,
+          { refinementBase: action.outline, hasManualEdits: true,
+            baselineMarginPx: marginToPixels(state.margin, state.calibration),
+            tolerancePx: state.tolerancePx, smoothing: state.smoothing },
         ),
       };
     }
@@ -527,6 +544,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
           action.outline,
           `Set contour margin to ${action.margin ?? 0} mm`,
           action.margin,
+          state.history.stack[state.history.index],
         ),
       };
 
@@ -540,6 +558,8 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         ...state,
         outline: state.history.stack[index].outline,
         margin: state.history.stack[index].margin,
+        tolerancePx: state.history.stack[index].tolerancePx ?? state.tolerancePx,
+        smoothing: state.history.stack[index].smoothing ?? state.smoothing,
         selection: null,
         history: { ...state.history, index },
       };
@@ -552,6 +572,8 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         ...state,
         outline: state.history.stack[index].outline,
         margin: state.history.stack[index].margin,
+        tolerancePx: state.history.stack[index].tolerancePx ?? state.tolerancePx,
+        smoothing: state.history.stack[index].smoothing ?? state.smoothing,
         selection: null,
         history: { ...state.history, index },
       };
@@ -570,6 +592,8 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         ...state,
         outline: state.history.stack[action.index].outline,
         margin: state.history.stack[action.index].margin,
+        tolerancePx: state.history.stack[action.index].tolerancePx ?? state.tolerancePx,
+        smoothing: state.history.stack[action.index].smoothing ?? state.smoothing,
         selection: null,
         history: { ...state.history, index: action.index },
       };
@@ -636,6 +660,9 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
 
     case "SET_SENSITIVITY":
       return { ...state, sensitivity: action.sensitivity };
+
+    case "SET_INCLUDE_INTERIOR_HOLES":
+      return { ...state, includeInteriorHoles: action.include };
 
     case "SET_TOLERANCE":
       return { ...state, tolerancePx: action.tolerancePx };

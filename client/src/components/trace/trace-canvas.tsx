@@ -3,9 +3,9 @@ import {
   Loader2,
   Maximize2,
   MousePointer2,
-  MoveDiagonal2,
   Redo2,
   Ruler,
+  Scaling,
   Spline,
   Undo2,
   ZoomIn,
@@ -730,10 +730,10 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
             <ModeButton mode="pan" icon={MousePointer2} label="Select" />
             <ModeButton mode="region" icon={Crop} label="Region" />
             <ModeButton mode="edit" icon={Spline} label="Edit points" />
-            <ModeButton mode="calibrate" icon={Ruler} label="Set scale" />
+            <ModeButton mode="calibrate" icon={Scaling} label="Set scale" />
             <ModeButton
               mode="measure"
-              icon={MoveDiagonal2}
+              icon={Ruler}
               label="Measure distance"
               disabled={measurementMmPerPx === null}
             />

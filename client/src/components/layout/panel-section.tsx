@@ -193,12 +193,7 @@ export interface PanelSettingsIndexProps {
  * `scrollIntoView()` also scrolls a mobile drawer ancestor, which can carry the
  * map itself behind the drawer's clipped top edge.
  */
-export function PanelSettingsIndex({
-  ariaLabel,
-  testIdPrefix,
-  items,
-}: PanelSettingsIndexProps): JSX.Element {
-  const revealSection = (id: string) => {
+export function revealPanelSection(id: string, items: readonly { id: string }[]): void {
     const target = document.getElementById(id);
     if (!target) return;
     const scroller = target.parentElement;
@@ -266,7 +261,13 @@ export function PanelSettingsIndex({
     } else {
       scroll();
     }
-  };
+  }
+
+export function PanelSettingsIndex({
+  ariaLabel,
+  testIdPrefix,
+  items,
+}: PanelSettingsIndexProps): JSX.Element {
 
   return (
     <nav
@@ -287,13 +288,13 @@ export function PanelSettingsIndex({
               key={item.id}
               type="button"
               className={cn(
-                "flex min-w-0 items-center gap-1.5 rounded px-2 py-1 text-[10px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40",
+                "flex min-w-0 items-center gap-1.5 rounded px-2 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40",
                 styles.index,
               )}
               aria-controls={item.id}
               disabled={item.disabled}
               title={item.disabled ? item.disabledReason : undefined}
-              onClick={() => revealSection(item.id)}
+              onClick={() => revealPanelSection(item.id, items)}
               data-testid={`${testIdPrefix}-settings-jump-${item.label
                 .toLowerCase()
                 .replace(/\s+/g, "-")}`}
@@ -302,7 +303,7 @@ export function PanelSettingsIndex({
                 aria-hidden
                 className={cn("h-1.5 w-1.5 shrink-0 rounded-full", styles.marker)}
               />
-              <span className="truncate">{item.label}</span>
+              <span className="whitespace-normal text-left leading-tight">{item.label}</span>
             </button>
           );
         })}

@@ -1,6 +1,7 @@
 import {
   Box,
   CircleDot,
+  ClipboardCheck,
   Copy,
   Download,
   Eye,
@@ -16,7 +17,7 @@ import {
   Plus,
   RotateCcw,
   RotateCw,
-  Ruler,
+  Scaling,
   Save,
   Scissors,
   Spline,
@@ -31,6 +32,7 @@ import {
   DEFAULT_TOP_EDGE_FILLET_MM,
   MAX_OBLONG_DEEP_SCOOP_LENGTH_MM,
   MIN_OBLONG_DEEP_SCOOP_SPAN_MM,
+  resolvePocketDepth,
   type FingerHole,
   type TracedShape,
 } from "@shared/gridfinity/cutout";
@@ -38,17 +40,19 @@ import {
   binFootprintMm,
   GRID_PITCH_DIVISOR,
   resizeGridToStandardCellSpan,
+  changeGridPitchPreservingSize,
   STACKING_LIP_HEIGHT_ACTUAL,
   standardCellSpan,
   type GridPitch,
 } from "@shared/gridfinity/standard";
 import { MAX_GRID, type BinSpecInput } from "@shared/gridfinity/types";
-import { validateBinSpec, validateLayout } from "@shared/gridfinity/validate";
+import { validateBinSpec, validateLayout, type ValidationIssue } from "@shared/gridfinity/validate";
 
 import {
   PanelBody,
   PanelSection,
   PanelSettingsIndex,
+  revealPanelSection,
 } from "@/components/layout/panel-section";
 import {
   AlertDialog,
@@ -100,6 +104,7 @@ import {
 } from "@/lib/gridfinity/worker-api";
 import type { ProjectLibraryItem } from "@/lib/project/persist";
 import { cn } from "@/lib/utils";
+import { PocketMeasurements, PositionInputs } from "./pocket-measurements";
 import { useBin } from "@/state/bin-store";
 import { useShapeLibrary } from "@/state/shape-library";
 
@@ -206,13 +211,18 @@ const BIN_SETTINGS_SECTIONS = [
   { id: "bin-settings-project", label: "Project", tone: "slate" },
   { id: "bin-settings-size", label: "Size", tone: "blue" },
   { id: "bin-settings-construction", label: "Construction", tone: "rose" },
-  { id: "bin-settings-pockets", label: "Tool Cutouts", tone: "violet" },
-  { id: "bin-settings-finger-holes", label: "Finger Holes", tone: "cyan" },
+  { id: "bin-settings-pockets", label: "Arrange", tone: "violet" },
+  { id: "bin-settings-finger-holes", label: "Finger access", tone: "cyan" },
+  { id: "bin-settings-materials", label: "Materials", tone: "amber" },
   { id: "bin-settings-view", label: "View", tone: "amber" },
+  { id: "bin-settings-fit", label: "Check fit", tone: "emerald" },
   { id: "bin-settings-export", label: "Export", tone: "emerald" },
 ] as const;
 
 export interface BinControlsPanelProps {
+  keepBinSize?: boolean;
+  onKeepBinSizeChange?: (fixed: boolean) => void;
+  saveStatus?: "saving" | "saved" | "error";
   stats: BuildBinStats | null;
   building: boolean;
   exporting: boolean;
@@ -294,6 +304,9 @@ export function BinControlsPanel({
   onStackingRimColorChange,
   stackingRimThicknessMm,
   onStackingRimThicknessChange,
+  keepBinSize = false,
+  onKeepBinSizeChange,
+  saveStatus = "saved",
 }: BinControlsPanelProps): JSX.Element {
   const {
     spec,
@@ -323,6 +336,22 @@ export function BinControlsPanel({
     ],
     [spec, cutouts, shapesById, fingerHoles],
   );
+  const revealIssue = (issue: ValidationIssue) => {
+    dispatch({ type: "SET_VIEW_MODE", viewMode: "2d" });
+    if (issue.cutoutIds?.length) {
+      const next = issue.cutoutIds.find((id) => id !== selectedCutoutId) ?? issue.cutoutIds[0];
+      dispatch({ type: "SELECT_CUTOUT", id: next });
+      revealPanelSection("bin-settings-pockets", BIN_SETTINGS_SECTIONS);
+    } else if (issue.fingerHoleIds?.length) {
+      dispatch({ type: "SELECT_FINGER_HOLE", id: issue.fingerHoleIds[0] });
+      revealPanelSection("bin-settings-finger-holes", BIN_SETTINGS_SECTIONS);
+    } else revealPanelSection("bin-settings-size", BIN_SETTINGS_SECTIONS);
+  };
+  const issueButton = (issue: ValidationIssue, index: number) => <button type="button" key={`${issue.code}-${index}`} onClick={() => revealIssue(issue)}
+    className={`block w-full rounded border px-2 py-1.5 text-left text-xs hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring ${issue.code === "cutout-overlap" ? "border-orange-500/40 text-orange-700 dark:text-orange-300" : issue.severity === "error" ? "border-destructive/40 text-destructive" : "border-amber-500/40 text-amber-700 dark:text-amber-300"}`}>
+    {issue.message} <span className="underline">Show {issue.cutoutIds?.length === 2 ? "pockets (click to switch)" : "location"}</span>
+  </button>;
+  const selectedIssues = issues.filter((issue) => (selectedCutoutId && issue.cutoutIds?.includes(selectedCutoutId)) || (selectedFingerHoleId && issue.fingerHoleIds?.includes(selectedFingerHoleId)));
   const hasErrors = issues.some((issue) => issue.severity === "error");
   const enabledFeatureCount = [
     spec.lip === "standard",
@@ -445,18 +474,23 @@ export function BinControlsPanel({
 
   return (
     <div className="flex h-full flex-col">
+      <div className="shrink-0 border-b px-3 py-2" data-testid="project-status">
+        <p className="truncate text-sm font-medium" title={currentProjectName ?? "Untitled project"}>{currentProjectName ?? "Untitled project"}</p>
+        <p className="text-[11px] text-muted-foreground" role="status">{!hydrated ? "Opening project…" : projectBusy || saveStatus === "saving" ? "Saving in this browser…" : saveStatus === "error" ? "Could not save. Download an editable project to keep your work." : "Saved in this browser"}</p>
+      </div>
       <PanelSettingsIndex
         ariaLabel="Find bin settings"
         testIdPrefix="bin"
         items={BIN_SETTINGS_SECTIONS}
       />
+      {selectedIssues.length > 0 && <div className="max-h-32 shrink-0 space-y-1 overflow-y-auto border-b p-2" data-testid="selected-object-issues" aria-label="Issues for selected object">{selectedIssues.map(issueButton)}</div>}
       <PanelBody className="flex-1">
         <PanelSection
           id="bin-settings-project"
           title="Project"
           icon={FolderOpen}
           tone="slate"
-          summary={projectBusy ? "Saving…" : currentProjectName ? "Saved" : "Draft"}
+          summary={projectBusy ? "Saving…" : activeProjectId ? "Library" : "Draft"}
           defaultOpen={false}
           className="scroll-mt-16"
         >
@@ -464,6 +498,7 @@ export function BinControlsPanel({
             hydrated={hydrated}
             libraryReady={projectLibraryReady}
             busy={projectBusy}
+            saveStatus={saveStatus}
             activeProjectId={activeProjectId}
             currentProjectName={currentProjectName}
             projects={projects}
@@ -480,7 +515,7 @@ export function BinControlsPanel({
         <PanelSection
           id="bin-settings-size"
           title="Bin size"
-          icon={Ruler}
+          icon={Scaling}
           tone="blue"
           summary={`${formatUnitCount(widthCellSpan)} × ${formatUnitCount(lengthCellSpan)} × ${formatUnitCount(spec.heightUnits)}u`}
           className="scroll-mt-16"
@@ -491,8 +526,10 @@ export function BinControlsPanel({
               value={spec.gridPitch}
               onValueChange={(value) => {
                 const gridPitch = value as GridPitch;
+                const resized = changeGridPitchPreservingSize(spec, gridPitch);
+                if (!resized || resized.gridX > MAX_GRID || resized.gridY > MAX_GRID || spec.footprint.kind !== "rectangle") return;
                 patchSpec({
-                  gridPitch,
+                  ...resized,
                   ...(gridPitch === "full"
                     ? {}
                     : {
@@ -507,12 +544,16 @@ export function BinControlsPanel({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="full">Full · 42 mm</SelectItem>
-                <SelectItem value="half">Half · 21 mm</SelectItem>
-                <SelectItem value="quarter">Quarter · 10.5 mm</SelectItem>
+                {(["full", "half", "quarter"] as const).map((pitch) => {
+                  const resized = changeGridPitchPreservingSize(spec, pitch);
+                  const available = resized && resized.gridX <= MAX_GRID && resized.gridY <= MAX_GRID && spec.footprint.kind === "rectangle";
+                  return <SelectItem key={pitch} value={pitch} disabled={!available}>{pitch === "full" ? "Full · 42 mm" : pitch === "half" ? "Half · 21 mm" : "Quarter · 10.5 mm"}{!available ? " (size incompatible)" : ""}</SelectItem>;
+                })}
               </SelectContent>
             </Select>
           </div>
+          <p className="text-[11px] text-muted-foreground">Pitch changes preserve the outer size. A coarser pitch needs whole cells; custom footprints keep their current pitch.</p>
+          <FeatureSwitch label="Keep bin size fixed" description="Adding tools keeps these dimensions. Tools that do not fit stay visible for adjustment." checked={keepBinSize} onChange={(fixed) => onKeepBinSizeChange?.(fixed)} />
           {spec.footprint.kind === "rectangle" ? (
             <>
               <CellSlider
@@ -542,7 +583,7 @@ export function BinControlsPanel({
             <div className="flex items-baseline justify-between">
               <Label className="text-xs">Height</Label>
               <span className="text-xs tabular-nums text-muted-foreground">
-                {formatUnitCount(spec.heightUnits)} u · {spec.heightUnits * 7} mm
+                <DraftNumberInput className="inline-block h-8 w-20" aria-label="Bin height in units" value={spec.heightUnits} min={1} max={MAX_HEIGHT_UNITS_UI} step={0.5} normalize={(value) => Math.round(value * 2) / 2} onValueChange={(heightUnits) => patchSpec({ heightUnits }, true)} onValueCommit={(heightUnits) => patchSpec({ heightUnits })} /> u · {spec.heightUnits * 7} mm
               </span>
             </div>
             <Slider
@@ -565,7 +606,7 @@ export function BinControlsPanel({
               : ""}
           </p>
           <p className="text-xs text-muted-foreground" data-testid="bin-footprint-summary">
-            {occupiedCellCount(spec)} of {spec.gridX * spec.gridY} cells occupied
+            {occupiedCellCount(spec)} of {spec.gridX * spec.gridY} {spec.gridPitch}-pitch cells occupied
             {spec.footprint.kind === "custom" ? " · custom footprint" : ""}
           </p>
           {building && (
@@ -758,7 +799,7 @@ export function BinControlsPanel({
         <PanelSection
           key={cutouts.length > 0 ? "pockets" : "pockets-empty"}
           id="bin-settings-pockets"
-          title="Tool Cutout Settings"
+          title="Arrange pockets"
           icon={Scissors}
           tone="violet"
           summary={`${cutouts.length} pocket${cutouts.length === 1 ? "" : "s"}`}
@@ -778,10 +819,7 @@ export function BinControlsPanel({
               >
                 <MousePointerClick className="mt-0.5 h-4 w-4 shrink-0" />
                 <p>
-                  <span className="font-semibold">Select a tool contour to edit it.</span>{" "}
-                  Click it in the Layout view or choose its pocket below. Once
-                  selected, click the tool name itself to rename it; the remaining
-                  contour, depth, clearance, and edge options appear below.
+                  Select a pocket in the list or Layout view. Click its name to rename it.
                 </p>
               </div>
               <Button
@@ -878,6 +916,7 @@ export function BinControlsPanel({
 
           {selectedCutout && selectedShape && (
             <div className="space-y-3 border-t pt-3">
+              <PocketMeasurements cutout={selectedCutout} shape={selectedShape} setScale={setPocketScale} inspect={onSectionChange} />
               <Button
                 variant={editorMode === "contour" ? "default" : "outline"}
                 size="sm"
@@ -1044,12 +1083,13 @@ export function BinControlsPanel({
                 <Select
                   value={selectedCutout.depth.mode}
                   onValueChange={(mode) => {
+                    const resolved = resolvePocketDepth(spec, selectedCutout.depth);
                     const depth =
                       mode === "through"
                         ? ({ mode: "through" } as const)
                         : mode === "mm"
-                          ? ({ mode: "mm", value: 10 } as const)
-                          : ({ mode: "remaining", floorThicknessMm: 7 } as const);
+                          ? ({ mode: "mm", value: Math.max(0.1, resolved.depthMm ?? resolved.infillTopZ - 7) } as const)
+                          : ({ mode: "remaining", floorThicknessMm: Math.max(0, resolved.floorZ ?? 7) } as const);
                     dispatch({
                       type: "UPDATE_CUTOUT",
                       id: selectedCutout.id,
@@ -1062,7 +1102,7 @@ export function BinControlsPanel({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="remaining">To the base</SelectItem>
+                    <SelectItem value="remaining">Keep floor thickness</SelectItem>
                     <SelectItem value="mm">Fixed depth</SelectItem>
                     <SelectItem value="through">Through</SelectItem>
                   </SelectContent>
@@ -1070,6 +1110,7 @@ export function BinControlsPanel({
                 {selectedCutout.depth.mode === "mm" && (
                   <DraftNumberInput
                     className="h-8 w-20"
+                    aria-label="Pocket cut depth in millimetres"
                     value={selectedCutout.depth.value}
                     min={1}
                     step={1}
@@ -1084,6 +1125,9 @@ export function BinControlsPanel({
                   />
                 )}
               </div>
+
+              {selectedCutout.depth.mode === "remaining" && <MmSlider label="Remaining floor thickness" value={selectedCutout.depth.floorThicknessMm} min={0} max={Math.max(7, spec.heightUnits * 7)} step={0.5}
+                onChange={(floorThicknessMm, transient) => dispatch({ type: "UPDATE_CUTOUT", id: selectedCutout.id, patch: { depth: { mode: "remaining", floorThicknessMm } }, transient, historyLabel: "Change remaining floor" })} />}
 
               <MmSlider
                 label="Extra pocket clearance"
@@ -1161,7 +1205,7 @@ export function BinControlsPanel({
         <PanelSection
           key={fingerHoles.length > 0 ? "finger-holes" : "finger-holes-empty"}
           id="bin-settings-finger-holes"
-          title="Finger Holes"
+          title="Finger access"
           icon={CircleDot}
           tone="cyan"
           summary={`${fingerHoles.length} hole${fingerHoles.length === 1 ? "" : "s"}`}
@@ -1251,6 +1295,7 @@ export function BinControlsPanel({
 
             {selectedFingerHole && (
               <div className="space-y-2 border-t pt-3">
+                <PositionInputs position={selectedFingerHole.center} onChange={(center, transient) => dispatch({ type: "UPDATE_FINGER_HOLE", id: selectedFingerHole.id, patch: { center }, transient, historyLabel: "Position finger access" })} />
                 <Select
                   value={selectedFingerHole.kind}
                   onValueChange={(kind) => {
@@ -1553,16 +1598,12 @@ export function BinControlsPanel({
         </PanelSection>
 
         <PanelSection
-          id="bin-settings-view"
-          title="View Settings"
-          icon={Eye}
+          id="bin-settings-materials"
+          title="Materials"
+          icon={Palette}
           tone="amber"
-          summary={
-            section
-              ? "Colors · cut open"
-              : `${activeColorCount} color${activeColorCount === 1 ? "" : "s"}`
-          }
-          defaultOpen={section !== null}
+          summary={`${activeColorCount} colors`}
+          defaultOpen={false}
           className="scroll-mt-16"
         >
           <div
@@ -1701,6 +1742,9 @@ export function BinControlsPanel({
             Accent thickness replaces existing material downward from each
             original surface; it never adds height to the bin.
           </p>
+        </PanelSection>
+        <PanelSection id="bin-settings-view" title="View" icon={Eye} tone="amber" defaultOpen={section !== null} summary={section ? "Cut open" : "Whole bin"}>
+          <p className="text-xs text-muted-foreground">These controls only change the preview. Exports always contain the complete bin.</p>
           <FeatureSwitch
             label="Cut the preview open"
             description="Slice the 3D view to inspect pockets"
@@ -1750,120 +1794,14 @@ export function BinControlsPanel({
           )}
         </PanelSection>
 
-        <PanelSection
-          id="bin-settings-export"
-          title="Export & validation"
-          icon={Download}
-          tone="emerald"
-          summary={
-            hasErrors
-              ? "Needs attention"
-              : building
-                ? stats
-                  ? "Updating"
-                  : "Building"
-                : cutouts.length === 0 && fingerHoles.length === 0
-                  ? "No cutouts"
-                : stats
-                  ? "Ready"
-                  : "No preview"
-          }
-          defaultOpen={hasErrors}
-          className="scroll-mt-16"
-        >
-          <div className="space-y-1">
-            <Label className="text-xs">Model validation</Label>
-            {stats ? (
-              <p className="text-xs tabular-nums text-muted-foreground">
-                {stats.triangles.toLocaleString()} triangles ·{" "}
-                {(stats.volumeMm3 / 1000).toFixed(1)} cm³ · ≈
-                {((stats.volumeMm3 / 1000) * 1.24).toFixed(0)} g solid PLA
-              </p>
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                {building ? "Building preview…" : "No preview yet."}
-              </p>
-            )}
-          </div>
-          {cutouts.length === 0 && fingerHoles.length === 0 ? (
-            <div
-              className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs text-amber-900 dark:text-amber-100"
-              role="status"
-              data-testid="export-no-cutouts-warning"
-            >
-              <p className="font-medium">This bin has no tool cutouts.</p>
-              <p className="mt-1 text-[11px] text-muted-foreground">
-                The final model is a solid bin and may use a large amount of
-                material. Add a tool from Trace for a fitted bin, or export only
-                if the solid model is intentional.
-              </p>
-            </div>
-          ) : null}
-          {issues.map((issue, index) => (
-            <p
-              key={`${issue.code}-${index}`}
-              className={
-                issue.severity === "error"
-                  ? "text-xs text-destructive"
-                  : "text-xs text-amber-600 dark:text-amber-500"
-              }
-            >
-              {issue.message}
-            </p>
-          ))}
-
-          <p className="text-xs text-muted-foreground">
-            Every STL or 3MF also saves a portable JSON backup of the full project.
-            Both filenames include the project name, bin size, and date/time.
-            Allow multiple downloads if your browser asks.
-          </p>
-
-          <div
-            className="space-y-2 rounded-md border border-emerald-500/30 bg-emerald-500/5 p-2.5"
-            data-testid="export-final-model"
-          >
-            <div>
-              <Label className="text-xs">Final printable model</Label>
-              <p className="text-[11px] text-muted-foreground">
-                {cutouts.length === 0 && fingerHoles.length === 0
-                  ? "Export the solid bin at print quality. Use 3MF to preserve optional material colors."
-                  : "Export the complete bin at print quality. Use 3MF to preserve optional material colors."}
-              </p>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                className="flex-1"
-                size="sm"
-                disabled={exporting || hasErrors}
-                onClick={() => setThreeMfDialogOpen(true)}
-                data-testid="button-export-3mf"
-              >
-                <Box className="mr-1.5 h-4 w-4" />
-                {exporting ? "Exporting…" : "Save 3MF"}
-              </Button>
-              <Button
-                className="flex-1"
-                variant="outline"
-                size="sm"
-                disabled={exporting || hasErrors}
-                onClick={() =>
-                  hasSelectedMulticolor
-                    ? setStlWarningOpen(true)
-                    : onExport("stl")
-                }
-                data-testid="button-export-stl"
-              >
-                Save STL
-              </Button>
-            </div>
-          </div>
-
+        <PanelSection id="bin-settings-fit" title="Check fit" icon={ClipboardCheck} tone="emerald" defaultOpen={false} summary="Thin templates">
+          <p className="text-xs text-muted-foreground">Print a thin template and try the actual tools before printing the full bin.</p>
           <div
             className="space-y-3 rounded-md border border-violet-500/25 bg-violet-500/5 p-2.5"
             data-testid="export-preview-layout"
           >
             <div>
-              <Label className="text-xs">Preview &amp; layout checks</Label>
+              <Label className="text-xs">Fit templates and layout</Label>
               <p className="text-[11px] text-muted-foreground">
                 Lightweight outputs for checking fit or planning a shadow board;
                 these are not the final bin model.
@@ -2018,6 +1956,106 @@ export function BinControlsPanel({
             )}
           </div>
         </PanelSection>
+
+        <PanelSection
+          id="bin-settings-export"
+          title="Export printable bin"
+          icon={Download}
+          tone="emerald"
+          summary={
+            hasErrors
+              ? "Needs attention"
+              : building
+                ? stats
+                  ? "Updating"
+                  : "Building"
+                : cutouts.length === 0 && fingerHoles.length === 0
+                  ? "No cutouts"
+                : stats
+                  ? "Ready"
+                  : "No preview"
+          }
+          defaultOpen={hasErrors}
+          className="scroll-mt-16"
+        >
+          <div className="space-y-1">
+            <Label className="text-xs">Model validation</Label>
+            {stats ? (
+              <p className="text-xs tabular-nums text-muted-foreground">
+                {stats.triangles.toLocaleString()} triangles ·{" "}
+                {(stats.volumeMm3 / 1000).toFixed(1)} cm³ · ≈
+                {((stats.volumeMm3 / 1000) * 1.24).toFixed(0)} g solid PLA
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                {building ? "Building preview…" : "No preview yet."}
+              </p>
+            )}
+          </div>
+          {cutouts.length === 0 && fingerHoles.length === 0 ? (
+            <div
+              className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs text-amber-900 dark:text-amber-100"
+              role="status"
+              data-testid="export-no-cutouts-warning"
+            >
+              <p className="font-medium">This bin has no tool cutouts.</p>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                The final model is a solid bin and may use a large amount of
+                material. Add a tool from Trace for a fitted bin, or export only
+                if the solid model is intentional.
+              </p>
+            </div>
+          ) : null}
+          <div className="space-y-1.5">{issues.map(issueButton)}</div>
+
+          <p className="text-xs text-muted-foreground">
+            Every STL or 3MF also saves a portable JSON backup of the full project.
+            Both filenames include the project name, bin size, and date/time.
+            Allow multiple downloads if your browser asks.
+          </p>
+
+          <div
+            className="space-y-2 rounded-md border border-emerald-500/30 bg-emerald-500/5 p-2.5"
+            data-testid="export-final-model"
+          >
+            <div>
+              <Label className="text-xs">Export printable bin</Label>
+              <p className="text-[11px] text-muted-foreground">
+                {cutouts.length === 0 && fingerHoles.length === 0
+                  ? "Export the solid bin at print quality. Use 3MF to preserve optional material colors."
+                  : "Export the complete bin at print quality. Use 3MF to preserve optional material colors."}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                className="flex-1"
+                size="sm"
+                disabled={exporting || hasErrors}
+                onClick={() => setThreeMfDialogOpen(true)}
+                data-testid="button-export-3mf"
+              >
+                <Box className="mr-1.5 h-4 w-4" />
+                {exporting ? "Exporting…" : "Save 3MF"}
+              </Button>
+              <Button
+                className="flex-1"
+                variant="outline"
+                size="sm"
+                disabled={exporting || hasErrors}
+                onClick={() =>
+                  hasSelectedMulticolor
+                    ? setStlWarningOpen(true)
+                    : onExport("stl")
+                }
+                data-testid="button-export-stl"
+              >
+                Save STL
+              </Button>
+            </div>
+          </div>
+
+
+        </PanelSection>
       </PanelBody>
 
       <AlertDialog
@@ -2073,7 +2111,7 @@ export function BinControlsPanel({
             <DialogTitle>Include multiple colors in the 3MF?</DialogTitle>
             <DialogDescription>
               Choose a single printable body or preserve the material colors
-              selected in View Settings.
+              selected in Materials.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-2">
@@ -2119,7 +2157,7 @@ export function BinControlsPanel({
                       ]
                         .filter(Boolean)
                         .join(" and ")} for slicer assignment.`
-                    : "Enable a floor or rim-top color in View Settings first."}
+                    : "Enable a floor or rim-top color in Materials first."}
                 </span>
               </span>
             </Button>
@@ -2165,6 +2203,7 @@ export function BinControlsPanel({
 }
 
 interface ProjectControlsProps {
+  saveStatus?: "saving" | "saved" | "error";
   hydrated: boolean;
   libraryReady: boolean;
   busy: boolean;
@@ -2194,6 +2233,7 @@ function ProjectControls({
   onNewProject,
   onExportProject,
   onImportProject,
+  saveStatus = "saved",
 }: ProjectControlsProps): JSX.Element {
   const ready = hydrated && libraryReady;
   const [saveOpen, setSaveOpen] = useState(false);
@@ -2221,9 +2261,11 @@ function ProjectControls({
         <p className="mt-0.5 text-[11px] text-muted-foreground">
           {!ready
             ? "Project actions will be ready in a moment."
-            : currentProjectName
-              ? "Saved automatically in this browser’s Project Library."
-              : "This draft resumes automatically; save it to the library to name it."}
+            : saveStatus === "error"
+              ? "Autosave is unavailable. Download an editable project to keep your work."
+              : activeProjectId
+                ? "Saved automatically in this browser’s Project Library."
+                : "This draft resumes automatically; save it to the library to name it."}
         </p>
       </div>
 
@@ -2243,14 +2285,14 @@ function ProjectControls({
               data-testid="button-save-library"
             >
               <Save className="mr-1.5 h-3.5 w-3.5" />
-              {currentProjectName ? "Rename" : "Save to library"}
+              {activeProjectId ? "Rename" : "Save to library"}
             </Button>
           </DialogTrigger>
           <DialogContent>
             <form className="contents" onSubmit={(event) => void handleSave(event)}>
               <DialogHeader>
                 <DialogTitle>
-                  {currentProjectName ? "Rename project" : "Save project to library"}
+                  {activeProjectId ? "Rename project" : "Save project to library"}
                 </DialogTitle>
                 <DialogDescription>
                   Named projects stay in this browser’s Pocketry library and update
@@ -2430,7 +2472,7 @@ function ProjectControls({
 
       <div className="space-y-1.5 border-t pt-3">
         <Label className="text-xs">Portable backup</Label>
-        <div className="flex gap-2">
+        <div className="flex flex-col gap-2">
           <Button
             variant="ghost"
             size="sm"
@@ -2439,7 +2481,7 @@ function ProjectControls({
             onClick={onExportProject}
             data-testid="button-export-project"
           >
-            Export JSON
+            Download editable project
           </Button>
           <Button
             variant="ghost"
@@ -2449,7 +2491,7 @@ function ProjectControls({
             onClick={() => importInputRef.current?.click()}
             data-testid="button-import-project"
           >
-            Import JSON
+            Open Pocketry project
           </Button>
         </div>
         <input
@@ -2464,7 +2506,7 @@ function ProjectControls({
           }}
         />
         <p className="text-[11px] text-muted-foreground">
-          JSON is for backup or transfer; downloads follow browser settings.
+          Editable .pocketry.json files preserve tools and settings. STL and 3MF are for printing.
         </p>
       </div>
     </>
@@ -2499,16 +2541,19 @@ function CellSlider({
       <div className="flex items-baseline justify-between">
         <Label className="text-xs">{label}</Label>
         <span className="text-xs tabular-nums text-muted-foreground">
-          {formatUnitCount(standardCells)} {standardCells === 1 ? "cell" : "cells"} ·{" "}
-          {binFootprintMm(cells, pitch).toFixed(1)} mm
+          <DraftNumberInput className="inline-block h-8 w-16" aria-label={`${label} in standard cells`} value={standardCells} min={step} max={MAX_GRID / divisor} step={step} normalize={(value) => Math.round(value / step) * step} onValueChange={(value) => onChange(value, true)} onValueCommit={(value) => onChange(value, false)} /> × 42 mm
         </span>
       </div>
+      <Label className="flex items-center justify-between text-xs">{label} outer size
+        <span><DraftNumberInput className="inline-block h-8 w-20" aria-label={`${label} outer size in millimetres`} value={Number(binFootprintMm(cells, pitch).toFixed(1))} min={step * 42 - 0.5} max={MAX_GRID / divisor * 42 - 0.5} step={step * 42} normalize={(value) => Math.round((value + 0.5) / (42 * step)) * 42 * step - 0.5} onValueChange={(value) => onChange((value + 0.5) / 42, true)} onValueCommit={(value) => onChange((value + 0.5) / 42, false)} /> mm</span>
+      </Label>
+      <p className="text-[11px] text-muted-foreground">Snaps to {step * 42} mm grid increments.</p>
       <Slider
         value={[standardCells]}
         onValueChange={([value]) => onChange(value, true)}
         onValueCommit={([value]) => onChange(value, false)}
         min={step}
-        max={maxGridUi(pitch) / divisor}
+        max={Math.max(standardCells, maxGridUi(pitch) / divisor)}
         step={step}
         aria-label={`${label} in standard Gridfinity cells`}
       />
@@ -2539,7 +2584,7 @@ function MmSlider({
       <div className="flex items-baseline justify-between">
         <Label className="text-xs">{label}</Label>
         <span className="text-xs tabular-nums text-muted-foreground">
-          {value.toFixed(1)} mm
+          <DraftNumberInput className="inline-block h-8 w-20" aria-label={`${label} in millimetres`} value={value} displayPrecision={2} min={min} max={max} step={step} onValueChange={(next) => onChange(next, true)} onValueCommit={(next) => onChange(next, false)} /> mm
         </span>
       </div>
       <Slider

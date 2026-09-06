@@ -1,6 +1,7 @@
 import {
   createContext,
   useContext,
+  useEffect,
   useMemo,
   useReducer,
   type Dispatch,
@@ -503,7 +504,11 @@ export interface BinStore extends BinState {
 const BinContext = createContext<BinStore | null>(null);
 
 export function BinProvider({ children }: { children: ReactNode }): JSX.Element {
-  const [state, dispatch] = useReducer(reducer, INITIAL);
+  const [state, dispatch] = useReducer(reducer, INITIAL, (initial): BinState => {
+    try { return { ...initial, viewMode: sessionStorage.getItem("pocketry:bin-view") === "2d" ? "2d" : "3d" }; }
+    catch { return initial; }
+  });
+  useEffect(() => { try { sessionStorage.setItem("pocketry:bin-view", state.viewMode); } catch { /* View preference is optional. */ } }, [state.viewMode]);
   const value = useMemo<BinStore>(
     () => ({
       ...state,

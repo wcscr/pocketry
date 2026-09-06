@@ -14,6 +14,8 @@ export interface DraftNumberInputProps
     "defaultValue" | "onChange" | "type" | "value"
   > {
   value: number;
+  /** Round only the display; focusing and leaving it alone preserves stored precision. */
+  displayPrecision?: number;
   onValueChange: (value: number) => void;
   /** Called only when a valid draft is explicitly committed by blur or Enter. */
   onValueCommit?: (value: number) => void;
@@ -30,6 +32,7 @@ export interface DraftNumberInputProps
  */
 export function DraftNumberInput({
   value,
+  displayPrecision,
   onValueChange,
   onValueCommit,
   normalize = (next) => next,
@@ -40,12 +43,16 @@ export function DraftNumberInput({
   onKeyDown,
   ...props
 }: DraftNumberInputProps): JSX.Element {
-  const [draft, setDraft] = useState(String(value));
+  const format = (number: number) => String(
+    displayPrecision === undefined ? number : Number(number.toFixed(displayPrecision)),
+  );
+  const [draft, setDraft] = useState(format(value));
   const focused = useRef(false);
+  const edited = useRef(false);
 
   useEffect(() => {
-    if (!focused.current) setDraft(String(value));
-  }, [value]);
+    if (!focused.current) setDraft(format(value));
+  }, [value, displayPrecision]);
 
   const parsedDraft = (text: string): number | null => {
     if (text.trim() === "") return null;
@@ -61,12 +68,12 @@ export function DraftNumberInput({
   const commit = (text: string, revertInvalid: boolean) => {
     const parsed = parsedDraft(text);
     if (parsed === null) {
-      if (revertInvalid) setDraft(String(value));
+      if (revertInvalid) setDraft(format(value));
       return;
     }
     onValueChange(parsed);
     if (revertInvalid) {
-      setDraft(String(parsed));
+      setDraft(format(parsed));
       onValueCommit?.(parsed);
     }
   };
@@ -76,7 +83,7 @@ export function DraftNumberInput({
     if (event.defaultPrevented) return;
     if (event.key === "Enter") event.currentTarget.blur();
     if (event.key === "Escape") {
-      setDraft(String(value));
+      setDraft(format(value));
       event.currentTarget.blur();
     }
   };
@@ -90,16 +97,18 @@ export function DraftNumberInput({
       value={draft}
       onFocus={(event) => {
         focused.current = true;
+        edited.current = false;
         onFocus?.(event);
       }}
       onChange={(event) => {
+        edited.current = true;
         const next = event.target.value;
         setDraft(next);
         commit(next, false);
       }}
       onBlur={(event) => {
         focused.current = false;
-        commit(draft, true);
+        if (displayPrecision === undefined || edited.current) commit(draft, true);
         onBlur?.(event);
       }}
       onKeyDown={handleKeyDown}

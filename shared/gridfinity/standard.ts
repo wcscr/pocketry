@@ -91,6 +91,19 @@ export function resizeGridToStandardCellSpan(
   return resized;
 }
 
+/** Change socket pitch while preserving the physical footprint. A coarser
+ * pitch is unavailable when the dimensions do not land on its grid. */
+export function changeGridPitchPreservingSize(
+  grid: RectangularGridDimensions,
+  gridPitch: GridPitch,
+): RectangularGridDimensions | null {
+  const ratio = GRID_PITCH_DIVISOR[gridPitch] / GRID_PITCH_DIVISOR[grid.gridPitch];
+  const gridX = grid.gridX * ratio;
+  const gridY = grid.gridY * ratio;
+  return Number.isInteger(gridX) && Number.isInteger(gridY)
+    ? { gridX, gridY, gridPitch } : null;
+}
+
 /** Height of one Gridfinity height unit ("u"). A "6u" bin is 42 mm tall. */
 export const HEIGHT_UNIT_MM = 7;
 

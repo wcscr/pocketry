@@ -74,6 +74,8 @@ function TraceWorkspace(): JSX.Element {
   const { toast } = useToast();
   const { panelOpen, setPanelOpen } = usePanelState();
 
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const detectionRequest = useRef(0);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [dwgDialogOpen, setDwgDialogOpen] = useState(false);
 
@@ -109,7 +111,10 @@ function TraceWorkspace(): JSX.Element {
     [toast],
   );
 
-  const runDetection = useCallback(async () => {
+  const runDetection = useCallback(async (settings?: {
+    sensitivity: number;
+    includeInteriorHoles: boolean;
+  }) => {
     if (source.status !== "ready") return;
 
     // Tool detection is deliberately gated on an explicit region. Image load
@@ -124,24 +129,28 @@ function TraceWorkspace(): JSX.Element {
     const imageData = getImageData(region);
     if (!imageData) return;
 
+    const request = ++detectionRequest.current;
     dispatch({ type: "SET_PROCESSING", processing: true });
     try {
       const result = await processImage(imageData, {
+        includeInteriorHoles: settings?.includeInteriorHoles ?? store.includeInteriorHoles,
         region: region
           ? { originalRegion: region, isCropped: true }
           : null,
         margin: store.margin,
         calibration: store.calibration,
         detect: {
-          sensitivity: store.sensitivity,
+          sensitivity: settings?.sensitivity ?? store.sensitivity,
           tolerancePx: store.tolerancePx,
           smoothing: store.smoothing,
         },
         onNotice: notice,
       });
 
+      if (request !== detectionRequest.current) return;
       dispatch({
         type: "DETECTED",
+        expectedOutline: store.outline,
         imageUrl: source.url,
         outline: result.outline,
         rawOutline: result.rawOutline,
@@ -152,13 +161,14 @@ function TraceWorkspace(): JSX.Element {
       // "opt-in or removed"): nothing ever read the copies back, and silently
       // uploading every trace is the wrong default for local tooling.
     } catch (error) {
+      if (request !== detectionRequest.current) return;
       toast({
         title: "Tracing failed",
         description: error instanceof Error ? error.message : String(error),
         variant: "destructive",
       });
     } finally {
-      dispatch({ type: "SET_PROCESSING", processing: false });
+      if (request === detectionRequest.current) dispatch({ type: "SET_PROCESSING", processing: false });
     }
     // `store.region` is read through a ref-free closure on purpose: the caller
     // decides when a region change should trigger a retrace.
@@ -169,9 +179,11 @@ function TraceWorkspace(): JSX.Element {
     notice,
     toast,
     store.region,
+    store.outline,
     store.margin,
     store.calibration,
     store.sensitivity,
+    store.includeInteriorHoles,
     store.tolerancePx,
     store.smoothing,
     store.fileName,
@@ -503,6 +515,8 @@ function TraceWorkspace(): JSX.Element {
 
   return (
     <>
+      <input ref={photoInputRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" aria-label="Choose another photo"
+        onChange={(event) => { const file = event.target.files?.[0]; if (file) void handleFileSelected(file); event.target.value = ""; }} />
       <WorkspaceLayout
         autoSaveId="tooltrace:trace"
         panelOpen={panelOpen}
@@ -510,10 +524,10 @@ function TraceWorkspace(): JSX.Element {
         panelTitle="Trace controls"
         panel={
           <TraceControlsPanel
-            onReplaceImage={() => setUploadOpen(true)}
+            onReplaceImage={() => photoInputRef.current?.click()}
             onRotateImage={handleRotateImage}
             onExport={() => void handleExport()}
-            onReprocess={() => void runDetection()}
+            onReprocess={(settings) => void runDetection(settings)}
             onDetectMarkers={() => void detectMarkers(true)}
             onApplyPerspective={(proposal, paper) =>
               void applyPerspective(proposal, paper)

@@ -111,11 +111,11 @@ function parseStoredLibrary(input: unknown): StoredProjectLibrary {
 }
 
 async function readStoredLibrary(): Promise<StoredProjectLibrary> {
-  try {
-    return parseStoredLibrary(await get(PROJECT_LIBRARY_KEY));
-  } catch {
-    return EMPTY_LIBRARY;
+  const raw: unknown = await get(PROJECT_LIBRARY_KEY);
+  if (raw != null && !projectLibrarySchema.safeParse(raw).success) {
+    throw new Error("The saved library is unreadable. It has been kept intact; download your current work before recovering it.");
   }
+  return parseStoredLibrary(raw);
 }
 
 function toSnapshot(library: StoredProjectLibrary): ProjectLibrarySnapshot {
@@ -149,13 +149,18 @@ export async function loadProjectDoc(): Promise<ProjectDoc | null> {
 
 export async function loadProjectLibrary(): Promise<ProjectLibrarySnapshot> {
   await libraryMutationQueue;
-  return toSnapshot(await readStoredLibrary());
+  try { return toSnapshot(await readStoredLibrary()); }
+  catch { return toSnapshot(EMPTY_LIBRARY); }
 }
 
 /** Best-effort working-copy autosave, also updating the active named project. */
-export async function saveProjectDoc(doc: ProjectDoc): Promise<void> {
+export async function saveProjectDoc(doc: ProjectDoc): Promise<boolean> {
   try {
     await mutateLibrary(async (library) => {
+      const previous: unknown = await get(CURRENT_PROJECT_KEY);
+      if (previous != null && parseProjectDoc(previous) === null) {
+        throw new Error("The existing working copy is unreadable and has been preserved.");
+      }
       await set(CURRENT_PROJECT_KEY, doc);
       if (!library.activeProjectId) return;
       const index = library.projects.findIndex(
@@ -170,8 +175,22 @@ export async function saveProjectDoc(doc: ProjectDoc): Promise<void> {
       };
       await set(PROJECT_LIBRARY_KEY, { ...library, projects });
     });
+    // Clear only queued shapes whose placements have reached durable storage.
+    try {
+      const queued: unknown = JSON.parse(sessionStorage.getItem("pocketry:queued-tools") ?? "[]");
+      if (Array.isArray(queued)) {
+        const placedIds = new Set(doc.cutouts.map((cutout) => cutout.shapeId));
+        const remaining = queued.filter((shape: unknown) =>
+          typeof shape !== "object" || shape === null || !("id" in shape) ||
+          typeof shape.id !== "string" || !placedIds.has(shape.id),
+        );
+        sessionStorage.setItem("pocketry:queued-tools", JSON.stringify(remaining));
+      }
+    } catch { /* Session recovery may be unavailable. */ }
+    return true;
   } catch {
     // Quota or unavailable storage: the in-memory session stays authoritative.
+    return false;
   }
 }
 
@@ -195,7 +214,8 @@ export async function saveProjectToLibrary(
         ? projectId
         : makeProjectId();
     const now = new Date().toISOString();
-    const replacement: StoredProject = { id, name: cleanName, updatedAt: now, doc };
+    const namedDoc = { ...doc, name: cleanName };
+    const replacement: StoredProject = { id, name: cleanName, updatedAt: now, doc: namedDoc };
     const projects = library.projects.some((project) => project.id === id)
       ? library.projects.map((project) => (project.id === id ? replacement : project))
       : [...library.projects, replacement];
@@ -204,7 +224,7 @@ export async function saveProjectToLibrary(
       activeProjectId: id,
       projects,
     };
-    await set(CURRENT_PROJECT_KEY, doc);
+    await set(CURRENT_PROJECT_KEY, namedDoc);
     await set(PROJECT_LIBRARY_KEY, next);
     return toSnapshot(next);
   });
@@ -260,13 +280,13 @@ export interface DebouncedProjectSaver {
 }
 
 /** A trailing-edge saver; placement drags otherwise emit dozens of writes. */
-export function createDebouncedProjectSaver(delayMs = 500): DebouncedProjectSaver {
+export function createDebouncedProjectSaver(delayMs = 500, onSaved?: (success: boolean) => void): DebouncedProjectSaver {
   let timer: ReturnType<typeof setTimeout> | null = null;
   const saver = ((doc: ProjectDoc) => {
     if (timer !== null) clearTimeout(timer);
     timer = setTimeout(() => {
       timer = null;
-      void saveProjectDoc(doc);
+      void saveProjectDoc(doc).then((success) => onSaved?.(success));
     }, delayMs);
   }) as DebouncedProjectSaver;
   saver.cancel = () => {

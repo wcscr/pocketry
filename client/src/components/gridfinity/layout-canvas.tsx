@@ -332,19 +332,35 @@ function LayoutStage(): JSX.Element {
     [fingerHoles],
   );
 
+  const layoutIssues = useMemo(
+    () => validateLayout(spec, cutouts, shapesById, fingerHoles),
+    [spec, cutouts, shapesById, fingerHoles],
+  );
+  const overlappingCutouts = useMemo(
+    () => new Set(layoutIssues
+      .filter((issue) => issue.code === "cutout-overlap")
+      .flatMap((issue) => issue.cutoutIds ?? [])),
+    [layoutIssues],
+  );
+  const boundaryCutouts = useMemo(
+    () => new Set(layoutIssues
+      .filter((issue) => ["out-of-bounds", "wall-breach", "lip-collision"].includes(issue.code))
+      .flatMap((issue) => issue.cutoutIds ?? [])),
+    [layoutIssues],
+  );
   const severityByCutout = useMemo(() => {
     const map = new Map<string, IssueSeverity>();
-    for (const issue of validateLayout(spec, cutouts, shapesById, fingerHoles)) {
+    for (const issue of layoutIssues) {
       for (const id of issue.cutoutIds ?? []) {
         if (issue.severity === "error" || !map.has(id)) map.set(id, issue.severity);
       }
     }
     return map;
-  }, [spec, cutouts, shapesById, fingerHoles]);
+  }, [layoutIssues]);
 
   const severityByFingerHole = useMemo(() => {
     const map = new Map<string, IssueSeverity>();
-    for (const issue of validateLayout(spec, cutouts, shapesById, fingerHoles)) {
+    for (const issue of layoutIssues) {
       for (const id of issue.fingerHoleIds ?? []) {
         if (issue.severity === "error" || !map.has(id)) {
           map.set(id, issue.severity);
@@ -352,7 +368,7 @@ function LayoutStage(): JSX.Element {
       }
     }
     return map;
-  }, [spec, cutouts, shapesById, fingerHoles]);
+  }, [layoutIssues]);
 
   const selected = placed.find((p) => p.cutout.id === selectedCutoutId) ?? null;
   const selectedFingerHole =
@@ -1343,7 +1359,9 @@ function LayoutStage(): JSX.Element {
             const severity = severityByCutout.get(cutout.id);
             const isSelected = cutout.id === selectedCutoutId;
             const tone =
-              severity === "error"
+              overlappingCutouts.has(cutout.id) && !boundaryCutouts.has(cutout.id)
+                ? "fill-orange-500/25 stroke-orange-600"
+                : severity === "error"
                 ? "fill-destructive/30 stroke-destructive"
                 : severity === "warning"
                   ? "fill-amber-500/25 stroke-amber-600"
@@ -1359,7 +1377,8 @@ function LayoutStage(): JSX.Element {
                   strokeWidth={isSelected ? 2 : 1.25}
                   vectorEffect="non-scaling-stroke"
                   data-cutout-id={cutout.id}
-                />
+                  strokeDasharray={overlappingCutouts.has(cutout.id) ? "5 3" : undefined}
+                ><title>{boundaryCutouts.has(cutout.id) ? "Boundary conflict. " : ""}{overlappingCutouts.has(cutout.id) ? "Overlapping pockets. " : ""}{shapesById.get(cutout.shapeId)?.name}</title></path>
               </g>
             );
           })}
@@ -1654,6 +1673,11 @@ function LayoutStage(): JSX.Element {
               : `${measuredDistanceMm!.toFixed(2)} mm · click another contour to restart`}
         </div>
       ) : null}
+
+      {(overlappingCutouts.size > 0 || boundaryCutouts.size > 0) && <div className="pointer-events-none absolute right-3 top-14 rounded border bg-background/95 px-2 py-1 text-xs shadow-sm" aria-label="Layout issue legend">
+        <p className="text-destructive">Red: boundary conflict</p>
+        <p className="text-orange-700 dark:text-orange-300">Dashed outline: overlapping pockets</p>
+      </div>}
 
       <div className="pointer-events-none absolute bottom-2 left-2 rounded-md bg-background/85 px-2 py-1 text-[11px] text-muted-foreground shadow-sm backdrop-blur">
         {rulerActive

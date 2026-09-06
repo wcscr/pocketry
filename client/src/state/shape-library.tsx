@@ -2,13 +2,14 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useReducer,
   useRef,
   type ReactNode,
 } from "react";
 
-import type { TracedShape } from "@shared/gridfinity/cutout";
+import { tracedShapeSchema, type TracedShape } from "@shared/gridfinity/cutout";
 
 /**
  * The app-level shape library: traced shapes on their way to (or living in)
@@ -91,7 +92,17 @@ export interface ShapeLibrary {
 const ShapeLibraryContext = createContext<ShapeLibrary | null>(null);
 
 export function ShapeLibraryProvider({ children }: { children: ReactNode }): JSX.Element {
-  const [state, dispatch] = useReducer(reducer, { shapes: [], pendingIds: [] });
+  const [state, dispatch] = useReducer(reducer, { shapes: [], pendingIds: [] }, (initial) => {
+    try {
+      const parsed = tracedShapeSchema.array().safeParse(JSON.parse(sessionStorage.getItem("pocketry:queued-tools") ?? "[]"));
+      return parsed.success ? { shapes: parsed.data, pendingIds: parsed.data.map((shape) => shape.id) } : initial;
+    } catch { return initial; }
+  });
+  useEffect(() => {
+    if (state.pendingIds.length === 0) return;
+    try { sessionStorage.setItem("pocketry:queued-tools", JSON.stringify(state.shapes.filter((shape) => state.pendingIds.includes(shape.id)))); }
+    catch { /* The in-memory queue remains usable when browser storage is unavailable. */ }
+  }, [state]);
 
   // consumePending must return the *current* ids even when called from an
   // effect that fires before the next render; a ref tracks the latest state.
@@ -105,14 +116,27 @@ export function ShapeLibraryProvider({ children }: { children: ReactNode }): JSX
     dispatch({ type: "STORE_SHAPE", shape });
   }, []);
   const removeShape = useCallback((id: string) => {
+    // Removing the last queued shape must not revive it on the next reload.
+    try {
+      const queued = tracedShapeSchema.array().safeParse(
+        JSON.parse(sessionStorage.getItem("pocketry:queued-tools") ?? "[]"),
+      );
+      if (queued.success) {
+        sessionStorage.setItem("pocketry:queued-tools", JSON.stringify(
+          queued.data.filter((shape) => shape.id !== id),
+        ));
+      }
+    } catch { /* The in-memory removal still succeeds. */ }
     dispatch({ type: "REMOVE_SHAPE", id });
   }, []);
   const consumePending = useCallback((): string[] => {
     const pending = stateRef.current.pendingIds;
+    stateRef.current = { ...stateRef.current, pendingIds: [] };
     if (pending.length > 0) dispatch({ type: "CONSUME_PENDING" });
     return pending;
   }, []);
   const replaceShapes = useCallback((shapes: TracedShape[]) => {
+    try { sessionStorage.removeItem("pocketry:queued-tools"); } catch { /* Optional session recovery. */ }
     dispatch({ type: "REPLACE_SHAPES", shapes });
   }, []);
   const mergeShapes = useCallback((shapes: TracedShape[]) => {

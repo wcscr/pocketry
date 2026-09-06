@@ -107,15 +107,18 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
                 mark its two endpoints, and enter that known length.
               </li>
               <li>
-                Use <strong>Set Detection Region</strong> to draw a close box
+                Use <strong>Region</strong> to draw a close box
                 around the tool. Pocketry does not detect or display a contour
                 until this region is set, keeping the calibration sheet and
                 surroundings out of the result.
               </li>
               <li>
-                Tune <strong>Tool Detection</strong>: Sensitivity changes what is
+                Tune <strong>Outline</strong>: Sensitivity changes what is
                 admitted as tool, Detail controls point density, and Smoothing
-                removes pixel noise.
+                removes pixel noise. Outside silhouettes are the default; enable interior
+                holes only for real openings. Sensitivity updates the outline when you
+                release the slider. Confirmation is needed only when replacing manual
+                contour edits. Detail and Smoothing preserve those edits; re-detection is undoable.
               </li>
               <li>
                 Choose a physical <strong>Margin</strong> from 0.0–5.0 mm, then
@@ -123,7 +126,8 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
               </li>
               <li>
                 Choose <strong>Add to bin</strong> to place the scaled contour in
-                the Bin workspace. Trace exports remain available for standalone
+                the Bin workspace. Name each tool, choose separate pockets for multiple
+                objects, or add and trace another photo. Trace exports remain available for standalone
                 SVG, DXF, DWG, or STL files.
               </li>
             </ol>
@@ -135,9 +139,11 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
               <li>
                 Set the bin Width, Length, and Height, then choose construction
                 options such as stacking lip, base, magnets, screws, and labels.
+                Type exact dimensions beside the sliders. Pitch changes preserve size;
+                Keep bin size fixed prevents new tools from enlarging the bin.
               </li>
               <li>
-                Open <strong>Tool Cutout Settings</strong> and select a cutout to
+                Open <strong>Arrange pockets</strong> and select a cutout to
                 set depth, extra clearance, corner rounds, bottom fillet, and
                 straight or scoop finger holes. Extra clearance is added after
                 the Margin chosen on Trace.
@@ -160,9 +166,10 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
                 it is not a separate lip around every occupied cell.
               </li>
               <li>
-                View Settings controls preview and 3MF colors for the bin body,
+                Materials controls preview and 3MF colors for the bin body,
                 pocket floors, and stacking-rim top. Color layers extend down
-                from their original surfaces.
+                from their original surfaces. View contains preview-only cutaway controls.
+                Inspect this pocket in 3D cuts through the selected pocket.
               </li>
             </ul>
           </section>
@@ -218,10 +225,10 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
                 editable project. The files share a name with the project name
                 (when saved), bin size, and local date/time. Allow multiple
                 downloads if your browser asks, and keep the JSON to restore
-                the design later with Import backup.
+                the design later with Open Pocketry project.
               </li>
               <li>
-                <strong>Complete surface fit test</strong> exports every pocket
+                Under <strong>Check fit</strong>, Complete surface fit test exports every pocket
                 and finger-access opening together as one thin STL, without the
                 base, walls, label tab, or stacking lip. It checks the surface
                 layout, but not pocket depth or Gridfinity baseplate fit.

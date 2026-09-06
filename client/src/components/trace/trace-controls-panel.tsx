@@ -5,7 +5,7 @@ import {
   Crop,
   Download,
   Image as ImageIcon,
-  Ruler,
+  Scaling,
   RotateCcw,
   RotateCw,
   ScanLine,
@@ -26,6 +26,8 @@ import {
   PanelSection,
   PanelSettingsIndex,
 } from "@/components/layout/panel-section";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { DraftNumberInput } from "@/components/ui/draft-number-input";
 import {
@@ -81,7 +83,7 @@ export interface TraceControlsPanelProps {
   onReplaceImage: () => void;
   onRotateImage: (direction: ImageRotationDirection) => void;
   onExport: () => void;
-  onReprocess: () => void;
+  onReprocess: (settings?: { sensitivity: number; includeInteriorHoles: boolean }) => void;
   /** Re-run ArUco marker detection on the full frame, with feedback. */
   onDetectMarkers: () => void;
   /** Rectify the selected paper plane and replace the working image. */
@@ -92,13 +94,13 @@ export interface TraceControlsPanelProps {
 }
 
 const TRACE_SETTINGS_SECTION_DETAILS = [
-  { id: "trace-settings-source", label: "Source", tone: "slate" },
+  { id: "trace-settings-source", label: "Photo", tone: "slate" },
   { id: "trace-settings-scale", label: "Scale", tone: "amber" },
   { id: "trace-settings-crop", label: "Region", tone: "rose" },
-  { id: "trace-settings-detect", label: "Tool Detection", tone: "blue" },
+  { id: "trace-settings-detect", label: "Outline", tone: "blue" },
   {
     id: "trace-settings-output",
-    label: "Change Output Format",
+    label: "Export",
     tone: "emerald",
   },
 ] as const;
@@ -386,11 +388,51 @@ export function TraceControlsPanel({
         }
       : null;
 
-  const handleAddToBin = () => {
-    const shape = normalizeTracedShape(outline, scale, fileName || "Traced tool");
-    if (!shape) return;
-    shapeLibrary.addShape(shape);
-    navigate("/bin");
+  const [handoffOpen, setHandoffOpen] = useState(false);
+  const [separateTools, setSeparateTools] = useState(true);
+  const [toolNames, setToolNames] = useState<string[]>([]);
+  const [draftSensitivity, setDraftSensitivity] = useState<number | null>(null);
+  const [pendingDetection, setPendingDetection] = useState<{
+    sensitivity: number;
+    includeInteriorHoles: boolean;
+  } | null>(null);
+  useEffect(() => {
+    setDraftSensitivity(null);
+    setPendingDetection(null);
+  }, [sourceRevision]);
+  const openHandoff = () => {
+    setSeparateTools(true);
+    setToolNames(outline.map((_, i) => outline.length === 1 ? fileName || "Traced tool" : `Tool ${i + 1}`));
+    setHandoffOpen(true);
+  };
+  const handleAddToBin = (anotherPhoto: boolean) => {
+    const parts = separateTools ? outline.map((part) => [part]) : [outline];
+    for (const [index, part] of parts.entries()) {
+      const shape = normalizeTracedShape(part, scale, toolNames[index]?.trim() || `Tool ${index + 1}`);
+      if (shape) shapeLibrary.addShape({ ...shape, traceMarginMm: margin ?? 0 });
+    }
+    setHandoffOpen(false);
+    if (anotherPhoto) onReplaceImage();
+    else navigate("/bin");
+  };
+  const applyDetectionSettings = (settings: NonNullable<typeof pendingDetection>) => {
+    setPendingDetection(null);
+    setDraftSensitivity(null);
+    dispatch({ type: "SET_SENSITIVITY", sensitivity: settings.sensitivity });
+    dispatch({ type: "SET_INCLUDE_INTERIOR_HOLES", include: settings.includeInteriorHoles });
+    // Pass the committed settings directly: React has not rendered the new
+    // store yet when a slider's release or keyboard event calls this handler.
+    onReprocess(settings);
+  };
+  const requestDetectionSettings = (settings: NonNullable<typeof pendingDetection>) => {
+    setDraftSensitivity(null);
+    if (settings.sensitivity === sensitivity &&
+        settings.includeInteriorHoles === store.includeInteriorHoles) return;
+    if (store.history.stack[store.history.index]?.hasManualEdits) {
+      setPendingDetection(settings);
+    } else {
+      applyDetectionSettings(settings);
+    }
   };
 
   const handleClearRegion = () => {
@@ -425,7 +467,7 @@ export function TraceControlsPanel({
         <PanelSection
           key={hasImage ? "source-ready" : "source-empty"}
           id="trace-settings-source"
-          title="Source image"
+          title="Photo"
           icon={ImageIcon}
           tone="slate"
           summary={hasImage ? fileName || "Loaded" : "No image"}
@@ -485,7 +527,7 @@ export function TraceControlsPanel({
           key={`${hasImage ? "scale-ready" : "scale-empty"}-${pendingAutoCalibration ? "pending" : calibration ? "set" : "unset"}`}
           id="trace-settings-scale"
           title="Scale"
-          icon={Ruler}
+          icon={Scaling}
           tone="amber"
           summary={
             pendingAutoCalibration
@@ -604,7 +646,7 @@ export function TraceControlsPanel({
               data-testid="manual-scale-guidance"
               className="flex gap-2 rounded-md border border-rose-500/60 bg-rose-500/10 p-3 text-rose-900 ring-2 ring-rose-500/20 dark:text-rose-100"
             >
-              <Ruler className="mt-0.5 h-4 w-4 shrink-0" />
+              <Scaling className="mt-0.5 h-4 w-4 shrink-0" />
               <div className="space-y-1">
                 <p className="text-sm font-semibold">
                   Auto Calibration Unsuccessful:
@@ -916,7 +958,7 @@ export function TraceControlsPanel({
         <PanelSection
           key={region ? "crop-set" : "crop-empty"}
           id="trace-settings-crop"
-          title="Set Detection Region"
+          title="Region"
           icon={Crop}
           tone="rose"
           summary={region ? `${Math.round(region.width)} × ${Math.round(region.height)}` : "Not set"}
@@ -976,7 +1018,7 @@ export function TraceControlsPanel({
         <PanelSection
           key={hasImage ? "detect-ready" : "detect-empty"}
           id="trace-settings-detect"
-          title="Tool Detection"
+          title="Outline"
           icon={Settings2}
           tone="blue"
           summary={
@@ -997,28 +1039,18 @@ export function TraceControlsPanel({
           className="scroll-mt-16"
           disabled={!scale.mmPerPx || !hasDetectionRegion}
         >
-          <div
-            role="note"
-            data-testid="detection-tuning-guidance"
-            className="flex gap-2 rounded-md border border-rose-500/60 bg-rose-500/10 p-3 text-rose-900 ring-2 ring-rose-500/20 dark:text-rose-100"
-          >
-            <ScanSearch className="mt-0.5 h-4 w-4 shrink-0" />
-            <div className="space-y-2">
-              <p
-                data-testid="contour-editing-guidance"
-                className="text-base font-bold leading-snug"
-              >
-                Edit the contour shape: select a shape, then move, add, or delete
-                its detected vertices.
-              </p>
-              <p className="text-xs leading-relaxed">
-                Drag a vertex to move it, click to add one, or right-click a vertex
-                to delete it. Adjust <strong>Sensitivity</strong> and{" "}
-                <strong>Detail</strong> to fine-tune the contour. Remove any arrant
-                holes / contours by clicking the trash can icon below.
-              </p>
-            </div>
+          <p className="text-xs text-muted-foreground" data-testid="detection-tuning-guidance">
+            Follow the outside edge. Reflections are usually not holes.
+          </p>
+          <div className="flex items-center justify-between gap-2">
+            <Label htmlFor="include-interior-holes" className="text-xs">Include interior holes</Label>
+            <Switch id="include-interior-holes" checked={store.includeInteriorHoles} disabled={processing}
+              onCheckedChange={(includeInteriorHoles) => requestDetectionSettings({ sensitivity, includeInteriorHoles })} />
           </div>
+          <details className="text-xs text-muted-foreground">
+            <summary className="cursor-pointer">How to edit the outline</summary>
+            <p className="pt-2" data-testid="contour-editing-guidance">Select a shape, then drag a vertex to move it, click an edge to add one, or right-click a vertex to delete it. Detail and Smoothing preserve your edits. Changing Sensitivity or interior holes re-detects from the photo and asks before replacing manual edits. Undo restores your contour.</p>
+          </details>
 
           {/*
             The threshold is chosen automatically; this biases it. 128 means
@@ -1028,14 +1060,15 @@ export function TraceControlsPanel({
           <LabelledSlider
             id="sensitivity"
             label="Sensitivity"
-            value={sensitivity}
+            value={draftSensitivity ?? sensitivity}
             min={0}
             max={255}
             step={1}
             format={(v) => (v === 128 ? "auto" : v > 128 ? `+${v - 128}` : `${v - 128}`)}
-            onChange={(v) => dispatch({ type: "SET_SENSITIVITY", sensitivity: v })}
-            onCommit={onReprocess}
-            hint="Lower admits more of the image as tool."
+            disabled={processing}
+            onChange={setDraftSensitivity}
+            onCommit={(value) => requestDetectionSettings({ sensitivity: value, includeInteriorHoles: store.includeInteriorHoles })}
+            hint="Lower includes more of the image. Updates when you release the slider; asks before replacing manual edits."
           />
 
           {/* Detail and Smoothing re-derive from the cached dense outline, so
@@ -1100,7 +1133,7 @@ export function TraceControlsPanel({
 
         <PanelSection
           id="trace-settings-output"
-          title="Change Output Format"
+          title="Export outline"
           icon={Download}
           tone="emerald"
           summary={exportFormat.toUpperCase()}
@@ -1152,7 +1185,38 @@ export function TraceControlsPanel({
         </PanelSection>
       </PanelBody>
 
+      <Dialog open={pendingDetection !== null} onOpenChange={(open) => {
+        if (!open) { setPendingDetection(null); setDraftSensitivity(null); }
+      }}>
+        <DialogContent><DialogHeader><DialogTitle>Re-detect from the photo?</DialogTitle>
+          <DialogDescription>This replaces manual contour edits with a fresh detection. Undo restores your edited outline.</DialogDescription></DialogHeader>
+          <Button onClick={() => { if (pendingDetection) applyDetectionSettings(pendingDetection); }}>Replace manual edits</Button>
+          <Button variant="outline" onClick={() => { setPendingDetection(null); setDraftSensitivity(null); }}>Keep my edits</Button>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={handoffOpen} onOpenChange={setHandoffOpen}>
+        <DialogContent><DialogHeader><DialogTitle>Name your tools</DialogTitle>
+          <DialogDescription>Each tool becomes an independently movable pocket. The trace already includes {margin ?? 0} mm of margin per edge.</DialogDescription></DialogHeader>
+          {outline.length > 1 && <div className="flex items-center justify-between gap-2">
+            <Label htmlFor="separate-tools">Separate pockets ({outline.length} objects)</Label>
+            <Switch id="separate-tools" checked={separateTools} onCheckedChange={setSeparateTools} />
+          </div>}
+          {!separateTools && <p className="text-xs text-muted-foreground">All objects will move together as one pocket.</p>}
+          <div className="max-h-60 space-y-3 overflow-y-auto">
+            {(separateTools ? outline : [outline[0]]).map((_, index) => <div key={index}>
+              <Label htmlFor={`tool-name-${index}`}>{separateTools ? `Tool ${index + 1}` : "Group name"}</Label>
+              <Input id={`tool-name-${index}`} value={toolNames[index] ?? ""} maxLength={80}
+                onChange={(event) => setToolNames((names) => names.map((name, i) => i === index ? event.target.value : name))} />
+            </div>)}
+          </div>
+          <Button onClick={() => handleAddToBin(false)}>Add and arrange</Button>
+          <Button variant="outline" onClick={() => handleAddToBin(true)}>Add and trace another photo</Button>
+        </DialogContent>
+      </Dialog>
       <PanelFooter>
+        {shapeLibrary.pendingIds.length > 0 && <Button variant="secondary" className="mb-2 w-full" onClick={() => navigate("/bin")}>
+          Arrange {shapeLibrary.pendingIds.length} queued tool{shapeLibrary.pendingIds.length === 1 ? "" : "s"}
+        </Button>}
         <div className="grid grid-cols-2 gap-2">
           {/* The trace → bin handoff. Disabled without a calibration: an
               uncalibrated outline has no physical size, and letting it into
@@ -1163,7 +1227,7 @@ export function TraceControlsPanel({
               <span className="block w-full">
                 <Button
                   className="w-full"
-                  onClick={handleAddToBin}
+                  onClick={openHandoff}
                   disabled={!hasOutline || !scale.mmPerPx}
                   data-testid="button-add-to-bin"
                 >
@@ -1206,7 +1270,8 @@ interface LabelledSliderProps {
   format: (value: number) => string;
   onChange: (value: number) => void;
   /** Fired on release, for anything too expensive to run per frame. */
-  onCommit?: () => void;
+  onCommit?: (value: number) => void;
+  disabled?: boolean;
   hint?: string;
   className?: string;
 }
@@ -1221,6 +1286,7 @@ function LabelledSlider({
   format,
   onChange,
   onCommit,
+  disabled,
   hint,
   className,
 }: LabelledSliderProps): JSX.Element {
@@ -1236,12 +1302,14 @@ function LabelledSlider({
       </div>
       <Slider
         id={id}
+        aria-label={label}
         min={min}
         max={max}
         step={step}
         value={[value]}
+        disabled={disabled}
         onValueChange={(values) => onChange(values[0])}
-        onValueCommit={onCommit}
+        onValueCommit={(values) => onCommit?.(values[0])}
       />
       {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
     </div>

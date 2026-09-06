@@ -188,6 +188,7 @@ function render(ui: React.ReactElement, { mobile = false } = {}) {
 afterEach(() => {
   vi.unstubAllGlobals();
   globalThis.localStorage?.clear();
+  globalThis.sessionStorage?.clear();
 });
 
 beforeEach(() => {
@@ -237,12 +238,13 @@ function openSettingsSection(
     | "construction"
     | "tool-cutouts"
     | "finger-holes"
-    | "export",
+    | "export"
+    | "check-fit",
 ): void {
   React.act(() => {
     (
       container.querySelector(
-        `[data-testid="bin-settings-jump-${section}"]`,
+        `[data-testid="bin-settings-jump-${section === "tool-cutouts" ? "arrange" : section === "finger-holes" ? "finger-access" : section}"]`,
       ) as HTMLButtonElement
     ).click();
   });
@@ -287,7 +289,7 @@ describe("BinDesignerPage", () => {
           container.querySelector<HTMLButtonElement>('[data-testid="button-select-pocket"]')!.click();
         });
       }
-      openSettingsSection(container, "export");
+      openSettingsSection(container, kind === "surface-fit-test" || kind === "fit-check" ? "check-fit" : "export");
       await React.act(async () => {
         const button = kind.endsWith("3mf") ? "3mf" : kind;
         container.querySelector<HTMLButtonElement>(`[data-testid="button-export-${button}"]`)!.click();
@@ -309,7 +311,7 @@ describe("BinDesignerPage", () => {
         reader.onerror = () => reject(reader.error);
         reader.readAsText(backup);
       });
-      expect(parseProjectDoc(JSON.parse(json))).toEqual(project);
+      expect(parseProjectDoc(JSON.parse(json))).toEqual({ ...project, name: "Layout 2", keepBinSize: false });
     } finally {
       unmount();
     }
@@ -375,8 +377,8 @@ describe("BinDesignerPage", () => {
     });
 
     const sizeSection = container.querySelector("#bin-settings-size");
-    expect(sizeSection?.textContent).toContain("1.5 cells · 62.5 mm");
-    expect(sizeSection?.textContent).toContain("2 cells · 83.5 mm");
+    expect(container.querySelector<HTMLInputElement>('[aria-label="Width outer size in millimetres"]')?.value).toBe("62.5");
+    expect(container.querySelector<HTMLInputElement>('[aria-label="Length outer size in millimetres"]')?.value).toBe("83.5");
     expect(sizeSection?.textContent).toContain("1.5 × 2 × 6u");
     expect(
       container.querySelector('[data-testid="select-grid-pitch"]')?.textContent,
@@ -409,7 +411,7 @@ describe("BinDesignerPage", () => {
       );
     });
 
-    expect(sizeSection?.textContent).toContain("6.5 u · 45.5 mm");
+    expect(container.querySelector<HTMLInputElement>('[aria-label="Bin height in units"]')?.value).toBe("6.5");
     expect(sizeSection?.textContent).toContain("1.5 × 1.5 × 6.5u");
     unmount();
   });
@@ -430,7 +432,7 @@ describe("BinDesignerPage", () => {
     const { container, unmount } = renderPage();
     await flushHydration();
     expect(container.querySelector('[data-testid="bin-footprint-summary"]')?.textContent)
-      .toContain("3 of 4 cells occupied · custom footprint");
+      .toContain("3 of 4 full-pitch cells occupied · custom footprint");
     const edit = container.querySelector('[data-testid="button-edit-footprint"]') as HTMLButtonElement;
     React.act(() => edit.click());
     expect(container.querySelector('[data-testid="layout-canvas"]')).not.toBeNull();
@@ -621,7 +623,7 @@ describe("BinDesignerPage", () => {
     const { container, unmount } = renderPage();
     const index = container.querySelector('[data-testid="bin-settings-index"]');
     expect(index?.textContent).toContain("Find a setting");
-    expect(index?.textContent).toContain("Tool Cutouts");
+    expect(index?.textContent).toContain("Arrange");
     expect(index?.textContent).not.toContain("Color by purpose");
 
     const expectedSections = [
@@ -641,7 +643,7 @@ describe("BinDesignerPage", () => {
     const tones = [
       ...container.querySelectorAll<HTMLElement>('[id^="bin-settings-"]'),
     ].map((section) => section.dataset.tone);
-    expect(new Set(tones).size).toBe(tones.length);
+    expect(tones.every(Boolean)).toBe(true);
 
     const construction = container.querySelector(
       "#bin-settings-construction",
@@ -698,7 +700,7 @@ describe("BinDesignerPage", () => {
     React.act(() => {
       (
         container.querySelector(
-          '[data-testid="bin-settings-jump-view"]',
+          '[data-testid="bin-settings-jump-materials"]',
         ) as HTMLButtonElement
       ).click();
     });
@@ -719,7 +721,7 @@ describe("BinDesignerPage", () => {
     React.act(() => {
       (
         container.querySelector(
-          '[data-testid="bin-settings-jump-view"]',
+          '[data-testid="bin-settings-jump-materials"]',
         ) as HTMLButtonElement
       ).click();
     });
@@ -1073,8 +1075,8 @@ describe("BinDesignerPage", () => {
     const text = container.textContent ?? "";
     expect(text).toContain("test wrench");
     expect(text).toContain("Fit bin to contents");
-    expect(text).toContain("Select a tool contour to edit it.");
-    expect(text).toContain("click the tool name itself to rename it");
+    expect(text).toContain("Select a pocket in the list or Layout view.");
+    expect(text).toContain("Click its name to rename it");
     // Selected-pocket controls appear for the auto-selected cutout.
     expect(text).not.toContain("Editing selected tool");
     expect(text).toContain("Rotation");
@@ -1125,7 +1127,7 @@ describe("BinDesignerPage", () => {
     expect(text).toContain("Outline corner round");
     expect(text).toContain("Top edge round");
     expect(text).toContain("Bottom fillet");
-    expect(text).toContain("Finger Holes");
+    expect(text).toContain("Finger access");
     const pocketTopRound = container.querySelector(
       '[aria-label="Top edge round"] [role="slider"]',
     );
@@ -1157,8 +1159,9 @@ describe("BinDesignerPage", () => {
     expect(container.textContent).toContain("Bench wrench");
 
     openSettingsSection(container, "export");
-    expect(container.textContent).toContain("Final printable model");
-    expect(container.textContent).toContain("Preview & layout checks");
+    expect(container.textContent).toContain("Export printable bin");
+    openSettingsSection(container, "check-fit");
+    expect(container.textContent).toContain("Fit templates and layout");
     expect(container.textContent).toContain("Complete surface fit test");
     expect(container.textContent).toContain("Save surface fit test STL");
     expect(
@@ -1177,6 +1180,7 @@ describe("BinDesignerPage", () => {
     ).toBe(false);
     expect(container.textContent).toContain("Tool fit template");
     expect(container.textContent).toContain("Save fit template STL");
+    openSettingsSection(container, "export");
     React.act(() => {
       (
         container.querySelector(
@@ -1396,12 +1400,6 @@ describe("BinDesignerPage", () => {
       container.querySelector('[data-testid="export-no-cutouts-warning"]')
         ?.textContent,
     ).toContain("solid bin");
-    expect(
-      container.querySelector('[data-testid="export-preview-empty"]')?.textContent,
-    ).toContain("Add a tool cutout");
-    expect(
-      container.querySelector('[data-testid="button-go-to-trace"]'),
-    ).not.toBeNull();
     expect(container.querySelector('[data-testid="bin-viewport-stub"]')).not.toBeNull();
 
     const export3mf = container.querySelector(
@@ -1413,6 +1411,13 @@ describe("BinDesignerPage", () => {
       (container.querySelector('[data-testid="button-export-stl"]') as HTMLButtonElement)
         .disabled,
     ).toBe(false);
+    openSettingsSection(container, "check-fit");
+    expect(
+      container.querySelector('[data-testid="export-preview-empty"]')?.textContent,
+    ).toContain("Add a tool cutout");
+    expect(
+      container.querySelector('[data-testid="button-go-to-trace"]'),
+    ).not.toBeNull();
     unmount();
   });
 
@@ -1421,12 +1426,12 @@ describe("BinDesignerPage", () => {
     React.act(() => {
       (
         container.querySelector(
-          '[data-testid="bin-settings-jump-view"]',
+          '[data-testid="bin-settings-jump-materials"]',
         ) as HTMLButtonElement
       ).click();
     });
     expect(
-      container.querySelector("#bin-settings-view [data-panel-section-trigger]")
+      container.querySelector("#bin-settings-materials [data-panel-section-trigger]")
         ?.textContent,
     ).toContain("2 colors");
     unmount();

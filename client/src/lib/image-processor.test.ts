@@ -9,6 +9,8 @@ import {
   MARGIN_MM_OPTIONS,
   marginToPixels,
   processImage,
+  outsideSilhouettes,
+  withoutNewInteriorHoles,
 } from "./image-processor";
 
 /**
@@ -69,8 +71,34 @@ const BODY = { x: 50, y: 45 };
 const JS = { engine: "js" } as const;
 
 describe("processImage", () => {
-  it("keeps the jaw gap open", async () => {
+  it("keeps manually overlapping shapes when suppressing newly created holes", () => {
+    const first = {
+      outer: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }],
+      holes: [],
+    };
+    const overlapping = {
+      outer: [{ x: 90, y: 90 }, { x: 110, y: 90 }, { x: 110, y: 110 }, { x: 90, y: 110 }],
+      holes: [],
+    };
+    expect(withoutNewInteriorHoles([first, overlapping], [first, overlapping]))
+      .toEqual([first, overlapping]);
+  });
+
+  it("absorbs nested islands while keeping separate tools in outside-only mode", () => {
+    const square = (x: number, y: number, side: number) => ({ outer: [{ x, y }, { x: x + side, y }, { x: x + side, y: y + side }, { x, y: y + side }], holes: [] });
+    const shell = square(0, 0, 100);
+    const separate = square(120, 0, 20);
+    expect(outsideSilhouettes([shell, square(20, 20, 5), separate])).toEqual([shell, separate]);
+  });
+  it("defaults to outside silhouettes without closing concave bays", async () => {
     const result = await processImage(photo(200, 180, pliers), { detect: JS });
+    expect(result.outline[0].holes).toEqual([]);
+    expect(result.rawOutline[0].holes).toEqual([]);
+    expect(pointInOutline(result.outline, PIVOT)).toBe(true);
+    expect(pointInOutline(result.outline, JAW_GAP)).toBe(false);
+  });
+  it("keeps the jaw gap open", async () => {
+    const result = await processImage(photo(200, 180, pliers), { detect: JS, includeInteriorHoles: true });
 
     expect(result.outline.length).toBeGreaterThanOrEqual(1);
     expect(pointInOutline(result.outline, JAW_GAP)).toBe(false);
@@ -78,7 +106,7 @@ describe("processImage", () => {
   });
 
   it("finds the pivot hole", async () => {
-    const result = await processImage(photo(200, 180, pliers), { detect: JS });
+    const result = await processImage(photo(200, 180, pliers), { detect: JS, includeInteriorHoles: true });
 
     expect(result.outline[0].holes).toHaveLength(1);
     expect(pointInOutline(result.outline, PIVOT)).toBe(false);
@@ -91,14 +119,14 @@ describe("processImage", () => {
   it("returns an outline that is not a convex hull", async () => {
     // The regression that matters: point counts prove nothing, so compare the
     // traced area against the hull of the same points.
-    const result = await processImage(photo(200, 180, pliers), { detect: JS });
+    const result = await processImage(photo(200, 180, pliers), { detect: JS, includeInteriorHoles: true });
     const outer = result.outline[0].outer;
 
     expect(polygonArea(outer)).toBeLessThan(polygonArea(convexHullForTest(outer)) * 0.92);
   });
 
   it("nets the hole and the gap out of the area", async () => {
-    const result = await processImage(photo(200, 180, pliers), { detect: JS });
+    const result = await processImage(photo(200, 180, pliers), { detect: JS, includeInteriorHoles: true });
     // 140x120 body, minus a 60x30 gap, minus a radius-18 hole.
     const expected = 140 * 120 - 60 * 30 - Math.PI * 18 * 18;
     expect(Math.abs(outlineArea(result.outline))).toBeGreaterThan(expected * 0.9);
@@ -106,13 +134,13 @@ describe("processImage", () => {
   });
 
   it("still exposes a flat point list for unmigrated callers", async () => {
-    const result = await processImage(photo(200, 180, pliers), { detect: JS });
+    const result = await processImage(photo(200, 180, pliers), { detect: JS, includeInteriorHoles: true });
     expect(result.points.length).toBeGreaterThan(3);
     expect(result.points).toEqual(result.outline[0].outer);
   });
 
   it("produces an SVG with an even-odd fill rule so holes render as holes", async () => {
-    const result = await processImage(photo(200, 180, pliers), { detect: JS });
+    const result = await processImage(photo(200, 180, pliers), { detect: JS, includeInteriorHoles: true });
     expect(result.svg).toContain('fill-rule="evenodd"');
     expect(result.svg).toContain('viewBox="0 0 200 180"');
     // One subpath per ring: the shell plus its hole.
@@ -120,7 +148,7 @@ describe("processImage", () => {
   });
 
   it("caches the dense outline for the detail controls", async () => {
-    const result = await processImage(photo(200, 180, pliers), { detect: JS });
+    const result = await processImage(photo(200, 180, pliers), { detect: JS, includeInteriorHoles: true });
     const dense = result.rawOutline[0].outer.length;
     const simplified = result.outline[0].outer.length;
     expect(dense).toBeGreaterThan(simplified);
@@ -135,11 +163,32 @@ describe("processImage", () => {
 });
 
 describe("processImage: margins", () => {
+  it("fills holes created when margin closes a narrow reflective gap", async () => {
+    const narrowBay = photo(200, 200, (x, y) =>
+      box(20, 20, 180, 180)(x, y) &&
+      !box(60, 60, 140, 140)(x, y) &&
+      !box(140, 96, 181, 104)(x, y),
+    );
+    const calibration = { startX: 0, startY: 0, endX: 100, endY: 0, lengthMm: 100 };
+    const options = { detect: JS, margin: 5 as const, calibration };
+    const withHoles = await processImage(narrowBay, { ...options, includeInteriorHoles: true });
+    expect(withHoles.outline.some((shape) => shape.holes.length > 0)).toBe(true);
+
+    const silhouette = await processImage(narrowBay, options);
+    expect(silhouette.outline.every((shape) => shape.holes.length === 0)).toBe(true);
+    expect(pointInOutline(silhouette.outline, { x: 100, y: 100 })).toBe(true);
+
+    const unoffset = await processImage(narrowBay, { detect: JS });
+    const adjusted = await adjustOutlineMargin(unoffset.outline, 0, 5, calibration);
+    expect(adjusted.every((shape) => shape.holes.length === 0)).toBe(true);
+  });
+
   it("grows the shell and shrinks the hole together", async () => {
     // The case the old per-vertex offset got backwards: a positive margin must
     // push holes INWARD, or a pocket ends up too small for its tool.
-    const plain = await processImage(photo(200, 180, pliers), { detect: JS });
+    const plain = await processImage(photo(200, 180, pliers), { detect: JS, includeInteriorHoles: true });
     const margined = await processImage(photo(200, 180, pliers), {
+      includeInteriorHoles: true,
       detect: JS,
       margin: 1.5,
       calibration: {
@@ -202,7 +251,7 @@ describe("processImage: margins", () => {
   });
 
   it("can remove the full applied margin by selecting zero", async () => {
-    const plain = await processImage(photo(200, 180, pliers), { detect: JS });
+    const plain = await processImage(photo(200, 180, pliers), { detect: JS, includeInteriorHoles: true });
     const margined = await processImage(photo(200, 180, pliers), {
       detect: JS,
       margin: 1.5,

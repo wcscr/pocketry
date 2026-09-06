@@ -1,11 +1,19 @@
 // @vitest-environment jsdom
 import * as React from "react";
-import { createRoot } from "react-dom/client";
-import { describe, expect, it, vi } from "vitest";
+import { createRoot, type Root } from "react-dom/client";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { TracedShape } from "@shared/gridfinity/cutout";
 
 import { ShapeLibraryProvider, useShapeLibrary, type ShapeLibrary } from "./shape-library";
+
+beforeEach(() => sessionStorage.clear());
+const roots: Root[] = [];
+afterEach(() => {
+  React.act(() => roots.splice(0).forEach((root) => root.unmount()));
+  document.body.replaceChildren();
+  vi.unstubAllGlobals();
+});
 
 function makeShape(id: string): TracedShape {
   return {
@@ -40,6 +48,7 @@ function mountLibrary(): { library: () => ShapeLibrary; act: (fn: () => void) =>
   const host = document.createElement("div");
   document.body.appendChild(host);
   const root = createRoot(host);
+  roots.push(root);
   React.act(() =>
     root.render(
       <ShapeLibraryProvider>
@@ -58,6 +67,32 @@ function mountLibrary(): { library: () => ShapeLibrary; act: (fn: () => void) =>
 }
 
 describe("shape library", () => {
+  it("recovers queued geometry after reload and keeps it until placement is durable", () => {
+    const first = mountLibrary();
+    const shape = { ...makeShape("hand-edited"), traceMarginMm: 0.5 };
+    first.act(() => first.library().addShape(shape));
+    first.act(() => first.library().consumePending());
+
+    const reloaded = mountLibrary();
+    expect(reloaded.library().shapes).toEqual([shape]);
+    expect(reloaded.library().pendingIds).toEqual([shape.id]);
+    reloaded.act(() => {
+      expect(reloaded.library().consumePending()).toEqual([shape.id]);
+      expect(reloaded.library().consumePending()).toEqual([]);
+    });
+  });
+
+  it("does not revive a removed queued shape or a replaced project's queue", () => {
+    const first = mountLibrary();
+    first.act(() => first.library().addShape(makeShape("removed")));
+    first.act(() => first.library().removeShape("removed"));
+    expect(mountLibrary().library().pendingIds).toEqual([]);
+
+    first.act(() => first.library().addShape(makeShape("old-project")));
+    first.act(() => first.library().replaceShapes([makeShape("opened-project")]));
+    expect(mountLibrary().library().pendingIds).toEqual([]);
+  });
+
   it("adds shapes and marks them pending", () => {
     const { library, act } = mountLibrary();
     act(() => library().addShape(makeShape("a")));

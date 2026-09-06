@@ -1,5 +1,6 @@
 import { mmPerPixel, type Calibration } from "@shared/geometry/scale";
 import type { Outline, Point, Rect } from "@shared/geometry/types";
+import { pointInRing, ringArea } from "@shared/geometry/rings";
 
 import { detectOutline, refineOutline } from "./detect/pipeline";
 import type { DetectOptions, DetectResult, ImageLike } from "./detect/types";
@@ -93,10 +94,13 @@ export async function adjustOutlineMargin(
   const deltaPx =
     marginToPixels(nextMargin, calibration) -
     marginToPixels(previousMargin, calibration);
-  return deltaPx === 0 ? outline : offsetOutline(outline, deltaPx);
+  if (deltaPx === 0) return outline;
+  return withoutNewInteriorHoles(await offsetOutline(outline, deltaPx), outline);
 }
 
 export interface ProcessOptions {
+  /** Tool pockets normally need only the outside silhouette. */
+  includeInteriorHoles?: boolean;
   /** Region of interest, or a region already cropped from the source. */
   region?: Region | CroppedRegionInfo | null;
   margin?: Margin;
@@ -123,6 +127,23 @@ export interface ProcessResult {
   threshold: number;
   engine: DetectResult["engine"];
   timings: DetectResult["timings"];
+}
+
+/** Detector rings are disjoint or nested. Filling a hole also absorbs any
+ * islands inside it, so they must not become overlapping pockets. */
+export function outsideSilhouettes(outline: Outline): Outline {
+  const areas = outline.map((shape) => ringArea(shape.outer));
+  return outline.filter((shape, index) => !outline.some((other, otherIndex) =>
+    areas[otherIndex] > areas[index] && pointInRing(other.outer, shape.outer[0]),
+  )).map((shape) => ({ ...shape, holes: [] }));
+}
+
+/** A margin or simplification can seal a narrow bay into a new hole. Keep an
+ * outside-only contour hole-free, while preserving existing intentional holes. */
+export function withoutNewInteriorHoles(outline: Outline, baseline: Outline): Outline {
+  return baseline.every((shape) => shape.holes.length === 0)
+    ? outline.map((shape) => ({ ...shape, holes: [] }))
+    : outline;
 }
 
 export async function processImage(
@@ -158,14 +179,18 @@ export async function processImage(
     ? { x: region.originalRegion.x, y: region.originalRegion.y }
     : { x: 0, y: 0 };
 
-  let outline = translate(result.outline, origin);
-  const rawOutline = translate(result.rawOutline, origin);
+  const silhouette = (outline: Outline): Outline => options.includeInteriorHoles
+    ? outline
+    : outsideSilhouettes(outline);
+  let outline = translate(silhouette(result.outline), origin);
+  const rawOutline = translate(silhouette(result.rawOutline), origin);
 
   const marginPx = marginToPixels(margin, calibration);
   if (marginPx !== 0) {
     // Offsets the whole polygon set at once, so holes shrink as shells grow.
     outline = await offsetOutline(outline, marginPx);
   }
+  outline = silhouette(outline);
 
   return {
     outline,
@@ -203,7 +228,8 @@ export async function reprocessOutline(
 
   const outline = refineOutline(rawOutline, detect);
   const marginPx = marginToPixels(margin, calibration);
-  return marginPx === 0 ? outline : offsetOutline(outline, marginPx);
+  const adjusted = marginPx === 0 ? outline : await offsetOutline(outline, marginPx);
+  return withoutNewInteriorHoles(adjusted, rawOutline);
 }
 
 function translate(outline: Outline, origin: Point): Outline {
