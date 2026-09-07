@@ -25,6 +25,27 @@ spacing, effective depth/floor measurements, trace-margin provenance, and a dire
 and can select the affected objects. **Materials**, **View**, and **Check fit** are
 separate sections, with thin fit checks available before full model export.
 
+Precision positioning, dimensions, and spacing are collapsed under **Fine-tune
+position & size**. Depth and floor measurements stay in a compact row with an
+expandable diagram. Pocket inspection exposes **Show full bin** both beside the
+3D model and in the pocket controls. The 3MF color dialog wraps its choices within
+the available width and scrolls on short screens. Export statistics show model
+volume; filament weight is left to the slicer's infill and wall settings.
+
+Selecting a pocket in Layout also exposes **Edit Contour** beside the canvas,
+with **Finish contour editing** to return to placement. The portable project
+download and open actions appear side by side. Bin model, fit-template, and
+DXF/SVG layout exports offer an unchecked **Also download editable project**
+checkbox; canceling does not build or download files. When requested, the JSON
+and exported geometry come from the same snapshot and share a filename stem.
+Trace SVG, DXF, DWG-compatibility, and STL exports offer the same choice. Their
+optional JSON reopens the current calibrated outline as an editable pocket in a
+new Bin project, preserving its contour, physical scale, and trace margin. This
+option requires calibration; exporting an outline alone remains available without it.
+Pocket rows are full selection buttons with an explicit **Edit properties** label,
+persistent borders, and a highlighted selected state. Selecting a row brings the
+named **Pocket properties** header into view; renaming is a separate action there.
+
 Project schema 10 adds optional names, the fixed-size preference, and trace-margin
 metadata. Versions 1–9 remain supported through explicit migration; the supplied
 version-9 Airduster fixture verifies all seven shapes, four placements, and two
@@ -32,7 +53,7 @@ finger-access features survive a library save and portable JSON round trip. New
 outside-only defaults never alter imported contours. Legacy IndexedDB keys are
 retained, unreadable library records are preserved, and autosave refuses to
 overwrite an unreadable working copy. The project header reports save success or
-failure, and STL/3MF exports continue to download the editable project backup first.
+failure. When an export includes an editable project, its JSON is downloaded first.
 
 Nonrectangular bin footprints landed on 2026-08-27. A bin can now use a
 connected, hole-free mask at the selected full/half/quarter pitch, so a 2×2
@@ -182,7 +203,13 @@ depths are independently selectable from 0.2–3.0 mm for pocket floors and
 defaults). The rim limit is the full
 modeled lip depth and does not extend into the bin wall. Both accents are cut
 downward from the original surfaces, never added above them; STL warns before
-dropping those color assignments. Hole regression worth
+dropping those color assignments. Pocket controls, Materials, and export show a
+nonblocking warning when a pocket's colored floor layer reaches the underside
+recesses. This uses the resolved depth and selected color thickness: ordinary
+base recesses rise to 4.75 mm, while lite cavities and full-pitch screw bores can
+reach 7 mm. The check is conservative because actual exposure also depends on
+the pocket's position. Reducing depth or color thickness, increasing the remaining
+floor, or disabling floor coloring updates the warning immediately. Hole regression worth
 remembering: abutting union pieces whose faces share no vertices don't weld —
 the genus invariant caught the resulting sealed voids; pieces now overlap.
 

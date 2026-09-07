@@ -1,5 +1,6 @@
 import {
   Ruler,
+  Spline,
   X,
 } from "lucide-react";
 import {
@@ -1607,6 +1608,23 @@ function LayoutStage(): JSX.Element {
           </div>
         </div>
       ) : null}
+
+      {selected && (editorMode === "placement" || editorMode === "contour") && (
+        <Button
+          className="absolute left-3 top-12 z-30 h-8 shadow-sm"
+          variant={editorMode === "contour" ? "default" : "outline"}
+          size="sm"
+          data-testid="button-layout-edit-contour"
+          onClick={() => {
+            setRulerActive(false);
+            setMeasurementPoints([]);
+            dispatch({ type: "SET_EDITOR_MODE", editorMode: editorMode === "contour" ? "placement" : "contour" });
+          }}
+        >
+          <Spline className="h-4 w-4" />
+          {editorMode === "contour" ? "Finish contour editing" : "Edit Contour"}
+        </Button>
+      )}
 
       <div
         className="absolute right-3 top-12 z-30 flex flex-col overflow-hidden rounded-md border bg-background/90 shadow-sm backdrop-blur"

@@ -1,5 +1,7 @@
 import {
   Box,
+  ChevronDown,
+  ChevronRight,
   CircleDot,
   ClipboardCheck,
   Copy,
@@ -20,6 +22,7 @@ import {
   Scaling,
   Save,
   Scissors,
+  SlidersHorizontal,
   Spline,
   Trash2,
   Unlock,
@@ -46,7 +49,7 @@ import {
   type GridPitch,
 } from "@shared/gridfinity/standard";
 import { MAX_GRID, type BinSpecInput } from "@shared/gridfinity/types";
-import { validateBinSpec, validateLayout, type ValidationIssue } from "@shared/gridfinity/validate";
+import { validateBinSpec, validateLayout, validatePocketFloorMaterials, type ValidationIssue } from "@shared/gridfinity/validate";
 
 import {
   PanelBody,
@@ -105,6 +108,7 @@ import {
 import type { ProjectLibraryItem } from "@/lib/project/persist";
 import { cn } from "@/lib/utils";
 import { PocketMeasurements, PositionInputs } from "./pocket-measurements";
+import { ExportConfirmationDialog, ProjectBackupOption } from "./export-confirmation-dialog";
 import { useBin } from "@/state/bin-store";
 import { useShapeLibrary } from "@/state/shape-library";
 
@@ -195,14 +199,16 @@ function EditableShapeName({
   return (
     <button
       type="button"
-      className="group flex min-w-0 items-center gap-1.5 rounded px-1 py-0.5 text-left font-medium hover:bg-violet-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="group flex w-full min-w-0 items-center justify-between gap-2 rounded py-1 text-left text-sm font-medium hover:bg-violet-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       onClick={() => setEditing(true)}
       aria-label={`Rename ${shape.name}`}
       title="Click to rename"
       data-testid="button-edit-shape-name"
     >
       <span className="truncate">{shape.name}</span>
-      <Pencil className="h-3 w-3 shrink-0 text-muted-foreground opacity-60 group-hover:opacity-100" />
+      <span className="flex shrink-0 items-center gap-1 text-[11px] font-normal text-muted-foreground">
+        <Pencil className="h-3 w-3" />Rename
+      </span>
     </button>
   );
 }
@@ -226,10 +232,10 @@ export interface BinControlsPanelProps {
   stats: BuildBinStats | null;
   building: boolean;
   exporting: boolean;
-  onExport: (format: "3mf" | "3mf-multicolor" | "stl") => void;
-  onExportFitCheck: (cutoutId: string, depthMm: number) => void;
-  onExportSurfaceFitCheck: (thicknessMm: number) => void;
-  onExportLayout: (format: "dxf" | "svg") => void;
+  onExport: (format: "3mf" | "3mf-multicolor" | "stl", includeProject: boolean) => void;
+  onExportFitCheck: (cutoutId: string, depthMm: number, includeProject: boolean) => void;
+  onExportSurfaceFitCheck: (thicknessMm: number, includeProject: boolean) => void;
+  onExportLayout: (format: "dxf" | "svg", includeProject: boolean) => void;
   onAutoArrange: () => void;
   onExportProject: () => void;
   onImportProject: (file: File) => void;
@@ -321,6 +327,12 @@ export function BinControlsPanel({
   } = useBin();
   const [, navigate] = useLocation();
   const { shapes, storeShape } = useShapeLibrary();
+  const pocketPropertiesHeadingRef = useRef<HTMLDivElement>(null);
+  const selectPocketProperties = (id: string) => {
+    dispatch({ type: "SELECT_CUTOUT", id });
+    // Reveal the heading after the selected pocket's controls have rendered.
+    requestAnimationFrame(() => pocketPropertiesHeadingRef.current?.scrollIntoView?.({ block: "nearest" }));
+  };
   const shapesById = useMemo(
     () => new Map(shapes.map((shape) => [shape.id, shape])),
     [shapes],
@@ -329,12 +341,17 @@ export function BinControlsPanel({
   const dims = useMemo(() => binDimensionsMm(spec), [spec]);
   const widthCellSpan = standardCellSpan(spec.gridX, spec.gridPitch);
   const lengthCellSpan = standardCellSpan(spec.gridY, spec.gridPitch);
+  const floorMaterialIssues = useMemo(
+    () => validatePocketFloorMaterials(spec, cutouts, shapesById, colorPocketFloors ? pocketFloorThicknessMm : 0),
+    [spec, cutouts, shapesById, colorPocketFloors, pocketFloorThicknessMm],
+  );
   const issues = useMemo(
     () => [
       ...validateBinSpec(spec).issues,
       ...validateLayout(spec, cutouts, shapesById, fingerHoles),
+      ...floorMaterialIssues,
     ],
-    [spec, cutouts, shapesById, fingerHoles],
+    [spec, cutouts, shapesById, fingerHoles, floorMaterialIssues],
   );
   const revealIssue = (issue: ValidationIssue) => {
     dispatch({ type: "SET_VIEW_MODE", viewMode: "2d" });
@@ -347,7 +364,7 @@ export function BinControlsPanel({
       revealPanelSection("bin-settings-finger-holes", BIN_SETTINGS_SECTIONS);
     } else revealPanelSection("bin-settings-size", BIN_SETTINGS_SECTIONS);
   };
-  const issueButton = (issue: ValidationIssue, index: number) => <button type="button" key={`${issue.code}-${index}`} onClick={() => revealIssue(issue)}
+  const issueButton = (issue: ValidationIssue, index: number) => <button type="button" key={`${issue.code}-${index}`} data-issue-code={issue.code} onClick={() => revealIssue(issue)}
     className={`block w-full rounded border px-2 py-1.5 text-left text-xs hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring ${issue.code === "cutout-overlap" ? "border-orange-500/40 text-orange-700 dark:text-orange-300" : issue.severity === "error" ? "border-destructive/40 text-destructive" : "border-amber-500/40 text-amber-700 dark:text-amber-300"}`}>
     {issue.message} <span className="underline">Show {issue.cutoutIds?.length === 2 ? "pockets (click to switch)" : "location"}</span>
   </button>;
@@ -366,7 +383,13 @@ export function BinControlsPanel({
     SURFACE_FIT_CHECK_DEFAULT_THICKNESS_MM,
   );
   const [threeMfDialogOpen, setThreeMfDialogOpen] = useState(false);
-  const [stlWarningOpen, setStlWarningOpen] = useState(false);
+  const [includeThreeMfProject, setIncludeThreeMfProject] = useState(false);
+  const [pendingExport, setPendingExport] = useState<{
+    title: string;
+    description: string;
+    confirmLabel: string;
+    onConfirm: (includeProject: boolean) => void;
+  } | null>(null);
   const hasBlindPocket = cutouts.some(
     (cutout) => cutout.depth.mode !== "through",
   );
@@ -819,7 +842,7 @@ export function BinControlsPanel({
               >
                 <MousePointerClick className="mt-0.5 h-4 w-4 shrink-0" />
                 <p>
-                  Select a pocket in the list or Layout view. Click its name to rename it.
+                  Choose a pocket below to edit its size, depth, and shape.
                 </p>
               </div>
               <Button
@@ -832,7 +855,7 @@ export function BinControlsPanel({
                 <LayoutGrid className="mr-1.5 h-3.5 w-3.5" />
                 Auto-arrange
               </Button>
-              <div className="space-y-1">
+              <div className="space-y-2" aria-label="Choose a pocket to edit">
                 {cutouts.map((cutout) => {
                   const shape = shapesById.get(cutout.shapeId);
                   const isSelected = cutout.id === selectedCutoutId;
@@ -840,48 +863,34 @@ export function BinControlsPanel({
                     <div
                       key={cutout.id}
                       className={cn(
-                        "flex items-center gap-1 rounded border px-1 py-1 text-xs",
+                        "flex items-center rounded-md border text-xs transition-colors",
                         isSelected
-                          ? "border-violet-500/40 bg-violet-500/10 text-accent-foreground"
-                          : "border-transparent hover:border-violet-500/20 hover:bg-accent/50",
+                          ? "border-violet-500 bg-violet-500/10 ring-1 ring-violet-500/30"
+                          : "border-input bg-background hover:border-violet-400 hover:bg-violet-500/5",
                       )}
                       data-testid={`cutout-row-${cutout.id}`}
                     >
-                      <div className="flex min-w-0 flex-1 items-center gap-2 px-1 py-0.5">
-                        {isSelected && shape ? (
-                          <div className="min-w-0 flex-1">
-                            <EditableShapeName
-                              shape={shape}
-                              onRename={(name) => storeShape({ ...shape, name })}
-                            />
-                          </div>
-                        ) : (
-                          <button
-                            type="button"
-                            className="min-w-0 flex-1 truncate rounded text-left font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                            aria-pressed={false}
-                            onClick={() =>
-                              dispatch({ type: "SELECT_CUTOUT", id: cutout.id })
-                            }
-                            data-testid={`button-select-${cutout.id}`}
-                          >
-                            {shape?.name ?? "missing shape"}
-                          </button>
-                        )}
-                        <span
-                          className={cn(
-                            "shrink-0 rounded-full px-1.5 py-0.5 text-[10px]",
-                            isSelected
-                              ? "bg-violet-600 text-white"
-                              : "bg-muted text-muted-foreground",
-                          )}
-                        >
-                          {isSelected ? "Selected" : "Select to edit"}
-                        </span>
-                      </div>
                       <button
                         type="button"
-                        className="shrink-0 text-muted-foreground hover:text-foreground"
+                        className="flex min-h-12 min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2"
+                        aria-label={`${shape?.name ?? "Missing shape"} — edit pocket properties`}
+                        aria-pressed={isSelected}
+                        aria-controls={selectedCutoutId ? "pocket-properties" : undefined}
+                        onClick={() => selectPocketProperties(cutout.id)}
+                        data-testid={`button-select-${cutout.id}`}
+                      >
+                        <SlidersHorizontal className="h-4 w-4 shrink-0 text-violet-600 dark:text-violet-300" />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate font-medium">{shape?.name ?? "Missing shape"}</span>
+                          <span className={cn("mt-0.5 block text-[11px]", isSelected ? "font-medium text-violet-700 dark:text-violet-300" : "text-muted-foreground")}>
+                            {isSelected ? "Properties shown below" : "Edit properties"}
+                          </span>
+                        </span>
+                        {isSelected ? <ChevronDown className="h-4 w-4 shrink-0 text-violet-600 dark:text-violet-300" /> : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
+                      </button>
+                      <button
+                        type="button"
+                        className="flex h-8 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         aria-label="Duplicate pocket"
                         onClick={(event) => {
                           event.stopPropagation();
@@ -897,7 +906,7 @@ export function BinControlsPanel({
                       </button>
                       <button
                         type="button"
-                        className="shrink-0 text-muted-foreground hover:text-destructive"
+                        className="mr-1 flex h-8 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         aria-label="Remove pocket"
                         onClick={(event) => {
                           event.stopPropagation();
@@ -915,8 +924,12 @@ export function BinControlsPanel({
           )}
 
           {selectedCutout && selectedShape && (
-            <div className="space-y-3 border-t pt-3">
-              <PocketMeasurements cutout={selectedCutout} shape={selectedShape} setScale={setPocketScale} inspect={onSectionChange} />
+            <div className="space-y-3 border-t pt-3" id="pocket-properties">
+              <div ref={pocketPropertiesHeadingRef} className="scroll-mt-3 rounded-md border border-violet-500/30 bg-violet-500/5 px-2.5 py-2" data-testid="pocket-properties-heading">
+                <h3 className="text-[11px] font-semibold uppercase tracking-wide text-violet-700 dark:text-violet-300">Pocket properties</h3>
+                <EditableShapeName key={selectedCutout.id} shape={selectedShape} onRename={(name) => storeShape({ ...selectedShape, name })} />
+              </div>
+              <PocketMeasurements cutout={selectedCutout} shape={selectedShape} setScale={setPocketScale} section={section} inspect={onSectionChange} />
               <Button
                 variant={editorMode === "contour" ? "default" : "outline"}
                 size="sm"
@@ -1679,6 +1692,11 @@ export function BinControlsPanel({
                 <span className="text-[11px] text-muted-foreground">mm down</span>
               </div>
             </div>
+            {floorMaterialIssues.length > 0 && (
+              <div className="space-y-1" role="status" aria-label="Pocket floor color warnings">
+                {floorMaterialIssues.map(issueButton)}
+              </div>
+            )}
           </div>
           <div
             className="space-y-2 rounded-md border bg-background/60 px-2.5 py-2"
@@ -1846,7 +1864,12 @@ export function BinControlsPanel({
                   className="w-full"
                   disabled={exporting || hasErrors}
                   onClick={() =>
-                    onExportSurfaceFitCheck(surfaceFitCheckThicknessMm)
+                    setPendingExport({
+                      title: "Save surface fit test STL?",
+                      description: `Download the complete pocket layout as a ${surfaceFitCheckThicknessMm} mm thin plate.`,
+                      confirmLabel: "Download STL",
+                      onConfirm: (includeProject) => onExportSurfaceFitCheck(surfaceFitCheckThicknessMm, includeProject),
+                    })
                   }
                   data-testid="button-export-surface-fit-test"
                 >
@@ -1889,7 +1912,12 @@ export function BinControlsPanel({
                   size="sm"
                   className="w-full"
                   disabled={exporting}
-                  onClick={() => onExportFitCheck(selectedCutout.id, fitCheckDepthMm)}
+                  onClick={() => setPendingExport({
+                    title: "Save fit template STL?",
+                    description: `Download the filled outline of “${selectedShape.name}” at ${fitCheckDepthMm} mm thick.`,
+                    confirmLabel: "Download STL",
+                    onConfirm: (includeProject) => onExportFitCheck(selectedCutout.id, fitCheckDepthMm, includeProject),
+                  })}
                   data-testid="button-export-fit-check"
                 >
                   <Download className="mr-1.5 h-3.5 w-3.5" />
@@ -1933,7 +1961,12 @@ export function BinControlsPanel({
                     variant="outline"
                     size="sm"
                     className="flex-1"
-                    onClick={() => onExportLayout("dxf")}
+                    onClick={() => setPendingExport({
+                      title: "Save layout DXF?",
+                      description: "Download the bin footprint and pocket outlines in millimetres.",
+                      confirmLabel: "Download DXF",
+                      onConfirm: (includeProject) => onExportLayout("dxf", includeProject),
+                    })}
                     data-testid="button-layout-dxf"
                   >
                     Layout DXF
@@ -1942,7 +1975,12 @@ export function BinControlsPanel({
                     variant="outline"
                     size="sm"
                     className="flex-1"
-                    onClick={() => onExportLayout("svg")}
+                    onClick={() => setPendingExport({
+                      title: "Save layout SVG?",
+                      description: "Download the bin footprint and pocket outlines in millimetres.",
+                      confirmLabel: "Download SVG",
+                      onConfirm: (includeProject) => onExportLayout("svg", includeProject),
+                    })}
                     data-testid="button-layout-svg"
                   >
                     Layout SVG
@@ -1965,6 +2003,8 @@ export function BinControlsPanel({
           summary={
             hasErrors
               ? "Needs attention"
+              : issues.length > 0
+                ? `${issues.length} ${issues.length === 1 ? "warning" : "warnings"}`
               : building
                 ? stats
                   ? "Updating"
@@ -1981,11 +2021,13 @@ export function BinControlsPanel({
           <div className="space-y-1">
             <Label className="text-xs">Model validation</Label>
             {stats ? (
-              <p className="text-xs tabular-nums text-muted-foreground">
-                {stats.triangles.toLocaleString()} triangles ·{" "}
-                {(stats.volumeMm3 / 1000).toFixed(1)} cm³ · ≈
-                {((stats.volumeMm3 / 1000) * 1.24).toFixed(0)} g solid PLA
-              </p>
+              <div className="space-y-1 text-xs text-muted-foreground">
+                <p className="tabular-nums">
+                  {stats.triangles.toLocaleString()} triangles ·{" "}
+                  {(stats.volumeMm3 / 1000).toFixed(1)} cm³ model volume
+                </p>
+                <p className="text-[11px]">Estimate filament weight in your slicer using your infill and wall settings.</p>
+              </div>
             ) : (
               <p className="text-xs text-muted-foreground">
                 {building ? "Building preview…" : "No preview yet."}
@@ -2009,9 +2051,8 @@ export function BinControlsPanel({
           <div className="space-y-1.5">{issues.map(issueButton)}</div>
 
           <p className="text-xs text-muted-foreground">
-            Every STL or 3MF also saves a portable JSON backup of the full project.
-            Both filenames include the project name, bin size, and date/time.
-            Allow multiple downloads if your browser asks.
+            You can include an editable project JSON when downloading a model or
+            layout. Select the checkbox in the export dialog to save both files.
           </p>
 
           <div
@@ -2031,7 +2072,7 @@ export function BinControlsPanel({
                 className="flex-1"
                 size="sm"
                 disabled={exporting || hasErrors}
-                onClick={() => setThreeMfDialogOpen(true)}
+                onClick={() => { setIncludeThreeMfProject(false); setThreeMfDialogOpen(true); }}
                 data-testid="button-export-3mf"
               >
                 <Box className="mr-1.5 h-4 w-4" />
@@ -2042,11 +2083,14 @@ export function BinControlsPanel({
                 variant="outline"
                 size="sm"
                 disabled={exporting || hasErrors}
-                onClick={() =>
-                  hasSelectedMulticolor
-                    ? setStlWarningOpen(true)
-                    : onExport("stl")
-                }
+                onClick={() => setPendingExport({
+                  title: hasSelectedMulticolor ? "STL will not include your colors" : "Save bin STL?",
+                  description: hasSelectedMulticolor
+                    ? "STL stores geometry only. Use multi-color 3MF to preserve the selected pocket-floor and rim-top materials."
+                    : "Download the complete bin at print quality.",
+                  confirmLabel: hasSelectedMulticolor ? "Export STL without colors" : "Download STL",
+                  onConfirm: (includeProject) => onExport("stl", includeProject),
+                })}
                 data-testid="button-export-stl"
               >
                 Save STL
@@ -2106,22 +2150,29 @@ export function BinControlsPanel({
       </AlertDialog>
 
       <Dialog open={threeMfDialogOpen} onOpenChange={setThreeMfDialogOpen}>
-        <DialogContent className="w-[calc(100%-2rem)] sm:max-w-md">
-          <DialogHeader>
+        <DialogContent className="max-h-[calc(100dvh_-_2rem)] w-[calc(100%_-_2rem)] grid-cols-1 overflow-y-auto sm:max-w-md">
+          <DialogHeader className="min-w-0 pr-6 text-left">
             <DialogTitle>Include multiple colors in the 3MF?</DialogTitle>
             <DialogDescription>
               Choose a single printable body or preserve the material colors
               selected in Materials.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid min-w-0 gap-2">
+          {floorMaterialIssues.length > 0 && (
+            <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs text-amber-900 dark:text-amber-100" role="status" data-testid="export-floor-color-warning">
+              <p className="font-medium">Floor color may show on the underside.</p>
+              <p className="mt-1">Review the pocket warnings in Materials before exporting multiple colors. A shallower pocket or thinner color layer can keep the color inside the bin.</p>
+            </div>
+          )}
+          <ProjectBackupOption checked={includeThreeMfProject} onChange={setIncludeThreeMfProject} />
+          <div className="grid min-w-0 grid-cols-1 gap-2">
             <Button
               variant="outline"
               className="h-auto w-full min-w-0 items-start justify-start whitespace-normal px-3 py-2.5 text-left"
               disabled={exporting || hasErrors}
               onClick={() => {
                 setThreeMfDialogOpen(false);
-                onExport("3mf");
+                onExport("3mf", includeThreeMfProject);
               }}
               data-testid="button-export-single-color-3mf"
             >
@@ -2138,7 +2189,7 @@ export function BinControlsPanel({
               disabled={exporting || hasErrors || !hasSelectedMulticolor}
               onClick={() => {
                 setThreeMfDialogOpen(false);
-                onExport("3mf-multicolor");
+                onExport("3mf-multicolor", includeThreeMfProject);
               }}
               data-testid="button-export-multicolor-3mf"
             >
@@ -2170,33 +2221,16 @@ export function BinControlsPanel({
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={stlWarningOpen} onOpenChange={setStlWarningOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>STL will not include your colors</AlertDialogTitle>
-            <AlertDialogDescription>
-              STL stores geometry only. The selected color assignments for
-              {" "}
-              {[
-                hasSelectedFloorColor ? "pocket-floor" : null,
-                hasSelectedRimColor ? "rim-top" : null,
-              ]
-                .filter(Boolean)
-                .join(" and ")} regions will be omitted. Use 3MF and choose
-              Multi-color 3MF to preserve the separate printable materials.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => onExport("stl")}
-              data-testid="button-confirm-stl-without-colors"
-            >
-              Export STL without colors
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {pendingExport && (
+        <ExportConfirmationDialog
+          {...pendingExport}
+          onCancel={() => setPendingExport(null)}
+          onConfirm={(includeProject) => {
+            setPendingExport(null);
+            pendingExport.onConfirm(includeProject);
+          }}
+        />
+      )}
 
     </div>
   );
@@ -2472,11 +2506,11 @@ function ProjectControls({
 
       <div className="space-y-1.5 border-t pt-3">
         <Label className="text-xs">Portable backup</Label>
-        <div className="flex flex-col gap-2">
+        <div className="grid grid-cols-2 gap-2">
           <Button
-            variant="ghost"
+            variant="outline"
             size="sm"
-            className="flex-1"
+            className="h-auto min-h-9 min-w-0 whitespace-normal px-2 py-2 text-xs"
             disabled={!ready || busy}
             onClick={onExportProject}
             data-testid="button-export-project"
@@ -2484,9 +2518,9 @@ function ProjectControls({
             Download editable project
           </Button>
           <Button
-            variant="ghost"
+            variant="outline"
             size="sm"
-            className="flex-1"
+            className="h-auto min-h-9 min-w-0 whitespace-normal px-2 py-2 text-xs"
             disabled={!ready || busy}
             onClick={() => importInputRef.current?.click()}
             data-testid="button-import-project"
