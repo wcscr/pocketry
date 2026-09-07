@@ -220,12 +220,17 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
                 STL for an inexpensive physical fit check.
               </li>
               <li>
-                Every bin STL or 3MF export, including fit tests, also downloads
-                a portable <strong>.pocketry.json</strong> backup of the full
-                editable project. The files share a name with the project name
+                Bin model, fit-test, and layout exports ask whether to also download
+                an editable <strong>.pocketry.json</strong> project. This checkbox
+                starts unchecked. When selected, the files share the project name
                 (when saved), bin size, and local date/time. Allow multiple
                 downloads if your browser asks, and keep the JSON to restore
                 the design later with Open Pocketry project.
+              </li>
+              <li>
+                Trace exports offer the same optional JSON download once the outline
+                is calibrated. Open that project in Bin to edit the exported outline
+                as a pocket at its original physical size.
               </li>
               <li>
                 Under <strong>Check fit</strong>, Complete surface fit test exports every pocket

@@ -22,7 +22,7 @@ const scale = vi.fn();
 function Probe() {
   store = useBin();
   const cutout = store.cutouts[0];
-  return cutout ? <PocketMeasurements cutout={cutout} shape={shape} inspect={inspect} setScale={scale} /> : null;
+  return cutout ? <PocketMeasurements cutout={cutout} shape={shape} section={null} inspect={inspect} setScale={scale} /> : null;
 }
 
 beforeEach(() => {
@@ -34,6 +34,7 @@ beforeEach(() => {
   React.act(() => root.render(<ShapeLibraryProvider><BinProvider><Probe /></BinProvider></ShapeLibraryProvider>));
   React.act(() => store.dispatch({ type: "HYDRATE", spec: parseBinSpec({ gridX: 4, gridY: 4, heightUnits: 6 }),
     cutouts: [parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 0, y: 0 }, scaleX: 0.9, scaleY: 0.9, clearanceMm: 0.5, depth: { mode: "mm", value: 12 } })] }));
+  React.act(() => host.querySelector("summary")!.click());
 });
 afterEach(() => { React.act(() => root.unmount()); host.remove(); vi.unstubAllGlobals(); });
 

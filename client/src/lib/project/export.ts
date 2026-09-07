@@ -46,12 +46,13 @@ export function prepareProjectExport(
   };
 }
 
-/** Download the recovery copy first, even if the browser blocks a second download. */
+/** Include the recovery copy only when requested, using the same design snapshot. */
 export function downloadModelWithProject(
   model: Blob,
-  format: "stl" | "3mf",
+  format: "stl" | "3mf" | "svg" | "dxf",
   project: ProjectExport,
+  includeProject: boolean,
 ): void {
-  downloadBlob(project.backup, `${project.baseName}.pocketry.json`);
+  if (includeProject) downloadBlob(project.backup, `${project.baseName}.pocketry.json`);
   downloadBlob(model, `${project.baseName}.${format}`);
 }

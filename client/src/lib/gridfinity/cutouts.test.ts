@@ -7,6 +7,7 @@ import {
 import { parseBinSpec } from "@shared/gridfinity/types";
 import {
   binTotalHeightMm,
+  BASE_PROFILE_HEIGHT,
   STACKING_LIP_HEIGHT_ACTUAL,
   STACKING_LIP_SUPPORT_HEIGHT_MM,
 } from "@shared/gridfinity/standard";
@@ -178,6 +179,31 @@ describe("buildBinWithCutouts", () => {
     const reunited = arena.track(body.add(pocketFloors!));
     expect(reunited.volume()).toBeCloseTo(built.solid.volume(), 5);
     expect(reunited.boundingBox()).toEqual(built.solid.boundingBox());
+  });
+
+  it.each([39, 38.8])("checks underside exposure in the actual floor-color mesh at %s mm fixed depth", (depthMm) => {
+    const built = buildBinWithCutouts(
+      kernel,
+      parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6.5, fill: "solid" }),
+      layoutFor([rectShape("tool", 30, 20)], [cutout("pocket", "tool", { depth: { mode: "mm", value: depthMm } })]),
+      QUALITY,
+      { floorInsertThicknessMm: 0.6 },
+    );
+    const mesh = built.materialParts!.pocketFloors!.getMesh();
+    let exposedArea = 0;
+    for (let i = 0; i < mesh.triVerts.length; i += 3) {
+      const vertices = [0, 1, 2].map((offset) => {
+        const index = mesh.triVerts[i + offset] * mesh.numProp;
+        return [mesh.vertProperties[index], mesh.vertProperties[index + 1], mesh.vertProperties[index + 2]];
+      });
+      if (!vertices.every((vertex) => Math.abs(vertex[2] - BASE_PROFILE_HEIGHT) < 1e-5)) continue;
+      const [a, b, c] = vertices;
+      const normalZ = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+      // Downward faces on the bridge are exposed between the base feet.
+      if (normalZ < 0) exposedArea += -normalZ / 2;
+    }
+    if (depthMm === 39) expect(exposedArea).toBeGreaterThan(1);
+    else expect(exposedArea).toBe(0);
   });
 
   it("splits the stacking-rim crest into a printable 0.6 mm material volume", () => {

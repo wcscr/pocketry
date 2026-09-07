@@ -18,9 +18,10 @@ processing, project storage, and model generation kept on the user's device.
 - Export traced geometry as SVG, DXF, DWG-compatible DXF, or STL.
 - Arrange traced tools as pockets in Gridfinity bins.
 - Configure full-, half-, and quarter-pitch bins and export STL or 3MF models.
-- Every bin STL/3MF export (including fit tests) downloads a matching portable
-  `.pocketry.json` backup of the full design. Filenames include the saved project
-  name, bin size, and local date/time; allow multiple downloads when prompted.
+- Model, fit-test, and outline export dialogs include an optional, unchecked
+  `.pocketry.json` download. Bin exports preserve the full design; Trace exports
+  preserve the calibrated outline as an editable pocket in a new Bin project.
+  When selected, both files share a filename stem.
 - Export top-down layouts for shadow boards and CNC workflows.
 
 Pocketry is still subject to physical print validation. Inspect generated files

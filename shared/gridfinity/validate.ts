@@ -25,6 +25,7 @@ import {
 } from "./cutout";
 import {
   BASE_HEIGHT,
+  BASE_PROFILE_HEIGHT,
   binHeightMm,
   binWallHeightMm,
   D_DIV,
@@ -68,6 +69,47 @@ export interface ValidationResult {
   issues: ValidationIssue[];
   /** True when nothing blocks building/exporting this spec. */
   ok: boolean;
+}
+
+/**
+ * Conservative depth check for floor colors reaching an underside recess.
+ * The ordinary underside rises to the bridge at BASE_PROFILE_HEIGHT; lite
+ * cavities and full-pitch screw bores can reach BASE_HEIGHT. Actual exposure
+ * also depends on where the pocket overlaps those features, so this is a
+ * warning, not a claim that every affected pocket has an exposed color face.
+ * Pass zero when floor coloring is disabled. Like the builder, the colored
+ * volume extends down from the resolved floor and stops at z = 0.
+ */
+export function validatePocketFloorMaterials(
+  spec: BinSpec,
+  cutouts: readonly CutoutPlacement[],
+  shapesById: ReadonlyMap<string, TracedShape>,
+  floorColorThicknessMm: number,
+): ValidationIssue[] {
+  if (spec.fill !== "solid" || !Number.isFinite(floorColorThicknessMm) || floorColorThicknessMm <= 0) return [];
+
+  const hasScrewBores = spec.screwHoles && spec.gridPitch === "full";
+  const undersideHeightMm = spec.liteBase || hasScrewBores ? BASE_HEIGHT : BASE_PROFILE_HEIGHT;
+  const recess = spec.liteBase ? "the hollow base" : hasScrewBores ? "the screw holes" : "the recesses between the base feet";
+  const issues: ValidationIssue[] = [];
+  for (const cutout of cutouts) {
+    const shape = shapesById.get(cutout.shapeId);
+    const { floorZ, depthMm } = resolvePocketDepth(spec, cutout.depth);
+    // Invalid and through pockets have no printable floor-color volume.
+    if (!shape || floorZ === null || floorZ <= 0 || depthMm === null || depthMm <= 0) continue;
+    const thicknessMm = Math.min(floorColorThicknessMm, floorZ);
+    if (floorZ - thicknessMm > undersideHeightMm + 1e-6) continue;
+    issues.push({
+      code: "floor-color-on-underside",
+      severity: "warning",
+      cutoutIds: [cutout.id],
+      message:
+        `“${shape.name}”: Floor color may show on the underside. ` +
+        `The ${thicknessMm.toFixed(2)} mm color layer reaches ${recess}. ` +
+        `Reduce pocket depth, increase the remaining floor, or use a thinner color layer.`,
+    });
+  }
+  return issues;
 }
 
 /** Print beds this side of a Voron 350 top out around here. */
