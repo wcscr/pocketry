@@ -1,23 +1,34 @@
 import { ARUCO_4X4_MODULES, markerBits } from "./aruco-4x4";
+import { H2D_PHOTO_BOARD } from "./photo-board";
 
 /** Physical paper sizes supported by printed calibration sheets. */
 export type TemplatePaper = "a4" | "letter";
+
+/** Reference-plane format; persisted `paper` fields also accept this board. */
+export type TemplateFormat = TemplatePaper | "h2d-photo-board";
 
 /**
  * Stable sheets remain the default. Experimental sheets move smaller markers
  * toward the paper corners to enlarge the useful photography area and improve
  * the perspective baseline.
  */
-export type TemplateVariant =
+export type PaperTemplateVariant =
   | TemplatePaper
   | "a4-experimental"
   | "letter-experimental";
 
-export const TEMPLATE_VARIANTS: readonly TemplateVariant[] = [
+export type TemplateVariant = PaperTemplateVariant | "h2d-photo-board";
+
+export const PAPER_TEMPLATE_VARIANTS: readonly PaperTemplateVariant[] = [
   "a4",
   "letter",
   "a4-experimental",
   "letter-experimental",
+];
+
+export const TEMPLATE_VARIANTS: readonly TemplateVariant[] = [
+  ...PAPER_TEMPLATE_VARIANTS,
+  "h2d-photo-board",
 ];
 
 /** Printed and machine-readable template generation. */
@@ -47,6 +58,7 @@ export const TEMPLATE_MARKER_IDS: Record<
   letter: [4, 5, 6, 7],
   "a4-experimental": [8, 9, 10, 11],
   "letter-experimental": [12, 13, 14, 15],
+  "h2d-photo-board": H2D_PHOTO_BOARD.markerIds,
 };
 
 export const ALL_TEMPLATE_MARKER_IDS = Object.values(TEMPLATE_MARKER_IDS).flat();
@@ -59,20 +71,34 @@ export const TEMPLATE_PAPER_MM: Record<
   letter: { width: 215.9, height: 279.4 },
 };
 
+export const TEMPLATE_FORMAT_MM: Record<
+  TemplateFormat,
+  { width: number; height: number }
+> = {
+  ...TEMPLATE_PAPER_MM,
+  "h2d-photo-board": { width: H2D_PHOTO_BOARD.width, height: H2D_PHOTO_BOARD.height },
+};
+
 export function isExperimentalTemplate(template: TemplateVariant): boolean {
   return template.endsWith("-experimental");
 }
 
-export function templatePaper(template: TemplateVariant): TemplatePaper {
+export function templatePaper(template: PaperTemplateVariant): TemplatePaper {
   return template.startsWith("a4") ? "a4" : "letter";
 }
 
+export function templateFormat(template: TemplateVariant): TemplateFormat {
+  return template === "h2d-photo-board" ? template : templatePaper(template);
+}
+
 export function templateDisplayName(template: TemplateVariant): string {
+  if (template === "h2d-photo-board") return "H2D photo board (315 × 310 mm)";
   const paper = templatePaper(template) === "a4" ? "A4" : "US Letter";
   return isExperimentalTemplate(template) ? `${paper} experimental` : paper;
 }
 
 export function templateMarkerSizeMm(template: TemplateVariant): number {
+  if (template === "h2d-photo-board") return H2D_PHOTO_BOARD.markerSize;
   return isExperimentalTemplate(template)
     ? EXPERIMENTAL_TEMPLATE_MARKER_SIZE_MM
     : TEMPLATE_MARKER_SIZE_MM;
@@ -80,7 +106,7 @@ export function templateMarkerSizeMm(template: TemplateVariant): number {
 
 /** Header baselines in millimetres from the top of the page. */
 export function templateHeaderBaselinesMm(
-  template: TemplateVariant,
+  template: PaperTemplateVariant,
 ): { title: number; instructions: number } {
   if (isExperimentalTemplate(template)) {
     return { title: 16, instructions: 23 };
@@ -100,12 +126,14 @@ export function templateHeaderBaselinesMm(
 export function templateMarkerCentersMm(
   template: TemplateVariant,
 ): { id: number; x: number; y: number }[] {
-  const page = TEMPLATE_PAPER_MM[templatePaper(template)];
+  const page = TEMPLATE_FORMAT_MM[templateFormat(template)];
   const ids = TEMPLATE_MARKER_IDS[template];
-  if (isExperimentalTemplate(template)) {
+  if (template === "h2d-photo-board" || isExperimentalTemplate(template)) {
     const inset =
-      EXPERIMENTAL_TEMPLATE_OUTER_MARGIN_MM +
-      EXPERIMENTAL_TEMPLATE_MARKER_SIZE_MM / 2;
+      template === "h2d-photo-board"
+        ? H2D_PHOTO_BOARD.markerInset
+        : EXPERIMENTAL_TEMPLATE_OUTER_MARGIN_MM +
+          EXPERIMENTAL_TEMPLATE_MARKER_SIZE_MM / 2;
     return [
       { id: ids[0], x: inset, y: inset },
       { id: ids[1], x: page.width - inset, y: inset },
@@ -176,7 +204,7 @@ export function paperFromTemplateMarkerIds(
   ids: readonly number[],
 ): TemplatePaper | null {
   const template = templateFromTemplateMarkerIds(ids);
-  return template ? templatePaper(template) : null;
+  return template && template !== "h2d-photo-board" ? templatePaper(template) : null;
 }
 
 export interface TemplateVerificationBar {
@@ -188,7 +216,7 @@ export interface TemplateVerificationBar {
 
 /** Exact 100 mm verification line geometry for SVG and PDF output. */
 export function templateVerificationBarMm(
-  template: TemplateVariant,
+  template: PaperTemplateVariant,
 ): TemplateVerificationBar {
   const page = TEMPLATE_PAPER_MM[templatePaper(template)];
   const centerX = page.width / 2;
@@ -233,7 +261,7 @@ function markerSvg(
 }
 
 /** The complete printable sheet. */
-export function calibrationTemplateSvg(template: TemplateVariant): string {
+export function calibrationTemplateSvg(template: PaperTemplateVariant): string {
   const paper = templatePaper(template);
   const page = TEMPLATE_PAPER_MM[paper];
   const centers = templateMarkerCentersMm(template);

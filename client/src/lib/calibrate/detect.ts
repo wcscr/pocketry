@@ -2,6 +2,7 @@ import type { Point } from "@shared/geometry/types";
 
 import {
   POCKETRY_ARUCO_BITS,
+  PAPER_TEMPLATE_MARKER_COUNT,
   STABLE_TEMPLATE_MARKER_COUNT,
 } from "./aruco-4x4";
 import type { DetectedMarker } from "./solve";
@@ -153,7 +154,8 @@ export function detectArucoMarkers(
  * Detects only Pocketry v2 custom markers, never stock-dictionary lookalikes.
  * Existing sheets are tried against their original eight-marker dictionary
  * first, preserving its exact decoding/error-correction behaviour. The full
- * dictionary is only needed for the new experimental marker signatures.
+ * Sixteen-marker sheets retain their original dictionary too. The full
+ * dictionary adds the H2D photo board.
  */
 export function detectPocketryTemplateMarkers(
   cv: Cv,
@@ -163,6 +165,10 @@ export function detectPocketryTemplateMarkers(
     createPocketryTemplateDictionary(cv, STABLE_TEMPLATE_MARKER_COUNT),
   );
   if (stable.length >= 2) return stable;
+  const paper = detectMarkersWithDictionary(cv, image, () =>
+    createPocketryTemplateDictionary(cv, PAPER_TEMPLATE_MARKER_COUNT),
+  );
+  if (paper.length >= 2) return paper;
   return detectMarkersWithDictionary(cv, image, () =>
     createPocketryTemplateDictionary(cv),
   );

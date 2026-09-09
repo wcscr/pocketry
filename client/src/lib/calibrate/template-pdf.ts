@@ -10,7 +10,7 @@ import {
   templateMarkerSpacingMm,
   templatePaper,
   templateVerificationBarMm,
-  type TemplateVariant,
+  type PaperTemplateVariant,
 } from "./template";
 
 export const PDF_POINTS_PER_MM = 72 / 25.4;
@@ -50,7 +50,7 @@ function concatBytes(parts: readonly Uint8Array[]): Uint8Array {
  * Builds a one-page vector PDF whose drawing coordinates are derived directly
  * from the same millimetre template geometry used by the detector.
  */
-export function calibrationTemplatePdf(template: TemplateVariant): Uint8Array {
+export function calibrationTemplatePdf(template: PaperTemplateVariant): Uint8Array {
   const paper = templatePaper(template);
   const page = TEMPLATE_PAPER_MM[paper];
   const pageWidth = page.width * PDF_POINTS_PER_MM;

@@ -1,0 +1,230 @@
+{
+  "name": "Pocketry H2D photo board",
+  "template": "h2d-photo-board",
+  "version": 1,
+  "units": "mm",
+  "dictionary": "POCKETRY_4X4_V2",
+  "generator": "OpenCV 4.11.0 extendDictionary(20,4)",
+  "coordinateSystem": "Origin at top-left of finished board; x right, y down",
+  "dimensions": {
+    "width": 315,
+    "height": 310,
+    "thickness": 6
+  },
+  "markerSize": 30,
+  "markerCenterSpacing": {
+    "x": 263,
+    "y": 258
+  },
+  "markers": [
+    {
+      "id": 16,
+      "corners": [
+        {
+          "x": 11,
+          "y": 11
+        },
+        {
+          "x": 41,
+          "y": 11
+        },
+        {
+          "x": 41,
+          "y": 41
+        },
+        {
+          "x": 11,
+          "y": 41
+        }
+      ],
+      "center": {
+        "id": 16,
+        "x": 26,
+        "y": 26
+      },
+      "bits": [
+        [
+          0,
+          1,
+          1,
+          0
+        ],
+        [
+          0,
+          1,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          1
+        ]
+      ]
+    },
+    {
+      "id": 17,
+      "corners": [
+        {
+          "x": 274,
+          "y": 11
+        },
+        {
+          "x": 304,
+          "y": 11
+        },
+        {
+          "x": 304,
+          "y": 41
+        },
+        {
+          "x": 274,
+          "y": 41
+        }
+      ],
+      "center": {
+        "id": 17,
+        "x": 289,
+        "y": 26
+      },
+      "bits": [
+        [
+          0,
+          0,
+          1,
+          1
+        ],
+        [
+          0,
+          1,
+          1,
+          1
+        ],
+        [
+          0,
+          1,
+          1,
+          1
+        ],
+        [
+          0,
+          0,
+          1,
+          0
+        ]
+      ]
+    },
+    {
+      "id": 18,
+      "corners": [
+        {
+          "x": 274,
+          "y": 269
+        },
+        {
+          "x": 304,
+          "y": 269
+        },
+        {
+          "x": 304,
+          "y": 299
+        },
+        {
+          "x": 274,
+          "y": 299
+        }
+      ],
+      "center": {
+        "id": 18,
+        "x": 289,
+        "y": 284
+      },
+      "bits": [
+        [
+          1,
+          1,
+          1,
+          0
+        ],
+        [
+          1,
+          0,
+          1,
+          0
+        ],
+        [
+          0,
+          0,
+          1,
+          0
+        ],
+        [
+          0,
+          1,
+          1,
+          0
+        ]
+      ]
+    },
+    {
+      "id": 19,
+      "corners": [
+        {
+          "x": 11,
+          "y": 269
+        },
+        {
+          "x": 41,
+          "y": 269
+        },
+        {
+          "x": 41,
+          "y": 299
+        },
+        {
+          "x": 11,
+          "y": 299
+        }
+      ],
+      "center": {
+        "id": 19,
+        "x": 26,
+        "y": 284
+      },
+      "bits": [
+        [
+          1,
+          1,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0
+        ],
+        [
+          1,
+          1,
+          1,
+          1
+        ],
+        [
+          1,
+          1,
+          1,
+          1
+        ]
+      ]
+    }
+  ],
+  "warning": "Marker IDs identify nominal dimensions; they cannot reveal uniform printer shrinkage. Print at 100% and verify physical spacing."
+}

@@ -13,7 +13,8 @@
     "test:coverage": "vitest run --coverage",
     "generate:calibration-templates": "tsx scripts/generate-calibration-templates.ts",
     "export:bin": "tsx scripts/export-bin.ts",
-    "db:push": "drizzle-kit push"
+    "db:push": "drizzle-kit push",
+    "generate:photo-board": "tsx scripts/generate-photo-board.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

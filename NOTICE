@@ -45,11 +45,13 @@ Pocketry redistributes an OpenCV.js bundle at
 sources with the stock JS module whitelist (which includes the aruco API in
 `objdetect`) — see `scripts/build-opencv-js.sh`.
 
-Pocketry also pins a small amount of OpenCV-generated data: the eight custom
+Pocketry also pins a small amount of OpenCV-generated data: the twenty custom
 4x4 marker patterns used by calibration-sheet v2
 (`client/src/lib/calibrate/aruco-4x4.ts`). They are the deterministic output of
-OpenCV 4.11.0's `extendDictionary(8, 4)` and remain under the same Apache
-License 2.0 attribution.
+OpenCV 4.11.0's `extendDictionary(20, 4)` and remain under the same Apache
+License 2.0 attribution. IDs 0–7 and 8–15 preserve the existing stable and
+experimental sheets; IDs 16–19 identify the H2D photo board. The generated
+marker data in `models/h2d-photo-board/calibration.scad` has the same provenance.
 
 ================================================================================
 gridfinity-rebuilt-openscad — MIT License (ported code)

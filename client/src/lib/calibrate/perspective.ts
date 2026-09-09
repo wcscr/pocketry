@@ -5,12 +5,12 @@ import { loadOpenCV } from "@/lib/opencv";
 
 import {
   TEMPLATE_MARKER_IDS,
-  TEMPLATE_PAPER_MM,
+  TEMPLATE_FORMAT_MM,
   templateMarkerCornersMm,
   templateMarkerCentersMm,
   templateMarkerSpacingMm,
-  templatePaper,
-  type TemplatePaper,
+  templateFormat,
+  type TemplateFormat,
   type TemplateVariant,
 } from "./template";
 import type { DetectedMarker } from "./solve";
@@ -25,8 +25,8 @@ export interface PerspectiveProposal {
   source: PerspectiveSource;
   points: PerspectiveQuad;
   /** Automatically encoded by the marker-id family for template proposals. */
-  paper?: TemplatePaper;
-  /** Exact stable or experimental sheet encoded by the marker-id family. */
+  paper?: TemplateFormat;
+  /** Exact paper sheet or photo board encoded by the marker-id family. */
   template?: TemplateVariant;
   /** Redundant marker-corner correspondences for a precision homography. */
   correspondences?: {
@@ -93,7 +93,7 @@ export function proposalFromTemplateMarkers(
   }
   return {
     source: "template",
-    paper: templatePaper(template),
+    paper: templateFormat(template),
     template,
     points: ordered as PerspectiveQuad,
     correspondences: { source, destinationMm },
@@ -112,7 +112,7 @@ export function templateReprojectionErrorMm(
 ): number | null {
   if (
     (proposal.template && proposal.template !== template) ||
-    (proposal.paper && proposal.paper !== templatePaper(template))
+    (proposal.paper && proposal.paper !== templateFormat(template))
   ) {
     return null;
   }
@@ -198,8 +198,8 @@ export function perspectiveLayout(
   template: TemplateVariant,
   max: { width: number; height: number } = RECTIFIED_IMAGE_MAX,
 ): PerspectiveLayout {
-  const paper = templatePaper(template);
-  const page = TEMPLATE_PAPER_MM[paper];
+  const paper = templateFormat(template);
+  const page = TEMPLATE_FORMAT_MM[paper];
   const availableX = Math.max(1, max.width - 1) / page.width;
   const availableY = Math.max(1, max.height - 1) / page.height;
   const pxPerMm = Math.min(RECTIFIED_PX_PER_MM, availableX, availableY);
@@ -259,7 +259,7 @@ export function runPerspectiveCorrection(
       "The four correction points must form one non-overlapping rectangle in clockwise order.",
     );
   }
-  const paper = templatePaper(template);
+  const paper = templateFormat(template);
   if (proposal.paper && proposal.paper !== paper) {
     throw new Error("The detected template paper does not match the requested correction.");
   }
@@ -357,7 +357,7 @@ export function runPerspectiveCorrection(
     const lengthMm =
       proposal.source === "template"
         ? Math.hypot(markerSpacing.width, markerSpacing.height)
-        : Math.hypot(TEMPLATE_PAPER_MM[paper].width, TEMPLATE_PAPER_MM[paper].height);
+        : Math.hypot(TEMPLATE_FORMAT_MM[paper].width, TEMPLATE_FORMAT_MM[paper].height);
 
     return {
       ...layout,

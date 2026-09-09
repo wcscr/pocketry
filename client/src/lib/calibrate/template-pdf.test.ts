@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import { calibrationTemplatePdf } from "./template-pdf";
-import type { TemplateVariant } from "./template";
+import type { PaperTemplateVariant } from "./template";
 
-function pdfText(paper: TemplateVariant): string {
+function pdfText(paper: PaperTemplateVariant): string {
   return new TextDecoder().decode(calibrationTemplatePdf(paper));
 }
 

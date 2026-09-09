@@ -14,13 +14,14 @@ import {
 } from "./detect";
 import { solveScaleFromMarkers } from "./solve";
 import {
-  TEMPLATE_PAPER_MM,
+  TEMPLATE_FORMAT_MM,
   templateMarkerCentersMm,
   templateMarkerSizeMm,
   templateMarkerSpacingMm,
-  templatePaper,
+  templateFormat,
   type TemplateVariant,
 } from "./template";
+import { runPerspectiveCorrection } from "./perspective";
 
 /**
  * Closed-loop test against the shipped opencv.js: OpenCV renders the
@@ -50,9 +51,9 @@ function composeSheet(
     centers?: ReturnType<typeof templateMarkerCentersMm>;
   } = {},
 ): ImageData {
-  const paper = templatePaper(template);
-  const width = Math.round(TEMPLATE_PAPER_MM[paper].width * PX_PER_MM);
-  const height = Math.round(TEMPLATE_PAPER_MM[paper].height * PX_PER_MM);
+  const paper = templateFormat(template);
+  const width = Math.round(TEMPLATE_FORMAT_MM[paper].width * PX_PER_MM);
+  const height = Math.round(TEMPLATE_FORMAT_MM[paper].height * PX_PER_MM);
   const data = new Uint8ClampedArray(width * height * 4).fill(255);
 
   const sizePx =
@@ -260,6 +261,7 @@ describe("runAutoCalibration", () => {
     "letter",
     "a4-experimental",
     "letter-experimental",
+    "h2d-photo-board",
   ] as const)(
     "produces a usable Calibration and identifies a %s sheet",
     (template) => {
@@ -282,7 +284,7 @@ describe("runAutoCalibration", () => {
         Math.abs(derived - 1 / PX_PER_MM) / (1 / PX_PER_MM),
       ).toBeLessThan(0.005);
       expect(result.solution.maxDeviation).toBeLessThan(0.01);
-      expect(result.paper).toBe(templatePaper(template));
+      expect(result.paper).toBe(templateFormat(template));
       expect(result.template).toBe(template);
       expect(result.perspectiveProposal?.source).toBe("template");
       expect(result.perspectiveProposal?.template).toBe(template);
@@ -357,6 +359,43 @@ describe("runAutoCalibration", () => {
     expect(result.solution.markerIds).toEqual([0, 1, 2, 3]);
     expect(result.perspectiveProposal.correspondences?.source).toHaveLength(16);
     expect(result.templateReprojectionErrorMm).toBeLessThan(0.75);
+  });
+
+  it("recognizes and rectifies the H2D board on green through perspective", () => {
+    const scene = composeSheet(pocketryDictionary, "h2d-photo-board");
+    const centers = templateMarkerCentersMm("h2d-photo-board");
+    // Keep the four white 40 mm tiles; the rest of the photographed plane is green.
+    for (let y = 0; y < scene.height; y++) {
+      for (let x = 0; x < scene.width; x++) {
+        if (centers.some((c) => Math.abs(x/PX_PER_MM-c.x) <= 20 && Math.abs(y/PX_PER_MM-c.y) <= 20)) continue;
+        const at = (y*scene.width+x)*4;
+        scene.data.set([50, 188, 70, 255], at);
+      }
+    }
+    const photographed = photographSheet(scene);
+    const result = runAutoCalibration(cv, photographed);
+    expect(result.kind).toBe("calibrated");
+    if (result.kind !== "calibrated") return;
+    expect(result.template).toBe("h2d-photo-board");
+    expect(result.solution.markerIds).toEqual([16, 17, 18, 19]);
+    const corrected = runPerspectiveCorrection(cv, photographed, result.perspectiveProposal, result.template);
+    expect(corrected.width).toBe(1200);
+    expect(corrected.height).toBeLessThanOrEqual(1200);
+    expect(mmPerPixel(corrected.calibration)).toBeCloseTo(315/1199, 10);
+    const redetected = runAutoCalibration(cv, corrected.imageData);
+    expect(redetected.kind).toBe("calibrated");
+    if (redetected.kind !== "calibrated") return;
+    expect(redetected.solution.mmPerPx).toBeCloseTo(315/1199, 3);
+  });
+
+  it("rejects H2D tiles with incompatible size or corner placement", () => {
+    for (const options of [
+      { markerSizeMm: 24 },
+      { centers: templateMarkerCentersMm("h2d-photo-board").map((center, i) => ({ ...center, id: [17,16,18,19][i] })) },
+    ]) {
+      const result = runAutoCalibration(cv, composeSheet(pocketryDictionary, "h2d-photo-board", options));
+      expect(result).toMatchObject({ kind: "foreign-sheet", reason: "invalid-geometry" });
+    }
   });
 
   it("reports no markers on a blank image", () => {

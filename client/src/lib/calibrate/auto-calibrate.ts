@@ -12,8 +12,8 @@ import {
 import { solveScaleFromMarkers, type ScaleSolution } from "./solve";
 import {
   templateFromTemplateMarkerIds,
-  templatePaper,
-  type TemplatePaper,
+  templateFormat,
+  type TemplateFormat,
   type TemplateVariant,
 } from "./template";
 
@@ -31,9 +31,9 @@ export type AutoCalibrationResult =
       kind: "calibrated";
       calibration: Calibration;
       solution: ScaleSolution;
-      /** Paper size encoded by this template's unique marker-id family. */
-      paper: TemplatePaper;
-      /** Exact stable or experimental sheet encoded by the marker ids. */
+      /** Reference-plane format encoded by the unique marker-id family. */
+      paper: TemplateFormat;
+      /** Exact paper sheet or photo board encoded by the marker ids. */
       template: TemplateVariant;
       /** Present only when all four unique template markers can define a homography. */
       perspectiveProposal: PerspectiveProposal;
@@ -79,7 +79,7 @@ export function runAutoCalibration(cv: any, image: ImageData): AutoCalibrationRe
       markerIds,
     };
   }
-  const paper = templatePaper(template);
+  const paper = templateFormat(template);
 
   const perspectiveProposal = proposalFromTemplateMarkers(
     detection.markers,

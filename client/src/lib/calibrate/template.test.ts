@@ -24,7 +24,7 @@ describe("ArUco 4x4 dictionary port", () => {
     expect(POCKETRY_ARUCO_BITS.slice(0, 8)).toEqual([
       0x532c, 0xaf8f, 0x203f, 0x1296, 0x03f9, 0x9a2f, 0x4754, 0xd870,
     ]);
-    expect(POCKETRY_ARUCO_BITS.slice(8)).toEqual([
+    expect(POCKETRY_ARUCO_BITS.slice(8, 16)).toEqual([
       0xbcd7, 0x7de6, 0x5b8b, 0xf346, 0x50cc, 0xa729, 0x10a0, 0x0c82,
     ]);
   });
@@ -39,7 +39,7 @@ describe("ArUco 4x4 dictionary port", () => {
   });
 
   it("rejects unported ids", () => {
-    expect(() => markerBits(16)).toThrow(/no ported pattern/);
+    expect(() => markerBits(20)).toThrow(/no ported pattern/);
   });
 });
 

@@ -766,8 +766,8 @@ export function TraceControlsPanel({
             ) : (
               <>
                 <p className="text-xs text-muted-foreground">
-                  The four Pocketry v2 signature markers identify A4 or US Letter
-                  automatically. Stock or incomplete marker sets are rejected. If
+                  The four Pocketry v2 signature markers identify A4, US Letter,
+                  or the H2D photo board automatically. Stock or incomplete marker sets are rejected. If
                   the markers are unavailable, select the four visible paper corners:
                   top-left, top-right, bottom-right, then bottom-left.
                 </p>

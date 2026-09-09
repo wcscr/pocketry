@@ -37,7 +37,7 @@ import {
 import { SKEW_WARN_FRACTION } from "@/lib/calibrate/solve";
 import {
   templateDisplayName,
-  templatePaper,
+  templateFormat,
   type TemplateVariant,
 } from "@/lib/calibrate/template";
 import { downloadBlob } from "@/lib/download";
@@ -346,7 +346,7 @@ function TraceWorkspace(): JSX.Element {
           imageSize: { width: corrected.width, height: corrected.height },
           calibration: corrected.calibration,
           source: proposal.source,
-          paper: templatePaper(template),
+          paper: templateFormat(template),
           template,
         });
         toast({

@@ -14,6 +14,9 @@ processing, project storage, and model generation kept on the user's device.
 - Detect a tool silhouette from a PNG or JPEG photograph.
 - Calibrate image dimensions with a printable A4 or US Letter PDF sheet, which
   Pocketry identifies automatically, and correct camera perspective.
+- Use the [OpenSCAD H2D photo board](models/h2d-photo-board/README.md): a
+  315 × 310 mm green base with four flush marker tiles, a new automatic
+  calibration signature, and removable adhesion pads for large flat printing.
 - Refine exterior contours and interior holes.
 - Export traced geometry as SVG, DXF, DWG-compatible DXF, or STL.
 - Arrange traced tools as pockets in Gridfinity bins.

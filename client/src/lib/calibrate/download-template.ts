@@ -1,10 +1,10 @@
 import { downloadBlob } from "@/lib/download";
 
 import { calibrationTemplatePdf } from "./template-pdf";
-import type { TemplateVariant } from "./template";
+import type { PaperTemplateVariant } from "./template";
 
 /** Downloads one true-size, printable Pocketry calibration sheet. */
-export function downloadCalibrationTemplate(template: TemplateVariant): void {
+export function downloadCalibrationTemplate(template: PaperTemplateVariant): void {
   const pdf = calibrationTemplatePdf(template);
   downloadBlob(
     new Blob([pdf], { type: "application/pdf" }),

@@ -21,7 +21,7 @@ import type {
   PerspectiveSource,
 } from "@/lib/calibrate/perspective";
 import type {
-  TemplatePaper,
+  TemplateFormat,
   TemplateVariant,
 } from "@/lib/calibrate/template";
 import {
@@ -137,7 +137,7 @@ export interface TraceState {
   /** How the current working image was rectified, or null for the original. */
   perspectiveCorrection: {
     source: PerspectiveSource;
-    paper: TemplatePaper;
+    paper: TemplateFormat;
     template?: TemplateVariant;
   } | null;
 
@@ -259,7 +259,7 @@ export type TraceAction =
       imageSize: { width: number; height: number };
       calibration: Calibration;
       source: PerspectiveSource;
-      paper: TemplatePaper;
+      paper: TemplateFormat;
       template?: TemplateVariant;
     }
   | { type: "RESTORE_PERSPECTIVE_SOURCE" }
