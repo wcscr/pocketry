@@ -8,7 +8,7 @@ import { WORKSPACES } from "@/components/layout/workspaces";
 import * as ShapeLibraryModule from "@/state/shape-library";
 import { ShapeLibraryProvider } from "@/state/shape-library";
 import { PROJECT_SCHEMA_VERSION, parseProjectDoc, type ProjectDoc } from "@shared/gridfinity/project";
-import { fingerHoleSchema, parseCutoutPlacement, type TracedShape } from "@shared/gridfinity/cutout";
+import { fingerHoleSchema, resolvePocketDepth, parseCutoutPlacement, type TracedShape } from "@shared/gridfinity/cutout";
 import { parseBinSpec } from "@shared/gridfinity/types";
 import { downloadBlob } from "@/lib/download";
 import { useBinGeometry } from "@/lib/gridfinity/use-bin-geometry";
@@ -860,6 +860,27 @@ describe("BinDesignerPage", () => {
     React.act(() => toggle.click());
     expect(viewport?.getAttribute("data-pocket-floor-color")).toBe("off");
     expect(toggle.getAttribute("data-state")).toBe("unchecked");
+    unmount();
+  });
+
+  it.each([true, false])("sets the correct floor when selecting floor mode with flatBottom=%s", async (flatBottom) => {
+    const shape = rectangularShape("tool", "Depth test");
+    const spec = parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6, flatBottom });
+    const depthMm = resolvePocketDepth(spec, { mode: "remaining", floorThicknessMm: 7 }).depthMm!;
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({
+      ...EMPTY_PROJECT, spec, shapes: [shape],
+      cutouts: [parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 0, y: 0 }, depth: { mode: "mm", value: depthMm } })],
+    });
+    const { container, unmount } = renderPage();
+    await flushHydration();
+    openSettingsSection(container, "tool-cutouts");
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-select-pocket"]')!.click());
+    const trigger = container.querySelector<HTMLButtonElement>('[aria-label="Pocket depth mode"]')!;
+    React.act(() => trigger.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true })));
+    const option = Array.from(document.querySelectorAll<HTMLElement>('[role="option"]')).find((node) => node.textContent?.includes("Keep floor thickness"))!;
+    React.act(() => option.click());
+    const floor = container.querySelector<HTMLInputElement>('input[aria-label="Remaining floor thickness in millimetres"]')!;
+    expect(floor.value).toBe(flatBottom ? "2" : "7");
     unmount();
   });
 

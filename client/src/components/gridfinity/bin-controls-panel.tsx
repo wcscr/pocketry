@@ -1107,7 +1107,7 @@ export function BinControlsPanel({
                         ? ({ mode: "through" } as const)
                         : mode === "mm"
                           ? ({ mode: "mm", value: Math.max(0.1, resolved.depthMm ?? resolved.infillTopZ - defaultPocketFloorThicknessMm(spec)) } as const)
-                          : ({ mode: "remaining", floorThicknessMm: Math.max(0, resolved.floorZ ?? defaultPocketFloorThicknessMm(spec)) } as const);
+                          : ({ mode: "remaining", floorThicknessMm: spec.flatBottom ? defaultPocketFloorThicknessMm(spec) : Math.max(0, resolved.floorZ ?? defaultPocketFloorThicknessMm(spec)) } as const);
                     dispatch({
                       type: "UPDATE_CUTOUT",
                       id: selectedCutout.id,
@@ -1116,7 +1116,7 @@ export function BinControlsPanel({
                     });
                   }}
                 >
-                  <SelectTrigger className="h-8 flex-1">
+                  <SelectTrigger className="h-8 flex-1" aria-label="Pocket depth mode">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
