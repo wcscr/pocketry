@@ -964,3 +964,20 @@ describe("budgetOutline", () => {
     expect(budgetedPointCount(outline, 150)).toBe(budgeted[0].outer.length);
   });
 });
+
+it("cuts flat-bottom pockets below the former feet while retaining a solid 2 mm floor", () => {
+  const shape = rectShape("deep-flat", 10, 10);
+  const spec = parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6, flatBottom: true });
+  const cutout = parseCutoutPlacement({ id: "deep", shapeId: shape.id, position: { x: 0, y: 0 },
+    depth: { mode: "remaining", floorThicknessMm: 2 }, topFilletMm: 0, bottomFilletMm: 0, cornerRoundMm: 0 });
+  const layout = { shapesById: new Map([[shape.id, shape]]), cutouts: [cutout], fingerHoles: [] };
+  for (const circularSegments of [24, 64]) {
+    const quality = { circularSegments };
+    const blank = buildBin(kernel, spec, quality).solid;
+    const pocketed = buildBinWithCutouts(kernel, spec, layout, quality).solid;
+    expect(pocketed.status()).toBe("NoError");
+    expect(arena.track(pocketed.slice(1)).area()).toBeCloseTo(arena.track(blank.slice(1)).area(), 5);
+    expect(arena.track(blank.slice(3)).area() - arena.track(pocketed.slice(3)).area()).toBeCloseTo(100, 5);
+    expect(arena.track(blank.slice(6)).area() - arena.track(pocketed.slice(6)).area()).toBeCloseTo(100, 5);
+  }
+});

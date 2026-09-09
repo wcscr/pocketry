@@ -707,6 +707,11 @@ export function placementFootprint(
 // Depth resolution
 // ---------------------------------------------------------------------------
 
+/** Default material left under a new pocket, measured from the actual underside. */
+export function defaultPocketFloorThicknessMm(spec: Pick<BinSpec, "flatBottom">): number {
+  return spec.flatBottom ? 2 : BASE_HEIGHT;
+}
+
 export interface ResolvedPocket {
   /** Absolute z of the pocket floor, or null for a through cut. */
   floorZ: number | null;

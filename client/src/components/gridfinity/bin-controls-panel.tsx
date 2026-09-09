@@ -35,6 +35,7 @@ import {
   DEFAULT_TOP_EDGE_FILLET_MM,
   MAX_OBLONG_DEEP_SCOOP_LENGTH_MM,
   MIN_OBLONG_DEEP_SCOOP_SPAN_MM,
+  defaultPocketFloorThicknessMm,
   resolvePocketDepth,
   type FingerHole,
   type TracedShape,
@@ -1105,8 +1106,8 @@ export function BinControlsPanel({
                       mode === "through"
                         ? ({ mode: "through" } as const)
                         : mode === "mm"
-                          ? ({ mode: "mm", value: Math.max(0.1, resolved.depthMm ?? resolved.infillTopZ - 7) } as const)
-                          : ({ mode: "remaining", floorThicknessMm: Math.max(0, resolved.floorZ ?? 7) } as const);
+                          ? ({ mode: "mm", value: Math.max(0.1, resolved.depthMm ?? resolved.infillTopZ - defaultPocketFloorThicknessMm(spec)) } as const)
+                          : ({ mode: "remaining", floorThicknessMm: Math.max(0, resolved.floorZ ?? defaultPocketFloorThicknessMm(spec)) } as const);
                     dispatch({
                       type: "UPDATE_CUTOUT",
                       id: selectedCutout.id,
@@ -1143,6 +1144,9 @@ export function BinControlsPanel({
                 )}
               </div>
 
+              {spec.flatBottom && selectedCutout.depth.mode === "remaining" && (
+                <p className="text-[11px] text-muted-foreground">Measured from the flat underside. A 2 mm floor lets pockets extend into the former base area.</p>
+              )}
               {selectedCutout.depth.mode === "remaining" && <MmSlider label="Remaining floor thickness" value={selectedCutout.depth.floorThicknessMm} min={0} max={Math.max(7, spec.heightUnits * 7)} step={0.5}
                 onChange={(floorThicknessMm, transient) => dispatch({ type: "UPDATE_CUTOUT", id: selectedCutout.id, patch: { depth: { mode: "remaining", floorThicknessMm } }, transient, historyLabel: "Change remaining floor" })} />}
 

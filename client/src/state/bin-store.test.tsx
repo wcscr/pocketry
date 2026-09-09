@@ -432,3 +432,25 @@ describe("bin store history (G4 undo/redo)", () => {
     expect(store().cutouts[0].position).toEqual({ x: 0, y: 0 });
   });
 });
+
+it("uses a deeper default floor for flat bins and restores it with undo and base changes", () => {
+  const { store, act } = mountBin();
+  const custom = { ...CUTOUT, id: "custom", depth: { mode: "remaining" as const, floorThicknessMm: 4 } };
+  const fixed = { ...CUTOUT, id: "fixed", depth: { mode: "mm" as const, value: 12 } };
+  act(() => store().dispatch({ type: "ADD_PLACED", gridX: 2, gridY: 2, cutouts: [CUTOUT, custom, fixed] }));
+  const original = store().cutouts;
+  act(() => store().dispatch({ type: "PATCH_SPEC", patch: { flatBottom: true } }));
+  expect(store().cutouts[0].depth).toEqual({ mode: "remaining", floorThicknessMm: 2 });
+  expect(store().cutouts.slice(1)).toEqual([custom, fixed]);
+  act(() => store().dispatch({ type: "UNDO" }));
+  expect(store().spec.flatBottom).toBe(false);
+  expect(store().cutouts).toEqual(original);
+  act(() => store().dispatch({ type: "REDO" }));
+  expect(store().cutouts[0].depth).toEqual({ mode: "remaining", floorThicknessMm: 2 });
+  act(() => store().dispatch({ type: "ADD_PLACED", gridX: 2, gridY: 2, cutouts: [{ ...CUTOUT, id: "new" }] }));
+  expect(store().cutouts.at(-1)!.depth).toEqual({ mode: "remaining", floorThicknessMm: 2 });
+  act(() => store().dispatch({ type: "PATCH_SPEC", patch: { flatBottom: false } }));
+  expect(store().cutouts[0].depth).toEqual(CUTOUT.depth);
+  expect(store().cutouts.at(-1)!.depth).toEqual(CUTOUT.depth);
+  expect(store().cutouts.slice(1, 3)).toEqual([custom, fixed]);
+});

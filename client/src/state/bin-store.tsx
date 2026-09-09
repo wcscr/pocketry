@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 
-import type { CutoutPlacement, FingerHole } from "@shared/gridfinity/cutout";
+import { defaultPocketFloorThicknessMm, type CutoutPlacement, type FingerHole } from "@shared/gridfinity/cutout";
 import { parseBinSpec, type BinSpec, type BinSpecInput } from "@shared/gridfinity/types";
 
 /**
@@ -268,6 +268,15 @@ function reducer(state: BinState, action: BinAction): BinState {
         cutouts: state.cutouts,
         fingerHoles: state.fingerHoles,
       };
+      if (doc.spec.flatBottom !== state.spec.flatBottom) {
+        const previousFloor = defaultPocketFloorThicknessMm(state.spec);
+        const nextFloor = defaultPocketFloorThicknessMm(doc.spec);
+        doc.cutouts = state.cutouts.map((cutout) =>
+          cutout.depth.mode === "remaining" && cutout.depth.floorThicknessMm === previousFloor
+            ? { ...cutout, depth: { mode: "remaining", floorThicknessMm: nextFloor } }
+            : cutout,
+        );
+      }
       return action.transient
         ? preview(state, doc)
         : commit(state, doc, action.historyLabel ?? specPatchLabel(action.patch));
@@ -282,7 +291,12 @@ function reducer(state: BinState, action: BinAction): BinState {
             gridY: action.gridY,
             ...(action.footprint ? { footprint: action.footprint } : {}),
           }),
-          cutouts: [...state.cutouts, ...action.cutouts],
+          cutouts: [...state.cutouts, ...action.cutouts.map((cutout): CutoutPlacement =>
+            state.spec.flatBottom && cutout.depth.mode === "remaining" &&
+              cutout.depth.floorThicknessMm === defaultPocketFloorThicknessMm({ flatBottom: false })
+              ? { ...cutout, depth: { mode: "remaining", floorThicknessMm: defaultPocketFloorThicknessMm(state.spec) } }
+              : cutout,
+          )],
           fingerHoles: state.fingerHoles,
         },
         action.historyLabel ??

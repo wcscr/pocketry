@@ -151,8 +151,11 @@ holes. The earlier modeled Lite Base option was removed: ordinary slicer
 infill already provides the intended material savings without permanently
 adding hollow chambers and special pocket-floor support to the exported
 model. **Flat bottom** is an optional Construction setting that replaces the
-Gridfinity sockets with a smooth 7 mm base, preserving outer size and pocket
-heights. Base magnet/screw holes are inactive in this mode; their settings
+Gridfinity sockets with a smooth base, preserving outer size. New pockets
+default to a 2 mm remaining floor in flat-bottom mode (7 mm for Gridfinity).
+Switching base styles updates pockets using the previous default floor; custom
+floors and fixed depths are retained. Remaining floor is measured from the
+actual underside, so flat pockets can cut into the former feet area. Base magnet/screw holes are inactive in this mode; their settings
 return when switched off. Existing projects retain the Gridfinity base.
 **Half/quarter grid**
 landed as explicit 21/10.5 mm pitch modes while retaining the upstream 0.5 mm
