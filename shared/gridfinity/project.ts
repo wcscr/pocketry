@@ -25,10 +25,10 @@ import { binSpecSchema } from "./types";
  * version 8 adds per-placement X/Y scale and an aspect-ratio-lock preference;
  * version 9 adds per-finger-hole top and bottom edge fillets; version 10 adds
  * optional project names, fixed-size preference, and trace margin provenance.
- * Existing geometry is retained when migrating versions 7–9 to version 10.
+ * Version 11 removes Lite Base; older projects use the ordinary Gridfinity base.
  */
 
-export const PROJECT_SCHEMA_VERSION = 10 as const;
+export const PROJECT_SCHEMA_VERSION = 11 as const;
 
 const projectFields = {
   shapes: z.array(tracedShapeSchema),
@@ -67,6 +67,8 @@ export const projectDocSchema = z
     keepBinSize: z.boolean().optional(),
   })
   .strict();
+
+const version10ProjectSchema = projectDocSchema.extend({ schemaVersion: z.literal(10) });
 
 const legacyProjectSchemas = [1, 2, 3, 4, 5, 6].map((schemaVersion) =>
   z
@@ -137,6 +139,19 @@ function migrateLegacyProject(doc: LegacyProjectDoc): ProjectDoc {
 export function parseProjectDoc(input: unknown): ProjectDoc | null {
   const result = projectDocSchema.safeParse(input);
   if (result.success) return result.data;
+  // Only legacy documents may contain the removed flag. Keep malformed values
+  // and unknown fields invalid, and never mutate the stored source document.
+  if (input && typeof input === "object" && !Array.isArray(input)) {
+    const doc = input as Record<string, unknown>;
+    if (typeof doc.schemaVersion === "number" && doc.schemaVersion >= 1 && doc.schemaVersion <= 10 &&
+        doc.spec && typeof doc.spec === "object" && !Array.isArray(doc.spec)) {
+      const { liteBase, ...spec } = doc.spec as Record<string, unknown>;
+      if (liteBase !== undefined && typeof liteBase !== "boolean") return null;
+      input = { ...doc, spec };
+    }
+  }
+  const version10 = version10ProjectSchema.safeParse(input);
+  if (version10.success) return projectDocSchema.parse({ ...version10.data, schemaVersion: PROJECT_SCHEMA_VERSION });
   const version9 = version9ProjectSchema.safeParse(input);
   if (version9.success) return projectDocSchema.parse({ ...version9.data, schemaVersion: PROJECT_SCHEMA_VERSION });
   const version8 = version8ProjectSchema.safeParse(input);

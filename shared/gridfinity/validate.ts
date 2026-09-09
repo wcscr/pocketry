@@ -73,8 +73,8 @@ export interface ValidationResult {
 
 /**
  * Conservative depth check for floor colors reaching an underside recess.
- * The ordinary underside rises to the bridge at BASE_PROFILE_HEIGHT; lite
- * cavities and full-pitch screw bores can reach BASE_HEIGHT. Actual exposure
+ * The ordinary underside rises to the bridge at BASE_PROFILE_HEIGHT;
+ * full-pitch screw bores can reach BASE_HEIGHT. Actual exposure
  * also depends on where the pocket overlaps those features, so this is a
  * warning, not a claim that every affected pocket has an exposed color face.
  * Pass zero when floor coloring is disabled. Like the builder, the colored
@@ -89,8 +89,8 @@ export function validatePocketFloorMaterials(
   if (spec.fill !== "solid" || !Number.isFinite(floorColorThicknessMm) || floorColorThicknessMm <= 0) return [];
 
   const hasScrewBores = spec.screwHoles && spec.gridPitch === "full";
-  const undersideHeightMm = spec.liteBase || hasScrewBores ? BASE_HEIGHT : BASE_PROFILE_HEIGHT;
-  const recess = spec.liteBase ? "the hollow base" : hasScrewBores ? "the screw holes" : "the recesses between the base feet";
+  const undersideHeightMm = hasScrewBores ? BASE_HEIGHT : BASE_PROFILE_HEIGHT;
+  const recess = hasScrewBores ? "the screw holes" : "the recesses between the base feet";
   const issues: ValidationIssue[] = [];
   for (const cutout of cutouts) {
     const shape = shapesById.get(cutout.shapeId);
@@ -159,15 +159,6 @@ export function validateBinSpec(spec: BinSpec): ValidationResult {
           `(${cells} × ${pitchMm} − gap) — check it fits the print bed.`,
       });
     }
-  }
-
-  if (spec.liteBase && (spec.magnetHoles || spec.screwHoles)) {
-    issues.push({
-      code: "lite-base-holes",
-      severity: "warning",
-      message:
-        "Magnet and screw holes are not supported on a lite base yet — the holes are ignored.",
-    });
   }
 
   if (spec.gridPitch !== "full" && (spec.magnetHoles || spec.screwHoles)) {
@@ -488,14 +479,6 @@ function validateAgainstBin(spec: BinSpec, p: PlacedCutout): ValidationIssue[] {
           severity: "warning",
           cutoutIds: [cutout.id],
       message: `“${label}” reaches into the base, where the magnet holes live.`,
-        });
-      }
-      if (spec.liteBase && pocket.floorZ <= BASE_HEIGHT) {
-        issues.push({
-          code: "lite-base-floor",
-          severity: "warning",
-          cutoutIds: [cutout.id],
-          message: `“${label}”'s floor rests on the hollow lite base — it may open into the base cavities.`,
         });
       }
     }

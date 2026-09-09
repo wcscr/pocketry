@@ -53,7 +53,7 @@ describe("pocket floor material warnings", () => {
     expect(warnings(fixedDepth, 0.6, { gridPitch })).toHaveLength(1);
   });
 
-  it.each([{ screwHoles: true }, { liteBase: true }])("accounts for taller recesses with %o", (options) => {
+  it.each([{ screwHoles: true }])("accounts for taller recesses with %o", (options) => {
     expect(warnings({ mode: "remaining", floorThicknessMm: 7.4 }, 0.6, options)).toHaveLength(1);
     expect(warnings({ mode: "remaining", floorThicknessMm: 7.7 }, 0.6, options)).toEqual([]);
   });

@@ -50,11 +50,12 @@ describe("current project persistence", () => {
   it("opens, saves, reloads and exports every item in the v9 Airduster project", async () => {
     memory.set("tooltrace:project:v1", structuredClone(airdusterV9));
     const migrated = (await loadProjectDoc())!;
-    expect(migrated).toEqual({ ...airdusterV9, schemaVersion: PROJECT_SCHEMA_VERSION });
+    const { liteBase: _removed, ...spec } = airdusterV9.spec;
+    expect(migrated).toEqual({ ...airdusterV9, spec, schemaVersion: PROJECT_SCHEMA_VERSION });
     await saveProjectToLibrary(migrated, "New Airduster Layout", null);
     const reloaded = (await loadProjectDoc())!;
     const exported = JSON.parse(await prepareProjectExport(reloaded, reloaded.name!).backup.text());
-    expect(exported).toEqual({ ...airdusterV9, schemaVersion: PROJECT_SCHEMA_VERSION, name: "New Airduster Layout" });
+    expect(exported).toEqual({ ...airdusterV9, spec, schemaVersion: PROJECT_SCHEMA_VERSION, name: "New Airduster Layout" });
   });
   it("never overwrites an unsupported working copy during autosave", async () => {
     const future = { schemaVersion: 999, valuable: { outlines: [1, 2, 3] } };
@@ -240,5 +241,31 @@ describe("named project library", () => {
       activeProjectId: null,
       projects: [],
     });
+  });
+
+  it("keeps named v4 projects while removing their legacy lite base choice", async () => {
+    const legacyDoc = JSON.parse(JSON.stringify(DOC)) as Record<string, unknown>;
+    legacyDoc.schemaVersion = 4;
+    delete legacyDoc.fingerHoles;
+    (legacyDoc.spec as Record<string, unknown>).liteBase = true;
+    memory.set("tooltrace:project-library:v1", {
+      schemaVersion: 1,
+      activeProjectId: "legacy-project",
+      projects: [
+        {
+          id: "legacy-project",
+          name: "Legacy tray",
+          updatedAt: "2026-09-03T12:00:00.000Z",
+          doc: legacyDoc,
+        },
+      ],
+    });
+
+    const library = await loadProjectLibrary();
+    expect(library.projects).toHaveLength(1);
+    expect(library.activeProjectId).toBe("legacy-project");
+    const opened = await openProjectFromLibrary("legacy-project");
+    expect(opened.doc.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
+    expect(opened.doc.spec).not.toHaveProperty("liteBase");
   });
 });
