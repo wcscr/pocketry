@@ -489,6 +489,24 @@ describe("BinDesignerPage", () => {
     unmount();
   });
 
+  it("toggles flat bottoms without resizing and restores base hole preferences", async () => {
+    const { container, unmount } = renderPage();
+    await flushHydration();
+    openSettingsSection(container, "construction");
+    const control = (label: string) => container.querySelector<HTMLButtonElement>(`[role="switch"][aria-label="${label}"]`)!;
+    const dimensions = container.querySelector("#bin-settings-size")!.textContent;
+    React.act(() => control("Magnet holes").click());
+    expect(control("Magnet holes").getAttribute("aria-checked")).toBe("true");
+    React.act(() => control("Flat bottom").click());
+    expect(control("Flat bottom").getAttribute("aria-checked")).toBe("true");
+    expect(control("Magnet holes")).toBeNull();
+    expect(control("Screw holes")).toBeNull();
+    expect(container.querySelector("#bin-settings-size")!.textContent).toBe(dimensions);
+    React.act(() => control("Flat bottom").click());
+    expect(control("Magnet holes").getAttribute("aria-checked")).toBe("true");
+    unmount();
+  });
+
   it("sets width, length, and height in half-unit increments", async () => {
     const { container, unmount } = renderPage();
     await flushHydration();

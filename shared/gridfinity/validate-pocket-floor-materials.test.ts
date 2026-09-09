@@ -21,6 +21,10 @@ function warnings(depth: DepthSpec = fixedDepth, thickness = 0.6, overrides: Par
 }
 
 describe("pocket floor material warnings", () => {
+  it("does not warn about underside recesses for a flat bottom, including dormant holes", () => {
+    expect(warnings(fixedDepth, 0.6, { flatBottom: true, screwHoles: true, magnetHoles: true })).toEqual([]);
+  });
+
   it("warns for a 5.3 mm floor whose color reaches the raised underside, even without magnet holes", () => {
     expect(warnings()).toEqual([expect.objectContaining({
       code: "floor-color-on-underside", severity: "warning", cutoutIds: ["pocket"],

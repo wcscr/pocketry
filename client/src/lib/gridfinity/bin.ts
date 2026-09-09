@@ -91,7 +91,7 @@ export const MULTICOLOR_RIM_MAX_THICKNESS_MM = Math.floor(
 ) / 100;
 
 export interface BinParts {
-  /** Sockets plus bridge, z ∈ [0, 7]. */
+  /** Sockets plus bridge, or a flat slab, z ∈ [0, 7]. */
   base: Manifold;
   /** Plain wall ring, z ∈ [7, units·7]. `null` for 1u bins (zero height). */
   wall: Manifold | null;
@@ -131,12 +131,14 @@ export function buildBinParts(
   const { CrossSection, arena } = kernel;
   const segments = quality.circularSegments;
 
-  const base = buildBase(
-    kernel,
-    spec,
-    segments,
-    spec.gridPitch === "full" ? holeOptionsFromSpec(spec) : undefined,
-  );
+  const base = spec.flatBottom
+    ? arena.track(footprintOuterSection(kernel, spec, segments).extrude(BASE_HEIGHT))
+    : buildBase(
+        kernel,
+        spec,
+        segments,
+        spec.gridPitch === "full" ? holeOptionsFromSpec(spec) : undefined,
+      );
   let wall = buildWallRing(kernel, spec, segments);
   const lip = spec.lip === "standard"
     ? buildStackingLip(kernel, spec, segments, quality.filletProfileStepMm)

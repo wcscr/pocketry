@@ -373,8 +373,9 @@ export function BinControlsPanel({
   const enabledFeatureCount = [
     spec.lip === "standard",
     spec.fill === "solid",
-    spec.magnetHoles,
-    spec.screwHoles,
+    spec.flatBottom,
+    !spec.flatBottom && spec.magnetHoles,
+    !spec.flatBottom && spec.screwHoles,
     spec.labelTab !== null,
   ].filter(Boolean).length;
   const [fitCheckDepthMm, setFitCheckDepthMm] = useState(2);
@@ -685,13 +686,19 @@ export function BinControlsPanel({
           title="Construction"
           icon={Magnet}
           tone="rose"
-          summary={`${enabledFeatureCount} on`}
+          summary={spec.flatBottom ? "Flat bottom" : `${enabledFeatureCount} on`}
           defaultOpen={false}
           className="scroll-mt-16"
         >
           <FeatureSwitch
+            label="Flat bottom"
+            description="Smooth underside; no Gridfinity base."
+            checked={spec.flatBottom}
+            onChange={(flatBottom) => patchSpec({ flatBottom })}
+          />
+          <FeatureSwitch
             label="Stacking lip"
-            description="Lets another bin stack on top"
+            description={spec.flatBottom ? "Receives a Gridfinity bin on top" : "Lets another bin stack on top"}
             checked={spec.lip === "standard"}
             onChange={(on) => patchSpec({ lip: on ? "standard" : "none" })}
           />
@@ -701,36 +708,40 @@ export function BinControlsPanel({
             checked={spec.fill === "solid"}
             onChange={(on) => patchSpec({ fill: on ? "solid" : "none" })}
           />
-          <FeatureSwitch
-            label="Magnet holes"
-            description={
-              spec.gridPitch === "full"
-                ? "⌀6.5 × 2.4 mm, four per cell"
-                : "Available on the full 42 mm pitch"
-            }
-            checked={spec.magnetHoles}
-            disabled={spec.gridPitch !== "full"}
-            onChange={(magnetHoles) => patchSpec({ magnetHoles })}
-          />
-          {spec.magnetHoles && (
-            <FeatureSwitch
-              label="Crush ribs"
-              description="Press-fit magnets, no glue"
-              checked={spec.magnetCrushRibs}
-              onChange={(magnetCrushRibs) => patchSpec({ magnetCrushRibs })}
-            />
+          {!spec.flatBottom && (
+            <>
+              <FeatureSwitch
+                label="Magnet holes"
+                description={
+                  spec.gridPitch === "full"
+                    ? "⌀6.5 × 2.4 mm, four per cell"
+                    : "Available on the full 42 mm pitch"
+                }
+                checked={spec.magnetHoles}
+                disabled={spec.gridPitch !== "full"}
+                onChange={(magnetHoles) => patchSpec({ magnetHoles })}
+              />
+              {spec.magnetHoles && (
+                <FeatureSwitch
+                  label="Crush ribs"
+                  description="Press-fit magnets, no glue"
+                  checked={spec.magnetCrushRibs}
+                  onChange={(magnetCrushRibs) => patchSpec({ magnetCrushRibs })}
+                />
+              )}
+              <FeatureSwitch
+                label="Screw holes"
+                description={
+                  spec.gridPitch === "full"
+                    ? "⌀3 mm M3, through the base"
+                    : "Available on the full 42 mm pitch"
+                }
+                checked={spec.screwHoles}
+                disabled={spec.gridPitch !== "full"}
+                onChange={(screwHoles) => patchSpec({ screwHoles })}
+              />
+            </>
           )}
-          <FeatureSwitch
-            label="Screw holes"
-            description={
-              spec.gridPitch === "full"
-                ? "⌀3 mm M3, through the base"
-                : "Available on the full 42 mm pitch"
-            }
-            checked={spec.screwHoles}
-            disabled={spec.gridPitch !== "full"}
-            onChange={(screwHoles) => patchSpec({ screwHoles })}
-          />
 
           <div className="space-y-2 border-t pt-3">
             <div className="flex items-center gap-2">
