@@ -86,7 +86,7 @@ export function validatePocketFloorMaterials(
   shapesById: ReadonlyMap<string, TracedShape>,
   floorColorThicknessMm: number,
 ): ValidationIssue[] {
-  if (spec.fill !== "solid" || !Number.isFinite(floorColorThicknessMm) || floorColorThicknessMm <= 0) return [];
+  if (spec.flatBottom || spec.fill !== "solid" || !Number.isFinite(floorColorThicknessMm) || floorColorThicknessMm <= 0) return [];
 
   const hasScrewBores = spec.screwHoles && spec.gridPitch === "full";
   const undersideHeightMm = hasScrewBores ? BASE_HEIGHT : BASE_PROFILE_HEIGHT;
@@ -161,7 +161,7 @@ export function validateBinSpec(spec: BinSpec): ValidationResult {
     }
   }
 
-  if (spec.gridPitch !== "full" && (spec.magnetHoles || spec.screwHoles)) {
+  if (!spec.flatBottom && spec.gridPitch !== "full" && (spec.magnetHoles || spec.screwHoles)) {
     issues.push({
       code: "fractional-grid-holes",
       severity: "warning",
@@ -473,7 +473,7 @@ function validateAgainstBin(spec: BinSpec, p: PlacedCutout): ValidationIssue[] {
       message: `“${label}” leaves a ${pocket.floorZ.toFixed(1)} mm floor — likely to flex or delaminate.`,
         });
       }
-      if (spec.magnetHoles && pocket.floorZ < BASE_HEIGHT) {
+      if (!spec.flatBottom && spec.magnetHoles && pocket.floorZ < BASE_HEIGHT) {
         issues.push({
           code: "floor-in-base",
           severity: "warning",

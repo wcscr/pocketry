@@ -26,9 +26,10 @@ import { binSpecSchema } from "./types";
  * version 9 adds per-finger-hole top and bottom edge fillets; version 10 adds
  * optional project names, fixed-size preference, and trace margin provenance.
  * Version 11 removes Lite Base; older projects use the ordinary Gridfinity base.
+ * Version 12 adds an optional flat bottom, defaulting off for existing projects.
  */
 
-export const PROJECT_SCHEMA_VERSION = 11 as const;
+export const PROJECT_SCHEMA_VERSION = 12 as const;
 
 const projectFields = {
   shapes: z.array(tracedShapeSchema),
@@ -67,6 +68,8 @@ export const projectDocSchema = z
     keepBinSize: z.boolean().optional(),
   })
   .strict();
+
+const version11ProjectSchema = projectDocSchema.extend({ schemaVersion: z.literal(11) });
 
 const version10ProjectSchema = projectDocSchema.extend({ schemaVersion: z.literal(10) });
 
@@ -150,6 +153,8 @@ export function parseProjectDoc(input: unknown): ProjectDoc | null {
       input = { ...doc, spec };
     }
   }
+  const version11 = version11ProjectSchema.safeParse(input);
+  if (version11.success) return projectDocSchema.parse({ ...version11.data, schemaVersion: PROJECT_SCHEMA_VERSION });
   const version10 = version10ProjectSchema.safeParse(input);
   if (version10.success) return projectDocSchema.parse({ ...version10.data, schemaVersion: PROJECT_SCHEMA_VERSION });
   const version9 = version9ProjectSchema.safeParse(input);

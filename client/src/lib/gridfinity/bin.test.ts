@@ -323,3 +323,34 @@ describe("stacking fit (software mating test)", () => {
     expect(overlap.volume()).toBeGreaterThan(1e-3);
   });
 });
+
+describe("flat bottoms", () => {
+  it.each(["full", "half", "quarter"] as const)("fills the underside for %s pitch at preview and export quality", (gridPitch) => {
+    for (const quality of [PREVIEW_QUALITY, EXPORT_QUALITY]) {
+      const ordinarySpec = spec({ gridPitch });
+      const flatSpec = { ...ordinarySpec, flatBottom: true };
+      const ordinary = buildBinParts(kernel, ordinarySpec, quality);
+      const flat = buildBinParts(kernel, flatSpec, quality);
+      expect(flat.base.status()).toBe("NoError");
+      expect(flat.base.genus()).toBe(0);
+      expect(flat.base.boundingBox()).toEqual(ordinary.base.boundingBox());
+      expect(arena.track(flat.base.slice(0.1)).area()).toBeCloseTo(arena.track(flat.base.slice(6.9)).area(), 5);
+      expect(flat.base.volume()).toBeGreaterThan(ordinary.base.volume());
+      expect(binDimensionsMm(flatSpec)).toEqual(binDimensionsMm(ordinarySpec));
+      expect(flat.wall!.volume()).toBeCloseTo(ordinary.wall!.volume(), 6);
+      expect(buildBin(kernel, flatSpec, quality).solid.status()).toBe("NoError");
+    }
+  });
+
+  it("keeps a custom footprint and ignores dormant base holes", () => {
+    const flatSpec = spec({ gridX: 2, gridY: 2, flatBottom: true,
+      footprint: { kind: "custom", cells: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }] } });
+    const plain = buildBinParts(kernel, flatSpec, QUALITY).base;
+    const holes = buildBinParts(kernel, { ...flatSpec, magnetHoles: true, screwHoles: true, magnetCrushRibs: true }, QUALITY).base;
+    expect(plain.volume()).toBeCloseTo(holes.volume(), 6);
+    expect(arena.track(plain.slice(0.1)).area()).toBeCloseTo(arena.track(plain.slice(6.9)).area(), 5);
+    const rectangle = buildBinParts(kernel, { ...flatSpec, footprint: { kind: "rectangle" } }, QUALITY).base;
+    expect(plain.volume()).toBeLessThan(rectangle.volume());
+    expect(buildBin(kernel, flatSpec, QUALITY).solid.status()).toBe("NoError");
+  });
+});

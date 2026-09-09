@@ -51,11 +51,11 @@ describe("current project persistence", () => {
     memory.set("tooltrace:project:v1", structuredClone(airdusterV9));
     const migrated = (await loadProjectDoc())!;
     const { liteBase: _removed, ...spec } = airdusterV9.spec;
-    expect(migrated).toEqual({ ...airdusterV9, spec, schemaVersion: PROJECT_SCHEMA_VERSION });
+    expect(migrated).toEqual({ ...airdusterV9, spec: { ...spec, flatBottom: false }, schemaVersion: PROJECT_SCHEMA_VERSION });
     await saveProjectToLibrary(migrated, "New Airduster Layout", null);
     const reloaded = (await loadProjectDoc())!;
     const exported = JSON.parse(await prepareProjectExport(reloaded, reloaded.name!).backup.text());
-    expect(exported).toEqual({ ...airdusterV9, spec, schemaVersion: PROJECT_SCHEMA_VERSION, name: "New Airduster Layout" });
+    expect(exported).toEqual({ ...airdusterV9, spec: { ...spec, flatBottom: false }, schemaVersion: PROJECT_SCHEMA_VERSION, name: "New Airduster Layout" });
   });
   it("never overwrites an unsupported working copy during autosave", async () => {
     const future = { schemaVersion: 999, valuable: { outlines: [1, 2, 3] } };

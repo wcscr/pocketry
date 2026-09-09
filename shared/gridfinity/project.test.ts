@@ -48,7 +48,7 @@ describe("parseProjectDoc", () => {
     const original = JSON.stringify(airdusterV9);
     const doc = parseProjectDoc(airdusterV9);
     const { liteBase: _removed, ...spec } = airdusterV9.spec;
-    expect(doc).toEqual({ ...airdusterV9, spec, schemaVersion: PROJECT_SCHEMA_VERSION });
+    expect(doc).toEqual({ ...airdusterV9, spec: { ...spec, flatBottom: false }, schemaVersion: PROJECT_SCHEMA_VERSION });
     expect(doc!.shapes).toHaveLength(7);
     expect(doc!.cutouts).toHaveLength(4);
     expect(doc!.fingerHoles).toHaveLength(2);
@@ -350,5 +350,18 @@ describe("removed Lite Base migration", () => {
     const current = parseProjectDoc(VALID)!;
     expect(parseProjectDoc({ ...current, schemaVersion: 10, spec: { ...current.spec, liteBase: "yes" } })).toBeNull();
     expect(parseProjectDoc({ ...current, spec: { ...current.spec, liteBase: true } })).toBeNull();
+  });
+});
+
+
+describe("flat bottom projects", () => {
+  it("defaults existing v11 documents to Gridfinity and preserves flat projects on reload", () => {
+    const legacy = JSON.parse(JSON.stringify(VALID));
+    legacy.schemaVersion = 11;
+    delete legacy.spec.flatBottom;
+    expect(parseProjectDoc(legacy)?.spec.flatBottom).toBe(false);
+    const flat = parseProjectDoc({ ...VALID, spec: { ...VALID.spec, flatBottom: true } });
+    expect(flat?.spec.flatBottom).toBe(true);
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(flat)))).toEqual(flat);
   });
 });

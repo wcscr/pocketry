@@ -150,7 +150,11 @@ and ⌀6.5 for glue-free press-fit magnets, a per-spec toggle under Magnet
 holes. The earlier modeled Lite Base option was removed: ordinary slicer
 infill already provides the intended material savings without permanently
 adding hollow chambers and special pocket-floor support to the exported
-model. **Half/quarter grid**
+model. **Flat bottom** is an optional Construction setting that replaces the
+Gridfinity sockets with a smooth 7 mm base, preserving outer size and pocket
+heights. Base magnet/screw holes are inactive in this mode; their settings
+return when switched off. Existing projects retain the Gridfinity base.
+**Half/quarter grid**
 landed as explicit 21/10.5 mm pitch modes while retaining the upstream 0.5 mm
 gap; fractional magnet/screw patterns are disabled until the corner-only hole
 layout is ported. Baseplate generation was intentionally removed from
