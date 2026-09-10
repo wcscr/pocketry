@@ -189,7 +189,7 @@ const BIN_SETTINGS_SECTIONS = [
   { id: "bin-settings-pockets", label: "Pockets", tone: "violet" },
   { id: "bin-settings-finger-holes", label: "Finger access", tone: "cyan" },
   { id: "bin-settings-materials", label: "Materials", tone: "amber" },
-  { id: "bin-settings-view", label: "View", tone: "amber" },
+  { id: "bin-settings-view", label: "Cross-section View", tone: "amber" },
   { id: "bin-settings-fit", label: "Check fit", tone: "emerald" },
   { id: "bin-settings-export", label: "Export", tone: "emerald" },
 ] as const;
@@ -575,7 +575,7 @@ export function BinControlsPanel({
                 aria-label="Height in 0.5u increments"
               />
               <span className="flex shrink-0 items-center gap-1 whitespace-nowrap text-xs tabular-nums text-muted-foreground">
-                <DraftNumberInput className="h-8 w-16" aria-label="Bin height in units" value={spec.heightUnits} min={1} max={MAX_HEIGHT_UNITS_UI} step={0.5} normalize={(value) => Math.round(value * 2) / 2} onValueChange={(heightUnits) => patchSpec({ heightUnits }, true)} onValueCommit={(heightUnits) => patchSpec({ heightUnits })} /> u · {spec.heightUnits * 7} mm
+                <DraftNumberInput className="h-8 w-20" aria-label="Bin height in units" value={spec.heightUnits} min={1} max={MAX_HEIGHT_UNITS_UI} step={0.5} normalize={(value) => Math.round(value * 2) / 2} onValueChange={(heightUnits) => patchSpec({ heightUnits }, true)} onValueCommit={(heightUnits) => patchSpec({ heightUnits })} /> units
               </span>
             </div>
           </div>
@@ -1592,7 +1592,7 @@ export function BinControlsPanel({
             </div>
           </div>
         </PanelSection>
-        <PanelSection id="bin-settings-view" title="View" icon={Eye} tone="amber" defaultOpen={section !== null} summary={section ? "Cut open" : "Whole bin"}>
+        <PanelSection id="bin-settings-view" title="Cross-section View" icon={Eye} tone="amber" defaultOpen={section !== null} summary={section ? "Cut open" : "Whole bin"}>
           <FeatureSwitch
             label="Cut the preview open"
             description="Slice the 3D view to inspect pockets. These controls only change the preview; exports always contain the complete bin."
@@ -2370,10 +2370,7 @@ function CellSlider({
           aria-label={`${label} in standard Gridfinity cells`}
         />
         <span className="flex shrink-0 items-center gap-1 whitespace-nowrap text-xs tabular-nums text-muted-foreground">
-          <DraftNumberInput className="h-8 w-16" aria-label={`${label} in standard cells`} value={standardCells} min={step} max={MAX_GRID} step={step} normalize={(value) => Math.round(value / step) * step} onValueChange={(value) => onChange(value, true)} onValueCommit={(value) => onChange(value, false)} /> × 42 mm
-        </span>
-        <span className="flex shrink-0 items-center gap-1 whitespace-nowrap text-xs tabular-nums">
-          <DraftNumberInput className="h-8 w-20" aria-label={`${label} outer size in millimetres`} value={Number(binFootprintMm(cells, pitch).toFixed(1))} min={step * 42 - 0.5} max={MAX_GRID * 42 - 0.5} step={step * 42} normalize={(value) => Math.round((value + 0.5) / (42 * step)) * 42 * step - 0.5} onValueChange={(value) => onChange((value + 0.5) / 42, true)} onValueCommit={(value) => onChange((value + 0.5) / 42, false)} /> mm
+          <DraftNumberInput className="h-8 w-20" aria-label={`${label} in standard cells`} value={standardCells} min={step} max={MAX_GRID} step={step} normalize={(value) => Math.round(value / step) * step} onValueChange={(value) => onChange(value, true)} onValueCommit={(value) => onChange(value, false)} /> units
         </span>
       </div>
     </div>
