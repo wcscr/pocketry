@@ -10,7 +10,6 @@ import {
   FilePlus2,
   FolderOpen,
   LayoutGrid,
-  Lock,
   LoaderCircle,
   Magnet,
   MousePointerClick,
@@ -25,7 +24,6 @@ import {
   SlidersHorizontal,
   Spline,
   Trash2,
-  Unlock,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useLocation } from "wouter";
@@ -108,7 +106,7 @@ import {
 } from "@/lib/gridfinity/worker-api";
 import type { ProjectLibraryItem } from "@/lib/project/persist";
 import { cn } from "@/lib/utils";
-import { PocketMeasurements, PositionInputs } from "./pocket-measurements";
+import { PocketMeasurements, PocketSizeInputs, PositionInputs } from "./pocket-measurements";
 import { ExportConfirmationDialog, ProjectBackupOption } from "./export-confirmation-dialog";
 import { useBin } from "@/state/bin-store";
 import { useShapeLibrary } from "@/state/shape-library";
@@ -218,7 +216,7 @@ const BIN_SETTINGS_SECTIONS = [
   { id: "bin-settings-project", label: "Project", tone: "slate" },
   { id: "bin-settings-size", label: "Size", tone: "blue" },
   { id: "bin-settings-construction", label: "Construction", tone: "rose" },
-  { id: "bin-settings-pockets", label: "Arrange", tone: "violet" },
+  { id: "bin-settings-pockets", label: "Pockets", tone: "violet" },
   { id: "bin-settings-finger-holes", label: "Finger access", tone: "cyan" },
   { id: "bin-settings-materials", label: "Materials", tone: "amber" },
   { id: "bin-settings-view", label: "View", tone: "amber" },
@@ -227,6 +225,8 @@ const BIN_SETTINGS_SECTIONS = [
 ] as const;
 
 export interface BinControlsPanelProps {
+  /** Changes when the canvas explicitly requests the selected pocket editor. */
+  pocketEditorRequest?: number;
   keepBinSize?: boolean;
   onKeepBinSizeChange?: (fixed: boolean) => void;
   saveStatus?: "saving" | "saved" | "error";
@@ -311,6 +311,7 @@ export function BinControlsPanel({
   onStackingRimColorChange,
   stackingRimThicknessMm,
   onStackingRimThicknessChange,
+  pocketEditorRequest = 0,
   keepBinSize = false,
   onKeepBinSizeChange,
   saveStatus = "saved",
@@ -329,10 +330,19 @@ export function BinControlsPanel({
   const [, navigate] = useLocation();
   const { shapes, storeShape } = useShapeLibrary();
   const pocketPropertiesHeadingRef = useRef<HTMLDivElement>(null);
+  const revealPocketProperties = () => {
+    // Scroll only this panel, preserving the canvas and mobile drawer position.
+    const scroller = pocketPropertiesHeadingRef.current?.parentElement?.parentElement;
+    if (scroller) scroller.scrollTop = 0;
+  };
+  useEffect(() => {
+    if (!selectedCutoutId) return;
+    const frame = requestAnimationFrame(revealPocketProperties);
+    return () => cancelAnimationFrame(frame);
+  }, [selectedCutoutId, pocketEditorRequest]);
   const selectPocketProperties = (id: string) => {
     dispatch({ type: "SELECT_CUTOUT", id });
-    // Reveal the heading after the selected pocket's controls have rendered.
-    requestAnimationFrame(() => pocketPropertiesHeadingRef.current?.scrollIntoView?.({ block: "nearest" }));
+    requestAnimationFrame(revealPocketProperties);
   };
   const shapesById = useMemo(
     () => new Map(shapes.map((shape) => [shape.id, shape])),
@@ -359,7 +369,7 @@ export function BinControlsPanel({
     if (issue.cutoutIds?.length) {
       const next = issue.cutoutIds.find((id) => id !== selectedCutoutId) ?? issue.cutoutIds[0];
       dispatch({ type: "SELECT_CUTOUT", id: next });
-      revealPanelSection("bin-settings-pockets", BIN_SETTINGS_SECTIONS);
+      requestAnimationFrame(revealPocketProperties);
     } else if (issue.fingerHoleIds?.length) {
       dispatch({ type: "SELECT_FINGER_HOLE", id: issue.fingerHoleIds[0] });
       revealPanelSection("bin-settings-finger-holes", BIN_SETTINGS_SECTIONS);
@@ -442,6 +452,9 @@ export function BinControlsPanel({
   const setPocketScale = (axis: "x" | "y", percent: number) => {
     if (!selectedCutout) return;
     const requested = Math.min(20, Math.max(0.05, percent / 100));
+    const changedScale = axis === "x" ? selectedCutout.scaleX : selectedCutout.scaleY;
+    // The number field also commits on blur; do not record that value twice.
+    if (requested === changedScale) return;
     if (!selectedCutout.aspectRatioLocked) {
       dispatch({
         type: "UPDATE_CUTOUT",
@@ -451,8 +464,6 @@ export function BinControlsPanel({
       });
       return;
     }
-    const changedScale =
-      axis === "x" ? selectedCutout.scaleX : selectedCutout.scaleY;
     let factor = requested / changedScale;
     factor = Math.min(
       20 / selectedCutout.scaleX,
@@ -502,13 +513,287 @@ export function BinControlsPanel({
         <p className="truncate text-sm font-medium" title={currentProjectName ?? "Untitled project"}>{currentProjectName ?? "Untitled project"}</p>
         <p className="text-[11px] text-muted-foreground" role="status">{!hydrated ? "Opening project…" : projectBusy || saveStatus === "saving" ? "Saving in this browser…" : saveStatus === "error" ? "Could not save. Download an editable project to keep your work." : "Saved in this browser"}</p>
       </div>
-      <PanelSettingsIndex
-        ariaLabel="Find bin settings"
-        testIdPrefix="bin"
-        items={BIN_SETTINGS_SECTIONS}
-      />
+      {/* On short screens the section headers remain reachable by scrolling;
+          reserve the limited height for editable fields instead of shortcuts. */}
+      <div className="shrink-0 [@media(max-height:500px)]:hidden">
+        <PanelSettingsIndex
+          ariaLabel="Find bin settings"
+          testIdPrefix="bin"
+          items={BIN_SETTINGS_SECTIONS}
+        />
+      </div>
       {selectedIssues.length > 0 && <div className="max-h-32 shrink-0 space-y-1 overflow-y-auto border-b p-2" data-testid="selected-object-issues" aria-label="Issues for selected object">{selectedIssues.map(issueButton)}</div>}
       <PanelBody className="flex-1">
+        {selectedCutout && selectedShape && (
+          <div className="space-y-3 border-b bg-violet-500/[0.025] px-3 pb-4" id="pocket-properties" role="region" aria-label="Selected pocket properties" key={selectedCutout.id}>
+            <div ref={pocketPropertiesHeadingRef} className="sticky top-0 z-10 -mx-3 border-b border-violet-500/30 bg-background px-3 py-2" data-testid="pocket-properties-heading">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-[11px] font-semibold uppercase tracking-wide text-violet-700 dark:text-violet-300">Pocket properties</h3>
+                <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => revealPanelSection("bin-settings-pockets", BIN_SETTINGS_SECTIONS)}>All pockets</Button>
+              </div>
+              <EditableShapeName key={selectedCutout.id} shape={selectedShape} onRename={(name) => storeShape({ ...selectedShape, name })} />
+            </div>
+            <PocketSizeInputs cutout={selectedCutout} shape={selectedShape} setScale={setPocketScale} />
+            <div className="flex items-center gap-2">
+              <Label className="w-16 shrink-0 text-xs">Depth</Label>
+              <Select
+                value={selectedCutout.depth.mode}
+                onValueChange={(mode) => {
+                  const resolved = resolvePocketDepth(spec, selectedCutout.depth);
+                  const depth =
+                    mode === "through"
+                      ? ({ mode: "through" } as const)
+                      : mode === "mm"
+                        ? ({ mode: "mm", value: Math.max(0.1, resolved.depthMm ?? resolved.infillTopZ - defaultPocketFloorThicknessMm(spec)) } as const)
+                        : ({ mode: "remaining", floorThicknessMm: spec.flatBottom ? defaultPocketFloorThicknessMm(spec) : Math.max(0, resolved.floorZ ?? defaultPocketFloorThicknessMm(spec)) } as const);
+                  dispatch({
+                    type: "UPDATE_CUTOUT",
+                    id: selectedCutout.id,
+                    patch: { depth },
+                    historyLabel: "Change pocket depth",
+                  });
+                }}
+              >
+                <SelectTrigger className="h-8 flex-1" aria-label="Pocket depth mode">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="remaining">Keep floor thickness</SelectItem>
+                  <SelectItem value="mm">Fixed depth</SelectItem>
+                  <SelectItem value="through">Through</SelectItem>
+                </SelectContent>
+              </Select>
+              {selectedCutout.depth.mode === "mm" && (
+                <DraftNumberInput
+                  className="h-8 w-20"
+                  aria-label="Pocket cut depth in millimetres"
+                  value={selectedCutout.depth.value}
+                  min={1}
+                  step={1}
+                  onValueChange={(value) =>
+                    dispatch({
+                      type: "UPDATE_CUTOUT",
+                      id: selectedCutout.id,
+                      patch: { depth: { mode: "mm", value } },
+                      historyLabel: "Change pocket depth",
+                    })
+                  }
+                />
+              )}
+            </div>
+
+            {spec.flatBottom && selectedCutout.depth.mode === "remaining" && (
+              <p className="text-[11px] text-muted-foreground">Measured from the flat underside. A 2 mm floor lets pockets extend into the former base area.</p>
+            )}
+            {selectedCutout.depth.mode === "remaining" && <MmSlider label="Remaining floor thickness" value={selectedCutout.depth.floorThicknessMm} min={0} max={Math.max(7, spec.heightUnits * 7)} step={0.5}
+              onChange={(floorThicknessMm, transient) => dispatch({ type: "UPDATE_CUTOUT", id: selectedCutout.id, patch: { depth: { mode: "remaining", floorThicknessMm } }, transient, historyLabel: "Change remaining floor" })} />}
+
+            <MmSlider
+              label="Extra pocket clearance"
+              value={selectedCutout.clearanceMm}
+              min={0}
+              max={2}
+              step={0.1}
+              onChange={(clearanceMm, transient) =>
+                dispatch({
+                  type: "UPDATE_CUTOUT",
+                  id: selectedCutout.id,
+                  patch: { clearanceMm },
+                  historyLabel: "Change pocket clearance",
+                  transient,
+                })
+              }
+              hint="Added after the Trace margin; new pockets start at 0 mm."
+            />
+
+            <Button
+              variant={editorMode === "contour" ? "default" : "outline"}
+              size="sm"
+              className="w-full"
+              data-testid="button-edit-contour"
+              onClick={() => {
+                const editing = editorMode === "contour";
+                dispatch({
+                  type: "SET_EDITOR_MODE",
+                  editorMode: editing ? "placement" : "contour",
+                });
+                if (!editing) {
+                  dispatch({ type: "SET_VIEW_MODE", viewMode: "2d" });
+                }
+              }}
+            >
+              <Spline className="mr-1.5 h-3.5 w-3.5" />
+              {editorMode === "contour" ? "Finish contour editing" : "Edit contour"}
+            </Button>
+            {editorMode === "contour" && (
+              <p className="rounded-md bg-violet-500/10 px-2.5 py-2 text-[11px] text-violet-800 dark:text-violet-200">
+                Drag points to reshape. Click an edge to add a point; right-click a
+                point to remove it.
+              </p>
+            )}
+
+            <PocketMeasurements cutout={selectedCutout} shape={selectedShape} section={section} inspect={onSectionChange} />
+            <details className="group/more text-xs" data-testid="pocket-more-settings">
+              <summary className="flex cursor-pointer list-none items-center justify-between py-1.5 font-medium [&::-webkit-details-marker]:hidden">
+                Rotation, scale &amp; rounding
+                <ChevronDown className="h-3.5 w-3.5 transition-transform group-open/more:rotate-180" />
+              </summary>
+              <div className="space-y-3 pt-2">
+                <div className="flex items-center gap-2">
+                  <Label className="w-16 shrink-0 text-xs">Rotation</Label>
+                  <DraftNumberInput
+                    className="h-8"
+                    value={Math.round(selectedCutout.rotationDeg * 10) / 10}
+                    step={15}
+                    normalize={(value) => ((value % 360) + 360) % 360}
+                    onValueChange={(rotationDeg) =>
+                      dispatch({
+                        type: "UPDATE_CUTOUT",
+                        id: selectedCutout.id,
+                        patch: { rotationDeg },
+                        historyLabel: "Rotate tool pocket",
+                      })
+                    }
+                  />
+                  <FeatureSwitch
+                    label="Mirror"
+                    description=""
+                    checked={selectedCutout.mirrored}
+                    onChange={(mirrored) =>
+                      dispatch({
+                        type: "UPDATE_CUTOUT",
+                        id: selectedCutout.id,
+                        patch: { mirrored },
+                        historyLabel: "Mirror tool pocket",
+                      })
+                    }
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <Label className="w-16 shrink-0 text-xs">Scale</Label>
+                    <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                      <Label
+                        className="text-[11px] text-muted-foreground"
+                        htmlFor="pocket-scale-width"
+                      >
+                        W
+                      </Label>
+                      <DraftNumberInput
+                        id="pocket-scale-width"
+                        className="h-8 min-w-0"
+                        aria-label="Pocket width scale percent"
+                        data-testid="input-pocket-scale-x"
+                        value={Math.round(selectedCutout.scaleX * 1000) / 10}
+                        min={5}
+                        max={2000}
+                        step={1}
+                        onValueChange={(percent) => setPocketScale("x", percent)}
+                      />
+                      <span className="text-xs text-muted-foreground">%</span>
+                      <Label
+                        className="text-[11px] text-muted-foreground"
+                        htmlFor="pocket-scale-height"
+                      >
+                        H
+                      </Label>
+                      <DraftNumberInput
+                        id="pocket-scale-height"
+                        className="h-8 min-w-0"
+                        aria-label="Pocket height scale percent"
+                        data-testid="input-pocket-scale-y"
+                        value={Math.round(selectedCutout.scaleY * 1000) / 10}
+                        min={5}
+                        max={2000}
+                        step={1}
+                        onValueChange={(percent) => setPocketScale("y", percent)}
+                      />
+                      <span className="text-xs text-muted-foreground">%</span>
+
+                    </div>
+                  </div>
+                  <div className="ml-[4.5rem] flex items-start justify-between gap-2">
+                    <p className="text-[11px] leading-4 text-muted-foreground">
+                      Drag layout edges or corners. Keep proportions links width and length.
+                    </p>
+                    {(selectedCutout.scaleX !== 1 || selectedCutout.scaleY !== 1) && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 shrink-0 px-2 text-[11px]"
+                        onClick={() =>
+                          dispatch({
+                            type: "UPDATE_CUTOUT",
+                            id: selectedCutout.id,
+                            patch: { scaleX: 1, scaleY: 1 },
+                            historyLabel: "Reset tool pocket scale",
+                          })
+                        }
+                      >
+                        Reset 100%
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                <MmSlider
+                  label="Outline corner round"
+                  value={selectedCutout.cornerRoundMm}
+                  min={0}
+                  max={3}
+                  step={0.5}
+                  onChange={(cornerRoundMm, transient) =>
+                    dispatch({
+                      type: "UPDATE_CUTOUT",
+                      id: selectedCutout.id,
+                      patch: { cornerRoundMm },
+                      historyLabel: "Change outline corner round",
+                      transient,
+                    })
+                  }
+                  hint="Rounds sharp corners in the pocket outline from top to bottom."
+                />
+                <MmSlider
+                  label="Top edge round"
+                  value={selectedCutout.topFilletMm}
+                  min={0}
+                  max={5}
+                  step={0.2}
+                  onChange={(topFilletMm, transient) =>
+                    dispatch({
+                      type: "UPDATE_CUTOUT",
+                      id: selectedCutout.id,
+                      patch: { topFilletMm },
+                      historyLabel: "Change top edge round",
+                      transient,
+                    })
+                  }
+                  hint="Rounds the pocket wall into the top surface of the bin."
+                />
+                <MmSlider
+                  label="Bottom fillet"
+                  value={selectedCutout.bottomFilletMm}
+                  min={0}
+                  max={4}
+                  step={0.2}
+                  onChange={(bottomFilletMm, transient) =>
+                    dispatch({
+                      type: "UPDATE_CUTOUT",
+                      id: selectedCutout.id,
+                      patch: { bottomFilletMm },
+                      historyLabel: "Change bottom fillet",
+                      transient,
+                    })
+                  }
+                  hint="Rounds the wall into the floor; the transition ends one radius above the floor."
+                />
+
+              </div>
+            </details>
+          </div>
+        )}
         <PanelSection
           id="bin-settings-project"
           title="Project"
@@ -827,7 +1112,7 @@ export function BinControlsPanel({
         <PanelSection
           key={cutouts.length > 0 ? "pockets" : "pockets-empty"}
           id="bin-settings-pockets"
-          title="Arrange pockets"
+          title="Pockets"
           icon={Scissors}
           tone="violet"
           summary={`${cutouts.length} pocket${cutouts.length === 1 ? "" : "s"}`}
@@ -847,7 +1132,7 @@ export function BinControlsPanel({
               >
                 <MousePointerClick className="mt-0.5 h-4 w-4 shrink-0" />
                 <p>
-                  Choose a pocket below to edit its size, depth, and shape.
+                  Click a pocket in Layout or choose one below to edit its properties.
                 </p>
               </div>
               <Button
@@ -888,7 +1173,7 @@ export function BinControlsPanel({
                         <span className="min-w-0 flex-1">
                           <span className="block truncate font-medium">{shape?.name ?? "Missing shape"}</span>
                           <span className={cn("mt-0.5 block text-[11px]", isSelected ? "font-medium text-violet-700 dark:text-violet-300" : "text-muted-foreground")}>
-                            {isSelected ? "Properties shown below" : "Edit properties"}
+                            {isSelected ? "Editing this pocket" : "Edit properties"}
                           </span>
                         </span>
                         {isSelected ? <ChevronDown className="h-4 w-4 shrink-0 text-violet-600 dark:text-violet-300" /> : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
@@ -928,299 +1213,6 @@ export function BinControlsPanel({
             </>
           )}
 
-          {selectedCutout && selectedShape && (
-            <div className="space-y-3 border-t pt-3" id="pocket-properties">
-              <div ref={pocketPropertiesHeadingRef} className="scroll-mt-3 rounded-md border border-violet-500/30 bg-violet-500/5 px-2.5 py-2" data-testid="pocket-properties-heading">
-                <h3 className="text-[11px] font-semibold uppercase tracking-wide text-violet-700 dark:text-violet-300">Pocket properties</h3>
-                <EditableShapeName key={selectedCutout.id} shape={selectedShape} onRename={(name) => storeShape({ ...selectedShape, name })} />
-              </div>
-              <PocketMeasurements cutout={selectedCutout} shape={selectedShape} setScale={setPocketScale} section={section} inspect={onSectionChange} />
-              <Button
-                variant={editorMode === "contour" ? "default" : "outline"}
-                size="sm"
-                className="w-full"
-                data-testid="button-edit-contour"
-                onClick={() => {
-                  const editing = editorMode === "contour";
-                  dispatch({
-                    type: "SET_EDITOR_MODE",
-                    editorMode: editing ? "placement" : "contour",
-                  });
-                  if (!editing) {
-                    dispatch({ type: "SET_VIEW_MODE", viewMode: "2d" });
-                  }
-                }}
-              >
-                <Spline className="mr-1.5 h-3.5 w-3.5" />
-                {editorMode === "contour" ? "Finish contour editing" : "Edit contour"}
-              </Button>
-              {editorMode === "contour" && (
-                <p className="rounded-md bg-violet-500/10 px-2.5 py-2 text-[11px] text-violet-800 dark:text-violet-200">
-                  Drag points to reshape. Click an edge to add a point; right-click a
-                  point to remove it.
-                </p>
-              )}
-
-              <div className="flex items-center gap-2">
-                <Label className="w-16 shrink-0 text-xs">Rotation</Label>
-                <DraftNumberInput
-                  className="h-8"
-                  value={Math.round(selectedCutout.rotationDeg * 10) / 10}
-                  step={15}
-                  normalize={(value) => ((value % 360) + 360) % 360}
-                  onValueChange={(rotationDeg) =>
-                    dispatch({
-                      type: "UPDATE_CUTOUT",
-                      id: selectedCutout.id,
-                      patch: { rotationDeg },
-                      historyLabel: "Rotate tool pocket",
-                    })
-                  }
-                />
-                <FeatureSwitch
-                  label="Mirror"
-                  description=""
-                  checked={selectedCutout.mirrored}
-                  onChange={(mirrored) =>
-                    dispatch({
-                      type: "UPDATE_CUTOUT",
-                      id: selectedCutout.id,
-                      patch: { mirrored },
-                      historyLabel: "Mirror tool pocket",
-                    })
-                  }
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-2">
-                  <Label className="w-16 shrink-0 text-xs">Scale</Label>
-                  <div className="flex min-w-0 flex-1 items-center gap-1.5">
-                    <Label
-                      className="text-[11px] text-muted-foreground"
-                      htmlFor="pocket-scale-width"
-                    >
-                      W
-                    </Label>
-                    <DraftNumberInput
-                      id="pocket-scale-width"
-                      className="h-8 min-w-0"
-                      aria-label="Pocket width scale percent"
-                      data-testid="input-pocket-scale-x"
-                      value={Math.round(selectedCutout.scaleX * 1000) / 10}
-                      min={5}
-                      max={2000}
-                      step={1}
-                      onValueChange={(percent) => setPocketScale("x", percent)}
-                    />
-                    <span className="text-xs text-muted-foreground">%</span>
-                    <Label
-                      className="text-[11px] text-muted-foreground"
-                      htmlFor="pocket-scale-height"
-                    >
-                      H
-                    </Label>
-                    <DraftNumberInput
-                      id="pocket-scale-height"
-                      className="h-8 min-w-0"
-                      aria-label="Pocket height scale percent"
-                      data-testid="input-pocket-scale-y"
-                      value={Math.round(selectedCutout.scaleY * 1000) / 10}
-                      min={5}
-                      max={2000}
-                      step={1}
-                      onValueChange={(percent) => setPocketScale("y", percent)}
-                    />
-                    <span className="text-xs text-muted-foreground">%</span>
-                    <Button
-                      type="button"
-                      variant={
-                        selectedCutout.aspectRatioLocked ? "secondary" : "outline"
-                      }
-                      size="icon"
-                      className="h-8 w-8 shrink-0"
-                      aria-label={
-                        selectedCutout.aspectRatioLocked
-                          ? "Unlock pocket aspect ratio"
-                          : "Lock pocket aspect ratio"
-                      }
-                      aria-pressed={selectedCutout.aspectRatioLocked}
-                      title={
-                        selectedCutout.aspectRatioLocked
-                          ? "Aspect ratio locked"
-                          : "Aspect ratio unlocked"
-                      }
-                      onClick={() =>
-                        dispatch({
-                          type: "UPDATE_CUTOUT",
-                          id: selectedCutout.id,
-                          patch: {
-                            aspectRatioLocked: !selectedCutout.aspectRatioLocked,
-                          },
-                          historyLabel: selectedCutout.aspectRatioLocked
-                            ? "Unlock pocket proportions"
-                            : "Lock pocket proportions",
-                        })
-                      }
-                    >
-                      {selectedCutout.aspectRatioLocked ? (
-                        <Lock className="h-3.5 w-3.5" />
-                      ) : (
-                        <Unlock className="h-3.5 w-3.5" />
-                      )}
-                    </Button>
-                  </div>
-                </div>
-                <div className="ml-[4.5rem] flex items-start justify-between gap-2">
-                  <p className="text-[11px] leading-4 text-muted-foreground">
-                    Drag layout edges or corners. Lock preserves proportions.
-                  </p>
-                  {(selectedCutout.scaleX !== 1 || selectedCutout.scaleY !== 1) && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 shrink-0 px-2 text-[11px]"
-                      onClick={() =>
-                        dispatch({
-                          type: "UPDATE_CUTOUT",
-                          id: selectedCutout.id,
-                          patch: { scaleX: 1, scaleY: 1 },
-                          historyLabel: "Reset tool pocket scale",
-                        })
-                      }
-                    >
-                      Reset 100%
-                    </Button>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Label className="w-16 shrink-0 text-xs">Depth</Label>
-                <Select
-                  value={selectedCutout.depth.mode}
-                  onValueChange={(mode) => {
-                    const resolved = resolvePocketDepth(spec, selectedCutout.depth);
-                    const depth =
-                      mode === "through"
-                        ? ({ mode: "through" } as const)
-                        : mode === "mm"
-                          ? ({ mode: "mm", value: Math.max(0.1, resolved.depthMm ?? resolved.infillTopZ - defaultPocketFloorThicknessMm(spec)) } as const)
-                          : ({ mode: "remaining", floorThicknessMm: spec.flatBottom ? defaultPocketFloorThicknessMm(spec) : Math.max(0, resolved.floorZ ?? defaultPocketFloorThicknessMm(spec)) } as const);
-                    dispatch({
-                      type: "UPDATE_CUTOUT",
-                      id: selectedCutout.id,
-                      patch: { depth },
-                      historyLabel: "Change pocket depth",
-                    });
-                  }}
-                >
-                  <SelectTrigger className="h-8 flex-1" aria-label="Pocket depth mode">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="remaining">Keep floor thickness</SelectItem>
-                    <SelectItem value="mm">Fixed depth</SelectItem>
-                    <SelectItem value="through">Through</SelectItem>
-                  </SelectContent>
-                </Select>
-                {selectedCutout.depth.mode === "mm" && (
-                  <DraftNumberInput
-                    className="h-8 w-20"
-                    aria-label="Pocket cut depth in millimetres"
-                    value={selectedCutout.depth.value}
-                    min={1}
-                    step={1}
-                    onValueChange={(value) =>
-                      dispatch({
-                        type: "UPDATE_CUTOUT",
-                        id: selectedCutout.id,
-                        patch: { depth: { mode: "mm", value } },
-                        historyLabel: "Change pocket depth",
-                      })
-                    }
-                  />
-                )}
-              </div>
-
-              {spec.flatBottom && selectedCutout.depth.mode === "remaining" && (
-                <p className="text-[11px] text-muted-foreground">Measured from the flat underside. A 2 mm floor lets pockets extend into the former base area.</p>
-              )}
-              {selectedCutout.depth.mode === "remaining" && <MmSlider label="Remaining floor thickness" value={selectedCutout.depth.floorThicknessMm} min={0} max={Math.max(7, spec.heightUnits * 7)} step={0.5}
-                onChange={(floorThicknessMm, transient) => dispatch({ type: "UPDATE_CUTOUT", id: selectedCutout.id, patch: { depth: { mode: "remaining", floorThicknessMm } }, transient, historyLabel: "Change remaining floor" })} />}
-
-              <MmSlider
-                label="Extra pocket clearance"
-                value={selectedCutout.clearanceMm}
-                min={0}
-                max={2}
-                step={0.1}
-                onChange={(clearanceMm, transient) =>
-                  dispatch({
-                    type: "UPDATE_CUTOUT",
-                    id: selectedCutout.id,
-                    patch: { clearanceMm },
-                    historyLabel: "Change pocket clearance",
-                    transient,
-                  })
-                }
-                hint="Added after the Trace margin; new pockets start at 0 mm."
-              />
-              <MmSlider
-                label="Outline corner round"
-                value={selectedCutout.cornerRoundMm}
-                min={0}
-                max={3}
-                step={0.5}
-                onChange={(cornerRoundMm, transient) =>
-                  dispatch({
-                    type: "UPDATE_CUTOUT",
-                    id: selectedCutout.id,
-                    patch: { cornerRoundMm },
-                    historyLabel: "Change outline corner round",
-                    transient,
-                  })
-                }
-                hint="Rounds sharp corners in the pocket outline from top to bottom."
-              />
-              <MmSlider
-                label="Top edge round"
-                value={selectedCutout.topFilletMm}
-                min={0}
-                max={5}
-                step={0.2}
-                onChange={(topFilletMm, transient) =>
-                  dispatch({
-                    type: "UPDATE_CUTOUT",
-                    id: selectedCutout.id,
-                    patch: { topFilletMm },
-                    historyLabel: "Change top edge round",
-                    transient,
-                  })
-                }
-                hint="Rounds the pocket wall into the top surface of the bin."
-              />
-              <MmSlider
-                label="Bottom fillet"
-                value={selectedCutout.bottomFilletMm}
-                min={0}
-                max={4}
-                step={0.2}
-                onChange={(bottomFilletMm, transient) =>
-                  dispatch({
-                    type: "UPDATE_CUTOUT",
-                    id: selectedCutout.id,
-                    patch: { bottomFilletMm },
-                    historyLabel: "Change bottom fillet",
-                    transient,
-                  })
-                }
-                hint="Rounds the wall into the floor; the transition ends one radius above the floor."
-              />
-
-            </div>
-          )}
         </PanelSection>
 
         <PanelSection
@@ -2105,7 +2097,6 @@ export function BinControlsPanel({
               </Button>
             </div>
           </div>
-
 
         </PanelSection>
       </PanelBody>

@@ -6,7 +6,7 @@ import { parseCutoutPlacement, resolvePocketDepth, type TracedShape } from "@sha
 import { parseBinSpec } from "@shared/gridfinity/types";
 import { BinProvider, useBin, type BinStore } from "@/state/bin-store";
 import { ShapeLibraryProvider } from "@/state/shape-library";
-import { PocketMeasurements } from "./pocket-measurements";
+import { PocketMeasurements, PocketSizeInputs } from "./pocket-measurements";
 
 const shape: TracedShape = {
   id: "tool", name: "Test tool", sourceMmPerPx: 0.25, traceMarginMm: 0.5, pointCount: 4,
@@ -22,7 +22,7 @@ const scale = vi.fn();
 function Probe() {
   store = useBin();
   const cutout = store.cutouts[0];
-  return cutout ? <PocketMeasurements cutout={cutout} shape={shape} section={null} inspect={inspect} setScale={scale} /> : null;
+  return cutout ? <><PocketSizeInputs cutout={cutout} shape={shape} setScale={scale} /><PocketMeasurements cutout={cutout} shape={shape} section={null} inspect={inspect} /></> : null;
 }
 
 beforeEach(() => {
@@ -34,7 +34,7 @@ beforeEach(() => {
   React.act(() => root.render(<ShapeLibraryProvider><BinProvider><Probe /></BinProvider></ShapeLibraryProvider>));
   React.act(() => store.dispatch({ type: "HYDRATE", spec: parseBinSpec({ gridX: 4, gridY: 4, heightUnits: 6 }),
     cutouts: [parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 0, y: 0 }, scaleX: 0.9, scaleY: 0.9, clearanceMm: 0.5, depth: { mode: "mm", value: 12 } })] }));
-  React.act(() => host.querySelector("summary")!.click());
+  React.act(() => [...host.querySelectorAll("summary")].find((summary) => summary.textContent?.includes("Fine-tune"))!.click());
 });
 afterEach(() => { React.act(() => root.unmount()); host.remove(); vi.unstubAllGlobals(); });
 

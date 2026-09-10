@@ -143,10 +143,12 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
                 Keep bin size fixed prevents new tools from enlarging the bin.
               </li>
               <li>
-                Open <strong>Arrange pockets</strong> and select a cutout to
-                set depth, extra clearance, corner rounds, bottom fillet, and
-                straight or scoop finger holes. Extra clearance is added after
-                the Margin chosen on Trace.
+                Click a pocket in <strong>Layout</strong> or choose it in
+                <strong> Pockets</strong> to open its properties at the top of
+                the controls. Set its size, depth, and extra clearance there;
+                expand the position or rounding settings for finer adjustments.
+                Extra clearance is added after the Margin chosen on Trace.
+                Use <strong>Finger access</strong> for straight or scoop holes.
               </li>
               <li>
                 Click a selected tool's name to rename it. Use Layout to move,

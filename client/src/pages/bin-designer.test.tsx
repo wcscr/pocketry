@@ -3,7 +3,7 @@ import * as React from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { PanelProvider } from "@/components/layout/panel-context";
+import { PanelProvider, usePanelState } from "@/components/layout/panel-context";
 import { WORKSPACES } from "@/components/layout/workspaces";
 import * as ShapeLibraryModule from "@/state/shape-library";
 import { ShapeLibraryProvider } from "@/state/shape-library";
@@ -237,6 +237,7 @@ function openSettingsSection(
   section:
     | "project"
     | "construction"
+    | "materials"
     | "tool-cutouts"
     | "finger-holes"
     | "export"
@@ -245,7 +246,7 @@ function openSettingsSection(
   React.act(() => {
     (
       container.querySelector(
-        `[data-testid="bin-settings-jump-${section === "tool-cutouts" ? "arrange" : section === "finger-holes" ? "finger-access" : section}"]`,
+        `[data-testid="bin-settings-jump-${section === "tool-cutouts" ? "pockets" : section === "finger-holes" ? "finger-access" : section}"]`,
       ) as HTMLButtonElement
     ).click();
   });
@@ -272,7 +273,7 @@ describe("BinDesignerPage", () => {
     expect(secondButton.textContent).toContain("Edit properties");
     React.act(() => secondButton.querySelector("span")!.click());
     expect(secondButton.getAttribute("aria-pressed")).toBe("true");
-    expect(secondButton.textContent).toContain("Properties shown below");
+    expect(secondButton.textContent).toContain("Editing this pocket");
     expect(container.querySelector('[data-testid="pocket-properties-heading"]')!.textContent).toContain("Pliers");
     expect(container.querySelector<HTMLInputElement>('[aria-label="Pocket cut depth in millimetres"]')!.value).toBe("20");
     React.act(() => firstButton.click());
@@ -287,6 +288,112 @@ describe("BinDesignerPage", () => {
     expect(container.querySelector<HTMLInputElement>('[data-testid="input-shape-name"]')!.value).toBe("Wrench");
     unmount();
   });
+
+  it("keeps everyday properties outside the pocket list and returns to them from Layout", async () => {
+    const shape = rectangularShape("tool", "Wrench");
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({
+      ...EMPTY_PROJECT, shapes: [shape],
+      cutouts: [parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 0, y: 0 } })],
+    });
+    const { container, unmount } = renderPage();
+    await flushHydration();
+    openSettingsSection(container, "tool-cutouts");
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-select-pocket"]')!.click());
+    const editor = container.querySelector<HTMLElement>('#pocket-properties')!;
+    const scroller = editor.parentElement!;
+    expect(scroller.firstElementChild).toBe(editor);
+    expect(editor.closest('#bin-settings-pockets')).toBeNull();
+    for (const label of ["Pocket width in millimetres", "Pocket length in millimetres", "Pocket depth mode"]) {
+      expect(editor.querySelector(`[aria-label="${label}"]`)!.closest("details")).toBeNull();
+    }
+    expect(editor.querySelector<HTMLDetailsElement>('[data-testid="pocket-more-settings"]')!.open).toBe(false);
+    openSettingsSection(container, "materials");
+    expect(container.querySelector('#bin-settings-pockets')!.getAttribute('data-state')).toBe('closed');
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
+    scroller.scrollTop = 700;
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-layout-edit-pocket"]')!.click());
+    await React.act(async () => { await new Promise((resolve) => requestAnimationFrame(resolve)); });
+    expect(scroller.scrollTop).toBe(0);
+    expect(editor.textContent).toContain('Wrench');
+    expect(container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.disabled).toBe(true);
+    unmount();
+  });
+
+  it("edits physical dimensions with linked proportions and undoes the committed value once", async () => {
+    const shape = rectangularShape("tool", "Wrench");
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({
+      ...EMPTY_PROJECT, shapes: [shape],
+      cutouts: [parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 0, y: 0 } })],
+    });
+    const { container, unmount } = renderPage();
+    await flushHydration();
+    openSettingsSection(container, "tool-cutouts");
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-select-pocket"]')!.click());
+    const width = container.querySelector<HTMLInputElement>('[aria-label="Pocket width in millimetres"]')!;
+    const length = container.querySelector<HTMLInputElement>('[aria-label="Pocket length in millimetres"]')!;
+    React.act(() => {
+      width.focus();
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(width, '40');
+      width.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    React.act(() => width.blur());
+    expect(width.value).toBe('40');
+    expect(length.value).toBe('26.67');
+    const undo = container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!;
+    React.act(() => undo.click());
+    expect(width.value).toBe('30');
+    expect(length.value).toBe('20');
+    expect(undo.disabled).toBe(true);
+    unmount();
+  });
+
+  it.each(["tap", "jitter", "drag", "cancel"] as const)(
+    "%s on a pocket distinguishes editing from placement and leaves meaningful undo history",
+    async (gesture) => {
+      const shape = rectangularShape("tool", "Wrench");
+      vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({
+        ...EMPTY_PROJECT, shapes: [shape],
+        cutouts: [parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 1.25, y: 0 } })],
+      });
+      let controls: ReturnType<typeof usePanelState>;
+      function PanelProbe() { controls = usePanelState(); return null; }
+      const { container, unmount } = render(
+        <PanelProvider><PanelProbe /><ShapeLibraryProvider><BinDesignerPage /></ShapeLibraryProvider></PanelProvider>,
+      );
+      await flushHydration();
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
+      React.act(() => controls.setPanelOpen(false));
+      const svg = container.querySelector<SVGSVGElement>('[data-testid="layout-canvas"]')!;
+      const scene = svg.querySelector('g')!;
+      const pocket = svg.querySelector('[data-cutout-id="pocket"]')!;
+      const before = pocket.getAttribute('d');
+      // jsdom lacks SVG coordinate mapping and pointer capture. Identity mapping
+      // gives a 1 px/mm canvas, with the 83.5 mm bin centred at (41.75, 41.75).
+      Object.defineProperty(scene, 'getScreenCTM', { value: () => ({ inverse: () => ({}) }) });
+      Object.defineProperties(svg, {
+        createSVGPoint: { value: () => ({ x: 0, y: 0, matrixTransform() { return { x: this.x, y: this.y }; } }) },
+        setPointerCapture: { value: () => {} },
+      });
+      const pointer = (type: string, x: number) => React.act(() => {
+        const event = new MouseEvent(type, { bubbles: true, button: 0, clientX: x, clientY: 41.75, altKey: true });
+        Object.defineProperty(event, 'pointerId', { value: 1 });
+        pocket.dispatchEvent(event);
+      });
+      pointer('pointerdown', 43);
+      if (gesture === 'drag') pointer('pointermove', 55);
+      if (gesture === 'jitter') pointer('pointermove', 44);
+      pointer(gesture === 'cancel' ? 'pointercancel' : 'pointerup', gesture === 'drag' ? 55 : gesture === 'jitter' ? 44 : 43);
+      expect(controls!.panelOpen).toBe(gesture === 'tap' || gesture === 'jitter');
+      const undo = container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!;
+      expect(undo.disabled).toBe(gesture !== 'drag');
+      if (gesture === 'drag') {
+        expect(pocket.getAttribute('d')).not.toBe(before);
+        React.act(() => undo.click());
+      }
+      expect(pocket.getAttribute('d')).toBe(before);
+      unmount();
+    },
+  );
 
   it("edits and finishes a selected contour directly in Layout, including after using the ruler", async () => {
     const shape = rectangularShape("tool", "Wrench");
@@ -771,7 +878,7 @@ describe("BinDesignerPage", () => {
     const { container, unmount } = renderPage();
     const index = container.querySelector('[data-testid="bin-settings-index"]');
     expect(index?.textContent).toContain("Find a setting");
-    expect(index?.textContent).toContain("Arrange");
+    expect(index?.textContent).toContain("Pockets");
     expect(index?.textContent).not.toContain("Color by purpose");
 
     const expectedSections = [
@@ -1296,7 +1403,7 @@ describe("BinDesignerPage", () => {
     const text = container.textContent ?? "";
     expect(text).toContain("test wrench");
     expect(text).toContain("Fit bin to contents");
-    expect(text).toContain("Choose a pocket below to edit its size, depth, and shape.");
+    expect(text).toContain("Click a pocket in Layout or choose one below to edit its properties.");
     expect(text).toContain("Pocket properties");
     // Selected-pocket controls appear for the auto-selected cutout.
     expect(text).not.toContain("Editing selected tool");
@@ -1358,7 +1465,7 @@ describe("BinDesignerPage", () => {
       '[data-testid="button-edit-shape-name"]',
     ) as HTMLButtonElement;
     expect(renameButton.closest('[data-testid="pocket-properties-heading"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid^="button-select-"][aria-pressed="true"]')?.textContent).toContain("Properties shown below");
+    expect(container.querySelector('[data-testid^="button-select-"][aria-pressed="true"]')?.textContent).toContain("Editing this pocket");
     React.act(() => renameButton.click());
     const shapeName = container.querySelector(
       '[data-testid="input-shape-name"]',

@@ -17,6 +17,11 @@ processing, project storage, and model generation kept on the user's device.
 - Refine exterior contours and interior holes.
 - Export traced geometry as SVG, DXF, DWG-compatible DXF, or STL.
 - Arrange traced tools as pockets in Gridfinity bins.
+- Click a pocket in Layout or choose it under Pockets to reveal its named editor
+  at the top of the controls. Size, depth, and clearance are immediately available;
+  position, scale, and rounding details stay compact. Use Edit pocket to return
+  from other settings. On phones, tapping opens the controls drawer; dragging
+  keeps the layout available.
 - Configure full-, half-, and quarter-pitch bins and export STL or 3MF models.
 - Model, fit-test, and outline export dialogs include an optional, unchecked
   `.pocketry.json` download. Bin exports preserve the full design; Trace exports

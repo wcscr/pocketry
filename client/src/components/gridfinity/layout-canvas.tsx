@@ -1,5 +1,6 @@
 import {
   Ruler,
+  SlidersHorizontal,
   Spline,
   X,
 } from "lucide-react";
@@ -203,15 +204,18 @@ function nearestContourEdge(
   return best;
 }
 
-export function LayoutCanvas(): JSX.Element {
+export function LayoutCanvas({ onEditPocket }: {
+  /** Called on a pocket tap or the explicit edit action, after any drag ends. */
+  onEditPocket?: () => void;
+} = {}): JSX.Element {
   return (
     <CanvasViewport>
-      <LayoutStage />
+      <LayoutStage onEditPocket={onEditPocket} />
     </CanvasViewport>
   );
 }
 
-function LayoutStage(): JSX.Element {
+function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Element {
   const {
     spec,
     cutouts,
@@ -803,6 +807,7 @@ function LayoutStage(): JSX.Element {
     const hit = hitCutout(point);
     if (hit) {
       dispatch({ type: "SELECT_CUTOUT", id: hit.id });
+      clickRef.current = { clientX: event.clientX, clientY: event.clientY };
       dragRef.current = {
         kind: "move",
         id: hit.id,
@@ -848,6 +853,8 @@ function LayoutStage(): JSX.Element {
     }
 
     if (drag.kind === "move") {
+      // A tap must not snap or move the pocket, even with slight hand jitter.
+      if (clickRef.current) return;
       let x = point.x - drag.grabOffset.x;
       let y = point.y - drag.grabOffset.y;
       if (!event.altKey) {
@@ -987,6 +994,16 @@ function LayoutStage(): JSX.Element {
           draft.outline,
           drag.operation === "add" ? "Add contour node" : "Move contour node",
         );
+      }
+      return;
+    }
+    if (drag.kind === "move" && click) {
+      // Selection alone must not create a move in undo history.
+      if (
+        event.type === "pointerup" &&
+        Math.hypot(event.clientX - click.clientX, event.clientY - click.clientY) <= CLICK_SLOP_PX
+      ) {
+        onEditPocket?.();
       }
       return;
     }
@@ -1610,20 +1627,27 @@ function LayoutStage(): JSX.Element {
       ) : null}
 
       {selected && (editorMode === "placement" || editorMode === "contour") && (
-        <Button
-          className="absolute left-3 top-12 z-30 h-8 shadow-sm"
-          variant={editorMode === "contour" ? "default" : "outline"}
-          size="sm"
-          data-testid="button-layout-edit-contour"
-          onClick={() => {
-            setRulerActive(false);
-            setMeasurementPoints([]);
-            dispatch({ type: "SET_EDITOR_MODE", editorMode: editorMode === "contour" ? "placement" : "contour" });
-          }}
-        >
-          <Spline className="h-4 w-4" />
-          {editorMode === "contour" ? "Finish contour editing" : "Edit Contour"}
-        </Button>
+        <div className="absolute left-3 top-12 z-30 flex max-w-[calc(100%_-_5rem)] flex-wrap gap-2">
+          {onEditPocket && (
+            <Button className="h-8 shadow-sm" variant="outline" size="sm" onClick={onEditPocket} data-testid="button-layout-edit-pocket">
+              <SlidersHorizontal className="mr-1.5 h-4 w-4" />Edit pocket
+            </Button>
+          )}
+          <Button
+            className="h-8 shadow-sm"
+            variant={editorMode === "contour" ? "default" : "outline"}
+            size="sm"
+            data-testid="button-layout-edit-contour"
+            onClick={() => {
+              setRulerActive(false);
+              setMeasurementPoints([]);
+              dispatch({ type: "SET_EDITOR_MODE", editorMode: editorMode === "contour" ? "placement" : "contour" });
+            }}
+          >
+            <Spline className="h-4 w-4" />
+            {editorMode === "contour" ? "Finish contour editing" : "Edit Contour"}
+          </Button>
+        </div>
       )}
 
       <div

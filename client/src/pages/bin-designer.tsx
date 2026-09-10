@@ -87,6 +87,11 @@ export default function BinDesignerPage(): JSX.Element {
 
 function BinDesignerWorkspace(): JSX.Element {
   const { panelOpen, setPanelOpen } = usePanelState();
+  const [pocketEditorRequest, setPocketEditorRequest] = useState(0);
+  const editSelectedPocket = () => {
+    setPanelOpen(true);
+    setPocketEditorRequest((request) => request + 1);
+  };
   const { toast } = useToast();
   const bin = useBin();
   const { spec, cutouts, fingerHoles, viewMode, dispatch } = bin;
@@ -828,6 +833,7 @@ function BinDesignerWorkspace(): JSX.Element {
       panelTitle="Bin designer"
       panel={
         <BinControlsPanel
+          pocketEditorRequest={pocketEditorRequest}
           saveStatus={saveStatus}
           keepBinSize={keepBinSize}
           onKeepBinSizeChange={setKeepBinSize}
@@ -895,7 +901,7 @@ function BinDesignerWorkspace(): JSX.Element {
               measurementPlaneZMm={builtDimensions.heightToRimMm}
             />
           ) : (
-            <LayoutCanvas />
+            <LayoutCanvas onEditPocket={editSelectedPocket} />
           )}
           <ViewToggle
             viewMode={viewMode}
