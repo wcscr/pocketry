@@ -1003,10 +1003,12 @@ describe("BinDesignerPage", () => {
     await flushHydration();
     const warnings = container.querySelector<HTMLElement>('[data-testid="canvas-warnings"]')!;
     expect(warnings.closest('[data-testid="bin-canvas"]')).not.toBeNull();
+    const toggle = warnings.querySelector<HTMLButtonElement>('button[aria-expanded]')!;
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    React.act(() => toggle.click());
     const issue = warnings.querySelector<HTMLButtonElement>('[data-issue-code="out-of-bounds"]')!;
     expect(issue).not.toBeNull();
     expect(container.querySelectorAll('[data-issue-code="out-of-bounds"]')).toHaveLength(1);
-    const toggle = warnings.querySelector<HTMLButtonElement>('button[aria-expanded]')!;
     expect(toggle.textContent).toContain('error');
     React.act(() => toggle.click());
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
@@ -1035,6 +1037,7 @@ describe("BinDesignerPage", () => {
     });
     const { container, unmount } = renderPage();
     await flushHydration();
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="canvas-warnings"] button[aria-expanded]')!.click());
     const issue = container.querySelector<HTMLButtonElement>('[data-testid="canvas-warnings"] [data-issue-code="cutout-overlap"]')!;
     React.act(() => issue.click());
     const firstName = container.querySelector('[data-testid="pocket-properties-heading"]')!.textContent;
@@ -1046,12 +1049,12 @@ describe("BinDesignerPage", () => {
     unmount();
   });
 
-  it("starts mobile warnings as a compact count and expands the messages on request", async () => {
+  it.each([false, true])("starts warnings as a compact count and expands the messages on request (mobile: %s)", async (mobile) => {
     vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({
       ...EMPTY_PROJECT,
       spec: parseBinSpec({ gridX: 7, gridY: 2, heightUnits: 6 }),
     });
-    const { container, unmount } = renderPage({ mobile: true });
+    const { container, unmount } = renderPage({ mobile });
     await flushHydration();
     const warnings = container.querySelector<HTMLElement>('[data-testid="canvas-warnings"]')!;
     const toggle = warnings.querySelector<HTMLButtonElement>('button[aria-expanded]')!;
@@ -1076,6 +1079,7 @@ describe("BinDesignerPage", () => {
     const { container, unmount } = renderPage();
     await flushHydration();
     openSettingsSection(container, "export");
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="canvas-warnings"] button[aria-expanded]')!.click());
     const issueSelector = '[data-issue-code="floor-color-on-underside"]';
     const issue = container.querySelector<HTMLButtonElement>(issueSelector)!;
     expect(issue.textContent).toContain("Air Duster");

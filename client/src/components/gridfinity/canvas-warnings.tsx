@@ -1,7 +1,6 @@
 import { AlertTriangle, ChevronDown, CircleAlert } from "lucide-react";
 import { useState } from "react";
 
-import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import type { ValidationIssue } from "@shared/gridfinity/validate";
 
@@ -12,9 +11,7 @@ export function CanvasWarnings({ issues, selectedCutoutId, selectedFingerHoleId,
   selectedFingerHoleId: string | null;
   onRevealIssue: (issue: ValidationIssue) => void;
 }): JSX.Element | null {
-  const isMobile = useIsMobile();
-  const [expandedOverride, setExpandedOverride] = useState<boolean | null>(null);
-  const expanded = expandedOverride ?? !isMobile;
+  const [expanded, setExpanded] = useState(false);
   if (issues.length === 0) return null;
 
   const errors = issues.filter((issue) => issue.severity === "error").length;
@@ -31,8 +28,8 @@ export function CanvasWarnings({ issues, selectedCutoutId, selectedFingerHoleId,
     <section
       className={cn(
         "absolute bottom-12 right-3 z-30 flex max-h-[min(50%,22rem)] max-w-[calc(100%_-_1.5rem)] flex-col overflow-hidden rounded-lg border bg-background/95 shadow-md backdrop-blur",
-        expanded ? "w-80" : "w-auto",
-        errors > 0 ? "border-destructive/40" : "border-amber-500/40",
+        expanded ? "w-80" : "w-auto motion-safe:animate-warning-attention",
+        errors > 0 ? "border-destructive/40 [--warning-pulse-color:239_68_68]" : "border-amber-500/40 [--warning-pulse-color:245_158_11]",
       )}
       aria-label="Model warnings and errors"
       data-testid="canvas-warnings"
@@ -43,11 +40,11 @@ export function CanvasWarnings({ issues, selectedCutoutId, selectedFingerHoleId,
         aria-label={`${expanded ? "Collapse" : "Expand"} ${summary}`}
         aria-expanded={expanded}
         aria-controls="canvas-warning-list"
-        onClick={() => setExpandedOverride(!expanded)}
+        onClick={() => setExpanded(!expanded)}
       >
         {errors > 0 ? <CircleAlert className="h-4 w-4 shrink-0 text-destructive" /> : <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />}
         <span className="flex-1" role="status" aria-live="polite" aria-atomic="true">{summary}</span>
-        <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 transition-transform", expanded && "rotate-180")} />
+        <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 transition-transform motion-reduce:transition-none", !expanded && "rotate-180")} />
       </button>
       {expanded && (
         <div id="canvas-warning-list" className="min-h-0 space-y-1 overflow-y-auto overscroll-contain border-t p-2">
