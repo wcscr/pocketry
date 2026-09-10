@@ -159,7 +159,9 @@ actual underside, so flat pockets can cut into the former feet area. Base magnet
 return when switched off. Existing projects retain the Gridfinity base.
 **Half/quarter grid**
 landed as explicit 21/10.5 mm pitch modes while retaining the upstream 0.5 mm
-gap; fractional magnet/screw patterns are disabled until the corner-only hole
+gap. The maximum physical span is shared across pitches: 16 full, 32 half, or
+64 quarter cells per axis, including footprint editing and automatic sizing.
+Fractional magnet/screw patterns are disabled until the corner-only hole
 layout is ported. Baseplate generation was intentionally removed from
 Pocketry; dedicated Gridfinity tools cover that workflow. The only remaining
 G5 item is optional server persistence.
@@ -343,7 +345,7 @@ interface CutoutPlacement {
   scaleX: number; scaleY: number; aspectRatioLocked: boolean;
   depth: { mode: 'through' } | { mode: 'mm'; value: number }
        | { mode: 'remaining'; floorThicknessMm: number };
-  clearanceMm: number;      // 0.0 — optional extra after Trace margin
+  clearanceMm: number;      // 0.0 — signed adjustment after scale/Trace margin, -5..5 mm
   cornerRoundMm: number;    // 1.0 — 2D vertical edge round
   topFilletMm: number;      // 0.0 — top-surface pocket-edge round-over
   bottomFilletMm: number;   // 2.8 (r_f2), clamped to depth/2

@@ -193,7 +193,7 @@ export interface PanelSettingsIndexProps {
  * `scrollIntoView()` also scrolls a mobile drawer ancestor, which can carry the
  * map itself behind the drawer's clipped top edge.
  */
-export function revealPanelSection(id: string, items: readonly { id: string }[]): void {
+export function revealPanelSection(id: string, items: readonly { id: string }[], focusId?: string): void {
     const target = document.getElementById(id);
     if (!target) return;
     const scroller = target.parentElement;
@@ -222,6 +222,10 @@ export function revealPanelSection(id: string, items: readonly { id: string }[])
 
     const scroll = () => {
       if (!scroller) return;
+      // A selected item may have a long list above its controls. Resolve its
+      // editor after the section opens so small screens reach editable fields.
+      const focus = focusId ? document.getElementById(focusId) : null;
+      const scrollTarget = focus && target.contains(focus) ? focus : target;
       // Browsers otherwise clamp the final sections below the top because
       // there is not enough content beneath them. Add only the blank space
       // required for the selected heading to reach the scroller's top edge.
@@ -232,7 +236,7 @@ export function revealPanelSection(id: string, items: readonly { id: string }[])
       // top instead of disappearing behind the settings index.
       const targetTop =
         scroller.scrollTop +
-        target.getBoundingClientRect().top -
+        scrollTarget.getBoundingClientRect().top -
         scroller.getBoundingClientRect().top;
       // A full-pane reserve guarantees that even the final short section can
       // reach the top; calculated minimums are vulnerable to scroll anchoring
@@ -242,7 +246,7 @@ export function revealPanelSection(id: string, items: readonly { id: string }[])
       scroller?.scrollTo?.({ top: targetTop, behavior: "auto" });
       const alignSelectedHeading = () => {
         const remainingOffset =
-          target.getBoundingClientRect().top -
+          scrollTarget.getBoundingClientRect().top -
           scroller.getBoundingClientRect().top;
         if (Math.abs(remainingOffset) > 0.5) {
           scroller.scrollTop += remainingOffset;

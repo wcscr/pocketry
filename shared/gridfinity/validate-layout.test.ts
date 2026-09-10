@@ -76,6 +76,13 @@ function codes(
 // 2×2 bin: footprint 83.5, interior half-width 40.8.
 
 describe("validateLayout", () => {
+  it("keeps layout checks conservative for inward clearance instead of treating erosion as scaled geometry", () => {
+    const shape = makeShape("s1", 20, 20);
+    const placements = [makeCutout("a", "s1", -8, 0), makeCutout("b", "s1", 8, 0)];
+    expect(codes(spec(), placements.map((cutout) => ({ ...cutout, clearanceMm: -5 })), [shape])).toEqual(codes(spec(), placements, [shape]));
+    expect(codes(spec(), placements, [shape])).toContain('cutout-overlap');
+  });
+
   it("rejects a pocket placed in a custom footprint's missing corner", () => {
     const shaped = spec({
       footprint: {

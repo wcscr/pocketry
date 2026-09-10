@@ -129,14 +129,15 @@ export function WorkspaceLayout({
           {/* aria-describedby={undefined} opts out of Radix's description
               warning: this drawer is a controls tray, not a prose dialog. */}
           <DrawerContent
-            className="max-h-[85dvh]"
+            className="h-[85dvh] max-h-[85dvh]"
             aria-describedby={undefined}
           >
             <DrawerHeader className="shrink-0 pb-2">
               <DrawerTitle>{panelTitle}</DrawerTitle>
             </DrawerHeader>
-            {/* The composed panel owns its scrolling through PanelBody. Keeping
-                this wrapper non-scrolling lets panel-level navigation and the
+            {/* The drawer has a definite height so the panel's h-full and
+                flex scroller can shrink within it. PanelBody owns scrolling;
+                this wrapper keeps panel-level navigation and the
                 PanelFooter remain pinned in the mobile drawer too. */}
             <div className="min-h-0 flex-1 overflow-hidden">{panel}</div>
           </DrawerContent>

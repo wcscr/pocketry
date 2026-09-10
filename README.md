@@ -17,7 +17,27 @@ processing, project storage, and model generation kept on the user's device.
 - Refine exterior contours and interior holes.
 - Export traced geometry as SVG, DXF, DWG-compatible DXF, or STL.
 - Arrange traced tools as pockets in Gridfinity bins.
+- Pocket properties stay in the Pockets section. Click a pocket on the canvas
+  or choose its row in the compact list to open its settings there. On phones, tapping opens
+  the controls drawer; dragging keeps the layout available.
+  Depth leads; size and scale, extra clearance, edges and corners, and position
+  settings start collapsed. Expand the depth profile to inspect the pocket in 3D.
+  Throughout Bin settings, help icons reveal optional guidance on hover, focus,
+  or tap. Dimensions, warnings, save status, and active editing guidance stay visible. Use a pocket row’s
+  pencil to rename it. Edit contour is in the properties header and beside the
+  canvas ruler. Pocket clearance has a zero-centered slider: negative values shrink
+  each edge to undo excess trace padding; positive values add room. Shrinking
+  changes the 3D cutter and fit templates without altering the saved trace.
+  Layout warnings and automatic packing conservatively retain the original outline
+  when clearance is negative; inspect the 3D model for the resulting pocket.
+- Model warnings and errors appear in a collapsible panel at the bottom right of
+  the Layout and 3D canvas. Click a message to edit the affected pocket or settings.
+  It starts as a compact count with a gentle pulse every four seconds until expanded
+  (unless reduced motion is enabled). Errors still block export.
 - Configure full-, half-, and quarter-pitch bins and export STL or 3MF models.
+  Bin size places numeric inputs alongside each slider, with optional sizing guidance in hover hints.
+  All pitches support the same maximum outer size of 671.5 mm per axis
+  (16 full, 32 half, or 64 quarter cells), so finer pitch does not shrink the size allowance.
 - Model, fit-test, and outline export dialogs include an optional, unchecked
   `.pocketry.json` download. Bin exports preserve the full design; Trace exports
   preserve the calibrated outline as an editable pocket in a new Bin project.

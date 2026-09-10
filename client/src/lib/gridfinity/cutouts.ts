@@ -36,7 +36,7 @@ import {
  *     ring down to the quality's budget (the count is surfaced in the UI so
  *     the trade-off stays legible, per the design doc);
  *  2. placement transform (mirror → rotate → translate, shared math);
- *  3. `+clearance` offset with round joins — clearance runs BEFORE corner
+ *  3. signed clearance offset with round joins — clearance runs BEFORE corner
  *     rounding on purpose: a 1 mm slot is 1.8 mm wide after clearance, but
  *     rounding first at r = 1 would erase it before clearance could save it;
  *  4. corner rounding as `−r` then `+r` round offsets (2D vertical-edge
@@ -421,7 +421,7 @@ export function buildCutoutCutters(
     const placed = transformOutlinePlacement(budgeted, cutout);
 
     let section = toCrossSection(kernel, placed);
-    if (cutout.clearanceMm > 0) {
+    if (cutout.clearanceMm !== 0) {
       section = arena.track(
         arena
           .track(section.offset(cutout.clearanceMm, "Round", 2, segments))

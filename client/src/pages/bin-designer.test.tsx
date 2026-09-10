@@ -3,7 +3,7 @@ import * as React from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { PanelProvider } from "@/components/layout/panel-context";
+import { PanelProvider, usePanelState } from "@/components/layout/panel-context";
 import { WORKSPACES } from "@/components/layout/workspaces";
 import * as ShapeLibraryModule from "@/state/shape-library";
 import { ShapeLibraryProvider } from "@/state/shape-library";
@@ -222,13 +222,14 @@ beforeEach(() => {
   );
 });
 
-function renderPage() {
+function renderPage(options: { mobile?: boolean } = {}) {
   return render(
     <PanelProvider>
       <ShapeLibraryProvider>
         <BinDesignerPage />
       </ShapeLibraryProvider>
     </PanelProvider>,
+    options,
   );
 }
 
@@ -236,7 +237,9 @@ function openSettingsSection(
   container: HTMLElement,
   section:
     | "project"
+    | "size"
     | "construction"
+    | "materials"
     | "tool-cutouts"
     | "finger-holes"
     | "export"
@@ -245,19 +248,23 @@ function openSettingsSection(
   React.act(() => {
     (
       container.querySelector(
-        `[data-testid="bin-settings-jump-${section === "tool-cutouts" ? "arrange" : section === "finger-holes" ? "finger-access" : section}"]`,
+        `[data-testid="bin-settings-jump-${section === "tool-cutouts" ? "pockets" : section === "finger-holes" ? "finger-access" : section}"]`,
       ) as HTMLButtonElement
     ).click();
   });
 }
 
+/** Use the compact pocket list without entering rename or changing geometry. */
+function selectPocket(container: HTMLElement, id: string): void {
+  React.act(() => container.querySelector<HTMLButtonElement>(`[data-testid="button-select-${id}"]`)!.click());
+}
+
 describe("BinDesignerPage", () => {
-  it("opens the requested pocket's properties from its row and keeps selection separate from renaming", async () => {
+  it("switches pockets in their fixed section without changing section order or entering rename", async () => {
     const first = rectangularShape("first-shape", "Wrench");
     const second = rectangularShape("second-shape", "Pliers");
     vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({
-      ...EMPTY_PROJECT,
-      shapes: [first, second],
+      ...EMPTY_PROJECT, shapes: [first, second],
       cutouts: [
         parseCutoutPlacement({ id: "first-pocket", shapeId: first.id, position: { x: -20, y: 0 }, depth: { mode: "mm", value: 10 } }),
         parseCutoutPlacement({ id: "second-pocket", shapeId: second.id, position: { x: 20, y: 0 }, depth: { mode: "mm", value: 20 } }),
@@ -265,28 +272,215 @@ describe("BinDesignerPage", () => {
     });
     const { container, unmount } = renderPage();
     await flushHydration();
-    openSettingsSection(container, "tool-cutouts");
-    const firstButton = container.querySelector<HTMLButtonElement>('[data-testid="button-select-first-pocket"]')!;
-    const secondButton = container.querySelector<HTMLButtonElement>('[data-testid="button-select-second-pocket"]')!;
-    expect(firstButton.getAttribute("aria-pressed")).toBe("false");
-    expect(secondButton.textContent).toContain("Edit properties");
-    React.act(() => secondButton.querySelector("span")!.click());
-    expect(secondButton.getAttribute("aria-pressed")).toBe("true");
-    expect(secondButton.textContent).toContain("Properties shown below");
+    const pockets = container.querySelector<HTMLElement>('#bin-settings-pockets')!;
+    const scroller = pockets.parentElement!;
+    const sections = Array.from(scroller.children);
+    expect(pockets.querySelector('[data-testid="pocket-selection-help"]')!.textContent).toContain('Select a pocket');
+    scroller.scrollTop = 240;
+    selectPocket(container, "second-pocket");
     expect(container.querySelector('[data-testid="pocket-properties-heading"]')!.textContent).toContain("Pliers");
     expect(container.querySelector<HTMLInputElement>('[aria-label="Pocket cut depth in millimetres"]')!.value).toBe("20");
-    React.act(() => firstButton.click());
-    expect(firstButton.getAttribute("aria-pressed")).toBe("true");
-    expect(secondButton.getAttribute("aria-pressed")).toBe("false");
+    const editor = container.querySelector<HTMLElement>('#pocket-properties')!;
+    const edges = editor.querySelector<HTMLDetailsElement>('[data-testid="pocket-edge-settings"]')!;
+    React.act(() => edges.querySelector('summary')!.click());
+    selectPocket(container, "first-pocket");
+    await React.act(async () => { await new Promise((resolve) => requestAnimationFrame(resolve)); });
+    expect(Array.from(scroller.children)).toEqual(sections);
+    expect(container.querySelector('#pocket-properties')).toBe(editor);
+    expect(edges.open).toBe(true);
     expect(container.querySelector('[data-testid="pocket-properties-heading"]')!.textContent).toContain("Wrench");
     expect(container.querySelector<HTMLInputElement>('[aria-label="Pocket cut depth in millimetres"]')!.value).toBe("10");
-    React.act(() => firstButton.click());
     expect(container.querySelector('[data-testid="input-shape-name"]')).toBeNull();
     expect(container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.disabled).toBe(true);
-    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-edit-shape-name"]')!.click());
-    expect(container.querySelector<HTMLInputElement>('[data-testid="input-shape-name"]')!.value).toBe("Wrench");
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-rename-second-pocket"]')!.click());
+    const name = container.querySelector<HTMLInputElement>('[data-testid="input-shape-name"]')!;
+    expect(name.value).toBe("Pliers");
+    expect(document.activeElement).toBe(name);
+    expect(container.querySelector('[data-testid="pocket-properties-heading"]')!.textContent).toContain("Pliers");
+    React.act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(name, 'Discard this name');
+      name.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    React.act(() => name.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+    expect(container.querySelector('[data-testid="input-shape-name"]')).toBeNull();
+    expect(container.querySelector('[data-testid="pocket-properties-heading"]')!.textContent).toContain("Pliers");
     unmount();
   });
+
+  it("keeps depth first and the size, scale, and other optional settings collapsed, and opens Pockets on selection", async () => {
+    const shape = rectangularShape("tool", "Wrench");
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({
+      ...EMPTY_PROJECT, shapes: [shape],
+      cutouts: [parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 0, y: 0 }, depth: { mode: "mm", value: 12 } })],
+    });
+    const { container, unmount } = renderPage();
+    await flushHydration();
+    selectPocket(container, "pocket");
+    const editor = container.querySelector<HTMLElement>('#pocket-properties')!;
+    const pockets = container.querySelector<HTMLElement>('#bin-settings-pockets')!;
+    const scroller = pockets.parentElement!;
+    expect(editor.closest('#bin-settings-pockets')).toBe(pockets);
+    const primaryFields = editor.querySelectorAll<HTMLInputElement>('input[type="number"]');
+    expect(primaryFields[0].getAttribute('aria-label')).toBe('Pocket cut depth in millimetres');
+    const size = editor.querySelector('[aria-label="Pocket size and scale"]')!;
+    for (const label of ["Pocket width in millimetres", "Pocket length in millimetres", "Pocket width scale percent", "Pocket length scale percent"]) {
+      expect(size.querySelector(`[aria-label="${label}"]`)!.closest('details')).toBe(size);
+    }
+    for (const id of ['pocket-size-settings', 'pocket-clearance-settings', 'pocket-edge-settings', 'pocket-position-settings']) {
+      expect(editor.querySelector<HTMLDetailsElement>(`[data-testid="${id}"]`)!.open).toBe(false);
+    }
+    expect(editor.querySelector('[aria-label="Extra pocket clearance in millimetres"]')!.closest('details')!.dataset.testid).toBe('pocket-clearance-settings');
+    expect(editor.querySelector('[data-testid="button-inspect-pocket"]')!.closest('details')!.dataset.testid).toBe('pocket-depth-summary');
+    expect(editor.querySelector<HTMLDetailsElement>('[data-testid="pocket-depth-summary"]')!.open).toBe(false);
+    expect(container.querySelector('[data-testid="button-layout-edit-pocket"]')).toBeNull();
+    expect(pockets.getAttribute('data-state')).toBe('open');
+    expect(container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.disabled).toBe(true);
+    unmount();
+  });
+
+  it("keeps bin guidance behind help buttons while retaining dimensions and save status", async () => {
+    const { container, unmount } = renderPage();
+    await flushHydration();
+    openSettingsSection(container, "size");
+    const before = [...container.querySelectorAll<HTMLInputElement>('input[type="number"]')].map((input) => input.value);
+    expect(container.textContent).not.toContain("Pitch changes preserve");
+    expect(container.textContent).not.toContain("Snaps to");
+    expect(container.textContent).not.toContain("Adding tools keeps these dimensions");
+    expect(container.textContent).toContain("Outer size");
+    expect(container.querySelector('[data-testid="project-status"] [role="status"]')!.textContent).toMatch(/Sav(?:ed|ing) in this browser/);
+    for (const [name, explanation] of [
+      ["grid pitch", "Pitch changes preserve the outer size"],
+      ["width", "Snaps to 21 mm grid increments"],
+      ["length", "Snaps to 21 mm grid increments"],
+      ["keep bin size fixed", "Adding tools keeps these dimensions"],
+    ]) {
+      const help = container.querySelector<HTMLButtonElement>(`[aria-label="About ${name}"]`)!;
+      React.act(() => help.click());
+      expect(document.querySelector('[role="tooltip"]')!.textContent).toContain(explanation);
+      React.act(() => help.click());
+    }
+    expect([...container.querySelectorAll<HTMLInputElement>('input[type="number"]')].map((input) => input.value)).toEqual(before);
+    expect(container.querySelector('[aria-label="Keep bin size fixed"]')!.getAttribute('aria-checked')).toBe('false');
+    unmount();
+  });
+
+  it("centers zero clearance and makes inward adjustments undoable without scaling the trace", async () => {
+    const shape = rectangularShape("tool", "Wrench");
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({
+      ...EMPTY_PROJECT, shapes: [shape],
+      cutouts: [parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 0, y: 0 } })],
+    });
+    const { container, unmount } = renderPage();
+    await flushHydration();
+    selectPocket(container, "pocket");
+    const control = container.querySelector('[data-testid="pocket-clearance-settings"]')!;
+    const slider = control.querySelector<HTMLElement>('[role="slider"]')!;
+    expect(slider.getAttribute('aria-valuemin')).toBe('-2');
+    expect(slider.getAttribute('aria-valuemax')).toBe('2');
+    expect(slider.getAttribute('aria-valuenow')).toBe('0');
+    const input = control.querySelector<HTMLInputElement>('input')!;
+    React.act(() => {
+      input.focus();
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, '-0.5');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    React.act(() => input.blur());
+    expect(slider.getAttribute('aria-valuenow')).toBe('-0.5');
+    expect(container.querySelector<HTMLInputElement>('[aria-label="Pocket width in millimetres"]')!.value).toBe('29');
+    expect(container.querySelector<HTMLInputElement>('[aria-label="Pocket width scale percent"]')!.value).toBe('100');
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+    expect(input.value).toBe('0');
+    expect(container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.disabled).toBe(true);
+    unmount();
+  });
+
+  it("edits physical dimensions with linked proportions and undoes the committed value once", async () => {
+    const shape = rectangularShape("tool", "Wrench");
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({
+      ...EMPTY_PROJECT, shapes: [shape],
+      cutouts: [parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 0, y: 0 } })],
+    });
+    const { container, unmount } = renderPage();
+    await flushHydration();
+    openSettingsSection(container, "tool-cutouts");
+    selectPocket(container, "pocket");
+    const width = container.querySelector<HTMLInputElement>('[aria-label="Pocket width in millimetres"]')!;
+    const length = container.querySelector<HTMLInputElement>('[aria-label="Pocket length in millimetres"]')!;
+    React.act(() => {
+      width.focus();
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(width, '40');
+      width.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    React.act(() => width.blur());
+    expect(width.value).toBe('40');
+    expect(length.value).toBe('26.67');
+    const undo = container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!;
+    React.act(() => undo.click());
+    expect(width.value).toBe('30');
+    expect(length.value).toBe('20');
+    expect(undo.disabled).toBe(true);
+    unmount();
+  });
+
+  it.each(["tap", "jitter", "drag", "cancel"] as const)(
+    "%s on a pocket opens its fixed settings only for a click and leaves meaningful undo history",
+    async (gesture) => {
+      const shape = rectangularShape("tool", "Wrench");
+      vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({
+        ...EMPTY_PROJECT, shapes: [shape],
+        cutouts: [parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 1.25, y: 0 } })],
+      });
+      let controls: ReturnType<typeof usePanelState>;
+      function PanelProbe() { controls = usePanelState(); return null; }
+      const { container, unmount } = render(
+        <PanelProvider><PanelProbe /><ShapeLibraryProvider><BinDesignerPage /></ShapeLibraryProvider></PanelProvider>,
+        { mobile: gesture === 'tap' },
+      );
+      await flushHydration();
+      // Start from another section with this pocket already selected: clicking
+      // it again must still return to its settings.
+      if (gesture !== 'tap') {
+        selectPocket(container, "pocket");
+        openSettingsSection(container, "materials");
+      }
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
+      React.act(() => controls.setPanelOpen(false));
+      const svg = container.querySelector<SVGSVGElement>('[data-testid="layout-canvas"]')!;
+      const scene = svg.querySelector('g')!;
+      const pocket = svg.querySelector('[data-cutout-id="pocket"]')!;
+      const before = pocket.getAttribute('d');
+      // jsdom lacks SVG coordinate mapping and pointer capture. Identity mapping
+      // gives a 1 px/mm canvas, with the 83.5 mm bin centred at (41.75, 41.75).
+      Object.defineProperty(scene, 'getScreenCTM', { value: () => ({ inverse: () => ({}) }) });
+      Object.defineProperties(svg, {
+        createSVGPoint: { value: () => ({ x: 0, y: 0, matrixTransform() { return { x: this.x, y: this.y }; } }) },
+        setPointerCapture: { value: () => {} },
+      });
+      const pointer = (type: string, x: number) => React.act(() => {
+        const event = new MouseEvent(type, { bubbles: true, button: 0, clientX: x, clientY: 41.75, altKey: true });
+        Object.defineProperty(event, 'pointerId', { value: 1 });
+        pocket.dispatchEvent(event);
+      });
+      pointer('pointerdown', 43);
+      if (gesture === 'drag') pointer('pointermove', 55);
+      if (gesture === 'jitter') pointer('pointermove', 44);
+      pointer(gesture === 'cancel' ? 'pointercancel' : 'pointerup', gesture === 'drag' ? 55 : gesture === 'jitter' ? 44 : 43);
+      expect(controls!.panelOpen).toBe(gesture === 'tap' || gesture === 'jitter');
+      if (gesture === 'tap' || gesture === 'jitter') {
+        expect(document.querySelector('#bin-settings-pockets')!.getAttribute('data-state')).toBe('open');
+        expect(document.querySelector('[data-testid="pocket-properties-heading"]')!.textContent).toContain('Wrench');
+      }
+      expect(container.querySelector('[data-testid="button-layout-edit-pocket"]')).toBeNull();
+      const undo = container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!;
+      expect(undo.disabled).toBe(gesture !== 'drag');
+      if (gesture === 'drag') {
+        expect(pocket.getAttribute('d')).not.toBe(before);
+        React.act(() => undo.click());
+      }
+      expect(pocket.getAttribute('d')).toBe(before);
+      unmount();
+    },
+  );
 
   it("edits and finishes a selected contour directly in Layout, including after using the ruler", async () => {
     const shape = rectangularShape("tool", "Wrench");
@@ -299,18 +493,24 @@ describe("BinDesignerPage", () => {
     React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
     expect(container.querySelector('[data-testid="button-layout-edit-contour"]')).toBeNull();
     openSettingsSection(container, "tool-cutouts");
-    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-select-pocket"]')!.click());
+    selectPocket(container, "pocket");
     const edit = container.querySelector<HTMLButtonElement>('[data-testid="button-layout-edit-contour"]')!;
-    expect(edit.textContent).toBe("Edit Contour");
+    expect(edit.closest('[data-testid="layout-tool-toolbar"]')).not.toBeNull();
+    expect(edit.previousElementSibling?.getAttribute('data-testid')).toBe('button-layout-ruler');
+    expect(container.querySelector('[data-testid="button-edit-contour"]')!.closest('[data-testid="pocket-properties-heading"]')).not.toBeNull();
+    expect(edit.textContent).toBe("");
+    expect(edit.getAttribute("aria-label")).toBe("Edit contour");
     React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-layout-ruler"]')!.click());
     expect(container.querySelector('[data-testid="layout-ruler-status"]')).not.toBeNull();
     React.act(() => edit.click());
-    expect(edit.textContent).toBe("Finish contour editing");
+    expect(edit.getAttribute("aria-label")).toBe("Finish contour editing");
+    expect(edit.getAttribute("aria-pressed")).toBe("true");
     expect(container.querySelector('[data-testid="layout-ruler-status"]')).toBeNull();
     expect(container.querySelectorAll('[data-testid="contour-vertex-handle"]')).toHaveLength(4);
-    expect(container.querySelector('[data-testid="button-edit-contour"]')!.textContent).toContain("Finish contour editing");
+    expect(container.querySelector('[data-testid="button-edit-contour"]')!.getAttribute("aria-label")).toBe("Finish contour editing");
     React.act(() => edit.click());
-    expect(edit.textContent).toBe("Edit Contour");
+    expect(edit.textContent).toBe("");
+    expect(edit.getAttribute("aria-label")).toBe("Edit contour");
     expect(container.querySelector('[data-testid="contour-vertex-handle"]')).toBeNull();
     expect(container.querySelector('[data-testid="pocket-resize-handle-ne"]')).not.toBeNull();
     unmount();
@@ -348,7 +548,7 @@ describe("BinDesignerPage", () => {
       await flushHydration();
       openSettingsSection(container, "tool-cutouts");
       React.act(() => {
-        container.querySelector<HTMLButtonElement>('[data-testid="button-select-pocket"]')!.click();
+        selectPocket(container, "pocket");
         container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click();
       });
       const precision = container.querySelector<HTMLDetailsElement>('[aria-label="X position in millimetres"]')!.closest("details")!;
@@ -410,7 +610,7 @@ describe("BinDesignerPage", () => {
       if (kind === "fit-check") {
         openSettingsSection(container, "tool-cutouts");
         React.act(() => {
-          container.querySelector<HTMLButtonElement>('[data-testid="button-select-pocket"]')!.click();
+          selectPocket(container, "pocket");
         });
       }
       openSettingsSection(container, kind === "surface-fit-test" || kind === "fit-check" || kind.startsWith("layout-") ? "check-fit" : "export");
@@ -507,6 +707,42 @@ describe("BinDesignerPage", () => {
     unmount();
   });
 
+  it("switches a 3 by 5 bin to quarter pitch and edits beyond 16 small cells", async () => {
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({
+      ...EMPTY_PROJECT,
+      spec: parseBinSpec({ gridX: 6, gridY: 10, gridPitch: "half", heightUnits: 5.5 }),
+    });
+    const { container, unmount } = renderPage();
+    await flushHydration();
+    try {
+      const trigger = container.querySelector<HTMLButtonElement>('[data-testid="select-grid-pitch"]')!;
+      React.act(() => trigger.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true })));
+      const option = Array.from(document.querySelectorAll<HTMLElement>('[role="option"]')).find((node) => node.textContent === "Quarter · 10.5 mm")!;
+      expect(option).toBeDefined();
+      expect(option.getAttribute("aria-disabled")).not.toBe("true");
+      React.act(() => option.click());
+      const size = container.querySelector("#bin-settings-size")!;
+      expect(size.textContent).toContain("3 × 5 × 5.5u");
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toMatchObject({ gridX: 12, gridY: 20, gridPitch: "quarter" });
+      const input = (label: string) => container.querySelector<HTMLInputElement>(`[aria-label="${label}"]`)!;
+      expect(input("Width outer size in millimetres").value).toBe("125.5");
+      expect(input("Length outer size in millimetres").value).toBe("209.5");
+
+      const length = input("Length in standard cells");
+      React.act(() => length.focus());
+      React.act(() => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(length, "5.25");
+        length.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      React.act(() => length.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+      expect(size.textContent).toContain("3 × 5.25 × 5.5u");
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toMatchObject({ gridX: 12, gridY: 21, gridPitch: "quarter" });
+      expect(input("Length outer size in millimetres").value).toBe("220");
+    } finally {
+      unmount();
+    }
+  });
+
   it("sets width, length, and height in half-unit increments", async () => {
     const { container, unmount } = renderPage();
     await flushHydration();
@@ -579,8 +815,8 @@ describe("BinDesignerPage", () => {
     });
     const { container, unmount } = renderPage();
     await flushHydration();
-    expect(container.querySelector('[data-testid="bin-footprint-summary"]')?.textContent)
-      .toContain("3 of 4 full-pitch cells occupied · custom footprint");
+    expect(container.querySelector("#bin-settings-size")?.textContent)
+      .toContain("Custom footprint. Add or remove cells in the Layout view");
     const edit = container.querySelector('[data-testid="button-edit-footprint"]') as HTMLButtonElement;
     React.act(() => edit.click());
     expect(container.querySelector('[data-testid="layout-canvas"]')).not.toBeNull();
@@ -771,7 +1007,7 @@ describe("BinDesignerPage", () => {
     const { container, unmount } = renderPage();
     const index = container.querySelector('[data-testid="bin-settings-index"]');
     expect(index?.textContent).toContain("Find a setting");
-    expect(index?.textContent).toContain("Arrange");
+    expect(index?.textContent).toContain("Pockets");
     expect(index?.textContent).not.toContain("Color by purpose");
 
     const expectedSections = [
@@ -874,7 +1110,7 @@ describe("BinDesignerPage", () => {
     const { container, unmount } = renderPage();
     await flushHydration();
     openSettingsSection(container, "tool-cutouts");
-    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-select-pocket"]')!.click());
+    selectPocket(container, "pocket");
     const trigger = container.querySelector<HTMLButtonElement>('[aria-label="Pocket depth mode"]')!;
     React.act(() => trigger.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true })));
     const option = Array.from(document.querySelectorAll<HTMLElement>('[role="option"]')).find((node) => node.textContent?.includes("Keep floor thickness"))!;
@@ -884,7 +1120,82 @@ describe("BinDesignerPage", () => {
     unmount();
   });
 
-  it("warns about floor color on the underside in pocket controls, Materials, and 3MF export without blocking", async () => {
+  it("keeps error details on the canvas in both views, collapses them, and blocks export", async () => {
+    const shape = rectangularShape("tool", "Wrench");
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({
+      ...EMPTY_PROJECT, shapes: [shape],
+      spec: parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6, fill: "solid" }),
+      cutouts: [parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 70, y: 0 } })],
+    });
+    const { container, unmount } = renderPage();
+    await flushHydration();
+    const warnings = container.querySelector<HTMLElement>('[data-testid="canvas-warnings"]')!;
+    expect(warnings.closest('[data-testid="bin-canvas"]')).not.toBeNull();
+    const toggle = warnings.querySelector<HTMLButtonElement>('button[aria-expanded]')!;
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    React.act(() => toggle.click());
+    const issue = warnings.querySelector<HTMLButtonElement>('[data-issue-code="out-of-bounds"]')!;
+    expect(issue).not.toBeNull();
+    expect(container.querySelectorAll('[data-issue-code="out-of-bounds"]')).toHaveLength(1);
+    expect(toggle.textContent).toContain('error');
+    React.act(() => toggle.click());
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(warnings.querySelector('[data-issue-code]')).toBeNull();
+    React.act(() => toggle.click());
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
+    expect(container.querySelector('[data-testid="canvas-warnings"]')).toBe(warnings);
+    React.act(() => warnings.querySelector<HTMLButtonElement>('[data-issue-code="out-of-bounds"]')!.click());
+    expect(container.querySelector('[data-testid="pocket-properties-heading"]')!.textContent).toContain('Wrench');
+    openSettingsSection(container, 'export');
+    expect(container.querySelector<HTMLButtonElement>('[data-testid="button-export-stl"]')!.disabled).toBe(true);
+    expect(container.querySelector('#bin-settings-export [data-issue-code]')).toBeNull();
+    unmount();
+  });
+
+  it("cycles between overlapping pockets from their canvas warning", async () => {
+    const first = rectangularShape('first', 'Wrench');
+    const second = rectangularShape('second', 'Pliers');
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({
+      ...EMPTY_PROJECT, shapes: [first, second],
+      spec: parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6, fill: "solid" }),
+      cutouts: [
+        parseCutoutPlacement({ id: 'first-pocket', shapeId: first.id, position: { x: -3, y: 0 } }),
+        parseCutoutPlacement({ id: 'second-pocket', shapeId: second.id, position: { x: 3, y: 0 } }),
+      ],
+    });
+    const { container, unmount } = renderPage();
+    await flushHydration();
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="canvas-warnings"] button[aria-expanded]')!.click());
+    const issue = container.querySelector<HTMLButtonElement>('[data-testid="canvas-warnings"] [data-issue-code="cutout-overlap"]')!;
+    React.act(() => issue.click());
+    const firstName = container.querySelector('[data-testid="pocket-properties-heading"]')!.textContent;
+    React.act(() => issue.click());
+    expect(container.querySelector('[data-testid="pocket-properties-heading"]')!.textContent).not.toBe(firstName);
+    expect(issue.getAttribute('data-selected')).toBe('true');
+    expect(container.querySelector('[data-testid="layout-canvas"]')).not.toBeNull();
+    expect(container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.disabled).toBe(true);
+    unmount();
+  });
+
+  it.each([false, true])("starts warnings as a compact count and expands the messages on request (mobile: %s)", async (mobile) => {
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({
+      ...EMPTY_PROJECT,
+      spec: parseBinSpec({ gridX: 7, gridY: 2, heightUnits: 6 }),
+    });
+    const { container, unmount } = renderPage({ mobile });
+    await flushHydration();
+    const warnings = container.querySelector<HTMLElement>('[data-testid="canvas-warnings"]')!;
+    const toggle = warnings.querySelector<HTMLButtonElement>('button[aria-expanded]')!;
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(toggle.getAttribute('aria-label')).toContain('Expand');
+    expect(warnings.querySelector('[data-issue-code]')).toBeNull();
+    React.act(() => toggle.click());
+    expect(warnings.querySelector('[data-issue-code="large-footprint"]')).not.toBeNull();
+    expect(toggle.getAttribute('aria-label')).toContain('Collapse');
+    unmount();
+  });
+
+  it("shows live floor-color warnings only on the canvas, with a reminder at export", async () => {
     const shape = rectangularShape("tool", "Air Duster");
     vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({
       ...EMPTY_PROJECT,
@@ -896,13 +1207,16 @@ describe("BinDesignerPage", () => {
     const { container, unmount } = renderPage();
     await flushHydration();
     openSettingsSection(container, "export");
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="canvas-warnings"] button[aria-expanded]')!.click());
     const issueSelector = '[data-issue-code="floor-color-on-underside"]';
     const issue = container.querySelector<HTMLButtonElement>(issueSelector)!;
     expect(issue.textContent).toContain("Air Duster");
     expect(issue.textContent).toContain("Floor color may show on the underside");
     React.act(() => issue.click());
     expect(container.querySelector('[data-testid="pocket-properties-heading"]')!.textContent).toContain("Air Duster");
-    expect(container.querySelector('[data-testid="selected-object-issues"]')!.textContent).toContain("Floor color may show on the underside");
+    expect(issue.closest('[data-testid="bin-canvas"]')).not.toBeNull();
+    expect(container.querySelectorAll(issueSelector)).toHaveLength(1);
+    expect(container.querySelector('[data-testid="selected-object-issues"]')).toBeNull();
 
     const setNumber = (input: HTMLInputElement, value: string) => React.act(() => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
@@ -915,7 +1229,8 @@ describe("BinDesignerPage", () => {
     expect(container.querySelector(issueSelector)).not.toBeNull();
 
     React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="bin-settings-jump-materials"]')!.click());
-    expect(container.querySelector('[aria-label="Pocket floor color warnings"]')!.textContent).toContain("Air Duster");
+    expect(container.querySelector('[aria-label="Pocket floor color warnings"]')).toBeNull();
+    expect(container.querySelector('[data-testid="canvas-warnings"]')!.textContent).toContain("Air Duster");
     const thicknessInput = container.querySelector<HTMLInputElement>('[data-testid="input-pocket-floor-thickness"]')!;
     setNumber(thicknessInput, "0.4");
     expect(container.querySelector(issueSelector)).toBeNull();
@@ -981,7 +1296,11 @@ describe("BinDesignerPage", () => {
     expect(floorThickness.max).toBe("3");
     expect(rimThickness.max).toBe("7.35");
     expect(container.textContent).toContain("mm down");
-    expect(container.textContent).toContain("never adds height to the bin");
+    expect(container.textContent).not.toContain("never adds height to the bin");
+    const thicknessHelp = container.querySelector<HTMLButtonElement>('[data-testid="view-color-row-floor"] [aria-label="About color thickness"]')!;
+    React.act(() => thicknessHelp.click());
+    expect(document.querySelector('[role="tooltip"]')!.textContent).toContain("never adds height to the bin");
+    React.act(() => thicknessHelp.click());
 
     React.act(() => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(
@@ -1071,7 +1390,11 @@ describe("BinDesignerPage", () => {
     await flushHydration();
 
     expect(status.textContent).toContain("Untitled project");
-    expect(status.textContent).toContain("draft resumes automatically");
+    expect(status.textContent).not.toContain("draft resumes automatically");
+    const autosaveHelp = status.querySelector<HTMLButtonElement>('[aria-label="About project autosave"]')!;
+    React.act(() => autosaveHelp.click());
+    expect(document.querySelector('[role="tooltip"]')!.textContent).toContain("draft resumes automatically");
+    React.act(() => autosaveHelp.click());
     expect(save.textContent).toContain("Save to library");
     expect(open.textContent).toContain("Open library");
     expect(fresh.textContent).toContain("New project");
@@ -1218,6 +1541,7 @@ describe("BinDesignerPage", () => {
     );
     expect(container.textContent).toContain("saved wrench");
 
+    openSettingsSection(container, "project");
     React.act(() => {
       (
         container.querySelector(
@@ -1229,7 +1553,7 @@ describe("BinDesignerPage", () => {
       '[data-testid="button-confirm-new-project"]',
     ) as HTMLButtonElement | null;
     expect(confirm).not.toBeNull();
-    expect(container.textContent).toContain("saved wrench");
+    expect(libraryHandle!.shapes.some((shape) => shape.name === "saved wrench")).toBe(true);
 
     await React.act(async () => {
       confirm!.click();
@@ -1295,9 +1619,8 @@ describe("BinDesignerPage", () => {
 
     const text = container.textContent ?? "";
     expect(text).toContain("test wrench");
-    expect(text).toContain("Fit bin to contents");
-    expect(text).toContain("Choose a pocket below to edit its size, depth, and shape.");
-    expect(text).toContain("Pocket properties");
+    expect(container.querySelector('[aria-label="Choose a pocket to edit"]')).not.toBeNull();
+    expect(container.querySelector('[aria-label="Selected pocket properties"]')).not.toBeNull();
     // Selected-pocket controls appear for the auto-selected cutout.
     expect(text).not.toContain("Editing selected tool");
     expect(text).toContain("Rotation");
@@ -1344,21 +1667,25 @@ describe("BinDesignerPage", () => {
     expect(widthScale.value).toBe("100");
     expect(heightScale.value).toBe("100");
     expect(text).toContain("Extra pocket clearance");
-    expect(text).toContain("Added after the Trace margin");
-    expect(text).toContain("Outline corner round");
-    expect(text).toContain("Top edge round");
-    expect(text).toContain("Bottom fillet");
+    expect(text).not.toContain("Added after the Trace margin");
+    expect(container.querySelector('[aria-label="About extra pocket clearance"]')).not.toBeNull();
+    expect(text).toContain("Outline corner rounding");
+    expect(text).toContain("Top edge rounding");
+    expect(text).toContain("Bottom edge fillet");
     expect(text).toContain("Finger access");
     const pocketTopRound = container.querySelector(
-      '[aria-label="Top edge round"] [role="slider"]',
+      '#pocket-properties [aria-label="Top edge rounding"] [role="slider"]',
     );
+    expect([...container.querySelectorAll('[data-testid="pocket-edge-settings"] input')].map((input) => input.getAttribute('aria-label'))).toEqual([
+      'Top edge rounding in millimetres', 'Bottom edge fillet in millimetres', 'Outline corner rounding in millimetres',
+    ]);
     expect(pocketTopRound?.getAttribute("aria-valuemax")).toBe("5");
     expect(pocketTopRound?.getAttribute("aria-valuenow")).toBe("1");
     const renameButton = container.querySelector(
-      '[data-testid="button-edit-shape-name"]',
+      '[data-testid^="button-rename-"]',
     ) as HTMLButtonElement;
-    expect(renameButton.closest('[data-testid="pocket-properties-heading"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid^="button-select-"][aria-pressed="true"]')?.textContent).toContain("Properties shown below");
+    expect(renameButton.closest('[data-testid^="cutout-row-"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid^="button-select-"][aria-pressed="true"]')!.textContent).toContain("test wrench");
     React.act(() => renameButton.click());
     const shapeName = container.querySelector(
       '[data-testid="input-shape-name"]',
@@ -1460,11 +1787,7 @@ describe("BinDesignerPage", () => {
 
     // Selecting the pocket again is independent and exposes contour editing.
     openSettingsSection(container, "tool-cutouts");
-    React.act(() => {
-      (
-        container.querySelector('[data-testid^="button-select-"]') as HTMLButtonElement
-      ).click();
-    });
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid^="button-select-"]')!.click());
     expect(
       container.querySelectorAll('[data-testid^="pocket-resize-handle-"]'),
     ).toHaveLength(8);
@@ -1487,7 +1810,7 @@ describe("BinDesignerPage", () => {
       '[data-testid="button-edit-contour"]',
     ) as HTMLButtonElement;
     React.act(() => editContour.click());
-    expect(editContour.textContent).toContain("Finish contour editing");
+    expect(editContour.getAttribute("aria-label")).toBe("Finish contour editing");
     expect(container.querySelector('[data-testid="layout-canvas"]')).not.toBeNull();
     expect(
       (container.querySelector(
@@ -1578,12 +1901,7 @@ describe("BinDesignerPage", () => {
         twoCellSize.includes(label),
       ),
     ).toBe(true);
-    const removeButtons = container.querySelectorAll<HTMLButtonElement>(
-      '[data-testid^="button-remove-"]',
-    );
-    expect(removeButtons).toHaveLength(2);
-
-    React.act(() => removeButtons[0].click());
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid^="button-remove-"]')!.click());
     expect(document.body.textContent).toContain(
       "Resize the bin after removing “first part”?",
     );
@@ -1613,7 +1931,8 @@ describe("BinDesignerPage", () => {
     expect(text).toContain("8,400 triangles");
     expect(text).toContain("82.4 cm³ model volume");
     expect(text).not.toContain("g solid PLA");
-    expect(text).toContain("Estimate filament weight in your slicer");
+    expect(text).not.toContain("Estimate filament weight in your slicer");
+    expect(container.querySelector('[aria-label="About model validation"]')).not.toBeNull();
     expect(
       container.querySelector("#bin-settings-export [data-panel-section-trigger]")
         ?.textContent,

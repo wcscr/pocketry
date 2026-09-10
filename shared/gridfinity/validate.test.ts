@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { parseBinSpec, binSpecSchema, type BinSpecInput } from "./types";
 import { validateBinSpec } from "./validate";
+import { binFootprintMm } from "./standard";
 
 function spec(partial: Partial<BinSpecInput> = {}) {
   return parseBinSpec({ gridX: 2, gridY: 3, heightUnits: 6, ...partial });
@@ -20,6 +21,22 @@ describe("binSpecSchema", () => {
     expect(spec({ gridPitch: "half" }).gridPitch).toBe("half");
     expect(spec({ gridPitch: "quarter" }).gridPitch).toBe("quarter");
     expect(() => spec({ gridPitch: "eighth" as never })).toThrow();
+  });
+
+  it.each([
+    ["full", 16], ["half", 32], ["quarter", 64],
+  ] as const)("keeps the same physical ceiling at %s pitch", (gridPitch, maximum) => {
+    const parsed = spec({ gridPitch, gridX: maximum, gridY: maximum });
+    expect(binFootprintMm(parsed.gridX, gridPitch)).toBe(671.5);
+    for (const axis of ["gridX", "gridY"] as const) {
+      expect(() => spec({ gridPitch, [axis]: maximum + 1 })).toThrow();
+    }
+  });
+
+  it("accepts a quarter-pitch custom footprint longer than 16 cells", () => {
+    const cells = Array.from({ length: 20 }, (_, y) => ({ x: 0, y }));
+    expect(spec({ gridX: 1, gridY: 20, gridPitch: "quarter", footprint: { kind: "custom", cells } }).footprint)
+      .toEqual({ kind: "custom", cells });
   });
 
   it("accepts half-unit heights and rejects unsupported or out-of-range sizes", () => {

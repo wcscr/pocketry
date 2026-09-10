@@ -63,6 +63,14 @@ export default {
         },
       },
       keyframes: {
+        "warning-attention": {
+          "0%, 50%, 100%": {
+            boxShadow: "0 1px 4px rgb(0 0 0 / 0.1), 0 0 0 0 rgb(var(--warning-pulse-color) / 0)",
+          },
+          "25%": {
+            boxShadow: "0 1px 4px rgb(0 0 0 / 0.1), 0 0 0 4px rgb(var(--warning-pulse-color) / 0.2)",
+          },
+        },
         "accordion-down": {
           from: {
             height: "0",
@@ -81,6 +89,7 @@ export default {
         },
       },
       animation: {
+        "warning-attention": "warning-attention 4s ease-in-out infinite",
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
       },

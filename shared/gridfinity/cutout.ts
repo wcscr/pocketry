@@ -345,8 +345,8 @@ const cutoutPlacementInputSchema = z
       mode: "remaining",
       floorThicknessMm: BASE_HEIGHT,
     }),
-    /** Fit clearance grown around the outline before cutting. */
-    clearanceMm: z.number().min(0).max(5).default(0),
+    /** Signed per-edge fit adjustment after scaling: negative shrinks, positive grows. */
+    clearanceMm: z.number().min(-5).max(5).default(0),
     /** 2D rounding of vertical pocket edges (offset −r then +r). */
     cornerRoundMm: z.number().min(0).max(5).default(1),
     /** Round-over radius where the pocket wall meets the top surface. */
@@ -680,6 +680,18 @@ export interface PlacementFootprint {
    * only — features are cut at their exact diameter.
    */
   features: Point[][];
+}
+
+/**
+ * Conservative allowance for synchronous layout checks and packing. These
+ * operate on the traced rings without kernel offsets, so inward clearance
+ * cannot be credited as extra room (it can split or erase thin features).
+ * The actual cutter and fit template apply the full signed clearance.
+ */
+export function pocketLayoutAllowanceMm(
+  cutout: Pick<CutoutPlacement, "clearanceMm" | "topFilletMm">,
+): number {
+  return Math.max(0, cutout.clearanceMm) + cutout.topFilletMm;
 }
 
 /**

@@ -44,6 +44,12 @@ const VALID = {
 };
 
 describe("parseProjectDoc", () => {
+  it("round-trips a 3 by 5 standard-cell bin at quarter pitch", () => {
+    const doc = parseProjectDoc({ ...VALID, spec: { ...VALID.spec, gridX: 12, gridY: 20, gridPitch: "quarter" } });
+    expect(doc?.spec).toMatchObject({ gridX: 12, gridY: 20, gridPitch: "quarter" });
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(doc)))).toEqual(doc);
+  });
+
   it("migrates the complete New Airduster Layout without changing any saved geometry or settings", () => {
     const original = JSON.stringify(airdusterV9);
     const doc = parseProjectDoc(airdusterV9);
@@ -65,6 +71,13 @@ describe("parseProjectDoc", () => {
     expect(parseProjectDoc(JSON.parse(JSON.stringify(doc)))).toEqual(doc);
     expect(doc!.shapes[0].traceMarginMm).toBe(0.5);
   });
+  it("round-trips negative pocket clearance without changing the saved trace", () => {
+    const doc = parseProjectDoc({ ...VALID, cutouts: [{ ...VALID.cutouts[0], clearanceMm: -0.7 }] });
+    expect(doc?.cutouts[0].clearanceMm).toBe(-0.7);
+    expect(doc?.shapes[0].outlineMm).toEqual(VALID.shapes[0].outlineMm);
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(doc)))).toEqual(doc);
+  });
+
   it("round-trips a valid document", () => {
     const doc = parseProjectDoc(VALID);
     expect(doc).not.toBeNull();

@@ -1,7 +1,6 @@
 import {
   Box,
   ChevronDown,
-  ChevronRight,
   CircleDot,
   ClipboardCheck,
   Copy,
@@ -10,7 +9,6 @@ import {
   FilePlus2,
   FolderOpen,
   LayoutGrid,
-  Lock,
   LoaderCircle,
   Magnet,
   MousePointerClick,
@@ -22,12 +20,10 @@ import {
   Scaling,
   Save,
   Scissors,
-  SlidersHorizontal,
   Spline,
   Trash2,
-  Unlock,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useLocation } from "wouter";
 
 import {
@@ -49,8 +45,8 @@ import {
   standardCellSpan,
   type GridPitch,
 } from "@shared/gridfinity/standard";
-import { MAX_GRID, type BinSpecInput } from "@shared/gridfinity/types";
-import { validateBinSpec, validateLayout, validatePocketFloorMaterials, type ValidationIssue } from "@shared/gridfinity/validate";
+import { MAX_GRID, maxGridCells, type BinSpecInput } from "@shared/gridfinity/types";
+import type { ValidationIssue } from "@shared/gridfinity/validate";
 
 import {
   PanelBody,
@@ -80,6 +76,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { HelpHint } from "@/components/ui/help-hint";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -92,7 +89,6 @@ import {
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { fitRectangularBinToPlacements } from "@/lib/gridfinity/autoplace";
-import { occupiedCellCount } from "@shared/gridfinity/footprint";
 import {
   binDimensionsMm,
   MULTICOLOR_FLOOR_MAX_THICKNESS_MM,
@@ -108,7 +104,7 @@ import {
 } from "@/lib/gridfinity/worker-api";
 import type { ProjectLibraryItem } from "@/lib/project/persist";
 import { cn } from "@/lib/utils";
-import { PocketMeasurements, PositionInputs } from "./pocket-measurements";
+import { PocketDepthSummary, PocketMeasurements, PocketSizeInputs, PositionInputs } from "./pocket-measurements";
 import { ExportConfirmationDialog, ProjectBackupOption } from "./export-confirmation-dialog";
 import { useBin } from "@/state/bin-store";
 import { useShapeLibrary } from "@/state/shape-library";
@@ -117,7 +113,7 @@ import { useShapeLibrary } from "@/state/shape-library";
 const MAX_HEIGHT_UNITS_UI = 12;
 /** Slider ceiling: at most eight full cells, within the schema hard cap. */
 const maxGridUi = (pitch: GridPitch): number =>
-  Math.min(MAX_GRID, 8 * GRID_PITCH_DIVISOR[pitch]);
+  Math.min(maxGridCells(pitch), 8 * GRID_PITCH_DIVISOR[pitch]);
 
 const formatUnitCount = (value: number): string =>
   Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/0$/, "");
@@ -153,64 +149,36 @@ function MaterialColorSwatch({
   );
 }
 
-function EditableShapeName({
-  shape,
-  onRename,
-}: {
+function EditableShapeName({ shape, onRename, onDone }: {
   shape: TracedShape;
   onRename: (name: string) => void;
+  onDone: () => void;
 }): JSX.Element {
   const [draft, setDraft] = useState(shape.name);
-  const [editing, setEditing] = useState(false);
-
-  useEffect(() => setDraft(shape.name), [shape.id, shape.name]);
-
   const commit = () => {
     const name = draft.trim();
-    if (name.length === 0) {
-      setDraft(shape.name);
-      setEditing(false);
-      return;
-    }
-    if (name !== shape.name) onRename(name);
-    setEditing(false);
+    if (name.length > 0 && name !== shape.name) onRename(name);
+    onDone();
   };
-
-  if (editing) {
-    return (
-      <Input
-        autoFocus
-        value={draft}
-        onChange={(event) => setDraft(event.target.value)}
-        onBlur={commit}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") event.currentTarget.blur();
-          if (event.key === "Escape") {
-            setDraft(shape.name);
-            setEditing(false);
-          }
-        }}
-        className="h-8 font-medium"
-        aria-label="Tool shape name"
-        data-testid="input-shape-name"
-      />
-    );
-  }
-
   return (
-    <button
-      type="button"
-      className="group flex w-full min-w-0 items-center justify-between gap-2 rounded py-1 text-left text-sm font-medium hover:bg-violet-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      onClick={() => setEditing(true)}
-      aria-label={`Rename ${shape.name}`}
-      title="Click to rename"
-      data-testid="button-edit-shape-name"
-    >
-      <span className="truncate">{shape.name}</span>
-      <span className="flex shrink-0 items-center gap-1 text-[11px] font-normal text-muted-foreground">
-        <Pencil className="h-3 w-3" />Rename
-      </span>
-    </button>
+    <Input
+      autoFocus
+      value={draft}
+      onChange={(event) => setDraft(event.target.value)}
+      onFocus={(event) => event.currentTarget.select()}
+      onBlur={commit}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") event.currentTarget.blur();
+        if (event.key === "Escape") {
+          event.preventDefault();
+          event.stopPropagation();
+          onDone();
+        }
+      }}
+      className="h-8 min-w-0 flex-1 text-xs font-medium"
+      aria-label="Pocket name"
+      data-testid="input-shape-name"
+    />
   );
 }
 
@@ -218,7 +186,7 @@ const BIN_SETTINGS_SECTIONS = [
   { id: "bin-settings-project", label: "Project", tone: "slate" },
   { id: "bin-settings-size", label: "Size", tone: "blue" },
   { id: "bin-settings-construction", label: "Construction", tone: "rose" },
-  { id: "bin-settings-pockets", label: "Arrange", tone: "violet" },
+  { id: "bin-settings-pockets", label: "Pockets", tone: "violet" },
   { id: "bin-settings-finger-holes", label: "Finger access", tone: "cyan" },
   { id: "bin-settings-materials", label: "Materials", tone: "amber" },
   { id: "bin-settings-view", label: "View", tone: "amber" },
@@ -227,6 +195,11 @@ const BIN_SETTINGS_SECTIONS = [
 ] as const;
 
 export interface BinControlsPanelProps {
+  issues: readonly ValidationIssue[];
+  /** A fresh request reveals settings after the controls drawer mounts. */
+  settingsSectionRequest?: { id: string };
+  /** Changes when the canvas explicitly requests the selected pocket editor. */
+  pocketEditorRequest?: number;
   keepBinSize?: boolean;
   onKeepBinSizeChange?: (fixed: boolean) => void;
   saveStatus?: "saving" | "saved" | "error";
@@ -275,6 +248,8 @@ export interface BinControlsPanelProps {
  * hook.
  */
 export function BinControlsPanel({
+  issues,
+  settingsSectionRequest,
   stats,
   building,
   exporting,
@@ -311,6 +286,7 @@ export function BinControlsPanel({
   onStackingRimColorChange,
   stackingRimThicknessMm,
   onStackingRimThicknessChange,
+  pocketEditorRequest = 0,
   keepBinSize = false,
   onKeepBinSizeChange,
   saveStatus = "saved",
@@ -328,12 +304,13 @@ export function BinControlsPanel({
   } = useBin();
   const [, navigate] = useLocation();
   const { shapes, storeShape } = useShapeLibrary();
-  const pocketPropertiesHeadingRef = useRef<HTMLDivElement>(null);
-  const selectPocketProperties = (id: string) => {
-    dispatch({ type: "SELECT_CUTOUT", id });
-    // Reveal the heading after the selected pocket's controls have rendered.
-    requestAnimationFrame(() => pocketPropertiesHeadingRef.current?.scrollIntoView?.({ block: "nearest" }));
-  };
+  const [renamingPocketId, setRenamingPocketId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!selectedCutoutId || renamingPocketId === selectedCutoutId) return;
+    // Selection brings the fixed Pockets section into view. Re-selecting the
+    // same canvas pocket increments the request so it is reachable from any section.
+    revealPanelSection("bin-settings-pockets", BIN_SETTINGS_SECTIONS, "pocket-properties");
+  }, [selectedCutoutId, pocketEditorRequest, renamingPocketId]);
   const shapesById = useMemo(
     () => new Map(shapes.map((shape) => [shape.id, shape])),
     [shapes],
@@ -342,34 +319,10 @@ export function BinControlsPanel({
   const dims = useMemo(() => binDimensionsMm(spec), [spec]);
   const widthCellSpan = standardCellSpan(spec.gridX, spec.gridPitch);
   const lengthCellSpan = standardCellSpan(spec.gridY, spec.gridPitch);
-  const floorMaterialIssues = useMemo(
-    () => validatePocketFloorMaterials(spec, cutouts, shapesById, colorPocketFloors ? pocketFloorThicknessMm : 0),
-    [spec, cutouts, shapesById, colorPocketFloors, pocketFloorThicknessMm],
-  );
-  const issues = useMemo(
-    () => [
-      ...validateBinSpec(spec).issues,
-      ...validateLayout(spec, cutouts, shapesById, fingerHoles),
-      ...floorMaterialIssues,
-    ],
-    [spec, cutouts, shapesById, fingerHoles, floorMaterialIssues],
-  );
-  const revealIssue = (issue: ValidationIssue) => {
-    dispatch({ type: "SET_VIEW_MODE", viewMode: "2d" });
-    if (issue.cutoutIds?.length) {
-      const next = issue.cutoutIds.find((id) => id !== selectedCutoutId) ?? issue.cutoutIds[0];
-      dispatch({ type: "SELECT_CUTOUT", id: next });
-      revealPanelSection("bin-settings-pockets", BIN_SETTINGS_SECTIONS);
-    } else if (issue.fingerHoleIds?.length) {
-      dispatch({ type: "SELECT_FINGER_HOLE", id: issue.fingerHoleIds[0] });
-      revealPanelSection("bin-settings-finger-holes", BIN_SETTINGS_SECTIONS);
-    } else revealPanelSection("bin-settings-size", BIN_SETTINGS_SECTIONS);
-  };
-  const issueButton = (issue: ValidationIssue, index: number) => <button type="button" key={`${issue.code}-${index}`} data-issue-code={issue.code} onClick={() => revealIssue(issue)}
-    className={`block w-full rounded border px-2 py-1.5 text-left text-xs hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring ${issue.code === "cutout-overlap" ? "border-orange-500/40 text-orange-700 dark:text-orange-300" : issue.severity === "error" ? "border-destructive/40 text-destructive" : "border-amber-500/40 text-amber-700 dark:text-amber-300"}`}>
-    {issue.message} <span className="underline">Show {issue.cutoutIds?.length === 2 ? "pockets (click to switch)" : "location"}</span>
-  </button>;
-  const selectedIssues = issues.filter((issue) => (selectedCutoutId && issue.cutoutIds?.includes(selectedCutoutId)) || (selectedFingerHoleId && issue.fingerHoleIds?.includes(selectedFingerHoleId)));
+  const hasFloorMaterialWarning = issues.some((issue) => issue.code === "floor-color-on-underside");
+  useEffect(() => {
+    if (settingsSectionRequest) revealPanelSection(settingsSectionRequest.id, BIN_SETTINGS_SECTIONS);
+  }, [settingsSectionRequest]);
   const hasErrors = issues.some((issue) => issue.severity === "error");
   const enabledFeatureCount = [
     spec.lip === "standard",
@@ -413,7 +366,7 @@ export function BinControlsPanel({
     transient: boolean,
   ) => {
     const resized = resizeGridToStandardCellSpan(spec, axis, span);
-    if (resized.gridX > MAX_GRID || resized.gridY > MAX_GRID) return;
+    if (resized.gridX > maxGridCells(resized.gridPitch) || resized.gridY > maxGridCells(resized.gridPitch)) return;
     const promotedToFractionalPitch =
       resized.gridPitch !== spec.gridPitch && resized.gridPitch !== "full";
     patchSpec(
@@ -442,6 +395,9 @@ export function BinControlsPanel({
   const setPocketScale = (axis: "x" | "y", percent: number) => {
     if (!selectedCutout) return;
     const requested = Math.min(20, Math.max(0.05, percent / 100));
+    const changedScale = axis === "x" ? selectedCutout.scaleX : selectedCutout.scaleY;
+    // The number field also commits on blur; do not record that value twice.
+    if (requested === changedScale) return;
     if (!selectedCutout.aspectRatioLocked) {
       dispatch({
         type: "UPDATE_CUTOUT",
@@ -451,8 +407,6 @@ export function BinControlsPanel({
       });
       return;
     }
-    const changedScale =
-      axis === "x" ? selectedCutout.scaleX : selectedCutout.scaleY;
     let factor = requested / changedScale;
     factor = Math.min(
       20 / selectedCutout.scaleX,
@@ -502,12 +456,15 @@ export function BinControlsPanel({
         <p className="truncate text-sm font-medium" title={currentProjectName ?? "Untitled project"}>{currentProjectName ?? "Untitled project"}</p>
         <p className="text-[11px] text-muted-foreground" role="status">{!hydrated ? "Opening project…" : projectBusy || saveStatus === "saving" ? "Saving in this browser…" : saveStatus === "error" ? "Could not save. Download an editable project to keep your work." : "Saved in this browser"}</p>
       </div>
-      <PanelSettingsIndex
-        ariaLabel="Find bin settings"
-        testIdPrefix="bin"
-        items={BIN_SETTINGS_SECTIONS}
-      />
-      {selectedIssues.length > 0 && <div className="max-h-32 shrink-0 space-y-1 overflow-y-auto border-b p-2" data-testid="selected-object-issues" aria-label="Issues for selected object">{selectedIssues.map(issueButton)}</div>}
+      {/* On short screens the section headers remain reachable by scrolling;
+          reserve the limited height for editable fields instead of shortcuts. */}
+      <div className="shrink-0 [@media(max-height:500px)]:hidden">
+        <PanelSettingsIndex
+          ariaLabel="Find bin settings"
+          testIdPrefix="bin"
+          items={BIN_SETTINGS_SECTIONS}
+        />
+      </div>
       <PanelBody className="flex-1">
         <PanelSection
           id="bin-settings-project"
@@ -545,13 +502,13 @@ export function BinControlsPanel({
           className="scroll-mt-16"
         >
           <div className="flex items-center gap-2">
-            <Label className="w-16 shrink-0 text-xs">Grid pitch</Label>
+            <SettingLabel label="Grid pitch" hint="Pitch changes preserve the outer size. A coarser pitch needs whole cells; custom footprints keep their current pitch." className="shrink-0" />
             <Select
               value={spec.gridPitch}
               onValueChange={(value) => {
                 const gridPitch = value as GridPitch;
                 const resized = changeGridPitchPreservingSize(spec, gridPitch);
-                if (!resized || resized.gridX > MAX_GRID || resized.gridY > MAX_GRID || spec.footprint.kind !== "rectangle") return;
+                if (!resized || resized.gridX > maxGridCells(gridPitch) || resized.gridY > maxGridCells(gridPitch) || spec.footprint.kind !== "rectangle") return;
                 patchSpec({
                   ...resized,
                   ...(gridPitch === "full"
@@ -570,13 +527,12 @@ export function BinControlsPanel({
               <SelectContent>
                 {(["full", "half", "quarter"] as const).map((pitch) => {
                   const resized = changeGridPitchPreservingSize(spec, pitch);
-                  const available = resized && resized.gridX <= MAX_GRID && resized.gridY <= MAX_GRID && spec.footprint.kind === "rectangle";
+                  const available = resized && resized.gridX <= maxGridCells(pitch) && resized.gridY <= maxGridCells(pitch) && spec.footprint.kind === "rectangle";
                   return <SelectItem key={pitch} value={pitch} disabled={!available}>{pitch === "full" ? "Full · 42 mm" : pitch === "half" ? "Half · 21 mm" : "Quarter · 10.5 mm"}{!available ? " (size incompatible)" : ""}</SelectItem>;
                 })}
               </SelectContent>
             </Select>
           </div>
-          <p className="text-[11px] text-muted-foreground">Pitch changes preserve the outer size. A coarser pitch needs whole cells; custom footprints keep their current pitch.</p>
           <FeatureSwitch label="Keep bin size fixed" description="Adding tools keeps these dimensions. Tools that do not fit stay visible for adjustment." checked={keepBinSize} onChange={(fixed) => onKeepBinSizeChange?.(fixed)} />
           {spec.footprint.kind === "rectangle" ? (
             <>
@@ -599,28 +555,29 @@ export function BinControlsPanel({
             </>
           ) : (
             <div className="rounded-md border bg-muted/30 px-2.5 py-2 text-xs text-muted-foreground">
-              Bounding grid {spec.gridX} × {spec.gridY}. Add or remove cells in the Layout view,
+              Custom footprint. Add or remove cells in the Layout view,
               or reset to a rectangle to use the size sliders.
             </div>
           )}
           <div className="space-y-1.5">
-            <div className="flex items-baseline justify-between">
-              <Label className="text-xs">Height</Label>
-              <span className="text-xs tabular-nums text-muted-foreground">
-                <DraftNumberInput className="inline-block h-8 w-20" aria-label="Bin height in units" value={spec.heightUnits} min={1} max={MAX_HEIGHT_UNITS_UI} step={0.5} normalize={(value) => Math.round(value * 2) / 2} onValueChange={(heightUnits) => patchSpec({ heightUnits }, true)} onValueCommit={(heightUnits) => patchSpec({ heightUnits })} /> u · {spec.heightUnits * 7} mm
+            <Label className="text-xs">Height</Label>
+            <div className="flex items-center gap-2">
+              <Slider
+                className="min-w-12 flex-1"
+                value={[spec.heightUnits]}
+                onValueChange={([heightUnits]) =>
+                  patchSpec({ heightUnits }, true)
+                }
+                onValueCommit={([heightUnits]) => patchSpec({ heightUnits })}
+                min={1}
+                max={MAX_HEIGHT_UNITS_UI}
+                step={0.5}
+                aria-label="Height in 0.5u increments"
+              />
+              <span className="flex shrink-0 items-center gap-1 whitespace-nowrap text-xs tabular-nums text-muted-foreground">
+                <DraftNumberInput className="h-8 w-16" aria-label="Bin height in units" value={spec.heightUnits} min={1} max={MAX_HEIGHT_UNITS_UI} step={0.5} normalize={(value) => Math.round(value * 2) / 2} onValueChange={(heightUnits) => patchSpec({ heightUnits }, true)} onValueCommit={(heightUnits) => patchSpec({ heightUnits })} /> u · {spec.heightUnits * 7} mm
               </span>
             </div>
-            <Slider
-              value={[spec.heightUnits]}
-              onValueChange={([heightUnits]) =>
-                patchSpec({ heightUnits }, true)
-              }
-              onValueCommit={([heightUnits]) => patchSpec({ heightUnits })}
-              min={1}
-              max={MAX_HEIGHT_UNITS_UI}
-              step={0.5}
-              aria-label="Height in 0.5u increments"
-            />
           </div>
           <p className="text-xs text-muted-foreground">
             Outer size {dims.widthMm.toFixed(1)} × {dims.lengthMm.toFixed(1)} ×{" "}
@@ -628,10 +585,6 @@ export function BinControlsPanel({
             {spec.lip === "standard"
               ? ` (rim + ${STACKING_LIP_HEIGHT_ACTUAL.toFixed(1)} mm lip)`
               : ""}
-          </p>
-          <p className="text-xs text-muted-foreground" data-testid="bin-footprint-summary">
-            {occupiedCellCount(spec)} of {spec.gridX * spec.gridY} {spec.gridPitch}-pitch cells occupied
-            {spec.footprint.kind === "custom" ? " · custom footprint" : ""}
           </p>
           {building && (
             <div
@@ -692,12 +645,6 @@ export function BinControlsPanel({
           className="scroll-mt-16"
         >
           <FeatureSwitch
-            label="Flat bottom"
-            description="Smooth underside; no Gridfinity base."
-            checked={spec.flatBottom}
-            onChange={(flatBottom) => patchSpec({ flatBottom })}
-          />
-          <FeatureSwitch
             label="Stacking lip"
             description={spec.flatBottom ? "Receives a Gridfinity bin on top" : "Lets another bin stack on top"}
             checked={spec.lip === "standard"}
@@ -744,9 +691,16 @@ export function BinControlsPanel({
             </>
           )}
 
+          <FeatureSwitch
+            label="Flat bottom"
+            description="Smooth underside; no Gridfinity base."
+            checked={spec.flatBottom}
+            onChange={(flatBottom) => patchSpec({ flatBottom })}
+          />
+
           <div className="space-y-2 border-t pt-3">
             <div className="flex items-center gap-2">
-              <Label className="w-16 shrink-0 text-xs">Label tab</Label>
+              <SettingLabel label="Label tab" hint="A sloped shelf under the rim for labelling the bin." className="shrink-0" />
               <Select
                 value={spec.labelTab?.width ?? "none"}
                 onValueChange={(width) =>
@@ -816,9 +770,6 @@ export function BinControlsPanel({
                 </Button>
               </div>
             )}
-            <p className="text-[11px] text-muted-foreground">
-              A sloped shelf under the rim for labelling the bin.
-            </p>
           </div>
         </PanelSection>
 
@@ -827,133 +778,288 @@ export function BinControlsPanel({
         <PanelSection
           key={cutouts.length > 0 ? "pockets" : "pockets-empty"}
           id="bin-settings-pockets"
-          title="Arrange pockets"
+          title="Pockets"
           icon={Scissors}
           tone="violet"
           summary={`${cutouts.length} pocket${cutouts.length === 1 ? "" : "s"}`}
           defaultOpen={cutouts.length > 0}
           className="scroll-mt-16"
         >
-          {cutouts.length === 0 ? (
-            <p className="text-xs text-muted-foreground">
-              Trace a tool and press “Add to bin” — pockets land here and can
-              be moved and rotated in the Layout view.
-            </p>
-          ) : (
-            <>
-              <div
-                className="flex gap-2 rounded-md border border-violet-500/25 bg-violet-500/10 px-2.5 py-2 text-[11px] text-violet-900 dark:text-violet-100"
-                data-testid="pocket-selection-help"
-              >
-                <MousePointerClick className="mt-0.5 h-4 w-4 shrink-0" />
-                <p>
-                  Choose a pocket below to edit its size, depth, and shape.
-                </p>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full"
-                onClick={onAutoArrange}
-                data-testid="button-auto-arrange"
-              >
-                <LayoutGrid className="mr-1.5 h-3.5 w-3.5" />
-                Auto-arrange
-              </Button>
-              <div className="space-y-2" aria-label="Choose a pocket to edit">
-                {cutouts.map((cutout) => {
-                  const shape = shapesById.get(cutout.shapeId);
-                  const isSelected = cutout.id === selectedCutoutId;
-                  return (
-                    <div
-                      key={cutout.id}
-                      className={cn(
-                        "flex items-center rounded-md border text-xs transition-colors",
-                        isSelected
-                          ? "border-violet-500 bg-violet-500/10 ring-1 ring-violet-500/30"
-                          : "border-input bg-background hover:border-violet-400 hover:bg-violet-500/5",
-                      )}
-                      data-testid={`cutout-row-${cutout.id}`}
+          {cutouts.length > 0 && (
+            <div className="space-y-1" aria-label="Choose a pocket to edit">
+              {cutouts.map((cutout) => {
+                const shape = shapesById.get(cutout.shapeId);
+                const isSelected = cutout.id === selectedCutoutId;
+                return (
+                  <div key={cutout.id} data-testid={`cutout-row-${cutout.id}`} className={cn(
+                    "flex items-center rounded-md border text-xs",
+                    isSelected ? "border-violet-500/50 bg-violet-500/10" : "border-transparent hover:bg-accent",
+                  )}>
+                    {renamingPocketId === cutout.id && shape ? (
+                      <EditableShapeName key={cutout.id} shape={shape} onRename={(name) => storeShape({ ...shape, name })} onDone={() => setRenamingPocketId(null)} />
+                    ) : (
+                    <button
+                      type="button"
+                      className="flex min-h-8 min-w-0 flex-1 items-center gap-2 rounded px-2 py-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      aria-label={`${shape?.name ?? "Missing shape"} — edit pocket properties`}
+                      aria-pressed={isSelected}
+                      aria-controls="pocket-properties"
+                      data-testid={`button-select-${cutout.id}`}
+                      onClick={() => {
+                        dispatch({ type: "SELECT_CUTOUT", id: cutout.id });
+                        if (isSelected) revealPanelSection("bin-settings-pockets", BIN_SETTINGS_SECTIONS, "pocket-properties");
+                      }}
                     >
-                      <button
-                        type="button"
-                        className="flex min-h-12 min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2"
-                        aria-label={`${shape?.name ?? "Missing shape"} — edit pocket properties`}
-                        aria-pressed={isSelected}
-                        aria-controls={selectedCutoutId ? "pocket-properties" : undefined}
-                        onClick={() => selectPocketProperties(cutout.id)}
-                        data-testid={`button-select-${cutout.id}`}
-                      >
-                        <SlidersHorizontal className="h-4 w-4 shrink-0 text-violet-600 dark:text-violet-300" />
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate font-medium">{shape?.name ?? "Missing shape"}</span>
-                          <span className={cn("mt-0.5 block text-[11px]", isSelected ? "font-medium text-violet-700 dark:text-violet-300" : "text-muted-foreground")}>
-                            {isSelected ? "Properties shown below" : "Edit properties"}
-                          </span>
-                        </span>
-                        {isSelected ? <ChevronDown className="h-4 w-4 shrink-0 text-violet-600 dark:text-violet-300" /> : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
-                      </button>
-                      <button
-                        type="button"
-                        className="flex h-8 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        aria-label="Duplicate pocket"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          dispatch({
-                            type: "DUPLICATE_CUTOUT",
-                            id: cutout.id,
-                            newId: crypto.randomUUID(),
-                          });
-                        }}
-                        data-testid={`button-duplicate-${cutout.id}`}
-                      >
-                        <Copy className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        className="mr-1 flex h-8 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        aria-label="Remove pocket"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          dispatch({ type: "REQUEST_REMOVE_CUTOUT", id: cutout.id });
-                        }}
-                        data-testid={`button-remove-${cutout.id}`}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            </>
+                      <span className={cn("min-w-0 flex-1 truncate", isSelected && "font-medium text-violet-700 dark:text-violet-300")}>{shape?.name ?? "Missing shape"}</span>
+                    </button>
+                    )}
+                    <button type="button" className="flex h-8 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Rename ${shape?.name ?? "pocket"}`} disabled={!shape} data-testid={`button-rename-${cutout.id}`} onClick={() => {
+                      dispatch({ type: "SELECT_CUTOUT", id: cutout.id });
+                      setRenamingPocketId(cutout.id);
+                    }}>
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <button type="button" className="flex h-8 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Duplicate ${shape?.name ?? "pocket"}`} data-testid={`button-duplicate-${cutout.id}`} onClick={() => dispatch({ type: "DUPLICATE_CUTOUT", id: cutout.id, newId: crypto.randomUUID() })}>
+                      <Copy className="h-3.5 w-3.5" />
+                    </button>
+                    <button type="button" className="flex h-8 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Remove ${shape?.name ?? "pocket"}`} data-testid={`button-remove-${cutout.id}`} onClick={() => dispatch({ type: "REQUEST_REMOVE_CUTOUT", id: cutout.id })}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
           )}
-
+          {!selectedCutout && (
+            <p className="rounded-md border border-dashed px-3 py-4 text-xs text-muted-foreground" id="pocket-properties" data-testid="pocket-selection-help">
+              {cutouts.length === 0
+                ? "Trace a tool and press “Add to bin” to create a pocket."
+                : "Select a pocket on the canvas or in the list above. Its properties appear here."}
+            </p>
+          )}
           {selectedCutout && selectedShape && (
-            <div className="space-y-3 border-t pt-3" id="pocket-properties">
-              <div ref={pocketPropertiesHeadingRef} className="scroll-mt-3 rounded-md border border-violet-500/30 bg-violet-500/5 px-2.5 py-2" data-testid="pocket-properties-heading">
-                <h3 className="text-[11px] font-semibold uppercase tracking-wide text-violet-700 dark:text-violet-300">Pocket properties</h3>
-                <EditableShapeName key={selectedCutout.id} shape={selectedShape} onRename={(name) => storeShape({ ...selectedShape, name })} />
+            <div className="space-y-3 rounded-md border border-violet-500/30 bg-violet-500/[0.025] p-2.5" id="pocket-properties" role="region" aria-label="Selected pocket properties">
+              <div className="flex min-w-0 items-center gap-2 border-b border-violet-500/20 pb-2" data-testid="pocket-properties-heading">
+                <h3 className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-violet-700 dark:text-violet-300">Pocket properties</h3>
+                <span className="min-w-0 truncate text-xs font-medium" title={selectedShape.name}>{selectedShape.name}</span>
+                <Button
+                  variant={editorMode === "contour" ? "default" : "outline"}
+                  size="sm"
+                  className="ml-auto h-7 shrink-0 gap-1 px-1.5 text-[10px]"
+                  aria-label={editorMode === "contour" ? "Finish contour editing" : "Edit contour"}
+                  aria-pressed={editorMode === "contour"}
+                  data-testid="button-edit-contour"
+                  onClick={() => {
+                    const editing = editorMode === "contour";
+                    dispatch({
+                      type: "SET_EDITOR_MODE",
+                      editorMode: editing ? "placement" : "contour",
+                    });
+                    if (!editing) {
+                      dispatch({ type: "SET_VIEW_MODE", viewMode: "2d" });
+                    }
+                  }}
+                >
+                  <Spline className="h-3 w-3" />
+                  {editorMode === "contour" ? "Done" : "Edit contour"}
+                </Button>
               </div>
-              <PocketMeasurements cutout={selectedCutout} shape={selectedShape} setScale={setPocketScale} section={section} inspect={onSectionChange} />
-              <Button
-                variant={editorMode === "contour" ? "default" : "outline"}
-                size="sm"
-                className="w-full"
-                data-testid="button-edit-contour"
-                onClick={() => {
-                  const editing = editorMode === "contour";
-                  dispatch({
-                    type: "SET_EDITOR_MODE",
-                    editorMode: editing ? "placement" : "contour",
-                  });
-                  if (!editing) {
-                    dispatch({ type: "SET_VIEW_MODE", viewMode: "2d" });
-                  }
-                }}
-              >
-                <Spline className="mr-1.5 h-3.5 w-3.5" />
-                {editorMode === "contour" ? "Finish contour editing" : "Edit contour"}
-              </Button>
+              <section className="space-y-2" aria-label="Pocket depth" key={selectedCutout.id}>
+                <div className="flex items-center gap-1">
+                  <h4 className="text-sm font-semibold">Depth</h4>
+                  {spec.flatBottom && selectedCutout.depth.mode === "remaining" && <HelpHint label="remaining floor thickness">Measured from the flat underside. A 2 mm floor lets pockets extend into the former base area.</HelpHint>}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Select
+                    value={selectedCutout.depth.mode}
+                    onValueChange={(mode) => {
+                      const resolved = resolvePocketDepth(spec, selectedCutout.depth);
+                      const depth =
+                        mode === "through"
+                          ? ({ mode: "through" } as const)
+                          : mode === "mm"
+                            ? ({ mode: "mm", value: Math.max(0.1, resolved.depthMm ?? resolved.infillTopZ - defaultPocketFloorThicknessMm(spec)) } as const)
+                            : ({ mode: "remaining", floorThicknessMm: spec.flatBottom ? defaultPocketFloorThicknessMm(spec) : Math.max(0, resolved.floorZ ?? defaultPocketFloorThicknessMm(spec)) } as const);
+                      dispatch({
+                        type: "UPDATE_CUTOUT",
+                        id: selectedCutout.id,
+                        patch: { depth },
+                        historyLabel: "Change pocket depth",
+                      });
+                    }}
+                  >
+                    <SelectTrigger className="h-9 flex-1" aria-label="Pocket depth mode">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="remaining">Keep floor thickness</SelectItem>
+                      <SelectItem value="mm">Fixed depth</SelectItem>
+                      <SelectItem value="through">Through</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {selectedCutout.depth.mode === "mm" && (
+                    <DraftNumberInput
+                      className="h-9 w-20 text-base font-semibold"
+                      aria-label="Pocket cut depth in millimetres"
+                      value={selectedCutout.depth.value}
+                      min={1}
+                      step={1}
+                      onValueChange={(value) =>
+                        dispatch({
+                          type: "UPDATE_CUTOUT",
+                          id: selectedCutout.id,
+                          patch: { depth: { mode: "mm", value } },
+                          historyLabel: "Change pocket depth",
+                        })
+                      }
+                    />
+                  )}
+                </div>
+
+                {selectedCutout.depth.mode === "remaining" && <MmSlider label="Remaining floor thickness" value={selectedCutout.depth.floorThicknessMm} min={0} max={Math.max(7, spec.heightUnits * 7)} step={0.5}
+                  onChange={(floorThicknessMm, transient) => dispatch({ type: "UPDATE_CUTOUT", id: selectedCutout.id, patch: { depth: { mode: "remaining", floorThicknessMm } }, transient, historyLabel: "Change remaining floor" })} />}
+
+                <PocketDepthSummary cutout={selectedCutout} shape={selectedShape} section={section} inspect={onSectionChange} />
+              </section>
+              <details className="group/size border-t pt-1 text-xs" aria-label="Pocket size and scale" data-testid="pocket-size-settings">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-2 py-2 font-medium [&::-webkit-details-marker]:hidden">
+                  Size &amp; scale
+                  <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/size:rotate-180" />
+                </summary>
+                <div className="pb-2" key={selectedCutout.id}><PocketSizeInputs cutout={selectedCutout} shape={selectedShape} setScale={setPocketScale} /></div>
+              </details>
+
+              <details className="group/more border-t pt-1 text-xs" data-testid="pocket-edge-settings">
+                <summary className="flex cursor-pointer list-none items-center justify-between py-1.5 font-medium [&::-webkit-details-marker]:hidden">
+                  <span className="flex items-center gap-1">Edges &amp; corners <HelpHint label="edges and corners">Soften sharp corners and edges. Values are rounding radii in millimetres; 0 keeps an edge sharp.</HelpHint></span>
+                  <ChevronDown className="h-3.5 w-3.5 transition-transform group-open/more:rotate-180" />
+                </summary>
+                <div className="space-y-3 pt-2" key={selectedCutout.id}>
+                  <MmSlider
+                    label="Top edge rounding"
+                    value={selectedCutout.topFilletMm}
+                    min={0}
+                    max={5}
+                    step={0.2}
+                    onChange={(topFilletMm, transient) =>
+                      dispatch({
+                        type: "UPDATE_CUTOUT",
+                        id: selectedCutout.id,
+                        patch: { topFilletMm },
+                        historyLabel: "Change top edge round",
+                        transient,
+                      })
+                    }
+                    hintAsTooltip
+                    hint="Rounds the pocket wall into the top surface of the bin."
+                  />
+                  <MmSlider
+                    label="Bottom edge fillet"
+                    value={selectedCutout.bottomFilletMm}
+                    min={0}
+                    max={4}
+                    step={0.2}
+                    onChange={(bottomFilletMm, transient) =>
+                      dispatch({
+                        type: "UPDATE_CUTOUT",
+                        id: selectedCutout.id,
+                        patch: { bottomFilletMm },
+                        historyLabel: "Change bottom fillet",
+                        transient,
+                      })
+                    }
+                    hintAsTooltip
+                    hint="Rounds the wall into the floor; the transition ends one radius above the floor."
+                  />
+                  <MmSlider
+                    label="Outline corner rounding"
+                    value={selectedCutout.cornerRoundMm}
+                    min={0}
+                    max={3}
+                    step={0.5}
+                    onChange={(cornerRoundMm, transient) =>
+                      dispatch({
+                        type: "UPDATE_CUTOUT",
+                        id: selectedCutout.id,
+                        patch: { cornerRoundMm },
+                        historyLabel: "Change outline corner round",
+                        transient,
+                      })
+                    }
+                    hintAsTooltip
+                    hint="Rounds sharp corners in the pocket outline from top to bottom."
+                  />
+
+                </div>
+              </details>
+              <PocketMeasurements cutout={selectedCutout} shape={selectedShape}>
+                <div className="flex items-center gap-2">
+                  <Label className="w-16 shrink-0 text-xs">Rotation</Label>
+                  <DraftNumberInput
+                    className="h-8"
+                    aria-label="Pocket rotation in degrees"
+                    value={Math.round(selectedCutout.rotationDeg * 10) / 10}
+                    step={15}
+                    normalize={(value) => ((value % 360) + 360) % 360}
+                    onValueChange={(rotationDeg) =>
+                      dispatch({
+                        type: "UPDATE_CUTOUT",
+                        id: selectedCutout.id,
+                        patch: { rotationDeg },
+                        historyLabel: "Rotate tool pocket",
+                      })
+                    }
+                  />
+                  <FeatureSwitch
+                    label="Mirror"
+                    description=""
+                    checked={selectedCutout.mirrored}
+                    onChange={(mirrored) =>
+                      dispatch({
+                        type: "UPDATE_CUTOUT",
+                        id: selectedCutout.id,
+                        patch: { mirrored },
+                        historyLabel: "Mirror tool pocket",
+                      })
+                    }
+                  />
+                </div>
+
+              </PocketMeasurements>
+              <details className="group/clearance border-t pt-1 text-xs" data-testid="pocket-clearance-settings">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-2 py-2 font-medium [&::-webkit-details-marker]:hidden">
+                  <span className="flex items-center gap-1">Extra pocket clearance
+                    <HelpHint label="extra pocket clearance">
+                      Adjusts each edge after the Trace margin and scaling. Negative values shrink the pocket to reduce excess padding; positive values enlarge it. Zero keeps the traced size. Narrow features can disappear when shrunk.
+                      <span className="mt-1 block">{selectedShape.traceMarginMm === undefined
+                        ? `Original trace margin unknown (older project). Extra allowance: ${selectedCutout.clearanceMm.toFixed(2)} mm per edge.`
+                        : `Trace margin: ${selectedShape.traceMarginMm.toFixed(2)} mm per edge before scaling. Nominal total allowance X/Y: ${(selectedShape.traceMarginMm * selectedCutout.scaleX + selectedCutout.clearanceMm).toFixed(2)} / ${(selectedShape.traceMarginMm * selectedCutout.scaleY + selectedCutout.clearanceMm).toFixed(2)} mm per edge.`}</span>
+                    </HelpHint>
+                  </span>
+                  <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/clearance:rotate-180" />
+                </summary>
+                <div className="space-y-2 pb-2" key={selectedCutout.id}>
+                  <MmSlider
+                    label="Extra pocket clearance"
+                    value={selectedCutout.clearanceMm}
+                    centered
+                    inline
+                    min={-2}
+                    max={2}
+                    step={0.1}
+                    onChange={(clearanceMm, transient) =>
+                      dispatch({
+                        type: "UPDATE_CUTOUT",
+                        id: selectedCutout.id,
+                        patch: { clearanceMm },
+                        historyLabel: "Change pocket clearance",
+                        transient,
+                      })
+                    }
+                  />
+                </div>
+              </details>
+
               {editorMode === "contour" && (
                 <p className="rounded-md bg-violet-500/10 px-2.5 py-2 text-[11px] text-violet-800 dark:text-violet-200">
                   Drag points to reshape. Click an edge to add a point; right-click a
@@ -961,266 +1067,15 @@ export function BinControlsPanel({
                 </p>
               )}
 
-              <div className="flex items-center gap-2">
-                <Label className="w-16 shrink-0 text-xs">Rotation</Label>
-                <DraftNumberInput
-                  className="h-8"
-                  value={Math.round(selectedCutout.rotationDeg * 10) / 10}
-                  step={15}
-                  normalize={(value) => ((value % 360) + 360) % 360}
-                  onValueChange={(rotationDeg) =>
-                    dispatch({
-                      type: "UPDATE_CUTOUT",
-                      id: selectedCutout.id,
-                      patch: { rotationDeg },
-                      historyLabel: "Rotate tool pocket",
-                    })
-                  }
-                />
-                <FeatureSwitch
-                  label="Mirror"
-                  description=""
-                  checked={selectedCutout.mirrored}
-                  onChange={(mirrored) =>
-                    dispatch({
-                      type: "UPDATE_CUTOUT",
-                      id: selectedCutout.id,
-                      patch: { mirrored },
-                      historyLabel: "Mirror tool pocket",
-                    })
-                  }
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-2">
-                  <Label className="w-16 shrink-0 text-xs">Scale</Label>
-                  <div className="flex min-w-0 flex-1 items-center gap-1.5">
-                    <Label
-                      className="text-[11px] text-muted-foreground"
-                      htmlFor="pocket-scale-width"
-                    >
-                      W
-                    </Label>
-                    <DraftNumberInput
-                      id="pocket-scale-width"
-                      className="h-8 min-w-0"
-                      aria-label="Pocket width scale percent"
-                      data-testid="input-pocket-scale-x"
-                      value={Math.round(selectedCutout.scaleX * 1000) / 10}
-                      min={5}
-                      max={2000}
-                      step={1}
-                      onValueChange={(percent) => setPocketScale("x", percent)}
-                    />
-                    <span className="text-xs text-muted-foreground">%</span>
-                    <Label
-                      className="text-[11px] text-muted-foreground"
-                      htmlFor="pocket-scale-height"
-                    >
-                      H
-                    </Label>
-                    <DraftNumberInput
-                      id="pocket-scale-height"
-                      className="h-8 min-w-0"
-                      aria-label="Pocket height scale percent"
-                      data-testid="input-pocket-scale-y"
-                      value={Math.round(selectedCutout.scaleY * 1000) / 10}
-                      min={5}
-                      max={2000}
-                      step={1}
-                      onValueChange={(percent) => setPocketScale("y", percent)}
-                    />
-                    <span className="text-xs text-muted-foreground">%</span>
-                    <Button
-                      type="button"
-                      variant={
-                        selectedCutout.aspectRatioLocked ? "secondary" : "outline"
-                      }
-                      size="icon"
-                      className="h-8 w-8 shrink-0"
-                      aria-label={
-                        selectedCutout.aspectRatioLocked
-                          ? "Unlock pocket aspect ratio"
-                          : "Lock pocket aspect ratio"
-                      }
-                      aria-pressed={selectedCutout.aspectRatioLocked}
-                      title={
-                        selectedCutout.aspectRatioLocked
-                          ? "Aspect ratio locked"
-                          : "Aspect ratio unlocked"
-                      }
-                      onClick={() =>
-                        dispatch({
-                          type: "UPDATE_CUTOUT",
-                          id: selectedCutout.id,
-                          patch: {
-                            aspectRatioLocked: !selectedCutout.aspectRatioLocked,
-                          },
-                          historyLabel: selectedCutout.aspectRatioLocked
-                            ? "Unlock pocket proportions"
-                            : "Lock pocket proportions",
-                        })
-                      }
-                    >
-                      {selectedCutout.aspectRatioLocked ? (
-                        <Lock className="h-3.5 w-3.5" />
-                      ) : (
-                        <Unlock className="h-3.5 w-3.5" />
-                      )}
-                    </Button>
-                  </div>
-                </div>
-                <div className="ml-[4.5rem] flex items-start justify-between gap-2">
-                  <p className="text-[11px] leading-4 text-muted-foreground">
-                    Drag layout edges or corners. Lock preserves proportions.
-                  </p>
-                  {(selectedCutout.scaleX !== 1 || selectedCutout.scaleY !== 1) && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 shrink-0 px-2 text-[11px]"
-                      onClick={() =>
-                        dispatch({
-                          type: "UPDATE_CUTOUT",
-                          id: selectedCutout.id,
-                          patch: { scaleX: 1, scaleY: 1 },
-                          historyLabel: "Reset tool pocket scale",
-                        })
-                      }
-                    >
-                      Reset 100%
-                    </Button>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Label className="w-16 shrink-0 text-xs">Depth</Label>
-                <Select
-                  value={selectedCutout.depth.mode}
-                  onValueChange={(mode) => {
-                    const resolved = resolvePocketDepth(spec, selectedCutout.depth);
-                    const depth =
-                      mode === "through"
-                        ? ({ mode: "through" } as const)
-                        : mode === "mm"
-                          ? ({ mode: "mm", value: Math.max(0.1, resolved.depthMm ?? resolved.infillTopZ - defaultPocketFloorThicknessMm(spec)) } as const)
-                          : ({ mode: "remaining", floorThicknessMm: spec.flatBottom ? defaultPocketFloorThicknessMm(spec) : Math.max(0, resolved.floorZ ?? defaultPocketFloorThicknessMm(spec)) } as const);
-                    dispatch({
-                      type: "UPDATE_CUTOUT",
-                      id: selectedCutout.id,
-                      patch: { depth },
-                      historyLabel: "Change pocket depth",
-                    });
-                  }}
-                >
-                  <SelectTrigger className="h-8 flex-1" aria-label="Pocket depth mode">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="remaining">Keep floor thickness</SelectItem>
-                    <SelectItem value="mm">Fixed depth</SelectItem>
-                    <SelectItem value="through">Through</SelectItem>
-                  </SelectContent>
-                </Select>
-                {selectedCutout.depth.mode === "mm" && (
-                  <DraftNumberInput
-                    className="h-8 w-20"
-                    aria-label="Pocket cut depth in millimetres"
-                    value={selectedCutout.depth.value}
-                    min={1}
-                    step={1}
-                    onValueChange={(value) =>
-                      dispatch({
-                        type: "UPDATE_CUTOUT",
-                        id: selectedCutout.id,
-                        patch: { depth: { mode: "mm", value } },
-                        historyLabel: "Change pocket depth",
-                      })
-                    }
-                  />
-                )}
-              </div>
-
-              {spec.flatBottom && selectedCutout.depth.mode === "remaining" && (
-                <p className="text-[11px] text-muted-foreground">Measured from the flat underside. A 2 mm floor lets pockets extend into the former base area.</p>
-              )}
-              {selectedCutout.depth.mode === "remaining" && <MmSlider label="Remaining floor thickness" value={selectedCutout.depth.floorThicknessMm} min={0} max={Math.max(7, spec.heightUnits * 7)} step={0.5}
-                onChange={(floorThicknessMm, transient) => dispatch({ type: "UPDATE_CUTOUT", id: selectedCutout.id, patch: { depth: { mode: "remaining", floorThicknessMm } }, transient, historyLabel: "Change remaining floor" })} />}
-
-              <MmSlider
-                label="Extra pocket clearance"
-                value={selectedCutout.clearanceMm}
-                min={0}
-                max={2}
-                step={0.1}
-                onChange={(clearanceMm, transient) =>
-                  dispatch({
-                    type: "UPDATE_CUTOUT",
-                    id: selectedCutout.id,
-                    patch: { clearanceMm },
-                    historyLabel: "Change pocket clearance",
-                    transient,
-                  })
-                }
-                hint="Added after the Trace margin; new pockets start at 0 mm."
-              />
-              <MmSlider
-                label="Outline corner round"
-                value={selectedCutout.cornerRoundMm}
-                min={0}
-                max={3}
-                step={0.5}
-                onChange={(cornerRoundMm, transient) =>
-                  dispatch({
-                    type: "UPDATE_CUTOUT",
-                    id: selectedCutout.id,
-                    patch: { cornerRoundMm },
-                    historyLabel: "Change outline corner round",
-                    transient,
-                  })
-                }
-                hint="Rounds sharp corners in the pocket outline from top to bottom."
-              />
-              <MmSlider
-                label="Top edge round"
-                value={selectedCutout.topFilletMm}
-                min={0}
-                max={5}
-                step={0.2}
-                onChange={(topFilletMm, transient) =>
-                  dispatch({
-                    type: "UPDATE_CUTOUT",
-                    id: selectedCutout.id,
-                    patch: { topFilletMm },
-                    historyLabel: "Change top edge round",
-                    transient,
-                  })
-                }
-                hint="Rounds the pocket wall into the top surface of the bin."
-              />
-              <MmSlider
-                label="Bottom fillet"
-                value={selectedCutout.bottomFilletMm}
-                min={0}
-                max={4}
-                step={0.2}
-                onChange={(bottomFilletMm, transient) =>
-                  dispatch({
-                    type: "UPDATE_CUTOUT",
-                    id: selectedCutout.id,
-                    patch: { bottomFilletMm },
-                    historyLabel: "Change bottom fillet",
-                    transient,
-                  })
-                }
-                hint="Rounds the wall into the floor; the transition ends one radius above the floor."
-              />
-
             </div>
           )}
+
+          <div className="flex flex-wrap gap-2 border-t pt-3">
+            <Button variant="outline" size="sm" onClick={onAutoArrange} disabled={cutouts.length === 0} data-testid="button-auto-arrange">
+              <LayoutGrid className="mr-1.5 h-3.5 w-3.5" />Auto-arrange
+            </Button>
+          </div>
+
         </PanelSection>
 
         <PanelSection
@@ -1234,11 +1089,8 @@ export function BinControlsPanel({
           className="scroll-mt-16"
         >
           <div className="space-y-3">
-            <div className="flex items-start justify-between gap-3 rounded-md border border-violet-500/25 bg-violet-500/10 px-2.5 py-2">
-              <p className="text-[11px] text-violet-900 dark:text-violet-100">
-                Finger holes are independent layout objects. Select, move, resize,
-                or remove one without changing a tool pocket.
-              </p>
+            <div className="flex items-center justify-between gap-3">
+              <SettingLabel label="Finger holes" hint="Finger holes are independent layout objects. Select, move, resize, or remove one without changing a tool pocket. Drag a hole to move it and its white size handle to resize it; oblong holes also have two end handles for length and angle." />
               <Button
                 variant="outline"
                 size="sm"
@@ -1608,11 +1460,6 @@ export function BinControlsPanel({
                     hint="Rounds the straight wall into its flat floor."
                   />
                 )}
-                <p className="text-[11px] text-muted-foreground">
-                  Drag the shape to move it. Drag the white size handle to change
-                  diameter; oblong holes also have two end handles for length and
-                  angle.
-                </p>
               </div>
             )}
           </div>
@@ -1632,12 +1479,7 @@ export function BinControlsPanel({
             data-testid="view-color-row-bin"
           >
             <div className="min-w-0">
-              <Label htmlFor="input-bin-color" className="text-xs">
-                Bin body
-              </Label>
-              <p className="truncate text-[11px] text-muted-foreground">
-                Main preview and 3MF material
-              </p>
+              <SettingLabel label="Bin body" htmlFor="input-bin-color" hint="Main preview and 3MF material." />
             </div>
             <MaterialColorSwatch
               id="input-bin-color"
@@ -1652,10 +1494,7 @@ export function BinControlsPanel({
           >
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <Label className="text-xs">Pocket floors</Label>
-                <p className="truncate text-[11px] text-muted-foreground">
-                  Separate material below blind-pocket surfaces
-                </p>
+                <SettingLabel label="Pocket floors" hint="Separate material below blind-pocket surfaces." />
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <MaterialColorSwatch
@@ -1673,9 +1512,7 @@ export function BinControlsPanel({
               </div>
             </div>
             <div className="flex items-center justify-between gap-3">
-              <Label htmlFor="input-pocket-floor-thickness" className="text-[11px]">
-                Color thickness
-              </Label>
+              <SettingLabel label="Color thickness" htmlFor="input-pocket-floor-thickness" hint="Accent thickness replaces existing material downward from the original surface; it never adds height to the bin." />
               <div className="flex items-center gap-1.5">
                 <DraftNumberInput
                   id="input-pocket-floor-thickness"
@@ -1700,11 +1537,7 @@ export function BinControlsPanel({
                 <span className="text-[11px] text-muted-foreground">mm down</span>
               </div>
             </div>
-            {floorMaterialIssues.length > 0 && (
-              <div className="space-y-1" role="status" aria-label="Pocket floor color warnings">
-                {floorMaterialIssues.map(issueButton)}
-              </div>
-            )}
+
           </div>
           <div
             className="space-y-2 rounded-md border bg-background/60 px-2.5 py-2"
@@ -1712,12 +1545,8 @@ export function BinControlsPanel({
           >
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <Label className="text-xs">Stacking rim top</Label>
-                <p className="truncate text-[11px] text-muted-foreground">
-                  {spec.lip === "standard"
-                    ? "Separate material below the original rim surface"
-                    : "Turn on the stacking lip to enable this material"}
-                </p>
+                <SettingLabel label="Stacking rim top" hint="Separate material below the original rim surface." />
+                {spec.lip !== "standard" && <p className="text-[11px] text-muted-foreground">Turn on the stacking lip to enable this material.</p>}
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <MaterialColorSwatch
@@ -1736,9 +1565,7 @@ export function BinControlsPanel({
               </div>
             </div>
             <div className="flex items-center justify-between gap-3">
-              <Label htmlFor="input-stacking-rim-thickness" className="text-[11px]">
-                Color thickness
-              </Label>
+              <SettingLabel label="Color thickness" htmlFor="input-stacking-rim-thickness" hint="Accent thickness replaces existing material downward from the original surface; it never adds height to the bin." />
               <div className="flex items-center gap-1.5">
                 <DraftNumberInput
                   id="input-stacking-rim-thickness"
@@ -1764,16 +1591,11 @@ export function BinControlsPanel({
               </div>
             </div>
           </div>
-          <p className="text-[11px] text-muted-foreground">
-            Accent thickness replaces existing material downward from each
-            original surface; it never adds height to the bin.
-          </p>
         </PanelSection>
         <PanelSection id="bin-settings-view" title="View" icon={Eye} tone="amber" defaultOpen={section !== null} summary={section ? "Cut open" : "Whole bin"}>
-          <p className="text-xs text-muted-foreground">These controls only change the preview. Exports always contain the complete bin.</p>
           <FeatureSwitch
             label="Cut the preview open"
-            description="Slice the 3D view to inspect pockets"
+            description="Slice the 3D view to inspect pockets. These controls only change the preview; exports always contain the complete bin."
             checked={section !== null}
             onChange={(on) =>
               onSectionChange(on ? { axis: "x", offsetMm: 0 } : null)
@@ -1821,17 +1643,12 @@ export function BinControlsPanel({
         </PanelSection>
 
         <PanelSection id="bin-settings-fit" title="Check fit" icon={ClipboardCheck} tone="emerald" defaultOpen={false} summary="Thin templates">
-          <p className="text-xs text-muted-foreground">Print a thin template and try the actual tools before printing the full bin.</p>
           <div
             className="space-y-3 rounded-md border border-violet-500/25 bg-violet-500/5 p-2.5"
             data-testid="export-preview-layout"
           >
             <div>
-              <Label className="text-xs">Fit templates and layout</Label>
-              <p className="text-[11px] text-muted-foreground">
-                Lightweight outputs for checking fit or planning a shadow board;
-                these are not the final bin model.
-              </p>
+              <SettingLabel label="Fit templates and layout" hint="Print a thin template and try the actual tools before printing the full bin. These lightweight outputs check fit or plan a shadow board; they are not the final bin model." />
             </div>
 
             {(cutouts.length > 0 || fingerHoles.length > 0) && (
@@ -1840,11 +1657,7 @@ export function BinControlsPanel({
                 data-testid="surface-fit-test-export"
               >
                 <div>
-                  <Label className="text-xs">Complete surface fit test</Label>
-                  <p className="text-[11px] text-muted-foreground">
-                    The bin's full pocket-layout surface as one thin plate,
-                    without its base, wall height, label tab, or stacking lip.
-                  </p>
+                  <SettingLabel label="Complete surface fit test" hint="The bin's full pocket-layout surface as one thin plate, without its base, wall height, label tab, or stacking lip. Checks every pocket opening and independent finger hole together. It does not test cut depth or baseplate fit." />
                 </div>
                 <div className="flex items-center gap-2">
                   <Label className="w-20 shrink-0 text-xs">Thickness</Label>
@@ -1884,21 +1697,14 @@ export function BinControlsPanel({
                   <Download className="mr-1.5 h-3.5 w-3.5" />
                   {exporting ? "Building…" : "Save surface fit test STL"}
                 </Button>
-                <p className="text-[11px] text-muted-foreground">
-                  Checks every pocket opening and independent finger hole together.
-                  It does not test cut depth or baseplate fit.
-                </p>
               </div>
             )}
 
             {selectedCutout && selectedShape ? (
               <div className="space-y-2 border-t pt-2.5">
                 <div>
-                  <Label className="text-xs">Tool fit template</Label>
-                  <p className="text-[11px] text-muted-foreground">
-                    A filled outline of “{selectedShape.name}” without the bin or
-                    finger holes.
-                  </p>
+                  <SettingLabel label="Tool fit template" hint="A filled tool outline without the bin or finger holes. Includes its Trace margin, signed pocket clearance, and outline corner rounding." />
+                  <p className="truncate text-xs font-medium" title={selectedShape.name}>{selectedShape.name}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <Label className="w-20 shrink-0 text-xs">Thickness</Label>
@@ -1931,10 +1737,6 @@ export function BinControlsPanel({
                   <Download className="mr-1.5 h-3.5 w-3.5" />
                   {exporting ? "Building…" : "Save fit template STL"}
                 </Button>
-                <p className="text-[11px] text-muted-foreground">
-                  Includes its Trace margin, extra clearance, and outline corner
-                  round.
-                </p>
               </div>
             ) : cutouts.length > 0 ? (
               <p className="border-t pt-2.5 text-[11px] text-muted-foreground">
@@ -1963,7 +1765,7 @@ export function BinControlsPanel({
 
             {cutouts.length > 0 && (
               <div className="space-y-1.5 border-t pt-2.5">
-                <Label className="text-xs">Shadow-board layout (top view)</Label>
+                <SettingLabel label="Shadow-board layout (top view)" hint="Bin footprint and pocket silhouettes in millimetres, for CNC or laser shadow boards." />
                 <div className="flex gap-2">
                   <Button
                     variant="outline"
@@ -1994,10 +1796,6 @@ export function BinControlsPanel({
                     Layout SVG
                   </Button>
                 </div>
-                <p className="text-[11px] text-muted-foreground">
-                  Bin footprint and pocket silhouettes in millimetres, for CNC
-                  or laser shadow boards.
-                </p>
               </div>
             )}
           </div>
@@ -2027,14 +1825,13 @@ export function BinControlsPanel({
           className="scroll-mt-16"
         >
           <div className="space-y-1">
-            <Label className="text-xs">Model validation</Label>
+            <SettingLabel label="Model validation" hint="Estimate filament weight in your slicer using your infill and wall settings." />
             {stats ? (
               <div className="space-y-1 text-xs text-muted-foreground">
                 <p className="tabular-nums">
                   {stats.triangles.toLocaleString()} triangles ·{" "}
                   {(stats.volumeMm3 / 1000).toFixed(1)} cm³ model volume
                 </p>
-                <p className="text-[11px]">Estimate filament weight in your slicer using your infill and wall settings.</p>
               </div>
             ) : (
               <p className="text-xs text-muted-foreground">
@@ -2056,24 +1853,13 @@ export function BinControlsPanel({
               </p>
             </div>
           ) : null}
-          <div className="space-y-1.5">{issues.map(issueButton)}</div>
-
-          <p className="text-xs text-muted-foreground">
-            You can include an editable project JSON when downloading a model or
-            layout. Select the checkbox in the export dialog to save both files.
-          </p>
 
           <div
             className="space-y-2 rounded-md border border-emerald-500/30 bg-emerald-500/5 p-2.5"
             data-testid="export-final-model"
           >
             <div>
-              <Label className="text-xs">Export printable bin</Label>
-              <p className="text-[11px] text-muted-foreground">
-                {cutouts.length === 0 && fingerHoles.length === 0
-                  ? "Export the solid bin at print quality. Use 3MF to preserve optional material colors."
-                  : "Export the complete bin at print quality. Use 3MF to preserve optional material colors."}
-              </p>
+              <SettingLabel label="Export printable bin" hint="Export the complete bin at print quality. Use 3MF to preserve optional material colors. Select the editable-project checkbox in the export dialog to also save a project JSON with your tools and settings." />
             </div>
             <div className="flex gap-2">
               <Button
@@ -2105,7 +1891,6 @@ export function BinControlsPanel({
               </Button>
             </div>
           </div>
-
 
         </PanelSection>
       </PanelBody>
@@ -2166,10 +1951,10 @@ export function BinControlsPanel({
               selected in Materials.
             </DialogDescription>
           </DialogHeader>
-          {floorMaterialIssues.length > 0 && (
+          {hasFloorMaterialWarning && (
             <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs text-amber-900 dark:text-amber-100" role="status" data-testid="export-floor-color-warning">
               <p className="font-medium">Floor color may show on the underside.</p>
-              <p className="mt-1">Review the pocket warnings in Materials before exporting multiple colors. A shallower pocket or thinner color layer can keep the color inside the bin.</p>
+              <p className="mt-1">Review the warnings on the canvas before exporting multiple colors. A shallower pocket or thinner color layer can keep the color inside the bin.</p>
             </div>
           )}
           <ProjectBackupOption checked={includeThreeMfProject} onChange={setIncludeThreeMfProject} />
@@ -2295,20 +2080,15 @@ function ProjectControls({
         className="rounded-md border bg-muted/40 px-3 py-2"
         data-testid="project-autosave-status"
       >
-        <p className="text-xs font-medium">
-          {!ready
-            ? "Checking for saved projects…"
-            : (currentProjectName ?? "Untitled project")}
-        </p>
-        <p className="mt-0.5 text-[11px] text-muted-foreground">
-          {!ready
-            ? "Project actions will be ready in a moment."
-            : saveStatus === "error"
-              ? "Autosave is unavailable. Download an editable project to keep your work."
-              : activeProjectId
-                ? "Saved automatically in this browser’s Project Library."
-                : "This draft resumes automatically; save it to the library to name it."}
-        </p>
+        <div className="flex items-center gap-1">
+          <p className="min-w-0 truncate text-xs font-medium">
+            {!ready ? "Checking for saved projects…" : (currentProjectName ?? "Untitled project")}
+          </p>
+          {ready && <HelpHint label="project autosave">{activeProjectId
+            ? "Saved automatically in this browser’s Project Library."
+            : "This draft resumes automatically; save it to the library to name it."}</HelpHint>}
+        </div>
+        {saveStatus === "error" && <p className="mt-0.5 text-[11px] text-destructive" role="status">Autosave is unavailable. Download an editable project to keep your work.</p>}
       </div>
 
       <div className="grid grid-cols-2 gap-2">
@@ -2513,7 +2293,7 @@ function ProjectControls({
       </div>
 
       <div className="space-y-1.5 border-t pt-3">
-        <Label className="text-xs">Portable backup</Label>
+        <SettingLabel label="Portable backup" hint="Editable .pocketry.json files preserve tools and settings. STL and 3MF are for printing." />
         <div className="grid grid-cols-2 gap-2">
           <Button
             variant="outline"
@@ -2547,9 +2327,6 @@ function ProjectControls({
             event.target.value = "";
           }}
         />
-        <p className="text-[11px] text-muted-foreground">
-          Editable .pocketry.json files preserve tools and settings. STL and 3MF are for printing.
-        </p>
       </div>
     </>
   );
@@ -2580,25 +2357,25 @@ function CellSlider({
   const step = pitch === "quarter" ? 0.25 : 0.5;
   return (
     <div className="space-y-1.5">
-      <div className="flex items-baseline justify-between">
-        <Label className="text-xs">{label}</Label>
-        <span className="text-xs tabular-nums text-muted-foreground">
-          <DraftNumberInput className="inline-block h-8 w-16" aria-label={`${label} in standard cells`} value={standardCells} min={step} max={MAX_GRID / divisor} step={step} normalize={(value) => Math.round(value / step) * step} onValueChange={(value) => onChange(value, true)} onValueCommit={(value) => onChange(value, false)} /> × 42 mm
+      <SettingLabel label={label} hint={`Standard cells are 42 mm. Outer size includes the 0.5 mm fitting gap. Snaps to ${step * 42} mm grid increments.`} />
+      <div className="flex items-center gap-2">
+        <Slider
+          className="min-w-12 flex-1"
+          value={[standardCells]}
+          onValueChange={([value]) => onChange(value, true)}
+          onValueCommit={([value]) => onChange(value, false)}
+          min={step}
+          max={Math.max(standardCells, maxGridUi(pitch) / divisor)}
+          step={step}
+          aria-label={`${label} in standard Gridfinity cells`}
+        />
+        <span className="flex shrink-0 items-center gap-1 whitespace-nowrap text-xs tabular-nums text-muted-foreground">
+          <DraftNumberInput className="h-8 w-16" aria-label={`${label} in standard cells`} value={standardCells} min={step} max={MAX_GRID} step={step} normalize={(value) => Math.round(value / step) * step} onValueChange={(value) => onChange(value, true)} onValueCommit={(value) => onChange(value, false)} /> × 42 mm
+        </span>
+        <span className="flex shrink-0 items-center gap-1 whitespace-nowrap text-xs tabular-nums">
+          <DraftNumberInput className="h-8 w-20" aria-label={`${label} outer size in millimetres`} value={Number(binFootprintMm(cells, pitch).toFixed(1))} min={step * 42 - 0.5} max={MAX_GRID * 42 - 0.5} step={step * 42} normalize={(value) => Math.round((value + 0.5) / (42 * step)) * 42 * step - 0.5} onValueChange={(value) => onChange((value + 0.5) / 42, true)} onValueCommit={(value) => onChange((value + 0.5) / 42, false)} /> mm
         </span>
       </div>
-      <Label className="flex items-center justify-between text-xs">{label} outer size
-        <span><DraftNumberInput className="inline-block h-8 w-20" aria-label={`${label} outer size in millimetres`} value={Number(binFootprintMm(cells, pitch).toFixed(1))} min={step * 42 - 0.5} max={MAX_GRID / divisor * 42 - 0.5} step={step * 42} normalize={(value) => Math.round((value + 0.5) / (42 * step)) * 42 * step - 0.5} onValueChange={(value) => onChange((value + 0.5) / 42, true)} onValueCommit={(value) => onChange((value + 0.5) / 42, false)} /> mm</span>
-      </Label>
-      <p className="text-[11px] text-muted-foreground">Snaps to {step * 42} mm grid increments.</p>
-      <Slider
-        value={[standardCells]}
-        onValueChange={([value]) => onChange(value, true)}
-        onValueCommit={([value]) => onChange(value, false)}
-        min={step}
-        max={Math.max(standardCells, maxGridUi(pitch) / divisor)}
-        step={step}
-        aria-label={`${label} in standard Gridfinity cells`}
-      />
     </div>
   );
 }
@@ -2610,6 +2387,9 @@ function MmSlider({
   max,
   step,
   hint,
+  hintAsTooltip = true,
+  centered = false,
+  inline = false,
   onChange,
 }: {
   label: string;
@@ -2617,34 +2397,58 @@ function MmSlider({
   min: number;
   max: number;
   step: number;
-  hint?: string;
+  hint?: ReactNode;
+  hintAsTooltip?: boolean;
+  centered?: boolean;
+  /** The enclosing section supplies the visible label; show slider and number together. */
+  inline?: boolean;
   onChange: (value: number, transient: boolean) => void;
 }): JSX.Element {
   const decimalPlaces = Math.max(0, (String(step).split(".")[1] ?? "").length);
   return (
-    <div className="space-y-1.5">
-      <div className="flex items-baseline justify-between">
-        <Label className="text-xs">{label}</Label>
-        <span className="text-xs tabular-nums text-muted-foreground">
-          <DraftNumberInput className="inline-block h-8 w-20" aria-label={`${label} in millimetres`} value={value} displayPrecision={2} min={min} max={max} step={step} onValueChange={(next) => onChange(next, true)} onValueCommit={(next) => onChange(next, false)} /> mm
+    <div className={cn("space-y-1.5", inline && "grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 space-y-0")}>
+      <div className={cn("flex items-baseline justify-between gap-2", inline && "col-start-2 row-start-1")}>
+        {!inline && <div className="flex items-center gap-1">
+          <Label className="text-xs">{label}</Label>
+          {hint && hintAsTooltip && <HelpHint label={label.toLowerCase()}>{hint}</HelpHint>}
+        </div>}
+        <span className="shrink-0 whitespace-nowrap text-xs tabular-nums text-muted-foreground">
+          <DraftNumberInput className="inline-block h-8 w-16" aria-label={`${label} in millimetres`} value={value} displayPrecision={2} min={min} max={max} step={step} onValueChange={(next) => onChange(next, true)} onValueCommit={(next) => onChange(next, false)} /> mm
         </span>
       </div>
-      <Slider
-        value={[value]}
-        onValueChange={([next]) =>
-          onChange(Number(next.toFixed(decimalPlaces)), true)
-        }
-        onValueCommit={([next]) =>
-          onChange(Number(next.toFixed(decimalPlaces)), false)
-        }
-        min={min}
-        max={max}
-        step={step}
-        aria-label={label}
-      />
-      {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
+      <div className={cn("space-y-1.5", inline && "col-start-1 row-start-1 pt-3")}>
+        <Slider
+          centerOrigin={centered}
+          value={[value]}
+          onValueChange={([next]) =>
+            onChange(Number(next.toFixed(decimalPlaces)), true)
+          }
+          onValueCommit={([next]) =>
+            onChange(Number(next.toFixed(decimalPlaces)), false)
+          }
+          min={min}
+          max={max}
+          step={step}
+          aria-label={label}
+        />
+        {centered && <div className="relative flex justify-between text-[10px] tabular-nums text-muted-foreground" aria-hidden="true"><span>{min} · Shrink</span><span className="absolute left-1/2 -translate-x-1/2">0</span><span>Enlarge · +{max}</span></div>}
+      </div>
+      {hint && !hintAsTooltip && <p className="text-[11px] text-muted-foreground">{hint}</p>}
     </div>
   );
+}
+
+/** Field guidance stays beside its label without taking another panel row. */
+function SettingLabel({ label, hint, htmlFor, className }: {
+  label: string;
+  hint?: ReactNode;
+  htmlFor?: string;
+  className?: string;
+}): JSX.Element {
+  return <div className={cn("flex min-w-0 items-center gap-1", className)}>
+    <Label htmlFor={htmlFor} className="text-xs">{label}</Label>
+    {hint && <HelpHint label={label.toLowerCase()}>{hint}</HelpHint>}
+  </div>;
 }
 
 function FeatureSwitch({
@@ -2663,10 +2467,8 @@ function FeatureSwitch({
   return (
     <div className="flex items-center justify-between gap-3">
       <div className="min-w-0">
-        <Label className="text-xs">{label}</Label>
-        {description && (
-          <p className="truncate text-[11px] text-muted-foreground">{description}</p>
-        )}
+        <SettingLabel label={label} hint={disabled ? undefined : description} />
+        {disabled && description && <p className="text-[11px] text-muted-foreground">{description}</p>}
       </div>
       <Switch
         checked={checked}

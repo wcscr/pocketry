@@ -31,7 +31,7 @@ import {
   binFootprintMm,
   gridPitchMm,
 } from "@shared/gridfinity/standard";
-import { MAX_GRID } from "@shared/gridfinity/types";
+import { maxGridCells } from "@shared/gridfinity/types";
 import {
   OUTER_RING,
   type Outline,
@@ -203,15 +203,18 @@ function nearestContourEdge(
   return best;
 }
 
-export function LayoutCanvas(): JSX.Element {
+export function LayoutCanvas({ onEditPocket }: {
+  /** Called on a pocket tap or the explicit edit action, after any drag ends. */
+  onEditPocket?: () => void;
+} = {}): JSX.Element {
   return (
     <CanvasViewport>
-      <LayoutStage />
+      <LayoutStage onEditPocket={onEditPocket} />
     </CanvasViewport>
   );
 }
 
-function LayoutStage(): JSX.Element {
+function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Element {
   const {
     spec,
     cutouts,
@@ -559,7 +562,7 @@ function LayoutStage(): JSX.Element {
       // and an explicit label anchor receive the same lattice translation so
       // their position relative to the retained cells does not jump.
       const normalized = normalizeCustomFootprint(nextCells);
-      if (normalized.gridX > MAX_GRID || normalized.gridY > MAX_GRID) return;
+      if (normalized.gridX > maxGridCells(spec.gridPitch) || normalized.gridY > maxGridCells(spec.gridPitch)) return;
       if (
         footprintTopologyError(
           normalized.gridX,
@@ -803,6 +806,7 @@ function LayoutStage(): JSX.Element {
     const hit = hitCutout(point);
     if (hit) {
       dispatch({ type: "SELECT_CUTOUT", id: hit.id });
+      clickRef.current = { clientX: event.clientX, clientY: event.clientY };
       dragRef.current = {
         kind: "move",
         id: hit.id,
@@ -848,6 +852,8 @@ function LayoutStage(): JSX.Element {
     }
 
     if (drag.kind === "move") {
+      // A tap must not snap or move the pocket, even with slight hand jitter.
+      if (clickRef.current) return;
       let x = point.x - drag.grabOffset.x;
       let y = point.y - drag.grabOffset.y;
       if (!event.altKey) {
@@ -987,6 +993,16 @@ function LayoutStage(): JSX.Element {
           draft.outline,
           drag.operation === "add" ? "Add contour node" : "Move contour node",
         );
+      }
+      return;
+    }
+    if (drag.kind === "move" && click) {
+      // Open properties after a click or tap, leaving drag gestures uninterrupted.
+      if (
+        event.type === "pointerup" &&
+        Math.hypot(event.clientX - click.clientX, event.clientY - click.clientY) <= CLICK_SLOP_PX
+      ) {
+        onEditPocket?.();
       }
       return;
     }
@@ -1609,23 +1625,6 @@ function LayoutStage(): JSX.Element {
         </div>
       ) : null}
 
-      {selected && (editorMode === "placement" || editorMode === "contour") && (
-        <Button
-          className="absolute left-3 top-12 z-30 h-8 shadow-sm"
-          variant={editorMode === "contour" ? "default" : "outline"}
-          size="sm"
-          data-testid="button-layout-edit-contour"
-          onClick={() => {
-            setRulerActive(false);
-            setMeasurementPoints([]);
-            dispatch({ type: "SET_EDITOR_MODE", editorMode: editorMode === "contour" ? "placement" : "contour" });
-          }}
-        >
-          <Spline className="h-4 w-4" />
-          {editorMode === "contour" ? "Finish contour editing" : "Edit Contour"}
-        </Button>
-      )}
-
       <div
         className="absolute right-3 top-12 z-30 flex flex-col overflow-hidden rounded-md border bg-background/90 shadow-sm backdrop-blur"
         data-testid="layout-tool-toolbar"
@@ -1663,6 +1662,24 @@ function LayoutStage(): JSX.Element {
         >
           <Ruler className="h-4 w-4" />
         </Button>
+        {selected && (editorMode === "placement" || editorMode === "contour") && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className={cn("h-9 w-9 rounded-none border-t", editorMode === "contour" && "bg-accent text-accent-foreground")}
+            aria-label={editorMode === "contour" ? "Finish contour editing" : "Edit contour"}
+            aria-pressed={editorMode === "contour"}
+            title={editorMode === "contour" ? "Finish contour editing" : "Edit contour"}
+            data-testid="button-layout-edit-contour"
+            onClick={() => {
+              setRulerActive(false);
+              setMeasurementPoints([]);
+              dispatch({ type: "SET_EDITOR_MODE", editorMode: editorMode === "contour" ? "placement" : "contour" });
+            }}
+          >
+            <Spline className="h-4 w-4" />
+          </Button>
+        )}
         {measurementPoints.length > 0 ? (
           <Button
             variant="ghost"
@@ -1713,7 +1730,7 @@ function LayoutStage(): JSX.Element {
           : selectedFingerHoleId
             ? "Finger hole · drag moves · white handle resizes · arrows nudge · Del removes"
             : selectedCutoutId
-              ? "Pocket · drag edges/corners to resize · Option resizes from centre · round handle rotates"
+              ? "Pocket · drag edges/corners to resize · Option resizes from center · round handle rotates"
               : "Click a pocket or finger hole to select · Shift-drag pans · Ctrl-scroll zooms"}
       </div>
     </>
