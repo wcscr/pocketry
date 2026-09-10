@@ -17,7 +17,7 @@ export function PositionInputs({ position, onChange }: {
   onChange: (position: { x: number; y: number }, transient: boolean) => void;
 }): JSX.Element {
   return <div className="space-y-1.5">
-    <div className="flex items-center gap-1"><p className="text-xs font-medium">Position from bin centre (mm)</p><HelpHint label="pocket position">Positive X is right; positive Y is up.</HelpHint></div>
+    <div className="flex items-center gap-1"><p className="text-xs font-medium">Position from bin center (mm)</p><HelpHint label="pocket position">Positive X is right; positive Y is up.</HelpHint></div>
     <div className="grid grid-cols-2 gap-2">{(["x", "y"] as const).map((axis) => <Label key={axis} className="flex min-w-0 items-center gap-2 text-xs">
       {axis.toUpperCase()}
       <DraftNumberInput aria-label={`${axis.toUpperCase()} position in millimetres`} className="h-8 min-w-0" value={position[axis]} displayPrecision={2} step={0.5}
@@ -59,8 +59,8 @@ export function PocketMeasurements({ cutout, shape, children }: {
         {children}
         <PositionInputs position={cutout.position} onChange={updatePosition} />
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => updatePosition({ ...cutout.position, x: cutout.position.x - (bounds.minX + bounds.maxX) / 2 })}>Centre X</Button>
-          <Button variant="outline" size="sm" onClick={() => updatePosition({ ...cutout.position, y: cutout.position.y - (bounds.minY + bounds.maxY) / 2 })}>Centre Y</Button>
+          <Button variant="outline" size="sm" onClick={() => updatePosition({ ...cutout.position, x: cutout.position.x - (bounds.minX + bounds.maxX) / 2 })}>Center X</Button>
+          <Button variant="outline" size="sm" onClick={() => updatePosition({ ...cutout.position, y: cutout.position.y - (bounds.minY + bounds.maxY) / 2 })}>Center Y</Button>
         </div>
         {cutouts.length > 1 && <details className="space-y-2 text-xs">
           <summary className="cursor-pointer">Space beside another pocket <HelpHint label="pocket spacing">Gap between opening bounds, including top rounding.</HelpHint></summary>

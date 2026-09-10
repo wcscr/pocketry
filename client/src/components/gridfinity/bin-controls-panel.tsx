@@ -1031,7 +1031,14 @@ export function BinControlsPanel({
               </PocketMeasurements>
               <details className="group/clearance border-t pt-1 text-xs" data-testid="pocket-clearance-settings">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-2 py-2 font-medium [&::-webkit-details-marker]:hidden">
-                  Extra pocket clearance
+                  <span className="flex items-center gap-1">Extra pocket clearance
+                    <HelpHint label="extra pocket clearance">
+                      Adjusts each edge after the Trace margin and scaling. Negative values shrink the pocket to reduce excess padding; positive values enlarge it. Zero keeps the traced size. Narrow features can disappear when shrunk.
+                      <span className="mt-1 block">{selectedShape.traceMarginMm === undefined
+                        ? `Original trace margin unknown (older project). Extra allowance: ${selectedCutout.clearanceMm.toFixed(2)} mm per edge.`
+                        : `Trace margin: ${selectedShape.traceMarginMm.toFixed(2)} mm per edge before scaling. Nominal total allowance X/Y: ${(selectedShape.traceMarginMm * selectedCutout.scaleX + selectedCutout.clearanceMm).toFixed(2)} / ${(selectedShape.traceMarginMm * selectedCutout.scaleY + selectedCutout.clearanceMm).toFixed(2)} mm per edge.`}</span>
+                    </HelpHint>
+                  </span>
                   <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/clearance:rotate-180" />
                 </summary>
                 <div className="space-y-2 pb-2" key={selectedCutout.id}>
@@ -1039,6 +1046,7 @@ export function BinControlsPanel({
                     label="Extra pocket clearance"
                     value={selectedCutout.clearanceMm}
                     centered
+                    inline
                     min={-2}
                     max={2}
                     step={0.1}
@@ -1051,13 +1059,6 @@ export function BinControlsPanel({
                         transient,
                       })
                     }
-                    hintAsTooltip
-                    hint={<>
-                      Adjusts each edge after the Trace margin and scaling. Negative values shrink the pocket to reduce excess padding; positive values enlarge it. Zero keeps the traced size. Narrow features can disappear when shrunk.
-                      <span className="mt-1 block">{selectedShape.traceMarginMm === undefined
-                        ? `Original trace margin unknown (older project). Extra allowance: ${selectedCutout.clearanceMm.toFixed(2)} mm per edge.`
-                        : `Trace margin: ${selectedShape.traceMarginMm.toFixed(2)} mm per edge before scaling. Nominal total allowance X/Y: ${(selectedShape.traceMarginMm * selectedCutout.scaleX + selectedCutout.clearanceMm).toFixed(2)} / ${(selectedShape.traceMarginMm * selectedCutout.scaleY + selectedCutout.clearanceMm).toFixed(2)} mm per edge.`}</span>
-                    </>}
                   />
                 </div>
               </details>
@@ -2391,6 +2392,7 @@ function MmSlider({
   hint,
   hintAsTooltip = true,
   centered = false,
+  inline = false,
   onChange,
 }: {
   label: string;
@@ -2401,35 +2403,39 @@ function MmSlider({
   hint?: ReactNode;
   hintAsTooltip?: boolean;
   centered?: boolean;
+  /** The enclosing section supplies the visible label; show slider and number together. */
+  inline?: boolean;
   onChange: (value: number, transient: boolean) => void;
 }): JSX.Element {
   const decimalPlaces = Math.max(0, (String(step).split(".")[1] ?? "").length);
   return (
-    <div className="space-y-1.5">
-      <div className="flex items-baseline justify-between gap-2">
-        <div className="flex items-center gap-1">
+    <div className={cn("space-y-1.5", inline && "grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 space-y-0")}>
+      <div className={cn("flex items-baseline justify-between gap-2", inline && "col-start-2 row-start-1")}>
+        {!inline && <div className="flex items-center gap-1">
           <Label className="text-xs">{label}</Label>
           {hint && hintAsTooltip && <HelpHint label={label.toLowerCase()}>{hint}</HelpHint>}
-        </div>
+        </div>}
         <span className="shrink-0 whitespace-nowrap text-xs tabular-nums text-muted-foreground">
           <DraftNumberInput className="inline-block h-8 w-16" aria-label={`${label} in millimetres`} value={value} displayPrecision={2} min={min} max={max} step={step} onValueChange={(next) => onChange(next, true)} onValueCommit={(next) => onChange(next, false)} /> mm
         </span>
       </div>
-      <Slider
-        centerOrigin={centered}
-        value={[value]}
-        onValueChange={([next]) =>
-          onChange(Number(next.toFixed(decimalPlaces)), true)
-        }
-        onValueCommit={([next]) =>
-          onChange(Number(next.toFixed(decimalPlaces)), false)
-        }
-        min={min}
-        max={max}
-        step={step}
-        aria-label={label}
-      />
-      {centered && <div className="relative flex justify-between text-[10px] tabular-nums text-muted-foreground" aria-hidden="true"><span>{min} · Shrink</span><span className="absolute left-1/2 -translate-x-1/2">0</span><span>Enlarge · +{max}</span></div>}
+      <div className={cn("space-y-1.5", inline && "col-start-1 row-start-1 pt-3")}>
+        <Slider
+          centerOrigin={centered}
+          value={[value]}
+          onValueChange={([next]) =>
+            onChange(Number(next.toFixed(decimalPlaces)), true)
+          }
+          onValueCommit={([next]) =>
+            onChange(Number(next.toFixed(decimalPlaces)), false)
+          }
+          min={min}
+          max={max}
+          step={step}
+          aria-label={label}
+        />
+        {centered && <div className="relative flex justify-between text-[10px] tabular-nums text-muted-foreground" aria-hidden="true"><span>{min} · Shrink</span><span className="absolute left-1/2 -translate-x-1/2">0</span><span>Enlarge · +{max}</span></div>}
+      </div>
       {hint && !hintAsTooltip && <p className="text-[11px] text-muted-foreground">{hint}</p>}
     </div>
   );
