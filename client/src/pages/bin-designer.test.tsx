@@ -725,8 +725,9 @@ describe("BinDesignerPage", () => {
       expect(size.textContent).toContain("3 × 5 × 5.5u");
       expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toMatchObject({ gridX: 12, gridY: 20, gridPitch: "quarter" });
       const input = (label: string) => container.querySelector<HTMLInputElement>(`[aria-label="${label}"]`)!;
-      expect(input("Width outer size in millimetres").value).toBe("125.5");
-      expect(input("Length outer size in millimetres").value).toBe("209.5");
+      expect(input("Width in standard cells").value).toBe("3");
+      expect(input("Length in standard cells").value).toBe("5");
+      expect(size.textContent).toContain("Outer size 125.5 × 209.5 × 42.1 mm");
 
       const length = input("Length in standard cells");
       React.act(() => length.focus());
@@ -737,7 +738,7 @@ describe("BinDesignerPage", () => {
       React.act(() => length.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
       expect(size.textContent).toContain("3 × 5.25 × 5.5u");
       expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toMatchObject({ gridX: 12, gridY: 21, gridPitch: "quarter" });
-      expect(input("Length outer size in millimetres").value).toBe("220");
+      expect(size.textContent).toContain("Outer size 125.5 × 220.0 × 42.1 mm");
     } finally {
       unmount();
     }
@@ -761,8 +762,7 @@ describe("BinDesignerPage", () => {
     });
 
     const sizeSection = container.querySelector("#bin-settings-size");
-    expect(container.querySelector<HTMLInputElement>('[aria-label="Width outer size in millimetres"]')?.value).toBe("62.5");
-    expect(container.querySelector<HTMLInputElement>('[aria-label="Length outer size in millimetres"]')?.value).toBe("83.5");
+    expect(sizeSection?.textContent).toContain("Outer size 62.5 × 83.5 × 45.6 mm");
     expect(sizeSection?.textContent).toContain("1.5 × 2 × 6u");
     expect(
       container.querySelector('[data-testid="select-grid-pitch"]')?.textContent,
