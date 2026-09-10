@@ -209,6 +209,19 @@ describe("buildBin", () => {
     expect(box.max[2]).toBeCloseTo(42, 9);
   });
 
+  it("builds a 3 by 5 standard-cell bin with 12 by 20 quarter sockets", () => {
+    const { solid } = buildBin(kernel, spec({
+      gridX: 12, gridY: 20, gridPitch: "quarter", heightUnits: 5.5, fill: "solid",
+    }), PREVIEW_QUALITY);
+    expect(solid.status()).toBe("NoError");
+    expect(solid.genus()).toBe(0);
+    const box = solid.boundingBox();
+    expect(box.max[0] - box.min[0]).toBeCloseTo(125.5, 9);
+    expect(box.max[1] - box.min[1]).toBeCloseTo(209.5, 9);
+    expect(box.min[2]).toBeCloseTo(0, 9);
+    expect(box.max[2]).toBeCloseTo(38.5 + STACKING_LIP_HEIGHT_ACTUAL, 6);
+  });
+
   it("2×3×6 empty bin with lip: exact bbox and inclusion–exclusion volume", () => {
     const { parts, solid } = buildBin(kernel, spec(), QUALITY);
     expect(solid.status()).toBe("NoError");

@@ -707,6 +707,41 @@ describe("BinDesignerPage", () => {
     unmount();
   });
 
+  it("switches a 3 by 5 bin to quarter pitch and edits beyond 16 small cells", async () => {
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({
+      ...EMPTY_PROJECT,
+      spec: parseBinSpec({ gridX: 6, gridY: 10, gridPitch: "half", heightUnits: 5.5 }),
+    });
+    const { container, unmount } = renderPage();
+    await flushHydration();
+    try {
+      const trigger = container.querySelector<HTMLButtonElement>('[data-testid="select-grid-pitch"]')!;
+      React.act(() => trigger.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true })));
+      const option = Array.from(document.querySelectorAll<HTMLElement>('[role="option"]')).find((node) => node.textContent === "Quarter · 10.5 mm")!;
+      expect(option).toBeDefined();
+      expect(option.getAttribute("aria-disabled")).not.toBe("true");
+      React.act(() => option.click());
+      const size = container.querySelector("#bin-settings-size")!;
+      expect(size.textContent).toContain("3 × 5 × 5.5u");
+      expect(size.textContent).toContain("240 of 240 quarter-pitch cells occupied");
+      const input = (label: string) => container.querySelector<HTMLInputElement>(`[aria-label="${label}"]`)!;
+      expect(input("Width outer size in millimetres").value).toBe("125.5");
+      expect(input("Length outer size in millimetres").value).toBe("209.5");
+
+      const length = input("Length in standard cells");
+      React.act(() => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(length, "5.25");
+        length.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      React.act(() => length.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+      expect(size.textContent).toContain("3 × 5.25 × 5.5u");
+      expect(size.textContent).toContain("252 of 252 quarter-pitch cells occupied");
+      expect(input("Length outer size in millimetres").value).toBe("220");
+    } finally {
+      unmount();
+    }
+  });
+
   it("sets width, length, and height in half-unit increments", async () => {
     const { container, unmount } = renderPage();
     await flushHydration();

@@ -44,6 +44,12 @@ const VALID = {
 };
 
 describe("parseProjectDoc", () => {
+  it("round-trips a 3 by 5 standard-cell bin at quarter pitch", () => {
+    const doc = parseProjectDoc({ ...VALID, spec: { ...VALID.spec, gridX: 12, gridY: 20, gridPitch: "quarter" } });
+    expect(doc?.spec).toMatchObject({ gridX: 12, gridY: 20, gridPitch: "quarter" });
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(doc)))).toEqual(doc);
+  });
+
   it("migrates the complete New Airduster Layout without changing any saved geometry or settings", () => {
     const original = JSON.stringify(airdusterV9);
     const doc = parseProjectDoc(airdusterV9);

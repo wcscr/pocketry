@@ -31,7 +31,7 @@ import {
   binFootprintMm,
   gridPitchMm,
 } from "@shared/gridfinity/standard";
-import { MAX_GRID } from "@shared/gridfinity/types";
+import { maxGridCells } from "@shared/gridfinity/types";
 import {
   OUTER_RING,
   type Outline,
@@ -562,7 +562,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
       // and an explicit label anchor receive the same lattice translation so
       // their position relative to the retained cells does not jump.
       const normalized = normalizeCustomFootprint(nextCells);
-      if (normalized.gridX > MAX_GRID || normalized.gridY > MAX_GRID) return;
+      if (normalized.gridX > maxGridCells(spec.gridPitch) || normalized.gridY > maxGridCells(spec.gridPitch)) return;
       if (
         footprintTopologyError(
           normalized.gridX,

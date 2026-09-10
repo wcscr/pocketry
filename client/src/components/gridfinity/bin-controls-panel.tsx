@@ -45,7 +45,7 @@ import {
   standardCellSpan,
   type GridPitch,
 } from "@shared/gridfinity/standard";
-import { MAX_GRID, type BinSpecInput } from "@shared/gridfinity/types";
+import { MAX_GRID, maxGridCells, type BinSpecInput } from "@shared/gridfinity/types";
 import type { ValidationIssue } from "@shared/gridfinity/validate";
 
 import {
@@ -114,7 +114,7 @@ import { useShapeLibrary } from "@/state/shape-library";
 const MAX_HEIGHT_UNITS_UI = 12;
 /** Slider ceiling: at most eight full cells, within the schema hard cap. */
 const maxGridUi = (pitch: GridPitch): number =>
-  Math.min(MAX_GRID, 8 * GRID_PITCH_DIVISOR[pitch]);
+  Math.min(maxGridCells(pitch), 8 * GRID_PITCH_DIVISOR[pitch]);
 
 const formatUnitCount = (value: number): string =>
   Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/0$/, "");
@@ -367,7 +367,7 @@ export function BinControlsPanel({
     transient: boolean,
   ) => {
     const resized = resizeGridToStandardCellSpan(spec, axis, span);
-    if (resized.gridX > MAX_GRID || resized.gridY > MAX_GRID) return;
+    if (resized.gridX > maxGridCells(resized.gridPitch) || resized.gridY > maxGridCells(resized.gridPitch)) return;
     const promotedToFractionalPitch =
       resized.gridPitch !== spec.gridPitch && resized.gridPitch !== "full";
     patchSpec(
@@ -509,7 +509,7 @@ export function BinControlsPanel({
               onValueChange={(value) => {
                 const gridPitch = value as GridPitch;
                 const resized = changeGridPitchPreservingSize(spec, gridPitch);
-                if (!resized || resized.gridX > MAX_GRID || resized.gridY > MAX_GRID || spec.footprint.kind !== "rectangle") return;
+                if (!resized || resized.gridX > maxGridCells(gridPitch) || resized.gridY > maxGridCells(gridPitch) || spec.footprint.kind !== "rectangle") return;
                 patchSpec({
                   ...resized,
                   ...(gridPitch === "full"
@@ -528,7 +528,7 @@ export function BinControlsPanel({
               <SelectContent>
                 {(["full", "half", "quarter"] as const).map((pitch) => {
                   const resized = changeGridPitchPreservingSize(spec, pitch);
-                  const available = resized && resized.gridX <= MAX_GRID && resized.gridY <= MAX_GRID && spec.footprint.kind === "rectangle";
+                  const available = resized && resized.gridX <= maxGridCells(pitch) && resized.gridY <= maxGridCells(pitch) && spec.footprint.kind === "rectangle";
                   return <SelectItem key={pitch} value={pitch} disabled={!available}>{pitch === "full" ? "Full · 42 mm" : pitch === "half" ? "Half · 21 mm" : "Quarter · 10.5 mm"}{!available ? " (size incompatible)" : ""}</SelectItem>;
                 })}
               </SelectContent>
@@ -695,6 +695,13 @@ export function BinControlsPanel({
             </>
           )}
 
+          <FeatureSwitch
+            label="Flat bottom"
+            description="Smooth underside; no Gridfinity base."
+            checked={spec.flatBottom}
+            onChange={(flatBottom) => patchSpec({ flatBottom })}
+          />
+
           <div className="space-y-2 border-t pt-3">
             <div className="flex items-center gap-2">
               <SettingLabel label="Label tab" hint="A sloped shelf under the rim for labelling the bin." className="shrink-0" />
@@ -768,12 +775,6 @@ export function BinControlsPanel({
               </div>
             )}
           </div>
-          <FeatureSwitch
-            label="Flat bottom"
-            description="Smooth underside; no Gridfinity base."
-            checked={spec.flatBottom}
-            onChange={(flatBottom) => patchSpec({ flatBottom })}
-          />
         </PanelSection>
 
         {/* Keyed on emptiness: defaultOpen is uncontrolled, and the section
@@ -2363,12 +2364,12 @@ function CellSlider({
       <div className="flex items-baseline justify-between gap-2">
         <Label className="text-xs">{label}</Label>
         <span className="text-xs tabular-nums text-muted-foreground">
-          <DraftNumberInput className="inline-block h-8 w-16" aria-label={`${label} in standard cells`} value={standardCells} min={step} max={MAX_GRID / divisor} step={step} normalize={(value) => Math.round(value / step) * step} onValueChange={(value) => onChange(value, true)} onValueCommit={(value) => onChange(value, false)} /> × 42 mm
+          <DraftNumberInput className="inline-block h-8 w-16" aria-label={`${label} in standard cells`} value={standardCells} min={step} max={MAX_GRID} step={step} normalize={(value) => Math.round(value / step) * step} onValueChange={(value) => onChange(value, true)} onValueCommit={(value) => onChange(value, false)} /> × 42 mm
         </span>
       </div>
       <div className="flex items-center justify-between gap-2 text-xs">
         <SettingLabel label={`${label} outer size`} hint={`Snaps to ${step * 42} mm grid increments.`} />
-        <span className="shrink-0 whitespace-nowrap"><DraftNumberInput className="inline-block h-8 w-20" aria-label={`${label} outer size in millimetres`} value={Number(binFootprintMm(cells, pitch).toFixed(1))} min={step * 42 - 0.5} max={MAX_GRID / divisor * 42 - 0.5} step={step * 42} normalize={(value) => Math.round((value + 0.5) / (42 * step)) * 42 * step - 0.5} onValueChange={(value) => onChange((value + 0.5) / 42, true)} onValueCommit={(value) => onChange((value + 0.5) / 42, false)} /> mm</span>
+        <span className="shrink-0 whitespace-nowrap"><DraftNumberInput className="inline-block h-8 w-20" aria-label={`${label} outer size in millimetres`} value={Number(binFootprintMm(cells, pitch).toFixed(1))} min={step * 42 - 0.5} max={MAX_GRID * 42 - 0.5} step={step * 42} normalize={(value) => Math.round((value + 0.5) / (42 * step)) * 42 * step - 0.5} onValueChange={(value) => onChange((value + 0.5) / 42, true)} onValueCommit={(value) => onChange((value + 0.5) / 42, false)} /> mm</span>
       </div>
       <Slider
         value={[standardCells]}

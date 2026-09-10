@@ -35,6 +35,8 @@ processing, project storage, and model generation kept on the user's device.
   It starts as a compact count with a gentle pulse every four seconds until expanded
   (unless reduced motion is enabled). Errors still block export.
 - Configure full-, half-, and quarter-pitch bins and export STL or 3MF models.
+  All pitches support the same maximum outer size of 671.5 mm per axis
+  (16 full, 32 half, or 64 quarter cells), so finer pitch does not shrink the size allowance.
 - Model, fit-test, and outline export dialogs include an optional, unchecked
   `.pocketry.json` download. Bin exports preserve the full design; Trace exports
   preserve the calibrated outline as an editable pocket in a new Bin project.

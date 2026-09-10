@@ -15,7 +15,7 @@ import {
   STACKING_LIP_DEPTH,
   type GridPitch,
 } from "@shared/gridfinity/standard";
-import { MAX_GRID, type BinSpec } from "@shared/gridfinity/types";
+import { maxGridCells, type BinSpec } from "@shared/gridfinity/types";
 import {
   canonicalCells,
   cellCenterMm,
@@ -139,10 +139,11 @@ function shapeTargets(shapes: readonly TracedShape[]): PackTarget[] {
 }
 
 /** Candidate grids ordered by cell count, then by squareness. */
-function gridCandidates(minX = 1, minY = 1): { gridX: number; gridY: number }[] {
+function gridCandidates(gridPitch: GridPitch = "full", minX = 1, minY = 1): { gridX: number; gridY: number }[] {
   const candidates: { gridX: number; gridY: number }[] = [];
-  for (let gx = minX; gx <= MAX_GRID; gx++) {
-    for (let gy = minY; gy <= MAX_GRID; gy++) {
+  const maximum = maxGridCells(gridPitch);
+  for (let gx = minX; gx <= maximum; gx++) {
+    for (let gy = minY; gy <= maximum; gy++) {
       candidates.push({ gridX: gx, gridY: gy });
     }
   }
@@ -190,7 +191,7 @@ export interface AutoPlaceResult {
   cutouts: CutoutPlacement[];
   gridX: number;
   gridY: number;
-  /** True when nothing fit even at MAX_GRID; placements are still returned. */
+  /** True when nothing fit at the maximum physical span; placements are still returned. */
   overflow: boolean;
 }
 
@@ -210,7 +211,7 @@ export function autoPlaceFresh(
   const byId = new Map(shapes.map((shape) => [shape.id, shape]));
   const targets = shapeTargets(shapes);
 
-  for (const grid of gridCandidates()) {
+  for (const grid of gridCandidates(gridPitch)) {
     const interior = interiorMm(grid, inset, gridPitch);
     if (interior.widthMm <= 0 || interior.heightMm <= 0) continue;
     const block = shelfPack(targets, interior.widthMm);
@@ -224,16 +225,17 @@ export function autoPlaceFresh(
     }
   }
 
-  // Nothing fits even at MAX_GRID: return the biggest bin and let the
+  // Nothing fits at the maximum span: return the biggest bin and let the
   // validation rules paint the problem rather than silently dropping shapes.
+  const maximum = maxGridCells(gridPitch);
   const block = shelfPack(
     targets,
-    interiorMm({ gridX: MAX_GRID, gridY: MAX_GRID }, inset, gridPitch).widthMm,
+    interiorMm({ gridX: maximum, gridY: maximum }, inset, gridPitch).widthMm,
   );
   return {
     cutouts: block.items.map((item) => toPlacement(item, byId, 0, 0)),
-    gridX: MAX_GRID,
-    gridY: MAX_GRID,
+    gridX: maximum,
+    gridY: maximum,
     overflow: true,
   };
 }
@@ -333,7 +335,7 @@ export function autoPlaceIncremental(
   const byId = new Map(shapes.map((shape) => [shape.id, shape]));
   const targets = shapeTargets(shapes);
 
-  for (const grid of options.keepBinSize ? [options] : gridCandidates(options.gridX, options.gridY)) {
+  for (const grid of options.keepBinSize ? [options] : gridCandidates(options.gridPitch, options.gridX, options.gridY)) {
     const interior = interiorMm(grid, inset, options.gridPitch);
     const halfW = interior.widthMm / 2;
     const halfH = interior.heightMm / 2;
@@ -375,7 +377,7 @@ export function autoPlaceIncremental(
   const cx = occupied.maxX + ITEM_GAP_MM + block.widthMm / 2;
   return {
     cutouts: block.items.map((item) => toPlacement(item, byId, cx, 0)),
-    gridX: options.keepBinSize ? options.gridX : MAX_GRID,
+    gridX: options.keepBinSize ? options.gridX : maxGridCells(options.gridPitch),
     gridY: Math.max(options.gridY, 1),
     overflow: true,
   };
@@ -417,11 +419,12 @@ export function fitLayoutToPlacements(
   const halfWNeeded = (bounds.maxX - bounds.minX) / 2 + inset;
   const halfHNeeded = (bounds.maxY - bounds.minY) / 2 + inset;
 
+  const maximum = maxGridCells(gridPitch);
   const fit = (halfNeeded: number): number => {
-    for (let cells = 1; cells <= MAX_GRID; cells++) {
+    for (let cells = 1; cells <= maximum; cells++) {
       if (binFootprintMm(cells, gridPitch) / 2 >= halfNeeded) return cells;
     }
-    return MAX_GRID;
+    return maximum;
   };
   return {
     cutouts: cutouts.map((cutout) => ({
@@ -676,7 +679,7 @@ export function autoArrangeLayout(
       };
     });
 
-  for (const grid of fixedGrid ? [fixedGrid] : gridCandidates()) {
+  for (const grid of fixedGrid ? [fixedGrid] : gridCandidates(gridPitch)) {
     const interior = interiorMm(grid, inset, gridPitch);
     if (interior.widthMm <= 0 || interior.heightMm <= 0) continue;
     if (!containsFixedHoles(interior.widthMm, interior.heightMm)) continue;
@@ -710,14 +713,15 @@ export function autoArrangeLayout(
     }
   }
 
+  const maximum = maxGridCells(gridPitch);
   const block = shelfPack(
     targets,
-    interiorMm(fixedGrid ?? { gridX: MAX_GRID, gridY: MAX_GRID }, inset, gridPitch).widthMm,
+    interiorMm(fixedGrid ?? { gridX: maximum, gridY: maximum }, inset, gridPitch).widthMm,
   );
   return {
     cutouts: placeBlock(block),
-    gridX: fixedGrid?.gridX ?? MAX_GRID,
-    gridY: fixedGrid?.gridY ?? MAX_GRID,
+    gridX: fixedGrid?.gridX ?? maximum,
+    gridY: fixedGrid?.gridY ?? maximum,
     overflow: true,
   };
 }
