@@ -503,7 +503,7 @@ export function BinControlsPanel({
           className="scroll-mt-16"
         >
           <div className="flex items-center gap-2">
-            <Label className="w-16 shrink-0 text-xs">Grid pitch</Label>
+            <SettingLabel label="Grid pitch" hint="Pitch changes preserve the outer size. A coarser pitch needs whole cells; custom footprints keep their current pitch." className="shrink-0" />
             <Select
               value={spec.gridPitch}
               onValueChange={(value) => {
@@ -534,7 +534,6 @@ export function BinControlsPanel({
               </SelectContent>
             </Select>
           </div>
-          <p className="text-[11px] text-muted-foreground">Pitch changes preserve the outer size. A coarser pitch needs whole cells; custom footprints keep their current pitch.</p>
           <FeatureSwitch label="Keep bin size fixed" description="Adding tools keeps these dimensions. Tools that do not fit stay visible for adjustment." checked={keepBinSize} onChange={(fixed) => onKeepBinSizeChange?.(fixed)} />
           {spec.footprint.kind === "rectangle" ? (
             <>
@@ -562,7 +561,7 @@ export function BinControlsPanel({
             </div>
           )}
           <div className="space-y-1.5">
-            <div className="flex items-baseline justify-between">
+            <div className="flex items-baseline justify-between gap-2">
               <Label className="text-xs">Height</Label>
               <span className="text-xs tabular-nums text-muted-foreground">
                 <DraftNumberInput className="inline-block h-8 w-20" aria-label="Bin height in units" value={spec.heightUnits} min={1} max={MAX_HEIGHT_UNITS_UI} step={0.5} normalize={(value) => Math.round(value * 2) / 2} onValueChange={(heightUnits) => patchSpec({ heightUnits }, true)} onValueCommit={(heightUnits) => patchSpec({ heightUnits })} /> u · {spec.heightUnits * 7} mm
@@ -704,7 +703,7 @@ export function BinControlsPanel({
 
           <div className="space-y-2 border-t pt-3">
             <div className="flex items-center gap-2">
-              <Label className="w-16 shrink-0 text-xs">Label tab</Label>
+              <SettingLabel label="Label tab" hint="A sloped shelf under the rim for labelling the bin." className="shrink-0" />
               <Select
                 value={spec.labelTab?.width ?? "none"}
                 onValueChange={(width) =>
@@ -774,9 +773,6 @@ export function BinControlsPanel({
                 </Button>
               </div>
             )}
-            <p className="text-[11px] text-muted-foreground">
-              A sloped shelf under the rim for labelling the bin.
-            </p>
           </div>
         </PanelSection>
 
@@ -849,6 +845,27 @@ export function BinControlsPanel({
               <div className="flex min-w-0 items-center gap-2 border-b border-violet-500/20 pb-2" data-testid="pocket-properties-heading">
                 <h3 className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-violet-700 dark:text-violet-300">Pocket properties</h3>
                 <span className="min-w-0 truncate text-xs font-medium" title={selectedShape.name}>{selectedShape.name}</span>
+                <Button
+                  variant={editorMode === "contour" ? "default" : "outline"}
+                  size="sm"
+                  className="ml-auto h-7 shrink-0 gap-1 px-1.5 text-[10px]"
+                  aria-label={editorMode === "contour" ? "Finish contour editing" : "Edit contour"}
+                  aria-pressed={editorMode === "contour"}
+                  data-testid="button-edit-contour"
+                  onClick={() => {
+                    const editing = editorMode === "contour";
+                    dispatch({
+                      type: "SET_EDITOR_MODE",
+                      editorMode: editing ? "placement" : "contour",
+                    });
+                    if (!editing) {
+                      dispatch({ type: "SET_VIEW_MODE", viewMode: "2d" });
+                    }
+                  }}
+                >
+                  <Spline className="h-3 w-3" />
+                  {editorMode === "contour" ? "Done" : "Edit contour"}
+                </Button>
               </div>
               <section className="space-y-2" aria-label="Pocket depth" key={selectedCutout.id}>
                 <div className="flex items-center gap-1">
@@ -924,7 +941,8 @@ export function BinControlsPanel({
                   <MmSlider
                     label="Extra pocket clearance"
                     value={selectedCutout.clearanceMm}
-                    min={0}
+                    centered
+                    min={-2}
                     max={2}
                     step={0.1}
                     onChange={(clearanceMm, transient) =>
@@ -938,7 +956,7 @@ export function BinControlsPanel({
                     }
                     hintAsTooltip
                     hint={<>
-                      Added after the Trace margin; new pockets start at 0 mm.
+                      Adjusts each edge after the Trace margin and scaling. Negative values shrink the pocket to reduce excess padding; positive values enlarge it. Zero keeps the traced size. Narrow features can disappear when shrunk.
                       <span className="mt-1 block">{selectedShape.traceMarginMm === undefined
                         ? `Original trace margin unknown (older project). Extra allowance: ${selectedCutout.clearanceMm.toFixed(2)} mm per edge.`
                         : `Trace margin: ${selectedShape.traceMarginMm.toFixed(2)} mm per edge before scaling. Nominal total allowance X/Y: ${(selectedShape.traceMarginMm * selectedCutout.scaleX + selectedCutout.clearanceMm).toFixed(2)} / ${(selectedShape.traceMarginMm * selectedCutout.scaleY + selectedCutout.clearanceMm).toFixed(2)} mm per edge.`}</span>
@@ -954,25 +972,7 @@ export function BinControlsPanel({
                 </summary>
                 <div className="space-y-3 pt-2" key={selectedCutout.id}>
                   <MmSlider
-                    label="Outline corners"
-                    value={selectedCutout.cornerRoundMm}
-                    min={0}
-                    max={3}
-                    step={0.5}
-                    onChange={(cornerRoundMm, transient) =>
-                      dispatch({
-                        type: "UPDATE_CUTOUT",
-                        id: selectedCutout.id,
-                        patch: { cornerRoundMm },
-                        historyLabel: "Change outline corner round",
-                        transient,
-                      })
-                    }
-                    hintAsTooltip
-                    hint="Rounds sharp corners in the pocket outline from top to bottom."
-                  />
-                  <MmSlider
-                    label="Top edge"
+                    label="Top edge rounding"
                     value={selectedCutout.topFilletMm}
                     min={0}
                     max={5}
@@ -990,7 +990,7 @@ export function BinControlsPanel({
                     hint="Rounds the pocket wall into the top surface of the bin."
                   />
                   <MmSlider
-                    label="Bottom edge"
+                    label="Bottom edge fillet"
                     value={selectedCutout.bottomFilletMm}
                     min={0}
                     max={4}
@@ -1006,6 +1006,24 @@ export function BinControlsPanel({
                     }
                     hintAsTooltip
                     hint="Rounds the wall into the floor; the transition ends one radius above the floor."
+                  />
+                  <MmSlider
+                    label="Outline corner rounding"
+                    value={selectedCutout.cornerRoundMm}
+                    min={0}
+                    max={3}
+                    step={0.5}
+                    onChange={(cornerRoundMm, transient) =>
+                      dispatch({
+                        type: "UPDATE_CUTOUT",
+                        id: selectedCutout.id,
+                        patch: { cornerRoundMm },
+                        historyLabel: "Change outline corner round",
+                        transient,
+                      })
+                    }
+                    hintAsTooltip
+                    hint="Rounds sharp corners in the pocket outline from top to bottom."
                   />
 
                 </div>
@@ -1044,25 +1062,6 @@ export function BinControlsPanel({
                 </div>
 
               </PocketMeasurements>
-              <Button
-                variant={editorMode === "contour" ? "default" : "outline"}
-                size="sm"
-                className="w-full"
-                data-testid="button-edit-contour"
-                onClick={() => {
-                  const editing = editorMode === "contour";
-                  dispatch({
-                    type: "SET_EDITOR_MODE",
-                    editorMode: editing ? "placement" : "contour",
-                  });
-                  if (!editing) {
-                    dispatch({ type: "SET_VIEW_MODE", viewMode: "2d" });
-                  }
-                }}
-              >
-                <Spline className="mr-1.5 h-3.5 w-3.5" />
-                {editorMode === "contour" ? "Finish contour editing" : "Edit contour"}
-              </Button>
               {editorMode === "contour" && (
                 <p className="rounded-md bg-violet-500/10 px-2.5 py-2 text-[11px] text-violet-800 dark:text-violet-200">
                   Drag points to reshape. Click an edge to add a point; right-click a
@@ -1092,11 +1091,8 @@ export function BinControlsPanel({
           className="scroll-mt-16"
         >
           <div className="space-y-3">
-            <div className="flex items-start justify-between gap-3 rounded-md border border-violet-500/25 bg-violet-500/10 px-2.5 py-2">
-              <p className="text-[11px] text-violet-900 dark:text-violet-100">
-                Finger holes are independent layout objects. Select, move, resize,
-                or remove one without changing a tool pocket.
-              </p>
+            <div className="flex items-center justify-between gap-3">
+              <SettingLabel label="Finger holes" hint="Finger holes are independent layout objects. Select, move, resize, or remove one without changing a tool pocket. Drag a hole to move it and its white size handle to resize it; oblong holes also have two end handles for length and angle." />
               <Button
                 variant="outline"
                 size="sm"
@@ -1466,11 +1462,6 @@ export function BinControlsPanel({
                     hint="Rounds the straight wall into its flat floor."
                   />
                 )}
-                <p className="text-[11px] text-muted-foreground">
-                  Drag the shape to move it. Drag the white size handle to change
-                  diameter; oblong holes also have two end handles for length and
-                  angle.
-                </p>
               </div>
             )}
           </div>
@@ -1490,12 +1481,7 @@ export function BinControlsPanel({
             data-testid="view-color-row-bin"
           >
             <div className="min-w-0">
-              <Label htmlFor="input-bin-color" className="text-xs">
-                Bin body
-              </Label>
-              <p className="truncate text-[11px] text-muted-foreground">
-                Main preview and 3MF material
-              </p>
+              <SettingLabel label="Bin body" htmlFor="input-bin-color" hint="Main preview and 3MF material." />
             </div>
             <MaterialColorSwatch
               id="input-bin-color"
@@ -1510,10 +1496,7 @@ export function BinControlsPanel({
           >
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <Label className="text-xs">Pocket floors</Label>
-                <p className="truncate text-[11px] text-muted-foreground">
-                  Separate material below blind-pocket surfaces
-                </p>
+                <SettingLabel label="Pocket floors" hint="Separate material below blind-pocket surfaces." />
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <MaterialColorSwatch
@@ -1531,9 +1514,7 @@ export function BinControlsPanel({
               </div>
             </div>
             <div className="flex items-center justify-between gap-3">
-              <Label htmlFor="input-pocket-floor-thickness" className="text-[11px]">
-                Color thickness
-              </Label>
+              <SettingLabel label="Color thickness" htmlFor="input-pocket-floor-thickness" hint="Accent thickness replaces existing material downward from the original surface; it never adds height to the bin." />
               <div className="flex items-center gap-1.5">
                 <DraftNumberInput
                   id="input-pocket-floor-thickness"
@@ -1566,12 +1547,8 @@ export function BinControlsPanel({
           >
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <Label className="text-xs">Stacking rim top</Label>
-                <p className="truncate text-[11px] text-muted-foreground">
-                  {spec.lip === "standard"
-                    ? "Separate material below the original rim surface"
-                    : "Turn on the stacking lip to enable this material"}
-                </p>
+                <SettingLabel label="Stacking rim top" hint="Separate material below the original rim surface." />
+                {spec.lip !== "standard" && <p className="text-[11px] text-muted-foreground">Turn on the stacking lip to enable this material.</p>}
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <MaterialColorSwatch
@@ -1590,9 +1567,7 @@ export function BinControlsPanel({
               </div>
             </div>
             <div className="flex items-center justify-between gap-3">
-              <Label htmlFor="input-stacking-rim-thickness" className="text-[11px]">
-                Color thickness
-              </Label>
+              <SettingLabel label="Color thickness" htmlFor="input-stacking-rim-thickness" hint="Accent thickness replaces existing material downward from the original surface; it never adds height to the bin." />
               <div className="flex items-center gap-1.5">
                 <DraftNumberInput
                   id="input-stacking-rim-thickness"
@@ -1618,16 +1593,11 @@ export function BinControlsPanel({
               </div>
             </div>
           </div>
-          <p className="text-[11px] text-muted-foreground">
-            Accent thickness replaces existing material downward from each
-            original surface; it never adds height to the bin.
-          </p>
         </PanelSection>
         <PanelSection id="bin-settings-view" title="View" icon={Eye} tone="amber" defaultOpen={section !== null} summary={section ? "Cut open" : "Whole bin"}>
-          <p className="text-xs text-muted-foreground">These controls only change the preview. Exports always contain the complete bin.</p>
           <FeatureSwitch
             label="Cut the preview open"
-            description="Slice the 3D view to inspect pockets"
+            description="Slice the 3D view to inspect pockets. These controls only change the preview; exports always contain the complete bin."
             checked={section !== null}
             onChange={(on) =>
               onSectionChange(on ? { axis: "x", offsetMm: 0 } : null)
@@ -1675,17 +1645,12 @@ export function BinControlsPanel({
         </PanelSection>
 
         <PanelSection id="bin-settings-fit" title="Check fit" icon={ClipboardCheck} tone="emerald" defaultOpen={false} summary="Thin templates">
-          <p className="text-xs text-muted-foreground">Print a thin template and try the actual tools before printing the full bin.</p>
           <div
             className="space-y-3 rounded-md border border-violet-500/25 bg-violet-500/5 p-2.5"
             data-testid="export-preview-layout"
           >
             <div>
-              <Label className="text-xs">Fit templates and layout</Label>
-              <p className="text-[11px] text-muted-foreground">
-                Lightweight outputs for checking fit or planning a shadow board;
-                these are not the final bin model.
-              </p>
+              <SettingLabel label="Fit templates and layout" hint="Print a thin template and try the actual tools before printing the full bin. These lightweight outputs check fit or plan a shadow board; they are not the final bin model." />
             </div>
 
             {(cutouts.length > 0 || fingerHoles.length > 0) && (
@@ -1694,11 +1659,7 @@ export function BinControlsPanel({
                 data-testid="surface-fit-test-export"
               >
                 <div>
-                  <Label className="text-xs">Complete surface fit test</Label>
-                  <p className="text-[11px] text-muted-foreground">
-                    The bin's full pocket-layout surface as one thin plate,
-                    without its base, wall height, label tab, or stacking lip.
-                  </p>
+                  <SettingLabel label="Complete surface fit test" hint="The bin's full pocket-layout surface as one thin plate, without its base, wall height, label tab, or stacking lip. Checks every pocket opening and independent finger hole together. It does not test cut depth or baseplate fit." />
                 </div>
                 <div className="flex items-center gap-2">
                   <Label className="w-20 shrink-0 text-xs">Thickness</Label>
@@ -1738,21 +1699,14 @@ export function BinControlsPanel({
                   <Download className="mr-1.5 h-3.5 w-3.5" />
                   {exporting ? "Building…" : "Save surface fit test STL"}
                 </Button>
-                <p className="text-[11px] text-muted-foreground">
-                  Checks every pocket opening and independent finger hole together.
-                  It does not test cut depth or baseplate fit.
-                </p>
               </div>
             )}
 
             {selectedCutout && selectedShape ? (
               <div className="space-y-2 border-t pt-2.5">
                 <div>
-                  <Label className="text-xs">Tool fit template</Label>
-                  <p className="text-[11px] text-muted-foreground">
-                    A filled outline of “{selectedShape.name}” without the bin or
-                    finger holes.
-                  </p>
+                  <SettingLabel label="Tool fit template" hint="A filled tool outline without the bin or finger holes. Includes its Trace margin, signed pocket clearance, and outline corner rounding." />
+                  <p className="truncate text-xs font-medium" title={selectedShape.name}>{selectedShape.name}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <Label className="w-20 shrink-0 text-xs">Thickness</Label>
@@ -1785,10 +1739,6 @@ export function BinControlsPanel({
                   <Download className="mr-1.5 h-3.5 w-3.5" />
                   {exporting ? "Building…" : "Save fit template STL"}
                 </Button>
-                <p className="text-[11px] text-muted-foreground">
-                  Includes its Trace margin, extra clearance, and outline corner
-                  round.
-                </p>
               </div>
             ) : cutouts.length > 0 ? (
               <p className="border-t pt-2.5 text-[11px] text-muted-foreground">
@@ -1817,7 +1767,7 @@ export function BinControlsPanel({
 
             {cutouts.length > 0 && (
               <div className="space-y-1.5 border-t pt-2.5">
-                <Label className="text-xs">Shadow-board layout (top view)</Label>
+                <SettingLabel label="Shadow-board layout (top view)" hint="Bin footprint and pocket silhouettes in millimetres, for CNC or laser shadow boards." />
                 <div className="flex gap-2">
                   <Button
                     variant="outline"
@@ -1848,10 +1798,6 @@ export function BinControlsPanel({
                     Layout SVG
                   </Button>
                 </div>
-                <p className="text-[11px] text-muted-foreground">
-                  Bin footprint and pocket silhouettes in millimetres, for CNC
-                  or laser shadow boards.
-                </p>
               </div>
             )}
           </div>
@@ -1881,14 +1827,13 @@ export function BinControlsPanel({
           className="scroll-mt-16"
         >
           <div className="space-y-1">
-            <Label className="text-xs">Model validation</Label>
+            <SettingLabel label="Model validation" hint="Estimate filament weight in your slicer using your infill and wall settings." />
             {stats ? (
               <div className="space-y-1 text-xs text-muted-foreground">
                 <p className="tabular-nums">
                   {stats.triangles.toLocaleString()} triangles ·{" "}
                   {(stats.volumeMm3 / 1000).toFixed(1)} cm³ model volume
                 </p>
-                <p className="text-[11px]">Estimate filament weight in your slicer using your infill and wall settings.</p>
               </div>
             ) : (
               <p className="text-xs text-muted-foreground">
@@ -1911,22 +1856,12 @@ export function BinControlsPanel({
             </div>
           ) : null}
 
-          <p className="text-xs text-muted-foreground">
-            You can include an editable project JSON when downloading a model or
-            layout. Select the checkbox in the export dialog to save both files.
-          </p>
-
           <div
             className="space-y-2 rounded-md border border-emerald-500/30 bg-emerald-500/5 p-2.5"
             data-testid="export-final-model"
           >
             <div>
-              <Label className="text-xs">Export printable bin</Label>
-              <p className="text-[11px] text-muted-foreground">
-                {cutouts.length === 0 && fingerHoles.length === 0
-                  ? "Export the solid bin at print quality. Use 3MF to preserve optional material colors."
-                  : "Export the complete bin at print quality. Use 3MF to preserve optional material colors."}
-              </p>
+              <SettingLabel label="Export printable bin" hint="Export the complete bin at print quality. Use 3MF to preserve optional material colors. Select the editable-project checkbox in the export dialog to also save a project JSON with your tools and settings." />
             </div>
             <div className="flex gap-2">
               <Button
@@ -2147,20 +2082,15 @@ function ProjectControls({
         className="rounded-md border bg-muted/40 px-3 py-2"
         data-testid="project-autosave-status"
       >
-        <p className="text-xs font-medium">
-          {!ready
-            ? "Checking for saved projects…"
-            : (currentProjectName ?? "Untitled project")}
-        </p>
-        <p className="mt-0.5 text-[11px] text-muted-foreground">
-          {!ready
-            ? "Project actions will be ready in a moment."
-            : saveStatus === "error"
-              ? "Autosave is unavailable. Download an editable project to keep your work."
-              : activeProjectId
-                ? "Saved automatically in this browser’s Project Library."
-                : "This draft resumes automatically; save it to the library to name it."}
-        </p>
+        <div className="flex items-center gap-1">
+          <p className="min-w-0 truncate text-xs font-medium">
+            {!ready ? "Checking for saved projects…" : (currentProjectName ?? "Untitled project")}
+          </p>
+          {ready && <HelpHint label="project autosave">{activeProjectId
+            ? "Saved automatically in this browser’s Project Library."
+            : "This draft resumes automatically; save it to the library to name it."}</HelpHint>}
+        </div>
+        {saveStatus === "error" && <p className="mt-0.5 text-[11px] text-destructive" role="status">Autosave is unavailable. Download an editable project to keep your work.</p>}
       </div>
 
       <div className="grid grid-cols-2 gap-2">
@@ -2365,7 +2295,7 @@ function ProjectControls({
       </div>
 
       <div className="space-y-1.5 border-t pt-3">
-        <Label className="text-xs">Portable backup</Label>
+        <SettingLabel label="Portable backup" hint="Editable .pocketry.json files preserve tools and settings. STL and 3MF are for printing." />
         <div className="grid grid-cols-2 gap-2">
           <Button
             variant="outline"
@@ -2399,9 +2329,6 @@ function ProjectControls({
             event.target.value = "";
           }}
         />
-        <p className="text-[11px] text-muted-foreground">
-          Editable .pocketry.json files preserve tools and settings. STL and 3MF are for printing.
-        </p>
       </div>
     </>
   );
@@ -2432,16 +2359,16 @@ function CellSlider({
   const step = pitch === "quarter" ? 0.25 : 0.5;
   return (
     <div className="space-y-1.5">
-      <div className="flex items-baseline justify-between">
+      <div className="flex items-baseline justify-between gap-2">
         <Label className="text-xs">{label}</Label>
         <span className="text-xs tabular-nums text-muted-foreground">
           <DraftNumberInput className="inline-block h-8 w-16" aria-label={`${label} in standard cells`} value={standardCells} min={step} max={MAX_GRID / divisor} step={step} normalize={(value) => Math.round(value / step) * step} onValueChange={(value) => onChange(value, true)} onValueCommit={(value) => onChange(value, false)} /> × 42 mm
         </span>
       </div>
-      <Label className="flex items-center justify-between text-xs">{label} outer size
-        <span><DraftNumberInput className="inline-block h-8 w-20" aria-label={`${label} outer size in millimetres`} value={Number(binFootprintMm(cells, pitch).toFixed(1))} min={step * 42 - 0.5} max={MAX_GRID / divisor * 42 - 0.5} step={step * 42} normalize={(value) => Math.round((value + 0.5) / (42 * step)) * 42 * step - 0.5} onValueChange={(value) => onChange((value + 0.5) / 42, true)} onValueCommit={(value) => onChange((value + 0.5) / 42, false)} /> mm</span>
-      </Label>
-      <p className="text-[11px] text-muted-foreground">Snaps to {step * 42} mm grid increments.</p>
+      <div className="flex items-center justify-between gap-2 text-xs">
+        <SettingLabel label={`${label} outer size`} hint={`Snaps to ${step * 42} mm grid increments.`} />
+        <span className="shrink-0 whitespace-nowrap"><DraftNumberInput className="inline-block h-8 w-20" aria-label={`${label} outer size in millimetres`} value={Number(binFootprintMm(cells, pitch).toFixed(1))} min={step * 42 - 0.5} max={MAX_GRID / divisor * 42 - 0.5} step={step * 42} normalize={(value) => Math.round((value + 0.5) / (42 * step)) * 42 * step - 0.5} onValueChange={(value) => onChange((value + 0.5) / 42, true)} onValueCommit={(value) => onChange((value + 0.5) / 42, false)} /> mm</span>
+      </div>
       <Slider
         value={[standardCells]}
         onValueChange={([value]) => onChange(value, true)}
@@ -2462,7 +2389,8 @@ function MmSlider({
   max,
   step,
   hint,
-  hintAsTooltip = false,
+  hintAsTooltip = true,
+  centered = false,
   onChange,
 }: {
   label: string;
@@ -2472,21 +2400,23 @@ function MmSlider({
   step: number;
   hint?: ReactNode;
   hintAsTooltip?: boolean;
+  centered?: boolean;
   onChange: (value: number, transient: boolean) => void;
 }): JSX.Element {
   const decimalPlaces = Math.max(0, (String(step).split(".")[1] ?? "").length);
   return (
     <div className="space-y-1.5">
-      <div className="flex items-baseline justify-between">
+      <div className="flex items-baseline justify-between gap-2">
         <div className="flex items-center gap-1">
           <Label className="text-xs">{label}</Label>
           {hint && hintAsTooltip && <HelpHint label={label.toLowerCase()}>{hint}</HelpHint>}
         </div>
-        <span className="text-xs tabular-nums text-muted-foreground">
-          <DraftNumberInput className="inline-block h-8 w-20" aria-label={`${label} in millimetres`} value={value} displayPrecision={2} min={min} max={max} step={step} onValueChange={(next) => onChange(next, true)} onValueCommit={(next) => onChange(next, false)} /> mm
+        <span className="shrink-0 whitespace-nowrap text-xs tabular-nums text-muted-foreground">
+          <DraftNumberInput className="inline-block h-8 w-16" aria-label={`${label} in millimetres`} value={value} displayPrecision={2} min={min} max={max} step={step} onValueChange={(next) => onChange(next, true)} onValueCommit={(next) => onChange(next, false)} /> mm
         </span>
       </div>
       <Slider
+        centerOrigin={centered}
         value={[value]}
         onValueChange={([next]) =>
           onChange(Number(next.toFixed(decimalPlaces)), true)
@@ -2499,9 +2429,23 @@ function MmSlider({
         step={step}
         aria-label={label}
       />
+      {centered && <div className="relative flex justify-between text-[10px] tabular-nums text-muted-foreground" aria-hidden="true"><span>{min} · Shrink</span><span className="absolute left-1/2 -translate-x-1/2">0</span><span>Enlarge · +{max}</span></div>}
       {hint && !hintAsTooltip && <p className="text-[11px] text-muted-foreground">{hint}</p>}
     </div>
   );
+}
+
+/** Field guidance stays beside its label without taking another panel row. */
+function SettingLabel({ label, hint, htmlFor, className }: {
+  label: string;
+  hint?: ReactNode;
+  htmlFor?: string;
+  className?: string;
+}): JSX.Element {
+  return <div className={cn("flex min-w-0 items-center gap-1", className)}>
+    <Label htmlFor={htmlFor} className="text-xs">{label}</Label>
+    {hint && <HelpHint label={label.toLowerCase()}>{hint}</HelpHint>}
+  </div>;
 }
 
 function FeatureSwitch({
@@ -2520,10 +2464,8 @@ function FeatureSwitch({
   return (
     <div className="flex items-center justify-between gap-3">
       <div className="min-w-0">
-        <Label className="text-xs">{label}</Label>
-        {description && (
-          <p className="truncate text-[11px] text-muted-foreground">{description}</p>
-        )}
+        <SettingLabel label={label} hint={disabled ? undefined : description} />
+        {disabled && description && <p className="text-[11px] text-muted-foreground">{description}</p>}
       </div>
       <Switch
         checked={checked}

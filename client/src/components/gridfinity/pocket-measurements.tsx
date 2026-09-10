@@ -154,10 +154,10 @@ export function PocketSizeInputs({ cutout, shape, setScale }: {
               <DraftNumberInput
                 className="h-8 min-w-0"
                 aria-label={`Pocket ${axis === "x" ? "width" : "length"} in millimetres`}
-                value={extent * scale + 2 * cutout.clearanceMm}
+                value={Math.max(0, extent * scale + 2 * cutout.clearanceMm)}
                 displayPrecision={2}
-                min={extent * 0.05 + 2 * cutout.clearanceMm}
-                max={extent * 20 + 2 * cutout.clearanceMm}
+                min={Math.max(0, extent * 0.05 + 2 * cutout.clearanceMm)}
+                max={Math.max(0, extent * 20 + 2 * cutout.clearanceMm)}
                 step={0.1}
                 onValueChange={(value) => setScale(axis, (value - 2 * cutout.clearanceMm) / extent * 100)}
               />

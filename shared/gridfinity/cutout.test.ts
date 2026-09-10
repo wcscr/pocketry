@@ -78,6 +78,16 @@ describe("cutout schemas", () => {
     });
   });
 
+  it("accepts signed clearance but rejects adjustments outside the supported range", () => {
+    const base = { id: "c1", shapeId: "s1", position: { x: 0, y: 0 } };
+    for (const clearanceMm of [-5, -0.5, 0, 0.5, 5]) {
+      expect(parseCutoutPlacement({ ...base, clearanceMm }).clearanceMm).toBe(clearanceMm);
+    }
+    for (const clearanceMm of [-5.1, 5.1, NaN, Infinity, -Infinity]) {
+      expect(() => parseCutoutPlacement({ ...base, clearanceMm })).toThrow();
+    }
+  });
+
   it("rejects unknown keys and malformed outlines", () => {
     expect(() =>
       cutoutPlacementSchema.parse({

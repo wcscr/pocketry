@@ -17,6 +17,7 @@ import {
   effectiveScoopDepthMm,
   fingerHoleFootprintRing,
   placementFootprint,
+  pocketLayoutAllowanceMm,
   resolvePocketDepth,
   signedDistanceToInterior,
   type CutoutPlacement,
@@ -422,7 +423,7 @@ function validateAgainstBin(spec: BinSpec, p: PlacedCutout): ValidationIssue[] {
       : Math.min(...feature.map((point) => signedDistanceToInterior(point, spec)));
     if (d < minDistFeature) minDistFeature = d;
   }
-  const outlineAllowance = cutout.clearanceMm + cutout.topFilletMm;
+  const outlineAllowance = pocketLayoutAllowanceMm(cutout);
   const wallMargin = Math.min(minDistOutline - outlineAllowance, minDistFeature);
 
   if (wallMargin < 0) {
@@ -628,10 +629,7 @@ function segmentsIntersect(a1: Point, a2: Point, b1: Point, b2: Point): boolean 
 
 function validatePair(a: PlacedCutout, b: PlacedCutout): ValidationIssue | null {
   const edgeAllowance =
-    a.cutout.clearanceMm +
-    a.cutout.topFilletMm +
-    b.cutout.clearanceMm +
-    b.cutout.topFilletMm;
+    pocketLayoutAllowanceMm(a.cutout) + pocketLayoutAllowanceMm(b.cutout);
   const warnGap = edgeAllowance + D_DIV;
 
   // Cheap reject: bboxes further apart than the warning threshold.

@@ -362,7 +362,7 @@ function BinDesignerWorkspace(): JSX.Element {
         );
         toast({
           title: "Pocket vanished",
-          description: `“${shape?.name ?? "A pocket"}” collapsed under its clearance/corner settings — reduce corner rounding.`,
+          description: `“${shape?.name ?? "A pocket"}” collapsed under its clearance/corner settings — increase clearance toward zero or reduce outline corner rounding.`,
           variant: "destructive",
         });
       }

@@ -65,6 +65,13 @@ describe("parseProjectDoc", () => {
     expect(parseProjectDoc(JSON.parse(JSON.stringify(doc)))).toEqual(doc);
     expect(doc!.shapes[0].traceMarginMm).toBe(0.5);
   });
+  it("round-trips negative pocket clearance without changing the saved trace", () => {
+    const doc = parseProjectDoc({ ...VALID, cutouts: [{ ...VALID.cutouts[0], clearanceMm: -0.7 }] });
+    expect(doc?.cutouts[0].clearanceMm).toBe(-0.7);
+    expect(doc?.shapes[0].outlineMm).toEqual(VALID.shapes[0].outlineMm);
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(doc)))).toEqual(doc);
+  });
+
   it("round-trips a valid document", () => {
     const doc = parseProjectDoc(VALID);
     expect(doc).not.toBeNull();

@@ -1,4 +1,4 @@
-import type { TracedShape } from "@shared/gridfinity/cutout";
+import { parseCutoutPlacement, type TracedShape } from "@shared/gridfinity/cutout";
 import { parseBinSpec } from "@shared/gridfinity/types";
 import { validateLayout } from "@shared/gridfinity/validate";
 import { describe, expect, it } from "vitest";
@@ -44,6 +44,17 @@ describe("placementInsetMm", () => {
 });
 
 describe("autoPlaceFresh", () => {
+  it("preserves inward clearance and valid packing bounds for a very narrow pocket", () => {
+    const shape = rectShape("thin", 30, 0.8);
+    const cutout = parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 0, y: 0 }, clearanceMm: -2 });
+    const byId = new Map([[shape.id, shape]]);
+    const result = autoArrangeLayout([cutout], byId, "none");
+    const unshrunk = autoArrangeLayout([{ ...cutout, clearanceMm: 0 }], byId, "none");
+    expect(result).not.toBeNull();
+    expect(result!.cutouts[0].clearanceMm).toBe(-2);
+    expect({ ...result, cutouts: result!.cutouts.map((item) => ({ ...item, clearanceMm: 0 })) }).toEqual(unshrunk);
+  });
+
   it("keeps a fixed bin and retains oversized arrivals for manual adjustment", () => {
     const shape = rectShape("large", 150, 100);
     const result = autoPlaceIncremental([shape], { lip: "standard", gridX: 2, gridY: 2,

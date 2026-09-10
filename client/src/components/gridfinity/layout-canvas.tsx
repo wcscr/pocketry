@@ -1625,25 +1625,6 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
         </div>
       ) : null}
 
-      {selected && (editorMode === "placement" || editorMode === "contour") && (
-        <div className="absolute left-3 top-12 z-30 flex max-w-[calc(100%_-_5rem)] flex-wrap gap-2">
-          <Button
-            className="h-8 shadow-sm"
-            variant={editorMode === "contour" ? "default" : "outline"}
-            size="sm"
-            data-testid="button-layout-edit-contour"
-            onClick={() => {
-              setRulerActive(false);
-              setMeasurementPoints([]);
-              dispatch({ type: "SET_EDITOR_MODE", editorMode: editorMode === "contour" ? "placement" : "contour" });
-            }}
-          >
-            <Spline className="h-4 w-4" />
-            {editorMode === "contour" ? "Finish contour editing" : "Edit Contour"}
-          </Button>
-        </div>
-      )}
-
       <div
         className="absolute right-3 top-12 z-30 flex flex-col overflow-hidden rounded-md border bg-background/90 shadow-sm backdrop-blur"
         data-testid="layout-tool-toolbar"
@@ -1681,6 +1662,24 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
         >
           <Ruler className="h-4 w-4" />
         </Button>
+        {selected && (editorMode === "placement" || editorMode === "contour") && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className={cn("h-9 w-9 rounded-none border-t", editorMode === "contour" && "bg-accent text-accent-foreground")}
+            aria-label={editorMode === "contour" ? "Finish contour editing" : "Edit contour"}
+            aria-pressed={editorMode === "contour"}
+            title={editorMode === "contour" ? "Finish contour editing" : "Edit contour"}
+            data-testid="button-layout-edit-contour"
+            onClick={() => {
+              setRulerActive(false);
+              setMeasurementPoints([]);
+              dispatch({ type: "SET_EDITOR_MODE", editorMode: editorMode === "contour" ? "placement" : "contour" });
+            }}
+          >
+            <Spline className="h-4 w-4" />
+          </Button>
+        )}
         {measurementPoints.length > 0 ? (
           <Button
             variant="ghost"

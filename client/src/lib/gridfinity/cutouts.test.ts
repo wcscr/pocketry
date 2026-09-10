@@ -377,6 +377,30 @@ describe("buildBinWithCutouts", () => {
     expect(Math.abs(removed - area * 5) / (area * 5)).toBeLessThan(1e-4);
   });
 
+  it("negative clearance shrinks each edge after scaling, preserving the source outline", () => {
+    const shape = rectShape("s1", 30, 10);
+    const original = structuredClone(shape);
+    const plain = buildBin(kernel, SPEC, QUALITY);
+    const pocketed = buildBinWithCutouts(kernel, SPEC, layoutFor([shape], [cutout("c1", "s1", {
+      scaleX: 1.5, scaleY: 2, clearanceMm: -0.5, depth: { mode: "mm", value: 5 },
+    })]), QUALITY);
+    expect(pocketed.solid.status()).toBe("NoError");
+    expect(plain.solid.volume() - pocketed.solid.volume()).toBeCloseTo((45 - 1) * (20 - 1) * 5, 4);
+    expect(pocketed.cutoutReports).toEqual([{ id: "c1", emptied: false }]);
+    expect(shape).toEqual(original);
+  });
+
+  it("reports a pocket erased by negative clearance without producing an invalid solid", () => {
+    const sliver = rectShape("s1", 30, 0.8);
+    const plain = buildBin(kernel, SPEC, QUALITY);
+    const pocketed = buildBinWithCutouts(kernel, SPEC, layoutFor([sliver], [cutout("c1", "s1", {
+      clearanceMm: -0.5,
+    })]), QUALITY);
+    expect(pocketed.cutoutReports).toEqual([{ id: "c1", emptied: true }]);
+    expect(pocketed.solid.status()).toBe("NoError");
+    expect(pocketed.solid.volume()).toBeCloseTo(plain.solid.volume(), 6);
+  });
+
   it("outline corner rounding removes sharp plan-view corners", () => {
     const shape = rectShape("s1", 30, 10);
     const plain = buildBin(kernel, SPEC, QUALITY);

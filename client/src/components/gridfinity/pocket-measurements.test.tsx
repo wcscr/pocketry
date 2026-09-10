@@ -71,6 +71,15 @@ describe("pocket measurements", () => {
     expect(store.cutouts[0].position.x).toBe(0);
   });
 
+  it("subtracts inward clearance from physical size and never displays a negative dimension", () => {
+    React.act(() => store.dispatch({ type: "UPDATE_CUTOUT", id: "pocket", patch: { clearanceMm: -0.5 } }));
+    expect(host.querySelector<HTMLInputElement>('[aria-label="Pocket width in millimetres"]')!.value).toBe("35");
+    enter("Pocket width in millimetres", "39");
+    expect(scale.mock.lastCall).toEqual(["x", 100]);
+    React.act(() => store.dispatch({ type: "UPDATE_CUTOUT", id: "pocket", patch: { clearanceMm: -2, scaleX: 0.05 } }));
+    expect(host.querySelector<HTMLInputElement>('[aria-label="Pocket width in millimetres"]')!.value).toBe("0");
+  });
+
   it("shows physical size and the geometry kernel's depth reference", () => {
     expect(host.querySelector<HTMLInputElement>('[aria-label="Pocket width in millimetres"]')!.value).toBe("37");
     const resolved = resolvePocketDepth(store.spec, store.cutouts[0].depth);

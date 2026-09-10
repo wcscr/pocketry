@@ -343,7 +343,7 @@ interface CutoutPlacement {
   scaleX: number; scaleY: number; aspectRatioLocked: boolean;
   depth: { mode: 'through' } | { mode: 'mm'; value: number }
        | { mode: 'remaining'; floorThicknessMm: number };
-  clearanceMm: number;      // 0.0 — optional extra after Trace margin
+  clearanceMm: number;      // 0.0 — signed adjustment after scale/Trace margin, -5..5 mm
   cornerRoundMm: number;    // 1.0 — 2D vertical edge round
   topFilletMm: number;      // 0.0 — top-surface pocket-edge round-over
   bottomFilletMm: number;   // 2.8 (r_f2), clamped to depth/2

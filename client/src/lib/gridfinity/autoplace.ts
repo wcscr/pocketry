@@ -3,6 +3,7 @@ import {
   DEFAULT_TOP_EDGE_FILLET_MM,
   fingerHoleFootprintRing,
   placementFootprint,
+  pocketLayoutAllowanceMm,
   type CutoutPlacement,
   type FingerHole,
   type TracedShape,
@@ -264,7 +265,7 @@ function existingBounds(
     const shape = shapesById.get(cutout.shapeId);
     if (!shape) continue;
     const footprint = placementFootprint(shape, cutout);
-    const outlineAllowance = cutout.clearanceMm + cutout.topFilletMm;
+    const outlineAllowance = pocketLayoutAllowanceMm(cutout);
     for (const part of footprint.outline) {
       for (const point of part.outer) includePoint(point, outlineAllowance);
     }
@@ -644,10 +645,10 @@ export function autoArrangeLayout(
     key: item.cutout.id,
     widthMm:
       item.widthMm +
-      2 * (item.cutout.clearanceMm + item.cutout.topFilletMm),
+      2 * pocketLayoutAllowanceMm(item.cutout),
     heightMm:
       item.heightMm +
-      2 * (item.cutout.clearanceMm + item.cutout.topFilletMm),
+      2 * pocketLayoutAllowanceMm(item.cutout),
   }));
   const inset = placementInsetMm(lip);
   const fixedHoleBounds = existingBounds([], shapesById, fingerHoles);

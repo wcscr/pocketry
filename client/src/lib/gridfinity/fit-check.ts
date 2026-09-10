@@ -74,7 +74,7 @@ export function buildFitCheckSolid(
   });
 
   let section = toCrossSection(kernel, normalized);
-  if (cutout.clearanceMm > 0) {
+  if (cutout.clearanceMm !== 0) {
     section = arena.track(
       arena
         .track(section.offset(cutout.clearanceMm, "Round", 2, segments))

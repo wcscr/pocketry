@@ -425,6 +425,28 @@ describe("fit template worker handler", () => {
     expect(result.transfer).toContain(result.value.mesh.indices.buffer);
   });
 
+  it("exports an inward-offset fit template after placement scale", async () => {
+    const result = await getFitCheckHandler()({
+      shape,
+      cutout: { id: "fit-cutout", shapeId: shape.id, position: { x: 40, y: -20 },
+        scaleX: 1.5, scaleY: 0.5, clearanceMm: -0.5, cornerRoundMm: 0 },
+      depthMm: 2.5, quality: { circularSegments: 24, cutoutVertexBudget: 600 },
+    }, context());
+    const xs = Array.from(result.value.mesh.positions).filter((_, index) => index % 3 === 0);
+    expect(Math.min(...xs)).toBeCloseTo(-14.5, 5);
+    expect(Math.max(...xs)).toBeCloseTo(14.5, 5);
+    expect(result.value.stats.volumeMm3).toBeCloseTo(29 * 4 * 2.5, 4);
+  });
+
+  it("rejects a fit template erased by inward clearance", async () => {
+    await expect(getFitCheckHandler()({
+      shape,
+      cutout: { id: "fit-cutout", shapeId: shape.id, position: { x: 0, y: 0 },
+        scaleY: 0.05, clearanceMm: -0.5, cornerRoundMm: 0 },
+      depthMm: 2, quality: { circularSegments: 24 },
+    }, context())).rejects.toThrow("collapsed");
+  });
+
   it("rejects an out-of-range template depth", async () => {
     await expect(
       getFitCheckHandler()(
