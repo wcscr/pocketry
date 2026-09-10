@@ -144,16 +144,17 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
               </li>
               <li>
                 Click a pocket in <strong>Layout</strong> or choose it in
-                <strong> Pockets</strong> to open its properties at the top of
-                the controls. Set its size, depth, and extra clearance there;
-                expand the position or rounding settings for finer adjustments.
+                <strong> Pockets</strong> to open its properties in that section.
+                Set depth first; expand <strong>Size &amp; scale</strong> for dimensions. Expand <strong>Edges &amp; corners</strong>
+                to soften the outline or pocket edges, or <strong>Extra pocket clearance</strong>
+                to add more room around the tool.
                 Extra clearance is added after the Margin chosen on Trace.
                 Use <strong>Finger access</strong> for straight or scoop holes.
                 Warnings appear at the bottom right of the canvas; click a message
                 to open the affected pocket or settings.
               </li>
               <li>
-                Click a selected tool's name to rename it. Use Layout to move,
+                Click the pencil on a pocket’s row to rename it. Use Layout to move,
                 rotate, or edit its contour; the ruler snaps to tool contours
                 and is most accurate in the 2D Layout view.
               </li>

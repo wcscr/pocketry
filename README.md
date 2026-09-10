@@ -17,11 +17,13 @@ processing, project storage, and model generation kept on the user's device.
 - Refine exterior contours and interior holes.
 - Export traced geometry as SVG, DXF, DWG-compatible DXF, or STL.
 - Arrange traced tools as pockets in Gridfinity bins.
-- Click a pocket in Layout or choose it under Pockets to reveal its named editor
-  at the top of the controls. Size, depth, and clearance are immediately available;
-  position, scale, and rounding details stay compact. Use Edit pocket to return
-  from other settings. On phones, tapping opens the controls drawer; dragging
-  keeps the layout available.
+- Pocket properties stay in the Pockets section. Click a pocket on the canvas
+  or choose its row in the compact list to open its settings there. On phones, tapping opens
+  the controls drawer; dragging keeps the layout available.
+  Depth leads; size and scale, extra clearance, edges and corners, and position
+  settings start collapsed. Expand the depth profile to inspect the pocket in 3D.
+  Help icons reveal optional guidance on hover, focus, or tap. Use a pocket row’s
+  pencil to rename it.
 - Model warnings and errors appear in a collapsible panel at the bottom right of
   the Layout and 3D canvas. Click a message to edit the affected pocket or settings.
   It starts as a compact count with a gentle pulse every four seconds until expanded

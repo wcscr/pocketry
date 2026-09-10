@@ -1,6 +1,5 @@
 import {
   Ruler,
-  SlidersHorizontal,
   Spline,
   X,
 } from "lucide-react";
@@ -998,7 +997,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
       return;
     }
     if (drag.kind === "move" && click) {
-      // Selection alone must not create a move in undo history.
+      // Open properties after a click or tap, leaving drag gestures uninterrupted.
       if (
         event.type === "pointerup" &&
         Math.hypot(event.clientX - click.clientX, event.clientY - click.clientY) <= CLICK_SLOP_PX
@@ -1628,11 +1627,6 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
 
       {selected && (editorMode === "placement" || editorMode === "contour") && (
         <div className="absolute left-3 top-12 z-30 flex max-w-[calc(100%_-_5rem)] flex-wrap gap-2">
-          {onEditPocket && (
-            <Button className="h-8 shadow-sm" variant="outline" size="sm" onClick={onEditPocket} data-testid="button-layout-edit-pocket">
-              <SlidersHorizontal className="mr-1.5 h-4 w-4" />Edit pocket
-            </Button>
-          )}
           <Button
             className="h-8 shadow-sm"
             variant={editorMode === "contour" ? "default" : "outline"}
