@@ -932,39 +932,6 @@ export function BinControlsPanel({
                 <div className="pb-2" key={selectedCutout.id}><PocketSizeInputs cutout={selectedCutout} shape={selectedShape} setScale={setPocketScale} /></div>
               </details>
 
-              <details className="group/clearance border-t pt-1 text-xs" data-testid="pocket-clearance-settings">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-2 py-2 font-medium [&::-webkit-details-marker]:hidden">
-                  Extra pocket clearance
-                  <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/clearance:rotate-180" />
-                </summary>
-                <div className="space-y-2 pb-2" key={selectedCutout.id}>
-                  <MmSlider
-                    label="Extra pocket clearance"
-                    value={selectedCutout.clearanceMm}
-                    centered
-                    min={-2}
-                    max={2}
-                    step={0.1}
-                    onChange={(clearanceMm, transient) =>
-                      dispatch({
-                        type: "UPDATE_CUTOUT",
-                        id: selectedCutout.id,
-                        patch: { clearanceMm },
-                        historyLabel: "Change pocket clearance",
-                        transient,
-                      })
-                    }
-                    hintAsTooltip
-                    hint={<>
-                      Adjusts each edge after the Trace margin and scaling. Negative values shrink the pocket to reduce excess padding; positive values enlarge it. Zero keeps the traced size. Narrow features can disappear when shrunk.
-                      <span className="mt-1 block">{selectedShape.traceMarginMm === undefined
-                        ? `Original trace margin unknown (older project). Extra allowance: ${selectedCutout.clearanceMm.toFixed(2)} mm per edge.`
-                        : `Trace margin: ${selectedShape.traceMarginMm.toFixed(2)} mm per edge before scaling. Nominal total allowance X/Y: ${(selectedShape.traceMarginMm * selectedCutout.scaleX + selectedCutout.clearanceMm).toFixed(2)} / ${(selectedShape.traceMarginMm * selectedCutout.scaleY + selectedCutout.clearanceMm).toFixed(2)} mm per edge.`}</span>
-                    </>}
-                  />
-                </div>
-              </details>
-
               <details className="group/more border-t pt-1 text-xs" data-testid="pocket-edge-settings">
                 <summary className="flex cursor-pointer list-none items-center justify-between py-1.5 font-medium [&::-webkit-details-marker]:hidden">
                   <span className="flex items-center gap-1">Edges &amp; corners <HelpHint label="edges and corners">Soften sharp corners and edges. Values are rounding radii in millimetres; 0 keeps an edge sharp.</HelpHint></span>
@@ -1062,6 +1029,39 @@ export function BinControlsPanel({
                 </div>
 
               </PocketMeasurements>
+              <details className="group/clearance border-t pt-1 text-xs" data-testid="pocket-clearance-settings">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-2 py-2 font-medium [&::-webkit-details-marker]:hidden">
+                  Extra pocket clearance
+                  <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/clearance:rotate-180" />
+                </summary>
+                <div className="space-y-2 pb-2" key={selectedCutout.id}>
+                  <MmSlider
+                    label="Extra pocket clearance"
+                    value={selectedCutout.clearanceMm}
+                    centered
+                    min={-2}
+                    max={2}
+                    step={0.1}
+                    onChange={(clearanceMm, transient) =>
+                      dispatch({
+                        type: "UPDATE_CUTOUT",
+                        id: selectedCutout.id,
+                        patch: { clearanceMm },
+                        historyLabel: "Change pocket clearance",
+                        transient,
+                      })
+                    }
+                    hintAsTooltip
+                    hint={<>
+                      Adjusts each edge after the Trace margin and scaling. Negative values shrink the pocket to reduce excess padding; positive values enlarge it. Zero keeps the traced size. Narrow features can disappear when shrunk.
+                      <span className="mt-1 block">{selectedShape.traceMarginMm === undefined
+                        ? `Original trace margin unknown (older project). Extra allowance: ${selectedCutout.clearanceMm.toFixed(2)} mm per edge.`
+                        : `Trace margin: ${selectedShape.traceMarginMm.toFixed(2)} mm per edge before scaling. Nominal total allowance X/Y: ${(selectedShape.traceMarginMm * selectedCutout.scaleX + selectedCutout.clearanceMm).toFixed(2)} / ${(selectedShape.traceMarginMm * selectedCutout.scaleY + selectedCutout.clearanceMm).toFixed(2)} mm per edge.`}</span>
+                    </>}
+                  />
+                </div>
+              </details>
+
               {editorMode === "contour" && (
                 <p className="rounded-md bg-violet-500/10 px-2.5 py-2 text-[11px] text-violet-800 dark:text-violet-200">
                   Drag points to reshape. Click an edge to add a point; right-click a
