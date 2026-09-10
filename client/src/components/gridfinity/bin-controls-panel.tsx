@@ -649,12 +649,6 @@ export function BinControlsPanel({
           className="scroll-mt-16"
         >
           <FeatureSwitch
-            label="Flat bottom"
-            description="Smooth underside; no Gridfinity base."
-            checked={spec.flatBottom}
-            onChange={(flatBottom) => patchSpec({ flatBottom })}
-          />
-          <FeatureSwitch
             label="Stacking lip"
             description={spec.flatBottom ? "Receives a Gridfinity bin on top" : "Lets another bin stack on top"}
             checked={spec.lip === "standard"}
@@ -774,6 +768,12 @@ export function BinControlsPanel({
               </div>
             )}
           </div>
+          <FeatureSwitch
+            label="Flat bottom"
+            description="Smooth underside; no Gridfinity base."
+            checked={spec.flatBottom}
+            onChange={(flatBottom) => patchSpec({ flatBottom })}
+          />
         </PanelSection>
 
         {/* Keyed on emptiness: defaultOpen is uncontrolled, and the section
