@@ -22,6 +22,9 @@ processing, project storage, and model generation kept on the user's device.
   position, scale, and rounding details stay compact. Use Edit pocket to return
   from other settings. On phones, tapping opens the controls drawer; dragging
   keeps the layout available.
+- Model warnings and errors appear in a collapsible panel at the bottom right of
+  the Layout and 3D canvas. Click a message to edit the affected pocket or settings.
+  On phones it starts as a compact count. Errors still block export.
 - Configure full-, half-, and quarter-pitch bins and export STL or 3MF models.
 - Model, fit-test, and outline export dialogs include an optional, unchecked
   `.pocketry.json` download. Bin exports preserve the full design; Trace exports

@@ -48,7 +48,7 @@ import {
   type GridPitch,
 } from "@shared/gridfinity/standard";
 import { MAX_GRID, type BinSpecInput } from "@shared/gridfinity/types";
-import { validateBinSpec, validateLayout, validatePocketFloorMaterials, type ValidationIssue } from "@shared/gridfinity/validate";
+import type { ValidationIssue } from "@shared/gridfinity/validate";
 
 import {
   PanelBody,
@@ -225,6 +225,9 @@ const BIN_SETTINGS_SECTIONS = [
 ] as const;
 
 export interface BinControlsPanelProps {
+  issues: readonly ValidationIssue[];
+  /** A fresh request reveals settings after the controls drawer mounts. */
+  settingsSectionRequest?: { id: string };
   /** Changes when the canvas explicitly requests the selected pocket editor. */
   pocketEditorRequest?: number;
   keepBinSize?: boolean;
@@ -275,6 +278,8 @@ export interface BinControlsPanelProps {
  * hook.
  */
 export function BinControlsPanel({
+  issues,
+  settingsSectionRequest,
   stats,
   building,
   exporting,
@@ -352,34 +357,10 @@ export function BinControlsPanel({
   const dims = useMemo(() => binDimensionsMm(spec), [spec]);
   const widthCellSpan = standardCellSpan(spec.gridX, spec.gridPitch);
   const lengthCellSpan = standardCellSpan(spec.gridY, spec.gridPitch);
-  const floorMaterialIssues = useMemo(
-    () => validatePocketFloorMaterials(spec, cutouts, shapesById, colorPocketFloors ? pocketFloorThicknessMm : 0),
-    [spec, cutouts, shapesById, colorPocketFloors, pocketFloorThicknessMm],
-  );
-  const issues = useMemo(
-    () => [
-      ...validateBinSpec(spec).issues,
-      ...validateLayout(spec, cutouts, shapesById, fingerHoles),
-      ...floorMaterialIssues,
-    ],
-    [spec, cutouts, shapesById, fingerHoles, floorMaterialIssues],
-  );
-  const revealIssue = (issue: ValidationIssue) => {
-    dispatch({ type: "SET_VIEW_MODE", viewMode: "2d" });
-    if (issue.cutoutIds?.length) {
-      const next = issue.cutoutIds.find((id) => id !== selectedCutoutId) ?? issue.cutoutIds[0];
-      dispatch({ type: "SELECT_CUTOUT", id: next });
-      requestAnimationFrame(revealPocketProperties);
-    } else if (issue.fingerHoleIds?.length) {
-      dispatch({ type: "SELECT_FINGER_HOLE", id: issue.fingerHoleIds[0] });
-      revealPanelSection("bin-settings-finger-holes", BIN_SETTINGS_SECTIONS);
-    } else revealPanelSection("bin-settings-size", BIN_SETTINGS_SECTIONS);
-  };
-  const issueButton = (issue: ValidationIssue, index: number) => <button type="button" key={`${issue.code}-${index}`} data-issue-code={issue.code} onClick={() => revealIssue(issue)}
-    className={`block w-full rounded border px-2 py-1.5 text-left text-xs hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring ${issue.code === "cutout-overlap" ? "border-orange-500/40 text-orange-700 dark:text-orange-300" : issue.severity === "error" ? "border-destructive/40 text-destructive" : "border-amber-500/40 text-amber-700 dark:text-amber-300"}`}>
-    {issue.message} <span className="underline">Show {issue.cutoutIds?.length === 2 ? "pockets (click to switch)" : "location"}</span>
-  </button>;
-  const selectedIssues = issues.filter((issue) => (selectedCutoutId && issue.cutoutIds?.includes(selectedCutoutId)) || (selectedFingerHoleId && issue.fingerHoleIds?.includes(selectedFingerHoleId)));
+  const hasFloorMaterialWarning = issues.some((issue) => issue.code === "floor-color-on-underside");
+  useEffect(() => {
+    if (settingsSectionRequest) revealPanelSection(settingsSectionRequest.id, BIN_SETTINGS_SECTIONS);
+  }, [settingsSectionRequest]);
   const hasErrors = issues.some((issue) => issue.severity === "error");
   const enabledFeatureCount = [
     spec.lip === "standard",
@@ -522,7 +503,6 @@ export function BinControlsPanel({
           items={BIN_SETTINGS_SECTIONS}
         />
       </div>
-      {selectedIssues.length > 0 && <div className="max-h-32 shrink-0 space-y-1 overflow-y-auto border-b p-2" data-testid="selected-object-issues" aria-label="Issues for selected object">{selectedIssues.map(issueButton)}</div>}
       <PanelBody className="flex-1">
         {selectedCutout && selectedShape && (
           <div className="space-y-3 border-b bg-violet-500/[0.025] px-3 pb-4" id="pocket-properties" role="region" aria-label="Selected pocket properties" key={selectedCutout.id}>
@@ -1692,11 +1672,7 @@ export function BinControlsPanel({
                 <span className="text-[11px] text-muted-foreground">mm down</span>
               </div>
             </div>
-            {floorMaterialIssues.length > 0 && (
-              <div className="space-y-1" role="status" aria-label="Pocket floor color warnings">
-                {floorMaterialIssues.map(issueButton)}
-              </div>
-            )}
+
           </div>
           <div
             className="space-y-2 rounded-md border bg-background/60 px-2.5 py-2"
@@ -2048,7 +2024,6 @@ export function BinControlsPanel({
               </p>
             </div>
           ) : null}
-          <div className="space-y-1.5">{issues.map(issueButton)}</div>
 
           <p className="text-xs text-muted-foreground">
             You can include an editable project JSON when downloading a model or
@@ -2157,10 +2132,10 @@ export function BinControlsPanel({
               selected in Materials.
             </DialogDescription>
           </DialogHeader>
-          {floorMaterialIssues.length > 0 && (
+          {hasFloorMaterialWarning && (
             <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs text-amber-900 dark:text-amber-100" role="status" data-testid="export-floor-color-warning">
               <p className="font-medium">Floor color may show on the underside.</p>
-              <p className="mt-1">Review the pocket warnings in Materials before exporting multiple colors. A shallower pocket or thinner color layer can keep the color inside the bin.</p>
+              <p className="mt-1">Review the warnings on the canvas before exporting multiple colors. A shallower pocket or thinner color layer can keep the color inside the bin.</p>
             </div>
           )}
           <ProjectBackupOption checked={includeThreeMfProject} onChange={setIncludeThreeMfProject} />

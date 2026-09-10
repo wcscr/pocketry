@@ -1,6 +1,8 @@
 import { Box, History, Redo2, Undo2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { CanvasWarnings } from "@/components/gridfinity/canvas-warnings";
+import { validateBinSpec, validateLayout, validatePocketFloorMaterials, type ValidationIssue } from "@shared/gridfinity/validate";
 import { BinControlsPanel } from "@/components/gridfinity/bin-controls-panel";
 import { BinViewport } from "@/components/gridfinity/bin-viewport";
 import { LayoutCanvas } from "@/components/gridfinity/layout-canvas";
@@ -88,7 +90,9 @@ export default function BinDesignerPage(): JSX.Element {
 function BinDesignerWorkspace(): JSX.Element {
   const { panelOpen, setPanelOpen } = usePanelState();
   const [pocketEditorRequest, setPocketEditorRequest] = useState(0);
+  const [settingsSectionRequest, setSettingsSectionRequest] = useState<{ id: string }>();
   const editSelectedPocket = () => {
+    setSettingsSectionRequest(undefined);
     setPanelOpen(true);
     setPocketEditorRequest((request) => request + 1);
   };
@@ -126,6 +130,33 @@ function BinDesignerWorkspace(): JSX.Element {
   const [saveStatus, setSaveStatus] = useState<"saving" | "saved" | "error">("saving");
   const [draftName, setDraftName] = useState<string | null>(null);
   const [keepBinSize, setKeepBinSize] = useState(false);
+
+  // One validation result drives both the canvas feedback and export gates,
+  // including when the controls are collapsed or the mobile drawer is closed.
+  const issues = useMemo(() => {
+    const shapesById = new Map(library.shapes.map((shape) => [shape.id, shape]));
+    return [
+      ...validateBinSpec(spec).issues,
+      ...validateLayout(spec, cutouts, shapesById, fingerHoles),
+      ...validatePocketFloorMaterials(spec, cutouts, shapesById, colorPocketFloors ? pocketFloorThicknessMm : 0),
+    ];
+  }, [spec, cutouts, fingerHoles, library.shapes, colorPocketFloors, pocketFloorThicknessMm]);
+  const revealIssue = (issue: ValidationIssue) => {
+    dispatch({ type: "SET_VIEW_MODE", viewMode: "2d" });
+    if (issue.cutoutIds?.length) {
+      const next = issue.cutoutIds.find((id) => id !== bin.selectedCutoutId) ?? issue.cutoutIds[0];
+      dispatch({ type: "SELECT_CUTOUT", id: next });
+      editSelectedPocket();
+    } else {
+      setPanelOpen(true);
+      if (issue.fingerHoleIds?.length) {
+        dispatch({ type: "SELECT_FINGER_HOLE", id: issue.fingerHoleIds[0] });
+        setSettingsSectionRequest({ id: "bin-settings-finger-holes" });
+      } else {
+        setSettingsSectionRequest({ id: "bin-settings-size" });
+      }
+    }
+  };
 
   // Restore the saved project before anything else touches state; pending
   // consumption below is gated on `hydrated` so an arrival from the trace
@@ -833,6 +864,8 @@ function BinDesignerWorkspace(): JSX.Element {
       panelTitle="Bin designer"
       panel={
         <BinControlsPanel
+          issues={issues}
+          settingsSectionRequest={settingsSectionRequest}
           pocketEditorRequest={pocketEditorRequest}
           saveStatus={saveStatus}
           keepBinSize={keepBinSize}
@@ -880,7 +913,13 @@ function BinDesignerWorkspace(): JSX.Element {
         />
       }
       canvas={
-        <div className="absolute inset-0">
+        <div className="absolute inset-0" data-testid="bin-canvas">
+          <CanvasWarnings
+            issues={issues}
+            selectedCutoutId={bin.selectedCutoutId}
+            selectedFingerHoleId={bin.selectedFingerHoleId}
+            onRevealIssue={revealIssue}
+          />
           {viewMode === "3d" ? (
             <BinViewport
               geometry={geometry}

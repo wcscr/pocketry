@@ -149,6 +149,8 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
                 expand the position or rounding settings for finer adjustments.
                 Extra clearance is added after the Margin chosen on Trace.
                 Use <strong>Finger access</strong> for straight or scoop holes.
+                Warnings appear at the bottom right of the canvas; click a message
+                to open the affected pocket or settings.
               </li>
               <li>
                 Click a selected tool's name to rename it. Use Layout to move,

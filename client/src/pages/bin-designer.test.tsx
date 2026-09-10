@@ -222,13 +222,14 @@ beforeEach(() => {
   );
 });
 
-function renderPage() {
+function renderPage(options: { mobile?: boolean } = {}) {
   return render(
     <PanelProvider>
       <ShapeLibraryProvider>
         <BinDesignerPage />
       </ShapeLibraryProvider>
     </PanelProvider>,
+    options,
   );
 }
 
@@ -991,7 +992,79 @@ describe("BinDesignerPage", () => {
     unmount();
   });
 
-  it("warns about floor color on the underside in pocket controls, Materials, and 3MF export without blocking", async () => {
+  it("keeps error details on the canvas in both views, collapses them, and blocks export", async () => {
+    const shape = rectangularShape("tool", "Wrench");
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({
+      ...EMPTY_PROJECT, shapes: [shape],
+      spec: parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6, fill: "solid" }),
+      cutouts: [parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 70, y: 0 } })],
+    });
+    const { container, unmount } = renderPage();
+    await flushHydration();
+    const warnings = container.querySelector<HTMLElement>('[data-testid="canvas-warnings"]')!;
+    expect(warnings.closest('[data-testid="bin-canvas"]')).not.toBeNull();
+    const issue = warnings.querySelector<HTMLButtonElement>('[data-issue-code="out-of-bounds"]')!;
+    expect(issue).not.toBeNull();
+    expect(container.querySelectorAll('[data-issue-code="out-of-bounds"]')).toHaveLength(1);
+    const toggle = warnings.querySelector<HTMLButtonElement>('button[aria-expanded]')!;
+    expect(toggle.textContent).toContain('error');
+    React.act(() => toggle.click());
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(warnings.querySelector('[data-issue-code]')).toBeNull();
+    React.act(() => toggle.click());
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
+    expect(container.querySelector('[data-testid="canvas-warnings"]')).toBe(warnings);
+    React.act(() => warnings.querySelector<HTMLButtonElement>('[data-issue-code="out-of-bounds"]')!.click());
+    expect(container.querySelector('[data-testid="pocket-properties-heading"]')!.textContent).toContain('Wrench');
+    openSettingsSection(container, 'export');
+    expect(container.querySelector<HTMLButtonElement>('[data-testid="button-export-stl"]')!.disabled).toBe(true);
+    expect(container.querySelector('#bin-settings-export [data-issue-code]')).toBeNull();
+    unmount();
+  });
+
+  it("cycles between overlapping pockets from their canvas warning", async () => {
+    const first = rectangularShape('first', 'Wrench');
+    const second = rectangularShape('second', 'Pliers');
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({
+      ...EMPTY_PROJECT, shapes: [first, second],
+      spec: parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6, fill: "solid" }),
+      cutouts: [
+        parseCutoutPlacement({ id: 'first-pocket', shapeId: first.id, position: { x: -3, y: 0 } }),
+        parseCutoutPlacement({ id: 'second-pocket', shapeId: second.id, position: { x: 3, y: 0 } }),
+      ],
+    });
+    const { container, unmount } = renderPage();
+    await flushHydration();
+    const issue = container.querySelector<HTMLButtonElement>('[data-testid="canvas-warnings"] [data-issue-code="cutout-overlap"]')!;
+    React.act(() => issue.click());
+    const firstName = container.querySelector('[data-testid="pocket-properties-heading"]')!.textContent;
+    React.act(() => issue.click());
+    expect(container.querySelector('[data-testid="pocket-properties-heading"]')!.textContent).not.toBe(firstName);
+    expect(issue.getAttribute('data-selected')).toBe('true');
+    expect(container.querySelector('[data-testid="layout-canvas"]')).not.toBeNull();
+    expect(container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.disabled).toBe(true);
+    unmount();
+  });
+
+  it("starts mobile warnings as a compact count and expands the messages on request", async () => {
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({
+      ...EMPTY_PROJECT,
+      spec: parseBinSpec({ gridX: 7, gridY: 2, heightUnits: 6 }),
+    });
+    const { container, unmount } = renderPage({ mobile: true });
+    await flushHydration();
+    const warnings = container.querySelector<HTMLElement>('[data-testid="canvas-warnings"]')!;
+    const toggle = warnings.querySelector<HTMLButtonElement>('button[aria-expanded]')!;
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(toggle.getAttribute('aria-label')).toContain('Expand');
+    expect(warnings.querySelector('[data-issue-code]')).toBeNull();
+    React.act(() => toggle.click());
+    expect(warnings.querySelector('[data-issue-code="large-footprint"]')).not.toBeNull();
+    expect(toggle.getAttribute('aria-label')).toContain('Collapse');
+    unmount();
+  });
+
+  it("shows live floor-color warnings only on the canvas, with a reminder at export", async () => {
     const shape = rectangularShape("tool", "Air Duster");
     vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({
       ...EMPTY_PROJECT,
@@ -1009,7 +1082,9 @@ describe("BinDesignerPage", () => {
     expect(issue.textContent).toContain("Floor color may show on the underside");
     React.act(() => issue.click());
     expect(container.querySelector('[data-testid="pocket-properties-heading"]')!.textContent).toContain("Air Duster");
-    expect(container.querySelector('[data-testid="selected-object-issues"]')!.textContent).toContain("Floor color may show on the underside");
+    expect(issue.closest('[data-testid="bin-canvas"]')).not.toBeNull();
+    expect(container.querySelectorAll(issueSelector)).toHaveLength(1);
+    expect(container.querySelector('[data-testid="selected-object-issues"]')).toBeNull();
 
     const setNumber = (input: HTMLInputElement, value: string) => React.act(() => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
@@ -1022,7 +1097,8 @@ describe("BinDesignerPage", () => {
     expect(container.querySelector(issueSelector)).not.toBeNull();
 
     React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="bin-settings-jump-materials"]')!.click());
-    expect(container.querySelector('[aria-label="Pocket floor color warnings"]')!.textContent).toContain("Air Duster");
+    expect(container.querySelector('[aria-label="Pocket floor color warnings"]')).toBeNull();
+    expect(container.querySelector('[data-testid="canvas-warnings"]')!.textContent).toContain("Air Duster");
     const thicknessInput = container.querySelector<HTMLInputElement>('[data-testid="input-pocket-floor-thickness"]')!;
     setNumber(thicknessInput, "0.4");
     expect(container.querySelector(issueSelector)).toBeNull();
