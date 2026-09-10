@@ -89,7 +89,6 @@ import {
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { fitRectangularBinToPlacements } from "@/lib/gridfinity/autoplace";
-import { occupiedCellCount } from "@shared/gridfinity/footprint";
 import {
   binDimensionsMm,
   MULTICOLOR_FLOOR_MAX_THICKNESS_MM,
@@ -556,28 +555,29 @@ export function BinControlsPanel({
             </>
           ) : (
             <div className="rounded-md border bg-muted/30 px-2.5 py-2 text-xs text-muted-foreground">
-              Bounding grid {spec.gridX} × {spec.gridY}. Add or remove cells in the Layout view,
+              Custom footprint. Add or remove cells in the Layout view,
               or reset to a rectangle to use the size sliders.
             </div>
           )}
           <div className="space-y-1.5">
-            <div className="flex items-baseline justify-between gap-2">
-              <Label className="text-xs">Height</Label>
-              <span className="text-xs tabular-nums text-muted-foreground">
-                <DraftNumberInput className="inline-block h-8 w-20" aria-label="Bin height in units" value={spec.heightUnits} min={1} max={MAX_HEIGHT_UNITS_UI} step={0.5} normalize={(value) => Math.round(value * 2) / 2} onValueChange={(heightUnits) => patchSpec({ heightUnits }, true)} onValueCommit={(heightUnits) => patchSpec({ heightUnits })} /> u · {spec.heightUnits * 7} mm
+            <Label className="text-xs">Height</Label>
+            <div className="flex items-center gap-2">
+              <Slider
+                className="min-w-12 flex-1"
+                value={[spec.heightUnits]}
+                onValueChange={([heightUnits]) =>
+                  patchSpec({ heightUnits }, true)
+                }
+                onValueCommit={([heightUnits]) => patchSpec({ heightUnits })}
+                min={1}
+                max={MAX_HEIGHT_UNITS_UI}
+                step={0.5}
+                aria-label="Height in 0.5u increments"
+              />
+              <span className="flex shrink-0 items-center gap-1 whitespace-nowrap text-xs tabular-nums text-muted-foreground">
+                <DraftNumberInput className="h-8 w-16" aria-label="Bin height in units" value={spec.heightUnits} min={1} max={MAX_HEIGHT_UNITS_UI} step={0.5} normalize={(value) => Math.round(value * 2) / 2} onValueChange={(heightUnits) => patchSpec({ heightUnits }, true)} onValueCommit={(heightUnits) => patchSpec({ heightUnits })} /> u · {spec.heightUnits * 7} mm
               </span>
             </div>
-            <Slider
-              value={[spec.heightUnits]}
-              onValueChange={([heightUnits]) =>
-                patchSpec({ heightUnits }, true)
-              }
-              onValueCommit={([heightUnits]) => patchSpec({ heightUnits })}
-              min={1}
-              max={MAX_HEIGHT_UNITS_UI}
-              step={0.5}
-              aria-label="Height in 0.5u increments"
-            />
           </div>
           <p className="text-xs text-muted-foreground">
             Outer size {dims.widthMm.toFixed(1)} × {dims.lengthMm.toFixed(1)} ×{" "}
@@ -585,10 +585,6 @@ export function BinControlsPanel({
             {spec.lip === "standard"
               ? ` (rim + ${STACKING_LIP_HEIGHT_ACTUAL.toFixed(1)} mm lip)`
               : ""}
-          </p>
-          <p className="text-xs text-muted-foreground" data-testid="bin-footprint-summary">
-            {occupiedCellCount(spec)} of {spec.gridX * spec.gridY} {spec.gridPitch}-pitch cells occupied
-            {spec.footprint.kind === "custom" ? " · custom footprint" : ""}
           </p>
           {building && (
             <div
@@ -2361,25 +2357,25 @@ function CellSlider({
   const step = pitch === "quarter" ? 0.25 : 0.5;
   return (
     <div className="space-y-1.5">
-      <div className="flex items-baseline justify-between gap-2">
-        <Label className="text-xs">{label}</Label>
-        <span className="text-xs tabular-nums text-muted-foreground">
-          <DraftNumberInput className="inline-block h-8 w-16" aria-label={`${label} in standard cells`} value={standardCells} min={step} max={MAX_GRID} step={step} normalize={(value) => Math.round(value / step) * step} onValueChange={(value) => onChange(value, true)} onValueCommit={(value) => onChange(value, false)} /> × 42 mm
+      <SettingLabel label={label} hint={`Standard cells are 42 mm. Outer size includes the 0.5 mm fitting gap. Snaps to ${step * 42} mm grid increments.`} />
+      <div className="flex items-center gap-2">
+        <Slider
+          className="min-w-12 flex-1"
+          value={[standardCells]}
+          onValueChange={([value]) => onChange(value, true)}
+          onValueCommit={([value]) => onChange(value, false)}
+          min={step}
+          max={Math.max(standardCells, maxGridUi(pitch) / divisor)}
+          step={step}
+          aria-label={`${label} in standard Gridfinity cells`}
+        />
+        <span className="flex shrink-0 items-center gap-1 whitespace-nowrap text-xs tabular-nums text-muted-foreground">
+          <DraftNumberInput className="h-8 w-16" aria-label={`${label} in standard cells`} value={standardCells} min={step} max={MAX_GRID} step={step} normalize={(value) => Math.round(value / step) * step} onValueChange={(value) => onChange(value, true)} onValueCommit={(value) => onChange(value, false)} /> × 42 mm
+        </span>
+        <span className="flex shrink-0 items-center gap-1 whitespace-nowrap text-xs tabular-nums">
+          <DraftNumberInput className="h-8 w-20" aria-label={`${label} outer size in millimetres`} value={Number(binFootprintMm(cells, pitch).toFixed(1))} min={step * 42 - 0.5} max={MAX_GRID * 42 - 0.5} step={step * 42} normalize={(value) => Math.round((value + 0.5) / (42 * step)) * 42 * step - 0.5} onValueChange={(value) => onChange((value + 0.5) / 42, true)} onValueCommit={(value) => onChange((value + 0.5) / 42, false)} /> mm
         </span>
       </div>
-      <div className="flex items-center justify-between gap-2 text-xs">
-        <SettingLabel label={`${label} outer size`} hint={`Snaps to ${step * 42} mm grid increments.`} />
-        <span className="shrink-0 whitespace-nowrap"><DraftNumberInput className="inline-block h-8 w-20" aria-label={`${label} outer size in millimetres`} value={Number(binFootprintMm(cells, pitch).toFixed(1))} min={step * 42 - 0.5} max={MAX_GRID * 42 - 0.5} step={step * 42} normalize={(value) => Math.round((value + 0.5) / (42 * step)) * 42 * step - 0.5} onValueChange={(value) => onChange((value + 0.5) / 42, true)} onValueCommit={(value) => onChange((value + 0.5) / 42, false)} /> mm</span>
-      </div>
-      <Slider
-        value={[standardCells]}
-        onValueChange={([value]) => onChange(value, true)}
-        onValueCommit={([value]) => onChange(value, false)}
-        min={step}
-        max={Math.max(standardCells, maxGridUi(pitch) / divisor)}
-        step={step}
-        aria-label={`${label} in standard Gridfinity cells`}
-      />
     </div>
   );
 }

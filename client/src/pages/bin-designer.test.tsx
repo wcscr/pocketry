@@ -350,8 +350,8 @@ describe("BinDesignerPage", () => {
     expect(container.querySelector('[data-testid="project-status"] [role="status"]')!.textContent).toMatch(/Sav(?:ed|ing) in this browser/);
     for (const [name, explanation] of [
       ["grid pitch", "Pitch changes preserve the outer size"],
-      ["width outer size", "Snaps to 21 mm grid increments"],
-      ["length outer size", "Snaps to 21 mm grid increments"],
+      ["width", "Snaps to 21 mm grid increments"],
+      ["length", "Snaps to 21 mm grid increments"],
       ["keep bin size fixed", "Adding tools keeps these dimensions"],
     ]) {
       const help = container.querySelector<HTMLButtonElement>(`[aria-label="About ${name}"]`)!;
@@ -723,19 +723,20 @@ describe("BinDesignerPage", () => {
       React.act(() => option.click());
       const size = container.querySelector("#bin-settings-size")!;
       expect(size.textContent).toContain("3 × 5 × 5.5u");
-      expect(size.textContent).toContain("240 of 240 quarter-pitch cells occupied");
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toMatchObject({ gridX: 12, gridY: 20, gridPitch: "quarter" });
       const input = (label: string) => container.querySelector<HTMLInputElement>(`[aria-label="${label}"]`)!;
       expect(input("Width outer size in millimetres").value).toBe("125.5");
       expect(input("Length outer size in millimetres").value).toBe("209.5");
 
       const length = input("Length in standard cells");
+      React.act(() => length.focus());
       React.act(() => {
         Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(length, "5.25");
         length.dispatchEvent(new Event("input", { bubbles: true }));
       });
       React.act(() => length.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
       expect(size.textContent).toContain("3 × 5.25 × 5.5u");
-      expect(size.textContent).toContain("252 of 252 quarter-pitch cells occupied");
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toMatchObject({ gridX: 12, gridY: 21, gridPitch: "quarter" });
       expect(input("Length outer size in millimetres").value).toBe("220");
     } finally {
       unmount();
@@ -814,8 +815,8 @@ describe("BinDesignerPage", () => {
     });
     const { container, unmount } = renderPage();
     await flushHydration();
-    expect(container.querySelector('[data-testid="bin-footprint-summary"]')?.textContent)
-      .toContain("3 of 4 full-pitch cells occupied · custom footprint");
+    expect(container.querySelector("#bin-settings-size")?.textContent)
+      .toContain("Custom footprint. Add or remove cells in the Layout view");
     const edit = container.querySelector('[data-testid="button-edit-footprint"]') as HTMLButtonElement;
     React.act(() => edit.click());
     expect(container.querySelector('[data-testid="layout-canvas"]')).not.toBeNull();
