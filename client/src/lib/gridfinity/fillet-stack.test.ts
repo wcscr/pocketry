@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { Arena } from "@/lib/manifold/arena";
 import { createKernel, loadManifold, type Kernel } from "@/lib/manifold/runtime";
 
-import { bottomFilletCutter, topEdgeFilletCutter, rectangularTopEdgeFilletCutter } from "./fillet-stack";
+import { bottomFilletCutter, topEdgeFilletCutter } from "./fillet-stack";
 
 /**
  * Risk #1 from the plan: bottom-fillet cost on high-vertex outlines,
@@ -218,38 +218,5 @@ describe("bottomFilletCutter", () => {
         circularSegments: 32,
       }),
     ).toThrow(/depth/);
-  });
-});
-
-
-describe("continuous rectangular top edge", () => {
-  it.each([
-    [0.5, 24, 0.5], [1, 24, 0.5], [1, 64, 0.1], [5, 64, 0.1],
-  ])("has no horizontal stair treads at radius %s, segments %s, step %s", (radiusMm, circularSegments, profileStepMm) => {
-    const cutter = rectangularTopEdgeFilletCutter(kernel, 40, 24, {
-      radiusMm, circularSegments, profileStepMm,
-    });
-    expect(cutter.status()).toBe("NoError");
-    const bounds = cutter.boundingBox();
-    expect(bounds.min[2]).toBeCloseTo(0, 6);
-    expect(bounds.max[2]).toBeCloseTo(radiusMm, 6);
-    expect(bounds.max[0]).toBeCloseTo(20 + radiusMm, 5);
-    expect(bounds.max[1]).toBeCloseTo(12 + radiusMm, 5);
-    const mesh = cutter.getMesh();
-    let treads = 0;
-    for (let i = 0; i < mesh.triVerts.length; i += 3) {
-      const zs = [0, 1, 2].map(j => mesh.vertProperties[mesh.triVerts[i + j] * mesh.numProp + 2]);
-      if (zs[0] > 1e-6 && zs[0] < radiusMm - 1e-6 &&
-          Math.max(...zs) - Math.min(...zs) < 1e-7) treads++;
-    }
-    expect(treads).toBe(0);
-    // Slice between sampling rings: width must follow a circular flare, not a chamfer.
-    for (const fraction of [0.17, 0.43, 0.71, 0.93]) {
-      const height = fraction * radiusMm;
-      const section = arena.track(cutter.slice(height));
-      const outset = Math.max(...section.toPolygons().flatMap(ring => ring.map(p => p[0]))) - 20;
-      const expected = radiusMm * (1 - Math.sqrt(1 - fraction ** 2));
-      expect(Math.abs(outset - expected)).toBeLessThan(radiusMm * 0.035);
-    }
   });
 });

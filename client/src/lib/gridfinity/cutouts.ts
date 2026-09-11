@@ -26,11 +26,11 @@ import { simplifyRing } from "@/lib/geometry/simplify";
 import type { Kernel } from "@/lib/manifold/runtime";
 
 import type { BuildQuality } from "./bin";
+import { buildRoundedFlatEndedScoopCutter } from "./flat-ended-scoop";
 import {
   bottomFilletCutter,
   FILLET_PROFILE_STEP_MM,
   topEdgeFilletCutter,
-  rectangularTopEdgeFilletCutter,
 } from "./fillet-stack";
 
 /**
@@ -360,6 +360,16 @@ export function buildFingerHoleCutters(
 
   for (const hole of fingerHoles) {
     const pocket = resolvePocketDepth(spec, { mode: "mm", value: hole.depthMm });
+    const cutDepth = effectiveFingerHoleDepthMm(hole);
+    const effectiveTopFillet = Math.min(hole.topFilletMm, cutDepth / 2);
+    if (hole.kind === "flat-ended-scoop" && effectiveTopFillet > 0) {
+      cutters.push(buildRoundedFlatEndedScoopCutter(kernel, hole, pocket.infillTopZ, pocket.cutterTopZ, {
+        radiusMm: effectiveTopFillet,
+        profileStepMm: filletProfileStepMm,
+        circularSegments: segments,
+      }));
+      continue;
+    }
     const ring = fingerHoleFootprintRing(
       hole,
       BIN_LOCAL_PLACEMENT,
@@ -415,23 +425,12 @@ export function buildFingerHoleCutters(
       continue;
     }
 
-    const cutDepth = effectiveFingerHoleDepthMm(hole);
-    const effectiveTopFillet = Math.min(hole.topFilletMm, cutDepth / 2);
     if (effectiveTopFillet > 0) {
-      const options = {
+      const topRound = topEdgeFilletCutter(kernel, section, {
         radiusMm: effectiveTopFillet,
         profileStepMm: filletProfileStepMm,
         circularSegments: segments,
-      };
-      let topRound: Manifold;
-      if (hole.kind === "flat-ended-scoop") {
-        const { lengthMm } = elongatedFingerHoleEndpoints(hole);
-        topRound = rectangularTopEdgeFilletCutter(kernel, lengthMm, hole.diameterMm, options);
-        topRound = arena.track(topRound.rotate([0, 0, hole.rotationDeg ?? 0]));
-        topRound = arena.track(topRound.translate([hole.center.x, hole.center.y, 0]));
-      } else {
-        topRound = topEdgeFilletCutter(kernel, section, options);
-      }
+      });
       const positionedTopRound = arena.track(
         topRound.translate([0, 0, pocket.infillTopZ - effectiveTopFillet]),
       );
