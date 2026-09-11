@@ -889,7 +889,9 @@ describe("BinDesignerPage", () => {
     unmount();
   });
 
-  it.each(["oblong-deep-scoop", "flat-ended-scoop"] as const)("restores %s with rotation controls and endpoint handles", async (kind) => {
+  it.each([
+    ["oblong-deep-scoop", 30], ["flat-ended-scoop", 30], ["flat-ended-scoop", 1],
+  ] as const)("restores %s with rotation controls and endpoint handles", async (kind, depthMm) => {
     const shape = rectangularShape("shape-oblong-deep", "Long pliers");
     vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({
       ...EMPTY_PROJECT,
@@ -907,7 +909,7 @@ describe("BinDesignerPage", () => {
           kind,
           center: { x: 0, y: 15 },
           diameterMm: 12,
-          depthMm: 30,
+          depthMm,
           lengthMm: 40,
           rotationDeg: 0,
           topFilletMm: 0,
@@ -942,8 +944,11 @@ describe("BinDesignerPage", () => {
         '[aria-label="Rotate elongated finger hole 90 degrees counterclockwise"]',
       ),
     ).not.toBeNull();
-    expect(container.textContent).toContain("Vertical walls: 24.0 mm");
-    expect(container.textContent).toContain("rounded bottom radius: 6.0 mm");
+    expect(container.textContent).toContain(`Vertical walls: ${Math.max(0, depthMm - 6).toFixed(1)} mm`);
+    expect(container.textContent).toContain(`rounded bottom radius: ${depthMm === 1 ? "18.5" : "6.0"} mm`);
+    const depthInput = container.querySelector<HTMLInputElement>('[aria-label="Total depth in millimetres"]')!;
+    expect(depthInput.value).toBe(String(depthMm));
+    expect(depthInput.min).toBe(kind === "flat-ended-scoop" ? "1" : "6");
 
     React.act(() => {
       (container.querySelector('[data-testid="view-toggle-2d"]') as HTMLButtonElement).click();

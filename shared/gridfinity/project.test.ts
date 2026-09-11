@@ -387,7 +387,7 @@ it("round-trips flat-ended scoops and migrates v12 without changing existing geo
   expect(old!.spec.flatBottom).toBe(true);
   const doc = parseProjectDoc({ ...old!, fingerHoles: [{
     id: "flat", kind: "flat-ended-scoop", center: { x: 10, y: -5 },
-    diameterMm: 16, lengthMm: 55, depthMm: 25, rotationDeg: 35,
+    diameterMm: 16, lengthMm: 55, depthMm: 2, rotationDeg: 35,
     topFilletMm: 1, bottomFilletMm: 0,
   }] });
   expect(doc!.fingerHoles[0]).toMatchObject({ kind: "flat-ended-scoop", lengthMm: 55, rotationDeg: 35 });

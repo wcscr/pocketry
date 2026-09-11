@@ -206,6 +206,24 @@ export function effectiveDeepScoopDepthMm(
   return Math.max(scoop.depthMm, scoop.diameterMm / 2);
 }
 
+/** Actual cutting depth shared by controls, geometry, and floor validation. */
+export function effectiveFingerHoleDepthMm(hole: FingerHole): number {
+  if (hole.kind === "scoop") return effectiveScoopDepthMm(hole);
+  if (hole.kind === "deep-scoop" || hole.kind === "oblong-deep-scoop") {
+    return effectiveDeepScoopDepthMm(hole);
+  }
+  return hole.depthMm;
+}
+
+/** Circular-segment radius preserving the opening width at shallow depths. */
+export function flatEndedScoopRadiusMm(
+  hole: Pick<FingerHole, "diameterMm" | "depthMm">,
+): number {
+  const halfWidth = hole.diameterMm / 2;
+  const depth = Math.min(hole.depthMm, halfWidth);
+  return (halfWidth * halfWidth + depth * depth) / (2 * depth);
+}
+
 /** Whether the hole has independently editable length and rotation. */
 export function isElongatedFingerHole(hole: Pick<FingerHole, "kind">): boolean {
   return hole.kind === "oblong-deep-scoop" || hole.kind === "flat-ended-scoop";
@@ -337,7 +355,7 @@ export function resizeFingerHoleFromWidthHandle(
   return {
     ...hole,
     diameterMm,
-    depthMm: Math.max(hole.depthMm, diameterMm / 2),
+    depthMm: hole.kind === "flat-ended-scoop" ? hole.depthMm : Math.max(hole.depthMm, diameterMm / 2),
     lengthMm: hole.kind === "flat-ended-scoop" ? endpoints.lengthMm : span + diameterMm,
   };
 }

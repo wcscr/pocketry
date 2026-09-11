@@ -613,3 +613,14 @@ describe("flat-ended cylindrical finger access", () => {
     expect(resized.center.y).toBeCloseTo(fixed.y + 3, 8);
   });
 });
+
+
+it("width dragging keeps a shallow flat-ended scoop shallow", () => {
+  const hole = fingerHoleSchema.parse({
+    id: "shallow", kind: "flat-ended-scoop", center: { x: 0, y: 0 },
+    diameterMm: 24, depthMm: 1, lengthMm: 40, rotationDeg: 0,
+  });
+  expect(resizeFingerHoleFromWidthHandle(hole, { x: 0, y: 20 })).toMatchObject({
+    diameterMm: 40, depthMm: 1, lengthMm: 40,
+  });
+});

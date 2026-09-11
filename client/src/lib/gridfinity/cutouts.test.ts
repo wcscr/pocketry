@@ -1058,3 +1058,42 @@ describe("flat-ended cylindrical scoop solids", () => {
     expect(result.solid.volume()).toBeLessThan(without.solid.volume());
   });
 });
+
+
+describe("shallow flat-ended scoops", () => {
+  it.each([
+    [24, 1, 40, 0], [24, 3, 40, 37], [24, 11.99, 40, 90], [80, 1, 6, 0],
+  ])("preserves width %s at depth %s, length %s and rotation %s", (diameterMm, depthMm, lengthMm, rotationDeg) => {
+    const hole = fingerHoleSchema.parse({
+      id: "shallow", kind: "flat-ended-scoop", center: { x: 0, y: 0 },
+      diameterMm, depthMm, lengthMm, rotationDeg,
+    });
+    const cutter = buildFingerHoleCutters(kernel, [hole], SPEC, QUALITY)[0];
+    const surface = resolvePocketDepth(SPEC, { mode: "mm", value: depthMm });
+    const unrotated = arena.track(cutter.rotate([0, 0, -rotationDeg]));
+    const bounds = unrotated.boundingBox();
+    expect(cutter.status()).toBe("NoError");
+    expect(bounds.min[0]).toBeCloseTo(-lengthMm / 2, 6);
+    expect(bounds.max[0]).toBeCloseTo(lengthMm / 2, 6);
+    expect(bounds.min[1]).toBeCloseTo(-diameterMm / 2, 6);
+    expect(bounds.max[1]).toBeCloseTo(diameterMm / 2, 6);
+    expect(bounds.min[2]).toBeCloseTo(surface.infillTopZ - depthMm, 6);
+    const halfWidth = diameterMm / 2;
+    const radius = (halfWidth ** 2 + depthMm ** 2) / (2 * depthMm);
+    const area = radius ** 2 * Math.acos((radius - depthMm) / radius) - (radius - depthMm) * halfWidth;
+    const expected = lengthMm * (area + diameterMm * (surface.cutterTopZ - surface.infillTopZ));
+    expect(cutter.volume()).toBeGreaterThan(expected * 0.99);
+    expect(cutter.volume()).toBeLessThanOrEqual(expected + 1e-6);
+  });
+
+  it("keeps a 1 mm shallow cut watertight with top rounding and intersecting pockets", () => {
+    const hole = fingerHoleSchema.parse({
+      id: "shallow", kind: "flat-ended-scoop", center: { x: 0, y: 0 },
+      diameterMm: 24, depthMm: 1, lengthMm: 40, rotationDeg: 37, topFilletMm: 5,
+    });
+    const shape = rectShape("slot", 30, 4);
+    const result = buildBinWithCutouts(kernel, SPEC, layoutFor([shape], [cutout("c", "slot")], [hole]), QUALITY);
+    expect(result.solid.status()).toBe("NoError");
+    expect(result.solid.genus()).toBe(0);
+  });
+});

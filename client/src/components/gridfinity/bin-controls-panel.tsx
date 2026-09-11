@@ -32,6 +32,8 @@ import {
   MAX_OBLONG_DEEP_SCOOP_LENGTH_MM,
   defaultPocketFloorThicknessMm,
   isElongatedFingerHole,
+  effectiveFingerHoleDepthMm,
+  flatEndedScoopRadiusMm,
   minimumFingerHoleLengthMm,
   resolvePocketDepth,
   type FingerHole,
@@ -1185,7 +1187,7 @@ export function BinControlsPanel({
                         depthMm:
                           kind === "scoop"
                             ? Math.min(selectedFingerHole.depthMm, diameterMm / 2)
-                            : kind === "deep-scoop" || isElongatedFingerHole(nextHole)
+                            : kind === "deep-scoop" || kind === "oblong-deep-scoop"
                               ? Math.max(selectedFingerHole.depthMm, diameterMm / 2)
                               : selectedFingerHole.depthMm,
                         lengthMm:
@@ -1239,7 +1241,7 @@ export function BinControlsPanel({
                           selectedFingerHole.kind === "scoop"
                             ? Math.min(selectedFingerHole.depthMm, diameterMm / 2)
                             : selectedFingerHole.kind === "deep-scoop" ||
-                                isElongatedFingerHole(selectedFingerHole)
+                                selectedFingerHole.kind === "oblong-deep-scoop"
                               ? Math.max(selectedFingerHole.depthMm, diameterMm / 2)
                               : selectedFingerHole.depthMm,
                         lengthMm:
@@ -1304,11 +1306,8 @@ export function BinControlsPanel({
                   <div className="space-y-1">
                     <MmSlider
                       label="Total depth"
-                      value={Math.max(
-                        selectedFingerHole.depthMm,
-                        selectedFingerHole.diameterMm / 2,
-                      )}
-                      min={selectedFingerHole.diameterMm / 2}
+                      value={effectiveFingerHoleDepthMm(selectedFingerHole)}
+                      min={selectedFingerHole.kind === "flat-ended-scoop" ? 1 : selectedFingerHole.diameterMm / 2}
                       max={120}
                       step={0.5}
                       onChange={(depthMm, transient) =>
@@ -1327,7 +1326,9 @@ export function BinControlsPanel({
                         selectedFingerHole.depthMm -
                           selectedFingerHole.diameterMm / 2,
                       ).toFixed(1)} mm · rounded bottom radius: {(
-                        selectedFingerHole.diameterMm / 2
+                        selectedFingerHole.kind === "flat-ended-scoop"
+                          ? flatEndedScoopRadiusMm(selectedFingerHole)
+                          : selectedFingerHole.diameterMm / 2
                       ).toFixed(1)} mm
                     </p>
                   </div>
@@ -1335,7 +1336,7 @@ export function BinControlsPanel({
 
                 {selectedFingerHole.kind === "flat-ended-scoop" && (
                   <p className="text-[11px] text-muted-foreground">
-                    Cylindrical bottom with flat ends. Length is measured between the end faces.
+                    Cylindrical bottom with flat ends. Shallow depths keep the opening width. Length is measured between the end faces.
                   </p>
                 )}
 

@@ -13,10 +13,8 @@ import {
   resolveBoundaryRun,
 } from "./footprint";
 import {
-  effectiveDeepScoopDepthMm,
-  effectiveScoopDepthMm,
+  effectiveFingerHoleDepthMm,
   fingerHoleFootprintRing,
-  isElongatedFingerHole,
   placementFootprint,
   pocketLayoutAllowanceMm,
   resolvePocketDepth,
@@ -565,12 +563,7 @@ function validateFingerHoleAgainstBin(
   }
 
   const surface = resolvePocketDepth(spec, { mode: "mm", value: hole.depthMm });
-  const cutDepth =
-    hole.kind === "scoop"
-      ? effectiveScoopDepthMm(hole)
-      : hole.kind === "deep-scoop" || isElongatedFingerHole(hole)
-        ? effectiveDeepScoopDepthMm(hole)
-        : hole.depthMm;
+  const cutDepth = effectiveFingerHoleDepthMm(hole);
   const bottomZ = surface.infillTopZ - cutDepth;
   if (bottomZ < 0) {
     issues.push({
