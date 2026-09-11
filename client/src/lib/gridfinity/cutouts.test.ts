@@ -1117,3 +1117,26 @@ it.each([1, 5, 20])("keeps the exported flat-ended rim free of stair treads at d
   expect(cutter.status()).toBe("NoError");
   expect(treads).toEqual([]);
 });
+
+
+describe("1 mm finger access across all styles", () => {
+  for (const kind of ["straight", "scoop", "deep-scoop", "oblong-deep-scoop", "flat-ended-scoop"] as const) {
+    it.each([0, 1])(`${kind} preserves depth and a valid solid with top rounding %s`, (topFilletMm) => {
+      const hole = fingerHoleSchema.parse({ id: "shallow", kind, center: { x: 0, y: 0 }, diameterMm: 24, lengthMm: 40, depthMm: 1, topFilletMm });
+      const cutter = buildFingerHoleCutters(kernel, [hole], SPEC, QUALITY)[0];
+      const topZ = resolvePocketDepth(SPEC, { mode: "mm", value: 1 }).infillTopZ;
+      expect(cutter.status()).toBe("NoError");
+      expect(cutter.boundingBox().min[2]).toBeCloseTo(topZ - 1, 6);
+      if (topFilletMm === 0) {
+        expect(cutter.boundingBox().min[1]).toBeCloseTo(-12, 6);
+        expect(cutter.boundingBox().max[1]).toBeCloseTo(12, 6);
+        const halfLength = kind === "oblong-deep-scoop" || kind === "flat-ended-scoop" ? 20 : 12;
+        expect(cutter.boundingBox().min[0]).toBeCloseTo(-halfLength, 6);
+        expect(cutter.boundingBox().max[0]).toBeCloseTo(halfLength, 6);
+      }
+      const result = buildBinWithCutouts(kernel, SPEC, layoutFor([], [], [hole]), QUALITY);
+      expect(result.solid.status()).toBe("NoError");
+      expect(result.solid.genus()).toBe(0);
+    });
+  }
+});

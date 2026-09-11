@@ -51,7 +51,8 @@ export function fingerAccessHalfWidthAtZ(
 }
 
 /**
- * Curved styles use a whole cutter with tangent circular profiles. Round holes
+ * Curved styles use a whole cutter with tangent circular profiles (a zero rim
+ * radius also supports unrounded shallow round and oblong cuts). Round holes
  * use circular rings, oblongs sweep them along the capsule spine, and flat-ended
  * scoops retain planar ends with quarter-circle end rounding. Straight holes
  * return only the top flare to preserve their separately built bottom fillet.

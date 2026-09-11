@@ -330,6 +330,7 @@ describe("BinDesignerPage", () => {
       expect(editor.querySelector<HTMLDetailsElement>(`[data-testid="${id}"]`)!.open).toBe(false);
     }
     expect(editor.querySelector('[aria-label="Extra pocket clearance in millimetres"]')!.closest('details')!.dataset.testid).toBe('pocket-clearance-settings');
+    expect(editor.lastElementChild?.querySelector('[data-testid="pocket-position-settings"]')).not.toBeNull();
     expect(editor.querySelector('[data-testid="button-inspect-pocket"]')!.closest('details')!.dataset.testid).toBe('pocket-depth-summary');
     expect(editor.querySelector<HTMLDetailsElement>('[data-testid="pocket-depth-summary"]')!.open).toBe(false);
     expect(container.querySelector('[data-testid="button-layout-edit-pocket"]')).toBeNull();
@@ -826,6 +827,74 @@ describe("BinDesignerPage", () => {
     unmount();
   });
 
+  it.each(["straight", "scoop", "deep-scoop", "oblong-deep-scoop", "flat-ended-scoop"] as const)("edits %s at 1 mm depth without a duplicate heading", async (kind) => {
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({
+      ...EMPTY_PROJECT, fingerHoles: [fingerHoleSchema.parse({ id: "shallow", kind, center: { x: 0, y: 0 }, depthMm: 12, lengthMm: 40 })],
+    });
+    const { container, unmount } = renderPage();
+    await flushHydration();
+    openSettingsSection(container, "finger-holes");
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-select-finger-hole-shallow"]')!.click());
+    const properties = container.querySelector('#finger-access-properties')!;
+    expect(properties.textContent).toContain("Style");
+    expect(properties.querySelector('[aria-label="Finger access depth"] h4')).toBeNull();
+    const label = kind === "straight" || kind === "scoop" ? "Depth" : "Total depth";
+    const input = properties.querySelector<HTMLInputElement>(`[aria-label="${label} in millimetres"]`)!;
+    expect(input.min).toBe("1");
+    React.act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "1");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    React.act(() => input.dispatchEvent(new FocusEvent("focusout", { bubbles: true })));
+    expect(input.value).toBe("1");
+    expect(vi.mocked(useBinGeometry).mock.lastCall?.[2]?.fingerHoles?.[0]).toMatchObject({ kind, depthMm: 1 });
+    unmount();
+  });
+
+  it("groups finger access like pockets and supports renaming, undo, and cancellation", async () => {
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({
+      ...EMPTY_PROJECT,
+      fingerHoles: [fingerHoleSchema.parse({ id: "named-hole", center: { x: 0, y: 0 } })],
+    });
+    const { container, unmount } = renderPage();
+    await flushHydration();
+    openSettingsSection(container, "finger-holes");
+    const select = () => container.querySelector<HTMLButtonElement>('[data-testid="button-select-finger-hole-named-hole"]')!;
+    React.act(() => select().click());
+    expect(select().getAttribute("aria-pressed")).toBe("true");
+    const properties = container.querySelector("#finger-access-properties")!;
+    expect(properties.firstElementChild?.textContent).toContain("Finger access properties");
+    expect(properties.querySelector('[aria-label="Depth in millimetres"]')!.closest('details')).toBeNull();
+    for (const id of ["finger-size-settings", "finger-edge-settings", "finger-position-settings"]) {
+      expect(properties.querySelector<HTMLDetailsElement>(`[data-testid="${id}"]`)!.open).toBe(false);
+    }
+    expect(properties.lastElementChild?.getAttribute("data-testid")).toBe("finger-position-settings");
+    const editName = (value: string) => {
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-rename-finger-hole-named-hole"]')!.click());
+      const input = container.querySelector<HTMLInputElement>('[aria-label="Finger access name"]')!;
+      React.act(() => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      return input;
+    };
+    let input = editName("  Thumb access  ");
+    React.act(() => input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+    expect(select().textContent).toBe("Thumb access");
+    expect(properties.firstElementChild?.textContent).toContain("Thumb access");
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+    expect(select().textContent).toBe("Hole 1");
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+    expect(select().textContent).toBe("Thumb access");
+    input = editName("Cancelled name");
+    React.act(() => input.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+    expect(select().textContent).toBe("Thumb access");
+    input = editName("   ");
+    React.act(() => input.blur());
+    expect(select().textContent).toBe("Thumb access");
+    unmount();
+  });
+
   it("restores a deep finger scoop with diameter and total-depth controls", async () => {
     const shape = rectangularShape("shape-deep", "Deep pliers");
     vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({
@@ -948,7 +1017,7 @@ describe("BinDesignerPage", () => {
     expect(container.textContent).toContain(`rounded bottom radius: ${depthMm === 1 ? "18.5" : "6.0"} mm`);
     const depthInput = container.querySelector<HTMLInputElement>('[aria-label="Total depth in millimetres"]')!;
     expect(depthInput.value).toBe(String(depthMm));
-    expect(depthInput.min).toBe(kind === "flat-ended-scoop" ? "1" : "6");
+    expect(depthInput.min).toBe("1");
 
     React.act(() => {
       (container.querySelector('[data-testid="view-toggle-2d"]') as HTMLButtonElement).click();
@@ -1767,7 +1836,7 @@ describe("BinDesignerPage", () => {
       '[data-testid="selected-finger-hole-kind"]',
     ) as HTMLButtonElement | null;
     expect(kind).not.toBeNull();
-    expect(kind!.textContent).toContain("Straight");
+    expect(kind!.textContent).toContain("Vertical Cylinder");
     expect(container.textContent).not.toContain("Scoop depth");
     const fingerHoleSection = container.querySelector(
       '#bin-settings-finger-holes',

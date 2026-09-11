@@ -152,15 +152,16 @@ function MaterialColorSwatch({
   );
 }
 
-function EditableShapeName({ shape, onRename, onDone }: {
-  shape: TracedShape;
+function EditableObjectName({ name, kind, onRename, onDone }: {
+  name: string;
+  kind: "shape" | "finger-hole";
   onRename: (name: string) => void;
   onDone: () => void;
 }): JSX.Element {
-  const [draft, setDraft] = useState(shape.name);
+  const [draft, setDraft] = useState(name);
   const commit = () => {
-    const name = draft.trim();
-    if (name.length > 0 && name !== shape.name) onRename(name);
+    const trimmedName = draft.trim();
+    if (trimmedName.length > 0 && trimmedName !== name) onRename(trimmedName);
     onDone();
   };
   return (
@@ -179,8 +180,8 @@ function EditableShapeName({ shape, onRename, onDone }: {
         }
       }}
       className="h-8 min-w-0 flex-1 text-xs font-medium"
-      aria-label="Pocket name"
-      data-testid="input-shape-name"
+      aria-label={kind === "shape" ? "Pocket name" : "Finger access name"}
+      data-testid={`input-${kind}-name`}
     />
   );
 }
@@ -307,6 +308,7 @@ export function BinControlsPanel({
   } = useBin();
   const [, navigate] = useLocation();
   const { shapes, storeShape } = useShapeLibrary();
+  const [renamingFingerId, setRenamingFingerId] = useState<string | null>(null);
   const [renamingPocketId, setRenamingPocketId] = useState<string | null>(null);
   useEffect(() => {
     if (!selectedCutoutId || renamingPocketId === selectedCutoutId) return;
@@ -799,7 +801,7 @@ export function BinControlsPanel({
                     isSelected ? "border-violet-500/50 bg-violet-500/10" : "border-transparent hover:bg-accent",
                   )}>
                     {renamingPocketId === cutout.id && shape ? (
-                      <EditableShapeName key={cutout.id} shape={shape} onRename={(name) => storeShape({ ...shape, name })} onDone={() => setRenamingPocketId(null)} />
+                      <EditableObjectName key={cutout.id} name={shape.name} kind="shape" onRename={(name) => storeShape({ ...shape, name })} onDone={() => setRenamingPocketId(null)} />
                     ) : (
                     <button
                       type="button"
@@ -995,6 +997,40 @@ export function BinControlsPanel({
 
                 </div>
               </details>
+              <details className="group/clearance border-t pt-1 text-xs" data-testid="pocket-clearance-settings">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-2 py-2 font-medium [&::-webkit-details-marker]:hidden">
+                  <span className="flex items-center gap-1">Extra pocket clearance
+                    <HelpHint label="extra pocket clearance">
+                      Adjusts each edge after the Trace margin and scaling. Negative values shrink the pocket to reduce excess padding; positive values enlarge it. Zero keeps the traced size. Narrow features can disappear when shrunk.
+                      <span className="mt-1 block">{selectedShape.traceMarginMm === undefined
+                        ? `Original trace margin unknown (older project). Extra allowance: ${selectedCutout.clearanceMm.toFixed(2)} mm per edge.`
+                        : `Trace margin: ${selectedShape.traceMarginMm.toFixed(2)} mm per edge before scaling. Nominal total allowance X/Y: ${(selectedShape.traceMarginMm * selectedCutout.scaleX + selectedCutout.clearanceMm).toFixed(2)} / ${(selectedShape.traceMarginMm * selectedCutout.scaleY + selectedCutout.clearanceMm).toFixed(2)} mm per edge.`}</span>
+                    </HelpHint>
+                  </span>
+                  <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/clearance:rotate-180" />
+                </summary>
+                <div className="space-y-2 pb-2" key={selectedCutout.id}>
+                  <MmSlider
+                    label="Extra pocket clearance"
+                    value={selectedCutout.clearanceMm}
+                    centered
+                    inline
+                    min={-2}
+                    max={2}
+                    step={0.1}
+                    onChange={(clearanceMm, transient) =>
+                      dispatch({
+                        type: "UPDATE_CUTOUT",
+                        id: selectedCutout.id,
+                        patch: { clearanceMm },
+                        historyLabel: "Change pocket clearance",
+                        transient,
+                      })
+                    }
+                  />
+                </div>
+              </details>
+
               <PocketMeasurements cutout={selectedCutout} shape={selectedShape}>
                 <div className="flex items-center gap-2">
                   <Label className="w-16 shrink-0 text-xs">Rotation</Label>
@@ -1029,39 +1065,6 @@ export function BinControlsPanel({
                 </div>
 
               </PocketMeasurements>
-              <details className="group/clearance border-t pt-1 text-xs" data-testid="pocket-clearance-settings">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-2 py-2 font-medium [&::-webkit-details-marker]:hidden">
-                  <span className="flex items-center gap-1">Extra pocket clearance
-                    <HelpHint label="extra pocket clearance">
-                      Adjusts each edge after the Trace margin and scaling. Negative values shrink the pocket to reduce excess padding; positive values enlarge it. Zero keeps the traced size. Narrow features can disappear when shrunk.
-                      <span className="mt-1 block">{selectedShape.traceMarginMm === undefined
-                        ? `Original trace margin unknown (older project). Extra allowance: ${selectedCutout.clearanceMm.toFixed(2)} mm per edge.`
-                        : `Trace margin: ${selectedShape.traceMarginMm.toFixed(2)} mm per edge before scaling. Nominal total allowance X/Y: ${(selectedShape.traceMarginMm * selectedCutout.scaleX + selectedCutout.clearanceMm).toFixed(2)} / ${(selectedShape.traceMarginMm * selectedCutout.scaleY + selectedCutout.clearanceMm).toFixed(2)} mm per edge.`}</span>
-                    </HelpHint>
-                  </span>
-                  <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/clearance:rotate-180" />
-                </summary>
-                <div className="space-y-2 pb-2" key={selectedCutout.id}>
-                  <MmSlider
-                    label="Extra pocket clearance"
-                    value={selectedCutout.clearanceMm}
-                    centered
-                    inline
-                    min={-2}
-                    max={2}
-                    step={0.1}
-                    onChange={(clearanceMm, transient) =>
-                      dispatch({
-                        type: "UPDATE_CUTOUT",
-                        id: selectedCutout.id,
-                        patch: { clearanceMm },
-                        historyLabel: "Change pocket clearance",
-                        transient,
-                      })
-                    }
-                  />
-                </div>
-              </details>
 
               {editorMode === "contour" && (
                 <p className="rounded-md bg-violet-500/10 px-2.5 py-2 text-[11px] text-violet-800 dark:text-violet-200">
@@ -1120,49 +1123,35 @@ export function BinControlsPanel({
             </div>
 
             {fingerHoles.length > 0 && (
-              <div className="space-y-1">
+              <div className="space-y-1" aria-label="Choose finger access to edit">
                 {fingerHoles.map((hole, index) => {
                   const isSelected = hole.id === selectedFingerHoleId;
+                  const name = hole.name ?? `Hole ${index + 1}`;
                   return (
-                    <div
-                      key={hole.id}
-                      className={cn(
-                        "flex items-center gap-1 rounded border px-1 py-1 text-xs",
-                        isSelected
-                          ? "border-violet-500/40 bg-violet-500/10"
-                          : "border-transparent hover:border-violet-500/20 hover:bg-accent/50",
+                    <div key={hole.id} data-testid={`finger-hole-row-${hole.id}`} className={cn(
+                      "flex items-center rounded-md border text-xs",
+                      isSelected ? "border-cyan-500/50 bg-cyan-500/10" : "border-transparent hover:bg-accent",
+                    )}>
+                      {renamingFingerId === hole.id ? (
+                        <EditableObjectName key={hole.id} name={name} kind="finger-hole"
+                          onRename={(name) => dispatch({ type: "UPDATE_FINGER_HOLE", id: hole.id, patch: { name }, historyLabel: "Rename finger access" })}
+                          onDone={() => setRenamingFingerId(null)} />
+                      ) : (
+                        <button type="button"
+                          className="flex min-h-8 min-w-0 flex-1 items-center gap-2 rounded px-2 py-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          aria-label={`${name} — edit finger access properties`} aria-pressed={isSelected} aria-controls="finger-access-properties"
+                          data-testid={`button-select-finger-hole-${hole.id}`}
+                          onClick={() => dispatch({ type: "SELECT_FINGER_HOLE", id: hole.id })}>
+                          <span className={cn("min-w-0 flex-1 truncate", isSelected && "font-medium text-cyan-700 dark:text-cyan-300")}>{name}</span>
+                        </button>
                       )}
-                      data-testid={`finger-hole-row-${hole.id}`}
-                    >
-                      <button
-                        type="button"
-                        className="min-w-0 flex-1 rounded px-1 py-0.5 text-left font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        onClick={() =>
-                          dispatch({ type: "SELECT_FINGER_HOLE", id: hole.id })
-                        }
-                        data-testid={`button-select-finger-hole-${hole.id}`}
-                      >
-                        Hole {index + 1} · {hole.kind === "scoop"
-                          ? "Round scoop"
-                          : hole.kind === "deep-scoop"
-                            ? "Deep scoop"
-                            : hole.kind === "oblong-deep-scoop"
-                              ? "Oblong deep scoop"
-                              : hole.kind === "flat-ended-scoop"
-                                ? "Flat-ended cylindrical scoop"
-                                : "Straight"}
+                      <button type="button" className="flex h-8 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        aria-label={`Rename ${name}`} data-testid={`button-rename-finger-hole-${hole.id}`}
+                        onClick={() => { dispatch({ type: "SELECT_FINGER_HOLE", id: hole.id }); setRenamingFingerId(hole.id); }}>
+                        <Pencil className="h-3.5 w-3.5" />
                       </button>
-                      <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                        {isSelected ? "Selected" : "Select to edit"}
-                      </span>
-                      <button
-                        type="button"
-                        className="shrink-0 text-muted-foreground hover:text-destructive"
-                        aria-label={`Remove finger hole ${index + 1}`}
-                        onClick={() =>
-                          dispatch({ type: "REMOVE_FINGER_HOLE", id: hole.id })
-                        }
-                      >
+                      <button type="button" className="flex h-8 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        aria-label={`Remove finger hole ${hole.name ?? index + 1}`} onClick={() => dispatch({ type: "REMOVE_FINGER_HOLE", id: hole.id })}>
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </div>
@@ -1172,8 +1161,13 @@ export function BinControlsPanel({
             )}
 
             {selectedFingerHole && (
-              <div className="space-y-2 border-t pt-3">
-                <PositionInputs position={selectedFingerHole.center} onChange={(center, transient) => dispatch({ type: "UPDATE_FINGER_HOLE", id: selectedFingerHole.id, patch: { center }, transient, historyLabel: "Position finger access" })} />
+              <div className="space-y-3 rounded-md border border-cyan-500/30 bg-cyan-500/[0.025] p-2.5" id="finger-access-properties" role="region" aria-label="Selected finger access properties">
+                <div className="flex min-w-0 flex-wrap items-center gap-2 border-b border-cyan-500/20 pb-2" data-testid="finger-access-properties-heading">
+                  <h3 className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-cyan-700 dark:text-cyan-300">Finger access properties</h3>
+                  <span className="min-w-[5rem] flex-1 truncate text-xs font-medium">{selectedFingerHole.name ?? `Hole ${fingerHoles.indexOf(selectedFingerHole) + 1}`}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="finger-hole-style" className="shrink-0 text-xs">Style</Label>
                 <Select
                   value={selectedFingerHole.kind}
                   onValueChange={(kind) => {
@@ -1187,9 +1181,7 @@ export function BinControlsPanel({
                         depthMm:
                           kind === "scoop"
                             ? Math.min(selectedFingerHole.depthMm, diameterMm / 2)
-                            : kind === "deep-scoop" || kind === "oblong-deep-scoop"
-                              ? Math.max(selectedFingerHole.depthMm, diameterMm / 2)
-                              : selectedFingerHole.depthMm,
+                            : selectedFingerHole.depthMm,
                         lengthMm:
                           isElongatedFingerHole(nextHole)
                             ? Math.max(
@@ -1208,14 +1200,15 @@ export function BinControlsPanel({
                   }}
                 >
                   <SelectTrigger
-                    className="h-8"
+                    id="finger-hole-style"
+                    className="h-8 min-w-0 flex-1"
                     aria-label="Selected finger hole type"
                     data-testid="selected-finger-hole-kind"
                   >
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="straight">Straight</SelectItem>
+                    <SelectItem value="straight">Vertical Cylinder</SelectItem>
                     <SelectItem value="scoop">Round scoop</SelectItem>
                     <SelectItem value="deep-scoop">Deep scoop</SelectItem>
                     <SelectItem value="oblong-deep-scoop">
@@ -1224,42 +1217,9 @@ export function BinControlsPanel({
                     <SelectItem value="flat-ended-scoop">Flat-ended cylindrical scoop</SelectItem>
                   </SelectContent>
                 </Select>
+                </div>
 
-                <MmSlider
-                  label="Diameter"
-                  value={selectedFingerHole.diameterMm}
-                  min={6}
-                  max={40}
-                  step={1}
-                  onChange={(diameterMm, transient) =>
-                    dispatch({
-                      type: "UPDATE_FINGER_HOLE",
-                      id: selectedFingerHole.id,
-                      patch: {
-                        diameterMm,
-                        depthMm:
-                          selectedFingerHole.kind === "scoop"
-                            ? Math.min(selectedFingerHole.depthMm, diameterMm / 2)
-                            : selectedFingerHole.kind === "deep-scoop" ||
-                                selectedFingerHole.kind === "oblong-deep-scoop"
-                              ? Math.max(selectedFingerHole.depthMm, diameterMm / 2)
-                              : selectedFingerHole.depthMm,
-                        lengthMm:
-                          isElongatedFingerHole(selectedFingerHole)
-                            ? Math.max(
-                                selectedFingerHole.lengthMm ??
-                                  DEFAULT_OBLONG_DEEP_SCOOP_LENGTH_MM,
-                                minimumFingerHoleLengthMm({ ...selectedFingerHole, diameterMm }),
-                              )
-                            : selectedFingerHole.lengthMm,
-                      },
-                      historyLabel: "Resize finger hole",
-                      transient,
-                    })
-                  }
-                  hint="You can also drag the white size handle in Layout."
-                />
-
+                <section className="space-y-2" aria-label="Finger access depth">
                 {selectedFingerHole.kind === "straight" && (
                   <MmSlider
                     label="Depth"
@@ -1307,7 +1267,7 @@ export function BinControlsPanel({
                     <MmSlider
                       label="Total depth"
                       value={effectiveFingerHoleDepthMm(selectedFingerHole)}
-                      min={selectedFingerHole.kind === "flat-ended-scoop" ? 1 : selectedFingerHole.diameterMm / 2}
+                      min={1}
                       max={120}
                       step={0.5}
                       onChange={(depthMm, transient) =>
@@ -1326,9 +1286,7 @@ export function BinControlsPanel({
                         selectedFingerHole.depthMm -
                           selectedFingerHole.diameterMm / 2,
                       ).toFixed(1)} mm · rounded bottom radius: {(
-                        selectedFingerHole.kind === "flat-ended-scoop"
-                          ? flatEndedScoopRadiusMm(selectedFingerHole)
-                          : selectedFingerHole.diameterMm / 2
+                        flatEndedScoopRadiusMm(selectedFingerHole)
                       ).toFixed(1)} mm
                     </p>
                   </div>
@@ -1339,6 +1297,45 @@ export function BinControlsPanel({
                     Cylindrical bottom with flat ends. Shallow depths keep the opening width. Length is measured between the end faces.
                   </p>
                 )}
+
+                </section>
+                <details className="group/size border-t pt-1 text-xs" data-testid="finger-size-settings">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-2 py-2 font-medium [&::-webkit-details-marker]:hidden">
+                    Size
+                    <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/size:rotate-180" />
+                  </summary>
+                  <div className="space-y-3 pb-2 pt-2" key={selectedFingerHole.id}>
+                <MmSlider
+                  label="Diameter"
+                  value={selectedFingerHole.diameterMm}
+                  min={6}
+                  max={40}
+                  step={1}
+                  onChange={(diameterMm, transient) =>
+                    dispatch({
+                      type: "UPDATE_FINGER_HOLE",
+                      id: selectedFingerHole.id,
+                      patch: {
+                        diameterMm,
+                        depthMm:
+                          selectedFingerHole.kind === "scoop"
+                            ? Math.min(selectedFingerHole.depthMm, diameterMm / 2)
+                            : selectedFingerHole.depthMm,
+                        lengthMm:
+                          isElongatedFingerHole(selectedFingerHole)
+                            ? Math.max(
+                                selectedFingerHole.lengthMm ??
+                                  DEFAULT_OBLONG_DEEP_SCOOP_LENGTH_MM,
+                                minimumFingerHoleLengthMm({ ...selectedFingerHole, diameterMm }),
+                              )
+                            : selectedFingerHole.lengthMm,
+                      },
+                      historyLabel: "Resize finger hole",
+                      transient,
+                    })
+                  }
+                  hint="You can also drag the white size handle in Layout."
+                />
 
                 {isElongatedFingerHole(selectedFingerHole) && (
                   <div className="space-y-2">
@@ -1362,6 +1359,66 @@ export function BinControlsPanel({
                         })
                       }
                     />
+
+                  </div>
+                )}
+
+
+                  </div>
+                </details>
+                <details className="group/edge border-t pt-1 text-xs" data-testid="finger-edge-settings">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-2 py-2 font-medium [&::-webkit-details-marker]:hidden">
+                    Edges &amp; corners
+                    <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/edge:rotate-180" />
+                  </summary>
+                  <div className="space-y-3 pb-2 pt-2" key={selectedFingerHole.id}>
+                <MmSlider
+                  label="Top edge round"
+                  value={selectedFingerHole.topFilletMm}
+                  min={0}
+                  max={5}
+                  step={0.2}
+                  onChange={(topFilletMm, transient) =>
+                    dispatch({
+                      type: "UPDATE_FINGER_HOLE",
+                      id: selectedFingerHole.id,
+                      patch: { topFilletMm },
+                      historyLabel: "Change finger hole top edge round",
+                      transient,
+                    })
+                  }
+                  hint="Rounds the opening into the bin's top surface."
+                />
+
+                {selectedFingerHole.kind === "straight" && (
+                  <MmSlider
+                    label="Bottom edge fillet"
+                    value={selectedFingerHole.bottomFilletMm}
+                    min={0}
+                    max={Math.min(4, selectedFingerHole.diameterMm / 2)}
+                    step={0.2}
+                    onChange={(bottomFilletMm, transient) =>
+                      dispatch({
+                        type: "UPDATE_FINGER_HOLE",
+                        id: selectedFingerHole.id,
+                        patch: { bottomFilletMm },
+                        historyLabel: "Change finger hole bottom fillet",
+                        transient,
+                      })
+                    }
+                    hint="Rounds the straight wall into its flat floor."
+                  />
+                )}
+
+                  </div>
+                </details>
+                <details className="group/position border-t pt-1 text-xs" data-testid="finger-position-settings">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-2 py-2 font-medium [&::-webkit-details-marker]:hidden">
+                    Position &amp; rotation
+                    <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/position:rotate-180" />
+                  </summary>
+                  <div className="space-y-3 pb-2 pt-2" key={selectedFingerHole.id}>
+                {isElongatedFingerHole(selectedFingerHole) && (
                     <div className="flex items-center gap-1.5">
                       <Label className="w-16 shrink-0 text-xs">Rotation</Label>
                       <Button
@@ -1428,46 +1485,10 @@ export function BinControlsPanel({
                       />
                       <span className="text-xs text-muted-foreground">°</span>
                     </div>
+                )}
+                <PositionInputs position={selectedFingerHole.center} onChange={(center, transient) => dispatch({ type: "UPDATE_FINGER_HOLE", id: selectedFingerHole.id, patch: { center }, transient, historyLabel: "Position finger access" })} />
                   </div>
-                )}
-
-                <MmSlider
-                  label="Top edge round"
-                  value={selectedFingerHole.topFilletMm}
-                  min={0}
-                  max={5}
-                  step={0.2}
-                  onChange={(topFilletMm, transient) =>
-                    dispatch({
-                      type: "UPDATE_FINGER_HOLE",
-                      id: selectedFingerHole.id,
-                      patch: { topFilletMm },
-                      historyLabel: "Change finger hole top edge round",
-                      transient,
-                    })
-                  }
-                  hint="Rounds the opening into the bin's top surface."
-                />
-
-                {selectedFingerHole.kind === "straight" && (
-                  <MmSlider
-                    label="Bottom edge fillet"
-                    value={selectedFingerHole.bottomFilletMm}
-                    min={0}
-                    max={Math.min(4, selectedFingerHole.diameterMm / 2)}
-                    step={0.2}
-                    onChange={(bottomFilletMm, transient) =>
-                      dispatch({
-                        type: "UPDATE_FINGER_HOLE",
-                        id: selectedFingerHole.id,
-                        patch: { bottomFilletMm },
-                        historyLabel: "Change finger hole bottom fillet",
-                        transient,
-                      })
-                    }
-                    hint="Rounds the straight wall into its flat floor."
-                  />
-                )}
+                </details>
               </div>
             )}
           </div>

@@ -44,6 +44,20 @@ const VALID = {
 };
 
 describe("parseProjectDoc", () => {
+  it("preserves finger access names through save and reload alongside unnamed legacy holes", () => {
+    const doc = parseProjectDoc({
+      ...VALID,
+      fingerHoles: [
+        { id: "named", name: "Thumb access", center: { x: 0, y: 0 } },
+        { id: "legacy", center: { x: 15, y: 0 } },
+      ],
+    });
+    expect(doc?.fingerHoles[0].name).toBe("Thumb access");
+    expect(doc?.fingerHoles[1].name).toBeUndefined();
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(doc)))).toEqual(doc);
+  });
+
+
   it("round-trips a 3 by 5 standard-cell bin at quarter pitch", () => {
     const doc = parseProjectDoc({ ...VALID, spec: { ...VALID.spec, gridX: 12, gridY: 20, gridPitch: "quarter" } });
     expect(doc?.spec).toMatchObject({ gridX: 12, gridY: 20, gridPitch: "quarter" });

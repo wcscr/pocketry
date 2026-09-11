@@ -17,6 +17,10 @@ processing, project storage, and model generation kept on the user's device.
 - Refine exterior contours and interior holes.
 - Export traced geometry as SVG, DXF, DWG-compatible DXF, or STL.
 - Arrange traced tools as pockets in Gridfinity bins.
+  Pocket and finger access properties share compact grouped controls, with position
+  at the bottom. Rename finger access from its list row; names save with the project
+  and support undo/redo. All finger access styles support depths down to 1 mm;
+  shallow curved scoops preserve their opening width as depth changes.
 - Pocket properties stay in the Pockets section. Click a pocket on the canvas
   or choose its row in the compact list to open its settings there. On phones, tapping opens
   the controls drawer; dragging keeps the layout available.

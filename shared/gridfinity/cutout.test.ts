@@ -534,7 +534,7 @@ describe("typed finger holes (straight and scoop)", () => {
     };
     expect(
       resizeFingerHoleFromWidthHandle(shallowDeep, { x: 16, y: 5 }).depthMm,
-    ).toBe(12);
+    ).toBe(4);
 
     const oblong = {
       ...round,
@@ -558,9 +558,9 @@ describe("typed finger holes (straight and scoop)", () => {
     expect(effectiveScoopDepthMm({ diameterMm: 20, depthMm: 25 })).toBe(10);
   });
 
-  it("keeps a deep scoop at least one radius deep", () => {
+  it("preserves shallow deep-scoop depth", () => {
     expect(effectiveDeepScoopDepthMm({ diameterMm: 18, depthMm: 30 })).toBe(30);
-    expect(effectiveDeepScoopDepthMm({ diameterMm: 18, depthMm: 4 })).toBe(9);
+    expect(effectiveDeepScoopDepthMm({ diameterMm: 18, depthMm: 4 })).toBe(4);
   });
 });
 
@@ -623,4 +623,9 @@ it("width dragging keeps a shallow flat-ended scoop shallow", () => {
   expect(resizeFingerHoleFromWidthHandle(hole, { x: 0, y: 20 })).toMatchObject({
     diameterMm: 40, depthMm: 1, lengthMm: 40,
   });
+});
+
+it.each(["straight", "scoop", "deep-scoop", "oblong-deep-scoop", "flat-ended-scoop"] as const)("preserves a 1 mm %s depth when resizing its width", (kind) => {
+  const hole = fingerHoleSchema.parse({ id: "shallow", kind, center: { x: 0, y: 0 }, diameterMm: 18, depthMm: 1, lengthMm: 40 });
+  expect(resizeFingerHoleFromWidthHandle(hole, { x: 15, y: 15 }).depthMm).toBe(1);
 });

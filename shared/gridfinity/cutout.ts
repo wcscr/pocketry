@@ -121,6 +121,8 @@ export type DepthSpec = z.infer<typeof depthSpecSchema>;
 export const fingerHoleSchema = z
   .object({
     id: z.string().min(1),
+    /** Optional display name; older projects use a numbered label. */
+    name: z.string().trim().min(1).optional(),
     /** Bin-local mm, y-up, origin at the bin centre. */
     center: vec2Schema,
     diameterMm: z.number().min(6).max(80).default(18),
@@ -196,14 +198,13 @@ export function effectiveScoopDepthMm(
 }
 
 /**
- * Total top-to-bottom depth of a deep scoop. The cutter always includes at
- * least one radius so its bottom remains a true hemisphere even when an old
- * or hand-edited project requests a shallower value.
+ * Total top-to-bottom depth of a deep scoop. Shallow cuts use a circular
+ * segment that preserves the opening width; deeper cuts add vertical walls.
  */
 export function effectiveDeepScoopDepthMm(
   scoop: Pick<FingerHole, "diameterMm" | "depthMm">,
 ): number {
-  return Math.max(scoop.depthMm, scoop.diameterMm / 2);
+  return scoop.depthMm;
 }
 
 /** Actual cutting depth shared by controls, geometry, and floor validation. */
@@ -331,9 +332,7 @@ export function resizeFingerHoleFromWidthHandle(
     const depthMm =
       hole.kind === "scoop"
         ? Math.min(hole.depthMm, diameterMm / 2)
-        : hole.kind === "deep-scoop"
-          ? Math.max(hole.depthMm, diameterMm / 2)
-          : hole.depthMm;
+        : hole.depthMm;
     return { ...hole, diameterMm, depthMm };
   }
 
@@ -355,7 +354,7 @@ export function resizeFingerHoleFromWidthHandle(
   return {
     ...hole,
     diameterMm,
-    depthMm: hole.kind === "flat-ended-scoop" ? hole.depthMm : Math.max(hole.depthMm, diameterMm / 2),
+    depthMm: hole.depthMm,
     lengthMm: hole.kind === "flat-ended-scoop" ? endpoints.lengthMm : span + diameterMm,
   };
 }
