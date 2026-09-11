@@ -198,3 +198,36 @@ export function topEdgeFilletCutter(
   }
   return arena.track(Manifold.union(pieces));
 }
+
+
+/**
+ * Continuous quarter-circle flare for a rectangular mouth, z=0..radiusMm.
+ * Equal-angle rings are connected by sloped triangles rather than extruded
+ * bands, so the rim has no horizontal stair treads. The rectangle's four
+ * corners collapse to points at the bottom and open into round joins above.
+ */
+export function rectangularTopEdgeFilletCutter(
+  kernel: Kernel,
+  lengthMm: number,
+  widthMm: number,
+  options: FilletOptions,
+): Manifold {
+  const { arena, CrossSection } = kernel;
+  const radiusMm = stableRadiusMm(options.radiusMm);
+  if (!(radiusMm > 0) || !(options.profileStepMm > 0)) {
+    throw new Error("rectangularTopEdgeFilletCutter: radius and profile step must be positive");
+  }
+  const rectangle = arena.track(CrossSection.square([lengthMm, widthMm], true));
+  const expanded = arena.track(rectangle.offset(radiusMm, "Round", 2, options.circularSegments));
+  const count = filletSliceCount(radiusMm, options.profileStepMm, options.circularSegments);
+  const prism = arena.track(expanded.extrude(radiusMm, count - 1));
+  return arena.track(prism.warp((vertex) => {
+    const theta = Math.max(0, Math.min(1, vertex[2] / radiusMm)) * Math.PI / 2;
+    const scale = 1 - Math.cos(theta);
+    const baseX = Math.max(-lengthMm / 2, Math.min(lengthMm / 2, vertex[0]));
+    const baseY = Math.max(-widthMm / 2, Math.min(widthMm / 2, vertex[1]));
+    vertex[0] = baseX + (vertex[0] - baseX) * scale;
+    vertex[1] = baseY + (vertex[1] - baseY) * scale;
+    vertex[2] = radiusMm * Math.sin(theta);
+  }));
+}

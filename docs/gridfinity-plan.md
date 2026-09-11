@@ -84,7 +84,9 @@ have a rectangular mouth, a half-cylinder bottom, and planar end faces; their
 length (6–160 mm) measures the full distance between the ends and is independent
 of diameter. Total depth can be as shallow as 1 mm: a circular-segment bottom
 preserves the opening width. At half the width the bottom is a half-cylinder;
-extra depth adds vertical walls. They support the same top-edge rounding, validation, undo/redo, layout and
+extra depth adds vertical walls. Their top-edge rounding uses connected quarter-circle rings rather than
+stacked bands, avoiding ridged rims in previews and exported meshes. They support
+validation, undo/redo, layout and
 STL/3MF export paths. Project schema 13 preserves this style and migrates v12
 without changing existing geometry. Round-scoop depth
 remains capped at half the opening width. Moving, duplicating, deleting, or

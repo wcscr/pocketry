@@ -1097,3 +1097,23 @@ describe("shallow flat-ended scoops", () => {
     expect(result.solid.genus()).toBe(0);
   });
 });
+
+
+it.each([1, 5, 20])("keeps the exported flat-ended rim free of stair treads at depth %s", (depthMm) => {
+  const hole = fingerHoleSchema.parse({
+    id: "rim", kind: "flat-ended-scoop", center: { x: 3, y: -2 },
+    diameterMm: 24, lengthMm: 40, depthMm, rotationDeg: 37, topFilletMm: 1,
+  });
+  const cutter = buildFingerHoleCutters(kernel, [hole], SPEC, { circularSegments: 64, filletProfileStepMm: 0.1 })[0];
+  const topZ = resolvePocketDepth(SPEC, { mode: "mm", value: depthMm }).infillTopZ;
+  const bottomZ = topZ - Math.min(1, depthMm / 2);
+  const mesh = cutter.getMesh();
+  const treads: number[] = [];
+  for (let i = 0; i < mesh.triVerts.length; i += 3) {
+    const zs = [0, 1, 2].map(j => mesh.vertProperties[mesh.triVerts[i + j] * mesh.numProp + 2]);
+    if (zs[0] > bottomZ + 1e-5 && zs[0] < topZ - 1e-5 &&
+        Math.max(...zs) - Math.min(...zs) < 1e-7) treads.push(zs[0]);
+  }
+  expect(cutter.status()).toBe("NoError");
+  expect(treads).toEqual([]);
+});

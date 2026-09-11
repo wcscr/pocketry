@@ -30,6 +30,7 @@ import {
   bottomFilletCutter,
   FILLET_PROFILE_STEP_MM,
   topEdgeFilletCutter,
+  rectangularTopEdgeFilletCutter,
 } from "./fillet-stack";
 
 /**
@@ -417,11 +418,20 @@ export function buildFingerHoleCutters(
     const cutDepth = effectiveFingerHoleDepthMm(hole);
     const effectiveTopFillet = Math.min(hole.topFilletMm, cutDepth / 2);
     if (effectiveTopFillet > 0) {
-      const topRound = topEdgeFilletCutter(kernel, section, {
+      const options = {
         radiusMm: effectiveTopFillet,
         profileStepMm: filletProfileStepMm,
         circularSegments: segments,
-      });
+      };
+      let topRound: Manifold;
+      if (hole.kind === "flat-ended-scoop") {
+        const { lengthMm } = elongatedFingerHoleEndpoints(hole);
+        topRound = rectangularTopEdgeFilletCutter(kernel, lengthMm, hole.diameterMm, options);
+        topRound = arena.track(topRound.rotate([0, 0, hole.rotationDeg ?? 0]));
+        topRound = arena.track(topRound.translate([hole.center.x, hole.center.y, 0]));
+      } else {
+        topRound = topEdgeFilletCutter(kernel, section, options);
+      }
       const positionedTopRound = arena.track(
         topRound.translate([0, 0, pocket.infillTopZ - effectiveTopFillet]),
       );
