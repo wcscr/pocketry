@@ -10,12 +10,13 @@ import {
   effectiveDeepScoopDepthMm,
   effectiveScoopDepthMm,
   fingerHoleFootprintRing,
-  oblongDeepScoopEndpoints,
+  fingerHoleSchema,
+  elongatedFingerHoleEndpoints,
   parseCutoutPlacement,
   placementFootprint,
   resizeCutoutPlacementFromHandle,
   resizeFingerHoleFromWidthHandle,
-  resizeOblongDeepScoopFromEndpoint,
+  resizeElongatedFingerHoleFromEndpoint,
   resolvePocketDepth,
   signedDistanceToInterior,
   tracedShapeSchema,
@@ -464,7 +465,7 @@ describe("typed finger holes (straight and scoop)", () => {
         },
       ],
     }).fingerHoles[0];
-    const endpoints = oblongDeepScoopEndpoints(hole);
+    const endpoints = elongatedFingerHoleEndpoints(hole);
     expect(endpoints.start.x).toBeCloseTo(0, 9);
     expect(endpoints.start.y).toBeCloseTo(-10, 9);
     expect(endpoints.end.y).toBeCloseTo(10, 9);
@@ -500,12 +501,12 @@ describe("typed finger holes (straight and scoop)", () => {
         },
       ],
     }).fingerHoles[0];
-    const resized = resizeOblongDeepScoopFromEndpoint(
+    const resized = resizeElongatedFingerHoleFromEndpoint(
       hole,
       "end",
       { x: 10, y: 20 },
     );
-    const endpoints = oblongDeepScoopEndpoints(resized);
+    const endpoints = elongatedFingerHoleEndpoints(resized);
     expect(endpoints.start.x).toBeCloseTo(-10, 9);
     expect(endpoints.start.y).toBeCloseTo(0, 9);
     expect(endpoints.end.x).toBeCloseTo(10, 9);
@@ -546,7 +547,7 @@ describe("typed finger holes (straight and scoop)", () => {
     expect(widened.diameterMm).toBe(20);
     expect(widened.depthMm).toBe(12);
     expect(widened.lengthMm).toBe(40);
-    expect(oblongDeepScoopEndpoints(widened)).toMatchObject({
+    expect(elongatedFingerHoleEndpoints(widened)).toMatchObject({
       start: { x: -6, y: 5 },
       end: { x: 14, y: 5 },
     });
@@ -560,5 +561,66 @@ describe("typed finger holes (straight and scoop)", () => {
   it("keeps a deep scoop at least one radius deep", () => {
     expect(effectiveDeepScoopDepthMm({ diameterMm: 18, depthMm: 30 })).toBe(30);
     expect(effectiveDeepScoopDepthMm({ diameterMm: 18, depthMm: 4 })).toBe(9);
+  });
+});
+
+
+describe("flat-ended cylindrical finger access", () => {
+  const hole = fingerHoleSchema.parse({
+    id: "flat", kind: "flat-ended-scoop", center: { x: 3, y: 5 },
+    diameterMm: 16, depthMm: 20, lengthMm: 40, rotationDeg: 90,
+  });
+
+  it("uses a rotated rectangular mouth with planar end faces", () => {
+    const ring = fingerHoleFootprintRing(hole, {
+      position: { x: 0, y: 0 }, rotationDeg: 0, mirrored: false,
+    });
+    expect(ring).toHaveLength(4);
+    expect(signedArea(ring)).toBeCloseTo(640, 8);
+    expect(Math.min(...ring.map(p => p.x))).toBeCloseTo(-5, 8);
+    expect(Math.max(...ring.map(p => p.x))).toBeCloseTo(11, 8);
+    expect(Math.min(...ring.map(p => p.y))).toBeCloseTo(-15, 8);
+    expect(Math.max(...ring.map(p => p.y))).toBeCloseTo(25, 8);
+  });
+
+  it("keeps the opposite flat end fixed during endpoint resizing and rotation", () => {
+    const original = elongatedFingerHoleEndpoints(hole);
+    const resized = resizeElongatedFingerHoleFromEndpoint(hole, "end", { x: 33, y: -15 });
+    const after = elongatedFingerHoleEndpoints(resized);
+    expect(after.start.x).toBeCloseTo(original.start.x, 8);
+    expect(after.start.y).toBeCloseTo(original.start.y, 8);
+    expect(after.end.x).toBeCloseTo(33, 8);
+    expect(after.end.y).toBeCloseTo(-15, 8);
+    expect(resized.lengthMm).toBeCloseTo(30, 8);
+    expect(resized.rotationDeg).toBeCloseTo(0, 8);
+  });
+
+  it("changes width without moving either flat end, including maximum length", () => {
+    const long = { ...hole, lengthMm: 160 };
+    const resized = resizeFingerHoleFromWidthHandle(long, { x: -9, y: 5 });
+    expect(resized.diameterMm).toBeCloseTo(24, 8);
+    expect(resized.lengthMm).toBe(160);
+    expect(elongatedFingerHoleEndpoints(resized)).toEqual(elongatedFingerHoleEndpoints(long));
+  });
+
+  it("allows a channel shorter than its diameter and clamps collapsed end drags", () => {
+    const short = { ...hole, lengthMm: 6 };
+    expect(elongatedFingerHoleEndpoints(short).lengthMm).toBe(6);
+    const fixed = elongatedFingerHoleEndpoints(hole).start;
+    const resized = resizeElongatedFingerHoleFromEndpoint(hole, "end", fixed);
+    expect(resized.lengthMm).toBe(6);
+    expect(resized.center.x).toBeCloseTo(fixed.x, 8);
+    expect(resized.center.y).toBeCloseTo(fixed.y + 3, 8);
+  });
+});
+
+
+it("width dragging keeps a shallow flat-ended scoop shallow", () => {
+  const hole = fingerHoleSchema.parse({
+    id: "shallow", kind: "flat-ended-scoop", center: { x: 0, y: 0 },
+    diameterMm: 24, depthMm: 1, lengthMm: 40, rotationDeg: 0,
+  });
+  expect(resizeFingerHoleFromWidthHandle(hole, { x: 0, y: 20 })).toMatchObject({
+    diameterMm: 40, depthMm: 1, lengthMm: 40,
   });
 });

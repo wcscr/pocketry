@@ -889,7 +889,9 @@ describe("BinDesignerPage", () => {
     unmount();
   });
 
-  it("restores an oblong deep scoop with rotation controls and endpoint handles", async () => {
+  it.each([
+    ["oblong-deep-scoop", 30], ["flat-ended-scoop", 30], ["flat-ended-scoop", 1],
+  ] as const)("restores %s with rotation controls and endpoint handles", async (kind, depthMm) => {
     const shape = rectangularShape("shape-oblong-deep", "Long pliers");
     vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({
       ...EMPTY_PROJECT,
@@ -904,10 +906,10 @@ describe("BinDesignerPage", () => {
       fingerHoles: [
         {
           id: "finger-oblong-deep",
-          kind: "oblong-deep-scoop",
+          kind,
           center: { x: 0, y: 15 },
           diameterMm: 12,
-          depthMm: 30,
+          depthMm,
           lengthMm: 40,
           rotationDeg: 0,
           topFilletMm: 0,
@@ -929,21 +931,24 @@ describe("BinDesignerPage", () => {
 
     expect(
       container.querySelector('[data-testid="selected-finger-hole-kind"]')?.textContent,
-    ).toContain("Oblong deep scoop");
+    ).toContain(kind === "flat-ended-scoop" ? "Flat-ended cylindrical scoop" : "Oblong deep scoop");
     expect(container.querySelector('[aria-label="Diameter"]')).not.toBeNull();
     expect(container.querySelector('[aria-label="Total depth"]')).not.toBeNull();
     expect(container.querySelector('[aria-label="Length"]')).not.toBeNull();
     const rotateClockwise = container.querySelector(
-      '[aria-label="Rotate oblong finger hole 90 degrees clockwise"]',
+      '[aria-label="Rotate elongated finger hole 90 degrees clockwise"]',
     ) as HTMLButtonElement;
     expect(rotateClockwise).not.toBeNull();
     expect(
       container.querySelector(
-        '[aria-label="Rotate oblong finger hole 90 degrees counterclockwise"]',
+        '[aria-label="Rotate elongated finger hole 90 degrees counterclockwise"]',
       ),
     ).not.toBeNull();
-    expect(container.textContent).toContain("Vertical walls: 24.0 mm");
-    expect(container.textContent).toContain("rounded bottom radius: 6.0 mm");
+    expect(container.textContent).toContain(`Vertical walls: ${Math.max(0, depthMm - 6).toFixed(1)} mm`);
+    expect(container.textContent).toContain(`rounded bottom radius: ${depthMm === 1 ? "18.5" : "6.0"} mm`);
+    const depthInput = container.querySelector<HTMLInputElement>('[aria-label="Total depth in millimetres"]')!;
+    expect(depthInput.value).toBe(String(depthMm));
+    expect(depthInput.min).toBe(kind === "flat-ended-scoop" ? "1" : "6");
 
     React.act(() => {
       (container.querySelector('[data-testid="view-toggle-2d"]') as HTMLButtonElement).click();

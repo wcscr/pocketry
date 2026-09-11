@@ -30,8 +30,11 @@ import {
   DEFAULT_OBLONG_DEEP_SCOOP_LENGTH_MM,
   DEFAULT_TOP_EDGE_FILLET_MM,
   MAX_OBLONG_DEEP_SCOOP_LENGTH_MM,
-  MIN_OBLONG_DEEP_SCOOP_SPAN_MM,
   defaultPocketFloorThicknessMm,
+  isElongatedFingerHole,
+  effectiveFingerHoleDepthMm,
+  flatEndedScoopRadiusMm,
+  minimumFingerHoleLengthMm,
   resolvePocketDepth,
   type FingerHole,
   type TracedShape,
@@ -1090,7 +1093,7 @@ export function BinControlsPanel({
         >
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-3">
-              <SettingLabel label="Finger holes" hint="Finger holes are independent layout objects. Select, move, resize, or remove one without changing a tool pocket. Drag a hole to move it and its white size handle to resize it; oblong holes also have two end handles for length and angle." />
+              <SettingLabel label="Finger holes" hint="Finger holes are independent layout objects. Select, move, resize, or remove one without changing a tool pocket. Drag a hole to move it and its white size handle to resize it; elongated scoops also have two end handles for length and angle." />
               <Button
                 variant="outline"
                 size="sm"
@@ -1145,7 +1148,9 @@ export function BinControlsPanel({
                             ? "Deep scoop"
                             : hole.kind === "oblong-deep-scoop"
                               ? "Oblong deep scoop"
-                              : "Straight"}
+                              : hole.kind === "flat-ended-scoop"
+                                ? "Flat-ended cylindrical scoop"
+                                : "Straight"}
                       </button>
                       <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
                         {isSelected ? "Selected" : "Select to edit"}
@@ -1173,6 +1178,7 @@ export function BinControlsPanel({
                   value={selectedFingerHole.kind}
                   onValueChange={(kind) => {
                     const diameterMm = selectedFingerHole.diameterMm;
+                    const nextHole = { ...selectedFingerHole, kind: kind as FingerHole["kind"] };
                     dispatch({
                       type: "UPDATE_FINGER_HOLE",
                       id: selectedFingerHole.id,
@@ -1185,15 +1191,15 @@ export function BinControlsPanel({
                               ? Math.max(selectedFingerHole.depthMm, diameterMm / 2)
                               : selectedFingerHole.depthMm,
                         lengthMm:
-                          kind === "oblong-deep-scoop"
+                          isElongatedFingerHole(nextHole)
                             ? Math.max(
                                 selectedFingerHole.lengthMm ??
                                   DEFAULT_OBLONG_DEEP_SCOOP_LENGTH_MM,
-                                diameterMm + MIN_OBLONG_DEEP_SCOOP_SPAN_MM,
+                                minimumFingerHoleLengthMm(nextHole),
                               )
                             : selectedFingerHole.lengthMm,
                         rotationDeg:
-                          kind === "oblong-deep-scoop"
+                          isElongatedFingerHole(nextHole)
                             ? (selectedFingerHole.rotationDeg ?? 0)
                             : selectedFingerHole.rotationDeg,
                       },
@@ -1215,6 +1221,7 @@ export function BinControlsPanel({
                     <SelectItem value="oblong-deep-scoop">
                       Oblong deep scoop
                     </SelectItem>
+                    <SelectItem value="flat-ended-scoop">Flat-ended cylindrical scoop</SelectItem>
                   </SelectContent>
                 </Select>
 
@@ -1238,11 +1245,11 @@ export function BinControlsPanel({
                               ? Math.max(selectedFingerHole.depthMm, diameterMm / 2)
                               : selectedFingerHole.depthMm,
                         lengthMm:
-                          selectedFingerHole.kind === "oblong-deep-scoop"
+                          isElongatedFingerHole(selectedFingerHole)
                             ? Math.max(
                                 selectedFingerHole.lengthMm ??
                                   DEFAULT_OBLONG_DEEP_SCOOP_LENGTH_MM,
-                                diameterMm + MIN_OBLONG_DEEP_SCOOP_SPAN_MM,
+                                minimumFingerHoleLengthMm({ ...selectedFingerHole, diameterMm }),
                               )
                             : selectedFingerHole.lengthMm,
                       },
@@ -1295,15 +1302,12 @@ export function BinControlsPanel({
                 )}
 
                 {(selectedFingerHole.kind === "deep-scoop" ||
-                  selectedFingerHole.kind === "oblong-deep-scoop") && (
+                  isElongatedFingerHole(selectedFingerHole)) && (
                   <div className="space-y-1">
                     <MmSlider
                       label="Total depth"
-                      value={Math.max(
-                        selectedFingerHole.depthMm,
-                        selectedFingerHole.diameterMm / 2,
-                      )}
-                      min={selectedFingerHole.diameterMm / 2}
+                      value={effectiveFingerHoleDepthMm(selectedFingerHole)}
+                      min={selectedFingerHole.kind === "flat-ended-scoop" ? 1 : selectedFingerHole.diameterMm / 2}
                       max={120}
                       step={0.5}
                       onChange={(depthMm, transient) =>
@@ -1322,26 +1326,30 @@ export function BinControlsPanel({
                         selectedFingerHole.depthMm -
                           selectedFingerHole.diameterMm / 2,
                       ).toFixed(1)} mm · rounded bottom radius: {(
-                        selectedFingerHole.diameterMm / 2
+                        selectedFingerHole.kind === "flat-ended-scoop"
+                          ? flatEndedScoopRadiusMm(selectedFingerHole)
+                          : selectedFingerHole.diameterMm / 2
                       ).toFixed(1)} mm
                     </p>
                   </div>
                 )}
 
-                {selectedFingerHole.kind === "oblong-deep-scoop" && (
+                {selectedFingerHole.kind === "flat-ended-scoop" && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Cylindrical bottom with flat ends. Shallow depths keep the opening width. Length is measured between the end faces.
+                  </p>
+                )}
+
+                {isElongatedFingerHole(selectedFingerHole) && (
                   <div className="space-y-2">
                     <MmSlider
                       label="Length"
                       value={Math.max(
                         selectedFingerHole.lengthMm ??
                           DEFAULT_OBLONG_DEEP_SCOOP_LENGTH_MM,
-                        selectedFingerHole.diameterMm +
-                          MIN_OBLONG_DEEP_SCOOP_SPAN_MM,
+                        minimumFingerHoleLengthMm(selectedFingerHole),
                       )}
-                      min={
-                        selectedFingerHole.diameterMm +
-                        MIN_OBLONG_DEEP_SCOOP_SPAN_MM
-                      }
+                      min={minimumFingerHoleLengthMm(selectedFingerHole)}
                       max={MAX_OBLONG_DEEP_SCOOP_LENGTH_MM}
                       step={1}
                       onChange={(lengthMm, transient) =>
@@ -1349,7 +1357,7 @@ export function BinControlsPanel({
                           type: "UPDATE_FINGER_HOLE",
                           id: selectedFingerHole.id,
                           patch: { lengthMm },
-                          historyLabel: "Resize oblong finger hole",
+                          historyLabel: "Resize elongated finger hole",
                           transient,
                         })
                       }
@@ -1360,7 +1368,7 @@ export function BinControlsPanel({
                         variant="outline"
                         size="icon"
                         className="h-8 w-8 shrink-0"
-                        aria-label="Rotate oblong finger hole 90 degrees counterclockwise"
+                        aria-label="Rotate elongated finger hole 90 degrees counterclockwise"
                         onClick={() =>
                           dispatch({
                             type: "UPDATE_FINGER_HOLE",
@@ -1372,7 +1380,7 @@ export function BinControlsPanel({
                                   360) %
                                 360,
                             },
-                            historyLabel: "Rotate oblong finger hole",
+                            historyLabel: "Rotate elongated finger hole",
                           })
                         }
                       >
@@ -1382,7 +1390,7 @@ export function BinControlsPanel({
                         variant="outline"
                         size="icon"
                         className="h-8 w-8 shrink-0"
-                        aria-label="Rotate oblong finger hole 90 degrees clockwise"
+                        aria-label="Rotate elongated finger hole 90 degrees clockwise"
                         onClick={() =>
                           dispatch({
                             type: "UPDATE_FINGER_HOLE",
@@ -1394,7 +1402,7 @@ export function BinControlsPanel({
                                   360) %
                                 360,
                             },
-                            historyLabel: "Rotate oblong finger hole",
+                            historyLabel: "Rotate elongated finger hole",
                           })
                         }
                       >
@@ -1402,7 +1410,7 @@ export function BinControlsPanel({
                       </Button>
                       <DraftNumberInput
                         className="h-8 min-w-0"
-                        aria-label="Oblong finger hole rotation"
+                        aria-label="Elongated finger hole rotation"
                         value={
                           Math.round((selectedFingerHole.rotationDeg ?? 0) * 10) /
                           10
@@ -1414,7 +1422,7 @@ export function BinControlsPanel({
                             type: "UPDATE_FINGER_HOLE",
                             id: selectedFingerHole.id,
                             patch: { rotationDeg },
-                            historyLabel: "Rotate oblong finger hole",
+                            historyLabel: "Rotate elongated finger hole",
                           })
                         }
                       />

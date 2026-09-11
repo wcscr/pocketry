@@ -132,3 +132,20 @@ describe("generateLayoutSVG", () => {
     expect(svg).toContain("61.7500 75.7500");
   });
 });
+
+
+it("exports a flat-ended channel as a rectangle at its saved position and rotation", () => {
+  const rings = layoutRingsMm(SPEC, [], BY_ID, [{
+    id: "flat", kind: "flat-ended-scoop", center: { x: 5, y: -8 },
+    diameterMm: 16, lengthMm: 40, depthMm: 25, rotationDeg: 90,
+    topFilletMm: 0, bottomFilletMm: 0,
+  }]);
+  expect(rings).toHaveLength(2);
+  const ring = rings[1];
+  expect(ring).toHaveLength(4);
+  expect(Math.abs(signedArea(ring))).toBeCloseTo(640, 8);
+  expect(Math.min(...ring.map(p => p.x))).toBeCloseTo(-3, 8);
+  expect(Math.max(...ring.map(p => p.x))).toBeCloseTo(13, 8);
+  expect(Math.min(...ring.map(p => p.y))).toBeCloseTo(-28, 8);
+  expect(Math.max(...ring.map(p => p.y))).toBeCloseTo(12, 8);
+});

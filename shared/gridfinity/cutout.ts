@@ -114,7 +114,8 @@ export type DepthSpec = z.infer<typeof depthSpecSchema>;
  * cut to the pocket floor; round scoops are spherical dishes cut from the top;
  * deep scoops descend through straight vertical walls and finish in a rounded
  * bottom. The oblong variant stores its midpoint, overall length and rotation
- * so its two end handles can resize it. Every hole is positioned directly in
+ * so its two end handles can resize it. Flat-ended scoops have a rectangular
+ * mouth and cylindrical bottom with planar ends. Every hole is positioned directly in
  * the bin frame, independently from tool-pocket transforms.
  */
 export const fingerHoleSchema = z
@@ -131,6 +132,7 @@ export const fingerHoleSchema = z
         "scoop",
         "deep-scoop",
         "oblong-deep-scoop",
+        "flat-ended-scoop",
         "oblong-scoop",
       ])
       .default("straight"),
@@ -144,7 +146,7 @@ export const fingerHoleSchema = z
     reachMm: z.number().min(1).max(120).optional(),
     /** Compatibility only; removed with the directed-trough prototype. */
     directionDeg: z.number().finite().optional(),
-    /** Overall end-to-end mouth length; used by oblong deep scoops only. */
+    /** Overall end-to-end mouth length; used by elongated scoops only. */
     lengthMm: z.number().min(6).max(160).optional(),
     /** CCW mouth rotation in the bin-local y-up frame. */
     rotationDeg: z.number().finite().optional(),
@@ -204,27 +206,57 @@ export function effectiveDeepScoopDepthMm(
   return Math.max(scoop.depthMm, scoop.diameterMm / 2);
 }
 
-export interface OblongDeepScoopEndpoints {
-  /** Centres of the two semicircular end caps in shape-local mm. */
+/** Actual cutting depth shared by controls, geometry, and floor validation. */
+export function effectiveFingerHoleDepthMm(hole: FingerHole): number {
+  if (hole.kind === "scoop") return effectiveScoopDepthMm(hole);
+  if (hole.kind === "deep-scoop" || hole.kind === "oblong-deep-scoop") {
+    return effectiveDeepScoopDepthMm(hole);
+  }
+  return hole.depthMm;
+}
+
+/** Circular-segment radius preserving the opening width at shallow depths. */
+export function flatEndedScoopRadiusMm(
+  hole: Pick<FingerHole, "diameterMm" | "depthMm">,
+): number {
+  const halfWidth = hole.diameterMm / 2;
+  const depth = Math.min(hole.depthMm, halfWidth);
+  return (halfWidth * halfWidth + depth * depth) / (2 * depth);
+}
+
+/** Whether the hole has independently editable length and rotation. */
+export function isElongatedFingerHole(hole: Pick<FingerHole, "kind">): boolean {
+  return hole.kind === "oblong-deep-scoop" || hole.kind === "flat-ended-scoop";
+}
+
+/** Flat ends can be closer together than the channel width. */
+export function minimumFingerHoleLengthMm(hole: Pick<FingerHole, "kind" | "diameterMm">): number {
+  return hole.kind === "flat-ended-scoop"
+    ? MIN_FINGER_HOLE_DIAMETER_MM
+    : hole.diameterMm + MIN_OBLONG_DEEP_SCOOP_SPAN_MM;
+}
+
+export interface ElongatedFingerHoleEndpoints {
+  /** Centres of the end caps or flat end faces in shape-local mm. */
   start: Point;
   end: Point;
   /** Effective overall end-to-end mouth length. */
   lengthMm: number;
 }
 
-/** Shape-local cap centres for an oblong deep scoop. */
-export function oblongDeepScoopEndpoints(
+/** Shape-local end handles: cap centres for oblongs, end faces for flat ends. */
+export function elongatedFingerHoleEndpoints(
   hole: Pick<
     FingerHole,
     "center" | "diameterMm" | "lengthMm" | "rotationDeg"
-  >,
-): OblongDeepScoopEndpoints {
-  const minimumLength = hole.diameterMm + MIN_OBLONG_DEEP_SCOOP_SPAN_MM;
+  > & Partial<Pick<FingerHole, "kind">>,
+): ElongatedFingerHoleEndpoints {
+  const minimumLength = minimumFingerHoleLengthMm({ ...hole, kind: hole.kind ?? "oblong-deep-scoop" });
   const lengthMm = Math.min(
     MAX_OBLONG_DEEP_SCOOP_LENGTH_MM,
     Math.max(hole.lengthMm ?? DEFAULT_OBLONG_DEEP_SCOOP_LENGTH_MM, minimumLength),
   );
-  const halfSpan = (lengthMm - hole.diameterMm) / 2;
+  const halfSpan = (lengthMm - (hole.kind === "flat-ended-scoop" ? 0 : hole.diameterMm)) / 2;
   const radians = ((hole.rotationDeg ?? 0) * Math.PI) / 180;
   const dx = halfSpan * Math.cos(radians);
   const dy = halfSpan * Math.sin(radians);
@@ -236,16 +268,16 @@ export function oblongDeepScoopEndpoints(
 }
 
 /**
- * Moves one oblong end while the opposite end stays fixed. This is shared by
+ * Moves one elongated scoop end while the opposite end stays fixed. This is shared by
  * the editor and tests so endpoint dragging, resizing and rotation are one
  * operation with one source of truth.
  */
-export function resizeOblongDeepScoopFromEndpoint(
+export function resizeElongatedFingerHoleFromEndpoint(
   hole: FingerHole,
   endpoint: "start" | "end",
   dragged: Point,
 ): FingerHole {
-  const current = oblongDeepScoopEndpoints(hole);
+  const current = elongatedFingerHoleEndpoints(hole);
   const fixed = endpoint === "start" ? current.end : current.start;
   let dx = endpoint === "start" ? fixed.x - dragged.x : dragged.x - fixed.x;
   let dy = endpoint === "start" ? fixed.y - dragged.y : dragged.y - fixed.y;
@@ -256,9 +288,10 @@ export function resizeOblongDeepScoopFromEndpoint(
     dy = Math.sin(radians);
     span = 1;
   }
+  const capLength = hole.kind === "flat-ended-scoop" ? 0 : hole.diameterMm;
   const clampedSpan = Math.min(
-    MAX_OBLONG_DEEP_SCOOP_LENGTH_MM - hole.diameterMm,
-    Math.max(MIN_OBLONG_DEEP_SCOOP_SPAN_MM, span),
+    MAX_OBLONG_DEEP_SCOOP_LENGTH_MM - capLength,
+    Math.max(minimumFingerHoleLengthMm(hole) - capLength, span),
   );
   const ux = dx / span;
   const uy = dy / span;
@@ -273,7 +306,7 @@ export function resizeOblongDeepScoopFromEndpoint(
   return {
     ...hole,
     center: { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 },
-    lengthMm: clampedSpan + hole.diameterMm,
+    lengthMm: clampedSpan + capLength,
     rotationDeg,
   };
 }
@@ -281,13 +314,13 @@ export function resizeOblongDeepScoopFromEndpoint(
 /**
  * Resizes a mouth from its radial/width handle. Round holes keep their centre
  * fixed. Oblong holes keep both cap centres fixed, so changing width does not
- * unexpectedly change either end position.
+ * unexpectedly change either end position. Flat-ended scoops retain their length.
  */
 export function resizeFingerHoleFromWidthHandle(
   hole: FingerHole,
   dragged: Point,
 ): FingerHole {
-  if (hole.kind !== "oblong-deep-scoop") {
+  if (!isElongatedFingerHole(hole)) {
     const diameterMm = Math.min(
       MAX_FINGER_HOLE_DIAMETER_MM,
       Math.max(
@@ -304,7 +337,7 @@ export function resizeFingerHoleFromWidthHandle(
     return { ...hole, diameterMm, depthMm };
   }
 
-  const endpoints = oblongDeepScoopEndpoints(hole);
+  const endpoints = elongatedFingerHoleEndpoints(hole);
   const span = Math.hypot(
     endpoints.end.x - endpoints.start.x,
     endpoints.end.y - endpoints.start.y,
@@ -316,14 +349,14 @@ export function resizeFingerHoleFromWidthHandle(
     (dragged.y - hole.center.y) * normal.y;
   const diameterMm = Math.min(
     MAX_FINGER_HOLE_DIAMETER_MM,
-    MAX_OBLONG_DEEP_SCOOP_LENGTH_MM - span,
+    hole.kind === "flat-ended-scoop" ? MAX_FINGER_HOLE_DIAMETER_MM : MAX_OBLONG_DEEP_SCOOP_LENGTH_MM - span,
     Math.max(MIN_FINGER_HOLE_DIAMETER_MM, 2 * Math.abs(signedDistance)),
   );
   return {
     ...hole,
     diameterMm,
-    depthMm: Math.max(hole.depthMm, diameterMm / 2),
-    lengthMm: span + diameterMm,
+    depthMm: hole.kind === "flat-ended-scoop" ? hole.depthMm : Math.max(hole.depthMm, diameterMm / 2),
+    lengthMm: hole.kind === "flat-ended-scoop" ? endpoints.lengthMm : span + diameterMm,
   };
 }
 
@@ -659,9 +692,20 @@ export function fingerHoleFootprintRing(
   placement: PlacementTransform,
   segments = 24,
 ): Point[] {
-  const local = hole.kind === "oblong-deep-scoop"
+  const local = isElongatedFingerHole(hole)
     ? (() => {
-        const { start, end } = oblongDeepScoopEndpoints(hole);
+        const { start, end } = elongatedFingerHoleEndpoints(hole);
+        if (hole.kind === "flat-ended-scoop") {
+          const radians = ((hole.rotationDeg ?? 0) * Math.PI) / 180;
+          const nx = -Math.sin(radians) * hole.diameterMm / 2;
+          const ny = Math.cos(radians) * hole.diameterMm / 2;
+          return [
+            { x: start.x - nx, y: start.y - ny },
+            { x: end.x - nx, y: end.y - ny },
+            { x: end.x + nx, y: end.y + ny },
+            { x: start.x + nx, y: start.y + ny },
+          ];
+        }
         return capsuleRing(start, end, hole.diameterMm / 2, segments);
       })()
     : circleRing(hole.center, hole.diameterMm / 2, segments);

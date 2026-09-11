@@ -3,7 +3,8 @@ import { z } from "zod";
 import {
   cutoutPlacementSchema,
   fingerHoleSchema,
-  oblongDeepScoopEndpoints,
+  elongatedFingerHoleEndpoints,
+  isElongatedFingerHole,
   resolvePocketDepth,
   tracedShapeSchema,
   transformPointPlacement,
@@ -27,9 +28,10 @@ import { binSpecSchema } from "./types";
  * optional project names, fixed-size preference, and trace margin provenance.
  * Version 11 removes Lite Base; older projects use the ordinary Gridfinity base.
  * Version 12 adds an optional flat bottom, defaulting off for existing projects.
+ * Version 13 adds flat-ended cylindrical finger scoops.
  */
 
-export const PROJECT_SCHEMA_VERSION = 12 as const;
+export const PROJECT_SCHEMA_VERSION = 13 as const;
 
 const projectFields = {
   shapes: z.array(tracedShapeSchema),
@@ -69,6 +71,8 @@ export const projectDocSchema = z
   })
   .strict();
 
+const version12ProjectSchema = projectDocSchema.extend({ schemaVersion: z.literal(12) });
+
 const version11ProjectSchema = projectDocSchema.extend({ schemaVersion: z.literal(11) });
 
 const version10ProjectSchema = projectDocSchema.extend({ schemaVersion: z.literal(10) });
@@ -103,8 +107,8 @@ function migrateLegacyProject(doc: LegacyProjectDoc): ProjectDoc {
     for (const hole of cutout.fingerHoles) {
       const center = transformPointPlacement(hole.center, cutout);
       let rotationDeg = hole.rotationDeg;
-      if (hole.kind === "oblong-deep-scoop") {
-        const endpoints = oblongDeepScoopEndpoints(hole);
+      if (isElongatedFingerHole(hole)) {
+        const endpoints = elongatedFingerHoleEndpoints(hole);
         const start = transformPointPlacement(endpoints.start, cutout);
         const end = transformPointPlacement(endpoints.end, cutout);
         rotationDeg =
@@ -153,6 +157,8 @@ export function parseProjectDoc(input: unknown): ProjectDoc | null {
       input = { ...doc, spec };
     }
   }
+  const version12 = version12ProjectSchema.safeParse(input);
+  if (version12.success) return projectDocSchema.parse({ ...version12.data, schemaVersion: PROJECT_SCHEMA_VERSION });
   const version11 = version11ProjectSchema.safeParse(input);
   if (version11.success) return projectDocSchema.parse({ ...version11.data, schemaVersion: PROJECT_SCHEMA_VERSION });
   const version10 = version10ProjectSchema.safeParse(input);

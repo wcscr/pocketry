@@ -71,14 +71,30 @@ footprint, then print an L-tool pocket and check its fit.
 
 G4 delivered **finger holes**, now independent bin-local layout objects rather
 than children of a tool pocket. They can be straight cylinders with their own
-depth, spherical round scoops, round deep scoops, or oblong deep scoops from the
+depth, spherical round scoops, round deep scoops, oblong deep scoops, or flat-ended
+cylindrical scoops from the
 top surface. Deep
 scoops run straight down for the requested shaft depth and terminate in a
 rounded bottom, so total depth can exceed the opening width without an
 inward-overhanging cavity. The oblong variant has a capsule mouth and swept
 hemisphere bottom; it can be moved as a unit, rotated directly, or resized and
 rotated by dragging either endpoint. Every hole type has a mouse diameter/width
-handle; oblong holes additionally expose both end handles. Round-scoop depth
+handle; elongated scoops additionally expose both end handles. Flat-ended scoops
+have a rectangular mouth, a half-cylinder bottom, and planar end faces; their
+length (6–160 mm) measures the full distance between the ends and is independent
+of diameter. Total depth can be as shallow as 1 mm: a circular-segment bottom
+preserves the opening width. At half the width the bottom is a half-cylinder;
+extra depth adds vertical walls. Their long-edge rounding is tangent to both the
+cylindrical bottom and the flat top, including shallow cuts and short vertical
+shafts. Flat ends retain their
+quarter-circle rounding. All five finger-access styles now share continuous
+top-edge rounding: round scoops match the spherical cap, deep scoops match their
+hemisphere or shaft, and oblong scoops match both the trough and spherical end
+caps. Straight holes retain their existing floor fillets. Connected rings join
+the surfaces without stepped bands or a ledge across curved walls. They support
+validation, undo/redo, layout and
+STL/3MF export paths. Project schema 13 preserves this style and migrates v12
+without changing existing geometry. Round-scoop depth
 remains capped at half the opening width. Moving, duplicating, deleting, or
 auto-arranging a pocket does not move or remove a hole. **Auto-arrange** uses a
 min-area OBB per cutout and shelf-packs pockets into the smallest grid while

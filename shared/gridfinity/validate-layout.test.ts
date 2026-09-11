@@ -368,13 +368,13 @@ describe("validateLayout: finger holes and scoops (G4)", () => {
     expect(result).not.toContain("finger-hole-out-of-bounds");
   });
 
-  it("uses the full deep-scoop shaft and hemisphere depth for floor validation", () => {
+  it.each(["deep-scoop", "flat-ended-scoop"])("uses full %s depth for floor validation", (kind) => {
     const shape = makeShape("s1", 20, 20);
     const cutout = makeCutout("c1", "s1", 0, 0, {
       fingerHoles: [
         {
           id: "f1",
-          kind: "deep-scoop",
+          kind,
           center: { x: 0, y: 0 },
           diameterMm: 10,
           depthMm: 15,
@@ -386,13 +386,13 @@ describe("validateLayout: finger holes and scoops (G4)", () => {
     );
   });
 
-  it("validates the full rotated oblong mouth against the bin walls", () => {
+  it.each(["oblong-deep-scoop", "flat-ended-scoop"])("validates the full %s mouth against the bin walls", (kind) => {
     const shape = makeShape("s1", 20, 20);
     const cutout = makeCutout("c1", "s1", 0, 0, {
       fingerHoles: [
         {
           id: "f1",
-          kind: "oblong-deep-scoop",
+          kind,
           center: { x: 0, y: 0 },
           diameterMm: 10,
           depthMm: 25,
@@ -498,4 +498,17 @@ describe("label tab rules (G5)", () => {
       "label-tab-shadow",
     );
   });
+});
+
+
+it("validates shallow flat-ended depth independently of its width", () => {
+  const shape = makeShape("s1", 20, 20);
+  const pocket = makeCutout("c1", "s1", 0, 0, {
+    depth: { mode: "mm", value: 2 },
+    fingerHoles: [{ id: "shallow", kind: "flat-ended-scoop", center: { x: 0, y: 0 },
+      diameterMm: 40, lengthMm: 40, depthMm: 1 }],
+  });
+  const result = codes(spec({ heightUnits: 2, lip: "none" }), [pocket], [shape]);
+  expect(result).not.toContain("finger-hole-too-deep");
+  expect(result).not.toContain("finger-hole-floor-too-thin");
 });

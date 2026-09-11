@@ -378,3 +378,20 @@ describe("flat bottom projects", () => {
     expect(parseProjectDoc(JSON.parse(JSON.stringify(flat)))).toEqual(flat);
   });
 });
+
+
+it("round-trips flat-ended scoops and migrates v12 without changing existing geometry", () => {
+  const old = parseProjectDoc({ ...VALID, schemaVersion: 12, spec: { ...VALID.spec, flatBottom: true } });
+  expect(old).not.toBeNull();
+  expect(old!.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
+  expect(old!.spec.flatBottom).toBe(true);
+  const doc = parseProjectDoc({ ...old!, fingerHoles: [{
+    id: "flat", kind: "flat-ended-scoop", center: { x: 10, y: -5 },
+    diameterMm: 16, lengthMm: 55, depthMm: 2, rotationDeg: 35,
+    topFilletMm: 1, bottomFilletMm: 0,
+  }] });
+  expect(doc!.fingerHoles[0]).toMatchObject({ kind: "flat-ended-scoop", lengthMm: 55, rotationDeg: 35 });
+  expect(parseProjectDoc(JSON.parse(JSON.stringify(doc)))).toEqual(doc);
+  expect(doc!.cutouts).toEqual(old!.cutouts);
+  expect(parseProjectDoc({ ...doc!, schemaVersion: PROJECT_SCHEMA_VERSION + 1 })).toBeNull();
+});
