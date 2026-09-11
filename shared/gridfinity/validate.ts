@@ -16,6 +16,7 @@ import {
   effectiveDeepScoopDepthMm,
   effectiveScoopDepthMm,
   fingerHoleFootprintRing,
+  isElongatedFingerHole,
   placementFootprint,
   pocketLayoutAllowanceMm,
   resolvePocketDepth,
@@ -567,7 +568,7 @@ function validateFingerHoleAgainstBin(
   const cutDepth =
     hole.kind === "scoop"
       ? effectiveScoopDepthMm(hole)
-      : hole.kind === "deep-scoop" || hole.kind === "oblong-deep-scoop"
+      : hole.kind === "deep-scoop" || isElongatedFingerHole(hole)
         ? effectiveDeepScoopDepthMm(hole)
         : hole.depthMm;
   const bottomZ = surface.infillTopZ - cutDepth;

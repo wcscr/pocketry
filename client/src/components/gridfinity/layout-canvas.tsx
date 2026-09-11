@@ -15,11 +15,12 @@ import {
   binToCanvas,
   canvasToBin,
   fingerHoleFootprintRing,
-  oblongDeepScoopEndpoints,
+  elongatedFingerHoleEndpoints,
+  isElongatedFingerHole,
   placementFootprint,
   resizeCutoutPlacementFromHandle,
   resizeFingerHoleFromWidthHandle,
-  resizeOblongDeepScoopFromEndpoint,
+  resizeElongatedFingerHoleFromEndpoint,
   transformPointPlacement,
   untransformPointPlacement,
   type CutoutPlacement,
@@ -315,8 +316,8 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
     () =>
       fingerHoles.map((hole) => {
         const endpoints =
-          hole.kind === "oblong-deep-scoop"
-            ? oblongDeepScoopEndpoints(hole)
+          isElongatedFingerHole(hole)
+            ? elongatedFingerHoleEndpoints(hole)
             : null;
         const radians = ((hole.rotationDeg ?? 0) * Math.PI) / 180;
         return {
@@ -766,7 +767,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
       featureId &&
       (featureEndpoint === "start" || featureEndpoint === "end") &&
       selectedFingerHole?.hole.id === featureId &&
-      selectedFingerHole.hole.kind === "oblong-deep-scoop"
+      isElongatedFingerHole(selectedFingerHole.hole)
     ) {
       dragRef.current = {
         kind: "feature-end",
@@ -905,7 +906,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
     if (drag.kind === "feature-end") {
       const current = fingerHoles.find((hole) => hole.id === drag.featureId);
       if (!current) return;
-      const resized = resizeOblongDeepScoopFromEndpoint(
+      const resized = resizeElongatedFingerHoleFromEndpoint(
         current,
         drag.endpoint,
         point,
@@ -1065,7 +1066,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
           patch = { center: { x: hole.center.x, y: hole.center.y - nudge } };
         } else if (
           (event.key === "r" || event.key === "R") &&
-          hole.kind === "oblong-deep-scoop"
+          isElongatedFingerHole(hole)
         ) {
           patch = {
             rotationDeg:

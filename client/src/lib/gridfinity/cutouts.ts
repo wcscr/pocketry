@@ -5,7 +5,8 @@ import {
   effectiveDeepScoopDepthMm,
   effectiveScoopDepthMm,
   fingerHoleFootprintRing,
-  oblongDeepScoopEndpoints,
+  elongatedFingerHoleEndpoints,
+  isElongatedFingerHole,
   resolvePocketDepth,
   transformOutlinePlacement,
   transformPointPlacement,
@@ -247,8 +248,8 @@ function buildDeepScoopCutter(
   return arena.track(shaft.add(sphere));
 }
 
-/** Capsule shaft with a swept-hemisphere trough bottom. */
-function buildOblongDeepScoopCutter(
+/** Elongated shaft with a cylindrical bottom; oblongs also have spherical end caps. */
+function buildElongatedScoopCutter(
   kernel: Kernel,
   scoop: FingerHole,
   placement: Pick<CutoutPlacement, "position" | "rotationDeg" | "mirrored">,
@@ -256,7 +257,7 @@ function buildOblongDeepScoopCutter(
   segments: number,
 ): Manifold {
   const { arena, Manifold: M } = kernel;
-  const localEndpoints = oblongDeepScoopEndpoints(scoop);
+  const localEndpoints = elongatedFingerHoleEndpoints(scoop);
   const start = transformPointPlacement(localEndpoints.start, placement);
   const end = transformPointPlacement(localEndpoints.end, placement);
   const radius = scoop.diameterMm / 2;
@@ -273,6 +274,16 @@ function buildOblongDeepScoopCutter(
     ]),
   );
 
+  const span = Math.hypot(end.x - start.x, end.y - start.y);
+  const angleDeg = (Math.atan2(end.y - start.y, end.x - start.x) * 180) / Math.PI;
+  let trough = arena.track(M.cylinder(span, radius, radius, segments));
+  trough = arena.track(trough.rotate([0, 90, 0]));
+  if (angleDeg !== 0) trough = arena.track(trough.rotate([0, 0, angleDeg]));
+  trough = arena.track(trough.translate([start.x, start.y, bottomCentreZ]));
+
+  // A finite cylinder supplies planar end faces without rounded caps.
+  if (scoop.kind === "flat-ended-scoop") return arena.track(shaft.add(trough));
+
   const startSphere = arena.track(
     arena.track(M.sphere(radius, segments)).translate([
       start.x,
@@ -287,13 +298,6 @@ function buildOblongDeepScoopCutter(
       bottomCentreZ,
     ]),
   );
-  const span = Math.hypot(end.x - start.x, end.y - start.y);
-  const angleDeg = (Math.atan2(end.y - start.y, end.x - start.x) * 180) / Math.PI;
-  let trough = arena.track(M.cylinder(span, radius, radius, segments));
-  trough = arena.track(trough.rotate([0, 90, 0]));
-  if (angleDeg !== 0) trough = arena.track(trough.rotate([0, 0, angleDeg]));
-  trough = arena.track(trough.translate([start.x, start.y, bottomCentreZ]));
-
   const roundedBottom = arena.track(
     arena.track(startSphere.add(trough)).add(endSphere),
   );
@@ -356,8 +360,8 @@ export function buildFingerHoleCutters(
         pocket,
         segments,
       );
-    } else if (hole.kind === "oblong-deep-scoop") {
-      cutter = buildOblongDeepScoopCutter(
+    } else if (isElongatedFingerHole(hole)) {
+      cutter = buildElongatedScoopCutter(
         kernel,
         hole,
         BIN_LOCAL_PLACEMENT,
@@ -371,7 +375,7 @@ export function buildFingerHoleCutters(
     const cutDepth =
       hole.kind === "scoop"
         ? effectiveScoopDepthMm(hole)
-        : hole.kind === "deep-scoop" || hole.kind === "oblong-deep-scoop"
+        : hole.kind === "deep-scoop" || isElongatedFingerHole(hole)
           ? effectiveDeepScoopDepthMm(hole)
           : hole.depthMm;
     const effectiveTopFillet = Math.min(hole.topFilletMm, cutDepth / 2);
