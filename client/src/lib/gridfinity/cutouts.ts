@@ -26,7 +26,7 @@ import { simplifyRing } from "@/lib/geometry/simplify";
 import type { Kernel } from "@/lib/manifold/runtime";
 
 import type { BuildQuality } from "./bin";
-import { buildRoundedFlatEndedScoopCutter } from "./flat-ended-scoop";
+import { buildRoundedFingerAccessCutter } from "./finger-access-rounding";
 import {
   bottomFilletCutter,
   FILLET_PROFILE_STEP_MM,
@@ -362,8 +362,8 @@ export function buildFingerHoleCutters(
     const pocket = resolvePocketDepth(spec, { mode: "mm", value: hole.depthMm });
     const cutDepth = effectiveFingerHoleDepthMm(hole);
     const effectiveTopFillet = Math.min(hole.topFilletMm, cutDepth / 2);
-    if (hole.kind === "flat-ended-scoop" && effectiveTopFillet > 0) {
-      cutters.push(buildRoundedFlatEndedScoopCutter(kernel, hole, pocket.infillTopZ, pocket.cutterTopZ, {
+    if (hole.kind !== "straight" && effectiveTopFillet > 0) {
+      cutters.push(buildRoundedFingerAccessCutter(kernel, hole, pocket.infillTopZ, pocket.cutterTopZ, {
         radiusMm: effectiveTopFillet,
         profileStepMm: filletProfileStepMm,
         circularSegments: segments,
@@ -426,15 +426,13 @@ export function buildFingerHoleCutters(
     }
 
     if (effectiveTopFillet > 0) {
-      const topRound = topEdgeFilletCutter(kernel, section, {
+      // Straight holes retain the existing floor fillet, adding only a smooth rim.
+      const topRound = buildRoundedFingerAccessCutter(kernel, hole, pocket.infillTopZ, pocket.cutterTopZ, {
         radiusMm: effectiveTopFillet,
         profileStepMm: filletProfileStepMm,
         circularSegments: segments,
       });
-      const positionedTopRound = arena.track(
-        topRound.translate([0, 0, pocket.infillTopZ - effectiveTopFillet]),
-      );
-      cutter = arena.track(cutter.add(positionedTopRound));
+      cutter = arena.track(cutter.add(topRound));
     }
     cutters.push(cutter);
   }

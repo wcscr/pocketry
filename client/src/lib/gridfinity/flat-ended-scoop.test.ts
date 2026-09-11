@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { fingerHoleSchema } from "@shared/gridfinity/cutout";
 import { Arena } from "@/lib/manifold/arena";
 import { createKernel, loadManifold, type Kernel } from "@/lib/manifold/runtime";
-import { buildRoundedFlatEndedScoopCutter, flatEndedScoopHalfWidthAtZ, flatEndedScoopRimGeometry } from "./flat-ended-scoop";
+import { buildRoundedFingerAccessCutter, fingerAccessHalfWidthAtZ, fingerAccessRimGeometry } from "./finger-access-rounding";
 
 let arena: Arena;
 let kernel: Kernel;
@@ -23,12 +23,12 @@ const cases = [
 
 describe.each(cases)("tangent scoop rim $diameterMm wide, $depthMm deep, $topFilletMm round", (settings) => {
   const hole = fingerHoleSchema.parse({ id: "tangent", kind: "flat-ended-scoop", center: { x: 0, y: 0 }, ...settings });
-  const rim = flatEndedScoopRimGeometry(hole, hole.topFilletMm);
+  const rim = fingerAccessRimGeometry(hole, hole.topFilletMm);
 
   it("meets the cylinder at the same point and slope, and the top horizontally", () => {
     const y = rim.tangentHalfWidth;
     const z = rim.tangentZ;
-    expect(flatEndedScoopHalfWidthAtZ(hole, rim, z)).toBeCloseTo(y, 8);
+    expect(fingerAccessHalfWidthAtZ(hole, rim, z)).toBeCloseTo(y, 8);
     if (!rim.verticalJoin) {
       expect(Math.hypot(y, z - rim.centerZ)).toBeCloseTo(rim.radius, 8);
       expect(Math.hypot(y - rim.openingHalfWidth, z + rim.rimRadius)).toBeCloseTo(rim.rimRadius, 8);
@@ -37,12 +37,12 @@ describe.each(cases)("tangent scoop rim $diameterMm wide, $depthMm deep, $topFil
       expect(Math.atan(filletSlope)).toBeCloseTo(Math.atan(cylinderSlope), 8);
     }
     const dz = Math.min(1e-6, -z / 10);
-    expect(Math.abs(flatEndedScoopHalfWidthAtZ(hole, rim, -dz) - rim.openingHalfWidth)).toBeGreaterThan(0);
-    expect(dz / (rim.openingHalfWidth - flatEndedScoopHalfWidthAtZ(hole, rim, -dz))).toBeLessThan(0.01);
+    expect(Math.abs(fingerAccessHalfWidthAtZ(hole, rim, -dz) - rim.openingHalfWidth)).toBeGreaterThan(0);
+    expect(dz / (rim.openingHalfWidth - fingerAccessHalfWidthAtZ(hole, rim, -dz))).toBeLessThan(0.01);
   });
 
   it.each([24, 64])("emits a continuous tangent join at %s segments and preserves the flat ends", (circularSegments) => {
-    const solid = buildRoundedFlatEndedScoopCutter(kernel, hole, 0, 2, {
+    const solid = buildRoundedFingerAccessCutter(kernel, hole, 0, 2, {
       radiusMm: hole.topFilletMm, circularSegments, profileStepMm: circularSegments === 24 ? 0.5 : 0.1,
     });
     expect(solid.status()).toBe("NoError");

@@ -87,8 +87,11 @@ preserves the opening width. At half the width the bottom is a half-cylinder;
 extra depth adds vertical walls. Their long-edge rounding is tangent to both the
 cylindrical bottom and the flat top, including shallow cuts and short vertical
 shafts. Flat ends retain their
-quarter-circle rounding; connected rings join the surfaces without stepped bands
-or a rectangular ledge across the cylinder. They support
+quarter-circle rounding. All five finger-access styles now share continuous
+top-edge rounding: round scoops match the spherical cap, deep scoops match their
+hemisphere or shaft, and oblong scoops match both the trough and spherical end
+caps. Straight holes retain their existing floor fillets. Connected rings join
+the surfaces without stepped bands or a ledge across curved walls. They support
 validation, undo/redo, layout and
 STL/3MF export paths. Project schema 13 preserves this style and migrates v12
 without changing existing geometry. Round-scoop depth
