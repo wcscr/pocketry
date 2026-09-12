@@ -22,6 +22,7 @@ import {
   type TracedShape,
 } from "@shared/gridfinity/cutout";
 import { LAYER_HEIGHT } from "@shared/gridfinity/standard";
+import { resolvePocketSplit } from "@shared/gridfinity/pocket-split";
 import type { BinSpec } from "@shared/gridfinity/types";
 import type { Outline, Ring } from "@shared/geometry/types";
 
@@ -466,6 +467,39 @@ export function buildCutoutCutters(
     if (!shape) {
       // Validation owns the user-facing error; the builder just skips.
       reports.push({ id: cutout.id, emptied: true });
+      continue;
+    }
+
+    if (cutout.split) {
+      const resolved = resolvePocketSplit(shape.outlineMm, cutout.split.boundary);
+      if (resolved.error) throw new Error(`“${shape.name}”: ${resolved.error}`);
+      const [a, b] = cutout.split.boundary.map(p => transformPointPlacement(p, cutout));
+      // Mirroring reverses left/right in world space; section identity remains
+      // attached to the authored outline even under nonuniform scaling.
+      const sign = cutout.mirrored ? -1 : 1;
+      const length = Math.hypot(b.x - a.x, b.y - a.y);
+      const nx = -(b.y - a.y) / length * sign;
+      const ny = (b.x - a.x) / length * sign;
+      // One opening means one top round, limited by the shallowest section.
+      const topFilletMm = Math.min(cutout.topFilletMm, ...cutout.split.depths.map(depth => {
+        const resolved = resolvePocketDepth(spec, depth).depthMm;
+        return resolved === null ? Infinity : Math.max(0, resolved / 2);
+      }));
+      let emptied = false;
+      for (const [index, depth] of cutout.split.depths.entries()) {
+        const part = buildCutoutCutters(kernel, shapesById, [{ ...cutout, split: undefined, depth, topFilletMm }], spec, quality, options);
+        const side = index === 0 ? 1 : -1;
+        const trim = (solid: Manifold) => arena.track(solid.trimByPlane(
+          [nx * side, ny * side, 0], (nx * a.x + ny * a.y) * side,
+        ));
+        // Round the original perimeter first, then trim. Treating the split
+        // as an outside edge would create an unwanted rounded ridge at the seam.
+        const sectionCutters = part.cutters.map(trim);
+        emptied ||= part.reports.some(report => report.emptied) || sectionCutters.every(cutter => cutter.isEmpty());
+        cutters.push(...sectionCutters);
+        floorInserts.push(...part.floorInserts.map(trim));
+      }
+      reports.push({ id: cutout.id, emptied });
       continue;
     }
 

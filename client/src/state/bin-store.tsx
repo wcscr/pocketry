@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 
-import { clampFingerHoleToBin, defaultPocketFloorThicknessMm, type CutoutPlacement, type FingerHole } from "@shared/gridfinity/cutout";
+import { clampFingerHoleToBin, defaultPocketFloorThicknessMm, type CutoutPlacement, type DepthSpec, type FingerHole, type PocketSectionIndex } from "@shared/gridfinity/cutout";
 import { parseBinSpec, type BinSpec, type BinSpecInput } from "@shared/gridfinity/types";
 
 /**
@@ -24,7 +24,7 @@ import { parseBinSpec, type BinSpec, type BinSpecInput } from "@shared/gridfinit
  */
 
 export type BinViewMode = "3d" | "2d";
-export type BinEditorMode = "placement" | "contour" | "footprint" | "label-edge";
+export type BinEditorMode = "placement" | "contour" | "footprint" | "label-edge" | "split";
 
 /** What undo restores. */
 export interface BinDoc {
@@ -47,6 +47,7 @@ export interface BinState {
   cutouts: CutoutPlacement[];
   fingerHoles: FingerHole[];
   selectedCutoutId: string | null;
+  selectedPocketSection: PocketSectionIndex;
   selectedFingerHoleId: string | null;
   /** Pocket awaiting the user's remove/resize decision. */
   pendingRemovalId: string | null;
@@ -122,7 +123,7 @@ export type BinAction =
       specPatch?: Partial<BinSpecInput>;
       historyLabel?: string;
     }
-  | { type: "SELECT_CUTOUT"; id: string | null }
+  | { type: "SELECT_CUTOUT"; id: string | null; section?: PocketSectionIndex }
   | { type: "SELECT_FINGER_HOLE"; id: string | null }
   | { type: "SET_VIEW_MODE"; viewMode: BinViewMode }
   | { type: "SET_EDITOR_MODE"; editorMode: BinEditorMode }
@@ -142,6 +143,7 @@ const INITIAL: BinState = {
   cutouts: [],
   fingerHoles: [],
   selectedCutoutId: null,
+  selectedPocketSection: 0,
   selectedFingerHoleId: null,
   pendingRemovalId: null,
   viewMode: "3d",
@@ -236,6 +238,14 @@ function patchCutouts(
   );
 }
 
+function changeDefaultFloor(cutout: CutoutPlacement, previous: number, next: number): CutoutPlacement {
+  const update = (depth: DepthSpec): DepthSpec => depth.mode === "remaining" && depth.floorThicknessMm === previous
+    ? { mode: "remaining", floorThicknessMm: next } : depth;
+  return { ...cutout, depth: update(cutout.depth), ...(cutout.split ? {
+    split: { ...cutout.split, depths: [update(cutout.split.depths[0]), update(cutout.split.depths[1])] },
+  } : {}) };
+}
+
 function reducer(state: BinState, action: BinAction): BinState {
   switch (action.type) {
     case "HYDRATE": {
@@ -252,6 +262,7 @@ function reducer(state: BinState, action: BinAction): BinState {
         cutouts: doc.cutouts,
         fingerHoles: doc.fingerHoles,
         selectedCutoutId: null,
+        selectedPocketSection: 0,
         selectedFingerHoleId: null,
         pendingRemovalId: null,
         editorMode: "placement",
@@ -283,9 +294,7 @@ function reducer(state: BinState, action: BinAction): BinState {
         const previousFloor = defaultPocketFloorThicknessMm(state.spec);
         const nextFloor = defaultPocketFloorThicknessMm(doc.spec);
         doc.cutouts = state.cutouts.map((cutout) =>
-          cutout.depth.mode === "remaining" && cutout.depth.floorThicknessMm === previousFloor
-            ? { ...cutout, depth: { mode: "remaining", floorThicknessMm: nextFloor } }
-            : cutout,
+          changeDefaultFloor(cutout, previousFloor, nextFloor),
         );
       }
       return action.transient
@@ -303,9 +312,8 @@ function reducer(state: BinState, action: BinAction): BinState {
             ...(action.footprint ? { footprint: action.footprint } : {}),
           }),
           cutouts: [...state.cutouts, ...action.cutouts.map((cutout): CutoutPlacement =>
-            state.spec.flatBottom && cutout.depth.mode === "remaining" &&
-              cutout.depth.floorThicknessMm === defaultPocketFloorThicknessMm({ flatBottom: false })
-              ? { ...cutout, depth: { mode: "remaining", floorThicknessMm: defaultPocketFloorThicknessMm(state.spec) } }
+            state.spec.flatBottom
+              ? changeDefaultFloor(cutout, defaultPocketFloorThicknessMm({ flatBottom: false }), defaultPocketFloorThicknessMm(state.spec))
               : cutout,
           )],
           fingerHoles: state.fingerHoles,
@@ -447,6 +455,7 @@ function reducer(state: BinState, action: BinAction): BinState {
       return {
         ...state,
         selectedCutoutId: action.id,
+        selectedPocketSection: action.section ?? (action.id === state.selectedCutoutId ? state.selectedPocketSection : 0),
         selectedFingerHoleId: action.id === null ? state.selectedFingerHoleId : null,
       };
     case "SELECT_FINGER_HOLE":

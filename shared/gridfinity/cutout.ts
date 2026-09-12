@@ -109,6 +109,17 @@ export const depthSpecSchema = z.discriminatedUnion("mode", [
 
 export type DepthSpec = z.infer<typeof depthSpecSchema>;
 
+/** Shape-local boundary vertices. Version 16 supports one straight boundary;
+ * a future polyline uses this same representation with intermediate vertices.
+ * Sections are left/right of the directed boundary, before placement/mirroring.
+ */
+export const pocketSplitSchema = z.object({
+  boundary: z.array(vec2Schema).length(2),
+  depths: z.tuple([depthSpecSchema, depthSpecSchema]),
+}).strict();
+export type PocketSplit = z.infer<typeof pocketSplitSchema>;
+export type PocketSectionIndex = 0 | 1;
+
 /**
  * A draggable finger-access feature. Straight holes are vertical cylinders
  * cut to the pocket floor; round scoops are spherical dishes cut from the top;
@@ -537,6 +548,7 @@ const cutoutPlacementInputSchema = z
       mode: "remaining",
       floorThicknessMm: BASE_HEIGHT,
     }),
+    split: pocketSplitSchema.optional(),
     /** Signed per-edge fit adjustment after scaling: negative shrinks, positive grows. */
     clearanceMm: z.number().min(-5).max(5).default(0),
     /** 2D rounding of vertical pocket edges (offset −r then +r). */
@@ -582,6 +594,11 @@ export const cutoutPlacementSchema = cutoutPlacementInputSchema.transform(
 
 export type CutoutPlacement = z.infer<typeof cutoutPlacementSchema>;
 export type CutoutPlacementInput = z.input<typeof cutoutPlacementSchema>;
+
+/** The original depth is retained for removing a split; only active depths cut. */
+export function pocketDepths(cutout: Pick<CutoutPlacement, "depth" | "split">): readonly DepthSpec[] {
+  return cutout.split?.depths ?? [cutout.depth];
+}
 
 export function parseCutoutPlacement(input: unknown): CutoutPlacement {
   return cutoutPlacementSchema.parse(input);

@@ -47,6 +47,26 @@ const CUTOUT = parseCutoutPlacement({
 });
 
 describe("bin store", () => {
+  it("keeps a split inside one pocket across movement, duplication, base changes, undo and hydration", () => {
+    const { store, act } = mountBin();
+    const split = { boundary: [{ x: 0, y: -10 }, { x: 0, y: 10 }], depths: [
+      { mode: "remaining" as const, floorThicknessMm: 7 }, { mode: "mm" as const, value: 6 },
+    ] as [{ mode: "remaining"; floorThicknessMm: number }, { mode: "mm"; value: number }] };
+    act(() => store().dispatch({ type: "ADD_PLACED", cutouts: [{ ...CUTOUT, split }], gridX: 3, gridY: 3 }));
+    act(() => store().dispatch({ type: "UPDATE_CUTOUT", id: CUTOUT.id, patch: { position: { x: 10, y: -4 }, rotationDeg: 37, mirrored: true, scaleX: 1.4 } }));
+    expect(store().cutouts[0].split).toEqual(split);
+    act(() => store().dispatch({ type: "DUPLICATE_CUTOUT", id: CUTOUT.id, newId: "copy" }));
+    expect(store().cutouts[1].split).toEqual(split);
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { flatBottom: true } }));
+    expect(store().cutouts[0].split!.depths).toEqual([{ mode: "remaining", floorThicknessMm: 2 }, { mode: "mm", value: 6 }]);
+    act(() => store().dispatch({ type: "UNDO" }));
+    expect(store().cutouts[0].split).toEqual(split);
+    const doc = getCommittedBinDoc(store());
+    act(() => store().dispatch({ type: "HYDRATE", ...doc }));
+    expect(store().cutouts[0].split).toEqual(split);
+    expect(store().canUndo).toBe(false);
+  });
+
   it("limits added and edited finger access, and undoes each adjustment atomically", () => {
     const { store, act } = mountBin();
     act(() => store().dispatch({ type: "PATCH_SPEC", patch: { gridX: 1, gridY: 1, heightUnits: 2 } }));

@@ -18,6 +18,7 @@ import {
   placementFootprint,
   pocketLayoutAllowanceMm,
   resolvePocketDepth,
+  pocketDepths,
   signedDistanceToInterior,
   type CutoutPlacement,
   type FingerHole,
@@ -40,6 +41,7 @@ import {
   binFootprintMm,
 } from "./standard";
 import type { BinSpec } from "./types";
+import { resolvePocketSplit } from "./pocket-split";
 
 /**
  * Pure validation of a bin specification — no WASM, cheap enough to run on
@@ -94,20 +96,23 @@ export function validatePocketFloorMaterials(
   const issues: ValidationIssue[] = [];
   for (const cutout of cutouts) {
     const shape = shapesById.get(cutout.shapeId);
-    const { floorZ, depthMm } = resolvePocketDepth(spec, cutout.depth);
-    // Invalid and through pockets have no printable floor-color volume.
-    if (!shape || floorZ === null || floorZ <= 0 || depthMm === null || depthMm <= 0) continue;
-    const thicknessMm = Math.min(floorColorThicknessMm, floorZ);
-    if (floorZ - thicknessMm > undersideHeightMm + 1e-6) continue;
-    issues.push({
-      code: "floor-color-on-underside",
-      severity: "warning",
-      cutoutIds: [cutout.id],
-      message:
-        `“${shape.name}”: Floor color may show on the underside. ` +
-        `The ${thicknessMm.toFixed(2)} mm color layer reaches ${recess}. ` +
-        `Reduce pocket depth, increase the remaining floor, or use a thinner color layer.`,
-    });
+    for (const depth of pocketDepths(cutout)) {
+      const { floorZ, depthMm } = resolvePocketDepth(spec, depth);
+      // Invalid and through pockets have no printable floor-color volume.
+      if (!shape || floorZ === null || floorZ <= 0 || depthMm === null || depthMm <= 0) continue;
+      const thicknessMm = Math.min(floorColorThicknessMm, floorZ);
+      if (floorZ - thicknessMm > undersideHeightMm + 1e-6) continue;
+      issues.push({
+        code: "floor-color-on-underside",
+        severity: "warning",
+        cutoutIds: [cutout.id],
+        message:
+          `“${shape.name}”: Floor color may show on the underside. ` +
+          `The ${thicknessMm.toFixed(2)} mm color layer reaches ${recess}. ` +
+          `Reduce pocket depth, increase the remaining floor, or use a thinner color layer.`,
+      });
+      break;
+    }
   }
   return issues;
 }
@@ -448,50 +453,60 @@ function validateAgainstBin(spec: BinSpec, p: PlacedCutout): ValidationIssue[] {
     });
   }
 
-  const pocket = resolvePocketDepth(spec, cutout.depth);
-  if (pocket.floorZ !== null) {
-    if (pocket.floorZ < 0) {
-      issues.push({
-        code: "too-deep",
-        severity: "error",
-        cutoutIds: [cutout.id],
-      message: `“${label}” is deeper than the bin itself.`,
-      });
-    } else if (pocket.depthMm !== null && pocket.depthMm <= 0) {
-      issues.push({
-        code: "too-shallow",
-        severity: "error",
-        cutoutIds: [cutout.id],
-      message: `“${label}” has no depth — its floor sits at or above the fill surface.`,
-      });
+  const split = cutout.split ? resolvePocketSplit(p.shape.outlineMm, cutout.split.boundary) : null;
+  if (split?.error) issues.push({
+    code: "invalid-pocket-split", severity: "error", cutoutIds: [cutout.id],
+    message: `“${label}”: ${split.error}`,
+  });
+  for (const [index, depth] of pocketDepths(cutout).entries()) {
+    const label = cutout.split ? `${p.label} · Section ${index === 0 ? "A" : "B"}` : p.label;
+    const pocket = resolvePocketDepth(spec, depth);
+    if (pocket.floorZ !== null) {
+      if (pocket.floorZ < 0) {
+        issues.push({
+          code: "too-deep",
+          severity: "error",
+          cutoutIds: [cutout.id],
+          message: `“${label}” is deeper than the bin itself.`,
+        });
+      } else if (pocket.depthMm !== null && pocket.depthMm <= 0) {
+        issues.push({
+          code: "too-shallow",
+          severity: "error",
+          cutoutIds: [cutout.id],
+          message: `“${label}” has no depth — its floor sits at or above the fill surface.`,
+        });
+      } else {
+        if (pocket.floorZ < MIN_FLOOR_MM) {
+          issues.push({
+            code: "floor-too-thin",
+            severity: "warning",
+            cutoutIds: [cutout.id],
+            message: `“${label}” leaves a ${pocket.floorZ.toFixed(1)} mm floor — likely to flex or delaminate.`,
+          });
+        }
+        if (!spec.flatBottom && spec.magnetHoles && pocket.floorZ < BASE_HEIGHT) {
+          issues.push({
+            code: "floor-in-base",
+            severity: "warning",
+            cutoutIds: [cutout.id],
+            message: `“${label}” reaches into the base, where the magnet holes live.`,
+          });
+        }
+      }
     } else {
-      if (pocket.floorZ < MIN_FLOOR_MM) {
+      const region = split?.regions?.[index] ?? p.shape.outlineMm;
+      const hasHoles = region.some((s) => s.holes.length > 0);
+      if (hasHoles) {
         issues.push({
-          code: "floor-too-thin",
-          severity: "warning",
+          code: "through-island",
+          severity: "error",
           cutoutIds: [cutout.id],
-      message: `“${label}” leaves a ${pocket.floorZ.toFixed(1)} mm floor — likely to flex or delaminate.`,
+          message:
+            `“${label}” has interior holes: cutting it through leaves the island ` +
+            `floating loose. Use a blind pocket instead.`,
         });
       }
-      if (!spec.flatBottom && spec.magnetHoles && pocket.floorZ < BASE_HEIGHT) {
-        issues.push({
-          code: "floor-in-base",
-          severity: "warning",
-          cutoutIds: [cutout.id],
-      message: `“${label}” reaches into the base, where the magnet holes live.`,
-        });
-      }
-    }
-  } else {
-    const hasHoles = p.shape.outlineMm.some((s) => s.holes.length > 0);
-    if (hasHoles) {
-      issues.push({
-        code: "through-island",
-        severity: "error",
-        message:
-          `“${label}” has interior holes: cutting it through leaves the island ` +
-          `floating loose. Use a blind pocket instead.`,
-      });
     }
   }
 

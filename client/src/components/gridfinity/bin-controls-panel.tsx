@@ -45,6 +45,8 @@ import {
   fingerAccessOptionsPatch,
   fingerHoleSizeLimits,
   resolvePocketDepth,
+  pocketDepths,
+  type DepthSpec,
   type TracedShape,
 } from "@shared/gridfinity/cutout";
 import {
@@ -116,6 +118,7 @@ import {
 } from "@/lib/gridfinity/worker-api";
 import type { ProjectLibraryItem } from "@/lib/project/persist";
 import { cn } from "@/lib/utils";
+import { PocketSplitControls } from "./pocket-split-controls";
 import { PocketDepthSummary, PocketMeasurements, PocketSizeInputs, PositionInputs } from "./pocket-measurements";
 import { ExportConfirmationDialog, ProjectBackupOption } from "./export-confirmation-dialog";
 import { FingerAccessShapeControls } from "./finger-access-shape-controls";
@@ -318,6 +321,7 @@ export function BinControlsPanel({
     cutouts,
     fingerHoles,
     selectedCutoutId,
+    selectedPocketSection,
     selectedFingerHoleId,
     pendingRemovalId,
     editorMode,
@@ -368,7 +372,7 @@ export function BinControlsPanel({
     onConfirm: (includeProject: boolean) => void;
   } | null>(null);
   const hasBlindPocket = cutouts.some(
-    (cutout) => cutout.depth.mode !== "through",
+    (cutout) => pocketDepths(cutout).some(depth => depth.mode !== "through"),
   );
   const hasSelectedFloorColor = colorPocketFloors && hasBlindPocket;
   const hasSelectedRimColor = colorStackingRim && spec.lip === "standard";
@@ -412,6 +416,17 @@ export function BinControlsPanel({
   const selectedFingerHole =
     fingerHoles.find((hole) => hole.id === selectedFingerHoleId) ?? null;
   const fingerSizeLimits = selectedFingerHole ? fingerHoleSizeLimits(selectedFingerHole, spec) : null;
+  const depthCutout = selectedCutout && selectedCutout.split
+    ? { ...selectedCutout, depth: selectedCutout.split.depths[selectedPocketSection] }
+    : selectedCutout;
+  const updatePocketDepth = (depth: DepthSpec, transient = false) => {
+    if (!selectedCutout) return;
+    const depths = selectedCutout.split ? [...selectedCutout.split.depths] as [DepthSpec, DepthSpec] : null;
+    if (depths) depths[selectedPocketSection] = depth;
+    dispatch({ type: "UPDATE_CUTOUT", id: selectedCutout.id,
+      patch: selectedCutout.split && depths ? { split: { ...selectedCutout.split, depths } } : { depth },
+      transient, historyLabel: selectedCutout.split ? "Change section depth" : "Change pocket depth" });
+  };
   const selectedShape = selectedCutout
     ? (shapesById.get(selectedCutout.shapeId) ?? null)
     : null;
@@ -892,28 +907,24 @@ export function BinControlsPanel({
                   {editorMode === "contour" ? "Done" : "Edit contour"}
                 </Button>
               </div>
-              <section className="space-y-2" aria-label="Pocket depth" key={selectedCutout.id}>
+              <section className="space-y-2" aria-label="Pocket depth" key={`${selectedCutout.id}-${selectedPocketSection}-${!!selectedCutout.split}`}>
                 <div className="flex items-center gap-1">
                   <h4 className="text-sm font-semibold">Depth</h4>
-                  {spec.flatBottom && selectedCutout.depth.mode === "remaining" && <HelpHint label="remaining floor thickness">Measured from the flat underside. A 2 mm floor lets pockets extend into the former base area.</HelpHint>}
+                  {spec.flatBottom && depthCutout!.depth.mode === "remaining" && <HelpHint label="remaining floor thickness">Measured from the flat underside. A 2 mm floor lets pockets extend into the former base area.</HelpHint>}
                 </div>
+                <PocketSplitControls cutout={selectedCutout} />
                 <div className="flex items-center gap-2">
                   <Select
-                    value={selectedCutout.depth.mode}
+                    value={depthCutout!.depth.mode}
                     onValueChange={(mode) => {
-                      const resolved = resolvePocketDepth(spec, selectedCutout.depth);
+                      const resolved = resolvePocketDepth(spec, depthCutout!.depth);
                       const depth =
                         mode === "through"
                           ? ({ mode: "through" } as const)
                           : mode === "mm"
                             ? ({ mode: "mm", value: Math.max(0.1, resolved.depthMm ?? resolved.infillTopZ - defaultPocketFloorThicknessMm(spec)) } as const)
                             : ({ mode: "remaining", floorThicknessMm: spec.flatBottom ? defaultPocketFloorThicknessMm(spec) : Math.max(0, resolved.floorZ ?? defaultPocketFloorThicknessMm(spec)) } as const);
-                      dispatch({
-                        type: "UPDATE_CUTOUT",
-                        id: selectedCutout.id,
-                        patch: { depth },
-                        historyLabel: "Change pocket depth",
-                      });
+                      updatePocketDepth(depth);
                     }}
                   >
                     <SelectTrigger className="h-9 flex-1" aria-label="Pocket depth mode">
@@ -925,29 +936,24 @@ export function BinControlsPanel({
                       <SelectItem value="through">Through</SelectItem>
                     </SelectContent>
                   </Select>
-                  {selectedCutout.depth.mode === "mm" && (
+                  {depthCutout!.depth.mode === "mm" && (
                     <DraftNumberInput
                       className="h-9 w-20 text-base font-semibold"
                       aria-label="Pocket cut depth in millimetres"
-                      value={selectedCutout.depth.value}
+                      value={depthCutout!.depth.value}
                       min={1}
                       step={1}
                       onValueChange={(value) =>
-                        dispatch({
-                          type: "UPDATE_CUTOUT",
-                          id: selectedCutout.id,
-                          patch: { depth: { mode: "mm", value } },
-                          historyLabel: "Change pocket depth",
-                        })
+                        updatePocketDepth({ mode: "mm", value })
                       }
                     />
                   )}
                 </div>
 
-                {selectedCutout.depth.mode === "remaining" && <MmSlider label="Remaining floor thickness" value={selectedCutout.depth.floorThicknessMm} min={0} max={Math.max(7, spec.heightUnits * 7)} step={0.5}
-                  onChange={(floorThicknessMm, transient) => dispatch({ type: "UPDATE_CUTOUT", id: selectedCutout.id, patch: { depth: { mode: "remaining", floorThicknessMm } }, transient, historyLabel: "Change remaining floor" })} />}
+                {depthCutout!.depth.mode === "remaining" && <MmSlider label="Remaining floor thickness" value={depthCutout!.depth.floorThicknessMm} min={0} max={Math.max(7, spec.heightUnits * 7)} step={0.5}
+                  onChange={(floorThicknessMm, transient) => updatePocketDepth({ mode: "remaining", floorThicknessMm }, transient)} />}
 
-                <PocketDepthSummary cutout={selectedCutout} shape={selectedShape} section={section} inspect={onSectionChange} />
+                <PocketDepthSummary cutout={depthCutout!} shape={selectedShape} section={section} inspect={onSectionChange} />
               </section>
               <details className="group/size border-t pt-1 text-xs" aria-label="Pocket size and scale" data-testid="pocket-size-settings">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-2 py-2 font-medium [&::-webkit-details-marker]:hidden">

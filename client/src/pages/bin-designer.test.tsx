@@ -264,6 +264,89 @@ function selectPocket(container: HTMLElement, id: string): void {
 }
 
 describe("BinDesignerPage", () => {
+  it.each(["clicks", "drag"])("creates and edits a split with %s, and removes/undoes it without changing the outline", async gesture => {
+    const shape = rectangularShape("tool", "Cutter");
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape],
+      cutouts: [parseCutoutPlacement({ id: "split-test", shapeId: shape.id, position: { x: 0, y: 0 }, depth: { mode: "mm", value: 20 } })] });
+    const { container, unmount } = renderPage();
+    await flushHydration();
+    selectPocket(container, "split-test");
+    const button = (label: string) => [...container.querySelectorAll<HTMLButtonElement>('button')].find(b => b.textContent === label)!;
+    React.act(() => button("Split pocket").click());
+    const svg = container.querySelector<SVGSVGElement>('[data-testid="layout-canvas"]')!;
+    Object.defineProperty(svg.querySelector('g')!, 'getScreenCTM', { value: () => ({ inverse: () => ({}) }) });
+    Object.defineProperties(svg, {
+      createSVGPoint: { value: () => ({ x: 0, y: 0, matrixTransform() { return { x: this.x, y: this.y }; } }) },
+      setPointerCapture: { value: () => {} },
+    });
+    const path = svg.querySelector('[data-cutout-id="split-test"]')!;
+    const outline = path.getAttribute('d');
+    const pointer = (type: string, x: number, y: number) => React.act(() => {
+      const event = new MouseEvent(type, { bubbles: true, button: 0, clientX: x, clientY: y });
+      Object.defineProperty(event, 'pointerId', { value: 1 });
+      path.dispatchEvent(event);
+    });
+    pointer('pointerdown', 41.75, 31.75);
+    if (gesture === 'clicks') {
+      pointer('pointerup', 41.75, 31.75);
+      pointer('pointerdown', 41.75, 51.75);
+    } else pointer('pointermove', 41.75, 51.75);
+    pointer('pointerup', 41.75, 51.75);
+    expect(container.querySelector('[data-testid="pocket-split-split-test"]')).not.toBeNull();
+    expect(path.getAttribute('d')).toBe(outline);
+    const depth = () => container.querySelector<HTMLInputElement>('[aria-label="Pocket cut depth in millimetres"]')!;
+    expect(depth().value).toBe('20');
+    React.act(() => button("Section B").click());
+    React.act(() => {
+      depth().focus();
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(depth(), '6');
+      depth().dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    React.act(() => depth().blur());
+    expect(depth().value).toBe('6');
+    React.act(() => button("Section A").click());
+    expect(depth().value).toBe('20');
+    // Clicking the corresponding canvas region selects B and exposes its depth.
+    pointer('pointerdown', 31.75, 41.75); pointer('pointerup', 31.75, 41.75);
+    expect(depth().value).toBe('6');
+    React.act(() => button("Remove split").click());
+    expect(depth().value).toBe('20');
+    expect(container.querySelector('[data-testid="pocket-split-split-test"]')).toBeNull();
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+    expect(depth().value).toBe('6');
+    expect(path.getAttribute('d')).toBe(outline);
+    unmount();
+  });
+
+  it("leaves no split or history entry after an invalid boundary or cancellation", async () => {
+    const shape = rectangularShape("tool", "Cutter");
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape],
+      cutouts: [parseCutoutPlacement({ id: "split-test", shapeId: shape.id, position: { x: 0, y: 0 } })] });
+    const { container, unmount } = renderPage();
+    await flushHydration(); selectPocket(container, "split-test");
+    React.act(() => [...container.querySelectorAll<HTMLButtonElement>('button')].find(b => b.textContent === 'Layout')!.click());
+    const ruler = container.querySelector<HTMLButtonElement>('[aria-label="Measure between contours"]')!;
+    React.act(() => ruler.click());
+    expect(ruler.getAttribute('aria-pressed')).toBe('true');
+    React.act(() => [...container.querySelectorAll<HTMLButtonElement>('button')].find(b => b.textContent === 'Split pocket')!.click());
+    expect(ruler.getAttribute('aria-pressed')).toBe('false');
+    const svg = container.querySelector<SVGSVGElement>('[data-testid="layout-canvas"]')!;
+    Object.defineProperty(svg.querySelector('g')!, 'getScreenCTM', { value: () => ({ inverse: () => ({}) }) });
+    Object.defineProperties(svg, {
+      createSVGPoint: { value: () => ({ x: 0, y: 0, matrixTransform() { return { x: this.x, y: this.y }; } }) },
+      setPointerCapture: { value: () => {} },
+    });
+    for (const x of [31.75, 41.75]) React.act(() => {
+      const event = new MouseEvent('pointerdown', { bubbles: true, button: 0, clientX: x, clientY: 31.75 });
+      Object.defineProperty(event, 'pointerId', { value: 1 }); svg.dispatchEvent(event);
+    });
+    expect(container.textContent).toContain('not along its edge');
+    React.act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })));
+    expect(container.querySelector('[data-testid="pocket-split-draft"]')).toBeNull();
+    expect(container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.disabled).toBe(true);
+    unmount();
+  });
+
   it("switches pockets in their fixed section without changing section order or entering rename", async () => {
     const first = rectangularShape("first-shape", "Wrench");
     const second = rectangularShape("second-shape", "Pliers");

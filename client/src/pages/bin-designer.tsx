@@ -1,4 +1,5 @@
 import { Box, History, Redo2, Undo2 } from "lucide-react";
+import { pocketDepths } from "@shared/gridfinity/cutout";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { CanvasWarnings } from "@/components/gridfinity/canvas-warnings";
@@ -724,7 +725,7 @@ function BinDesignerWorkspace(): JSX.Element {
         const includePocketFloors =
           multicolor &&
           colorPocketFloors &&
-          exportProjectDoc.cutouts.some((cutout) => cutout.depth.mode !== "through");
+          exportProjectDoc.cutouts.some((cutout) => pocketDepths(cutout).some(depth => depth.mode !== "through"));
         const includeStackingRim =
           multicolor && colorStackingRim && exportProjectDoc.spec.lip === "standard";
         const result = await buildOnce(EXPORT_QUALITY, {
