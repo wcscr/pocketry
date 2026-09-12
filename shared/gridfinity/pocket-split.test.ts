@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { signedArea } from "../geometry/rings";
 import type { Outline } from "../geometry/types";
 import { parseCutoutPlacement, type TracedShape } from "./cutout";
-import { nearestPocketEdge, resolvePocketSplit } from "./pocket-split";
+import { nearestPocketEdge, orientRedrawnPocketSplit, resolvePocketSplit } from "./pocket-split";
 import { parseBinSpec } from "./types";
 import { validateLayout } from "./validate";
 import { parseProjectDoc, PROJECT_SCHEMA_VERSION } from "./project";
@@ -16,6 +16,21 @@ const cutout = parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position:
   split: { boundary, depths: [{ mode: "mm", value: 6 }, { mode: "remaining", floorThicknessMm: 2 }] } });
 
 describe("pocket split", () => {
+  it("keeps section regions identical for either redraw direction, including moved and angled lines", () => {
+    for (const redrawn of [boundary, [{ x: 5, y: -10 }, { x: 5, y: 10 }],
+      [{ x: -3, y: -10 }, { x: 8, y: 10 }], [{ x: -30, y: 0 }, { x: 30, y: 0 }]]) {
+      const reversed = [...redrawn].reverse();
+      const before = structuredClone(reversed);
+      const forward = orientRedrawnPocketSplit(redrawn, boundary);
+      const backward = orientRedrawnPocketSplit(reversed, boundary);
+      expect(backward).toEqual(forward);
+      expect(resolvePocketSplit(outline, backward).regions).toEqual(resolvePocketSplit(outline, forward).regions);
+      expect(reversed).toEqual(before);
+    }
+    // A previous direction authored in reverse must be respected as well.
+    expect(orientRedrawnPocketSplit(boundary, [...boundary].reverse())).toEqual([...boundary].reverse());
+  });
+
   it("partitions a single perimeter with positive winding and no lost area", () => {
     const split = resolvePocketSplit(outline, boundary);
     expect(split.error).toBeUndefined();

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import { placementFootprint, untransformPointPlacement, type CutoutPlacement, type TracedShape } from "@shared/gridfinity/cutout";
-import { nearestPocketEdge, resolvePocketSplit } from "@shared/gridfinity/pocket-split";
+import { nearestPocketEdge, orientRedrawnPocketSplit, resolvePocketSplit } from "@shared/gridfinity/pocket-split";
 import type { Point } from "@shared/geometry/types";
 import { useBin } from "@/state/bin-store";
 
@@ -35,9 +35,10 @@ export function usePocketSplit({ cutout, shape, scale, toBin, onComplete }: {
   const finish = (end: Point | null) => {
     if (!cutout || !shape || !startRef.current) return;
     if (!end) { setError("Choose a point on the outer edge."); return; }
-    const boundary = [startRef.current, end];
-    const resolved = resolvePocketSplit(shape.outlineMm, boundary);
+    const drawn = [startRef.current, end];
+    const resolved = resolvePocketSplit(shape.outlineMm, drawn);
     if (resolved.error) { setError(resolved.error); return; }
+    const boundary = cutout.split ? orientRedrawnPocketSplit(drawn, cutout.split.boundary) : drawn;
     dispatch({ type: "UPDATE_CUTOUT", id: cutout.id,
       patch: { split: { boundary, depths: cutout.split?.depths ?? [cutout.depth, cutout.depth] } },
       historyLabel: cutout.split ? "Redraw pocket split" : "Split pocket" });

@@ -29,6 +29,20 @@ export function splitSide(boundary: readonly Point[], point: Point): number {
     Math.hypot(b.x - a.x, b.y - a.y);
 }
 
+/** Match a redrawn path's direction to the old one so starting from the other
+ * edge does not exchange Section A/B. Endpoints determine correspondence;
+ * reversing the whole path also retains any future intermediate vertices.
+ */
+export function orientRedrawnPocketSplit(boundary: Point[], previous: readonly Point[]): Point[] {
+  const a = boundary[0], b = boundary.at(-1)!;
+  const oldA = previous[0], oldB = previous.at(-1)!;
+  const alignment = (b.x - a.x) * (oldB.x - oldA.x) + (b.y - a.y) * (oldB.y - oldA.y);
+  // Perpendicular paths have no preferred correspondence. Use a stable tie
+  // break so reversing the input still produces the same section assignments.
+  const reverse = alignment < 0 || (alignment === 0 && (a.x > b.x || (a.x === b.x && a.y > b.y)));
+  return reverse ? [...boundary].reverse() : boundary;
+}
+
 /** Half-plane clipping is only used after proving the line cuts the perimeter
  * exactly twice, so each result is a single ring, even for concave outlines.
  * Shared by canvas/validation; solid clipping stays in the Manifold kernel.

@@ -24,6 +24,8 @@ continuous. Bottom rounding applies at the original perimeter; the internal
 depth step remains sharp.
 
 **Redraw split** changes the boundary while keeping the two section depths.
+Starting at the opposite edge keeps Section A/B on their corresponding sides;
+redrawing does not swap depths based on the direction of the gesture.
 **Remove split** restores the original whole-pocket depth. All committed changes
 support undo and redo. Escape, Cancel, and cancelled pointer gestures discard an
 unfinished boundary. A rejected boundary does not alter the pocket.
@@ -41,6 +43,9 @@ Project schema 16 adds optional `CutoutPlacement.split`, containing `boundary`
 The original `depth` remains the value restored by Remove split. Section A is on
 the left of the directed boundary in shape coordinates; mirroring never swaps
 its settings. No derived region outlines or additional library shapes are saved.
+On redraw, the new endpoint direction is aligned with the previous boundary
+before saving. Exactly perpendicular directions use a consistent endpoint order
+because neither orientation has a closer correspondence to the old sections.
 Older documents migrate without splits. Libraries and project backups preserve
 the split, including the optional editable JSON downloaded alongside 3MF/STL.
 

@@ -341,6 +341,23 @@ describe("BinDesignerPage", () => {
     // Clicking the corresponding canvas region selects B and exposes its depth.
     pointer('pointerdown', 31.75, 41.75); pointer('pointerup', 31.75, 41.75);
     expect(depth().value).toBe('6');
+    // Move the split slightly, drawing from the opposite end. The shallow
+    // region must remain on the same physical side, including after undo/redo.
+    React.act(() => button("Redraw split").click());
+    pointer('pointerdown', 43.75, 51.75);
+    if (gesture === 'clicks') {
+      pointer('pointerup', 43.75, 51.75);
+      pointer('pointerdown', 43.75, 31.75);
+    } else pointer('pointermove', 43.75, 31.75);
+    pointer('pointerup', 43.75, 31.75);
+    pointer('pointerdown', 31.75, 41.75); pointer('pointerup', 31.75, 41.75);
+    expect(depth().value).toBe('6');
+    expect(path.getAttribute('d')).toBe(outline);
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+    expect(depth().value).toBe('6');
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+    pointer('pointerdown', 31.75, 41.75); pointer('pointerup', 31.75, 41.75);
+    expect(depth().value).toBe('6');
     React.act(() => button("Remove split").click());
     expect(depth().value).toBe('20');
     expect(container.querySelector('[data-testid="pocket-split-split-test"]')).toBeNull();
