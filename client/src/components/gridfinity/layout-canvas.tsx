@@ -17,6 +17,7 @@ import {
   fingerHoleFootprintRing,
   elongatedFingerHoleEndpoints,
   isElongatedFingerHole,
+  hasFlatFingerHoleBottom,
   placementFootprint,
   resizeCutoutPlacementFromHandle,
   resizeFingerHoleFromWidthHandle,
@@ -893,7 +894,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
     if (drag.kind === "feature-width") {
       const current = fingerHoles.find((hole) => hole.id === drag.featureId);
       if (!current) return;
-      const resized = resizeFingerHoleFromWidthHandle(current, point);
+      const resized = resizeFingerHoleFromWidthHandle(current, point, spec);
       dispatch({
         type: "UPDATE_FINGER_HOLE",
         id: current.id,
@@ -910,6 +911,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
         current,
         drag.endpoint,
         point,
+        spec,
       );
       dispatch({
         type: "UPDATE_FINGER_HOLE",
@@ -1419,7 +1421,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
                   d={ringToCanvasPath(ring, spec)}
                   className={cn(tone, "cursor-move")}
                   strokeWidth={isSelected ? 2 : 1.25}
-                  strokeDasharray={hole.kind === "straight" ? undefined : "3 2"}
+                  strokeDasharray={hasFlatFingerHoleBottom(hole) ? undefined : "3 2"}
                   vectorEffect="non-scaling-stroke"
                   data-feature-id={hole.id}
                   data-testid={`finger-hole-${hole.kind}-${hole.id}`}

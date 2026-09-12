@@ -1,6 +1,7 @@
 import {
   parseCutoutPlacement,
   fingerHoleSchema,
+  isElongatedFingerHole,
   resolvePocketDepth,
   type CutoutPlacement,
   type FingerHole,
@@ -1116,4 +1117,60 @@ it.each([1, 5, 20])("keeps the exported flat-ended rim free of stair treads at d
   }
   expect(cutter.status()).toBe("NoError");
   expect(treads).toEqual([]);
+});
+
+
+describe("1 mm finger access across all styles", () => {
+  for (const kind of ["straight", "scoop", "deep-scoop", "oblong-deep-scoop", "flat-ended-scoop", "oblong-straight", "flat-ended-straight"] as const) {
+    it.each([0, 1])(`${kind} preserves depth and a valid solid with top rounding %s`, (topFilletMm) => {
+      const hole = fingerHoleSchema.parse({ id: "shallow", kind, center: { x: 0, y: 0 }, diameterMm: 24, lengthMm: 40, depthMm: 1, topFilletMm });
+      const cutter = buildFingerHoleCutters(kernel, [hole], SPEC, QUALITY)[0];
+      const topZ = resolvePocketDepth(SPEC, { mode: "mm", value: 1 }).infillTopZ;
+      expect(cutter.status()).toBe("NoError");
+      expect(cutter.boundingBox().min[2]).toBeCloseTo(topZ - 1, 6);
+      if (topFilletMm === 0) {
+        expect(cutter.boundingBox().min[1]).toBeCloseTo(-12, 6);
+        expect(cutter.boundingBox().max[1]).toBeCloseTo(12, 6);
+        const halfLength = isElongatedFingerHole(hole) ? 20 : 12;
+        expect(cutter.boundingBox().min[0]).toBeCloseTo(-halfLength, 6);
+        expect(cutter.boundingBox().max[0]).toBeCloseTo(halfLength, 6);
+      }
+      const result = buildBinWithCutouts(kernel, SPEC, layoutFor([], [], [hole]), QUALITY);
+      expect(result.solid.status()).toBe("NoError");
+      expect(result.solid.genus()).toBe(0);
+    });
+  }
+});
+
+describe.each(["oblong-straight", "flat-ended-straight"] as const)("flat-bottom slot %s", (kind) => {
+  it.each([0, 37, 90])("has the full mouth area at every height above its flat floor, rotation %s", (rotationDeg) => {
+    const hole = fingerHoleSchema.parse({ id: "slot", kind, center: { x: 3, y: -2 }, diameterMm: 16, lengthMm: 40, depthMm: 20, rotationDeg });
+    const cutter = buildFingerHoleCutters(kernel, [hole], SPEC, QUALITY)[0];
+    const { infillTopZ, cutterTopZ } = resolvePocketDepth(SPEC, { mode: "mm", value: 20 });
+    const expectedArea = kind === "flat-ended-straight" ? 16 * 40 : 16 * 24 + Math.PI * 8 ** 2;
+    const mouthArea = arena.track(cutter.slice(infillTopZ - 1)).area();
+    expect(cutter.status()).toBe("NoError");
+    expect(cutter.boundingBox().min[2]).toBeCloseTo(infillTopZ - 20, 6);
+    expect(mouthArea).toBeGreaterThan(expectedArea * 0.995);
+    expect(mouthArea).toBeLessThanOrEqual(expectedArea + 1e-6);
+    expect(arena.track(cutter.slice(infillTopZ - 19.999)).area()).toBeCloseTo(mouthArea, 6);
+    expect(cutter.volume()).toBeCloseTo(mouthArea * (cutterTopZ - infillTopZ + 20), 5);
+  });
+
+  it("rounds the bottom edges inward and keeps the top flare separate", () => {
+    const hole = fingerHoleSchema.parse({ id: "slot", kind, center: { x: 0, y: 0 }, diameterMm: 16, lengthMm: 40, depthMm: 20, bottomFilletMm: 2, topFilletMm: 1 });
+    const rounded = buildFingerHoleCutters(kernel, [hole], SPEC, QUALITY)[0];
+    const sharp = buildFingerHoleCutters(kernel, [{ ...hole, bottomFilletMm: 0, topFilletMm: 0 }], SPEC, QUALITY)[0];
+    const top = resolvePocketDepth(SPEC, { mode: "mm", value: 20 }).infillTopZ;
+    expect(rounded.status()).toBe("NoError");
+    expect(rounded.boundingBox().min[2]).toBeCloseTo(top - 20, 6);
+    const area = (solid: typeof rounded, z: number) => arena.track(solid.slice(z)).area();
+    expect(area(rounded, top - 19.99)).toBeLessThan(area(sharp, top - 19.99));
+    expect(area(rounded, top - 10)).toBeCloseTo(area(sharp, top - 10), 5);
+    expect(area(rounded, top - 0.01)).toBeGreaterThan(area(sharp, top - 0.01));
+    const shape = rectShape("pocket", 50, 4);
+    const result = buildBinWithCutouts(kernel, SPEC, layoutFor([shape], [cutout("c", "pocket")], [hole]), QUALITY);
+    expect(result.solid.status()).toBe("NoError");
+    expect(result.solid.genus()).toBe(0);
+  });
 });

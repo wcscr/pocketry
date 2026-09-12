@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 
-import { defaultPocketFloorThicknessMm, type CutoutPlacement, type FingerHole } from "@shared/gridfinity/cutout";
+import { clampFingerHoleToBin, defaultPocketFloorThicknessMm, type CutoutPlacement, type FingerHole } from "@shared/gridfinity/cutout";
 import { parseBinSpec, type BinSpec, type BinSpecInput } from "@shared/gridfinity/types";
 
 /**
@@ -40,6 +40,7 @@ export interface BinHistoryEntry {
 }
 
 const HISTORY_LIMIT = 50;
+const BIN_SIZE_KEYS = ["gridX", "gridY", "gridPitch", "heightUnits", "lip"] as const;
 
 export interface BinState {
   spec: BinSpec;
@@ -164,6 +165,7 @@ function commit(
   label: string,
   rest: Partial<BinState> = {},
 ): BinState {
+  doc = limitFingerAccessForBinChange(state, doc);
   const stack = [
     ...state.history.stack.slice(0, state.history.index + 1),
     { doc, label },
@@ -177,6 +179,12 @@ function commit(
     fingerHoles: doc.fingerHoles,
     history: { stack: stack.slice(overflow), index: stack.length - 1 - overflow },
   };
+}
+
+function limitFingerAccessForBinChange(state: BinState, doc: BinDoc): BinDoc {
+  const previous = getCommittedBinDoc(state).spec;
+  if (!BIN_SIZE_KEYS.some(key => previous[key] !== doc.spec[key])) return doc;
+  return { ...doc, fingerHoles: doc.fingerHoles.map(hole => clampFingerHoleToBin(hole, doc.spec)) };
 }
 
 function specPatchLabel(patch: Partial<BinSpecInput>): string {
@@ -209,6 +217,7 @@ function cutoutPatchLabel(patch: Partial<CutoutPlacement>): string {
 
 /** A transient change: present state moves, the history does not. */
 function preview(state: BinState, doc: BinDoc): BinState {
+  doc = limitFingerAccessForBinChange(state, doc);
   return {
     ...state,
     spec: doc.spec,
@@ -266,7 +275,9 @@ function reducer(state: BinState, action: BinAction): BinState {
             : {}),
         }),
         cutouts: state.cutouts,
-        fingerHoles: state.fingerHoles,
+        // Resizing back during the same gesture must recover the pre-drag dimensions.
+        fingerHoles: BIN_SIZE_KEYS.some(key => key in action.patch)
+          ? getCommittedBinDoc(state).fingerHoles : state.fingerHoles,
       };
       if (doc.spec.flatBottom !== state.spec.flatBottom) {
         const previousFloor = defaultPocketFloorThicknessMm(state.spec);
@@ -322,7 +333,7 @@ function reducer(state: BinState, action: BinAction): BinState {
         {
           spec: state.spec,
           cutouts: state.cutouts,
-          fingerHoles: [...state.fingerHoles, action.hole],
+          fingerHoles: [...state.fingerHoles, clampFingerHoleToBin(action.hole, state.spec)],
         },
         "Add finger hole",
         { selectedCutoutId: null, selectedFingerHoleId: action.hole.id },
@@ -331,9 +342,12 @@ function reducer(state: BinState, action: BinAction): BinState {
       const doc = {
         spec: state.spec,
         cutouts: state.cutouts,
-        fingerHoles: state.fingerHoles.map((hole) =>
-          hole.id === action.id ? { ...hole, ...action.patch, id: hole.id } : hole,
-        ),
+        fingerHoles: state.fingerHoles.map((hole) => {
+          if (hole.id !== action.id) return hole;
+          const updated = { ...hole, ...action.patch, id: hole.id };
+          return ["diameterMm", "lengthMm", "depthMm", "kind", "rotationDeg"].some(key => key in action.patch)
+            ? clampFingerHoleToBin(updated, state.spec) : updated;
+        }),
       };
       return action.transient
         ? preview(state, doc)

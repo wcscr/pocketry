@@ -17,6 +17,26 @@ processing, project storage, and model generation kept on the user's device.
 - Refine exterior contours and interior holes.
 - Export traced geometry as SVG, DXF, DWG-compatible DXF, or STL.
 - Arrange traced tools as pockets in Gridfinity bins.
+  Pocket and finger access properties share compact grouped controls, with position
+  at the bottom. Rename finger access from its list row; names save with the project
+  and support undo/redo. All finger access styles support depths down to 1 mm;
+  shallow curved scoops preserve their opening width as depth changes.
+  Choose Round or Slot, a Curved or Flat bottom, and (for slots) Rounded or Flat
+  ends. A top/section preview follows the choices. Shape changes retain dimensions,
+  rotation, edge and corner radii, and the slot-end preference.
+  Flat-ended slots offer a separate Corner round
+  control under Edges & corners for either bottom style; it rounds the four plan-view
+  corners inside the opening dimensions, limited to half the smaller width or length.
+  Existing slots keep sharp corners until changed. Short slots retain their requested
+  length while rounded ends temporarily require a longer opening. Opening dimensions support
+  up to 80 mm in both the panel and Layout. Rounding fields show the actual radius
+  and retain larger requested values for deeper cuts. Existing spherical scoops
+  retain their saved geometry until their dimensions or shape choices are edited.
+  Finger-access depth stops at the bin underside. Mouth-size controls follow the
+  bin dimensions with a 5% allowance, including rotated slots and Layout resize
+  handles. Resizing the bin limits oversized openings in the same undo step. Existing oversized saves
+  remain unchanged on opening and are flagged until edited; wall/floor print
+  validation still applies, and mouth-size limits are before edge rounding.
 - Pocket properties stay in the Pockets section. Click a pocket on the canvas
   or choose its row in the compact list to open its settings there. On phones, tapping opens
   the controls drawer; dragging keeps the layout available.

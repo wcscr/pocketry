@@ -11,6 +11,11 @@ import {
   effectiveScoopDepthMm,
   fingerHoleFootprintRing,
   fingerHoleSchema,
+  fingerAccessOptions,
+  fingerAccessOptionsPatch,
+  effectiveFingerHoleBottomFilletMm,
+  effectiveFingerHoleCornerRoundMm,
+  maximumFingerHoleCornerRoundMm,
   elongatedFingerHoleEndpoints,
   parseCutoutPlacement,
   placementFootprint,
@@ -27,6 +32,50 @@ import {
 import { BASE_HEIGHT, R_F2 } from "./standard";
 
 const SPEC_2X3 = { gridX: 2, gridY: 3 };
+
+describe("flat-ended slot corner rounding", () => {
+  const slot = fingerHoleSchema.parse({ id: "slot", kind: "flat-ended-scoop", center: { x: 0, y: 0 }, diameterMm: 16, lengthMm: 40 });
+  const placement = { position: { x: 0, y: 0 }, rotationDeg: 0, mirrored: false };
+
+  it("defaults to sharp corners and rejects invalid radii", () => {
+    expect(effectiveFingerHoleCornerRoundMm(slot)).toBe(0);
+    expect(fingerHoleFootprintRing(slot, placement)).toHaveLength(4);
+    for (const cornerRoundMm of [-1, 40.1, Infinity, NaN]) {
+      expect(fingerHoleSchema.safeParse({ ...slot, cornerRoundMm }).success).toBe(false);
+    }
+  });
+
+  it.each(["flat-ended-scoop", "flat-ended-straight"] as const)("rounds %s corners inside the exact dimensions", (kind) => {
+    const hole = { ...slot, kind, cornerRoundMm: 3 };
+    const ring = fingerHoleFootprintRing(hole, placement, 64);
+    expect(signedArea(ring)).toBeCloseTo(40 * 16 - (4 - Math.PI) * 9, 0);
+    expect(Math.max(...ring.map(p => p.x))).toBeCloseTo(20, 8);
+    expect(Math.max(...ring.map(p => p.y))).toBeCloseTo(8, 8);
+    expect(ring.some(p => Math.abs(p.x) > 19.9 && Math.abs(p.y) > 7.9)).toBe(false);
+    const turned = fingerHoleFootprintRing({ ...hole, rotationDeg: 37, center: { x: 3, y: -2 } }, placement, 64);
+    ring.forEach((p, i) => {
+      const radians = 37 * Math.PI / 180;
+      expect(turned[i].x).toBeCloseTo(3 + p.x * Math.cos(radians) - p.y * Math.sin(radians), 8);
+      expect(turned[i].y).toBeCloseTo(-2 + p.x * Math.sin(radians) + p.y * Math.cos(radians), 8);
+    });
+  });
+
+  it("limits the effective radius by both dimensions and retains it across shape changes", () => {
+    const hole = { ...slot, cornerRoundMm: 12 };
+    expect(maximumFingerHoleCornerRoundMm(hole)).toBe(8);
+    expect(effectiveFingerHoleCornerRoundMm(hole)).toBe(8);
+    expect(effectiveFingerHoleCornerRoundMm({ ...hole, lengthMm: 6 })).toBe(3);
+    const round = { ...hole, ...fingerAccessOptionsPatch(hole, { shape: "round" }) };
+    expect(round.cornerRoundMm).toBe(12);
+    expect(effectiveFingerHoleCornerRoundMm(round)).toBe(0);
+    const restored = { ...round, ...fingerAccessOptionsPatch(round, { shape: "slot" }) };
+    expect(effectiveFingerHoleCornerRoundMm(restored)).toBe(8);
+    expect(effectiveFingerHoleCornerRoundMm({ ...restored, kind: "oblong-deep-scoop" })).toBe(0);
+    const ring = fingerHoleFootprintRing({ ...hole, diameterMm: 6, lengthMm: 6 }, placement, 64);
+    expect(signedArea(ring)).toBeCloseTo(Math.PI * 9, 1);
+    expect(ring).toHaveLength(64);
+  });
+});
 
 /** An L-shaped (chiral) outline with a hole — orientation-sensitive fixture. */
 const CHIRAL: Outline = [
@@ -534,7 +583,7 @@ describe("typed finger holes (straight and scoop)", () => {
     };
     expect(
       resizeFingerHoleFromWidthHandle(shallowDeep, { x: 16, y: 5 }).depthMm,
-    ).toBe(12);
+    ).toBe(4);
 
     const oblong = {
       ...round,
@@ -558,9 +607,9 @@ describe("typed finger holes (straight and scoop)", () => {
     expect(effectiveScoopDepthMm({ diameterMm: 20, depthMm: 25 })).toBe(10);
   });
 
-  it("keeps a deep scoop at least one radius deep", () => {
+  it("preserves shallow deep-scoop depth", () => {
     expect(effectiveDeepScoopDepthMm({ diameterMm: 18, depthMm: 30 })).toBe(30);
-    expect(effectiveDeepScoopDepthMm({ diameterMm: 18, depthMm: 4 })).toBe(9);
+    expect(effectiveDeepScoopDepthMm({ diameterMm: 18, depthMm: 4 })).toBe(4);
   });
 });
 
@@ -622,5 +671,68 @@ it("width dragging keeps a shallow flat-ended scoop shallow", () => {
   });
   expect(resizeFingerHoleFromWidthHandle(hole, { x: 0, y: 20 })).toMatchObject({
     diameterMm: 40, depthMm: 1, lengthMm: 40,
+  });
+});
+
+it.each(["straight", "scoop", "deep-scoop", "oblong-deep-scoop", "flat-ended-scoop", "oblong-straight", "flat-ended-straight"] as const)("preserves a 1 mm %s depth when resizing its width", (kind) => {
+  const hole = fingerHoleSchema.parse({ id: "shallow", kind, center: { x: 0, y: 0 }, diameterMm: 18, depthMm: 1, lengthMm: 40 });
+  expect(resizeFingerHoleFromWidthHandle(hole, { x: 15, y: 15 }).depthMm).toBe(1);
+});
+
+it("keeps a legacy round scoop's actual depth when narrowing its opening", () => {
+  const hole = fingerHoleSchema.parse({ id: "legacy", kind: "scoop", center: { x: 0, y: 0 }, diameterMm: 30, depthMm: 12 });
+  const resized = resizeFingerHoleFromWidthHandle(hole, { x: 4, y: 0 });
+  expect(resized).toMatchObject({ kind: "deep-scoop", diameterMm: 8, depthMm: 12 });
+  expect(hole).toMatchObject({ kind: "scoop", diameterMm: 30, depthMm: 12 });
+});
+
+describe("independent finger access choices", () => {
+  it.each([
+    ["straight", "round", "flat", "rounded"], ["scoop", "round", "curved", "rounded"],
+    ["deep-scoop", "round", "curved", "rounded"], ["oblong-deep-scoop", "slot", "curved", "rounded"],
+    ["flat-ended-scoop", "slot", "curved", "flat"], ["oblong-straight", "slot", "flat", "rounded"],
+    ["flat-ended-straight", "slot", "flat", "flat"],
+  ])("maps %s to %s, %s bottom and %s ends without mutating it", (kind, shape, bottom, ends) => {
+    const hole = fingerHoleSchema.parse({ id: "options", kind, center: { x: 0, y: 0 } });
+    expect(fingerAccessOptions(hole)).toEqual({ shape, bottom, ends });
+    expect(hole.kind).toBe(kind);
+  });
+
+  it("retains short flat-end length, rotation and end preference through round and rounded slots", () => {
+    const original = fingerHoleSchema.parse({ id: "short", kind: "flat-ended-straight", center: { x: 3, y: 5 },
+      diameterMm: 24, lengthMm: 6, depthMm: 20, rotationDeg: 37, topFilletMm: 1, bottomFilletMm: 2 });
+    const round = { ...original, ...fingerAccessOptionsPatch(original, { shape: "round" }) };
+    expect(round).toMatchObject({ kind: "straight", slotEnds: "flat", lengthMm: 6, rotationDeg: 37 });
+    const slot = { ...round, ...fingerAccessOptionsPatch(round, { shape: "slot" }) };
+    expect(slot.kind).toBe("flat-ended-straight");
+    const rounded = { ...slot, ...fingerAccessOptionsPatch(slot, { ends: "rounded", bottom: "curved" }) };
+    expect(elongatedFingerHoleEndpoints(rounded).lengthMm).toBe(26);
+    expect(rounded.lengthMm).toBe(6);
+    const restored = { ...rounded, ...fingerAccessOptionsPatch(rounded, { ends: "flat", bottom: "flat" }) };
+    expect(restored).toEqual({ ...original, slotEnds: "flat" });
+    expect(elongatedFingerHoleEndpoints(restored).lengthMm).toBe(6);
+  });
+
+  it("carries actual legacy dish depth into another shape", () => {
+    const hole = fingerHoleSchema.parse({ id: "legacy", kind: "scoop", center: { x: 0, y: 0 }, diameterMm: 18, depthMm: 30 });
+    expect(fingerAccessOptionsPatch(hole, { shape: "slot" })).toMatchObject({ kind: "oblong-deep-scoop", depthMm: 9 });
+    expect(hole.depthMm).toBe(30);
+  });
+
+  it.each(["oblong-straight", "flat-ended-straight"] as const)("keeps %s plan geometry and endpoint mechanics independent of its bottom", (kind) => {
+    const hole = fingerHoleSchema.parse({ id: "slot", kind, center: { x: 3, y: 5 }, diameterMm: 16, lengthMm: 40, rotationDeg: 37 });
+    const curved = { ...hole, ...fingerAccessOptionsPatch(hole, { bottom: "curved" }) };
+    const placement = { position: { x: 0, y: 0 }, rotationDeg: 0, mirrored: false };
+    expect(fingerHoleFootprintRing(hole, placement)).toEqual(fingerHoleFootprintRing(curved, placement));
+    expect(elongatedFingerHoleEndpoints(hole)).toEqual(elongatedFingerHoleEndpoints(curved));
+    const resized = resizeElongatedFingerHoleFromEndpoint(hole, "end", { x: 40, y: 10 });
+    expect(elongatedFingerHoleEndpoints(resized).start.x).toBeCloseTo(elongatedFingerHoleEndpoints(hole).start.x, 8);
+    expect(elongatedFingerHoleEndpoints(resized).start.y).toBeCloseTo(elongatedFingerHoleEndpoints(hole).start.y, 8);
+  });
+
+  it("limits bottom rounding by the shorter flat-ended dimension", () => {
+    const hole = fingerHoleSchema.parse({ id: "short", kind: "flat-ended-straight", center: { x: 0, y: 0 }, diameterMm: 80, lengthMm: 6, depthMm: 20, bottomFilletMm: 6 });
+    expect(effectiveFingerHoleBottomFilletMm(hole)).toBe(3);
+    expect(hole.bottomFilletMm).toBe(6);
   });
 });
