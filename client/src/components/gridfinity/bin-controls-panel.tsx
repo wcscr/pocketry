@@ -53,7 +53,6 @@ import {
   binFootprintMm,
   GRID_PITCH_DIVISOR,
   resizeGridToStandardCellSpan,
-  changeGridPitchPreservingSize,
   STACKING_LIP_HEIGHT_ACTUAL,
   standardCellSpan,
   type GridPitch,
@@ -119,6 +118,7 @@ import {
 import type { ProjectLibraryItem } from "@/lib/project/persist";
 import { cn } from "@/lib/utils";
 import { PocketSplitControls } from "./pocket-split-controls";
+import { changeBinGridPitchPreservingSize } from "@shared/gridfinity/grid-pitch";
 import { PocketDepthSummary, PocketMeasurements, PocketSizeInputs, PositionInputs } from "./pocket-measurements";
 import { ExportConfirmationDialog, ProjectBackupOption } from "./export-confirmation-dialog";
 import { FingerAccessShapeControls } from "./finger-access-shape-controls";
@@ -545,13 +545,13 @@ export function BinControlsPanel({
           className="scroll-mt-16"
         >
           <div className="flex items-center gap-2">
-            <SettingLabel label="Grid pitch" hint="Pitch changes preserve the outer size. A coarser pitch needs whole cells; custom footprints keep their current pitch." className="shrink-0" />
+            <SettingLabel label="Grid pitch" hint="Pitch changes preserve the outer size and custom shape. A coarser pitch is available only when existing cells combine into whole cells." className="shrink-0" />
             <Select
               value={spec.gridPitch}
               onValueChange={(value) => {
                 const gridPitch = value as GridPitch;
-                const resized = changeGridPitchPreservingSize(spec, gridPitch);
-                if (!resized || resized.gridX > maxGridCells(gridPitch) || resized.gridY > maxGridCells(gridPitch) || spec.footprint.kind !== "rectangle") return;
+                const resized = changeBinGridPitchPreservingSize(spec, gridPitch);
+                if (!resized || resized.gridX > maxGridCells(gridPitch) || resized.gridY > maxGridCells(gridPitch)) return;
                 patchSpec({
                   ...resized,
                   ...(gridPitch === "full"
@@ -569,9 +569,9 @@ export function BinControlsPanel({
               </SelectTrigger>
               <SelectContent>
                 {(["full", "half", "quarter"] as const).map((pitch) => {
-                  const resized = changeGridPitchPreservingSize(spec, pitch);
-                  const available = resized && resized.gridX <= maxGridCells(pitch) && resized.gridY <= maxGridCells(pitch) && spec.footprint.kind === "rectangle";
-                  return <SelectItem key={pitch} value={pitch} disabled={!available}>{pitch === "full" ? "Full · 42 mm" : pitch === "half" ? "Half · 21 mm" : "Quarter · 10.5 mm"}{!available ? " (size incompatible)" : ""}</SelectItem>;
+                  const resized = changeBinGridPitchPreservingSize(spec, pitch);
+                  const available = resized && resized.gridX <= maxGridCells(pitch) && resized.gridY <= maxGridCells(pitch);
+                  return <SelectItem key={pitch} value={pitch} disabled={!available}>{pitch === "full" ? "Full · 42 mm" : pitch === "half" ? "Half · 21 mm" : "Quarter · 10.5 mm"}{!available ? " (would change shape)" : ""}</SelectItem>;
                 })}
               </SelectContent>
             </Select>

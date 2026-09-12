@@ -12,6 +12,7 @@ import { fingerHoleSchema, resolvePocketDepth, parseCutoutPlacement, type Traced
 import { parseBinSpec } from "@shared/gridfinity/types";
 import { downloadBlob } from "@/lib/download";
 import { useBinGeometry } from "@/lib/gridfinity/use-bin-geometry";
+import { footprintOuterRingMm, occupiedCellCount } from "@shared/gridfinity/footprint";
 
 /**
  * Structure smoke tests for the bin designer page, following the pattern of
@@ -824,6 +825,52 @@ describe("BinDesignerPage", () => {
     React.act(() => control("Flat bottom").click());
     expect(control("Magnet holes").getAttribute("aria-checked")).toBe("true");
     unmount();
+  });
+
+  it("switches a custom bin across full, half and quarter pitches without moving its split pocket", async () => {
+    const shape = rectangularShape("tool", "Cutter");
+    const cutout = parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: -20, y: -20 },
+      split: { boundary: [{ x: 0, y: -10 }, { x: 0, y: 10 }], depths: [{ mode: "mm", value: 6 }, { mode: "mm", value: 20 }] } });
+    const original = parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6, flatBottom: true,
+      footprint: { kind: "custom", cells: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }] } });
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, spec: original, shapes: [shape], cutouts: [cutout] });
+    const { container, unmount } = renderPage();
+    await flushHydration();
+    try {
+      const trigger = container.querySelector<HTMLButtonElement>('[data-testid="select-grid-pitch"]')!;
+      expect(trigger.textContent).toBe("Full · 42 mm");
+      for (const [label, count] of [["Half · 21 mm", 12], ["Quarter · 10.5 mm", 48], ["Full · 42 mm", 3]] as const) {
+        React.act(() => trigger.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true })));
+        const options = [...document.querySelectorAll<HTMLElement>('[role="option"]')];
+        expect(options.every(option => option.getAttribute("aria-disabled") !== "true")).toBe(true);
+        React.act(() => options.find(option => option.textContent === label)!.click());
+        const [spec, , layout] = vi.mocked(useBinGeometry).mock.lastCall!;
+        expect(occupiedCellCount(spec)).toBe(count);
+        expect(footprintOuterRingMm(spec, 32)).toEqual(footprintOuterRingMm(original, 32));
+        expect(layout?.cutouts).toEqual([cutout]);
+        expect(container.querySelector("#bin-settings-size")?.textContent).toContain("Outer size 83.5 × 83.5 × 45.6 mm");
+      }
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+      expect(trigger.textContent).toBe("Quarter · 10.5 mm");
+      expect(occupiedCellCount(vi.mocked(useBinGeometry).mock.lastCall![0])).toBe(48);
+    } finally { unmount(); }
+  });
+
+  it("disables only a pitch that would alter a custom footprint", async () => {
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT,
+      spec: parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6, gridPitch: "half",
+        footprint: { kind: "custom", cells: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }] } }) });
+    const { container, unmount } = renderPage();
+    await flushHydration();
+    try {
+      const trigger = container.querySelector<HTMLButtonElement>('[data-testid="select-grid-pitch"]')!;
+      expect(trigger.textContent).toBe("Half · 21 mm");
+      React.act(() => trigger.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true })));
+      const options = [...document.querySelectorAll<HTMLElement>('[role="option"]')];
+      expect(options.find(option => option.textContent === "Full · 42 mm (would change shape)")?.getAttribute("aria-disabled")).toBe("true");
+      expect(options.find(option => option.textContent === "Half · 21 mm")?.getAttribute("aria-disabled")).not.toBe("true");
+      expect(options.find(option => option.textContent === "Quarter · 10.5 mm")?.getAttribute("aria-disabled")).not.toBe("true");
+    } finally { unmount(); }
   });
 
   it("switches a 3 by 5 bin to quarter pitch and edits beyond 16 small cells", async () => {

@@ -4,6 +4,7 @@ import {
   STACKING_LIP_SUPPORT_HEIGHT_MM,
 } from "@shared/gridfinity/standard";
 import { parseBinSpec } from "@shared/gridfinity/types";
+import { changeBinGridPitchPreservingSize } from "@shared/gridfinity/grid-pitch";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { Arena } from "@/lib/manifold/arena";
@@ -131,6 +132,18 @@ describe("buildStackingLip", () => {
 });
 
 describe("buildBin", () => {
+  it.each(["half", "quarter"] as const)("preserves a custom flat-bottom bin and its label tab at %s pitch", pitch => {
+    const original = spec({ gridX: 2, gridY: 2, flatBottom: true,
+      footprint: { kind: "custom", cells: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }] },
+      labelTab: { wall: "east", width: "center", edge: { cell: { x: 0, y: 1 }, side: "east" } } });
+    const converted = parseBinSpec({ ...original, ...changeBinGridPitchPreservingSize(original, pitch) });
+    const before = buildBin(kernel, original, QUALITY).solid;
+    const after = buildBin(kernel, converted, QUALITY).solid;
+    expect(after.status()).toBe("NoError");
+    expect(arena.track(after.subtract(before)).volume()).toBeLessThan(1e-6);
+    expect(arena.track(before.subtract(after)).volume()).toBeLessThan(1e-6);
+  });
+
   it("builds a complete half-unit-height bin", () => {
     const { solid } = buildBin(kernel, spec({ heightUnits: 2.5 }), QUALITY);
     const box = solid.boundingBox();
