@@ -50,9 +50,11 @@ pocket / two sections model. That extension will need polyline validation and
 region masks in place of the current half-plane clipping, plus vertex editing;
 it is not silently accepted or approximated as a straight line.
 
-The existing cutter builder creates the full perimeter at each active depth,
-then the Manifold kernel clips each cutter and its floor-color insert to its
-side before bin subtraction. Rounding occurs before clipping so the internal
+The existing cutter builder clears the full perimeter to the shallower depth,
+then extends the deeper section using a clipped cutter. This avoids opposing
+cut faces that can leave a nearly zero-thickness seam sheet due to numerical
+rounding. Equal depths use a single unsplit cutter. Floor-color inserts remain
+clipped to their own sections. Rounding occurs before clipping so the internal
 boundary is never rounded as an external wall. Validation and canvas shading
 share the same boundary resolver. STL/3MF contain the resulting stepped solid;
 SVG/DXF remain top-down outline templates and do not encode pocket depths.

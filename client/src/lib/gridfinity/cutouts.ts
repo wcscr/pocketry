@@ -480,14 +480,21 @@ export function buildCutoutCutters(
       const length = Math.hypot(b.x - a.x, b.y - a.y);
       const nx = -(b.y - a.y) / length * sign;
       const ny = (b.x - a.x) / length * sign;
+      const sectionDepthsMm = cutout.split.depths.map(depth => resolvePocketDepth(spec, depth).depthMm ?? Infinity);
+      const shallowIndex = sectionDepthsMm[0] <= sectionDepthsMm[1] ? 0 : 1;
+      const sameDepth = sectionDepthsMm[0] === sectionDepthsMm[1];
       // One opening means one top round, limited by the shallowest section.
-      const topFilletMm = Math.min(cutout.topFilletMm, ...cutout.split.depths.map(depth => {
-        const resolved = resolvePocketDepth(spec, depth).depthMm;
-        return resolved === null ? Infinity : Math.max(0, resolved / 2);
-      }));
+      const topFilletMm = Math.min(cutout.topFilletMm, Math.max(0, sectionDepthsMm[shallowIndex] / 2));
       let emptied = false;
       for (const [index, depth] of cutout.split.depths.entries()) {
+        if (sameDepth && index !== shallowIndex) continue;
         const part = buildCutoutCutters(kernel, shapesById, [{ ...cutout, split: undefined, depth, topFilletMm }], spec, quality, options);
+        if (sameDepth) {
+          cutters.push(...part.cutters);
+          floorInserts.push(...part.floorInserts);
+          emptied ||= part.reports.some(report => report.emptied);
+          continue;
+        }
         const side = index === 0 ? 1 : -1;
         const trim = (solid: Manifold) => arena.track(solid.trimByPlane(
           [nx * side, ny * side, 0], (nx * a.x + ny * a.y) * side,
@@ -496,7 +503,10 @@ export function buildCutoutCutters(
         // as an outside edge would create an unwanted rounded ridge at the seam.
         const sectionCutters = part.cutters.map(trim);
         emptied ||= part.reports.some(report => report.emptied) || sectionCutters.every(cutter => cutter.isEmpty());
-        cutters.push(...sectionCutters);
+        // Clear the entire opening to the shallow depth, then extend only the
+        // deep side. Opposing trims of independently built solids can disagree
+        // by a rounding error and leave a zero-thickness wall above the shelf.
+        cutters.push(...(index === shallowIndex ? part.cutters : sectionCutters));
         floorInserts.push(...part.floorInserts.map(trim));
       }
       reports.push({ id: cutout.id, emptied });
