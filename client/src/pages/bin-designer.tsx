@@ -50,6 +50,8 @@ import {
 import {
   createDebouncedProjectSaver,
   deleteProjectFromLibrary,
+  exportProjectLibrary,
+  importProjectLibrary,
   loadProjectDoc,
   loadProjectLibrary,
   openProjectFromLibrary,
@@ -425,6 +427,44 @@ function BinDesignerWorkspace(): JSX.Element {
       description: "Created a portable Pocketry JSON backup.",
     });
   }, [currentProjectDoc, currentProjectName, toast]);
+
+  const handleExportLibrary = useCallback(async () => {
+    setProjectBusy(true);
+    try {
+      const backup = await exportProjectLibrary(currentProjectDoc);
+      downloadBlob(
+        new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" }),
+        `pocketry-library-${new Date().toISOString().replace(/[:.]/g, "-")}.json`,
+      );
+      toast({ title: "Library exported", description: `${backup.projects.length} named designs exported as JSON.` });
+    } catch (cause) {
+      toast({ title: "Could not export library", description: cause instanceof Error ? cause.message : "The library could not be read.", variant: "destructive" });
+    } finally {
+      setProjectBusy(false);
+    }
+  }, [currentProjectDoc, toast]);
+
+  const handleImportLibrary = useCallback(async (file: File) => {
+    setProjectBusy(true);
+    try {
+      let input: unknown;
+      try {
+        input = JSON.parse(await file.text());
+      } catch {
+        throw new Error("The file could not be read as JSON. No designs were imported.");
+      }
+      const result = await importProjectLibrary(input);
+      setProjectLibrary(result.library);
+      toast({
+        title: "Library imported",
+        description: `${result.imported} designs added, ${result.upgraded} upgraded, ${result.renamed} renamed.`,
+      });
+    } catch (cause) {
+      toast({ title: "Could not import library", description: cause instanceof Error ? cause.message : "No designs were imported.", variant: "destructive" });
+    } finally {
+      setProjectBusy(false);
+    }
+  }, [toast]);
 
   const handleImportProject = useCallback(
     async (file: File) => {
@@ -893,6 +933,8 @@ function BinDesignerWorkspace(): JSX.Element {
           onOpenProject={handleOpenProject}
           onDeleteProject={handleDeleteProject}
           onRefreshProjects={handleRefreshProjects}
+          onExportLibrary={() => void handleExportLibrary()}
+          onImportLibrary={(file) => void handleImportLibrary(file)}
           onNewProject={() => void handleNewProject()}
           section={section}
           onSectionChange={setSection}
