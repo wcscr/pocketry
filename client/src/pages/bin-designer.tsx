@@ -50,11 +50,13 @@ import {
 import {
   createDebouncedProjectSaver,
   deleteProjectFromLibrary,
+  duplicateProjectInLibrary,
   exportProjectLibrary,
   importProjectLibrary,
   loadProjectDoc,
   loadProjectLibrary,
   openProjectFromLibrary,
+  renameProjectInLibrary,
   saveProjectToLibrary,
   startNewProject,
   type ProjectLibrarySnapshot,
@@ -581,6 +583,48 @@ function BinDesignerWorkspace(): JSX.Element {
     }
   }, [currentProjectDoc, projectLibrary.activeProjectId, saveProject, toast]);
 
+  const handleDuplicateProject = useCallback(async (projectId: string): Promise<string | null> => {
+    setProjectBusy(true);
+    try {
+      const copied = await duplicateProjectInLibrary(projectId, currentProjectDoc);
+      setProjectLibrary(copied.library);
+      toast({ title: "Project duplicated", description: copied.project.name });
+      return copied.project.id;
+    } catch (cause) {
+      toast({
+        title: "Could not duplicate project",
+        description: cause instanceof Error ? cause.message : String(cause),
+        variant: "destructive",
+      });
+      return null;
+    } finally {
+      setProjectBusy(false);
+    }
+  }, [currentProjectDoc, toast]);
+
+  const handleRenameProject = useCallback(async (projectId: string, name: string): Promise<boolean> => {
+    setProjectBusy(true);
+    const active = projectId === projectLibrary.activeProjectId;
+    if (active) saveProject.cancel();
+    try {
+      const saved = active
+        ? await saveProjectToLibrary(currentProjectDoc, name, projectId)
+        : await renameProjectInLibrary(projectId, name);
+      setProjectLibrary(saved);
+      toast({ title: "Project renamed" });
+      return true;
+    } catch (cause) {
+      toast({
+        title: "Could not rename project",
+        description: cause instanceof Error ? cause.message : String(cause),
+        variant: "destructive",
+      });
+      return false;
+    } finally {
+      setProjectBusy(false);
+    }
+  }, [currentProjectDoc, projectLibrary.activeProjectId, saveProject, toast]);
+
   const handleOpenProject = useCallback(async (projectId: string): Promise<boolean> => {
     setProjectBusy(true);
     saveProject.cancel();
@@ -616,18 +660,19 @@ function BinDesignerWorkspace(): JSX.Element {
 
   const handleDeleteProject = useCallback(
     async (projectId: string): Promise<boolean> => {
+      if (projectId === projectLibrary.activeProjectId) return false;
       setProjectBusy(true);
       try {
         const saved = await deleteProjectFromLibrary(projectId);
         setProjectLibrary(saved);
         toast({
-          title: "Project deleted",
+          title: "Removed from library",
           description: "The named library copy was removed.",
         });
         return true;
       } catch (cause) {
         toast({
-          title: "Could not delete project",
+          title: "Could not remove project",
           description: cause instanceof Error ? cause.message : String(cause),
           variant: "destructive",
         });
@@ -636,7 +681,7 @@ function BinDesignerWorkspace(): JSX.Element {
         setProjectBusy(false);
       }
     },
-    [toast],
+    [projectLibrary.activeProjectId, toast],
   );
 
   const handleRefreshProjects = useCallback(() => {
@@ -930,6 +975,8 @@ function BinDesignerWorkspace(): JSX.Element {
           currentProjectName={currentProjectName}
           projects={projectLibrary.projects}
           onSaveProject={handleSaveProject}
+          onRenameProject={handleRenameProject}
+          onDuplicateProject={handleDuplicateProject}
           onOpenProject={handleOpenProject}
           onDeleteProject={handleDeleteProject}
           onRefreshProjects={handleRefreshProjects}

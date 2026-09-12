@@ -16,10 +16,12 @@ vi.mock("idb-keyval", () => ({
 import {
   createDebouncedProjectSaver,
   deleteProjectFromLibrary,
+  duplicateProjectInLibrary,
   loadProjectDoc,
   loadProjectLibrary,
   openProjectFromLibrary,
   ProjectNameConflictError,
+  renameProjectInLibrary,
   saveProjectDoc,
   saveProjectToLibrary,
   startNewProject,
@@ -125,6 +127,109 @@ describe("named project library", () => {
     expect(updated.projects[0].name).toBe("Wide wrench tray");
     const opened = await openProjectFromLibrary(updated.projects[0].id);
     expect(opened.doc.spec.gridX).toBe(4);
+  });
+
+  it("copies pending edits from the current project without opening or changing the original", async () => {
+    const saved = await saveProjectToLibrary(DOC, "Tools", null);
+    const working = await loadProjectDoc();
+    const copied = await duplicateProjectInLibrary(saved.activeProjectId!, WIDE_DOC);
+    expect(copied.project.name).toBe("Tools (copy)");
+    expect(copied.project.id).not.toBe(saved.activeProjectId);
+    expect(copied.library.activeProjectId).toBe(saved.activeProjectId);
+    expect(await loadProjectDoc()).toEqual(working);
+    expect((await openProjectFromLibrary(copied.project.id)).doc).toEqual({ ...WIDE_DOC, name: "Tools (copy)" });
+    await saveProjectDoc({ ...WIDE_DOC, keepBinSize: true });
+    expect((await openProjectFromLibrary(saved.activeProjectId!)).doc).toEqual({ ...DOC, name: "Tools" });
+  });
+
+  it("copies the stored design of another project, not the current working design", async () => {
+    const first = await saveProjectToLibrary(DOC, "Small tray", null);
+    const second = await saveProjectToLibrary(WIDE_DOC, "Wide tray", null);
+    const copied = await duplicateProjectInLibrary(first.activeProjectId!, WIDE_DOC);
+    expect(copied.library.activeProjectId).toBe(second.activeProjectId);
+    expect((await loadProjectDoc())!.spec.gridX).toBe(4);
+    expect((await openProjectFromLibrary(copied.project.id)).doc).toEqual({ ...DOC, name: "Small tray (copy)" });
+  });
+
+  it("gives repeated copies unique names within the project name limit", async () => {
+    const saved = await saveProjectToLibrary(DOC, "A".repeat(80), null);
+    const first = await duplicateProjectInLibrary(saved.activeProjectId!);
+    const second = await duplicateProjectInLibrary(saved.activeProjectId!);
+    expect(first.project.name).toHaveLength(80);
+    expect(second.project.name).toHaveLength(80);
+    expect(first.project.name.endsWith(" (copy)")).toBe(true);
+    expect(second.project.name.endsWith(" (copy 2)")).toBe(true);
+    expect(new Set(second.library.projects.map(project => project.id)).size).toBe(3);
+    expect(second.library.activeProjectId).toBe(saved.activeProjectId);
+  });
+
+  it("keeps each copy directly after its source through reloads, renames, and autosave", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-12T12:00:00Z"));
+    const first = await saveProjectToLibrary(DOC, "First", null);
+    vi.setSystemTime(new Date("2026-09-12T13:00:00Z"));
+    const source = await saveProjectToLibrary(WIDE_DOC, "Source", null);
+    vi.setSystemTime(new Date("2026-09-12T14:00:00Z"));
+    const last = await saveProjectToLibrary(DOC, "Last", null);
+    const originalOrder = [first.activeProjectId, source.activeProjectId, last.activeProjectId];
+    expect((await loadProjectLibrary()).projects.map(project => project.id)).toEqual(originalOrder);
+    const copy = await duplicateProjectInLibrary(source.activeProjectId!);
+    const nextCopy = await duplicateProjectInLibrary(source.activeProjectId!);
+    const expectedOrder = [first.activeProjectId, source.activeProjectId, nextCopy.project.id, copy.project.id, last.activeProjectId];
+    expect(nextCopy.library.projects.map(project => project.id)).toEqual(expectedOrder);
+    await renameProjectInLibrary(copy.project.id, "Renamed copy");
+    await saveProjectDoc({ ...DOC, keepBinSize: true });
+    expect((await loadProjectLibrary()).projects.map(project => project.id)).toEqual(expectedOrder);
+    expect((await loadProjectLibrary()).activeProjectId).toBe(last.activeProjectId);
+  });
+
+  it("rejects copying missing or unsupported projects without changing storage", async () => {
+    const future = { id: "future", name: "Future project", updatedAt: "2026-09-12T12:00:00.000Z", doc: { schemaVersion: 999 } };
+    memory.set("tooltrace:project-library:v1", { schemaVersion: 1, activeProjectId: null, projects: [future] });
+    const before = structuredClone([...memory]);
+    await expect(duplicateProjectInLibrary("missing")).rejects.toThrow("no longer");
+    await expect(duplicateProjectInLibrary("future", DOC)).rejects.toThrow("unsupported");
+    expect([...memory]).toEqual(before);
+  });
+
+  it("renames another saved project without changing the open project or either design", async () => {
+    const first = await saveProjectToLibrary(DOC, "Small tray", null);
+    const second = await saveProjectToLibrary(WIDE_DOC, "Wide tray", null);
+    const working = await loadProjectDoc();
+    const renamed = await renameProjectInLibrary(first.activeProjectId!, "  Socket   tray  ");
+    expect(renamed.activeProjectId).toBe(second.activeProjectId);
+    expect(renamed.projects).toHaveLength(2);
+    expect(renamed.projects.find(project => project.id === first.activeProjectId)?.name).toBe("Socket tray");
+    expect(await loadProjectDoc()).toEqual(working);
+    expect((await openProjectFromLibrary(first.activeProjectId!)).doc).toEqual({ ...DOC, name: "Socket tray" });
+    expect((await openProjectFromLibrary(second.activeProjectId!)).doc).toEqual({ ...WIDE_DOC, name: "Wide tray" });
+  });
+
+  it("rejects conflicting library renames without writing any project", async () => {
+    const first = await saveProjectToLibrary(DOC, "Small tray", null);
+    await saveProjectToLibrary(WIDE_DOC, "Wide tray", null);
+    const before = structuredClone([...memory]);
+    await expect(renameProjectInLibrary(first.activeProjectId!, "wide TRAY")).rejects.toBeInstanceOf(ProjectNameConflictError);
+    expect([...memory]).toEqual(before);
+  });
+
+  it.each(["", "x".repeat(81)])("rejects invalid library rename %j without changing storage", async (name) => {
+    const saved = await saveProjectToLibrary(DOC, "Tools", null);
+    const before = structuredClone([...memory]);
+    await expect(renameProjectInLibrary(saved.activeProjectId!, name)).rejects.toThrow();
+    expect([...memory]).toEqual(before);
+  });
+
+  it("preserves unsupported entries and rejects renaming missing or unsupported projects", async () => {
+    const future = { id: "future", name: "Future project", updatedAt: "2026-09-12T12:00:00.000Z", doc: { schemaVersion: 999 } };
+    memory.set("tooltrace:project-library:v1", { schemaVersion: 1, activeProjectId: null, projects: [future] });
+    const saved = await saveProjectToLibrary(DOC, "Tools", null);
+    await renameProjectInLibrary(saved.activeProjectId!, "Renamed tools");
+    const before = structuredClone([...memory]);
+    await expect(renameProjectInLibrary("missing", "Missing")).rejects.toThrow("no longer");
+    await expect(renameProjectInLibrary("future", "Future renamed")).rejects.toThrow("unsupported");
+    expect([...memory]).toEqual(before);
+    expect((memory.get("tooltrace:project-library:v1") as { projects: unknown[] }).projects).toContainEqual(future);
   });
 
   it("rejects ambiguous duplicate names", async () => {

@@ -64,6 +64,17 @@ processing, project storage, and model generation kept on the user's device.
   preserve the calibrated outline as an editable pocket in a new Bin project.
   When selected, both files share a filename stem.
 - Export top-down layouts for shadow boards and CNC workflows.
+- Save the current design or choose Open saved project under Project's Browser
+  library section. Manage library lets you open saved projects with Open or a
+  double-click, rename or copy any project, and remove projects with confirmation. Copy
+  adds a separately named entry directly after its source, keeping focus on the source
+  and leaving the open project unchanged. Library order stays stable as you work. A single
+  click focuses a project without opening it. The currently open project cannot be removed;
+  switch projects or start a new one first. Rename stays beside the project name.
+  Overflowing project lists keep their scrollbar visible.
+  Portable backup separates a single editable project file from an
+  entire-library JSON backup; Export library and Import library are directly
+  available there, outside the saved-project picker.
 
 Pocketry is still subject to physical print validation. Inspect generated files
 and confirm dimensions and printer settings before relying on them for a final
