@@ -32,6 +32,7 @@ vi.mock("@/components/gridfinity/bin-viewport", () => ({
     showPocketFloorColor,
     showStackingRimColor,
     measurementOutlines,
+    measurementSplitBoundaries,
   }: {
     fitSize: { widthMm: number; lengthMm: number; heightMm: number };
     hasPocketFloor: boolean;
@@ -42,6 +43,7 @@ vi.mock("@/components/gridfinity/bin-viewport", () => ({
     showPocketFloorColor: boolean;
     showStackingRimColor: boolean;
     measurementOutlines: readonly unknown[];
+    measurementSplitBoundaries: readonly unknown[];
   }) => (
     <div
       data-testid="bin-viewport-stub"
@@ -57,6 +59,7 @@ vi.mock("@/components/gridfinity/bin-viewport", () => ({
       data-bin-color={binColor}
       data-floor-color={pocketFloorColor}
       data-rim-color={stackingRimColor}
+      data-measurement-splits={JSON.stringify(measurementSplitBoundaries)}
     >
       <button
         type="button"
@@ -264,6 +267,34 @@ function selectPocket(container: HTMLElement, id: string): void {
 }
 
 describe("BinDesignerPage", () => {
+  it("measures from a transformed split to the perimeter without changing the pocket", async () => {
+    const shape = rectangularShape("tool", "Cutter");
+    const cutout = parseCutoutPlacement({ id: "split-test", shapeId: shape.id, position: { x: 3, y: -2 },
+      rotationDeg: 90, mirrored: true, scaleX: 1.5, scaleY: 0.8,
+      split: { boundary: [{ x: 0, y: -10 }, { x: 0, y: 10 }], depths: [{ mode: "mm", value: 6 }, { mode: "mm", value: 20 }] } });
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape], cutouts: [cutout] });
+    const { container, unmount } = renderPage();
+    await flushHydration();
+    // The 3D ruler receives the same placed split path as Layout.
+    const paths = JSON.parse(container.querySelector('[data-testid="bin-viewport-stub"]')!.getAttribute('data-measurement-splits')!);
+    expect(paths).toHaveLength(1);
+    expect(paths[0][0].x).toBeCloseTo(11);
+    expect(paths[0][0].y).toBeCloseTo(-2);
+    expect(paths[0][1].x).toBeCloseTo(-5);
+    expect(paths[0][1].y).toBeCloseTo(-2);
+    React.act(() => [...container.querySelectorAll<HTMLButtonElement>('button')].find(b => b.textContent === 'Layout')!.click());
+    const svg = container.querySelector<SVGSVGElement>('[data-testid="layout-canvas"]')!;
+    Object.defineProperty(svg.querySelector('g')!, 'getScreenCTM', { value: () => ({ inverse: () => ({}) }) });
+    Object.defineProperty(svg, 'createSVGPoint', { value: () => ({ x: 0, y: 0, matrixTransform() { return { x: this.x, y: this.y }; } }) });
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-layout-ruler"]')!.click());
+    for (const y of [43.95, 66.05]) React.act(() => svg.dispatchEvent(
+      new MouseEvent('pointerdown', { bubbles: true, button: 0, clientX: 44.75, clientY: y }),
+    ));
+    expect(container.querySelector('[data-testid="layout-measurement-label"]')?.textContent).toBe('22.50 mm');
+    expect(container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.disabled).toBe(true);
+    unmount();
+  });
+
   it.each(["clicks", "drag"])("creates and edits a split with %s, and removes/undoes it without changing the outline", async gesture => {
     const shape = rectangularShape("tool", "Cutter");
     vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape],

@@ -74,6 +74,7 @@ import {
 } from "@/lib/gridfinity/contour-edit";
 import {
   measurementDistanceMm,
+  placedPocketSplitBoundaries,
   snapToToolContour,
 } from "@/lib/gridfinity/layout-measure";
 import { resolvePocketSplit, splitSide } from "@shared/gridfinity/pocket-split";
@@ -662,6 +663,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
         point,
         placed.map((item) => item.outline),
         RULER_SNAP_TOLERANCE_PX / Math.max(scale, 1e-6),
+        placedPocketSplitBoundaries(placed.map(item => item.cutout)),
       );
       if (snapped) {
         setMeasurementPoints((current) =>
@@ -1686,7 +1688,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
           aria-pressed={rulerActive}
           title={
             hasPlacedCutouts
-              ? "Ruler: measure between two tool-contour points"
+              ? "Ruler: measure between points on contours or split lines"
               : "Add a tool cutout before measuring"
           }
           disabled={!hasPlacedCutouts}
@@ -1746,10 +1748,10 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
           data-testid="layout-ruler-status"
         >
           {measurementPoints.length === 0
-            ? "Click the first tool contour"
+            ? "Click the first contour or split line"
             : measurementPoints.length === 1
-              ? "Click the second tool contour"
-              : `${measuredDistanceMm!.toFixed(2)} mm · click another contour to restart`}
+              ? "Click the second contour or split line"
+              : `${measuredDistanceMm!.toFixed(2)} mm · click to start a new measurement`}
         </div>
       ) : null}
 
@@ -1760,7 +1762,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
 
       <div className="pointer-events-none absolute bottom-2 left-2 rounded-md bg-background/85 px-2 py-1 text-[11px] text-muted-foreground shadow-sm backdrop-blur">
         {rulerActive
-          ? "Ruler · endpoints snap to tool contours · Esc exits"
+          ? "Ruler · snap to contours or split lines · Esc exits"
           : editorMode === "footprint"
           ? "Footprint edit · click cells or the dashed outer halo · Esc finishes"
           : editorMode === "label-edge"

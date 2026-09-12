@@ -11,6 +11,12 @@ depth, remaining-floor, or through controls. All depths start at the same infill
 top; they are not cumulative. Different depths make a step, with no dividing
 wall. Equal depths give the same geometry as an unsplit pocket.
 
+To check a split's distance from the tool perimeter, turn on the ruler and click
+near the split, then near the perimeter. Endpoints snap anywhere along either
+line, including between vertices. Layout and 3D measure the planar XY distance
+in millimetres; the 3D ruler shows a dashed split guide on the top plane. Pocket
+rotation, mirroring, and scale are included in the measurement.
+
 The pocket retains one position, rotation, scale, clearance, and set of edge
 settings. Move, resize, mirror, duplicate, fit, and auto-arrange work on the whole
 tool. Top rounding is limited by the shallowest section to keep the opening

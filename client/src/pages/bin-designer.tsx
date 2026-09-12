@@ -32,6 +32,7 @@ import {
   PREVIEW_QUALITY,
 } from "@/lib/gridfinity/bin";
 import { useBinGeometry } from "@/lib/gridfinity/use-bin-geometry";
+import { placedPocketSplitBoundaries } from "@/lib/gridfinity/layout-measure";
 import type { BuildBinSection } from "@/lib/gridfinity/worker-api";
 import { downloadBlob } from "@/lib/download";
 import {
@@ -317,6 +318,11 @@ function BinDesignerWorkspace(): JSX.Element {
       return shape ? [placementFootprint(shape, cutout).outline] : [];
     });
   }, [previewLayout]);
+
+  const measurementSplitBoundaries = useMemo(
+    () => placedPocketSplitBoundaries(previewLayout.cutouts),
+    [previewLayout],
+  );
 
   const {
     geometry,
@@ -1027,6 +1033,7 @@ function BinDesignerWorkspace(): JSX.Element {
               error={error}
               fitSize={fitSize}
               measurementOutlines={measurementOutlines}
+              measurementSplitBoundaries={measurementSplitBoundaries}
               measurementPlaneZMm={builtDimensions.heightToRimMm}
             />
           ) : (
