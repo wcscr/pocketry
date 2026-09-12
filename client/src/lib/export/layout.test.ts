@@ -134,9 +134,9 @@ describe("generateLayoutSVG", () => {
 });
 
 
-it("exports a flat-ended channel as a rectangle at its saved position and rotation", () => {
+it.each(["flat-ended-scoop", "flat-ended-straight"] as const)("exports %s as a rectangle at its saved position and rotation", (kind) => {
   const rings = layoutRingsMm(SPEC, [], BY_ID, [{
-    id: "flat", kind: "flat-ended-scoop", center: { x: 5, y: -8 },
+    id: "flat", kind, center: { x: 5, y: -8 },
     diameterMm: 16, lengthMm: 40, depthMm: 25, rotationDeg: 90,
     topFilletMm: 0, bottomFilletMm: 0,
   }]);

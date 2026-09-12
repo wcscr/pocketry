@@ -409,3 +409,20 @@ it("round-trips flat-ended scoops and migrates v12 without changing existing geo
   expect(doc!.cutouts).toEqual(old!.cutouts);
   expect(parseProjectDoc({ ...doc!, schemaVersion: PROJECT_SCHEMA_VERSION + 1 })).toBeNull();
 });
+
+it("migrates v13 without rewriting finger-access geometry and persists new slot choices", () => {
+  const previous = parseProjectDoc({ ...VALID, fingerHoles: [
+    { id: "legacy", kind: "scoop", center: { x: 0, y: 0 }, diameterMm: 18, depthMm: 30 },
+    { id: "flat", kind: "flat-ended-scoop", center: { x: 10, y: 5 }, diameterMm: 24, lengthMm: 6, depthMm: 1, rotationDeg: 37 },
+  ] })!;
+  expect(parseProjectDoc({ ...previous, schemaVersion: 13 })).toEqual(previous);
+  const current = parseProjectDoc({ ...previous, fingerHoles: [
+    { ...previous.fingerHoles[1], kind: "flat-ended-straight", bottomFilletMm: 2 },
+    { ...previous.fingerHoles[1], id: "rounded", kind: "oblong-straight", lengthMm: 40 },
+    { ...previous.fingerHoles[1], id: "round", kind: "straight", slotEnds: "flat" },
+  ] });
+  expect(current).not.toBeNull();
+  expect(parseProjectDoc(JSON.parse(JSON.stringify(current)))).toEqual(current);
+  expect(current?.fingerHoles[2]).toMatchObject({ slotEnds: "flat", lengthMm: 6, rotationDeg: 37 });
+  expect(parseProjectDoc({ ...current, fingerHoles: [{ ...current!.fingerHoles[0], slotEnds: "invalid" }] })).toBeNull();
+});

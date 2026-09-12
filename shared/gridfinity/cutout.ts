@@ -135,14 +135,16 @@ export const fingerHoleSchema = z
         "deep-scoop",
         "oblong-deep-scoop",
         "flat-ended-scoop",
+        "oblong-straight",
+        "flat-ended-straight",
         "oblong-scoop",
       ])
       .default("straight"),
-    /** Used only for scoops; retained on straight holes so type changes are reversible. */
+    /** Requested top-to-bottom depth, independent of the opening shape. */
     depthMm: z.number().min(1).max(120).default(12),
     /** Rounds the hole wall outward into the bin's top surface. */
     topFilletMm: z.number().min(0).max(5).default(0),
-    /** Used only by straight holes; curved scoop bottoms already provide this transition. */
+    /** Used by flat bottoms; retained while a curved bottom is selected. */
     bottomFilletMm: z.number().min(0).max(6).default(0),
     /** Compatibility only; removed with the directed-trough prototype. */
     reachMm: z.number().min(1).max(120).optional(),
@@ -152,6 +154,8 @@ export const fingerHoleSchema = z
     lengthMm: z.number().min(6).max(160).optional(),
     /** CCW mouth rotation in the bin-local y-up frame. */
     rotationDeg: z.number().finite().optional(),
+    /** Remembers the slot ends while the opening is temporarily round. */
+    slotEnds: z.enum(["rounded", "flat"]).optional(),
   })
   .strict()
   .transform(({ reachMm: _reach, directionDeg: _direction, kind, ...hole }) => ({
@@ -168,6 +172,82 @@ export const DEFAULT_TOP_EDGE_FILLET_MM = 1;
 export const DEFAULT_OBLONG_DEEP_SCOOP_LENGTH_MM = 36;
 export const MAX_OBLONG_DEEP_SCOOP_LENGTH_MM = 160;
 export const MIN_OBLONG_DEEP_SCOOP_SPAN_MM = 2;
+const FINGER_ACCESS_BIN_ALLOWANCE = 1.05;
+
+type FingerAccessBinSpec = Pick<BinSpec, "gridX" | "gridY" | "gridPitch" | "heightUnits" | "lip">;
+
+function fingerAccessBinBounds(spec: FingerAccessBinSpec) {
+  return {
+    x: binFootprintMm(spec.gridX, spec.gridPitch) * FINGER_ACCESS_BIN_ALLOWANCE,
+    y: binFootprintMm(spec.gridY, spec.gridPitch) * FINGER_ACCESS_BIN_ALLOWANCE,
+  };
+}
+
+function fingerAccessMouthFits(hole: FingerHole, bounds: { x: number; y: number }): boolean {
+  if (!isElongatedFingerHole(hole)) return hole.diameterMm <= Math.min(bounds.x, bounds.y);
+  const angle = (hole.rotationDeg ?? 0) * Math.PI / 180;
+  const c = Math.abs(Math.cos(angle));
+  const s = Math.abs(Math.sin(angle));
+  const length = elongatedFingerHoleEndpoints(hole).lengthMm;
+  const width = hole.diameterMm;
+  return hasFlatFingerHoleEnds(hole)
+    ? length * c + width * s <= bounds.x + 1e-9 && length * s + width * c <= bounds.y + 1e-9
+    : (length - width) * c + width <= bounds.x + 1e-9 && (length - width) * s + width <= bounds.y + 1e-9;
+}
+
+/** Both mouth extents grow monotonically with either dimension, including capsule minimum length. */
+function maximumFingerAccessDimension(
+  hole: FingerHole,
+  bounds: { x: number; y: number },
+  dimension: "diameterMm" | "lengthMm",
+): number {
+  let low = MIN_FINGER_HOLE_DIAMETER_MM;
+  let high = dimension === "diameterMm" ? MAX_FINGER_HOLE_DIAMETER_MM : MAX_OBLONG_DEEP_SCOOP_LENGTH_MM;
+  for (let i = 0; i < 32; i++) {
+    const mid = (low + high) / 2;
+    if (fingerAccessMouthFits({ ...hole, [dimension]: mid }, bounds)) low = mid;
+    else high = mid;
+  }
+  // Round down, never beyond the allowance. Hundredths also match numeric fields.
+  return Math.floor((low + 1e-7) * 100) / 100;
+}
+
+function maximumFingerAccessDepth(spec: FingerAccessBinSpec): number {
+  const top = resolvePocketDepth(spec, { mode: "through" }).infillTopZ;
+  return Math.min(120, top);
+}
+
+/** Editing limits for the nominal mouth, before edge rounding; position validation stays separate. */
+export function fingerHoleSizeLimits(hole: FingerHole, spec: FingerAccessBinSpec) {
+  const bounded = clampFingerHoleToBin(hole, spec);
+  const bounds = fingerAccessBinBounds(spec);
+  return {
+    depthMm: maximumFingerAccessDepth(spec),
+    diameterMm: maximumFingerAccessDimension(bounded, bounds, "diameterMm"),
+    lengthMm: maximumFingerAccessDimension(bounded, bounds, "lengthMm"),
+  };
+}
+
+/** Used on explicit geometry edits and bin resizing, never while opening an older project. */
+export function clampFingerHoleToBin(hole: FingerHole, spec: FingerAccessBinSpec): FingerHole {
+  const bounds = fingerAccessBinBounds(spec);
+  const depth = effectiveFingerHoleDepthMm(hole);
+  const maximumDepth = maximumFingerAccessDepth(spec);
+  let bounded = { ...hole, depthMm: depth > maximumDepth ? maximumDepth : hole.depthMm };
+  // First fit the width at the shortest possible length, then fit the requested length.
+  // Dormant slot length on round holes remains untouched for reversible shape changes.
+  bounded.diameterMm = Math.min(hole.diameterMm,
+    maximumFingerAccessDimension({ ...bounded, lengthMm: MIN_FINGER_HOLE_DIAMETER_MM }, bounds, "diameterMm"));
+  if (hole.kind === "scoop" && bounded.diameterMm !== hole.diameterMm) {
+    bounded = { ...bounded, kind: "deep-scoop", depthMm: Math.min(depth, maximumDepth) };
+  }
+  if (isElongatedFingerHole(bounded)) {
+    const maximum = maximumFingerAccessDimension(bounded, bounds, "lengthMm");
+    if ((hole.lengthMm ?? DEFAULT_OBLONG_DEEP_SCOOP_LENGTH_MM) > maximum) bounded.lengthMm = maximum;
+  }
+  return bounded.diameterMm === hole.diameterMm && bounded.depthMm === hole.depthMm &&
+    bounded.lengthMm === hole.lengthMm && bounded.kind === hole.kind ? hole : bounded;
+}
 
 /**
  * A spherical dish cut down from the top surface. Placed on the pocket's
@@ -216,6 +296,58 @@ export function effectiveFingerHoleDepthMm(hole: FingerHole): number {
   return hole.depthMm;
 }
 
+export function effectiveFingerHoleTopFilletMm(hole: FingerHole): number {
+  return Math.min(hole.topFilletMm, effectiveFingerHoleDepthMm(hole) / 2);
+}
+
+export function effectiveFingerHoleBottomFilletMm(hole: FingerHole): number {
+  return Math.min(hole.bottomFilletMm, maximumFingerHoleBottomFilletMm(hole));
+}
+
+export function maximumFingerHoleBottomFilletMm(hole: FingerHole): number {
+  return Math.min(6, hole.depthMm / 2, hole.diameterMm / 2,
+    isElongatedFingerHole(hole) ? elongatedFingerHoleEndpoints(hole).lengthMm / 2 : Infinity);
+}
+
+export function hasFlatFingerHoleBottom(hole: Pick<FingerHole, "kind">): boolean {
+  return hole.kind === "straight" || hole.kind === "oblong-straight" || hole.kind === "flat-ended-straight";
+}
+
+export function hasFlatFingerHoleEnds(hole: Partial<Pick<FingerHole, "kind">>): boolean {
+  return hole.kind === "flat-ended-scoop" || hole.kind === "flat-ended-straight";
+}
+
+export interface FingerAccessOptions {
+  shape: "round" | "slot";
+  bottom: "curved" | "flat";
+  ends: "rounded" | "flat";
+}
+
+/** Orthogonal editor choices over the versioned, backward-compatible cutter types. */
+export function fingerAccessOptions(hole: FingerHole): FingerAccessOptions {
+  return {
+    shape: isElongatedFingerHole(hole) ? "slot" : "round",
+    bottom: hasFlatFingerHoleBottom(hole) ? "flat" : "curved",
+    ends: isElongatedFingerHole(hole)
+      ? hasFlatFingerHoleEnds(hole) ? "flat" : "rounded"
+      : hole.slotEnds ?? "rounded",
+  };
+}
+
+/** Changes geometry choices without overwriting requested dimensions or edge radii. */
+export function fingerAccessOptionsPatch(
+  hole: FingerHole,
+  change: Partial<FingerAccessOptions>,
+): Pick<FingerHole, "kind" | "slotEnds" | "depthMm"> {
+  const { shape, bottom, ends } = { ...fingerAccessOptions(hole), ...change };
+  const kind = shape === "round"
+    ? bottom === "flat" ? "straight" : "deep-scoop"
+    : ends === "flat"
+      ? bottom === "flat" ? "flat-ended-straight" : "flat-ended-scoop"
+      : bottom === "flat" ? "oblong-straight" : "oblong-deep-scoop";
+  return { kind, slotEnds: ends, depthMm: effectiveFingerHoleDepthMm(hole) };
+}
+
 /** Circular-segment radius preserving the opening width at shallow depths. */
 export function flatEndedScoopRadiusMm(
   hole: Pick<FingerHole, "diameterMm" | "depthMm">,
@@ -227,12 +359,12 @@ export function flatEndedScoopRadiusMm(
 
 /** Whether the hole has independently editable length and rotation. */
 export function isElongatedFingerHole(hole: Pick<FingerHole, "kind">): boolean {
-  return hole.kind === "oblong-deep-scoop" || hole.kind === "flat-ended-scoop";
+  return hole.kind === "oblong-deep-scoop" || hole.kind === "oblong-straight" || hasFlatFingerHoleEnds(hole);
 }
 
 /** Flat ends can be closer together than the channel width. */
 export function minimumFingerHoleLengthMm(hole: Pick<FingerHole, "kind" | "diameterMm">): number {
-  return hole.kind === "flat-ended-scoop"
+  return hasFlatFingerHoleEnds(hole)
     ? MIN_FINGER_HOLE_DIAMETER_MM
     : hole.diameterMm + MIN_OBLONG_DEEP_SCOOP_SPAN_MM;
 }
@@ -257,7 +389,7 @@ export function elongatedFingerHoleEndpoints(
     MAX_OBLONG_DEEP_SCOOP_LENGTH_MM,
     Math.max(hole.lengthMm ?? DEFAULT_OBLONG_DEEP_SCOOP_LENGTH_MM, minimumLength),
   );
-  const halfSpan = (lengthMm - (hole.kind === "flat-ended-scoop" ? 0 : hole.diameterMm)) / 2;
+  const halfSpan = (lengthMm - (hasFlatFingerHoleEnds(hole) ? 0 : hole.diameterMm)) / 2;
   const radians = ((hole.rotationDeg ?? 0) * Math.PI) / 180;
   const dx = halfSpan * Math.cos(radians);
   const dy = halfSpan * Math.sin(radians);
@@ -277,6 +409,7 @@ export function resizeElongatedFingerHoleFromEndpoint(
   hole: FingerHole,
   endpoint: "start" | "end",
   dragged: Point,
+  spec?: FingerAccessBinSpec,
 ): FingerHole {
   const current = elongatedFingerHoleEndpoints(hole);
   const fixed = endpoint === "start" ? current.end : current.start;
@@ -289,7 +422,7 @@ export function resizeElongatedFingerHoleFromEndpoint(
     dy = Math.sin(radians);
     span = 1;
   }
-  const capLength = hole.kind === "flat-ended-scoop" ? 0 : hole.diameterMm;
+  const capLength = hasFlatFingerHoleEnds(hole) ? 0 : hole.diameterMm;
   const clampedSpan = Math.min(
     MAX_OBLONG_DEEP_SCOOP_LENGTH_MM - capLength,
     Math.max(minimumFingerHoleLengthMm(hole) - capLength, span),
@@ -304,12 +437,21 @@ export function resizeElongatedFingerHoleFromEndpoint(
     : fixed;
   const rotationDeg =
     ((Math.atan2(end.y - start.y, end.x - start.x) * 180) / Math.PI + 360) % 360;
-  return {
+  const resized = {
     ...hole,
     center: { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 },
     lengthMm: clampedSpan + capLength,
     rotationDeg,
   };
+  if (!spec) return resized;
+  const bounded = clampFingerHoleToBin(resized, spec);
+  const boundedSpan = elongatedFingerHoleEndpoints(bounded).lengthMm -
+    (hasFlatFingerHoleEnds(bounded) ? 0 : bounded.diameterMm);
+  const direction = endpoint === "end" ? 1 : -1;
+  return { ...bounded, center: {
+    x: fixed.x + direction * ux * boundedSpan / 2,
+    y: fixed.y + direction * uy * boundedSpan / 2,
+  } };
 }
 
 /**
@@ -320,20 +462,19 @@ export function resizeElongatedFingerHoleFromEndpoint(
 export function resizeFingerHoleFromWidthHandle(
   hole: FingerHole,
   dragged: Point,
+  spec?: FingerAccessBinSpec,
 ): FingerHole {
   if (!isElongatedFingerHole(hole)) {
     const diameterMm = Math.min(
-      MAX_FINGER_HOLE_DIAMETER_MM,
+      spec ? fingerHoleSizeLimits(hole, spec).diameterMm : MAX_FINGER_HOLE_DIAMETER_MM,
       Math.max(
         MIN_FINGER_HOLE_DIAMETER_MM,
         2 * Math.hypot(dragged.x - hole.center.x, dragged.y - hole.center.y),
       ),
     );
-    const depthMm =
-      hole.kind === "scoop"
-        ? Math.min(hole.depthMm, diameterMm / 2)
-        : hole.depthMm;
-    return { ...hole, diameterMm, depthMm };
+    // Legacy spherical dishes keep their current depth when explicitly resized.
+    return { ...hole, diameterMm, depthMm: effectiveFingerHoleDepthMm(hole),
+      kind: hole.kind === "scoop" ? "deep-scoop" : hole.kind };
   }
 
   const endpoints = elongatedFingerHoleEndpoints(hole);
@@ -346,16 +487,23 @@ export function resizeFingerHoleFromWidthHandle(
   const signedDistance =
     (dragged.x - hole.center.x) * normal.x +
     (dragged.y - hole.center.y) * normal.y;
+  const bounds = spec ? fingerAccessBinBounds(spec) : null;
+  const maximumWidth = !spec || !bounds ? MAX_FINGER_HOLE_DIAMETER_MM
+    : hasFlatFingerHoleEnds(hole) ? fingerHoleSizeLimits(hole, spec).diameterMm
+      : Math.max(MIN_FINGER_HOLE_DIAMETER_MM, Math.min(
+          bounds.x - span * Math.abs(Math.cos(radians)),
+          bounds.y - span * Math.abs(Math.sin(radians)),
+        ));
   const diameterMm = Math.min(
-    MAX_FINGER_HOLE_DIAMETER_MM,
-    hole.kind === "flat-ended-scoop" ? MAX_FINGER_HOLE_DIAMETER_MM : MAX_OBLONG_DEEP_SCOOP_LENGTH_MM - span,
+    MAX_FINGER_HOLE_DIAMETER_MM, Math.floor((maximumWidth + 1e-7) * 100) / 100,
+    hasFlatFingerHoleEnds(hole) ? MAX_FINGER_HOLE_DIAMETER_MM : MAX_OBLONG_DEEP_SCOOP_LENGTH_MM - span,
     Math.max(MIN_FINGER_HOLE_DIAMETER_MM, 2 * Math.abs(signedDistance)),
   );
   return {
     ...hole,
     diameterMm,
     depthMm: hole.depthMm,
-    lengthMm: hole.kind === "flat-ended-scoop" ? endpoints.lengthMm : span + diameterMm,
+    lengthMm: hasFlatFingerHoleEnds(hole) ? endpoints.lengthMm : span + diameterMm,
   };
 }
 
@@ -694,7 +842,7 @@ export function fingerHoleFootprintRing(
   const local = isElongatedFingerHole(hole)
     ? (() => {
         const { start, end } = elongatedFingerHoleEndpoints(hole);
-        if (hole.kind === "flat-ended-scoop") {
+        if (hasFlatFingerHoleEnds(hole)) {
           const radians = ((hole.rotationDeg ?? 0) * Math.PI) / 180;
           const nx = -Math.sin(radians) * hole.diameterMm / 2;
           const ny = Math.cos(radians) * hole.diameterMm / 2;

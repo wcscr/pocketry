@@ -29,9 +29,10 @@ import { binSpecSchema } from "./types";
  * Version 11 removes Lite Base; older projects use the ordinary Gridfinity base.
  * Version 12 adds an optional flat bottom, defaulting off for existing projects.
  * Version 13 adds flat-ended cylindrical finger scoops.
+ * Version 14 adds flat-bottom slots and a retained slot-end preference.
  */
 
-export const PROJECT_SCHEMA_VERSION = 13 as const;
+export const PROJECT_SCHEMA_VERSION = 14 as const;
 
 const projectFields = {
   shapes: z.array(tracedShapeSchema),
@@ -70,6 +71,8 @@ export const projectDocSchema = z
     keepBinSize: z.boolean().optional(),
   })
   .strict();
+
+const version13ProjectSchema = projectDocSchema.extend({ schemaVersion: z.literal(13) });
 
 const version12ProjectSchema = projectDocSchema.extend({ schemaVersion: z.literal(12) });
 
@@ -157,6 +160,8 @@ export function parseProjectDoc(input: unknown): ProjectDoc | null {
       input = { ...doc, spec };
     }
   }
+  const version13 = version13ProjectSchema.safeParse(input);
+  if (version13.success) return projectDocSchema.parse({ ...version13.data, schemaVersion: PROJECT_SCHEMA_VERSION });
   const version12 = version12ProjectSchema.safeParse(input);
   if (version12.success) return projectDocSchema.parse({ ...version12.data, schemaVersion: PROJECT_SCHEMA_VERSION });
   const version11 = version11ProjectSchema.safeParse(input);

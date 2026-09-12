@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
+import { strFromU8, unzipSync } from "fflate";
 
-import { parseCutoutPlacement, resolvePocketDepth } from "@shared/gridfinity/cutout";
+import { fingerHoleSchema, parseCutoutPlacement, resolvePocketDepth } from "@shared/gridfinity/cutout";
+import { writeBinarySTL } from "@/lib/export/stl-writer";
+import { writeThreeMf } from "@/lib/mesh/threemf";
 import { binTotalHeightMm } from "@shared/gridfinity/standard";
 import { parseBinSpec } from "@shared/gridfinity/types";
 import { loadManifold } from "@/lib/manifold/runtime";
@@ -285,6 +288,26 @@ describe("bin worker handlers", () => {
     expect(nonManifoldEdgeCount(result.value.mesh)).toBe(0);
     expect(nonManifoldEdgeCount(result.value.materialMeshes!.body)).toBe(0);
     expect(nonManifoldEdgeCount(result.value.materialMeshes!.stackingRim!)).toBe(0);
+  });
+
+  it.each(["oblong-straight", "flat-ended-straight"] as const)("exports a rounded %s through the worker to closed STL/3MF geometry", async (kind) => {
+    const result = await getHandler()({
+      spec: { gridX: 2, gridY: 2, heightUnits: 4, fill: "solid" },
+      quality: { circularSegments: 64 }, exportTopology: true,
+      layout: { shapes: [], cutouts: [], fingerHoles: [fingerHoleSchema.parse({
+        id: "slot", kind, center: { x: 3, y: -2 }, diameterMm: 16, lengthMm: 40,
+        rotationDeg: 37, depthMm: 12, topFilletMm: 1, bottomFilletMm: 2,
+      })] },
+    }, context());
+    const { mesh } = result.value;
+    expect(mesh.normals).toBeNull();
+    expect(nonManifoldEdgeCount(mesh)).toBe(0);
+    const stl = writeBinarySTL(mesh);
+    expect(new DataView(stl).getUint32(80, true)).toBe(mesh.indices.length / 3);
+    expect(stl.byteLength).toBe(84 + mesh.indices.length / 3 * 50);
+    const model = strFromU8(unzipSync(writeThreeMf([{ name: "slot", mesh }]))["3D/3dmodel.model"]);
+    expect(model.match(/<triangle /g)?.length).toBe(mesh.indices.length / 3);
+    expect(model.match(/<vertex /g)?.length).toBe(mesh.positions.length / 3);
   });
 
   it("rejects a malformed layout at the boundary", async () => {

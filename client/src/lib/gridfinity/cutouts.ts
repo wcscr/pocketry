@@ -4,11 +4,14 @@ import type { Manifold } from "manifold-3d";
 import {
   effectiveDeepScoopDepthMm,
   effectiveFingerHoleDepthMm,
+  effectiveFingerHoleTopFilletMm,
+  effectiveFingerHoleBottomFilletMm,
   flatEndedScoopRadiusMm,
   effectiveScoopDepthMm,
   fingerHoleFootprintRing,
   elongatedFingerHoleEndpoints,
   isElongatedFingerHole,
+  hasFlatFingerHoleBottom,
   resolvePocketDepth,
   transformOutlinePlacement,
   transformPointPlacement,
@@ -361,11 +364,11 @@ export function buildFingerHoleCutters(
   for (const hole of fingerHoles) {
     const pocket = resolvePocketDepth(spec, { mode: "mm", value: hole.depthMm });
     const cutDepth = effectiveFingerHoleDepthMm(hole);
-    const effectiveTopFillet = Math.min(hole.topFilletMm, cutDepth / 2);
+    const effectiveTopFillet = effectiveFingerHoleTopFilletMm(hole);
     // Sample shallow curved bottoms directly so even a 1 mm cut preserves
     // its mouth width and exact depth, with or without top-edge rounding.
     const shallowCurved = hole.kind !== "flat-ended-scoop" && cutDepth < hole.diameterMm / 2;
-    if (hole.kind !== "straight" && (effectiveTopFillet > 0 || shallowCurved)) {
+    if (!hasFlatFingerHoleBottom(hole) && (effectiveTopFillet > 0 || shallowCurved)) {
       cutters.push(buildRoundedFingerAccessCutter(kernel, hole, pocket.infillTopZ, pocket.cutterTopZ, {
         radiusMm: effectiveTopFillet,
         profileStepMm: filletProfileStepMm,
@@ -380,13 +383,9 @@ export function buildFingerHoleCutters(
     );
     const section = toCrossSection(kernel, [{ outer: ring, holes: [] }]);
     let cutter: Manifold;
-    if (hole.kind === "straight") {
+    if (hasFlatFingerHoleBottom(hole)) {
       const floorZ = pocket.floorZ ?? -1;
-      const effectiveBottomFillet = Math.min(
-        hole.bottomFilletMm,
-        hole.depthMm / 2,
-        hole.diameterMm / 2,
-      );
+      const effectiveBottomFillet = effectiveFingerHoleBottomFilletMm(hole);
       const localCutter = bottomFilletCutter(
         kernel,
         section,

@@ -17,6 +17,8 @@ const cases = [
   { kind: "deep-scoop", depthMm: 1 }, { kind: "deep-scoop", depthMm: 12.5 }, { kind: "deep-scoop", depthMm: 20 },
   { kind: "oblong-deep-scoop", depthMm: 1 }, { kind: "oblong-deep-scoop", depthMm: 12.5 }, { kind: "oblong-deep-scoop", depthMm: 20 },
   { kind: "flat-ended-scoop", depthMm: 1 }, { kind: "flat-ended-scoop", depthMm: 5 }, { kind: "flat-ended-scoop", depthMm: 20 },
+  { kind: "oblong-straight", depthMm: 1 }, { kind: "oblong-straight", depthMm: 20 },
+  { kind: "flat-ended-straight", depthMm: 1 }, { kind: "flat-ended-straight", depthMm: 20 },
 ];
 
 describe.each(cases)("$kind at requested depth $depthMm", (settings) => {
@@ -49,7 +51,7 @@ describe.each(cases)("$kind at requested depth $depthMm", (settings) => {
       if (zs[0] > -r + 1e-5 && zs[0] < -1e-5 && Math.max(...zs) - Math.min(...zs) < 1e-7) steps++;
     }
     expect(steps).toBe(0);
-    if (hole.kind === "oblong-deep-scoop") {
+    if (hole.kind === "oblong-deep-scoop" || hole.kind === "oblong-straight") {
       // The cap tip and long side share the same rounded profile.
       const ring = sectionAt(rim.tangentZ / 2).toPolygons().flat();
       const maxX = Math.max(...ring.map(p => p[0]));
@@ -59,9 +61,9 @@ describe.each(cases)("$kind at requested depth $depthMm", (settings) => {
   });
 });
 
-it("preserves the straight hole's bottom fillet below the top rounding", () => {
+it.each(["straight", "oblong-straight", "flat-ended-straight"] as const)("preserves the %s bottom fillet below the top rounding", (kind) => {
   const hole = fingerHoleSchema.parse({
-    id: "straight", kind: "straight", center: { x: 0, y: 0 },
+    id: "straight", kind, center: { x: 0, y: 0 },
     diameterMm: 24, depthMm: 20, bottomFilletMm: 3,
   });
   const quality = { circularSegments: 64, filletProfileStepMm: 0.1 };

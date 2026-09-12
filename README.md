@@ -21,6 +21,18 @@ processing, project storage, and model generation kept on the user's device.
   at the bottom. Rename finger access from its list row; names save with the project
   and support undo/redo. All finger access styles support depths down to 1 mm;
   shallow curved scoops preserve their opening width as depth changes.
+  Choose Round or Slot, a Curved or Flat bottom, and (for slots) Rounded or Flat
+  ends. A top/section preview follows the choices. Shape changes retain dimensions,
+  rotation, edge radii, and the slot-end preference. Short slots retain their requested
+  length while rounded ends temporarily require a longer opening. Opening dimensions support
+  up to 80 mm in both the panel and Layout. Rounding fields show the actual radius
+  and retain larger requested values for deeper cuts. Existing spherical scoops
+  retain their saved geometry until their dimensions or shape choices are edited.
+  Finger-access depth stops at the bin underside. Mouth-size controls follow the
+  bin dimensions with a 5% allowance, including rotated slots and Layout resize
+  handles. Resizing the bin limits oversized openings in the same undo step. Existing oversized saves
+  remain unchanged on opening and are flagged until edited; wall/floor print
+  validation still applies, and mouth-size limits are before edge rounding.
 - Pocket properties stay in the Pockets section. Click a pocket on the canvas
   or choose its row in the compact list to open its settings there. On phones, tapping opens
   the controls drawer; dragging keeps the layout available.

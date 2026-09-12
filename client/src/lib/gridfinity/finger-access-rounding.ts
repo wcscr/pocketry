@@ -4,6 +4,9 @@ import {
   effectiveFingerHoleDepthMm,
   capsuleRing,
   flatEndedScoopRadiusMm,
+  hasFlatFingerHoleBottom,
+  hasFlatFingerHoleEnds,
+  isElongatedFingerHole,
   type FingerHole,
 } from "@shared/gridfinity/cutout";
 import type { Kernel } from "@/lib/manifold/runtime";
@@ -18,7 +21,7 @@ export function fingerAccessRimGeometry(
   const radius = flatEndedScoopRadiusMm({ ...hole, depthMm: depth });
   const centerZ = radius - depth;
   // A shaft at least as tall as the rim radius takes an ordinary quarter circle.
-  const verticalJoin = hole.kind === "straight" || centerZ <= -rimRadius;
+  const verticalJoin = hasFlatFingerHoleBottom(hole) || centerZ <= -rimRadius;
   // The fillet centre is (openingHalfWidth, -rimRadius). External tangency
   // requires its distance from the cylinder centre to equal radius + rimRadius.
   const openingHalfWidth = verticalJoin
@@ -45,7 +48,7 @@ export function fingerAccessHalfWidthAtZ(
   if (z >= rim.tangentZ) {
     return rim.openingHalfWidth - Math.sqrt(Math.max(0, rim.rimRadius ** 2 - (z + rim.rimRadius) ** 2));
   }
-  if (hole.kind === "straight" || z >= rim.centerZ) return hole.diameterMm / 2;
+  if (hasFlatFingerHoleBottom(hole) || z >= rim.centerZ) return hole.diameterMm / 2;
   const height = Math.max(0, z + rim.depth);
   return Math.sqrt(Math.max(0, height * (2 * rim.radius - height)));
 }
@@ -67,9 +70,9 @@ export function buildRoundedFingerAccessCutter(
   const { arena, CrossSection } = kernel;
   const r = options.radiusMm;
   const rim = fingerAccessRimGeometry(hole, r);
-  const flatEnded = hole.kind === "flat-ended-scoop";
-  const oblong = hole.kind === "oblong-deep-scoop";
-  const straight = hole.kind === "straight";
+  const flatEnded = hasFlatFingerHoleEnds(hole);
+  const oblong = isElongatedFingerHole(hole) && !flatEnded;
+  const straight = hasFlatFingerHoleBottom(hole);
   const { lengthMm } = elongatedFingerHoleEndpoints(hole);
   const halfSpan = oblong ? (lengthMm - hole.diameterMm) / 2 : 0;
   const halfWidth = hole.diameterMm / 2;

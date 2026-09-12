@@ -3,7 +3,7 @@ import * as React from "react";
 import { createRoot } from "react-dom/client";
 import { describe, expect, it, vi } from "vitest";
 
-import { parseCutoutPlacement } from "@shared/gridfinity/cutout";
+import { clampFingerHoleToBin, fingerHoleSchema, parseCutoutPlacement } from "@shared/gridfinity/cutout";
 
 import {
   BinProvider,
@@ -47,6 +47,49 @@ const CUTOUT = parseCutoutPlacement({
 });
 
 describe("bin store", () => {
+  it("limits added and edited finger access, and undoes each adjustment atomically", () => {
+    const { store, act } = mountBin();
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { gridX: 1, gridY: 1, heightUnits: 2 } }));
+    const hole = fingerHoleSchema.parse({ id: "f", kind: "flat-ended-straight", center: { x: 0, y: 0 }, diameterMm: 80, lengthMm: 160, depthMm: 120 });
+    act(() => store().dispatch({ type: "ADD_FINGER_HOLE", hole }));
+    expect(store().fingerHoles[0]).toMatchObject({ diameterMm: 43.57, lengthMm: 43.57, depthMm: 12.8 });
+    const before = store().fingerHoles[0];
+    act(() => store().dispatch({ type: "UPDATE_FINGER_HOLE", id: "f", patch: { rotationDeg: 45, depthMm: 120 } }));
+    expect(store().fingerHoles[0]).toEqual(clampFingerHoleToBin({ ...before, rotationDeg: 45, depthMm: 120 }, store().spec));
+    act(() => store().dispatch({ type: "UNDO" }));
+    expect(store().fingerHoles[0]).toEqual(before);
+  });
+
+  it("resizes access with the bin, restores dimensions during a drag, and undoes both together", () => {
+    const { store, act } = mountBin();
+    const hole = fingerHoleSchema.parse({ id: "f", kind: "oblong-straight", center: { x: 0, y: 0 }, diameterMm: 60, lengthMm: 80, depthMm: 30 });
+    act(() => store().dispatch({ type: "ADD_FINGER_HOLE", hole }));
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { gridX: 1, gridY: 1, heightUnits: 1 }, transient: true }));
+    expect(store().fingerHoles[0].depthMm).toBe(5.8);
+    expect(getCommittedBinDoc(store()).fingerHoles[0]).toEqual(hole);
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { gridX: 2, gridY: 2, heightUnits: 6 }, transient: true }));
+    expect(store().fingerHoles[0]).toEqual(hole);
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { gridX: 1, gridY: 1, heightUnits: 1 } }));
+    const smallHole = store().fingerHoles[0];
+    expect(smallHole.lengthMm).toBe(43.57);
+    act(() => store().dispatch({ type: "UNDO" }));
+    expect(store().spec.heightUnits).toBe(6);
+    expect(store().fingerHoles[0]).toEqual(hole);
+    act(() => store().dispatch({ type: "REDO" }));
+    expect(store().spec.heightUnits).toBe(1);
+    expect(store().fingerHoles[0]).toEqual(smallHole);
+  });
+
+  it("keeps restored oversize geometry intact until a geometry edit", () => {
+    const { store, act } = mountBin();
+    const hole = fingerHoleSchema.parse({ id: "legacy", center: { x: 0, y: 0 }, depthMm: 120 });
+    act(() => store().dispatch({ type: "HYDRATE", spec: store().spec, cutouts: [], fingerHoles: [hole] }));
+    act(() => store().dispatch({ type: "UPDATE_FINGER_HOLE", id: hole.id, patch: { name: "Old access" } }));
+    expect(store().fingerHoles[0].depthMm).toBe(120);
+    act(() => store().dispatch({ type: "UPDATE_FINGER_HOLE", id: hole.id, patch: { depthMm: 120 } }));
+    expect(store().fingerHoles[0].depthMm).toBe(40.8);
+  });
+
   it("starts solid (the pocket workflow default) and unhydrated", () => {
     const { store } = mountBin();
     expect(store().spec.fill).toBe("solid");
