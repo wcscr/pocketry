@@ -4,6 +4,7 @@ import type {
   TracedShape,
 } from "@shared/gridfinity/cutout";
 import type { BinSpecInput } from "@shared/gridfinity/types";
+import type { SurfaceFitCheckStyle } from "@shared/gridfinity/fit-check";
 
 import type { MeshData } from "@/lib/mesh/mesh-data";
 
@@ -93,6 +94,7 @@ export interface BuildSurfaceFitCheckRequest {
   spec: BinSpecInput;
   layout: BuildBinLayoutRequest;
   thicknessMm: number;
+  style?: SurfaceFitCheckStyle;
   quality: BuildQuality;
 }
 

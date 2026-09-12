@@ -18,6 +18,7 @@ import {
   type ProjectDoc,
 } from "@shared/gridfinity/project";
 import { placementFootprint } from "@shared/gridfinity/cutout";
+import { SURFACE_FIT_CHECK_OUTLINE_WIDTH_MM, type SurfaceFitCheckStyle } from "@shared/gridfinity/fit-check";
 
 import {
   autoArrangeLayout,
@@ -908,7 +909,7 @@ function BinDesignerWorkspace(): JSX.Element {
   );
 
   const handleExportSurfaceFitCheck = useCallback(
-    async (thicknessMm: number, includeProject: boolean) => {
+    async (thicknessMm: number, includeProject: boolean, style: SurfaceFitCheckStyle) => {
       setExporting(true);
       try {
         const label = binSizeLabel(exportProjectDoc.spec);
@@ -916,12 +917,13 @@ function BinDesignerWorkspace(): JSX.Element {
         const project = prepareProjectExport(
           exportProjectDoc,
           currentProjectName,
-          `surface-fit-test-${thicknessLabel}mm`,
+          style === "outline" ? `surface-outline-${SURFACE_FIT_CHECK_OUTLINE_WIDTH_MM}mm-wide-${thicknessLabel}mm-thick`
+            : `surface-fit-test-${thicknessLabel}mm`,
         );
-        const result = await buildSurfaceFitCheck(thicknessMm, EXPORT_QUALITY);
+        const result = await buildSurfaceFitCheck(thicknessMm, EXPORT_QUALITY, style);
         const stl = writeBinarySTL(
           { positions: result.mesh.positions, indices: result.mesh.indices },
-          `Pocketry ${label} surface fit test ${thicknessLabel} mm`,
+          `Pocketry ${label} surface ${style === "outline" ? "outline" : "fit test"} ${thicknessLabel} mm`,
         );
         downloadModelWithProject(
           new Blob([stl], { type: "application/octet-stream" }),
@@ -931,7 +933,7 @@ function BinDesignerWorkspace(): JSX.Element {
         );
         toast({
           title: "Surface fit test saved",
-          description: `Exported the complete pocket-layout surface at ${thicknessLabel} mm thick${includeProject ? " with an editable project JSON" : ""}.`,
+          description: `Exported ${style === "outline" ? `a ${SURFACE_FIT_CHECK_OUTLINE_WIDTH_MM} mm wide surface outline` : "the complete pocket-layout surface"} at ${thicknessLabel} mm thick${includeProject ? " with an editable project JSON" : ""}.`,
         });
       } catch (cause) {
         if (!(cause instanceof WorkerCancelledError)) {
@@ -969,8 +971,8 @@ function BinDesignerWorkspace(): JSX.Element {
           onExportFitCheck={(cutoutId, depthMm, includeProject) =>
             void handleExportFitCheck(cutoutId, depthMm, includeProject)
           }
-          onExportSurfaceFitCheck={(thicknessMm, includeProject) =>
-            void handleExportSurfaceFitCheck(thicknessMm, includeProject)
+          onExportSurfaceFitCheck={(thicknessMm, includeProject, style) =>
+            void handleExportSurfaceFitCheck(thicknessMm, includeProject, style)
           }
           onExportLayout={handleExportLayout}
           onAutoArrange={handleAutoArrange}

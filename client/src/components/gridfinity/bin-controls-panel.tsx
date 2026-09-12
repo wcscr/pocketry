@@ -116,6 +116,7 @@ import {
   type BuildBinStats,
 } from "@/lib/gridfinity/worker-api";
 import type { ProjectLibraryItem } from "@/lib/project/persist";
+import { SURFACE_FIT_CHECK_OUTLINE_WIDTH_MM, surfaceFitCheckStyleSchema, type SurfaceFitCheckStyle } from "@shared/gridfinity/fit-check";
 import { cn } from "@/lib/utils";
 import { PocketSplitControls } from "./pocket-split-controls";
 import { changeBinGridPitchPreservingSize } from "@shared/gridfinity/grid-pitch";
@@ -225,7 +226,7 @@ export interface BinControlsPanelProps {
   exporting: boolean;
   onExport: (format: "3mf" | "3mf-multicolor" | "stl", includeProject: boolean) => void;
   onExportFitCheck: (cutoutId: string, depthMm: number, includeProject: boolean) => void;
-  onExportSurfaceFitCheck: (thicknessMm: number, includeProject: boolean) => void;
+  onExportSurfaceFitCheck: (thicknessMm: number, includeProject: boolean, style: SurfaceFitCheckStyle) => void;
   onExportLayout: (format: "dxf" | "svg", includeProject: boolean) => void;
   onAutoArrange: () => void;
   onExportProject: () => void;
@@ -363,6 +364,7 @@ export function BinControlsPanel({
   const [surfaceFitCheckThicknessMm, setSurfaceFitCheckThicknessMm] = useState(
     SURFACE_FIT_CHECK_DEFAULT_THICKNESS_MM,
   );
+  const [surfaceFitCheckStyle, setSurfaceFitCheckStyle] = useState<SurfaceFitCheckStyle>("full");
   const [threeMfDialogOpen, setThreeMfDialogOpen] = useState(false);
   const [includeThreeMfProject, setIncludeThreeMfProject] = useState(false);
   const [pendingExport, setPendingExport] = useState<{
@@ -1653,7 +1655,19 @@ export function BinControlsPanel({
                 data-testid="surface-fit-test-export"
               >
                 <div>
-                  <SettingLabel label="Complete surface fit test" hint="The bin's full pocket-layout surface as one thin plate, without its base, wall height, label tab, or stacking lip. Checks every pocket opening and independent finger hole together. It does not test cut depth or baseplate fit." />
+                  <SettingLabel label="Surface fit test" hint="Export the full pocket-layout surface or 5 mm wide bands around its perimeter and openings. Widely spaced bands can print as separate pieces. Thickness sets the printed height. Omits the base, wall height, label tab, and stacking lip; it does not test cut depth or baseplate fit." />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Label className="w-20 shrink-0 text-xs">Shape</Label>
+                  <Select value={surfaceFitCheckStyle} onValueChange={value => setSurfaceFitCheckStyle(surfaceFitCheckStyleSchema.parse(value))}>
+                    <SelectTrigger className="h-8" aria-label="Surface fit test shape" data-testid="select-surface-fit-test-style">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="full">Full surface</SelectItem>
+                      <SelectItem value="outline">Outline · {SURFACE_FIT_CHECK_OUTLINE_WIDTH_MM} mm wide</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="flex items-center gap-2">
                   <Label className="w-20 shrink-0 text-xs">Thickness</Label>
@@ -1683,9 +1697,11 @@ export function BinControlsPanel({
                   onClick={() =>
                     setPendingExport({
                       title: "Save surface fit test STL?",
-                      description: `Download the complete pocket layout as a ${surfaceFitCheckThicknessMm} mm thin plate.`,
+                      description: surfaceFitCheckStyle === "outline"
+                        ? `Download a ${SURFACE_FIT_CHECK_OUTLINE_WIDTH_MM} mm wide surface outline, ${surfaceFitCheckThicknessMm} mm thick.`
+                        : `Download the complete pocket layout as a ${surfaceFitCheckThicknessMm} mm thin plate.`,
                       confirmLabel: "Download STL",
-                      onConfirm: (includeProject) => onExportSurfaceFitCheck(surfaceFitCheckThicknessMm, includeProject),
+                      onConfirm: (includeProject) => onExportSurfaceFitCheck(surfaceFitCheckThicknessMm, includeProject, surfaceFitCheckStyle),
                     })
                   }
                   data-testid="button-export-surface-fit-test"

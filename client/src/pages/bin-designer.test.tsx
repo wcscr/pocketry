@@ -759,6 +759,7 @@ describe("BinDesignerPage", () => {
     ["single-color-3mf", "", "3mf"],
     ["multicolor-3mf", "-multicolor", "3mf"],
     ["surface-fit-test", "-surface-fit-test-1.2mm", "stl"],
+    ["surface-outline", "-surface-outline-5mm-wide-1.2mm-thick", "stl"],
     ["fit-check", "-Wrench-fit-template-2mm", "stl"],
     ["layout-svg", "-layout", "svg"],
     ["layout-dxf", "-layout", "dxf"],
@@ -796,9 +797,14 @@ describe("BinDesignerPage", () => {
           selectPocket(container, "pocket");
         });
       }
-      openSettingsSection(container, kind === "surface-fit-test" || kind === "fit-check" || kind.startsWith("layout-") ? "check-fit" : "export");
+      openSettingsSection(container, kind.startsWith("surface-") || kind === "fit-check" || kind.startsWith("layout-") ? "check-fit" : "export");
+      if (kind === "surface-outline") {
+        React.act(() => container.querySelector('[data-testid="select-surface-fit-test-style"]')!.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true })));
+        React.act(() => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(option => option.textContent === "Outline · 5 mm wide")!.click());
+      }
       await React.act(async () => {
-        const button = kind.startsWith("layout-") ? `button-${kind}` : `button-export-${kind.endsWith("3mf") ? "3mf" : kind}`;
+        const button = kind === "surface-outline" ? "button-export-surface-fit-test"
+          : kind.startsWith("layout-") ? `button-${kind}` : `button-export-${kind.endsWith("3mf") ? "3mf" : kind}`;
         container.querySelector<HTMLButtonElement>(`[data-testid="${button}"]`)!.click();
       });
       expect(downloadBlob).not.toHaveBeenCalled();
@@ -810,6 +816,9 @@ describe("BinDesignerPage", () => {
         document.querySelector<HTMLButtonElement>(`[data-testid="${button}"]`)!.click();
       });
       expect(downloadBlob).toHaveBeenCalledTimes(includeProject ? 2 : 1);
+      if (kind.startsWith("surface-")) {
+        expect(binGeometryMock.buildSurfaceFitCheck).toHaveBeenCalledWith(1.2, expect.any(Object), kind === "surface-outline" ? "outline" : "full");
+      }
       const [model, modelName] = vi.mocked(downloadBlob).mock.calls.at(-1)!;
       expect(modelName).toMatch(new RegExp(`^Layout-2-bin-4x4x6\\.5${suffix.replaceAll(".", "\\.")}-\\d{4}-\\d{2}-\\d{2}_\\d{2}-\\d{2}-\\d{2}-\\d{3}\\.${extension}$`));
       expect(model.size).toBeGreaterThan(84);
@@ -2640,7 +2649,8 @@ describe("BinDesignerPage", () => {
     expect(container.textContent).toContain("Export printable bin");
     openSettingsSection(container, "check-fit");
     expect(container.textContent).toContain("Fit templates and layout");
-    expect(container.textContent).toContain("Complete surface fit test");
+    expect(container.textContent).toContain("Surface fit test");
+    expect(container.querySelector('[data-testid="select-surface-fit-test-style"]')?.textContent).toBe("Full surface");
     expect(container.textContent).toContain("Save surface fit test STL");
     expect(
       (

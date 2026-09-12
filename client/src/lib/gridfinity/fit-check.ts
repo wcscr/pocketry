@@ -8,6 +8,11 @@ import {
 } from "@shared/gridfinity/cutout";
 import { BASE_TOP_RADIUS, binFootprintMm } from "@shared/gridfinity/standard";
 import type { BinSpec } from "@shared/gridfinity/types";
+import {
+  SURFACE_FIT_CHECK_OUTLINE_WIDTH_MM,
+  surfaceFitCheckStyleSchema,
+  type SurfaceFitCheckStyle,
+} from "@shared/gridfinity/fit-check";
 
 import { toCrossSection } from "@/lib/geometry/offset";
 import type { Kernel } from "@/lib/manifold/runtime";
@@ -112,7 +117,8 @@ export function buildFitCheckSolid(
  * surface. The plate uses the real outer footprint and every pocket/finger
  * cutter at the actual infill-top elevation, so spacing, clearance, top-edge
  * rounds and access features match the bin. It deliberately builds none of
- * the base, wall height, label tab or stacking lip.
+ * the base, wall height, label tab or stacking lip. Outline style keeps a
+ * 5 mm material band along every surface boundary instead of the full plate.
  */
 export function buildSurfaceFitCheckSolid(
   kernel: Kernel,
@@ -120,7 +126,9 @@ export function buildSurfaceFitCheckSolid(
   layout: BinLayout,
   thicknessMm: number,
   quality: BuildQuality,
+  style: SurfaceFitCheckStyle = "full",
 ): Manifold {
+  surfaceFitCheckStyleSchema.parse(style);
   if (
     !Number.isFinite(thicknessMm) ||
     thicknessMm < SURFACE_FIT_CHECK_MIN_THICKNESS_MM ||
@@ -170,6 +178,27 @@ export function buildSurfaceFitCheckSolid(
       ? allCutters[0]
       : arena.track(Manifold.union(allCutters));
     plate = arena.track(plate.subtract(cutter));
+  }
+
+  if (style === "outline") {
+    // Inset the complete surface (including its openings), leaving a fixed
+    // material band along each boundary. Subtract from the real plate so
+    // pocket clearance and edge profiles still match the full-surface test.
+    const surface = arena.track(
+      arena.track(plate.slice(surfaceZ - CLEANUP_EPSILON)).simplify(CLEANUP_EPSILON),
+    );
+    const core = arena.track(
+      arena.track(surface.offset(-SURFACE_FIT_CHECK_OUTLINE_WIDTH_MM, "Round", 2, segments))
+        .simplify(CLEANUP_EPSILON),
+    );
+    if (!core.isEmpty()) {
+      const coreSolid = arena.track(
+        arena.track(core.extrude(thicknessMm + 2)).translate([
+          0, 0, surfaceZ - thicknessMm - 1,
+        ]),
+      );
+      plate = arena.track(plate.subtract(coreSolid));
+    }
   }
 
   // Rest the test surface on z=0 regardless of the source bin's height.
