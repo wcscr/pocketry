@@ -268,6 +268,52 @@ function selectPocket(container: HTMLElement, id: string): void {
 }
 
 describe("BinDesignerPage", () => {
+  it("keeps a split attached through a neighbouring contour edit and undo/redo", async () => {
+    const shape = rectangularShape("tool", "Cutter");
+    const cutout = parseCutoutPlacement({ id: "split-test", shapeId: shape.id, position: { x: 0, y: 0 },
+      split: { boundary: [{ x: 0, y: -10 }, { x: 0, y: 10 }], depths: [{ mode: "mm", value: 6 }, { mode: "mm", value: 20 }] } });
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape], cutouts: [cutout] });
+    const { container, unmount } = renderPage();
+    await flushHydration();
+    try {
+      selectPocket(container, cutout.id);
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-edit-contour"]')!.click());
+      const svg = container.querySelector<SVGSVGElement>('[data-testid="layout-canvas"]')!;
+      Object.defineProperty(svg.querySelector('g')!, 'getScreenCTM', { value: () => ({ inverse: () => ({}) }) });
+      Object.defineProperties(svg, {
+        createSVGPoint: { value: () => ({ x: 0, y: 0, matrixTransform() { return { x: this.x, y: this.y }; } }) },
+        setPointerCapture: { value: () => {} },
+      });
+      const guide = () => container.querySelector('[data-testid="pocket-split-split-test"] > path:last-child')!.getAttribute('d');
+      const originalGuide = guide();
+      const vertex = svg.querySelectorAll('[data-testid="contour-vertex-handle"]')[2];
+      const pointer = (target: Element, type: string, y: number) => React.act(() => {
+        const event = new MouseEvent(type, { bubbles: true, button: 0, clientX: 56.75, clientY: y });
+        Object.defineProperty(event, 'pointerId', { value: 1 });
+        target.dispatchEvent(event);
+      });
+      // Move the top-right vertex, away from either split endpoint at x=0.
+      pointer(vertex, 'pointerdown', 31.75);
+      pointer(svg, 'pointermove', 27.75);
+      expect(guide()).toBe('M41.75,51.75 L41.75,29.75');
+      pointer(svg, 'pointerup', 27.75);
+      expect(guide()).toBe('M41.75,51.75 L41.75,29.75');
+      expect(container.querySelector('[data-testid="selected-pocket-section"]')).not.toBeNull();
+      const latest = vi.mocked(useBinGeometry).mock.lastCall![2]!;
+      expect(latest.cutouts[0].split).toEqual(cutout.split);
+      expect(latest.cutouts[0].shapeId).not.toBe(shape.id);
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+      expect(guide()).toBe(originalGuide);
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+      expect(guide()).toBe('M41.75,51.75 L41.75,29.75');
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0].split).toEqual(cutout.split);
+      React.act(() => [...container.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === '3D')!.click());
+      const paths = JSON.parse(container.querySelector('[data-testid="bin-viewport-stub"]')!.getAttribute('data-measurement-splits')!);
+      expect(paths).toEqual([[{ x: 0, y: -10 }, { x: 0, y: 12 }]]);
+    } finally { unmount(); }
+  });
+
   it("measures from a transformed split to the perimeter without changing the pocket", async () => {
     const shape = rectangularShape("tool", "Cutter");
     const cutout = parseCutoutPlacement({ id: "split-test", shapeId: shape.id, position: { x: 3, y: -2 },

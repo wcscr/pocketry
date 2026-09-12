@@ -320,7 +320,7 @@ function BinDesignerWorkspace(): JSX.Element {
   }, [previewLayout]);
 
   const measurementSplitBoundaries = useMemo(
-    () => placedPocketSplitBoundaries(previewLayout.cutouts),
+    () => placedPocketSplitBoundaries(previewLayout.cutouts, new Map(previewLayout.shapes.map(shape => [shape.id, shape]))),
     [previewLayout],
   );
 

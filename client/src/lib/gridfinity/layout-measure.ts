@@ -1,13 +1,20 @@
 import type { Outline, Point, Ring } from "@shared/geometry/types";
-import { transformPointPlacement, type CutoutPlacement } from "@shared/gridfinity/cutout";
+import { transformPointPlacement, type CutoutPlacement, type TracedShape } from "@shared/gridfinity/cutout";
+import { resolvePocketSplit } from "@shared/gridfinity/pocket-split";
 
 export type MeasurementPaths = readonly (readonly Point[])[];
 
-/** Split paths use the same placement transform as the pocket perimeter. */
-export function placedPocketSplitBoundaries(cutouts: readonly CutoutPlacement[]): MeasurementPaths {
-  return cutouts.flatMap(cutout => cutout.split
-    ? [cutout.split.boundary.map(point => transformPointPlacement(point, cutout))]
-    : []);
+/** Resolve the current edge intersections before placing finite ruler targets. */
+export function placedPocketSplitBoundaries(
+  cutouts: readonly CutoutPlacement[],
+  shapesById: ReadonlyMap<string, Pick<TracedShape, "outlineMm">>,
+): MeasurementPaths {
+  return cutouts.flatMap(cutout => {
+    const shape = shapesById.get(cutout.shapeId);
+    if (!cutout.split || !shape) return [];
+    const split = resolvePocketSplit(shape.outlineMm, cutout.split.boundary);
+    return split.boundary ? [split.boundary.map(point => transformPointPlacement(point, cutout))] : [];
+  });
 }
 
 export interface SnappedMeasurementPoint {

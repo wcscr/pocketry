@@ -30,16 +30,28 @@ redrawing does not swap depths based on the direction of the gesture.
 support undo and redo. Escape, Cancel, and cancelled pointer gestures discard an
 unfinished boundary. A rejected boundary does not alter the pocket.
 
+Contour edits keep the split line's position and angle fixed. Its ends extend or
+retract along that line to meet the edited perimeter, including when moving or
+removing a neighbouring contour vertex changes an endpoint's edge. The section
+depths stay attached to the same sides. Layout, the ruler, validation, and the
+printed model all use the current outline. Undo restores the contour and its
+split intersections together.
+
 The initial version supports one straight boundary and two sections. It rejects
 multipart outlines, lines that cross the outer perimeter more than twice, tiny
 sections, and lines through or touching interior holes. Existing holes remain in
-their respective section. Editing the tool contour can invalidate a saved split;
-validation asks the user to redraw it and blocks export until corrected.
+their respective section. A contour edit needs a redraw only if the line no
+longer divides the outline into two usable connected sections, follows an edge,
+or crosses an interior hole. Validation still blocks those ambiguous cuts.
 
 ## Storage and geometry
 
 Project schema 16 adds optional `CutoutPlacement.split`, containing `boundary`
-(an ordered array of shape-local vertices) and `depths` (Section A/B depth specs).
+(an ordered array of shape-local vertices defining the line) and `depths`
+(Section A/B depth specs). The resolver derives its finite endpoints from the
+current perimeter without rewriting the authored line. Older saved projects
+with endpoints off the edited edge recover automatically when the line still
+forms a valid split; no migration or extra controls are needed.
 The original `depth` remains the value restored by Remove split. Section A is on
 the left of the directed boundary in shape coordinates; mirroring never swaps
 its settings. No derived region outlines or additional library shapes are saved.
@@ -67,4 +79,5 @@ SVG/DXF remain top-down outline templates and do not encode pocket depths.
 Tests cover partition area/winding, holes, invalid boundaries, migration,
 section depth checks, click/drag creation, canvas selection, editing, cancelling,
 removal/undo, placement, duplication, auto-arrange, equal-depth seam equivalence,
-transformed section identity, through sections, and nonoverlapping floor colors.
+transformed section identity, through sections, contour edits with endpoint
+extension, ruler targets, and nonoverlapping floor colors.

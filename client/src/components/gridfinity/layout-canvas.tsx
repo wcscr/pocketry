@@ -663,7 +663,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
         point,
         placed.map((item) => item.outline),
         RULER_SNAP_TOLERANCE_PX / Math.max(scale, 1e-6),
-        placedPocketSplitBoundaries(placed.map(item => item.cutout)),
+        placedPocketSplitBoundaries(placed.map(item => item.cutout), shapesById),
       );
       if (snapped) {
         setMeasurementPoints((current) =>
@@ -1389,7 +1389,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
               );
             })}
 
-          {placed.map(({ cutout, outline }) => {
+          {placed.map(({ cutout, shape, outline }) => {
             const severity = severityByCutout.get(cutout.id);
             const isSelected = cutout.id === selectedCutoutId;
             const tone =
@@ -1414,13 +1414,11 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
                   strokeDasharray={overlappingCutouts.has(cutout.id) ? "5 3" : undefined}
                 ><title>{boundaryCutouts.has(cutout.id) ? "Boundary conflict. " : ""}{overlappingCutouts.has(cutout.id) ? "Overlapping pockets. " : ""}{shapesById.get(cutout.shapeId)?.name}</title></path>
                 {cutout.split && (() => {
-                  const source = shapesById.get(cutout.shapeId);
-                  if (!source) return null;
-                  const split = resolvePocketSplit(source.outlineMm, cutout.split.boundary);
-                  const boundary = cutout.split.boundary.map(p => binToCanvas(transformPointPlacement(p, cutout), spec));
+                  const split = resolvePocketSplit(shape.outlineMm, cutout.split.boundary);
+                  const boundary = (split.boundary ?? cutout.split.boundary).map(p => binToCanvas(transformPointPlacement(p, cutout), spec));
                   return <g className="pointer-events-none" data-testid={`pocket-split-${cutout.id}`}>
                     {isSelected && split.regions && <path
-                      d={outlineToCanvasPath(placementFootprint({ ...source, outlineMm: split.regions[selectedPocketSection] }, cutout).outline, spec)}
+                      d={outlineToCanvasPath(placementFootprint({ outlineMm: split.regions[selectedPocketSection] }, cutout).outline, spec)}
                       fillRule="evenodd" className="fill-primary/25" data-testid="selected-pocket-section" />}
                     <path d={`M${boundary[0].x},${boundary[0].y} L${boundary[1].x},${boundary[1].y}`}
                       className="stroke-primary" strokeWidth={1.5} strokeDasharray="5 3" vectorEffect="non-scaling-stroke" />

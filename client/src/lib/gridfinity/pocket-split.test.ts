@@ -63,9 +63,21 @@ describe("split-pocket solids", () => {
     expect(body.volume() + pocketFloors!.volume()).toBeCloseTo(built.solid.volume(), 5);
   });
 
-  it("rejects stale boundaries at the build boundary", () => {
-    const c = pocket(); c.split!.boundary[0] = { x: 0, y: -9 };
-    expect(() => buildBinWithCutouts(kernel, spec, layout(c), PREVIEW_QUALITY)).toThrow("Redraw the split");
+  it.each([PREVIEW_QUALITY, EXPORT_QUALITY])("builds edited contours with unchanged split coordinates at quality %j", quality => {
+    const c = pocket();
+    const edited = { ...shape, outlineMm: [{ outer: shape.outlineMm[0].outer.map((p, i) => i === 2 ? { ...p, y: 14 } : p), holes: [] }] };
+    const base = buildBin(kernel, spec, quality).solid;
+    const built = buildBinWithCutouts(kernel, spec, { ...layout(c), shapesById: new Map([[edited.id, edited]]) }, quality);
+    expect(built.solid.status()).toBe("NoError");
+    const deep = resolvePocketDepth(spec, c.split!.depths[1]).depthMm!;
+    // The sloped top extends each side by a different amount; the step stays x=0.
+    expect(base.volume() - built.solid.volume()).toBeCloseTo(630 * 6 + 690 * deep, 5);
+    expect(c.split!.boundary).toEqual([{ x: 0, y: -10 }, { x: 0, y: 10 }]);
+  });
+
+  it("rejects a split line that no longer crosses the outline at the build boundary", () => {
+    const c = pocket(); c.split!.boundary = [{ x: 40, y: -10 }, { x: 40, y: 10 }];
+    expect(() => buildBinWithCutouts(kernel, spec, layout(c), PREVIEW_QUALITY)).toThrow("two connected sections");
   });
 
   it("keeps one continuous opening when a shallow section limits the shared top round", () => {

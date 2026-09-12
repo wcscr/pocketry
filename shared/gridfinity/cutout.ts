@@ -109,7 +109,8 @@ export const depthSpecSchema = z.discriminatedUnion("mode", [
 
 export type DepthSpec = z.infer<typeof depthSpecSchema>;
 
-/** Shape-local boundary vertices. Version 16 supports one straight boundary;
+/** Shape-local points defining the split line; its ends resolve on the current
+ * outline after contour edits. Version 16 supports one straight boundary;
  * a future polyline uses this same representation with intermediate vertices.
  * Sections are left/right of the directed boundary, before placement/mirroring.
  */

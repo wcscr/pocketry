@@ -66,12 +66,12 @@ function clipRing(ring: Ring, boundary: readonly Point[], side: number): Ring {
   return ensureOrientation(result, 1);
 }
 
-export type ResolvedPocketSplit = { regions: [Outline, Outline]; error?: never } |
-  { regions?: never; error: string };
+export type ResolvedPocketSplit = { regions: [Outline, Outline]; boundary: [Point, Point]; error?: never } |
+  { regions?: never; boundary?: never; error: string };
 
 /** Reject ambiguous/tangent/multipart splits instead of silently losing pieces.
- * Endpoints stay on the authored outline. Editing that outline can invalidate
- * the boundary; the user must redraw it rather than having it silently move.
+ * The authored points define a fixed line. Its visible ends are intersections
+ * with the current outline, so contour edits cannot move its position or angle.
  */
 export function resolvePocketSplit(outline: Outline, boundary: readonly Point[]): ResolvedPocketSplit {
   if (boundary.length !== 2 || boundary.some(p => !Number.isFinite(p.x) || !Number.isFinite(p.y))) {
@@ -80,12 +80,6 @@ export function resolvePocketSplit(outline: Outline, boundary: readonly Point[])
   const [a, b] = boundary;
   if (Math.hypot(b.x - a.x, b.y - a.y) < EPS) return { error: "Choose two different edge points." };
   if (outline.length !== 1) return { error: "Split needs one connected tool outline." };
-  for (const p of boundary) {
-    const nearest = nearestPocketEdge(outline, p);
-    if (!nearest || Math.hypot(p.x - nearest.x, p.y - nearest.y) > EPS) {
-      return { error: "The split endpoints must lie on the outline. Redraw the split." };
-    }
-  }
   const { outer, holes } = outline[0];
   const intersections: Point[] = [];
   const addIntersection = (p: Point) => {
@@ -101,7 +95,14 @@ export function resolvePocketSplit(outline: Outline, boundary: readonly Point[])
       addIntersection({ x: p.x + t * (q.x - p.x), y: p.y + t * (q.y - p.y) });
     }
   }
-  if (intersections.length !== 2 || !pointInRing(outer, { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 })) {
+  if (intersections.length !== 2) {
+    return { error: "Choose a line that divides the outline into two connected sections." };
+  }
+  // Retain the authored direction: sorting in ring order could swap A/B.
+  const dx = b.x - a.x, dy = b.y - a.y;
+  intersections.sort((p, q) => (p.x - q.x) * dx + (p.y - q.y) * dy);
+  const [start, end] = intersections;
+  if (!pointInRing(outer, { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 })) {
     return { error: "Choose a line that divides the outline into two connected sections." };
   }
   for (const hole of holes) {
@@ -117,5 +118,5 @@ export function resolvePocketSplit(outline: Outline, boundary: readonly Point[])
   if (regions.some(region => Math.abs(signedArea(region[0].outer)) - region[0].holes.reduce((sum, hole) => sum + Math.abs(signedArea(hole)), 0) < MIN_SECTION_AREA_MM2)) {
     return { error: "Move the split inward to leave two usable sections." };
   }
-  return { regions };
+  return { regions, boundary: [start, end] };
 }
