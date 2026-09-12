@@ -1,5 +1,13 @@
 import { get, set } from "idb-keyval";
-import { z } from "zod";
+import {
+  libraryBackupSchema,
+  projectLibrarySchema,
+  PROJECT_LIBRARY_VERSION,
+  PROJECT_NAME_MAX_LENGTH,
+  type LibraryBackup,
+  type StoredProject,
+  type StoredProjectLibrary,
+} from "@shared/gridfinity/library";
 
 import {
   parseProjectDoc,
@@ -20,32 +28,6 @@ import {
 // browser-local projects or silently starts users from an empty library.
 const CURRENT_PROJECT_KEY = "tooltrace:project:v1";
 const PROJECT_LIBRARY_KEY = "tooltrace:project-library:v1";
-const PROJECT_LIBRARY_VERSION = 1 as const;
-const PROJECT_NAME_MAX_LENGTH = 80;
-
-const storedProjectSchema = z
-  .object({
-    id: z.string().min(1).max(128),
-    name: z.string().min(1).max(PROJECT_NAME_MAX_LENGTH),
-    updatedAt: z.string().datetime(),
-    // Validate and migrate documents separately so a project-schema bump does
-    // not make the entire named library appear empty. Unreadable/future docs
-    // remain in storage instead of being discarded by the next library write.
-    doc: z.record(z.unknown()),
-  })
-  .strict();
-
-const projectLibrarySchema = z
-  .object({
-    schemaVersion: z.literal(PROJECT_LIBRARY_VERSION),
-    activeProjectId: z.string().min(1).max(128).nullable(),
-    projects: z.array(storedProjectSchema),
-  })
-  .strict();
-
-type StoredProject = z.infer<typeof storedProjectSchema>;
-type StoredProjectLibrary = z.infer<typeof projectLibrarySchema>;
-
 export interface ProjectLibraryItem {
   id: string;
   name: string;
@@ -151,6 +133,71 @@ export async function loadProjectLibrary(): Promise<ProjectLibrarySnapshot> {
   await libraryMutationQueue;
   try { return toSnapshot(await readStoredLibrary()); }
   catch { return toSnapshot(EMPTY_LIBRARY); }
+}
+
+/** Include pending edits to the active named project without waiting for autosave.
+ * Unsupported stored documents are included verbatim, never silently omitted.
+ */
+export async function exportProjectLibrary(currentDoc?: ProjectDoc): Promise<LibraryBackup> {
+  return mutateLibrary(async (library) => ({
+    format: "pocketry-library",
+    schemaVersion: PROJECT_LIBRARY_VERSION,
+    projects: library.projects.map((project) =>
+      currentDoc && project.id === library.activeProjectId
+        ? { ...project, doc: { ...currentDoc, name: project.name }, updatedAt: new Date().toISOString() }
+        : project,
+    ),
+  }));
+}
+
+export interface LibraryImportResult {
+  library: ProjectLibrarySnapshot;
+  imported: number;
+  upgraded: number;
+  renamed: number;
+}
+
+/** Validate and migrate the entire backup before one atomic library write.
+ * Conflicting entries become independent copies; the current design stays open.
+ */
+export async function importProjectLibrary(input: unknown): Promise<LibraryImportResult> {
+  const backup = libraryBackupSchema.safeParse(input);
+  if (!backup.success) {
+    throw new Error("Not a supported Pocketry library JSON file. No designs were imported.");
+  }
+  let upgraded = 0;
+  const importedProjects = backup.data.projects.map((project) => {
+    const doc = parseProjectDoc(project.doc);
+    if (!doc) {
+      throw new Error(`“${project.name}” is invalid or uses a newer Pocketry version. No designs were imported.`);
+    }
+    if (project.doc.schemaVersion !== doc.schemaVersion) upgraded++;
+    return { ...project, name: cleanProjectName(project.name), doc };
+  });
+  return mutateLibrary(async (library) => {
+    const projects = [...library.projects];
+    const ids = new Set(projects.map((project) => project.id));
+    let renamed = 0;
+    for (const project of importedProjects) {
+      let name = project.name;
+      let suffix = 1;
+      while (projects.some((existing) =>
+        existing.name.localeCompare(name, undefined, { sensitivity: "accent" }) === 0,
+      )) {
+        const ending = suffix === 1 ? " (imported)" : ` (imported ${suffix})`;
+        name = `${project.name.slice(0, PROJECT_NAME_MAX_LENGTH - ending.length).trimEnd()}${ending}`;
+        suffix++;
+      }
+      if (name !== project.name) renamed++;
+      let id = project.id;
+      while (ids.has(id)) id = makeProjectId();
+      ids.add(id);
+      projects.push({ ...project, id, name, doc: { ...project.doc, name } });
+    }
+    const next = { ...library, projects };
+    if (importedProjects.length > 0) await set(PROJECT_LIBRARY_KEY, next);
+    return { library: toSnapshot(next), imported: importedProjects.length, upgraded, renamed };
+  });
 }
 
 /** Best-effort working-copy autosave, also updating the active named project. */

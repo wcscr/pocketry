@@ -22,6 +22,7 @@ import {
   Scissors,
   Spline,
   Trash2,
+  Upload,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useLocation } from "wouter";
@@ -230,6 +231,8 @@ export interface BinControlsPanelProps {
   onOpenProject: (projectId: string) => Promise<boolean>;
   onDeleteProject: (projectId: string) => Promise<boolean>;
   onRefreshProjects: () => void;
+  onExportLibrary: () => void;
+  onImportLibrary: (file: File) => void;
   onNewProject: () => void;
   section: BuildBinSection | null;
   onSectionChange: (section: BuildBinSection | null) => void;
@@ -277,6 +280,8 @@ export function BinControlsPanel({
   onOpenProject,
   onDeleteProject,
   onRefreshProjects,
+  onExportLibrary,
+  onImportLibrary,
   onNewProject,
   section,
   onSectionChange,
@@ -497,6 +502,8 @@ export function BinControlsPanel({
             onOpenProject={onOpenProject}
             onDeleteProject={onDeleteProject}
             onRefreshProjects={onRefreshProjects}
+            onExportLibrary={onExportLibrary}
+            onImportLibrary={onImportLibrary}
             onNewProject={onNewProject}
             onExportProject={onExportProject}
             onImportProject={onImportProject}
@@ -1989,6 +1996,8 @@ interface ProjectControlsProps {
   onOpenProject: (projectId: string) => Promise<boolean>;
   onDeleteProject: (projectId: string) => Promise<boolean>;
   onRefreshProjects: () => void;
+  onExportLibrary: () => void;
+  onImportLibrary: (file: File) => void;
   onNewProject: () => void;
   onExportProject: () => void;
   onImportProject: (file: File) => void;
@@ -2005,6 +2014,8 @@ function ProjectControls({
   onOpenProject,
   onDeleteProject,
   onRefreshProjects,
+  onExportLibrary,
+  onImportLibrary,
   onNewProject,
   onExportProject,
   onImportProject,
@@ -2015,6 +2026,7 @@ function ProjectControls({
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [projectName, setProjectName] = useState("");
   const importInputRef = useRef<HTMLInputElement | null>(null);
+  const libraryImportInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleSave = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -2119,7 +2131,7 @@ function ProjectControls({
               Open library
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-h-[85dvh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Project Library</DialogTitle>
               <DialogDescription>
@@ -2127,6 +2139,30 @@ function ProjectControls({
                 current working draft.
               </DialogDescription>
             </DialogHeader>
+            <div className="space-y-2">
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" variant="outline" disabled={!ready || busy}
+                  onClick={onExportLibrary} data-testid="button-export-library">
+                  <Download className="mr-1.5 h-3.5 w-3.5" />Export library
+                </Button>
+                <Button size="sm" variant="outline" disabled={!ready || busy}
+                  onClick={() => libraryImportInputRef.current?.click()} data-testid="button-import-library">
+                  <Upload className="mr-1.5 h-3.5 w-3.5" />Import library
+                </Button>
+                <input ref={libraryImportInputRef} type="file" accept=".json,application/json"
+                  className="hidden" aria-label="Import library JSON" data-testid="input-import-library"
+                  onChange={(event) => {
+                    const file = event.currentTarget.files?.[0];
+                    event.currentTarget.value = "";
+                    if (file) onImportLibrary(file);
+                  }} />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Export all named designs as JSON. Save an unnamed draft to the library first.
+                Import adds designs and upgrades older versions. Existing designs stay intact;
+                duplicate names get an “imported” suffix.
+              </p>
+            </div>
             <div className="max-h-80 space-y-2 overflow-y-auto" data-testid="project-list">
               {projects.length === 0 ? (
                 <div className="rounded-md border border-dashed p-5 text-center text-sm text-muted-foreground">

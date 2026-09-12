@@ -192,6 +192,13 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
                 filename and location.
               </li>
               <li>
+                In <strong>Project → Open library</strong>, use <strong>Export library</strong>
+                {" "}to back up every named design in one JSON file, or <strong>Import library</strong>
+                {" "}to add designs from a backup. Supported older designs upgrade automatically.
+                Duplicate names get an “imported” suffix; existing designs and the open draft
+                stay intact. Save an unnamed draft to the library before exporting it.
+              </li>
+              <li>
                 <strong>New project</strong> clears the active design after
                 confirmation. An unsaved working draft is retained while you
                 switch between Trace and Bin.

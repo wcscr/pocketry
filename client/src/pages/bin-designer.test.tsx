@@ -106,6 +106,8 @@ vi.mock("@/lib/project/persist", () => ({
   saveProjectToLibrary: vi.fn(),
   openProjectFromLibrary: vi.fn(),
   deleteProjectFromLibrary: vi.fn(),
+  exportProjectLibrary: vi.fn(),
+  importProjectLibrary: vi.fn(),
   startNewProject: vi.fn(async () => ({ activeProjectId: null, projects: [] })),
   createDebouncedProjectSaver: () => Object.assign(vi.fn(), { cancel: vi.fn() }),
 }));
@@ -1722,6 +1724,69 @@ describe("BinDesignerPage", () => {
     expect(
       container.querySelector('[data-testid="project-autosave-status"]')?.textContent,
     ).toContain("Pliers tray");
+    unmount();
+  });
+
+  it("exports the full library from its dialog with the latest design snapshot", async () => {
+    const backup = { format: "pocketry-library" as const, schemaVersion: 1 as const, projects: [] };
+    vi.mocked(ProjectPersistence.exportProjectLibrary).mockResolvedValue(backup);
+    const { container, unmount } = renderPage();
+    openSettingsSection(container, "project");
+    await flushHydration();
+    React.act(() => { (container.querySelector('[data-testid="button-open-library"]') as HTMLButtonElement).click(); });
+    await React.act(async () => { (document.querySelector('[data-testid="button-export-library"]') as HTMLButtonElement).click(); });
+    expect(ProjectPersistence.exportProjectLibrary).toHaveBeenCalledWith(expect.objectContaining({ schemaVersion: PROJECT_SCHEMA_VERSION }));
+    expect(downloadBlob).toHaveBeenCalledWith(expect.any(Blob), expect.stringMatching(/^pocketry-library-.*\.json$/));
+    const [blob] = vi.mocked(downloadBlob).mock.calls[0];
+    const json = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsText(blob);
+    });
+    expect(JSON.parse(json)).toEqual(backup);
+    unmount();
+  });
+
+  it("imports library JSON, refreshes the list, and allows selecting the same file again", async () => {
+    const project = { id: "imported", name: "Imported tray", updatedAt: "2026-09-12T12:00:00.000Z" };
+    vi.mocked(ProjectPersistence.importProjectLibrary).mockResolvedValue({
+      library: { activeProjectId: null, projects: [project] }, imported: 1, upgraded: 1, renamed: 0,
+    });
+    const { container, unmount } = renderPage();
+    openSettingsSection(container, "project");
+    await flushHydration();
+    React.act(() => { (container.querySelector('[data-testid="button-open-library"]') as HTMLButtonElement).click(); });
+    await flushHydration();
+    const input = document.querySelector('[data-testid="input-import-library"]') as HTMLInputElement;
+    const click = vi.spyOn(input, "click");
+    React.act(() => { (document.querySelector('[data-testid="button-import-library"]') as HTMLButtonElement).click(); });
+    expect(click).toHaveBeenCalledOnce();
+    const data = { format: "pocketry-library", schemaVersion: 1, projects: [] };
+    const file = new File([JSON.stringify(data)], "library.json", { type: "application/json" });
+    Object.defineProperty(file, "text", { value: async () => JSON.stringify(data) });
+    Object.defineProperty(input, "files", { value: [file] });
+    await React.act(async () => { input.dispatchEvent(new Event("change", { bubbles: true })); });
+    expect(ProjectPersistence.importProjectLibrary).toHaveBeenCalledWith(data);
+    expect(input.value).toBe("");
+    expect(document.querySelector('[data-testid="project-list"]')?.textContent).toContain("Imported tray");
+    expect(ProjectPersistence.startNewProject).not.toHaveBeenCalled();
+    expect(ProjectPersistence.openProjectFromLibrary).not.toHaveBeenCalled();
+    unmount();
+  });
+
+  it("rejects malformed library JSON before persistence", async () => {
+    const { container, unmount } = renderPage();
+    openSettingsSection(container, "project");
+    await flushHydration();
+    React.act(() => { (container.querySelector('[data-testid="button-open-library"]') as HTMLButtonElement).click(); });
+    const input = document.querySelector('[data-testid="input-import-library"]') as HTMLInputElement;
+    const file = new File(["{"], "broken.json");
+    Object.defineProperty(file, "text", { value: async () => "{" });
+    Object.defineProperty(input, "files", { value: [file] });
+    await React.act(async () => { input.dispatchEvent(new Event("change", { bubbles: true })); });
+    expect(ProjectPersistence.importProjectLibrary).not.toHaveBeenCalled();
+    expect((document.querySelector('[data-testid="button-import-library"]') as HTMLButtonElement).disabled).toBe(false);
     unmount();
   });
 
