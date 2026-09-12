@@ -23,7 +23,11 @@ processing, project storage, and model generation kept on the user's device.
   shallow curved scoops preserve their opening width as depth changes.
   Choose Round or Slot, a Curved or Flat bottom, and (for slots) Rounded or Flat
   ends. A top/section preview follows the choices. Shape changes retain dimensions,
-  rotation, edge radii, and the slot-end preference. Short slots retain their requested
+  rotation, edge and corner radii, and the slot-end preference.
+  Flat-ended slots offer a separate Corner round
+  control under Edges & corners for either bottom style; it rounds the four plan-view
+  corners inside the opening dimensions, limited to half the smaller width or length.
+  Existing slots keep sharp corners until changed. Short slots retain their requested
   length while rounded ends temporarily require a longer opening. Opening dimensions support
   up to 80 mm in both the panel and Layout. Rounding fields show the actual radius
   and retain larger requested values for deeper cuts. Existing spherical scoops

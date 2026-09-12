@@ -896,6 +896,51 @@ describe("BinDesignerPage", () => {
     unmount();
   });
 
+  it.each(["flat-ended-scoop", "flat-ended-straight"] as const)("edits %s corner rounding with size limits, undo, and retained shape preferences", async (kind) => {
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT,
+      fingerHoles: [fingerHoleSchema.parse({ id: "corners", kind, center: { x: 0, y: 0 }, diameterMm: 24, lengthMm: 16, depthMm: 20 })],
+    });
+    const { container, unmount } = renderPage();
+    await flushHydration();
+    openSettingsSection(container, "finger-holes");
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-select-finger-hole-corners"]')!.click());
+    const input = () => container.querySelector<HTMLInputElement>('[aria-label="Corner round in millimetres"]');
+    const current = () => vi.mocked(useBinGeometry).mock.lastCall?.[2]?.fingerHoles?.[0];
+    const edit = (label: string, value: string) => {
+      const field = container.querySelector<HTMLInputElement>(`#finger-access-properties [aria-label="${label} in millimetres"]`)!;
+      React.act(() => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(field, value);
+        field.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      React.act(() => field.dispatchEvent(new FocusEvent("focusout", { bubbles: true })));
+    };
+    expect(input()!.closest("details")?.getAttribute("data-testid")).toBe("finger-edge-settings");
+    expect(input()!.value).toBe("0");
+    expect(input()!.max).toBe("8");
+    edit("Corner round", "5");
+    expect(current()?.cornerRoundMm).toBe(5);
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+    expect(input()!.value).toBe("0");
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+    expect(input()!.value).toBe("5");
+    edit("Width", "6");
+    expect(input()!.max).toBe("3");
+    expect(input()!.value).toBe("3");
+    expect(current()?.cornerRoundMm).toBe(5);
+    edit("Width", "24");
+    expect(input()!.value).toBe("5");
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="finger-ends-rounded"]')!.click());
+    expect(input()).toBeNull();
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="finger-ends-flat"]')!.click());
+    expect(input()!.value).toBe("5");
+    edit("Corner round", "99");
+    expect(input()!.value).toBe("5");
+    edit("Corner round", "8");
+    expect(input()!.value).toBe("8");
+    expect(parseProjectDoc({ ...EMPTY_PROJECT, fingerHoles: [current()] })?.fingerHoles[0].cornerRoundMm).toBe(8);
+    unmount();
+  });
+
   it("switches all six shape combinations without losing dimensions and undoes the change", async () => {
     vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT,
       fingerHoles: [fingerHoleSchema.parse({ id: "styles", kind: "straight", center: { x: 0, y: 0 }, diameterMm: 18, depthMm: 30, lengthMm: 40, rotationDeg: 37, bottomFilletMm: 2 })],

@@ -37,7 +37,10 @@ import {
   effectiveFingerHoleBottomFilletMm,
   minimumFingerHoleLengthMm,
   maximumFingerHoleBottomFilletMm,
+  maximumFingerHoleCornerRoundMm,
+  effectiveFingerHoleCornerRoundMm,
   hasFlatFingerHoleBottom,
+  hasFlatFingerHoleEnds,
   fingerAccessOptionsPatch,
   fingerHoleSizeLimits,
   resolvePocketDepth,
@@ -1284,6 +1287,30 @@ export function BinControlsPanel({
                     <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/edge:rotate-180" />
                   </summary>
                   <div className="space-y-3 pb-2 pt-2" key={selectedFingerHole.id}>
+                {hasFlatFingerHoleEnds(selectedFingerHole) && (
+                  <>
+                  <MmSlider
+                    label="Corner round"
+                    value={effectiveFingerHoleCornerRoundMm(selectedFingerHole)}
+                    min={0}
+                    max={maximumFingerHoleCornerRoundMm(selectedFingerHole)}
+                    step={0.1}
+                    onChange={(cornerRoundMm, transient) => dispatch({
+                      type: "UPDATE_FINGER_HOLE",
+                      id: selectedFingerHole.id,
+                      patch: { cornerRoundMm },
+                      historyLabel: "Change finger hole corner round",
+                      transient,
+                    })}
+                    hint="Rounds the four corners in the top view, inside the slot's width and length."
+                  />
+                  {(selectedFingerHole.cornerRoundMm ?? 0) > effectiveFingerHoleCornerRoundMm(selectedFingerHole) && (
+                    <p className="text-xs text-muted-foreground" role="status">
+                      Requested {selectedFingerHole.cornerRoundMm} mm; limited by width or length.
+                    </p>
+                  )}
+                  </>
+                )}
                 <MmSlider
                   label="Top edge round"
                   value={effectiveFingerHoleTopFilletMm(selectedFingerHole)}
