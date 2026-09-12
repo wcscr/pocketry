@@ -6,6 +6,7 @@ import {
   effectiveFingerHoleDepthMm,
   effectiveFingerHoleTopFilletMm,
   effectiveFingerHoleBottomFilletMm,
+  effectiveFingerHoleCornerRoundMm,
   flatEndedScoopRadiusMm,
   effectiveScoopDepthMm,
   fingerHoleFootprintRing,
@@ -368,7 +369,8 @@ export function buildFingerHoleCutters(
     // Sample shallow curved bottoms directly so even a 1 mm cut preserves
     // its mouth width and exact depth, with or without top-edge rounding.
     const shallowCurved = hole.kind !== "flat-ended-scoop" && cutDepth < hole.diameterMm / 2;
-    if (!hasFlatFingerHoleBottom(hole) && (effectiveTopFillet > 0 || shallowCurved)) {
+    if (!hasFlatFingerHoleBottom(hole) &&
+        (effectiveTopFillet > 0 || shallowCurved || effectiveFingerHoleCornerRoundMm(hole) > 0)) {
       cutters.push(buildRoundedFingerAccessCutter(kernel, hole, pocket.infillTopZ, pocket.cutterTopZ, {
         radiusMm: effectiveTopFillet,
         profileStepMm: filletProfileStepMm,

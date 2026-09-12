@@ -426,3 +426,19 @@ it("migrates v13 without rewriting finger-access geometry and persists new slot 
   expect(current?.fingerHoles[2]).toMatchObject({ slotEnds: "flat", lengthMm: 6, rotationDeg: 37 });
   expect(parseProjectDoc({ ...current, fingerHoles: [{ ...current!.fingerHoles[0], slotEnds: "invalid" }] })).toBeNull();
 });
+
+it("migrates v14 with sharp slot corners and round-trips explicit and retained corner radii", () => {
+  const previous = { ...VALID, schemaVersion: 14, fingerHoles: [
+    { id: "slot", kind: "flat-ended-scoop", center: { x: 0, y: 0 }, diameterMm: 24, lengthMm: 6, depthMm: 1 },
+  ] };
+  const source = JSON.stringify(previous);
+  const migrated = parseProjectDoc(previous)!;
+  expect(migrated.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
+  expect(migrated.fingerHoles[0].cornerRoundMm).toBeUndefined();
+  expect(JSON.stringify(previous)).toBe(source);
+  for (const kind of ["flat-ended-scoop", "flat-ended-straight", "straight", "oblong-straight"]) {
+    const doc = parseProjectDoc({ ...migrated, fingerHoles: [{ ...migrated.fingerHoles[0], kind, cornerRoundMm: 8 }] });
+    expect(doc?.fingerHoles[0]).toMatchObject({ kind, cornerRoundMm: 8, lengthMm: 6, depthMm: 1 });
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(doc)))).toEqual(doc);
+  }
+});

@@ -146,6 +146,8 @@ export const fingerHoleSchema = z
     topFilletMm: z.number().min(0).max(5).default(0),
     /** Used by flat bottoms; retained while a curved bottom is selected. */
     bottomFilletMm: z.number().min(0).max(6).default(0),
+    /** Plan-view corner radius for flat-ended slots; absent means sharp corners. */
+    cornerRoundMm: z.number().min(0).max(40).optional(),
     /** Compatibility only; removed with the directed-trough prototype. */
     reachMm: z.number().min(1).max(120).optional(),
     /** Compatibility only; removed with the directed-trough prototype. */
@@ -315,6 +317,16 @@ export function hasFlatFingerHoleBottom(hole: Pick<FingerHole, "kind">): boolean
 
 export function hasFlatFingerHoleEnds(hole: Partial<Pick<FingerHole, "kind">>): boolean {
   return hole.kind === "flat-ended-scoop" || hole.kind === "flat-ended-straight";
+}
+
+export function maximumFingerHoleCornerRoundMm(hole: FingerHole): number {
+  return Math.min(hole.diameterMm, elongatedFingerHoleEndpoints(hole).lengthMm) / 2;
+}
+
+export function effectiveFingerHoleCornerRoundMm(hole: FingerHole): number {
+  return hasFlatFingerHoleEnds(hole)
+    ? Math.min(hole.cornerRoundMm ?? 0, maximumFingerHoleCornerRoundMm(hole))
+    : 0;
 }
 
 export interface FingerAccessOptions {
@@ -833,6 +845,33 @@ export function capsuleRing(
   return ring;
 }
 
+/** CCW, centred rectangle with circular corners inside its nominal dimensions. */
+export function roundedRectangleRing(
+  width: number,
+  height: number,
+  radius: number,
+  segments = 24,
+): Point[] {
+  const hx = width / 2;
+  const hy = height / 2;
+  const r = Math.max(0, Math.min(radius, hx, hy));
+  if (r === 0) return [{ x: -hx, y: -hy }, { x: hx, y: -hy }, { x: hx, y: hy }, { x: -hx, y: hy }];
+  const steps = Math.max(2, Math.ceil(segments / 4));
+  const ring: Point[] = [];
+  for (let corner = 0; corner < 4; corner++) {
+    const cx = (corner < 2 ? 1 : -1) * (hx - r);
+    const cy = (corner === 0 || corner === 3 ? -1 : 1) * (hy - r);
+    for (let i = 0; i <= steps; i++) {
+      const angle = (corner - 1 + i / steps) * Math.PI / 2;
+      const point = { x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) };
+      const previous = ring[ring.length - 1];
+      if (!previous || Math.hypot(point.x - previous.x, point.y - previous.y) > 1e-9) ring.push(point);
+    }
+  }
+  if (Math.hypot(ring[0].x - ring[ring.length - 1].x, ring[0].y - ring[ring.length - 1].y) < 1e-9) ring.pop();
+  return ring;
+}
+
 /** Exact plan-view rim used by rendering, validation, and cutter geometry. */
 export function fingerHoleFootprintRing(
   hole: FingerHole,
@@ -844,14 +883,11 @@ export function fingerHoleFootprintRing(
         const { start, end } = elongatedFingerHoleEndpoints(hole);
         if (hasFlatFingerHoleEnds(hole)) {
           const radians = ((hole.rotationDeg ?? 0) * Math.PI) / 180;
-          const nx = -Math.sin(radians) * hole.diameterMm / 2;
-          const ny = Math.cos(radians) * hole.diameterMm / 2;
-          return [
-            { x: start.x - nx, y: start.y - ny },
-            { x: end.x - nx, y: end.y - ny },
-            { x: end.x + nx, y: end.y + ny },
-            { x: start.x + nx, y: start.y + ny },
-          ];
+          return roundedRectangleRing(elongatedFingerHoleEndpoints(hole).lengthMm,
+            hole.diameterMm, effectiveFingerHoleCornerRoundMm(hole), segments).map(({ x, y }) => ({
+              x: hole.center.x + x * Math.cos(radians) - y * Math.sin(radians),
+              y: hole.center.y + x * Math.sin(radians) + y * Math.cos(radians),
+            }));
         }
         return capsuleRing(start, end, hole.diameterMm / 2, segments);
       })()

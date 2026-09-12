@@ -14,6 +14,8 @@ import {
   fingerAccessOptions,
   fingerAccessOptionsPatch,
   effectiveFingerHoleBottomFilletMm,
+  effectiveFingerHoleCornerRoundMm,
+  maximumFingerHoleCornerRoundMm,
   elongatedFingerHoleEndpoints,
   parseCutoutPlacement,
   placementFootprint,
@@ -30,6 +32,50 @@ import {
 import { BASE_HEIGHT, R_F2 } from "./standard";
 
 const SPEC_2X3 = { gridX: 2, gridY: 3 };
+
+describe("flat-ended slot corner rounding", () => {
+  const slot = fingerHoleSchema.parse({ id: "slot", kind: "flat-ended-scoop", center: { x: 0, y: 0 }, diameterMm: 16, lengthMm: 40 });
+  const placement = { position: { x: 0, y: 0 }, rotationDeg: 0, mirrored: false };
+
+  it("defaults to sharp corners and rejects invalid radii", () => {
+    expect(effectiveFingerHoleCornerRoundMm(slot)).toBe(0);
+    expect(fingerHoleFootprintRing(slot, placement)).toHaveLength(4);
+    for (const cornerRoundMm of [-1, 40.1, Infinity, NaN]) {
+      expect(fingerHoleSchema.safeParse({ ...slot, cornerRoundMm }).success).toBe(false);
+    }
+  });
+
+  it.each(["flat-ended-scoop", "flat-ended-straight"] as const)("rounds %s corners inside the exact dimensions", (kind) => {
+    const hole = { ...slot, kind, cornerRoundMm: 3 };
+    const ring = fingerHoleFootprintRing(hole, placement, 64);
+    expect(signedArea(ring)).toBeCloseTo(40 * 16 - (4 - Math.PI) * 9, 0);
+    expect(Math.max(...ring.map(p => p.x))).toBeCloseTo(20, 8);
+    expect(Math.max(...ring.map(p => p.y))).toBeCloseTo(8, 8);
+    expect(ring.some(p => Math.abs(p.x) > 19.9 && Math.abs(p.y) > 7.9)).toBe(false);
+    const turned = fingerHoleFootprintRing({ ...hole, rotationDeg: 37, center: { x: 3, y: -2 } }, placement, 64);
+    ring.forEach((p, i) => {
+      const radians = 37 * Math.PI / 180;
+      expect(turned[i].x).toBeCloseTo(3 + p.x * Math.cos(radians) - p.y * Math.sin(radians), 8);
+      expect(turned[i].y).toBeCloseTo(-2 + p.x * Math.sin(radians) + p.y * Math.cos(radians), 8);
+    });
+  });
+
+  it("limits the effective radius by both dimensions and retains it across shape changes", () => {
+    const hole = { ...slot, cornerRoundMm: 12 };
+    expect(maximumFingerHoleCornerRoundMm(hole)).toBe(8);
+    expect(effectiveFingerHoleCornerRoundMm(hole)).toBe(8);
+    expect(effectiveFingerHoleCornerRoundMm({ ...hole, lengthMm: 6 })).toBe(3);
+    const round = { ...hole, ...fingerAccessOptionsPatch(hole, { shape: "round" }) };
+    expect(round.cornerRoundMm).toBe(12);
+    expect(effectiveFingerHoleCornerRoundMm(round)).toBe(0);
+    const restored = { ...round, ...fingerAccessOptionsPatch(round, { shape: "slot" }) };
+    expect(effectiveFingerHoleCornerRoundMm(restored)).toBe(8);
+    expect(effectiveFingerHoleCornerRoundMm({ ...restored, kind: "oblong-deep-scoop" })).toBe(0);
+    const ring = fingerHoleFootprintRing({ ...hole, diameterMm: 6, lengthMm: 6 }, placement, 64);
+    expect(signedArea(ring)).toBeCloseTo(Math.PI * 9, 1);
+    expect(ring).toHaveLength(64);
+  });
+});
 
 /** An L-shaped (chiral) outline with a hole — orientation-sensitive fixture. */
 const CHIRAL: Outline = [

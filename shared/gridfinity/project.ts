@@ -30,9 +30,10 @@ import { binSpecSchema } from "./types";
  * Version 12 adds an optional flat bottom, defaulting off for existing projects.
  * Version 13 adds flat-ended cylindrical finger scoops.
  * Version 14 adds flat-bottom slots and a retained slot-end preference.
+ * Version 15 adds optional corner rounding for flat-ended slots (absent is sharp).
  */
 
-export const PROJECT_SCHEMA_VERSION = 14 as const;
+export const PROJECT_SCHEMA_VERSION = 15 as const;
 
 const projectFields = {
   shapes: z.array(tracedShapeSchema),
@@ -71,6 +72,8 @@ export const projectDocSchema = z
     keepBinSize: z.boolean().optional(),
   })
   .strict();
+
+const version14ProjectSchema = projectDocSchema.extend({ schemaVersion: z.literal(14) });
 
 const version13ProjectSchema = projectDocSchema.extend({ schemaVersion: z.literal(13) });
 
@@ -160,6 +163,8 @@ export function parseProjectDoc(input: unknown): ProjectDoc | null {
       input = { ...doc, spec };
     }
   }
+  const version14 = version14ProjectSchema.safeParse(input);
+  if (version14.success) return projectDocSchema.parse({ ...version14.data, schemaVersion: PROJECT_SCHEMA_VERSION });
   const version13 = version13ProjectSchema.safeParse(input);
   if (version13.success) return projectDocSchema.parse({ ...version13.data, schemaVersion: PROJECT_SCHEMA_VERSION });
   const version12 = version12ProjectSchema.safeParse(input);

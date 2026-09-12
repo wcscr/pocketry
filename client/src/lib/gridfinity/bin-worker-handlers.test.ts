@@ -290,13 +290,18 @@ describe("bin worker handlers", () => {
     expect(nonManifoldEdgeCount(result.value.materialMeshes!.stackingRim!)).toBe(0);
   });
 
-  it.each(["oblong-straight", "flat-ended-straight"] as const)("exports a rounded %s through the worker to closed STL/3MF geometry", async (kind) => {
+  it.each([
+    { kind: "oblong-straight", cornerRoundMm: 0 },
+    { kind: "flat-ended-straight", cornerRoundMm: 0 },
+    { kind: "flat-ended-straight", cornerRoundMm: 3 },
+    { kind: "flat-ended-scoop", cornerRoundMm: 3 },
+  ])("exports a rounded $kind with corner radius $cornerRoundMm through the worker to closed STL/3MF geometry", async ({ kind, cornerRoundMm }) => {
     const result = await getHandler()({
       spec: { gridX: 2, gridY: 2, heightUnits: 4, fill: "solid" },
       quality: { circularSegments: 64 }, exportTopology: true,
       layout: { shapes: [], cutouts: [], fingerHoles: [fingerHoleSchema.parse({
         id: "slot", kind, center: { x: 3, y: -2 }, diameterMm: 16, lengthMm: 40,
-        rotationDeg: 37, depthMm: 12, topFilletMm: 1, bottomFilletMm: 2,
+        rotationDeg: 37, depthMm: 12, topFilletMm: 1, bottomFilletMm: 2, cornerRoundMm,
       })] },
     }, context());
     const { mesh } = result.value;

@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { effectiveFingerHoleDepthMm, fingerHoleSchema, resolvePocketDepth } from "@shared/gridfinity/cutout";
+import { effectiveFingerHoleDepthMm, fingerHoleFootprintRing, fingerHoleSchema, resolvePocketDepth } from "@shared/gridfinity/cutout";
+import { signedArea } from "@shared/geometry/rings";
 import { parseBinSpec } from "@shared/gridfinity/types";
 import { Arena } from "@/lib/manifold/arena";
 import { createKernel, loadManifold, type Kernel } from "@/lib/manifold/runtime";
@@ -19,6 +20,11 @@ const cases = [
   { kind: "flat-ended-scoop", depthMm: 1 }, { kind: "flat-ended-scoop", depthMm: 5 }, { kind: "flat-ended-scoop", depthMm: 20 },
   { kind: "oblong-straight", depthMm: 1 }, { kind: "oblong-straight", depthMm: 20 },
   { kind: "flat-ended-straight", depthMm: 1 }, { kind: "flat-ended-straight", depthMm: 20 },
+  { kind: "flat-ended-scoop", depthMm: 1, cornerRoundMm: 3 },
+  { kind: "flat-ended-scoop", depthMm: 5, cornerRoundMm: 3 },
+  { kind: "flat-ended-scoop", depthMm: 20, cornerRoundMm: 3 },
+  { kind: "flat-ended-straight", depthMm: 1, cornerRoundMm: 3 },
+  { kind: "flat-ended-straight", depthMm: 20, cornerRoundMm: 3 },
 ];
 
 describe.each(cases)("$kind at requested depth $depthMm", (settings) => {
@@ -61,9 +67,57 @@ describe.each(cases)("$kind at requested depth $depthMm", (settings) => {
   });
 });
 
-it.each(["straight", "oblong-straight", "flat-ended-straight"] as const)("preserves the %s bottom fillet below the top rounding", (kind) => {
+describe.each(["flat-ended-scoop", "flat-ended-straight"] as const)("corner-rounded %s", (kind) => {
+  it.each([
+    [24, 40, 1, 3], [24, 40, 20, 3], [80, 6, 1, 40], [6, 6, 20, 40],
+  ])("preserves width %s, length %s and depth %s with requested radius %s", (diameterMm, lengthMm, depthMm, cornerRoundMm) => {
+    const hole = fingerHoleSchema.parse({ id: "corners", kind, center: { x: 3, y: -2 },
+      rotationDeg: 37, diameterMm, lengthMm, depthMm, cornerRoundMm });
+    const top = resolvePocketDepth(spec, { mode: "mm", value: depthMm }).infillTopZ;
+    for (const circularSegments of [24, 64]) {
+      const quality = { circularSegments, filletProfileStepMm: 0.1 };
+      const plain = buildFingerHoleCutters(kernel, [hole], spec, quality)[0];
+      const local = arena.track(arena.track(plain.translate([-3, 2, -top])).rotate([0, 0, -37]));
+      expect(local.status()).toBe("NoError");
+      const bounds = local.boundingBox();
+      expect(bounds.min[2]).toBeCloseTo(-depthMm, 6);
+      expect(bounds.min[0]).toBeCloseTo(-lengthMm / 2, 6);
+      expect(bounds.max[0]).toBeCloseTo(lengthMm / 2, 6);
+      expect(bounds.min[1]).toBeCloseTo(-diameterMm / 2, 6);
+      expect(bounds.max[1]).toBeCloseTo(diameterMm / 2, 6);
+      const ring = fingerHoleFootprintRing(hole, { position: { x: 0, y: 0 }, rotationDeg: 0, mirrored: false }, circularSegments);
+      expect(arena.track(local.slice(0.01)).area()).toBeCloseTo(signedArea(ring), 5);
+      const rounded = buildFingerHoleCutters(kernel, [{ ...hole, topFilletMm: 0.4 }], spec, quality)[0];
+      expect(rounded.status()).toBe("NoError");
+      expect(rounded.boundingBox().min[2]).toBeCloseTo(top - depthMm, 6);
+      // Tangency changes the arc samples, but not the underlying bottom profile.
+      for (const z of [top - depthMm * 0.9, top - depthMm * 0.5]) {
+        const before = arena.track(plain.slice(z)).area();
+        const after = arena.track(rounded.slice(z)).area();
+        expect(Math.abs(after - before)).toBeLessThan(before * 0.001);
+      }
+    }
+  });
+
+  it("keeps a flat end between rounded corners, without cutting beyond the ends", () => {
+    const hole = fingerHoleSchema.parse({ id: "end", kind, center: { x: 0, y: 0 },
+      diameterMm: 16, lengthMm: 40, depthMm: 20, cornerRoundMm: 3 });
+    const cutter = buildFingerHoleCutters(kernel, [hole], spec, { circularSegments: 64 })[0];
+    const top = resolvePocketDepth(spec, { mode: "mm", value: 20 }).infillTopZ;
+    const ring = arena.track(cutter.slice(top - 1)).toPolygons().flat();
+    const end = ring.filter(p => Math.abs(p[0] - 20) < 1e-6);
+    expect(Math.max(...end.map(p => p[1]))).toBeCloseTo(5, 6);
+    expect(Math.min(...end.map(p => p[1]))).toBeCloseTo(-5, 6);
+    expect(Math.max(...ring.map(p => p[0]))).toBeCloseTo(20, 6);
+  });
+});
+
+it.each([
+  { kind: "straight" }, { kind: "oblong-straight" }, { kind: "flat-ended-straight" },
+  { kind: "flat-ended-straight", cornerRoundMm: 3 },
+])("preserves the $kind bottom fillet below the top rounding, corner radius $cornerRoundMm", (settings) => {
   const hole = fingerHoleSchema.parse({
-    id: "straight", kind, center: { x: 0, y: 0 },
+    id: "straight", ...settings, center: { x: 0, y: 0 },
     diameterMm: 24, depthMm: 20, bottomFilletMm: 3,
   });
   const quality = { circularSegments: 64, filletProfileStepMm: 0.1 };
