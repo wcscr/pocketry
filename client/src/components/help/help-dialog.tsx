@@ -183,16 +183,24 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
             <h3 className="mb-1.5 font-medium">3. Save and resume projects</h3>
             <ul className="list-disc space-y-1 pl-6 text-muted-foreground">
               <li>
-                <strong>Save project</strong> stores a named project in the
+                <strong>Save to library</strong> stores a named project in the
                 browser's project library for quick resume.
               </li>
               <li>
-                <strong>Open project</strong> resumes a saved design; portable
-                project files can also be exported and imported with a chosen
-                filename and location.
+                <strong>Browser library → Open saved project</strong> resumes a
+                project saved in this browser.
+                {" "}<strong>Manage library</strong> also opens projects with Open or a
+                double-click, renames any project with the pencil, creates an independent
+                duplicate with Copy directly after its source without moving focus or
+                switching projects, and provides a confirmed
+                Remove action. The currently open project cannot be removed; open another
+                project or start a new one first.
+                In <strong>Portable backup → Current project</strong>, use
+                {" "}<strong>Export project</strong> or <strong>Open project file</strong>
+                {" "}for one editable design.
               </li>
               <li>
-                In <strong>Project → Open library</strong>, use <strong>Export library</strong>
+                In <strong>Project → Portable backup → Entire library</strong>, use <strong>Export library</strong>
                 {" "}to back up every named design in one JSON file, or <strong>Import library</strong>
                 {" "}to add designs from a backup. Supported older designs upgrade automatically.
                 Duplicate names get an “imported” suffix; existing designs and the open draft
@@ -237,7 +245,7 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
                 starts unchecked. When selected, the files share the project name
                 (when saved), bin size, and local date/time. Allow multiple
                 downloads if your browser asks, and keep the JSON to restore
-                the design later with Open Pocketry project.
+                the design later with Open project file.
               </li>
               <li>
                 Trace exports offer the same optional JSON download once the outline

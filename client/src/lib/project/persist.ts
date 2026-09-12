@@ -105,8 +105,7 @@ function toSnapshot(library: StoredProjectLibrary): ProjectLibrarySnapshot {
     activeProjectId: library.activeProjectId,
     projects: library.projects
       .filter((project) => parseProjectDoc(project.doc) !== null)
-      .map(({ id, name, updatedAt }) => ({ id, name, updatedAt }))
-      .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
+      .map(({ id, name, updatedAt }) => ({ id, name, updatedAt })),
   };
 }
 
@@ -272,6 +271,56 @@ export async function saveProjectToLibrary(
       projects,
     };
     await set(CURRENT_PROJECT_KEY, namedDoc);
+    await set(PROJECT_LIBRARY_KEY, next);
+    return toSnapshot(next);
+  });
+}
+
+/** Copy a saved project, including pending edits when copying the open project. */
+export async function duplicateProjectInLibrary(
+  projectId: string,
+  currentDoc?: ProjectDoc,
+): Promise<{ library: ProjectLibrarySnapshot; project: ProjectLibraryItem }> {
+  return mutateLibrary(async (library) => {
+    const stored = library.projects.find((project) => project.id === projectId);
+    if (!stored) throw new Error("That project is no longer in this browser's library.");
+    const doc = parseProjectDoc(library.activeProjectId === projectId && currentDoc ? currentDoc : stored.doc);
+    if (!doc) throw new Error("That project was saved by an unsupported Pocketry version.");
+    let name: string;
+    let suffix = 1;
+    do {
+      const ending = suffix === 1 ? " (copy)" : ` (copy ${suffix})`;
+      name = `${stored.name.slice(0, PROJECT_NAME_MAX_LENGTH - ending.length).trimEnd()}${ending}`;
+      suffix++;
+    } while (library.projects.some((project) => project.name.localeCompare(name, undefined, { sensitivity: "accent" }) === 0));
+    let id = makeProjectId();
+    while (library.projects.some((project) => project.id === id)) id = makeProjectId();
+    const project = { id, name, updatedAt: new Date().toISOString() };
+    const projects = [...library.projects];
+    projects.splice(projects.indexOf(stored) + 1, 0, { ...project, doc: { ...doc, name } });
+    const next = { ...library, projects };
+    await set(PROJECT_LIBRARY_KEY, next);
+    return { library: toSnapshot(next), project };
+  });
+}
+
+/** Rename a saved entry without opening it or replacing the working copy. */
+export async function renameProjectInLibrary(
+  projectId: string,
+  name: string,
+): Promise<ProjectLibrarySnapshot> {
+  const cleanName = cleanProjectName(name);
+  return mutateLibrary(async (library) => {
+    const stored = library.projects.find((project) => project.id === projectId);
+    if (!stored) throw new Error("That project is no longer in this browser's library.");
+    const doc = parseProjectDoc(stored.doc);
+    if (!doc) throw new Error("That project was saved by an unsupported Pocketry version.");
+    if (library.projects.some((project) => project.id !== projectId &&
+      project.name.localeCompare(cleanName, undefined, { sensitivity: "accent" }) === 0)) {
+      throw new ProjectNameConflictError(cleanName);
+    }
+    const renamed = { ...stored, name: cleanName, doc: { ...doc, name: cleanName }, updatedAt: new Date().toISOString() };
+    const next = { ...library, projects: library.projects.map((project) => project.id === projectId ? renamed : project) };
     await set(PROJECT_LIBRARY_KEY, next);
     return toSnapshot(next);
   });
