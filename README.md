@@ -28,11 +28,14 @@ processing, project storage, and model generation kept on the user's device.
   control under Edges & corners for either bottom style; it rounds the four plan-view
   corners inside the opening dimensions, limited to half the smaller width or length.
   Existing slots keep sharp corners until changed. Short slots retain their requested
-  length while rounded ends temporarily require a longer opening. Opening dimensions support
-  up to 80 mm in both the panel and Layout. Rounding fields show the actual radius
+  length while rounded ends temporarily require a longer opening. Round openings support
+  diameters up to the bin's Width (X), in both the panel and Layout; slots support
+  widths up to 80 mm. Round openings gain more segments as their diameter grows:
+  layout chord error stays below 0.025 mm, 3D preview below 0.05 mm, and STL/3MF
+  and SVG/DXF exports below 0.01 mm around the opening. Rounding fields show the actual radius
   and retain larger requested values for deeper cuts. Existing spherical scoops
   retain their saved geometry until their dimensions or shape choices are edited.
-  Finger-access depth stops at the bin underside. Mouth-size controls follow the
+  Finger-access depth stops at the bin underside. Slot mouth-size controls follow the
   bin dimensions with a 5% allowance, including rotated slots and Layout resize
   handles. Resizing the bin limits oversized openings in the same undo step. Existing oversized saves
   remain unchanged on opening and are flagged until edited; wall/floor print

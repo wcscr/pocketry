@@ -10,6 +10,7 @@ import {
 import { parseBinSpec } from "@shared/gridfinity/types";
 import {
   binTotalHeightMm,
+  binFootprintMm,
   BASE_PROFILE_HEIGHT,
   STACKING_LIP_HEIGHT_ACTUAL,
   STACKING_LIP_SUPPORT_HEIGHT_MM,
@@ -19,7 +20,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { Arena } from "@/lib/manifold/arena";
 import { createKernel, loadManifold, type Kernel } from "@/lib/manifold/runtime";
 
-import { buildBin, buildBinWithCutouts, type BinLayout } from "./bin";
+import { buildBin, buildBinWithCutouts, EXPORT_QUALITY, PREVIEW_QUALITY, type BinLayout } from "./bin";
+import { fingerAccessRimGeometry } from "./finger-access-rounding";
 import {
   budgetOutline,
   budgetedPointCount,
@@ -108,6 +110,53 @@ function cutout(
 const SPEC = parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6, fill: "solid" });
 
 describe("buildBinWithCutouts", () => {
+  it.each(["straight", "deep-scoop"] as const)("bounds large %s mouth faceting in preview and export meshes", (kind) => {
+    const spec = parseBinSpec({ gridX: 4, gridY: 4, heightUnits: 6 });
+    for (const quality of [PREVIEW_QUALITY, EXPORT_QUALITY]) {
+      for (const topFilletMm of [0, 0.5]) {
+        const hole = fingerHoleSchema.parse({ id: "smooth", kind, center: { x: 0, y: 0 },
+          diameterMm: 150, depthMm: 1, topFilletMm });
+        const top = resolvePocketDepth(spec, { mode: "mm", value: 1 }).infillTopZ;
+        const cutter = buildFingerHoleCutters(kernel, [hole], spec, quality)[0];
+        expect(cutter.status()).toBe("NoError");
+        expect(cutter.boundingBox().min[2]).toBeCloseTo(top - 1, 6);
+        const radius = fingerAccessRimGeometry(hole, topFilletMm).openingHalfWidth;
+        const ring = arena.track(cutter.slice(top + 0.01)).toPolygons()[0];
+        expect(ring.length).toBeGreaterThan(quality.circularSegments);
+        for (let i = 0; i < ring.length; i++) {
+          const next = ring[(i + 1) % ring.length];
+          const midpointRadius = Math.hypot((ring[i][0] + next[0]) / 2, (ring[i][1] + next[1]) / 2);
+          expect(radius - midpointRadius).toBeLessThanOrEqual(quality.fingerHoleChordToleranceMm! + 1e-6);
+          // Mesh slicing may add collinear vertices inside a polygon edge.
+          const vertexRadius = Math.hypot(...ring[i]);
+          expect(vertexRadius).toBeLessThanOrEqual(radius + 1e-6);
+          expect(radius - vertexRadius).toBeLessThanOrEqual(quality.fingerHoleChordToleranceMm! + 1e-6);
+        }
+      }
+    }
+  });
+
+  it.each(["straight", "scoop", "deep-scoop"] as const)("builds large round %s cutters at full bin width without changing depth", (kind) => {
+    for (const gridX of [4, 16]) {
+      const spec = parseBinSpec({ gridX, gridY: gridX, heightUnits: 6 });
+      const diameterMm = binFootprintMm(gridX);
+      for (const depthMm of [1, 12]) {
+        const hole = fingerHoleSchema.parse({ id: "large", kind, center: { x: 0, y: 0 }, diameterMm, depthMm });
+        const top = resolvePocketDepth(spec, { mode: "mm", value: depthMm }).infillTopZ;
+        const cutter = buildFingerHoleCutters(kernel, [hole], spec, QUALITY)[0];
+        expect(cutter.status()).toBe("NoError");
+        expect(cutter.volume()).toBeGreaterThan(0);
+        expect(cutter.boundingBox().min[2]).toBeCloseTo(top - depthMm, 5);
+        const mouth = arena.track(cutter.slice(top + 0.01)).toPolygons().flat();
+        expect(Math.max(...mouth.map(p => p[0])) - Math.min(...mouth.map(p => p[0]))).toBeCloseTo(diameterMm, 4);
+        expect(Math.max(...mouth.map(p => p[1])) - Math.min(...mouth.map(p => p[1]))).toBeCloseTo(diameterMm, 4);
+        const rounded = buildFingerHoleCutters(kernel, [{ ...hole, topFilletMm: 0.5 }], spec, QUALITY)[0];
+        expect(rounded.status()).toBe("NoError");
+        expect(rounded.boundingBox().min[2]).toBeCloseTo(top - depthMm, 5);
+      }
+    }
+  });
+
   it("a sharp rectangular pocket removes exactly area × depth", () => {
     const shape = rectShape("s1", 30, 10);
     const plain = buildBin(kernel, SPEC, QUALITY);

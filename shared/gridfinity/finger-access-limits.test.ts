@@ -5,17 +5,49 @@ import {
   resizeElongatedFingerHoleFromEndpoint, resizeFingerHoleFromWidthHandle,
 } from "./cutout";
 import { binFootprintMm } from "./standard";
-import { parseBinSpec } from "./types";
+import { maxGridCells, parseBinSpec } from "./types";
 
 const small = parseBinSpec({ gridX: 1, gridY: 2, heightUnits: 2 });
 const opening = fingerHoleSchema.parse({ id: "access", center: { x: 4, y: -3 }, kind: "straight", diameterMm: 18, depthMm: 12 });
 
 describe("bin-aware finger access limits", () => {
-  it("stops at the underside while retaining a 5% mouth-size allowance", () => {
-    expect(fingerHoleSizeLimits(opening, small)).toMatchObject({ depthMm: 12.8, diameterMm: 43.57 });
+  it("stops at the underside and the exact bin width for round openings", () => {
+    expect(fingerHoleSizeLimits(opening, small)).toMatchObject({ depthMm: 12.8, diameterMm: 41.5 });
     expect(fingerHoleSizeLimits(opening, { ...small, lip: "none" }).depthMm).toBe(14);
     expect(fingerHoleSizeLimits(opening, { ...small, heightUnits: 1 }).depthMm).toBe(5.8);
   });
+
+  it.each(["straight", "scoop", "deep-scoop"] as const)("allows bin-width %s openings beyond 80 mm across pitches", (kind) => {
+    for (const gridPitch of ["full", "half", "quarter"] as const) {
+      for (const gridX of [1, 12, maxGridCells(gridPitch)]) {
+        // A shorter Y dimension must not reduce the requested Width (X) limit.
+        const spec = parseBinSpec({ gridX, gridY: 1, gridPitch, heightUnits: 6 });
+        const width = binFootprintMm(gridX, gridPitch);
+        const hole = { ...opening, kind, depthMm: 1, lengthMm: 36 };
+        expect(fingerHoleSizeLimits(hole, spec).diameterMm).toBe(width);
+        expect(clampFingerHoleToBin({ ...hole, diameterMm: width + 10 }, spec))
+          .toMatchObject({ diameterMm: width, depthMm: 1, lengthMm: 36 });
+        const dragged = resizeFingerHoleFromWidthHandle(hole, { x: 1000, y: -3 }, spec);
+        expect(dragged).toMatchObject({ diameterMm: width, depthMm: 1, center: opening.center });
+        expect(fingerHoleSchema.parse(dragged)).toEqual(dragged);
+        expect(clampFingerHoleToBin(dragged, spec)).toBe(dragged);
+      }
+    }
+  });
+
+  it("accepts the largest supported round opening and rejects invalid diameters", () => {
+    expect(fingerHoleSchema.parse({ ...opening, diameterMm: 671.5 }).diameterMm).toBe(671.5);
+    for (const diameterMm of [5.9, 672, Infinity, NaN]) {
+      expect(fingerHoleSchema.safeParse({ ...opening, diameterMm }).success).toBe(false);
+    }
+  });
+
+  it.each(["oblong-deep-scoop", "flat-ended-scoop", "oblong-straight", "flat-ended-straight"] as const)(
+    "retains the schema width ceiling for %s slots", (kind) => {
+      expect(fingerHoleSchema.safeParse({ ...opening, kind, diameterMm: 80 }).success).toBe(true);
+      expect(fingerHoleSchema.safeParse({ ...opening, kind, diameterMm: 81 }).success).toBe(false);
+    },
+  );
 
   it("rotates slot length and width limits with a rectangular bin", () => {
     const slot = { ...opening, kind: "flat-ended-straight" as const, lengthMm: 30 };

@@ -22,7 +22,7 @@ import {
   signedDistanceToFootprintRing,
   type BinFootprint,
 } from "./footprint";
-import type { BinSpec } from "./types";
+import { MAX_GRID, type BinSpec } from "./types";
 
 /**
  * The cutout model: traced shapes placed into a bin as pockets. Pure data and
@@ -121,6 +121,12 @@ export const pocketSplitSchema = z.object({
 export type PocketSplit = z.infer<typeof pocketSplitSchema>;
 export type PocketSectionIndex = 0 | 1;
 
+export const MIN_FINGER_HOLE_DIAMETER_MM = 6;
+/** Round openings can span the widest supported bin; edits use the current bin width. */
+export const MAX_FINGER_HOLE_DIAMETER_MM = binFootprintMm(MAX_GRID);
+/** Slots retain their existing width ceiling and rotated mouth-fit limits. */
+export const MAX_FINGER_SLOT_WIDTH_MM = 80;
+
 /**
  * A draggable finger-access feature. Straight holes are vertical cylinders
  * cut to the pocket floor; round scoops are spherical dishes cut from the top;
@@ -137,7 +143,7 @@ export const fingerHoleSchema = z
     name: z.string().trim().min(1).optional(),
     /** Bin-local mm, y-up, origin at the bin centre. */
     center: vec2Schema,
-    diameterMm: z.number().min(6).max(80).default(18),
+    diameterMm: z.number().finite().min(MIN_FINGER_HOLE_DIAMETER_MM).max(MAX_FINGER_HOLE_DIAMETER_MM).default(18),
     // `oblong-scoop` accepts saves made by the short-lived directed-trough
     // prototype and normalizes them to the corrected vertical deep scoop.
     kind: z
@@ -172,6 +178,13 @@ export const fingerHoleSchema = z
     slotEnds: z.enum(["rounded", "flat"]).optional(),
   })
   .strict()
+  .superRefine((hole, context) => {
+    if (["oblong-deep-scoop", "flat-ended-scoop", "oblong-straight", "flat-ended-straight"].includes(hole.kind) &&
+        hole.diameterMm > MAX_FINGER_SLOT_WIDTH_MM) {
+      context.addIssue({ code: z.ZodIssueCode.too_big, type: "number", maximum: MAX_FINGER_SLOT_WIDTH_MM,
+        inclusive: true, path: ["diameterMm"], message: "Slot width cannot exceed 80 mm." });
+    }
+  })
   .transform(({ reachMm: _reach, directionDeg: _direction, kind, ...hole }) => ({
     ...hole,
     kind: kind === "oblong-scoop" ? ("deep-scoop" as const) : kind,
@@ -179,8 +192,6 @@ export const fingerHoleSchema = z
 
 export type FingerHole = z.infer<typeof fingerHoleSchema>;
 
-export const MIN_FINGER_HOLE_DIAMETER_MM = 6;
-export const MAX_FINGER_HOLE_DIAMETER_MM = 80;
 /** Default top-surface round for newly created pockets and finger holes. */
 export const DEFAULT_TOP_EDGE_FILLET_MM = 1;
 export const DEFAULT_OBLONG_DEEP_SCOOP_LENGTH_MM = 36;
@@ -190,15 +201,15 @@ const FINGER_ACCESS_BIN_ALLOWANCE = 1.05;
 
 type FingerAccessBinSpec = Pick<BinSpec, "gridX" | "gridY" | "gridPitch" | "heightUnits" | "lip">;
 
-function fingerAccessBinBounds(spec: FingerAccessBinSpec) {
+function fingerAccessBinBounds(spec: FingerAccessBinSpec, hole: FingerHole) {
+  const allowance = isElongatedFingerHole(hole) ? FINGER_ACCESS_BIN_ALLOWANCE : 1;
   return {
-    x: binFootprintMm(spec.gridX, spec.gridPitch) * FINGER_ACCESS_BIN_ALLOWANCE,
-    y: binFootprintMm(spec.gridY, spec.gridPitch) * FINGER_ACCESS_BIN_ALLOWANCE,
+    x: binFootprintMm(spec.gridX, spec.gridPitch) * allowance,
+    y: binFootprintMm(spec.gridY, spec.gridPitch) * allowance,
   };
 }
 
 function fingerAccessMouthFits(hole: FingerHole, bounds: { x: number; y: number }): boolean {
-  if (!isElongatedFingerHole(hole)) return hole.diameterMm <= Math.min(bounds.x, bounds.y);
   const angle = (hole.rotationDeg ?? 0) * Math.PI / 180;
   const c = Math.abs(Math.cos(angle));
   const s = Math.abs(Math.sin(angle));
@@ -215,8 +226,13 @@ function maximumFingerAccessDimension(
   bounds: { x: number; y: number },
   dimension: "diameterMm" | "lengthMm",
 ): number {
+  // Round access follows Width (X), including bins whose Length (Y) is shorter.
+  // Placement and wall checks remain separate from this editing limit.
+  if (!isElongatedFingerHole(hole)) {
+    return dimension === "diameterMm" ? bounds.x : MAX_OBLONG_DEEP_SCOOP_LENGTH_MM;
+  }
   let low = MIN_FINGER_HOLE_DIAMETER_MM;
-  let high = dimension === "diameterMm" ? MAX_FINGER_HOLE_DIAMETER_MM : MAX_OBLONG_DEEP_SCOOP_LENGTH_MM;
+  let high = dimension === "diameterMm" ? MAX_FINGER_SLOT_WIDTH_MM : MAX_OBLONG_DEEP_SCOOP_LENGTH_MM;
   for (let i = 0; i < 32; i++) {
     const mid = (low + high) / 2;
     if (fingerAccessMouthFits({ ...hole, [dimension]: mid }, bounds)) low = mid;
@@ -234,7 +250,7 @@ function maximumFingerAccessDepth(spec: FingerAccessBinSpec): number {
 /** Editing limits for the nominal mouth, before edge rounding; position validation stays separate. */
 export function fingerHoleSizeLimits(hole: FingerHole, spec: FingerAccessBinSpec) {
   const bounded = clampFingerHoleToBin(hole, spec);
-  const bounds = fingerAccessBinBounds(spec);
+  const bounds = fingerAccessBinBounds(spec, bounded);
   return {
     depthMm: maximumFingerAccessDepth(spec),
     diameterMm: maximumFingerAccessDimension(bounded, bounds, "diameterMm"),
@@ -244,7 +260,7 @@ export function fingerHoleSizeLimits(hole: FingerHole, spec: FingerAccessBinSpec
 
 /** Used on explicit geometry edits and bin resizing, never while opening an older project. */
 export function clampFingerHoleToBin(hole: FingerHole, spec: FingerAccessBinSpec): FingerHole {
-  const bounds = fingerAccessBinBounds(spec);
+  const bounds = fingerAccessBinBounds(spec, hole);
   const depth = effectiveFingerHoleDepthMm(hole);
   const maximumDepth = maximumFingerAccessDepth(spec);
   let bounded = { ...hole, depthMm: depth > maximumDepth ? maximumDepth : hole.depthMm };
@@ -511,16 +527,16 @@ export function resizeFingerHoleFromWidthHandle(
   const signedDistance =
     (dragged.x - hole.center.x) * normal.x +
     (dragged.y - hole.center.y) * normal.y;
-  const bounds = spec ? fingerAccessBinBounds(spec) : null;
-  const maximumWidth = !spec || !bounds ? MAX_FINGER_HOLE_DIAMETER_MM
+  const bounds = spec ? fingerAccessBinBounds(spec, hole) : null;
+  const maximumWidth = !spec || !bounds ? MAX_FINGER_SLOT_WIDTH_MM
     : hasFlatFingerHoleEnds(hole) ? fingerHoleSizeLimits(hole, spec).diameterMm
       : Math.max(MIN_FINGER_HOLE_DIAMETER_MM, Math.min(
           bounds.x - span * Math.abs(Math.cos(radians)),
           bounds.y - span * Math.abs(Math.sin(radians)),
         ));
   const diameterMm = Math.min(
-    MAX_FINGER_HOLE_DIAMETER_MM, Math.floor((maximumWidth + 1e-7) * 100) / 100,
-    hasFlatFingerHoleEnds(hole) ? MAX_FINGER_HOLE_DIAMETER_MM : MAX_OBLONG_DEEP_SCOOP_LENGTH_MM - span,
+    MAX_FINGER_SLOT_WIDTH_MM, Math.floor((maximumWidth + 1e-7) * 100) / 100,
+    hasFlatFingerHoleEnds(hole) ? MAX_FINGER_SLOT_WIDTH_MM : MAX_OBLONG_DEEP_SCOOP_LENGTH_MM - span,
     Math.max(MIN_FINGER_HOLE_DIAMETER_MM, 2 * Math.abs(signedDistance)),
   );
   return {
@@ -890,11 +906,35 @@ export function roundedRectangleRing(
   return ring;
 }
 
-/** Exact plan-view rim used by rendering, validation, and cutter geometry. */
+export const FINGER_HOLE_PREVIEW_CHORD_TOLERANCE_MM = 0.05;
+export const FINGER_HOLE_EXPORT_CHORD_TOLERANCE_MM = 0.01;
+
+/**
+ * Resolve round-opening tessellation from maximum radial chord error (sagitta),
+ * r * (1 - cos(PI / n)). Larger openings get more segments; requested quality
+ * remains a minimum. Multiples of eight preserve cardinal points and match
+ * the kernel's sphere/cylinder subdivisions. Slots keep their existing quality.
+ */
+export function fingerHoleCircularSegments(
+  hole: FingerHole,
+  minimumSegments = 24,
+  maxChordErrorMm = 0.025,
+): number {
+  if (isElongatedFingerHole(hole)) return minimumSegments;
+  if (!Number.isFinite(maxChordErrorMm) || maxChordErrorMm <= 0) {
+    throw new Error("Finger-hole chord tolerance must be a positive finite distance.");
+  }
+  // Include the outward rim rounding so its widest circle is smooth too.
+  const radius = hole.diameterMm / 2 + effectiveFingerHoleTopFilletMm(hole);
+  const required = Math.PI / Math.acos(1 - Math.min(1, maxChordErrorMm / radius));
+  return Math.ceil(Math.max(minimumSegments, required) / 8) * 8;
+}
+
+/** Plan-view rim used by rendering and validation; geometry may supply its own resolved quality. */
 export function fingerHoleFootprintRing(
   hole: FingerHole,
   placement: PlacementTransform,
-  segments = 24,
+  segments = fingerHoleCircularSegments(hole),
 ): Point[] {
   const local = isElongatedFingerHole(hole)
     ? (() => {

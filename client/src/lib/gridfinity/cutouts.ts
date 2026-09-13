@@ -10,6 +10,8 @@ import {
   flatEndedScoopRadiusMm,
   effectiveScoopDepthMm,
   fingerHoleFootprintRing,
+  fingerHoleCircularSegments,
+  FINGER_HOLE_PREVIEW_CHORD_TOLERANCE_MM,
   elongatedFingerHoleEndpoints,
   isElongatedFingerHole,
   hasFlatFingerHoleBottom,
@@ -359,11 +361,12 @@ export function buildFingerHoleCutters(
 ): Manifold[] {
   const { arena } = kernel;
   const cutters: Manifold[] = [];
-  const segments = quality.circularSegments;
   const filletProfileStepMm =
     quality.filletProfileStepMm ?? FILLET_PROFILE_STEP_MM;
 
   for (const hole of fingerHoles) {
+    const segments = fingerHoleCircularSegments(hole, quality.circularSegments,
+      quality.fingerHoleChordToleranceMm ?? FINGER_HOLE_PREVIEW_CHORD_TOLERANCE_MM);
     const pocket = resolvePocketDepth(spec, { mode: "mm", value: hole.depthMm });
     const cutDepth = effectiveFingerHoleDepthMm(hole);
     const effectiveTopFillet = effectiveFingerHoleTopFilletMm(hole);

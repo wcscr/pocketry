@@ -7,6 +7,10 @@ import type {
   TracedShape,
 } from "@shared/gridfinity/cutout";
 import {
+  FINGER_HOLE_PREVIEW_CHORD_TOLERANCE_MM,
+  FINGER_HOLE_EXPORT_CHORD_TOLERANCE_MM,
+} from "@shared/gridfinity/cutout";
+import {
   BASE_HEIGHT,
   BASE_TOP_RADIUS,
   binFootprintMm,
@@ -49,8 +53,10 @@ import { buildStackingLip, buildWallRing } from "./wall";
  */
 
 export interface BuildQuality {
-  /** Segments per full circle for every arc. Multiple of 8, ≥ 16. */
+  /** Base segments per full circle. Multiple of 8, ≥ 16; round access may use more. */
   circularSegments: number;
+  /** Maximum radial chord error for round finger access; defaults to preview tolerance. */
+  fingerHoleChordToleranceMm?: number;
   /**
    * Max vertices per cutout ring before offsetting (see cutouts.ts).
    * Optional so quality objects in older call sites stay valid; the cutter
@@ -68,6 +74,7 @@ export interface BuildQuality {
 /** Coarse arcs and fillet bands for a responsive interactive preview. */
 export const PREVIEW_QUALITY: BuildQuality = {
   circularSegments: 24,
+  fingerHoleChordToleranceMm: FINGER_HOLE_PREVIEW_CHORD_TOLERANCE_MM,
   cutoutVertexBudget: 100,
   filletProfileStepMm: 0.5,
 };
@@ -75,6 +82,7 @@ export const PREVIEW_QUALITY: BuildQuality = {
 /** Fine arcs for export (~0.004 mm corner sag). */
 export const EXPORT_QUALITY: BuildQuality = {
   circularSegments: 64,
+  fingerHoleChordToleranceMm: FINGER_HOLE_EXPORT_CHORD_TOLERANCE_MM,
   cutoutVertexBudget: 600,
   filletProfileStepMm: 0.1,
 };
