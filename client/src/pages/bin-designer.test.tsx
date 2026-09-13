@@ -116,7 +116,7 @@ vi.mock("@/lib/project/persist", () => ({
   exportProjectLibrary: vi.fn(),
   importProjectLibrary: vi.fn(),
   startNewProject: vi.fn(async () => ({ activeProjectId: null, projects: [] })),
-  createDebouncedProjectSaver: () => Object.assign(vi.fn(), { cancel: vi.fn() }),
+  createDebouncedProjectSaver: () => Object.assign(vi.fn(), { cancel: vi.fn(), flush: vi.fn(async () => true) }),
 }));
 
 import * as ProjectPersistence from "@/lib/project/persist";
@@ -304,7 +304,7 @@ describe("BinDesignerPage", () => {
         }
       };
       await replace();
-      expect(ProjectPersistence.saveProjectDoc).toHaveBeenCalledWith(expect.objectContaining({ cutouts: edited }));
+      expect(ProjectPersistence.saveProjectDoc).toHaveBeenCalledWith(expect.objectContaining({ cutouts: edited }), "cutter");
       expect(ProjectPersistence.startNewProject).not.toHaveBeenCalled();
       await React.act(async () => finishSave(false));
       expect(ProjectPersistence.startNewProject).not.toHaveBeenCalled();
@@ -383,7 +383,7 @@ describe("BinDesignerPage", () => {
       openSettingsSection(container, "project");
       React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-open-library"]')!.click());
       await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-open-project-other"]')!.click());
-      expect(ProjectPersistence.saveProjectDoc).toHaveBeenCalledWith(expect.objectContaining({ cutouts: intended.cutouts }));
+      expect(ProjectPersistence.saveProjectDoc).toHaveBeenCalledWith(expect.objectContaining({ cutouts: intended.cutouts }), "cutter");
       expect(ProjectPersistence.openProjectFromLibrary).not.toHaveBeenCalled();
       await React.act(async () => finishSave(true));
       expect(activeProjectId).toBe("other");
@@ -957,7 +957,12 @@ describe("BinDesignerPage", () => {
         reader.onerror = () => reject(reader.error);
         reader.readAsText(backup);
       });
-      expect(parseProjectDoc(JSON.parse(json))).toEqual({ ...project, name: "Layout 2", keepBinSize: false });
+      expect(parseProjectDoc(JSON.parse(json))).toEqual({
+        ...project, name: "Layout 2", keepBinSize: false,
+        history: { index: 0, stack: [{ label: "Project opened", doc: {
+          spec: project.spec, cutouts: project.cutouts, fingerHoles: project.fingerHoles,
+        } }] },
+      });
     } finally {
       unmount();
     }
@@ -3087,5 +3092,87 @@ describe("BinDesignerPage", () => {
     ).not.toBeNull();
     expect(document.body.textContent).toContain("Use multi-color 3MF");
     unmount();
+  });
+});
+
+describe("project history restoration", () => {
+  const material = (width: number) => ({
+    spec: parseBinSpec({ ...EMPTY_PROJECT.spec, gridX: width }), cutouts: [], fingerHoles: [],
+  });
+  const history = { stack: [
+    { doc: material(2), label: "Start" },
+    { doc: material(3), label: "Widen tray" },
+    { doc: material(4), label: "Widen again" },
+  ], index: 1 };
+  const a: ProjectDoc = { ...EMPTY_PROJECT, ...material(3), history, name: "A" };
+  const button = (container: HTMLElement, action: string) =>
+    container.querySelector<HTMLButtonElement>(`[data-testid="button-bin-${action}"]`)!;
+
+  it.each([false, true])("restores the cursor and undo/redo controls after A → B → A (mobile: %s)", async (mobile) => {
+    const projects = ["A", "B"].map(id => ({ id, name: id, updatedAt: "2026-09-13T12:00:00.000Z" }));
+    let activeProjectId = "A";
+    const saved = new Map([["A", a], ["B", { ...EMPTY_PROJECT, name: "B" }]]);
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(a);
+    vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId, projects });
+    vi.mocked(ProjectPersistence.saveProjectDoc).mockImplementation(async (doc, id) => {
+      expect(id).toBe(activeProjectId);
+      const parsed = parseProjectDoc(JSON.parse(JSON.stringify(doc)));
+      expect(parsed).not.toBeNull();
+      saved.set(id!, parsed!);
+      return true;
+    });
+    vi.mocked(ProjectPersistence.openProjectFromLibrary).mockImplementation(async id => {
+      activeProjectId = id;
+      return { doc: saved.get(id)!, project: projects.find(project => project.id === id)!,
+        library: { activeProjectId, projects } };
+    });
+    const { container, unmount } = renderPage({ mobile });
+    try {
+      await flushHydration();
+      expect(button(container, "undo").getAttribute("aria-label")).toBe("Undo Widen tray");
+      expect(button(container, "redo").getAttribute("aria-label")).toBe("Redo Widen again");
+      React.act(() => button(container, "redo").click());
+      React.act(() => button(container, "undo").click());
+      openSettingsSection(document.body, "project");
+      const open = async (id: string) => {
+        React.act(() => document.querySelector<HTMLButtonElement>('[data-testid="button-open-library"]')!.click());
+        await React.act(async () => document.querySelector<HTMLButtonElement>(`[data-testid="button-open-project-${id}"]`)!.click());
+      };
+      await open("B");
+      expect(button(container, "undo").disabled).toBe(true);
+      expect(button(container, "redo").disabled).toBe(true);
+      await open("A");
+      expect(button(container, "undo").getAttribute("aria-label")).toBe("Undo Widen tray");
+      expect(button(container, "redo").getAttribute("aria-label")).toBe("Redo Widen again");
+      React.act(() => button(container, "undo").click());
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0].gridX).toBe(2);
+      expect(button(container, "undo").disabled).toBe(true);
+      React.act(() => button(container, "redo").click());
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0].gridX).toBe(3);
+      expect(saved.get("A")!.history).toEqual(history);
+    } finally { unmount(); }
+  });
+
+  it("restores exported history through the project file input and preserves it in new exports", async () => {
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      openSettingsSection(document.body, "project");
+      const input = container.querySelector<HTMLInputElement>('input[type="file"][accept*=".pocketry.json"]')!;
+      const file = new File([JSON.stringify(a)], "A.pocketry.json");
+      Object.defineProperty(file, "text", { value: async () => JSON.stringify(a) });
+      Object.defineProperty(input, "files", { value: [file], configurable: true });
+      await React.act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
+      expect(button(container, "undo").getAttribute("aria-label")).toBe("Undo Widen tray");
+      expect(button(container, "redo").getAttribute("aria-label")).toBe("Redo Widen again");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-export-project"]')!.click());
+      const [blob] = vi.mocked(downloadBlob).mock.lastCall!;
+      const json = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.readAsText(blob);
+      });
+      expect(parseProjectDoc(JSON.parse(json))?.history).toEqual(history);
+    } finally { unmount(); }
   });
 });

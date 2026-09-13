@@ -11,6 +11,7 @@ import {
   type FingerHole,
 } from "./cutout";
 import { binSpecSchema } from "./types";
+import { binHistorySchema } from "./history";
 
 /**
  * The persisted unit of user data: the shape library plus the bin being
@@ -32,9 +33,10 @@ import { binSpecSchema } from "./types";
  * Version 14 adds flat-bottom slots and a retained slot-end preference.
  * Version 15 adds optional corner rounding for flat-ended slots (absent is sharp).
  * Version 16 adds an optional boundary and two depths inside one tool pocket.
+ * Version 17 preserves committed undo/redo history and its current position.
  */
 
-export const PROJECT_SCHEMA_VERSION = 16 as const;
+export const PROJECT_SCHEMA_VERSION = 17 as const;
 
 const projectFields = {
   shapes: z.array(tracedShapeSchema),
@@ -65,25 +67,45 @@ const version8ProjectSchema = z
 
 const version9ProjectSchema = z.object({ schemaVersion: z.literal(9), ...projectFields }).strict();
 
-export const projectDocSchema = z
+const version16ProjectSchema = z
   .object({
-    schemaVersion: z.literal(PROJECT_SCHEMA_VERSION),
+    schemaVersion: z.literal(16),
     ...projectFields,
     name: z.string().trim().min(1).max(80).optional(),
     keepBinSize: z.boolean().optional(),
   })
   .strict();
 
-const version14ProjectSchema = projectDocSchema.extend({ schemaVersion: z.literal(14) });
-const version15ProjectSchema = projectDocSchema.extend({ schemaVersion: z.literal(15) });
+/** History and the visible design must describe one consistent saved snapshot. */
+export const projectDocSchema = version16ProjectSchema.extend({
+  schemaVersion: z.literal(PROJECT_SCHEMA_VERSION),
+  history: binHistorySchema.optional(),
+}).superRefine((project, ctx) => {
+  if (!project.history) return;
+  const current = project.history.stack[project.history.index]?.doc;
+  const material = { spec: project.spec, cutouts: project.cutouts, fingerHoles: project.fingerHoles };
+  if (JSON.stringify(current) !== JSON.stringify(material)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["history"], message: "History does not match the saved design" });
+  }
+  // Shapes are immutable by id. Store one shared collection, including shapes
+  // needed only by an undo or redo step (deleted pockets and contour revisions).
+  const shapeIds = new Set(project.shapes.map((shape) => shape.id));
+  if (shapeIds.size !== project.shapes.length || project.history.stack.some((entry) =>
+    entry.doc.cutouts.some((cutout) => !shapeIds.has(cutout.shapeId)))) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["history"], message: "History requires unique, available shapes" });
+  }
+});
 
-const version13ProjectSchema = projectDocSchema.extend({ schemaVersion: z.literal(13) });
+const version14ProjectSchema = version16ProjectSchema.extend({ schemaVersion: z.literal(14) });
+const version15ProjectSchema = version16ProjectSchema.extend({ schemaVersion: z.literal(15) });
 
-const version12ProjectSchema = projectDocSchema.extend({ schemaVersion: z.literal(12) });
+const version13ProjectSchema = version16ProjectSchema.extend({ schemaVersion: z.literal(13) });
 
-const version11ProjectSchema = projectDocSchema.extend({ schemaVersion: z.literal(11) });
+const version12ProjectSchema = version16ProjectSchema.extend({ schemaVersion: z.literal(12) });
 
-const version10ProjectSchema = projectDocSchema.extend({ schemaVersion: z.literal(10) });
+const version11ProjectSchema = version16ProjectSchema.extend({ schemaVersion: z.literal(11) });
+
+const version10ProjectSchema = version16ProjectSchema.extend({ schemaVersion: z.literal(10) });
 
 const legacyProjectSchemas = [1, 2, 3, 4, 5, 6].map((schemaVersion) =>
   z
@@ -165,6 +187,8 @@ export function parseProjectDoc(input: unknown): ProjectDoc | null {
       input = { ...doc, spec };
     }
   }
+  const version16 = version16ProjectSchema.safeParse(input);
+  if (version16.success) return projectDocSchema.parse({ ...version16.data, schemaVersion: PROJECT_SCHEMA_VERSION });
   const version15 = version15ProjectSchema.safeParse(input);
   if (version15.success) return projectDocSchema.parse({ ...version15.data, schemaVersion: PROJECT_SCHEMA_VERSION });
   const version14 = version14ProjectSchema.safeParse(input);
