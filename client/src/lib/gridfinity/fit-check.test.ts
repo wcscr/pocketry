@@ -19,6 +19,7 @@ const shape: TracedShape = { id: "tool", name: "Tool", outlineMm: [{ outer: [
 ], holes: [] }], bboxMm: { minX: -6, minY: -4, maxX: 6, maxY: 4 }, pointCount: 4, sourceMmPerPx: 1 };
 
 describe("surface fit outlines", () => {
+  // This full-resolution mesh takes 8 seconds on CI, beyond Vitest's default.
   it("exports rounded Ryobi outlines without collapsed triangles", () => {
     const tool: TracedShape = ryobiFixture.shape;
     const outline = buildSurfaceFitCheckSolid(kernel, parseBinSpec(ryobiFixture.spec), {
@@ -34,7 +35,7 @@ describe("surface fit outlines", () => {
       if (new Set(vertices).size < 3) collapsedTriangles++;
     }
     expect(collapsedTriangles).toBe(0);
-  });
+  }, 30_000);
 
   it.each([false, true])("keeps only 5 mm tool bands at the chosen height (custom=%s)", custom => {
     const spec = parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6,

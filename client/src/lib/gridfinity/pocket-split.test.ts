@@ -24,6 +24,7 @@ const pocket = (extra: Partial<CutoutPlacement> = {}) => parseCutoutPlacement({ 
 const layout = (c: CutoutPlacement) => ({ cutouts: [c], shapesById, fingerHoles: [] });
 
 describe("split-pocket solids", () => {
+  // Full-resolution Ryobi meshes take 7–10 seconds on CI; keep export quality.
   it.each([PREVIEW_QUALITY, EXPORT_QUALITY])("reloads the saved Ryobi with a 16 mm blade recess and 55 mm body recess at quality %j", quality => {
     // Reduced from the library backup reported after switching designs. Probe
     // inside the blade and body so swapped depths cannot pass a volume check.
@@ -47,7 +48,7 @@ describe("split-pocket solids", () => {
       }
     }
     expect(built.solid.status()).toBe("NoError");
-  });
+  }, 30_000);
 
   it("removes the analytic volume of two depths and keeps one connected bin", () => {
     const c = pocket();
@@ -129,6 +130,7 @@ describe("split-pocket solids", () => {
     expect(arranged!.cutouts[0].split).toEqual(c.split);
   });
 
+  // Match the full-resolution fixture budget used by the reload regression.
   it.each([PREVIEW_QUALITY, EXPORT_QUALITY])("leaves no seam sheet above the Ryobi shelf at quality %j", quality => {
     // Reduced from the reported project: keep its outline, transform, split,
     // depths and bin geometry, without the unrelated shape-library history.
@@ -164,5 +166,5 @@ describe("split-pocket solids", () => {
     const { body, pocketFloors } = built.materialParts!;
     expect(arena.track(body.intersect(pocketFloors!)).volume()).toBeLessThan(1e-6);
     expect(body.volume() + pocketFloors!.volume()).toBeCloseTo(built.solid.volume(), 5);
-  });
+  }, 30_000);
 });
