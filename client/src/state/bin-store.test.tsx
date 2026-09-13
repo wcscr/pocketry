@@ -100,6 +100,27 @@ describe("bin store", () => {
     expect(store().fingerHoles[0]).toEqual(smallHole);
   });
 
+  it("keeps large round access through edits and hydration, and resizes it with bin width in one undo step", () => {
+    const { store, act } = mountBin();
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { gridX: 6, gridY: 4 } }));
+    const hole = fingerHoleSchema.parse({ id: "large", kind: "deep-scoop", center: { x: 0, y: 0 }, diameterMm: 150, depthMm: 1 });
+    act(() => store().dispatch({ type: "ADD_FINGER_HOLE", hole }));
+    expect(store().fingerHoles[0]).toEqual(hole);
+    act(() => store().dispatch({ type: "UPDATE_FINGER_HOLE", id: hole.id, patch: { diameterMm: 251.5 } }));
+    expect(store().fingerHoles[0].diameterMm).toBe(251.5);
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { gridX: 2 } }));
+    expect(store().fingerHoles[0]).toMatchObject({ diameterMm: 83.5, depthMm: 1 });
+    act(() => store().dispatch({ type: "UNDO" }));
+    expect(store().spec.gridX).toBe(6);
+    expect(store().fingerHoles[0].diameterMm).toBe(251.5);
+    act(() => store().dispatch({ type: "HYDRATE", ...getCommittedBinDoc(store()) }));
+    expect(store().fingerHoles[0].diameterMm).toBe(251.5);
+    act(() => store().dispatch({ type: "UPDATE_FINGER_HOLE", id: hole.id, patch: { kind: "oblong-deep-scoop" } }));
+    expect(store().fingerHoles[0].diameterMm).toBe(80);
+    act(() => store().dispatch({ type: "UNDO" }));
+    expect(store().fingerHoles[0]).toMatchObject({ kind: "deep-scoop", diameterMm: 251.5 });
+  });
+
   it("keeps restored oversize geometry intact until a geometry edit", () => {
     const { store, act } = mountBin();
     const hole = fingerHoleSchema.parse({ id: "legacy", center: { x: 0, y: 0 }, depthMm: 120 });

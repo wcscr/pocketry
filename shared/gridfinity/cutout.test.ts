@@ -10,6 +10,7 @@ import {
   effectiveDeepScoopDepthMm,
   effectiveScoopDepthMm,
   fingerHoleFootprintRing,
+  fingerHoleCircularSegments,
   fingerHoleSchema,
   fingerAccessOptions,
   fingerAccessOptionsPatch,
@@ -32,6 +33,36 @@ import {
 import { BASE_HEIGHT, R_F2 } from "./standard";
 
 const SPEC_2X3 = { gridX: 2, gridY: 3 };
+
+describe("round finger-access resolution", () => {
+  const placement = { position: { x: 0, y: 0 }, rotationDeg: 0, mirrored: false };
+
+  it.each([6, 18, 80, 150, 300, 671.5])("keeps layout chords within 0.025 mm at diameter %s", (diameterMm) => {
+    const hole = fingerHoleSchema.parse({ id: "round", center: { x: 3, y: -2 }, diameterMm });
+    const ring = fingerHoleFootprintRing(hole, placement);
+    expect(signedArea(ring)).toBeGreaterThan(0);
+    expect(Math.max(...ring.map(p => p.x)) - Math.min(...ring.map(p => p.x))).toBeCloseTo(diameterMm, 8);
+    expect(Math.max(...ring.map(p => p.y)) - Math.min(...ring.map(p => p.y))).toBeCloseTo(diameterMm, 8);
+    for (let i = 0; i < ring.length; i++) {
+      const next = ring[(i + 1) % ring.length];
+      const radiusAtMidpoint = Math.hypot((ring[i].x + next.x) / 2 - 3, (ring[i].y + next.y) / 2 + 2);
+      expect(diameterMm / 2 - radiusAtMidpoint).toBeLessThanOrEqual(0.025 + 1e-9);
+    }
+    expect(ring.length).toBeLessThanOrEqual(512);
+  });
+
+  it("scales with diameter and precision, includes rim rounding, and respects finer requested quality", () => {
+    const hole = fingerHoleSchema.parse({ id: "round", center: { x: 0, y: 0 }, diameterMm: 150, topFilletMm: 5 });
+    const preview = fingerHoleCircularSegments(hole, 24, 0.05);
+    const fine = fingerHoleCircularSegments(hole, 64, 0.01);
+    expect(preview).toBeGreaterThan(fingerHoleCircularSegments({ ...hole, diameterMm: 18 }, 24, 0.05));
+    expect(fine).toBeGreaterThan(preview);
+    expect(fine % 8).toBe(0);
+    expect(80 * (1 - Math.cos(Math.PI / fine))).toBeLessThanOrEqual(0.01);
+    expect(fingerHoleCircularSegments(hole, 512)).toBe(512);
+    expect(fingerHoleCircularSegments({ ...hole, kind: "oblong-straight", diameterMm: 80 }, 24)).toBe(24);
+  });
+});
 
 describe("flat-ended slot corner rounding", () => {
   const slot = fingerHoleSchema.parse({ id: "slot", kind: "flat-ended-scoop", center: { x: 0, y: 0 }, diameterMm: 16, lengthMm: 40 });

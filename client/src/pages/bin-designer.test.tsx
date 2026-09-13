@@ -1341,7 +1341,7 @@ describe("BinDesignerPage", () => {
     React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-select-finger-hole-wide"]')!.click());
     expect(vi.mocked(useBinGeometry).mock.lastCall?.[2]?.fingerHoles?.[0]).toEqual(original);
     const input = container.querySelector<HTMLInputElement>(`#finger-access-properties [aria-label="${kind === "scoop" ? "Diameter" : "Width"} in millimetres"]`)!;
-    expect(input.max).toBe("80");
+    expect(input.max).toBe(kind === "scoop" ? "83.5" : "80");
     React.act(() => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "80");
       input.dispatchEvent(new Event("input", { bubbles: true }));
@@ -1350,6 +1350,38 @@ describe("BinDesignerPage", () => {
     const updated = vi.mocked(useBinGeometry).mock.lastCall?.[2]?.fingerHoles?.[0];
     expect(updated).toMatchObject({ diameterMm: 80, depthMm: 8, kind: kind === "scoop" ? "deep-scoop" : kind });
     expect(parseProjectDoc({ ...EMPTY_PROJECT, fingerHoles: [updated] })?.fingerHoles[0]).toEqual(updated);
+    unmount();
+  });
+
+  it.each(["straight", "scoop", "deep-scoop"] as const)("edits large %s diameters up to bin width with slider, persistence and undo", async (kind) => {
+    const project = { ...EMPTY_PROJECT, spec: { ...EMPTY_PROJECT.spec, gridX: 4, gridY: 2 },
+      fingerHoles: [fingerHoleSchema.parse({ id: "large-round", kind, center: { x: 0, y: 0 }, diameterMm: 18, depthMm: 1 })] };
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(project);
+    const { container, unmount } = renderPage();
+    await flushHydration();
+    openSettingsSection(container, "finger-holes");
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-select-finger-hole-large-round"]')!.click());
+    const field = () => container.querySelector<HTMLInputElement>('[aria-label="Diameter in millimetres"]')!;
+    const current = () => vi.mocked(useBinGeometry).mock.lastCall?.[2]?.fingerHoles?.[0];
+    const edit = (value: string) => {
+      React.act(() => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(field(), value);
+        field().dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      React.act(() => field().dispatchEvent(new FocusEvent("focusout", { bubbles: true })));
+    };
+    expect(field().max).toBe("167.5");
+    edit("150");
+    expect(current()).toMatchObject({ diameterMm: 150, depthMm: 1 });
+    edit("168");
+    expect(field().value).toBe("150");
+    const slider = container.querySelector<HTMLElement>('[role="slider"][aria-label="Diameter"]')!;
+    React.act(() => slider.dispatchEvent(new KeyboardEvent("keydown", { key: "End", bubbles: true })));
+    expect(field().value).toBe("167.5");
+    expect(current()).toMatchObject({ diameterMm: 167.5, depthMm: 1 });
+    expect(parseProjectDoc(JSON.parse(JSON.stringify({ ...project, fingerHoles: [current()] })))?.fingerHoles[0]).toEqual(current());
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+    expect(field().value).toBe("150");
     unmount();
   });
 

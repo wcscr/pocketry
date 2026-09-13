@@ -147,6 +147,7 @@ export function useBinGeometry(
       JSON.stringify({
         spec,
         segments: quality.circularSegments,
+        fingerHoleChordTolerance: quality.fingerHoleChordToleranceMm,
         budget: quality.cutoutVertexBudget,
         filletStep: quality.filletProfileStepMm,
         cutouts: layout?.cutouts ?? [],
@@ -163,6 +164,7 @@ export function useBinGeometry(
     [
       spec,
       quality.circularSegments,
+      quality.fingerHoleChordToleranceMm,
       quality.cutoutVertexBudget,
       quality.filletProfileStepMm,
       layout,
