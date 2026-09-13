@@ -45,13 +45,14 @@ import {
   fingerAccessOptionsPatch,
   fingerHoleSizeLimits,
   resolvePocketDepth,
+  pocketDepths,
+  type DepthSpec,
   type TracedShape,
 } from "@shared/gridfinity/cutout";
 import {
   binFootprintMm,
   GRID_PITCH_DIVISOR,
   resizeGridToStandardCellSpan,
-  changeGridPitchPreservingSize,
   STACKING_LIP_HEIGHT_ACTUAL,
   standardCellSpan,
   type GridPitch,
@@ -115,7 +116,10 @@ import {
   type BuildBinStats,
 } from "@/lib/gridfinity/worker-api";
 import type { ProjectLibraryItem } from "@/lib/project/persist";
+import { SURFACE_FIT_CHECK_OUTLINE_WIDTH_MM, surfaceFitCheckStyleSchema, type SurfaceFitCheckStyle } from "@shared/gridfinity/fit-check";
 import { cn } from "@/lib/utils";
+import { PocketSplitControls } from "./pocket-split-controls";
+import { changeBinGridPitchPreservingSize } from "@shared/gridfinity/grid-pitch";
 import { PocketDepthSummary, PocketMeasurements, PocketSizeInputs, PositionInputs } from "./pocket-measurements";
 import { ExportConfirmationDialog, ProjectBackupOption } from "./export-confirmation-dialog";
 import { FingerAccessShapeControls } from "./finger-access-shape-controls";
@@ -222,7 +226,7 @@ export interface BinControlsPanelProps {
   exporting: boolean;
   onExport: (format: "3mf" | "3mf-multicolor" | "stl", includeProject: boolean) => void;
   onExportFitCheck: (cutoutId: string, depthMm: number, includeProject: boolean) => void;
-  onExportSurfaceFitCheck: (thicknessMm: number, includeProject: boolean) => void;
+  onExportSurfaceFitCheck: (thicknessMm: number, includeProject: boolean, style: SurfaceFitCheckStyle) => void;
   onExportLayout: (format: "dxf" | "svg", includeProject: boolean) => void;
   onAutoArrange: () => void;
   onExportProject: () => void;
@@ -318,6 +322,7 @@ export function BinControlsPanel({
     cutouts,
     fingerHoles,
     selectedCutoutId,
+    selectedPocketSection,
     selectedFingerHoleId,
     pendingRemovalId,
     editorMode,
@@ -359,6 +364,7 @@ export function BinControlsPanel({
   const [surfaceFitCheckThicknessMm, setSurfaceFitCheckThicknessMm] = useState(
     SURFACE_FIT_CHECK_DEFAULT_THICKNESS_MM,
   );
+  const [surfaceFitCheckStyle, setSurfaceFitCheckStyle] = useState<SurfaceFitCheckStyle>("full");
   const [threeMfDialogOpen, setThreeMfDialogOpen] = useState(false);
   const [includeThreeMfProject, setIncludeThreeMfProject] = useState(false);
   const [pendingExport, setPendingExport] = useState<{
@@ -368,7 +374,7 @@ export function BinControlsPanel({
     onConfirm: (includeProject: boolean) => void;
   } | null>(null);
   const hasBlindPocket = cutouts.some(
-    (cutout) => cutout.depth.mode !== "through",
+    (cutout) => pocketDepths(cutout).some(depth => depth.mode !== "through"),
   );
   const hasSelectedFloorColor = colorPocketFloors && hasBlindPocket;
   const hasSelectedRimColor = colorStackingRim && spec.lip === "standard";
@@ -412,6 +418,17 @@ export function BinControlsPanel({
   const selectedFingerHole =
     fingerHoles.find((hole) => hole.id === selectedFingerHoleId) ?? null;
   const fingerSizeLimits = selectedFingerHole ? fingerHoleSizeLimits(selectedFingerHole, spec) : null;
+  const depthCutout = selectedCutout && selectedCutout.split
+    ? { ...selectedCutout, depth: selectedCutout.split.depths[selectedPocketSection] }
+    : selectedCutout;
+  const updatePocketDepth = (depth: DepthSpec, transient = false) => {
+    if (!selectedCutout) return;
+    const depths = selectedCutout.split ? [...selectedCutout.split.depths] as [DepthSpec, DepthSpec] : null;
+    if (depths) depths[selectedPocketSection] = depth;
+    dispatch({ type: "UPDATE_CUTOUT", id: selectedCutout.id,
+      patch: selectedCutout.split && depths ? { split: { ...selectedCutout.split, depths } } : { depth },
+      transient, historyLabel: selectedCutout.split ? "Change section depth" : "Change pocket depth" });
+  };
   const selectedShape = selectedCutout
     ? (shapesById.get(selectedCutout.shapeId) ?? null)
     : null;
@@ -530,13 +547,13 @@ export function BinControlsPanel({
           className="scroll-mt-16"
         >
           <div className="flex items-center gap-2">
-            <SettingLabel label="Grid pitch" hint="Pitch changes preserve the outer size. A coarser pitch needs whole cells; custom footprints keep their current pitch." className="shrink-0" />
+            <SettingLabel label="Grid pitch" hint="Pitch changes preserve the outer size and custom shape. A coarser pitch is available only when existing cells combine into whole cells." className="shrink-0" />
             <Select
               value={spec.gridPitch}
               onValueChange={(value) => {
                 const gridPitch = value as GridPitch;
-                const resized = changeGridPitchPreservingSize(spec, gridPitch);
-                if (!resized || resized.gridX > maxGridCells(gridPitch) || resized.gridY > maxGridCells(gridPitch) || spec.footprint.kind !== "rectangle") return;
+                const resized = changeBinGridPitchPreservingSize(spec, gridPitch);
+                if (!resized || resized.gridX > maxGridCells(gridPitch) || resized.gridY > maxGridCells(gridPitch)) return;
                 patchSpec({
                   ...resized,
                   ...(gridPitch === "full"
@@ -554,9 +571,9 @@ export function BinControlsPanel({
               </SelectTrigger>
               <SelectContent>
                 {(["full", "half", "quarter"] as const).map((pitch) => {
-                  const resized = changeGridPitchPreservingSize(spec, pitch);
-                  const available = resized && resized.gridX <= maxGridCells(pitch) && resized.gridY <= maxGridCells(pitch) && spec.footprint.kind === "rectangle";
-                  return <SelectItem key={pitch} value={pitch} disabled={!available}>{pitch === "full" ? "Full · 42 mm" : pitch === "half" ? "Half · 21 mm" : "Quarter · 10.5 mm"}{!available ? " (size incompatible)" : ""}</SelectItem>;
+                  const resized = changeBinGridPitchPreservingSize(spec, pitch);
+                  const available = resized && resized.gridX <= maxGridCells(pitch) && resized.gridY <= maxGridCells(pitch);
+                  return <SelectItem key={pitch} value={pitch} disabled={!available}>{pitch === "full" ? "Full · 42 mm" : pitch === "half" ? "Half · 21 mm" : "Quarter · 10.5 mm"}{!available ? " (would change shape)" : ""}</SelectItem>;
                 })}
               </SelectContent>
             </Select>
@@ -892,28 +909,24 @@ export function BinControlsPanel({
                   {editorMode === "contour" ? "Done" : "Edit contour"}
                 </Button>
               </div>
-              <section className="space-y-2" aria-label="Pocket depth" key={selectedCutout.id}>
+              <section className="space-y-2" aria-label="Pocket depth" key={`${selectedCutout.id}-${selectedPocketSection}-${!!selectedCutout.split}`}>
                 <div className="flex items-center gap-1">
                   <h4 className="text-sm font-semibold">Depth</h4>
-                  {spec.flatBottom && selectedCutout.depth.mode === "remaining" && <HelpHint label="remaining floor thickness">Measured from the flat underside. A 2 mm floor lets pockets extend into the former base area.</HelpHint>}
+                  {spec.flatBottom && depthCutout!.depth.mode === "remaining" && <HelpHint label="remaining floor thickness">Measured from the flat underside. A 2 mm floor lets pockets extend into the former base area.</HelpHint>}
                 </div>
+                <PocketSplitControls cutout={selectedCutout} />
                 <div className="flex items-center gap-2">
                   <Select
-                    value={selectedCutout.depth.mode}
+                    value={depthCutout!.depth.mode}
                     onValueChange={(mode) => {
-                      const resolved = resolvePocketDepth(spec, selectedCutout.depth);
+                      const resolved = resolvePocketDepth(spec, depthCutout!.depth);
                       const depth =
                         mode === "through"
                           ? ({ mode: "through" } as const)
                           : mode === "mm"
                             ? ({ mode: "mm", value: Math.max(0.1, resolved.depthMm ?? resolved.infillTopZ - defaultPocketFloorThicknessMm(spec)) } as const)
                             : ({ mode: "remaining", floorThicknessMm: spec.flatBottom ? defaultPocketFloorThicknessMm(spec) : Math.max(0, resolved.floorZ ?? defaultPocketFloorThicknessMm(spec)) } as const);
-                      dispatch({
-                        type: "UPDATE_CUTOUT",
-                        id: selectedCutout.id,
-                        patch: { depth },
-                        historyLabel: "Change pocket depth",
-                      });
+                      updatePocketDepth(depth);
                     }}
                   >
                     <SelectTrigger className="h-9 flex-1" aria-label="Pocket depth mode">
@@ -925,29 +938,24 @@ export function BinControlsPanel({
                       <SelectItem value="through">Through</SelectItem>
                     </SelectContent>
                   </Select>
-                  {selectedCutout.depth.mode === "mm" && (
+                  {depthCutout!.depth.mode === "mm" && (
                     <DraftNumberInput
                       className="h-9 w-20 text-base font-semibold"
                       aria-label="Pocket cut depth in millimetres"
-                      value={selectedCutout.depth.value}
+                      value={depthCutout!.depth.value}
                       min={1}
                       step={1}
                       onValueChange={(value) =>
-                        dispatch({
-                          type: "UPDATE_CUTOUT",
-                          id: selectedCutout.id,
-                          patch: { depth: { mode: "mm", value } },
-                          historyLabel: "Change pocket depth",
-                        })
+                        updatePocketDepth({ mode: "mm", value })
                       }
                     />
                   )}
                 </div>
 
-                {selectedCutout.depth.mode === "remaining" && <MmSlider label="Remaining floor thickness" value={selectedCutout.depth.floorThicknessMm} min={0} max={Math.max(7, spec.heightUnits * 7)} step={0.5}
-                  onChange={(floorThicknessMm, transient) => dispatch({ type: "UPDATE_CUTOUT", id: selectedCutout.id, patch: { depth: { mode: "remaining", floorThicknessMm } }, transient, historyLabel: "Change remaining floor" })} />}
+                {depthCutout!.depth.mode === "remaining" && <MmSlider label="Remaining floor thickness" value={depthCutout!.depth.floorThicknessMm} min={0} max={Math.max(7, spec.heightUnits * 7)} step={0.5}
+                  onChange={(floorThicknessMm, transient) => updatePocketDepth({ mode: "remaining", floorThicknessMm }, transient)} />}
 
-                <PocketDepthSummary cutout={selectedCutout} shape={selectedShape} section={section} inspect={onSectionChange} />
+                <PocketDepthSummary cutout={depthCutout!} shape={selectedShape} section={section} inspect={onSectionChange} />
               </section>
               <details className="group/size border-t pt-1 text-xs" aria-label="Pocket size and scale" data-testid="pocket-size-settings">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-2 py-2 font-medium [&::-webkit-details-marker]:hidden">
@@ -1647,7 +1655,19 @@ export function BinControlsPanel({
                 data-testid="surface-fit-test-export"
               >
                 <div>
-                  <SettingLabel label="Complete surface fit test" hint="The bin's full pocket-layout surface as one thin plate, without its base, wall height, label tab, or stacking lip. Checks every pocket opening and independent finger hole together. It does not test cut depth or baseplate fit." />
+                  <SettingLabel label="Surface fit test" hint="Export the full pocket-layout surface or 5 mm wide bands around the tool openings only. Tool outlines omit the bin perimeter and separate finger holes. Widely spaced tools print as separate pieces. Thickness sets the printed height. Omits the base, wall height, label tab, and stacking lip; it does not test cut depth or baseplate fit." />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Label className="w-20 shrink-0 text-xs">Shape</Label>
+                  <Select value={surfaceFitCheckStyle} onValueChange={value => setSurfaceFitCheckStyle(surfaceFitCheckStyleSchema.parse(value))}>
+                    <SelectTrigger className="h-8" aria-label="Surface fit test shape" data-testid="select-surface-fit-test-style">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="full">Full surface</SelectItem>
+                      <SelectItem value="outline" disabled={cutouts.length === 0}>Tool outlines · {SURFACE_FIT_CHECK_OUTLINE_WIDTH_MM} mm</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="flex items-center gap-2">
                   <Label className="w-20 shrink-0 text-xs">Thickness</Label>
@@ -1673,13 +1693,15 @@ export function BinControlsPanel({
                   variant="outline"
                   size="sm"
                   className="w-full"
-                  disabled={exporting || hasErrors}
+                  disabled={exporting || hasErrors || (surfaceFitCheckStyle === "outline" && cutouts.length === 0)}
                   onClick={() =>
                     setPendingExport({
                       title: "Save surface fit test STL?",
-                      description: `Download the complete pocket layout as a ${surfaceFitCheckThicknessMm} mm thin plate.`,
+                      description: surfaceFitCheckStyle === "outline"
+                        ? `Download ${SURFACE_FIT_CHECK_OUTLINE_WIDTH_MM} mm wide tool outlines, ${surfaceFitCheckThicknessMm} mm thick.`
+                        : `Download the complete pocket layout as a ${surfaceFitCheckThicknessMm} mm thin plate.`,
                       confirmLabel: "Download STL",
-                      onConfirm: (includeProject) => onExportSurfaceFitCheck(surfaceFitCheckThicknessMm, includeProject),
+                      onConfirm: (includeProject) => onExportSurfaceFitCheck(surfaceFitCheckThicknessMm, includeProject, surfaceFitCheckStyle),
                     })
                   }
                   data-testid="button-export-surface-fit-test"
@@ -2164,7 +2186,7 @@ function ProjectControls({
           <DialogTitle>{mode === "open" ? "Open a saved project" : "Manage browser library"}</DialogTitle>
           <DialogDescription>
             {mode === "open"
-              ? "Choose a named project saved in this browser. Opening it replaces the current working draft."
+              ? "Choose a named project saved in this browser. Your current named project is saved before opening another design. An unnamed draft will be replaced."
               : `${projects.length} saved project${projects.length === 1 ? "" : "s"} in this browser.`}
           </DialogDescription>
         </DialogHeader>
@@ -2352,8 +2374,8 @@ function ProjectControls({
             <AlertDialogHeader>
               <AlertDialogTitle>Start a new project?</AlertDialogTitle>
               <AlertDialogDescription>
-                This clears the current shapes, pockets, and bin settings. Named
-                projects remain in the Project Library; an unnamed draft will be
+                Saves the latest changes to your named project, then starts with
+                empty shapes, pockets, and bin settings. An unnamed draft will be
                 replaced.
               </AlertDialogDescription>
             </AlertDialogHeader>
@@ -2375,7 +2397,7 @@ function ProjectControls({
       <section aria-label="Portable backup" className="space-y-3 border-t pt-3" data-testid="portable-backup">
         <h3 className="text-sm font-semibold">Portable Backup</h3>
         <div className="space-y-1.5" data-testid="project-file-backup">
-        <SettingLabel label="Current project" hint="Exports this design as an editable .pocketry.json file. Opening a project file replaces the working draft; saved library projects stay intact." />
+        <SettingLabel label="Current project" hint="Exports this design as an editable .pocketry.json file. Opening a project file first saves the latest changes to your named project, then replaces the working draft." />
         <div className="grid grid-cols-2 gap-2">
           <Button
             variant="outline"

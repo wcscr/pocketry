@@ -3,6 +3,7 @@ import { set } from "idb-keyval";
 import { PROJECT_SCHEMA_VERSION, parseProjectDoc } from "@shared/gridfinity/project";
 import { type LibraryBackup } from "@shared/gridfinity/library";
 import airdusterV9 from "@shared/gridfinity/fixtures/airduster-v9.pocketry.json";
+import ryobiReloadFixture from "@shared/gridfinity/fixtures/ryobi-split-reload.pocketry.json";
 import {
   exportProjectLibrary, importProjectLibrary, loadProjectDoc,
   loadProjectLibrary, openProjectFromLibrary, saveProjectDoc, saveProjectToLibrary,
@@ -25,6 +26,26 @@ const backup = (docs: Record<string, unknown>[] = [DOC]): LibraryBackup => ({
 beforeEach(() => { memory.clear(); vi.clearAllMocks(); });
 
 describe("library JSON transfer", () => {
+  it("preserves the Ryobi split through repeated project switches, reloads and library exports", async () => {
+    const cutter = parseProjectDoc(ryobiReloadFixture)!;
+    const imported = await importProjectLibrary(backup([cutter, DOC]));
+    const [cutterEntry, otherEntry] = imported.library.projects;
+    for (let round = 0; round < 3; round++) {
+      await openProjectFromLibrary(otherEntry.id);
+      const opened = await openProjectFromLibrary(cutterEntry.id);
+      expect(opened.doc.cutouts).toEqual(cutter.cutouts);
+      expect(opened.doc.shapes).toEqual(cutter.shapes);
+      await saveProjectDoc(opened.doc);
+      expect((await loadProjectDoc())!.cutouts).toEqual(cutter.cutouts);
+    }
+    const exported = JSON.parse(JSON.stringify(await exportProjectLibrary()));
+    memory.clear();
+    await importProjectLibrary(exported);
+    const restored = await openProjectFromLibrary(cutterEntry.id);
+    expect(restored.doc.cutouts).toEqual(cutter.cutouts);
+    expect(restored.doc.shapes).toEqual(cutter.shapes);
+  });
+
   it("round-trips all named designs, shapes, materials and metadata into an empty library", async () => {
     await saveProjectToLibrary(DOC, "Tools", null);
     await saveProjectToLibrary({ ...DOC, keepBinSize: true }, "Fixed tools", null);

@@ -12,6 +12,8 @@ import { fingerHoleSchema, resolvePocketDepth, parseCutoutPlacement, type Traced
 import { parseBinSpec } from "@shared/gridfinity/types";
 import { downloadBlob } from "@/lib/download";
 import { useBinGeometry } from "@/lib/gridfinity/use-bin-geometry";
+import { footprintOuterRingMm, occupiedCellCount } from "@shared/gridfinity/footprint";
+import ryobiReloadFixture from "@shared/gridfinity/fixtures/ryobi-split-reload.pocketry.json";
 
 /**
  * Structure smoke tests for the bin designer page, following the pattern of
@@ -32,6 +34,7 @@ vi.mock("@/components/gridfinity/bin-viewport", () => ({
     showPocketFloorColor,
     showStackingRimColor,
     measurementOutlines,
+    measurementSplitBoundaries,
   }: {
     fitSize: { widthMm: number; lengthMm: number; heightMm: number };
     hasPocketFloor: boolean;
@@ -42,6 +45,7 @@ vi.mock("@/components/gridfinity/bin-viewport", () => ({
     showPocketFloorColor: boolean;
     showStackingRimColor: boolean;
     measurementOutlines: readonly unknown[];
+    measurementSplitBoundaries: readonly unknown[];
   }) => (
     <div
       data-testid="bin-viewport-stub"
@@ -57,6 +61,7 @@ vi.mock("@/components/gridfinity/bin-viewport", () => ({
       data-bin-color={binColor}
       data-floor-color={pocketFloorColor}
       data-rim-color={stackingRimColor}
+      data-measurement-splits={JSON.stringify(measurementSplitBoundaries)}
     >
       <button
         type="button"
@@ -102,7 +107,7 @@ vi.mock("@/lib/gridfinity/use-bin-geometry", () => ({
 vi.mock("@/lib/project/persist", () => ({
   loadProjectDoc: vi.fn(async () => null),
   loadProjectLibrary: vi.fn(async () => ({ activeProjectId: null, projects: [] })),
-  saveProjectDoc: vi.fn(async () => {}),
+  saveProjectDoc: vi.fn(async () => true),
   saveProjectToLibrary: vi.fn(),
   renameProjectInLibrary: vi.fn(),
   openProjectFromLibrary: vi.fn(),
@@ -204,6 +209,7 @@ beforeEach(() => {
   binGeometryMock.hasPocketFloor = false;
   binGeometryMock.hasStackingRim = true;
   vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(null);
+  vi.mocked(ProjectPersistence.saveProjectDoc).mockResolvedValue(true);
   vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({
     activeProjectId: null,
     projects: [],
@@ -264,6 +270,304 @@ function selectPocket(container: HTMLElement, id: string): void {
 }
 
 describe("BinDesignerPage", () => {
+  it.each(["new", "file"])("saves pending edits before replacing a named project via %s, and stops on save failure", async action => {
+    const cutter = parseProjectDoc(ryobiReloadFixture)!;
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(cutter);
+    vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId: "cutter", projects: [
+      { id: "cutter", name: "Ryobi Cutter", updatedAt: "2026-09-13T14:50:27.853Z" },
+    ] });
+    let finishSave!: (success: boolean) => void;
+    vi.mocked(ProjectPersistence.saveProjectDoc).mockImplementation(() =>
+      new Promise(resolve => { finishSave = resolve; }));
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      selectPocket(container, cutter.cutouts[0].id);
+      const depth = container.querySelector<HTMLInputElement>('[aria-label="Pocket cut depth in millimetres"]')!;
+      React.act(() => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(depth, "14");
+        depth.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      React.act(() => depth.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+      const edited = vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts;
+      openSettingsSection(container, "project");
+      const replace = async () => {
+        if (action === "new") {
+          React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-new-project"]')!.click());
+          await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-confirm-new-project"]')!.click());
+        } else {
+          const input = container.querySelector<HTMLInputElement>('input[type="file"][accept*=".pocketry.json"]')!;
+          const file = new File([JSON.stringify(EMPTY_PROJECT)], "Other.pocketry.json");
+          Object.defineProperty(file, "text", { value: async () => JSON.stringify(EMPTY_PROJECT) });
+          Object.defineProperty(input, "files", { value: [file], configurable: true });
+          await React.act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
+        }
+      };
+      await replace();
+      expect(ProjectPersistence.saveProjectDoc).toHaveBeenCalledWith(expect.objectContaining({ cutouts: edited }));
+      expect(ProjectPersistence.startNewProject).not.toHaveBeenCalled();
+      await React.act(async () => finishSave(false));
+      expect(ProjectPersistence.startNewProject).not.toHaveBeenCalled();
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toEqual(edited);
+      await replace();
+      expect(ProjectPersistence.startNewProject).not.toHaveBeenCalled();
+      await React.act(async () => finishSave(true));
+      expect(ProjectPersistence.startNewProject).toHaveBeenCalledOnce();
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toEqual([]);
+    } finally { unmount(); }
+  });
+
+  it("keeps the current design open when saving before a project switch fails", async () => {
+    const cutter = parseProjectDoc(ryobiReloadFixture)!;
+    const projects = [
+      { id: "cutter", name: "Ryobi Cutter", updatedAt: "2026-09-13T14:50:27.853Z" },
+      { id: "other", name: "Other bin", updatedAt: "2026-09-13T14:50:27.853Z" },
+    ];
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(cutter);
+    vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId: "cutter", projects });
+    vi.mocked(ProjectPersistence.saveProjectDoc).mockResolvedValue(false);
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      openSettingsSection(container, "project");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-open-library"]')!.click());
+      await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-open-project-other"]')!.click());
+      expect(ProjectPersistence.openProjectFromLibrary).not.toHaveBeenCalled();
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toEqual(cutter.cutouts);
+      expect(container.querySelector('[data-testid="project-autosave-status"]')?.textContent).toContain("Ryobi Cutter");
+      expect(document.querySelector<HTMLButtonElement>('[data-testid="button-open-project-other"]')!.disabled).toBe(false);
+    } finally { unmount(); }
+  });
+
+  it("saves both edited section depths before switching projects and reloading the cutter", async () => {
+    const intended = parseProjectDoc(ryobiReloadFixture)!;
+    const reversed = structuredClone(intended);
+    reversed.cutouts[0].split!.depths.reverse();
+    const projects = [
+      { id: "cutter", name: "Ryobi Cutter", updatedAt: "2026-09-13T14:50:27.853Z" },
+      { id: "other", name: "Other bin", updatedAt: "2026-09-13T14:50:27.853Z" },
+    ];
+    const saved = new Map([["cutter", reversed], ["other", EMPTY_PROJECT]]);
+    let activeProjectId = "cutter";
+    let finishSave!: (success: boolean) => void;
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(reversed);
+    vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId, projects });
+    // Leave autosave pending so only the project-switch path can preserve edits.
+    vi.mocked(ProjectPersistence.saveProjectDoc).mockImplementationOnce(doc =>
+      new Promise(resolve => { finishSave = success => {
+        if (success) saved.set(activeProjectId, structuredClone(doc));
+        resolve(success);
+      }; }),
+    ).mockImplementation(async doc => { saved.set(activeProjectId, structuredClone(doc)); return true; });
+    vi.mocked(ProjectPersistence.openProjectFromLibrary).mockImplementation(async id => {
+      activeProjectId = id;
+      return { doc: structuredClone(saved.get(id)!), project: projects.find(project => project.id === id)!,
+        library: { activeProjectId, projects } };
+    });
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      selectPocket(container, intended.cutouts[0].id);
+      const setDepth = (value: string) => {
+        const input = container.querySelector<HTMLInputElement>('[aria-label="Pocket cut depth in millimetres"]')!;
+        React.act(() => {
+          Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
+          input.dispatchEvent(new Event("input", { bubbles: true }));
+        });
+        React.act(() => input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+      };
+      setDepth("16");
+      React.act(() => Array.from(container.querySelectorAll('button')).find(button => button.textContent === "Section B")!.click());
+      setDepth("55");
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0].split).toEqual(intended.cutouts[0].split);
+      openSettingsSection(container, "project");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-open-library"]')!.click());
+      await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-open-project-other"]')!.click());
+      expect(ProjectPersistence.saveProjectDoc).toHaveBeenCalledWith(expect.objectContaining({ cutouts: intended.cutouts }));
+      expect(ProjectPersistence.openProjectFromLibrary).not.toHaveBeenCalled();
+      await React.act(async () => finishSave(true));
+      expect(activeProjectId).toBe("other");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-open-library"]')!.click());
+      await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-open-project-cutter"]')!.click());
+      expect(activeProjectId).toBe("cutter");
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toEqual(intended.cutouts);
+    } finally { unmount(); }
+  });
+
+  it("keeps a split attached through a neighbouring contour edit and undo/redo", async () => {
+    const shape = rectangularShape("tool", "Cutter");
+    const cutout = parseCutoutPlacement({ id: "split-test", shapeId: shape.id, position: { x: 0, y: 0 },
+      split: { boundary: [{ x: 0, y: -10 }, { x: 0, y: 10 }], depths: [{ mode: "mm", value: 6 }, { mode: "mm", value: 20 }] } });
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape], cutouts: [cutout] });
+    const { container, unmount } = renderPage();
+    await flushHydration();
+    try {
+      selectPocket(container, cutout.id);
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-edit-contour"]')!.click());
+      const svg = container.querySelector<SVGSVGElement>('[data-testid="layout-canvas"]')!;
+      Object.defineProperty(svg.querySelector('g')!, 'getScreenCTM', { value: () => ({ inverse: () => ({}) }) });
+      Object.defineProperties(svg, {
+        createSVGPoint: { value: () => ({ x: 0, y: 0, matrixTransform() { return { x: this.x, y: this.y }; } }) },
+        setPointerCapture: { value: () => {} },
+      });
+      const guide = () => container.querySelector('[data-testid="pocket-split-split-test"] > path:last-child')!.getAttribute('d');
+      const originalGuide = guide();
+      const vertex = svg.querySelectorAll('[data-testid="contour-vertex-handle"]')[2];
+      const pointer = (target: Element, type: string, y: number) => React.act(() => {
+        const event = new MouseEvent(type, { bubbles: true, button: 0, clientX: 56.75, clientY: y });
+        Object.defineProperty(event, 'pointerId', { value: 1 });
+        target.dispatchEvent(event);
+      });
+      // Move the top-right vertex, away from either split endpoint at x=0.
+      pointer(vertex, 'pointerdown', 31.75);
+      pointer(svg, 'pointermove', 27.75);
+      expect(guide()).toBe('M41.75,51.75 L41.75,29.75');
+      pointer(svg, 'pointerup', 27.75);
+      expect(guide()).toBe('M41.75,51.75 L41.75,29.75');
+      expect(container.querySelector('[data-testid="selected-pocket-section"]')).not.toBeNull();
+      const latest = vi.mocked(useBinGeometry).mock.lastCall![2]!;
+      expect(latest.cutouts[0].split).toEqual(cutout.split);
+      expect(latest.cutouts[0].shapeId).not.toBe(shape.id);
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+      expect(guide()).toBe(originalGuide);
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+      expect(guide()).toBe('M41.75,51.75 L41.75,29.75');
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0].split).toEqual(cutout.split);
+      React.act(() => [...container.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === '3D')!.click());
+      const paths = JSON.parse(container.querySelector('[data-testid="bin-viewport-stub"]')!.getAttribute('data-measurement-splits')!);
+      expect(paths).toEqual([[{ x: 0, y: -10 }, { x: 0, y: 12 }]]);
+    } finally { unmount(); }
+  });
+
+  it("measures from a transformed split to the perimeter without changing the pocket", async () => {
+    const shape = rectangularShape("tool", "Cutter");
+    const cutout = parseCutoutPlacement({ id: "split-test", shapeId: shape.id, position: { x: 3, y: -2 },
+      rotationDeg: 90, mirrored: true, scaleX: 1.5, scaleY: 0.8,
+      split: { boundary: [{ x: 0, y: -10 }, { x: 0, y: 10 }], depths: [{ mode: "mm", value: 6 }, { mode: "mm", value: 20 }] } });
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape], cutouts: [cutout] });
+    const { container, unmount } = renderPage();
+    await flushHydration();
+    // The 3D ruler receives the same placed split path as Layout.
+    const paths = JSON.parse(container.querySelector('[data-testid="bin-viewport-stub"]')!.getAttribute('data-measurement-splits')!);
+    expect(paths).toHaveLength(1);
+    expect(paths[0][0].x).toBeCloseTo(11);
+    expect(paths[0][0].y).toBeCloseTo(-2);
+    expect(paths[0][1].x).toBeCloseTo(-5);
+    expect(paths[0][1].y).toBeCloseTo(-2);
+    React.act(() => [...container.querySelectorAll<HTMLButtonElement>('button')].find(b => b.textContent === 'Layout')!.click());
+    const svg = container.querySelector<SVGSVGElement>('[data-testid="layout-canvas"]')!;
+    Object.defineProperty(svg.querySelector('g')!, 'getScreenCTM', { value: () => ({ inverse: () => ({}) }) });
+    Object.defineProperty(svg, 'createSVGPoint', { value: () => ({ x: 0, y: 0, matrixTransform() { return { x: this.x, y: this.y }; } }) });
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-layout-ruler"]')!.click());
+    for (const y of [43.95, 66.05]) React.act(() => svg.dispatchEvent(
+      new MouseEvent('pointerdown', { bubbles: true, button: 0, clientX: 44.75, clientY: y }),
+    ));
+    expect(container.querySelector('[data-testid="layout-measurement-label"]')?.textContent).toBe('22.50 mm');
+    expect(container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.disabled).toBe(true);
+    unmount();
+  });
+
+  it.each(["clicks", "drag"])("creates and edits a split with %s, and removes/undoes it without changing the outline", async gesture => {
+    const shape = rectangularShape("tool", "Cutter");
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape],
+      cutouts: [parseCutoutPlacement({ id: "split-test", shapeId: shape.id, position: { x: 0, y: 0 }, depth: { mode: "mm", value: 20 } })] });
+    const { container, unmount } = renderPage();
+    await flushHydration();
+    selectPocket(container, "split-test");
+    const button = (label: string) => [...container.querySelectorAll<HTMLButtonElement>('button')].find(b => b.textContent === label)!;
+    React.act(() => button("Split pocket").click());
+    const svg = container.querySelector<SVGSVGElement>('[data-testid="layout-canvas"]')!;
+    Object.defineProperty(svg.querySelector('g')!, 'getScreenCTM', { value: () => ({ inverse: () => ({}) }) });
+    Object.defineProperties(svg, {
+      createSVGPoint: { value: () => ({ x: 0, y: 0, matrixTransform() { return { x: this.x, y: this.y }; } }) },
+      setPointerCapture: { value: () => {} },
+    });
+    const path = svg.querySelector('[data-cutout-id="split-test"]')!;
+    const outline = path.getAttribute('d');
+    const pointer = (type: string, x: number, y: number) => React.act(() => {
+      const event = new MouseEvent(type, { bubbles: true, button: 0, clientX: x, clientY: y });
+      Object.defineProperty(event, 'pointerId', { value: 1 });
+      path.dispatchEvent(event);
+    });
+    pointer('pointerdown', 41.75, 31.75);
+    if (gesture === 'clicks') {
+      pointer('pointerup', 41.75, 31.75);
+      pointer('pointerdown', 41.75, 51.75);
+    } else pointer('pointermove', 41.75, 51.75);
+    pointer('pointerup', 41.75, 51.75);
+    expect(container.querySelector('[data-testid="pocket-split-split-test"]')).not.toBeNull();
+    expect(path.getAttribute('d')).toBe(outline);
+    const depth = () => container.querySelector<HTMLInputElement>('[aria-label="Pocket cut depth in millimetres"]')!;
+    expect(depth().value).toBe('20');
+    React.act(() => button("Section B").click());
+    React.act(() => {
+      depth().focus();
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(depth(), '6');
+      depth().dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    React.act(() => depth().blur());
+    expect(depth().value).toBe('6');
+    React.act(() => button("Section A").click());
+    expect(depth().value).toBe('20');
+    // Clicking the corresponding canvas region selects B and exposes its depth.
+    pointer('pointerdown', 31.75, 41.75); pointer('pointerup', 31.75, 41.75);
+    expect(depth().value).toBe('6');
+    // Move the split slightly, drawing from the opposite end. The shallow
+    // region must remain on the same physical side, including after undo/redo.
+    React.act(() => button("Redraw split").click());
+    pointer('pointerdown', 43.75, 51.75);
+    if (gesture === 'clicks') {
+      pointer('pointerup', 43.75, 51.75);
+      pointer('pointerdown', 43.75, 31.75);
+    } else pointer('pointermove', 43.75, 31.75);
+    pointer('pointerup', 43.75, 31.75);
+    pointer('pointerdown', 31.75, 41.75); pointer('pointerup', 31.75, 41.75);
+    expect(depth().value).toBe('6');
+    expect(path.getAttribute('d')).toBe(outline);
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+    expect(depth().value).toBe('6');
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+    pointer('pointerdown', 31.75, 41.75); pointer('pointerup', 31.75, 41.75);
+    expect(depth().value).toBe('6');
+    React.act(() => button("Remove split").click());
+    expect(depth().value).toBe('20');
+    expect(container.querySelector('[data-testid="pocket-split-split-test"]')).toBeNull();
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+    expect(depth().value).toBe('6');
+    expect(path.getAttribute('d')).toBe(outline);
+    unmount();
+  });
+
+  it("leaves no split or history entry after an invalid boundary or cancellation", async () => {
+    const shape = rectangularShape("tool", "Cutter");
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape],
+      cutouts: [parseCutoutPlacement({ id: "split-test", shapeId: shape.id, position: { x: 0, y: 0 } })] });
+    const { container, unmount } = renderPage();
+    await flushHydration(); selectPocket(container, "split-test");
+    React.act(() => [...container.querySelectorAll<HTMLButtonElement>('button')].find(b => b.textContent === 'Layout')!.click());
+    const ruler = container.querySelector<HTMLButtonElement>('[aria-label="Measure between contours"]')!;
+    React.act(() => ruler.click());
+    expect(ruler.getAttribute('aria-pressed')).toBe('true');
+    React.act(() => [...container.querySelectorAll<HTMLButtonElement>('button')].find(b => b.textContent === 'Split pocket')!.click());
+    expect(ruler.getAttribute('aria-pressed')).toBe('false');
+    const svg = container.querySelector<SVGSVGElement>('[data-testid="layout-canvas"]')!;
+    Object.defineProperty(svg.querySelector('g')!, 'getScreenCTM', { value: () => ({ inverse: () => ({}) }) });
+    Object.defineProperties(svg, {
+      createSVGPoint: { value: () => ({ x: 0, y: 0, matrixTransform() { return { x: this.x, y: this.y }; } }) },
+      setPointerCapture: { value: () => {} },
+    });
+    for (const x of [31.75, 41.75]) React.act(() => {
+      const event = new MouseEvent('pointerdown', { bubbles: true, button: 0, clientX: x, clientY: 31.75 });
+      Object.defineProperty(event, 'pointerId', { value: 1 }); svg.dispatchEvent(event);
+    });
+    expect(container.textContent).toContain('not along its edge');
+    React.act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })));
+    expect(container.querySelector('[data-testid="pocket-split-draft"]')).toBeNull();
+    expect(container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.disabled).toBe(true);
+    unmount();
+  });
+
   it("switches pockets in their fixed section without changing section order or entering rename", async () => {
     const first = rectangularShape("first-shape", "Wrench");
     const second = rectangularShape("second-shape", "Pliers");
@@ -581,6 +885,7 @@ describe("BinDesignerPage", () => {
     ["single-color-3mf", "", "3mf"],
     ["multicolor-3mf", "-multicolor", "3mf"],
     ["surface-fit-test", "-surface-fit-test-1.2mm", "stl"],
+    ["surface-outline", "-tool-outlines-5mm-wide-1.2mm-thick", "stl"],
     ["fit-check", "-Wrench-fit-template-2mm", "stl"],
     ["layout-svg", "-layout", "svg"],
     ["layout-dxf", "-layout", "dxf"],
@@ -618,9 +923,14 @@ describe("BinDesignerPage", () => {
           selectPocket(container, "pocket");
         });
       }
-      openSettingsSection(container, kind === "surface-fit-test" || kind === "fit-check" || kind.startsWith("layout-") ? "check-fit" : "export");
+      openSettingsSection(container, kind.startsWith("surface-") || kind === "fit-check" || kind.startsWith("layout-") ? "check-fit" : "export");
+      if (kind === "surface-outline") {
+        React.act(() => container.querySelector('[data-testid="select-surface-fit-test-style"]')!.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true })));
+        React.act(() => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(option => option.textContent === "Tool outlines · 5 mm")!.click());
+      }
       await React.act(async () => {
-        const button = kind.startsWith("layout-") ? `button-${kind}` : `button-export-${kind.endsWith("3mf") ? "3mf" : kind}`;
+        const button = kind === "surface-outline" ? "button-export-surface-fit-test"
+          : kind.startsWith("layout-") ? `button-${kind}` : `button-export-${kind.endsWith("3mf") ? "3mf" : kind}`;
         container.querySelector<HTMLButtonElement>(`[data-testid="${button}"]`)!.click();
       });
       expect(downloadBlob).not.toHaveBeenCalled();
@@ -632,6 +942,9 @@ describe("BinDesignerPage", () => {
         document.querySelector<HTMLButtonElement>(`[data-testid="${button}"]`)!.click();
       });
       expect(downloadBlob).toHaveBeenCalledTimes(includeProject ? 2 : 1);
+      if (kind.startsWith("surface-")) {
+        expect(binGeometryMock.buildSurfaceFitCheck).toHaveBeenCalledWith(1.2, expect.any(Object), kind === "surface-outline" ? "outline" : "full");
+      }
       const [model, modelName] = vi.mocked(downloadBlob).mock.calls.at(-1)!;
       expect(modelName).toMatch(new RegExp(`^Layout-2-bin-4x4x6\\.5${suffix.replaceAll(".", "\\.")}-\\d{4}-\\d{2}-\\d{2}_\\d{2}-\\d{2}-\\d{2}-\\d{3}\\.${extension}$`));
       expect(model.size).toBeGreaterThan(84);
@@ -710,6 +1023,52 @@ describe("BinDesignerPage", () => {
     React.act(() => control("Flat bottom").click());
     expect(control("Magnet holes").getAttribute("aria-checked")).toBe("true");
     unmount();
+  });
+
+  it("switches a custom bin across full, half and quarter pitches without moving its split pocket", async () => {
+    const shape = rectangularShape("tool", "Cutter");
+    const cutout = parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: -20, y: -20 },
+      split: { boundary: [{ x: 0, y: -10 }, { x: 0, y: 10 }], depths: [{ mode: "mm", value: 6 }, { mode: "mm", value: 20 }] } });
+    const original = parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6, flatBottom: true,
+      footprint: { kind: "custom", cells: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }] } });
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, spec: original, shapes: [shape], cutouts: [cutout] });
+    const { container, unmount } = renderPage();
+    await flushHydration();
+    try {
+      const trigger = container.querySelector<HTMLButtonElement>('[data-testid="select-grid-pitch"]')!;
+      expect(trigger.textContent).toBe("Full · 42 mm");
+      for (const [label, count] of [["Half · 21 mm", 12], ["Quarter · 10.5 mm", 48], ["Full · 42 mm", 3]] as const) {
+        React.act(() => trigger.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true })));
+        const options = [...document.querySelectorAll<HTMLElement>('[role="option"]')];
+        expect(options.every(option => option.getAttribute("aria-disabled") !== "true")).toBe(true);
+        React.act(() => options.find(option => option.textContent === label)!.click());
+        const [spec, , layout] = vi.mocked(useBinGeometry).mock.lastCall!;
+        expect(occupiedCellCount(spec)).toBe(count);
+        expect(footprintOuterRingMm(spec, 32)).toEqual(footprintOuterRingMm(original, 32));
+        expect(layout?.cutouts).toEqual([cutout]);
+        expect(container.querySelector("#bin-settings-size")?.textContent).toContain("Outer size 83.5 × 83.5 × 45.6 mm");
+      }
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+      expect(trigger.textContent).toBe("Quarter · 10.5 mm");
+      expect(occupiedCellCount(vi.mocked(useBinGeometry).mock.lastCall![0])).toBe(48);
+    } finally { unmount(); }
+  });
+
+  it("disables only a pitch that would alter a custom footprint", async () => {
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT,
+      spec: parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6, gridPitch: "half",
+        footprint: { kind: "custom", cells: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }] } }) });
+    const { container, unmount } = renderPage();
+    await flushHydration();
+    try {
+      const trigger = container.querySelector<HTMLButtonElement>('[data-testid="select-grid-pitch"]')!;
+      expect(trigger.textContent).toBe("Half · 21 mm");
+      React.act(() => trigger.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true })));
+      const options = [...document.querySelectorAll<HTMLElement>('[role="option"]')];
+      expect(options.find(option => option.textContent === "Full · 42 mm (would change shape)")?.getAttribute("aria-disabled")).toBe("true");
+      expect(options.find(option => option.textContent === "Half · 21 mm")?.getAttribute("aria-disabled")).not.toBe("true");
+      expect(options.find(option => option.textContent === "Quarter · 10.5 mm")?.getAttribute("aria-disabled")).not.toBe("true");
+    } finally { unmount(); }
   });
 
   it("switches a 3 by 5 bin to quarter pitch and edits beyond 16 small cells", async () => {
@@ -1949,7 +2308,7 @@ describe("BinDesignerPage", () => {
     React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
     await flushHydration();
     const open = () => document.querySelector<HTMLButtonElement>('[data-testid="button-open-project-saved"]')!;
-    React.act(() => open().click());
+    await React.act(async () => open().click());
     expect(open().disabled).toBe(true);
     expect(document.querySelector<HTMLButtonElement>('[data-testid="button-remove-project-saved"]')!.disabled).toBe(true);
     React.act(() => document.querySelector('[data-testid="library-project-saved"]')!.dispatchEvent(new MouseEvent("dblclick", { bubbles: true })));
@@ -2416,7 +2775,8 @@ describe("BinDesignerPage", () => {
     expect(container.textContent).toContain("Export printable bin");
     openSettingsSection(container, "check-fit");
     expect(container.textContent).toContain("Fit templates and layout");
-    expect(container.textContent).toContain("Complete surface fit test");
+    expect(container.textContent).toContain("Surface fit test");
+    expect(container.querySelector('[data-testid="select-surface-fit-test-style"]')?.textContent).toBe("Full surface");
     expect(container.textContent).toContain("Save surface fit test STL");
     expect(
       (

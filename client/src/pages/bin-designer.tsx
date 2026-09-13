@@ -1,4 +1,5 @@
 import { Box, History, Redo2, Undo2 } from "lucide-react";
+import { pocketDepths } from "@shared/gridfinity/cutout";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { CanvasWarnings } from "@/components/gridfinity/canvas-warnings";
@@ -17,6 +18,7 @@ import {
   type ProjectDoc,
 } from "@shared/gridfinity/project";
 import { placementFootprint } from "@shared/gridfinity/cutout";
+import { SURFACE_FIT_CHECK_OUTLINE_WIDTH_MM, type SurfaceFitCheckStyle } from "@shared/gridfinity/fit-check";
 
 import {
   autoArrangeLayout,
@@ -31,6 +33,7 @@ import {
   PREVIEW_QUALITY,
 } from "@/lib/gridfinity/bin";
 import { useBinGeometry } from "@/lib/gridfinity/use-bin-geometry";
+import { placedPocketSplitBoundaries } from "@/lib/gridfinity/layout-measure";
 import type { BuildBinSection } from "@/lib/gridfinity/worker-api";
 import { downloadBlob } from "@/lib/download";
 import {
@@ -57,6 +60,7 @@ import {
   loadProjectLibrary,
   openProjectFromLibrary,
   renameProjectInLibrary,
+  saveProjectDoc,
   saveProjectToLibrary,
   startNewProject,
   type ProjectLibrarySnapshot,
@@ -317,6 +321,11 @@ function BinDesignerWorkspace(): JSX.Element {
     });
   }, [previewLayout]);
 
+  const measurementSplitBoundaries = useMemo(
+    () => placedPocketSplitBoundaries(previewLayout.cutouts, new Map(previewLayout.shapes.map(shape => [shape.id, shape]))),
+    [previewLayout],
+  );
+
   const {
     geometry,
     pocketFloorGeometry,
@@ -468,6 +477,15 @@ function BinDesignerWorkspace(): JSX.Element {
     }
   }, [toast]);
 
+  /** Save while the outgoing named project still owns the autosave target. */
+  const saveBeforeReplacingProject = useCallback(async () => {
+    saveProject.cancel();
+    if (!projectLibrary.activeProjectId) return;
+    const saved = await saveProjectDoc(currentProjectDoc);
+    setSaveStatus(saved ? "saved" : "error");
+    if (!saved) throw new Error("Your current changes could not be saved. The current project has been kept open.");
+  }, [saveProject, currentProjectDoc, projectLibrary.activeProjectId]);
+
   const handleImportProject = useCallback(
     async (file: File) => {
       let parsed: unknown;
@@ -487,8 +505,8 @@ function BinDesignerWorkspace(): JSX.Element {
       }
       doc.name ??= file.name.replace(/\.(?:pocketry|tooltrace)\.json$/i, "").replace(/\.json$/i, "").replace(/[-_]+/g, " ").trim().slice(0, 80) || "Imported project";
       setProjectBusy(true);
-      saveProject.cancel();
       try {
+        await saveBeforeReplacingProject();
         const saved = await startNewProject(doc);
         setDraftName(doc.name ?? null);
         setKeepBinSize(doc.keepBinSize ?? false);
@@ -515,7 +533,7 @@ function BinDesignerWorkspace(): JSX.Element {
         setProjectBusy(false);
       }
     },
-    [library, dispatch, saveProject, toast],
+    [library, dispatch, saveBeforeReplacingProject, toast],
   );
 
   const handleNewProject = useCallback(async () => {
@@ -527,8 +545,8 @@ function BinDesignerWorkspace(): JSX.Element {
       fingerHoles: [],
     };
     setProjectBusy(true);
-    saveProject.cancel();
     try {
+      await saveBeforeReplacingProject();
       const saved = await startNewProject(doc);
       setDraftName(null);
       setKeepBinSize(false);
@@ -543,7 +561,7 @@ function BinDesignerWorkspace(): JSX.Element {
       setProjectLibrary(saved);
       toast({
         title: "New project ready",
-        description: "Saved library projects are unchanged.",
+        description: "Ready for a new design.",
       });
     } catch (cause) {
       toast({
@@ -554,7 +572,7 @@ function BinDesignerWorkspace(): JSX.Element {
     } finally {
       setProjectBusy(false);
     }
-  }, [library, dispatch, saveProject, toast]);
+  }, [library, dispatch, saveBeforeReplacingProject, toast]);
 
   const handleSaveProject = useCallback(async (name: string): Promise<boolean> => {
     setProjectBusy(true);
@@ -627,8 +645,8 @@ function BinDesignerWorkspace(): JSX.Element {
 
   const handleOpenProject = useCallback(async (projectId: string): Promise<boolean> => {
     setProjectBusy(true);
-    saveProject.cancel();
     try {
+      await saveBeforeReplacingProject();
       const opened = await openProjectFromLibrary(projectId);
       setDraftName(opened.project.name);
       setKeepBinSize(opened.doc.keepBinSize ?? false);
@@ -656,7 +674,7 @@ function BinDesignerWorkspace(): JSX.Element {
     } finally {
       setProjectBusy(false);
     }
-  }, [library, dispatch, saveProject, toast]);
+  }, [library, dispatch, saveBeforeReplacingProject, toast]);
 
   const handleDeleteProject = useCallback(
     async (projectId: string): Promise<boolean> => {
@@ -724,7 +742,7 @@ function BinDesignerWorkspace(): JSX.Element {
         const includePocketFloors =
           multicolor &&
           colorPocketFloors &&
-          exportProjectDoc.cutouts.some((cutout) => cutout.depth.mode !== "through");
+          exportProjectDoc.cutouts.some((cutout) => pocketDepths(cutout).some(depth => depth.mode !== "through"));
         const includeStackingRim =
           multicolor && colorStackingRim && exportProjectDoc.spec.lip === "standard";
         const result = await buildOnce(EXPORT_QUALITY, {
@@ -901,7 +919,7 @@ function BinDesignerWorkspace(): JSX.Element {
   );
 
   const handleExportSurfaceFitCheck = useCallback(
-    async (thicknessMm: number, includeProject: boolean) => {
+    async (thicknessMm: number, includeProject: boolean, style: SurfaceFitCheckStyle) => {
       setExporting(true);
       try {
         const label = binSizeLabel(exportProjectDoc.spec);
@@ -909,12 +927,13 @@ function BinDesignerWorkspace(): JSX.Element {
         const project = prepareProjectExport(
           exportProjectDoc,
           currentProjectName,
-          `surface-fit-test-${thicknessLabel}mm`,
+          style === "outline" ? `tool-outlines-${SURFACE_FIT_CHECK_OUTLINE_WIDTH_MM}mm-wide-${thicknessLabel}mm-thick`
+            : `surface-fit-test-${thicknessLabel}mm`,
         );
-        const result = await buildSurfaceFitCheck(thicknessMm, EXPORT_QUALITY);
+        const result = await buildSurfaceFitCheck(thicknessMm, EXPORT_QUALITY, style);
         const stl = writeBinarySTL(
           { positions: result.mesh.positions, indices: result.mesh.indices },
-          `Pocketry ${label} surface fit test ${thicknessLabel} mm`,
+          `Pocketry ${label} ${style === "outline" ? "tool outlines" : "surface fit test"} ${thicknessLabel} mm`,
         );
         downloadModelWithProject(
           new Blob([stl], { type: "application/octet-stream" }),
@@ -924,7 +943,7 @@ function BinDesignerWorkspace(): JSX.Element {
         );
         toast({
           title: "Surface fit test saved",
-          description: `Exported the complete pocket-layout surface at ${thicknessLabel} mm thick${includeProject ? " with an editable project JSON" : ""}.`,
+          description: `Exported ${style === "outline" ? `${SURFACE_FIT_CHECK_OUTLINE_WIDTH_MM} mm wide tool outlines` : "the complete pocket-layout surface"} at ${thicknessLabel} mm thick${includeProject ? " with an editable project JSON" : ""}.`,
         });
       } catch (cause) {
         if (!(cause instanceof WorkerCancelledError)) {
@@ -962,8 +981,8 @@ function BinDesignerWorkspace(): JSX.Element {
           onExportFitCheck={(cutoutId, depthMm, includeProject) =>
             void handleExportFitCheck(cutoutId, depthMm, includeProject)
           }
-          onExportSurfaceFitCheck={(thicknessMm, includeProject) =>
-            void handleExportSurfaceFitCheck(thicknessMm, includeProject)
+          onExportSurfaceFitCheck={(thicknessMm, includeProject, style) =>
+            void handleExportSurfaceFitCheck(thicknessMm, includeProject, style)
           }
           onExportLayout={handleExportLayout}
           onAutoArrange={handleAutoArrange}
@@ -1026,6 +1045,7 @@ function BinDesignerWorkspace(): JSX.Element {
               error={error}
               fitSize={fitSize}
               measurementOutlines={measurementOutlines}
+              measurementSplitBoundaries={measurementSplitBoundaries}
               measurementPlaneZMm={builtDimensions.heightToRimMm}
             />
           ) : (

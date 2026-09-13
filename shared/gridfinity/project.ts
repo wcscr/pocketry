@@ -31,9 +31,10 @@ import { binSpecSchema } from "./types";
  * Version 13 adds flat-ended cylindrical finger scoops.
  * Version 14 adds flat-bottom slots and a retained slot-end preference.
  * Version 15 adds optional corner rounding for flat-ended slots (absent is sharp).
+ * Version 16 adds an optional boundary and two depths inside one tool pocket.
  */
 
-export const PROJECT_SCHEMA_VERSION = 15 as const;
+export const PROJECT_SCHEMA_VERSION = 16 as const;
 
 const projectFields = {
   shapes: z.array(tracedShapeSchema),
@@ -74,6 +75,7 @@ export const projectDocSchema = z
   .strict();
 
 const version14ProjectSchema = projectDocSchema.extend({ schemaVersion: z.literal(14) });
+const version15ProjectSchema = projectDocSchema.extend({ schemaVersion: z.literal(15) });
 
 const version13ProjectSchema = projectDocSchema.extend({ schemaVersion: z.literal(13) });
 
@@ -163,6 +165,8 @@ export function parseProjectDoc(input: unknown): ProjectDoc | null {
       input = { ...doc, spec };
     }
   }
+  const version15 = version15ProjectSchema.safeParse(input);
+  if (version15.success) return projectDocSchema.parse({ ...version15.data, schemaVersion: PROJECT_SCHEMA_VERSION });
   const version14 = version14ProjectSchema.safeParse(input);
   if (version14.success) return projectDocSchema.parse({ ...version14.data, schemaVersion: PROJECT_SCHEMA_VERSION });
   const version13 = version13ProjectSchema.safeParse(input);

@@ -70,7 +70,12 @@ function context(overrides: Partial<HandlerContext> = {}): HandlerContext {
   };
 }
 
-function nonManifoldEdgeCount(mesh: BuildBinResult["mesh"]): number {
+function nonManifoldEdgeCount(mesh: BuildBinResult["mesh"], weldPositions = false): number {
+  // Render normals duplicate vertices along sharp edges. STL uses positions,
+  // so join those copies when checking a mesh extracted with normals enabled.
+  const vertexKey = (index: number) => weldPositions
+    ? mesh.positions.subarray(index * 3, index * 3 + 3).join(",")
+    : String(index);
   const edgeCounts = new Map<string, number>();
   for (let offset = 0; offset < mesh.indices.length; offset += 3) {
     const triangle = mesh.indices.subarray(offset, offset + 3);
@@ -79,7 +84,9 @@ function nonManifoldEdgeCount(mesh: BuildBinResult["mesh"]): number {
       [triangle[1], triangle[2]],
       [triangle[2], triangle[0]],
     ]) {
-      const key = a < b ? `${a}:${b}` : `${b}:${a}`;
+      const start = vertexKey(a);
+      const end = vertexKey(b);
+      const key = start < end ? `${start}:${end}` : `${end}:${start}`;
       edgeCounts.set(key, (edgeCounts.get(key) ?? 0) + 1);
     }
   }
@@ -580,5 +587,16 @@ describe("complete surface fit test worker handler", () => {
         context(),
       ),
     ).rejects.toThrow("thickness");
+  });
+
+  it("exports the outline style as a smaller manifold mesh at the requested thickness", async () => {
+    const full = await getSurfaceFitCheckHandler()(request("standard"), context());
+    const outline = await getSurfaceFitCheckHandler()({ ...request("standard"), style: "outline" }, context());
+    expect(outline.value.stats.volumeMm3).toBeLessThan(full.value.stats.volumeMm3);
+    expect(outline.value.stats.volumeMm3).toBeGreaterThan(0);
+    expect(nonManifoldEdgeCount(outline.value.mesh, true)).toBe(0);
+    const zs = Array.from(outline.value.mesh.positions).filter((_, i) => i % 3 === 2);
+    expect(Math.min(...zs)).toBeCloseTo(0);
+    expect(Math.max(...zs)).toBeCloseTo(1.2);
   });
 });

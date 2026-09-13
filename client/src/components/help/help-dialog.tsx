@@ -219,7 +219,7 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
             <div className="mb-3 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-foreground">
               <strong>Before printing the full bin:</strong> double-check the
               final dimensions in the 2D Layout view, then print the thin
-              Complete surface fit test when checking a multi-tool layout, or
+              Surface fit test when checking a multi-tool layout, or
               use the Preview/shadow-board layout for a flat dimensional
               review. A quick, inexpensive check can catch scale, spacing, or
               fit errors before a long bin print.
@@ -253,10 +253,14 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
                 as a pocket at its original physical size.
               </li>
               <li>
-                Under <strong>Check fit</strong>, Complete surface fit test exports every pocket
-                and finger-access opening together as one thin STL, without the
-                base, walls, label tab, or stacking lip. It checks the surface
-                layout, but not pocket depth or Gridfinity baseplate fit.
+                Under <strong>Check fit</strong>, Surface fit test offers the
+                <strong> Full surface</strong> or <strong>Tool outlines · 5 mm</strong>.
+                Tool outlines keep a 5 mm material band around each tool opening,
+                without the bin perimeter or separate finger-access holes.
+                Widely spaced tools print as separate pieces. Thickness sets the printed height
+                for either option. Both omit the base, walls, label tab, and
+                stacking lip. Use the full surface to check relative pocket
+                spacing; neither option tests pocket depth or Gridfinity baseplate fit.
               </li>
               <li>
                 Shadow-board Layout DXF and SVG exports contain the bin footprint

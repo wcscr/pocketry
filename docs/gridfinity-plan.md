@@ -112,7 +112,10 @@ preview-only **section view**
 and per-pocket duplicate. The Project
 section is pinned to the top of the Bin controls: a draft resumes automatically,
 Save gives it a library name, Open presents the browser-local named projects,
-and New detaches a clean draft without deleting saved projects. The library is
+and New detaches a clean draft without deleting saved projects. Opening another
+design, opening a project file, and New Project all save the outgoing named
+design's latest edits before changing the autosave target. A failed save keeps
+the current design open. The library is
 implemented entirely over IndexedDB so its behavior is consistent across modern
 browsers; JSON remains an explicit backup/transfer path whose download location
 is browser-controlled.
@@ -420,12 +423,19 @@ second, reusing the existing writer in `client/src/lib/export/stl.ts`. A top-dow
 **bin-layout DXF/SVG** from the 2D editor is nearly free and ties the CNC shadow-board
 product back to the bins. A selected pocket can also export a standalone filled
 fit-template STL for a low-material silhouette check before committing to a bin.
-For the more reliable multi-tool check, **Complete surface fit test** exports
-the bin's full pocket-layout plane as one 0.4–3 mm plate (1.2 mm default), with
+For the more reliable multi-tool check, **Surface fit test** defaults to
+**Full surface**, exporting the bin's pocket-layout plane as one 0.4–3 mm plate
+(1.2 mm default), with
 the real outer footprint, clearances, top-edge rounds, spacing, and finger
 access. It omits the base, wall height, label tab, and stacking lip and moves
 the plate to the build plane; it therefore tests surface fit, not pocket depth
-or baseplate fit.
+or baseplate fit. **Tool outlines · 5 mm** exports material bands around only
+the tool openings, without the bin perimeter or separate finger-access holes.
+The bands extend outwards from the openings and are not clipped to the bin
+footprint. Width is fixed at 5 mm; the same Thickness control sets printed height.
+Widely spaced tools print as separate pieces, so use Full surface to verify
+relative pocket spacing. Tool outlines require at least one tool pocket.
+This is an export option, not a saved bin parameter.
 
 Call `manifold.calculateNormals(0, 60)` before `getMesh()` so normals arrive in the
 standard vertex-property channel. Using three's `computeVertexNormals()` instead

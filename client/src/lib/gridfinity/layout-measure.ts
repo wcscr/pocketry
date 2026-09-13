@@ -1,4 +1,21 @@
 import type { Outline, Point, Ring } from "@shared/geometry/types";
+import { transformPointPlacement, type CutoutPlacement, type TracedShape } from "@shared/gridfinity/cutout";
+import { resolvePocketSplit } from "@shared/gridfinity/pocket-split";
+
+export type MeasurementPaths = readonly (readonly Point[])[];
+
+/** Resolve the current edge intersections before placing finite ruler targets. */
+export function placedPocketSplitBoundaries(
+  cutouts: readonly CutoutPlacement[],
+  shapesById: ReadonlyMap<string, Pick<TracedShape, "outlineMm">>,
+): MeasurementPaths {
+  return cutouts.flatMap(cutout => {
+    const shape = shapesById.get(cutout.shapeId);
+    if (!cutout.split || !shape) return [];
+    const split = resolvePocketSplit(shape.outlineMm, cutout.split.boundary);
+    return split.boundary ? [split.boundary.map(point => transformPointPlacement(point, cutout))] : [];
+  });
+}
 
 export interface SnappedMeasurementPoint {
   point: Point;
@@ -36,11 +53,12 @@ function nearestRingPoint(point: Point, ring: Ring): SnappedMeasurementPoint | n
   return best;
 }
 
-/** Finds the nearest outer or hole contour across the placed tool cutouts. */
+/** Finds the nearest point on a contour or an open split boundary. */
 export function snapToToolContour(
   point: Point,
   outlines: readonly Outline[],
   maxDistanceMm: number,
+  splitBoundaries: MeasurementPaths = [],
 ): SnappedMeasurementPoint | null {
   let best: SnappedMeasurementPoint | null = null;
   for (const outline of outlines) {
@@ -51,6 +69,13 @@ export function snapToToolContour(
           best = candidate;
         }
       }
+    }
+  }
+  for (const boundary of splitBoundaries) {
+    // Open paths: do not connect the last vertex back to the first.
+    for (let index = 1; index < boundary.length; index++) {
+      const candidate = closestPointOnSegment(point, boundary[index - 1], boundary[index]);
+      if (!best || candidate.distanceMm < best.distanceMm) best = candidate;
     }
   }
   return best && best.distanceMm <= maxDistanceMm ? best : null;
