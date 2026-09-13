@@ -184,6 +184,7 @@ function BinDesignerWorkspace(): JSX.Element {
           spec: doc.spec,
           cutouts: doc.cutouts,
           fingerHoles: doc.fingerHoles,
+          history: doc.history,
         });
       } else {
         dispatch({ type: "MARK_HYDRATED" });
@@ -213,31 +214,31 @@ function BinDesignerWorkspace(): JSX.Element {
       ...(currentProjectName ? { name: currentProjectName } : {}),
       keepBinSize,
       shapes: library.shapes,
-      spec,
-      cutouts,
-      fingerHoles,
+      ...committedDoc,
+      history: bin.history,
     }),
-    [library.shapes, spec, cutouts, fingerHoles, currentProjectName, keepBinSize],
+    [library.shapes, committedDoc, bin.history, currentProjectName, keepBinSize],
   );
   useEffect(() => {
-    if (!bin.hydrated) return;
+    if (!bin.hydrated || projectBusy) return;
     setSaveStatus("saving");
-    saveProject(currentProjectDoc);
-  }, [bin.hydrated, currentProjectDoc, saveProject]);
+    saveProject(currentProjectDoc, projectLibrary.activeProjectId);
+  }, [bin.hydrated, currentProjectDoc, saveProject, projectLibrary.activeProjectId, projectBusy]);
 
+  useEffect(() => {
+    const flush = () => { void saveProject.flush(); };
+    const onVisibilityChange = () => { if (document.visibilityState === "hidden") flush(); };
+    window.addEventListener("pagehide", flush);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      flush();
+    };
+  }, [saveProject]);
 
-  const exportProjectDoc = useMemo<ProjectDoc>(
-    () => ({
-      schemaVersion: PROJECT_SCHEMA_VERSION,
-      ...(currentProjectName ? { name: currentProjectName } : {}),
-      keepBinSize,
-      shapes: library.shapes,
-      spec: committedSpec,
-      cutouts: committedCutouts,
-      fingerHoles: committedFingerHoles,
-    }),
-    [library.shapes, committedSpec, committedCutouts, committedFingerHoles, currentProjectName, keepBinSize],
-  );
+  // Exports and autosaves use the same committed design/history snapshot.
+  const exportProjectDoc = currentProjectDoc;
 
   // Consume shapes freshly arrived from the trace workspace: auto-place them
   // (incrementally when the bin already has arranged pockets) and make sure
@@ -481,7 +482,7 @@ function BinDesignerWorkspace(): JSX.Element {
   const saveBeforeReplacingProject = useCallback(async () => {
     saveProject.cancel();
     if (!projectLibrary.activeProjectId) return;
-    const saved = await saveProjectDoc(currentProjectDoc);
+    const saved = await saveProjectDoc(currentProjectDoc, projectLibrary.activeProjectId);
     setSaveStatus(saved ? "saved" : "error");
     if (!saved) throw new Error("Your current changes could not be saved. The current project has been kept open.");
   }, [saveProject, currentProjectDoc, projectLibrary.activeProjectId]);
@@ -516,6 +517,7 @@ function BinDesignerWorkspace(): JSX.Element {
           spec: doc.spec,
           cutouts: doc.cutouts,
           fingerHoles: doc.fingerHoles,
+          history: doc.history,
         });
         setSection(null);
         setProjectLibrary(saved);
@@ -556,6 +558,7 @@ function BinDesignerWorkspace(): JSX.Element {
         spec: doc.spec,
         cutouts: doc.cutouts,
         fingerHoles: doc.fingerHoles,
+        history: doc.history,
       });
       setSection(null);
       setProjectLibrary(saved);
@@ -656,6 +659,7 @@ function BinDesignerWorkspace(): JSX.Element {
         spec: opened.doc.spec,
         cutouts: opened.doc.cutouts,
         fingerHoles: opened.doc.fingerHoles,
+        history: opened.doc.history,
       });
       setSection(null);
       setProjectLibrary(opened.library);

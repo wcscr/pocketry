@@ -121,6 +121,7 @@ function mutateLibrary<T>(
 }
 
 export async function loadProjectDoc(): Promise<ProjectDoc | null> {
+  await libraryMutationQueue;
   try {
     return parseProjectDoc(await get(CURRENT_PROJECT_KEY));
   } catch {
@@ -200,9 +201,18 @@ export async function importProjectLibrary(input: unknown): Promise<LibraryImpor
 }
 
 /** Best-effort working-copy autosave, also updating the active named project. */
-export async function saveProjectDoc(doc: ProjectDoc): Promise<boolean> {
+export async function saveProjectDoc(
+  doc: ProjectDoc,
+  expectedProjectId?: string | null,
+): Promise<boolean> {
   try {
     await mutateLibrary(async (library) => {
+      // A delayed write belongs to the project that scheduled it, even if a
+      // different project has since become active. Check inside the queue.
+      if (expectedProjectId !== undefined && library.activeProjectId !== expectedProjectId) {
+        throw new Error("The autosave belongs to a different project.");
+      }
+      if (!parseProjectDoc(doc)) throw new Error("The project history is inconsistent.");
       const previous: unknown = await get(CURRENT_PROJECT_KEY);
       if (previous != null && parseProjectDoc(previous) === null) {
         throw new Error("The existing working copy is unreadable and has been preserved.");
@@ -371,23 +381,36 @@ export async function startNewProject(doc: ProjectDoc): Promise<ProjectLibrarySn
 }
 
 export interface DebouncedProjectSaver {
-  (doc: ProjectDoc): void;
+  (doc: ProjectDoc, projectId?: string | null): void;
   cancel(): void;
+  /** Persist the latest committed edit before leaving the workspace. */
+  flush(): Promise<boolean>;
 }
 
-/** A trailing-edge saver; placement drags otherwise emit dozens of writes. */
+/** A trailing-edge saver carrying the identity of the project being edited. */
 export function createDebouncedProjectSaver(delayMs = 500, onSaved?: (success: boolean) => void): DebouncedProjectSaver {
   let timer: ReturnType<typeof setTimeout> | null = null;
-  const saver = ((doc: ProjectDoc) => {
-    if (timer !== null) clearTimeout(timer);
-    timer = setTimeout(() => {
-      timer = null;
-      void saveProjectDoc(doc).then((success) => onSaved?.(success));
-    }, delayMs);
-  }) as DebouncedProjectSaver;
-  saver.cancel = () => {
+  let pending: { doc: ProjectDoc; projectId?: string | null } | null = null;
+  let writing: Promise<boolean> = Promise.resolve(true);
+  const cancel = () => {
     if (timer !== null) clearTimeout(timer);
     timer = null;
+    pending = null;
   };
-  return saver;
+  const flush = (): Promise<boolean> => {
+    const next = pending;
+    cancel();
+    if (next) {
+      writing = saveProjectDoc(next.doc, next.projectId).then((success) => {
+        onSaved?.(success);
+        return success;
+      });
+    }
+    return writing;
+  };
+  return Object.assign((doc: ProjectDoc, projectId?: string | null) => {
+    cancel();
+    pending = { doc, projectId };
+    timer = setTimeout(() => { void flush(); }, delayMs);
+  }, { cancel, flush });
 }

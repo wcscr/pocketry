@@ -72,6 +72,11 @@ processing, project storage, and model generation kept on the user's device.
   click focuses a project without opening it. The currently open project cannot be removed;
   switch projects or start a new one first. Rename stays beside the project name.
   Overflowing project lists keep their scrollbar visible.
+  Project saves retain up to 50 committed history steps, including undo/redo
+  position and operation names. Switching projects, reopening a backup, or
+  returning to the Bin workspace restores that project's history. Shape versions
+  needed by older steps travel with the project. New edits after undo replace
+  its redo branch; older files without history open at a single starting step.
   Portable backup separates a single editable project file from an
   entire-library JSON backup; Export library and Import library are directly
   available there, outside the saved-project picker.

@@ -9,6 +9,9 @@ import {
 } from "react";
 
 import { clampFingerHoleToBin, defaultPocketFloorThicknessMm, type CutoutPlacement, type DepthSpec, type FingerHole, type PocketSectionIndex } from "@shared/gridfinity/cutout";
+import { BIN_HISTORY_LIMIT, type BinDoc, type BinHistory, type BinHistoryEntry } from "@shared/gridfinity/history";
+export type { BinDoc, BinHistoryEntry } from "@shared/gridfinity/history";
+
 import { parseBinSpec, type BinSpec, type BinSpecInput } from "@shared/gridfinity/types";
 
 /**
@@ -26,20 +29,6 @@ import { parseBinSpec, type BinSpec, type BinSpecInput } from "@shared/gridfinit
 export type BinViewMode = "3d" | "2d";
 export type BinEditorMode = "placement" | "contour" | "footprint" | "label-edge" | "split";
 
-/** What undo restores. */
-export interface BinDoc {
-  spec: BinSpec;
-  cutouts: CutoutPlacement[];
-  fingerHoles: FingerHole[];
-}
-
-export interface BinHistoryEntry {
-  doc: BinDoc;
-  /** Human-readable operation that produced this state. */
-  label: string;
-}
-
-const HISTORY_LIMIT = 50;
 const BIN_SIZE_KEYS = ["gridX", "gridY", "gridPitch", "heightUnits", "lip"] as const;
 
 export interface BinState {
@@ -56,7 +45,7 @@ export interface BinState {
   editorMode: BinEditorMode;
   /** True once persistence has had its chance to restore a project. */
   hydrated: boolean;
-  history: { stack: BinHistoryEntry[]; index: number };
+  history: BinHistory;
 }
 
 /**
@@ -76,6 +65,8 @@ export type BinAction =
       spec: BinSpec;
       cutouts: CutoutPlacement[];
       fingerHoles?: FingerHole[];
+      /** Validated saved history, absent on legacy projects and new designs. */
+      history?: BinHistory;
     }
   | { type: "MARK_HYDRATED" }
   | {
@@ -172,7 +163,7 @@ function commit(
     ...state.history.stack.slice(0, state.history.index + 1),
     { doc, label },
   ];
-  const overflow = Math.max(0, stack.length - HISTORY_LIMIT);
+  const overflow = Math.max(0, stack.length - BIN_HISTORY_LIMIT);
   return {
     ...state,
     ...rest,
@@ -249,8 +240,8 @@ function changeDefaultFloor(cutout: CutoutPlacement, previous: number, next: num
 function reducer(state: BinState, action: BinAction): BinState {
   switch (action.type) {
     case "HYDRATE": {
-      // A restored project is the new baseline — undo must not walk back
-      // into the pre-hydration default document.
+      // Replace the outgoing project's entire history. Legacy projects start
+      // at one baseline; saved histories retain their undo and redo branches.
       const doc = {
         spec: action.spec,
         cutouts: action.cutouts,
@@ -267,7 +258,7 @@ function reducer(state: BinState, action: BinAction): BinState {
         pendingRemovalId: null,
         editorMode: "placement",
         hydrated: true,
-        history: {
+        history: action.history ?? {
           stack: [{ doc, label: "Project opened" }],
           index: 0,
         },

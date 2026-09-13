@@ -517,3 +517,27 @@ it("uses a deeper default floor for flat bins and restores it with undo and base
   expect(store().cutouts.at(-1)!.depth).toEqual(CUTOUT.depth);
   expect(store().cutouts.slice(1, 3)).toEqual([custom, fixed]);
 });
+
+describe("restored project history", () => {
+  it("restores the saved cursor, keeps new edits local, and preserves the retention limit", () => {
+    const { store, act } = mountBin();
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { gridX: 3 } }));
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { gridX: 4 } }));
+    act(() => store().dispatch({ type: "UNDO" }));
+    const saved = structuredClone(store().history);
+    const current = saved.stack[saved.index].doc;
+    act(() => store().dispatch({ type: "HYDRATE", ...current, history: saved }));
+    expect(store().history).toEqual(saved);
+    expect(store().canUndo).toBe(true);
+    expect(store().canRedo).toBe(true);
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { gridY: 3 } }));
+    expect(store().canRedo).toBe(false);
+    expect(saved.stack).toHaveLength(3);
+    expect(saved.index).toBe(1);
+    for (let index = 0; index < 60; index++) {
+      act(() => store().dispatch({ type: "PATCH_SPEC", patch: { gridY: index % 2 + 2 } }));
+    }
+    expect(store().history.stack).toHaveLength(50);
+    expect(store().history.index).toBe(49);
+  });
+});
