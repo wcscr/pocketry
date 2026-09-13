@@ -13,6 +13,7 @@ import { parseBinSpec } from "@shared/gridfinity/types";
 import { downloadBlob } from "@/lib/download";
 import { useBinGeometry } from "@/lib/gridfinity/use-bin-geometry";
 import { footprintOuterRingMm, occupiedCellCount } from "@shared/gridfinity/footprint";
+import ryobiReloadFixture from "@shared/gridfinity/fixtures/ryobi-split-reload.pocketry.json";
 
 /**
  * Structure smoke tests for the bin designer page, following the pattern of
@@ -106,7 +107,7 @@ vi.mock("@/lib/gridfinity/use-bin-geometry", () => ({
 vi.mock("@/lib/project/persist", () => ({
   loadProjectDoc: vi.fn(async () => null),
   loadProjectLibrary: vi.fn(async () => ({ activeProjectId: null, projects: [] })),
-  saveProjectDoc: vi.fn(async () => {}),
+  saveProjectDoc: vi.fn(async () => true),
   saveProjectToLibrary: vi.fn(),
   renameProjectInLibrary: vi.fn(),
   openProjectFromLibrary: vi.fn(),
@@ -208,6 +209,7 @@ beforeEach(() => {
   binGeometryMock.hasPocketFloor = false;
   binGeometryMock.hasStackingRim = true;
   vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(null);
+  vi.mocked(ProjectPersistence.saveProjectDoc).mockResolvedValue(true);
   vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({
     activeProjectId: null,
     projects: [],
@@ -268,6 +270,130 @@ function selectPocket(container: HTMLElement, id: string): void {
 }
 
 describe("BinDesignerPage", () => {
+  it.each(["new", "file"])("saves pending edits before replacing a named project via %s, and stops on save failure", async action => {
+    const cutter = parseProjectDoc(ryobiReloadFixture)!;
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(cutter);
+    vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId: "cutter", projects: [
+      { id: "cutter", name: "Ryobi Cutter", updatedAt: "2026-09-13T14:50:27.853Z" },
+    ] });
+    let finishSave!: (success: boolean) => void;
+    vi.mocked(ProjectPersistence.saveProjectDoc).mockImplementation(() =>
+      new Promise(resolve => { finishSave = resolve; }));
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      selectPocket(container, cutter.cutouts[0].id);
+      const depth = container.querySelector<HTMLInputElement>('[aria-label="Pocket cut depth in millimetres"]')!;
+      React.act(() => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(depth, "14");
+        depth.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      React.act(() => depth.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+      const edited = vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts;
+      openSettingsSection(container, "project");
+      const replace = async () => {
+        if (action === "new") {
+          React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-new-project"]')!.click());
+          await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-confirm-new-project"]')!.click());
+        } else {
+          const input = container.querySelector<HTMLInputElement>('input[type="file"][accept*=".pocketry.json"]')!;
+          const file = new File([JSON.stringify(EMPTY_PROJECT)], "Other.pocketry.json");
+          Object.defineProperty(file, "text", { value: async () => JSON.stringify(EMPTY_PROJECT) });
+          Object.defineProperty(input, "files", { value: [file], configurable: true });
+          await React.act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
+        }
+      };
+      await replace();
+      expect(ProjectPersistence.saveProjectDoc).toHaveBeenCalledWith(expect.objectContaining({ cutouts: edited }));
+      expect(ProjectPersistence.startNewProject).not.toHaveBeenCalled();
+      await React.act(async () => finishSave(false));
+      expect(ProjectPersistence.startNewProject).not.toHaveBeenCalled();
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toEqual(edited);
+      await replace();
+      expect(ProjectPersistence.startNewProject).not.toHaveBeenCalled();
+      await React.act(async () => finishSave(true));
+      expect(ProjectPersistence.startNewProject).toHaveBeenCalledOnce();
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toEqual([]);
+    } finally { unmount(); }
+  });
+
+  it("keeps the current design open when saving before a project switch fails", async () => {
+    const cutter = parseProjectDoc(ryobiReloadFixture)!;
+    const projects = [
+      { id: "cutter", name: "Ryobi Cutter", updatedAt: "2026-09-13T14:50:27.853Z" },
+      { id: "other", name: "Other bin", updatedAt: "2026-09-13T14:50:27.853Z" },
+    ];
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(cutter);
+    vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId: "cutter", projects });
+    vi.mocked(ProjectPersistence.saveProjectDoc).mockResolvedValue(false);
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      openSettingsSection(container, "project");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-open-library"]')!.click());
+      await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-open-project-other"]')!.click());
+      expect(ProjectPersistence.openProjectFromLibrary).not.toHaveBeenCalled();
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toEqual(cutter.cutouts);
+      expect(container.querySelector('[data-testid="project-autosave-status"]')?.textContent).toContain("Ryobi Cutter");
+      expect(document.querySelector<HTMLButtonElement>('[data-testid="button-open-project-other"]')!.disabled).toBe(false);
+    } finally { unmount(); }
+  });
+
+  it("saves both edited section depths before switching projects and reloading the cutter", async () => {
+    const intended = parseProjectDoc(ryobiReloadFixture)!;
+    const reversed = structuredClone(intended);
+    reversed.cutouts[0].split!.depths.reverse();
+    const projects = [
+      { id: "cutter", name: "Ryobi Cutter", updatedAt: "2026-09-13T14:50:27.853Z" },
+      { id: "other", name: "Other bin", updatedAt: "2026-09-13T14:50:27.853Z" },
+    ];
+    const saved = new Map([["cutter", reversed], ["other", EMPTY_PROJECT]]);
+    let activeProjectId = "cutter";
+    let finishSave!: (success: boolean) => void;
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(reversed);
+    vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId, projects });
+    // Leave autosave pending so only the project-switch path can preserve edits.
+    vi.mocked(ProjectPersistence.saveProjectDoc).mockImplementationOnce(doc =>
+      new Promise(resolve => { finishSave = success => {
+        if (success) saved.set(activeProjectId, structuredClone(doc));
+        resolve(success);
+      }; }),
+    ).mockImplementation(async doc => { saved.set(activeProjectId, structuredClone(doc)); return true; });
+    vi.mocked(ProjectPersistence.openProjectFromLibrary).mockImplementation(async id => {
+      activeProjectId = id;
+      return { doc: structuredClone(saved.get(id)!), project: projects.find(project => project.id === id)!,
+        library: { activeProjectId, projects } };
+    });
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      selectPocket(container, intended.cutouts[0].id);
+      const setDepth = (value: string) => {
+        const input = container.querySelector<HTMLInputElement>('[aria-label="Pocket cut depth in millimetres"]')!;
+        React.act(() => {
+          Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
+          input.dispatchEvent(new Event("input", { bubbles: true }));
+        });
+        React.act(() => input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+      };
+      setDepth("16");
+      React.act(() => Array.from(container.querySelectorAll('button')).find(button => button.textContent === "Section B")!.click());
+      setDepth("55");
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0].split).toEqual(intended.cutouts[0].split);
+      openSettingsSection(container, "project");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-open-library"]')!.click());
+      await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-open-project-other"]')!.click());
+      expect(ProjectPersistence.saveProjectDoc).toHaveBeenCalledWith(expect.objectContaining({ cutouts: intended.cutouts }));
+      expect(ProjectPersistence.openProjectFromLibrary).not.toHaveBeenCalled();
+      await React.act(async () => finishSave(true));
+      expect(activeProjectId).toBe("other");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-open-library"]')!.click());
+      await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-open-project-cutter"]')!.click());
+      expect(activeProjectId).toBe("cutter");
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toEqual(intended.cutouts);
+    } finally { unmount(); }
+  });
+
   it("keeps a split attached through a neighbouring contour edit and undo/redo", async () => {
     const shape = rectangularShape("tool", "Cutter");
     const cutout = parseCutoutPlacement({ id: "split-test", shapeId: shape.id, position: { x: 0, y: 0 },
@@ -2182,7 +2308,7 @@ describe("BinDesignerPage", () => {
     React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
     await flushHydration();
     const open = () => document.querySelector<HTMLButtonElement>('[data-testid="button-open-project-saved"]')!;
-    React.act(() => open().click());
+    await React.act(async () => open().click());
     expect(open().disabled).toBe(true);
     expect(document.querySelector<HTMLButtonElement>('[data-testid="button-remove-project-saved"]')!.disabled).toBe(true);
     React.act(() => document.querySelector('[data-testid="library-project-saved"]')!.dispatchEvent(new MouseEvent("dblclick", { bubbles: true })));

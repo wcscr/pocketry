@@ -60,6 +60,7 @@ import {
   loadProjectLibrary,
   openProjectFromLibrary,
   renameProjectInLibrary,
+  saveProjectDoc,
   saveProjectToLibrary,
   startNewProject,
   type ProjectLibrarySnapshot,
@@ -476,6 +477,15 @@ function BinDesignerWorkspace(): JSX.Element {
     }
   }, [toast]);
 
+  /** Save while the outgoing named project still owns the autosave target. */
+  const saveBeforeReplacingProject = useCallback(async () => {
+    saveProject.cancel();
+    if (!projectLibrary.activeProjectId) return;
+    const saved = await saveProjectDoc(currentProjectDoc);
+    setSaveStatus(saved ? "saved" : "error");
+    if (!saved) throw new Error("Your current changes could not be saved. The current project has been kept open.");
+  }, [saveProject, currentProjectDoc, projectLibrary.activeProjectId]);
+
   const handleImportProject = useCallback(
     async (file: File) => {
       let parsed: unknown;
@@ -495,8 +505,8 @@ function BinDesignerWorkspace(): JSX.Element {
       }
       doc.name ??= file.name.replace(/\.(?:pocketry|tooltrace)\.json$/i, "").replace(/\.json$/i, "").replace(/[-_]+/g, " ").trim().slice(0, 80) || "Imported project";
       setProjectBusy(true);
-      saveProject.cancel();
       try {
+        await saveBeforeReplacingProject();
         const saved = await startNewProject(doc);
         setDraftName(doc.name ?? null);
         setKeepBinSize(doc.keepBinSize ?? false);
@@ -523,7 +533,7 @@ function BinDesignerWorkspace(): JSX.Element {
         setProjectBusy(false);
       }
     },
-    [library, dispatch, saveProject, toast],
+    [library, dispatch, saveBeforeReplacingProject, toast],
   );
 
   const handleNewProject = useCallback(async () => {
@@ -535,8 +545,8 @@ function BinDesignerWorkspace(): JSX.Element {
       fingerHoles: [],
     };
     setProjectBusy(true);
-    saveProject.cancel();
     try {
+      await saveBeforeReplacingProject();
       const saved = await startNewProject(doc);
       setDraftName(null);
       setKeepBinSize(false);
@@ -551,7 +561,7 @@ function BinDesignerWorkspace(): JSX.Element {
       setProjectLibrary(saved);
       toast({
         title: "New project ready",
-        description: "Saved library projects are unchanged.",
+        description: "Ready for a new design.",
       });
     } catch (cause) {
       toast({
@@ -562,7 +572,7 @@ function BinDesignerWorkspace(): JSX.Element {
     } finally {
       setProjectBusy(false);
     }
-  }, [library, dispatch, saveProject, toast]);
+  }, [library, dispatch, saveBeforeReplacingProject, toast]);
 
   const handleSaveProject = useCallback(async (name: string): Promise<boolean> => {
     setProjectBusy(true);
@@ -635,8 +645,8 @@ function BinDesignerWorkspace(): JSX.Element {
 
   const handleOpenProject = useCallback(async (projectId: string): Promise<boolean> => {
     setProjectBusy(true);
-    saveProject.cancel();
     try {
+      await saveBeforeReplacingProject();
       const opened = await openProjectFromLibrary(projectId);
       setDraftName(opened.project.name);
       setKeepBinSize(opened.doc.keepBinSize ?? false);
@@ -664,7 +674,7 @@ function BinDesignerWorkspace(): JSX.Element {
     } finally {
       setProjectBusy(false);
     }
-  }, [library, dispatch, saveProject, toast]);
+  }, [library, dispatch, saveBeforeReplacingProject, toast]);
 
   const handleDeleteProject = useCallback(
     async (projectId: string): Promise<boolean> => {

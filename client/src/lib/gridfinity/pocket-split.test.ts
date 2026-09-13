@@ -6,6 +6,8 @@ import { createKernel, loadManifold, type Kernel, type ManifoldToplevel } from "
 import { buildBin, buildBinWithCutouts, EXPORT_QUALITY, PREVIEW_QUALITY } from "./bin";
 import { autoArrangeLayout } from "./autoplace";
 import ryobiSeamFixture from "./fixtures/ryobi-split-pocket.json";
+import ryobiReloadFixture from "@shared/gridfinity/fixtures/ryobi-split-reload.pocketry.json";
+import { parseProjectDoc } from "@shared/gridfinity/project";
 
 let wasm: ManifoldToplevel;
 let arena: Arena;
@@ -22,6 +24,31 @@ const pocket = (extra: Partial<CutoutPlacement> = {}) => parseCutoutPlacement({ 
 const layout = (c: CutoutPlacement) => ({ cutouts: [c], shapesById, fingerHoles: [] });
 
 describe("split-pocket solids", () => {
+  it.each([PREVIEW_QUALITY, EXPORT_QUALITY])("reloads the saved Ryobi with a 16 mm blade recess and 55 mm body recess at quality %j", quality => {
+    // Reduced from the library backup reported after switching designs. Probe
+    // inside the blade and body so swapped depths cannot pass a volume check.
+    const doc = parseProjectDoc(JSON.parse(JSON.stringify(ryobiReloadFixture)))!;
+    const cutout = doc.cutouts[0];
+    const built = buildBinWithCutouts(kernel, doc.spec, {
+      shapesById: new Map(doc.shapes.map(shape => [shape.id, shape])),
+      cutouts: doc.cutouts, fingerHoles: doc.fingerHoles,
+    }, quality, { floorInsertThicknessMm: 0.6 });
+    const top = resolvePocketDepth(doc.spec, cutout.depth).infillTopZ;
+    for (const { local, depth } of [
+      { local: { x: -43, y: 80 }, depth: 16 },
+      { local: { x: 2, y: -13 }, depth: 55 },
+    ]) {
+      const p = transformPointPlacement(local, cutout);
+      for (const offset of [-0.2, 0.2]) {
+        const probe = arena.track(arena.track(wasm.Manifold.cube([0.1, 0.1, 0.1]))
+          .translate([p.x - 0.05, p.y - 0.05, top - depth + offset - 0.05]));
+        const retained = arena.track(built.solid.intersect(probe)).volume();
+        expect(retained).toBeCloseTo(offset < 0 ? 0.001 : 0, 8);
+      }
+    }
+    expect(built.solid.status()).toBe("NoError");
+  });
+
   it("removes the analytic volume of two depths and keeps one connected bin", () => {
     const c = pocket();
     const base = buildBin(kernel, spec, PREVIEW_QUALITY).solid;

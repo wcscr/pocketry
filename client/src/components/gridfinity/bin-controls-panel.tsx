@@ -2186,7 +2186,7 @@ function ProjectControls({
           <DialogTitle>{mode === "open" ? "Open a saved project" : "Manage browser library"}</DialogTitle>
           <DialogDescription>
             {mode === "open"
-              ? "Choose a named project saved in this browser. Opening it replaces the current working draft."
+              ? "Choose a named project saved in this browser. Your current named project is saved before opening another design. An unnamed draft will be replaced."
               : `${projects.length} saved project${projects.length === 1 ? "" : "s"} in this browser.`}
           </DialogDescription>
         </DialogHeader>
@@ -2374,8 +2374,8 @@ function ProjectControls({
             <AlertDialogHeader>
               <AlertDialogTitle>Start a new project?</AlertDialogTitle>
               <AlertDialogDescription>
-                This clears the current shapes, pockets, and bin settings. Named
-                projects remain in the Project Library; an unnamed draft will be
+                Saves the latest changes to your named project, then starts with
+                empty shapes, pockets, and bin settings. An unnamed draft will be
                 replaced.
               </AlertDialogDescription>
             </AlertDialogHeader>
@@ -2397,7 +2397,7 @@ function ProjectControls({
       <section aria-label="Portable backup" className="space-y-3 border-t pt-3" data-testid="portable-backup">
         <h3 className="text-sm font-semibold">Portable Backup</h3>
         <div className="space-y-1.5" data-testid="project-file-backup">
-        <SettingLabel label="Current project" hint="Exports this design as an editable .pocketry.json file. Opening a project file replaces the working draft; saved library projects stay intact." />
+        <SettingLabel label="Current project" hint="Exports this design as an editable .pocketry.json file. Opening a project file first saves the latest changes to your named project, then replaces the working draft." />
         <div className="grid grid-cols-2 gap-2">
           <Button
             variant="outline"
