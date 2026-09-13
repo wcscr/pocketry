@@ -1655,7 +1655,7 @@ export function BinControlsPanel({
                 data-testid="surface-fit-test-export"
               >
                 <div>
-                  <SettingLabel label="Surface fit test" hint="Export the full pocket-layout surface or 5 mm wide bands around its perimeter and openings. Widely spaced bands can print as separate pieces. Thickness sets the printed height. Omits the base, wall height, label tab, and stacking lip; it does not test cut depth or baseplate fit." />
+                  <SettingLabel label="Surface fit test" hint="Export the full pocket-layout surface or 5 mm wide bands around the tool openings only. Tool outlines omit the bin perimeter and separate finger holes. Widely spaced tools print as separate pieces. Thickness sets the printed height. Omits the base, wall height, label tab, and stacking lip; it does not test cut depth or baseplate fit." />
                 </div>
                 <div className="flex items-center gap-2">
                   <Label className="w-20 shrink-0 text-xs">Shape</Label>
@@ -1665,7 +1665,7 @@ export function BinControlsPanel({
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="full">Full surface</SelectItem>
-                      <SelectItem value="outline">Outline · {SURFACE_FIT_CHECK_OUTLINE_WIDTH_MM} mm wide</SelectItem>
+                      <SelectItem value="outline" disabled={cutouts.length === 0}>Tool outlines · {SURFACE_FIT_CHECK_OUTLINE_WIDTH_MM} mm</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1693,12 +1693,12 @@ export function BinControlsPanel({
                   variant="outline"
                   size="sm"
                   className="w-full"
-                  disabled={exporting || hasErrors}
+                  disabled={exporting || hasErrors || (surfaceFitCheckStyle === "outline" && cutouts.length === 0)}
                   onClick={() =>
                     setPendingExport({
                       title: "Save surface fit test STL?",
                       description: surfaceFitCheckStyle === "outline"
-                        ? `Download a ${SURFACE_FIT_CHECK_OUTLINE_WIDTH_MM} mm wide surface outline, ${surfaceFitCheckThicknessMm} mm thick.`
+                        ? `Download ${SURFACE_FIT_CHECK_OUTLINE_WIDTH_MM} mm wide tool outlines, ${surfaceFitCheckThicknessMm} mm thick.`
                         : `Download the complete pocket layout as a ${surfaceFitCheckThicknessMm} mm thin plate.`,
                       confirmLabel: "Download STL",
                       onConfirm: (includeProject) => onExportSurfaceFitCheck(surfaceFitCheckThicknessMm, includeProject, surfaceFitCheckStyle),

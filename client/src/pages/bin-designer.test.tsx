@@ -759,7 +759,7 @@ describe("BinDesignerPage", () => {
     ["single-color-3mf", "", "3mf"],
     ["multicolor-3mf", "-multicolor", "3mf"],
     ["surface-fit-test", "-surface-fit-test-1.2mm", "stl"],
-    ["surface-outline", "-surface-outline-5mm-wide-1.2mm-thick", "stl"],
+    ["surface-outline", "-tool-outlines-5mm-wide-1.2mm-thick", "stl"],
     ["fit-check", "-Wrench-fit-template-2mm", "stl"],
     ["layout-svg", "-layout", "svg"],
     ["layout-dxf", "-layout", "dxf"],
@@ -800,7 +800,7 @@ describe("BinDesignerPage", () => {
       openSettingsSection(container, kind.startsWith("surface-") || kind === "fit-check" || kind.startsWith("layout-") ? "check-fit" : "export");
       if (kind === "surface-outline") {
         React.act(() => container.querySelector('[data-testid="select-surface-fit-test-style"]')!.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true })));
-        React.act(() => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(option => option.textContent === "Outline · 5 mm wide")!.click());
+        React.act(() => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(option => option.textContent === "Tool outlines · 5 mm")!.click());
       }
       await React.act(async () => {
         const button = kind === "surface-outline" ? "button-export-surface-fit-test"

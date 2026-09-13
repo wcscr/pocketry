@@ -254,10 +254,10 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
               </li>
               <li>
                 Under <strong>Check fit</strong>, Surface fit test offers the
-                <strong> Full surface</strong> or an <strong>Outline · 5 mm wide</strong>.
-                The outline keeps a 5 mm material band around the bin perimeter
-                and each pocket or finger-access opening; widely spaced bands
-                can print as separate pieces. Thickness sets the printed height
+                <strong> Full surface</strong> or <strong>Tool outlines · 5 mm</strong>.
+                Tool outlines keep a 5 mm material band around each tool opening,
+                without the bin perimeter or separate finger-access holes.
+                Widely spaced tools print as separate pieces. Thickness sets the printed height
                 for either option. Both omit the base, walls, label tab, and
                 stacking lip. Use the full surface to check relative pocket
                 spacing; neither option tests pocket depth or Gridfinity baseplate fit.

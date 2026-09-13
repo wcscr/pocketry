@@ -1,5 +1,5 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { parseCutoutPlacement, type TracedShape } from "@shared/gridfinity/cutout";
+import { fingerHoleSchema, parseCutoutPlacement, type TracedShape } from "@shared/gridfinity/cutout";
 import { parseBinSpec } from "@shared/gridfinity/types";
 import { Arena } from "@/lib/manifold/arena";
 import { createKernel, loadManifold, type Kernel, type ManifoldToplevel } from "@/lib/manifold/runtime";
@@ -36,7 +36,7 @@ describe("surface fit outlines", () => {
     expect(collapsedTriangles).toBe(0);
   });
 
-  it.each([false, true])("keeps 5 mm material bands, the original footprint, and the chosen height (custom=%s)", custom => {
+  it.each([false, true])("keeps only 5 mm tool bands at the chosen height (custom=%s)", custom => {
     const spec = parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6,
       ...(custom ? { footprint: { kind: "custom", cells: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }] } } : {}) });
     const cutout = parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: -21, y: -21 },
@@ -45,7 +45,10 @@ describe("surface fit outlines", () => {
     const full = buildSurfaceFitCheckSolid(kernel, spec, layout, 1.6, PREVIEW_QUALITY);
     const outline = buildSurfaceFitCheckSolid(kernel, spec, layout, 1.6, PREVIEW_QUALITY, "outline");
     expect(outline.status()).toBe("NoError");
-    expect(outline.boundingBox()).toEqual(full.boundingBox());
+    expect(outline.boundingBox().min[0]).toBeCloseTo(-32);
+    expect(outline.boundingBox().max[0]).toBeCloseTo(-10);
+    expect(outline.boundingBox().min[1]).toBeCloseTo(-30);
+    expect(outline.boundingBox().max[1]).toBeCloseTo(-12);
     expect(outline.boundingBox().min[2]).toBeCloseTo(0);
     expect(outline.boundingBox().max[2]).toBeCloseTo(1.6);
     expect(outline.volume()).toBeLessThan(full.volume());
@@ -54,20 +57,32 @@ describe("surface fit outlines", () => {
       const probe = arena.track(arena.track(wasm.Manifold.cube([0.02, 0.02, 0.02])).translate([x - 0.01, y - 0.01, 0.8]));
       return arena.track(outline.intersect(probe)).volume();
     };
-    expect(materialAt(41.75 - 4.9, -21)).toBeCloseTo(0.02 ** 3, 9);
+    expect(materialAt(41.75 - 4.9, -21)).toBeLessThan(1e-9);
     expect(materialAt(41.75 - 5.1, -21)).toBeLessThan(1e-9);
-    // The same band is retained outside the pocket opening; the hole stays open.
+    // Only the tool band remains; the bin perimeter and pocket interior are empty.
     expect(materialAt(-27 - 4.9, -21)).toBeCloseTo(0.02 ** 3, 9);
     expect(materialAt(-27 - 5.1, -21)).toBeLessThan(1e-9);
     expect(materialAt(-21, -21)).toBeLessThan(1e-9);
   });
 
-  it("keeps a narrow surface printable when its opposing bands meet", () => {
-    const spec = parseBinSpec({ gridX: 1, gridY: 1, gridPitch: "quarter", heightUnits: 2 });
-    const layout = { shapesById: new Map(), cutouts: [], fingerHoles: [] };
-    const full = buildSurfaceFitCheckSolid(kernel, spec, layout, 1.2, PREVIEW_QUALITY);
-    const outline = buildSurfaceFitCheckSolid(kernel, spec, layout, 1.2, PREVIEW_QUALITY, "outline");
-    expect(outline.status()).toBe("NoError");
-    expect(outline.volume()).toBeCloseTo(full.volume(), 6);
+  it("does not clip the 5 mm band at the bin edge or add separate finger-hole bands", () => {
+    const cutout = parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 12, y: 0 },
+      depth: { mode: "through" }, clearanceMm: 0, cornerRoundMm: 0, topFilletMm: 0, bottomFilletMm: 0 });
+    const layout = { shapesById: new Map([[shape.id, shape]]), cutouts: [cutout], fingerHoles: [] };
+    const small = buildSurfaceFitCheckSolid(kernel, parseBinSpec({ gridX: 1, gridY: 1, heightUnits: 2 }), layout, 1.2, PREVIEW_QUALITY, "outline");
+    const large = buildSurfaceFitCheckSolid(kernel, parseBinSpec({ gridX: 3, gridY: 3, heightUnits: 2 }), {
+      ...layout, fingerHoles: [fingerHoleSchema.parse({ id: "access", center: { x: -30, y: 0 } })],
+    }, 1.2, PREVIEW_QUALITY, "outline");
+    expect(small.boundingBox().max[0]).toBeCloseTo(23);
+    expect(small.boundingBox()).toEqual(large.boundingBox());
+    expect(small.volume()).toBeCloseTo(large.volume(), 6);
+  });
+
+  it("requires a tool pocket instead of falling back to the bin or finger-hole outlines", () => {
+    const spec = parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 2 });
+    const layout = { shapesById: new Map(), cutouts: [],
+      fingerHoles: [fingerHoleSchema.parse({ id: "access", center: { x: 0, y: 0 } })] };
+    expect(() => buildSurfaceFitCheckSolid(kernel, spec, layout, 1.2, PREVIEW_QUALITY, "outline"))
+      .toThrow("Add a tool pocket");
   });
 });

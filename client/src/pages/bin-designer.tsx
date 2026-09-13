@@ -917,13 +917,13 @@ function BinDesignerWorkspace(): JSX.Element {
         const project = prepareProjectExport(
           exportProjectDoc,
           currentProjectName,
-          style === "outline" ? `surface-outline-${SURFACE_FIT_CHECK_OUTLINE_WIDTH_MM}mm-wide-${thicknessLabel}mm-thick`
+          style === "outline" ? `tool-outlines-${SURFACE_FIT_CHECK_OUTLINE_WIDTH_MM}mm-wide-${thicknessLabel}mm-thick`
             : `surface-fit-test-${thicknessLabel}mm`,
         );
         const result = await buildSurfaceFitCheck(thicknessMm, EXPORT_QUALITY, style);
         const stl = writeBinarySTL(
           { positions: result.mesh.positions, indices: result.mesh.indices },
-          `Pocketry ${label} surface ${style === "outline" ? "outline" : "fit test"} ${thicknessLabel} mm`,
+          `Pocketry ${label} ${style === "outline" ? "tool outlines" : "surface fit test"} ${thicknessLabel} mm`,
         );
         downloadModelWithProject(
           new Blob([stl], { type: "application/octet-stream" }),
@@ -933,7 +933,7 @@ function BinDesignerWorkspace(): JSX.Element {
         );
         toast({
           title: "Surface fit test saved",
-          description: `Exported ${style === "outline" ? `a ${SURFACE_FIT_CHECK_OUTLINE_WIDTH_MM} mm wide surface outline` : "the complete pocket-layout surface"} at ${thicknessLabel} mm thick${includeProject ? " with an editable project JSON" : ""}.`,
+          description: `Exported ${style === "outline" ? `${SURFACE_FIT_CHECK_OUTLINE_WIDTH_MM} mm wide tool outlines` : "the complete pocket-layout surface"} at ${thicknessLabel} mm thick${includeProject ? " with an editable project JSON" : ""}.`,
         });
       } catch (cause) {
         if (!(cause instanceof WorkerCancelledError)) {

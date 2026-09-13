@@ -426,12 +426,13 @@ For the more reliable multi-tool check, **Surface fit test** defaults to
 the real outer footprint, clearances, top-edge rounds, spacing, and finger
 access. It omits the base, wall height, label tab, and stacking lip and moves
 the plate to the build plane; it therefore tests surface fit, not pocket depth
-or baseplate fit. **Outline · 5 mm wide** keeps material bands along the surface's
-outer perimeter and pocket/finger-access openings, reducing material without
-changing those boundaries. Width is fixed at 5 mm; the same Thickness control
-sets printed height. Narrow regions remain intact where opposing bands meet;
-widely spaced bands can become separate pieces, so use Full surface to verify
-relative pocket spacing. This is an export option, not a saved bin parameter.
+or baseplate fit. **Tool outlines · 5 mm** exports material bands around only
+the tool openings, without the bin perimeter or separate finger-access holes.
+The bands extend outwards from the openings and are not clipped to the bin
+footprint. Width is fixed at 5 mm; the same Thickness control sets printed height.
+Widely spaced tools print as separate pieces, so use Full surface to verify
+relative pocket spacing. Tool outlines require at least one tool pocket.
+This is an export option, not a saved bin parameter.
 
 Call `manifold.calculateNormals(0, 60)` before `getMesh()` so normals arrive in the
 standard vertex-property channel. Using three's `computeVertexNormals()` instead
