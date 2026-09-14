@@ -163,6 +163,8 @@ licenses, copyright notices, and provenance are recorded in [NOTICE](NOTICE).
 The detailed direct-source review is available in
 [docs/open-source-review.md](docs/open-source-review.md).
 
+Pocketry was developed with OpenAI Codex.
+
 ## Contributing
 
 Issues and pull requests are welcome. Keep changes focused, add or update tests,
