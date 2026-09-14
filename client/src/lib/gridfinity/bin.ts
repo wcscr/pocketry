@@ -36,6 +36,7 @@ import { buildLabelTab } from "./label-tab";
 import { roundedRectPolygon } from "./profiles";
 import { footprintOuterSection } from "./footprint-section";
 import { buildStackingLip, buildWallRing } from "./wall";
+import { addLidRetention, buildLidSupports } from "./magnetic-lid";
 
 /**
  * Bin assembly: base + wall + lip + optional infill, ported from upstream
@@ -249,6 +250,12 @@ export function buildBinWithCutouts(
         allCutters.length === 1
           ? allCutters[0]
           : arena.track(Manifold.union(allCutters));
+      if (spec.magneticLid) {
+        const supports = buildLidSupports(kernel, spec, quality.circularSegments);
+        if (arena.track(supports.intersect(cutter)).volume() > 1e-5) {
+          throw new Error("A pocket or finger access cuts into a lid magnet support. Move it away from the corners or turn off Magnetic lid.");
+        }
+      }
       solid = arena.track(base.solid.subtract(cutter));
     }
   }
@@ -335,7 +342,8 @@ export function buildBin(
   const present = [parts.base, parts.wall, parts.lip, parts.infill].filter(
     (part): part is Manifold => part !== null,
   );
-  const solid = arena.track(Manifold.union(present));
+  let solid = arena.track(Manifold.union(present));
+  if (spec.magneticLid) solid = addLidRetention(kernel, spec, solid, quality.circularSegments);
 
   const status = solid.status();
   if (status !== "NoError") {

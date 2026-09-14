@@ -17,6 +17,8 @@ processing, project storage, and model generation kept on the user's device.
 - Refine exterior contours and interior holes.
 - Export traced geometry as SVG, DXF, DWG-compatible DXF, or STL.
 - Arrange traced tools as pockets in Gridfinity bins.
+- Add [magnetic lids](docs/magnetic-lids.md) with paired corner recesses using the
+  base magnet size, a matching preview, and separate lid STL/3MF exports.
   Pocket and finger access properties share compact grouped controls, with position
   at the bottom. Rename finger access from its list row; names save with the project
   and support undo/redo. All finger access styles support depths down to 1 mm;

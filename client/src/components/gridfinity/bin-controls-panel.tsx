@@ -225,6 +225,7 @@ export interface BinControlsPanelProps {
   building: boolean;
   exporting: boolean;
   onExport: (format: "3mf" | "3mf-multicolor" | "stl", includeProject: boolean) => void;
+  onExportLid?: (format: "3mf" | "stl", includeProject: boolean) => void;
   onExportFitCheck: (cutoutId: string, depthMm: number, includeProject: boolean) => void;
   onExportSurfaceFitCheck: (thicknessMm: number, includeProject: boolean, style: SurfaceFitCheckStyle) => void;
   onExportLayout: (format: "dxf" | "svg", includeProject: boolean) => void;
@@ -276,6 +277,7 @@ export function BinControlsPanel({
   building,
   exporting,
   onExport,
+  onExportLid,
   onExportFitCheck,
   onExportSurfaceFitCheck,
   onExportLayout,
@@ -356,6 +358,7 @@ export function BinControlsPanel({
     spec.lip === "standard",
     spec.fill === "solid",
     spec.flatBottom,
+    spec.magneticLid,
     !spec.flatBottom && spec.magnetHoles,
     !spec.flatBottom && spec.screwHoles,
     spec.labelTab !== null,
@@ -691,8 +694,9 @@ export function BinControlsPanel({
         >
           <FeatureSwitch
             label="Stacking lip"
-            description={spec.flatBottom ? "Receives a Gridfinity bin on top" : "Lets another bin stack on top"}
+            description={spec.magneticLid ? "Locates the magnetic lid" : spec.flatBottom ? "Receives a Gridfinity bin on top" : "Lets another bin stack on top"}
             checked={spec.lip === "standard"}
+            disabled={spec.magneticLid}
             onChange={(on) => patchSpec({ lip: on ? "standard" : "none" })}
           />
           <FeatureSwitch
@@ -701,6 +705,17 @@ export function BinControlsPanel({
             checked={spec.fill === "solid"}
             onChange={(on) => patchSpec({ fill: on ? "solid" : "none" })}
           />
+          <FeatureSwitch
+            label="Magnetic lid"
+            description="Matching lid with four magnet pairs, using the base magnet size"
+            checked={spec.magneticLid}
+            onChange={(magneticLid) => patchSpec({ magneticLid, ...(magneticLid ? { lip: "standard" } : {}) })}
+          />
+          {spec.magneticLid && <p className="text-xs text-muted-foreground" data-testid="magnetic-lid-details">
+            Four pairs · ⌀6.5 × 2.4 mm recesses, same as the base. Glue magnets with attracting faces paired.
+            Keep pockets clear of the corners. Save the lid separately under Export; remove it before stacking.
+            Check fit with a small print first.
+          </p>}
           {!spec.flatBottom && (
             <>
               <FeatureSwitch
@@ -1851,7 +1866,7 @@ export function BinControlsPanel({
               </p>
             )}
           </div>
-          {cutouts.length === 0 && fingerHoles.length === 0 ? (
+          {spec.fill === "solid" && cutouts.length === 0 && fingerHoles.length === 0 ? (
             <div
               className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs text-amber-900 dark:text-amber-100"
               role="status"
@@ -1904,6 +1919,25 @@ export function BinControlsPanel({
             </div>
           </div>
 
+          {spec.magneticLid && onExportLid && (
+            <div className="space-y-2 rounded-md border p-2.5" data-testid="export-magnetic-lid">
+              <SettingLabel label="Export magnetic lid" hint="Print with the flat face on the bed and magnet recesses facing up. The bin export includes the matching corner supports." />
+              <div className="flex gap-2">
+                {(["3mf", "stl"] as const).map(format => (
+                  <Button key={format} className="flex-1" variant="outline" size="sm"
+                    disabled={exporting || hasErrors} data-testid={`button-export-lid-${format}`}
+                    onClick={() => setPendingExport({
+                      title: `Save lid ${format.toUpperCase()}?`,
+                      description: "Download the matching lid at print quality, already oriented for printing.",
+                      confirmLabel: `Download ${format.toUpperCase()}`,
+                      onConfirm: includeProject => onExportLid(format, includeProject),
+                    })}>
+                    Save lid {format.toUpperCase()}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
         </PanelSection>
       </PanelBody>
 

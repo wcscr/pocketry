@@ -264,6 +264,49 @@ function openSettingsSection(
   });
 }
 
+it.each([false, true])("enables magnetic lids independently of base magnets and supports undo (mobile=%s)", async mobile => {
+  let controls: ReturnType<typeof usePanelState>;
+  function PanelProbe() { controls = usePanelState(); return null; }
+  const { container, unmount } = render(<PanelProvider><PanelProbe /><ShapeLibraryProvider><BinDesignerPage /></ShapeLibraryProvider></PanelProvider>, { mobile });
+  await flushHydration();
+  try {
+    React.act(() => controls!.setPanelOpen(true));
+    const panel = mobile ? document.body : container;
+    openSettingsSection(panel, "construction");
+    React.act(() => panel.querySelector<HTMLButtonElement>('[role="switch"][aria-label="Magnetic lid"]')!.click());
+    expect(vi.mocked(useBinGeometry).mock.calls.at(-1)![0]).toMatchObject({ magneticLid: true, magnetHoles: false, lip: "standard" });
+    expect(panel.querySelector<HTMLButtonElement>('[role="switch"][aria-label="Stacking lip"]')!.disabled).toBe(true);
+    openSettingsSection(panel, "export");
+    expect(panel.querySelector<HTMLButtonElement>('[data-testid="button-export-lid-stl"]')!.disabled).toBe(false);
+    expect(panel.querySelector<HTMLButtonElement>('[data-testid="button-export-lid-3mf"]')!.disabled).toBe(false);
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+    expect(vi.mocked(useBinGeometry).mock.calls.at(-1)![0].magneticLid).toBe(false);
+    expect(panel.querySelector('[data-testid="export-magnetic-lid"]')).toBeNull();
+  } finally { unmount(); }
+});
+
+it.each(["stl", "3mf"] as const)("exports the separate lid as %s with an optional editable project", async format => {
+  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, spec: { ...EMPTY_PROJECT.spec, magneticLid: true } });
+  const lidMesh = { positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1]), indices: new Uint32Array([0, 2, 1, 0, 1, 3, 0, 3, 2, 1, 2, 3]), normals: null };
+  // No body mesh: attempting to export the body accidentally will fail.
+  binGeometryMock.buildOnce.mockResolvedValue({ lidMesh });
+  const { container, unmount } = renderPage();
+  await flushHydration();
+  try {
+    openSettingsSection(container, "export");
+    React.act(() => container.querySelector<HTMLButtonElement>(`[data-testid="button-export-lid-${format}"]`)!.click());
+    expect(downloadBlob).not.toHaveBeenCalled();
+    React.act(() => document.querySelector<HTMLButtonElement>('[data-testid="checkbox-export-project"]')!.click());
+    await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-confirm-export"]')!.click());
+    expect(downloadBlob).toHaveBeenCalledTimes(2);
+    const [model, filename] = vi.mocked(downloadBlob).mock.calls.at(-1)!;
+    expect(filename).toContain("-lid-");
+    expect(filename).toMatch(new RegExp(`\\.${format}$`));
+    expect(model.size).toBeGreaterThan(84);
+    if (format === "stl") expect(model.size).toBe(84 + 50 * 4);
+  } finally { unmount(); }
+});
+
 /** Use the compact pocket list without entering rename or changing geometry. */
 function selectPocket(container: HTMLElement, id: string): void {
   React.act(() => container.querySelector<HTMLButtonElement>(`[data-testid="button-select-${id}"]`)!.click());

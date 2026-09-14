@@ -329,6 +329,7 @@ function BinDesignerWorkspace(): JSX.Element {
 
   const {
     geometry,
+    lidGeometry,
     pocketFloorGeometry,
     stackingRimGeometry,
     hasPocketFloor,
@@ -869,6 +870,23 @@ function BinDesignerWorkspace(): JSX.Element {
     ],
   );
 
+  const handleExportLid = useCallback(async (format: "3mf" | "stl", includeProject: boolean) => {
+    setExporting(true);
+    try {
+      const project = prepareProjectExport(exportProjectDoc, currentProjectName, "lid");
+      const result = await buildOnce(EXPORT_QUALITY);
+      if (!result.lidMesh) throw new Error("Enable Magnetic lid before exporting a lid.");
+      const name = `Pocketry magnetic lid ${binSizeLabel(exportProjectDoc.spec)}`;
+      const bytes = format === "3mf"
+        ? writeThreeMf([{ name, mesh: result.lidMesh, material: { name: "Lid", displayColor: binColor as `#${string}` } }], { title: name })
+        : writeBinarySTL(result.lidMesh, name);
+      downloadModelWithProject(new Blob([bytes], { type: format === "3mf" ? "model/3mf" : "application/octet-stream" }), format, project, includeProject);
+      toast({ title: "Saved", description: "Exported the lid with its flat face on the print bed and magnet recesses facing up." });
+    } catch (cause) {
+      if (!(cause instanceof WorkerCancelledError)) toast({ title: "Lid export failed", description: cause instanceof Error ? cause.message : String(cause), variant: "destructive" });
+    } finally { setExporting(false); }
+  }, [buildOnce, exportProjectDoc, currentProjectName, binColor, toast]);
+
   const handleExportFitCheck = useCallback(
     async (cutoutId: string, depthMm: number, includeProject: boolean) => {
       const cutout = exportProjectDoc.cutouts.find((candidate) => candidate.id === cutoutId);
@@ -981,6 +999,7 @@ function BinDesignerWorkspace(): JSX.Element {
           stats={stats}
           building={building}
           exporting={exporting}
+          onExportLid={handleExportLid}
           onExport={(format, includeProject) => void handleExport(format, includeProject)}
           onExportFitCheck={(cutoutId, depthMm, includeProject) =>
             void handleExportFitCheck(cutoutId, depthMm, includeProject)
@@ -1034,6 +1053,8 @@ function BinDesignerWorkspace(): JSX.Element {
           />
           {viewMode === "3d" ? (
             <BinViewport
+              lidGeometry={lidGeometry}
+              lidBaseZMm={builtDimensions.heightToRimMm}
               geometry={geometry}
               pocketFloorGeometry={pocketFloorGeometry}
               stackingRimGeometry={stackingRimGeometry}

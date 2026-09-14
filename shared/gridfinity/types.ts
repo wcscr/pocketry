@@ -66,6 +66,8 @@ export const binSpecSchema = z
     fill: z.enum(["none", "solid"]).default("solid"),
     /** Smooth underside without Gridfinity sockets; preserves outer size and pocket heights. */
     flatBottom: z.boolean().default(false),
+    /** Matching removable lid and four upper magnet recesses; independent of base holes. */
+    magneticLid: z.boolean().default(false),
     /** ⌀6.5 × 2.4 mm magnet pockets, four per cell, opening downward. */
     magnetHoles: z.boolean().default(false),
     /**

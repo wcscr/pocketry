@@ -42,6 +42,7 @@ import {
 } from "./standard";
 import type { BinSpec } from "./types";
 import { resolvePocketSplit } from "./pocket-split";
+import { LID_PAD_EXTENT_MM, magneticLidError } from "./magnetic-lid";
 
 /**
  * Pure validation of a bin specification — no WASM, cheap enough to run on
@@ -122,6 +123,8 @@ const FOOTPRINT_WARN_MM = 260;
 
 export function validateBinSpec(spec: BinSpec): ValidationResult {
   const issues: ValidationIssue[] = [];
+  const lidError = magneticLidError(spec);
+  if (lidError) issues.push({ code: "magnetic-lid-unavailable", severity: "error", message: lidError });
   const wallHeight = binWallHeightMm(spec.heightUnits);
 
   if (spec.lip === "standard" && wallHeight < STACKING_LIP_SUPPORT_HEIGHT_MM) {
@@ -350,6 +353,10 @@ export function validateLayout(
 
   for (const p of placed) {
     issues.push(...validateAgainstBin(spec, p));
+    if (touchesLidSupport(spec, p.outline, pocketLayoutAllowanceMm(p.cutout))) {
+      issues.push({ code: "lid-support-collision", severity: "error", cutoutIds: [p.cutout.id],
+        message: `“${p.label}” reaches a lid magnet support. Move it away from the corners or turn off Magnetic lid.` });
+    }
   }
   for (let i = 0; i < placed.length; i++) {
     for (let j = i + 1; j < placed.length; j++) {
@@ -360,6 +367,11 @@ export function validateLayout(
 
   for (const [index, hole] of fingerHoles.entries()) {
     issues.push(...validateFingerHoleAgainstBin(spec, hole, index));
+    const ring = fingerHoleFootprintRing(hole, { position: { x: 0, y: 0 }, rotationDeg: 0, mirrored: false });
+    if (touchesLidSupport(spec, [{ outer: ring, holes: [] }], hole.topFilletMm)) {
+      issues.push({ code: "lid-support-collision", severity: "error", fingerHoleIds: [hole.id],
+        message: `Finger hole ${index + 1} reaches a lid magnet support. Move it away from the corners or turn off Magnetic lid.` });
+    }
   }
 
   // A pocket mouth under the label tab: legal geometry, but the tab shadows
@@ -596,6 +608,29 @@ function validateFingerHoleAgainstBin(
     });
   }
   return issues;
+}
+
+/** Conservative plan clearance for the full pad; the worker also checks the actual 3D cutters. */
+function touchesLidSupport(spec: BinSpec, outline: Outline, allowance: number): boolean {
+  if (!spec.magneticLid || magneticLidError(spec)) return false;
+  const halfW = binFootprintMm(spec.gridX, spec.gridPitch) / 2;
+  const halfL = binFootprintMm(spec.gridY, spec.gridPitch) / 2;
+  for (const sx of [-1, 1]) for (const sy of [-1, 1]) {
+    const x = sx * halfW;
+    const y = sy * halfL;
+    const pad: Ring = [{ x, y }, { x: x - sx * LID_PAD_EXTENT_MM, y },
+      { x: x - sx * LID_PAD_EXTENT_MM, y: y - sy * LID_PAD_EXTENT_MM },
+      { x, y: y - sy * LID_PAD_EXTENT_MM }];
+    for (const shape of outline) {
+      if (shape.holes.some(hole => ringInsideBoundary(pad, hole) && ringSeparation(pad, hole) > Math.max(0, allowance))) continue;
+      if (shape.outer.some(point => pointInRing(pad, point)) || pad.some(point => pointInRing(shape.outer, point))) return true;
+      for (let i = 0; i < shape.outer.length; i++) for (let j = 0; j < pad.length; j++) {
+        if (segmentsIntersect(shape.outer[i], shape.outer[(i + 1) % shape.outer.length], pad[j], pad[(j + 1) % pad.length])) return true;
+      }
+      if (Math.min(ringSeparation(shape.outer, pad), ringSeparation(pad, shape.outer)) <= Math.max(0, allowance)) return true;
+    }
+  }
+  return false;
 }
 
 function ringInsideBoundary(ring: Ring, boundary: Ring): boolean {

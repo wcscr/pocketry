@@ -44,6 +44,20 @@ const VALID = {
 };
 
 describe("parseProjectDoc", () => {
+  it("migrates v17 lid defaults in the visible design and undo history without changing the source", () => {
+    const { magneticLid: _removed, ...oldSpec } = VALID.spec;
+    const previous = { ...VALID, schemaVersion: 17, spec: oldSpec,
+      history: { index: 0, stack: [{ label: "Loaded", doc: { spec: oldSpec, cutouts: VALID.cutouts, fingerHoles: [] } }] } };
+    const original = JSON.stringify(previous);
+    const migrated = parseProjectDoc(previous);
+    expect(migrated?.spec.magneticLid).toBe(false);
+    expect(migrated?.schemaVersion).toBe(18);
+    expect(migrated?.history?.stack[0].doc.spec.magneticLid).toBe(false);
+    expect(JSON.stringify(previous)).toBe(original);
+    const enabled = parseProjectDoc({ ...migrated, history: undefined, spec: { ...migrated!.spec, magneticLid: true } });
+    expect(enabled?.spec.magneticLid).toBe(true);
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(enabled)))).toEqual(enabled);
+  });
   it("preserves finger access names through save and reload alongside unnamed legacy holes", () => {
     const doc = parseProjectDoc({
       ...VALID,
@@ -68,7 +82,7 @@ describe("parseProjectDoc", () => {
     const original = JSON.stringify(airdusterV9);
     const doc = parseProjectDoc(airdusterV9);
     const { liteBase: _removed, ...spec } = airdusterV9.spec;
-    expect(doc).toEqual({ ...airdusterV9, spec: { ...spec, flatBottom: false }, schemaVersion: PROJECT_SCHEMA_VERSION });
+    expect(doc).toEqual({ ...airdusterV9, spec: { ...spec, flatBottom: false, magneticLid: false }, schemaVersion: PROJECT_SCHEMA_VERSION });
     expect(doc!.shapes).toHaveLength(7);
     expect(doc!.cutouts).toHaveLength(4);
     expect(doc!.fingerHoles).toHaveLength(2);

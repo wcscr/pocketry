@@ -23,6 +23,7 @@ import {
   type BinLayout,
 } from "./bin";
 import { buildFitCheckSolid, buildSurfaceFitCheckSolid } from "./fit-check";
+import { buildMagneticLid, magneticLidForPrint } from "./magnetic-lid";
 import {
   BUILD_BIN_METHOD,
   BUILD_FIT_CHECK_METHOD,
@@ -181,6 +182,9 @@ export function createBinWorkerHandlers(
 
       const value: BuildBinResult = {
         mesh,
+        ...(spec.magneticLid ? { lidMesh: extractMeshData(kernel,
+          magneticLidForPrint(kernel, buildMagneticLid(kernel, spec, payload.quality.circularSegments)),
+          { normals: includePreviewNormals }) } : {}),
         materialMeshes,
         stats: {
           triangles: mesh.indices.length / 3,
@@ -190,6 +194,10 @@ export function createBinWorkerHandlers(
         cutoutReports,
       };
       const transfer: Transferable[] = [mesh.positions.buffer, mesh.indices.buffer];
+      if (value.lidMesh) {
+        transfer.push(value.lidMesh.positions.buffer, value.lidMesh.indices.buffer);
+        if (value.lidMesh.normals) transfer.push(value.lidMesh.normals.buffer);
+      }
       if (mesh.normals) transfer.push(mesh.normals.buffer);
       if (materialMeshes) {
         transfer.push(

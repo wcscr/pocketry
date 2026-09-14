@@ -7,6 +7,8 @@ import type { BufferGeometry, PerspectiveCamera } from "three";
 import { Vector3 } from "three";
 
 import type { Outline, Point } from "@shared/geometry/types";
+import { BASE_PROFILE_HEIGHT } from "@shared/gridfinity/standard";
+import { LID_PREVIEW_LIFT_MM } from "@shared/gridfinity/magnetic-lid";
 
 import { Button } from "@/components/ui/button";
 import { useElementSize } from "@/hooks/use-element-size";
@@ -40,6 +42,8 @@ const EMPTY_MEASUREMENT_PATHS: MeasurementPaths = [];
  */
 export interface BinViewportProps {
   geometry: BufferGeometry | null;
+  lidGeometry?: BufferGeometry | null;
+  lidBaseZMm?: number;
   /** Exact printable pocket-floor material volume. */
   pocketFloorGeometry?: BufferGeometry | null;
   /** Exact printable stacking-rim material volume. */
@@ -191,6 +195,8 @@ function CameraFit({ size }: { size: FitSize }): null {
 
 export function BinViewport({
   geometry,
+  lidGeometry = null,
+  lidBaseZMm = 0,
   pocketFloorGeometry = null,
   stackingRimGeometry = null,
   hasPocketFloor = false,
@@ -217,6 +223,11 @@ export function BinViewport({
   const [containerRef, containerSize] = useElementSize<HTMLDivElement>();
   const laidOut = containerSize.width > 0 && containerSize.height > 0;
   const [rulerActive, setRulerActive] = useState(false);
+  const [lidView, setLidView] = useState<"raised" | "closed" | "hidden">("raised");
+  const lidZ = lidBaseZMm + (lidView === "raised" ? LID_PREVIEW_LIFT_MM : 0);
+  const displayFitSize = useMemo(() => ({ ...fitSize,
+    heightMm: lidGeometry && lidView !== "hidden" ? Math.max(fitSize.heightMm, lidZ + BASE_PROFILE_HEIGHT) : fitSize.heightMm,
+  }), [fitSize, lidGeometry, lidView, lidZ]);
   const [measurementPoints, setMeasurementPoints] = useState<Point[]>([]);
   const measuredDistanceMm = useMemo(
     () =>
@@ -260,6 +271,11 @@ export function BinViewport({
         <ambientLight intensity={0.45} />
         <directionalLight position={[90, -70, 160]} intensity={1.1} />
         <directionalLight position={[-70, 90, 50]} intensity={0.35} />
+        {lidGeometry && lidView !== "hidden" && (
+          <mesh geometry={lidGeometry} position={[0, 0, lidZ]} name="magnetic-lid">
+            <meshStandardMaterial color={binColor} roughness={0.55} metalness={0.05} />
+          </mesh>
+        )}
         {geometry ? (
           <mesh geometry={geometry}>
             <meshStandardMaterial color={binColor} roughness={0.55} metalness={0.05} />
@@ -308,9 +324,22 @@ export function BinViewport({
             enableDamping
             dampingFactor={0.12}
           />
-          <CameraFit size={fitSize} />
+          <CameraFit size={displayFitSize} />
         </Canvas>
       ) : null}
+
+      {lidGeometry && (
+        <div className="absolute bottom-3 left-3 z-30 flex items-center gap-1 rounded-md border bg-background/95 p-1 shadow-sm" aria-label="Lid preview">
+          <span className="px-1 text-xs text-muted-foreground">Lid</span>
+          {(["raised", "closed", "hidden"] as const).map(mode => (
+            <Button key={mode} size="sm" variant={lidView === mode ? "secondary" : "ghost"}
+              className="h-7 px-2 text-xs" aria-pressed={lidView === mode}
+              onClick={() => setLidView(mode)} data-testid={`button-lid-${mode}`}>
+              {mode === "raised" ? "Raised" : mode === "closed" ? "Closed" : "Hidden"}
+            </Button>
+          ))}
+        </div>
+      )}
 
       <div
         className="absolute right-3 top-12 z-30 flex flex-col overflow-hidden rounded-md border bg-background/90 shadow-sm backdrop-blur"
