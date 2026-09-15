@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 export interface AppShellProps {
-  /** Contents of the fixed-height top bar. Omit for a chrome-less shell. */
+  /** Contents of the top bar. Omit for a chrome-less shell. */
   header?: ReactNode;
   /** Fills every pixel below the header. */
   children: ReactNode;
@@ -21,7 +21,7 @@ export function AppShell({ header, children }: AppShellProps): JSX.Element {
     // URL bar, so h-screen leaves the bottom of the app under it.
     <div className="flex h-dvh w-full flex-col overflow-hidden bg-background text-foreground">
       {header ? (
-        <header className="flex h-12 shrink-0 items-center gap-2 border-b px-3">
+        <header className="flex min-h-12 shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b px-3 py-1 sm:h-12 sm:flex-nowrap sm:py-0">
           {header}
         </header>
       ) : null}
