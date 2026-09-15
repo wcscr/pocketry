@@ -8,6 +8,7 @@ import type {
   TracedShape,
 } from "@shared/gridfinity/cutout";
 import type { BinSpec } from "@shared/gridfinity/types";
+import type { SurfaceFitCheckStyle } from "@shared/gridfinity/fit-check";
 
 import { toBufferGeometry } from "@/lib/mesh/to-buffer-geometry";
 import { createWorkerClient, type WorkerClient } from "@/lib/worker/client";
@@ -88,6 +89,7 @@ export interface BinGeometryState {
   buildSurfaceFitCheck: (
     thicknessMm: number,
     quality: BuildQuality,
+    style?: SurfaceFitCheckStyle,
   ) => Promise<BuildSurfaceFitCheckResult>;
 }
 
@@ -145,6 +147,7 @@ export function useBinGeometry(
       JSON.stringify({
         spec,
         segments: quality.circularSegments,
+        fingerHoleChordTolerance: quality.fingerHoleChordToleranceMm,
         budget: quality.cutoutVertexBudget,
         filletStep: quality.filletProfileStepMm,
         cutouts: layout?.cutouts ?? [],
@@ -161,6 +164,7 @@ export function useBinGeometry(
     [
       spec,
       quality.circularSegments,
+      quality.fingerHoleChordToleranceMm,
       quality.cutoutVertexBudget,
       quality.filletProfileStepMm,
       layout,
@@ -318,6 +322,7 @@ export function useBinGeometry(
     (
       thicknessMm: number,
       exportQuality: BuildQuality,
+      style: SurfaceFitCheckStyle = "full",
     ): Promise<BuildSurfaceFitCheckResult> => {
       if (
         !layout ||
@@ -335,6 +340,7 @@ export function useBinGeometry(
           fingerHoles: layout.fingerHoles,
         },
         thicknessMm,
+        style,
         quality: exportQuality,
       };
       return ensureClient().call<BuildSurfaceFitCheckResult>(

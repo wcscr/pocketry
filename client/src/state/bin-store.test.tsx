@@ -3,7 +3,7 @@ import * as React from "react";
 import { createRoot } from "react-dom/client";
 import { describe, expect, it, vi } from "vitest";
 
-import { parseCutoutPlacement } from "@shared/gridfinity/cutout";
+import { clampFingerHoleToBin, fingerHoleSchema, parseCutoutPlacement } from "@shared/gridfinity/cutout";
 
 import {
   BinProvider,
@@ -47,6 +47,90 @@ const CUTOUT = parseCutoutPlacement({
 });
 
 describe("bin store", () => {
+  it("keeps a split inside one pocket across movement, duplication, base changes, undo and hydration", () => {
+    const { store, act } = mountBin();
+    const split = { boundary: [{ x: 0, y: -10 }, { x: 0, y: 10 }], depths: [
+      { mode: "remaining" as const, floorThicknessMm: 7 }, { mode: "mm" as const, value: 6 },
+    ] as [{ mode: "remaining"; floorThicknessMm: number }, { mode: "mm"; value: number }] };
+    act(() => store().dispatch({ type: "ADD_PLACED", cutouts: [{ ...CUTOUT, split }], gridX: 3, gridY: 3 }));
+    act(() => store().dispatch({ type: "UPDATE_CUTOUT", id: CUTOUT.id, patch: { position: { x: 10, y: -4 }, rotationDeg: 37, mirrored: true, scaleX: 1.4 } }));
+    expect(store().cutouts[0].split).toEqual(split);
+    act(() => store().dispatch({ type: "DUPLICATE_CUTOUT", id: CUTOUT.id, newId: "copy" }));
+    expect(store().cutouts[1].split).toEqual(split);
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { flatBottom: true } }));
+    expect(store().cutouts[0].split!.depths).toEqual([{ mode: "remaining", floorThicknessMm: 2 }, { mode: "mm", value: 6 }]);
+    act(() => store().dispatch({ type: "UNDO" }));
+    expect(store().cutouts[0].split).toEqual(split);
+    const doc = getCommittedBinDoc(store());
+    act(() => store().dispatch({ type: "HYDRATE", ...doc }));
+    expect(store().cutouts[0].split).toEqual(split);
+    expect(store().canUndo).toBe(false);
+  });
+
+  it("limits added and edited finger access, and undoes each adjustment atomically", () => {
+    const { store, act } = mountBin();
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { gridX: 1, gridY: 1, heightUnits: 2 } }));
+    const hole = fingerHoleSchema.parse({ id: "f", kind: "flat-ended-straight", center: { x: 0, y: 0 }, diameterMm: 80, lengthMm: 160, depthMm: 120 });
+    act(() => store().dispatch({ type: "ADD_FINGER_HOLE", hole }));
+    expect(store().fingerHoles[0]).toMatchObject({ diameterMm: 43.57, lengthMm: 43.57, depthMm: 12.8 });
+    const before = store().fingerHoles[0];
+    act(() => store().dispatch({ type: "UPDATE_FINGER_HOLE", id: "f", patch: { rotationDeg: 45, depthMm: 120 } }));
+    expect(store().fingerHoles[0]).toEqual(clampFingerHoleToBin({ ...before, rotationDeg: 45, depthMm: 120 }, store().spec));
+    act(() => store().dispatch({ type: "UNDO" }));
+    expect(store().fingerHoles[0]).toEqual(before);
+  });
+
+  it("resizes access with the bin, restores dimensions during a drag, and undoes both together", () => {
+    const { store, act } = mountBin();
+    const hole = fingerHoleSchema.parse({ id: "f", kind: "oblong-straight", center: { x: 0, y: 0 }, diameterMm: 60, lengthMm: 80, depthMm: 30 });
+    act(() => store().dispatch({ type: "ADD_FINGER_HOLE", hole }));
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { gridX: 1, gridY: 1, heightUnits: 1 }, transient: true }));
+    expect(store().fingerHoles[0].depthMm).toBe(5.8);
+    expect(getCommittedBinDoc(store()).fingerHoles[0]).toEqual(hole);
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { gridX: 2, gridY: 2, heightUnits: 6 }, transient: true }));
+    expect(store().fingerHoles[0]).toEqual(hole);
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { gridX: 1, gridY: 1, heightUnits: 1 } }));
+    const smallHole = store().fingerHoles[0];
+    expect(smallHole.lengthMm).toBe(43.57);
+    act(() => store().dispatch({ type: "UNDO" }));
+    expect(store().spec.heightUnits).toBe(6);
+    expect(store().fingerHoles[0]).toEqual(hole);
+    act(() => store().dispatch({ type: "REDO" }));
+    expect(store().spec.heightUnits).toBe(1);
+    expect(store().fingerHoles[0]).toEqual(smallHole);
+  });
+
+  it("keeps large round access through edits and hydration, and resizes it with bin width in one undo step", () => {
+    const { store, act } = mountBin();
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { gridX: 6, gridY: 4 } }));
+    const hole = fingerHoleSchema.parse({ id: "large", kind: "deep-scoop", center: { x: 0, y: 0 }, diameterMm: 150, depthMm: 1 });
+    act(() => store().dispatch({ type: "ADD_FINGER_HOLE", hole }));
+    expect(store().fingerHoles[0]).toEqual(hole);
+    act(() => store().dispatch({ type: "UPDATE_FINGER_HOLE", id: hole.id, patch: { diameterMm: 251.5 } }));
+    expect(store().fingerHoles[0].diameterMm).toBe(251.5);
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { gridX: 2 } }));
+    expect(store().fingerHoles[0]).toMatchObject({ diameterMm: 83.5, depthMm: 1 });
+    act(() => store().dispatch({ type: "UNDO" }));
+    expect(store().spec.gridX).toBe(6);
+    expect(store().fingerHoles[0].diameterMm).toBe(251.5);
+    act(() => store().dispatch({ type: "HYDRATE", ...getCommittedBinDoc(store()) }));
+    expect(store().fingerHoles[0].diameterMm).toBe(251.5);
+    act(() => store().dispatch({ type: "UPDATE_FINGER_HOLE", id: hole.id, patch: { kind: "oblong-deep-scoop" } }));
+    expect(store().fingerHoles[0].diameterMm).toBe(80);
+    act(() => store().dispatch({ type: "UNDO" }));
+    expect(store().fingerHoles[0]).toMatchObject({ kind: "deep-scoop", diameterMm: 251.5 });
+  });
+
+  it("keeps restored oversize geometry intact until a geometry edit", () => {
+    const { store, act } = mountBin();
+    const hole = fingerHoleSchema.parse({ id: "legacy", center: { x: 0, y: 0 }, depthMm: 120 });
+    act(() => store().dispatch({ type: "HYDRATE", spec: store().spec, cutouts: [], fingerHoles: [hole] }));
+    act(() => store().dispatch({ type: "UPDATE_FINGER_HOLE", id: hole.id, patch: { name: "Old access" } }));
+    expect(store().fingerHoles[0].depthMm).toBe(120);
+    act(() => store().dispatch({ type: "UPDATE_FINGER_HOLE", id: hole.id, patch: { depthMm: 120 } }));
+    expect(store().fingerHoles[0].depthMm).toBe(40.8);
+  });
+
   it("starts solid (the pocket workflow default) and unhydrated", () => {
     const { store } = mountBin();
     expect(store().spec.fill).toBe("solid");
@@ -430,5 +514,51 @@ describe("bin store history (G4 undo/redo)", () => {
     expect(store().spec.gridX).toBe(2);
     expect(store().spec.labelTab).toBeNull();
     expect(store().cutouts[0].position).toEqual({ x: 0, y: 0 });
+  });
+});
+
+it("uses a deeper default floor for flat bins and restores it with undo and base changes", () => {
+  const { store, act } = mountBin();
+  const custom = { ...CUTOUT, id: "custom", depth: { mode: "remaining" as const, floorThicknessMm: 4 } };
+  const fixed = { ...CUTOUT, id: "fixed", depth: { mode: "mm" as const, value: 12 } };
+  act(() => store().dispatch({ type: "ADD_PLACED", gridX: 2, gridY: 2, cutouts: [CUTOUT, custom, fixed] }));
+  const original = store().cutouts;
+  act(() => store().dispatch({ type: "PATCH_SPEC", patch: { flatBottom: true } }));
+  expect(store().cutouts[0].depth).toEqual({ mode: "remaining", floorThicknessMm: 2 });
+  expect(store().cutouts.slice(1)).toEqual([custom, fixed]);
+  act(() => store().dispatch({ type: "UNDO" }));
+  expect(store().spec.flatBottom).toBe(false);
+  expect(store().cutouts).toEqual(original);
+  act(() => store().dispatch({ type: "REDO" }));
+  expect(store().cutouts[0].depth).toEqual({ mode: "remaining", floorThicknessMm: 2 });
+  act(() => store().dispatch({ type: "ADD_PLACED", gridX: 2, gridY: 2, cutouts: [{ ...CUTOUT, id: "new" }] }));
+  expect(store().cutouts.at(-1)!.depth).toEqual({ mode: "remaining", floorThicknessMm: 2 });
+  act(() => store().dispatch({ type: "PATCH_SPEC", patch: { flatBottom: false } }));
+  expect(store().cutouts[0].depth).toEqual(CUTOUT.depth);
+  expect(store().cutouts.at(-1)!.depth).toEqual(CUTOUT.depth);
+  expect(store().cutouts.slice(1, 3)).toEqual([custom, fixed]);
+});
+
+describe("restored project history", () => {
+  it("restores the saved cursor, keeps new edits local, and preserves the retention limit", () => {
+    const { store, act } = mountBin();
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { gridX: 3 } }));
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { gridX: 4 } }));
+    act(() => store().dispatch({ type: "UNDO" }));
+    const saved = structuredClone(store().history);
+    const current = saved.stack[saved.index].doc;
+    act(() => store().dispatch({ type: "HYDRATE", ...current, history: saved }));
+    expect(store().history).toEqual(saved);
+    expect(store().canUndo).toBe(true);
+    expect(store().canRedo).toBe(true);
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { gridY: 3 } }));
+    expect(store().canRedo).toBe(false);
+    expect(saved.stack).toHaveLength(3);
+    expect(saved.index).toBe(1);
+    for (let index = 0; index < 60; index++) {
+      act(() => store().dispatch({ type: "PATCH_SPEC", patch: { gridY: index % 2 + 2 } }));
+    }
+    expect(store().history.stack).toHaveLength(50);
+    expect(store().history.index).toBe(49);
   });
 });

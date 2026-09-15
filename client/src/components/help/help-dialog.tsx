@@ -143,13 +143,18 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
                 Keep bin size fixed prevents new tools from enlarging the bin.
               </li>
               <li>
-                Open <strong>Arrange pockets</strong> and select a cutout to
-                set depth, extra clearance, corner rounds, bottom fillet, and
-                straight or scoop finger holes. Extra clearance is added after
-                the Margin chosen on Trace.
+                Click a pocket in <strong>Layout</strong> or choose it in
+                <strong> Pockets</strong> to open its properties in that section.
+                Set depth first; expand <strong>Size &amp; scale</strong> for dimensions. Expand <strong>Edges &amp; corners</strong>
+                to soften the outline or pocket edges, or <strong>Extra pocket clearance</strong>
+                to add more room around the tool.
+                Extra clearance is added after the Margin chosen on Trace.
+                Use <strong>Finger access</strong> for straight or scoop holes.
+                Warnings appear at the bottom right of the canvas; click a message
+                to open the affected pocket or settings.
               </li>
               <li>
-                Click a selected tool's name to rename it. Use Layout to move,
+                Click the pencil on a pocket’s row to rename it. Use Layout to move,
                 rotate, or edit its contour; the ruler snaps to tool contours
                 and is most accurate in the 2D Layout view.
               </li>
@@ -178,13 +183,28 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
             <h3 className="mb-1.5 font-medium">3. Save and resume projects</h3>
             <ul className="list-disc space-y-1 pl-6 text-muted-foreground">
               <li>
-                <strong>Save project</strong> stores a named project in the
+                <strong>Save to library</strong> stores a named project in the
                 browser's project library for quick resume.
               </li>
               <li>
-                <strong>Open project</strong> resumes a saved design; portable
-                project files can also be exported and imported with a chosen
-                filename and location.
+                <strong>Browser library → Open saved project</strong> resumes a
+                project saved in this browser.
+                {" "}<strong>Manage library</strong> also opens projects with Open or a
+                double-click, renames any project with the pencil, creates an independent
+                duplicate with Copy directly after its source without moving focus or
+                switching projects, and provides a confirmed
+                Remove action. The currently open project cannot be removed; open another
+                project or start a new one first.
+                In <strong>Portable backup → Current project</strong>, use
+                {" "}<strong>Export project</strong> or <strong>Open project file</strong>
+                {" "}for one editable design.
+              </li>
+              <li>
+                In <strong>Project → Portable backup → Entire library</strong>, use <strong>Export library</strong>
+                {" "}to back up every named design in one JSON file, or <strong>Import library</strong>
+                {" "}to add designs from a backup. Supported older designs upgrade automatically.
+                Duplicate names get an “imported” suffix; existing designs and the open draft
+                stay intact. Save an unnamed draft to the library before exporting it.
               </li>
               <li>
                 <strong>New project</strong> clears the active design after
@@ -199,7 +219,7 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
             <div className="mb-3 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-foreground">
               <strong>Before printing the full bin:</strong> double-check the
               final dimensions in the 2D Layout view, then print the thin
-              Complete surface fit test when checking a multi-tool layout, or
+              Surface fit test when checking a multi-tool layout, or
               use the Preview/shadow-board layout for a flat dimensional
               review. A quick, inexpensive check can catch scale, spacing, or
               fit errors before a long bin print.
@@ -220,18 +240,27 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
                 STL for an inexpensive physical fit check.
               </li>
               <li>
-                Every bin STL or 3MF export, including fit tests, also downloads
-                a portable <strong>.pocketry.json</strong> backup of the full
-                editable project. The files share a name with the project name
+                Bin model, fit-test, and layout exports ask whether to also download
+                an editable <strong>.pocketry.json</strong> project. This checkbox
+                starts unchecked. When selected, the files share the project name
                 (when saved), bin size, and local date/time. Allow multiple
                 downloads if your browser asks, and keep the JSON to restore
-                the design later with Open Pocketry project.
+                the design later with Open project file.
               </li>
               <li>
-                Under <strong>Check fit</strong>, Complete surface fit test exports every pocket
-                and finger-access opening together as one thin STL, without the
-                base, walls, label tab, or stacking lip. It checks the surface
-                layout, but not pocket depth or Gridfinity baseplate fit.
+                Trace exports offer the same optional JSON download once the outline
+                is calibrated. Open that project in Bin to edit the exported outline
+                as a pocket at its original physical size.
+              </li>
+              <li>
+                Under <strong>Check fit</strong>, Surface fit test offers the
+                <strong> Full surface</strong> or <strong>Tool outlines · 5 mm</strong>.
+                Tool outlines keep a 5 mm material band around each tool opening,
+                without the bin perimeter or separate finger-access holes.
+                Widely spaced tools print as separate pieces. Thickness sets the printed height
+                for either option. Both omit the base, walls, label tab, and
+                stacking lip. Use the full surface to check relative pocket
+                spacing; neither option tests pocket depth or Gridfinity baseplate fit.
               </li>
               <li>
                 Shadow-board Layout DXF and SVG exports contain the bin footprint

@@ -25,6 +25,27 @@ spacing, effective depth/floor measurements, trace-margin provenance, and a dire
 and can select the affected objects. **Materials**, **View**, and **Check fit** are
 separate sections, with thin fit checks available before full model export.
 
+Precision positioning, dimensions, and spacing are collapsed under **Fine-tune
+position & size**. Depth and floor measurements stay in a compact row with an
+expandable diagram. Pocket inspection exposes **Show full bin** both beside the
+3D model and in the pocket controls. The 3MF color dialog wraps its choices within
+the available width and scrolls on short screens. Export statistics show model
+volume; filament weight is left to the slicer's infill and wall settings.
+
+Selecting a pocket in Layout also exposes **Edit Contour** beside the canvas,
+with **Finish contour editing** to return to placement. The portable project
+download and open actions appear side by side. Bin model, fit-template, and
+DXF/SVG layout exports offer an unchecked **Also download editable project**
+checkbox; canceling does not build or download files. When requested, the JSON
+and exported geometry come from the same snapshot and share a filename stem.
+Trace SVG, DXF, DWG-compatibility, and STL exports offer the same choice. Their
+optional JSON reopens the current calibrated outline as an editable pocket in a
+new Bin project, preserving its contour, physical scale, and trace margin. This
+option requires calibration; exporting an outline alone remains available without it.
+Pocket rows are full selection buttons with an explicit **Edit properties** label,
+persistent borders, and a highlighted selected state. Selecting a row brings the
+named **Pocket properties** header into view; renaming is a separate action there.
+
 Project schema 10 adds optional names, the fixed-size preference, and trace-margin
 metadata. Versions 1–9 remain supported through explicit migration; the supplied
 version-9 Airduster fixture verifies all seven shapes, four placements, and two
@@ -32,7 +53,7 @@ finger-access features survive a library save and portable JSON round trip. New
 outside-only defaults never alter imported contours. Legacy IndexedDB keys are
 retained, unreadable library records are preserved, and autosave refuses to
 overwrite an unreadable working copy. The project header reports save success or
-failure, and STL/3MF exports continue to download the editable project backup first.
+failure. When an export includes an editable project, its JSON is downloaded first.
 
 Nonrectangular bin footprints landed on 2026-08-27. A bin can now use a
 connected, hole-free mask at the selected full/half/quarter pitch, so a 2×2
@@ -50,14 +71,30 @@ footprint, then print an L-tool pocket and check its fit.
 
 G4 delivered **finger holes**, now independent bin-local layout objects rather
 than children of a tool pocket. They can be straight cylinders with their own
-depth, spherical round scoops, round deep scoops, or oblong deep scoops from the
+depth, spherical round scoops, round deep scoops, oblong deep scoops, or flat-ended
+cylindrical scoops from the
 top surface. Deep
 scoops run straight down for the requested shaft depth and terminate in a
 rounded bottom, so total depth can exceed the opening width without an
 inward-overhanging cavity. The oblong variant has a capsule mouth and swept
 hemisphere bottom; it can be moved as a unit, rotated directly, or resized and
 rotated by dragging either endpoint. Every hole type has a mouse diameter/width
-handle; oblong holes additionally expose both end handles. Round-scoop depth
+handle; elongated scoops additionally expose both end handles. Flat-ended scoops
+have a rectangular mouth, a half-cylinder bottom, and planar end faces; their
+length (6–160 mm) measures the full distance between the ends and is independent
+of diameter. Total depth can be as shallow as 1 mm: a circular-segment bottom
+preserves the opening width. At half the width the bottom is a half-cylinder;
+extra depth adds vertical walls. Their long-edge rounding is tangent to both the
+cylindrical bottom and the flat top, including shallow cuts and short vertical
+shafts. Flat ends retain their
+quarter-circle rounding. All five finger-access styles now share continuous
+top-edge rounding: round scoops match the spherical cap, deep scoops match their
+hemisphere or shaft, and oblong scoops match both the trough and spherical end
+caps. Straight holes retain their existing floor fillets. Connected rings join
+the surfaces without stepped bands or a ledge across curved walls. They support
+validation, undo/redo, layout and
+STL/3MF export paths. Project schema 13 preserves this style and migrates v12
+without changing existing geometry. Round-scoop depth
 remains capped at half the opening width. Moving, duplicating, deleting, or
 auto-arranging a pocket does not move or remove a hole. **Auto-arrange** uses a
 min-area OBB per cutout and shelf-packs pockets into the smallest grid while
@@ -75,7 +112,10 @@ preview-only **section view**
 and per-pocket duplicate. The Project
 section is pinned to the top of the Bin controls: a draft resumes automatically,
 Save gives it a library name, Open presents the browser-local named projects,
-and New detaches a clean draft without deleting saved projects. The library is
+and New detaches a clean draft without deleting saved projects. Opening another
+design, opening a project file, and New Project all save the outgoing named
+design's latest edits before changing the autosave target. A failed save keeps
+the current design open. The library is
 implemented entirely over IndexedDB so its behavior is consistent across modern
 browsers; JSON remains an explicit backup/transfer path whose download location
 is browser-controlled.
@@ -126,11 +166,21 @@ left/center/right on any wall, fused into the wall part, with
 `label-tab-clipped` and `label-tab-shadow` warnings. **Crush ribs** are in
 too — upstream `ribbed_cylinder()`, eight sinusoidal lobes between ⌀5.9
 and ⌀6.5 for glue-free press-fit magnets, a per-spec toggle under Magnet
-holes. The **lite base** landed as well: hollow thin-shell sockets under a
-chamfered bridge lattice with a 1.2 mm floor (`spec.liteBase`; holes are
-ignored there with a warning until bosses are ported). **Half/quarter grid**
+holes. The earlier modeled Lite Base option was removed: ordinary slicer
+infill already provides the intended material savings without permanently
+adding hollow chambers and special pocket-floor support to the exported
+model. **Flat bottom** is an optional Construction setting that replaces the
+Gridfinity sockets with a smooth base, preserving outer size. New pockets
+default to a 2 mm remaining floor in flat-bottom mode (7 mm for Gridfinity).
+Switching base styles updates pockets using the previous default floor; custom
+floors and fixed depths are retained. Remaining floor is measured from the
+actual underside, so flat pockets can cut into the former feet area. Base magnet/screw holes are inactive in this mode; their settings
+return when switched off. Existing projects retain the Gridfinity base.
+**Half/quarter grid**
 landed as explicit 21/10.5 mm pitch modes while retaining the upstream 0.5 mm
-gap; fractional magnet/screw patterns are disabled until the corner-only hole
+gap. The maximum physical span is shared across pitches: 16 full, 32 half, or
+64 quarter cells per axis, including footprint editing and automatic sizing.
+Fractional magnet/screw patterns are disabled until the corner-only hole
 layout is ported. Baseplate generation was intentionally removed from
 Pocketry; dedicated Gridfinity tools cover that workflow. The only remaining
 G5 item is optional server persistence.
@@ -182,7 +232,13 @@ depths are independently selectable from 0.2–3.0 mm for pocket floors and
 defaults). The rim limit is the full
 modeled lip depth and does not extend into the bin wall. Both accents are cut
 downward from the original surfaces, never added above them; STL warns before
-dropping those color assignments. Hole regression worth
+dropping those color assignments. Pocket controls, Materials, and export show a
+nonblocking warning when a pocket's colored floor layer reaches the underside
+recesses. This uses the resolved depth and selected color thickness: ordinary
+base recesses rise to 4.75 mm, while lite cavities and full-pitch screw bores can
+reach 7 mm. The check is conservative because actual exposure also depends on
+the pocket's position. Reducing depth or color thickness, increasing the remaining
+floor, or disabling floor coloring updates the warning immediately. Hole regression worth
 remembering: abutting union pieces whose faces share no vertices don't weld —
 the genus invariant caught the resulting sealed voids; pieces now overlap.
 
@@ -308,7 +364,7 @@ interface CutoutPlacement {
   scaleX: number; scaleY: number; aspectRatioLocked: boolean;
   depth: { mode: 'through' } | { mode: 'mm'; value: number }
        | { mode: 'remaining'; floorThicknessMm: number };
-  clearanceMm: number;      // 0.0 — optional extra after Trace margin
+  clearanceMm: number;      // 0.0 — signed adjustment after scale/Trace margin, -5..5 mm
   cornerRoundMm: number;    // 1.0 — 2D vertical edge round
   topFilletMm: number;      // 0.0 — top-surface pocket-edge round-over
   bottomFilletMm: number;   // 2.8 (r_f2), clamped to depth/2
@@ -367,12 +423,19 @@ second, reusing the existing writer in `client/src/lib/export/stl.ts`. A top-dow
 **bin-layout DXF/SVG** from the 2D editor is nearly free and ties the CNC shadow-board
 product back to the bins. A selected pocket can also export a standalone filled
 fit-template STL for a low-material silhouette check before committing to a bin.
-For the more reliable multi-tool check, **Complete surface fit test** exports
-the bin's full pocket-layout plane as one 0.4–3 mm plate (1.2 mm default), with
+For the more reliable multi-tool check, **Surface fit test** defaults to
+**Full surface**, exporting the bin's pocket-layout plane as one 0.4–3 mm plate
+(1.2 mm default), with
 the real outer footprint, clearances, top-edge rounds, spacing, and finger
 access. It omits the base, wall height, label tab, and stacking lip and moves
 the plate to the build plane; it therefore tests surface fit, not pocket depth
-or baseplate fit.
+or baseplate fit. **Tool outlines · 5 mm** exports material bands around only
+the tool openings, without the bin perimeter or separate finger-access holes.
+The bands extend outwards from the openings and are not clipped to the bin
+footprint. Width is fixed at 5 mm; the same Thickness control sets printed height.
+Widely spaced tools print as separate pieces, so use Full surface to verify
+relative pocket spacing. Tool outlines require at least one tool pocket.
+This is an export option, not a saved bin parameter.
 
 Call `manifold.calculateNormals(0, 60)` before `getMesh()` so normals arrive in the
 standard vertex-property channel. Using three's `computeVertexNormals()` instead
@@ -421,7 +484,7 @@ its licence independently before porting, and drop the feature if it is not perm
 | **G2** | Live 3D preview reacting to sliders without jank | r3f viewport, `/bin` workspace, worker pipeline with supersede/cancel/progress, magnet + screw holes |
 | **G3** | A photographed screwdriver becomes a printable pocket — **print it and put the tool in it** | shape library + `normalizeTracedShape`, cutouts (clearance, corner round, bottom fillet, depth modes), 2D placement editor, live validation |
 | **G4** | 4-tool bin with scoops and finger holes, saved and reloaded | scoop, finger holes, auto-arrange, undo/redo, project save/load, `trimByPlane` section view |
-| **G5** | Parity and polish | label tab, crush ribs, lite base, half/quarter grid, layout DXF/SVG, optional server persistence |
+| **G5** | Parity and polish | label tab, crush ribs, half/quarter grid, layout DXF/SVG, optional server persistence |
 
 **G1 and G3 are physical print gates.** Dimensional correctness is not verifiable any
 other way; no amount of unit testing substitutes for putting the tool in the pocket.

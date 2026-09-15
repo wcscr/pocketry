@@ -7,6 +7,7 @@ import { usePanelState } from "@/components/layout/panel-context";
 import { WorkspaceLayout } from "@/components/layout/workspace-layout";
 import { TraceCanvas } from "@/components/trace/trace-canvas";
 import { TraceControlsPanel } from "@/components/trace/trace-controls-panel";
+import { ExportConfirmationDialog } from "@/components/gridfinity/export-confirmation-dialog";
 import {
   decodeImageFile,
   fitWithin,
@@ -40,6 +41,8 @@ import {
   type TemplateVariant,
 } from "@/lib/calibrate/template";
 import { downloadBlob } from "@/lib/download";
+import { exportFilePart } from "@/lib/project/export";
+import { projectFromTrace } from "@/lib/project/trace-export";
 import { generateDXF } from "@/lib/export/dxf";
 import { exportScale } from "@/lib/export/scale";
 import { generateSTL } from "@/lib/export/stl";
@@ -78,6 +81,7 @@ function TraceWorkspace(): JSX.Element {
   const detectionRequest = useRef(0);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [dwgDialogOpen, setDwgDialogOpen] = useState(false);
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
 
   const workingImageMax = store.perspectiveCorrection
     ? RECTIFIED_IMAGE_MAX
@@ -436,61 +440,45 @@ function TraceWorkspace(): JSX.Element {
     }, [source, store.processing, dispatch, workingImageMax],
   );
 
-  const handleExport = async () => {
-    const { outline, imageSize, exportFormat, extrusionHeight, fileName } = store;
+  const handleExport = async (includeProject: boolean) => {
+    const { outline, imageSize, exportFormat, extrusionHeight, fileName, calibration, margin } = store;
     if (outline.length === 0) {
-      toast({
-        title: "Nothing to export",
-        description: "Trace an image first.",
-        variant: "destructive",
-      });
+      toast({ title: "Nothing to export", description: "Trace an image first.", variant: "destructive" });
       return;
     }
-
-    const scale = exportScale(store.calibration, imageSize.height);
-    const base = fileName || "outline";
+    const scale = exportScale(calibration, imageSize.height);
+    const base = exportFilePart(fileName) || "outline";
+    const stem = `${exportFormat === "stl" ? "model" : "outline"}_${base}`;
 
     try {
+      // Capture the optional editable outline before asynchronous STL generation.
+      const backup = includeProject
+        ? new Blob([JSON.stringify(projectFromTrace(outline, scale, fileName || "Traced outline", margin ?? 0), null, 2)], { type: "application/json" })
+        : null;
+      let model: Blob;
       if (exportFormat === "svg") {
-        downloadBlob(
-          new Blob(
-            [
-              generateOutlineSVG(outline, {
-                width: imageSize.width,
-                height: imageSize.height,
-                mmPerPx: scale.mmPerPx,
-                calibration: store.calibration,
-              }),
-            ],
-            { type: "image/svg+xml" },
-          ),
-          `outline_${base}.svg`,
-        );
+        model = new Blob([generateOutlineSVG(outline, {
+          width: imageSize.width,
+          height: imageSize.height,
+          mmPerPx: scale.mmPerPx,
+          calibration,
+        })], { type: "image/svg+xml" });
       } else if (exportFormat === "dxf" || exportFormat === "dwg") {
-        downloadBlob(
-          new Blob([generateDXF(outline, scale)], { type: "application/dxf" }),
-          `outline_${base}.${exportFormat}`,
-        );
-        if (exportFormat === "dwg") {
-          toast({
-            title: "DWG compatibility file",
-            description:
-              "A DXF file was saved with a .dwg name; CAD software will open it.",
-            duration: 5000,
-          });
-        }
+        model = new Blob([generateDXF(outline, scale)], { type: "application/dxf" });
       } else {
-        const stl = await generateSTL(outline, {
-          heightMm: extrusionHeight,
-          scale,
-        });
-        downloadBlob(
-          new Blob([stl], { type: "application/octet-stream" }),
-          `model_${base}.stl`,
-        );
+        const stl = await generateSTL(outline, { heightMm: extrusionHeight, scale });
+        model = new Blob([stl], { type: "application/octet-stream" });
       }
-
-      toast({ title: "Saved", description: `Exported as ${exportFormat.toUpperCase()}.` });
+      if (backup) downloadBlob(backup, `${stem}.pocketry.json`);
+      downloadBlob(model, `${stem}.${exportFormat}`);
+      if (exportFormat === "dwg") {
+        toast({
+          title: "DWG compatibility file",
+          description: "A DXF file was saved with a .dwg name; CAD software will open it.",
+          duration: 5000,
+        });
+      }
+      toast({ title: "Saved", description: `Exported as ${exportFormat.toUpperCase()}${includeProject ? " with an editable outline project" : ""}.` });
     } catch (error) {
       toast({
         title: "Export failed",
@@ -515,6 +503,17 @@ function TraceWorkspace(): JSX.Element {
 
   return (
     <>
+      {exportDialogOpen && (
+        <ExportConfirmationDialog
+          title={`Save outline ${store.exportFormat.toUpperCase()}?`}
+          description="Download the current traced outline in the selected format."
+          confirmLabel={`Download ${store.exportFormat.toUpperCase()}`}
+          backupDescription="Reopen this calibrated outline as an editable pocket in Bin."
+          backupDisabledReason={mmPerPixel(store.calibration) === null ? "Set the scale to include an editable Pocketry project." : undefined}
+          onCancel={() => setExportDialogOpen(false)}
+          onConfirm={(includeProject) => { setExportDialogOpen(false); void handleExport(includeProject); }}
+        />
+      )}
       <input ref={photoInputRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" aria-label="Choose another photo"
         onChange={(event) => { const file = event.target.files?.[0]; if (file) void handleFileSelected(file); event.target.value = ""; }} />
       <WorkspaceLayout
@@ -526,7 +525,7 @@ function TraceWorkspace(): JSX.Element {
           <TraceControlsPanel
             onReplaceImage={() => photoInputRef.current?.click()}
             onRotateImage={handleRotateImage}
-            onExport={() => void handleExport()}
+            onExport={() => setExportDialogOpen(true)}
             onReprocess={(settings) => void runDetection(settings)}
             onDetectMarkers={() => void detectMarkers(true)}
             onApplyPerspective={(proposal, paper) =>

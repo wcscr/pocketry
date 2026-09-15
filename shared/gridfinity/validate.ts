@@ -13,11 +13,12 @@ import {
   resolveBoundaryRun,
 } from "./footprint";
 import {
-  effectiveDeepScoopDepthMm,
-  effectiveScoopDepthMm,
+  effectiveFingerHoleDepthMm,
   fingerHoleFootprintRing,
   placementFootprint,
+  pocketLayoutAllowanceMm,
   resolvePocketDepth,
+  pocketDepths,
   signedDistanceToInterior,
   type CutoutPlacement,
   type FingerHole,
@@ -25,6 +26,7 @@ import {
 } from "./cutout";
 import {
   BASE_HEIGHT,
+  BASE_PROFILE_HEIGHT,
   binHeightMm,
   binWallHeightMm,
   D_DIV,
@@ -39,6 +41,7 @@ import {
   binFootprintMm,
 } from "./standard";
 import type { BinSpec } from "./types";
+import { resolvePocketSplit } from "./pocket-split";
 
 /**
  * Pure validation of a bin specification — no WASM, cheap enough to run on
@@ -68,6 +71,50 @@ export interface ValidationResult {
   issues: ValidationIssue[];
   /** True when nothing blocks building/exporting this spec. */
   ok: boolean;
+}
+
+/**
+ * Conservative depth check for floor colors reaching an underside recess.
+ * The ordinary underside rises to the bridge at BASE_PROFILE_HEIGHT;
+ * full-pitch screw bores can reach BASE_HEIGHT. Actual exposure
+ * also depends on where the pocket overlaps those features, so this is a
+ * warning, not a claim that every affected pocket has an exposed color face.
+ * Pass zero when floor coloring is disabled. Like the builder, the colored
+ * volume extends down from the resolved floor and stops at z = 0.
+ */
+export function validatePocketFloorMaterials(
+  spec: BinSpec,
+  cutouts: readonly CutoutPlacement[],
+  shapesById: ReadonlyMap<string, TracedShape>,
+  floorColorThicknessMm: number,
+): ValidationIssue[] {
+  if (spec.flatBottom || spec.fill !== "solid" || !Number.isFinite(floorColorThicknessMm) || floorColorThicknessMm <= 0) return [];
+
+  const hasScrewBores = spec.screwHoles && spec.gridPitch === "full";
+  const undersideHeightMm = hasScrewBores ? BASE_HEIGHT : BASE_PROFILE_HEIGHT;
+  const recess = hasScrewBores ? "the screw holes" : "the recesses between the base feet";
+  const issues: ValidationIssue[] = [];
+  for (const cutout of cutouts) {
+    const shape = shapesById.get(cutout.shapeId);
+    for (const depth of pocketDepths(cutout)) {
+      const { floorZ, depthMm } = resolvePocketDepth(spec, depth);
+      // Invalid and through pockets have no printable floor-color volume.
+      if (!shape || floorZ === null || floorZ <= 0 || depthMm === null || depthMm <= 0) continue;
+      const thicknessMm = Math.min(floorColorThicknessMm, floorZ);
+      if (floorZ - thicknessMm > undersideHeightMm + 1e-6) continue;
+      issues.push({
+        code: "floor-color-on-underside",
+        severity: "warning",
+        cutoutIds: [cutout.id],
+        message:
+          `“${shape.name}”: Floor color may show on the underside. ` +
+          `The ${thicknessMm.toFixed(2)} mm color layer reaches ${recess}. ` +
+          `Reduce pocket depth, increase the remaining floor, or use a thinner color layer.`,
+      });
+      break;
+    }
+  }
+  return issues;
 }
 
 /** Print beds this side of a Voron 350 top out around here. */
@@ -119,16 +166,7 @@ export function validateBinSpec(spec: BinSpec): ValidationResult {
     }
   }
 
-  if (spec.liteBase && (spec.magnetHoles || spec.screwHoles)) {
-    issues.push({
-      code: "lite-base-holes",
-      severity: "warning",
-      message:
-        "Magnet and screw holes are not supported on a lite base yet — the holes are ignored.",
-    });
-  }
-
-  if (spec.gridPitch !== "full" && (spec.magnetHoles || spec.screwHoles)) {
+  if (!spec.flatBottom && spec.gridPitch !== "full" && (spec.magnetHoles || spec.screwHoles)) {
     issues.push({
       code: "fractional-grid-holes",
       severity: "warning",
@@ -389,7 +427,7 @@ function validateAgainstBin(spec: BinSpec, p: PlacedCutout): ValidationIssue[] {
       : Math.min(...feature.map((point) => signedDistanceToInterior(point, spec)));
     if (d < minDistFeature) minDistFeature = d;
   }
-  const outlineAllowance = cutout.clearanceMm + cutout.topFilletMm;
+  const outlineAllowance = pocketLayoutAllowanceMm(cutout);
   const wallMargin = Math.min(minDistOutline - outlineAllowance, minDistFeature);
 
   if (wallMargin < 0) {
@@ -415,58 +453,60 @@ function validateAgainstBin(spec: BinSpec, p: PlacedCutout): ValidationIssue[] {
     });
   }
 
-  const pocket = resolvePocketDepth(spec, cutout.depth);
-  if (pocket.floorZ !== null) {
-    if (pocket.floorZ < 0) {
-      issues.push({
-        code: "too-deep",
-        severity: "error",
-        cutoutIds: [cutout.id],
-      message: `“${label}” is deeper than the bin itself.`,
-      });
-    } else if (pocket.depthMm !== null && pocket.depthMm <= 0) {
-      issues.push({
-        code: "too-shallow",
-        severity: "error",
-        cutoutIds: [cutout.id],
-      message: `“${label}” has no depth — its floor sits at or above the fill surface.`,
-      });
+  const split = cutout.split ? resolvePocketSplit(p.shape.outlineMm, cutout.split.boundary) : null;
+  if (split?.error) issues.push({
+    code: "invalid-pocket-split", severity: "error", cutoutIds: [cutout.id],
+    message: `“${label}”: ${split.error}`,
+  });
+  for (const [index, depth] of pocketDepths(cutout).entries()) {
+    const label = cutout.split ? `${p.label} · Section ${index === 0 ? "A" : "B"}` : p.label;
+    const pocket = resolvePocketDepth(spec, depth);
+    if (pocket.floorZ !== null) {
+      if (pocket.floorZ < 0) {
+        issues.push({
+          code: "too-deep",
+          severity: "error",
+          cutoutIds: [cutout.id],
+          message: `“${label}” is deeper than the bin itself.`,
+        });
+      } else if (pocket.depthMm !== null && pocket.depthMm <= 0) {
+        issues.push({
+          code: "too-shallow",
+          severity: "error",
+          cutoutIds: [cutout.id],
+          message: `“${label}” has no depth — its floor sits at or above the fill surface.`,
+        });
+      } else {
+        if (pocket.floorZ < MIN_FLOOR_MM) {
+          issues.push({
+            code: "floor-too-thin",
+            severity: "warning",
+            cutoutIds: [cutout.id],
+            message: `“${label}” leaves a ${pocket.floorZ.toFixed(1)} mm floor — likely to flex or delaminate.`,
+          });
+        }
+        if (!spec.flatBottom && spec.magnetHoles && pocket.floorZ < BASE_HEIGHT) {
+          issues.push({
+            code: "floor-in-base",
+            severity: "warning",
+            cutoutIds: [cutout.id],
+            message: `“${label}” reaches into the base, where the magnet holes live.`,
+          });
+        }
+      }
     } else {
-      if (pocket.floorZ < MIN_FLOOR_MM) {
+      const region = split?.regions?.[index] ?? p.shape.outlineMm;
+      const hasHoles = region.some((s) => s.holes.length > 0);
+      if (hasHoles) {
         issues.push({
-          code: "floor-too-thin",
-          severity: "warning",
+          code: "through-island",
+          severity: "error",
           cutoutIds: [cutout.id],
-      message: `“${label}” leaves a ${pocket.floorZ.toFixed(1)} mm floor — likely to flex or delaminate.`,
+          message:
+            `“${label}” has interior holes: cutting it through leaves the island ` +
+            `floating loose. Use a blind pocket instead.`,
         });
       }
-      if (spec.magnetHoles && pocket.floorZ < BASE_HEIGHT) {
-        issues.push({
-          code: "floor-in-base",
-          severity: "warning",
-          cutoutIds: [cutout.id],
-      message: `“${label}” reaches into the base, where the magnet holes live.`,
-        });
-      }
-      if (spec.liteBase && pocket.floorZ <= BASE_HEIGHT) {
-        issues.push({
-          code: "lite-base-floor",
-          severity: "warning",
-          cutoutIds: [cutout.id],
-          message: `“${label}”'s floor rests on the hollow lite base — it may open into the base cavities.`,
-        });
-      }
-    }
-  } else {
-    const hasHoles = p.shape.outlineMm.some((s) => s.holes.length > 0);
-    if (hasHoles) {
-      issues.push({
-        code: "through-island",
-        severity: "error",
-        message:
-          `“${label}” has interior holes: cutting it through leaves the island ` +
-          `floating loose. Use a blind pocket instead.`,
-      });
     }
   }
 
@@ -538,12 +578,7 @@ function validateFingerHoleAgainstBin(
   }
 
   const surface = resolvePocketDepth(spec, { mode: "mm", value: hole.depthMm });
-  const cutDepth =
-    hole.kind === "scoop"
-      ? effectiveScoopDepthMm(hole)
-      : hole.kind === "deep-scoop" || hole.kind === "oblong-deep-scoop"
-        ? effectiveDeepScoopDepthMm(hole)
-        : hole.depthMm;
+  const cutDepth = effectiveFingerHoleDepthMm(hole);
   const bottomZ = surface.infillTopZ - cutDepth;
   if (bottomZ < 0) {
     issues.push({
@@ -603,10 +638,7 @@ function segmentsIntersect(a1: Point, a2: Point, b1: Point, b2: Point): boolean 
 
 function validatePair(a: PlacedCutout, b: PlacedCutout): ValidationIssue | null {
   const edgeAllowance =
-    a.cutout.clearanceMm +
-    a.cutout.topFilletMm +
-    b.cutout.clearanceMm +
-    b.cutout.topFilletMm;
+    pocketLayoutAllowanceMm(a.cutout) + pocketLayoutAllowanceMm(b.cutout);
   const warnGap = edgeAllowance + D_DIV;
 
   // Cheap reject: bboxes further apart than the warning threshold.

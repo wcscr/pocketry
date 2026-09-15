@@ -14,6 +14,7 @@ import { fitDistanceMm, type FitSize } from "@/lib/gridfinity/camera-fit";
 import {
   measurementDistanceMm,
   snapToToolContour,
+  type MeasurementPaths,
 } from "@/lib/gridfinity/layout-measure";
 import {
   BIN_BODY_COLOR,
@@ -25,6 +26,7 @@ import { cn } from "@/lib/utils";
 const RULER_3D_SNAP_TOLERANCE_MM = 5;
 const RULER_3D_Z_FIGHT_OFFSET_MM = 0.25;
 const EMPTY_MEASUREMENT_OUTLINES: readonly Outline[] = [];
+const EMPTY_MEASUREMENT_PATHS: MeasurementPaths = [];
 
 /**
  * The 3D preview for the bin designer: an r3f canvas dropped into the
@@ -59,6 +61,8 @@ export interface BinViewportProps {
   fitSize: FitSize;
   /** Placed tool outlines in bin-frame XY millimetres. */
   measurementOutlines?: readonly Outline[];
+  /** Open split boundaries in the same bin-frame XY millimetres. */
+  measurementSplitBoundaries?: MeasurementPaths;
   /** Original top surface of the bin, below the stacking lip. */
   measurementPlaneZMm?: number;
 }
@@ -66,6 +70,7 @@ export interface BinViewportProps {
 function PlanarRulerScene({
   active,
   outlines,
+  splitBoundaries,
   points,
   planeZMm,
   widthMm,
@@ -74,6 +79,7 @@ function PlanarRulerScene({
 }: {
   active: boolean;
   outlines: readonly Outline[];
+  splitBoundaries: MeasurementPaths;
   points: readonly Point[];
   planeZMm: number;
   widthMm: number;
@@ -90,6 +96,7 @@ function PlanarRulerScene({
       { x: event.point.x, y: event.point.y },
       outlines,
       RULER_3D_SNAP_TOLERANCE_MM,
+      splitBoundaries,
     );
     if (snapped) onPoint(snapped.point);
   };
@@ -108,6 +115,19 @@ function PlanarRulerScene({
           colorWrite={false}
         />
       </mesh>
+      {splitBoundaries.filter(boundary => boundary.length >= 2).map((boundary, index) => (
+        <Line
+          key={index}
+          points={boundary.map(point => [point.x, point.y, displayZ] as [number, number, number])}
+          color="#c026d3"
+          lineWidth={1.5}
+          dashed
+          dashSize={2}
+          gapSize={1}
+          depthTest={false}
+          renderOrder={99}
+        />
+      ))}
       {points.length === 2 ? (
         <Line
           points={[
@@ -185,6 +205,7 @@ export function BinViewport({
   error,
   fitSize,
   measurementOutlines = EMPTY_MEASUREMENT_OUTLINES,
+  measurementSplitBoundaries = EMPTY_MEASUREMENT_PATHS,
   measurementPlaneZMm = fitSize.heightMm,
 }: BinViewportProps): JSX.Element {
   // The workspace's panel group lays out *after* children mount, so this slot
@@ -224,7 +245,7 @@ export function BinViewport({
 
   useEffect(() => {
     setMeasurementPoints([]);
-  }, [measurementOutlines]);
+  }, [measurementOutlines, measurementSplitBoundaries]);
 
   // Ground plane sized to the bin: at least one spare cell all round.
   const groundSpanMm =
@@ -265,6 +286,7 @@ export function BinViewport({
         <PlanarRulerScene
           active={rulerActive}
           outlines={measurementOutlines}
+          splitBoundaries={measurementSplitBoundaries}
           points={measurementPoints}
           planeZMm={measurementPlaneZMm}
           widthMm={fitSize.widthMm}
@@ -307,7 +329,7 @@ export function BinViewport({
           title={
             measurementOutlines.length === 0
               ? "Add a tool cutout before measuring"
-              : "Ruler: measure on the tool-cutout plane"
+              : "Ruler: measure contours or split lines on the top plane"
           }
           onClick={() => {
             const next = !rulerActive;
@@ -341,10 +363,10 @@ export function BinViewport({
         >
           <span className="block">
             {measurementPoints.length === 0
-              ? "Click the first tool contour on the top plane"
+              ? "Click the first contour or split line on the top plane"
               : measurementPoints.length === 1
-                ? "Click the second tool contour on the top plane"
-                : `${measuredDistanceMm!.toFixed(2)} mm · click another contour to restart`}
+                ? "Click the second contour or split line on the top plane"
+                : `${measuredDistanceMm!.toFixed(2)} mm · click to start a new measurement`}
           </span>
           <span className="mt-1 block text-[11px] font-normal text-muted-foreground">
             For the most accurate dimension check, use the ruler in Layout.
@@ -354,7 +376,7 @@ export function BinViewport({
 
       {rulerActive ? (
         <div className="pointer-events-none absolute bottom-2 left-2 rounded-md bg-background/85 px-2 py-1 text-[11px] text-muted-foreground shadow-sm backdrop-blur">
-          3D ruler · endpoints snap to tool contours on the top XY plane · Esc exits
+          3D ruler · snap to contours or split lines on the top XY plane · Esc exits
         </div>
       ) : null}
 

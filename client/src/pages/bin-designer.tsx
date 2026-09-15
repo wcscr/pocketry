@@ -1,6 +1,9 @@
-import { History, Redo2, Undo2 } from "lucide-react";
+import { Box, History, Redo2, Undo2 } from "lucide-react";
+import { pocketDepths } from "@shared/gridfinity/cutout";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { CanvasWarnings } from "@/components/gridfinity/canvas-warnings";
+import { validateBinSpec, validateLayout, validatePocketFloorMaterials, type ValidationIssue } from "@shared/gridfinity/validate";
 import { BinControlsPanel } from "@/components/gridfinity/bin-controls-panel";
 import { BinViewport } from "@/components/gridfinity/bin-viewport";
 import { LayoutCanvas } from "@/components/gridfinity/layout-canvas";
@@ -15,6 +18,7 @@ import {
   type ProjectDoc,
 } from "@shared/gridfinity/project";
 import { placementFootprint } from "@shared/gridfinity/cutout";
+import { SURFACE_FIT_CHECK_OUTLINE_WIDTH_MM, type SurfaceFitCheckStyle } from "@shared/gridfinity/fit-check";
 
 import {
   autoArrangeLayout,
@@ -29,6 +33,7 @@ import {
   PREVIEW_QUALITY,
 } from "@/lib/gridfinity/bin";
 import { useBinGeometry } from "@/lib/gridfinity/use-bin-geometry";
+import { placedPocketSplitBoundaries } from "@/lib/gridfinity/layout-measure";
 import type { BuildBinSection } from "@/lib/gridfinity/worker-api";
 import { downloadBlob } from "@/lib/download";
 import {
@@ -48,9 +53,14 @@ import {
 import {
   createDebouncedProjectSaver,
   deleteProjectFromLibrary,
+  duplicateProjectInLibrary,
+  exportProjectLibrary,
+  importProjectLibrary,
   loadProjectDoc,
   loadProjectLibrary,
   openProjectFromLibrary,
+  renameProjectInLibrary,
+  saveProjectDoc,
   saveProjectToLibrary,
   startNewProject,
   type ProjectLibrarySnapshot,
@@ -87,6 +97,13 @@ export default function BinDesignerPage(): JSX.Element {
 
 function BinDesignerWorkspace(): JSX.Element {
   const { panelOpen, setPanelOpen } = usePanelState();
+  const [pocketEditorRequest, setPocketEditorRequest] = useState(0);
+  const [settingsSectionRequest, setSettingsSectionRequest] = useState<{ id: string }>();
+  const editSelectedPocket = () => {
+    setSettingsSectionRequest(undefined);
+    setPanelOpen(true);
+    setPocketEditorRequest((request) => request + 1);
+  };
   const { toast } = useToast();
   const bin = useBin();
   const { spec, cutouts, fingerHoles, viewMode, dispatch } = bin;
@@ -122,6 +139,33 @@ function BinDesignerWorkspace(): JSX.Element {
   const [draftName, setDraftName] = useState<string | null>(null);
   const [keepBinSize, setKeepBinSize] = useState(false);
 
+  // One validation result drives both the canvas feedback and export gates,
+  // including when the controls are collapsed or the mobile drawer is closed.
+  const issues = useMemo(() => {
+    const shapesById = new Map(library.shapes.map((shape) => [shape.id, shape]));
+    return [
+      ...validateBinSpec(spec).issues,
+      ...validateLayout(spec, cutouts, shapesById, fingerHoles),
+      ...validatePocketFloorMaterials(spec, cutouts, shapesById, colorPocketFloors ? pocketFloorThicknessMm : 0),
+    ];
+  }, [spec, cutouts, fingerHoles, library.shapes, colorPocketFloors, pocketFloorThicknessMm]);
+  const revealIssue = (issue: ValidationIssue) => {
+    dispatch({ type: "SET_VIEW_MODE", viewMode: "2d" });
+    if (issue.cutoutIds?.length) {
+      const next = issue.cutoutIds.find((id) => id !== bin.selectedCutoutId) ?? issue.cutoutIds[0];
+      dispatch({ type: "SELECT_CUTOUT", id: next });
+      editSelectedPocket();
+    } else {
+      setPanelOpen(true);
+      if (issue.fingerHoleIds?.length) {
+        dispatch({ type: "SELECT_FINGER_HOLE", id: issue.fingerHoleIds[0] });
+        setSettingsSectionRequest({ id: "bin-settings-finger-holes" });
+      } else {
+        setSettingsSectionRequest({ id: "bin-settings-size" });
+      }
+    }
+  };
+
   // Restore the saved project before anything else touches state; pending
   // consumption below is gated on `hydrated` so an arrival from the trace
   // workspace places into the *restored* layout, not the empty default.
@@ -140,6 +184,7 @@ function BinDesignerWorkspace(): JSX.Element {
           spec: doc.spec,
           cutouts: doc.cutouts,
           fingerHoles: doc.fingerHoles,
+          history: doc.history,
         });
       } else {
         dispatch({ type: "MARK_HYDRATED" });
@@ -169,31 +214,31 @@ function BinDesignerWorkspace(): JSX.Element {
       ...(currentProjectName ? { name: currentProjectName } : {}),
       keepBinSize,
       shapes: library.shapes,
-      spec,
-      cutouts,
-      fingerHoles,
+      ...committedDoc,
+      history: bin.history,
     }),
-    [library.shapes, spec, cutouts, fingerHoles, currentProjectName, keepBinSize],
+    [library.shapes, committedDoc, bin.history, currentProjectName, keepBinSize],
   );
   useEffect(() => {
-    if (!bin.hydrated) return;
+    if (!bin.hydrated || projectBusy) return;
     setSaveStatus("saving");
-    saveProject(currentProjectDoc);
-  }, [bin.hydrated, currentProjectDoc, saveProject]);
+    saveProject(currentProjectDoc, projectLibrary.activeProjectId);
+  }, [bin.hydrated, currentProjectDoc, saveProject, projectLibrary.activeProjectId, projectBusy]);
 
+  useEffect(() => {
+    const flush = () => { void saveProject.flush(); };
+    const onVisibilityChange = () => { if (document.visibilityState === "hidden") flush(); };
+    window.addEventListener("pagehide", flush);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      flush();
+    };
+  }, [saveProject]);
 
-  const exportProjectDoc = useMemo<ProjectDoc>(
-    () => ({
-      schemaVersion: PROJECT_SCHEMA_VERSION,
-      ...(currentProjectName ? { name: currentProjectName } : {}),
-      keepBinSize,
-      shapes: library.shapes,
-      spec: committedSpec,
-      cutouts: committedCutouts,
-      fingerHoles: committedFingerHoles,
-    }),
-    [library.shapes, committedSpec, committedCutouts, committedFingerHoles, currentProjectName, keepBinSize],
-  );
+  // Exports and autosaves use the same committed design/history snapshot.
+  const exportProjectDoc = currentProjectDoc;
 
   // Consume shapes freshly arrived from the trace workspace: auto-place them
   // (incrementally when the bin already has arranged pockets) and make sure
@@ -277,6 +322,11 @@ function BinDesignerWorkspace(): JSX.Element {
     });
   }, [previewLayout]);
 
+  const measurementSplitBoundaries = useMemo(
+    () => placedPocketSplitBoundaries(previewLayout.cutouts, new Map(previewLayout.shapes.map(shape => [shape.id, shape]))),
+    [previewLayout],
+  );
+
   const {
     geometry,
     pocketFloorGeometry,
@@ -326,7 +376,7 @@ function BinDesignerWorkspace(): JSX.Element {
         );
         toast({
           title: "Pocket vanished",
-          description: `“${shape?.name ?? "A pocket"}” collapsed under its clearance/corner settings — reduce corner rounding.`,
+          description: `“${shape?.name ?? "A pocket"}” collapsed under its clearance/corner settings — increase clearance toward zero or reduce outline corner rounding.`,
           variant: "destructive",
         });
       }
@@ -366,28 +416,16 @@ function BinDesignerWorkspace(): JSX.Element {
   }, [cutouts, fingerHoles, library.shapes, spec.lip, spec.gridPitch, dispatch, toast, keepBinSize, spec]);
 
   const handleExportLayout = useCallback(
-    (format: "dxf" | "svg") => {
-      const shapesById = new Map(library.shapes.map((shape) => [shape.id, shape]));
-      const label = `${spec.gridX}x${spec.gridY}${
-        spec.gridPitch === "full" ? "" : `-${spec.gridPitch}`
-      }${spec.footprint.kind === "custom" ? `-custom-${spec.footprint.cells.length}cell` : ""}`;
-      if (format === "dxf") {
-        downloadBlob(
-          new Blob([generateLayoutDXF(spec, cutouts, shapesById, fingerHoles)], {
-            type: "application/dxf",
-          }),
-          `bin-layout-${label}.dxf`,
-        );
-      } else {
-        downloadBlob(
-          new Blob([generateLayoutSVG(spec, cutouts, shapesById, fingerHoles)], {
-            type: "image/svg+xml",
-          }),
-          `bin-layout-${label}.svg`,
-        );
-      }
+    (format: "dxf" | "svg", includeProject: boolean) => {
+      const { spec, cutouts, fingerHoles, shapes } = exportProjectDoc;
+      const shapesById = new Map(shapes.map((shape) => [shape.id, shape]));
+      const project = prepareProjectExport(exportProjectDoc, currentProjectName, "layout");
+      const model = format === "dxf"
+        ? new Blob([generateLayoutDXF(spec, cutouts, shapesById, fingerHoles)], { type: "application/dxf" })
+        : new Blob([generateLayoutSVG(spec, cutouts, shapesById, fingerHoles)], { type: "image/svg+xml" });
+      downloadModelWithProject(model, format, project, includeProject);
     },
-    [spec, cutouts, fingerHoles, library.shapes],
+    [exportProjectDoc, currentProjectName],
   );
 
   const handleExportProject = useCallback(() => {
@@ -401,6 +439,53 @@ function BinDesignerWorkspace(): JSX.Element {
       description: "Created a portable Pocketry JSON backup.",
     });
   }, [currentProjectDoc, currentProjectName, toast]);
+
+  const handleExportLibrary = useCallback(async () => {
+    setProjectBusy(true);
+    try {
+      const backup = await exportProjectLibrary(currentProjectDoc);
+      downloadBlob(
+        new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" }),
+        `pocketry-library-${new Date().toISOString().replace(/[:.]/g, "-")}.json`,
+      );
+      toast({ title: "Library exported", description: `${backup.projects.length} named designs exported as JSON.` });
+    } catch (cause) {
+      toast({ title: "Could not export library", description: cause instanceof Error ? cause.message : "The library could not be read.", variant: "destructive" });
+    } finally {
+      setProjectBusy(false);
+    }
+  }, [currentProjectDoc, toast]);
+
+  const handleImportLibrary = useCallback(async (file: File) => {
+    setProjectBusy(true);
+    try {
+      let input: unknown;
+      try {
+        input = JSON.parse(await file.text());
+      } catch {
+        throw new Error("The file could not be read as JSON. No designs were imported.");
+      }
+      const result = await importProjectLibrary(input);
+      setProjectLibrary(result.library);
+      toast({
+        title: "Library imported",
+        description: `${result.imported} designs added, ${result.upgraded} upgraded, ${result.renamed} renamed.`,
+      });
+    } catch (cause) {
+      toast({ title: "Could not import library", description: cause instanceof Error ? cause.message : "No designs were imported.", variant: "destructive" });
+    } finally {
+      setProjectBusy(false);
+    }
+  }, [toast]);
+
+  /** Save while the outgoing named project still owns the autosave target. */
+  const saveBeforeReplacingProject = useCallback(async () => {
+    saveProject.cancel();
+    if (!projectLibrary.activeProjectId) return;
+    const saved = await saveProjectDoc(currentProjectDoc, projectLibrary.activeProjectId);
+    setSaveStatus(saved ? "saved" : "error");
+    if (!saved) throw new Error("Your current changes could not be saved. The current project has been kept open.");
+  }, [saveProject, currentProjectDoc, projectLibrary.activeProjectId]);
 
   const handleImportProject = useCallback(
     async (file: File) => {
@@ -421,8 +506,8 @@ function BinDesignerWorkspace(): JSX.Element {
       }
       doc.name ??= file.name.replace(/\.(?:pocketry|tooltrace)\.json$/i, "").replace(/\.json$/i, "").replace(/[-_]+/g, " ").trim().slice(0, 80) || "Imported project";
       setProjectBusy(true);
-      saveProject.cancel();
       try {
+        await saveBeforeReplacingProject();
         const saved = await startNewProject(doc);
         setDraftName(doc.name ?? null);
         setKeepBinSize(doc.keepBinSize ?? false);
@@ -432,6 +517,7 @@ function BinDesignerWorkspace(): JSX.Element {
           spec: doc.spec,
           cutouts: doc.cutouts,
           fingerHoles: doc.fingerHoles,
+          history: doc.history,
         });
         setSection(null);
         setProjectLibrary(saved);
@@ -449,7 +535,7 @@ function BinDesignerWorkspace(): JSX.Element {
         setProjectBusy(false);
       }
     },
-    [library, dispatch, saveProject, toast],
+    [library, dispatch, saveBeforeReplacingProject, toast],
   );
 
   const handleNewProject = useCallback(async () => {
@@ -461,8 +547,8 @@ function BinDesignerWorkspace(): JSX.Element {
       fingerHoles: [],
     };
     setProjectBusy(true);
-    saveProject.cancel();
     try {
+      await saveBeforeReplacingProject();
       const saved = await startNewProject(doc);
       setDraftName(null);
       setKeepBinSize(false);
@@ -472,12 +558,13 @@ function BinDesignerWorkspace(): JSX.Element {
         spec: doc.spec,
         cutouts: doc.cutouts,
         fingerHoles: doc.fingerHoles,
+        history: doc.history,
       });
       setSection(null);
       setProjectLibrary(saved);
       toast({
         title: "New project ready",
-        description: "Saved library projects are unchanged.",
+        description: "Ready for a new design.",
       });
     } catch (cause) {
       toast({
@@ -488,7 +575,7 @@ function BinDesignerWorkspace(): JSX.Element {
     } finally {
       setProjectBusy(false);
     }
-  }, [library, dispatch, saveProject, toast]);
+  }, [library, dispatch, saveBeforeReplacingProject, toast]);
 
   const handleSaveProject = useCallback(async (name: string): Promise<boolean> => {
     setProjectBusy(true);
@@ -517,10 +604,52 @@ function BinDesignerWorkspace(): JSX.Element {
     }
   }, [currentProjectDoc, projectLibrary.activeProjectId, saveProject, toast]);
 
+  const handleDuplicateProject = useCallback(async (projectId: string): Promise<string | null> => {
+    setProjectBusy(true);
+    try {
+      const copied = await duplicateProjectInLibrary(projectId, currentProjectDoc);
+      setProjectLibrary(copied.library);
+      toast({ title: "Project duplicated", description: copied.project.name });
+      return copied.project.id;
+    } catch (cause) {
+      toast({
+        title: "Could not duplicate project",
+        description: cause instanceof Error ? cause.message : String(cause),
+        variant: "destructive",
+      });
+      return null;
+    } finally {
+      setProjectBusy(false);
+    }
+  }, [currentProjectDoc, toast]);
+
+  const handleRenameProject = useCallback(async (projectId: string, name: string): Promise<boolean> => {
+    setProjectBusy(true);
+    const active = projectId === projectLibrary.activeProjectId;
+    if (active) saveProject.cancel();
+    try {
+      const saved = active
+        ? await saveProjectToLibrary(currentProjectDoc, name, projectId)
+        : await renameProjectInLibrary(projectId, name);
+      setProjectLibrary(saved);
+      toast({ title: "Project renamed" });
+      return true;
+    } catch (cause) {
+      toast({
+        title: "Could not rename project",
+        description: cause instanceof Error ? cause.message : String(cause),
+        variant: "destructive",
+      });
+      return false;
+    } finally {
+      setProjectBusy(false);
+    }
+  }, [currentProjectDoc, projectLibrary.activeProjectId, saveProject, toast]);
+
   const handleOpenProject = useCallback(async (projectId: string): Promise<boolean> => {
     setProjectBusy(true);
-    saveProject.cancel();
     try {
+      await saveBeforeReplacingProject();
       const opened = await openProjectFromLibrary(projectId);
       setDraftName(opened.project.name);
       setKeepBinSize(opened.doc.keepBinSize ?? false);
@@ -530,6 +659,7 @@ function BinDesignerWorkspace(): JSX.Element {
         spec: opened.doc.spec,
         cutouts: opened.doc.cutouts,
         fingerHoles: opened.doc.fingerHoles,
+        history: opened.doc.history,
       });
       setSection(null);
       setProjectLibrary(opened.library);
@@ -548,22 +678,23 @@ function BinDesignerWorkspace(): JSX.Element {
     } finally {
       setProjectBusy(false);
     }
-  }, [library, dispatch, saveProject, toast]);
+  }, [library, dispatch, saveBeforeReplacingProject, toast]);
 
   const handleDeleteProject = useCallback(
     async (projectId: string): Promise<boolean> => {
+      if (projectId === projectLibrary.activeProjectId) return false;
       setProjectBusy(true);
       try {
         const saved = await deleteProjectFromLibrary(projectId);
         setProjectLibrary(saved);
         toast({
-          title: "Project deleted",
+          title: "Removed from library",
           description: "The named library copy was removed.",
         });
         return true;
       } catch (cause) {
         toast({
-          title: "Could not delete project",
+          title: "Could not remove project",
           description: cause instanceof Error ? cause.message : String(cause),
           variant: "destructive",
         });
@@ -572,7 +703,7 @@ function BinDesignerWorkspace(): JSX.Element {
         setProjectBusy(false);
       }
     },
-    [toast],
+    [projectLibrary.activeProjectId, toast],
   );
 
   const handleRefreshProjects = useCallback(() => {
@@ -602,7 +733,7 @@ function BinDesignerWorkspace(): JSX.Element {
   }, [dispatch]);
 
   const handleExport = useCallback(
-    async (format: "3mf" | "3mf-multicolor" | "stl") => {
+    async (format: "3mf" | "3mf-multicolor" | "stl", includeProject: boolean) => {
       setExporting(true);
       try {
         const label = binSizeLabel(exportProjectDoc.spec);
@@ -615,7 +746,7 @@ function BinDesignerWorkspace(): JSX.Element {
         const includePocketFloors =
           multicolor &&
           colorPocketFloors &&
-          exportProjectDoc.cutouts.some((cutout) => cutout.depth.mode !== "through");
+          exportProjectDoc.cutouts.some((cutout) => pocketDepths(cutout).some(depth => depth.mode !== "through"));
         const includeStackingRim =
           multicolor && colorStackingRim && exportProjectDoc.spec.lip === "standard";
         const result = await buildOnce(EXPORT_QUALITY, {
@@ -678,6 +809,7 @@ function BinDesignerWorkspace(): JSX.Element {
             new Blob([bytes], { type: "model/3mf" }),
             "3mf",
             project,
+            includeProject,
           );
         } else if (format === "3mf") {
           const bytes = writeThreeMf(
@@ -693,7 +825,7 @@ function BinDesignerWorkspace(): JSX.Element {
             ],
             { title: `Pocketry Gridfinity bin ${label}` },
           );
-          downloadModelWithProject(new Blob([bytes], { type: "model/3mf" }), "3mf", project);
+          downloadModelWithProject(new Blob([bytes], { type: "model/3mf" }), "3mf", project, includeProject);
         } else {
           const stl = writeBinarySTL(
             { positions: result.mesh.positions, indices: result.mesh.indices },
@@ -703,13 +835,12 @@ function BinDesignerWorkspace(): JSX.Element {
             new Blob([stl], { type: "application/octet-stream" }),
             "stl",
             project,
+            includeProject,
           );
         }
         toast({
           title: "Saved",
-          description: multicolor
-            ? `Exported bin ${label} as a multi-color 3MF with a matching portable JSON backup.`
-            : `Exported bin ${label} as ${format.toUpperCase()} with a matching portable JSON backup.`,
+          description: `Exported bin ${label} as ${multicolor ? "a multi-color 3MF" : format.toUpperCase()}${includeProject ? " with an editable project JSON" : ""}.`,
         });
       } catch (cause) {
         if (!(cause instanceof WorkerCancelledError)) {
@@ -739,7 +870,7 @@ function BinDesignerWorkspace(): JSX.Element {
   );
 
   const handleExportFitCheck = useCallback(
-    async (cutoutId: string, depthMm: number) => {
+    async (cutoutId: string, depthMm: number, includeProject: boolean) => {
       const cutout = exportProjectDoc.cutouts.find((candidate) => candidate.id === cutoutId);
       const shape = cutout
         ? library.shapes.find((candidate) => candidate.id === cutout.shapeId)
@@ -770,10 +901,11 @@ function BinDesignerWorkspace(): JSX.Element {
           new Blob([stl], { type: "application/octet-stream" }),
           "stl",
           project,
+          includeProject,
         );
         toast({
           title: "Fit template saved",
-          description: `Exported “${shape.name}” as a ${depthLabel} mm filled outline with a portable JSON backup of the full project.`,
+          description: `Exported “${shape.name}” as a ${depthLabel} mm filled outline${includeProject ? " with an editable project JSON" : ""}.`,
         });
       } catch (cause) {
         if (!(cause instanceof WorkerCancelledError)) {
@@ -791,7 +923,7 @@ function BinDesignerWorkspace(): JSX.Element {
   );
 
   const handleExportSurfaceFitCheck = useCallback(
-    async (thicknessMm: number) => {
+    async (thicknessMm: number, includeProject: boolean, style: SurfaceFitCheckStyle) => {
       setExporting(true);
       try {
         const label = binSizeLabel(exportProjectDoc.spec);
@@ -799,21 +931,23 @@ function BinDesignerWorkspace(): JSX.Element {
         const project = prepareProjectExport(
           exportProjectDoc,
           currentProjectName,
-          `surface-fit-test-${thicknessLabel}mm`,
+          style === "outline" ? `tool-outlines-${SURFACE_FIT_CHECK_OUTLINE_WIDTH_MM}mm-wide-${thicknessLabel}mm-thick`
+            : `surface-fit-test-${thicknessLabel}mm`,
         );
-        const result = await buildSurfaceFitCheck(thicknessMm, EXPORT_QUALITY);
+        const result = await buildSurfaceFitCheck(thicknessMm, EXPORT_QUALITY, style);
         const stl = writeBinarySTL(
           { positions: result.mesh.positions, indices: result.mesh.indices },
-          `Pocketry ${label} surface fit test ${thicknessLabel} mm`,
+          `Pocketry ${label} ${style === "outline" ? "tool outlines" : "surface fit test"} ${thicknessLabel} mm`,
         );
         downloadModelWithProject(
           new Blob([stl], { type: "application/octet-stream" }),
           "stl",
           project,
+          includeProject,
         );
         toast({
           title: "Surface fit test saved",
-          description: `Exported the complete pocket-layout surface at ${thicknessLabel} mm thick with a portable JSON backup of the full project.`,
+          description: `Exported ${style === "outline" ? `${SURFACE_FIT_CHECK_OUTLINE_WIDTH_MM} mm wide tool outlines` : "the complete pocket-layout surface"} at ${thicknessLabel} mm thick${includeProject ? " with an editable project JSON" : ""}.`,
         });
       } catch (cause) {
         if (!(cause instanceof WorkerCancelledError)) {
@@ -838,18 +972,21 @@ function BinDesignerWorkspace(): JSX.Element {
       panelTitle="Bin designer"
       panel={
         <BinControlsPanel
+          issues={issues}
+          settingsSectionRequest={settingsSectionRequest}
+          pocketEditorRequest={pocketEditorRequest}
           saveStatus={saveStatus}
           keepBinSize={keepBinSize}
           onKeepBinSizeChange={setKeepBinSize}
           stats={stats}
           building={building}
           exporting={exporting}
-          onExport={(format) => void handleExport(format)}
-          onExportFitCheck={(cutoutId, depthMm) =>
-            void handleExportFitCheck(cutoutId, depthMm)
+          onExport={(format, includeProject) => void handleExport(format, includeProject)}
+          onExportFitCheck={(cutoutId, depthMm, includeProject) =>
+            void handleExportFitCheck(cutoutId, depthMm, includeProject)
           }
-          onExportSurfaceFitCheck={(thicknessMm) =>
-            void handleExportSurfaceFitCheck(thicknessMm)
+          onExportSurfaceFitCheck={(thicknessMm, includeProject, style) =>
+            void handleExportSurfaceFitCheck(thicknessMm, includeProject, style)
           }
           onExportLayout={handleExportLayout}
           onAutoArrange={handleAutoArrange}
@@ -861,9 +998,13 @@ function BinDesignerWorkspace(): JSX.Element {
           currentProjectName={currentProjectName}
           projects={projectLibrary.projects}
           onSaveProject={handleSaveProject}
+          onRenameProject={handleRenameProject}
+          onDuplicateProject={handleDuplicateProject}
           onOpenProject={handleOpenProject}
           onDeleteProject={handleDeleteProject}
           onRefreshProjects={handleRefreshProjects}
+          onExportLibrary={() => void handleExportLibrary()}
+          onImportLibrary={(file) => void handleImportLibrary(file)}
           onNewProject={() => void handleNewProject()}
           section={section}
           onSectionChange={setSection}
@@ -884,7 +1025,13 @@ function BinDesignerWorkspace(): JSX.Element {
         />
       }
       canvas={
-        <div className="absolute inset-0">
+        <div className="absolute inset-0" data-testid="bin-canvas">
+          <CanvasWarnings
+            issues={issues}
+            selectedCutoutId={bin.selectedCutoutId}
+            selectedFingerHoleId={bin.selectedFingerHoleId}
+            onRevealIssue={revealIssue}
+          />
           {viewMode === "3d" ? (
             <BinViewport
               geometry={geometry}
@@ -902,15 +1049,31 @@ function BinDesignerWorkspace(): JSX.Element {
               error={error}
               fitSize={fitSize}
               measurementOutlines={measurementOutlines}
+              measurementSplitBoundaries={measurementSplitBoundaries}
               measurementPlaneZMm={builtDimensions.heightToRimMm}
             />
           ) : (
-            <LayoutCanvas />
+            <LayoutCanvas onEditPocket={editSelectedPocket} />
           )}
           <ViewToggle
             viewMode={viewMode}
             onChange={(mode) => dispatch({ type: "SET_VIEW_MODE", viewMode: mode })}
           />
+          {viewMode === "3d" && section && (
+            <div className="absolute left-3 top-12 z-30 flex max-w-[calc(100%_-_4.5rem)] flex-wrap items-center gap-x-3 gap-y-1 rounded-md border bg-background/95 p-2 shadow-sm backdrop-blur">
+              <span className="text-xs text-muted-foreground">Section view</span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 px-2 text-xs"
+                onClick={() => setSection(null)}
+                data-testid="button-show-full-bin"
+              >
+                <Box className="h-3.5 w-3.5" />
+                Show full bin
+              </Button>
+            </div>
+          )}
           <div className="absolute right-3 top-3 z-30 flex overflow-hidden rounded-md border bg-background/90 shadow-sm backdrop-blur">
             <Button
               variant="ghost"

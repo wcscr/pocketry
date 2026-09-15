@@ -22,7 +22,7 @@ import {
   signedDistanceToFootprintRing,
   type BinFootprint,
 } from "./footprint";
-import type { BinSpec } from "./types";
+import { MAX_GRID, type BinSpec } from "./types";
 
 /**
  * The cutout model: traced shapes placed into a bin as pockets. Pure data and
@@ -109,20 +109,41 @@ export const depthSpecSchema = z.discriminatedUnion("mode", [
 
 export type DepthSpec = z.infer<typeof depthSpecSchema>;
 
+/** Shape-local points defining the split line; its ends resolve on the current
+ * outline after contour edits. Version 16 supports one straight boundary;
+ * a future polyline uses this same representation with intermediate vertices.
+ * Sections are left/right of the directed boundary, before placement/mirroring.
+ */
+export const pocketSplitSchema = z.object({
+  boundary: z.array(vec2Schema).length(2),
+  depths: z.tuple([depthSpecSchema, depthSpecSchema]),
+}).strict();
+export type PocketSplit = z.infer<typeof pocketSplitSchema>;
+export type PocketSectionIndex = 0 | 1;
+
+export const MIN_FINGER_HOLE_DIAMETER_MM = 6;
+/** Round openings can span the widest supported bin; edits use the current bin width. */
+export const MAX_FINGER_HOLE_DIAMETER_MM = binFootprintMm(MAX_GRID);
+/** Slots retain their existing width ceiling and rotated mouth-fit limits. */
+export const MAX_FINGER_SLOT_WIDTH_MM = 80;
+
 /**
  * A draggable finger-access feature. Straight holes are vertical cylinders
  * cut to the pocket floor; round scoops are spherical dishes cut from the top;
  * deep scoops descend through straight vertical walls and finish in a rounded
  * bottom. The oblong variant stores its midpoint, overall length and rotation
- * so its two end handles can resize it. Every hole is positioned directly in
+ * so its two end handles can resize it. Flat-ended scoops have a rectangular
+ * mouth and cylindrical bottom with planar ends. Every hole is positioned directly in
  * the bin frame, independently from tool-pocket transforms.
  */
 export const fingerHoleSchema = z
   .object({
     id: z.string().min(1),
+    /** Optional display name; older projects use a numbered label. */
+    name: z.string().trim().min(1).optional(),
     /** Bin-local mm, y-up, origin at the bin centre. */
     center: vec2Schema,
-    diameterMm: z.number().min(6).max(80).default(18),
+    diameterMm: z.number().finite().min(MIN_FINGER_HOLE_DIAMETER_MM).max(MAX_FINGER_HOLE_DIAMETER_MM).default(18),
     // `oblong-scoop` accepts saves made by the short-lived directed-trough
     // prototype and normalizes them to the corrected vertical deep scoop.
     kind: z
@@ -131,25 +152,39 @@ export const fingerHoleSchema = z
         "scoop",
         "deep-scoop",
         "oblong-deep-scoop",
+        "flat-ended-scoop",
+        "oblong-straight",
+        "flat-ended-straight",
         "oblong-scoop",
       ])
       .default("straight"),
-    /** Used only for scoops; retained on straight holes so type changes are reversible. */
+    /** Requested top-to-bottom depth, independent of the opening shape. */
     depthMm: z.number().min(1).max(120).default(12),
     /** Rounds the hole wall outward into the bin's top surface. */
     topFilletMm: z.number().min(0).max(5).default(0),
-    /** Used only by straight holes; curved scoop bottoms already provide this transition. */
+    /** Used by flat bottoms; retained while a curved bottom is selected. */
     bottomFilletMm: z.number().min(0).max(6).default(0),
+    /** Plan-view corner radius for flat-ended slots; absent means sharp corners. */
+    cornerRoundMm: z.number().min(0).max(40).optional(),
     /** Compatibility only; removed with the directed-trough prototype. */
     reachMm: z.number().min(1).max(120).optional(),
     /** Compatibility only; removed with the directed-trough prototype. */
     directionDeg: z.number().finite().optional(),
-    /** Overall end-to-end mouth length; used by oblong deep scoops only. */
+    /** Overall end-to-end mouth length; used by elongated scoops only. */
     lengthMm: z.number().min(6).max(160).optional(),
     /** CCW mouth rotation in the bin-local y-up frame. */
     rotationDeg: z.number().finite().optional(),
+    /** Remembers the slot ends while the opening is temporarily round. */
+    slotEnds: z.enum(["rounded", "flat"]).optional(),
   })
   .strict()
+  .superRefine((hole, context) => {
+    if (["oblong-deep-scoop", "flat-ended-scoop", "oblong-straight", "flat-ended-straight"].includes(hole.kind) &&
+        hole.diameterMm > MAX_FINGER_SLOT_WIDTH_MM) {
+      context.addIssue({ code: z.ZodIssueCode.too_big, type: "number", maximum: MAX_FINGER_SLOT_WIDTH_MM,
+        inclusive: true, path: ["diameterMm"], message: "Slot width cannot exceed 80 mm." });
+    }
+  })
   .transform(({ reachMm: _reach, directionDeg: _direction, kind, ...hole }) => ({
     ...hole,
     kind: kind === "oblong-scoop" ? ("deep-scoop" as const) : kind,
@@ -157,13 +192,92 @@ export const fingerHoleSchema = z
 
 export type FingerHole = z.infer<typeof fingerHoleSchema>;
 
-export const MIN_FINGER_HOLE_DIAMETER_MM = 6;
-export const MAX_FINGER_HOLE_DIAMETER_MM = 80;
 /** Default top-surface round for newly created pockets and finger holes. */
 export const DEFAULT_TOP_EDGE_FILLET_MM = 1;
 export const DEFAULT_OBLONG_DEEP_SCOOP_LENGTH_MM = 36;
 export const MAX_OBLONG_DEEP_SCOOP_LENGTH_MM = 160;
 export const MIN_OBLONG_DEEP_SCOOP_SPAN_MM = 2;
+const FINGER_ACCESS_BIN_ALLOWANCE = 1.05;
+
+type FingerAccessBinSpec = Pick<BinSpec, "gridX" | "gridY" | "gridPitch" | "heightUnits" | "lip">;
+
+function fingerAccessBinBounds(spec: FingerAccessBinSpec, hole: FingerHole) {
+  const allowance = isElongatedFingerHole(hole) ? FINGER_ACCESS_BIN_ALLOWANCE : 1;
+  return {
+    x: binFootprintMm(spec.gridX, spec.gridPitch) * allowance,
+    y: binFootprintMm(spec.gridY, spec.gridPitch) * allowance,
+  };
+}
+
+function fingerAccessMouthFits(hole: FingerHole, bounds: { x: number; y: number }): boolean {
+  const angle = (hole.rotationDeg ?? 0) * Math.PI / 180;
+  const c = Math.abs(Math.cos(angle));
+  const s = Math.abs(Math.sin(angle));
+  const length = elongatedFingerHoleEndpoints(hole).lengthMm;
+  const width = hole.diameterMm;
+  return hasFlatFingerHoleEnds(hole)
+    ? length * c + width * s <= bounds.x + 1e-9 && length * s + width * c <= bounds.y + 1e-9
+    : (length - width) * c + width <= bounds.x + 1e-9 && (length - width) * s + width <= bounds.y + 1e-9;
+}
+
+/** Both mouth extents grow monotonically with either dimension, including capsule minimum length. */
+function maximumFingerAccessDimension(
+  hole: FingerHole,
+  bounds: { x: number; y: number },
+  dimension: "diameterMm" | "lengthMm",
+): number {
+  // Round access follows Width (X), including bins whose Length (Y) is shorter.
+  // Placement and wall checks remain separate from this editing limit.
+  if (!isElongatedFingerHole(hole)) {
+    return dimension === "diameterMm" ? bounds.x : MAX_OBLONG_DEEP_SCOOP_LENGTH_MM;
+  }
+  let low = MIN_FINGER_HOLE_DIAMETER_MM;
+  let high = dimension === "diameterMm" ? MAX_FINGER_SLOT_WIDTH_MM : MAX_OBLONG_DEEP_SCOOP_LENGTH_MM;
+  for (let i = 0; i < 32; i++) {
+    const mid = (low + high) / 2;
+    if (fingerAccessMouthFits({ ...hole, [dimension]: mid }, bounds)) low = mid;
+    else high = mid;
+  }
+  // Round down, never beyond the allowance. Hundredths also match numeric fields.
+  return Math.floor((low + 1e-7) * 100) / 100;
+}
+
+function maximumFingerAccessDepth(spec: FingerAccessBinSpec): number {
+  const top = resolvePocketDepth(spec, { mode: "through" }).infillTopZ;
+  return Math.min(120, top);
+}
+
+/** Editing limits for the nominal mouth, before edge rounding; position validation stays separate. */
+export function fingerHoleSizeLimits(hole: FingerHole, spec: FingerAccessBinSpec) {
+  const bounded = clampFingerHoleToBin(hole, spec);
+  const bounds = fingerAccessBinBounds(spec, bounded);
+  return {
+    depthMm: maximumFingerAccessDepth(spec),
+    diameterMm: maximumFingerAccessDimension(bounded, bounds, "diameterMm"),
+    lengthMm: maximumFingerAccessDimension(bounded, bounds, "lengthMm"),
+  };
+}
+
+/** Used on explicit geometry edits and bin resizing, never while opening an older project. */
+export function clampFingerHoleToBin(hole: FingerHole, spec: FingerAccessBinSpec): FingerHole {
+  const bounds = fingerAccessBinBounds(spec, hole);
+  const depth = effectiveFingerHoleDepthMm(hole);
+  const maximumDepth = maximumFingerAccessDepth(spec);
+  let bounded = { ...hole, depthMm: depth > maximumDepth ? maximumDepth : hole.depthMm };
+  // First fit the width at the shortest possible length, then fit the requested length.
+  // Dormant slot length on round holes remains untouched for reversible shape changes.
+  bounded.diameterMm = Math.min(hole.diameterMm,
+    maximumFingerAccessDimension({ ...bounded, lengthMm: MIN_FINGER_HOLE_DIAMETER_MM }, bounds, "diameterMm"));
+  if (hole.kind === "scoop" && bounded.diameterMm !== hole.diameterMm) {
+    bounded = { ...bounded, kind: "deep-scoop", depthMm: Math.min(depth, maximumDepth) };
+  }
+  if (isElongatedFingerHole(bounded)) {
+    const maximum = maximumFingerAccessDimension(bounded, bounds, "lengthMm");
+    if ((hole.lengthMm ?? DEFAULT_OBLONG_DEEP_SCOOP_LENGTH_MM) > maximum) bounded.lengthMm = maximum;
+  }
+  return bounded.diameterMm === hole.diameterMm && bounded.depthMm === hole.depthMm &&
+    bounded.lengthMm === hole.lengthMm && bounded.kind === hole.kind ? hole : bounded;
+}
 
 /**
  * A spherical dish cut down from the top surface. Placed on the pocket's
@@ -194,37 +308,128 @@ export function effectiveScoopDepthMm(
 }
 
 /**
- * Total top-to-bottom depth of a deep scoop. The cutter always includes at
- * least one radius so its bottom remains a true hemisphere even when an old
- * or hand-edited project requests a shallower value.
+ * Total top-to-bottom depth of a deep scoop. Shallow cuts use a circular
+ * segment that preserves the opening width; deeper cuts add vertical walls.
  */
 export function effectiveDeepScoopDepthMm(
   scoop: Pick<FingerHole, "diameterMm" | "depthMm">,
 ): number {
-  return Math.max(scoop.depthMm, scoop.diameterMm / 2);
+  return scoop.depthMm;
 }
 
-export interface OblongDeepScoopEndpoints {
-  /** Centres of the two semicircular end caps in shape-local mm. */
+/** Actual cutting depth shared by controls, geometry, and floor validation. */
+export function effectiveFingerHoleDepthMm(hole: FingerHole): number {
+  if (hole.kind === "scoop") return effectiveScoopDepthMm(hole);
+  if (hole.kind === "deep-scoop" || hole.kind === "oblong-deep-scoop") {
+    return effectiveDeepScoopDepthMm(hole);
+  }
+  return hole.depthMm;
+}
+
+export function effectiveFingerHoleTopFilletMm(hole: FingerHole): number {
+  return Math.min(hole.topFilletMm, effectiveFingerHoleDepthMm(hole) / 2);
+}
+
+export function effectiveFingerHoleBottomFilletMm(hole: FingerHole): number {
+  return Math.min(hole.bottomFilletMm, maximumFingerHoleBottomFilletMm(hole));
+}
+
+export function maximumFingerHoleBottomFilletMm(hole: FingerHole): number {
+  return Math.min(6, hole.depthMm / 2, hole.diameterMm / 2,
+    isElongatedFingerHole(hole) ? elongatedFingerHoleEndpoints(hole).lengthMm / 2 : Infinity);
+}
+
+export function hasFlatFingerHoleBottom(hole: Pick<FingerHole, "kind">): boolean {
+  return hole.kind === "straight" || hole.kind === "oblong-straight" || hole.kind === "flat-ended-straight";
+}
+
+export function hasFlatFingerHoleEnds(hole: Partial<Pick<FingerHole, "kind">>): boolean {
+  return hole.kind === "flat-ended-scoop" || hole.kind === "flat-ended-straight";
+}
+
+export function maximumFingerHoleCornerRoundMm(hole: FingerHole): number {
+  return Math.min(hole.diameterMm, elongatedFingerHoleEndpoints(hole).lengthMm) / 2;
+}
+
+export function effectiveFingerHoleCornerRoundMm(hole: FingerHole): number {
+  return hasFlatFingerHoleEnds(hole)
+    ? Math.min(hole.cornerRoundMm ?? 0, maximumFingerHoleCornerRoundMm(hole))
+    : 0;
+}
+
+export interface FingerAccessOptions {
+  shape: "round" | "slot";
+  bottom: "curved" | "flat";
+  ends: "rounded" | "flat";
+}
+
+/** Orthogonal editor choices over the versioned, backward-compatible cutter types. */
+export function fingerAccessOptions(hole: FingerHole): FingerAccessOptions {
+  return {
+    shape: isElongatedFingerHole(hole) ? "slot" : "round",
+    bottom: hasFlatFingerHoleBottom(hole) ? "flat" : "curved",
+    ends: isElongatedFingerHole(hole)
+      ? hasFlatFingerHoleEnds(hole) ? "flat" : "rounded"
+      : hole.slotEnds ?? "rounded",
+  };
+}
+
+/** Changes geometry choices without overwriting requested dimensions or edge radii. */
+export function fingerAccessOptionsPatch(
+  hole: FingerHole,
+  change: Partial<FingerAccessOptions>,
+): Pick<FingerHole, "kind" | "slotEnds" | "depthMm"> {
+  const { shape, bottom, ends } = { ...fingerAccessOptions(hole), ...change };
+  const kind = shape === "round"
+    ? bottom === "flat" ? "straight" : "deep-scoop"
+    : ends === "flat"
+      ? bottom === "flat" ? "flat-ended-straight" : "flat-ended-scoop"
+      : bottom === "flat" ? "oblong-straight" : "oblong-deep-scoop";
+  return { kind, slotEnds: ends, depthMm: effectiveFingerHoleDepthMm(hole) };
+}
+
+/** Circular-segment radius preserving the opening width at shallow depths. */
+export function flatEndedScoopRadiusMm(
+  hole: Pick<FingerHole, "diameterMm" | "depthMm">,
+): number {
+  const halfWidth = hole.diameterMm / 2;
+  const depth = Math.min(hole.depthMm, halfWidth);
+  return (halfWidth * halfWidth + depth * depth) / (2 * depth);
+}
+
+/** Whether the hole has independently editable length and rotation. */
+export function isElongatedFingerHole(hole: Pick<FingerHole, "kind">): boolean {
+  return hole.kind === "oblong-deep-scoop" || hole.kind === "oblong-straight" || hasFlatFingerHoleEnds(hole);
+}
+
+/** Flat ends can be closer together than the channel width. */
+export function minimumFingerHoleLengthMm(hole: Pick<FingerHole, "kind" | "diameterMm">): number {
+  return hasFlatFingerHoleEnds(hole)
+    ? MIN_FINGER_HOLE_DIAMETER_MM
+    : hole.diameterMm + MIN_OBLONG_DEEP_SCOOP_SPAN_MM;
+}
+
+export interface ElongatedFingerHoleEndpoints {
+  /** Centres of the end caps or flat end faces in shape-local mm. */
   start: Point;
   end: Point;
   /** Effective overall end-to-end mouth length. */
   lengthMm: number;
 }
 
-/** Shape-local cap centres for an oblong deep scoop. */
-export function oblongDeepScoopEndpoints(
+/** Shape-local end handles: cap centres for oblongs, end faces for flat ends. */
+export function elongatedFingerHoleEndpoints(
   hole: Pick<
     FingerHole,
     "center" | "diameterMm" | "lengthMm" | "rotationDeg"
-  >,
-): OblongDeepScoopEndpoints {
-  const minimumLength = hole.diameterMm + MIN_OBLONG_DEEP_SCOOP_SPAN_MM;
+  > & Partial<Pick<FingerHole, "kind">>,
+): ElongatedFingerHoleEndpoints {
+  const minimumLength = minimumFingerHoleLengthMm({ ...hole, kind: hole.kind ?? "oblong-deep-scoop" });
   const lengthMm = Math.min(
     MAX_OBLONG_DEEP_SCOOP_LENGTH_MM,
     Math.max(hole.lengthMm ?? DEFAULT_OBLONG_DEEP_SCOOP_LENGTH_MM, minimumLength),
   );
-  const halfSpan = (lengthMm - hole.diameterMm) / 2;
+  const halfSpan = (lengthMm - (hasFlatFingerHoleEnds(hole) ? 0 : hole.diameterMm)) / 2;
   const radians = ((hole.rotationDeg ?? 0) * Math.PI) / 180;
   const dx = halfSpan * Math.cos(radians);
   const dy = halfSpan * Math.sin(radians);
@@ -236,16 +441,17 @@ export function oblongDeepScoopEndpoints(
 }
 
 /**
- * Moves one oblong end while the opposite end stays fixed. This is shared by
+ * Moves one elongated scoop end while the opposite end stays fixed. This is shared by
  * the editor and tests so endpoint dragging, resizing and rotation are one
  * operation with one source of truth.
  */
-export function resizeOblongDeepScoopFromEndpoint(
+export function resizeElongatedFingerHoleFromEndpoint(
   hole: FingerHole,
   endpoint: "start" | "end",
   dragged: Point,
+  spec?: FingerAccessBinSpec,
 ): FingerHole {
-  const current = oblongDeepScoopEndpoints(hole);
+  const current = elongatedFingerHoleEndpoints(hole);
   const fixed = endpoint === "start" ? current.end : current.start;
   let dx = endpoint === "start" ? fixed.x - dragged.x : dragged.x - fixed.x;
   let dy = endpoint === "start" ? fixed.y - dragged.y : dragged.y - fixed.y;
@@ -256,9 +462,10 @@ export function resizeOblongDeepScoopFromEndpoint(
     dy = Math.sin(radians);
     span = 1;
   }
+  const capLength = hasFlatFingerHoleEnds(hole) ? 0 : hole.diameterMm;
   const clampedSpan = Math.min(
-    MAX_OBLONG_DEEP_SCOOP_LENGTH_MM - hole.diameterMm,
-    Math.max(MIN_OBLONG_DEEP_SCOOP_SPAN_MM, span),
+    MAX_OBLONG_DEEP_SCOOP_LENGTH_MM - capLength,
+    Math.max(minimumFingerHoleLengthMm(hole) - capLength, span),
   );
   const ux = dx / span;
   const uy = dy / span;
@@ -270,41 +477,47 @@ export function resizeOblongDeepScoopFromEndpoint(
     : fixed;
   const rotationDeg =
     ((Math.atan2(end.y - start.y, end.x - start.x) * 180) / Math.PI + 360) % 360;
-  return {
+  const resized = {
     ...hole,
     center: { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 },
-    lengthMm: clampedSpan + hole.diameterMm,
+    lengthMm: clampedSpan + capLength,
     rotationDeg,
   };
+  if (!spec) return resized;
+  const bounded = clampFingerHoleToBin(resized, spec);
+  const boundedSpan = elongatedFingerHoleEndpoints(bounded).lengthMm -
+    (hasFlatFingerHoleEnds(bounded) ? 0 : bounded.diameterMm);
+  const direction = endpoint === "end" ? 1 : -1;
+  return { ...bounded, center: {
+    x: fixed.x + direction * ux * boundedSpan / 2,
+    y: fixed.y + direction * uy * boundedSpan / 2,
+  } };
 }
 
 /**
  * Resizes a mouth from its radial/width handle. Round holes keep their centre
  * fixed. Oblong holes keep both cap centres fixed, so changing width does not
- * unexpectedly change either end position.
+ * unexpectedly change either end position. Flat-ended scoops retain their length.
  */
 export function resizeFingerHoleFromWidthHandle(
   hole: FingerHole,
   dragged: Point,
+  spec?: FingerAccessBinSpec,
 ): FingerHole {
-  if (hole.kind !== "oblong-deep-scoop") {
+  if (!isElongatedFingerHole(hole)) {
     const diameterMm = Math.min(
-      MAX_FINGER_HOLE_DIAMETER_MM,
+      spec ? fingerHoleSizeLimits(hole, spec).diameterMm : MAX_FINGER_HOLE_DIAMETER_MM,
       Math.max(
         MIN_FINGER_HOLE_DIAMETER_MM,
         2 * Math.hypot(dragged.x - hole.center.x, dragged.y - hole.center.y),
       ),
     );
-    const depthMm =
-      hole.kind === "scoop"
-        ? Math.min(hole.depthMm, diameterMm / 2)
-        : hole.kind === "deep-scoop"
-          ? Math.max(hole.depthMm, diameterMm / 2)
-          : hole.depthMm;
-    return { ...hole, diameterMm, depthMm };
+    // Legacy spherical dishes keep their current depth when explicitly resized.
+    return { ...hole, diameterMm, depthMm: effectiveFingerHoleDepthMm(hole),
+      kind: hole.kind === "scoop" ? "deep-scoop" : hole.kind };
   }
 
-  const endpoints = oblongDeepScoopEndpoints(hole);
+  const endpoints = elongatedFingerHoleEndpoints(hole);
   const span = Math.hypot(
     endpoints.end.x - endpoints.start.x,
     endpoints.end.y - endpoints.start.y,
@@ -314,16 +527,23 @@ export function resizeFingerHoleFromWidthHandle(
   const signedDistance =
     (dragged.x - hole.center.x) * normal.x +
     (dragged.y - hole.center.y) * normal.y;
+  const bounds = spec ? fingerAccessBinBounds(spec, hole) : null;
+  const maximumWidth = !spec || !bounds ? MAX_FINGER_SLOT_WIDTH_MM
+    : hasFlatFingerHoleEnds(hole) ? fingerHoleSizeLimits(hole, spec).diameterMm
+      : Math.max(MIN_FINGER_HOLE_DIAMETER_MM, Math.min(
+          bounds.x - span * Math.abs(Math.cos(radians)),
+          bounds.y - span * Math.abs(Math.sin(radians)),
+        ));
   const diameterMm = Math.min(
-    MAX_FINGER_HOLE_DIAMETER_MM,
-    MAX_OBLONG_DEEP_SCOOP_LENGTH_MM - span,
+    MAX_FINGER_SLOT_WIDTH_MM, Math.floor((maximumWidth + 1e-7) * 100) / 100,
+    hasFlatFingerHoleEnds(hole) ? MAX_FINGER_SLOT_WIDTH_MM : MAX_OBLONG_DEEP_SCOOP_LENGTH_MM - span,
     Math.max(MIN_FINGER_HOLE_DIAMETER_MM, 2 * Math.abs(signedDistance)),
   );
   return {
     ...hole,
     diameterMm,
-    depthMm: Math.max(hole.depthMm, diameterMm / 2),
-    lengthMm: span + diameterMm,
+    depthMm: hole.depthMm,
+    lengthMm: hasFlatFingerHoleEnds(hole) ? endpoints.lengthMm : span + diameterMm,
   };
 }
 
@@ -345,8 +565,9 @@ const cutoutPlacementInputSchema = z
       mode: "remaining",
       floorThicknessMm: BASE_HEIGHT,
     }),
-    /** Fit clearance grown around the outline before cutting. */
-    clearanceMm: z.number().min(0).max(5).default(0),
+    split: pocketSplitSchema.optional(),
+    /** Signed per-edge fit adjustment after scaling: negative shrinks, positive grows. */
+    clearanceMm: z.number().min(-5).max(5).default(0),
     /** 2D rounding of vertical pocket edges (offset −r then +r). */
     cornerRoundMm: z.number().min(0).max(5).default(1),
     /** Round-over radius where the pocket wall meets the top surface. */
@@ -390,6 +611,11 @@ export const cutoutPlacementSchema = cutoutPlacementInputSchema.transform(
 
 export type CutoutPlacement = z.infer<typeof cutoutPlacementSchema>;
 export type CutoutPlacementInput = z.input<typeof cutoutPlacementSchema>;
+
+/** The original depth is retained for removing a split; only active depths cut. */
+export function pocketDepths(cutout: Pick<CutoutPlacement, "depth" | "split">): readonly DepthSpec[] {
+  return cutout.split?.depths ?? [cutout.depth];
+}
 
 export function parseCutoutPlacement(input: unknown): CutoutPlacement {
   return cutoutPlacementSchema.parse(input);
@@ -653,15 +879,74 @@ export function capsuleRing(
   return ring;
 }
 
-/** Exact plan-view rim used by rendering, validation, and cutter geometry. */
+/** CCW, centred rectangle with circular corners inside its nominal dimensions. */
+export function roundedRectangleRing(
+  width: number,
+  height: number,
+  radius: number,
+  segments = 24,
+): Point[] {
+  const hx = width / 2;
+  const hy = height / 2;
+  const r = Math.max(0, Math.min(radius, hx, hy));
+  if (r === 0) return [{ x: -hx, y: -hy }, { x: hx, y: -hy }, { x: hx, y: hy }, { x: -hx, y: hy }];
+  const steps = Math.max(2, Math.ceil(segments / 4));
+  const ring: Point[] = [];
+  for (let corner = 0; corner < 4; corner++) {
+    const cx = (corner < 2 ? 1 : -1) * (hx - r);
+    const cy = (corner === 0 || corner === 3 ? -1 : 1) * (hy - r);
+    for (let i = 0; i <= steps; i++) {
+      const angle = (corner - 1 + i / steps) * Math.PI / 2;
+      const point = { x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) };
+      const previous = ring[ring.length - 1];
+      if (!previous || Math.hypot(point.x - previous.x, point.y - previous.y) > 1e-9) ring.push(point);
+    }
+  }
+  if (Math.hypot(ring[0].x - ring[ring.length - 1].x, ring[0].y - ring[ring.length - 1].y) < 1e-9) ring.pop();
+  return ring;
+}
+
+export const FINGER_HOLE_PREVIEW_CHORD_TOLERANCE_MM = 0.05;
+export const FINGER_HOLE_EXPORT_CHORD_TOLERANCE_MM = 0.01;
+
+/**
+ * Resolve round-opening tessellation from maximum radial chord error (sagitta),
+ * r * (1 - cos(PI / n)). Larger openings get more segments; requested quality
+ * remains a minimum. Multiples of eight preserve cardinal points and match
+ * the kernel's sphere/cylinder subdivisions. Slots keep their existing quality.
+ */
+export function fingerHoleCircularSegments(
+  hole: FingerHole,
+  minimumSegments = 24,
+  maxChordErrorMm = 0.025,
+): number {
+  if (isElongatedFingerHole(hole)) return minimumSegments;
+  if (!Number.isFinite(maxChordErrorMm) || maxChordErrorMm <= 0) {
+    throw new Error("Finger-hole chord tolerance must be a positive finite distance.");
+  }
+  // Include the outward rim rounding so its widest circle is smooth too.
+  const radius = hole.diameterMm / 2 + effectiveFingerHoleTopFilletMm(hole);
+  const required = Math.PI / Math.acos(1 - Math.min(1, maxChordErrorMm / radius));
+  return Math.ceil(Math.max(minimumSegments, required) / 8) * 8;
+}
+
+/** Plan-view rim used by rendering and validation; geometry may supply its own resolved quality. */
 export function fingerHoleFootprintRing(
   hole: FingerHole,
   placement: PlacementTransform,
-  segments = 24,
+  segments = fingerHoleCircularSegments(hole),
 ): Point[] {
-  const local = hole.kind === "oblong-deep-scoop"
+  const local = isElongatedFingerHole(hole)
     ? (() => {
-        const { start, end } = oblongDeepScoopEndpoints(hole);
+        const { start, end } = elongatedFingerHoleEndpoints(hole);
+        if (hasFlatFingerHoleEnds(hole)) {
+          const radians = ((hole.rotationDeg ?? 0) * Math.PI) / 180;
+          return roundedRectangleRing(elongatedFingerHoleEndpoints(hole).lengthMm,
+            hole.diameterMm, effectiveFingerHoleCornerRoundMm(hole), segments).map(({ x, y }) => ({
+              x: hole.center.x + x * Math.cos(radians) - y * Math.sin(radians),
+              y: hole.center.y + x * Math.sin(radians) + y * Math.cos(radians),
+            }));
+        }
         return capsuleRing(start, end, hole.diameterMm / 2, segments);
       })()
     : circleRing(hole.center, hole.diameterMm / 2, segments);
@@ -680,6 +965,18 @@ export interface PlacementFootprint {
    * only — features are cut at their exact diameter.
    */
   features: Point[][];
+}
+
+/**
+ * Conservative allowance for synchronous layout checks and packing. These
+ * operate on the traced rings without kernel offsets, so inward clearance
+ * cannot be credited as extra room (it can split or erase thin features).
+ * The actual cutter and fit template apply the full signed clearance.
+ */
+export function pocketLayoutAllowanceMm(
+  cutout: Pick<CutoutPlacement, "clearanceMm" | "topFilletMm">,
+): number {
+  return Math.max(0, cutout.clearanceMm) + cutout.topFilletMm;
 }
 
 /**
@@ -706,6 +1003,11 @@ export function placementFootprint(
 // ---------------------------------------------------------------------------
 // Depth resolution
 // ---------------------------------------------------------------------------
+
+/** Default material left under a new pocket, measured from the actual underside. */
+export function defaultPocketFloorThicknessMm(spec: Pick<BinSpec, "flatBottom">): number {
+  return spec.flatBottom ? 2 : BASE_HEIGHT;
+}
 
 export interface ResolvedPocket {
   /** Absolute z of the pocket floor, or null for a through cut. */

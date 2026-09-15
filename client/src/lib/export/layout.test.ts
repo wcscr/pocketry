@@ -1,4 +1,4 @@
-import { parseCutoutPlacement, type TracedShape } from "@shared/gridfinity/cutout";
+import { fingerHoleSchema, parseCutoutPlacement, type TracedShape } from "@shared/gridfinity/cutout";
 import { binFootprintMm } from "@shared/gridfinity/standard";
 import { parseBinSpec } from "@shared/gridfinity/types";
 import { signedArea } from "@shared/geometry/rings";
@@ -43,6 +43,21 @@ function cutout(extra: Record<string, unknown> = {}) {
 }
 
 describe("layoutRingsMm", () => {
+  it.each([150, 671.5])("exports a diameter %s round opening with chord error below 0.01 mm", (diameterMm) => {
+    const hole = fingerHoleSchema.parse({ id: "large", center: { x: 0, y: 0 }, diameterMm });
+    const ring = layoutRingsMm(SPEC, [], BY_ID, [hole])[1];
+    expect(ring.length).toBeGreaterThan(64);
+    for (let i = 0; i < ring.length; i++) {
+      const next = ring[(i + 1) % ring.length];
+      expect(diameterMm / 2 - Math.hypot((ring[i].x + next.x) / 2, (ring[i].y + next.y) / 2))
+        .toBeLessThanOrEqual(0.01 + 1e-9);
+    }
+    const svg = generateLayoutSVG(SPEC, [], BY_ID, [hole]);
+    const dxf = generateLayoutDXF(SPEC, [], BY_ID, [hole]);
+    expect(svg.match(/ L /g)!.length).toBeGreaterThan(ring.length);
+    expect(dxf).toContain(`90\n${ring.length}\n`);
+  });
+
   it("exports the actual L footprint instead of its bounding rectangle", () => {
     const shaped = parseBinSpec({
       ...SPEC,
@@ -131,4 +146,21 @@ describe("generateLayoutSVG", () => {
     // Bin-frame (20, -13) → view (20 + 41.75, 62.75 + 13) = (61.75, 75.75).
     expect(svg).toContain("61.7500 75.7500");
   });
+});
+
+
+it.each(["flat-ended-scoop", "flat-ended-straight"] as const)("exports %s as a rectangle at its saved position and rotation", (kind) => {
+  const rings = layoutRingsMm(SPEC, [], BY_ID, [{
+    id: "flat", kind, center: { x: 5, y: -8 },
+    diameterMm: 16, lengthMm: 40, depthMm: 25, rotationDeg: 90,
+    topFilletMm: 0, bottomFilletMm: 0,
+  }]);
+  expect(rings).toHaveLength(2);
+  const ring = rings[1];
+  expect(ring).toHaveLength(4);
+  expect(Math.abs(signedArea(ring))).toBeCloseTo(640, 8);
+  expect(Math.min(...ring.map(p => p.x))).toBeCloseTo(-3, 8);
+  expect(Math.max(...ring.map(p => p.x))).toBeCloseTo(13, 8);
+  expect(Math.min(...ring.map(p => p.y))).toBeCloseTo(-28, 8);
+  expect(Math.max(...ring.map(p => p.y))).toBeCloseTo(12, 8);
 });

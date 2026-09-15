@@ -1,5 +1,7 @@
 import {
   fingerHoleFootprintRing,
+  fingerHoleCircularSegments,
+  FINGER_HOLE_EXPORT_CHORD_TOLERANCE_MM,
   transformOutlinePlacement,
   type CutoutPlacement,
   type FingerHole,
@@ -59,7 +61,7 @@ export function layoutRingsMm(
       fingerHoleFootprintRing(
         hole,
         { position: { x: 0, y: 0 }, rotationDeg: 0, mirrored: false },
-        CIRCLE_SEGMENTS,
+        fingerHoleCircularSegments(hole, CIRCLE_SEGMENTS, FINGER_HOLE_EXPORT_CHORD_TOLERANCE_MM),
       ),
     );
   }

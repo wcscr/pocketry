@@ -141,6 +141,18 @@ export default function About(): JSX.Element {
             <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
               About Pocketry
             </h1>
+            <p className="text-sm text-muted-foreground">
+              Pocketry is developed by{" "}
+              <a
+                href="https://sugarcreekresearch.com"
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-sm underline underline-offset-4 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                Sugarcreek Research, LLC
+              </a>
+              .
+            </p>
             <a
               href="/LICENSE.txt"
               target="_blank"
@@ -217,6 +229,10 @@ export default function About(): JSX.Element {
             </CardContent>
           </Card>
         </section>
+
+        <p className="text-sm leading-6 text-muted-foreground">
+          Pocketry was developed using OpenAI Codex.
+        </p>
 
         <section className="space-y-7" aria-labelledby="related-projects-heading">
           <div className="space-y-1">

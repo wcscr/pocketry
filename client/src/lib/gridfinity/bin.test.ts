@@ -4,6 +4,7 @@ import {
   STACKING_LIP_SUPPORT_HEIGHT_MM,
 } from "@shared/gridfinity/standard";
 import { parseBinSpec } from "@shared/gridfinity/types";
+import { changeBinGridPitchPreservingSize } from "@shared/gridfinity/grid-pitch";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { Arena } from "@/lib/manifold/arena";
@@ -131,6 +132,18 @@ describe("buildStackingLip", () => {
 });
 
 describe("buildBin", () => {
+  it.each(["half", "quarter"] as const)("preserves a custom flat-bottom bin and its label tab at %s pitch", pitch => {
+    const original = spec({ gridX: 2, gridY: 2, flatBottom: true,
+      footprint: { kind: "custom", cells: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }] },
+      labelTab: { wall: "east", width: "center", edge: { cell: { x: 0, y: 1 }, side: "east" } } });
+    const converted = parseBinSpec({ ...original, ...changeBinGridPitchPreservingSize(original, pitch) });
+    const before = buildBin(kernel, original, QUALITY).solid;
+    const after = buildBin(kernel, converted, QUALITY).solid;
+    expect(after.status()).toBe("NoError");
+    expect(arena.track(after.subtract(before)).volume()).toBeLessThan(1e-6);
+    expect(arena.track(before.subtract(after)).volume()).toBeLessThan(1e-6);
+  });
+
   it("builds a complete half-unit-height bin", () => {
     const { solid } = buildBin(kernel, spec({ heightUnits: 2.5 }), QUALITY);
     const box = solid.boundingBox();
@@ -207,6 +220,19 @@ describe("buildBin", () => {
     expect(box.max[0] - box.min[0]).toBeCloseTo(41.5, 9);
     expect(box.max[1] - box.min[1]).toBeCloseTo(20.5, 9);
     expect(box.max[2]).toBeCloseTo(42, 9);
+  });
+
+  it("builds a 3 by 5 standard-cell bin with 12 by 20 quarter sockets", () => {
+    const { solid } = buildBin(kernel, spec({
+      gridX: 12, gridY: 20, gridPitch: "quarter", heightUnits: 5.5, fill: "solid",
+    }), PREVIEW_QUALITY);
+    expect(solid.status()).toBe("NoError");
+    expect(solid.genus()).toBe(0);
+    const box = solid.boundingBox();
+    expect(box.max[0] - box.min[0]).toBeCloseTo(125.5, 9);
+    expect(box.max[1] - box.min[1]).toBeCloseTo(209.5, 9);
+    expect(box.min[2]).toBeCloseTo(0, 9);
+    expect(box.max[2]).toBeCloseTo(38.5 + STACKING_LIP_HEIGHT_ACTUAL, 6);
   });
 
   it("2×3×6 empty bin with lip: exact bbox and inclusion–exclusion volume", () => {
@@ -321,5 +347,36 @@ describe("stacking fit (software mating test)", () => {
   it("collides under a lateral shift past the clearance (0.5 mm)", () => {
     const overlap = arena.track(lowerBin().intersect(upperBaseAt(0.5, 0)));
     expect(overlap.volume()).toBeGreaterThan(1e-3);
+  });
+});
+
+describe("flat bottoms", () => {
+  it.each(["full", "half", "quarter"] as const)("fills the underside for %s pitch at preview and export quality", (gridPitch) => {
+    for (const quality of [PREVIEW_QUALITY, EXPORT_QUALITY]) {
+      const ordinarySpec = spec({ gridPitch });
+      const flatSpec = { ...ordinarySpec, flatBottom: true };
+      const ordinary = buildBinParts(kernel, ordinarySpec, quality);
+      const flat = buildBinParts(kernel, flatSpec, quality);
+      expect(flat.base.status()).toBe("NoError");
+      expect(flat.base.genus()).toBe(0);
+      expect(flat.base.boundingBox()).toEqual(ordinary.base.boundingBox());
+      expect(arena.track(flat.base.slice(0.1)).area()).toBeCloseTo(arena.track(flat.base.slice(6.9)).area(), 5);
+      expect(flat.base.volume()).toBeGreaterThan(ordinary.base.volume());
+      expect(binDimensionsMm(flatSpec)).toEqual(binDimensionsMm(ordinarySpec));
+      expect(flat.wall!.volume()).toBeCloseTo(ordinary.wall!.volume(), 6);
+      expect(buildBin(kernel, flatSpec, quality).solid.status()).toBe("NoError");
+    }
+  });
+
+  it("keeps a custom footprint and ignores dormant base holes", () => {
+    const flatSpec = spec({ gridX: 2, gridY: 2, flatBottom: true,
+      footprint: { kind: "custom", cells: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }] } });
+    const plain = buildBinParts(kernel, flatSpec, QUALITY).base;
+    const holes = buildBinParts(kernel, { ...flatSpec, magnetHoles: true, screwHoles: true, magnetCrushRibs: true }, QUALITY).base;
+    expect(plain.volume()).toBeCloseTo(holes.volume(), 6);
+    expect(arena.track(plain.slice(0.1)).area()).toBeCloseTo(arena.track(plain.slice(6.9)).area(), 5);
+    const rectangle = buildBinParts(kernel, { ...flatSpec, footprint: { kind: "rectangle" } }, QUALITY).base;
+    expect(plain.volume()).toBeLessThan(rectangle.volume());
+    expect(buildBin(kernel, flatSpec, QUALITY).solid.status()).toBe("NoError");
   });
 });

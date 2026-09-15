@@ -7,6 +7,10 @@ import type {
   TracedShape,
 } from "@shared/gridfinity/cutout";
 import {
+  FINGER_HOLE_PREVIEW_CHORD_TOLERANCE_MM,
+  FINGER_HOLE_EXPORT_CHORD_TOLERANCE_MM,
+} from "@shared/gridfinity/cutout";
+import {
   BASE_HEIGHT,
   BASE_TOP_RADIUS,
   binFootprintMm,
@@ -29,7 +33,6 @@ import {
 } from "./cutouts";
 import { holeOptionsFromSpec } from "./holes";
 import { buildLabelTab } from "./label-tab";
-import { buildLiteBase } from "./lite-base";
 import { roundedRectPolygon } from "./profiles";
 import { footprintOuterSection } from "./footprint-section";
 import { buildStackingLip, buildWallRing } from "./wall";
@@ -50,8 +53,10 @@ import { buildStackingLip, buildWallRing } from "./wall";
  */
 
 export interface BuildQuality {
-  /** Segments per full circle for every arc. Multiple of 8, ≥ 16. */
+  /** Base segments per full circle. Multiple of 8, ≥ 16; round access may use more. */
   circularSegments: number;
+  /** Maximum radial chord error for round finger access; defaults to preview tolerance. */
+  fingerHoleChordToleranceMm?: number;
   /**
    * Max vertices per cutout ring before offsetting (see cutouts.ts).
    * Optional so quality objects in older call sites stay valid; the cutter
@@ -69,6 +74,7 @@ export interface BuildQuality {
 /** Coarse arcs and fillet bands for a responsive interactive preview. */
 export const PREVIEW_QUALITY: BuildQuality = {
   circularSegments: 24,
+  fingerHoleChordToleranceMm: FINGER_HOLE_PREVIEW_CHORD_TOLERANCE_MM,
   cutoutVertexBudget: 100,
   filletProfileStepMm: 0.5,
 };
@@ -76,6 +82,7 @@ export const PREVIEW_QUALITY: BuildQuality = {
 /** Fine arcs for export (~0.004 mm corner sag). */
 export const EXPORT_QUALITY: BuildQuality = {
   circularSegments: 64,
+  fingerHoleChordToleranceMm: FINGER_HOLE_EXPORT_CHORD_TOLERANCE_MM,
   cutoutVertexBudget: 600,
   filletProfileStepMm: 0.1,
 };
@@ -92,7 +99,7 @@ export const MULTICOLOR_RIM_MAX_THICKNESS_MM = Math.floor(
 ) / 100;
 
 export interface BinParts {
-  /** Sockets plus bridge, z ∈ [0, 7]. */
+  /** Sockets plus bridge, or a flat slab, z ∈ [0, 7]. */
   base: Manifold;
   /** Plain wall ring, z ∈ [7, units·7]. `null` for 1u bins (zero height). */
   wall: Manifold | null;
@@ -132,9 +139,8 @@ export function buildBinParts(
   const { CrossSection, arena } = kernel;
   const segments = quality.circularSegments;
 
-  // Lite bases ignore holes (no bosses yet); validation surfaces the clash.
-  const base = spec.liteBase
-    ? buildLiteBase(kernel, spec, segments)
+  const base = spec.flatBottom
+    ? arena.track(footprintOuterSection(kernel, spec, segments).extrude(BASE_HEIGHT))
     : buildBase(
         kernel,
         spec,

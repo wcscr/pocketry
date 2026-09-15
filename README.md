@@ -17,11 +17,72 @@ processing, project storage, and model generation kept on the user's device.
 - Refine exterior contours and interior holes.
 - Export traced geometry as SVG, DXF, DWG-compatible DXF, or STL.
 - Arrange traced tools as pockets in Gridfinity bins.
+  Pocket and finger access properties share compact grouped controls, with position
+  at the bottom. Rename finger access from its list row; names save with the project
+  and support undo/redo. All finger access styles support depths down to 1 mm;
+  shallow curved scoops preserve their opening width as depth changes.
+  Choose Round or Slot, a Curved or Flat bottom, and (for slots) Rounded or Flat
+  ends. A top/section preview follows the choices. Shape changes retain dimensions,
+  rotation, edge and corner radii, and the slot-end preference.
+  Flat-ended slots offer a separate Corner round
+  control under Edges & corners for either bottom style; it rounds the four plan-view
+  corners inside the opening dimensions, limited to half the smaller width or length.
+  Existing slots keep sharp corners until changed. Short slots retain their requested
+  length while rounded ends temporarily require a longer opening. Round openings support
+  diameters up to the bin's Width (X), in both the panel and Layout; slots support
+  widths up to 80 mm. Round openings gain more segments as their diameter grows:
+  layout chord error stays below 0.025 mm, 3D preview below 0.05 mm, and STL/3MF
+  and SVG/DXF exports below 0.01 mm around the opening. Rounding fields show the actual radius
+  and retain larger requested values for deeper cuts. Existing spherical scoops
+  retain their saved geometry until their dimensions or shape choices are edited.
+  Finger-access depth stops at the bin underside. Slot mouth-size controls follow the
+  bin dimensions with a 5% allowance, including rotated slots and Layout resize
+  handles. Resizing the bin limits oversized openings in the same undo step. Existing oversized saves
+  remain unchanged on opening and are flagged until edited; wall/floor print
+  validation still applies, and mouth-size limits are before edge rounding.
+- Pocket properties stay in the Pockets section. Click a pocket on the canvas
+  or choose its row in the compact list to open its settings there. On phones, tapping opens
+  the controls drawer; dragging keeps the layout available.
+  Depth leads; size and scale, extra clearance, edges and corners, and position
+  settings start collapsed. Expand the depth profile to inspect the pocket in 3D.
+  Throughout Bin settings, help icons reveal optional guidance on hover, focus,
+  or tap. Dimensions, warnings, save status, and active editing guidance stay visible. Use a pocket row’s
+  pencil to rename it. Edit contour is in the properties header and beside the
+  canvas ruler. Pocket clearance has a zero-centered slider: negative values shrink
+  each edge to undo excess trace padding; positive values add room. Shrinking
+  changes the 3D cutter and fit templates without altering the saved trace.
+  Layout warnings and automatic packing conservatively retain the original outline
+  when clearance is negative; inspect the 3D model for the resulting pocket.
+- Model warnings and errors appear in a collapsible panel at the bottom right of
+  the Layout and 3D canvas. Click a message to edit the affected pocket or settings.
+  It starts as a compact count with a gentle pulse every four seconds until expanded
+  (unless reduced motion is enabled). Errors still block export.
 - Configure full-, half-, and quarter-pitch bins and export STL or 3MF models.
-- Every bin STL/3MF export (including fit tests) downloads a matching portable
-  `.pocketry.json` backup of the full design. Filenames include the saved project
-  name, bin size, and local date/time; allow multiple downloads when prompted.
+  Bin size places bin-unit inputs alongside each slider, with a combined outer-size
+  readout in millimeters below and optional sizing guidance in hover hints.
+  All pitches support the same maximum outer size of 671.5 mm per axis
+  (16 full, 32 half, or 64 quarter cells), so finer pitch does not shrink the size allowance.
+- Model, fit-test, and outline export dialogs include an optional, unchecked
+  `.pocketry.json` download. Bin exports preserve the full design; Trace exports
+  preserve the calibrated outline as an editable pocket in a new Bin project.
+  When selected, both files share a filename stem.
 - Export top-down layouts for shadow boards and CNC workflows.
+- Save the current design or choose Open saved project under Project's Browser
+  library section. Manage library lets you open saved projects with Open or a
+  double-click, rename or copy any project, and remove projects with confirmation. Copy
+  adds a separately named entry directly after its source, keeping focus on the source
+  and leaving the open project unchanged. Library order stays stable as you work. A single
+  click focuses a project without opening it. The currently open project cannot be removed;
+  switch projects or start a new one first. Rename stays beside the project name.
+  Overflowing project lists keep their scrollbar visible.
+  Project saves retain up to 50 committed history steps, including undo/redo
+  position and operation names. Switching projects, reopening a backup, or
+  returning to the Bin workspace restores that project's history. Shape versions
+  needed by older steps travel with the project. New edits after undo replace
+  its redo branch; older files without history open at a single starting step.
+  Portable backup separates a single editable project file from an
+  entire-library JSON backup; Export library and Import library are directly
+  available there, outside the saved-project picker.
 
 Pocketry is still subject to physical print validation. Inspect generated files
 and confirm dimensions and printer settings before relying on them for a final
@@ -101,6 +162,8 @@ Third-party components and adapted source retain their original licenses. Their
 licenses, copyright notices, and provenance are recorded in [NOTICE](NOTICE).
 The detailed direct-source review is available in
 [docs/open-source-review.md](docs/open-source-review.md).
+
+Pocketry was developed with OpenAI Codex.
 
 ## Contributing
 

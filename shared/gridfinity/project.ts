@@ -3,13 +3,15 @@ import { z } from "zod";
 import {
   cutoutPlacementSchema,
   fingerHoleSchema,
-  oblongDeepScoopEndpoints,
+  elongatedFingerHoleEndpoints,
+  isElongatedFingerHole,
   resolvePocketDepth,
   tracedShapeSchema,
   transformPointPlacement,
   type FingerHole,
 } from "./cutout";
 import { binSpecSchema } from "./types";
+import { binHistorySchema } from "./history";
 
 /**
  * The persisted unit of user data: the shape library plus the bin being
@@ -25,10 +27,16 @@ import { binSpecSchema } from "./types";
  * version 8 adds per-placement X/Y scale and an aspect-ratio-lock preference;
  * version 9 adds per-finger-hole top and bottom edge fillets; version 10 adds
  * optional project names, fixed-size preference, and trace margin provenance.
- * Existing geometry is retained when migrating versions 7–9 to version 10.
+ * Version 11 removes Lite Base; older projects use the ordinary Gridfinity base.
+ * Version 12 adds an optional flat bottom, defaulting off for existing projects.
+ * Version 13 adds flat-ended cylindrical finger scoops.
+ * Version 14 adds flat-bottom slots and a retained slot-end preference.
+ * Version 15 adds optional corner rounding for flat-ended slots (absent is sharp).
+ * Version 16 adds an optional boundary and two depths inside one tool pocket.
+ * Version 17 preserves committed undo/redo history and its current position.
  */
 
-export const PROJECT_SCHEMA_VERSION = 10 as const;
+export const PROJECT_SCHEMA_VERSION = 17 as const;
 
 const projectFields = {
   shapes: z.array(tracedShapeSchema),
@@ -59,14 +67,45 @@ const version8ProjectSchema = z
 
 const version9ProjectSchema = z.object({ schemaVersion: z.literal(9), ...projectFields }).strict();
 
-export const projectDocSchema = z
+const version16ProjectSchema = z
   .object({
-    schemaVersion: z.literal(PROJECT_SCHEMA_VERSION),
+    schemaVersion: z.literal(16),
     ...projectFields,
     name: z.string().trim().min(1).max(80).optional(),
     keepBinSize: z.boolean().optional(),
   })
   .strict();
+
+/** History and the visible design must describe one consistent saved snapshot. */
+export const projectDocSchema = version16ProjectSchema.extend({
+  schemaVersion: z.literal(PROJECT_SCHEMA_VERSION),
+  history: binHistorySchema.optional(),
+}).superRefine((project, ctx) => {
+  if (!project.history) return;
+  const current = project.history.stack[project.history.index]?.doc;
+  const material = { spec: project.spec, cutouts: project.cutouts, fingerHoles: project.fingerHoles };
+  if (JSON.stringify(current) !== JSON.stringify(material)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["history"], message: "History does not match the saved design" });
+  }
+  // Shapes are immutable by id. Store one shared collection, including shapes
+  // needed only by an undo or redo step (deleted pockets and contour revisions).
+  const shapeIds = new Set(project.shapes.map((shape) => shape.id));
+  if (shapeIds.size !== project.shapes.length || project.history.stack.some((entry) =>
+    entry.doc.cutouts.some((cutout) => !shapeIds.has(cutout.shapeId)))) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["history"], message: "History requires unique, available shapes" });
+  }
+});
+
+const version14ProjectSchema = version16ProjectSchema.extend({ schemaVersion: z.literal(14) });
+const version15ProjectSchema = version16ProjectSchema.extend({ schemaVersion: z.literal(15) });
+
+const version13ProjectSchema = version16ProjectSchema.extend({ schemaVersion: z.literal(13) });
+
+const version12ProjectSchema = version16ProjectSchema.extend({ schemaVersion: z.literal(12) });
+
+const version11ProjectSchema = version16ProjectSchema.extend({ schemaVersion: z.literal(11) });
+
+const version10ProjectSchema = version16ProjectSchema.extend({ schemaVersion: z.literal(10) });
 
 const legacyProjectSchemas = [1, 2, 3, 4, 5, 6].map((schemaVersion) =>
   z
@@ -98,8 +137,8 @@ function migrateLegacyProject(doc: LegacyProjectDoc): ProjectDoc {
     for (const hole of cutout.fingerHoles) {
       const center = transformPointPlacement(hole.center, cutout);
       let rotationDeg = hole.rotationDeg;
-      if (hole.kind === "oblong-deep-scoop") {
-        const endpoints = oblongDeepScoopEndpoints(hole);
+      if (isElongatedFingerHole(hole)) {
+        const endpoints = elongatedFingerHoleEndpoints(hole);
         const start = transformPointPlacement(endpoints.start, cutout);
         const end = transformPointPlacement(endpoints.end, cutout);
         rotationDeg =
@@ -137,6 +176,31 @@ function migrateLegacyProject(doc: LegacyProjectDoc): ProjectDoc {
 export function parseProjectDoc(input: unknown): ProjectDoc | null {
   const result = projectDocSchema.safeParse(input);
   if (result.success) return result.data;
+  // Only legacy documents may contain the removed flag. Keep malformed values
+  // and unknown fields invalid, and never mutate the stored source document.
+  if (input && typeof input === "object" && !Array.isArray(input)) {
+    const doc = input as Record<string, unknown>;
+    if (typeof doc.schemaVersion === "number" && doc.schemaVersion >= 1 && doc.schemaVersion <= 10 &&
+        doc.spec && typeof doc.spec === "object" && !Array.isArray(doc.spec)) {
+      const { liteBase, ...spec } = doc.spec as Record<string, unknown>;
+      if (liteBase !== undefined && typeof liteBase !== "boolean") return null;
+      input = { ...doc, spec };
+    }
+  }
+  const version16 = version16ProjectSchema.safeParse(input);
+  if (version16.success) return projectDocSchema.parse({ ...version16.data, schemaVersion: PROJECT_SCHEMA_VERSION });
+  const version15 = version15ProjectSchema.safeParse(input);
+  if (version15.success) return projectDocSchema.parse({ ...version15.data, schemaVersion: PROJECT_SCHEMA_VERSION });
+  const version14 = version14ProjectSchema.safeParse(input);
+  if (version14.success) return projectDocSchema.parse({ ...version14.data, schemaVersion: PROJECT_SCHEMA_VERSION });
+  const version13 = version13ProjectSchema.safeParse(input);
+  if (version13.success) return projectDocSchema.parse({ ...version13.data, schemaVersion: PROJECT_SCHEMA_VERSION });
+  const version12 = version12ProjectSchema.safeParse(input);
+  if (version12.success) return projectDocSchema.parse({ ...version12.data, schemaVersion: PROJECT_SCHEMA_VERSION });
+  const version11 = version11ProjectSchema.safeParse(input);
+  if (version11.success) return projectDocSchema.parse({ ...version11.data, schemaVersion: PROJECT_SCHEMA_VERSION });
+  const version10 = version10ProjectSchema.safeParse(input);
+  if (version10.success) return projectDocSchema.parse({ ...version10.data, schemaVersion: PROJECT_SCHEMA_VERSION });
   const version9 = version9ProjectSchema.safeParse(input);
   if (version9.success) return projectDocSchema.parse({ ...version9.data, schemaVersion: PROJECT_SCHEMA_VERSION });
   const version8 = version8ProjectSchema.safeParse(input);

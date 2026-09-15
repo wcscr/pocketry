@@ -3,9 +3,18 @@ import type { Manifold } from "manifold-3d";
 
 import {
   effectiveDeepScoopDepthMm,
+  effectiveFingerHoleDepthMm,
+  effectiveFingerHoleTopFilletMm,
+  effectiveFingerHoleBottomFilletMm,
+  effectiveFingerHoleCornerRoundMm,
+  flatEndedScoopRadiusMm,
   effectiveScoopDepthMm,
   fingerHoleFootprintRing,
-  oblongDeepScoopEndpoints,
+  fingerHoleCircularSegments,
+  FINGER_HOLE_PREVIEW_CHORD_TOLERANCE_MM,
+  elongatedFingerHoleEndpoints,
+  isElongatedFingerHole,
+  hasFlatFingerHoleBottom,
   resolvePocketDepth,
   transformOutlinePlacement,
   transformPointPlacement,
@@ -15,6 +24,7 @@ import {
   type TracedShape,
 } from "@shared/gridfinity/cutout";
 import { LAYER_HEIGHT } from "@shared/gridfinity/standard";
+import { resolvePocketSplit } from "@shared/gridfinity/pocket-split";
 import type { BinSpec } from "@shared/gridfinity/types";
 import type { Outline, Ring } from "@shared/geometry/types";
 
@@ -23,6 +33,7 @@ import { simplifyRing } from "@/lib/geometry/simplify";
 import type { Kernel } from "@/lib/manifold/runtime";
 
 import type { BuildQuality } from "./bin";
+import { buildRoundedFingerAccessCutter } from "./finger-access-rounding";
 import {
   bottomFilletCutter,
   FILLET_PROFILE_STEP_MM,
@@ -36,7 +47,7 @@ import {
  *     ring down to the quality's budget (the count is surfaced in the UI so
  *     the trade-off stays legible, per the design doc);
  *  2. placement transform (mirror → rotate → translate, shared math);
- *  3. `+clearance` offset with round joins — clearance runs BEFORE corner
+ *  3. signed clearance offset with round joins — clearance runs BEFORE corner
  *     rounding on purpose: a 1 mm slot is 1.8 mm wide after clearance, but
  *     rounding first at r = 1 would erase it before clearance could save it;
  *  4. corner rounding as `−r` then `+r` round offsets (2D vertical-edge
@@ -247,8 +258,46 @@ function buildDeepScoopCutter(
   return arena.track(shaft.add(sphere));
 }
 
-/** Capsule shaft with a swept-hemisphere trough bottom. */
-function buildOblongDeepScoopCutter(
+/**
+ * A shallow circular segment swept between flat ends. Sampling only the exposed
+ * arc keeps even a wide, 1 mm-deep channel smooth and its mouth dimensions exact.
+ */
+function buildShallowFlatEndedScoopCutter(
+  kernel: Kernel,
+  scoop: FingerHole,
+  pocket: ResolvedPocket,
+  segments: number,
+): Manifold {
+  const { arena } = kernel;
+  const { start, lengthMm } = elongatedFingerHoleEndpoints(scoop);
+  const radius = flatEndedScoopRadiusMm(scoop);
+  const halfWidth = scoop.diameterMm / 2;
+  const halfAngle = Math.asin(halfWidth / radius);
+  const arcSteps = Math.max(8, Math.ceil(segments / 4) * 2);
+  const profile: Ring = [];
+  for (let i = 0; i <= arcSteps; i++) {
+    const angle = -halfAngle + (2 * halfAngle * i) / arcSteps;
+    profile.push({
+      x: radius * Math.sin(angle),
+      y: 2 * radius * Math.sin(angle / 2) ** 2 - scoop.depthMm,
+    });
+  }
+  // Exact rim corners and deepest point also avoid accumulated trig error.
+  profile[0] = { x: -halfWidth, y: 0 };
+  profile[arcSteps / 2] = { x: 0, y: -scoop.depthMm };
+  profile[arcSteps] = { x: halfWidth, y: 0 };
+  const headroom = pocket.cutterTopZ - pocket.infillTopZ;
+  profile.push({ x: halfWidth, y: headroom }, { x: -halfWidth, y: headroom });
+  const section = toCrossSection(kernel, [{ outer: profile, holes: [] }]);
+  let cutter = arena.track(section.extrude(lengthMm));
+  // Profile X -> bin width, profile Y -> height, extrusion Z -> channel axis.
+  cutter = arena.track(cutter.rotate([90, 0, 0]));
+  cutter = arena.track(cutter.rotate([0, 0, 90 + (scoop.rotationDeg ?? 0)]));
+  return arena.track(cutter.translate([start.x, start.y, pocket.infillTopZ]));
+}
+
+/** Elongated shaft with a cylindrical bottom; oblongs also have spherical end caps. */
+function buildElongatedScoopCutter(
   kernel: Kernel,
   scoop: FingerHole,
   placement: Pick<CutoutPlacement, "position" | "rotationDeg" | "mirrored">,
@@ -256,7 +305,7 @@ function buildOblongDeepScoopCutter(
   segments: number,
 ): Manifold {
   const { arena, Manifold: M } = kernel;
-  const localEndpoints = oblongDeepScoopEndpoints(scoop);
+  const localEndpoints = elongatedFingerHoleEndpoints(scoop);
   const start = transformPointPlacement(localEndpoints.start, placement);
   const end = transformPointPlacement(localEndpoints.end, placement);
   const radius = scoop.diameterMm / 2;
@@ -273,6 +322,16 @@ function buildOblongDeepScoopCutter(
     ]),
   );
 
+  const span = Math.hypot(end.x - start.x, end.y - start.y);
+  const angleDeg = (Math.atan2(end.y - start.y, end.x - start.x) * 180) / Math.PI;
+  let trough = arena.track(M.cylinder(span, radius, radius, segments));
+  trough = arena.track(trough.rotate([0, 90, 0]));
+  if (angleDeg !== 0) trough = arena.track(trough.rotate([0, 0, angleDeg]));
+  trough = arena.track(trough.translate([start.x, start.y, bottomCentreZ]));
+
+  // A finite cylinder supplies planar end faces without rounded caps.
+  if (scoop.kind === "flat-ended-scoop") return arena.track(shaft.add(trough));
+
   const startSphere = arena.track(
     arena.track(M.sphere(radius, segments)).translate([
       start.x,
@@ -287,13 +346,6 @@ function buildOblongDeepScoopCutter(
       bottomCentreZ,
     ]),
   );
-  const span = Math.hypot(end.x - start.x, end.y - start.y);
-  const angleDeg = (Math.atan2(end.y - start.y, end.x - start.x) * 180) / Math.PI;
-  let trough = arena.track(M.cylinder(span, radius, radius, segments));
-  trough = arena.track(trough.rotate([0, 90, 0]));
-  if (angleDeg !== 0) trough = arena.track(trough.rotate([0, 0, angleDeg]));
-  trough = arena.track(trough.translate([start.x, start.y, bottomCentreZ]));
-
   const roundedBottom = arena.track(
     arena.track(startSphere.add(trough)).add(endSphere),
   );
@@ -309,12 +361,27 @@ export function buildFingerHoleCutters(
 ): Manifold[] {
   const { arena } = kernel;
   const cutters: Manifold[] = [];
-  const segments = quality.circularSegments;
   const filletProfileStepMm =
     quality.filletProfileStepMm ?? FILLET_PROFILE_STEP_MM;
 
   for (const hole of fingerHoles) {
+    const segments = fingerHoleCircularSegments(hole, quality.circularSegments,
+      quality.fingerHoleChordToleranceMm ?? FINGER_HOLE_PREVIEW_CHORD_TOLERANCE_MM);
     const pocket = resolvePocketDepth(spec, { mode: "mm", value: hole.depthMm });
+    const cutDepth = effectiveFingerHoleDepthMm(hole);
+    const effectiveTopFillet = effectiveFingerHoleTopFilletMm(hole);
+    // Sample shallow curved bottoms directly so even a 1 mm cut preserves
+    // its mouth width and exact depth, with or without top-edge rounding.
+    const shallowCurved = hole.kind !== "flat-ended-scoop" && cutDepth < hole.diameterMm / 2;
+    if (!hasFlatFingerHoleBottom(hole) &&
+        (effectiveTopFillet > 0 || shallowCurved || effectiveFingerHoleCornerRoundMm(hole) > 0)) {
+      cutters.push(buildRoundedFingerAccessCutter(kernel, hole, pocket.infillTopZ, pocket.cutterTopZ, {
+        radiusMm: effectiveTopFillet,
+        profileStepMm: filletProfileStepMm,
+        circularSegments: segments,
+      }));
+      continue;
+    }
     const ring = fingerHoleFootprintRing(
       hole,
       BIN_LOCAL_PLACEMENT,
@@ -322,13 +389,9 @@ export function buildFingerHoleCutters(
     );
     const section = toCrossSection(kernel, [{ outer: ring, holes: [] }]);
     let cutter: Manifold;
-    if (hole.kind === "straight") {
+    if (hasFlatFingerHoleBottom(hole)) {
       const floorZ = pocket.floorZ ?? -1;
-      const effectiveBottomFillet = Math.min(
-        hole.bottomFilletMm,
-        hole.depthMm / 2,
-        hole.diameterMm / 2,
-      );
+      const effectiveBottomFillet = effectiveFingerHoleBottomFilletMm(hole);
       const localCutter = bottomFilletCutter(
         kernel,
         section,
@@ -356,8 +419,10 @@ export function buildFingerHoleCutters(
         pocket,
         segments,
       );
-    } else if (hole.kind === "oblong-deep-scoop") {
-      cutter = buildOblongDeepScoopCutter(
+    } else if (hole.kind === "flat-ended-scoop" && hole.depthMm < hole.diameterMm / 2) {
+      cutter = buildShallowFlatEndedScoopCutter(kernel, hole, pocket, segments);
+    } else if (isElongatedFingerHole(hole)) {
+      cutter = buildElongatedScoopCutter(
         kernel,
         hole,
         BIN_LOCAL_PLACEMENT,
@@ -368,23 +433,14 @@ export function buildFingerHoleCutters(
       continue;
     }
 
-    const cutDepth =
-      hole.kind === "scoop"
-        ? effectiveScoopDepthMm(hole)
-        : hole.kind === "deep-scoop" || hole.kind === "oblong-deep-scoop"
-          ? effectiveDeepScoopDepthMm(hole)
-          : hole.depthMm;
-    const effectiveTopFillet = Math.min(hole.topFilletMm, cutDepth / 2);
     if (effectiveTopFillet > 0) {
-      const topRound = topEdgeFilletCutter(kernel, section, {
+      // Straight holes retain the existing floor fillet, adding only a smooth rim.
+      const topRound = buildRoundedFingerAccessCutter(kernel, hole, pocket.infillTopZ, pocket.cutterTopZ, {
         radiusMm: effectiveTopFillet,
         profileStepMm: filletProfileStepMm,
         circularSegments: segments,
       });
-      const positionedTopRound = arena.track(
-        topRound.translate([0, 0, pocket.infillTopZ - effectiveTopFillet]),
-      );
-      cutter = arena.track(cutter.add(positionedTopRound));
+      cutter = arena.track(cutter.add(topRound));
     }
     cutters.push(cutter);
   }
@@ -417,11 +473,54 @@ export function buildCutoutCutters(
       continue;
     }
 
+    if (cutout.split) {
+      const resolved = resolvePocketSplit(shape.outlineMm, cutout.split.boundary);
+      if (resolved.error) throw new Error(`“${shape.name}”: ${resolved.error}`);
+      const [a, b] = cutout.split.boundary.map(p => transformPointPlacement(p, cutout));
+      // Mirroring reverses left/right in world space; section identity remains
+      // attached to the authored outline even under nonuniform scaling.
+      const sign = cutout.mirrored ? -1 : 1;
+      const length = Math.hypot(b.x - a.x, b.y - a.y);
+      const nx = -(b.y - a.y) / length * sign;
+      const ny = (b.x - a.x) / length * sign;
+      const sectionDepthsMm = cutout.split.depths.map(depth => resolvePocketDepth(spec, depth).depthMm ?? Infinity);
+      const shallowIndex = sectionDepthsMm[0] <= sectionDepthsMm[1] ? 0 : 1;
+      const sameDepth = sectionDepthsMm[0] === sectionDepthsMm[1];
+      // One opening means one top round, limited by the shallowest section.
+      const topFilletMm = Math.min(cutout.topFilletMm, Math.max(0, sectionDepthsMm[shallowIndex] / 2));
+      let emptied = false;
+      for (const [index, depth] of cutout.split.depths.entries()) {
+        if (sameDepth && index !== shallowIndex) continue;
+        const part = buildCutoutCutters(kernel, shapesById, [{ ...cutout, split: undefined, depth, topFilletMm }], spec, quality, options);
+        if (sameDepth) {
+          cutters.push(...part.cutters);
+          floorInserts.push(...part.floorInserts);
+          emptied ||= part.reports.some(report => report.emptied);
+          continue;
+        }
+        const side = index === 0 ? 1 : -1;
+        const trim = (solid: Manifold) => arena.track(solid.trimByPlane(
+          [nx * side, ny * side, 0], (nx * a.x + ny * a.y) * side,
+        ));
+        // Round the original perimeter first, then trim. Treating the split
+        // as an outside edge would create an unwanted rounded ridge at the seam.
+        const sectionCutters = part.cutters.map(trim);
+        emptied ||= part.reports.some(report => report.emptied) || sectionCutters.every(cutter => cutter.isEmpty());
+        // Clear the entire opening to the shallow depth, then extend only the
+        // deep side. Opposing trims of independently built solids can disagree
+        // by a rounding error and leave a zero-thickness wall above the shelf.
+        cutters.push(...(index === shallowIndex ? part.cutters : sectionCutters));
+        floorInserts.push(...part.floorInserts.map(trim));
+      }
+      reports.push({ id: cutout.id, emptied });
+      continue;
+    }
+
     const budgeted = budgetOutline(shape.outlineMm, budget);
     const placed = transformOutlinePlacement(budgeted, cutout);
 
     let section = toCrossSection(kernel, placed);
-    if (cutout.clearanceMm > 0) {
+    if (cutout.clearanceMm !== 0) {
       section = arena.track(
         arena
           .track(section.offset(cutout.clearanceMm, "Round", 2, segments))

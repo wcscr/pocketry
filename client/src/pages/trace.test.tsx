@@ -5,6 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PanelProvider } from "@/components/layout/panel-context";
 import { TraceProvider, useTrace } from "@/state/trace-store";
+import { downloadBlob } from "@/lib/download";
+import { generateSTL } from "@/lib/export/stl";
+import { parseProjectDoc } from "@shared/gridfinity/project";
+import type { Outline } from "@shared/geometry/types";
 
 import TracePage from "./trace";
 
@@ -36,8 +40,25 @@ vi.mock("@/components/layout/workspace-layout", () => ({
 }));
 
 vi.mock("@/components/trace/trace-controls-panel", () => ({
-  TraceControlsPanel: () => <div>Trace controls</div>,
+  TraceControlsPanel: ({ onExport }: { onExport: () => void }) => <button onClick={onExport} data-testid="export-trace">Export trace</button>,
 }));
+
+vi.mock("@/lib/download", () => ({ downloadBlob: vi.fn() }));
+vi.mock("@/lib/export/stl", () => ({ generateSTL: vi.fn() }));
+
+const exportOutline: Outline = [{ outer: [{ x: 10, y: 20 }, { x: 70, y: 20 }, { x: 70, y: 60 }, { x: 10, y: 60 }], holes: [] }];
+
+function SeedExportOutline({ format, calibrated = true }: { format: "svg" | "dxf" | "dwg" | "stl"; calibrated?: boolean }): null {
+  const { dispatch } = useTrace();
+  React.useEffect(() => {
+    dispatch({ type: "SOURCE_LOADED", imageUrl: "data:image/png;base64,source", fileName: "Test tool" });
+    dispatch({ type: "SOURCE_READY", imageSize: { width: 800, height: 600 } });
+    dispatch({ type: "OUTLINE_COMMITTED", outline: exportOutline });
+    if (calibrated) dispatch({ type: "SET_CALIBRATION", calibration: { startX: 0, startY: 0, endX: 100, endY: 0, lengthMm: 50 } });
+    dispatch({ type: "SET_EXPORT_FORMAT", exportFormat: format });
+  }, [dispatch, format, calibrated]);
+  return null;
+}
 
 vi.mock("@/components/trace/trace-canvas", () => ({
   TraceCanvas: ({
@@ -146,6 +167,7 @@ describe("Trace detection workflow", () => {
 
   beforeEach(() => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    vi.mocked(generateSTL).mockResolvedValue(new ArrayBuffer(100));
     getImageDataMock.mockReturnValue({
       width: 300,
       height: 200,
@@ -168,6 +190,62 @@ describe("Trace detection workflow", () => {
     host.remove();
     vi.clearAllMocks();
     vi.unstubAllGlobals();
+  });
+
+  it.each((["svg", "dxf", "dwg", "stl"] as const).flatMap((format) => [false, true].map((includeProject) => ({ format, includeProject }))))(
+    "exports Trace $format with JSON only when requested ($includeProject)",
+    async ({ format, includeProject }) => {
+      await React.act(async () => root.render(<PanelProvider><TraceProvider><SeedExportOutline format={format} /><TracePage /></TraceProvider></PanelProvider>));
+      // The existing DWG explanation is separate from the export request.
+      if (format === "dwg") React.act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find((button) => button.textContent === "Close")!.click());
+      React.act(() => host.querySelector<HTMLButtonElement>('[data-testid="export-trace"]')!.click());
+      const checkbox = document.querySelector<HTMLButtonElement>('[data-testid="checkbox-export-project"]')!;
+      expect(checkbox.getAttribute("aria-checked")).toBe("false");
+      expect(downloadBlob).not.toHaveBeenCalled();
+      if (includeProject) React.act(() => checkbox.click());
+      await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-confirm-export"]')!.click());
+      expect(downloadBlob).toHaveBeenCalledTimes(includeProject ? 2 : 1);
+      const [model, filename] = vi.mocked(downloadBlob).mock.calls.at(-1)!;
+      expect(model.size).toBeGreaterThan(0);
+      expect(filename).toBe(`${format === "stl" ? "model" : "outline"}_Test-tool.${format}`);
+      if (includeProject) {
+        const [backup, backupName] = vi.mocked(downloadBlob).mock.calls[0];
+        expect(backupName).toBe(filename.replace(/\.[^.]+$/, ".pocketry.json"));
+        const json = await new Promise<string>((resolve) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.readAsText(backup); });
+        const project = parseProjectDoc(JSON.parse(json));
+        expect(project?.shapes[0].bboxMm).toEqual({ minX: -15, maxX: 15, minY: -10, maxY: 10 });
+        expect(project?.shapes[0].sourceMmPerPx).toBe(0.5);
+        expect(project?.cutouts[0].shapeId).toBe(project?.shapes[0].id);
+      }
+    },
+  );
+
+  it("keeps uncalibrated outlines exportable but requires a scale for a Pocketry project", async () => {
+    await React.act(async () => root.render(<PanelProvider><TraceProvider><SeedExportOutline format="svg" calibrated={false} /><TracePage /></TraceProvider></PanelProvider>));
+    React.act(() => host.querySelector<HTMLButtonElement>('[data-testid="export-trace"]')!.click());
+    expect(document.querySelector<HTMLButtonElement>('[data-testid="checkbox-export-project"]')!.disabled).toBe(true);
+    expect(document.body.textContent).toContain("Set the scale to include an editable Pocketry project.");
+    await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-confirm-export"]')!.click());
+    expect(downloadBlob).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(downloadBlob).mock.calls[0][1]).toMatch(/\.svg$/);
+  });
+
+  it("cancels Trace export without building or downloading", async () => {
+    await React.act(async () => root.render(<PanelProvider><TraceProvider><SeedExportOutline format="stl" /><TracePage /></TraceProvider></PanelProvider>));
+    React.act(() => host.querySelector<HTMLButtonElement>('[data-testid="export-trace"]')!.click());
+    React.act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find((button) => button.textContent === "Cancel")!.click());
+    expect(generateSTL).not.toHaveBeenCalled();
+    expect(downloadBlob).not.toHaveBeenCalled();
+  });
+
+  it("downloads neither file when Trace STL generation fails", async () => {
+    vi.mocked(generateSTL).mockRejectedValueOnce(new Error("Mesh failed"));
+    await React.act(async () => root.render(<PanelProvider><TraceProvider><SeedExportOutline format="stl" /><TracePage /></TraceProvider></PanelProvider>));
+    React.act(() => host.querySelector<HTMLButtonElement>('[data-testid="export-trace"]')!.click());
+    React.act(() => document.querySelector<HTMLButtonElement>('[data-testid="checkbox-export-project"]')!.click());
+    await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-confirm-export"]')!.click());
+    expect(generateSTL).toHaveBeenCalledTimes(1);
+    expect(downloadBlob).not.toHaveBeenCalled();
   });
 
   it("links both calibration-sheet downloads above the empty drop zone", async () => {

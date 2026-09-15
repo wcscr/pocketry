@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
+import { strFromU8, unzipSync } from "fflate";
 
-import { parseCutoutPlacement, resolvePocketDepth } from "@shared/gridfinity/cutout";
+import { fingerHoleSchema, parseCutoutPlacement, resolvePocketDepth } from "@shared/gridfinity/cutout";
+import { writeBinarySTL } from "@/lib/export/stl-writer";
+import { writeThreeMf } from "@/lib/mesh/threemf";
 import { binTotalHeightMm } from "@shared/gridfinity/standard";
 import { parseBinSpec } from "@shared/gridfinity/types";
 import { loadManifold } from "@/lib/manifold/runtime";
@@ -67,7 +70,12 @@ function context(overrides: Partial<HandlerContext> = {}): HandlerContext {
   };
 }
 
-function nonManifoldEdgeCount(mesh: BuildBinResult["mesh"]): number {
+function nonManifoldEdgeCount(mesh: BuildBinResult["mesh"], weldPositions = false): number {
+  // Render normals duplicate vertices along sharp edges. STL uses positions,
+  // so join those copies when checking a mesh extracted with normals enabled.
+  const vertexKey = (index: number) => weldPositions
+    ? mesh.positions.subarray(index * 3, index * 3 + 3).join(",")
+    : String(index);
   const edgeCounts = new Map<string, number>();
   for (let offset = 0; offset < mesh.indices.length; offset += 3) {
     const triangle = mesh.indices.subarray(offset, offset + 3);
@@ -76,7 +84,9 @@ function nonManifoldEdgeCount(mesh: BuildBinResult["mesh"]): number {
       [triangle[1], triangle[2]],
       [triangle[2], triangle[0]],
     ]) {
-      const key = a < b ? `${a}:${b}` : `${b}:${a}`;
+      const start = vertexKey(a);
+      const end = vertexKey(b);
+      const key = start < end ? `${start}:${end}` : `${end}:${start}`;
       edgeCounts.set(key, (edgeCounts.get(key) ?? 0) + 1);
     }
   }
@@ -287,6 +297,31 @@ describe("bin worker handlers", () => {
     expect(nonManifoldEdgeCount(result.value.materialMeshes!.stackingRim!)).toBe(0);
   });
 
+  it.each([
+    { kind: "oblong-straight", cornerRoundMm: 0 },
+    { kind: "flat-ended-straight", cornerRoundMm: 0 },
+    { kind: "flat-ended-straight", cornerRoundMm: 3 },
+    { kind: "flat-ended-scoop", cornerRoundMm: 3 },
+  ])("exports a rounded $kind with corner radius $cornerRoundMm through the worker to closed STL/3MF geometry", async ({ kind, cornerRoundMm }) => {
+    const result = await getHandler()({
+      spec: { gridX: 2, gridY: 2, heightUnits: 4, fill: "solid" },
+      quality: { circularSegments: 64 }, exportTopology: true,
+      layout: { shapes: [], cutouts: [], fingerHoles: [fingerHoleSchema.parse({
+        id: "slot", kind, center: { x: 3, y: -2 }, diameterMm: 16, lengthMm: 40,
+        rotationDeg: 37, depthMm: 12, topFilletMm: 1, bottomFilletMm: 2, cornerRoundMm,
+      })] },
+    }, context());
+    const { mesh } = result.value;
+    expect(mesh.normals).toBeNull();
+    expect(nonManifoldEdgeCount(mesh)).toBe(0);
+    const stl = writeBinarySTL(mesh);
+    expect(new DataView(stl).getUint32(80, true)).toBe(mesh.indices.length / 3);
+    expect(stl.byteLength).toBe(84 + mesh.indices.length / 3 * 50);
+    const model = strFromU8(unzipSync(writeThreeMf([{ name: "slot", mesh }]))["3D/3dmodel.model"]);
+    expect(model.match(/<triangle /g)?.length).toBe(mesh.indices.length / 3);
+    expect(model.match(/<vertex /g)?.length).toBe(mesh.positions.length / 3);
+  });
+
   it("rejects a malformed layout at the boundary", async () => {
     await expect(
       getHandler()(
@@ -425,6 +460,28 @@ describe("fit template worker handler", () => {
     expect(result.transfer).toContain(result.value.mesh.indices.buffer);
   });
 
+  it("exports an inward-offset fit template after placement scale", async () => {
+    const result = await getFitCheckHandler()({
+      shape,
+      cutout: { id: "fit-cutout", shapeId: shape.id, position: { x: 40, y: -20 },
+        scaleX: 1.5, scaleY: 0.5, clearanceMm: -0.5, cornerRoundMm: 0 },
+      depthMm: 2.5, quality: { circularSegments: 24, cutoutVertexBudget: 600 },
+    }, context());
+    const xs = Array.from(result.value.mesh.positions).filter((_, index) => index % 3 === 0);
+    expect(Math.min(...xs)).toBeCloseTo(-14.5, 5);
+    expect(Math.max(...xs)).toBeCloseTo(14.5, 5);
+    expect(result.value.stats.volumeMm3).toBeCloseTo(29 * 4 * 2.5, 4);
+  });
+
+  it("rejects a fit template erased by inward clearance", async () => {
+    await expect(getFitCheckHandler()({
+      shape,
+      cutout: { id: "fit-cutout", shapeId: shape.id, position: { x: 0, y: 0 },
+        scaleY: 0.05, clearanceMm: -0.5, cornerRoundMm: 0 },
+      depthMm: 2, quality: { circularSegments: 24 },
+    }, context())).rejects.toThrow("collapsed");
+  });
+
   it("rejects an out-of-range template depth", async () => {
     await expect(
       getFitCheckHandler()(
@@ -530,5 +587,16 @@ describe("complete surface fit test worker handler", () => {
         context(),
       ),
     ).rejects.toThrow("thickness");
+  });
+
+  it("exports the outline style as a smaller manifold mesh at the requested thickness", async () => {
+    const full = await getSurfaceFitCheckHandler()(request("standard"), context());
+    const outline = await getSurfaceFitCheckHandler()({ ...request("standard"), style: "outline" }, context());
+    expect(outline.value.stats.volumeMm3).toBeLessThan(full.value.stats.volumeMm3);
+    expect(outline.value.stats.volumeMm3).toBeGreaterThan(0);
+    expect(nonManifoldEdgeCount(outline.value.mesh, true)).toBe(0);
+    const zs = Array.from(outline.value.mesh.positions).filter((_, i) => i % 3 === 2);
+    expect(Math.min(...zs)).toBeCloseTo(0);
+    expect(Math.max(...zs)).toBeCloseTo(1.2);
   });
 });

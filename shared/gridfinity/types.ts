@@ -6,6 +6,7 @@ import {
   type BoundaryEdge,
   type GridCell,
 } from "./footprint";
+import { GRID_PITCH_DIVISOR, type GridPitch } from "./standard";
 
 /**
  * The Gridfinity bin specification — what the user asks for, not how it is
@@ -18,9 +19,14 @@ import {
  * `ProjectDoc` when saved.
  */
 
-/** Hard ceilings, so a typo cannot ask manifold for a metre of bin. */
+/** Maximum span per axis in standard 42 mm cells, independent of grid pitch. */
 export const MAX_GRID = 16;
 export const MAX_HEIGHT_UNITS = 42;
+
+/** Selected-pitch cell ceiling for the same maximum physical bin size. */
+export function maxGridCells(pitch: GridPitch = "full"): number {
+  return MAX_GRID * GRID_PITCH_DIVISOR[pitch];
+}
 
 const gridCellSchema = z
   .object({ x: z.number().int(), y: z.number().int() })
@@ -41,9 +47,9 @@ const boundaryEdgeSchema = z.object({
 export const binSpecSchema = z
   .object({
     /** Number of selected-pitch grid cells along x. */
-    gridX: z.number().int().min(1).max(MAX_GRID),
+    gridX: z.number().int().min(1).max(maxGridCells("quarter")),
     /** Number of selected-pitch grid cells along y. */
-    gridY: z.number().int().min(1).max(MAX_GRID),
+    gridY: z.number().int().min(1).max(maxGridCells("quarter")),
     /** Standard 42 mm cells, or equal half/quarter-pitch subdivisions. */
     gridPitch: z.enum(["full", "half", "quarter"]).default("full"),
     /** Rectangular legacy footprint or a canonical connected cell mask. */
@@ -58,12 +64,8 @@ export const binSpecSchema = z
      * default. `none` is the classic hollow storage bin.
      */
     fill: z.enum(["none", "solid"]).default("solid"),
-    /**
-     * Lite base: hollow thin-shell sockets under a chamfered lattice
-     * instead of a solid base — much less plastic and print time. Magnet
-     * and screw holes are not supported on a lite base (yet).
-     */
-    liteBase: z.boolean().default(false),
+    /** Smooth underside without Gridfinity sockets; preserves outer size and pocket heights. */
+    flatBottom: z.boolean().default(false),
     /** ⌀6.5 × 2.4 mm magnet pockets, four per cell, opening downward. */
     magnetHoles: z.boolean().default(false),
     /**
@@ -93,6 +95,20 @@ export const binSpecSchema = z
   })
   .strict()
   .superRefine((spec, context) => {
+    const maximum = maxGridCells(spec.gridPitch);
+    for (const axis of ["gridX", "gridY"] as const) {
+      if (spec[axis] > maximum) {
+        context.addIssue({
+          code: z.ZodIssueCode.too_big,
+          type: "number",
+          maximum,
+          inclusive: true,
+          path: [axis],
+          message: `Bin dimensions cannot exceed ${MAX_GRID} standard 42 mm cells per axis.`,
+        });
+      }
+    }
+    if (spec.gridX > maximum || spec.gridY > maximum) return;
     if (spec.footprint.kind !== "custom") return;
     const error = footprintTopologyError(
       spec.gridX,

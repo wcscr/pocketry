@@ -300,6 +300,7 @@ export function createBinWorkerHandlers(
         layout,
         payload.thicknessMm,
         payload.quality,
+        payload.style,
       );
       context.progress(0.7);
       if (context.signal.aborted) throw new WorkerCancelledError();

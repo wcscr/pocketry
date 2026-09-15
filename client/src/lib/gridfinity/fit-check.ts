@@ -1,4 +1,4 @@
-import type { Manifold } from "manifold-3d";
+import type { CrossSection, Manifold } from "manifold-3d";
 
 import {
   resolvePocketDepth,
@@ -8,6 +8,11 @@ import {
 } from "@shared/gridfinity/cutout";
 import { BASE_TOP_RADIUS, binFootprintMm } from "@shared/gridfinity/standard";
 import type { BinSpec } from "@shared/gridfinity/types";
+import {
+  SURFACE_FIT_CHECK_OUTLINE_WIDTH_MM,
+  surfaceFitCheckStyleSchema,
+  type SurfaceFitCheckStyle,
+} from "@shared/gridfinity/fit-check";
 
 import { toCrossSection } from "@/lib/geometry/offset";
 import type { Kernel } from "@/lib/manifold/runtime";
@@ -74,7 +79,7 @@ export function buildFitCheckSolid(
   });
 
   let section = toCrossSection(kernel, normalized);
-  if (cutout.clearanceMm > 0) {
+  if (cutout.clearanceMm !== 0) {
     section = arena.track(
       arena
         .track(section.offset(cutout.clearanceMm, "Round", 2, segments))
@@ -112,7 +117,9 @@ export function buildFitCheckSolid(
  * surface. The plate uses the real outer footprint and every pocket/finger
  * cutter at the actual infill-top elevation, so spacing, clearance, top-edge
  * rounds and access features match the bin. It deliberately builds none of
- * the base, wall height, label tab or stacking lip.
+ * the base, wall height, label tab or stacking lip. Outline style keeps only
+ * 5 mm material bands around the tool openings, independent of the bin's
+ * footprint and separate finger-access holes.
  */
 export function buildSurfaceFitCheckSolid(
   kernel: Kernel,
@@ -120,7 +127,9 @@ export function buildSurfaceFitCheckSolid(
   layout: BinLayout,
   thicknessMm: number,
   quality: BuildQuality,
+  style: SurfaceFitCheckStyle = "full",
 ): Manifold {
+  surfaceFitCheckStyleSchema.parse(style);
   if (
     !Number.isFinite(thicknessMm) ||
     thicknessMm < SURFACE_FIT_CHECK_MIN_THICKNESS_MM ||
@@ -134,18 +143,49 @@ export function buildSurfaceFitCheckSolid(
   const { Manifold, CrossSection, arena } = kernel;
   const segments = quality.circularSegments;
   const surfaceZ = resolvePocketDepth(spec, { mode: "through" }).infillTopZ;
-  const section = spec.footprint.kind === "custom"
-    ? footprintOuterSection(kernel, spec, segments)
-    : arena.track(
-        new CrossSection([
-          roundedRectPolygon(
-            binFootprintMm(spec.gridX, spec.gridPitch),
-            binFootprintMm(spec.gridY, spec.gridPitch),
-            BASE_TOP_RADIUS,
-            segments,
-          ),
-        ]),
-      );
+  const builtCutouts = buildCutoutCutters(
+    kernel,
+    layout.shapesById,
+    layout.cutouts,
+    spec,
+    quality,
+  );
+  const allCutters = style === "outline"
+    ? builtCutouts.cutters
+    : [
+        ...builtCutouts.cutters,
+        ...buildFingerHoleCutters(kernel, layout.fingerHoles, spec, quality),
+      ];
+  const cutter = allCutters.length === 0 ? null
+    : allCutters.length === 1 ? allCutters[0]
+    : arena.track(Manifold.union(allCutters));
+  let section: CrossSection;
+  if (style === "outline") {
+    if (!cutter) throw new Error("Add a tool pocket to export tool outlines.");
+    // Grow the tool openings outwards by 5 mm. Using the cutters preserves
+    // clearance and rounded edges, without adding a bin-perimeter band or
+    // clipping a tool's band when it is near the bin edge.
+    const openings = arena.track(
+      arena.track(cutter.slice(surfaceZ - CLEANUP_EPSILON)).simplify(CLEANUP_EPSILON),
+    );
+    section = arena.track(
+      arena.track(openings.offset(SURFACE_FIT_CHECK_OUTLINE_WIDTH_MM, "Round", 2, segments))
+        .simplify(CLEANUP_EPSILON),
+    );
+  } else {
+    section = spec.footprint.kind === "custom"
+      ? footprintOuterSection(kernel, spec, segments)
+      : arena.track(
+          new CrossSection([
+            roundedRectPolygon(
+              binFootprintMm(spec.gridX, spec.gridPitch),
+              binFootprintMm(spec.gridY, spec.gridPitch),
+              BASE_TOP_RADIUS,
+              segments,
+            ),
+          ]),
+        );
+  }
   let plate = arena.track(
     arena.track(section.extrude(thicknessMm)).translate([
       0,
@@ -154,21 +194,7 @@ export function buildSurfaceFitCheckSolid(
     ]),
   );
 
-  const builtCutouts = buildCutoutCutters(
-    kernel,
-    layout.shapesById,
-    layout.cutouts,
-    spec,
-    quality,
-  );
-  const allCutters = [
-    ...builtCutouts.cutters,
-    ...buildFingerHoleCutters(kernel, layout.fingerHoles, spec, quality),
-  ];
-  if (allCutters.length > 0) {
-    const cutter = allCutters.length === 1
-      ? allCutters[0]
-      : arena.track(Manifold.union(allCutters));
+  if (cutter) {
     plate = arena.track(plate.subtract(cutter));
   }
 

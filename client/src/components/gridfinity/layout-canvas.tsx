@@ -1,5 +1,6 @@
 import {
   Ruler,
+  Spline,
   X,
 } from "lucide-react";
 import {
@@ -14,11 +15,13 @@ import {
   binToCanvas,
   canvasToBin,
   fingerHoleFootprintRing,
-  oblongDeepScoopEndpoints,
+  elongatedFingerHoleEndpoints,
+  isElongatedFingerHole,
+  hasFlatFingerHoleBottom,
   placementFootprint,
   resizeCutoutPlacementFromHandle,
   resizeFingerHoleFromWidthHandle,
-  resizeOblongDeepScoopFromEndpoint,
+  resizeElongatedFingerHoleFromEndpoint,
   transformPointPlacement,
   untransformPointPlacement,
   type CutoutPlacement,
@@ -30,7 +33,7 @@ import {
   binFootprintMm,
   gridPitchMm,
 } from "@shared/gridfinity/standard";
-import { MAX_GRID } from "@shared/gridfinity/types";
+import { maxGridCells } from "@shared/gridfinity/types";
 import {
   OUTER_RING,
   type Outline,
@@ -71,8 +74,11 @@ import {
 } from "@/lib/gridfinity/contour-edit";
 import {
   measurementDistanceMm,
+  placedPocketSplitBoundaries,
   snapToToolContour,
 } from "@/lib/gridfinity/layout-measure";
+import { resolvePocketSplit, splitSide } from "@shared/gridfinity/pocket-split";
+import { usePocketSplit } from "./use-pocket-split";
 import { cn } from "@/lib/utils";
 import { useBin } from "@/state/bin-store";
 import { useShapeLibrary } from "@/state/shape-library";
@@ -202,20 +208,24 @@ function nearestContourEdge(
   return best;
 }
 
-export function LayoutCanvas(): JSX.Element {
+export function LayoutCanvas({ onEditPocket }: {
+  /** Called on a pocket tap or the explicit edit action, after any drag ends. */
+  onEditPocket?: () => void;
+} = {}): JSX.Element {
   return (
     <CanvasViewport>
-      <LayoutStage />
+      <LayoutStage onEditPocket={onEditPocket} />
     </CanvasViewport>
   );
 }
 
-function LayoutStage(): JSX.Element {
+function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Element {
   const {
     spec,
     cutouts,
     fingerHoles,
     selectedCutoutId,
+    selectedPocketSection,
     selectedFingerHoleId,
     editorMode,
     dispatch,
@@ -311,8 +321,8 @@ function LayoutStage(): JSX.Element {
     () =>
       fingerHoles.map((hole) => {
         const endpoints =
-          hole.kind === "oblong-deep-scoop"
-            ? oblongDeepScoopEndpoints(hole)
+          isElongatedFingerHole(hole)
+            ? elongatedFingerHoleEndpoints(hole)
             : null;
         const radians = ((hole.rotationDeg ?? 0) * Math.PI) / 180;
         return {
@@ -371,6 +381,12 @@ function LayoutStage(): JSX.Element {
   }, [layoutIssues]);
 
   const selected = placed.find((p) => p.cutout.id === selectedCutoutId) ?? null;
+  const splitEditor = usePocketSplit({ cutout: selected?.cutout ?? null, shape: selected?.shape ?? null,
+    scale, toBin, onComplete: onEditPocket });
+  const selectPocketAt = (cutout: CutoutPlacement, point: Point) => dispatch({
+    type: "SELECT_CUTOUT", id: cutout.id,
+    section: cutout.split ? (splitSide(cutout.split.boundary, untransformPointPlacement(point, cutout)) >= 0 ? 0 : 1) : 0,
+  });
   const selectedFingerHole =
     placedFingerHoles.find((item) => item.hole.id === selectedFingerHoleId) ?? null;
 
@@ -429,10 +445,10 @@ function LayoutStage(): JSX.Element {
   const hasPlacedObjects = hasPlacedCutouts || placedFingerHoles.length > 0;
 
   useEffect(() => {
-    if (hasPlacedObjects) return;
+    if (hasPlacedObjects && editorMode !== "split") return;
     setRulerActive(false);
     setMeasurementPoints([]);
-  }, [hasPlacedObjects]);
+  }, [hasPlacedObjects, editorMode]);
 
   const hitCutout = (point: Point): CutoutPlacement | null => {
     // Topmost = later in the list.
@@ -538,6 +554,7 @@ function LayoutStage(): JSX.Element {
       viewport.handlers.onPointerDown(event);
       return;
     }
+    if (splitEditor.pointerDown(event)) return;
     const point = toBin(event.clientX, event.clientY);
     if (!point) return;
 
@@ -558,7 +575,7 @@ function LayoutStage(): JSX.Element {
       // and an explicit label anchor receive the same lattice translation so
       // their position relative to the retained cells does not jump.
       const normalized = normalizeCustomFootprint(nextCells);
-      if (normalized.gridX > MAX_GRID || normalized.gridY > MAX_GRID) return;
+      if (normalized.gridX > maxGridCells(spec.gridPitch) || normalized.gridY > maxGridCells(spec.gridPitch)) return;
       if (
         footprintTopologyError(
           normalized.gridX,
@@ -646,6 +663,7 @@ function LayoutStage(): JSX.Element {
         point,
         placed.map((item) => item.outline),
         RULER_SNAP_TOLERANCE_PX / Math.max(scale, 1e-6),
+        placedPocketSplitBoundaries(placed.map(item => item.cutout), shapesById),
       );
       if (snapped) {
         setMeasurementPoints((current) =>
@@ -762,7 +780,7 @@ function LayoutStage(): JSX.Element {
       featureId &&
       (featureEndpoint === "start" || featureEndpoint === "end") &&
       selectedFingerHole?.hole.id === featureId &&
-      selectedFingerHole.hole.kind === "oblong-deep-scoop"
+      isElongatedFingerHole(selectedFingerHole.hole)
     ) {
       dragRef.current = {
         kind: "feature-end",
@@ -801,7 +819,8 @@ function LayoutStage(): JSX.Element {
 
     const hit = hitCutout(point);
     if (hit) {
-      dispatch({ type: "SELECT_CUTOUT", id: hit.id });
+      selectPocketAt(hit, point);
+      clickRef.current = { clientX: event.clientX, clientY: event.clientY };
       dragRef.current = {
         kind: "move",
         id: hit.id,
@@ -816,6 +835,7 @@ function LayoutStage(): JSX.Element {
   };
 
   const handlePointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
+    if (!viewport.isPanning && splitEditor.pointerMove(event)) return;
     const click = clickRef.current;
     if (
       click &&
@@ -847,6 +867,8 @@ function LayoutStage(): JSX.Element {
     }
 
     if (drag.kind === "move") {
+      // A tap must not snap or move the pocket, even with slight hand jitter.
+      if (clickRef.current) return;
       let x = point.x - drag.grabOffset.x;
       let y = point.y - drag.grabOffset.y;
       if (!event.altKey) {
@@ -885,7 +907,7 @@ function LayoutStage(): JSX.Element {
     if (drag.kind === "feature-width") {
       const current = fingerHoles.find((hole) => hole.id === drag.featureId);
       if (!current) return;
-      const resized = resizeFingerHoleFromWidthHandle(current, point);
+      const resized = resizeFingerHoleFromWidthHandle(current, point, spec);
       dispatch({
         type: "UPDATE_FINGER_HOLE",
         id: current.id,
@@ -898,10 +920,11 @@ function LayoutStage(): JSX.Element {
     if (drag.kind === "feature-end") {
       const current = fingerHoles.find((hole) => hole.id === drag.featureId);
       if (!current) return;
-      const resized = resizeOblongDeepScoopFromEndpoint(
+      const resized = resizeElongatedFingerHoleFromEndpoint(
         current,
         drag.endpoint,
         point,
+        spec,
       );
       dispatch({
         type: "UPDATE_FINGER_HOLE",
@@ -949,6 +972,7 @@ function LayoutStage(): JSX.Element {
   };
 
   const endDrag = (event: ReactPointerEvent<SVGSVGElement>) => {
+    if (!viewport.isPanning && splitEditor.pointerUp(event)) return;
     const drag = dragRef.current;
     dragRef.current = null;
     setIsRotating(false);
@@ -967,7 +991,7 @@ function LayoutStage(): JSX.Element {
         if (hole) {
           dispatch({ type: "SELECT_FINGER_HOLE", id: hole.id });
         } else if (cutout) {
-          dispatch({ type: "SELECT_CUTOUT", id: cutout.id });
+          selectPocketAt(cutout, point!);
         } else {
           dispatch({ type: "SELECT_CUTOUT", id: null });
           dispatch({ type: "SELECT_FINGER_HOLE", id: null });
@@ -986,6 +1010,16 @@ function LayoutStage(): JSX.Element {
           draft.outline,
           drag.operation === "add" ? "Add contour node" : "Move contour node",
         );
+      }
+      return;
+    }
+    if (drag.kind === "move" && click) {
+      // Open properties after a click or tap, leaving drag gestures uninterrupted.
+      if (
+        event.type === "pointerup" &&
+        Math.hypot(event.clientX - click.clientX, event.clientY - click.clientY) <= CLICK_SLOP_PX
+      ) {
+        onEditPocket?.();
       }
       return;
     }
@@ -1048,7 +1082,7 @@ function LayoutStage(): JSX.Element {
           patch = { center: { x: hole.center.x, y: hole.center.y - nudge } };
         } else if (
           (event.key === "r" || event.key === "R") &&
-          hole.kind === "oblong-deep-scoop"
+          isElongatedFingerHole(hole)
         ) {
           patch = {
             rotationDeg:
@@ -1265,7 +1299,7 @@ function LayoutStage(): JSX.Element {
     <>
       <svg
         ref={svgRef}
-        className="absolute inset-0 block h-full w-full touch-none select-none"
+        className={cn("absolute inset-0 block h-full w-full touch-none select-none", splitEditor.active && "cursor-crosshair")}
         style={{ cursor }}
         data-testid="layout-canvas"
         onPointerDown={handlePointerDown}
@@ -1355,7 +1389,7 @@ function LayoutStage(): JSX.Element {
               );
             })}
 
-          {placed.map(({ cutout, outline }) => {
+          {placed.map(({ cutout, shape, outline }) => {
             const severity = severityByCutout.get(cutout.id);
             const isSelected = cutout.id === selectedCutoutId;
             const tone =
@@ -1379,6 +1413,18 @@ function LayoutStage(): JSX.Element {
                   data-cutout-id={cutout.id}
                   strokeDasharray={overlappingCutouts.has(cutout.id) ? "5 3" : undefined}
                 ><title>{boundaryCutouts.has(cutout.id) ? "Boundary conflict. " : ""}{overlappingCutouts.has(cutout.id) ? "Overlapping pockets. " : ""}{shapesById.get(cutout.shapeId)?.name}</title></path>
+                {cutout.split && (() => {
+                  const split = resolvePocketSplit(shape.outlineMm, cutout.split.boundary);
+                  const boundary = (split.boundary ?? cutout.split.boundary).map(p => binToCanvas(transformPointPlacement(p, cutout), spec));
+                  return <g className="pointer-events-none" data-testid={`pocket-split-${cutout.id}`}>
+                    {isSelected && split.regions && <path
+                      d={outlineToCanvasPath(placementFootprint({ outlineMm: split.regions[selectedPocketSection] }, cutout).outline, spec)}
+                      fillRule="evenodd" className="fill-primary/25" data-testid="selected-pocket-section" />}
+                    <path d={`M${boundary[0].x},${boundary[0].y} L${boundary[1].x},${boundary[1].y}`}
+                      className="stroke-primary" strokeWidth={1.5} strokeDasharray="5 3" vectorEffect="non-scaling-stroke" />
+                  </g>;
+                })()}
+
               </g>
             );
           })}
@@ -1401,7 +1447,7 @@ function LayoutStage(): JSX.Element {
                   d={ringToCanvasPath(ring, spec)}
                   className={cn(tone, "cursor-move")}
                   strokeWidth={isSelected ? 2 : 1.25}
-                  strokeDasharray={hole.kind === "straight" ? undefined : "3 2"}
+                  strokeDasharray={hasFlatFingerHoleBottom(hole) ? undefined : "3 2"}
                   vectorEffect="non-scaling-stroke"
                   data-feature-id={hole.id}
                   data-testid={`finger-hole-${hole.kind}-${hole.id}`}
@@ -1533,6 +1579,17 @@ function LayoutStage(): JSX.Element {
               );
             })}
 
+          {splitEditor.active && selected && <g className="pointer-events-none" data-testid="pocket-split-draft">
+            {splitEditor.start && splitEditor.hover && (() => {
+              const a = binToCanvas(transformPointPlacement(splitEditor.start, selected.cutout), spec);
+              const b = binToCanvas(transformPointPlacement(splitEditor.hover, selected.cutout), spec);
+              return <path d={`M${a.x},${a.y} L${b.x},${b.y}`} className="stroke-primary" strokeWidth={2} strokeDasharray="5 3" vectorEffect="non-scaling-stroke" />;
+            })()}
+            {[splitEditor.start, splitEditor.hover].filter((p): p is Point => !!p).map((p, i) => {
+              const c = binToCanvas(transformPointPlacement(p, selected.cutout), spec);
+              return <circle key={i} cx={c.x} cy={c.y} r={4 * inv} className="fill-background stroke-primary" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />;
+            })}
+          </g>}
           {editorMode === "placement" && selectedControls && selected && (
             <g>
               <polygon
@@ -1629,7 +1686,7 @@ function LayoutStage(): JSX.Element {
           aria-pressed={rulerActive}
           title={
             hasPlacedCutouts
-              ? "Ruler: measure between two tool-contour points"
+              ? "Ruler: measure between points on contours or split lines"
               : "Add a tool cutout before measuring"
           }
           disabled={!hasPlacedCutouts}
@@ -1645,6 +1702,24 @@ function LayoutStage(): JSX.Element {
         >
           <Ruler className="h-4 w-4" />
         </Button>
+        {selected && (editorMode === "placement" || editorMode === "contour") && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className={cn("h-9 w-9 rounded-none border-t", editorMode === "contour" && "bg-accent text-accent-foreground")}
+            aria-label={editorMode === "contour" ? "Finish contour editing" : "Edit contour"}
+            aria-pressed={editorMode === "contour"}
+            title={editorMode === "contour" ? "Finish contour editing" : "Edit contour"}
+            data-testid="button-layout-edit-contour"
+            onClick={() => {
+              setRulerActive(false);
+              setMeasurementPoints([]);
+              dispatch({ type: "SET_EDITOR_MODE", editorMode: editorMode === "contour" ? "placement" : "contour" });
+            }}
+          >
+            <Spline className="h-4 w-4" />
+          </Button>
+        )}
         {measurementPoints.length > 0 ? (
           <Button
             variant="ghost"
@@ -1660,6 +1735,10 @@ function LayoutStage(): JSX.Element {
         ) : null}
       </div>
 
+      {splitEditor.active && <div className="absolute left-3 right-14 top-14 flex items-center gap-2 rounded border bg-background/95 px-3 py-2 text-xs shadow-sm">
+        <p className="flex-1" role="status">{splitEditor.error ?? (splitEditor.start ? "Choose the second edge point · Esc cancels" : "Draw from edge to edge, or click two edge points")}</p>
+        <Button type="button" variant="ghost" size="sm" className="h-7" onClick={() => dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" })}>Cancel</Button>
+      </div>}
       {rulerActive ? (
         <div
           className="pointer-events-none absolute right-14 top-12 z-20 rounded-md border bg-background/90 px-2.5 py-1.5 text-xs font-medium shadow-sm backdrop-blur"
@@ -1667,10 +1746,10 @@ function LayoutStage(): JSX.Element {
           data-testid="layout-ruler-status"
         >
           {measurementPoints.length === 0
-            ? "Click the first tool contour"
+            ? "Click the first contour or split line"
             : measurementPoints.length === 1
-              ? "Click the second tool contour"
-              : `${measuredDistanceMm!.toFixed(2)} mm · click another contour to restart`}
+              ? "Click the second contour or split line"
+              : `${measuredDistanceMm!.toFixed(2)} mm · click to start a new measurement`}
         </div>
       ) : null}
 
@@ -1681,21 +1760,21 @@ function LayoutStage(): JSX.Element {
 
       <div className="pointer-events-none absolute bottom-2 left-2 rounded-md bg-background/85 px-2 py-1 text-[11px] text-muted-foreground shadow-sm backdrop-blur">
         {rulerActive
-          ? "Ruler · endpoints snap to tool contours · Esc exits"
+          ? "Ruler · snap to contours or split lines · Esc exits"
           : editorMode === "footprint"
           ? "Footprint edit · click cells or the dashed outer halo · Esc finishes"
           : editorMode === "label-edge"
           ? "Label tab · click a highlighted boundary edge"
           : !hasPlacedObjects
           ? "Add a tool pocket or finger hole to begin"
-          : editorMode === "contour"
+          : editorMode === "split" ? "Split pocket · draw a straight line between two outer edge points" : editorMode === "contour"
           ? selectedCutoutId
             ? "Contour edit · drag points · click an edge to add · right-click a point to remove · Esc finishes"
             : "Contour edit · click a pocket to select it"
           : selectedFingerHoleId
             ? "Finger hole · drag moves · white handle resizes · arrows nudge · Del removes"
             : selectedCutoutId
-              ? "Pocket · drag edges/corners to resize · Option resizes from centre · round handle rotates"
+              ? "Pocket · drag edges/corners to resize · Option resizes from center · round handle rotates"
               : "Click a pocket or finger hole to select · Shift-drag pans · Ctrl-scroll zooms"}
       </div>
     </>

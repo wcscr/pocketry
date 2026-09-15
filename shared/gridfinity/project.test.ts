@@ -44,10 +44,31 @@ const VALID = {
 };
 
 describe("parseProjectDoc", () => {
+  it("preserves finger access names through save and reload alongside unnamed legacy holes", () => {
+    const doc = parseProjectDoc({
+      ...VALID,
+      fingerHoles: [
+        { id: "named", name: "Thumb access", center: { x: 0, y: 0 } },
+        { id: "legacy", center: { x: 15, y: 0 } },
+      ],
+    });
+    expect(doc?.fingerHoles[0].name).toBe("Thumb access");
+    expect(doc?.fingerHoles[1].name).toBeUndefined();
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(doc)))).toEqual(doc);
+  });
+
+
+  it("round-trips a 3 by 5 standard-cell bin at quarter pitch", () => {
+    const doc = parseProjectDoc({ ...VALID, spec: { ...VALID.spec, gridX: 12, gridY: 20, gridPitch: "quarter" } });
+    expect(doc?.spec).toMatchObject({ gridX: 12, gridY: 20, gridPitch: "quarter" });
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(doc)))).toEqual(doc);
+  });
+
   it("migrates the complete New Airduster Layout without changing any saved geometry or settings", () => {
     const original = JSON.stringify(airdusterV9);
     const doc = parseProjectDoc(airdusterV9);
-    expect(doc).toEqual({ ...airdusterV9, schemaVersion: PROJECT_SCHEMA_VERSION });
+    const { liteBase: _removed, ...spec } = airdusterV9.spec;
+    expect(doc).toEqual({ ...airdusterV9, spec: { ...spec, flatBottom: false }, schemaVersion: PROJECT_SCHEMA_VERSION });
     expect(doc!.shapes).toHaveLength(7);
     expect(doc!.cutouts).toHaveLength(4);
     expect(doc!.fingerHoles).toHaveLength(2);
@@ -64,6 +85,13 @@ describe("parseProjectDoc", () => {
     expect(parseProjectDoc(JSON.parse(JSON.stringify(doc)))).toEqual(doc);
     expect(doc!.shapes[0].traceMarginMm).toBe(0.5);
   });
+  it("round-trips negative pocket clearance without changing the saved trace", () => {
+    const doc = parseProjectDoc({ ...VALID, cutouts: [{ ...VALID.cutouts[0], clearanceMm: -0.7 }] });
+    expect(doc?.cutouts[0].clearanceMm).toBe(-0.7);
+    expect(doc?.shapes[0].outlineMm).toEqual(VALID.shapes[0].outlineMm);
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(doc)))).toEqual(doc);
+  });
+
   it("round-trips a valid document", () => {
     const doc = parseProjectDoc(VALID);
     expect(doc).not.toBeNull();
@@ -323,4 +351,94 @@ describe("project file round trip", () => {
     expect(doc?.fingerHoles[0].center.y).toBeCloseTo(24, 9);
     expect(doc?.fingerHoles[0].rotationDeg).toBeCloseTo(90, 9);
   });
+});
+
+
+describe("removed Lite Base migration", () => {
+  it.each([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])("migrates v%s with the removed flag", (schemaVersion) => {
+    const legacy = JSON.parse(JSON.stringify(VALID)) as Record<string, unknown>;
+    legacy.schemaVersion = schemaVersion;
+    if (schemaVersion < 7) delete legacy.fingerHoles;
+    (legacy.spec as Record<string, unknown>).liteBase = true;
+    const migrated = parseProjectDoc(legacy);
+    expect(migrated?.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
+    expect(migrated?.spec).not.toHaveProperty("liteBase");
+  });
+
+  it.each([true, false])("migrates v10 liteBase=%s while preserving the project", (liteBase) => {
+    const current = parseProjectDoc(VALID)!;
+    const legacy = { ...current, schemaVersion: 10, name: "My tools", keepBinSize: true,
+      spec: { ...current.spec, liteBase } };
+    expect(parseProjectDoc(legacy)).toEqual({ ...current, name: "My tools", keepBinSize: true });
+    expect(legacy.spec.liteBase).toBe(liteBase);
+  });
+
+  it("rejects malformed legacy flags and removed fields in current documents", () => {
+    const current = parseProjectDoc(VALID)!;
+    expect(parseProjectDoc({ ...current, schemaVersion: 10, spec: { ...current.spec, liteBase: "yes" } })).toBeNull();
+    expect(parseProjectDoc({ ...current, spec: { ...current.spec, liteBase: true } })).toBeNull();
+  });
+});
+
+
+describe("flat bottom projects", () => {
+  it("defaults existing v11 documents to Gridfinity and preserves flat projects on reload", () => {
+    const legacy = JSON.parse(JSON.stringify(VALID));
+    legacy.schemaVersion = 11;
+    delete legacy.spec.flatBottom;
+    expect(parseProjectDoc(legacy)?.spec.flatBottom).toBe(false);
+    const flat = parseProjectDoc({ ...VALID, spec: { ...VALID.spec, flatBottom: true } });
+    expect(flat?.spec.flatBottom).toBe(true);
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(flat)))).toEqual(flat);
+  });
+});
+
+
+it("round-trips flat-ended scoops and migrates v12 without changing existing geometry", () => {
+  const old = parseProjectDoc({ ...VALID, schemaVersion: 12, spec: { ...VALID.spec, flatBottom: true } });
+  expect(old).not.toBeNull();
+  expect(old!.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
+  expect(old!.spec.flatBottom).toBe(true);
+  const doc = parseProjectDoc({ ...old!, fingerHoles: [{
+    id: "flat", kind: "flat-ended-scoop", center: { x: 10, y: -5 },
+    diameterMm: 16, lengthMm: 55, depthMm: 2, rotationDeg: 35,
+    topFilletMm: 1, bottomFilletMm: 0,
+  }] });
+  expect(doc!.fingerHoles[0]).toMatchObject({ kind: "flat-ended-scoop", lengthMm: 55, rotationDeg: 35 });
+  expect(parseProjectDoc(JSON.parse(JSON.stringify(doc)))).toEqual(doc);
+  expect(doc!.cutouts).toEqual(old!.cutouts);
+  expect(parseProjectDoc({ ...doc!, schemaVersion: PROJECT_SCHEMA_VERSION + 1 })).toBeNull();
+});
+
+it("migrates v13 without rewriting finger-access geometry and persists new slot choices", () => {
+  const previous = parseProjectDoc({ ...VALID, fingerHoles: [
+    { id: "legacy", kind: "scoop", center: { x: 0, y: 0 }, diameterMm: 18, depthMm: 30 },
+    { id: "flat", kind: "flat-ended-scoop", center: { x: 10, y: 5 }, diameterMm: 24, lengthMm: 6, depthMm: 1, rotationDeg: 37 },
+  ] })!;
+  expect(parseProjectDoc({ ...previous, schemaVersion: 13 })).toEqual(previous);
+  const current = parseProjectDoc({ ...previous, fingerHoles: [
+    { ...previous.fingerHoles[1], kind: "flat-ended-straight", bottomFilletMm: 2 },
+    { ...previous.fingerHoles[1], id: "rounded", kind: "oblong-straight", lengthMm: 40 },
+    { ...previous.fingerHoles[1], id: "round", kind: "straight", slotEnds: "flat" },
+  ] });
+  expect(current).not.toBeNull();
+  expect(parseProjectDoc(JSON.parse(JSON.stringify(current)))).toEqual(current);
+  expect(current?.fingerHoles[2]).toMatchObject({ slotEnds: "flat", lengthMm: 6, rotationDeg: 37 });
+  expect(parseProjectDoc({ ...current, fingerHoles: [{ ...current!.fingerHoles[0], slotEnds: "invalid" }] })).toBeNull();
+});
+
+it("migrates v14 with sharp slot corners and round-trips explicit and retained corner radii", () => {
+  const previous = { ...VALID, schemaVersion: 14, fingerHoles: [
+    { id: "slot", kind: "flat-ended-scoop", center: { x: 0, y: 0 }, diameterMm: 24, lengthMm: 6, depthMm: 1 },
+  ] };
+  const source = JSON.stringify(previous);
+  const migrated = parseProjectDoc(previous)!;
+  expect(migrated.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
+  expect(migrated.fingerHoles[0].cornerRoundMm).toBeUndefined();
+  expect(JSON.stringify(previous)).toBe(source);
+  for (const kind of ["flat-ended-scoop", "flat-ended-straight", "straight", "oblong-straight"]) {
+    const doc = parseProjectDoc({ ...migrated, fingerHoles: [{ ...migrated.fingerHoles[0], kind, cornerRoundMm: 8 }] });
+    expect(doc?.fingerHoles[0]).toMatchObject({ kind, cornerRoundMm: 8, lengthMm: 6, depthMm: 1 });
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(doc)))).toEqual(doc);
+  }
 });

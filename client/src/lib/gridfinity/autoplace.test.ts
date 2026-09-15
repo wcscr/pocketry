@@ -1,4 +1,4 @@
-import type { TracedShape } from "@shared/gridfinity/cutout";
+import { parseCutoutPlacement, type TracedShape } from "@shared/gridfinity/cutout";
 import { parseBinSpec } from "@shared/gridfinity/types";
 import { validateLayout } from "@shared/gridfinity/validate";
 import { describe, expect, it } from "vitest";
@@ -44,6 +44,17 @@ describe("placementInsetMm", () => {
 });
 
 describe("autoPlaceFresh", () => {
+  it("preserves inward clearance and valid packing bounds for a very narrow pocket", () => {
+    const shape = rectShape("thin", 30, 0.8);
+    const cutout = parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 0, y: 0 }, clearanceMm: -2 });
+    const byId = new Map([[shape.id, shape]]);
+    const result = autoArrangeLayout([cutout], byId, "none");
+    const unshrunk = autoArrangeLayout([{ ...cutout, clearanceMm: 0 }], byId, "none");
+    expect(result).not.toBeNull();
+    expect(result!.cutouts[0].clearanceMm).toBe(-2);
+    expect({ ...result, cutouts: result!.cutouts.map((item) => ({ ...item, clearanceMm: 0 })) }).toEqual(unshrunk);
+  });
+
   it("keeps a fixed bin and retains oversized arrivals for manual adjustment", () => {
     const shape = rectShape("large", 150, 100);
     const result = autoPlaceIncremental([shape], { lip: "standard", gridX: 2, gridY: 2,
@@ -132,6 +143,31 @@ describe("autoPlaceFresh", () => {
       new Map([[shape.id, shape]]),
     ).filter((issue) => issue.severity === "error");
     expect(errors).toEqual([]);
+  });
+
+  it.each(["half", "quarter"] as const)("packs and fits long tools beyond 16 %s-pitch cells", (gridPitch) => {
+    const shape = rectShape("long", 400, 20);
+    const byId = new Map([[shape.id, shape]]);
+    const fresh = autoPlaceFresh([shape], "standard", gridPitch);
+    expect(fresh.overflow).toBe(false);
+    expect(fresh.gridX).toBeGreaterThan(16);
+    const fitted = fitLayoutToPlacements(fresh.cutouts, byId, "standard", gridPitch);
+    const arranged = autoArrangeLayout(fresh.cutouts, byId, "standard", gridPitch)!;
+    expect(arranged.overflow).toBe(false);
+    for (const result of [fresh, fitted, arranged]) {
+      const spec = parseBinSpec({ gridX: result.gridX, gridY: result.gridY, gridPitch, heightUnits: 6 });
+      expect(validateLayout(spec, result.cutouts, byId).filter((issue) => issue.severity === "error")).toEqual([]);
+    }
+
+    const added = rectShape("added", 20, 20);
+    byId.set(added.id, added);
+    const incremental = autoPlaceIncremental([added], {
+      gridX: fresh.gridX, gridY: fresh.gridY, gridPitch, lip: "standard",
+      existing: fresh.cutouts, shapesById: byId,
+    });
+    expect(incremental.overflow).toBe(false);
+    const grown = parseBinSpec({ gridX: incremental.gridX, gridY: incremental.gridY, gridPitch, heightUnits: 6 });
+    expect(validateLayout(grown, [...fresh.cutouts, ...incremental.cutouts], byId).filter((issue) => issue.severity === "error")).toEqual([]);
   });
 
   it("property: fresh placements never produce validation errors", () => {
