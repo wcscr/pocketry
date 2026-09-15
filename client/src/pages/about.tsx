@@ -230,6 +230,10 @@ export default function About(): JSX.Element {
           </Card>
         </section>
 
+        <p className="text-sm leading-6 text-muted-foreground">
+          Pocketry was developed using OpenAI Codex.
+        </p>
+
         <section className="space-y-7" aria-labelledby="related-projects-heading">
           <div className="space-y-1">
             <h2
