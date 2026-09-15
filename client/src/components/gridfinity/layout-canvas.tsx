@@ -1,4 +1,4 @@
-import { LID_PAD_EXTENT_MM, lidMagnetCenters, magneticLidError } from "@shared/gridfinity/magnetic-lid";
+import { lidPadExtentMm, lidMagnetCenters, magneticLidError } from "@shared/gridfinity/magnetic-lid";
 import { MAGNET_HOLE_RADIUS } from "@shared/gridfinity/standard";
 import {
   Ruler,
@@ -1335,8 +1335,8 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
             <g pointerEvents="none" data-testid="lid-support-regions">
               <defs><clipPath id="lid-support-outline"><path d={ringToCanvasPath(outerFootprint, spec)} /></clipPath></defs>
               <g clipPath="url(#lid-support-outline)">
-                {[0, widthMm - LID_PAD_EXTENT_MM].flatMap(x => [0, lengthMm - LID_PAD_EXTENT_MM].map(y => (
-                  <rect key={`${x}-${y}`} x={x} y={y} width={LID_PAD_EXTENT_MM} height={LID_PAD_EXTENT_MM}
+                {[0, widthMm - lidPadExtentMm(spec)].flatMap(x => [0, lengthMm - lidPadExtentMm(spec)].map(y => (
+                  <rect key={`${x}-${y}`} x={x} y={y} width={lidPadExtentMm(spec)} height={lidPadExtentMm(spec)}
                     className="fill-amber-500/15 stroke-amber-600/60" strokeWidth={1} vectorEffect="non-scaling-stroke">
                     <title>Lid magnet support — keep pockets clear</title>
                   </rect>

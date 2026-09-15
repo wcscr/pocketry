@@ -37,9 +37,11 @@ import { binHistorySchema } from "./history";
  * Version 18 adds magnetic lids, defaulting off in designs and history entries.
  * Version 19 adds lid styles, stacking tops, independent closure magnets, and tunable fit.
  * Older lids remain inset with a flat top and plain closure recesses.
+ * Version 20 adds overlapping lid wall thickness.
+ * Version 21 links bin, rim and skirt thickness, preserving older paired dimensions.
  */
 
-export const PROJECT_SCHEMA_VERSION = 19 as const;
+export const PROJECT_SCHEMA_VERSION = 21 as const;
 
 const projectFields = {
   shapes: z.array(tracedShapeSchema),
@@ -178,9 +180,27 @@ function migrateLegacyProject(doc: LegacyProjectDoc): ProjectDoc {
  */
 export function parseProjectDoc(input: unknown): ProjectDoc | null {
   if (input && typeof input === "object" && !Array.isArray(input) &&
-      "schemaVersion" in input && (input.schemaVersion === 17 || input.schemaVersion === 18)) {
-    const migrated = projectDocSchema.safeParse({ ...input, schemaVersion: PROJECT_SCHEMA_VERSION });
-    return migrated.success ? migrated.data : null;
+      "schemaVersion" in input && typeof input.schemaVersion === "number" &&
+      Number.isInteger(input.schemaVersion) && input.schemaVersion >= 1 && input.schemaVersion <= 20) {
+    const version = input.schemaVersion;
+    const preserveWall = (value: unknown): unknown => {
+      if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+      const spec = value as Record<string, unknown>;
+      return { ...spec, wallThicknessMm: spec.wallThicknessMm === undefined ? 0.95 : spec.wallThicknessMm,
+        ...(version <= 19 && spec.magneticLidStyle === "overlap" && spec.lidWallThicknessMm === undefined
+          ? { lidWallThicknessMm: 0.8 } : {}),
+      };
+    };
+    const doc = input as Record<string, unknown>;
+    const history = doc.history;
+    input = { ...doc, spec: preserveWall(doc.spec),
+      ...(history && typeof history === "object" && !Array.isArray(history) && "stack" in history && Array.isArray(history.stack)
+        ? { history: { ...history, stack: history.stack.map(entry => {
+          if (!entry || typeof entry !== "object" || !entry.doc || typeof entry.doc !== "object") return entry;
+          return { ...entry, doc: { ...entry.doc, spec: preserveWall(entry.doc.spec) } };
+        }) } } : {}),
+      ...(version >= 17 ? { schemaVersion: PROJECT_SCHEMA_VERSION } : {}),
+    };
   }
   const result = projectDocSchema.safeParse(input);
   if (result.success) return result.data;

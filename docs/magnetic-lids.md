@@ -18,15 +18,30 @@ material colors, these are view settings rather than saved project geometry.
 
 | | Overlapping edge | Inset |
 | --- | --- | --- |
-| Bin rim | Top 5 mm steps inward 1.1 mm per side | Standard Gridfinity stacking lip |
+| Bin rim | Top 5 mm steps inward by lid wall thickness + 0.3 mm per side | Standard Gridfinity stacking lip |
 | Lid | Continuous outside skirt wraps around the stepped rim | Chamfered locating plug seats inside the lip |
 | Flat top | 3.6 mm cap above the mating face | 6.75 mm total; about 3.2 mm exposed above the lip to grip |
 | Stacking top | 4 mm cap plus a Gridfinity lip | 8 mm cap plus a Gridfinity lip |
 | Alignment | 0.3 mm clearance per side and a chamfered entry | 0.3 mm extra clearance per side |
-| Edge | Continuous 0.8 mm skirt | Continuous chamfered profile |
+| Edge | Continuous skirt, 1.2 mm by default; adjustable 0.8–4.0 mm per wall | Continuous chamfered profile |
 
 The overlapping skirt stays within the bin's original footprint and stops
 0.2 mm above its shoulder. Entry chamfers ease seating.
+The inset cap starts 0.2 mm above the rounded stacking lip. It extends down
+around the locating profile while retaining the original mating face, overall
+height, and magnet-pocket depth. This replaces the roughly 1.2 mm separation
+below the cap in the initial test lids. Existing inset bases, including test
+base **20**, can be reused; only the lids need reprinting.
+**Construction → Wall thickness** is shared by the bin wall, overlapping inner
+rim, and overlapping lid skirt. Each wall receives the selected thickness;
+new designs default to 1.2 mm per wall, adjustable from 0.8 to 4 mm. The overlap
+region therefore occupies `2 × thickness + 0.3 mm` per side: 2.7 mm at the default,
+4.3 mm for 2 mm walls, or 8.3 mm for 4 mm walls. The outer footprint stays fixed,
+so thicker walls reduce interior space. Layout, automatic sizing, and cutter
+validation account for this space. Large offsets use square inner corners.
+Changing thickness requires a matching bin and lid; unlike fit adjustment,
+it is not a lid-only change. The standard stacking profile and underside stay
+unchanged. The inset lid's compliant locating skirt stays 0.8 mm thick.
 Both styles have continuous edges without isolated center-edge blocks or pockets. The bin's rim
 has a sloping support below its shoulder and a chamfer at the top. Pockets
 must clear this rim. The saved stacking-lip preference returns when the lid is
@@ -48,10 +63,11 @@ dimensions or physical qualification for Pocketry.
 - **Easy lift-off** defaults to the original clearance: 0.3 mm per side for
   overlap, or 0.3 mm extra clearance beyond Gridfinity's built-in fit for
   inset. It is a locating cover without intended retention.
-- **Friction fit** adds spaced, rounded contact ribs on a thin locating rim.
+- **Friction fit** adds spaced, rounded contact ribs on the locating rim.
   Contact stays away from corners and the rim retains clearance between ribs.
   Inset friction lids have a hollow underside with a 0.8 mm locating skirt;
-  overlapping lids retain their continuous outside skirt. The ribs are on the
+  overlapping lids retain their continuous outside skirt at the selected wall
+  thickness. Thicker overlapping skirts flex less and need a new physical fit test. The ribs are on the
   mating face, with tapered entry and no cutouts through the exterior edge.
   This is an original thin-rim adaptation, not a reproduction of Slant3D's
   independent side springs or fin array. Rib and rim compliance is unverified
@@ -62,6 +78,8 @@ dimensions or physical qualification for Pocketry.
   the tightest uses 0.15 mm interference. These are prototype starting values,
   not guaranteed holding forces. The bin geometry stays unchanged, so only
   the lid needs reprinting for fit adjustments.
+- Fit adjustment changes sideways clearance or rib protrusion. It does not
+  change lid height, cap thickness, or the clearance above the bin's lip.
 - Fit controls appear only without closure magnets. Their preferences are
   retained while magnets are on, but magnetic closures always use the original
   clearance and omit the friction ribs. Base magnets do not hide lid fit.
@@ -79,17 +97,23 @@ dimensions or physical qualification for Pocketry.
 - Both use the base recess constants: **6.5 mm diameter × 2.4 mm depth**, for
   the same magnets used underneath (nominally 2 mm thick). Crush ribs reuse
   the base's eight-lobe press-fit bore; without ribs, glue the magnets.
-- Closure magnet centers are 7.75 mm inward from each original outer edge,
-  independent of socket pitch. Supports reserve 12.2 mm along each corner
-  edge and grow inward at 45 degrees underneath. Recess floors retain 1.2 mm
+- Closure magnet centers start 7.75 mm inward from each original outer edge,
+  independent of socket pitch. Thick overlapping rims move both paired recesses
+  inward together to retain at least 1.2 mm beside the bore. Corner supports grow
+  accordingly from their original 12.2 mm extent and slope inward at 45 degrees. Recess floors retain 1.2 mm
   of material. Layout marks these supports in amber while closure holes are
   enabled; conflicting pockets or finger access block export. The geometry
   worker also checks actual cutter intersections.
 - Rectangular footprints only. Gridfinity or flat bottoms; full, half, or
-  quarter pitch, with both outer dimensions at least 26.3 mm (the UI
-  recommends 27 mm). Minimum bin height is 2u.
+  quarter pitch, with the minimum width and length calculated from wall thickness
+  and support size (27 mm at the default; 35 mm at 4 mm walls). Minimum bin height is 2u.
 
-Project schema v19 stores lid style, top, independent closure settings, and fit.
+Project schema v21 stores shared wall thickness along with lid style, top,
+closure settings, and fit. Older projects retain their 0.95 mm bin walls.
+Older overlapping projects and every undo step retain the original 0.8 mm
+skirt and 1.2 mm inner rim (or their saved v20 skirt thickness). Editing the
+shared control links all three dimensions. This preserves previously printed
+pairs until the user deliberately changes thickness.
 Older lids remain Inset with a Flat top and plain closure holes, including
 undo/redo history. Existing lids without magnets default to Easy lift-off
 with zero adjustment. Earlier projects default lids off. No external CAD file,
@@ -135,8 +159,9 @@ with plain holes or crush ribs. One shared base has plain underside and
 closure holes; the other has crush ribs in both locations. All seven lids of
 each style reuse that style's base. This checks both base magnet treatments
 without printing a base for every lid. **Physical fit testing underway.**
-The plate is prepared in Bambu Studio; measured fit and retention results
-have not yet been recorded.
+The plate is prepared in Bambu Studio; initial inset prints showed a cap-to-rim gap. The cap geometry now reduces
+that gap to 0.2 mm without requiring a new inset base. Revised seating, retention,
+and the thicker shared walls still require physical verification.
 
 Tests cover both styles and tops at preview/export quality: connected solids,
 clearance when closed for magnetic and lift-off lids, controlled interference

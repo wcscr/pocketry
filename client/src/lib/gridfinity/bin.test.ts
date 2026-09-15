@@ -66,10 +66,10 @@ function spec(partial: Record<string, unknown> = {}) {
 }
 
 /** Annulus area of the plain wall at the given footprint. */
-function wallRingAreaMm2(widthMm: number, lengthMm: number): number {
+function wallRingAreaMm2(widthMm: number, lengthMm: number, thicknessMm = 1.2): number {
   return (
     roundedRectPolygonArea(widthMm, lengthMm, 3.75, SEGMENTS) -
-    roundedRectPolygonArea(widthMm - 1.9, lengthMm - 1.9, 3.75, SEGMENTS)
+    roundedRectPolygonArea(widthMm - 2 * thicknessMm, lengthMm - 2 * thicknessMm, 3.75, SEGMENTS)
   );
 }
 
@@ -87,6 +87,31 @@ describe("buildWallRing", () => {
     expect(box.max[2]).toBeCloseTo(42, 9);
     expect(box.max[0]).toBeCloseTo(41.75, 9);
     expect(box.max[1]).toBeCloseTo(62.75, 9);
+  });
+
+  it.each([0.8, 0.95, 1.2, 2, 4])("preserves footprint and base while changing wall thickness to %s mm", wallThicknessMm => {
+    const s = spec({ wallThicknessMm });
+    const ring = buildWallRing(kernel, s, SEGMENTS)!;
+    const expected = wallRingAreaMm2(83.5, 125.5, wallThicknessMm) * 35;
+    expect(Math.abs(ring.volume() - expected) / expected).toBeLessThan(1e-6);
+    const base = buildBinParts(kernel, s, QUALITY).base;
+    const originalBase = buildBinParts(kernel, spec({ wallThicknessMm: 0.95 }), QUALITY).base;
+    expect(arena.track(base.subtract(originalBase)).isEmpty()).toBe(true);
+    expect(arena.track(originalBase.subtract(base)).isEmpty()).toBe(true);
+  });
+
+  it.each(["rectangle", "custom"] as const)("builds a 4 mm wall at quarter pitch with a %s footprint", kind => {
+    const s = spec({ gridX: 2, gridY: 2, gridPitch: "quarter", wallThicknessMm: 4,
+      footprint: kind === "rectangle" ? { kind } : { kind, cells: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }] } });
+    const body = buildBin(kernel, s, PREVIEW_QUALITY).solid;
+    expect(body.status()).toBe("NoError");
+    const pieces = body.decompose();
+    pieces.forEach(piece => arena.track(piece));
+    expect(pieces).toHaveLength(1);
+    const ring = buildWallRing(kernel, s, SEGMENTS)!;
+    expect(ring.isEmpty()).toBe(false);
+    expect(body.boundingBox().max[0] - body.boundingBox().min[0]).toBeCloseTo(20.5, 6);
+
   });
 
   it("is null for a 1u bin (zero wall height)", () => {

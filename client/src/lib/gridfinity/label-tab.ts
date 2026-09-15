@@ -4,8 +4,8 @@ import type { Manifold } from "manifold-3d";
 import {
   binFootprintMm,
   binHeightMm,
-  D_WALL,
-  R_F2,
+  binWallThicknessMm,
+  BASE_TOP_RADIUS,
   TAB_HEIGHT_MM,
   TAB_PROFILE,
   TAB_WIDTH_NOMINAL_MM,
@@ -60,7 +60,7 @@ export function buildLabelTab(
   const edge = tab.edge ?? edgeForWall(spec, tab.wall);
   const run = resolveBoundaryRun(spec, edge);
   if (!run) return null;
-  const chordMm = run.lengthMm - 2 * D_WALL;
+  const chordMm = run.lengthMm - 2 * binWallThicknessMm(spec);
   if (!(chordMm > 0)) return null;
 
   // Profile in the (x = depth, y = height) plane, depth negated so the tab
@@ -94,19 +94,19 @@ export function buildLabelTab(
     x: (run.start.x + run.end.x) / 2,
     y: (run.start.y + run.end.y) / 2,
   };
-  if (edge.side === "north") midpoint.y -= D_WALL;
-  else if (edge.side === "south") midpoint.y += D_WALL;
-  else if (edge.side === "east") midpoint.x -= D_WALL;
-  else midpoint.x += D_WALL;
+  if (edge.side === "north") midpoint.y -= binWallThicknessMm(spec);
+  else if (edge.side === "south") midpoint.y += binWallThicknessMm(spec);
+  else if (edge.side === "east") midpoint.x -= binWallThicknessMm(spec);
+  else midpoint.x += binWallThicknessMm(spec);
   const placed = arena.track(rotated.translate([midpoint.x, midpoint.y, 0]));
 
   // Trim to the rounded interior so the ends follow the corner fillets.
-  const interiorW = binFootprintMm(spec.gridX, spec.gridPitch) - 2 * D_WALL;
-  const interiorL = binFootprintMm(spec.gridY, spec.gridPitch) - 2 * D_WALL;
+  const interiorW = binFootprintMm(spec.gridX, spec.gridPitch) - 2 * binWallThicknessMm(spec);
+  const interiorL = binFootprintMm(spec.gridY, spec.gridPitch) - 2 * binWallThicknessMm(spec);
   const columnSection = spec.footprint.kind === "custom"
     ? footprintInteriorSection(kernel, spec, circularSegments)
     : arena.track(new CrossSection([
-        roundedRectPolygon(interiorW, interiorL, R_F2, circularSegments),
+        roundedRectPolygon(interiorW, interiorL, Math.max(0, BASE_TOP_RADIUS - binWallThicknessMm(spec)), circularSegments),
       ]));
   const column = arena.track(columnSection.extrude(binHeightMm(spec.heightUnits) + 1));
   return arena.track(placed.intersect(column));

@@ -307,6 +307,37 @@ it.each([false, true])("enables magnetic lids independently of base magnets and 
   } finally { unmount(); }
 });
 
+it.each([false, true])("adjusts shared walls with undo and retains the setting across styles (mobile=%s)", async mobile => {
+  let controls: ReturnType<typeof usePanelState>;
+  function PanelProbe() { controls = usePanelState(); return null; }
+  const { container, unmount } = render(<PanelProvider><PanelProbe /><ShapeLibraryProvider><BinDesignerPage /></ShapeLibraryProvider></PanelProvider>, { mobile });
+  await flushHydration();
+  try {
+    React.act(() => controls!.setPanelOpen(true));
+    const panel = mobile ? document.body : container;
+    const current = () => vi.mocked(useBinGeometry).mock.calls.at(-1)![0];
+    const wallInput = () => panel.querySelector<HTMLInputElement>('[aria-label="Wall thickness in millimetres"]');
+    openSettingsSection(panel, "construction");
+    expect(wallInput()).not.toBeNull();
+    React.act(() => panel.querySelector<HTMLButtonElement>('[role="switch"][aria-label="Lid"]')!.click());
+    React.act(() => panel.querySelector<HTMLButtonElement>('[data-testid="button-lid-style-overlap"]')!.click());
+    expect(wallInput()?.value).toBe("1.2");
+    const slider = panel.querySelector<HTMLElement>('[role="slider"][aria-label="Wall thickness"]')!;
+    React.act(() => slider.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })));
+    expect(current().wallThicknessMm).toBe(1.25);
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+    expect(current().wallThicknessMm).toBe(1.2);
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+    expect(current().wallThicknessMm).toBe(1.25);
+    React.act(() => panel.querySelector<HTMLButtonElement>('[data-testid="button-lid-style-inset"]')!.click());
+    expect(wallInput()).not.toBeNull();
+    React.act(() => panel.querySelector<HTMLButtonElement>('[data-testid="button-lid-style-overlap"]')!.click());
+    expect(wallInput()?.value).toBe("1.25");
+    React.act(() => panel.querySelector<HTMLButtonElement>('[role="switch"][aria-label="Lid"]')!.click());
+    expect(wallInput()).not.toBeNull();
+  } finally { unmount(); }
+});
+
 it.each([false, true])("offers fit and tuning only without lid magnets, retaining choices and undo (mobile=%s)", async mobile => {
   let controls: ReturnType<typeof usePanelState>;
   function PanelProbe() { controls = usePanelState(); return null; }

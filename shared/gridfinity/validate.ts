@@ -32,7 +32,7 @@ import {
   binHeightMm,
   binWallHeightMm,
   D_DIV,
-  D_WALL,
+  binWallThicknessMm,
   gridPitchMm,
   STACKING_LIP_DEPTH,
   STACKING_LIP_SUPPORT_HEIGHT,
@@ -44,7 +44,7 @@ import {
 } from "./standard";
 import type { BinSpec } from "./types";
 import { resolvePocketSplit } from "./pocket-split";
-import { hasOverlappingLid, LID_RIM_INSET_MM, LID_RIM_WALL_MM, LID_PAD_EXTENT_MM, magneticLidError } from "./magnetic-lid";
+import { hasOverlappingLid, overlapLidRimInsetMm, overlapRimWallMm, lidPadExtentMm, magneticLidError } from "./magnetic-lid";
 
 /**
  * Pure validation of a bin specification — no WASM, cheap enough to run on
@@ -217,7 +217,7 @@ export function labelTabStripMm(spec: BinSpec): Bounds | null {
   const run = resolveBoundaryRun(spec, edge);
   if (!run) return null;
   const horizontal = edge.side === "north" || edge.side === "south";
-  const chord = run.lengthMm - 2 * D_WALL;
+  const chord = run.lengthMm - 2 * binWallThicknessMm(spec);
   const length = tab.width === "full" ? chord : Math.min(TAB_WIDTH_NOMINAL_MM, chord);
   const alongStart =
     tab.width === "left"
@@ -230,10 +230,10 @@ export function labelTabStripMm(spec: BinSpec): Bounds | null {
     x: (run.start.x + run.end.x) / 2,
     y: (run.start.y + run.end.y) / 2,
   };
-  if (edge.side === "north") midpoint.y -= D_WALL;
-  else if (edge.side === "south") midpoint.y += D_WALL;
-  else if (edge.side === "east") midpoint.x -= D_WALL;
-  else midpoint.x += D_WALL;
+  if (edge.side === "north") midpoint.y -= binWallThicknessMm(spec);
+  else if (edge.side === "south") midpoint.y += binWallThicknessMm(spec);
+  else if (edge.side === "east") midpoint.x -= binWallThicknessMm(spec);
+  else midpoint.x += binWallThicknessMm(spec);
   const localCorners: Point[] = [
     { x: alongStart, y: 0 },
     { x: alongEnd, y: 0 },
@@ -257,9 +257,6 @@ export function labelTabStripMm(spec: BinSpec): Bounds | null {
 // ---------------------------------------------------------------------------
 // Layout validation (cutouts)
 // ---------------------------------------------------------------------------
-
-/** How far the stacking lip's tip protrudes past the interior boundary. */
-const LIP_INTRUSION_MM = STACKING_LIP_DEPTH - D_WALL; // 1.65
 
 /** Six slicer layers at 0.2 mm — below this a pocket floor flexes. */
 const MIN_FLOOR_MM = 1.2;
@@ -451,10 +448,10 @@ function validateAgainstBin(spec: BinSpec, p: PlacedCutout): ValidationIssue[] {
       cutoutIds: [cutout.id],
       message: `“${label}” cuts into the bin wall once its ${outlineAllowance} mm combined clearance and top-edge round are added.`,
     });
-  } else if (hasOverlappingLid(spec) && wallMargin < LID_RIM_INSET_MM + LID_RIM_WALL_MM - D_WALL) {
+  } else if (hasOverlappingLid(spec) && wallMargin < overlapLidRimInsetMm(spec) + overlapRimWallMm(spec) - binWallThicknessMm(spec)) {
     issues.push({ code: "lid-rim-collision", severity: "error", cutoutIds: [cutout.id],
       message: `“${label}” cuts into the inset lid rim. Move it farther from the edge.` });
-  } else if (hasStackingLip(spec) && wallMargin < LIP_INTRUSION_MM) {
+  } else if (hasStackingLip(spec) && wallMargin < Math.max(0, STACKING_LIP_DEPTH - binWallThicknessMm(spec))) {
     issues.push({
       code: "lip-collision",
       severity: "warning",
@@ -578,10 +575,10 @@ function validateFingerHoleAgainstBin(
       fingerHoleIds: [hole.id],
       message: `${label} cuts into the bin wall.`,
     });
-  } else if (hasOverlappingLid(spec) && wallMargin < LID_RIM_INSET_MM + LID_RIM_WALL_MM - D_WALL) {
+  } else if (hasOverlappingLid(spec) && wallMargin < overlapLidRimInsetMm(spec) + overlapRimWallMm(spec) - binWallThicknessMm(spec)) {
     issues.push({ code: "lid-rim-collision", severity: "error", fingerHoleIds: [hole.id],
       message: `${label} cuts into the inset lid rim. Move it farther from the edge.` });
-  } else if (hasStackingLip(spec) && wallMargin < LIP_INTRUSION_MM) {
+  } else if (hasStackingLip(spec) && wallMargin < Math.max(0, STACKING_LIP_DEPTH - binWallThicknessMm(spec))) {
     issues.push({
       code: "finger-hole-lip-collision",
       severity: "warning",
@@ -626,9 +623,9 @@ function touchesLidSupport(spec: BinSpec, outline: Outline, allowance: number): 
   for (const sx of [-1, 1]) for (const sy of [-1, 1]) {
     const x = sx * halfW;
     const y = sy * halfL;
-    const pad: Ring = [{ x, y }, { x: x - sx * LID_PAD_EXTENT_MM, y },
-      { x: x - sx * LID_PAD_EXTENT_MM, y: y - sy * LID_PAD_EXTENT_MM },
-      { x, y: y - sy * LID_PAD_EXTENT_MM }];
+    const pad: Ring = [{ x, y }, { x: x - sx * lidPadExtentMm(spec), y },
+      { x: x - sx * lidPadExtentMm(spec), y: y - sy * lidPadExtentMm(spec) },
+      { x, y: y - sy * lidPadExtentMm(spec) }];
     for (const shape of outline) {
       if (shape.holes.some(hole => ringInsideBoundary(pad, hole) && ringSeparation(pad, hole) > Math.max(0, allowance))) continue;
       if (shape.outer.some(point => pointInRing(pad, point)) || pad.some(point => pointInRing(shape.outer, point))) return true;

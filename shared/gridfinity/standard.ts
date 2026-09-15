@@ -210,6 +210,11 @@ export const STACKING_LIP_SUPPORT_HEIGHT_MM = 3.8; // SUPPORT_HEIGHT + DEPTH
 /** Minimum wall thickness of a bin. */
 export const D_WALL = 0.95;
 
+/** Legacy callers retain 0.95 mm; new parsed designs default to 1.2 mm. */
+export function binWallThicknessMm(spec: { wallThicknessMm?: number }): number {
+  return spec.wallThicknessMm ?? D_WALL;
+}
+
 /** Interior fillet radius (`BASE_TOP_RADIUS − D_WALL`). */
 export const R_F2 = 2.8;
 

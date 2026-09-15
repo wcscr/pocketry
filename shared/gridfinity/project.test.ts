@@ -44,6 +44,45 @@ const VALID = {
 };
 
 describe("parseProjectDoc", () => {
+  it("preserves old overlapping wall thickness in the design and every history step", () => {
+    const { lidWallThicknessMm: _wall, wallThicknessMm: _shared, ...oldSpec } = VALID.spec;
+    const inset = { ...oldSpec, magneticLid: true, magneticLidStyle: "inset" };
+    const overlap = { ...inset, magneticLidStyle: "overlap" };
+    const previous = { ...VALID, schemaVersion: 19, spec: overlap,
+      history: { index: 1, stack: [inset, overlap].map(spec => ({ label: "Change lid", doc: { spec, cutouts: VALID.cutouts, fingerHoles: [] } })) } };
+    const original = JSON.stringify(previous);
+    const migrated = parseProjectDoc(previous)!;
+    expect(migrated.spec.lidWallThicknessMm).toBe(0.8);
+    expect(migrated.history!.stack.map(entry => entry.doc.spec.lidWallThicknessMm)).toEqual([undefined, 0.8]);
+    expect(migrated.spec.wallThicknessMm).toBe(0.95);
+    expect(migrated.history!.stack.every(entry => entry.doc.spec.wallThicknessMm === 0.95)).toBe(true);
+    expect(JSON.stringify(previous)).toBe(original);
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(migrated)))).toEqual(migrated);
+  });
+
+  it("preserves a saved lid-only thickness before the shared control was introduced", () => {
+    const { wallThicknessMm: _wall, ...oldSpec } = VALID.spec;
+    const previous = { ...VALID, schemaVersion: 20, spec: { ...oldSpec, magneticLid: true,
+      magneticLidStyle: "overlap", lidWallThicknessMm: 1.6 } };
+    const migrated = parseProjectDoc(previous)!;
+    expect(migrated.spec).toMatchObject({ wallThicknessMm: 0.95, lidWallThicknessMm: 1.6 });
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(migrated)))).toEqual(migrated);
+  });
+
+  it("rejects malformed legacy wall values and fractional schema versions", () => {
+    expect(parseProjectDoc({ ...VALID, schemaVersion: 19, spec: { ...VALID.spec, wallThicknessMm: null } })).toBeNull();
+    expect(parseProjectDoc({ ...VALID, schemaVersion: 19.5 })).toBeNull();
+  });
+
+  it("defaults new shared walls to 1.2 mm and round-trips custom thickness", () => {
+    expect(VALID.spec.wallThicknessMm).toBe(1.2);
+    const thick = { ...VALID, spec: { ...VALID.spec, magneticLid: true, magneticLidStyle: "overlap", wallThicknessMm: 4 } };
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(thick)))?.spec.wallThicknessMm).toBe(4);
+    for (const wallThicknessMm of [0.6, 4.2, Infinity, NaN]) {
+      expect(parseProjectDoc({ ...thick, spec: { ...thick.spec, wallThicknessMm } })).toBeNull();
+    }
+  });
+
   it("migrates v17 lid defaults in the visible design and undo history without changing the source", () => {
     const { magneticLid: _removed, magneticLidStyle: _style, ...oldSpec } = VALID.spec;
     const previous = { ...VALID, schemaVersion: 17, spec: oldSpec,
@@ -82,7 +121,7 @@ describe("parseProjectDoc", () => {
     const original = JSON.stringify(airdusterV9);
     const doc = parseProjectDoc(airdusterV9);
     const { liteBase: _removed, ...spec } = airdusterV9.spec;
-    expect(doc).toEqual({ ...airdusterV9, spec: { ...spec, flatBottom: false, magneticLid: false, magneticLidStyle: "inset", magneticLidTop: "flat", lidMagnetHoles: true, lidMagnetCrushRibs: false, lidFit: "lift-off", lidFitAdjustmentMm: 0 }, schemaVersion: PROJECT_SCHEMA_VERSION });
+    expect(doc).toEqual({ ...airdusterV9, spec: { ...spec, flatBottom: false, magneticLid: false, magneticLidStyle: "inset", magneticLidTop: "flat", lidMagnetHoles: true, lidMagnetCrushRibs: false, lidFit: "lift-off", lidFitAdjustmentMm: 0, wallThicknessMm: 0.95 }, schemaVersion: PROJECT_SCHEMA_VERSION });
     expect(doc!.shapes).toHaveLength(7);
     expect(doc!.cutouts).toHaveLength(4);
     expect(doc!.fingerHoles).toHaveLength(2);

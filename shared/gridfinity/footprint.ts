@@ -3,9 +3,8 @@ import type { Point, Ring } from "../geometry/types";
 import {
   BASE_GAP_MM,
   BASE_TOP_RADIUS,
-  D_WALL,
+  binWallThicknessMm,
   gridPitchMm,
-  R_F2,
   type GridPitch,
 } from "./standard";
 
@@ -31,6 +30,7 @@ export interface FootprintSpec {
   gridX: number;
   gridY: number;
   gridPitch?: GridPitch;
+  wallThicknessMm?: number;
   footprint?: BinFootprint;
 }
 
@@ -324,9 +324,9 @@ export function footprintOuterRingMm(spec: FootprintSpec, circularSegments = 64)
 export function footprintInteriorRingMm(spec: FootprintSpec, circularSegments = 64): Ring {
   return roundedOffsetRing(
     spec,
-    BASE_GAP_MM / 2 + D_WALL,
-    R_F2,
-    BASE_TOP_RADIUS + D_WALL,
+    BASE_GAP_MM / 2 + binWallThicknessMm(spec),
+    Math.max(0, BASE_TOP_RADIUS - binWallThicknessMm(spec)),
+    BASE_TOP_RADIUS + binWallThicknessMm(spec),
     circularSegments,
   );
 }

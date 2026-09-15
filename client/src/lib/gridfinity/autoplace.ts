@@ -11,10 +11,11 @@ import {
 import {
   binFootprintMm,
   D_DIV,
-  D_WALL,
+  binWallThicknessMm,
   STACKING_LIP_DEPTH,
   type GridPitch,
 } from "@shared/gridfinity/standard";
+import { hasOverlappingLid, overlapLidRimInsetMm, overlapRimWallMm } from "@shared/gridfinity/magnetic-lid";
 import { maxGridCells, type BinSpec } from "@shared/gridfinity/types";
 import {
   canonicalCells,
@@ -48,8 +49,14 @@ const ITEM_GAP_MM = D_DIV + 0.01;
  * the stacking lip's intrusion when present, and 1 mm of slack so a freshly
  * placed shape starts clear of the lip-collision warning band.
  */
-export function placementInsetMm(lip: BinSpec["lip"], clearanceMm = 0): number {
-  return D_WALL + clearanceMm + (lip === "standard" ? STACKING_LIP_DEPTH - D_WALL : 0) + 1;
+type PlacementWalls = Pick<BinSpec, "wallThicknessMm" | "lidWallThicknessMm" | "magneticLid" | "magneticLidStyle">;
+
+export function placementInsetMm(lip: BinSpec["lip"], clearanceMm = 0, spec?: PlacementWalls): number {
+  const wall = binWallThicknessMm(spec ?? {});
+  const rim = spec && hasOverlappingLid(spec)
+    ? overlapLidRimInsetMm(spec) + overlapRimWallMm(spec)
+    : lip === "standard" ? STACKING_LIP_DEPTH : wall;
+  return Math.max(wall, rim) + clearanceMm + 1;
 }
 
 /** Anything with a footprint the packer can shelve. */
@@ -203,11 +210,12 @@ export function autoPlaceFresh(
   shapes: readonly TracedShape[],
   lip: BinSpec["lip"],
   gridPitch: GridPitch = "full",
+  walls?: PlacementWalls,
 ): AutoPlaceResult {
   if (shapes.length === 0) {
     return { cutouts: [], gridX: 1, gridY: 1, overflow: false };
   }
-  const inset = placementInsetMm(lip);
+  const inset = placementInsetMm(lip, 0, walls);
   const byId = new Map(shapes.map((shape) => [shape.id, shape]));
   const targets = shapeTargets(shapes);
 
@@ -286,6 +294,7 @@ function existingBounds(
 }
 
 export interface AutoPlaceIncrementalOptions {
+  walls?: PlacementWalls;
   keepBinSize?: boolean;
   lip: BinSpec["lip"];
   gridPitch?: GridPitch;
@@ -308,14 +317,14 @@ export function autoPlaceIncremental(
   const occupied = existingBounds(options.existing, options.shapesById);
   if (!occupied) {
     if (options.keepBinSize) {
-      const interior = interiorMm(options, placementInsetMm(options.lip), options.gridPitch);
+      const interior = interiorMm(options, placementInsetMm(options.lip, 0, options.walls), options.gridPitch);
       const block = shelfPack(shapeTargets(shapes), interior.widthMm);
       const byId = new Map(shapes.map((shape) => [shape.id, shape]));
       return { cutouts: block.items.map((item) => toPlacement(item, byId, 0, 0)),
         gridX: options.gridX, gridY: options.gridY,
         overflow: block.widthMm > interior.widthMm || block.heightMm > interior.heightMm };
     }
-    const fresh = autoPlaceFresh(shapes, options.lip, options.gridPitch);
+    const fresh = autoPlaceFresh(shapes, options.lip, options.gridPitch, options.walls);
     return {
       ...fresh,
       gridX: Math.max(fresh.gridX, options.gridX),
@@ -331,7 +340,7 @@ export function autoPlaceIncremental(
     };
   }
 
-  const inset = placementInsetMm(options.lip);
+  const inset = placementInsetMm(options.lip, 0, options.walls);
   const byId = new Map(shapes.map((shape) => [shape.id, shape]));
   const targets = shapeTargets(shapes);
 
@@ -396,6 +405,7 @@ export function fitLayoutToPlacements(
   lip: BinSpec["lip"],
   gridPitch: GridPitch = "full",
   fingerHoles: readonly FingerHole[] = [],
+  walls?: PlacementWalls,
 ): {
   cutouts: CutoutPlacement[];
   fingerHoles: FingerHole[];
@@ -413,7 +423,7 @@ export function fitLayoutToPlacements(
   }
 
   // Cutter bounds already include each pocket's clearance and top round.
-  const inset = placementInsetMm(lip, 0);
+  const inset = placementInsetMm(lip, 0, walls);
   const centreX = (bounds.minX + bounds.maxX) / 2;
   const centreY = (bounds.minY + bounds.maxY) / 2;
   const halfWNeeded = (bounds.maxX - bounds.minX) / 2 + inset;
@@ -573,6 +583,7 @@ export function fitFootprintToPlacements(
     spec.lip,
     spec.gridPitch,
     fingerHoles,
+    spec,
   );
   const fittedSpec = parseBinSpec({
     ...spec,
@@ -614,6 +625,7 @@ export function fitRectangularBinToPlacements(
       spec.lip,
       spec.gridPitch,
       fingerHoles,
+      spec,
     ),
     footprint: { kind: "rectangle" },
   };
@@ -653,7 +665,7 @@ export function autoArrangeLayout(
       item.heightMm +
       2 * pocketLayoutAllowanceMm(item.cutout),
   }));
-  const inset = placementInsetMm(lip);
+  const inset = placementInsetMm(lip, 0, baseSpec);
   const fixedHoleBounds = existingBounds([], shapesById, fingerHoles);
   const containsFixedHoles = (widthMm: number, heightMm: number): boolean =>
     !fixedHoleBounds ||

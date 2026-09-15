@@ -698,6 +698,15 @@ export function BinControlsPanel({
           defaultOpen={false}
           className="scroll-mt-16"
         >
+          <MmSlider
+            label="Wall thickness" value={spec.wallThicknessMm} min={0.8} max={4} step={0.05}
+            hint={spec.magneticLid && spec.magneticLidStyle === "overlap"
+              ? spec.lidWallThicknessMm !== undefined
+                ? "Saved wall sizes preserved. Adjust to link the bin, inner rim, and lid skirt; reprint both parts."
+                : `Each wall: bin, inner rim, and lid skirt. ${(2 * spec.wallThicknessMm + 0.3).toFixed(1)} mm total across the overlap, including clearance. Reprint both parts after changing.`
+              : "Thicker walls are sturdier and leave less interior space."}
+            onChange={(wallThicknessMm, transient) => patchSpec({ wallThicknessMm, lidWallThicknessMm: undefined }, transient)}
+          />
           <FeatureSwitch
             label="Stacking lip"
             description={spec.magneticLid ? spec.magneticLidStyle === "overlap" ? "Replaced by the inset lid rim" : "Locates the inset lid" : spec.flatBottom ? "Receives a Gridfinity bin on top" : "Lets another bin stack on top"}

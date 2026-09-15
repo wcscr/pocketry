@@ -13,7 +13,8 @@ import {
   binFootprintMm,
   binHeightMm,
   binTotalHeightMm,
-  D_WALL,
+  binWallThicknessMm,
+  BASE_TOP_RADIUS,
   R_F2,
   hasStackingLip,
   infillTopAllowanceMm,
@@ -1066,19 +1067,19 @@ export function resolvePocketDepth(
 export interface BinInterior {
   widthMm: number;
   lengthMm: number;
-  /** Corner radius of the interior boundary (R_F2). */
+  /** Corner radius of the interior boundary after the wall inset. */
   cornerRadiusMm: number;
 }
 
 type GridFootprintSpec = Pick<BinSpec, "gridX" | "gridY"> &
-  Partial<Pick<BinSpec, "gridPitch">> & { footprint?: BinFootprint };
+  Partial<Pick<BinSpec, "gridPitch" | "wallThicknessMm">> & { footprint?: BinFootprint };
 
 /** The cavity footprint the pockets must stay inside. */
 export function binInteriorMm(spec: GridFootprintSpec): BinInterior {
   return {
-    widthMm: binFootprintMm(spec.gridX, spec.gridPitch) - 2 * D_WALL,
-    lengthMm: binFootprintMm(spec.gridY, spec.gridPitch) - 2 * D_WALL,
-    cornerRadiusMm: R_F2,
+    widthMm: binFootprintMm(spec.gridX, spec.gridPitch) - 2 * binWallThicknessMm(spec),
+    lengthMm: binFootprintMm(spec.gridY, spec.gridPitch) - 2 * binWallThicknessMm(spec),
+    cornerRadiusMm: Math.max(0, BASE_TOP_RADIUS - binWallThicknessMm(spec)),
   };
 }
 
