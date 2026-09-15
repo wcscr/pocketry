@@ -11,6 +11,17 @@ adapts. Transitive dependencies are not enumerated here; their notices remain
 with their packages. Exact npm versions are recorded in package-lock.json.
 
 ================================================================================
+Sugarcreek Research logo — project-owned artwork
+================================================================================
+
+Copyright (c) 2026 Sugarcreek Research, LLC.
+
+`client/public/sugarcreek-research-logo.png` is the unmodified
+`SimpleSugarcreekResearchLogo-Black on Transparent.png` supplied by Will Cobb
+for use beside the Pocketry title, linking to https://sugarcreekresearch.com.
+Permission: supplied by the owner for use in Pocketry's header branding.
+
+================================================================================
 manifold-3d — Apache License 2.0
 ================================================================================
 

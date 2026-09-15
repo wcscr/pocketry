@@ -17,6 +17,9 @@ import { cn } from "@/lib/utils";
 
 import { WORKSPACES } from "./workspaces";
 
+const BRAND_FONT_FAMILY =
+  'Rockwell, "American Typewriter", "Courier New", ui-serif, serif';
+
 export interface AppHeaderProps {
   panelOpen: boolean;
   onPanelOpenChange: (open: boolean) => void;
@@ -24,7 +27,7 @@ export interface AppHeaderProps {
 }
 
 /**
- * The single row above every workspace: wordmark, workspace nav, and the
+ * The header above every workspace: branding, workspace nav, and the
  * controls that do not belong to any one canvas.
  *
  * The panel toggle lives here rather than in the panel itself because
@@ -41,26 +44,47 @@ export function AppHeader({
 
   return (
     <>
-      <Link
-        href="/"
-        aria-label="Pocketry home"
-        className="group flex flex-col items-center rounded-sm leading-none hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-      >
-        <span className="text-[9px] font-medium tracking-wide text-muted-foreground/70 line-through decoration-muted-foreground/60 group-hover:text-muted-foreground">
-          ToolTrace
-        </span>
-        <span
-          className="text-base font-semibold tracking-[-0.015em]"
-          style={{
-            fontFamily:
-              'Rockwell, "American Typewriter", "Courier New", ui-serif, serif',
-          }}
+      <div className="flex shrink-0 items-center">
+        <div className="flex gap-2 [align-items:last_baseline]">
+          <Link
+            href="/"
+            aria-label="Pocketry home"
+            className="group flex shrink-0 flex-col items-center rounded-sm leading-none hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            <span className="text-[9px] font-medium tracking-wide text-muted-foreground/70 line-through decoration-muted-foreground/60 group-hover:text-muted-foreground">
+              ToolTrace
+            </span>
+            <span
+              className="text-base font-semibold tracking-[-0.015em]"
+              style={{ fontFamily: BRAND_FONT_FAMILY }}
+            >
+              Pocketry
+            </span>
+          </Link>
+          <span
+            className="text-[10px] italic text-muted-foreground/80"
+            style={{ fontFamily: BRAND_FONT_FAMILY }}
+          >
+            by
+          </span>
+        </div>
+        <a
+          href="https://sugarcreekresearch.com"
+          target="_blank"
+          rel="noreferrer"
+          className="shrink-0 rounded-sm transition-opacity hover:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
-          Pocketry
-        </span>
-      </Link>
+          <img
+            src="/sugarcreek-research-logo.png"
+            alt="Sugarcreek Research, LLC"
+            width={32}
+            height={32}
+            className="h-8 w-8 object-contain dark:invert"
+          />
+        </a>
+      </div>
 
-      <nav className="ml-4 flex items-center gap-1">
+      <nav className="order-last flex w-full items-center gap-1 sm:order-none sm:ml-4 sm:w-auto">
         {WORKSPACES.map((workspace) => (
           <WorkspaceLink key={workspace.path} path={workspace.path}>
             <workspace.icon className="h-4 w-4" aria-hidden />
@@ -69,7 +93,7 @@ export function AppHeader({
         ))}
       </nav>
 
-      <div className="ml-auto flex items-center gap-1">
+      <div className="ml-auto flex shrink-0 items-center gap-1">
         {!isAbout ? (
           <Tooltip>
             <TooltipTrigger asChild>
