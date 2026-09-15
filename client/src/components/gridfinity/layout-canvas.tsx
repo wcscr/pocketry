@@ -1,3 +1,5 @@
+import { LID_PAD_EXTENT_MM, lidMagnetCenters, magneticLidError } from "@shared/gridfinity/magnetic-lid";
+import { MAGNET_HOLE_RADIUS } from "@shared/gridfinity/standard";
 import {
   Ruler,
   Spline,
@@ -354,7 +356,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
   );
   const boundaryCutouts = useMemo(
     () => new Set(layoutIssues
-      .filter((issue) => ["out-of-bounds", "wall-breach", "lip-collision"].includes(issue.code))
+      .filter((issue) => ["out-of-bounds", "wall-breach", "lip-collision", "lid-rim-collision"].includes(issue.code))
       .flatMap((issue) => issue.cutoutIds ?? [])),
     [layoutIssues],
   );
@@ -1329,6 +1331,23 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
             vectorEffect="non-scaling-stroke"
           />
           {/* 42 mm cell boundaries. */}
+          {spec.magneticLid && spec.lidMagnetHoles && !magneticLidError(spec) && (
+            <g pointerEvents="none" data-testid="lid-support-regions">
+              <defs><clipPath id="lid-support-outline"><path d={ringToCanvasPath(outerFootprint, spec)} /></clipPath></defs>
+              <g clipPath="url(#lid-support-outline)">
+                {[0, widthMm - LID_PAD_EXTENT_MM].flatMap(x => [0, lengthMm - LID_PAD_EXTENT_MM].map(y => (
+                  <rect key={`${x}-${y}`} x={x} y={y} width={LID_PAD_EXTENT_MM} height={LID_PAD_EXTENT_MM}
+                    className="fill-amber-500/15 stroke-amber-600/60" strokeWidth={1} vectorEffect="non-scaling-stroke">
+                    <title>Lid magnet support — keep pockets clear</title>
+                  </rect>
+                )))}
+              </g>
+              {lidMagnetCenters(spec).map((point, index) => {
+                const p = binToCanvas(point, spec);
+                return <circle key={index} cx={p.x} cy={p.y} r={MAGNET_HOLE_RADIUS} fill="none" className="stroke-amber-600" strokeWidth={1} vectorEffect="non-scaling-stroke" />;
+              })}
+            </g>
+          )}
           {gridLines.map((line, index) => (
             <line
               key={index}

@@ -1,5 +1,4 @@
 import Module, { type ManifoldToplevel } from "manifold-3d";
-import wasmUrl from "manifold-3d/manifold.wasm?url";
 
 import { Arena } from "./arena";
 
@@ -30,7 +29,9 @@ const isNodeRuntime =
  * the Vite-emitted asset URL; Node (Vitest) resolves a real filesystem path.
  */
 async function resolveWasmLocation(): Promise<string> {
-  if (!isNodeRuntime) return wasmUrl;
+  // Defer Vite's asset import so command-line geometry exports can import
+  // shared helpers without Node trying to execute the WASM as an ES module.
+  if (!isNodeRuntime) return (await import("manifold-3d/manifold.wasm?url")).default;
 
   // Held in a variable so bundlers cannot statically follow the specifier
   // into the browser build.

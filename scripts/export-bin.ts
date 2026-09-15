@@ -25,6 +25,8 @@ import { extractMeshData } from "../client/src/lib/mesh/mesh-data";
 import { writeThreeMf } from "../client/src/lib/mesh/threemf";
 import { parseBinSpec, type BinSpecInput } from "../shared/gridfinity/types";
 import { validateBinSpec } from "../shared/gridfinity/validate";
+import { buildMagneticLid, magneticLidForPrint } from "../client/src/lib/gridfinity/magnetic-lid";
+import { PROJECT_SCHEMA_VERSION } from "../shared/gridfinity/project";
 
 interface CliOptions {
   gridX: number;
@@ -32,12 +34,15 @@ interface CliOptions {
   heightUnits: number;
   fill: "none" | "solid";
   lip: "standard" | "none";
+  magneticLid: boolean;
+  magneticLidStyle: "overlap" | "inset";
+  magneticLidTop: "flat" | "stacking";
   outDir: string;
 }
 
 function usage(): never {
   console.error(
-    "Usage: npm run export:bin -- [GRIDXxGRIDYxUNITS] [--fill solid|none] [--no-lip] [--out DIR]",
+    "Usage: npm run export:bin -- [GRIDXxGRIDYxUNITS] [--fill solid|none] [--no-lip] [--magnetic-lid] [--lid-style overlap|inset] [--lid-top flat|stacking] [--out DIR]",
   );
   process.exit(1);
 }
@@ -49,6 +54,9 @@ function parseArgs(argv: string[]): CliOptions {
     heightUnits: 6,
     fill: "none",
     lip: "standard",
+    magneticLid: false,
+    magneticLidStyle: "inset",
+    magneticLidTop: "flat",
     outDir: "exports",
   };
   for (let i = 0; i < argv.length; i++) {
@@ -59,6 +67,18 @@ function parseArgs(argv: string[]): CliOptions {
       options.fill = value;
     } else if (arg === "--no-lip") {
       options.lip = "none";
+    } else if (arg === "--magnetic-lid") {
+      options.magneticLid = true;
+    } else if (arg === "--lid-style") {
+      const style = argv[++i];
+      if (style !== "overlap" && style !== "inset") usage();
+      options.magneticLidStyle = style;
+      options.magneticLid = true;
+    } else if (arg === "--lid-top") {
+      const top = argv[++i];
+      if (top !== "flat" && top !== "stacking") usage();
+      options.magneticLidTop = top;
+      options.magneticLid = true;
     } else if (arg === "--out") {
       options.outDir = argv[++i] ?? usage();
     } else if (/^\d+x\d+x\d+$/i.test(arg)) {
@@ -82,6 +102,9 @@ async function main(): Promise<void> {
     heightUnits: cli.heightUnits,
     fill: cli.fill,
     lip: cli.lip,
+    magneticLid: cli.magneticLid,
+    magneticLidStyle: cli.magneticLidStyle,
+    magneticLidTop: cli.magneticLidTop,
   };
   const spec = parseBinSpec(specInput);
 
@@ -146,6 +169,14 @@ async function main(): Promise<void> {
       `ToolTrace Gridfinity bin ${label}`,
     );
     writeFileSync(`${baseName}.stl`, Buffer.from(stl));
+    if (spec.magneticLid) {
+      const lid = magneticLidForPrint(kernel, buildMagneticLid(kernel, spec, EXPORT_QUALITY.circularSegments), spec);
+      const lidMesh = extractMeshData(kernel, lid);
+      writeFileSync(`${baseName}-lid.stl`, Buffer.from(writeBinarySTL(lidMesh, "Pocketry magnetic lid")));
+      writeFileSync(`${baseName}-lid.3mf`, writeThreeMf([{ name: "Magnetic lid", mesh: lidMesh }]));
+      writeFileSync(`${baseName}.pocketry.json`, JSON.stringify({ schemaVersion: PROJECT_SCHEMA_VERSION, name: "Magnetic lid fit sample", spec, shapes: [], cutouts: [], fingerHoles: [] }, null, 2));
+      console.log(`  wrote matching lid STL/3MF and editable project`);
+    }
     console.log(`  wrote ${baseName}.stl (${(stl.byteLength / 1024).toFixed(0)} KiB)`);
   } finally {
     arena.dispose();

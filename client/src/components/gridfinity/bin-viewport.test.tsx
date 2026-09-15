@@ -17,6 +17,7 @@ vi.mock("@/hooks/use-element-size", () => ({
   useElementSize: () => [vi.fn(), { width: 800, height: 600 }],
 }));
 
+import { BoxGeometry } from "three";
 import { BinViewport } from "./bin-viewport";
 import type { Outline } from "@shared/geometry/types";
 
@@ -33,6 +34,7 @@ function renderViewport(
   hasPocketFloor = false,
   hasStackingRim = false,
   measurementOutlines: readonly Outline[] = [],
+  lidGeometry: BoxGeometry | null = null,
 ): HTMLElement {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   const container = document.createElement("div");
@@ -42,6 +44,7 @@ function renderViewport(
     root.render(
       <BinViewport
         geometry={null}
+        lidGeometry={lidGeometry}
         hasPocketFloor={hasPocketFloor}
         hasStackingRim={hasStackingRim}
         pocketFloorColor="#123456"
@@ -114,4 +117,18 @@ it("offers a top-plane ruler in 3D and recommends Layout for precision", () => {
   expect(status?.textContent).toContain(
     "For the most accurate dimension check, use the ruler in Layout.",
   );
+});
+
+
+it("keeps the compact raised, closed, and hidden lid controls", () => {
+  const lid = new BoxGeometry(40, 40, 7);
+  lid.computeBoundingBox();
+  const container = renderViewport(false, 1, false, false, [], lid);
+  for (const mode of ["closed", "hidden", "raised"]) {
+    const button = container.querySelector<HTMLButtonElement>(`[data-testid="button-lid-${mode}"]`)!;
+    React.act(() => button.click());
+    expect(button.getAttribute("aria-pressed")).toBe("true");
+  }
+  expect(container.querySelector('[aria-label="Show parts"]')).toBeNull();
+  lid.dispose();
 });

@@ -40,6 +40,8 @@ processing, project storage, and model generation kept on the user's device.
   handles. Resizing the bin limits oversized openings in the same undo step. Existing oversized saves
   remain unchanged on opening and are flagged until edited; wall/floor print
   validation still applies, and mouth-size limits are before edge rounding.
+- Add [lids](docs/magnetic-lids.md) in overlapping or inset styles, with flat or
+  stacking tops, optional magnets using the base magnet size, and separate STL/3MF exports.
 - Pocket properties stay in the Pockets section. Click a pocket on the canvas
   or choose its row in the compact list to open its settings there. On phones, tapping opens
   the controls drawer; dragging keeps the layout available.

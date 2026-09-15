@@ -44,6 +44,20 @@ const VALID = {
 };
 
 describe("parseProjectDoc", () => {
+  it("migrates v17 lid defaults in the visible design and undo history without changing the source", () => {
+    const { magneticLid: _removed, magneticLidStyle: _style, ...oldSpec } = VALID.spec;
+    const previous = { ...VALID, schemaVersion: 17, spec: oldSpec,
+      history: { index: 0, stack: [{ label: "Loaded", doc: { spec: oldSpec, cutouts: VALID.cutouts, fingerHoles: [] } }] } };
+    const original = JSON.stringify(previous);
+    const migrated = parseProjectDoc(previous);
+    expect(migrated?.spec.magneticLid).toBe(false);
+    expect(migrated?.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
+    expect(migrated?.history?.stack[0].doc.spec.magneticLid).toBe(false);
+    expect(JSON.stringify(previous)).toBe(original);
+    const enabled = parseProjectDoc({ ...migrated, history: undefined, spec: { ...migrated!.spec, magneticLid: true } });
+    expect(enabled?.spec.magneticLid).toBe(true);
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(enabled)))).toEqual(enabled);
+  });
   it("preserves finger access names through save and reload alongside unnamed legacy holes", () => {
     const doc = parseProjectDoc({
       ...VALID,
@@ -68,7 +82,7 @@ describe("parseProjectDoc", () => {
     const original = JSON.stringify(airdusterV9);
     const doc = parseProjectDoc(airdusterV9);
     const { liteBase: _removed, ...spec } = airdusterV9.spec;
-    expect(doc).toEqual({ ...airdusterV9, spec: { ...spec, flatBottom: false }, schemaVersion: PROJECT_SCHEMA_VERSION });
+    expect(doc).toEqual({ ...airdusterV9, spec: { ...spec, flatBottom: false, magneticLid: false, magneticLidStyle: "inset", magneticLidTop: "flat", lidMagnetHoles: true, lidMagnetCrushRibs: false, lidFit: "lift-off", lidFitAdjustmentMm: 0 }, schemaVersion: PROJECT_SCHEMA_VERSION });
     expect(doc!.shapes).toHaveLength(7);
     expect(doc!.cutouts).toHaveLength(4);
     expect(doc!.fingerHoles).toHaveLength(2);
@@ -441,4 +455,42 @@ it("migrates v14 with sharp slot corners and round-trips explicit and retained c
     expect(doc?.fingerHoles[0]).toMatchObject({ kind, cornerRoundMm: 8, lengthMm: 6, depthMm: 1 });
     expect(parseProjectDoc(JSON.parse(JSON.stringify(doc)))).toEqual(doc);
   }
+});
+
+
+it("preserves v18 inset lids and both styles in current project history", () => {
+  const { magneticLidStyle: _style, ...v18Spec } = VALID.spec;
+  const old = parseProjectDoc({ ...VALID, schemaVersion: 18, spec: { ...v18Spec, magneticLid: true } })!;
+  expect(old.spec.magneticLidStyle).toBe("inset");
+  const overlap = { ...old.spec, magneticLidStyle: "overlap" as const };
+  const doc = { ...old, spec: overlap, history: { stack: [
+    { label: "Inset", doc: { spec: old.spec, cutouts: old.cutouts, fingerHoles: old.fingerHoles } },
+    { label: "Overlap", doc: { spec: overlap, cutouts: old.cutouts, fingerHoles: old.fingerHoles } },
+  ], index: 1 } };
+  const parsed = parseProjectDoc(doc);
+  expect(parsed?.spec.magneticLidStyle).toBe("overlap");
+  expect(parsed?.history?.stack.map(entry => entry.doc.spec.magneticLidStyle)).toEqual(["inset", "overlap"]);
+});
+
+
+it("round-trips a stacking lid without magnets and independent crush rib preferences", () => {
+  const doc = parseProjectDoc({ ...VALID, spec: { ...VALID.spec, magneticLid: true, magneticLidStyle: "overlap", magneticLidTop: "stacking", lidMagnetHoles: false, lidMagnetCrushRibs: true, magnetHoles: true, magnetCrushRibs: false } })!;
+  expect(parseProjectDoc(JSON.parse(JSON.stringify(doc)))?.spec).toEqual(doc.spec);
+  expect(doc.spec).toMatchObject({ lidMagnetHoles: false, lidMagnetCrushRibs: true, magnetCrushRibs: false });
+});
+
+it("defaults older lid fits and preserves tuning through project and history round-trips", () => {
+  const { lidFit: _fit, lidFitAdjustmentMm: _adjustment, ...oldSpec } = VALID.spec;
+  const old = parseProjectDoc({ ...VALID, spec: { ...oldSpec, magneticLid: true, lidMagnetHoles: false } })!;
+  expect(old.spec).toMatchObject({ lidFit: "lift-off", lidFitAdjustmentMm: 0 });
+  const tuned = { ...old.spec, lidFit: "friction" as const, lidFitAdjustmentMm: 0.05 };
+  const doc = { ...old, spec: tuned, history: { stack: [
+    { label: "Easy lift-off", doc: { spec: old.spec, cutouts: old.cutouts, fingerHoles: old.fingerHoles } },
+    { label: "Tune friction fit", doc: { spec: tuned, cutouts: old.cutouts, fingerHoles: old.fingerHoles } },
+  ], index: 1 } };
+  expect(parseProjectDoc(JSON.parse(JSON.stringify(doc)))).toEqual(doc);
+  for (const lidFitAdjustmentMm of [-0.15, 0.15, 0.025, Infinity]) {
+    expect(parseProjectDoc({ ...old, spec: { ...old.spec, lidFitAdjustmentMm } })).toBeNull();
+  }
+  expect(parseProjectDoc({ ...old, spec: { ...old.spec, lidFit: "unknown" } })).toBeNull();
 });
