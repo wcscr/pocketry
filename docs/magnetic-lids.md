@@ -94,22 +94,38 @@ dimensions or physical qualification for Pocketry.
   These choices are independent of the underside settings.
 - Turning off lid magnet holes removes the holes and the bin's corner magnet
   supports, freeing those areas for pockets. The alignment rim remains.
-- Both use the base recess constants: **6.5 mm diameter × 2.4 mm depth**, for
-  the same magnets used underneath (nominally 2 mm thick). Crush ribs reuse
-  the base's eight-lobe press-fit bore; without ribs, glue the magnets.
+- **Magnet size** appears when underside or closure magnets are active. Enter
+  the magnet's actual **diameter** and **thickness** once; the dimensions apply
+  to every magnet. The default remains **6 × 2 mm**, producing the original
+  **6.5 × 2.4 mm** recess. Diameter is adjustable from 3 to 12 mm and thickness
+  from 1 to 5 mm. Each recess adds 0.5 mm diameter and 0.4 mm depth clearance.
+  Crush ribs retain eight lobes with 0.1 mm diametral interference at their tips;
+  the base and closure crush switches remain independent. Without ribs, glue
+  the magnets. Dormant size preferences do not alter a nonmagnetic lid.
+- Underside holes retain their standard mounting positions, so magnets wider
+  than 7.5 mm block export while base magnet holes are on. The fixed 7 mm base
+  keeps at least 1 mm above the pocket and its bridge layers. With screw holes
+  enabled, magnets must also be wider than the 3 mm screws.
 - Closure magnet centers start 7.75 mm inward from each original outer edge,
-  independent of socket pitch. Thick overlapping rims move both paired recesses
+  independent of socket pitch. Larger magnets and thick overlapping rims move both paired recesses
   inward together to retain at least 1.2 mm beside the bore. Corner supports grow
   accordingly from their original 12.2 mm extent and slope inward at 45 degrees. Recess floors retain 1.2 mm
   of material. Layout marks these supports in amber while closure holes are
   enabled; conflicting pockets or finger access block export. The geometry
   worker also checks actual cutter intersections.
+- Thicker magnets grow the corner supports downward and the lid cap upward
+  as needed to retain closed 1.2 mm recess floors. The magnet mating face and
+  lid seating clearance stay fixed. For example, 5 mm thick magnets require a
+  6.6 mm overlapping cap; the default inset cap already provides enough depth.
+  The top heights in the style table describe the default 6 × 2 mm magnets.
 - Rectangular footprints only. Gridfinity or flat bottoms; full, half, or
   quarter pitch, with the minimum width and length calculated from wall thickness
   and support size (27 mm at the default; 35 mm at 4 mm walls). Minimum bin height is 2u.
 
-Project schema v21 stores shared wall thickness along with lid style, top,
-closure settings, and fit. Older projects retain their 0.95 mm bin walls.
+Project schema v22 stores shared magnet size along with wall thickness, lid
+style, top, closure settings, and fit. Existing designs and undo history default
+to 6 × 2 mm magnets without changing their recesses. Projects from before v21
+retain their 0.95 mm bin walls.
 Older overlapping projects and every undo step retain the original 0.8 mm
 skirt and 1.2 mm inner rim (or their saved v20 skirt thickness). Editing the
 shared control links all three dimensions. This preserves previously printed

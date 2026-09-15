@@ -44,6 +44,7 @@ import {
 } from "./standard";
 import type { BinSpec } from "./types";
 import { resolvePocketSplit } from "./pocket-split";
+import { hasBaseMagnets, baseMagnetSizeError } from "./magnets";
 import { hasOverlappingLid, overlapLidRimInsetMm, overlapRimWallMm, lidPadExtentMm, magneticLidError } from "./magnetic-lid";
 
 /**
@@ -125,6 +126,8 @@ const FOOTPRINT_WARN_MM = 260;
 
 export function validateBinSpec(spec: BinSpec): ValidationResult {
   const issues: ValidationIssue[] = [];
+  const sizeError = hasBaseMagnets(spec) ? baseMagnetSizeError(spec) : null;
+  if (sizeError) issues.push({ code: "magnet-size-unavailable", severity: "error", message: sizeError });
   const lidError = magneticLidError(spec);
   if (lidError) issues.push({ code: "magnetic-lid-unavailable", severity: "error", message: lidError });
   const wallHeight = binWallHeightMm(spec.heightUnits);

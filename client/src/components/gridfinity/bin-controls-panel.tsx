@@ -1,3 +1,4 @@
+import { hasMagnets, magnetHoleRadiusMm, magnetHoleDepthMm } from "@shared/gridfinity/magnets";
 import {
   Box,
   ChevronDown,
@@ -791,7 +792,7 @@ export function BinControlsPanel({
             </div>
           )}
           {spec.magneticLid && spec.lidMagnetHoles && <p className="text-xs text-muted-foreground" data-testid="magnetic-lid-details">
-            Four pairs · ⌀6.5 × 2.4 mm recesses, same as the base.
+            Four pairs · ⌀{Number((2 * magnetHoleRadiusMm(spec)).toFixed(2))} × {Number(magnetHoleDepthMm(spec).toFixed(2))} mm recesses, same as the base.
             {spec.lidMagnetCrushRibs ? " Press-fit" : " Glue"} magnets with attracting faces paired.
             Keep pockets clear of the corners. Save the lid separately under Export.
             Check fit with a small print first.
@@ -802,7 +803,7 @@ export function BinControlsPanel({
                 label={spec.magneticLid ? "Base magnet holes" : "Magnet holes"}
                 description={
                   spec.gridPitch === "full"
-                    ? "⌀6.5 × 2.4 mm, four per cell"
+                    ? `⌀${Number((2 * magnetHoleRadiusMm(spec)).toFixed(2))} × ${Number(magnetHoleDepthMm(spec).toFixed(2))} mm, four per cell`
                     : "Available on the full 42 mm pitch"
                 }
                 checked={spec.magnetHoles}
@@ -830,6 +831,17 @@ export function BinControlsPanel({
               />
             </>
           )}
+
+          {hasMagnets(spec) && <div className="space-y-2 rounded-md border p-2.5" role="group" aria-label="Magnet size">
+            <Label className="text-xs">Magnet size</Label>
+            <p className="text-xs text-muted-foreground">One size for all magnets. Enter the magnet's actual dimensions.</p>
+            <MmSlider label="Magnet diameter" value={spec.magnetDiameterMm} min={3} max={12} step={0.1}
+              hint="The hole adds 0.5 mm diameter clearance. Crush ribs grip 0.1 mm inside the magnet diameter."
+              onChange={(magnetDiameterMm, transient) => patchSpec({ magnetDiameterMm }, transient)} />
+            <MmSlider label="Magnet thickness" value={spec.magnetThicknessMm} min={1} max={5} step={0.1}
+              hint="The recess adds 0.4 mm depth. Thicker magnets can increase lid thickness."
+              onChange={(magnetThicknessMm, transient) => patchSpec({ magnetThicknessMm }, transient)} />
+          </div>}
 
           <FeatureSwitch
             label="Flat bottom"

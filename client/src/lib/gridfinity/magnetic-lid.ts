@@ -1,7 +1,8 @@
 import type { Manifold, Vec3 } from "manifold-3d";
 import type { BinSpec } from "@shared/gridfinity/types";
-import { BASE_HEIGHT, BASE_BOTTOM_RADIUS, BASE_PROFILE_HEIGHT, BASE_TOP_RADIUS, STACKING_LIP_DEPTH, STACKING_LIP_LINE, binWallThicknessMm, MAGNET_HOLE_DEPTH, binFootprintMm, binHeightMm, baseBottomDimensionsMm } from "@shared/gridfinity/standard";
-import { INSET_LID_SKIRT_WALL_MM, overlapLidRimInsetMm, overlapLidWallMm, overlapRimWallMm, LID_OVERLAP_MM, LID_SHOULDER_GAP_MM, INSET_LID_CAP_BOTTOM_MM, hasOverlappingLid, hasFrictionLid, lidFitAdjustmentMm, LID_FRICTION_INTERFERENCE_MM, lidCapTopMm, lidBottomMm, LID_CLEARANCE_MM, LID_PAD_DEPTH_MM, lidPadExtentMm, lidMagnetCenters, magneticLidError } from "@shared/gridfinity/magnetic-lid";
+import { BASE_HEIGHT, BASE_BOTTOM_RADIUS, BASE_PROFILE_HEIGHT, BASE_TOP_RADIUS, STACKING_LIP_DEPTH, STACKING_LIP_LINE, binWallThicknessMm, binFootprintMm, binHeightMm, baseBottomDimensionsMm } from "@shared/gridfinity/standard";
+import { INSET_LID_SKIRT_WALL_MM, overlapLidRimInsetMm, overlapLidWallMm, overlapRimWallMm, LID_OVERLAP_MM, LID_SHOULDER_GAP_MM, INSET_LID_CAP_BOTTOM_MM, hasOverlappingLid, hasFrictionLid, lidFitAdjustmentMm, LID_FRICTION_INTERFERENCE_MM, lidCapTopMm, lidBottomMm, LID_CLEARANCE_MM, lidPadDepthMm, lidPadExtentMm, lidMagnetCenters, magneticLidError } from "@shared/gridfinity/magnetic-lid";
+import { magnetHoleDepthMm } from "@shared/gridfinity/magnets";
 import type { Kernel } from "@/lib/manifold/runtime";
 import { baseHoleCutter } from "./holes";
 import { roundedRectPolygon, baseProfilePolygon, type ProfilePolygon } from "./profiles";
@@ -22,7 +23,7 @@ export function buildLidSupports(kernel: Kernel, spec: BinSpec, segments: number
   const top = binHeightMm(spec.heightUnits);
   const halfW = binFootprintMm(spec.gridX, spec.gridPitch) / 2;
   const halfL = binFootprintMm(spec.gridY, spec.gridPitch) / 2;
-  const slopeTop = top - LID_PAD_DEPTH_MM;
+  const slopeTop = top - lidPadDepthMm(spec);
   const bottom = Math.max(BASE_HEIGHT, slopeTop - (lidPadExtentMm(spec) - binWallThicknessMm(spec)));
   // The part outside the footprint guarantees a joint to both rounded walls;
   // it is clipped off after the four corners have been placed.
@@ -31,7 +32,7 @@ export function buildLidSupports(kernel: Kernel, spec: BinSpec, segments: number
   const small = full - (slopeTop - bottom);
   const square = arena.track(CrossSection.square([small, small]));
   const slope = arena.track(square.extrude(slopeTop - bottom, 0, 0, [full / small, full / small]));
-  const pad = arena.track(arena.track(Manifold.cube([full, full, LID_PAD_DEPTH_MM])).translate([0, 0, slopeTop - bottom]));
+  const pad = arena.track(arena.track(Manifold.cube([full, full, lidPadDepthMm(spec)])).translate([0, 0, slopeTop - bottom]));
   const corner = arena.track(slope.add(pad));
   const pieces = [0, 90, 180, 270].map(angle => {
     const atOrigin = arena.track(corner.translate([-outside, -outside, bottom]));
@@ -47,7 +48,7 @@ export function buildLidSupports(kernel: Kernel, spec: BinSpec, segments: number
 /** Reuse the base bore, without its downward-print bridging ceiling: these holes print facing up. */
 function lidBores(kernel: Kernel, spec: BinSpec, segments: number, bottomZ: number): Manifold {
   const { arena, Manifold } = kernel;
-  const bore = baseHoleCutter(kernel, { magnet: true, screw: false, supportless: false, chamfer: false, crushRibs: spec.lidMagnetCrushRibs }, segments)!;
+  const bore = baseHoleCutter(kernel, { magnet: true, screw: false, supportless: false, chamfer: false, crushRibs: spec.lidMagnetCrushRibs, magnetDiameterMm: spec.magnetDiameterMm, magnetThicknessMm: spec.magnetThicknessMm }, segments)!;
   return arena.track(Manifold.union(lidMagnetCenters(spec).map(({ x, y }) =>
     arena.track(bore.translate([x, y, bottomZ])),
   )));
@@ -59,7 +60,7 @@ export function addLidRetention(kernel: Kernel, spec: BinSpec, solid: Manifold, 
   let supported = spec.lidMagnetHoles ? arena.track(solid.add(buildLidSupports(kernel, spec, segments))) : solid;
   if (hasOverlappingLid(spec)) supported = formInsetRim(kernel, spec, supported, segments);
   if (!spec.lidMagnetHoles) return supported;
-  return arena.track(supported.subtract(lidBores(kernel, spec, segments, binHeightMm(spec.heightUnits) - MAGNET_HOLE_DEPTH)));
+  return arena.track(supported.subtract(lidBores(kernel, spec, segments, binHeightMm(spec.heightUnits) - magnetHoleDepthMm(spec))));
 }
 
 /** Replaces the upper outside wall with a supported, inward-stepped rim. */

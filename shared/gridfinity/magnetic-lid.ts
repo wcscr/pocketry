@@ -1,5 +1,6 @@
 import type { Point } from "../geometry/types";
-import { BASE_HEIGHT, BASE_PROFILE_MAX_X, BASE_PROFILE_HEIGHT, STACKING_LIP_HEIGHT_ACTUAL, binWallThicknessMm, HOLE_DISTANCE_FROM_BOTTOM_EDGE, MAGNET_HOLE_DEPTH, MAGNET_HOLE_RADIUS, binFootprintMm, binHeightMm } from "./standard";
+import { BASE_HEIGHT, BASE_PROFILE_MAX_X, BASE_PROFILE_HEIGHT, STACKING_LIP_HEIGHT_ACTUAL, binWallThicknessMm, HOLE_DISTANCE_FROM_BOTTOM_EDGE, MAGNET_HOLE_DEPTH, binFootprintMm, binHeightMm } from "./standard";
+import { magnetHoleRadiusMm, magnetHoleDepthMm, type MagnetSize } from "./magnets";
 import type { BinSpec } from "./types";
 
 /** Lid retention uses the same magnet recess dimensions as the base. */
@@ -41,13 +42,23 @@ export function overlapLidRimInsetMm(spec: WallSpec): number {
 
 /** Thick stepped rims need the paired magnets farther from the outer edge. */
 export function lidMagnetInsetMm(spec: BinSpec): number {
-  return hasOverlappingLid(spec)
-    ? Math.max(LID_MAGNET_INSET_MM, overlapLidRimInsetMm(spec) + MAGNET_HOLE_RADIUS + LID_MAGNET_WALL_MM)
-    : LID_MAGNET_INSET_MM;
+  const edgeInset = hasOverlappingLid(spec) ? overlapLidRimInsetMm(spec) : BASE_PROFILE_MAX_X + LID_CLEARANCE_MM;
+  return Math.max(LID_MAGNET_INSET_MM, edgeInset + lidHoleRadiusMm(spec) + LID_MAGNET_WALL_MM);
+}
+
+type LidMagnetSize = MagnetSize & { lidMagnetHoles?: boolean };
+
+/** Dormant magnet preferences must not change nonmagnetic lids. */
+function lidHoleRadiusMm(spec: LidMagnetSize): number {
+  return magnetHoleRadiusMm(spec.lidMagnetHoles === false ? {} : spec);
+}
+
+export function lidPadDepthMm(spec: LidMagnetSize): number {
+  return magnetHoleDepthMm(spec.lidMagnetHoles === false ? {} : spec) + LID_MAGNET_WALL_MM;
 }
 
 export function lidPadExtentMm(spec: BinSpec): number {
-  return lidMagnetInsetMm(spec) + MAGNET_HOLE_RADIUS + LID_MAGNET_WALL_MM;
+  return lidMagnetInsetMm(spec) + lidHoleRadiusMm(spec) + LID_MAGNET_WALL_MM;
 }
 
 export function hasFrictionLid(spec: Pick<BinSpec, "lidMagnetHoles" | "lidFit">): boolean {
@@ -64,13 +75,14 @@ export function hasOverlappingLid(spec: Pick<BinSpec, "magneticLid" | "magneticL
 }
 
 /** Cap plane under an optional stacking lip, measured from the magnet faces. */
-export function lidCapTopMm(spec: Pick<BinSpec, "magneticLidStyle" | "magneticLidTop">): number {
-  return spec.magneticLidStyle === "overlap"
+export function lidCapTopMm(spec: Pick<BinSpec, "magneticLidStyle" | "magneticLidTop"> & LidMagnetSize): number {
+  const original = spec.magneticLidStyle === "overlap"
     ? (spec.magneticLidTop === "stacking" ? 4 : LID_CAP_THICKNESS_MM)
     : (spec.magneticLidTop === "stacking" ? 8 : INSET_LID_TOP_MM);
+  return Math.max(original, lidPadDepthMm(spec));
 }
 
-export function lidTopMm(spec: Pick<BinSpec, "magneticLidStyle" | "magneticLidTop">): number {
+export function lidTopMm(spec: Pick<BinSpec, "magneticLidStyle" | "magneticLidTop"> & LidMagnetSize): number {
   return lidCapTopMm(spec) + (spec.magneticLidTop === "stacking" ? STACKING_LIP_HEIGHT_ACTUAL : 0);
 }
 
@@ -90,7 +102,7 @@ export function magneticLidError(spec: BinSpec): string | null {
   if (!spec.magneticLid) return null;
   if (spec.footprint.kind !== "rectangle") return "Magnetic lids currently need a rectangular footprint.";
   if (spec.magneticLidStyle === "inset" && spec.lip !== "standard") return "Magnetic lids need the stacking lip for alignment.";
-  if (binHeightMm(spec.heightUnits) < BASE_HEIGHT + LID_PAD_DEPTH_MM) return "Magnetic lids need a bin at least 2u tall.";
+  if (binHeightMm(spec.heightUnits) < Math.max(14, BASE_HEIGHT + lidPadDepthMm(spec))) return "Magnetic lids need a bin at least 2u tall.";
   const minimum = 2 * lidPadExtentMm(spec) + 2 * binWallThicknessMm(spec);
   if ([spec.gridX, spec.gridY].some(count => binFootprintMm(count, spec.gridPitch) < minimum)) {
     return spec.lidMagnetHoles

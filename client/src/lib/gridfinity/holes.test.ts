@@ -7,6 +7,7 @@ import {
   MAGNET_HOLE_RADIUS,
   SCREW_HOLE_RADIUS,
 } from "@shared/gridfinity/standard";
+import { magnetHoleDepthMm, magnetHoleRadiusMm, magnetCrushRadiusMm } from "@shared/gridfinity/magnets";
 import { parseBinSpec } from "@shared/gridfinity/types";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -199,6 +200,33 @@ describe("buildBase with holes", () => {
     // 16 supportless pockets: at least the nominal pocket volume each.
     const nominal = circleArea(MAGNET_HOLE_RADIUS, SEGMENTS) * MAGNET_HOLE_DEPTH;
     expect(plain.solid.volume() - holed.solid.volume()).toBeGreaterThan(16 * nominal);
+  });
+});
+
+describe("custom magnet sizes", () => {
+  it.each([[3, 1], [6, 2], [7.5, 5]])("uses %s × %s mm magnets in plain and ribbed underside bores", (magnetDiameterMm, magnetThicknessMm) => {
+    const s = parseBinSpec({ gridX: 1, gridY: 1, heightUnits: 2, fill: "none", magnetHoles: true, magnetDiameterMm, magnetThicknessMm });
+    const radius = magnetHoleRadiusMm(s);
+    const depth = magnetHoleDepthMm(s);
+    for (const magnetCrushRibs of [false, true]) {
+      const options = holeOptionsFromSpec({ ...s, magnetCrushRibs });
+      const cutter = baseHoleCutter(kernel, { ...options, supportless: false }, SEGMENTS)!;
+      expect(cutter.boundingBox().max[2]).toBeCloseTo(depth, 6);
+      if (!magnetCrushRibs) expect(cutter.volume()).toBeCloseTo(circleArea(radius, SEGMENTS) * depth, 4);
+      const body = buildBin(kernel, { ...s, magnetCrushRibs }, { circularSegments: SEGMENTS }).solid;
+      expect(body.status()).toBe("NoError");
+      expect(body.genus()).toBe(0);
+      const clearRadius = (magnetCrushRibs ? magnetCrushRadiusMm(s) : radius) - 0.04;
+      const probe = arena.track(arena.track(kernel.Manifold.cylinder(depth - 0.02, clearRadius, clearRadius, 64)).translate([13, 13, 0.01]));
+      expect(arena.track(body.intersect(probe)).volume()).toBeLessThan(1e-5);
+      const roof = arena.track(arena.track(kernel.Manifold.cube([0.5, 0.5, 0.5], true)).translate([13, 13, 6.5]));
+      expect(arena.track(body.intersect(roof)).volume()).toBeCloseTo(0.125, 6);
+    }
+  });
+
+  it("refuses oversized underside bores even when called outside UI validation", () => {
+    expect(() => buildBase(kernel, { gridX: 1, gridY: 1 }, SEGMENTS,
+      { ...NO_HOLES, magnet: true, magnetDiameterMm: 12 })).toThrow(/7.5 mm/);
   });
 });
 

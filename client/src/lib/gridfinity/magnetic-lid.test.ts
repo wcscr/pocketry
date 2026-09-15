@@ -4,6 +4,7 @@ import { createKernel, loadManifold, type Kernel } from "@/lib/manifold/runtime"
 import { parseBinSpec } from "@shared/gridfinity/types";
 import { STACKING_LIP_HEIGHT_ACTUAL, MAGNET_HOLE_DEPTH, MAGNET_HOLE_RADIUS, binHeightMm, binFootprintMm } from "@shared/gridfinity/standard";
 import { LID_OVERLAP_MM, LID_SHOULDER_GAP_MM, overlapLidRimInsetMm, LID_CAP_THICKNESS_MM, lidCapTopMm, lidTopMm, lidMagnetCenters } from "@shared/gridfinity/magnetic-lid";
+import { magnetHoleDepthMm, magnetHoleRadiusMm, magnetCrushRadiusMm } from "@shared/gridfinity/magnets";
 import { fingerHoleSchema } from "@shared/gridfinity/cutout";
 import { validateBinSpec, validateLayout } from "@shared/gridfinity/validate";
 import { binDimensionsMm, buildBin, buildBinWithCutouts, EXPORT_QUALITY, PREVIEW_QUALITY } from "./bin";
@@ -329,5 +330,56 @@ it.each(["overlap", "inset"] as const)("limits friction contact to ribs, leaving
     expect(arena.track(contact.intersect(atRib)).volume()).toBeGreaterThan(0.001);
     expect(arena.track(contact.intersect(between)).volume()).toBeLessThan(1e-6);
     expect(arena.track(lid.intersect(arena.track(outerEdge.rotate([0, 0, angle])))).volume()).toBeCloseTo(0.05, 5);
+  }
+});
+
+for (const quality of [PREVIEW_QUALITY, EXPORT_QUALITY]) {
+  it.each((["overlap", "inset"] as const).flatMap(magneticLidStyle => (["flat", "stacking"] as const).map(magneticLidTop => ({ magneticLidStyle, magneticLidTop }))))(
+    `keeps custom magnet bores paired and closed ($magneticLidStyle, $magneticLidTop, ${quality.circularSegments})`, style => {
+      for (const [magnetDiameterMm, magnetThicknessMm] of [[3, 1], [7, 3], [12, 5]]) {
+        for (const lidMagnetCrushRibs of [false, true]) {
+          const s = spec({ ...style, gridX: 2, gridY: 2, heightUnits: 2, wallThicknessMm: 4,
+            magnetDiameterMm, magnetThicknessMm, lidMagnetCrushRibs,
+            magnetHoles: magnetDiameterMm <= 7, magnetCrushRibs: !lidMagnetCrushRibs });
+          const body = buildBin(kernel, s, quality).solid;
+          const lid = buildMagneticLid(kernel, s, quality.circularSegments);
+          const depth = magnetHoleDepthMm(s);
+          // A fine cylinder must fit inside the preview bore's polygon flats.
+          const clearRadius = (ribs: boolean) => (ribs ? magnetCrushRadiusMm(s)
+            : magnetHoleRadiusMm(s) * Math.cos(Math.PI / quality.circularSegments)) - 0.05;
+          const radius = clearRadius(lidMagnetCrushRibs);
+          const probe = arena.track(kernel.Manifold.cylinder(depth - 0.02, radius, radius, 64));
+          const floor = arena.track(kernel.Manifold.cube([0.5, 0.5, 0.5], true));
+          for (const { x, y } of lidMagnetCenters(s)) {
+            expect(arena.track(body.intersect(arena.track(probe.translate([x, y, 14 - depth + 0.01])))).volume()).toBeLessThan(1e-5);
+            expect(arena.track(lid.intersect(arena.track(probe.translate([x, y, 0.01])))).volume()).toBeLessThan(1e-5);
+            expect(arena.track(body.intersect(arena.track(floor.translate([x, y, 14 - depth - 0.6])))).volume()).toBeCloseTo(0.125, 6);
+            expect(arena.track(lid.intersect(arena.track(floor.translate([x, y, depth + 0.6])))).volume()).toBeCloseTo(0.125, 6);
+          }
+          if (s.magnetHoles) {
+            const baseProbe = arena.track(kernel.Manifold.cylinder(depth - 0.02,
+              clearRadius(s.magnetCrushRibs), clearRadius(s.magnetCrushRibs), 64));
+            // Outer hole in a standard cell: 21 mm cell center + 13 mm offset.
+            expect(arena.track(body.intersect(arena.track(baseProbe.translate([34, 34, 0.01])))).volume()).toBeLessThan(1e-5);
+          }
+          expect(arena.track(body.intersect(arena.track(lid.translate([0, 0, 14])))).volume()).toBeLessThan(1e-5);
+          const printed = magneticLidForPrint(kernel, lid, s);
+          expect(printed.boundingBox().min[2]).toBeCloseTo(0, 6);
+          const pieces = printed.decompose();
+          pieces.forEach(piece => arena.track(piece));
+          expect(pieces).toHaveLength(1);
+        }
+      }
+    });
+}
+
+it.each(["overlap", "inset"] as const)("keeps dormant magnet size out of nonmagnetic lids (%s)", magneticLidStyle => {
+  const s = spec({ magneticLidStyle, lidMagnetHoles: false });
+  const changed = { ...s, magnetDiameterMm: 12, magnetThicknessMm: 5 };
+  for (const build of [(s: typeof changed) => buildBin(kernel, s, PREVIEW_QUALITY).solid,
+    (s: typeof changed) => buildMagneticLid(kernel, s, 24)]) {
+    const a = build(s), b = build(changed);
+    expect(arena.track(a.subtract(b)).isEmpty()).toBe(true);
+    expect(arena.track(b.subtract(a)).isEmpty()).toBe(true);
   }
 });

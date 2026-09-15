@@ -39,9 +39,10 @@ import { binHistorySchema } from "./history";
  * Older lids remain inset with a flat top and plain closure recesses.
  * Version 20 adds overlapping lid wall thickness.
  * Version 21 links bin, rim and skirt thickness, preserving older paired dimensions.
+ * Version 22 adds shared magnet diameter and thickness; older holes retain their dimensions.
  */
 
-export const PROJECT_SCHEMA_VERSION = 21 as const;
+export const PROJECT_SCHEMA_VERSION = 22 as const;
 
 const projectFields = {
   shapes: z.array(tracedShapeSchema),
@@ -201,6 +202,10 @@ export function parseProjectDoc(input: unknown): ProjectDoc | null {
         }) } } : {}),
       ...(version >= 17 ? { schemaVersion: PROJECT_SCHEMA_VERSION } : {}),
     };
+  }
+  if (input && typeof input === "object" && !Array.isArray(input) &&
+      "schemaVersion" in input && input.schemaVersion === 21) {
+    input = { ...input, schemaVersion: PROJECT_SCHEMA_VERSION };
   }
   const result = projectDocSchema.safeParse(input);
   if (result.success) return result.data;

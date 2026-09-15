@@ -8,11 +8,9 @@ import {
   baseBottomDimensionsMm,
   LAYER_HEIGHT,
   MAGNET_HOLE_CRUSH_RIB_COUNT,
-  MAGNET_HOLE_CRUSH_RIB_INNER_RADIUS,
-  MAGNET_HOLE_DEPTH,
-  MAGNET_HOLE_RADIUS,
   SCREW_HOLE_RADIUS,
 } from "@shared/gridfinity/standard";
+import { baseMagnetSizeError, magnetHoleDepthMm, magnetHoleRadiusMm, magnetCrushRadiusMm, type MagnetSize } from "@shared/gridfinity/magnets";
 import { cellCenterMm, occupiedCells } from "@shared/gridfinity/footprint";
 
 import type { Kernel } from "@/lib/manifold/runtime";
@@ -25,7 +23,7 @@ import type { GridSize } from "./base";
  * `make_hole_printable()` and `base.scad` `_base_holes()` @ 910e22d8.
  *
  * Holes open on the **bottom** face (the print bed side): a magnet pocket
- * ⌀6.5 × 2.4 deep, and/or an M3 screw hole ⌀3 running the full 7 mm base
+ * (default ⌀6.5 × 2.4 deep), and/or an M3 screw hole ⌀3 running the full 7 mm base
  * height — which pierces into the bin cavity on unfilled bins (a deliberate
  * genus change the tests pin).
  *
@@ -33,18 +31,18 @@ import type { GridSize } from "./base";
  * (https://www.youtube.com/watch?v=W8FbHTcB05w): the hole's top layers are
  * progressively narrowed rectangles, so an FDM printer bridges each layer
  * over the one below instead of drooping over a circle. The magnet pocket
- * grows by the bridge layers' height so the nominal 2.4 mm stays clear.
+ * grows by the bridge layers' height so the requested recess depth stays clear.
  *
  * `crushRibs` reproduces upstream `ribbed_cylinder()`: the magnet bore's
- * radius follows a sine wave between the rib waist (⌀5.9) and the nominal
- * bore (⌀6.5), leaving eight inward lobes the magnet crushes on insertion —
+ * radius follows a sine wave between the rib waist (default ⌀5.9) and the
+ * bore (default ⌀6.5), leaving eight inward lobes the magnet crushes on insertion —
  * a press fit with no glue. The Gridfinity Refined hole remains unported.
  * Deviations from upstream (dropped ±0.02 TOLLERANCE padding, fixed band
  * orientation) are in UPSTREAM.md.
  */
 
-export interface HoleOptions {
-  /** ⌀6.5 mm × 2.4 mm magnet pocket. */
+export interface HoleOptions extends MagnetSize {
+  /** Magnet pocket at the shared size, including clearance. */
   magnet: boolean;
   /** ⌀3 mm screw hole through the full base height. */
   screw: boolean;
@@ -69,9 +67,11 @@ export function holeOptionsFromSpec(spec: {
   magnetHoles: boolean;
   screwHoles: boolean;
   magnetCrushRibs?: boolean;
-}): HoleOptions {
+} & MagnetSize): HoleOptions {
   return {
     magnet: spec.magnetHoles,
+    magnetDiameterMm: spec.magnetDiameterMm,
+    magnetThicknessMm: spec.magnetThicknessMm,
     screw: spec.screwHoles,
     supportless: spec.magnetHoles || spec.screwHoles,
     chamfer: false,
@@ -197,20 +197,22 @@ export function baseHoleCutter(
   if (options.magnet) {
     // Extra layers make room for the bridged ceiling above the nominal depth.
     const extraLayers = options.supportless ? (options.screw ? 2 : 3) : 0;
-    const depth = MAGNET_HOLE_DEPTH + extraLayers * LAYER_HEIGHT;
+    const radius = magnetHoleRadiusMm(options);
+    const holeDepth = magnetHoleDepthMm(options);
+    const depth = holeDepth + extraLayers * LAYER_HEIGHT;
 
     /** The bore up to `height`: ribbed for a press fit, plain otherwise. */
     const bore = (height: number): Manifold => {
       if (!options.crushRibs) {
         return arena.track(
-          Manifold.cylinder(height, MAGNET_HOLE_RADIUS, MAGNET_HOLE_RADIUS, circularSegments),
+          Manifold.cylinder(height, radius, radius, circularSegments),
         );
       }
       const section = arena.track(
         new kernel.CrossSection([
           ribbedCirclePolygon(
-            MAGNET_HOLE_RADIUS,
-            MAGNET_HOLE_CRUSH_RIB_INNER_RADIUS,
+            radius,
+            magnetCrushRadiusMm(options),
             MAGNET_HOLE_CRUSH_RIB_COUNT,
             circularSegments,
           ),
@@ -225,7 +227,7 @@ export function baseHoleCutter(
         bore(ceilingZ),
         ...bridgedCeiling(
           kernel,
-          MAGNET_HOLE_RADIUS,
+          radius,
           options.screw ? 2 * SCREW_HOLE_RADIUS : 2,
           ceilingZ,
           extraLayers,
@@ -236,7 +238,7 @@ export function baseHoleCutter(
       pieces.push(bore(depth));
     }
     if (options.chamfer) {
-      pieces.push(entryChamfer(kernel, MAGNET_HOLE_RADIUS, MAGNET_HOLE_DEPTH, circularSegments));
+      pieces.push(entryChamfer(kernel, radius, holeDepth, circularSegments));
     }
   }
 
@@ -284,6 +286,8 @@ export function baseHoleCutters(
   // validator warns and the geometry stays solid rather than overlapping
   // cutters into a corrupt base.
   if (grid.gridPitch && grid.gridPitch !== "full") return null;
+  const sizeError = options.magnet ? baseMagnetSizeError({ ...options, screwHoles: options.screw }) : null;
+  if (sizeError) throw new Error(sizeError);
   const cluster = baseHoleCutter(kernel, options, circularSegments);
   if (cluster === null) return null;
 

@@ -6,6 +6,7 @@ import {
   type BoundaryEdge,
   type GridCell,
 } from "./footprint";
+import { DEFAULT_MAGNET_DIAMETER_MM, DEFAULT_MAGNET_THICKNESS_MM } from "./magnets";
 import { GRID_PITCH_DIVISOR, type GridPitch } from "./standard";
 
 /**
@@ -83,10 +84,13 @@ export const binSpecSchema = z
     lidFit: z.enum(["lift-off", "friction"]).default("lift-off"),
     /** Per-side adjustment: positive tightens the lid without changing the bin. */
     lidFitAdjustmentMm: z.number().min(-0.1).max(0.1).multipleOf(0.05).default(0),
-    /** ⌀6.5 × 2.4 mm magnet pockets, four per cell, opening downward. */
+    /** Actual magnet size, shared by underside and lid closure holes. */
+    magnetDiameterMm: z.number().min(3).max(12).default(DEFAULT_MAGNET_DIAMETER_MM),
+    magnetThicknessMm: z.number().min(1).max(5).default(DEFAULT_MAGNET_THICKNESS_MM),
+    /** Four underside magnet pockets per cell, opening downward. */
     magnetHoles: z.boolean().default(false),
     /**
-     * Crush ribs in the magnet bore: eight sinusoidal lobes (waist ⌀5.9)
+     * Crush ribs in the magnet bore: eight sinusoidal lobes (default waist ⌀5.9)
      * the magnet crushes on insertion — press fit, no glue. Only meaningful
      * with `magnetHoles`.
      */

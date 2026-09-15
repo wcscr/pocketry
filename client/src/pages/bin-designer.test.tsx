@@ -338,6 +338,52 @@ it.each([false, true])("adjusts shared walls with undo and retains the setting a
   } finally { unmount(); }
 });
 
+it.each([false, true])("shares magnet size across active magnets, undo, and hidden controls (mobile=%s)", async mobile => {
+  let controls: ReturnType<typeof usePanelState>;
+  function PanelProbe() { controls = usePanelState(); return null; }
+  const { container, unmount } = render(<PanelProvider><PanelProbe /><ShapeLibraryProvider><BinDesignerPage /></ShapeLibraryProvider></PanelProvider>, { mobile });
+  await flushHydration();
+  try {
+    React.act(() => controls!.setPanelOpen(true));
+    const panel = mobile ? document.body : container;
+    const toggle = (label: string) => React.act(() => panel.querySelector<HTMLButtonElement>(`[role="switch"][aria-label="${label}"]`)!.click());
+    const current = () => vi.mocked(useBinGeometry).mock.calls.at(-1)![0];
+    const groups = () => panel.querySelectorAll('[role="group"][aria-label="Magnet size"]');
+    const change = (label: string) => React.act(() => panel.querySelector<HTMLElement>(`[role="slider"][aria-label="${label}"]`)!
+      .dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })));
+    openSettingsSection(panel, "construction");
+    expect(groups()).toHaveLength(0);
+    toggle("Magnet holes");
+    expect(groups()).toHaveLength(1);
+    expect(current()).toMatchObject({ magnetDiameterMm: 6, magnetThicknessMm: 2 });
+    change("Magnet diameter");
+    change("Magnet thickness");
+    expect(current()).toMatchObject({ magnetDiameterMm: 6.1, magnetThicknessMm: 2.1 });
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+    expect(current().magnetThicknessMm).toBe(2);
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+    expect(current().magnetThicknessMm).toBe(2.1);
+    toggle("Lid");
+    expect(groups()).toHaveLength(1);
+    toggle("Lid crush ribs");
+    expect(current()).toMatchObject({ lidMagnetCrushRibs: true, magnetCrushRibs: false });
+    toggle("Base magnet holes");
+    expect(groups()).toHaveLength(1);
+    toggle("Lid magnet holes");
+    expect(groups()).toHaveLength(0);
+    toggle("Base magnet holes");
+    expect(groups()).toHaveLength(1);
+    toggle("Flat bottom");
+    expect(groups()).toHaveLength(0);
+    toggle("Lid magnet holes");
+    expect(groups()).toHaveLength(1);
+    expect(panel.querySelector<HTMLInputElement>('[aria-label="Magnet diameter in millimetres"]')?.value).toBe("6.1");
+    expect(panel.querySelector<HTMLInputElement>('[aria-label="Magnet thickness in millimetres"]')?.value).toBe("2.1");
+    toggle("Lid");
+    expect(groups()).toHaveLength(0);
+  } finally { unmount(); }
+});
+
 it.each([false, true])("offers fit and tuning only without lid magnets, retaining choices and undo (mobile=%s)", async mobile => {
   let controls: ReturnType<typeof usePanelState>;
   function PanelProbe() { controls = usePanelState(); return null; }

@@ -1,5 +1,5 @@
 import { lidPadExtentMm, lidMagnetCenters, magneticLidError } from "@shared/gridfinity/magnetic-lid";
-import { MAGNET_HOLE_RADIUS } from "@shared/gridfinity/standard";
+import { magnetHoleRadiusMm } from "@shared/gridfinity/magnets";
 import {
   Ruler,
   Spline,
@@ -1344,7 +1344,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
               </g>
               {lidMagnetCenters(spec).map((point, index) => {
                 const p = binToCanvas(point, spec);
-                return <circle key={index} cx={p.x} cy={p.y} r={MAGNET_HOLE_RADIUS} fill="none" className="stroke-amber-600" strokeWidth={1} vectorEffect="non-scaling-stroke" />;
+                return <circle key={index} cx={p.x} cy={p.y} r={magnetHoleRadiusMm(spec)} fill="none" className="stroke-amber-600" strokeWidth={1} vectorEffect="non-scaling-stroke" />;
               })}
             </g>
           )}
