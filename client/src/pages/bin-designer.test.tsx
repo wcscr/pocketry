@@ -450,6 +450,46 @@ it.each([false, true])("offers fit and tuning only without lid magnets, retainin
   } finally { unmount(); }
 });
 
+it.each([false, true])("selects compliant interfaces with undo and hides them for magnetic closures (mobile=%s)", async mobile => {
+  let controls: ReturnType<typeof usePanelState>;
+  function PanelProbe() { controls = usePanelState(); return null; }
+  const { container, unmount } = render(<PanelProvider><PanelProbe /><ShapeLibraryProvider><BinDesignerPage /></ShapeLibraryProvider></PanelProvider>, { mobile });
+  await flushHydration();
+  try {
+    React.act(() => controls!.setPanelOpen(true));
+    const panel = mobile ? document.body : container;
+    const toggle = (label: string) => React.act(() => panel.querySelector<HTMLButtonElement>(`[role="switch"][aria-label="${label}"]`)!.click());
+    const current = () => vi.mocked(useBinGeometry).mock.calls.at(-1)![0];
+    const select = () => panel.querySelector<HTMLButtonElement>('[aria-label="Lid interface"]');
+    openSettingsSection(panel, "construction");
+    toggle("Lid");
+    toggle("Lid magnet holes");
+    expect(select()).toBeNull();
+    React.act(() => panel.querySelector<HTMLButtonElement>('[data-testid="button-lid-fit-friction"]')!.click());
+    expect(select()?.textContent).toContain("Contact ribs");
+    for (const [label, value] of [["Side springs", "side-springs"], ["Angled fins", "angled-fins"], ["Spring latch", "spring-latch"]]) {
+      React.act(() => select()!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+      const option = Array.from(document.querySelectorAll<HTMLElement>('[role="option"]')).find(el => el.textContent === label)!;
+      React.act(() => option.click());
+      expect(current().lidInterface).toBe(value);
+    }
+    expect(panel.textContent).toContain("Pull up to release");
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+    expect(current().lidInterface).toBe("angled-fins");
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+    expect(current().lidInterface).toBe("spring-latch");
+    toggle("Base magnet holes");
+    expect(select()).not.toBeNull();
+    toggle("Lid magnet holes");
+    expect(select()).toBeNull();
+    toggle("Lid magnet holes");
+    expect(select()?.textContent).toContain("Spring latch");
+    React.act(() => panel.querySelector<HTMLButtonElement>('[data-testid="button-lid-fit-lift-off"]')!.click());
+    expect(select()).toBeNull();
+    expect(current().lidInterface).toBe("spring-latch");
+  } finally { unmount(); }
+});
+
 it.each(["stl", "3mf"] as const)("exports the separate lid as %s with an optional editable project", async format => {
   vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, spec: { ...EMPTY_PROJECT.spec, magneticLid: true } });
   const lidMesh = { positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1]), indices: new Uint32Array([0, 2, 1, 0, 1, 3, 0, 3, 2, 1, 2, 3]), normals: null };

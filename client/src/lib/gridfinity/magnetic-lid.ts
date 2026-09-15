@@ -9,6 +9,8 @@ import { roundedRectPolygon, baseProfilePolygon, type ProfilePolygon } from "./p
 import { buildStackingLip } from "./wall";
 import { sweepRounded } from "./sweep";
 import { footprintOuterSection } from "./footprint-section";
+import { usesCompliantInterface } from "@shared/gridfinity/magnetic-lid";
+import { applyLidInterface, addLidDetentRecesses } from "./lid-interface";
 
 function assertLid(spec: BinSpec): void {
   if (!spec.magneticLid) throw new Error("Enable the magnetic lid first.");
@@ -59,6 +61,7 @@ export function addLidRetention(kernel: Kernel, spec: BinSpec, solid: Manifold, 
   const { arena } = kernel;
   let supported = spec.lidMagnetHoles ? arena.track(solid.add(buildLidSupports(kernel, spec, segments))) : solid;
   if (hasOverlappingLid(spec)) supported = formInsetRim(kernel, spec, supported, segments);
+  supported = addLidDetentRecesses(kernel, spec, supported, segments);
   if (!spec.lidMagnetHoles) return supported;
   return arena.track(supported.subtract(lidBores(kernel, spec, segments, binHeightMm(spec.heightUnits) - magnetHoleDepthMm(spec))));
 }
@@ -145,6 +148,7 @@ function buildOverlappingLid(kernel: Kernel, spec: BinSpec, segments: number): M
   const bottom = -LID_OVERLAP_MM + LID_SHOULDER_GAP_MM;
   const r = BASE_TOP_RADIUS;
   const friction = hasFrictionLid(spec);
+  const contactRibs = friction && !usesCompliantInterface(spec);
   const rimInset = overlapLidRimInsetMm(spec);
   if (spec.lidWallThicknessMm === undefined) {
     const wall = overlapLidWallMm(spec) + (friction ? 0 : lidFitAdjustmentMm(spec));
@@ -152,7 +156,7 @@ function buildOverlappingLid(kernel: Kernel, spec: BinSpec, segments: number): M
     const envelope = lidLoft(kernel, spec, [[0, bottom], [0, 0]], segments);
     const opening = lidLoft(kernel, spec, [[wall - 0.3, bottom], [wall, bottom + 0.3], [wall, 0]], segments);
     let skirt = arena.track(envelope.subtract(opening));
-    if (friction) {
+    if (contactRibs) {
       const gripOpening = lidLoft(kernel, spec, [[wall - 0.3, bottom], [wall, bottom + 0.3],
         [wall, bottom + 0.5], [contactInset, bottom + 1.2], [contactInset, bottom + 1.6],
         [wall, bottom + 2.4], [wall, 0]], segments);
@@ -164,7 +168,7 @@ function buildOverlappingLid(kernel: Kernel, spec: BinSpec, segments: number): M
   // The ridge envelope is clipped into spaced ribs below. The thin skirt
   // behind and between them remains continuous, with clearance at the corners.
   const contact = r - rimInset - LID_FRICTION_INTERFERENCE_MM - lidFitAdjustmentMm(spec);
-  const innerEdge: ProfilePolygon = friction ? [
+  const innerEdge: ProfilePolygon = contactRibs ? [
     [inner, bottom + 2.4], [contact, bottom + 1.6],
     [contact, bottom + 1.2], [inner, bottom + 0.5],
   ] : [];
@@ -174,7 +178,7 @@ function buildOverlappingLid(kernel: Kernel, spec: BinSpec, segments: number): M
   ];
   const path = { widthMm: width - 2 * r, lengthMm: length - 2 * r };
   let skirt = sweepRounded(kernel, skirtProfile, path, segments);
-  if (friction) {
+  if (contactRibs) {
     const grip = sweepRounded(kernel, [...skirtProfile.slice(0, 4), ...innerEdge, skirtProfile[4]], path, segments);
     skirt = addFrictionRibs(kernel, spec, skirt, grip, segments);
   }
@@ -202,7 +206,7 @@ function buildFrictionInsetLid(kernel: Kernel, spec: BinSpec, segments: number):
   const path = { widthMm: width - 2 * r, lengthMm: length - 2 * r };
   const smooth = sweepRounded(kernel, [...smoothOutside, ...inside], path, segments);
   const grip = sweepRounded(kernel, [...outside(contact), ...inside], path, segments);
-  const skirt = addFrictionRibs(kernel, spec, smooth, grip, segments);
+  const skirt = usesCompliantInterface(spec) ? smooth : addFrictionRibs(kernel, spec, smooth, grip, segments);
   const capSection = arena.track(new CrossSection([roundedRectPolygon(
     width - 2 * LID_CLEARANCE_MM, length - 2 * LID_CLEARANCE_MM, capRadius, segments,
   )]));
@@ -267,6 +271,7 @@ export function buildMagneticLid(kernel: Kernel, spec: BinSpec, segments: number
     lid = arena.track(lid.add(arena.track(lip.translate([0, 0, lidCapTopMm(spec) - 14]))));
   }
   if (spec.lidMagnetHoles) lid = arena.track(lid.subtract(lidBores(kernel, spec, segments, 0)));
+  lid = applyLidInterface(kernel, spec, lid, segments);
   if (lid.status() !== "NoError" || lid.isEmpty()) throw new Error("Magnetic lid could not be built.");
   return lid;
 }

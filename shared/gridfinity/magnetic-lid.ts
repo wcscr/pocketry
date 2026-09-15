@@ -24,10 +24,23 @@ export const INSET_LID_TOP_MM = BASE_PROFILE_HEIGHT + 2;
 /** Initial interference at the narrow contact ridge; requires a physical fit test. */
 export const LID_FRICTION_INTERFERENCE_MM = 0.05;
 
-type WallSpec = Pick<BinSpec, "wallThicknessMm" | "lidWallThicknessMm">;
+type InterfaceSpec = Partial<Pick<BinSpec, "magneticLid" | "lidMagnetHoles" | "lidFit" | "lidInterface">>;
+type WallSpec = Pick<BinSpec, "wallThicknessMm" | "lidWallThicknessMm"> & InterfaceSpec;
+/** Room for a spring, its travel gap, and a protective backing wall. */
+export const COMPLIANT_LID_BAND_MM = 3.4;
+
+export function usesCompliantInterface(spec: InterfaceSpec): boolean {
+  return spec.magneticLid === true && spec.lidMagnetHoles === false && spec.lidFit === "friction"
+    && spec.lidInterface !== undefined && spec.lidInterface !== "ribs";
+}
+
+export function hasSpringLatch(spec: InterfaceSpec): boolean {
+  return usesCompliantInterface(spec) && spec.lidInterface === "spring-latch";
+}
 
 export function overlapLidWallMm(spec: WallSpec): number {
-  return spec.lidWallThicknessMm ?? binWallThicknessMm(spec);
+  const wall = spec.lidWallThicknessMm ?? binWallThicknessMm(spec);
+  return usesCompliantInterface(spec) ? Math.max(wall, COMPLIANT_LID_BAND_MM) : wall;
 }
 
 /** Preserve old printed pairs until the shared control is explicitly edited. */
@@ -103,6 +116,14 @@ export function magneticLidError(spec: BinSpec): string | null {
   if (spec.footprint.kind !== "rectangle") return "Magnetic lids currently need a rectangular footprint.";
   if (spec.magneticLidStyle === "inset" && spec.lip !== "standard") return "Magnetic lids need the stacking lip for alignment.";
   if (binHeightMm(spec.heightUnits) < Math.max(14, BASE_HEIGHT + lidPadDepthMm(spec))) return "Magnetic lids need a bin at least 2u tall.";
+  if (usesCompliantInterface(spec)) {
+    if ([spec.gridX, spec.gridY].some(count => binFootprintMm(count, spec.gridPitch) < 36)) {
+      return "This lid interface needs a bin at least 36 mm wide and long to leave room for the springs and corners.";
+    }
+    if (hasSpringLatch(spec) && hasOverlappingLid(spec) && overlapRimWallMm(spec) < 1.2) {
+      return "The spring latch needs walls at least 1.2 mm thick to keep material behind its matching recess.";
+    }
+  }
   const minimum = 2 * lidPadExtentMm(spec) + 2 * binWallThicknessMm(spec);
   if ([spec.gridX, spec.gridY].some(count => binFootprintMm(count, spec.gridPitch) < minimum)) {
     return spec.lidMagnetHoles

@@ -755,7 +755,7 @@ export function BinControlsPanel({
               </p>}
               <p className="text-xs text-muted-foreground">
                 {spec.magneticLidStyle === "overlap"
-                  ? "Wraps around an inset rim with a continuous edge. Replaces the stacking lip."
+                  ? "Wraps around an inset rim. Replaces the stacking lip."
                   : "Seats inside the stacking lip, with a raised top to grip."}
               </p>
             </div>
@@ -775,13 +775,29 @@ export function BinControlsPanel({
                     variant={spec.lidFit === fit ? "secondary" : "outline"}
                     aria-pressed={spec.lidFit === fit} data-testid={`button-lid-fit-${fit}`}
                     onClick={() => patchSpec({ lidFit: fit })}>
-                    {fit === "lift-off" ? "Easy lift-off" : "Friction fit"}
+                    {fit === "lift-off" ? "Easy lift-off" : "Compliant fit"}
                   </Button>
                 ))}
               </div>
-              <p className="text-xs text-muted-foreground">
-                {spec.lidFit === "friction" ? "Small ribs on a thin rim grip the bin. Tune after a test print." : "Leaves a gap for easy removal."}
-              </p>
+              {spec.lidFit === "friction" ? <>
+                <Label className="text-xs">Interface</Label>
+                <Select value={spec.lidInterface} onValueChange={value => patchSpec({ lidInterface: value as BinSpecInput["lidInterface"] })}>
+                  <SelectTrigger className="h-8" aria-label="Lid interface" data-testid="select-lid-interface"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ribs">Contact ribs</SelectItem>
+                    <SelectItem value="side-springs">Side springs</SelectItem>
+                    <SelectItem value="angled-fins">Angled fins</SelectItem>
+                    <SelectItem value="spring-latch">Spring latch</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {{ ribs: "Small ribs on a thin rim grip the bin.",
+                    "side-springs": "Beams flex sideways to grip the bin, with open slots through the lid.",
+                    "angled-fins": "Thin, angled fingers flex against the rim. Keep their release gaps clear when slicing.",
+                    "spring-latch": "Folded springs engage matching recesses, with open slots through the lid. Pull up to release." }[spec.lidInterface]}
+                  {spec.lidInterface !== "ribs" ? " Export a matching bin and lid; test the fit before making a larger case." : " Tune after a test print."}
+                </p>
+              </> : <p className="text-xs text-muted-foreground">Leaves a gap for easy removal.</p>}
               <Label className="text-xs">Fit adjustment</Label>
               <Slider centerOrigin value={[Math.round(spec.lidFitAdjustmentMm / 0.05)]} min={-2} max={2} step={1}
                 aria-label="Lid fit adjustment"

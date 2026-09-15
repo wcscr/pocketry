@@ -3,8 +3,10 @@
 Implements [feature request #29](https://github.com/wcscr/pocketry/issues/29).
 Enable **Construction → Lid**, choose **Overlapping edge** or **Inset**, and
 choose a **Flat** or **Stacking top**. Magnets are optional. With **Lid magnet
-holes** off, choose **Easy lift-off** or **Friction fit** and use the single
+holes** off, choose **Easy lift-off** or **Compliant fit** and use the single
 **Looser / Tighter** adjustment.
+Compliant fit offers **Contact ribs**, **Side springs**, **Angled fins**, and
+**Spring latch** in one Interface selector.
 Export the bin normally and the lid separately under **Export → Export lid**,
 as STL or 3MF. Geometry settings survive autosave, project files, and undo.
 
@@ -42,7 +44,8 @@ validation account for this space. Large offsets use square inner corners.
 Changing thickness requires a matching bin and lid; unlike fit adjustment,
 it is not a lid-only change. The standard stacking profile and underside stay
 unchanged. The inset lid's compliant locating skirt stays 0.8 mm thick.
-Both styles have continuous edges without isolated center-edge blocks or pockets. The bin's rim
+Contact-rib, lift-off, and magnetic lids have continuous edges. Spring interfaces
+have intentional relief slots. The bin's rim
 has a sloping support below its shoulder and a chamfer at the top. Pockets
 must clear this rim. The saved stacking-lip preference returns when the lid is
 disabled. Both styles keep the same solid-fill headroom and pocket-depth
@@ -63,26 +66,50 @@ dimensions or physical qualification for Pocketry.
 - **Easy lift-off** defaults to the original clearance: 0.3 mm per side for
   overlap, or 0.3 mm extra clearance beyond Gridfinity's built-in fit for
   inset. It is a locating cover without intended retention.
-- **Friction fit** adds spaced, rounded contact ribs on the locating rim.
+- **Compliant fit → Contact ribs** adds spaced, rounded contact ribs on the locating rim.
   Contact stays away from corners and the rim retains clearance between ribs.
   Inset friction lids have a hollow underside with a 0.8 mm locating skirt;
   overlapping lids retain their continuous outside skirt at the selected wall
   thickness. Thicker overlapping skirts flex less and need a new physical fit test. The ribs are on the
   mating face, with tapered entry and no cutouts through the exterior edge.
-  This is an original thin-rim adaptation, not a reproduction of Slant3D's
-  independent side springs or fin array. Rib and rim compliance is unverified
-  until a physical print is tested.
+  This original thin-rim adaptation remains the default interface and preserves
+  existing saved friction lids.
+- **Side springs** uses 0.8 mm rounded strips fixed at one end, with a small
+  rounded contact bump near the free end. Relief slots pass through the cap,
+  allowing the spring to bend in the plane of the printed layers.
+- **Angled fins** uses repeated 0.6 mm fingers attached at their roots, with a
+  tapered entry. A 0.3 mm release gap separates each finger from the cap, following
+  Slant3D's guidance at about 3:35. Inspect the gap in the slicer; drooping strands,
+  fused first layers, or support material can prevent movement. The top stays solid.
+- **Spring latch** uses a 0.8 mm folded spring and a rounded detent that mates
+  with a 0.4 mm recess in the bin. **Pull up to release**: both insertion and
+  removal have rounded ramps. Its relief slots pass through the cap so there is
+  no bridge over the moving spring. These dimensions are Pocketry prototype
+  choices, not dimensions specified or validated by Slant3D.
+- The three new interfaces repeat along all four sides, clear of the corners,
+  on bins at least 36 mm wide and long. Overlapping versions reserve at least
+  3.4 mm for the mechanism plus 0.3 mm clearance and the selected inner rim wall.
+  The outer footprint stays fixed. **Export a matching bin and lid when changing
+  interface**: side springs and angled fins share a bin; the latch needs its
+  recesses. Overlapping latch walls must be at least 1.2 mm thick, leaving
+  0.8 mm behind each recess. Pocket and finger cutters cannot remove that backing.
+- Spring slots also interrupt the optional stacking rim. Remaining sections
+  locate the bin above, but the slots reduce support area and loaded stacking
+  needs physical testing. Start with a flat top when qualifying the springs.
 - The five adjustment positions change the lid by 0.05 mm per side per step,
   from 0.1 mm looser to 0.1 mm tighter. Friction starts with 0.05 mm of intended
-  interference at the ribs; the loosest setting leaves 0.05 mm clearance and
+  interference at the ribs, spring bumps, or fin tips; the loosest setting leaves 0.05 mm clearance and
   the tightest uses 0.15 mm interference. These are prototype starting values,
   not guaranteed holding forces. The bin geometry stays unchanged, so only
   the lid needs reprinting for fit adjustments.
+- The spring latch starts with 0.2 mm detent engagement, adjustable from 0.1
+  to 0.3 mm. Its matching recess stays fixed at 0.4 mm depth so the seated spring
+  can relax. Fit adjustment changes the detent projection, not beam thickness.
 - Fit adjustment changes sideways clearance or rib protrusion. It does not
   change lid height, cap thickness, or the clearance above the bin's lip.
 - Fit controls appear only without closure magnets. Their preferences are
   retained while magnets are on, but magnetic closures always use the original
-  clearance and omit the friction ribs. Base magnets do not hide lid fit.
+  clearance and omit compliant mechanisms and body recesses. Base magnets do not hide lid fit.
 
 ## Independent magnets
 
@@ -128,9 +155,10 @@ dimensions or physical qualification for Pocketry.
   quarter pitch, with the minimum width and length calculated from wall thickness
   and support size (27 mm at the default; 35 mm at 4 mm walls). Minimum bin height is 2u.
 
-Project schema v22 stores shared magnet size along with wall thickness, lid
-style, top, closure settings, and fit. Existing designs and undo history default
-to 6 × 2 mm magnets without changing their recesses. Projects from before v21
+Project schema v23 stores the interface as well as shared magnet size, wall
+thickness, lid style, top, closure settings, and fit. Existing designs and undo
+history default to Contact ribs. Projects from before v22 default to 6 × 2 mm
+magnets without changing their recesses. Projects from before v21
 retain their 0.95 mm bin walls.
 Older overlapping projects and every undo step retain the original 0.8 mm
 skirt and 1.2 mm inner rim (or their saved v20 skirt thickness). Editing the
@@ -160,7 +188,10 @@ support beneath its cap; inspect support and bridging at
 magnet recesses for either stacking style. Stacking lids are not the
 support-free flat-top print orientation.
 
-Check that the slicer resolves the 0.8 mm skirt and the friction ribs. Dry-fit
+Check that the slicer resolves the 0.8 mm springs, 0.6 mm fins, release gaps,
+and contact ribs. Keep supports out of the moving gaps. Flat lids put the
+spring paths in the plane of the layers; angled fins still need their cap gap
+to print and release cleanly. Dry-fit
 before installing magnets: check entry, full seating, sideways play, and removal.
 For friction lids, begin at the middle adjustment and tune after this test.
 Use the printer, material, and settings intended
@@ -193,3 +224,8 @@ print orientation, rim and corner conflicts, the thicker inset grip, optional
 magnets and independent crush ribs, conditional fit controls, default/custom lid colors, legacy migration,
 undo, worker transfer and section isolation, and separate STL/3MF exports.
 Browser checks exercise the actual controls, closure previews, and exports.
+Additional interface tests check 1U and larger cases, full/half/quarter pitches,
+single connected solids, free travel gaps, detent/recess alignment, pull-release
+contact, cutter protection, and unchanged bin geometry across fit adjustments.
+The new side springs, fins, and folded latch have **not been physically tested**;
+the earlier test plate does not qualify these new mechanisms.

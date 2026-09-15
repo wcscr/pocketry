@@ -40,6 +40,8 @@ import { footprintOuterSection } from "./footprint-section";
 import { buildStackingLip, buildWallRing } from "./wall";
 import { hasOverlappingLid } from "@shared/gridfinity/magnetic-lid";
 import { addLidRetention, buildLidSupports, buildInsetLidRim } from "./magnetic-lid";
+import { hasSpringLatch } from "@shared/gridfinity/magnetic-lid";
+import { lidDetentKeepout } from "./lid-interface";
 
 /**
  * Bin assembly: base + wall + lip + optional infill, ported from upstream
@@ -254,6 +256,9 @@ export function buildBinWithCutouts(
           ? allCutters[0]
           : arena.track(Manifold.union(allCutters));
       if (spec.magneticLid) {
+        if (hasSpringLatch(spec) && arena.track(lidDetentKeepout(kernel, spec).intersect(cutter)).volume() > 1e-5) {
+          throw new Error("A pocket or finger access cuts into a spring-latch recess. Move it farther from the rim.");
+        }
         if (hasOverlappingLid(spec) && arena.track(buildInsetLidRim(kernel, spec, quality.circularSegments).intersect(cutter)).volume() > 1e-5) {
           throw new Error("A pocket or finger access cuts into the inset lid rim. Move it farther from the edge or change the lid style.");
         }

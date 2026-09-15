@@ -44,6 +44,25 @@ const VALID = {
 };
 
 describe("parseProjectDoc", () => {
+  it("migrates v22 designs and history to contact ribs without mutating the source", () => {
+    const { lidInterface: _interface, ...oldSpec } = VALID.spec;
+    const previous = { ...VALID, schemaVersion: 22, spec: oldSpec,
+      history: { index: 0, stack: [{ label: "Loaded", doc: { spec: oldSpec, cutouts: VALID.cutouts, fingerHoles: [] } }] } };
+    const original = JSON.stringify(previous);
+    const migrated = parseProjectDoc(previous)!;
+    expect(migrated.schemaVersion).toBe(23);
+    expect(migrated.spec.lidInterface).toBe("ribs");
+    expect(migrated.history!.stack[0].doc.spec.lidInterface).toBe("ribs");
+    expect(JSON.stringify(previous)).toBe(original);
+    for (const lidInterface of ["ribs", "side-springs", "angled-fins", "spring-latch"] as const) {
+      const doc = { ...migrated, spec: { ...migrated.spec, lidInterface },
+        history: { index: 0, stack: [{ label: "Change interface", doc: { ...migrated.history!.stack[0].doc,
+          spec: { ...migrated.spec, lidInterface } } }] } };
+      expect(parseProjectDoc(JSON.parse(JSON.stringify(doc)))).toEqual(doc);
+    }
+    expect(parseProjectDoc({ ...migrated, spec: { ...migrated.spec, lidInterface: "unknown" } })).toBeNull();
+  });
+
   it("preserves old overlapping wall thickness in the design and every history step", () => {
     const { lidWallThicknessMm: _wall, wallThicknessMm: _shared, ...oldSpec } = VALID.spec;
     const inset = { ...oldSpec, magneticLid: true, magneticLidStyle: "inset" };
@@ -121,7 +140,7 @@ describe("parseProjectDoc", () => {
     const original = JSON.stringify(airdusterV9);
     const doc = parseProjectDoc(airdusterV9);
     const { liteBase: _removed, ...spec } = airdusterV9.spec;
-    expect(doc).toEqual({ ...airdusterV9, spec: { ...spec, flatBottom: false, magneticLid: false, magneticLidStyle: "inset", magneticLidTop: "flat", lidMagnetHoles: true, lidMagnetCrushRibs: false, lidFit: "lift-off", lidFitAdjustmentMm: 0, wallThicknessMm: 0.95, magnetDiameterMm: 6, magnetThicknessMm: 2 }, schemaVersion: PROJECT_SCHEMA_VERSION });
+    expect(doc).toEqual({ ...airdusterV9, spec: { ...spec, flatBottom: false, magneticLid: false, magneticLidStyle: "inset", magneticLidTop: "flat", lidMagnetHoles: true, lidMagnetCrushRibs: false, lidFit: "lift-off", lidInterface: "ribs", lidFitAdjustmentMm: 0, wallThicknessMm: 0.95, magnetDiameterMm: 6, magnetThicknessMm: 2 }, schemaVersion: PROJECT_SCHEMA_VERSION });
     expect(doc!.shapes).toHaveLength(7);
     expect(doc!.cutouts).toHaveLength(4);
     expect(doc!.fingerHoles).toHaveLength(2);

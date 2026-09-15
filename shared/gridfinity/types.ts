@@ -82,6 +82,8 @@ export const binSpecSchema = z
     lidMagnetCrushRibs: z.boolean().default(false),
     /** Retained while magnets are on, but only affects lids without closure magnets. */
     lidFit: z.enum(["lift-off", "friction"]).default("lift-off"),
+    /** Compliant interface used without closure magnets; ribs preserve earlier lids. */
+    lidInterface: z.enum(["ribs", "side-springs", "angled-fins", "spring-latch"]).default("ribs"),
     /** Per-side adjustment: positive tightens the lid without changing the bin. */
     lidFitAdjustmentMm: z.number().min(-0.1).max(0.1).multipleOf(0.05).default(0),
     /** Actual magnet size, shared by underside and lid closure holes. */
