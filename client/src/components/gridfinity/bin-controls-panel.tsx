@@ -795,7 +795,7 @@ export function BinControlsPanel({
                   {{ ribs: "Small ribs on a thin rim grip the bin.",
                     "side-springs": "Beams flex at the rim beneath a solid top. Keep their release gaps clear when slicing.",
                     "angled-fins": "Angled fingers run across each straight edge beneath a solid top. Keep their release gaps clear when slicing.",
-                    "spring-latch": "Covered springs compress perpendicular to the edge; their heads engage matching recesses. Pull up to release." }[spec.lidInterface]}
+                    "spring-latch": "Enclosed springs compress perpendicular to the edge. Only the latch heads are exposed, engaging matching recesses. Pull up to release." }[spec.lidInterface]}
                   {spec.lidInterface !== "ribs" ? " Export a matching bin and lid; test the fit before making a larger case." : " Tune after a test print."}
                 </p>
               </> : <p className="text-xs text-muted-foreground">Leaves a gap for easy removal.</p>}

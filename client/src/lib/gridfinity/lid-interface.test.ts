@@ -5,7 +5,7 @@ import { parseBinSpec, type BinSpec } from "@shared/gridfinity/types";
 import { binHeightMm } from "@shared/gridfinity/standard";
 import { lidCapTopMm, INSET_LID_CAP_BOTTOM_MM } from "@shared/gridfinity/magnetic-lid";
 import { fingerHoleSchema } from "@shared/gridfinity/cutout";
-import { lidInterfaceFrames } from "@shared/gridfinity/lid-interface";
+import { lidInterfaceFrames, LATCH_SPRING_HALF_HEIGHT_MM } from "@shared/gridfinity/lid-interface";
 import { validateBinSpec } from "@shared/gridfinity/validate";
 import { buildBin, buildBinWithCutouts, EXPORT_QUALITY, PREVIEW_QUALITY } from "./bin";
 import { buildMagneticLid, magneticLidForPrint } from "./magnetic-lid";
@@ -106,8 +106,9 @@ describe("compliant interfaces", () => {
         const root = lidInterface === "spring-latch" ? [0, 10.2] : [-10.5, 0.75];
         expect(arena.track(lid.intersect(probeAt(root[0], root[1], frame.bottom + 1.3))).volume()).toBeCloseTo(0.008, 6);
       }
+      const ceiling = lidInterface === "spring-latch" ? frame.contactZ + LATCH_SPRING_HALF_HEIGHT_MM + 0.3 : capBottom;
       const clearance = arena.track(arena.track(kernel.Manifold.cube([frame.width - 2, 0.8, 0.2], true))
-        .translate([frame.along, frame.face + frame.direction * 1.4, capBottom - 0.15]));
+        .translate([frame.along, frame.face + frame.direction * (lidInterface === "spring-latch" ? 2 : 1.4), ceiling - 0.15]));
       expect(arena.track(lid.intersect(clearance)).volume()).toBeLessThan(1e-6);
       // The entire cap and optional stacking rim stay solid and match the
       // original top, rather than just covering a sampled point.
@@ -117,6 +118,34 @@ describe("compliant interfaces", () => {
       expect(arena.track(arena.track(lid.subtract(original)).intersect(topMask)).volume()).toBeLessThan(1e-6);
     }
   });
+
+  for (const quality of [PREVIEW_QUALITY, EXPORT_QUALITY]) {
+    it.each(["flat", "stacking"] as const)(`encloses the latch above and below with only a centered side opening (%s, ${quality.circularSegments})`, magneticLidTop => {
+      const s = spec({ lidInterface: "spring-latch", magneticLidStyle: "inset", magneticLidTop });
+      const lid = buildMagneticLid(kernel, s, quality.circularSegments);
+      for (const frame of lidInterfaceFrames(s)) {
+        const local = arena.track(arena.track(arena.track(lid.rotate([0, 0, -frame.angle]))
+          .translate([-frame.along, -frame.face, 0])).scale([1, frame.direction, 1]));
+        const band = (bottom: number, height: number) => arena.track(arena.track(kernel.Manifold.cube([11.6, 8.8, height]))
+          .translate([-5.8, 1.2, bottom]));
+        // Continuous covers screen the entire folded spring, not just a point.
+        for (const cover of [band(0.1, 0.4), band(2.55, 0.8)]) {
+          expect(arena.track(cover.subtract(local)).volume()).toBeLessThan(1e-6);
+        }
+        for (const gap of [band(0.65, 0.2), band(2.25, 0.2)]) {
+          expect(arena.track(gap.intersect(local)).volume()).toBeLessThan(1e-6);
+        }
+        const probe = (x: number, z: number) => arena.track(arena.track(kernel.Manifold.cube([0.1, 0.1, 0.1], true))
+          .translate([x, 0.5, z]));
+        for (const [x, z] of [[-3.15, 1.55], [3.15, 1.55], [0, 0.75], [0, 2.35]]) {
+          expect(arena.track(local.intersect(probe(x, z))).volume()).toBeLessThan(1e-6);
+        }
+        for (const x of [-4.5, 4.5]) {
+          expect(arena.track(local.intersect(probe(x, 1.55))).volume()).toBeCloseTo(0.001, 6);
+        }
+      }
+    });
+  }
 
   it("mates the inset spring latch to real recesses and retains it until lifted", () => {
     const s = spec({ lidInterface: "spring-latch", magneticLidStyle: "inset" });
@@ -140,15 +169,18 @@ describe("compliant interfaces", () => {
     const s = spec({ lidInterface: "spring-latch", magneticLidStyle: "inset" });
     const frame = lidInterfaceFrames(s)[0];
     const lid = buildMagneticLid(kernel, s, 64);
-    const capBottom = INSET_LID_CAP_BOTTOM_MM;
-    const rootCut = arena.track(arena.track(kernel.Manifold.cube([1.2, 0.2, capBottom - frame.bottom]))
-      .translate([frame.along - 0.6, frame.face + frame.direction * 9.2 - 0.1, frame.bottom - 0.1]));
+    const rootCut = arena.track(arena.track(kernel.Manifold.cube([1.2, 0.2, 2 * LATCH_SPRING_HALF_HEIGHT_MM + 0.1]))
+      .translate([frame.along - 0.6, frame.face + frame.direction * 9.2 - 0.1, frame.bottom - 0.05]));
     const cut = arena.track(lid.subtract(rootCut));
     const pieces = cut.decompose();
     pieces.forEach(piece => arena.track(piece));
     // Cutting the rear root releases a whole head and spring; neither is
-    // bonded to the roof or the surrounding walls.
+    // bonded to the roof, lower cover, or surrounding walls. Both covers
+    // remain intact while the cut passes only through the moving root.
     expect(pieces).toHaveLength(2);
+    const released = pieces.reduce((a, b) => a.volume() < b.volume() ? a : b);
+    expect(released.boundingBox().min[2]).toBeCloseTo(0.9, 6);
+    expect(released.boundingBox().max[2]).toBeCloseTo(2.2, 6);
     const latched = { ...s, lidInterface: "spring-latch" as const, fill: "solid" as const };
     const hole = fingerHoleSchema.parse({ id: "latch", center: { x: frame.along, y: frame.face },
       diameterMm: 6, depthMm: 8, topFilletMm: 0 });

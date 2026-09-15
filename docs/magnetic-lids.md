@@ -95,8 +95,13 @@ dimensions or physical qualification for Pocketry.
   fused first layers, or support material can prevent movement. The top stays solid.
 - **Spring latch (inset only)** uses a 0.8 mm spring with three rounded U bends
   arranged perpendicular to the edge. The head retracts toward the fixed root
-  at the back of an approximately 11 mm deep chamber. A solid cap covers the
-  mechanism, with a 0.3 mm release gap above the moving parts. A rounded detent
+  at the back of an approximately 11 mm deep chamber. Following the enclosed
+  mechanism shown at [4:13–5:22 in Slant3D's video](https://www.youtube.com/watch?v=IZKh6lo9SP4&t=253s),
+  a solid roof and 0.6 mm lower cover hide the spring from both top and bottom.
+  The 1.3 mm high moving parts have 0.3 mm release gaps above and below;
+  only the head is exposed through a centered opening in the edge, also with
+  0.3 mm clearance around it. Beveled head edges help clear printed bridges.
+  The lower cover follows the entry slope to clear the bin's lip. A rounded detent
   mates with a 0.4 mm recess in the bin. **Pull up to release**: both insertion
   and removal have rounded ramps. These dimensions are Pocketry prototype
   choices, not dimensions specified or validated by Slant3D.
@@ -106,7 +111,9 @@ dimensions or physical qualification for Pocketry.
   The outer footprint stays fixed. **Export a matching bin and lid when changing
   interface**: side springs and angled fins share a bin; the inset latch needs
   its matching recesses. Revised latch heads are centered on each chamber, so
-  earlier latch bins also need re-exporting. Pocket and finger cutters cannot
+  bins from before that centering change also need re-exporting. The enclosed
+  chamber preserves the current recess position and preload, so current matching
+  latch bins can be reused with the enclosed lid. Pocket and finger cutters cannot
   remove the recess backing. Switching from an inset latch to Overlapping edge
   selects Side springs; undo restores the previous style and latch together.
 - The optional stacking rim stays continuous, above the solid cap. Loaded
@@ -246,6 +253,7 @@ undo, worker transfer and section isolation, and separate STL/3MF exports.
 Browser checks exercise the actual controls, closure previews, and exports.
 Additional interface tests check 1U and larger cases, full/half/quarter pitches,
 single connected solids, free travel gaps, detent/recess alignment, pull-release
-contact, cutter protection, and unchanged bin geometry across fit adjustments.
+contact, continuous covers above and below the latch, centered side openings,
+rear-only spring attachment, cutter protection, and unchanged bin geometry across fit adjustments.
 The new side springs, fins, and folded latch have **not been physically tested**;
 the earlier test plate does not qualify these new mechanisms.

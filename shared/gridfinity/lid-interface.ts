@@ -10,6 +10,8 @@ export const INTERFACE_WINDOW_WIDTH_MM = 20;
 export const INTERFACE_BACK_MM = 2.8;
 export const LATCH_BACK_MM = 10.1;
 export const LATCH_WINDOW_WIDTH_MM = 12;
+export const LATCH_SPRING_HALF_HEIGHT_MM = 0.65;
+export const LATCH_COVER_THICKNESS_MM = 0.6;
 export const DETENT_RECESS_DEPTH_MM = 0.4;
 /** The detent presses against the recess floor, keeping the spring preloaded. */
 export const DETENT_ENGAGEMENT_MM = DETENT_RECESS_DEPTH_MM + LID_FRICTION_INTERFERENCE_MM;
@@ -31,6 +33,7 @@ export function lidInterfaceFrames(spec: BinSpec): LidInterfaceFrame[] {
   const overlap = hasOverlappingLid(spec);
   const width = binFootprintMm(spec.gridX, spec.gridPitch);
   const length = binFootprintMm(spec.gridY, spec.gridPitch);
+  const latch = spec.lidInterface === "spring-latch";
   const frames: LidInterfaceFrame[] = [];
   for (const angle of [0, 90, 180, 270]) {
     const alongSize = angle % 180 === 0 ? width : length;
@@ -44,7 +47,7 @@ export function lidInterfaceFrames(spec: BinSpec): LidInterfaceFrame[] {
       angle, along: (i - (count - 1) / 2) * step,
       face: normalSize / 2 - (overlap ? overlapLidRimInsetMm(spec) : STACKING_LIP_DEPTH - STACKING_LIP_LINE[1][0]),
       direction: overlap ? 1 : -1,
-      bottom: overlap ? -4.8 : 0.85,
+      bottom: overlap ? -4.8 : latch ? 1.55 - LATCH_SPRING_HALF_HEIGHT_MM : 0.85,
       contactZ: overlap ? -3.2 : 1.55,
       width: fins ? usable : spec.lidInterface === "spring-latch" ? LATCH_WINDOW_WIDTH_MM : INTERFACE_WINDOW_WIDTH_MM,
     });

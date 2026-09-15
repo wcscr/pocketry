@@ -4,7 +4,7 @@ import { binHeightMm } from "@shared/gridfinity/standard";
 import { hasOverlappingLid, hasSpringLatch, usesCompliantInterface,
   lidBottomMm, INSET_LID_CAP_BOTTOM_MM, lidFitAdjustmentMm, LID_FRICTION_INTERFERENCE_MM } from "@shared/gridfinity/magnetic-lid";
 import { lidInterfaceFrames, SPRING_THICKNESS_MM, FIN_THICKNESS_MM, INTERFACE_CAP_GAP_MM,
-  INTERFACE_BACK_MM, LATCH_BACK_MM,
+  INTERFACE_BACK_MM, LATCH_BACK_MM, LATCH_SPRING_HALF_HEIGHT_MM, LATCH_COVER_THICKNESS_MM,
   DETENT_ENGAGEMENT_MM, DETENT_RECESS_DEPTH_MM, type LidInterfaceFrame } from "@shared/gridfinity/lid-interface";
 import type { Kernel } from "@/lib/manifold/runtime";
 
@@ -80,7 +80,41 @@ function foldedSpring(kernel: Kernel, frame: LidInterfaceFrame, top: number, seg
   });
   const section = arena.track(new CrossSection([[...offset(-1), ...offset(1).reverse()]]));
   const spring = arena.track(arena.track(section.extrude(top - frame.bottom)).translate([0, 0, frame.bottom]));
-  return arena.track(spring.add(box(kernel, [-3, 0.3, frame.bottom], [3, 1.6, top])));
+  // Bevel both leading edges so the head clears the chamber's printed bridges.
+  const head = arena.track(kernel.Manifold.hull([-3, 3].flatMap(x => [
+    [x, 0.3, frame.bottom + 0.2], [x, 0.5, frame.bottom], [x, 1.6, frame.bottom],
+    [x, 1.6, top], [x, 0.5, top], [x, 0.3, top - 0.2],
+  ] as Vec3[])));
+  return arena.track(spring.add(head));
+}
+
+/** Closed above and below; only the centered plunger aperture opens at the edge. */
+function latchHousing(kernel: Kernel, frame: LidInterfaceFrame, capBottom: number): Manifold {
+  const { arena, Manifold } = kernel;
+  const half = frame.width / 2;
+  const floorTop = frame.bottom - INTERFACE_CAP_GAP_MM;
+  const floorBottom = Math.max(0, floorTop - LATCH_COVER_THICKNESS_MM);
+  const ceiling = frame.contactZ + LATCH_SPRING_HALF_HEIGHT_MM + INTERFACE_CAP_GAP_MM;
+  const roofTop = capBottom + 0.05;
+  const back = LATCH_BACK_MM + 0.8;
+  // The lower cover follows the locator's entry slope, keeping it clear of
+  // the bin while hiding the spring when the lid is viewed from underneath.
+  const floor = arena.track(Manifold.hull([floorBottom, floorTop].flatMap(z =>
+    [-half - 0.8, half + 0.8].flatMap(x => [
+      [x, 0.3 + floorTop - z, z], [x, back, z],
+    ] as Vec3[]))));
+  const pieces = [floor,
+    box(kernel, [-half - 0.8, 0.3, ceiling], [half + 0.8, back, roofTop]),
+    box(kernel, [-half - 0.8, LATCH_BACK_MM, floorBottom], [half + 0.8, back, roofTop]),
+  ];
+  for (const x of [-half - 0.8, half]) {
+    pieces.push(box(kernel, [x, 0.3, floorTop], [x + 0.8, back, roofTop]));
+  }
+  // A 0.3 mm gap surrounds the 6 mm head, screening the folds from the side.
+  for (const [left, right] of [[-half - 0.8, -3.3], [3.3, half + 0.8]]) {
+    pieces.push(box(kernel, [left, 0.3, floorTop], [right, 1.1, ceiling]));
+  }
+  return arena.track(Manifold.union(pieces));
 }
 
 /** Parallel angled fingers with a tapered lower entry and clear gaps between blades. */
@@ -120,11 +154,10 @@ export function applyLidInterface(kernel: Kernel, spec: BinSpec, lid: Manifold, 
     const opening = box(kernel, [-half, -0.65, lidBottomMm(spec) - 0.1],
       [half, back, capBottom]);
     windows.push(place(kernel, opening, frame));
-    const top = capBottom - INTERFACE_CAP_GAP_MM;
+    const top = isLatch ? frame.contactZ + LATCH_SPRING_HALF_HEIGHT_MM : capBottom - INTERFACE_CAP_GAP_MM;
     // Fingers attach only at their roots. A release gap below the cap lets
     // them bend sideways instead of being welded to it along their length.
     const backingTop = capBottom + 0.05;
-    const backing = box(kernel, [-half - 0.8, back, frame.bottom], [half + 0.8, back + 0.8, backingTop]);
     let mechanism: Manifold;
     if (isFins) mechanism = fins(kernel, spec, frame, top, segments);
     else {
@@ -132,10 +165,9 @@ export function applyLidInterface(kernel: Kernel, spec: BinSpec, lid: Manifold, 
       const engagement = (isLatch ? DETENT_ENGAGEMENT_MM : LID_FRICTION_INTERFERENCE_MM) + lidFitAdjustmentMm(spec);
       mechanism = arena.track(mechanism.add(contact(kernel, frame, engagement, false, segments, isLatch ? 0 : 6.5)));
     }
-    if (isLatch) for (const x of [-half - 0.8, half]) {
-      mechanism = arena.track(mechanism.add(box(kernel, [x, 0.3, frame.bottom], [x + 0.8, back + 0.8, backingTop])));
-    }
-    mechanisms.push(place(kernel, arena.track(mechanism.add(backing)), frame));
+    const housing = isLatch ? latchHousing(kernel, frame, capBottom)
+      : box(kernel, [-half - 0.8, back, frame.bottom], [half + 0.8, back + 0.8, backingTop]);
+    mechanisms.push(place(kernel, arena.track(mechanism.add(housing)), frame));
   }
   const opened = arena.track(lid.subtract(arena.track(Manifold.union(windows))));
   return arena.track(opened.add(arena.track(Manifold.union(mechanisms))));
