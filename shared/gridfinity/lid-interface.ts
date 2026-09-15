@@ -1,6 +1,6 @@
 import type { BinSpec } from "./types";
 import { BASE_TOP_RADIUS, binFootprintMm, STACKING_LIP_DEPTH, STACKING_LIP_LINE } from "./standard";
-import { hasOverlappingLid, overlapLidRimInsetMm } from "./magnetic-lid";
+import { hasOverlappingLid, overlapLidRimInsetMm, overlapRimCornerRadiusMm, LID_FRICTION_INTERFERENCE_MM } from "./magnetic-lid";
 
 export const SPRING_THICKNESS_MM = 0.8;
 export const FIN_THICKNESS_MM = 0.6;
@@ -10,8 +10,9 @@ export const INTERFACE_WINDOW_WIDTH_MM = 20;
 export const INTERFACE_BACK_MM = 2.8;
 export const LATCH_BACK_MM = 10.1;
 export const LATCH_WINDOW_WIDTH_MM = 12;
-export const DETENT_ENGAGEMENT_MM = 0.2;
 export const DETENT_RECESS_DEPTH_MM = 0.4;
+/** The detent presses against the recess floor, keeping the spring preloaded. */
+export const DETENT_ENGAGEMENT_MM = DETENT_RECESS_DEPTH_MM + LID_FRICTION_INTERFERENCE_MM;
 
 export interface LidInterfaceFrame {
   /** Local x runs along the wall; positive local y retracts from the bin. */
@@ -34,7 +35,8 @@ export function lidInterfaceFrames(spec: BinSpec): LidInterfaceFrame[] {
   for (const angle of [0, 90, 180, 270]) {
     const alongSize = angle % 180 === 0 ? width : length;
     const normalSize = angle % 180 === 0 ? length : width;
-    const usable = alongSize - 2 * (BASE_TOP_RADIUS + 2);
+    const cornerEnd = overlap ? overlapLidRimInsetMm(spec) + overlapRimCornerRadiusMm(spec) : BASE_TOP_RADIUS;
+    const usable = alongSize - 2 * (cornerEnd + 2);
     const fins = spec.lidInterface === "angled-fins";
     const count = fins ? 1 : Math.min(8, Math.max(1, Math.floor(usable / 28)));
     const step = usable / count;

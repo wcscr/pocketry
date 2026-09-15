@@ -799,13 +799,16 @@ export function BinControlsPanel({
                   {spec.lidInterface !== "ribs" ? " Export a matching bin and lid; test the fit before making a larger case." : " Tune after a test print."}
                 </p>
               </> : <p className="text-xs text-muted-foreground">Leaves a gap for easy removal.</p>}
-              <Label className="text-xs">Fit adjustment</Label>
+              <Label className="text-xs">{spec.lidFit === "friction" ? "Grip" : "Fit adjustment"}</Label>
               <Slider centerOrigin value={[Math.round(spec.lidFitAdjustmentMm / 0.05)]} min={-2} max={2} step={1}
                 aria-label="Lid fit adjustment"
-                aria-valuetext={spec.lidFitAdjustmentMm === 0 ? "Default" : `${Math.abs(spec.lidFitAdjustmentMm).toFixed(2)} mm ${spec.lidFitAdjustmentMm > 0 ? "tighter" : "looser"}`}
+                aria-valuetext={spec.lidFitAdjustmentMm === 0 ? "Default" : `${Math.abs(spec.lidFitAdjustmentMm).toFixed(2)} mm ${spec.lidFit === "friction" ? (spec.lidFitAdjustmentMm > 0 ? "firmer" : "lighter") : (spec.lidFitAdjustmentMm > 0 ? "tighter" : "looser")}`}
                 onValueChange={([step]) => patchSpec({ lidFitAdjustmentMm: Number((step * 0.05).toFixed(2)) }, true)}
                 onValueCommit={([step]) => patchSpec({ lidFitAdjustmentMm: Number((step * 0.05).toFixed(2)) })} />
-              <div className="flex justify-between text-xs text-muted-foreground"><span>Looser</span><span>Tighter</span></div>
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>{spec.lidFit === "friction" ? "Lighter" : "Looser"}</span>
+                <span>{spec.lidFit === "friction" ? "Firmer" : "Tighter"}</span>
+              </div>
             </div>
           )}
           {spec.magneticLid && spec.lidMagnetHoles && <p className="text-xs text-muted-foreground" data-testid="magnetic-lid-details">

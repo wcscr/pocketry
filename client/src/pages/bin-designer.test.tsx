@@ -436,7 +436,7 @@ it.each([false, true])("offers fit and tuning only without lid magnets, retainin
     const slider = panel.querySelector<HTMLElement>('[role="slider"][aria-label="Lid fit adjustment"]')!;
     React.act(() => slider.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })));
     expect(current()).toMatchObject({ lidFit: "friction", lidFitAdjustmentMm: 0.05, magnetHoles: true, lidMagnetHoles: false });
-    expect(slider.getAttribute("aria-valuetext")).toBe("0.05 mm tighter");
+    expect(slider.getAttribute("aria-valuetext")).toBe("0.05 mm firmer");
     React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
     expect(current().lidFitAdjustmentMm).toBe(0);
     React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());

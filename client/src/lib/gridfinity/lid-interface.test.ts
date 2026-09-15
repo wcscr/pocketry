@@ -35,11 +35,10 @@ describe("compliant interfaces", () => {
           pieces.forEach(piece => arena.track(piece));
           expect(pieces).toHaveLength(1);
           const contact = arena.track(body.intersect(arena.track(lid.translate([0, 0, 14]))));
-          if (s.lidInterface === "spring-latch" || lidFitAdjustmentMm === -0.1) expect(contact.volume()).toBeLessThan(1e-5);
-          else {
+          {
             // Only the chosen contact tips may overlap the bin, by at most
             // the requested per-side interference. Everything else clears.
-            const depth = 0.05 + lidFitAdjustmentMm;
+            const depth = (s.lidInterface === "spring-latch" ? 0.55 : 0.15) + lidFitAdjustmentMm;
             const masks = lidInterfaceFrames(s).map(frame => arena.track(arena.track(arena.track(
               kernel.Manifold.cube([frame.width + 2, depth + 0.02, 20]))
               .translate([-frame.width / 2 - 1, -depth - 0.01, -5]))
@@ -51,6 +50,21 @@ describe("compliant interfaces", () => {
             const allowed = arena.track(kernel.Manifold.union(placed));
             expect(arena.track(contact.subtract(allowed)).volume()).toBeLessThan(1e-5);
             expect(contact.volume()).toBeGreaterThan(0.001);
+            for (const frame of lidInterfaceFrames(s)) {
+              const local = arena.track(arena.track(arena.track(arena.track(contact.translate([0, 0, -14]))
+                .rotate([0, 0, -frame.angle])).translate([-frame.along, -frame.face, 0])).scale([1, frame.direction, 1]));
+              const z = s.lidInterface === "angled-fins" ? frame.bottom + 0.85 : frame.contactZ;
+              const sample = arena.track(arena.track(kernel.Manifold.cube([frame.width + 2, depth + 0.02, 0.02]))
+                .translate([-frame.width / 2 - 1, -depth - 0.01, z - 0.01]));
+              const tip = arena.track(local.intersect(sample));
+              // Every side needs spring deflection, even at the lightest grip;
+              // latch preload is measured past the fixed 0.4 mm recess floor.
+              expect(tip.volume()).toBeGreaterThan(1e-7);
+              expect(tip.boundingBox().min[1]).toBeCloseTo(-depth, 4);
+              const preload = -tip.boundingBox().min[1] - (s.lidInterface === "spring-latch" ? 0.4 : 0);
+              expect(preload).toBeGreaterThan(0.049);
+              expect(preload).toBeLessThan(0.251);
+            }
           }
           const printed = magneticLidForPrint(kernel, lid, tuned);
           expect(printed.boundingBox().min[2]).toBeCloseTo(0, 6);
@@ -114,8 +128,9 @@ describe("compliant interfaces", () => {
     expect(arena.track(body.intersect(atDepth(0.2))).volume()).toBeLessThan(1e-6);
     expect(arena.track(body.intersect(atDepth(0.7))).volume()).toBeCloseTo(0.001, 6);
     const lid = buildMagneticLid(kernel, s, 64);
-    expect(arena.track(body.intersect(arena.track(lid.translate([0, 0, binHeightMm(s.heightUnits)])))).volume()).toBeLessThan(1e-5);
-    expect(arena.track(body.intersect(arena.track(lid.translate([0, 0, 14.8])))).volume()).toBeGreaterThan(0.001);
+    const seatedContact = arena.track(body.intersect(arena.track(lid.translate([0, 0, binHeightMm(s.heightUnits)])))).volume();
+    expect(seatedContact).toBeGreaterThan(0.001);
+    expect(arena.track(body.intersect(arena.track(lid.translate([0, 0, 14.8])))).volume()).toBeGreaterThan(seatedContact);
     const tuned = buildBin(kernel, { ...s, lidFitAdjustmentMm: 0.1 }, EXPORT_QUALITY).solid;
     expect(arena.track(body.subtract(tuned)).isEmpty()).toBe(true);
     expect(arena.track(tuned.subtract(body)).isEmpty()).toBe(true);
@@ -160,6 +175,30 @@ describe("compliant interfaces", () => {
     expect(spans.at(-1)!.max[0]).toBeGreaterThan(frame.width / 2 - 4);
   });
 
+  for (const quality of [PREVIEW_QUALITY, EXPORT_QUALITY]) {
+    it.each(["inset", "overlap"] as const)(`balances fin material and gaps at about 50 percent (%s, ${quality.circularSegments})`, magneticLidStyle => {
+      for (const lidFitAdjustmentMm of [-0.1, 0, 0.1]) {
+        const s = spec({ lidInterface: "angled-fins", magneticLidStyle, lidFitAdjustmentMm });
+        const frame = lidInterfaceFrames(s)[0];
+        const lid = buildMagneticLid(kernel, s, quality.circularSegments);
+        // Sample the working span between the rounded tips and fixed roots.
+        const sample = arena.track(arena.track(kernel.Manifold.cube([frame.width - 6, 0.01, 0.1], true))
+          .translate([0, frame.face + frame.direction * 1.6, frame.bottom + 1.3]));
+        const pieces = arena.track(lid.intersect(sample)).decompose();
+        pieces.forEach(piece => arena.track(piece));
+        const spans = pieces.map(piece => piece.boundingBox()).sort((a, b) => a.min[0] - b.min[0]);
+        expect(spans.length).toBeGreaterThan(5);
+        // Skip the two boundary fingers, which the sample may clip.
+        for (let i = 1; i < spans.length - 1; i++) {
+          const material = spans[i].max[0] - spans[i].min[0];
+          const gap = spans[i + 1].min[0] - spans[i].max[0];
+          expect(gap).toBeGreaterThan(0.6);
+          expect(material / (material + gap)).toBeCloseTo(0.5, 1);
+        }
+      }
+    });
+  }
+
   it.each(interfaces.flatMap(lidInterface => [
       { gridX: 2, gridY: 3, wallThicknessMm: 4 },
       { gridPitch: "half" as const, gridX: 2, gridY: 3, wallThicknessMm: 1.2 },
@@ -176,7 +215,7 @@ describe("compliant interfaces", () => {
         pieces.forEach(piece => arena.track(piece));
         expect(pieces).toHaveLength(1);
       }
-      expect(arena.track(body.intersect(arena.track(lid.translate([0, 0, 14])))).volume()).toBeLessThan(1e-5);
+      expect(arena.track(body.intersect(arena.track(lid.translate([0, 0, 14])))).volume()).toBeGreaterThan(0.001);
   });
 
   it("rejects undersized interfaces and overlapping spring latches", () => {

@@ -45,7 +45,7 @@ import {
 import type { BinSpec } from "./types";
 import { resolvePocketSplit } from "./pocket-split";
 import { hasBaseMagnets, baseMagnetSizeError } from "./magnets";
-import { hasOverlappingLid, overlapLidRimInsetMm, overlapRimWallMm, lidPadExtentMm, magneticLidError } from "./magnetic-lid";
+import { hasOverlappingLid, overlapRimInteriorClearanceMm, lidPadExtentMm, magneticLidError } from "./magnetic-lid";
 
 /**
  * Pure validation of a bin specification — no WASM, cheap enough to run on
@@ -443,6 +443,10 @@ function validateAgainstBin(spec: BinSpec, p: PlacedCutout): ValidationIssue[] {
   }
   const outlineAllowance = pocketLayoutAllowanceMm(cutout);
   const wallMargin = Math.min(minDistOutline - outlineAllowance, minDistFeature);
+  const rimMargin = hasOverlappingLid(spec) ? Math.min(
+    ...p.outline.flatMap(shape => shape.outer.map(point => overlapRimInteriorClearanceMm(point, spec) - outlineAllowance)),
+    ...p.features.flatMap(ring => ring.map(point => overlapRimInteriorClearanceMm(point, spec))),
+  ) : Infinity;
 
   if (wallMargin < 0) {
     issues.push({
@@ -451,7 +455,7 @@ function validateAgainstBin(spec: BinSpec, p: PlacedCutout): ValidationIssue[] {
       cutoutIds: [cutout.id],
       message: `“${label}” cuts into the bin wall once its ${outlineAllowance} mm combined clearance and top-edge round are added.`,
     });
-  } else if (hasOverlappingLid(spec) && wallMargin < overlapLidRimInsetMm(spec) + overlapRimWallMm(spec) - binWallThicknessMm(spec)) {
+  } else if (rimMargin < 0) {
     issues.push({ code: "lid-rim-collision", severity: "error", cutoutIds: [cutout.id],
       message: `“${label}” cuts into the inset lid rim. Move it farther from the edge.` });
   } else if (hasStackingLip(spec) && wallMargin < Math.max(0, STACKING_LIP_DEPTH - binWallThicknessMm(spec))) {
@@ -571,6 +575,9 @@ function validateFingerHoleAgainstBin(
       ? ringSignedClearance(ring, interiorBoundary)
       : Math.min(...ring.map((point) => signedDistanceToInterior(point, spec)))) -
     topAllowanceMm;
+  const rimMargin = hasOverlappingLid(spec)
+    ? Math.min(...ring.map(point => overlapRimInteriorClearanceMm(point, spec))) - topAllowanceMm
+    : Infinity;
   if (wallMargin < 0) {
     issues.push({
       code: "finger-hole-wall-breach",
@@ -578,7 +585,7 @@ function validateFingerHoleAgainstBin(
       fingerHoleIds: [hole.id],
       message: `${label} cuts into the bin wall.`,
     });
-  } else if (hasOverlappingLid(spec) && wallMargin < overlapLidRimInsetMm(spec) + overlapRimWallMm(spec) - binWallThicknessMm(spec)) {
+  } else if (rimMargin < 0) {
     issues.push({ code: "lid-rim-collision", severity: "error", fingerHoleIds: [hole.id],
       message: `${label} cuts into the inset lid rim. Move it farther from the edge.` });
   } else if (hasStackingLip(spec) && wallMargin < Math.max(0, STACKING_LIP_DEPTH - binWallThicknessMm(spec))) {

@@ -9,7 +9,7 @@ import { roundedRectPolygon, baseProfilePolygon, type ProfilePolygon } from "./p
 import { buildStackingLip } from "./wall";
 import { sweepRounded } from "./sweep";
 import { footprintOuterSection } from "./footprint-section";
-import { usesCompliantInterface } from "@shared/gridfinity/magnetic-lid";
+import { usesCompliantInterface, overlapRimCornerRadiusMm } from "@shared/gridfinity/magnetic-lid";
 import { applyLidInterface, addLidDetentRecesses } from "./lid-interface";
 
 function assertLid(spec: BinSpec): void {
@@ -72,41 +72,50 @@ function formInsetRim(kernel: Kernel, spec: BinSpec, solid: Manifold, segments: 
   const shoulder = binHeightMm(spec.heightUnits) - LID_OVERLAP_MM;
   const width = binFootprintMm(spec.gridX, spec.gridPitch);
   const length = binFootprintMm(spec.gridY, spec.gridPitch);
-  const rimInset = overlapLidRimInsetMm(spec);
-  const neck = arena.track(new kernel.CrossSection([roundedRectPolygon(width - 2 * rimInset, length - 2 * rimInset, Math.max(0, BASE_TOP_RADIUS - rimInset), segments)]));
   // Cut beyond every wall facet: the layout outline and swept wall can have
   // slightly different tessellation, so an outline-sized cutter leaves slivers.
   const oversized = arena.track(kernel.CrossSection.square([width + 2, length + 2], true));
-  const removed = arena.track(arena.track(arena.track(oversized.subtract(neck)).extrude(LID_OVERLAP_MM + 0.1)).translate([0, 0, shoulder]));
+  const upper = arena.track(arena.track(oversized.extrude(LID_OVERLAP_MM + 0.1)).translate([0, 0, shoulder]));
+  // Trim to the complete rim envelope, including its chamfer, so original
+  // wall material cannot leave raised slivers at the corners.
+  const removed = arena.track(upper.subtract(overlapRimEnvelope(kernel, spec, segments)));
   return arena.track(arena.track(solid.subtract(removed)).add(buildInsetLidRim(kernel, spec, segments)));
 }
 
-/** Convex contour at an inward offset; thick walls may have square inner corners. */
-function lidContour(spec: BinSpec, inset: number, segments: number): ProfilePolygon {
+/** Offset a rounded profile relative to its own mating datum. */
+function lidContour(spec: BinSpec, inset: number, segments: number, datumInset: number, datumRadius: number): ProfilePolygon {
   return roundedRectPolygon(
     binFootprintMm(spec.gridX, spec.gridPitch) - 2 * inset,
     binFootprintMm(spec.gridY, spec.gridPitch) - 2 * inset,
-    Math.max(0, BASE_TOP_RADIUS - inset), segments,
+    Math.max(0, datumRadius + datumInset - inset), segments,
   );
 }
 
 /** Exact planar transitions, including offsets greater than the outer corner radius. */
-function lidLoft(kernel: Kernel, spec: BinSpec, stations: [number, number][], segments: number): Manifold {
+function lidLoft(kernel: Kernel, spec: BinSpec, stations: [number, number][], segments: number,
+  datumInset = 0, datumRadius = BASE_TOP_RADIUS): Manifold {
   const { arena, Manifold, CrossSection } = kernel;
   const pieces: Manifold[] = [];
   for (let i = 1; i < stations.length; i++) {
     const [from, bottom] = stations[i - 1];
     const [to, top] = stations[i];
     if (from === to) {
-      const section = arena.track(new CrossSection([lidContour(spec, from, segments)]));
+      const section = arena.track(new CrossSection([lidContour(spec, from, segments, datumInset, datumRadius)]));
       pieces.push(arena.track(arena.track(section.extrude(top - bottom)).translate([0, 0, bottom])));
     } else {
-      const points = [...lidContour(spec, from, segments).map(([x, y]): Vec3 => [x, y, bottom]),
-        ...lidContour(spec, to, segments).map(([x, y]): Vec3 => [x, y, top])];
+      const points = [...lidContour(spec, from, segments, datumInset, datumRadius).map(([x, y]): Vec3 => [x, y, bottom]),
+        ...lidContour(spec, to, segments, datumInset, datumRadius).map(([x, y]): Vec3 => [x, y, top])];
       pieces.push(arena.track(Manifold.hull(points)));
     }
   }
   return arena.track(Manifold.union(pieces));
+}
+
+function overlapRimEnvelope(kernel: Kernel, spec: BinSpec, segments: number): Manifold {
+  const shoulder = binHeightMm(spec.heightUnits) - LID_OVERLAP_MM;
+  const inset = overlapLidRimInsetMm(spec);
+  return lidLoft(kernel, spec, [[inset, shoulder], [inset, shoulder + LID_OVERLAP_MM - 0.4],
+    [inset + 0.4, shoulder + LID_OVERLAP_MM]], segments, inset, overlapRimCornerRadiusMm(spec));
 }
 
 /** The overlap rim is also reserved against pocket and finger-access cutters. */
@@ -121,11 +130,11 @@ export function buildInsetLidRim(kernel: Kernel, spec: BinSpec, segments: number
     const bottom = Math.max(BASE_HEIGHT, shoulder - support);
     const innerInset = rimInset + overlapRimWallMm(spec);
     const lower = bottom < shoulder ? lidLoft(kernel, spec, [[0, bottom], [0, shoulder]], segments) : null;
-    const upper = lidLoft(kernel, spec, [[rimInset, shoulder], [rimInset, shoulder + LID_OVERLAP_MM - 0.4],
-      [rimInset + 0.4, shoulder + LID_OVERLAP_MM]], segments);
+    const upper = overlapRimEnvelope(kernel, spec, segments);
     const cavity = lidLoft(kernel, spec, [
       ...(bottom < shoulder ? [[innerInset - (shoulder - bottom), bottom] as [number, number]] : []),
-      [innerInset, shoulder], [innerInset, shoulder + LID_OVERLAP_MM]], segments);
+      [innerInset, shoulder], [innerInset, shoulder + LID_OVERLAP_MM]], segments,
+      spec.lidWallThicknessMm === undefined ? innerInset : 0);
     return arena.track((lower ? arena.track(lower.add(upper)) : upper).subtract(cavity));
   }
   const rim = sweepRounded(kernel, [
@@ -154,12 +163,13 @@ function buildOverlappingLid(kernel: Kernel, spec: BinSpec, segments: number): M
     const wall = overlapLidWallMm(spec) + (friction ? 0 : lidFitAdjustmentMm(spec));
     const contactInset = rimInset + LID_FRICTION_INTERFERENCE_MM + lidFitAdjustmentMm(spec);
     const envelope = lidLoft(kernel, spec, [[0, bottom], [0, 0]], segments);
-    const opening = lidLoft(kernel, spec, [[wall - 0.3, bottom], [wall, bottom + 0.3], [wall, 0]], segments);
+    const opening = lidLoft(kernel, spec, [[wall - 0.3, bottom], [wall, bottom + 0.3], [wall, 0]],
+      segments, rimInset, overlapRimCornerRadiusMm(spec));
     let skirt = arena.track(envelope.subtract(opening));
     if (contactRibs) {
       const gripOpening = lidLoft(kernel, spec, [[wall - 0.3, bottom], [wall, bottom + 0.3],
         [wall, bottom + 0.5], [contactInset, bottom + 1.2], [contactInset, bottom + 1.6],
-        [wall, bottom + 2.4], [wall, 0]], segments);
+        [wall, bottom + 2.4], [wall, 0]], segments, rimInset, overlapRimCornerRadiusMm(spec));
       skirt = addFrictionRibs(kernel, spec, skirt, arena.track(envelope.subtract(gripOpening)), segments);
     }
     return arena.track(arena.track(outer.extrude(lidCapTopMm(spec))).add(skirt));

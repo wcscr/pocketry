@@ -88,9 +88,13 @@ function fins(kernel: Kernel, spec: BinSpec, frame: LidInterfaceFrame, top: numb
   const { arena, Manifold } = kernel;
   const engagement = LID_FRICTION_INTERFERENCE_MM + lidFitAdjustmentMm(spec);
   const pieces: Manifold[] = [];
-  const count = Math.max(1, Math.floor((frame.width - 3.6) / 2.4) + 1);
+  const reach = INTERFACE_BACK_MM + 0.3 - (FIN_THICKNESS_MM / 2 - engagement);
+  // Equal material and air measured perpendicular to the angled blades.
+  // Project that spacing along the edge so the 0.6 mm fins have 0.6 mm gaps.
+  const pitch = 2 * FIN_THICKNESS_MM * Math.hypot(3, reach) / reach;
+  const count = Math.max(1, Math.floor((frame.width - 3.6) / pitch) + 1);
   for (let i = 0; i < count; i++) {
-    const along = (i - (count - 1) / 2) * 2.4;
+    const along = (i - (count - 1) / 2) * pitch;
     pieces.push(strip(kernel, [along - 1.5, INTERFACE_BACK_MM + 0.3],
       [along + 1.5, FIN_THICKNESS_MM / 2 - engagement], FIN_THICKNESS_MM, frame.bottom, top, segments));
   }

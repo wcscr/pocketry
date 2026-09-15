@@ -1,5 +1,5 @@
 import type { Point } from "../geometry/types";
-import { BASE_HEIGHT, BASE_PROFILE_MAX_X, BASE_PROFILE_HEIGHT, STACKING_LIP_HEIGHT_ACTUAL, binWallThicknessMm, HOLE_DISTANCE_FROM_BOTTOM_EDGE, MAGNET_HOLE_DEPTH, binFootprintMm, binHeightMm } from "./standard";
+import { BASE_HEIGHT, BASE_TOP_RADIUS, BASE_PROFILE_MAX_X, BASE_PROFILE_HEIGHT, STACKING_LIP_HEIGHT_ACTUAL, binWallThicknessMm, HOLE_DISTANCE_FROM_BOTTOM_EDGE, MAGNET_HOLE_DEPTH, binFootprintMm, binHeightMm } from "./standard";
 import { magnetHoleRadiusMm, magnetHoleDepthMm, type MagnetSize } from "./magnets";
 import type { BinSpec } from "./types";
 
@@ -21,8 +21,8 @@ export const LID_CAP_THICKNESS_MM = LID_PAD_DEPTH_MM;
 export const INSET_LID_CAP_BOTTOM_MM = STACKING_LIP_HEIGHT_ACTUAL + LID_SHOULDER_GAP_MM;
 /** Exposes about 3.2 mm above the stacking lip for a finger grip. */
 export const INSET_LID_TOP_MM = BASE_PROFILE_HEIGHT + 2;
-/** Initial interference at the narrow contact ridge; requires a physical fit test. */
-export const LID_FRICTION_INTERFERENCE_MM = 0.05;
+/** Preload stays positive across the ±0.1 mm grip range; requires a physical fit test. */
+export const LID_FRICTION_INTERFERENCE_MM = 0.15;
 
 type InterfaceSpec = Partial<Pick<BinSpec, "magneticLid" | "lidMagnetHoles" | "lidFit" | "lidInterface">>;
 type WallSpec = Pick<BinSpec, "wallThicknessMm" | "lidWallThicknessMm"> & InterfaceSpec;
@@ -53,10 +53,33 @@ export function overlapLidRimInsetMm(spec: WallSpec): number {
   return overlapLidWallMm(spec) + LID_SKIRT_CLEARANCE_MM;
 }
 
+/** Give the recessed rim its own rounded profile, retaining legacy printed pairs. */
+export function overlapRimCornerRadiusMm(spec: WallSpec): number {
+  return spec.lidWallThicknessMm === undefined ? BASE_TOP_RADIUS
+    : Math.max(0, BASE_TOP_RADIUS - overlapLidRimInsetMm(spec));
+}
+
+/** Positive inside the rounded cavity; layout cutters must clear its corners too. */
+export function overlapRimInteriorClearanceMm(point: Point, spec: BinSpec): number {
+  const inset = overlapLidRimInsetMm(spec) + overlapRimWallMm(spec);
+  const radius = spec.lidWallThicknessMm === undefined ? BASE_TOP_RADIUS : Math.max(0, BASE_TOP_RADIUS - inset);
+  const halfW = binFootprintMm(spec.gridX, spec.gridPitch) / 2 - inset;
+  const halfL = binFootprintMm(spec.gridY, spec.gridPitch) / 2 - inset;
+  const ax = Math.abs(point.x), ay = Math.abs(point.y);
+  if (ax > halfW - radius && ay > halfL - radius) {
+    return radius - Math.hypot(ax - (halfW - radius), ay - (halfL - radius));
+  }
+  return Math.min(halfW - ax, halfL - ay);
+}
+
 /** Thick stepped rims need the paired magnets farther from the outer edge. */
 export function lidMagnetInsetMm(spec: BinSpec): number {
   const edgeInset = hasOverlappingLid(spec) ? overlapLidRimInsetMm(spec) : BASE_PROFILE_MAX_X + LID_CLEARANCE_MM;
-  return Math.max(LID_MAGNET_INSET_MM, edgeInset + lidHoleRadiusMm(spec) + LID_MAGNET_WALL_MM);
+  const margin = lidHoleRadiusMm(spec) + LID_MAGNET_WALL_MM;
+  const radius = hasOverlappingLid(spec) ? overlapRimCornerRadiusMm(spec) : 0;
+  // Small bores near a rounded corner also need the diagonal wall allowance.
+  const cornerMargin = radius - (radius - margin) / Math.SQRT2;
+  return Math.max(LID_MAGNET_INSET_MM, edgeInset + Math.max(margin, cornerMargin));
 }
 
 type LidMagnetSize = MagnetSize & { lidMagnetHoles?: boolean };

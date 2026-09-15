@@ -2,13 +2,14 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Arena } from "@/lib/manifold/arena";
 import { createKernel, loadManifold, type Kernel } from "@/lib/manifold/runtime";
 import { parseBinSpec } from "@shared/gridfinity/types";
-import { STACKING_LIP_HEIGHT_ACTUAL, MAGNET_HOLE_DEPTH, MAGNET_HOLE_RADIUS, binHeightMm, binFootprintMm } from "@shared/gridfinity/standard";
+import { BASE_TOP_RADIUS, STACKING_LIP_HEIGHT_ACTUAL, MAGNET_HOLE_DEPTH, MAGNET_HOLE_RADIUS, binHeightMm, binFootprintMm } from "@shared/gridfinity/standard";
 import { LID_OVERLAP_MM, LID_SHOULDER_GAP_MM, overlapLidRimInsetMm, LID_CAP_THICKNESS_MM, lidCapTopMm, lidTopMm, lidMagnetCenters } from "@shared/gridfinity/magnetic-lid";
 import { magnetHoleDepthMm, magnetHoleRadiusMm, magnetCrushRadiusMm } from "@shared/gridfinity/magnets";
-import { fingerHoleSchema } from "@shared/gridfinity/cutout";
+import { fingerHoleSchema, tracedShapeSchema, parseCutoutPlacement } from "@shared/gridfinity/cutout";
 import { validateBinSpec, validateLayout } from "@shared/gridfinity/validate";
 import { binDimensionsMm, buildBin, buildBinWithCutouts, EXPORT_QUALITY, PREVIEW_QUALITY } from "./bin";
 import { buildMagneticLid, magneticLidForPrint } from "./magnetic-lid";
+import { roundedRectPolygonArea } from "./profiles";
 
 let arena: Arena;
 let kernel: Kernel;
@@ -17,6 +18,78 @@ afterEach(() => arena.dispose());
 const spec = (patch: Record<string, unknown> = {}) => parseBinSpec({ gridX: 2, gridY: 3, heightUnits: 6, fill: "none", magneticLid: true, ...patch });
 
 describe("magnetic lids", () => {
+  for (const quality of [PREVIEW_QUALITY, EXPORT_QUALITY]) {
+    it.each([0.8, 1.2, 2, 4])(`rounds thick overlap corners with full walls and mating clearance (${quality.circularSegments}, %s mm)`, wallThicknessMm => {
+      for (const lidMagnetHoles of [false, true]) {
+        const s = spec({ gridX: 1, gridY: 1, heightUnits: 2, magneticLidStyle: "overlap", wallThicknessMm, lidMagnetHoles });
+        const body = buildBin(kernel, s, quality).solid;
+        const lid = buildMagneticLid(kernel, s, quality.circularSegments);
+        const inset = wallThicknessMm + 0.3;
+        // Check the whole perimeter, including the chamfer where remnants of
+        // the original wall used to leave raised corner slivers.
+        for (const chamfer of [0, 0.2, 0.35]) {
+          const section = arena.track(body.slice(chamfer === 0 ? 13 : 13.6 + chamfer));
+          const outside = arena.track(section.hull());
+          const size = 41.5 - 2 * (inset + chamfer);
+          expect(outside.area()).toBeCloseTo(roundedRectPolygonArea(size, size,
+            BASE_TOP_RADIUS - chamfer, quality.circularSegments), 5);
+        }
+        const rim = arena.track(body.slice(13));
+        const outside = arena.track(rim.hull());
+        const skirt = arena.track(lid.slice(-1));
+        // Around both the arcs and straight sides, the opening leaves the
+        // intended 0.3 mm clearance (within preview tessellation tolerance).
+        expect(arena.track(skirt.intersect(arena.track(outside.offset(0.29)))).area()).toBeLessThan(1e-6);
+        expect(arena.track(skirt.intersect(arena.track(outside.offset(0.31)))).area()).toBeGreaterThan(0.1);
+        if (!lidMagnetHoles) {
+          const innerSize = 41.5 - 2 * (inset + wallThicknessMm);
+          expect(arena.track(outside.subtract(rim)).area()).toBeCloseTo(
+            roundedRectPolygonArea(innerSize, innerSize, BASE_TOP_RADIUS, quality.circularSegments), 5);
+          for (const wall of [rim, skirt]) {
+            const envelope = arena.track(wall.hull());
+            const minimumWall = arena.track(envelope.subtract(arena.track(envelope.offset(-wallThicknessMm + 0.01))));
+            expect(arena.track(minimumWall.subtract(wall)).area()).toBeLessThan(1e-6);
+          }
+        }
+      }
+    });
+  }
+
+  it("retains material around small magnet bores beside the rounded overlap corners", () => {
+    const s = spec({ gridX: 1, gridY: 1, heightUnits: 2, magneticLidStyle: "overlap", wallThicknessMm: 4,
+      magnetDiameterMm: 4, lidMagnetCrushRibs: false });
+    const body = buildBin(kernel, s, EXPORT_QUALITY).solid;
+    const outer = arena.track(arena.track(body.slice(13)).hull());
+    const radius = magnetHoleRadiusMm(s) + 1.19;
+    const allowance = arena.track(kernel.CrossSection.circle(radius, 64));
+    for (const { x, y } of lidMagnetCenters(s)) {
+      expect(arena.track(arena.track(allowance.translate([x, y])).subtract(outer)).area()).toBeLessThan(1e-6);
+    }
+  });
+
+  it("protects rounded rim corners from finger holes and pockets in layout and export", () => {
+    const s = spec({ gridX: 2, gridY: 2, magneticLidStyle: "overlap", wallThicknessMm: 4,
+      lidMagnetHoles: false, fill: "solid" });
+    const hole = fingerHoleSchema.parse({ id: "corner", center: { x: 30.35, y: 30.35 }, diameterMm: 6,
+      depthMm: 8, topFilletMm: 0 });
+    expect(validateLayout(s, [], new Map(), [hole]).some(issue => issue.code === "lid-rim-collision")).toBe(true);
+    expect(() => buildBinWithCutouts(kernel, s, { shapesById: new Map(), cutouts: [], fingerHoles: [hole] }, PREVIEW_QUALITY))
+      .toThrow(/inset lid rim/);
+    const side = { ...hole, center: { x: 30.35, y: 0 } };
+    expect(validateLayout(s, [], new Map(), [side]).some(issue => issue.code === "lid-rim-collision")).toBe(false);
+    expect(buildBinWithCutouts(kernel, s, { shapesById: new Map(), cutouts: [], fingerHoles: [side] }, PREVIEW_QUALITY)
+      .solid.status()).toBe("NoError");
+    const shape = tracedShapeSchema.parse({ id: "square", name: "Square", pointCount: 4, sourceMmPerPx: 1,
+      bboxMm: { minX: -1, minY: -1, maxX: 1, maxY: 1 },
+      outlineMm: [{ outer: [{ x: -1, y: -1 }, { x: 1, y: -1 }, { x: 1, y: 1 }, { x: -1, y: 1 }], holes: [] }] });
+    const shapesById = new Map([[shape.id, shape]]);
+    const cutout = parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 31.6, y: 31.6 },
+      clearanceMm: 0, topFilletMm: 0, cornerRoundMm: 0, bottomFilletMm: 0 });
+    expect(validateLayout(s, [cutout], shapesById).some(issue => issue.code === "lid-rim-collision")).toBe(true);
+    expect(() => buildBinWithCutouts(kernel, s, { shapesById, cutouts: [cutout], fingerHoles: [] }, PREVIEW_QUALITY))
+      .toThrow(/inset lid rim/);
+  });
+
   for (const quality of [PREVIEW_QUALITY, EXPORT_QUALITY]) {
     for (const patch of [{}, { gridX: 1, gridY: 1, heightUnits: 2 }, { flatBottom: true, fill: "solid" }, { gridPitch: "half", gridX: 3 }, { gridPitch: "quarter", gridX: 4, gridY: 4 }].flatMap(patch => (["overlap", "inset"] as const).flatMap(magneticLidStyle => (["flat", "stacking"] as const).map(magneticLidTop => ({ ...patch, magneticLidStyle, magneticLidTop }))))) {
       it(`builds connected solids with mating clearance: ${JSON.stringify(patch)}, ${quality.circularSegments} segments`, () => {
@@ -248,7 +321,7 @@ for (const quality of [PREVIEW_QUALITY, EXPORT_QUALITY]) {
             const contact = arena.track(body.intersect(closed));
             contacts.push(contact.volume());
             volumes.push(lid.volume());
-            if (lidFit === "lift-off" || lidFitAdjustmentMm === -0.1) {
+            if (lidFit === "lift-off") {
               expect(contact.volume()).toBeLessThan(1e-5);
             } else {
               expect(contact.volume()).toBeGreaterThan(0.01);

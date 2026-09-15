@@ -4,7 +4,7 @@ Implements [feature request #29](https://github.com/wcscr/pocketry/issues/29).
 Enable **Construction → Lid**, choose **Overlapping edge** or **Inset**, and
 choose a **Flat** or **Stacking top**. Magnets are optional. With **Lid magnet
 holes** off, choose **Easy lift-off** or **Compliant fit** and use the single
-**Looser / Tighter** adjustment.
+**Lighter / Firmer** grip adjustment (or **Looser / Tighter** clearance for easy lift-off).
 Compliant fit offers **Contact ribs**, **Side springs**, and **Angled fins** in
 one Interface selector. **Inset** lids also offer **Spring latch**.
 Export the bin normally and the lid separately under **Export → Export lid**,
@@ -40,7 +40,15 @@ new designs default to 1.2 mm per wall, adjustable from 0.8 to 4 mm. The overlap
 region therefore occupies `2 × thickness + 0.3 mm` per side: 2.7 mm at the default,
 4.3 mm for 2 mm walls, or 8.3 mm for 4 mm walls. The outer footprint stays fixed,
 so thicker walls reduce interior space. Layout, automatic sizing, and cutter
-validation account for this space. Large offsets use square inner corners.
+validation account for this space. The recessed rim keeps a 3.75 mm corner
+radius, including at 4 mm wall thickness, with rounded inner corners and at
+least the selected wall thickness around each bend. The lid opening follows
+the same rounded rim with its separate fit clearance. The rim's top chamfer
+also trims the original bin wall so no raised corner slivers remain.
+Existing overlapping pairs made with the earlier shared-wall geometry need
+both parts re-exported and reprinted to use this rounded profile. Legacy
+projects with a separate lid-wall preference retain their original mating
+profile until the shared thickness control is edited.
 Changing thickness requires a matching bin and lid; unlike fit adjustment,
 it is not a lid-only change. The standard stacking profile and underside stay
 unchanged. The inset lid's compliant locating skirt stays 0.8 mm thick.
@@ -80,7 +88,9 @@ dimensions or physical qualification for Pocketry.
   them. Nothing opens through the top. They bend in the plane of printed layers.
 - **Angled fins** uses repeated 0.6 mm fingers attached at their roots, with a
   tapered entry. Fins run continuously across each straight side, with no solid
-  center blocks; only the corners remain solid. A 0.3 mm release gap separates each finger from the cap, following
+  center blocks; only the corners remain solid. Blade spacing leaves 0.6 mm
+  material and approximately 0.6 mm air measured perpendicular to the fins,
+  for roughly 50% material. A 0.3 mm release gap separates each finger from the cap, following
   Slant3D's guidance at about 3:35. Inspect the gap in the slicer; drooping strands,
   fused first layers, or support material can prevent movement. The top stays solid.
 - **Spring latch (inset only)** uses a 0.8 mm spring with three rounded U bends
@@ -103,15 +113,18 @@ dimensions or physical qualification for Pocketry.
   stacking still needs physical testing. Start with a flat top when qualifying
   the springs, and inspect the release gaps so support or drooping bridges do
   not weld the mechanisms to the cap.
-- The five adjustment positions change the lid by 0.05 mm per side per step,
-  from 0.1 mm looser to 0.1 mm tighter. Friction starts with 0.05 mm of intended
-  interference at the ribs, spring bumps, or fin tips; the loosest setting leaves 0.05 mm clearance and
-  the tightest uses 0.15 mm interference. These are prototype starting values,
+- The five **Grip** positions change contact by 0.05 mm per side per step.
+  Ribs, spring bumps, and fin tips have 0.15 mm intended preload at the default,
+  0.05 mm at **Lighter**, and 0.25 mm at **Firmer**. Every compliant setting
+  requires a little deflection at all four sides to take up play; rigid corners
+  retain clearance. These are prototype starting values,
   not guaranteed holding forces. The bin geometry stays unchanged, so only
   the lid needs reprinting for fit adjustments.
-- The spring latch starts with 0.2 mm detent engagement, adjustable from 0.1
-  to 0.3 mm. Its matching recess stays fixed at 0.4 mm depth so the seated spring
-  can relax. Fit adjustment changes the detent projection, not beam thickness.
+- The spring latch projects 0.55 mm at the default, adjustable from 0.45 to
+  0.65 mm. Its matching recess stays fixed at 0.4 mm depth, giving the seated
+  spring the same 0.05–0.25 mm preload. Grip changes the detent projection,
+  not beam thickness. Earlier latches relaxed inside the recess; only the lid
+  needs reprinting to add preload to an existing matching latch bin.
 - Fit adjustment changes sideways clearance or rib protrusion. It does not
   change lid height, cap thickness, or the clearance above the bin's lip.
 - Fit controls appear only without closure magnets. Their preferences are
