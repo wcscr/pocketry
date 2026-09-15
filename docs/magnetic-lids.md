@@ -98,6 +98,9 @@ dimensions or physical qualification for Pocketry.
   at the back of an approximately 11 mm deep chamber. Following the enclosed
   mechanism shown at [4:13–5:22 in Slant3D's video](https://www.youtube.com/watch?v=IZKh6lo9SP4&t=253s),
   a solid roof and 0.6 mm lower cover hide the spring from both top and bottom.
+  The surrounding underside is filled to the same level as the enclosure
+  floors, forming one continuous bottom instead of separate projecting blocks.
+  Only the working spring chambers remain hollow; their release gaps stay open.
   The 1.3 mm high moving parts have 0.3 mm release gaps above and below;
   only the head is exposed through a centered opening in the edge, also with
   0.3 mm clearance around it. Beveled head edges help clear printed bridges.

@@ -9,7 +9,7 @@ import { roundedRectPolygon, baseProfilePolygon, type ProfilePolygon } from "./p
 import { buildStackingLip } from "./wall";
 import { sweepRounded } from "./sweep";
 import { footprintOuterSection } from "./footprint-section";
-import { usesCompliantInterface, overlapRimCornerRadiusMm } from "@shared/gridfinity/magnetic-lid";
+import { usesCompliantInterface, hasSpringLatch, overlapRimCornerRadiusMm } from "@shared/gridfinity/magnetic-lid";
 import { applyLidInterface, addLidDetentRecesses } from "./lid-interface";
 
 function assertLid(spec: BinSpec): void {
@@ -196,7 +196,7 @@ function buildOverlappingLid(kernel: Kernel, spec: BinSpec, segments: number): M
   return arena.track(arena.track(outer.extrude(capTop)).add(skirt));
 }
 
-/** Hollow locating skirt: a thin continuous wall can flex around the inset opening. */
+/** Thin locating skirt, with a filled underside for the enclosed spring latch. */
 function buildFrictionInsetLid(kernel: Kernel, spec: BinSpec, segments: number): Manifold {
   const { arena, CrossSection } = kernel;
   const r = BASE_TOP_RADIUS;
@@ -214,7 +214,12 @@ function buildFrictionInsetLid(kernel: Kernel, spec: BinSpec, segments: number):
   const smoothOutside = outside(1.6);
   const inside = smoothOutside.map(([x, z]): [number, number] => [x - INSET_LID_SKIRT_WALL_MM, z]).reverse();
   const path = { widthMm: width - 2 * r, lengthMm: length - 2 * r };
-  const smooth = sweepRounded(kernel, [...smoothOutside, ...inside], path, segments);
+  // Fill down to the enclosure floors for a continuous, flush underside.
+  // applyLidInterface cuts the spring chambers afterward, preserving their
+  // moving parts and release gaps inside this otherwise solid locator.
+  const smooth = hasSpringLatch(spec)
+    ? lidLoft(kernel, spec, smoothOutside.map(([radius, z]) => [r - radius, z]), segments)
+    : sweepRounded(kernel, [...smoothOutside, ...inside], path, segments);
   const grip = sweepRounded(kernel, [...outside(contact), ...inside], path, segments);
   const skirt = usesCompliantInterface(spec) ? smooth : addFrictionRibs(kernel, spec, smooth, grip, segments);
   const capSection = arena.track(new CrossSection([roundedRectPolygon(

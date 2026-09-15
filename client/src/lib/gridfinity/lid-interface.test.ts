@@ -2,13 +2,14 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Arena } from "@/lib/manifold/arena";
 import { createKernel, loadManifold, type Kernel } from "@/lib/manifold/runtime";
 import { parseBinSpec, type BinSpec } from "@shared/gridfinity/types";
-import { binHeightMm } from "@shared/gridfinity/standard";
+import { binFootprintMm, binHeightMm } from "@shared/gridfinity/standard";
 import { lidCapTopMm, INSET_LID_CAP_BOTTOM_MM } from "@shared/gridfinity/magnetic-lid";
 import { fingerHoleSchema } from "@shared/gridfinity/cutout";
 import { lidInterfaceFrames, LATCH_SPRING_HALF_HEIGHT_MM } from "@shared/gridfinity/lid-interface";
 import { validateBinSpec } from "@shared/gridfinity/validate";
 import { buildBin, buildBinWithCutouts, EXPORT_QUALITY, PREVIEW_QUALITY } from "./bin";
 import { buildMagneticLid, magneticLidForPrint } from "./magnetic-lid";
+import { roundedRectPolygon } from "./profiles";
 
 let arena: Arena, kernel: Kernel;
 beforeEach(async () => { arena = new Arena(); kernel = createKernel(await loadManifold(), arena); });
@@ -120,6 +121,25 @@ describe("compliant interfaces", () => {
   });
 
   for (const quality of [PREVIEW_QUALITY, EXPORT_QUALITY]) {
+    it.each(["flat", "stacking"] as const)(`fills the latch underside flush with its enclosure floors (%s, ${quality.circularSegments})`, magneticLidTop => {
+      for (const dimensions of [{ gridX: 1, gridY: 1 }, { gridX: 2, gridY: 3 }]) {
+        const s = spec({ ...dimensions, lidInterface: "spring-latch", magneticLidStyle: "inset", magneticLidTop });
+        const lid = buildMagneticLid(kernel, s, quality.circularSegments);
+        const width = binFootprintMm(s.gridX, s.gridPitch), length = binFootprintMm(s.gridY, s.gridPitch);
+        // The whole underside, including the spaces between enclosures, has
+        // material immediately above the common z=0 bottom plane.
+        const section = arena.track(new kernel.CrossSection([roundedRectPolygon(width - 6, length - 6, 0.8, quality.circularSegments)]));
+        const underside = arena.track(arena.track(section.extrude(0.4)).translate([0, 0, 0.1]));
+        expect(arena.track(underside.subtract(lid)).volume()).toBeLessThan(1e-6);
+        expect(lid.boundingBox().min[2]).toBeCloseTo(0, 6);
+        // Fill the central recess up to the cap, rather than leaving a second
+        // large hidden cavity behind a cosmetic bottom sheet.
+        const center = arena.track(arena.track(kernel.Manifold.cube([width - 28, length - 28, INSET_LID_CAP_BOTTOM_MM]))
+          .translate([-(width - 28) / 2, -(length - 28) / 2, 0]));
+        expect(arena.track(center.subtract(lid)).volume()).toBeLessThan(1e-6);
+      }
+    });
+
     it.each(["flat", "stacking"] as const)(`encloses the latch above and below with only a centered side opening (%s, ${quality.circularSegments})`, magneticLidTop => {
       const s = spec({ lidInterface: "spring-latch", magneticLidStyle: "inset", magneticLidTop });
       const lid = buildMagneticLid(kernel, s, quality.circularSegments);
