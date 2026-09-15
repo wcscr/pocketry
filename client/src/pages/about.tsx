@@ -18,6 +18,23 @@ interface RelatedProject {
   url: string;
 }
 
+const DESIGN_REFERENCES: readonly RelatedProject[] = [
+  {
+    name: "Design Compliant Lids for Perfect Tolerance Every Time",
+    description:
+      "Slant3D’s guide to compliant lids, rounded entries, and reduced contact surfaces informed Pocketry’s lid-fit design.",
+    badge: "Video",
+    url: "https://www.youtube.com/watch?v=IZKh6lo9SP4",
+  },
+  {
+    name: "This Makes 3D Printed Lids Fit Better",
+    description:
+      "More lid-fit design guidance from Slant3D for testing and refining printed lids.",
+    badge: "Video",
+    url: "https://www.youtube.com/watch?v=hrpYulJLnQY",
+  },
+];
+
 const OPEN_SOURCE_PROJECTS: readonly RelatedProject[] = [
   {
     name: "Gridfinity Rebuilt OpenSCAD",
@@ -216,6 +233,19 @@ export default function About(): JSX.Element {
               </p>
             </CardContent>
           </Card>
+        </section>
+
+        <section className="space-y-3" aria-labelledby="design-references-heading">
+          <div className="space-y-1">
+            <h2 id="design-references-heading" className="text-2xl font-semibold tracking-tight">
+              Design references
+            </h2>
+            <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
+              Slant3D&apos;s videos explain practical ways to design lids that fit.
+              These are useful references when tuning and test-printing your own bins.
+            </p>
+          </div>
+          <ProjectGrid projects={DESIGN_REFERENCES} />
         </section>
 
         <section className="space-y-7" aria-labelledby="related-projects-heading">
