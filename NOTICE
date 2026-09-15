@@ -22,6 +22,19 @@ for use beside the Pocketry title, linking to https://sugarcreekresearch.com.
 Permission: supplied by the owner for use in Pocketry's header branding.
 
 ================================================================================
+Codex logo — OpenAI brand asset
+================================================================================
+
+`client/public/codex-logo.png` is the unmodified `icon-codex-dark-color.png`
+from OpenAI's desktop application. It identifies OpenAI Codex beside the
+development attribution on Pocketry's About page.
+
+The Codex name and logo belong to OpenAI. This brand asset is not covered by
+Pocketry's AGPL-3.0-only licence and does not imply OpenAI endorsement.
+Product: https://openai.com/codex/
+Brand guidelines: https://openai.com/brand/
+
+================================================================================
 manifold-3d — Apache License 2.0
 ================================================================================
 
