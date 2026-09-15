@@ -102,10 +102,16 @@ dimensions or physical qualification for Pocketry.
   Crush ribs retain eight lobes with 0.1 mm diametral interference at their tips;
   the base and closure crush switches remain independent. Without ribs, glue
   the magnets. Dormant size preferences do not alter a nonmagnetic lid.
-- Underside holes retain their standard mounting positions, so magnets wider
-  than 7.5 mm block export while base magnet holes are on. The fixed 7 mm base
-  keeps at least 1 mm above the pocket and its bridge layers. With screw holes
-  enabled, magnets must also be wider than the 3 mm screws.
+- Underside magnets wider than 7.5 mm move inward automatically within each
+  occupied cell, retaining at least 0.8 mm of plastic around the opening.
+  For example, 12 mm magnets move 2.25 mm inward per axis, giving 21.5 mm center
+  spacing instead of 26 mm. The size control notes that these magnet centers
+  differ from the standard baseplate pattern. Screw holes stay at their standard
+  positions; shifted magnets and screws use separate printable bridge ceilings.
+  Smaller magnets retain the original centers, and the base's outer profile
+  stays fixed. The fixed 7 mm base keeps at least 1 mm above the magnet pocket
+  and its bridge layers. With screw holes enabled, magnets must also be wider
+  than the 3 mm screws. Hole spacing and roof-depth validation still apply.
 - Closure magnet centers start 7.75 mm inward from each original outer edge,
   independent of socket pitch. Larger magnets and thick overlapping rims move both paired recesses
   inward together to retain at least 1.2 mm beside the bore. Corner supports grow

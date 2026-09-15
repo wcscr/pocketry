@@ -340,7 +340,7 @@ for (const quality of [PREVIEW_QUALITY, EXPORT_QUALITY]) {
         for (const lidMagnetCrushRibs of [false, true]) {
           const s = spec({ ...style, gridX: 2, gridY: 2, heightUnits: 2, wallThicknessMm: 4,
             magnetDiameterMm, magnetThicknessMm, lidMagnetCrushRibs,
-            magnetHoles: magnetDiameterMm <= 7, magnetCrushRibs: !lidMagnetCrushRibs });
+            magnetHoles: true, magnetCrushRibs: !lidMagnetCrushRibs });
           const body = buildBin(kernel, s, quality).solid;
           const lid = buildMagneticLid(kernel, s, quality.circularSegments);
           const depth = magnetHoleDepthMm(s);
@@ -356,12 +356,11 @@ for (const quality of [PREVIEW_QUALITY, EXPORT_QUALITY]) {
             expect(arena.track(body.intersect(arena.track(floor.translate([x, y, 14 - depth - 0.6])))).volume()).toBeCloseTo(0.125, 6);
             expect(arena.track(lid.intersect(arena.track(floor.translate([x, y, depth + 0.6])))).volume()).toBeCloseTo(0.125, 6);
           }
-          if (s.magnetHoles) {
-            const baseProbe = arena.track(kernel.Manifold.cylinder(depth - 0.02,
-              clearRadius(s.magnetCrushRibs), clearRadius(s.magnetCrushRibs), 64));
-            // Outer hole in a standard cell: 21 mm cell center + 13 mm offset.
-            expect(arena.track(body.intersect(arena.track(baseProbe.translate([34, 34, 0.01])))).volume()).toBeLessThan(1e-5);
-          }
+          const baseProbe = arena.track(kernel.Manifold.cylinder(depth - 0.02,
+            clearRadius(s.magnetCrushRibs), clearRadius(s.magnetCrushRibs), 64));
+          // The 12 mm magnet moves 2.25 mm inward per axis from the outer hole.
+          const baseCenter = magnetDiameterMm === 12 ? 31.75 : 34;
+          expect(arena.track(body.intersect(arena.track(baseProbe.translate([baseCenter, baseCenter, 0.01])))).volume()).toBeLessThan(1e-5);
           expect(arena.track(body.intersect(arena.track(lid.translate([0, 0, 14])))).volume()).toBeLessThan(1e-5);
           const printed = magneticLidForPrint(kernel, lid, s);
           expect(printed.boundingBox().min[2]).toBeCloseTo(0, 6);

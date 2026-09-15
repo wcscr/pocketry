@@ -4,13 +4,11 @@ import type { Manifold } from "manifold-3d";
 import {
   BASE_HEIGHT,
   CHAMFER_ADDITIONAL_RADIUS,
-  HOLE_DISTANCE_FROM_BOTTOM_EDGE,
-  baseBottomDimensionsMm,
   LAYER_HEIGHT,
   MAGNET_HOLE_CRUSH_RIB_COUNT,
   SCREW_HOLE_RADIUS,
 } from "@shared/gridfinity/standard";
-import { baseMagnetSizeError, magnetHoleDepthMm, magnetHoleRadiusMm, magnetCrushRadiusMm, type MagnetSize } from "@shared/gridfinity/magnets";
+import { BASE_HOLE_OFFSET_MM, baseMagnetShiftMm, baseMagnetSizeError, magnetHoleDepthMm, magnetHoleRadiusMm, magnetCrushRadiusMm, type MagnetSize } from "@shared/gridfinity/magnets";
 import { cellCenterMm, occupiedCells } from "@shared/gridfinity/footprint";
 
 import type { Kernel } from "@/lib/manifold/runtime";
@@ -269,10 +267,9 @@ export function baseHoleCutter(
 }
 
 /**
- * Every hole cluster for a whole base: four per cell, centred
- * `HOLE_DISTANCE_FROM_BOTTOM_EDGE` in from the bottom footprint's edges
- * (upstream `_base_holes()`: 13 mm from each cell centre, 26 mm apart —
- * the gridfinity.xyz spec grid). Returns null when no holes are enabled.
+ * Four holes per occupied cell, normally 13 mm from each cell center.
+ * Large magnets move inward to retain edge material. Screw holes stay at
+ * the standard 26 mm spacing. Returns null when no holes are enabled.
  */
 export function baseHoleCutters(
   kernel: Kernel,
@@ -288,10 +285,16 @@ export function baseHoleCutters(
   if (grid.gridPitch && grid.gridPitch !== "full") return null;
   const sizeError = options.magnet ? baseMagnetSizeError({ ...options, screwHoles: options.screw }) : null;
   if (sizeError) throw new Error(sizeError);
-  const cluster = baseHoleCutter(kernel, options, circularSegments);
+  const shift = options.magnet ? baseMagnetShiftMm(options) : 0;
+  const separateScrews = options.screw && shift > 0;
+  // Preserve the original combined cutter when the centers still coincide.
+  // Offset holes each keep their own complete sequential-bridging ceiling.
+  const cluster = baseHoleCutter(kernel, { ...options, screw: options.screw && !separateScrews }, circularSegments);
   if (cluster === null) return null;
+  const screw = separateScrews ? baseHoleCutter(kernel,
+    { ...options, magnet: false, crushRibs: false }, circularSegments) : null;
 
-  const offset = baseBottomDimensionsMm() / 2 - HOLE_DISTANCE_FROM_BOTTOM_EDGE; // 13
+  const offset = BASE_HOLE_OFFSET_MM - shift;
   const pieces: Manifold[] = [];
   for (const occupied of occupiedCells(grid)) {
     const { x: cellX, y: cellY } = cellCenterMm(grid, occupied);
@@ -304,6 +307,9 @@ export function baseHoleCutters(
       pieces.push(
         arena.track(cluster.translate([cellX + sx * offset, cellY + sy * offset, 0])),
       );
+      if (screw) pieces.push(arena.track(screw.translate([
+        cellX + sx * BASE_HOLE_OFFSET_MM, cellY + sy * BASE_HOLE_OFFSET_MM, 0,
+      ])));
     }
   }
   return arena.track(Manifold.union(pieces));

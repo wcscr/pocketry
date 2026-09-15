@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseBinSpec } from "./types";
-import { hasMagnets, magnetHoleDepthMm, magnetHoleRadiusMm, magnetCrushRadiusMm } from "./magnets";
+import { hasMagnets, baseMagnetShiftMm, magnetHoleDepthMm, magnetHoleRadiusMm, magnetCrushRadiusMm } from "./magnets";
 import { validateBinSpec } from "./validate";
 import { parseProjectDoc, PROJECT_SCHEMA_VERSION } from "./project";
 
@@ -34,12 +34,20 @@ describe("shared magnet size", () => {
     expect(hasMagnets(spec({ magneticLid: true, lidMagnetHoles: false }))).toBe(false);
   });
 
-  it("blocks sizes that cannot fit the standard underside while allowing larger lid magnets", () => {
+  it("allows larger underside magnets while retaining depth and screw constraints", () => {
     expect(validateBinSpec(spec({ magnetHoles: true, magnetDiameterMm: 7.5, magnetThicknessMm: 5 })).ok).toBe(true);
-    expect(validateBinSpec(spec({ magnetHoles: true, magnetDiameterMm: 8 })).issues).toContainEqual(expect.objectContaining({ code: "magnet-size-unavailable", severity: "error" }));
+    expect(validateBinSpec(spec({ magnetHoles: true, magnetDiameterMm: 12, magnetThicknessMm: 5 })).ok).toBe(true);
     expect(validateBinSpec(spec({ magneticLid: true, magnetDiameterMm: 12, magnetThicknessMm: 5 })).ok).toBe(true);
     expect(validateBinSpec(spec({ magnetHoles: true, screwHoles: true, magnetDiameterMm: 3 })).ok).toBe(false);
     expect(validateBinSpec(spec({ magnetHoles: true, flatBottom: true, magnetDiameterMm: 12 })).ok).toBe(true);
+  });
+
+  it("keeps standard centers until more room is needed, including entry chamfers", () => {
+    expect(baseMagnetShiftMm({})).toBe(0);
+    expect(baseMagnetShiftMm({ magnetDiameterMm: 7.5 })).toBe(0);
+    expect(baseMagnetShiftMm({ magnetDiameterMm: 8 })).toBeCloseTo(0.25, 6);
+    expect(baseMagnetShiftMm({ magnetDiameterMm: 12 })).toBeCloseTo(2.25, 6);
+    expect(baseMagnetShiftMm({ magnetDiameterMm: 12, chamfer: true })).toBeCloseTo(3.05, 6);
   });
 
   it.each([{ magnetDiameterMm: 2 }, { magnetDiameterMm: 13 }, { magnetDiameterMm: NaN },

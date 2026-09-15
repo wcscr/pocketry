@@ -384,6 +384,36 @@ it.each([false, true])("shares magnet size across active magnets, undo, and hidd
   } finally { unmount(); }
 });
 
+it.each([false, true])("allows larger base magnets to export and explains their shifted positions (mobile=%s)", async mobile => {
+  let controls: ReturnType<typeof usePanelState>;
+  function PanelProbe() { controls = usePanelState(); return null; }
+  const { container, unmount } = render(<PanelProvider><PanelProbe /><ShapeLibraryProvider><BinDesignerPage /></ShapeLibraryProvider></PanelProvider>, { mobile });
+  await flushHydration();
+  try {
+    React.act(() => controls!.setPanelOpen(true));
+    const panel = mobile ? document.body : container;
+    const toggle = (label: string) => React.act(() => panel.querySelector<HTMLButtonElement>(`[role="switch"][aria-label="${label}"]`)!.click());
+    const note = () => panel.querySelector('[data-testid="base-magnet-shift-note"]');
+    openSettingsSection(panel, "construction");
+    toggle("Lid");
+    toggle("Base magnet holes");
+    expect(note()).toBeNull();
+    React.act(() => panel.querySelector<HTMLElement>('[role="slider"][aria-label="Magnet diameter"]')!
+      .dispatchEvent(new KeyboardEvent("keydown", { key: "End", bubbles: true })));
+    expect(note()?.textContent).toContain("screw holes stay in place");
+    openSettingsSection(panel, "export");
+    expect(panel.querySelector<HTMLButtonElement>('[data-testid="button-export-stl"]')!.disabled).toBe(false);
+    expect(panel.querySelector<HTMLButtonElement>('[data-testid="button-export-lid-stl"]')!.disabled).toBe(false);
+    openSettingsSection(panel, "construction");
+    toggle("Base magnet holes");
+    expect(note()).toBeNull();
+    toggle("Base magnet holes");
+    expect(note()).not.toBeNull();
+    toggle("Flat bottom");
+    expect(note()).toBeNull();
+  } finally { unmount(); }
+});
+
 it.each([false, true])("offers fit and tuning only without lid magnets, retaining choices and undo (mobile=%s)", async mobile => {
   let controls: ReturnType<typeof usePanelState>;
   function PanelProbe() { controls = usePanelState(); return null; }

@@ -1,4 +1,4 @@
-import { hasMagnets, magnetHoleRadiusMm, magnetHoleDepthMm } from "@shared/gridfinity/magnets";
+import { hasBaseMagnets, hasMagnets, baseMagnetShiftMm, magnetHoleRadiusMm, magnetHoleDepthMm } from "@shared/gridfinity/magnets";
 import {
   Box,
   ChevronDown,
@@ -838,6 +838,9 @@ export function BinControlsPanel({
             <MmSlider label="Magnet diameter" value={spec.magnetDiameterMm} min={3} max={12} step={0.1}
               hint="The hole adds 0.5 mm diameter clearance. Crush ribs grip 0.1 mm inside the magnet diameter."
               onChange={(magnetDiameterMm, transient) => patchSpec({ magnetDiameterMm }, transient)} />
+            {hasBaseMagnets(spec) && baseMagnetShiftMm(spec) > 0 && <p className="text-xs text-muted-foreground" data-testid="base-magnet-shift-note">
+              Base magnets move inward to fit. Their centers differ from the standard baseplate pattern; screw holes stay in place.
+            </p>}
             <MmSlider label="Magnet thickness" value={spec.magnetThicknessMm} min={1} max={5} step={0.1}
               hint="The recess adds 0.4 mm depth. Thicker magnets can increase lid thickness."
               onChange={(magnetThicknessMm, transient) => patchSpec({ magnetThicknessMm }, transient)} />
