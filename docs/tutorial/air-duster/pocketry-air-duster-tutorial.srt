@@ -1,0 +1,802 @@
+1
+00:00:00,150 --> 00:00:03,706
+Let's turn these air duster photos into a fitted
+Gridfinity tray
+
+2
+00:00:03,706 --> 00:00:07,262
+in Pocketry. We'll trace and edit the outlines,
+review the reference
+
+3
+00:00:07,262 --> 00:00:10,818
+layout, then export a thin fit test and the
+final multi-color
+
+4
+00:00:10,818 --> 00:00:11,788
+3MF.
+
+5
+00:00:12,417 --> 00:00:16,806
+The reference pack includes the air duster,
+stacked adapters, and angled
+
+6
+00:00:16,806 --> 00:00:21,195
+nozzle, plus an alternate photo with two
+objects. These copies have
+
+7
+00:00:21,195 --> 00:00:24,387
+their display orientation preserved and embedded
+metadata removed.
+
+8
+00:00:25,017 --> 00:00:28,679
+Start in Trace, choose the air duster photo, and
+let Pocketry
+
+9
+00:00:28,679 --> 00:00:32,340
+find the four calibration markers. Keep the tool
+and every marker
+
+10
+00:00:32,340 --> 00:00:34,005
+visible in your source image.
+
+11
+00:00:34,617 --> 00:00:38,563
+Accept the detected calibration sheet and apply
+perspective correction. The corrected
+
+12
+00:00:38,563 --> 00:00:42,508
+image is upright and has a real millimetre
+scale. Check the
+
+13
+00:00:42,508 --> 00:00:46,096
+printed calibration bar if you are preparing
+your own photographs.
+
+14
+00:00:46,717 --> 00:00:50,190
+Choose Set Region and drag a rectangle around
+the duster. Leave
+
+15
+00:00:50,190 --> 00:00:53,663
+a little breathing room around the tool, but
+keep the printed
+
+16
+00:00:53,663 --> 00:00:56,188
+markers and unrelated objects outside the
+detection area.
+
+17
+00:00:56,817 --> 00:01:01,195
+Open Outline and inspect the detected shape.
+Outside silhouette is the
+
+18
+00:01:01,195 --> 00:01:05,573
+default. Leave interior holes off here:
+highlights, logos, and dark details
+
+19
+00:01:05,573 --> 00:01:08,757
+inside the tool should not create extra cutouts.
+
+20
+00:01:09,383 --> 00:01:13,489
+Adjust Sensitivity while watching the outline.
+Before any manual edits, releasing
+
+21
+00:01:13,489 --> 00:01:17,594
+the slider automatically detects it again. Look
+for the physical edge
+
+22
+00:01:17,594 --> 00:01:21,327
+of the tool, especially where a shadow touches
+the body.
+
+23
+00:01:21,950 --> 00:01:25,634
+Use Detail to remove unnecessary pixel-level
+points, then choose Edit points
+
+24
+00:01:25,634 --> 00:01:29,318
+and select the shape. Keep enough vertices to
+preserve the corners
+
+25
+00:01:29,318 --> 00:01:31,997
+and curves that matter for the tool's fit.
+
+26
+00:01:32,617 --> 00:01:36,379
+Drag a misplaced vertex onto the actual edge.
+Here the handle
+
+27
+00:01:36,379 --> 00:01:40,142
+boundary needs a small correction. Work around
+the silhouette at a
+
+28
+00:01:40,142 --> 00:01:43,221
+useful zoom, rather than following every change
+in brightness.
+
+29
+00:01:43,850 --> 00:01:47,038
+Click an outline edge to add a vertex where
+another bend
+
+30
+00:01:47,038 --> 00:01:50,226
+is needed. At the neck of the duster, an extra
+control
+
+31
+00:01:50,226 --> 00:01:52,834
+point lets the outline follow the transition
+more closely.
+
+32
+00:01:53,450 --> 00:01:57,384
+Right-click an unnecessary vertex to remove it.
+Fewer well-placed points are
+
+33
+00:01:57,384 --> 00:02:01,317
+often easier to refine. If a change makes the
+outline worse,
+
+34
+00:02:01,317 --> 00:02:03,105
+use Undo and try again.
+
+35
+00:02:03,717 --> 00:02:06,794
+Choose Add to bin and give the trace a
+meaningful name,
+
+36
+00:02:06,794 --> 00:02:09,871
+such as Air Duster. Use Add and trace another
+photo to
+
+37
+00:02:09,871 --> 00:02:12,109
+queue this shape and continue with the adapters.
+
+38
+00:02:12,717 --> 00:02:16,448
+Load the adapter-stack photograph and repeat the
+calibration and perspective steps.
+
+39
+00:02:16,448 --> 00:02:20,180
+A separate photo gives this narrow shape enough
+detail to inspect
+
+40
+00:02:20,180 --> 00:02:22,555
+before adding it to the same bin.
+
+41
+00:02:23,183 --> 00:02:27,089
+Set a region around the stack and examine the
+first detection.
+
+42
+00:02:27,089 --> 00:02:30,995
+This photo needs more attention: reflections and
+shadows create an incorrect
+
+43
+00:02:30,995 --> 00:02:34,901
+edge near the lower adapters. Automatic
+detection is the starting point.
+
+44
+00:02:35,517 --> 00:02:39,200
+Adjust Sensitivity until the main silhouette is
+close. For this pass,
+
+45
+00:02:39,200 --> 00:02:42,883
+I temporarily remove the margin so the edge is
+easier to
+
+46
+00:02:42,883 --> 00:02:46,566
+inspect, then use the point editor to correct
+the remaining notch.
+
+47
+00:02:47,183 --> 00:02:50,694
+Zoom into the lower adapter. The contour dives
+into a bright
+
+48
+00:02:50,694 --> 00:02:54,205
+area even though the solid tool continues across
+it. Those inward
+
+49
+00:02:54,205 --> 00:02:57,396
+points describe a reflection, not the outside of
+the part.
+
+50
+00:02:58,017 --> 00:03:01,251
+Remove the two inward vertices so the contour
+follows the outside
+
+51
+00:03:01,251 --> 00:03:04,484
+edge. Check the neighbouring segments after each
+removal, and move or
+
+52
+00:03:04,484 --> 00:03:07,718
+add a point if the new line misses a real
+corner.
+
+53
+00:03:08,350 --> 00:03:11,979
+Restore the half-millimetre margin after
+editing. Margin offsets the edited contour
+
+54
+00:03:11,979 --> 00:03:15,609
+without detecting it again. This is a starting
+allowance; the printed
+
+55
+00:03:15,609 --> 00:03:19,238
+fit test will tell you whether your tools need
+more or
+
+56
+00:03:19,238 --> 00:03:19,898
+less room.
+
+57
+00:03:20,517 --> 00:03:24,086
+Name the second shape Adapters and queue it for
+the bin.
+
+58
+00:03:24,086 --> 00:03:27,656
+Descriptive names make it much easier to select
+the right pocket
+
+59
+00:03:27,656 --> 00:03:30,252
+later, especially when a layout contains similar
+accessories.
+
+60
+00:03:30,883 --> 00:03:34,487
+Now load the angled nozzle photo, accept the
+sheet calibration, and
+
+61
+00:03:34,487 --> 00:03:38,091
+select the region around the nozzle. This is the
+accessory for
+
+62
+00:03:38,091 --> 00:03:40,385
+the upper-left pocket in the reference layout.
+
+63
+00:03:41,017 --> 00:03:45,015
+The nozzle also has a reflective streak that the
+detector follows
+
+64
+00:03:45,015 --> 00:03:49,014
+inward. Select its contour, zoom in, and inspect
+those vertices. The
+
+65
+00:03:49,014 --> 00:03:51,559
+outside edge should enclose the solid nozzle.
+
+66
+00:03:52,183 --> 00:03:56,058
+Right-click the vertices that run down the
+reflection. This closes the
+
+67
+00:03:56,058 --> 00:03:59,933
+false notch. Continue checking the tip, the
+sloping body, and the
+
+68
+00:03:59,933 --> 00:04:03,808
+mounting flange, moving points where the
+physical edge needs a closer
+
+69
+00:04:03,808 --> 00:04:04,160
+match.
+
+70
+00:04:04,783 --> 00:04:09,406
+After moving, adding, or removing vertices,
+changing Sensitivity asks before replacing
+
+71
+00:04:09,406 --> 00:04:14,029
+your work. Choose Keep my edits to preserve the
+contour. Replace
+
+72
+00:04:14,029 --> 00:04:18,652
+manual edits runs detection again, and Undo can
+recover the previous
+
+73
+00:04:18,652 --> 00:04:19,072
+outline.
+
+74
+00:04:19,683 --> 00:04:23,594
+Name this shape Angled Nozzle. Add the queued
+shapes to the
+
+75
+00:04:23,594 --> 00:04:27,504
+bin. You now have the photo-tracing workflow for
+all three photographed
+
+76
+00:04:27,504 --> 00:04:30,348
+tools, including the manual corrections needed
+around reflections.
+
+77
+00:04:30,950 --> 00:04:34,665
+Pocketry places the queued tools in the bin
+designer. The first
+
+78
+00:04:34,665 --> 00:04:38,381
+arrangement may use a larger bin. Check the size
+and layout
+
+79
+00:04:38,381 --> 00:04:41,759
+before assuming the automatically chosen
+footprint matches your intended tray.
+
+80
+00:04:42,383 --> 00:04:46,488
+Save this photo-tracing demonstration to the
+project library before moving on.
+
+81
+00:04:46,488 --> 00:04:50,593
+Download an editable project backup as well, so
+the tracing work
+
+82
+00:04:50,593 --> 00:04:53,578
+can be reopened independently of the reference
+layout.
+
+83
+00:04:54,183 --> 00:04:59,097
+For the exact reference design, open the
+supplied editable Pocketry project.
+
+84
+00:04:59,097 --> 00:05:04,011
+This checkpoint restores its saved outlines,
+positions, and depths. The following
+
+85
+00:05:04,011 --> 00:05:08,924
+layout uses that reference geometry, rather than
+claiming fresh photo traces
+
+86
+00:05:08,924 --> 00:05:10,265
+are numerically identical.
+
+87
+00:05:10,883 --> 00:05:15,005
+In Size, use full pitch, four cells wide, four
+cells long,
+
+88
+00:05:15,005 --> 00:05:19,128
+and six point five units high. The displayed
+outer size is
+
+89
+00:05:19,128 --> 00:05:23,250
+one hundred sixty-seven point five millimetres
+square, and about forty-nine point
+
+90
+00:05:23,250 --> 00:05:23,999
+one high.
+
+91
+00:05:24,617 --> 00:05:28,421
+Switch to Layout and open Arrange. The duster is
+on the
+
+92
+00:05:28,421 --> 00:05:32,226
+right, adapters in the middle, angled nozzle at
+upper left, and
+
+93
+00:05:32,226 --> 00:05:36,030
+USB cable along the left edge. The tutorial
+corrects the reference
+
+94
+00:05:36,030 --> 00:05:37,414
+project's misleading accessory names.
+
+95
+00:05:38,017 --> 00:05:41,856
+Select Air Duster. Its position is measured from
+the bin centre:
+
+96
+00:05:41,856 --> 00:05:45,696
+positive X moves right, and positive Y moves up.
+Width and
+
+97
+00:05:45,696 --> 00:05:49,535
+length describe the pocket before rotation. The
+exact reference values are
+
+98
+00:05:49,535 --> 00:05:50,233
+shown here.
+
+99
+00:05:50,850 --> 00:05:54,192
+Enter a different X value to see the pocket move
+across
+
+100
+00:05:54,192 --> 00:05:57,534
+the layout. You can also drag it directly. Use
+the numeric
+
+101
+00:05:57,534 --> 00:06:00,876
+fields when you want a repeatable position
+instead of estimating by
+
+102
+00:06:00,876 --> 00:06:01,180
+eye.
+
+103
+00:06:01,783 --> 00:06:05,337
+Return the duster to its reference position.
+Check the space around
+
+104
+00:06:05,337 --> 00:06:08,890
+neighbouring pockets and the outside wall. Use
+width and length or
+
+105
+00:06:08,890 --> 00:06:12,443
+the layout handles to adjust the fit, keeping
+the aspect ratio
+
+106
+00:06:12,443 --> 00:06:13,412
+locked when appropriate.
+
+107
+00:06:14,017 --> 00:06:18,068
+For the duster, use a fixed depth of thirty-nine
+millimetres. Pocketry
+
+108
+00:06:18,068 --> 00:06:22,120
+shows the remaining floor beside the depth
+diagram. The reference also
+
+109
+00:06:22,120 --> 00:06:26,172
+uses one-millimetre outline and top rounding,
+with a one point two
+
+110
+00:06:26,172 --> 00:06:27,277
+millimetre bottom fillet.
+
+111
+00:06:27,883 --> 00:06:32,016
+Select Adapters and check its position and size.
+This pocket uses
+
+112
+00:06:32,016 --> 00:06:36,149
+a thirty-four millimetre depth and a small
+rotation. Use the supplied
+
+113
+00:06:36,149 --> 00:06:40,281
+project for the full-precision values; the
+controls show rounded numbers for
+
+114
+00:06:40,281 --> 00:06:40,657
+readability.
+
+115
+00:06:41,283 --> 00:06:45,631
+Select Angled Nozzle. It belongs above the cable
+pocket, rotated to
+
+116
+00:06:45,631 --> 00:06:49,978
+fit the available space. The reference uses a
+thirty-four millimetre depth.
+
+117
+00:06:49,978 --> 00:06:53,535
+Keep this nozzle-shaped outline when reproducing
+the supplied design.
+
+118
+00:06:54,150 --> 00:06:57,674
+The long, narrow pocket on the left is for the
+USB
+
+119
+00:06:57,674 --> 00:07:01,198
+cable. Here we keep its original outline for an
+exact layout
+
+120
+00:07:01,198 --> 00:07:04,722
+match. An oblong finger pocket could provide an
+approximate alternative in
+
+121
+00:07:04,722 --> 00:07:05,683
+a new design.
+
+122
+00:07:06,283 --> 00:07:10,088
+For the cable pocket, the depth mode is Keep
+floor thickness,
+
+123
+00:07:10,088 --> 00:07:13,893
+set to seven millimetres. This controls the
+material left underneath the
+
+124
+00:07:13,893 --> 00:07:17,697
+pocket, rather than asking you to calculate a
+cut depth yourself.
+
+125
+00:07:18,317 --> 00:07:21,759
+Open Finger access. Add hole creates an opening
+you can position
+
+126
+00:07:21,759 --> 00:07:25,201
+independently of a tool pocket. The reference
+uses an oblong deep
+
+127
+00:07:25,201 --> 00:07:28,644
+scoop across the bin and a separate round deep
+scoop beside
+
+128
+00:07:28,644 --> 00:07:29,270
+the nozzle.
+
+129
+00:07:29,883 --> 00:07:34,098
+For the cross-bin opening, choose Oblong deep
+scoop. Set its diameter,
+
+130
+00:07:34,098 --> 00:07:38,313
+length, total depth, and rotation, then position
+it across the tools.
+
+131
+00:07:38,313 --> 00:07:42,528
+The broad rounded opening gives your fingers
+room to lift the
+
+132
+00:07:42,528 --> 00:07:42,911
+contents.
+
+133
+00:07:43,517 --> 00:07:47,119
+The second opening uses Deep scoop, with a
+twenty-two millimetre diameter
+
+134
+00:07:47,119 --> 00:07:50,721
+and thirty-three point five millimetre depth.
+Position it at the top
+
+135
+00:07:50,721 --> 00:07:54,324
+of the nozzle pocket so the accessory can be
+gripped and
+
+136
+00:07:54,324 --> 00:07:54,651
+lifted.
+
+137
+00:07:55,283 --> 00:07:58,858
+In Materials, use a gray body with black pocket
+floors and
+
+138
+00:07:58,858 --> 00:08:02,433
+a black rim top. The reference uses a zero point
+six
+
+139
+00:08:02,433 --> 00:08:06,008
+millimetre floor-color region and a one point
+two five millimetre rim-color
+
+140
+00:08:06,008 --> 00:08:06,333
+region.
+
+141
+00:08:06,950 --> 00:08:10,599
+Switch to the 3D view and inspect the complete
+bin.
+
+142
+00:08:10,599 --> 00:08:14,248
+Look for unwanted intersections, thin walls, and
+access to each tool.
+
+143
+00:08:14,248 --> 00:08:17,898
+The preview helps review geometry, but the
+physical fit test is
+
+144
+00:08:17,898 --> 00:08:19,225
+still the next step.
+
+145
+00:08:19,850 --> 00:08:23,082
+Open Check fit and choose the complete surface
+fit test. Set
+
+146
+00:08:23,082 --> 00:08:26,314
+the thickness to one point two millimetres, then
+save the S
+
+147
+00:08:26,314 --> 00:08:29,546
+T L. This exports the whole pocket layout as one
+thin
+
+148
+00:08:29,546 --> 00:08:29,839
+plate.
+
+149
+00:08:30,450 --> 00:08:33,578
+Print that plate and try the actual tools in it
+before
+
+150
+00:08:33,578 --> 00:08:36,707
+printing the full bin. It checks the openings
+and finger-hole layout
+
+151
+00:08:36,707 --> 00:08:39,835
+together. It does not test pocket depth or how
+the base
+
+152
+00:08:39,835 --> 00:08:40,688
+fits a baseplate.
+
+153
+00:08:41,317 --> 00:08:45,336
+Once the fit is satisfactory, open Export and
+choose Save three
+
+154
+00:08:45,336 --> 00:08:49,355
+M F. This exports the complete printable bin at
+print quality,
+
+155
+00:08:49,355 --> 00:08:52,279
+including its base, walls, pockets, and stacking
+lip.
+
+156
+00:08:52,883 --> 00:08:56,958
+Choose Multi-color 3MF to preserve the separate
+body, floor,
+
+157
+00:08:56,958 --> 00:09:01,034
+and rim regions. Open the result in your slicer
+and verify
+
+158
+00:09:01,034 --> 00:09:05,109
+the objects and filament assignments before
+slicing; color handling can vary
+
+159
+00:09:05,109 --> 00:09:05,850
+between slicers.
+
+160
+00:09:06,450 --> 00:09:10,455
+Keep the matching dot Pocketry dot JSON file
+
+161
+00:09:10,455 --> 00:09:14,459
+alongside the printable model. Each model export
+also downloads this editable
+
+162
+00:09:14,459 --> 00:09:18,464
+backup. If the browser asks, allow multiple
+downloads and confirm that
+
+163
+00:09:18,464 --> 00:09:19,556
+both files arrived.
+
+164
+00:09:20,183 --> 00:09:23,858
+The files are ready: clean reference photos, the
+corrected editable layout,
+
+165
+00:09:23,858 --> 00:09:27,532
+a thin surface fit test, and the final multi-
+color three M
+
+166
+00:09:27,532 --> 00:09:31,206
+F. Print the fit test first, refine the
+allowance if needed,
+
+167
+00:09:31,206 --> 00:09:33,210
+and then make the complete tray.

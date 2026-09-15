@@ -1,0 +1,23 @@
+00:00 Overview
+00:12 Prepare the photos
+00:24 Import & calibrate
+00:56 Detect the silhouette
+01:21 Edit the contour
+02:03 Queue the tools
+02:12 Trace the adapters
+03:20 Queue the tools
+03:30 Trace the angled nozzle
+04:04 Protect manual edits
+04:19 Queue the tools
+04:30 Save a checkpoint
+04:54 Restore the exact reference
+05:10 Set the bin size
+05:24 Arrange the pockets
+06:13 Depth & rounding
+07:18 Finger access
+07:55 Choose the materials
+08:06 Review the bin
+08:19 Export a surface fit test
+08:41 Export the final 3MF
+09:06 Keep the editable project
+09:20 Ready to print
