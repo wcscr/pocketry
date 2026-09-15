@@ -35,9 +35,11 @@ import { binHistorySchema } from "./history";
  * Version 16 adds an optional boundary and two depths inside one tool pocket.
  * Version 17 preserves committed undo/redo history and its current position.
  * Version 18 adds magnetic lids, defaulting off in designs and history entries.
+ * Version 19 adds lid styles, stacking tops, independent closure magnets, and tunable fit.
+ * Older lids remain inset with a flat top and plain closure recesses.
  */
 
-export const PROJECT_SCHEMA_VERSION = 18 as const;
+export const PROJECT_SCHEMA_VERSION = 19 as const;
 
 const projectFields = {
   shapes: z.array(tracedShapeSchema),
@@ -176,7 +178,7 @@ function migrateLegacyProject(doc: LegacyProjectDoc): ProjectDoc {
  */
 export function parseProjectDoc(input: unknown): ProjectDoc | null {
   if (input && typeof input === "object" && !Array.isArray(input) &&
-      "schemaVersion" in input && input.schemaVersion === 17) {
+      "schemaVersion" in input && (input.schemaVersion === 17 || input.schemaVersion === 18)) {
     const migrated = projectDocSchema.safeParse({ ...input, schemaVersion: PROJECT_SCHEMA_VERSION });
     return migrated.success ? migrated.data : null;
   }

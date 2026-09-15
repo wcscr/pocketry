@@ -50,6 +50,7 @@ import {
   type TracedShape,
 } from "@shared/gridfinity/cutout";
 import {
+  hasStackingLip,
   binFootprintMm,
   GRID_PITCH_DIVISOR,
   resizeGridToStandardCellSpan,
@@ -258,6 +259,8 @@ export interface BinControlsPanelProps {
   onPocketFloorThicknessChange: (thicknessMm: number) => void;
   colorStackingRim: boolean;
   onColorStackingRimChange: (enabled: boolean) => void;
+  lidColor: string;
+  onLidColorChange: (color: string) => void;
   stackingRimColor: string;
   onStackingRimColorChange: (color: string) => void;
   stackingRimThicknessMm: number;
@@ -310,6 +313,8 @@ export function BinControlsPanel({
   onPocketFloorThicknessChange,
   colorStackingRim,
   onColorStackingRimChange,
+  lidColor,
+  onLidColorChange,
   stackingRimColor,
   onStackingRimColorChange,
   stackingRimThicknessMm,
@@ -355,7 +360,7 @@ export function BinControlsPanel({
   }, [settingsSectionRequest]);
   const hasErrors = issues.some((issue) => issue.severity === "error");
   const enabledFeatureCount = [
-    spec.lip === "standard",
+    hasStackingLip(spec),
     spec.fill === "solid",
     spec.flatBottom,
     spec.magneticLid,
@@ -380,9 +385,10 @@ export function BinControlsPanel({
     (cutout) => pocketDepths(cutout).some(depth => depth.mode !== "through"),
   );
   const hasSelectedFloorColor = colorPocketFloors && hasBlindPocket;
-  const hasSelectedRimColor = colorStackingRim && spec.lip === "standard";
+  const hasTopColor = spec.magneticLid || hasStackingLip(spec);
+  const hasSelectedRimColor = colorStackingRim && hasTopColor && (!spec.magneticLid || lidColor !== binColor);
   const hasSelectedMulticolor =
-    hasSelectedFloorColor || hasSelectedRimColor;
+    hasSelectedFloorColor || (hasSelectedRimColor && !spec.magneticLid);
   const activeColorCount =
     1 + Number(hasSelectedFloorColor) + Number(hasSelectedRimColor);
 
@@ -630,7 +636,7 @@ export function BinControlsPanel({
           <p className="text-xs text-muted-foreground">
             Outer size {dims.widthMm.toFixed(1)} × {dims.lengthMm.toFixed(1)} ×{" "}
             {dims.totalHeightMm.toFixed(1)} mm
-            {spec.lip === "standard"
+            {hasStackingLip(spec)
               ? ` (rim + ${STACKING_LIP_HEIGHT_ACTUAL.toFixed(1)} mm lip)`
               : ""}
           </p>
@@ -694,8 +700,8 @@ export function BinControlsPanel({
         >
           <FeatureSwitch
             label="Stacking lip"
-            description={spec.magneticLid ? "Locates the magnetic lid" : spec.flatBottom ? "Receives a Gridfinity bin on top" : "Lets another bin stack on top"}
-            checked={spec.lip === "standard"}
+            description={spec.magneticLid ? spec.magneticLidStyle === "overlap" ? "Replaced by the inset lid rim" : "Locates the inset lid" : spec.flatBottom ? "Receives a Gridfinity bin on top" : "Lets another bin stack on top"}
+            checked={hasStackingLip(spec)}
             disabled={spec.magneticLid}
             onChange={(on) => patchSpec({ lip: on ? "standard" : "none" })}
           />
@@ -706,20 +712,85 @@ export function BinControlsPanel({
             onChange={(on) => patchSpec({ fill: on ? "solid" : "none" })}
           />
           <FeatureSwitch
-            label="Magnetic lid"
-            description="Matching lid with four magnet pairs, using the base magnet size"
+            label="Lid"
+            description="Matching removable lid with optional magnet closure"
             checked={spec.magneticLid}
             onChange={(magneticLid) => patchSpec({ magneticLid, ...(magneticLid ? { lip: "standard" } : {}) })}
           />
-          {spec.magneticLid && <p className="text-xs text-muted-foreground" data-testid="magnetic-lid-details">
-            Four pairs · ⌀6.5 × 2.4 mm recesses, same as the base. Glue magnets with attracting faces paired.
-            Keep pockets clear of the corners. Save the lid separately under Export; remove it before stacking.
+          {spec.magneticLid && (
+            <div className="space-y-1.5">
+              <Label className="text-xs">Lid style</Label>
+              <div className="grid grid-cols-2 gap-1" role="group" aria-label="Lid style">
+                {(["overlap", "inset"] as const).map(style => (
+                  <Button key={style} size="sm" className="h-auto min-h-9 min-w-0 whitespace-normal px-2 text-xs" variant={spec.magneticLidStyle === style ? "secondary" : "outline"}
+                    aria-pressed={spec.magneticLidStyle === style} data-testid={`button-lid-style-${style}`}
+                    onClick={() => patchSpec({ magneticLidStyle: style, ...(style === "inset" ? { lip: "standard" } : {}) })}>
+                    {style === "overlap" ? "Overlapping edge" : "Inset"}
+                  </Button>
+                ))}
+              </div>
+              <Label className="text-xs">Lid top</Label>
+              <div className="grid grid-cols-2 gap-1" role="group" aria-label="Lid top">
+                {(["flat", "stacking"] as const).map(top => (
+                  <Button key={top} size="sm" className="h-auto min-h-9 min-w-0 whitespace-normal px-2 text-xs"
+                    variant={spec.magneticLidTop === top ? "secondary" : "outline"}
+                    aria-pressed={spec.magneticLidTop === top} data-testid={`button-lid-top-${top}`}
+                    onClick={() => patchSpec({ magneticLidTop: top })}>
+                    {top === "flat" ? "Flat" : "Stacking top"}
+                  </Button>
+                ))}
+              </div>
+              {spec.magneticLidTop === "stacking" && <p className="text-xs text-muted-foreground">
+                Holds a Gridfinity bin on the lid. Exported top up; overlapping lids need support under the cap.
+              </p>}
+              <p className="text-xs text-muted-foreground">
+                {spec.magneticLidStyle === "overlap"
+                  ? "Wraps around an inset rim with a continuous edge. Replaces the stacking lip."
+                  : "Seats inside the stacking lip, with a raised top to grip."}
+              </p>
+            </div>
+          )}
+          {spec.magneticLid && <>
+            <FeatureSwitch label="Lid magnet holes" description="Four matching pairs in the lid and bin rim; same magnet size as the underside"
+              checked={spec.lidMagnetHoles} onChange={lidMagnetHoles => patchSpec({ lidMagnetHoles })} />
+            {spec.lidMagnetHoles && <FeatureSwitch label="Lid crush ribs" description="Press-fit closure magnets, no glue"
+              checked={spec.lidMagnetCrushRibs} onChange={lidMagnetCrushRibs => patchSpec({ lidMagnetCrushRibs })} />}
+          </>}
+          {spec.magneticLid && !spec.lidMagnetHoles && (
+            <div className="space-y-2" data-testid="lid-fit-controls">
+              <Label className="text-xs">Lid fit</Label>
+              <div className="grid grid-cols-2 gap-1" role="group" aria-label="Lid fit">
+                {(["lift-off", "friction"] as const).map(fit => (
+                  <Button key={fit} size="sm" className="h-auto min-h-9 min-w-0 whitespace-normal px-2 text-xs"
+                    variant={spec.lidFit === fit ? "secondary" : "outline"}
+                    aria-pressed={spec.lidFit === fit} data-testid={`button-lid-fit-${fit}`}
+                    onClick={() => patchSpec({ lidFit: fit })}>
+                    {fit === "lift-off" ? "Easy lift-off" : "Friction fit"}
+                  </Button>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {spec.lidFit === "friction" ? "Small ribs on a thin rim grip the bin. Tune after a test print." : "Leaves a gap for easy removal."}
+              </p>
+              <Label className="text-xs">Fit adjustment</Label>
+              <Slider centerOrigin value={[Math.round(spec.lidFitAdjustmentMm / 0.05)]} min={-2} max={2} step={1}
+                aria-label="Lid fit adjustment"
+                aria-valuetext={spec.lidFitAdjustmentMm === 0 ? "Default" : `${Math.abs(spec.lidFitAdjustmentMm).toFixed(2)} mm ${spec.lidFitAdjustmentMm > 0 ? "tighter" : "looser"}`}
+                onValueChange={([step]) => patchSpec({ lidFitAdjustmentMm: Number((step * 0.05).toFixed(2)) }, true)}
+                onValueCommit={([step]) => patchSpec({ lidFitAdjustmentMm: Number((step * 0.05).toFixed(2)) })} />
+              <div className="flex justify-between text-xs text-muted-foreground"><span>Looser</span><span>Tighter</span></div>
+            </div>
+          )}
+          {spec.magneticLid && spec.lidMagnetHoles && <p className="text-xs text-muted-foreground" data-testid="magnetic-lid-details">
+            Four pairs · ⌀6.5 × 2.4 mm recesses, same as the base.
+            {spec.lidMagnetCrushRibs ? " Press-fit" : " Glue"} magnets with attracting faces paired.
+            Keep pockets clear of the corners. Save the lid separately under Export.
             Check fit with a small print first.
           </p>}
           {!spec.flatBottom && (
             <>
               <FeatureSwitch
-                label="Magnet holes"
+                label={spec.magneticLid ? "Base magnet holes" : "Magnet holes"}
                 description={
                   spec.gridPitch === "full"
                     ? "⌀6.5 × 2.4 mm, four per cell"
@@ -731,7 +802,7 @@ export function BinControlsPanel({
               />
               {spec.magnetHoles && (
                 <FeatureSwitch
-                  label="Crush ribs"
+                  label={spec.magneticLid ? "Base crush ribs" : "Crush ribs"}
                   description="Press-fit magnets, no glue"
                   checked={spec.magnetCrushRibs}
                   onChange={(magnetCrushRibs) => patchSpec({ magnetCrushRibs })}
@@ -1558,26 +1629,26 @@ export function BinControlsPanel({
           >
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <SettingLabel label="Stacking rim top" hint="Separate material below the original rim surface." />
-                {spec.lip !== "standard" && <p className="text-[11px] text-muted-foreground">Turn on the stacking lip to enable this material.</p>}
+                <SettingLabel label={spec.magneticLid ? "Lid" : "Stacking rim top"} hint={spec.magneticLid ? "Follows the bin color until you choose a separate lid color. Also used in lid 3MF exports." : "Separate material below the original rim surface."} />
+                {!hasTopColor && <p className="text-[11px] text-muted-foreground">Turn on the stacking lip to enable this material.</p>}
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <MaterialColorSwatch
                   id="input-stacking-rim-color"
-                  label="Stacking rim top"
-                  value={stackingRimColor}
-                  disabled={!colorStackingRim || spec.lip !== "standard"}
-                  onChange={onStackingRimColorChange}
+                  label={spec.magneticLid ? "Lid" : "Stacking rim top"}
+                  value={spec.magneticLid ? lidColor : stackingRimColor}
+                  disabled={!colorStackingRim || !hasTopColor}
+                  onChange={spec.magneticLid ? onLidColorChange : onStackingRimColorChange}
                 />
                 <Switch
-                  checked={colorStackingRim && spec.lip === "standard"}
-                  disabled={spec.lip !== "standard"}
+                  checked={colorStackingRim && hasTopColor}
+                  disabled={!hasTopColor}
                   onCheckedChange={onColorStackingRimChange}
-                  aria-label="Color stacking rim top"
+                  aria-label={spec.magneticLid ? "Color lid" : "Color stacking rim top"}
                 />
               </div>
             </div>
-            <div className="flex items-center justify-between gap-3">
+            {!spec.magneticLid && <div className="flex items-center justify-between gap-3">
               <SettingLabel label="Color thickness" htmlFor="input-stacking-rim-thickness" hint="Accent thickness replaces existing material downward from the original surface; it never adds height to the bin." />
               <div className="flex items-center gap-1.5">
                 <DraftNumberInput
@@ -1587,7 +1658,7 @@ export function BinControlsPanel({
                   min={MULTICOLOR_MIN_THICKNESS_MM}
                   max={MULTICOLOR_RIM_MAX_THICKNESS_MM}
                   step={0.05}
-                  disabled={!colorStackingRim || spec.lip !== "standard"}
+                  disabled={!colorStackingRim || !hasTopColor}
                   normalize={(value) =>
                     Number(
                       Math.min(
@@ -1602,7 +1673,7 @@ export function BinControlsPanel({
                 />
                 <span className="text-[11px] text-muted-foreground">mm down</span>
               </div>
-            </div>
+            </div>}
           </div>
         </PanelSection>
         <PanelSection id="bin-settings-view" title="Cross-section View" icon={Eye} tone="amber" defaultOpen={section !== null} summary={section ? "Cut open" : "Whole bin"}>
@@ -1921,7 +1992,9 @@ export function BinControlsPanel({
 
           {spec.magneticLid && onExportLid && (
             <div className="space-y-2 rounded-md border p-2.5" data-testid="export-magnetic-lid">
-              <SettingLabel label="Export magnetic lid" hint="Print with the flat face on the bed and magnet recesses facing up. The bin export includes the matching corner supports." />
+              <SettingLabel label="Export lid" hint={spec.magneticLidTop === "stacking"
+                ? "Exports with the stacking lip facing up. Check support beneath the cap and any magnet recesses before printing."
+                : "Exports with the flat face on the bed and fitting details facing up."} />
               <div className="flex gap-2">
                 {(["3mf", "stl"] as const).map(format => (
                   <Button key={format} className="flex-1" variant="outline" size="sm"

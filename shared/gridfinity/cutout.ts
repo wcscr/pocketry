@@ -15,7 +15,8 @@ import {
   binTotalHeightMm,
   D_WALL,
   R_F2,
-  STACKING_LIP_SUPPORT_HEIGHT,
+  hasStackingLip,
+  infillTopAllowanceMm,
 } from "./standard";
 import {
   footprintInteriorRingMm,
@@ -1030,12 +1031,12 @@ export interface ResolvedPocket {
  * infill) are validation's job, not an exception here.
  */
 export function resolvePocketDepth(
-  spec: Pick<BinSpec, "heightUnits" | "lip">,
+  spec: Pick<BinSpec, "heightUnits" | "lip"> & Partial<Pick<BinSpec, "magneticLid" | "magneticLidStyle">>,
   depth: DepthSpec,
 ): ResolvedPocket {
-  const lipAllowance = spec.lip === "standard" ? STACKING_LIP_SUPPORT_HEIGHT : 0;
+  const lipAllowance = infillTopAllowanceMm(spec);
   const infillTopZ = binHeightMm(spec.heightUnits) - lipAllowance;
-  const cutterTopZ = binTotalHeightMm(spec.heightUnits, spec.lip === "standard") + 1;
+  const cutterTopZ = binTotalHeightMm(spec.heightUnits, hasStackingLip(spec)) + 1;
 
   let floorZ: number | null;
   switch (depth.mode) {

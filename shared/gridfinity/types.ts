@@ -68,6 +68,17 @@ export const binSpecSchema = z
     flatBottom: z.boolean().default(false),
     /** Matching removable lid and four upper magnet recesses; independent of base holes. */
     magneticLid: z.boolean().default(false),
+    /** Inset preserves the original lid geometry in saved projects. */
+    magneticLidStyle: z.enum(["overlap", "inset"]).default("inset"),
+    /** Optional Gridfinity locator on the lid itself. */
+    magneticLidTop: z.enum(["flat", "stacking"]).default("flat"),
+    /** Paired closure recesses in the lid and bin rim, independent of underside magnets. */
+    lidMagnetHoles: z.boolean().default(true),
+    lidMagnetCrushRibs: z.boolean().default(false),
+    /** Retained while magnets are on, but only affects lids without closure magnets. */
+    lidFit: z.enum(["lift-off", "friction"]).default("lift-off"),
+    /** Per-side adjustment: positive tightens the lid without changing the bin. */
+    lidFitAdjustmentMm: z.number().min(-0.1).max(0.1).multipleOf(0.05).default(0),
     /** ⌀6.5 × 2.4 mm magnet pockets, four per cell, opening downward. */
     magnetHoles: z.boolean().default(false),
     /**

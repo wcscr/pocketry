@@ -323,3 +323,13 @@ export function binTotalHeightMm(heightUnits: number, lip: boolean): number {
 export const UPSTREAM_REPO =
   "https://github.com/kennetek/gridfinity-rebuilt-openscad";
 export const UPSTREAM_SHA = "910e22d8607fd7f5f51ad5e5cbc5287a76810bfd";
+
+/** Saved stacking preference is restored when an overlapping lid is disabled. */
+export function hasStackingLip(spec: { lip: "standard" | "none"; magneticLid?: boolean; magneticLidStyle?: "overlap" | "inset" }): boolean {
+  return spec.lip === "standard" && !(spec.magneticLid && spec.magneticLidStyle === "overlap");
+}
+
+/** Both lid styles keep headroom above solid fill for their mating rim. */
+export function infillTopAllowanceMm(spec: { lip: "standard" | "none"; magneticLid?: boolean }): number {
+  return spec.magneticLid || spec.lip === "standard" ? STACKING_LIP_SUPPORT_HEIGHT : 0;
+}

@@ -31,6 +31,7 @@ vi.mock("@/components/gridfinity/bin-viewport", () => ({
     binColor,
     pocketFloorColor,
     stackingRimColor,
+    lidColor,
     showPocketFloorColor,
     showStackingRimColor,
     measurementOutlines,
@@ -42,6 +43,7 @@ vi.mock("@/components/gridfinity/bin-viewport", () => ({
     binColor: string;
     pocketFloorColor: string;
     stackingRimColor: string;
+    lidColor: string;
     showPocketFloorColor: boolean;
     showStackingRimColor: boolean;
     measurementOutlines: readonly unknown[];
@@ -61,6 +63,7 @@ vi.mock("@/components/gridfinity/bin-viewport", () => ({
       data-bin-color={binColor}
       data-floor-color={pocketFloorColor}
       data-rim-color={stackingRimColor}
+      data-lid-color={lidColor}
       data-measurement-splits={JSON.stringify(measurementSplitBoundaries)}
     >
       <button
@@ -273,15 +276,70 @@ it.each([false, true])("enables magnetic lids independently of base magnets and 
     React.act(() => controls!.setPanelOpen(true));
     const panel = mobile ? document.body : container;
     openSettingsSection(panel, "construction");
-    React.act(() => panel.querySelector<HTMLButtonElement>('[role="switch"][aria-label="Magnetic lid"]')!.click());
+    React.act(() => panel.querySelector<HTMLButtonElement>('[role="switch"][aria-label="Lid"]')!.click());
     expect(vi.mocked(useBinGeometry).mock.calls.at(-1)![0]).toMatchObject({ magneticLid: true, magnetHoles: false, lip: "standard" });
     expect(panel.querySelector<HTMLButtonElement>('[role="switch"][aria-label="Stacking lip"]')!.disabled).toBe(true);
+    const viewport = container.querySelector('[data-testid="bin-viewport-stub"]')!;
+    expect(viewport.getAttribute("data-lid-color")).toBe(viewport.getAttribute("data-bin-color"));
+    expect(viewport.getAttribute("data-stacking-rim-color")).toBe("off");
+    openSettingsSection(panel, "materials");
+    expect(panel.querySelector('[role="switch"][aria-label="Color lid"]')).not.toBeNull();
+    expect(panel.querySelector('[data-testid="input-stacking-rim-thickness"]')).toBeNull();
+    openSettingsSection(panel, "construction");
+    React.act(() => panel.querySelector<HTMLButtonElement>('[data-testid="button-lid-top-stacking"]')!.click());
+    expect(vi.mocked(useBinGeometry).mock.calls.at(-1)![0].magneticLidTop).toBe("stacking");
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+
+    React.act(() => panel.querySelector<HTMLButtonElement>('[data-testid="button-lid-style-overlap"]')!.click());
+    expect(vi.mocked(useBinGeometry).mock.calls.at(-1)![0].magneticLidStyle).toBe("overlap");
+    expect(panel.querySelector('[role="switch"][aria-label="Stacking lip"]')!.getAttribute("aria-checked")).toBe("false");
+    React.act(() => panel.querySelector<HTMLButtonElement>('[data-testid="button-lid-style-inset"]')!.click());
+    expect(vi.mocked(useBinGeometry).mock.calls.at(-1)![0].magneticLidStyle).toBe("inset");
+    expect(panel.querySelector('[role="switch"][aria-label="Stacking lip"]')!.getAttribute("aria-checked")).toBe("true");
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
     openSettingsSection(panel, "export");
     expect(panel.querySelector<HTMLButtonElement>('[data-testid="button-export-lid-stl"]')!.disabled).toBe(false);
     expect(panel.querySelector<HTMLButtonElement>('[data-testid="button-export-lid-3mf"]')!.disabled).toBe(false);
     React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
     expect(vi.mocked(useBinGeometry).mock.calls.at(-1)![0].magneticLid).toBe(false);
     expect(panel.querySelector('[data-testid="export-magnetic-lid"]')).toBeNull();
+  } finally { unmount(); }
+});
+
+it.each([false, true])("offers fit and tuning only without lid magnets, retaining choices and undo (mobile=%s)", async mobile => {
+  let controls: ReturnType<typeof usePanelState>;
+  function PanelProbe() { controls = usePanelState(); return null; }
+  const { container, unmount } = render(<PanelProvider><PanelProbe /><ShapeLibraryProvider><BinDesignerPage /></ShapeLibraryProvider></PanelProvider>, { mobile });
+  await flushHydration();
+  try {
+    React.act(() => controls!.setPanelOpen(true));
+    const panel = mobile ? document.body : container;
+    const toggle = (label: string) => React.act(() => panel.querySelector<HTMLButtonElement>(`[role="switch"][aria-label="${label}"]`)!.click());
+    const current = () => vi.mocked(useBinGeometry).mock.calls.at(-1)![0];
+    openSettingsSection(panel, "construction");
+    expect(panel.querySelector('[data-testid="lid-fit-controls"]')).toBeNull();
+    toggle("Lid");
+    expect(panel.querySelector('[data-testid="lid-fit-controls"]')).toBeNull();
+    toggle("Lid magnet holes");
+    expect(panel.querySelector('[data-testid="button-lid-fit-lift-off"]')?.getAttribute("aria-pressed")).toBe("true");
+    toggle("Base magnet holes");
+    expect(panel.querySelector('[data-testid="lid-fit-controls"]')).not.toBeNull();
+    React.act(() => panel.querySelector<HTMLButtonElement>('[data-testid="button-lid-fit-friction"]')!.click());
+    const slider = panel.querySelector<HTMLElement>('[role="slider"][aria-label="Lid fit adjustment"]')!;
+    React.act(() => slider.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })));
+    expect(current()).toMatchObject({ lidFit: "friction", lidFitAdjustmentMm: 0.05, magnetHoles: true, lidMagnetHoles: false });
+    expect(slider.getAttribute("aria-valuetext")).toBe("0.05 mm tighter");
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+    expect(current().lidFitAdjustmentMm).toBe(0);
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+    expect(current().lidFitAdjustmentMm).toBe(0.05);
+    toggle("Lid magnet holes");
+    expect(panel.querySelector('[data-testid="lid-fit-controls"]')).toBeNull();
+    toggle("Lid magnet holes");
+    expect(current()).toMatchObject({ lidFit: "friction", lidFitAdjustmentMm: 0.05 });
+    toggle("Lid");
+    expect(panel.querySelector('[data-testid="lid-fit-controls"]')).toBeNull();
   } finally { unmount(); }
 });
 
@@ -304,6 +362,38 @@ it.each(["stl", "3mf"] as const)("exports the separate lid as %s with an optiona
     expect(filename).toMatch(new RegExp(`\\.${format}$`));
     expect(model.size).toBeGreaterThan(84);
     if (format === "stl") expect(model.size).toBe(84 + 50 * 4);
+  } finally { unmount(); }
+});
+
+it("keeps base and lid magnets independent and links lid color until customized", async () => {
+  const { container, unmount } = renderPage();
+  await flushHydration();
+  const toggle = (label: string) => React.act(() => container.querySelector<HTMLButtonElement>(`[role="switch"][aria-label="${label}"]`)!.click());
+  try {
+    openSettingsSection(container, "construction");
+    toggle("Lid");
+    toggle("Lid crush ribs");
+    expect(vi.mocked(useBinGeometry).mock.calls.at(-1)![0]).toMatchObject({ lidMagnetCrushRibs: true, magnetCrushRibs: false, magnetHoles: false });
+    toggle("Lid magnet holes");
+    expect(container.querySelector('[aria-label="Lid crush ribs"]')).toBeNull();
+    expect(vi.mocked(useBinGeometry).mock.calls.at(-1)![0]).toMatchObject({ magneticLid: true, lidMagnetHoles: false });
+    toggle("Base magnet holes");
+    toggle("Base crush ribs");
+    expect(vi.mocked(useBinGeometry).mock.calls.at(-1)![0]).toMatchObject({ magnetHoles: true, magnetCrushRibs: true, lidMagnetHoles: false });
+    openSettingsSection(container, "materials");
+    const setColor = (id: string, value: string) => React.act(() => {
+      const input = container.querySelector<HTMLInputElement>(`[data-testid="${id}"]`)!;
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const view = container.querySelector('[data-testid="bin-viewport-stub"]')!;
+    setColor("input-bin-color", "#123456");
+    expect(view.getAttribute("data-lid-color")).toBe("#123456");
+    setColor("input-stacking-rim-color", "#abcdef");
+    setColor("input-bin-color", "#654321");
+    expect(view.getAttribute("data-lid-color")).toBe("#abcdef");
+    expect(view.getAttribute("data-bin-color")).toBe("#654321");
+    expect(view.getAttribute("data-stacking-rim-color")).toBe("off");
   } finally { unmount(); }
 });
 

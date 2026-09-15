@@ -7,7 +7,6 @@ import type { BufferGeometry, PerspectiveCamera } from "three";
 import { Vector3 } from "three";
 
 import type { Outline, Point } from "@shared/geometry/types";
-import { BASE_PROFILE_HEIGHT } from "@shared/gridfinity/standard";
 import { LID_PREVIEW_LIFT_MM } from "@shared/gridfinity/magnetic-lid";
 
 import { Button } from "@/components/ui/button";
@@ -43,6 +42,7 @@ const EMPTY_MEASUREMENT_PATHS: MeasurementPaths = [];
 export interface BinViewportProps {
   geometry: BufferGeometry | null;
   lidGeometry?: BufferGeometry | null;
+  lidColor?: string;
   lidBaseZMm?: number;
   /** Exact printable pocket-floor material volume. */
   pocketFloorGeometry?: BufferGeometry | null;
@@ -196,6 +196,7 @@ function CameraFit({ size }: { size: FitSize }): null {
 export function BinViewport({
   geometry,
   lidGeometry = null,
+  lidColor,
   lidBaseZMm = 0,
   pocketFloorGeometry = null,
   stackingRimGeometry = null,
@@ -226,7 +227,7 @@ export function BinViewport({
   const [lidView, setLidView] = useState<"raised" | "closed" | "hidden">("raised");
   const lidZ = lidBaseZMm + (lidView === "raised" ? LID_PREVIEW_LIFT_MM : 0);
   const displayFitSize = useMemo(() => ({ ...fitSize,
-    heightMm: lidGeometry && lidView !== "hidden" ? Math.max(fitSize.heightMm, lidZ + BASE_PROFILE_HEIGHT) : fitSize.heightMm,
+    heightMm: lidGeometry && lidView !== "hidden" ? Math.max(fitSize.heightMm, lidZ + (lidGeometry.boundingBox?.max.z ?? 0)) : fitSize.heightMm,
   }), [fitSize, lidGeometry, lidView, lidZ]);
   const [measurementPoints, setMeasurementPoints] = useState<Point[]>([]);
   const measuredDistanceMm = useMemo(
@@ -273,7 +274,7 @@ export function BinViewport({
         <directionalLight position={[-70, 90, 50]} intensity={0.35} />
         {lidGeometry && lidView !== "hidden" && (
           <mesh geometry={lidGeometry} position={[0, 0, lidZ]} name="magnetic-lid">
-            <meshStandardMaterial color={binColor} roughness={0.55} metalness={0.05} />
+            <meshStandardMaterial color={lidColor ?? binColor} roughness={0.55} metalness={0.05} />
           </mesh>
         )}
         {geometry ? (
@@ -412,7 +413,7 @@ export function BinViewport({
       {(hasPocketFloor && showPocketFloorColor) ||
       (hasStackingRim && showStackingRimColor) ? (
         <div
-          className="pointer-events-none absolute bottom-3 left-3 flex items-center gap-2 rounded-full border bg-background/90 px-2.5 py-1 text-xs font-medium text-foreground shadow-sm backdrop-blur"
+          className={cn("pointer-events-none absolute left-3 flex items-center gap-2 rounded-full border bg-background/90 px-2.5 py-1 text-xs font-medium text-foreground shadow-sm backdrop-blur", lidGeometry ? "bottom-14" : "bottom-3")}
           data-testid="material-color-legend"
         >
           {hasPocketFloor && showPocketFloorColor ? (

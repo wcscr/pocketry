@@ -9,7 +9,7 @@ import type {
 } from "@shared/gridfinity/cutout";
 import type { BinSpec } from "@shared/gridfinity/types";
 import type { SurfaceFitCheckStyle } from "@shared/gridfinity/fit-check";
-import { BASE_PROFILE_HEIGHT } from "@shared/gridfinity/standard";
+import { lidCapTopMm, lidBottomMm } from "@shared/gridfinity/magnetic-lid";
 
 import { toBufferGeometry } from "@/lib/mesh/to-buffer-geometry";
 import { createWorkerClient, type WorkerClient } from "@/lib/worker/client";
@@ -222,9 +222,11 @@ export function useBinGeometry(
           const nextStackingRim = result.materialMeshes?.stackingRim
             ? toBufferGeometry(result.materialMeshes.stackingRim)
             : null;
-          const nextLid = result.lidMesh
-            ? toBufferGeometry(result.lidMesh).rotateX(Math.PI).translate(0, 0, BASE_PROFILE_HEIGHT)
-            : null;
+          const nextLid = result.lidMesh ? toBufferGeometry(result.lidMesh) : null;
+          if (nextLid) {
+            if (spec.magneticLidTop === "stacking") nextLid.translate(0, 0, lidBottomMm(spec));
+            else nextLid.rotateX(Math.PI).translate(0, 0, lidCapTopMm(spec));
+          }
           lidGeometryRef.current?.dispose();
           lidGeometryRef.current = nextLid;
           setLidGeometry(nextLid);

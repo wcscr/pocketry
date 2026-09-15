@@ -27,6 +27,8 @@ import {
 import {
   BASE_HEIGHT,
   BASE_PROFILE_HEIGHT,
+  hasStackingLip,
+  infillTopAllowanceMm,
   binHeightMm,
   binWallHeightMm,
   D_DIV,
@@ -42,7 +44,7 @@ import {
 } from "./standard";
 import type { BinSpec } from "./types";
 import { resolvePocketSplit } from "./pocket-split";
-import { LID_PAD_EXTENT_MM, magneticLidError } from "./magnetic-lid";
+import { hasOverlappingLid, LID_RIM_INSET_MM, LID_RIM_WALL_MM, LID_PAD_EXTENT_MM, magneticLidError } from "./magnetic-lid";
 
 /**
  * Pure validation of a bin specification — no WASM, cheap enough to run on
@@ -127,7 +129,7 @@ export function validateBinSpec(spec: BinSpec): ValidationResult {
   if (lidError) issues.push({ code: "magnetic-lid-unavailable", severity: "error", message: lidError });
   const wallHeight = binWallHeightMm(spec.heightUnits);
 
-  if (spec.lip === "standard" && wallHeight < STACKING_LIP_SUPPORT_HEIGHT_MM) {
+  if (hasStackingLip(spec) && wallHeight < STACKING_LIP_SUPPORT_HEIGHT_MM) {
     issues.push({
       code: "lip-support-clipped",
       severity: "warning",
@@ -139,7 +141,7 @@ export function validateBinSpec(spec: BinSpec): ValidationResult {
   }
 
   if (spec.fill === "solid") {
-    const lipAllowance = spec.lip === "standard" ? STACKING_LIP_SUPPORT_HEIGHT : 0;
+    const lipAllowance = infillTopAllowanceMm(spec);
     const fillHeight = wallHeight - lipAllowance;
     if (fillHeight <= 0) {
       issues.push({
@@ -449,7 +451,10 @@ function validateAgainstBin(spec: BinSpec, p: PlacedCutout): ValidationIssue[] {
       cutoutIds: [cutout.id],
       message: `“${label}” cuts into the bin wall once its ${outlineAllowance} mm combined clearance and top-edge round are added.`,
     });
-  } else if (spec.lip === "standard" && wallMargin < LIP_INTRUSION_MM) {
+  } else if (hasOverlappingLid(spec) && wallMargin < LID_RIM_INSET_MM + LID_RIM_WALL_MM - D_WALL) {
+    issues.push({ code: "lid-rim-collision", severity: "error", cutoutIds: [cutout.id],
+      message: `“${label}” cuts into the inset lid rim. Move it farther from the edge.` });
+  } else if (hasStackingLip(spec) && wallMargin < LIP_INTRUSION_MM) {
     issues.push({
       code: "lip-collision",
       severity: "warning",
@@ -573,7 +578,10 @@ function validateFingerHoleAgainstBin(
       fingerHoleIds: [hole.id],
       message: `${label} cuts into the bin wall.`,
     });
-  } else if (spec.lip === "standard" && wallMargin < LIP_INTRUSION_MM) {
+  } else if (hasOverlappingLid(spec) && wallMargin < LID_RIM_INSET_MM + LID_RIM_WALL_MM - D_WALL) {
+    issues.push({ code: "lid-rim-collision", severity: "error", fingerHoleIds: [hole.id],
+      message: `${label} cuts into the inset lid rim. Move it farther from the edge.` });
+  } else if (hasStackingLip(spec) && wallMargin < LIP_INTRUSION_MM) {
     issues.push({
       code: "finger-hole-lip-collision",
       severity: "warning",
@@ -612,7 +620,7 @@ function validateFingerHoleAgainstBin(
 
 /** Conservative plan clearance for the full pad; the worker also checks the actual 3D cutters. */
 function touchesLidSupport(spec: BinSpec, outline: Outline, allowance: number): boolean {
-  if (!spec.magneticLid || magneticLidError(spec)) return false;
+  if (!spec.magneticLid || !spec.lidMagnetHoles || magneticLidError(spec)) return false;
   const halfW = binFootprintMm(spec.gridX, spec.gridPitch) / 2;
   const halfL = binFootprintMm(spec.gridY, spec.gridPitch) / 2;
   for (const sx of [-1, 1]) for (const sy of [-1, 1]) {

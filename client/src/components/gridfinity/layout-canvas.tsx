@@ -356,7 +356,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
   );
   const boundaryCutouts = useMemo(
     () => new Set(layoutIssues
-      .filter((issue) => ["out-of-bounds", "wall-breach", "lip-collision"].includes(issue.code))
+      .filter((issue) => ["out-of-bounds", "wall-breach", "lip-collision", "lid-rim-collision"].includes(issue.code))
       .flatMap((issue) => issue.cutoutIds ?? [])),
     [layoutIssues],
   );
@@ -1331,7 +1331,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
             vectorEffect="non-scaling-stroke"
           />
           {/* 42 mm cell boundaries. */}
-          {spec.magneticLid && !magneticLidError(spec) && (
+          {spec.magneticLid && spec.lidMagnetHoles && !magneticLidError(spec) && (
             <g pointerEvents="none" data-testid="lid-support-regions">
               <defs><clipPath id="lid-support-outline"><path d={ringToCanvasPath(outerFootprint, spec)} /></clipPath></defs>
               <g clipPath="url(#lid-support-outline)">

@@ -40,8 +40,8 @@ function getHandler(): BuildHandler {
   return createBinWorkerHandlers(loadManifold)[BUILD_BIN_METHOD] as unknown as BuildHandler;
 }
 
-it("exports a separate printable lid and transfers its arrays without sectioning it", async () => {
-  const request: BuildBinRequest = { spec: { gridX: 1, gridY: 1, heightUnits: 2, magneticLid: true, fill: "none" }, quality: { circularSegments: 24 }, exportTopology: true };
+it.each(["overlap", "inset"] as const)("exports a separate printable lid and transfers its arrays without sectioning it (%s)", async magneticLidStyle => {
+  const request: BuildBinRequest = { spec: { gridX: 1, gridY: 1, heightUnits: 2, magneticLid: true, magneticLidStyle, fill: "none" }, quality: { circularSegments: 24 }, exportTopology: true };
   const full = await getHandler()(request, context());
   const section = await getHandler()({ ...request, section: { axis: "x", offsetMm: 0 } }, context());
   expect(full.value.lidMesh).toBeDefined();

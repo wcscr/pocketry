@@ -183,7 +183,7 @@ export function createBinWorkerHandlers(
       const value: BuildBinResult = {
         mesh,
         ...(spec.magneticLid ? { lidMesh: extractMeshData(kernel,
-          magneticLidForPrint(kernel, buildMagneticLid(kernel, spec, payload.quality.circularSegments)),
+          magneticLidForPrint(kernel, buildMagneticLid(kernel, spec, payload.quality.circularSegments), spec),
           { normals: includePreviewNormals }) } : {}),
         materialMeshes,
         stats: {

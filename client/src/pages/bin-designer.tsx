@@ -1,3 +1,4 @@
+import { hasStackingLip } from "@shared/gridfinity/standard";
 import { Box, History, Redo2, Undo2 } from "lucide-react";
 import { pocketDepths } from "@shared/gridfinity/cutout";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -121,6 +122,8 @@ function BinDesignerWorkspace(): JSX.Element {
   const [section, setSection] = useState<BuildBinSection | null>(null);
   const [colorPocketFloors, setColorPocketFloors] = useState(true);
   const [binColor, setBinColor] = useState<string>(BIN_BODY_COLOR);
+  const [lidColorOverride, setLidColorOverride] = useState<string | null>(null);
+  const lidColor = lidColorOverride ?? binColor;
   const [pocketFloorColor, setPocketFloorColor] =
     useState<string>(POCKET_FLOOR_COLOR);
   const [pocketFloorThicknessMm, setPocketFloorThicknessMm] = useState(
@@ -749,7 +752,7 @@ function BinDesignerWorkspace(): JSX.Element {
           colorPocketFloors &&
           exportProjectDoc.cutouts.some((cutout) => pocketDepths(cutout).some(depth => depth.mode !== "through"));
         const includeStackingRim =
-          multicolor && colorStackingRim && exportProjectDoc.spec.lip === "standard";
+          multicolor && colorStackingRim && !exportProjectDoc.spec.magneticLid && hasStackingLip(exportProjectDoc.spec);
         const result = await buildOnce(EXPORT_QUALITY, {
           pocketFloorMaterialThicknessMm: includePocketFloors
             ? pocketFloorThicknessMm
@@ -875,17 +878,17 @@ function BinDesignerWorkspace(): JSX.Element {
     try {
       const project = prepareProjectExport(exportProjectDoc, currentProjectName, "lid");
       const result = await buildOnce(EXPORT_QUALITY);
-      if (!result.lidMesh) throw new Error("Enable Magnetic lid before exporting a lid.");
-      const name = `Pocketry magnetic lid ${binSizeLabel(exportProjectDoc.spec)}`;
+      if (!result.lidMesh) throw new Error("Enable Lid before exporting a lid.");
+      const name = `Pocketry lid ${binSizeLabel(exportProjectDoc.spec)}`;
       const bytes = format === "3mf"
-        ? writeThreeMf([{ name, mesh: result.lidMesh, material: { name: "Lid", displayColor: binColor as `#${string}` } }], { title: name })
+        ? writeThreeMf([{ name, mesh: result.lidMesh, material: { name: "Lid", displayColor: (colorStackingRim ? lidColor : binColor) as `#${string}` } }], { title: name })
         : writeBinarySTL(result.lidMesh, name);
       downloadModelWithProject(new Blob([bytes], { type: format === "3mf" ? "model/3mf" : "application/octet-stream" }), format, project, includeProject);
-      toast({ title: "Saved", description: "Exported the lid with its flat face on the print bed and magnet recesses facing up." });
+      toast({ title: "Saved", description: exportProjectDoc.spec.magneticLidTop === "stacking" ? "Exported with the stacking top facing up. Overlapping lids need support under the cap." : "Exported the lid with its flat face on the print bed and magnet recesses facing up." });
     } catch (cause) {
       if (!(cause instanceof WorkerCancelledError)) toast({ title: "Lid export failed", description: cause instanceof Error ? cause.message : String(cause), variant: "destructive" });
     } finally { setExporting(false); }
-  }, [buildOnce, exportProjectDoc, currentProjectName, binColor, toast]);
+  }, [buildOnce, exportProjectDoc, currentProjectName, binColor, lidColor, colorStackingRim, toast]);
 
   const handleExportFitCheck = useCallback(
     async (cutoutId: string, depthMm: number, includeProject: boolean) => {
@@ -1037,6 +1040,8 @@ function BinDesignerWorkspace(): JSX.Element {
           onPocketFloorThicknessChange={setPocketFloorThicknessMm}
           colorStackingRim={colorStackingRim}
           onColorStackingRimChange={setColorStackingRim}
+          lidColor={lidColor}
+          onLidColorChange={setLidColorOverride}
           stackingRimColor={stackingRimColor}
           onStackingRimColorChange={setStackingRimColor}
           stackingRimThicknessMm={stackingRimThicknessMm}
@@ -1054,6 +1059,7 @@ function BinDesignerWorkspace(): JSX.Element {
           {viewMode === "3d" ? (
             <BinViewport
               lidGeometry={lidGeometry}
+              lidColor={colorStackingRim ? lidColor : binColor}
               lidBaseZMm={builtDimensions.heightToRimMm}
               geometry={geometry}
               pocketFloorGeometry={pocketFloorGeometry}
@@ -1064,7 +1070,7 @@ function BinDesignerWorkspace(): JSX.Element {
               pocketFloorColor={pocketFloorColor}
               stackingRimColor={stackingRimColor}
               showPocketFloorColor={colorPocketFloors}
-              showStackingRimColor={colorStackingRim}
+              showStackingRimColor={colorStackingRim && !committedSpec.magneticLid}
               building={building}
               progress={progress}
               error={error}
