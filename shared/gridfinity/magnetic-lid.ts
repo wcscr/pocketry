@@ -120,8 +120,8 @@ export function magneticLidError(spec: BinSpec): string | null {
     if ([spec.gridX, spec.gridY].some(count => binFootprintMm(count, spec.gridPitch) < 36)) {
       return "This lid interface needs a bin at least 36 mm wide and long to leave room for the springs and corners.";
     }
-    if (hasSpringLatch(spec) && hasOverlappingLid(spec) && overlapRimWallMm(spec) < 1.2) {
-      return "The spring latch needs walls at least 1.2 mm thick to keep material behind its matching recess.";
+    if (hasSpringLatch(spec) && hasOverlappingLid(spec)) {
+      return "Spring latches are only available for inset lids. Choose Inset or another lid interface.";
     }
   }
   const minimum = 2 * lidPadExtentMm(spec) + 2 * binWallThicknessMm(spec);

@@ -5,8 +5,8 @@ Enable **Construction → Lid**, choose **Overlapping edge** or **Inset**, and
 choose a **Flat** or **Stacking top**. Magnets are optional. With **Lid magnet
 holes** off, choose **Easy lift-off** or **Compliant fit** and use the single
 **Looser / Tighter** adjustment.
-Compliant fit offers **Contact ribs**, **Side springs**, **Angled fins**, and
-**Spring latch** in one Interface selector.
+Compliant fit offers **Contact ribs**, **Side springs**, and **Angled fins** in
+one Interface selector. **Inset** lids also offer **Spring latch**.
 Export the bin normally and the lid separately under **Export → Export lid**,
 as STL or 3MF. Geometry settings survive autosave, project files, and undo.
 
@@ -44,8 +44,8 @@ validation account for this space. Large offsets use square inner corners.
 Changing thickness requires a matching bin and lid; unlike fit adjustment,
 it is not a lid-only change. The standard stacking profile and underside stay
 unchanged. The inset lid's compliant locating skirt stays 0.8 mm thick.
-Contact-rib, lift-off, and magnetic lids have continuous edges. Spring interfaces
-have intentional relief slots. The bin's rim
+All lid tops are solid. Compliant interfaces have release gaps below the cap,
+at the mating rim. The bin's rim
 has a sloping support below its shoulder and a chamfer at the top. Pockets
 must clear this rim. The saved stacking-lip preference returns when the lid is
 disabled. Both styles keep the same solid-fill headroom and pocket-depth
@@ -75,27 +75,34 @@ dimensions or physical qualification for Pocketry.
   This original thin-rim adaptation remains the default interface and preserves
   existing saved friction lids.
 - **Side springs** uses 0.8 mm rounded strips fixed at one end, with a small
-  rounded contact bump near the free end. Relief slots pass through the cap,
-  allowing the spring to bend in the plane of the printed layers.
+  rounded contact bump near the free end. The beams sit at the mating interface,
+  below a solid cap, with a 0.3 mm release gap above them and travel space behind
+  them. Nothing opens through the top. They bend in the plane of printed layers.
 - **Angled fins** uses repeated 0.6 mm fingers attached at their roots, with a
-  tapered entry. A 0.3 mm release gap separates each finger from the cap, following
+  tapered entry. Fins run continuously across each straight side, with no solid
+  center blocks; only the corners remain solid. A 0.3 mm release gap separates each finger from the cap, following
   Slant3D's guidance at about 3:35. Inspect the gap in the slicer; drooping strands,
   fused first layers, or support material can prevent movement. The top stays solid.
-- **Spring latch** uses a 0.8 mm folded spring and a rounded detent that mates
-  with a 0.4 mm recess in the bin. **Pull up to release**: both insertion and
-  removal have rounded ramps. Its relief slots pass through the cap so there is
-  no bridge over the moving spring. These dimensions are Pocketry prototype
+- **Spring latch (inset only)** uses a 0.8 mm spring with three rounded U bends
+  arranged perpendicular to the edge. The head retracts toward the fixed root
+  at the back of an approximately 11 mm deep chamber. A solid cap covers the
+  mechanism, with a 0.3 mm release gap above the moving parts. A rounded detent
+  mates with a 0.4 mm recess in the bin. **Pull up to release**: both insertion
+  and removal have rounded ramps. These dimensions are Pocketry prototype
   choices, not dimensions specified or validated by Slant3D.
-- The three new interfaces repeat along all four sides, clear of the corners,
-  on bins at least 36 mm wide and long. Overlapping versions reserve at least
+- The new interfaces occupy all four sides, clear of the corners, on bins at
+  least 36 mm wide and long. Overlapping side springs and fins reserve at least
   3.4 mm for the mechanism plus 0.3 mm clearance and the selected inner rim wall.
   The outer footprint stays fixed. **Export a matching bin and lid when changing
-  interface**: side springs and angled fins share a bin; the latch needs its
-  recesses. Overlapping latch walls must be at least 1.2 mm thick, leaving
-  0.8 mm behind each recess. Pocket and finger cutters cannot remove that backing.
-- Spring slots also interrupt the optional stacking rim. Remaining sections
-  locate the bin above, but the slots reduce support area and loaded stacking
-  needs physical testing. Start with a flat top when qualifying the springs.
+  interface**: side springs and angled fins share a bin; the inset latch needs
+  its matching recesses. Revised latch heads are centered on each chamber, so
+  earlier latch bins also need re-exporting. Pocket and finger cutters cannot
+  remove the recess backing. Switching from an inset latch to Overlapping edge
+  selects Side springs; undo restores the previous style and latch together.
+- The optional stacking rim stays continuous, above the solid cap. Loaded
+  stacking still needs physical testing. Start with a flat top when qualifying
+  the springs, and inspect the release gaps so support or drooping bridges do
+  not weld the mechanisms to the cap.
 - The five adjustment positions change the lid by 0.05 mm per side per step,
   from 0.1 mm looser to 0.1 mm tighter. Friction starts with 0.05 mm of intended
   interference at the ribs, spring bumps, or fin tips; the loosest setting leaves 0.05 mm clearance and

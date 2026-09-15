@@ -478,6 +478,14 @@ it.each([false, true])("selects compliant interfaces with undo and hides them fo
     expect(current().lidInterface).toBe("angled-fins");
     React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
     expect(current().lidInterface).toBe("spring-latch");
+    React.act(() => panel.querySelector<HTMLButtonElement>('[data-testid="button-lid-style-overlap"]')!.click());
+    expect(current()).toMatchObject({ magneticLidStyle: "overlap", lidInterface: "side-springs" });
+    React.act(() => select()!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+    expect(Array.from(document.querySelectorAll<HTMLElement>('[role="option"]')).map(el => el.textContent))
+      .toEqual(["Contact ribs", "Side springs", "Angled fins"]);
+    React.act(() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+    expect(current()).toMatchObject({ magneticLidStyle: "inset", lidInterface: "spring-latch" });
     toggle("Base magnet holes");
     expect(select()).not.toBeNull();
     toggle("Lid magnet holes");

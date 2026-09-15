@@ -734,7 +734,8 @@ export function BinControlsPanel({
                 {(["overlap", "inset"] as const).map(style => (
                   <Button key={style} size="sm" className="h-auto min-h-9 min-w-0 whitespace-normal px-2 text-xs" variant={spec.magneticLidStyle === style ? "secondary" : "outline"}
                     aria-pressed={spec.magneticLidStyle === style} data-testid={`button-lid-style-${style}`}
-                    onClick={() => patchSpec({ magneticLidStyle: style, ...(style === "inset" ? { lip: "standard" } : {}) })}>
+                    onClick={() => patchSpec({ magneticLidStyle: style, ...(style === "inset" ? { lip: "standard" } : {}),
+                      ...(style === "overlap" && spec.lidInterface === "spring-latch" ? { lidInterface: "side-springs" } : {}) })}>
                     {style === "overlap" ? "Overlapping edge" : "Inset"}
                   </Button>
                 ))}
@@ -787,14 +788,14 @@ export function BinControlsPanel({
                     <SelectItem value="ribs">Contact ribs</SelectItem>
                     <SelectItem value="side-springs">Side springs</SelectItem>
                     <SelectItem value="angled-fins">Angled fins</SelectItem>
-                    <SelectItem value="spring-latch">Spring latch</SelectItem>
+                    {spec.magneticLidStyle === "inset" && <SelectItem value="spring-latch">Spring latch</SelectItem>}
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
                   {{ ribs: "Small ribs on a thin rim grip the bin.",
-                    "side-springs": "Beams flex sideways to grip the bin, with open slots through the lid.",
-                    "angled-fins": "Thin, angled fingers flex against the rim. Keep their release gaps clear when slicing.",
-                    "spring-latch": "Folded springs engage matching recesses, with open slots through the lid. Pull up to release." }[spec.lidInterface]}
+                    "side-springs": "Beams flex at the rim beneath a solid top. Keep their release gaps clear when slicing.",
+                    "angled-fins": "Angled fingers run across each straight edge beneath a solid top. Keep their release gaps clear when slicing.",
+                    "spring-latch": "Covered springs compress perpendicular to the edge; their heads engage matching recesses. Pull up to release." }[spec.lidInterface]}
                   {spec.lidInterface !== "ribs" ? " Export a matching bin and lid; test the fit before making a larger case." : " Tune after a test print."}
                 </p>
               </> : <p className="text-xs text-muted-foreground">Leaves a gap for easy removal.</p>}

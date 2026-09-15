@@ -4,10 +4,12 @@ import { hasOverlappingLid, overlapLidRimInsetMm } from "./magnetic-lid";
 
 export const SPRING_THICKNESS_MM = 0.8;
 export const FIN_THICKNESS_MM = 0.6;
-/** Release gap between the fingers and cap; inspect this gap in the slicer. */
-export const FIN_CAP_GAP_MM = 0.3;
+/** Release gap between moving parts and cap; inspect this gap in the slicer. */
+export const INTERFACE_CAP_GAP_MM = 0.3;
 export const INTERFACE_WINDOW_WIDTH_MM = 20;
 export const INTERFACE_BACK_MM = 2.8;
+export const LATCH_BACK_MM = 10.1;
+export const LATCH_WINDOW_WIDTH_MM = 12;
 export const DETENT_ENGAGEMENT_MM = 0.2;
 export const DETENT_RECESS_DEPTH_MM = 0.4;
 
@@ -19,6 +21,8 @@ export interface LidInterfaceFrame {
   direction: 1 | -1;
   bottom: number;
   contactZ: number;
+  /** Fins use one uninterrupted window over the entire straight side. */
+  width: number;
 }
 
 /** Matching lid and body features share these frames, including their vertical datum. */
@@ -31,7 +35,8 @@ export function lidInterfaceFrames(spec: BinSpec): LidInterfaceFrame[] {
     const alongSize = angle % 180 === 0 ? width : length;
     const normalSize = angle % 180 === 0 ? length : width;
     const usable = alongSize - 2 * (BASE_TOP_RADIUS + 2);
-    const count = Math.min(8, Math.max(1, Math.floor(usable / 28)));
+    const fins = spec.lidInterface === "angled-fins";
+    const count = fins ? 1 : Math.min(8, Math.max(1, Math.floor(usable / 28)));
     const step = usable / count;
     for (let i = 0; i < count; i++) frames.push({
       angle, along: (i - (count - 1) / 2) * step,
@@ -39,6 +44,7 @@ export function lidInterfaceFrames(spec: BinSpec): LidInterfaceFrame[] {
       direction: overlap ? 1 : -1,
       bottom: overlap ? -4.8 : 0.85,
       contactZ: overlap ? -3.2 : 1.55,
+      width: fins ? usable : spec.lidInterface === "spring-latch" ? LATCH_WINDOW_WIDTH_MM : INTERFACE_WINDOW_WIDTH_MM,
     });
   }
   return frames;

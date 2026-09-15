@@ -1,10 +1,11 @@
-import type { Manifold, Vec3 } from "manifold-3d";
+import type { Manifold, Vec2, Vec3 } from "manifold-3d";
 import type { BinSpec } from "@shared/gridfinity/types";
 import { binHeightMm } from "@shared/gridfinity/standard";
-import { hasOverlappingLid, hasSpringLatch, usesCompliantInterface, lidCapTopMm, lidTopMm,
+import { hasOverlappingLid, hasSpringLatch, usesCompliantInterface,
   lidBottomMm, INSET_LID_CAP_BOTTOM_MM, lidFitAdjustmentMm, LID_FRICTION_INTERFERENCE_MM } from "@shared/gridfinity/magnetic-lid";
-import { lidInterfaceFrames, SPRING_THICKNESS_MM, FIN_THICKNESS_MM, FIN_CAP_GAP_MM, INTERFACE_WINDOW_WIDTH_MM,
-  INTERFACE_BACK_MM, DETENT_ENGAGEMENT_MM, DETENT_RECESS_DEPTH_MM, type LidInterfaceFrame } from "@shared/gridfinity/lid-interface";
+import { lidInterfaceFrames, SPRING_THICKNESS_MM, FIN_THICKNESS_MM, INTERFACE_CAP_GAP_MM,
+  INTERFACE_BACK_MM, LATCH_BACK_MM,
+  DETENT_ENGAGEMENT_MM, DETENT_RECESS_DEPTH_MM, type LidInterfaceFrame } from "@shared/gridfinity/lid-interface";
 import type { Kernel } from "@/lib/manifold/runtime";
 
 /** Original geometry based on the mechanisms illustrated in Slant3D's lid-design video.
@@ -34,29 +35,52 @@ function strip(kernel: Kernel, a: [number, number], b: [number, number], thickne
 }
 
 /** Smooth, symmetric entry/exit ramps allow a detent to release by lifting the lid. */
-function contact(kernel: Kernel, frame: LidInterfaceFrame, engagement: number, recess: boolean, segments: number): Manifold {
+function contact(kernel: Kernel, frame: LidInterfaceFrame, engagement: number, recess: boolean, segments: number, x: number): Manifold {
   const { arena, Manifold } = kernel;
   const ellipsoid = arena.track(arena.track(Manifold.sphere(1, segments)).scale([
     recess ? 2 : 1.6, 0.35 + engagement, recess ? 0.95 : 0.65,
   ]));
-  return arena.track(ellipsoid.translate([6.5, 0.35, frame.contactZ]));
+  return arena.track(ellipsoid.translate([x, 0.35, frame.contactZ]));
 }
 
 function sideSpring(kernel: Kernel, frame: LidInterfaceFrame, top: number, segments: number): Manifold {
-  return strip(kernel, [-10.6, 0.75], [8.6, 0.75], SPRING_THICKNESS_MM, frame.bottom, top, segments);
+  return strip(kernel, [-10.6, 0.75], [8.1, 0.75], SPRING_THICKNESS_MM, frame.bottom, top, segments);
 }
 
-/** A folded strip connects one fixed end to a free detent head. No cap lies underneath it. */
+/** Three rounded folds stack along +y, perpendicular to the mating edge.
+ * The head retracts toward the root at the back of its covered chamber.
+ */
 function foldedSpring(kernel: Kernel, frame: LidInterfaceFrame, top: number, segments: number): Manifold {
-  const { arena, Manifold } = kernel;
-  const path: [number, number][] = [
-    [-10.6, 0.75], [-8, 0.75], [-8, 1.95], [-6, 1.95], [-6, 0.6],
-    [-4, 0.6], [-4, 1.95], [-2, 1.95], [-2, 0.6], [0, 0.6],
-    [0, 1.95], [2, 1.95], [2, 1.2], [4.2, 1.2],
-  ];
-  const pieces = path.slice(1).map((p, i) => strip(kernel, path[i], p, SPRING_THICKNESS_MM, frame.bottom, top, segments));
-  pieces.push(box(kernel, [3.8, 0.3, frame.bottom], [8.6, 2.1, top]));
-  return arena.track(Manifold.union(pieces));
+  const { arena, CrossSection } = kernel;
+  const path: [number, number][] = [[0, 1.4], [0, 2], [3, 2]];
+  const steps = Math.max(8, segments / 2);
+  const turn = (x: number, y: number, direction: 1 | -1) => {
+    for (let i = 1; i <= steps; i++) {
+      const angle = -Math.PI / 2 + direction * Math.PI * i / steps;
+      path.push([x + Math.cos(angle), y + Math.sin(angle)]);
+    }
+  };
+  turn(3, 3, 1);
+  path.push([-3, 4]);
+  turn(-3, 5, -1);
+  path.push([3, 6]);
+  turn(3, 7, 1);
+  path.push([0, 8], [0, LATCH_BACK_MM + 0.3]);
+  // Offset the already rounded centerline in 2D, then extrude once. This
+  // preserves the curved U bends without hundreds of 3D capsule booleans.
+  const normals = path.slice(1).map((p, i): Vec2 => {
+    const dx = p[0] - path[i][0], dy = p[1] - path[i][1];
+    const length = Math.hypot(dx, dy);
+    return [-dy / length, dx / length];
+  });
+  const offset = (sign: number): Vec2[] => path.map((p, i) => {
+    const a = normals[Math.max(0, i - 1)], b = normals[Math.min(normals.length - 1, i)];
+    const scale = sign * SPRING_THICKNESS_MM / 2 / (1 + a[0] * b[0] + a[1] * b[1]);
+    return [p[0] + (a[0] + b[0]) * scale, p[1] + (a[1] + b[1]) * scale];
+  });
+  const section = arena.track(new CrossSection([[...offset(-1), ...offset(1).reverse()]]));
+  const spring = arena.track(arena.track(section.extrude(top - frame.bottom)).translate([0, 0, frame.bottom]));
+  return arena.track(spring.add(box(kernel, [-3, 0.3, frame.bottom], [3, 1.6, top])));
 }
 
 /** Parallel angled fingers with a tapered lower entry and clear gaps between blades. */
@@ -64,40 +88,48 @@ function fins(kernel: Kernel, spec: BinSpec, frame: LidInterfaceFrame, top: numb
   const { arena, Manifold } = kernel;
   const engagement = LID_FRICTION_INTERFERENCE_MM + lidFitAdjustmentMm(spec);
   const pieces: Manifold[] = [];
-  for (let along = -7.2; along <= 7.21; along += 2.4) {
+  const count = Math.max(1, Math.floor((frame.width - 3.6) / 2.4) + 1);
+  for (let i = 0; i < count; i++) {
+    const along = (i - (count - 1) / 2) * 2.4;
     pieces.push(strip(kernel, [along - 1.5, INTERFACE_BACK_MM + 0.3],
       [along + 1.5, FIN_THICKNESS_MM / 2 - engagement], FIN_THICKNESS_MM, frame.bottom, top, segments));
   }
   // Clip the fin tips to an entry ramp. The working faces above it retain the selected fit.
-  const ramp = arena.track(Manifold.hull(([-11, 11] as const).flatMap(x => [
+  const ramp = arena.track(Manifold.hull(([-frame.width / 2 - 1, frame.width / 2 + 1]).flatMap(x => [
     [x, -1, frame.bottom - 0.1], [x, 0.6, frame.bottom - 0.1],
     [x, -engagement, frame.bottom + 0.75], [x, -1, frame.bottom + 0.75],
   ] as Vec3[])));
   return arena.track(arena.track(Manifold.union(pieces)).subtract(ramp));
 }
 
-/** Through-slots isolate spring beams in XY; fins retain the solid top of the lid. */
+/** All moving interfaces sit beneath a solid cap with a printable release gap. */
 export function applyLidInterface(kernel: Kernel, spec: BinSpec, lid: Manifold, segments: number): Manifold {
   if (!usesCompliantInterface(spec)) return lid;
   const { arena, Manifold } = kernel;
   const capBottom = hasOverlappingLid(spec) ? 0 : INSET_LID_CAP_BOTTOM_MM;
   const isFins = spec.lidInterface === "angled-fins";
+  const isLatch = hasSpringLatch(spec);
   const windows: Manifold[] = [], mechanisms: Manifold[] = [];
   for (const frame of lidInterfaceFrames(spec)) {
-    const opening = box(kernel, [-INTERFACE_WINDOW_WIDTH_MM / 2, -0.65, lidBottomMm(spec) - 0.1],
-      [INTERFACE_WINDOW_WIDTH_MM / 2, INTERFACE_BACK_MM, isFins ? capBottom : lidTopMm(spec) + 0.1]);
+    const back = isLatch ? LATCH_BACK_MM : INTERFACE_BACK_MM;
+    const half = frame.width / 2;
+    const opening = box(kernel, [-half, -0.65, lidBottomMm(spec) - 0.1],
+      [half, back, capBottom]);
     windows.push(place(kernel, opening, frame));
-    const top = isFins ? capBottom - FIN_CAP_GAP_MM : lidCapTopMm(spec);
+    const top = capBottom - INTERFACE_CAP_GAP_MM;
     // Fingers attach only at their roots. A release gap below the cap lets
     // them bend sideways instead of being welded to it along their length.
-    const backingTop = isFins ? capBottom + 0.05 : top;
-    const backing = box(kernel, [-11, INTERFACE_BACK_MM, frame.bottom], [11, INTERFACE_BACK_MM + 0.8, backingTop]);
+    const backingTop = capBottom + 0.05;
+    const backing = box(kernel, [-half - 0.8, back, frame.bottom], [half + 0.8, back + 0.8, backingTop]);
     let mechanism: Manifold;
     if (isFins) mechanism = fins(kernel, spec, frame, top, segments);
     else {
-      mechanism = hasSpringLatch(spec) ? foldedSpring(kernel, frame, top, segments) : sideSpring(kernel, frame, top, segments);
-      const engagement = (hasSpringLatch(spec) ? DETENT_ENGAGEMENT_MM : LID_FRICTION_INTERFERENCE_MM) + lidFitAdjustmentMm(spec);
-      mechanism = arena.track(mechanism.add(contact(kernel, frame, engagement, false, segments)));
+      mechanism = isLatch ? foldedSpring(kernel, frame, top, segments) : sideSpring(kernel, frame, top, segments);
+      const engagement = (isLatch ? DETENT_ENGAGEMENT_MM : LID_FRICTION_INTERFERENCE_MM) + lidFitAdjustmentMm(spec);
+      mechanism = arena.track(mechanism.add(contact(kernel, frame, engagement, false, segments, isLatch ? 0 : 6.5)));
+    }
+    if (isLatch) for (const x of [-half - 0.8, half]) {
+      mechanism = arena.track(mechanism.add(box(kernel, [x, 0.3, frame.bottom], [x + 0.8, back + 0.8, backingTop])));
     }
     mechanisms.push(place(kernel, arena.track(mechanism.add(backing)), frame));
   }
@@ -110,7 +142,7 @@ export function addLidDetentRecesses(kernel: Kernel, spec: BinSpec, body: Manifo
   if (!hasSpringLatch(spec)) return body;
   const { arena, Manifold } = kernel;
   const recesses = lidInterfaceFrames(spec).map(frame => place(kernel,
-    contact(kernel, frame, DETENT_RECESS_DEPTH_MM, true, segments), frame, binHeightMm(spec.heightUnits)));
+    contact(kernel, frame, DETENT_RECESS_DEPTH_MM, true, segments, 0), frame, binHeightMm(spec.heightUnits)));
   return arena.track(body.subtract(arena.track(Manifold.union(recesses))));
 }
 
@@ -118,6 +150,6 @@ export function addLidDetentRecesses(kernel: Kernel, spec: BinSpec, body: Manifo
 export function lidDetentKeepout(kernel: Kernel, spec: BinSpec): Manifold {
   const { arena, Manifold } = kernel;
   return arena.track(Manifold.union(lidInterfaceFrames(spec).map(frame => place(kernel,
-    box(kernel, [4, -2.1, frame.contactZ - 1.1], [9, 0.05, frame.contactZ + 1.1]),
+    box(kernel, [-2.5, -2.1, frame.contactZ - 1.1], [2.5, 0.05, frame.contactZ + 1.1]),
     frame, binHeightMm(spec.heightUnits)))));
 }
