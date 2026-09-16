@@ -38,6 +38,10 @@ export function hasSpringLatch(spec: InterfaceSpec): boolean {
   return usesCompliantInterface(spec) && spec.lidInterface === "spring-latch";
 }
 
+export function hasSideSprings(spec: InterfaceSpec): boolean {
+  return usesCompliantInterface(spec) && spec.lidInterface === "side-springs";
+}
+
 export function overlapLidWallMm(spec: WallSpec): number {
   const wall = spec.lidWallThicknessMm ?? binWallThicknessMm(spec);
   return usesCompliantInterface(spec) ? Math.max(wall, COMPLIANT_LID_BAND_MM) : wall;
@@ -122,8 +126,11 @@ export function lidTopMm(spec: Pick<BinSpec, "magneticLidStyle" | "magneticLidTo
   return lidCapTopMm(spec) + (spec.magneticLidTop === "stacking" ? STACKING_LIP_HEIGHT_ACTUAL : 0);
 }
 
-export function lidBottomMm(spec: Pick<BinSpec, "magneticLidStyle">): number {
-  return spec.magneticLidStyle === "overlap" ? -LID_OVERLAP_MM + LID_SHOULDER_GAP_MM : 0;
+export function lidBottomMm(spec: Pick<BinSpec, "magneticLidStyle"> & InterfaceSpec): number {
+  // Side springs and their filled locator share one build plane, without
+  // moving the cap, contact bumps, or closed-lid seating datum.
+  return spec.magneticLidStyle === "overlap" ? -LID_OVERLAP_MM + LID_SHOULDER_GAP_MM
+    : hasSideSprings(spec) ? 0.85 : 0;
 }
 
 /** Four paired recesses; no per-cell duplication in a large lid. */

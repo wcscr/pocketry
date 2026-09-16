@@ -81,11 +81,25 @@ dimensions or physical qualification for Pocketry.
   thickness. Thicker overlapping skirts flex less and need a new physical fit test. The ribs are on the
   mating face, with tapered entry and no cutouts through the exterior edge.
   This original thin-rim adaptation remains the default interface and preserves
-  existing saved friction lids.
+  existing saved friction lids. **Rib spacing** adjusts the target spacing from
+  8 to 60 mm, automatically adding or removing ribs. The panel shows the count
+  per edge along the width and length. Ribs distribute evenly within the usable
+  span, keeping clear of the corners; the actual spacing can differ from the
+  target. The 24 mm default retains the original layout. This setting affects
+  only Contact ribs, preserves the bin, and is saved with the project and undo history.
 - **Side springs** uses 0.8 mm rounded strips fixed at one end, with a small
   rounded contact bump near the free end. The beams sit at the mating interface,
   below a solid cap, with a 0.3 mm release gap above them and travel space behind
-  them. Nothing opens through the top. They bend in the plane of printed layers.
+  them. Adjacent spring windows cover over 90% of each usable straight edge,
+  separated by 1.6 mm anchors. The count grows with the bin size, with an
+  approximately 24 mm pitch and no eight-spring limit. Nothing opens through
+  the top. They bend in the plane of printed layers.
+  The center is filled down to the springs' bottom plane so stacking lids
+  have a flat base on the build plate. The inset locator ends at the springs'
+  existing 0.85 mm height; the cap, contact height, and seating datum stay fixed.
+  Overlapping lids keep a receiving channel around the filled center for the
+  bin rim. Working gaps remain open and each beam attaches only at its root.
+  Existing matching bins can be reused; only these lids need reprinting.
 - **Angled fins** uses repeated 0.6 mm fingers attached at their roots, with a
   tapered entry. Fins run continuously across each straight side, with no solid
   center blocks; only the corners remain solid. Blade spacing leaves 0.6 mm
@@ -185,9 +199,9 @@ dimensions or physical qualification for Pocketry.
   quarter pitch, with the minimum width and length calculated from wall thickness
   and support size (27 mm at the default; 35 mm at 4 mm walls). Minimum bin height is 2u.
 
-Project schema v23 stores the interface as well as shared magnet size, wall
+Project schema v24 stores rib spacing and the interface as well as shared magnet size, wall
 thickness, lid style, top, closure settings, and fit. Existing designs and undo
-history default to Contact ribs. Projects from before v22 default to 6 × 2 mm
+history default to Contact ribs with 24 mm target spacing. Projects from before v22 default to 6 × 2 mm
 magnets without changing their recesses. Projects from before v21
 retain their 0.95 mm bin walls.
 Older overlapping projects and every undo step retain the original 0.8 mm
@@ -213,8 +227,9 @@ npm run export:bin -- 1x1x2 --lid-style inset --lid-top stacking --out outputs/l
 
 Print the bin upright. **Flat-top lids** export with the outer face on the bed
 and the recesses and skirt facing upward. **Stacking-top lids** export upright,
-with the stacking lip facing upward. The overlapping stacking lid needs slicer
-support beneath its cap; inspect support and bridging at
+with the stacking lip facing upward. Hollow overlapping stacking lids need slicer
+support beneath their cap; side-spring lids instead have a filled center on the
+build plate. Inspect the rim channel, spring release gaps, and bridging at
 magnet recesses for either stacking style. Stacking lids are not the
 support-free flat-top print orientation.
 
@@ -257,6 +272,7 @@ Browser checks exercise the actual controls, closure previews, and exports.
 Additional interface tests check 1U and larger cases, full/half/quarter pitches,
 single connected solids, free travel gaps, detent/recess alignment, pull-release
 contact, continuous covers above and below the latch, centered side openings,
-rear-only spring attachment, cutter protection, and unchanged bin geometry across fit adjustments.
+rear-only spring attachment, adjacent side springs on long edges, filled side-spring
+bottoms, root-only attachment of every beam, cutter protection, and unchanged bin geometry across fit adjustments.
 The new side springs, fins, and folded latch have **not been physically tested**;
 the earlier test plate does not qualify these new mechanisms.

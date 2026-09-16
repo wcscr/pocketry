@@ -1,4 +1,6 @@
 import { hasBaseMagnets, hasMagnets, baseMagnetShiftMm, magnetHoleRadiusMm, magnetHoleDepthMm } from "@shared/gridfinity/magnets";
+import { lidContactRibPositions, MIN_LID_RIB_SPACING_MM, MAX_LID_RIB_SPACING_MM } from "@shared/gridfinity/lid-contact-ribs";
+import { hasSideSprings } from "@shared/gridfinity/magnetic-lid";
 import {
   Box,
   ChevronDown,
@@ -752,7 +754,9 @@ export function BinControlsPanel({
                 ))}
               </div>
               {spec.magneticLidTop === "stacking" && <p className="text-xs text-muted-foreground">
-                Holds a Gridfinity bin on the lid. Exported top up; overlapping lids need support under the cap.
+                Holds a Gridfinity bin on the lid. {hasSideSprings(spec)
+                  ? "Exported top up with a flat, filled underside. Inspect the spring gaps and rim channel when slicing."
+                  : "Exported top up; hollow overlapping lids need support under the cap."}
               </p>}
               <p className="text-xs text-muted-foreground">
                 {spec.magneticLidStyle === "overlap"
@@ -793,11 +797,20 @@ export function BinControlsPanel({
                 </Select>
                 <p className="text-xs text-muted-foreground">
                   {{ ribs: "Small ribs on a thin rim grip the bin.",
-                    "side-springs": "Beams flex at the rim beneath a solid top. Keep their release gaps clear when slicing.",
+                    "side-springs": "Adjacent beams flex at the rim. The filled underside sits flat for printing; keep the spring gaps clear.",
                     "angled-fins": "Angled fingers run across each straight edge beneath a solid top. Keep their release gaps clear when slicing.",
                     "spring-latch": "Enclosed springs compress perpendicular to the edge. Only the latch heads are exposed, engaging matching recesses. Pull up to release." }[spec.lidInterface]}
                   {spec.lidInterface !== "ribs" ? " Export a matching bin and lid; test the fit before making a larger case." : " Tune after a test print."}
                 </p>
+                {spec.lidInterface === "ribs" && <div data-testid="lid-rib-spacing-controls">
+                  <MmSlider label="Rib spacing" value={spec.lidRibSpacingMm}
+                    min={MIN_LID_RIB_SPACING_MM} max={MAX_LID_RIB_SPACING_MM} step={1}
+                    hint="Target spacing. Closer spacing adds ribs; positions adjust to keep the corners clear."
+                    onChange={(lidRibSpacingMm, transient) => patchSpec({ lidRibSpacingMm }, transient)} />
+                  <p className="text-xs text-muted-foreground" data-testid="lid-rib-count">
+                    Per edge: {lidContactRibPositions(spec, "x").length} along width · {lidContactRibPositions(spec, "y").length} along length
+                  </p>
+                </div>}
               </> : <p className="text-xs text-muted-foreground">Leaves a gap for easy removal.</p>}
               <Label className="text-xs">{spec.lidFit === "friction" ? "Grip" : "Fit adjustment"}</Label>
               <Slider centerOrigin value={[Math.round(spec.lidFitAdjustmentMm / 0.05)]} min={-2} max={2} step={1}

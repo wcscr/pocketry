@@ -44,7 +44,8 @@ function contact(kernel: Kernel, frame: LidInterfaceFrame, engagement: number, r
 }
 
 function sideSpring(kernel: Kernel, frame: LidInterfaceFrame, top: number, segments: number): Manifold {
-  return strip(kernel, [-10.6, 0.75], [8.1, 0.75], SPRING_THICKNESS_MM, frame.bottom, top, segments);
+  const half = frame.width / 2;
+  return strip(kernel, [-half - 0.6, 0.75], [half - 1.9, 0.75], SPRING_THICKNESS_MM, frame.bottom, top, segments);
 }
 
 /** Three rounded folds stack along +y, perpendicular to the mating edge.
@@ -163,7 +164,7 @@ export function applyLidInterface(kernel: Kernel, spec: BinSpec, lid: Manifold, 
     else {
       mechanism = isLatch ? foldedSpring(kernel, frame, top, segments) : sideSpring(kernel, frame, top, segments);
       const engagement = (isLatch ? DETENT_ENGAGEMENT_MM : LID_FRICTION_INTERFERENCE_MM) + lidFitAdjustmentMm(spec);
-      mechanism = arena.track(mechanism.add(contact(kernel, frame, engagement, false, segments, isLatch ? 0 : 6.5)));
+      mechanism = arena.track(mechanism.add(contact(kernel, frame, engagement, false, segments, isLatch ? 0 : half - 3.5)));
     }
     const housing = isLatch ? latchHousing(kernel, frame, capBottom)
       : box(kernel, [-half - 0.8, back, frame.bottom], [half + 0.8, back + 0.8, backingTop]);

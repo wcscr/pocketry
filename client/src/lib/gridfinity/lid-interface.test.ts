@@ -3,13 +3,14 @@ import { Arena } from "@/lib/manifold/arena";
 import { createKernel, loadManifold, type Kernel } from "@/lib/manifold/runtime";
 import { parseBinSpec, type BinSpec } from "@shared/gridfinity/types";
 import { binFootprintMm, binHeightMm } from "@shared/gridfinity/standard";
-import { lidCapTopMm, INSET_LID_CAP_BOTTOM_MM } from "@shared/gridfinity/magnetic-lid";
+import { lidCapTopMm, lidBottomMm, overlapLidRimInsetMm, overlapRimWallMm, INSET_LID_CAP_BOTTOM_MM } from "@shared/gridfinity/magnetic-lid";
 import { fingerHoleSchema } from "@shared/gridfinity/cutout";
 import { lidInterfaceFrames, LATCH_SPRING_HALF_HEIGHT_MM } from "@shared/gridfinity/lid-interface";
 import { validateBinSpec } from "@shared/gridfinity/validate";
 import { buildBin, buildBinWithCutouts, EXPORT_QUALITY, PREVIEW_QUALITY } from "./bin";
 import { buildMagneticLid, magneticLidForPrint } from "./magnetic-lid";
 import { roundedRectPolygon } from "./profiles";
+import { lidContactRibPositions } from "@shared/gridfinity/lid-contact-ribs";
 
 let arena: Arena, kernel: Kernel;
 beforeEach(async () => { arena = new Arena(); kernel = createKernel(await loadManifold(), arena); });
@@ -21,6 +22,31 @@ const styles = (lidInterface: BinSpec["lidInterface"]): BinSpec["magneticLidStyl
   lidInterface === "spring-latch" ? ["inset"] : ["inset", "overlap"];
 
 describe("compliant interfaces", () => {
+  it.each(["inset", "overlap"] as const)("changes the actual contact-rib count while preserving the mating bin (%s)", magneticLidStyle => {
+    const s = spec({ gridX: 3, gridY: 2, lidInterface: "ribs", magneticLidStyle });
+    const body = buildBin(kernel, s, PREVIEW_QUALITY).solid;
+    for (const lidRibSpacingMm of [8, 24, 60]) {
+      const tuned = { ...s, lidRibSpacingMm };
+      const lid = buildMagneticLid(kernel, tuned, 24);
+      const contact = arena.track(body.intersect(arena.track(lid.translate([0, 0, 14]))));
+      const patches = contact.decompose();
+      patches.forEach(patch => arena.track(patch));
+      const expected = 2 * (lidContactRibPositions(tuned, "x").length + lidContactRibPositions(tuned, "y").length);
+      // Coplanar rim faces may leave numerically negligible CSG fragments.
+      expect(patches.map(patch => patch.volume()).filter(volume => volume > 1e-6)).toHaveLength(expected);
+      expect(lid.status()).toBe("NoError");
+      const bin = buildBin(kernel, tuned, PREVIEW_QUALITY).solid;
+      expect(arena.track(body.subtract(bin)).volume()).toBeLessThan(1e-6);
+      expect(arena.track(bin.subtract(body)).volume()).toBeLessThan(1e-6);
+    }
+    for (const patch of [{ lidMagnetHoles: true }, { lidFit: "lift-off" as const }, { lidInterface: "side-springs" as const }]) {
+      const a = buildMagneticLid(kernel, { ...s, ...patch, lidRibSpacingMm: 8 }, 24);
+      const b = buildMagneticLid(kernel, { ...s, ...patch, lidRibSpacingMm: 60 }, 24);
+      expect(arena.track(a.subtract(b)).volume()).toBeLessThan(1e-6);
+      expect(arena.track(b.subtract(a)).volume()).toBeLessThan(1e-6);
+    }
+  });
+
   for (const quality of [PREVIEW_QUALITY, EXPORT_QUALITY]) {
     it.each(interfaces.flatMap(lidInterface => styles(lidInterface).flatMap(magneticLidStyle =>
       (["flat", "stacking"] as const).map(magneticLidTop => ({ lidInterface, magneticLidStyle, magneticLidTop }))))) (
@@ -101,10 +127,10 @@ describe("compliant interfaces", () => {
       const probeAt = (x: number, v: number, z: number) => arena.track(arena.track(kernel.Manifold.cube([0.2, 0.2, 0.2], true))
         .translate([frame.along + x, frame.face + frame.direction * v, z]));
       const capBottom = magneticLidStyle === "overlap" ? 0 : INSET_LID_CAP_BOTTOM_MM;
-      const gap = lidInterface === "spring-latch" ? [0, 5] : [6.5, 1.8];
+      const gap = lidInterface === "spring-latch" ? [0, 5] : [frame.width / 2 - 3.5, 1.8];
       if (lidInterface !== "angled-fins") {
         expect(arena.track(lid.intersect(probeAt(gap[0], gap[1], frame.bottom + 1.3))).volume()).toBeLessThan(1e-6);
-        const root = lidInterface === "spring-latch" ? [0, 10.2] : [-10.5, 0.75];
+        const root = lidInterface === "spring-latch" ? [0, 10.2] : [-frame.width / 2 - 0.5, 0.75];
         expect(arena.track(lid.intersect(probeAt(root[0], root[1], frame.bottom + 1.3))).volume()).toBeCloseTo(0.008, 6);
       }
       const ceiling = lidInterface === "spring-latch" ? frame.contactZ + LATCH_SPRING_HALF_HEIGHT_MM + 0.3 : capBottom;
@@ -121,6 +147,52 @@ describe("compliant interfaces", () => {
   });
 
   for (const quality of [PREVIEW_QUALITY, EXPORT_QUALITY]) {
+    it.each(["inset", "overlap"] as const)(`fills side-spring lids to one build plane while leaving every beam free (%s, ${quality.circularSegments})`, magneticLidStyle => {
+      for (const magneticLidTop of ["flat", "stacking"] as const) for (const dimensions of [{ gridX: 1, gridY: 1 }, { gridX: 3, gridY: 2 }]) {
+        const s = spec({ ...dimensions, lidInterface: "side-springs", magneticLidStyle, magneticLidTop });
+        const lid = buildMagneticLid(kernel, s, quality.circularSegments);
+        const frames = lidInterfaceFrames(s);
+        const bottom = lidBottomMm(s);
+        const capBottom = magneticLidStyle === "inset" ? INSET_LID_CAP_BOTTOM_MM : 0;
+        const margin = magneticLidStyle === "inset" ? 6 : overlapLidRimInsetMm(s) + overlapRimWallMm(s) + 4;
+        const width = binFootprintMm(s.gridX, s.gridPitch) - 2 * margin;
+        const length = binFootprintMm(s.gridY, s.gridPitch) - 2 * margin;
+        // A full core, not a hidden roof spanning the empty lid interior.
+        const core = arena.track(arena.track(kernel.Manifold.cube([width, length, capBottom - bottom]))
+          .translate([-width / 2, -length / 2, bottom]));
+        expect(arena.track(core.subtract(lid)).volume()).toBeLessThan(1e-6);
+        expect(lid.boundingBox().min[2]).toBeCloseTo(bottom, 6);
+        const printed = magneticLidForPrint(kernel, lid, s);
+        expect(printed.boundingBox().min[2]).toBeCloseTo(0, 6);
+        const rootCuts = frames.map(frame => {
+          expect(frame.bottom).toBeCloseTo(bottom, 6);
+          // Each working beam reaches the same bottom plane as the core.
+          const foot = arena.track(arena.track(arena.track(kernel.Manifold.cube([0.2, 0.2, 0.1]))
+            .translate([-0.1, 0.65, bottom])).scale([1, frame.direction, 1]));
+          const placedFoot = arena.track(arena.track(foot.translate([frame.along, frame.face, 0])).rotate([0, 0, frame.angle]));
+          expect(arena.track(placedFoot.subtract(lid)).volume()).toBeLessThan(1e-6);
+          const cut = arena.track(arena.track(arena.track(kernel.Manifold.cube([0.2, 1.4, capBottom - bottom - 0.2]))
+            .translate([-frame.width / 2 + 0.1, 0, bottom - 0.01])).scale([1, frame.direction, 1]));
+          return arena.track(arena.track(cut.translate([frame.along, frame.face, 0])).rotate([0, 0, frame.angle]));
+        });
+        // Severing each root releases exactly one beam. The new bottom fill
+        // must not weld any moving beam to the core, cap, or neighboring beam.
+        const released = arena.track(lid.subtract(arena.track(kernel.Manifold.union(rootCuts)))).decompose();
+        released.forEach(piece => arena.track(piece));
+        expect(released).toHaveLength(frames.length + 1);
+        // Filling an overlapping lid must retain the receiving channel.
+        const body = buildBin(kernel, s, quality).solid;
+        const closed = arena.track(lid.translate([0, 0, 14]));
+        const contact = arena.track(body.intersect(closed));
+        const plain = buildBin(kernel, { ...s, lidInterface: "angled-fins" }, quality).solid;
+        expect(arena.track(body.subtract(plain)).volume()).toBeLessThan(1e-6);
+        expect(arena.track(plain.subtract(body)).volume()).toBeLessThan(1e-6);
+        // Contact occupies only the thin band at the preload bumps.
+        expect(contact.volume()).toBeGreaterThan(0.001);
+        expect(contact.volume()).toBeLessThan(frames.length);
+      }
+    });
+
     it.each(["flat", "stacking"] as const)(`fills the latch underside flush with its enclosure floors (%s, ${quality.circularSegments})`, magneticLidTop => {
       for (const dimensions of [{ gridX: 1, gridY: 1 }, { gridX: 2, gridY: 3 }]) {
         const s = spec({ ...dimensions, lidInterface: "spring-latch", magneticLidStyle: "inset", magneticLidTop });
@@ -225,6 +297,27 @@ describe("compliant interfaces", () => {
     for (let i = 1; i < spans.length; i++) expect(spans[i].min[0] - spans[i - 1].max[0]).toBeLessThan(2.4);
     expect(spans[0].min[0]).toBeLessThan(-frame.width / 2 + 4);
     expect(spans.at(-1)!.max[0]).toBeGreaterThan(frame.width / 2 - 4);
+  });
+
+  it.each(["inset", "overlap"] as const)("tiles long edges with adjacent side springs without a count cap (%s)", magneticLidStyle => {
+    for (const dimensions of [{ gridX: 3, gridY: 2 }, { gridX: 8, gridY: 3 }]) {
+      const s = spec({ ...dimensions, lidInterface: "side-springs", magneticLidStyle });
+      const frames = lidInterfaceFrames(s);
+      if (s.gridX === 8) expect(frames.filter(f => f.angle === 0).length).toBeGreaterThan(8);
+      for (const angle of [0, 90, 180, 270]) {
+        const side = frames.filter(f => f.angle === angle);
+        const fullSpan = side.at(-1)!.along + side.at(-1)!.width / 2 - (side[0].along - side[0].width / 2);
+        expect(side.reduce((sum, f) => sum + f.width, 0) / fullSpan).toBeGreaterThan(0.9);
+        for (let i = 1; i < side.length; i++) {
+          expect(side[i].along - side[i].width / 2 - side[i - 1].along - side[i - 1].width / 2).toBeCloseTo(1.6, 6);
+        }
+      }
+      const lid = buildMagneticLid(kernel, s, 24);
+      expect(lid.status()).toBe("NoError");
+      const pieces = lid.decompose();
+      pieces.forEach(piece => arena.track(piece));
+      expect(pieces).toHaveLength(1);
+    }
   });
 
   for (const quality of [PREVIEW_QUALITY, EXPORT_QUALITY]) {

@@ -41,9 +41,10 @@ import { binHistorySchema } from "./history";
  * Version 21 links bin, rim and skirt thickness, preserving older paired dimensions.
  * Version 22 adds shared magnet diameter and thickness; older holes retain their dimensions.
  * Version 23 adds compliant lid interfaces, preserving existing contact ribs.
+ * Version 24 adds contact-rib spacing, retaining the original 24 mm target.
  */
 
-export const PROJECT_SCHEMA_VERSION = 23 as const;
+export const PROJECT_SCHEMA_VERSION = 24 as const;
 
 const projectFields = {
   shapes: z.array(tracedShapeSchema),
@@ -205,7 +206,7 @@ export function parseProjectDoc(input: unknown): ProjectDoc | null {
     };
   }
   if (input && typeof input === "object" && !Array.isArray(input) &&
-      "schemaVersion" in input && (input.schemaVersion === 21 || input.schemaVersion === 22)) {
+      "schemaVersion" in input && (input.schemaVersion === 21 || input.schemaVersion === 22 || input.schemaVersion === 23)) {
     input = { ...input, schemaVersion: PROJECT_SCHEMA_VERSION };
   }
   const result = projectDocSchema.safeParse(input);

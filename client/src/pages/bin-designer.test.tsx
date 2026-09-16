@@ -467,11 +467,22 @@ it.each([false, true])("selects compliant interfaces with undo and hides them fo
     expect(select()).toBeNull();
     React.act(() => panel.querySelector<HTMLButtonElement>('[data-testid="button-lid-fit-friction"]')!.click());
     expect(select()?.textContent).toContain("Contact ribs");
+    expect(panel.querySelector('[data-testid="lid-rib-count"]')?.textContent).toContain("3 along width · 3 along length");
+    React.act(() => panel.querySelector<HTMLElement>('[role="slider"][aria-label="Rib spacing"]')!
+      .dispatchEvent(new KeyboardEvent("keydown", { key: "Home", bubbles: true })));
+    expect(current().lidRibSpacingMm).toBe(8);
+    expect(panel.querySelector('[data-testid="lid-rib-count"]')?.textContent).toContain("8 along width · 8 along length");
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+    expect(current().lidRibSpacingMm).toBe(24);
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+    expect(current().lidRibSpacingMm).toBe(8);
     for (const [label, value] of [["Side springs", "side-springs"], ["Angled fins", "angled-fins"], ["Spring latch", "spring-latch"]]) {
       React.act(() => select()!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
       const option = Array.from(document.querySelectorAll<HTMLElement>('[role="option"]')).find(el => el.textContent === label)!;
       React.act(() => option.click());
       expect(current().lidInterface).toBe(value);
+      expect(panel.querySelector('[data-testid="lid-rib-spacing-controls"]')).toBeNull();
+      expect(current().lidRibSpacingMm).toBe(8);
     }
     expect(panel.textContent).toContain("Pull up to release");
     React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());

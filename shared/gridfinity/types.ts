@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { DEFAULT_LID_RIB_SPACING_MM, MIN_LID_RIB_SPACING_MM, MAX_LID_RIB_SPACING_MM } from "./lid-contact-ribs";
 
 import {
   footprintTopologyError,
@@ -84,6 +85,8 @@ export const binSpecSchema = z
     lidFit: z.enum(["lift-off", "friction"]).default("lift-off"),
     /** Compliant interface used without closure magnets; ribs preserve earlier lids. */
     lidInterface: z.enum(["ribs", "side-springs", "angled-fins", "spring-latch"]).default("ribs"),
+    /** Target contact-rib spacing; automatically determines the count on each edge. */
+    lidRibSpacingMm: z.number().min(MIN_LID_RIB_SPACING_MM).max(MAX_LID_RIB_SPACING_MM).default(DEFAULT_LID_RIB_SPACING_MM),
     /** Per-side adjustment: positive tightens the lid without changing the bin. */
     lidFitAdjustmentMm: z.number().min(-0.1).max(0.1).multipleOf(0.05).default(0),
     /** Actual magnet size, shared by underside and lid closure holes. */

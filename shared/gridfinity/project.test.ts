@@ -44,13 +44,28 @@ const VALID = {
 };
 
 describe("parseProjectDoc", () => {
+  it("migrates v23 rib spacing and retains tuning throughout saved undo history", () => {
+    const { lidRibSpacingMm: _spacing, ...oldSpec } = VALID.spec;
+    const previous = { ...VALID, schemaVersion: 23, spec: oldSpec,
+      history: { index: 0, stack: [{ label: "Loaded", doc: { spec: oldSpec, cutouts: VALID.cutouts, fingerHoles: [] } }] } };
+    const original = JSON.stringify(previous);
+    const migrated = parseProjectDoc(previous)!;
+    expect(migrated.spec.lidRibSpacingMm).toBe(24);
+    expect(migrated.history!.stack[0].doc.spec.lidRibSpacingMm).toBe(24);
+    expect(JSON.stringify(previous)).toBe(original);
+    const tuned = { ...migrated, spec: { ...migrated.spec, lidRibSpacingMm: 12 },
+      history: { index: 1, stack: [...migrated.history!.stack, { label: "Rib spacing", doc: {
+        ...migrated.history!.stack[0].doc, spec: { ...migrated.spec, lidRibSpacingMm: 12 } } }] } };
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(tuned)))).toEqual(tuned);
+  });
+
   it("migrates v22 designs and history to contact ribs without mutating the source", () => {
     const { lidInterface: _interface, ...oldSpec } = VALID.spec;
     const previous = { ...VALID, schemaVersion: 22, spec: oldSpec,
       history: { index: 0, stack: [{ label: "Loaded", doc: { spec: oldSpec, cutouts: VALID.cutouts, fingerHoles: [] } }] } };
     const original = JSON.stringify(previous);
     const migrated = parseProjectDoc(previous)!;
-    expect(migrated.schemaVersion).toBe(23);
+    expect(migrated.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
     expect(migrated.spec.lidInterface).toBe("ribs");
     expect(migrated.history!.stack[0].doc.spec.lidInterface).toBe("ribs");
     expect(JSON.stringify(previous)).toBe(original);
@@ -140,7 +155,7 @@ describe("parseProjectDoc", () => {
     const original = JSON.stringify(airdusterV9);
     const doc = parseProjectDoc(airdusterV9);
     const { liteBase: _removed, ...spec } = airdusterV9.spec;
-    expect(doc).toEqual({ ...airdusterV9, spec: { ...spec, flatBottom: false, magneticLid: false, magneticLidStyle: "inset", magneticLidTop: "flat", lidMagnetHoles: true, lidMagnetCrushRibs: false, lidFit: "lift-off", lidInterface: "ribs", lidFitAdjustmentMm: 0, wallThicknessMm: 0.95, magnetDiameterMm: 6, magnetThicknessMm: 2 }, schemaVersion: PROJECT_SCHEMA_VERSION });
+    expect(doc).toEqual({ ...airdusterV9, spec: { ...spec, flatBottom: false, magneticLid: false, magneticLidStyle: "inset", magneticLidTop: "flat", lidMagnetHoles: true, lidMagnetCrushRibs: false, lidFit: "lift-off", lidInterface: "ribs", lidRibSpacingMm: 24, lidFitAdjustmentMm: 0, wallThicknessMm: 0.95, magnetDiameterMm: 6, magnetThicknessMm: 2 }, schemaVersion: PROJECT_SCHEMA_VERSION });
     expect(doc!.shapes).toHaveLength(7);
     expect(doc!.cutouts).toHaveLength(4);
     expect(doc!.fingerHoles).toHaveLength(2);

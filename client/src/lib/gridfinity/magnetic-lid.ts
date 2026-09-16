@@ -9,8 +9,9 @@ import { roundedRectPolygon, baseProfilePolygon, type ProfilePolygon } from "./p
 import { buildStackingLip } from "./wall";
 import { sweepRounded } from "./sweep";
 import { footprintOuterSection } from "./footprint-section";
-import { usesCompliantInterface, hasSpringLatch, overlapRimCornerRadiusMm } from "@shared/gridfinity/magnetic-lid";
+import { usesCompliantInterface, hasSpringLatch, hasSideSprings, overlapRimCornerRadiusMm } from "@shared/gridfinity/magnetic-lid";
 import { applyLidInterface, addLidDetentRecesses } from "./lid-interface";
+import { lidContactRibPositions } from "@shared/gridfinity/lid-contact-ribs";
 
 function assertLid(spec: BinSpec): void {
   if (!spec.magneticLid) throw new Error("Enable the magnetic lid first.");
@@ -196,7 +197,17 @@ function buildOverlappingLid(kernel: Kernel, spec: BinSpec, segments: number): M
   return arena.track(arena.track(outer.extrude(capTop)).add(skirt));
 }
 
-/** Thin locating skirt, with a filled underside for the enclosed spring latch. */
+/** Fill the overlap center down to the springs, retaining a channel for the bin rim. */
+function sideSpringOverlapFill(kernel: Kernel, spec: BinSpec, segments: number): Manifold {
+  const rimInside = overlapLidRimInsetMm(spec) + overlapRimWallMm(spec);
+  const insideRadius = spec.lidWallThicknessMm === undefined ? BASE_TOP_RADIUS : Math.max(0, BASE_TOP_RADIUS - rimInside);
+  const inset = rimInside + LID_CLEARANCE_MM;
+  const bottom = lidBottomMm(spec);
+  return lidLoft(kernel, spec, [[inset + 0.3, bottom], [inset, bottom + 0.3], [inset, 0]],
+    segments, rimInside, insideRadius);
+}
+
+/** Thin locating skirt, or a filled underside around working spring chambers. */
 function buildFrictionInsetLid(kernel: Kernel, spec: BinSpec, segments: number): Manifold {
   const { arena, CrossSection } = kernel;
   const r = BASE_TOP_RADIUS;
@@ -207,8 +218,9 @@ function buildFrictionInsetLid(kernel: Kernel, spec: BinSpec, segments: number):
   const contact = r - STACKING_LIP_DEPTH + STACKING_LIP_LINE[1][0]
     + LID_FRICTION_INTERFERENCE_MM + lidFitAdjustmentMm(spec);
   const capRadius = r - LID_CLEARANCE_MM;
+  const bottom = lidBottomMm(spec);
   const outside = (radius: number): ProfilePolygon => [
-    [0.9, 0], [radius, 0.9], [radius, 1.6],
+    [0.9 + (radius - 0.9) * bottom / 0.9, bottom], [radius, 0.9], [radius, 1.6],
     [1.6, 2.4], [1.6, 2.6], [capRadius, 4.45], [capRadius, BASE_PROFILE_HEIGHT],
   ];
   const smoothOutside = outside(1.6);
@@ -217,7 +229,7 @@ function buildFrictionInsetLid(kernel: Kernel, spec: BinSpec, segments: number):
   // Fill down to the enclosure floors for a continuous, flush underside.
   // applyLidInterface cuts the spring chambers afterward, preserving their
   // moving parts and release gaps inside this otherwise solid locator.
-  const smooth = hasSpringLatch(spec)
+  const smooth = hasSpringLatch(spec) || hasSideSprings(spec)
     ? lidLoft(kernel, spec, smoothOutside.map(([radius, z]) => [r - radius, z]), segments)
     : sweepRounded(kernel, [...smoothOutside, ...inside], path, segments);
   const grip = sweepRounded(kernel, [...outside(contact), ...inside], path, segments);
@@ -238,13 +250,8 @@ function addFrictionRibs(kernel: Kernel, spec: BinSpec, smooth: Manifold, grip: 
   const mask = arena.track(Manifold.cylinder(lidCapTopMm(spec) - bottom, 3, 3, segments));
   const masks: Manifold[] = [];
   for (const angle of [0, 90, 180, 270]) {
-    const span = (angle % 180 === 0 ? width : length) - 2 * BASE_TOP_RADIUS;
     const halfDepth = (angle % 180 === 0 ? length : width) / 2;
-    // Keep contact away from stiff corners; longer walls get repeated ribs.
-    const usable = Math.max(0, span - 16);
-    const count = Math.max(1, Math.ceil(usable / 24));
-    for (let index = 0; index < count; index++) {
-      const along = count === 1 ? 0 : usable * (index / (count - 1) - 0.5);
+    for (const along of lidContactRibPositions(spec, angle % 180 === 0 ? "x" : "y")) {
       masks.push(arena.track(arena.track(mask.translate([along, halfDepth - 2.6, bottom])).rotate([0, 0, angle])));
     }
   }
@@ -259,6 +266,7 @@ export function buildMagneticLid(kernel: Kernel, spec: BinSpec, segments: number
   let lid: Manifold;
   if (hasOverlappingLid(spec)) {
     lid = buildOverlappingLid(kernel, spec, segments);
+    if (hasSideSprings(spec)) lid = arena.track(lid.add(sideSpringOverlapFill(kernel, spec, segments)));
   } else if (hasFrictionLid(spec)) {
     lid = buildFrictionInsetLid(kernel, spec, segments);
   } else {
