@@ -22,6 +22,21 @@ const styles = (lidInterface: BinSpec["lidInterface"]): BinSpec["magneticLidStyl
   lidInterface === "spring-latch" ? ["inset"] : ["inset", "overlap"];
 
 describe("compliant interfaces", () => {
+  it.each(["flat", "stacking"] as const)("clears solid-fill bins beneath the overlapping side-spring core (%s)", magneticLidTop => {
+    for (const heightUnits of [2, 6]) {
+      const s = spec({ heightUnits, fill: "solid", gridX: 3, gridY: 2,
+        lidInterface: "side-springs", magneticLidStyle: "overlap", magneticLidTop });
+      const body = buildBin(kernel, s, EXPORT_QUALITY).solid;
+      const lid = buildMagneticLid(kernel, s, 64);
+      const contact = arena.track(body.intersect(arena.track(lid.translate([0, 0, binHeightMm(heightUnits)]))));
+      expect(contact.volume()).toBeGreaterThan(0.001);
+      expect(contact.volume()).toBeLessThan(lidInterfaceFrames(s).length);
+      const probe = arena.track(arena.track(kernel.Manifold.cube([1, 1, 0.1], true))
+        .translate([0, 0, binHeightMm(heightUnits) - 4.9]));
+      expect(arena.track(body.intersect(probe)).volume()).toBeLessThan(1e-6);
+    }
+  });
+
   it.each(["inset", "overlap"] as const)("changes the actual contact-rib count while preserving the mating bin (%s)", magneticLidStyle => {
     const s = spec({ gridX: 3, gridY: 2, lidInterface: "ribs", magneticLidStyle });
     const body = buildBin(kernel, s, PREVIEW_QUALITY).solid;

@@ -334,7 +334,18 @@ export function hasStackingLip(spec: { lip: "standard" | "none"; magneticLid?: b
   return spec.lip === "standard" && !(spec.magneticLid && spec.magneticLidStyle === "overlap");
 }
 
-/** Both lid styles keep headroom above solid fill for their mating rim. */
-export function infillTopAllowanceMm(spec: { lip: "standard" | "none"; magneticLid?: boolean }): number {
+/** Pocketry's overlapping lid depth, including its 0.2 mm shoulder clearance. */
+export const LID_OVERLAP_DEPTH_MM = 5;
+
+/** Keep the solid fill and pocket surface below the lid's actual underside. */
+export function infillTopAllowanceMm(spec: {
+  lip: "standard" | "none"; magneticLid?: boolean; magneticLidStyle?: "overlap" | "inset";
+  lidMagnetHoles?: boolean; lidFit?: "lift-off" | "friction";
+  lidInterface?: "ribs" | "side-springs" | "angled-fins" | "spring-latch";
+}): number {
+  // The filled side-spring core reaches the overlap shoulder. Hollow lids
+  // only need the original stacking-profile allowance above the infill.
+  if (spec.magneticLid && spec.magneticLidStyle === "overlap" && spec.lidMagnetHoles === false
+      && spec.lidFit === "friction" && spec.lidInterface === "side-springs") return LID_OVERLAP_DEPTH_MM;
   return spec.magneticLid || spec.lip === "standard" ? STACKING_LIP_SUPPORT_HEIGHT : 0;
 }

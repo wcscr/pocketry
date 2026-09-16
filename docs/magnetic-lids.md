@@ -56,8 +56,9 @@ All lid tops are solid. Compliant interfaces have release gaps below the cap,
 at the mating rim. The bin's rim
 has a sloping support below its shoulder and a chamfer at the top. Pockets
 must clear this rim. The saved stacking-lip preference returns when the lid is
-disabled. Both styles keep the same solid-fill headroom and pocket-depth
-references.
+disabled. Filled overlapping side-spring lids reserve 5 mm above solid infill;
+the pocket surface and depth calculations use that lower infill height.
+Other lids keep the original solid-fill allowance.
 
 **Stacking top** provides a locator for another Gridfinity bin on the closed
 lid. A flat lid has no stacking locator. An inset bin also retains ordinary
@@ -99,7 +100,9 @@ dimensions or physical qualification for Pocketry.
   existing 0.85 mm height; the cap, contact height, and seating datum stay fixed.
   Overlapping lids keep a receiving channel around the filled center for the
   bin rim. Working gaps remain open and each beam attaches only at its root.
-  Existing matching bins can be reused; only these lids need reprinting.
+  Existing matching hollow bins can be reused. Solid-fill overlapping bins need
+  re-exporting: their fill stops 5 mm below the rim, leaving 0.2 mm below the
+  new lid core. Pocket depths follow that lowered fill surface.
 - **Angled fins** uses repeated 0.6 mm fingers attached at their roots, with a
   tapered entry. Fins run continuously across each straight side, with no solid
   center blocks; only the corners remain solid. Blade spacing leaves 0.6 mm

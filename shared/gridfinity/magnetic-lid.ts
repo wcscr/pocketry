@@ -1,4 +1,5 @@
 import type { Point } from "../geometry/types";
+import { LID_OVERLAP_DEPTH_MM } from "./standard";
 import { BASE_HEIGHT, BASE_TOP_RADIUS, BASE_PROFILE_MAX_X, BASE_PROFILE_HEIGHT, STACKING_LIP_HEIGHT_ACTUAL, binWallThicknessMm, HOLE_DISTANCE_FROM_BOTTOM_EDGE, MAGNET_HOLE_DEPTH, binFootprintMm, binHeightMm } from "./standard";
 import { magnetHoleRadiusMm, magnetHoleDepthMm, type MagnetSize } from "./magnets";
 import type { BinSpec } from "./types";
@@ -14,7 +15,7 @@ export const LID_PREVIEW_LIFT_MM = 16;
 export const INSET_LID_SKIRT_WALL_MM = 0.8;
 export const LID_SKIRT_CLEARANCE_MM = 0.3;
 export const LID_RIM_WALL_MM = 1.2;
-export const LID_OVERLAP_MM = 5;
+export const LID_OVERLAP_MM = LID_OVERLAP_DEPTH_MM;
 export const LID_SHOULDER_GAP_MM = 0.2;
 export const LID_CAP_THICKNESS_MM = LID_PAD_DEPTH_MM;
 /** Close the visible inset seam without lowering the magnet mating face. */

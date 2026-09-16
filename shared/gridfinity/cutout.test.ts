@@ -354,6 +354,19 @@ describe("resizeCutoutPlacementFromHandle", () => {
 describe("resolvePocketDepth", () => {
   const spec = { heightUnits: 6, lip: "standard" as const };
 
+  it("keeps overlapping side-spring fill and pocket depths below the filled lid", () => {
+    const filledLid = { ...spec, magneticLid: true, magneticLidStyle: "overlap" as const,
+      lidMagnetHoles: false, lidFit: "friction" as const, lidInterface: "side-springs" as const };
+    const pocket = resolvePocketDepth(filledLid, { mode: "mm", value: 10 });
+    expect(pocket.infillTopZ).toBe(37);
+    expect(pocket.floorZ).toBe(27);
+    expect(resolvePocketDepth(filledLid, { mode: "remaining", floorThicknessMm: 7 }).depthMm).toBe(30);
+    for (const patch of [{ magneticLidStyle: "inset" as const }, { lidMagnetHoles: true },
+      { lidFit: "lift-off" as const }, { lidInterface: "angled-fins" as const }, { magneticLid: false }]) {
+      expect(resolvePocketDepth({ ...filledLid, ...patch }, { mode: "through" }).infillTopZ).toBeCloseTo(40.8, 6);
+    }
+  });
+
   it("remaining measures the floor from the bin bottom (default → base top)", () => {
     const pocket = resolvePocketDepth(spec, {
       mode: "remaining",

@@ -1032,7 +1032,7 @@ export interface ResolvedPocket {
  * infill) are validation's job, not an exception here.
  */
 export function resolvePocketDepth(
-  spec: Pick<BinSpec, "heightUnits" | "lip"> & Partial<Pick<BinSpec, "magneticLid" | "magneticLidStyle">>,
+  spec: Pick<BinSpec, "heightUnits" | "lip"> & Partial<Pick<BinSpec, "magneticLid" | "magneticLidStyle" | "lidMagnetHoles" | "lidFit" | "lidInterface">>,
   depth: DepthSpec,
 ): ResolvedPocket {
   const lipAllowance = infillTopAllowanceMm(spec);
