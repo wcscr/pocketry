@@ -3165,6 +3165,9 @@ describe("project history restoration", () => {
       expect(button(container, "redo").getAttribute("aria-label")).toBe("Redo Widen again");
       React.act(() => button(container, "redo").click());
       React.act(() => button(container, "undo").click());
+      if (mobile) {
+        React.act(() => Array.from(container.querySelectorAll("button")).find(button => button.textContent === "Bin settings")!.click());
+      }
       openSettingsSection(document.body, "project");
       const open = async (id: string) => {
         React.act(() => document.querySelector<HTMLButtonElement>('[data-testid="button-open-library"]')!.click());

@@ -58,6 +58,8 @@ import { DEFAULT_MARGIN_MM, marginToPixels, type Margin } from "@/lib/image-proc
 
 /** Exactly one interaction mode is active at a time. */
 export type TraceMode =
+  | "navigate"
+  | "remove"
   | "pan"
   | "region"
   | "edit"

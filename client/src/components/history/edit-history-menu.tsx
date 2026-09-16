@@ -48,7 +48,7 @@ export function EditHistoryMenu({
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8"
+            className="h-11 w-11 md:h-8 md:w-8"
             aria-label="Show edit history"
             title="Show edit history"
             data-testid={testId}

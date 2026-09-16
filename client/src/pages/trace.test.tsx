@@ -28,13 +28,18 @@ vi.mock("@/components/layout/workspace-layout", () => ({
   WorkspaceLayout: ({
     panel,
     canvas,
+    mobileActions,
+    panelOpen,
   }: {
     panel: React.ReactNode;
     canvas: React.ReactNode;
+    mobileActions?: React.ReactNode;
+    panelOpen: boolean;
   }) => (
     <>
-      {panel}
+      {(!window.matchMedia("(max-width: 767px)").matches || panelOpen) && panel}
       {canvas}
+      {window.matchMedia("(max-width: 767px)").matches && mobileActions}
     </>
   ),
 }));
@@ -167,6 +172,7 @@ describe("Trace detection workflow", () => {
 
   beforeEach(() => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener: () => {}, removeEventListener: () => {} }));
     vi.mocked(generateSTL).mockResolvedValue(new ArrayBuffer(100));
     getImageDataMock.mockReturnValue({
       width: 300,
@@ -183,6 +189,27 @@ describe("Trace detection workflow", () => {
     host = document.createElement("div");
     document.body.appendChild(host);
     root = createRoot(host);
+  });
+
+  it("advances an accepted mobile scale to region drawing while the controls are unmounted", async () => {
+    vi.stubGlobal("matchMedia", () => ({ matches: true, addEventListener: () => {}, removeEventListener: () => {} }));
+    Object.defineProperty(window, "innerWidth", { value: 390, configurable: true, writable: true });
+    let current: ReturnType<typeof useTrace>;
+    function MobileSeed(): null {
+      current = useTrace();
+      React.useEffect(() => {
+        current.dispatch({ type: "SOURCE_LOADED", imageUrl: "photo", fileName: "tool" });
+        current.dispatch({ type: "AUTO_CALIBRATION_DETECTED", sourceImageUrl: "photo", calibration: { startX: 0, startY: 0, endX: 100, endY: 0, lengthMm: 50 } });
+      }, []);
+      return null;
+    }
+    await React.act(async () => root.render(<PanelProvider><TraceProvider><MobileSeed /><TracePage /></TraceProvider></PanelProvider>));
+    expect(host.querySelector('[data-testid="export-trace"]')).toBeNull();
+    await React.act(async () => Array.from(host.querySelectorAll("button")).find(button => button.textContent === "Accept detected scale")!.click());
+    expect(current!.mode).toBe("region");
+    expect(current!.calibration?.lengthMm).toBe(50);
+    expect(host.querySelector('[data-testid="export-trace"]')).toBeNull();
+    Object.defineProperty(window, "innerWidth", { value: 1024, configurable: true, writable: true });
   });
 
   afterEach(() => {

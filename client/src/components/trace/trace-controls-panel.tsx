@@ -23,6 +23,7 @@ import {
 import {
   PanelBody,
   PanelFooter,
+  revealPanelSection,
   PanelSection,
   PanelSettingsIndex,
 } from "@/components/layout/panel-section";
@@ -80,6 +81,8 @@ const RESPONSIVE_PANEL_ACTION =
   "h-auto min-h-9 w-full whitespace-normal break-words px-2 py-2 text-[clamp(0.75rem,4cqw,0.875rem)] leading-tight";
 
 export interface TraceControlsPanelProps {
+  settingsSectionRequest?: { id: string };
+  onCanvasInteraction?: () => void;
   onReplaceImage: () => void;
   onRotateImage: (direction: ImageRotationDirection) => void;
   onExport: () => void;
@@ -119,6 +122,8 @@ export function TraceControlsPanel({
   onReprocess,
   onDetectMarkers,
   onApplyPerspective,
+  settingsSectionRequest,
+  onCanvasInteraction,
 }: TraceControlsPanelProps): JSX.Element {
   const store = useTrace();
   const {
@@ -147,6 +152,9 @@ export function TraceControlsPanel({
     processing,
   } = store;
   const { toast } = useToast();
+  useEffect(() => {
+    if (settingsSectionRequest) revealPanelSection(settingsSectionRequest.id, TRACE_SETTINGS_SECTION_DETAILS);
+  }, [settingsSectionRequest]);
 
   const scale = exportScale(calibration, imageSize.height);
   const displayedScale = exportScale(
@@ -412,6 +420,7 @@ export function TraceControlsPanel({
       if (shape) shapeLibrary.addShape({ ...shape, traceMarginMm: margin ?? 0 });
     }
     setHandoffOpen(false);
+    onCanvasInteraction?.();
     if (anotherPhoto) onReplaceImage();
     else navigate("/bin");
   };
@@ -436,8 +445,9 @@ export function TraceControlsPanel({
   };
 
   const handleClearRegion = () => {
-    dispatch({ type: "SET_REGION", region: null });
     dispatch({ type: "SET_MODE", mode: "region" });
+    onCanvasInteraction?.();
+    dispatch({ type: "SET_REGION", region: null });
     setGuidedSection("region");
     focusWhenReady.current = "region";
     setSectionEpoch((epoch) => epoch + 1);
@@ -454,6 +464,7 @@ export function TraceControlsPanel({
       mode: nextMode,
     });
     redrawRulerRequested.current = false;
+    if (nextMode === "calibrate") onCanvasInteraction?.();
   };
 
   return (
@@ -799,14 +810,15 @@ export function TraceControlsPanel({
                   variant={store.mode === "perspective" ? "default" : "outline"}
                   size="sm"
                   className="w-full"
-                  onClick={() =>
+                  onClick={() => {
+                    onCanvasInteraction?.();
                     dispatch({
                       type:
                         store.mode === "perspective"
                           ? "CANCEL_PERSPECTIVE_SELECTION"
                           : "START_PERSPECTIVE_SELECTION",
-                    })
-                  }
+                    });
+                  }}
                   data-testid="button-select-perspective-points"
                 >
                   {store.mode === "perspective"
@@ -999,7 +1011,7 @@ export function TraceControlsPanel({
               disabled={!scale.mmPerPx}
               aria-pressed={store.mode === "region"}
               data-testid="button-set-region"
-              onClick={() => dispatch({ type: "SET_MODE", mode: "region" })}
+              onClick={() => { dispatch({ type: "SET_MODE", mode: "region" }); onCanvasInteraction?.(); }}
             >
               Set Region
             </Button>
@@ -1217,7 +1229,7 @@ export function TraceControlsPanel({
         {shapeLibrary.pendingIds.length > 0 && <Button variant="secondary" className="mb-2 w-full" onClick={() => navigate("/bin")}>
           Arrange {shapeLibrary.pendingIds.length} queued tool{shapeLibrary.pendingIds.length === 1 ? "" : "s"}
         </Button>}
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-2 [&_button]:h-auto [&_button]:min-h-10 [&_button]:whitespace-normal [&_button]:px-2 [&_button]:leading-tight">
           {/* The trace → bin handoff. Disabled without a calibration: an
               uncalibrated outline has no physical size, and letting it into
               the bin is the design doc's most expensive footgun. The tooltip

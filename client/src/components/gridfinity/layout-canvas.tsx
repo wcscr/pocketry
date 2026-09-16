@@ -1,5 +1,7 @@
 import {
   Ruler,
+  Hand,
+  Maximize2,
   Spline,
   X,
 } from "lucide-react";
@@ -245,12 +247,14 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
   const svgRef = useRef<SVGSVGElement | null>(null);
   const sceneRef = useRef<SVGGElement | null>(null);
 
+  const [panActive, setPanActive] = useState(false);
+  useEffect(() => setPanActive(false), [editorMode]);
   const viewport = useViewportTransform({
     contentWidth: widthMm + footprintEditorPaddingMm * 2,
     contentHeight: lengthMm + footprintEditorPaddingMm * 2,
     containerWidth: containerSize.width,
     containerHeight: containerSize.height,
-    panEnabled: false,
+    panEnabled: panActive,
   });
 
   useEffect(() => {
@@ -440,6 +444,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
   const clickRef = useRef<{ clientX: number; clientY: number } | null>(null);
   const [isRotating, setIsRotating] = useState(false);
   const [rulerActive, setRulerActive] = useState(false);
+  useEffect(() => { if (rulerActive) setPanActive(false); }, [rulerActive]);
   const [measurementPoints, setMeasurementPoints] = useState<Point[]>([]);
   const hasPlacedCutouts = placed.length > 0;
   const hasPlacedObjects = hasPlacedCutouts || placedFingerHoles.length > 0;
@@ -550,7 +555,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
   };
 
   const handlePointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
-    if (event.button !== 0 || event.shiftKey || viewport.isSpaceHeld) {
+    if (panActive || event.button !== 0 || event.shiftKey || viewport.isSpaceHeld) {
       viewport.handlers.onPointerDown(event);
       return;
     }
@@ -835,6 +840,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
   };
 
   const handlePointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
+    if (panActive) { viewport.handlers.onPointerMove(event); return; }
     if (!viewport.isPanning && splitEditor.pointerMove(event)) return;
     const click = clickRef.current;
     if (
@@ -972,6 +978,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
   };
 
   const endDrag = (event: ReactPointerEvent<SVGSVGElement>) => {
+    if (panActive) { viewport.handlers.onPointerUp(event); return; }
     if (!viewport.isPanning && splitEditor.pointerUp(event)) return;
     const drag = dragRef.current;
     dragRef.current = null;
@@ -1666,14 +1673,18 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
       ) : null}
 
       <div
-        className="absolute right-3 top-12 z-30 flex flex-col overflow-hidden rounded-md border bg-background/90 shadow-sm backdrop-blur"
+        className="absolute right-3 top-16 md:top-12 z-30 flex flex-col overflow-hidden rounded-md border bg-background/90 shadow-sm backdrop-blur"
         data-testid="layout-tool-toolbar"
       >
+        <Button variant="ghost" size="icon" className="h-11 w-11 rounded-none border-b md:h-9 md:w-9" aria-label="Pan layout" aria-pressed={panActive}
+          onClick={() => setPanActive(active => !active)}><Hand className="h-4 w-4" /></Button>
+        <Button variant="ghost" size="icon" className="h-11 w-11 rounded-none border-b md:h-9 md:w-9" aria-label="Fit layout to screen"
+          onClick={viewport.fit}><Maximize2 className="h-4 w-4" /></Button>
         <Button
           variant="ghost"
           size="icon"
           className={cn(
-            "h-9 w-9 rounded-none",
+            "h-11 w-11 md:h-9 md:w-9 rounded-none",
             rulerActive && "bg-accent text-accent-foreground",
           )}
           aria-label={
@@ -1706,7 +1717,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
           <Button
             variant="ghost"
             size="icon"
-            className={cn("h-9 w-9 rounded-none border-t", editorMode === "contour" && "bg-accent text-accent-foreground")}
+            className={cn("h-11 w-11 md:h-9 md:w-9 rounded-none border-t", editorMode === "contour" && "bg-accent text-accent-foreground")}
             aria-label={editorMode === "contour" ? "Finish contour editing" : "Edit contour"}
             aria-pressed={editorMode === "contour"}
             title={editorMode === "contour" ? "Finish contour editing" : "Edit contour"}
@@ -1724,7 +1735,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
           <Button
             variant="ghost"
             size="icon"
-            className="h-9 w-9 rounded-none border-t"
+            className="h-11 w-11 md:h-9 md:w-9 rounded-none border-t"
             aria-label="Clear measurement"
             title="Clear measurement"
             onClick={() => setMeasurementPoints([])}
@@ -1758,8 +1769,10 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
         <p className="text-orange-700 dark:text-orange-300">Dashed outline: overlapping pockets</p>
       </div>}
 
-      <div className="pointer-events-none absolute bottom-2 left-2 rounded-md bg-background/85 px-2 py-1 text-[11px] text-muted-foreground shadow-sm backdrop-blur">
-        {rulerActive
+      <div className="pointer-events-none absolute bottom-2 left-2 right-2 md:right-auto rounded-md bg-background/85 px-2 py-1 text-[11px] text-muted-foreground shadow-sm backdrop-blur">
+        {panActive
+          ? "Drag to pan · Pinch to zoom · Tap the hand to resume editing"
+          : rulerActive
           ? "Ruler · snap to contours or split lines · Esc exits"
           : editorMode === "footprint"
           ? "Footprint edit · click cells or the dashed outer halo · Esc finishes"

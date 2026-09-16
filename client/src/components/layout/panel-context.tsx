@@ -17,7 +17,7 @@ interface PanelState {
 const PanelContext = createContext<PanelState | null>(null);
 
 export function PanelProvider({ children }: { children: ReactNode }): JSX.Element {
-  const [panelOpen, setPanelOpen] = useState(true);
+  const [panelOpen, setPanelOpen] = useState(() => !window.matchMedia?.("(max-width: 767px)").matches);
 
   const value = useMemo<PanelState>(
     () => ({
