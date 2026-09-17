@@ -1,103 +1,70 @@
 # Pocketry
 
-Pocketry turns photographs of tools into editable outlines, shadow-board files,
-and printable Gridfinity bins. The application runs in the browser, with image
-processing, project storage, and model generation kept on the user's device.
+Pocketry is an open source project that turns photographs of items or tools into
+editable outlines, shadow-board files, and printable Gridfinity bins. The
+application runs in the browser, with image processing, project storage, and
+model generation kept on the user's device.
 
-[Try Pocketry](https://pocketry.pages.dev) ·
+[Try Pocketry](https://pocketry.xyz) ·
 [View the source](https://github.com/wcscr/pocketry) ·
 [Read the license](LICENSE) ·
 [Read third-party notices](NOTICE)
 
+Pocketry's public deployment is [https://pocketry.xyz](https://pocketry.xyz).
+
 ## What it does
 
-- Detect a tool silhouette from a PNG or JPEG photograph.
-- Calibrate image dimensions with a printable A4 or US Letter PDF sheet, which
-  Pocketry identifies automatically, and correct camera perspective.
-- Refine exterior contours and interior holes.
-- Export traced geometry as SVG, DXF, DWG-compatible DXF, or STL.
-- Arrange traced tools as pockets in Gridfinity bins.
-  Pocket and finger access properties share compact grouped controls, with position
-  at the bottom. Rename finger access from its list row; names save with the project
-  and support undo/redo. All finger access styles support depths down to 1 mm;
-  shallow curved scoops preserve their opening width as depth changes.
-  Choose Round or Slot, a Curved or Flat bottom, and (for slots) Rounded or Flat
-  ends. A top/section preview follows the choices. Shape changes retain dimensions,
-  rotation, edge and corner radii, and the slot-end preference.
-  Flat-ended slots offer a separate Corner round
-  control under Edges & corners for either bottom style; it rounds the four plan-view
-  corners inside the opening dimensions, limited to half the smaller width or length.
-  Existing slots keep sharp corners until changed. Short slots retain their requested
-  length while rounded ends temporarily require a longer opening. Round openings support
-  diameters up to the bin's Width (X), in both the panel and Layout; slots support
-  widths up to 80 mm. Round openings gain more segments as their diameter grows:
-  layout chord error stays below 0.025 mm, 3D preview below 0.05 mm, and STL/3MF
-  and SVG/DXF exports below 0.01 mm around the opening. Rounding fields show the actual radius
-  and retain larger requested values for deeper cuts. Existing spherical scoops
-  retain their saved geometry until their dimensions or shape choices are edited.
-  Finger-access depth stops at the bin underside. Slot mouth-size controls follow the
-  bin dimensions with a 5% allowance, including rotated slots and Layout resize
-  handles. Resizing the bin limits oversized openings in the same undo step. Existing oversized saves
-  remain unchanged on opening and are flagged until edited; wall/floor print
-  validation still applies, and mouth-size limits are before edge rounding.
-- Pocket properties stay in the Pockets section. Click a pocket on the canvas
-  or choose its row in the compact list to open its settings there. On phones, tapping opens
-  the controls drawer; dragging keeps the layout available.
-  Depth leads; size and scale, extra clearance, edges and corners, and position
-  settings start collapsed. Expand the depth profile to inspect the pocket in 3D.
-  Throughout Bin settings, help icons reveal optional guidance on hover, focus,
-  or tap. Dimensions, warnings, save status, and active editing guidance stay visible. Use a pocket row’s
-  pencil to rename it. Edit contour is in the properties header and beside the
-  canvas ruler. Pocket clearance has a zero-centered slider: negative values shrink
-  each edge to undo excess trace padding; positive values add room. Shrinking
-  changes the 3D cutter and fit templates without altering the saved trace.
-  Layout warnings and automatic packing conservatively retain the original outline
-  when clearance is negative; inspect the 3D model for the resulting pocket.
-- Model warnings and errors appear in a collapsible panel at the bottom right of
-  the Layout and 3D canvas. Click a message to edit the affected pocket or settings.
-  It starts as a compact count with a gentle pulse every four seconds until expanded
-  (unless reduced motion is enabled). Errors still block export.
-- Configure full-, half-, and quarter-pitch bins and export STL or 3MF models.
-  Bin size places bin-unit inputs alongside each slider, with a combined outer-size
-  readout in millimeters below and optional sizing guidance in hover hints.
-  All pitches support the same maximum outer size of 671.5 mm per axis
-  (16 full, 32 half, or 64 quarter cells), so finer pitch does not shrink the size allowance.
-- Model, fit-test, and outline export dialogs include an optional, unchecked
-  `.pocketry.json` download. Bin exports preserve the full design; Trace exports
-  preserve the calibrated outline as an editable pocket in a new Bin project.
-  When selected, both files share a filename stem.
-- Export top-down layouts for shadow boards and CNC workflows.
-- Save the current design or choose Open saved project under Project's Browser
-  library section. Manage library lets you open saved projects with Open or a
-  double-click, rename or copy any project, and remove projects with confirmation. Copy
-  adds a separately named entry directly after its source, keeping focus on the source
-  and leaving the open project unchanged. Library order stays stable as you work. A single
-  click focuses a project without opening it. The currently open project cannot be removed;
-  switch projects or start a new one first. Rename stays beside the project name.
-  Overflowing project lists keep their scrollbar visible.
-  Project saves retain up to 50 committed history steps, including undo/redo
-  position and operation names. Switching projects, reopening a backup, or
-  returning to the Bin workspace restores that project's history. Shape versions
-  needed by older steps travel with the project. New edits after undo replace
-  its redo branch; older files without history open at a single starting step.
-  Portable backup separates a single editable project file from an
-  entire-library JSON backup; Export library and Import library are directly
-  available there, outside the saved-project picker.
+- Trace and refine outlines from PNG or JPEG photos.
+- Calibrate dimensions and correct perspective with printable reference sheets.
+- Design Gridfinity bins with custom pockets, finger access, and colors.
+- Preview in 3D and export fit checks, STL, or 3MF models.
+- Export SVG or DXF files for shadow boards and CNC work.
+- Save projects locally, undo changes, and export editable backups.
 
-Pocketry is still subject to physical print validation. Inspect generated files
-and confirm dimensions and printer settings before relying on them for a final
-part.
+Check dimensions against the real items and print a fit test before the final bin.
 
-Perspective correction rectifies the flat reference plane represented by the
-calibration sheet or four selected paper corners. The automatic path fits all
-16 refined marker corners for better precision. The v2 sheets use a Pocketry-only
-custom marker dictionary and require the complete four-marker signature, which
-distinguishes A4 from US Letter without treating stock ArUco IDs as Pocketry.
-Thick tools extend above that plane
-and can still show parallax when photographed at an angle. A future
-imaging improvement should investigate height-aware or multi-view correction
-for those tools rather than treating a planar homography as a complete 3D
-camera correction.
+## Basic Process
+
+### 1. Trace and refine the outline
+
+Import a photograph, calibrate its scale, and edit the detected outline to follow
+the tool's shape.
+
+![Air-duster photograph in Trace with editable outline points around the tool](docs/images/trace-outline.jpg)
+
+### 2. Arrange the pockets
+
+Move the tool outlines into a Gridfinity bin, arrange the duster and accessories,
+and add finger access for lifting them out.
+
+![Top-down Bin layout with pockets for the air duster, adapters, angled nozzle, and USB cable, plus finger access](docs/images/bin-layout.jpg)
+
+### 3. Check tool shapes and sizes
+
+Use the ruler in Layout to check each outline's length, width, and key features
+against measurements of the real tool. Adjust the outline or pocket size until
+the shape and dimensions match.
+
+![The ruler measures the air-duster outline in Layout beside the pocket size controls](docs/images/ruler-check.jpg)
+
+### 4. Print a fit check
+
+Choose **Check fit → Tool outlines** to export thin outlines of the tool pockets.
+Open the STL in your slicer at **100% scale**, print it, and try the real tools in
+the openings. Adjust the shape, size, or clearance as needed before printing the
+full bin.
+
+![Exported tool-outline fit check loaded in Bambu Studio, with a 1.2 mm thickness shown in the model information](docs/images/fit-check-slicer.jpg)
+
+### 5. Export and print the finished bin
+
+Once the fit is verified and pocket depths are checked, export the full bin as
+**STL or 3MF**. Open it in your slicer at **100% scale**, choose your material and
+print settings, review the layer preview, and print.
+
+![Printed black-and-orange bin with the air duster, nozzles, and cable in place](docs/images/printed-bin-loaded.jpg)
+
+![Printed bin with the air duster removed, showing its shaped pocket and orange floor](docs/images/printed-bin-pocket.jpg)
 
 ## Privacy
 
@@ -138,19 +105,6 @@ npm run build
 
 The build includes `LICENSE.txt` and `NOTICE.txt` alongside the application.
 
-## Deploy to Cloudflare Pages
-
-Connect the GitHub repository to a Cloudflare Pages project with these build
-settings:
-
-- Production branch: `main`
-- Framework preset: None
-- Build command: `npm run build`
-- Build output directory: `dist/public`
-- Environment variable: `NODE_VERSION=22`
-
-Pocketry's public deployment is <https://pocketry.pages.dev>.
-
 ## License and attribution
 
 Pocketry's original work is licensed under the
@@ -164,6 +118,9 @@ The detailed direct-source review is available in
 [docs/open-source-review.md](docs/open-source-review.md).
 
 Pocketry was developed with OpenAI Codex.
+
+If you publish a design made with Pocketry on MakerWorld, Printables, or
+elsewhere, please acknowledge Pocketry and link to [pocketry.xyz](https://pocketry.xyz).
 
 ## Contributing
 
