@@ -23,6 +23,10 @@ Pocketry's public deployment is [https://pocketry.xyz](https://pocketry.xyz).
 
 Check dimensions against the real items and print a fit test before the final bin.
 
+We'd love to see what you make with Pocketry! If you share a design on MakerWorld,
+Printables, or elsewhere, please give Pocketry a shout-out and link to
+[pocketry.xyz](https://pocketry.xyz).
+
 ## Basic Process
 
 ### 1. Trace and refine the outline
@@ -118,9 +122,6 @@ The detailed direct-source review is available in
 [docs/open-source-review.md](docs/open-source-review.md).
 
 Pocketry was developed with OpenAI Codex.
-
-If you publish a design made with Pocketry on MakerWorld, Printables, or
-elsewhere, please acknowledge Pocketry and link to [pocketry.xyz](https://pocketry.xyz).
 
 ## Contributing
 
