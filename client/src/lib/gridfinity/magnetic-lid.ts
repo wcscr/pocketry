@@ -230,10 +230,10 @@ function overlapCenterFill(kernel: Kernel, spec: BinSpec, segments: number): Man
   const bottom = lidBottomMm(spec);
   const fill = lidLoft(kernel, spec, [[inset + 0.3, bottom], [inset, bottom + 0.3], [inset, 0]],
     segments, rimInside, insideRadius);
-  // Nonmagnetic lids also fit shared bases with the default corner magnet pads.
-  // Dormant magnet-size preferences retain the standard pad envelope. Leave the
-  // disabled side-spring prototype's existing enclosure floor unchanged.
-  if (hasSideSprings(spec)) return fill;
+  // Only closure magnets add corner supports to the matching bin. Keep the
+  // rounded center continuous for nonmagnetic lids, including underside-only
+  // magnets and the disabled side-spring prototype.
+  if (!spec.lidMagnetHoles) return fill;
   const halfW = binFootprintMm(spec.gridX, spec.gridPitch) / 2;
   const halfL = binFootprintMm(spec.gridY, spec.gridPitch) / 2;
   const extent = lidPadExtentMm(spec) + LID_CLEARANCE_MM;

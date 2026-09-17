@@ -127,24 +127,37 @@ it("places inset fin contact on every edge with relieved rigid corners", () => {
   expect(INSET_LID_CAP_BOTTOM_MM - STACKING_LIP_HEIGHT_ACTUAL).toBeCloseTo(0.2, 6);
 });
 
-it("reuses round 3 magnetic bases 301 and 302 with nonmagnetic filled stacking lids", () => {
-  for (const lidMagnetCrushRibs of [false, true]) {
-    const baseSpec = spec({ magneticLidStyle: "overlap", lidMagnetHoles: true, lidMagnetCrushRibs });
-    const body = buildBin(kernel, baseSpec, EXPORT_QUALITY).solid;
-    for (const lidFit of ["lift-off", "friction"] as const) {
-      const s = { ...baseSpec, magneticLidTop: "stacking" as const, lidMagnetHoles: false, lidFit };
-      const lid = buildMagneticLid(kernel, s, 64);
-      const contact = arena.track(body.intersect(arena.track(lid.translate([0, 0, 14]))));
-      if (lidFit === "lift-off") expect(contact.volume()).toBeLessThan(1e-5);
-      else {
-        expect(contact.volume()).toBeGreaterThan(0.01);
-        // Only four isolated rib patches contact the body; the core clears its pads.
-        const pieces = contact.decompose(); pieces.forEach(p => arena.track(p));
-        expect(pieces.filter(p => p.volume() > 1e-6)).toHaveLength(4);
-        for (const p of pieces.filter(p => p.volume() > 1e-6)) {
-          expect(p.boundingBox().max[2]).toBeLessThan(11.51);
-        }
+for (const quality of [PREVIEW_QUALITY, EXPORT_QUALITY]) {
+  it.each([
+    { lidFit: "lift-off" as const, lidInterface: "ribs" as const },
+    { lidFit: "friction" as const, lidInterface: "ribs" as const },
+    { lidFit: "friction" as const, lidInterface: "angled-fins" as const },
+  ])(`keeps nonmagnetic stacking centers filled through every rounded corner ($lidFit, $lidInterface, ${quality.circularSegments})`, closure => {
+    for (const wallThicknessMm of [0.8, 2, 4]) for (const magnetHoles of [false, true]) {
+      const s = spec({ ...closure, magneticLidStyle: "overlap", magneticLidTop: "stacking",
+        wallThicknessMm, magnetHoles });
+      const lid = buildMagneticLid(kernel, s, quality.circularSegments);
+      const printed = magneticLidForPrint(kernel, lid, s);
+      const section = arena.track(printed.slice(0.4));
+      // Probe just inside each rounded corner of the center, where the old
+      // unconditional magnet-pad pockets removed material above the bed.
+      const corner = binFootprintMm(s.gridX) / 2 - overlapLidRimInsetMm(s) - overlapRimWallMm(s) - 1.8;
+      for (const sx of [-1, 1]) for (const sy of [-1, 1]) {
+        const probe = arena.track(arena.track(kernel.CrossSection.square([0.4, 0.4], true))
+          .translate([sx * corner, sy * corner]));
+        expect(arena.track(probe.subtract(section)).area()).toBeLessThan(1e-6);
       }
     }
+  });
+}
+
+it("retains corner clearances for matching magnetic stacking lids", () => {
+  for (const lidMagnetCrushRibs of [false, true]) for (const magnetDiameterMm of [6, 10]) {
+    const s = spec({ gridX: 2, gridY: 2, magneticLidStyle: "overlap", magneticLidTop: "stacking",
+      lidMagnetHoles: true, lidMagnetCrushRibs, magnetDiameterMm });
+    const body = buildBin(kernel, s, EXPORT_QUALITY).solid;
+    const lid = buildMagneticLid(kernel, s, 64);
+    const seated = arena.track(lid.translate([0, 0, 14]));
+    expect(arena.track(body.intersect(seated)).volume()).toBeLessThan(1e-5);
   }
 });

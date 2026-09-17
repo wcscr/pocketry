@@ -48,13 +48,16 @@ feedback. These changes **have not been physically retested**:
   the nominal setting tested in 307 and 314. Inset fin corners have extra relief
   so the blades, rather than stiff corners, are intended to carry the fit.
 - Overlapping stacking lids have a filled center at the skirt's bottom plane,
-  with a receiving channel for the bin rim and clearances for magnet pads,
-  including default magnet pads on shared bases when the lid has no magnets.
+  with a receiving channel for the bin rim. Corner magnet-pad clearances are
+  present only when lid closure magnets are enabled. Nonmagnetic lids retain
+  a continuous rounded center, even if the bin has underside magnets.
   Inset stacking rib/fin lids also have filled centers. Remaining channels and
   release gaps still bridge; slicing and physical print checks are required.
 
-Existing round 3 **hollow** bins can be reused with matching lid styles and
-interfaces when Grip recess is off. Filled overlapping bins need re-exporting
+Existing round 3 **hollow** bins can be reused with matching lid styles,
+interfaces and closure-magnet settings when Grip recess is off. Nonmagnetic
+filled overlap lids no longer clear the raised pads on magnetic bins.
+Filled overlapping bins need re-exporting
 for stacking lids: solid fill now stops 5 mm below the rim. Pocket depths use
 that lowered surface. This also changes the interior of existing solid projects
 when a stacking lid is selected. The original round 3 results remain a record
