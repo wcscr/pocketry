@@ -1,6 +1,6 @@
 import type { Point } from "../geometry/types";
 import { LID_OVERLAP_DEPTH_MM } from "./standard";
-import { BASE_HEIGHT, BASE_TOP_RADIUS, BASE_PROFILE_MAX_X, BASE_PROFILE_HEIGHT, STACKING_LIP_HEIGHT_ACTUAL, binWallThicknessMm, HOLE_DISTANCE_FROM_BOTTOM_EDGE, MAGNET_HOLE_DEPTH, binFootprintMm, binHeightMm } from "./standard";
+import { BASE_HEIGHT, BASE_TOP_RADIUS, BASE_PROFILE_MAX_X, STACKING_LIP_HEIGHT_ACTUAL, binWallThicknessMm, HOLE_DISTANCE_FROM_BOTTOM_EDGE, MAGNET_HOLE_DEPTH, binFootprintMm, binHeightMm } from "./standard";
 import { magnetHoleRadiusMm, magnetHoleDepthMm, type MagnetSize } from "./magnets";
 import type { BinSpec } from "./types";
 
@@ -10,6 +10,8 @@ export const LID_PAD_DEPTH_MM = MAGNET_HOLE_DEPTH + LID_MAGNET_WALL_MM;
 /** Same inset as the outermost base magnets, independent of socket pitch. */
 export const LID_MAGNET_INSET_MM = BASE_PROFILE_MAX_X + HOLE_DISTANCE_FROM_BOTTOM_EDGE;
 export const LID_CLEARANCE_MM = 0.3;
+/** Clearance at the actual locating face; round 3's extra clearance was too loose. */
+export const LID_LOCATING_CLEARANCE_MM = 0.15;
 export const LID_PREVIEW_LIFT_MM = 16;
 /** The inset friction skirt remains thin enough to flex between contact ribs. */
 export const INSET_LID_SKIRT_WALL_MM = 0.8;
@@ -20,10 +22,18 @@ export const LID_SHOULDER_GAP_MM = 0.2;
 export const LID_CAP_THICKNESS_MM = LID_PAD_DEPTH_MM;
 /** Close the visible inset seam without lowering the magnet mating face. */
 export const INSET_LID_CAP_BOTTOM_MM = STACKING_LIP_HEIGHT_ACTUAL + LID_SHOULDER_GAP_MM;
-/** Exposes about 3.2 mm above the stacking lip for a finger grip. */
-export const INSET_LID_TOP_MM = BASE_PROFILE_HEIGHT + 2;
+/** Full-width flat cap with 5 mm of accessible vertical grip above its underside. */
+export const INSET_LID_TOP_MM = INSET_LID_CAP_BOTTOM_MM + 5;
 /** Preload stays positive across the ±0.1 mm grip range; requires a physical fit test. */
 export const LID_FRICTION_INTERFERENCE_MM = 0.15;
+
+/** Round 3 favored the firm inset setting and the default overlap setting.
+ * These revised defaults still need a new physical test with the updated cap.
+ */
+export function lidContactPreloadMm(spec: Pick<BinSpec, "magneticLidStyle" | "lidInterface" | "lidMagnetHoles" | "lidFitAdjustmentMm">): number {
+  const inset = spec.magneticLidStyle === "inset" && (spec.lidInterface === "ribs" || spec.lidInterface === "angled-fins");
+  return LID_FRICTION_INTERFERENCE_MM + (inset ? 0.1 : 0) + lidFitAdjustmentMm(spec);
+}
 
 type InterfaceSpec = Partial<Pick<BinSpec, "magneticLid" | "lidMagnetHoles" | "lidFit" | "lidInterface">>;
 type WallSpec = Pick<BinSpec, "wallThicknessMm" | "lidWallThicknessMm"> & InterfaceSpec;
@@ -41,6 +51,17 @@ export function hasSpringLatch(spec: InterfaceSpec): boolean {
 
 export function hasSideSprings(spec: InterfaceSpec): boolean {
   return usesCompliantInterface(spec) && spec.lidInterface === "side-springs";
+}
+
+/** Stacking lids carry a bed-supported center while retaining their rim channel. */
+export function hasFilledOverlapLid(spec: InterfaceSpec & Partial<Pick<BinSpec, "magneticLidStyle" | "magneticLidTop">>): boolean {
+  return spec.magneticLid === true && spec.magneticLidStyle === "overlap"
+    && (spec.magneticLidTop === "stacking" || hasSideSprings(spec));
+}
+
+/** Fit acts on the locator, never the cap or the matching bin. */
+export function lidLocatingClearanceMm(spec: Pick<BinSpec, "lidMagnetHoles" | "lidFitAdjustmentMm">): number {
+  return LID_LOCATING_CLEARANCE_MM - lidFitAdjustmentMm(spec);
 }
 
 export function overlapLidWallMm(spec: WallSpec): number {
@@ -106,7 +127,7 @@ export function hasFrictionLid(spec: Pick<BinSpec, "lidMagnetHoles" | "lidFit">)
   return !spec.lidMagnetHoles && spec.lidFit === "friction";
 }
 
-/** Magnet closures retain their original clearance regardless of saved fit preferences. */
+/** Magnet closures keep fixed locating clearance regardless of saved fit preferences. */
 export function lidFitAdjustmentMm(spec: Pick<BinSpec, "lidMagnetHoles" | "lidFitAdjustmentMm">): number {
   return spec.lidMagnetHoles ? 0 : spec.lidFitAdjustmentMm;
 }

@@ -80,7 +80,8 @@ describe("compliant interfaces", () => {
           {
             // Only the chosen contact tips may overlap the bin, by at most
             // the requested per-side interference. Everything else clears.
-            const depth = (s.lidInterface === "spring-latch" ? 0.55 : 0.15) + lidFitAdjustmentMm;
+            const baseline = s.lidInterface === "angled-fins" && s.magneticLidStyle === "inset" ? 0.25 : 0.15;
+            const depth = (s.lidInterface === "spring-latch" ? 0.55 : baseline) + lidFitAdjustmentMm;
             const masks = lidInterfaceFrames(s).map(frame => arena.track(arena.track(arena.track(
               kernel.Manifold.cube([frame.width + 2, depth + 0.02, 20]))
               .translate([-frame.width / 2 - 1, -depth - 0.01, -5]))
@@ -104,8 +105,7 @@ describe("compliant interfaces", () => {
               expect(tip.volume()).toBeGreaterThan(1e-7);
               expect(tip.boundingBox().min[1]).toBeCloseTo(-depth, 4);
               const preload = -tip.boundingBox().min[1] - (s.lidInterface === "spring-latch" ? 0.4 : 0);
-              expect(preload).toBeGreaterThan(0.049);
-              expect(preload).toBeLessThan(0.251);
+              expect(preload).toBeCloseTo(baseline + lidFitAdjustmentMm, 4);
             }
           }
           const printed = magneticLidForPrint(kernel, lid, tuned);

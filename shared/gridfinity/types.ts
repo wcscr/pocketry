@@ -74,6 +74,8 @@ export const binSpecSchema = z
     magneticLidStyle: z.enum(["overlap", "inset"]).default("inset"),
     /** Optional Gridfinity locator on the lid itself. */
     magneticLidTop: z.enum(["flat", "stacking"]).default("flat"),
+    /** Two shallow finger recesses below the lid joint, leaving its footprint unchanged. */
+    lidGripRecess: z.boolean().default(false),
     /** Thickness of each bin wall, overlapping rim, and overlapping lid skirt. */
     wallThicknessMm: z.number().min(0.8).max(4).default(1.2),
     /** Legacy paired geometry; cleared when the shared wall control is edited. */

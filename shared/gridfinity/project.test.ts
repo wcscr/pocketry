@@ -44,6 +44,22 @@ const VALID = {
 };
 
 describe("parseProjectDoc", () => {
+  it("defaults v24 grip recesses off and preserves an enabled recess through saved history", () => {
+    const { lidGripRecess: _recess, ...oldSpec } = VALID.spec;
+    const previous = { ...VALID, schemaVersion: 24, spec: oldSpec,
+      history: { index: 0, stack: [{ label: "Loaded", doc: { spec: oldSpec, cutouts: VALID.cutouts, fingerHoles: [] } }] } };
+    const original = JSON.stringify(previous);
+    const migrated = parseProjectDoc(previous)!;
+    expect(migrated.spec.lidGripRecess).toBe(false);
+    expect(migrated.history!.stack[0].doc.spec.lidGripRecess).toBe(false);
+    expect(JSON.stringify(previous)).toBe(original);
+    const spec = { ...migrated.spec, lidGripRecess: true };
+    const enabled = { ...migrated, spec, history: { index: 1, stack: [...migrated.history!.stack,
+      { label: "Grip recess", doc: { spec, cutouts: migrated.cutouts, fingerHoles: [] } }] } };
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(enabled)))).toEqual(enabled);
+    expect(parseProjectDoc({ ...enabled, history: undefined, spec: { ...spec, lidGripRecess: "true" } })).toBeNull();
+  });
+
   it("migrates v23 rib spacing and retains tuning throughout saved undo history", () => {
     const { lidRibSpacingMm: _spacing, ...oldSpec } = VALID.spec;
     const previous = { ...VALID, schemaVersion: 23, spec: oldSpec,
@@ -155,7 +171,7 @@ describe("parseProjectDoc", () => {
     const original = JSON.stringify(airdusterV9);
     const doc = parseProjectDoc(airdusterV9);
     const { liteBase: _removed, ...spec } = airdusterV9.spec;
-    expect(doc).toEqual({ ...airdusterV9, spec: { ...spec, flatBottom: false, magneticLid: false, magneticLidStyle: "inset", magneticLidTop: "flat", lidMagnetHoles: true, lidMagnetCrushRibs: false, lidFit: "lift-off", lidInterface: "ribs", lidRibSpacingMm: 24, lidFitAdjustmentMm: 0, wallThicknessMm: 0.95, magnetDiameterMm: 6, magnetThicknessMm: 2 }, schemaVersion: PROJECT_SCHEMA_VERSION });
+    expect(doc).toEqual({ ...airdusterV9, spec: { ...spec, flatBottom: false, magneticLid: false, magneticLidStyle: "inset", magneticLidTop: "flat", lidGripRecess: false, lidMagnetHoles: true, lidMagnetCrushRibs: false, lidFit: "lift-off", lidInterface: "ribs", lidRibSpacingMm: 24, lidFitAdjustmentMm: 0, wallThicknessMm: 0.95, magnetDiameterMm: 6, magnetThicknessMm: 2 }, schemaVersion: PROJECT_SCHEMA_VERSION });
     expect(doc!.shapes).toHaveLength(7);
     expect(doc!.cutouts).toHaveLength(4);
     expect(doc!.fingerHoles).toHaveLength(2);

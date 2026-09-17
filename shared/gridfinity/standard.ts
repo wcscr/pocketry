@@ -340,12 +340,14 @@ export const LID_OVERLAP_DEPTH_MM = 5;
 /** Keep the solid fill and pocket surface below the lid's actual underside. */
 export function infillTopAllowanceMm(spec: {
   lip: "standard" | "none"; magneticLid?: boolean; magneticLidStyle?: "overlap" | "inset";
+  magneticLidTop?: "flat" | "stacking";
   lidMagnetHoles?: boolean; lidFit?: "lift-off" | "friction";
   lidInterface?: "ribs" | "side-springs" | "angled-fins" | "spring-latch";
 }): number {
-  // The filled side-spring core reaches the overlap shoulder. Hollow lids
-  // only need the original stacking-profile allowance above the infill.
-  if (spec.magneticLid && spec.magneticLidStyle === "overlap" && spec.lidMagnetHoles === false
-      && spec.lidFit === "friction" && spec.lidInterface === "side-springs") return LID_OVERLAP_DEPTH_MM;
+  // Stacking lids and retained side-spring prototypes have a filled center
+  // at the overlap shoulder; solid bins must leave space beneath that core.
+  if (spec.magneticLid && spec.magneticLidStyle === "overlap"
+      && (spec.magneticLidTop === "stacking" || (spec.lidMagnetHoles === false
+        && spec.lidFit === "friction" && spec.lidInterface === "side-springs"))) return LID_OVERLAP_DEPTH_MM;
   return spec.magneticLid || spec.lip === "standard" ? STACKING_LIP_SUPPORT_HEIGHT : 0;
 }

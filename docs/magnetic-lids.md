@@ -33,22 +33,40 @@ play after 25+ openings despite initial loosening. Inset ribs 408 also loosened
 early, then seemed to stabilize with a secure pull. These are qualitative fit
 checks, not full durability qualification.
 
-Flat inset caps are undersized and difficult to grasp; their outer outline
-must match the bin while mating clearance is handled separately. Overlapping
-stacking lids 305 and 316 have underside defects that prevent full seating.
-Easy-lift and empty magnetic versions generally have too much play, and inset
-fin contact appears concentrated at the corners. These defects are recorded,
-not yet fixed. Magnet-hole fit and magnetic holding force remain untested
-because magnets were unavailable.
+The next software revision addresses the cap, grip, clearance, and stacking-underside
+feedback. These changes **have not been physically retested**:
 
-The next revision should also consider a finger recess at the lid/bin joint
-to help separate the parts. Two opposing recesses below the lid edge are a
-candidate, subject to preserving wall strength, mating contacts, magnet
-pockets, and the full lid footprint. This is a proposal alongside the larger
-inset grip surface, not an implemented feature.
+- All visible cap outlines match the bin, including flat inset lids at every fit setting.
+  Flat inset caps now provide 5 mm of vertical grip above their underside.
+- **Grip recess** optionally adds two shallow rounded finger access points in the
+  bin below the joint. It preserves the cap footprint, locating faces and magnet
+  supports. It defaults off; enabling it requires a new bin, while the lid stays identical.
+- Easy-lift and magnetic lids use 0.15 mm clearance at the actual mating surface.
+  Nonmagnetic easy-lift tuning spans 0.05–0.25 mm; it does not shrink the cap.
+- Inset Contact ribs and Angled fins start at 0.25 mm preload, corresponding to
+  round 3's preferred firm setting. Overlap defaults remain 0.15 mm, retaining
+  the nominal setting tested in 307 and 314. Inset fin corners have extra relief
+  so the blades, rather than stiff corners, are intended to carry the fit.
+- Overlapping stacking lids have a filled center at the skirt's bottom plane,
+  with a receiving channel for the bin rim and clearances for magnet pads,
+  including default magnet pads on shared bases when the lid has no magnets.
+  Inset stacking rib/fin lids also have filled centers. Remaining channels and
+  release gaps still bridge; slicing and physical print checks are required.
+
+Existing round 3 **hollow** bins can be reused with matching lid styles and
+interfaces when Grip recess is off. Filled overlapping bins need re-exporting
+for stacking lids: solid fill now stops 5 mm below the rim. Pocket depths use
+that lowered surface. This also changes the interior of existing solid projects
+when a stacking lid is selected. The original round 3 results remain a record
+of the printed revision, not evidence for this revision's physical fit.
+
+Magnet-hole fit and magnetic holding force remain untested because magnets
+were unavailable. Dense overlapping ribs remain an intentionally stronger fit:
+start with lighter grip for two or more ribs per side, since 319 was excessively
+hard to remove. No claim of a calibrated holding force is made.
 
 The Interface selector disables the two spring options on desktop and mobile.
-Previously saved spring designs and undo history retain their original geometry
+Previously saved spring mechanisms remain available in designs and undo history
 for inspection, with an explanation directing new prints to Contact ribs or
 Angled fins. Changing a saved inset latch to Overlapping edge selects Contact
 ribs; undo restores the original design. The prototype geometry and its digital
@@ -61,20 +79,19 @@ document those retained prototypes rather than currently selectable options.
 | --- | --- | --- |
 | Bin rim | Top 5 mm steps inward by lid wall thickness + 0.3 mm per side | Standard Gridfinity stacking lip |
 | Lid | Continuous outside skirt wraps around the stepped rim | Chamfered locating plug seats inside the lip |
-| Flat top | 3.6 mm cap above the mating face | 6.75 mm total; about 3.2 mm exposed above the lip to grip |
+| Flat top | 3.6 mm cap above the mating face | About 8.75 mm total; 5 mm cap above its underside for grip |
 | Stacking top | 4 mm cap plus a Gridfinity lip | 8 mm cap plus a Gridfinity lip |
-| Alignment | 0.3 mm clearance per side and a chamfered entry | 0.3 mm extra clearance per side |
+| Easy-lift/magnetic alignment | 0.15 mm clearance per side and a chamfered entry | 0.15 mm clearance at the actual lip face |
 | Edge | Continuous skirt, 1.2 mm by default; adjustable 0.8–4.0 mm per wall | Continuous chamfered profile |
 
 The overlapping skirt stays within the bin's original footprint and stops
 0.2 mm above its shoulder. Entry chamfers ease seating.
 The inset cap starts 0.2 mm above the rounded stacking lip. It extends down
-around the locating profile while retaining the original mating face, overall
-height, and magnet-pocket depth. This replaces the roughly 1.2 mm separation
+around the locating profile while retaining the original mating face and magnet-pocket depth. Fit tuning leaves the cap height fixed. This replaces the roughly 1.2 mm separation
 below the cap in the initial test lids. Existing inset bases, including test
 base **20**, can be reused; only the lids need reprinting.
 **Construction → Wall thickness** is shared by the bin wall, overlapping inner
-rim, and overlapping lid skirt. Each wall receives the selected thickness;
+rim, and overlapping lid skirt. Each wall retains at least the selected thickness; easy-lift and magnetic skirts add 0.15 mm inward to reduce play at the default fit;
 new designs default to 1.2 mm per wall, adjustable from 0.8 to 4 mm. The overlap
 region therefore occupies `2 × thickness + 0.3 mm` per side: 2.7 mm at the default,
 4.3 mm for 2 mm walls, or 8.3 mm for 4 mm walls. The outer footprint stays fixed,
@@ -95,7 +112,7 @@ All lid tops are solid. Compliant interfaces have release gaps below the cap,
 at the mating rim. The bin's rim
 has a sloping support below its shoulder and a chamfer at the top. Pockets
 must clear this rim. The saved stacking-lip preference returns when the lid is
-disabled. Filled overlapping side-spring lids reserve 5 mm above solid infill;
+disabled. All overlapping stacking lids and retained side-spring lids reserve 5 mm above solid infill;
 the pocket surface and depth calculations use that lower infill height.
 Other lids keep the original solid-fill allowance.
 
@@ -111,17 +128,16 @@ grip fins (about 3:00). Its description also emphasizes rounded entries,
 reduced contact surfaces, and compliance. These are design principles, not
 dimensions or physical qualification for Pocketry.
 
-- **Easy lift-off** defaults to the original clearance: 0.3 mm per side for
-  overlap, or 0.3 mm extra clearance beyond Gridfinity's built-in fit for
-  inset. It is a locating cover without intended retention.
+- **Easy lift-off** defaults to 0.15 mm clearance per side at the actual mating
+  surface for both styles, adjustable from 0.05 to 0.25 mm. It is a locating cover without intended retention.
 - **Compliant fit → Contact ribs** adds spaced, rounded contact ribs on the locating rim.
   Contact stays away from corners and the rim retains clearance between ribs.
-  Inset friction lids have a hollow underside with a 0.8 mm locating skirt;
+  Flat inset friction lids have a hollow underside with a 0.8 mm locating skirt;
+  stacking inset lids have a filled center;
   overlapping lids retain their continuous outside skirt at the selected wall
   thickness. Thicker overlapping skirts flex less and need a new physical fit test. The ribs are on the
   mating face, with tapered entry and no cutouts through the exterior edge.
-  This original thin-rim adaptation remains the default interface and preserves
-  existing saved friction lids. **Rib spacing** adjusts the target spacing from
+  This original thin-rim adaptation remains the default interface. **Rib spacing** adjusts the target spacing from
   8 to 60 mm, automatically adding or removing ribs. The panel shows the count
   per edge along the width and length. Ribs distribute evenly within the usable
   span, keeping clear of the corners; the actual spacing can differ from the
@@ -180,8 +196,10 @@ dimensions or physical qualification for Pocketry.
   the springs, and inspect the release gaps so support or drooping bridges do
   not weld the mechanisms to the cap.
 - The five **Grip** positions change contact by 0.05 mm per side per step.
-  Ribs, spring bumps, and fin tips have 0.15 mm intended preload at the default,
-  0.05 mm at **Lighter**, and 0.25 mm at **Firmer**. Every compliant setting
+  Ribs, spring bumps, and fin tips have 0.15 mm intended preload at the default for overlapping lids,
+  0.05 mm at **Lighter**, and 0.25 mm at **Firmer**. Inset ribs and fins use
+  0.25 mm at default, 0.15 mm at **Lighter**, and 0.35 mm at **Firmer**.
+  The retained spring prototypes keep their original preload. Every compliant setting
   requires a little deflection at all four sides to take up play; rigid corners
   retain clearance. These are prototype starting values,
   not guaranteed holding forces. The bin geometry stays unchanged, so only
@@ -194,7 +212,7 @@ dimensions or physical qualification for Pocketry.
 - Fit adjustment changes sideways clearance or rib protrusion. It does not
   change lid height, cap thickness, or the clearance above the bin's lip.
 - Fit controls appear only without closure magnets. Their preferences are
-  retained while magnets are on, but magnetic closures always use the original
+  retained while magnets are on, but magnetic closures always use 0.15 mm locating
   clearance and omit compliant mechanisms and body recesses. Base magnets do not hide lid fit.
 
 ## Independent magnets
@@ -241,7 +259,8 @@ dimensions or physical qualification for Pocketry.
   quarter pitch, with the minimum width and length calculated from wall thickness
   and support size (27 mm at the default; 35 mm at 4 mm walls). Minimum bin height is 2u.
 
-Project schema v24 stores rib spacing and the interface as well as shared magnet size, wall
+Project schema v25 adds the Grip recess preference (default off in older designs
+and every undo history entry). It also stores rib spacing and the interface as well as shared magnet size, wall
 thickness, lid style, top, closure settings, and fit. Existing designs and undo
 history default to Contact ribs with 24 mm target spacing. Projects from before v22 default to 6 × 2 mm
 magnets without changing their recesses. Projects from before v21
@@ -269,14 +288,12 @@ npm run export:bin -- 1x1x2 --lid-style inset --lid-top stacking --out outputs/l
 
 Print the bin upright. **Flat-top lids** export with the outer face on the bed
 and the recesses and skirt facing upward. **Stacking-top lids** export upright,
-with the stacking lip facing upward. Hollow overlapping stacking lids need a
-revised underside or verified slicer support beneath their cap: round 3 lids
-305 and 316 had underside defects that prevented full seating, even though
-support had been enabled. The retained, disabled side-spring prototypes have a
-filled center on the build plate but failed physical testing. Inspect the rim
-channel, spring release gaps, and bridging at
-magnet recesses for either stacking style. Stacking lids are not the
-support-free flat-top print orientation.
+with the stacking lip facing upward. Filled centers now support these caps
+from the bed; the rim channels, fin release gaps, and magnet-pad clearances
+still require bridges. Round 3 lids 305 and 316 had unsupported underside defects
+that prevented full seating. The revised underside has not yet been printed.
+Inspect the sliced layers with the actual filament and printer profile before
+printing. Stacking lids are not the same orientation as flat-top lids.
 
 Check that the slicer resolves the 0.6 mm fins, release gaps, and contact ribs.
 Side springs and Spring latch remain disabled pending research and redesign;
@@ -324,3 +341,20 @@ and folded-latch families, so both remain disabled pending substantial research
 and redesign. The round 3 report records useful rib and fin fits alongside cap,
 grip, clearance, and stacking-print defects. Passing digital geometry and slicer
 checks did not establish reliable physical spring behavior or usable undersides.
+
+The round 3 feedback regression checks also compare complete cap outlines,
+5 mm inset grip thickness, actual easy-lift/magnetic face clearance, recess
+wall/contact preservation, fin-only interference, bed-supported stacking
+centers, and solid-fill clearance. Schema migration and desktop/mobile undo
+checks cover the new Grip recess switch. These checks do not replace the next
+physical fit and printability test.
+
+An isolated Bambu Studio 2.8.2.61 slice of six revised stacking lids completed
+with the round 3 H2D 0.4 mm / gray Generic PETG profile, 0.2 mm layers, three
+walls and 15% infill. It covered overlapping easy-lift, contact ribs, angled
+fins and empty magnetic closures, inset angled fins, and a larger 3×2 overlap
+fin lid. All used filament 2. The slicer returned success with no warnings
+and no support extrusion; each part has first-layer extrusion. The center is
+supported from the bed, but bridges remain over channels, release gaps and
+sparse infill. A clean slice is not proof that those bridges will print cleanly.
+No print was started.

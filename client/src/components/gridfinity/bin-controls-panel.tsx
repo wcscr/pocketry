@@ -1,6 +1,5 @@
 import { hasBaseMagnets, hasMagnets, baseMagnetShiftMm, magnetHoleRadiusMm, magnetHoleDepthMm } from "@shared/gridfinity/magnets";
 import { lidContactRibPositions, MIN_LID_RIB_SPACING_MM, MAX_LID_RIB_SPACING_MM } from "@shared/gridfinity/lid-contact-ribs";
-import { hasSideSprings } from "@shared/gridfinity/magnetic-lid";
 import {
   Box,
   ChevronDown,
@@ -706,7 +705,7 @@ export function BinControlsPanel({
             hint={spec.magneticLid && spec.magneticLidStyle === "overlap"
               ? spec.lidWallThicknessMm !== undefined
                 ? "Saved wall sizes preserved. Adjust to link the bin, inner rim, and lid skirt; reprint both parts."
-                : `Each wall: bin, inner rim, and lid skirt. ${(2 * spec.wallThicknessMm + 0.3).toFixed(1)} mm total across the overlap, including clearance. Reprint both parts after changing.`
+                : `Minimum for each wall: bin, inner rim, and lid skirt. ${(2 * spec.wallThicknessMm + 0.3).toFixed(1)} mm total across the overlap, including clearance. Reprint both parts after changing.`
               : "Thicker walls are sturdier and leave less interior space."}
             onChange={(wallThicknessMm, transient) => patchSpec({ wallThicknessMm, lidWallThicknessMm: undefined }, transient)}
           />
@@ -754,18 +753,19 @@ export function BinControlsPanel({
                 ))}
               </div>
               {spec.magneticLidTop === "stacking" && <p className="text-xs text-muted-foreground">
-                Holds a Gridfinity bin on the lid. {hasSideSprings(spec)
-                  ? "Exported top up with a flat, filled underside. Inspect the spring gaps and rim channel when slicing."
-                  : "Exported top up; hollow overlapping lids need support under the cap."}
+                Holds a Gridfinity bin on the lid. Exported top up with a filled center. Inspect bridges across the rim channel, interface gaps, and magnet clearances when slicing.
+                {spec.fill === "solid" && spec.magneticLidStyle === "overlap" && " Re-export solid bins to leave room below this lid."}
               </p>}
               <p className="text-xs text-muted-foreground">
                 {spec.magneticLidStyle === "overlap"
                   ? "Wraps around an inset rim. Replaces the stacking lip."
-                  : "Seats inside the stacking lip, with a raised top to grip."}
+                  : "Seats inside the stacking lip, with a full-width raised cap to grip."}
               </p>
             </div>
           )}
           {spec.magneticLid && <>
+            <FeatureSwitch label="Grip recess" description="Two finger recesses below the lid edge for easier lifting"
+              checked={spec.lidGripRecess} onChange={lidGripRecess => patchSpec({ lidGripRecess })} />
             <FeatureSwitch label="Lid magnet holes" description="Four matching pairs in the lid and bin rim; same magnet size as the underside"
               checked={spec.lidMagnetHoles} onChange={lidMagnetHoles => patchSpec({ lidMagnetHoles })} />
             {spec.lidMagnetHoles && <FeatureSwitch label="Lid crush ribs" description="Press-fit closure magnets, no glue"
@@ -808,13 +808,13 @@ export function BinControlsPanel({
                 {spec.lidInterface === "ribs" && <div data-testid="lid-rib-spacing-controls">
                   <MmSlider label="Rib spacing" value={spec.lidRibSpacingMm}
                     min={MIN_LID_RIB_SPACING_MM} max={MAX_LID_RIB_SPACING_MM} step={1}
-                    hint="Target spacing. Closer spacing adds ribs; positions adjust to keep the corners clear."
+                    hint="Closer spacing adds ribs and increases hold. Start with lighter grip for closely spaced overlapping ribs."
                     onChange={(lidRibSpacingMm, transient) => patchSpec({ lidRibSpacingMm }, transient)} />
                   <p className="text-xs text-muted-foreground" data-testid="lid-rib-count">
                     Per edge: {lidContactRibPositions(spec, "x").length} along width · {lidContactRibPositions(spec, "y").length} along length
                   </p>
                 </div>}
-              </> : <p className="text-xs text-muted-foreground">Leaves a gap for easy removal.</p>}
+              </> : <p className="text-xs text-muted-foreground">Small locating clearance for easy removal.</p>}
               <Label className="text-xs">{spec.lidFit === "friction" ? "Grip" : "Fit adjustment"}</Label>
               <Slider centerOrigin value={[Math.round(spec.lidFitAdjustmentMm / 0.05)]} min={-2} max={2} step={1}
                 aria-label="Lid fit adjustment"
@@ -2053,7 +2053,7 @@ export function BinControlsPanel({
           {spec.magneticLid && onExportLid && (
             <div className="space-y-2 rounded-md border p-2.5" data-testid="export-magnetic-lid">
               <SettingLabel label="Export lid" hint={spec.magneticLidTop === "stacking"
-                ? "Exports with the stacking lip facing up. Check support beneath the cap and any magnet recesses before printing."
+                ? "Exports with the stacking lip facing up. Inspect bridges across the rim channel, interface gaps, and magnet clearances before printing."
                 : "Exports with the flat face on the bed and fitting details facing up."} />
               <div className="flex gap-2">
                 {(["3mf", "stl"] as const).map(format => (

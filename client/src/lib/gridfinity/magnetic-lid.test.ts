@@ -3,7 +3,7 @@ import { Arena } from "@/lib/manifold/arena";
 import { createKernel, loadManifold, type Kernel } from "@/lib/manifold/runtime";
 import { parseBinSpec } from "@shared/gridfinity/types";
 import { BASE_TOP_RADIUS, STACKING_LIP_HEIGHT_ACTUAL, MAGNET_HOLE_DEPTH, MAGNET_HOLE_RADIUS, binHeightMm, binFootprintMm } from "@shared/gridfinity/standard";
-import { LID_OVERLAP_MM, LID_SHOULDER_GAP_MM, overlapLidRimInsetMm, LID_CAP_THICKNESS_MM, lidCapTopMm, lidTopMm, lidMagnetCenters } from "@shared/gridfinity/magnetic-lid";
+import { LID_OVERLAP_MM, LID_SHOULDER_GAP_MM, overlapLidRimInsetMm, LID_CAP_THICKNESS_MM, INSET_LID_TOP_MM, lidCapTopMm, lidTopMm, lidMagnetCenters } from "@shared/gridfinity/magnetic-lid";
 import { magnetHoleDepthMm, magnetHoleRadiusMm, magnetCrushRadiusMm } from "@shared/gridfinity/magnets";
 import { fingerHoleSchema, tracedShapeSchema, parseCutoutPlacement } from "@shared/gridfinity/cutout";
 import { validateBinSpec, validateLayout } from "@shared/gridfinity/validate";
@@ -38,9 +38,9 @@ describe("magnetic lids", () => {
         const outside = arena.track(rim.hull());
         const skirt = arena.track(lid.slice(-1));
         // Around both the arcs and straight sides, the opening leaves the
-        // intended 0.3 mm clearance (within preview tessellation tolerance).
-        expect(arena.track(skirt.intersect(arena.track(outside.offset(0.29)))).area()).toBeLessThan(1e-6);
-        expect(arena.track(skirt.intersect(arena.track(outside.offset(0.31)))).area()).toBeGreaterThan(0.1);
+        // intended 0.15 mm clearance (within preview tessellation tolerance).
+        expect(arena.track(skirt.intersect(arena.track(outside.offset(0.14)))).area()).toBeLessThan(1e-6);
+        expect(arena.track(skirt.intersect(arena.track(outside.offset(0.16)))).area()).toBeGreaterThan(0.1);
         if (!lidMagnetHoles) {
           const innerSize = 41.5 - 2 * (inset + wallThicknessMm);
           expect(arena.track(outside.subtract(rim)).area()).toBeCloseTo(
@@ -248,8 +248,11 @@ for (const quality of [PREVIEW_QUALITY, EXPORT_QUALITY]) {
         expect(lid.status()).toBe("NoError");
         expect(lid.boundingBox().max[0] - lid.boundingBox().min[0]).toBeCloseTo(41.5, 6);
         const wallProbe = arena.track(arena.track(kernel.Manifold.cube([1, 20, 0.1], true)).translate([0, 20, -0.5]));
-        const wall = arena.track(lid.intersect(wallProbe)).boundingBox();
-        expect(wall.max[1] - wall.min[1]).toBeCloseTo(wallThicknessMm, 6);
+        const outerProbe = arena.track(arena.track(kernel.Manifold.cube([1, wallThicknessMm + 0.5, 0.1]))
+          .translate([-0.5, 20.5 - wallThicknessMm, -0.55]));
+        const wall = arena.track(lid.intersect(outerProbe)).boundingBox();
+        const locatingOffset = s.lidFit === "friction" && !s.lidMagnetHoles ? 0 : 0.15;
+        expect(wall.max[1] - wall.min[1]).toBeCloseTo(wallThicknessMm + locatingOffset, 6);
         const rim = arena.track(body.slice(13));
         expect(Math.max(...rim.toPolygons().flat().map(point => point[0]))).toBeCloseTo(20.75 - wallThicknessMm - 0.3, 6);
         const rimProbe = arena.track(wallProbe.translate([0, 0, 13.5]));
@@ -288,7 +291,7 @@ for (const quality of [PREVIEW_QUALITY, EXPORT_QUALITY]) {
     const edgeBottom = arena.track(closed.intersect(band)).boundingBox().min[2];
     expect(edgeBottom - body.boundingBox().max[2]).toBeCloseTo(0.2, 6);
     expect(lid.boundingBox().min[2]).toBeCloseTo(0, 6);
-    expect(lid.boundingBox().max[2]).toBeCloseTo(patch.magneticLidTop === "flat" ? 6.75 : 8 + STACKING_LIP_HEIGHT_ACTUAL, 6);
+    expect(lid.boundingBox().max[2]).toBeCloseTo(patch.magneticLidTop === "flat" ? INSET_LID_TOP_MM : 8 + STACKING_LIP_HEIGHT_ACTUAL, 6);
   });
 
   for (const magneticLidStyle of ["overlap", "inset"] as const) {
@@ -325,8 +328,9 @@ for (const quality of [PREVIEW_QUALITY, EXPORT_QUALITY]) {
               expect(contact.volume()).toBeLessThan(1e-5);
             } else {
               expect(contact.volume()).toBeGreaterThan(0.01);
-              const bottom = 14 + (magneticLidStyle === "overlap" ? -4 : 0.7);
-              const band = arena.track(arena.track(kernel.Manifold.cube([100, 100, 1.6], true)).translate([0, 0, bottom + 0.8]));
+              const bottom = 14 + (magneticLidStyle === "overlap" ? -4 : 0.5);
+              const height = magneticLidStyle === "overlap" ? 1.6 : 1.9;
+              const band = arena.track(arena.track(kernel.Manifold.cube([100, 100, height], true)).translate([0, 0, bottom + height / 2]));
               // Seating faces can leave zero-volume coplanar triangles in the
               // intersection; only the ridge may have positive contact volume.
               expect(arena.track(contact.subtract(band)).volume()).toBeLessThan(1e-5);

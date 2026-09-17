@@ -42,9 +42,10 @@ import { binHistorySchema } from "./history";
  * Version 22 adds shared magnet diameter and thickness; older holes retain their dimensions.
  * Version 23 adds compliant lid interfaces, preserving existing contact ribs.
  * Version 24 adds contact-rib spacing, retaining the original 24 mm target.
+ * Version 25 adds optional lid grip recesses, defaulting off in designs and history.
  */
 
-export const PROJECT_SCHEMA_VERSION = 24 as const;
+export const PROJECT_SCHEMA_VERSION = 25 as const;
 
 const projectFields = {
   shapes: z.array(tracedShapeSchema),
@@ -206,7 +207,7 @@ export function parseProjectDoc(input: unknown): ProjectDoc | null {
     };
   }
   if (input && typeof input === "object" && !Array.isArray(input) &&
-      "schemaVersion" in input && (input.schemaVersion === 21 || input.schemaVersion === 22 || input.schemaVersion === 23)) {
+      "schemaVersion" in input && (input.schemaVersion === 21 || input.schemaVersion === 22 || input.schemaVersion === 23 || input.schemaVersion === 24)) {
     input = { ...input, schemaVersion: PROJECT_SCHEMA_VERSION };
   }
   const result = projectDocSchema.safeParse(input);

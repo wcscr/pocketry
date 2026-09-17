@@ -165,3 +165,12 @@ physical prototypes have not been completed in this review.
 Current print artifacts remain the reference for these observations. Retest
 after geometry changes; these findings do not imply that the known defects
 have been fixed.
+
+## Software follow-up
+
+The [current design notes](../magnetic-lids.md#physical-fit-testing-status)
+describe the subsequent cap, grip-recess, locating-clearance, inset-fin, and
+stacking-center revisions. Those revisions have passed digital checks but
+have not been physically retested. The observations and part IDs above still
+refer only to the original printed revision. Both failed spring families
+remain disabled.

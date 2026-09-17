@@ -2,7 +2,7 @@ import type { Manifold, Vec2, Vec3 } from "manifold-3d";
 import type { BinSpec } from "@shared/gridfinity/types";
 import { binHeightMm } from "@shared/gridfinity/standard";
 import { hasOverlappingLid, hasSpringLatch, usesCompliantInterface,
-  lidBottomMm, INSET_LID_CAP_BOTTOM_MM, lidFitAdjustmentMm, LID_FRICTION_INTERFERENCE_MM } from "@shared/gridfinity/magnetic-lid";
+  lidBottomMm, INSET_LID_CAP_BOTTOM_MM, lidFitAdjustmentMm, lidContactPreloadMm, LID_FRICTION_INTERFERENCE_MM } from "@shared/gridfinity/magnetic-lid";
 import { lidInterfaceFrames, SPRING_THICKNESS_MM, FIN_THICKNESS_MM, INTERFACE_CAP_GAP_MM,
   INTERFACE_BACK_MM, LATCH_BACK_MM, LATCH_SPRING_HALF_HEIGHT_MM, LATCH_COVER_THICKNESS_MM,
   DETENT_ENGAGEMENT_MM, DETENT_RECESS_DEPTH_MM, type LidInterfaceFrame } from "@shared/gridfinity/lid-interface";
@@ -121,7 +121,7 @@ function latchHousing(kernel: Kernel, frame: LidInterfaceFrame, capBottom: numbe
 /** Parallel angled fingers with a tapered lower entry and clear gaps between blades. */
 function fins(kernel: Kernel, spec: BinSpec, frame: LidInterfaceFrame, top: number, segments: number): Manifold {
   const { arena, Manifold } = kernel;
-  const engagement = LID_FRICTION_INTERFERENCE_MM + lidFitAdjustmentMm(spec);
+  const engagement = lidContactPreloadMm(spec);
   const pieces: Manifold[] = [];
   const reach = INTERFACE_BACK_MM + 0.3 - (FIN_THICKNESS_MM / 2 - engagement);
   // Equal material and air measured perpendicular to the angled blades.

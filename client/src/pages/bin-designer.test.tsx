@@ -428,6 +428,12 @@ it.each([false, true])("offers fit and tuning only without lid magnets, retainin
     expect(panel.querySelector('[data-testid="lid-fit-controls"]')).toBeNull();
     toggle("Lid");
     expect(panel.querySelector('[data-testid="lid-fit-controls"]')).toBeNull();
+    toggle("Grip recess");
+    expect(current().lidGripRecess).toBe(true);
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+    expect(current().lidGripRecess).toBe(false);
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+    expect(current().lidGripRecess).toBe(true);
     toggle("Lid magnet holes");
     expect(panel.querySelector('[data-testid="button-lid-fit-lift-off"]')?.getAttribute("aria-pressed")).toBe("true");
     toggle("Base magnet holes");
@@ -447,6 +453,8 @@ it.each([false, true])("offers fit and tuning only without lid magnets, retainin
     expect(current()).toMatchObject({ lidFit: "friction", lidFitAdjustmentMm: 0.05 });
     toggle("Lid");
     expect(panel.querySelector('[data-testid="lid-fit-controls"]')).toBeNull();
+    expect(panel.querySelector('[role="switch"][aria-label="Grip recess"]')).toBeNull();
+    expect(current().lidGripRecess).toBe(true);
   } finally { unmount(); }
 });
 

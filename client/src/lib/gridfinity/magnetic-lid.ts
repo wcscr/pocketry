@@ -1,15 +1,15 @@
 import type { Manifold, Vec3 } from "manifold-3d";
 import type { BinSpec } from "@shared/gridfinity/types";
-import { BASE_HEIGHT, BASE_BOTTOM_RADIUS, BASE_PROFILE_HEIGHT, BASE_TOP_RADIUS, STACKING_LIP_DEPTH, STACKING_LIP_LINE, binWallThicknessMm, binFootprintMm, binHeightMm, baseBottomDimensionsMm } from "@shared/gridfinity/standard";
-import { INSET_LID_SKIRT_WALL_MM, overlapLidRimInsetMm, overlapLidWallMm, overlapRimWallMm, LID_OVERLAP_MM, LID_SHOULDER_GAP_MM, INSET_LID_CAP_BOTTOM_MM, hasOverlappingLid, hasFrictionLid, lidFitAdjustmentMm, LID_FRICTION_INTERFERENCE_MM, lidCapTopMm, lidBottomMm, LID_CLEARANCE_MM, lidPadDepthMm, lidPadExtentMm, lidMagnetCenters, magneticLidError } from "@shared/gridfinity/magnetic-lid";
+import { BASE_HEIGHT, BASE_PROFILE_HEIGHT, BASE_TOP_RADIUS, STACKING_LIP_DEPTH, STACKING_LIP_LINE, STACKING_LIP_HEIGHT_ACTUAL, binWallThicknessMm, binFootprintMm, binHeightMm } from "@shared/gridfinity/standard";
+import { INSET_LID_SKIRT_WALL_MM, overlapLidRimInsetMm, overlapLidWallMm, overlapRimWallMm, LID_OVERLAP_MM, LID_SHOULDER_GAP_MM, INSET_LID_CAP_BOTTOM_MM, hasOverlappingLid, hasFrictionLid, lidCapTopMm, lidBottomMm, LID_CLEARANCE_MM, lidPadDepthMm, lidPadExtentMm, lidMagnetCenters, magneticLidError } from "@shared/gridfinity/magnetic-lid";
 import { magnetHoleDepthMm } from "@shared/gridfinity/magnets";
 import type { Kernel } from "@/lib/manifold/runtime";
 import { baseHoleCutter } from "./holes";
-import { roundedRectPolygon, baseProfilePolygon, type ProfilePolygon } from "./profiles";
+import { roundedRectPolygon, type ProfilePolygon } from "./profiles";
 import { buildStackingLip } from "./wall";
 import { sweepRounded } from "./sweep";
 import { footprintOuterSection } from "./footprint-section";
-import { usesCompliantInterface, hasSpringLatch, hasSideSprings, overlapRimCornerRadiusMm } from "@shared/gridfinity/magnetic-lid";
+import { usesCompliantInterface, hasSpringLatch, hasSideSprings, hasFilledOverlapLid, lidLocatingClearanceMm, lidContactPreloadMm, overlapRimCornerRadiusMm } from "@shared/gridfinity/magnetic-lid";
 import { applyLidInterface, addLidDetentRecesses } from "./lid-interface";
 import { lidContactRibPositions } from "@shared/gridfinity/lid-contact-ribs";
 
@@ -63,8 +63,31 @@ export function addLidRetention(kernel: Kernel, spec: BinSpec, solid: Manifold, 
   let supported = spec.lidMagnetHoles ? arena.track(solid.add(buildLidSupports(kernel, spec, segments))) : solid;
   if (hasOverlappingLid(spec)) supported = formInsetRim(kernel, spec, supported, segments);
   supported = addLidDetentRecesses(kernel, spec, supported, segments);
-  if (!spec.lidMagnetHoles) return supported;
-  return arena.track(supported.subtract(lidBores(kernel, spec, segments, binHeightMm(spec.heightUnits) - magnetHoleDepthMm(spec))));
+  if (spec.lidMagnetHoles) supported = arena.track(supported.subtract(lidBores(kernel, spec, segments, binHeightMm(spec.heightUnits) - magnetHoleDepthMm(spec))));
+  return addGripRecesses(kernel, spec, supported, segments);
+}
+
+/** Shallow access below the joint; the actual locating faces remain intact. */
+function addGripRecesses(kernel: Kernel, spec: BinSpec, body: Manifold, segments: number): Manifold {
+  if (!spec.lidGripRecess) return body;
+  const { arena, Manifold } = kernel;
+  const width = binFootprintMm(spec.gridX, spec.gridPitch);
+  const length = binFootprintMm(spec.gridY, spec.gridPitch);
+  const alongX = width >= length;
+  const along = alongX ? width : length;
+  const face = (alongX ? length : width) / 2;
+  const overlap = hasOverlappingLid(spec);
+  const top = binHeightMm(spec.heightUnits) + (overlap ? -LID_OVERLAP_MM : STACKING_LIP_HEIGHT_ACTUAL);
+  const depth = overlap ? Math.min(1.2, overlapLidRimInsetMm(spec) - 0.2) : 1.2;
+  const bottom = overlap ? top - depth : binHeightMm(spec.heightUnits) + 2.5;
+  const span = Math.min(14, along - 2 * BASE_TOP_RADIUS - 4);
+  const outline = roundedRectPolygon(span, depth * 2, depth, segments);
+  const scoop = arena.track(Manifold.hull([
+    ...outline.map(([x, y]): Vec3 => [x, face + y, top + 0.01]),
+    [-span / 2 + depth, face + 0.05, bottom], [span / 2 - depth, face + 0.05, bottom],
+  ]));
+  const cuts = [alongX ? 0 : 90, alongX ? 180 : 270].map(angle => arena.track(scoop.rotate([0, 0, angle])));
+  return arena.track(body.subtract(arena.track(Manifold.union(cuts))));
 }
 
 /** Replaces the upper outside wall with a supported, inward-stepped rim. */
@@ -160,9 +183,10 @@ function buildOverlappingLid(kernel: Kernel, spec: BinSpec, segments: number): M
   const friction = hasFrictionLid(spec);
   const contactRibs = friction && !usesCompliantInterface(spec);
   const rimInset = overlapLidRimInsetMm(spec);
+  const locatingOffset = friction ? 0 : LID_CLEARANCE_MM - lidLocatingClearanceMm(spec);
   if (spec.lidWallThicknessMm === undefined) {
-    const wall = overlapLidWallMm(spec) + (friction ? 0 : lidFitAdjustmentMm(spec));
-    const contactInset = rimInset + LID_FRICTION_INTERFERENCE_MM + lidFitAdjustmentMm(spec);
+    const wall = overlapLidWallMm(spec) + locatingOffset;
+    const contactInset = rimInset + lidContactPreloadMm(spec);
     const envelope = lidLoft(kernel, spec, [[0, bottom], [0, 0]], segments);
     const opening = lidLoft(kernel, spec, [[wall - 0.3, bottom], [wall, bottom + 0.3], [wall, 0]],
       segments, rimInset, overlapRimCornerRadiusMm(spec));
@@ -175,10 +199,10 @@ function buildOverlappingLid(kernel: Kernel, spec: BinSpec, segments: number): M
     }
     return arena.track(arena.track(outer.extrude(lidCapTopMm(spec))).add(skirt));
   }
-  const inner = r - overlapLidWallMm(spec) - (friction ? 0 : lidFitAdjustmentMm(spec));
+  const inner = r - overlapLidWallMm(spec) - locatingOffset;
   // The ridge envelope is clipped into spaced ribs below. The thin skirt
   // behind and between them remains continuous, with clearance at the corners.
-  const contact = r - rimInset - LID_FRICTION_INTERFERENCE_MM - lidFitAdjustmentMm(spec);
+  const contact = r - rimInset - lidContactPreloadMm(spec);
   const innerEdge: ProfilePolygon = contactRibs ? [
     [inner, bottom + 2.4], [contact, bottom + 1.6],
     [contact, bottom + 1.2], [inner, bottom + 0.5],
@@ -197,14 +221,27 @@ function buildOverlappingLid(kernel: Kernel, spec: BinSpec, segments: number): M
   return arena.track(arena.track(outer.extrude(capTop)).add(skirt));
 }
 
-/** Fill the overlap center down to the springs, retaining a channel for the bin rim. */
-function sideSpringOverlapFill(kernel: Kernel, spec: BinSpec, segments: number): Manifold {
+/** Support the stacking cap from the bed, retaining its rim and magnet-pad channels. */
+function overlapCenterFill(kernel: Kernel, spec: BinSpec, segments: number): Manifold {
+  const { arena, Manifold } = kernel;
   const rimInside = overlapLidRimInsetMm(spec) + overlapRimWallMm(spec);
   const insideRadius = spec.lidWallThicknessMm === undefined ? BASE_TOP_RADIUS : Math.max(0, BASE_TOP_RADIUS - rimInside);
   const inset = rimInside + LID_CLEARANCE_MM;
   const bottom = lidBottomMm(spec);
-  return lidLoft(kernel, spec, [[inset + 0.3, bottom], [inset, bottom + 0.3], [inset, 0]],
+  const fill = lidLoft(kernel, spec, [[inset + 0.3, bottom], [inset, bottom + 0.3], [inset, 0]],
     segments, rimInside, insideRadius);
+  // Nonmagnetic lids also fit shared bases with the default corner magnet pads.
+  // Dormant magnet-size preferences retain the standard pad envelope. Leave the
+  // disabled side-spring prototype's existing enclosure floor unchanged.
+  if (hasSideSprings(spec)) return fill;
+  const halfW = binFootprintMm(spec.gridX, spec.gridPitch) / 2;
+  const halfL = binFootprintMm(spec.gridY, spec.gridPitch) / 2;
+  const extent = lidPadExtentMm(spec) + LID_CLEARANCE_MM;
+  const corner = arena.track(Manifold.cube([extent, extent, -bottom + 0.1]));
+  const keepouts = [-1, 1].flatMap(sx => [-1, 1].map(sy => arena.track(corner.translate([
+    sx < 0 ? -halfW : halfW - extent, sy < 0 ? -halfL : halfL - extent, bottom - 0.05,
+  ]))));
+  return arena.track(fill.subtract(arena.track(Manifold.union(keepouts))));
 }
 
 /** Thin locating skirt, or a filled underside around working spring chambers. */
@@ -216,26 +253,27 @@ function buildFrictionInsetLid(kernel: Kernel, spec: BinSpec, segments: number):
   // Match the bin's actual straight inner face, including Gridfinity's built-in
   // clearance. Merely reducing the old extra clearance never makes contact.
   const contact = r - STACKING_LIP_DEPTH + STACKING_LIP_LINE[1][0]
-    + LID_FRICTION_INTERFERENCE_MM + lidFitAdjustmentMm(spec);
-  const capRadius = r - LID_CLEARANCE_MM;
+    + lidContactPreloadMm(spec);
+  const shoulderRadius = r - LID_CLEARANCE_MM;
   const bottom = lidBottomMm(spec);
   const outside = (radius: number): ProfilePolygon => [
     [0.9 + (radius - 0.9) * bottom / 0.9, bottom], [radius, 0.9], [radius, 1.6],
-    [1.6, 2.4], [1.6, 2.6], [capRadius, 4.45], [capRadius, BASE_PROFILE_HEIGHT],
+    [1.6, 2.4], [1.6, 2.6], [shoulderRadius, 4.45], [shoulderRadius, BASE_PROFILE_HEIGHT],
   ];
-  const smoothOutside = outside(1.6);
+  // Relieve the rigid corners of fin lids so the blades carry the fit.
+  const smoothOutside = outside(spec.lidInterface === "angled-fins" ? 1.35 : 1.6);
   const inside = smoothOutside.map(([x, z]): [number, number] => [x - INSET_LID_SKIRT_WALL_MM, z]).reverse();
   const path = { widthMm: width - 2 * r, lengthMm: length - 2 * r };
   // Fill down to the enclosure floors for a continuous, flush underside.
   // applyLidInterface cuts the spring chambers afterward, preserving their
   // moving parts and release gaps inside this otherwise solid locator.
-  const smooth = hasSpringLatch(spec) || hasSideSprings(spec)
+  const smooth = hasSpringLatch(spec) || hasSideSprings(spec) || spec.magneticLidTop === "stacking"
     ? lidLoft(kernel, spec, smoothOutside.map(([radius, z]) => [r - radius, z]), segments)
     : sweepRounded(kernel, [...smoothOutside, ...inside], path, segments);
   const grip = sweepRounded(kernel, [...outside(contact), ...inside], path, segments);
   const skirt = usesCompliantInterface(spec) ? smooth : addFrictionRibs(kernel, spec, smooth, grip, segments);
   const capSection = arena.track(new CrossSection([roundedRectPolygon(
-    width - 2 * LID_CLEARANCE_MM, length - 2 * LID_CLEARANCE_MM, capRadius, segments,
+    width, length, r, segments,
   )]));
   const cap = arena.track(arena.track(capSection.extrude(lidCapTopMm(spec) - INSET_LID_CAP_BOTTOM_MM)).translate([0, 0, INSET_LID_CAP_BOTTOM_MM]));
   return arena.track(skirt.add(cap));
@@ -262,30 +300,26 @@ function addFrictionRibs(kernel: Kernel, spec: BinSpec, smooth: Manifold, grip: 
 /** Lid in closed orientation: z=0 is the magnet mating face. */
 export function buildMagneticLid(kernel: Kernel, spec: BinSpec, segments: number): Manifold {
   assertLid(spec);
-  const { arena, Manifold, CrossSection } = kernel;
+  const { arena, CrossSection } = kernel;
   let lid: Manifold;
   if (hasOverlappingLid(spec)) {
     lid = buildOverlappingLid(kernel, spec, segments);
-    if (hasSideSprings(spec)) lid = arena.track(lid.add(sideSpringOverlapFill(kernel, spec, segments)));
+    if (hasFilledOverlapLid(spec)) lid = arena.track(lid.add(overlapCenterFill(kernel, spec, segments)));
   } else if (hasFrictionLid(spec)) {
     lid = buildFrictionInsetLid(kernel, spec, segments);
   } else {
-    const clearance = LID_CLEARANCE_MM - lidFitAdjustmentMm(spec);
-    const width = binFootprintMm(spec.gridX, spec.gridPitch) - 2 * clearance;
-    const length = binFootprintMm(spec.gridY, spec.gridPitch) - 2 * clearance;
-    const bottomW = baseBottomDimensionsMm(width);
-    const bottomL = baseBottomDimensionsMm(length);
-    const edge = sweepRounded(kernel, baseProfilePolygon(), {
-      widthMm: bottomW - 2 * BASE_BOTTOM_RADIUS,
-      lengthMm: bottomL - 2 * BASE_BOTTOM_RADIUS,
-    }, segments);
-    const fill = arena.track(arena.track(Manifold.cube([bottomW - BASE_BOTTOM_RADIUS, bottomL - BASE_BOTTOM_RADIUS, BASE_PROFILE_HEIGHT], true)).translate([0, 0, BASE_PROFILE_HEIGHT / 2]));
+    const clearance = lidLocatingClearanceMm(spec);
+    const width = binFootprintMm(spec.gridX, spec.gridPitch);
+    const length = binFootprintMm(spec.gridY, spec.gridPitch);
+    const faceRadius = BASE_TOP_RADIUS - STACKING_LIP_DEPTH + STACKING_LIP_LINE[1][0] - clearance;
+    const locator = lidLoft(kernel, spec, [[BASE_TOP_RADIUS - 0.9, 0],
+      [BASE_TOP_RADIUS - faceRadius, 0.9], [BASE_TOP_RADIUS - faceRadius, 2.5],
+      [BASE_TOP_RADIUS - faceRadius - (INSET_LID_CAP_BOTTOM_MM - 2.5), INSET_LID_CAP_BOTTOM_MM]], segments);
     const capSection = arena.track(new CrossSection([roundedRectPolygon(width, length, BASE_TOP_RADIUS, segments)]));
     // Extend the cap down around the locator. Moving the whole lid down would
     // collide with existing bin pads and misalign the paired magnet faces.
     const cap = arena.track(arena.track(capSection.extrude(lidCapTopMm(spec) - INSET_LID_CAP_BOTTOM_MM)).translate([0, 0, INSET_LID_CAP_BOTTOM_MM]));
-    lid = arena.track(Manifold.union([edge, fill, cap]));
-
+    lid = arena.track(locator.add(cap));
   }
   if (spec.magneticLidTop === "stacking") {
     // A full supported lip is embedded into the cap. Four millimetres of cap
