@@ -53,6 +53,9 @@ feedback. These changes **have not been physically retested**:
   a continuous rounded center, even if the bin has underside magnets.
   Inset stacking rib/fin lids also have filled centers. Remaining channels and
   release gaps still bridge; slicing and physical print checks are required.
+- The lid controls warn when Overlapping edge and Stacking top are selected
+  that a filled lid is currently required for printability, using more material
+  and interior space.
 
 Existing round 3 **hollow** bins can be reused with matching lid styles,
 interfaces and closure-magnet settings when Grip recess is off. Nonmagnetic

@@ -307,6 +307,35 @@ it.each([false, true])("enables magnetic lids independently of base magnets and 
   } finally { unmount(); }
 });
 
+it.each([false, true])("warns about filled overlapping stacking lids only while that combination is enabled (mobile=%s)", async mobile => {
+  let controls: ReturnType<typeof usePanelState>;
+  function PanelProbe() { controls = usePanelState(); return null; }
+  const { container, unmount } = render(<PanelProvider><PanelProbe /><ShapeLibraryProvider><BinDesignerPage /></ShapeLibraryProvider></PanelProvider>, { mobile });
+  await flushHydration();
+  try {
+    React.act(() => controls!.setPanelOpen(true));
+    const panel = mobile ? document.body : container;
+    openSettingsSection(panel, "construction");
+    const warning = () => panel.querySelector('[data-testid="overlap-stacking-print-warning"]');
+    const click = (selector: string) => React.act(() => panel.querySelector<HTMLButtonElement>(selector)!.click());
+    expect(warning()).toBeNull();
+    click('[role="switch"][aria-label="Lid"]');
+    click('[data-testid="button-lid-style-overlap"]');
+    expect(warning()).toBeNull();
+    click('[data-testid="button-lid-top-stacking"]');
+    expect(warning()?.textContent).toContain("currently require a filled lid for printability");
+    click('[data-testid="button-lid-style-inset"]');
+    expect(warning()).toBeNull();
+    click('[data-testid="button-lid-style-overlap"]');
+    expect(warning()).not.toBeNull();
+    click('[data-testid="button-lid-top-flat"]');
+    expect(warning()).toBeNull();
+    click('[data-testid="button-lid-top-stacking"]');
+    click('[role="switch"][aria-label="Lid"]');
+    expect(warning()).toBeNull();
+  } finally { unmount(); }
+});
+
 it.each([false, true])("adjusts shared walls with undo and retains the setting across styles (mobile=%s)", async mobile => {
   let controls: ReturnType<typeof usePanelState>;
   function PanelProbe() { controls = usePanelState(); return null; }
