@@ -11,6 +11,41 @@ adapts. Transitive dependencies are not enumerated here; their notices remain
 with their packages. Exact npm versions are recorded in package-lock.json.
 
 ================================================================================
+README screenshots — project-owned documentation
+================================================================================
+
+`docs/images/trace-outline.jpg`, `docs/images/bin-layout.jpg`, and
+`docs/images/ruler-check.jpg` are unmodified copies of existing project
+screenshots, captured from Pocketry's Trace and Bin workspaces using the
+project's air-duster example photographs. These documentation images are
+distributed under Pocketry's AGPL-3.0-only licence.
+
+================================================================================
+Printed-bin photographs — contributor-supplied documentation
+================================================================================
+
+`docs/images/printed-bin-loaded.jpg` and `docs/images/printed-bin-pocket.jpg`
+are edited copies of `20260907_125211.jpg` and `20260907_125222.jpg`, respectively,
+supplied by Will Cobb for the public README. Exposure, white balance, and
+contrast cleanup used OpenAI's built-in ImageGen tool. The published JPEGs
+have embedded metadata removed; the supplied originals remain unchanged.
+These documentation images are distributed under Pocketry's AGPL-3.0-only
+licence; product names and marks visible in the photographs retain their
+respective ownership.
+
+================================================================================
+Bambu Studio screenshot — third-party interface
+================================================================================
+
+`docs/images/fit-check-slicer.jpg` was captured from the installed Bambu Studio
+application on macOS on September 17, 2026, displaying a tool-outline fit-check
+STL exported by Pocketry. Bambu Studio is distributed under the GNU Affero
+General Public License, version 3. Its interface and branding retain their
+respective rights.
+Source: https://github.com/bambulab/BambuStudio
+Licence: https://github.com/bambulab/BambuStudio/blob/master/LICENSE
+
+================================================================================
 Sugarcreek Research logo — project-owned artwork
 ================================================================================
 
