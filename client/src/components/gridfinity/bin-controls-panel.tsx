@@ -737,7 +737,7 @@ export function BinControlsPanel({
                   <Button key={style} size="sm" className="h-auto min-h-9 min-w-0 whitespace-normal px-2 text-xs" variant={spec.magneticLidStyle === style ? "secondary" : "outline"}
                     aria-pressed={spec.magneticLidStyle === style} data-testid={`button-lid-style-${style}`}
                     onClick={() => patchSpec({ magneticLidStyle: style, ...(style === "inset" ? { lip: "standard" } : {}),
-                      ...(style === "overlap" && spec.lidInterface === "spring-latch" ? { lidInterface: "side-springs" } : {}) })}>
+                      ...(style === "overlap" && spec.lidInterface === "spring-latch" ? { lidInterface: "ribs" } : {}) })}>
                     {style === "overlap" ? "Overlapping edge" : "Inset"}
                   </Button>
                 ))}
@@ -790,17 +790,20 @@ export function BinControlsPanel({
                   <SelectTrigger className="h-8" aria-label="Lid interface" data-testid="select-lid-interface"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="ribs">Contact ribs</SelectItem>
-                    <SelectItem value="side-springs">Side springs</SelectItem>
+                    <SelectItem value="side-springs" disabled>Side springs</SelectItem>
                     <SelectItem value="angled-fins">Angled fins</SelectItem>
-                    {spec.magneticLidStyle === "inset" && <SelectItem value="spring-latch">Spring latch</SelectItem>}
+                    {spec.magneticLidStyle === "inset" && <SelectItem value="spring-latch" disabled>Spring latch</SelectItem>}
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground" data-testid="lid-interface-unavailable">
+                  Side springs and Spring latch are disabled pending redesign after fit testing.
+                </p>
                 <p className="text-xs text-muted-foreground">
                   {{ ribs: "Small ribs on a thin rim grip the bin.",
-                    "side-springs": "Adjacent beams flex at the rim. The filled underside sits flat for printing; keep the spring gaps clear.",
+                    "side-springs": "This saved design uses Side springs. Choose Contact ribs or Angled fins for new prints.",
                     "angled-fins": "Angled fingers run across each straight edge beneath a solid top. Keep their release gaps clear when slicing.",
-                    "spring-latch": "Enclosed springs compress perpendicular to the edge. Only the latch heads are exposed, engaging matching recesses. Pull up to release." }[spec.lidInterface]}
-                  {spec.lidInterface !== "ribs" ? " Export a matching bin and lid; test the fit before making a larger case." : " Tune after a test print."}
+                    "spring-latch": "This saved design uses Spring latch. Choose Contact ribs or Angled fins for new prints." }[spec.lidInterface]}
+                  {spec.lidInterface === "angled-fins" ? " Export a matching bin and lid; test the fit before making a larger case." : spec.lidInterface === "ribs" ? " Tune after a test print." : ""}
                 </p>
                 {spec.lidInterface === "ribs" && <div data-testid="lid-rib-spacing-controls">
                   <MmSlider label="Rib spacing" value={spec.lidRibSpacingMm}

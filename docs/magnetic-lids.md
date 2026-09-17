@@ -5,8 +5,9 @@ Enable **Construction → Lid**, choose **Overlapping edge** or **Inset**, and
 choose a **Flat** or **Stacking top**. Magnets are optional. With **Lid magnet
 holes** off, choose **Easy lift-off** or **Compliant fit** and use the single
 **Lighter / Firmer** grip adjustment (or **Looser / Tighter** clearance for easy lift-off).
-Compliant fit offers **Contact ribs**, **Side springs**, and **Angled fins** in
-one Interface selector. **Inset** lids also offer **Spring latch**.
+Compliant fit offers **Contact ribs** and **Angled fins** in one Interface selector.
+**Side springs** and the inset-only **Spring latch** remain visible but grayed out
+and unavailable for selection pending redesign after physical fit testing.
 Export the bin normally and the lid separately under **Export → Export lid**,
 as STL or 3MF. Geometry settings survive autosave, project files, and undo.
 
@@ -15,6 +16,21 @@ With a lid enabled, Materials offers a **Lid** color instead of a colored band
 at the bin rim. The lid follows the bin's base color until a separate color is
 chosen; that selection is also used in its 3MF export. As with the existing
 material colors, these are view settings rather than saved project geometry.
+
+## Physical fit testing status
+
+The latest gray PETG test run is complete. **Side springs and Spring latch did
+not function well** and need redesign before further use. **Contact ribs and
+Angled fins worked reasonably well**, but the individual labeled results still
+need detailed review; this is preliminary feedback, not full qualification.
+
+The Interface selector disables the two spring options on desktop and mobile.
+Previously saved spring designs and undo history retain their original geometry
+for inspection, with an explanation directing new prints to Contact ribs or
+Angled fins. Changing a saved inset latch to Overlapping edge selects Contact
+ribs; undo restores the original design. The prototype geometry and its digital
+tests remain available for the upcoming redesign. The spring descriptions below
+document those retained prototypes rather than currently selectable options.
 
 ## Styles and fit
 
@@ -135,7 +151,7 @@ dimensions or physical qualification for Pocketry.
   chamber preserves the current recess position and preload, so current matching
   latch bins can be reused with the enclosed lid. Pocket and finger cutters cannot
   remove the recess backing. Switching from an inset latch to Overlapping edge
-  selects Side springs; undo restores the previous style and latch together.
+  selects Contact ribs; undo restores the previous style and latch together.
 - The optional stacking rim stays continuous, above the solid cap. Loaded
   stacking still needs physical testing. Start with a flat top when qualifying
   the springs, and inspect the release gaps so support or drooping bridges do
@@ -247,9 +263,9 @@ for the larger bin, and test repeated opening. Test a bin on the stacking top.
 
 Install opposing magnet pairs with attracting faces together. A fully seated
 2 mm magnet sits 0.4 mm below each mating face, giving a nominal 0.8 mm gap
-between paired magnets. Check retention before use. Print fit, rim
-durability, creep, magnetic holding strength, and loaded stacking remain
-**unvalidated physically**.
+between paired magnets. Check retention before use. Detailed fit results, rim
+durability, creep, magnetic holding strength, and loaded stacking still require
+review or further physical testing.
 
 ## Digital verification
 
@@ -277,5 +293,8 @@ single connected solids, free travel gaps, detent/recess alignment, pull-release
 contact, continuous covers above and below the latch, centered side openings,
 rear-only spring attachment, adjacent side springs on long edges, filled side-spring
 bottoms, root-only attachment of every beam, cutter protection, and unchanged bin geometry across fit adjustments.
-The new side springs, fins, and folded latch have **not been physically tested**;
-the earlier test plate does not qualify these new mechanisms.
+The subsequent gray PETG fit run exposed poor function in the side springs and
+folded latch, so both are disabled in the selector pending redesign. Contact ribs
+and angled fins received positive preliminary feedback; detailed per-part results
+are pending. Passing digital geometry and slicer checks did not establish reliable
+physical spring behavior.

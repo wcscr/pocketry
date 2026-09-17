@@ -476,36 +476,63 @@ it.each([false, true])("selects compliant interfaces with undo and hides them fo
     expect(current().lidRibSpacingMm).toBe(24);
     React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
     expect(current().lidRibSpacingMm).toBe(8);
-    for (const [label, value] of [["Side springs", "side-springs"], ["Angled fins", "angled-fins"], ["Spring latch", "spring-latch"]]) {
-      React.act(() => select()!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
-      const option = Array.from(document.querySelectorAll<HTMLElement>('[role="option"]')).find(el => el.textContent === label)!;
-      React.act(() => option.click());
-      expect(current().lidInterface).toBe(value);
-      expect(panel.querySelector('[data-testid="lid-rib-spacing-controls"]')).toBeNull();
-      expect(current().lidRibSpacingMm).toBe(8);
-    }
-    expect(panel.textContent).toContain("Pull up to release");
-    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
-    expect(current().lidInterface).toBe("angled-fins");
-    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
-    expect(current().lidInterface).toBe("spring-latch");
-    React.act(() => panel.querySelector<HTMLButtonElement>('[data-testid="button-lid-style-overlap"]')!.click());
-    expect(current()).toMatchObject({ magneticLidStyle: "overlap", lidInterface: "side-springs" });
     React.act(() => select()!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
-    expect(Array.from(document.querySelectorAll<HTMLElement>('[role="option"]')).map(el => el.textContent))
-      .toEqual(["Contact ribs", "Side springs", "Angled fins"]);
+    const options = Array.from(document.querySelectorAll<HTMLElement>('[role="option"]'));
+    for (const label of ["Side springs", "Spring latch"]) {
+      const option = options.find(el => el.textContent === label)!;
+      expect(option.getAttribute("aria-disabled")).toBe("true");
+      React.act(() => option.click());
+      expect(current().lidInterface).toBe("ribs");
+    }
+    const fins = options.find(el => el.textContent === "Angled fins")!;
+    expect(fins.getAttribute("aria-disabled")).not.toBe("true");
+    React.act(() => fins.click());
+    expect(current().lidInterface).toBe("angled-fins");
+    expect(panel.querySelector('[data-testid="lid-rib-spacing-controls"]')).toBeNull();
+    expect(current().lidRibSpacingMm).toBe(8);
+    expect(panel.querySelector('[data-testid="lid-interface-unavailable"]')?.textContent).toContain("disabled pending redesign after fit testing");
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+    expect(current().lidInterface).toBe("ribs");
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+    expect(current().lidInterface).toBe("angled-fins");
+    React.act(() => panel.querySelector<HTMLButtonElement>('[data-testid="button-lid-style-overlap"]')!.click());
+    expect(current()).toMatchObject({ magneticLidStyle: "overlap", lidInterface: "angled-fins" });
+    React.act(() => select()!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+    expect(Array.from(document.querySelectorAll<HTMLElement>('[role="option"]')).map(el => [el.textContent, el.getAttribute("aria-disabled") === "true"]))
+      .toEqual([["Contact ribs", false], ["Side springs", true], ["Angled fins", false]]);
     React.act(() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
     React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
-    expect(current()).toMatchObject({ magneticLidStyle: "inset", lidInterface: "spring-latch" });
+    expect(current()).toMatchObject({ magneticLidStyle: "inset", lidInterface: "angled-fins" });
     toggle("Base magnet holes");
     expect(select()).not.toBeNull();
     toggle("Lid magnet holes");
     expect(select()).toBeNull();
     toggle("Lid magnet holes");
-    expect(select()?.textContent).toContain("Spring latch");
+    expect(select()?.textContent).toContain("Angled fins");
     React.act(() => panel.querySelector<HTMLButtonElement>('[data-testid="button-lid-fit-lift-off"]')!.click());
     expect(select()).toBeNull();
-    expect(current().lidInterface).toBe("spring-latch");
+    expect(current().lidInterface).toBe("angled-fins");
+  } finally { unmount(); }
+});
+
+it.each(["side-springs", "spring-latch"] as const)("preserves saved %s designs and switches an old latch to an available overlap interface", async lidInterface => {
+  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, spec: parseBinSpec({
+    ...EMPTY_PROJECT.spec, magneticLid: true, magneticLidStyle: "inset", lidMagnetHoles: false,
+    lidFit: "friction", lidInterface,
+  }) });
+  const { container, unmount } = renderPage();
+  await flushHydration();
+  try {
+    openSettingsSection(container, "construction");
+    const current = () => vi.mocked(useBinGeometry).mock.calls.at(-1)![0];
+    expect(current().lidInterface).toBe(lidInterface);
+    expect(container.textContent).toContain("Choose Contact ribs or Angled fins for new prints.");
+    if (lidInterface === "spring-latch") {
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-lid-style-overlap"]')!.click());
+      expect(current()).toMatchObject({ magneticLidStyle: "overlap", lidInterface: "ribs" });
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+      expect(current()).toMatchObject({ magneticLidStyle: "inset", lidInterface: "spring-latch" });
+    }
   } finally { unmount(); }
 });
 
