@@ -307,7 +307,7 @@ it.each([false, true])("enables magnetic lids independently of base magnets and 
   } finally { unmount(); }
 });
 
-it.each([false, true])("warns about filled overlapping stacking lids only while that combination is enabled (mobile=%s)", async mobile => {
+it.each([false, true])("warns on the canvas about filled overlapping stacking lids only while enabled (mobile=%s)", async mobile => {
   let controls: ReturnType<typeof usePanelState>;
   function PanelProbe() { controls = usePanelState(); return null; }
   const { container, unmount } = render(<PanelProvider><PanelProbe /><ShapeLibraryProvider><BinDesignerPage /></ShapeLibraryProvider></PanelProvider>, { mobile });
@@ -316,14 +316,24 @@ it.each([false, true])("warns about filled overlapping stacking lids only while 
     React.act(() => controls!.setPanelOpen(true));
     const panel = mobile ? document.body : container;
     openSettingsSection(panel, "construction");
-    const warning = () => panel.querySelector('[data-testid="overlap-stacking-print-warning"]');
+    const warning = () => container.querySelector('[data-issue-code="overlap-stacking-filled-lid"]');
     const click = (selector: string) => React.act(() => panel.querySelector<HTMLButtonElement>(selector)!.click());
     expect(warning()).toBeNull();
     click('[role="switch"][aria-label="Lid"]');
     click('[data-testid="button-lid-style-overlap"]');
     expect(warning()).toBeNull();
     click('[data-testid="button-lid-top-stacking"]');
+    const warnings = container.querySelector('[data-testid="canvas-warnings"]')!;
+    expect(warnings.closest('[data-testid="bin-canvas"]')).not.toBeNull();
+    React.act(() => warnings.querySelector<HTMLButtonElement>('button[aria-expanded]')!.click());
     expect(warning()?.textContent).toContain("currently require a filled lid for printability");
+    expect(panel.querySelector('#bin-settings-construction')?.textContent).not.toContain("currently require a filled lid");
+    React.act(() => controls!.setPanelOpen(false));
+    expect(warning()).not.toBeNull();
+    React.act(() => (warning() as HTMLButtonElement).click());
+    expect(controls!.panelOpen).toBe(true);
+    expect(panel.querySelector('#bin-settings-construction [role="switch"][aria-label="Lid"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="bin-viewport-stub"]')).not.toBeNull();
     click('[data-testid="button-lid-style-inset"]');
     expect(warning()).toBeNull();
     click('[data-testid="button-lid-style-overlap"]');
@@ -552,24 +562,34 @@ it.each([false, true])("selects compliant interfaces with undo and hides them fo
   } finally { unmount(); }
 });
 
-it.each(["side-springs", "spring-latch"] as const)("preserves saved %s designs and switches an old latch to an available overlap interface", async lidInterface => {
-  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, spec: parseBinSpec({
+it.each(["side-springs", "spring-latch"] as const)("loads saved %s designs as contact ribs through undo and redo", async lidInterface => {
+  const spec = parseBinSpec({
     ...EMPTY_PROJECT.spec, magneticLid: true, magneticLidStyle: "inset", lidMagnetHoles: false,
     lidFit: "friction", lidInterface,
-  }) });
+  });
+  // Persistence and file imports share this parser; hydrate its migrated result.
+  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(parseProjectDoc({
+    ...EMPTY_PROJECT, schemaVersion: 25, spec,
+    history: { index: 1, stack: [
+      { ...spec, magneticLidStyle: "overlap", lidInterface: "side-springs" },
+      spec,
+      { ...spec, magneticLidTop: "stacking", lidInterface: "spring-latch" },
+    ].map((spec, index) => ({ label: `Step ${index}`, doc: { spec, cutouts: [], fingerHoles: [] } })) },
+  }));
   const { container, unmount } = renderPage();
   await flushHydration();
   try {
     openSettingsSection(container, "construction");
     const current = () => vi.mocked(useBinGeometry).mock.calls.at(-1)![0];
-    expect(current().lidInterface).toBe(lidInterface);
-    expect(container.textContent).toContain("Choose Contact ribs or Angled fins for new prints.");
-    if (lidInterface === "spring-latch") {
-      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-lid-style-overlap"]')!.click());
-      expect(current()).toMatchObject({ magneticLidStyle: "overlap", lidInterface: "ribs" });
-      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
-      expect(current()).toMatchObject({ magneticLidStyle: "inset", lidInterface: "spring-latch" });
-    }
+    const undo = () => React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+    const redo = () => React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+    expect(current()).toMatchObject({ magneticLidStyle: "inset", lidInterface: "ribs" });
+    expect(container.querySelector('[data-testid="select-lid-interface"]')!.textContent).toContain("Contact ribs");
+    undo();
+    expect(current()).toMatchObject({ magneticLidStyle: "overlap", lidInterface: "ribs" });
+    redo();
+    redo();
+    expect(current()).toMatchObject({ magneticLidTop: "stacking", lidInterface: "ribs" });
   } finally { unmount(); }
 });
 

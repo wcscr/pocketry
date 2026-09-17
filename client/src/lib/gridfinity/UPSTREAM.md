@@ -46,9 +46,12 @@ permissive).
   vertices on cardinal directions and bounding boxes stay exact). Note
   manifold's `revolve(segments, degrees)` spreads `segments` across the swept
   angle, so a quarter revolve is passed `circularSegments / 4`.
-- **`calculateNormals(0, 60)`, not `(3, 60)`.** The plan document predates
+- **`calculateNormals(0, 40)`, not `(3, 60)`.** The plan document predates
   manifold deprecating non-zero normal channel indices; channel 0 is the
-  "standard slot" and `getMesh()` then returns interleaved normals.
+  "standard slot" and `getMesh()` then returns interleaved normals. The 40°
+  threshold preserves the 45° chamfer and grip-recess edges; 60° smoothed them
+  into the flat walls, creating diagonal shading artifacts. Export geometry
+  is unchanged.
 - The infill spans the full footprint (as upstream, minus their tolerance
   shave) and parts may overlap; `buildBin` unions them. Multi-color 3MF export
   cuts configurable non-overlapping volumes downward from blind-pocket floors

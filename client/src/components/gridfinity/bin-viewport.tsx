@@ -36,7 +36,7 @@ const EMPTY_MEASUREMENT_PATHS: MeasurementPaths = [];
  * Conventions: the geometry arrives in the bin frame (millimetres, z-up,
  * XY-centred, grounded at z = 0), so the camera's `up` is +z and the ground
  * grid is rotated into the XY plane with 42 mm divisions matching the
- * Gridfinity pitch. Normals come precomputed from manifold with 60° creases —
+ * Gridfinity pitch. Normals come precomputed from manifold with 40° creases —
  * the material must never trigger a recompute (see `toBufferGeometry`).
  */
 export interface BinViewportProps {

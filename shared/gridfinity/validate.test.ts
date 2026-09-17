@@ -70,6 +70,27 @@ describe("validateBinSpec", () => {
     expect(result.ok).toBe(true);
   });
 
+  it("warns about filled overlapping stacking lids without blocking export", () => {
+    for (const fill of ["none", "solid"] as const) for (const lidMagnetHoles of [false, true]) {
+      const result = validateBinSpec(spec({ magneticLid: true, magneticLidStyle: "overlap",
+        magneticLidTop: "stacking", lidMagnetHoles, fill }));
+      expect(result.ok).toBe(true);
+      expect(result.issues).toContainEqual(expect.objectContaining({
+        code: "overlap-stacking-filled-lid", severity: "warning",
+        message: expect.stringContaining("currently require a filled lid for printability"),
+      }));
+    }
+  });
+
+  it("keeps the filled-lid warning absent for flat, inset, and disabled lids", () => {
+    for (const patch of [{ magneticLidTop: "flat" as const },
+      { magneticLidStyle: "inset" as const }, { magneticLid: false }]) {
+      const result = validateBinSpec(spec({ magneticLid: true, magneticLidStyle: "overlap",
+        magneticLidTop: "stacking", ...patch }));
+      expect(result.issues.map(issue => issue.code)).not.toContain("overlap-stacking-filled-lid");
+    }
+  });
+
   it("does not warn about the lip when there is none", () => {
     const result = validateBinSpec(spec({ heightUnits: 1, lip: "none" }));
     expect(result.issues.map((issue) => issue.code)).not.toContain(

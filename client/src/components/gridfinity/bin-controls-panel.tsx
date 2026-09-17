@@ -756,12 +756,6 @@ export function BinControlsPanel({
                 Holds a Gridfinity bin on the lid. Exported top up with a filled center. Inspect bridges across the rim channel, interface gaps, and magnet clearances when slicing.
                 {spec.fill === "solid" && spec.magneticLidStyle === "overlap" && " Re-export solid bins to leave room below this lid."}
               </p>}
-              {spec.magneticLidStyle === "overlap" && spec.magneticLidTop === "stacking" && (
-                <p role="status" data-testid="overlap-stacking-print-warning"
-                  className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs text-amber-900 dark:text-amber-100">
-                  Overlapping lids with stacking tops currently require a filled lid for printability. The underside is filled automatically, using more material and interior space.
-                </p>
-              )}
               <p className="text-xs text-muted-foreground">
                 {spec.magneticLidStyle === "overlap"
                   ? "Wraps around an inset rim. Replaces the stacking lip."

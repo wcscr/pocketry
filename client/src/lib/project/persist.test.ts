@@ -49,6 +49,21 @@ afterEach(() => {
 });
 
 describe("current project persistence", () => {
+  it.each(["side-springs", "spring-latch"] as const)("migrates a stored %s draft and persists contact ribs on save", async lidInterface => {
+    const spec = { ...DOC.spec, magneticLid: true, lidMagnetHoles: false, lidFit: "friction" as const, lidInterface };
+    const previous = { ...DOC, schemaVersion: 25, spec, history: { index: 0, stack: [
+      { label: "Saved", doc: { spec, cutouts: [], fingerHoles: [] } },
+    ] } };
+    memory.set("tooltrace:project:v1", previous);
+    const migrated = (await loadProjectDoc())!;
+    expect(migrated.spec.lidInterface).toBe("ribs");
+    expect(migrated.history!.stack[0].doc.spec.lidInterface).toBe("ribs");
+    expect(previous.spec.lidInterface).toBe(lidInterface);
+    expect(await saveProjectDoc(migrated)).toBe(true);
+    expect(await loadProjectDoc()).toEqual(migrated);
+    expect(memory.get("tooltrace:project:v1")).toEqual(migrated);
+  });
+
   it("opens, saves, reloads and exports every item in the v9 Airduster project", async () => {
     memory.set("tooltrace:project:v1", structuredClone(airdusterV9));
     const migrated = (await loadProjectDoc())!;

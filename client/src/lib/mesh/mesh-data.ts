@@ -31,7 +31,7 @@ export interface MeshDataOptions {
    * `computeVertexNormals()`.
    */
   normals?: boolean;
-  /** Crease threshold in degrees. Default 60: 45° chamfer edges stay sharp. */
+  /** Crease threshold in degrees. Default 40 keeps 45° chamfers and grip recesses sharp. */
   sharpAngleDeg?: number;
 }
 
@@ -50,7 +50,10 @@ export function extractMeshData(
 ): MeshData {
   const { arena } = kernel;
   const wantNormals = options.normals ?? false;
-  const sharpAngleDeg = options.sharpAngleDeg ?? 60;
+  // A 60° threshold blends the roughly 45° recess into the broad flat wall,
+  // spreading its lighting along long CSG triangles. Keep that join creased
+  // while smoothing the much smaller angles between rounded-profile facets.
+  const sharpAngleDeg = options.sharpAngleDeg ?? 40;
 
   if (!wantNormals) {
     const mesh = solid.getMesh();

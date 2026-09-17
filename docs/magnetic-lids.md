@@ -53,9 +53,11 @@ feedback. These changes **have not been physically retested**:
   a continuous rounded center, even if the bin has underside magnets.
   Inset stacking rib/fin lids also have filled centers. Remaining channels and
   release gaps still bridge; slicing and physical print checks are required.
-- The lid controls warn when Overlapping edge and Stacking top are selected
+- The standard canvas warning panel warns when Overlapping edge and Stacking top are selected
   that a filled lid is currently required for printability, using more material
   and interior space.
+- Grip recesses retain a sharp shading boundary against the flat wall, avoiding
+  diagonal lighting artifacts in the preview without changing printable geometry.
 
 Existing round 3 **hollow** bins can be reused with matching lid styles,
 interfaces and closure-magnet settings when Grip recess is off. Nonmagnetic
@@ -72,11 +74,11 @@ start with lighter grip for two or more ribs per side, since 319 was excessively
 hard to remove. No claim of a calibrated holding force is made.
 
 The Interface selector disables the two spring options on desktop and mobile.
-Previously saved spring mechanisms remain available in designs and undo history
-for inspection, with an explanation directing new prints to Contact ribs or
-Angled fins. Changing a saved inset latch to Overlapping edge selects Contact
-ribs; undo restores the original design. The prototype geometry and its digital
-tests remain available for the upcoming redesign. The spring descriptions below
+Loading or importing a design migrates Side springs and Spring latch to Contact
+ribs, including every saved undo/redo step. Schema version 26 preserves all other
+settings and history positions; Angled fins remains unchanged. Disabled interfaces
+cannot return through Undo. The prototype geometry and its digital tests remain
+available internally for the upcoming redesign. The spring descriptions below
 document those retained prototypes rather than currently selectable options.
 
 ## Styles and fit
@@ -265,8 +267,10 @@ dimensions or physical qualification for Pocketry.
   quarter pitch, with the minimum width and length calculated from wall thickness
   and support size (27 mm at the default; 35 mm at 4 mm walls). Minimum bin height is 2u.
 
-Project schema v25 adds the Grip recess preference (default off in older designs
-and every undo history entry). It also stores rib spacing and the interface as well as shared magnet size, wall
+Project schema v26 replaces disabled Side springs and Spring latch selections with
+Contact ribs in loaded designs and all saved history. Version 25 added the Grip
+recess preference (default off in older designs and every undo history entry).
+The format also stores rib spacing and the interface as well as shared magnet size, wall
 thickness, lid style, top, closure settings, and fit. Existing designs and undo
 history default to Contact ribs with 24 mm target spacing. Projects from before v22 default to 6 × 2 mm
 magnets without changing their recesses. Projects from before v21

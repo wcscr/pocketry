@@ -85,13 +85,50 @@ describe("parseProjectDoc", () => {
     expect(migrated.spec.lidInterface).toBe("ribs");
     expect(migrated.history!.stack[0].doc.spec.lidInterface).toBe("ribs");
     expect(JSON.stringify(previous)).toBe(original);
-    for (const lidInterface of ["ribs", "side-springs", "angled-fins", "spring-latch"] as const) {
+    for (const lidInterface of ["ribs", "angled-fins"] as const) {
       const doc = { ...migrated, spec: { ...migrated.spec, lidInterface },
         history: { index: 0, stack: [{ label: "Change interface", doc: { ...migrated.history!.stack[0].doc,
           spec: { ...migrated.spec, lidInterface } } }] } };
       expect(parseProjectDoc(JSON.parse(JSON.stringify(doc)))).toEqual(doc);
     }
     expect(parseProjectDoc({ ...migrated, spec: { ...migrated.spec, lidInterface: "unknown" } })).toBeNull();
+  });
+
+  it.each([23, 24, 25, PROJECT_SCHEMA_VERSION])("migrates disabled interfaces in v%s designs and all undo/redo snapshots", schemaVersion => {
+    const base = parseProjectDoc(VALID)!;
+    for (const lidInterface of ["side-springs", "spring-latch"] as const) {
+      const spec = { ...VALID.spec, magneticLid: true, lidMagnetHoles: false, lidFit: "friction" as const,
+        lidInterface, lidFitAdjustmentMm: 0.1, lidRibSpacingMm: 18, lidGripRecess: true };
+      const stack = [
+        { ...spec, lidInterface: "spring-latch" as const, magneticLid: false },
+        spec,
+        { ...spec, lidInterface: "side-springs" as const, lidMagnetHoles: true },
+        { ...spec, lidInterface: "angled-fins" as const },
+      ].map((spec, index) => ({ label: `Step ${index}`, doc: { spec, cutouts: base.cutouts, fingerHoles: [] } }));
+      const previous = { ...base, schemaVersion, name: "Fit test", keepBinSize: true, spec, history: { stack, index: 1 } };
+      const original = JSON.stringify(previous);
+      const migrated = parseProjectDoc(previous)!;
+      expect(migrated).toEqual({
+        ...previous, schemaVersion: PROJECT_SCHEMA_VERSION, spec: { ...spec, lidInterface: "ribs" },
+        history: { index: 1, stack: stack.map((entry, index) => ({ ...entry,
+          doc: { ...entry.doc, spec: { ...entry.doc.spec, lidInterface: index === 3 ? "angled-fins" : "ribs" } },
+        })) },
+      });
+      expect(JSON.stringify(previous)).toBe(original);
+      expect(parseProjectDoc(JSON.parse(JSON.stringify(migrated)))).toEqual(migrated);
+      expect(parseProjectDoc({ ...previous, history: undefined })?.spec.lidInterface).toBe("ribs");
+    }
+  });
+
+  it("rejects mismatched spring snapshots before migrating them to the same interface", () => {
+    const spec = { ...VALID.spec, lidInterface: "side-springs" };
+    expect(parseProjectDoc({ ...VALID, schemaVersion: 25, spec,
+      history: { index: 0, stack: [{ label: "Saved", doc: {
+        spec: { ...spec, lidInterface: "spring-latch" }, cutouts: VALID.cutouts, fingerHoles: [],
+      } }] },
+    })).toBeNull();
+    expect(parseProjectDoc({ ...VALID, spec: { ...spec, lidInterface: "unknown" } })).toBeNull();
+    expect(parseProjectDoc({ ...VALID, schemaVersion: PROJECT_SCHEMA_VERSION + 1, spec })).toBeNull();
   });
 
   it("preserves old overlapping wall thickness in the design and every history step", () => {

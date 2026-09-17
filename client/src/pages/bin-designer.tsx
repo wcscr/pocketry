@@ -153,6 +153,11 @@ function BinDesignerWorkspace(): JSX.Element {
     ];
   }, [spec, cutouts, fingerHoles, library.shapes, colorPocketFloors, pocketFloorThicknessMm]);
   const revealIssue = (issue: ValidationIssue) => {
+    if (issue.code === "overlap-stacking-filled-lid") {
+      setPanelOpen(true);
+      setSettingsSectionRequest({ id: "bin-settings-construction" });
+      return;
+    }
     dispatch({ type: "SET_VIEW_MODE", viewMode: "2d" });
     if (issue.cutoutIds?.length) {
       const next = issue.cutoutIds.find((id) => id !== bin.selectedCutoutId) ?? issue.cutoutIds[0];

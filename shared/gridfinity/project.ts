@@ -10,7 +10,7 @@ import {
   transformPointPlacement,
   type FingerHole,
 } from "./cutout";
-import { binSpecSchema } from "./types";
+import { binSpecSchema, type BinSpec } from "./types";
 import { binHistorySchema } from "./history";
 
 /**
@@ -43,9 +43,10 @@ import { binHistorySchema } from "./history";
  * Version 23 adds compliant lid interfaces, preserving existing contact ribs.
  * Version 24 adds contact-rib spacing, retaining the original 24 mm target.
  * Version 25 adds optional lid grip recesses, defaulting off in designs and history.
+ * Version 26 migrates disabled spring interfaces to contact ribs, including undo/redo.
  */
 
-export const PROJECT_SCHEMA_VERSION = 25 as const;
+export const PROJECT_SCHEMA_VERSION = 26 as const;
 
 const projectFields = {
   shapes: z.array(tracedShapeSchema),
@@ -183,6 +184,28 @@ function migrateLegacyProject(doc: LegacyProjectDoc): ProjectDoc {
  * an empty designer beats crashing the workspace.
  */
 export function parseProjectDoc(input: unknown): ProjectDoc | null {
+  // Validate first: migrating both snapshots must not conceal an inconsistent
+  // saved design/history pair or turn an unknown interface into valid data.
+  const doc = parseVersionedProject(input);
+  if (!doc) return null;
+  const migrateInterface = (spec: BinSpec): BinSpec =>
+    spec.lidInterface === "side-springs" || spec.lidInterface === "spring-latch"
+      ? { ...spec, lidInterface: "ribs" }
+      : spec;
+  return {
+    ...doc,
+    spec: migrateInterface(doc.spec),
+    ...(doc.history ? { history: {
+      ...doc.history,
+      stack: doc.history.stack.map(entry => ({
+        ...entry, doc: { ...entry.doc, spec: migrateInterface(entry.doc.spec) },
+      })),
+    } } : {}),
+  };
+}
+
+/** Upgrade the format and validate the original snapshots before normalizing interfaces. */
+function parseVersionedProject(input: unknown): ProjectDoc | null {
   if (input && typeof input === "object" && !Array.isArray(input) &&
       "schemaVersion" in input && typeof input.schemaVersion === "number" &&
       Number.isInteger(input.schemaVersion) && input.schemaVersion >= 1 && input.schemaVersion <= 20) {
@@ -207,7 +230,7 @@ export function parseProjectDoc(input: unknown): ProjectDoc | null {
     };
   }
   if (input && typeof input === "object" && !Array.isArray(input) &&
-      "schemaVersion" in input && (input.schemaVersion === 21 || input.schemaVersion === 22 || input.schemaVersion === 23 || input.schemaVersion === 24)) {
+      "schemaVersion" in input && (input.schemaVersion === 21 || input.schemaVersion === 22 || input.schemaVersion === 23 || input.schemaVersion === 24 || input.schemaVersion === 25)) {
     input = { ...input, schemaVersion: PROJECT_SCHEMA_VERSION };
   }
   const result = projectDocSchema.safeParse(input);

@@ -130,6 +130,13 @@ export function validateBinSpec(spec: BinSpec): ValidationResult {
   if (sizeError) issues.push({ code: "magnet-size-unavailable", severity: "error", message: sizeError });
   const lidError = magneticLidError(spec);
   if (lidError) issues.push({ code: "magnetic-lid-unavailable", severity: "error", message: lidError });
+  if (hasOverlappingLid(spec) && spec.magneticLidTop === "stacking") {
+    issues.push({
+      code: "overlap-stacking-filled-lid",
+      severity: "warning",
+      message: "Overlapping lids with stacking tops currently require a filled lid for printability. The underside is filled automatically, using more material and interior space.",
+    });
+  }
   const wallHeight = binWallHeightMm(spec.heightUnits);
 
   if (hasStackingLip(spec) && wallHeight < STACKING_LIP_SUPPORT_HEIGHT_MM) {

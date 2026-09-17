@@ -26,6 +26,27 @@ const backup = (docs: Record<string, unknown>[] = [DOC]): LibraryBackup => ({
 beforeEach(() => { memory.clear(); vi.clearAllMocks(); });
 
 describe("library JSON transfer", () => {
+  it("migrates disabled interfaces in imported projects and exports the migrated history", async () => {
+    const docs = ["side-springs", "spring-latch"].map(lidInterface => {
+      const spec = { ...DOC.spec, magneticLid: true, lidInterface };
+      return { ...DOC, schemaVersion: 25, spec, history: { index: 0, stack: [
+        { label: "Loaded", doc: { spec, cutouts: DOC.cutouts, fingerHoles: DOC.fingerHoles } },
+      ] } };
+    });
+    const result = await importProjectLibrary(backup(docs));
+    expect(result).toMatchObject({ imported: 2, upgraded: 2 });
+    for (const project of result.library.projects) {
+      const opened = await openProjectFromLibrary(project.id);
+      expect(opened.doc.spec.lidInterface).toBe("ribs");
+      expect(opened.doc.history!.stack[0].doc.spec.lidInterface).toBe("ribs");
+      expect(await loadProjectDoc()).toEqual(opened.doc);
+    }
+    const exported = await exportProjectLibrary();
+    expect(exported.projects.map(project => project.doc)).toEqual(docs.map((doc, index) => ({
+      ...parseProjectDoc(doc), name: `Design ${index}`,
+    })));
+  });
+
   it("preserves the Ryobi split through repeated project switches, reloads and library exports", async () => {
     const cutter = parseProjectDoc(ryobiReloadFixture)!;
     const imported = await importProjectLibrary(backup([cutter, DOC]));
