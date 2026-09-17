@@ -19,10 +19,33 @@ material colors, these are view settings rather than saved project geometry.
 
 ## Physical fit testing status
 
-The latest gray PETG test run is complete. **Side springs and Spring latch did
-not function well** and need redesign before further use. **Contact ribs and
-Angled fins worked reasonably well**, but the individual labeled results still
-need detailed review; this is preliminary feedback, not full qualification.
+The latest gray PETG test run and initial labeled fit review are complete.
+See the [round 3 physical results](fit-tests/magnetic-lids-round3.md) and
+[44-part ledger](fit-tests/magnetic-lids-round3.csv). **Side springs and Spring
+latch both failed as design families**: thin/broken springs and obstructed or
+stuck mechanisms prevented reliable operation. Both need substantial research
+before redesign or another physical prototype.
+
+Contact ribs and Angled fins have useful configurations, with unresolved
+issues. The preferred overlapping rib fit is 307 or slightly lighter; 319 is
+too tight to remove by hand. Overlapping fins 314 retained a good fit with no
+play after 25+ openings despite initial loosening. Inset ribs 408 also loosened
+early, then seemed to stabilize with a secure pull. These are qualitative fit
+checks, not full durability qualification.
+
+Flat inset caps are undersized and difficult to grasp; their outer outline
+must match the bin while mating clearance is handled separately. Overlapping
+stacking lids 305 and 316 have underside defects that prevent full seating.
+Easy-lift and empty magnetic versions generally have too much play, and inset
+fin contact appears concentrated at the corners. These defects are recorded,
+not yet fixed. Magnet-hole fit and magnetic holding force remain untested
+because magnets were unavailable.
+
+The next revision should also consider a finger recess at the lid/bin joint
+to help separate the parts. Two opposing recesses below the lid edge are a
+candidate, subject to preserving wall strength, mating contacts, magnet
+pockets, and the full lid footprint. This is a proposal alongside the larger
+inset grip surface, not an implemented feature.
 
 The Interface selector disables the two spring options on desktop and mobile.
 Previously saved spring designs and undo history retain their original geometry
@@ -246,16 +269,19 @@ npm run export:bin -- 1x1x2 --lid-style inset --lid-top stacking --out outputs/l
 
 Print the bin upright. **Flat-top lids** export with the outer face on the bed
 and the recesses and skirt facing upward. **Stacking-top lids** export upright,
-with the stacking lip facing upward. Hollow overlapping stacking lids need slicer
-support beneath their cap; side-spring lids instead have a filled center on the
-build plate. Inspect the rim channel, spring release gaps, and bridging at
+with the stacking lip facing upward. Hollow overlapping stacking lids need a
+revised underside or verified slicer support beneath their cap: round 3 lids
+305 and 316 had underside defects that prevented full seating, even though
+support had been enabled. The retained, disabled side-spring prototypes have a
+filled center on the build plate but failed physical testing. Inspect the rim
+channel, spring release gaps, and bridging at
 magnet recesses for either stacking style. Stacking lids are not the
 support-free flat-top print orientation.
 
-Check that the slicer resolves the 0.8 mm springs, 0.6 mm fins, release gaps,
-and contact ribs. Keep supports out of the moving gaps. Flat lids put the
-spring paths in the plane of the layers; angled fins still need their cap gap
-to print and release cleanly. Dry-fit
+Check that the slicer resolves the 0.6 mm fins, release gaps, and contact ribs.
+Side springs and Spring latch remain disabled pending research and redesign;
+their existing dimensions and digital checks did not produce reliable printed
+mechanisms. Angled fins still need their cap gap to print and release cleanly. Dry-fit
 before installing magnets: check entry, full seating, sideways play, and removal.
 For friction lids, begin at the middle adjustment and tune after this test.
 Use the printer, material, and settings intended
@@ -263,9 +289,9 @@ for the larger bin, and test repeated opening. Test a bin on the stacking top.
 
 Install opposing magnet pairs with attracting faces together. A fully seated
 2 mm magnet sits 0.4 mm below each mating face, giving a nominal 0.8 mm gap
-between paired magnets. Check retention before use. Detailed fit results, rim
-durability, creep, magnetic holding strength, and loaded stacking still require
-review or further physical testing.
+between paired magnets. Check retention before use. The initial labeled fit
+results are recorded above; long-term rim durability, creep, magnet-hole fit,
+magnetic holding strength, and loaded stacking still require physical testing.
 
 ## Digital verification
 
@@ -293,8 +319,8 @@ single connected solids, free travel gaps, detent/recess alignment, pull-release
 contact, continuous covers above and below the latch, centered side openings,
 rear-only spring attachment, adjacent side springs on long edges, filled side-spring
 bottoms, root-only attachment of every beam, cutter protection, and unchanged bin geometry across fit adjustments.
-The subsequent gray PETG fit run exposed poor function in the side springs and
-folded latch, so both are disabled in the selector pending redesign. Contact ribs
-and angled fins received positive preliminary feedback; detailed per-part results
-are pending. Passing digital geometry and slicer checks did not establish reliable
-physical spring behavior.
+The subsequent gray PETG fit run exposed complete failures in the side-spring
+and folded-latch families, so both remain disabled pending substantial research
+and redesign. The round 3 report records useful rib and fin fits alongside cap,
+grip, clearance, and stacking-print defects. Passing digital geometry and slicer
+checks did not establish reliable physical spring behavior or usable undersides.
