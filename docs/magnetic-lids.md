@@ -11,7 +11,9 @@ and unavailable for selection pending redesign after physical fit testing.
 Export the bin normally and the lid separately under **Export → Export lid**,
 as STL or 3MF. Geometry settings survive autosave, project files, and undo.
 
-When enabled, the lid controls share a shaded group in Construction. Style, top,
+When enabled, the lid controls share a shaded, collapsible subsection in Construction.
+Click the Lid heading to fold its settings away; the Lid switch stays visible.
+Enabling a lid opens its settings, and collapsing leaves the design unchanged. Style, top,
 and fit controls come before Grip recess and the lid magnet options. Shared wall
 thickness and magnet size remain outside this group because they also affect the bin.
 

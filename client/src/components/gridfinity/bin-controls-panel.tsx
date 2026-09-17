@@ -81,6 +81,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DraftNumberInput } from "@/components/ui/draft-number-input";
 import {
   Dialog,
@@ -342,6 +343,7 @@ export function BinControlsPanel({
   const { shapes, storeShape } = useShapeLibrary();
   const [renamingFingerId, setRenamingFingerId] = useState<string | null>(null);
   const [renamingPocketId, setRenamingPocketId] = useState<string | null>(null);
+  const [lidSettingsOpen, setLidSettingsOpen] = useState(true);
   useEffect(() => {
     if (!selectedCutoutId || renamingPocketId === selectedCutoutId) return;
     // Selection brings the fixed Pockets section into view. Re-selecting the
@@ -359,6 +361,8 @@ export function BinControlsPanel({
   const hasFloorMaterialWarning = issues.some((issue) => issue.code === "floor-color-on-underside");
   useEffect(() => {
     if (settingsSectionRequest) revealPanelSection(settingsSectionRequest.id, BIN_SETTINGS_SECTIONS);
+    // The lid printability warning must reveal its controls even after collapse.
+    if (settingsSectionRequest?.id === "bin-settings-construction") setLidSettingsOpen(true);
   }, [settingsSectionRequest]);
   const hasErrors = issues.some((issue) => issue.severity === "error");
   const enabledFeatureCount = [
@@ -722,122 +726,134 @@ export function BinControlsPanel({
             checked={spec.fill === "solid"}
             onChange={(on) => patchSpec({ fill: on ? "solid" : "none" })}
           />
-          <div
+          <Collapsible
+            open={lidSettingsOpen} onOpenChange={setLidSettingsOpen}
             className={spec.magneticLid ? "space-y-3 rounded-md border border-rose-500/30 bg-rose-500/[0.025] p-2.5" : undefined}
             role="group" aria-label="Lid settings" data-testid="lid-settings"
           >
-            <FeatureSwitch
-              label="Lid"
-              description="Matching removable lid with optional magnet closure"
-              checked={spec.magneticLid}
-              onChange={(magneticLid) => patchSpec({ magneticLid, ...(magneticLid ? { lip: "standard" } : {}) })}
-            />
-            {spec.magneticLid && (
-              <div className="space-y-1.5">
-                <Label className="text-xs">Lid style</Label>
-                <div className="grid grid-cols-2 gap-1" role="group" aria-label="Lid style">
-                  {(["overlap", "inset"] as const).map(style => (
-                    <Button key={style} size="sm" className="h-auto min-h-9 min-w-0 whitespace-normal px-2 text-xs" variant={spec.magneticLidStyle === style ? "secondary" : "outline"}
-                      aria-pressed={spec.magneticLidStyle === style} data-testid={`button-lid-style-${style}`}
-                      onClick={() => patchSpec({ magneticLidStyle: style, ...(style === "inset" ? { lip: "standard" } : {}),
-                        ...(style === "overlap" && spec.lidInterface === "spring-latch" ? { lidInterface: "ribs" } : {}) })}>
-                      {style === "overlap" ? "Overlapping edge" : "Inset"}
-                    </Button>
-                  ))}
-                </div>
-                <Label className="text-xs">Lid top</Label>
-                <div className="grid grid-cols-2 gap-1" role="group" aria-label="Lid top">
-                  {(["flat", "stacking"] as const).map(top => (
-                    <Button key={top} size="sm" className="h-auto min-h-9 min-w-0 whitespace-normal px-2 text-xs"
-                      variant={spec.magneticLidTop === top ? "secondary" : "outline"}
-                      aria-pressed={spec.magneticLidTop === top} data-testid={`button-lid-top-${top}`}
-                      onClick={() => patchSpec({ magneticLidTop: top })}>
-                      {top === "flat" ? "Flat" : "Stacking top"}
-                    </Button>
-                  ))}
-                </div>
-                {spec.magneticLidTop === "stacking" && <p className="text-xs text-muted-foreground">
-                  Holds a Gridfinity bin on the lid. Exported top up with a filled center. Inspect bridges across the rim channel, interface gaps, and magnet clearances when slicing.
-                  {spec.fill === "solid" && spec.magneticLidStyle === "overlap" && " Re-export solid bins to leave room below this lid."}
-                </p>}
-                <p className="text-xs text-muted-foreground">
-                  {spec.magneticLidStyle === "overlap"
-                    ? "Wraps around an inset rim. Replaces the stacking lip."
-                    : "Seats inside the stacking lip, with a full-width raised cap to grip."}
-                </p>
-              </div>
-            )}
-            {spec.magneticLid && !spec.lidMagnetHoles && (
-              <div className="space-y-2" data-testid="lid-fit-controls">
-                <Label className="text-xs">Lid fit</Label>
-                <div className="grid grid-cols-2 gap-1" role="group" aria-label="Lid fit">
-                  {(["lift-off", "friction"] as const).map(fit => (
-                    <Button key={fit} size="sm" className="h-auto min-h-9 min-w-0 whitespace-normal px-2 text-xs"
-                      variant={spec.lidFit === fit ? "secondary" : "outline"}
-                      aria-pressed={spec.lidFit === fit} data-testid={`button-lid-fit-${fit}`}
-                      onClick={() => patchSpec({ lidFit: fit })}>
-                      {fit === "lift-off" ? "Easy lift-off" : "Compliant fit"}
-                    </Button>
-                  ))}
-                </div>
-                {spec.lidFit === "friction" ? <>
-                  <Label className="text-xs">Interface</Label>
-                  <Select value={spec.lidInterface} onValueChange={value => patchSpec({ lidInterface: value as BinSpecInput["lidInterface"] })}>
-                    <SelectTrigger className="h-8" aria-label="Lid interface" data-testid="select-lid-interface"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ribs">Contact ribs</SelectItem>
-                      <SelectItem value="side-springs" disabled>Side springs</SelectItem>
-                      <SelectItem value="angled-fins">Angled fins</SelectItem>
-                      {spec.magneticLidStyle === "inset" && <SelectItem value="spring-latch" disabled>Spring latch</SelectItem>}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground" data-testid="lid-interface-unavailable">
-                    Side springs and Spring latch are disabled pending redesign after fit testing.
-                  </p>
+            <div className="flex items-center gap-2">
+              {spec.magneticLid ? <CollapsibleTrigger
+                className="group flex min-h-8 min-w-0 flex-1 items-center gap-2 rounded text-left text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring [@media(pointer:coarse)]:min-h-11"
+                aria-label="Lid settings" data-testid="button-toggle-lid-settings"
+              >
+                <span className="flex-1">Lid</span>
+                <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+              </CollapsibleTrigger> : <span className="flex-1 text-xs">Lid</span>}
+              <HelpHint label="lid">Matching removable lid with optional magnet closure</HelpHint>
+              <Switch checked={spec.magneticLid} aria-label="Lid"
+                onCheckedChange={(magneticLid) => {
+                  if (magneticLid) setLidSettingsOpen(true);
+                  patchSpec({ magneticLid, ...(magneticLid ? { lip: "standard" } : {}) });
+                }} />
+            </div>
+            <CollapsibleContent className="space-y-3">
+              {spec.magneticLid && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Lid style</Label>
+                  <div className="grid grid-cols-2 gap-1" role="group" aria-label="Lid style">
+                    {(["overlap", "inset"] as const).map(style => (
+                      <Button key={style} size="sm" className="h-auto min-h-9 min-w-0 whitespace-normal px-2 text-xs" variant={spec.magneticLidStyle === style ? "secondary" : "outline"}
+                        aria-pressed={spec.magneticLidStyle === style} data-testid={`button-lid-style-${style}`}
+                        onClick={() => patchSpec({ magneticLidStyle: style, ...(style === "inset" ? { lip: "standard" } : {}),
+                          ...(style === "overlap" && spec.lidInterface === "spring-latch" ? { lidInterface: "ribs" } : {}) })}>
+                        {style === "overlap" ? "Overlapping edge" : "Inset"}
+                      </Button>
+                    ))}
+                  </div>
+                  <Label className="text-xs">Lid top</Label>
+                  <div className="grid grid-cols-2 gap-1" role="group" aria-label="Lid top">
+                    {(["flat", "stacking"] as const).map(top => (
+                      <Button key={top} size="sm" className="h-auto min-h-9 min-w-0 whitespace-normal px-2 text-xs"
+                        variant={spec.magneticLidTop === top ? "secondary" : "outline"}
+                        aria-pressed={spec.magneticLidTop === top} data-testid={`button-lid-top-${top}`}
+                        onClick={() => patchSpec({ magneticLidTop: top })}>
+                        {top === "flat" ? "Flat" : "Stacking top"}
+                      </Button>
+                    ))}
+                  </div>
+                  {spec.magneticLidTop === "stacking" && <p className="text-xs text-muted-foreground">
+                    Holds a Gridfinity bin on the lid. Exported top up with a filled center. Inspect bridges across the rim channel, interface gaps, and magnet clearances when slicing.
+                    {spec.fill === "solid" && spec.magneticLidStyle === "overlap" && " Re-export solid bins to leave room below this lid."}
+                  </p>}
                   <p className="text-xs text-muted-foreground">
-                    {{ ribs: "Small ribs on a thin rim grip the bin.",
-                      "side-springs": "This saved design uses Side springs. Choose Contact ribs or Angled fins for new prints.",
-                      "angled-fins": "Angled fingers run across each straight edge beneath a solid top. Keep their release gaps clear when slicing.",
-                      "spring-latch": "This saved design uses Spring latch. Choose Contact ribs or Angled fins for new prints." }[spec.lidInterface]}
-                    {spec.lidInterface === "angled-fins" ? " Export a matching bin and lid; test the fit before making a larger case." : spec.lidInterface === "ribs" ? " Tune after a test print." : ""}
+                    {spec.magneticLidStyle === "overlap"
+                      ? "Wraps around an inset rim. Replaces the stacking lip."
+                      : "Seats inside the stacking lip, with a full-width raised cap to grip."}
                   </p>
-                  {spec.lidInterface === "ribs" && <div data-testid="lid-rib-spacing-controls">
-                    <MmSlider label="Rib spacing" value={spec.lidRibSpacingMm}
-                      min={MIN_LID_RIB_SPACING_MM} max={MAX_LID_RIB_SPACING_MM} step={1}
-                      hint="Closer spacing adds ribs and increases hold. Start with lighter grip for closely spaced overlapping ribs."
-                      onChange={(lidRibSpacingMm, transient) => patchSpec({ lidRibSpacingMm }, transient)} />
-                    <p className="text-xs text-muted-foreground" data-testid="lid-rib-count">
-                      Per edge: {lidContactRibPositions(spec, "x").length} along width · {lidContactRibPositions(spec, "y").length} along length
-                    </p>
-                  </div>}
-                </> : <p className="text-xs text-muted-foreground">Small locating clearance for easy removal.</p>}
-                <Label className="text-xs">{spec.lidFit === "friction" ? "Grip" : "Fit adjustment"}</Label>
-                <Slider centerOrigin value={[Math.round(spec.lidFitAdjustmentMm / 0.05)]} min={-2} max={2} step={1}
-                  aria-label="Lid fit adjustment"
-                  aria-valuetext={spec.lidFitAdjustmentMm === 0 ? "Default" : `${Math.abs(spec.lidFitAdjustmentMm).toFixed(2)} mm ${spec.lidFit === "friction" ? (spec.lidFitAdjustmentMm > 0 ? "firmer" : "lighter") : (spec.lidFitAdjustmentMm > 0 ? "tighter" : "looser")}`}
-                  onValueChange={([step]) => patchSpec({ lidFitAdjustmentMm: Number((step * 0.05).toFixed(2)) }, true)}
-                  onValueCommit={([step]) => patchSpec({ lidFitAdjustmentMm: Number((step * 0.05).toFixed(2)) })} />
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>{spec.lidFit === "friction" ? "Lighter" : "Looser"}</span>
-                  <span>{spec.lidFit === "friction" ? "Firmer" : "Tighter"}</span>
                 </div>
-              </div>
-            )}
-            {spec.magneticLid && <>
-              <FeatureSwitch label="Grip recess" description="Two finger recesses below the lid edge for easier lifting"
-                checked={spec.lidGripRecess} onChange={lidGripRecess => patchSpec({ lidGripRecess })} />
-              <FeatureSwitch label="Lid magnet holes" description="Four matching pairs in the lid and bin rim; same magnet size as the underside"
-                checked={spec.lidMagnetHoles} onChange={lidMagnetHoles => patchSpec({ lidMagnetHoles })} />
-              {spec.lidMagnetHoles && <FeatureSwitch label="Lid crush ribs" description="Press-fit closure magnets, no glue"
-                checked={spec.lidMagnetCrushRibs} onChange={lidMagnetCrushRibs => patchSpec({ lidMagnetCrushRibs })} />}
-            </>}
-            {spec.magneticLid && spec.lidMagnetHoles && <p className="text-xs text-muted-foreground" data-testid="magnetic-lid-details">
-              Four pairs · ⌀{Number((2 * magnetHoleRadiusMm(spec)).toFixed(2))} × {Number(magnetHoleDepthMm(spec).toFixed(2))} mm recesses, same as the base.
-              {spec.lidMagnetCrushRibs ? " Press-fit" : " Glue"} magnets with attracting faces paired.
-              Keep pockets clear of the corners. Save the lid separately under Export.
-              Check fit with a small print first.
-            </p>}
-          </div>
+              )}
+              {spec.magneticLid && !spec.lidMagnetHoles && (
+                <div className="space-y-2" data-testid="lid-fit-controls">
+                  <Label className="text-xs">Lid fit</Label>
+                  <div className="grid grid-cols-2 gap-1" role="group" aria-label="Lid fit">
+                    {(["lift-off", "friction"] as const).map(fit => (
+                      <Button key={fit} size="sm" className="h-auto min-h-9 min-w-0 whitespace-normal px-2 text-xs"
+                        variant={spec.lidFit === fit ? "secondary" : "outline"}
+                        aria-pressed={spec.lidFit === fit} data-testid={`button-lid-fit-${fit}`}
+                        onClick={() => patchSpec({ lidFit: fit })}>
+                        {fit === "lift-off" ? "Easy lift-off" : "Compliant fit"}
+                      </Button>
+                    ))}
+                  </div>
+                  {spec.lidFit === "friction" ? <>
+                    <Label className="text-xs">Interface</Label>
+                    <Select value={spec.lidInterface} onValueChange={value => patchSpec({ lidInterface: value as BinSpecInput["lidInterface"] })}>
+                      <SelectTrigger className="h-8" aria-label="Lid interface" data-testid="select-lid-interface"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ribs">Contact ribs</SelectItem>
+                        <SelectItem value="side-springs" disabled>Side springs</SelectItem>
+                        <SelectItem value="angled-fins">Angled fins</SelectItem>
+                        {spec.magneticLidStyle === "inset" && <SelectItem value="spring-latch" disabled>Spring latch</SelectItem>}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground" data-testid="lid-interface-unavailable">
+                      Side springs and Spring latch are disabled pending redesign after fit testing.
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {{ ribs: "Small ribs on a thin rim grip the bin.",
+                        "side-springs": "This saved design uses Side springs. Choose Contact ribs or Angled fins for new prints.",
+                        "angled-fins": "Angled fingers run across each straight edge beneath a solid top. Keep their release gaps clear when slicing.",
+                        "spring-latch": "This saved design uses Spring latch. Choose Contact ribs or Angled fins for new prints." }[spec.lidInterface]}
+                      {spec.lidInterface === "angled-fins" ? " Export a matching bin and lid; test the fit before making a larger case." : spec.lidInterface === "ribs" ? " Tune after a test print." : ""}
+                    </p>
+                    {spec.lidInterface === "ribs" && <div data-testid="lid-rib-spacing-controls">
+                      <MmSlider label="Rib spacing" value={spec.lidRibSpacingMm}
+                        min={MIN_LID_RIB_SPACING_MM} max={MAX_LID_RIB_SPACING_MM} step={1}
+                        hint="Closer spacing adds ribs and increases hold. Start with lighter grip for closely spaced overlapping ribs."
+                        onChange={(lidRibSpacingMm, transient) => patchSpec({ lidRibSpacingMm }, transient)} />
+                      <p className="text-xs text-muted-foreground" data-testid="lid-rib-count">
+                        Per edge: {lidContactRibPositions(spec, "x").length} along width · {lidContactRibPositions(spec, "y").length} along length
+                      </p>
+                    </div>}
+                  </> : <p className="text-xs text-muted-foreground">Small locating clearance for easy removal.</p>}
+                  <Label className="text-xs">{spec.lidFit === "friction" ? "Grip" : "Fit adjustment"}</Label>
+                  <Slider centerOrigin value={[Math.round(spec.lidFitAdjustmentMm / 0.05)]} min={-2} max={2} step={1}
+                    aria-label="Lid fit adjustment"
+                    aria-valuetext={spec.lidFitAdjustmentMm === 0 ? "Default" : `${Math.abs(spec.lidFitAdjustmentMm).toFixed(2)} mm ${spec.lidFit === "friction" ? (spec.lidFitAdjustmentMm > 0 ? "firmer" : "lighter") : (spec.lidFitAdjustmentMm > 0 ? "tighter" : "looser")}`}
+                    onValueChange={([step]) => patchSpec({ lidFitAdjustmentMm: Number((step * 0.05).toFixed(2)) }, true)}
+                    onValueCommit={([step]) => patchSpec({ lidFitAdjustmentMm: Number((step * 0.05).toFixed(2)) })} />
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>{spec.lidFit === "friction" ? "Lighter" : "Looser"}</span>
+                    <span>{spec.lidFit === "friction" ? "Firmer" : "Tighter"}</span>
+                  </div>
+                </div>
+              )}
+              {spec.magneticLid && <>
+                <FeatureSwitch label="Grip recess" description="Two finger recesses below the lid edge for easier lifting"
+                  checked={spec.lidGripRecess} onChange={lidGripRecess => patchSpec({ lidGripRecess })} />
+                <FeatureSwitch label="Lid magnet holes" description="Four matching pairs in the lid and bin rim; same magnet size as the underside"
+                  checked={spec.lidMagnetHoles} onChange={lidMagnetHoles => patchSpec({ lidMagnetHoles })} />
+                {spec.lidMagnetHoles && <FeatureSwitch label="Lid crush ribs" description="Press-fit closure magnets, no glue"
+                  checked={spec.lidMagnetCrushRibs} onChange={lidMagnetCrushRibs => patchSpec({ lidMagnetCrushRibs })} />}
+              </>}
+              {spec.magneticLid && spec.lidMagnetHoles && <p className="text-xs text-muted-foreground" data-testid="magnetic-lid-details">
+                Four pairs · ⌀{Number((2 * magnetHoleRadiusMm(spec)).toFixed(2))} × {Number(magnetHoleDepthMm(spec).toFixed(2))} mm recesses, same as the base.
+                {spec.lidMagnetCrushRibs ? " Press-fit" : " Glue"} magnets with attracting faces paired.
+                Keep pockets clear of the corners. Save the lid separately under Export.
+                Check fit with a small print first.
+              </p>}
+            </CollapsibleContent>
+          </Collapsible>
           {!spec.flatBottom && (
             <>
               <FeatureSwitch
