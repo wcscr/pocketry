@@ -2,7 +2,7 @@
 
 Reviewed and fixed on 2026-09-16, starting from `origin/main` at
 `3b72a380b6d24e0213194b34138f4e359fcf48b1`. Work is isolated on
-`codex/mobile-usability`.
+`mobile` (renamed from `codex/mobile-usability`).
 
 ## Primary friction points addressed
 
@@ -13,13 +13,14 @@ Reviewed and fixed on 2026-09-16, starting from `origin/main` at
 | Manual calibration | Confirming the real ruler length depended on Enter or blur in the controls panel. | The mobile canvas shows the length field and an explicit Confirm scale button, with invalid lengths rejected. |
 | Drawing and handoff | Selecting a drawing tool could leave the modal drawer covering the photo. Moving to the bin could carry that open drawer along. | Drawing actions reveal the canvas; Add and arrange reveals the resulting bin. Bin footprint and contour editing also return to the canvas. |
 | Trace navigation and editing | Zoom and drawing toolbars overlapped. Pan depended on keyboard modifiers, and removing points required right-click. | Zoom sits in a separate toolbar at the bottom of the canvas, buttons have larger phone targets, and explicit Pan photo and Remove points tools support touch. Removal retains the minimum three vertices and supports undo. |
+| Contour editing follow-up (2026-09-18) | Bin contour deletion still required right-click, and Trace only exposed an icon tool. | Both editors show labeled Add / move and Remove vertices toggles while editing. Bin vertices turn red in removal mode; touch targets cover a 44 px diameter, including rotated/resized pockets and holes. Removal preserves three vertices, supports undo/redo, and resets when bin contour editing finishes or selection changes. |
 | Bin navigation and export | The 3D/Layout switch competed with history controls on phones, and export was buried in settings. | Separated controls and persistent Bin settings / Export bin actions. Layout has explicit pan and fit controls. |
 | Small screens and tablets | Tall opening instructions could start above the scrollable area; percentage-sized tablet panels squeezed fields and buttons. | Opening instructions scroll from the top; expanded panels maintain a 280 px minimum where the configured maximum allows it. |
 | Dialogs, forms, and feedback | Long dialogs could exceed the viewport; notification dismissal depended on hover. | Dialogs and confirmations have viewport bounds and scrolling, close actions have larger targets, notifications can be dismissed by touch, and phone form text is 16 px. Safe-area padding and browser zoom are enabled. |
 
 ## Verification
 
-- `npm run check`, `npm test` (84 files, 1,424 tests), `npm run build`, and
+- `npm run check`, `npm test` (84 files, 1,426 tests), `npm run build`, and
   `git diff --check` pass.
 - Production-build browser checks cover 320×568, 390×844, 667×375, 844×390,
   768×1024, and 1440×900. Each exercises photo upload, manual scale confirmation,
@@ -30,6 +31,10 @@ Reviewed and fixed on 2026-09-16, starting from `origin/main` at
   nonempty STL.
 - Another touch run verifies actual perspective correction, two-finger pinch,
   point removal and undo, drawer-to-canvas transitions, and Help.
+- Follow-up touch checks exercise the labeled contour toggle in Trace and Bin,
+  including outer and hole vertex removal on a rotated/resized pocket, undo/redo,
+  and returning to Add / move. Bin checks cover 320×568, 390×844, 667×375, and
+  768×1024; Trace uses a real photo and perspective correction at 390×844.
 - Mobile project checks verify JSON import, naming and saving in the browser
   library, exporting a JSON backup, starting a new project, reopening the saved
   project, and persistence after reload.

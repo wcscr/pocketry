@@ -850,7 +850,14 @@ describe("touch-accessible trace tools", () => {
     try {
       await React.act(async () => root.render(<TraceProvider><SeedTrace /><Probe /><TooltipProvider><TraceCanvas onReprocess={() => {}} /></TooltipProvider></TraceProvider>));
       const svg = host.querySelector('svg[data-testid="trace-scene"]') ?? host.querySelector("svg");
-      React.act(() => host.querySelector<HTMLButtonElement>('[aria-label="Remove points"]')!.click());
+      React.act(() => host.querySelector<HTMLButtonElement>('[aria-label="Edit points"]')!.click());
+      const tools = host.querySelector('[aria-label="Contour editing tools"]')!;
+      const buttons = tools.querySelectorAll<HTMLButtonElement>('button');
+      expect(buttons[0].textContent).toBe("Add / move");
+      expect(buttons[0].getAttribute("aria-pressed")).toBe("true");
+      expect(buttons[1].textContent).toBe("Remove vertices");
+      React.act(() => buttons[1].click());
+      expect(buttons[1].getAttribute("aria-pressed")).toBe("true");
       const remove = (x: number, y: number) => React.act(() => {
         const event = new MouseEvent("pointerdown", { bubbles: true, button: 0, clientX: x, clientY: y });
         Object.defineProperties(event, { pointerType: { value: "touch" }, pointerId: { value: 1 } });
@@ -867,6 +874,11 @@ describe("touch-accessible trace tools", () => {
       expect(trace!.outline[0].outer).toHaveLength(4);
       React.act(() => trace!.undo());
       expect(trace!.outline).toEqual(edited);
+      remove(500, 500);
+      expect(trace!.outline).toEqual(edited);
+      React.act(() => buttons[0].click());
+      expect(trace!.mode).toBe("edit");
+      expect(buttons[0].getAttribute("aria-pressed")).toBe("true");
     } finally {
       React.act(() => root.unmount());
       restoreSvgCoordinates();

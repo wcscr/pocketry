@@ -34,6 +34,7 @@ import {
   useCanvasViewportSize,
 } from "@/components/canvas/canvas-viewport";
 import { CanvasToolbar } from "@/components/layout/canvas-toolbar";
+import { ContourEditTools } from "@/components/canvas/contour-edit-tools";
 import { EditHistoryMenu } from "@/components/history/edit-history-menu";
 import { useViewportTransform } from "@/hooks/use-viewport-transform";
 import { nearestEdge, nearestVertex } from "@/lib/geometry/hit-test";
@@ -792,6 +793,13 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
               onClick={redo}
             />
           </CanvasToolbar>
+
+          {outline.length > 0 && (mode === "edit" || mode === "remove" || (mode === "pan" && selection)) && (
+            <div className="absolute bottom-16 left-2 z-30">
+              <ContourEditTools removeActive={mode === "remove"}
+                onChange={(remove) => dispatch({ type: "SET_MODE", mode: remove ? "remove" : "edit" })} />
+            </div>
+          )}
 
           <CanvasToolbar position="bottom-right">
             <IconButton
