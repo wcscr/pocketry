@@ -110,6 +110,7 @@ describe("useOutlineRefinement", () => {
     const mounted = mountHook(refiner, offsetter);
 
     React.act(() => {
+      mounted.store().dispatch({ type: "SET_MARGIN", margin: 0.5 });
       mounted.store().dispatch({
         type: "SET_CALIBRATION",
         calibration: {

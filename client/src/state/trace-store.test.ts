@@ -208,7 +208,7 @@ describe("undo / redo", () => {
 
     const undone = traceReducer(changed, { type: "UNDO" });
     expect(undone.outline).toBe(ringB);
-    expect(undone.margin).toBe(0.5);
+    expect(undone.margin).toBe(0);
 
     const redone = traceReducer(undone, { type: "REDO" });
     expect(redone.outline).toBe(ringC);
@@ -270,7 +270,7 @@ describe("loading a new image", () => {
       fileName: "c",
     });
     expect(state.sensitivity).toBe(128);
-    expect(state.margin).toBe(0.5);
+    expect(state.margin).toBe(0);
     expect(state.extrusionHeight).toBe(22);
   });
 
@@ -450,7 +450,7 @@ describe("modes and calibration", () => {
     expect(state.svg).toBeNull();
     expect(state.detectedImageUrl).toBeNull();
     expect(state.history.stack).toEqual([
-      { outline: [], label: "Start", margin: 0.5 },
+      { outline: [], label: "Start", margin: 0 },
     ]);
   });
 
@@ -519,7 +519,7 @@ describe("modes and calibration", () => {
     expect(state.draftCalibration).toBeNull();
     expect(state.calibration?.endX).toBe(9);
     expect(state.calibrationSource).toBe("manual");
-    expect(state.margin).toBe(0.5);
+    expect(state.margin).toBe(0);
   });
 
   it("starts a fresh ruler when replacing a completed manual calibration", () => {
@@ -582,7 +582,7 @@ describe("modes and calibration", () => {
     expect(accepted.calibration).toBe(calibration);
     expect(accepted.pendingAutoCalibration).toBeNull();
     expect(accepted.calibrationSource).toBe("sheet");
-    expect(accepted.margin).toBe(0.5);
+    expect(accepted.margin).toBe(0);
   });
 
   it("rejects a late automatic calibration from a replaced image", () => {
@@ -630,7 +630,7 @@ describe("modes and calibration", () => {
     expect(state.calibration).toBe(manual);
     expect(state.pendingAutoCalibration).toBeNull();
     expect(state.calibrationSource).toBe("manual");
-    expect(state.margin).toBe(0.5);
+    expect(state.margin).toBe(0);
   });
 
   it("removes a pending automatic ruler when manual placement begins", () => {

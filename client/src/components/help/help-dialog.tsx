@@ -254,7 +254,8 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
               </li>
               <li>
                 Under <strong>Check fit</strong>, Surface fit test offers the
-                <strong> Full surface</strong> or <strong>Tool outlines · 5 mm</strong>.
+                <strong> Full surface</strong> or <strong>Tool outlines · 5 mm</strong>,
+                defaulting to tool outlines at 0.8 mm thickness.
                 Tool outlines keep a 5 mm material band around each tool opening,
                 without the bin perimeter or separate finger-access holes.
                 Widely spaced tools print as separate pieces. Thickness sets the printed height
