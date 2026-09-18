@@ -2,8 +2,10 @@ import type { Point } from "@shared/geometry/types";
 
 import {
   POCKETRY_ARUCO_BITS,
+  PAPER_TEMPLATE_MARKER_COUNT,
   STABLE_TEMPLATE_MARKER_COUNT,
 } from "./aruco-4x4";
+import { REFERENCE_STRIP } from "./reference-strip";
 import type { DetectedMarker } from "./solve";
 
 /**
@@ -66,9 +68,16 @@ export function hasArucoSupport(cv: Cv): boolean {
  */
 export function createPocketryTemplateDictionary(
   cv: Cv,
-  markerCount = POCKETRY_ARUCO_BITS.length,
+  markerCount = PAPER_TEMPLATE_MARKER_COUNT,
 ): Cv {
   return cv.extendDictionary(markerCount, 4);
+}
+
+/** Dedicated pass, before paper detection: a sheet must not hide a raised strip. */
+export function detectReferenceStripMarkers(cv: Cv, image: ImageData): DetectedMarker[] {
+  return detectMarkersWithDictionary(cv, image, () =>
+    createPocketryTemplateDictionary(cv, POCKETRY_ARUCO_BITS.length),
+  ).filter(({ id }) => REFERENCE_STRIP.markerIds.some((stripId) => stripId === id));
 }
 
 function detectMarkersWithDictionary(

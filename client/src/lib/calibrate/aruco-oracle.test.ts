@@ -60,7 +60,7 @@ describe("markerBits vs cv.generateImageMarker (oracle)", () => {
   it.each(POCKETRY_ARUCO_BITS.map((_, id) => id))(
     "Pocketry v2 marker id %i matches OpenCV's rendering",
     (id) => {
-    const dictionary = createPocketryTemplateDictionary(cv);
+    const dictionary = createPocketryTemplateDictionary(cv, POCKETRY_ARUCO_BITS.length);
     const image = new cv.Mat();
     try {
       // 6 px side at 1 border bit → exactly one pixel per module.

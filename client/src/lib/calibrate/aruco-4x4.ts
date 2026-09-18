@@ -1,8 +1,8 @@
 /**
- * Pocketry's sixteen-marker custom 4x4 dictionary for calibration-sheet v2,
- * ported as data from OpenCV's deterministic `extendDictionary(16, 4)` output.
+ * Pocketry's custom 4x4 dictionary for calibration sheets and reference strips,
+ * ported as data from OpenCV's deterministic `extendDictionary(22, 4)` output.
  *
- * Generator: OpenCV `extendDictionary(16, 4)`
+ * Generator: OpenCV `extendDictionary(22, 4)`
  * Upstream:  https://github.com/opencv/opencv at tag 4.11.0
  * Licence:  Apache-2.0 © OpenCV team — attribution in /NOTICE.
  *
@@ -21,7 +21,10 @@
 /** Existing sheets retain the first eight ids and their exact marker patterns. */
 export const STABLE_TEMPLATE_MARKER_COUNT = 8;
 
-/** Canonical (rotation 0) patterns of Pocketry custom marker ids 0–15. */
+/** Keep experimental sheets' original decoding/error-correction behaviour. */
+export const PAPER_TEMPLATE_MARKER_COUNT = 16;
+
+/** Canonical (rotation 0) patterns. IDs 16–19 are reserved for the photo board. */
 export const POCKETRY_ARUCO_BITS: readonly number[] = [
   0x532c, // id 0
   0xaf8f, // id 1
@@ -39,6 +42,12 @@ export const POCKETRY_ARUCO_BITS: readonly number[] = [
   0xa729, // id 13
   0x10a0, // id 14
   0x0c82, // id 15
+  0x6599, // id 16 — reserved
+  0x3772, // id 17 — reserved
+  0xea26, // id 18 — reserved
+  0xd8ff, // id 19 — reserved
+  0x1d6a, // id 20 — object reference strip left
+  0x55e9, // id 21 — object reference strip right
 ];
 
 /** Marker side length in modules: 4 data cells plus the black border ring. */

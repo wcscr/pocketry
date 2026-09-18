@@ -6,6 +6,7 @@ import type { Rect } from "@shared/geometry/types";
 import { usePanelState } from "@/components/layout/panel-context";
 import { WorkspaceLayout } from "@/components/layout/workspace-layout";
 import { TraceCanvas } from "@/components/trace/trace-canvas";
+import { ReferenceStripDownloads } from "@/components/trace/reference-strip-downloads";
 import { TraceControlsPanel } from "@/components/trace/trace-controls-panel";
 import { ExportConfirmationDialog } from "@/components/gridfinity/export-confirmation-dialog";
 import {
@@ -216,14 +217,22 @@ function TraceWorkspace(): JSX.Element {
         // pixels it actually read so an old sheet can never paint overlays or
         // toasts over a replacement image.
         if (activeImageUrlRef.current !== frame.sourceImageUrl) return;
-        if (!manual && result.kind !== "calibrated") {
+        if (
+          !manual &&
+          result.kind !== "calibrated" &&
+          result.kind !== "calibrated-strip"
+        ) {
           dispatch({
             type: "AUTO_CALIBRATION_FAILED",
             sourceImageUrl: frame.sourceImageUrl,
           });
         }
         switch (result.kind) {
+          case "calibrated-strip":
           case "calibrated": {
+            const strip = result.kind === "calibrated-strip";
+            const perspective =
+              result.kind === "calibrated" ? result.perspectiveProposal : null;
             const calibration = {
               startX: result.calibration.startX * frame.toWorking.x,
               startY: result.calibration.startY * frame.toWorking.y,
@@ -235,9 +244,10 @@ function TraceWorkspace(): JSX.Element {
               type: "AUTO_CALIBRATION_DETECTED",
               sourceImageUrl: frame.sourceImageUrl,
               calibration,
-              perspective: result.perspectiveProposal
+              source: strip ? "strip" : "sheet",
+              perspective: perspective
                 ? scalePerspectiveProposal(
-                    result.perspectiveProposal,
+                    perspective,
                     frame.toWorking.x,
                     frame.toWorking.y,
                   )
@@ -245,23 +255,34 @@ function TraceWorkspace(): JSX.Element {
             });
             const { solution } = result;
             const mmPerPx = mmPerPixel(calibration);
-            const sheetName = templateDisplayName(result.template);
-            const summary = `${sheetName} · ${solution.markerIds.length} markers · ${(mmPerPx ?? solution.mmPerPx).toFixed(3)} mm/px`;
+            const referenceName = result.kind === "calibrated"
+              ? templateDisplayName(result.template)
+              : "Object reference strip";
+            const summary = `${referenceName} · ${solution.markerIds.length} markers · ${(mmPerPx ?? solution.mmPerPx).toFixed(3)} mm/px`;
             if (solution.maxDeviation > SKEW_WARN_FRACTION) {
               toast({
                 title: "Scale detected — review carefully",
-                description: `${summary}. Marker distances disagree by ${(solution.maxDeviation * 100).toFixed(1)}%. ${result.perspectiveProposal ? "Perspective correction is available in Scale." : "Shoot straight down for accurate millimetres."}`,
+                description: `${summary}. Marker distances disagree by ${(solution.maxDeviation * 100).toFixed(1)}%. ${perspective ? "Perspective correction is available in Scale." : "Shoot straight down for accurate millimetres."}`,
                 variant: "destructive",
                 duration: 8000,
               });
             } else {
               toast({
-                title: "Scale detected from calibration sheet",
+                title: strip ? "Scale detected from reference strip" : "Scale detected from calibration sheet",
                 description: `${summary}. Review and accept it in Scale.`,
               });
             }
             break;
           }
+          case "invalid-strip":
+            toast({
+              title: "Reference strip could not be calibrated",
+              description: result.reason === "incomplete-signature"
+                ? "Keep both strip markers fully visible. No paper-sheet scale was substituted."
+                : "Use one flat, unmodified strip, keep both markers visible, and shoot straight down. Its marker sizes, spacing or orientation did not match. No paper-sheet scale was substituted.",
+              duration: 8000,
+            });
+            break;
           case "foreign-sheet":
             toast({
               title:
@@ -284,7 +305,7 @@ function TraceWorkspace(): JSX.Element {
               toast({
                 title: "No markers found",
                 description:
-                  "Include the printed calibration sheet in the photo, flat and unobstructed.",
+                  "Include a Pocketry sheet or object reference strip in the photo, flat and unobstructed.",
               });
             }
             break;
@@ -589,6 +610,7 @@ function TraceWorkspace(): JSX.Element {
                   </button>
                   .
                 </p>
+                <ReferenceStripDownloads />
                 {dropzone}
               </div>
             }

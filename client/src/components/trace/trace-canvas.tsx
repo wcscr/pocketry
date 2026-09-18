@@ -719,8 +719,8 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
           onContextMenu={handleContextMenu}
         />
       ) : (
-        <div className="flex h-full w-full items-center justify-center p-8">
-          {emptyState}
+        <div className="flex h-full w-full overflow-y-auto p-4 sm:p-8">
+          <div className="m-auto w-full max-w-lg">{emptyState}</div>
         </div>
       )}
 

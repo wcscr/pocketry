@@ -175,6 +175,17 @@ export function calibrationTemplatePdf(template: TemplateVariant): Uint8Array {
     0.2,
   );
 
+  return singlePageVectorPdf(page.width, page.height, commands);
+}
+
+/** Minimal shared vector-PDF envelope. Commands use PDF points, bottom origin. */
+export function singlePageVectorPdf(
+  widthMm: number,
+  heightMm: number,
+  commands: readonly string[],
+): Uint8Array {
+  const pageWidth = widthMm * PDF_POINTS_PER_MM;
+  const pageHeight = heightMm * PDF_POINTS_PER_MM;
   const encoder = new TextEncoder();
   const content = encoder.encode(`${commands.join("\n")}\n`);
   const objects = [

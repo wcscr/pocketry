@@ -373,6 +373,26 @@ describe("TraceControlsPanel guided workflow", () => {
     );
   });
 
+  it("reviews and accepts object-height scale without offering paper correction", async () => {
+    await click("load-source");
+    await React.act(async () => {
+      trace.dispatch({ type: "AUTO_CALIBRATION_DETECTED", sourceImageUrl: "data:image/png;base64,new-source", calibration: { ...CALIBRATION, lengthMm: 80 }, source: "strip" });
+    });
+    expect(host.textContent).toContain("Scale detected from the reference strip");
+    expect(host.textContent).toContain("80 mm apart on the 100 mm strip");
+    expect(host.querySelector('[data-testid="reference-length-setting"]')).toBeNull();
+    expect(host.querySelector('[data-testid="button-select-perspective-points"]')).toBeNull();
+    expect(host.querySelector('[data-testid="button-apply-auto-perspective"]')).toBeNull();
+    await click("button-accept-auto-scale");
+    expect(trace.calibrationSource).toBe("strip");
+    await clickSection("scale");
+    expect(host.textContent).toContain("Reference-strip scale accepted");
+    const pdfButton = [...host.querySelectorAll("button")].find((button) => button.textContent === "Strip PDF · US Letter");
+    expect(pdfButton).toBeDefined();
+    await React.act(async () => { pdfButton!.click(); });
+    expect(downloadBlob).toHaveBeenLastCalledWith(expect.any(Blob), "pocketry-reference-strip-v1-letter.pdf");
+  });
+
   it("offers automatic and manual perspective correction paths", async () => {
     await click("load-source");
     await click("detect-auto-perspective");

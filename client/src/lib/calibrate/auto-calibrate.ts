@@ -2,13 +2,18 @@ import type { Calibration } from "@shared/geometry/scale";
 
 import { loadOpenCV } from "@/lib/opencv";
 
-import { detectCalibrationSheet, hasArucoSupport } from "./detect";
+import {
+  detectCalibrationSheet,
+  detectReferenceStripMarkers,
+  hasArucoSupport,
+} from "./detect";
 import {
   MAX_TEMPLATE_REPROJECTION_RMS_MM,
   proposalFromTemplateMarkers,
   templateReprojectionErrorMm,
   type PerspectiveProposal,
 } from "./perspective";
+import { solveReferenceStrip } from "./solve-reference-strip";
 import { solveScaleFromMarkers, type ScaleSolution } from "./solve";
 import {
   templateFromTemplateMarkerIds,
@@ -27,6 +32,12 @@ import {
  * printable template.
  */
 export type AutoCalibrationResult =
+  | {
+      kind: "calibrated-strip";
+      calibration: Calibration;
+      solution: ScaleSolution;
+    }
+  | { kind: "invalid-strip"; reason: "incomplete-signature" | "invalid-geometry" }
   | {
       kind: "calibrated";
       calibration: Calibration;
@@ -56,6 +67,29 @@ export type AutoCalibrationResult =
 
 /** Pure composition over an injected cv — what the closed-loop test drives. */
 export function runAutoCalibration(cv: any, image: ImageData): AutoCalibrationResult {
+  // A visible strip expresses object-height calibration intent. Never silently
+  // fall back to the lower paper plane if its signature is incomplete/invalid.
+  const stripMarkers = detectReferenceStripMarkers(cv, image);
+  if (stripMarkers.length > 0) {
+    const solution = solveReferenceStrip(stripMarkers);
+    if (!solution) {
+      return {
+        kind: "invalid-strip",
+        reason: stripMarkers.length < 2 ? "incomplete-signature" : "invalid-geometry",
+      };
+    }
+    return {
+      kind: "calibrated-strip",
+      solution,
+      calibration: {
+        startX: solution.ruler.a.x,
+        startY: solution.ruler.a.y,
+        endX: solution.ruler.b.x,
+        endY: solution.ruler.b.y,
+        lengthMm: solution.ruler.lengthMm,
+      },
+    };
+  }
   const detection = detectCalibrationSheet(cv, image);
   if (!detection) return { kind: "no-markers" };
   const markerIds = detection.markers

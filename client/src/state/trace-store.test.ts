@@ -873,3 +873,33 @@ describe("selection", () => {
     expect(state.selection).toBeNull();
   });
 });
+
+
+describe("reference strip scale", () => {
+  it("preserves the source through acceptance and rotation; clears it with manual calibration or replacement", () => {
+    const imageUrl = "strip-photo";
+    const calibration = { startX: 20, startY: 30, endX: 180, endY: 30, lengthMm: 80 };
+    const pending = run(initialTraceState,
+      { type: "SOURCE_LOADED", imageUrl, fileName: "strip" },
+      { type: "SOURCE_READY", imageSize: { width: 800, height: 600 } },
+      { type: "AUTO_CALIBRATION_DETECTED", sourceImageUrl: imageUrl, calibration, source: "strip" });
+    expect(pending.pendingCalibrationSource).toBe("strip");
+    expect(pending.calibration).toBeNull();
+    expect(pending.pendingPerspective).toBeNull();
+    const accepted = traceReducer(pending, { type: "ACCEPT_AUTO_CALIBRATION" });
+    expect(accepted.calibrationSource).toBe("strip");
+    expect(accepted.pendingCalibrationSource).toBeNull();
+    const rotated = traceReducer(accepted, { type: "ROTATE_SOURCE", direction: "clockwise", naturalSize: { width: 800, height: 600 }, maxSize: { width: 800, height: 600 } });
+    expect(rotated.calibrationSource).toBe("strip");
+    expect(rotated.calibration?.lengthMm).toBe(80);
+    expect(traceReducer(accepted, { type: "SET_RULER_LENGTH", rulerLengthMm: 100 }).calibration?.lengthMm).toBe(80);
+    expect(traceReducer(pending, { type: "SET_MODE", mode: "calibrate" }).pendingCalibrationSource).toBeNull();
+    const manual = traceReducer(pending, { type: "SET_CALIBRATION", calibration });
+    expect(manual.pendingCalibrationSource).toBeNull();
+    expect(manual.calibrationSource).toBe("manual");
+    const replaced = traceReducer(accepted, { type: "SOURCE_LOADED", imageUrl: "new", fileName: "new" });
+    expect(replaced.calibrationSource).toBeNull();
+    expect(replaced.pendingCalibrationSource).toBeNull();
+    expect(traceReducer(replaced, { type: "AUTO_CALIBRATION_DETECTED", sourceImageUrl: imageUrl, calibration, source: "strip" })).toBe(replaced);
+  });
+});
