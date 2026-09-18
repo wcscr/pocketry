@@ -545,6 +545,14 @@ export function TraceControlsPanel({
           className="scroll-mt-16"
           disabled={!hasImage}
         >
+          <p className="rounded-md border border-amber-400/50 bg-amber-500/10 p-3 text-xs leading-relaxed">
+            <strong>Thick objects:</strong> We recommend measuring a primary
+            dimension, such as length or width, on the part furthest from the
+            paper. Use that measurement and the matching endpoints in the photo
+            to set the scale directly. This helps avoid oversized outlines from
+            calibrating against the paper.
+          </p>
+
           {pendingAutoCalibration && (
             <div
               className="space-y-2 rounded-md border border-amber-400/50 bg-amber-500/10 p-3"
