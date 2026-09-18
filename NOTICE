@@ -104,10 +104,11 @@ Pocketry redistributes an OpenCV.js bundle at
 sources with the stock JS module whitelist (which includes the aruco API in
 `objdetect`) — see `scripts/build-opencv-js.sh`.
 
-Pocketry also pins a small amount of OpenCV-generated data: the eight custom
-4x4 marker patterns used by calibration-sheet v2
+Pocketry also pins a small amount of OpenCV-generated data: 22 custom
+4x4 marker patterns used by calibration-sheet v2 and the object reference strip
 (`client/src/lib/calibrate/aruco-4x4.ts`). They are the deterministic output of
-OpenCV 4.11.0's `extendDictionary(8, 4)` and remain under the same Apache
+OpenCV 4.11.0's `extendDictionary(22, 4)` (preserving the original 8- and
+16-marker prefixes) and remain under the same Apache
 License 2.0 attribution.
 
 ================================================================================

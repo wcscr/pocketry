@@ -74,6 +74,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useShapeLibrary } from "@/state/shape-library";
 import { useTrace, type ExportFormat } from "@/state/trace-store";
 
+import { ReferenceStripDownloads } from "./reference-strip-downloads";
 import { RingList } from "./ring-list";
 
 const RESPONSIVE_PANEL_ACTION =
@@ -130,6 +131,7 @@ export function TraceControlsPanel({
     outline,
     calibration,
     pendingAutoCalibration,
+    pendingCalibrationSource,
     calibrationSource,
     draftCalibration,
     rulerLengthMm,
@@ -155,6 +157,8 @@ export function TraceControlsPanel({
   );
   const hasImage = imageSize.width > 0;
   const hasOutline = outline.length > 0;
+  const usingReferenceStrip =
+    pendingCalibrationSource === "strip" || calibrationSource === "strip";
   const pendingTemplate =
     pendingPerspective?.template ?? pendingPerspective?.paper;
   const hasDetectionRegion = Boolean(
@@ -532,8 +536,8 @@ export function TraceControlsPanel({
           summary={
             pendingAutoCalibration
               ? "Review auto scale"
-              : calibrationSource === "sheet" && scale.mmPerPx
-                ? `Sheet · ${scale.mmPerPx.toFixed(3)} mm/px`
+              : (calibrationSource === "sheet" || calibrationSource === "strip") && scale.mmPerPx
+                ? `${calibrationSource === "strip" ? "Strip" : "Sheet"} · ${scale.mmPerPx.toFixed(3)} mm/px`
                 : scale.mmPerPx
                   ? `${scale.mmPerPx.toFixed(3)} mm/px`
                   : "Not set"
@@ -552,12 +556,21 @@ export function TraceControlsPanel({
             >
               <div className="flex items-center gap-2 text-sm font-semibold text-amber-800 dark:text-amber-200">
                 <Sparkles className="h-4 w-4" />
-                Scale detected from the sheet
+                {pendingCalibrationSource === "strip"
+                  ? "Scale detected from the reference strip"
+                  : "Scale detected from the sheet"}
               </div>
               <p className="text-xs text-muted-foreground">
                 Pocketry found {displayedScale.mmPerPx?.toFixed(3)} mm/px. Review
                 the ruler on the image, then accept it to continue.
               </p>
+              {pendingCalibrationSource === "strip" && (
+                <p className="text-xs text-muted-foreground">
+                  The ruler joins the marker centres, 80 mm apart on the 100 mm strip.
+                  This scale uses the strip height and takes priority over a sheet below.
+                  Keep the strip near the tool edge you need to fit and verify that dimension.
+                </p>
+              )}
               {pendingPerspective ? (
                 <>
                   <p className="text-xs font-medium text-amber-800 dark:text-amber-200">
@@ -659,66 +672,70 @@ export function TraceControlsPanel({
             </div>
           ) : null}
 
-          <div
-            className={cn(
-              "space-y-1.5 rounded-md",
-              manualRulerPending &&
-                "border border-amber-500/60 bg-amber-500/10 p-2 ring-2 ring-amber-500/30",
-            )}
-            data-testid="reference-length-setting"
-          >
-            <Label
-              htmlFor="ruler-length"
+          {!usingReferenceStrip && (
+            <div
               className={cn(
-                "text-xs",
+                "space-y-1.5 rounded-md",
                 manualRulerPending &&
-                  "font-semibold text-amber-800 dark:text-amber-200",
+                  "border border-amber-500/60 bg-amber-500/10 p-2 ring-2 ring-amber-500/30",
               )}
+              data-testid="reference-length-setting"
             >
-              Reference length (mm)
-            </Label>
-            <DraftNumberInput
-              id="ruler-length"
-              min={1}
-              step="any"
-              value={rulerLengthMm}
-              disabled={!hasImage}
-              aria-describedby={
-                manualRulerPending ? "reference-length-guidance" : undefined
-              }
-              onValueChange={(value) =>
-                dispatch({ type: "SET_RULER_LENGTH", rulerLengthMm: value })
-              }
-              onValueCommit={(value) => {
-                if (redrawRulerRequested.current) return;
-                const completed = calibrationFromDraft(
-                  draftCalibration,
-                  value,
-                );
-                if (completed) {
-                  dispatch({ type: "SET_CALIBRATION", calibration: completed });
-                }
-              }}
-            />
-            {manualRulerPending ? (
-              <p
-                id="reference-length-guidance"
-                className="text-[11px] font-medium text-amber-800 dark:text-amber-200"
+              <Label
+                htmlFor="ruler-length"
+                className={cn(
+                  "text-xs",
+                  manualRulerPending &&
+                    "font-semibold text-amber-800 dark:text-amber-200",
+                )}
               >
-                Ruler placed. Enter its real length, then press Enter or leave
-                this field.
-              </p>
-            ) : null}
-          </div>
+                Reference length (mm)
+              </Label>
+              <DraftNumberInput
+                id="ruler-length"
+                min={1}
+                step="any"
+                value={rulerLengthMm}
+                disabled={!hasImage}
+                aria-describedby={
+                  manualRulerPending ? "reference-length-guidance" : undefined
+                }
+                onValueChange={(value) =>
+                  dispatch({ type: "SET_RULER_LENGTH", rulerLengthMm: value })
+                }
+                onValueCommit={(value) => {
+                  if (redrawRulerRequested.current) return;
+                  const completed = calibrationFromDraft(
+                    draftCalibration,
+                    value,
+                  );
+                  if (completed) {
+                    dispatch({ type: "SET_CALIBRATION", calibration: completed });
+                  }
+                }}
+              />
+              {manualRulerPending ? (
+                <p
+                  id="reference-length-guidance"
+                  className="text-[11px] font-medium text-amber-800 dark:text-amber-200"
+                >
+                  Ruler placed. Enter its real length, then press Enter or leave
+                  this field.
+                </p>
+              ) : null}
+            </div>
+          )}
 
           <p className="text-[11px] text-muted-foreground">
             {describeScale(displayedScale)}
           </p>
 
-          {calibrationSource === "sheet" && calibration && (
+          {(calibrationSource === "sheet" || calibrationSource === "strip") && calibration && (
             <p className="flex items-center gap-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-300">
               <CheckCircle2 className="h-3.5 w-3.5" />
-              Calibration-sheet scale accepted
+              {calibrationSource === "strip"
+                ? "Reference-strip scale accepted"
+                : "Calibration-sheet scale accepted"}
             </p>
           )}
 
@@ -733,118 +750,121 @@ export function TraceControlsPanel({
             </Button>
           )}
 
-          <div className="space-y-2 rounded-md border p-3">
-            <div className="flex items-center gap-2 text-sm font-medium">
-              <ScanLine className="h-4 w-4 text-amber-600" />
-              Perspective correction
-            </div>
-            {perspectiveCorrection ? (
-              <>
-                <p className="text-xs text-muted-foreground">
-                  Corrected from{" "}
-                  {perspectiveCorrection.source === "template"
-                    ? "four template markers"
-                    : "four manually selected page corners"}{" "}
-                  using{" "}
-                  {templateDisplayName(
-                    perspectiveCorrection.template ?? perspectiveCorrection.paper,
-                  )}{" "}
-                  dimensions.
-                </p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full"
-                  disabled={!perspectiveOriginalImageUrl}
-                  onClick={() => dispatch({ type: "RESTORE_PERSPECTIVE_SOURCE" })}
-                  data-testid="button-restore-perspective-source"
-                >
-                  <RotateCcw className="mr-1.5 h-4 w-4" />
-                  Restore original photo
-                </Button>
-              </>
-            ) : (
-              <>
-                <p className="text-xs text-muted-foreground">
-                  The four Pocketry v2 signature markers identify A4 or US Letter
-                  automatically. Stock or incomplete marker sets are rejected. If
-                  the markers are unavailable, select the four visible paper corners:
-                  top-left, top-right, bottom-right, then bottom-left.
-                </p>
-                {!pendingPerspective && (
-                  <div className="space-y-1.5">
-                    <Label htmlFor="manual-perspective-paper" className="text-xs">
-                      Paper size for manual fallback
-                    </Label>
-                    <Select
-                      value={perspectivePaper ?? undefined}
-                      onValueChange={(value) =>
-                        setPerspectivePaper(value as TemplatePaper)
-                      }
-                    >
-                      <SelectTrigger
-                        id="manual-perspective-paper"
-                        className="w-full"
-                      >
-                        <SelectValue placeholder="Choose A4 or US Letter" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="a4">A4</SelectItem>
-                        <SelectItem value="letter">US Letter</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-                <Button
-                  variant={store.mode === "perspective" ? "default" : "outline"}
-                  size="sm"
-                  className="w-full"
-                  onClick={() =>
-                    dispatch({
-                      type:
-                        store.mode === "perspective"
-                          ? "CANCEL_PERSPECTIVE_SELECTION"
-                          : "START_PERSPECTIVE_SELECTION",
-                    })
-                  }
-                  data-testid="button-select-perspective-points"
-                >
-                  {store.mode === "perspective"
-                    ? `Cancel · corner ${manualPerspectivePoints.length + 1} of 4`
-                    : manualPerspectivePoints.length === 4
-                      ? "Reselect page corners"
-                      : "Select four page corners"}
-                </Button>
-                {manualPerspectivePoints.length > 0 && (
-                  <p className="text-[11px] text-muted-foreground" role="status">
-                    {manualPerspectivePoints.length < 4
-                      ? `${manualPerspectivePoints.length} of 4 corners selected.`
-                      : manualPerspectiveProposal
-                        ? "Four corners selected. Drag a numbered marker to refine it, or apply the correction."
-                        : "The selected points cross or collapse. Reselect the corners in clockwise order."}
+          {!usingReferenceStrip && (
+            <div className="space-y-2 rounded-md border p-3">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <ScanLine className="h-4 w-4 text-amber-600" />
+                Perspective correction
+              </div>
+              {perspectiveCorrection ? (
+                <>
+                  <p className="text-xs text-muted-foreground">
+                    Corrected from{" "}
+                    {perspectiveCorrection.source === "template"
+                      ? "four template markers"
+                      : "four manually selected page corners"}{" "}
+                    using{" "}
+                    {templateDisplayName(
+                      perspectiveCorrection.template ?? perspectiveCorrection.paper,
+                    )}{" "}
+                    dimensions.
                   </p>
-                )}
-                {manualPerspectiveProposal && (
                   <Button
+                    variant="outline"
                     size="sm"
                     className="w-full"
-                    disabled={processing || perspectivePaper === null}
-                    onClick={() => {
-                      if (perspectivePaper) {
-                        onApplyPerspective(
-                          manualPerspectiveProposal,
-                          perspectivePaper,
-                        );
-                      }
-                    }}
-                    data-testid="button-apply-manual-perspective"
+                    disabled={!perspectiveOriginalImageUrl}
+                    onClick={() => dispatch({ type: "RESTORE_PERSPECTIVE_SOURCE" })}
+                    data-testid="button-restore-perspective-source"
                   >
-                    Apply perspective correction
+                    <RotateCcw className="mr-1.5 h-4 w-4" />
+                    Restore original photo
                   </Button>
-                )}
-              </>
-            )}
-          </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-xs text-muted-foreground">
+                    The four Pocketry v2 signature markers identify A4 or US Letter
+                    automatically. Stock or incomplete marker sets are rejected. If
+                    the markers are unavailable, select the four visible paper corners:
+                    top-left, top-right, bottom-right, then bottom-left.
+                  </p>
+                  {!pendingPerspective && (
+                    <div className="space-y-1.5">
+                      <Label htmlFor="manual-perspective-paper" className="text-xs">
+                        Paper size for manual fallback
+                      </Label>
+                      <Select
+                        value={perspectivePaper ?? undefined}
+                        onValueChange={(value) =>
+                          setPerspectivePaper(value as TemplatePaper)
+                        }
+                      >
+                        <SelectTrigger
+                          id="manual-perspective-paper"
+                          className="w-full"
+                        >
+                          <SelectValue placeholder="Choose A4 or US Letter" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="a4">A4</SelectItem>
+                          <SelectItem value="letter">US Letter</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  <Button
+                    variant={store.mode === "perspective" ? "default" : "outline"}
+                    size="sm"
+                    className="w-full"
+                    onClick={() =>
+                      dispatch({
+                        type:
+                          store.mode === "perspective"
+                            ? "CANCEL_PERSPECTIVE_SELECTION"
+                            : "START_PERSPECTIVE_SELECTION",
+                      })
+                    }
+                    data-testid="button-select-perspective-points"
+                  >
+                    {store.mode === "perspective"
+                      ? `Cancel · corner ${manualPerspectivePoints.length + 1} of 4`
+                      : manualPerspectivePoints.length === 4
+                        ? "Reselect page corners"
+                        : "Select four page corners"}
+                  </Button>
+                  {manualPerspectivePoints.length > 0 && (
+                    <p className="text-[11px] text-muted-foreground" role="status">
+                      {manualPerspectivePoints.length < 4
+                        ? `${manualPerspectivePoints.length} of 4 corners selected.`
+                        : manualPerspectiveProposal
+                          ? "Four corners selected. Drag a numbered marker to refine it, or apply the correction."
+                          : "The selected points cross or collapse. Reselect the corners in clockwise order."}
+                    </p>
+                  )}
+                  {manualPerspectiveProposal && (
+                    <Button
+                      size="sm"
+                      className="w-full"
+                      disabled={processing || perspectivePaper === null}
+                      onClick={() => {
+                        if (perspectivePaper) {
+                          onApplyPerspective(
+                            manualPerspectiveProposal,
+                            perspectivePaper,
+                          );
+                        }
+                      }}
+                      data-testid="button-apply-manual-perspective"
+                    >
+                      Apply perspective correction
+                    </Button>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+          <ReferenceStripDownloads />
 
           <p className="text-xs text-muted-foreground">
             Need a calibration sheet?{" "}
@@ -905,7 +925,7 @@ export function TraceControlsPanel({
                 data-testid="button-detect-markers"
               >
                 <ScanSearch className="mr-1.5 h-4 w-4" />
-                Detect sheet in this image
+                Detect sheet or strip in this image
               </Button>
               <p className="text-xs font-medium">Current sheets</p>
               <div className="grid grid-cols-2 gap-2">

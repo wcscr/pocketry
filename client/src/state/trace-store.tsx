@@ -66,7 +66,7 @@ export type TraceMode =
   | "perspective";
 
 export type ExportFormat = "svg" | "dxf" | "dwg" | "stl";
-export type CalibrationSource = "manual" | "sheet";
+export type CalibrationSource = "manual" | "sheet" | "strip";
 
 export interface TraceHistoryEntry {
   outline: Outline;
@@ -118,8 +118,10 @@ export interface TraceState {
   margin: Margin;
 
   calibration: Calibration | null;
-  /** An automatically detected sheet scale awaiting explicit acceptance. */
+  /** An automatically detected sheet or strip scale awaiting explicit acceptance. */
   pendingAutoCalibration: Calibration | null;
+  /** Reference behind the pending scale; cleared together with its ruler. */
+  pendingCalibrationSource: "sheet" | "strip" | null;
   /** How the accepted calibration was established. */
   calibrationSource: CalibrationSource | null;
   /** A calibration mid-placement: start point known, end point not yet. */
@@ -176,6 +178,7 @@ export const initialTraceState: TraceState = {
   margin: DEFAULT_MARGIN_MM,
   calibration: null,
   pendingAutoCalibration: null,
+  pendingCalibrationSource: null,
   calibrationSource: null,
   draftCalibration: null,
   rulerLengthMm: 100,
@@ -241,6 +244,7 @@ export type TraceAction =
       sourceImageUrl: string;
       calibration: Calibration;
       perspective?: PerspectiveProposal | null;
+      source?: "sheet" | "strip";
     }
   | { type: "ACCEPT_AUTO_CALIBRATION" }
   | { type: "AUTO_CALIBRATION_ATTEMPTED"; imageUrl: string }
@@ -623,6 +627,8 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         // candidate, including all of its canvas overlays.
         pendingAutoCalibration:
           rejectsAutomatic ? null : state.pendingAutoCalibration,
+        pendingCalibrationSource:
+          rejectsAutomatic ? null : state.pendingCalibrationSource,
         pendingPerspective: rejectsAutomatic ? null : state.pendingPerspective,
         draftCalibration:
           startsCalibration
@@ -678,6 +684,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         ...state,
         calibration: action.calibration,
         pendingAutoCalibration: null,
+        pendingCalibrationSource: null,
         pendingPerspective: null,
         calibrationSource: action.calibration === null ? null : "manual",
         margin: state.margin ?? DEFAULT_MARGIN_MM,
@@ -690,7 +697,9 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
             ...state,
             calibration: null,
             pendingAutoCalibration: action.calibration,
-            pendingPerspective: action.perspective ?? null,
+            pendingCalibrationSource: action.source ?? "sheet",
+            pendingPerspective:
+              action.source === "strip" ? null : action.perspective ?? null,
             calibrationSource: null,
             margin: state.margin ?? DEFAULT_MARGIN_MM,
             draftCalibration: null,
@@ -705,8 +714,9 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         ...state,
         calibration: state.pendingAutoCalibration,
         pendingAutoCalibration: null,
+        pendingCalibrationSource: null,
         pendingPerspective: null,
-        calibrationSource: "sheet",
+        calibrationSource: state.pendingCalibrationSource ?? "sheet",
         margin: state.margin ?? DEFAULT_MARGIN_MM,
         draftCalibration: null,
       };
@@ -749,6 +759,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         ...state,
         mode: "perspective",
         pendingAutoCalibration: null,
+        pendingCalibrationSource: null,
         pendingPerspective: null,
         manualPerspectivePoints: [],
         draftCalibration: null,
