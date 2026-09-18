@@ -1,23 +1,14 @@
-00:00 Overview
-00:12 Prepare the photos
-00:24 Import & calibrate
-00:56 Detect the silhouette
-01:21 Edit the contour
-02:03 Queue the tools
-02:12 Trace the adapters
-03:20 Queue the tools
-03:30 Trace the angled nozzle
-04:04 Protect manual edits
-04:19 Queue the tools
-04:30 Save a checkpoint
-04:54 Restore the exact reference
-05:10 Set the bin size
-05:24 Arrange the pockets
-06:13 Depth & rounding
-07:18 Finger access
-07:55 Choose the materials
-08:06 Review the bin
-08:19 Export a surface fit test
-08:41 Export the final 3MF
-09:06 Keep the editable project
-09:20 Ready to print
+00:00 Prepare your photographs
+00:22 Start a project
+00:35 Trace the air duster
+01:14 Trace the adapters
+02:17 Trace the angled nozzle
+02:50 Set the bin size and rough layout
+03:35 Create the USB cable pocket with Finger access
+03:57 Measure once and adjust X/Y scale
+04:34 Export the tool fit check
+05:05 Try the fit check with the real tools
+05:20 Set pocket depths and add finger access
+05:55 Color the bin and fix the warning
+06:19 Inspect the completed bin
+06:39 Export the final bin and preserve the project
