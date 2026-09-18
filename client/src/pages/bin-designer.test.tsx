@@ -884,8 +884,8 @@ describe("BinDesignerPage", () => {
     ["stl", "", "stl"],
     ["single-color-3mf", "", "3mf"],
     ["multicolor-3mf", "-multicolor", "3mf"],
-    ["surface-fit-test", "-surface-fit-test-1.2mm", "stl"],
-    ["surface-outline", "-tool-outlines-5mm-wide-1.2mm-thick", "stl"],
+    ["surface-fit-test", "-surface-fit-test-0.8mm", "stl"],
+    ["surface-outline", "-tool-outlines-5mm-wide-0.8mm-thick", "stl"],
     ["fit-check", "-Wrench-fit-template-2mm", "stl"],
     ["layout-svg", "-layout", "svg"],
     ["layout-dxf", "-layout", "dxf"],
@@ -924,9 +924,9 @@ describe("BinDesignerPage", () => {
         });
       }
       openSettingsSection(container, kind.startsWith("surface-") || kind === "fit-check" || kind.startsWith("layout-") ? "check-fit" : "export");
-      if (kind === "surface-outline") {
+      if (kind === "surface-fit-test") {
         React.act(() => container.querySelector('[data-testid="select-surface-fit-test-style"]')!.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true })));
-        React.act(() => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(option => option.textContent === "Tool outlines · 5 mm")!.click());
+        React.act(() => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(option => option.textContent === "Full surface")!.click());
       }
       await React.act(async () => {
         const button = kind === "surface-outline" ? "button-export-surface-fit-test"
@@ -943,7 +943,7 @@ describe("BinDesignerPage", () => {
       });
       expect(downloadBlob).toHaveBeenCalledTimes(includeProject ? 2 : 1);
       if (kind.startsWith("surface-")) {
-        expect(binGeometryMock.buildSurfaceFitCheck).toHaveBeenCalledWith(1.2, expect.any(Object), kind === "surface-outline" ? "outline" : "full");
+        expect(binGeometryMock.buildSurfaceFitCheck).toHaveBeenCalledWith(0.8, expect.any(Object), kind === "surface-outline" ? "outline" : "full");
       }
       const [model, modelName] = vi.mocked(downloadBlob).mock.calls.at(-1)!;
       expect(modelName).toMatch(new RegExp(`^Layout-2-bin-4x4x6\\.5${suffix.replaceAll(".", "\\.")}-\\d{4}-\\d{2}-\\d{2}_\\d{2}-\\d{2}-\\d{2}-\\d{3}\\.${extension}$`));
@@ -2813,7 +2813,7 @@ describe("BinDesignerPage", () => {
     openSettingsSection(container, "check-fit");
     expect(container.textContent).toContain("Fit templates and layout");
     expect(container.textContent).toContain("Surface fit test");
-    expect(container.querySelector('[data-testid="select-surface-fit-test-style"]')?.textContent).toBe("Full surface");
+    expect(container.querySelector('[data-testid="select-surface-fit-test-style"]')?.textContent).toBe("Tool outlines · 5 mm");
     expect(container.textContent).toContain("Save surface fit test STL");
     expect(
       (
@@ -2821,7 +2821,7 @@ describe("BinDesignerPage", () => {
           '[data-testid="input-surface-fit-test-thickness"]',
         ) as HTMLInputElement
       ).value,
-    ).toBe("1.2");
+    ).toBe("0.8");
     expect(
       (
         container.querySelector(

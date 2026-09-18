@@ -364,7 +364,7 @@ export function BinControlsPanel({
   const [surfaceFitCheckThicknessMm, setSurfaceFitCheckThicknessMm] = useState(
     SURFACE_FIT_CHECK_DEFAULT_THICKNESS_MM,
   );
-  const [surfaceFitCheckStyle, setSurfaceFitCheckStyle] = useState<SurfaceFitCheckStyle>("full");
+  const [surfaceFitCheckStyle, setSurfaceFitCheckStyle] = useState<SurfaceFitCheckStyle>("outline");
   const [threeMfDialogOpen, setThreeMfDialogOpen] = useState(false);
   const [includeThreeMfProject, setIncludeThreeMfProject] = useState(false);
   const [pendingExport, setPendingExport] = useState<{

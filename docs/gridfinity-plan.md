@@ -424,8 +424,8 @@ second, reusing the existing writer in `client/src/lib/export/stl.ts`. A top-dow
 product back to the bins. A selected pocket can also export a standalone filled
 fit-template STL for a low-material silhouette check before committing to a bin.
 For the more reliable multi-tool check, **Surface fit test** defaults to
-**Full surface**, exporting the bin's pocket-layout plane as one 0.4–3 mm plate
-(1.2 mm default), with
+**Tool outlines · 5 mm** at **0.8 mm thickness**. The optional **Full surface**
+exports the bin's pocket-layout plane as one 0.4–3 mm plate, with
 the real outer footprint, clearances, top-edge rounds, spacing, and finger
 access. It omits the base, wall height, label tab, and stacking lip and moves
 the plate to the build plane; it therefore tests surface fit, not pocket depth
