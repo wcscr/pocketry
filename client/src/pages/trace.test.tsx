@@ -212,6 +212,33 @@ describe("Trace detection workflow", () => {
     Object.defineProperty(window, "innerWidth", { value: 1024, configurable: true, writable: true });
   });
 
+  it("keeps Start over empty when pending detection and photo decoding finish later", async () => {
+    vi.stubGlobal("matchMedia", () => ({ matches: true, addEventListener: () => {}, removeEventListener: () => {} }));
+    let finishDetection!: (result: { outline: Outline; rawOutline: Outline; svg: string }) => void;
+    let finishPhoto!: (result: { imageUrl: string; naturalSize: { width: number; height: number } }) => void;
+    processImageMock.mockReturnValue(new Promise(resolve => { finishDetection = resolve; }));
+    decodeImageFileMock.mockReturnValue(new Promise(resolve => { finishPhoto = resolve; }));
+    let current: ReturnType<typeof useTrace>;
+    function Probe(): null { current = useTrace(); return null; }
+    await React.act(async () => root.render(<PanelProvider><TraceProvider><WorkflowController /><Probe /><TracePage /></TraceProvider></PanelProvider>));
+    await React.act(async () => host.querySelector<HTMLButtonElement>('[data-testid="set-region"]')!.click());
+    await React.act(async () => host.querySelector<HTMLButtonElement>('[data-testid="run-detection"]')!.click());
+    const input = host.querySelector<HTMLInputElement>('input[type="file"]')!;
+    Object.defineProperty(input, "files", { configurable: true, value: [new File(["replacement"], "replacement.png", { type: "image/png" })] });
+    await React.act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
+    expect(current!.processing).toBe(true);
+    await React.act(async () => [...host.querySelectorAll('button')].find(button => button.textContent === "Start over")!.click());
+    await React.act(async () => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(button => button.textContent === "Clear trace and start over")!.click());
+    expect(current!.imageUrl).toBeNull();
+    await React.act(async () => {
+      finishDetection({ outline: exportOutline, rawOutline: exportOutline, svg: "<svg/>" });
+      finishPhoto({ imageUrl: "data:image/png;base64,replacement", naturalSize: { width: 800, height: 600 } });
+    });
+    expect(current!.imageUrl).toBeNull();
+    expect(current!.outline).toEqual([]);
+    expect(current!.processing).toBe(false);
+  });
+
   afterEach(() => {
     React.act(() => root.unmount());
     host.remove();

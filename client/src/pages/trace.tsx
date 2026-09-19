@@ -100,6 +100,14 @@ function TraceWorkspace(): JSX.Element {
   const [uploadOpen, setUploadOpen] = useState(false);
   const [dwgDialogOpen, setDwgDialogOpen] = useState(false);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const startOver = () => {
+    fileSelectionRevisionRef.current += 1;
+    detectionRequest.current += 1;
+    activeImageUrlRef.current = null;
+    setUploadOpen(false);
+    setPanelOpen(false);
+    dispatch({ type: "SOURCE_CLEARED" });
+  };
 
   const workingImageMax = store.perspectiveCorrection
     ? RECTIFIED_IMAGE_MAX
@@ -539,8 +547,11 @@ function TraceWorkspace(): JSX.Element {
         panelOpen={panelOpen}
         onPanelOpenChange={setPanelOpen}
         panelTitle="Trace controls"
+        mobileActionsLayout="landscape-side"
         mobileActions={<MobileTraceActions
           onChoosePhoto={() => photoInputRef.current?.click()}
+          onStartOver={startOver}
+          onReprocess={(settings) => void runDetection(settings)}
           onOpenSettings={openSettings}
           onApplyPerspective={(proposal, template) => void applyPerspective(proposal, template)}
         />}

@@ -860,9 +860,9 @@ describe("BinDesignerPage", () => {
         pointer(svg, 'pointerdown', Number(first.getAttribute('cx')) - 6, Number(first.getAttribute('cy')));
       };
       const original = svg.querySelector('[data-cutout-id="pocket"]')!.getAttribute('d');
+      expect(buttons()[0].getAttribute('aria-pressed')).toBe('false');
+      React.act(() => buttons()[0].click());
       expect(buttons()[0].getAttribute('aria-pressed')).toBe('true');
-      React.act(() => buttons()[1].click());
-      expect(buttons()[1].getAttribute('aria-pressed')).toBe('true');
       tapNearFirst();
       expect(ringHandles()).toHaveLength(3);
       expect(otherHandles()).toHaveLength(4);
@@ -884,12 +884,12 @@ describe("BinDesignerPage", () => {
       pointer(svg, 'pointerup', x + 1, y + 1);
       expect(ringHandles()).toHaveLength(3);
       expect(Number(ringHandles()[0].getAttribute('cx'))).toBeCloseTo(x + 1);
-      React.act(() => buttons()[1].click());
+      React.act(() => buttons()[0].click());
       const edit = container.querySelector<HTMLButtonElement>('[data-testid="button-layout-edit-contour"]')!;
       React.act(() => edit.click());
       expect(container.querySelector('[aria-label="Contour editing tools"]')).toBeNull();
       React.act(() => edit.click());
-      expect(buttons()[0].getAttribute('aria-pressed')).toBe('true');
+      expect(buttons()[0].getAttribute('aria-pressed')).toBe('false');
     } finally { unmount(); }
   });
 

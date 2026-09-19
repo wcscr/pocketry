@@ -46,7 +46,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Slider } from "@/components/ui/slider";
+import { LabelledSlider } from "./labelled-slider";
+import { TraceDetectionControls } from "./trace-detection-controls";
 import {
   Tooltip,
   TooltipContent,
@@ -144,7 +145,6 @@ export function TraceControlsPanel({
     perspectiveOriginalImageUrl,
     region,
     sensitivity,
-    tolerancePx,
     smoothing,
     margin,
     exportFormat,
@@ -399,15 +399,6 @@ export function TraceControlsPanel({
   const [handoffOpen, setHandoffOpen] = useState(false);
   const [separateTools, setSeparateTools] = useState(true);
   const [toolNames, setToolNames] = useState<string[]>([]);
-  const [draftSensitivity, setDraftSensitivity] = useState<number | null>(null);
-  const [pendingDetection, setPendingDetection] = useState<{
-    sensitivity: number;
-    includeInteriorHoles: boolean;
-  } | null>(null);
-  useEffect(() => {
-    setDraftSensitivity(null);
-    setPendingDetection(null);
-  }, [sourceRevision]);
   const openHandoff = () => {
     setSeparateTools(true);
     setToolNames(outline.map((_, i) => outline.length === 1 ? fileName || "Traced tool" : `Tool ${i + 1}`));
@@ -424,26 +415,6 @@ export function TraceControlsPanel({
     if (anotherPhoto) onReplaceImage();
     else navigate("/bin");
   };
-  const applyDetectionSettings = (settings: NonNullable<typeof pendingDetection>) => {
-    setPendingDetection(null);
-    setDraftSensitivity(null);
-    dispatch({ type: "SET_SENSITIVITY", sensitivity: settings.sensitivity });
-    dispatch({ type: "SET_INCLUDE_INTERIOR_HOLES", include: settings.includeInteriorHoles });
-    // Pass the committed settings directly: React has not rendered the new
-    // store yet when a slider's release or keyboard event calls this handler.
-    onReprocess(settings);
-  };
-  const requestDetectionSettings = (settings: NonNullable<typeof pendingDetection>) => {
-    setDraftSensitivity(null);
-    if (settings.sensitivity === sensitivity &&
-        settings.includeInteriorHoles === store.includeInteriorHoles) return;
-    if (store.history.stack[store.history.index]?.hasManualEdits) {
-      setPendingDetection(settings);
-    } else {
-      applyDetectionSettings(settings);
-    }
-  };
-
   const handleClearRegion = () => {
     dispatch({ type: "SET_MODE", mode: "region" });
     onCanvasInteraction?.();
@@ -1054,48 +1025,12 @@ export function TraceControlsPanel({
           <p className="text-xs text-muted-foreground" data-testid="detection-tuning-guidance">
             Follow the outside edge. Reflections are usually not holes.
           </p>
-          <div className="flex items-center justify-between gap-2">
-            <Label htmlFor="include-interior-holes" className="text-xs">Include interior holes</Label>
-            <Switch id="include-interior-holes" checked={store.includeInteriorHoles} disabled={processing}
-              onCheckedChange={(includeInteriorHoles) => requestDetectionSettings({ sensitivity, includeInteriorHoles })} />
-          </div>
           <details className="text-xs text-muted-foreground">
             <summary className="cursor-pointer">How to edit the outline</summary>
-            <p className="pt-2" data-testid="contour-editing-guidance">Select a shape, then drag a vertex to move it, click an edge to add one, or right-click a vertex to delete it. Detail and Smoothing preserve your edits. Changing Sensitivity or interior holes re-detects from the photo and asks before replacing manual edits. Undo restores your contour.</p>
+            <p className="pt-2" data-testid="contour-editing-guidance">Choose Edit contours to select the largest contour, then drag a vertex to move it or tap an edge to add one. Toggle Remove to delete vertices. Detail and Smoothing preserve your edits. Changing Sensitivity or interior holes re-detects from the photo and asks before replacing manual edits. Undo restores your contour.</p>
           </details>
 
-          {/*
-            The threshold is chosen automatically; this biases it. 128 means
-            "use the automatic level unchanged", which is why the control is
-            labelled Sensitivity rather than Threshold.
-          */}
-          <LabelledSlider
-            id="sensitivity"
-            label="Sensitivity"
-            value={draftSensitivity ?? sensitivity}
-            min={0}
-            max={255}
-            step={1}
-            format={(v) => (v === 128 ? "auto" : v > 128 ? `+${v - 128}` : `${v - 128}`)}
-            disabled={processing}
-            onChange={setDraftSensitivity}
-            onCommit={(value) => requestDetectionSettings({ sensitivity: value, includeInteriorHoles: store.includeInteriorHoles })}
-            hint="Lower includes more of the image. Updates when you release the slider; asks before replacing manual edits."
-          />
-
-          {/* Detail and Smoothing re-derive from the cached dense outline, so
-              they are instant and never re-run segmentation. */}
-          <LabelledSlider
-            id="detail"
-            label="Detail"
-            value={tolerancePx}
-            min={0.1}
-            max={8}
-            step={0.1}
-            format={(v) => `${v.toFixed(1)} px`}
-            onChange={(v) => dispatch({ type: "SET_TOLERANCE", tolerancePx: v })}
-            hint="How closely the outline follows the pixels."
-          />
+          <TraceDetectionControls onReprocess={onReprocess} />
 
           <LabelledSlider
             id="smoothing"
@@ -1197,15 +1132,6 @@ export function TraceControlsPanel({
         </PanelSection>
       </PanelBody>
 
-      <Dialog open={pendingDetection !== null} onOpenChange={(open) => {
-        if (!open) { setPendingDetection(null); setDraftSensitivity(null); }
-      }}>
-        <DialogContent><DialogHeader><DialogTitle>Re-detect from the photo?</DialogTitle>
-          <DialogDescription>This replaces manual contour edits with a fresh detection. Undo restores your edited outline.</DialogDescription></DialogHeader>
-          <Button onClick={() => { if (pendingDetection) applyDetectionSettings(pendingDetection); }}>Replace manual edits</Button>
-          <Button variant="outline" onClick={() => { setPendingDetection(null); setDraftSensitivity(null); }}>Keep my edits</Button>
-        </DialogContent>
-      </Dialog>
       <Dialog open={handoffOpen} onOpenChange={setHandoffOpen}>
         <DialogContent><DialogHeader><DialogTitle>Name your tools</DialogTitle>
           <DialogDescription>Each tool becomes an independently movable pocket. The trace already includes {margin ?? 0} mm of margin per edge.</DialogDescription></DialogHeader>
@@ -1268,62 +1194,6 @@ export function TraceControlsPanel({
           </Button>
         </div>
       </PanelFooter>
-    </div>
-  );
-}
-
-interface LabelledSliderProps {
-  id: string;
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  step: number;
-  format: (value: number) => string;
-  onChange: (value: number) => void;
-  /** Fired on release, for anything too expensive to run per frame. */
-  onCommit?: (value: number) => void;
-  disabled?: boolean;
-  hint?: string;
-  className?: string;
-}
-
-function LabelledSlider({
-  id,
-  label,
-  value,
-  min,
-  max,
-  step,
-  format,
-  onChange,
-  onCommit,
-  disabled,
-  hint,
-  className,
-}: LabelledSliderProps): JSX.Element {
-  return (
-    <div className={cn("space-y-1.5", className)}>
-      <div className="flex items-baseline justify-between">
-        <Label htmlFor={id} className="text-xs">
-          {label}
-        </Label>
-        <span className="text-xs tabular-nums text-muted-foreground">
-          {format(value)}
-        </span>
-      </div>
-      <Slider
-        id={id}
-        aria-label={label}
-        min={min}
-        max={max}
-        step={step}
-        value={[value]}
-        disabled={disabled}
-        onValueChange={(values) => onChange(values[0])}
-        onValueCommit={(values) => onCommit?.(values[0])}
-      />
-      {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
     </div>
   );
 }

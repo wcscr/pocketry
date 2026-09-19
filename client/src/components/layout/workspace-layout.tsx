@@ -50,6 +50,8 @@ export interface WorkspaceLayoutProps {
   panelTitle?: string;
   /** Persistent next-step actions below the mobile canvas. */
   mobileActions?: React.ReactNode;
+  /** Dense step controls can move beside the canvas on short landscape phones. */
+  mobileActionsLayout?: "bottom" | "landscape-side";
 }
 
 /**
@@ -72,6 +74,7 @@ export function WorkspaceLayout({
   onPanelOpenChange,
   panelTitle = "Controls",
   mobileActions,
+  mobileActionsLayout = "bottom",
 }: WorkspaceLayoutProps): JSX.Element {
   const isMobile = useIsMobile();
   const [workspaceRef, workspaceSize] = useElementSize<HTMLDivElement>();
@@ -129,7 +132,8 @@ export function WorkspaceLayout({
 
   if (isMobile) {
     return (
-      <div ref={workspaceRef} className="relative flex h-full w-full flex-col overflow-hidden">
+      <div ref={workspaceRef} data-landscape-actions={mobileActionsLayout === "landscape-side" || undefined}
+        className="mobile-workspace relative flex h-full w-full flex-col overflow-hidden">
         {/*
           The canvas stays outside the drawer. vaul animates its content with
           CSS transforms, and the canvas relies on getScreenCTM() to map pointer
@@ -137,8 +141,8 @@ export function WorkspaceLayout({
           transform, so a canvas inside the drawer would mis-hit for the whole
           animation and stay wrong under `shouldScaleBackground`.
         */}
-        <div className="relative min-h-0 flex-1">{canvas}</div>
-        <div className="shrink-0 border-t bg-background p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]" data-testid="mobile-workspace-actions">
+        <div className="relative min-h-0 min-w-0 flex-1">{canvas}</div>
+        <div className="mobile-workspace-actions max-h-[50dvh] shrink-0 overflow-y-auto border-t bg-background p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]" data-testid="mobile-workspace-actions">
           {mobileActions ?? (
             <Button className="min-h-11 w-full" onClick={() => onPanelOpenChange(true)}>
               {panelTitle} controls

@@ -1,7 +1,6 @@
 import {
   Crop,
   Hand,
-  Minus,
   Loader2,
   Maximize2,
   MousePointer2,
@@ -148,6 +147,8 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
     contentHeight: imageSize.height,
     containerWidth: containerSize.width,
     containerHeight: containerSize.height,
+    // Fit the whole photo between the touch toolbars on compact canvases.
+    padding: containerSize.width < 768 ? 64 : 24,
     panEnabled: mode === "navigate",
   });
 
@@ -328,6 +329,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
       ? 22 / viewport.transform.scale
       : pickRadius;
     if (mode === "remove" && event.button === 0) {
+      if (!selection || !getRing(outline, selection)) return;
       const vertex = nearestVertex(outline, image, pointerPickRadius, selection);
       if (vertex) {
         const ring = getRing(outline, vertex.ref);
@@ -752,8 +754,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
             <ModeButton mode="pan" icon={MousePointer2} label="Select" />
             <ModeButton mode="navigate" icon={Hand} label="Pan photo" />
             <ModeButton mode="region" icon={Crop} label="Region" />
-            <ModeButton mode="edit" icon={Spline} label="Edit points" />
-            <ModeButton mode="remove" icon={Minus} label="Remove points" disabled={outline.length === 0} />
+            <ModeButton mode="edit" icon={Spline} label="Edit contours" disabled={outline.length === 0} />
             <ModeButton mode="calibrate" icon={Scaling} label="Set scale" />
             <ModeButton
               mode="measure"
@@ -762,9 +763,11 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
               disabled={measurementMmPerPx === null}
             />
 
+          </CanvasToolbar>
+
+          <CanvasToolbar position="top-right" className="max-md:bottom-2 max-md:left-2 max-md:right-auto max-md:top-auto">
             {/* Always present: outline edits can happen in any pointing mode,
                 and a hidden undo reads as "there is no undo". */}
-            <div className="mx-1 h-5 w-px bg-border" />
             <IconButton
               icon={Undo2}
               label={
@@ -794,9 +797,10 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
             />
           </CanvasToolbar>
 
-          {outline.length > 0 && (mode === "edit" || mode === "remove" || (mode === "pan" && selection)) && (
-            <div className="absolute bottom-16 left-2 z-30">
+          {(mode === "edit" || mode === "remove") && selection && getRing(outline, selection) && (
+            <div className="absolute bottom-16 left-2 z-30 max-md:hidden">
               <ContourEditTools removeActive={mode === "remove"}
+                selectionLabel={`Contour ${selection.shapeIndex + 1}${selection.ringIndex === OUTER_RING ? "" : ` · Hole ${selection.ringIndex + 1}`}`}
                 onChange={(remove) => dispatch({ type: "SET_MODE", mode: remove ? "remove" : "edit" })} />
             </div>
           )}
@@ -810,7 +814,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
             <button
               type="button"
               onClick={viewport.resetZoom}
-              className="min-h-11 min-w-14 rounded px-2 py-1 text-xs md:min-h-0 tabular-nums hover:bg-accent"
+              className="hidden min-h-11 min-w-14 rounded px-2 py-1 text-xs md:block md:min-h-0 tabular-nums hover:bg-accent"
               title="Reset to 100% (1)"
             >
               {Math.round(viewport.transform.scale * 100)}%
@@ -874,8 +878,8 @@ function ModeButton({
   label: string;
   disabled?: boolean;
 }): JSX.Element {
-  const { mode: current, dispatch, outline, selection } = useTrace();
-  const active = current === mode;
+  const { mode: current, dispatch } = useTrace();
+  const active = current === mode || (mode === "edit" && current === "remove");
 
   return (
     <Tooltip>
@@ -887,12 +891,7 @@ function ModeButton({
           aria-pressed={active}
           aria-label={label}
           disabled={disabled}
-          onClick={() => {
-            if ((mode === "edit" || mode === "remove") && !selection && outline.length > 0) {
-              dispatch({ type: "SELECT_RING", selection: { shapeIndex: 0, ringIndex: OUTER_RING } });
-            }
-            dispatch({ type: "SET_MODE", mode });
-          }}
+          onClick={() => dispatch({ type: "SET_MODE", mode })}
         >
           <Icon className="h-4 w-4" />
         </Button>

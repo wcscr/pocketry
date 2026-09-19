@@ -66,6 +66,7 @@ import {
 } from "@/components/canvas/canvas-viewport";
 import { Button } from "@/components/ui/button";
 import { ContourEditTools } from "@/components/canvas/contour-edit-tools";
+import { WorkflowHint } from "@/components/canvas/workflow-hint";
 import { useViewportTransform } from "@/hooks/use-viewport-transform";
 import { outlineBounds, pointInOutline } from "@/lib/geometry/outline";
 import { nearestVertex } from "@/lib/geometry/hit-test";
@@ -1794,12 +1795,12 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
       {editorMode === "contour" && selected && !panActive ? (
         <div className="absolute bottom-2 left-2 z-30">
           <ContourEditTools removeActive={removeVertices} onChange={setRemoveVertices} />
-          <p className="mt-1 rounded bg-background/90 px-2 py-1 text-[11px] text-muted-foreground">
+          <WorkflowHint className="mt-1 max-w-[min(22rem,calc(100vw-1rem))]">
             {removeVertices ? "Tap a vertex to remove it · Undo restores it" : "Drag vertices to move · Tap an edge to add"}
-          </p>
+          </WorkflowHint>
         </div>
       ) : (
-      <div className="pointer-events-none absolute bottom-2 left-2 right-2 md:right-auto rounded-md bg-background/85 px-2 py-1 text-[11px] text-muted-foreground shadow-sm backdrop-blur">
+      <WorkflowHint className="pointer-events-none absolute bottom-2 left-2 right-2 md:right-auto md:max-w-lg">
         {panActive
           ? "Drag to pan · Pinch to zoom · Tap the hand to resume editing"
           : rulerActive
@@ -1819,7 +1820,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
             : selectedCutoutId
               ? "Pocket · drag edges/corners to resize · Option resizes from center · round handle rotates"
               : "Click a pocket or finger hole to select · Shift-drag pans · Ctrl-scroll zooms"}
-      </div>
+      </WorkflowHint>
       )}
     </>
   );
