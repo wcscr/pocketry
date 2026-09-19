@@ -76,10 +76,15 @@ its original 8- and 16-marker decoding passes.
 A dedicated 28-marker pass runs first and retains only strip IDs 20–27. Exactly
 one complete pair must occur, with no repeated markers or multiple aids. All eight
 corners must fit one orientation-preserving similarity transform anchored at that
-pair's physical baseline. RMS residual must be at most 0.45 mm, individual
-marker-edge scale disagreement at most 6%, and the baseline at least 40 image
-pixels. More than 2% disagreement also warns at review. These tolerances
-accommodate sampling noise; they are not an accuracy guarantee.
+pair's physical baseline. RMS residual must be at most 0.45 mm and the baseline
+at least 40 image pixels. Individual marker-edge disagreement is limited to 6%
+of its expected image size plus 0.5 image pixels of edge-localization allowance.
+The pixel allowance matters for small markers: a one-pixel difference on a
+14-pixel edge exceeds 7%, even when the long centre baseline is stable. It does
+not change the scale derived from the baseline or bypass the corner-fit checks.
+The raw measured disagreement is still shown above 2% at review. For clearer
+markers, fill more of the photo with the tool while retaining both end markers.
+These tolerances accommodate sampling noise; they are not an accuracy guarantee.
 
 The 3MF is a Manifold-built white carrier with complementary black inlays. Both
 parts are closed indexed meshes, share a flush top plane and form one assembled

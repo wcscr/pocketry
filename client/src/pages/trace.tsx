@@ -263,7 +263,9 @@ function TraceWorkspace(): JSX.Element {
             if (solution.maxDeviation > SKEW_WARN_FRACTION) {
               toast({
                 title: "Scale detected — review carefully",
-                description: `${summary}. Marker distances disagree by ${(solution.maxDeviation * 100).toFixed(1)}%. ${perspective ? "Perspective correction is available in Scale." : "Shoot straight down for accurate millimetres."}`,
+                description: strip
+                  ? `${summary}. Marker edge measurements differ by ${(solution.maxDeviation * 100).toFixed(1)}%. Small markers or camera tilt can cause this. Review the scale; for clearer markers, fill more of the photo with the tool and shoot straight down.`
+                  : `${summary}. Marker distances disagree by ${(solution.maxDeviation * 100).toFixed(1)}%. ${perspective ? "Perspective correction is available in Scale." : "Shoot straight down for accurate millimetres."}`,
                 variant: "destructive",
                 duration: 8000,
               });
@@ -280,7 +282,7 @@ function TraceWorkspace(): JSX.Element {
               title: "Reference strip could not be calibrated",
               description: result.reason === "incomplete-signature"
                 ? "Keep both strip markers fully visible. No paper-sheet scale was substituted."
-                : "Use one flat, unmodified strip, keep both markers visible, and shoot straight down. Its marker sizes, spacing or orientation did not match. No paper-sheet scale was substituted.",
+                : "The marker sizes, spacing or orientation did not match. Use one flat, unmodified strip, fill more of the photo with the tool so both markers are clear, and shoot straight down. No paper-sheet scale was substituted.",
               duration: 8000,
             });
             break;

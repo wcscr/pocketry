@@ -1,12 +1,18 @@
 import { referenceStripFromMarkerIds, referenceStripMarkers } from "./reference-strip";
 import type { DetectedMarker, ScaleSolution } from "./solve";
 
+// Rasterized marker edges have a finite localization error. A half-pixel
+// allowance on each measured edge prevents a ~14 px marker being rejected
+// for sampling noise while preserving the 6% geometric limit at high resolution.
+const EDGE_LOCALIZATION_ALLOWANCE_PX = 0.5;
+const MAX_EDGE_DEVIATION = 0.06;
+
 /**
  * A strip supplies a scalar ruler, not a paper homography. Check all eight
  * corners against one orientation-preserving similarity transform anchored
  * at the known marker centres. This rejects a wrong spacing, swapped/turned
  * marker, bent strip or oblique photo instead of hiding it in a homography.
- * The tolerances allow subpixel noise on ~30 px markers; they cannot prove
+ * The tolerances account for subpixel edge noise; they cannot prove
  * coplanarity with the object or eliminate lens distortion.
  */
 export function solveReferenceStrip(markers: readonly DetectedMarker[]): ScaleSolution | null {
@@ -22,6 +28,8 @@ export function solveReferenceStrip(markers: readonly DetectedMarker[]): ScaleSo
   const distance = Math.hypot(dx, dy);
   if (!Number.isFinite(distance) || distance < 40) return null;
   const mmPerPx = spec.centerSpacingMm / distance;
+  const maxEdgeDeviation = MAX_EDGE_DEVIATION +
+    EDGE_LOCALIZATION_ALLOWANCE_PX * mmPerPx / spec.markerSizeMm;
   const cos = dx / distance;
   const sin = dy / distance;
   let squaredError = 0;
@@ -42,7 +50,7 @@ export function solveReferenceStrip(markers: readonly DetectedMarker[]): ScaleSo
     }
   }
   const rmsMm = Math.sqrt(squaredError / 8);
-  if (!Number.isFinite(rmsMm) || rmsMm > 0.45 || maxDeviation > 0.06) return null;
+  if (!Number.isFinite(rmsMm) || rmsMm > 0.45 || maxDeviation > maxEdgeDeviation) return null;
   return {
     mmPerPx,
     markerIds: [...spec.markerIds],
