@@ -1,5 +1,11 @@
 # Gridfinity bin generator — design and roadmap
 
+Pocket names belong to individual placements. Renaming a copy leaves the original,
+other copies, and the source shape unchanged. Names appear in pocket controls,
+spacing references, warnings, canvas labels, and fit-template exports. Project
+schema v19 preserves them through undo/redo and project save/import; older pockets
+continue to display their source shape name until renamed.
+
 Basic-shape pockets are available from **Layout → Add pocket** and the **Pockets**
 panel. Draw a rectangle or square between opposite corners, or a circle from its
 centre to its edge. A live outline shows dimensions; release adds one ordinary

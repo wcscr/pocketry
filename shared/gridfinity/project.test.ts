@@ -44,6 +44,20 @@ const VALID = {
 };
 
 describe("parseProjectDoc", () => {
+  it("preserves independent pocket names alongside unnamed legacy placements", () => {
+    const doc = parseProjectDoc({ ...VALID, cutouts: [
+      { ...VALID.cutouts[0], name: "  First pocket  " },
+      { ...VALID.cutouts[0], id: "copy" },
+      { ...VALID.cutouts[0], id: "second-copy", name: "Second pocket" },
+    ] });
+    expect(doc?.cutouts.map(cutout => cutout.name)).toEqual(["First pocket", undefined, "Second pocket"]);
+    expect(doc?.shapes).toEqual(VALID.shapes);
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(doc)))).toEqual(doc);
+    for (const name of ["", "   ", null, 42]) {
+      expect(parseProjectDoc({ ...VALID, cutouts: [{ ...VALID.cutouts[0], name }] })).toBeNull();
+    }
+  });
+
   it("preserves finger access names through save and reload alongside unnamed legacy holes", () => {
     const doc = parseProjectDoc({
       ...VALID,
