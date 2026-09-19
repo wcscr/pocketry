@@ -3,7 +3,7 @@ import { Portal as TooltipPortal } from "@radix-ui/react-tooltip";
 import {
   Box,
   CheckCircle2,
-  CircleHelp,
+  CircleAlert,
   Crop,
   Download,
   Image as ImageIcon,
@@ -94,7 +94,7 @@ function ScaleActionWithHint({ children }: { children: ReactNode }): JSX.Element
             aria-label="About scaling thick objects"
             className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-amber-600 hover:text-amber-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 dark:text-amber-400 dark:hover:text-amber-300"
           >
-            <CircleHelp className="h-4 w-4" />
+            <CircleAlert className="h-4 w-4" />
           </button>
         </TooltipTrigger>
         <TooltipPortal>
