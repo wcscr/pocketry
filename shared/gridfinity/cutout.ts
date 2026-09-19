@@ -554,6 +554,8 @@ const cutoutPlacementInputSchema = z
   .object({
     id: z.string().min(1),
     shapeId: z.string().min(1),
+    /** Placement-local name; absent on older pockets that use the source name. */
+    name: z.string().trim().min(1).optional(),
     /** Bin-local mm, y-up, origin at the bin centre. */
     position: vec2Schema,
     /** CCW-positive in the y-up bin frame. */
@@ -614,6 +616,14 @@ export const cutoutPlacementSchema = cutoutPlacementInputSchema.transform(
 
 export type CutoutPlacement = z.infer<typeof cutoutPlacementSchema>;
 export type CutoutPlacementInput = z.input<typeof cutoutPlacementSchema>;
+
+/** Pocket labels belong to placements; the source shape remains shared geometry. */
+export function pocketName(
+  cutout: Pick<CutoutPlacement, "name">,
+  shape: Pick<TracedShape, "name"> | undefined | null,
+): string {
+  return cutout.name ?? shape?.name ?? "Missing shape";
+}
 
 /** The original depth is retained for removing a split; only active depths cut. */
 export function pocketDepths(cutout: Pick<CutoutPlacement, "depth" | "split">): readonly DepthSpec[] {

@@ -1,7 +1,7 @@
 import { outlineBounds } from "@/lib/geometry/outline";
 import { useState, type ReactNode } from "react";
 import { ChevronDown, Lock, Unlock } from "lucide-react";
-import { placementFootprint, resolvePocketDepth, type CutoutPlacement, type TracedShape } from "@shared/gridfinity/cutout";
+import { pocketName, placementFootprint, resolvePocketDepth, type CutoutPlacement, type TracedShape } from "@shared/gridfinity/cutout";
 import { binTotalHeightMm } from "@shared/gridfinity/standard";
 import { Button } from "@/components/ui/button";
 import { DraftNumberInput } from "@/components/ui/draft-number-input";
@@ -66,7 +66,7 @@ export function PocketMeasurements({ cutout, shape, children }: {
           <summary className="cursor-pointer">Space beside another pocket <HelpHint label="pocket spacing">Gap between opening bounds, including top rounding.</HelpHint></summary>
           <select className="h-8 w-full rounded border bg-background px-2" aria-label="Reference pocket" value={neighborId} onChange={(event) => setNeighborId(event.target.value)}>
             <option value="">Choose a pocket</option>
-            {cutouts.filter((item) => item.id !== cutout.id).map((item) => <option key={item.id} value={item.id}>{shapes.find((shape) => shape.id === item.shapeId)?.name ?? "Pocket"}</option>)}
+            {cutouts.filter((item) => item.id !== cutout.id).map((item) => <option key={item.id} value={item.id}>{pocketName(item, shapes.find((shape) => shape.id === item.shapeId))}</option>)}
           </select>
           <div className="flex gap-2">
             <select aria-label="Side of reference pocket" className="rounded border bg-background" value={side} onChange={(event) => setSide(event.target.value as typeof side)}>

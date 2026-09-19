@@ -270,6 +270,74 @@ function selectPocket(container: HTMLElement, id: string): void {
 }
 
 describe("BinDesignerPage", () => {
+  it.each(["trace", "basic-shape"] as const)("renames copied %s pockets independently with undo and project round trips", async (source) => {
+    const shape = { ...rectangularShape("shared", "Original pocket"), source,
+      sourceMmPerPx: source === "basic-shape" ? null : 0.5 };
+    const original = parseCutoutPlacement({ id: "original", shapeId: shape.id, position: { x: 0, y: 0 } });
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape], cutouts: [original] });
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      openSettingsSection(container, "tool-cutouts");
+      const click = (testId: string) => React.act(() => container.querySelector<HTMLButtonElement>(`[data-testid="${testId}"]`)!.click());
+      const names = () => Array.from(container.querySelectorAll('[data-testid^="cutout-row-"] [data-testid^="button-select-"]'), el => el.textContent);
+      const rename = (id: string, value: string, key = "Enter") => {
+        click(`button-rename-${id}`);
+        const input = container.querySelector<HTMLInputElement>('[aria-label="Pocket name"]')!;
+        React.act(() => {
+          Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
+          input.dispatchEvent(new Event("input", { bubbles: true }));
+        });
+        React.act(() => input.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true })));
+      };
+      click("button-duplicate-original");
+      click("button-duplicate-original");
+      const [, copy] = vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts;
+      rename(copy.id, "  Copy A  ");
+      expect(names()).toEqual(["Original pocket", "Copy A", "Original pocket"]);
+      expect(container.querySelector('[data-testid="pocket-properties-heading"]')!.textContent).toContain("Copy A");
+      expect(container.querySelector('[aria-label="Reference pocket"]')!.textContent).toContain("Original pocket");
+      click("button-bin-undo");
+      expect(names()).toEqual(["Original pocket", "Original pocket", "Original pocket"]);
+      click("button-bin-redo");
+      expect(names()).toEqual(["Original pocket", "Copy A", "Original pocket"]);
+      rename("original", "Source placement");
+      expect(names()).toEqual(["Source placement", "Copy A", "Original pocket"]);
+      rename(copy.id, "Cancelled", "Escape");
+      rename(copy.id, "   ");
+      expect(names()).toEqual(["Source placement", "Copy A", "Original pocket"]);
+      click(`button-duplicate-${copy.id}`);
+      expect(names()).toEqual(["Source placement", "Copy A", "Original pocket", "Copy A"]);
+      const newCopy = vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts.at(-1)!;
+      rename(newCopy.id, "Copy B");
+      const expectedNames = ["Source placement", "Copy A", "Original pocket", "Copy B"];
+      expect(names()).toEqual(expectedNames);
+      openSettingsSection(container, "project");
+      click("button-export-project");
+      const [blob] = vi.mocked(downloadBlob).mock.lastCall!;
+      const json = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.readAsText(blob);
+      });
+      const saved = parseProjectDoc(JSON.parse(json))!;
+      expect(saved).not.toBeNull();
+      expect(saved.shapes).toEqual([shape]);
+      expect(saved.cutouts.map(cutout => cutout.shapeId)).toEqual(Array(4).fill(shape.id));
+      const file = new File([json], "Copies.pocketry.json");
+      Object.defineProperty(file, "text", { value: async () => json });
+      const input = container.querySelector<HTMLInputElement>('input[type="file"][accept*=".pocketry.json"]')!;
+      Object.defineProperty(input, "files", { value: [file], configurable: true });
+      await React.act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
+      openSettingsSection(container, "tool-cutouts");
+      expect(names()).toEqual(expectedNames);
+      click("button-bin-undo");
+      expect(names()).toEqual(["Source placement", "Copy A", "Original pocket", "Copy A"]);
+      click("button-bin-redo");
+      expect(names()).toEqual(expectedNames);
+    } finally { unmount(); }
+  });
+
   it.each(["new", "file"])("saves pending edits before replacing a named project via %s, and stops on save failure", async action => {
     const cutter = parseProjectDoc(ryobiReloadFixture)!;
     vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(cutter);
@@ -957,7 +1025,7 @@ describe("BinDesignerPage", () => {
     ["multicolor-3mf", "-multicolor", "3mf"],
     ["surface-fit-test", "-surface-fit-test-0.8mm", "stl"],
     ["surface-outline", "-tool-outlines-5mm-wide-0.8mm-thick", "stl"],
-    ["fit-check", "-Wrench-fit-template-2mm", "stl"],
+    ["fit-check", "-Left-wrench-fit-template-2mm", "stl"],
     ["layout-svg", "-layout", "svg"],
     ["layout-dxf", "-layout", "dxf"],
   ].flatMap(([kind, suffix, extension]) => [false, true].map((includeProject) => ({ kind, suffix, extension, includeProject }))))(
@@ -968,7 +1036,7 @@ describe("BinDesignerPage", () => {
       ...EMPTY_PROJECT,
       spec: parseBinSpec({ gridX: 4, gridY: 4, heightUnits: 6.5 }),
       shapes: [shape, rectangularShape("unused", "Unplaced tool")],
-      cutouts: [parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 0, y: 0 } })],
+      cutouts: [parseCutoutPlacement({ id: "pocket", shapeId: shape.id, name: "Left wrench", position: { x: 0, y: 0 } })],
       fingerHoles: [fingerHoleSchema.parse({ id: "hole", kind: "straight", center: { x: 40, y: 0 } })],
     };
     vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(project);
@@ -2970,7 +3038,7 @@ describe("BinDesignerPage", () => {
       shapeName.blur();
     });
     expect(libraryHandle!.shapes.find((shape) => shape.id === "shape-1")?.name).toBe(
-      "Bench wrench",
+      "test wrench",
     );
     expect(container.textContent).toContain("Bench wrench");
 

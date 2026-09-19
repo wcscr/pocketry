@@ -47,6 +47,7 @@ import {
   fingerHoleSizeLimits,
   resolvePocketDepth,
   pocketDepths,
+  pocketName,
   type DepthSpec,
   type TracedShape,
 } from "@shared/gridfinity/cutout";
@@ -331,7 +332,7 @@ export function BinControlsPanel({
     dispatch,
   } = useBin();
   const [, navigate] = useLocation();
-  const { shapes, storeShape } = useShapeLibrary();
+  const { shapes } = useShapeLibrary();
   const [renamingFingerId, setRenamingFingerId] = useState<string | null>(null);
   const [renamingPocketId, setRenamingPocketId] = useState<string | null>(null);
   useEffect(() => {
@@ -837,6 +838,7 @@ export function BinControlsPanel({
             <div className="space-y-1" aria-label="Choose a pocket to edit">
               {cutouts.map((cutout) => {
                 const shape = shapesById.get(cutout.shapeId);
+                const name = pocketName(cutout, shape);
                 const isSelected = cutout.id === selectedCutoutId;
                 return (
                   <div key={cutout.id} data-testid={`cutout-row-${cutout.id}`} className={cn(
@@ -844,12 +846,12 @@ export function BinControlsPanel({
                     isSelected ? "border-violet-500/50 bg-violet-500/10" : "border-transparent hover:bg-accent",
                   )}>
                     {renamingPocketId === cutout.id && shape ? (
-                      <EditableObjectName key={cutout.id} name={shape.name} kind="shape" onRename={(name) => storeShape({ ...shape, name })} onDone={() => setRenamingPocketId(null)} />
+                      <EditableObjectName key={cutout.id} name={name} kind="shape" onRename={(name) => dispatch({ type: "UPDATE_CUTOUT", id: cutout.id, patch: { name }, historyLabel: "Rename pocket" })} onDone={() => setRenamingPocketId(null)} />
                     ) : (
                     <button
                       type="button"
                       className="flex min-h-8 min-w-0 flex-1 items-center gap-2 rounded px-2 py-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      aria-label={`${shape?.name ?? "Missing shape"} — edit pocket properties`}
+                      aria-label={`${name} — edit pocket properties`}
                       aria-pressed={isSelected}
                       aria-controls="pocket-properties"
                       data-testid={`button-select-${cutout.id}`}
@@ -858,19 +860,19 @@ export function BinControlsPanel({
                         if (isSelected) revealPanelSection("bin-settings-pockets", BIN_SETTINGS_SECTIONS, "pocket-properties");
                       }}
                     >
-                      <span className={cn("min-w-0 flex-1 truncate", isSelected && "font-medium text-violet-700 dark:text-violet-300")}>{shape?.name ?? "Missing shape"}</span>
+                      <span className={cn("min-w-0 flex-1 truncate", isSelected && "font-medium text-violet-700 dark:text-violet-300")}>{name}</span>
                     </button>
                     )}
-                    <button type="button" className="flex h-8 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Rename ${shape?.name ?? "pocket"}`} disabled={!shape} data-testid={`button-rename-${cutout.id}`} onClick={() => {
+                    <button type="button" className="flex h-8 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Rename ${name}`} disabled={!shape} data-testid={`button-rename-${cutout.id}`} onClick={() => {
                       dispatch({ type: "SELECT_CUTOUT", id: cutout.id });
                       setRenamingPocketId(cutout.id);
                     }}>
                       <Pencil className="h-3.5 w-3.5" />
                     </button>
-                    <button type="button" className="flex h-8 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Duplicate ${shape?.name ?? "pocket"}`} data-testid={`button-duplicate-${cutout.id}`} onClick={() => dispatch({ type: "DUPLICATE_CUTOUT", id: cutout.id, newId: crypto.randomUUID() })}>
+                    <button type="button" className="flex h-8 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Duplicate ${name}`} data-testid={`button-duplicate-${cutout.id}`} onClick={() => dispatch({ type: "DUPLICATE_CUTOUT", id: cutout.id, newId: crypto.randomUUID() })}>
                       <Copy className="h-3.5 w-3.5" />
                     </button>
-                    <button type="button" className="flex h-8 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Remove ${shape?.name ?? "pocket"}`} data-testid={`button-remove-${cutout.id}`} onClick={() => dispatch({ type: "REQUEST_REMOVE_CUTOUT", id: cutout.id })}>
+                    <button type="button" className="flex h-8 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Remove ${name}`} data-testid={`button-remove-${cutout.id}`} onClick={() => dispatch({ type: "REQUEST_REMOVE_CUTOUT", id: cutout.id })}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   </div>
@@ -889,7 +891,7 @@ export function BinControlsPanel({
             <div className="space-y-3 rounded-md border border-violet-500/30 bg-violet-500/[0.025] p-2.5" id="pocket-properties" role="region" aria-label="Selected pocket properties">
               <div className="flex min-w-0 items-center gap-2 border-b border-violet-500/20 pb-2" data-testid="pocket-properties-heading">
                 <h3 className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-violet-700 dark:text-violet-300">Pocket properties</h3>
-                <span className="min-w-0 truncate text-xs font-medium" title={selectedShape.name}>{selectedShape.name}</span>
+                <span className="min-w-0 truncate text-xs font-medium" title={pocketName(selectedCutout, selectedShape)}>{pocketName(selectedCutout, selectedShape)}</span>
                 <Button
                   variant={editorMode === "contour" ? "default" : "outline"}
                   size="sm"
@@ -1721,7 +1723,7 @@ export function BinControlsPanel({
               <div className="space-y-2 border-t pt-2.5">
                 <div>
                   <SettingLabel label="Tool fit template" hint="A filled tool outline without the bin or finger holes. Includes its Trace margin, signed pocket clearance, and outline corner rounding." />
-                  <p className="truncate text-xs font-medium" title={selectedShape.name}>{selectedShape.name}</p>
+                  <p className="truncate text-xs font-medium" title={pocketName(selectedCutout, selectedShape)}>{pocketName(selectedCutout, selectedShape)}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <Label className="w-20 shrink-0 text-xs">Thickness</Label>
@@ -1745,7 +1747,7 @@ export function BinControlsPanel({
                   disabled={exporting}
                   onClick={() => setPendingExport({
                     title: "Save fit template STL?",
-                    description: `Download the filled outline of “${selectedShape.name}” at ${fitCheckDepthMm} mm thick.`,
+                    description: `Download the filled outline of “${pocketName(selectedCutout, selectedShape)}” at ${fitCheckDepthMm} mm thick.`,
                     confirmLabel: "Download STL",
                     onConfirm: (includeProject) => onExportFitCheck(selectedCutout.id, fitCheckDepthMm, includeProject),
                   })}

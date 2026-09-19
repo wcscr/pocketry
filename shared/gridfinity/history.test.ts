@@ -30,6 +30,25 @@ describe("portable project history", () => {
     expect(parseProjectDoc(legacy)?.history).toBeUndefined();
   });
 
+  it("migrates v18 pocket history without changing names, geometry, or the cursor", () => {
+    const legacy = { ...saved, schemaVersion: 18 };
+    const before = JSON.stringify(legacy);
+    expect(parseProjectDoc(legacy)).toEqual(saved);
+    expect(JSON.stringify(legacy)).toBe(before);
+    expect(parseProjectDoc({ ...legacy, shapes: [] })).toBeNull();
+    expect(parseProjectDoc({ ...legacy, history: { ...history, index: 0 } })).toBeNull();
+  });
+
+  it("preserves independent pocket names in both undo and redo snapshots", () => {
+    const renamed = { ...present, cutouts: present.cutouts.map((cutout, index) => ({ ...cutout, name: `Pocket ${index + 1}` })) };
+    const namedHistory = { stack: [history.stack[1], { doc: renamed, label: "Rename pocket" }], index: 0 };
+    const doc = { ...project, history: namedHistory };
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(doc)))).toEqual(doc);
+    const afterRedo = { ...doc, ...renamed, history: { ...namedHistory, index: 1 } };
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(afterRedo)))).toEqual(afterRedo);
+    expect(parseProjectDoc({ ...afterRedo, cutouts: project.cutouts })).toBeNull();
+  });
+
   it.each([-1, 3, 0.5, 999])("rejects an invalid history position %s", (index) => {
     expect(parseProjectDoc({ ...saved, history: { ...history, index } })).toBeNull();
   });

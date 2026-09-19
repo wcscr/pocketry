@@ -1,5 +1,5 @@
 import { Box, History, Redo2, Undo2 } from "lucide-react";
-import { pocketDepths } from "@shared/gridfinity/cutout";
+import { pocketDepths, pocketName } from "@shared/gridfinity/cutout";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { CanvasWarnings } from "@/components/gridfinity/canvas-warnings";
@@ -376,12 +376,11 @@ function BinDesignerWorkspace(): JSX.Element {
     for (const report of cutoutReports) {
       if (report.emptied && !emptiedSeenRef.current.has(report.id)) {
         emptiedSeenRef.current.add(report.id);
-        const shape = layout.shapes.find(
-          (s) => s.id === cutouts.find((c) => c.id === report.id)?.shapeId,
-        );
+        const cutout = cutouts.find((c) => c.id === report.id);
+        const shape = layout.shapes.find((s) => s.id === cutout?.shapeId);
         toast({
           title: "Pocket vanished",
-          description: `“${shape?.name ?? "A pocket"}” collapsed under its clearance/corner settings — increase clearance toward zero or reduce outline corner rounding.`,
+          description: `“${cutout ? pocketName(cutout, shape) : "A pocket"}” collapsed under its clearance/corner settings — increase clearance toward zero or reduce outline corner rounding.`,
           variant: "destructive",
         });
       }
@@ -895,12 +894,12 @@ function BinDesignerWorkspace(): JSX.Element {
         const project = prepareProjectExport(
           exportProjectDoc,
           currentProjectName,
-          `${exportFilePart(shape.name) || "tool"}-fit-template-${depthLabel}mm`,
+          `${exportFilePart(pocketName(cutout, shape)) || "tool"}-fit-template-${depthLabel}mm`,
         );
         const result = await buildFitCheck(shape, cutout, depthMm, EXPORT_QUALITY);
         const stl = writeBinarySTL(
           { positions: result.mesh.positions, indices: result.mesh.indices },
-          `Pocketry ${shape.name} fit template ${depthLabel} mm`,
+          `Pocketry ${pocketName(cutout, shape)} fit template ${depthLabel} mm`,
         );
         downloadModelWithProject(
           new Blob([stl], { type: "application/octet-stream" }),
@@ -910,7 +909,7 @@ function BinDesignerWorkspace(): JSX.Element {
         );
         toast({
           title: "Fit template saved",
-          description: `Exported “${shape.name}” as a ${depthLabel} mm filled outline${includeProject ? " with an editable project JSON" : ""}.`,
+          description: `Exported “${pocketName(cutout, shape)}” as a ${depthLabel} mm filled outline${includeProject ? " with an editable project JSON" : ""}.`,
         });
       } catch (cause) {
         if (!(cause instanceof WorkerCancelledError)) {
