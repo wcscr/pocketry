@@ -311,7 +311,7 @@ export function validateLayout(
       });
       continue;
     }
-    if (shape.sourceMmPerPx === null) {
+    if (shape.sourceMmPerPx === null && shape.source !== "basic-shape") {
       issues.push({
         code: "uncalibrated-scale",
         severity: "error",

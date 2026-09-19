@@ -1,5 +1,17 @@
 # Gridfinity bin generator — design and roadmap
 
+Basic-shape pockets are available from **Layout → Add pocket** and the **Pockets**
+panel. Draw a rectangle or square between opposite corners, or a circle from its
+centre to its edge. A live outline shows dimensions; release adds one ordinary
+pocket, and Escape/Cancel or a cancelled/tiny gesture leaves the project unchanged.
+The current bin dimensions and other placements stay fixed, with ordinary boundary
+and overlap warnings. **Size & scale** edits exact millimetre dimensions after
+creation; squares and circles start with proportions locked. Depth, rounding,
+clearance, contour editing, duplication, undo/redo, floor colors, fit tests, and
+bin/layout exports use the existing pocket paths. Project schema v18 records that
+these shapes were authored in millimetres; older calibrated and uncalibrated traces
+retain their calibration requirements. Saved projects may mix both shape sources.
+
 **Status: G1–G5 software scope landed (G5 on 2026-08-24); both *print gates*
 are pending** — G1: print `exports/bin-2x3x6.3mf` and verify grid fit and
 stacking; G3: trace a real tool, export its bin, print it, and put the tool in

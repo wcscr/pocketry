@@ -84,6 +84,8 @@ import {
 } from "@/lib/gridfinity/layout-measure";
 import { resolvePocketSplit, splitSide } from "@shared/gridfinity/pocket-split";
 import { usePocketSplit } from "./use-pocket-split";
+import { useBasicPocket } from "./use-basic-pocket";
+import { AddPocketMenu } from "./add-pocket-menu";
 import { cn } from "@/lib/utils";
 import { useBin } from "@/state/bin-store";
 import { useShapeLibrary } from "@/state/shape-library";
@@ -282,6 +284,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
   };
 
   const scale = viewport.transform.scale;
+  const basicPocket = useBasicPocket({ toBin });
   const pickRadius = PICK_RADIUS_PX / Math.max(scale, 1e-6);
 
   const [draftContour, setDraftContourState] = useState<{
@@ -455,7 +458,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
   const hasPlacedObjects = hasPlacedCutouts || placedFingerHoles.length > 0;
 
   useEffect(() => {
-    if (hasPlacedObjects && editorMode !== "split") return;
+    if (hasPlacedObjects && editorMode !== "split" && !editorMode.startsWith("draw-")) return;
     setRulerActive(false);
     setMeasurementPoints([]);
   }, [hasPlacedObjects, editorMode]);
@@ -577,6 +580,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
       viewport.handlers.onPointerDown(event);
       return;
     }
+    if (basicPocket.pointerDown(event)) return;
     if (splitEditor.pointerDown(event)) return;
     const point = toBin(event.clientX, event.clientY);
     if (!point) return;
@@ -875,6 +879,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
 
   const handlePointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
     if (panActive) { viewport.handlers.onPointerMove(event); return; }
+    if (!viewport.isPanning && basicPocket.pointerMove(event)) return;
     if (!viewport.isPanning && splitEditor.pointerMove(event)) return;
     const click = clickRef.current;
     if (
@@ -1013,6 +1018,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
 
   const endDrag = (event: ReactPointerEvent<SVGSVGElement>) => {
     if (panActive) { viewport.handlers.onPointerUp(event); return; }
+    if (!viewport.isPanning && basicPocket.pointerUp(event)) return;
     if (!viewport.isPanning && splitEditor.pointerUp(event)) return;
     const drag = dragRef.current;
     dragRef.current = null;
@@ -1336,6 +1342,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
         onPointerMove={handlePointerMove}
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
+        onLostPointerCapture={basicPocket.cancel}
         onContextMenu={handleContextMenu}
       >
         <g
@@ -1678,10 +1685,19 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
               })}
             </g>
           )}
+          {basicPocket.draft && (() => {
+            const draft = basicPocket.draft;
+            const center = binToCanvas(draft.position, spec);
+            return <g className="pointer-events-none fill-violet-500/20 stroke-violet-600 dark:stroke-violet-300" data-testid="basic-pocket-draft">
+              {basicPocket.kind === "circle"
+                ? <circle cx={center.x} cy={center.y} r={draft.width / 2} strokeWidth={1.5} strokeDasharray="5 3" vectorEffect="non-scaling-stroke" />
+                : <rect x={center.x - draft.width / 2} y={center.y - draft.length / 2} width={draft.width} height={draft.length} strokeWidth={1.5} strokeDasharray="5 3" vectorEffect="non-scaling-stroke" />}
+            </g>;
+          })()}
         </g>
       </svg>
 
-      {!hasPlacedObjects ? (
+      {!hasPlacedObjects && !basicPocket.kind ? (
         <div
           className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center p-6"
           data-testid="layout-empty-state"
@@ -1689,11 +1705,15 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
           <div className="max-w-sm rounded-lg border border-dashed bg-background/90 px-5 py-4 text-center shadow-sm backdrop-blur">
             <p className="font-medium">No layout objects yet</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              Add a tool pocket or a finger hole to place it here.
+              Use Add pocket to draw a shape, or add a traced tool or finger access.
             </p>
           </div>
         </div>
       ) : null}
+
+      <div className="absolute left-3 top-12 z-30" data-testid="layout-add-pocket">
+        <AddPocketMenu />
+      </div>
 
       <div
         className="absolute right-3 top-16 md:top-12 z-30 flex flex-col overflow-hidden rounded-md border bg-background/90 shadow-sm backdrop-blur"
@@ -1769,7 +1789,18 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
         ) : null}
       </div>
 
-      {splitEditor.active && <div className="absolute left-3 right-14 top-14 flex items-center gap-2 rounded border bg-background/95 px-3 py-2 text-xs shadow-sm">
+      {basicPocket.kind && <div className="absolute left-3 right-14 top-24 z-20 flex items-center gap-2 rounded border bg-background/95 px-3 py-2 text-xs shadow-sm">
+        <p className="flex-1" role="status">{basicPocket.draft
+          ? basicPocket.kind === "circle" ? `Diameter ${basicPocket.draft.width.toFixed(2)} mm`
+            : `${basicPocket.draft.width.toFixed(2)} × ${basicPocket.draft.length.toFixed(2)} mm`
+          : basicPocket.kind === "circle" ? "Drag from the centre to the edge of the circle."
+            : `Drag between opposite corners of the ${basicPocket.kind}.`}</p>
+        <Button type="button" variant="ghost" size="sm" className="h-7" onClick={() => {
+          basicPocket.cancel();
+          dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" });
+        }}>Cancel</Button>
+      </div>}
+      {splitEditor.active && <div className="absolute left-3 right-14 top-24 flex items-center gap-2 rounded border bg-background/95 px-3 py-2 text-xs shadow-sm">
         <p className="flex-1" role="status">{splitEditor.error ?? (splitEditor.start ? "Choose the second edge point · Esc cancels" : "Draw from edge to edge, or click two edge points")}</p>
         <Button type="button" variant="ghost" size="sm" className="h-7" onClick={() => dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" })}>Cancel</Button>
       </div>}
@@ -1803,14 +1834,14 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
       <WorkflowHint className="pointer-events-none absolute bottom-2 left-2 right-2 md:right-auto md:max-w-lg">
         {panActive
           ? "Drag to pan · Pinch to zoom · Tap the hand to resume editing"
-          : rulerActive
+          : basicPocket.kind ? "Draw pocket · release to add · Esc cancels · edit exact dimensions in Size & scale" : rulerActive
           ? "Ruler · snap to contours or split lines · Esc exits"
           : editorMode === "footprint"
           ? "Footprint edit · click cells or the dashed outer halo · Esc finishes"
           : editorMode === "label-edge"
           ? "Label tab · click a highlighted boundary edge"
           : !hasPlacedObjects
-          ? "Add a tool pocket or finger hole to begin"
+          ? "Choose Add pocket to draw a shape"
           : editorMode === "split" ? "Split pocket · draw a straight line between two outer edge points" : editorMode === "contour"
           ? selectedCutoutId
             ? "Contour edit · drag points · click an edge to add · right-click a point to remove · Esc finishes"
