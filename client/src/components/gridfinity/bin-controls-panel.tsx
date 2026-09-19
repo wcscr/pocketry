@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useLocation } from "wouter";
+import { AddPocketMenu } from "./add-pocket-menu";
 
 import {
   DEFAULT_OBLONG_DEEP_SCOOP_LENGTH_MM,
@@ -437,8 +438,9 @@ export function BinControlsPanel({
     if (!selectedCutout) return;
     const requested = Math.min(20, Math.max(0.05, percent / 100));
     const changedScale = axis === "x" ? selectedCutout.scaleX : selectedCutout.scaleY;
-    // The number field also commits on blur; do not record that value twice.
-    if (requested === changedScale) return;
+    // The number field also commits on blur. Drawing and linked scaling can
+    // leave sub-picometre rounding differences; these are not another edit.
+    if (Math.abs(requested - changedScale) < 1e-12) return;
     if (!selectedCutout.aspectRatioLocked) {
       dispatch({
         type: "UPDATE_CUTOUT",
@@ -830,6 +832,7 @@ export function BinControlsPanel({
           defaultOpen={cutouts.length > 0}
           className="scroll-mt-16"
         >
+          <div className="mb-2"><AddPocketMenu /></div>
           {cutouts.length > 0 && (
             <div className="space-y-1" aria-label="Choose a pocket to edit">
               {cutouts.map((cutout) => {
@@ -878,7 +881,7 @@ export function BinControlsPanel({
           {!selectedCutout && (
             <p className="rounded-md border border-dashed px-3 py-4 text-xs text-muted-foreground" id="pocket-properties" data-testid="pocket-selection-help">
               {cutouts.length === 0
-                ? "Trace a tool and press “Add to bin” to create a pocket."
+                ? "Choose Add pocket to draw a basic shape, or trace a tool and press “Add to bin”."
                 : "Select a pocket on the canvas or in the list above. Its properties appear here."}
             </p>
           )}
@@ -1032,8 +1035,10 @@ export function BinControlsPanel({
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-2 py-2 font-medium [&::-webkit-details-marker]:hidden">
                   <span className="flex items-center gap-1">Extra pocket clearance
                     <HelpHint label="extra pocket clearance">
-                      Adjusts each edge after the Trace margin and scaling. Negative values shrink the pocket to reduce excess padding; positive values enlarge it. Zero keeps the traced size. Narrow features can disappear when shrunk.
-                      <span className="mt-1 block">{selectedShape.traceMarginMm === undefined
+                      Adjusts each edge after scaling. Negative values shrink the pocket; positive values enlarge it. Zero keeps the original outline size. Narrow features can disappear when shrunk.
+                      <span className="mt-1 block">{selectedShape.source === "basic-shape"
+                        ? `Drawn in millimetres. Extra allowance: ${selectedCutout.clearanceMm.toFixed(2)} mm per edge.`
+                        : selectedShape.traceMarginMm === undefined
                         ? `Original trace margin unknown (older project). Extra allowance: ${selectedCutout.clearanceMm.toFixed(2)} mm per edge.`
                         : `Trace margin: ${selectedShape.traceMarginMm.toFixed(2)} mm per edge before scaling. Nominal total allowance X/Y: ${(selectedShape.traceMarginMm * selectedCutout.scaleX + selectedCutout.clearanceMm).toFixed(2)} / ${(selectedShape.traceMarginMm * selectedCutout.scaleY + selectedCutout.clearanceMm).toFixed(2)} mm per edge.`}</span>
                     </HelpHint>

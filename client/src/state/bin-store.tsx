@@ -27,7 +27,8 @@ import { parseBinSpec, type BinSpec, type BinSpecInput } from "@shared/gridfinit
  */
 
 export type BinViewMode = "3d" | "2d";
-export type BinEditorMode = "placement" | "contour" | "footprint" | "label-edge" | "split";
+export type BinEditorMode = "placement" | "contour" | "footprint" | "label-edge" | "split"
+  | "draw-rectangle" | "draw-square" | "draw-circle";
 
 const BIN_SIZE_KEYS = ["gridX", "gridY", "gridPitch", "heightUnits", "lip"] as const;
 

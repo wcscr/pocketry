@@ -176,6 +176,14 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
                 it is not a separate lip around every occupied cell.
               </li>
               <li>
+                <strong>Layout → Add pocket</strong> draws a rectangle, square, or
+                circle without a photo. Drag between opposite corners, or from a
+                circle's centre to its edge. Release to add; Escape or Cancel discards
+                the draft. Set exact dimensions under <strong>Pockets → Size &amp; scale</strong>.
+                These use the usual pocket depth, rounding, duplication, and floor colors.
+                The bin stays the same size; boundary warnings still apply.
+              </li>
+              <li>
                 Materials controls preview and 3MF colors for the bin body,
                 pocket floors, and stacking-rim top. Color layers extend down
                 from their original surfaces. View contains preview-only cutaway controls.

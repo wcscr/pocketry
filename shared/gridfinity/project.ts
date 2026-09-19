@@ -34,9 +34,10 @@ import { binHistorySchema } from "./history";
  * Version 15 adds optional corner rounding for flat-ended slots (absent is sharp).
  * Version 16 adds an optional boundary and two depths inside one tool pocket.
  * Version 17 preserves committed undo/redo history and its current position.
+ * Version 18 identifies basic-shape pockets authored directly in millimetres.
  */
 
-export const PROJECT_SCHEMA_VERSION = 17 as const;
+export const PROJECT_SCHEMA_VERSION = 18 as const;
 
 const projectFields = {
   shapes: z.array(tracedShapeSchema),
@@ -75,6 +76,11 @@ const version16ProjectSchema = z
     keepBinSize: z.boolean().optional(),
   })
   .strict();
+
+const version17ProjectSchema = version16ProjectSchema.extend({
+  schemaVersion: z.literal(17),
+  history: binHistorySchema.optional(),
+});
 
 /** History and the visible design must describe one consistent saved snapshot. */
 export const projectDocSchema = version16ProjectSchema.extend({
@@ -186,6 +192,11 @@ export function parseProjectDoc(input: unknown): ProjectDoc | null {
       if (liteBase !== undefined && typeof liteBase !== "boolean") return null;
       input = { ...doc, spec };
     }
+  }
+  const version17 = version17ProjectSchema.safeParse(input);
+  if (version17.success) {
+    const migrated = projectDocSchema.safeParse({ ...version17.data, schemaVersion: PROJECT_SCHEMA_VERSION });
+    return migrated.success ? migrated.data : null;
   }
   const version16 = version16ProjectSchema.safeParse(input);
   if (version16.success) return projectDocSchema.parse({ ...version16.data, schemaVersion: PROJECT_SCHEMA_VERSION });
