@@ -463,6 +463,55 @@ describe("TraceControlsPanel guided workflow", () => {
       expect.objectContaining({ source: "manual" }),
       "letter",
     );
+    await click("button-correct-manual-perspective-only");
+    expect(applyPerspective).toHaveBeenLastCalledWith(
+      expect.objectContaining({ source: "manual" }),
+      "letter",
+      false,
+    );
+  });
+
+  it("continues perspective-only correction into manual scaling before enabling Region", async () => {
+    await click("load-source");
+    await click("detect-auto-experimental-perspective");
+    applyPerspective.mockImplementation((proposal, template, usePaperScale) => {
+      trace.dispatch({
+        type: "PERSPECTIVE_APPLIED",
+        sourceImageUrl: trace.imageUrl!,
+        imageUrl: "data:image/png;base64,corrected",
+        imageSize: { width: 841, height: 1189 },
+        calibration: usePaperScale === false ? null : CALIBRATION,
+        source: proposal.source,
+        paper: "a4",
+        template,
+      });
+    });
+    await click("button-correct-auto-perspective-only");
+
+    expect(applyPerspective).toHaveBeenLastCalledWith(
+      expect.objectContaining({ source: "template", template: "a4-experimental" }),
+      "a4-experimental",
+      false,
+    );
+    expect(trace.mode).toBe("calibrate");
+    expect(trace.calibration).toBeNull();
+    expect(trace.pendingAutoCalibration).toBeNull();
+    expect(section("scale")?.dataset.state).toBe("open");
+    expect(sectionTrigger("crop")?.disabled).toBe(true);
+    expect(host.querySelector('[data-testid="manual-scale-guidance"]')?.textContent).toContain("Set scale manually:");
+    expect(host.querySelector('[data-testid="button-set-scale"]')?.textContent).toBe("Placing ruler");
+    expect(document.querySelector('[role="tooltip"]')).toBeNull();
+
+    await click("complete-manual-scale");
+    expect(document.activeElement).toBe(host.querySelector("#ruler-length"));
+    expect(sectionTrigger("crop")?.disabled).toBe(true);
+    await changeNumber("ruler-length", "182");
+    await blurNumber("ruler-length");
+
+    expect(trace.calibrationSource).toBe("manual");
+    expect(trace.calibration?.lengthMm).toBe(182);
+    expect(section("crop")?.dataset.state).toBe("open");
+    expect(trace.perspectiveCorrection?.template).toBe("a4-experimental");
   });
 
   it("keeps an experimental sheet variant through perspective correction", async () => {

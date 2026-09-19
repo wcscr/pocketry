@@ -101,6 +101,11 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
                 .
               </li>
               <li>
+                Choose <strong>Correct perspective only</strong> to straighten
+                the photo and then set scale manually from a measured feature
+                of the tool. The paper's scale is not accepted by this option.
+              </li>
+              <li>
                 If automatic scale detection is unavailable or not sufficiently
                 accurate, place a ruler or another item with a precisely known
                 dimension beside the tool, in the same plane. Choose Set scale,
