@@ -19,7 +19,7 @@ export function AppShell({ header, children }: AppShellProps): JSX.Element {
   return (
     // h-dvh, not h-screen: on mobile browsers `100vh` includes the retracting
     // URL bar, so h-screen leaves the bottom of the app under it.
-    <div className="flex h-dvh w-full flex-col overflow-hidden bg-background text-foreground">
+    <div className="flex h-dvh w-full flex-col overflow-hidden bg-background text-foreground pt-[env(safe-area-inset-top)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
       {header ? (
         <header className="flex min-h-12 shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b px-3 py-1 sm:h-12 sm:flex-nowrap sm:py-0">
           {header}

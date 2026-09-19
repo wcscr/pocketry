@@ -13,7 +13,9 @@ import {
   type Calibration,
   type DraftCalibration,
 } from "@shared/geometry/scale";
-import type { Outline, Point, Rect, RingRef } from "@shared/geometry/types";
+import { OUTER_RING, type Outline, type Point, type Rect, type RingRef } from "@shared/geometry/types";
+import { ringArea } from "@shared/geometry/rings";
+import { getRing } from "@/lib/geometry/outline";
 
 import type {
   PerspectiveProposal,
@@ -58,6 +60,8 @@ import { DEFAULT_MARGIN_MM, marginToPixels, type Margin } from "@/lib/image-proc
 
 /** Exactly one interaction mode is active at a time. */
 export type TraceMode =
+  | "navigate"
+  | "remove"
   | "pan"
   | "region"
   | "edit"
@@ -328,6 +332,24 @@ function rotateManualPerspectivePoints(
     : [rotated[1], rotated[2], rotated[3], rotated[0]];
 }
 
+function primaryContour(outline: Outline): RingRef | null {
+  let largest: RingRef | null = null;
+  let largestArea = 0;
+  outline.forEach((shape, shapeIndex) => {
+    const area = ringArea(shape.outer);
+    if (shape.outer.length >= 3 && area > largestArea) {
+      largest = { shapeIndex, ringIndex: OUTER_RING };
+      largestArea = area;
+    }
+  });
+  return largest;
+}
+
+function retainedEditSelection(state: TraceState, outline: Outline): RingRef | null {
+  return (state.mode === "edit" || state.mode === "remove") && state.selection &&
+    (getRing(outline, state.selection)?.length ?? 0) >= 3 ? state.selection : null;
+}
+
 export function traceReducer(state: TraceState, action: TraceAction): TraceState {
   switch (action.type) {
     case "SOURCE_LOADED":
@@ -491,7 +513,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         rawOutline: action.rawOutline,
         svg: action.svg,
         detectedImageUrl: action.imageUrl,
-        selection: null,
+        selection: state.mode === "edit" || state.mode === "remove" ? primaryContour(action.outline) : null,
         history: pushHistory(
           state.rawOutline.length > 0 && state.detectedImageUrl === action.imageUrl ? state.history : { stack: [], index: -1 },
           action.outline, "Detected outline", state.margin,
@@ -561,7 +583,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         margin: state.history.stack[index].margin,
         tolerancePx: state.history.stack[index].tolerancePx ?? state.tolerancePx,
         smoothing: state.history.stack[index].smoothing ?? state.smoothing,
-        selection: null,
+        selection: retainedEditSelection(state, state.history.stack[index].outline),
         history: { ...state.history, index },
       };
     }
@@ -575,7 +597,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         margin: state.history.stack[index].margin,
         tolerancePx: state.history.stack[index].tolerancePx ?? state.tolerancePx,
         smoothing: state.history.stack[index].smoothing ?? state.smoothing,
-        selection: null,
+        selection: retainedEditSelection(state, state.history.stack[index].outline),
         history: { ...state.history, index },
       };
     }
@@ -595,7 +617,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         margin: state.history.stack[action.index].margin,
         tolerancePx: state.history.stack[action.index].tolerancePx ?? state.tolerancePx,
         smoothing: state.history.stack[action.index].smoothing ?? state.smoothing,
-        selection: null,
+        selection: retainedEditSelection(state, state.history.stack[action.index].outline),
         history: { ...state.history, index: action.index },
       };
     }
@@ -614,6 +636,9 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
       return {
         ...state,
         mode: action.mode,
+        selection: action.mode === "edit" || action.mode === "remove"
+          ? retainedEditSelection(state, state.outline) ?? primaryContour(state.outline)
+          : state.selection,
         // Redrawing is a replacement, not a second ruler layered over the
         // accepted one. Invalidate both the old scale and any completed draft
         // when manual placement starts; repeat clicks on the active tool leave

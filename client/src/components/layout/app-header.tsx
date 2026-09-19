@@ -130,7 +130,7 @@ export function AppHeader({
 
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button asChild variant="ghost" size="icon">
+            <Button asChild variant="ghost" size="icon" className="hidden sm:inline-flex">
               <a
                 href="https://github.com/wcscr/pocketry"
                 target="_blank"

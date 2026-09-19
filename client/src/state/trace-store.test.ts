@@ -33,6 +33,26 @@ const detected = (
   region: null,
 });
 
+describe("contour edit selection", () => {
+  it("selects the largest outer contour on entering edit mode and retains the chosen ring when toggling removal", () => {
+    const outline = [ringA[0], { ...ringC[0], holes: [ringB[0].outer] }];
+    let state = run(initialTraceState, detected(outline), { type: "SELECT_RING", selection: { shapeIndex: 0, ringIndex: -1 } }, { type: "SET_MODE", mode: "edit" });
+    expect(state.selection).toEqual({ shapeIndex: 1, ringIndex: -1 });
+    state = run(state, { type: "SELECT_RING", selection: { shapeIndex: 1, ringIndex: 0 } }, { type: "SET_MODE", mode: "remove" });
+    expect(state.selection).toEqual({ shapeIndex: 1, ringIndex: 0 });
+    state = run(state, { type: "SET_MODE", mode: "region" }, { type: "SET_MODE", mode: "edit" });
+    expect(state.selection).toEqual({ shapeIndex: 1, ringIndex: -1 });
+    expect(run(initialTraceState, { type: "SET_MODE", mode: "edit" }).selection).toBeNull();
+  });
+
+  it("keeps a valid edit selection through undo and redo, but drops a ring absent from the restored outline", () => {
+    const editing = run(initialTraceState, detected(ringA), { type: "SET_MODE", mode: "edit" }, { type: "OUTLINE_COMMITTED", outline: ringB });
+    expect(run(editing, { type: "UNDO" }, { type: "REDO" }).selection).toEqual({ shapeIndex: 0, ringIndex: -1 });
+    const extraShape = run(editing, { type: "OUTLINE_COMMITTED", outline: [...ringB, ...ringC] }, { type: "SELECT_RING", selection: { shapeIndex: 1, ringIndex: -1 } });
+    expect(run(extraShape, { type: "UNDO" }).selection).toBeNull();
+  });
+});
+
 describe("undo / redo", () => {
   it("tracks manual edits independently of detection and refinement history", () => {
     const hasEdits = (state: TraceState) => state.history.stack[state.history.index].hasManualEdits === true;

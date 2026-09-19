@@ -5,6 +5,8 @@ import type { Rect } from "@shared/geometry/types";
 
 import { usePanelState } from "@/components/layout/panel-context";
 import { WorkspaceLayout } from "@/components/layout/workspace-layout";
+import { MobileTraceActions } from "@/components/trace/mobile-trace-actions";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { TraceCanvas } from "@/components/trace/trace-canvas";
 import { TraceControlsPanel } from "@/components/trace/trace-controls-panel";
 import { ExportConfirmationDialog } from "@/components/gridfinity/export-confirmation-dialog";
@@ -76,12 +78,36 @@ function TraceWorkspace(): JSX.Element {
   const fileSelectionRevisionRef = useRef(0);
   const { toast } = useToast();
   const { panelOpen, setPanelOpen } = usePanelState();
+  const isMobile = useIsMobile();
+  const [settingsSectionRequest, setSettingsSectionRequest] = useState<{ id: string }>();
+  const openSettings = (id: string) => {
+    setSettingsSectionRequest({ id });
+    setPanelOpen(true);
+  };
+  const showCanvas = () => { if (isMobile) setPanelOpen(false); };
+  const previousCalibration = useRef(store.calibration);
+  // Keep progression active when the mobile controls drawer is unmounted.
+  useEffect(() => {
+    const becameCalibrated = previousCalibration.current === null && store.calibration !== null;
+    previousCalibration.current = store.calibration;
+    if (!becameCalibrated) return;
+    dispatch({ type: "SET_MODE", mode: "region" });
+    if (isMobile) setPanelOpen(false);
+  }, [store.calibration, dispatch, isMobile, setPanelOpen]);
 
   const photoInputRef = useRef<HTMLInputElement>(null);
   const detectionRequest = useRef(0);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [dwgDialogOpen, setDwgDialogOpen] = useState(false);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const startOver = () => {
+    fileSelectionRevisionRef.current += 1;
+    detectionRequest.current += 1;
+    activeImageUrlRef.current = null;
+    setUploadOpen(false);
+    setPanelOpen(false);
+    dispatch({ type: "SOURCE_CLEARED" });
+  };
 
   const workingImageMax = store.perspectiveCorrection
     ? RECTIFIED_IMAGE_MAX
@@ -523,8 +549,18 @@ function TraceWorkspace(): JSX.Element {
         panelOpen={panelOpen}
         onPanelOpenChange={setPanelOpen}
         panelTitle="Trace controls"
+        mobileActionsLayout="landscape-side"
+        mobileActions={<MobileTraceActions
+          onChoosePhoto={() => photoInputRef.current?.click()}
+          onStartOver={startOver}
+          onReprocess={(settings) => void runDetection(settings)}
+          onOpenSettings={openSettings}
+          onApplyPerspective={(proposal, template) => void applyPerspective(proposal, template)}
+        />}
         panel={
           <TraceControlsPanel
+            settingsSectionRequest={settingsSectionRequest}
+            onCanvasInteraction={showCanvas}
             onReplaceImage={() => photoInputRef.current?.click()}
             onRotateImage={handleRotateImage}
             onExport={() => setExportDialogOpen(true)}

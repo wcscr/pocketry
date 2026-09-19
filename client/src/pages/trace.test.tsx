@@ -28,13 +28,18 @@ vi.mock("@/components/layout/workspace-layout", () => ({
   WorkspaceLayout: ({
     panel,
     canvas,
+    mobileActions,
+    panelOpen,
   }: {
     panel: React.ReactNode;
     canvas: React.ReactNode;
+    mobileActions?: React.ReactNode;
+    panelOpen: boolean;
   }) => (
     <>
-      {panel}
+      {(!window.matchMedia("(max-width: 767px)").matches || panelOpen) && panel}
       {canvas}
+      {window.matchMedia("(max-width: 767px)").matches && mobileActions}
     </>
   ),
 }));
@@ -167,6 +172,7 @@ describe("Trace detection workflow", () => {
 
   beforeEach(() => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener: () => {}, removeEventListener: () => {} }));
     vi.mocked(generateSTL).mockResolvedValue(new ArrayBuffer(100));
     getImageDataMock.mockReturnValue({
       width: 300,
@@ -183,6 +189,54 @@ describe("Trace detection workflow", () => {
     host = document.createElement("div");
     document.body.appendChild(host);
     root = createRoot(host);
+  });
+
+  it("advances an accepted mobile scale to region drawing while the controls are unmounted", async () => {
+    vi.stubGlobal("matchMedia", () => ({ matches: true, addEventListener: () => {}, removeEventListener: () => {} }));
+    Object.defineProperty(window, "innerWidth", { value: 390, configurable: true, writable: true });
+    let current: ReturnType<typeof useTrace>;
+    function MobileSeed(): null {
+      current = useTrace();
+      React.useEffect(() => {
+        current.dispatch({ type: "SOURCE_LOADED", imageUrl: "photo", fileName: "tool" });
+        current.dispatch({ type: "AUTO_CALIBRATION_DETECTED", sourceImageUrl: "photo", calibration: { startX: 0, startY: 0, endX: 100, endY: 0, lengthMm: 50 } });
+      }, []);
+      return null;
+    }
+    await React.act(async () => root.render(<PanelProvider><TraceProvider><MobileSeed /><TracePage /></TraceProvider></PanelProvider>));
+    expect(host.querySelector('[data-testid="export-trace"]')).toBeNull();
+    await React.act(async () => Array.from(host.querySelectorAll("button")).find(button => button.textContent === "Accept detected scale")!.click());
+    expect(current!.mode).toBe("region");
+    expect(current!.calibration?.lengthMm).toBe(50);
+    expect(host.querySelector('[data-testid="export-trace"]')).toBeNull();
+    Object.defineProperty(window, "innerWidth", { value: 1024, configurable: true, writable: true });
+  });
+
+  it("keeps Start over empty when pending detection and photo decoding finish later", async () => {
+    vi.stubGlobal("matchMedia", () => ({ matches: true, addEventListener: () => {}, removeEventListener: () => {} }));
+    let finishDetection!: (result: { outline: Outline; rawOutline: Outline; svg: string }) => void;
+    let finishPhoto!: (result: { imageUrl: string; naturalSize: { width: number; height: number } }) => void;
+    processImageMock.mockReturnValue(new Promise(resolve => { finishDetection = resolve; }));
+    decodeImageFileMock.mockReturnValue(new Promise(resolve => { finishPhoto = resolve; }));
+    let current: ReturnType<typeof useTrace>;
+    function Probe(): null { current = useTrace(); return null; }
+    await React.act(async () => root.render(<PanelProvider><TraceProvider><WorkflowController /><Probe /><TracePage /></TraceProvider></PanelProvider>));
+    await React.act(async () => host.querySelector<HTMLButtonElement>('[data-testid="set-region"]')!.click());
+    await React.act(async () => host.querySelector<HTMLButtonElement>('[data-testid="run-detection"]')!.click());
+    const input = host.querySelector<HTMLInputElement>('input[type="file"]')!;
+    Object.defineProperty(input, "files", { configurable: true, value: [new File(["replacement"], "replacement.png", { type: "image/png" })] });
+    await React.act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
+    expect(current!.processing).toBe(true);
+    await React.act(async () => [...host.querySelectorAll('button')].find(button => button.textContent === "Start over")!.click());
+    await React.act(async () => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(button => button.textContent === "Clear trace and start over")!.click());
+    expect(current!.imageUrl).toBeNull();
+    await React.act(async () => {
+      finishDetection({ outline: exportOutline, rawOutline: exportOutline, svg: "<svg/>" });
+      finishPhoto({ imageUrl: "data:image/png;base64,replacement", naturalSize: { width: 800, height: 600 } });
+    });
+    expect(current!.imageUrl).toBeNull();
+    expect(current!.outline).toEqual([]);
+    expect(current!.processing).toBe(false);
   });
 
   afterEach(() => {

@@ -1,5 +1,6 @@
 import {
   Crop,
+  Hand,
   Loader2,
   Maximize2,
   MousePointer2,
@@ -25,13 +26,14 @@ import {
   hasCalibrationEndpoints,
   mmPerPixel,
 } from "@shared/geometry/scale";
-import type { Point, Rect, RingRef } from "@shared/geometry/types";
+import { OUTER_RING, type Point, type Rect, type RingRef } from "@shared/geometry/types";
 
 import {
   CanvasViewport,
   useCanvasViewportSize,
 } from "@/components/canvas/canvas-viewport";
 import { CanvasToolbar } from "@/components/layout/canvas-toolbar";
+import { ContourEditTools } from "@/components/canvas/contour-edit-tools";
 import { EditHistoryMenu } from "@/components/history/edit-history-menu";
 import { useViewportTransform } from "@/hooks/use-viewport-transform";
 import { nearestEdge, nearestVertex } from "@/lib/geometry/hit-test";
@@ -138,15 +140,16 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
   const svgRef = useRef<SVGSVGElement | null>(null);
   const sceneRef = useRef<SVGGElement | null>(null);
 
-  // Plain drags never pan: panning is Shift-drag, Space-drag or middle-drag
-  // (all still handled by the viewport hook in every mode), which frees the
-  // plain click for contour editing and the cursor for a normal arrow.
+  // The hand tool supports one-finger pan and pinch without editing geometry.
+  // Modifier drags remain available alongside the other drawing tools.
   const viewport = useViewportTransform({
     contentWidth: imageSize.width,
     contentHeight: imageSize.height,
     containerWidth: containerSize.width,
     containerHeight: containerSize.height,
-    panEnabled: false,
+    // Fit the whole photo between the touch toolbars on compact canvases.
+    padding: containerSize.width < 768 ? 64 : 24,
+    panEnabled: mode === "navigate",
   });
 
   // Mirrors the hook's space tracking so the cursor can promise a pan before
@@ -316,8 +319,27 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
   };
 
   const handlePointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
+    if (mode === "navigate") {
+      viewport.handlers.onPointerDown(event);
+      return;
+    }
     const image = toImage(event.clientX, event.clientY);
     if (!image) return;
+    const pointerPickRadius = event.pointerType === "touch"
+      ? 22 / viewport.transform.scale
+      : pickRadius;
+    if (mode === "remove" && event.button === 0) {
+      if (!selection || !getRing(outline, selection)) return;
+      const vertex = nearestVertex(outline, image, pointerPickRadius, selection);
+      if (vertex) {
+        const ring = getRing(outline, vertex.ref);
+        if (ring && ring.length > 3) {
+          dispatch({ type: "OUTLINE_COMMITTED", outline: setRing(outline, vertex.ref,
+            ring.filter((_, index) => index !== vertex.index)), label: "Remove contour node" });
+        }
+      }
+      return;
+    }
 
     if (manualPerspectivePoints.length > 0) {
       const target = event.target as Element;
@@ -410,7 +432,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
     }
 
     if (mode === "edit" && event.button === 0 && !event.shiftKey) {
-      const vertex = nearestVertex(outline, image, pickRadius, selection);
+      const vertex = nearestVertex(outline, image, pointerPickRadius, selection);
       if (vertex) {
         dragRef.current = { kind: "vertex", ref: vertex.ref, index: vertex.index };
         dispatch({ type: "SELECT_RING", selection: vertex.ref });
@@ -454,7 +476,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
       !viewport.isSpaceHeld &&
       selection
     ) {
-      const vertex = nearestVertex(outline, image, pickRadius, selection);
+      const vertex = nearestVertex(outline, image, pointerPickRadius, selection);
       if (vertex) {
         dragRef.current = { kind: "vertex", ref: vertex.ref, index: vertex.index };
         event.currentTarget.setPointerCapture(event.pointerId);
@@ -642,7 +664,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
     if (viewport.isPanning) return "grabbing";
     // Promise the pan before the drag: Shift or Space turns the arrow into a
     // hand. Otherwise the arrow is the normal state in every pointing mode.
-    if (viewport.isSpaceHeld || shiftHeld) return "grab";
+    if (viewport.isSpaceHeld || shiftHeld || mode === "navigate") return "grab";
     // Promise the grab before the drag, too.
     if (hoveredVertexIndex !== null) return "move";
     if (
@@ -719,17 +741,20 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
           onContextMenu={handleContextMenu}
         />
       ) : (
-        <div className="flex h-full w-full items-center justify-center p-8">
-          {emptyState}
+        <div className="h-full w-full touch-pan-y overflow-y-auto">
+          <div className="flex min-h-full items-center justify-center p-4 md:p-8">
+            {emptyState}
+          </div>
         </div>
       )}
 
       {imageUrl && (
         <>
-          <CanvasToolbar position="top-left">
+          <CanvasToolbar position="top-left" className="max-md:right-2 max-md:max-w-none">
             <ModeButton mode="pan" icon={MousePointer2} label="Select" />
+            <ModeButton mode="navigate" icon={Hand} label="Pan photo" />
             <ModeButton mode="region" icon={Crop} label="Region" />
-            <ModeButton mode="edit" icon={Spline} label="Edit points" />
+            <ModeButton mode="edit" icon={Spline} label="Edit contours" disabled={outline.length === 0} />
             <ModeButton mode="calibrate" icon={Scaling} label="Set scale" />
             <ModeButton
               mode="measure"
@@ -738,9 +763,11 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
               disabled={measurementMmPerPx === null}
             />
 
+          </CanvasToolbar>
+
+          <CanvasToolbar position="top-right" className="max-md:bottom-2 max-md:left-2 max-md:right-auto max-md:top-auto">
             {/* Always present: outline edits can happen in any pointing mode,
                 and a hidden undo reads as "there is no undo". */}
-            <div className="mx-1 h-5 w-px bg-border" />
             <IconButton
               icon={Undo2}
               label={
@@ -770,7 +797,15 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
             />
           </CanvasToolbar>
 
-          <CanvasToolbar position="top-right">
+          {(mode === "edit" || mode === "remove") && selection && getRing(outline, selection) && (
+            <div className="absolute bottom-16 left-2 z-30 max-md:hidden">
+              <ContourEditTools removeActive={mode === "remove"}
+                selectionLabel={`Contour ${selection.shapeIndex + 1}${selection.ringIndex === OUTER_RING ? "" : ` · Hole ${selection.ringIndex + 1}`}`}
+                onChange={(remove) => dispatch({ type: "SET_MODE", mode: remove ? "remove" : "edit" })} />
+            </div>
+          )}
+
+          <CanvasToolbar position="bottom-right">
             <IconButton
               icon={ZoomOut}
               label="Zoom out (-)"
@@ -779,7 +814,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
             <button
               type="button"
               onClick={viewport.resetZoom}
-              className="min-w-14 rounded px-2 py-1 text-xs tabular-nums hover:bg-accent"
+              className="hidden min-h-11 min-w-14 rounded px-2 py-1 text-xs md:block md:min-h-0 tabular-nums hover:bg-accent"
               title="Reset to 100% (1)"
             >
               {Math.round(viewport.transform.scale * 100)}%
@@ -792,7 +827,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
             <IconButton icon={Maximize2} label="Fit to screen (0)" onClick={viewport.fit} />
           </CanvasToolbar>
 
-          <CanvasToolbar position="bottom-left">
+          <CanvasToolbar position="bottom-left" className="max-w-[calc(100%-13rem)] max-md:hidden">
             <span className="px-1.5 text-[11px] tabular-nums text-muted-foreground">
               {imageSize.width} × {imageSize.height} px
               {outline.length > 0 && (
@@ -821,7 +856,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
             meant an export started mid-process silently lost the ruler.
           */}
           {processing && (
-            <div className="absolute left-1/2 top-3 z-30 flex -translate-x-1/2 items-center gap-2 rounded-full border bg-background/90 px-3 py-1.5 text-xs shadow-sm backdrop-blur">
+            <div className="absolute left-1/2 top-32 md:top-14 z-30 flex -translate-x-1/2 items-center gap-2 rounded-full border bg-background/90 px-3 py-1.5 text-xs shadow-sm backdrop-blur">
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
               Tracing…
             </div>
@@ -844,7 +879,7 @@ function ModeButton({
   disabled?: boolean;
 }): JSX.Element {
   const { mode: current, dispatch } = useTrace();
-  const active = current === mode;
+  const active = current === mode || (mode === "edit" && current === "remove");
 
   return (
     <Tooltip>
@@ -852,7 +887,7 @@ function ModeButton({
         <Button
           variant={active ? "secondary" : "ghost"}
           size="icon"
-          className={cn("h-8 w-8", active && "ring-1 ring-primary/40")}
+          className={cn("h-11 w-11 md:h-8 md:w-8", active && "ring-1 ring-primary/40")}
           aria-pressed={active}
           aria-label={label}
           disabled={disabled}
@@ -883,7 +918,7 @@ function IconButton({
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8"
+          className="h-11 w-11 md:h-8 md:w-8"
           aria-label={label}
           disabled={disabled}
           onClick={onClick}

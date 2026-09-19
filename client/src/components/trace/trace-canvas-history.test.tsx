@@ -836,3 +836,57 @@ describe("TraceCanvas edit history", () => {
     }
   });
 });
+
+describe("touch-accessible trace tools", () => {
+  it("removes points by tapping, preserves a minimum triangle, and supports undo", async () => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+    const restoreSvgCoordinates = installIdentitySvgCoordinates();
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const root = createRoot(host);
+    let trace: ReturnType<typeof useTrace>;
+    function Probe(): null { trace = useTrace(); return null; }
+    try {
+      await React.act(async () => root.render(<TraceProvider><SeedTrace /><Probe /><TooltipProvider><TraceCanvas onReprocess={() => {}} /></TooltipProvider></TraceProvider>));
+      const svg = host.querySelector('svg[data-testid="trace-scene"]') ?? host.querySelector("svg");
+      React.act(() => host.querySelector<HTMLButtonElement>('[aria-label="Edit contours"]')!.click());
+      const tools = host.querySelector('[aria-label="Contour editing tools"]')!;
+      const buttons = tools.querySelectorAll<HTMLButtonElement>('button');
+      expect(tools.textContent).toContain("Contour 1");
+      expect(buttons[0].getAttribute("aria-pressed")).toBe("false");
+      React.act(() => buttons[0].click());
+      expect(buttons[0].getAttribute("aria-pressed")).toBe("true");
+      const remove = (x: number, y: number) => React.act(() => {
+        const event = new MouseEvent("pointerdown", { bubbles: true, button: 0, clientX: x, clientY: y });
+        Object.defineProperties(event, { pointerType: { value: "touch" }, pointerId: { value: 1 } });
+        svg!.dispatchEvent(event);
+      });
+      remove(10, 10);
+      expect(trace!.outline[0].outer).toHaveLength(4);
+      expect(trace!.history.stack[trace!.history.index].label).toBe("Remove contour node");
+      remove(90, 10);
+      expect(trace!.outline[0].outer).toHaveLength(3);
+      remove(90, 90);
+      expect(trace!.outline[0].outer).toHaveLength(3);
+      React.act(() => trace!.undo());
+      expect(trace!.outline[0].outer).toHaveLength(4);
+      React.act(() => trace!.undo());
+      expect(trace!.outline).toEqual(edited);
+      remove(500, 500);
+      expect(trace!.outline).toEqual(edited);
+      React.act(() => buttons[0].click());
+      expect(trace!.mode).toBe("edit");
+      expect(buttons[0].getAttribute("aria-pressed")).toBe("false");
+      React.act(() => trace!.dispatch({ type: "SET_MODE", mode: "pan" }));
+      expect(trace!.selection).not.toBeNull();
+      expect(host.querySelector('[aria-label="Contour editing tools"]')).toBeNull();
+      React.act(() => trace!.dispatch({ type: "SET_MODE", mode: "edit" }));
+      React.act(() => trace!.dispatch({ type: "SELECT_RING", selection: null }));
+      expect(host.querySelector('[aria-label="Contour editing tools"]')).toBeNull();
+    } finally {
+      React.act(() => root.unmount());
+      restoreSvgCoordinates();
+    }
+  });
+});

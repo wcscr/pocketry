@@ -11,6 +11,7 @@ import { EditHistoryMenu } from "@/components/history/edit-history-menu";
 import { usePanelState } from "@/components/layout/panel-context";
 import { WorkspaceLayout } from "@/components/layout/workspace-layout";
 import { Button } from "@/components/ui/button";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useToast } from "@/hooks/use-toast";
 import {
   parseProjectDoc,
@@ -107,6 +108,10 @@ function BinDesignerWorkspace(): JSX.Element {
   const { toast } = useToast();
   const bin = useBin();
   const { spec, cutouts, fingerHoles, viewMode, dispatch } = bin;
+  const isMobile = useIsMobile();
+  useEffect(() => {
+    if (isMobile && bin.editorMode !== "placement") setPanelOpen(false);
+  }, [bin.editorMode, isMobile, setPanelOpen]);
   const library = useShapeLibrary();
   // Sliders and canvas drags update the visible controls transiently, but the
   // history entry remains the last committed design until pointer-up. Feeding
@@ -970,6 +975,13 @@ function BinDesignerWorkspace(): JSX.Element {
       panelOpen={panelOpen}
       onPanelOpenChange={setPanelOpen}
       panelTitle="Bin designer"
+      mobileActions={<div className="flex gap-2">
+        <Button variant="outline" className="min-h-11 flex-1" onClick={() => setPanelOpen(true)}>Bin settings</Button>
+        <Button className="min-h-11 flex-1" onClick={() => {
+          setSettingsSectionRequest({ id: "bin-settings-export" });
+          setPanelOpen(true);
+        }}>Export bin</Button>
+      </div>}
       panel={
         <BinControlsPanel
           issues={issues}
@@ -1078,7 +1090,7 @@ function BinDesignerWorkspace(): JSX.Element {
             <Button
               variant="ghost"
               size="sm"
-              className="h-7 rounded-none px-2"
+              className="h-11 min-w-11 rounded-none px-2 md:h-7 md:min-w-0"
               disabled={!bin.canUndo}
               onClick={() => dispatch({ type: "UNDO" })}
               aria-label={
@@ -1099,7 +1111,7 @@ function BinDesignerWorkspace(): JSX.Element {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-7 rounded-none px-2"
+                  className="h-11 min-w-11 rounded-none px-2 md:h-7 md:min-w-0"
                   aria-label="Show edit history"
                   title="Show edit history"
                   data-testid="button-bin-history"
@@ -1111,7 +1123,7 @@ function BinDesignerWorkspace(): JSX.Element {
             <Button
               variant="ghost"
               size="sm"
-              className="h-7 rounded-none px-2"
+              className="h-11 min-w-11 rounded-none px-2 md:h-7 md:min-w-0"
               disabled={!bin.canRedo}
               onClick={() => dispatch({ type: "REDO" })}
               aria-label={
@@ -1138,7 +1150,7 @@ function ViewToggle({
   onChange: (mode: BinViewMode) => void;
 }): JSX.Element {
   return (
-    <div className="absolute left-1/2 top-3 z-30 flex -translate-x-1/2 overflow-hidden rounded-md border bg-background/90 shadow-sm backdrop-blur">
+    <div className="absolute left-3 top-3 z-30 flex md:left-1/2 md:-translate-x-1/2 overflow-hidden rounded-md border bg-background/90 shadow-sm backdrop-blur">
       {(
         [
           { mode: "3d", label: "3D" },
@@ -1150,7 +1162,7 @@ function ViewToggle({
           variant="ghost"
           size="sm"
           className={cn(
-            "h-7 rounded-none px-3 text-xs",
+            "h-11 rounded-none px-3 text-xs md:h-7",
             viewMode === mode && "bg-accent text-accent-foreground",
           )}
           onClick={() => onChange(mode)}

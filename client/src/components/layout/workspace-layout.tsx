@@ -4,6 +4,7 @@ import type { ImperativePanelHandle } from "react-resizable-panels";
 import {
   Drawer,
   DrawerContent,
+  DrawerClose,
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
@@ -12,6 +13,8 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
+import { Button } from "@/components/ui/button";
+import { useElementSize } from "@/hooks/use-element-size";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 export interface WorkspaceLayoutProps {
@@ -45,6 +48,10 @@ export interface WorkspaceLayoutProps {
   onPanelOpenChange: (open: boolean) => void;
   /** Drawer heading on mobile, where the panel has no visible column header. */
   panelTitle?: string;
+  /** Persistent next-step actions below the mobile canvas. */
+  mobileActions?: React.ReactNode;
+  /** Dense step controls can move beside the canvas on short landscape phones. */
+  mobileActionsLayout?: "bottom" | "landscape-side";
 }
 
 /**
@@ -66,8 +73,17 @@ export function WorkspaceLayout({
   panelOpen,
   onPanelOpenChange,
   panelTitle = "Controls",
+  mobileActions,
+  mobileActionsLayout = "bottom",
 }: WorkspaceLayoutProps): JSX.Element {
   const isMobile = useIsMobile();
+  const [workspaceRef, workspaceSize] = useElementSize<HTMLDivElement>();
+  // Percentage-only limits make tablet controls narrower than their fields.
+  // Keep a usable column while retaining collapse and the caller's maximum.
+  const effectiveMinPanelSize = workspaceSize.width > 0
+    ? Math.min(maxPanelSize, Math.max(minPanelSize, 280 / workspaceSize.width * 100))
+    : minPanelSize;
+  const effectiveDefaultPanelSize = Math.max(defaultPanelSize, effectiveMinPanelSize);
   const panelRef = React.useRef<ImperativePanelHandle>(null);
   // What the group last reported, or null before it has reported anything.
   //
@@ -116,7 +132,8 @@ export function WorkspaceLayout({
 
   if (isMobile) {
     return (
-      <div className="relative h-full w-full overflow-hidden">
+      <div ref={workspaceRef} data-landscape-actions={mobileActionsLayout === "landscape-side" || undefined}
+        className="mobile-workspace relative flex h-full w-full flex-col overflow-hidden">
         {/*
           The canvas stays outside the drawer. vaul animates its content with
           CSS transforms, and the canvas relies on getScreenCTM() to map pointer
@@ -124,22 +141,32 @@ export function WorkspaceLayout({
           transform, so a canvas inside the drawer would mis-hit for the whole
           animation and stay wrong under `shouldScaleBackground`.
         */}
-        {canvas}
-        <Drawer open={panelOpen} onOpenChange={onPanelOpenChange}>
+        <div className="relative min-h-0 min-w-0 flex-1">{canvas}</div>
+        <div className="mobile-workspace-actions max-h-[50dvh] shrink-0 overflow-y-auto border-t bg-background p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]" data-testid="mobile-workspace-actions">
+          {mobileActions ?? (
+            <Button className="min-h-11 w-full" onClick={() => onPanelOpenChange(true)}>
+              {panelTitle} controls
+            </Button>
+          )}
+        </div>
+        <Drawer open={panelOpen} onOpenChange={onPanelOpenChange} shouldScaleBackground={false}>
           {/* aria-describedby={undefined} opts out of Radix's description
               warning: this drawer is a controls tray, not a prose dialog. */}
           <DrawerContent
-            className="h-[85dvh] max-h-[85dvh]"
+            className="h-[85dvh] max-h-[85dvh] pb-[env(safe-area-inset-bottom)]"
             aria-describedby={undefined}
           >
-            <DrawerHeader className="shrink-0 pb-2">
+            <DrawerHeader className="flex shrink-0 items-center justify-between py-2">
               <DrawerTitle>{panelTitle}</DrawerTitle>
+              <DrawerClose asChild>
+                <Button variant="outline" className="min-h-11">Back to canvas</Button>
+              </DrawerClose>
             </DrawerHeader>
             {/* The drawer has a definite height so the panel's h-full and
                 flex scroller can shrink within it. PanelBody owns scrolling;
                 this wrapper keeps panel-level navigation and the
                 PanelFooter remain pinned in the mobile drawer too. */}
-            <div className="min-h-0 flex-1 overflow-hidden">{panel}</div>
+            <div className="min-h-0 flex-1 overflow-hidden" data-vaul-no-drag>{panel}</div>
           </DrawerContent>
         </Drawer>
       </div>
@@ -158,8 +185,8 @@ export function WorkspaceLayout({
       ref={panelRef}
       collapsible
       collapsedSize={0}
-      defaultSize={defaultPanelSize}
-      minSize={minPanelSize}
+      defaultSize={effectiveDefaultPanelSize}
+      minSize={effectiveMinPanelSize}
       maxSize={maxPanelSize}
       onCollapse={() => reportCollapsed(true)}
       onExpand={() => reportCollapsed(false)}
@@ -177,7 +204,7 @@ export function WorkspaceLayout({
       // Spelled out rather than left to the group: without it the library warns
       // about layout shift and the canvas renders once at the wrong width,
       // which costs a full re-render of whatever it draws.
-      defaultSize={100 - defaultPanelSize}
+      defaultSize={100 - effectiveDefaultPanelSize}
       className="min-w-0"
     >
       {/* relative + overflow-hidden anchors CanvasToolbar and clips anything
@@ -187,6 +214,7 @@ export function WorkspaceLayout({
   );
 
   return (
+    <div ref={workspaceRef} className="h-full">
     <ResizablePanelGroup
       direction="horizontal"
       autoSaveId={autoSaveId}
@@ -196,5 +224,6 @@ export function WorkspaceLayout({
       <ResizableHandle withHandle />
       {panelSide === "left" ? stage : controls}
     </ResizablePanelGroup>
+    </div>
   );
 }

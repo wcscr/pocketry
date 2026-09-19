@@ -825,6 +825,74 @@ describe("BinDesignerPage", () => {
     unmount();
   });
 
+  it.each([-1, 0])("toggles touch removal for contour ring %s with undo, minimum size, and a return to moving", async (ringIndex) => {
+    const shape = rectangularShape("tool", "Wrench");
+    shape.outlineMm[0].holes = [[{ x: -7, y: -4 }, { x: -7, y: 4 }, { x: 7, y: 4 }, { x: 7, y: -4 }]];
+    shape.pointCount = 8;
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({
+      ...EMPTY_PROJECT, shapes: [shape],
+      cutouts: [parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 0, y: 0 }, rotationDeg: 30, scaleX: 1.5, scaleY: 0.8 })],
+    });
+    const { container, unmount } = renderPage({ mobile: true });
+    try {
+      await flushHydration();
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
+      React.act(() => [...container.querySelectorAll('button')].find(button => button.textContent === 'Bin settings')!.click());
+      selectPocket(document.body, "pocket");
+      React.act(() => document.querySelector<HTMLButtonElement>('[data-testid="button-edit-contour"]')!.click());
+      const svg = container.querySelector<SVGSVGElement>('[data-testid="layout-canvas"]')!;
+      Object.defineProperty(svg.querySelector('g')!, 'getScreenCTM', { value: () => ({ inverse: () => ({}) }) });
+      Object.defineProperties(svg, {
+        createSVGPoint: { value: () => ({ x: 0, y: 0, matrixTransform() { return { x: this.x, y: this.y }; } }) },
+        setPointerCapture: { value: () => {} },
+      });
+      const ringHandles = () => svg.querySelectorAll(`[data-contour-ring="${ringIndex}"]`);
+      const otherHandles = () => svg.querySelectorAll(`[data-contour-ring="${ringIndex === -1 ? 0 : -1}"]`);
+      const buttons = () => container.querySelector('[aria-label="Contour editing tools"]')!.querySelectorAll<HTMLButtonElement>('button');
+      const pointer = (target: Element, type: string, x: number, y: number) => React.act(() => {
+        const event = new MouseEvent(type, { bubbles: true, button: 0, clientX: x, clientY: y });
+        Object.defineProperties(event, { pointerId: { value: 1 }, pointerType: { value: 'touch' } });
+        target.dispatchEvent(event);
+      });
+      const tapNearFirst = () => {
+        const first = ringHandles()[0];
+        // A near miss outside the visible 4.5 px circle still selects the nearest vertex.
+        pointer(svg, 'pointerdown', Number(first.getAttribute('cx')) - 6, Number(first.getAttribute('cy')));
+      };
+      const original = svg.querySelector('[data-cutout-id="pocket"]')!.getAttribute('d');
+      expect(buttons()[0].getAttribute('aria-pressed')).toBe('false');
+      React.act(() => buttons()[0].click());
+      expect(buttons()[0].getAttribute('aria-pressed')).toBe('true');
+      tapNearFirst();
+      expect(ringHandles()).toHaveLength(3);
+      expect(otherHandles()).toHaveLength(4);
+      tapNearFirst();
+      pointer(svg, 'pointerdown', 1000, 1000);
+      expect(ringHandles()).toHaveLength(3);
+      expect(otherHandles()).toHaveLength(4);
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+      expect(ringHandles()).toHaveLength(4);
+      expect(svg.querySelector('[data-cutout-id="pocket"]')!.getAttribute('d')).toBe(original);
+      expect(container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.disabled).toBe(true);
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+      expect(ringHandles()).toHaveLength(3);
+      React.act(() => buttons()[0].click());
+      const first = ringHandles()[0];
+      const x = Number(first.getAttribute('cx')), y = Number(first.getAttribute('cy'));
+      pointer(first, 'pointerdown', x, y);
+      pointer(svg, 'pointermove', x + 1, y + 1);
+      pointer(svg, 'pointerup', x + 1, y + 1);
+      expect(ringHandles()).toHaveLength(3);
+      expect(Number(ringHandles()[0].getAttribute('cx'))).toBeCloseTo(x + 1);
+      React.act(() => buttons()[0].click());
+      const edit = container.querySelector<HTMLButtonElement>('[data-testid="button-layout-edit-contour"]')!;
+      React.act(() => edit.click());
+      expect(container.querySelector('[aria-label="Contour editing tools"]')).toBeNull();
+      React.act(() => edit.click());
+      expect(buttons()[0].getAttribute('aria-pressed')).toBe('false');
+    } finally { unmount(); }
+  });
+
   it.each(["stl", "3mf"])("cancels %s without downloads and resets the JSON checkbox for the next request", async (format) => {
     const { container, unmount } = renderPage();
     await flushHydration();
@@ -3165,6 +3233,9 @@ describe("project history restoration", () => {
       expect(button(container, "redo").getAttribute("aria-label")).toBe("Redo Widen again");
       React.act(() => button(container, "redo").click());
       React.act(() => button(container, "undo").click());
+      if (mobile) {
+        React.act(() => Array.from(container.querySelectorAll("button")).find(button => button.textContent === "Bin settings")!.click());
+      }
       openSettingsSection(document.body, "project");
       const open = async (id: string) => {
         React.act(() => document.querySelector<HTMLButtonElement>('[data-testid="button-open-library"]')!.click());
