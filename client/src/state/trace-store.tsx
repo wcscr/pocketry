@@ -261,7 +261,8 @@ export type TraceAction =
       sourceImageUrl: string;
       imageUrl: string;
       imageSize: { width: number; height: number };
-      calibration: Calibration;
+      /** Null applies only the warp and starts manual scale selection. */
+      calibration: Calibration | null;
       source: PerspectiveSource;
       paper: TemplatePaper;
       template?: TemplateVariant;
@@ -804,7 +805,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         smoothing: state.smoothing,
         margin: state.margin ?? DEFAULT_MARGIN_MM,
         calibration: action.calibration,
-        calibrationSource: "sheet",
+        calibrationSource: action.calibration ? "sheet" : null,
         rulerLengthMm: state.rulerLengthMm,
         perspectiveOriginalImageUrl:
           state.perspectiveOriginalImageUrl ?? state.imageUrl,
@@ -815,7 +816,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
           paper: action.paper,
           ...(action.template ? { template: action.template } : {}),
         },
-        mode: "region",
+        mode: action.calibration ? "region" : "calibrate",
         exportFormat: state.exportFormat,
         extrusionHeight: state.extrusionHeight,
       };

@@ -734,7 +734,48 @@ describe("modes and calibration", () => {
     expect(restored.autoCalibrationAttemptedImageUrl).toBe(restored.imageUrl);
   });
 
-  it("rejects a late perspective correction from a replaced image", () => {
+  it("corrects perspective without accepting paper scale or keeping old geometry", () => {
+    const calibration = { startX: 0, startY: 0, endX: 100, endY: 0, lengthMm: 50 };
+    const loaded = run(
+      initialTraceState,
+      { type: "SOURCE_LOADED", imageUrl: "original", fileName: "tool" },
+      { type: "SOURCE_READY", imageSize: { width: 800, height: 600 } },
+      { type: "SET_CALIBRATION", calibration },
+      { type: "SET_REGION", region: { x: 10, y: 10, width: 100, height: 100 } },
+    );
+    const corrected = traceReducer(loaded, {
+      type: "PERSPECTIVE_APPLIED",
+      sourceImageUrl: "original",
+      imageUrl: "corrected",
+      imageSize: { width: 865, height: 1119 },
+      calibration: null,
+      source: "template",
+      paper: "letter",
+      template: "letter-experimental",
+    });
+
+    expect(corrected.mode).toBe("calibrate");
+    expect(corrected.calibration).toBeNull();
+    expect(corrected.calibrationSource).toBeNull();
+    expect(corrected.pendingAutoCalibration).toBeNull();
+    expect(corrected.pendingPerspective).toBeNull();
+    expect(corrected.draftCalibration).toBeNull();
+    expect(corrected.region).toBeNull();
+    expect(corrected.outline).toEqual([]);
+    expect(corrected.autoCalibrationAttemptedImageUrl).toBe("corrected");
+    expect(corrected.perspectiveOriginalImageUrl).toBe("original");
+    expect(corrected.perspectiveCorrection?.template).toBe("letter-experimental");
+
+    const scaled = traceReducer(corrected, { type: "SET_CALIBRATION", calibration });
+    expect(scaled.calibration).toBe(calibration);
+    expect(scaled.calibrationSource).toBe("manual");
+    expect(scaled.perspectiveCorrection).toEqual(corrected.perspectiveCorrection);
+    const restored = traceReducer(scaled, { type: "RESTORE_PERSPECTIVE_SOURCE" });
+    expect(restored.imageUrl).toBe("original");
+    expect(restored.calibration).toBeNull();
+  });
+
+  it.each([true, false])("rejects a late perspective correction from a replaced image (paper scale: %s)", (usePaperScale) => {
     const imageA = "data:image/png;base64,image-a";
     const imageB = "data:image/png;base64,image-b";
     const replaced = run(
@@ -747,7 +788,7 @@ describe("modes and calibration", () => {
       sourceImageUrl: imageA,
       imageUrl: "data:image/png;base64,corrected-a",
       imageSize: { width: 421, height: 595 },
-      calibration: { startX: 0, startY: 0, endX: 420, endY: 594, lengthMm: 250 },
+      calibration: usePaperScale ? { startX: 0, startY: 0, endX: 420, endY: 594, lengthMm: 250 } : null,
       source: "template",
       paper: "a4",
     });

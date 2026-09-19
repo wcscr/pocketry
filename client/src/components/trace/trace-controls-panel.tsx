@@ -1,7 +1,9 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { Portal as TooltipPortal } from "@radix-ui/react-tooltip";
 import {
   Box,
   CheckCircle2,
+  CircleAlert,
   Crop,
   Download,
   Image as ImageIcon,
@@ -80,6 +82,40 @@ import { RingList } from "./ring-list";
 const RESPONSIVE_PANEL_ACTION =
   "h-auto min-h-9 w-full whitespace-normal break-words px-2 py-2 text-[clamp(0.75rem,4cqw,0.875rem)] leading-tight";
 
+/** Keep optional guidance beside the action and outside the panel's scroll clip. */
+function ScaleActionWithHint({ children }: { children: ReactNode }): JSX.Element {
+  return (
+    <div className="flex items-center gap-2">
+      <div className="min-w-0 flex-1">{children}</div>
+      <Tooltip delayDuration={250}>
+        {/* Guided focus and clicks must not open this hover-only hint. */}
+        <TooltipTrigger asChild onFocus={(event) => event.preventDefault()}>
+          <button
+            type="button"
+            aria-label="About scaling thick objects"
+            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-amber-600 hover:text-amber-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 dark:text-amber-400 dark:hover:text-amber-300"
+          >
+            <CircleAlert className="h-4 w-4" />
+          </button>
+        </TooltipTrigger>
+        <TooltipPortal>
+          <TooltipContent
+            side="right"
+            collisionPadding={12}
+            className="max-w-72 text-xs leading-relaxed"
+          >
+            <strong>Thick objects:</strong> Auto scale from the paper can produce
+            oversized outlines because raised parts of the tool are closer to
+            the camera. For more reliable scaling, measure a long, clearly visible
+            feature on the part furthest from the paper. Use its measured length
+            and matching endpoints in the photo to set the scale manually.
+          </TooltipContent>
+        </TooltipPortal>
+      </Tooltip>
+    </div>
+  );
+}
+
 export interface TraceControlsPanelProps {
   onReplaceImage: () => void;
   onRotateImage: (direction: ImageRotationDirection) => void;
@@ -87,10 +123,11 @@ export interface TraceControlsPanelProps {
   onReprocess: (settings?: { sensitivity: number; includeInteriorHoles: boolean }) => void;
   /** Re-run ArUco marker detection on the full frame, with feedback. */
   onDetectMarkers: () => void;
-  /** Rectify the selected paper plane and replace the working image. */
+  /** Rectify the paper plane; omit its scale when the user will measure the tool. */
   onApplyPerspective: (
     proposal: PerspectiveProposal,
     template: TemplateVariant,
+    usePaperScale?: boolean,
   ) => void;
 }
 
@@ -599,6 +636,19 @@ export function TraceControlsPanel({
                     variant="outline"
                     size="sm"
                     className={RESPONSIVE_PANEL_ACTION}
+                    disabled={processing || !pendingTemplate}
+                    onClick={() =>
+                      pendingTemplate &&
+                      onApplyPerspective(pendingPerspective, pendingTemplate, false)
+                    }
+                    data-testid="button-correct-auto-perspective-only"
+                  >
+                    Correct perspective only
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className={RESPONSIVE_PANEL_ACTION}
                     onClick={() => dispatch({ type: "ACCEPT_AUTO_CALIBRATION" })}
                     data-testid="button-accept-auto-scale"
                   >
@@ -618,40 +668,42 @@ export function TraceControlsPanel({
             </div>
           )}
 
-          <Button
-            variant={store.mode === "calibrate" ? "default" : "outline"}
-            size="sm"
-            className={cn(
-              RESPONSIVE_PANEL_ACTION,
-              imageSize.width > 0 &&
-                !calibration &&
-                !pendingAutoCalibration &&
-                !manualRulerPending &&
-                store.mode !== "calibrate" &&
-                "animate-pulse motion-reduce:animate-none",
-            )}
-            data-testid="button-set-scale"
-            disabled={!hasImage}
-            onPointerDown={() => {
-              redrawRulerRequested.current =
-                store.mode !== "calibrate" && manualRulerPending;
-            }}
-            onPointerCancel={() => {
-              redrawRulerRequested.current = false;
-            }}
-            onPointerLeave={() => {
-              redrawRulerRequested.current = false;
-            }}
-            onClick={handleSetScale}
-          >
-            {store.mode === "calibrate"
-              ? "Placing ruler"
-              : manualRulerPending
-                ? "Redraw ruler"
-                : pendingAutoCalibration
-                  ? "Set manually instead"
-                  : "Set scale"}
-          </Button>
+          <ScaleActionWithHint>
+            <Button
+              variant={store.mode === "calibrate" ? "default" : "outline"}
+              size="sm"
+              className={cn(
+                RESPONSIVE_PANEL_ACTION,
+                imageSize.width > 0 &&
+                  !calibration &&
+                  !pendingAutoCalibration &&
+                  !manualRulerPending &&
+                  store.mode !== "calibrate" &&
+                  "animate-pulse motion-reduce:animate-none",
+              )}
+              data-testid="button-set-scale"
+              disabled={!hasImage}
+              onPointerDown={() => {
+                redrawRulerRequested.current =
+                  store.mode !== "calibrate" && manualRulerPending;
+              }}
+              onPointerCancel={() => {
+                redrawRulerRequested.current = false;
+              }}
+              onPointerLeave={() => {
+                redrawRulerRequested.current = false;
+              }}
+              onClick={handleSetScale}
+            >
+              {store.mode === "calibrate"
+                ? "Placing ruler"
+                : manualRulerPending
+                  ? "Redraw ruler"
+                  : pendingAutoCalibration
+                    ? "Set manually instead"
+                    : "Set scale"}
+            </Button>
+          </ScaleActionWithHint>
 
           {store.mode === "calibrate" ? (
             <div
@@ -662,7 +714,7 @@ export function TraceControlsPanel({
               <Scaling className="mt-0.5 h-4 w-4 shrink-0" />
               <div className="space-y-1">
                 <p className="text-sm font-semibold">
-                  Auto Calibration Unsuccessful:
+                  {perspectiveCorrection ? "Set scale manually:" : "Auto Calibration Unsuccessful:"}
                 </p>
                 <p className="text-xs leading-relaxed">
                   Select two points on the image that are a known distance
@@ -843,6 +895,8 @@ export function TraceControlsPanel({
                     </p>
                   )}
                   {manualPerspectiveProposal && (
+                    <>
+
                     <Button
                       size="sm"
                       className="w-full"
@@ -859,12 +913,28 @@ export function TraceControlsPanel({
                     >
                       Apply perspective correction
                     </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className={RESPONSIVE_PANEL_ACTION}
+                      disabled={processing || perspectivePaper === null}
+                      onClick={() => {
+                        if (perspectivePaper) {
+                          onApplyPerspective(manualPerspectiveProposal, perspectivePaper, false);
+                        }
+                      }}
+                      data-testid="button-correct-manual-perspective-only"
+                    >
+                      Correct perspective only
+                    </Button>
+                    </>
                   )}
                 </>
               )}
             </div>
           )}
           <ReferenceStripDownloads />
+
 
           <p className="text-xs text-muted-foreground">
             Need a calibration sheet?{" "}

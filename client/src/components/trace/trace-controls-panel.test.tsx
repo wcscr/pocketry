@@ -256,6 +256,51 @@ async function clickSection(id: string): Promise<void> {
 }
 
 describe("TraceControlsPanel guided workflow", () => {
+  it("keeps thickness guidance hidden during automatic focus and opens it only on hover", async () => {
+    await click("load-source");
+    expect(document.querySelector('[role="tooltip"]')).toBeNull();
+    expect(host.textContent).not.toContain("oversized outlines");
+    expect(host.querySelectorAll('[aria-label="About scaling thick objects"]')).toHaveLength(1);
+
+    const manualHint = host.querySelector<HTMLButtonElement>(
+      '[aria-label="About scaling thick objects"]',
+    )!;
+    await React.act(async () => {
+      manualHint.focus();
+      manualHint.click();
+    });
+    expect(document.querySelector('[role="tooltip"]')).toBeNull();
+
+    await click("detect-auto-perspective");
+    const accept = host.querySelector<HTMLButtonElement>(
+      '[data-testid="button-accept-auto-scale"]',
+    )!;
+    expect(document.activeElement).toBe(accept);
+    expect(document.querySelector('[role="tooltip"]')).toBeNull();
+
+    const hints = host.querySelectorAll<HTMLButtonElement>('[aria-label="About scaling thick objects"]');
+    expect(hints).toHaveLength(1);
+    const hint = hints[0];
+    await React.act(async () => {
+      const hover = new MouseEvent("pointermove", { bubbles: true });
+      Object.defineProperty(hover, "pointerType", { value: "mouse" });
+      hint.dispatchEvent(hover);
+      await new Promise((resolve) => window.setTimeout(resolve, 300));
+    });
+    const tooltip = document.querySelector('[role="tooltip"]');
+    expect(tooltip?.textContent).toContain("closer to the camera");
+    expect(tooltip?.textContent).toContain("set the scale manually");
+    expect(host.contains(tooltip)).toBe(false);
+
+    await React.act(async () => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    });
+    expect(document.querySelector('[role="tooltip"]')).toBeNull();
+    await click("button-accept-auto-scale");
+    expect(trace.calibration).toEqual(CALIBRATION);
+    expect(document.activeElement).toBe(sectionTrigger("crop"));
+  });
+
   it("collapses every section, opens Scale, and pulses its action after source load", async () => {
     expect(host.textContent).toContain("Choose or drop an image");
     expect(host.querySelector('[data-testid="button-source-image"]')).toBeNull();
@@ -352,6 +397,7 @@ describe("TraceControlsPanel guided workflow", () => {
     expect(section("scale")?.dataset.state).toBe("open");
     expect(host.textContent).toContain("Scale detected from the sheet");
     expect(host.textContent).toContain("0.500 mm/px");
+    expect(host.querySelectorAll('[aria-label="About scaling thick objects"]')).toHaveLength(1);
     const accept = host.querySelector<HTMLButtonElement>(
       '[data-testid="button-accept-auto-scale"]',
     );
@@ -439,6 +485,55 @@ describe("TraceControlsPanel guided workflow", () => {
       expect.objectContaining({ source: "manual" }),
       "letter",
     );
+    await click("button-correct-manual-perspective-only");
+    expect(applyPerspective).toHaveBeenLastCalledWith(
+      expect.objectContaining({ source: "manual" }),
+      "letter",
+      false,
+    );
+  });
+
+  it("continues perspective-only correction into manual scaling before enabling Region", async () => {
+    await click("load-source");
+    await click("detect-auto-experimental-perspective");
+    applyPerspective.mockImplementation((proposal, template, usePaperScale) => {
+      trace.dispatch({
+        type: "PERSPECTIVE_APPLIED",
+        sourceImageUrl: trace.imageUrl!,
+        imageUrl: "data:image/png;base64,corrected",
+        imageSize: { width: 841, height: 1189 },
+        calibration: usePaperScale === false ? null : CALIBRATION,
+        source: proposal.source,
+        paper: "a4",
+        template,
+      });
+    });
+    await click("button-correct-auto-perspective-only");
+
+    expect(applyPerspective).toHaveBeenLastCalledWith(
+      expect.objectContaining({ source: "template", template: "a4-experimental" }),
+      "a4-experimental",
+      false,
+    );
+    expect(trace.mode).toBe("calibrate");
+    expect(trace.calibration).toBeNull();
+    expect(trace.pendingAutoCalibration).toBeNull();
+    expect(section("scale")?.dataset.state).toBe("open");
+    expect(sectionTrigger("crop")?.disabled).toBe(true);
+    expect(host.querySelector('[data-testid="manual-scale-guidance"]')?.textContent).toContain("Set scale manually:");
+    expect(host.querySelector('[data-testid="button-set-scale"]')?.textContent).toBe("Placing ruler");
+    expect(document.querySelector('[role="tooltip"]')).toBeNull();
+
+    await click("complete-manual-scale");
+    expect(document.activeElement).toBe(host.querySelector("#ruler-length"));
+    expect(sectionTrigger("crop")?.disabled).toBe(true);
+    await changeNumber("ruler-length", "182");
+    await blurNumber("ruler-length");
+
+    expect(trace.calibrationSource).toBe("manual");
+    expect(trace.calibration?.lengthMm).toBe(182);
+    expect(section("crop")?.dataset.state).toBe("open");
+    expect(trace.perspectiveCorrection?.template).toBe("a4-experimental");
   });
 
   it("keeps an experimental sheet variant through perspective correction", async () => {
