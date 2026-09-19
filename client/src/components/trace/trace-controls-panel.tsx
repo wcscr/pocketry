@@ -545,6 +545,14 @@ export function TraceControlsPanel({
           className="scroll-mt-16"
           disabled={!hasImage}
         >
+          <p className="rounded-md border border-amber-400/50 bg-amber-500/10 p-3 text-xs leading-relaxed">
+            <strong>Thick objects:</strong> Auto scale from the paper can produce
+            oversized outlines because raised parts of the tool are closer to
+            the camera. For more reliable scaling, measure a long, clearly visible
+            feature on the part furthest from the paper. Use its measured length
+            and matching endpoints in the photo to set the scale manually.
+          </p>
+
           {pendingAutoCalibration && (
             <div
               className="space-y-2 rounded-md border border-amber-400/50 bg-amber-500/10 p-3"
