@@ -308,7 +308,7 @@ function TraceWorkspace(): JSX.Element {
   );
 
   const applyPerspective = useCallback(
-    async (proposal: PerspectiveProposal, template: TemplateVariant) => {
+    async (proposal: PerspectiveProposal, template: TemplateVariant, usePaperScale = true) => {
       const frame = getDetectionFrame();
       if (
         !frame ||
@@ -344,14 +344,16 @@ function TraceWorkspace(): JSX.Element {
           sourceImageUrl: frame.sourceImageUrl,
           imageUrl,
           imageSize: { width: corrected.width, height: corrected.height },
-          calibration: corrected.calibration,
+          calibration: usePaperScale ? corrected.calibration : null,
           source: proposal.source,
           paper: templatePaper(template),
           template,
         });
         toast({
           title: "Perspective corrected",
-          description: `${templateDisplayName(template)} plane rectified at ${(1 / corrected.pxPerMm).toFixed(3)} mm/px${corrected.reprojectionErrorPx === null ? "" : ` · ${corrected.reprojectionErrorPx.toFixed(2)} px fit residual`}.`,
+          description: usePaperScale
+            ? `${templateDisplayName(template)} plane rectified at ${(1 / corrected.pxPerMm).toFixed(3)} mm/px${corrected.reprojectionErrorPx === null ? "" : ` · ${corrected.reprojectionErrorPx.toFixed(2)} px fit residual`}.`
+            : "Now select two points on a measured feature of the tool, then enter its real length to set the scale.",
         });
       } catch (error) {
         if (activeImageUrlRef.current !== frame.sourceImageUrl) return;
@@ -528,8 +530,8 @@ function TraceWorkspace(): JSX.Element {
             onExport={() => setExportDialogOpen(true)}
             onReprocess={(settings) => void runDetection(settings)}
             onDetectMarkers={() => void detectMarkers(true)}
-            onApplyPerspective={(proposal, paper) =>
-              void applyPerspective(proposal, paper)
+            onApplyPerspective={(proposal, paper, usePaperScale) =>
+              void applyPerspective(proposal, paper, usePaperScale)
             }
           />
         }
