@@ -154,7 +154,7 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
                 to soften the outline or pocket edges, or <strong>Extra pocket clearance</strong>
                 to add more room around the tool.
                 Extra clearance is added after the Margin chosen on Trace.
-                Use <strong>Finger access</strong> for straight or scoop holes.
+                Use <strong>Finger access</strong> for straight openings or scoops.
                 Warnings appear at the bottom right of the canvas; click a message
                 to open the affected pocket or settings.
               </li>
@@ -270,7 +270,7 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
                 <strong> Full surface</strong> or <strong>Tool outlines · 5 mm</strong>,
                 defaulting to tool outlines at 0.8 mm thickness.
                 Tool outlines keep a 5 mm material band around each tool opening,
-                without the bin perimeter or separate finger-access holes.
+                without the bin perimeter or separate finger access features.
                 Widely spaced tools print as separate pieces. Thickness sets the printed height
                 for either option. Both omit the base, walls, label tab, and
                 stacking lip. Use the full surface to check relative pocket

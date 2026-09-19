@@ -1,5 +1,10 @@
 # Gridfinity bin generator — design and roadmap
 
+The interface consistently calls grip openings **finger access**, including
+controls, default names, layout guidance, validation, and edit history. Older
+history labels use the current wording when displayed; saved geometry, custom
+names, and project field names are preserved.
+
 Basic-shape pockets are available from **Layout → Add pocket** and the **Pockets**
 panel. Draw a rectangle or square between opposite corners, or a circle from its
 centre to its edge. A live outline shows dimensions; release adds one ordinary
@@ -81,7 +86,7 @@ shaped-bin physical gate remains: print a full-pitch
 2×2/three-cell L, verify baseplate fit and the concave wall/lip, stack a matching
 footprint, then print an L-tool pocket and check its fit.
 
-G4 delivered **finger holes**, now independent bin-local layout objects rather
+G4 delivered **finger access features**, now independent bin-local layout objects rather
 than children of a tool pocket. They can be straight cylinders with their own
 depth, spherical round scoops, round deep scoops, oblong deep scoops, or flat-ended
 cylindrical scoops from the
@@ -171,7 +176,7 @@ ruler is intentionally unavailable in the 3D preview.
 G5 completed its local software scope (2026-08-24): the 3D camera now re-fits whenever the bin's
 outer dimensions change (preserving the orbit direction), the ground grid
 scales with the bin, and the **top-down layout DXF/SVG export** landed —
-bin footprint plus pocket silhouettes and independent finger-hole rims in real
+bin footprint plus pocket silhouettes and independent finger access rims in real
 millimetres, the CNC shadow-board bridge. The **label tab** is ported
 (upstream `TAB_POLYGON` @ the pinned SHA): full-width or 42 mm
 left/center/right on any wall, fused into the wall part, with
@@ -410,10 +415,10 @@ hand-rolled reducer history, `idb-keyval` autosave to IndexedDB (not localStorag
 traced shapes plus thumbnails blow past 5 MB), a browser-local named Project
 Library with active-project autosave, and explicit `.pocketry.json` backup
 import/export (including legacy `.tooltrace.json` imports). Schemas 1–6 migrate
-pocket-local finger holes to bin-local coordinates while preserving their
+pocket-local finger access features to bin-local coordinates while preserving their
 visible position and oblong orientation; schema 7 adds identity placement
 scales while preserving every pocket's size. Versions 8 and 9 retain placement
-scales and finger-hole fillets; version 10 adds optional project metadata while
+scales and finger access fillets; version 10 adds optional project metadata while
 preserving the imported geometry. The library is cross-browser code,
 not cross-device sync: each
 browser profile owns its own IndexedDB data.
@@ -442,7 +447,7 @@ the real outer footprint, clearances, top-edge rounds, spacing, and finger
 access. It omits the base, wall height, label tab, and stacking lip and moves
 the plate to the build plane; it therefore tests surface fit, not pocket depth
 or baseplate fit. **Tool outlines · 5 mm** exports material bands around only
-the tool openings, without the bin perimeter or separate finger-access holes.
+the tool openings, without the bin perimeter or separate finger access features.
 The bands extend outwards from the openings and are not clipped to the bin
 footprint. Width is fixed at 5 mm; the same Thickness control sets printed height.
 Widely spaced tools print as separate pieces, so use Full surface to verify
@@ -495,7 +500,7 @@ its licence independently before porting, and drop the feature if it is not perm
 | **G1** | Export a correct empty 2×3×6 bin **and print it** | constants, sweep primitive, base/wall/bin, 3MF writer, invariant tests |
 | **G2** | Live 3D preview reacting to sliders without jank | r3f viewport, `/bin` workspace, worker pipeline with supersede/cancel/progress, magnet + screw holes |
 | **G3** | A photographed screwdriver becomes a printable pocket — **print it and put the tool in it** | shape library + `normalizeTracedShape`, cutouts (clearance, corner round, bottom fillet, depth modes), 2D placement editor, live validation |
-| **G4** | 4-tool bin with scoops and finger holes, saved and reloaded | scoop, finger holes, auto-arrange, undo/redo, project save/load, `trimByPlane` section view |
+| **G4** | 4-tool bin with scoops and finger access features, saved and reloaded | scoop, finger access features, auto-arrange, undo/redo, project save/load, `trimByPlane` section view |
 | **G5** | Parity and polish | label tab, crush ribs, half/quarter grid, layout DXF/SVG, optional server persistence |
 
 **G1 and G3 are physical print gates.** Dimensional correctness is not verifiable any

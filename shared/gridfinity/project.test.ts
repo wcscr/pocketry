@@ -116,7 +116,7 @@ describe("parseProjectDoc", () => {
     });
   });
 
-  it("migrates schema v8 finger holes with sharp edge defaults", () => {
+  it("migrates schema v8 finger access features with sharp edge defaults", () => {
     const previous = JSON.parse(JSON.stringify(VALID)) as Record<string, unknown>;
     previous.schemaVersion = 8;
     previous.fingerHoles = [
@@ -148,7 +148,7 @@ describe("parseProjectDoc", () => {
 });
 
 describe("project file round trip", () => {
-  it("preserves round and oblong deep-scoop finger holes through JSON", () => {
+  it("preserves round and oblong deep-scoop finger access features through JSON", () => {
     const withFeatures = JSON.parse(JSON.stringify(VALID)) as Record<string, unknown>;
     withFeatures.fingerHoles = [
         {
@@ -211,7 +211,7 @@ describe("project file round trip", () => {
     });
   });
 
-  it("migrates a schema-v1 scoop into a typed finger hole", () => {
+  it("migrates a schema-v1 scoop into a typed finger access", () => {
     const legacy = JSON.parse(JSON.stringify(VALID)) as Record<string, unknown>;
     legacy.schemaVersion = 1;
     delete legacy.fingerHoles;
@@ -259,7 +259,7 @@ describe("project file round trip", () => {
     expect(doc?.spec.footprint).toEqual({ kind: "rectangle" });
   });
 
-  it("migrates schema v4 finger holes without changing their geometry", () => {
+  it("migrates schema v4 finger access features without changing their geometry", () => {
     const legacy = JSON.parse(JSON.stringify(VALID)) as Record<string, unknown>;
     legacy.schemaVersion = 4;
     delete legacy.fingerHoles;

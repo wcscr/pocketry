@@ -1126,7 +1126,7 @@ export function BinControlsPanel({
           title="Finger access"
           icon={CircleDot}
           tone="cyan"
-          summary={`${fingerHoles.length} hole${fingerHoles.length === 1 ? "" : "s"}`}
+          summary={`${fingerHoles.length} feature${fingerHoles.length === 1 ? "" : "s"}`}
           defaultOpen={fingerHoles.length > 0}
           className="scroll-mt-16"
         >
@@ -1154,7 +1154,7 @@ export function BinControlsPanel({
                 }
               >
                 <Plus className="mr-1 h-3 w-3" />
-                Add hole
+                Add finger access
               </Button>
             </div>
 
@@ -1162,7 +1162,7 @@ export function BinControlsPanel({
               <div className="space-y-1" aria-label="Choose finger access to edit">
                 {fingerHoles.map((hole, index) => {
                   const isSelected = hole.id === selectedFingerHoleId;
-                  const name = hole.name ?? `Hole ${index + 1}`;
+                  const name = hole.name ?? `Finger access ${index + 1}`;
                   return (
                     <div key={hole.id} data-testid={`finger-hole-row-${hole.id}`} className={cn(
                       "flex items-center rounded-md border text-xs",
@@ -1189,7 +1189,7 @@ export function BinControlsPanel({
                       </button>
                       <button type="button" className="flex h-11 w-11 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         title={`Remove ${name}`}
-                        aria-label={`Remove finger hole ${hole.name ?? index + 1}`} onClick={() => dispatch({ type: "REMOVE_FINGER_HOLE", id: hole.id })}>
+                        aria-label={`Remove ${name}`} onClick={() => dispatch({ type: "REMOVE_FINGER_HOLE", id: hole.id })}>
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </div>
@@ -1202,7 +1202,7 @@ export function BinControlsPanel({
               <div className="space-y-3 rounded-md border border-cyan-500/30 bg-cyan-500/[0.025] p-2.5 [&_input]:min-h-11 [&_[data-mm-slider-track]]:min-h-11 [&_[role=slider]]:relative [&_[role=slider]]:before:absolute [&_[role=slider]]:before:-inset-3 [&_summary]:min-h-11" id="finger-access-properties" role="region" aria-label="Selected finger access properties">
                 <div className="flex min-w-0 flex-wrap items-center gap-2 border-b border-cyan-500/20 pb-2" data-testid="finger-access-properties-heading">
                   <h3 className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-cyan-700 dark:text-cyan-300">Finger access properties</h3>
-                  <span className="min-w-[5rem] flex-1 truncate text-xs font-medium">{selectedFingerHole.name ?? `Hole ${fingerHoles.indexOf(selectedFingerHole) + 1}`}</span>
+                  <span className="min-w-[5rem] flex-1 truncate text-xs font-medium">{selectedFingerHole.name ?? `Finger access ${fingerHoles.indexOf(selectedFingerHole) + 1}`}</span>
                 </div>
                 <FingerAccessShapeControls
                   hole={selectedFingerHole}
@@ -1234,7 +1234,7 @@ export function BinControlsPanel({
                         type: "UPDATE_FINGER_HOLE",
                         id: selectedFingerHole.id,
                         patch: { depthMm, kind: selectedFingerHole.kind === "scoop" ? "deep-scoop" : selectedFingerHole.kind },
-                        historyLabel: "Change finger hole depth",
+                        historyLabel: "Change finger access depth",
                         transient,
                       })
                     }
@@ -1262,7 +1262,7 @@ export function BinControlsPanel({
                         depthMm: effectiveFingerHoleDepthMm(selectedFingerHole),
                         kind: selectedFingerHole.kind === "scoop" ? "deep-scoop" : selectedFingerHole.kind,
                       },
-                      historyLabel: "Resize finger hole",
+                      historyLabel: "Resize finger access",
                       transient,
                     })
                   }
@@ -1286,7 +1286,7 @@ export function BinControlsPanel({
                           type: "UPDATE_FINGER_HOLE",
                           id: selectedFingerHole.id,
                           patch: { lengthMm },
-                          historyLabel: "Resize elongated finger hole",
+                          historyLabel: "Resize elongated finger access",
                           transient,
                         })
                       }
@@ -1320,7 +1320,7 @@ export function BinControlsPanel({
                       type: "UPDATE_FINGER_HOLE",
                       id: selectedFingerHole.id,
                       patch: { cornerRoundMm },
-                      historyLabel: "Change finger hole corner round",
+                      historyLabel: "Change finger access corner round",
                       transient,
                     })}
                     hint="Rounds the four corners in the top view, inside the slot's width and length."
@@ -1343,7 +1343,7 @@ export function BinControlsPanel({
                       type: "UPDATE_FINGER_HOLE",
                       id: selectedFingerHole.id,
                       patch: { topFilletMm },
-                      historyLabel: "Change finger hole top edge round",
+                      historyLabel: "Change finger access top edge round",
                       transient,
                     })
                   }
@@ -1368,7 +1368,7 @@ export function BinControlsPanel({
                         type: "UPDATE_FINGER_HOLE",
                         id: selectedFingerHole.id,
                         patch: { bottomFilletMm },
-                        historyLabel: "Change finger hole bottom fillet",
+                        historyLabel: "Change finger access bottom fillet",
                         transient,
                       })
                     }
@@ -1397,7 +1397,7 @@ export function BinControlsPanel({
                         variant="outline"
                         size="icon"
                         className="h-11 w-11 shrink-0"
-                        aria-label="Rotate elongated finger hole 90 degrees counterclockwise"
+                        aria-label="Rotate elongated finger access 90 degrees counterclockwise"
                         title="Rotate counterclockwise"
                         onClick={() =>
                           dispatch({
@@ -1410,7 +1410,7 @@ export function BinControlsPanel({
                                   360) %
                                 360,
                             },
-                            historyLabel: "Rotate elongated finger hole",
+                            historyLabel: "Rotate elongated finger access",
                           })
                         }
                       >
@@ -1420,7 +1420,7 @@ export function BinControlsPanel({
                         variant="outline"
                         size="icon"
                         className="h-11 w-11 shrink-0"
-                        aria-label="Rotate elongated finger hole 90 degrees clockwise"
+                        aria-label="Rotate elongated finger access 90 degrees clockwise"
                         title="Rotate clockwise"
                         onClick={() =>
                           dispatch({
@@ -1433,7 +1433,7 @@ export function BinControlsPanel({
                                   360) %
                                 360,
                             },
-                            historyLabel: "Rotate elongated finger hole",
+                            historyLabel: "Rotate elongated finger access",
                           })
                         }
                       >
@@ -1441,7 +1441,7 @@ export function BinControlsPanel({
                       </Button>
                       <DraftNumberInput
                         className="h-8 min-w-0"
-                        aria-label="Elongated finger hole rotation"
+                        aria-label="Elongated finger access rotation"
                         value={
                           Math.round((selectedFingerHole.rotationDeg ?? 0) * 10) /
                           10
@@ -1453,7 +1453,7 @@ export function BinControlsPanel({
                             type: "UPDATE_FINGER_HOLE",
                             id: selectedFingerHole.id,
                             patch: { rotationDeg },
-                            historyLabel: "Rotate elongated finger hole",
+                            historyLabel: "Rotate elongated finger access",
                           })
                         }
                       />
@@ -1660,7 +1660,7 @@ export function BinControlsPanel({
                 data-testid="surface-fit-test-export"
               >
                 <div>
-                  <SettingLabel label="Surface fit test" hint="Export the full pocket-layout surface or 5 mm wide bands around the tool openings only. Tool outlines omit the bin perimeter and separate finger holes. Widely spaced tools print as separate pieces. Thickness sets the printed height. Omits the base, wall height, label tab, and stacking lip; it does not test cut depth or baseplate fit." />
+                  <SettingLabel label="Surface fit test" hint="Export the full pocket-layout surface or 5 mm wide bands around the tool openings only. Tool outlines omit the bin perimeter and separate finger access features. Widely spaced tools print as separate pieces. Thickness sets the printed height. Omits the base, wall height, label tab, and stacking lip; it does not test cut depth or baseplate fit." />
                 </div>
                 <div className="flex items-center gap-2">
                   <Label className="w-20 shrink-0 text-xs">Shape</Label>
@@ -1720,7 +1720,7 @@ export function BinControlsPanel({
             {selectedCutout && selectedShape ? (
               <div className="space-y-2 border-t pt-2.5">
                 <div>
-                  <SettingLabel label="Tool fit template" hint="A filled tool outline without the bin or finger holes. Includes its Trace margin, signed pocket clearance, and outline corner rounding." />
+                  <SettingLabel label="Tool fit template" hint="A filled tool outline without the bin or finger access features. Includes its Trace margin, signed pocket clearance, and outline corner rounding." />
                   <p className="truncate text-xs font-medium" title={selectedShape.name}>{selectedShape.name}</p>
                 </div>
                 <div className="flex items-center gap-2">

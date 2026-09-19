@@ -119,7 +119,7 @@ export function buildFitCheckSolid(
  * rounds and access features match the bin. It deliberately builds none of
  * the base, wall height, label tab or stacking lip. Outline style keeps only
  * 5 mm material bands around the tool openings, independent of the bin's
- * footprint and separate finger-access holes.
+ * footprint and separate finger access features.
  */
 export function buildSurfaceFitCheckSolid(
   kernel: Kernel,
