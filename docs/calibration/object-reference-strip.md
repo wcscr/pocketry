@@ -29,10 +29,14 @@ PDFs. Generation and detection happen locally in the browser.
   inside the tool's silhouette. It must not hide or extend past an edge being
   traced. Use **one aid per photo**, with both markers visible, and photograph
   straight down with the whole object in frame.
-- Import the photo, review **Scale detected from the reference strip**, and
-  accept. Unique marker pairs identify the size automatically; no size selection
-  is needed during detection. The displayed scale line joins the **marker
+- Import the photo and review the detected references. Unique marker pairs
+  identify the aid size automatically. Its scale line joins the **marker
   centres**, not the physical ends. See the baseline lengths below.
+- When both references are usable, choose **Correct perspective & use aid
+  scale** to straighten the image using the paper corners while deriving scale
+  from the aid. Alternatively choose aid-only or paper-only scale, or paper
+  correction with paper scale. **Correct perspective only** still leads to
+  manual scale selection.
 - Verify one physical object dimension before printing a pocket. Calibration
   is at the marker surface, including the aid's 2 mm thickness. Other object
   heights, flex, perspective and lens distortion can still produce error. For
@@ -44,14 +48,20 @@ Print at **100% / Actual size**, with Fit to page disabled. Check the separate
 borders. Mount it flat on thin, rigid backing if needed. Its original IDs and
 80 mm baseline remain recognized, including previously printed 1.2 mm 3MF strips.
 
-The aids provide a scalar scale, not 3D reconstruction or perspective correction.
-A visible aid takes priority over a calibration sheet below it. Paper perspective
-controls are hidden while a strip scale is pending or accepted; choose manual
-calibration or clear the scale to use other methods. If any strip marker is
-recognized but the pair is incomplete, mixed, repeated or geometrically invalid,
-Trace rejects it instead of silently substituting paper scale. If neither marker
-is recognized, a complete paper sheet can still be detected: check the reference
-name in Scale before accepting it.
+The aids provide a scalar scale, not 3D reconstruction. Detection checks both
+the aid and the paper. When both pass validation, Scale prompts for the reference
+or combined operation; neither scale is applied until the user chooses. Combined
+correction transforms the validated aid endpoints with the exact same homography
+as the image, preserving their physical length. It does not re-detect resampled
+marker pixels or substitute the paper scale. The aid must lie within the corrected
+paper area. **Restore original photo** reverses the correction.
+
+If the aid is incomplete, mixed, duplicated or geometrically invalid, Trace tries
+the paper markers and offers their scale and perspective correction when valid.
+A notice identifies this paper fallback, and the Scale panel names the sheet.
+Paper scaling can still enlarge thick tools; use the existing thickness hint or
+choose perspective-only correction followed by manual scaling. If neither
+reference validates, no automatic scale is proposed.
 
 ## Geometry and detection contract
 

@@ -1,4 +1,4 @@
-import type { Calibration } from "@shared/geometry/scale";
+import { mmPerPixel, type Calibration } from "@shared/geometry/scale";
 import type { Point } from "@shared/geometry/types";
 
 import { loadOpenCV } from "@/lib/opencv";
@@ -246,13 +246,17 @@ export function validPerspectiveQuad(points: readonly Point[]): boolean {
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- opencv.js is untyped */
 
-/** Pure OpenCV composition, separated so tests exercise the shipped build. */
+/**
+ * Rectify from the paper geometry. An optional validated aid ruler, expressed
+ * in source-image pixels, supplies the scale after its endpoints are warped.
+ */
 export function runPerspectiveCorrection(
   cv: any,
   image: ImageData,
   proposal: PerspectiveProposal,
   template: TemplateVariant,
   max: { width: number; height: number } = RECTIFIED_IMAGE_MAX,
+  referenceCalibration?: Calibration,
 ): PerspectiveCorrectionResult {
   if (!validPerspectiveQuad(proposal.points)) {
     throw new Error(
@@ -359,17 +363,36 @@ export function runPerspectiveCorrection(
         ? Math.hypot(markerSpacing.width, markerSpacing.height)
         : Math.hypot(TEMPLATE_PAPER_MM[paper].width, TEMPLATE_PAPER_MM[paper].height);
 
+    let calibration: Calibration = {
+      startX: start.x,
+      startY: start.y,
+      endX: end.x,
+      endY: end.y,
+      lengthMm,
+    };
+    if (referenceCalibration) {
+      if (!mmPerPixel(referenceCalibration)) throw new Error("The measurement aid scale is invalid.");
+      const referencePoints = cv.matFromArray(2, 1, cv.CV_32FC2, [
+        referenceCalibration.startX, referenceCalibration.startY,
+        referenceCalibration.endX, referenceCalibration.endY,
+      ]);
+      try {
+        // Carry the already validated aid centres through the exact image warp.
+        // Re-decoding interpolated marker pixels would lose source precision.
+        cv.perspectiveTransform(referencePoints, projected, transform);
+        const [startX, startY, endX, endY] = Array.from(projected.data32F) as number[];
+        calibration = { startX, startY, endX, endY, lengthMm: referenceCalibration.lengthMm };
+        if (!mmPerPixel(calibration) || [startX, endX].some((x) => x < 0 || x >= layout.width) ||
+          [startY, endY].some((y) => y < 0 || y >= layout.height)) {
+          throw new Error("The measurement aid lies outside the corrected paper area. Use aid scale without correction or retake the photo with the aid over the sheet.");
+        }
+      } finally { referencePoints.delete(); }
+    }
     return {
       ...layout,
       imageData,
       reprojectionErrorPx,
-      calibration: {
-        startX: start.x,
-        startY: start.y,
-        endX: end.x,
-        endY: end.y,
-        lengthMm,
-      },
+      calibration,
     };
   } finally {
     projected.delete();
@@ -387,6 +410,7 @@ export async function correctPerspective(
   proposal: PerspectiveProposal,
   template: TemplateVariant,
   max: { width: number; height: number } = RECTIFIED_IMAGE_MAX,
+  referenceCalibration?: Calibration,
 ): Promise<PerspectiveCorrectionResult> {
   const cv = await loadOpenCV();
   if (
@@ -395,5 +419,5 @@ export async function correctPerspective(
   ) {
     throw new Error("Perspective correction is unavailable in this browser session.");
   }
-  return runPerspectiveCorrection(cv, image, proposal, template, max);
+  return runPerspectiveCorrection(cv, image, proposal, template, max, referenceCalibration);
 }

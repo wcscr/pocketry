@@ -20,6 +20,7 @@ import { useLocation } from "wouter";
 import {
   calibrationFromDraft,
   hasCalibrationEndpoints,
+  type Calibration,
 } from "@shared/geometry/scale";
 
 import {
@@ -124,11 +125,11 @@ export interface TraceControlsPanelProps {
   onReprocess: (settings?: { sensitivity: number; includeInteriorHoles: boolean }) => void;
   /** Re-run ArUco marker detection on the full frame, with feedback. */
   onDetectMarkers: () => void;
-  /** Rectify the paper plane; omit its scale when the user will measure the tool. */
+  /** Paper scale by default; false for manual scale, or an aid ruler to transform. */
   onApplyPerspective: (
     proposal: PerspectiveProposal,
     template: TemplateVariant,
-    usePaperScale?: boolean,
+    usePaperScale?: boolean | Calibration,
   ) => void;
 }
 
@@ -169,6 +170,7 @@ export function TraceControlsPanel({
     outline,
     calibration,
     pendingAutoCalibration,
+    pendingPaperCalibration,
     pendingCalibrationSource,
     calibrationSource,
     draftCalibration,
@@ -395,7 +397,7 @@ export function TraceControlsPanel({
     const focusTarget: HTMLElement | null | undefined =
       requested === "auto"
         ? section?.querySelector<HTMLButtonElement>(
-            '[data-testid="button-accept-auto-scale"]',
+            '[data-testid="button-correct-perspective-aid-scale"], [data-testid="button-accept-auto-scale"]',
           )
         : requested === "length"
           ? section?.querySelector<HTMLInputElement>("#ruler-length")
@@ -594,24 +596,44 @@ export function TraceControlsPanel({
             >
               <div className="flex items-center gap-2 text-sm font-semibold text-amber-800 dark:text-amber-200">
                 <Sparkles className="h-4 w-4" />
-                {pendingCalibrationSource === "strip"
+                {pendingPaperCalibration
+                  ? "Paper and measurement aid detected"
+                  : pendingCalibrationSource === "strip"
                   ? "Scale detected from the reference strip"
                   : "Scale detected from the sheet"}
               </div>
               <p className="text-xs text-muted-foreground">
-                Pocketry found {displayedScale.mmPerPx?.toFixed(3)} mm/px. Review
-                the ruler on the image, then accept it to continue.
+                {pendingPaperCalibration
+                  ? "Choose a reference, or use the paper to correct perspective and the aid to set scale."
+                  : <>Pocketry found {displayedScale.mmPerPx?.toFixed(3)} mm/px. Review
+                    the ruler on the image, then accept it to continue.</>}
               </p>
               {pendingCalibrationSource === "strip" && (
                 <p className="text-xs text-muted-foreground">
                   The ruler joins the marker centres, {pendingAutoCalibration.lengthMm} mm apart
                   on the {referenceStripFromRulerLength(pendingAutoCalibration.lengthMm)?.lengthMm} mm strip.
-                  This scale uses the strip height and takes priority over a sheet below.
+                  This scale uses the strip height.
                   Keep the strip near the tool edge you need to fit and verify that dimension.
                 </p>
               )}
               {pendingPerspective ? (
                 <>
+                  {pendingPaperCalibration && (
+                    <>
+                      <Button size="sm" className={RESPONSIVE_PANEL_ACTION}
+                        disabled={processing || !pendingTemplate}
+                        onClick={() => pendingTemplate && onApplyPerspective(pendingPerspective, pendingTemplate, pendingAutoCalibration)}
+                        data-testid="button-correct-perspective-aid-scale">
+                        Correct perspective &amp; use aid scale
+                      </Button>
+                      <Button variant="outline" size="sm" className={RESPONSIVE_PANEL_ACTION}
+                        disabled={processing}
+                        onClick={() => dispatch({ type: "ACCEPT_AUTO_CALIBRATION", source: "strip" })}
+                        data-testid="button-use-aid-scale">
+                        Use aid scale only
+                      </Button>
+                    </>
+                  )}
                   <p className="text-xs font-medium text-amber-800 dark:text-amber-200">
                     {pendingTemplate
                       ? templateDisplayName(pendingTemplate)
@@ -619,6 +641,7 @@ export function TraceControlsPanel({
                     template detected automatically
                   </p>
                   <Button
+                    variant={pendingPaperCalibration ? "outline" : "default"}
                     size="sm"
                     className={RESPONSIVE_PANEL_ACTION}
                     disabled={processing || !pendingTemplate}
@@ -632,7 +655,7 @@ export function TraceControlsPanel({
                     data-testid="button-apply-auto-perspective"
                   >
                     <ScanLine className="mr-1.5 h-4 w-4" />
-                    Correct perspective &amp; use scale
+                    {pendingPaperCalibration ? "Correct perspective & use paper scale" : "Correct perspective & use scale"}
                   </Button>
                   <Button
                     variant="outline"
@@ -651,10 +674,10 @@ export function TraceControlsPanel({
                     variant="outline"
                     size="sm"
                     className={RESPONSIVE_PANEL_ACTION}
-                    onClick={() => dispatch({ type: "ACCEPT_AUTO_CALIBRATION" })}
+                    onClick={() => dispatch({ type: "ACCEPT_AUTO_CALIBRATION", source: "sheet" })}
                     data-testid="button-accept-auto-scale"
                   >
-                    Use scale without correction
+                    {pendingPaperCalibration ? "Use paper scale only" : "Use scale without correction"}
                   </Button>
                 </>
               ) : (
@@ -804,7 +827,7 @@ export function TraceControlsPanel({
             </Button>
           )}
 
-          {!usingReferenceStrip && (
+          {(!usingReferenceStrip || perspectiveCorrection) && (
             <div className="space-y-2 rounded-md border p-3">
               <div className="flex items-center gap-2 text-sm font-medium">
                 <ScanLine className="h-4 w-4 text-amber-600" />

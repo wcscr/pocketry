@@ -36,10 +36,14 @@ export type AutoCalibrationResult =
       kind: "calibrated-strip";
       calibration: Calibration;
       solution: ScaleSolution;
+      /** A usable paper reference offered alongside the aid. */
+      sheet?: Extract<AutoCalibrationResult, { kind: "calibrated" }>;
     }
   | { kind: "invalid-strip"; reason: "incomplete-signature" | "invalid-geometry" }
   | {
       kind: "calibrated";
+      /** The aid was present but unusable; paper calibration is the fallback. */
+      stripFallbackReason?: "incomplete-signature" | "invalid-geometry";
       calibration: Calibration;
       solution: ScaleSolution;
       /** Paper size encoded by this template's unique marker-id family. */
@@ -67,29 +71,33 @@ export type AutoCalibrationResult =
 
 /** Pure composition over an injected cv — what the closed-loop test drives. */
 export function runAutoCalibration(cv: any, image: ImageData): AutoCalibrationResult {
-  // A visible strip expresses object-height calibration intent. Never silently
-  // fall back to the lower paper plane if its signature is incomplete/invalid.
   const stripMarkers = detectReferenceStripMarkers(cv, image);
-  if (stripMarkers.length > 0) {
-    const solution = solveReferenceStrip(stripMarkers);
-    if (!solution) {
-      return {
-        kind: "invalid-strip",
-        reason: stripMarkers.length < 2 ? "incomplete-signature" : "invalid-geometry",
-      };
-    }
+  const stripSolution = stripMarkers.length ? solveReferenceStrip(stripMarkers) : null;
+  // Evaluate both references so the UI can offer a choice or combine paper
+  // perspective with aid scale. An invalid aid must not hide a usable sheet.
+  const sheet = runSheetCalibration(cv, image);
+  if (stripSolution) {
     return {
       kind: "calibrated-strip",
-      solution,
+      solution: stripSolution,
       calibration: {
-        startX: solution.ruler.a.x,
-        startY: solution.ruler.a.y,
-        endX: solution.ruler.b.x,
-        endY: solution.ruler.b.y,
-        lengthMm: solution.ruler.lengthMm,
+        startX: stripSolution.ruler.a.x,
+        startY: stripSolution.ruler.a.y,
+        endX: stripSolution.ruler.b.x,
+        endY: stripSolution.ruler.b.y,
+        lengthMm: stripSolution.ruler.lengthMm,
       },
+      ...(sheet.kind === "calibrated" ? { sheet } : {}),
     };
   }
+  if (!stripMarkers.length) return sheet;
+  const reason = stripMarkers.length < 2 ? "incomplete-signature" : "invalid-geometry";
+  return sheet.kind === "calibrated"
+    ? { ...sheet, stripFallbackReason: reason }
+    : { kind: "invalid-strip", reason };
+}
+
+function runSheetCalibration(cv: any, image: ImageData): Exclude<AutoCalibrationResult, { kind: "calibrated-strip" | "invalid-strip" | "unsupported" }> {
   const detection = detectCalibrationSheet(cv, image);
   if (!detection) return { kind: "no-markers" };
   const markerIds = detection.markers

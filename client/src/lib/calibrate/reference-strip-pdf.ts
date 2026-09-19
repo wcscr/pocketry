@@ -41,7 +41,7 @@ export function referenceStripPdf(paper: TemplatePaper): Uint8Array {
     "    you need to fit. Keep both markers and the tool's outer edge visible.",
     "3. Keep the strip parallel to the paper. Photograph straight down.",
     "4. Import the photo into Trace. Review and accept Reference strip scale.",
-    "    The strip takes priority over a calibration sheet beneath the object.",
+    "    If a paper sheet is also detected, choose a reference in Scale.",
   ];
   lines.forEach((line, index) => text(line, 20, 155 + index * 7));
   text("For accurate fit", 20, 210, 4.5);

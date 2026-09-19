@@ -917,6 +917,29 @@ describe("selection", () => {
 
 
 describe("reference strip scale", () => {
+  it("rotates both candidate rulers and clears the paper alternative on replacement or manual selection", () => {
+    const calibration = { startX: 20, startY: 30, endX: 180, endY: 30, lengthMm: 85 };
+    const paperCalibration = { startX: 10, startY: 10, endX: 500, endY: 580, lengthMm: 250 };
+    const pending = run(initialTraceState,
+      { type: "SOURCE_LOADED", imageUrl: "both", fileName: "both" },
+      { type: "SOURCE_READY", imageSize: { width: 800, height: 600 } },
+      { type: "AUTO_CALIBRATION_DETECTED", sourceImageUrl: "both", source: "strip", calibration, paperCalibration });
+    const rotated = traceReducer(pending, { type: "ROTATE_SOURCE", direction: "clockwise",
+      naturalSize: { width: 800, height: 600 }, maxSize: { width: 800, height: 600 } });
+    expect(rotated.pendingPaperCalibration).not.toEqual(paperCalibration);
+    expect(rotated.pendingPaperCalibration?.lengthMm).toBe(250);
+    expect(rotated.pendingAutoCalibration?.lengthMm).toBe(85);
+    expect(traceReducer(pending, { type: "SET_MODE", mode: "calibrate" }).pendingPaperCalibration).toBeNull();
+    expect(traceReducer(pending, { type: "SOURCE_LOADED", imageUrl: "new", fileName: "new" }).pendingPaperCalibration).toBeNull();
+    const applied = traceReducer(pending, { type: "PERSPECTIVE_APPLIED", sourceImageUrl: "both", imageUrl: "corrected",
+      imageSize: { width: 841, height: 1189 }, source: "template", paper: "a4", calibration, calibrationSource: "strip" });
+    expect(applied.calibrationSource).toBe("strip");
+    expect(applied.pendingPaperCalibration).toBeNull();
+    const restored = traceReducer(applied, { type: "RESTORE_PERSPECTIVE_SOURCE" });
+    expect(restored.imageUrl).toBe("both");
+    expect(restored.calibration).toBeNull();
+    expect(restored.pendingPaperCalibration).toBeNull();
+  });
   it("preserves the source through acceptance and rotation; clears it with manual calibration or replacement", () => {
     const imageUrl = "strip-photo";
     const calibration = { startX: 20, startY: 30, endX: 180, endY: 30, lengthMm: 80 };

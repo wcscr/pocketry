@@ -16,7 +16,7 @@ let cv: any;
 beforeAll(async () => { cv = await createRequire(import.meta.url)("../../../public/opencv/opencv.js"); }, 60000);
 
 /** Independent renderer: OpenCV produces the marker pixels, not our print code. */
-function photograph(options: { pxPerMm?: number; ids?: number[]; spacing?: number; markerSize?: number; sheet?: TemplateVariant; squash?: number } = {}): ImageData {
+function photograph(options: { pxPerMm?: number; ids?: number[]; spacing?: number; markerSize?: number; sheet?: TemplateVariant; sheetIds?: number[]; squash?: number } = {}): ImageData {
   const width = 1400, height = 1000;
   const data = new Uint8ClampedArray(width * height * 4).fill(255);
   const dictionary = createPocketryTemplateDictionary(cv, POCKETRY_ARUCO_BITS.length);
@@ -35,6 +35,7 @@ function photograph(options: { pxPerMm?: number; ids?: number[]; spacing?: numbe
     (options.ids ?? [20, 21]).forEach((id, index) => put(id, 150 + index * (options.spacing ?? 80) * scale, 350, (options.markerSize ?? 15) * scale));
     if (options.sheet) {
       for (const { id, x, y } of templateMarkerCentersMm(options.sheet)) {
+        if (options.sheetIds && !options.sheetIds.includes(id)) continue;
         const size = templateMarkerSizeMm(options.sheet) * 3;
         put(id, Math.round(x * 3 - size / 2), Math.round(y * 3 - size / 2), size);
       }
@@ -80,10 +81,14 @@ describe("object reference strip", () => {
     expect("perspectiveProposal" in result).toBe(false);
   });
 
-  it.each(["a4", "letter", "a4-experimental", "letter-experimental"] as const)("uses the raised strip's scale instead of the %s sheet underneath", (sheet) => {
+  it.each(["a4", "letter", "a4-experimental", "letter-experimental"] as const)("offers both the raised strip and the %s sheet at their own scales", (sheet) => {
     const result = runAutoCalibration(cv, photograph({ sheet }));
     expect(result.kind).toBe("calibrated-strip");
-    if (result.kind === "calibrated-strip") expect(result.solution.mmPerPx).toBeCloseTo(0.25, 3);
+    if (result.kind === "calibrated-strip") {
+      expect(result.solution.mmPerPx).toBeCloseTo(0.25, 3);
+      expect(result.sheet?.solution.mmPerPx).toBeCloseTo(1 / 3, 3);
+      expect(result.sheet?.template).toBe(sheet);
+    }
   });
 
   it.each([90, 180, 270])("recognizes a photo rotated %s degrees", (degrees) => {
@@ -108,12 +113,27 @@ describe("object reference strip", () => {
     expect(mmPerPixel(result.calibration)).toBeCloseTo(.25, 3);
   });
 
-  it.each([[22], [22, 25], [24, 25, 22], [26, 26]])("rejects incomplete, mixed-size or duplicate new markers without falling back to paper: %j", (...ids) => {
-    expect(runAutoCalibration(cv, photograph({ ids, markerSize: 9, sheet: "letter-experimental" })).kind).toBe("invalid-strip");
+  it.each([[22], [22, 25], [24, 25, 22], [26, 26]])("falls back to valid paper when new aid markers are incomplete, mixed or duplicated: %j", (...ids) => {
+    const result = runAutoCalibration(cv, photograph({ ids, markerSize: 9, sheet: "letter-experimental" }));
+    expect(result.kind).toBe("calibrated");
+    if (result.kind !== "calibrated") return;
+    expect(result.template).toBe("letter-experimental");
+    expect(result.stripFallbackReason).toBe(ids.length === 1 ? "incomplete-signature" : "invalid-geometry");
+    expect(mmPerPixel(result.calibration)).toBeCloseTo(1 / 3, 3);
+  });
+
+  it.each(["a4", "letter", "a4-experimental", "letter-experimental"] as const)("falls back to %s paper when aid geometry is rejected", (sheet) => {
+    const result = runAutoCalibration(cv, photograph({ ids: [24, 25], markerSize: 9, spacing: 100, sheet }));
+    expect(result.kind).toBe("calibrated");
+    if (result.kind === "calibrated") {
+      expect(result.stripFallbackReason).toBe("invalid-geometry");
+      expect(result.template).toBe(sheet);
+      expect(result.perspectiveProposal).toBeDefined();
+    }
   });
 
   it.each([
-    { ids: [20], sheet: "letter" as const },
+    { ids: [20], sheet: "letter-experimental" as const, sheetIds: [12, 13, 14] },
     { ids: [20, 20] }, { ids: [20, 21, 20] }, { ids: [21, 20] },
     { spacing: 100 }, { squash: 0.8 },
   ])("rejects incomplete, repeated, swapped, stretched or oblique strips: %j", (options) => {

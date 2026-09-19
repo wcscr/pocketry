@@ -439,6 +439,34 @@ describe("TraceControlsPanel guided workflow", () => {
     expect(downloadBlob).toHaveBeenLastCalledWith(expect.any(Blob), "pocketry-reference-strip-v1-letter.pdf");
   });
 
+  it.each(["strip", "sheet", "combined"] as const)("lets the user choose %s when paper and an aid are both usable", async (choice) => {
+    await click("load-source");
+    const aid = { ...CALIBRATION, lengthMm: 85 };
+    const paper = { ...CALIBRATION, endX: 500, lengthMm: 250 };
+    const perspective = { source: "template" as const, paper: "letter" as const,
+      points: [{ x: 10, y: 10 }, { x: 790, y: 10 }, { x: 790, y: 590 }, { x: 10, y: 590 }] as [{ x: number; y: number }, { x: number; y: number }, { x: number; y: number }, { x: number; y: number }] };
+    await React.act(async () => trace.dispatch({ type: "AUTO_CALIBRATION_DETECTED", sourceImageUrl: "data:image/png;base64,new-source",
+      source: "strip", calibration: aid, paperCalibration: paper, perspective }));
+    expect(host.textContent).toContain("Paper and measurement aid detected");
+    expect(host.textContent).toContain("Use paper scale only");
+    expect(document.activeElement?.getAttribute("data-testid")).toBe("button-correct-perspective-aid-scale");
+    expect(trace.calibration).toBeNull();
+    if (choice === "combined") {
+      await click("button-correct-perspective-aid-scale");
+      expect(applyPerspective).toHaveBeenLastCalledWith(perspective, "letter", aid);
+      await React.act(async () => trace.dispatch({ type: "PERSPECTIVE_APPLIED", sourceImageUrl: "data:image/png;base64,new-source",
+        imageUrl: "corrected", imageSize: { width: 865, height: 1119 }, calibration: aid,
+        calibrationSource: "strip", source: "template", paper: "letter" }));
+      await clickSection("scale");
+      expect(host.querySelector('[data-testid="button-restore-perspective-source"]')).not.toBeNull();
+    } else {
+      await click(choice === "strip" ? "button-use-aid-scale" : "button-accept-auto-scale");
+      expect(trace.calibrationSource).toBe(choice);
+      expect(trace.calibration).toEqual(choice === "strip" ? aid : paper);
+      expect(trace.pendingPaperCalibration).toBeNull();
+    }
+  });
+
   it("offers automatic and manual perspective correction paths", async () => {
     await click("load-source");
     await click("detect-auto-perspective");

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { mmPerPixel } from "@shared/geometry/scale";
+import { mmPerPixel, type Calibration } from "@shared/geometry/scale";
 import type { Rect } from "@shared/geometry/types";
 
 import { usePanelState } from "@/components/layout/panel-context";
@@ -59,6 +59,12 @@ export default function TracePage(): JSX.Element {
 }
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
+
+/** Change image coordinates only; the physical reference length is unchanged. */
+function resizeCalibration(calibration: Calibration, x: number, y: number): Calibration {
+  return { ...calibration, startX: calibration.startX * x, startY: calibration.startY * y,
+    endX: calibration.endX * x, endY: calibration.endY * y };
+}
 
 function imageDataToPngUrl(image: ImageData): string {
   const canvas = document.createElement("canvas");
@@ -232,20 +238,16 @@ function TraceWorkspace(): JSX.Element {
           case "calibrated-strip":
           case "calibrated": {
             const strip = result.kind === "calibrated-strip";
-            const perspective =
-              result.kind === "calibrated" ? result.perspectiveProposal : null;
-            const calibration = {
-              startX: result.calibration.startX * frame.toWorking.x,
-              startY: result.calibration.startY * frame.toWorking.y,
-              endX: result.calibration.endX * frame.toWorking.x,
-              endY: result.calibration.endY * frame.toWorking.y,
-              lengthMm: result.calibration.lengthMm,
-            };
+            const sheet = result.kind === "calibrated" ? result : result.sheet;
+            const perspective = sheet?.perspectiveProposal ?? null;
+            const calibration = resizeCalibration(result.calibration, frame.toWorking.x, frame.toWorking.y);
             dispatch({
               type: "AUTO_CALIBRATION_DETECTED",
               sourceImageUrl: frame.sourceImageUrl,
               calibration,
               source: strip ? "strip" : "sheet",
+              paperCalibration: strip && sheet
+                ? resizeCalibration(sheet.calibration, frame.toWorking.x, frame.toWorking.y) : null,
               perspective: perspective
                 ? scalePerspectiveProposal(
                     perspective,
@@ -260,19 +262,24 @@ function TraceWorkspace(): JSX.Element {
               ? templateDisplayName(result.template)
               : `${referenceStripFromRulerLength(result.calibration.lengthMm)?.lengthMm} mm object reference strip`;
             const summary = `${referenceName} · ${solution.markerIds.length} markers · ${(mmPerPx ?? solution.mmPerPx).toFixed(3)} mm/px`;
-            if (solution.maxDeviation > SKEW_WARN_FRACTION) {
+            const fallback = result.kind === "calibrated" && result.stripFallbackReason
+              ? "The measurement aid could not be calibrated, so Pocketry used the paper markers. " : "";
+            if (strip && sheet) {
+              toast({ title: "Paper and measurement aid detected",
+                description: "Choose a reference in Scale, or correct perspective with the paper and use the aid for scale." });
+            } else if (solution.maxDeviation > SKEW_WARN_FRACTION) {
               toast({
                 title: "Scale detected — review carefully",
                 description: strip
                   ? `${summary}. Marker edge measurements differ by ${(solution.maxDeviation * 100).toFixed(1)}%. Small markers or camera tilt can cause this. Review the scale; for clearer markers, fill more of the photo with the tool and shoot straight down.`
-                  : `${summary}. Marker distances disagree by ${(solution.maxDeviation * 100).toFixed(1)}%. ${perspective ? "Perspective correction is available in Scale." : "Shoot straight down for accurate millimetres."}`,
+                  : `${fallback}${summary}. Marker distances disagree by ${(solution.maxDeviation * 100).toFixed(1)}%. ${perspective ? "Perspective correction is available in Scale." : "Shoot straight down for accurate millimetres."}`,
                 variant: "destructive",
                 duration: 8000,
               });
             } else {
               toast({
-                title: strip ? "Scale detected from reference strip" : "Scale detected from calibration sheet",
-                description: `${summary}. Review and accept it in Scale.`,
+                title: strip ? "Scale detected from reference strip" : "Scale detected from paper markers",
+                description: `${fallback}${summary}. Review and accept it in Scale.`,
               });
             }
             break;
@@ -281,8 +288,8 @@ function TraceWorkspace(): JSX.Element {
             toast({
               title: "Reference strip could not be calibrated",
               description: result.reason === "incomplete-signature"
-                ? "Keep both strip markers fully visible. No paper-sheet scale was substituted."
-                : "The marker sizes, spacing or orientation did not match. Use one flat, unmodified strip, fill more of the photo with the tool so both markers are clear, and shoot straight down. No paper-sheet scale was substituted.",
+                ? "Keep both aid markers visible or include all four paper markers. Neither reference could be calibrated."
+                : "The marker sizes, spacing or orientation did not match. Use one flat, unmodified strip, fill more of the photo with the tool so both markers are clear, and shoot straight down. No usable paper reference was found either.",
               duration: 8000,
             });
             break;
@@ -332,7 +339,7 @@ function TraceWorkspace(): JSX.Element {
   );
 
   const applyPerspective = useCallback(
-    async (proposal: PerspectiveProposal, template: TemplateVariant, usePaperScale = true) => {
+    async (proposal: PerspectiveProposal, template: TemplateVariant, usePaperScale: boolean | Calibration = true) => {
       const frame = getDetectionFrame();
       if (
         !frame ||
@@ -360,6 +367,9 @@ function TraceWorkspace(): JSX.Element {
           frame.imageData,
           detectionProposal,
           template,
+          RECTIFIED_IMAGE_MAX,
+          typeof usePaperScale === "object"
+            ? resizeCalibration(usePaperScale, 1 / frame.toWorking.x, 1 / frame.toWorking.y) : undefined,
         );
         if (activeImageUrlRef.current !== frame.sourceImageUrl) return;
         const imageUrl = imageDataToPngUrl(corrected.imageData);
@@ -368,14 +378,17 @@ function TraceWorkspace(): JSX.Element {
           sourceImageUrl: frame.sourceImageUrl,
           imageUrl,
           imageSize: { width: corrected.width, height: corrected.height },
-          calibration: usePaperScale ? corrected.calibration : null,
+          calibration: usePaperScale === false ? null : corrected.calibration,
+          calibrationSource: typeof usePaperScale === "object" ? "strip" : "sheet",
           source: proposal.source,
           paper: templatePaper(template),
           template,
         });
         toast({
           title: "Perspective corrected",
-          description: usePaperScale
+          description: typeof usePaperScale === "object"
+            ? "Perspective corrected from the paper; scale set from the measurement aid."
+            : usePaperScale
             ? `${templateDisplayName(template)} plane rectified at ${(1 / corrected.pxPerMm).toFixed(3)} mm/px${corrected.reprojectionErrorPx === null ? "" : ` · ${corrected.reprojectionErrorPx.toFixed(2)} px fit residual`}.`
             : "Now select two points on a measured feature of the tool, then enter its real length to set the scale.",
         });
