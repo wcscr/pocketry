@@ -390,7 +390,7 @@ describe("bin store history (G4 undo/redo)", () => {
     expect(store().cutouts).toHaveLength(1);
   });
 
-  it("keeps finger holes independent when a tool pocket is moved or removed", () => {
+  it("keeps finger access features independent when a tool pocket is moved or removed", () => {
     const { store, act } = mountBin();
     act(() =>
       store().dispatch({ type: "ADD_PLACED", cutouts: [CUTOUT], gridX: 2, gridY: 2 }),

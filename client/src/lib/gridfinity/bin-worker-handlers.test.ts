@@ -120,7 +120,7 @@ describe("bin worker handlers", () => {
     const zs = Array.from(floors.positions).filter((_, i) => i % 3 === 2);
     expect(Math.max(...zs)).toBeCloseTo(floorZ, 5);
     expect(Math.min(...zs)).toBeCloseTo(floorZ - 0.8, 5);
-    // All three pocket quadrants have material; the upper-right finger hole does not.
+    // All three pocket quadrants have material; the upper-right finger access does not.
     const quadrants = new Set<string>();
     for (let i = 0; i < floors.positions.length; i += 3) {
       const x = floors.positions[i], y = floors.positions[i + 1];
@@ -486,8 +486,8 @@ describe("fit template worker handler", () => {
     }
     expect(Math.min(...zs)).toBeCloseTo(0, 6);
     expect(Math.max(...zs)).toBeCloseTo(2.5, 6);
-    // The placement and finger-hole position are intentionally ignored;
-    // placement scale is retained while position and finger holes are ignored;
+    // The placement and finger access position are intentionally ignored;
+    // placement scale is retained while position and finger access features are ignored;
     // clearance grows the 30 mm wide outline to roughly 32 mm.
     expect(Math.min(...xs)).toBeCloseTo(-16, 1);
     expect(Math.max(...xs)).toBeCloseTo(16, 1);

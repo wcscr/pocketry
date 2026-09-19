@@ -335,7 +335,7 @@ function reducer(state: BinState, action: BinAction): BinState {
           cutouts: state.cutouts,
           fingerHoles: [...state.fingerHoles, clampFingerHoleToBin(action.hole, state.spec)],
         },
-        "Add finger hole",
+        "Add finger access",
         { selectedCutoutId: null, selectedFingerHoleId: action.hole.id },
       );
     case "UPDATE_FINGER_HOLE": {
@@ -351,7 +351,7 @@ function reducer(state: BinState, action: BinAction): BinState {
       };
       return action.transient
         ? preview(state, doc)
-        : commit(state, doc, action.historyLabel ?? "Edit finger hole");
+        : commit(state, doc, action.historyLabel ?? "Edit finger access");
     }
     case "REMOVE_FINGER_HOLE":
       if (!state.fingerHoles.some((hole) => hole.id === action.id)) return state;
@@ -362,7 +362,7 @@ function reducer(state: BinState, action: BinAction): BinState {
           cutouts: state.cutouts,
           fingerHoles: state.fingerHoles.filter((hole) => hole.id !== action.id),
         },
-        "Remove finger hole",
+        "Remove finger access",
         {
           selectedFingerHoleId:
             state.selectedFingerHoleId === action.id

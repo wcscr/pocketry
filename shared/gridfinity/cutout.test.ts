@@ -420,7 +420,7 @@ describe("interior geometry and the view flip", () => {
   });
 });
 
-describe("typed finger holes (straight and scoop)", () => {
+describe("typed finger access features (straight and scoop)", () => {
   it("defaults to no features and parses old documents unchanged", () => {
     const parsed = parseCutoutPlacement({
       id: "c1",

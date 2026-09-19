@@ -19,13 +19,13 @@ import { binHistorySchema } from "./history";
  * the format *before* real user data exists) — bumping `schemaVersion` and
  * adding a migration in `parseProjectDoc` is the upgrade path when persisted
  * feature models change. Version 2 replaces the one-off scoop with typed,
- * per-finger-hole straight/scoop geometry; version 3 adds a per-pocket top
+ * straight/scoop geometry for each finger access feature; version 3 adds a per-pocket top
  * edge fillet; version 4 adds nonrectangular cell footprints and boundary-edge
  * label-tab anchors; version 5 adds straight-shaft deep finger scoops; version
  * 6 adds resizable, rotated oblong deep scoops; version 7 promotes finger
  * holes from pocket-relative children to independent, bin-local objects;
  * version 8 adds per-placement X/Y scale and an aspect-ratio-lock preference;
- * version 9 adds per-finger-hole top and bottom edge fillets; version 10 adds
+ * version 9 adds top and bottom edge fillets to finger access; version 10 adds
  * optional project names, fixed-size preference, and trace margin provenance.
  * Version 11 removes Lite Base; older projects use the ordinary Gridfinity base.
  * Version 12 adds an optional flat bottom, defaulting off for existing projects.

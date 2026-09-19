@@ -1321,7 +1321,7 @@ describe("BinDesignerPage", () => {
     expect(select().textContent).toBe("Thumb access");
     expect(properties.firstElementChild?.textContent).toContain("Thumb access");
     React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
-    expect(select().textContent).toBe("Hole 1");
+    expect(select().textContent).toBe("Finger access 1");
     React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
     expect(select().textContent).toBe("Thumb access");
     input = editName("Cancelled name");
@@ -1482,7 +1482,7 @@ describe("BinDesignerPage", () => {
     expect(input("Depth in millimetres").value).toBe("12");
     setNumber("Length in millimetres", "100");
     expect(input("Length in millimetres").value).toBe("30");
-    setNumber("Elongated finger hole rotation", "90");
+    setNumber("Elongated finger access rotation", "90");
     expect(input("Length in millimetres").max).toBe("87.67");
     expect(input("Width in millimetres").max).toBe("43.57");
     React.act(() => container.querySelector<HTMLButtonElement>('#bin-settings-size [data-panel-section-trigger]')!.click());
@@ -1672,12 +1672,12 @@ describe("BinDesignerPage", () => {
     expect(container.querySelector('[aria-label="Depth"]')).not.toBeNull();
     expect(container.querySelector('[aria-label="Length"]')).not.toBeNull();
     const rotateClockwise = container.querySelector(
-      '[aria-label="Rotate elongated finger hole 90 degrees clockwise"]',
+      '[aria-label="Rotate elongated finger access 90 degrees clockwise"]',
     ) as HTMLButtonElement;
     expect(rotateClockwise).not.toBeNull();
     expect(
       container.querySelector(
-        '[aria-label="Rotate elongated finger hole 90 degrees counterclockwise"]',
+        '[aria-label="Rotate elongated finger access 90 degrees counterclockwise"]',
       ),
     ).not.toBeNull();
     const depthInput = container.querySelector<HTMLInputElement>('[aria-label="Depth in millimetres"]')!;
@@ -3022,7 +3022,7 @@ describe("BinDesignerPage", () => {
       ).click();
     });
 
-    // Finger holes live in their own object list and selection context.
+    // Finger access features live in their own object list and selection context.
     openSettingsSection(container, "finger-holes");
     const addFingerHole = container.querySelector(
       '[data-testid="button-add-finger-hole"]',

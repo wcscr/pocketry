@@ -75,7 +75,7 @@ describe("layoutRingsMm", () => {
     );
   });
 
-  it("emits the footprint plus each pocket and independent finger-hole ring", () => {
+  it("emits the footprint plus each pocket and independent finger access ring", () => {
     const rings = layoutRingsMm(SPEC, [cutout()], BY_ID, [
       {
         id: "f1",
