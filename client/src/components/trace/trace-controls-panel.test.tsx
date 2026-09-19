@@ -260,6 +260,7 @@ describe("TraceControlsPanel guided workflow", () => {
     await click("load-source");
     expect(document.querySelector('[role="tooltip"]')).toBeNull();
     expect(host.textContent).not.toContain("oversized outlines");
+    expect(host.querySelectorAll('[aria-label="About scaling thick objects"]')).toHaveLength(1);
 
     const manualHint = host.querySelector<HTMLButtonElement>(
       '[aria-label="About scaling thick objects"]',
@@ -277,9 +278,9 @@ describe("TraceControlsPanel guided workflow", () => {
     expect(document.activeElement).toBe(accept);
     expect(document.querySelector('[role="tooltip"]')).toBeNull();
 
-    const hint = accept.parentElement!.parentElement!.querySelector<HTMLButtonElement>(
-      '[aria-label="About scaling thick objects"]',
-    )!;
+    const hints = host.querySelectorAll<HTMLButtonElement>('[aria-label="About scaling thick objects"]');
+    expect(hints).toHaveLength(1);
+    const hint = hints[0];
     await React.act(async () => {
       const hover = new MouseEvent("pointermove", { bubbles: true });
       Object.defineProperty(hover, "pointerType", { value: "mouse" });
@@ -396,6 +397,7 @@ describe("TraceControlsPanel guided workflow", () => {
     expect(section("scale")?.dataset.state).toBe("open");
     expect(host.textContent).toContain("Scale detected from the sheet");
     expect(host.textContent).toContain("0.500 mm/px");
+    expect(host.querySelectorAll('[aria-label="About scaling thick objects"]')).toHaveLength(1);
     const accept = host.querySelector<HTMLButtonElement>(
       '[data-testid="button-accept-auto-scale"]',
     );

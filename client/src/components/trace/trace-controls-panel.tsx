@@ -603,62 +603,54 @@ export function TraceControlsPanel({
                       : "Pocketry"}{" "}
                     template detected automatically
                   </p>
-                  <ScaleActionWithHint>
-                    <Button
-                      size="sm"
-                      className={RESPONSIVE_PANEL_ACTION}
-                      disabled={processing || !pendingTemplate}
-                      onClick={() =>
-                        pendingTemplate &&
-                        onApplyPerspective(
-                          pendingPerspective,
-                          pendingTemplate,
-                        )
-                      }
-                      data-testid="button-apply-auto-perspective"
-                    >
-                      <ScanLine className="mr-1.5 h-4 w-4" />
-                      Correct perspective &amp; use scale
-                    </Button>
-                  </ScaleActionWithHint>
-                  <ScaleActionWithHint>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className={RESPONSIVE_PANEL_ACTION}
-                      disabled={processing || !pendingTemplate}
-                      onClick={() =>
-                        pendingTemplate &&
-                        onApplyPerspective(pendingPerspective, pendingTemplate, false)
-                      }
-                      data-testid="button-correct-auto-perspective-only"
-                    >
-                      Correct perspective only
-                    </Button>
-                  </ScaleActionWithHint>
-                  <ScaleActionWithHint>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className={RESPONSIVE_PANEL_ACTION}
-                      onClick={() => dispatch({ type: "ACCEPT_AUTO_CALIBRATION" })}
-                      data-testid="button-accept-auto-scale"
-                    >
-                      Use scale without correction
-                    </Button>
-                  </ScaleActionWithHint>
-                </>
-              ) : (
-                <ScaleActionWithHint>
                   <Button
+                    size="sm"
+                    className={RESPONSIVE_PANEL_ACTION}
+                    disabled={processing || !pendingTemplate}
+                    onClick={() =>
+                      pendingTemplate &&
+                      onApplyPerspective(
+                        pendingPerspective,
+                        pendingTemplate,
+                      )
+                    }
+                    data-testid="button-apply-auto-perspective"
+                  >
+                    <ScanLine className="mr-1.5 h-4 w-4" />
+                    Correct perspective &amp; use scale
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className={RESPONSIVE_PANEL_ACTION}
+                    disabled={processing || !pendingTemplate}
+                    onClick={() =>
+                      pendingTemplate &&
+                      onApplyPerspective(pendingPerspective, pendingTemplate, false)
+                    }
+                    data-testid="button-correct-auto-perspective-only"
+                  >
+                    Correct perspective only
+                  </Button>
+                  <Button
+                    variant="outline"
                     size="sm"
                     className={RESPONSIVE_PANEL_ACTION}
                     onClick={() => dispatch({ type: "ACCEPT_AUTO_CALIBRATION" })}
                     data-testid="button-accept-auto-scale"
                   >
-                    Accept detected scale
+                    Use scale without correction
                   </Button>
-                </ScaleActionWithHint>
+                </>
+              ) : (
+                <Button
+                  size="sm"
+                  className={RESPONSIVE_PANEL_ACTION}
+                  onClick={() => dispatch({ type: "ACCEPT_AUTO_CALIBRATION" })}
+                  data-testid="button-accept-auto-scale"
+                >
+                  Accept detected scale
+                </Button>
               )}
             </div>
           )}
