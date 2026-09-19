@@ -1,7 +1,9 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { Portal as TooltipPortal } from "@radix-ui/react-tooltip";
 import {
   Box,
   CheckCircle2,
+  CircleHelp,
   Crop,
   Download,
   Image as ImageIcon,
@@ -78,6 +80,40 @@ import { RingList } from "./ring-list";
 
 const RESPONSIVE_PANEL_ACTION =
   "h-auto min-h-9 w-full whitespace-normal break-words px-2 py-2 text-[clamp(0.75rem,4cqw,0.875rem)] leading-tight";
+
+/** Keep optional guidance beside the action and outside the panel's scroll clip. */
+function ScaleActionWithHint({ children }: { children: ReactNode }): JSX.Element {
+  return (
+    <div className="flex items-center gap-2">
+      <div className="min-w-0 flex-1">{children}</div>
+      <Tooltip delayDuration={250}>
+        {/* Guided focus and clicks must not open this hover-only hint. */}
+        <TooltipTrigger asChild onFocus={(event) => event.preventDefault()}>
+          <button
+            type="button"
+            aria-label="About scaling thick objects"
+            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <CircleHelp className="h-4 w-4" />
+          </button>
+        </TooltipTrigger>
+        <TooltipPortal>
+          <TooltipContent
+            side="right"
+            collisionPadding={12}
+            className="max-w-72 text-xs leading-relaxed"
+          >
+            <strong>Thick objects:</strong> Auto scale from the paper can produce
+            oversized outlines because raised parts of the tool are closer to
+            the camera. For more reliable scaling, measure a long, clearly visible
+            feature on the part furthest from the paper. Use its measured length
+            and matching endpoints in the photo to set the scale manually.
+          </TooltipContent>
+        </TooltipPortal>
+      </Tooltip>
+    </div>
+  );
+}
 
 export interface TraceControlsPanelProps {
   onReplaceImage: () => void;
@@ -545,14 +581,6 @@ export function TraceControlsPanel({
           className="scroll-mt-16"
           disabled={!hasImage}
         >
-          <p className="rounded-md border border-amber-400/50 bg-amber-500/10 p-3 text-xs leading-relaxed">
-            <strong>Thick objects:</strong> Auto scale from the paper can produce
-            oversized outlines because raised parts of the tool are closer to
-            the camera. For more reliable scaling, measure a long, clearly visible
-            feature on the part furthest from the paper. Use its measured length
-            and matching endpoints in the photo to set the scale manually.
-          </p>
-
           {pendingAutoCalibration && (
             <div
               className="space-y-2 rounded-md border border-amber-400/50 bg-amber-500/10 p-3"
@@ -574,79 +602,87 @@ export function TraceControlsPanel({
                       : "Pocketry"}{" "}
                     template detected automatically
                   </p>
+                  <ScaleActionWithHint>
+                    <Button
+                      size="sm"
+                      className={RESPONSIVE_PANEL_ACTION}
+                      disabled={processing || !pendingTemplate}
+                      onClick={() =>
+                        pendingTemplate &&
+                        onApplyPerspective(
+                          pendingPerspective,
+                          pendingTemplate,
+                        )
+                      }
+                      data-testid="button-apply-auto-perspective"
+                    >
+                      <ScanLine className="mr-1.5 h-4 w-4" />
+                      Correct perspective &amp; use scale
+                    </Button>
+                  </ScaleActionWithHint>
+                  <ScaleActionWithHint>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className={RESPONSIVE_PANEL_ACTION}
+                      onClick={() => dispatch({ type: "ACCEPT_AUTO_CALIBRATION" })}
+                      data-testid="button-accept-auto-scale"
+                    >
+                      Use scale without correction
+                    </Button>
+                  </ScaleActionWithHint>
+                </>
+              ) : (
+                <ScaleActionWithHint>
                   <Button
-                    size="sm"
-                    className={RESPONSIVE_PANEL_ACTION}
-                    disabled={processing || !pendingTemplate}
-                    onClick={() =>
-                      pendingTemplate &&
-                      onApplyPerspective(
-                        pendingPerspective,
-                        pendingTemplate,
-                      )
-                    }
-                    data-testid="button-apply-auto-perspective"
-                  >
-                    <ScanLine className="mr-1.5 h-4 w-4" />
-                    Correct perspective &amp; use scale
-                  </Button>
-                  <Button
-                    variant="outline"
                     size="sm"
                     className={RESPONSIVE_PANEL_ACTION}
                     onClick={() => dispatch({ type: "ACCEPT_AUTO_CALIBRATION" })}
                     data-testid="button-accept-auto-scale"
                   >
-                    Use scale without correction
+                    Accept detected scale
                   </Button>
-                </>
-              ) : (
-                <Button
-                  size="sm"
-                  className={RESPONSIVE_PANEL_ACTION}
-                  onClick={() => dispatch({ type: "ACCEPT_AUTO_CALIBRATION" })}
-                  data-testid="button-accept-auto-scale"
-                >
-                  Accept detected scale
-                </Button>
+                </ScaleActionWithHint>
               )}
             </div>
           )}
 
-          <Button
-            variant={store.mode === "calibrate" ? "default" : "outline"}
-            size="sm"
-            className={cn(
-              RESPONSIVE_PANEL_ACTION,
-              imageSize.width > 0 &&
-                !calibration &&
-                !pendingAutoCalibration &&
-                !manualRulerPending &&
-                store.mode !== "calibrate" &&
-                "animate-pulse motion-reduce:animate-none",
-            )}
-            data-testid="button-set-scale"
-            disabled={!hasImage}
-            onPointerDown={() => {
-              redrawRulerRequested.current =
-                store.mode !== "calibrate" && manualRulerPending;
-            }}
-            onPointerCancel={() => {
-              redrawRulerRequested.current = false;
-            }}
-            onPointerLeave={() => {
-              redrawRulerRequested.current = false;
-            }}
-            onClick={handleSetScale}
-          >
-            {store.mode === "calibrate"
-              ? "Placing ruler"
-              : manualRulerPending
-                ? "Redraw ruler"
-                : pendingAutoCalibration
-                  ? "Set manually instead"
-                  : "Set scale"}
-          </Button>
+          <ScaleActionWithHint>
+            <Button
+              variant={store.mode === "calibrate" ? "default" : "outline"}
+              size="sm"
+              className={cn(
+                RESPONSIVE_PANEL_ACTION,
+                imageSize.width > 0 &&
+                  !calibration &&
+                  !pendingAutoCalibration &&
+                  !manualRulerPending &&
+                  store.mode !== "calibrate" &&
+                  "animate-pulse motion-reduce:animate-none",
+              )}
+              data-testid="button-set-scale"
+              disabled={!hasImage}
+              onPointerDown={() => {
+                redrawRulerRequested.current =
+                  store.mode !== "calibrate" && manualRulerPending;
+              }}
+              onPointerCancel={() => {
+                redrawRulerRequested.current = false;
+              }}
+              onPointerLeave={() => {
+                redrawRulerRequested.current = false;
+              }}
+              onClick={handleSetScale}
+            >
+              {store.mode === "calibrate"
+                ? "Placing ruler"
+                : manualRulerPending
+                  ? "Redraw ruler"
+                  : pendingAutoCalibration
+                    ? "Set manually instead"
+                    : "Set scale"}
+            </Button>
+          </ScaleActionWithHint>
 
           {store.mode === "calibrate" ? (
             <div

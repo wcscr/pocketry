@@ -256,6 +256,50 @@ async function clickSection(id: string): Promise<void> {
 }
 
 describe("TraceControlsPanel guided workflow", () => {
+  it("keeps thickness guidance hidden during automatic focus and opens it only on hover", async () => {
+    await click("load-source");
+    expect(document.querySelector('[role="tooltip"]')).toBeNull();
+    expect(host.textContent).not.toContain("oversized outlines");
+
+    const manualHint = host.querySelector<HTMLButtonElement>(
+      '[aria-label="About scaling thick objects"]',
+    )!;
+    await React.act(async () => {
+      manualHint.focus();
+      manualHint.click();
+    });
+    expect(document.querySelector('[role="tooltip"]')).toBeNull();
+
+    await click("detect-auto-perspective");
+    const accept = host.querySelector<HTMLButtonElement>(
+      '[data-testid="button-accept-auto-scale"]',
+    )!;
+    expect(document.activeElement).toBe(accept);
+    expect(document.querySelector('[role="tooltip"]')).toBeNull();
+
+    const hint = accept.parentElement!.parentElement!.querySelector<HTMLButtonElement>(
+      '[aria-label="About scaling thick objects"]',
+    )!;
+    await React.act(async () => {
+      const hover = new MouseEvent("pointermove", { bubbles: true });
+      Object.defineProperty(hover, "pointerType", { value: "mouse" });
+      hint.dispatchEvent(hover);
+      await new Promise((resolve) => window.setTimeout(resolve, 300));
+    });
+    const tooltip = document.querySelector('[role="tooltip"]');
+    expect(tooltip?.textContent).toContain("closer to the camera");
+    expect(tooltip?.textContent).toContain("set the scale manually");
+    expect(host.contains(tooltip)).toBe(false);
+
+    await React.act(async () => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    });
+    expect(document.querySelector('[role="tooltip"]')).toBeNull();
+    await click("button-accept-auto-scale");
+    expect(trace.calibration).toEqual(CALIBRATION);
+    expect(document.activeElement).toBe(sectionTrigger("crop"));
+  });
+
   it("collapses every section, opens Scale, and pulses its action after source load", async () => {
     expect(host.textContent).toContain("Choose or drop an image");
     expect(host.querySelector('[data-testid="button-source-image"]')).toBeNull();
