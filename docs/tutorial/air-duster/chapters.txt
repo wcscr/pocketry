@@ -1,0 +1,14 @@
+00:00 Prepare your photographs
+00:22 Start a project
+00:35 Trace the air duster
+01:14 Trace the adapters
+02:17 Trace the angled nozzle
+02:50 Set the bin size and rough layout
+03:35 Create the USB cable pocket with Finger access
+03:57 Measure once and adjust X/Y scale
+04:34 Export the tool fit check
+05:05 Try the fit check with the real tools
+05:20 Set pocket depths and add finger access
+05:55 Color the bin and fix the warning
+06:19 Inspect the completed bin
+06:39 Export the final bin and preserve the project

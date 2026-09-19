@@ -1,0 +1,351 @@
+[
+  {
+    "type": "section",
+    "id": "00",
+    "title": "Prepare your photographs",
+    "time": 1.214
+  },
+  {
+    "type": "caption",
+    "time": 1.264,
+    "text": "Start with photographs of the tools you want to trace."
+  },
+  {
+    "type": "caption",
+    "time": 3.774,
+    "text": "Photograph tools on the provided templates to make scaling easier."
+  },
+  {
+    "type": "caption",
+    "time": 8.312,
+    "text": "Here are the photographs we took of the air duster, adapters, and angled nozzle."
+  },
+  {
+    "type": "caption",
+    "time": 15.351,
+    "text": "Some of the shadowing isn’t ideal. We’ll correct it when editing the outlines."
+  },
+  {
+    "type": "section",
+    "id": "01",
+    "title": "Start a project",
+    "time": 23.392
+  },
+  {
+    "type": "caption",
+    "time": 23.393,
+    "text": "Start with a new project. We’ll build this bin from the tool outlines."
+  },
+  {
+    "type": "section",
+    "id": "02",
+    "title": "Trace the air duster",
+    "time": 36.556
+  },
+  {
+    "type": "caption",
+    "time": 36.557,
+    "text": "Print the calibration sheet at 100% and check its 100 mm reference bar."
+  },
+  {
+    "type": "caption",
+    "time": 46.566,
+    "text": "Follow the physical edge of the tool. Shadows and reflections can distort the trace."
+  },
+  {
+    "type": "caption",
+    "time": 54.852,
+    "text": "Right-click to remove extra points. Keep the corners that define the real tool."
+  },
+  {
+    "type": "caption",
+    "time": 64.552,
+    "text": "Drag points to refine the shape, using the real tool and its measurements as your guide."
+  },
+  {
+    "type": "caption",
+    "time": 94.749,
+    "text": "Click an edge to add a needed corner, then drag the new point into position."
+  },
+  {
+    "type": "section",
+    "id": "03",
+    "title": "Trace the adapters",
+    "time": 108.246
+  },
+  {
+    "type": "caption",
+    "time": 108.247,
+    "text": "Check reflective areas carefully. The pocket should follow the outside edge."
+  },
+  {
+    "type": "caption",
+    "time": 125.825,
+    "text": "Right-click to remove extra points. Keep the corners that define the real tool."
+  },
+  {
+    "type": "caption",
+    "time": 139.733,
+    "text": "Drag points to refine the shape, using the real tool and its measurements as your guide."
+  },
+  {
+    "type": "caption",
+    "time": 181.512,
+    "text": "Click an edge to add a needed corner, then drag the new point into position."
+  },
+  {
+    "type": "section",
+    "id": "04",
+    "title": "Trace the angled nozzle",
+    "time": 228.694
+  },
+  {
+    "type": "caption",
+    "time": 228.695,
+    "text": "Remove the false notch while preserving the nozzle’s real corners."
+  },
+  {
+    "type": "caption",
+    "time": 245.211,
+    "text": "Right-click to remove extra points. Keep the corners that define the real tool."
+  },
+  {
+    "type": "caption",
+    "time": 253.492,
+    "text": "Drag points to refine the shape, using the real tool and its measurements as your guide."
+  },
+  {
+    "type": "caption",
+    "time": 272.69,
+    "text": "Click an edge to add a needed corner, then drag the new point into position."
+  },
+  {
+    "type": "section",
+    "id": "05",
+    "title": "Set the bin size and rough layout",
+    "time": 288.817
+  },
+  {
+    "type": "caption",
+    "time": 288.818,
+    "text": "Set the bin footprint, then size the pockets before fine-tuning their positions."
+  },
+  {
+    "type": "caption",
+    "time": 307.933,
+    "text": "Drag each pocket into a rough position. We’ll check the size and gaps next."
+  },
+  {
+    "type": "caption",
+    "time": 323.901,
+    "text": "Use position and rotation to arrange the tools with room around each pocket."
+  },
+  {
+    "type": "caption",
+    "time": 347.877,
+    "text": "Round the pocket edges. Adjust clearance after trying the printed fit check."
+  },
+  {
+    "type": "section",
+    "id": "06",
+    "title": "Create the USB cable pocket with Finger access",
+    "time": 370.265
+  },
+  {
+    "type": "caption",
+    "time": 371.537,
+    "text": "In addition to the photos, we’ll create a pocket for the USB cable using Finger access."
+  },
+  {
+    "type": "caption",
+    "time": 382.533,
+    "text": "Measure the coiled cable, then set the slot’s width, length, and depth. Calipers help with depth."
+  },
+  {
+    "type": "section",
+    "id": "07",
+    "title": "Measure once and adjust X/Y scale",
+    "time": 407.046
+  },
+  {
+    "type": "caption",
+    "time": 410.863,
+    "text": "Measure the real tool with calipers. Compare its length, handle width, and head width with the outline."
+  },
+  {
+    "type": "measurement",
+    "name": "duster-before-length",
+    "reading": "161.53 mm",
+    "time": 418.172
+  },
+  {
+    "type": "measurement",
+    "name": "duster-before-handle",
+    "reading": "53.54 mm",
+    "time": 422.053
+  },
+  {
+    "type": "measurement",
+    "name": "duster-before-head",
+    "reading": "97.84 mm",
+    "time": 425.919
+  },
+  {
+    "type": "caption",
+    "time": 427.212,
+    "text": "Keep proportions links width and length. Unlock it when the X and Y corrections differ."
+  },
+  {
+    "type": "caption",
+    "time": 434.293,
+    "text": "Use your measured dimensions to size the other tools. These values are for this example."
+  },
+  {
+    "type": "section",
+    "id": "08",
+    "title": "Export the tool fit check",
+    "time": 450.309
+  },
+  {
+    "type": "caption",
+    "time": 451.583,
+    "text": "Export a thin fit check now, before committing to the full bin."
+  },
+  {
+    "type": "caption",
+    "time": 458.983,
+    "text": "Tool outlines uses less material to check the three photographed tools."
+  },
+  {
+    "type": "caption",
+    "time": 467.219,
+    "text": "Choose Full surface to include the USB cable pocket created with Finger access."
+  },
+  {
+    "type": "caption",
+    "time": 478.065,
+    "text": "The fit-check files are saved. Print at 100% scale and try the real tools."
+  },
+  {
+    "type": "downloads",
+    "time": 480.308,
+    "names": [
+      "Air-Duster-Tutorial-bin-4x4x6.5-surface-fit-test-1.2mm-2026-09-15_16-16-02-920.stl",
+      "Air-Duster-Tutorial-bin-4x4x6.5-tool-outlines-5mm-wide-1.2mm-thick-2026-09-15_16-15-52-087.stl"
+    ]
+  },
+  {
+    "type": "section",
+    "id": "09",
+    "title": "Try the fit check with the real tools",
+    "time": 481.557
+  },
+  {
+    "type": "caption",
+    "time": 482.097,
+    "text": "Place the real tools in the printed fit check. Use the fit and your measurements to guide adjustments."
+  },
+  {
+    "type": "caption",
+    "time": 487.155,
+    "text": "If needed, adjust the contour, size, or clearance and print another fit check."
+  },
+  {
+    "type": "caption",
+    "time": 491.36,
+    "text": "A thin fit check tests the openings. Measure pocket depth and tool seating separately."
+  },
+  {
+    "type": "section",
+    "id": "10",
+    "title": "Set pocket depths and add finger access",
+    "time": 496.658
+  },
+  {
+    "type": "caption",
+    "time": 499.178,
+    "text": "Adjust pocket depth based on measurements of each real tool. Use calipers for accurate depth measurements."
+  },
+  {
+    "type": "caption",
+    "time": 518.077,
+    "text": "Add two more finger-access scoops so the tools are easy to lift out."
+  },
+  {
+    "type": "section",
+    "id": "11",
+    "title": "Color the bin and fix the warning",
+    "time": 560.189
+  },
+  {
+    "type": "caption",
+    "time": 560.19,
+    "text": "Use a gray body with black pocket floors and a black rim."
+  },
+  {
+    "type": "caption",
+    "time": 574.345,
+    "text": "The black floor layer reaches the recesses between the base feet."
+  },
+  {
+    "type": "caption",
+    "time": 577.213,
+    "text": "Reduce pocket depth from 39 to 38.5 mm to leave more floor underneath."
+  },
+  {
+    "type": "caption",
+    "time": 580.131,
+    "text": "The warning clears. The tool sits 0.5 mm higher; check that seating depth."
+  },
+  {
+    "type": "section",
+    "id": "12",
+    "title": "Inspect the completed bin",
+    "time": 584.038
+  },
+  {
+    "type": "caption",
+    "time": 584.038,
+    "text": "Inspect the rounded edges, pocket floors, cable pocket, and finger scoops."
+  },
+  {
+    "type": "caption",
+    "time": 595.791,
+    "text": "Cross-section View helps inspect the interior. The exported model remains whole."
+  },
+  {
+    "type": "section",
+    "id": "13",
+    "title": "Export the final bin and preserve the project",
+    "time": 603.688
+  },
+  {
+    "type": "caption",
+    "time": 603.69,
+    "text": "After the real tools fit and pocket depths are checked, export the full bin."
+  },
+  {
+    "type": "caption",
+    "time": 609.02,
+    "text": "Save the finished bin and an editable project backup."
+  },
+  {
+    "type": "caption",
+    "time": 614.606,
+    "text": "Keep the editable project with the print file. Check the slicer preview before printing."
+  },
+  {
+    "type": "caption",
+    "time": 619.983,
+    "text": "Use Project → Export project to save another editable backup later."
+  },
+  {
+    "type": "caption",
+    "time": 625.824,
+    "text": "Print the fit test first. Then check the full model in your slicer."
+  },
+  {
+    "type": "end",
+    "time": 630.204
+  }
+]

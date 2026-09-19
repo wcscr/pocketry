@@ -1,0 +1,27 @@
+{
+  "server": "http://127.0.0.1:5187/",
+  "servedDirectory": "/private/tmp/pocketry-headless-tutorial-20260915/app",
+  "currentBuildMatches": true,
+  "files": [
+    {
+      "file": "assets/manifold-BE4c7gO-.wasm",
+      "sha256": "73e3b419ad31294f6b1cc478173944e50efc4a34bfdeeff0107bdfc12975f11c"
+    },
+    {
+      "file": "assets/__vite-browser-external-BIHI7g3E.js",
+      "sha256": "82507b0bb9ac4affaeb17c40968d830cbd6d14a2ffa04d8994faf1a78e58e1b5"
+    },
+    {
+      "file": "assets/index-C8ISM27R.css",
+      "sha256": "4bbc19e662579d7a93d8c2e99e40c77878b65a374825d0baac3120bfba8d3c42"
+    },
+    {
+      "file": "assets/bin.worker-CbMKqHIM.js",
+      "sha256": "935a166d9c87c753c67425bed474e788c79ef5f2f79b892b7da05c63760ab79a"
+    },
+    {
+      "file": "assets/index-BPQUzosn.js",
+      "sha256": "9c43c498b09eefc1ab76164085128a92f8b1bdeaf53deb879ee4a885447d5b23"
+    }
+  ]
+}
