@@ -39,7 +39,7 @@ describe("ArUco 4x4 dictionary port", () => {
   });
 
   it("rejects unported ids", () => {
-    expect(() => markerBits(22)).toThrow(/no ported pattern/);
+    expect(() => markerBits(POCKETRY_ARUCO_BITS.length)).toThrow(/no ported pattern/);
   });
 });
 

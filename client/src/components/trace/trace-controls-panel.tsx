@@ -77,6 +77,7 @@ import { useShapeLibrary } from "@/state/shape-library";
 import { useTrace, type ExportFormat } from "@/state/trace-store";
 
 import { ReferenceStripDownloads } from "./reference-strip-downloads";
+import { referenceStripFromRulerLength } from "@/lib/calibrate/reference-strip";
 import { RingList } from "./ring-list";
 
 const RESPONSIVE_PANEL_ACTION =
@@ -603,7 +604,8 @@ export function TraceControlsPanel({
               </p>
               {pendingCalibrationSource === "strip" && (
                 <p className="text-xs text-muted-foreground">
-                  The ruler joins the marker centres, 80 mm apart on the 100 mm strip.
+                  The ruler joins the marker centres, {pendingAutoCalibration.lengthMm} mm apart
+                  on the {referenceStripFromRulerLength(pendingAutoCalibration.lengthMm)?.lengthMm} mm strip.
                   This scale uses the strip height and takes priority over a sheet below.
                   Keep the strip near the tool edge you need to fit and verify that dimension.
                 </p>

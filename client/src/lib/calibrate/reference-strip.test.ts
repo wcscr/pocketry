@@ -16,8 +16,8 @@ let cv: any;
 beforeAll(async () => { cv = await createRequire(import.meta.url)("../../../public/opencv/opencv.js"); }, 60000);
 
 /** Independent renderer: OpenCV produces the marker pixels, not our print code. */
-function photograph(options: { pxPerMm?: number; ids?: number[]; spacing?: number; sheet?: TemplateVariant; squash?: number } = {}): ImageData {
-  const width = 900, height = 1000;
+function photograph(options: { pxPerMm?: number; ids?: number[]; spacing?: number; markerSize?: number; sheet?: TemplateVariant; squash?: number } = {}): ImageData {
+  const width = 1400, height = 1000;
   const data = new Uint8ClampedArray(width * height * 4).fill(255);
   const dictionary = createPocketryTemplateDictionary(cv, POCKETRY_ARUCO_BITS.length);
   const put = (id: number, x: number, y: number, size: number) => {
@@ -32,7 +32,7 @@ function photograph(options: { pxPerMm?: number; ids?: number[]; spacing?: numbe
   };
   try {
     const scale = options.pxPerMm ?? 4;
-    (options.ids ?? [20, 21]).forEach((id, index) => put(id, 150 + index * (options.spacing ?? 80) * scale, 350, 15 * scale));
+    (options.ids ?? [20, 21]).forEach((id, index) => put(id, 150 + index * (options.spacing ?? 80) * scale, 350, (options.markerSize ?? 15) * scale));
     if (options.sheet) {
       for (const { id, x, y } of templateMarkerCentersMm(options.sheet)) {
         const size = templateMarkerSizeMm(options.sheet) * 3;
@@ -94,6 +94,22 @@ describe("object reference strip", () => {
       expect(result.kind).toBe("calibrated-strip");
       if (result.kind === "calibrated-strip") expect(result.solution.mmPerPx).toBeCloseTo(0.25, 3);
     } finally { source.delete(); dest.delete(); }
+  });
+
+  it.each([
+    { ids: [22, 23], spacing: 35 },
+    { ids: [24, 25], spacing: 85 },
+    { ids: [26, 27], spacing: 185 },
+  ])("selects the correct ruler length from independent OpenCV markers over a paper sheet: %j", (options) => {
+    const result = runAutoCalibration(cv, photograph({ ...options, markerSize: 9, sheet: "letter-experimental" }));
+    expect(result.kind).toBe("calibrated-strip");
+    if (result.kind !== "calibrated-strip") return;
+    expect(result.calibration.lengthMm).toBe(options.spacing);
+    expect(mmPerPixel(result.calibration)).toBeCloseTo(.25, 3);
+  });
+
+  it.each([[22], [22, 25], [24, 25, 22], [26, 26]])("rejects incomplete, mixed-size or duplicate new markers without falling back to paper: %j", (...ids) => {
+    expect(runAutoCalibration(cv, photograph({ ids, markerSize: 9, sheet: "letter-experimental" })).kind).toBe("invalid-strip");
   });
 
   it.each([

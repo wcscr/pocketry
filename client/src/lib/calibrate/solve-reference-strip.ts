@@ -1,4 +1,4 @@
-import { REFERENCE_STRIP, referenceStripMarkers } from "./reference-strip";
+import { referenceStripFromMarkerIds, referenceStripMarkers } from "./reference-strip";
 import type { DetectedMarker, ScaleSolution } from "./solve";
 
 /**
@@ -10,7 +10,9 @@ import type { DetectedMarker, ScaleSolution } from "./solve";
  * coplanarity with the object or eliminate lens distortion.
  */
 export function solveReferenceStrip(markers: readonly DetectedMarker[]): ScaleSolution | null {
-  const expected = referenceStripMarkers();
+  const spec = referenceStripFromMarkerIds(markers.map(({ id }) => id));
+  if (!spec) return null;
+  const expected = referenceStripMarkers(spec);
   const pair = expected.map(({ id }) => markers.filter((marker) => marker.id === id));
   if (pair.some((copies) => copies.length !== 1)) return null;
   const [a, b] = pair.map(([marker]) => marker);
@@ -19,7 +21,7 @@ export function solveReferenceStrip(markers: readonly DetectedMarker[]): ScaleSo
   const dy = b.centerPx.y - a.centerPx.y;
   const distance = Math.hypot(dx, dy);
   if (!Number.isFinite(distance) || distance < 40) return null;
-  const mmPerPx = REFERENCE_STRIP.centerSpacingMm / distance;
+  const mmPerPx = spec.centerSpacingMm / distance;
   const cos = dx / distance;
   const sin = dy / distance;
   let squaredError = 0;
@@ -36,20 +38,20 @@ export function solveReferenceStrip(markers: readonly DetectedMarker[]): ScaleSo
       squaredError += (actualX - target.x) ** 2 + (actualY - target.y) ** 2;
       const next = corners[(corner + 1) % 4];
       const edgeMm = Math.hypot(next.x - point.x, next.y - point.y) * mmPerPx;
-      maxDeviation = Math.max(maxDeviation, Math.abs(edgeMm / REFERENCE_STRIP.markerSizeMm - 1));
+      maxDeviation = Math.max(maxDeviation, Math.abs(edgeMm / spec.markerSizeMm - 1));
     }
   }
   const rmsMm = Math.sqrt(squaredError / 8);
   if (!Number.isFinite(rmsMm) || rmsMm > 0.45 || maxDeviation > 0.06) return null;
   return {
     mmPerPx,
-    markerIds: [...REFERENCE_STRIP.markerIds],
+    markerIds: [...spec.markerIds],
     pairCount: 1,
     maxDeviation,
     ruler: {
       a: a.centerPx,
       b: b.centerPx,
-      lengthMm: REFERENCE_STRIP.centerSpacingMm,
+      lengthMm: spec.centerSpacingMm,
     },
   };
 }

@@ -5,7 +5,7 @@ import {
   PAPER_TEMPLATE_MARKER_COUNT,
   STABLE_TEMPLATE_MARKER_COUNT,
 } from "./aruco-4x4";
-import { REFERENCE_STRIP } from "./reference-strip";
+import { REFERENCE_STRIP_MARKER_IDS } from "./reference-strip";
 import type { DetectedMarker } from "./solve";
 
 /**
@@ -77,7 +77,7 @@ export function createPocketryTemplateDictionary(
 export function detectReferenceStripMarkers(cv: Cv, image: ImageData): DetectedMarker[] {
   return detectMarkersWithDictionary(cv, image, () =>
     createPocketryTemplateDictionary(cv, POCKETRY_ARUCO_BITS.length),
-  ).filter(({ id }) => REFERENCE_STRIP.markerIds.some((stripId) => stripId === id));
+  ).filter(({ id }) => REFERENCE_STRIP_MARKER_IDS.includes(id));
 }
 
 function detectMarkersWithDictionary(

@@ -1,8 +1,8 @@
 /**
  * Pocketry's custom 4x4 dictionary for calibration sheets and reference strips,
- * ported as data from OpenCV's deterministic `extendDictionary(22, 4)` output.
+ * ported as data from OpenCV's deterministic `extendDictionary(28, 4)` output.
  *
- * Generator: OpenCV `extendDictionary(22, 4)`
+ * Generator: OpenCV `extendDictionary(28, 4)`
  * Upstream:  https://github.com/opencv/opencv at tag 4.11.0
  * Licence:  Apache-2.0 © OpenCV team — attribution in /NOTICE.
  *
@@ -48,6 +48,12 @@ export const POCKETRY_ARUCO_BITS: readonly number[] = [
   0xd8ff, // id 19 — reserved
   0x1d6a, // id 20 — object reference strip left
   0x55e9, // id 21 — object reference strip right
+  0xdfb5, // id 22 — 50 mm measurement aid left
+  0x2c0d, // id 23 — 50 mm measurement aid right
+  0xeaf1, // id 24 — 100 mm measurement aid left
+  0x7012, // id 25 — 100 mm measurement aid right
+  0xa798, // id 26 — 200 mm measurement aid left
+  0xf331, // id 27 — 200 mm measurement aid right
 ];
 
 /** Marker side length in modules: 4 data cells plus the black border ring. */

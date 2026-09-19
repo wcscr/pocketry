@@ -7,6 +7,7 @@ import { usePanelState } from "@/components/layout/panel-context";
 import { WorkspaceLayout } from "@/components/layout/workspace-layout";
 import { TraceCanvas } from "@/components/trace/trace-canvas";
 import { ReferenceStripDownloads } from "@/components/trace/reference-strip-downloads";
+import { referenceStripFromRulerLength } from "@/lib/calibrate/reference-strip";
 import { TraceControlsPanel } from "@/components/trace/trace-controls-panel";
 import { ExportConfirmationDialog } from "@/components/gridfinity/export-confirmation-dialog";
 import {
@@ -257,7 +258,7 @@ function TraceWorkspace(): JSX.Element {
             const mmPerPx = mmPerPixel(calibration);
             const referenceName = result.kind === "calibrated"
               ? templateDisplayName(result.template)
-              : "Object reference strip";
+              : `${referenceStripFromRulerLength(result.calibration.lengthMm)?.lengthMm} mm object reference strip`;
             const summary = `${referenceName} · ${solution.markerIds.length} markers · ${(mmPerPx ?? solution.mmPerPx).toFixed(3)} mm/px`;
             if (solution.maxDeviation > SKEW_WARN_FRACTION) {
               toast({
