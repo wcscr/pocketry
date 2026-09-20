@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import {
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -68,6 +69,10 @@ import {
 } from "@/components/canvas/canvas-viewport";
 import { Button } from "@/components/ui/button";
 import { ContourEditTools } from "@/components/canvas/contour-edit-tools";
+import { MobileContourTools } from "@/components/canvas/mobile-contour-tools";
+import { ContourMagnifier } from "@/components/canvas/contour-magnifier";
+import { useMobileContourEditor, type ContourTool } from "@/hooks/use-mobile-contour-editor";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { WorkflowHint } from "@/components/canvas/workflow-hint";
 import { useViewportTransform } from "@/hooks/use-viewport-transform";
 import { outlineBounds, pointInOutline } from "@/lib/geometry/outline";
@@ -229,6 +234,7 @@ export function LayoutCanvas({ onEditPocket }: {
 }
 
 function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Element {
+  const isMobile = useIsMobile();
   const {
     spec,
     cutouts,
@@ -257,6 +263,10 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
   const [panActive, setPanActive] = useState(false);
   useEffect(() => setPanActive(false), [editorMode]);
   const [removeVertices, setRemoveVertices] = useState(false);
+  const [contourTool, setContourTool] = useState<ContourTool>("move");
+  const showRemoval = isMobile ? contourTool === "remove" : removeVertices;
+  useEffect(() => setContourTool("move"), [editorMode, selectedCutoutId]);
+  const sceneId = useId();
   useEffect(() => setRemoveVertices(false), [editorMode, selectedCutoutId]);
   const viewport = useViewportTransform({
     contentWidth: widthMm + footprintEditorPaddingMm * 2,
@@ -577,7 +587,34 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
     );
   };
 
+  const mobileEditor = useMobileContourEditor({
+    enabled: isMobile && editorMode === "contour" && !!selected && !panActive,
+    tool: contourTool, outline: selected?.shape.outlineMm ?? [],
+    toLocal: point => {
+      const binPoint = toBin(point.x, point.y);
+      return binPoint && selected ? untransformPointPlacement(binPoint, selected.cutout) : null;
+    },
+    getScreenProjection: () => {
+      const matrix = sceneRef.current?.getScreenCTM();
+      return point => {
+        const canvas = selected ? binToCanvas(transformPointPlacement(point, selected.cutout), spec) : point;
+        return matrix ? { x: matrix.a * canvas.x + matrix.c * canvas.y + matrix.e,
+          y: matrix.b * canvas.x + matrix.d * canvas.y + matrix.f } : canvas;
+      };
+    },
+    viewport: viewport.handlers,
+    onPreview: outline => {
+      if (selected) setDraftContour({ cutoutId: selected.cutout.id, shapeId: selected.cutout.shapeId, outline });
+    },
+    onCancel: () => setDraftContour(null),
+    onCommit: (outline, label) => {
+      const source = selected && shapesById.get(selected.cutout.shapeId);
+      if (source && selected) commitContour(selected.cutout.id, source, outline, label);
+    },
+  });
+
   const handlePointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
+    if (mobileEditor.down(event)) return;
     if (panActive || event.button !== 0 || event.shiftKey || viewport.isSpaceHeld) {
       viewport.handlers.onPointerDown(event);
       return;
@@ -880,6 +917,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
   };
 
   const handlePointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
+    if (mobileEditor.move(event)) return;
     if (panActive) { viewport.handlers.onPointerMove(event); return; }
     if (!viewport.isPanning && basicPocket.pointerMove(event)) return;
     if (!viewport.isPanning && splitEditor.pointerMove(event)) return;
@@ -1019,6 +1057,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
   };
 
   const endDrag = (event: ReactPointerEvent<SVGSVGElement>) => {
+    if (mobileEditor.end(event)) return;
     if (panActive) { viewport.handlers.onPointerUp(event); return; }
     if (!viewport.isPanning && basicPocket.pointerUp(event)) return;
     if (!viewport.isPanning && splitEditor.pointerUp(event)) return;
@@ -1348,6 +1387,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
       >
         <g
           ref={sceneRef}
+          id={sceneId}
           transform={`translate(${translateX + footprintEditorPaddingMm * scale} ${translateY + footprintEditorPaddingMm * scale}) scale(${scale})`}
         >
           {/* Bin footprint. */}
@@ -1602,10 +1642,10 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
                       cx={canvasPoint.x}
                       cy={canvasPoint.y}
                       r={4.5 * inv}
-                      className={cn("fill-background", removeVertices ? "stroke-destructive" : "stroke-violet-600")}
+                      className={cn("fill-background", showRemoval ? "stroke-destructive" : "stroke-violet-600")}
                       strokeWidth={2}
                       vectorEffect="non-scaling-stroke"
-                      style={{ cursor: removeVertices ? "pointer" : "move" }}
+                      style={{ cursor: showRemoval ? "pointer" : "move" }}
                       data-contour-of={selected.cutout.id}
                       data-contour-shape={shapeIndex}
                       data-contour-ring={ringIndex}
@@ -1826,34 +1866,45 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
 
       {editorMode === "contour" && selected && !panActive ? (
         <div className="absolute bottom-2 left-2 z-30">
-          <ContourEditTools removeActive={removeVertices} onChange={setRemoveVertices} />
-          <WorkflowHint className="mt-1 max-w-[min(22rem,calc(100vw-1rem))]">
-            {removeVertices ? "Tap a vertex to remove it · Undo restores it" : "Drag vertices to move · Tap an edge to add"}
+          {isMobile ? <MobileContourTools tool={contourTool} onChange={setContourTool}
+            onDone={() => dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" })} /> :
+            <ContourEditTools removeActive={removeVertices} onChange={setRemoveVertices} />}
+          <WorkflowHint hintKey="contour-edit" className="mt-1 max-w-[min(22rem,calc(100vw-1rem))]">
+            {isMobile ? contourTool === "add" ? "Tap an edge to add a point. Pinch to zoom."
+              : contourTool === "remove" ? "Tap a point to remove it. Undo restores it."
+              : "Drag points to move. Drag elsewhere to pan. Pinch to zoom."
+              : removeVertices ? "Tap a vertex to remove it · Undo restores it" : "Drag vertices to move · Tap an edge to add"}
           </WorkflowHint>
         </div>
       ) : !basicPocket.kind && (
-      <WorkflowHint className="pointer-events-none absolute bottom-2 left-2 right-2 md:right-auto md:max-w-lg">
+      <WorkflowHint hintKey={`${editorMode}:${panActive ? "pan" : rulerActive ? "ruler" : selectedCutoutId ? "pocket" : selectedFingerHoleId ? "finger" : "selection"}`} className="absolute bottom-2 left-2 right-2 md:right-auto md:max-w-lg">
         {panActive
           ? "Drag to pan · Pinch to zoom · Tap the hand to resume editing"
           : rulerActive
-          ? "Ruler · snap to contours or split lines · Esc exits"
+          ? isMobile ? "Tap two contours to measure. Tap the ruler to finish." : "Ruler · snap to contours or split lines · Esc exits"
           : editorMode === "footprint"
-          ? "Footprint edit · click cells or the dashed outer halo · Esc finishes"
+          ? isMobile ? "Tap cells to change the footprint. Tap Done to finish." : "Footprint edit · click cells or the dashed outer halo · Esc finishes"
           : editorMode === "label-edge"
-          ? "Label tab · click a highlighted boundary edge"
+          ? "Label tab · tap a highlighted boundary edge"
           : !hasPlacedObjects
           ? "Choose Add pocket to draw a shape"
           : editorMode === "split" ? "Split pocket · draw a straight line between two outer edge points" : editorMode === "contour"
           ? selectedCutoutId
             ? "Contour edit · drag points · click an edge to add · right-click a point to remove · Esc finishes"
-            : "Contour edit · click a pocket to select it"
+            : "Contour edit · tap a pocket to select it"
           : selectedFingerHoleId
-            ? "Finger hole · drag moves · white handle resizes · arrows nudge · Del removes"
+            ? isMobile ? "Drag the finger hole to move. Drag its white handle to resize." : "Finger hole · drag moves · white handle resizes · arrows nudge · Del removes"
             : selectedCutoutId
-              ? "Pocket · drag edges/corners to resize · Option resizes from center · round handle rotates"
-              : "Click a pocket or finger hole to select · Shift-drag pans · Ctrl-scroll zooms"}
+              ? isMobile ? "Drag the pocket to move. Drag corners to resize or the round handle to rotate." : "Pocket · drag edges/corners to resize · Option resizes from center · round handle rotates"
+              : isMobile ? "Tap a pocket to select it. Use the hand to pan and pinch to zoom." : "Click a pocket or finger hole to select · Shift-drag pans · Ctrl-scroll zooms"}
       </WorkflowHint>
       )}
+      {isMobile && selected && mobileEditor.activePoint && (() => {
+        const point = binToCanvas(transformPointPlacement(mobileEditor.activePoint, selected.cutout), spec);
+        return <ContourMagnifier sceneId={sceneId} canvasWidth={containerSize.width}
+          point={{ x: translateX + (point.x + footprintEditorPaddingMm) * scale,
+            y: translateY + (point.y + footprintEditorPaddingMm) * scale }} />;
+      })()}
     </>
   );
 }

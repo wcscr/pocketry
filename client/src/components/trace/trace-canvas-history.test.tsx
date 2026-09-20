@@ -190,7 +190,7 @@ function installIdentitySvgCoordinates(): () => void {
 
   Object.defineProperty(SVGElement.prototype, "getScreenCTM", {
     configurable: true,
-    value: () => ({ inverse: () => ({}) }),
+    value: () => ({ a: 1, b: 0, c: 0, d: 1, e: 0, f: 0, inverse: () => ({}) }),
   });
   Object.defineProperty(SVGSVGElement.prototype, "createSVGPoint", {
     configurable: true,
@@ -233,6 +233,7 @@ describe("TraceCanvas edit history", () => {
   it("leaves undo and zoom to dialogs, focused controls, and earlier handlers", async () => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+    vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
     const host = document.createElement("div");
     document.body.appendChild(host);
     const root = createRoot(host);
@@ -272,6 +273,7 @@ describe("TraceCanvas edit history", () => {
   it("opens canvas toolbar tips below the toolbar", async () => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+    vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
     const host = document.createElement("div");
     document.body.appendChild(host);
     const root = createRoot(host);
@@ -309,6 +311,7 @@ describe("TraceCanvas edit history", () => {
   it("exposes named history beside the undo and redo controls", async () => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+    vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
     const host = document.createElement("div");
     document.body.appendChild(host);
     const root = createRoot(host);
@@ -392,6 +395,7 @@ describe("TraceCanvas edit history", () => {
   it("hides an accepted sheet ruler before region selection", async () => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+    vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
     const host = document.createElement("div");
     document.body.appendChild(host);
     const root = createRoot(host);
@@ -424,6 +428,7 @@ describe("TraceCanvas edit history", () => {
   it("keeps detected reference previews read-only when a manual scale remains accepted", async () => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+    vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
     const host = document.createElement("div");
     document.body.appendChild(host);
     const root = createRoot(host);
@@ -447,6 +452,7 @@ describe("TraceCanvas edit history", () => {
   it("replaces completed ruler points instead of restoring the old ruler", async () => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+    vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
     const restoreSvgCoordinates = installIdentitySvgCoordinates();
     const host = document.createElement("div");
     document.body.appendChild(host);
@@ -522,6 +528,7 @@ describe("TraceCanvas edit history", () => {
   it("measures between two points without changing the accepted scale", async () => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+    vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
     const restoreSvgCoordinates = installIdentitySvgCoordinates();
     const host = document.createElement("div");
     document.body.appendChild(host);
@@ -635,6 +642,7 @@ describe("TraceCanvas edit history", () => {
   it("extends the draft ruler to follow the pointer after its first marker", async () => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+    vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
     const restoreSvgCoordinates = installIdentitySvgCoordinates();
     const host = document.createElement("div");
     document.body.appendChild(host);
@@ -721,6 +729,7 @@ describe("TraceCanvas edit history", () => {
   it("drags either completed ruler endpoint and recalculates the scale", async () => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+    vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
     const restoreSvgCoordinates = installIdentitySvgCoordinates();
     const host = document.createElement("div");
     document.body.appendChild(host);
@@ -850,6 +859,7 @@ describe("TraceCanvas edit history", () => {
   it("places four manual perspective corners and closes the correction quad", async () => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+    vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
     const restoreSvgCoordinates = installIdentitySvgCoordinates();
     const host = document.createElement("div");
     document.body.appendChild(host);
@@ -904,9 +914,56 @@ describe("TraceCanvas edit history", () => {
 });
 
 describe("touch-accessible trace tools", () => {
+  it("uses mobile point tools, shows a magnifier, and gives pinch priority over a point drag", async () => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    vi.stubGlobal("innerWidth", 390);
+    vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+    vi.stubGlobal("matchMedia", () => ({ matches: true, addEventListener() {}, removeEventListener() {} }));
+    const restoreSvgCoordinates = installIdentitySvgCoordinates();
+    const host = document.createElement("div"); document.body.appendChild(host);
+    const root = createRoot(host);
+    let trace: ReturnType<typeof useTrace>;
+    function Probe(): null { trace = useTrace(); return null; }
+    try {
+      await React.act(async () => root.render(<TraceProvider><SeedTrace /><Probe /><TooltipProvider><TraceCanvas onReprocess={() => {}} /></TooltipProvider></TraceProvider>));
+      const svg = host.querySelector("svg")!;
+      const pointer = (type: string, x: number, y: number, id = 1) => React.act(() => {
+        const event = new MouseEvent(type, { bubbles: true, button: 0, clientX: x, clientY: y });
+        Object.defineProperties(event, { pointerType: { value: "touch" }, pointerId: { value: id } });
+        svg.dispatchEvent(event);
+      });
+      React.act(() => host.querySelector<HTMLButtonElement>('[aria-label="Edit contours"]')!.click());
+      const historyIndex = trace!.history.index;
+      pointer("pointerdown", 10, 10); pointer("pointermove", 25, 25);
+      expect(trace!.outline[0].outer[0]).toEqual({ x: 25, y: 25 });
+      const magnifier = host.querySelector('[data-testid="contour-magnifier"]')!;
+      expect(magnifier.querySelector('use')!.getAttribute('href')).toBe(`#${svg.querySelector('g')!.id}`);
+      pointer("pointerdown", 90, 90, 2);
+      expect(trace!.outline).toEqual(edited);
+      expect(host.querySelector('[data-testid="contour-magnifier"]')).toBeNull();
+      pointer("pointermove", 110, 110, 2); pointer("pointerup", 110, 110, 2); pointer("pointerup", 25, 25);
+      expect(trace!.history.index).toBe(historyIndex);
+      pointer("pointerdown", 10, 10); pointer("pointermove", 20, 20); pointer("pointerup", 20, 20);
+      expect(trace!.history.index).toBe(historyIndex + 1);
+      React.act(() => trace!.undo()); expect(trace!.outline).toEqual(edited);
+      React.act(() => host.querySelector<HTMLButtonElement>('[aria-label="Add contour points"]')!.click());
+      pointer("pointerdown", 50, 10); pointer("pointerup", 50, 10);
+      expect(trace!.outline[0].outer).toHaveLength(6);
+      React.act(() => host.querySelector<HTMLButtonElement>('[aria-label="Remove contour points"]')!.click());
+      pointer("pointerdown", 50, 10);
+      expect(trace!.outline[0].outer).toHaveLength(6);
+      pointer("pointerup", 50, 10); expect(trace!.outline[0].outer).toHaveLength(5);
+      React.act(() => trace!.dispatch({ type: "SET_MODE", mode: "pan" }));
+      expect(host.querySelector('[aria-label="Contour editing tools"]')).toBeNull();
+      pointer("pointerdown", 10, 10); pointer("pointermove", 35, 35); pointer("pointerup", 35, 35);
+      expect(trace!.outline).toEqual(edited);
+    } finally { React.act(() => root.unmount()); restoreSvgCoordinates(); }
+  });
+
   it("removes points by tapping, preserves a minimum triangle, and supports undo", async () => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+    vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
     const restoreSvgCoordinates = installIdentitySvgCoordinates();
     const host = document.createElement("div");
     document.body.appendChild(host);

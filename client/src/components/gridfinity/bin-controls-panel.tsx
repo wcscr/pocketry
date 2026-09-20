@@ -65,6 +65,7 @@ import type { ValidationIssue } from "@shared/gridfinity/validate";
 
 import {
   PanelBody,
+  PanelSectionFilterContext,
   PanelSection,
   PanelSettingsIndex,
   revealPanelSection,
@@ -222,6 +223,7 @@ export interface BinControlsPanelProps {
   issues: readonly ValidationIssue[];
   /** A fresh request reveals settings after the controls drawer mounts. */
   settingsSectionRequest?: { id: string };
+  exportOnly?: boolean;
   /** Changes when the canvas explicitly requests the selected pocket editor. */
   pocketEditorRequest?: number;
   keepBinSize?: boolean;
@@ -278,6 +280,7 @@ export interface BinControlsPanelProps {
 export function BinControlsPanel({
   issues,
   settingsSectionRequest,
+  exportOnly = false,
   stats,
   building,
   exporting,
@@ -502,14 +505,15 @@ export function BinControlsPanel({
   };
 
   return (
+    <PanelSectionFilterContext.Provider value={exportOnly ? "bin-settings-export" : null}>
     <div className="flex h-full flex-col">
-      <div className="shrink-0 border-b px-3 py-2" data-testid="project-status">
+      <div className={exportOnly ? "hidden" : "shrink-0 border-b px-3 py-2"} data-testid="project-status">
         <p className="truncate text-sm font-medium" title={currentProjectName ?? "Untitled project"}>{currentProjectName ?? "Untitled project"}</p>
         <p className="text-[11px] text-muted-foreground" role="status">{!hydrated ? "Opening project…" : projectBusy ? "Working…" : saveStatus === "saving" ? activeProjectId ? "Saving to browser library…" : "Draft — saving locally…" : saveStatus === "error" ? "Could not save. Export this project to keep your work." : activeProjectId ? "Saved to browser library" : "Draft — autosaved locally"}</p>
       </div>
       {/* On short screens the section headers remain reachable by scrolling;
           reserve the limited height for editable fields instead of shortcuts. */}
-      <div className="shrink-0 [@media(max-height:500px)]:hidden">
+      <div className={exportOnly ? "hidden" : "shrink-0 [@media(max-height:500px)]:hidden"}>
         <PanelSettingsIndex
           ariaLabel="Find bin settings"
           testIdPrefix="bin"
@@ -2060,6 +2064,7 @@ export function BinControlsPanel({
       )}
 
     </div>
+    </PanelSectionFilterContext.Provider>
   );
 }
 

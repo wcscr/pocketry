@@ -74,6 +74,7 @@ export interface TraceSceneProps {
   onContextMenu?: (event: React.MouseEvent<SVGSVGElement>) => void;
   svgRef?: React.Ref<SVGSVGElement>;
   sceneRef?: React.Ref<SVGGElement>;
+  sceneId?: string;
   cursor?: string;
 }
 
@@ -143,6 +144,7 @@ export function TraceScene({
   onContextMenu,
   svgRef,
   sceneRef,
+  sceneId,
   cursor,
 }: TraceSceneProps): JSX.Element {
   const { scale, translateX, translateY } = transform;
@@ -170,6 +172,7 @@ export function TraceScene({
     >
       <g
         ref={sceneRef}
+        id={sceneId}
         transform={`translate(${translateX} ${translateY}) scale(${scale})`}
       >
         <SourceImage

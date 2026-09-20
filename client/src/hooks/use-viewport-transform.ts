@@ -56,7 +56,8 @@ export interface UseViewportTransformOptions extends FitInput {
 }
 
 export interface ViewportPointerHandlers {
-  onPointerDown: React.PointerEventHandler;
+  /** An editor can explicitly pan a drag that missed its handles. */
+  onPointerDown: (event: React.PointerEvent, options?: { pan: boolean }) => void;
   onPointerMove: React.PointerEventHandler;
   onPointerUp: React.PointerEventHandler;
   onPointerCancel: React.PointerEventHandler;
@@ -604,7 +605,7 @@ export function useViewportTransform(
   }, []);
 
   const onPointerDown = React.useCallback(
-    (event: React.PointerEvent) => {
+    (event: React.PointerEvent, options?: { pan: boolean }) => {
       if (!surfaceRef.current) surfaceRef.current = event.currentTarget;
       const pointers = pointersRef.current;
       const isTouch = event.pointerType === "touch";
@@ -612,7 +613,7 @@ export function useViewportTransform(
       const startsPan =
         event.button === 1 || // middle-drag: the universal pan chord
         (isPrimaryButton && (event.shiftKey || spaceHeldRef.current)) ||
-        (isPrimaryButton && live.current.panEnabled);
+        (isPrimaryButton && (options?.pan ?? live.current.panEnabled));
 
       // Touch pointers are implicitly captured by the browser, so their
       // up/cancel always comes back here; tracking every one of them is what

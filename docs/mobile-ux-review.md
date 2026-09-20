@@ -1,5 +1,52 @@
 # Mobile experience review
 
+## Canvas space and point editing follow-up (2026-09-20)
+
+Implemented from `origin/main` at `0e0923d` on `codex/mobile-canvas-space`.
+The current mobile layout uses one 48 px header with a workspace menu and a
+61 px action bar. Hints float on the canvas, dismiss with a swipe or close button,
+and can be reopened with the lightbulb. Dismissal survives instruction changes
+within the same step. Adjust opens a small, nonmodal tray; More settings retains
+the complete controls. In short landscape layouts, expanded adjustments sit
+beside the canvas. Scale acceptance and manual reference-length confirmation
+remain explicit.
+
+Mobile contour editing now has separate Move, Add, Remove, and Done controls in
+Trace and Bin. Edit contours frames the trace. Points have a 22 px pick radius
+measured in screen coordinates, including rotated and nonuniformly scaled Bin
+pockets. Dragging keeps the original finger offset and ignores small hand jitter;
+a magnified SVG view follows the active point. Dragging elsewhere pans. Adding
+and removing commit only on a completed tap; a second finger cancels a provisional
+edit and hands control to pinch/pan. Cancellation leaves no history entry, and a
+completed move has one undo step. Reviewing earlier Trace steps cannot edit points.
+
+Add to bin opens the naming dialog directly. Tapping a Bin pocket opens depth and
+clearance adjustments while keeping the canvas interactive. Export bin opens a
+focused export form using the existing validation and export handlers.
+
+Verification for this follow-up:
+
+- TypeScript, all 1,679 tests across 102 files, production build, and diff checks pass.
+- In-app browser checks cover real-photo upload, detected scale and perspective
+  correction, region detection, contour movement/addition/removal/undo, quick
+  adjustments, direct naming/handoff, 3D and Layout, pocket depth/undo, Bin point
+  edits, focused export, and the STL Saved confirmation. The exported file itself
+  was not inspected in this run.
+- At 390 × 844, the closed-tray canvas is 390 × 735; at 320 × 568 it is 320 × 459.
+  Both recover about 216 vertical pixels compared with the layout reviewed at the
+  start of this task. The 320 px Bin editor has no offscreen buttons.
+- At 667 × 375, expanded adjustments or manual scale input leave a 347 × 327
+  canvas beside a 320 px control area. Manual scale remains pending across
+  rotation until Confirm scale. Hint swipe, close, and reopen were browser-checked.
+  Start over cancellation retains the trace. Tablet (768 × 1024) and desktop
+  (1440 × 900) keep the existing navigation and controls with no page overflow.
+- Automated pointer tests cover pinch takeover, surviving-finger pan, cancelled
+  edits, minimum ring size, offset-preserving movement, and transformed outer/hole
+  contours. These are browser and regression checks; physical iOS/Android gestures,
+  virtual keyboards, and print/calibration accuracy remain device QA.
+
+The sections below record earlier reviews.
+
 Reviewed and fixed on 2026-09-16, starting from `origin/main` at
 `3b72a380b6d24e0213194b34138f4e359fcf48b1`. Work is isolated on
 `mobile` (renamed from `codex/mobile-usability`).

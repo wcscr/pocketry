@@ -5,6 +5,7 @@ import type { Rect } from "@shared/geometry/types";
 
 import { usePanelState } from "@/components/layout/panel-context";
 import { WorkspaceLayout } from "@/components/layout/workspace-layout";
+import { TraceHandoffDialog } from "@/components/trace/trace-handoff-dialog";
 import { MobileTraceActions } from "@/components/trace/mobile-trace-actions";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { TraceCanvas } from "@/components/trace/trace-canvas";
@@ -94,6 +95,7 @@ function TraceWorkspace(): JSX.Element {
   const { toast } = useToast();
   const { panelOpen, setPanelOpen } = usePanelState();
   const isMobile = useIsMobile();
+  const [handoffOpen, setHandoffOpen] = useState(false);
   const [settingsSectionRequest, setSettingsSectionRequest] = useState<{ id: string }>();
   const openSettings = (id: string) => {
     setSettingsSectionRequest({ id });
@@ -658,6 +660,8 @@ function TraceWorkspace(): JSX.Element {
       </AlertDialog>
       <input ref={photoInputRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" aria-label="Choose another photo"
         onChange={(event) => { const file = event.target.files?.[0]; if (file) void handleFileSelected(file); event.target.value = ""; }} />
+      {handoffOpen && <TraceHandoffDialog onClose={() => setHandoffOpen(false)}
+        onChoosePhoto={() => photoInputRef.current?.click()} onCanvasInteraction={showCanvas} />}
       <WorkspaceLayout
         autoSaveId="tooltrace:trace"
         panelOpen={panelOpen}
@@ -665,6 +669,7 @@ function TraceWorkspace(): JSX.Element {
         panelTitle="Trace controls"
         mobileActionsLayout="landscape-side"
         mobileActions={<MobileTraceActions
+          onAddToBin={() => setHandoffOpen(true)}
           onChoosePhoto={() => photoInputRef.current?.click()}
           onStartOver={startOver}
           onReprocess={(settings) => void runDetection(settings)}

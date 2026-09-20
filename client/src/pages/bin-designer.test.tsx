@@ -891,8 +891,12 @@ describe("BinDesignerPage", () => {
       if (gesture === 'drag') pointer('pointermove', 55);
       if (gesture === 'jitter') pointer('pointermove', 44);
       pointer(gesture === 'cancel' ? 'pointercancel' : 'pointerup', gesture === 'drag' ? 55 : gesture === 'jitter' ? 44 : 43);
-      expect(controls!.panelOpen).toBe(gesture === 'tap' || gesture === 'jitter');
-      if (gesture === 'tap' || gesture === 'jitter') {
+      expect(controls!.panelOpen).toBe(gesture === 'jitter');
+      if (gesture === 'tap') {
+        expect(container.querySelector('.mobile-adjustment-tray')?.textContent).toContain('Wrench');
+        expect(container.querySelector('#quick-pocket-depth')).not.toBeNull();
+      }
+      if (gesture === 'jitter') {
         expect(document.querySelector('#bin-settings-pockets')!.getAttribute('data-state')).toBe('open');
         expect(document.querySelector('[data-testid="pocket-properties-heading"]')!.textContent).toContain('Wrench');
       }
@@ -904,6 +908,23 @@ describe("BinDesignerPage", () => {
         React.act(() => undo.click());
       }
       expect(pocket.getAttribute('d')).toBe(before);
+      if (gesture === 'tap') {
+        const cutoutBefore = vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0];
+        const slider = container.querySelector('#quick-pocket-depth [role="slider"]')!;
+        React.act(() => slider.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })));
+        expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0].depth).not.toEqual(cutoutBefore.depth);
+        React.act(() => undo.click());
+        expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0].depth).toEqual(cutoutBefore.depth);
+        React.act(() => [...container.querySelectorAll('button')].find(button => button.textContent === 'Export bin')!.click());
+        expect(document.querySelector('#bin-settings-export')).not.toBeNull();
+        expect(document.querySelector('#bin-settings-pockets')).toBeNull();
+        expect(document.querySelector('#bin-settings-size')).toBeNull();
+        React.act(() => [...document.querySelectorAll('button')].find(button => button.textContent === 'Back to canvas')!.click());
+        React.act(() => [...container.querySelectorAll('button')].find(button => button.textContent === 'Adjust')!.click());
+        React.act(() => [...container.querySelectorAll('button')].find(button => button.textContent === 'More settings')!.click());
+        expect(document.querySelector('#bin-settings-pockets')).not.toBeNull();
+        expect(document.querySelector('#bin-settings-size')).not.toBeNull();
+      }
       unmount();
     },
   );
@@ -942,7 +963,7 @@ describe("BinDesignerPage", () => {
     unmount();
   });
 
-  it.each([-1, 0])("toggles touch removal for contour ring %s with undo, minimum size, and a return to moving", async (ringIndex) => {
+  it.each([-1, 0])("uses explicit touch removal for contour ring %s with undo, minimum size, and a return to moving", async (ringIndex) => {
     const shape = rectangularShape("tool", "Wrench");
     shape.outlineMm[0].holes = [[{ x: -7, y: -4 }, { x: -7, y: 4 }, { x: 7, y: 4 }, { x: 7, y: -4 }]];
     shape.pointCount = 8;
@@ -954,11 +975,13 @@ describe("BinDesignerPage", () => {
     try {
       await flushHydration();
       React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
-      React.act(() => [...container.querySelectorAll('button')].find(button => button.textContent === 'Bin settings')!.click());
+      React.act(() => [...container.querySelectorAll('button')].find(button => button.textContent === 'Adjust')!.click());
+      React.act(() => [...container.querySelectorAll('button')].find(button => button.textContent === 'More settings')!.click());
+      openSettingsSection(document.body, "tool-cutouts");
       selectPocket(document.body, "pocket");
       React.act(() => document.querySelector<HTMLButtonElement>('[data-testid="button-edit-contour"]')!.click());
       const svg = container.querySelector<SVGSVGElement>('[data-testid="layout-canvas"]')!;
-      Object.defineProperty(svg.querySelector('g')!, 'getScreenCTM', { value: () => ({ inverse: () => ({}) }) });
+      Object.defineProperty(svg.querySelector('g')!, 'getScreenCTM', { value: () => ({ a: 1, b: 0, c: 0, d: 1, e: 0, f: 0, inverse: () => ({}) }) });
       Object.defineProperties(svg, {
         createSVGPoint: { value: () => ({ x: 0, y: 0, matrixTransform() { return { x: this.x, y: this.y }; } }) },
         setPointerCapture: { value: () => {} },
@@ -974,17 +997,19 @@ describe("BinDesignerPage", () => {
       const tapNearFirst = () => {
         const first = ringHandles()[0];
         // A near miss outside the visible 4.5 px circle still selects the nearest vertex.
-        pointer(svg, 'pointerdown', Number(first.getAttribute('cx')) - 6, Number(first.getAttribute('cy')));
+        pointer(svg, 'pointerdown', Number(first.getAttribute('cx')) - 2, Number(first.getAttribute('cy')));
+        pointer(svg, 'pointerup', Number(first.getAttribute('cx')) - 2, Number(first.getAttribute('cy')));
       };
       const original = svg.querySelector('[data-cutout-id="pocket"]')!.getAttribute('d');
-      expect(buttons()[0].getAttribute('aria-pressed')).toBe('false');
-      React.act(() => buttons()[0].click());
-      expect(buttons()[0].getAttribute('aria-pressed')).toBe('true');
+      expect(buttons()[2].getAttribute('aria-pressed')).toBe('false');
+      React.act(() => buttons()[2].click());
+      expect(buttons()[2].getAttribute('aria-pressed')).toBe('true');
       tapNearFirst();
       expect(ringHandles()).toHaveLength(3);
       expect(otherHandles()).toHaveLength(4);
       tapNearFirst();
       pointer(svg, 'pointerdown', 1000, 1000);
+      pointer(svg, 'pointerup', 1000, 1000);
       expect(ringHandles()).toHaveLength(3);
       expect(otherHandles()).toHaveLength(4);
       React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
@@ -997,16 +1022,16 @@ describe("BinDesignerPage", () => {
       const first = ringHandles()[0];
       const x = Number(first.getAttribute('cx')), y = Number(first.getAttribute('cy'));
       pointer(first, 'pointerdown', x, y);
-      pointer(svg, 'pointermove', x + 1, y + 1);
-      pointer(svg, 'pointerup', x + 1, y + 1);
+      pointer(svg, 'pointermove', x + 10, y + 10);
+      pointer(svg, 'pointerup', x + 10, y + 10);
       expect(ringHandles()).toHaveLength(3);
-      expect(Number(ringHandles()[0].getAttribute('cx'))).toBeCloseTo(x + 1);
-      React.act(() => buttons()[0].click());
+      expect(Number(ringHandles()[0].getAttribute('cx'))).toBeCloseTo(x + 10);
+      React.act(() => buttons()[2].click());
       const edit = container.querySelector<HTMLButtonElement>('[data-testid="button-layout-edit-contour"]')!;
       React.act(() => edit.click());
       expect(container.querySelector('[aria-label="Contour editing tools"]')).toBeNull();
       React.act(() => edit.click());
-      expect(buttons()[0].getAttribute('aria-pressed')).toBe('false');
+      expect(buttons()[2].getAttribute('aria-pressed')).toBe('false');
     } finally { unmount(); }
   });
 
@@ -3792,7 +3817,8 @@ describe("project history restoration", () => {
       React.act(() => button(container, "redo").click());
       React.act(() => button(container, "undo").click());
       if (mobile) {
-        React.act(() => Array.from(container.querySelectorAll("button")).find(button => button.textContent === "Bin settings")!.click());
+        React.act(() => Array.from(container.querySelectorAll("button")).find(button => button.textContent === "Adjust")!.click());
+        React.act(() => Array.from(container.querySelectorAll("button")).find(button => button.textContent === "More settings")!.click());
       }
       openSettingsSection(document.body, "project");
       const open = async (id: string) => {

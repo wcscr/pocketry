@@ -42,7 +42,7 @@ function Router() {
 }
 
 function Shell() {
-  const { panelOpen, setPanelOpen } = usePanelState();
+  const { panelOpen, setPanelOpen, traceRestart } = usePanelState();
   const [helpOpen, setHelpOpen] = useState(false);
 
   return (
@@ -53,6 +53,7 @@ function Shell() {
             panelOpen={panelOpen}
             onPanelOpenChange={setPanelOpen}
             onHelpClick={() => setHelpOpen(true)}
+            onStartOver={traceRestart ?? undefined}
           />
         }
       >

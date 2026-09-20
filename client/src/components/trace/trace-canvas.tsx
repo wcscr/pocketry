@@ -1,5 +1,6 @@
 import {
   Crop,
+  Ellipsis,
   Hand,
   Loader2,
   Maximize2,
@@ -14,6 +15,7 @@ import {
 } from "lucide-react";
 import {
   useCallback,
+  useId,
   useEffect,
   useMemo,
   useRef,
@@ -32,13 +34,18 @@ import {
   CanvasViewport,
   useCanvasViewportSize,
 } from "@/components/canvas/canvas-viewport";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { useMobileContourEditor, type ContourTool } from "@/hooks/use-mobile-contour-editor";
+import { MobileContourTools } from "@/components/canvas/mobile-contour-tools";
+import { ContourMagnifier } from "@/components/canvas/contour-magnifier";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { CanvasToolbar } from "@/components/layout/canvas-toolbar";
 import { ContourEditTools } from "@/components/canvas/contour-edit-tools";
 import { EditHistoryMenu } from "@/components/history/edit-history-menu";
 import { useViewportTransform } from "@/hooks/use-viewport-transform";
 import { canHandleCanvasShortcut } from "@/lib/canvas-keyboard";
 import { nearestEdge, nearestVertex } from "@/lib/geometry/hit-test";
-import { getRing, sameRingRef, setRing } from "@/lib/geometry/outline";
+import { getRing, outlineBounds, sameRingRef, setRing } from "@/lib/geometry/outline";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -89,6 +96,9 @@ export function TraceCanvas(props: TraceCanvasProps): JSX.Element {
 
 function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element {
   const store = useTrace();
+  const isMobile = useIsMobile();
+  const [contourTool, setContourTool] = useState<ContourTool>("move");
+  const sceneId = useId();
   const {
     imageUrl,
     imageSize,
@@ -276,7 +286,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
 
   const updateHover = (event: ReactPointerEvent<SVGSVGElement>): void => {
     const editable =
-      selection !== null && (mode === "edit" || mode === "pan") && !viewport.isPanning;
+      selection !== null && (mode === "edit" || (!isMobile && mode === "pan")) && !viewport.isPanning;
     let next: number | null = null;
     if (editable) {
       const image = toImage(event.clientX, event.clientY);
@@ -321,7 +331,35 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
     return true;
   };
 
+  const mobileEditing = isMobile && (mode === "edit" || mode === "remove");
+  const focusContour = () => {
+    const ring = selection && getRing(outline, selection);
+    const bounds = outlineBounds(ring ? [{ outer: ring, holes: [] }] : outline);
+    if (bounds) viewport.fitToRect({ x: bounds.minX, y: bounds.minY,
+      width: bounds.maxX - bounds.minX, height: bounds.maxY - bounds.minY });
+  };
+  useEffect(() => { if (!mobileEditing) setContourTool("move"); }, [mobileEditing]);
+  const mobileEditor = useMobileContourEditor({
+    enabled: mobileEditing, tool: contourTool, outline,
+    toLocal: point => toImage(point.x, point.y),
+    getScreenProjection: () => {
+      const matrix = sceneRef.current?.getScreenCTM();
+      return point => matrix ? { x: matrix.a * point.x + matrix.c * point.y + matrix.e,
+        y: matrix.b * point.x + matrix.d * point.y + matrix.f } : point;
+    },
+    viewport: viewport.handlers,
+    onSelect: ref => dispatch({ type: "SELECT_RING", selection: ref }),
+    onPreview: next => dispatch({ type: "OUTLINE_DRAGGING", outline: next }),
+    onCancel: original => dispatch({ type: "OUTLINE_DRAGGING", outline: original }),
+    onCommit: (next, label) => dispatch({ type: "OUTLINE_COMMITTED", outline: next, label }),
+  });
+
   const handlePointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
+    if (mobileEditor.down(event)) return;
+    if (isMobile && mode === "pan") {
+      viewport.handlers.onPointerDown(event, { pan: true });
+      return;
+    }
     if (mode === "navigate") {
       viewport.handlers.onPointerDown(event);
       return;
@@ -493,6 +531,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
   };
 
   const handlePointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
+    if (mobileEditor.move(event)) return;
     // Any real movement turns a candidate click into not-a-click.
     const click = clickRef.current;
     if (
@@ -584,6 +623,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
   };
 
   const endDrag = (event: ReactPointerEvent<SVGSVGElement>) => {
+    if (mobileEditor.end(event)) return;
     const drag = dragRef.current;
     dragRef.current = null;
 
@@ -690,6 +730,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
         <TraceScene
           svgRef={svgRef}
           sceneRef={sceneRef}
+          sceneId={sceneId}
           imageUrl={imageUrl}
           imageSize={imageSize}
           imageRotation={imageRotation}
@@ -752,20 +793,44 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
 
       {imageUrl && (
         <>
-          <CanvasToolbar position="top-left" className="max-md:right-2 max-md:max-w-none">
-            <ModeButton mode="pan" icon={MousePointer2} label="Select" />
-            <ModeButton mode="navigate" icon={Hand} label="Pan photo" />
-            <ModeButton mode="region" icon={Crop} label="Region" />
-            <ModeButton mode="edit" icon={Spline} label="Edit contours" disabled={outline.length === 0} />
-            <ModeButton mode="calibrate" icon={Scaling} label="Set scale" />
-            <ModeButton
-              mode="measure"
-              icon={Ruler}
-              label="Measure distance"
-              disabled={measurementMmPerPx === null}
-            />
-
+          <CanvasToolbar position="top-left" className="max-md:flex-nowrap">
+            {isMobile ? <>
+              <ModeButton mode="navigate" icon={Hand} label="Pan photo" />
+              {mode === "measure" ? <ModeButton mode="measure" icon={Ruler} label="Measure distance" />
+                : !calibration || mode === "calibrate" || mode === "perspective" ? <ModeButton mode="calibrate" icon={Scaling} label="Set scale" />
+                : mode === "region" || outline.length === 0 ? <ModeButton mode="region" icon={Crop} label="Region" />
+                : <ModeButton mode="edit" icon={Spline} label="Edit contours" onSelect={focusContour} />}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-11 w-11" aria-label="More trace tools"><Ellipsis className="h-4 w-4" /></Button></DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  {([
+                    { mode: "region", label: "Region", icon: Crop, disabled: false },
+                    { mode: "edit", label: "Edit contours", icon: Spline, disabled: outline.length === 0 },
+                    { mode: "calibrate", label: "Set scale", icon: Scaling, disabled: false },
+                    { mode: "measure", label: "Measure distance", icon: Ruler, disabled: measurementMmPerPx === null },
+                  ] as const).map(tool => <DropdownMenuItem key={tool.mode} className="min-h-11" disabled={tool.disabled}
+                    onSelect={() => { dispatch({ type: "SET_MODE", mode: tool.mode }); if (tool.mode === "edit") focusContour(); }}><tool.icon className="mr-2 h-4 w-4" />{tool.label}</DropdownMenuItem>)}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </> : <>
+              <ModeButton mode="pan" icon={MousePointer2} label="Select" />
+              <ModeButton mode="navigate" icon={Hand} label="Pan photo" />
+              <ModeButton mode="region" icon={Crop} label="Region" />
+              <ModeButton mode="edit" icon={Spline} label="Edit contours" disabled={outline.length === 0} />
+              <ModeButton mode="calibrate" icon={Scaling} label="Set scale" />
+              <ModeButton mode="measure" icon={Ruler} label="Measure distance" disabled={measurementMmPerPx === null} />
+            </>}
           </CanvasToolbar>
+
+          {mobileEditing && <div className="absolute left-2 bottom-16 z-30">
+            <MobileContourTools tool={contourTool} onChange={setContourTool}
+              onDone={() => dispatch({ type: "SET_MODE", mode: "navigate" })} />
+          </div>}
+          {mobileEditing && <ContourMagnifier sceneId={sceneId} canvasWidth={containerSize.width}
+            point={mobileEditor.activePoint ? {
+              x: viewport.transform.translateX + mobileEditor.activePoint.x * viewport.transform.scale,
+              y: viewport.transform.translateY + mobileEditor.activePoint.y * viewport.transform.scale,
+            } : null} />}
 
           <CanvasToolbar position="top-right" className="max-md:bottom-2 max-md:left-2 max-md:right-auto max-md:top-auto">
             {/* Always present: outline edits can happen in any pointing mode,
@@ -874,11 +939,13 @@ function ModeButton({
   icon: Icon,
   label,
   disabled = false,
+  onSelect,
 }: {
   mode: TraceMode;
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   disabled?: boolean;
+  onSelect?: () => void;
 }): JSX.Element {
   const { mode: current, dispatch } = useTrace();
   const active = current === mode || (mode === "edit" && current === "remove");
@@ -893,7 +960,7 @@ function ModeButton({
           aria-pressed={active}
           aria-label={label}
           disabled={disabled}
-          onClick={() => dispatch({ type: "SET_MODE", mode })}
+          onClick={() => { dispatch({ type: "SET_MODE", mode }); onSelect?.(); }}
         >
           <Icon className="h-4 w-4" />
         </Button>
