@@ -40,6 +40,9 @@ detection happen locally in the browser.
   Desktop and mobile use the same choices. If the aid validates only after
   straightening the paper, aid-only acceptance is unavailable; use the combined
   correction instead. **Detect references again** stays under Scale → Advanced.
+  Retrying keeps the current ruler, scale, and contour edits while a replacement
+  is reviewed. **Dismiss detected scale** keeps that current scale; accepting a
+  detected scale replaces it. A completed trace keeps its region and edits.
   **Correct perspective only**, under Advanced, leads to manual scale selection.
 - Verify one physical object dimension before printing a pocket. Calibration
   is at the marker surface, including the aid's 2 mm thickness. Other object
@@ -59,7 +62,11 @@ marker pixels or substitute the paper scale. The aid must lie within the correct
 paper area. When raw aid geometry is skewed, detection also checks the original
 corners after the validated paper homography. This recovery preserves source
 resolution checks and requires correction before accepting aid scale.
-**Restore original photo** reverses the correction.
+**Restore original photo** reverses the correction. If a scale, region, ruler or
+contours exist, a confirmation explains that restoring clears that trace and its
+edit history. **Keep working** preserves everything; **Restore and clear trace**
+performs the reset. Perspective-only correction returns mobile users to the
+canvas for manual ruler placement after it succeeds.
 
 If the aid is incomplete, mixed, duplicated or geometrically invalid, Trace tries
 the paper markers and offers their scale and perspective correction when valid.

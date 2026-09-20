@@ -36,11 +36,11 @@ export function MobileTraceActions({ onChoosePhoto, onStartOver, onOpenSettings,
   const [restartOpen, setRestartOpen] = useState(false);
   useEffect(() => setLength(String(trace.rulerLengthMm)), [trace.rulerLengthMm]);
   useEffect(() => { setReviewStep(null); setRestartOpen(false); }, [trace.sourceRevision]);
-  useEffect(() => { if (trace.mode !== "pan") setReviewStep(null); }, [trace.mode]);
+  useEffect(() => { if (trace.mode !== "pan" || pendingAutoCalibration) setReviewStep(null); }, [trace.mode, pendingAutoCalibration]);
   const manualPending = !calibration && hasCalibrationEndpoints(draftCalibration);
   const confirmedRuler = calibrationFromDraft(draftCalibration, Number(length));
   const hasRegion = Boolean(trace.region && trace.region.width > 5 && trace.region.height > 5);
-  const step: TraceStep = reviewStep ?? (!calibration || trace.mode === "calibrate" || trace.mode === "perspective"
+  const step: TraceStep = pendingAutoCalibration ? "scale" : reviewStep ?? (!calibration || trace.mode === "calibrate" || trace.mode === "perspective"
     ? "scale" : trace.mode === "region" || (!hasRegion && !trace.outline.length) ? "region" : "outline");
   const previousStep = STEPS[Math.max(0, STEPS.indexOf(step) - 1)];
   const editingSelection = (trace.mode === "edit" || trace.mode === "remove") && trace.selection && getRing(trace.outline, trace.selection)
@@ -49,6 +49,7 @@ export function MobileTraceActions({ onChoosePhoto, onStartOver, onOpenSettings,
   const continueToRegion = () => { setReviewStep(null); dispatch({ type: "SET_MODE", mode: "region" }); };
   const redrawScale = () => { setReviewStep(null); dispatch({ type: "SET_MODE", mode: "calibrate" }); };
   const back = () => {
+    if (pendingAutoCalibration) dispatch({ type: "DISMISS_AUTO_CALIBRATION" });
     if (step === "outline") dispatch({ type: "SET_MODE", mode: "region" });
     else {
       setReviewStep(step === "region" ? "scale" : "photo");
@@ -94,7 +95,7 @@ export function MobileTraceActions({ onChoosePhoto, onStartOver, onOpenSettings,
     </div>
     {!(step === "scale" && pendingAutoCalibration) && <WorkflowHint>{guidance}</WorkflowHint>}
     {step === "outline" && hasRegion && <TraceDetectionControls compact onReprocess={onReprocess} />}
-    {step === "scale" && manualPending && !processing ? <div className="flex items-end gap-2">
+    {step === "scale" && manualPending && !pendingAutoCalibration && !processing ? <div className="flex items-end gap-2">
       <label className="min-w-0 flex-1 text-xs" htmlFor="mobile-ruler-length">Reference length (mm)
         <Input id="mobile-ruler-length" type="number" inputMode="decimal" min="0.01" step="any" value={length} onChange={(event) => setLength(event.target.value)} />
       </label>

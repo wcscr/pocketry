@@ -163,6 +163,64 @@ describe("Mobile trace progression", () => {
     expect(detectMarkers).toHaveBeenCalledOnce();
     expect(document.querySelector('[role="dialog"]')).toBeNull();
   });
+  it("reviews a new reference over an accepted scale and dismisses back to the existing trace", () => {
+    readyOutline();
+    const original = { calibration: trace.calibration, outline: trace.outline, history: trace.history, region: trace.region };
+    const proposed = { ...calibration, lengthMm: 85 };
+    React.act(() => trace.dispatch({ type: "AUTO_CALIBRATION_DETECTED", sourceImageUrl: "photo", calibration: proposed, source: "strip" }));
+    expect(trace.calibration).toBe(original.calibration);
+    expect(host.querySelector('[data-testid="trace-current-step"]')?.textContent).toContain("scale");
+    expect(button("Accept detected scale")).toBeDefined();
+    expect([...host.querySelectorAll("button")].some(button => button.textContent === "Add to bin / export")).toBe(false);
+    React.act(() => button("Dismiss detected scale").click());
+    expect(button("Add to bin / export")).toBeDefined();
+    expect(trace.calibration).toBe(original.calibration);
+    expect(trace.calibrationSource).toBe("manual");
+    expect(trace.outline).toBe(original.outline);
+    expect(trace.history).toBe(original.history);
+    expect(trace.region).toBe(original.region);
+  });
+  it("returns to the existing outline after accepting a replacement scale", () => {
+    readyOutline();
+    const outline = trace.outline;
+    const history = trace.history;
+    const proposed = { ...calibration, lengthMm: 85 };
+    React.act(() => trace.dispatch({ type: "AUTO_CALIBRATION_DETECTED", sourceImageUrl: "photo", calibration: proposed, source: "strip" }));
+    React.act(() => button("Accept detected scale").click());
+    expect(trace.calibration).toBe(proposed);
+    expect(trace.calibrationSource).toBe("strip");
+    expect(trace.mode).toBe("pan");
+    expect(trace.outline).toBe(outline);
+    expect(trace.history).toBe(history);
+    expect(button("Add to bin / export")).toBeDefined();
+  });
+  it("lets Back leave reference review for the photo without discarding the accepted scale", () => {
+    readyOutline();
+    const original = trace.calibration;
+    React.act(() => button("Back").click());
+    React.act(() => button("Back").click());
+    React.act(() => button("Back").click());
+    expect(button("Use this photo")).toBeDefined();
+    React.act(() => trace.dispatch({ type: "AUTO_CALIBRATION_DETECTED", sourceImageUrl: "photo", calibration: { ...calibration, lengthMm: 85 } }));
+    expect(button("Accept detected scale")).toBeDefined();
+    React.act(() => button("Back").click());
+    expect(trace.pendingAutoCalibration).toBeNull();
+    expect(trace.calibration).toBe(original);
+    expect(button("Use this photo")).toBeDefined();
+  });
+  it("does not offer draft confirmation while reviewing a reference, then restores the manual draft on dismissal", () => {
+    load();
+    const draft = { startX: 0, startY: 0, endX: 100, endY: 0 };
+    React.act(() => {
+      trace.dispatch({ type: "SET_DRAFT_CALIBRATION", draftCalibration: draft });
+      trace.dispatch({ type: "AUTO_CALIBRATION_DETECTED", sourceImageUrl: "photo", calibration });
+    });
+    expect(host.querySelector("#mobile-ruler-length")).toBeNull();
+    React.act(() => button("Dismiss detected scale").click());
+    expect(host.querySelector("#mobile-ruler-length")).not.toBeNull();
+    expect(trace.draftCalibration).toBe(draft);
+    expect(button("Confirm scale")).toBeDefined();
+  });
   it("confirms a manual ruler using a visible button and rejects an empty length", () => {
     load();
     React.act(() => trace.dispatch({ type: "SET_DRAFT_CALIBRATION", draftCalibration: { startX: 0, startY: 0, endX: 100, endY: 0 } }));

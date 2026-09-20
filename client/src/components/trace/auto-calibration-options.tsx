@@ -73,7 +73,7 @@ export function AutoCalibrationOptions({ onSetManually, onApplyPerspective, onDe
           <Button variant="outline" size="sm" className={actionClass} disabled={processing}
             onClick={onDetectMarkers} data-testid="button-detect-markers">Detect references again</Button>
           <Button variant="ghost" size="sm" className={actionClass} disabled={processing}
-            onClick={() => dispatch({ type: "SET_CALIBRATION", calibration: null })}>Dismiss detected scale</Button>
+            onClick={() => dispatch({ type: "DISMISS_AUTO_CALIBRATION" })}>Dismiss detected scale</Button>
         </div>
       </details>
       <CalibrationAccuracyHint>

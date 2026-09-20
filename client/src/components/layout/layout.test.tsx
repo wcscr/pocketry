@@ -24,7 +24,10 @@ class NoopResizeObserver implements ResizeObserver {
  * actually run — a crash from an imperative API called too early, a mobile
  * branch that never renders its canvas.
  */
-function render(ui: React.ReactElement, { mobile = false } = {}) {
+function render(ui: React.ReactElement, { mobile = false, inspect }: {
+  mobile?: boolean;
+  inspect?: (container: HTMLDivElement) => void;
+} = {}) {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.stubGlobal("ResizeObserver", NoopResizeObserver);
   // jsdom does not implement matchMedia, which useIsMobile() calls unguarded.
@@ -45,6 +48,7 @@ function render(ui: React.ReactElement, { mobile = false } = {}) {
   const root = createRoot(container);
   React.act(() => root.render(ui));
 
+  inspect?.(container);
   const html = container.innerHTML;
   React.act(() => root.unmount());
   container.remove();
@@ -118,6 +122,32 @@ describe("WorkspaceLayout", () => {
         />,
       ),
     ).not.toThrow();
+  });
+
+  it("excludes collapsed controls from interaction and accessibility, then restores them when opened", () => {
+    function ToggleWorkspace(): JSX.Element {
+      const [open, setOpen] = React.useState(false);
+      return <>
+        <button onClick={() => setOpen((current) => !current)}>Toggle controls</button>
+        <WorkspaceLayout autoSaveId="tooltrace:hidden-test" panelOpen={open}
+          onPanelOpenChange={setOpen} panel={<button>Panel action</button>}
+          canvas={<button>Canvas action</button>} />
+      </>;
+    }
+    render(<ToggleWorkspace />, { inspect: (container) => {
+      const controls = container.querySelector('[data-testid="desktop-workspace-controls"]')!;
+      const toggle = container.querySelector<HTMLButtonElement>("button")!;
+      expect(controls.hasAttribute("inert")).toBe(true);
+      expect(controls.getAttribute("aria-hidden")).toBe("true");
+      // Keeping the subtree mounted preserves its local input state.
+      expect(controls.textContent).toContain("Panel action");
+      React.act(() => toggle.click());
+      expect(controls.hasAttribute("inert")).toBe(false);
+      expect(controls.hasAttribute("aria-hidden")).toBe(false);
+      React.act(() => toggle.click());
+      expect(controls.hasAttribute("inert")).toBe(true);
+      expect(controls.getAttribute("aria-hidden")).toBe("true");
+    } });
   });
 
   it("puts the canvas last when the panel sits on the right", () => {

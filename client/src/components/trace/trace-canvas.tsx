@@ -121,8 +121,10 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
       ? manualPerspectivePoints
       : (pendingPerspective?.points ?? []);
   const rulerEditable =
-    (calibrationSource === "manual" && calibration !== null) ||
-    (mode !== "calibrate" && hasCalibrationEndpoints(draftCalibration));
+    !pendingAutoCalibration && (
+      (calibrationSource === "manual" && calibration !== null) ||
+      (mode !== "calibrate" && hasCalibrationEndpoints(draftCalibration))
+    );
   const measurementMmPerPx = mmPerPixel(calibration);
 
   const handleRulerLengthCommit = useCallback(
@@ -359,6 +361,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
     if (
       event.button === 0 &&
       displayedCalibration &&
+      rulerEditable &&
       mode !== "perspective"
     ) {
       const target = event.target as Element;

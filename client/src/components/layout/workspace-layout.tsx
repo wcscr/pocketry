@@ -192,7 +192,13 @@ export function WorkspaceLayout({
       onExpand={() => reportCollapsed(false)}
       className="min-w-0"
     >
-      {panel}
+      {/* A collapsed panel stays mounted to retain its settings. Native inert
+          excludes its descendants from focus and interaction, while aria-hidden
+          keeps the invisible controls out of the accessibility tree. */}
+      <div className="h-full" aria-hidden={panelOpen ? undefined : true}
+        {...(!panelOpen ? { inert: "" } : {})} data-testid="desktop-workspace-controls">
+        {panel}
+      </div>
     </ResizablePanel>
   );
 

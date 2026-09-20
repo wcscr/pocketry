@@ -65,6 +65,75 @@ describe("aid calibration requiring perspective correction", () => {
   });
 });
 
+describe("reviewing a replacement reference scale", () => {
+  const manual = { startX: 13, startY: 24, endX: 410, endY: 215, lengthMm: 137 };
+  const aid = { startX: 30, startY: 40, endX: 280, endY: 40, lengthMm: 85 };
+  const paper = { ...aid, lengthMm: 100 };
+  const existingTrace = () => run(initialTraceState,
+    { type: "SOURCE_LOADED", imageUrl: "photo", fileName: "tool" },
+    { type: "SOURCE_READY", imageSize: { width: 800, height: 600 } },
+    { type: "SET_RULER_LENGTH", rulerLengthMm: 137 },
+    { type: "SET_CALIBRATION", calibration: manual },
+    { type: "SET_REGION", region: { x: 10, y: 10, width: 400, height: 300 } },
+    { type: "OUTLINE_COMMITTED", outline: ringB, label: "Move contour node" });
+  const propose = (state: TraceState, requiresPerspectiveCorrection = false) => traceReducer(state,
+    { type: "AUTO_CALIBRATION_DETECTED", sourceImageUrl: "photo", source: "strip", calibration: aid,
+      paperCalibration: paper, requiresPerspectiveCorrection,
+      perspective: { source: "template", paper: "letter", points: [{ x: 0, y: 0 }, { x: 400, y: 0 }, { x: 400, y: 500 }, { x: 0, y: 500 }] } });
+
+  it("keeps the manual ruler, physical scale, and edited contour through retry and dismissal", () => {
+    const original = existingTrace();
+    const pending = propose(original, true);
+    for (const state of [pending, traceReducer(pending, { type: "DISMISS_AUTO_CALIBRATION" })]) {
+      expect(state.calibration).toBe(original.calibration);
+      expect(state.calibrationSource).toBe("manual");
+      expect(state.rulerLengthMm).toBe(137);
+      expect(state.outline).toBe(original.outline);
+      expect(state.region).toBe(original.region);
+      expect(state.history).toBe(original.history);
+    }
+    const dismissed = traceReducer(pending, { type: "DISMISS_AUTO_CALIBRATION" });
+    expect(dismissed.pendingAutoCalibration).toBeNull();
+    expect(dismissed.pendingPaperCalibration).toBeNull();
+    expect(dismissed.pendingPerspective).toBeNull();
+    expect(dismissed.pendingCalibrationSource).toBeNull();
+    expect(dismissed.pendingAidRequiresPerspective).toBe(false);
+  });
+
+  it.each(["strip", "sheet"] as const)("replaces scale only on explicit %s acceptance without resetting edited work", (source) => {
+    const original = existingTrace();
+    const accepted = traceReducer(propose(original), { type: "ACCEPT_AUTO_CALIBRATION", source });
+    expect(accepted.calibration).toBe(source === "strip" ? aid : paper);
+    expect(accepted.calibrationSource).toBe(source);
+    expect(accepted.pendingAutoCalibration).toBeNull();
+    expect(accepted.outline).toBe(original.outline);
+    expect(accepted.region).toBe(original.region);
+    expect(accepted.history).toBe(original.history);
+    expect(accepted.mode).toBe("pan");
+  });
+
+  it("keeps a completed manual draft when a proposal is dismissed", () => {
+    const draft = { startX: 10, startY: 20, endX: 150, endY: 200 };
+    const original = run(existingTrace(), { type: "SET_MODE", mode: "calibrate" },
+      { type: "SET_DRAFT_CALIBRATION", draftCalibration: draft });
+    const dismissed = traceReducer(propose(original), { type: "DISMISS_AUTO_CALIBRATION" });
+    expect(dismissed.calibration).toBeNull();
+    expect(dismissed.draftCalibration).toBe(draft);
+    expect(dismissed.rulerLengthMm).toBe(137);
+  });
+
+  it("rotates both rulers and restores the rotated accepted ruler when the proposal is dismissed", () => {
+    const original = existingTrace();
+    const rotation: TraceAction = { type: "ROTATE_SOURCE", direction: "clockwise", naturalSize: { width: 800, height: 600 }, maxSize: { width: 800, height: 600 } };
+    const expected = traceReducer(original, rotation);
+    const dismissed = run(propose(original), rotation, { type: "DISMISS_AUTO_CALIBRATION" });
+    expect(dismissed.calibration).toEqual(expected.calibration);
+    expect(dismissed.outline).toEqual(expected.outline);
+    expect(dismissed.history).toEqual(expected.history);
+    expect(dismissed.pendingAutoCalibration).toBeNull();
+  });
+});
+
 describe("contour edit selection", () => {
   it("selects the largest outer contour on entering edit mode and retains the chosen ring when toggling removal", () => {
     const outline = [ringA[0], { ...ringC[0], holes: [ringB[0].outer] }];

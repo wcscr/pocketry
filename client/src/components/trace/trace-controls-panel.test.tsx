@@ -35,10 +35,12 @@ class NoopResizeObserver implements ResizeObserver {
 }
 
 function Harness(): JSX.Element {
+  const [active, setActive] = React.useState(true);
   trace = useTrace();
   const { dispatch } = trace;
   return (
     <>
+      <button data-testid="toggle-controls" onClick={() => setActive((value) => !value)}>{active ? "Hide controls" : "Show controls"}</button>
       <button
         data-testid="load-source"
         onClick={() => {
@@ -158,6 +160,7 @@ function Harness(): JSX.Element {
         Commit region
       </button>
       <TraceControlsPanel
+        active={active}
         onReplaceImage={() => {}}
         onRotateImage={rotateImage}
         onExport={() => {}}
@@ -485,6 +488,44 @@ describe("TraceControlsPanel guided workflow", () => {
       expect(trace.calibration).toEqual(choice === "strip" ? aid : paper);
       expect(trace.pendingPaperCalibration).toBeNull();
     }
+  });
+
+  it("defers guided focus until collapsed controls are opened", async () => {
+    const toggle = host.querySelector<HTMLButtonElement>('[data-testid="toggle-controls"]')!;
+    toggle.focus();
+    await click("toggle-controls");
+    await click("load-source");
+    await click("detect-auto-perspective");
+    expect(document.activeElement).toBe(toggle);
+    await click("toggle-controls");
+    expect(document.activeElement).toBe(host.querySelector('[data-testid="button-apply-auto-perspective"]'));
+  });
+
+  it("requires confirmation before restoring a photo clears the edited trace", async () => {
+    await click("load-source");
+    await React.act(async () => {
+      trace.dispatch({ type: "PERSPECTIVE_APPLIED", sourceImageUrl: trace.imageUrl!, imageUrl: "corrected",
+        imageSize: { width: 865, height: 1119 }, calibration: CALIBRATION, source: "template", paper: "letter" });
+      trace.dispatch({ type: "SET_REGION", region: { x: 10, y: 20, width: 300, height: 200 } });
+      trace.dispatch({ type: "OUTLINE_COMMITTED", label: "Move contour node", outline: [{ outer: [
+        { x: 10, y: 10 }, { x: 100, y: 10 }, { x: 100, y: 100 }, { x: 10, y: 100 },
+      ], holes: [] }] });
+    });
+    await clickSection("scale");
+    const before = { imageUrl: trace.imageUrl, outline: trace.outline, region: trace.region, calibration: trace.calibration, history: trace.history };
+    await click("button-restore-perspective-source");
+    expect(document.querySelector('[role="alertdialog"]')?.textContent).toContain("You cannot undo this reset");
+    const dialogButton = (label: string) => [...document.querySelectorAll<HTMLButtonElement>('[role="alertdialog"] button')].find((button) => button.textContent === label)!;
+    await React.act(async () => dialogButton("Keep working").click());
+    expect({ imageUrl: trace.imageUrl, outline: trace.outline, region: trace.region, calibration: trace.calibration, history: trace.history }).toEqual(before);
+    expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+    await click("button-restore-perspective-source");
+    await React.act(async () => dialogButton("Restore and clear trace").click());
+    expect(trace.imageUrl).toBe("data:image/png;base64,new-source");
+    expect(trace.outline).toEqual([]);
+    expect(trace.region).toBeNull();
+    expect(trace.calibration).toBeNull();
+    expect(trace.history.index).toBe(0);
   });
 
   it("offers automatic and manual perspective correction paths", async () => {

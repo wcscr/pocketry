@@ -29,6 +29,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { DraftNumberInput } from "@/components/ui/draft-number-input";
 import {
   Dialog,
@@ -83,6 +84,8 @@ const RESPONSIVE_PANEL_ACTION =
   "h-auto min-h-9 w-full whitespace-normal break-words px-2 py-2 text-[clamp(0.75rem,4cqw,0.875rem)] leading-tight";
 
 export interface TraceControlsPanelProps {
+  /** Defer guided focus while the desktop controls are collapsed. */
+  active?: boolean;
   settingsSectionRequest?: { id: string };
   onCanvasInteraction?: () => void;
   onReplaceImage: () => void;
@@ -119,6 +122,7 @@ const TRACE_SETTINGS_SECTION_DETAILS = [
  * card padding and borders waste roughly a tenth of the usable width.
  */
 export function TraceControlsPanel({
+  active = true,
   onReplaceImage,
   onRotateImage,
   onExport,
@@ -155,8 +159,8 @@ export function TraceControlsPanel({
   } = store;
   const { toast } = useToast();
   useEffect(() => {
-    if (settingsSectionRequest) revealPanelSection(settingsSectionRequest.id, TRACE_SETTINGS_SECTION_DETAILS);
-  }, [settingsSectionRequest]);
+    if (active && settingsSectionRequest) revealPanelSection(settingsSectionRequest.id, TRACE_SETTINGS_SECTION_DETAILS);
+  }, [active, settingsSectionRequest]);
 
   const scale = exportScale(calibration, imageSize.height);
   const displayedScale = exportScale(
@@ -165,6 +169,7 @@ export function TraceControlsPanel({
   );
   const hasImage = imageSize.width > 0;
   const hasOutline = outline.length > 0;
+  const reviewingScale = pendingAutoCalibration !== null;
   const usingReferenceStrip =
     pendingCalibrationSource === "strip" || calibrationSource === "strip";
   const hasDetectionRegion = Boolean(
@@ -184,7 +189,7 @@ export function TraceControlsPanel({
     if (item.id === "trace-settings-crop") {
       return {
         ...item,
-        disabled: !scale.mmPerPx,
+        disabled: !scale.mmPerPx || reviewingScale,
         disabledReason: hasImage
           ? "Set the scale first"
           : "Choose a source image first",
@@ -193,7 +198,7 @@ export function TraceControlsPanel({
     if (item.id === "trace-settings-detect") {
       return {
         ...item,
-        disabled: !scale.mmPerPx || !hasDetectionRegion,
+        disabled: !scale.mmPerPx || !hasDetectionRegion || reviewingScale,
         disabledReason: !hasImage
           ? "Choose a source image first"
           : !scale.mmPerPx
@@ -203,7 +208,7 @@ export function TraceControlsPanel({
     }
     return {
       ...item,
-      disabled: !scale.mmPerPx || !hasOutline,
+      disabled: !scale.mmPerPx || !hasOutline || reviewingScale,
       disabledReason: !hasImage
         ? "Choose a source image first"
         : !scale.mmPerPx
@@ -212,6 +217,14 @@ export function TraceControlsPanel({
     };
   });
   const [sectionEpoch, setSectionEpoch] = useState(0);
+  const [restoreSourceRevision, setRestoreSourceRevision] = useState<number | null>(null);
+  const requestRestoreSource = () => {
+    if (outline.length || region || calibration || draftCalibration || store.history.stack.length > 1) {
+      setRestoreSourceRevision(sourceRevision);
+    } else {
+      dispatch({ type: "RESTORE_PERSPECTIVE_SOURCE" });
+    }
+  };
   const [guidedSection, setGuidedSection] = useState<
     "scale" | "region" | "detection" | null
   >(null);
@@ -359,7 +372,7 @@ export function TraceControlsPanel({
 
   useLayoutEffect(() => {
     const requested = focusWhenReady.current;
-    if (!requested || imageSize.width === 0) return;
+    if (!active || !requested || imageSize.width === 0) return;
     const sectionId =
       requested === "detection"
         ? "trace-settings-detect"
@@ -395,7 +408,7 @@ export function TraceControlsPanel({
           : null;
     const context = contextSelector ? section.querySelector<HTMLElement>(contextSelector) : section;
     return revealTraceStep(section, focusTarget, context ?? focusTarget);
-  }, [guidedSection, imageSize.width, sectionEpoch]);
+  }, [active, guidedSection, imageSize.width, sectionEpoch]);
 
   const shapeLibrary = useShapeLibrary();
   const [, navigate] = useLocation();
@@ -657,7 +670,7 @@ export function TraceControlsPanel({
             </p>
           )}
 
-          {(calibrationSource === "sheet" || calibrationSource === "strip") && calibration && (
+          {!pendingAutoCalibration && (calibrationSource === "sheet" || calibrationSource === "strip") && calibration && (
             <p className="flex items-center gap-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-300">
               <CheckCircle2 className="h-3.5 w-3.5" />
               {calibrationSource === "strip"
@@ -666,7 +679,7 @@ export function TraceControlsPanel({
             </p>
           )}
 
-          {calibration && (
+          {!pendingAutoCalibration && calibration && (
             <Button
               variant="ghost"
               size="sm"
@@ -701,7 +714,7 @@ export function TraceControlsPanel({
                     size="sm"
                     className="w-full"
                     disabled={!perspectiveOriginalImageUrl}
-                    onClick={() => dispatch({ type: "RESTORE_PERSPECTIVE_SOURCE" })}
+                    onClick={requestRestoreSource}
                     data-testid="button-restore-perspective-source"
                   >
                     <RotateCcw className="mr-1.5 h-4 w-4" />
@@ -824,7 +837,7 @@ export function TraceControlsPanel({
           defaultOpen={guidedSection === "region" || (guidedSection === null && region !== null)}
           attention={guidedSection === "region"}
           className="scroll-mt-16"
-          disabled={!scale.mmPerPx}
+          disabled={!scale.mmPerPx || reviewingScale}
         >
           {region ? (
             <p className="text-xs text-muted-foreground">
@@ -855,7 +868,7 @@ export function TraceControlsPanel({
             <Button
               variant={store.mode === "region" ? "default" : "outline"}
               size="sm"
-              disabled={!scale.mmPerPx}
+              disabled={!scale.mmPerPx || reviewingScale}
               aria-pressed={store.mode === "region"}
               data-testid="button-set-region"
               onClick={() => { dispatch({ type: "SET_MODE", mode: "region" }); onCanvasInteraction?.(); }}
@@ -896,7 +909,7 @@ export function TraceControlsPanel({
           }
           attention={guidedSection === "detection"}
           className="scroll-mt-16"
-          disabled={!scale.mmPerPx || !hasDetectionRegion}
+          disabled={!scale.mmPerPx || !hasDetectionRegion || reviewingScale}
         >
           <p className="text-xs text-muted-foreground" data-testid="detection-tuning-guidance">
             Follow the outside edge. Reflections are usually not holes.
@@ -950,7 +963,7 @@ export function TraceControlsPanel({
           summary={exportFormat.toUpperCase()}
           defaultOpen={false}
           className="scroll-mt-16"
-          disabled={!scale.mmPerPx || !hasOutline}
+          disabled={!scale.mmPerPx || !hasOutline || reviewingScale}
         >
           <div className="space-y-2">
             <Label htmlFor="format" className="text-xs">
@@ -996,6 +1009,25 @@ export function TraceControlsPanel({
         </PanelSection>
       </PanelBody>
 
+      <AlertDialog open={restoreSourceRevision === sourceRevision} onOpenChange={(open) => { if (!open) setRestoreSourceRevision(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Restore the original photo and clear this trace?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This removes the perspective correction, scale, region, contours and their edit history.
+              You cannot undo this reset. Pockets already added to Bin stay there.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep working</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => { setRestoreSourceRevision(null); dispatch({ type: "RESTORE_PERSPECTIVE_SOURCE" }); }}>
+              Restore and clear trace
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <Dialog open={handoffOpen} onOpenChange={setHandoffOpen}>
         <DialogContent><DialogHeader><DialogTitle>Name your tools</DialogTitle>
           <DialogDescription>Each tool becomes an independently movable pocket. The trace already includes {margin ?? 0} mm of margin per edge.</DialogDescription></DialogHeader>
@@ -1030,7 +1062,7 @@ export function TraceControlsPanel({
                 <Button
                   className="w-full"
                   onClick={openHandoff}
-                  disabled={!hasOutline || !scale.mmPerPx}
+                  disabled={!hasOutline || !scale.mmPerPx || reviewingScale}
                   data-testid="button-add-to-bin"
                 >
                   <Box className="mr-2 h-4 w-4" />
@@ -1051,7 +1083,7 @@ export function TraceControlsPanel({
             variant="outline"
             className="w-full"
             onClick={onExport}
-            disabled={!hasOutline}
+            disabled={!hasOutline || reviewingScale}
           >
             <Download className="mr-2 h-4 w-4" />
             Save {exportFormat.toUpperCase()}

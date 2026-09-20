@@ -259,6 +259,7 @@ export type TraceAction =
       requiresPerspectiveCorrection?: boolean;
     }
   | { type: "ACCEPT_AUTO_CALIBRATION"; source?: "sheet" | "strip" }
+  | { type: "DISMISS_AUTO_CALIBRATION" }
   | { type: "AUTO_CALIBRATION_ATTEMPTED"; imageUrl: string }
   | { type: "AUTO_CALIBRATION_FAILED"; sourceImageUrl: string }
   | { type: "SET_DRAFT_CALIBRATION"; draftCalibration: DraftCalibration | null }
@@ -735,20 +736,29 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
       return action.sourceImageUrl === state.imageUrl
         ? {
             ...state,
-            calibration: null,
+            // A retry is a proposal, not permission to replace the accepted
+            // ruler. Keep its exact endpoints and scale until acceptance.
             pendingAutoCalibration: action.calibration,
             pendingPaperCalibration: action.paperCalibration ?? null,
             pendingAidRequiresPerspective: action.requiresPerspectiveCorrection ?? false,
             pendingCalibrationSource: action.source ?? "sheet",
             pendingPerspective:
               action.source === "strip" && !action.paperCalibration ? null : action.perspective ?? null,
-            calibrationSource: null,
             margin: state.margin ?? DEFAULT_MARGIN_MM,
-            draftCalibration: null,
             manualPerspectivePoints: [],
             mode: "pan",
           }
         : state;
+
+    case "DISMISS_AUTO_CALIBRATION":
+      return {
+        ...state,
+        pendingAutoCalibration: null,
+        pendingPaperCalibration: null,
+        pendingAidRequiresPerspective: false,
+        pendingCalibrationSource: null,
+        pendingPerspective: null,
+      };
 
     case "ACCEPT_AUTO_CALIBRATION":
       if (!state.pendingAutoCalibration || (action.source === "sheet" && state.pendingCalibrationSource === "strip" && !state.pendingPaperCalibration)) return state;
@@ -766,6 +776,10 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         calibrationSource: action.source ?? state.pendingCalibrationSource ?? "sheet",
         margin: state.margin ?? DEFAULT_MARGIN_MM,
         draftCalibration: null,
+        // A scale retry must not send an existing trace back to drawing a new
+        // region. New photos still proceed to the region-selection step.
+        mode: state.outline.length > 0 || (state.region && state.region.width > 5 && state.region.height > 5)
+          ? "pan" : "region",
       };
 
     case "AUTO_CALIBRATION_ATTEMPTED":

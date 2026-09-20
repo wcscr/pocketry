@@ -410,6 +410,9 @@ function TraceWorkspace(): JSX.Element {
           paper: templatePaper(template),
           template,
         });
+        // Perspective-only deliberately has no accepted scale, so it does not
+        // trigger the calibration effect that closes the mobile drawer.
+        if (isMobile) setPanelOpen(false);
         toast({
           title: "Perspective corrected",
           description: typeof usePaperScale === "object"
@@ -432,7 +435,7 @@ function TraceWorkspace(): JSX.Element {
         }
       }
     },
-    [getDetectionFrame, dispatch, toast],
+    [getDetectionFrame, dispatch, toast, isMobile, setPanelOpen],
   );
 
   // Attempt auto-calibration once per image, and only while uncalibrated —
@@ -597,6 +600,7 @@ function TraceWorkspace(): JSX.Element {
         />}
         panel={
           <TraceControlsPanel
+            active={panelOpen}
             settingsSectionRequest={settingsSectionRequest}
             onCanvasInteraction={showCanvas}
             onReplaceImage={() => photoInputRef.current?.click()}
