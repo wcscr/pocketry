@@ -85,37 +85,46 @@ const RESPONSIVE_PANEL_ACTION =
 
 /** One shared, hover-only hint for every automatic calibration choice. */
 function AutoCalibrationHint({ children }: { children: ReactNode }): JSX.Element {
+  const [downloadsOpen, setDownloadsOpen] = useState(false);
   return (
-    <div className="border-t border-amber-400/30 pt-2">
-      <Tooltip delayDuration={250}>
-        {/* Guided focus and clicks must not open this hover-only hint. */}
-        <TooltipTrigger asChild onFocus={(event) => event.preventDefault()}>
-          <button
-            type="button"
-            className="inline-flex items-center gap-1.5 rounded text-left text-xs text-amber-700 hover:text-amber-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 dark:text-amber-300 dark:hover:text-amber-200"
-          >
-            <CircleAlert aria-hidden="true" className="h-4 w-4 shrink-0" />
-            Accuracy with thick objects
-          </button>
-        </TooltipTrigger>
-        <TooltipPortal>
-          <TooltipContent
-            side="right"
-            collisionPadding={12}
-            className="max-w-72 space-y-2 text-xs leading-relaxed"
-          >
-            {children}
-            <p>
-              Automatic calibration is most accurate at the reference’s height.
-              Raised parts of thick objects can appear oversized when using paper
-              markers because they are closer to the camera. For better accuracy,
-              place a measurement aid at the feature’s height, or set scale manually
-              from a measured long feature on the tool.
-            </p>
-          </TooltipContent>
-        </TooltipPortal>
-      </Tooltip>
-    </div>
+    <>
+      <div className="border-t border-amber-400/30 pt-2">
+        <Tooltip delayDuration={250}>
+          {/* Guided focus and clicks must not open this hover-only hint. */}
+          <TooltipTrigger asChild onFocus={(event) => event.preventDefault()}>
+            <button
+              type="button"
+              className="inline-flex items-center gap-1.5 rounded text-left text-xs text-amber-700 hover:text-amber-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 dark:text-amber-300 dark:hover:text-amber-200"
+            >
+              <CircleAlert aria-hidden="true" className="h-4 w-4 shrink-0" />
+              Accuracy with thick objects
+            </button>
+          </TooltipTrigger>
+          <TooltipPortal>
+            <TooltipContent
+              side="right"
+              collisionPadding={12}
+              className="max-w-72 space-y-2 text-xs leading-relaxed"
+            >
+              {children}
+              <p>
+                Automatic calibration is most accurate at the reference’s height.
+                Raised parts of thick objects can appear oversized when using paper
+                markers because they are closer to the camera. For better accuracy,
+                place a measurement aid at the feature’s height, or set scale manually
+                from a measured long feature on the tool.
+              </p>
+              <button type="button"
+                className="font-medium underline underline-offset-2 hover:no-underline"
+                onClick={() => setDownloadsOpen(true)}>
+                Download measurement aids
+              </button>
+            </TooltipContent>
+          </TooltipPortal>
+        </Tooltip>
+      </div>
+      <CalibrationDownloads open={downloadsOpen} onOpenChange={setDownloadsOpen} showLink={false} />
+    </>
   );
 }
 

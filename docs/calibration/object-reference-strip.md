@@ -60,7 +60,8 @@ A notice identifies this paper fallback, and the Scale panel names the sheet.
 Paper scaling can still enlarge thick tools. Hover over the amber exclamation
 mark or **Accuracy with thick objects** below the automatic options for the
 detected-reference details and guidance on reference height and manual scaling.
-This single hint applies to the whole group and does not open on focus or click. Choose perspective-only correction
+This single hint applies to the whole group and does not open on focus or click.
+Its **Download measurement aids** link opens the same download dialog. Choose perspective-only correction
 to continue with manual scaling. Guided steps keep the active controls and their
 instructions together in view, including **Placing ruler** after correction.
 If neither reference validates, no automatic scale is proposed.

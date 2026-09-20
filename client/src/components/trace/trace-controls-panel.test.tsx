@@ -259,6 +259,34 @@ async function clickSection(id: string): Promise<void> {
 }
 
 describe("TraceControlsPanel guided workflow", () => {
+  it("opens measurement-aid downloads from the hint and keeps them open after hover ends", async () => {
+    await click("load-source");
+    await click("detect-auto-scale");
+    const hint = [...host.querySelectorAll("button")].find(
+      (button) => button.textContent === "Accuracy with thick objects",
+    )!;
+    await React.act(async () => {
+      const hover = new MouseEvent("pointermove", { bubbles: true });
+      Object.defineProperty(hover, "pointerType", { value: "mouse" });
+      hint.dispatchEvent(hover);
+      await new Promise((resolve) => window.setTimeout(resolve, 300));
+    });
+    const link = [...document.querySelectorAll("button")].find(
+      (button) => button.textContent === "Download measurement aids",
+    )!;
+    expect(link).toBeDefined();
+    await React.act(async () => link.click());
+    const dialog = document.querySelector('[role="dialog"]');
+    expect(dialog?.textContent).toContain("Printable measurement aids");
+    expect(dialog?.textContent).toContain("3MF · two colours");
+    expect(dialog?.textContent).not.toContain("STL");
+    await React.act(async () => {
+      hint.dispatchEvent(new MouseEvent("pointerleave", { bubbles: true }));
+      await new Promise((resolve) => window.setTimeout(resolve, 300));
+    });
+    expect(document.querySelector('[role="dialog"]')).toBe(dialog);
+  });
+
   it("shares one hover-only thickness hint below all automatic options", async () => {
     await click("load-source");
     expect(host.textContent).not.toContain("Accuracy with thick objects");

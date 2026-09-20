@@ -6,21 +6,29 @@ import type { TemplatePaper } from "@/lib/calibrate/template";
 import { ReferenceStripDownloads } from "./reference-strip-downloads";
 
 /** A single compact entry point for the supported paper and 3D references. */
-export function CalibrationDownloads({ onPaperSelected, onDetectMarkers }: {
+export function CalibrationDownloads({ onPaperSelected, onDetectMarkers, open: controlledOpen, onOpenChange, showLink = true }: {
   onPaperSelected?: (paper: TemplatePaper) => void;
   onDetectMarkers?: () => void;
+  /** Keep the dialog mounted outside a transient tooltip when linking from one. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  showLink?: boolean;
 }): JSX.Element {
-  const [open, setOpen] = useState(false);
+  const [localOpen, setLocalOpen] = useState(false);
+  const open = controlledOpen ?? localOpen;
+  const setOpen = onOpenChange ?? setLocalOpen;
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <p className="text-xs text-muted-foreground">
-        Paper sheets and 3D measurement aids: {" "}
-        <DialogTrigger asChild>
-          <button type="button" className="font-medium text-primary underline underline-offset-2 hover:no-underline">
-            Download templates
-          </button>
-        </DialogTrigger>
-      </p>
+      {showLink && (
+        <p className="text-xs text-muted-foreground">
+          Paper sheets and 3D measurement aids: {" "}
+          <DialogTrigger asChild>
+            <button type="button" className="font-medium text-primary underline underline-offset-2 hover:no-underline">
+              Download templates
+            </button>
+          </DialogTrigger>
+        </p>
+      )}
       <DialogContent className="max-h-[85dvh] max-w-lg overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Calibration templates</DialogTitle>
