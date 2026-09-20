@@ -248,56 +248,14 @@ describe("Trace detection workflow", () => {
     expect(downloadBlob).not.toHaveBeenCalled();
   });
 
-  it("links both calibration-sheet downloads above the empty drop zone", async () => {
+  it("keeps downloads behind one link above the empty drop zone", async () => {
     await React.act(async () => {
-      root.render(
-        <PanelProvider>
-          <TraceProvider>
-            <TracePage />
-          </TraceProvider>
-        </PanelProvider>,
-      );
+      root.render(<PanelProvider><TraceProvider><TracePage /></TraceProvider></PanelProvider>);
     });
-
-    expect(host.textContent).toContain(
-      "Photograph the tool on the provided A4 or US Letter template or plain background",
-    );
-    const emphasizedOr = [...host.querySelectorAll("strong")].find(
-      (candidate) => candidate.textContent === "or",
-    );
-    expect(emphasizedOr?.className).toContain("italic");
-
-    await React.act(async () => {
-      host
-        .querySelector<HTMLButtonElement>('[data-testid="empty-state-template-a4"]')
-        ?.click();
-      host
-        .querySelector<HTMLButtonElement>(
-          '[data-testid="empty-state-template-letter"]',
-        )
-        ?.click();
-      host
-        .querySelector<HTMLButtonElement>(
-          '[data-testid="empty-state-template-a4-experimental"]',
-        )
-        ?.click();
-      host
-        .querySelector<HTMLButtonElement>(
-          '[data-testid="empty-state-template-letter-experimental"]',
-        )
-        ?.click();
-    });
-
-    expect(downloadCalibrationTemplateMock).toHaveBeenNthCalledWith(1, "a4");
-    expect(downloadCalibrationTemplateMock).toHaveBeenNthCalledWith(2, "letter");
-    expect(downloadCalibrationTemplateMock).toHaveBeenNthCalledWith(
-      3,
-      "a4-experimental",
-    );
-    expect(downloadCalibrationTemplateMock).toHaveBeenNthCalledWith(
-      4,
-      "letter-experimental",
-    );
+    expect(host.textContent).toContain("Photograph the tool on a calibration sheet or a plain, contrasting background");
+    expect(host.textContent).not.toContain("Printable measurement aids");
+    expect(host.textContent).not.toContain("A4 PDF");
+    expect([...host.querySelectorAll("button")].filter((button) => button.textContent === "Download templates")).toHaveLength(1);
   });
 
   it("keeps the current photo visible until its replacement is decoded", async () => {

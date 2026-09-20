@@ -11,7 +11,6 @@ import {
   RotateCcw,
   RotateCw,
   ScanLine,
-  ScanSearch,
   Sparkles,
   Settings2,
 } from "lucide-react";
@@ -59,7 +58,6 @@ import {
   type PerspectiveProposal,
   type PerspectiveQuad,
 } from "@/lib/calibrate/perspective";
-import { downloadCalibrationTemplate } from "@/lib/calibrate/download-template";
 import {
   templateDisplayName,
   type TemplatePaper,
@@ -77,40 +75,43 @@ import { useToast } from "@/hooks/use-toast";
 import { useShapeLibrary } from "@/state/shape-library";
 import { useTrace, type ExportFormat } from "@/state/trace-store";
 
-import { ReferenceStripDownloads } from "./reference-strip-downloads";
+import { CalibrationDownloads } from "./calibration-downloads";
 import { referenceStripFromRulerLength } from "@/lib/calibrate/reference-strip";
 import { RingList } from "./ring-list";
+import { revealTraceStep } from "./reveal-trace-step";
 
 const RESPONSIVE_PANEL_ACTION =
   "h-auto min-h-9 w-full whitespace-normal break-words px-2 py-2 text-[clamp(0.75rem,4cqw,0.875rem)] leading-tight";
 
-/** Keep optional guidance beside the action and outside the panel's scroll clip. */
-function ScaleActionWithHint({ children }: { children: ReactNode }): JSX.Element {
+/** One shared, hover-only hint for every automatic calibration choice. */
+function AutoCalibrationHint({ children }: { children: ReactNode }): JSX.Element {
   return (
-    <div className="flex items-center gap-2">
-      <div className="min-w-0 flex-1">{children}</div>
+    <div className="border-t border-amber-400/30 pt-2">
       <Tooltip delayDuration={250}>
         {/* Guided focus and clicks must not open this hover-only hint. */}
         <TooltipTrigger asChild onFocus={(event) => event.preventDefault()}>
           <button
             type="button"
-            aria-label="About scaling thick objects"
-            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-amber-600 hover:text-amber-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 dark:text-amber-400 dark:hover:text-amber-300"
+            className="inline-flex items-center gap-1.5 rounded text-left text-xs text-amber-700 hover:text-amber-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 dark:text-amber-300 dark:hover:text-amber-200"
           >
-            <CircleAlert className="h-4 w-4" />
+            <CircleAlert aria-hidden="true" className="h-4 w-4 shrink-0" />
+            Accuracy with thick objects
           </button>
         </TooltipTrigger>
         <TooltipPortal>
           <TooltipContent
             side="right"
             collisionPadding={12}
-            className="max-w-72 text-xs leading-relaxed"
+            className="max-w-72 space-y-2 text-xs leading-relaxed"
           >
-            <strong>Thick objects:</strong> Auto scale from the paper can produce
-            oversized outlines because raised parts of the tool are closer to
-            the camera. For more reliable scaling, measure a long, clearly visible
-            feature on the part furthest from the paper. Use its measured length
-            and matching endpoints in the photo to set the scale manually.
+            {children}
+            <p>
+              Automatic calibration is most accurate at the reference’s height.
+              Raised parts of thick objects can appear oversized when using paper
+              markers because they are closer to the camera. For better accuracy,
+              place a measurement aid at the feature’s height, or set scale manually
+              from a measured long feature on the tool.
+            </p>
           </TooltipContent>
         </TooltipPortal>
       </Tooltip>
@@ -249,7 +250,6 @@ export function TraceControlsPanel({
   const [guidedSection, setGuidedSection] = useState<
     "scale" | "region" | "detection" | null
   >(null);
-  const [calibrationSheetOpen, setCalibrationSheetOpen] = useState(false);
   // The template marker family identifies paper automatically. A markerless
   // four-corner fallback still needs the printed paper's dimensions.
   const [perspectivePaper, setPerspectivePaper] =
@@ -264,7 +264,7 @@ export function TraceControlsPanel({
   // is explicitly trying to replace.
   const redrawRulerRequested = useRef(false);
   const focusWhenReady = useRef<
-    "scale" | "auto" | "length" | "region" | "detection" | null
+    "scale" | "auto" | "ruler" | "length" | "region" | "detection" | null
   >(null);
   const marginRequest = useRef(0);
   const latestMarginGeometry = useRef({ outline, margin, calibration });
@@ -359,13 +359,21 @@ export function TraceControlsPanel({
     setSectionEpoch((epoch) => epoch + 1);
   }, [scale.mmPerPx, dispatch]);
 
-  // The canvas returns to pointer mode when a valid detection region is
-  // committed. That explicit transition advances the guided workflow without
-  // reacting to the temporary rectangles emitted during the drag itself.
+  // Re-entering ruler placement (including perspective-only correction) must
+  // reveal its instructions. A committed region advances to detection without
+  // reacting to temporary rectangles emitted during the drag itself.
   useEffect(() => {
+    const rulerStarted =
+      previousMode.current !== "calibrate" && store.mode === "calibrate";
     const regionCommitted =
       previousMode.current === "region" && store.mode === "pan" && region !== null;
     previousMode.current = store.mode;
+    if (rulerStarted) {
+      setGuidedSection("scale");
+      focusWhenReady.current = "ruler";
+      setSectionEpoch((epoch) => epoch + 1);
+      return;
+    }
     if (!regionCommitted) return;
     setGuidedSection("detection");
     focusWhenReady.current = "detection";
@@ -397,13 +405,15 @@ export function TraceControlsPanel({
     const focusTarget: HTMLElement | null | undefined =
       requested === "auto"
         ? section?.querySelector<HTMLButtonElement>(
-            '[data-testid="button-correct-perspective-aid-scale"], [data-testid="button-accept-auto-scale"]',
+            '[data-testid="button-correct-perspective-aid-scale"], [data-testid="button-apply-auto-perspective"], [data-testid="button-accept-auto-scale"]',
           )
-        : requested === "length"
-          ? section?.querySelector<HTMLInputElement>("#ruler-length")
-          : section?.querySelector<HTMLButtonElement>(
-              "[data-panel-section-trigger]",
-            );
+        : requested === "ruler"
+          ? section?.querySelector<HTMLButtonElement>('[data-testid="button-set-scale"]')
+          : requested === "length"
+            ? section?.querySelector<HTMLInputElement>("#ruler-length")
+            : section?.querySelector<HTMLButtonElement>(
+                "[data-panel-section-trigger]",
+              );
     if (!section || !focusTarget) return;
     focusWhenReady.current = null;
     focusTarget.focus({ preventScroll: true });
@@ -411,13 +421,15 @@ export function TraceControlsPanel({
       focusTarget.select();
     }
 
-    const frame = window.requestAnimationFrame(() => {
-      section?.parentElement?.scrollTo?.({
-        top: section.offsetTop,
-        behavior: "smooth",
-      });
-    });
-    return () => window.cancelAnimationFrame(frame);
+    const contextSelector = requested === "auto"
+      ? '[data-testid="auto-calibration-options"]'
+      : requested === "ruler"
+        ? '[data-testid="manual-scale-placement"]'
+        : requested === "length"
+          ? '[data-testid="reference-length-setting"]'
+          : null;
+    const context = contextSelector ? section.querySelector<HTMLElement>(contextSelector) : section;
+    return revealTraceStep(section, focusTarget, context ?? focusTarget);
   }, [guidedSection, imageSize.width, sectionEpoch]);
 
   const shapeLibrary = useShapeLibrary();
@@ -489,16 +501,63 @@ export function TraceControlsPanel({
 
   const handleSetScale = () => {
     const nextMode = store.mode === "calibrate" ? "pan" : "calibrate";
-    if (nextMode === "calibrate") {
-      setGuidedSection("scale");
-      focusWhenReady.current = null;
-    }
     dispatch({
       type: "SET_MODE",
       mode: nextMode,
     });
     redrawRulerRequested.current = false;
   };
+
+  const manualScaleAction = (
+    <Button
+      variant={store.mode === "calibrate" ? "default" : "outline"}
+      size="sm"
+      className={cn(
+        RESPONSIVE_PANEL_ACTION,
+        imageSize.width > 0 &&
+          !calibration &&
+          !pendingAutoCalibration &&
+          !manualRulerPending &&
+          store.mode !== "calibrate" &&
+          "animate-pulse motion-reduce:animate-none",
+      )}
+      data-testid="button-set-scale"
+      disabled={!hasImage}
+      onPointerDown={() => {
+        redrawRulerRequested.current =
+          store.mode !== "calibrate" && manualRulerPending;
+      }}
+      onPointerCancel={() => {
+        redrawRulerRequested.current = false;
+      }}
+      onPointerLeave={() => {
+        redrawRulerRequested.current = false;
+      }}
+      onClick={handleSetScale}
+    >
+      {store.mode === "calibrate"
+        ? "Placing ruler"
+        : manualRulerPending
+          ? "Redraw ruler"
+          : pendingAutoCalibration
+            ? "Set manually instead"
+            : "Set scale"}
+    </Button>
+  );
+
+  const paperPerspectiveAction = pendingPerspective && (
+    <Button
+      variant={pendingPaperCalibration ? "outline" : "default"}
+      size="sm"
+      className={RESPONSIVE_PANEL_ACTION}
+      disabled={processing || !pendingTemplate}
+      onClick={() => pendingTemplate && onApplyPerspective(pendingPerspective, pendingTemplate)}
+      data-testid="button-apply-auto-perspective"
+    >
+      <ScanLine className="mr-1.5 h-4 w-4 shrink-0" />
+      {pendingPaperCalibration ? "Correct perspective & use paper scale" : "Correct perspective & use scale"}
+    </Button>
+  );
 
   return (
     <div className="flex h-full flex-col [container-type:inline-size]">
@@ -507,7 +566,7 @@ export function TraceControlsPanel({
         testIdPrefix="trace"
         items={traceSettingsSections}
       />
-      <PanelBody key={sectionEpoch}>
+      <PanelBody key={sectionEpoch} className="[overflow-anchor:none]">
         <PanelSection
           key={hasImage ? "source-ready" : "source-empty"}
           id="trace-settings-source"
@@ -528,13 +587,8 @@ export function TraceControlsPanel({
                   {imageSize.width} × {imageSize.height} px
                 </div>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full"
-                onClick={onReplaceImage}
-                data-testid="button-source-image"
-              >
+              <Button variant="outline" size="sm" className="w-full"
+                onClick={onReplaceImage} data-testid="button-source-image">
                 Choose Source Image
               </Button>
               <div className="grid grid-cols-2 gap-2">
@@ -593,6 +647,7 @@ export function TraceControlsPanel({
             <div
               className="space-y-2 rounded-md border border-amber-400/50 bg-amber-500/10 p-3"
               role="status"
+              data-testid="auto-calibration-options"
             >
               <div className="flex items-center gap-2 text-sm font-semibold text-amber-800 dark:text-amber-200">
                 <Sparkles className="h-4 w-4" />
@@ -602,154 +657,105 @@ export function TraceControlsPanel({
                   ? "Scale detected from the reference strip"
                   : "Scale detected from the sheet"}
               </div>
-              <p className="text-xs text-muted-foreground">
-                {pendingPaperCalibration
-                  ? "Choose a reference, or use the paper to correct perspective and the aid to set scale."
-                  : <>Pocketry found {displayedScale.mmPerPx?.toFixed(3)} mm/px. Review
-                    the ruler on the image, then accept it to continue.</>}
-              </p>
-              {pendingCalibrationSource === "strip" && (
-                <p className="text-xs text-muted-foreground">
-                  The ruler joins the marker centres, {pendingAutoCalibration.lengthMm} mm apart
-                  on the {referenceStripFromRulerLength(pendingAutoCalibration.lengthMm)?.lengthMm} mm strip.
-                  This scale uses the strip height.
-                  Keep the strip near the tool edge you need to fit and verify that dimension.
-                </p>
+              {pendingPerspective ? pendingPaperCalibration ? (
+                <Button size="sm" className={RESPONSIVE_PANEL_ACTION}
+                  disabled={processing || !pendingTemplate}
+                  onClick={() => pendingTemplate && onApplyPerspective(pendingPerspective, pendingTemplate, pendingAutoCalibration)}
+                  data-testid="button-correct-perspective-aid-scale">
+                  Correct perspective &amp; use aid scale
+                </Button>
+              ) : paperPerspectiveAction : (
+                <Button size="sm" className={RESPONSIVE_PANEL_ACTION}
+                  disabled={processing}
+                  onClick={() => dispatch({ type: "ACCEPT_AUTO_CALIBRATION" })}
+                  data-testid="button-accept-auto-scale">
+                  Accept detected scale
+                </Button>
               )}
-              {pendingPerspective ? (
-                <>
+              {manualScaleAction}
+              <details data-testid="advanced-calibration-options" className="text-xs">
+                <summary className="cursor-pointer rounded py-1 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  Advanced
+                </summary>
+                <div className="space-y-2 pt-2">
                   {pendingPaperCalibration && (
                     <>
-                      <Button size="sm" className={RESPONSIVE_PANEL_ACTION}
-                        disabled={processing || !pendingTemplate}
-                        onClick={() => pendingTemplate && onApplyPerspective(pendingPerspective, pendingTemplate, pendingAutoCalibration)}
-                        data-testid="button-correct-perspective-aid-scale">
-                        Correct perspective &amp; use aid scale
-                      </Button>
                       <Button variant="outline" size="sm" className={RESPONSIVE_PANEL_ACTION}
                         disabled={processing}
                         onClick={() => dispatch({ type: "ACCEPT_AUTO_CALIBRATION", source: "strip" })}
                         data-testid="button-use-aid-scale">
                         Use aid scale only
                       </Button>
+                      {paperPerspectiveAction}
                     </>
                   )}
-                  <p className="text-xs font-medium text-amber-800 dark:text-amber-200">
-                    {pendingTemplate
-                      ? templateDisplayName(pendingTemplate)
-                      : "Pocketry"}{" "}
-                    template detected automatically
+                  {pendingPerspective && (
+                    <>
+                      <Button variant="outline" size="sm" className={RESPONSIVE_PANEL_ACTION}
+                        disabled={processing || !pendingTemplate}
+                        onClick={() => pendingTemplate && onApplyPerspective(pendingPerspective, pendingTemplate, false)}
+                        data-testid="button-correct-auto-perspective-only">
+                        Correct perspective only
+                      </Button>
+                      <Button variant="outline" size="sm" className={RESPONSIVE_PANEL_ACTION}
+                        disabled={processing}
+                        onClick={() => dispatch({ type: "ACCEPT_AUTO_CALIBRATION", source: "sheet" })}
+                        data-testid="button-accept-auto-scale">
+                        {pendingPaperCalibration ? "Use paper scale only" : "Use scale without correction"}
+                      </Button>
+                    </>
+                  )}
+                  <Button variant="ghost" size="sm" className={RESPONSIVE_PANEL_ACTION}
+                    disabled={processing}
+                    onClick={() => dispatch({ type: "SET_CALIBRATION", calibration: null })}>
+                    Dismiss detected scale
+                  </Button>
+                </div>
+              </details>
+              <AutoCalibrationHint>
+                <p>
+                  {pendingPaperCalibration
+                    ? "The recommended option corrects perspective using the paper corners and sets scale from the aid at the tool’s height."
+                    : <>Detected scale: {displayedScale.mmPerPx?.toFixed(3)} mm/px. Review the ruler on the image before accepting.</>}
+                  {pendingTemplate && <> {templateDisplayName(pendingTemplate)} template detected automatically.</>}
+                </p>
+                {pendingCalibrationSource === "strip" && (
+                  <p>
+                    The ruler joins the marker centres, {pendingAutoCalibration.lengthMm} mm apart
+                    on the {referenceStripFromRulerLength(pendingAutoCalibration.lengthMm)?.lengthMm} mm strip.
+                    This scale uses the strip height. Keep it near the tool edge you need to fit and verify that dimension.
                   </p>
-                  <Button
-                    variant={pendingPaperCalibration ? "outline" : "default"}
-                    size="sm"
-                    className={RESPONSIVE_PANEL_ACTION}
-                    disabled={processing || !pendingTemplate}
-                    onClick={() =>
-                      pendingTemplate &&
-                      onApplyPerspective(
-                        pendingPerspective,
-                        pendingTemplate,
-                      )
-                    }
-                    data-testid="button-apply-auto-perspective"
-                  >
-                    <ScanLine className="mr-1.5 h-4 w-4" />
-                    {pendingPaperCalibration ? "Correct perspective & use paper scale" : "Correct perspective & use scale"}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className={RESPONSIVE_PANEL_ACTION}
-                    disabled={processing || !pendingTemplate}
-                    onClick={() =>
-                      pendingTemplate &&
-                      onApplyPerspective(pendingPerspective, pendingTemplate, false)
-                    }
-                    data-testid="button-correct-auto-perspective-only"
-                  >
-                    Correct perspective only
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className={RESPONSIVE_PANEL_ACTION}
-                    onClick={() => dispatch({ type: "ACCEPT_AUTO_CALIBRATION", source: "sheet" })}
-                    data-testid="button-accept-auto-scale"
-                  >
-                    {pendingPaperCalibration ? "Use paper scale only" : "Use scale without correction"}
-                  </Button>
-                </>
-              ) : (
-                <Button
-                  size="sm"
-                  className={RESPONSIVE_PANEL_ACTION}
-                  onClick={() => dispatch({ type: "ACCEPT_AUTO_CALIBRATION" })}
-                  data-testid="button-accept-auto-scale"
-                >
-                  Accept detected scale
-                </Button>
-              )}
+                )}
+              </AutoCalibrationHint>
             </div>
           )}
 
-          <ScaleActionWithHint>
-            <Button
-              variant={store.mode === "calibrate" ? "default" : "outline"}
-              size="sm"
-              className={cn(
-                RESPONSIVE_PANEL_ACTION,
-                imageSize.width > 0 &&
-                  !calibration &&
-                  !pendingAutoCalibration &&
-                  !manualRulerPending &&
-                  store.mode !== "calibrate" &&
-                  "animate-pulse motion-reduce:animate-none",
-              )}
-              data-testid="button-set-scale"
-              disabled={!hasImage}
-              onPointerDown={() => {
-                redrawRulerRequested.current =
-                  store.mode !== "calibrate" && manualRulerPending;
-              }}
-              onPointerCancel={() => {
-                redrawRulerRequested.current = false;
-              }}
-              onPointerLeave={() => {
-                redrawRulerRequested.current = false;
-              }}
-              onClick={handleSetScale}
-            >
-              {store.mode === "calibrate"
-                ? "Placing ruler"
-                : manualRulerPending
-                  ? "Redraw ruler"
-                  : pendingAutoCalibration
-                    ? "Set manually instead"
-                    : "Set scale"}
-            </Button>
-          </ScaleActionWithHint>
+          {!pendingAutoCalibration && (
+            <div className="space-y-3" data-testid="manual-scale-placement">
+              {manualScaleAction}
 
-          {store.mode === "calibrate" ? (
-            <div
-              role="status"
-              data-testid="manual-scale-guidance"
-              className="flex gap-2 rounded-md border border-rose-500/60 bg-rose-500/10 p-3 text-rose-900 ring-2 ring-rose-500/20 dark:text-rose-100"
-            >
-              <Scaling className="mt-0.5 h-4 w-4 shrink-0" />
-              <div className="space-y-1">
-                <p className="text-sm font-semibold">
-                  {perspectiveCorrection ? "Set scale manually:" : "Auto Calibration Unsuccessful:"}
-                </p>
-                <p className="text-xs leading-relaxed">
-                  Select two points on the image that are a known distance
-                  apart. Zoom in first for more precise placement.
-                </p>
-              </div>
+              {store.mode === "calibrate" ? (
+                <div
+                  role="status"
+                  data-testid="manual-scale-guidance"
+                  className="flex gap-2 rounded-md border border-rose-500/60 bg-rose-500/10 p-3 text-rose-900 ring-2 ring-rose-500/20 dark:text-rose-100"
+                >
+                  <Scaling className="mt-0.5 h-4 w-4 shrink-0" />
+                  <div className="space-y-1">
+                    <p className="text-sm font-semibold">
+                      {perspectiveCorrection ? "Set scale manually:" : "Auto Calibration Unsuccessful:"}
+                    </p>
+                    <p className="text-xs leading-relaxed">
+                      Select two points on the image that are a known distance
+                      apart. Zoom in first for more precise placement.
+                    </p>
+                  </div>
+                </div>
+              ) : null}
             </div>
-          ) : null}
+          )}
 
-          {!usingReferenceStrip && (
+          {!pendingAutoCalibration && !usingReferenceStrip && (
             <div
               className={cn(
                 "space-y-1.5 rounded-md",
@@ -803,9 +809,11 @@ export function TraceControlsPanel({
             </div>
           )}
 
-          <p className="text-[11px] text-muted-foreground">
-            {describeScale(displayedScale)}
-          </p>
+          {!pendingAutoCalibration && (
+            <p className="text-[11px] text-muted-foreground">
+              {describeScale(displayedScale)}
+            </p>
+          )}
 
           {(calibrationSource === "sheet" || calibrationSource === "strip") && calibration && (
             <p className="flex items-center gap-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-300">
@@ -816,18 +824,18 @@ export function TraceControlsPanel({
             </p>
           )}
 
-          {(calibration || pendingAutoCalibration) && (
+          {calibration && (
             <Button
               variant="ghost"
               size="sm"
               className="w-full"
               onClick={() => dispatch({ type: "SET_CALIBRATION", calibration: null })}
             >
-              {pendingAutoCalibration ? "Dismiss detected scale" : "Clear scale"}
+              Clear scale
             </Button>
           )}
 
-          {(!usingReferenceStrip || perspectiveCorrection) && (
+          {!pendingAutoCalibration && (!usingReferenceStrip || perspectiveCorrection) && (
             <div className="space-y-2 rounded-md border p-3">
               <div className="flex items-center gap-2 text-sm font-medium">
                 <ScanLine className="h-4 w-4 text-amber-600" />
@@ -958,116 +966,7 @@ export function TraceControlsPanel({
               )}
             </div>
           )}
-          <ReferenceStripDownloads />
-
-
-          <p className="text-xs text-muted-foreground">
-            Need a calibration sheet?{" "}
-            <button
-              type="button"
-              className="font-medium text-primary underline underline-offset-2 hover:no-underline"
-              onClick={() => {
-                setPerspectivePaper("a4");
-                downloadCalibrationTemplate("a4");
-              }}
-              data-testid="link-print-template-a4"
-            >
-              Print A4 PDF template
-            </button>{" "}
-            or{" "}
-            <button
-              type="button"
-              className="font-medium text-primary underline underline-offset-2 hover:no-underline"
-              onClick={() => {
-                setPerspectivePaper("letter");
-                downloadCalibrationTemplate("letter");
-              }}
-              data-testid="link-print-template-letter"
-            >
-              Print US Letter PDF template
-            </button>
-            .
-          </p>
-
-          <Dialog open={calibrationSheetOpen} onOpenChange={setCalibrationSheetOpen}>
-            <Button
-              variant="link"
-              size="sm"
-              className="h-auto w-fit p-0 text-xs font-normal text-muted-foreground"
-              onClick={() => setCalibrationSheetOpen(true)}
-              data-testid="button-calibration-sheet-options"
-            >
-              Calibration sheet options
-            </Button>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Calibration sheet</DialogTitle>
-                <DialogDescription>
-                  Print at 100%, then include the sheet beneath tools for automatic
-                  scale and perspective correction. Current sheets remain the stable
-                  default. Experimental sheets use smaller markers closer to the page
-                  corners for a larger photography area and longer correction
-                  baselines. All four markers are required.
-                </DialogDescription>
-              </DialogHeader>
-              <Button
-                variant="outline"
-                disabled={imageSize.width === 0}
-                onClick={() => {
-                  setCalibrationSheetOpen(false);
-                  onDetectMarkers();
-                }}
-                data-testid="button-detect-markers"
-              >
-                <ScanSearch className="mr-1.5 h-4 w-4" />
-                Detect sheet or strip in this image
-              </Button>
-              <p className="text-xs font-medium">Current sheets</p>
-              <div className="grid grid-cols-2 gap-2">
-                <Button
-                  variant={perspectivePaper === "a4" ? "default" : "outline"}
-                  aria-pressed={perspectivePaper === "a4"}
-                  onClick={() => {
-                    setPerspectivePaper("a4");
-                    downloadCalibrationTemplate("a4");
-                  }}
-                  data-testid="button-template-a4"
-                >
-                  Print A4 PDF
-                </Button>
-                <Button
-                  variant={perspectivePaper === "letter" ? "default" : "outline"}
-                  aria-pressed={perspectivePaper === "letter"}
-                  onClick={() => {
-                    setPerspectivePaper("letter");
-                    downloadCalibrationTemplate("letter");
-                  }}
-                  data-testid="button-template-letter"
-                >
-                  Print US Letter PDF
-                </Button>
-              </div>
-              <p className="text-xs font-medium">Experimental corner-marker sheets</p>
-              <div className="grid grid-cols-2 gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => downloadCalibrationTemplate("a4-experimental")}
-                  data-testid="button-template-a4-experimental"
-                >
-                  A4 experimental
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() =>
-                    downloadCalibrationTemplate("letter-experimental")
-                  }
-                  data-testid="button-template-letter-experimental"
-                >
-                  Letter experimental
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+          <CalibrationDownloads onPaperSelected={setPerspectivePaper} onDetectMarkers={onDetectMarkers} />
         </PanelSection>
 
         <PanelSection

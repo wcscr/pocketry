@@ -2,10 +2,12 @@
 
 Trace can calibrate from a reference resting on a thick object, reducing the
 apparent enlargement caused by measuring a raised edge against paper below it.
-**Printable measurement aids** are available before uploading a photo and inside
-**Scale**. Select **50, 100 or 200 mm**, then download a two-colour **3MF** or a
-recessed **STL**. The original paper strip remains available as A4 and US Letter
-PDFs. Generation and detection happen locally in the browser.
+**Download templates** opens a shared dialog from the upload screen, **Scale**,
+or Help. It contains experimental A4 / US Letter corner-marker PDFs and
+**50, 100 or 200 mm** measurement aids as two-colour **3MF** files. Legacy sheets,
+the original paper strip and recessed STL aids are no longer offered in the
+app. Previously printed marker families remain recognized. Generation and
+detection happen locally in the browser.
 
 ## Print and photograph
 
@@ -19,9 +21,6 @@ PDFs. Generation and detection happen locally in the browser.
   markers facing up, at 0.2 mm layers. The black inlays occupy the top 0.4 mm
   and finish flush. Keep the parts assembled; do not auto-arrange them.
   Preview colours alone do not prove filament assignment.
-- **STL:** print in opaque white, then fill the 0.4 mm recessed markings with
-  matte black paint, keeping the white cells and borders clean. STL has no
-  colour information; an unpainted, single-colour print is not an optical marker.
 - Print at **100%**, never scale to fit. Check the finished end-to-end length
   and ruler ticks against a physical ruler or calipers before using it for scale.
 - Choose the longest aid that fits flat on the part furthest from the paper,
@@ -35,18 +34,17 @@ PDFs. Generation and detection happen locally in the browser.
 - When both references are usable, choose **Correct perspective & use aid
   scale** to straighten the image using the paper corners while deriving scale
   from the aid. Alternatively choose aid-only or paper-only scale, or paper
-  correction with paper scale. **Correct perspective only** still leads to
-  manual scale selection.
+  correction with paper scale under the collapsed **Advanced** section. The
+  recommended action and **Set manually instead** are the only initial choices.
+  **Correct perspective only**, under Advanced, leads to manual scale selection.
 - Verify one physical object dimension before printing a pocket. Calibration
   is at the marker surface, including the aid's 2 mm thickness. Other object
   heights, flex, perspective and lens distortion can still produce error. For
   an uneven object, measure the relevant dimension and set scale manually.
 
-For the original **100 × 20 mm paper strip**, expand the paper download section.
-Print at **100% / Actual size**, with Fit to page disabled. Check the separate
-100 mm verification bar, cut out the complete strip, and retain its white
-borders. Mount it flat on thin, rigid backing if needed. Its original IDs and
-80 mm baseline remain recognized, including previously printed 1.2 mm 3MF strips.
+Previously printed **100 × 20 mm paper strips** retain their original IDs and
+80 mm baseline, including the earlier 1.2 mm 3MF strip. Legacy references are
+recognized but are no longer listed in the download dialog.
 
 The aids provide a scalar scale, not 3D reconstruction. Detection checks both
 the aid and the paper. When both pass validation, Scale prompts for the reference
@@ -59,9 +57,13 @@ paper area. **Restore original photo** reverses the correction.
 If the aid is incomplete, mixed, duplicated or geometrically invalid, Trace tries
 the paper markers and offers their scale and perspective correction when valid.
 A notice identifies this paper fallback, and the Scale panel names the sheet.
-Paper scaling can still enlarge thick tools; use the existing thickness hint or
-choose perspective-only correction followed by manual scaling. If neither
-reference validates, no automatic scale is proposed.
+Paper scaling can still enlarge thick tools. Hover over the amber exclamation
+mark or **Accuracy with thick objects** below the automatic options for the
+detected-reference details and guidance on reference height and manual scaling.
+This single hint applies to the whole group and does not open on focus or click. Choose perspective-only correction
+to continue with manual scaling. Guided steps keep the active controls and their
+instructions together in view, including **Placing ruler** after correction.
+If neither reference validates, no automatic scale is proposed.
 
 ## Geometry and detection contract
 
@@ -98,7 +100,8 @@ These tolerances accommodate sampling noise; they are not an accuracy guarantee.
 
 The 3MF is a Manifold-built white carrier with complementary black inlays. Both
 parts are closed indexed meshes, share a flush top plane and form one assembled
-build item without overlapping volume. The STL exports the recessed white carrier.
+build item without overlapping volume. Recessed STL downloads were withdrawn
+because recognition of manually coloured prints has not been physically validated.
 Existing 3MF serialization supplies material colours and Bambu part extruder
 metadata. Other slicers may need explicit white/black assignments.
 
@@ -110,10 +113,10 @@ npm run generate:reference-strip
 npm run generate:reference-strip -- /tmp/pocketry-measurement-aids
 ```
 
-The output includes 3MF/STL downloads, SVG top views, mesh data and a dimensions
+The output includes 3MF downloads, SVG top views, mesh data and a dimensions
 manifest. Tests exercise the shipped OpenCV detector against independent marker
 photos, rotated rasters of the actual exported black mesh triangles, mixed
 sheet/strip planes, malformed signatures and the original PDF ink. Mesh checks
-cover dimensions, closed/wound surfaces, edge profiles, non-overlap, recessed STL
-markings and multipart/material packaging. Real printer shrinkage, flexibility,
-opacity and photographic accuracy still require a physical print and measurement.
+cover dimensions, closed/wound surfaces, edge profiles, non-overlap and
+multipart/material packaging. Real printer shrinkage, flexibility, opacity and
+photographic accuracy still require a physical print and measurement.

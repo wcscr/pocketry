@@ -213,7 +213,7 @@ describe("App", () => {
     // The dropzone belongs in the empty canvas, not in the controls panel.
     expect(container.textContent).toContain("Trace a tool from a photo");
     expect(container.textContent).toContain(
-      "Photograph the tool on the provided A4 or US Letter template or plain background",
+      "Photograph the tool on a calibration sheet or a plain, contrasting background",
     );
     expect(container.textContent).toContain("Drag & drop an image here");
     expect(container.textContent).not.toContain("Untitled");
@@ -241,12 +241,8 @@ describe("App", () => {
     expect(help?.textContent).toContain(
       "all four paper-specific markers are required",
     );
-    expect(
-      help?.querySelector('[data-testid="help-print-template-a4"]'),
-    ).not.toBeNull();
-    expect(
-      help?.querySelector('[data-testid="help-print-template-letter"]'),
-    ).not.toBeNull();
+    expect(help?.textContent).toContain("Download templates");
+    expect(help?.textContent).not.toContain("Printable measurement aids");
     expect(help?.textContent).toContain("another item with a precisely known dimension");
     expect(help?.textContent).toContain("Before printing the full bin");
     expect(help?.textContent).toContain("Preview/shadow-board layout");

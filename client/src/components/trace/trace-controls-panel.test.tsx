@@ -210,7 +210,10 @@ afterEach(() => {
 
 async function click(testId: string): Promise<void> {
   await React.act(async () => {
-    host.querySelector<HTMLButtonElement>(`[data-testid="${testId}"]`)?.click();
+    const target = host.querySelector<HTMLButtonElement>(`[data-testid="${testId}"]`);
+    const advanced = target?.closest("details");
+    if (advanced && !advanced.open) advanced.querySelector("summary")?.click();
+    target?.click();
     await new Promise((resolve) => window.setTimeout(resolve, 10));
   });
 }
@@ -256,31 +259,28 @@ async function clickSection(id: string): Promise<void> {
 }
 
 describe("TraceControlsPanel guided workflow", () => {
-  it("keeps thickness guidance hidden during automatic focus and opens it only on hover", async () => {
+  it("shares one hover-only thickness hint below all automatic options", async () => {
     await click("load-source");
-    expect(document.querySelector('[role="tooltip"]')).toBeNull();
-    expect(host.textContent).not.toContain("oversized outlines");
-    expect(host.querySelectorAll('[aria-label="About scaling thick objects"]')).toHaveLength(1);
-
-    const manualHint = host.querySelector<HTMLButtonElement>(
-      '[aria-label="About scaling thick objects"]',
-    )!;
-    await React.act(async () => {
-      manualHint.focus();
-      manualHint.click();
-    });
-    expect(document.querySelector('[role="tooltip"]')).toBeNull();
-
+    expect(host.textContent).not.toContain("Accuracy with thick objects");
     await click("detect-auto-perspective");
-    const accept = host.querySelector<HTMLButtonElement>(
-      '[data-testid="button-accept-auto-scale"]',
-    )!;
-    expect(document.activeElement).toBe(accept);
+    const primary = host.querySelector('[data-testid="button-apply-auto-perspective"]');
+    expect(document.activeElement).toBe(primary);
     expect(document.querySelector('[role="tooltip"]')).toBeNull();
 
-    const hints = host.querySelectorAll<HTMLButtonElement>('[aria-label="About scaling thick objects"]');
+    const hints = [...host.querySelectorAll("button")].filter(
+      (button) => button.textContent === "Accuracy with thick objects",
+    );
     expect(hints).toHaveLength(1);
     const hint = hints[0];
+    const options = host.querySelector('[data-testid="auto-calibration-options"]')!;
+    expect(options.contains(hint)).toBe(true);
+    expect(options.querySelectorAll("button").item(options.querySelectorAll("button").length - 1)).toBe(hint);
+    expect(options.contains(host.querySelector('[data-testid="button-set-scale"]'))).toBe(true);
+    expect(hint.querySelector("svg")?.classList.contains("lucide-circle-alert")).toBe(true);
+    expect(hint.className).toContain("text-amber-");
+
+    await React.act(async () => { hint.focus(); hint.click(); });
+    expect(document.querySelector('[role="tooltip"]')).toBeNull();
     await React.act(async () => {
       const hover = new MouseEvent("pointermove", { bubbles: true });
       Object.defineProperty(hover, "pointerType", { value: "mouse" });
@@ -289,7 +289,8 @@ describe("TraceControlsPanel guided workflow", () => {
     });
     const tooltip = document.querySelector('[role="tooltip"]');
     expect(tooltip?.textContent).toContain("closer to the camera");
-    expect(tooltip?.textContent).toContain("set the scale manually");
+    expect(tooltip?.textContent).toContain("set scale manually");
+    expect(tooltip?.textContent).toContain("measurement aid at the feature’s height");
     expect(host.contains(tooltip)).toBe(false);
 
     await React.act(async () => {
@@ -354,28 +355,9 @@ describe("TraceControlsPanel guided workflow", () => {
       host.querySelector('[data-testid="manual-scale-guidance"]')?.textContent,
     ).toContain("Zoom in first for more precise placement");
 
-    expect(host.textContent).toContain("Calibration sheet options");
-    expect(host.textContent).not.toContain("Print the current v2 sheet once");
+    expect(host.textContent).toContain("Download templates");
+    expect(host.textContent).not.toContain("Printable measurement aids");
 
-    await click("button-calibration-sheet-options");
-    expect(document.body.textContent).toContain(
-      "Current sheets remain the stable default",
-    );
-    expect(
-      document.body.querySelector('[data-testid="button-template-letter"]'),
-    ).not.toBeNull();
-    const experimental = document.body.querySelector<HTMLButtonElement>(
-      '[data-testid="button-template-a4-experimental"]',
-    );
-    expect(experimental).not.toBeNull();
-    await React.act(async () => {
-      experimental?.click();
-      await new Promise((resolve) => window.setTimeout(resolve, 10));
-    });
-    expect(downloadBlob).toHaveBeenLastCalledWith(
-      expect.any(Blob),
-      "pocketry-calibration-v2-a4-experimental.pdf",
-    );
   });
 
   it("offers clockwise and counterclockwise rotation for a loaded source", async () => {
@@ -396,8 +378,8 @@ describe("TraceControlsPanel guided workflow", () => {
 
     expect(section("scale")?.dataset.state).toBe("open");
     expect(host.textContent).toContain("Scale detected from the sheet");
-    expect(host.textContent).toContain("0.500 mm/px");
-    expect(host.querySelectorAll('[aria-label="About scaling thick objects"]')).toHaveLength(1);
+    expect(host.textContent).not.toContain("0.500 mm/px");
+    expect([...host.querySelectorAll("button")].filter((button) => button.textContent === "Accuracy with thick objects")).toHaveLength(1);
     const accept = host.querySelector<HTMLButtonElement>(
       '[data-testid="button-accept-auto-scale"]',
     );
@@ -425,7 +407,7 @@ describe("TraceControlsPanel guided workflow", () => {
       trace.dispatch({ type: "AUTO_CALIBRATION_DETECTED", sourceImageUrl: "data:image/png;base64,new-source", calibration: { ...CALIBRATION, lengthMm: 80 }, source: "strip" });
     });
     expect(host.textContent).toContain("Scale detected from the reference strip");
-    expect(host.textContent).toContain("80 mm apart on the 100 mm strip");
+    expect(host.textContent).not.toContain("80 mm apart on the 100 mm strip");
     expect(host.querySelector('[data-testid="reference-length-setting"]')).toBeNull();
     expect(host.querySelector('[data-testid="button-select-perspective-points"]')).toBeNull();
     expect(host.querySelector('[data-testid="button-apply-auto-perspective"]')).toBeNull();
@@ -433,10 +415,7 @@ describe("TraceControlsPanel guided workflow", () => {
     expect(trace.calibrationSource).toBe("strip");
     await clickSection("scale");
     expect(host.textContent).toContain("Reference-strip scale accepted");
-    const pdfButton = [...host.querySelectorAll("button")].find((button) => button.textContent === "Strip PDF · US Letter");
-    expect(pdfButton).toBeDefined();
-    await React.act(async () => { pdfButton!.click(); });
-    expect(downloadBlob).toHaveBeenLastCalledWith(expect.any(Blob), "pocketry-reference-strip-v1-letter.pdf");
+
   });
 
   it.each(["strip", "sheet", "combined"] as const)("lets the user choose %s when paper and an aid are both usable", async (choice) => {
@@ -451,6 +430,14 @@ describe("TraceControlsPanel guided workflow", () => {
     expect(host.textContent).toContain("Use paper scale only");
     expect(document.activeElement?.getAttribute("data-testid")).toBe("button-correct-perspective-aid-scale");
     expect(trace.calibration).toBeNull();
+    const advanced = host.querySelector<HTMLDetailsElement>('[data-testid="advanced-calibration-options"]')!;
+    expect(advanced.open).toBe(false);
+    const recommended = host.querySelector('[data-testid="button-correct-perspective-aid-scale"]')!;
+    expect(recommended.nextElementSibling?.getAttribute("data-testid")).toBe("button-set-scale");
+    expect(recommended.nextElementSibling?.textContent).toBe("Set manually instead");
+    expect(host.querySelector('[data-testid="button-use-aid-scale"]')?.closest("details")).toBe(advanced);
+    expect(host.querySelector('[data-testid="button-apply-auto-perspective"]')?.closest("details")).toBe(advanced);
+    expect(host.textContent).not.toContain("The ruler joins the marker centres");
     if (choice === "combined") {
       await click("button-correct-perspective-aid-scale");
       expect(applyPerspective).toHaveBeenLastCalledWith(perspective, "letter", aid);
@@ -485,7 +472,7 @@ describe("TraceControlsPanel guided workflow", () => {
       host.querySelector('[data-testid="trace-settings-index"]')?.parentElement
         ?.className,
     ).toContain("[container-type:inline-size]");
-    expect(section("scale")?.textContent).toContain(
+    expect(section("scale")?.textContent).not.toContain(
       "US Letter template detected automatically",
     );
     await click("button-apply-auto-perspective");
@@ -494,16 +481,17 @@ describe("TraceControlsPanel guided workflow", () => {
       "letter",
     );
 
-    await click("link-print-template-letter");
-    expect(downloadBlob).toHaveBeenLastCalledWith(
-      expect.any(Blob),
-      "pocketry-calibration-v2-letter.pdf",
-    );
-    const downloadedPdf = vi.mocked(downloadBlob).mock.calls.at(-1)![0];
-    expect(downloadedPdf.type).toBe("application/pdf");
-    expect(
-      new TextDecoder().decode(await downloadedPdf.arrayBuffer()).startsWith("%PDF-1.4"),
-    ).toBe(true);
+    await click("button-set-scale");
+    await React.act(async () => {
+      [...host.querySelectorAll("button")].find((button) => button.textContent === "Download templates")!.click();
+    });
+    await React.act(async () => {
+      document.querySelector<HTMLButtonElement>('[data-testid="button-template-letter-experimental"]')!.click();
+    });
+    expect(downloadBlob).toHaveBeenLastCalledWith(expect.any(Blob), "pocketry-calibration-v2-letter-experimental.pdf");
+    await React.act(async () => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    });
     await click("button-select-perspective-points");
     expect(host.textContent).toContain("corner 1 of 4");
     await click("complete-perspective-points");
@@ -550,6 +538,7 @@ describe("TraceControlsPanel guided workflow", () => {
     expect(sectionTrigger("crop")?.disabled).toBe(true);
     expect(host.querySelector('[data-testid="manual-scale-guidance"]')?.textContent).toContain("Set scale manually:");
     expect(host.querySelector('[data-testid="button-set-scale"]')?.textContent).toBe("Placing ruler");
+    expect(document.activeElement).toBe(host.querySelector('[data-testid="button-set-scale"]'));
     expect(document.querySelector('[role="tooltip"]')).toBeNull();
 
     await click("complete-manual-scale");
@@ -568,7 +557,7 @@ describe("TraceControlsPanel guided workflow", () => {
     await click("load-source");
     await click("detect-auto-experimental-perspective");
 
-    expect(section("scale")?.textContent).toContain(
+    expect(section("scale")?.textContent).not.toContain(
       "A4 experimental template detected automatically",
     );
     await click("button-apply-auto-perspective");

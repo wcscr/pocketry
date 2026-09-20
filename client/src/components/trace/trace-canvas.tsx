@@ -720,7 +720,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
         />
       ) : (
         <div className="flex h-full w-full overflow-y-auto p-4 sm:p-8">
-          <div className="m-auto w-full max-w-lg">{emptyState}</div>
+          <div className="m-auto h-full w-full max-w-5xl">{emptyState}</div>
         </div>
       )}
 

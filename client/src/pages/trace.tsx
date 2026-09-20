@@ -6,7 +6,7 @@ import type { Rect } from "@shared/geometry/types";
 import { usePanelState } from "@/components/layout/panel-context";
 import { WorkspaceLayout } from "@/components/layout/workspace-layout";
 import { TraceCanvas } from "@/components/trace/trace-canvas";
-import { ReferenceStripDownloads } from "@/components/trace/reference-strip-downloads";
+import { CalibrationDownloads } from "@/components/trace/calibration-downloads";
 import { referenceStripFromRulerLength } from "@/lib/calibrate/reference-strip";
 import { TraceControlsPanel } from "@/components/trace/trace-controls-panel";
 import { ExportConfirmationDialog } from "@/components/gridfinity/export-confirmation-dialog";
@@ -29,7 +29,6 @@ import {
 import { FileUpload } from "@/components/ui/file-upload";
 import { useToast } from "@/hooks/use-toast";
 import { autoCalibrate } from "@/lib/calibrate/auto-calibrate";
-import { downloadCalibrationTemplate } from "@/lib/calibrate/download-template";
 import {
   correctPerspective,
   RECTIFIED_IMAGE_MAX,
@@ -537,7 +536,7 @@ function TraceWorkspace(): JSX.Element {
   }, [store.exportFormat]);
 
   const dropzone = (
-    <FileUpload onFileSelected={handleFileSelected} className="h-64 w-full max-w-lg" />
+    <FileUpload onFileSelected={handleFileSelected} className="flex min-h-64 w-full flex-1 flex-col items-center justify-center" />
   );
 
   return (
@@ -576,59 +575,13 @@ function TraceWorkspace(): JSX.Element {
           <TraceCanvas
             onReprocess={() => void runDetection()}
             emptyState={
-              <div className="w-full max-w-lg space-y-3 text-center">
+              <div className="flex h-full min-h-[24rem] w-full flex-col gap-3 text-center">
                 <h2 className="text-lg font-medium">Trace a tool from a photo</h2>
                 <p className="text-sm text-muted-foreground">
-                  Photograph the tool on the provided{" "}
-                  <button
-                    type="button"
-                    className="font-medium text-primary underline underline-offset-2 hover:no-underline"
-                    onClick={() => downloadCalibrationTemplate("a4")}
-                    data-testid="empty-state-template-a4"
-                  >
-                    A4
-                  </button>{" "}
-                  or{" "}
-                  <button
-                    type="button"
-                    className="font-medium text-primary underline underline-offset-2 hover:no-underline"
-                    onClick={() => downloadCalibrationTemplate("letter")}
-                    data-testid="empty-state-template-letter"
-                  >
-                    US Letter
-                  </button>{" "}
-                  template{" "}
-                  <strong className="font-semibold italic">or</strong>{" "}
-                  plain background that contrasts with it, and keep the whole
-                  tool in frame.
+                  Photograph the tool on a calibration sheet <strong className="font-semibold italic">or</strong>{" "}
+                  a plain, contrasting background. Keep the whole tool in frame.
                 </p>
-                <p className="text-xs text-muted-foreground">
-                  Experimental sheets place smaller markers nearer the page
-                  corners: {" "}
-                  <button
-                    type="button"
-                    className="font-medium text-primary underline underline-offset-2 hover:no-underline"
-                    onClick={() =>
-                      downloadCalibrationTemplate("a4-experimental")
-                    }
-                    data-testid="empty-state-template-a4-experimental"
-                  >
-                    A4 experimental
-                  </button>{" "}
-                  or {" "}
-                  <button
-                    type="button"
-                    className="font-medium text-primary underline underline-offset-2 hover:no-underline"
-                    onClick={() =>
-                      downloadCalibrationTemplate("letter-experimental")
-                    }
-                    data-testid="empty-state-template-letter-experimental"
-                  >
-                    US Letter experimental
-                  </button>
-                  .
-                </p>
-                <ReferenceStripDownloads />
+                <CalibrationDownloads />
                 {dropzone}
               </div>
             }

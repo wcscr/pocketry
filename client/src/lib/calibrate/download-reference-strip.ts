@@ -16,13 +16,11 @@ export async function downloadReferenceStripThreeMf(): Promise<void> {
   downloadBlob(new Blob([bytes], { type: "model/3mf" }), "pocketry-reference-strip-v1.3mf");
 }
 
-export async function downloadMeasurementAid(length: MeasurementAidLength, format: "3mf" | "stl"): Promise<void> {
-  const [{ withKernel }, { measurementAidThreeMf, measurementAidStl }] = await Promise.all([
+export async function downloadMeasurementAid(length: MeasurementAidLength): Promise<void> {
+  const [{ withKernel }, { measurementAidThreeMf }] = await Promise.all([
     import("@/lib/manifold/runtime"), import("./measurement-aid-mesh"),
   ]);
-  const bytes = await withKernel((kernel) => format === "3mf"
-    ? measurementAidThreeMf(kernel, length)
-    : measurementAidStl(kernel, length));
-  downloadBlob(new Blob([bytes], { type: format === "3mf" ? "model/3mf" : "model/stl" }),
-    `pocketry-measurement-aid-${length}mm-v2.${format}`);
+  const bytes = await withKernel((kernel) => measurementAidThreeMf(kernel, length));
+  downloadBlob(new Blob([bytes], { type: "model/3mf" }),
+    `pocketry-measurement-aid-${length}mm-v2.3mf`);
 }

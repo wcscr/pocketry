@@ -7,7 +7,7 @@ import { referenceStripThreeMf } from "../client/src/lib/calibrate/reference-str
 import { referenceStripPdf } from "../client/src/lib/calibrate/reference-strip-pdf";
 import { referenceStripSvg } from "../client/src/lib/calibrate/reference-strip";
 import { MEASUREMENT_AID_LENGTHS, MEASUREMENT_AIDS } from "../client/src/lib/calibrate/reference-strip";
-import { measurementAidMeshes, measurementAidThreeMf, measurementAidStl } from "../client/src/lib/calibrate/measurement-aid-mesh";
+import { measurementAidMeshes, measurementAidThreeMf } from "../client/src/lib/calibrate/measurement-aid-mesh";
 import { measurementAidSvg, MEASUREMENT_AID_EDGE } from "../client/src/lib/calibrate/measurement-aid";
 
 // Like export:bin, inject a Node kernel without Vite's browser WASM URL import.
@@ -22,7 +22,6 @@ try {
   for (const length of MEASUREMENT_AID_LENGTHS) {
     const name = `pocketry-measurement-aid-${length}mm-v2`;
     await writeFile(resolve(directory, `${name}.3mf`), measurementAidThreeMf(kernel, length));
-    await writeFile(resolve(directory, `${name}.stl`), new Uint8Array(measurementAidStl(kernel, length)));
     await writeFile(resolve(directory, `${name}.svg`), measurementAidSvg(length));
     await writeFile(resolve(directory, `${name}-mesh.json`), JSON.stringify(measurementAidMeshes(kernel, length).map(({ name, mesh, material }) => ({ name, material, positions: Array.from(mesh.positions), indices: Array.from(mesh.indices) }))));
   }
