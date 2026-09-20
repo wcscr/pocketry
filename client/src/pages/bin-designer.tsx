@@ -11,6 +11,7 @@ import { EditHistoryMenu } from "@/components/history/edit-history-menu";
 import { usePanelState } from "@/components/layout/panel-context";
 import { WorkspaceLayout } from "@/components/layout/workspace-layout";
 import { Button } from "@/components/ui/button";
+import { canHandleCanvasShortcut } from "@/lib/canvas-keyboard";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -704,10 +705,7 @@ function BinDesignerWorkspace(): JSX.Element {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (!(event.metaKey || event.ctrlKey)) return;
-      const target = event.target as HTMLElement | null;
-      if (target && (/^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName) || target.isContentEditable)) {
-        return;
-      }
+      if (!canHandleCanvasShortcut(event) || event.altKey) return;
       const key = event.key.toLowerCase();
       if (key === "z") {
         dispatch({ type: event.shiftKey ? "REDO" : "UNDO" });
@@ -1056,7 +1054,7 @@ function BinDesignerWorkspace(): JSX.Element {
             onChange={(mode) => dispatch({ type: "SET_VIEW_MODE", viewMode: mode })}
           />
           {viewMode === "3d" && section && (
-            <div className="absolute left-3 top-12 z-30 flex max-w-[calc(100%_-_4.5rem)] flex-wrap items-center gap-x-3 gap-y-1 rounded-md border bg-background/95 p-2 shadow-sm backdrop-blur">
+            <div className="absolute left-3 top-16 md:top-12 [@media(pointer:coarse)]:top-16 z-30 flex max-w-[calc(100%_-_4.5rem)] flex-wrap items-center gap-x-3 gap-y-1 rounded-md border bg-background/95 p-2 shadow-sm backdrop-blur">
               <span className="text-xs text-muted-foreground">Section view</span>
               <Button
                 variant="outline"
@@ -1074,7 +1072,7 @@ function BinDesignerWorkspace(): JSX.Element {
             <Button
               variant="ghost"
               size="sm"
-              className="h-11 min-w-11 rounded-none px-2 md:h-7 md:min-w-0"
+              className="h-11 min-w-11 rounded-none px-2 md:h-7 md:min-w-0 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11"
               disabled={!bin.canUndo}
               onClick={() => dispatch({ type: "UNDO" })}
               aria-label={
@@ -1095,7 +1093,7 @@ function BinDesignerWorkspace(): JSX.Element {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-11 min-w-11 rounded-none px-2 md:h-7 md:min-w-0"
+                  className="h-11 min-w-11 rounded-none px-2 md:h-7 md:min-w-0 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11"
                   aria-label="Show edit history"
                   title="Show edit history"
                   data-testid="button-bin-history"
@@ -1107,7 +1105,7 @@ function BinDesignerWorkspace(): JSX.Element {
             <Button
               variant="ghost"
               size="sm"
-              className="h-11 min-w-11 rounded-none px-2 md:h-7 md:min-w-0"
+              className="h-11 min-w-11 rounded-none px-2 md:h-7 md:min-w-0 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11"
               disabled={!bin.canRedo}
               onClick={() => dispatch({ type: "REDO" })}
               aria-label={
@@ -1146,7 +1144,7 @@ function ViewToggle({
           variant="ghost"
           size="sm"
           className={cn(
-            "h-11 rounded-none px-3 text-xs md:h-7",
+            "h-11 rounded-none px-3 text-xs md:h-7 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11",
             viewMode === mode && "bg-accent text-accent-foreground",
           )}
           onClick={() => onChange(mode)}

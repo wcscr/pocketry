@@ -57,13 +57,13 @@ afterEach(() => {
 });
 
 describe("mobile development welcome", () => {
-  it("shows the mobile introduction and feedback links without navigating or opening another app", async () => {
+  it("shows the mobile introduction and GitHub feedback link without navigating", async () => {
     await render();
     expect(dialog()?.textContent).toContain("The mobile interface is in early development.");
     expect(dialog()?.textContent).toContain("We’re looking for feedback");
     expect(document.activeElement?.textContent).toBe("Help improve Pocketry on mobile");
-    const email = dialog()!.querySelector('a[href="mailto:pocketry@sugarcreekresearch.com"]');
-    expect(email?.textContent).toBe("Email feedback");
+    expect(dialog()?.textContent).toContain("Please open a GitHub issue.");
+    expect(dialog()!.querySelector('a[href^="mailto:"]')).toBeNull();
     const github = dialog()!.querySelector<HTMLAnchorElement>('a[href="https://github.com/wcscr/pocketry/issues/new"]')!;
     expect(github.target).toBe("_blank");
     expect(github.rel).toBe("noopener noreferrer");

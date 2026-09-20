@@ -41,6 +41,13 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
         </DialogHeader>
 
         <div className="space-y-5 text-sm">
+          <section aria-label="Feedback">
+            <p className="text-muted-foreground">Found a problem or have a suggestion? We welcome feedback, especially while the mobile interface is in early development.</p>
+            <div className="flex flex-wrap gap-x-5">
+              <a className="inline-flex min-h-11 items-center text-primary underline underline-offset-4" href="mailto:pocketry@sugarcreekresearch.com">Email feedback</a>
+              <a className="inline-flex min-h-11 items-center text-primary underline underline-offset-4" href="https://github.com/wcscr/pocketry/issues/new" target="_blank" rel="noopener noreferrer">Report an issue on GitHub<span className="sr-only"> (opens a new tab)</span></a>
+            </div>
+          </section>
           <section>
             <h3 className="mb-1.5 font-medium">1. Trace a tool</h3>
             <ol className="list-decimal space-y-1 pl-6 text-muted-foreground">
@@ -81,11 +88,12 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
               </li>
               <li>
                 Tune <strong>Outline</strong>: Sensitivity changes what is
-                admitted as tool, and Detail controls point density.
+                admitted as tool. Higher Simplification values use fewer points
+                and may omit small features.
                 Outside silhouettes are the default; enable interior
                 holes only for real openings. Sensitivity updates the outline when you
                 release the slider. Confirmation is needed only when replacing manual
-                contour edits. Detail preserves those edits; re-detection is undoable.
+                contour edits. Simplification preserves those edits; re-detection is undoable.
               </li>
               <li>
                 Choose a physical <strong>Margin</strong> from 0.0–5.0 mm, then

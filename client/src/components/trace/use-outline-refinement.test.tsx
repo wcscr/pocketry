@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 import { describe, expect, it, vi } from "vitest";
 
 import type { Outline } from "@shared/geometry/types";
+import { traceDraftSnapshot } from "@/lib/trace-draft";
 
 import {
   TraceProvider,
@@ -70,6 +71,36 @@ function mountHook(
 }
 
 describe("useOutlineRefinement", () => {
+  it("recovers an edited contour and its margin exactly, then refines subsequent scale changes", async () => {
+    const refiner = vi.fn<OutlineRefiner>(async (outline) => outline);
+    const offsetter = vi.fn<OutlineOffsetter>(async (outline) => outline);
+    const mounted = mountHook(refiner, offsetter);
+    try {
+      const draft = traceDraftSnapshot({
+        ...mounted.store(),
+        imageUrl: "data:image/png;base64,AA==",
+        imageSize: { width: 100, height: 100 },
+        outline: OUTLINE,
+        rawOutline: OUTLINE,
+        tolerancePx: 3,
+        margin: 2,
+        calibration: { startX: 0, startY: 0, endX: 100, endY: 0, lengthMm: 50 },
+        calibrationSource: "manual",
+      });
+      if (!draft) throw new Error("Expected a recovery draft");
+      await React.act(async () => {
+        mounted.store().dispatch({ type: "TRACE_DRAFT_RESTORED", draft });
+      });
+      expect(mounted.store().outline).toEqual(OUTLINE);
+      expect(refiner).not.toHaveBeenCalled();
+      expect(offsetter).not.toHaveBeenCalled();
+
+      await React.act(async () => {
+        mounted.store().dispatch({ type: "SET_RULER_LENGTH", rulerLengthMm: 100 });
+      });
+      expect(offsetter).toHaveBeenCalledExactlyOnceWith(OUTLINE, -2);
+    } finally { mounted.unmount(); }
+  });
   it("refines the edited baseline, preserves deleted holes, and undoes without refining again", async () => {
     const raw: Outline = [{ ...OUTLINE[0], holes: [[{ x: 2, y: 2 }, { x: 3, y: 2 }, { x: 2, y: 3 }]] }];
     const edited: Outline = [{ ...OUTLINE[0], outer: [...OUTLINE[0].outer, { x: -3, y: 5 }] }];

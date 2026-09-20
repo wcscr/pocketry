@@ -48,7 +48,7 @@ export function EditHistoryMenu({
           <Button
             variant="ghost"
             size="icon"
-            className="h-11 w-11 md:h-8 md:w-8"
+            className="h-11 w-11 md:h-8 md:w-8 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11"
             aria-label="Show edit history"
             title="Show edit history"
             data-testid={testId}
@@ -77,7 +77,7 @@ export function EditHistoryMenu({
                 key={`${entryIndex}-${entry.label}`}
                 type="button"
                 className={cn(
-                  "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs",
+                  "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs [@media(pointer:coarse)]:min-h-11",
                   current
                     ? "bg-accent font-medium text-accent-foreground"
                     : "hover:bg-accent/60",

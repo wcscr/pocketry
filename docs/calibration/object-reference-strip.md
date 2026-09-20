@@ -82,8 +82,8 @@ instructions together in view, including **Placing ruler** after correction.
 If neither reference validates, no automatic scale is proposed.
 
 On the first mobile visit, a dismissible welcome explains that the interface is
-in early development. It links to `pocketry@sugarcreekresearch.com` and GitHub
-issues for feedback. Dismissal is remembered in the browser, with a session
+in early development. It recommends opening a GitHub issue for feedback;
+the welcome's email link is temporarily removed. Dismissal is remembered in the browser, with a session
 fallback if persistent storage is blocked.
 
 ## Geometry and detection contract

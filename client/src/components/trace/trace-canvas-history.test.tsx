@@ -230,6 +230,45 @@ afterEach(() => {
 });
 
 describe("TraceCanvas edit history", () => {
+  it("leaves undo and zoom to dialogs, focused controls, and earlier handlers", async () => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const root = createRoot(host);
+    try {
+      await React.act(async () => {
+        root.render(<TraceProvider><SeedTrace /><TooltipProvider><TraceCanvas onReprocess={() => {}} /></TooltipProvider></TraceProvider>);
+      });
+      const outlinePath = () => host.querySelector('[data-testid="detected-contour-stroke"]')?.getAttribute("d");
+      const editedPath = outlinePath();
+      expect(editedPath).toBeTruthy();
+      const key = (target: EventTarget, value: string, ctrlKey = false, handled = false) => {
+        const event = new KeyboardEvent("keydown", { key: value, ctrlKey, bubbles: true, cancelable: true });
+        if (handled) event.preventDefault();
+        React.act(() => target.dispatchEvent(event));
+        return event;
+      };
+      const dialog = document.createElement("div");
+      dialog.setAttribute("role", "dialog");
+      document.body.appendChild(dialog);
+      expect(key(window, "z", true).defaultPrevented).toBe(false);
+      expect(key(window, "+").defaultPrevented).toBe(false);
+      expect(outlinePath()).toBe(editedPath);
+      dialog.remove();
+
+      const button = host.querySelector('[aria-label="Set scale"]')!;
+      expect(key(button, "z", true).defaultPrevented).toBe(false);
+      expect(key(button, "1").defaultPrevented).toBe(false);
+      key(window, "z", true, true);
+      expect(outlinePath()).toBe(editedPath);
+
+      expect(key(window, "z", true).defaultPrevented).toBe(true);
+      expect(outlinePath()).not.toBe(editedPath);
+      expect(key(window, "+").defaultPrevented).toBe(true);
+    } finally { React.act(() => root.unmount()); }
+  });
+
   it("opens canvas toolbar tips below the toolbar", async () => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     vi.stubGlobal("ResizeObserver", NoopResizeObserver);

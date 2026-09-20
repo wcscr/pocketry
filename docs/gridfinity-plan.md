@@ -2,9 +2,13 @@
 
 Pocket names belong to individual placements. Renaming a copy leaves the original,
 other copies, and the source shape unchanged. Names appear in pocket controls,
-spacing references, warnings, canvas labels, and fit-template exports. Project
+spacing references, removal confirmations, warnings, canvas labels, and fit-template exports. Project
 schema v19 preserves them through undo/redo and project save/import; older pockets
 continue to display their source shape name until renamed.
+Pocket-list selection, rename, duplicate, and remove targets grow to at least
+44 pixels for coarse pointers while retaining compact mouse controls. Printable
+STL and 3MF confirmations show outer width × length × height in millimetres,
+including the stacking lip when enabled.
 
 Basic-shape pockets are available from **Layout → Add pocket** and the **Pockets**
 panel. Draw a rectangle or square between opposite corners, or a circle from its
@@ -149,8 +153,10 @@ Empty untouched drafts open directly, and named projects retain the save-before-
 behavior. A failed open keeps the draft and confirmation available. On short
 screens, Manage scrolls as a whole so project rows and library transfers remain
 reachable; narrow rows wrap their actions within the card. Long project names
-wrap within both removal and replacement confirmations without pushing their
-actions outside a narrow dialog. Manage focuses and
+wrap within rename, removal, and replacement dialogs without pushing their
+actions outside a narrow dialog. The persistent save status distinguishes a
+draft autosaved locally from a named project saved to the browser library, and
+shows saving or failure explicitly. Manage focuses and
 scrolls to the current project when opened, falling back to the first project or
 the export action in an empty library. The library is
 implemented entirely over IndexedDB so its behavior is consistent across modern

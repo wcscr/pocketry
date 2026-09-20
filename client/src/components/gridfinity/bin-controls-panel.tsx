@@ -352,6 +352,7 @@ export function BinControlsPanel({
   );
 
   const dims = useMemo(() => binDimensionsMm(spec), [spec]);
+  const exportDimensions = `Outer size: ${dims.widthMm.toFixed(1)} × ${dims.lengthMm.toFixed(1)} × ${dims.totalHeightMm.toFixed(1)} mm (width × length × height).`;
   const widthCellSpan = standardCellSpan(spec.gridX, spec.gridPitch);
   const lengthCellSpan = standardCellSpan(spec.gridY, spec.gridPitch);
   const hasFloorMaterialWarning = issues.some((issue) => issue.code === "floor-color-on-underside");
@@ -373,6 +374,7 @@ export function BinControlsPanel({
   );
   const [surfaceFitCheckStyle, setSurfaceFitCheckStyle] = useState<SurfaceFitCheckStyle>("outline");
   const [threeMfDialogOpen, setThreeMfDialogOpen] = useState(false);
+  const threeMfTitleRef = useRef<HTMLHeadingElement>(null);
   const [includeThreeMfProject, setIncludeThreeMfProject] = useState(false);
   const [pendingExport, setPendingExport] = useState<{
     title: string;
@@ -503,7 +505,7 @@ export function BinControlsPanel({
     <div className="flex h-full flex-col">
       <div className="shrink-0 border-b px-3 py-2" data-testid="project-status">
         <p className="truncate text-sm font-medium" title={currentProjectName ?? "Untitled project"}>{currentProjectName ?? "Untitled project"}</p>
-        <p className="text-[11px] text-muted-foreground" role="status">{!hydrated ? "Opening project…" : projectBusy ? "Working…" : saveStatus === "saving" ? "Saving in this browser…" : saveStatus === "error" ? "Could not save. Export this project to keep your work." : "Saved in this browser"}</p>
+        <p className="text-[11px] text-muted-foreground" role="status">{!hydrated ? "Opening project…" : projectBusy ? "Working…" : saveStatus === "saving" ? activeProjectId ? "Saving to browser library…" : "Draft — saving locally…" : saveStatus === "error" ? "Could not save. Export this project to keep your work." : activeProjectId ? "Saved to browser library" : "Draft — autosaved locally"}</p>
       </div>
       {/* On short screens the section headers remain reachable by scrolling;
           reserve the limited height for editable fields instead of shortcuts. */}
@@ -858,7 +860,7 @@ export function BinControlsPanel({
                     ) : (
                     <button
                       type="button"
-                      className="flex min-h-8 min-w-0 flex-1 items-center gap-2 rounded px-2 py-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="flex min-h-8 min-w-0 flex-1 items-center gap-2 rounded px-2 py-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [@media(pointer:coarse)]:min-h-11"
                       aria-label={`${name} — edit pocket properties`}
                       aria-pressed={isSelected}
                       aria-controls="pocket-properties"
@@ -871,16 +873,16 @@ export function BinControlsPanel({
                       <span className={cn("min-w-0 flex-1 truncate", isSelected && "font-medium text-violet-700 dark:text-violet-300")}>{name}</span>
                     </button>
                     )}
-                    <button type="button" className="flex h-8 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Rename ${name}`} disabled={!shape} data-testid={`button-rename-${cutout.id}`} onClick={() => {
+                    <button type="button" className="flex h-8 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11" aria-label={`Rename ${name}`} disabled={!shape} data-testid={`button-rename-${cutout.id}`} onClick={() => {
                       dispatch({ type: "SELECT_CUTOUT", id: cutout.id });
                       setRenamingPocketId(cutout.id);
                     }}>
                       <Pencil className="h-3.5 w-3.5" />
                     </button>
-                    <button type="button" className="flex h-8 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Duplicate ${name}`} data-testid={`button-duplicate-${cutout.id}`} onClick={() => dispatch({ type: "DUPLICATE_CUTOUT", id: cutout.id, newId: crypto.randomUUID() })}>
+                    <button type="button" className="flex h-8 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11" aria-label={`Duplicate ${name}`} data-testid={`button-duplicate-${cutout.id}`} onClick={() => dispatch({ type: "DUPLICATE_CUTOUT", id: cutout.id, newId: crypto.randomUUID() })}>
                       <Copy className="h-3.5 w-3.5" />
                     </button>
-                    <button type="button" className="flex h-8 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Remove ${name}`} data-testid={`button-remove-${cutout.id}`} onClick={() => dispatch({ type: "REQUEST_REMOVE_CUTOUT", id: cutout.id })}>
+                    <button type="button" className="flex h-8 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11" aria-label={`Remove ${name}`} data-testid={`button-remove-${cutout.id}`} onClick={() => dispatch({ type: "REQUEST_REMOVE_CUTOUT", id: cutout.id })}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   </div>
@@ -1906,9 +1908,9 @@ export function BinControlsPanel({
                 disabled={exporting || hasErrors}
                 onClick={() => setPendingExport({
                   title: hasSelectedMulticolor ? "STL will not include your colors" : "Save bin STL?",
-                  description: hasSelectedMulticolor
+                  description: exportDimensions + " " + (hasSelectedMulticolor
                     ? "STL stores geometry only. Use multi-color 3MF to preserve the selected pocket-floor and rim-top materials."
-                    : "Download the complete bin at print quality.",
+                    : "Download the complete bin at print quality."),
                   confirmLabel: hasSelectedMulticolor ? "Export STL without colors" : "Download STL",
                   onConfirm: (includeProject) => onExport("stl", includeProject),
                 })}
@@ -1928,10 +1930,10 @@ export function BinControlsPanel({
           if (!open) dispatch({ type: "CANCEL_REMOVE_CUTOUT" });
         }}
       >
-        <AlertDialogContent>
-          <AlertDialogHeader>
+        <AlertDialogContent className="grid-cols-1">
+          <AlertDialogHeader className="min-w-0 [overflow-wrap:anywhere]">
             <AlertDialogTitle>
-              Resize the bin after removing “{pendingRemovalShape?.name ?? "this part"}”?
+              Resize the bin after removing “{pendingRemoval ? pocketName(pendingRemoval, pendingRemovalShape) : "this part"}”?
             </AlertDialogTitle>
             <AlertDialogDescription>
               Pocketry can recenter the remaining layout objects and shrink the
@@ -1970,10 +1972,15 @@ export function BinControlsPanel({
       </AlertDialog>
 
       <Dialog open={threeMfDialogOpen} onOpenChange={setThreeMfDialogOpen}>
-        <DialogContent className="max-h-[calc(100dvh_-_2rem)] w-[calc(100%_-_2rem)] grid-cols-1 overflow-y-auto sm:max-w-md">
+        <DialogContent className="max-h-[calc(100dvh_-_2rem)] w-[calc(100%_-_2rem)] grid-cols-1 overflow-y-auto sm:max-w-md" onOpenAutoFocus={(event) => {
+          // Start at the dimensions, even when the export choices need scrolling.
+          event.preventDefault();
+          threeMfTitleRef.current?.focus({ preventScroll: true });
+        }}>
           <DialogHeader className="min-w-0 pr-6 text-left">
-            <DialogTitle>Include multiple colors in the 3MF?</DialogTitle>
+            <DialogTitle ref={threeMfTitleRef} tabIndex={-1}>Include multiple colors in the 3MF?</DialogTitle>
             <DialogDescription>
+              {exportDimensions}{" "}
               Choose a single printable body or preserve the material colors
               selected in Materials &amp; Colors.
             </DialogDescription>
@@ -2195,20 +2202,20 @@ function ProjectControls({
             {!renaming && "Save to library"}
           </Button>
         </DialogTrigger>
-        <DialogContent>
+        <DialogContent className="grid-cols-1">
           <form className="contents" onSubmit={async (event) => {
             event.preventDefault();
             if (busy) return;
             const saved = project ? await onRenameProject(project.id, projectName) : await onSaveProject(projectName);
             if (saved) setOpen(false);
           }}>
-            <DialogHeader>
+            <DialogHeader className="min-w-0 [overflow-wrap:anywhere]">
               <DialogTitle>{renaming ? "Rename project" : "Save project to library"}</DialogTitle>
               <DialogDescription>
                 {project ? `Change the name of “${project.name}”.` : "Named projects stay in this browser’s Pocketry library and update automatically as you work."}
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-2">
+            <div className="min-w-0 space-y-2">
               <Label htmlFor="project-library-name">Project name</Label>
               <Input
                 id="project-library-name"
@@ -2387,7 +2394,7 @@ function ProjectControls({
                         <Trash2 className="h-4 w-4 shrink-0" />Remove
                       </Button>
                     </AlertDialogTrigger>
-                    <AlertDialogContent>
+                    <AlertDialogContent className="grid-cols-1">
                       <AlertDialogHeader className="min-w-0 [overflow-wrap:anywhere]">
                         <AlertDialogTitle>Remove “{project.name}” from library?</AlertDialogTitle>
                         <AlertDialogDescription>
@@ -2512,7 +2519,7 @@ function ProjectControls({
       <AlertDialog open={pendingOpenProject !== null} onOpenChange={(open) => {
         if (!open && !busy) setPendingOpenProject(null);
       }}>
-        <AlertDialogContent onCloseAutoFocus={(event) => {
+        <AlertDialogContent className="grid-cols-1" onCloseAutoFocus={(event) => {
           event.preventDefault();
           if (openProjectSourceRef.current?.isConnected) openProjectSourceRef.current.focus({ preventScroll: true });
         }}>

@@ -22,6 +22,45 @@ Reviewed and fixed on 2026-09-16, starting from `origin/main` at
 | Small screens and tablets | Tall opening instructions could start above the scrollable area; percentage-sized tablet panels squeezed fields and buttons. | Opening instructions scroll from the top; expanded panels maintain a 280 px minimum where the configured maximum allows it. |
 | Dialogs, forms, and feedback | Long dialogs could exceed the viewport; notification dismissal depended on hover. | Dialogs and confirmations have viewport bounds and scrolling, close actions have larger targets, notifications can be dismissed by touch, and phone form text is 16 px. Safe-area padding and browser zoom are enabled. |
 
+## Follow-up fixes after the merged-main review (2026-09-20)
+
+- Canvas keyboard commands now yield to dialogs, menus and focused controls.
+  Space activates buttons normally; Space-drag still pans the canvas. Bin
+  shortcuts cannot move, rotate, remove or undo a pocket behind Manage.
+- Desktop and mobile share unconfirmed ruler text. Enter or **Confirm scale**
+  accepts a finite length greater than zero; blur, opening the drawer and rotating
+  the viewport leave the draft alone. Successful reference detection no longer
+  overlays the next ruler point with a redundant notification.
+- Physical Trace exports require a confirmed scale in both the controls and the
+  download handler. The confirmation gives outline dimensions and scale source;
+  unscaled SVG is explicitly described in image pixels. Bin STL/3MF confirmation
+  also shows the outer dimensions, with opening focus at the top of the 3MF dialog.
+- Perspective reapplication and photo replacement confirm before discarding an
+  existing trace. The browser-local Trace recovery copy includes the photo,
+  original perspective source, scale, edited outline, region and undo history.
+  Restoration keeps the exact contour, including an already applied margin.
+  Failed recovery is visible at startup; failed saving remains visible on the
+  canvas even when the controls are closed. This copy depends on browser storage
+  and is separate from portable Bin project backups.
+- Long project names wrap inside dialogs, removal uses each pocket's current
+  name, and status distinguishes an autosaved draft from a named library project.
+- Coarse-pointer tablets retain larger canvas, history, pocket-row and Add pocket
+  controls. Short landscape toolbars scroll rather than falling off the canvas,
+  and drawing guidance replaces the Add pocket trigger while drawing.
+- **Simplification** replaces the ambiguous Detail label and explains that higher
+  values use fewer points. Help includes persistent email and GitHub feedback
+  links, with email directed to pocketry@sugarcreekresearch.com.
+
+Follow-up browser checks use isolated Chromium at 320×568, 390×844, 568×320,
+740×390, 768×1024, 844×390, 1280×800 and 1440×900 across the relevant workflows.
+They cover exact edited-contour recovery after reload, ruler draft preservation,
+destructive-action cancellation, export dimensions, dialog keyboard ownership,
+native Space activation, canvas panning and touch-target bounds. Evidence lives
+in `/private/tmp/pocketry-ui-review-fix-evidence/`,
+`/private/tmp/pocketry-ui-fixes-mobile/` and
+`/private/tmp/pocketry-bin-ui-followups/` on the review machine. Physical phone
+keyboards and print/calibration accuracy remain outside these browser checks.
+
 ## Verification
 
 - `npm run check`, `npm test` (84 files, 1,432 tests), `npm run build`, and

@@ -34,6 +34,18 @@ Printables, or elsewhere, please give Pocketry a shout-out and link to
 Import a photograph, calibrate its scale, and edit the detected outline to follow
 the tool's shape.
 
+For a manual scale, place the ruler endpoints on a known feature, enter its
+length, then press Enter or **Confirm scale**. **Simplification** controls point
+count: higher values use fewer points and can lose small details. Physical Trace
+exports require a confirmed scale and show the resulting dimensions before
+download; an unscaled outline can still be exported as an SVG in pixels.
+
+The current Trace draft is saved in this browser, including its photo, scale,
+edited contours, and undo history. Wait for **Trace draft saved in this browser** before
+closing the page. This recovery copy is local to the browser; replacing the photo
+or choosing **Start over** replaces or clears it. Export a project backup for a
+portable copy of a calibrated outline and its bin settings.
+
 ![Air-duster photograph in Trace with editable outline points around the tool](docs/images/trace-outline.jpg)
 
 ### 2. Arrange the pockets
