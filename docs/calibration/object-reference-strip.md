@@ -2,9 +2,10 @@
 
 Trace can calibrate from a reference resting on a thick object, reducing the
 apparent enlargement caused by measuring a raised edge against paper below it.
-**Download templates** opens a shared dialog from the upload screen, **Scale**,
+**Download calibration templates** opens a shared dialog from the upload screen, **Scale**,
 or Help. It contains experimental A4 / US Letter corner-marker PDFs and
-**50, 100 or 200 mm** measurement aids as two-colour **3MF** files. Legacy sheets,
+**50, 100 or 200 mm** measurement aids. Click a size to download its two-colour
+**3MF** directly. Legacy sheets,
 the original paper strip and recessed STL aids are no longer offered in the
 app. Previously printed marker families remain recognized. Generation and
 detection happen locally in the browser.

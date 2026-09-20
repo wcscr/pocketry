@@ -277,8 +277,8 @@ describe("TraceControlsPanel guided workflow", () => {
     expect(link).toBeDefined();
     await React.act(async () => link.click());
     const dialog = document.querySelector('[role="dialog"]');
-    expect(dialog?.textContent).toContain("Printable measurement aids");
-    expect(dialog?.textContent).toContain("3MF · two colours");
+    expect(dialog?.textContent).toContain("3D printable measurement aids");
+    expect(dialog?.textContent).toContain("Two-colour 3MF");
     expect(dialog?.textContent).not.toContain("STL");
     await React.act(async () => {
       hint.dispatchEvent(new MouseEvent("pointerleave", { bubbles: true }));
@@ -383,8 +383,9 @@ describe("TraceControlsPanel guided workflow", () => {
       host.querySelector('[data-testid="manual-scale-guidance"]')?.textContent,
     ).toContain("Zoom in first for more precise placement");
 
-    expect(host.textContent).toContain("Download templates");
-    expect(host.textContent).not.toContain("Printable measurement aids");
+    expect(host.textContent).toContain("Download calibration templates");
+    expect(host.textContent).not.toContain("Paper sheets and");
+    expect(host.querySelector('[aria-label="Download a measurement aid as 3MF"]')).toBeNull();
 
   });
 
@@ -511,7 +512,7 @@ describe("TraceControlsPanel guided workflow", () => {
 
     await click("button-set-scale");
     await React.act(async () => {
-      [...host.querySelectorAll("button")].find((button) => button.textContent === "Download templates")!.click();
+      [...host.querySelectorAll("button")].find((button) => button.textContent === "Download calibration templates")!.click();
     });
     await React.act(async () => {
       document.querySelector<HTMLButtonElement>('[data-testid="button-template-letter-experimental"]')!.click();

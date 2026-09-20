@@ -21,10 +21,9 @@ export function CalibrationDownloads({ onPaperSelected, onDetectMarkers, open: c
     <Dialog open={open} onOpenChange={setOpen}>
       {showLink && (
         <p className="text-xs text-muted-foreground">
-          Paper sheets and 3D measurement aids: {" "}
           <DialogTrigger asChild>
             <button type="button" className="font-medium text-primary underline underline-offset-2 hover:no-underline">
-              Download templates
+              Download calibration templates
             </button>
           </DialogTrigger>
         </p>

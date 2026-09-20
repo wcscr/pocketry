@@ -24,12 +24,12 @@ afterEach(() => { React.act(() => root.unmount()); host.remove(); vi.unstubAllGl
 
 describe("calibration download dialog", () => {
   it("hides download details until requested and offers only current sheets and 3MF aids", async () => {
-    expect(host.textContent).toBe("Paper sheets and 3D measurement aids:  Download templates");
+    expect(host.textContent).toBe("Download calibration templates");
     expect(document.querySelector('[role="dialog"]')).toBeNull();
     await React.act(async () => host.querySelector("button")!.click());
     const dialog = document.querySelector('[role="dialog"]')!;
     expect(dialog.textContent).toContain("Calibration templates");
-    expect(dialog.textContent).toContain("Printable measurement aids");
+    expect(dialog.textContent).toContain("3D printable measurement aids");
     expect(dialog.textContent).not.toMatch(/STL|recessed|Paper reference strip/);
     expect(dialog.querySelector('[data-testid="button-template-a4"]')).toBeNull();
     expect(dialog.querySelector('[data-testid="button-template-letter"]')).toBeNull();

@@ -253,9 +253,10 @@ describe("Trace detection workflow", () => {
       root.render(<PanelProvider><TraceProvider><TracePage /></TraceProvider></PanelProvider>);
     });
     expect(host.textContent).toContain("Photograph the tool on a calibration sheet or a plain, contrasting background");
-    expect(host.textContent).not.toContain("Printable measurement aids");
+    expect(host.textContent).not.toContain("Paper sheets and");
+    expect(host.querySelector('[aria-label="Download a measurement aid as 3MF"]')).toBeNull();
     expect(host.textContent).not.toContain("A4 PDF");
-    expect([...host.querySelectorAll("button")].filter((button) => button.textContent === "Download templates")).toHaveLength(1);
+    expect([...host.querySelectorAll("button")].filter((button) => button.textContent === "Download calibration templates")).toHaveLength(1);
   });
 
   it("keeps the current photo visible until its replacement is decoded", async () => {

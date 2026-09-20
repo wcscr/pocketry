@@ -23,11 +23,10 @@ const button = (text: string) => Array.from(host.querySelectorAll("button")).fin
 
 describe("measurement-aid downloads", () => {
   it("downloads only the selected 50/100/200 mm aid as a two-colour 3MF", async () => {
-    expect(button("100 mm").getAttribute("aria-pressed")).toBe("true");
+    expect(button("3MF · two colours")).toBeUndefined();
     for (const length of [50, 100, 200]) {
       await React.act(async () => button(`${length} mm`).click());
-      expect(host.textContent).toContain(`${length} × 15 × 2 mm`);
-      await React.act(async () => button("3MF · two colours").click());
+
       expect(downloadMeasurementAid).toHaveBeenLastCalledWith(length);
     }
     expect(host.textContent).not.toContain("300 mm");
@@ -38,8 +37,8 @@ describe("measurement-aid downloads", () => {
 
   it("reports a failed mesh build and permits another download", async () => {
     vi.mocked(downloadMeasurementAid).mockRejectedValueOnce(new Error("Mesh build failed"));
-    await React.act(async () => button("3MF · two colours").click());
+    await React.act(async () => button("100 mm").click());
     expect(toast).toHaveBeenCalledWith(expect.objectContaining({ description: "Mesh build failed", variant: "destructive" }));
-    expect(button("3MF · two colours").disabled).toBe(false);
+    expect(button("100 mm").disabled).toBe(false);
   });
 });
