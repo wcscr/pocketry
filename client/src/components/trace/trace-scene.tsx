@@ -421,10 +421,10 @@ function RulerOverlay({
             data-testid="ruler-marker"
             data-ruler-marker={index === 0 ? "start" : "end"}
             data-ruler-handle={
-              calibration ? (index === 0 ? "start" : "end") : undefined
+              calibration && editable ? (index === 0 ? "start" : "end") : undefined
             }
           >
-            {calibration && (
+            {calibration && editable && (
               <>
                 <title>{`Drag the ${index === 0 ? "start" : "end"} scale point`}</title>
                 <circle

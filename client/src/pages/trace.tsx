@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { mmPerPixel } from "@shared/geometry/scale";
+import { mmPerPixel, type Calibration } from "@shared/geometry/scale";
 import type { Rect } from "@shared/geometry/types";
 
 import { usePanelState } from "@/components/layout/panel-context";
@@ -8,6 +8,8 @@ import { WorkspaceLayout } from "@/components/layout/workspace-layout";
 import { MobileTraceActions } from "@/components/trace/mobile-trace-actions";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { TraceCanvas } from "@/components/trace/trace-canvas";
+import { CalibrationDownloads } from "@/components/trace/calibration-downloads";
+import { referenceStripFromRulerLength } from "@/lib/calibrate/reference-strip";
 import { TraceControlsPanel } from "@/components/trace/trace-controls-panel";
 import { ExportConfirmationDialog } from "@/components/gridfinity/export-confirmation-dialog";
 import {
@@ -29,7 +31,6 @@ import {
 import { FileUpload } from "@/components/ui/file-upload";
 import { useToast } from "@/hooks/use-toast";
 import { autoCalibrate } from "@/lib/calibrate/auto-calibrate";
-import { downloadCalibrationTemplate } from "@/lib/calibrate/download-template";
 import {
   correctPerspective,
   RECTIFIED_IMAGE_MAX,
@@ -59,6 +60,12 @@ export default function TracePage(): JSX.Element {
 }
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
+
+/** Change image coordinates only; the physical reference length is unchanged. */
+function resizeCalibration(calibration: Calibration, x: number, y: number): Calibration {
+  return { ...calibration, startX: calibration.startX * x, startY: calibration.startY * y,
+    endX: calibration.endX * x, endY: calibration.endY * y };
+}
 
 function imageDataToPngUrl(image: ImageData): string {
   const canvas = document.createElement("canvas");
@@ -242,28 +249,34 @@ function TraceWorkspace(): JSX.Element {
         // pixels it actually read so an old sheet can never paint overlays or
         // toasts over a replacement image.
         if (activeImageUrlRef.current !== frame.sourceImageUrl) return;
-        if (!manual && result.kind !== "calibrated") {
+        if (
+          !manual &&
+          result.kind !== "calibrated" &&
+          result.kind !== "calibrated-strip"
+        ) {
           dispatch({
             type: "AUTO_CALIBRATION_FAILED",
             sourceImageUrl: frame.sourceImageUrl,
           });
         }
         switch (result.kind) {
+          case "calibrated-strip":
           case "calibrated": {
-            const calibration = {
-              startX: result.calibration.startX * frame.toWorking.x,
-              startY: result.calibration.startY * frame.toWorking.y,
-              endX: result.calibration.endX * frame.toWorking.x,
-              endY: result.calibration.endY * frame.toWorking.y,
-              lengthMm: result.calibration.lengthMm,
-            };
+            const strip = result.kind === "calibrated-strip";
+            const sheet = result.kind === "calibrated" ? result : result.sheet;
+            const perspective = sheet?.perspectiveProposal ?? null;
+            const calibration = resizeCalibration(result.calibration, frame.toWorking.x, frame.toWorking.y);
             dispatch({
               type: "AUTO_CALIBRATION_DETECTED",
               sourceImageUrl: frame.sourceImageUrl,
               calibration,
-              perspective: result.perspectiveProposal
+              source: strip ? "strip" : "sheet",
+              requiresPerspectiveCorrection: strip && result.requiresPerspectiveCorrection,
+              paperCalibration: strip && sheet
+                ? resizeCalibration(sheet.calibration, frame.toWorking.x, frame.toWorking.y) : null,
+              perspective: perspective
                 ? scalePerspectiveProposal(
-                    result.perspectiveProposal,
+                    perspective,
                     frame.toWorking.x,
                     frame.toWorking.y,
                   )
@@ -271,23 +284,41 @@ function TraceWorkspace(): JSX.Element {
             });
             const { solution } = result;
             const mmPerPx = mmPerPixel(calibration);
-            const sheetName = templateDisplayName(result.template);
-            const summary = `${sheetName} · ${solution.markerIds.length} markers · ${(mmPerPx ?? solution.mmPerPx).toFixed(3)} mm/px`;
-            if (solution.maxDeviation > SKEW_WARN_FRACTION) {
+            const referenceName = result.kind === "calibrated"
+              ? templateDisplayName(result.template)
+              : `${referenceStripFromRulerLength(result.calibration.lengthMm)?.lengthMm} mm object reference strip`;
+            const summary = `${referenceName} · ${solution.markerIds.length} markers · ${(mmPerPx ?? solution.mmPerPx).toFixed(3)} mm/px`;
+            const fallback = result.kind === "calibrated" && result.stripFallbackReason
+              ? "The measurement aid could not be calibrated, so Pocketry used the paper markers. " : "";
+            if (strip && sheet) {
+              toast({ title: "Paper and measurement aid detected",
+                description: "Choose a reference in Scale, or correct perspective with the paper and use the aid for scale." });
+            } else if (solution.maxDeviation > SKEW_WARN_FRACTION) {
               toast({
                 title: "Scale detected — review carefully",
-                description: `${summary}. Marker distances disagree by ${(solution.maxDeviation * 100).toFixed(1)}%. ${result.perspectiveProposal ? "Perspective correction is available in Scale." : "Shoot straight down for accurate millimetres."}`,
+                description: strip
+                  ? `${summary}. Marker edge measurements differ by ${(solution.maxDeviation * 100).toFixed(1)}%. Small markers or camera tilt can cause this. Review the scale; for clearer markers, fill more of the photo with the tool and shoot straight down.`
+                  : `${fallback}${summary}. Marker distances disagree by ${(solution.maxDeviation * 100).toFixed(1)}%. ${perspective ? "Perspective correction is available in Scale." : "Shoot straight down for accurate millimetres."}`,
                 variant: "destructive",
                 duration: 8000,
               });
             } else {
               toast({
-                title: "Scale detected from calibration sheet",
-                description: `${summary}. Review and accept it in Scale.`,
+                title: strip ? "Scale detected from reference strip" : "Scale detected from paper markers",
+                description: `${fallback}${summary}. Review and accept it in Scale.`,
               });
             }
             break;
           }
+          case "invalid-strip":
+            toast({
+              title: "Reference strip could not be calibrated",
+              description: result.reason === "incomplete-signature"
+                ? "Keep both aid markers visible or include all four paper markers. Neither reference could be calibrated."
+                : "The marker sizes, spacing or orientation did not match. Use one flat, unmodified strip, fill more of the photo with the tool so both markers are clear, and shoot straight down. No usable paper reference was found either.",
+              duration: 8000,
+            });
+            break;
           case "foreign-sheet":
             toast({
               title:
@@ -310,7 +341,7 @@ function TraceWorkspace(): JSX.Element {
               toast({
                 title: "No markers found",
                 description:
-                  "Include the printed calibration sheet in the photo, flat and unobstructed.",
+                  "Include a Pocketry sheet or object reference strip in the photo, flat and unobstructed.",
               });
             }
             break;
@@ -334,7 +365,7 @@ function TraceWorkspace(): JSX.Element {
   );
 
   const applyPerspective = useCallback(
-    async (proposal: PerspectiveProposal, template: TemplateVariant, usePaperScale = true) => {
+    async (proposal: PerspectiveProposal, template: TemplateVariant, usePaperScale: boolean | Calibration = true) => {
       const frame = getDetectionFrame();
       if (
         !frame ||
@@ -362,6 +393,9 @@ function TraceWorkspace(): JSX.Element {
           frame.imageData,
           detectionProposal,
           template,
+          RECTIFIED_IMAGE_MAX,
+          typeof usePaperScale === "object"
+            ? resizeCalibration(usePaperScale, 1 / frame.toWorking.x, 1 / frame.toWorking.y) : undefined,
         );
         if (activeImageUrlRef.current !== frame.sourceImageUrl) return;
         const imageUrl = imageDataToPngUrl(corrected.imageData);
@@ -370,14 +404,20 @@ function TraceWorkspace(): JSX.Element {
           sourceImageUrl: frame.sourceImageUrl,
           imageUrl,
           imageSize: { width: corrected.width, height: corrected.height },
-          calibration: usePaperScale ? corrected.calibration : null,
+          calibration: usePaperScale === false ? null : corrected.calibration,
+          calibrationSource: typeof usePaperScale === "object" ? "strip" : "sheet",
           source: proposal.source,
           paper: templatePaper(template),
           template,
         });
+        // Perspective-only deliberately has no accepted scale, so it does not
+        // trigger the calibration effect that closes the mobile drawer.
+        if (isMobile) setPanelOpen(false);
         toast({
           title: "Perspective corrected",
-          description: usePaperScale
+          description: typeof usePaperScale === "object"
+            ? "Perspective corrected from the paper; scale set from the measurement aid."
+            : usePaperScale
             ? `${templateDisplayName(template)} plane rectified at ${(1 / corrected.pxPerMm).toFixed(3)} mm/px${corrected.reprojectionErrorPx === null ? "" : ` · ${corrected.reprojectionErrorPx.toFixed(2)} px fit residual`}.`
             : "Now select two points on a measured feature of the tool, then enter its real length to set the scale.",
         });
@@ -395,7 +435,7 @@ function TraceWorkspace(): JSX.Element {
         }
       }
     },
-    [getDetectionFrame, dispatch, toast],
+    [getDetectionFrame, dispatch, toast, isMobile, setPanelOpen],
   );
 
   // Attempt auto-calibration once per image, and only while uncalibrated —
@@ -526,7 +566,7 @@ function TraceWorkspace(): JSX.Element {
   }, [store.exportFormat]);
 
   const dropzone = (
-    <FileUpload onFileSelected={handleFileSelected} className="h-64 w-full max-w-lg" />
+    <FileUpload onFileSelected={handleFileSelected} className="flex min-h-64 w-full flex-1 flex-col items-center justify-center" />
   );
 
   return (
@@ -555,10 +595,12 @@ function TraceWorkspace(): JSX.Element {
           onStartOver={startOver}
           onReprocess={(settings) => void runDetection(settings)}
           onOpenSettings={openSettings}
-          onApplyPerspective={(proposal, template) => void applyPerspective(proposal, template)}
+          onDetectMarkers={() => void detectMarkers(true)}
+          onApplyPerspective={(proposal, template, scale) => void applyPerspective(proposal, template, scale)}
         />}
         panel={
           <TraceControlsPanel
+            active={panelOpen}
             settingsSectionRequest={settingsSectionRequest}
             onCanvasInteraction={showCanvas}
             onReplaceImage={() => photoInputRef.current?.click()}
@@ -575,58 +617,13 @@ function TraceWorkspace(): JSX.Element {
           <TraceCanvas
             onReprocess={() => void runDetection()}
             emptyState={
-              <div className="w-full max-w-lg space-y-3 text-center">
+              <div className="flex h-full min-h-[24rem] w-full flex-col gap-3 text-center">
                 <h2 className="text-lg font-medium">Trace a tool from a photo</h2>
                 <p className="text-sm text-muted-foreground">
-                  Photograph the tool on the provided{" "}
-                  <button
-                    type="button"
-                    className="font-medium text-primary underline underline-offset-2 hover:no-underline"
-                    onClick={() => downloadCalibrationTemplate("a4")}
-                    data-testid="empty-state-template-a4"
-                  >
-                    A4
-                  </button>{" "}
-                  or{" "}
-                  <button
-                    type="button"
-                    className="font-medium text-primary underline underline-offset-2 hover:no-underline"
-                    onClick={() => downloadCalibrationTemplate("letter")}
-                    data-testid="empty-state-template-letter"
-                  >
-                    US Letter
-                  </button>{" "}
-                  template{" "}
-                  <strong className="font-semibold italic">or</strong>{" "}
-                  plain background that contrasts with it, and keep the whole
-                  tool in frame.
+                  Photograph the tool on a calibration sheet <strong className="font-semibold italic">or</strong>{" "}
+                  a plain, contrasting background. Keep the whole tool in frame.
                 </p>
-                <p className="text-xs text-muted-foreground">
-                  Experimental sheets place smaller markers nearer the page
-                  corners: {" "}
-                  <button
-                    type="button"
-                    className="font-medium text-primary underline underline-offset-2 hover:no-underline"
-                    onClick={() =>
-                      downloadCalibrationTemplate("a4-experimental")
-                    }
-                    data-testid="empty-state-template-a4-experimental"
-                  >
-                    A4 experimental
-                  </button>{" "}
-                  or {" "}
-                  <button
-                    type="button"
-                    className="font-medium text-primary underline underline-offset-2 hover:no-underline"
-                    onClick={() =>
-                      downloadCalibrationTemplate("letter-experimental")
-                    }
-                    data-testid="empty-state-template-letter-experimental"
-                  >
-                    US Letter experimental
-                  </button>
-                  .
-                </p>
+                <CalibrationDownloads />
                 {dropzone}
               </div>
             }

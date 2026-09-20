@@ -12,6 +12,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "generate:calibration-templates": "tsx scripts/generate-calibration-templates.ts",
+    "generate:reference-strip": "tsx scripts/generate-reference-strip.ts",
     "export:bin": "tsx scripts/export-bin.ts",
     "db:push": "drizzle-kit push"
   },

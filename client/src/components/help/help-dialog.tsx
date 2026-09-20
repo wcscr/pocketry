@@ -5,7 +5,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { downloadCalibrationTemplate } from "@/lib/calibrate/download-template";
+import { CalibrationDownloads } from "@/components/trace/calibration-downloads";
 
 export interface HelpDialogProps {
   open: boolean;
@@ -56,49 +56,11 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
                 markers are required. Pocketry validates their 16 corners before
                 proposing scale or perspective correction. Check the preview, then
                 accept it.
-                If you do not have a sheet yet, download and print the{" "}
-                <button
-                  type="button"
-                  className="font-medium text-primary underline underline-offset-2 hover:no-underline"
-                  onClick={() => downloadCalibrationTemplate("a4")}
-                  data-testid="help-print-template-a4"
-                >
-                  A4 PDF template
-                </button>{" "}
-                or{" "}
-                <button
-                  type="button"
-                  className="font-medium text-primary underline underline-offset-2 hover:no-underline"
-                  onClick={() => downloadCalibrationTemplate("letter")}
-                  data-testid="help-print-template-letter"
-                >
-                  US Letter PDF template
-                </button>{" "}
-                at 100% scale.
-                Experimental sheets with smaller corner markers are also
-                available for {" "}
-                <button
-                  type="button"
-                  className="font-medium text-primary underline underline-offset-2 hover:no-underline"
-                  onClick={() =>
-                    downloadCalibrationTemplate("a4-experimental")
-                  }
-                  data-testid="help-print-template-a4-experimental"
-                >
-                  A4
-                </button>{" "}
-                and {" "}
-                <button
-                  type="button"
-                  className="font-medium text-primary underline underline-offset-2 hover:no-underline"
-                  onClick={() =>
-                    downloadCalibrationTemplate("letter-experimental")
-                  }
-                  data-testid="help-print-template-letter-experimental"
-                >
-                  US Letter
-                </button>
-                .
+                When paper and a measurement aid are both detected, choose
+                {" "}<strong>Correct perspective &amp; use aid scale</strong> on
+                desktop or mobile. Other choices and <strong>Detect references
+                again</strong> are under Scale’s <strong>Advanced</strong> section.
+                <CalibrationDownloads />
               </li>
               <li>
                 Choose <strong>Correct perspective only</strong> to straighten
@@ -119,11 +81,11 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
               </li>
               <li>
                 Tune <strong>Outline</strong>: Sensitivity changes what is
-                admitted as tool, Detail controls point density, and Smoothing
-                removes pixel noise. Outside silhouettes are the default; enable interior
+                admitted as tool, and Detail controls point density.
+                Outside silhouettes are the default; enable interior
                 holes only for real openings. Sensitivity updates the outline when you
                 release the slider. Confirmation is needed only when replacing manual
-                contour edits. Detail and Smoothing preserve those edits; re-detection is undoable.
+                contour edits. Detail preserves those edits; re-detection is undoable.
               </li>
               <li>
                 Choose a physical <strong>Margin</strong> from 0.0–5.0 mm, then

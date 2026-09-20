@@ -25,8 +25,10 @@ the pocket. Optional server persistence remains deferred.
 
 The September 2026 usability update makes new traces outside-silhouette-only by
 default, including after a margin closes a narrow gap. Interior holes remain an
-explicit detection option. Manual contour edits become the baseline for Detail
-and Smoothing. Sensitivity re-detects automatically on slider release (or a keyboard
+explicit detection option. Manual contour edits become the baseline for Detail.
+The Smoothing control is temporarily hidden while improved smoothing and point
+simplification are planned; the existing refinement pipeline remains unchanged.
+Sensitivity re-detects automatically on slider release (or a keyboard
 step), asking for confirmation only when the current contour includes manual
 vertex/ring edits. Cancel keeps both the edits and previous detection settings;
 undoing all manual edits removes the need for confirmation. Refinement and

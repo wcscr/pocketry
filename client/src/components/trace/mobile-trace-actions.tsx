@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ChevronLeft } from "lucide-react";
 
-import { calibrationFromDraft, hasCalibrationEndpoints } from "@shared/geometry/scale";
+import { calibrationFromDraft, hasCalibrationEndpoints, type Calibration } from "@shared/geometry/scale";
 import { OUTER_RING } from "@shared/geometry/types";
 import { getRing } from "@/lib/geometry/outline";
 import { ContourEditTools } from "@/components/canvas/contour-edit-tools";
@@ -12,13 +12,15 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import type { PerspectiveProposal } from "@/lib/calibrate/perspective";
 import type { TemplateVariant } from "@/lib/calibrate/template";
 import { useTrace } from "@/state/trace-store";
+import { AutoCalibrationOptions } from "./auto-calibration-options";
 import { TraceDetectionControls, type DetectionSettings } from "./trace-detection-controls";
 
 export interface MobileTraceActionsProps {
   onChoosePhoto: () => void;
   onStartOver: () => void;
   onOpenSettings: (sectionId: string) => void;
-  onApplyPerspective: (proposal: PerspectiveProposal, template: TemplateVariant) => void;
+  onApplyPerspective: (proposal: PerspectiveProposal, template: TemplateVariant, scale?: boolean | Calibration) => void;
+  onDetectMarkers: () => void;
   onReprocess: (settings: DetectionSettings) => void;
 }
 
@@ -26,7 +28,7 @@ type TraceStep = "photo" | "scale" | "region" | "outline";
 const STEPS: TraceStep[] = ["photo", "scale", "region", "outline"];
 
 /** Keep step navigation, guidance, and common adjustments beside the mobile canvas. */
-export function MobileTraceActions({ onChoosePhoto, onStartOver, onOpenSettings, onApplyPerspective, onReprocess }: MobileTraceActionsProps): JSX.Element {
+export function MobileTraceActions({ onChoosePhoto, onStartOver, onOpenSettings, onApplyPerspective, onDetectMarkers, onReprocess }: MobileTraceActionsProps): JSX.Element {
   const trace = useTrace();
   const { dispatch, pendingAutoCalibration, pendingPerspective, calibration, draftCalibration, processing } = trace;
   const [length, setLength] = useState(String(trace.rulerLengthMm));
@@ -34,12 +36,11 @@ export function MobileTraceActions({ onChoosePhoto, onStartOver, onOpenSettings,
   const [restartOpen, setRestartOpen] = useState(false);
   useEffect(() => setLength(String(trace.rulerLengthMm)), [trace.rulerLengthMm]);
   useEffect(() => { setReviewStep(null); setRestartOpen(false); }, [trace.sourceRevision]);
-  useEffect(() => { if (trace.mode !== "pan") setReviewStep(null); }, [trace.mode]);
-  const template = pendingPerspective?.template ?? pendingPerspective?.paper;
+  useEffect(() => { if (trace.mode !== "pan" || pendingAutoCalibration) setReviewStep(null); }, [trace.mode, pendingAutoCalibration]);
   const manualPending = !calibration && hasCalibrationEndpoints(draftCalibration);
   const confirmedRuler = calibrationFromDraft(draftCalibration, Number(length));
   const hasRegion = Boolean(trace.region && trace.region.width > 5 && trace.region.height > 5);
-  const step: TraceStep = reviewStep ?? (!calibration || trace.mode === "calibrate" || trace.mode === "perspective"
+  const step: TraceStep = pendingAutoCalibration ? "scale" : reviewStep ?? (!calibration || trace.mode === "calibrate" || trace.mode === "perspective"
     ? "scale" : trace.mode === "region" || (!hasRegion && !trace.outline.length) ? "region" : "outline");
   const previousStep = STEPS[Math.max(0, STEPS.indexOf(step) - 1)];
   const editingSelection = (trace.mode === "edit" || trace.mode === "remove") && trace.selection && getRing(trace.outline, trace.selection)
@@ -48,6 +49,7 @@ export function MobileTraceActions({ onChoosePhoto, onStartOver, onOpenSettings,
   const continueToRegion = () => { setReviewStep(null); dispatch({ type: "SET_MODE", mode: "region" }); };
   const redrawScale = () => { setReviewStep(null); dispatch({ type: "SET_MODE", mode: "calibrate" }); };
   const back = () => {
+    if (pendingAutoCalibration) dispatch({ type: "DISMISS_AUTO_CALIBRATION" });
     if (step === "outline") dispatch({ type: "SET_MODE", mode: "region" });
     else {
       setReviewStep(step === "region" ? "scale" : "photo");
@@ -91,9 +93,9 @@ export function MobileTraceActions({ onChoosePhoto, onStartOver, onOpenSettings,
         Start over
       </Button>
     </div>
-    <WorkflowHint>{guidance}</WorkflowHint>
+    {!(step === "scale" && pendingAutoCalibration) && <WorkflowHint>{guidance}</WorkflowHint>}
     {step === "outline" && hasRegion && <TraceDetectionControls compact onReprocess={onReprocess} />}
-    {step === "scale" && manualPending && !processing ? <div className="flex items-end gap-2">
+    {step === "scale" && manualPending && !pendingAutoCalibration && !processing ? <div className="flex items-end gap-2">
       <label className="min-w-0 flex-1 text-xs" htmlFor="mobile-ruler-length">Reference length (mm)
         <Input id="mobile-ruler-length" type="number" inputMode="decimal" min="0.01" step="any" value={length} onChange={(event) => setLength(event.target.value)} />
       </label>
@@ -103,7 +105,9 @@ export function MobileTraceActions({ onChoosePhoto, onStartOver, onOpenSettings,
         dispatch({ type: "SET_CALIBRATION", calibration: confirmedRuler });
       }}>Confirm scale</Button>
     </div> : null}
-    <div className="flex gap-2">
+    {step === "scale" && pendingAutoCalibration ? <AutoCalibrationOptions
+      onSetManually={redrawScale} onApplyPerspective={onApplyPerspective} onDetectMarkers={onDetectMarkers}
+    /> : <div className="flex gap-2">
       {step === "photo" ? <>
         <Button variant="outline" className={actionClass} onClick={onChoosePhoto}>Change photo</Button>
         <Button className={actionClass} onClick={() => setReviewStep("scale")}>Use this photo</Button>
@@ -114,9 +118,7 @@ export function MobileTraceActions({ onChoosePhoto, onStartOver, onOpenSettings,
         <Button variant="outline" className={actionClass} onClick={() => onOpenSettings(
           pendingAutoCalibration || !calibration ? "trace-settings-scale" : "trace-settings-detect",
         )}>Controls</Button>
-        {!processing && pendingAutoCalibration ? <Button className={actionClass} onClick={() => dispatch({ type: "ACCEPT_AUTO_CALIBRATION" })}>
-          {pendingPerspective ? "Use scale only" : "Accept detected scale"}
-        </Button> : !processing && !calibration && !manualPending ? <Button className={actionClass} onClick={() => {
+        {!processing && !calibration && !manualPending ? <Button className={actionClass} onClick={() => {
           if (trace.mode === "perspective") onOpenSettings("trace-settings-scale");
           else redrawScale();
         }}>{trace.mode === "perspective" ? "Review corners" : "Set scale"}</Button>
@@ -124,8 +126,7 @@ export function MobileTraceActions({ onChoosePhoto, onStartOver, onOpenSettings,
         : !processing && step === "outline" && trace.outline.length > 0 ? <Button className={actionClass} onClick={() => onOpenSettings("trace-settings-output")}>Add to bin / export</Button>
         : !processing && calibration && trace.mode !== "region" ? <Button className={actionClass} onClick={continueToRegion}>Draw tool region</Button> : null}
       </>}
-    </div>
-    {step === "scale" && !processing && pendingAutoCalibration && pendingPerspective && template ? <Button className="min-h-11 w-full whitespace-normal" onClick={() => onApplyPerspective(pendingPerspective, template)}>Correct perspective &amp; use scale</Button> : null}
+    </div>}
     <Dialog open={restartOpen} onOpenChange={setRestartOpen}>
       <DialogContent>
         <DialogHeader><DialogTitle>Start a new trace?</DialogTitle>

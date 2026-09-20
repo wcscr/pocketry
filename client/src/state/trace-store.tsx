@@ -70,7 +70,7 @@ export type TraceMode =
   | "perspective";
 
 export type ExportFormat = "svg" | "dxf" | "dwg" | "stl";
-export type CalibrationSource = "manual" | "sheet";
+export type CalibrationSource = "manual" | "sheet" | "strip";
 
 export interface TraceHistoryEntry {
   outline: Outline;
@@ -122,8 +122,14 @@ export interface TraceState {
   margin: Margin;
 
   calibration: Calibration | null;
-  /** An automatically detected sheet scale awaiting explicit acceptance. */
+  /** An automatically detected sheet or strip scale awaiting explicit acceptance. */
   pendingAutoCalibration: Calibration | null;
+  /** Alternative sheet ruler when an aid and paper are both usable. */
+  pendingPaperCalibration: Calibration | null;
+  /** The aid ruler is usable only after applying the paper homography. */
+  pendingAidRequiresPerspective: boolean;
+  /** Reference behind the pending scale; cleared together with its ruler. */
+  pendingCalibrationSource: "sheet" | "strip" | null;
   /** How the accepted calibration was established. */
   calibrationSource: CalibrationSource | null;
   /** A calibration mid-placement: start point known, end point not yet. */
@@ -180,6 +186,9 @@ export const initialTraceState: TraceState = {
   margin: DEFAULT_MARGIN_MM,
   calibration: null,
   pendingAutoCalibration: null,
+  pendingPaperCalibration: null,
+  pendingAidRequiresPerspective: false,
+  pendingCalibrationSource: null,
   calibrationSource: null,
   draftCalibration: null,
   rulerLengthMm: 100,
@@ -245,8 +254,12 @@ export type TraceAction =
       sourceImageUrl: string;
       calibration: Calibration;
       perspective?: PerspectiveProposal | null;
+      source?: "sheet" | "strip";
+      paperCalibration?: Calibration | null;
+      requiresPerspectiveCorrection?: boolean;
     }
-  | { type: "ACCEPT_AUTO_CALIBRATION" }
+  | { type: "ACCEPT_AUTO_CALIBRATION"; source?: "sheet" | "strip" }
+  | { type: "DISMISS_AUTO_CALIBRATION" }
   | { type: "AUTO_CALIBRATION_ATTEMPTED"; imageUrl: string }
   | { type: "AUTO_CALIBRATION_FAILED"; sourceImageUrl: string }
   | { type: "SET_DRAFT_CALIBRATION"; draftCalibration: DraftCalibration | null }
@@ -263,6 +276,7 @@ export type TraceAction =
       imageSize: { width: number; height: number };
       /** Null applies only the warp and starts manual scale selection. */
       calibration: Calibration | null;
+      calibrationSource?: "sheet" | "strip";
       source: PerspectiveSource;
       paper: TemplatePaper;
       template?: TemplateVariant;
@@ -443,6 +457,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         pendingAutoCalibration: rotateCalibration(
           state.pendingAutoCalibration,
         ),
+        pendingPaperCalibration: rotateCalibration(state.pendingPaperCalibration),
         draftCalibration: state.draftCalibration
           ? rotateDraftCalibration(
               state.draftCalibration,
@@ -649,6 +664,10 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         // candidate, including all of its canvas overlays.
         pendingAutoCalibration:
           rejectsAutomatic ? null : state.pendingAutoCalibration,
+        pendingPaperCalibration: rejectsAutomatic ? null : state.pendingPaperCalibration,
+        pendingAidRequiresPerspective: rejectsAutomatic ? false : state.pendingAidRequiresPerspective,
+        pendingCalibrationSource:
+          rejectsAutomatic ? null : state.pendingCalibrationSource,
         pendingPerspective: rejectsAutomatic ? null : state.pendingPerspective,
         draftCalibration:
           startsCalibration
@@ -704,6 +723,9 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         ...state,
         calibration: action.calibration,
         pendingAutoCalibration: null,
+        pendingPaperCalibration: null,
+        pendingAidRequiresPerspective: false,
+        pendingCalibrationSource: null,
         pendingPerspective: null,
         calibrationSource: action.calibration === null ? null : "manual",
         margin: state.margin ?? DEFAULT_MARGIN_MM,
@@ -714,27 +736,50 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
       return action.sourceImageUrl === state.imageUrl
         ? {
             ...state,
-            calibration: null,
+            // A retry is a proposal, not permission to replace the accepted
+            // ruler. Keep its exact endpoints and scale until acceptance.
             pendingAutoCalibration: action.calibration,
-            pendingPerspective: action.perspective ?? null,
-            calibrationSource: null,
+            pendingPaperCalibration: action.paperCalibration ?? null,
+            pendingAidRequiresPerspective: action.requiresPerspectiveCorrection ?? false,
+            pendingCalibrationSource: action.source ?? "sheet",
+            pendingPerspective:
+              action.source === "strip" && !action.paperCalibration ? null : action.perspective ?? null,
             margin: state.margin ?? DEFAULT_MARGIN_MM,
-            draftCalibration: null,
             manualPerspectivePoints: [],
             mode: "pan",
           }
         : state;
 
-    case "ACCEPT_AUTO_CALIBRATION":
-      if (!state.pendingAutoCalibration) return state;
+    case "DISMISS_AUTO_CALIBRATION":
       return {
         ...state,
-        calibration: state.pendingAutoCalibration,
         pendingAutoCalibration: null,
+        pendingPaperCalibration: null,
+        pendingAidRequiresPerspective: false,
+        pendingCalibrationSource: null,
         pendingPerspective: null,
-        calibrationSource: "sheet",
+      };
+
+    case "ACCEPT_AUTO_CALIBRATION":
+      if (!state.pendingAutoCalibration || (action.source === "sheet" && state.pendingCalibrationSource === "strip" && !state.pendingPaperCalibration)) return state;
+      if (action.source === "strip" && state.pendingCalibrationSource !== "strip") return state;
+      if (state.pendingAidRequiresPerspective && !(action.source === "sheet" && state.pendingPaperCalibration)) return state;
+      return {
+        ...state,
+        calibration: action.source === "sheet" && state.pendingPaperCalibration
+          ? state.pendingPaperCalibration : state.pendingAutoCalibration,
+        pendingAutoCalibration: null,
+        pendingPaperCalibration: null,
+        pendingAidRequiresPerspective: false,
+        pendingCalibrationSource: null,
+        pendingPerspective: null,
+        calibrationSource: action.source ?? state.pendingCalibrationSource ?? "sheet",
         margin: state.margin ?? DEFAULT_MARGIN_MM,
         draftCalibration: null,
+        // A scale retry must not send an existing trace back to drawing a new
+        // region. New photos still proceed to the region-selection step.
+        mode: state.outline.length > 0 || (state.region && state.region.width > 5 && state.region.height > 5)
+          ? "pan" : "region",
       };
 
     case "AUTO_CALIBRATION_ATTEMPTED":
@@ -775,6 +820,9 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         ...state,
         mode: "perspective",
         pendingAutoCalibration: null,
+        pendingPaperCalibration: null,
+        pendingAidRequiresPerspective: false,
+        pendingCalibrationSource: null,
         pendingPerspective: null,
         manualPerspectivePoints: [],
         draftCalibration: null,
@@ -819,7 +867,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         smoothing: state.smoothing,
         margin: state.margin ?? DEFAULT_MARGIN_MM,
         calibration: action.calibration,
-        calibrationSource: action.calibration ? "sheet" : null,
+        calibrationSource: action.calibration ? action.calibrationSource ?? "sheet" : null,
         rulerLengthMm: state.rulerLengthMm,
         perspectiveOriginalImageUrl:
           state.perspectiveOriginalImageUrl ?? state.imageUrl,

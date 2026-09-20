@@ -5,6 +5,7 @@ import { Route, Switch } from "wouter";
 import { HelpDialog } from "@/components/help/help-dialog";
 import { AppHeader } from "@/components/layout/app-header";
 import { AppShell } from "@/components/layout/app-shell";
+import { MobileDevelopmentWelcome } from "@/components/layout/mobile-development-welcome";
 import { WORKSPACES } from "@/components/layout/workspaces";
 import { PanelProvider, usePanelState } from "@/components/layout/panel-context";
 import { Toaster } from "@/components/ui/toaster";
@@ -58,6 +59,7 @@ function Shell() {
         <Router />
       </AppShell>
       <HelpDialog open={helpOpen} onOpenChange={setHelpOpen} />
+      <MobileDevelopmentWelcome />
     </>
   );
 }

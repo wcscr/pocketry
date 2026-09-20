@@ -146,7 +146,7 @@ function SeedPerspectiveSelection(): null {
   return null;
 }
 
-function SeedAutoScale(): JSX.Element {
+function SeedAutoScale({ existingManualScale = false }: { existingManualScale?: boolean }): JSX.Element {
   const { dispatch } = useTrace();
   React.useEffect(() => {
     dispatch({
@@ -155,6 +155,10 @@ function SeedAutoScale(): JSX.Element {
       fileName: "tool.png",
     });
     dispatch({ type: "SOURCE_READY", imageSize: { width: 100, height: 100 } });
+    if (existingManualScale) dispatch({
+      type: "SET_CALIBRATION",
+      calibration: { startX: 0, startY: 0, endX: 100, endY: 0, lengthMm: 50 },
+    });
     dispatch({
       type: "AUTO_CALIBRATION_DETECTED",
       sourceImageUrl: "data:image/png;base64,AA==",
@@ -166,7 +170,7 @@ function SeedAutoScale(): JSX.Element {
         lengthMm: 250,
       },
     });
-  }, [dispatch]);
+  }, [dispatch, existingManualScale]);
   return (
     <button type="button" onClick={() => dispatch({ type: "ACCEPT_AUTO_CALIBRATION" })}>
       Accept auto scale
@@ -376,6 +380,29 @@ describe("TraceCanvas edit history", () => {
     expect(host.querySelectorAll('[data-testid="ruler-marker"]')).toHaveLength(0);
 
     React.act(() => root.unmount());
+  });
+
+  it("keeps detected reference previews read-only when a manual scale remains accepted", async () => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const root = createRoot(host);
+    try {
+      await React.act(async () => root.render(
+        <TraceProvider><SeedAutoScale existingManualScale /><ScaleStateProbe />
+          <TooltipProvider><TraceCanvas onReprocess={() => {}} /></TooltipProvider>
+        </TraceProvider>,
+      ));
+      expect(host.querySelector('[data-testid="scale-mm-per-pixel"]')?.textContent).toBe("0.500000");
+      expect(host.querySelector('[data-testid="ruler-length-label"]')?.textContent).toContain("250 mm");
+      expect(host.querySelectorAll("[data-ruler-handle]")).toHaveLength(0);
+      React.act(() => host.querySelector('[data-testid="ruler-length-label"]')?.dispatchEvent(
+        new MouseEvent("dblclick", { bubbles: true }),
+      ));
+      expect(document.querySelector('[data-testid="ruler-length-inline-input"]')).toBeNull();
+      expect(host.querySelector('[data-testid="scale-mm-per-pixel"]')?.textContent).toBe("0.500000");
+    } finally { React.act(() => root.unmount()); }
   });
 
   it("replaces completed ruler points instead of restoring the old ruler", async () => {

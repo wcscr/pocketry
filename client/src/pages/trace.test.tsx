@@ -3,7 +3,8 @@ import * as React from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { PanelProvider } from "@/components/layout/panel-context";
+import { PanelProvider, usePanelState } from "@/components/layout/panel-context";
+import type { TraceControlsPanelProps } from "@/components/trace/trace-controls-panel";
 import { TraceProvider, useTrace } from "@/state/trace-store";
 import { downloadBlob } from "@/lib/download";
 import { generateSTL } from "@/lib/export/stl";
@@ -17,11 +18,15 @@ const {
   downloadCalibrationTemplateMock,
   getImageDataMock,
   processImageMock,
+  getDetectionFrameMock,
+  correctPerspectiveMock,
 } = vi.hoisted(() => ({
     decodeImageFileMock: vi.fn(),
     downloadCalibrationTemplateMock: vi.fn(),
     getImageDataMock: vi.fn(),
     processImageMock: vi.fn(),
+    getDetectionFrameMock: vi.fn(),
+    correctPerspectiveMock: vi.fn(),
   }));
 
 vi.mock("@/components/layout/workspace-layout", () => ({
@@ -45,7 +50,17 @@ vi.mock("@/components/layout/workspace-layout", () => ({
 }));
 
 vi.mock("@/components/trace/trace-controls-panel", () => ({
-  TraceControlsPanel: ({ onExport }: { onExport: () => void }) => <button onClick={onExport} data-testid="export-trace">Export trace</button>,
+  TraceControlsPanel: ({ onExport, onApplyPerspective }: TraceControlsPanelProps) => <>
+    <button onClick={onExport} data-testid="export-trace">Export trace</button>
+    <button data-testid="perspective-only" onClick={() => onApplyPerspective({ source: "manual", paper: "letter",
+      points: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }],
+    }, "letter", false)}>Correct perspective only</button>
+  </>,
+}));
+
+vi.mock("@/lib/calibrate/perspective", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/lib/calibrate/perspective")>(),
+  correctPerspective: correctPerspectiveMock,
 }));
 
 vi.mock("@/lib/download", () => ({ downloadBlob: vi.fn() }));
@@ -86,7 +101,7 @@ vi.mock("@/components/trace/use-image-source", () => {
   const empty = {
     source: { status: "empty" as const },
     getImageData: getImageDataMock,
-    getDetectionFrame: () => null,
+    getDetectionFrame: getDetectionFrameMock,
   };
   const ready = {
     source: {
@@ -97,14 +112,19 @@ vi.mock("@/components/trace/use-image-source", () => {
       naturalSize: { width: 800, height: 600 },
     },
     getImageData: getImageDataMock,
-    getDetectionFrame: () => null,
+    getDetectionFrame: getDetectionFrameMock,
   };
+  const readySources = new Map<string, typeof ready>();
 
   return {
     decodeImageFile: decodeImageFileMock,
     fitWithin: () => ({ width: 800, height: 600 }),
     IMAGE_CANVAS_MAX: { width: 800, height: 600 },
-    useImageSource: (url: string | null) => (url ? ready : empty),
+    useImageSource: (url: string | null) => {
+      if (!url) return empty;
+      if (!readySources.has(url)) readySources.set(url, { ...ready, source: { ...ready.source, url } });
+      return readySources.get(url)!;
+    },
   };
 });
 
@@ -174,6 +194,7 @@ describe("Trace detection workflow", () => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener: () => {}, removeEventListener: () => {} }));
     vi.mocked(generateSTL).mockResolvedValue(new ArrayBuffer(100));
+    getDetectionFrameMock.mockReturnValue(null);
     getImageDataMock.mockReturnValue({
       width: 300,
       height: 200,
@@ -212,6 +233,33 @@ describe("Trace detection workflow", () => {
     Object.defineProperty(window, "innerWidth", { value: 1024, configurable: true, writable: true });
   });
 
+  it.each([true, false])("closes the mobile drawer only after successful perspective-only correction (success=%s)", async (success) => {
+    vi.stubGlobal("matchMedia", () => ({ matches: true, addEventListener: () => {}, removeEventListener: () => {} }));
+    Object.defineProperty(window, "innerWidth", { value: 390, configurable: true, writable: true });
+    let current!: ReturnType<typeof useTrace>;
+    let panel!: ReturnType<typeof usePanelState>;
+    function Probe(): null { current = useTrace(); panel = usePanelState(); return null; }
+    await React.act(async () => root.render(<PanelProvider><TraceProvider><Probe /><SeedExportOutline format="svg" calibrated={false} /><TracePage /></TraceProvider></PanelProvider>));
+    getDetectionFrameMock.mockReturnValue({ imageData: getImageDataMock(), sourceImageUrl: "data:image/png;base64,source", toWorking: { x: 1, y: 1 } });
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({ putImageData: vi.fn() } as unknown as CanvasRenderingContext2D);
+    vi.spyOn(HTMLCanvasElement.prototype, "toDataURL").mockReturnValue("data:image/png;base64,corrected");
+    if (success) correctPerspectiveMock.mockResolvedValueOnce({ imageData: getImageDataMock(), width: 300, height: 200, calibration: null, pxPerMm: 1, reprojectionErrorPx: 0 });
+    else correctPerspectiveMock.mockRejectedValueOnce(new Error("Invalid corners"));
+    await React.act(async () => panel.setPanelOpen(true));
+    await React.act(async () => host.querySelector<HTMLButtonElement>('[data-testid="perspective-only"]')!.click());
+    expect(panel.panelOpen).toBe(!success);
+    expect(current.calibration).toBeNull();
+    if (success) {
+      expect(current.mode).toBe("calibrate");
+      expect(current.imageUrl).toBe("data:image/png;base64,corrected");
+      expect(host.textContent).toContain("Tap two points a known distance apart");
+      expect(host.querySelector('[data-testid="perspective-only"]')).toBeNull();
+    } else {
+      expect(current.imageUrl).toBe("data:image/png;base64,source");
+      expect(host.querySelector('[data-testid="perspective-only"]')).not.toBeNull();
+    }
+  });
+
   it("keeps Start over empty when pending detection and photo decoding finish later", async () => {
     vi.stubGlobal("matchMedia", () => ({ matches: true, addEventListener: () => {}, removeEventListener: () => {} }));
     let finishDetection!: (result: { outline: Outline; rawOutline: Outline; svg: string }) => void;
@@ -243,7 +291,9 @@ describe("Trace detection workflow", () => {
     React.act(() => root.unmount());
     host.remove();
     vi.clearAllMocks();
+    vi.restoreAllMocks();
     vi.unstubAllGlobals();
+    Object.defineProperty(window, "innerWidth", { value: 1024, configurable: true, writable: true });
   });
 
   it.each((["svg", "dxf", "dwg", "stl"] as const).flatMap((format) => [false, true].map((includeProject) => ({ format, includeProject }))))(
@@ -302,56 +352,15 @@ describe("Trace detection workflow", () => {
     expect(downloadBlob).not.toHaveBeenCalled();
   });
 
-  it("links both calibration-sheet downloads above the empty drop zone", async () => {
+  it("keeps downloads behind one link above the empty drop zone", async () => {
     await React.act(async () => {
-      root.render(
-        <PanelProvider>
-          <TraceProvider>
-            <TracePage />
-          </TraceProvider>
-        </PanelProvider>,
-      );
+      root.render(<PanelProvider><TraceProvider><TracePage /></TraceProvider></PanelProvider>);
     });
-
-    expect(host.textContent).toContain(
-      "Photograph the tool on the provided A4 or US Letter template or plain background",
-    );
-    const emphasizedOr = [...host.querySelectorAll("strong")].find(
-      (candidate) => candidate.textContent === "or",
-    );
-    expect(emphasizedOr?.className).toContain("italic");
-
-    await React.act(async () => {
-      host
-        .querySelector<HTMLButtonElement>('[data-testid="empty-state-template-a4"]')
-        ?.click();
-      host
-        .querySelector<HTMLButtonElement>(
-          '[data-testid="empty-state-template-letter"]',
-        )
-        ?.click();
-      host
-        .querySelector<HTMLButtonElement>(
-          '[data-testid="empty-state-template-a4-experimental"]',
-        )
-        ?.click();
-      host
-        .querySelector<HTMLButtonElement>(
-          '[data-testid="empty-state-template-letter-experimental"]',
-        )
-        ?.click();
-    });
-
-    expect(downloadCalibrationTemplateMock).toHaveBeenNthCalledWith(1, "a4");
-    expect(downloadCalibrationTemplateMock).toHaveBeenNthCalledWith(2, "letter");
-    expect(downloadCalibrationTemplateMock).toHaveBeenNthCalledWith(
-      3,
-      "a4-experimental",
-    );
-    expect(downloadCalibrationTemplateMock).toHaveBeenNthCalledWith(
-      4,
-      "letter-experimental",
-    );
+    expect(host.textContent).toContain("Photograph the tool on a calibration sheet or a plain, contrasting background");
+    expect(host.textContent).not.toContain("Paper sheets and");
+    expect(host.querySelector('[aria-label="Download a measurement aid as 3MF"]')).toBeNull();
+    expect(host.textContent).not.toContain("A4 PDF");
+    expect([...host.querySelectorAll("button")].filter((button) => button.textContent === "Download printable calibration templates")).toHaveLength(1);
   });
 
   it("keeps the current photo visible until its replacement is decoded", async () => {

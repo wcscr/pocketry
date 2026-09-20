@@ -16,7 +16,8 @@ Reviewed and fixed on 2026-09-16, starting from `origin/main` at
 | Contour editing (2026-09-18–19) | Vertex deletion required right-click; the follow-up edit buttons appeared outside edit mode and occupied the photo. | A compact selected-contour indicator and Remove toggle appear only in contour edit mode with a selected contour. Entering Trace contour mode selects the largest outer contour; switching removal on/off retains the selected ring. Mobile Trace keeps the toggle in its action row. Bin vertices turn red in removal mode. Removal preserves three vertices and supports undo/redo. |
 | Guidance and step navigation (2026-09-19) | Small gray instructions were easy to miss; returning to an earlier step or restarting was unclear. | Blue guidance has stronger contrast and a brief two-cycle pulse when instructions change, disabled for reduced motion. Back revisits Photo, Scale, and Region without discarding completed work. Start over confirms clearing the trace and invalidates pending decoding/detection; previously added Bin pockets remain. |
 | Direct trace adjustments (2026-09-19) | Sensitivity and Detail required opening the controls drawer. | Both sliders are visible below the canvas after region detection, using the same controls as the drawer. Sensitivity commits on release and confirms before replacing manual edits; Detail preserves manual edits. |
-| Compact canvas (2026-09-19) | Toolbars and instructions competed with the photo on narrow/short phones. | A single row of trace tools leaves history at the lower left and zoom at the lower right. Fitting compact canvases leaves room for toolbars. Landscape phones at least 640 px wide place Trace step controls beside the canvas; smaller action areas scroll if necessary. |
+| Compact canvas (2026-09-19–20) | Toolbars and instructions competed with the photo on narrow/short phones. | A single row of trace tools leaves history at the lower left and zoom at the lower right. Fitting compact canvases leaves room for toolbars. Landscape phones at least 560 px wide place Trace step controls beside the canvas, reserving at least 320 px of canvas width so its toolbars do not overlap; the action area scrolls independently. |
+| Collapsed desktop controls (2026-09-20) | Keyboard focus could enter the invisible controls panel. | The mounted panel becomes inert and hidden from assistive technology while collapsed, then becomes interactive again when opened. |
 | Bin navigation and export | The 3D/Layout switch competed with history controls on phones, and export was buried in settings. | Separated controls and persistent Bin settings / Export bin actions. Layout has explicit pan and fit controls. |
 | Small screens and tablets | Tall opening instructions could start above the scrollable area; percentage-sized tablet panels squeezed fields and buttons. | Opening instructions scroll from the top; expanded panels maintain a 280 px minimum where the configured maximum allows it. |
 | Dialogs, forms, and feedback | Long dialogs could exceed the viewport; notification dismissal depended on hover. | Dialogs and confirmations have viewport bounds and scrolling, close actions have larger targets, notifications can be dismissed by touch, and phone form text is 16 px. Safe-area padding and browser zoom are enabled. |
@@ -52,6 +53,12 @@ Reviewed and fixed on 2026-09-16, starting from `origin/main` at
   manual confirmation, perspective versus scale-only actions, export navigation,
   touch point removal, minimum ring size, and undo. Existing project-history tests
   exercise opening the now-closed mobile controls explicitly.
+- The 2026-09-20 follow-up reproduces perspective-only correction at 568×320,
+  then places both ruler endpoints by touch and confirms a manual length. The
+  photo fits between separate toolbars in a 320×235 canvas. A desktop keyboard
+  run verifies that collapsed controls cannot receive focus and reopening the
+  panel reveals and focuses the pending calibration choice. Regression tests
+  also keep detected-ruler previews read-only while a manual scale is retained.
 
 Browser evidence was generated with isolated headless Chromium and fresh browser
 storage. Screenshots, scripts, logs, STL, JSON backup, and viewport results are in
