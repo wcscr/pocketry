@@ -166,8 +166,9 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
             <h3 className="mb-1.5 font-medium">3. Save and resume projects</h3>
             <ul className="list-disc space-y-1 pl-6 text-muted-foreground">
               <li>
-                <strong>Save to library</strong> stores a named project in the
-                browser's project library for quick resume.
+                Double-click the current project title to name a new draft or
+                rename a saved project. The save icon (<strong>Save to library</strong>)
+                stores a draft as a named project; the pencil renames a saved project.
               </li>
               <li>
                 In <strong>Browser library → Manage</strong>, open a saved project
@@ -179,7 +180,7 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
                 opening another saved project or a project file asks before replacing it.
                 Choose Keep working to save or export the draft first.
                 In <strong>Project</strong>, next to <strong>New project</strong>, use
-                {" "}<strong>Export project</strong> or <strong>Open project file</strong>
+                {" "}<strong>Export project</strong> or <strong>Open project</strong>
                 {" "}for one editable design.
               </li>
               <li>
@@ -228,7 +229,7 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
                 starts unchecked. When selected, the files share the project name
                 (when saved), bin size, and local date/time. Allow multiple
                 downloads if your browser asks, and keep the JSON to restore
-                the design later with Open project file.
+                the design later with Open project.
               </li>
               <li>
                 Trace exports offer the same optional JSON download once the outline
