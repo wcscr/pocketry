@@ -329,6 +329,7 @@ describe("BinDesignerPage", () => {
       const input = container.querySelector<HTMLInputElement>('input[type="file"][accept*=".pocketry.json"]')!;
       Object.defineProperty(input, "files", { value: [file], configurable: true });
       await React.act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
+      await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-discard-draft-open"]')!.click());
       openSettingsSection(container, "tool-cutouts");
       expect(names()).toEqual(expectedNames);
       click("button-bin-undo");
@@ -2688,6 +2689,199 @@ describe("BinDesignerPage", () => {
       React.act(() => document.querySelector<HTMLButtonElement>('[role="alertdialog"] button')!.click());
       expect(document.querySelector('[role="alertdialog"]')).toBeNull();
       expect(document.querySelector('[data-testid="managed-project-list"]')).not.toBeNull();
+    } finally { unmount(); }
+  });
+
+  it.each(["{", JSON.stringify({ schemaVersion: 999 })])("rejects invalid project files without asking to replace the draft: %s", async (json) => {
+    const draft = { ...EMPTY_PROJECT, spec: parseBinSpec({ ...EMPTY_PROJECT.spec, gridX: 3 }) };
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(draft);
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      openSettingsSection(container, "project");
+      const input = container.querySelector<HTMLInputElement>('input[type="file"][accept*=".pocketry.json"]')!;
+      const file = new File([json], "Invalid.pocketry.json");
+      Object.defineProperty(file, "text", { value: async () => json });
+      Object.defineProperty(input, "files", { value: [file], configurable: true });
+      await React.act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
+      expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+      expect(ProjectPersistence.startNewProject).not.toHaveBeenCalled();
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toEqual(draft.spec);
+    } finally { unmount(); }
+  });
+
+  it.each(["draft", "named"])("uses current %s work after a delayed project-file read", async (kind) => {
+    if (kind === "named") {
+      vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(EMPTY_PROJECT);
+      vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId: "current", projects: [
+        { id: "current", name: "Current tray", updatedAt: "2026-09-20T12:00:00.000Z" },
+      ] });
+    }
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      openSettingsSection(container, "project");
+      const input = container.querySelector<HTMLInputElement>('input[type="file"][accept*=".pocketry.json"]')!;
+      let finishRead!: (json: string) => void;
+      const file = new File([], "Replacement.pocketry.json");
+      Object.defineProperty(file, "text", { value: () => new Promise<string>((resolve) => { finishRead = resolve; }) });
+      Object.defineProperty(input, "files", { value: [file], configurable: true });
+      React.act(() => input.dispatchEvent(new Event("change", { bubbles: true })));
+      // Expand Size without the index closing/unmounting Project: this read
+      // remains live while the current design is edited.
+      const sizeTrigger = container.querySelector<HTMLButtonElement>('#bin-settings-size > [data-panel-section-trigger]')!;
+      if (sizeTrigger.getAttribute("aria-expanded") === "false") React.act(() => sizeTrigger.click());
+      const height = container.querySelector<HTMLInputElement>('[aria-label="Bin height in units"]')!;
+      React.act(() => height.focus());
+      React.act(() => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(height, "9");
+        height.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      React.act(() => height.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0].heightUnits).toBe(9);
+      await React.act(async () => finishRead(JSON.stringify(EMPTY_PROJECT)));
+      if (kind === "draft") {
+        expect(document.querySelector('[role="alertdialog"]')?.textContent).toContain("Replace the current draft?");
+        expect(ProjectPersistence.startNewProject).not.toHaveBeenCalled();
+        expect(vi.mocked(useBinGeometry).mock.lastCall![0].heightUnits).toBe(9);
+        React.act(() => document.querySelector<HTMLButtonElement>('[role="alertdialog"] button')!.click());
+        expect(vi.mocked(useBinGeometry).mock.lastCall![0].heightUnits).toBe(9);
+      } else {
+        expect(ProjectPersistence.saveProjectDoc).toHaveBeenCalledWith(expect.objectContaining({
+          spec: expect.objectContaining({ heightUnits: 9 }),
+        }), "current");
+        expect(ProjectPersistence.startNewProject).toHaveBeenCalledExactlyOnceWith({ ...EMPTY_PROJECT, name: "Replacement" });
+      }
+    } finally { unmount(); }
+  });
+
+  it("ignores a superseded file read after the newer selected project opens", async () => {
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      openSettingsSection(container, "project");
+      const input = container.querySelector<HTMLInputElement>('input[type="file"][accept*=".pocketry.json"]')!;
+      let finishFirst!: (json: string) => void;
+      const first = new File([], "First.pocketry.json");
+      Object.defineProperty(first, "text", { value: () => new Promise<string>((resolve) => { finishFirst = resolve; }) });
+      Object.defineProperty(input, "files", { value: [first], configurable: true });
+      React.act(() => input.dispatchEvent(new Event("change", { bubbles: true })));
+      const second = new File([], "Second.pocketry.json");
+      Object.defineProperty(second, "text", { value: async () => JSON.stringify(EMPTY_PROJECT) });
+      Object.defineProperty(input, "files", { value: [second], configurable: true });
+      await React.act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
+      await React.act(async () => finishFirst(JSON.stringify(EMPTY_PROJECT)));
+      expect(ProjectPersistence.startNewProject).toHaveBeenCalledExactlyOnceWith({ ...EMPTY_PROJECT, name: "Second" });
+      expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+      expect(container.querySelector('[data-testid="current-project-name-row"] p[title]')?.textContent).toBe("Second");
+    } finally { unmount(); }
+  });
+
+  it("ignores a file read that finishes after the controls unmount", async () => {
+    const { container, unmount } = renderPage();
+    await flushHydration();
+    openSettingsSection(container, "project");
+    const input = container.querySelector<HTMLInputElement>('input[type="file"][accept*=".pocketry.json"]')!;
+    let finishRead!: (json: string) => void;
+    const file = new File([], "Replacement.pocketry.json");
+    Object.defineProperty(file, "text", { value: () => new Promise<string>((resolve) => { finishRead = resolve; }) });
+    Object.defineProperty(input, "files", { value: [file], configurable: true });
+    React.act(() => input.dispatchEvent(new Event("change", { bubbles: true })));
+    unmount();
+    await React.act(async () => finishRead(JSON.stringify(EMPTY_PROJECT)));
+    expect(ProjectPersistence.startNewProject).not.toHaveBeenCalled();
+    expect(ProjectPersistence.saveProjectDoc).not.toHaveBeenCalled();
+    expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+  });
+
+  it.each(["library", "new"])("ignores a pending file after a later %s project choice", async (choice) => {
+    const project = { id: "saved", name: "Saved tray", updatedAt: "2026-09-20T12:00:00.000Z" };
+    vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId: null, projects: [project] });
+    vi.mocked(ProjectPersistence.openProjectFromLibrary).mockResolvedValue({
+      doc: EMPTY_PROJECT, project, library: { activeProjectId: project.id, projects: [project] },
+    });
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      openSettingsSection(container, "project");
+      const input = container.querySelector<HTMLInputElement>('input[type="file"][accept*=".pocketry.json"]')!;
+      let finishRead!: (json: string) => void;
+      const file = new File([], "Late.pocketry.json");
+      Object.defineProperty(file, "text", { value: () => new Promise<string>((resolve) => { finishRead = resolve; }) });
+      Object.defineProperty(input, "files", { value: [file], configurable: true });
+      React.act(() => input.dispatchEvent(new Event("change", { bubbles: true })));
+      if (choice === "library") {
+        React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
+        await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-open-project-saved"]')!.click());
+      } else {
+        React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-new-project"]')!.click());
+        await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-confirm-new-project"]')!.click());
+      }
+      const importsBeforeRead = vi.mocked(ProjectPersistence.startNewProject).mock.calls.length;
+      await React.act(async () => finishRead(JSON.stringify(EMPTY_PROJECT)));
+      expect(ProjectPersistence.startNewProject).toHaveBeenCalledTimes(importsBeforeRead);
+      expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+      expect(container.querySelector('[data-testid="current-project-name-row"] p[title]')?.textContent).toBe(choice === "library" ? "Saved tray" : "Untitled project");
+    } finally { unmount(); }
+  });
+
+  it("keeps a nonempty draft and returns focus to Open project file when replacement is cancelled", async () => {
+    const draft = parseProjectDoc(ryobiReloadFixture)!;
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(draft);
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      openSettingsSection(container, "project");
+      const button = container.querySelector<HTMLButtonElement>('[data-testid="button-import-project"]')!;
+      React.act(() => button.focus());
+      const input = container.querySelector<HTMLInputElement>('input[type="file"][accept*=".pocketry.json"]')!;
+      const json = JSON.stringify(EMPTY_PROJECT);
+      const file = new File([json], "Replacement.pocketry.json");
+      Object.defineProperty(file, "text", { value: async () => json });
+      Object.defineProperty(input, "files", { value: [file], configurable: true });
+      await React.act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
+      expect(document.querySelector('[role="alertdialog"]')?.textContent).toContain('Opening “Replacement”');
+      expect(ProjectPersistence.startNewProject).not.toHaveBeenCalled();
+      React.act(() => document.querySelector<HTMLButtonElement>('[role="alertdialog"] button')!.click());
+      await React.act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+      expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+      expect(document.activeElement).toBe(button);
+      expect(ProjectPersistence.startNewProject).not.toHaveBeenCalled();
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toEqual(draft.cutouts);
+    } finally { unmount(); }
+  });
+
+  it("keeps the draft and validated file available when confirmed opening fails, then retries successfully", async () => {
+    const draft = { ...EMPTY_PROJECT, spec: parseBinSpec({ ...EMPTY_PROJECT.spec, gridX: 3 }) };
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(draft);
+    let rejectOpen!: (error: Error) => void;
+    vi.mocked(ProjectPersistence.startNewProject).mockReturnValueOnce(new Promise((_, reject) => { rejectOpen = reject; }));
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      openSettingsSection(container, "project");
+      const input = container.querySelector<HTMLInputElement>('input[type="file"][accept*=".pocketry.json"]')!;
+      const json = JSON.stringify(EMPTY_PROJECT);
+      const file = new File([json], "Replacement.pocketry.json");
+      const readFile = vi.fn(async () => json);
+      Object.defineProperty(file, "text", { value: readFile });
+      Object.defineProperty(input, "files", { value: [file], configurable: true });
+      await React.act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
+      expect(ProjectPersistence.startNewProject).not.toHaveBeenCalled();
+      const confirm = () => document.querySelector<HTMLButtonElement>('[data-testid="button-discard-draft-open"]')!;
+      await React.act(async () => confirm().click());
+      expect(confirm().disabled).toBe(true);
+      React.act(() => confirm().click());
+      expect(ProjectPersistence.startNewProject).toHaveBeenCalledExactlyOnceWith({ ...EMPTY_PROJECT, name: "Replacement" });
+      await React.act(async () => rejectOpen(new Error("Storage unavailable")));
+      expect(confirm().disabled).toBe(false);
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toEqual(draft.spec);
+      await React.act(async () => confirm().click());
+      expect(ProjectPersistence.startNewProject).toHaveBeenCalledTimes(2);
+      expect(readFile).toHaveBeenCalledOnce();
+      expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toEqual(EMPTY_PROJECT.spec);
+      expect(container.querySelector('[data-testid="current-project-name-row"] p[title]')?.textContent).toBe("Replacement");
     } finally { unmount(); }
   });
 

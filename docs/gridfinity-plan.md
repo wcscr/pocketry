@@ -134,13 +134,21 @@ and New detaches a clean draft without deleting saved projects. Opening another
 design, opening a project file, and New Project all save the outgoing named
 design's latest edits before changing the autosave target. A failed save keeps
 the current design open. Library import/export also lives in Manage; the main
-Project section retains only current-project file transfers. The library is
-guarded against accidentally replacing a nonempty unnamed draft: Open, Enter,
-and double-click all ask for confirmation, with Keep working as the safe choice.
+Project section retains only current-project file transfers. Both library opens
+(Open, Enter, and double-click) and opening a project file share a confirmation
+before replacing a nonempty unnamed draft, with Keep working as the safe choice.
+Files are validated before confirmation; cancelling preserves the draft and
+returns focus to the source action. A failed file open retains the validated
+snapshot for retry without asking the user to select the file again.
+After reading a file, the replacement decision and named-project save use the
+current design, including edits made while reading. A newer file selection,
+another project choice, or leaving the controls cancels an older unfinished read.
 Empty untouched drafts open directly, and named projects retain the save-before-open
 behavior. A failed open keeps the draft and confirmation available. On short
 screens, Manage scrolls as a whole so project rows and library transfers remain
-reachable; narrow rows wrap their actions within the card. Manage focuses and
+reachable; narrow rows wrap their actions within the card. Long project names
+wrap within both removal and replacement confirmations without pushing their
+actions outside a narrow dialog. Manage focuses and
 scrolls to the current project when opened, falling back to the first project or
 the export action in an empty library. The library is
 implemented entirely over IndexedDB so its behavior is consistent across modern

@@ -206,8 +206,8 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
                 after confirmation. The currently open project cannot be removed;
                 open another project or start a new one first.
                 If your current draft has work that is not saved in the library,
-                opening another project asks before replacing it. Choose Keep working
-                to save or export the draft first.
+                opening another saved project or a project file asks before replacing it.
+                Choose Keep working to save or export the draft first.
                 In <strong>Portable backup → Current project</strong>, use
                 {" "}<strong>Export project</strong> or <strong>Open project file</strong>
                 {" "}for one editable design.

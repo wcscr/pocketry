@@ -120,6 +120,8 @@ import {
   type BuildBinStats,
 } from "@/lib/gridfinity/worker-api";
 import type { ProjectLibraryItem } from "@/lib/project/persist";
+import { parseProjectDoc, type ProjectDoc } from "@shared/gridfinity/project";
+import { useToast } from "@/hooks/use-toast";
 import { SURFACE_FIT_CHECK_OUTLINE_WIDTH_MM, surfaceFitCheckStyleSchema, type SurfaceFitCheckStyle } from "@shared/gridfinity/fit-check";
 import { cn } from "@/lib/utils";
 import { PocketSplitControls } from "./pocket-split-controls";
@@ -234,7 +236,7 @@ export interface BinControlsPanelProps {
   onExportLayout: (format: "dxf" | "svg", includeProject: boolean) => void;
   onAutoArrange: () => void;
   onExportProject: () => void;
-  onImportProject: (file: File) => void;
+  onImportProject: (doc: ProjectDoc) => Promise<boolean>;
   projectLibraryReady: boolean;
   projectBusy: boolean;
   activeProjectId: string | null;
@@ -2073,8 +2075,12 @@ interface ProjectControlsProps {
   onImportLibrary: (file: File) => void;
   onNewProject: () => void;
   onExportProject: () => void;
-  onImportProject: (file: File) => void;
+  onImportProject: (doc: ProjectDoc) => Promise<boolean>;
 }
+
+type ProjectOpenTarget =
+  | { kind: "library"; project: ProjectLibraryItem }
+  | { kind: "file"; doc: ProjectDoc };
 
 const projectActionClass = "h-auto min-h-11 min-w-0 gap-1.5 whitespace-normal px-2 py-2 text-xs";
 
@@ -2103,25 +2109,65 @@ function ProjectControls({
   const [saveOpen, setSaveOpen] = useState(false);
   const [renameProjectId, setRenameProjectId] = useState<string | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
-  const [pendingOpenProject, setPendingOpenProject] = useState<ProjectLibraryItem | null>(null);
+  const [pendingOpenProject, setPendingOpenProject] = useState<ProjectOpenTarget | null>(null);
+  const { toast } = useToast();
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [projectName, setProjectName] = useState("");
   const importInputRef = useRef<HTMLInputElement | null>(null);
+  const importProjectButtonRef = useRef<HTMLButtonElement | null>(null);
   const libraryImportInputRef = useRef<HTMLInputElement | null>(null);
   const libraryDialogRef = useRef<HTMLDivElement | null>(null);
   const openProjectSourceRef = useRef<HTMLElement | null>(null);
+  const projectFileReadRevision = useRef(0);
+  useEffect(() => () => { projectFileReadRevision.current += 1; }, []);
+  useEffect(() => { projectFileReadRevision.current += 1; }, [activeProjectId]);
 
-  const openLibraryProject = async (project: ProjectLibraryItem, discardDraft = false) => {
-    if (busy || project.id === activeProjectId) return;
+  const openProject = async (target: ProjectOpenTarget, discardDraft = false, source?: HTMLElement | null) => {
+    if (busy || (target.kind === "library" && target.project.id === activeProjectId)) return;
+    // A later library-open choice supersedes any file still being validated.
+    if (target.kind === "library") projectFileReadRevision.current += 1;
     if (!activeProjectId && hasDraftWork && !discardDraft) {
-      openProjectSourceRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-      setPendingOpenProject(project);
+      openProjectSourceRef.current = source ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+      setPendingOpenProject(target);
       return;
     }
-    if (await onOpenProject(project.id)) {
+    const opened = target.kind === "library"
+      ? await onOpenProject(target.project.id)
+      : await onImportProject(target.doc);
+    if (opened) {
       setPendingOpenProject(null);
       setLibraryOpen(false);
     }
+  };
+  // File reads may finish after the draft, active project, or persistence
+  // callbacks have changed. Decide using this render's state, not the state
+  // captured when the picker first selected the file.
+  const latestOpenProject = useRef(openProject);
+  latestOpenProject.current = openProject;
+
+  const readProjectFile = async (file: File) => {
+    if (busy) return;
+    const revision = ++projectFileReadRevision.current;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(await file.text());
+    } catch {
+      parsed = null;
+    }
+    if (revision !== projectFileReadRevision.current) return;
+    const doc = parseProjectDoc(parsed);
+    if (!doc) {
+      toast({
+        title: "Not a Pocketry project",
+        description: `${file.name} is not a readable .pocketry.json or legacy .tooltrace.json file.`,
+        variant: "destructive",
+      });
+      return;
+    }
+    doc.name ??= file.name.replace(/\.(?:pocketry|tooltrace)\.json$/i, "").replace(/\.json$/i, "").replace(/[-_]+/g, " ").trim().slice(0, 80) || "Imported project";
+    // Validate before asking to replace anything; the retained document is also
+    // the exact snapshot retried if opening it fails.
+    await latestOpenProject.current({ kind: "file", doc }, false, importProjectButtonRef.current);
   };
 
   const renderNameDialog = (project?: ProjectLibraryItem): JSX.Element => {
@@ -2253,7 +2299,7 @@ function ProjectControls({
           ) : (
             projects.map((project) => {
               const active = project.id === activeProjectId;
-              const openProject = () => openLibraryProject(project);
+              const openLibraryProject = () => openProject({ kind: "library", project });
               return (
                 <div
                   key={project.id}
@@ -2280,12 +2326,12 @@ function ProjectControls({
                   onKeyDown={(event) => {
                     if (event.target !== event.currentTarget || event.key !== "Enter") return;
                     event.preventDefault();
-                    void openProject();
+                    void openLibraryProject();
                   }}
                   onDoubleClick={(event) => {
                     if (!(event.target instanceof Element)) return;
                     if (!event.currentTarget.contains(event.target) || event.target.closest("button")) return;
-                    void openProject();
+                    void openLibraryProject();
                   }}
                 >
                   <div className="min-w-0 flex-1 basis-40">
@@ -2306,7 +2352,7 @@ function ProjectControls({
                     variant={active ? "secondary" : "outline"}
                     className="min-h-11 gap-1.5 px-2 text-xs"
                     disabled={busy || active}
-                    onClick={() => void openProject()}
+                    onClick={() => void openLibraryProject()}
                     aria-label={active ? `${project.name} is currently open` : `Open ${project.name}`}
                     data-testid={`button-open-project-${project.id}`}
                   >
@@ -2342,8 +2388,8 @@ function ProjectControls({
                       </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle className="break-words">Remove “{project.name}” from library?</AlertDialogTitle>
+                      <AlertDialogHeader className="min-w-0 [overflow-wrap:anywhere]">
+                        <AlertDialogTitle>Remove “{project.name}” from library?</AlertDialogTitle>
                         <AlertDialogDescription>
                           This removes the saved copy from this browser. Your current project
                           will not change. Exported backup files are not affected.
@@ -2391,37 +2437,6 @@ function ProjectControls({
             event.currentTarget.value = "";
             if (file) onImportLibrary(file);
           }} />
-        <AlertDialog open={pendingOpenProject !== null} onOpenChange={(open) => {
-          if (!open && !busy) setPendingOpenProject(null);
-        }}>
-          <AlertDialogContent onCloseAutoFocus={(event) => {
-            event.preventDefault();
-            if (openProjectSourceRef.current?.isConnected) openProjectSourceRef.current.focus({ preventScroll: true });
-          }}>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Replace the current draft?</AlertDialogTitle>
-              <AlertDialogDescription className="break-words">
-                This draft has work that is not saved in your library. Opening “{pendingOpenProject?.name}”
-                {" "}will replace it. Keep working to save or export the draft first.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel className="min-h-11" disabled={busy}>Keep working</AlertDialogCancel>
-              <AlertDialogAction
-                disabled={busy}
-                className="min-h-11 bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                onClick={(event) => {
-                  // Keep the choice available if loading the saved project fails.
-                  event.preventDefault();
-                  if (pendingOpenProject) void openLibraryProject(pendingOpenProject, true);
-                }}
-                data-testid="button-discard-draft-open"
-              >
-                {busy ? "Opening…" : "Discard draft and open"}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
       </DialogContent>
     </Dialog>
   );
@@ -2483,7 +2498,7 @@ function ProjectControls({
               <AlertDialogCancel>Keep current project</AlertDialogCancel>
               <AlertDialogAction
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                onClick={onNewProject}
+                onClick={() => { projectFileReadRevision.current += 1; onNewProject(); }}
                 data-testid="button-confirm-new-project"
               >
                 Start new project
@@ -2493,6 +2508,38 @@ function ProjectControls({
         </AlertDialog>
       </div>
       </section>
+
+      <AlertDialog open={pendingOpenProject !== null} onOpenChange={(open) => {
+        if (!open && !busy) setPendingOpenProject(null);
+      }}>
+        <AlertDialogContent onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          if (openProjectSourceRef.current?.isConnected) openProjectSourceRef.current.focus({ preventScroll: true });
+        }}>
+          <AlertDialogHeader className="min-w-0 [overflow-wrap:anywhere]">
+            <AlertDialogTitle>Replace the current draft?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This draft has work that is not saved in your library. Opening “{pendingOpenProject?.kind === "library" ? pendingOpenProject.project.name : pendingOpenProject?.doc.name}”
+              {" "}will replace it. Keep working to save or export the draft first.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="min-h-11" disabled={busy}>Keep working</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={busy}
+              className="min-h-11 bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={(event) => {
+                // Keep the choice available if opening the project fails.
+                event.preventDefault();
+                if (pendingOpenProject) void openProject(pendingOpenProject, true);
+              }}
+              data-testid="button-discard-draft-open"
+            >
+              {busy ? "Opening…" : "Discard draft and open"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <section aria-label="Portable backup" className="space-y-3 border-t pt-3" data-testid="portable-backup">
         <h3 className="text-sm font-semibold">Portable Backup</h3>
@@ -2515,6 +2562,7 @@ function ProjectControls({
             className={projectActionClass}
             disabled={!ready || busy}
             onClick={() => importInputRef.current?.click()}
+            ref={importProjectButtonRef}
             data-testid="button-import-project"
           >
             <FolderOpen className="h-3.5 w-3.5 shrink-0" />Open project file
@@ -2528,7 +2576,7 @@ function ProjectControls({
           className="hidden"
           onChange={(event) => {
             const file = event.target.files?.[0];
-            if (file) onImportProject(file);
+            if (file) void readProjectFile(file);
             event.target.value = "";
           }}
         />
