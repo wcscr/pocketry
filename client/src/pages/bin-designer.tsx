@@ -14,7 +14,6 @@ import { Button } from "@/components/ui/button";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useToast } from "@/hooks/use-toast";
 import {
-  parseProjectDoc,
   PROJECT_SCHEMA_VERSION,
   type ProjectDoc,
 } from "@shared/gridfinity/project";
@@ -492,23 +491,7 @@ function BinDesignerWorkspace(): JSX.Element {
   }, [saveProject, currentProjectDoc, projectLibrary.activeProjectId]);
 
   const handleImportProject = useCallback(
-    async (file: File) => {
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(await file.text());
-      } catch {
-        parsed = null;
-      }
-      const doc = parseProjectDoc(parsed);
-      if (!doc) {
-        toast({
-          title: "Not a Pocketry project",
-          description: `${file.name} is not a readable .pocketry.json or legacy .tooltrace.json file.`,
-          variant: "destructive",
-        });
-        return;
-      }
-      doc.name ??= file.name.replace(/\.(?:pocketry|tooltrace)\.json$/i, "").replace(/\.json$/i, "").replace(/[-_]+/g, " ").trim().slice(0, 80) || "Imported project";
+    async (doc: ProjectDoc): Promise<boolean> => {
       setProjectBusy(true);
       try {
         await saveBeforeReplacingProject();
@@ -529,12 +512,14 @@ function BinDesignerWorkspace(): JSX.Element {
           title: "Backup imported",
           description: `${doc.shapes.length} shape${doc.shapes.length === 1 ? "" : "s"}, ${doc.cutouts.length} pocket${doc.cutouts.length === 1 ? "" : "s"}. Opened as “${doc.name}”.`,
         });
+        return true;
       } catch (cause) {
         toast({
           title: "Could not import backup",
           description: cause instanceof Error ? cause.message : String(cause),
           variant: "destructive",
         });
+        return false;
       } finally {
         setProjectBusy(false);
       }
@@ -1002,7 +987,7 @@ function BinDesignerWorkspace(): JSX.Element {
           onExportLayout={handleExportLayout}
           onAutoArrange={handleAutoArrange}
           onExportProject={handleExportProject}
-          onImportProject={(file) => void handleImportProject(file)}
+          onImportProject={handleImportProject}
           projectLibraryReady={projectLibraryReady}
           projectBusy={projectBusy}
           activeProjectId={projectLibrary.activeProjectId}

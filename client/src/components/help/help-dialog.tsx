@@ -162,20 +162,20 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
                 browser's project library for quick resume.
               </li>
               <li>
-                <strong>Browser library → Open saved project</strong> resumes a
-                project saved in this browser.
-                {" "}<strong>Manage library</strong> also opens projects with Open or a
-                double-click, renames any project with the pencil, creates an independent
-                duplicate with Copy directly after its source without moving focus or
-                switching projects, and provides a confirmed
-                Remove action. The currently open project cannot be removed; open another
-                project or start a new one first.
+                In <strong>Browser library → Manage</strong>, open a saved project
+                with Open, a double-click, or Enter. Rename with the pencil, create
+                an independent duplicate with Copy, or remove a saved project
+                after confirmation. The currently open project cannot be removed;
+                open another project or start a new one first.
+                If your current draft has work that is not saved in the library,
+                opening another saved project or a project file asks before replacing it.
+                Choose Keep working to save or export the draft first.
                 In <strong>Portable backup → Current project</strong>, use
                 {" "}<strong>Export project</strong> or <strong>Open project file</strong>
                 {" "}for one editable design.
               </li>
               <li>
-                In <strong>Project → Portable backup → Entire library</strong>, use <strong>Export library</strong>
+                In <strong>Project → Browser library → Manage</strong>, use <strong>Export library</strong>
                 {" "}to back up every named design in one JSON file, or <strong>Import library</strong>
                 {" "}to add designs from a backup. Supported older designs upgrade automatically.
                 Duplicate names get an “imported” suffix; existing designs and the open draft
