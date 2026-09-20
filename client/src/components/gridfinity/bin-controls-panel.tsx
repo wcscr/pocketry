@@ -2478,13 +2478,13 @@ function ProjectControls({
         </div>
         {saveStatus === "error" && <p className="text-[11px] text-destructive" role="status">Autosave is unavailable. Export this project to keep your work.</p>}
       </div>
-      <div className="flex">
+      <div className="grid grid-cols-3 gap-2" role="group" aria-label="Project actions">
         <AlertDialog>
           <AlertDialogTrigger asChild>
             <Button
               variant="outline"
               size="sm"
-              className="h-auto min-h-9 min-w-0 gap-1.5 whitespace-normal px-2 py-1.5 text-xs [@media(pointer:coarse)]:min-h-11"
+              className={projectActionClass}
               disabled={!ready || busy}
               data-testid="button-new-project"
             >
@@ -2513,6 +2513,29 @@ function ProjectControls({
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+        <Button
+          variant="outline"
+          size="sm"
+          className={projectActionClass}
+          disabled={!ready || busy}
+          onClick={onExportProject}
+          title="Download this design as an editable .pocketry.json file"
+          data-testid="button-export-project"
+        >
+          <Download className="h-3.5 w-3.5 shrink-0" />Export project
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className={projectActionClass}
+          disabled={!ready || busy}
+          onClick={() => importInputRef.current?.click()}
+          ref={importProjectButtonRef}
+          title="Open an editable Pocketry project file"
+          data-testid="button-import-project"
+        >
+          <FolderOpen className="h-3.5 w-3.5 shrink-0" />Open project file
+        </Button>
       </div>
       </section>
 
@@ -2548,46 +2571,17 @@ function ProjectControls({
         </AlertDialogContent>
       </AlertDialog>
 
-      <section aria-label="Portable backup" className="space-y-3 border-t pt-3" data-testid="portable-backup">
-        <h3 className="text-sm font-semibold">Portable Backup</h3>
-        <div className="space-y-1.5" data-testid="project-file-backup">
-        <SettingLabel label="Current project" hint="Exports this design as an editable .pocketry.json file. Opening a project file first saves the latest changes to your named project, then replaces the working draft." />
-        <div className="grid grid-cols-2 gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className={projectActionClass}
-            disabled={!ready || busy}
-            onClick={onExportProject}
-            data-testid="button-export-project"
-          >
-            <Download className="h-3.5 w-3.5 shrink-0" />Export project
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className={projectActionClass}
-            disabled={!ready || busy}
-            onClick={() => importInputRef.current?.click()}
-            ref={importProjectButtonRef}
-            data-testid="button-import-project"
-          >
-            <FolderOpen className="h-3.5 w-3.5 shrink-0" />Open project file
-          </Button>
-        </div>
-        </div>
-        <input
-          ref={importInputRef}
-          type="file"
-          accept=".json,.pocketry.json,.tooltrace.json,application/json"
-          className="hidden"
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            if (file) void readProjectFile(file);
-            event.target.value = "";
-          }}
-        />
-      </section>
+      <input
+        ref={importInputRef}
+        type="file"
+        accept=".json,.pocketry.json,.tooltrace.json,application/json"
+        className="hidden"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file) void readProjectFile(file);
+          event.target.value = "";
+        }}
+      />
     </>
   );
 }

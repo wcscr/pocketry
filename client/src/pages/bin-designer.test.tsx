@@ -2344,7 +2344,7 @@ describe("BinDesignerPage", () => {
     expect(status.querySelector('[role="group"][aria-labelledby="current-project-label"]')?.textContent).toContain("Untitled project");
     expect(container.querySelector('#current-project-label')?.textContent).toBe("Current Project:");
     expect(container.querySelector('section[aria-label="Browser library"] h3')?.textContent).toBe("Browser Library");
-    expect(container.querySelector('section[aria-label="Portable backup"] h3')?.textContent).toBe("Portable Backup");
+    expect(container.querySelector('section[aria-label="Portable backup"]')).toBeNull();
     expect(status.textContent).not.toContain("draft resumes automatically");
     const autosaveHelp = status.querySelector<HTMLButtonElement>('[aria-label="About project autosave"]')!;
     React.act(() => autosaveHelp.click());
@@ -2362,9 +2362,8 @@ describe("BinDesignerPage", () => {
     expect(save.closest('section')?.getAttribute("aria-label")).toBe("Browser library");
     for (const action of transfers) {
       expect(action.disabled).toBe(false);
-      expect(action.closest('section')?.getAttribute("aria-label")).toBe("Portable backup");
+      expect(action.closest('[role="group"]')).toBe(fresh.closest('[role="group"]'));
     }
-    expect(container.querySelector('[data-testid="project-file-backup"]')?.textContent).toContain("Current project");
     expect(container.querySelector('[data-testid="library-file-backup"]')).toBeNull();
     unmount();
   });

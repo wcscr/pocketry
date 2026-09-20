@@ -140,7 +140,8 @@ and New detaches a clean draft without deleting saved projects. Opening another
 design, opening a project file, and New Project all save the outgoing named
 design's latest edits before changing the autosave target. A failed save keeps
 the current design open. Library import/export also lives in Manage; the main
-Project section retains only current-project file transfers. Both library opens
+Project section places New project, Export project, and Open project file in one
+compact action row without a separate backup section. Both library opens
 (Open, Enter, and double-click) and opening a project file share a confirmation
 before replacing a nonempty unnamed draft, with Keep working as the safe choice.
 Files are validated before confirmation; cancelling preserves the draft and
