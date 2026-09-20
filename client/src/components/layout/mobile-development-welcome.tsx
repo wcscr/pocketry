@@ -66,10 +66,8 @@ export function MobileDevelopmentWelcome(): JSX.Element {
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-2 text-sm">
-          <p>Found a problem or have a suggestion? Tell us by email or open a GitHub issue.</p>
+          <p>Found a problem or have a suggestion? Please open a GitHub issue.</p>
           <div className="flex flex-col items-start">
-            <a className="inline-flex min-h-11 items-center rounded font-medium text-primary underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              href="mailto:pocketry@sugarcreekresearch.com">Email feedback</a>
             <a className="inline-flex min-h-11 items-center rounded font-medium text-primary underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               href="https://github.com/wcscr/pocketry/issues/new" target="_blank" rel="noopener noreferrer">
               Open a GitHub issue<span className="sr-only"> (opens in a new tab)</span>
