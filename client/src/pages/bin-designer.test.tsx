@@ -104,6 +104,7 @@ vi.mock("@/lib/gridfinity/use-bin-geometry", () => ({
 
 // Deterministic persistence: no stored project, writes are no-ops. Hydration
 // still resolves asynchronously, hence the `flushHydration` below.
+const projectSaveMock = vi.hoisted(() => ({ onSaved: undefined as ((success: boolean) => void) | undefined }));
 vi.mock("@/lib/project/persist", () => ({
   loadProjectDoc: vi.fn(async () => null),
   loadProjectLibrary: vi.fn(async () => ({ activeProjectId: null, projects: [] })),
@@ -116,7 +117,10 @@ vi.mock("@/lib/project/persist", () => ({
   exportProjectLibrary: vi.fn(),
   importProjectLibrary: vi.fn(),
   startNewProject: vi.fn(async () => ({ activeProjectId: null, projects: [] })),
-  createDebouncedProjectSaver: () => Object.assign(vi.fn(), { cancel: vi.fn(), flush: vi.fn(async () => true) }),
+  createDebouncedProjectSaver: (_delay: number, onSaved?: (success: boolean) => void) => {
+    projectSaveMock.onSaved = onSaved;
+    return Object.assign(vi.fn(), { cancel: vi.fn(), flush: vi.fn(async () => true) });
+  },
 }));
 
 import * as ProjectPersistence from "@/lib/project/persist";
@@ -203,6 +207,7 @@ afterEach(() => {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  projectSaveMock.onSaved = undefined;
   binGeometryMock.building = false;
   binGeometryMock.progress = 1;
   binGeometryMock.builtSpec = null;
@@ -311,6 +316,10 @@ describe("BinDesignerPage", () => {
       const newCopy = vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts.at(-1)!;
       rename(newCopy.id, "Copy B");
       const expectedNames = ["Source placement", "Copy A", "Original pocket", "Copy B"];
+      expect(names()).toEqual(expectedNames);
+      click(`button-remove-${newCopy.id}`);
+      expect(document.querySelector('[role="alertdialog"]')!.textContent).toContain('Resize the bin after removing “Copy B”?');
+      React.act(() => document.querySelector<HTMLButtonElement>('[data-testid="button-cancel-remove-pocket"]')!.click());
       expect(names()).toEqual(expectedNames);
       openSettingsSection(container, "project");
       click("button-export-project");
@@ -725,7 +734,7 @@ describe("BinDesignerPage", () => {
     expect(container.textContent).not.toContain("Snaps to");
     expect(container.textContent).not.toContain("Adding tools keeps these dimensions");
     expect(container.textContent).toContain("Outer size");
-    expect(container.querySelector('[data-testid="project-status"] [role="status"]')!.textContent).toMatch(/Sav(?:ed|ing) in this browser/);
+    expect(container.querySelector('[data-testid="project-status"] [role="status"]')!.textContent).toBe("Draft — saving locally…");
     for (const [name, explanation] of [
       ["grid pitch", "Pitch changes preserve the outer size"],
       ["width", "Snaps to 21 mm grid increments"],
@@ -740,6 +749,42 @@ describe("BinDesignerPage", () => {
     expect([...container.querySelectorAll<HTMLInputElement>('input[type="number"]')].map((input) => input.value)).toEqual(before);
     expect(container.querySelector('[aria-label="Keep bin size fixed"]')!.getAttribute('aria-checked')).toBe('false');
     unmount();
+  });
+
+  it("keeps native slider and Manage keyboard interactions from editing the selected pocket", async () => {
+    const shape = rectangularShape("tool", "Wrench");
+    const pocket = parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 0, y: 0 } });
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape], cutouts: [pocket] });
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
+      selectPocket(container, "pocket");
+      openSettingsSection(container, "size");
+      const slider = container.querySelector<HTMLElement>('[role="slider"][aria-label="Width in standard Gridfinity cells"]')!;
+      const before = Number(slider.getAttribute("aria-valuenow"));
+      React.act(() => {
+        slider.focus();
+        slider.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true, cancelable: true }));
+        slider.dispatchEvent(new KeyboardEvent("keyup", { key: "ArrowRight", bubbles: true }));
+      });
+      expect(Number(slider.getAttribute("aria-valuenow"))).toBeGreaterThan(before);
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toEqual([pocket]);
+      const resizedSpec = vi.mocked(useBinGeometry).mock.lastCall![0];
+      openSettingsSection(container, "project");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
+      const dialog = document.querySelector('[role="dialog"]')!;
+      const target = dialog.querySelector<HTMLButtonElement>('[data-testid="button-export-library"]')!;
+      for (const key of ["ArrowDown", "r", "Delete", "z"]) {
+        React.act(() => {
+          target.focus();
+          target.dispatchEvent(new KeyboardEvent("keydown", { key, ctrlKey: key === "z", bubbles: true, cancelable: true }));
+        });
+      }
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toEqual([pocket]);
+      expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toEqual(resizedSpec);
+    } finally { unmount(); }
   });
 
   it("centers zero clearance and makes inward adjustments undoable without scaling the trace", async () => {
@@ -2328,6 +2373,8 @@ describe("BinDesignerPage", () => {
     const { container, unmount } = renderPage();
     openSettingsSection(container, "project");
     await flushHydration();
+    React.act(() => projectSaveMock.onSaved?.(true));
+    expect(container.querySelector('[data-testid="project-status"] [role="status"]')!.textContent).toBe("Draft — autosaved locally");
 
     React.act(() => {
       (
@@ -2371,6 +2418,10 @@ describe("BinDesignerPage", () => {
     expect(container.querySelector('[data-testid="current-project-name-row"] [data-testid="button-save-library"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="current-project-name-row"] p[title]')?.textContent).toBe("Socket wrench tray");
     expect(container.querySelector('[data-testid="button-save-library"]')?.textContent).toBe("");
+    React.act(() => projectSaveMock.onSaved?.(true));
+    expect(container.querySelector('[data-testid="project-status"] [role="status"]')!.textContent).toBe("Saved to browser library");
+    React.act(() => projectSaveMock.onSaved?.(false));
+    expect(container.querySelector('[data-testid="project-status"] [role="status"]')!.textContent).toBe("Could not save. Export this project to keep your work.");
     unmount();
   });
 
@@ -3633,6 +3684,28 @@ describe("BinDesignerPage", () => {
     ).toContain("2 colors");
     expect(container.querySelector("#bin-settings-materials [data-panel-section-trigger]")?.textContent)
       .toContain("Materials & Colors");
+    unmount();
+  });
+
+  it.each([
+    ["standard", "45.6"],
+    ["none", "42.0"],
+  ] as const)("shows the outer printed dimensions in STL and 3MF confirmations with %s lip", async (lip, height) => {
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({
+      ...EMPTY_PROJECT,
+      spec: parseBinSpec({ ...EMPTY_PROJECT.spec, gridX: 2, gridY: 3, heightUnits: 6, lip }),
+    });
+    const { container, unmount } = renderPage();
+    await flushHydration();
+    openSettingsSection(container, "export");
+    for (const format of ["3mf", "stl"]) {
+      React.act(() => container.querySelector<HTMLButtonElement>(`[data-testid="button-export-${format}"]`)!.click());
+      const dialog = document.querySelector('[role="dialog"]')!;
+      expect(dialog.textContent).toContain(`Outer size: 83.5 × 125.5 × ${height} mm (width × length × height).`);
+      if (format === "3mf") expect(document.activeElement).toBe(dialog.querySelector('h2'));
+      React.act(() => [...dialog.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === "Cancel")!.click());
+    }
+    expect(binGeometryMock.buildOnce).not.toHaveBeenCalled();
     unmount();
   });
 

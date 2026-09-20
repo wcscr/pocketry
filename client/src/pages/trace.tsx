@@ -28,6 +28,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { outlineBounds } from "@/lib/geometry/outline";
 import { FileUpload } from "@/components/ui/file-upload";
 import { useToast } from "@/hooks/use-toast";
 import { autoCalibrate } from "@/lib/calibrate/auto-calibrate";
@@ -80,9 +82,15 @@ function imageDataToPngUrl(image: ImageData): string {
 function TraceWorkspace(): JSX.Element {
   const store = useTrace();
   const { dispatch } = store;
+  const latestStore = useRef(store);
+  latestStore.current = store;
   const activeImageUrlRef = useRef(store.imageUrl);
   activeImageUrlRef.current = store.imageUrl;
   const fileSelectionRevisionRef = useRef(0);
+  const recoveryWaiters = useRef<Array<() => void>>([]);
+  useEffect(() => {
+    if (store.draftSaveStatus !== "loading") recoveryWaiters.current.splice(0).forEach(resolve => resolve());
+  }, [store.draftSaveStatus]);
   const { toast } = useToast();
   const { panelOpen, setPanelOpen } = usePanelState();
   const isMobile = useIsMobile();
@@ -97,21 +105,41 @@ function TraceWorkspace(): JSX.Element {
   useEffect(() => {
     const becameCalibrated = previousCalibration.current === null && store.calibration !== null;
     previousCalibration.current = store.calibration;
-    if (!becameCalibrated) return;
+    if (!becameCalibrated || store.outline.length > 0 || store.region) return;
     dispatch({ type: "SET_MODE", mode: "region" });
     if (isMobile) setPanelOpen(false);
-  }, [store.calibration, dispatch, isMobile, setPanelOpen]);
+  }, [store.calibration, store.outline.length, store.region, dispatch, isMobile, setPanelOpen]);
 
   const photoInputRef = useRef<HTMLInputElement>(null);
   const detectionRequest = useRef(0);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [dwgDialogOpen, setDwgDialogOpen] = useState(false);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [perspectiveReplacement, setPerspectiveReplacement] = useState<{
+    proposal: PerspectiveProposal; template: TemplateVariant; scale: boolean | Calibration; sourceRevision: number;
+  } | null>(null);
+  const [photoReplacement, setPhotoReplacement] = useState<{
+    imageUrl: string; fileName: string; imageSize: { width: number; height: number }; sourceRevision: number; selectionRevision: number;
+  } | null>(null);
+  const calibrationNotice = useRef<{ dismiss: () => void } | null>(null);
+  useEffect(() => {
+    if (!store.pendingAutoCalibration) {
+      calibrationNotice.current?.dismiss();
+      calibrationNotice.current = null;
+    }
+  }, [store.pendingAutoCalibration]);
+  useEffect(() => () => {
+    fileSelectionRevisionRef.current += 1;
+    recoveryWaiters.current.splice(0).forEach(resolve => resolve());
+    calibrationNotice.current?.dismiss();
+  }, []);
   const startOver = () => {
     fileSelectionRevisionRef.current += 1;
     detectionRequest.current += 1;
     activeImageUrlRef.current = null;
     setUploadOpen(false);
+    setPhotoReplacement(null);
+    setPerspectiveReplacement(null);
     setPanelOpen(false);
     dispatch({ type: "SOURCE_CLEARED" });
   };
@@ -290,11 +318,11 @@ function TraceWorkspace(): JSX.Element {
             const summary = `${referenceName} · ${solution.markerIds.length} markers · ${(mmPerPx ?? solution.mmPerPx).toFixed(3)} mm/px`;
             const fallback = result.kind === "calibrated" && result.stripFallbackReason
               ? "The measurement aid could not be calibrated, so Pocketry used the paper markers. " : "";
-            if (strip && sheet) {
-              toast({ title: "Paper and measurement aid detected",
-                description: "Choose a reference in Scale, or correct perspective with the paper and use the aid for scale." });
-            } else if (solution.maxDeviation > SKEW_WARN_FRACTION) {
-              toast({
+            // The Scale card already presents successful detection. Only surface
+            // exceptional accuracy/fallback details, and clear them after choosing.
+            calibrationNotice.current?.dismiss();
+            if (solution.maxDeviation > SKEW_WARN_FRACTION) {
+              calibrationNotice.current = toast({
                 title: "Scale detected — review carefully",
                 description: strip
                   ? `${summary}. Marker edge measurements differ by ${(solution.maxDeviation * 100).toFixed(1)}%. Small markers or camera tilt can cause this. Review the scale; for clearer markers, fill more of the photo with the tool and shoot straight down.`
@@ -302,11 +330,8 @@ function TraceWorkspace(): JSX.Element {
                 variant: "destructive",
                 duration: 8000,
               });
-            } else {
-              toast({
-                title: strip ? "Scale detected from reference strip" : "Scale detected from paper markers",
-                description: `${fallback}${summary}. Review and accept it in Scale.`,
-              });
+            } else if (fallback) {
+              calibrationNotice.current = toast({ title: "Paper reference available", description: fallback });
             }
             break;
           }
@@ -364,8 +389,9 @@ function TraceWorkspace(): JSX.Element {
     [getDetectionFrame, dispatch, toast],
   );
 
-  const applyPerspective = useCallback(
+  const performPerspectiveCorrection = useCallback(
     async (proposal: PerspectiveProposal, template: TemplateVariant, usePaperScale: boolean | Calibration = true) => {
+      const sourceRevision = latestStore.current.sourceRevision;
       const frame = getDetectionFrame();
       if (
         !frame ||
@@ -398,6 +424,7 @@ function TraceWorkspace(): JSX.Element {
             ? resizeCalibration(usePaperScale, 1 / frame.toWorking.x, 1 / frame.toWorking.y) : undefined,
         );
         if (activeImageUrlRef.current !== frame.sourceImageUrl) return;
+        if (latestStore.current.sourceRevision !== sourceRevision) return;
         const imageUrl = imageDataToPngUrl(corrected.imageData);
         dispatch({
           type: "PERSPECTIVE_APPLIED",
@@ -413,14 +440,6 @@ function TraceWorkspace(): JSX.Element {
         // Perspective-only deliberately has no accepted scale, so it does not
         // trigger the calibration effect that closes the mobile drawer.
         if (isMobile) setPanelOpen(false);
-        toast({
-          title: "Perspective corrected",
-          description: typeof usePaperScale === "object"
-            ? "Perspective corrected from the paper; scale set from the measurement aid."
-            : usePaperScale
-            ? `${templateDisplayName(template)} plane rectified at ${(1 / corrected.pxPerMm).toFixed(3)} mm/px${corrected.reprojectionErrorPx === null ? "" : ` · ${corrected.reprojectionErrorPx.toFixed(2)} px fit residual`}.`
-            : "Now select two points on a measured feature of the tool, then enter its real length to set the scale.",
-        });
       } catch (error) {
         if (activeImageUrlRef.current !== frame.sourceImageUrl) return;
         toast({
@@ -437,6 +456,15 @@ function TraceWorkspace(): JSX.Element {
     },
     [getDetectionFrame, dispatch, toast, isMobile, setPanelOpen],
   );
+
+  const applyPerspective = (proposal: PerspectiveProposal, template: TemplateVariant, scale: boolean | Calibration = true) => {
+    const current = latestStore.current;
+    if (current.outline.length > 0 || current.region || current.history.stack.length > 1) {
+      setPerspectiveReplacement({ proposal, template, scale, sourceRevision: current.sourceRevision });
+      return;
+    }
+    void performPerspectiveCorrection(proposal, template, scale);
+  };
 
   // Attempt auto-calibration once per image, and only while uncalibrated —
   // it must never overwrite a scale the user placed by hand.
@@ -455,44 +483,41 @@ function TraceWorkspace(): JSX.Element {
     store.autoCalibrationAttemptedImageUrl,
   ]);
 
+  const replacePhoto = (photo: NonNullable<typeof photoReplacement>) => {
+    if (photo.selectionRevision !== fileSelectionRevisionRef.current || photo.sourceRevision !== latestStore.current.sourceRevision) return;
+    detectionRequest.current += 1;
+    activeImageUrlRef.current = photo.imageUrl;
+    dispatch({ type: "SOURCE_LOADED", imageUrl: photo.imageUrl, fileName: photo.fileName });
+    dispatch({ type: "SOURCE_READY", imageSize: photo.imageSize });
+  };
+
   const handleFileSelected = async (file: File) => {
     const selectionRevision = ++fileSelectionRevisionRef.current;
+    setPhotoReplacement(null);
     if (file.size > MAX_FILE_BYTES) {
-      toast({
-        title: "File too large",
-        description: "Please choose an image under 10MB.",
-        variant: "destructive",
-      });
+      toast({ title: "File too large", description: "Please choose an image under 10MB.", variant: "destructive" });
       return;
     }
-
     setUploadOpen(false);
+    // Opening an invalid file must not suppress recovery or erase its stored
+    // copy. Wait for recovery, then compare a decoded candidate to that draft.
+    if (latestStore.current.draftSaveStatus === "loading") {
+      await new Promise<void>(resolve => recoveryWaiters.current.push(resolve));
+    }
+    if (selectionRevision !== fileSelectionRevisionRef.current) return;
+    const sourceRevision = latestStore.current.sourceRevision;
     try {
       const { imageUrl, naturalSize } = await decodeImageFile(file);
-      if (selectionRevision !== fileSelectionRevisionRef.current) return;
-
-      // Invalidate outstanding work before React processes the reducer queue;
-      // the reducer carries the same guard as the final backstop.
-      activeImageUrlRef.current = imageUrl;
-      dispatch({
-        type: "SOURCE_LOADED",
-        imageUrl,
-        fileName: file.name.replace(/\.[^/.]+$/, ""),
-      });
-      // Publish a non-empty canvas in the same React batch as SOURCE_LOADED.
-      // useImageSource will independently decode and confirm the same size,
-      // but the replacement never flashes or gets stranded at the drop zone.
-      dispatch({
-        type: "SOURCE_READY",
-        imageSize: fitWithin(naturalSize, IMAGE_CANVAS_MAX),
-      });
+      if (selectionRevision !== fileSelectionRevisionRef.current || sourceRevision !== latestStore.current.sourceRevision) return;
+      const photo = { imageUrl, fileName: file.name.replace(/\.[^/.]+$/, ""), imageSize: fitWithin(naturalSize, IMAGE_CANVAS_MAX), sourceRevision, selectionRevision };
+      // Read after decoding: a user can finish a ruler or edit while the file opens.
+      const current = latestStore.current;
+      if (current.imageUrl && (current.calibration || current.draftCalibration || current.region || current.outline.length > 0 || current.history.stack.length > 1)) {
+        setPhotoReplacement(photo);
+      } else replacePhoto(photo);
     } catch (error) {
-      if (selectionRevision !== fileSelectionRevisionRef.current) return;
-      toast({
-        title: "Could not open that image",
-        description: error instanceof Error ? error.message : String(error),
-        variant: "destructive",
-      });
+      if (selectionRevision !== fileSelectionRevisionRef.current || sourceRevision !== latestStore.current.sourceRevision) return;
+      toast({ title: "Could not open that image", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
     }
   };
 
@@ -512,6 +537,11 @@ function TraceWorkspace(): JSX.Element {
     const { outline, imageSize, exportFormat, extrusionHeight, fileName, calibration, margin } = store;
     if (outline.length === 0) {
       toast({ title: "Nothing to export", description: "Trace an image first.", variant: "destructive" });
+      return;
+    }
+    if (mmPerPixel(calibration) === null && exportFormat !== "svg") {
+      toast({ title: "Set scale before exporting", description: "STL, DXF and DWG need a physical scale. Set scale, or choose SVG to save image pixels.", variant: "destructive" });
+      openSettings("trace-settings-scale");
       return;
     }
     const scale = exportScale(calibration, imageSize.height);
@@ -565,6 +595,24 @@ function TraceWorkspace(): JSX.Element {
     previousFormat.current = store.exportFormat;
   }, [store.exportFormat]);
 
+  const requestExport = () => {
+    if (mmPerPixel(store.calibration) === null && store.exportFormat !== "svg") {
+      openSettings("trace-settings-scale");
+      toast({ title: "Set scale before exporting", description: "STL, DXF and DWG need a physical scale. Set scale, or choose SVG to save image pixels.", variant: "destructive" });
+      return;
+    }
+    setExportDialogOpen(true);
+  };
+  const exportMmPerPx = mmPerPixel(store.calibration);
+  const exportBounds = outlineBounds(store.outline);
+  const formatDimension = (value: number) => Number(value.toFixed(2)).toString();
+  const exportDimensions = exportBounds
+    ? `${formatDimension((exportBounds.maxX - exportBounds.minX) * (exportMmPerPx ?? 1))} × ${formatDimension((exportBounds.maxY - exportBounds.minY) * (exportMmPerPx ?? 1))}` : "0 × 0";
+  const scaleSource = store.calibrationSource === "sheet" ? "Paper template" : store.calibrationSource === "strip" ? "Measurement aid" : "Manual ruler";
+  const exportDescription = exportMmPerPx === null
+    ? store.exportFormat === "svg" ? `Unscaled SVG outline: ${exportDimensions} image pixels. No physical size is defined.` : "The physical scale is no longer set. Set scale before downloading this format."
+    : `Outline size: ${exportDimensions} mm (width × height)${store.exportFormat === "stl" ? `; extrusion ${formatDimension(store.extrusionHeight)} mm` : ""}. Scale: ${scaleSource}. Verify a known tool dimension before printing.`;
+
   const dropzone = (
     <FileUpload onFileSelected={handleFileSelected} className="flex min-h-64 w-full flex-1 flex-col items-center justify-center" />
   );
@@ -574,14 +622,40 @@ function TraceWorkspace(): JSX.Element {
       {exportDialogOpen && (
         <ExportConfirmationDialog
           title={`Save outline ${store.exportFormat.toUpperCase()}?`}
-          description="Download the current traced outline in the selected format."
-          confirmLabel={`Download ${store.exportFormat.toUpperCase()}`}
+          description={exportDescription}
+          confirmLabel={exportMmPerPx === null && store.exportFormat !== "svg" ? "Set scale" : `Download ${store.exportFormat.toUpperCase()}${exportMmPerPx === null ? " (pixels)" : ""}`}
           backupDescription="Reopen this calibrated outline as an editable pocket in Bin."
           backupDisabledReason={mmPerPixel(store.calibration) === null ? "Set the scale to include an editable Pocketry project." : undefined}
           onCancel={() => setExportDialogOpen(false)}
           onConfirm={(includeProject) => { setExportDialogOpen(false); void handleExport(includeProject); }}
         />
       )}
+      <AlertDialog open={perspectiveReplacement !== null && perspectiveReplacement.sourceRevision === store.sourceRevision}
+        onOpenChange={(open) => { if (!open) setPerspectiveReplacement(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader><AlertDialogTitle>Correct perspective and clear this trace?</AlertDialogTitle>
+            <AlertDialogDescription>Perspective correction changes the photo coordinates. Your region, contours and edit history will be cleared, and you will need to trace again. This cannot be undone. Pockets already saved to Bin are kept.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter><AlertDialogCancel>Keep working</AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              const candidate = perspectiveReplacement;
+              setPerspectiveReplacement(null);
+              if (candidate?.sourceRevision === latestStore.current.sourceRevision) void performPerspectiveCorrection(candidate.proposal, candidate.template, candidate.scale);
+            }}>Correct and clear trace</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={photoReplacement !== null && photoReplacement.sourceRevision === store.sourceRevision}
+        onOpenChange={(open) => { if (!open) setPhotoReplacement(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader><AlertDialogTitle>Replace this photo and clear its trace?</AlertDialogTitle>
+            <AlertDialogDescription>Your current scale, region, contours and edit history will be cleared. This cannot be undone. Pockets already saved to Bin are kept.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter><AlertDialogCancel>Keep working</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { const photo = photoReplacement; setPhotoReplacement(null); if (photo) replacePhoto(photo); }}>Replace photo and clear trace</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <input ref={photoInputRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" aria-label="Choose another photo"
         onChange={(event) => { const file = event.target.files?.[0]; if (file) void handleFileSelected(file); event.target.value = ""; }} />
       <WorkspaceLayout
@@ -605,7 +679,7 @@ function TraceWorkspace(): JSX.Element {
             onCanvasInteraction={showCanvas}
             onReplaceImage={() => photoInputRef.current?.click()}
             onRotateImage={handleRotateImage}
-            onExport={() => setExportDialogOpen(true)}
+            onExport={requestExport}
             onReprocess={(settings) => void runDetection(settings)}
             onDetectMarkers={() => void detectMarkers(true)}
             onApplyPerspective={(proposal, paper, usePaperScale) =>
@@ -614,20 +688,30 @@ function TraceWorkspace(): JSX.Element {
           />
         }
         canvas={
-          <TraceCanvas
-            onReprocess={() => void runDetection()}
-            emptyState={
-              <div className="flex h-full min-h-[24rem] w-full flex-col gap-3 text-center">
-                <h2 className="text-lg font-medium">Trace a tool from a photo</h2>
-                <p className="text-sm text-muted-foreground">
-                  Photograph the tool on a calibration sheet <strong className="font-semibold italic">or</strong>{" "}
-                  a plain, contrasting background. Keep the whole tool in frame.
-                </p>
-                <CalibrationDownloads />
-                {dropzone}
-              </div>
-            }
-          />
+          <div className="flex h-full min-h-0 flex-col">
+            {store.imageUrl && store.draftSaveStatus === "error" && <p role="status" data-testid="trace-save-error" className="shrink-0 border-b bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              Couldn’t save the trace draft. Keep this page open; your latest edits may not survive a refresh.
+            </p>}
+            <div className="relative min-h-0 flex-1">
+                <TraceCanvas
+                  onReprocess={() => void runDetection()}
+                  emptyState={
+                    <div className="flex h-full min-h-[24rem] w-full flex-col gap-3 text-center">
+                      <h2 className="text-lg font-medium">Trace a tool from a photo</h2>
+                      <p className="text-sm text-muted-foreground">
+                        Photograph the tool on a calibration sheet <strong className="font-semibold italic">or</strong>{" "}
+                        a plain, contrasting background. Keep the whole tool in frame.
+                      </p>
+                      <CalibrationDownloads />
+                      {(store.draftSaveStatus === "loading" || store.draftSaveStatus === "error") && <p role="status" className={`text-sm ${store.draftSaveStatus === "error" ? "text-destructive" : "text-muted-foreground"}`}>
+                        {store.draftSaveStatus === "loading" ? "Restoring trace draft…" : "Couldn’t restore the saved trace. Choose a photo to start again."}
+                      </p>}
+                      {dropzone}
+                    </div>
+                  }
+                />
+            </div>
+          </div>
         }
       />
 

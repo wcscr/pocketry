@@ -4,9 +4,12 @@ import {
   useContext,
   useMemo,
   useReducer,
+  useRef,
   type Dispatch,
   type ReactNode,
 } from "react";
+import type { TraceDraft } from "@shared/trace-draft";
+import { useTraceDraftPersistence, type TraceDraftSaveStatus } from "@/hooks/use-trace-draft-persistence";
 
 import {
   hasCalibrationEndpoints,
@@ -135,6 +138,8 @@ export interface TraceState {
   /** A calibration mid-placement: start point known, end point not yet. */
   draftCalibration: DraftCalibration | null;
   rulerLengthMm: number;
+  /** Unconfirmed text shared across desktop, drawer and inline mobile inputs. */
+  rulerLengthInput: string;
 
   /** Detected sheet geometry awaiting perspective-correction review. */
   pendingPerspective: PerspectiveProposal | null;
@@ -192,6 +197,7 @@ export const initialTraceState: TraceState = {
   calibrationSource: null,
   draftCalibration: null,
   rulerLengthMm: 100,
+  rulerLengthInput: "100",
   pendingPerspective: null,
   manualPerspectivePoints: [],
   perspectiveOriginalImageUrl: null,
@@ -205,6 +211,7 @@ export const initialTraceState: TraceState = {
 };
 
 export type TraceAction =
+  | { type: "TRACE_DRAFT_RESTORED"; draft: TraceDraft }
   | { type: "SOURCE_LOADED"; imageUrl: string; fileName: string }
   | { type: "SOURCE_READY"; imageSize: { width: number; height: number } }
   | { type: "SOURCE_CLEARED" }
@@ -264,6 +271,7 @@ export type TraceAction =
   | { type: "AUTO_CALIBRATION_FAILED"; sourceImageUrl: string }
   | { type: "SET_DRAFT_CALIBRATION"; draftCalibration: DraftCalibration | null }
   | { type: "SET_RULER_LENGTH"; rulerLengthMm: number }
+  | { type: "SET_RULER_LENGTH_INPUT"; value: string }
   | { type: "START_PERSPECTIVE_SELECTION" }
   | { type: "ADD_PERSPECTIVE_POINT"; point: Point }
   | { type: "SET_PERSPECTIVE_POINTS"; points: Point[] }
@@ -366,6 +374,16 @@ function retainedEditSelection(state: TraceState, outline: Outline): RingRef | n
 
 export function traceReducer(state: TraceState, action: TraceAction): TraceState {
   switch (action.type) {
+    case "TRACE_DRAFT_RESTORED": {
+      const { state: saved, detectionComplete, referencesAttempted } = action.draft;
+      return {
+        ...initialTraceState,
+        ...saved,
+        sourceRevision: state.sourceRevision + 1,
+        detectedImageUrl: detectionComplete ? saved.imageUrl : null,
+        autoCalibrationAttemptedImageUrl: referencesAttempted ? saved.imageUrl : null,
+      };
+    }
     case "SOURCE_LOADED":
       // A new image invalidates the ruler, the crop, and every point. Without
       // this reset a stale calibration silently rescales every later export.
@@ -382,6 +400,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         exportFormat: state.exportFormat,
         extrusionHeight: state.extrusionHeight,
         rulerLengthMm: state.rulerLengthMm,
+        rulerLengthInput: String(state.rulerLengthMm),
       };
 
     case "SOURCE_READY":
@@ -728,6 +747,8 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         pendingCalibrationSource: null,
         pendingPerspective: null,
         calibrationSource: action.calibration === null ? null : "manual",
+        rulerLengthMm: action.calibration?.lengthMm ?? state.rulerLengthMm,
+        rulerLengthInput: action.calibration ? String(action.calibration.lengthMm) : state.rulerLengthInput,
         margin: state.margin ?? DEFAULT_MARGIN_MM,
         draftCalibration: null,
       };
@@ -800,10 +821,15 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
     case "SET_DRAFT_CALIBRATION":
       return { ...state, draftCalibration: action.draftCalibration };
 
+    case "SET_RULER_LENGTH_INPUT":
+      return { ...state, rulerLengthInput: action.value };
+
     case "SET_RULER_LENGTH":
+      if (!Number.isFinite(action.rulerLengthMm) || action.rulerLengthMm <= 0) return state;
       return {
         ...state,
         rulerLengthMm: action.rulerLengthMm,
+        rulerLengthInput: String(action.rulerLengthMm),
         // A completed manual ruler and its reference-length input describe the
         // same measurement. Keep them coupled so correcting the known length
         // immediately corrects mm/px without making the user redraw the line.
@@ -869,6 +895,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         calibration: action.calibration,
         calibrationSource: action.calibration ? action.calibrationSource ?? "sheet" : null,
         rulerLengthMm: state.rulerLengthMm,
+        rulerLengthInput: state.rulerLengthInput,
         perspectiveOriginalImageUrl:
           state.perspectiveOriginalImageUrl ?? state.imageUrl,
         perspectiveOriginalImageRotation:
@@ -904,6 +931,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         smoothing: state.smoothing,
         margin: state.margin,
         rulerLengthMm: state.rulerLengthMm,
+        rulerLengthInput: String(state.rulerLengthMm),
         exportFormat: state.exportFormat,
         extrusionHeight: state.extrusionHeight,
       };
@@ -917,6 +945,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
 }
 
 export interface TraceStore extends TraceState {
+  draftSaveStatus: TraceDraftSaveStatus;
   dispatch: Dispatch<TraceAction>;
   canUndo: boolean;
   canRedo: boolean;
@@ -926,8 +955,16 @@ export interface TraceStore extends TraceState {
 
 const TraceContext = createContext<TraceStore | null>(null);
 
-export function TraceProvider({ children }: { children: ReactNode }): JSX.Element {
-  const [state, dispatch] = useReducer(traceReducer, initialTraceState);
+export function TraceProvider({ children, persist = false }: { children: ReactNode; persist?: boolean }): JSX.Element {
+  const [state, reducerDispatch] = useReducer(traceReducer, initialTraceState);
+  // A delayed database read must never replace a source or edit chosen since
+  // startup. Test harnesses opt out; the app's single provider enables recovery.
+  const interactionRevision = useRef(0);
+  const dispatch = useCallback<Dispatch<TraceAction>>((action) => {
+    interactionRevision.current += 1;
+    reducerDispatch(action);
+  }, []);
+  const draftSaveStatus = useTraceDraftPersistence(state, reducerDispatch, interactionRevision, persist);
 
   const undo = useCallback(() => dispatch({ type: "UNDO" }), []);
   const redo = useCallback(() => dispatch({ type: "REDO" }), []);
@@ -935,13 +972,14 @@ export function TraceProvider({ children }: { children: ReactNode }): JSX.Elemen
   const value = useMemo<TraceStore>(
     () => ({
       ...state,
+      draftSaveStatus,
       dispatch,
       canUndo: state.history.index > 0,
       canRedo: state.history.index < state.history.stack.length - 1,
       undo,
       redo,
     }),
-    [state, undo, redo],
+    [state, draftSaveStatus, dispatch, undo, redo],
   );
 
   return <TraceContext.Provider value={value}>{children}</TraceContext.Provider>;

@@ -46,6 +46,7 @@ import {
 } from "@shared/geometry/types";
 import { pointInRing } from "@shared/geometry/rings";
 import { validateLayout, type IssueSeverity } from "@shared/gridfinity/validate";
+import { canHandleCanvasShortcut } from "@/lib/canvas-keyboard";
 import {
   boundaryEdges,
   canonicalCells,
@@ -1084,9 +1085,10 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
   };
 
   // Keyboard: nudge, rotate (visually clockwise = model +deg on the flipped
-  // view), delete, deselect. Window-level, guarded against text entry.
+  // view), delete, deselect. Native controls and open dialogs own their keys.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if (!canHandleCanvasShortcut(event) || event.ctrlKey || event.metaKey || event.altKey) return;
       if (rulerActive && event.key === "Escape") {
         setRulerActive(false);
         setMeasurementPoints([]);
@@ -1100,8 +1102,6 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
         }
         return;
       }
-      const target = event.target as HTMLElement | null;
-      if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
       if (selectedFingerHoleId) {
         const hole = fingerHoles.find(
           (candidate) => candidate.id === selectedFingerHoleId,
@@ -1712,23 +1712,23 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
         </div>
       ) : null}
 
-      <div className="absolute left-3 top-12 z-30" data-testid="layout-add-pocket">
+      {!basicPocket.kind && <div className="absolute left-3 top-16 md:top-12 [@media(pointer:coarse)]:top-16 z-30" data-testid="layout-add-pocket">
         <AddPocketMenu />
-      </div>
+      </div>}
 
       <div
-        className="absolute right-3 top-16 md:top-12 z-30 flex flex-col overflow-hidden rounded-md border bg-background/90 shadow-sm backdrop-blur"
+        className="absolute right-3 top-16 md:top-12 [@media(pointer:coarse)]:top-16 z-30 flex max-h-[calc(100%-5rem)] flex-col overflow-y-auto rounded-md md:max-h-[calc(100%-4rem)] [@media(pointer:coarse)]:max-h-[calc(100%-5rem)] [&>button]:shrink-0 border bg-background/90 shadow-sm backdrop-blur"
         data-testid="layout-tool-toolbar"
       >
-        <Button variant="ghost" size="icon" className="h-11 w-11 rounded-none border-b md:h-9 md:w-9" aria-label="Pan layout" aria-pressed={panActive}
+        <Button variant="ghost" size="icon" className="h-11 w-11 rounded-none border-b md:h-9 md:w-9 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11" aria-label="Pan layout" aria-pressed={panActive}
           onClick={() => setPanActive(active => !active)}><Hand className="h-4 w-4" /></Button>
-        <Button variant="ghost" size="icon" className="h-11 w-11 rounded-none border-b md:h-9 md:w-9" aria-label="Fit layout to screen"
+        <Button variant="ghost" size="icon" className="h-11 w-11 rounded-none border-b md:h-9 md:w-9 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11" aria-label="Fit layout to screen"
           onClick={viewport.fit}><Maximize2 className="h-4 w-4" /></Button>
         <Button
           variant="ghost"
           size="icon"
           className={cn(
-            "h-11 w-11 md:h-9 md:w-9 rounded-none",
+            "h-11 w-11 md:h-9 md:w-9 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11 rounded-none",
             rulerActive && "bg-accent text-accent-foreground",
           )}
           aria-label={
@@ -1761,7 +1761,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
           <Button
             variant="ghost"
             size="icon"
-            className={cn("h-11 w-11 md:h-9 md:w-9 rounded-none border-t", editorMode === "contour" && "bg-accent text-accent-foreground")}
+            className={cn("h-11 w-11 md:h-9 md:w-9 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11 rounded-none border-t", editorMode === "contour" && "bg-accent text-accent-foreground")}
             aria-label={editorMode === "contour" ? "Finish contour editing" : "Edit contour"}
             aria-pressed={editorMode === "contour"}
             title={editorMode === "contour" ? "Finish contour editing" : "Edit contour"}
@@ -1779,7 +1779,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
           <Button
             variant="ghost"
             size="icon"
-            className="h-11 w-11 md:h-9 md:w-9 rounded-none border-t"
+            className="h-11 w-11 md:h-9 md:w-9 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11 rounded-none border-t"
             aria-label="Clear measurement"
             title="Clear measurement"
             onClick={() => setMeasurementPoints([])}
@@ -1790,24 +1790,24 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
         ) : null}
       </div>
 
-      {basicPocket.kind && <div className="absolute left-3 right-14 top-24 z-20 flex items-center gap-2 rounded border bg-background/95 px-3 py-2 text-xs shadow-sm">
+      {basicPocket.kind && <div className="absolute left-3 right-14 top-16 md:top-12 [@media(pointer:coarse)]:top-16 [@media(pointer:coarse)]:right-16 z-20 flex items-center gap-2 rounded border bg-background/95 px-3 py-2 text-xs shadow-sm">
         <p className="flex-1" role="status">{basicPocket.draft
           ? basicPocket.kind === "circle" ? `Diameter ${basicPocket.draft.width.toFixed(2)} mm`
             : `${basicPocket.draft.width.toFixed(2)} × ${basicPocket.draft.length.toFixed(2)} mm`
-          : basicPocket.kind === "circle" ? "Drag from the centre to the edge of the circle."
-            : `Drag between opposite corners of the ${basicPocket.kind}.`}</p>
-        <Button type="button" variant="ghost" size="sm" className="h-7" onClick={() => {
+          : basicPocket.kind === "circle" ? "Drag from the centre to the edge of the circle. Release to add."
+            : `Drag between opposite corners of the ${basicPocket.kind}. Release to add.`}</p>
+        <Button type="button" variant="ghost" size="sm" className="h-7 [@media(pointer:coarse)]:min-h-11" onClick={() => {
           basicPocket.cancel();
           dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" });
         }}>Cancel</Button>
       </div>}
-      {splitEditor.active && <div className="absolute left-3 right-14 top-24 flex items-center gap-2 rounded border bg-background/95 px-3 py-2 text-xs shadow-sm">
+      {splitEditor.active && <div className="absolute left-3 right-14 top-28 md:top-24 [@media(pointer:coarse)]:top-28 [@media(pointer:coarse)]:right-16 flex items-center gap-2 rounded border bg-background/95 px-3 py-2 text-xs shadow-sm">
         <p className="flex-1" role="status">{splitEditor.error ?? (splitEditor.start ? "Choose the second edge point · Esc cancels" : "Draw from edge to edge, or click two edge points")}</p>
-        <Button type="button" variant="ghost" size="sm" className="h-7" onClick={() => dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" })}>Cancel</Button>
+        <Button type="button" variant="ghost" size="sm" className="h-7 [@media(pointer:coarse)]:min-h-11" onClick={() => dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" })}>Cancel</Button>
       </div>}
       {rulerActive ? (
         <div
-          className="pointer-events-none absolute right-14 top-12 z-20 rounded-md border bg-background/90 px-2.5 py-1.5 text-xs font-medium shadow-sm backdrop-blur"
+          className="pointer-events-none absolute right-14 top-12 [@media(pointer:coarse)]:right-16 [@media(pointer:coarse)]:top-16 z-20 rounded-md border bg-background/90 px-2.5 py-1.5 text-xs font-medium shadow-sm backdrop-blur"
           role="status"
           data-testid="layout-ruler-status"
         >
@@ -1831,11 +1831,11 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
             {removeVertices ? "Tap a vertex to remove it · Undo restores it" : "Drag vertices to move · Tap an edge to add"}
           </WorkflowHint>
         </div>
-      ) : (
+      ) : !basicPocket.kind && (
       <WorkflowHint className="pointer-events-none absolute bottom-2 left-2 right-2 md:right-auto md:max-w-lg">
         {panActive
           ? "Drag to pan · Pinch to zoom · Tap the hand to resume editing"
-          : basicPocket.kind ? "Draw pocket · release to add · Esc cancels · edit exact dimensions in Size & scale" : rulerActive
+          : rulerActive
           ? "Ruler · snap to contours or split lines · Esc exits"
           : editorMode === "footprint"
           ? "Footprint edit · click cells or the dashed outer halo · Esc finishes"

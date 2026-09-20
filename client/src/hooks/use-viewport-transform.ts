@@ -1,4 +1,5 @@
 import * as React from "react";
+import { canHandleCanvasShortcut } from "@/lib/canvas-keyboard";
 
 /**
  * Content → container mapping, applied with `transform-origin: 0 0`:
@@ -190,14 +191,6 @@ function normaliseWheelDelta(event: WheelEvent, containerHeight: number): Point 
           : WHEEL_PAGE_PX
         : 1;
   return { x: event.deltaX * unit, y: event.deltaY * unit };
-}
-
-/** True for elements where the space bar means "type a space". */
-function isTextEntry(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  if (target.isContentEditable) return true;
-  const tag = target.tagName;
-  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
 }
 
 /**
@@ -587,10 +580,9 @@ export function useViewportTransform(
       // Never steal the space bar from a field being typed into, or from a
       // shortcut combination that merely happens to include it.
       if (event.ctrlKey || event.metaKey || event.altKey) return;
-      if (isTextEntry(event.target)) return;
-      // Space scrolls the page and activates the focused button; a pan gesture
-      // needs it to do neither. Repeats are prevented too, or holding space
-      // fires the button once per repeat.
+      if (!canHandleCanvasShortcut(event)) return;
+      // Prevent page scrolling only when the canvas owns Space. Focused
+      // buttons and dialogs retain native keyboard activation.
       event.preventDefault();
       if (!spaceHeldRef.current) setHeld(true);
     };

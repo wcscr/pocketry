@@ -56,10 +56,10 @@ export function TraceDetectionControls({ onReprocess, compact = false }: {
         onCommit={(value) => request({ sensitivity: value, includeInteriorHoles })}
         touchTarget={compact}
         hint={compact ? undefined : "Lower includes more of the image. Updates when you release the slider; asks before replacing manual edits."} />
-      <LabelledSlider id={compact ? "mobile-detail" : "detail"} label="Detail"
+      <LabelledSlider id={compact ? "mobile-detail" : "detail"} label="Simplification"
         value={tolerancePx} min={0.1} max={8} step={0.1} format={(value) => `${value.toFixed(1)} px`}
         disabled={processing} onChange={(value) => dispatch({ type: "SET_TOLERANCE", tolerancePx: value })}
-        touchTarget={compact} hint={compact ? undefined : "How closely the outline follows the pixels."} />
+        touchTarget={compact} hint={compact ? undefined : "Higher values use fewer points and may omit small features. Your edits are preserved."} />
     </div>
     <Dialog open={pendingDetection !== null} onOpenChange={(open) => { if (!open) cancel(); }}>
       <DialogContent>

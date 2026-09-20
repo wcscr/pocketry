@@ -237,9 +237,9 @@ async function changeNumber(id: string, value: string): Promise<void> {
   });
 }
 
-async function blurNumber(id: string): Promise<void> {
+async function confirmNumber(id: string): Promise<void> {
   await React.act(async () => {
-    host.querySelector<HTMLInputElement>(`#${id}`)?.blur();
+    host.querySelector<HTMLInputElement>(`#${id}`)?.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
     await new Promise((resolve) => window.setTimeout(resolve, 10));
   });
 }
@@ -618,7 +618,7 @@ describe("TraceControlsPanel guided workflow", () => {
     expect(document.activeElement).toBe(host.querySelector("#ruler-length"));
     expect(sectionTrigger("crop")?.disabled).toBe(true);
     await changeNumber("ruler-length", "182");
-    await blurNumber("ruler-length");
+    await confirmNumber("ruler-length");
 
     expect(trace.calibrationSource).toBe("manual");
     expect(trace.calibration?.lengthMm).toBe(182);
@@ -665,7 +665,7 @@ describe("TraceControlsPanel guided workflow", () => {
     expect(section("scale")?.dataset.state).toBe("open");
     expect(sectionTrigger("crop")?.disabled).toBe(true);
 
-    await blurNumber("ruler-length");
+    await confirmNumber("ruler-length");
     expect(section("scale")?.dataset.state).toBe("closed");
     expect(section("crop")?.dataset.state).toBe("open");
     expect(section("detect")?.dataset.state).toBe("closed");
@@ -706,7 +706,7 @@ describe("TraceControlsPanel guided workflow", () => {
       host.querySelector('[data-testid="detection-tuning-guidance"]')
         ?.textContent,
     ).toContain("Reflections are usually not holes");
-    expect(host.querySelector('[data-testid="contour-editing-guidance"]')?.textContent).toContain("Detail preserves your edits");
+    expect(host.querySelector('[data-testid="contour-editing-guidance"]')?.textContent).toContain("Simplification adjusts your edited contour");
     expect(section("detect")?.querySelector("#smoothing")).toBeNull();
     expect(section("detect")?.textContent).not.toContain("Smoothing");
     expect(host.querySelector('#include-interior-holes')?.getAttribute("aria-checked")).toBe("false");
@@ -754,8 +754,7 @@ describe("TraceControlsPanel guided workflow", () => {
     expect(redraw?.textContent).toBe("Redraw ruler");
 
     // A real pointer click transfers focus before `click`, so the input's blur
-    // fires first. The redraw intent must suppress that stale scale commit or
-    // the guided workflow advances and remounts the button mid-interaction.
+    // fires first. Draft typing must not silently accept scale on blur.
     await React.act(async () => {
       const pointerDown = new MouseEvent("pointerdown", {
         bubbles: true,
@@ -786,7 +785,7 @@ describe("TraceControlsPanel guided workflow", () => {
     await click("load-source");
     await click("complete-manual-scale");
     await changeNumber("ruler-length", "50");
-    await blurNumber("ruler-length");
+    await confirmNumber("ruler-length");
 
     expect(section("scale")?.textContent).toContain("0.500 mm/px");
     await React.act(async () => {
@@ -794,6 +793,8 @@ describe("TraceControlsPanel guided workflow", () => {
       await new Promise((resolve) => window.setTimeout(resolve, 10));
     });
     await changeNumber("ruler-length", "200");
+    expect(trace.calibration?.lengthMm).toBe(50);
+    await confirmNumber("ruler-length");
     expect(section("scale")?.textContent).toContain("2.000 mm/px");
     expect(section("scale")?.textContent).toContain("2 mm/px (0.5 px/mm)");
   });
@@ -887,4 +888,19 @@ describe("automatic sensitivity detection", () => {
     expect(reprocess).toHaveBeenCalledExactlyOnceWith({ sensitivity: 128, includeInteriorHoles: true });
     expect(trace.includeInteriorHoles).toBe(true);
   });
+});
+
+
+it("blocks physical Save after Clear scale while keeping pixel SVG reachable", async () => {
+  await prepareOutline();
+  await React.act(async () => {
+    trace.dispatch({ type: "SET_EXPORT_FORMAT", exportFormat: "stl" });
+    trace.dispatch({ type: "SET_CALIBRATION", calibration: null });
+  });
+  const save = (name: string) => Array.from(host.querySelectorAll("button")).find(button => button.textContent?.trim() === name)!;
+  expect(save("Save STL").disabled).toBe(true);
+  expect(sectionTrigger("output")?.disabled).toBe(false);
+  expect(host.textContent).toContain("Set scale for STL, DXF or DWG");
+  await React.act(async () => trace.dispatch({ type: "SET_EXPORT_FORMAT", exportFormat: "svg" }));
+  expect(save("Save SVG (pixels)").disabled).toBe(false);
 });

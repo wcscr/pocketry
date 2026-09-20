@@ -14,7 +14,6 @@ import {
 import { useLocation } from "wouter";
 
 import {
-  calibrationFromDraft,
   hasCalibrationEndpoints,
   type Calibration,
 } from "@shared/geometry/scale";
@@ -30,7 +29,7 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { DraftNumberInput } from "@/components/ui/draft-number-input";
+import { RulerLengthInput } from "./ruler-length-input";
 import {
   Dialog,
   DialogContent,
@@ -145,7 +144,6 @@ export function TraceControlsPanel({
     pendingCalibrationSource,
     calibrationSource,
     draftCalibration,
-    rulerLengthMm,
     pendingPerspective,
     manualPerspectivePoints,
     perspectiveCorrection,
@@ -208,12 +206,10 @@ export function TraceControlsPanel({
     }
     return {
       ...item,
-      disabled: !scale.mmPerPx || !hasOutline || reviewingScale,
+      disabled: !hasOutline || reviewingScale,
       disabledReason: !hasImage
         ? "Choose a source image first"
-        : !scale.mmPerPx
-          ? "Set the scale first"
-          : "Detect a tool first",
+        : "Detect a tool first",
     };
   });
   const [sectionEpoch, setSectionEpoch] = useState(0);
@@ -237,10 +233,6 @@ export function TraceControlsPanel({
   const previousAutoPending = useRef(pendingAutoCalibration !== null);
   const previousManualRulerPending = useRef(manualRulerPending);
   const previousMode = useRef(store.mode);
-  // Pointer-down precedes the reference-length input's blur. Remember that
-  // Redraw owns this particular blur so it cannot confirm the ruler the user
-  // is explicitly trying to replace.
-  const redrawRulerRequested = useRef(false);
   const focusWhenReady = useRef<
     "scale" | "auto" | "ruler" | "length" | "region" | "detection" | null
   >(null);
@@ -306,10 +298,11 @@ export function TraceControlsPanel({
   useEffect(() => {
     if (sourceRevision === previousSourceRevision.current) return;
     previousSourceRevision.current = sourceRevision;
-    setGuidedSection(imageUrl === null ? null : "scale");
-    focusWhenReady.current = imageUrl === null ? null : "scale";
+    const restoredSection = outline.length > 0 || region ? "detection" : "scale";
+    setGuidedSection(imageUrl === null ? null : restoredSection);
+    focusWhenReady.current = imageUrl === null ? null : restoredSection;
     setSectionEpoch((epoch) => epoch + 1);
-  }, [imageUrl, sourceRevision]);
+  }, [imageUrl, sourceRevision, outline.length, region]);
 
   // Two placed endpoints are still only a pixel ruler. Keep Scale open and
   // focus the length field so the default preference cannot silently become a
@@ -330,12 +323,12 @@ export function TraceControlsPanel({
     const complete = scale.mmPerPx !== null;
     const becameComplete = !previousScaleComplete.current && complete;
     previousScaleComplete.current = complete;
-    if (!becameComplete) return;
+    if (!becameComplete || outline.length > 0 || region) return;
     dispatch({ type: "SET_MODE", mode: "region" });
     setGuidedSection("region");
     focusWhenReady.current = "region";
     setSectionEpoch((epoch) => epoch + 1);
-  }, [scale.mmPerPx, dispatch]);
+  }, [scale.mmPerPx, outline.length, region, dispatch]);
 
   // Re-entering ruler placement (including perspective-only correction) must
   // reveal its instructions. A committed region advances to detection without
@@ -456,7 +449,6 @@ export function TraceControlsPanel({
       type: "SET_MODE",
       mode: nextMode,
     });
-    redrawRulerRequested.current = false;
     if (nextMode === "calibrate") onCanvasInteraction?.();
   };
 
@@ -475,16 +467,6 @@ export function TraceControlsPanel({
       )}
       data-testid="button-set-scale"
       disabled={!hasImage}
-      onPointerDown={() => {
-        redrawRulerRequested.current =
-          store.mode !== "calibrate" && manualRulerPending;
-      }}
-      onPointerCancel={() => {
-        redrawRulerRequested.current = false;
-      }}
-      onPointerLeave={() => {
-        redrawRulerRequested.current = false;
-      }}
       onClick={handleSetScale}
     >
       {store.mode === "calibrate"
@@ -515,6 +497,14 @@ export function TraceControlsPanel({
           defaultOpen={!hasImage}
           className="scroll-mt-16"
         >
+          {store.draftSaveStatus !== "disabled" && store.draftSaveStatus !== "empty" && !(hasImage && store.draftSaveStatus === "error") && (
+            <p role="status" className={cn("text-xs", store.draftSaveStatus === "error" ? "text-destructive" : "text-muted-foreground")}>
+              {store.draftSaveStatus === "loading" ? "Restoring trace draft…"
+                : store.draftSaveStatus === "saving" ? "Saving trace draft…"
+                : store.draftSaveStatus === "error" ? "Couldn’t restore the saved trace. Choose a photo to start again."
+                : "Trace draft saved in this browser"}
+            </p>
+          )}
           {hasImage ? (
             <>
               <div className="space-y-1 text-xs text-muted-foreground">
@@ -610,7 +600,7 @@ export function TraceControlsPanel({
             </div>
           )}
 
-          {!pendingAutoCalibration && !usingReferenceStrip && (
+          {!pendingAutoCalibration && (!calibration || calibrationSource === "manual") && (
             <div
               className={cn(
                 "space-y-1.5 rounded-md",
@@ -629,36 +619,14 @@ export function TraceControlsPanel({
               >
                 Reference length (mm)
               </Label>
-              <DraftNumberInput
-                id="ruler-length"
-                min={1}
-                step="any"
-                value={rulerLengthMm}
-                disabled={!hasImage}
-                aria-describedby={
-                  manualRulerPending ? "reference-length-guidance" : undefined
-                }
-                onValueChange={(value) =>
-                  dispatch({ type: "SET_RULER_LENGTH", rulerLengthMm: value })
-                }
-                onValueCommit={(value) => {
-                  if (redrawRulerRequested.current) return;
-                  const completed = calibrationFromDraft(
-                    draftCalibration,
-                    value,
-                  );
-                  if (completed) {
-                    dispatch({ type: "SET_CALIBRATION", calibration: completed });
-                  }
-                }}
-              />
+              <RulerLengthInput id="ruler-length" disabled={!hasImage} />
               {manualRulerPending ? (
                 <p
                   id="reference-length-guidance"
                   className="text-[11px] font-medium text-amber-800 dark:text-amber-200"
                 >
-                  Ruler placed. Enter its real length, then press Enter or leave
-                  this field.
+                  Ruler placed. Enter its real length, then press Enter or
+                  Confirm scale.
                 </p>
               ) : null}
             </div>
@@ -666,7 +634,7 @@ export function TraceControlsPanel({
 
           {!pendingAutoCalibration && (
             <p className="text-[11px] text-muted-foreground">
-              {describeScale(displayedScale)}
+              {displayedScale.mmPerPx === null ? "Scale not set — only SVG can export in image pixels" : describeScale(displayedScale)}
             </p>
           )}
 
@@ -916,7 +884,7 @@ export function TraceControlsPanel({
           </p>
           <details className="text-xs text-muted-foreground">
             <summary className="cursor-pointer">How to edit the outline</summary>
-            <p className="pt-2" data-testid="contour-editing-guidance">Choose Edit contours to select the largest contour, then drag a vertex to move it or tap an edge to add one. Toggle Remove to delete vertices. Detail preserves your edits. Changing Sensitivity or interior holes re-detects from the photo and asks before replacing manual edits. Undo restores your contour.</p>
+            <p className="pt-2" data-testid="contour-editing-guidance">Choose Edit contours to select the largest contour, then drag a vertex to move it or tap an edge to add one. Toggle Remove to delete vertices. Simplification adjusts your edited contour. Changing Sensitivity or interior holes re-detects from the photo and asks before replacing manual edits. Undo restores your contour.</p>
           </details>
 
           <TraceDetectionControls onReprocess={onReprocess} />
@@ -963,7 +931,7 @@ export function TraceControlsPanel({
           summary={exportFormat.toUpperCase()}
           defaultOpen={false}
           className="scroll-mt-16"
-          disabled={!scale.mmPerPx || !hasOutline || reviewingScale}
+          disabled={!hasOutline || reviewingScale}
         >
           <div className="space-y-2">
             <Label htmlFor="format" className="text-xs">
@@ -982,10 +950,10 @@ export function TraceControlsPanel({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="svg">SVG — vector outline</SelectItem>
-                <SelectItem value="dxf">DXF — CAD / CAM</SelectItem>
-                <SelectItem value="dwg">DWG — AutoCAD</SelectItem>
-                <SelectItem value="stl">STL — 3D print</SelectItem>
+                <SelectItem value="svg">{scale.mmPerPx ? "SVG — vector outline" : "SVG — image pixels (unscaled)"}</SelectItem>
+                <SelectItem value="dxf" disabled={!scale.mmPerPx}>DXF — CAD / CAM</SelectItem>
+                <SelectItem value="dwg" disabled={!scale.mmPerPx}>DWG — AutoCAD</SelectItem>
+                <SelectItem value="stl" disabled={!scale.mmPerPx}>STL — 3D print</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -1083,12 +1051,13 @@ export function TraceControlsPanel({
             variant="outline"
             className="w-full"
             onClick={onExport}
-            disabled={!hasOutline || reviewingScale}
+            disabled={!hasOutline || reviewingScale || (!scale.mmPerPx && exportFormat !== "svg")}
           >
             <Download className="mr-2 h-4 w-4" />
-            Save {exportFormat.toUpperCase()}
+            Save {exportFormat.toUpperCase()}{!scale.mmPerPx && exportFormat === "svg" ? " (pixels)" : ""}
           </Button>
         </div>
+        {hasOutline && !scale.mmPerPx && <p className="mt-2 text-xs text-muted-foreground">Set scale for STL, DXF or DWG. Choose SVG in Export to save image pixels without a physical size.</p>}
       </PanelFooter>
     </div>
   );

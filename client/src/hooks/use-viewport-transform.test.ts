@@ -742,7 +742,7 @@ describe("useViewportTransform — pointer panning", () => {
     probe.unmount();
   });
 
-  it("pans on space+left-drag, and space does not scroll or activate buttons", () => {
+  it("pans on space+left-drag and prevents scrolling when the canvas owns Space", () => {
     const probe = mountViewport({ ...PHOTO, panEnabled: false });
 
     const down = dispatchKey("keydown", window);
@@ -769,6 +769,29 @@ describe("useViewportTransform — pointer panning", () => {
     expect(probe.api.isSpaceHeld).toBe(false);
 
     input.remove();
+    probe.unmount();
+  });
+
+  it("preserves Space activation on buttons and inside an open dialog", () => {
+    const probe = mountViewport(PHOTO);
+    const button = document.createElement("button");
+    document.body.appendChild(button);
+    const down = dispatchKey("keydown", button);
+    expect(down.defaultPrevented).toBe(false);
+    expect(probe.api.isSpaceHeld).toBe(false);
+
+    const dialog = document.createElement("div");
+    dialog.setAttribute("role", "dialog");
+    document.body.appendChild(dialog);
+    const background = dispatchKey("keydown", window);
+    expect(background.defaultPrevented).toBe(false);
+    expect(probe.api.isSpaceHeld).toBe(false);
+    dialog.remove();
+    button.remove();
+
+    expect(dispatchKey("keydown", window).defaultPrevented).toBe(true);
+    expect(probe.api.isSpaceHeld).toBe(true);
+    dispatchKey("keyup", window);
     probe.unmount();
   });
 

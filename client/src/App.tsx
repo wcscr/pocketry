@@ -77,7 +77,7 @@ function App() {
                 above the route switch preserves the loaded photo, outline,
                 calibration, crop, undo history and active tool while the user
                 visits Bin. */}
-            <TraceProvider>
+            <TraceProvider persist>
               <Shell />
             </TraceProvider>
           </ShapeLibraryProvider>

@@ -1,19 +1,19 @@
 import { useEffect, useState } from "react";
 import { ChevronLeft } from "lucide-react";
 
-import { calibrationFromDraft, hasCalibrationEndpoints, type Calibration } from "@shared/geometry/scale";
+import { hasCalibrationEndpoints, type Calibration } from "@shared/geometry/scale";
 import { OUTER_RING } from "@shared/geometry/types";
 import { getRing } from "@/lib/geometry/outline";
 import { ContourEditTools } from "@/components/canvas/contour-edit-tools";
 import { WorkflowHint } from "@/components/canvas/workflow-hint";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { PerspectiveProposal } from "@/lib/calibrate/perspective";
 import type { TemplateVariant } from "@/lib/calibrate/template";
 import { useTrace } from "@/state/trace-store";
 import { AutoCalibrationOptions } from "./auto-calibration-options";
 import { TraceDetectionControls, type DetectionSettings } from "./trace-detection-controls";
+import { RulerLengthInput } from "./ruler-length-input";
 
 export interface MobileTraceActionsProps {
   onChoosePhoto: () => void;
@@ -31,14 +31,11 @@ const STEPS: TraceStep[] = ["photo", "scale", "region", "outline"];
 export function MobileTraceActions({ onChoosePhoto, onStartOver, onOpenSettings, onApplyPerspective, onDetectMarkers, onReprocess }: MobileTraceActionsProps): JSX.Element {
   const trace = useTrace();
   const { dispatch, pendingAutoCalibration, pendingPerspective, calibration, draftCalibration, processing } = trace;
-  const [length, setLength] = useState(String(trace.rulerLengthMm));
   const [reviewStep, setReviewStep] = useState<"photo" | "scale" | null>(null);
   const [restartOpen, setRestartOpen] = useState(false);
-  useEffect(() => setLength(String(trace.rulerLengthMm)), [trace.rulerLengthMm]);
   useEffect(() => { setReviewStep(null); setRestartOpen(false); }, [trace.sourceRevision]);
   useEffect(() => { if (trace.mode !== "pan" || pendingAutoCalibration) setReviewStep(null); }, [trace.mode, pendingAutoCalibration]);
   const manualPending = !calibration && hasCalibrationEndpoints(draftCalibration);
-  const confirmedRuler = calibrationFromDraft(draftCalibration, Number(length));
   const hasRegion = Boolean(trace.region && trace.region.width > 5 && trace.region.height > 5);
   const step: TraceStep = pendingAutoCalibration ? "scale" : reviewStep ?? (!calibration || trace.mode === "calibrate" || trace.mode === "perspective"
     ? "scale" : trace.mode === "region" || (!hasRegion && !trace.outline.length) ? "region" : "outline");
@@ -95,15 +92,9 @@ export function MobileTraceActions({ onChoosePhoto, onStartOver, onOpenSettings,
     </div>
     {!(step === "scale" && pendingAutoCalibration) && <WorkflowHint>{guidance}</WorkflowHint>}
     {step === "outline" && hasRegion && <TraceDetectionControls compact onReprocess={onReprocess} />}
-    {step === "scale" && manualPending && !pendingAutoCalibration && !processing ? <div className="flex items-end gap-2">
-      <label className="min-w-0 flex-1 text-xs" htmlFor="mobile-ruler-length">Reference length (mm)
-        <Input id="mobile-ruler-length" type="number" inputMode="decimal" min="0.01" step="any" value={length} onChange={(event) => setLength(event.target.value)} />
-      </label>
-      <Button className="min-h-11" disabled={!confirmedRuler} onClick={() => {
-        if (!confirmedRuler) return;
-        dispatch({ type: "SET_RULER_LENGTH", rulerLengthMm: Number(length) });
-        dispatch({ type: "SET_CALIBRATION", calibration: confirmedRuler });
-      }}>Confirm scale</Button>
+    {step === "scale" && manualPending && !pendingAutoCalibration && !processing ? <div className="space-y-1">
+      <label className="text-xs" htmlFor="mobile-ruler-length">Reference length (mm)</label>
+      <RulerLengthInput id="mobile-ruler-length" />
     </div> : null}
     {step === "scale" && pendingAutoCalibration ? <AutoCalibrationOptions
       onSetManually={redrawScale} onApplyPerspective={onApplyPerspective} onDetectMarkers={onDetectMarkers}

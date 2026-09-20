@@ -36,6 +36,7 @@ import { CanvasToolbar } from "@/components/layout/canvas-toolbar";
 import { ContourEditTools } from "@/components/canvas/contour-edit-tools";
 import { EditHistoryMenu } from "@/components/history/edit-history-menu";
 import { useViewportTransform } from "@/hooks/use-viewport-transform";
+import { canHandleCanvasShortcut } from "@/lib/canvas-keyboard";
 import { nearestEdge, nearestVertex } from "@/lib/geometry/hit-test";
 import { getRing, sameRingRef, setRing } from "@/lib/geometry/outline";
 import { Button } from "@/components/ui/button";
@@ -815,7 +816,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
             <button
               type="button"
               onClick={viewport.resetZoom}
-              className="hidden min-h-11 min-w-14 rounded px-2 py-1 text-xs md:block md:min-h-0 tabular-nums hover:bg-accent"
+              className="hidden min-h-11 min-w-14 rounded px-2 py-1 text-xs md:block md:min-h-0 [@media(pointer:coarse)]:min-h-11 tabular-nums hover:bg-accent"
               title="Reset to 100% (1)"
             >
               {Math.round(viewport.transform.scale * 100)}%
@@ -888,7 +889,7 @@ function ModeButton({
         <Button
           variant={active ? "secondary" : "ghost"}
           size="icon"
-          className={cn("h-11 w-11 md:h-8 md:w-8", active && "ring-1 ring-primary/40")}
+          className={cn("h-11 w-11 md:h-8 md:w-8 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11", active && "ring-1 ring-primary/40")}
           aria-pressed={active}
           aria-label={label}
           disabled={disabled}
@@ -919,7 +920,7 @@ function IconButton({
         <Button
           variant="ghost"
           size="icon"
-          className="h-11 w-11 md:h-8 md:w-8"
+          className="h-11 w-11 md:h-8 md:w-8 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11"
           aria-label={label}
           disabled={disabled}
           onClick={onClick}
@@ -967,8 +968,8 @@ interface ShortcutHandlers {
 /**
  * Canvas keyboard shortcuts.
  *
- * Suppressed while focus is in a text field — the ruler-length input would
- * otherwise swallow "0" and "1" as zoom commands.
+ * Active only while the canvas owns keyboard input. Dialogs and controls keep
+ * their own text editing, navigation, and activation commands.
  */
 function useCanvasShortcuts(handlers: ShortcutHandlers): void {
   const [state] = useState(() => ({ handlers }));
@@ -976,15 +977,7 @@ function useCanvasShortcuts(handlers: ShortcutHandlers): void {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null;
-      if (
-        target &&
-        (target.tagName === "INPUT" ||
-          target.tagName === "TEXTAREA" ||
-          target.isContentEditable)
-      ) {
-        return;
-      }
+      if (!canHandleCanvasShortcut(event) || event.altKey) return;
 
       const meta = event.ctrlKey || event.metaKey;
       if (meta && event.key.toLowerCase() === "z") {
