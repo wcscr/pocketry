@@ -2094,11 +2094,12 @@ function ProjectControls({
   const ready = hydrated && libraryReady;
   const [saveOpen, setSaveOpen] = useState(false);
   const [renameProjectId, setRenameProjectId] = useState<string | null>(null);
-  const [libraryView, setLibraryView] = useState<"open" | "manage" | null>(null);
+  const [libraryOpen, setLibraryOpen] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [projectName, setProjectName] = useState("");
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const libraryImportInputRef = useRef<HTMLInputElement | null>(null);
+  const libraryDialogRef = useRef<HTMLDivElement | null>(null);
 
   const renderNameDialog = (project?: ProjectLibraryItem): JSX.Element => {
     const renaming = !!project || !!activeProjectId;
@@ -2162,47 +2163,53 @@ function ProjectControls({
     );
   };
 
-  const renderLibraryDialog = (mode: "open" | "manage"): JSX.Element => (
+  const renderLibraryDialog = (): JSX.Element => (
     <Dialog
-      key={mode}
-      open={libraryView === mode}
+      open={libraryOpen}
       onOpenChange={(open) => {
-        setLibraryView(open ? mode : null);
-        if (open && mode === "manage") setSelectedProjectId(activeProjectId);
+        setLibraryOpen(open);
+        if (open) setSelectedProjectId(activeProjectId);
         if (open) onRefreshProjects();
       }}
     >
       <DialogTrigger asChild>
         <Button
-          variant={mode === "open" ? "outline" : "ghost"}
+          variant="ghost"
           size="sm"
           disabled={!ready || busy}
-          data-testid={mode === "open" ? "button-open-library" : "button-manage-library"}
-          className={mode === "open"
-            ? "h-auto min-h-9 min-w-0 gap-1.5 whitespace-normal px-2 py-1.5 text-xs [@media(pointer:coarse)]:min-h-11"
-            : "h-8 gap-1 px-2 text-xs text-muted-foreground [@media(pointer:coarse)]:min-h-11"}
-          aria-label={mode === "open" ? "Open saved project" : "Manage library"}
-          title={mode === "manage" ? "Manage browser library" : undefined}
+          data-testid="button-manage-library"
+          className="h-8 gap-1 px-2 text-xs text-muted-foreground [@media(pointer:coarse)]:min-h-11"
+          aria-label="Manage library"
+          title="Manage browser library"
         >
-          {mode === "open" ? <FolderOpen className="h-3.5 w-3.5 shrink-0" /> : <LibraryBig className="h-3.5 w-3.5 shrink-0" />}
-          {mode === "open" ? "Open saved project" : "Manage"}
+          <LibraryBig className="h-3.5 w-3.5 shrink-0" />
+          Manage
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-h-[85dvh] overflow-hidden p-4 sm:p-6">
+      <DialogContent
+        ref={libraryDialogRef}
+        className="flex max-h-[85dvh] flex-col overflow-hidden p-4 sm:p-6"
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          // Keep opening an empty library from focusing and expanding its help hint.
+          libraryDialogRef.current?.querySelector<HTMLElement>(
+            '[data-testid="managed-project-list"] [role="group"], [data-testid="button-export-library"]',
+          )?.focus({ preventScroll: true });
+        }}
+      >
         <DialogHeader>
-          <DialogTitle>{mode === "open" ? "Open a saved project" : "Manage browser library"}</DialogTitle>
+          <DialogTitle>Manage browser library</DialogTitle>
           <DialogDescription>
-            {mode === "open"
-              ? "Choose a named project saved in this browser. Your current named project is saved before opening another design. An unnamed draft will be replaced."
-              : `${projects.length} saved project${projects.length === 1 ? "" : "s"} in this browser.`}
+            {projects.length} saved project{projects.length === 1 ? "" : "s"} in this browser.
+            Open a project here, or import and export the entire library below.
           </DialogDescription>
         </DialogHeader>
         <ScrollArea
           type="auto"
-          className="min-h-0 [&_[data-radix-scroll-area-viewport]]:max-h-[min(20rem,calc(85dvh_-_8rem))] [&_[data-orientation=vertical]]:bg-muted/50 [&_[data-orientation=vertical]>div]:bg-muted-foreground/50"
-          data-testid={`${mode}-library-scroll`}
+          className="min-h-0 [&_[data-radix-scroll-area-viewport]]:max-h-[min(20rem,calc(85dvh_-_15rem))] [&_[data-orientation=vertical]]:bg-muted/50 [&_[data-orientation=vertical]>div]:bg-muted-foreground/50"
+          data-testid="manage-library-scroll"
         >
-        <div className="space-y-2 pr-4" data-testid={mode === "open" ? "project-list" : "managed-project-list"}>
+        <div className="space-y-2 pr-4" data-testid="managed-project-list">
           {projects.length === 0 ? (
             <div className="rounded-md border border-dashed p-5 text-center text-sm text-muted-foreground">
               No named projects yet. Save the current draft to add one.
@@ -2212,49 +2219,49 @@ function ProjectControls({
               const active = project.id === activeProjectId;
               const openProject = async () => {
                 if (busy || active) return;
-                if (await onOpenProject(project.id)) setLibraryView(null);
+                if (await onOpenProject(project.id)) setLibraryOpen(false);
               };
               return (
                 <div
                   key={project.id}
                   className={cn(
                     "flex items-center gap-3 rounded-md border p-3",
-                    mode === "manage" && "flex-wrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-                    (mode === "manage" ? project.id === selectedProjectId : active) && "border-primary/50 bg-primary/5",
+                    "flex-wrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                    (project.id === selectedProjectId) && "border-primary/50 bg-primary/5",
                   )}
                   data-testid={`library-project-${project.id}`}
-                  data-selected={mode === "manage" ? project.id === selectedProjectId : undefined}
+                  data-selected={project.id === selectedProjectId}
                   role="group"
                   aria-label={project.name}
-                  tabIndex={mode === "manage" ? 0 : undefined}
+                  tabIndex={0}
                   onFocus={(event) => {
-                    if (mode === "manage" && event.currentTarget.contains(event.target)) setSelectedProjectId(project.id);
+                    if (event.currentTarget.contains(event.target)) setSelectedProjectId(project.id);
                   }}
                   onClick={(event) => {
-                    if (mode !== "manage" || !(event.target instanceof Element)) return;
+                    if (!(event.target instanceof Element)) return;
                     if (!event.currentTarget.contains(event.target)) return;
                     setSelectedProjectId(project.id);
                     if (!event.target.closest("button")) event.currentTarget.focus();
                   }}
                   onKeyDown={(event) => {
-                    if (mode !== "manage" || event.target !== event.currentTarget || event.key !== "Enter") return;
+                    if (event.target !== event.currentTarget || event.key !== "Enter") return;
                     event.preventDefault();
                     void openProject();
                   }}
                   onDoubleClick={(event) => {
-                    if (mode !== "manage" || !(event.target instanceof Element)) return;
+                    if (!(event.target instanceof Element)) return;
                     if (!event.currentTarget.contains(event.target) || event.target.closest("button")) return;
                     void openProject();
                   }}
                 >
-                  <div className={cn("min-w-0 flex-1", mode === "manage" && "basis-40")}>
+                  <div className="min-w-0 flex-1 basis-40">
                     <div className="flex min-w-0 items-center gap-1" data-testid={`library-project-name-${project.id}`}>
                       <p className="min-w-0 truncate text-sm font-medium" title={project.name}>
                         {project.name}
                       </p>
-                      {mode === "manage" && renderNameDialog(project)}
+                      {renderNameDialog(project)}
                     </div>
-                    {active && mode === "manage" && <p className="text-xs text-muted-foreground">Current project</p>}
+                    {active && <p className="text-xs text-muted-foreground">Current project</p>}
                     <p className="text-[11px] text-muted-foreground">
                       Updated {formatProjectTime(project.updatedAt)}
                     </p>
@@ -2272,7 +2279,7 @@ function ProjectControls({
                     {!active && <FolderOpen className="h-4 w-4" />}
                     {active ? "Current" : "Open"}
                   </Button>
-                  {mode === "manage" && <Button
+                  <Button
                     size="sm"
                     variant="outline"
                     className="min-h-11 gap-1.5 px-2 text-xs"
@@ -2286,8 +2293,8 @@ function ProjectControls({
                     }}
                   >
                     <Copy className="h-4 w-4" />Copy
-                  </Button>}
-                  {mode === "manage" && <AlertDialog>
+                  </Button>
+                  <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <Button
                         size="sm"
@@ -2320,7 +2327,7 @@ function ProjectControls({
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
-                  </AlertDialog>}
+                  </AlertDialog>
                   </div>
                 </div>
               );
@@ -2328,6 +2335,28 @@ function ProjectControls({
           )}
         </div>
         </ScrollArea>
+        <div className="shrink-0 space-y-1.5 border-t pt-3" data-testid="library-file-backup">
+          <div className="flex items-center justify-between gap-2">
+            <SettingLabel label="Entire library" hint="Exports every named project saved in this browser as one JSON file. Unnamed drafts are not included. Import adds projects without replacing your current design or existing library; duplicate names receive an imported suffix." />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <Button size="sm" variant="outline" className={projectActionClass} disabled={!ready || busy}
+              onClick={onExportLibrary} data-testid="button-export-library">
+              <Download className="h-3.5 w-3.5 shrink-0" />Export library
+            </Button>
+            <Button size="sm" variant="outline" className={projectActionClass} disabled={!ready || busy}
+              onClick={() => libraryImportInputRef.current?.click()} data-testid="button-import-library">
+              <Upload className="h-3.5 w-3.5 shrink-0" />Import library
+            </Button>
+          </div>
+        </div>
+        <input ref={libraryImportInputRef} type="file" accept=".json,application/json"
+          className="hidden" aria-label="Import library JSON" data-testid="input-import-library"
+          onChange={(event) => {
+            const file = event.currentTarget.files?.[0];
+            event.currentTarget.value = "";
+            if (file) onImportLibrary(file);
+          }} />
       </DialogContent>
     </Dialog>
   );
@@ -2344,7 +2373,7 @@ function ProjectControls({
           {ready && <HelpHint label="project autosave">{activeProjectId
             ? "Saved automatically in this browser’s Project Library."
             : "This draft resumes automatically; save it to the library to name it."}</HelpHint>}
-          <div className="ml-auto">{renderLibraryDialog("manage")}</div>
+          <div className="ml-auto">{renderLibraryDialog()}</div>
         </div>
         <div
           className={cn("flex min-h-8 items-center gap-x-1.5 gap-y-1", !activeProjectId && "flex-wrap")}
@@ -2362,8 +2391,7 @@ function ProjectControls({
         </div>
         {saveStatus === "error" && <p className="text-[11px] text-destructive" role="status">Autosave is unavailable. Export this project to keep your work.</p>}
       </div>
-      <div className="grid grid-cols-2 gap-2">
-        {renderLibraryDialog("open")}
+      <div className="flex">
         <AlertDialog>
           <AlertDialogTrigger asChild>
             <Button
@@ -2428,29 +2456,6 @@ function ProjectControls({
           </Button>
         </div>
         </div>
-        <div className="space-y-1.5" data-testid="library-file-backup">
-          <div className="flex items-center justify-between gap-2">
-            <SettingLabel label="Entire library" hint="Exports every named project saved in this browser as one JSON file. Unnamed drafts are not included. Import adds projects without replacing your current design or existing library; duplicate names receive an imported suffix." />
-            <span className="shrink-0 text-[11px] text-muted-foreground">{ready ? `${projects.length} saved` : "Loading…"}</span>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <Button size="sm" variant="outline" className={projectActionClass} disabled={!ready || busy}
-              onClick={onExportLibrary} data-testid="button-export-library">
-              <Download className="h-3.5 w-3.5 shrink-0" />Export library
-            </Button>
-            <Button size="sm" variant="outline" className={projectActionClass} disabled={!ready || busy}
-              onClick={() => libraryImportInputRef.current?.click()} data-testid="button-import-library">
-              <Upload className="h-3.5 w-3.5 shrink-0" />Import library
-            </Button>
-          </div>
-        </div>
-        <input ref={libraryImportInputRef} type="file" accept=".json,application/json"
-          className="hidden" aria-label="Import library JSON" data-testid="input-import-library"
-          onChange={(event) => {
-            const file = event.currentTarget.files?.[0];
-            event.currentTarget.value = "";
-            if (file) onImportLibrary(file);
-          }} />
         <input
           ref={importInputRef}
           type="file"

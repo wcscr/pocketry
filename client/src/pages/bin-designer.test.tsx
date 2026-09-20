@@ -398,7 +398,7 @@ describe("BinDesignerPage", () => {
     try {
       await flushHydration();
       openSettingsSection(container, "project");
-      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-open-library"]')!.click());
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
       await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-open-project-other"]')!.click());
       expect(ProjectPersistence.openProjectFromLibrary).not.toHaveBeenCalled();
       expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toEqual(cutter.cutouts);
@@ -449,13 +449,13 @@ describe("BinDesignerPage", () => {
       setDepth("55");
       expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0].split).toEqual(intended.cutouts[0].split);
       openSettingsSection(container, "project");
-      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-open-library"]')!.click());
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
       await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-open-project-other"]')!.click());
       expect(ProjectPersistence.saveProjectDoc).toHaveBeenCalledWith(expect.objectContaining({ cutouts: intended.cutouts }), "cutter");
       expect(ProjectPersistence.openProjectFromLibrary).not.toHaveBeenCalled();
       await React.act(async () => finishSave(true));
       expect(activeProjectId).toBe("other");
-      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-open-library"]')!.click());
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
       await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-open-project-cutter"]')!.click());
       expect(activeProjectId).toBe("cutter");
       expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toEqual(intended.cutouts);
@@ -2280,9 +2280,6 @@ describe("BinDesignerPage", () => {
     const save = container.querySelector(
       '[data-testid="button-save-library"]',
     ) as HTMLButtonElement;
-    const open = container.querySelector(
-      '[data-testid="button-open-library"]',
-    ) as HTMLButtonElement;
     const fresh = container.querySelector(
       '[data-testid="button-new-project"]',
     ) as HTMLButtonElement;
@@ -2291,7 +2288,7 @@ describe("BinDesignerPage", () => {
     expect(status.textContent).toContain("Checking for saved projects");
     expect(save.disabled).toBe(true);
     expect(manage.disabled).toBe(true);
-    const transfers = ["export-project", "import-project", "export-library", "import-library"].map(action =>
+    const transfers = ["export-project", "import-project"].map(action =>
       container.querySelector<HTMLButtonElement>(`[data-testid="button-${action}"]`)!,
     );
     for (const action of transfers) expect(action.disabled).toBe(true);
@@ -2308,21 +2305,21 @@ describe("BinDesignerPage", () => {
     expect(document.querySelector('[role="tooltip"]')!.textContent).toContain("draft resumes automatically");
     React.act(() => autosaveHelp.click());
     expect(save.textContent).toContain("Save to library");
-    expect(open.textContent).toContain("Open saved project");
+    expect(container.querySelector('[data-testid="button-open-library"]')).toBeNull();
+    expect(container.querySelector('[data-testid="button-export-library"]')).toBeNull();
+    expect(container.querySelector('[data-testid="button-import-library"]')).toBeNull();
     expect(fresh.textContent).toContain("New project");
     expect(save.disabled).toBe(false);
-    expect(open.disabled).toBe(false);
     expect(fresh.disabled).toBe(false);
     expect(manage.disabled).toBe(false);
     expect(manage.getAttribute("aria-label")).toBe("Manage library");
     expect(save.closest('section')?.getAttribute("aria-label")).toBe("Browser library");
-    expect(open.closest('section')?.getAttribute("aria-label")).toBe("Browser library");
     for (const action of transfers) {
       expect(action.disabled).toBe(false);
       expect(action.closest('section')?.getAttribute("aria-label")).toBe("Portable backup");
     }
     expect(container.querySelector('[data-testid="project-file-backup"]')?.textContent).toContain("Current project");
-    expect(container.querySelector('[data-testid="library-file-backup"]')?.textContent).toContain("Entire library");
+    expect(container.querySelector('[data-testid="library-file-backup"]')).toBeNull();
     unmount();
   });
 
@@ -2401,18 +2398,18 @@ describe("BinDesignerPage", () => {
     React.act(() => {
       (
         container.querySelector(
-          '[data-testid="button-open-library"]',
+          '[data-testid="button-manage-library"]',
         ) as HTMLButtonElement
       ).click();
     });
-    expect(document.querySelector('[data-testid="project-list"]')?.textContent).toContain(
+    expect(document.querySelector('[data-testid="managed-project-list"]')?.textContent).toContain(
       "Pliers tray",
     );
     const picker = document.querySelector('[role="dialog"]')!;
-    expect(picker.textContent).toContain("Open a saved project");
-    expect(picker.querySelector('[data-testid="button-export-library"]')).toBeNull();
-    expect(picker.querySelector('[data-testid="button-import-library"]')).toBeNull();
-    expect(picker.querySelector('[data-testid^="button-remove-project-"]')).toBeNull();
+    expect(picker.textContent).toContain("Manage browser library");
+    expect(picker.querySelector('[data-testid="button-export-library"]')).not.toBeNull();
+    expect(picker.querySelector('[data-testid="button-import-library"]')).not.toBeNull();
+    expect(picker.querySelector('[data-testid^="button-remove-project-"]')).not.toBeNull();
     expect(
       (document.querySelector(
         '[data-testid="button-open-project-project-1"]',
@@ -2434,7 +2431,7 @@ describe("BinDesignerPage", () => {
     unmount();
   });
 
-  it.each(["open", "manage"])("keeps the %s library scrollbar visible while its projects overflow", async (mode) => {
+  it("keeps the manager scrollbar visible while its projects overflow", async () => {
     const projects = Array.from({ length: 8 }, (_, index) => ({
       id: `project-${index}`, name: `Project ${index}`, updatedAt: "2026-09-12T12:00:00.000Z",
     }));
@@ -2452,8 +2449,8 @@ describe("BinDesignerPage", () => {
     });
     vi.useFakeTimers();
     try {
-      React.act(() => container.querySelector<HTMLButtonElement>(`[data-testid="button-${mode === "open" ? "open" : "manage"}-library"]`)!.click());
-      const scroll = document.querySelector(`[data-testid="${mode}-library-scroll"]`)!;
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
+      const scroll = document.querySelector('[data-testid="manage-library-scroll"]')!;
       const viewport = scroll.querySelector('[data-radix-scroll-area-viewport]')!;
       Object.defineProperties(viewport, {
         offsetHeight: { configurable: true, value: 120 },
@@ -2751,14 +2748,19 @@ describe("BinDesignerPage", () => {
     unmount();
   });
 
-  it("exports the full library directly from Portable backup with the latest design snapshot", async () => {
+  it("exports the full library from Manage with the latest design snapshot", async () => {
     const backup = { format: "pocketry-library" as const, schemaVersion: 1 as const, projects: [] };
     vi.mocked(ProjectPersistence.exportProjectLibrary).mockResolvedValue(backup);
     const { container, unmount } = renderPage();
     openSettingsSection(container, "project");
     await flushHydration();
     expect(document.querySelector('[role="dialog"]')).toBeNull();
-    expect(container.querySelector('[aria-label="Portable backup"] [data-testid="button-export-library"]')).not.toBeNull();
+    expect(container.querySelector('[aria-label="Portable backup"] [data-testid="button-export-library"]')).toBeNull();
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
+    await flushHydration();
+    expect(document.querySelector('[role="dialog"] [data-testid="button-export-library"]')).not.toBeNull();
+    expect(document.activeElement).toBe(document.querySelector('[data-testid="button-export-library"]'));
+    expect(document.querySelector('[role="tooltip"]')).toBeNull();
     await React.act(async () => { (document.querySelector('[data-testid="button-export-library"]') as HTMLButtonElement).click(); });
     expect(ProjectPersistence.exportProjectLibrary).toHaveBeenCalledWith(expect.objectContaining({ schemaVersion: PROJECT_SCHEMA_VERSION }));
     expect(ProjectPersistence.saveProjectToLibrary).not.toHaveBeenCalled();
@@ -2784,6 +2786,8 @@ describe("BinDesignerPage", () => {
     openSettingsSection(container, "project");
     await flushHydration();
     expect(document.querySelector('[role="dialog"]')).toBeNull();
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
+    await flushHydration();
     const input = document.querySelector('[data-testid="input-import-library"]') as HTMLInputElement;
     const click = vi.spyOn(input, "click");
     React.act(() => { (document.querySelector('[data-testid="button-import-library"]') as HTMLButtonElement).click(); });
@@ -2795,13 +2799,10 @@ describe("BinDesignerPage", () => {
     await React.act(async () => { input.dispatchEvent(new Event("change", { bubbles: true })); });
     expect(ProjectPersistence.importProjectLibrary).toHaveBeenCalledWith(data);
     expect(input.value).toBe("");
-    expect(container.querySelector('[data-testid="library-file-backup"]')?.textContent).toContain("1 saved");
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain("1 saved project");
     expect(ProjectPersistence.startNewProject).not.toHaveBeenCalled();
     expect(ProjectPersistence.openProjectFromLibrary).not.toHaveBeenCalled();
-    vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId: null, projects: [project] });
-    React.act(() => { (container.querySelector('[data-testid="button-open-library"]') as HTMLButtonElement).click(); });
-    await flushHydration();
-    expect(document.querySelector('[data-testid="project-list"]')?.textContent).toContain("Imported tray");
+    expect(document.querySelector('[data-testid="managed-project-list"]')?.textContent).toContain("Imported tray");
     unmount();
   });
 
@@ -2811,9 +2812,11 @@ describe("BinDesignerPage", () => {
     const { container, unmount } = renderPage();
     openSettingsSection(container, "project");
     await flushHydration();
-    const button = (action: string) => container.querySelector<HTMLButtonElement>(`[data-testid="button-${action}"]`)!;
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
+    await flushHydration();
+    const button = (action: string) => document.querySelector<HTMLButtonElement>(`[data-testid="button-${action}"]`)!;
     React.act(() => button("export-library").click());
-    for (const action of ["save-library", "open-library", "manage-library", "new-project", "export-project", "import-project", "export-library", "import-library"]) {
+    for (const action of ["save-library", "manage-library", "new-project", "export-project", "import-project", "export-library", "import-library"]) {
       expect(button(action).disabled).toBe(true);
     }
     expect(container.querySelector('[data-testid="project-status"]')?.textContent).toContain("Working");
@@ -2828,6 +2831,8 @@ describe("BinDesignerPage", () => {
   it("rejects malformed library JSON before persistence", async () => {
     const { container, unmount } = renderPage();
     openSettingsSection(container, "project");
+    await flushHydration();
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
     await flushHydration();
     const input = document.querySelector('[data-testid="input-import-library"]') as HTMLInputElement;
     const file = new File(["{"], "broken.json");
@@ -3404,7 +3409,7 @@ describe("project history restoration", () => {
       }
       openSettingsSection(document.body, "project");
       const open = async (id: string) => {
-        React.act(() => document.querySelector<HTMLButtonElement>('[data-testid="button-open-library"]')!.click());
+        React.act(() => document.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
         await React.act(async () => document.querySelector<HTMLButtonElement>(`[data-testid="button-open-project-${id}"]`)!.click());
       };
       await open("B");

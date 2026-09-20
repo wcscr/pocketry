@@ -129,11 +129,12 @@ preview-only **section view**
 `.pocketry.json` backup import/export (legacy `.tooltrace.json` remains accepted);
 and per-pocket duplicate. The Project
 section is pinned to the top of the Bin controls: a draft resumes automatically,
-Save gives it a library name, Open presents the browser-local named projects,
+Save gives it a library name, Manage presents the browser-local named projects,
 and New detaches a clean draft without deleting saved projects. Opening another
 design, opening a project file, and New Project all save the outgoing named
 design's latest edits before changing the autosave target. A failed save keeps
-the current design open. The library is
+the current design open. Library import/export also lives in Manage; the main
+Project section retains only current-project file transfers. The library is
 implemented entirely over IndexedDB so its behavior is consistent across modern
 browsers; JSON remains an explicit backup/transfer path whose download location
 is browser-controlled.
