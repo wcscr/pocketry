@@ -16,6 +16,7 @@ import {
   isElongatedFingerHole,
   hasFlatFingerHoleBottom,
   resolvePocketDepth,
+  pocketName,
   transformOutlinePlacement,
   transformPointPlacement,
   type CutoutPlacement,
@@ -475,7 +476,7 @@ export function buildCutoutCutters(
 
     if (cutout.split) {
       const resolved = resolvePocketSplit(shape.outlineMm, cutout.split.boundary);
-      if (resolved.error) throw new Error(`“${shape.name}”: ${resolved.error}`);
+      if (resolved.error) throw new Error(`“${pocketName(cutout, shape)}”: ${resolved.error}`);
       const [a, b] = cutout.split.boundary.map(p => transformPointPlacement(p, cutout));
       // Mirroring reverses left/right in world space; section identity remains
       // attached to the authored outline even under nonuniform scaling.

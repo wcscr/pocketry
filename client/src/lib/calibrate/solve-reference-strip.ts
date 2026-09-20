@@ -15,7 +15,10 @@ const MAX_EDGE_DEVIATION = 0.06;
  * The tolerances account for subpixel edge noise; they cannot prove
  * coplanarity with the object or eliminate lens distortion.
  */
-export function solveReferenceStrip(markers: readonly DetectedMarker[]): ScaleSolution | null {
+export function solveReferenceStrip(
+  markers: readonly DetectedMarker[],
+  options: { sourceBaselinePx?: number } = {},
+): ScaleSolution | null {
   const spec = referenceStripFromMarkerIds(markers.map(({ id }) => id));
   if (!spec) return null;
   const expected = referenceStripMarkers(spec);
@@ -27,9 +30,14 @@ export function solveReferenceStrip(markers: readonly DetectedMarker[]): ScaleSo
   const dy = b.centerPx.y - a.centerPx.y;
   const distance = Math.hypot(dx, dy);
   if (!Number.isFinite(distance) || distance < 40) return null;
+  // When points were rectified, retain the source raster's resolution floor
+  // and pixel-localization allowance. Output resizing cannot add evidence or
+  // make a high-resolution geometric mismatch pass as low-resolution noise.
+  const sourceBaselinePx = options.sourceBaselinePx ?? distance;
+  if (!Number.isFinite(sourceBaselinePx) || sourceBaselinePx < 40) return null;
   const mmPerPx = spec.centerSpacingMm / distance;
   const maxEdgeDeviation = MAX_EDGE_DEVIATION +
-    EDGE_LOCALIZATION_ALLOWANCE_PX * mmPerPx / spec.markerSizeMm;
+    EDGE_LOCALIZATION_ALLOWANCE_PX * (spec.centerSpacingMm / sourceBaselinePx) / spec.markerSizeMm;
   const cos = dx / distance;
   const sin = dy / distance;
   let squaredError = 0;

@@ -7,6 +7,7 @@ import { POCKETRY_ARUCO_BITS } from "./aruco-4x4";
 import { createPocketryTemplateDictionary } from "./detect";
 import { REFERENCE_STRIP, referenceStripMarkers } from "./reference-strip";
 import { solveReferenceStrip } from "./solve-reference-strip";
+import { runPerspectiveCorrection } from "./perspective";
 import { referenceStripPdf } from "./reference-strip-pdf";
 import { PDF_POINTS_PER_MM } from "./template-pdf";
 import { TEMPLATE_PAPER_MM, templateMarkerCentersMm, templateMarkerSizeMm, type TemplateVariant } from "./template";
@@ -130,6 +131,46 @@ describe("object reference strip", () => {
       expect(result.template).toBe(sheet);
       expect(result.perspectiveProposal).toBeDefined();
     }
+  });
+
+  it.each(["a4", "letter", "a4-experimental", "letter-experimental"] as const)("recovers a tilted aid using the valid %s paper fit, requiring correction", (sheet) => {
+    const image = photograph({ ids: [24, 25], markerSize: 9, spacing: 85, sheet, squash: .85 });
+    const result = runAutoCalibration(cv, image);
+    expect(result.kind).toBe("calibrated-strip");
+    if (result.kind !== "calibrated-strip") return;
+    expect(result.requiresPerspectiveCorrection).toBe(true);
+    expect(result.sheet?.template).toBe(sheet);
+    expect(result.calibration.lengthMm).toBe(85);
+    // Source-image endpoints must survive for the eventual image warp; the
+    // validated solution is in the paper-rectified frame (4/3 source scale).
+    expect(result.calibration.startX).toBeCloseTo(167.5, 0);
+    expect(result.calibration.endX).toBeCloseTo(507.5, 0);
+    expect(result.solution.mmPerPx).toBeCloseTo(3 / 16, 2);
+    const corrected = runPerspectiveCorrection(cv, image, result.sheet!.perspectiveProposal,
+      sheet, undefined, result.calibration);
+    expect(mmPerPixel(corrected.calibration)).toBeCloseTo(result.solution.mmPerPx, 6);
+    expect(corrected.calibration.lengthMm).toBe(85);
+  });
+
+  it.each([
+    { ids: [24], spacing: 85 },
+    { ids: [24, 23], spacing: 85 },
+    { ids: [24, 24], spacing: 85 },
+    { ids: [25, 24], spacing: 85 },
+    { ids: [24, 25], spacing: 100 },
+  ])("keeps paper fallback when correcting perspective cannot validate aid %j", (options) => {
+    const result = runAutoCalibration(cv, photograph({ ...options, markerSize: 9,
+      sheet: "letter-experimental", squash: .85 }));
+    expect(result.kind).toBe("calibrated");
+    if (result.kind !== "calibrated") return;
+    expect(result.template).toBe("letter-experimental");
+    expect(result.stripFallbackReason).toBe(options.ids.length === 1 ? "incomplete-signature" : "invalid-geometry");
+  });
+
+  it("does not recover a tilted aid without a complete validated paper reference", () => {
+    const result = runAutoCalibration(cv, photograph({ ids: [24, 25], markerSize: 9,
+      spacing: 85, sheet: "letter-experimental", sheetIds: [12, 13, 14], squash: .85 }));
+    expect(result).toEqual({ kind: "invalid-strip", reason: "invalid-geometry" });
   });
 
   it.each([

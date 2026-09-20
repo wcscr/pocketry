@@ -1,9 +1,7 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { Portal as TooltipPortal } from "@radix-ui/react-tooltip";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   Box,
   CheckCircle2,
-  CircleAlert,
   Crop,
   Download,
   Image as ImageIcon,
@@ -11,7 +9,6 @@ import {
   RotateCcw,
   RotateCw,
   ScanLine,
-  Sparkles,
   Settings2,
 } from "lucide-react";
 import { useLocation } from "wouter";
@@ -25,6 +22,7 @@ import {
 import {
   PanelBody,
   PanelFooter,
+  revealPanelSection,
   PanelSection,
   PanelSettingsIndex,
 } from "@/components/layout/panel-section";
@@ -47,7 +45,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Slider } from "@/components/ui/slider";
+import { LabelledSlider } from "./labelled-slider";
+import { TraceDetectionControls } from "./trace-detection-controls";
 import {
   Tooltip,
   TooltipContent,
@@ -76,59 +75,16 @@ import { useShapeLibrary } from "@/state/shape-library";
 import { useTrace, type ExportFormat } from "@/state/trace-store";
 
 import { CalibrationDownloads } from "./calibration-downloads";
-import { referenceStripFromRulerLength } from "@/lib/calibrate/reference-strip";
+import { AutoCalibrationOptions } from "./auto-calibration-options";
 import { RingList } from "./ring-list";
 import { revealTraceStep } from "./reveal-trace-step";
 
 const RESPONSIVE_PANEL_ACTION =
   "h-auto min-h-9 w-full whitespace-normal break-words px-2 py-2 text-[clamp(0.75rem,4cqw,0.875rem)] leading-tight";
 
-/** One shared, hover-only hint for every automatic calibration choice. */
-function AutoCalibrationHint({ children }: { children: ReactNode }): JSX.Element {
-  const [downloadsOpen, setDownloadsOpen] = useState(false);
-  return (
-    <>
-      <div className="border-t border-amber-400/30 pt-2">
-        <Tooltip delayDuration={250}>
-          {/* Guided focus and clicks must not open this hover-only hint. */}
-          <TooltipTrigger asChild onFocus={(event) => event.preventDefault()}>
-            <button
-              type="button"
-              className="inline-flex items-center gap-1.5 rounded text-left text-xs text-amber-700 hover:text-amber-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 dark:text-amber-300 dark:hover:text-amber-200"
-            >
-              <CircleAlert aria-hidden="true" className="h-4 w-4 shrink-0" />
-              Accuracy with thick objects
-            </button>
-          </TooltipTrigger>
-          <TooltipPortal>
-            <TooltipContent
-              side="right"
-              collisionPadding={12}
-              className="max-w-72 space-y-2 text-xs leading-relaxed"
-            >
-              {children}
-              <p>
-                Automatic calibration is most accurate at the reference’s height.
-                Raised parts of thick objects can appear oversized when using paper
-                markers because they are closer to the camera. For better accuracy,
-                place a measurement aid at the feature’s height, or set scale manually
-                from a measured long feature on the tool.
-              </p>
-              <button type="button"
-                className="font-medium underline underline-offset-2 hover:no-underline"
-                onClick={() => setDownloadsOpen(true)}>
-                Download measurement aids
-              </button>
-            </TooltipContent>
-          </TooltipPortal>
-        </Tooltip>
-      </div>
-      <CalibrationDownloads open={downloadsOpen} onOpenChange={setDownloadsOpen} showLink={false} />
-    </>
-  );
-}
-
 export interface TraceControlsPanelProps {
+  settingsSectionRequest?: { id: string };
+  onCanvasInteraction?: () => void;
   onReplaceImage: () => void;
   onRotateImage: (direction: ImageRotationDirection) => void;
   onExport: () => void;
@@ -169,6 +125,8 @@ export function TraceControlsPanel({
   onReprocess,
   onDetectMarkers,
   onApplyPerspective,
+  settingsSectionRequest,
+  onCanvasInteraction,
 }: TraceControlsPanelProps): JSX.Element {
   const store = useTrace();
   const {
@@ -180,7 +138,6 @@ export function TraceControlsPanel({
     outline,
     calibration,
     pendingAutoCalibration,
-    pendingPaperCalibration,
     pendingCalibrationSource,
     calibrationSource,
     draftCalibration,
@@ -191,14 +148,15 @@ export function TraceControlsPanel({
     perspectiveOriginalImageUrl,
     region,
     sensitivity,
-    tolerancePx,
-    smoothing,
     margin,
     exportFormat,
     extrusionHeight,
     processing,
   } = store;
   const { toast } = useToast();
+  useEffect(() => {
+    if (settingsSectionRequest) revealPanelSection(settingsSectionRequest.id, TRACE_SETTINGS_SECTION_DETAILS);
+  }, [settingsSectionRequest]);
 
   const scale = exportScale(calibration, imageSize.height);
   const displayedScale = exportScale(
@@ -209,8 +167,6 @@ export function TraceControlsPanel({
   const hasOutline = outline.length > 0;
   const usingReferenceStrip =
     pendingCalibrationSource === "strip" || calibrationSource === "strip";
-  const pendingTemplate =
-    pendingPerspective?.template ?? pendingPerspective?.paper;
   const hasDetectionRegion = Boolean(
     region && region.width > 5 && region.height > 5,
   );
@@ -456,15 +412,6 @@ export function TraceControlsPanel({
   const [handoffOpen, setHandoffOpen] = useState(false);
   const [separateTools, setSeparateTools] = useState(true);
   const [toolNames, setToolNames] = useState<string[]>([]);
-  const [draftSensitivity, setDraftSensitivity] = useState<number | null>(null);
-  const [pendingDetection, setPendingDetection] = useState<{
-    sensitivity: number;
-    includeInteriorHoles: boolean;
-  } | null>(null);
-  useEffect(() => {
-    setDraftSensitivity(null);
-    setPendingDetection(null);
-  }, [sourceRevision]);
   const openHandoff = () => {
     setSeparateTools(true);
     setToolNames(outline.map((_, i) => outline.length === 1 ? fileName || "Traced tool" : `Tool ${i + 1}`));
@@ -477,32 +424,14 @@ export function TraceControlsPanel({
       if (shape) shapeLibrary.addShape({ ...shape, traceMarginMm: margin ?? 0 });
     }
     setHandoffOpen(false);
+    onCanvasInteraction?.();
     if (anotherPhoto) onReplaceImage();
     else navigate("/bin");
   };
-  const applyDetectionSettings = (settings: NonNullable<typeof pendingDetection>) => {
-    setPendingDetection(null);
-    setDraftSensitivity(null);
-    dispatch({ type: "SET_SENSITIVITY", sensitivity: settings.sensitivity });
-    dispatch({ type: "SET_INCLUDE_INTERIOR_HOLES", include: settings.includeInteriorHoles });
-    // Pass the committed settings directly: React has not rendered the new
-    // store yet when a slider's release or keyboard event calls this handler.
-    onReprocess(settings);
-  };
-  const requestDetectionSettings = (settings: NonNullable<typeof pendingDetection>) => {
-    setDraftSensitivity(null);
-    if (settings.sensitivity === sensitivity &&
-        settings.includeInteriorHoles === store.includeInteriorHoles) return;
-    if (store.history.stack[store.history.index]?.hasManualEdits) {
-      setPendingDetection(settings);
-    } else {
-      applyDetectionSettings(settings);
-    }
-  };
-
   const handleClearRegion = () => {
-    dispatch({ type: "SET_REGION", region: null });
     dispatch({ type: "SET_MODE", mode: "region" });
+    onCanvasInteraction?.();
+    dispatch({ type: "SET_REGION", region: null });
     setGuidedSection("region");
     focusWhenReady.current = "region";
     setSectionEpoch((epoch) => epoch + 1);
@@ -515,6 +444,7 @@ export function TraceControlsPanel({
       mode: nextMode,
     });
     redrawRulerRequested.current = false;
+    if (nextMode === "calibrate") onCanvasInteraction?.();
   };
 
   const manualScaleAction = (
@@ -551,20 +481,6 @@ export function TraceControlsPanel({
           : pendingAutoCalibration
             ? "Set manually instead"
             : "Set scale"}
-    </Button>
-  );
-
-  const paperPerspectiveAction = pendingPerspective && (
-    <Button
-      variant={pendingPaperCalibration ? "outline" : "default"}
-      size="sm"
-      className={RESPONSIVE_PANEL_ACTION}
-      disabled={processing || !pendingTemplate}
-      onClick={() => pendingTemplate && onApplyPerspective(pendingPerspective, pendingTemplate)}
-      data-testid="button-apply-auto-perspective"
-    >
-      <ScanLine className="mr-1.5 h-4 w-4 shrink-0" />
-      {pendingPaperCalibration ? "Correct perspective & use paper scale" : "Correct perspective & use scale"}
     </Button>
   );
 
@@ -652,92 +568,9 @@ export function TraceControlsPanel({
           className="scroll-mt-16"
           disabled={!hasImage}
         >
-          {pendingAutoCalibration && (
-            <div
-              className="space-y-2 rounded-md border border-amber-400/50 bg-amber-500/10 p-3"
-              role="status"
-              data-testid="auto-calibration-options"
-            >
-              <div className="flex items-center gap-2 text-sm font-semibold text-amber-800 dark:text-amber-200">
-                <Sparkles className="h-4 w-4" />
-                {pendingPaperCalibration
-                  ? "Paper and measurement aid detected"
-                  : pendingCalibrationSource === "strip"
-                  ? "Scale detected from the reference strip"
-                  : "Scale detected from the sheet"}
-              </div>
-              {pendingPerspective ? pendingPaperCalibration ? (
-                <Button size="sm" className={RESPONSIVE_PANEL_ACTION}
-                  disabled={processing || !pendingTemplate}
-                  onClick={() => pendingTemplate && onApplyPerspective(pendingPerspective, pendingTemplate, pendingAutoCalibration)}
-                  data-testid="button-correct-perspective-aid-scale">
-                  Correct perspective &amp; use aid scale
-                </Button>
-              ) : paperPerspectiveAction : (
-                <Button size="sm" className={RESPONSIVE_PANEL_ACTION}
-                  disabled={processing}
-                  onClick={() => dispatch({ type: "ACCEPT_AUTO_CALIBRATION" })}
-                  data-testid="button-accept-auto-scale">
-                  Accept detected scale
-                </Button>
-              )}
-              {manualScaleAction}
-              <details data-testid="advanced-calibration-options" className="text-xs">
-                <summary className="cursor-pointer rounded py-1 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                  Advanced
-                </summary>
-                <div className="space-y-2 pt-2">
-                  {pendingPaperCalibration && (
-                    <>
-                      <Button variant="outline" size="sm" className={RESPONSIVE_PANEL_ACTION}
-                        disabled={processing}
-                        onClick={() => dispatch({ type: "ACCEPT_AUTO_CALIBRATION", source: "strip" })}
-                        data-testid="button-use-aid-scale">
-                        Use aid scale only
-                      </Button>
-                      {paperPerspectiveAction}
-                    </>
-                  )}
-                  {pendingPerspective && (
-                    <>
-                      <Button variant="outline" size="sm" className={RESPONSIVE_PANEL_ACTION}
-                        disabled={processing || !pendingTemplate}
-                        onClick={() => pendingTemplate && onApplyPerspective(pendingPerspective, pendingTemplate, false)}
-                        data-testid="button-correct-auto-perspective-only">
-                        Correct perspective only
-                      </Button>
-                      <Button variant="outline" size="sm" className={RESPONSIVE_PANEL_ACTION}
-                        disabled={processing}
-                        onClick={() => dispatch({ type: "ACCEPT_AUTO_CALIBRATION", source: "sheet" })}
-                        data-testid="button-accept-auto-scale">
-                        {pendingPaperCalibration ? "Use paper scale only" : "Use scale without correction"}
-                      </Button>
-                    </>
-                  )}
-                  <Button variant="ghost" size="sm" className={RESPONSIVE_PANEL_ACTION}
-                    disabled={processing}
-                    onClick={() => dispatch({ type: "SET_CALIBRATION", calibration: null })}>
-                    Dismiss detected scale
-                  </Button>
-                </div>
-              </details>
-              <AutoCalibrationHint>
-                <p>
-                  {pendingPaperCalibration
-                    ? "The recommended option corrects perspective using the paper corners and sets scale from the aid at the tool’s height."
-                    : <>Detected scale: {displayedScale.mmPerPx?.toFixed(3)} mm/px. Review the ruler on the image before accepting.</>}
-                  {pendingTemplate && <> {templateDisplayName(pendingTemplate)} template detected automatically.</>}
-                </p>
-                {pendingCalibrationSource === "strip" && (
-                  <p>
-                    The ruler joins the marker centres, {pendingAutoCalibration.lengthMm} mm apart
-                    on the {referenceStripFromRulerLength(pendingAutoCalibration.lengthMm)?.lengthMm} mm strip.
-                    This scale uses the strip height. Keep it near the tool edge you need to fit and verify that dimension.
-                  </p>
-                )}
-              </AutoCalibrationHint>
-            </div>
-          )}
+          {pendingAutoCalibration && <AutoCalibrationOptions
+            onSetManually={handleSetScale} onApplyPerspective={onApplyPerspective} onDetectMarkers={onDetectMarkers}
+          />}
 
           {!pendingAutoCalibration && (
             <div className="space-y-3" data-testid="manual-scale-placement">
@@ -752,7 +585,7 @@ export function TraceControlsPanel({
                   <Scaling className="mt-0.5 h-4 w-4 shrink-0" />
                   <div className="space-y-1">
                     <p className="text-sm font-semibold">
-                      {perspectiveCorrection ? "Set scale manually:" : "Auto Calibration Unsuccessful:"}
+                      Set scale manually:
                     </p>
                     <p className="text-xs leading-relaxed">
                       Select two points on the image that are a known distance
@@ -911,14 +744,12 @@ export function TraceControlsPanel({
                     variant={store.mode === "perspective" ? "default" : "outline"}
                     size="sm"
                     className="w-full"
-                    onClick={() =>
+                    onClick={() => {
+                      onCanvasInteraction?.();
                       dispatch({
-                        type:
-                          store.mode === "perspective"
-                            ? "CANCEL_PERSPECTIVE_SELECTION"
-                            : "START_PERSPECTIVE_SELECTION",
-                      })
-                    }
+                        type: store.mode === "perspective" ? "CANCEL_PERSPECTIVE_SELECTION" : "START_PERSPECTIVE_SELECTION",
+                      });
+                    }}
                     data-testid="button-select-perspective-points"
                   >
                     {store.mode === "perspective"
@@ -975,7 +806,12 @@ export function TraceControlsPanel({
               )}
             </div>
           )}
-          <CalibrationDownloads onPaperSelected={setPerspectivePaper} onDetectMarkers={onDetectMarkers} />
+          {!pendingAutoCalibration && <details className="text-xs" data-testid="manual-calibration-advanced">
+            <summary className="min-h-9 cursor-pointer rounded py-2 font-medium [@media(pointer:coarse)]:min-h-11">Advanced</summary>
+            <Button variant="outline" size="sm" className="min-h-11 w-full" disabled={!hasImage || processing}
+              onClick={onDetectMarkers} data-testid="button-detect-markers">Detect references again</Button>
+          </details>}
+          <CalibrationDownloads onPaperSelected={setPerspectivePaper} />
         </PanelSection>
 
         <PanelSection
@@ -1022,7 +858,7 @@ export function TraceControlsPanel({
               disabled={!scale.mmPerPx}
               aria-pressed={store.mode === "region"}
               data-testid="button-set-region"
-              onClick={() => dispatch({ type: "SET_MODE", mode: "region" })}
+              onClick={() => { dispatch({ type: "SET_MODE", mode: "region" }); onCanvasInteraction?.(); }}
             >
               Set Region
             </Button>
@@ -1065,60 +901,12 @@ export function TraceControlsPanel({
           <p className="text-xs text-muted-foreground" data-testid="detection-tuning-guidance">
             Follow the outside edge. Reflections are usually not holes.
           </p>
-          <div className="flex items-center justify-between gap-2">
-            <Label htmlFor="include-interior-holes" className="text-xs">Include interior holes</Label>
-            <Switch id="include-interior-holes" checked={store.includeInteriorHoles} disabled={processing}
-              onCheckedChange={(includeInteriorHoles) => requestDetectionSettings({ sensitivity, includeInteriorHoles })} />
-          </div>
           <details className="text-xs text-muted-foreground">
             <summary className="cursor-pointer">How to edit the outline</summary>
-            <p className="pt-2" data-testid="contour-editing-guidance">Select a shape, then drag a vertex to move it, click an edge to add one, or right-click a vertex to delete it. Detail and Smoothing preserve your edits. Changing Sensitivity or interior holes re-detects from the photo and asks before replacing manual edits. Undo restores your contour.</p>
+            <p className="pt-2" data-testid="contour-editing-guidance">Choose Edit contours to select the largest contour, then drag a vertex to move it or tap an edge to add one. Toggle Remove to delete vertices. Detail preserves your edits. Changing Sensitivity or interior holes re-detects from the photo and asks before replacing manual edits. Undo restores your contour.</p>
           </details>
 
-          {/*
-            The threshold is chosen automatically; this biases it. 128 means
-            "use the automatic level unchanged", which is why the control is
-            labelled Sensitivity rather than Threshold.
-          */}
-          <LabelledSlider
-            id="sensitivity"
-            label="Sensitivity"
-            value={draftSensitivity ?? sensitivity}
-            min={0}
-            max={255}
-            step={1}
-            format={(v) => (v === 128 ? "auto" : v > 128 ? `+${v - 128}` : `${v - 128}`)}
-            disabled={processing}
-            onChange={setDraftSensitivity}
-            onCommit={(value) => requestDetectionSettings({ sensitivity: value, includeInteriorHoles: store.includeInteriorHoles })}
-            hint="Lower includes more of the image. Updates when you release the slider; asks before replacing manual edits."
-          />
-
-          {/* Detail and Smoothing re-derive from the cached dense outline, so
-              they are instant and never re-run segmentation. */}
-          <LabelledSlider
-            id="detail"
-            label="Detail"
-            value={tolerancePx}
-            min={0.1}
-            max={8}
-            step={0.1}
-            format={(v) => `${v.toFixed(1)} px`}
-            onChange={(v) => dispatch({ type: "SET_TOLERANCE", tolerancePx: v })}
-            hint="How closely the outline follows the pixels."
-          />
-
-          <LabelledSlider
-            id="smoothing"
-            label="Smoothing"
-            value={smoothing}
-            min={0}
-            max={5}
-            step={1}
-            format={(v) => (v === 0 ? "off" : `${v}`)}
-            onChange={(v) => dispatch({ type: "SET_SMOOTHING", smoothing: v })}
-            hint="Removes pixel noise; corners stay sharp."
-          />
+          <TraceDetectionControls onReprocess={onReprocess} />
 
           <div className="space-y-1.5">
             <Label htmlFor="margin" className="text-xs">
@@ -1208,15 +996,6 @@ export function TraceControlsPanel({
         </PanelSection>
       </PanelBody>
 
-      <Dialog open={pendingDetection !== null} onOpenChange={(open) => {
-        if (!open) { setPendingDetection(null); setDraftSensitivity(null); }
-      }}>
-        <DialogContent><DialogHeader><DialogTitle>Re-detect from the photo?</DialogTitle>
-          <DialogDescription>This replaces manual contour edits with a fresh detection. Undo restores your edited outline.</DialogDescription></DialogHeader>
-          <Button onClick={() => { if (pendingDetection) applyDetectionSettings(pendingDetection); }}>Replace manual edits</Button>
-          <Button variant="outline" onClick={() => { setPendingDetection(null); setDraftSensitivity(null); }}>Keep my edits</Button>
-        </DialogContent>
-      </Dialog>
       <Dialog open={handoffOpen} onOpenChange={setHandoffOpen}>
         <DialogContent><DialogHeader><DialogTitle>Name your tools</DialogTitle>
           <DialogDescription>Each tool becomes an independently movable pocket. The trace already includes {margin ?? 0} mm of margin per edge.</DialogDescription></DialogHeader>
@@ -1240,7 +1019,7 @@ export function TraceControlsPanel({
         {shapeLibrary.pendingIds.length > 0 && <Button variant="secondary" className="mb-2 w-full" onClick={() => navigate("/bin")}>
           Arrange {shapeLibrary.pendingIds.length} queued tool{shapeLibrary.pendingIds.length === 1 ? "" : "s"}
         </Button>}
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-2 [&_button]:h-auto [&_button]:min-h-10 [&_button]:whitespace-normal [&_button]:px-2 [&_button]:leading-tight">
           {/* The trace → bin handoff. Disabled without a calibration: an
               uncalibrated outline has no physical size, and letting it into
               the bin is the design doc's most expensive footgun. The tooltip
@@ -1279,62 +1058,6 @@ export function TraceControlsPanel({
           </Button>
         </div>
       </PanelFooter>
-    </div>
-  );
-}
-
-interface LabelledSliderProps {
-  id: string;
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  step: number;
-  format: (value: number) => string;
-  onChange: (value: number) => void;
-  /** Fired on release, for anything too expensive to run per frame. */
-  onCommit?: (value: number) => void;
-  disabled?: boolean;
-  hint?: string;
-  className?: string;
-}
-
-function LabelledSlider({
-  id,
-  label,
-  value,
-  min,
-  max,
-  step,
-  format,
-  onChange,
-  onCommit,
-  disabled,
-  hint,
-  className,
-}: LabelledSliderProps): JSX.Element {
-  return (
-    <div className={cn("space-y-1.5", className)}>
-      <div className="flex items-baseline justify-between">
-        <Label htmlFor={id} className="text-xs">
-          {label}
-        </Label>
-        <span className="text-xs tabular-nums text-muted-foreground">
-          {format(value)}
-        </span>
-      </div>
-      <Slider
-        id={id}
-        aria-label={label}
-        min={min}
-        max={max}
-        step={step}
-        value={[value]}
-        disabled={disabled}
-        onValueChange={(values) => onChange(values[0])}
-        onValueCommit={(values) => onCommit?.(values[0])}
-      />
-      {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
     </div>
   );
 }

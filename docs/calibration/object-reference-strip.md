@@ -37,6 +37,9 @@ detection happen locally in the browser.
   from the aid. Alternatively choose aid-only or paper-only scale, or paper
   correction with paper scale under the collapsed **Advanced** section. The
   recommended action and **Set manually instead** are the only initial choices.
+  Desktop and mobile use the same choices. If the aid validates only after
+  straightening the paper, aid-only acceptance is unavailable; use the combined
+  correction instead. **Detect references again** stays under Scale → Advanced.
   **Correct perspective only**, under Advanced, leads to manual scale selection.
 - Verify one physical object dimension before printing a pocket. Calibration
   is at the marker surface, including the aid's 2 mm thickness. Other object
@@ -53,7 +56,10 @@ or combined operation; neither scale is applied until the user chooses. Combined
 correction transforms the validated aid endpoints with the exact same homography
 as the image, preserving their physical length. It does not re-detect resampled
 marker pixels or substitute the paper scale. The aid must lie within the corrected
-paper area. **Restore original photo** reverses the correction.
+paper area. When raw aid geometry is skewed, detection also checks the original
+corners after the validated paper homography. This recovery preserves source
+resolution checks and requires correction before accepting aid scale.
+**Restore original photo** reverses the correction.
 
 If the aid is incomplete, mixed, duplicated or geometrically invalid, Trace tries
 the paper markers and offers their scale and perspective correction when valid.
@@ -61,11 +67,17 @@ A notice identifies this paper fallback, and the Scale panel names the sheet.
 Paper scaling can still enlarge thick tools. Hover over the amber exclamation
 mark or **Accuracy with thick objects** below the automatic options for the
 detected-reference details and guidance on reference height and manual scaling.
-This single hint applies to the whole group and does not open on focus or click.
+This single hint applies to the whole group. Focus alone does not open it;
+click, tap, Enter or Space opens it deliberately, and Escape closes it.
 Its **Download measurement aids** link opens the same download dialog. Choose perspective-only correction
 to continue with manual scaling. Guided steps keep the active controls and their
 instructions together in view, including **Placing ruler** after correction.
 If neither reference validates, no automatic scale is proposed.
+
+On the first mobile visit, a dismissible welcome explains that the interface is
+in early development. It links to `pocketry@sugarcreekresearch.com` and GitHub
+issues for feedback. Dismissal is remembered in the browser, with a session
+fallback if persistent storage is blocked.
 
 ## Geometry and detection contract
 

@@ -44,10 +44,10 @@ export function FileUpload({
       <input {...getInputProps()} />
       <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
       <p className="text-lg font-medium">
-        {isDragging ? "Drop image here" : "Drag & drop an image here"}
+        {isDragging ? "Drop image here" : "Choose a photo"}
       </p>
       <p className="text-sm text-muted-foreground mt-2">
-        or click to select a file
+        Tap to browse, or drag an image here
       </p>
     </div>
   );

@@ -8,7 +8,6 @@ import { CalibrationDownloads } from "./calibration-downloads";
 vi.mock("@/lib/calibrate/download-template", () => ({ downloadCalibrationTemplate: vi.fn() }));
 vi.mock("@/lib/calibrate/download-reference-strip", () => ({ downloadMeasurementAid: vi.fn().mockResolvedValue(undefined) }));
 const selected = vi.fn();
-const detect = vi.fn();
 let host: HTMLDivElement;
 let root: Root;
 
@@ -18,7 +17,7 @@ beforeEach(() => {
   host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
-  React.act(() => root.render(<CalibrationDownloads onPaperSelected={selected} onDetectMarkers={detect} />));
+  React.act(() => root.render(<CalibrationDownloads onPaperSelected={selected} />));
 });
 afterEach(() => { React.act(() => root.unmount()); host.remove(); vi.unstubAllGlobals(); });
 
@@ -39,8 +38,6 @@ describe("calibration download dialog", () => {
       expect(selected).toHaveBeenLastCalledWith(paper);
     }
     expect(downloadCalibrationTemplate).toHaveBeenCalledTimes(2);
-    await React.act(async () => dialog.querySelector<HTMLButtonElement>('[data-testid="button-detect-markers"]')!.click());
-    expect(detect).toHaveBeenCalledOnce();
-    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    expect(dialog.querySelector('[data-testid="button-detect-markers"]')).toBeNull();
   });
 });

@@ -25,6 +25,7 @@ const CALIBRATION: Calibration = {
 const applyPerspective = vi.fn();
 const rotateImage = vi.fn();
 const reprocess = vi.fn();
+const detectMarkers = vi.fn();
 let trace: TraceStore;
 
 class NoopResizeObserver implements ResizeObserver {
@@ -161,7 +162,7 @@ function Harness(): JSX.Element {
         onRotateImage={rotateImage}
         onExport={() => {}}
         onReprocess={reprocess}
-        onDetectMarkers={() => {}}
+        onDetectMarkers={detectMarkers}
         onApplyPerspective={applyPerspective}
       />
     </>
@@ -265,12 +266,7 @@ describe("TraceControlsPanel guided workflow", () => {
     const hint = [...host.querySelectorAll("button")].find(
       (button) => button.textContent === "Accuracy with thick objects",
     )!;
-    await React.act(async () => {
-      const hover = new MouseEvent("pointermove", { bubbles: true });
-      Object.defineProperty(hover, "pointerType", { value: "mouse" });
-      hint.dispatchEvent(hover);
-      await new Promise((resolve) => window.setTimeout(resolve, 300));
-    });
+    await React.act(async () => hint.click());
     const link = [...document.querySelectorAll("button")].find(
       (button) => button.textContent === "Download measurement aids",
     )!;
@@ -287,13 +283,13 @@ describe("TraceControlsPanel guided workflow", () => {
     expect(document.querySelector('[role="dialog"]')).toBe(dialog);
   });
 
-  it("shares one hover-only thickness hint below all automatic options", async () => {
+  it("shares one explicitly accessible thickness hint below all automatic options", async () => {
     await click("load-source");
     expect(host.textContent).not.toContain("Accuracy with thick objects");
     await click("detect-auto-perspective");
     const primary = host.querySelector('[data-testid="button-apply-auto-perspective"]');
     expect(document.activeElement).toBe(primary);
-    expect(document.querySelector('[role="tooltip"]')).toBeNull();
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
 
     const hints = [...host.querySelectorAll("button")].filter(
       (button) => button.textContent === "Accuracy with thick objects",
@@ -307,15 +303,10 @@ describe("TraceControlsPanel guided workflow", () => {
     expect(hint.querySelector("svg")?.classList.contains("lucide-circle-alert")).toBe(true);
     expect(hint.className).toContain("text-amber-");
 
-    await React.act(async () => { hint.focus(); hint.click(); });
-    expect(document.querySelector('[role="tooltip"]')).toBeNull();
-    await React.act(async () => {
-      const hover = new MouseEvent("pointermove", { bubbles: true });
-      Object.defineProperty(hover, "pointerType", { value: "mouse" });
-      hint.dispatchEvent(hover);
-      await new Promise((resolve) => window.setTimeout(resolve, 300));
-    });
-    const tooltip = document.querySelector('[role="tooltip"]');
+    await React.act(async () => hint.focus());
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    await React.act(async () => hint.click());
+    const tooltip = document.querySelector('[role="dialog"]');
     expect(tooltip?.textContent).toContain("closer to the camera");
     expect(tooltip?.textContent).toContain("set scale manually");
     expect(tooltip?.textContent).toContain("measurement aid at the feature’s height");
@@ -324,10 +315,23 @@ describe("TraceControlsPanel guided workflow", () => {
     await React.act(async () => {
       document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
     });
-    expect(document.querySelector('[role="tooltip"]')).toBeNull();
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
     await click("button-accept-auto-scale");
     expect(trace.calibration).toEqual(CALIBRATION);
     expect(document.activeElement).toBe(sectionTrigger("crop"));
+  });
+
+  it("keeps detection retry in Scale after choosing manual placement", async () => {
+    await click("load-source");
+    await click("detect-auto-scale");
+    await click("button-set-scale");
+    expect(host.textContent).toContain("Set scale manually:");
+    expect(host.textContent).not.toContain("Auto Calibration Unsuccessful");
+    const retry = host.querySelector<HTMLButtonElement>('[data-testid="button-detect-markers"]')!;
+    expect(retry.closest("details")?.dataset.testid).toBe("manual-calibration-advanced");
+    await React.act(async () => retry.click());
+    expect(detectMarkers).toHaveBeenCalledOnce();
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
   });
 
   it("collapses every section, opens Scale, and pulses its action after source load", async () => {
@@ -375,7 +379,7 @@ describe("TraceControlsPanel guided workflow", () => {
     ).toBe("Placing ruler");
     expect(
       host.querySelector('[data-testid="manual-scale-guidance"]')?.textContent,
-    ).toContain("Auto Calibration Unsuccessful:");
+    ).toContain("Set scale manually:");
     expect(
       host.querySelector('[data-testid="manual-scale-guidance"]')?.textContent,
     ).toContain("Select two points on the image that are a known distance apart");
@@ -493,10 +497,8 @@ describe("TraceControlsPanel guided workflow", () => {
     expect(automaticCorrection).not.toBeNull();
     expect(automaticCorrection?.disabled).toBe(false);
     expect(automaticCorrection?.className).toContain("whitespace-normal");
-    expect(automaticCorrection?.className).toContain("min-h-9");
-    expect(automaticCorrection?.className).toContain(
-      "text-[clamp(0.75rem,4cqw,0.875rem)]",
-    );
+    expect(automaticCorrection?.className).toContain("min-h-11");
+
     expect(
       host.querySelector('[data-testid="trace-settings-index"]')?.parentElement
         ?.className,
@@ -508,6 +510,7 @@ describe("TraceControlsPanel guided workflow", () => {
     expect(applyPerspective).toHaveBeenLastCalledWith(
       expect.objectContaining({ source: "template" }),
       "letter",
+      true,
     );
 
     await click("button-set-scale");
@@ -568,7 +571,7 @@ describe("TraceControlsPanel guided workflow", () => {
     expect(host.querySelector('[data-testid="manual-scale-guidance"]')?.textContent).toContain("Set scale manually:");
     expect(host.querySelector('[data-testid="button-set-scale"]')?.textContent).toBe("Placing ruler");
     expect(document.activeElement).toBe(host.querySelector('[data-testid="button-set-scale"]'));
-    expect(document.querySelector('[role="tooltip"]')).toBeNull();
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
 
     await click("complete-manual-scale");
     expect(document.activeElement).toBe(host.querySelector("#ruler-length"));
@@ -596,6 +599,7 @@ describe("TraceControlsPanel guided workflow", () => {
         template: "a4-experimental",
       }),
       "a4-experimental",
+      true,
     );
   });
 
@@ -661,7 +665,9 @@ describe("TraceControlsPanel guided workflow", () => {
       host.querySelector('[data-testid="detection-tuning-guidance"]')
         ?.textContent,
     ).toContain("Reflections are usually not holes");
-    expect(host.querySelector('[data-testid="contour-editing-guidance"]')?.textContent).toContain("Detail and Smoothing preserve your edits");
+    expect(host.querySelector('[data-testid="contour-editing-guidance"]')?.textContent).toContain("Detail preserves your edits");
+    expect(section("detect")?.querySelector("#smoothing")).toBeNull();
+    expect(section("detect")?.textContent).not.toContain("Smoothing");
     expect(host.querySelector('#include-interior-holes')?.getAttribute("aria-checked")).toBe("false");
     expect(host.textContent).toContain("No contours yet");
     expect(

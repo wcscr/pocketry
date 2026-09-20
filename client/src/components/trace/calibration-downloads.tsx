@@ -6,9 +6,8 @@ import type { TemplatePaper } from "@/lib/calibrate/template";
 import { ReferenceStripDownloads } from "./reference-strip-downloads";
 
 /** A single compact entry point for the supported paper and 3D references. */
-export function CalibrationDownloads({ onPaperSelected, onDetectMarkers, open: controlledOpen, onOpenChange, showLink = true }: {
+export function CalibrationDownloads({ onPaperSelected, open: controlledOpen, onOpenChange, showLink = true }: {
   onPaperSelected?: (paper: TemplatePaper) => void;
-  onDetectMarkers?: () => void;
   /** Keep the dialog mounted outside a transient tooltip when linking from one. */
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -52,12 +51,7 @@ export function CalibrationDownloads({ onPaperSelected, onDetectMarkers, open: c
           </div>
         </div>
         <ReferenceStripDownloads />
-        {onDetectMarkers && (
-          <Button variant="outline" onClick={() => { setOpen(false); onDetectMarkers(); }}
-            data-testid="button-detect-markers">
-            Detect sheet or strip in this image
-          </Button>
-        )}
+
       </DialogContent>
     </Dialog>
   );

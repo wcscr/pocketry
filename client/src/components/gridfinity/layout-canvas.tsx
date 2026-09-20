@@ -1,5 +1,7 @@
 import {
   Ruler,
+  Hand,
+  Maximize2,
   Spline,
   X,
 } from "lucide-react";
@@ -19,6 +21,7 @@ import {
   isElongatedFingerHole,
   hasFlatFingerHoleBottom,
   placementFootprint,
+  pocketName,
   resizeCutoutPlacementFromHandle,
   resizeFingerHoleFromWidthHandle,
   resizeElongatedFingerHoleFromEndpoint,
@@ -63,8 +66,11 @@ import {
   useCanvasViewportSize,
 } from "@/components/canvas/canvas-viewport";
 import { Button } from "@/components/ui/button";
+import { ContourEditTools } from "@/components/canvas/contour-edit-tools";
+import { WorkflowHint } from "@/components/canvas/workflow-hint";
 import { useViewportTransform } from "@/hooks/use-viewport-transform";
 import { outlineBounds, pointInOutline } from "@/lib/geometry/outline";
+import { nearestVertex } from "@/lib/geometry/hit-test";
 import {
   contourRing,
   insertContourPoint,
@@ -79,6 +85,8 @@ import {
 } from "@/lib/gridfinity/layout-measure";
 import { resolvePocketSplit, splitSide } from "@shared/gridfinity/pocket-split";
 import { usePocketSplit } from "./use-pocket-split";
+import { useBasicPocket } from "./use-basic-pocket";
+import { AddPocketMenu } from "./add-pocket-menu";
 import { cn } from "@/lib/utils";
 import { useBin } from "@/state/bin-store";
 import { useShapeLibrary } from "@/state/shape-library";
@@ -245,12 +253,16 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
   const svgRef = useRef<SVGSVGElement | null>(null);
   const sceneRef = useRef<SVGGElement | null>(null);
 
+  const [panActive, setPanActive] = useState(false);
+  useEffect(() => setPanActive(false), [editorMode]);
+  const [removeVertices, setRemoveVertices] = useState(false);
+  useEffect(() => setRemoveVertices(false), [editorMode, selectedCutoutId]);
   const viewport = useViewportTransform({
     contentWidth: widthMm + footprintEditorPaddingMm * 2,
     contentHeight: lengthMm + footprintEditorPaddingMm * 2,
     containerWidth: containerSize.width,
     containerHeight: containerSize.height,
-    panEnabled: false,
+    panEnabled: panActive,
   });
 
   useEffect(() => {
@@ -273,6 +285,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
   };
 
   const scale = viewport.transform.scale;
+  const basicPocket = useBasicPocket({ toBin });
   const pickRadius = PICK_RADIUS_PX / Math.max(scale, 1e-6);
 
   const [draftContour, setDraftContourState] = useState<{
@@ -440,12 +453,13 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
   const clickRef = useRef<{ clientX: number; clientY: number } | null>(null);
   const [isRotating, setIsRotating] = useState(false);
   const [rulerActive, setRulerActive] = useState(false);
+  useEffect(() => { if (rulerActive) setPanActive(false); }, [rulerActive]);
   const [measurementPoints, setMeasurementPoints] = useState<Point[]>([]);
   const hasPlacedCutouts = placed.length > 0;
   const hasPlacedObjects = hasPlacedCutouts || placedFingerHoles.length > 0;
 
   useEffect(() => {
-    if (hasPlacedObjects && editorMode !== "split") return;
+    if (hasPlacedObjects && editorMode !== "split" && !editorMode.startsWith("draw-")) return;
     setRulerActive(false);
     setMeasurementPoints([]);
   }, [hasPlacedObjects, editorMode]);
@@ -549,11 +563,25 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
     return targets;
   };
 
+  const removeContourVertex = (handle: NonNullable<ReturnType<typeof contourHandle>>) => {
+    if (!selected || handle.cutoutId !== selected.cutout.id) return;
+    const sourceShape = shapesById.get(selected.cutout.shapeId);
+    const ring = sourceShape ? contourRing(sourceShape.outlineMm, handle.ref) : null;
+    if (!sourceShape || !ring || ring.length <= 3) return;
+    commitContour(
+      selected.cutout.id,
+      sourceShape,
+      removeContourPoint(sourceShape.outlineMm, handle.ref, handle.index),
+      "Remove contour node",
+    );
+  };
+
   const handlePointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
-    if (event.button !== 0 || event.shiftKey || viewport.isSpaceHeld) {
+    if (panActive || event.button !== 0 || event.shiftKey || viewport.isSpaceHeld) {
       viewport.handlers.onPointerDown(event);
       return;
     }
+    if (basicPocket.pointerDown(event)) return;
     if (splitEditor.pointerDown(event)) return;
     const point = toBin(event.clientX, event.clientY);
     if (!point) return;
@@ -676,7 +704,23 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
 
     const target = event.target as Element;
     if (editorMode === "contour") {
-      const handle = contourHandle(target);
+      let handle = contourHandle(target);
+      if (!handle && selected && (removeVertices || event.pointerType === "touch")) {
+        // Search the displayed vertices before edge insertion. Measuring in bin
+        // space keeps touch targets consistent for rotated/nonuniformly scaled pockets.
+        const displayedOutline = selected.shape.outlineMm.map((shape) => ({
+          outer: shape.outer.map((vertex) => transformPointPlacement(vertex, selected.cutout)),
+          holes: shape.holes.map((ring) => ring.map((vertex) => transformPointPlacement(vertex, selected.cutout))),
+        }));
+        const hit = nearestVertex(displayedOutline, point,
+          (event.pointerType === "touch" ? 22 : PICK_RADIUS_PX) / Math.max(scale, 1e-6));
+        if (hit) handle = { cutoutId: selected.cutout.id, ref: hit.ref, index: hit.index };
+      }
+      if (removeVertices) {
+        if (handle) removeContourVertex(handle);
+        event.preventDefault();
+        return;
+      }
       if (handle && selected && handle.cutoutId === selected.cutout.id) {
         const sourceShape = shapesById.get(selected.cutout.shapeId);
         if (!sourceShape) return;
@@ -835,6 +879,8 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
   };
 
   const handlePointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
+    if (panActive) { viewport.handlers.onPointerMove(event); return; }
+    if (!viewport.isPanning && basicPocket.pointerMove(event)) return;
     if (!viewport.isPanning && splitEditor.pointerMove(event)) return;
     const click = clickRef.current;
     if (
@@ -972,6 +1018,8 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
   };
 
   const endDrag = (event: ReactPointerEvent<SVGSVGElement>) => {
+    if (panActive) { viewport.handlers.onPointerUp(event); return; }
+    if (!viewport.isPanning && basicPocket.pointerUp(event)) return;
     if (!viewport.isPanning && splitEditor.pointerUp(event)) return;
     const drag = dragRef.current;
     dragRef.current = null;
@@ -1032,18 +1080,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
     const handle = contourHandle(event.target as Element);
     if (!handle || handle.cutoutId !== selected.cutout.id) return;
     event.preventDefault();
-
-    const sourceShape = shapesById.get(selected.cutout.shapeId);
-    const ring = sourceShape
-      ? contourRing(sourceShape.outlineMm, handle.ref)
-      : null;
-    if (!sourceShape || !ring || ring.length <= 3) return;
-    commitContour(
-      selected.cutout.id,
-      sourceShape,
-      removeContourPoint(sourceShape.outlineMm, handle.ref, handle.index),
-      "Remove contour node",
-    );
+    removeContourVertex(handle);
   };
 
   // Keyboard: nudge, rotate (visually clockwise = model +deg on the flipped
@@ -1306,6 +1343,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
         onPointerMove={handlePointerMove}
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
+        onLostPointerCapture={basicPocket.cancel}
         onContextMenu={handleContextMenu}
       >
         <g
@@ -1412,7 +1450,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
                   vectorEffect="non-scaling-stroke"
                   data-cutout-id={cutout.id}
                   strokeDasharray={overlappingCutouts.has(cutout.id) ? "5 3" : undefined}
-                ><title>{boundaryCutouts.has(cutout.id) ? "Boundary conflict. " : ""}{overlappingCutouts.has(cutout.id) ? "Overlapping pockets. " : ""}{shapesById.get(cutout.shapeId)?.name}</title></path>
+                ><title>{boundaryCutouts.has(cutout.id) ? "Boundary conflict. " : ""}{overlappingCutouts.has(cutout.id) ? "Overlapping pockets. " : ""}{pocketName(cutout, shapesById.get(cutout.shapeId))}</title></path>
                 {cutout.split && (() => {
                   const split = resolvePocketSplit(shape.outlineMm, cutout.split.boundary);
                   const boundary = (split.boundary ?? cutout.split.boundary).map(p => binToCanvas(transformPointPlacement(p, cutout), spec));
@@ -1564,10 +1602,10 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
                       cx={canvasPoint.x}
                       cy={canvasPoint.y}
                       r={4.5 * inv}
-                      className="fill-background stroke-violet-600"
+                      className={cn("fill-background", removeVertices ? "stroke-destructive" : "stroke-violet-600")}
                       strokeWidth={2}
                       vectorEffect="non-scaling-stroke"
-                      style={{ cursor: "move" }}
+                      style={{ cursor: removeVertices ? "pointer" : "move" }}
                       data-contour-of={selected.cutout.id}
                       data-contour-shape={shapeIndex}
                       data-contour-ring={ringIndex}
@@ -1648,10 +1686,19 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
               })}
             </g>
           )}
+          {basicPocket.draft && (() => {
+            const draft = basicPocket.draft;
+            const center = binToCanvas(draft.position, spec);
+            return <g className="pointer-events-none fill-violet-500/20 stroke-violet-600 dark:stroke-violet-300" data-testid="basic-pocket-draft">
+              {basicPocket.kind === "circle"
+                ? <circle cx={center.x} cy={center.y} r={draft.width / 2} strokeWidth={1.5} strokeDasharray="5 3" vectorEffect="non-scaling-stroke" />
+                : <rect x={center.x - draft.width / 2} y={center.y - draft.length / 2} width={draft.width} height={draft.length} strokeWidth={1.5} strokeDasharray="5 3" vectorEffect="non-scaling-stroke" />}
+            </g>;
+          })()}
         </g>
       </svg>
 
-      {!hasPlacedObjects ? (
+      {!hasPlacedObjects && !basicPocket.kind ? (
         <div
           className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center p-6"
           data-testid="layout-empty-state"
@@ -1659,21 +1706,29 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
           <div className="max-w-sm rounded-lg border border-dashed bg-background/90 px-5 py-4 text-center shadow-sm backdrop-blur">
             <p className="font-medium">No layout objects yet</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              Add a tool pocket or a finger hole to place it here.
+              Use Add pocket to draw a shape, or add a traced tool or finger access.
             </p>
           </div>
         </div>
       ) : null}
 
+      <div className="absolute left-3 top-12 z-30" data-testid="layout-add-pocket">
+        <AddPocketMenu />
+      </div>
+
       <div
-        className="absolute right-3 top-12 z-30 flex flex-col overflow-hidden rounded-md border bg-background/90 shadow-sm backdrop-blur"
+        className="absolute right-3 top-16 md:top-12 z-30 flex flex-col overflow-hidden rounded-md border bg-background/90 shadow-sm backdrop-blur"
         data-testid="layout-tool-toolbar"
       >
+        <Button variant="ghost" size="icon" className="h-11 w-11 rounded-none border-b md:h-9 md:w-9" aria-label="Pan layout" aria-pressed={panActive}
+          onClick={() => setPanActive(active => !active)}><Hand className="h-4 w-4" /></Button>
+        <Button variant="ghost" size="icon" className="h-11 w-11 rounded-none border-b md:h-9 md:w-9" aria-label="Fit layout to screen"
+          onClick={viewport.fit}><Maximize2 className="h-4 w-4" /></Button>
         <Button
           variant="ghost"
           size="icon"
           className={cn(
-            "h-9 w-9 rounded-none",
+            "h-11 w-11 md:h-9 md:w-9 rounded-none",
             rulerActive && "bg-accent text-accent-foreground",
           )}
           aria-label={
@@ -1706,7 +1761,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
           <Button
             variant="ghost"
             size="icon"
-            className={cn("h-9 w-9 rounded-none border-t", editorMode === "contour" && "bg-accent text-accent-foreground")}
+            className={cn("h-11 w-11 md:h-9 md:w-9 rounded-none border-t", editorMode === "contour" && "bg-accent text-accent-foreground")}
             aria-label={editorMode === "contour" ? "Finish contour editing" : "Edit contour"}
             aria-pressed={editorMode === "contour"}
             title={editorMode === "contour" ? "Finish contour editing" : "Edit contour"}
@@ -1724,7 +1779,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
           <Button
             variant="ghost"
             size="icon"
-            className="h-9 w-9 rounded-none border-t"
+            className="h-11 w-11 md:h-9 md:w-9 rounded-none border-t"
             aria-label="Clear measurement"
             title="Clear measurement"
             onClick={() => setMeasurementPoints([])}
@@ -1735,7 +1790,18 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
         ) : null}
       </div>
 
-      {splitEditor.active && <div className="absolute left-3 right-14 top-14 flex items-center gap-2 rounded border bg-background/95 px-3 py-2 text-xs shadow-sm">
+      {basicPocket.kind && <div className="absolute left-3 right-14 top-24 z-20 flex items-center gap-2 rounded border bg-background/95 px-3 py-2 text-xs shadow-sm">
+        <p className="flex-1" role="status">{basicPocket.draft
+          ? basicPocket.kind === "circle" ? `Diameter ${basicPocket.draft.width.toFixed(2)} mm`
+            : `${basicPocket.draft.width.toFixed(2)} × ${basicPocket.draft.length.toFixed(2)} mm`
+          : basicPocket.kind === "circle" ? "Drag from the centre to the edge of the circle."
+            : `Drag between opposite corners of the ${basicPocket.kind}.`}</p>
+        <Button type="button" variant="ghost" size="sm" className="h-7" onClick={() => {
+          basicPocket.cancel();
+          dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" });
+        }}>Cancel</Button>
+      </div>}
+      {splitEditor.active && <div className="absolute left-3 right-14 top-24 flex items-center gap-2 rounded border bg-background/95 px-3 py-2 text-xs shadow-sm">
         <p className="flex-1" role="status">{splitEditor.error ?? (splitEditor.start ? "Choose the second edge point · Esc cancels" : "Draw from edge to edge, or click two edge points")}</p>
         <Button type="button" variant="ghost" size="sm" className="h-7" onClick={() => dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" })}>Cancel</Button>
       </div>}
@@ -1758,15 +1824,25 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
         <p className="text-orange-700 dark:text-orange-300">Dashed outline: overlapping pockets</p>
       </div>}
 
-      <div className="pointer-events-none absolute bottom-2 left-2 rounded-md bg-background/85 px-2 py-1 text-[11px] text-muted-foreground shadow-sm backdrop-blur">
-        {rulerActive
+      {editorMode === "contour" && selected && !panActive ? (
+        <div className="absolute bottom-2 left-2 z-30">
+          <ContourEditTools removeActive={removeVertices} onChange={setRemoveVertices} />
+          <WorkflowHint className="mt-1 max-w-[min(22rem,calc(100vw-1rem))]">
+            {removeVertices ? "Tap a vertex to remove it · Undo restores it" : "Drag vertices to move · Tap an edge to add"}
+          </WorkflowHint>
+        </div>
+      ) : (
+      <WorkflowHint className="pointer-events-none absolute bottom-2 left-2 right-2 md:right-auto md:max-w-lg">
+        {panActive
+          ? "Drag to pan · Pinch to zoom · Tap the hand to resume editing"
+          : basicPocket.kind ? "Draw pocket · release to add · Esc cancels · edit exact dimensions in Size & scale" : rulerActive
           ? "Ruler · snap to contours or split lines · Esc exits"
           : editorMode === "footprint"
           ? "Footprint edit · click cells or the dashed outer halo · Esc finishes"
           : editorMode === "label-edge"
           ? "Label tab · click a highlighted boundary edge"
           : !hasPlacedObjects
-          ? "Add a tool pocket or finger hole to begin"
+          ? "Choose Add pocket to draw a shape"
           : editorMode === "split" ? "Split pocket · draw a straight line between two outer edge points" : editorMode === "contour"
           ? selectedCutoutId
             ? "Contour edit · drag points · click an edge to add · right-click a point to remove · Esc finishes"
@@ -1776,7 +1852,8 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
             : selectedCutoutId
               ? "Pocket · drag edges/corners to resize · Option resizes from center · round handle rotates"
               : "Click a pocket or finger hole to select · Shift-drag pans · Ctrl-scroll zooms"}
-      </div>
+      </WorkflowHint>
+      )}
     </>
   );
 }

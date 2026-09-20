@@ -13,6 +13,7 @@ import { WorkerCancelledError } from "@/lib/worker/protocol";
 
 import { createBinWorkerHandlers } from "./bin-worker-handlers";
 import { partitionPocketFloorTriangles } from "./pocket-floor-mesh";
+import { createBasicPocket } from "./basic-shape";
 import {
   BUILD_BIN_METHOD,
   BUILD_FIT_CHECK_METHOD,
@@ -99,6 +100,42 @@ const REQUEST: BuildBinRequest = {
 };
 
 describe("bin worker handlers", () => {
+  it("builds geometric pockets with colored floors while same-depth finger access keeps the body material", async () => {
+    const spec = parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 3, lip: "none", flatBottom: true });
+    const pockets = [
+      createBasicPocket("rectangle", { x: -30, y: -28 }, { x: -8, y: -12 }, "rectangle")!,
+      createBasicPocket("square", { x: 8, y: -28 }, { x: 26, y: -12 }, "square")!,
+      createBasicPocket("circle", { x: -19, y: 17 }, { x: -9, y: 17 }, "circle")!,
+    ];
+    const cutouts = pockets.map(({ cutout }) => ({ ...cutout, depth: { mode: "mm" as const, value: 8 } }));
+    const fingerHoles = [fingerHoleSchema.parse({ id: "finger", center: { x: 19, y: 17 }, kind: "straight", depthMm: 8, diameterMm: 16 })];
+    const result = (await getHandler()({ spec, layout: { shapes: pockets.map(p => p.shape), cutouts, fingerHoles },
+      quality: { circularSegments: 32, cutoutVertexBudget: 300 }, pocketFloorMaterialThicknessMm: 0.8 }, context())).value;
+    expect(result.cutoutReports).toHaveLength(3);
+    expect(result.cutoutReports.every(report => !report.emptied)).toBe(true);
+    const floors = result.materialMeshes!.pocketFloors!;
+    expect(floors.indices.length).toBeGreaterThan(0);
+    expect(nonManifoldEdgeCount(floors, true)).toBe(0);
+    const floorZ = resolvePocketDepth(spec, cutouts[0].depth).floorZ!;
+    const zs = Array.from(floors.positions).filter((_, i) => i % 3 === 2);
+    expect(Math.max(...zs)).toBeCloseTo(floorZ, 5);
+    expect(Math.min(...zs)).toBeCloseTo(floorZ - 0.8, 5);
+    // All three pocket quadrants have material; the upper-right finger hole does not.
+    const quadrants = new Set<string>();
+    for (let i = 0; i < floors.positions.length; i += 3) {
+      const x = floors.positions[i], y = floors.positions[i + 1];
+      quadrants.add(`${Math.sign(x)},${Math.sign(y)}`);
+    }
+    expect(quadrants).toEqual(new Set(["-1,-1", "1,-1", "-1,1"]));
+    expect(writeBinarySTL(result.mesh).byteLength).toBeGreaterThan(84);
+    const model = strFromU8(unzipSync(writeThreeMf([
+      { name: "Bin body", mesh: result.materialMeshes!.body, material: { name: "Body", displayColor: "#202020" } },
+      { name: "Pocket floors", mesh: floors, material: { name: "Floor", displayColor: "#ff6600" } },
+    ]))["3D/3dmodel.model"]);
+    expect(model).toContain('name="Pocket floors"');
+    expect(model.toLowerCase()).toContain("#ff6600");
+  });
+
   it("builds a bin and nominates its buffers for transfer", async () => {
     const progress = vi.fn();
     const result = await getHandler()(REQUEST, context({ progress }));

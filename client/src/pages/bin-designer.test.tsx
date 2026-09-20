@@ -270,6 +270,74 @@ function selectPocket(container: HTMLElement, id: string): void {
 }
 
 describe("BinDesignerPage", () => {
+  it.each(["trace", "basic-shape"] as const)("renames copied %s pockets independently with undo and project round trips", async (source) => {
+    const shape = { ...rectangularShape("shared", "Original pocket"), source,
+      sourceMmPerPx: source === "basic-shape" ? null : 0.5 };
+    const original = parseCutoutPlacement({ id: "original", shapeId: shape.id, position: { x: 0, y: 0 } });
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape], cutouts: [original] });
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      openSettingsSection(container, "tool-cutouts");
+      const click = (testId: string) => React.act(() => container.querySelector<HTMLButtonElement>(`[data-testid="${testId}"]`)!.click());
+      const names = () => Array.from(container.querySelectorAll('[data-testid^="cutout-row-"] [data-testid^="button-select-"]'), el => el.textContent);
+      const rename = (id: string, value: string, key = "Enter") => {
+        click(`button-rename-${id}`);
+        const input = container.querySelector<HTMLInputElement>('[aria-label="Pocket name"]')!;
+        React.act(() => {
+          Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
+          input.dispatchEvent(new Event("input", { bubbles: true }));
+        });
+        React.act(() => input.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true })));
+      };
+      click("button-duplicate-original");
+      click("button-duplicate-original");
+      const [, copy] = vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts;
+      rename(copy.id, "  Copy A  ");
+      expect(names()).toEqual(["Original pocket", "Copy A", "Original pocket"]);
+      expect(container.querySelector('[data-testid="pocket-properties-heading"]')!.textContent).toContain("Copy A");
+      expect(container.querySelector('[aria-label="Reference pocket"]')!.textContent).toContain("Original pocket");
+      click("button-bin-undo");
+      expect(names()).toEqual(["Original pocket", "Original pocket", "Original pocket"]);
+      click("button-bin-redo");
+      expect(names()).toEqual(["Original pocket", "Copy A", "Original pocket"]);
+      rename("original", "Source placement");
+      expect(names()).toEqual(["Source placement", "Copy A", "Original pocket"]);
+      rename(copy.id, "Cancelled", "Escape");
+      rename(copy.id, "   ");
+      expect(names()).toEqual(["Source placement", "Copy A", "Original pocket"]);
+      click(`button-duplicate-${copy.id}`);
+      expect(names()).toEqual(["Source placement", "Copy A", "Original pocket", "Copy A"]);
+      const newCopy = vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts.at(-1)!;
+      rename(newCopy.id, "Copy B");
+      const expectedNames = ["Source placement", "Copy A", "Original pocket", "Copy B"];
+      expect(names()).toEqual(expectedNames);
+      openSettingsSection(container, "project");
+      click("button-export-project");
+      const [blob] = vi.mocked(downloadBlob).mock.lastCall!;
+      const json = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.readAsText(blob);
+      });
+      const saved = parseProjectDoc(JSON.parse(json))!;
+      expect(saved).not.toBeNull();
+      expect(saved.shapes).toEqual([shape]);
+      expect(saved.cutouts.map(cutout => cutout.shapeId)).toEqual(Array(4).fill(shape.id));
+      const file = new File([json], "Copies.pocketry.json");
+      Object.defineProperty(file, "text", { value: async () => json });
+      const input = container.querySelector<HTMLInputElement>('input[type="file"][accept*=".pocketry.json"]')!;
+      Object.defineProperty(input, "files", { value: [file], configurable: true });
+      await React.act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
+      openSettingsSection(container, "tool-cutouts");
+      expect(names()).toEqual(expectedNames);
+      click("button-bin-undo");
+      expect(names()).toEqual(["Source placement", "Copy A", "Original pocket", "Copy A"]);
+      click("button-bin-redo");
+      expect(names()).toEqual(expectedNames);
+    } finally { unmount(); }
+  });
+
   it.each(["new", "file"])("saves pending edits before replacing a named project via %s, and stops on save failure", async action => {
     const cutter = parseProjectDoc(ryobiReloadFixture)!;
     vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(cutter);
@@ -703,8 +771,11 @@ describe("BinDesignerPage", () => {
     unmount();
   });
 
-  it("edits physical dimensions with linked proportions and undoes the committed value once", async () => {
+  it.each([30, 17.000000000000007])("edits physical dimensions from %s mm with linked proportions and undoes the committed value once", async originalWidth => {
     const shape = rectangularShape("tool", "Wrench");
+    shape.bboxMm.minX = -originalWidth / 2;
+    shape.bboxMm.maxX = originalWidth / 2;
+    shape.outlineMm[0].outer = shape.outlineMm[0].outer.map(point => ({ ...point, x: Math.sign(point.x) * originalWidth / 2 }));
     vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({
       ...EMPTY_PROJECT, shapes: [shape],
       cutouts: [parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 0, y: 0 } })],
@@ -722,10 +793,10 @@ describe("BinDesignerPage", () => {
     });
     React.act(() => width.blur());
     expect(width.value).toBe('40');
-    expect(length.value).toBe('26.67');
+    expect(Number(length.value)).toBeCloseTo(20 * 40 / originalWidth, 2);
     const undo = container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!;
     React.act(() => undo.click());
-    expect(width.value).toBe('30');
+    expect(Number(width.value)).toBeCloseTo(originalWidth, 2);
     expect(length.value).toBe('20');
     expect(undo.disabled).toBe(true);
     unmount();
@@ -825,6 +896,74 @@ describe("BinDesignerPage", () => {
     unmount();
   });
 
+  it.each([-1, 0])("toggles touch removal for contour ring %s with undo, minimum size, and a return to moving", async (ringIndex) => {
+    const shape = rectangularShape("tool", "Wrench");
+    shape.outlineMm[0].holes = [[{ x: -7, y: -4 }, { x: -7, y: 4 }, { x: 7, y: 4 }, { x: 7, y: -4 }]];
+    shape.pointCount = 8;
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({
+      ...EMPTY_PROJECT, shapes: [shape],
+      cutouts: [parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 0, y: 0 }, rotationDeg: 30, scaleX: 1.5, scaleY: 0.8 })],
+    });
+    const { container, unmount } = renderPage({ mobile: true });
+    try {
+      await flushHydration();
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
+      React.act(() => [...container.querySelectorAll('button')].find(button => button.textContent === 'Bin settings')!.click());
+      selectPocket(document.body, "pocket");
+      React.act(() => document.querySelector<HTMLButtonElement>('[data-testid="button-edit-contour"]')!.click());
+      const svg = container.querySelector<SVGSVGElement>('[data-testid="layout-canvas"]')!;
+      Object.defineProperty(svg.querySelector('g')!, 'getScreenCTM', { value: () => ({ inverse: () => ({}) }) });
+      Object.defineProperties(svg, {
+        createSVGPoint: { value: () => ({ x: 0, y: 0, matrixTransform() { return { x: this.x, y: this.y }; } }) },
+        setPointerCapture: { value: () => {} },
+      });
+      const ringHandles = () => svg.querySelectorAll(`[data-contour-ring="${ringIndex}"]`);
+      const otherHandles = () => svg.querySelectorAll(`[data-contour-ring="${ringIndex === -1 ? 0 : -1}"]`);
+      const buttons = () => container.querySelector('[aria-label="Contour editing tools"]')!.querySelectorAll<HTMLButtonElement>('button');
+      const pointer = (target: Element, type: string, x: number, y: number) => React.act(() => {
+        const event = new MouseEvent(type, { bubbles: true, button: 0, clientX: x, clientY: y });
+        Object.defineProperties(event, { pointerId: { value: 1 }, pointerType: { value: 'touch' } });
+        target.dispatchEvent(event);
+      });
+      const tapNearFirst = () => {
+        const first = ringHandles()[0];
+        // A near miss outside the visible 4.5 px circle still selects the nearest vertex.
+        pointer(svg, 'pointerdown', Number(first.getAttribute('cx')) - 6, Number(first.getAttribute('cy')));
+      };
+      const original = svg.querySelector('[data-cutout-id="pocket"]')!.getAttribute('d');
+      expect(buttons()[0].getAttribute('aria-pressed')).toBe('false');
+      React.act(() => buttons()[0].click());
+      expect(buttons()[0].getAttribute('aria-pressed')).toBe('true');
+      tapNearFirst();
+      expect(ringHandles()).toHaveLength(3);
+      expect(otherHandles()).toHaveLength(4);
+      tapNearFirst();
+      pointer(svg, 'pointerdown', 1000, 1000);
+      expect(ringHandles()).toHaveLength(3);
+      expect(otherHandles()).toHaveLength(4);
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+      expect(ringHandles()).toHaveLength(4);
+      expect(svg.querySelector('[data-cutout-id="pocket"]')!.getAttribute('d')).toBe(original);
+      expect(container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.disabled).toBe(true);
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+      expect(ringHandles()).toHaveLength(3);
+      React.act(() => buttons()[0].click());
+      const first = ringHandles()[0];
+      const x = Number(first.getAttribute('cx')), y = Number(first.getAttribute('cy'));
+      pointer(first, 'pointerdown', x, y);
+      pointer(svg, 'pointermove', x + 1, y + 1);
+      pointer(svg, 'pointerup', x + 1, y + 1);
+      expect(ringHandles()).toHaveLength(3);
+      expect(Number(ringHandles()[0].getAttribute('cx'))).toBeCloseTo(x + 1);
+      React.act(() => buttons()[0].click());
+      const edit = container.querySelector<HTMLButtonElement>('[data-testid="button-layout-edit-contour"]')!;
+      React.act(() => edit.click());
+      expect(container.querySelector('[aria-label="Contour editing tools"]')).toBeNull();
+      React.act(() => edit.click());
+      expect(buttons()[0].getAttribute('aria-pressed')).toBe('false');
+    } finally { unmount(); }
+  });
+
   it.each(["stl", "3mf"])("cancels %s without downloads and resets the JSON checkbox for the next request", async (format) => {
     const { container, unmount } = renderPage();
     await flushHydration();
@@ -886,7 +1025,7 @@ describe("BinDesignerPage", () => {
     ["multicolor-3mf", "-multicolor", "3mf"],
     ["surface-fit-test", "-surface-fit-test-0.8mm", "stl"],
     ["surface-outline", "-tool-outlines-5mm-wide-0.8mm-thick", "stl"],
-    ["fit-check", "-Wrench-fit-template-2mm", "stl"],
+    ["fit-check", "-Left-wrench-fit-template-2mm", "stl"],
     ["layout-svg", "-layout", "svg"],
     ["layout-dxf", "-layout", "dxf"],
   ].flatMap(([kind, suffix, extension]) => [false, true].map((includeProject) => ({ kind, suffix, extension, includeProject }))))(
@@ -897,7 +1036,7 @@ describe("BinDesignerPage", () => {
       ...EMPTY_PROJECT,
       spec: parseBinSpec({ gridX: 4, gridY: 4, heightUnits: 6.5 }),
       shapes: [shape, rectangularShape("unused", "Unplaced tool")],
-      cutouts: [parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 0, y: 0 } })],
+      cutouts: [parseCutoutPlacement({ id: "pocket", shapeId: shape.id, name: "Left wrench", position: { x: 0, y: 0 } })],
       fingerHoles: [fingerHoleSchema.parse({ id: "hole", kind: "straight", center: { x: 40, y: 0 } })],
     };
     vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(project);
@@ -2008,6 +2147,101 @@ describe("BinDesignerPage", () => {
     unmount();
   });
 
+  it("closes the mobile controls when starting a geometric pocket from the panel", async () => {
+    let controls: ReturnType<typeof usePanelState>;
+    function PanelProbe() { controls = usePanelState(); return null; }
+    const { container, unmount } = render(
+      <PanelProvider><PanelProbe /><ShapeLibraryProvider><BinDesignerPage /></ShapeLibraryProvider></PanelProvider>, { mobile: true },
+    );
+    await flushHydration();
+    try {
+      React.act(() => controls.setPanelOpen(true));
+      openSettingsSection(document.body, "tool-cutouts");
+      const add = document.querySelector<HTMLButtonElement>('#bin-settings-pockets button[aria-haspopup="menu"]')!;
+      React.act(() => add.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+      React.act(() => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(item => item.textContent === "Circle")!.click());
+      expect(controls!.panelOpen).toBe(false);
+      expect(container.querySelector('[data-testid="layout-canvas"]')).not.toBeNull();
+      expect(container.textContent).toContain("Drag from the centre to the edge of the circle");
+    } finally { unmount(); }
+  });
+
+  it.each(["Rectangle", "Square", "Circle"])("draws a %s as a pocket without a photo or bin growth, with one undo step", async kind => {
+    const { container, unmount } = renderPage();
+    await flushHydration();
+    try {
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
+      React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Pan layout"]')!.click());
+      const add = container.querySelector<HTMLButtonElement>('[data-testid="layout-add-pocket"] button')!;
+      React.act(() => add.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+      React.act(() => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(item => item.textContent === kind)!.click());
+      expect(container.querySelector('[aria-label="Pan layout"]')!.getAttribute("aria-pressed")).toBe("false");
+      const svg = container.querySelector<SVGSVGElement>('[data-testid="layout-canvas"]')!;
+      // A zoomed/panned scene: client -> model coordinates must use the SVG transform.
+      Object.defineProperty(svg.querySelector('g')!, 'getScreenCTM', { value: () => ({ inverse: () => ({}) }) });
+      Object.defineProperties(svg, {
+        createSVGPoint: { value: () => ({ x: 0, y: 0, matrixTransform() { return { x: (this.x - 10) / 2, y: (this.y - 20) / 2 }; } }) },
+        setPointerCapture: { value: () => {} },
+      });
+      const pointer = (type: string, x: number, y: number) => React.act(() => {
+        const event = new MouseEvent(type, { bubbles: true, button: 0, clientX: x, clientY: y });
+        Object.defineProperty(event, "pointerId", { value: 1 });
+        svg.dispatchEvent(event);
+      });
+      pointer("pointerdown", 73.5, 83.5);
+      pointer("pointermove", 113.5, 103.5);
+      expect(container.querySelector('[data-testid="basic-pocket-draft"]')).not.toBeNull();
+      pointer("pointerup", 113.5, 103.5);
+      expect(container.querySelector('[data-testid="basic-pocket-draft"]')).toBeNull();
+      expect(container.textContent).toContain(`${kind} pocket`);
+      const layout = vi.mocked(useBinGeometry).mock.lastCall![2]!;
+      expect(layout.cutouts).toHaveLength(1);
+      expect(layout.fingerHoles).toEqual([]);
+      const shape = layout.shapes.find(shape => shape.id === layout.cutouts[0].shapeId)!;
+      expect(shape.source).toBe("basic-shape");
+      expect(shape.sourceMmPerPx).toBeNull();
+      expect(shape.bboxMm.maxX - shape.bboxMm.minX).toBeCloseTo(kind === "Circle" ? Math.hypot(20, 10) * 2 : 20);
+      expect(shape.bboxMm.maxY - shape.bboxMm.minY).toBeCloseTo(kind === "Circle" ? Math.hypot(20, 10) * 2 : kind === "Square" ? 20 : 10);
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toEqual(EMPTY_PROJECT.spec);
+      expect(container.textContent).not.toContain("was traced without a scale");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toEqual([]);
+      expect(container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.disabled).toBe(true);
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toEqual(layout.cutouts);
+    } finally { unmount(); }
+  });
+
+  it.each(["Escape", "pointercancel", "tap", "mode change"])("discards a shape draft on %s without changing the library or history", async cancellation => {
+    const { container, unmount } = renderPage();
+    await flushHydration();
+    try {
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
+      const add = container.querySelector<HTMLButtonElement>('[data-testid="layout-add-pocket"] button')!;
+      React.act(() => add.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+      React.act(() => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(item => item.textContent === "Rectangle")!.click());
+      const svg = container.querySelector<SVGSVGElement>('[data-testid="layout-canvas"]')!;
+      Object.defineProperty(svg.querySelector('g')!, 'getScreenCTM', { value: () => ({ inverse: () => ({}) }) });
+      Object.defineProperties(svg, {
+        createSVGPoint: { value: () => ({ x: 0, y: 0, matrixTransform() { return { x: this.x, y: this.y }; } }) },
+        setPointerCapture: { value: () => {} },
+      });
+      const pointer = (type: string, x: number) => React.act(() => svg.dispatchEvent(new MouseEvent(type, { bubbles: true, button: 0, clientX: x, clientY: x })));
+      pointer("pointerdown", 30);
+      if (cancellation === "tap") pointer("pointerup", 31);
+      else {
+        pointer("pointermove", 50);
+        if (cancellation === "Escape") React.act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+        else if (cancellation === "mode change") React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-3d"]')!.click());
+        else pointer("pointercancel", 50);
+      }
+      expect(container.querySelector('[data-testid="basic-pocket-draft"]')).toBeNull();
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toEqual([]);
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.shapes).toEqual([]);
+      expect(container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.disabled).toBe(true);
+    } finally { unmount(); }
+  });
+
   it("explains the empty Layout and keeps both rulers unavailable", () => {
     const { container, unmount } = renderPage();
     const ruler3d = container.querySelector(
@@ -2031,9 +2265,9 @@ describe("BinDesignerPage", () => {
     expect(ruler.title).toContain("Add a tool cutout");
     expect(
       container.querySelector('[data-testid="layout-empty-state"]')?.textContent,
-    ).toContain("Add a tool pocket or a finger hole");
+    ).toContain("Use Add pocket to draw a shape");
     expect(container.querySelector('[data-testid="layout-ruler-status"]')).toBeNull();
-    expect(container.textContent).toContain("Add a tool pocket or finger hole to begin");
+    expect(container.textContent).toContain("Choose Add pocket to draw a shape");
     unmount();
   });
 
@@ -2804,7 +3038,7 @@ describe("BinDesignerPage", () => {
       shapeName.blur();
     });
     expect(libraryHandle!.shapes.find((shape) => shape.id === "shape-1")?.name).toBe(
-      "Bench wrench",
+      "test wrench",
     );
     expect(container.textContent).toContain("Bench wrench");
 
@@ -3165,6 +3399,9 @@ describe("project history restoration", () => {
       expect(button(container, "redo").getAttribute("aria-label")).toBe("Redo Widen again");
       React.act(() => button(container, "redo").click());
       React.act(() => button(container, "undo").click());
+      if (mobile) {
+        React.act(() => Array.from(container.querySelectorAll("button")).find(button => button.textContent === "Bin settings")!.click());
+      }
       openSettingsSection(document.body, "project");
       const open = async (id: string) => {
         React.act(() => document.querySelector<HTMLButtonElement>('[data-testid="button-open-library"]')!.click());

@@ -1,5 +1,23 @@
 # Gridfinity bin generator — design and roadmap
 
+Pocket names belong to individual placements. Renaming a copy leaves the original,
+other copies, and the source shape unchanged. Names appear in pocket controls,
+spacing references, warnings, canvas labels, and fit-template exports. Project
+schema v19 preserves them through undo/redo and project save/import; older pockets
+continue to display their source shape name until renamed.
+
+Basic-shape pockets are available from **Layout → Add pocket** and the **Pockets**
+panel. Draw a rectangle or square between opposite corners, or a circle from its
+centre to its edge. A live outline shows dimensions; release adds one ordinary
+pocket, and Escape/Cancel or a cancelled/tiny gesture leaves the project unchanged.
+The current bin dimensions and other placements stay fixed, with ordinary boundary
+and overlap warnings. **Size & scale** edits exact millimetre dimensions after
+creation; squares and circles start with proportions locked. Depth, rounding,
+clearance, contour editing, duplication, undo/redo, floor colors, fit tests, and
+bin/layout exports use the existing pocket paths. Project schema v18 records that
+these shapes were authored in millimetres; older calibrated and uncalibrated traces
+retain their calibration requirements. Saved projects may mix both shape sources.
+
 **Status: G1–G5 software scope landed (G5 on 2026-08-24); both *print gates*
 are pending** — G1: print `exports/bin-2x3x6.3mf` and verify grid fit and
 stacking; G3: trace a real tool, export its bin, print it, and put the tool in
@@ -7,8 +25,10 @@ the pocket. Optional server persistence remains deferred.
 
 The September 2026 usability update makes new traces outside-silhouette-only by
 default, including after a margin closes a narrow gap. Interior holes remain an
-explicit detection option. Manual contour edits become the baseline for Detail
-and Smoothing. Sensitivity re-detects automatically on slider release (or a keyboard
+explicit detection option. Manual contour edits become the baseline for Detail.
+The Smoothing control is temporarily hidden while improved smoothing and point
+simplification are planned; the existing refinement pipeline remains unchanged.
+Sensitivity re-detects automatically on slider release (or a keyboard
 step), asking for confirmation only when the current contour includes manual
 vertex/ring edits. Cancel keeps both the edits and previous detection settings;
 undoing all manual edits removes the need for confirmation. Refinement and

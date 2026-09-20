@@ -13,7 +13,9 @@ import {
   type Calibration,
   type DraftCalibration,
 } from "@shared/geometry/scale";
-import type { Outline, Point, Rect, RingRef } from "@shared/geometry/types";
+import { OUTER_RING, type Outline, type Point, type Rect, type RingRef } from "@shared/geometry/types";
+import { ringArea } from "@shared/geometry/rings";
+import { getRing } from "@/lib/geometry/outline";
 
 import type {
   PerspectiveProposal,
@@ -58,6 +60,8 @@ import { DEFAULT_MARGIN_MM, marginToPixels, type Margin } from "@/lib/image-proc
 
 /** Exactly one interaction mode is active at a time. */
 export type TraceMode =
+  | "navigate"
+  | "remove"
   | "pan"
   | "region"
   | "edit"
@@ -122,6 +126,8 @@ export interface TraceState {
   pendingAutoCalibration: Calibration | null;
   /** Alternative sheet ruler when an aid and paper are both usable. */
   pendingPaperCalibration: Calibration | null;
+  /** The aid ruler is usable only after applying the paper homography. */
+  pendingAidRequiresPerspective: boolean;
   /** Reference behind the pending scale; cleared together with its ruler. */
   pendingCalibrationSource: "sheet" | "strip" | null;
   /** How the accepted calibration was established. */
@@ -181,6 +187,7 @@ export const initialTraceState: TraceState = {
   calibration: null,
   pendingAutoCalibration: null,
   pendingPaperCalibration: null,
+  pendingAidRequiresPerspective: false,
   pendingCalibrationSource: null,
   calibrationSource: null,
   draftCalibration: null,
@@ -249,6 +256,7 @@ export type TraceAction =
       perspective?: PerspectiveProposal | null;
       source?: "sheet" | "strip";
       paperCalibration?: Calibration | null;
+      requiresPerspectiveCorrection?: boolean;
     }
   | { type: "ACCEPT_AUTO_CALIBRATION"; source?: "sheet" | "strip" }
   | { type: "AUTO_CALIBRATION_ATTEMPTED"; imageUrl: string }
@@ -335,6 +343,24 @@ function rotateManualPerspectivePoints(
   return direction === "clockwise"
     ? [rotated[3], rotated[0], rotated[1], rotated[2]]
     : [rotated[1], rotated[2], rotated[3], rotated[0]];
+}
+
+function primaryContour(outline: Outline): RingRef | null {
+  let largest: RingRef | null = null;
+  let largestArea = 0;
+  outline.forEach((shape, shapeIndex) => {
+    const area = ringArea(shape.outer);
+    if (shape.outer.length >= 3 && area > largestArea) {
+      largest = { shapeIndex, ringIndex: OUTER_RING };
+      largestArea = area;
+    }
+  });
+  return largest;
+}
+
+function retainedEditSelection(state: TraceState, outline: Outline): RingRef | null {
+  return (state.mode === "edit" || state.mode === "remove") && state.selection &&
+    (getRing(outline, state.selection)?.length ?? 0) >= 3 ? state.selection : null;
 }
 
 export function traceReducer(state: TraceState, action: TraceAction): TraceState {
@@ -501,7 +527,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         rawOutline: action.rawOutline,
         svg: action.svg,
         detectedImageUrl: action.imageUrl,
-        selection: null,
+        selection: state.mode === "edit" || state.mode === "remove" ? primaryContour(action.outline) : null,
         history: pushHistory(
           state.rawOutline.length > 0 && state.detectedImageUrl === action.imageUrl ? state.history : { stack: [], index: -1 },
           action.outline, "Detected outline", state.margin,
@@ -571,7 +597,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         margin: state.history.stack[index].margin,
         tolerancePx: state.history.stack[index].tolerancePx ?? state.tolerancePx,
         smoothing: state.history.stack[index].smoothing ?? state.smoothing,
-        selection: null,
+        selection: retainedEditSelection(state, state.history.stack[index].outline),
         history: { ...state.history, index },
       };
     }
@@ -585,7 +611,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         margin: state.history.stack[index].margin,
         tolerancePx: state.history.stack[index].tolerancePx ?? state.tolerancePx,
         smoothing: state.history.stack[index].smoothing ?? state.smoothing,
-        selection: null,
+        selection: retainedEditSelection(state, state.history.stack[index].outline),
         history: { ...state.history, index },
       };
     }
@@ -605,7 +631,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         margin: state.history.stack[action.index].margin,
         tolerancePx: state.history.stack[action.index].tolerancePx ?? state.tolerancePx,
         smoothing: state.history.stack[action.index].smoothing ?? state.smoothing,
-        selection: null,
+        selection: retainedEditSelection(state, state.history.stack[action.index].outline),
         history: { ...state.history, index: action.index },
       };
     }
@@ -624,6 +650,9 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
       return {
         ...state,
         mode: action.mode,
+        selection: action.mode === "edit" || action.mode === "remove"
+          ? retainedEditSelection(state, state.outline) ?? primaryContour(state.outline)
+          : state.selection,
         // Redrawing is a replacement, not a second ruler layered over the
         // accepted one. Invalidate both the old scale and any completed draft
         // when manual placement starts; repeat clicks on the active tool leave
@@ -635,6 +664,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         pendingAutoCalibration:
           rejectsAutomatic ? null : state.pendingAutoCalibration,
         pendingPaperCalibration: rejectsAutomatic ? null : state.pendingPaperCalibration,
+        pendingAidRequiresPerspective: rejectsAutomatic ? false : state.pendingAidRequiresPerspective,
         pendingCalibrationSource:
           rejectsAutomatic ? null : state.pendingCalibrationSource,
         pendingPerspective: rejectsAutomatic ? null : state.pendingPerspective,
@@ -693,6 +723,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         calibration: action.calibration,
         pendingAutoCalibration: null,
         pendingPaperCalibration: null,
+        pendingAidRequiresPerspective: false,
         pendingCalibrationSource: null,
         pendingPerspective: null,
         calibrationSource: action.calibration === null ? null : "manual",
@@ -707,6 +738,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
             calibration: null,
             pendingAutoCalibration: action.calibration,
             pendingPaperCalibration: action.paperCalibration ?? null,
+            pendingAidRequiresPerspective: action.requiresPerspectiveCorrection ?? false,
             pendingCalibrationSource: action.source ?? "sheet",
             pendingPerspective:
               action.source === "strip" && !action.paperCalibration ? null : action.perspective ?? null,
@@ -721,12 +753,14 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
     case "ACCEPT_AUTO_CALIBRATION":
       if (!state.pendingAutoCalibration || (action.source === "sheet" && state.pendingCalibrationSource === "strip" && !state.pendingPaperCalibration)) return state;
       if (action.source === "strip" && state.pendingCalibrationSource !== "strip") return state;
+      if (state.pendingAidRequiresPerspective && !(action.source === "sheet" && state.pendingPaperCalibration)) return state;
       return {
         ...state,
         calibration: action.source === "sheet" && state.pendingPaperCalibration
           ? state.pendingPaperCalibration : state.pendingAutoCalibration,
         pendingAutoCalibration: null,
         pendingPaperCalibration: null,
+        pendingAidRequiresPerspective: false,
         pendingCalibrationSource: null,
         pendingPerspective: null,
         calibrationSource: action.source ?? state.pendingCalibrationSource ?? "sheet",
@@ -773,6 +807,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         mode: "perspective",
         pendingAutoCalibration: null,
         pendingPaperCalibration: null,
+        pendingAidRequiresPerspective: false,
         pendingCalibrationSource: null,
         pendingPerspective: null,
         manualPerspectivePoints: [],

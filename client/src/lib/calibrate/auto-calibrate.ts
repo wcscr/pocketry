@@ -9,11 +9,13 @@ import {
 } from "./detect";
 import {
   MAX_TEMPLATE_REPROJECTION_RMS_MM,
+  projectMarkersThroughTemplate,
   proposalFromTemplateMarkers,
   templateReprojectionErrorMm,
   type PerspectiveProposal,
 } from "./perspective";
 import { solveReferenceStrip } from "./solve-reference-strip";
+import { referenceStripFromMarkerIds } from "./reference-strip";
 import { solveScaleFromMarkers, type ScaleSolution } from "./solve";
 import {
   templateFromTemplateMarkerIds,
@@ -35,7 +37,10 @@ export type AutoCalibrationResult =
   | {
       kind: "calibrated-strip";
       calibration: Calibration;
+      /** For recovered aids this solution uses paper-rectified coordinates. */
       solution: ScaleSolution;
+      /** Source endpoints are only a valid scale after the paper correction. */
+      requiresPerspectiveCorrection?: true;
       /** A usable paper reference offered alongside the aid. */
       sheet?: Extract<AutoCalibrationResult, { kind: "calibrated" }>;
     }
@@ -89,6 +94,35 @@ export function runAutoCalibration(cv: any, image: ImageData): AutoCalibrationRe
       },
       ...(sheet.kind === "calibrated" ? { sheet } : {}),
     };
+  }
+  if (sheet.kind === "calibrated") {
+    const spec = referenceStripFromMarkerIds(stripMarkers.map(({ id }) => id));
+    if (spec) {
+      const [a, b] = spec.markerIds.map((id) => stripMarkers.find((marker) => marker.id === id)!);
+      // Rectification must not turn an under-resolved source into apparently
+      // sufficient evidence merely by increasing the output pixel count.
+      const baselinePx = Math.hypot(b.centerPx.x - a.centerPx.x, b.centerPx.y - a.centerPx.y);
+      const correctedMarkers = baselinePx >= 40
+        ? projectMarkersThroughTemplate(cv, stripMarkers, sheet.perspectiveProposal, sheet.template)
+        : null;
+      const recovered = correctedMarkers
+        ? solveReferenceStrip(correctedMarkers, { sourceBaselinePx: baselinePx }) : null;
+      if (recovered) {
+        return {
+          kind: "calibrated-strip",
+          requiresPerspectiveCorrection: true,
+          solution: recovered,
+          // Keep the original detected endpoints for the exact image warp.
+          // They must never be accepted as an unrectified scalar calibration.
+          calibration: {
+            startX: a.centerPx.x, startY: a.centerPx.y,
+            endX: b.centerPx.x, endY: b.centerPx.y,
+            lengthMm: spec.centerSpacingMm,
+          },
+          sheet,
+        };
+      }
+    }
   }
   if (!stripMarkers.length) return sheet;
   const reason = stripMarkers.length < 2 ? "incomplete-signature" : "invalid-geometry";

@@ -215,7 +215,7 @@ describe("App", () => {
     expect(container.textContent).toContain(
       "Photograph the tool on a calibration sheet or a plain, contrasting background",
     );
-    expect(container.textContent).toContain("Drag & drop an image here");
+    expect(container.textContent).toContain("Choose a photo");
     expect(container.textContent).not.toContain("Untitled");
     expect(container.textContent).not.toContain("0 × 0 px");
     expect(

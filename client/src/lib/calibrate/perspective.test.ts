@@ -1,10 +1,11 @@
 import { createRequire } from "node:module";
 
 import { mmPerPixel } from "@shared/geometry/scale";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import {
   perspectiveLayout,
+  projectMarkersThroughTemplate,
   proposalFromTemplateMarkers,
   runPerspectiveCorrection,
   scalePerspectiveProposal,
@@ -80,6 +81,36 @@ function transformPoints(points: readonly { x: number; y: number }[], transform:
 }
 
 describe("perspective geometry", () => {
+  it.each([1, 2, 3, 4, 5])("releases earlier OpenCV handles when marker projection allocation %s fails", (failedAllocation) => {
+    const allocated: { delete: ReturnType<typeof vi.fn> }[] = [];
+    let attempts = 0;
+    const allocate = () => {
+      attempts++;
+      if (attempts === failedAllocation) throw new Error("WASM allocation failed");
+      const handle = { delete: vi.fn() };
+      allocated.push(handle);
+      return handle;
+    };
+    const failingCv = {
+      CV_32FC2: cv.CV_32FC2,
+      matFromArray: allocate,
+      Mat: function FakeMat() { return allocate(); },
+      findHomography: allocate,
+    };
+    const paperMarkers = templateMarkerCornersMm("a4").map(({ id, corners }) => ({
+      id, cornersPx: [...corners] as PerspectiveQuad,
+      centerPx: {
+        x: corners.reduce((sum, point) => sum + point.x, 0) / 4,
+        y: corners.reduce((sum, point) => sum + point.y, 0) / 4,
+      },
+    }));
+    const proposal = proposalFromTemplateMarkers(paperMarkers, "a4")!;
+    expect(projectMarkersThroughTemplate(failingCv, [marker(24, 100, 100)], proposal, "a4")).toBeNull();
+    expect(attempts).toBe(failedAllocation);
+    expect(allocated).toHaveLength(failedAllocation - 1);
+    for (const handle of allocated) expect(handle.delete).toHaveBeenCalledOnce();
+  });
+
   it("orders the four unique template ids and rejects incomplete sets", () => {
     const markers = [
       marker(2, 90, 120),

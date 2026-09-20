@@ -65,6 +65,14 @@ describe("small markers in the photographed 100 mm aid", () => {
       cornersPx: marker.cornersPx!.map((p) => ({ x: p.x * 4, y: p.y * 4 })) as typeof marker.cornersPx,
     }));
     expect(solveReferenceStrip(enlarged)).toBeNull();
+    // Shrinking/projecting those source points later must not restore the
+    // larger low-resolution allowance merely because their coordinates shrink.
+    const sourceBaselinePx = Math.hypot(
+      enlarged[1].centerPx.x - enlarged[0].centerPx.x,
+      enlarged[1].centerPx.y - enlarged[0].centerPx.y,
+    );
+    expect(solveReferenceStrip(markers, { sourceBaselinePx })).toBeNull();
+    expect(solveReferenceStrip(markers, { sourceBaselinePx: 39 })).toBeNull();
   });
 
   it("still rejects low-resolution foreshortening, changed baselines and wrong marker pairs", () => {

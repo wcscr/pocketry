@@ -1,5 +1,5 @@
 import { Box, History, Redo2, Undo2 } from "lucide-react";
-import { pocketDepths } from "@shared/gridfinity/cutout";
+import { pocketDepths, pocketName } from "@shared/gridfinity/cutout";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { CanvasWarnings } from "@/components/gridfinity/canvas-warnings";
@@ -11,6 +11,7 @@ import { EditHistoryMenu } from "@/components/history/edit-history-menu";
 import { usePanelState } from "@/components/layout/panel-context";
 import { WorkspaceLayout } from "@/components/layout/workspace-layout";
 import { Button } from "@/components/ui/button";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useToast } from "@/hooks/use-toast";
 import {
   parseProjectDoc,
@@ -107,6 +108,10 @@ function BinDesignerWorkspace(): JSX.Element {
   const { toast } = useToast();
   const bin = useBin();
   const { spec, cutouts, fingerHoles, viewMode, dispatch } = bin;
+  const isMobile = useIsMobile();
+  useEffect(() => {
+    if (isMobile && bin.editorMode !== "placement") setPanelOpen(false);
+  }, [bin.editorMode, isMobile, setPanelOpen]);
   const library = useShapeLibrary();
   // Sliders and canvas drags update the visible controls transiently, but the
   // history entry remains the last committed design until pointer-up. Feeding
@@ -371,12 +376,11 @@ function BinDesignerWorkspace(): JSX.Element {
     for (const report of cutoutReports) {
       if (report.emptied && !emptiedSeenRef.current.has(report.id)) {
         emptiedSeenRef.current.add(report.id);
-        const shape = layout.shapes.find(
-          (s) => s.id === cutouts.find((c) => c.id === report.id)?.shapeId,
-        );
+        const cutout = cutouts.find((c) => c.id === report.id);
+        const shape = layout.shapes.find((s) => s.id === cutout?.shapeId);
         toast({
           title: "Pocket vanished",
-          description: `“${shape?.name ?? "A pocket"}” collapsed under its clearance/corner settings — increase clearance toward zero or reduce outline corner rounding.`,
+          description: `“${cutout ? pocketName(cutout, shape) : "A pocket"}” collapsed under its clearance/corner settings — increase clearance toward zero or reduce outline corner rounding.`,
           variant: "destructive",
         });
       }
@@ -890,12 +894,12 @@ function BinDesignerWorkspace(): JSX.Element {
         const project = prepareProjectExport(
           exportProjectDoc,
           currentProjectName,
-          `${exportFilePart(shape.name) || "tool"}-fit-template-${depthLabel}mm`,
+          `${exportFilePart(pocketName(cutout, shape)) || "tool"}-fit-template-${depthLabel}mm`,
         );
         const result = await buildFitCheck(shape, cutout, depthMm, EXPORT_QUALITY);
         const stl = writeBinarySTL(
           { positions: result.mesh.positions, indices: result.mesh.indices },
-          `Pocketry ${shape.name} fit template ${depthLabel} mm`,
+          `Pocketry ${pocketName(cutout, shape)} fit template ${depthLabel} mm`,
         );
         downloadModelWithProject(
           new Blob([stl], { type: "application/octet-stream" }),
@@ -905,7 +909,7 @@ function BinDesignerWorkspace(): JSX.Element {
         );
         toast({
           title: "Fit template saved",
-          description: `Exported “${shape.name}” as a ${depthLabel} mm filled outline${includeProject ? " with an editable project JSON" : ""}.`,
+          description: `Exported “${pocketName(cutout, shape)}” as a ${depthLabel} mm filled outline${includeProject ? " with an editable project JSON" : ""}.`,
         });
       } catch (cause) {
         if (!(cause instanceof WorkerCancelledError)) {
@@ -970,6 +974,13 @@ function BinDesignerWorkspace(): JSX.Element {
       panelOpen={panelOpen}
       onPanelOpenChange={setPanelOpen}
       panelTitle="Bin designer"
+      mobileActions={<div className="flex gap-2">
+        <Button variant="outline" className="min-h-11 flex-1" onClick={() => setPanelOpen(true)}>Bin settings</Button>
+        <Button className="min-h-11 flex-1" onClick={() => {
+          setSettingsSectionRequest({ id: "bin-settings-export" });
+          setPanelOpen(true);
+        }}>Export bin</Button>
+      </div>}
       panel={
         <BinControlsPanel
           issues={issues}
@@ -1078,7 +1089,7 @@ function BinDesignerWorkspace(): JSX.Element {
             <Button
               variant="ghost"
               size="sm"
-              className="h-7 rounded-none px-2"
+              className="h-11 min-w-11 rounded-none px-2 md:h-7 md:min-w-0"
               disabled={!bin.canUndo}
               onClick={() => dispatch({ type: "UNDO" })}
               aria-label={
@@ -1099,7 +1110,7 @@ function BinDesignerWorkspace(): JSX.Element {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-7 rounded-none px-2"
+                  className="h-11 min-w-11 rounded-none px-2 md:h-7 md:min-w-0"
                   aria-label="Show edit history"
                   title="Show edit history"
                   data-testid="button-bin-history"
@@ -1111,7 +1122,7 @@ function BinDesignerWorkspace(): JSX.Element {
             <Button
               variant="ghost"
               size="sm"
-              className="h-7 rounded-none px-2"
+              className="h-11 min-w-11 rounded-none px-2 md:h-7 md:min-w-0"
               disabled={!bin.canRedo}
               onClick={() => dispatch({ type: "REDO" })}
               aria-label={
@@ -1138,7 +1149,7 @@ function ViewToggle({
   onChange: (mode: BinViewMode) => void;
 }): JSX.Element {
   return (
-    <div className="absolute left-1/2 top-3 z-30 flex -translate-x-1/2 overflow-hidden rounded-md border bg-background/90 shadow-sm backdrop-blur">
+    <div className="absolute left-3 top-3 z-30 flex md:left-1/2 md:-translate-x-1/2 overflow-hidden rounded-md border bg-background/90 shadow-sm backdrop-blur">
       {(
         [
           { mode: "3d", label: "3D" },
@@ -1150,7 +1161,7 @@ function ViewToggle({
           variant="ghost"
           size="sm"
           className={cn(
-            "h-7 rounded-none px-3 text-xs",
+            "h-11 rounded-none px-3 text-xs md:h-7",
             viewMode === mode && "bg-accent text-accent-foreground",
           )}
           onClick={() => onChange(mode)}

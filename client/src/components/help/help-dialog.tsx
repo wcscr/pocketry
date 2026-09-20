@@ -56,6 +56,10 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
                 markers are required. Pocketry validates their 16 corners before
                 proposing scale or perspective correction. Check the preview, then
                 accept it.
+                When paper and a measurement aid are both detected, choose
+                {" "}<strong>Correct perspective &amp; use aid scale</strong> on
+                desktop or mobile. Other choices and <strong>Detect references
+                again</strong> are under Scale’s <strong>Advanced</strong> section.
                 <CalibrationDownloads />
               </li>
               <li>
@@ -77,11 +81,11 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
               </li>
               <li>
                 Tune <strong>Outline</strong>: Sensitivity changes what is
-                admitted as tool, Detail controls point density, and Smoothing
-                removes pixel noise. Outside silhouettes are the default; enable interior
+                admitted as tool, and Detail controls point density.
+                Outside silhouettes are the default; enable interior
                 holes only for real openings. Sensitivity updates the outline when you
                 release the slider. Confirmation is needed only when replacing manual
-                contour edits. Detail and Smoothing preserve those edits; re-detection is undoable.
+                contour edits. Detail preserves those edits; re-detection is undoable.
               </li>
               <li>
                 Choose a physical <strong>Margin</strong> from 0.0–5.0 mm, then
@@ -132,6 +136,14 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
                 Label tabs can attach to any highlighted straight footprint edge.
                 A shaped stacking lip is intended to mate with the same footprint;
                 it is not a separate lip around every occupied cell.
+              </li>
+              <li>
+                <strong>Layout → Add pocket</strong> draws a rectangle, square, or
+                circle without a photo. Drag between opposite corners, or from a
+                circle's centre to its edge. Release to add; Escape or Cancel discards
+                the draft. Set exact dimensions under <strong>Pockets → Size &amp; scale</strong>.
+                These use the usual pocket depth, rounding, duplication, and floor colors.
+                The bin stays the same size; boundary warnings still apply.
               </li>
               <li>
                 Materials controls preview and 3MF colors for the bin body,

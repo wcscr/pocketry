@@ -164,6 +164,69 @@ export function templateReprojectionErrorMm(
   }
 }
 
+/**
+ * Carry detected marker geometry through a validated paper fit without
+ * resampling/decoding its pixels. The returned coordinates use the same output
+ * raster as runPerspectiveCorrection, so source-corner precision is retained.
+ * Callers must validate the paper signature and fit before using this helper.
+ */
+export function projectMarkersThroughTemplate(
+  cv: any,
+  markers: readonly DetectedMarker[],
+  proposal: PerspectiveProposal,
+  template: TemplateVariant,
+): DetectedMarker[] | null {
+  const fit = proposal.source === "template" ? proposal.correspondences : null;
+  if (
+    !fit || fit.source.length !== 16 || fit.destinationMm.length !== 16 ||
+    (proposal.template && proposal.template !== template) ||
+    (proposal.paper && proposal.paper !== templatePaper(template)) ||
+    !validPerspectiveQuad(proposal.points) || markers.length === 0 ||
+    markers.some((marker) => !marker.cornersPx ||
+      [marker.centerPx, ...marker.cornersPx].some(({ x, y }) => !Number.isFinite(x) || !Number.isFinite(y)))
+  ) return null;
+
+  const layout = perspectiveLayout(proposal, template);
+  let sourcePoints: any | null = null;
+  let destinationPoints: any | null = null;
+  let markerPoints: any | null = null;
+  let projected: any | null = null;
+  let transform: any | null = null;
+  try {
+    sourcePoints = cv.matFromArray(16, 1, cv.CV_32FC2,
+      fit.source.flatMap(({ x, y }) => [x, y]));
+    destinationPoints = cv.matFromArray(16, 1, cv.CV_32FC2,
+      fit.destinationMm.flatMap(({ x, y }) => [x * layout.pxPerMm, y * layout.pxPerMm]));
+    markerPoints = cv.matFromArray(markers.length * 5, 1, cv.CV_32FC2,
+      markers.flatMap((marker) => [marker.centerPx, ...marker.cornersPx!].flatMap(({ x, y }) => [x, y])));
+    projected = new cv.Mat();
+    transform = cv.findHomography(sourcePoints, destinationPoints, 0);
+    if (!transform || transform.rows !== 3 || transform.cols !== 3) return null;
+    cv.perspectiveTransform(markerPoints, projected, transform);
+    const values = projected.data32F as Float32Array;
+    const result = markers.map(({ id }, index) => {
+      const points = Array.from({ length: 5 }, (_, point) => ({
+        x: values[index * 10 + point * 2],
+        y: values[index * 10 + point * 2 + 1],
+      }));
+      return { id, centerPx: points[0], cornersPx: points.slice(1) as PerspectiveQuad };
+    });
+    // The combined correction crops to the paper. Do not propose an aid whose
+    // geometry would be clipped or mapped through a degenerate homography.
+    if (result.some((marker) => [marker.centerPx, ...marker.cornersPx].some(({ x, y }) =>
+      !Number.isFinite(x) || !Number.isFinite(y) || x < 0 || x >= layout.width || y < 0 || y >= layout.height))) return null;
+    return result;
+  } catch {
+    return null;
+  } finally {
+    transform?.delete?.();
+    projected?.delete?.();
+    markerPoints?.delete?.();
+    destinationPoints?.delete?.();
+    sourcePoints?.delete?.();
+  }
+}
+
 /** Rescales a proposal between detection and working-image coordinate spaces. */
 export function scalePerspectiveProposal(
   proposal: PerspectiveProposal,

@@ -72,7 +72,7 @@ export const boundsSchema = z.object({
   maxY: z.number().finite(),
 });
 
-/** A traced tool outline, normalised into the shape-local mm frame. */
+/** A traced or directly drawn outline, normalised into the shape-local mm frame. */
 export const tracedShapeSchema = z
   .object({
     id: z.string().min(1),
@@ -84,9 +84,12 @@ export const tracedShapeSchema = z
     pointCount: z.number().int().positive(),
     /**
      * Scale the trace was captured at. `null` marks a shape that somehow
-     * bypassed the calibration gate — validation rejects it.
+     * bypassed the calibration gate — validation rejects it unless it was
+     * authored directly in millimetres (`source: "basic-shape"`).
      */
     sourceMmPerPx: z.number().positive().nullable(),
+    /** Absent on older traces. Basic shapes are authored in mm, without a pixel scale. */
+    source: z.enum(["trace", "basic-shape"]).optional(),
     /** Margin already baked into the trace, before placement scaling. Absent in older projects. */
     traceMarginMm: z.number().finite().min(0).max(5).optional(),
   })
@@ -551,6 +554,8 @@ const cutoutPlacementInputSchema = z
   .object({
     id: z.string().min(1),
     shapeId: z.string().min(1),
+    /** Placement-local name; absent on older pockets that use the source name. */
+    name: z.string().trim().min(1).optional(),
     /** Bin-local mm, y-up, origin at the bin centre. */
     position: vec2Schema,
     /** CCW-positive in the y-up bin frame. */
@@ -611,6 +616,14 @@ export const cutoutPlacementSchema = cutoutPlacementInputSchema.transform(
 
 export type CutoutPlacement = z.infer<typeof cutoutPlacementSchema>;
 export type CutoutPlacementInput = z.input<typeof cutoutPlacementSchema>;
+
+/** Pocket labels belong to placements; the source shape remains shared geometry. */
+export function pocketName(
+  cutout: Pick<CutoutPlacement, "name">,
+  shape: Pick<TracedShape, "name"> | undefined | null,
+): string {
+  return cutout.name ?? shape?.name ?? "Missing shape";
+}
 
 /** The original depth is retained for removing a split; only active depths cut. */
 export function pocketDepths(cutout: Pick<CutoutPlacement, "depth" | "split">): readonly DepthSpec[] {

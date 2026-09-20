@@ -33,6 +33,58 @@ const detected = (
   region: null,
 });
 
+describe("aid calibration requiring perspective correction", () => {
+  const aid = { startX: 10, startY: 10, endX: 100, endY: 60, lengthMm: 85 };
+  const paper = { ...aid, lengthMm: 100 };
+  const pending = () => run(initialTraceState,
+    { type: "SOURCE_LOADED", imageUrl: "photo", fileName: "tool" },
+    { type: "AUTO_CALIBRATION_DETECTED", sourceImageUrl: "photo", source: "strip", calibration: aid,
+      paperCalibration: paper, requiresPerspectiveCorrection: true,
+      perspective: { source: "template", paper: "letter", points: [{ x: 0, y: 0 }, { x: 200, y: 0 }, { x: 200, y: 250 }, { x: 0, y: 250 }] } });
+
+  it("blocks uncorrected aid acceptance while preserving an explicit paper fallback", () => {
+    const state = pending();
+    expect(traceReducer(state, { type: "ACCEPT_AUTO_CALIBRATION" })).toBe(state);
+    expect(traceReducer(state, { type: "ACCEPT_AUTO_CALIBRATION", source: "strip" })).toBe(state);
+    const accepted = traceReducer(state, { type: "ACCEPT_AUTO_CALIBRATION", source: "sheet" });
+    expect(accepted.calibration).toEqual(paper);
+    expect(accepted.calibrationSource).toBe("sheet");
+    expect(accepted.pendingAidRequiresPerspective).toBe(false);
+  });
+
+  it("clears the restriction after correction or when the candidate is replaced", () => {
+    const state = pending();
+    const corrected = traceReducer(state, { type: "PERSPECTIVE_APPLIED", sourceImageUrl: "photo", imageUrl: "corrected",
+      imageSize: { width: 200, height: 250 }, source: "template", paper: "letter", calibration: aid, calibrationSource: "strip" });
+    expect(corrected.calibration).toEqual(aid);
+    expect(corrected.pendingAidRequiresPerspective).toBe(false);
+    for (const action of [{ type: "SET_MODE", mode: "calibrate" }, { type: "SET_CALIBRATION", calibration: null },
+      { type: "SOURCE_LOADED", imageUrl: "replacement", fileName: "new" }] satisfies TraceAction[]) {
+      expect(traceReducer(state, action).pendingAidRequiresPerspective).toBe(false);
+    }
+  });
+});
+
+describe("contour edit selection", () => {
+  it("selects the largest outer contour on entering edit mode and retains the chosen ring when toggling removal", () => {
+    const outline = [ringA[0], { ...ringC[0], holes: [ringB[0].outer] }];
+    let state = run(initialTraceState, detected(outline), { type: "SELECT_RING", selection: { shapeIndex: 0, ringIndex: -1 } }, { type: "SET_MODE", mode: "edit" });
+    expect(state.selection).toEqual({ shapeIndex: 1, ringIndex: -1 });
+    state = run(state, { type: "SELECT_RING", selection: { shapeIndex: 1, ringIndex: 0 } }, { type: "SET_MODE", mode: "remove" });
+    expect(state.selection).toEqual({ shapeIndex: 1, ringIndex: 0 });
+    state = run(state, { type: "SET_MODE", mode: "region" }, { type: "SET_MODE", mode: "edit" });
+    expect(state.selection).toEqual({ shapeIndex: 1, ringIndex: -1 });
+    expect(run(initialTraceState, { type: "SET_MODE", mode: "edit" }).selection).toBeNull();
+  });
+
+  it("keeps a valid edit selection through undo and redo, but drops a ring absent from the restored outline", () => {
+    const editing = run(initialTraceState, detected(ringA), { type: "SET_MODE", mode: "edit" }, { type: "OUTLINE_COMMITTED", outline: ringB });
+    expect(run(editing, { type: "UNDO" }, { type: "REDO" }).selection).toEqual({ shapeIndex: 0, ringIndex: -1 });
+    const extraShape = run(editing, { type: "OUTLINE_COMMITTED", outline: [...ringB, ...ringC] }, { type: "SELECT_RING", selection: { shapeIndex: 1, ringIndex: -1 } });
+    expect(run(extraShape, { type: "UNDO" }).selection).toBeNull();
+  });
+});
+
 describe("undo / redo", () => {
   it("tracks manual edits independently of detection and refinement history", () => {
     const hasEdits = (state: TraceState) => state.history.stack[state.history.index].hasManualEdits === true;
