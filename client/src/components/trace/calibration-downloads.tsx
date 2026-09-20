@@ -23,7 +23,7 @@ export function CalibrationDownloads({ onPaperSelected, onDetectMarkers, open: c
         <p className="text-xs text-muted-foreground">
           <DialogTrigger asChild>
             <button type="button" className="font-medium text-primary underline underline-offset-2 hover:no-underline">
-              Download calibration templates
+              Download printable calibration templates
             </button>
           </DialogTrigger>
         </p>

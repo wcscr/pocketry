@@ -24,7 +24,7 @@ afterEach(() => { React.act(() => root.unmount()); host.remove(); vi.unstubAllGl
 
 describe("calibration download dialog", () => {
   it("hides download details until requested and offers only current sheets and 3MF aids", async () => {
-    expect(host.textContent).toBe("Download calibration templates");
+    expect(host.textContent).toBe("Download printable calibration templates");
     expect(document.querySelector('[role="dialog"]')).toBeNull();
     await React.act(async () => host.querySelector("button")!.click());
     const dialog = document.querySelector('[role="dialog"]')!;

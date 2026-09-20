@@ -256,7 +256,7 @@ describe("Trace detection workflow", () => {
     expect(host.textContent).not.toContain("Paper sheets and");
     expect(host.querySelector('[aria-label="Download a measurement aid as 3MF"]')).toBeNull();
     expect(host.textContent).not.toContain("A4 PDF");
-    expect([...host.querySelectorAll("button")].filter((button) => button.textContent === "Download calibration templates")).toHaveLength(1);
+    expect([...host.querySelectorAll("button")].filter((button) => button.textContent === "Download printable calibration templates")).toHaveLength(1);
   });
 
   it("keeps the current photo visible until its replacement is decoded", async () => {

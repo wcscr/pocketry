@@ -241,7 +241,7 @@ describe("App", () => {
     expect(help?.textContent).toContain(
       "all four paper-specific markers are required",
     );
-    expect(help?.textContent).toContain("Download calibration templates");
+    expect(help?.textContent).toContain("Download printable calibration templates");
     expect(help?.textContent).not.toContain("Paper sheets and");
     expect(help?.querySelector('[aria-label="Download a measurement aid as 3MF"]')).toBeNull();
     expect(help?.textContent).toContain("another item with a precisely known dimension");
