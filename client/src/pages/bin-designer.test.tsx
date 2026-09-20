@@ -2478,6 +2478,35 @@ describe("BinDesignerPage", () => {
     }
   });
 
+  it("focuses and reveals the current project instead of the first library row", async () => {
+    const currentId = 'current"[project]';
+    const projects = [
+      { id: "first", name: "First tray", updatedAt: "2026-09-12T12:00:00.000Z" },
+      { id: currentId, name: "Current tray", updatedAt: "2026-09-12T12:00:00.000Z" },
+    ];
+    vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId: currentId, projects });
+    const reveal = vi.fn();
+    const previousScroll = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollIntoView");
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: reveal });
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      openSettingsSection(container, "project");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
+      const rows = [...document.querySelectorAll<HTMLElement>('[data-testid="managed-project-list"] [data-project-id]')];
+      expect(document.activeElement).toBe(rows[1]);
+      expect(rows[1].dataset.projectId).toBe(currentId);
+      expect(rows[1].dataset.selected).toBe("true");
+      expect(rows[0].dataset.selected).toBe("false");
+      expect(reveal).toHaveBeenCalledWith({ block: "nearest", inline: "nearest" });
+      expect(reveal.mock.contexts.at(-1)).toBe(rows[1]);
+    } finally {
+      unmount();
+      if (previousScroll) Object.defineProperty(HTMLElement.prototype, "scrollIntoView", previousScroll);
+      else Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
+    }
+  });
+
   it("manages library removal separately, protects the open project, and preserves it when another is removed", async () => {
     const projects = [
       { id: "current", name: "Current tray", updatedAt: "2026-09-12T12:00:00.000Z" },
@@ -2586,6 +2615,97 @@ describe("BinDesignerPage", () => {
     expect(open().disabled).toBe(false);
     expect(container.querySelector('[data-testid="current-project-name-row"] p[title]')?.textContent).toBe("Untitled project");
     unmount();
+  });
+
+  it.each(["Open button", "double-click", "Enter"])("protects an unnamed draft before opening with %s", async (action) => {
+    const draft = parseProjectDoc(ryobiReloadFixture)!;
+    const project = { id: "saved", name: "Saved tray", updatedAt: "2026-09-12T12:00:00.000Z" };
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(draft);
+    vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId: null, projects: [project] });
+    vi.mocked(ProjectPersistence.openProjectFromLibrary).mockResolvedValue({
+      doc: EMPTY_PROJECT, project, library: { activeProjectId: project.id, projects: [project] },
+    });
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      openSettingsSection(container, "project");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
+      await flushHydration();
+      const row = document.querySelector<HTMLElement>('[data-testid="library-project-saved"]')!;
+      const requestOpen = async () => React.act(async () => {
+        row.focus();
+        if (action === "Open button") row.querySelector<HTMLButtonElement>('[data-testid="button-open-project-saved"]')!.click();
+        else row.dispatchEvent(action === "Enter"
+          ? new KeyboardEvent("keydown", { key: "Enter", bubbles: true })
+          : new MouseEvent("dblclick", { bubbles: true }));
+      });
+      await requestOpen();
+      expect(document.querySelector('[role="alertdialog"]')?.textContent).toContain("Replace the current draft?");
+      expect(document.querySelector('[role="alertdialog"]')?.textContent).toContain("Saved tray");
+      expect(ProjectPersistence.openProjectFromLibrary).not.toHaveBeenCalled();
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toEqual(draft.cutouts);
+      const keep = document.querySelector<HTMLButtonElement>('[role="alertdialog"] button')!;
+      expect(keep.textContent).toBe("Keep working");
+      React.act(() => keep.click());
+      // Radix restores focus after the closing focus scope has unmounted.
+      await React.act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+      expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+      expect(document.activeElement).toBe(row);
+      expect(ProjectPersistence.openProjectFromLibrary).not.toHaveBeenCalled();
+      await requestOpen();
+      await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-discard-draft-open"]')!.click());
+      expect(ProjectPersistence.openProjectFromLibrary).toHaveBeenCalledExactlyOnceWith("saved");
+      expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+      expect(document.querySelector('[data-testid="managed-project-list"]')).toBeNull();
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toEqual([]);
+    } finally { unmount(); }
+  });
+
+  it("protects settings-only drafts and preserves the confirmation and draft after a failed open", async () => {
+    const draft = { ...EMPTY_PROJECT, spec: parseBinSpec({ ...EMPTY_PROJECT.spec, gridX: 3 }) };
+    const project = { id: "saved", name: "Saved tray", updatedAt: "2026-09-12T12:00:00.000Z" };
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(draft);
+    vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId: null, projects: [project] });
+    let rejectOpen!: (error: Error) => void;
+    vi.mocked(ProjectPersistence.openProjectFromLibrary).mockReturnValue(new Promise((_, reject) => { rejectOpen = reject; }));
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      openSettingsSection(container, "project");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
+      await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-open-project-saved"]')!.click());
+      expect(ProjectPersistence.openProjectFromLibrary).not.toHaveBeenCalled();
+      const confirm = () => document.querySelector<HTMLButtonElement>('[data-testid="button-discard-draft-open"]')!;
+      await React.act(async () => confirm().click());
+      expect(confirm().disabled).toBe(true);
+      expect(confirm().textContent).toBe("Opening…");
+      React.act(() => confirm().click());
+      expect(ProjectPersistence.openProjectFromLibrary).toHaveBeenCalledOnce();
+      await React.act(async () => rejectOpen(new Error("Storage unavailable")));
+      expect(document.querySelector('[role="alertdialog"]')).not.toBeNull();
+      expect(confirm().disabled).toBe(false);
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toEqual(draft.spec);
+      React.act(() => document.querySelector<HTMLButtonElement>('[role="alertdialog"] button')!.click());
+      expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+      expect(document.querySelector('[data-testid="managed-project-list"]')).not.toBeNull();
+    } finally { unmount(); }
+  });
+
+  it("opens a saved project directly from an untouched empty draft", async () => {
+    const project = { id: "saved", name: "Saved tray", updatedAt: "2026-09-12T12:00:00.000Z" };
+    vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId: null, projects: [project] });
+    vi.mocked(ProjectPersistence.openProjectFromLibrary).mockResolvedValue({
+      doc: EMPTY_PROJECT, project, library: { activeProjectId: project.id, projects: [project] },
+    });
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      openSettingsSection(container, "project");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
+      await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-open-project-saved"]')!.click());
+      expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+      expect(ProjectPersistence.openProjectFromLibrary).toHaveBeenCalledExactlyOnceWith("saved");
+    } finally { unmount(); }
   });
 
   it.each(["current", "saved"])("copies the %s project after its source while retaining focus and the open design", async (id) => {

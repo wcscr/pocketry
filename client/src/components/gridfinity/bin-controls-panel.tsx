@@ -24,6 +24,7 @@ import {
   Spline,
   Trash2,
   Upload,
+  X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useLocation } from "wouter";
@@ -83,6 +84,7 @@ import { Button } from "@/components/ui/button";
 import { DraftNumberInput } from "@/components/ui/draft-number-input";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -125,7 +127,7 @@ import { changeBinGridPitchPreservingSize } from "@shared/gridfinity/grid-pitch"
 import { PocketDepthSummary, PocketMeasurements, PocketSizeInputs, PositionInputs } from "./pocket-measurements";
 import { ExportConfirmationDialog, ProjectBackupOption } from "./export-confirmation-dialog";
 import { FingerAccessShapeControls } from "./finger-access-shape-controls";
-import { useBin } from "@/state/bin-store";
+import { INITIAL_BIN_SPEC, useBin } from "@/state/bin-store";
 import { useShapeLibrary } from "@/state/shape-library";
 
 /** Slider ceiling for height; the schema allows more, the UI keeps it sane. */
@@ -329,6 +331,7 @@ export function BinControlsPanel({
     pendingRemovalId,
     editorMode,
     hydrated,
+    history,
     dispatch,
   } = useBin();
   const [, navigate] = useLocation();
@@ -525,6 +528,9 @@ export function BinControlsPanel({
             busy={projectBusy}
             saveStatus={saveStatus}
             activeProjectId={activeProjectId}
+            hasDraftWork={!!currentProjectName || keepBinSize || shapes.length > 0 || cutouts.length > 0
+              || fingerHoles.length > 0 || history.stack.length > 1
+              || JSON.stringify(spec) !== JSON.stringify(INITIAL_BIN_SPEC)}
             currentProjectName={currentProjectName}
             projects={projects}
             onSaveProject={onSaveProject}
@@ -2054,6 +2060,7 @@ interface ProjectControlsProps {
   libraryReady: boolean;
   busy: boolean;
   activeProjectId: string | null;
+  hasDraftWork: boolean;
   currentProjectName: string | null;
   projects: ProjectLibraryItem[];
   onSaveProject: (name: string) => Promise<boolean>;
@@ -2076,6 +2083,7 @@ function ProjectControls({
   libraryReady,
   busy,
   activeProjectId,
+  hasDraftWork,
   currentProjectName,
   projects,
   onSaveProject,
@@ -2095,11 +2103,26 @@ function ProjectControls({
   const [saveOpen, setSaveOpen] = useState(false);
   const [renameProjectId, setRenameProjectId] = useState<string | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
+  const [pendingOpenProject, setPendingOpenProject] = useState<ProjectLibraryItem | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [projectName, setProjectName] = useState("");
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const libraryImportInputRef = useRef<HTMLInputElement | null>(null);
   const libraryDialogRef = useRef<HTMLDivElement | null>(null);
+  const openProjectSourceRef = useRef<HTMLElement | null>(null);
+
+  const openLibraryProject = async (project: ProjectLibraryItem, discardDraft = false) => {
+    if (busy || project.id === activeProjectId) return;
+    if (!activeProjectId && hasDraftWork && !discardDraft) {
+      openProjectSourceRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      setPendingOpenProject(project);
+      return;
+    }
+    if (await onOpenProject(project.id)) {
+      setPendingOpenProject(null);
+      setLibraryOpen(false);
+    }
+  };
 
   const renderNameDialog = (project?: ProjectLibraryItem): JSX.Element => {
     const renaming = !!project || !!activeProjectId;
@@ -2188,25 +2211,38 @@ function ProjectControls({
       </DialogTrigger>
       <DialogContent
         ref={libraryDialogRef}
-        className="flex max-h-[85dvh] flex-col overflow-hidden p-4 sm:p-6"
+        className="flex max-h-[85dvh] flex-col overflow-hidden p-4 sm:p-6 [&>button]:hidden [@media(max-height:500px)]:max-h-[calc(100dvh_-_2rem)] [@media(max-height:500px)]:overflow-y-auto [@media(max-height:500px)]:scroll-pt-[var(--library-header-height)]"
         onOpenAutoFocus={(event) => {
           event.preventDefault();
+          const header = libraryDialogRef.current?.querySelector<HTMLElement>('[data-testid="library-manager-header"]');
+          // Reserve the sticky header when revealing a row on short screens.
+          libraryDialogRef.current?.style.setProperty("--library-header-height", `${(header?.offsetHeight ?? 0) + 24}px`);
           // Keep opening an empty library from focusing and expanding its help hint.
-          libraryDialogRef.current?.querySelector<HTMLElement>(
-            '[data-testid="managed-project-list"] [role="group"], [data-testid="button-export-library"]',
-          )?.focus({ preventScroll: true });
+          const rows = [...(libraryDialogRef.current?.querySelectorAll<HTMLElement>(
+            '[data-testid="managed-project-list"] [data-project-id]',
+          ) ?? [])];
+          // Compare the data value rather than interpolating a saved ID into CSS.
+          const target = rows.find((row) => row.dataset.projectId === activeProjectId) ?? rows[0]
+            ?? libraryDialogRef.current?.querySelector<HTMLElement>('[data-testid="button-export-library"]');
+          target?.focus({ preventScroll: true });
+          target?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
         }}
       >
-        <DialogHeader>
+        <DialogHeader data-testid="library-manager-header" className="relative shrink-0 pr-10 bg-background before:pointer-events-none before:absolute before:-inset-x-4 before:-top-4 before:h-4 before:bg-background [@media(max-height:500px)]:sticky [@media(max-height:500px)]:top-0 [@media(max-height:500px)]:z-10">
           <DialogTitle>Manage browser library</DialogTitle>
           <DialogDescription>
             {projects.length} saved project{projects.length === 1 ? "" : "s"} in this browser.
             Open a project here, or import and export the entire library below.
           </DialogDescription>
+          <DialogClose asChild>
+            <Button variant="ghost" size="icon" className="absolute -right-2 -top-2 !mt-0 h-11 w-11" aria-label="Close">
+              <X className="h-4 w-4" />
+            </Button>
+          </DialogClose>
         </DialogHeader>
         <ScrollArea
           type="auto"
-          className="min-h-0 [&_[data-radix-scroll-area-viewport]]:max-h-[min(20rem,calc(85dvh_-_15rem))] [&_[data-orientation=vertical]]:bg-muted/50 [&_[data-orientation=vertical]>div]:bg-muted-foreground/50"
+          className="min-h-0 [&_[data-radix-scroll-area-viewport]]:max-h-[min(20rem,calc(85dvh_-_15rem))] [@media(max-height:500px)]:shrink-0 [@media(max-height:500px)]:[&_[data-radix-scroll-area-viewport]]:max-h-none [&_[data-orientation=vertical]]:bg-muted/50 [&_[data-orientation=vertical]>div]:bg-muted-foreground/50"
           data-testid="manage-library-scroll"
         >
         <div className="space-y-2 pr-4" data-testid="managed-project-list">
@@ -2217,10 +2253,7 @@ function ProjectControls({
           ) : (
             projects.map((project) => {
               const active = project.id === activeProjectId;
-              const openProject = async () => {
-                if (busy || active) return;
-                if (await onOpenProject(project.id)) setLibraryOpen(false);
-              };
+              const openProject = () => openLibraryProject(project);
               return (
                 <div
                   key={project.id}
@@ -2230,6 +2263,7 @@ function ProjectControls({
                     (project.id === selectedProjectId) && "border-primary/50 bg-primary/5",
                   )}
                   data-testid={`library-project-${project.id}`}
+                  data-project-id={project.id}
                   data-selected={project.id === selectedProjectId}
                   role="group"
                   aria-label={project.name}
@@ -2266,7 +2300,7 @@ function ProjectControls({
                       Updated {formatProjectTime(project.updatedAt)}
                     </p>
                   </div>
-                  <div className="ml-auto flex shrink-0 items-center gap-1.5">
+                  <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-1.5">
                   <Button
                     size="sm"
                     variant={active ? "secondary" : "outline"}
@@ -2357,6 +2391,37 @@ function ProjectControls({
             event.currentTarget.value = "";
             if (file) onImportLibrary(file);
           }} />
+        <AlertDialog open={pendingOpenProject !== null} onOpenChange={(open) => {
+          if (!open && !busy) setPendingOpenProject(null);
+        }}>
+          <AlertDialogContent onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            if (openProjectSourceRef.current?.isConnected) openProjectSourceRef.current.focus({ preventScroll: true });
+          }}>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Replace the current draft?</AlertDialogTitle>
+              <AlertDialogDescription className="break-words">
+                This draft has work that is not saved in your library. Opening “{pendingOpenProject?.name}”
+                {" "}will replace it. Keep working to save or export the draft first.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="min-h-11" disabled={busy}>Keep working</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={busy}
+                className="min-h-11 bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={(event) => {
+                  // Keep the choice available if loading the saved project fails.
+                  event.preventDefault();
+                  if (pendingOpenProject) void openLibraryProject(pendingOpenProject, true);
+                }}
+                data-testid="button-discard-draft-open"
+              >
+                {busy ? "Opening…" : "Discard draft and open"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </DialogContent>
     </Dialog>
   );

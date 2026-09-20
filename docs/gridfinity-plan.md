@@ -135,6 +135,14 @@ design, opening a project file, and New Project all save the outgoing named
 design's latest edits before changing the autosave target. A failed save keeps
 the current design open. Library import/export also lives in Manage; the main
 Project section retains only current-project file transfers. The library is
+guarded against accidentally replacing a nonempty unnamed draft: Open, Enter,
+and double-click all ask for confirmation, with Keep working as the safe choice.
+Empty untouched drafts open directly, and named projects retain the save-before-open
+behavior. A failed open keeps the draft and confirmation available. On short
+screens, Manage scrolls as a whole so project rows and library transfers remain
+reachable; narrow rows wrap their actions within the card. Manage focuses and
+scrolls to the current project when opened, falling back to the first project or
+the export action in an empty library. The library is
 implemented entirely over IndexedDB so its behavior is consistent across modern
 browsers; JSON remains an explicit backup/transfer path whose download location
 is browser-controlled.
