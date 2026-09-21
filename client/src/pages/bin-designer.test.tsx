@@ -116,6 +116,7 @@ vi.mock("@/lib/project/persist", () => ({
   duplicateProjectInLibrary: vi.fn(),
   exportProjectLibrary: vi.fn(),
   importProjectLibrary: vi.fn(),
+  importProjectToLibrary: vi.fn(),
   startNewProject: vi.fn(async () => ({ activeProjectId: null, projects: [] })),
   createDebouncedProjectSaver: (_delay: number, onSaved?: (success: boolean) => void) => {
     projectSaveMock.onSaved = onSaved;
@@ -222,6 +223,10 @@ beforeEach(() => {
   vi.mocked(ProjectPersistence.startNewProject).mockResolvedValue({
     activeProjectId: null,
     projects: [],
+  });
+  vi.mocked(ProjectPersistence.importProjectToLibrary).mockImplementation(async (doc) => {
+    const project = { id: "imported", name: doc.name ?? "Imported project", updatedAt: "2026-09-21T12:00:00.000Z" };
+    return { doc: { ...doc, name: project.name }, project, library: { activeProjectId: project.id, projects: [project] } };
   });
   vi.mocked(ProjectPersistence.saveProjectToLibrary).mockImplementation(
     async (_doc, name, projectId) => ({
@@ -417,16 +422,17 @@ describe("BinDesignerPage", () => {
           await React.act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
         }
       };
+      const replaceProject = action === "new" ? ProjectPersistence.startNewProject : ProjectPersistence.importProjectToLibrary;
       await replace();
       expect(ProjectPersistence.saveProjectDoc).toHaveBeenCalledWith(expect.objectContaining({ cutouts: edited }), "cutter");
-      expect(ProjectPersistence.startNewProject).not.toHaveBeenCalled();
+      expect(replaceProject).not.toHaveBeenCalled();
       await React.act(async () => finishSave(false));
-      expect(ProjectPersistence.startNewProject).not.toHaveBeenCalled();
+      expect(replaceProject).not.toHaveBeenCalled();
       expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toEqual(edited);
       await replace();
-      expect(ProjectPersistence.startNewProject).not.toHaveBeenCalled();
+      expect(replaceProject).not.toHaveBeenCalled();
       await React.act(async () => finishSave(true));
-      expect(ProjectPersistence.startNewProject).toHaveBeenCalledOnce();
+      expect(replaceProject).toHaveBeenCalledOnce();
       expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toEqual([]);
     } finally { unmount(); }
   });
@@ -2726,6 +2732,41 @@ describe("BinDesignerPage", () => {
     }
   });
 
+  it("adds an opened project file to the library and highlights it instead of the previous project", async () => {
+    const previous = { id: "previous", name: "Previous tray", updatedAt: "2026-09-20T12:00:00.000Z" };
+    const imported = { id: "imported", name: "Imported tray (imported)", updatedAt: "2026-09-21T12:00:00.000Z" };
+    const doc = { ...EMPTY_PROJECT, name: "Imported tray", spec: parseBinSpec({ ...EMPTY_PROJECT.spec, gridX: 4 }) };
+    const savedLibrary = { activeProjectId: imported.id, projects: [previous, imported] };
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(EMPTY_PROJECT);
+    vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId: previous.id, projects: [previous] });
+    vi.mocked(ProjectPersistence.importProjectToLibrary).mockImplementationOnce(async () => {
+      vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue(savedLibrary);
+      return { doc: { ...doc, name: imported.name }, project: imported, library: savedLibrary };
+    });
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      openSettingsSection(container, "project");
+      const input = container.querySelector<HTMLInputElement>('input[type="file"][accept*=".pocketry.json"]')!;
+      const file = new File([], "Imported tray.pocketry.json");
+      Object.defineProperty(file, "text", { value: async () => JSON.stringify(doc) });
+      Object.defineProperty(input, "files", { value: [file], configurable: true });
+      await React.act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
+      expect(container.querySelector('[data-testid="current-project-title"]')?.textContent).toBe(imported.name);
+      expect(ProjectPersistence.saveProjectDoc).toHaveBeenCalledWith(expect.objectContaining({ name: previous.name }), previous.id);
+      expect(ProjectPersistence.importProjectToLibrary).toHaveBeenCalledExactlyOnceWith(doc);
+      expect(ProjectPersistence.startNewProject).not.toHaveBeenCalled();
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toEqual(doc.spec);
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
+      await flushHydration();
+      const row = document.querySelector<HTMLElement>('[data-testid="library-project-imported"]')!;
+      expect(row.dataset.selected).toBe("true");
+      expect(document.activeElement).toBe(row);
+      expect(document.querySelector('[data-testid="library-project-previous"]')?.getAttribute("data-selected")).toBe("false");
+      expect(document.querySelector<HTMLButtonElement>('[data-testid="button-open-project-imported"]')!.disabled).toBe(true);
+    } finally { unmount(); }
+  });
+
   it("manages library removal separately, protects the open project, and preserves it when another is removed", async () => {
     const projects = [
       { id: "current", name: "Current tray", updatedAt: "2026-09-12T12:00:00.000Z" },
@@ -2923,7 +2964,7 @@ describe("BinDesignerPage", () => {
       Object.defineProperty(input, "files", { value: [file], configurable: true });
       await React.act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
       expect(document.querySelector('[role="alertdialog"]')).toBeNull();
-      expect(ProjectPersistence.startNewProject).not.toHaveBeenCalled();
+      expect(ProjectPersistence.importProjectToLibrary).not.toHaveBeenCalled();
       expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toEqual(draft.spec);
     } finally { unmount(); }
   });
@@ -2960,7 +3001,7 @@ describe("BinDesignerPage", () => {
       await React.act(async () => finishRead(JSON.stringify(EMPTY_PROJECT)));
       if (kind === "draft") {
         expect(document.querySelector('[role="alertdialog"]')?.textContent).toContain("Replace the current draft?");
-        expect(ProjectPersistence.startNewProject).not.toHaveBeenCalled();
+        expect(ProjectPersistence.importProjectToLibrary).not.toHaveBeenCalled();
         expect(vi.mocked(useBinGeometry).mock.lastCall![0].heightUnits).toBe(9);
         React.act(() => document.querySelector<HTMLButtonElement>('[role="alertdialog"] button')!.click());
         expect(vi.mocked(useBinGeometry).mock.lastCall![0].heightUnits).toBe(9);
@@ -2968,7 +3009,7 @@ describe("BinDesignerPage", () => {
         expect(ProjectPersistence.saveProjectDoc).toHaveBeenCalledWith(expect.objectContaining({
           spec: expect.objectContaining({ heightUnits: 9 }),
         }), "current");
-        expect(ProjectPersistence.startNewProject).toHaveBeenCalledExactlyOnceWith({ ...EMPTY_PROJECT, name: "Replacement" });
+        expect(ProjectPersistence.importProjectToLibrary).toHaveBeenCalledExactlyOnceWith({ ...EMPTY_PROJECT, name: "Replacement" });
       }
     } finally { unmount(); }
   });
@@ -2989,7 +3030,7 @@ describe("BinDesignerPage", () => {
       Object.defineProperty(input, "files", { value: [second], configurable: true });
       await React.act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
       await React.act(async () => finishFirst(JSON.stringify(EMPTY_PROJECT)));
-      expect(ProjectPersistence.startNewProject).toHaveBeenCalledExactlyOnceWith({ ...EMPTY_PROJECT, name: "Second" });
+      expect(ProjectPersistence.importProjectToLibrary).toHaveBeenCalledExactlyOnceWith({ ...EMPTY_PROJECT, name: "Second" });
       expect(document.querySelector('[role="alertdialog"]')).toBeNull();
       expect(container.querySelector('[data-testid="current-project-name-row"] p[title]')?.textContent).toBe("Second");
     } finally { unmount(); }
@@ -3007,7 +3048,7 @@ describe("BinDesignerPage", () => {
     React.act(() => input.dispatchEvent(new Event("change", { bubbles: true })));
     unmount();
     await React.act(async () => finishRead(JSON.stringify(EMPTY_PROJECT)));
-    expect(ProjectPersistence.startNewProject).not.toHaveBeenCalled();
+    expect(ProjectPersistence.importProjectToLibrary).not.toHaveBeenCalled();
     expect(ProjectPersistence.saveProjectDoc).not.toHaveBeenCalled();
     expect(document.querySelector('[role="alertdialog"]')).toBeNull();
   });
@@ -3035,9 +3076,9 @@ describe("BinDesignerPage", () => {
         React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-new-project"]')!.click());
         await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-confirm-new-project"]')!.click());
       }
-      const importsBeforeRead = vi.mocked(ProjectPersistence.startNewProject).mock.calls.length;
+      const importsBeforeRead = vi.mocked(ProjectPersistence.importProjectToLibrary).mock.calls.length;
       await React.act(async () => finishRead(JSON.stringify(EMPTY_PROJECT)));
-      expect(ProjectPersistence.startNewProject).toHaveBeenCalledTimes(importsBeforeRead);
+      expect(ProjectPersistence.importProjectToLibrary).toHaveBeenCalledTimes(importsBeforeRead);
       expect(document.querySelector('[role="alertdialog"]')).toBeNull();
       expect(container.querySelector('[data-testid="current-project-name-row"] p[title]')?.textContent).toBe(choice === "library" ? "Saved tray" : "Untitled project");
     } finally { unmount(); }
@@ -3059,12 +3100,12 @@ describe("BinDesignerPage", () => {
       Object.defineProperty(input, "files", { value: [file], configurable: true });
       await React.act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
       expect(document.querySelector('[role="alertdialog"]')?.textContent).toContain('Opening “Replacement”');
-      expect(ProjectPersistence.startNewProject).not.toHaveBeenCalled();
+      expect(ProjectPersistence.importProjectToLibrary).not.toHaveBeenCalled();
       React.act(() => document.querySelector<HTMLButtonElement>('[role="alertdialog"] button')!.click());
       await React.act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
       expect(document.querySelector('[role="alertdialog"]')).toBeNull();
       expect(document.activeElement).toBe(button);
-      expect(ProjectPersistence.startNewProject).not.toHaveBeenCalled();
+      expect(ProjectPersistence.importProjectToLibrary).not.toHaveBeenCalled();
       expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toEqual(draft.cutouts);
     } finally { unmount(); }
   });
@@ -3073,7 +3114,7 @@ describe("BinDesignerPage", () => {
     const draft = { ...EMPTY_PROJECT, spec: parseBinSpec({ ...EMPTY_PROJECT.spec, gridX: 3 }) };
     vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(draft);
     let rejectOpen!: (error: Error) => void;
-    vi.mocked(ProjectPersistence.startNewProject).mockReturnValueOnce(new Promise((_, reject) => { rejectOpen = reject; }));
+    vi.mocked(ProjectPersistence.importProjectToLibrary).mockReturnValueOnce(new Promise((_, reject) => { rejectOpen = reject; }));
     const { container, unmount } = renderPage();
     try {
       await flushHydration();
@@ -3085,17 +3126,17 @@ describe("BinDesignerPage", () => {
       Object.defineProperty(file, "text", { value: readFile });
       Object.defineProperty(input, "files", { value: [file], configurable: true });
       await React.act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
-      expect(ProjectPersistence.startNewProject).not.toHaveBeenCalled();
+      expect(ProjectPersistence.importProjectToLibrary).not.toHaveBeenCalled();
       const confirm = () => document.querySelector<HTMLButtonElement>('[data-testid="button-discard-draft-open"]')!;
       await React.act(async () => confirm().click());
       expect(confirm().disabled).toBe(true);
       React.act(() => confirm().click());
-      expect(ProjectPersistence.startNewProject).toHaveBeenCalledExactlyOnceWith({ ...EMPTY_PROJECT, name: "Replacement" });
+      expect(ProjectPersistence.importProjectToLibrary).toHaveBeenCalledExactlyOnceWith({ ...EMPTY_PROJECT, name: "Replacement" });
       await React.act(async () => rejectOpen(new Error("Storage unavailable")));
       expect(confirm().disabled).toBe(false);
       expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toEqual(draft.spec);
       await React.act(async () => confirm().click());
-      expect(ProjectPersistence.startNewProject).toHaveBeenCalledTimes(2);
+      expect(ProjectPersistence.importProjectToLibrary).toHaveBeenCalledTimes(2);
       expect(readFile).toHaveBeenCalledOnce();
       expect(document.querySelector('[role="alertdialog"]')).toBeNull();
       expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toEqual(EMPTY_PROJECT.spec);
