@@ -1,0 +1,48 @@
+{
+  "renderer": "client/src/components/gridfinity/bin-viewport.tsx",
+  "sourceProject": "pocketry-icon.pocketry.json",
+  "binBody": "#38414d",
+  "pocketFloor": "#ff8a1f",
+  "stackingRim": "#ff8a1f",
+  "camera": {
+    "position": [
+      18,
+      -45,
+      108
+    ],
+    "target": [
+      0,
+      0,
+      12.3
+    ],
+    "up": [
+      0,
+      0,
+      1
+    ],
+    "fov": 35,
+    "aspect": 1
+  },
+  "capture": {
+    "width": 2048,
+    "height": 2048,
+    "pixelRatio": 1,
+    "background": "transparent",
+    "grid": false,
+    "lighting": "unchanged Pocketry default"
+  },
+  "social": {
+    "width": 1024,
+    "height": 1024,
+    "background": "#f5f3ef"
+  },
+  "faviconSizes": [
+    16,
+    32,
+    48,
+    64,
+    256
+  ],
+  "stackingRimThicknessMm": 1.25,
+  "pocketFloorThicknessMm": 0.6
+}
