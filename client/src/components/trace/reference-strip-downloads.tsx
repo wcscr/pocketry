@@ -19,8 +19,8 @@ export function ReferenceStripDownloads(): JSX.Element {
   }
 
   return (
-    <div className="space-y-2 rounded-md border p-3 text-left">
-      <p className="text-sm font-medium">3D printable measurement aids</p>
+    <section className="space-y-2 rounded-md border p-3 text-left" aria-label="3D printable aids">
+      <h3 className="text-sm font-medium">3D printable aids</h3>
       <p className="text-xs text-muted-foreground">
         Place an aid flat on top of a thick tool, near the edge you want to
         measure. Keep both markers and the outline visible and shoot straight down.
@@ -31,7 +31,7 @@ export function ReferenceStripDownloads(): JSX.Element {
           <Button key={size} variant="outline" size="sm"
             aria-label={`Download ${size} mm measurement aid as 3MF`}
             disabled={building !== null} onClick={() => void download(size)}>
-            {building === size ? `Building ${size} mm…` : `${size} mm`}
+            {building === size ? `Building ${size} mm…` : `${size} mm 3MF`}
           </Button>
         ))}
       </div>
@@ -43,6 +43,6 @@ export function ReferenceStripDownloads(): JSX.Element {
         and assign opaque white to the carrier and black to the markings. Use one
         aid per photo and check a tool dimension before printing a pocket.
       </p>
-    </div>
+    </section>
   );
 }

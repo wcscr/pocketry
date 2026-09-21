@@ -12,6 +12,8 @@ import type { TraceDraft } from "@shared/trace-draft";
 import { generateSTL } from "@/lib/export/stl";
 import { parseProjectDoc } from "@shared/gridfinity/project";
 import type { Outline } from "@shared/geometry/types";
+import { autoCalibrate, type AutoCalibrationResult } from "@/lib/calibrate/auto-calibrate";
+import type { DetectionFrame } from "@/components/trace/use-image-source";
 
 import TracePage from "./trace";
 
@@ -77,6 +79,7 @@ vi.mock("@/lib/trace-draft", async (original) => ({
 
 vi.mock("@/lib/download", () => ({ downloadBlob: vi.fn() }));
 vi.mock("@/lib/export/stl", () => ({ generateSTL: vi.fn() }));
+vi.mock("@/lib/calibrate/auto-calibrate", () => ({ autoCalibrate: vi.fn() }));
 
 const exportOutline: Outline = [{ outer: [{ x: 10, y: 20 }, { x: 70, y: 20 }, { x: 70, y: 60 }, { x: 10, y: 60 }], holes: [] }];
 
@@ -132,6 +135,7 @@ vi.mock("@/components/trace/use-image-source", () => {
     decodeImageFile: decodeImageFileMock,
     fitWithin: () => ({ width: 800, height: 600 }),
     IMAGE_CANVAS_MAX: { width: 800, height: 600 },
+    AID_RETRY_CANVAS_MAX: { width: 2400, height: 2400 },
     useImageSource: (url: string | null) => {
       if (!url) return empty;
       if (!readySources.has(url)) readySources.set(url, { ...ready, source: { ...ready.source, url } });
@@ -209,6 +213,7 @@ describe("Trace detection workflow", () => {
     vi.mocked(loadTraceDraft).mockResolvedValue(null);
     vi.mocked(saveTraceDraft).mockResolvedValue();
     getDetectionFrameMock.mockReturnValue(null);
+    vi.mocked(autoCalibrate).mockReset().mockResolvedValue({ kind: "no-markers" });
     getImageDataMock.mockReturnValue({
       width: 300,
       height: 200,
@@ -224,6 +229,89 @@ describe("Trace detection workflow", () => {
     host = document.createElement("div");
     document.body.appendChild(host);
     root = createRoot(host);
+  });
+
+  const detectionFrame = (retry = false): DetectionFrame => ({
+    // Detection is mocked here; the photographic fixture covers the pixel data.
+    imageData: { width: retry ? 1800 : 1200, height: retry ? 2400 : 1600, data: new Uint8ClampedArray(0), colorSpace: "srgb" } as ImageData,
+    sourceImageUrl: "data:image/png;base64,source",
+    toWorking: { x: retry ? 0.25 : 0.375, y: retry ? 0.25 : 0.375 },
+  });
+  const detectedSheet = (factor = 1): Extract<AutoCalibrationResult, { kind: "calibrated" }> => ({
+    kind: "calibrated", paper: "letter", template: "letter-experimental", stripFallbackReason: "invalid-geometry",
+    calibration: { startX: 100 * factor, startY: 200 * factor, endX: 1100 * factor, endY: 200 * factor, lengthMm: 167.9 },
+    solution: { mmPerPx: 0.1679 / factor, markerIds: [12, 13, 14, 15], pairCount: 6, maxDeviation: 0.01,
+      ruler: { a: { x: 100 * factor, y: 200 * factor }, b: { x: 1100 * factor, y: 200 * factor }, lengthMm: 167.9 } },
+    perspectiveProposal: { source: "template", paper: "letter", template: "letter-experimental",
+      points: [{ x: 100 * factor, y: 200 * factor }, { x: 1100 * factor, y: 200 * factor }, { x: 1100 * factor, y: 1400 * factor }, { x: 100 * factor, y: 1400 * factor }] },
+    templateReprojectionErrorMm: 0.2,
+  });
+  const detectedAid = (): Extract<AutoCalibrationResult, { kind: "calibrated-strip" }> => ({
+    kind: "calibrated-strip",
+    calibration: { startX: 300, startY: 600, endX: 510, endY: 600, lengthMm: 35 },
+    solution: { mmPerPx: 1 / 6, markerIds: [22, 23], pairCount: 1, maxDeviation: 0.04,
+      ruler: { a: { x: 300, y: 600 }, b: { x: 510, y: 600 }, lengthMm: 35 } },
+  });
+
+  it.each([true, false])("retries a rejected aid and maps both references from their detection frames (retry finds paper=%s)", async (withPaper) => {
+    const first = detectionFrame(), retry = detectionFrame(true);
+    getDetectionFrameMock.mockImplementation((cap) => cap ? retry : first);
+    vi.mocked(autoCalibrate).mockResolvedValueOnce(detectedSheet()).mockResolvedValueOnce({
+      ...detectedAid(), ...(withPaper ? { sheet: detectedSheet(1.5) } : {}),
+    });
+    let current!: ReturnType<typeof useTrace>;
+    function Probe(): null { current = useTrace(); return null; }
+    await React.act(async () => root.render(<PanelProvider><TraceProvider><WorkflowController /><Probe /><TracePage /></TraceProvider></PanelProvider>));
+    expect(autoCalibrate).toHaveBeenCalledTimes(2);
+    expect(autoCalibrate).toHaveBeenNthCalledWith(2, retry.imageData);
+    expect(getDetectionFrameMock).toHaveBeenCalledWith({ width: 2400, height: 2400 });
+    expect(current.pendingCalibrationSource).toBe("strip");
+    expect(current.pendingAutoCalibration).toEqual({ startX: 75, startY: 150, endX: 127.5, endY: 150, lengthMm: 35 });
+    expect(current.pendingPaperCalibration).toEqual({ startX: 37.5, startY: 75, endX: 412.5, endY: 75, lengthMm: 167.9 });
+    expect(current.pendingPerspective?.points[0]).toEqual({ x: 37.5, y: 75 });
+    expect(current.calibration).toBeNull();
+  });
+
+  it.each(["rejected", "error"])("keeps the initial paper fallback when the higher-resolution aid fails (%s)", async (failure) => {
+    const first = detectionFrame(), retry = detectionFrame(true);
+    getDetectionFrameMock.mockImplementation((cap) => cap ? retry : first);
+    vi.mocked(autoCalibrate).mockResolvedValueOnce(detectedSheet());
+    if (failure === "error") vi.mocked(autoCalibrate).mockRejectedValueOnce(new Error("Could not allocate detection image"));
+    else vi.mocked(autoCalibrate).mockResolvedValueOnce({ kind: "invalid-strip", reason: "invalid-geometry" });
+    let current!: ReturnType<typeof useTrace>;
+    function Probe(): null { current = useTrace(); return null; }
+    await React.act(async () => root.render(<PanelProvider><TraceProvider><WorkflowController /><Probe /><TracePage /></TraceProvider></PanelProvider>));
+    expect(autoCalibrate).toHaveBeenCalledTimes(2);
+    expect(current.pendingCalibrationSource).toBe("sheet");
+    expect(current.pendingAutoCalibration).toEqual({ startX: 37.5, startY: 75, endX: 412.5, endY: 75, lengthMm: 167.9 });
+  });
+
+  it.each(["valid-aid", "paper-only", "no-markers", "native-size"])("avoids a second detector pass for %s", async (scenario) => {
+    const first = detectionFrame();
+    getDetectionFrameMock.mockReturnValue(first);
+    const paper = detectedSheet(); delete paper.stripFallbackReason;
+    vi.mocked(autoCalibrate).mockResolvedValueOnce(scenario === "valid-aid" ? detectedAid()
+      : scenario === "paper-only" ? paper : scenario === "native-size" ? detectedSheet() : { kind: "no-markers" });
+    await React.act(async () => root.render(<PanelProvider><TraceProvider><WorkflowController /><TracePage /></TraceProvider></PanelProvider>));
+    expect(autoCalibrate).toHaveBeenCalledTimes(1);
+    expect(getDetectionFrameMock).toHaveBeenCalledTimes(scenario === "native-size" ? 2 : 1);
+  });
+
+  it("discards a retry that finishes after the photo is replaced", async () => {
+    const first = detectionFrame(), retry = detectionFrame(true);
+    getDetectionFrameMock.mockImplementation((cap) => cap ? retry : first);
+    let finish!: (result: AutoCalibrationResult) => void;
+    vi.mocked(autoCalibrate).mockResolvedValueOnce(detectedSheet()).mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
+    let current!: ReturnType<typeof useTrace>;
+    function Probe(): null { current = useTrace(); return null; }
+    await React.act(async () => root.render(<PanelProvider><TraceProvider><WorkflowController /><Probe /><TracePage /></TraceProvider></PanelProvider>));
+    expect(autoCalibrate).toHaveBeenCalledTimes(2);
+    getDetectionFrameMock.mockReturnValue(null);
+    await React.act(async () => current.dispatch({ type: "SOURCE_LOADED", imageUrl: "data:image/png;base64,replacement", fileName: "replacement" }));
+    await React.act(async () => finish(detectedAid()));
+    expect(current.imageUrl).toBe("data:image/png;base64,replacement");
+    expect(current.pendingAutoCalibration).toBeNull();
+    expect(current.pendingCalibrationSource).toBeNull();
   });
 
   it("advances an accepted mobile scale to region drawing while the controls are unmounted", async () => {
@@ -502,7 +590,7 @@ describe("Trace detection workflow", () => {
     expect(host.textContent).not.toContain("Paper sheets and");
     expect(host.querySelector('[aria-label="Download a measurement aid as 3MF"]')).toBeNull();
     expect(host.textContent).not.toContain("A4 PDF");
-    expect([...host.querySelectorAll("button")].filter((button) => button.textContent === "Download printable calibration templates")).toHaveLength(1);
+    expect([...host.querySelectorAll("button")].filter((button) => button.textContent === "Download calibration aids")).toHaveLength(1);
   });
 
   it("keeps the current photo visible until its replacement is decoded", async () => {

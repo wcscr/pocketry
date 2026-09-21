@@ -56,6 +56,9 @@ export type ImageSource =
  */
 export const DETECTION_CANVAS_MAX: Size = { width: 1600, height: 1600 };
 
+/** One bounded retry for aid markers degraded by the normal detection downscale. */
+export const AID_RETRY_CANVAS_MAX: Size = { width: 2400, height: 2400 };
+
 export interface DetectionFrame {
   imageData: ImageData;
   /** Exact per-axis mapping from rounded detection pixels to working pixels. */
@@ -130,10 +133,10 @@ export interface UseImageSourceResult {
    */
   getImageData(region?: Rect | null): ImageData | null;
   /**
-   * The full frame at detection resolution ({@link DETECTION_CANVAS_MAX}),
+   * The full frame at the requested cap (normally {@link DETECTION_CANVAS_MAX}),
    * or `null` until the image is ready.
    */
-  getDetectionFrame(): DetectionFrame | null;
+  getDetectionFrame(detectMax?: Size): DetectionFrame | null;
 }
 
 /** Fits `natural` inside `max` without changing its aspect ratio. */
@@ -271,7 +274,7 @@ export function useImageSource(
     [source],
   );
 
-  const getDetectionFrame = useCallback((): DetectionFrame | null => {
+  const getDetectionFrame = useCallback((detectMax: Size = DETECTION_CANVAS_MAX): DetectionFrame | null => {
     const image = imageRef.current;
     if (!image || source.status !== "ready") return null;
 
@@ -279,7 +282,7 @@ export function useImageSource(
       source.naturalSize,
       rotation,
     );
-    const { detect, toWorking } = detectionGeometry(orientedNaturalSize, max);
+    const { detect, toWorking } = detectionGeometry(orientedNaturalSize, max, detectMax);
     const canvas = document.createElement("canvas");
     canvas.width = detect.width;
     canvas.height = detect.height;

@@ -4,7 +4,7 @@ import { mmPerPixel } from "@shared/geometry/scale";
 import type { Point } from "@shared/geometry/types";
 import { runAutoCalibration } from "./auto-calibrate";
 import { POCKETRY_ARUCO_BITS } from "./aruco-4x4";
-import { createPocketryTemplateDictionary } from "./detect";
+import { createPocketryTemplateDictionary, detectReferenceStripMarkers } from "./detect";
 import { REFERENCE_STRIP, referenceStripMarkers } from "./reference-strip";
 import { solveReferenceStrip } from "./solve-reference-strip";
 import { runPerspectiveCorrection } from "./perspective";
@@ -17,7 +17,7 @@ let cv: any;
 beforeAll(async () => { cv = await createRequire(import.meta.url)("../../../public/opencv/opencv.js"); }, 60000);
 
 /** Independent renderer: OpenCV produces the marker pixels, not our print code. */
-function photograph(options: { pxPerMm?: number; ids?: number[]; spacing?: number; markerSize?: number; sheet?: TemplateVariant; sheetIds?: number[]; squash?: number } = {}): ImageData {
+function photograph(options: { pxPerMm?: number; ids?: number[]; spacing?: number; markerSize?: number; sheet?: TemplateVariant; sheetIds?: number[]; squash?: number; cornerDefectPx?: number } = {}): ImageData {
   const width = 1400, height = 1000;
   const data = new Uint8ClampedArray(width * height * 4).fill(255);
   const dictionary = createPocketryTemplateDictionary(cv, POCKETRY_ARUCO_BITS.length);
@@ -34,6 +34,14 @@ function photograph(options: { pxPerMm?: number; ids?: number[]; spacing?: numbe
   try {
     const scale = options.pxPerMm ?? 4;
     (options.ids ?? [20, 21]).forEach((id, index) => put(id, 150 + index * (options.spacing ?? 80) * scale, 350, (options.markerSize ?? 15) * scale));
+    // A small white defect at one printed corner; the rest of the marker's
+    // outer edges and the centre-to-centre physical baseline are unchanged.
+    for (let y = 0; y < (options.cornerDefectPx ?? 0); y++) {
+      for (let x = 0; x < (options.cornerDefectPx ?? 0); x++) {
+        const at = ((350 + y) * width + 150 + x) * 4;
+        data[at] = data[at + 1] = data[at + 2] = 255;
+      }
+    }
     if (options.sheet) {
       for (const { id, x, y } of templateMarkerCentersMm(options.sheet)) {
         if (options.sheetIds && !options.sheetIds.includes(id)) continue;
@@ -73,6 +81,33 @@ function rasterizePdf(paper: "a4" | "letter"): ImageData {
 }
 
 describe("object reference strip", () => {
+  it.each([
+    { pxPerMm: 2, cornerDefectPx: 1 },
+    { pxPerMm: 3, cornerDefectPx: 1 },
+    { pxPerMm: 4, cornerDefectPx: 3 },
+  ])("recovers small corner defects without changing the physical scale: %j", (options) => {
+    const image = photograph({ ...options, ids: [22, 23], spacing: 35, markerSize: 9 });
+    const original = detectReferenceStripMarkers(cv, image);
+    expect(original.map(({ id }) => id).sort()).toEqual([22, 23]);
+    expect(solveReferenceStrip(original)).toBeNull();
+    const result = runAutoCalibration(cv, image);
+    expect(result.kind).toBe("calibrated-strip");
+    if (result.kind !== "calibrated-strip") return;
+    expect(result.calibration.lengthMm).toBe(35);
+    expect(Math.abs(mmPerPixel(result.calibration)! * options.pxPerMm - 1)).toBeLessThan(.005);
+  });
+
+  it("recovers a corner-defective aid while keeping the paper's independent perspective and scale", () => {
+    const image = photograph({ ids: [22, 23], spacing: 35, markerSize: 9,
+      pxPerMm: 2, cornerDefectPx: 1, sheet: "letter-experimental" });
+    const result = runAutoCalibration(cv, image);
+    expect(result.kind).toBe("calibrated-strip");
+    if (result.kind !== "calibrated-strip") return;
+    expect(mmPerPixel(result.calibration)).toBeCloseTo(.5, 3);
+    expect(result.sheet?.solution.mmPerPx).toBeCloseTo(1 / 3, 3);
+    expect(result.sheet?.perspectiveProposal.source).toBe("template");
+  });
+
   it.each([2, 4, 6])("detects a %s px/mm photograph with an 80 mm ruler, not 100 mm", (pxPerMm) => {
     const result = runAutoCalibration(cv, photograph({ pxPerMm }));
     expect(result.kind).toBe("calibrated-strip");

@@ -2,21 +2,32 @@
 
 Trace can calibrate from a reference resting on a thick object, reducing the
 apparent enlargement caused by measuring a raised edge against paper below it.
-**Download printable calibration templates** opens a shared dialog from the upload screen, **Scale**,
-or Help. It contains experimental A4 / US Letter corner-marker PDFs and
-**50, 100 or 200 mm** measurement aids. Click a size to download its two-colour
-**3MF** directly. Legacy sheets,
+**Download calibration aids** opens a shared dialog from the upload screen, **Scale**,
+or Help. The **Calibration aids** dialog has separate **Paper printable aids**
+and **3D printable aids** sections. Paper downloads include experimental A4 /
+US Letter corner-marker sheets and one sheet containing all three
+**50, 100 and 200 mm** measurement aids in either paper size. The 3D section
+offers the same lengths as two-colour
+**3MF** downloads. Legacy sheets,
 the original paper strip and recessed STL aids are no longer offered in the
 app. Previously printed marker families remain recognized. Generation and
 detection happen locally in the browser.
 
 ## Print and photograph
 
-- The new aids are exactly **50 / 100 / 200 × 15 × 2 mm** end to end. Each has its
+- The 3D aids are exactly **50 / 100 / 200 × 15 × 2 mm** end to end. Each has its
   length engraved/inlaid, 1 mm graduations on both long edges, and longer ticks
   at 5 and 10 mm. Measure from the left end face; interior numbers identify the
   10 mm ticks. The underside has a 0.3 mm, 45° chamfer, the top edge a 0.25 mm
   round, and the plan corners a 0.8 mm radius. Marker faces stay flat.
+- **Paper PDF:** print in landscape at **100% / Actual size**, with Fit to page
+  turned off. Verify the marker-centre spacing (**35 / 85 / 185 mm**), then cut
+  along the dashed line. The cut border adds **2 mm of white margin** around
+  the unchanged **50 / 100 / 200 × 15 mm** artwork. Mount on thin, rigid
+  backing if needed. Paper uses the same markers, labels and ruler ticks as
+  its corresponding 3MF aid. Cut out one aid per photo; do not photograph the
+  complete sheet. Downloading it does not change the selected
+  perspective-correction sheet size.
 - **3MF:** import as one assembly with two parts. Assign opaque white to the
   carrier and opaque black to the markers, label and graduations. Print flat,
   markers facing up, at 0.2 mm layers. The black inlays occupy the top 0.4 mm
@@ -45,8 +56,8 @@ detection happen locally in the browser.
   detected scale replaces it. A completed trace keeps its region and edits.
   **Correct perspective only**, under Advanced, leads to manual scale selection.
 - Verify one physical object dimension before printing a pocket. Calibration
-  is at the marker surface, including the aid's 2 mm thickness. Other object
-  heights, flex, perspective and lens distortion can still produce error. For
+  is at the marker surface, including the 3D aid's 2 mm thickness or any paper
+  backing. Other object heights, flex, perspective and lens distortion can still produce error. For
   an uneven object, measure the relevant dimension and set scale manually.
 
 Previously printed **100 × 20 mm paper strips** retain their original IDs and
@@ -119,6 +130,22 @@ The raw measured disagreement is still shown above 2% at review. For clearer
 markers, fill more of the photo with the tool while retaining both end markers.
 These tolerances accommodate sampling noise; they are not an accuracy guarantee.
 
+If a complete aid pair fails the normal subpixel corner fit, detection retries
+the same pixels using OpenCV's contour-based corner fit. This estimates the
+corners from the outer marker edges, reducing sensitivity to isolated corner
+defects. Both passes must identify the same unique pair; mixed, duplicate and
+multiple aids remain rejected. The same eight-corner, edge, baseline and paper
+perspective checks apply to both estimates. Paper detection is unchanged.
+
+Marker detection normally reads the photo at a maximum of 1600 pixels per
+side. If an aid is still detected but rejected, Pocketry retries once using the
+original photo at up to 2400 pixels per side, without upscaling smaller
+originals or relaxing the geometry checks. A successful retry maps its
+references into the same working-image coordinates. A failed retry preserves
+the first pass's paper fallback. Existing usable paper references remain
+available alongside a recovered aid, and replacement photos discard stale
+results. The working canvas and export scale are unchanged.
+
 The 3MF is a Manifold-built white carrier with complementary black inlays. Both
 parts are closed indexed meshes, share a flush top plane and form one assembled
 build item without overlapping volume. Recessed STL downloads were withdrawn
@@ -134,10 +161,11 @@ npm run generate:reference-strip
 npm run generate:reference-strip -- /tmp/pocketry-measurement-aids
 ```
 
-The output includes 3MF downloads, SVG top views, mesh data and a dimensions
-manifest. Tests exercise the shipped OpenCV detector against independent marker
+The output includes A4 / US Letter measurement-aid PDFs, 3MF downloads, SVG top
+views, mesh data and a dimensions manifest. Tests exercise the shipped OpenCV
+detector against independent marker
 photos, rotated rasters of the actual exported black mesh triangles, mixed
-sheet/strip planes, malformed signatures and the original PDF ink. Mesh checks
+sheet/strip planes, malformed signatures, and the original and new PDF ink. Mesh checks
 cover dimensions, closed/wound surfaces, edge profiles, non-overlap and
 multipart/material packaging. Real printer shrinkage, flexibility, opacity and
 photographic accuracy still require a physical print and measurement.

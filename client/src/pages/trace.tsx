@@ -14,6 +14,7 @@ import { referenceStripFromRulerLength } from "@/lib/calibrate/reference-strip";
 import { TraceControlsPanel } from "@/components/trace/trace-controls-panel";
 import { ExportConfirmationDialog } from "@/components/gridfinity/export-confirmation-dialog";
 import {
+  AID_RETRY_CANVAS_MAX,
   decodeImageFile,
   fitWithin,
   IMAGE_CANVAS_MAX,
@@ -269,12 +270,38 @@ function TraceWorkspace(): JSX.Element {
       // Detection reads a higher-resolution frame than the working canvas —
       // small markers blur out at 800×600 — and the found geometry is mapped
       // back into working space, the coordinate space of the calibration.
-      const frame = getDetectionFrame();
-      if (!frame) return;
+      const initialFrame = getDetectionFrame();
+      if (!initialFrame) return;
+      let frame = initialFrame;
 
       dispatch({ type: "SET_PROCESSING", processing: true });
       try {
-        const result = await autoCalibrate(frame.imageData);
+        const initialResult = await autoCalibrate(frame.imageData);
+        if (activeImageUrlRef.current !== frame.sourceImageUrl) return;
+        let result = initialResult;
+        if (
+          result.kind === "invalid-strip" ||
+          (result.kind === "calibrated" && result.stripFallbackReason)
+        ) {
+          try {
+            // Re-read original pixels: enlarging the failed raster cannot add detail.
+            const retryFrame = getDetectionFrame(AID_RETRY_CANVAS_MAX);
+            if (
+              retryFrame?.sourceImageUrl === frame.sourceImageUrl &&
+              (retryFrame.imageData.width > frame.imageData.width || retryFrame.imageData.height > frame.imageData.height)
+            ) {
+              const retryResult = await autoCalibrate(retryFrame.imageData);
+              // Keep a usable initial paper result if the aid still fails validation.
+              if (retryResult.kind === "calibrated-strip") {
+                frame = retryFrame;
+                result = retryResult;
+              }
+            }
+          } catch {
+            // A failed optional larger allocation/detection must not discard the
+            // normal pass's usable paper reference or its original failure notice.
+          }
+        }
         // OpenCV work cannot be cancelled once running. Bind its result to the
         // pixels it actually read so an old sheet can never paint overlays or
         // toasts over a replacement image.
@@ -293,7 +320,11 @@ function TraceWorkspace(): JSX.Element {
           case "calibrated-strip":
           case "calibrated": {
             const strip = result.kind === "calibrated-strip";
-            const sheet = result.kind === "calibrated" ? result : result.sheet;
+            const sheet = result.kind === "calibrated" ? result
+              : result.sheet ?? (initialResult.kind === "calibrated" ? initialResult : undefined);
+            // A retry may recover the aid without rediscovering a previously valid
+            // sheet. Map each reference from the frame that actually detected it.
+            const sheetFrame = result.kind === "calibrated-strip" && !result.sheet ? initialFrame : frame;
             const perspective = sheet?.perspectiveProposal ?? null;
             const calibration = resizeCalibration(result.calibration, frame.toWorking.x, frame.toWorking.y);
             dispatch({
@@ -301,14 +332,14 @@ function TraceWorkspace(): JSX.Element {
               sourceImageUrl: frame.sourceImageUrl,
               calibration,
               source: strip ? "strip" : "sheet",
-              requiresPerspectiveCorrection: strip && result.requiresPerspectiveCorrection,
+              requiresPerspectiveCorrection: result.kind === "calibrated-strip" && result.requiresPerspectiveCorrection,
               paperCalibration: strip && sheet
-                ? resizeCalibration(sheet.calibration, frame.toWorking.x, frame.toWorking.y) : null,
+                ? resizeCalibration(sheet.calibration, sheetFrame.toWorking.x, sheetFrame.toWorking.y) : null,
               perspective: perspective
                 ? scalePerspectiveProposal(
                     perspective,
-                    frame.toWorking.x,
-                    frame.toWorking.y,
+                    sheetFrame.toWorking.x,
+                    sheetFrame.toWorking.y,
                   )
                 : null,
             });
