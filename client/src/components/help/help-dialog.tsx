@@ -194,7 +194,9 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
                 Choose Keep working to save or export the draft first.
                 In <strong>Project</strong>, next to <strong>New project</strong>, use
                 {" "}<strong>Export project</strong> or <strong>Open project</strong>
-                {" "}for one editable design.
+                {" "}for one editable design. Opening a project file adds it to this
+                browser’s library and selects it as the current project. If its name
+                already exists, the imported copy gets an “imported” suffix.
               </li>
               <li>
                 In <strong>Project → Browser library → Manage</strong>, use <strong>Export library</strong>
