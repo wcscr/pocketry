@@ -4,12 +4,14 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TraceProvider, useTrace, type TraceStore } from "@/state/trace-store";
 import type { PerspectiveProposal } from "@/lib/calibrate/perspective";
+import { PanelProvider, usePanelState } from "@/components/layout/panel-context";
 import { MobileTraceActions } from "./mobile-trace-actions";
 
 let trace: TraceStore;
 let host: HTMLDivElement;
 let root: Root;
 const openSettings = vi.fn();
+const addToBin = vi.fn();
 const choosePhoto = vi.fn();
 const applyPerspective = vi.fn();
 const startOver = vi.fn();
@@ -18,8 +20,9 @@ const detectMarkers = vi.fn();
 const calibration = { startX: 0, startY: 0, endX: 100, endY: 0, lengthMm: 50 };
 function Harness(): JSX.Element {
   trace = useTrace();
-  return <MobileTraceActions onChoosePhoto={choosePhoto} onOpenSettings={openSettings} onApplyPerspective={applyPerspective}
-    onReprocess={reprocess} onDetectMarkers={detectMarkers} onStartOver={() => { startOver(); trace.dispatch({ type: "SOURCE_CLEARED" }); }} />;
+  const { traceRestart } = usePanelState();
+  return <><button onClick={() => traceRestart?.()}>Start over</button><MobileTraceActions onAddToBin={addToBin} onChoosePhoto={choosePhoto} onOpenSettings={openSettings} onApplyPerspective={applyPerspective}
+    onReprocess={reprocess} onDetectMarkers={detectMarkers} onStartOver={() => { startOver(); trace.dispatch({ type: "SOURCE_CLEARED" }); }} /></>;
 }
 function button(text: string): HTMLButtonElement {
   const result = Array.from(host.querySelectorAll("button")).find(button => button.textContent === text);
@@ -39,7 +42,7 @@ beforeEach(() => {
   host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
-  React.act(() => root.render(<TraceProvider><Harness /></TraceProvider>));
+  React.act(() => root.render(<PanelProvider><TraceProvider><Harness /></TraceProvider></PanelProvider>));
 });
 afterEach(() => {
   React.act(() => root.unmount());
@@ -99,6 +102,7 @@ describe("Mobile trace progression", () => {
     const adjust = async (id: string) => React.act(async () => {
       host.querySelector(`#${id} [role="slider"]`)!.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
     });
+    React.act(() => button("Adjust").click());
     await adjust("mobile-sensitivity");
     expect(reprocess).toHaveBeenLastCalledWith({ sensitivity: 129, includeInteriorHoles: false });
     await adjust("mobile-detail");
@@ -171,9 +175,9 @@ describe("Mobile trace progression", () => {
     expect(trace.calibration).toBe(original.calibration);
     expect(host.querySelector('[data-testid="trace-current-step"]')?.textContent).toContain("scale");
     expect(button("Accept detected scale")).toBeDefined();
-    expect([...host.querySelectorAll("button")].some(button => button.textContent === "Add to bin / export")).toBe(false);
+    expect([...host.querySelectorAll("button")].some(button => button.textContent === "Add to bin")).toBe(false);
     React.act(() => button("Dismiss detected scale").click());
-    expect(button("Add to bin / export")).toBeDefined();
+    expect(button("Add to bin")).toBeDefined();
     expect(trace.calibration).toBe(original.calibration);
     expect(trace.calibrationSource).toBe("manual");
     expect(trace.outline).toBe(original.outline);
@@ -192,7 +196,7 @@ describe("Mobile trace progression", () => {
     expect(trace.mode).toBe("pan");
     expect(trace.outline).toBe(outline);
     expect(trace.history).toBe(history);
-    expect(button("Add to bin / export")).toBeDefined();
+    expect(button("Add to bin")).toBeDefined();
   });
   it("lets Back leave reference review for the photo without discarding the accepted scale", () => {
     readyOutline();
@@ -236,13 +240,14 @@ describe("Mobile trace progression", () => {
     React.act(() => button("Confirm scale").click());
     expect(trace.calibration?.lengthMm).toBe(75);
   });
-  it("opens export settings once a calibrated outline is available", () => {
+  it("opens naming directly once a calibrated outline is available", () => {
     load();
     React.act(() => {
       trace.dispatch({ type: "SET_CALIBRATION", calibration });
       trace.dispatch({ type: "OUTLINE_COMMITTED", outline: [{ outer: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }], holes: [] }] });
     });
-    React.act(() => button("Add to bin / export").click());
-    expect(openSettings).toHaveBeenCalledWith("trace-settings-output");
+    React.act(() => button("Add to bin").click());
+    expect(addToBin).toHaveBeenCalledOnce();
+    expect(openSettings).not.toHaveBeenCalled();
   });
 });

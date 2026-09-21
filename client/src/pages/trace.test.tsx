@@ -31,6 +31,11 @@ const {
     correctPerspectiveMock: vi.fn(),
   }));
 
+vi.mock("@/components/layout/mobile-canvas-overlay", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/components/layout/mobile-canvas-overlay")>(),
+  MobileCanvasOverlay: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
 vi.mock("@/components/layout/workspace-layout", () => ({
   WorkspaceLayout: ({
     panel,
@@ -278,7 +283,7 @@ describe("Trace detection workflow", () => {
     processImageMock.mockReturnValue(new Promise(resolve => { finishDetection = resolve; }));
     decodeImageFileMock.mockReturnValue(new Promise(resolve => { finishPhoto = resolve; }));
     let current: ReturnType<typeof useTrace>;
-    function Probe(): null { current = useTrace(); return null; }
+    function Probe() { current = useTrace(); const { traceRestart } = usePanelState(); return <button onClick={() => traceRestart?.()}>Start over</button>; }
     await React.act(async () => root.render(<PanelProvider><TraceProvider><WorkflowController /><Probe /><TracePage /></TraceProvider></PanelProvider>));
     await React.act(async () => host.querySelector<HTMLButtonElement>('[data-testid="set-region"]')!.click());
     await React.act(async () => host.querySelector<HTMLButtonElement>('[data-testid="run-detection"]')!.click());

@@ -98,6 +98,13 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
               <li>
                 Choose a physical <strong>Margin</strong> from 0.0–5.0 mm, then
                 edit, add, move, or remove contour points as needed.
+                On a phone, <strong>Edit contours</strong> frames the outline. Drag a point
+                to move it, tap the line to add one, or tap a point and choose
+                <strong> Delete point</strong>. Drag elsewhere to pan and pinch to zoom. Holding a point shows a
+                magnified view. On desktop, click a point to select it and reveal
+                <strong> Delete point</strong>; left-drag moves it, left-click adds,
+                and right-click removes. In Trace and Bin, the detail view stays in a
+                fixed corner while you drag. Undo restores an edit.
               </li>
               <li>
                 Choose <strong>Add to bin</strong> to place the scaled contour in
@@ -120,6 +127,8 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
               <li>
                 Click a pocket in <strong>Layout</strong> or choose it in
                 <strong> Pockets</strong> to open its properties in that section.
+                On a phone, tapping a pocket opens a small adjustment tray;
+                <strong> More settings</strong> opens all its properties.
                 Set depth first; expand <strong>Size &amp; scale</strong> for dimensions. Expand <strong>Edges &amp; corners</strong>
                 to soften the outline or pocket edges, or <strong>Extra pocket clearance</strong>
                 to add more room around the tool.

@@ -25,18 +25,9 @@ import {
   PanelSection,
   PanelSettingsIndex,
 } from "@/components/layout/panel-section";
-import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { RulerLengthInput } from "./ruler-length-input";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -63,7 +54,7 @@ import {
   type TemplateVariant,
 } from "@/lib/calibrate/template";
 import { describeScale, exportScale } from "@/lib/export/scale";
-import { normalizeTracedShape } from "@/lib/gridfinity/traced-shape";
+import { TraceHandoffDialog } from "./trace-handoff-dialog";
 import type { ImageRotationDirection } from "@/lib/geometry/image-rotation";
 import {
   adjustOutlineMargin,
@@ -416,24 +407,7 @@ export function TraceControlsPanel({
       : null;
 
   const [handoffOpen, setHandoffOpen] = useState(false);
-  const [separateTools, setSeparateTools] = useState(true);
-  const [toolNames, setToolNames] = useState<string[]>([]);
-  const openHandoff = () => {
-    setSeparateTools(true);
-    setToolNames(outline.map((_, i) => outline.length === 1 ? fileName || "Traced tool" : `Tool ${i + 1}`));
-    setHandoffOpen(true);
-  };
-  const handleAddToBin = (anotherPhoto: boolean) => {
-    const parts = separateTools ? outline.map((part) => [part]) : [outline];
-    for (const [index, part] of parts.entries()) {
-      const shape = normalizeTracedShape(part, scale, toolNames[index]?.trim() || `Tool ${index + 1}`);
-      if (shape) shapeLibrary.addShape({ ...shape, traceMarginMm: margin ?? 0 });
-    }
-    setHandoffOpen(false);
-    onCanvasInteraction?.();
-    if (anotherPhoto) onReplaceImage();
-    else navigate("/bin");
-  };
+  const openHandoff = () => setHandoffOpen(true);
   const handleClearRegion = () => {
     dispatch({ type: "SET_MODE", mode: "region" });
     onCanvasInteraction?.();
@@ -884,7 +858,7 @@ export function TraceControlsPanel({
           </p>
           <details className="text-xs text-muted-foreground">
             <summary className="cursor-pointer">How to edit the outline</summary>
-            <p className="pt-2" data-testid="contour-editing-guidance">Choose Edit contours to select the largest contour, then drag a vertex to move it or tap an edge to add one. Toggle Remove to delete vertices. Simplification adjusts your edited contour. Changing Sensitivity or interior holes re-detects from the photo and asks before replacing manual edits. Undo restores your contour.</p>
+            <p className="pt-2" data-testid="contour-editing-guidance">Choose Edit contours to select the largest contour. On a phone, choose Move, Add, or Remove; drag empty space to pan and pinch to zoom. Holding a point shows a magnified view. On desktop, drag a vertex to move it, click an edge to add one, or toggle Remove to delete vertices. Simplification adjusts your edited contour. Changing Sensitivity or interior holes re-detects from the photo and asks before replacing manual edits. Undo restores your contour.</p>
           </details>
 
           <TraceDetectionControls onReprocess={onReprocess} />
@@ -996,25 +970,8 @@ export function TraceControlsPanel({
         </AlertDialogContent>
       </AlertDialog>
 
-      <Dialog open={handoffOpen} onOpenChange={setHandoffOpen}>
-        <DialogContent><DialogHeader><DialogTitle>Name your tools</DialogTitle>
-          <DialogDescription>Each tool becomes an independently movable pocket. The trace already includes {margin ?? 0} mm of margin per edge.</DialogDescription></DialogHeader>
-          {outline.length > 1 && <div className="flex items-center justify-between gap-2">
-            <Label htmlFor="separate-tools">Separate pockets ({outline.length} objects)</Label>
-            <Switch id="separate-tools" checked={separateTools} onCheckedChange={setSeparateTools} />
-          </div>}
-          {!separateTools && <p className="text-xs text-muted-foreground">All objects will move together as one pocket.</p>}
-          <div className="max-h-60 space-y-3 overflow-y-auto">
-            {(separateTools ? outline : [outline[0]]).map((_, index) => <div key={index}>
-              <Label htmlFor={`tool-name-${index}`}>{separateTools ? `Tool ${index + 1}` : "Group name"}</Label>
-              <Input id={`tool-name-${index}`} value={toolNames[index] ?? ""} maxLength={80}
-                onChange={(event) => setToolNames((names) => names.map((name, i) => i === index ? event.target.value : name))} />
-            </div>)}
-          </div>
-          <Button onClick={() => handleAddToBin(false)}>Add and arrange</Button>
-          <Button variant="outline" onClick={() => handleAddToBin(true)}>Add and trace another photo</Button>
-        </DialogContent>
-      </Dialog>
+      {handoffOpen && <TraceHandoffDialog onClose={() => setHandoffOpen(false)}
+        onChoosePhoto={onReplaceImage} onCanvasInteraction={onCanvasInteraction} />}
       <PanelFooter>
         {shapeLibrary.pendingIds.length > 0 && <Button variant="secondary" className="mb-2 w-full" onClick={() => navigate("/bin")}>
           Arrange {shapeLibrary.pendingIds.length} queued tool{shapeLibrary.pendingIds.length === 1 ? "" : "s"}

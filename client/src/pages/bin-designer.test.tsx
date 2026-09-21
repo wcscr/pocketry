@@ -891,8 +891,12 @@ describe("BinDesignerPage", () => {
       if (gesture === 'drag') pointer('pointermove', 55);
       if (gesture === 'jitter') pointer('pointermove', 44);
       pointer(gesture === 'cancel' ? 'pointercancel' : 'pointerup', gesture === 'drag' ? 55 : gesture === 'jitter' ? 44 : 43);
-      expect(controls!.panelOpen).toBe(gesture === 'tap' || gesture === 'jitter');
-      if (gesture === 'tap' || gesture === 'jitter') {
+      expect(controls!.panelOpen).toBe(gesture === 'jitter');
+      if (gesture === 'tap') {
+        expect(container.querySelector('.mobile-adjustment-tray')?.textContent).toContain('Wrench');
+        expect(container.querySelector('#quick-pocket-depth')).not.toBeNull();
+      }
+      if (gesture === 'jitter') {
         expect(document.querySelector('#bin-settings-pockets')!.getAttribute('data-state')).toBe('open');
         expect(document.querySelector('[data-testid="pocket-properties-heading"]')!.textContent).toContain('Wrench');
       }
@@ -904,6 +908,23 @@ describe("BinDesignerPage", () => {
         React.act(() => undo.click());
       }
       expect(pocket.getAttribute('d')).toBe(before);
+      if (gesture === 'tap') {
+        const cutoutBefore = vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0];
+        const slider = container.querySelector('#quick-pocket-depth [role="slider"]')!;
+        React.act(() => slider.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })));
+        expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0].depth).not.toEqual(cutoutBefore.depth);
+        React.act(() => undo.click());
+        expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0].depth).toEqual(cutoutBefore.depth);
+        React.act(() => [...container.querySelectorAll('button')].find(button => button.textContent === 'Export bin')!.click());
+        expect(document.querySelector('#bin-settings-export')).not.toBeNull();
+        expect(document.querySelector('#bin-settings-pockets')).toBeNull();
+        expect(document.querySelector('#bin-settings-size')).toBeNull();
+        React.act(() => [...document.querySelectorAll('button')].find(button => button.textContent === 'Back to canvas')!.click());
+        React.act(() => [...container.querySelectorAll('button')].find(button => button.textContent === 'Adjust')!.click());
+        React.act(() => [...container.querySelectorAll('button')].find(button => button.textContent === 'More settings')!.click());
+        expect(document.querySelector('#bin-settings-pockets')).not.toBeNull();
+        expect(document.querySelector('#bin-settings-size')).not.toBeNull();
+      }
       unmount();
     },
   );
@@ -942,7 +963,80 @@ describe("BinDesignerPage", () => {
     unmount();
   });
 
-  it.each([-1, 0])("toggles touch removal for contour ring %s with undo, minimum size, and a return to moving", async (ringIndex) => {
+  it.each([
+    { ringIndex: -1, mirrored: false }, { ringIndex: 0, mirrored: false },
+    { ringIndex: -1, mirrored: true }, { ringIndex: 0, mirrored: true },
+  ])("focuses desktop ring $ringIndex (mirrored: $mirrored) while preserving mouse edits and near-edge insertion", async ({ ringIndex, mirrored }) => {
+    const shape = rectangularShape("tool", "Wrench");
+    shape.outlineMm[0].holes = [[{ x: -7, y: -4 }, { x: -7, y: 4 }, { x: 7, y: 4 }, { x: 7, y: -4 }]];
+    shape.pointCount = 8;
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({
+      ...EMPTY_PROJECT, shapes: [shape],
+      cutouts: [parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 0, y: 0 }, rotationDeg: 30, scaleX: 1.5, scaleY: 0.8, mirrored })],
+    });
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      openSettingsSection(container, "tool-cutouts"); selectPocket(container, "pocket");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-edit-contour"]')!.click());
+      const svg = container.querySelector<SVGSVGElement>('[data-testid="layout-canvas"]')!;
+      Object.defineProperty(svg.querySelector('g')!, 'getScreenCTM', { value: () => ({ a: 1, b: 0, c: 0, d: 1, e: 0, f: 0, inverse: () => ({}) }) });
+      Object.defineProperties(svg, {
+        createSVGPoint: { value: () => ({ x: 0, y: 0, matrixTransform() { return { x: this.x, y: this.y }; } }) },
+        setPointerCapture: { value: () => {} },
+      });
+      const handles = () => svg.querySelectorAll(`[data-contour-ring="${ringIndex}"]`);
+      const coords = (element: Element) => ({ x: Number(element.getAttribute('cx')), y: Number(element.getAttribute('cy')) });
+      const pointer = (target: Element, type: string, point: { x: number; y: number }) => React.act(() => {
+        const event = new MouseEvent(type, { bubbles: true, button: type === 'pointermove' ? -1 : 0, clientX: point.x, clientY: point.y });
+        Object.defineProperties(event, { pointerId: { value: 1 }, pointerType: { value: 'mouse' } });
+        target.dispatchEvent(event);
+      });
+      const remove = () => [...container.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === 'Delete point');
+      const first = coords(handles()[0]);
+      pointer(handles()[0], 'pointerdown', first);
+      expect(container.querySelector('[data-testid="contour-magnifier"]')).not.toBeNull();
+      pointer(svg, 'pointerup', first);
+      expect(container.querySelector('[data-testid="contour-magnifier"]')).toBeNull();
+      expect(handles()[0].getAttribute('data-point-selected')).toBe('true');
+      expect(container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.disabled).toBe(true);
+      pointer(handles()[0], 'pointerdown', first);
+      const moved = { x: first.x + 10, y: first.y + 10 };
+      pointer(svg, 'pointermove', moved); pointer(svg, 'pointerup', moved);
+      expect(coords(handles()[0]).x).toBeCloseTo(moved.x);
+      React.act(() => remove()!.click());
+      expect(handles()).toHaveLength(3);
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+      expect(handles()).toHaveLength(4);
+      React.act(() => handles()[0].dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })));
+      expect(handles()).toHaveLength(3);
+      pointer(handles()[0], 'pointerdown', coords(handles()[0])); pointer(svg, 'pointerup', coords(handles()[0]));
+      expect(remove()!.disabled).toBe(true);
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+      const vertices = [...handles()].map(coords);
+      const [a, b] = vertices.map((point, index) => [point, vertices[(index + 1) % vertices.length]])
+        .sort(([a, b], [c, d]) => Math.hypot(d.x - c.x, d.y - c.y) - Math.hypot(b.x - a.x, b.y - a.y))[0];
+      const length = Math.hypot(b.x - a.x, b.y - a.y);
+      const midpoint = { x: (a.x + b.x) / 2 + (b.y - a.y) / length * 2,
+        y: (a.y + b.y) / 2 - (b.x - a.x) / length * 2 };
+      // Miss the path while staying closer to this edge than the other ring (4.8px away).
+      pointer(svg, 'pointerdown', midpoint);
+      pointer(svg, 'pointerup', midpoint);
+      expect(handles()).toHaveLength(5);
+      expect(remove()).toBeDefined();
+      expect(coords(svg.querySelector('[data-point-selected="true"]')!).x).toBeCloseTo(midpoint.x);
+      expect(coords(svg.querySelector('[data-point-selected="true"]')!).y).toBeCloseTo(midpoint.y);
+      const nearVertex = { x: coords(handles()[0]).x + 1, y: coords(handles()[0]).y + 1 };
+      pointer(svg, 'pointerdown', nearVertex); pointer(svg, 'pointerup', nearVertex);
+      expect(handles()).toHaveLength(5);
+      expect(handles()[0].getAttribute('data-point-selected')).toBe('true');
+      pointer(svg, 'pointerdown', { x: 1000, y: 1000 }); pointer(svg, 'pointerup', { x: 1000, y: 1000 });
+      expect(handles()).toHaveLength(5);
+    } finally { unmount(); }
+  });
+
+  it.each([-1, 0])("selects and deletes contour ring %s points with undo, minimum size, and direct dragging", async (ringIndex) => {
     const shape = rectangularShape("tool", "Wrench");
     shape.outlineMm[0].holes = [[{ x: -7, y: -4 }, { x: -7, y: 4 }, { x: 7, y: 4 }, { x: 7, y: -4 }]];
     shape.pointCount = 8;
@@ -954,18 +1048,20 @@ describe("BinDesignerPage", () => {
     try {
       await flushHydration();
       React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
-      React.act(() => [...container.querySelectorAll('button')].find(button => button.textContent === 'Bin settings')!.click());
+      React.act(() => [...container.querySelectorAll('button')].find(button => button.textContent === 'Adjust')!.click());
+      React.act(() => [...container.querySelectorAll('button')].find(button => button.textContent === 'More settings')!.click());
+      openSettingsSection(document.body, "tool-cutouts");
       selectPocket(document.body, "pocket");
       React.act(() => document.querySelector<HTMLButtonElement>('[data-testid="button-edit-contour"]')!.click());
       const svg = container.querySelector<SVGSVGElement>('[data-testid="layout-canvas"]')!;
-      Object.defineProperty(svg.querySelector('g')!, 'getScreenCTM', { value: () => ({ inverse: () => ({}) }) });
+      Object.defineProperty(svg.querySelector('g')!, 'getScreenCTM', { value: () => ({ a: 1, b: 0, c: 0, d: 1, e: 0, f: 0, inverse: () => ({}) }) });
       Object.defineProperties(svg, {
         createSVGPoint: { value: () => ({ x: 0, y: 0, matrixTransform() { return { x: this.x, y: this.y }; } }) },
         setPointerCapture: { value: () => {} },
       });
       const ringHandles = () => svg.querySelectorAll(`[data-contour-ring="${ringIndex}"]`);
       const otherHandles = () => svg.querySelectorAll(`[data-contour-ring="${ringIndex === -1 ? 0 : -1}"]`);
-      const buttons = () => container.querySelector('[aria-label="Contour editing tools"]')!.querySelectorAll<HTMLButtonElement>('button');
+      const deleteButton = () => [...container.querySelectorAll<HTMLButtonElement>('[aria-label="Contour editing tools"] button')].find(button => button.textContent === 'Delete point');
       const pointer = (target: Element, type: string, x: number, y: number) => React.act(() => {
         const event = new MouseEvent(type, { bubbles: true, button: 0, clientX: x, clientY: y });
         Object.defineProperties(event, { pointerId: { value: 1 }, pointerType: { value: 'touch' } });
@@ -973,18 +1069,24 @@ describe("BinDesignerPage", () => {
       });
       const tapNearFirst = () => {
         const first = ringHandles()[0];
-        // A near miss outside the visible 4.5 px circle still selects the nearest vertex.
-        pointer(svg, 'pointerdown', Number(first.getAttribute('cx')) - 6, Number(first.getAttribute('cy')));
+        // Picking uses screen distance, including rotated and stretched pockets.
+        pointer(svg, 'pointerdown', Number(first.getAttribute('cx')) - 2, Number(first.getAttribute('cy')));
+        pointer(svg, 'pointerup', Number(first.getAttribute('cx')) - 2, Number(first.getAttribute('cy')));
       };
       const original = svg.querySelector('[data-cutout-id="pocket"]')!.getAttribute('d');
-      expect(buttons()[0].getAttribute('aria-pressed')).toBe('false');
-      React.act(() => buttons()[0].click());
-      expect(buttons()[0].getAttribute('aria-pressed')).toBe('true');
+      expect(deleteButton()).toBeUndefined();
       tapNearFirst();
+      expect(ringHandles()).toHaveLength(4);
+      expect(svg.querySelectorAll('[data-point-selected="true"]')).toHaveLength(1);
+      React.act(() => deleteButton()!.click());
       expect(ringHandles()).toHaveLength(3);
       expect(otherHandles()).toHaveLength(4);
       tapNearFirst();
+      expect(deleteButton()!.disabled).toBe(true);
+      React.act(() => deleteButton()!.click());
       pointer(svg, 'pointerdown', 1000, 1000);
+      pointer(svg, 'pointerup', 1000, 1000);
+      expect(deleteButton()).toBeUndefined();
       expect(ringHandles()).toHaveLength(3);
       expect(otherHandles()).toHaveLength(4);
       React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
@@ -993,20 +1095,18 @@ describe("BinDesignerPage", () => {
       expect(container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.disabled).toBe(true);
       React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
       expect(ringHandles()).toHaveLength(3);
-      React.act(() => buttons()[0].click());
       const first = ringHandles()[0];
       const x = Number(first.getAttribute('cx')), y = Number(first.getAttribute('cy'));
       pointer(first, 'pointerdown', x, y);
-      pointer(svg, 'pointermove', x + 1, y + 1);
-      pointer(svg, 'pointerup', x + 1, y + 1);
+      pointer(svg, 'pointermove', x + 10, y + 10);
+      pointer(svg, 'pointerup', x + 10, y + 10);
       expect(ringHandles()).toHaveLength(3);
-      expect(Number(ringHandles()[0].getAttribute('cx'))).toBeCloseTo(x + 1);
-      React.act(() => buttons()[0].click());
+      expect(Number(ringHandles()[0].getAttribute('cx'))).toBeCloseTo(x + 10);
       const edit = container.querySelector<HTMLButtonElement>('[data-testid="button-layout-edit-contour"]')!;
       React.act(() => edit.click());
       expect(container.querySelector('[aria-label="Contour editing tools"]')).toBeNull();
       React.act(() => edit.click());
-      expect(buttons()[0].getAttribute('aria-pressed')).toBe('false');
+      expect(deleteButton()).toBeUndefined();
     } finally { unmount(); }
   });
 
@@ -3823,7 +3923,8 @@ describe("project history restoration", () => {
       React.act(() => button(container, "redo").click());
       React.act(() => button(container, "undo").click());
       if (mobile) {
-        React.act(() => Array.from(container.querySelectorAll("button")).find(button => button.textContent === "Bin settings")!.click());
+        React.act(() => Array.from(container.querySelectorAll("button")).find(button => button.textContent === "Adjust")!.click());
+        React.act(() => Array.from(container.querySelectorAll("button")).find(button => button.textContent === "More settings")!.click());
       }
       openSettingsSection(document.body, "project");
       const open = async (id: string) => {

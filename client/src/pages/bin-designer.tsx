@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { CanvasWarnings } from "@/components/gridfinity/canvas-warnings";
 import { validateBinSpec, validateLayout, validatePocketFloorMaterials, type ValidationIssue } from "@shared/gridfinity/validate";
+import { MobileBinActions } from "@/components/gridfinity/mobile-bin-actions";
 import { BinControlsPanel } from "@/components/gridfinity/bin-controls-panel";
 import { BinViewport } from "@/components/gridfinity/bin-viewport";
 import { LayoutCanvas } from "@/components/gridfinity/layout-canvas";
@@ -98,11 +99,13 @@ export default function BinDesignerPage(): JSX.Element {
 
 function BinDesignerWorkspace(): JSX.Element {
   const { panelOpen, setPanelOpen } = usePanelState();
+  const [quickAdjustOpen, setQuickAdjustOpen] = useState(false);
   const [pocketEditorRequest, setPocketEditorRequest] = useState(0);
   const [settingsSectionRequest, setSettingsSectionRequest] = useState<{ id: string }>();
   const editSelectedPocket = () => {
     setSettingsSectionRequest(undefined);
-    setPanelOpen(true);
+    if (isMobile) setQuickAdjustOpen(true);
+    else setPanelOpen(true);
     setPocketEditorRequest((request) => request + 1);
   };
   const { toast } = useToast();
@@ -112,6 +115,10 @@ function BinDesignerWorkspace(): JSX.Element {
   useEffect(() => {
     if (isMobile && bin.editorMode !== "placement") setPanelOpen(false);
   }, [bin.editorMode, isMobile, setPanelOpen]);
+  useEffect(() => {
+    if (panelOpen || !isMobile || bin.editorMode !== "placement") setQuickAdjustOpen(false);
+  }, [panelOpen, isMobile, bin.editorMode]);
+  useEffect(() => { if (isMobile && !panelOpen) setSettingsSectionRequest(undefined); }, [isMobile, panelOpen]);
   const library = useShapeLibrary();
   // Sliders and canvas drags update the visible controls transiently, but the
   // history entry remains the last committed design until pointer-up. Feeding
@@ -956,16 +963,14 @@ function BinDesignerWorkspace(): JSX.Element {
       autoSaveId="tooltrace:bin"
       panelOpen={panelOpen}
       onPanelOpenChange={setPanelOpen}
-      panelTitle="Bin designer"
-      mobileActions={<div className="flex gap-2">
-        <Button variant="outline" className="min-h-11 flex-1" onClick={() => setPanelOpen(true)}>Bin settings</Button>
-        <Button className="min-h-11 flex-1" onClick={() => {
-          setSettingsSectionRequest({ id: "bin-settings-export" });
-          setPanelOpen(true);
-        }}>Export bin</Button>
-      </div>}
+      panelTitle={isMobile && settingsSectionRequest?.id === "bin-settings-export" ? "Export bin" : "Bin designer"}
+      mobileActionsLayout="landscape-side"
+      mobileActions={<MobileBinActions open={quickAdjustOpen} onOpenChange={setQuickAdjustOpen}
+        onMore={id => { setSettingsSectionRequest({ id }); setPanelOpen(true); }}
+        onExport={() => { setSettingsSectionRequest({ id: "bin-settings-export" }); setPanelOpen(true); }} />}
       panel={
         <BinControlsPanel
+          exportOnly={isMobile && settingsSectionRequest?.id === "bin-settings-export"}
           issues={issues}
           settingsSectionRequest={settingsSectionRequest}
           pocketEditorRequest={pocketEditorRequest}
@@ -1068,7 +1073,7 @@ function BinDesignerWorkspace(): JSX.Element {
               </Button>
             </div>
           )}
-          <div className="absolute right-3 top-3 z-30 flex overflow-hidden rounded-md border bg-background/90 shadow-sm backdrop-blur">
+          <div data-testid="bin-history-toolbar" className="absolute right-3 top-3 z-30 flex overflow-hidden rounded-md border bg-background/90 shadow-sm backdrop-blur">
             <Button
               variant="ghost"
               size="sm"

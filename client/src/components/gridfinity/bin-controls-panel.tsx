@@ -65,6 +65,7 @@ import type { ValidationIssue } from "@shared/gridfinity/validate";
 
 import {
   PanelBody,
+  PanelSectionFilterContext,
   PanelSection,
   PanelSettingsIndex,
   revealPanelSection,
@@ -222,6 +223,7 @@ export interface BinControlsPanelProps {
   issues: readonly ValidationIssue[];
   /** A fresh request reveals settings after the controls drawer mounts. */
   settingsSectionRequest?: { id: string };
+  exportOnly?: boolean;
   /** Changes when the canvas explicitly requests the selected pocket editor. */
   pocketEditorRequest?: number;
   keepBinSize?: boolean;
@@ -278,6 +280,7 @@ export interface BinControlsPanelProps {
 export function BinControlsPanel({
   issues,
   settingsSectionRequest,
+  exportOnly = false,
   stats,
   building,
   exporting,
@@ -503,8 +506,9 @@ export function BinControlsPanel({
   };
 
   return (
+    <PanelSectionFilterContext.Provider value={exportOnly ? "bin-settings-export" : null}>
     <div className="flex h-full flex-col">
-      <div className="shrink-0 border-b px-3 py-2" data-testid="project-status">
+      <div className={exportOnly ? "hidden" : "shrink-0 border-b px-3 py-2"} data-testid="project-status">
         <p className="cursor-text truncate text-sm font-medium" data-testid="project-status-title"
           title={`${currentProjectName ?? "Untitled project"} — double-click to rename`}
           onDoubleClick={() => {
@@ -516,7 +520,7 @@ export function BinControlsPanel({
       </div>
       {/* On short screens the section headers remain reachable by scrolling;
           reserve the limited height for editable fields instead of shortcuts. */}
-      <div className="shrink-0 [@media(max-height:500px)]:hidden">
+      <div className={exportOnly ? "hidden" : "shrink-0 [@media(max-height:500px)]:hidden"}>
         <PanelSettingsIndex
           ariaLabel="Find bin settings"
           testIdPrefix="bin"
@@ -1125,7 +1129,7 @@ export function BinControlsPanel({
 
               {editorMode === "contour" && (
                 <p className="rounded-md bg-violet-500/10 px-2.5 py-2 text-[11px] text-violet-800 dark:text-violet-200">
-                  Drag points to reshape. Click an edge to add a point; right-click a
+                  Drag points to reshape. Click near an edge to add a point; right-click a
                   point to remove it.
                 </p>
               )}
@@ -2069,6 +2073,7 @@ export function BinControlsPanel({
       )}
 
     </div>
+    </PanelSectionFilterContext.Provider>
   );
 }
 
