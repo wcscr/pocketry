@@ -1,0 +1,342 @@
+{
+  "description": "Contributor-supplied sample designs and original print exports. See each sample README for availability.",
+  "projectCleanup": "Descriptive project, pocket, shape, and finger-access names; unused shapes and undo history omitted. Editable distances and angles rounded to tenths; scale ratios retain tenths of a percent. Traced outline coordinates retain full precision. Original 3MF models are unchanged.",
+  "samples": [
+    {
+      "directory": "wolfbox-mf70-airduster-kit",
+      "model": {
+        "file": "wolfbox-mf70-airduster-kit.3mf",
+        "sourceFile": "Airduster-Tutorial-bin-4x4x6.5-multicolor-2026-09-15_11-43-35-735.3mf",
+        "sha256": "5fe80e9ff705fb1aa02f4758453a35f6fc5e1d4e5841ff635598c0e5f8e4f2e1"
+      },
+      "project": {
+        "file": "wolfbox-mf70-airduster-kit.pocketry.json",
+        "sha256": "e1fc4c5f842009b376987ae9b88140aff050f25b59fb41e5944ec13be8eeb073",
+        "sourceFile": "Airduster-Tutorial-bin-4x4x6.5-2026-09-15_11-44-08-375.pocketry.json",
+        "matchEvidence": "Source project content matches the JSON downloaded alongside the selected 3MF export. Published settings are rounded to tenths as requested."
+      },
+      "photos": [
+        {
+          "file": "photos/printed-bin-loaded.jpg",
+          "sourceFile": "20260907_125211.jpg",
+          "cropPixelsAfterOrientation": [
+            0,
+            100,
+            2880,
+            2570
+          ],
+          "processing": "EXIF orientation applied to pixels; cropped; rotated for upright labels; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "b6375aae5613ed228c5b2d1af0468dd176d528a2cb871a56ad7a127a9e2e060d",
+          "rotationAfterCropDegreesCounterclockwise": 0
+        },
+        {
+          "file": "photos/printed-bin-pocket.jpg",
+          "sourceFile": "20260907_125222.jpg",
+          "cropPixelsAfterOrientation": [
+            30,
+            60,
+            3600,
+            2370
+          ],
+          "processing": "EXIF orientation applied to pixels; cropped; rotated for upright labels; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "3842c96dc7cf238babe250ea04c8ea6577e63d2a3be9a2e3ec394b0f8835d846",
+          "rotationAfterCropDegreesCounterclockwise": 0
+        }
+      ]
+    },
+    {
+      "directory": "dewalt-right-angle-tools",
+      "model": {
+        "file": "dewalt-right-angle-tools.3mf",
+        "sourceFile": "Dewalt-90-degree-adapters-bin-3x5x5.5-multicolor-2026-09-07_13-59-44-782.3mf",
+        "sha256": "daba4f12db7fb21a86c3606c5bf537a98ee648a1aaffc3b11ffdb16935460615"
+      },
+      "project": {
+        "file": "dewalt-right-angle-tools.pocketry.json",
+        "sha256": "f65490caed63354b04682111cceb94e03d392dd59a38262b6efb3fd08927b702",
+        "sourceFile": "Dewalt-90-degree-adapters-bin-3x5x5.5-2026-09-07_13-20-04-866.pocketry.json",
+        "recovery": "The print floor elevations establish pocket depths of 31 mm for the long adapter, 31 mm for the handle, and 25 mm for the short adapter.",
+        "matchEvidence": "After depth recovery, the current generator differs from the printed mesh by approximately 31.522 mm3 (0.0053 percent of model volume), before rounding settings to tenths. Outline geometry and placement are retained from the source project."
+      },
+      "photos": [
+        {
+          "file": "photos/printed-bin-loaded.jpg",
+          "sourceFile": "20260907_211628.jpg",
+          "cropPixelsAfterOrientation": [
+            300,
+            370,
+            2670,
+            3610
+          ],
+          "processing": "EXIF orientation applied to pixels; cropped; rotated for upright labels; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "eeed3860a27394526df9cc3f467162124e1d7ea622d307a1ebfdd67e75b5c315",
+          "rotationAfterCropDegreesCounterclockwise": 0
+        }
+      ]
+    },
+    {
+      "directory": "ryobi-cutter",
+      "model": {
+        "file": "ryobi-cutter.3mf",
+        "sourceFile": "Ryobi-Cutter---recovered-3MF-bin-6x3x9-custom-15cell-multicolor-2026-09-13_11-28-45-957.3mf",
+        "sha256": "c101720af0233737328d6d126c463d221e3bfc37cf421abb5cd6a69fe5446108"
+      },
+      "project": {
+        "file": "ryobi-cutter.pocketry.json",
+        "sha256": "a9742f58ea0c998fd06d9e6c949fbf4b6dce6103b1f4e8a5ca208afe7739521a",
+        "sourceFile": "Ryobi-Cutter-recovered.pocketry.json",
+        "recovery": "Recovered tool outline, split depths, and finger slot; height restored to 9u and Gridfinity base restored from the printed 3MF.",
+        "matchEvidence": "Symmetric mesh volume difference 0.0574 mm3 across a 948849 mm3 solid, consistent with floating-point mesh precision, before user-requested rounding of settings to tenths."
+      },
+      "photos": [
+        {
+          "file": "photos/printed-bin-loaded.jpg",
+          "sourceFile": "20260918_081831.jpg",
+          "cropPixelsAfterOrientation": [
+            700,
+            190,
+            2540,
+            3750
+          ],
+          "processing": "EXIF orientation applied to pixels; cropped; rotated for upright labels; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "b67fea3cd5748b1c41772e62c654f5c7868e91364210d5c1c17fce7959f6119e",
+          "rotationAfterCropDegreesCounterclockwise": 90
+        },
+        {
+          "file": "photos/printed-bin-pocket.jpg",
+          "sourceFile": "20260918_081846.jpg",
+          "cropPixelsAfterOrientation": [
+            70,
+            190,
+            2920,
+            3830
+          ],
+          "processing": "EXIF orientation applied to pixels; cropped; rotated for upright labels; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "2563977e1d0cb8ce4fbe38145677b979c013fed64fdb0c468dce9f3aa96dbb9a",
+          "rotationAfterCropDegreesCounterclockwise": 90
+        }
+      ]
+    },
+    {
+      "directory": "caliper-storage",
+      "model": {
+        "file": "caliper-storage.3mf",
+        "sourceFile": "Digital-Calipers-bin-6x3x3.5-multicolor-2026-09-19_15-58-38-478.3mf",
+        "sha256": "cfaf12cd87f343b5d990a3b172070841880984e32e0fe05f951bd5aebbf88dcd"
+      },
+      "project": {
+        "file": "caliper-storage.pocketry.json",
+        "sha256": "e5a570a11eb324577d68ff649362e28e80d1e1565fdccbf456ed4076f7fbbd4f",
+        "sourceFile": "Digital-Calipers-bin-6x3x3-2026-09-19_13-14-09-294.pocketry.json",
+        "recovery": "Reconstructed from the newest printed 6x3x3.5u 3MF: retained the caliper outline, restored 17 mm caliper and battery pocket depths, 12 mm measurement-strip depths, accessory dimensions and positions, and the enlarged/repositioned caliper and measurement-strip finger openings. Pockets, shapes, and access openings have descriptive names. Rectangular accessories use explicit dimensions with unit scale.",
+        "matchEvidence": "Before rounding, symmetric mesh volume difference was 1.0141 mm3 (0.0002 percent of the 560503 mm3 printed solid). After rounding editable settings to tenths, including measurement-strip slot widths from 3.75 to 3.8 mm, the difference is 543.079 mm3 (0.0969 percent). Original 3MF unchanged."
+      },
+      "photos": [
+        {
+          "file": "photos/printed-bin-loaded.jpg",
+          "sourceFile": "20260921_104400.jpg",
+          "cropPixelsAfterOrientation": [
+            510,
+            150,
+            2490,
+            3890
+          ],
+          "rotationAfterCropDegreesCounterclockwise": 90,
+          "processing": "EXIF orientation applied to pixels; cropped; rotated for upright labels; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "af5494bac6c4b81cf40517a0319b5374a6c6d79097e20b150f8659508a023fb3"
+        },
+        {
+          "file": "photos/printed-bin-pocket.jpg",
+          "sourceFile": "20260921_104438.jpg",
+          "cropPixelsAfterOrientation": [
+            380,
+            140,
+            3790,
+            2830
+          ],
+          "rotationAfterCropDegreesCounterclockwise": 180,
+          "processing": "EXIF orientation applied to pixels; cropped; rotated for upright labels; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "9ab5cef65834d46f8c7d22d77cb4961e2bed9877d29aedbf2eb6c4893d32427c"
+        }
+      ]
+    },
+    {
+      "directory": "stapler",
+      "model": {
+        "file": "stapler.3mf",
+        "sourceFile": "Stapler-copy-bin-5x2x7-multicolor-2026-09-18_13-36-31-198.3mf",
+        "sha256": "ca549f761e8b3b759bb4ef967a035889317f29e8e8a1aa3b6bf1965eaaddc227"
+      },
+      "project": {
+        "file": "stapler.pocketry.json",
+        "sha256": "edcf8ccdeb33c35eccb88f4ff163c3b194a5aa81c1848b1b48365be3bd4fa735",
+        "sourceFile": "pocketry-library-2026-09-21T14-21-47-136Z.json",
+        "sourceProject": "Stapler (copy)",
+        "sourceHistoryIndex": 40,
+        "matchEvidence": "Saved 5x2x7u history snapshot; symmetric mesh volume difference 0.0225 mm3, consistent with floating-point precision, before user-requested rounding of settings to tenths."
+      },
+      "photos": [
+        {
+          "file": "photos/printed-bin-loaded.jpg",
+          "sourceFile": "20260921_104306.jpg",
+          "cropPixelsAfterOrientation": [
+            980,
+            470,
+            2290,
+            3470
+          ],
+          "rotationAfterCropDegreesCounterclockwise": 90,
+          "processing": "EXIF orientation applied to pixels; cropped; rotated for upright labels; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "f0d04188f41595c628cdfde86d84611b56322f36b45865b83f8fd776558f9121"
+        },
+        {
+          "file": "photos/printed-bin-pocket.jpg",
+          "sourceFile": "20260921_104322.jpg",
+          "cropPixelsAfterOrientation": [
+            430,
+            450,
+            2850,
+            3660
+          ],
+          "rotationAfterCropDegreesCounterclockwise": 90,
+          "processing": "EXIF orientation applied to pixels; cropped; rotated for upright labels; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "0d56a79c149960d738308851b4e88713d733dcc5b263329bb4ea3316bc429beb"
+        }
+      ]
+    },
+    {
+      "directory": "wire-strippers",
+      "model": {
+        "file": "wire-strippers.3mf",
+        "sourceFile": "WireStipper_Astra_Finetuned-bin-6x2x3.5-multicolor-2026-09-07_08-29-07-921.3mf",
+        "sha256": "9e9b075db68f2dc26872a3f5a6e3f9c1b464fec5267ab4969616c172c1142120"
+      },
+      "project": {
+        "file": "wire-strippers.pocketry.json",
+        "sha256": "47e59355b684a56bda4d6812f26965bc8d07c5a5716783272822bcc202fccbd4",
+        "sourceFile": "WireStipper_Astra_Finetuned-bin-6x2x3.5-multicolor-2026-09-07_08-29-07-921.pocketry.json",
+        "matchEvidence": "Source project content matches the JSON downloaded alongside the selected 3MF export. Published settings are rounded to tenths as requested."
+      },
+      "photos": [
+        {
+          "file": "photos/printed-bin-loaded.jpg",
+          "sourceFile": "20260907_125116.jpg",
+          "cropPixelsAfterOrientation": [
+            660,
+            0,
+            2200,
+            4000
+          ],
+          "processing": "EXIF orientation applied to pixels; cropped; rotated for upright labels; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "8cea1a7a5d22d0d6176907b85965ee0b8da9cc4e179bb0076b900d1732a46534",
+          "rotationAfterCropDegreesCounterclockwise": 90
+        },
+        {
+          "file": "photos/printed-bin-pocket.jpg",
+          "sourceFile": "20260907_125124.jpg",
+          "cropPixelsAfterOrientation": [
+            720,
+            0,
+            2250,
+            4000
+          ],
+          "processing": "EXIF orientation applied to pixels; cropped; rotated for upright labels; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "5b55f57064ab82df72bffde5805cfc7414ee8b851313321a77511378d0492e27",
+          "rotationAfterCropDegreesCounterclockwise": 90
+        }
+      ]
+    },
+    {
+      "directory": "klein-voltage-tester",
+      "model": {
+        "file": "klein-voltage-tester.3mf",
+        "sourceFile": "Dewalt-90-degree-adapters-bin-1x4x4-multicolor-2026-09-08_07-25-37-567.3mf",
+        "sha256": "c3b640b21212d935dee09054f41c1abd2f90d72f50a7ae4db173436cb7c33a09"
+      },
+      "project": {
+        "file": "klein-voltage-tester.pocketry.json",
+        "sha256": "aa72cdc0e9e79d089df34374ed15abc353069d1a026befa854fbb1a36f0ca3ac",
+        "sourceFile": "pocketry-library-2026-09-21T14-21-47-136Z.json",
+        "sourceProject": "Klein Voltage Meter (imported)",
+        "matchEvidence": "Matching 1x4x4u tool layout. Original 3MF filename retained the previous DeWalt project name. Current generator differs by approximately 8.617 mm3 (0.0073 percent of model volume), before user-requested rounding of settings to tenths."
+      },
+      "photos": [
+        {
+          "file": "photos/printed-bin-loaded.jpg",
+          "sourceFile": "20260921_104523.jpg",
+          "cropPixelsAfterOrientation": [
+            830,
+            290,
+            1840,
+            3620
+          ],
+          "rotationAfterCropDegreesCounterclockwise": -90,
+          "processing": "EXIF orientation applied to pixels; cropped; rotated for upright labels; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "9cc89d0a9603ead28ee41a1fc466ea21510d395c8ef502d81bb9990bf4e8e539"
+        },
+        {
+          "file": "photos/printed-bin-pocket.jpg",
+          "sourceFile": "20260921_104537.jpg",
+          "cropPixelsAfterOrientation": [
+            330,
+            300,
+            2350,
+            3740
+          ],
+          "rotationAfterCropDegreesCounterclockwise": -90,
+          "processing": "EXIF orientation applied to pixels; cropped; rotated for upright labels; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "54181bf6476bdd1526d1bb615ac35b474355d38417d61281a2279d37f500bcd2"
+        }
+      ]
+    },
+    {
+      "directory": "mouldline-remover",
+      "model": {
+        "file": "mouldline-remover.3mf",
+        "sourceFile": "Print-Cleanup-Tool-bin-1x4x3.5-multicolor-2026-09-21_09-08-14-947.3mf",
+        "sha256": "e6b757528d1c512b18d30051b31e8b723750dcf7cec04b6ffd8dc48a478cbec1"
+      },
+      "project": {
+        "file": "mouldline-remover.pocketry.json",
+        "sha256": "e7b1064e6bf67b0af067f77aa6ad7b68e66d7081f1cb049fecbd9b4d1f2a3834",
+        "sourceFile": "pocketry-library-2026-09-21T14-21-47-136Z.json",
+        "sourceProject": "Citadel Mouldline Remover",
+        "matchEvidence": "The saved 1x4x3.5u project matches the newest 3MF: symmetric volume difference is approximately 0.0052 mm3 before rounding (floating-point tolerance). Settings rounded to tenths produce approximately 37.183 mm3 difference, 0.0284 percent of the model volume. Unused shapes reduced from 418 to the one referenced tool outline; undo history removed. Original 3MF bytes are unchanged."
+      },
+      "photos": [
+        {
+          "file": "photos/printed-bin-loaded.jpg",
+          "sourceFile": "20260921_111601.jpg",
+          "cropPixelsAfterOrientation": [
+            1180,
+            520,
+            2210,
+            3740
+          ],
+          "rotationAfterCropDegreesCounterclockwise": 0,
+          "processing": "EXIF orientation applied to pixels; cropped; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "2b0798fb939c1b25224013aa318beb4096707095b2a762ce7e3d322fea89f080"
+        },
+        {
+          "file": "photos/printed-bin-pocket.jpg",
+          "sourceFile": "20260921_111611.jpg",
+          "cropPixelsAfterOrientation": [
+            850,
+            480,
+            2570,
+            3670
+          ],
+          "rotationAfterCropDegreesCounterclockwise": 0,
+          "processing": "EXIF orientation applied to pixels; cropped; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "3494ec8869002d754c5de30572999f166a52a4b7de121a597dd85b1f6ad85e08"
+        }
+      ]
+    }
+  ],
+  "library": {
+    "file": "pocketry-sample-library.json",
+    "projectCount": 8,
+    "description": "All eight finalized sample project JSONs, included verbatim in Pocketry library-backup format.",
+    "sha256": "8f507cedd47759d9964fd259d2e9e73727e9953fc327bee7223a2e62cad7c9f6"
+  }
+}

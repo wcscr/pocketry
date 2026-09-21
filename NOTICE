@@ -34,6 +34,23 @@ licence; product names and marks visible in the photographs retain their
 respective ownership.
 
 ================================================================================
+Sample projects and print photographs — contributor-supplied assets
+================================================================================
+
+The editable project JSONs, 3MF print models, and photographs under `samples/`
+were supplied by Will Cobb for this repository. `samples/source-files.json`
+records their source files and published hashes. The 3MF files are unmodified
+copies of the supplied print exports.
+
+The photographs in the sample directories' `photos/` folders are copies of the supplied
+originals, cropped, rotated, and resized with ordinary pixel-processing tools. Embedded
+metadata was removed. No generative image editing was used for these sample
+photographs; the supplied originals remain unchanged.
+
+These sample assets are distributed under Pocketry's AGPL-3.0-only licence.
+Product names and marks retain their respective ownership.
+
+================================================================================
 Bambu Studio screenshot — third-party interface
 ================================================================================
 

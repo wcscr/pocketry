@@ -6,6 +6,7 @@ application runs in the browser, with image processing, project storage, and
 model generation kept on the user's device.
 
 [Try Pocketry](https://pocketry.xyz) ·
+[Sample projects](samples/README.md) ·
 [View the source](https://github.com/wcscr/pocketry) ·
 [Read the license](LICENSE) ·
 [Read third-party notices](NOTICE)
@@ -22,6 +23,26 @@ Pocketry's public deployment is [https://pocketry.xyz](https://pocketry.xyz).
 - Save projects locally, undo changes, and export editable backups.
 
 Check dimensions against the real items and print a fit test before the final bin.
+
+## Sample projects
+
+Browse the [sample projects](samples/README.md) for editable JSONs, 3MF print
+models, and photos of finished bins. The collection includes a Wolfbox MF70 Airduster Kit,
+DeWalt right-angle tools, a Ryobi cutter, caliper storage, a stapler, wire
+strippers, a Klein voltage tester, and a Citadel mouldline remover.
+
+[Download the complete sample library](samples/pocketry-sample-library.json)
+to import all eight designs at once.
+
+| **[Wolfbox MF70 Airduster Kit](samples/wolfbox-mf70-airduster-kit/)** | **[DeWalt right-angle tools](samples/dewalt-right-angle-tools/)** |
+| :---: | :---: |
+| <a href="samples/wolfbox-mf70-airduster-kit/"><img src="samples/wolfbox-mf70-airduster-kit/photos/printed-bin-loaded.jpg" width="245" height="210" alt="Printed bin holding the Wolfbox MF70 Airduster Kit"></a> | <a href="samples/dewalt-right-angle-tools/"><img src="samples/dewalt-right-angle-tools/photos/printed-bin-loaded.jpg" width="154" height="210" alt="Printed bin holding DeWalt right-angle adapters and their handle"></a> |
+| **[Ryobi cutter](samples/ryobi-cutter/)** | **[Wire strippers](samples/wire-strippers/)** |
+| <a href="samples/ryobi-cutter/"><img src="samples/ryobi-cutter/photos/printed-bin-loaded.jpg" width="300" height="155" alt="Ryobi cutter in its non-rectangular printed bin"></a> | <a href="samples/wire-strippers/"><img src="samples/wire-strippers/photos/printed-bin-loaded.jpg" width="300" height="116" alt="Wire strippers in their fitted printed bin"></a> |
+| **[Caliper storage](samples/caliper-storage/)** | **[Stapler](samples/stapler/)** |
+| <a href="samples/caliper-storage/"><img src="samples/caliper-storage/photos/printed-bin-loaded.jpg" width="300" height="159" alt="Calipers, measurement strips, and batteries in their printed bin"></a> | <a href="samples/stapler/"><img src="samples/stapler/photos/printed-bin-loaded.jpg" width="300" height="131" alt="Stapler in its printed bin"></a> |
+| **[Klein voltage tester](samples/klein-voltage-tester/)** | **[Citadel mouldline remover](samples/mouldline-remover/)** |
+| <a href="samples/klein-voltage-tester/"><img src="samples/klein-voltage-tester/photos/printed-bin-loaded.jpg" width="300" height="91" alt="Klein voltage tester in its printed bin"></a> | <a href="samples/mouldline-remover/"><img src="samples/mouldline-remover/photos/printed-bin-loaded.jpg" width="67" height="210" alt="Citadel mouldline remover in its printed bin"></a> |
 
 We'd love to see what you make with Pocketry! If you share a design on MakerWorld,
 Printables, or elsewhere, please give Pocketry a shout-out and link to
