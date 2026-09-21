@@ -275,6 +275,42 @@ function selectPocket(container: HTMLElement, id: string): void {
 }
 
 describe("BinDesignerPage", () => {
+  it.each(["empty", "pockets", "split"] as const)("adds a curved, rounded slot using the %s layout's highest floor", async (layout) => {
+    const shape = rectangularShape("shape", "Tool");
+    const pocket = parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 0, y: 0 },
+      depth: { mode: "mm", value: 18 },
+      ...(layout === "split" ? { split: {
+        boundary: [{ x: 0, y: -10 }, { x: 0, y: 10 }],
+        depths: [{ mode: "mm", value: 8 }, { mode: "mm", value: 24 }],
+      } } : {}),
+    });
+    const existing = fingerHoleSchema.parse({ id: "existing", kind: "straight", center: { x: 0, y: 0 }, depthMm: 3 });
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape],
+      cutouts: layout === "empty" ? [] : [pocket], fingerHoles: [existing] });
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      openSettingsSection(container, "finger-holes");
+      const add = container.querySelector<HTMLButtonElement>('[data-testid="button-add-finger-hole"]')!;
+      expect(add.textContent?.trim()).toBe("Add");
+      React.act(() => add.click());
+      const expectedDepth = layout === "empty" ? 12 : layout === "split" ? 7 : 17;
+      const added = vi.mocked(useBinGeometry).mock.lastCall![2]!.fingerHoles[1];
+      expect(added).toMatchObject({ kind: "oblong-deep-scoop", slotEnds: "rounded", lengthMm: 36, depthMm: expectedDepth });
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.fingerHoles[0]).toEqual(existing);
+      expect(container.querySelector<HTMLInputElement>('[aria-label="Depth in millimetres"]')!.value).toBe(String(expectedDepth));
+      const controls = container.querySelector('[data-testid="finger-access-shape-controls"]')!;
+      expect(Array.from(controls.querySelectorAll('[aria-labelledby="finger-access-shape-label"] [role="radio"]'), el => el.textContent)).toEqual(["Slot", "Round"]);
+      for (const id of ["finger-shape-slot", "finger-bottom-curved", "finger-ends-rounded"]) {
+        expect(controls.querySelector(`[data-testid="${id}"]`)?.getAttribute("aria-checked")).toBe("true");
+      }
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.fingerHoles).toEqual([existing]);
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.fingerHoles).toEqual([existing, added]);
+    } finally { unmount(); }
+  });
+
   it.each(["trace", "basic-shape"] as const)("renames copied %s pockets independently with undo and project round trips", async (source) => {
     const shape = { ...rectangularShape("shared", "Original pocket"), source,
       sourceMmPerPx: source === "basic-shape" ? null : 0.5 };
@@ -3597,8 +3633,8 @@ describe("BinDesignerPage", () => {
       '[data-testid="button-add-finger-hole"]',
     ) as HTMLButtonElement;
     React.act(() => addFingerHole.click());
-    expect(container.querySelector('[data-testid="finger-shape-round"]')?.getAttribute("aria-checked")).toBe("true");
-    expect(container.querySelector('[data-testid="finger-bottom-flat"]')?.getAttribute("aria-checked")).toBe("true");
+    expect(container.querySelector('[data-testid="finger-shape-slot"]')?.getAttribute("aria-checked")).toBe("true");
+    expect(container.querySelector('[data-testid="finger-bottom-curved"]')?.getAttribute("aria-checked")).toBe("true");
     expect(container.textContent).not.toContain("Scoop depth");
     const fingerHoleSection = container.querySelector(
       '#bin-settings-finger-holes',
@@ -3613,12 +3649,12 @@ describe("BinDesignerPage", () => {
     expect(fingerTopRoundSlider?.getAttribute("aria-valuenow")).toBe("1");
     expect(
       fingerHoleSection?.querySelector('[aria-label="Bottom edge round"]'),
-    ).not.toBeNull();
+    ).toBeNull();
 
     React.act(() => {
       (container.querySelector('[data-testid="view-toggle-2d"]') as HTMLButtonElement).click();
     });
-    expect(container.querySelector('[data-testid^="finger-hole-straight-"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid^="finger-hole-oblong-deep-scoop-"]')).not.toBeNull();
     expect(container.querySelector('[data-testid^="finger-hole-width-"]')).not.toBeNull();
 
     // Selecting the pocket again is independent and exposes contour editing.
@@ -3657,7 +3693,7 @@ describe("BinDesignerPage", () => {
     expect(
       container.querySelectorAll('[data-testid="contour-vertex-handle"]'),
     ).toHaveLength(4);
-    expect(container.querySelector('[data-testid^="finger-hole-straight-"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid^="finger-hole-oblong-deep-scoop-"]')).not.toBeNull();
     expect(container.querySelector("[data-rotate-handle]")).toBeNull();
 
     React.act(() => {

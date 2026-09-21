@@ -5,6 +5,13 @@ controls, default names, layout guidance, validation, and edit history. Older
 history labels use the current wording when displayed; saved geometry, custom
 names, and project field names are preserved.
 
+**Finger access → Add** creates a slot with a curved bottom and rounded ends;
+the Shape options show **Slot** before **Round**. Its initial bottom is 1 mm above
+the highest pocket floor, considering both active split sections and ignoring
+through pockets. Empty or through-only layouts retain a 12 mm fallback depth.
+The depth is clamped to the supported 1 mm minimum, bin height, and 120 mm maximum.
+This is an initial value; later pocket edits do not move existing finger access.
+
 Pocket names belong to individual placements. Renaming a copy leaves the original,
 other copies, and the source shape unchanged. Names appear in pocket controls,
 spacing references, removal confirmations, warnings, canvas labels, and fit-template exports. Project

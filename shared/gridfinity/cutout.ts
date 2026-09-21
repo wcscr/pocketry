@@ -1071,6 +1071,25 @@ export function resolvePocketDepth(
   };
 }
 
+/** Initial access bottom sits 1 mm above the highest usable pocket floor. */
+export function defaultFingerAccessDepthMm(
+  spec: Pick<BinSpec, "heightUnits" | "lip">,
+  cutouts: readonly Pick<CutoutPlacement, "depth" | "split">[],
+): number {
+  const { infillTopZ } = resolvePocketDepth(spec, { mode: "through" });
+  let highestFloor: number | null = null;
+  for (const cutout of cutouts) {
+    for (const depth of pocketDepths(cutout)) {
+      const { floorZ, depthMm } = resolvePocketDepth(spec, depth);
+      if (floorZ === null || floorZ < 0 || depthMm === null || depthMm <= 0) continue;
+      highestFloor = Math.max(highestFloor ?? floorZ, floorZ);
+    }
+  }
+  // No floor exists in an empty or through-only layout; retain the 12 mm fallback.
+  const depthMm = highestFloor === null ? 12 : infillTopZ - highestFloor - 1;
+  return Math.min(120, infillTopZ, Math.max(1, depthMm));
+}
+
 // ---------------------------------------------------------------------------
 // Bin interior and view flip
 // ---------------------------------------------------------------------------
