@@ -261,7 +261,7 @@ describe("fitLayoutToPlacements", () => {
     expect(fitted.cutouts[0].position).toEqual({ x: 0, y: 0 });
   });
 
-  it("fits and recentres an independent finger hole without a tool pocket", () => {
+  it("fits and recentres an independent finger access without a tool pocket", () => {
     const hole = {
       id: "f1",
       center: { x: 30, y: -12 },
@@ -285,7 +285,7 @@ describe("fitLayoutToPlacements", () => {
     expect(fitted.gridY).toBe(1);
   });
 
-  it("includes a finger hole's top edge round when fitting the bin", () => {
+  it("includes a finger access's top edge round when fitting the bin", () => {
     const baseHole = {
       id: "f1",
       center: { x: 0, y: 0 },
@@ -496,7 +496,7 @@ describe("autoArrangeLayout", () => {
     expect(Math.min(angle, Math.abs(angle - 180))).toBeCloseTo(30, 6);
   });
 
-  it("keeps a fixed independent finger hole inside the auto-arranged bin", () => {
+  it("keeps a fixed independent finger access inside the auto-arranged bin", () => {
     const shape = rectShape("s1", 20, 10);
     const byId = new Map([[shape.id, shape]]);
     const placed = autoPlaceFresh([shape], "standard").cutouts;

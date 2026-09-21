@@ -66,7 +66,7 @@ describe("surface fit outlines", () => {
     expect(materialAt(-21, -21)).toBeLessThan(1e-9);
   });
 
-  it("does not clip the 5 mm band at the bin edge or add separate finger-hole bands", () => {
+  it("does not clip the 5 mm band at the bin edge or add separate finger access bands", () => {
     const cutout = parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 12, y: 0 },
       depth: { mode: "through" }, clearanceMm: 0, cornerRoundMm: 0, topFilletMm: 0, bottomFilletMm: 0 });
     const layout = { shapesById: new Map([[shape.id, shape]]), cutouts: [cutout], fingerHoles: [] };
@@ -79,7 +79,7 @@ describe("surface fit outlines", () => {
     expect(small.volume()).toBeCloseTo(large.volume(), 6);
   });
 
-  it("requires a tool pocket instead of falling back to the bin or finger-hole outlines", () => {
+  it("requires a tool pocket instead of falling back to the bin or finger access outlines", () => {
     const spec = parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 2 });
     const layout = { shapesById: new Map(), cutouts: [],
       fingerHoles: [fingerHoleSchema.parse({ id: "access", center: { x: 0, y: 0 } })] };

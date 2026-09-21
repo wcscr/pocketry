@@ -515,10 +515,10 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
         patch: current,
         historyLabel:
           drag.kind === "finger-hole-move"
-            ? "Move finger hole"
+            ? "Move finger access"
             : drag.kind === "feature-end"
-              ? "Resize oblong finger hole"
-              : "Resize finger hole diameter",
+              ? "Resize oblong finger access"
+              : "Resize finger access diameter",
       });
       return;
     }
@@ -899,7 +899,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
       return;
     }
 
-    // Independent finger holes grab before pocket bodies when they overlap.
+    // Independent finger access features grab before pocket bodies when they overlap.
     const hitHole = hitFingerHole(point);
     if (hitHole) {
       dispatch({ type: "SELECT_FINGER_HOLE", id: hitHole.id });
@@ -1210,8 +1210,8 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
             patch,
             historyLabel:
               "rotationDeg" in patch
-                ? "Rotate oblong finger hole"
-                : "Move finger hole",
+                ? "Rotate oblong finger access"
+                : "Move finger access",
           });
           event.preventDefault();
         }
@@ -1923,10 +1923,10 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
             ? "Contour edit · drag points · click near an edge to add · right-click a point to remove · Esc finishes"
             : "Contour edit · tap a pocket to select it"
           : selectedFingerHoleId
-            ? isMobile ? "Drag the finger hole to move. Drag its white handle to resize." : "Finger hole · drag moves · white handle resizes · arrows nudge · Del removes"
+            ? isMobile ? "Drag the finger access to move. Drag its white handle to resize." : "Finger access · drag moves · white handle resizes · arrows nudge · Del removes"
             : selectedCutoutId
               ? isMobile ? "Drag the pocket to move. Drag corners to resize or the round handle to rotate." : "Pocket · drag edges/corners to resize · Option resizes from center · round handle rotates"
-              : isMobile ? "Tap a pocket to select it. Use the hand to pan and pinch to zoom." : "Click a pocket or finger hole to select · Shift-drag pans · Ctrl-scroll zooms"}
+              : isMobile ? "Tap a pocket to select it. Use the hand to pan and pinch to zoom." : "Click a pocket or finger access to select · Shift-drag pans · Ctrl-scroll zooms"}
       </WorkflowHint>
       )}
       {selected && magnifiedPoint && (() => {

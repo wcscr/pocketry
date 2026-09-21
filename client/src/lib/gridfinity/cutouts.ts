@@ -61,7 +61,7 @@ import {
  *  7. an optional outward K-slice flare rounds the contour into the top
  *     surface without changing the vertical wall below it.
  *
- * Finger holes are built separately in the bin frame. Round scoops use
+ * Finger access features are built separately in the bin frame. Round scoops use
  * spherical caps, while deep scoops use straight vertical shafts ending in
  * rounded bottoms. The oblong version ends in a swept hemisphere
  * (half-cylinder plus rounded ends). Full spheres and cylinders overlap inside
@@ -353,7 +353,7 @@ function buildElongatedScoopCutter(
   return arena.track(shaft.add(roundedBottom));
 }
 
-/** Builds independent bin-local finger-hole cutters. */
+/** Builds independent bin-local finger access cutters. */
 export function buildFingerHoleCutters(
   kernel: Kernel,
   fingerHoles: readonly FingerHole[],

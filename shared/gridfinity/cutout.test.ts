@@ -7,6 +7,7 @@ import {
   binToCanvas,
   canvasToBin,
   cutoutPlacementSchema,
+  defaultFingerAccessDepthMm,
   effectiveDeepScoopDepthMm,
   effectiveScoopDepthMm,
   fingerHoleFootprintRing,
@@ -29,10 +30,56 @@ import {
   transformOutlinePlacement,
   transformPointPlacement,
   untransformPointPlacement,
+  type DepthSpec,
 } from "./cutout";
 import { BASE_HEIGHT, R_F2 } from "./standard";
 
 const SPEC_2X3 = { gridX: 2, gridY: 3 };
+
+describe("new finger access depth", () => {
+  const spec = { heightUnits: 6, lip: "standard" as const };
+  const pocket = (depth: DepthSpec) => ({ depth });
+
+  it("stops 1 mm above the highest floor across mixed depth modes", () => {
+    const cutouts = [pocket({ mode: "mm", value: 24 }),
+      pocket({ mode: "remaining", floorThicknessMm: 34 }), pocket({ mode: "through" })];
+    const top = resolvePocketDepth(spec, { mode: "through" }).infillTopZ;
+    expect(top - defaultFingerAccessDepthMm(spec, cutouts)).toBeCloseTo(35, 8);
+    expect(defaultFingerAccessDepthMm(spec, [...cutouts].reverse())).toBe(defaultFingerAccessDepthMm(spec, cutouts));
+  });
+
+  it("uses active split sections instead of the retained unsplit depth", () => {
+    const cutout = parseCutoutPlacement({ id: "split", shapeId: "shape", position: { x: 0, y: 0 },
+      depth: { mode: "mm", value: 2 }, split: {
+        boundary: [{ x: 0, y: -10 }, { x: 0, y: 10 }],
+        depths: [{ mode: "mm", value: 20 }, { mode: "mm", value: 8 }],
+      } });
+    expect(defaultFingerAccessDepthMm(spec, [cutout])).toBeCloseTo(7, 8);
+    expect(defaultFingerAccessDepthMm(spec, [{ ...cutout, split: {
+      ...cutout.split!, depths: [{ mode: "through" }, { mode: "mm", value: 8 }],
+    } }])).toBeCloseTo(7, 8);
+  });
+
+  it.each(["standard", "none"] as const)("accounts for the %s lip when floors use absolute height", (lip) => {
+    const bin = { ...spec, lip };
+    const top = resolvePocketDepth(bin, { mode: "through" }).infillTopZ;
+    expect(defaultFingerAccessDepthMm(bin, [pocket({ mode: "remaining", floorThicknessMm: 2 })])).toBeCloseTo(top - 3, 8);
+  });
+
+  it("retains the fallback for empty, through-only, or unusable floors", () => {
+    expect(defaultFingerAccessDepthMm(spec, [])).toBe(12);
+    expect(defaultFingerAccessDepthMm(spec, [pocket({ mode: "through" })])).toBe(12);
+    expect(defaultFingerAccessDepthMm(spec, [pocket({ mode: "remaining", floorThicknessMm: 100 }),
+      pocket({ mode: "mm", value: 100 })])).toBe(12);
+  });
+
+  it("respects the supported depth range for shallow pockets and small or tall bins", () => {
+    expect(defaultFingerAccessDepthMm(spec, [pocket({ mode: "mm", value: 1 })])).toBe(1);
+    const shallowBin = { ...spec, heightUnits: 1 };
+    expect(defaultFingerAccessDepthMm(shallowBin, [])).toBe(resolvePocketDepth(shallowBin, { mode: "through" }).infillTopZ);
+    expect(defaultFingerAccessDepthMm({ ...spec, heightUnits: 32 }, [pocket({ mode: "remaining", floorThicknessMm: 2 })])).toBe(120);
+  });
+});
 
 describe("round finger-access resolution", () => {
   const placement = { position: { x: 0, y: 0 }, rotationDeg: 0, mirrored: false };
@@ -420,7 +467,7 @@ describe("interior geometry and the view flip", () => {
   });
 });
 
-describe("typed finger holes (straight and scoop)", () => {
+describe("typed finger access features (straight and scoop)", () => {
   it("defaults to no features and parses old documents unchanged", () => {
     const parsed = parseCutoutPlacement({
       id: "c1",

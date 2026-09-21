@@ -42,7 +42,7 @@ import { MAX_GRID, type BinSpec } from "./types";
  * - The 2D editor's SVG view is y-down; that flip is **view-only** and lives
  *   solely in {@link binToCanvas} / {@link canvasToBin}.
  *
- * Finger holes are independent bin-local objects in the project document.
+ * Finger access features are independent bin-local objects in the project document.
  * `CutoutPlacement.fingerHoles` remains only as an import bridge for project
  * schemas 1–6; current UI and geometry never attach holes to a tool pocket.
  */
@@ -195,7 +195,7 @@ export const fingerHoleSchema = z
 
 export type FingerHole = z.infer<typeof fingerHoleSchema>;
 
-/** Default top-surface round for newly created pockets and finger holes. */
+/** Default top-surface round for newly created pockets and finger access features. */
 export const DEFAULT_TOP_EDGE_FILLET_MM = 1;
 export const DEFAULT_OBLONG_DEEP_SCOOP_LENGTH_MM = 36;
 export const MAX_OBLONG_DEEP_SCOOP_LENGTH_MM = 160;
@@ -581,7 +581,7 @@ const cutoutPlacementInputSchema = z
     bottomFilletMm: z.number().min(0).max(6).default(R_F2),
     /** Project schemas 1–6 only; current holes live at project level. */
     fingerHoles: z.array(fingerHoleSchema).default([]),
-    /** Schema-v1 compatibility; normalized into a scoop finger hole below. */
+    /** Schema-v1 compatibility; normalized into a scoop finger access below. */
     scoop: legacyScoopSpecSchema.nullable().optional(),
   })
   .strict();
@@ -935,7 +935,7 @@ export function fingerHoleCircularSegments(
 ): number {
   if (isElongatedFingerHole(hole)) return minimumSegments;
   if (!Number.isFinite(maxChordErrorMm) || maxChordErrorMm <= 0) {
-    throw new Error("Finger-hole chord tolerance must be a positive finite distance.");
+    throw new Error("Finger access chord tolerance must be a positive finite distance.");
   }
   // Include the outward rim rounding so its widest circle is smooth too.
   const radius = hole.diameterMm / 2 + effectiveFingerHoleTopFilletMm(hole);
@@ -995,7 +995,7 @@ export function pocketLayoutAllowanceMm(
 /**
  * Everything a tool-pocket placement occupies in the bin frame. The feature
  * array is retained as a compatibility shape but remains empty; independent
- * finger holes are measured separately.
+ * finger access features are measured separately.
  */
 export function placementFootprint(
   shape: Pick<TracedShape, "outlineMm">,
@@ -1069,6 +1069,25 @@ export function resolvePocketDepth(
     cutterTopZ,
     depthMm: floorZ === null ? null : infillTopZ - floorZ,
   };
+}
+
+/** Initial access bottom sits 1 mm above the highest usable pocket floor. */
+export function defaultFingerAccessDepthMm(
+  spec: Pick<BinSpec, "heightUnits" | "lip">,
+  cutouts: readonly Pick<CutoutPlacement, "depth" | "split">[],
+): number {
+  const { infillTopZ } = resolvePocketDepth(spec, { mode: "through" });
+  let highestFloor: number | null = null;
+  for (const cutout of cutouts) {
+    for (const depth of pocketDepths(cutout)) {
+      const { floorZ, depthMm } = resolvePocketDepth(spec, depth);
+      if (floorZ === null || floorZ < 0 || depthMm === null || depthMm <= 0) continue;
+      highestFloor = Math.max(highestFloor ?? floorZ, floorZ);
+    }
+  }
+  // No floor exists in an empty or through-only layout; retain the 12 mm fallback.
+  const depthMm = highestFloor === null ? 12 : infillTopZ - highestFloor - 1;
+  return Math.min(120, infillTopZ, Math.max(1, depthMm));
 }
 
 // ---------------------------------------------------------------------------

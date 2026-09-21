@@ -128,6 +128,11 @@ function BinDesignerWorkspace(): JSX.Element {
   const committedSpec = committedDoc.spec;
   const committedCutouts = committedDoc.cutouts;
   const committedFingerHoles = committedDoc.fingerHoles;
+  // Present current terminology for older saved history without rewriting it.
+  const historyEntries = useMemo(() => bin.history.stack.map(({ label }) => ({
+    label: label.replace(/\bfinger[ -]holes?\b/gi, (term) =>
+      term.startsWith("F") ? "Finger access" : "finger access"),
+  })), [bin.history.stack]);
 
   const [exporting, setExporting] = useState(false);
   const [section, setSection] = useState<BuildBinSection | null>(null);
@@ -1082,7 +1087,7 @@ function BinDesignerWorkspace(): JSX.Element {
               onClick={() => dispatch({ type: "UNDO" })}
               aria-label={
                 bin.canUndo
-                  ? `Undo ${bin.history.stack[bin.history.index].label}`
+                  ? `Undo ${historyEntries[bin.history.index].label}`
                   : "Undo"
               }
               data-testid="button-bin-undo"
@@ -1090,7 +1095,7 @@ function BinDesignerWorkspace(): JSX.Element {
               <Undo2 className="h-3.5 w-3.5" />
             </Button>
             <EditHistoryMenu
-              entries={bin.history.stack}
+              entries={historyEntries}
               index={bin.history.index}
               onJump={(index) => dispatch({ type: "JUMP_TO_HISTORY", index })}
               testId="button-bin-history"
@@ -1115,7 +1120,7 @@ function BinDesignerWorkspace(): JSX.Element {
               onClick={() => dispatch({ type: "REDO" })}
               aria-label={
                 bin.canRedo
-                  ? `Redo ${bin.history.stack[bin.history.index + 1].label}`
+                  ? `Redo ${historyEntries[bin.history.index + 1].label}`
                   : "Redo"
               }
               data-testid="button-bin-redo"

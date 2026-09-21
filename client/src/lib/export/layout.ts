@@ -19,7 +19,7 @@ import { dxfFromModelRings } from "./dxf";
 
 /**
  * Top-down bin-layout export: the bin's footprint plus every placed pocket
- * outline and independent finger-hole rim, in **bin-frame millimetres, y-up** — the CNC
+ * outline and independent finger access rim, in **bin-frame millimetres, y-up** — the CNC
  * shadow-board bridge from the design doc ("nearly free from the 2D
  * editor"). The pocket rings are the tool silhouettes at export vertex
  * budget, exactly the curves the pocket cutter starts from; fit clearance

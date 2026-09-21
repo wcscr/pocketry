@@ -305,7 +305,7 @@ describe("validateLayout", () => {
   });
 });
 
-describe("validateLayout: finger holes and scoops (G4)", () => {
+describe("validateLayout: finger access features and scoops (G4)", () => {
   it("keeps a clean layout clean when features sit inside the pocket", () => {
     const shape = makeShape("s1", 40, 30);
     const cutout = makeCutout("c1", "s1", 0, 0, {
@@ -323,7 +323,7 @@ describe("validateLayout: finger holes and scoops (G4)", () => {
     expect(codes(spec(), [cutout], [shape])).toEqual([]);
   });
 
-  it("errors when a finger hole pokes through the bin wall", () => {
+  it("errors when a finger access pokes through the bin wall", () => {
     // 2×2 bin: interior half-width 40.8, footprint half-width 41.75. The rim
     // reaches x = 41: past the interior (breach) but inside the footprint,
     // isolating wall-breach from out-of-bounds. Features get no clearance
@@ -337,7 +337,7 @@ describe("validateLayout: finger holes and scoops (G4)", () => {
     expect(result).not.toContain("finger-hole-out-of-bounds");
   });
 
-  it("reserves wall clearance for a finger hole's top edge round", () => {
+  it("reserves wall clearance for a finger access's top edge round", () => {
     const shape = makeShape("s1", 20, 20);
     const sharp = makeCutout("c1", "s1", 0, 0, {
       fingerHoles: [{ id: "f1", center: { x: 31.5, y: 0 }, diameterMm: 18 }],
@@ -456,7 +456,7 @@ describe("validateLayout: finger holes and scoops (G4)", () => {
     expect(result).not.toContain("finger-hole-too-deep");
   });
 
-  it("does not treat an independent finger hole as owned by either overlapping pocket", () => {
+  it("does not treat an independent finger access as owned by either overlapping pocket", () => {
     // 20-wide pockets at x = 0 and x = 25 are silent without features (5 mm
     // apart); a hole rim reaching x = 21 crosses the second pocket's outline.
     const shapes = [makeShape("s1", 20, 20), makeShape("s2", 20, 20)];

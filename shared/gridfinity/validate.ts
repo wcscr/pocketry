@@ -64,7 +64,7 @@ export interface ValidationIssue {
   message: string;
   /** Cutout(s) the issue is about, for per-cutout highlighting in the editor. */
   cutoutIds?: string[];
-  /** Independent finger-hole object(s) the issue is about. */
+  /** Independent finger access object(s) the issue is about. */
   fingerHoleIds?: string[];
 }
 
@@ -264,7 +264,7 @@ interface PlacedCutout {
   cutout: CutoutPlacement;
   shape: TracedShape;
   outline: Outline;
-  /** Finger-hole and scoop rims — cut at exact size, no fit clearance. */
+  /** Finger access and scoop rims — cut at exact size, no fit clearance. */
   features: Ring[];
   /** Outline rings plus feature rings: everything this placement removes. */
   rings: Ring[];
@@ -520,7 +520,7 @@ function validateFingerHoleAgainstBin(
   index: number,
 ): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
-  const label = `Finger hole ${index + 1}`;
+  const label = `Finger access ${index + 1}`;
   const ring = fingerHoleFootprintRing(
     hole,
     { position: { x: 0, y: 0 }, rotationDeg: 0, mirrored: false },
