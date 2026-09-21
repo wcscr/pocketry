@@ -11,6 +11,31 @@ adapts. Transitive dependencies are not enumerated here; their notices remain
 with their packages. Exact npm versions are recorded in package-lock.json.
 
 ================================================================================
+Pocketry P-bin icon — project-owned artwork
+================================================================================
+
+`client/public/favicon.ico`, `client/public/pocketry-icon.png`, and the icon
+images under `docs/branding/` were captured from Pocketry's own 3D bin
+renderer. The model is a one-cell, 3U-high Gridfinity bin with an original
+P-shaped pocket and an orange stacking lip; its editable source and rendering
+settings are preserved under `docs/branding/`. The P outline was drawn without a
+third-party font. These assets are distributed under Pocketry's
+AGPL-3.0-only licence. No generative image editing was used for these icons.
+
+================================================================================
+Pocketry X header — project promotional artwork
+================================================================================
+
+`docs/branding/pocketry-x-header.png` is an AI-edited composition based on
+Will Cobb's printed-bin photograph at `docs/images/printed-bin-loaded.jpg`.
+OpenAI's built-in ImageGen tool composed the bin photograph, charcoal
+background, and promotional text; macOS `sips` resampled the final image to
+1500 x 500 pixels. The prompts are recorded in
+`docs/branding/pocketry-x-header-prompts.md`. This artwork is distributed
+under Pocketry's AGPL-3.0-only licence; product names and marks retain their
+respective ownership.
+
+================================================================================
 README screenshots — project-owned documentation
 ================================================================================
 
