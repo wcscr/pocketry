@@ -9,6 +9,7 @@ import { referenceStripSvg } from "../client/src/lib/calibrate/reference-strip";
 import { MEASUREMENT_AID_LENGTHS, MEASUREMENT_AIDS } from "../client/src/lib/calibrate/reference-strip";
 import { measurementAidMeshes, measurementAidThreeMf } from "../client/src/lib/calibrate/measurement-aid-mesh";
 import { measurementAidSvg, MEASUREMENT_AID_EDGE } from "../client/src/lib/calibrate/measurement-aid";
+import { measurementAidsPdf } from "../client/src/lib/calibrate/measurement-aids-pdf";
 
 // Like export:bin, inject a Node kernel without Vite's browser WASM URL import.
 const wasmPath = createRequire(import.meta.url).resolve("manifold-3d/manifold.wasm");
@@ -31,6 +32,7 @@ try {
     Manifold: wasm.Manifold, CrossSection: wasm.CrossSection, triangulate: wasm.triangulate, arena,
   }));
   for (const paper of ["a4", "letter"] as const) {
+    await writeFile(resolve(directory, `pocketry-measurement-aids-v2-${paper}.pdf`), measurementAidsPdf(paper));
     await writeFile(resolve(directory, `pocketry-reference-strip-v1-${paper}.pdf`), referenceStripPdf(paper));
   }
   await writeFile(resolve(directory, "pocketry-reference-strip-v1.svg"), referenceStripSvg());

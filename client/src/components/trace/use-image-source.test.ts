@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  AID_RETRY_CANVAS_MAX,
   DETECTION_CANVAS_MAX,
   decodeImageFile,
   detectionGeometry,
@@ -92,6 +93,21 @@ describe("fitWithin", () => {
 });
 
 describe("detectionGeometry", () => {
+  it("reads more original detail for an aid retry without changing working coordinates", () => {
+    const natural = { width: 3000, height: 4000 };
+    const normal = detectionGeometry(natural);
+    const retry = detectionGeometry(natural, IMAGE_CANVAS_MAX, AID_RETRY_CANVAS_MAX);
+    expect(normal.detect).toEqual({ width: 1200, height: 1600 });
+    expect(retry.detect).toEqual({ width: 1800, height: 2400 });
+    expect(retry.toWorking).toEqual({ x: 0.25, y: 0.25 });
+    expect(retry.detect.width * retry.toWorking.x).toBe(normal.detect.width * normal.toWorking.x);
+    expect(retry.detect.height * retry.toWorking.y).toBe(normal.detect.height * normal.toWorking.y);
+  });
+
+  it("does not invent more resolution when the original fits the normal cap", () => {
+    const natural = { width: 900, height: 1200 };
+    expect(detectionGeometry(natural, IMAGE_CANVAS_MAX, AID_RETRY_CANVAS_MAX)).toEqual(detectionGeometry(natural));
+  });
   it("reads a large photo at the detection cap, mapping back to working space", () => {
     const { detect, toWorking } = detectionGeometry({ width: 4000, height: 3000 });
     expect(detect.width).toBeLessThanOrEqual(DETECTION_CANVAS_MAX.width);

@@ -235,7 +235,7 @@ describe("App", () => {
     expect(help?.textContent).toContain("Add to bin");
     expect(help?.textContent).toContain("Surface fit test");
     expect(help?.textContent).toContain("Save 3MF");
-    expect(help?.textContent).toContain("Download printable calibration templates");
+    expect(help?.textContent).toContain("Download calibration aids");
     expect(help?.querySelector('[aria-label="Download a measurement aid as 3MF"]')).toBeNull();
     expect(help?.textContent).toContain("More options → All settings");
     expect(help?.textContent).toContain("Save to library");
