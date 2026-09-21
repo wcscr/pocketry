@@ -224,33 +224,22 @@ describe("App", () => {
     expect(container.textContent).not.toContain("Replace image");
   });
 
-  it("documents the current Trace, Bin, project, and export workflows", () => {
+  it("opens the first-bin guide with calibration, saving, and export actions", () => {
     renderApp();
     act(() => {
       container.querySelector<HTMLButtonElement>('[aria-label="Help"]')!.click();
     });
     const help = document.querySelector<HTMLElement>('[role="dialog"]');
-    expect(help?.textContent).toContain("Trace a tool");
-    expect(help?.textContent).toContain("Design the bin");
-    expect(help?.textContent).toContain("Save and resume projects");
-    expect(help?.textContent).toContain("3MF");
-    expect(help?.textContent).toContain("2D Layout view");
-    expect(help?.textContent).toContain(
-      "automatically looks for the current v2 calibration-sheet signature",
-    );
-    expect(help?.textContent).toContain(
-      "all four paper-specific markers are required",
-    );
+    expect(help?.querySelectorAll("ol > li")).toHaveLength(5);
+    expect(help?.textContent).toContain("Confirm scale");
+    expect(help?.textContent).toContain("Add to bin");
+    expect(help?.textContent).toContain("Surface fit test");
+    expect(help?.textContent).toContain("Save 3MF");
     expect(help?.textContent).toContain("Download printable calibration templates");
-    expect(help?.textContent).not.toContain("Paper sheets and");
     expect(help?.querySelector('[aria-label="Download a measurement aid as 3MF"]')).toBeNull();
-    expect(help?.textContent).toContain("another item with a precisely known dimension");
-    expect(help?.textContent).toContain("Before printing the full bin");
-    expect(help?.textContent).toContain("Preview/shadow-board layout");
-    expect(help?.textContent).not.toContain(
-      "Any Bin clearance is an additional offset",
-    );
-    expect(help?.textContent).not.toContain("Baseplate");
+    expect(help?.textContent).toContain("More options → All settings");
+    expect(help?.textContent).toContain("Save to library");
+    expect(help?.textContent).toContain("Open project");
   });
 
   it("fills the viewport instead of a fixed-width column", () => {
