@@ -72,6 +72,7 @@ import { ContourEditTools } from "@/components/canvas/contour-edit-tools";
 import { MobileContourTools } from "@/components/canvas/mobile-contour-tools";
 import { ContourMagnifier } from "@/components/canvas/contour-magnifier";
 import { useMobileContourEditor } from "@/hooks/use-mobile-contour-editor";
+import { useContourPointFocus } from "@/hooks/use-contour-point-focus";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { WorkflowHint } from "@/components/canvas/workflow-hint";
 import { useViewportTransform } from "@/hooks/use-viewport-transform";
@@ -403,6 +404,11 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
   }, [layoutIssues]);
 
   const selected = placed.find((p) => p.cutout.id === selectedCutoutId) ?? null;
+  const desktopPoint = useContourPointFocus({
+    outline: selected?.shape.outlineMm ?? [],
+    enabled: !isMobile && editorMode === "contour" && !!selected && !panActive,
+    contextKey: selectedCutoutId,
+  });
   const splitEditor = usePocketSplit({ cutout: selected?.cutout ?? null, shape: selected?.shape ?? null,
     scale, toBin, onComplete: onEditPocket });
   const selectPocketAt = (cutout: CutoutPlacement, point: Point) => dispatch({
@@ -577,6 +583,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
     const sourceShape = shapesById.get(selected.cutout.shapeId);
     const ring = sourceShape ? contourRing(sourceShape.outlineMm, handle.ref) : null;
     if (!sourceShape || !ring || ring.length <= 3) return;
+    desktopPoint.clear();
     commitContour(
       selected.cutout.id,
       sourceShape,
@@ -611,6 +618,12 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
       if (source && selected) commitContour(selected.cutout.id, source, outline, label);
     },
   });
+  const focusedPoint = isMobile ? mobileEditor.selectedPoint : desktopPoint.selectedPoint;
+  const magnifiedPoint = isMobile ? mobileEditor.activePoint : desktopPoint.activePoint;
+  const deleteFocusedPoint = () => {
+    if (!selected || !desktopPoint.selectedPoint || !desktopPoint.canDelete) return;
+    removeContourVertex({ cutoutId: selected.cutout.id, ...desktopPoint.selectedPoint });
+  };
 
   const handlePointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
     if (mobileEditor.down(event)) return;
@@ -741,14 +754,15 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
 
     const target = event.target as Element;
     if (editorMode === "contour") {
+      // Keep source point order (also for mirrored pockets) while measuring the
+      // pick distance after placement scaling, in the displayed bin frame.
+      const displayedOutline = selected?.shape.outlineMm.map(shape => ({
+        outer: shape.outer.map(vertex => transformPointPlacement(vertex, selected.cutout)),
+        holes: shape.holes.map(ring => ring.map(vertex => transformPointPlacement(vertex, selected.cutout))),
+      }));
       let handle = contourHandle(target);
-      if (!handle && selected && (removeVertices || event.pointerType === "touch")) {
-        // Search the displayed vertices before edge insertion. Measuring in bin
-        // space keeps touch targets consistent for rotated/nonuniformly scaled pockets.
-        const displayedOutline = selected.shape.outlineMm.map((shape) => ({
-          outer: shape.outer.map((vertex) => transformPointPlacement(vertex, selected.cutout)),
-          holes: shape.holes.map((ring) => ring.map((vertex) => transformPointPlacement(vertex, selected.cutout))),
-        }));
+      if (!handle && selected && displayedOutline) {
+        // Existing points win over the nearby edge, including near misses.
         const hit = nearestVertex(displayedOutline, point,
           (event.pointerType === "touch" ? 22 : PICK_RADIUS_PX) / Math.max(scale, 1e-6));
         if (hit) handle = { cutoutId: selected.cutout.id, ref: hit.ref, index: hit.index };
@@ -761,6 +775,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
       if (handle && selected && handle.cutoutId === selected.cutout.id) {
         const sourceShape = shapesById.get(selected.cutout.shapeId);
         if (!sourceShape) return;
+        desktopPoint.select(handle.ref, handle.index, contourRing(sourceShape.outlineMm, handle.ref)![handle.index], true);
         const draft = {
           cutoutId: selected.cutout.id,
           shapeId: sourceShape.id,
@@ -779,14 +794,14 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
         return;
       }
 
-      if (selected && target.getAttribute("data-cutout-id") === selected.cutout.id) {
+      if (selected && displayedOutline) {
         const sourceShape = shapesById.get(selected.cutout.shapeId);
         if (!sourceShape) return;
         const local = untransformPointPlacement(point, selected.cutout);
         const edge = nearestContourEdge(
-          sourceShape.outlineMm,
-          local,
-          pickRadius * 1.5,
+          displayedOutline,
+          point,
+          14 / Math.max(scale, 1e-6),
         );
         if (edge) {
           const outline = insertContourPoint(
@@ -801,6 +816,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
             outline,
           };
           setDraftContour(draft);
+          desktopPoint.select(edge.ref, edge.afterIndex + 1, local, true);
           dragRef.current = {
             kind: "contour",
             id: selected.cutout.id,
@@ -810,11 +826,12 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
             operation: "add",
           };
           event.currentTarget.setPointerCapture(event.pointerId);
+          return;
         }
-        return;
       }
 
       const hit = hitCutout(point);
+      desktopPoint.clear();
       if (hit) dispatch({ type: "SELECT_CUTOUT", id: hit.id });
       else viewport.handlers.onPointerDown(event);
       return;
@@ -943,6 +960,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
       const draft = draftContourRef.current;
       if (!current || !draft || draft.shapeId !== drag.shapeId) return;
       const local = untransformPointPlacement(point, current);
+      desktopPoint.move(local);
       setDraftContour({
         ...draft,
         outline: moveContourPoint(draft.outline, drag.ref, drag.index, local),
@@ -1057,6 +1075,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
 
   const endDrag = (event: ReactPointerEvent<SVGSVGElement>) => {
     if (mobileEditor.end(event)) return;
+    desktopPoint.finish();
     if (panActive) { viewport.handlers.onPointerUp(event); return; }
     if (!viewport.isPanning && basicPocket.pointerUp(event)) return;
     if (!viewport.isPanning && splitEditor.pointerUp(event)) return;
@@ -1090,6 +1109,16 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
     if (drag.kind === "contour") {
       const sourceShape = shapesById.get(drag.shapeId);
       const draft = draftContourRef.current;
+      if (event.type === "pointercancel") {
+        setDraftContour(null);
+        desktopPoint.clear();
+        return;
+      }
+      // Focusing an existing point is not a contour revision or an undo step.
+      if (sourceShape && draft?.outline === sourceShape.outlineMm) {
+        setDraftContour(null);
+        return;
+      }
       if (sourceShape && draft?.shapeId === drag.shapeId) {
         commitContour(
           drag.id,
@@ -1635,8 +1664,8 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
                     transformPointPlacement(point, selected.cutout),
                     spec,
                   );
-                  const pointSelected = isMobile && mobileEditor.selectedPoint?.index === pointIndex &&
-                    mobileEditor.selectedPoint.ref.shapeIndex === shapeIndex && mobileEditor.selectedPoint.ref.ringIndex === ringIndex;
+                  const pointSelected = focusedPoint?.index === pointIndex &&
+                    focusedPoint.ref.shapeIndex === shapeIndex && focusedPoint.ref.ringIndex === ringIndex;
                   return (
                     <circle
                       key={`${shapeIndex}-${ringIndex}-${pointIndex}`}
@@ -1867,17 +1896,18 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
       </div>}
 
       {editorMode === "contour" && selected && !panActive ? (
-        <div className="absolute bottom-2 left-2 z-30">
+        <div className="bin-canvas-guidance absolute bottom-2 left-2 z-30">
           {isMobile ? <MobileContourTools selected={!!mobileEditor.selectedPoint} canRemove={mobileEditor.canRemove} onRemove={mobileEditor.removeSelected}
             onDone={() => dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" })} /> :
-            <ContourEditTools removeActive={removeVertices} onChange={setRemoveVertices} />}
+            <ContourEditTools removeActive={removeVertices} onChange={setRemoveVertices}
+              onDeletePoint={desktopPoint.selectedPoint ? deleteFocusedPoint : undefined} canDeletePoint={desktopPoint.canDelete} />}
           <WorkflowHint hintKey="contour-edit" className="mt-1 max-w-[min(22rem,calc(100vw-1rem))]">
             {isMobile ? "Drag points to move. Tap the line to add; tap a point for Delete. Pinch to zoom."
-              : removeVertices ? "Tap a vertex to remove it · Undo restores it" : "Drag vertices to move · Tap an edge to add"}
+              : removeVertices ? "Tap a vertex to remove it · Undo restores it" : "Drag points to move · Click near an edge to add · Select a point for Delete"}
           </WorkflowHint>
         </div>
       ) : !basicPocket.kind && (
-      <WorkflowHint hintKey={`${editorMode}:${panActive ? "pan" : rulerActive ? "ruler" : selectedCutoutId ? "pocket" : selectedFingerHoleId ? "finger" : "selection"}`} className="absolute bottom-2 left-2 right-2 md:right-auto md:max-w-lg">
+      <WorkflowHint hintKey={`${editorMode}:${panActive ? "pan" : rulerActive ? "ruler" : selectedCutoutId ? "pocket" : selectedFingerHoleId ? "finger" : "selection"}`} className="bin-canvas-guidance absolute bottom-2 left-2 right-2 md:right-auto md:max-w-lg">
         {panActive
           ? "Drag to pan · Pinch to zoom · Tap the hand to resume editing"
           : rulerActive
@@ -1890,7 +1920,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
           ? "Choose Add pocket to draw a shape"
           : editorMode === "split" ? "Split pocket · draw a straight line between two outer edge points" : editorMode === "contour"
           ? selectedCutoutId
-            ? "Contour edit · drag points · click an edge to add · right-click a point to remove · Esc finishes"
+            ? "Contour edit · drag points · click near an edge to add · right-click a point to remove · Esc finishes"
             : "Contour edit · tap a pocket to select it"
           : selectedFingerHoleId
             ? isMobile ? "Drag the finger hole to move. Drag its white handle to resize." : "Finger hole · drag moves · white handle resizes · arrows nudge · Del removes"
@@ -1899,8 +1929,8 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
               : isMobile ? "Tap a pocket to select it. Use the hand to pan and pinch to zoom." : "Click a pocket or finger hole to select · Shift-drag pans · Ctrl-scroll zooms"}
       </WorkflowHint>
       )}
-      {isMobile && selected && mobileEditor.activePoint && (() => {
-        const point = binToCanvas(transformPointPlacement(mobileEditor.activePoint, selected.cutout), spec);
+      {selected && magnifiedPoint && (() => {
+        const point = binToCanvas(transformPointPlacement(magnifiedPoint, selected.cutout), spec);
         return <ContourMagnifier sceneId={sceneId} canvasWidth={containerSize.width} canvasHeight={containerSize.height}
           point={{ x: translateX + (point.x + footprintEditorPaddingMm) * scale,
             y: translateY + (point.y + footprintEditorPaddingMm) * scale }} />;

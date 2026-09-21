@@ -139,6 +139,12 @@
 /* Leave the top-right canvas corner for a minimized hint on phones. */
 .mobile-workspace:has([data-minimized-hint]) [data-testid="bin-history-toolbar"] { right: 3.5rem; }
 
+/* The collapsed warning icon shares the bottom row with guidance and point actions. */
+.mobile-workspace:has([data-testid="canvas-warnings"][data-collapsed="true"]) .bin-canvas-guidance {
+  right: 4rem;
+  max-width: calc(100% - 4.5rem);
+}
+
 /* Short landscape phones keep the photo alongside the step controls. */
 @media (min-width: 560px) and (max-width: 767px) and (max-height: 500px) {
   .mobile-workspace .mobile-adjustment-tray { max-height: none; }

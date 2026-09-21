@@ -8,9 +8,15 @@ The current mobile layout uses one 48 px header with a workspace menu and a
 and can be reopened with the lightbulb in the canvas's top-right corner. Bin history
 controls leave room for that button even at 320 px. Dismissal survives instruction changes
 within the same step. Adjust opens a small, nonmodal tray; More settings retains
-the complete controls. In short landscape layouts, expanded adjustments sit
+the complete controls. More settings uses a bordered, softly filled button with a
+settings icon and a 44 px touch target in both adjustment trays. In short landscape layouts, expanded adjustments sit
 beside the canvas. Scale acceptance and manual reference-length confirmation
 remain explicit.
+
+On phones, collapsed model warnings use a single 44 px icon button at the bottom
+right of the canvas. The warning count remains available to screen readers and
+returns with the full issue list when expanded. Guidance and contour actions leave
+room for the icon; desktop warning summaries keep their text.
 
 Mobile contour editing uses direct gestures in Trace and Bin: drag a point to
 move it, tap the line to add one, or tap a point and choose Delete point. There
@@ -18,7 +24,8 @@ are no separate Move/Add/Remove modes. Edit contours frames the trace. Points
 have an 18 px pick radius
 measured in screen coordinates, including rotated and nonuniformly scaled Bin
 pockets. Dragging keeps the original finger offset and ignores small hand jitter;
-a magnified SVG view stays near the active point. Unselected handles are smaller,
+a 144 px magnified SVG view stays in a fixed corner opposite the drag's starting
+point, while its contents follow the edited point. Unselected handles are smaller,
 and the selected point is enlarged and filled. Dragging elsewhere, including the
 line between points, pans. A completed line tap inserts directly on the edge;
 deletion needs the explicit Delete point action. A second finger cancels a provisional
@@ -26,13 +33,22 @@ edit and hands control to pinch/pan. Cancellation leaves no history entry, and a
 completed move has one undo step. Selection clears when changing pockets, replacing
 the photo, or undoing a change to that point. Reviewing earlier Trace steps cannot edit points.
 
+Desktop Trace and Bin also highlight a clicked point and offer Delete point, with
+the same fixed detail view during a drag. Existing left-click addition, left-drag
+movement, right-click removal, and Remove toggle remain available. Selecting a
+point alone does not create an undo entry; deletion retains the minimum three
+vertices, and undo or switching pockets clears stale point focus.
+Bin edge insertion also accepts clicks within 14 screen pixels of the selected
+contour, including beside its SVG stroke. Existing points have picking priority;
+rotated, stretched, and mirrored pockets use their displayed geometry for picking.
+
 Add to bin opens the naming dialog directly. Tapping a Bin pocket opens depth and
 clearance adjustments while keeping the canvas interactive. Export bin opens a
 focused export form using the existing validation and export handlers.
 
 Verification for this follow-up:
 
-- TypeScript, all 1,684 tests across 102 files, production build, and diff checks pass.
+- TypeScript, all 1,694 tests across 104 files, production build, and diff checks pass.
 - In-app browser checks cover real-photo upload, detected scale and perspective
   correction, region detection, contour movement/addition/removal/undo, quick
   adjustments, direct naming/handoff, 3D and Layout, pocket depth/undo, Bin point
@@ -49,7 +65,11 @@ Verification for this follow-up:
 - The direct-edit follow-up was checked in Trace and Bin: line-tap insertion,
   selected-point deletion, point dragging, undo, and dragging the line to pan.
   Minimized hints remain top-right without colliding with Bin history at 320 px
-  and in landscape. The desktop retains its existing point-edit controls.
+  and in landscape. Desktop checks cover focus, Delete point, near-edge Bin
+  insertion outside the stroke, dragging, and undo. Additional regression tests
+  cover mirrored and stretched pockets, inner rings, click jitter, and the fixed
+  detail view. The bottom warning icon and More settings button are checked at
+  320 px and 390 px in Layout and 3D.
 - Automated pointer tests cover pinch takeover, surviving-finger pan, cancelled
   edits, minimum ring size, offset-preserving movement, and transformed outer/hole
   contours. These are browser and regression checks; physical iOS/Android gestures,

@@ -963,6 +963,79 @@ describe("BinDesignerPage", () => {
     unmount();
   });
 
+  it.each([
+    { ringIndex: -1, mirrored: false }, { ringIndex: 0, mirrored: false },
+    { ringIndex: -1, mirrored: true }, { ringIndex: 0, mirrored: true },
+  ])("focuses desktop ring $ringIndex (mirrored: $mirrored) while preserving mouse edits and near-edge insertion", async ({ ringIndex, mirrored }) => {
+    const shape = rectangularShape("tool", "Wrench");
+    shape.outlineMm[0].holes = [[{ x: -7, y: -4 }, { x: -7, y: 4 }, { x: 7, y: 4 }, { x: 7, y: -4 }]];
+    shape.pointCount = 8;
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({
+      ...EMPTY_PROJECT, shapes: [shape],
+      cutouts: [parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 0, y: 0 }, rotationDeg: 30, scaleX: 1.5, scaleY: 0.8, mirrored })],
+    });
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      openSettingsSection(container, "tool-cutouts"); selectPocket(container, "pocket");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-edit-contour"]')!.click());
+      const svg = container.querySelector<SVGSVGElement>('[data-testid="layout-canvas"]')!;
+      Object.defineProperty(svg.querySelector('g')!, 'getScreenCTM', { value: () => ({ a: 1, b: 0, c: 0, d: 1, e: 0, f: 0, inverse: () => ({}) }) });
+      Object.defineProperties(svg, {
+        createSVGPoint: { value: () => ({ x: 0, y: 0, matrixTransform() { return { x: this.x, y: this.y }; } }) },
+        setPointerCapture: { value: () => {} },
+      });
+      const handles = () => svg.querySelectorAll(`[data-contour-ring="${ringIndex}"]`);
+      const coords = (element: Element) => ({ x: Number(element.getAttribute('cx')), y: Number(element.getAttribute('cy')) });
+      const pointer = (target: Element, type: string, point: { x: number; y: number }) => React.act(() => {
+        const event = new MouseEvent(type, { bubbles: true, button: type === 'pointermove' ? -1 : 0, clientX: point.x, clientY: point.y });
+        Object.defineProperties(event, { pointerId: { value: 1 }, pointerType: { value: 'mouse' } });
+        target.dispatchEvent(event);
+      });
+      const remove = () => [...container.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === 'Delete point');
+      const first = coords(handles()[0]);
+      pointer(handles()[0], 'pointerdown', first);
+      expect(container.querySelector('[data-testid="contour-magnifier"]')).not.toBeNull();
+      pointer(svg, 'pointerup', first);
+      expect(container.querySelector('[data-testid="contour-magnifier"]')).toBeNull();
+      expect(handles()[0].getAttribute('data-point-selected')).toBe('true');
+      expect(container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.disabled).toBe(true);
+      pointer(handles()[0], 'pointerdown', first);
+      const moved = { x: first.x + 10, y: first.y + 10 };
+      pointer(svg, 'pointermove', moved); pointer(svg, 'pointerup', moved);
+      expect(coords(handles()[0]).x).toBeCloseTo(moved.x);
+      React.act(() => remove()!.click());
+      expect(handles()).toHaveLength(3);
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+      expect(handles()).toHaveLength(4);
+      React.act(() => handles()[0].dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })));
+      expect(handles()).toHaveLength(3);
+      pointer(handles()[0], 'pointerdown', coords(handles()[0])); pointer(svg, 'pointerup', coords(handles()[0]));
+      expect(remove()!.disabled).toBe(true);
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+      const vertices = [...handles()].map(coords);
+      const [a, b] = vertices.map((point, index) => [point, vertices[(index + 1) % vertices.length]])
+        .sort(([a, b], [c, d]) => Math.hypot(d.x - c.x, d.y - c.y) - Math.hypot(b.x - a.x, b.y - a.y))[0];
+      const length = Math.hypot(b.x - a.x, b.y - a.y);
+      const midpoint = { x: (a.x + b.x) / 2 + (b.y - a.y) / length * 2,
+        y: (a.y + b.y) / 2 - (b.x - a.x) / length * 2 };
+      // Miss the path while staying closer to this edge than the other ring (4.8px away).
+      pointer(svg, 'pointerdown', midpoint);
+      pointer(svg, 'pointerup', midpoint);
+      expect(handles()).toHaveLength(5);
+      expect(remove()).toBeDefined();
+      expect(coords(svg.querySelector('[data-point-selected="true"]')!).x).toBeCloseTo(midpoint.x);
+      expect(coords(svg.querySelector('[data-point-selected="true"]')!).y).toBeCloseTo(midpoint.y);
+      const nearVertex = { x: coords(handles()[0]).x + 1, y: coords(handles()[0]).y + 1 };
+      pointer(svg, 'pointerdown', nearVertex); pointer(svg, 'pointerup', nearVertex);
+      expect(handles()).toHaveLength(5);
+      expect(handles()[0].getAttribute('data-point-selected')).toBe('true');
+      pointer(svg, 'pointerdown', { x: 1000, y: 1000 }); pointer(svg, 'pointerup', { x: 1000, y: 1000 });
+      expect(handles()).toHaveLength(5);
+    } finally { unmount(); }
+  });
+
   it.each([-1, 0])("selects and deletes contour ring %s points with undo, minimum size, and direct dragging", async (ringIndex) => {
     const shape = rectangularShape("tool", "Wrench");
     shape.outlineMm[0].holes = [[{ x: -7, y: -4 }, { x: -7, y: 4 }, { x: 7, y: 4 }, { x: 7, y: -4 }]];

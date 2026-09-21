@@ -913,6 +913,68 @@ describe("TraceCanvas edit history", () => {
   });
 });
 
+describe("desktop point focus", () => {
+  it.each(["edit", "pan"] as const)("focuses and deletes points in %s without changing mouse edit gestures", async mode => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    vi.stubGlobal("innerWidth", 1440);
+    vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+    vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
+    const restoreSvgCoordinates = installIdentitySvgCoordinates();
+    const host = document.createElement("div"); document.body.append(host);
+    const root = createRoot(host);
+    let trace: ReturnType<typeof useTrace>;
+    function Probe(): null { trace = useTrace(); return null; }
+    try {
+      await React.act(async () => root.render(<TraceProvider><SeedTrace /><Probe /><TooltipProvider><TraceCanvas onReprocess={() => {}} /></TooltipProvider></TraceProvider>));
+      React.act(() => trace!.dispatch({ type: "SET_MODE", mode: "edit" }));
+      React.act(() => trace!.dispatch({ type: "SET_MODE", mode }));
+      const svg = host.querySelector('svg')!;
+      Object.defineProperty(svg, 'setPointerCapture', { value: () => {} });
+      const pointer = (type: string, x: number, y: number) => React.act(() => {
+        const event = new MouseEvent(type, { bubbles: true, button: type === 'pointermove' ? -1 : 0, clientX: x, clientY: y });
+        Object.defineProperties(event, { pointerId: { value: 1 }, pointerType: { value: 'mouse' } });
+        svg.dispatchEvent(event);
+      });
+      const remove = () => [...host.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === 'Delete point');
+      const historyIndex = trace!.history.index;
+      pointer('pointerdown', 11, 11);
+      expect(host.querySelector('[data-testid="contour-magnifier"]')).not.toBeNull();
+      pointer('pointermove', 11, 11);
+      pointer('pointermove', 12, 12);
+      pointer('pointerup', 12, 12);
+      expect(host.querySelector('[data-testid="contour-magnifier"]')).toBeNull();
+      expect(host.querySelector('[data-vertex="0"]')!.getAttribute('data-point-selected')).toBe('true');
+      expect(trace!.history.index).toBe(historyIndex);
+      expect(trace!.outline).toEqual(edited);
+      React.act(() => remove()!.click());
+      expect(trace!.outline[0].outer).toHaveLength(4);
+      expect(remove()).toBeUndefined();
+      React.act(() => trace!.undo());
+      expect(trace!.outline).toEqual(edited);
+      React.act(() => trace!.dispatch({ type: "SELECT_RING", selection: { shapeIndex: 0, ringIndex: -1 } }));
+      pointer('pointerdown', 50, 10); pointer('pointerup', 50, 10);
+      expect(trace!.outline[0].outer).toHaveLength(6);
+      expect(remove()).toBeDefined();
+      React.act(() => svg.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 50, clientY: 10 })));
+      expect(trace!.outline[0].outer).toHaveLength(5);
+      pointer('pointerdown', 10, 10); pointer('pointermove', 25, 25); pointer('pointerup', 25, 25);
+      expect(trace!.outline[0].outer[0]).toEqual({ x: 25, y: 25 });
+      expect(host.querySelector('[data-point-selected]')).not.toBeNull();
+      React.act(() => trace!.undo());
+      expect(trace!.outline).toEqual(edited);
+      expect(remove()).toBeUndefined();
+      React.act(() => trace!.dispatch({ type: "SELECT_RING", selection: { shapeIndex: 0, ringIndex: -1 } }));
+      pointer('pointerdown', 10, 10); pointer('pointerup', 10, 10);
+      React.act(() => remove()!.click());
+      pointer('pointerdown', 90, 10); pointer('pointerup', 90, 10);
+      React.act(() => remove()!.click());
+      pointer('pointerdown', 90, 90); pointer('pointerup', 90, 90);
+      expect(trace!.outline[0].outer).toHaveLength(3);
+      expect(remove()!.disabled).toBe(true);
+    } finally { React.act(() => root.unmount()); restoreSvgCoordinates(); }
+  });
+});
+
 describe("touch-accessible trace tools", () => {
   it("uses mobile point tools, shows a magnifier, and gives pinch priority over a point drag", async () => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);

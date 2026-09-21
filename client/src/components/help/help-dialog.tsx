@@ -101,7 +101,10 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
                 On a phone, <strong>Edit contours</strong> frames the outline. Drag a point
                 to move it, tap the line to add one, or tap a point and choose
                 <strong> Delete point</strong>. Drag elsewhere to pan and pinch to zoom. Holding a point shows a
-                magnified view. Undo restores an edit.
+                magnified view. On desktop, click a point to select it and reveal
+                <strong> Delete point</strong>; left-drag moves it, left-click adds,
+                and right-click removes. In Trace and Bin, the detail view stays in a
+                fixed corner while you drag. Undo restores an edit.
               </li>
               <li>
                 Choose <strong>Add to bin</strong> to place the scaled contour in

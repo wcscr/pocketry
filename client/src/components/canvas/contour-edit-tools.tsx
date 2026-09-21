@@ -1,4 +1,4 @@
-import { Minus } from "lucide-react";
+import { Minus, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 
@@ -8,11 +8,15 @@ export function ContourEditTools({
   onChange,
   selectionLabel = "Contour",
   compact = false,
+  onDeletePoint,
+  canDeletePoint = false,
 }: {
   removeActive: boolean;
   onChange: (remove: boolean) => void;
   selectionLabel?: string;
   compact?: boolean;
+  onDeletePoint?: () => void;
+  canDeletePoint?: boolean;
 }) {
   return (
     <div role="group" aria-label="Contour editing tools" className={compact
@@ -24,6 +28,10 @@ export function ContourEditTools({
         <Minus className="h-4 w-4" aria-hidden="true" />
         Remove
       </Button>
+      {onDeletePoint && <Button type="button" size="sm" variant="outline"
+        className="h-11 gap-2 px-3" disabled={!canDeletePoint} onClick={onDeletePoint}>
+        <Trash2 className="h-4 w-4" aria-hidden />Delete point
+      </Button>}
     </div>
   );
 }
