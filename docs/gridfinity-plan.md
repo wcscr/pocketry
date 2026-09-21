@@ -135,12 +135,15 @@ preview-only **section view**
 `.pocketry.json` backup import/export (legacy `.tooltrace.json` remains accepted);
 and per-pocket duplicate. The Project
 section is pinned to the top of the Bin controls: a draft resumes automatically,
-Save gives it a library name, Manage presents the browser-local named projects,
+The save icon gives it a library name; double-clicking either current-project
+title opens the same name dialog for new drafts and saved projects.
+Manage presents the browser-local named projects,
 and New detaches a clean draft without deleting saved projects. Opening another
 design, opening a project file, and New Project all save the outgoing named
 design's latest edits before changing the autosave target. A failed save keeps
 the current design open. Library import/export also lives in Manage; the main
-Project section retains only current-project file transfers. Both library opens
+Project section places New project, Open project, and Export project in one
+compact action row without a separate backup section. Both library opens
 (Open, Enter, and double-click) and opening a project file share a confirmation
 before replacing a nonempty unnamed draft, with Keep working as the safe choice.
 Files are validated before confirmation; cancelling preserves the draft and

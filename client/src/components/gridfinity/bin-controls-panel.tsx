@@ -377,6 +377,7 @@ export function BinControlsPanel({
   );
   const [surfaceFitCheckStyle, setSurfaceFitCheckStyle] = useState<SurfaceFitCheckStyle>("outline");
   const [threeMfDialogOpen, setThreeMfDialogOpen] = useState(false);
+  const [projectNameOpen, setProjectNameOpen] = useState(false);
   const threeMfTitleRef = useRef<HTMLHeadingElement>(null);
   const [includeThreeMfProject, setIncludeThreeMfProject] = useState(false);
   const [pendingExport, setPendingExport] = useState<{
@@ -508,7 +509,13 @@ export function BinControlsPanel({
     <PanelSectionFilterContext.Provider value={exportOnly ? "bin-settings-export" : null}>
     <div className="flex h-full flex-col">
       <div className={exportOnly ? "hidden" : "shrink-0 border-b px-3 py-2"} data-testid="project-status">
-        <p className="truncate text-sm font-medium" title={currentProjectName ?? "Untitled project"}>{currentProjectName ?? "Untitled project"}</p>
+        <p className="cursor-text truncate text-sm font-medium" data-testid="project-status-title"
+          title={`${currentProjectName ?? "Untitled project"} — double-click to rename`}
+          onDoubleClick={() => {
+            if (!hydrated || !projectLibraryReady || projectBusy) return;
+            revealPanelSection("bin-settings-project", BIN_SETTINGS_SECTIONS);
+            setProjectNameOpen(true);
+          }}>{currentProjectName ?? "Untitled project"}</p>
         <p className="text-[11px] text-muted-foreground" role="status">{!hydrated ? "Opening project…" : projectBusy ? "Working…" : saveStatus === "saving" ? activeProjectId ? "Saving to browser library…" : "Draft — saving locally…" : saveStatus === "error" ? "Could not save. Export this project to keep your work." : activeProjectId ? "Saved to browser library" : "Draft — autosaved locally"}</p>
       </div>
       {/* On short screens the section headers remain reachable by scrolling;
@@ -531,6 +538,8 @@ export function BinControlsPanel({
           className="scroll-mt-16"
         >
           <ProjectControls
+            saveOpen={projectNameOpen}
+            setSaveOpen={setProjectNameOpen}
             hydrated={hydrated}
             libraryReady={projectLibraryReady}
             busy={projectBusy}
@@ -2069,6 +2078,8 @@ export function BinControlsPanel({
 }
 
 interface ProjectControlsProps {
+  saveOpen: boolean;
+  setSaveOpen: (open: boolean) => void;
   saveStatus?: "saving" | "saved" | "error";
   hydrated: boolean;
   libraryReady: boolean;
@@ -2097,6 +2108,8 @@ type ProjectOpenTarget =
 const projectActionClass = "h-auto min-h-11 min-w-0 gap-1.5 whitespace-normal px-2 py-2 text-xs";
 
 function ProjectControls({
+  saveOpen,
+  setSaveOpen,
   hydrated,
   libraryReady,
   busy,
@@ -2118,13 +2131,15 @@ function ProjectControls({
   saveStatus = "saved",
 }: ProjectControlsProps): JSX.Element {
   const ready = hydrated && libraryReady;
-  const [saveOpen, setSaveOpen] = useState(false);
   const [renameProjectId, setRenameProjectId] = useState<string | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [pendingOpenProject, setPendingOpenProject] = useState<ProjectOpenTarget | null>(null);
   const { toast } = useToast();
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [projectName, setProjectName] = useState("");
+  useEffect(() => {
+    if (saveOpen) setProjectName(currentProjectName ?? "");
+  }, [saveOpen, currentProjectName]);
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const importProjectButtonRef = useRef<HTMLButtonElement | null>(null);
   const libraryImportInputRef = useRef<HTMLInputElement | null>(null);
@@ -2194,17 +2209,14 @@ function ProjectControls({
         <DialogTrigger asChild>
           <Button
             variant={renaming ? "ghost" : "outline"}
-            size={renaming ? "icon" : "sm"}
-            className={renaming
-              ? "h-8 w-8 shrink-0 text-muted-foreground [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11"
-              : "h-8 shrink-0 gap-1.5 px-2 text-xs [@media(pointer:coarse)]:min-h-11"}
+            size="icon"
+            className="h-8 w-8 shrink-0 text-muted-foreground [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11"
             aria-label={project ? `Rename ${project.name}` : renaming ? "Rename project" : "Save to library"}
-            title={renaming ? "Rename project" : undefined}
+            title={renaming ? "Rename project" : "Save to library"}
             disabled={!ready || busy}
             data-testid={project ? `button-rename-project-${project.id}` : "button-save-library"}
           >
             {renaming ? <Pencil className="h-3.5 w-3.5 shrink-0" /> : <Save className="h-3.5 w-3.5 shrink-0" />}
-            {!renaming && "Save to library"}
           </Button>
         </DialogTrigger>
         <DialogContent className="grid-cols-1">
@@ -2468,14 +2480,19 @@ function ProjectControls({
           <div className="ml-auto">{renderLibraryDialog()}</div>
         </div>
         <div
-          className={cn("flex min-h-8 items-center gap-x-1.5 gap-y-1", !activeProjectId && "flex-wrap")}
+          className="flex min-h-8 items-center gap-1.5"
           data-testid="current-project-name-row"
           role="group"
           aria-labelledby="current-project-label"
         >
-        <div className={cn("flex min-w-0 items-baseline gap-1.5", !activeProjectId && "basis-48 grow")}>
+        <div className="flex min-w-0 items-baseline gap-1.5">
         <p id="current-project-label" className="shrink-0 text-xs text-muted-foreground">Current Project:</p>
-        <p className="min-w-0 truncate text-sm font-medium" title={currentProjectName ?? "Untitled project"}>
+        <p className="min-w-0 cursor-text truncate text-sm font-medium" data-testid="current-project-title"
+          title={`${currentProjectName ?? "Untitled project"} — double-click to rename`}
+          onDoubleClick={() => {
+            if (!ready || busy) return;
+            setSaveOpen(true);
+          }}>
           {!ready ? "Checking for saved projects…" : (currentProjectName ?? "Untitled project")}
         </p>
         </div>
@@ -2483,13 +2500,13 @@ function ProjectControls({
         </div>
         {saveStatus === "error" && <p className="text-[11px] text-destructive" role="status">Autosave is unavailable. Export this project to keep your work.</p>}
       </div>
-      <div className="flex">
+      <div className="grid grid-cols-3 gap-2" role="group" aria-label="Project actions">
         <AlertDialog>
           <AlertDialogTrigger asChild>
             <Button
               variant="outline"
               size="sm"
-              className="h-auto min-h-9 min-w-0 gap-1.5 whitespace-normal px-2 py-1.5 text-xs [@media(pointer:coarse)]:min-h-11"
+              className={projectActionClass}
               disabled={!ready || busy}
               data-testid="button-new-project"
             >
@@ -2518,6 +2535,29 @@ function ProjectControls({
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+        <Button
+          variant="outline"
+          size="sm"
+          className={projectActionClass}
+          disabled={!ready || busy}
+          onClick={() => importInputRef.current?.click()}
+          ref={importProjectButtonRef}
+          title="Open an editable Pocketry project file"
+          data-testid="button-import-project"
+        >
+          <FolderOpen className="h-3.5 w-3.5 shrink-0" />Open project
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className={projectActionClass}
+          disabled={!ready || busy}
+          onClick={onExportProject}
+          title="Download this design as an editable .pocketry.json file"
+          data-testid="button-export-project"
+        >
+          <Download className="h-3.5 w-3.5 shrink-0" />Export project
+        </Button>
       </div>
       </section>
 
@@ -2553,46 +2593,17 @@ function ProjectControls({
         </AlertDialogContent>
       </AlertDialog>
 
-      <section aria-label="Portable backup" className="space-y-3 border-t pt-3" data-testid="portable-backup">
-        <h3 className="text-sm font-semibold">Portable Backup</h3>
-        <div className="space-y-1.5" data-testid="project-file-backup">
-        <SettingLabel label="Current project" hint="Exports this design as an editable .pocketry.json file. Opening a project file first saves the latest changes to your named project, then replaces the working draft." />
-        <div className="grid grid-cols-2 gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className={projectActionClass}
-            disabled={!ready || busy}
-            onClick={onExportProject}
-            data-testid="button-export-project"
-          >
-            <Download className="h-3.5 w-3.5 shrink-0" />Export project
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className={projectActionClass}
-            disabled={!ready || busy}
-            onClick={() => importInputRef.current?.click()}
-            ref={importProjectButtonRef}
-            data-testid="button-import-project"
-          >
-            <FolderOpen className="h-3.5 w-3.5 shrink-0" />Open project file
-          </Button>
-        </div>
-        </div>
-        <input
-          ref={importInputRef}
-          type="file"
-          accept=".json,.pocketry.json,.tooltrace.json,application/json"
-          className="hidden"
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            if (file) void readProjectFile(file);
-            event.target.value = "";
-          }}
-        />
-      </section>
+      <input
+        ref={importInputRef}
+        type="file"
+        accept=".json,.pocketry.json,.tooltrace.json,application/json"
+        className="hidden"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file) void readProjectFile(file);
+          event.target.value = "";
+        }}
+      />
     </>
   );
 }
