@@ -864,7 +864,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
             <MobileContourTools selected={!!mobileEditor.selectedPoint} canRemove={mobileEditor.canRemove} onRemove={mobileEditor.removeSelected}
               onDone={() => dispatch({ type: "SET_MODE", mode: "navigate" })} />
           </div>}
-          <ContourMagnifier sceneId={sceneId} canvasWidth={containerSize.width} canvasHeight={containerSize.height}
+          <ContourMagnifier sceneId={sceneId} canvasWidth={containerSize.width} canvasHeight={containerSize.height} compact={isMobile}
             point={magnifiedPoint ? {
               x: viewport.transform.translateX + magnifiedPoint.x * viewport.transform.scale,
               y: viewport.transform.translateY + magnifiedPoint.y * viewport.transform.scale,

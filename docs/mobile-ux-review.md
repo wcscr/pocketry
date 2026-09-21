@@ -34,7 +34,9 @@ completed move has one undo step. Selection clears when changing pockets, replac
 the photo, or undoing a change to that point. Reviewing earlier Trace steps cannot edit points.
 
 Desktop Trace and Bin also highlight a clicked point and offer Delete point, with
-the same fixed detail view during a drag. Existing left-click addition, left-drag
+the same fixed detail view during a drag. Its desktop window is 204 × 204 px,
+about twice the area of the 144 × 144 px phone window; both retain 3× magnification.
+Existing left-click addition, left-drag
 movement, right-click removal, and Remove toggle remain available. Selecting a
 point alone does not create an undo entry; deletion retains the minimum three
 vertices, and undo or switching pockets clears stale point focus.
@@ -48,7 +50,7 @@ focused export form using the existing validation and export handlers.
 
 Verification for this follow-up:
 
-- TypeScript, all 1,694 tests across 104 files, production build, and diff checks pass.
+- TypeScript, all 1,695 tests across 104 files, production build, and diff checks pass.
 - In-app browser checks cover real-photo upload, detected scale and perspective
   correction, region detection, contour movement/addition/removal/undo, quick
   adjustments, direct naming/handoff, 3D and Layout, pocket depth/undo, Bin point

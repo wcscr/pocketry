@@ -1931,7 +1931,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
       )}
       {selected && magnifiedPoint && (() => {
         const point = binToCanvas(transformPointPlacement(magnifiedPoint, selected.cutout), spec);
-        return <ContourMagnifier sceneId={sceneId} canvasWidth={containerSize.width} canvasHeight={containerSize.height}
+        return <ContourMagnifier sceneId={sceneId} canvasWidth={containerSize.width} canvasHeight={containerSize.height} compact={isMobile}
           point={{ x: translateX + (point.x + footprintEditorPaddingMm) * scale,
             y: translateY + (point.y + footprintEditorPaddingMm) * scale }} />;
       })()}
