@@ -76,6 +76,17 @@ function codes(
 // 2×2 bin: footprint 83.5, interior half-width 40.8.
 
 describe("validateLayout", () => {
+  it("identifies a renamed copy in warnings while preserving its source name", () => {
+    const shape = makeShape("Shared source", 20, 20);
+    const original = makeCutout("original", shape.id, 0, 0);
+    const copy = makeCutout("copy", shape.id, 60, 0, { name: "Right pocket" });
+    const issues = validateLayout(spec(), [original, copy], new Map([[shape.id, shape]]));
+    const outside = issues.find(issue => issue.code === "out-of-bounds");
+    expect(outside?.cutoutIds).toEqual([copy.id]);
+    expect(outside?.message).toBe("“Right pocket” extends past the bin's footprint.");
+    expect(shape.name).toBe("Shared source");
+  });
+
   it("keeps layout checks conservative for inward clearance instead of treating erosion as scaled geometry", () => {
     const shape = makeShape("s1", 20, 20);
     const placements = [makeCutout("a", "s1", -8, 0), makeCutout("b", "s1", 8, 0)];

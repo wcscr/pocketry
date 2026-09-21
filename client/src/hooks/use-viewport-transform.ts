@@ -1,4 +1,5 @@
 import * as React from "react";
+import { canHandleCanvasShortcut } from "@/lib/canvas-keyboard";
 
 /**
  * Content → container mapping, applied with `transform-origin: 0 0`:
@@ -55,7 +56,10 @@ export interface UseViewportTransformOptions extends FitInput {
 }
 
 export interface ViewportPointerHandlers {
-  onPointerDown: React.PointerEventHandler;
+  /** Hand an in-progress one-pointer edit gesture over to panning. */
+  startPan: React.PointerEventHandler;
+  /** An editor can explicitly pan a drag that missed its handles. */
+  onPointerDown: (event: React.PointerEvent, options?: { pan: boolean }) => void;
   onPointerMove: React.PointerEventHandler;
   onPointerUp: React.PointerEventHandler;
   onPointerCancel: React.PointerEventHandler;
@@ -190,14 +194,6 @@ function normaliseWheelDelta(event: WheelEvent, containerHeight: number): Point 
           : WHEEL_PAGE_PX
         : 1;
   return { x: event.deltaX * unit, y: event.deltaY * unit };
-}
-
-/** True for elements where the space bar means "type a space". */
-function isTextEntry(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  if (target.isContentEditable) return true;
-  const tag = target.tagName;
-  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
 }
 
 /**
@@ -587,10 +583,9 @@ export function useViewportTransform(
       // Never steal the space bar from a field being typed into, or from a
       // shortcut combination that merely happens to include it.
       if (event.ctrlKey || event.metaKey || event.altKey) return;
-      if (isTextEntry(event.target)) return;
-      // Space scrolls the page and activates the focused button; a pan gesture
-      // needs it to do neither. Repeats are prevented too, or holding space
-      // fires the button once per repeat.
+      if (!canHandleCanvasShortcut(event)) return;
+      // Prevent page scrolling only when the canvas owns Space. Focused
+      // buttons and dialogs retain native keyboard activation.
       event.preventDefault();
       if (!spaceHeldRef.current) setHeld(true);
     };
@@ -611,8 +606,21 @@ export function useViewportTransform(
     };
   }, []);
 
+  const startPan = React.useCallback((event: React.PointerEvent) => {
+    if (pointersRef.current.size > 1) return;
+    if (!surfaceRef.current) surfaceRef.current = event.currentTarget;
+    pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    event.preventDefault();
+    gestureRef.current = {
+      kind: "pan", pointerId: event.pointerId,
+      lastX: event.clientX, lastY: event.clientY,
+    };
+    capturePointer(event.currentTarget, event.pointerId);
+    setIsPanning(true);
+  }, []);
+
   const onPointerDown = React.useCallback(
-    (event: React.PointerEvent) => {
+    (event: React.PointerEvent, options?: { pan: boolean }) => {
       if (!surfaceRef.current) surfaceRef.current = event.currentTarget;
       const pointers = pointersRef.current;
       const isTouch = event.pointerType === "touch";
@@ -620,7 +628,7 @@ export function useViewportTransform(
       const startsPan =
         event.button === 1 || // middle-drag: the universal pan chord
         (isPrimaryButton && (event.shiftKey || spaceHeldRef.current)) ||
-        (isPrimaryButton && live.current.panEnabled);
+        (isPrimaryButton && (options?.pan ?? live.current.panEnabled));
 
       // Touch pointers are implicitly captured by the browser, so their
       // up/cancel always comes back here; tracking every one of them is what
@@ -651,17 +659,9 @@ export function useViewportTransform(
       if (!startsPan) return;
       // Middle-drag: suppress the autoscroll widget. Left-drag: suppress text
       // selection and the browser's native image drag.
-      event.preventDefault();
-      gestureRef.current = {
-        kind: "pan",
-        pointerId: event.pointerId,
-        lastX: event.clientX,
-        lastY: event.clientY,
-      };
-      capturePointer(event.currentTarget, event.pointerId);
-      setIsPanning(true);
+      startPan(event);
     },
-    [],
+    [startPan],
   );
 
   const onPointerMove = React.useCallback(
@@ -740,12 +740,13 @@ export function useViewportTransform(
 
   const handlers = React.useMemo<ViewportPointerHandlers>(
     () => ({
+      startPan,
       onPointerDown,
       onPointerMove,
       onPointerUp: onPointerEnd,
       onPointerCancel: onPointerEnd,
     }),
-    [onPointerDown, onPointerMove, onPointerEnd],
+    [startPan, onPointerDown, onPointerMove, onPointerEnd],
   );
 
   return React.useMemo<ViewportTransformApi>(

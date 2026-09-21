@@ -1,10 +1,11 @@
 import { createRequire } from "node:module";
 
 import { mmPerPixel } from "@shared/geometry/scale";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import {
   perspectiveLayout,
+  projectMarkersThroughTemplate,
   proposalFromTemplateMarkers,
   runPerspectiveCorrection,
   scalePerspectiveProposal,
@@ -80,6 +81,36 @@ function transformPoints(points: readonly { x: number; y: number }[], transform:
 }
 
 describe("perspective geometry", () => {
+  it.each([1, 2, 3, 4, 5])("releases earlier OpenCV handles when marker projection allocation %s fails", (failedAllocation) => {
+    const allocated: { delete: ReturnType<typeof vi.fn> }[] = [];
+    let attempts = 0;
+    const allocate = () => {
+      attempts++;
+      if (attempts === failedAllocation) throw new Error("WASM allocation failed");
+      const handle = { delete: vi.fn() };
+      allocated.push(handle);
+      return handle;
+    };
+    const failingCv = {
+      CV_32FC2: cv.CV_32FC2,
+      matFromArray: allocate,
+      Mat: function FakeMat() { return allocate(); },
+      findHomography: allocate,
+    };
+    const paperMarkers = templateMarkerCornersMm("a4").map(({ id, corners }) => ({
+      id, cornersPx: [...corners] as PerspectiveQuad,
+      centerPx: {
+        x: corners.reduce((sum, point) => sum + point.x, 0) / 4,
+        y: corners.reduce((sum, point) => sum + point.y, 0) / 4,
+      },
+    }));
+    const proposal = proposalFromTemplateMarkers(paperMarkers, "a4")!;
+    expect(projectMarkersThroughTemplate(failingCv, [marker(24, 100, 100)], proposal, "a4")).toBeNull();
+    expect(attempts).toBe(failedAllocation);
+    expect(allocated).toHaveLength(failedAllocation - 1);
+    for (const handle of allocated) expect(handle.delete).toHaveBeenCalledOnce();
+  });
+
   it("orders the four unique template ids and rejects incomplete sets", () => {
     const markers = [
       marker(2, 90, 120),
@@ -240,6 +271,24 @@ describe("perspective correction with the shipped OpenCV build", () => {
       expect(corrected.width).toBe(841);
       expect(corrected.height).toBe(1189);
       expect(mmPerPixel(corrected.calibration)).toBeCloseTo(0.25, 9);
+      // A raised 85 mm aid spans 186 pixels on the canonical paper plane.
+      // Project it into the same skewed photo, then recover its own scale.
+      const aid = cv.matFromArray(2, 1, cv.CV_32FC2, [140, 210, 326, 210]);
+      const photographedAid = new cv.Mat();
+      try {
+        cv.perspectiveTransform(aid, photographedAid, transform);
+        const [startX, startY, endX, endY] = Array.from(photographedAid.data32F) as number[];
+        const combined = runPerspectiveCorrection(cv, photographed,
+          { source: "manual", points: photographedCorners }, "a4", undefined,
+          { startX, startY, endX, endY, lengthMm: 85 });
+        expect(combined.calibration.lengthMm).toBe(85);
+        expect(combined.calibration.startX).toBeCloseTo(280, 3);
+        expect(combined.calibration.startY).toBeCloseTo(420, 3);
+        expect(combined.calibration.endX).toBeCloseTo(652, 3);
+        expect(combined.calibration.endY).toBeCloseTo(420, 3);
+        expect(mmPerPixel(combined.calibration)).toBeCloseTo(85 / 372, 6);
+        expect(Buffer.from(combined.imageData.data).equals(Buffer.from(corrected.imageData.data))).toBe(true);
+      } finally { photographedAid.delete(); aid.delete(); }
       expect(corrected.reprojectionErrorPx).toBeNull();
       expect(pixel(corrected.imageData, 420, 580).slice(0, 3)).toEqual([
         20, 80, 180,
@@ -254,6 +303,17 @@ describe("perspective correction with the shipped OpenCV build", () => {
       photographedMat.delete();
       canonicalMat.delete();
     }
+  });
+
+  it("rejects an invalid or out-of-frame aid instead of substituting paper scale", () => {
+    const photo = imageData(421, 595);
+    const proposal = { source: "manual" as const, points: [
+      { x: 0, y: 0 }, { x: 420, y: 0 }, { x: 420, y: 594 }, { x: 0, y: 594 },
+    ] as PerspectiveQuad };
+    expect(() => runPerspectiveCorrection(cv, photo, proposal, "a4", undefined,
+      { startX: 50, startY: 100, endX: 150, endY: 100, lengthMm: 0 })).toThrow(/aid scale is invalid/);
+    expect(() => runPerspectiveCorrection(cv, photo, proposal, "a4", undefined,
+      { startX: 50, startY: 100, endX: 500, endY: 100, lengthMm: 85 })).toThrow(/outside the corrected paper/);
   });
 
   it("uses all sixteen refined marker corners for a precision template fit", () => {

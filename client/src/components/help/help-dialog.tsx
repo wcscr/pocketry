@@ -5,7 +5,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { downloadCalibrationTemplate } from "@/lib/calibrate/download-template";
+import { CalibrationDownloads } from "@/components/trace/calibration-downloads";
 
 export interface HelpDialogProps {
   open: boolean;
@@ -41,6 +41,13 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
         </DialogHeader>
 
         <div className="space-y-5 text-sm">
+          <section aria-label="Feedback">
+            <p className="text-muted-foreground">Found a problem or have a suggestion? We welcome feedback, especially while the mobile interface is in early development.</p>
+            <div className="flex flex-wrap gap-x-5">
+              <a className="inline-flex min-h-11 items-center text-primary underline underline-offset-4" href="mailto:pocketry@sugarcreekresearch.com">Email feedback</a>
+              <a className="inline-flex min-h-11 items-center text-primary underline underline-offset-4" href="https://github.com/wcscr/pocketry/issues/new" target="_blank" rel="noopener noreferrer">Report an issue on GitHub<span className="sr-only"> (opens a new tab)</span></a>
+            </div>
+          </section>
           <section>
             <h3 className="mb-1.5 font-medium">1. Trace a tool</h3>
             <ol className="list-decimal space-y-1 pl-6 text-muted-foreground">
@@ -56,49 +63,11 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
                 markers are required. Pocketry validates their 16 corners before
                 proposing scale or perspective correction. Check the preview, then
                 accept it.
-                If you do not have a sheet yet, download and print the{" "}
-                <button
-                  type="button"
-                  className="font-medium text-primary underline underline-offset-2 hover:no-underline"
-                  onClick={() => downloadCalibrationTemplate("a4")}
-                  data-testid="help-print-template-a4"
-                >
-                  A4 PDF template
-                </button>{" "}
-                or{" "}
-                <button
-                  type="button"
-                  className="font-medium text-primary underline underline-offset-2 hover:no-underline"
-                  onClick={() => downloadCalibrationTemplate("letter")}
-                  data-testid="help-print-template-letter"
-                >
-                  US Letter PDF template
-                </button>{" "}
-                at 100% scale.
-                Experimental sheets with smaller corner markers are also
-                available for {" "}
-                <button
-                  type="button"
-                  className="font-medium text-primary underline underline-offset-2 hover:no-underline"
-                  onClick={() =>
-                    downloadCalibrationTemplate("a4-experimental")
-                  }
-                  data-testid="help-print-template-a4-experimental"
-                >
-                  A4
-                </button>{" "}
-                and {" "}
-                <button
-                  type="button"
-                  className="font-medium text-primary underline underline-offset-2 hover:no-underline"
-                  onClick={() =>
-                    downloadCalibrationTemplate("letter-experimental")
-                  }
-                  data-testid="help-print-template-letter-experimental"
-                >
-                  US Letter
-                </button>
-                .
+                When paper and a measurement aid are both detected, choose
+                {" "}<strong>Correct perspective &amp; use aid scale</strong> on
+                desktop or mobile. Other choices and <strong>Detect references
+                again</strong> are under Scale’s <strong>Advanced</strong> section.
+                <CalibrationDownloads />
               </li>
               <li>
                 Choose <strong>Correct perspective only</strong> to straighten
@@ -119,15 +88,23 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
               </li>
               <li>
                 Tune <strong>Outline</strong>: Sensitivity changes what is
-                admitted as tool, Detail controls point density, and Smoothing
-                removes pixel noise. Outside silhouettes are the default; enable interior
+                admitted as tool. Higher Simplification values use fewer points
+                and may omit small features.
+                Outside silhouettes are the default; enable interior
                 holes only for real openings. Sensitivity updates the outline when you
                 release the slider. Confirmation is needed only when replacing manual
-                contour edits. Detail and Smoothing preserve those edits; re-detection is undoable.
+                contour edits. Simplification preserves those edits; re-detection is undoable.
               </li>
               <li>
                 Choose a physical <strong>Margin</strong> from 0.0–5.0 mm, then
                 edit, add, move, or remove contour points as needed.
+                On a phone, <strong>Edit contours</strong> frames the outline. Drag a point
+                to move it, tap the line to add one, or tap a point and choose
+                <strong> Delete point</strong>. Drag elsewhere to pan and pinch to zoom. Holding a point shows a
+                magnified view. On desktop, click a point to select it and reveal
+                <strong> Delete point</strong>; left-drag moves it, left-click adds,
+                and right-click removes. In Trace and Bin, the detail view stays in a
+                fixed corner while you drag. Undo restores an edit.
               </li>
               <li>
                 Choose <strong>Add to bin</strong> to place the scaled contour in
@@ -150,6 +127,8 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
               <li>
                 Click a pocket in <strong>Layout</strong> or choose it in
                 <strong> Pockets</strong> to open its properties in that section.
+                On a phone, tapping a pocket opens a small adjustment tray;
+                <strong> More settings</strong> opens all its properties.
                 Set depth first; expand <strong>Size &amp; scale</strong> for dimensions. Expand <strong>Edges &amp; corners</strong>
                 to soften the outline or pocket edges, or <strong>Extra pocket clearance</strong>
                 to add more room around the tool.
@@ -196,24 +175,25 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
             <h3 className="mb-1.5 font-medium">3. Save and resume projects</h3>
             <ul className="list-disc space-y-1 pl-6 text-muted-foreground">
               <li>
-                <strong>Save to library</strong> stores a named project in the
-                browser's project library for quick resume.
+                Double-click the current project title to name a new draft or
+                rename a saved project. The save icon (<strong>Save to library</strong>)
+                stores a draft as a named project; the pencil renames a saved project.
               </li>
               <li>
-                <strong>Browser library → Open saved project</strong> resumes a
-                project saved in this browser.
-                {" "}<strong>Manage library</strong> also opens projects with Open or a
-                double-click, renames any project with the pencil, creates an independent
-                duplicate with Copy directly after its source without moving focus or
-                switching projects, and provides a confirmed
-                Remove action. The currently open project cannot be removed; open another
-                project or start a new one first.
-                In <strong>Portable backup → Current project</strong>, use
-                {" "}<strong>Export project</strong> or <strong>Open project file</strong>
+                In <strong>Browser library → Manage</strong>, open a saved project
+                with Open, a double-click, or Enter. Rename with the pencil, create
+                an independent duplicate with Copy, or remove a saved project
+                after confirmation. The currently open project cannot be removed;
+                open another project or start a new one first.
+                If your current draft has work that is not saved in the library,
+                opening another saved project or a project file asks before replacing it.
+                Choose Keep working to save or export the draft first.
+                In <strong>Project</strong>, next to <strong>New project</strong>, use
+                {" "}<strong>Export project</strong> or <strong>Open project</strong>
                 {" "}for one editable design.
               </li>
               <li>
-                In <strong>Project → Portable backup → Entire library</strong>, use <strong>Export library</strong>
+                In <strong>Project → Browser library → Manage</strong>, use <strong>Export library</strong>
                 {" "}to back up every named design in one JSON file, or <strong>Import library</strong>
                 {" "}to add designs from a backup. Supported older designs upgrade automatically.
                 Duplicate names get an “imported” suffix; existing designs and the open draft
@@ -258,7 +238,7 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
                 starts unchecked. When selected, the files share the project name
                 (when saved), bin size, and local date/time. Allow multiple
                 downloads if your browser asks, and keep the JSON to restore
-                the design later with Open project file.
+                the design later with Open project.
               </li>
               <li>
                 Trace exports offer the same optional JSON download once the outline

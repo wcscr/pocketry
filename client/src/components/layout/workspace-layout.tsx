@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useElementSize } from "@/hooks/use-element-size";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { MobileCanvasOverlayContext } from "./mobile-canvas-overlay";
 
 export interface WorkspaceLayoutProps {
   /** Controls column. Compose it from `PanelSection` / `PanelBody`. */
@@ -77,6 +78,7 @@ export function WorkspaceLayout({
   mobileActionsLayout = "bottom",
 }: WorkspaceLayoutProps): JSX.Element {
   const isMobile = useIsMobile();
+  const [overlayRoot, setOverlayRoot] = React.useState<HTMLDivElement | null>(null);
   const [workspaceRef, workspaceSize] = useElementSize<HTMLDivElement>();
   // Percentage-only limits make tablet controls narrower than their fields.
   // Keep a usable column while retaining collapse and the caller's maximum.
@@ -132,6 +134,7 @@ export function WorkspaceLayout({
 
   if (isMobile) {
     return (
+      <MobileCanvasOverlayContext.Provider value={overlayRoot}>
       <div ref={workspaceRef} data-landscape-actions={mobileActionsLayout === "landscape-side" || undefined}
         className="mobile-workspace relative flex h-full w-full flex-col overflow-hidden">
         {/*
@@ -141,8 +144,8 @@ export function WorkspaceLayout({
           transform, so a canvas inside the drawer would mis-hit for the whole
           animation and stay wrong under `shouldScaleBackground`.
         */}
-        <div className="relative min-h-0 min-w-0 flex-1">{canvas}</div>
-        <div className="mobile-workspace-actions max-h-[50dvh] shrink-0 overflow-y-auto border-t bg-background p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]" data-testid="mobile-workspace-actions">
+        <div className="relative min-h-0 min-w-0 flex-1" data-testid="mobile-workspace-canvas">{canvas}<div ref={setOverlayRoot} className="pointer-events-none absolute inset-0 z-30" /></div>
+        <div className="mobile-workspace-actions max-h-[50dvh] shrink-0 overflow-y-auto border-t bg-background p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]" data-testid="mobile-workspace-actions">
           {mobileActions ?? (
             <Button className="min-h-11 w-full" onClick={() => onPanelOpenChange(true)}>
               {panelTitle} controls
@@ -170,6 +173,7 @@ export function WorkspaceLayout({
           </DrawerContent>
         </Drawer>
       </div>
+      </MobileCanvasOverlayContext.Provider>
     );
   }
 
@@ -192,7 +196,13 @@ export function WorkspaceLayout({
       onExpand={() => reportCollapsed(false)}
       className="min-w-0"
     >
-      {panel}
+      {/* A collapsed panel stays mounted to retain its settings. Native inert
+          excludes its descendants from focus and interaction, while aria-hidden
+          keeps the invisible controls out of the accessibility tree. */}
+      <div className="h-full" aria-hidden={panelOpen ? undefined : true}
+        {...(!panelOpen ? { inert: "" } : {})} data-testid="desktop-workspace-controls">
+        {panel}
+      </div>
     </ResizablePanel>
   );
 

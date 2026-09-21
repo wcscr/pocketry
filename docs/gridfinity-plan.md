@@ -5,6 +5,16 @@ controls, default names, layout guidance, validation, and edit history. Older
 history labels use the current wording when displayed; saved geometry, custom
 names, and project field names are preserved.
 
+Pocket names belong to individual placements. Renaming a copy leaves the original,
+other copies, and the source shape unchanged. Names appear in pocket controls,
+spacing references, removal confirmations, warnings, canvas labels, and fit-template exports. Project
+schema v19 preserves them through undo/redo and project save/import; older pockets
+continue to display their source shape name until renamed.
+Pocket-list selection, rename, duplicate, and remove targets grow to at least
+44 pixels for coarse pointers while retaining compact mouse controls. Printable
+STL and 3MF confirmations show outer width × length × height in millimetres,
+including the stacking lip when enabled.
+
 Basic-shape pockets are available from **Layout → Add pocket** and the **Pockets**
 panel. Draw a rectangle or square between opposite corners, or a circle from its
 centre to its edge. A live outline shows dimensions; release adds one ordinary
@@ -24,8 +34,10 @@ the pocket. Optional server persistence remains deferred.
 
 The September 2026 usability update makes new traces outside-silhouette-only by
 default, including after a margin closes a narrow gap. Interior holes remain an
-explicit detection option. Manual contour edits become the baseline for Detail
-and Smoothing. Sensitivity re-detects automatically on slider release (or a keyboard
+explicit detection option. Manual contour edits become the baseline for Detail.
+The Smoothing control is temporarily hidden while improved smoothing and point
+simplification are planned; the existing refinement pipeline remains unchanged.
+Sensitivity re-detects automatically on slider release (or a keyboard
 step), asking for confirmation only when the current contour includes manual
 vertex/ring edits. Cancel keeps both the edits and previous detection settings;
 undoing all manual edits removes the need for confirmation. Refinement and
@@ -128,11 +140,33 @@ preview-only **section view**
 `.pocketry.json` backup import/export (legacy `.tooltrace.json` remains accepted);
 and per-pocket duplicate. The Project
 section is pinned to the top of the Bin controls: a draft resumes automatically,
-Save gives it a library name, Open presents the browser-local named projects,
+The save icon gives it a library name; double-clicking either current-project
+title opens the same name dialog for new drafts and saved projects.
+Manage presents the browser-local named projects,
 and New detaches a clean draft without deleting saved projects. Opening another
 design, opening a project file, and New Project all save the outgoing named
 design's latest edits before changing the autosave target. A failed save keeps
-the current design open. The library is
+the current design open. Library import/export also lives in Manage; the main
+Project section places New project, Open project, and Export project in one
+compact action row without a separate backup section. Both library opens
+(Open, Enter, and double-click) and opening a project file share a confirmation
+before replacing a nonempty unnamed draft, with Keep working as the safe choice.
+Files are validated before confirmation; cancelling preserves the draft and
+returns focus to the source action. A failed file open retains the validated
+snapshot for retry without asking the user to select the file again.
+After reading a file, the replacement decision and named-project save use the
+current design, including edits made while reading. A newer file selection,
+another project choice, or leaving the controls cancels an older unfinished read.
+Empty untouched drafts open directly, and named projects retain the save-before-open
+behavior. A failed open keeps the draft and confirmation available. On short
+screens, Manage scrolls as a whole so project rows and library transfers remain
+reachable; narrow rows wrap their actions within the card. Long project names
+wrap within rename, removal, and replacement dialogs without pushing their
+actions outside a narrow dialog. The persistent save status distinguishes a
+draft autosaved locally from a named project saved to the browser library, and
+shows saving or failure explicitly. Manage focuses and
+scrolls to the current project when opened, falling back to the first project or
+the export action in an empty library. The library is
 implemented entirely over IndexedDB so its behavior is consistent across modern
 browsers; JSON remains an explicit backup/transfer path whose download location
 is browser-controlled.

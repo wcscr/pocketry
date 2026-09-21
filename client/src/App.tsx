@@ -5,6 +5,7 @@ import { Route, Switch } from "wouter";
 import { HelpDialog } from "@/components/help/help-dialog";
 import { AppHeader } from "@/components/layout/app-header";
 import { AppShell } from "@/components/layout/app-shell";
+import { MobileDevelopmentWelcome } from "@/components/layout/mobile-development-welcome";
 import { WORKSPACES } from "@/components/layout/workspaces";
 import { PanelProvider, usePanelState } from "@/components/layout/panel-context";
 import { Toaster } from "@/components/ui/toaster";
@@ -41,7 +42,7 @@ function Router() {
 }
 
 function Shell() {
-  const { panelOpen, setPanelOpen } = usePanelState();
+  const { panelOpen, setPanelOpen, traceRestart } = usePanelState();
   const [helpOpen, setHelpOpen] = useState(false);
 
   return (
@@ -52,12 +53,14 @@ function Shell() {
             panelOpen={panelOpen}
             onPanelOpenChange={setPanelOpen}
             onHelpClick={() => setHelpOpen(true)}
+            onStartOver={traceRestart ?? undefined}
           />
         }
       >
         <Router />
       </AppShell>
       <HelpDialog open={helpOpen} onOpenChange={setHelpOpen} />
+      <MobileDevelopmentWelcome />
     </>
   );
 }
@@ -75,7 +78,7 @@ function App() {
                 above the route switch preserves the loaded photo, outline,
                 calibration, crop, undo history and active tool while the user
                 visits Bin. */}
-            <TraceProvider>
+            <TraceProvider persist>
               <Shell />
             </TraceProvider>
           </ShapeLibraryProvider>

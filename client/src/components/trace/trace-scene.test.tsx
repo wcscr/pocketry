@@ -81,7 +81,7 @@ describe("TraceScene ruler overlay", () => {
   });
 
   it("renders completed endpoints as persistent X markers with a length label", () => {
-    const markup = renderRuler({ completed: calibration });
+    const markup = renderRuler({ completed: calibration, rulerEditable: true });
 
     expect(count(markup, 'data-testid="ruler-marker"')).toBe(2);
     expect(count(markup, "data-ruler-handle=")).toBe(2);
@@ -94,6 +94,15 @@ describe("TraceScene ruler overlay", () => {
     expect(markup).toContain('data-testid="ruler-length-label"');
     expect(markup).toContain("50 mm");
     expect(markup).toContain("M 3 13 L 17 27 M 17 13 L 3 27");
+  });
+
+  it("shows a detected ruler without drag targets or edit affordances", () => {
+    const markup = renderRuler({ completed: calibration, rulerEditable: false });
+    expect(count(markup, 'data-testid="ruler-marker"')).toBe(2);
+    expect(markup).toContain("50 mm");
+    expect(markup).not.toContain("data-ruler-handle");
+    expect(markup).not.toContain("Drag the");
+    expect(markup).not.toContain('role="button"');
   });
 
   it("advertises inline editing only for a committed ruler", () => {

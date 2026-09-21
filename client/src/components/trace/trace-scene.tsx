@@ -65,6 +65,8 @@ export interface TraceSceneProps {
    * rather than "add a new one".
    */
   hoveredVertexIndex?: number | null;
+  selectedVertexIndex?: number | null;
+  compactHandles?: boolean;
   /** Handles for the interaction layer above. */
   onPointerDown?: (event: ReactPointerEvent<SVGSVGElement>) => void;
   onPointerMove?: (event: ReactPointerEvent<SVGSVGElement>) => void;
@@ -74,6 +76,7 @@ export interface TraceSceneProps {
   onContextMenu?: (event: React.MouseEvent<SVGSVGElement>) => void;
   svgRef?: React.Ref<SVGSVGElement>;
   sceneRef?: React.Ref<SVGGElement>;
+  sceneId?: string;
   cursor?: string;
 }
 
@@ -135,6 +138,8 @@ export function TraceScene({
   perspectivePreview = null,
   busy = false,
   hoveredVertexIndex = null,
+  selectedVertexIndex = null,
+  compactHandles = false,
   onPointerDown,
   onPointerMove,
   onPointerUp,
@@ -143,6 +148,7 @@ export function TraceScene({
   onContextMenu,
   svgRef,
   sceneRef,
+  sceneId,
   cursor,
 }: TraceSceneProps): JSX.Element {
   const { scale, translateX, translateY } = transform;
@@ -170,6 +176,7 @@ export function TraceScene({
     >
       <g
         ref={sceneRef}
+        id={sceneId}
         transform={`translate(${translateX} ${translateY}) scale(${scale})`}
       >
         <SourceImage
@@ -236,14 +243,15 @@ export function TraceScene({
         */}
         {selectedRing?.map((point, index) => {
           const hovered = index === hoveredVertexIndex;
+          const selected = index === selectedVertexIndex;
           return (
             <circle
               key={index}
               cx={point.x}
               cy={point.y}
-              r={(hovered ? HANDLE_RADIUS_SELECTED : HANDLE_RADIUS) * inv}
+              r={(selected ? 8 : hovered ? HANDLE_RADIUS_SELECTED : compactHandles ? 3.5 : HANDLE_RADIUS) * inv}
               className={
-                hovered
+                selected ? "fill-primary stroke-background" : hovered
                   ? "fill-fuchsia-500 stroke-white"
                   : "fill-white stroke-fuchsia-500"
               }
@@ -251,6 +259,7 @@ export function TraceScene({
               vectorEffect="non-scaling-stroke"
               data-vertex={index}
               data-vertex-hovered={hovered || undefined}
+              data-point-selected={selected || undefined}
             />
           );
         })}
@@ -421,10 +430,10 @@ function RulerOverlay({
             data-testid="ruler-marker"
             data-ruler-marker={index === 0 ? "start" : "end"}
             data-ruler-handle={
-              calibration ? (index === 0 ? "start" : "end") : undefined
+              calibration && editable ? (index === 0 ? "start" : "end") : undefined
             }
           >
-            {calibration && (
+            {calibration && editable && (
               <>
                 <title>{`Drag the ${index === 0 ? "start" : "end"} scale point`}</title>
                 <circle

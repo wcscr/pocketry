@@ -104,6 +104,7 @@ vi.mock("@/lib/gridfinity/use-bin-geometry", () => ({
 
 // Deterministic persistence: no stored project, writes are no-ops. Hydration
 // still resolves asynchronously, hence the `flushHydration` below.
+const projectSaveMock = vi.hoisted(() => ({ onSaved: undefined as ((success: boolean) => void) | undefined }));
 vi.mock("@/lib/project/persist", () => ({
   loadProjectDoc: vi.fn(async () => null),
   loadProjectLibrary: vi.fn(async () => ({ activeProjectId: null, projects: [] })),
@@ -116,7 +117,10 @@ vi.mock("@/lib/project/persist", () => ({
   exportProjectLibrary: vi.fn(),
   importProjectLibrary: vi.fn(),
   startNewProject: vi.fn(async () => ({ activeProjectId: null, projects: [] })),
-  createDebouncedProjectSaver: () => Object.assign(vi.fn(), { cancel: vi.fn(), flush: vi.fn(async () => true) }),
+  createDebouncedProjectSaver: (_delay: number, onSaved?: (success: boolean) => void) => {
+    projectSaveMock.onSaved = onSaved;
+    return Object.assign(vi.fn(), { cancel: vi.fn(), flush: vi.fn(async () => true) });
+  },
 }));
 
 import * as ProjectPersistence from "@/lib/project/persist";
@@ -203,6 +207,7 @@ afterEach(() => {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  projectSaveMock.onSaved = undefined;
   binGeometryMock.building = false;
   binGeometryMock.progress = 1;
   binGeometryMock.builtSpec = null;
@@ -270,6 +275,79 @@ function selectPocket(container: HTMLElement, id: string): void {
 }
 
 describe("BinDesignerPage", () => {
+  it.each(["trace", "basic-shape"] as const)("renames copied %s pockets independently with undo and project round trips", async (source) => {
+    const shape = { ...rectangularShape("shared", "Original pocket"), source,
+      sourceMmPerPx: source === "basic-shape" ? null : 0.5 };
+    const original = parseCutoutPlacement({ id: "original", shapeId: shape.id, position: { x: 0, y: 0 } });
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape], cutouts: [original] });
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      openSettingsSection(container, "tool-cutouts");
+      const click = (testId: string) => React.act(() => container.querySelector<HTMLButtonElement>(`[data-testid="${testId}"]`)!.click());
+      const names = () => Array.from(container.querySelectorAll('[data-testid^="cutout-row-"] [data-testid^="button-select-"]'), el => el.textContent);
+      const rename = (id: string, value: string, key = "Enter") => {
+        click(`button-rename-${id}`);
+        const input = container.querySelector<HTMLInputElement>('[aria-label="Pocket name"]')!;
+        React.act(() => {
+          Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
+          input.dispatchEvent(new Event("input", { bubbles: true }));
+        });
+        React.act(() => input.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true })));
+      };
+      click("button-duplicate-original");
+      click("button-duplicate-original");
+      const [, copy] = vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts;
+      rename(copy.id, "  Copy A  ");
+      expect(names()).toEqual(["Original pocket", "Copy A", "Original pocket"]);
+      expect(container.querySelector('[data-testid="pocket-properties-heading"]')!.textContent).toContain("Copy A");
+      expect(container.querySelector('[aria-label="Reference pocket"]')!.textContent).toContain("Original pocket");
+      click("button-bin-undo");
+      expect(names()).toEqual(["Original pocket", "Original pocket", "Original pocket"]);
+      click("button-bin-redo");
+      expect(names()).toEqual(["Original pocket", "Copy A", "Original pocket"]);
+      rename("original", "Source placement");
+      expect(names()).toEqual(["Source placement", "Copy A", "Original pocket"]);
+      rename(copy.id, "Cancelled", "Escape");
+      rename(copy.id, "   ");
+      expect(names()).toEqual(["Source placement", "Copy A", "Original pocket"]);
+      click(`button-duplicate-${copy.id}`);
+      expect(names()).toEqual(["Source placement", "Copy A", "Original pocket", "Copy A"]);
+      const newCopy = vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts.at(-1)!;
+      rename(newCopy.id, "Copy B");
+      const expectedNames = ["Source placement", "Copy A", "Original pocket", "Copy B"];
+      expect(names()).toEqual(expectedNames);
+      click(`button-remove-${newCopy.id}`);
+      expect(document.querySelector('[role="alertdialog"]')!.textContent).toContain('Resize the bin after removing “Copy B”?');
+      React.act(() => document.querySelector<HTMLButtonElement>('[data-testid="button-cancel-remove-pocket"]')!.click());
+      expect(names()).toEqual(expectedNames);
+      openSettingsSection(container, "project");
+      click("button-export-project");
+      const [blob] = vi.mocked(downloadBlob).mock.lastCall!;
+      const json = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.readAsText(blob);
+      });
+      const saved = parseProjectDoc(JSON.parse(json))!;
+      expect(saved).not.toBeNull();
+      expect(saved.shapes).toEqual([shape]);
+      expect(saved.cutouts.map(cutout => cutout.shapeId)).toEqual(Array(4).fill(shape.id));
+      const file = new File([json], "Copies.pocketry.json");
+      Object.defineProperty(file, "text", { value: async () => json });
+      const input = container.querySelector<HTMLInputElement>('input[type="file"][accept*=".pocketry.json"]')!;
+      Object.defineProperty(input, "files", { value: [file], configurable: true });
+      await React.act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
+      await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-discard-draft-open"]')!.click());
+      openSettingsSection(container, "tool-cutouts");
+      expect(names()).toEqual(expectedNames);
+      click("button-bin-undo");
+      expect(names()).toEqual(["Source placement", "Copy A", "Original pocket", "Copy A"]);
+      click("button-bin-redo");
+      expect(names()).toEqual(expectedNames);
+    } finally { unmount(); }
+  });
+
   it.each(["new", "file"])("saves pending edits before replacing a named project via %s, and stops on save failure", async action => {
     const cutter = parseProjectDoc(ryobiReloadFixture)!;
     vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(cutter);
@@ -330,7 +408,7 @@ describe("BinDesignerPage", () => {
     try {
       await flushHydration();
       openSettingsSection(container, "project");
-      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-open-library"]')!.click());
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
       await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-open-project-other"]')!.click());
       expect(ProjectPersistence.openProjectFromLibrary).not.toHaveBeenCalled();
       expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toEqual(cutter.cutouts);
@@ -381,13 +459,13 @@ describe("BinDesignerPage", () => {
       setDepth("55");
       expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0].split).toEqual(intended.cutouts[0].split);
       openSettingsSection(container, "project");
-      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-open-library"]')!.click());
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
       await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-open-project-other"]')!.click());
       expect(ProjectPersistence.saveProjectDoc).toHaveBeenCalledWith(expect.objectContaining({ cutouts: intended.cutouts }), "cutter");
       expect(ProjectPersistence.openProjectFromLibrary).not.toHaveBeenCalled();
       await React.act(async () => finishSave(true));
       expect(activeProjectId).toBe("other");
-      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-open-library"]')!.click());
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
       await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-open-project-cutter"]')!.click());
       expect(activeProjectId).toBe("cutter");
       expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toEqual(intended.cutouts);
@@ -656,7 +734,7 @@ describe("BinDesignerPage", () => {
     expect(container.textContent).not.toContain("Snaps to");
     expect(container.textContent).not.toContain("Adding tools keeps these dimensions");
     expect(container.textContent).toContain("Outer size");
-    expect(container.querySelector('[data-testid="project-status"] [role="status"]')!.textContent).toMatch(/Sav(?:ed|ing) in this browser/);
+    expect(container.querySelector('[data-testid="project-status"] [role="status"]')!.textContent).toBe("Draft — saving locally…");
     for (const [name, explanation] of [
       ["grid pitch", "Pitch changes preserve the outer size"],
       ["width", "Snaps to 21 mm grid increments"],
@@ -671,6 +749,42 @@ describe("BinDesignerPage", () => {
     expect([...container.querySelectorAll<HTMLInputElement>('input[type="number"]')].map((input) => input.value)).toEqual(before);
     expect(container.querySelector('[aria-label="Keep bin size fixed"]')!.getAttribute('aria-checked')).toBe('false');
     unmount();
+  });
+
+  it("keeps native slider and Manage keyboard interactions from editing the selected pocket", async () => {
+    const shape = rectangularShape("tool", "Wrench");
+    const pocket = parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 0, y: 0 } });
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape], cutouts: [pocket] });
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
+      selectPocket(container, "pocket");
+      openSettingsSection(container, "size");
+      const slider = container.querySelector<HTMLElement>('[role="slider"][aria-label="Width in standard Gridfinity cells"]')!;
+      const before = Number(slider.getAttribute("aria-valuenow"));
+      React.act(() => {
+        slider.focus();
+        slider.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true, cancelable: true }));
+        slider.dispatchEvent(new KeyboardEvent("keyup", { key: "ArrowRight", bubbles: true }));
+      });
+      expect(Number(slider.getAttribute("aria-valuenow"))).toBeGreaterThan(before);
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toEqual([pocket]);
+      const resizedSpec = vi.mocked(useBinGeometry).mock.lastCall![0];
+      openSettingsSection(container, "project");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
+      const dialog = document.querySelector('[role="dialog"]')!;
+      const target = dialog.querySelector<HTMLButtonElement>('[data-testid="button-export-library"]')!;
+      for (const key of ["ArrowDown", "r", "Delete", "z"]) {
+        React.act(() => {
+          target.focus();
+          target.dispatchEvent(new KeyboardEvent("keydown", { key, ctrlKey: key === "z", bubbles: true, cancelable: true }));
+        });
+      }
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toEqual([pocket]);
+      expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toEqual(resizedSpec);
+    } finally { unmount(); }
   });
 
   it("centers zero clearance and makes inward adjustments undoable without scaling the trace", async () => {
@@ -777,8 +891,12 @@ describe("BinDesignerPage", () => {
       if (gesture === 'drag') pointer('pointermove', 55);
       if (gesture === 'jitter') pointer('pointermove', 44);
       pointer(gesture === 'cancel' ? 'pointercancel' : 'pointerup', gesture === 'drag' ? 55 : gesture === 'jitter' ? 44 : 43);
-      expect(controls!.panelOpen).toBe(gesture === 'tap' || gesture === 'jitter');
-      if (gesture === 'tap' || gesture === 'jitter') {
+      expect(controls!.panelOpen).toBe(gesture === 'jitter');
+      if (gesture === 'tap') {
+        expect(container.querySelector('.mobile-adjustment-tray')?.textContent).toContain('Wrench');
+        expect(container.querySelector('#quick-pocket-depth')).not.toBeNull();
+      }
+      if (gesture === 'jitter') {
         expect(document.querySelector('#bin-settings-pockets')!.getAttribute('data-state')).toBe('open');
         expect(document.querySelector('[data-testid="pocket-properties-heading"]')!.textContent).toContain('Wrench');
       }
@@ -790,6 +908,23 @@ describe("BinDesignerPage", () => {
         React.act(() => undo.click());
       }
       expect(pocket.getAttribute('d')).toBe(before);
+      if (gesture === 'tap') {
+        const cutoutBefore = vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0];
+        const slider = container.querySelector('#quick-pocket-depth [role="slider"]')!;
+        React.act(() => slider.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })));
+        expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0].depth).not.toEqual(cutoutBefore.depth);
+        React.act(() => undo.click());
+        expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0].depth).toEqual(cutoutBefore.depth);
+        React.act(() => [...container.querySelectorAll('button')].find(button => button.textContent === 'Export bin')!.click());
+        expect(document.querySelector('#bin-settings-export')).not.toBeNull();
+        expect(document.querySelector('#bin-settings-pockets')).toBeNull();
+        expect(document.querySelector('#bin-settings-size')).toBeNull();
+        React.act(() => [...document.querySelectorAll('button')].find(button => button.textContent === 'Back to canvas')!.click());
+        React.act(() => [...container.querySelectorAll('button')].find(button => button.textContent === 'Adjust')!.click());
+        React.act(() => [...container.querySelectorAll('button')].find(button => button.textContent === 'More settings')!.click());
+        expect(document.querySelector('#bin-settings-pockets')).not.toBeNull();
+        expect(document.querySelector('#bin-settings-size')).not.toBeNull();
+      }
       unmount();
     },
   );
@@ -828,7 +963,80 @@ describe("BinDesignerPage", () => {
     unmount();
   });
 
-  it.each([-1, 0])("toggles touch removal for contour ring %s with undo, minimum size, and a return to moving", async (ringIndex) => {
+  it.each([
+    { ringIndex: -1, mirrored: false }, { ringIndex: 0, mirrored: false },
+    { ringIndex: -1, mirrored: true }, { ringIndex: 0, mirrored: true },
+  ])("focuses desktop ring $ringIndex (mirrored: $mirrored) while preserving mouse edits and near-edge insertion", async ({ ringIndex, mirrored }) => {
+    const shape = rectangularShape("tool", "Wrench");
+    shape.outlineMm[0].holes = [[{ x: -7, y: -4 }, { x: -7, y: 4 }, { x: 7, y: 4 }, { x: 7, y: -4 }]];
+    shape.pointCount = 8;
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({
+      ...EMPTY_PROJECT, shapes: [shape],
+      cutouts: [parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 0, y: 0 }, rotationDeg: 30, scaleX: 1.5, scaleY: 0.8, mirrored })],
+    });
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      openSettingsSection(container, "tool-cutouts"); selectPocket(container, "pocket");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-edit-contour"]')!.click());
+      const svg = container.querySelector<SVGSVGElement>('[data-testid="layout-canvas"]')!;
+      Object.defineProperty(svg.querySelector('g')!, 'getScreenCTM', { value: () => ({ a: 1, b: 0, c: 0, d: 1, e: 0, f: 0, inverse: () => ({}) }) });
+      Object.defineProperties(svg, {
+        createSVGPoint: { value: () => ({ x: 0, y: 0, matrixTransform() { return { x: this.x, y: this.y }; } }) },
+        setPointerCapture: { value: () => {} },
+      });
+      const handles = () => svg.querySelectorAll(`[data-contour-ring="${ringIndex}"]`);
+      const coords = (element: Element) => ({ x: Number(element.getAttribute('cx')), y: Number(element.getAttribute('cy')) });
+      const pointer = (target: Element, type: string, point: { x: number; y: number }) => React.act(() => {
+        const event = new MouseEvent(type, { bubbles: true, button: type === 'pointermove' ? -1 : 0, clientX: point.x, clientY: point.y });
+        Object.defineProperties(event, { pointerId: { value: 1 }, pointerType: { value: 'mouse' } });
+        target.dispatchEvent(event);
+      });
+      const remove = () => [...container.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === 'Delete point');
+      const first = coords(handles()[0]);
+      pointer(handles()[0], 'pointerdown', first);
+      expect(container.querySelector('[data-testid="contour-magnifier"]')).not.toBeNull();
+      pointer(svg, 'pointerup', first);
+      expect(container.querySelector('[data-testid="contour-magnifier"]')).toBeNull();
+      expect(handles()[0].getAttribute('data-point-selected')).toBe('true');
+      expect(container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.disabled).toBe(true);
+      pointer(handles()[0], 'pointerdown', first);
+      const moved = { x: first.x + 10, y: first.y + 10 };
+      pointer(svg, 'pointermove', moved); pointer(svg, 'pointerup', moved);
+      expect(coords(handles()[0]).x).toBeCloseTo(moved.x);
+      React.act(() => remove()!.click());
+      expect(handles()).toHaveLength(3);
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+      expect(handles()).toHaveLength(4);
+      React.act(() => handles()[0].dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })));
+      expect(handles()).toHaveLength(3);
+      pointer(handles()[0], 'pointerdown', coords(handles()[0])); pointer(svg, 'pointerup', coords(handles()[0]));
+      expect(remove()!.disabled).toBe(true);
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+      const vertices = [...handles()].map(coords);
+      const [a, b] = vertices.map((point, index) => [point, vertices[(index + 1) % vertices.length]])
+        .sort(([a, b], [c, d]) => Math.hypot(d.x - c.x, d.y - c.y) - Math.hypot(b.x - a.x, b.y - a.y))[0];
+      const length = Math.hypot(b.x - a.x, b.y - a.y);
+      const midpoint = { x: (a.x + b.x) / 2 + (b.y - a.y) / length * 2,
+        y: (a.y + b.y) / 2 - (b.x - a.x) / length * 2 };
+      // Miss the path while staying closer to this edge than the other ring (4.8px away).
+      pointer(svg, 'pointerdown', midpoint);
+      pointer(svg, 'pointerup', midpoint);
+      expect(handles()).toHaveLength(5);
+      expect(remove()).toBeDefined();
+      expect(coords(svg.querySelector('[data-point-selected="true"]')!).x).toBeCloseTo(midpoint.x);
+      expect(coords(svg.querySelector('[data-point-selected="true"]')!).y).toBeCloseTo(midpoint.y);
+      const nearVertex = { x: coords(handles()[0]).x + 1, y: coords(handles()[0]).y + 1 };
+      pointer(svg, 'pointerdown', nearVertex); pointer(svg, 'pointerup', nearVertex);
+      expect(handles()).toHaveLength(5);
+      expect(handles()[0].getAttribute('data-point-selected')).toBe('true');
+      pointer(svg, 'pointerdown', { x: 1000, y: 1000 }); pointer(svg, 'pointerup', { x: 1000, y: 1000 });
+      expect(handles()).toHaveLength(5);
+    } finally { unmount(); }
+  });
+
+  it.each([-1, 0])("selects and deletes contour ring %s points with undo, minimum size, and direct dragging", async (ringIndex) => {
     const shape = rectangularShape("tool", "Wrench");
     shape.outlineMm[0].holes = [[{ x: -7, y: -4 }, { x: -7, y: 4 }, { x: 7, y: 4 }, { x: 7, y: -4 }]];
     shape.pointCount = 8;
@@ -840,18 +1048,20 @@ describe("BinDesignerPage", () => {
     try {
       await flushHydration();
       React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
-      React.act(() => [...container.querySelectorAll('button')].find(button => button.textContent === 'Bin settings')!.click());
+      React.act(() => [...container.querySelectorAll('button')].find(button => button.textContent === 'Adjust')!.click());
+      React.act(() => [...container.querySelectorAll('button')].find(button => button.textContent === 'More settings')!.click());
+      openSettingsSection(document.body, "tool-cutouts");
       selectPocket(document.body, "pocket");
       React.act(() => document.querySelector<HTMLButtonElement>('[data-testid="button-edit-contour"]')!.click());
       const svg = container.querySelector<SVGSVGElement>('[data-testid="layout-canvas"]')!;
-      Object.defineProperty(svg.querySelector('g')!, 'getScreenCTM', { value: () => ({ inverse: () => ({}) }) });
+      Object.defineProperty(svg.querySelector('g')!, 'getScreenCTM', { value: () => ({ a: 1, b: 0, c: 0, d: 1, e: 0, f: 0, inverse: () => ({}) }) });
       Object.defineProperties(svg, {
         createSVGPoint: { value: () => ({ x: 0, y: 0, matrixTransform() { return { x: this.x, y: this.y }; } }) },
         setPointerCapture: { value: () => {} },
       });
       const ringHandles = () => svg.querySelectorAll(`[data-contour-ring="${ringIndex}"]`);
       const otherHandles = () => svg.querySelectorAll(`[data-contour-ring="${ringIndex === -1 ? 0 : -1}"]`);
-      const buttons = () => container.querySelector('[aria-label="Contour editing tools"]')!.querySelectorAll<HTMLButtonElement>('button');
+      const deleteButton = () => [...container.querySelectorAll<HTMLButtonElement>('[aria-label="Contour editing tools"] button')].find(button => button.textContent === 'Delete point');
       const pointer = (target: Element, type: string, x: number, y: number) => React.act(() => {
         const event = new MouseEvent(type, { bubbles: true, button: 0, clientX: x, clientY: y });
         Object.defineProperties(event, { pointerId: { value: 1 }, pointerType: { value: 'touch' } });
@@ -859,18 +1069,24 @@ describe("BinDesignerPage", () => {
       });
       const tapNearFirst = () => {
         const first = ringHandles()[0];
-        // A near miss outside the visible 4.5 px circle still selects the nearest vertex.
-        pointer(svg, 'pointerdown', Number(first.getAttribute('cx')) - 6, Number(first.getAttribute('cy')));
+        // Picking uses screen distance, including rotated and stretched pockets.
+        pointer(svg, 'pointerdown', Number(first.getAttribute('cx')) - 2, Number(first.getAttribute('cy')));
+        pointer(svg, 'pointerup', Number(first.getAttribute('cx')) - 2, Number(first.getAttribute('cy')));
       };
       const original = svg.querySelector('[data-cutout-id="pocket"]')!.getAttribute('d');
-      expect(buttons()[0].getAttribute('aria-pressed')).toBe('false');
-      React.act(() => buttons()[0].click());
-      expect(buttons()[0].getAttribute('aria-pressed')).toBe('true');
+      expect(deleteButton()).toBeUndefined();
       tapNearFirst();
+      expect(ringHandles()).toHaveLength(4);
+      expect(svg.querySelectorAll('[data-point-selected="true"]')).toHaveLength(1);
+      React.act(() => deleteButton()!.click());
       expect(ringHandles()).toHaveLength(3);
       expect(otherHandles()).toHaveLength(4);
       tapNearFirst();
+      expect(deleteButton()!.disabled).toBe(true);
+      React.act(() => deleteButton()!.click());
       pointer(svg, 'pointerdown', 1000, 1000);
+      pointer(svg, 'pointerup', 1000, 1000);
+      expect(deleteButton()).toBeUndefined();
       expect(ringHandles()).toHaveLength(3);
       expect(otherHandles()).toHaveLength(4);
       React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
@@ -879,20 +1095,18 @@ describe("BinDesignerPage", () => {
       expect(container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.disabled).toBe(true);
       React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
       expect(ringHandles()).toHaveLength(3);
-      React.act(() => buttons()[0].click());
       const first = ringHandles()[0];
       const x = Number(first.getAttribute('cx')), y = Number(first.getAttribute('cy'));
       pointer(first, 'pointerdown', x, y);
-      pointer(svg, 'pointermove', x + 1, y + 1);
-      pointer(svg, 'pointerup', x + 1, y + 1);
+      pointer(svg, 'pointermove', x + 10, y + 10);
+      pointer(svg, 'pointerup', x + 10, y + 10);
       expect(ringHandles()).toHaveLength(3);
-      expect(Number(ringHandles()[0].getAttribute('cx'))).toBeCloseTo(x + 1);
-      React.act(() => buttons()[0].click());
+      expect(Number(ringHandles()[0].getAttribute('cx'))).toBeCloseTo(x + 10);
       const edit = container.querySelector<HTMLButtonElement>('[data-testid="button-layout-edit-contour"]')!;
       React.act(() => edit.click());
       expect(container.querySelector('[aria-label="Contour editing tools"]')).toBeNull();
       React.act(() => edit.click());
-      expect(buttons()[0].getAttribute('aria-pressed')).toBe('false');
+      expect(deleteButton()).toBeUndefined();
     } finally { unmount(); }
   });
 
@@ -957,7 +1171,7 @@ describe("BinDesignerPage", () => {
     ["multicolor-3mf", "-multicolor", "3mf"],
     ["surface-fit-test", "-surface-fit-test-0.8mm", "stl"],
     ["surface-outline", "-tool-outlines-5mm-wide-0.8mm-thick", "stl"],
-    ["fit-check", "-Wrench-fit-template-2mm", "stl"],
+    ["fit-check", "-Left-wrench-fit-template-2mm", "stl"],
     ["layout-svg", "-layout", "svg"],
     ["layout-dxf", "-layout", "dxf"],
   ].flatMap(([kind, suffix, extension]) => [false, true].map((includeProject) => ({ kind, suffix, extension, includeProject }))))(
@@ -968,7 +1182,7 @@ describe("BinDesignerPage", () => {
       ...EMPTY_PROJECT,
       spec: parseBinSpec({ gridX: 4, gridY: 4, heightUnits: 6.5 }),
       shapes: [shape, rectangularShape("unused", "Unplaced tool")],
-      cutouts: [parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 0, y: 0 } })],
+      cutouts: [parseCutoutPlacement({ id: "pocket", shapeId: shape.id, name: "Left wrench", position: { x: 0, y: 0 } })],
       fingerHoles: [fingerHoleSchema.parse({ id: "hole", kind: "straight", center: { x: 40, y: 0 } })],
     };
     vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(project);
@@ -2212,9 +2426,6 @@ describe("BinDesignerPage", () => {
     const save = container.querySelector(
       '[data-testid="button-save-library"]',
     ) as HTMLButtonElement;
-    const open = container.querySelector(
-      '[data-testid="button-open-library"]',
-    ) as HTMLButtonElement;
     const fresh = container.querySelector(
       '[data-testid="button-new-project"]',
     ) as HTMLButtonElement;
@@ -2223,7 +2434,7 @@ describe("BinDesignerPage", () => {
     expect(status.textContent).toContain("Checking for saved projects");
     expect(save.disabled).toBe(true);
     expect(manage.disabled).toBe(true);
-    const transfers = ["export-project", "import-project", "export-library", "import-library"].map(action =>
+    const transfers = ["export-project", "import-project"].map(action =>
       container.querySelector<HTMLButtonElement>(`[data-testid="button-${action}"]`)!,
     );
     for (const action of transfers) expect(action.disabled).toBe(true);
@@ -2233,42 +2444,42 @@ describe("BinDesignerPage", () => {
     expect(status.querySelector('[role="group"][aria-labelledby="current-project-label"]')?.textContent).toContain("Untitled project");
     expect(container.querySelector('#current-project-label')?.textContent).toBe("Current Project:");
     expect(container.querySelector('section[aria-label="Browser library"] h3')?.textContent).toBe("Browser Library");
-    expect(container.querySelector('section[aria-label="Portable backup"] h3')?.textContent).toBe("Portable Backup");
+    expect(container.querySelector('section[aria-label="Portable backup"]')).toBeNull();
     expect(status.textContent).not.toContain("draft resumes automatically");
     const autosaveHelp = status.querySelector<HTMLButtonElement>('[aria-label="About project autosave"]')!;
     React.act(() => autosaveHelp.click());
     expect(document.querySelector('[role="tooltip"]')!.textContent).toContain("draft resumes automatically");
     React.act(() => autosaveHelp.click());
-    expect(save.textContent).toContain("Save to library");
-    expect(open.textContent).toContain("Open saved project");
+    expect(save.textContent).toBe("");
+    expect(save.getAttribute("aria-label")).toBe("Save to library");
+    expect(save.title).toBe("Save to library");
+    expect(container.querySelector('[data-testid="button-open-library"]')).toBeNull();
+    expect(container.querySelector('[data-testid="button-export-library"]')).toBeNull();
+    expect(container.querySelector('[data-testid="button-import-library"]')).toBeNull();
     expect(fresh.textContent).toContain("New project");
     expect(save.disabled).toBe(false);
-    expect(open.disabled).toBe(false);
     expect(fresh.disabled).toBe(false);
     expect(manage.disabled).toBe(false);
     expect(manage.getAttribute("aria-label")).toBe("Manage library");
     expect(save.closest('section')?.getAttribute("aria-label")).toBe("Browser library");
-    expect(open.closest('section')?.getAttribute("aria-label")).toBe("Browser library");
     for (const action of transfers) {
       expect(action.disabled).toBe(false);
-      expect(action.closest('section')?.getAttribute("aria-label")).toBe("Portable backup");
+      expect(action.closest('[role="group"]')).toBe(fresh.closest('[role="group"]'));
     }
-    expect(container.querySelector('[data-testid="project-file-backup"]')?.textContent).toContain("Current project");
-    expect(container.querySelector('[data-testid="library-file-backup"]')?.textContent).toContain("Entire library");
+    expect(container.querySelector('[data-testid="library-file-backup"]')).toBeNull();
     unmount();
   });
 
-  it("names the current draft in the browser library without exporting a backup", async () => {
+  it.each(["current-project-title", "project-status-title"])("names a new draft by double-clicking %s without exporting a backup", async (titleId) => {
     const { container, unmount } = renderPage();
-    openSettingsSection(container, "project");
+    // The status title also works while Project is collapsed.
+    if (titleId === "current-project-title") openSettingsSection(container, "project");
     await flushHydration();
+    React.act(() => projectSaveMock.onSaved?.(true));
+    expect(container.querySelector('[data-testid="project-status"] [role="status"]')!.textContent).toBe("Draft — autosaved locally");
 
     React.act(() => {
-      (
-        container.querySelector(
-          '[data-testid="button-save-library"]',
-        ) as HTMLButtonElement
-      ).click();
+      container.querySelector(`[data-testid="${titleId}"]`)!.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
     });
     const name = document.querySelector(
       '[data-testid="input-project-name"]',
@@ -2305,6 +2516,43 @@ describe("BinDesignerPage", () => {
     expect(container.querySelector('[data-testid="current-project-name-row"] [data-testid="button-save-library"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="current-project-name-row"] p[title]')?.textContent).toBe("Socket wrench tray");
     expect(container.querySelector('[data-testid="button-save-library"]')?.textContent).toBe("");
+    React.act(() => projectSaveMock.onSaved?.(true));
+    expect(container.querySelector('[data-testid="project-status"] [role="status"]')!.textContent).toBe("Saved to browser library");
+    React.act(() => projectSaveMock.onSaved?.(false));
+    expect(container.querySelector('[data-testid="project-status"] [role="status"]')!.textContent).toBe("Could not save. Export this project to keep your work.");
+    unmount();
+  });
+
+  it("renames a saved project from its title, with Cancel preserving its name and identity", async () => {
+    const project = { id: "current", name: "Stapler", updatedAt: "2026-09-20T12:00:00.000Z" };
+    vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId: project.id, projects: [project] });
+    const { container, unmount } = renderPage();
+    openSettingsSection(container, "project");
+    await flushHydration();
+    const before = vi.mocked(useBinGeometry).mock.lastCall;
+    const openName = () => {
+      React.act(() => container.querySelector('[data-testid="current-project-title"]')!.dispatchEvent(new MouseEvent("dblclick", { bubbles: true })));
+      return document.querySelector<HTMLInputElement>('[data-testid="input-project-name"]')!;
+    };
+    const editName = (input: HTMLInputElement) => React.act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "Stapler tray");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    let input = openName();
+    expect(input.value).toBe("Stapler");
+    editName(input);
+    React.act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(button => button.textContent === "Cancel")!.click());
+    expect(ProjectPersistence.saveProjectToLibrary).not.toHaveBeenCalled();
+    expect(container.querySelector('[data-testid="current-project-title"]')?.textContent).toBe("Stapler");
+    input = openName();
+    expect(input.value).toBe("Stapler");
+    editName(input);
+    await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-confirm-save-library"]')!.click());
+    expect(ProjectPersistence.saveProjectToLibrary).toHaveBeenCalledWith(expect.objectContaining({ schemaVersion: PROJECT_SCHEMA_VERSION }), "Stapler tray", "current");
+    expect(container.querySelector('[data-testid="current-project-title"]')?.textContent).toBe("Stapler tray");
+    expect(container.querySelector('[data-testid="project-status-title"]')?.textContent).toBe("Stapler tray");
+    expect(vi.mocked(useBinGeometry).mock.lastCall).toEqual(before);
+    expect(ProjectPersistence.openProjectFromLibrary).not.toHaveBeenCalled();
     unmount();
   });
 
@@ -2333,18 +2581,18 @@ describe("BinDesignerPage", () => {
     React.act(() => {
       (
         container.querySelector(
-          '[data-testid="button-open-library"]',
+          '[data-testid="button-manage-library"]',
         ) as HTMLButtonElement
       ).click();
     });
-    expect(document.querySelector('[data-testid="project-list"]')?.textContent).toContain(
+    expect(document.querySelector('[data-testid="managed-project-list"]')?.textContent).toContain(
       "Pliers tray",
     );
     const picker = document.querySelector('[role="dialog"]')!;
-    expect(picker.textContent).toContain("Open a saved project");
-    expect(picker.querySelector('[data-testid="button-export-library"]')).toBeNull();
-    expect(picker.querySelector('[data-testid="button-import-library"]')).toBeNull();
-    expect(picker.querySelector('[data-testid^="button-remove-project-"]')).toBeNull();
+    expect(picker.textContent).toContain("Manage browser library");
+    expect(picker.querySelector('[data-testid="button-export-library"]')).not.toBeNull();
+    expect(picker.querySelector('[data-testid="button-import-library"]')).not.toBeNull();
+    expect(picker.querySelector('[data-testid^="button-remove-project-"]')).not.toBeNull();
     expect(
       (document.querySelector(
         '[data-testid="button-open-project-project-1"]',
@@ -2366,7 +2614,7 @@ describe("BinDesignerPage", () => {
     unmount();
   });
 
-  it.each(["open", "manage"])("keeps the %s library scrollbar visible while its projects overflow", async (mode) => {
+  it("keeps the manager scrollbar visible while its projects overflow", async () => {
     const projects = Array.from({ length: 8 }, (_, index) => ({
       id: `project-${index}`, name: `Project ${index}`, updatedAt: "2026-09-12T12:00:00.000Z",
     }));
@@ -2384,8 +2632,8 @@ describe("BinDesignerPage", () => {
     });
     vi.useFakeTimers();
     try {
-      React.act(() => container.querySelector<HTMLButtonElement>(`[data-testid="button-${mode === "open" ? "open" : "manage"}-library"]`)!.click());
-      const scroll = document.querySelector(`[data-testid="${mode}-library-scroll"]`)!;
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
+      const scroll = document.querySelector('[data-testid="manage-library-scroll"]')!;
       const viewport = scroll.querySelector('[data-radix-scroll-area-viewport]')!;
       Object.defineProperties(viewport, {
         offsetHeight: { configurable: true, value: 120 },
@@ -2410,6 +2658,35 @@ describe("BinDesignerPage", () => {
     } finally {
       unmount();
       vi.useRealTimers();
+    }
+  });
+
+  it("focuses and reveals the current project instead of the first library row", async () => {
+    const currentId = 'current"[project]';
+    const projects = [
+      { id: "first", name: "First tray", updatedAt: "2026-09-12T12:00:00.000Z" },
+      { id: currentId, name: "Current tray", updatedAt: "2026-09-12T12:00:00.000Z" },
+    ];
+    vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId: currentId, projects });
+    const reveal = vi.fn();
+    const previousScroll = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollIntoView");
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: reveal });
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      openSettingsSection(container, "project");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
+      const rows = [...document.querySelectorAll<HTMLElement>('[data-testid="managed-project-list"] [data-project-id]')];
+      expect(document.activeElement).toBe(rows[1]);
+      expect(rows[1].dataset.projectId).toBe(currentId);
+      expect(rows[1].dataset.selected).toBe("true");
+      expect(rows[0].dataset.selected).toBe("false");
+      expect(reveal).toHaveBeenCalledWith({ block: "nearest", inline: "nearest" });
+      expect(reveal.mock.contexts.at(-1)).toBe(rows[1]);
+    } finally {
+      unmount();
+      if (previousScroll) Object.defineProperty(HTMLElement.prototype, "scrollIntoView", previousScroll);
+      else Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
     }
   });
 
@@ -2521,6 +2798,290 @@ describe("BinDesignerPage", () => {
     expect(open().disabled).toBe(false);
     expect(container.querySelector('[data-testid="current-project-name-row"] p[title]')?.textContent).toBe("Untitled project");
     unmount();
+  });
+
+  it.each(["Open button", "double-click", "Enter"])("protects an unnamed draft before opening with %s", async (action) => {
+    const draft = parseProjectDoc(ryobiReloadFixture)!;
+    const project = { id: "saved", name: "Saved tray", updatedAt: "2026-09-12T12:00:00.000Z" };
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(draft);
+    vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId: null, projects: [project] });
+    vi.mocked(ProjectPersistence.openProjectFromLibrary).mockResolvedValue({
+      doc: EMPTY_PROJECT, project, library: { activeProjectId: project.id, projects: [project] },
+    });
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      openSettingsSection(container, "project");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
+      await flushHydration();
+      const row = document.querySelector<HTMLElement>('[data-testid="library-project-saved"]')!;
+      const requestOpen = async () => React.act(async () => {
+        row.focus();
+        if (action === "Open button") row.querySelector<HTMLButtonElement>('[data-testid="button-open-project-saved"]')!.click();
+        else row.dispatchEvent(action === "Enter"
+          ? new KeyboardEvent("keydown", { key: "Enter", bubbles: true })
+          : new MouseEvent("dblclick", { bubbles: true }));
+      });
+      await requestOpen();
+      expect(document.querySelector('[role="alertdialog"]')?.textContent).toContain("Replace the current draft?");
+      expect(document.querySelector('[role="alertdialog"]')?.textContent).toContain("Saved tray");
+      expect(ProjectPersistence.openProjectFromLibrary).not.toHaveBeenCalled();
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toEqual(draft.cutouts);
+      const keep = document.querySelector<HTMLButtonElement>('[role="alertdialog"] button')!;
+      expect(keep.textContent).toBe("Keep working");
+      React.act(() => keep.click());
+      // Radix restores focus after the closing focus scope has unmounted.
+      await React.act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+      expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+      expect(document.activeElement).toBe(row);
+      expect(ProjectPersistence.openProjectFromLibrary).not.toHaveBeenCalled();
+      await requestOpen();
+      await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-discard-draft-open"]')!.click());
+      expect(ProjectPersistence.openProjectFromLibrary).toHaveBeenCalledExactlyOnceWith("saved");
+      expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+      expect(document.querySelector('[data-testid="managed-project-list"]')).toBeNull();
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toEqual([]);
+    } finally { unmount(); }
+  });
+
+  it("protects settings-only drafts and preserves the confirmation and draft after a failed open", async () => {
+    const draft = { ...EMPTY_PROJECT, spec: parseBinSpec({ ...EMPTY_PROJECT.spec, gridX: 3 }) };
+    const project = { id: "saved", name: "Saved tray", updatedAt: "2026-09-12T12:00:00.000Z" };
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(draft);
+    vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId: null, projects: [project] });
+    let rejectOpen!: (error: Error) => void;
+    vi.mocked(ProjectPersistence.openProjectFromLibrary).mockReturnValue(new Promise((_, reject) => { rejectOpen = reject; }));
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      openSettingsSection(container, "project");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
+      await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-open-project-saved"]')!.click());
+      expect(ProjectPersistence.openProjectFromLibrary).not.toHaveBeenCalled();
+      const confirm = () => document.querySelector<HTMLButtonElement>('[data-testid="button-discard-draft-open"]')!;
+      await React.act(async () => confirm().click());
+      expect(confirm().disabled).toBe(true);
+      expect(confirm().textContent).toBe("Opening…");
+      React.act(() => confirm().click());
+      expect(ProjectPersistence.openProjectFromLibrary).toHaveBeenCalledOnce();
+      await React.act(async () => rejectOpen(new Error("Storage unavailable")));
+      expect(document.querySelector('[role="alertdialog"]')).not.toBeNull();
+      expect(confirm().disabled).toBe(false);
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toEqual(draft.spec);
+      React.act(() => document.querySelector<HTMLButtonElement>('[role="alertdialog"] button')!.click());
+      expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+      expect(document.querySelector('[data-testid="managed-project-list"]')).not.toBeNull();
+    } finally { unmount(); }
+  });
+
+  it.each(["{", JSON.stringify({ schemaVersion: 999 })])("rejects invalid project files without asking to replace the draft: %s", async (json) => {
+    const draft = { ...EMPTY_PROJECT, spec: parseBinSpec({ ...EMPTY_PROJECT.spec, gridX: 3 }) };
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(draft);
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      openSettingsSection(container, "project");
+      const input = container.querySelector<HTMLInputElement>('input[type="file"][accept*=".pocketry.json"]')!;
+      const file = new File([json], "Invalid.pocketry.json");
+      Object.defineProperty(file, "text", { value: async () => json });
+      Object.defineProperty(input, "files", { value: [file], configurable: true });
+      await React.act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
+      expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+      expect(ProjectPersistence.startNewProject).not.toHaveBeenCalled();
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toEqual(draft.spec);
+    } finally { unmount(); }
+  });
+
+  it.each(["draft", "named"])("uses current %s work after a delayed project-file read", async (kind) => {
+    if (kind === "named") {
+      vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(EMPTY_PROJECT);
+      vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId: "current", projects: [
+        { id: "current", name: "Current tray", updatedAt: "2026-09-20T12:00:00.000Z" },
+      ] });
+    }
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      openSettingsSection(container, "project");
+      const input = container.querySelector<HTMLInputElement>('input[type="file"][accept*=".pocketry.json"]')!;
+      let finishRead!: (json: string) => void;
+      const file = new File([], "Replacement.pocketry.json");
+      Object.defineProperty(file, "text", { value: () => new Promise<string>((resolve) => { finishRead = resolve; }) });
+      Object.defineProperty(input, "files", { value: [file], configurable: true });
+      React.act(() => input.dispatchEvent(new Event("change", { bubbles: true })));
+      // Expand Size without the index closing/unmounting Project: this read
+      // remains live while the current design is edited.
+      const sizeTrigger = container.querySelector<HTMLButtonElement>('#bin-settings-size > [data-panel-section-trigger]')!;
+      if (sizeTrigger.getAttribute("aria-expanded") === "false") React.act(() => sizeTrigger.click());
+      const height = container.querySelector<HTMLInputElement>('[aria-label="Bin height in units"]')!;
+      React.act(() => height.focus());
+      React.act(() => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(height, "9");
+        height.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      React.act(() => height.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0].heightUnits).toBe(9);
+      await React.act(async () => finishRead(JSON.stringify(EMPTY_PROJECT)));
+      if (kind === "draft") {
+        expect(document.querySelector('[role="alertdialog"]')?.textContent).toContain("Replace the current draft?");
+        expect(ProjectPersistence.startNewProject).not.toHaveBeenCalled();
+        expect(vi.mocked(useBinGeometry).mock.lastCall![0].heightUnits).toBe(9);
+        React.act(() => document.querySelector<HTMLButtonElement>('[role="alertdialog"] button')!.click());
+        expect(vi.mocked(useBinGeometry).mock.lastCall![0].heightUnits).toBe(9);
+      } else {
+        expect(ProjectPersistence.saveProjectDoc).toHaveBeenCalledWith(expect.objectContaining({
+          spec: expect.objectContaining({ heightUnits: 9 }),
+        }), "current");
+        expect(ProjectPersistence.startNewProject).toHaveBeenCalledExactlyOnceWith({ ...EMPTY_PROJECT, name: "Replacement" });
+      }
+    } finally { unmount(); }
+  });
+
+  it("ignores a superseded file read after the newer selected project opens", async () => {
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      openSettingsSection(container, "project");
+      const input = container.querySelector<HTMLInputElement>('input[type="file"][accept*=".pocketry.json"]')!;
+      let finishFirst!: (json: string) => void;
+      const first = new File([], "First.pocketry.json");
+      Object.defineProperty(first, "text", { value: () => new Promise<string>((resolve) => { finishFirst = resolve; }) });
+      Object.defineProperty(input, "files", { value: [first], configurable: true });
+      React.act(() => input.dispatchEvent(new Event("change", { bubbles: true })));
+      const second = new File([], "Second.pocketry.json");
+      Object.defineProperty(second, "text", { value: async () => JSON.stringify(EMPTY_PROJECT) });
+      Object.defineProperty(input, "files", { value: [second], configurable: true });
+      await React.act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
+      await React.act(async () => finishFirst(JSON.stringify(EMPTY_PROJECT)));
+      expect(ProjectPersistence.startNewProject).toHaveBeenCalledExactlyOnceWith({ ...EMPTY_PROJECT, name: "Second" });
+      expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+      expect(container.querySelector('[data-testid="current-project-name-row"] p[title]')?.textContent).toBe("Second");
+    } finally { unmount(); }
+  });
+
+  it("ignores a file read that finishes after the controls unmount", async () => {
+    const { container, unmount } = renderPage();
+    await flushHydration();
+    openSettingsSection(container, "project");
+    const input = container.querySelector<HTMLInputElement>('input[type="file"][accept*=".pocketry.json"]')!;
+    let finishRead!: (json: string) => void;
+    const file = new File([], "Replacement.pocketry.json");
+    Object.defineProperty(file, "text", { value: () => new Promise<string>((resolve) => { finishRead = resolve; }) });
+    Object.defineProperty(input, "files", { value: [file], configurable: true });
+    React.act(() => input.dispatchEvent(new Event("change", { bubbles: true })));
+    unmount();
+    await React.act(async () => finishRead(JSON.stringify(EMPTY_PROJECT)));
+    expect(ProjectPersistence.startNewProject).not.toHaveBeenCalled();
+    expect(ProjectPersistence.saveProjectDoc).not.toHaveBeenCalled();
+    expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+  });
+
+  it.each(["library", "new"])("ignores a pending file after a later %s project choice", async (choice) => {
+    const project = { id: "saved", name: "Saved tray", updatedAt: "2026-09-20T12:00:00.000Z" };
+    vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId: null, projects: [project] });
+    vi.mocked(ProjectPersistence.openProjectFromLibrary).mockResolvedValue({
+      doc: EMPTY_PROJECT, project, library: { activeProjectId: project.id, projects: [project] },
+    });
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      openSettingsSection(container, "project");
+      const input = container.querySelector<HTMLInputElement>('input[type="file"][accept*=".pocketry.json"]')!;
+      let finishRead!: (json: string) => void;
+      const file = new File([], "Late.pocketry.json");
+      Object.defineProperty(file, "text", { value: () => new Promise<string>((resolve) => { finishRead = resolve; }) });
+      Object.defineProperty(input, "files", { value: [file], configurable: true });
+      React.act(() => input.dispatchEvent(new Event("change", { bubbles: true })));
+      if (choice === "library") {
+        React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
+        await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-open-project-saved"]')!.click());
+      } else {
+        React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-new-project"]')!.click());
+        await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-confirm-new-project"]')!.click());
+      }
+      const importsBeforeRead = vi.mocked(ProjectPersistence.startNewProject).mock.calls.length;
+      await React.act(async () => finishRead(JSON.stringify(EMPTY_PROJECT)));
+      expect(ProjectPersistence.startNewProject).toHaveBeenCalledTimes(importsBeforeRead);
+      expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+      expect(container.querySelector('[data-testid="current-project-name-row"] p[title]')?.textContent).toBe(choice === "library" ? "Saved tray" : "Untitled project");
+    } finally { unmount(); }
+  });
+
+  it("keeps a nonempty draft and returns focus to Open project file when replacement is cancelled", async () => {
+    const draft = parseProjectDoc(ryobiReloadFixture)!;
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(draft);
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      openSettingsSection(container, "project");
+      const button = container.querySelector<HTMLButtonElement>('[data-testid="button-import-project"]')!;
+      React.act(() => button.focus());
+      const input = container.querySelector<HTMLInputElement>('input[type="file"][accept*=".pocketry.json"]')!;
+      const json = JSON.stringify(EMPTY_PROJECT);
+      const file = new File([json], "Replacement.pocketry.json");
+      Object.defineProperty(file, "text", { value: async () => json });
+      Object.defineProperty(input, "files", { value: [file], configurable: true });
+      await React.act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
+      expect(document.querySelector('[role="alertdialog"]')?.textContent).toContain('Opening “Replacement”');
+      expect(ProjectPersistence.startNewProject).not.toHaveBeenCalled();
+      React.act(() => document.querySelector<HTMLButtonElement>('[role="alertdialog"] button')!.click());
+      await React.act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+      expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+      expect(document.activeElement).toBe(button);
+      expect(ProjectPersistence.startNewProject).not.toHaveBeenCalled();
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toEqual(draft.cutouts);
+    } finally { unmount(); }
+  });
+
+  it("keeps the draft and validated file available when confirmed opening fails, then retries successfully", async () => {
+    const draft = { ...EMPTY_PROJECT, spec: parseBinSpec({ ...EMPTY_PROJECT.spec, gridX: 3 }) };
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(draft);
+    let rejectOpen!: (error: Error) => void;
+    vi.mocked(ProjectPersistence.startNewProject).mockReturnValueOnce(new Promise((_, reject) => { rejectOpen = reject; }));
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      openSettingsSection(container, "project");
+      const input = container.querySelector<HTMLInputElement>('input[type="file"][accept*=".pocketry.json"]')!;
+      const json = JSON.stringify(EMPTY_PROJECT);
+      const file = new File([json], "Replacement.pocketry.json");
+      const readFile = vi.fn(async () => json);
+      Object.defineProperty(file, "text", { value: readFile });
+      Object.defineProperty(input, "files", { value: [file], configurable: true });
+      await React.act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
+      expect(ProjectPersistence.startNewProject).not.toHaveBeenCalled();
+      const confirm = () => document.querySelector<HTMLButtonElement>('[data-testid="button-discard-draft-open"]')!;
+      await React.act(async () => confirm().click());
+      expect(confirm().disabled).toBe(true);
+      React.act(() => confirm().click());
+      expect(ProjectPersistence.startNewProject).toHaveBeenCalledExactlyOnceWith({ ...EMPTY_PROJECT, name: "Replacement" });
+      await React.act(async () => rejectOpen(new Error("Storage unavailable")));
+      expect(confirm().disabled).toBe(false);
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toEqual(draft.spec);
+      await React.act(async () => confirm().click());
+      expect(ProjectPersistence.startNewProject).toHaveBeenCalledTimes(2);
+      expect(readFile).toHaveBeenCalledOnce();
+      expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toEqual(EMPTY_PROJECT.spec);
+      expect(container.querySelector('[data-testid="current-project-name-row"] p[title]')?.textContent).toBe("Replacement");
+    } finally { unmount(); }
+  });
+
+  it("opens a saved project directly from an untouched empty draft", async () => {
+    const project = { id: "saved", name: "Saved tray", updatedAt: "2026-09-12T12:00:00.000Z" };
+    vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId: null, projects: [project] });
+    vi.mocked(ProjectPersistence.openProjectFromLibrary).mockResolvedValue({
+      doc: EMPTY_PROJECT, project, library: { activeProjectId: project.id, projects: [project] },
+    });
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      openSettingsSection(container, "project");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
+      await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-open-project-saved"]')!.click());
+      expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+      expect(ProjectPersistence.openProjectFromLibrary).toHaveBeenCalledExactlyOnceWith("saved");
+    } finally { unmount(); }
   });
 
   it.each(["current", "saved"])("copies the %s project after its source while retaining focus and the open design", async (id) => {
@@ -2683,14 +3244,19 @@ describe("BinDesignerPage", () => {
     unmount();
   });
 
-  it("exports the full library directly from Portable backup with the latest design snapshot", async () => {
+  it("exports the full library from Manage with the latest design snapshot", async () => {
     const backup = { format: "pocketry-library" as const, schemaVersion: 1 as const, projects: [] };
     vi.mocked(ProjectPersistence.exportProjectLibrary).mockResolvedValue(backup);
     const { container, unmount } = renderPage();
     openSettingsSection(container, "project");
     await flushHydration();
     expect(document.querySelector('[role="dialog"]')).toBeNull();
-    expect(container.querySelector('[aria-label="Portable backup"] [data-testid="button-export-library"]')).not.toBeNull();
+    expect(container.querySelector('[aria-label="Portable backup"] [data-testid="button-export-library"]')).toBeNull();
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
+    await flushHydration();
+    expect(document.querySelector('[role="dialog"] [data-testid="button-export-library"]')).not.toBeNull();
+    expect(document.activeElement).toBe(document.querySelector('[data-testid="button-export-library"]'));
+    expect(document.querySelector('[role="tooltip"]')).toBeNull();
     await React.act(async () => { (document.querySelector('[data-testid="button-export-library"]') as HTMLButtonElement).click(); });
     expect(ProjectPersistence.exportProjectLibrary).toHaveBeenCalledWith(expect.objectContaining({ schemaVersion: PROJECT_SCHEMA_VERSION }));
     expect(ProjectPersistence.saveProjectToLibrary).not.toHaveBeenCalled();
@@ -2716,6 +3282,8 @@ describe("BinDesignerPage", () => {
     openSettingsSection(container, "project");
     await flushHydration();
     expect(document.querySelector('[role="dialog"]')).toBeNull();
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
+    await flushHydration();
     const input = document.querySelector('[data-testid="input-import-library"]') as HTMLInputElement;
     const click = vi.spyOn(input, "click");
     React.act(() => { (document.querySelector('[data-testid="button-import-library"]') as HTMLButtonElement).click(); });
@@ -2727,13 +3295,10 @@ describe("BinDesignerPage", () => {
     await React.act(async () => { input.dispatchEvent(new Event("change", { bubbles: true })); });
     expect(ProjectPersistence.importProjectLibrary).toHaveBeenCalledWith(data);
     expect(input.value).toBe("");
-    expect(container.querySelector('[data-testid="library-file-backup"]')?.textContent).toContain("1 saved");
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain("1 saved project");
     expect(ProjectPersistence.startNewProject).not.toHaveBeenCalled();
     expect(ProjectPersistence.openProjectFromLibrary).not.toHaveBeenCalled();
-    vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId: null, projects: [project] });
-    React.act(() => { (container.querySelector('[data-testid="button-open-library"]') as HTMLButtonElement).click(); });
-    await flushHydration();
-    expect(document.querySelector('[data-testid="project-list"]')?.textContent).toContain("Imported tray");
+    expect(document.querySelector('[data-testid="managed-project-list"]')?.textContent).toContain("Imported tray");
     unmount();
   });
 
@@ -2743,9 +3308,11 @@ describe("BinDesignerPage", () => {
     const { container, unmount } = renderPage();
     openSettingsSection(container, "project");
     await flushHydration();
-    const button = (action: string) => container.querySelector<HTMLButtonElement>(`[data-testid="button-${action}"]`)!;
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
+    await flushHydration();
+    const button = (action: string) => document.querySelector<HTMLButtonElement>(`[data-testid="button-${action}"]`)!;
     React.act(() => button("export-library").click());
-    for (const action of ["save-library", "open-library", "manage-library", "new-project", "export-project", "import-project", "export-library", "import-library"]) {
+    for (const action of ["save-library", "manage-library", "new-project", "export-project", "import-project", "export-library", "import-library"]) {
       expect(button(action).disabled).toBe(true);
     }
     expect(container.querySelector('[data-testid="project-status"]')?.textContent).toContain("Working");
@@ -2760,6 +3327,8 @@ describe("BinDesignerPage", () => {
   it("rejects malformed library JSON before persistence", async () => {
     const { container, unmount } = renderPage();
     openSettingsSection(container, "project");
+    await flushHydration();
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
     await flushHydration();
     const input = document.querySelector('[data-testid="input-import-library"]') as HTMLInputElement;
     const file = new File(["{"], "broken.json");
@@ -2970,7 +3539,7 @@ describe("BinDesignerPage", () => {
       shapeName.blur();
     });
     expect(libraryHandle!.shapes.find((shape) => shape.id === "shape-1")?.name).toBe(
-      "Bench wrench",
+      "test wrench",
     );
     expect(container.textContent).toContain("Bench wrench");
 
@@ -3249,6 +3818,28 @@ describe("BinDesignerPage", () => {
     unmount();
   });
 
+  it.each([
+    ["standard", "45.6"],
+    ["none", "42.0"],
+  ] as const)("shows the outer printed dimensions in STL and 3MF confirmations with %s lip", async (lip, height) => {
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({
+      ...EMPTY_PROJECT,
+      spec: parseBinSpec({ ...EMPTY_PROJECT.spec, gridX: 2, gridY: 3, heightUnits: 6, lip }),
+    });
+    const { container, unmount } = renderPage();
+    await flushHydration();
+    openSettingsSection(container, "export");
+    for (const format of ["3mf", "stl"]) {
+      React.act(() => container.querySelector<HTMLButtonElement>(`[data-testid="button-export-${format}"]`)!.click());
+      const dialog = document.querySelector('[role="dialog"]')!;
+      expect(dialog.textContent).toContain(`Outer size: 83.5 × 125.5 × ${height} mm (width × length × height).`);
+      if (format === "3mf") expect(document.activeElement).toBe(dialog.querySelector('h2'));
+      React.act(() => [...dialog.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === "Cancel")!.click());
+    }
+    expect(binGeometryMock.buildOnce).not.toHaveBeenCalled();
+    unmount();
+  });
+
   it("asks about 3MF colors and warns before discarding them in STL", () => {
     const { container, unmount } = renderPage();
     openSettingsSection(container, "export");
@@ -3332,11 +3923,12 @@ describe("project history restoration", () => {
       React.act(() => button(container, "redo").click());
       React.act(() => button(container, "undo").click());
       if (mobile) {
-        React.act(() => Array.from(container.querySelectorAll("button")).find(button => button.textContent === "Bin settings")!.click());
+        React.act(() => Array.from(container.querySelectorAll("button")).find(button => button.textContent === "Adjust")!.click());
+        React.act(() => Array.from(container.querySelectorAll("button")).find(button => button.textContent === "More settings")!.click());
       }
       openSettingsSection(document.body, "project");
       const open = async (id: string) => {
-        React.act(() => document.querySelector<HTMLButtonElement>('[data-testid="button-open-library"]')!.click());
+        React.act(() => document.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
         await React.act(async () => document.querySelector<HTMLButtonElement>(`[data-testid="button-open-project-${id}"]`)!.click());
       };
       await open("B");

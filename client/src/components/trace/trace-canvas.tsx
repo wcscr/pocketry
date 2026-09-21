@@ -1,5 +1,6 @@
 import {
   Crop,
+  Ellipsis,
   Hand,
   Loader2,
   Maximize2,
@@ -14,6 +15,7 @@ import {
 } from "lucide-react";
 import {
   useCallback,
+  useId,
   useEffect,
   useMemo,
   useRef,
@@ -32,12 +34,19 @@ import {
   CanvasViewport,
   useCanvasViewportSize,
 } from "@/components/canvas/canvas-viewport";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { useMobileContourEditor } from "@/hooks/use-mobile-contour-editor";
+import { useContourPointFocus } from "@/hooks/use-contour-point-focus";
+import { MobileContourTools } from "@/components/canvas/mobile-contour-tools";
+import { ContourMagnifier } from "@/components/canvas/contour-magnifier";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { CanvasToolbar } from "@/components/layout/canvas-toolbar";
 import { ContourEditTools } from "@/components/canvas/contour-edit-tools";
 import { EditHistoryMenu } from "@/components/history/edit-history-menu";
 import { useViewportTransform } from "@/hooks/use-viewport-transform";
+import { canHandleCanvasShortcut } from "@/lib/canvas-keyboard";
 import { nearestEdge, nearestVertex } from "@/lib/geometry/hit-test";
-import { getRing, sameRingRef, setRing } from "@/lib/geometry/outline";
+import { getRing, outlineBounds, sameRingRef, setRing } from "@/lib/geometry/outline";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -88,6 +97,8 @@ export function TraceCanvas(props: TraceCanvasProps): JSX.Element {
 
 function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element {
   const store = useTrace();
+  const isMobile = useIsMobile();
+  const sceneId = useId();
   const {
     imageUrl,
     imageSize,
@@ -121,8 +132,10 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
       ? manualPerspectivePoints
       : (pendingPerspective?.points ?? []);
   const rulerEditable =
-    (calibrationSource === "manual" && calibration !== null) ||
-    (mode !== "calibrate" && hasCalibrationEndpoints(draftCalibration));
+    !pendingAutoCalibration && (
+      (calibrationSource === "manual" && calibration !== null) ||
+      (mode !== "calibrate" && hasCalibrationEndpoints(draftCalibration))
+    );
   const measurementMmPerPx = mmPerPixel(calibration);
 
   const handleRulerLengthCommit = useCallback(
@@ -236,11 +249,27 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
   }, []);
 
   const pickRadius = PICK_RADIUS_PX / Math.max(viewport.transform.scale, 1e-6);
+  const desktopPoint = useContourPointFocus({
+    outline,
+    enabled: !isMobile && selection !== null && (mode === "edit" || mode === "pan" || mode === "remove"),
+    contextKey: `${store.sourceRevision}:${imageRotation}`,
+  });
+  useEffect(() => {
+    if (desktopPoint.selectedPoint && !sameRingRef(desktopPoint.selectedPoint.ref, selection)) desktopPoint.clear();
+  }, [selection, desktopPoint.selectedPoint]);
+  const deleteFocusedPoint = () => {
+    const point = desktopPoint.selectedPoint;
+    const ring = point && getRing(outline, point.ref);
+    if (!point || !ring || !desktopPoint.canDelete) return;
+    dispatch({ type: "OUTLINE_COMMITTED", outline: setRing(outline, point.ref,
+      ring.filter((_, index) => index !== point.index)), label: "Remove contour node" });
+    desktopPoint.clear();
+  };
 
   // What the current drag is doing, if anything.
   const dragRef = useRef<
     | { kind: "region"; origin: Point }
-    | { kind: "vertex"; ref: RingRef; index: number }
+    | { kind: "vertex"; ref: RingRef; index: number; origin: Point; moved: boolean }
     | { kind: "ruler"; end: "start" | "end" }
     | { kind: "perspective"; index: number }
     | null
@@ -273,7 +302,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
 
   const updateHover = (event: ReactPointerEvent<SVGSVGElement>): void => {
     const editable =
-      selection !== null && (mode === "edit" || mode === "pan") && !viewport.isPanning;
+      selection !== null && (mode === "edit" || (!isMobile && mode === "pan")) && !viewport.isPanning;
     let next: number | null = null;
     if (editable) {
       const image = toImage(event.clientX, event.clientY);
@@ -296,10 +325,15 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
   const handleContourClick = (image: Point): boolean => {
     if (!selection) return false;
 
-    if (nearestVertex(outline, image, pickRadius, selection)) return true;
+    const vertex = nearestVertex(outline, image, pickRadius, selection);
+    if (vertex) {
+      desktopPoint.select(vertex.ref, vertex.index, getRing(outline, vertex.ref)![vertex.index]);
+      return true;
+    }
 
     const other = nearestEdge(outline, image, pickRadius * 4);
     if (other && !sameRingRef(other.ref, selection)) {
+      desktopPoint.clear();
       dispatch({ type: "SELECT_RING", selection: other.ref });
       return true;
     }
@@ -310,6 +344,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
     if (!ring) return true;
     const next = [...ring];
     next.splice(edge.insertIndex, 0, image);
+    desktopPoint.select(edge.ref, edge.insertIndex, image);
     dispatch({
       type: "OUTLINE_COMMITTED",
       outline: setRing(outline, edge.ref, next),
@@ -318,7 +353,37 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
     return true;
   };
 
+  const mobileEditing = isMobile && (mode === "edit" || mode === "remove");
+  const focusContour = () => {
+    const ring = selection && getRing(outline, selection);
+    const bounds = outlineBounds(ring ? [{ outer: ring, holes: [] }] : outline);
+    if (bounds) viewport.fitToRect({ x: bounds.minX, y: bounds.minY,
+      width: bounds.maxX - bounds.minX, height: bounds.maxY - bounds.minY });
+  };
+  const mobileEditor = useMobileContourEditor({
+    enabled: mobileEditing, outline,
+    selectionKey: store.sourceRevision,
+    toLocal: point => toImage(point.x, point.y),
+    getScreenProjection: () => {
+      const matrix = sceneRef.current?.getScreenCTM();
+      return point => matrix ? { x: matrix.a * point.x + matrix.c * point.y + matrix.e,
+        y: matrix.b * point.x + matrix.d * point.y + matrix.f } : point;
+    },
+    viewport: viewport.handlers,
+    onSelect: ref => dispatch({ type: "SELECT_RING", selection: ref }),
+    onPreview: next => dispatch({ type: "OUTLINE_DRAGGING", outline: next }),
+    onCancel: original => dispatch({ type: "OUTLINE_DRAGGING", outline: original }),
+    onCommit: (next, label) => dispatch({ type: "OUTLINE_COMMITTED", outline: next, label }),
+  });
+  const focusedPoint = isMobile ? mobileEditor.selectedPoint : desktopPoint.selectedPoint;
+  const magnifiedPoint = isMobile ? mobileEditor.activePoint : desktopPoint.activePoint;
+
   const handlePointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
+    if (mobileEditor.down(event)) return;
+    if (isMobile && mode === "pan") {
+      viewport.handlers.onPointerDown(event, { pan: true });
+      return;
+    }
     if (mode === "navigate") {
       viewport.handlers.onPointerDown(event);
       return;
@@ -334,6 +399,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
       if (vertex) {
         const ring = getRing(outline, vertex.ref);
         if (ring && ring.length > 3) {
+          desktopPoint.clear();
           dispatch({ type: "OUTLINE_COMMITTED", outline: setRing(outline, vertex.ref,
             ring.filter((_, index) => index !== vertex.index)), label: "Remove contour node" });
         }
@@ -359,6 +425,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
     if (
       event.button === 0 &&
       displayedCalibration &&
+      rulerEditable &&
       mode !== "perspective"
     ) {
       const target = event.target as Element;
@@ -434,7 +501,9 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
     if (mode === "edit" && event.button === 0 && !event.shiftKey) {
       const vertex = nearestVertex(outline, image, pointerPickRadius, selection);
       if (vertex) {
-        dragRef.current = { kind: "vertex", ref: vertex.ref, index: vertex.index };
+        dragRef.current = { kind: "vertex", ref: vertex.ref, index: vertex.index,
+          origin: { x: event.clientX, y: event.clientY }, moved: false };
+        desktopPoint.select(vertex.ref, vertex.index, getRing(outline, vertex.ref)![vertex.index], true);
         dispatch({ type: "SELECT_RING", selection: vertex.ref });
         event.currentTarget.setPointerCapture(event.pointerId);
         return;
@@ -450,6 +519,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
         if (ring) {
           const next = [...ring];
           next.splice(edge.insertIndex, 0, image);
+          desktopPoint.select(edge.ref, edge.insertIndex, image);
           dispatch({
             type: "OUTLINE_COMMITTED",
             outline: setRing(outline, edge.ref, next),
@@ -478,7 +548,9 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
     ) {
       const vertex = nearestVertex(outline, image, pointerPickRadius, selection);
       if (vertex) {
-        dragRef.current = { kind: "vertex", ref: vertex.ref, index: vertex.index };
+        dragRef.current = { kind: "vertex", ref: vertex.ref, index: vertex.index,
+          origin: { x: event.clientX, y: event.clientY }, moved: false };
+        desktopPoint.select(vertex.ref, vertex.index, getRing(outline, vertex.ref)![vertex.index], true);
         event.currentTarget.setPointerCapture(event.pointerId);
         return;
       }
@@ -489,6 +561,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
   };
 
   const handlePointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
+    if (mobileEditor.move(event)) return;
     // Any real movement turns a candidate click into not-a-click.
     const click = clickRef.current;
     if (
@@ -566,10 +639,14 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
     }
 
     if (drag.kind === "vertex") {
+      // Stationary pointer events and click jitter only focus the handle.
+      if (!drag.moved && Math.hypot(event.clientX - drag.origin.x, event.clientY - drag.origin.y) <= CLICK_SLOP_PX) return;
+      drag.moved = true;
       const ring = getRing(outline, drag.ref);
       if (!ring) return;
       const next = [...ring];
       next[drag.index] = image;
+      desktopPoint.move(image);
       // Preview only. Pointer-up commits the final outline once, preserving
       // the pre-drag snapshot as the state Undo must restore.
       dispatch({
@@ -580,6 +657,8 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
   };
 
   const endDrag = (event: ReactPointerEvent<SVGSVGElement>) => {
+    if (mobileEditor.end(event)) return;
+    desktopPoint.finish();
     const drag = dragRef.current;
     dragRef.current = null;
 
@@ -614,7 +693,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
     }
 
     // The drag is finished, so its result becomes one undo entry.
-    if (drag.kind === "vertex") {
+    if (drag.kind === "vertex" && drag.moved) {
       dispatch({
         type: "OUTLINE_COMMITTED",
         outline,
@@ -644,6 +723,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
     if (!ring || ring.length <= 3) return;
 
     const next = ring.filter((_, i) => i !== vertex.index);
+    desktopPoint.clear();
     dispatch({
       type: "OUTLINE_COMMITTED",
       outline: setRing(outline, vertex.ref, next),
@@ -686,6 +766,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
         <TraceScene
           svgRef={svgRef}
           sceneRef={sceneRef}
+          sceneId={sceneId}
           imageUrl={imageUrl}
           imageSize={imageSize}
           imageRotation={imageRotation}
@@ -729,6 +810,8 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
           busy={processing}
           cursor={cursor}
           hoveredVertexIndex={hoveredVertexIndex}
+          selectedVertexIndex={focusedPoint && sameRingRef(focusedPoint.ref, selection) ? focusedPoint.index : null}
+          compactHandles={isMobile}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={endDrag}
@@ -741,29 +824,51 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
           onContextMenu={handleContextMenu}
         />
       ) : (
-        <div className="h-full w-full touch-pan-y overflow-y-auto">
-          <div className="flex min-h-full items-center justify-center p-4 md:p-8">
-            {emptyState}
-          </div>
+        <div className="flex h-full w-full touch-pan-y overflow-y-auto p-4 md:p-8">
+          <div className="m-auto h-full w-full max-w-5xl">{emptyState}</div>
         </div>
       )}
 
       {imageUrl && (
         <>
-          <CanvasToolbar position="top-left" className="max-md:right-2 max-md:max-w-none">
-            <ModeButton mode="pan" icon={MousePointer2} label="Select" />
-            <ModeButton mode="navigate" icon={Hand} label="Pan photo" />
-            <ModeButton mode="region" icon={Crop} label="Region" />
-            <ModeButton mode="edit" icon={Spline} label="Edit contours" disabled={outline.length === 0} />
-            <ModeButton mode="calibrate" icon={Scaling} label="Set scale" />
-            <ModeButton
-              mode="measure"
-              icon={Ruler}
-              label="Measure distance"
-              disabled={measurementMmPerPx === null}
-            />
-
+          <CanvasToolbar position="top-left" className="max-md:flex-nowrap">
+            {isMobile ? <>
+              <ModeButton mode="navigate" icon={Hand} label="Pan photo" />
+              {mode === "measure" ? <ModeButton mode="measure" icon={Ruler} label="Measure distance" />
+                : !calibration || mode === "calibrate" || mode === "perspective" ? <ModeButton mode="calibrate" icon={Scaling} label="Set scale" />
+                : mode === "region" || outline.length === 0 ? <ModeButton mode="region" icon={Crop} label="Region" />
+                : <ModeButton mode="edit" icon={Spline} label="Edit contours" onSelect={focusContour} />}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-11 w-11" aria-label="More trace tools"><Ellipsis className="h-4 w-4" /></Button></DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  {([
+                    { mode: "region", label: "Region", icon: Crop, disabled: false },
+                    { mode: "edit", label: "Edit contours", icon: Spline, disabled: outline.length === 0 },
+                    { mode: "calibrate", label: "Set scale", icon: Scaling, disabled: false },
+                    { mode: "measure", label: "Measure distance", icon: Ruler, disabled: measurementMmPerPx === null },
+                  ] as const).map(tool => <DropdownMenuItem key={tool.mode} className="min-h-11" disabled={tool.disabled}
+                    onSelect={() => { dispatch({ type: "SET_MODE", mode: tool.mode }); if (tool.mode === "edit") focusContour(); }}><tool.icon className="mr-2 h-4 w-4" />{tool.label}</DropdownMenuItem>)}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </> : <>
+              <ModeButton mode="pan" icon={MousePointer2} label="Select" />
+              <ModeButton mode="navigate" icon={Hand} label="Pan photo" />
+              <ModeButton mode="region" icon={Crop} label="Region" />
+              <ModeButton mode="edit" icon={Spline} label="Edit contours" disabled={outline.length === 0} />
+              <ModeButton mode="calibrate" icon={Scaling} label="Set scale" />
+              <ModeButton mode="measure" icon={Ruler} label="Measure distance" disabled={measurementMmPerPx === null} />
+            </>}
           </CanvasToolbar>
+
+          {mobileEditing && <div className="absolute left-2 bottom-16 z-30">
+            <MobileContourTools selected={!!mobileEditor.selectedPoint} canRemove={mobileEditor.canRemove} onRemove={mobileEditor.removeSelected}
+              onDone={() => dispatch({ type: "SET_MODE", mode: "navigate" })} />
+          </div>}
+          <ContourMagnifier sceneId={sceneId} canvasWidth={containerSize.width} canvasHeight={containerSize.height} compact={isMobile}
+            point={magnifiedPoint ? {
+              x: viewport.transform.translateX + magnifiedPoint.x * viewport.transform.scale,
+              y: viewport.transform.translateY + magnifiedPoint.y * viewport.transform.scale,
+            } : null} />
 
           <CanvasToolbar position="top-right" className="max-md:bottom-2 max-md:left-2 max-md:right-auto max-md:top-auto">
             {/* Always present: outline edits can happen in any pointing mode,
@@ -797,9 +902,10 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
             />
           </CanvasToolbar>
 
-          {(mode === "edit" || mode === "remove") && selection && getRing(outline, selection) && (
+          {(mode === "edit" || mode === "remove" || (mode === "pan" && desktopPoint.selectedPoint)) && selection && getRing(outline, selection) && (
             <div className="absolute bottom-16 left-2 z-30 max-md:hidden">
               <ContourEditTools removeActive={mode === "remove"}
+                onDeletePoint={desktopPoint.selectedPoint ? deleteFocusedPoint : undefined} canDeletePoint={desktopPoint.canDelete}
                 selectionLabel={`Contour ${selection.shapeIndex + 1}${selection.ringIndex === OUTER_RING ? "" : ` · Hole ${selection.ringIndex + 1}`}`}
                 onChange={(remove) => dispatch({ type: "SET_MODE", mode: remove ? "remove" : "edit" })} />
             </div>
@@ -814,7 +920,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
             <button
               type="button"
               onClick={viewport.resetZoom}
-              className="hidden min-h-11 min-w-14 rounded px-2 py-1 text-xs md:block md:min-h-0 tabular-nums hover:bg-accent"
+              className="hidden min-h-11 min-w-14 rounded px-2 py-1 text-xs md:block md:min-h-0 [@media(pointer:coarse)]:min-h-11 tabular-nums hover:bg-accent"
               title="Reset to 100% (1)"
             >
               {Math.round(viewport.transform.scale * 100)}%
@@ -872,11 +978,13 @@ function ModeButton({
   icon: Icon,
   label,
   disabled = false,
+  onSelect,
 }: {
   mode: TraceMode;
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   disabled?: boolean;
+  onSelect?: () => void;
 }): JSX.Element {
   const { mode: current, dispatch } = useTrace();
   const active = current === mode || (mode === "edit" && current === "remove");
@@ -887,11 +995,11 @@ function ModeButton({
         <Button
           variant={active ? "secondary" : "ghost"}
           size="icon"
-          className={cn("h-11 w-11 md:h-8 md:w-8", active && "ring-1 ring-primary/40")}
+          className={cn("h-11 w-11 md:h-8 md:w-8 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11", active && "ring-1 ring-primary/40")}
           aria-pressed={active}
           aria-label={label}
           disabled={disabled}
-          onClick={() => dispatch({ type: "SET_MODE", mode })}
+          onClick={() => { dispatch({ type: "SET_MODE", mode }); onSelect?.(); }}
         >
           <Icon className="h-4 w-4" />
         </Button>
@@ -918,7 +1026,7 @@ function IconButton({
         <Button
           variant="ghost"
           size="icon"
-          className="h-11 w-11 md:h-8 md:w-8"
+          className="h-11 w-11 md:h-8 md:w-8 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11"
           aria-label={label}
           disabled={disabled}
           onClick={onClick}
@@ -966,8 +1074,8 @@ interface ShortcutHandlers {
 /**
  * Canvas keyboard shortcuts.
  *
- * Suppressed while focus is in a text field — the ruler-length input would
- * otherwise swallow "0" and "1" as zoom commands.
+ * Active only while the canvas owns keyboard input. Dialogs and controls keep
+ * their own text editing, navigation, and activation commands.
  */
 function useCanvasShortcuts(handlers: ShortcutHandlers): void {
   const [state] = useState(() => ({ handlers }));
@@ -975,15 +1083,7 @@ function useCanvasShortcuts(handlers: ShortcutHandlers): void {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null;
-      if (
-        target &&
-        (target.tagName === "INPUT" ||
-          target.tagName === "TEXTAREA" ||
-          target.isContentEditable)
-      ) {
-        return;
-      }
+      if (!canHandleCanvasShortcut(event) || event.altKey) return;
 
       const meta = event.ctrlKey || event.metaKey;
       if (meta && event.key.toLowerCase() === "z") {

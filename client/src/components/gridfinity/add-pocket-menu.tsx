@@ -13,14 +13,14 @@ export function AddPocketMenu(): JSX.Element {
   const isMobile = useIsMobile();
   return <DropdownMenu>
     <DropdownMenuTrigger asChild>
-      <Button type="button" variant="outline" size="sm" className="gap-1.5 bg-background/90">
+      <Button type="button" variant="outline" size="sm" className="gap-1.5 bg-background/90 [@media(pointer:coarse)]:min-h-11">
         <Plus className="h-3.5 w-3.5" />Add pocket<ChevronDown className="h-3.5 w-3.5" />
       </Button>
     </DropdownMenuTrigger>
     <DropdownMenuContent align="start">
       {(["rectangle", "square", "circle"] as const).map((kind: BasicPocketShape) => {
         const Icon = kind === "circle" ? Circle : kind === "square" ? Square : RectangleHorizontal;
-        return <DropdownMenuItem key={kind} onSelect={() => {
+        return <DropdownMenuItem key={kind} className="[@media(pointer:coarse)]:min-h-11" onSelect={() => {
           dispatch({ type: "SET_EDITOR_MODE", editorMode: `draw-${kind}` });
           dispatch({ type: "SET_VIEW_MODE", viewMode: "2d" });
           if (isMobile) setPanelOpen(false);

@@ -1,6 +1,6 @@
 import { ChevronDown } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import type { ReactNode } from "react";
+import { createContext, useContext, type ReactNode } from "react";
 
 import {
   Collapsible,
@@ -8,6 +8,9 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
+
+/** A focused mobile form can reuse an existing section without mounting unrelated fields. */
+export const PanelSectionFilterContext = createContext<string | null>(null);
 
 export interface PanelSectionProps {
   /** Header label. Truncates rather than wrapping in a narrow panel. */
@@ -113,6 +116,8 @@ export function PanelSection({
   tone,
   attention = false,
 }: PanelSectionProps): JSX.Element {
+  const visibleSection = useContext(PanelSectionFilterContext);
+  if (visibleSection && id !== visibleSection) return <></>;
   const toneStyles = tone ? TONE_STYLES[tone] : null;
   return (
     <Collapsible
