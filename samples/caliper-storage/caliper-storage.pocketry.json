@@ -1,0 +1,608 @@
+{
+  "schemaVersion": 19,
+  "shapes": [
+    {
+      "id": "a9764122-370c-4367-b727-4cd6a8614108",
+      "name": "Digital calipers",
+      "outlineMm": [
+        {
+          "outer": [
+            {
+              "x": -42.83835682536375,
+              "y": 98.95279173134237
+            },
+            {
+              "x": -45.821420167150045,
+              "y": 100.79694647460703
+            },
+            {
+              "x": -49.68513687010193,
+              "y": 100.53010273870684
+            },
+            {
+              "x": -53.373048720454264,
+              "y": 98.42096501438424
+            },
+            {
+              "x": -59.691983642056584,
+              "y": 93.23250445909798
+            },
+            {
+              "x": -59.697833048179746,
+              "y": 93.23047243058681
+            },
+            {
+              "x": -59.865474820137024,
+              "y": 93.13069032132626
+            },
+            {
+              "x": -70.40176767848655,
+              "y": 84.56745384245909
+            },
+            {
+              "x": -81.77348911762238,
+              "y": 73.3966319411993
+            },
+            {
+              "x": -81.86253669671714,
+              "y": 73.29062402434647
+            },
+            {
+              "x": -90.94477199681863,
+              "y": 61.235970878724274
+            },
+            {
+              "x": -98.20305676944554,
+              "y": 47.213960936293006
+            },
+            {
+              "x": -96.96502761380137,
+              "y": 37.88287256677228
+            },
+            {
+              "x": -90.88081124958501,
+              "y": 36.82779527283202
+            },
+            {
+              "x": -84.80114486441016,
+              "y": 37.5631103515625
+            },
+            {
+              "x": -64.87434106725514,
+              "y": 47.51252930292451
+            },
+            {
+              "x": -60.91191081007509,
+              "y": 48.21342452885922
+            },
+            {
+              "x": -57.93916631451245,
+              "y": 46.55325199610339
+            },
+            {
+              "x": -43.639045417791,
+              "y": 30.792401705343917
+            },
+            {
+              "x": -36.787612923017015,
+              "y": 11.852266765026304
+            },
+            {
+              "x": -28.127417562529445,
+              "y": 10.743709368631244
+            },
+            {
+              "x": -27.56426952779293,
+              "y": 7.0919010285288095
+            },
+            {
+              "x": -27.553853964433074,
+              "y": 7.04164400883019
+            },
+            {
+              "x": -25.158715184777975,
+              "y": 3.817481918260455
+            },
+            {
+              "x": -21.157353959977627,
+              "y": 1.7286109942942858
+            },
+            {
+              "x": -21.134205849841237,
+              "y": 1.7175903711467981
+            },
+            {
+              "x": -17.22530555166304,
+              "y": 1.5778662636876106
+            },
+            {
+              "x": -17.21140655502677,
+              "y": 1.5776980966329575
+            },
+            {
+              "x": -13.600608577951789,
+              "y": 3.0397404115647078
+            },
+            {
+              "x": -13.550501760095358,
+              "y": 3.063955957069993
+            },
+            {
+              "x": -11.20549009181559,
+              "y": 5.949203068390489
+            },
+            {
+              "x": 84.73940408121494,
+              "y": -98.49881575105432
+            },
+            {
+              "x": 98.36451389648937,
+              "y": -85.6308865248237
+            },
+            {
+              "x": -5.802187765017152,
+              "y": 28.5300529319793
+            },
+            {
+              "x": -0.8972112406789918,
+              "y": 33.396293525299384
+            },
+            {
+              "x": -4.756646655499935,
+              "y": 38.156450759619474
+            },
+            {
+              "x": -5.5213730074465275,
+              "y": 39.81329299323261
+            },
+            {
+              "x": -6.713525154279825,
+              "y": 43.22877562005216
+            },
+            {
+              "x": -8.14977402446003,
+              "y": 45.50951817431606
+            },
+            {
+              "x": -10.042765025049448,
+              "y": 47.576399551704526
+            },
+            {
+              "x": -11.533746612717358,
+              "y": 48.907595176957926
+            },
+            {
+              "x": -13.62983986735344,
+              "y": 50.05431064590812
+            },
+            {
+              "x": -13.704157050698996,
+              "y": 50.09614506922662
+            },
+            {
+              "x": -17.335005395114422,
+              "y": 51.74956468679011
+            },
+            {
+              "x": -22.768911752849817,
+              "y": 57.39370717853308
+            },
+            {
+              "x": -18.313765449579805,
+              "y": 61.704166987961216
+            },
+            {
+              "x": -25.35939804562984,
+              "y": 69.3512063704465
+            },
+            {
+              "x": -30.009787859395146,
+              "y": 65.18471761420369
+            },
+            {
+              "x": -46.94718366444954,
+              "y": 83.6097576543321
+            },
+            {
+              "x": -42.51678373382652,
+              "y": 89.48484296895057
+            },
+            {
+              "x": -40.804275159426275,
+              "y": 93.2197862344618
+            },
+            {
+              "x": -40.92479542351076,
+              "y": 96.52228032692625
+            }
+          ],
+          "holes": []
+        }
+      ],
+      "bboxMm": {
+        "minX": -98.20305676944554,
+        "minY": -98.49881575105432,
+        "maxX": 98.36451389648937,
+        "maxY": 100.79694647460703
+      },
+      "pointCount": 52,
+      "sourceMmPerPx": 0.25,
+      "traceMarginMm": 0.5
+    },
+    {
+      "id": "caliper-coin-cell-battery",
+      "name": "Coin-cell battery slot",
+      "outlineMm": [
+        {
+          "outer": [
+            {
+              "x": -1.75,
+              "y": -11.0
+            },
+            {
+              "x": 1.75,
+              "y": -11.0
+            },
+            {
+              "x": 1.75,
+              "y": 11.0
+            },
+            {
+              "x": -1.75,
+              "y": 11.0
+            }
+          ],
+          "holes": []
+        }
+      ],
+      "bboxMm": {
+        "minX": -1.75,
+        "minY": -11.0,
+        "maxX": 1.75,
+        "maxY": 11.0
+      },
+      "pointCount": 4,
+      "source": "basic-shape",
+      "sourceMmPerPx": null
+    },
+    {
+      "id": "caliper-measurement-strip-50mm",
+      "name": "50 mm measurement strip",
+      "outlineMm": [
+        {
+          "outer": [
+            {
+              "x": -26.0,
+              "y": -1.9
+            },
+            {
+              "x": 26.0,
+              "y": -1.9
+            },
+            {
+              "x": 26.0,
+              "y": 1.9
+            },
+            {
+              "x": -26.0,
+              "y": 1.9
+            }
+          ],
+          "holes": []
+        }
+      ],
+      "bboxMm": {
+        "minX": -26.0,
+        "minY": -1.9,
+        "maxX": 26.0,
+        "maxY": 1.9
+      },
+      "pointCount": 4,
+      "source": "basic-shape",
+      "sourceMmPerPx": null
+    },
+    {
+      "id": "caliper-measurement-strip-100mm",
+      "name": "100 mm measurement strip",
+      "outlineMm": [
+        {
+          "outer": [
+            {
+              "x": -51.0,
+              "y": -1.9
+            },
+            {
+              "x": 51.0,
+              "y": -1.9
+            },
+            {
+              "x": 51.0,
+              "y": 1.9
+            },
+            {
+              "x": -51.0,
+              "y": 1.9
+            }
+          ],
+          "holes": []
+        }
+      ],
+      "bboxMm": {
+        "minX": -51.0,
+        "minY": -1.9,
+        "maxX": 51.0,
+        "maxY": 1.9
+      },
+      "pointCount": 4,
+      "source": "basic-shape",
+      "sourceMmPerPx": null
+    },
+    {
+      "id": "caliper-measurement-strip-200mm",
+      "name": "200 mm measurement strip",
+      "outlineMm": [
+        {
+          "outer": [
+            {
+              "x": -101.0,
+              "y": -1.9
+            },
+            {
+              "x": 101.0,
+              "y": -1.9
+            },
+            {
+              "x": 101.0,
+              "y": 1.9
+            },
+            {
+              "x": -101.0,
+              "y": 1.9
+            }
+          ],
+          "holes": []
+        }
+      ],
+      "bboxMm": {
+        "minX": -101.0,
+        "minY": -1.9,
+        "maxX": 101.0,
+        "maxY": 1.9
+      },
+      "pointCount": 4,
+      "source": "basic-shape",
+      "sourceMmPerPx": null
+    }
+  ],
+  "spec": {
+    "gridX": 6,
+    "gridY": 3,
+    "gridPitch": "full",
+    "footprint": {
+      "kind": "rectangle"
+    },
+    "heightUnits": 3.5,
+    "lip": "standard",
+    "fill": "solid",
+    "flatBottom": false,
+    "magnetHoles": false,
+    "magnetCrushRibs": false,
+    "screwHoles": false,
+    "labelTab": null
+  },
+  "cutouts": [
+    {
+      "id": "cutout-69d5d24d-82cb-4270-86d6-fb56afdd7edf-d0aorq",
+      "shapeId": "a9764122-370c-4367-b727-4cd6a8614108",
+      "position": {
+        "x": -8,
+        "y": 15.3
+      },
+      "rotationDeg": 47.5,
+      "mirrored": false,
+      "scaleX": 1,
+      "scaleY": 1,
+      "aspectRatioLocked": true,
+      "depth": {
+        "mode": "mm",
+        "value": 17
+      },
+      "clearanceMm": 0,
+      "cornerRoundMm": 1,
+      "topFilletMm": 1,
+      "bottomFilletMm": 2.8,
+      "fingerHoles": [],
+      "name": "Digital calipers"
+    },
+    {
+      "id": "cutout-98b1036b-faaa-4122-a60a-139483825339",
+      "shapeId": "caliper-coin-cell-battery",
+      "position": {
+        "x": 57,
+        "y": -14
+      },
+      "rotationDeg": 0,
+      "mirrored": false,
+      "scaleX": 1,
+      "scaleY": 1,
+      "aspectRatioLocked": false,
+      "depth": {
+        "mode": "mm",
+        "value": 17
+      },
+      "clearanceMm": 0,
+      "cornerRoundMm": 0,
+      "topFilletMm": 0,
+      "bottomFilletMm": 0,
+      "fingerHoles": [],
+      "name": "Coin-cell battery 1"
+    },
+    {
+      "id": "2f32527c-f912-4423-b260-f855e7630206",
+      "shapeId": "caliper-coin-cell-battery",
+      "position": {
+        "x": 66,
+        "y": -14
+      },
+      "rotationDeg": 0,
+      "mirrored": false,
+      "scaleX": 1,
+      "scaleY": 1,
+      "aspectRatioLocked": false,
+      "depth": {
+        "mode": "mm",
+        "value": 17
+      },
+      "clearanceMm": 0,
+      "cornerRoundMm": 0,
+      "topFilletMm": 0,
+      "bottomFilletMm": 0,
+      "fingerHoles": [],
+      "name": "Coin-cell battery 2"
+    },
+    {
+      "id": "e25ae1ba-790b-4cc5-b4ec-7b8dbec83ab0",
+      "shapeId": "caliper-coin-cell-battery",
+      "position": {
+        "x": 75,
+        "y": -14
+      },
+      "rotationDeg": 0,
+      "mirrored": false,
+      "scaleX": 1,
+      "scaleY": 1,
+      "aspectRatioLocked": false,
+      "depth": {
+        "mode": "mm",
+        "value": 17
+      },
+      "clearanceMm": 0,
+      "cornerRoundMm": 0,
+      "topFilletMm": 0,
+      "bottomFilletMm": 0,
+      "fingerHoles": [],
+      "name": "Coin-cell battery 3"
+    },
+    {
+      "id": "cutout-f4b1df05-96d1-47dc-82d6-86ef3e42d9fc",
+      "shapeId": "caliper-measurement-strip-50mm",
+      "position": {
+        "x": 0,
+        "y": -21
+      },
+      "rotationDeg": 0,
+      "mirrored": false,
+      "scaleX": 1,
+      "scaleY": 1,
+      "aspectRatioLocked": false,
+      "depth": {
+        "mode": "mm",
+        "value": 12
+      },
+      "clearanceMm": 0,
+      "cornerRoundMm": 0,
+      "topFilletMm": 0,
+      "bottomFilletMm": 0,
+      "fingerHoles": [],
+      "name": "50 mm measurement strip"
+    },
+    {
+      "id": "c2793eee-be0f-4f6f-a381-a5257638cf43",
+      "shapeId": "caliper-measurement-strip-100mm",
+      "position": {
+        "x": -10.9,
+        "y": -32.8
+      },
+      "rotationDeg": 0,
+      "mirrored": false,
+      "scaleX": 1,
+      "scaleY": 1,
+      "aspectRatioLocked": false,
+      "depth": {
+        "mode": "mm",
+        "value": 12
+      },
+      "clearanceMm": 0,
+      "cornerRoundMm": 0,
+      "topFilletMm": 0,
+      "bottomFilletMm": 0,
+      "fingerHoles": [],
+      "name": "100 mm measurement strip"
+    },
+    {
+      "id": "ca0f2331-bfd5-492e-8d46-ef23e7eb7741",
+      "shapeId": "caliper-measurement-strip-200mm",
+      "position": {
+        "x": -2.1,
+        "y": -44.7
+      },
+      "rotationDeg": 0,
+      "mirrored": false,
+      "scaleX": 1,
+      "scaleY": 1,
+      "aspectRatioLocked": false,
+      "depth": {
+        "mode": "mm",
+        "value": 12
+      },
+      "clearanceMm": 0,
+      "cornerRoundMm": 0,
+      "topFilletMm": 0,
+      "bottomFilletMm": 0,
+      "fingerHoles": [],
+      "name": "200 mm measurement strip"
+    }
+  ],
+  "fingerHoles": [
+    {
+      "id": "2217f806-6c9e-4039-a630-fbd4a20d8a1d",
+      "center": {
+        "x": -42.4,
+        "y": 18.9
+      },
+      "diameterMm": 32.8,
+      "depthMm": 16,
+      "topFilletMm": 1,
+      "bottomFilletMm": 0,
+      "lengthMm": 71.6,
+      "rotationDeg": 243.7,
+      "slotEnds": "rounded",
+      "kind": "oblong-deep-scoop",
+      "name": "Caliper grip access"
+    },
+    {
+      "id": "4193789c-6116-47bf-9a87-62beda164406",
+      "center": {
+        "x": 66.1,
+        "y": -14.2
+      },
+      "diameterMm": 12.6,
+      "depthMm": 5,
+      "topFilletMm": 1,
+      "bottomFilletMm": 0,
+      "lengthMm": 40.1,
+      "rotationDeg": 359.6,
+      "slotEnds": "rounded",
+      "kind": "oblong-deep-scoop",
+      "name": "Battery access"
+    },
+    {
+      "id": "6fa417dc-79c6-4f09-a9ee-47970102ddf1",
+      "center": {
+        "x": 0,
+        "y": -32.7
+      },
+      "diameterMm": 22.4,
+      "depthMm": 12,
+      "topFilletMm": 1,
+      "bottomFilletMm": 0,
+      "lengthMm": 50,
+      "rotationDeg": 269.9,
+      "slotEnds": "rounded",
+      "kind": "oblong-deep-scoop",
+      "name": "Measurement strip access"
+    }
+  ],
+  "name": "Caliper Storage",
+  "keepBinSize": false
+}
