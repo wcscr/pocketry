@@ -74,9 +74,14 @@ export function createPocketryTemplateDictionary(
 }
 
 /** Dedicated pass, before paper detection: a sheet must not hide a raised strip. */
-export function detectReferenceStripMarkers(cv: Cv, image: ImageData): DetectedMarker[] {
+export function detectReferenceStripMarkers(
+  cv: Cv,
+  image: ImageData,
+  refinement: "subpixel" | "contour" = "subpixel",
+): DetectedMarker[] {
   return detectMarkersWithDictionary(cv, image, () =>
     createPocketryTemplateDictionary(cv, POCKETRY_ARUCO_BITS.length),
+    refinement === "contour" ? cv.CORNER_REFINE_CONTOUR : cv.CORNER_REFINE_SUBPIX,
   ).filter(({ id }) => REFERENCE_STRIP_MARKER_IDS.includes(id));
 }
 
@@ -84,6 +89,7 @@ function detectMarkersWithDictionary(
   cv: Cv,
   image: ImageData,
   createDictionary: () => Cv,
+  cornerRefinement = cv.CORNER_REFINE_SUBPIX,
 ): DetectedMarker[] {
   const src = cv.matFromImageData(image);
   const gray = new cv.Mat();
@@ -101,8 +107,8 @@ function detectMarkersWithDictionary(
     parameters = new cv.aruco_DetectorParameters();
     // The default is CORNER_REFINE_NONE. Subpixel refinement gives the
     // homography stable point correspondences without changing the template.
-    if (typeof cv.CORNER_REFINE_SUBPIX === "number") {
-      parameters.cornerRefinementMethod = cv.CORNER_REFINE_SUBPIX;
+    if (typeof cornerRefinement === "number") {
+      parameters.cornerRefinementMethod = cornerRefinement;
     }
     refine = new cv.aruco_RefineParameters(10, 3, true);
     detector = new cv.aruco_ArucoDetector(dictionary, parameters, refine);

@@ -16,7 +16,7 @@ import {
 } from "./perspective";
 import { solveReferenceStrip } from "./solve-reference-strip";
 import { referenceStripFromMarkerIds } from "./reference-strip";
-import { solveScaleFromMarkers, type ScaleSolution } from "./solve";
+import { solveScaleFromMarkers, type DetectedMarker, type ScaleSolution } from "./solve";
 import {
   templateFromTemplateMarkerIds,
   templatePaper,
@@ -77,10 +77,37 @@ export type AutoCalibrationResult =
 /** Pure composition over an injected cv — what the closed-loop test drives. */
 export function runAutoCalibration(cv: any, image: ImageData): AutoCalibrationResult {
   const stripMarkers = detectReferenceStripMarkers(cv, image);
-  const stripSolution = stripMarkers.length ? solveReferenceStrip(stripMarkers) : null;
   // Evaluate both references so the UI can offer a choice or combine paper
   // perspective with aid scale. An invalid aid must not hide a usable sheet.
   const sheet = runSheetCalibration(cv, image);
+  const strip = calibrateStrip(cv, stripMarkers, sheet);
+  if (strip) return strip;
+
+  const spec = referenceStripFromMarkerIds(stripMarkers.map(({ id }) => id));
+  if (spec && typeof cv.CORNER_REFINE_CONTOUR === "number") {
+    // Small damaged/aliased corners can pull SUBPIX into the marker border.
+    // Fit the outer contour instead, but only for the same unambiguous pair;
+    // a different pass must never hide duplicates, mixed IDs or multiple aids.
+    const contourMarkers = detectReferenceStripMarkers(cv, image, "contour");
+    if (referenceStripFromMarkerIds(contourMarkers.map(({ id }) => id)) === spec) {
+      const recovered = calibrateStrip(cv, contourMarkers, sheet);
+      if (recovered) return recovered;
+    }
+  }
+  if (!stripMarkers.length) return sheet;
+  const reason = stripMarkers.length < 2 ? "incomplete-signature" : "invalid-geometry";
+  return sheet.kind === "calibrated"
+    ? { ...sheet, stripFallbackReason: reason }
+    : { kind: "invalid-strip", reason };
+}
+
+/** Apply identical geometry checks to either corner estimator. */
+function calibrateStrip(
+  cv: any,
+  stripMarkers: DetectedMarker[],
+  sheet: ReturnType<typeof runSheetCalibration>,
+): Extract<AutoCalibrationResult, { kind: "calibrated-strip" }> | null {
+  const stripSolution = stripMarkers.length ? solveReferenceStrip(stripMarkers) : null;
   if (stripSolution) {
     return {
       kind: "calibrated-strip",
@@ -124,11 +151,7 @@ export function runAutoCalibration(cv: any, image: ImageData): AutoCalibrationRe
       }
     }
   }
-  if (!stripMarkers.length) return sheet;
-  const reason = stripMarkers.length < 2 ? "incomplete-signature" : "invalid-geometry";
-  return sheet.kind === "calibrated"
-    ? { ...sheet, stripFallbackReason: reason }
-    : { kind: "invalid-strip", reason };
+  return null;
 }
 
 function runSheetCalibration(cv: any, image: ImageData): Exclude<AutoCalibrationResult, { kind: "calibrated-strip" | "invalid-strip" | "unsupported" }> {

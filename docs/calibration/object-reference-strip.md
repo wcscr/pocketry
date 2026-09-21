@@ -130,8 +130,15 @@ The raw measured disagreement is still shown above 2% at review. For clearer
 markers, fill more of the photo with the tool while retaining both end markers.
 These tolerances accommodate sampling noise; they are not an accuracy guarantee.
 
+If a complete aid pair fails the normal subpixel corner fit, detection retries
+the same pixels using OpenCV's contour-based corner fit. This estimates the
+corners from the outer marker edges, reducing sensitivity to isolated corner
+defects. Both passes must identify the same unique pair; mixed, duplicate and
+multiple aids remain rejected. The same eight-corner, edge, baseline and paper
+perspective checks apply to both estimates. Paper detection is unchanged.
+
 Marker detection normally reads the photo at a maximum of 1600 pixels per
-side. If an aid is detected but rejected, Pocketry retries once using the
+side. If an aid is still detected but rejected, Pocketry retries once using the
 original photo at up to 2400 pixels per side, without upscaling smaller
 originals or relaxing the geometry checks. A successful retry maps its
 references into the same working-image coordinates. A failed retry preserves
