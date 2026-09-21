@@ -31,7 +31,10 @@ const {
     correctPerspectiveMock: vi.fn(),
   }));
 
-vi.mock("@/components/layout/mobile-canvas-overlay", () => ({ MobileCanvasOverlay: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
+vi.mock("@/components/layout/mobile-canvas-overlay", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/components/layout/mobile-canvas-overlay")>(),
+  MobileCanvasOverlay: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
 
 vi.mock("@/components/layout/workspace-layout", () => ({
   WorkspaceLayout: ({

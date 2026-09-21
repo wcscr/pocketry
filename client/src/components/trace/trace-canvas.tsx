@@ -35,7 +35,7 @@ import {
   useCanvasViewportSize,
 } from "@/components/canvas/canvas-viewport";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { useMobileContourEditor, type ContourTool } from "@/hooks/use-mobile-contour-editor";
+import { useMobileContourEditor } from "@/hooks/use-mobile-contour-editor";
 import { MobileContourTools } from "@/components/canvas/mobile-contour-tools";
 import { ContourMagnifier } from "@/components/canvas/contour-magnifier";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -97,7 +97,6 @@ export function TraceCanvas(props: TraceCanvasProps): JSX.Element {
 function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element {
   const store = useTrace();
   const isMobile = useIsMobile();
-  const [contourTool, setContourTool] = useState<ContourTool>("move");
   const sceneId = useId();
   const {
     imageUrl,
@@ -338,9 +337,9 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
     if (bounds) viewport.fitToRect({ x: bounds.minX, y: bounds.minY,
       width: bounds.maxX - bounds.minX, height: bounds.maxY - bounds.minY });
   };
-  useEffect(() => { if (!mobileEditing) setContourTool("move"); }, [mobileEditing]);
   const mobileEditor = useMobileContourEditor({
-    enabled: mobileEditing, tool: contourTool, outline,
+    enabled: mobileEditing, outline,
+    selectionKey: store.sourceRevision,
     toLocal: point => toImage(point.x, point.y),
     getScreenProjection: () => {
       const matrix = sceneRef.current?.getScreenCTM();
@@ -774,6 +773,8 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
           busy={processing}
           cursor={cursor}
           hoveredVertexIndex={hoveredVertexIndex}
+          selectedVertexIndex={mobileEditing && mobileEditor.selectedPoint && sameRingRef(mobileEditor.selectedPoint.ref, selection) ? mobileEditor.selectedPoint.index : null}
+          compactHandles={isMobile}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={endDrag}
@@ -823,10 +824,10 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
           </CanvasToolbar>
 
           {mobileEditing && <div className="absolute left-2 bottom-16 z-30">
-            <MobileContourTools tool={contourTool} onChange={setContourTool}
+            <MobileContourTools selected={!!mobileEditor.selectedPoint} canRemove={mobileEditor.canRemove} onRemove={mobileEditor.removeSelected}
               onDone={() => dispatch({ type: "SET_MODE", mode: "navigate" })} />
           </div>}
-          {mobileEditing && <ContourMagnifier sceneId={sceneId} canvasWidth={containerSize.width}
+          {mobileEditing && <ContourMagnifier sceneId={sceneId} canvasWidth={containerSize.width} canvasHeight={containerSize.height}
             point={mobileEditor.activePoint ? {
               x: viewport.transform.translateX + mobileEditor.activePoint.x * viewport.transform.scale,
               y: viewport.transform.translateY + mobileEditor.activePoint.y * viewport.transform.scale,

@@ -1073,7 +1073,7 @@ function BinDesignerWorkspace(): JSX.Element {
               </Button>
             </div>
           )}
-          <div className="absolute right-3 top-3 z-30 flex overflow-hidden rounded-md border bg-background/90 shadow-sm backdrop-blur">
+          <div data-testid="bin-history-toolbar" className="absolute right-3 top-3 z-30 flex overflow-hidden rounded-md border bg-background/90 shadow-sm backdrop-blur">
             <Button
               variant="ghost"
               size="sm"

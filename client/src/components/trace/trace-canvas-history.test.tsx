@@ -946,13 +946,15 @@ describe("touch-accessible trace tools", () => {
       pointer("pointerdown", 10, 10); pointer("pointermove", 20, 20); pointer("pointerup", 20, 20);
       expect(trace!.history.index).toBe(historyIndex + 1);
       React.act(() => trace!.undo()); expect(trace!.outline).toEqual(edited);
-      React.act(() => host.querySelector<HTMLButtonElement>('[aria-label="Add contour points"]')!.click());
       pointer("pointerdown", 50, 10); pointer("pointerup", 50, 10);
       expect(trace!.outline[0].outer).toHaveLength(6);
-      React.act(() => host.querySelector<HTMLButtonElement>('[aria-label="Remove contour points"]')!.click());
       pointer("pointerdown", 50, 10);
       expect(trace!.outline[0].outer).toHaveLength(6);
-      pointer("pointerup", 50, 10); expect(trace!.outline[0].outer).toHaveLength(5);
+      pointer("pointerup", 50, 10);
+      expect(trace!.outline[0].outer).toHaveLength(6);
+      expect(host.querySelectorAll('[data-point-selected="true"]')).toHaveLength(1);
+      React.act(() => [...host.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === "Delete point")!.click());
+      expect(trace!.outline[0].outer).toHaveLength(5);
       React.act(() => trace!.dispatch({ type: "SET_MODE", mode: "pan" }));
       expect(host.querySelector('[aria-label="Contour editing tools"]')).toBeNull();
       pointer("pointerdown", 10, 10); pointer("pointermove", 35, 35); pointer("pointerup", 35, 35);

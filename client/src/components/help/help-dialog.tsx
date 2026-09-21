@@ -98,9 +98,9 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
               <li>
                 Choose a physical <strong>Margin</strong> from 0.0–5.0 mm, then
                 edit, add, move, or remove contour points as needed.
-                On a phone, <strong>Edit contours</strong> frames the outline. Choose
-                <strong> Move</strong>, <strong>Add</strong>, or <strong>Remove</strong>;
-                drag empty space to pan and pinch to zoom. Holding a point shows a
+                On a phone, <strong>Edit contours</strong> frames the outline. Drag a point
+                to move it, tap the line to add one, or tap a point and choose
+                <strong> Delete point</strong>. Drag elsewhere to pan and pinch to zoom. Holding a point shows a
                 magnified view. Undo restores an edit.
               </li>
               <li>

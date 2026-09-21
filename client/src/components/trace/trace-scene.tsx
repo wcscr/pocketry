@@ -65,6 +65,8 @@ export interface TraceSceneProps {
    * rather than "add a new one".
    */
   hoveredVertexIndex?: number | null;
+  selectedVertexIndex?: number | null;
+  compactHandles?: boolean;
   /** Handles for the interaction layer above. */
   onPointerDown?: (event: ReactPointerEvent<SVGSVGElement>) => void;
   onPointerMove?: (event: ReactPointerEvent<SVGSVGElement>) => void;
@@ -136,6 +138,8 @@ export function TraceScene({
   perspectivePreview = null,
   busy = false,
   hoveredVertexIndex = null,
+  selectedVertexIndex = null,
+  compactHandles = false,
   onPointerDown,
   onPointerMove,
   onPointerUp,
@@ -239,14 +243,15 @@ export function TraceScene({
         */}
         {selectedRing?.map((point, index) => {
           const hovered = index === hoveredVertexIndex;
+          const selected = index === selectedVertexIndex;
           return (
             <circle
               key={index}
               cx={point.x}
               cy={point.y}
-              r={(hovered ? HANDLE_RADIUS_SELECTED : HANDLE_RADIUS) * inv}
+              r={(selected ? 8 : hovered ? HANDLE_RADIUS_SELECTED : compactHandles ? 3.5 : HANDLE_RADIUS) * inv}
               className={
-                hovered
+                selected ? "fill-primary stroke-background" : hovered
                   ? "fill-fuchsia-500 stroke-white"
                   : "fill-white stroke-fuchsia-500"
               }
@@ -254,6 +259,7 @@ export function TraceScene({
               vectorEffect="non-scaling-stroke"
               data-vertex={index}
               data-vertex-hovered={hovered || undefined}
+              data-point-selected={selected || undefined}
             />
           );
         })}

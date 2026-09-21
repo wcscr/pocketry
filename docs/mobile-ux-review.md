@@ -5,20 +5,26 @@
 Implemented from `origin/main` at `0e0923d` on `codex/mobile-canvas-space`.
 The current mobile layout uses one 48 px header with a workspace menu and a
 61 px action bar. Hints float on the canvas, dismiss with a swipe or close button,
-and can be reopened with the lightbulb. Dismissal survives instruction changes
+and can be reopened with the lightbulb in the canvas's top-right corner. Bin history
+controls leave room for that button even at 320 px. Dismissal survives instruction changes
 within the same step. Adjust opens a small, nonmodal tray; More settings retains
 the complete controls. In short landscape layouts, expanded adjustments sit
 beside the canvas. Scale acceptance and manual reference-length confirmation
 remain explicit.
 
-Mobile contour editing now has separate Move, Add, Remove, and Done controls in
-Trace and Bin. Edit contours frames the trace. Points have a 22 px pick radius
+Mobile contour editing uses direct gestures in Trace and Bin: drag a point to
+move it, tap the line to add one, or tap a point and choose Delete point. There
+are no separate Move/Add/Remove modes. Edit contours frames the trace. Points
+have an 18 px pick radius
 measured in screen coordinates, including rotated and nonuniformly scaled Bin
 pockets. Dragging keeps the original finger offset and ignores small hand jitter;
-a magnified SVG view follows the active point. Dragging elsewhere pans. Adding
-and removing commit only on a completed tap; a second finger cancels a provisional
+a magnified SVG view stays near the active point. Unselected handles are smaller,
+and the selected point is enlarged and filled. Dragging elsewhere, including the
+line between points, pans. A completed line tap inserts directly on the edge;
+deletion needs the explicit Delete point action. A second finger cancels a provisional
 edit and hands control to pinch/pan. Cancellation leaves no history entry, and a
-completed move has one undo step. Reviewing earlier Trace steps cannot edit points.
+completed move has one undo step. Selection clears when changing pockets, replacing
+the photo, or undoing a change to that point. Reviewing earlier Trace steps cannot edit points.
 
 Add to bin opens the naming dialog directly. Tapping a Bin pocket opens depth and
 clearance adjustments while keeping the canvas interactive. Export bin opens a
@@ -26,7 +32,7 @@ focused export form using the existing validation and export handlers.
 
 Verification for this follow-up:
 
-- TypeScript, all 1,679 tests across 102 files, production build, and diff checks pass.
+- TypeScript, all 1,684 tests across 102 files, production build, and diff checks pass.
 - In-app browser checks cover real-photo upload, detected scale and perspective
   correction, region detection, contour movement/addition/removal/undo, quick
   adjustments, direct naming/handoff, 3D and Layout, pocket depth/undo, Bin point
@@ -40,6 +46,10 @@ Verification for this follow-up:
   rotation until Confirm scale. Hint swipe, close, and reopen were browser-checked.
   Start over cancellation retains the trace. Tablet (768 × 1024) and desktop
   (1440 × 900) keep the existing navigation and controls with no page overflow.
+- The direct-edit follow-up was checked in Trace and Bin: line-tap insertion,
+  selected-point deletion, point dragging, undo, and dragging the line to pan.
+  Minimized hints remain top-right without colliding with Bin history at 320 px
+  and in landscape. The desktop retains its existing point-edit controls.
 - Automated pointer tests cover pinch takeover, surviving-finger pan, cancelled
   edits, minimum ring size, offset-preserving movement, and transformed outer/hole
   contours. These are browser and regression checks; physical iOS/Android gestures,

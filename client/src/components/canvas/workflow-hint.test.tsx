@@ -3,6 +3,7 @@ import * as React from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkflowHint } from "./workflow-hint";
+import { MobileCanvasOverlayContext } from "@/components/layout/mobile-canvas-overlay";
 
 let host: HTMLDivElement;
 let root: Root;
@@ -28,6 +29,20 @@ beforeEach(() => {
 afterEach(() => { React.act(() => root.unmount()); host.remove(); vi.unstubAllGlobals(); });
 
 describe("Dismissible workflow guidance", () => {
+  it("places the minimized button in the canvas top right and reopens the hint in its original location", () => {
+    const overlay = document.createElement("div"); host.append(overlay);
+    React.act(() => root.render(<MobileCanvasOverlayContext.Provider value={overlay}>
+      <div data-testid="hint-location"><WorkflowHint>Drag to edit</WorkflowHint></div>
+    </MobileCanvasOverlayContext.Provider>));
+    click("Dismiss hint");
+    const button = overlay.querySelector<HTMLButtonElement>('[aria-label="Show current hint"]')!;
+    expect(button).not.toBeNull();
+    expect(button.className).toContain("right-2 top-2");
+    expect(host.querySelector('[data-testid="hint-location"]')!.textContent).toBe("");
+    React.act(() => button.click());
+    expect(overlay.querySelector('button')).toBeNull();
+    expect(host.querySelector('[data-testid="hint-location"]')!.textContent).toContain("Drag to edit");
+  });
   it("stays dismissed while instructions change within a step, and can be reopened", () => {
     render(); click("Dismiss hint");
     render("region", "Keep this region or draw another");

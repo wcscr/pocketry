@@ -56,6 +56,8 @@ export interface UseViewportTransformOptions extends FitInput {
 }
 
 export interface ViewportPointerHandlers {
+  /** Hand an in-progress one-pointer edit gesture over to panning. */
+  startPan: React.PointerEventHandler;
   /** An editor can explicitly pan a drag that missed its handles. */
   onPointerDown: (event: React.PointerEvent, options?: { pan: boolean }) => void;
   onPointerMove: React.PointerEventHandler;
@@ -604,6 +606,19 @@ export function useViewportTransform(
     };
   }, []);
 
+  const startPan = React.useCallback((event: React.PointerEvent) => {
+    if (pointersRef.current.size > 1) return;
+    if (!surfaceRef.current) surfaceRef.current = event.currentTarget;
+    pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    event.preventDefault();
+    gestureRef.current = {
+      kind: "pan", pointerId: event.pointerId,
+      lastX: event.clientX, lastY: event.clientY,
+    };
+    capturePointer(event.currentTarget, event.pointerId);
+    setIsPanning(true);
+  }, []);
+
   const onPointerDown = React.useCallback(
     (event: React.PointerEvent, options?: { pan: boolean }) => {
       if (!surfaceRef.current) surfaceRef.current = event.currentTarget;
@@ -644,17 +659,9 @@ export function useViewportTransform(
       if (!startsPan) return;
       // Middle-drag: suppress the autoscroll widget. Left-drag: suppress text
       // selection and the browser's native image drag.
-      event.preventDefault();
-      gestureRef.current = {
-        kind: "pan",
-        pointerId: event.pointerId,
-        lastX: event.clientX,
-        lastY: event.clientY,
-      };
-      capturePointer(event.currentTarget, event.pointerId);
-      setIsPanning(true);
+      startPan(event);
     },
-    [],
+    [startPan],
   );
 
   const onPointerMove = React.useCallback(
@@ -733,12 +740,13 @@ export function useViewportTransform(
 
   const handlers = React.useMemo<ViewportPointerHandlers>(
     () => ({
+      startPan,
       onPointerDown,
       onPointerMove,
       onPointerUp: onPointerEnd,
       onPointerCancel: onPointerEnd,
     }),
-    [onPointerDown, onPointerMove, onPointerEnd],
+    [startPan, onPointerDown, onPointerMove, onPointerEnd],
   );
 
   return React.useMemo<ViewportTransformApi>(

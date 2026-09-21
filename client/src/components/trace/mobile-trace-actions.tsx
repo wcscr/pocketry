@@ -74,7 +74,7 @@ export function MobileTraceActions({ onChoosePhoto, onAddToBin, onStartOver, onO
     ? "Keep this region or drag a new box around the tool." : "Drag a box around the whole tool to detect its outline.";
   else if (trace.mode === "navigate") guidance = "Drag to pan. Pinch or use + / − to zoom.";
   else if ((trace.mode === "edit" || trace.mode === "remove") && !trace.selection) guidance = "Tap a contour to select it for editing.";
-  else if (trace.mode === "edit" || trace.mode === "remove") guidance = "Choose Move, Add, or Remove. Drag elsewhere to pan; pinch to zoom.";
+  else if (trace.mode === "edit" || trace.mode === "remove") guidance = "Drag points to move. Tap the line to add; tap a point for Delete. Pinch to zoom.";
   else if (calibration && trace.outline.length) guidance = "Choose Adjust to refine the outline, or Edit contours to move points.";
   else if (calibration && hasRegion) guidance = "No outline found. Adjust sensitivity or go back to redraw the region.";
   else if (calibration) guidance = "Select the tool's region to detect its outline.";

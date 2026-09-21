@@ -71,7 +71,7 @@ import { Button } from "@/components/ui/button";
 import { ContourEditTools } from "@/components/canvas/contour-edit-tools";
 import { MobileContourTools } from "@/components/canvas/mobile-contour-tools";
 import { ContourMagnifier } from "@/components/canvas/contour-magnifier";
-import { useMobileContourEditor, type ContourTool } from "@/hooks/use-mobile-contour-editor";
+import { useMobileContourEditor } from "@/hooks/use-mobile-contour-editor";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { WorkflowHint } from "@/components/canvas/workflow-hint";
 import { useViewportTransform } from "@/hooks/use-viewport-transform";
@@ -263,9 +263,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
   const [panActive, setPanActive] = useState(false);
   useEffect(() => setPanActive(false), [editorMode]);
   const [removeVertices, setRemoveVertices] = useState(false);
-  const [contourTool, setContourTool] = useState<ContourTool>("move");
-  const showRemoval = isMobile ? contourTool === "remove" : removeVertices;
-  useEffect(() => setContourTool("move"), [editorMode, selectedCutoutId]);
+  const showRemoval = !isMobile && removeVertices;
   const sceneId = useId();
   useEffect(() => setRemoveVertices(false), [editorMode, selectedCutoutId]);
   const viewport = useViewportTransform({
@@ -589,7 +587,8 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
 
   const mobileEditor = useMobileContourEditor({
     enabled: isMobile && editorMode === "contour" && !!selected && !panActive,
-    tool: contourTool, outline: selected?.shape.outlineMm ?? [],
+    outline: selected?.shape.outlineMm ?? [],
+    selectionKey: selectedCutoutId,
     toLocal: point => {
       const binPoint = toBin(point.x, point.y);
       return binPoint && selected ? untransformPointPlacement(binPoint, selected.cutout) : null;
@@ -1636,13 +1635,16 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
                     transformPointPlacement(point, selected.cutout),
                     spec,
                   );
+                  const pointSelected = isMobile && mobileEditor.selectedPoint?.index === pointIndex &&
+                    mobileEditor.selectedPoint.ref.shapeIndex === shapeIndex && mobileEditor.selectedPoint.ref.ringIndex === ringIndex;
                   return (
                     <circle
                       key={`${shapeIndex}-${ringIndex}-${pointIndex}`}
                       cx={canvasPoint.x}
                       cy={canvasPoint.y}
-                      r={4.5 * inv}
-                      className={cn("fill-background", showRemoval ? "stroke-destructive" : "stroke-violet-600")}
+                      r={(pointSelected ? 8 : isMobile ? 3.5 : 4.5) * inv}
+                      className={pointSelected ? "fill-primary stroke-background" : cn("fill-background", showRemoval ? "stroke-destructive" : "stroke-violet-600")}
+                      data-point-selected={pointSelected || undefined}
                       strokeWidth={2}
                       vectorEffect="non-scaling-stroke"
                       style={{ cursor: showRemoval ? "pointer" : "move" }}
@@ -1866,13 +1868,11 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
 
       {editorMode === "contour" && selected && !panActive ? (
         <div className="absolute bottom-2 left-2 z-30">
-          {isMobile ? <MobileContourTools tool={contourTool} onChange={setContourTool}
+          {isMobile ? <MobileContourTools selected={!!mobileEditor.selectedPoint} canRemove={mobileEditor.canRemove} onRemove={mobileEditor.removeSelected}
             onDone={() => dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" })} /> :
             <ContourEditTools removeActive={removeVertices} onChange={setRemoveVertices} />}
           <WorkflowHint hintKey="contour-edit" className="mt-1 max-w-[min(22rem,calc(100vw-1rem))]">
-            {isMobile ? contourTool === "add" ? "Tap an edge to add a point. Pinch to zoom."
-              : contourTool === "remove" ? "Tap a point to remove it. Undo restores it."
-              : "Drag points to move. Drag elsewhere to pan. Pinch to zoom."
+            {isMobile ? "Drag points to move. Tap the line to add; tap a point for Delete. Pinch to zoom."
               : removeVertices ? "Tap a vertex to remove it · Undo restores it" : "Drag vertices to move · Tap an edge to add"}
           </WorkflowHint>
         </div>
@@ -1901,7 +1901,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
       )}
       {isMobile && selected && mobileEditor.activePoint && (() => {
         const point = binToCanvas(transformPointPlacement(mobileEditor.activePoint, selected.cutout), spec);
-        return <ContourMagnifier sceneId={sceneId} canvasWidth={containerSize.width}
+        return <ContourMagnifier sceneId={sceneId} canvasWidth={containerSize.width} canvasHeight={containerSize.height}
           point={{ x: translateX + (point.x + footprintEditorPaddingMm) * scale,
             y: translateY + (point.y + footprintEditorPaddingMm) * scale }} />;
       })()}

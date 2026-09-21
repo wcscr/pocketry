@@ -963,7 +963,7 @@ describe("BinDesignerPage", () => {
     unmount();
   });
 
-  it.each([-1, 0])("uses explicit touch removal for contour ring %s with undo, minimum size, and a return to moving", async (ringIndex) => {
+  it.each([-1, 0])("selects and deletes contour ring %s points with undo, minimum size, and direct dragging", async (ringIndex) => {
     const shape = rectangularShape("tool", "Wrench");
     shape.outlineMm[0].holes = [[{ x: -7, y: -4 }, { x: -7, y: 4 }, { x: 7, y: 4 }, { x: 7, y: -4 }]];
     shape.pointCount = 8;
@@ -988,7 +988,7 @@ describe("BinDesignerPage", () => {
       });
       const ringHandles = () => svg.querySelectorAll(`[data-contour-ring="${ringIndex}"]`);
       const otherHandles = () => svg.querySelectorAll(`[data-contour-ring="${ringIndex === -1 ? 0 : -1}"]`);
-      const buttons = () => container.querySelector('[aria-label="Contour editing tools"]')!.querySelectorAll<HTMLButtonElement>('button');
+      const deleteButton = () => [...container.querySelectorAll<HTMLButtonElement>('[aria-label="Contour editing tools"] button')].find(button => button.textContent === 'Delete point');
       const pointer = (target: Element, type: string, x: number, y: number) => React.act(() => {
         const event = new MouseEvent(type, { bubbles: true, button: 0, clientX: x, clientY: y });
         Object.defineProperties(event, { pointerId: { value: 1 }, pointerType: { value: 'touch' } });
@@ -996,20 +996,24 @@ describe("BinDesignerPage", () => {
       });
       const tapNearFirst = () => {
         const first = ringHandles()[0];
-        // A near miss outside the visible 4.5 px circle still selects the nearest vertex.
+        // Picking uses screen distance, including rotated and stretched pockets.
         pointer(svg, 'pointerdown', Number(first.getAttribute('cx')) - 2, Number(first.getAttribute('cy')));
         pointer(svg, 'pointerup', Number(first.getAttribute('cx')) - 2, Number(first.getAttribute('cy')));
       };
       const original = svg.querySelector('[data-cutout-id="pocket"]')!.getAttribute('d');
-      expect(buttons()[2].getAttribute('aria-pressed')).toBe('false');
-      React.act(() => buttons()[2].click());
-      expect(buttons()[2].getAttribute('aria-pressed')).toBe('true');
+      expect(deleteButton()).toBeUndefined();
       tapNearFirst();
+      expect(ringHandles()).toHaveLength(4);
+      expect(svg.querySelectorAll('[data-point-selected="true"]')).toHaveLength(1);
+      React.act(() => deleteButton()!.click());
       expect(ringHandles()).toHaveLength(3);
       expect(otherHandles()).toHaveLength(4);
       tapNearFirst();
+      expect(deleteButton()!.disabled).toBe(true);
+      React.act(() => deleteButton()!.click());
       pointer(svg, 'pointerdown', 1000, 1000);
       pointer(svg, 'pointerup', 1000, 1000);
+      expect(deleteButton()).toBeUndefined();
       expect(ringHandles()).toHaveLength(3);
       expect(otherHandles()).toHaveLength(4);
       React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
@@ -1018,7 +1022,6 @@ describe("BinDesignerPage", () => {
       expect(container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.disabled).toBe(true);
       React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
       expect(ringHandles()).toHaveLength(3);
-      React.act(() => buttons()[0].click());
       const first = ringHandles()[0];
       const x = Number(first.getAttribute('cx')), y = Number(first.getAttribute('cy'));
       pointer(first, 'pointerdown', x, y);
@@ -1026,12 +1029,11 @@ describe("BinDesignerPage", () => {
       pointer(svg, 'pointerup', x + 10, y + 10);
       expect(ringHandles()).toHaveLength(3);
       expect(Number(ringHandles()[0].getAttribute('cx'))).toBeCloseTo(x + 10);
-      React.act(() => buttons()[2].click());
       const edit = container.querySelector<HTMLButtonElement>('[data-testid="button-layout-edit-contour"]')!;
       React.act(() => edit.click());
       expect(container.querySelector('[aria-label="Contour editing tools"]')).toBeNull();
       React.act(() => edit.click());
-      expect(buttons()[2].getAttribute('aria-pressed')).toBe('false');
+      expect(deleteButton()).toBeUndefined();
     } finally { unmount(); }
   });
 

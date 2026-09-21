@@ -1,4 +1,6 @@
-import { useRef, useState, type PointerEvent } from "react";
+import { useContext, useRef, useState, type PointerEvent } from "react";
+import { createPortal } from "react-dom";
+import { MobileCanvasOverlayContext } from "@/components/layout/mobile-canvas-overlay";
 import { Lightbulb, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -10,6 +12,7 @@ export function WorkflowHint({ children, className, hintKey = children }: {
   hintKey?: string;
 }) {
   const [dismissed, setDismissed] = useState<Set<string>>(() => new Set());
+  const overlay = useContext(MobileCanvasOverlayContext);
   const start = useRef<{ id: number; x: number; y: number } | null>(null);
   const hidden = dismissed.has(hintKey);
   const dismiss = () => setDismissed(keys => new Set(keys).add(hintKey));
@@ -18,11 +21,14 @@ export function WorkflowHint({ children, className, hintKey = children }: {
     start.current = null;
     if (origin?.id === event.pointerId && Math.hypot(event.clientX - origin.x, event.clientY - origin.y) >= 48) dismiss();
   };
-  return <div className={cn("pointer-events-none flex justify-end", className)}>
-    {hidden ? <Button variant="outline" size="icon" className="pointer-events-auto h-11 w-11 bg-background/95 shadow-sm"
+  const restoreButton = <Button variant="outline" size="icon"
+      data-minimized-hint="true" className={cn("pointer-events-auto h-11 w-11 bg-background/95 shadow-sm", overlay && "absolute right-2 top-2")}
       aria-label="Show current hint" onClick={() => setDismissed(keys => {
         const next = new Set(keys); next.delete(hintKey); return next;
-      })}><Lightbulb className="h-4 w-4" aria-hidden /></Button> :
+      })}><Lightbulb className="h-4 w-4" aria-hidden /></Button>;
+  if (hidden && overlay) return createPortal(restoreButton, overlay);
+  return <div className={cn("pointer-events-none flex justify-end", className)}>
+    {hidden ? restoreButton :
       <div key={hintKey} role="status" className="workflow-hint pointer-events-auto flex w-full touch-none select-none items-center gap-2 rounded-md border border-sky-500/50 bg-sky-50 pl-3 text-sm font-medium leading-snug text-sky-950 dark:bg-sky-950 dark:text-sky-100"
         onPointerDown={event => {
           event.stopPropagation();

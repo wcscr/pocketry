@@ -1,18 +1,14 @@
-import { Check, Move, Plus, Minus } from "lucide-react";
+import { Check, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { ContourTool } from "@/hooks/use-mobile-contour-editor";
 
-/** Explicit operations prevent a missed point from silently adding a new one. */
-export function MobileContourTools({ tool, onChange, onDone }: {
-  tool: ContourTool; onChange: (tool: ContourTool) => void; onDone: () => void;
+/** Actions apply to the selected point; they never change what a canvas drag does. */
+export function MobileContourTools({ selected, canRemove, onRemove, onDone }: {
+  selected: boolean; canRemove: boolean; onRemove: () => void; onDone: () => void;
 }) {
-  return <div role="group" aria-label="Contour editing tools" className="flex rounded-md border bg-background/95 p-1 shadow-sm">
-    {([{ value: "move", label: "Move", icon: Move }, { value: "add", label: "Add", icon: Plus },
-      { value: "remove", label: "Remove", icon: Minus }] as const).map(item =>
-      <Button key={item.value} className="h-11 gap-1 px-2 text-xs" variant={tool === item.value ? (item.value === "remove" ? "destructive" : "secondary") : "ghost"}
-        aria-label={`${item.label} contour points`} aria-pressed={tool === item.value} onClick={() => onChange(item.value)}>
-        <item.icon className="h-4 w-4" aria-hidden />{item.label}
-      </Button>)}
-    <Button variant="ghost" size="icon" className="h-11 w-11" aria-label="Finish contour editing" onClick={onDone}><Check className="h-4 w-4" /></Button>
+  return <div role="group" aria-label="Contour editing tools" className="flex items-center gap-2 rounded-md border bg-background/95 p-1 pl-3 shadow-sm">
+    {selected ? <Button className="h-11 gap-2 px-3 text-xs" variant="outline" disabled={!canRemove}
+      onClick={onRemove}><Trash2 className="h-4 w-4" aria-hidden />Delete point</Button> :
+      <span className="text-xs text-muted-foreground">Drag points · tap line to add</span>}
+    <Button variant="secondary" className="h-11 gap-1 px-3" aria-label="Finish contour editing" onClick={onDone}><Check className="h-4 w-4" />Done</Button>
   </div>;
 }
