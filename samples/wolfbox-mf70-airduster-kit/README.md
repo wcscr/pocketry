@@ -12,8 +12,8 @@ USB cable, with shared finger access for lifting the tools and accessories.
 
 ## Printed bin
 
-![Printed bin loaded with the air duster, nozzle adapters, angled nozzle, and USB cable](photos/printed-bin-loaded.jpg)
+<a href="photos/printed-bin-loaded.jpg"><img src="photos/printed-bin-loaded.jpg" width="559" alt="Printed bin loaded with the air duster, nozzle adapters, angled nozzle, and USB cable"></a>
 
-![Printed bin with the air duster beside it, showing the fitted pocket and orange floor](photos/printed-bin-pocket.jpg)
+<a href="photos/printed-bin-pocket.jpg"><img src="photos/printed-bin-pocket.jpg" width="640" alt="Printed bin with the air duster beside it, showing the fitted pocket and orange floor"></a>
 
 [All samples](../README.md)

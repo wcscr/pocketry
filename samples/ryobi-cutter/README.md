@@ -12,8 +12,8 @@ pocket has 14 mm and 55 mm depths, with a finger-access slot for lifting the too
 
 ## Printed bin
 
-![Printed non-rectangular bin holding the Ryobi cutter](photos/printed-bin-loaded.jpg)
+<a href="photos/printed-bin-loaded.jpg"><img src="photos/printed-bin-loaded.jpg" width="640" alt="Printed non-rectangular bin holding the Ryobi cutter"></a>
 
-![Ryobi cutter beside its printed bin, showing the non-rectangular footprint and two-level pocket](photos/printed-bin-pocket.jpg)
+<a href="photos/printed-bin-pocket.jpg"><img src="photos/printed-bin-pocket.jpg" width="612" alt="Ryobi cutter beside its printed bin, showing the non-rectangular footprint and two-level pocket"></a>
 
 [All samples](../README.md)

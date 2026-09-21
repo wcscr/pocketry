@@ -16,8 +16,8 @@ bin cannot be stacked on top with the tools in place without modifying the desig
 
 ## Printed bin
 
-![Printed bin holding digital calipers, measurement strips, and spare batteries](photos/printed-bin-loaded.jpg)
+<a href="photos/printed-bin-loaded.jpg"><img src="photos/printed-bin-loaded.jpg" width="640" alt="Printed bin holding digital calipers, measurement strips, and spare batteries"></a>
 
-![Calipers, measurement strips, and a battery beside their printed storage bin](photos/printed-bin-pocket.jpg)
+<a href="photos/printed-bin-pocket.jpg"><img src="photos/printed-bin-pocket.jpg" width="608" alt="Calipers, measurement strips, and a battery beside their printed storage bin"></a>
 
 [All samples](../README.md)

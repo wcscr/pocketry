@@ -11,8 +11,8 @@ A fitted wire-stripper pocket with a slot for lifting the tool.
 
 ## Printed bin
 
-![Printed bin holding the wire strippers](photos/printed-bin-loaded.jpg)
+<a href="photos/printed-bin-loaded.jpg"><img src="photos/printed-bin-loaded.jpg" width="640" alt="Printed bin holding the wire strippers"></a>
 
-![Empty wire-stripper bin showing the fitted pocket and finger access](photos/printed-bin-pocket.jpg)
+<a href="photos/printed-bin-pocket.jpg"><img src="photos/printed-bin-pocket.jpg" width="640" alt="Empty wire-stripper bin showing the fitted pocket and finger access"></a>
 
 [All samples](../README.md)

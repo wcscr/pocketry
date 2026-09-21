@@ -25,8 +25,8 @@
             2880,
             2570
           ],
-          "processing": "EXIF orientation applied to pixels; cropped; rotated for upright labels; resized to at most 1800 px; fresh RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
-          "sha256": "c9d637d402a81979362877b40c5b8cccff947bde4c5950b6e3f314304328af01",
+          "processing": "EXIF orientation applied to pixels; cropped; rotated for upright labels; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "b6375aae5613ed228c5b2d1af0468dd176d528a2cb871a56ad7a127a9e2e060d",
           "rotationAfterCropDegreesCounterclockwise": 0
         },
         {
@@ -38,8 +38,8 @@
             3600,
             2370
           ],
-          "processing": "EXIF orientation applied to pixels; cropped; rotated for upright labels; resized to at most 1800 px; fresh RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
-          "sha256": "4ec389b520263feb2ded578f13925c69911e558e0a019a12167918d24ffef177",
+          "processing": "EXIF orientation applied to pixels; cropped; rotated for upright labels; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "3842c96dc7cf238babe250ea04c8ea6577e63d2a3be9a2e3ec394b0f8835d846",
           "rotationAfterCropDegreesCounterclockwise": 0
         }
       ]
@@ -68,8 +68,8 @@
             2670,
             3610
           ],
-          "processing": "EXIF orientation applied to pixels; cropped; rotated for upright labels; resized to at most 1800 px; fresh RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
-          "sha256": "0ca67cf43eaa0d2c41e6e66bd7bafe8b06f4bdbef63cbfea51ea0d79eff2eec0",
+          "processing": "EXIF orientation applied to pixels; cropped; rotated for upright labels; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "eeed3860a27394526df9cc3f467162124e1d7ea622d307a1ebfdd67e75b5c315",
           "rotationAfterCropDegreesCounterclockwise": 0
         }
       ]
@@ -98,8 +98,8 @@
             2540,
             3750
           ],
-          "processing": "EXIF orientation applied to pixels; cropped; rotated for upright labels; resized to at most 1800 px; fresh RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
-          "sha256": "1689767ebb1cdfd2167aa0ecada2d20fd78181e33753ad7318159c534f44bd6b",
+          "processing": "EXIF orientation applied to pixels; cropped; rotated for upright labels; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "b67fea3cd5748b1c41772e62c654f5c7868e91364210d5c1c17fce7959f6119e",
           "rotationAfterCropDegreesCounterclockwise": 90
         },
         {
@@ -111,8 +111,8 @@
             2920,
             3830
           ],
-          "processing": "EXIF orientation applied to pixels; cropped; rotated for upright labels; resized to at most 1800 px; fresh RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
-          "sha256": "b38835b34724428e6ead90778eee5e504af1624fac12a6587bdb044e2e4f2b30",
+          "processing": "EXIF orientation applied to pixels; cropped; rotated for upright labels; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "2563977e1d0cb8ce4fbe38145677b979c013fed64fdb0c468dce9f3aa96dbb9a",
           "rotationAfterCropDegreesCounterclockwise": 90
         }
       ]
@@ -142,8 +142,8 @@
             3890
           ],
           "rotationAfterCropDegreesCounterclockwise": 90,
-          "processing": "EXIF orientation applied to pixels; cropped; rotated for upright labels; resized to at most 1800 px; fresh RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
-          "sha256": "c34916cc07ababd8320c4cd68bf7390a7b96aef376d6323c623dded8d43ba844"
+          "processing": "EXIF orientation applied to pixels; cropped; rotated for upright labels; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "af5494bac6c4b81cf40517a0319b5374a6c6d79097e20b150f8659508a023fb3"
         },
         {
           "file": "photos/printed-bin-pocket.jpg",
@@ -155,8 +155,8 @@
             2830
           ],
           "rotationAfterCropDegreesCounterclockwise": 180,
-          "processing": "EXIF orientation applied to pixels; cropped; rotated for upright labels; resized to at most 1800 px; fresh RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
-          "sha256": "e49200ff98c96b7f9bec9d1fd82ae3082d395bc118fcb56615cad3e363d8b2f5"
+          "processing": "EXIF orientation applied to pixels; cropped; rotated for upright labels; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "9ab5cef65834d46f8c7d22d77cb4961e2bed9877d29aedbf2eb6c4893d32427c"
         }
       ]
     },
@@ -186,8 +186,8 @@
             3470
           ],
           "rotationAfterCropDegreesCounterclockwise": 90,
-          "processing": "EXIF orientation applied to pixels; cropped; rotated for upright labels; resized to at most 1800 px; fresh RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
-          "sha256": "97c2e37b4fde65d15eaabbf346154cc0ab4835affac1833a232a22ff56ad471c"
+          "processing": "EXIF orientation applied to pixels; cropped; rotated for upright labels; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "f0d04188f41595c628cdfde86d84611b56322f36b45865b83f8fd776558f9121"
         },
         {
           "file": "photos/printed-bin-pocket.jpg",
@@ -199,8 +199,8 @@
             3660
           ],
           "rotationAfterCropDegreesCounterclockwise": 90,
-          "processing": "EXIF orientation applied to pixels; cropped; rotated for upright labels; resized to at most 1800 px; fresh RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
-          "sha256": "b26621837cce568bdf003b962dfbbaf737316d8d92373a57c61cc9e573d6e002"
+          "processing": "EXIF orientation applied to pixels; cropped; rotated for upright labels; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "0d56a79c149960d738308851b4e88713d733dcc5b263329bb4ea3316bc429beb"
         }
       ]
     },
@@ -227,8 +227,8 @@
             2200,
             4000
           ],
-          "processing": "EXIF orientation applied to pixels; cropped; rotated for upright labels; resized to at most 1800 px; fresh RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
-          "sha256": "70cf2069e52e5f80cd81b9e493a1bdb988e3113707b7501a44ddb87a4ad83e65",
+          "processing": "EXIF orientation applied to pixels; cropped; rotated for upright labels; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "8cea1a7a5d22d0d6176907b85965ee0b8da9cc4e179bb0076b900d1732a46534",
           "rotationAfterCropDegreesCounterclockwise": 90
         },
         {
@@ -240,8 +240,8 @@
             2250,
             4000
           ],
-          "processing": "EXIF orientation applied to pixels; cropped; rotated for upright labels; resized to at most 1800 px; fresh RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
-          "sha256": "12a31369464873fb4eb107e57b7fcddb722ee3cea9eb416299f27763a50a8ce7",
+          "processing": "EXIF orientation applied to pixels; cropped; rotated for upright labels; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "5b55f57064ab82df72bffde5805cfc7414ee8b851313321a77511378d0492e27",
           "rotationAfterCropDegreesCounterclockwise": 90
         }
       ]
@@ -271,8 +271,8 @@
             3620
           ],
           "rotationAfterCropDegreesCounterclockwise": -90,
-          "processing": "EXIF orientation applied to pixels; cropped; rotated for upright labels; resized to at most 1800 px; fresh RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
-          "sha256": "0c2e7d1a24847c6bb3a9c03a13841dc42749d4b8baa3e91a4730fc07d650bc8c"
+          "processing": "EXIF orientation applied to pixels; cropped; rotated for upright labels; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "9cc89d0a9603ead28ee41a1fc466ea21510d395c8ef502d81bb9990bf4e8e539"
         },
         {
           "file": "photos/printed-bin-pocket.jpg",
@@ -284,8 +284,8 @@
             3740
           ],
           "rotationAfterCropDegreesCounterclockwise": -90,
-          "processing": "EXIF orientation applied to pixels; cropped; rotated for upright labels; resized to at most 1800 px; fresh RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
-          "sha256": "dee6fc91e1132a179cf5b5f618b9c13493dfa67e775ebe5ec9879baac20c944c"
+          "processing": "EXIF orientation applied to pixels; cropped; rotated for upright labels; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "54181bf6476bdd1526d1bb615ac35b474355d38417d61281a2279d37f500bcd2"
         }
       ]
     },
@@ -314,8 +314,8 @@
             3740
           ],
           "rotationAfterCropDegreesCounterclockwise": 0,
-          "processing": "EXIF orientation applied to pixels; cropped; resized to at most 1800 px; fresh RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
-          "sha256": "5778b0c63fc0c7235a3ae24886eee066e481516a0902749408e511cef778da5a"
+          "processing": "EXIF orientation applied to pixels; cropped; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "2b0798fb939c1b25224013aa318beb4096707095b2a762ce7e3d322fea89f080"
         },
         {
           "file": "photos/printed-bin-pocket.jpg",
@@ -327,8 +327,8 @@
             3670
           ],
           "rotationAfterCropDegreesCounterclockwise": 0,
-          "processing": "EXIF orientation applied to pixels; cropped; resized to at most 1800 px; fresh RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
-          "sha256": "b36aa5a3cafc0347c86cf80555265583ac75f9df13c25094a0c7ccdc2e7b1729"
+          "processing": "EXIF orientation applied to pixels; cropped; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "3494ec8869002d754c5de30572999f166a52a4b7de121a597dd85b1f6ad85e08"
         }
       ]
     }

@@ -11,8 +11,8 @@ A fitted 17.5 mm-deep tool pocket with a rounded finger-access scoop beside the 
 
 ## Printed bin
 
-![Citadel mouldline remover in its printed bin](photos/printed-bin-loaded.jpg)
+<a href="photos/printed-bin-loaded.jpg"><img src="photos/printed-bin-loaded.jpg" width="153" alt="Citadel mouldline remover in its printed bin"></a>
 
-![Citadel mouldline remover beside its printed bin, showing the fitted pocket and finger access](photos/printed-bin-pocket.jpg)
+<a href="photos/printed-bin-pocket.jpg"><img src="photos/printed-bin-pocket.jpg" width="258" alt="Citadel mouldline remover beside its printed bin, showing the fitted pocket and finger access"></a>
 
 [All samples](../README.md)

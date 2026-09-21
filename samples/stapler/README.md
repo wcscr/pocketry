@@ -11,8 +11,8 @@ A two-level pocket with 32 mm and 42 mm depths, plus finger access at the end.
 
 ## Printed bin
 
-![Stapler in its printed bin](photos/printed-bin-loaded.jpg)
+<a href="photos/printed-bin-loaded.jpg"><img src="photos/printed-bin-loaded.jpg" width="640" alt="Stapler in its printed bin"></a>
 
-![Stapler beside its printed bin, showing the two-level pocket and finger access](photos/printed-bin-pocket.jpg)
+<a href="photos/printed-bin-pocket.jpg"><img src="photos/printed-bin-pocket.jpg" width="636" alt="Stapler beside its printed bin, showing the two-level pocket and finger access"></a>
 
 [All samples](../README.md)

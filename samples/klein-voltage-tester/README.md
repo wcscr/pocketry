@@ -11,8 +11,8 @@ A narrow tool bin with a shaped voltage-tester pocket and finger access.
 
 ## Printed bin
 
-![Klein voltage tester in its printed bin](photos/printed-bin-loaded.jpg)
+<a href="photos/printed-bin-loaded.jpg"><img src="photos/printed-bin-loaded.jpg" width="640" alt="Klein voltage tester in its printed bin"></a>
 
-![Klein voltage tester beside its printed bin, showing the fitted pocket and finger access](photos/printed-bin-pocket.jpg)
+<a href="photos/printed-bin-pocket.jpg"><img src="photos/printed-bin-pocket.jpg" width="640" alt="Klein voltage tester beside its printed bin, showing the fitted pocket and finger access"></a>
 
 [All samples](../README.md)
