@@ -44,6 +44,52 @@ const VALID = {
 };
 
 describe("parseProjectDoc", () => {
+  it.each([18, 19])("upgrades main v%s basic pockets and named history alongside lid settings", schemaVersion => {
+    // Main's format did not contain any lid or wall-thickness fields.
+    const spec = { gridX: 2, gridY: 2, heightUnits: 6 };
+    const shapes = [{ ...VALID.shapes[0], source: "basic-shape", sourceMmPerPx: null }];
+    const cutouts = VALID.cutouts.map(cutout => ({ ...cutout, name: "Left pocket" }));
+    const previous = { ...VALID, schemaVersion, spec, shapes, cutouts,
+      history: { index: 1, stack: [
+        { label: "Add pocket", doc: { spec, cutouts: VALID.cutouts, fingerHoles: [] } },
+        { label: "Rename pocket", doc: { spec, cutouts, fingerHoles: [] } },
+        { label: "Remove pocket", doc: { spec, cutouts: [], fingerHoles: [] } },
+      ] } };
+    const original = JSON.stringify(previous);
+    const migrated = parseProjectDoc(previous)!;
+    expect(migrated.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
+    expect(migrated.shapes).toEqual(shapes);
+    expect(migrated.cutouts[0].name).toBe("Left pocket");
+    expect(migrated.spec).toMatchObject({ magneticLid: false, wallThicknessMm: 0.95 });
+    expect(migrated.history!.index).toBe(1);
+    expect(migrated.history!.stack.map(entry => entry.doc.cutouts.map(cutout => cutout.name)))
+      .toEqual([[undefined], ["Left pocket"], []]);
+    expect(migrated.history!.stack.every(entry => entry.doc.spec.wallThicknessMm === 0.95)).toBe(true);
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(migrated)))).toEqual(migrated);
+    expect(JSON.stringify(previous)).toBe(original);
+    expect(parseProjectDoc({ ...previous, history: { ...previous.history, index: 0 } })).toBeNull();
+    expect(parseProjectDoc({ ...previous, shapes: [] })).toBeNull();
+  });
+
+  it("preserves v26 lid dimensions and fit while adding named basic pockets", () => {
+    const spec = { ...VALID.spec, magneticLid: true, magneticLidStyle: "overlap" as const,
+      magneticLidTop: "stacking" as const, lidMagnetHoles: false, lidFit: "friction" as const,
+      lidInterface: "angled-fins" as const, wallThicknessMm: 2, lidFitAdjustmentMm: 0.05,
+      lidRibSpacingMm: 18, lidGripRecess: true };
+    const previous = { ...parseProjectDoc(VALID)!, schemaVersion: 26, spec,
+      history: { index: 0, stack: [{ label: "Lid fit", doc: { spec, cutouts: parseProjectDoc(VALID)!.cutouts, fingerHoles: [] } }] } };
+    const original = JSON.stringify(previous);
+    const migrated = parseProjectDoc(previous)!;
+    expect(migrated).toEqual({ ...previous, schemaVersion: PROJECT_SCHEMA_VERSION });
+    expect(JSON.stringify(previous)).toBe(original);
+    const shapes = [{ ...migrated.shapes[0], source: "basic-shape" as const, sourceMmPerPx: null }];
+    const cutouts = migrated.cutouts.map(cutout => ({ ...cutout, name: "Accessory" }));
+    const combined = { ...migrated, shapes, cutouts, history: { index: 1, stack: [
+      ...migrated.history!.stack, { label: "Name pocket", doc: { spec, cutouts, fingerHoles: [] } },
+    ] } };
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(combined)))).toEqual(combined);
+  });
+
   it("defaults v24 grip recesses off and preserves an enabled recess through saved history", () => {
     const { lidGripRecess: _recess, ...oldSpec } = VALID.spec;
     const previous = { ...VALID, schemaVersion: 24, spec: oldSpec,
@@ -94,7 +140,7 @@ describe("parseProjectDoc", () => {
     expect(parseProjectDoc({ ...migrated, spec: { ...migrated.spec, lidInterface: "unknown" } })).toBeNull();
   });
 
-  it.each([23, 24, 25, PROJECT_SCHEMA_VERSION])("migrates disabled interfaces in v%s designs and all undo/redo snapshots", schemaVersion => {
+  it.each([23, 24, 25, 26, PROJECT_SCHEMA_VERSION])("migrates disabled interfaces in v%s designs and all undo/redo snapshots", schemaVersion => {
     const base = parseProjectDoc(VALID)!;
     for (const lidInterface of ["side-springs", "spring-latch"] as const) {
       const spec = { ...VALID.spec, magneticLid: true, lidMagnetHoles: false, lidFit: "friction" as const,
@@ -184,6 +230,21 @@ describe("parseProjectDoc", () => {
     expect(enabled?.spec.magneticLid).toBe(true);
     expect(parseProjectDoc(JSON.parse(JSON.stringify(enabled)))).toEqual(enabled);
   });
+
+  it("preserves independent pocket names alongside unnamed legacy placements", () => {
+    const doc = parseProjectDoc({ ...VALID, cutouts: [
+      { ...VALID.cutouts[0], name: "  First pocket  " },
+      { ...VALID.cutouts[0], id: "copy" },
+      { ...VALID.cutouts[0], id: "second-copy", name: "Second pocket" },
+    ] });
+    expect(doc?.cutouts.map(cutout => cutout.name)).toEqual(["First pocket", undefined, "Second pocket"]);
+    expect(doc?.shapes).toEqual(VALID.shapes);
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(doc)))).toEqual(doc);
+    for (const name of ["", "   ", null, 42]) {
+      expect(parseProjectDoc({ ...VALID, cutouts: [{ ...VALID.cutouts[0], name }] })).toBeNull();
+    }
+  });
+
   it("preserves finger access names through save and reload alongside unnamed legacy holes", () => {
     const doc = parseProjectDoc({
       ...VALID,
@@ -256,7 +317,7 @@ describe("parseProjectDoc", () => {
     });
   });
 
-  it("migrates schema v8 finger holes with sharp edge defaults", () => {
+  it("migrates schema v8 finger access features with sharp edge defaults", () => {
     const previous = JSON.parse(JSON.stringify(VALID)) as Record<string, unknown>;
     previous.schemaVersion = 8;
     previous.fingerHoles = [
@@ -288,7 +349,7 @@ describe("parseProjectDoc", () => {
 });
 
 describe("project file round trip", () => {
-  it("preserves round and oblong deep-scoop finger holes through JSON", () => {
+  it("preserves round and oblong deep-scoop finger access features through JSON", () => {
     const withFeatures = JSON.parse(JSON.stringify(VALID)) as Record<string, unknown>;
     withFeatures.fingerHoles = [
         {
@@ -351,7 +412,7 @@ describe("project file round trip", () => {
     });
   });
 
-  it("migrates a schema-v1 scoop into a typed finger hole", () => {
+  it("migrates a schema-v1 scoop into a typed finger access", () => {
     const legacy = JSON.parse(JSON.stringify(VALID)) as Record<string, unknown>;
     legacy.schemaVersion = 1;
     delete legacy.fingerHoles;
@@ -399,7 +460,7 @@ describe("project file round trip", () => {
     expect(doc?.spec.footprint).toEqual({ kind: "rectangle" });
   });
 
-  it("migrates schema v4 finger holes without changing their geometry", () => {
+  it("migrates schema v4 finger access features without changing their geometry", () => {
     const legacy = JSON.parse(JSON.stringify(VALID)) as Record<string, unknown>;
     legacy.schemaVersion = 4;
     delete legacy.fingerHoles;

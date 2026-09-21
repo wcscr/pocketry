@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { setMany } from "idb-keyval";
 
 import { PROJECT_SCHEMA_VERSION, type ProjectDoc } from "@shared/gridfinity/project";
 import { parseBinSpec } from "@shared/gridfinity/types";
@@ -11,12 +12,16 @@ vi.mock("idb-keyval", () => ({
   set: vi.fn(async (key: string, value: unknown) => {
     memory.set(key, value);
   }),
+  setMany: vi.fn(async (entries: [IDBValidKey, unknown][]) => {
+    for (const [key, value] of entries) memory.set(String(key), value);
+  }),
 }));
 
 import {
   createDebouncedProjectSaver,
   deleteProjectFromLibrary,
   duplicateProjectInLibrary,
+  importProjectToLibrary,
   loadProjectDoc,
   loadProjectLibrary,
   openProjectFromLibrary,
@@ -42,6 +47,7 @@ const WIDE_DOC: ProjectDoc = {
 
 beforeEach(() => {
   memory.clear();
+  vi.clearAllMocks();
 });
 
 afterEach(() => {
@@ -117,6 +123,84 @@ describe("current project persistence", () => {
     save.cancel();
     await vi.advanceTimersByTimeAsync(600);
     expect((memory.get("tooltrace:project:v1") as ProjectDoc).spec.gridX).toBe(4);
+  });
+});
+
+describe("project file imports", () => {
+  it("adds and activates a file, persists its history, and directs later autosaves to its new entry", async () => {
+    const previous = await saveProjectToLibrary(DOC, "Existing tray", null);
+    const history = { stack: [{ doc: { spec: WIDE_DOC.spec, cutouts: [], fingerHoles: [] }, label: "Project opened" }], index: 0 };
+    const importedDoc = { ...WIDE_DOC, name: "Imported tray", keepBinSize: true, history };
+    const imported = await importProjectToLibrary(importedDoc);
+    expect(imported.project.id).not.toBe(previous.activeProjectId);
+    expect(imported.library.activeProjectId).toBe(imported.project.id);
+    expect(imported.library.projects.map(project => project.name)).toEqual(["Existing tray", "Imported tray"]);
+    expect(await loadProjectLibrary()).toEqual(imported.library);
+    expect(await loadProjectDoc()).toEqual(importedDoc);
+    expect(await saveProjectDoc({ ...importedDoc, keepBinSize: false }, imported.project.id)).toBe(true);
+    expect((await openProjectFromLibrary(previous.activeProjectId!)).doc).toEqual({ ...DOC, name: "Existing tray" });
+    expect((await openProjectFromLibrary(imported.project.id)).doc).toEqual({ ...importedDoc, keepBinSize: false });
+  });
+
+  it("keeps same-name imports independent, including case-insensitive collisions and repeated imports", async () => {
+    const original = await saveProjectToLibrary(DOC, "Tools", null);
+    const first = await importProjectToLibrary({ ...WIDE_DOC, name: "tools" });
+    const second = await importProjectToLibrary({ ...WIDE_DOC, name: "tools" });
+    expect(first.project.name).toBe("tools (imported)");
+    expect(second.project.name).toBe("tools (imported 2)");
+    expect(new Set(second.library.projects.map(project => project.id)).size).toBe(3);
+    expect((await openProjectFromLibrary(original.activeProjectId!)).doc).toEqual({ ...DOC, name: "Tools" });
+  });
+
+  it("reserves unique names for simultaneous imports and keeps names within the limit", async () => {
+    const name = "A".repeat(80);
+    await saveProjectToLibrary(DOC, name, null);
+    const [first, second] = await Promise.all([
+      importProjectToLibrary({ ...DOC, name }), importProjectToLibrary({ ...DOC, name }),
+    ]);
+    expect(first.project.name).toHaveLength(80);
+    expect(first.project.name.endsWith(" (imported)")).toBe(true);
+    expect(second.project.name).toHaveLength(80);
+    expect(second.project.name.endsWith(" (imported 2)")).toBe(true);
+    expect((await loadProjectLibrary()).projects).toHaveLength(3);
+  });
+
+  it("gives unnamed files a usable library name", async () => {
+    const imported = await importProjectToLibrary(DOC);
+    expect(imported.project.name).toBe("Imported project");
+    expect((await loadProjectDoc())!.name).toBe("Imported project");
+  });
+
+  it("preserves the outgoing project and library if the import cannot be stored, and allows retry", async () => {
+    const library = await saveProjectToLibrary(DOC, "Existing tray", null);
+    const previous = await loadProjectDoc();
+    vi.mocked(setMany).mockRejectedValueOnce(new Error("Storage is full"));
+    await expect(importProjectToLibrary(WIDE_DOC)).rejects.toThrow("Storage is full");
+    expect(await loadProjectLibrary()).toEqual(library);
+    expect(await loadProjectDoc()).toEqual(previous);
+    expect((await importProjectToLibrary(WIDE_DOC)).library.projects).toHaveLength(2);
+  });
+
+  it("rejects inconsistent history before changing the saved project", async () => {
+    const library = await saveProjectToLibrary(DOC, "Existing tray", null);
+    await expect(importProjectToLibrary({ ...WIDE_DOC, history: {
+      stack: [{ doc: { spec: DOC.spec, cutouts: [], fingerHoles: [] }, label: "Project opened" }], index: 0,
+    } })).rejects.toThrow("Not a supported Pocketry project file");
+    expect(setMany).not.toHaveBeenCalled();
+    expect(await loadProjectLibrary()).toEqual(library);
+    expect(await loadProjectDoc()).toEqual({ ...DOC, name: "Existing tray" });
+  });
+
+  it("rejects a delayed outgoing autosave after a file becomes the active project", async () => {
+    vi.useFakeTimers();
+    const previous = await saveProjectToLibrary(DOC, "Existing tray", null);
+    const saver = createDebouncedProjectSaver();
+    saver({ ...DOC, keepBinSize: true }, previous.activeProjectId);
+    const imported = await importProjectToLibrary({ ...WIDE_DOC, name: "Imported tray" });
+    await vi.advanceTimersByTimeAsync(600);
+    expect(await loadProjectDoc()).toEqual(imported.doc);
+    expect(await loadProjectLibrary()).toEqual(imported.library);
+    expect((await openProjectFromLibrary(previous.activeProjectId!)).doc).toEqual({ ...DOC, name: "Existing tray" });
   });
 });
 

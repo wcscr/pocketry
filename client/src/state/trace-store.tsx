@@ -4,16 +4,21 @@ import {
   useContext,
   useMemo,
   useReducer,
+  useRef,
   type Dispatch,
   type ReactNode,
 } from "react";
+import type { TraceDraft } from "@shared/trace-draft";
+import { useTraceDraftPersistence, type TraceDraftSaveStatus } from "@/hooks/use-trace-draft-persistence";
 
 import {
   hasCalibrationEndpoints,
   type Calibration,
   type DraftCalibration,
 } from "@shared/geometry/scale";
-import type { Outline, Point, Rect, RingRef } from "@shared/geometry/types";
+import { OUTER_RING, type Outline, type Point, type Rect, type RingRef } from "@shared/geometry/types";
+import { ringArea } from "@shared/geometry/rings";
+import { getRing } from "@/lib/geometry/outline";
 
 import type {
   PerspectiveProposal,
@@ -58,6 +63,8 @@ import { DEFAULT_MARGIN_MM, marginToPixels, type Margin } from "@/lib/image-proc
 
 /** Exactly one interaction mode is active at a time. */
 export type TraceMode =
+  | "navigate"
+  | "remove"
   | "pan"
   | "region"
   | "edit"
@@ -66,7 +73,7 @@ export type TraceMode =
   | "perspective";
 
 export type ExportFormat = "svg" | "dxf" | "dwg" | "stl";
-export type CalibrationSource = "manual" | "sheet";
+export type CalibrationSource = "manual" | "sheet" | "strip";
 
 export interface TraceHistoryEntry {
   outline: Outline;
@@ -118,13 +125,21 @@ export interface TraceState {
   margin: Margin;
 
   calibration: Calibration | null;
-  /** An automatically detected sheet scale awaiting explicit acceptance. */
+  /** An automatically detected sheet or strip scale awaiting explicit acceptance. */
   pendingAutoCalibration: Calibration | null;
+  /** Alternative sheet ruler when an aid and paper are both usable. */
+  pendingPaperCalibration: Calibration | null;
+  /** The aid ruler is usable only after applying the paper homography. */
+  pendingAidRequiresPerspective: boolean;
+  /** Reference behind the pending scale; cleared together with its ruler. */
+  pendingCalibrationSource: "sheet" | "strip" | null;
   /** How the accepted calibration was established. */
   calibrationSource: CalibrationSource | null;
   /** A calibration mid-placement: start point known, end point not yet. */
   draftCalibration: DraftCalibration | null;
   rulerLengthMm: number;
+  /** Unconfirmed text shared across desktop, drawer and inline mobile inputs. */
+  rulerLengthInput: string;
 
   /** Detected sheet geometry awaiting perspective-correction review. */
   pendingPerspective: PerspectiveProposal | null;
@@ -176,9 +191,13 @@ export const initialTraceState: TraceState = {
   margin: DEFAULT_MARGIN_MM,
   calibration: null,
   pendingAutoCalibration: null,
+  pendingPaperCalibration: null,
+  pendingAidRequiresPerspective: false,
+  pendingCalibrationSource: null,
   calibrationSource: null,
   draftCalibration: null,
   rulerLengthMm: 100,
+  rulerLengthInput: "100",
   pendingPerspective: null,
   manualPerspectivePoints: [],
   perspectiveOriginalImageUrl: null,
@@ -192,6 +211,7 @@ export const initialTraceState: TraceState = {
 };
 
 export type TraceAction =
+  | { type: "TRACE_DRAFT_RESTORED"; draft: TraceDraft }
   | { type: "SOURCE_LOADED"; imageUrl: string; fileName: string }
   | { type: "SOURCE_READY"; imageSize: { width: number; height: number } }
   | { type: "SOURCE_CLEARED" }
@@ -241,12 +261,17 @@ export type TraceAction =
       sourceImageUrl: string;
       calibration: Calibration;
       perspective?: PerspectiveProposal | null;
+      source?: "sheet" | "strip";
+      paperCalibration?: Calibration | null;
+      requiresPerspectiveCorrection?: boolean;
     }
-  | { type: "ACCEPT_AUTO_CALIBRATION" }
+  | { type: "ACCEPT_AUTO_CALIBRATION"; source?: "sheet" | "strip" }
+  | { type: "DISMISS_AUTO_CALIBRATION" }
   | { type: "AUTO_CALIBRATION_ATTEMPTED"; imageUrl: string }
   | { type: "AUTO_CALIBRATION_FAILED"; sourceImageUrl: string }
   | { type: "SET_DRAFT_CALIBRATION"; draftCalibration: DraftCalibration | null }
   | { type: "SET_RULER_LENGTH"; rulerLengthMm: number }
+  | { type: "SET_RULER_LENGTH_INPUT"; value: string }
   | { type: "START_PERSPECTIVE_SELECTION" }
   | { type: "ADD_PERSPECTIVE_POINT"; point: Point }
   | { type: "SET_PERSPECTIVE_POINTS"; points: Point[] }
@@ -257,7 +282,9 @@ export type TraceAction =
       sourceImageUrl: string;
       imageUrl: string;
       imageSize: { width: number; height: number };
-      calibration: Calibration;
+      /** Null applies only the warp and starts manual scale selection. */
+      calibration: Calibration | null;
+      calibrationSource?: "sheet" | "strip";
       source: PerspectiveSource;
       paper: TemplatePaper;
       template?: TemplateVariant;
@@ -327,8 +354,36 @@ function rotateManualPerspectivePoints(
     : [rotated[1], rotated[2], rotated[3], rotated[0]];
 }
 
+function primaryContour(outline: Outline): RingRef | null {
+  let largest: RingRef | null = null;
+  let largestArea = 0;
+  outline.forEach((shape, shapeIndex) => {
+    const area = ringArea(shape.outer);
+    if (shape.outer.length >= 3 && area > largestArea) {
+      largest = { shapeIndex, ringIndex: OUTER_RING };
+      largestArea = area;
+    }
+  });
+  return largest;
+}
+
+function retainedEditSelection(state: TraceState, outline: Outline): RingRef | null {
+  return (state.mode === "edit" || state.mode === "remove") && state.selection &&
+    (getRing(outline, state.selection)?.length ?? 0) >= 3 ? state.selection : null;
+}
+
 export function traceReducer(state: TraceState, action: TraceAction): TraceState {
   switch (action.type) {
+    case "TRACE_DRAFT_RESTORED": {
+      const { state: saved, detectionComplete, referencesAttempted } = action.draft;
+      return {
+        ...initialTraceState,
+        ...saved,
+        sourceRevision: state.sourceRevision + 1,
+        detectedImageUrl: detectionComplete ? saved.imageUrl : null,
+        autoCalibrationAttemptedImageUrl: referencesAttempted ? saved.imageUrl : null,
+      };
+    }
     case "SOURCE_LOADED":
       // A new image invalidates the ruler, the crop, and every point. Without
       // this reset a stale calibration silently rescales every later export.
@@ -345,6 +400,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         exportFormat: state.exportFormat,
         extrusionHeight: state.extrusionHeight,
         rulerLengthMm: state.rulerLengthMm,
+        rulerLengthInput: String(state.rulerLengthMm),
       };
 
     case "SOURCE_READY":
@@ -420,6 +476,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         pendingAutoCalibration: rotateCalibration(
           state.pendingAutoCalibration,
         ),
+        pendingPaperCalibration: rotateCalibration(state.pendingPaperCalibration),
         draftCalibration: state.draftCalibration
           ? rotateDraftCalibration(
               state.draftCalibration,
@@ -490,7 +547,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         rawOutline: action.rawOutline,
         svg: action.svg,
         detectedImageUrl: action.imageUrl,
-        selection: null,
+        selection: state.mode === "edit" || state.mode === "remove" ? primaryContour(action.outline) : null,
         history: pushHistory(
           state.rawOutline.length > 0 && state.detectedImageUrl === action.imageUrl ? state.history : { stack: [], index: -1 },
           action.outline, "Detected outline", state.margin,
@@ -560,7 +617,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         margin: state.history.stack[index].margin,
         tolerancePx: state.history.stack[index].tolerancePx ?? state.tolerancePx,
         smoothing: state.history.stack[index].smoothing ?? state.smoothing,
-        selection: null,
+        selection: retainedEditSelection(state, state.history.stack[index].outline),
         history: { ...state.history, index },
       };
     }
@@ -574,7 +631,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         margin: state.history.stack[index].margin,
         tolerancePx: state.history.stack[index].tolerancePx ?? state.tolerancePx,
         smoothing: state.history.stack[index].smoothing ?? state.smoothing,
-        selection: null,
+        selection: retainedEditSelection(state, state.history.stack[index].outline),
         history: { ...state.history, index },
       };
     }
@@ -594,7 +651,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         margin: state.history.stack[action.index].margin,
         tolerancePx: state.history.stack[action.index].tolerancePx ?? state.tolerancePx,
         smoothing: state.history.stack[action.index].smoothing ?? state.smoothing,
-        selection: null,
+        selection: retainedEditSelection(state, state.history.stack[action.index].outline),
         history: { ...state.history, index: action.index },
       };
     }
@@ -613,6 +670,9 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
       return {
         ...state,
         mode: action.mode,
+        selection: action.mode === "edit" || action.mode === "remove"
+          ? retainedEditSelection(state, state.outline) ?? primaryContour(state.outline)
+          : state.selection,
         // Redrawing is a replacement, not a second ruler layered over the
         // accepted one. Invalidate both the old scale and any completed draft
         // when manual placement starts; repeat clicks on the active tool leave
@@ -623,6 +683,10 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         // candidate, including all of its canvas overlays.
         pendingAutoCalibration:
           rejectsAutomatic ? null : state.pendingAutoCalibration,
+        pendingPaperCalibration: rejectsAutomatic ? null : state.pendingPaperCalibration,
+        pendingAidRequiresPerspective: rejectsAutomatic ? false : state.pendingAidRequiresPerspective,
+        pendingCalibrationSource:
+          rejectsAutomatic ? null : state.pendingCalibrationSource,
         pendingPerspective: rejectsAutomatic ? null : state.pendingPerspective,
         draftCalibration:
           startsCalibration
@@ -678,8 +742,13 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         ...state,
         calibration: action.calibration,
         pendingAutoCalibration: null,
+        pendingPaperCalibration: null,
+        pendingAidRequiresPerspective: false,
+        pendingCalibrationSource: null,
         pendingPerspective: null,
         calibrationSource: action.calibration === null ? null : "manual",
+        rulerLengthMm: action.calibration?.lengthMm ?? state.rulerLengthMm,
+        rulerLengthInput: action.calibration ? String(action.calibration.lengthMm) : state.rulerLengthInput,
         margin: state.margin ?? DEFAULT_MARGIN_MM,
         draftCalibration: null,
       };
@@ -688,27 +757,50 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
       return action.sourceImageUrl === state.imageUrl
         ? {
             ...state,
-            calibration: null,
+            // A retry is a proposal, not permission to replace the accepted
+            // ruler. Keep its exact endpoints and scale until acceptance.
             pendingAutoCalibration: action.calibration,
-            pendingPerspective: action.perspective ?? null,
-            calibrationSource: null,
+            pendingPaperCalibration: action.paperCalibration ?? null,
+            pendingAidRequiresPerspective: action.requiresPerspectiveCorrection ?? false,
+            pendingCalibrationSource: action.source ?? "sheet",
+            pendingPerspective:
+              action.source === "strip" && !action.paperCalibration ? null : action.perspective ?? null,
             margin: state.margin ?? DEFAULT_MARGIN_MM,
-            draftCalibration: null,
             manualPerspectivePoints: [],
             mode: "pan",
           }
         : state;
 
-    case "ACCEPT_AUTO_CALIBRATION":
-      if (!state.pendingAutoCalibration) return state;
+    case "DISMISS_AUTO_CALIBRATION":
       return {
         ...state,
-        calibration: state.pendingAutoCalibration,
         pendingAutoCalibration: null,
+        pendingPaperCalibration: null,
+        pendingAidRequiresPerspective: false,
+        pendingCalibrationSource: null,
         pendingPerspective: null,
-        calibrationSource: "sheet",
+      };
+
+    case "ACCEPT_AUTO_CALIBRATION":
+      if (!state.pendingAutoCalibration || (action.source === "sheet" && state.pendingCalibrationSource === "strip" && !state.pendingPaperCalibration)) return state;
+      if (action.source === "strip" && state.pendingCalibrationSource !== "strip") return state;
+      if (state.pendingAidRequiresPerspective && !(action.source === "sheet" && state.pendingPaperCalibration)) return state;
+      return {
+        ...state,
+        calibration: action.source === "sheet" && state.pendingPaperCalibration
+          ? state.pendingPaperCalibration : state.pendingAutoCalibration,
+        pendingAutoCalibration: null,
+        pendingPaperCalibration: null,
+        pendingAidRequiresPerspective: false,
+        pendingCalibrationSource: null,
+        pendingPerspective: null,
+        calibrationSource: action.source ?? state.pendingCalibrationSource ?? "sheet",
         margin: state.margin ?? DEFAULT_MARGIN_MM,
         draftCalibration: null,
+        // A scale retry must not send an existing trace back to drawing a new
+        // region. New photos still proceed to the region-selection step.
+        mode: state.outline.length > 0 || (state.region && state.region.width > 5 && state.region.height > 5)
+          ? "pan" : "region",
       };
 
     case "AUTO_CALIBRATION_ATTEMPTED":
@@ -729,10 +821,15 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
     case "SET_DRAFT_CALIBRATION":
       return { ...state, draftCalibration: action.draftCalibration };
 
+    case "SET_RULER_LENGTH_INPUT":
+      return { ...state, rulerLengthInput: action.value };
+
     case "SET_RULER_LENGTH":
+      if (!Number.isFinite(action.rulerLengthMm) || action.rulerLengthMm <= 0) return state;
       return {
         ...state,
         rulerLengthMm: action.rulerLengthMm,
+        rulerLengthInput: String(action.rulerLengthMm),
         // A completed manual ruler and its reference-length input describe the
         // same measurement. Keep them coupled so correcting the known length
         // immediately corrects mm/px without making the user redraw the line.
@@ -749,6 +846,9 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         ...state,
         mode: "perspective",
         pendingAutoCalibration: null,
+        pendingPaperCalibration: null,
+        pendingAidRequiresPerspective: false,
+        pendingCalibrationSource: null,
         pendingPerspective: null,
         manualPerspectivePoints: [],
         draftCalibration: null,
@@ -793,8 +893,9 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         smoothing: state.smoothing,
         margin: state.margin ?? DEFAULT_MARGIN_MM,
         calibration: action.calibration,
-        calibrationSource: "sheet",
+        calibrationSource: action.calibration ? action.calibrationSource ?? "sheet" : null,
         rulerLengthMm: state.rulerLengthMm,
+        rulerLengthInput: state.rulerLengthInput,
         perspectiveOriginalImageUrl:
           state.perspectiveOriginalImageUrl ?? state.imageUrl,
         perspectiveOriginalImageRotation:
@@ -804,7 +905,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
           paper: action.paper,
           ...(action.template ? { template: action.template } : {}),
         },
-        mode: "region",
+        mode: action.calibration ? "region" : "calibrate",
         exportFormat: state.exportFormat,
         extrusionHeight: state.extrusionHeight,
       };
@@ -830,6 +931,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         smoothing: state.smoothing,
         margin: state.margin,
         rulerLengthMm: state.rulerLengthMm,
+        rulerLengthInput: String(state.rulerLengthMm),
         exportFormat: state.exportFormat,
         extrusionHeight: state.extrusionHeight,
       };
@@ -843,6 +945,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
 }
 
 export interface TraceStore extends TraceState {
+  draftSaveStatus: TraceDraftSaveStatus;
   dispatch: Dispatch<TraceAction>;
   canUndo: boolean;
   canRedo: boolean;
@@ -852,8 +955,16 @@ export interface TraceStore extends TraceState {
 
 const TraceContext = createContext<TraceStore | null>(null);
 
-export function TraceProvider({ children }: { children: ReactNode }): JSX.Element {
-  const [state, dispatch] = useReducer(traceReducer, initialTraceState);
+export function TraceProvider({ children, persist = false }: { children: ReactNode; persist?: boolean }): JSX.Element {
+  const [state, reducerDispatch] = useReducer(traceReducer, initialTraceState);
+  // A delayed database read must never replace a source or edit chosen since
+  // startup. Test harnesses opt out; the app's single provider enables recovery.
+  const interactionRevision = useRef(0);
+  const dispatch = useCallback<Dispatch<TraceAction>>((action) => {
+    interactionRevision.current += 1;
+    reducerDispatch(action);
+  }, []);
+  const draftSaveStatus = useTraceDraftPersistence(state, reducerDispatch, interactionRevision, persist);
 
   const undo = useCallback(() => dispatch({ type: "UNDO" }), []);
   const redo = useCallback(() => dispatch({ type: "REDO" }), []);
@@ -861,13 +972,14 @@ export function TraceProvider({ children }: { children: ReactNode }): JSX.Elemen
   const value = useMemo<TraceStore>(
     () => ({
       ...state,
+      draftSaveStatus,
       dispatch,
       canUndo: state.history.index > 0,
       canRedo: state.history.index < state.history.stack.length - 1,
       undo,
       redo,
     }),
-    [state, undo, redo],
+    [state, draftSaveStatus, dispatch, undo, redo],
   );
 
   return <TraceContext.Provider value={value}>{children}</TraceContext.Provider>;

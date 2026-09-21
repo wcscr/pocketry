@@ -1,10 +1,11 @@
 import { hasStackingLip } from "@shared/gridfinity/standard";
 import { Box, History, Redo2, Undo2 } from "lucide-react";
-import { pocketDepths } from "@shared/gridfinity/cutout";
+import { pocketDepths, pocketName } from "@shared/gridfinity/cutout";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { CanvasWarnings } from "@/components/gridfinity/canvas-warnings";
 import { validateBinSpec, validateLayout, validatePocketFloorMaterials, type ValidationIssue } from "@shared/gridfinity/validate";
+import { MobileBinActions } from "@/components/gridfinity/mobile-bin-actions";
 import { BinControlsPanel } from "@/components/gridfinity/bin-controls-panel";
 import { BinViewport } from "@/components/gridfinity/bin-viewport";
 import { LayoutCanvas } from "@/components/gridfinity/layout-canvas";
@@ -12,9 +13,10 @@ import { EditHistoryMenu } from "@/components/history/edit-history-menu";
 import { usePanelState } from "@/components/layout/panel-context";
 import { WorkspaceLayout } from "@/components/layout/workspace-layout";
 import { Button } from "@/components/ui/button";
+import { canHandleCanvasShortcut } from "@/lib/canvas-keyboard";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useToast } from "@/hooks/use-toast";
 import {
-  parseProjectDoc,
   PROJECT_SCHEMA_VERSION,
   type ProjectDoc,
 } from "@shared/gridfinity/project";
@@ -57,6 +59,7 @@ import {
   duplicateProjectInLibrary,
   exportProjectLibrary,
   importProjectLibrary,
+  importProjectToLibrary,
   loadProjectDoc,
   loadProjectLibrary,
   openProjectFromLibrary,
@@ -98,16 +101,26 @@ export default function BinDesignerPage(): JSX.Element {
 
 function BinDesignerWorkspace(): JSX.Element {
   const { panelOpen, setPanelOpen } = usePanelState();
+  const [quickAdjustOpen, setQuickAdjustOpen] = useState(false);
   const [pocketEditorRequest, setPocketEditorRequest] = useState(0);
   const [settingsSectionRequest, setSettingsSectionRequest] = useState<{ id: string }>();
   const editSelectedPocket = () => {
     setSettingsSectionRequest(undefined);
-    setPanelOpen(true);
+    if (isMobile) setQuickAdjustOpen(true);
+    else setPanelOpen(true);
     setPocketEditorRequest((request) => request + 1);
   };
   const { toast } = useToast();
   const bin = useBin();
   const { spec, cutouts, fingerHoles, viewMode, dispatch } = bin;
+  const isMobile = useIsMobile();
+  useEffect(() => {
+    if (isMobile && bin.editorMode !== "placement") setPanelOpen(false);
+  }, [bin.editorMode, isMobile, setPanelOpen]);
+  useEffect(() => {
+    if (panelOpen || !isMobile || bin.editorMode !== "placement") setQuickAdjustOpen(false);
+  }, [panelOpen, isMobile, bin.editorMode]);
+  useEffect(() => { if (isMobile && !panelOpen) setSettingsSectionRequest(undefined); }, [isMobile, panelOpen]);
   const library = useShapeLibrary();
   // Sliders and canvas drags update the visible controls transiently, but the
   // history entry remains the last committed design until pointer-up. Feeding
@@ -117,6 +130,11 @@ function BinDesignerWorkspace(): JSX.Element {
   const committedSpec = committedDoc.spec;
   const committedCutouts = committedDoc.cutouts;
   const committedFingerHoles = committedDoc.fingerHoles;
+  // Present current terminology for older saved history without rewriting it.
+  const historyEntries = useMemo(() => bin.history.stack.map(({ label }) => ({
+    label: label.replace(/\bfinger[ -]holes?\b/gi, (term) =>
+      term.startsWith("F") ? "Finger access" : "finger access"),
+  })), [bin.history.stack]);
 
   const [exporting, setExporting] = useState(false);
   const [section, setSection] = useState<BuildBinSection | null>(null);
@@ -381,12 +399,11 @@ function BinDesignerWorkspace(): JSX.Element {
     for (const report of cutoutReports) {
       if (report.emptied && !emptiedSeenRef.current.has(report.id)) {
         emptiedSeenRef.current.add(report.id);
-        const shape = layout.shapes.find(
-          (s) => s.id === cutouts.find((c) => c.id === report.id)?.shapeId,
-        );
+        const cutout = cutouts.find((c) => c.id === report.id);
+        const shape = layout.shapes.find((s) => s.id === cutout?.shapeId);
         toast({
           title: "Pocket vanished",
-          description: `“${shape?.name ?? "A pocket"}” collapsed under its clearance/corner settings — increase clearance toward zero or reduce outline corner rounding.`,
+          description: `“${cutout ? pocketName(cutout, shape) : "A pocket"}” collapsed under its clearance/corner settings — increase clearance toward zero or reduce outline corner rounding.`,
           variant: "destructive",
         });
       }
@@ -498,28 +515,13 @@ function BinDesignerWorkspace(): JSX.Element {
   }, [saveProject, currentProjectDoc, projectLibrary.activeProjectId]);
 
   const handleImportProject = useCallback(
-    async (file: File) => {
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(await file.text());
-      } catch {
-        parsed = null;
-      }
-      const doc = parseProjectDoc(parsed);
-      if (!doc) {
-        toast({
-          title: "Not a Pocketry project",
-          description: `${file.name} is not a readable .pocketry.json or legacy .tooltrace.json file.`,
-          variant: "destructive",
-        });
-        return;
-      }
-      doc.name ??= file.name.replace(/\.(?:pocketry|tooltrace)\.json$/i, "").replace(/\.json$/i, "").replace(/[-_]+/g, " ").trim().slice(0, 80) || "Imported project";
+    async (input: ProjectDoc): Promise<boolean> => {
       setProjectBusy(true);
       try {
         await saveBeforeReplacingProject();
-        const saved = await startNewProject(doc);
-        setDraftName(doc.name ?? null);
+        const opened = await importProjectToLibrary(input);
+        const { doc } = opened;
+        setDraftName(null);
         setKeepBinSize(doc.keepBinSize ?? false);
         library.replaceShapes(doc.shapes);
         dispatch({
@@ -530,17 +532,19 @@ function BinDesignerWorkspace(): JSX.Element {
           history: doc.history,
         });
         setSection(null);
-        setProjectLibrary(saved);
+        setProjectLibrary(opened.library);
         toast({
           title: "Backup imported",
-          description: `${doc.shapes.length} shape${doc.shapes.length === 1 ? "" : "s"}, ${doc.cutouts.length} pocket${doc.cutouts.length === 1 ? "" : "s"}. Opened as “${doc.name}”.`,
+          description: `${doc.shapes.length} shape${doc.shapes.length === 1 ? "" : "s"}, ${doc.cutouts.length} pocket${doc.cutouts.length === 1 ? "" : "s"}. Saved to your library and opened as “${doc.name}”.`,
         });
+        return true;
       } catch (cause) {
         toast({
           title: "Could not import backup",
           description: cause instanceof Error ? cause.message : String(cause),
           variant: "destructive",
         });
+        return false;
       } finally {
         setProjectBusy(false);
       }
@@ -725,10 +729,7 @@ function BinDesignerWorkspace(): JSX.Element {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (!(event.metaKey || event.ctrlKey)) return;
-      const target = event.target as HTMLElement | null;
-      if (target && (/^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName) || target.isContentEditable)) {
-        return;
-      }
+      if (!canHandleCanvasShortcut(event) || event.altKey) return;
       const key = event.key.toLowerCase();
       if (key === "z") {
         dispatch({ type: event.shiftKey ? "REDO" : "UNDO" });
@@ -917,12 +918,12 @@ function BinDesignerWorkspace(): JSX.Element {
         const project = prepareProjectExport(
           exportProjectDoc,
           currentProjectName,
-          `${exportFilePart(shape.name) || "tool"}-fit-template-${depthLabel}mm`,
+          `${exportFilePart(pocketName(cutout, shape)) || "tool"}-fit-template-${depthLabel}mm`,
         );
         const result = await buildFitCheck(shape, cutout, depthMm, EXPORT_QUALITY);
         const stl = writeBinarySTL(
           { positions: result.mesh.positions, indices: result.mesh.indices },
-          `Pocketry ${shape.name} fit template ${depthLabel} mm`,
+          `Pocketry ${pocketName(cutout, shape)} fit template ${depthLabel} mm`,
         );
         downloadModelWithProject(
           new Blob([stl], { type: "application/octet-stream" }),
@@ -932,7 +933,7 @@ function BinDesignerWorkspace(): JSX.Element {
         );
         toast({
           title: "Fit template saved",
-          description: `Exported “${shape.name}” as a ${depthLabel} mm filled outline${includeProject ? " with an editable project JSON" : ""}.`,
+          description: `Exported “${pocketName(cutout, shape)}” as a ${depthLabel} mm filled outline${includeProject ? " with an editable project JSON" : ""}.`,
         });
       } catch (cause) {
         if (!(cause instanceof WorkerCancelledError)) {
@@ -996,9 +997,14 @@ function BinDesignerWorkspace(): JSX.Element {
       autoSaveId="tooltrace:bin"
       panelOpen={panelOpen}
       onPanelOpenChange={setPanelOpen}
-      panelTitle="Bin designer"
+      panelTitle={isMobile && settingsSectionRequest?.id === "bin-settings-export" ? "Export bin" : "Bin designer"}
+      mobileActionsLayout="landscape-side"
+      mobileActions={<MobileBinActions open={quickAdjustOpen} onOpenChange={setQuickAdjustOpen}
+        onMore={id => { setSettingsSectionRequest({ id }); setPanelOpen(true); }}
+        onExport={() => { setSettingsSectionRequest({ id: "bin-settings-export" }); setPanelOpen(true); }} />}
       panel={
         <BinControlsPanel
+          exportOnly={isMobile && settingsSectionRequest?.id === "bin-settings-export"}
           issues={issues}
           settingsSectionRequest={settingsSectionRequest}
           pocketEditorRequest={pocketEditorRequest}
@@ -1019,7 +1025,7 @@ function BinDesignerWorkspace(): JSX.Element {
           onExportLayout={handleExportLayout}
           onAutoArrange={handleAutoArrange}
           onExportProject={handleExportProject}
-          onImportProject={(file) => void handleImportProject(file)}
+          onImportProject={handleImportProject}
           projectLibraryReady={projectLibraryReady}
           projectBusy={projectBusy}
           activeProjectId={projectLibrary.activeProjectId}
@@ -1093,7 +1099,7 @@ function BinDesignerWorkspace(): JSX.Element {
             onChange={(mode) => dispatch({ type: "SET_VIEW_MODE", viewMode: mode })}
           />
           {viewMode === "3d" && section && (
-            <div className="absolute left-3 top-12 z-30 flex max-w-[calc(100%_-_4.5rem)] flex-wrap items-center gap-x-3 gap-y-1 rounded-md border bg-background/95 p-2 shadow-sm backdrop-blur">
+            <div className="absolute left-3 top-16 md:top-12 [@media(pointer:coarse)]:top-16 z-30 flex max-w-[calc(100%_-_4.5rem)] flex-wrap items-center gap-x-3 gap-y-1 rounded-md border bg-background/95 p-2 shadow-sm backdrop-blur">
               <span className="text-xs text-muted-foreground">Section view</span>
               <Button
                 variant="outline"
@@ -1107,16 +1113,16 @@ function BinDesignerWorkspace(): JSX.Element {
               </Button>
             </div>
           )}
-          <div className="absolute right-3 top-3 z-30 flex overflow-hidden rounded-md border bg-background/90 shadow-sm backdrop-blur">
+          <div data-testid="bin-history-toolbar" className="absolute right-3 top-3 z-30 flex overflow-hidden rounded-md border bg-background/90 shadow-sm backdrop-blur">
             <Button
               variant="ghost"
               size="sm"
-              className="h-7 rounded-none px-2"
+              className="h-11 min-w-11 rounded-none px-2 md:h-7 md:min-w-0 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11"
               disabled={!bin.canUndo}
               onClick={() => dispatch({ type: "UNDO" })}
               aria-label={
                 bin.canUndo
-                  ? `Undo ${bin.history.stack[bin.history.index].label}`
+                  ? `Undo ${historyEntries[bin.history.index].label}`
                   : "Undo"
               }
               data-testid="button-bin-undo"
@@ -1124,7 +1130,7 @@ function BinDesignerWorkspace(): JSX.Element {
               <Undo2 className="h-3.5 w-3.5" />
             </Button>
             <EditHistoryMenu
-              entries={bin.history.stack}
+              entries={historyEntries}
               index={bin.history.index}
               onJump={(index) => dispatch({ type: "JUMP_TO_HISTORY", index })}
               testId="button-bin-history"
@@ -1132,7 +1138,7 @@ function BinDesignerWorkspace(): JSX.Element {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-7 rounded-none px-2"
+                  className="h-11 min-w-11 rounded-none px-2 md:h-7 md:min-w-0 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11"
                   aria-label="Show edit history"
                   title="Show edit history"
                   data-testid="button-bin-history"
@@ -1144,12 +1150,12 @@ function BinDesignerWorkspace(): JSX.Element {
             <Button
               variant="ghost"
               size="sm"
-              className="h-7 rounded-none px-2"
+              className="h-11 min-w-11 rounded-none px-2 md:h-7 md:min-w-0 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11"
               disabled={!bin.canRedo}
               onClick={() => dispatch({ type: "REDO" })}
               aria-label={
                 bin.canRedo
-                  ? `Redo ${bin.history.stack[bin.history.index + 1].label}`
+                  ? `Redo ${historyEntries[bin.history.index + 1].label}`
                   : "Redo"
               }
               data-testid="button-bin-redo"
@@ -1171,7 +1177,7 @@ function ViewToggle({
   onChange: (mode: BinViewMode) => void;
 }): JSX.Element {
   return (
-    <div className="absolute left-1/2 top-3 z-30 flex -translate-x-1/2 overflow-hidden rounded-md border bg-background/90 shadow-sm backdrop-blur">
+    <div className="absolute left-3 top-3 z-30 flex md:left-1/2 md:-translate-x-1/2 overflow-hidden rounded-md border bg-background/90 shadow-sm backdrop-blur">
       {(
         [
           { mode: "3d", label: "3D" },
@@ -1183,7 +1189,7 @@ function ViewToggle({
           variant="ghost"
           size="sm"
           className={cn(
-            "h-7 rounded-none px-3 text-xs",
+            "h-11 rounded-none px-3 text-xs md:h-7 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11",
             viewMode === mode && "bg-accent text-accent-foreground",
           )}
           onClick={() => onChange(mode)}

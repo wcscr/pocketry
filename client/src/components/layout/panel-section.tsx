@@ -1,6 +1,6 @@
 import { ChevronDown } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import type { ReactNode } from "react";
+import { createContext, useContext, type ReactNode } from "react";
 
 import {
   Collapsible,
@@ -8,6 +8,9 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
+
+/** A focused mobile form can reuse an existing section without mounting unrelated fields. */
+export const PanelSectionFilterContext = createContext<string | null>(null);
 
 export interface PanelSectionProps {
   /** Header label. Truncates rather than wrapping in a narrow panel. */
@@ -113,6 +116,8 @@ export function PanelSection({
   tone,
   attention = false,
 }: PanelSectionProps): JSX.Element {
+  const visibleSection = useContext(PanelSectionFilterContext);
+  if (visibleSection && id !== visibleSection) return <></>;
   const toneStyles = tone ? TONE_STYLES[tone] : null;
   return (
     <Collapsible
@@ -276,7 +281,7 @@ export function PanelSettingsIndex({
   return (
     <nav
       aria-label={ariaLabel}
-      className="z-20 shrink-0 border-b bg-background/95 px-3 py-2 backdrop-blur"
+      className="z-20 shrink-0 border-b bg-background/95 px-3 py-2 backdrop-blur [@media(max-height:500px)]:hidden"
       data-testid={`${testIdPrefix}-settings-index`}
     >
       <div className="mb-1.5">
@@ -307,7 +312,7 @@ export function PanelSettingsIndex({
                 aria-hidden
                 className={cn("h-1.5 w-1.5 shrink-0 rounded-full", styles.marker)}
               />
-              <span className="whitespace-normal text-left leading-tight">{item.label}</span>
+              <span className="min-w-0 whitespace-normal break-words text-left leading-tight">{item.label}</span>
             </button>
           );
         })}
@@ -329,7 +334,7 @@ export function PanelBody({ children, className }: PanelSlotProps): JSX.Element 
   // min-h-0 for the same reason as in AppShell: without it this flex item will
   // not shrink below its content, and the scrollbar never appears.
   return (
-    <div className={cn("min-h-0 flex-1 overflow-y-auto", className)}>
+    <div className={cn("min-h-0 flex-1 overflow-y-auto overscroll-contain", className)}>
       {children}
     </div>
   );

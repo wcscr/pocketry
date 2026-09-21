@@ -10,6 +10,7 @@ import type { Outline, Point } from "@shared/geometry/types";
 import { LID_PREVIEW_LIFT_MM } from "@shared/gridfinity/magnetic-lid";
 
 import { Button } from "@/components/ui/button";
+import { canHandleCanvasShortcut } from "@/lib/canvas-keyboard";
 import { useElementSize } from "@/hooks/use-element-size";
 import { fitDistanceMm, type FitSize } from "@/lib/gridfinity/camera-fit";
 import {
@@ -246,6 +247,7 @@ export function BinViewport({
   useEffect(() => {
     if (!rulerActive) return;
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (!canHandleCanvasShortcut(event)) return;
       if (event.key === "Escape") {
         setRulerActive(false);
         setMeasurementPoints([]);
@@ -343,14 +345,14 @@ export function BinViewport({
       )}
 
       <div
-        className="absolute right-3 top-12 z-30 flex flex-col overflow-hidden rounded-md border bg-background/90 shadow-sm backdrop-blur"
+        className="absolute right-3 top-16 md:top-12 [@media(pointer:coarse)]:top-16 z-30 flex flex-col overflow-hidden rounded-md border bg-background/90 shadow-sm backdrop-blur"
         data-testid="bin-3d-tool-toolbar"
       >
         <Button
           variant="ghost"
           size="icon"
           className={cn(
-            "h-9 w-9 rounded-none",
+            "h-9 w-9 rounded-none [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11",
             rulerActive && "bg-accent text-accent-foreground",
           )}
           disabled={measurementOutlines.length === 0}
@@ -374,7 +376,7 @@ export function BinViewport({
           <Button
             variant="ghost"
             size="icon"
-            className="h-9 w-9 rounded-none border-t"
+            className="h-9 w-9 rounded-none [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11 border-t"
             aria-label="Clear measurement"
             title="Clear measurement"
             onClick={() => setMeasurementPoints([])}
@@ -387,7 +389,7 @@ export function BinViewport({
 
       {rulerActive ? (
         <div
-          className="pointer-events-none absolute right-14 top-12 z-20 max-w-60 rounded-md border bg-background/90 px-2.5 py-1.5 text-xs font-medium shadow-sm backdrop-blur"
+          className="pointer-events-none absolute right-14 top-12 [@media(pointer:coarse)]:right-16 [@media(pointer:coarse)]:top-16 z-20 max-w-60 rounded-md border bg-background/90 px-2.5 py-1.5 text-xs font-medium shadow-sm backdrop-blur"
           role="status"
           data-testid="bin-3d-ruler-status"
         >

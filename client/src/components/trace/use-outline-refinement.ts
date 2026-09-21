@@ -48,6 +48,7 @@ export function useOutlineRefinement(
     margin,
     calibration,
     imageRotation,
+    sourceRevision,
     history,
     dispatch,
   } = useTrace();
@@ -56,6 +57,7 @@ export function useOutlineRefinement(
   const previousDetectionSignature = useRef(detectionSignature);
   const previousScaleMmPerPx = useRef(scaleMmPerPx);
   const previousImageRotation = useRef(imageRotation);
+  const previousSourceRevision = useRef(sourceRevision);
   const entry = history.stack[history.index];
 
   useEffect(() => {
@@ -64,9 +66,15 @@ export function useOutlineRefinement(
     const previousMmPerPx = previousScaleMmPerPx.current;
     const scaleChanged = previousMmPerPx !== scaleMmPerPx;
     const imageRotated = previousImageRotation.current !== imageRotation;
+    const sourceReplaced = previousSourceRevision.current !== sourceRevision;
     previousDetectionSignature.current = detectionSignature;
     previousScaleMmPerPx.current = scaleMmPerPx;
     previousImageRotation.current = imageRotation;
+    previousSourceRevision.current = sourceRevision;
+
+    // Loading/recovering a source restores its contour and controls atomically.
+    // The saved outline already includes its margin and simplification.
+    if (sourceReplaced) return;
 
     // ROTATE_SOURCE already transforms the margin-bearing edited outline and
     // its calibration into the new pixel scale atomically. Applying the usual
@@ -129,6 +137,7 @@ export function useOutlineRefinement(
     detectionSignature,
     scaleMmPerPx,
     imageRotation,
+    sourceRevision,
     dispatch,
     entry,
     refineOutline,

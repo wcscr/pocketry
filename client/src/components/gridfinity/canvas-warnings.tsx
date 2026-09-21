@@ -24,27 +24,29 @@ export function CanvasWarnings({ issues, selectedCutoutId, selectedFingerHoleId,
   const orderedIssues = [...issues].sort((a, b) => Number(b.severity === "error") - Number(a.severity === "error"));
 
   return (
-    // Leave the canvas gesture hint visible beneath the warning panel.
+    // Expanded details leave room for guidance; the collapsed phone icon sits at the bottom.
     <section
       className={cn(
         "absolute bottom-12 right-3 z-30 flex max-h-[min(50%,22rem)] max-w-[calc(100%_-_1.5rem)] flex-col overflow-hidden rounded-lg border bg-background/95 shadow-md backdrop-blur",
-        expanded ? "w-80" : "w-auto motion-safe:animate-warning-attention",
+        expanded ? "w-80" : "w-auto motion-safe:animate-warning-attention max-md:bottom-2 max-md:right-2",
         errors > 0 ? "border-destructive/40 [--warning-pulse-color:239_68_68]" : "border-amber-500/40 [--warning-pulse-color:245_158_11]",
       )}
       aria-label="Model warnings and errors"
       data-testid="canvas-warnings"
+      data-collapsed={!expanded}
     >
       <button
         type="button"
-        className="flex min-h-10 shrink-0 items-center gap-2 px-3 py-2 text-left text-xs font-medium hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+        className={cn("flex min-h-10 shrink-0 items-center gap-2 px-3 py-2 text-left text-xs font-medium hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+          !expanded && "max-md:h-11 max-md:w-11 max-md:justify-center max-md:p-0")}
         aria-label={`${expanded ? "Collapse" : "Expand"} ${summary}`}
         aria-expanded={expanded}
         aria-controls="canvas-warning-list"
         onClick={() => setExpanded(!expanded)}
       >
-        {errors > 0 ? <CircleAlert className="h-4 w-4 shrink-0 text-destructive" /> : <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />}
-        <span className="flex-1" role="status" aria-live="polite" aria-atomic="true">{summary}</span>
-        <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 transition-transform motion-reduce:transition-none", !expanded && "rotate-180")} />
+        {errors > 0 ? <CircleAlert className="h-4 w-4 shrink-0 text-destructive" aria-hidden /> : <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden />}
+        <span className={cn("flex-1", !expanded && "max-md:sr-only")} role="status" aria-live="polite" aria-atomic="true">{summary}</span>
+        <ChevronDown aria-hidden className={cn("h-3.5 w-3.5 shrink-0 transition-transform motion-reduce:transition-none", !expanded && "rotate-180 max-md:hidden")} />
       </button>
       {expanded && (
         <div id="canvas-warning-list" className="min-h-0 space-y-1 overflow-y-auto overscroll-contain border-t p-2">

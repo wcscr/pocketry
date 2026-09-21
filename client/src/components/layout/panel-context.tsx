@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
 /**
  * Whether the controls panel is open.
@@ -12,23 +12,38 @@ interface PanelState {
   panelOpen: boolean;
   setPanelOpen: (open: boolean) => void;
   togglePanel: () => void;
+  traceRestart: (() => void) | null;
+  registerTraceRestart: (action: (() => void) | null) => void;
 }
 
 const PanelContext = createContext<PanelState | null>(null);
 
 export function PanelProvider({ children }: { children: ReactNode }): JSX.Element {
-  const [panelOpen, setPanelOpen] = useState(true);
+  const [panelOpen, setPanelOpen] = useState(() => !window.matchMedia?.("(max-width: 767px)").matches);
+  const [traceRestart, setTraceRestart] = useState<(() => void) | null>(null);
+  const registerTraceRestart = useCallback((action: (() => void) | null) => setTraceRestart(() => action), []);
 
   const value = useMemo<PanelState>(
     () => ({
       panelOpen,
       setPanelOpen,
       togglePanel: () => setPanelOpen((open) => !open),
+      traceRestart,
+      registerTraceRestart,
     }),
-    [panelOpen],
+    [panelOpen, traceRestart, registerTraceRestart],
   );
 
   return <PanelContext.Provider value={value}>{children}</PanelContext.Provider>;
+}
+
+/** The active mobile trace owns its confirmation and cancels pending work on reset. */
+export function useTraceRestartAction(action: (() => void) | null): void {
+  const register = useContext(PanelContext)?.registerTraceRestart;
+  useEffect(() => {
+    register?.(action);
+    return () => register?.(null);
+  }, [action, register]);
 }
 
 export function usePanelState(): PanelState {

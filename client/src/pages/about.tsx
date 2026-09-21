@@ -158,6 +158,18 @@ export default function About(): JSX.Element {
             <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
               About Pocketry
             </h1>
+            <p className="text-sm text-muted-foreground">
+              Pocketry is developed by{" "}
+              <a
+                href="https://sugarcreekresearch.com"
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-sm underline underline-offset-4 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                Sugarcreek Research, LLC
+              </a>
+              .
+            </p>
             <a
               href="/LICENSE.txt"
               target="_blank"
@@ -247,6 +259,26 @@ export default function About(): JSX.Element {
           </Card>
         </section>
 
+        <p className="flex items-center justify-center gap-2 text-center text-sm leading-6 text-muted-foreground">
+          <span>Pocketry was developed using OpenAI Codex.</span>
+          <a
+            href="https://openai.com/index/gpt-6-astra/"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Read OpenAI's GPT-6 Astra announcement (opens in a new tab)"
+            title="Read OpenAI's GPT-6 Astra announcement"
+            className="shrink-0 rounded-md transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            <img
+              src="/codex-logo.png"
+              alt=""
+              aria-hidden="true"
+              width={24}
+              height={24}
+              className="h-6 w-6"
+            />
+          </a>
+        </p>
 
         <section className="space-y-7" aria-labelledby="related-projects-heading">
           <div className="space-y-1">

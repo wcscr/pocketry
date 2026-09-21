@@ -19,13 +19,13 @@ import { binHistorySchema } from "./history";
  * the format *before* real user data exists) — bumping `schemaVersion` and
  * adding a migration in `parseProjectDoc` is the upgrade path when persisted
  * feature models change. Version 2 replaces the one-off scoop with typed,
- * per-finger-hole straight/scoop geometry; version 3 adds a per-pocket top
+ * straight/scoop geometry for each finger access feature; version 3 adds a per-pocket top
  * edge fillet; version 4 adds nonrectangular cell footprints and boundary-edge
  * label-tab anchors; version 5 adds straight-shaft deep finger scoops; version
  * 6 adds resizable, rotated oblong deep scoops; version 7 promotes finger
  * holes from pocket-relative children to independent, bin-local objects;
  * version 8 adds per-placement X/Y scale and an aspect-ratio-lock preference;
- * version 9 adds per-finger-hole top and bottom edge fillets; version 10 adds
+ * version 9 adds top and bottom edge fillets to finger access; version 10 adds
  * optional project names, fixed-size preference, and trace margin provenance.
  * Version 11 removes Lite Base; older projects use the ordinary Gridfinity base.
  * Version 12 adds an optional flat bottom, defaulting off for existing projects.
@@ -34,6 +34,8 @@ import { binHistorySchema } from "./history";
  * Version 15 adds optional corner rounding for flat-ended slots (absent is sharp).
  * Version 16 adds an optional boundary and two depths inside one tool pocket.
  * Version 17 preserves committed undo/redo history and its current position.
+ * On main, versions 18 and 19 added basic-shape pockets and independent pocket names.
+ * The lid preview branch developed the following versions in parallel.
  * Version 18 adds magnetic lids, defaulting off in designs and history entries.
  * Version 19 adds lid styles, stacking tops, independent closure magnets, and tunable fit.
  * Older lids remain inset with a flat top and plain closure recesses.
@@ -44,9 +46,10 @@ import { binHistorySchema } from "./history";
  * Version 24 adds contact-rib spacing, retaining the original 24 mm target.
  * Version 25 adds optional lid grip recesses, defaulting off in designs and history.
  * Version 26 migrates disabled spring interfaces to contact ribs, including undo/redo.
+ * Version 27 unifies both formats, preserving pockets, lids, and undo/redo history.
  */
 
-export const PROJECT_SCHEMA_VERSION = 26 as const;
+export const PROJECT_SCHEMA_VERSION = 27 as const;
 
 const projectFields = {
   shapes: z.array(tracedShapeSchema),
@@ -85,6 +88,15 @@ const version16ProjectSchema = z
     keepBinSize: z.boolean().optional(),
   })
   .strict();
+
+const version17ProjectSchema = version16ProjectSchema.extend({
+  schemaVersion: z.literal(17),
+  history: binHistorySchema.optional(),
+});
+
+const version18ProjectSchema = version17ProjectSchema.extend({
+  schemaVersion: z.literal(18),
+});
 
 /** History and the visible design must describe one consistent saved snapshot. */
 export const projectDocSchema = version16ProjectSchema.extend({
@@ -230,7 +242,7 @@ function parseVersionedProject(input: unknown): ProjectDoc | null {
     };
   }
   if (input && typeof input === "object" && !Array.isArray(input) &&
-      "schemaVersion" in input && (input.schemaVersion === 21 || input.schemaVersion === 22 || input.schemaVersion === 23 || input.schemaVersion === 24 || input.schemaVersion === 25)) {
+      "schemaVersion" in input && (input.schemaVersion === 21 || input.schemaVersion === 22 || input.schemaVersion === 23 || input.schemaVersion === 24 || input.schemaVersion === 25 || input.schemaVersion === 26)) {
     input = { ...input, schemaVersion: PROJECT_SCHEMA_VERSION };
   }
   const result = projectDocSchema.safeParse(input);
@@ -245,6 +257,16 @@ function parseVersionedProject(input: unknown): ProjectDoc | null {
       if (liteBase !== undefined && typeof liteBase !== "boolean") return null;
       input = { ...doc, spec };
     }
+  }
+  const version18 = version18ProjectSchema.safeParse(input);
+  if (version18.success) {
+    const migrated = projectDocSchema.safeParse({ ...version18.data, schemaVersion: PROJECT_SCHEMA_VERSION });
+    return migrated.success ? migrated.data : null;
+  }
+  const version17 = version17ProjectSchema.safeParse(input);
+  if (version17.success) {
+    const migrated = projectDocSchema.safeParse({ ...version17.data, schemaVersion: PROJECT_SCHEMA_VERSION });
+    return migrated.success ? migrated.data : null;
   }
   const version16 = version16ProjectSchema.safeParse(input);
   if (version16.success) return projectDocSchema.parse({ ...version16.data, schemaVersion: PROJECT_SCHEMA_VERSION });

@@ -11,6 +11,107 @@ adapts. Transitive dependencies are not enumerated here; their notices remain
 with their packages. Exact npm versions are recorded in package-lock.json.
 
 ================================================================================
+Pocketry P-bin icon — project-owned artwork
+================================================================================
+
+`client/public/favicon.ico`, `client/public/pocketry-icon.png`, and the icon
+images under `docs/branding/` were captured from Pocketry's own 3D bin
+renderer. The model is a one-cell, 3U-high Gridfinity bin with an original
+P-shaped pocket and an orange stacking lip; its editable source and rendering
+settings are preserved under `docs/branding/`. The P outline was drawn without a
+third-party font. These assets are distributed under Pocketry's
+AGPL-3.0-only licence. No generative image editing was used for these icons.
+
+================================================================================
+Pocketry X header — project promotional artwork
+================================================================================
+
+`docs/branding/pocketry-x-header.png` is an AI-edited composition based on
+Will Cobb's printed-bin photograph at `docs/images/printed-bin-loaded.jpg`.
+OpenAI's built-in ImageGen tool composed the bin photograph, charcoal
+background, and promotional text; macOS `sips` resampled the final image to
+1500 x 500 pixels. The prompts are recorded in
+`docs/branding/pocketry-x-header-prompts.md`. This artwork is distributed
+under Pocketry's AGPL-3.0-only licence; product names and marks retain their
+respective ownership.
+
+================================================================================
+README screenshots — project-owned documentation
+================================================================================
+
+`docs/images/trace-outline.jpg`, `docs/images/bin-layout.jpg`, and
+`docs/images/ruler-check.jpg` are unmodified copies of existing project
+screenshots, captured from Pocketry's Trace and Bin workspaces using the
+project's air-duster example photographs. These documentation images are
+distributed under Pocketry's AGPL-3.0-only licence.
+
+================================================================================
+Printed-bin photographs — contributor-supplied documentation
+================================================================================
+
+`docs/images/printed-bin-loaded.jpg` and `docs/images/printed-bin-pocket.jpg`
+are edited copies of `20260907_125211.jpg` and `20260907_125222.jpg`, respectively,
+supplied by Will Cobb for the public README. Exposure, white balance, and
+contrast cleanup used OpenAI's built-in ImageGen tool. The published JPEGs
+have embedded metadata removed; the supplied originals remain unchanged.
+These documentation images are distributed under Pocketry's AGPL-3.0-only
+licence; product names and marks visible in the photographs retain their
+respective ownership.
+
+================================================================================
+Sample projects and print photographs — contributor-supplied assets
+================================================================================
+
+The editable project JSONs, 3MF print models, and photographs under `samples/`
+were supplied by Will Cobb for this repository. `samples/source-files.json`
+records their source files and published hashes. The 3MF files are unmodified
+copies of the supplied print exports.
+
+The photographs in the sample directories' `photos/` folders are copies of the supplied
+originals, cropped, rotated, and resized with ordinary pixel-processing tools. Embedded
+metadata was removed. No generative image editing was used for these sample
+photographs; the supplied originals remain unchanged.
+
+These sample assets are distributed under Pocketry's AGPL-3.0-only licence.
+Product names and marks retain their respective ownership.
+
+================================================================================
+Bambu Studio screenshot — third-party interface
+================================================================================
+
+`docs/images/fit-check-slicer.jpg` was captured from the installed Bambu Studio
+application on macOS on September 17, 2026, displaying a tool-outline fit-check
+STL exported by Pocketry. Bambu Studio is distributed under the GNU Affero
+General Public License, version 3. Its interface and branding retain their
+respective rights.
+Source: https://github.com/bambulab/BambuStudio
+Licence: https://github.com/bambulab/BambuStudio/blob/master/LICENSE
+
+================================================================================
+Sugarcreek Research logo — project-owned artwork
+================================================================================
+
+Copyright (c) 2026 Sugarcreek Research, LLC.
+
+`client/public/sugarcreek-research-logo.png` is the unmodified
+`SimpleSugarcreekResearchLogo-Black on Transparent.png` supplied by Will Cobb
+for use beside the Pocketry title, linking to https://sugarcreekresearch.com.
+Permission: supplied by the owner for use in Pocketry's header branding.
+
+================================================================================
+Codex logo — OpenAI brand asset
+================================================================================
+
+`client/public/codex-logo.png` is the unmodified `icon-codex-dark-color.png`
+from OpenAI's desktop application. It identifies OpenAI Codex beside the
+development attribution on Pocketry's About page.
+
+The Codex name and logo belong to OpenAI. This brand asset is not covered by
+Pocketry's AGPL-3.0-only licence and does not imply OpenAI endorsement.
+Product: https://openai.com/codex/
+Brand guidelines: https://openai.com/brand/
+
+================================================================================
 manifold-3d — Apache License 2.0
 ================================================================================
 
@@ -45,10 +146,11 @@ Pocketry redistributes an OpenCV.js bundle at
 sources with the stock JS module whitelist (which includes the aruco API in
 `objdetect`) — see `scripts/build-opencv-js.sh`.
 
-Pocketry also pins a small amount of OpenCV-generated data: the eight custom
-4x4 marker patterns used by calibration-sheet v2
+Pocketry also pins a small amount of OpenCV-generated data: 28 custom
+4x4 marker patterns used by calibration-sheet v2 and the object measurement aids
 (`client/src/lib/calibrate/aruco-4x4.ts`). They are the deterministic output of
-OpenCV 4.11.0's `extendDictionary(8, 4)` and remain under the same Apache
+OpenCV 4.11.0's `extendDictionary(28, 4)` (preserving the original 8-, 16- and
+22-marker prefixes) and remain under the same Apache
 License 2.0 attribution.
 
 ================================================================================

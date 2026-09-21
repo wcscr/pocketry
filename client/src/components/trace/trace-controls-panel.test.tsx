@@ -25,6 +25,7 @@ const CALIBRATION: Calibration = {
 const applyPerspective = vi.fn();
 const rotateImage = vi.fn();
 const reprocess = vi.fn();
+const detectMarkers = vi.fn();
 let trace: TraceStore;
 
 class NoopResizeObserver implements ResizeObserver {
@@ -34,10 +35,12 @@ class NoopResizeObserver implements ResizeObserver {
 }
 
 function Harness(): JSX.Element {
+  const [active, setActive] = React.useState(true);
   trace = useTrace();
   const { dispatch } = trace;
   return (
     <>
+      <button data-testid="toggle-controls" onClick={() => setActive((value) => !value)}>{active ? "Hide controls" : "Show controls"}</button>
       <button
         data-testid="load-source"
         onClick={() => {
@@ -157,11 +160,12 @@ function Harness(): JSX.Element {
         Commit region
       </button>
       <TraceControlsPanel
+        active={active}
         onReplaceImage={() => {}}
         onRotateImage={rotateImage}
         onExport={() => {}}
         onReprocess={reprocess}
-        onDetectMarkers={() => {}}
+        onDetectMarkers={detectMarkers}
         onApplyPerspective={applyPerspective}
       />
     </>
@@ -210,7 +214,10 @@ afterEach(() => {
 
 async function click(testId: string): Promise<void> {
   await React.act(async () => {
-    host.querySelector<HTMLButtonElement>(`[data-testid="${testId}"]`)?.click();
+    const target = host.querySelector<HTMLButtonElement>(`[data-testid="${testId}"]`);
+    const advanced = target?.closest("details");
+    if (advanced && !advanced.open) advanced.querySelector("summary")?.click();
+    target?.click();
     await new Promise((resolve) => window.setTimeout(resolve, 10));
   });
 }
@@ -230,9 +237,9 @@ async function changeNumber(id: string, value: string): Promise<void> {
   });
 }
 
-async function blurNumber(id: string): Promise<void> {
+async function confirmNumber(id: string): Promise<void> {
   await React.act(async () => {
-    host.querySelector<HTMLInputElement>(`#${id}`)?.blur();
+    host.querySelector<HTMLInputElement>(`#${id}`)?.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
     await new Promise((resolve) => window.setTimeout(resolve, 10));
   });
 }
@@ -256,6 +263,80 @@ async function clickSection(id: string): Promise<void> {
 }
 
 describe("TraceControlsPanel guided workflow", () => {
+  it("opens measurement-aid downloads from the hint and keeps them open after hover ends", async () => {
+    await click("load-source");
+    await click("detect-auto-scale");
+    const hint = [...host.querySelectorAll("button")].find(
+      (button) => button.textContent === "Accuracy with thick objects",
+    )!;
+    await React.act(async () => hint.click());
+    const link = [...document.querySelectorAll("button")].find(
+      (button) => button.textContent === "Download measurement aids",
+    )!;
+    expect(link).toBeDefined();
+    await React.act(async () => link.click());
+    const dialog = document.querySelector('[role="dialog"]');
+    expect(dialog?.textContent).toContain("3D printable measurement aids");
+    expect(dialog?.textContent).toContain("Two-colour 3MF");
+    expect(dialog?.textContent).not.toContain("STL");
+    await React.act(async () => {
+      hint.dispatchEvent(new MouseEvent("pointerleave", { bubbles: true }));
+      await new Promise((resolve) => window.setTimeout(resolve, 300));
+    });
+    expect(document.querySelector('[role="dialog"]')).toBe(dialog);
+  });
+
+  it("shares one explicitly accessible thickness hint below all automatic options", async () => {
+    await click("load-source");
+    expect(host.textContent).not.toContain("Accuracy with thick objects");
+    await click("detect-auto-perspective");
+    const primary = host.querySelector('[data-testid="button-apply-auto-perspective"]');
+    expect(document.activeElement).toBe(primary);
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+
+    const hints = [...host.querySelectorAll("button")].filter(
+      (button) => button.textContent === "Accuracy with thick objects",
+    );
+    expect(hints).toHaveLength(1);
+    const hint = hints[0];
+    const options = host.querySelector('[data-testid="auto-calibration-options"]')!;
+    expect(options.contains(hint)).toBe(true);
+    expect(options.querySelectorAll("button").item(options.querySelectorAll("button").length - 1)).toBe(hint);
+    expect(options.contains(host.querySelector('[data-testid="button-set-scale"]'))).toBe(true);
+    expect(hint.querySelector("svg")?.classList.contains("lucide-circle-alert")).toBe(true);
+    expect(hint.className).toContain("text-amber-");
+
+    await React.act(async () => hint.focus());
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    await React.act(async () => hint.click());
+    const tooltip = document.querySelector('[role="dialog"]');
+    expect(tooltip?.textContent).toContain("closer to the camera");
+    expect(tooltip?.textContent).toContain("set scale manually");
+    expect(tooltip?.textContent).toContain("measurement aid at the feature’s height");
+    expect(host.contains(tooltip)).toBe(false);
+
+    await React.act(async () => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    });
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    await click("button-accept-auto-scale");
+    expect(trace.calibration).toEqual(CALIBRATION);
+    expect(document.activeElement).toBe(sectionTrigger("crop"));
+  });
+
+  it("keeps detection retry in Scale after choosing manual placement", async () => {
+    await click("load-source");
+    await click("detect-auto-scale");
+    await click("button-set-scale");
+    expect(host.textContent).toContain("Set scale manually:");
+    expect(host.textContent).not.toContain("Auto Calibration Unsuccessful");
+    const retry = host.querySelector<HTMLButtonElement>('[data-testid="button-detect-markers"]')!;
+    expect(retry.closest("details")?.dataset.testid).toBe("manual-calibration-advanced");
+    await React.act(async () => retry.click());
+    expect(detectMarkers).toHaveBeenCalledOnce();
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+  });
+
   it("collapses every section, opens Scale, and pulses its action after source load", async () => {
     expect(host.textContent).toContain("Choose or drop an image");
     expect(host.querySelector('[data-testid="button-source-image"]')).toBeNull();
@@ -301,7 +382,7 @@ describe("TraceControlsPanel guided workflow", () => {
     ).toBe("Placing ruler");
     expect(
       host.querySelector('[data-testid="manual-scale-guidance"]')?.textContent,
-    ).toContain("Auto Calibration Unsuccessful:");
+    ).toContain("Set scale manually:");
     expect(
       host.querySelector('[data-testid="manual-scale-guidance"]')?.textContent,
     ).toContain("Select two points on the image that are a known distance apart");
@@ -309,28 +390,10 @@ describe("TraceControlsPanel guided workflow", () => {
       host.querySelector('[data-testid="manual-scale-guidance"]')?.textContent,
     ).toContain("Zoom in first for more precise placement");
 
-    expect(host.textContent).toContain("Calibration sheet options");
-    expect(host.textContent).not.toContain("Print the current v2 sheet once");
+    expect(host.textContent).toContain("Download printable calibration templates");
+    expect(host.textContent).not.toContain("Paper sheets and");
+    expect(host.querySelector('[aria-label="Download a measurement aid as 3MF"]')).toBeNull();
 
-    await click("button-calibration-sheet-options");
-    expect(document.body.textContent).toContain(
-      "Current sheets remain the stable default",
-    );
-    expect(
-      document.body.querySelector('[data-testid="button-template-letter"]'),
-    ).not.toBeNull();
-    const experimental = document.body.querySelector<HTMLButtonElement>(
-      '[data-testid="button-template-a4-experimental"]',
-    );
-    expect(experimental).not.toBeNull();
-    await React.act(async () => {
-      experimental?.click();
-      await new Promise((resolve) => window.setTimeout(resolve, 10));
-    });
-    expect(downloadBlob).toHaveBeenLastCalledWith(
-      expect.any(Blob),
-      "pocketry-calibration-v2-a4-experimental.pdf",
-    );
   });
 
   it("offers clockwise and counterclockwise rotation for a loaded source", async () => {
@@ -351,7 +414,8 @@ describe("TraceControlsPanel guided workflow", () => {
 
     expect(section("scale")?.dataset.state).toBe("open");
     expect(host.textContent).toContain("Scale detected from the sheet");
-    expect(host.textContent).toContain("0.500 mm/px");
+    expect(host.textContent).not.toContain("0.500 mm/px");
+    expect([...host.querySelectorAll("button")].filter((button) => button.textContent === "Accuracy with thick objects")).toHaveLength(1);
     const accept = host.querySelector<HTMLButtonElement>(
       '[data-testid="button-accept-auto-scale"]',
     );
@@ -373,6 +437,97 @@ describe("TraceControlsPanel guided workflow", () => {
     );
   });
 
+  it("reviews and accepts object-height scale without offering paper correction", async () => {
+    await click("load-source");
+    await React.act(async () => {
+      trace.dispatch({ type: "AUTO_CALIBRATION_DETECTED", sourceImageUrl: "data:image/png;base64,new-source", calibration: { ...CALIBRATION, lengthMm: 80 }, source: "strip" });
+    });
+    expect(host.textContent).toContain("Scale detected from the reference strip");
+    expect(host.textContent).not.toContain("80 mm apart on the 100 mm strip");
+    expect(host.querySelector('[data-testid="reference-length-setting"]')).toBeNull();
+    expect(host.querySelector('[data-testid="button-select-perspective-points"]')).toBeNull();
+    expect(host.querySelector('[data-testid="button-apply-auto-perspective"]')).toBeNull();
+    await click("button-accept-auto-scale");
+    expect(trace.calibrationSource).toBe("strip");
+    await clickSection("scale");
+    expect(host.textContent).toContain("Reference-strip scale accepted");
+
+  });
+
+  it.each(["strip", "sheet", "combined"] as const)("lets the user choose %s when paper and an aid are both usable", async (choice) => {
+    await click("load-source");
+    const aid = { ...CALIBRATION, lengthMm: 85 };
+    const paper = { ...CALIBRATION, endX: 500, lengthMm: 250 };
+    const perspective = { source: "template" as const, paper: "letter" as const,
+      points: [{ x: 10, y: 10 }, { x: 790, y: 10 }, { x: 790, y: 590 }, { x: 10, y: 590 }] as [{ x: number; y: number }, { x: number; y: number }, { x: number; y: number }, { x: number; y: number }] };
+    await React.act(async () => trace.dispatch({ type: "AUTO_CALIBRATION_DETECTED", sourceImageUrl: "data:image/png;base64,new-source",
+      source: "strip", calibration: aid, paperCalibration: paper, perspective }));
+    expect(host.textContent).toContain("Paper and measurement aid detected");
+    expect(host.textContent).toContain("Use paper scale only");
+    expect(document.activeElement?.getAttribute("data-testid")).toBe("button-correct-perspective-aid-scale");
+    expect(trace.calibration).toBeNull();
+    const advanced = host.querySelector<HTMLDetailsElement>('[data-testid="advanced-calibration-options"]')!;
+    expect(advanced.open).toBe(false);
+    const recommended = host.querySelector('[data-testid="button-correct-perspective-aid-scale"]')!;
+    expect(recommended.nextElementSibling?.getAttribute("data-testid")).toBe("button-set-scale");
+    expect(recommended.nextElementSibling?.textContent).toBe("Set manually instead");
+    expect(host.querySelector('[data-testid="button-use-aid-scale"]')?.closest("details")).toBe(advanced);
+    expect(host.querySelector('[data-testid="button-apply-auto-perspective"]')?.closest("details")).toBe(advanced);
+    expect(host.textContent).not.toContain("The ruler joins the marker centres");
+    if (choice === "combined") {
+      await click("button-correct-perspective-aid-scale");
+      expect(applyPerspective).toHaveBeenLastCalledWith(perspective, "letter", aid);
+      await React.act(async () => trace.dispatch({ type: "PERSPECTIVE_APPLIED", sourceImageUrl: "data:image/png;base64,new-source",
+        imageUrl: "corrected", imageSize: { width: 865, height: 1119 }, calibration: aid,
+        calibrationSource: "strip", source: "template", paper: "letter" }));
+      await clickSection("scale");
+      expect(host.querySelector('[data-testid="button-restore-perspective-source"]')).not.toBeNull();
+    } else {
+      await click(choice === "strip" ? "button-use-aid-scale" : "button-accept-auto-scale");
+      expect(trace.calibrationSource).toBe(choice);
+      expect(trace.calibration).toEqual(choice === "strip" ? aid : paper);
+      expect(trace.pendingPaperCalibration).toBeNull();
+    }
+  });
+
+  it("defers guided focus until collapsed controls are opened", async () => {
+    const toggle = host.querySelector<HTMLButtonElement>('[data-testid="toggle-controls"]')!;
+    toggle.focus();
+    await click("toggle-controls");
+    await click("load-source");
+    await click("detect-auto-perspective");
+    expect(document.activeElement).toBe(toggle);
+    await click("toggle-controls");
+    expect(document.activeElement).toBe(host.querySelector('[data-testid="button-apply-auto-perspective"]'));
+  });
+
+  it("requires confirmation before restoring a photo clears the edited trace", async () => {
+    await click("load-source");
+    await React.act(async () => {
+      trace.dispatch({ type: "PERSPECTIVE_APPLIED", sourceImageUrl: trace.imageUrl!, imageUrl: "corrected",
+        imageSize: { width: 865, height: 1119 }, calibration: CALIBRATION, source: "template", paper: "letter" });
+      trace.dispatch({ type: "SET_REGION", region: { x: 10, y: 20, width: 300, height: 200 } });
+      trace.dispatch({ type: "OUTLINE_COMMITTED", label: "Move contour node", outline: [{ outer: [
+        { x: 10, y: 10 }, { x: 100, y: 10 }, { x: 100, y: 100 }, { x: 10, y: 100 },
+      ], holes: [] }] });
+    });
+    await clickSection("scale");
+    const before = { imageUrl: trace.imageUrl, outline: trace.outline, region: trace.region, calibration: trace.calibration, history: trace.history };
+    await click("button-restore-perspective-source");
+    expect(document.querySelector('[role="alertdialog"]')?.textContent).toContain("You cannot undo this reset");
+    const dialogButton = (label: string) => [...document.querySelectorAll<HTMLButtonElement>('[role="alertdialog"] button')].find((button) => button.textContent === label)!;
+    await React.act(async () => dialogButton("Keep working").click());
+    expect({ imageUrl: trace.imageUrl, outline: trace.outline, region: trace.region, calibration: trace.calibration, history: trace.history }).toEqual(before);
+    expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+    await click("button-restore-perspective-source");
+    await React.act(async () => dialogButton("Restore and clear trace").click());
+    expect(trace.imageUrl).toBe("data:image/png;base64,new-source");
+    expect(trace.outline).toEqual([]);
+    expect(trace.region).toBeNull();
+    expect(trace.calibration).toBeNull();
+    expect(trace.history.index).toBe(0);
+  });
+
   it("offers automatic and manual perspective correction paths", async () => {
     await click("load-source");
     await click("detect-auto-perspective");
@@ -383,33 +538,33 @@ describe("TraceControlsPanel guided workflow", () => {
     expect(automaticCorrection).not.toBeNull();
     expect(automaticCorrection?.disabled).toBe(false);
     expect(automaticCorrection?.className).toContain("whitespace-normal");
-    expect(automaticCorrection?.className).toContain("min-h-9");
-    expect(automaticCorrection?.className).toContain(
-      "text-[clamp(0.75rem,4cqw,0.875rem)]",
-    );
+    expect(automaticCorrection?.className).toContain("min-h-11");
+
     expect(
       host.querySelector('[data-testid="trace-settings-index"]')?.parentElement
         ?.className,
     ).toContain("[container-type:inline-size]");
-    expect(section("scale")?.textContent).toContain(
+    expect(section("scale")?.textContent).not.toContain(
       "US Letter template detected automatically",
     );
     await click("button-apply-auto-perspective");
     expect(applyPerspective).toHaveBeenLastCalledWith(
       expect.objectContaining({ source: "template" }),
       "letter",
+      true,
     );
 
-    await click("link-print-template-letter");
-    expect(downloadBlob).toHaveBeenLastCalledWith(
-      expect.any(Blob),
-      "pocketry-calibration-v2-letter.pdf",
-    );
-    const downloadedPdf = vi.mocked(downloadBlob).mock.calls.at(-1)![0];
-    expect(downloadedPdf.type).toBe("application/pdf");
-    expect(
-      new TextDecoder().decode(await downloadedPdf.arrayBuffer()).startsWith("%PDF-1.4"),
-    ).toBe(true);
+    await click("button-set-scale");
+    await React.act(async () => {
+      [...host.querySelectorAll("button")].find((button) => button.textContent === "Download printable calibration templates")!.click();
+    });
+    await React.act(async () => {
+      document.querySelector<HTMLButtonElement>('[data-testid="button-template-letter-experimental"]')!.click();
+    });
+    expect(downloadBlob).toHaveBeenLastCalledWith(expect.any(Blob), "pocketry-calibration-v2-letter-experimental.pdf");
+    await React.act(async () => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    });
     await click("button-select-perspective-points");
     expect(host.textContent).toContain("corner 1 of 4");
     await click("complete-perspective-points");
@@ -419,13 +574,63 @@ describe("TraceControlsPanel guided workflow", () => {
       expect.objectContaining({ source: "manual" }),
       "letter",
     );
+    await click("button-correct-manual-perspective-only");
+    expect(applyPerspective).toHaveBeenLastCalledWith(
+      expect.objectContaining({ source: "manual" }),
+      "letter",
+      false,
+    );
+  });
+
+  it("continues perspective-only correction into manual scaling before enabling Region", async () => {
+    await click("load-source");
+    await click("detect-auto-experimental-perspective");
+    applyPerspective.mockImplementation((proposal, template, usePaperScale) => {
+      trace.dispatch({
+        type: "PERSPECTIVE_APPLIED",
+        sourceImageUrl: trace.imageUrl!,
+        imageUrl: "data:image/png;base64,corrected",
+        imageSize: { width: 841, height: 1189 },
+        calibration: usePaperScale === false ? null : CALIBRATION,
+        source: proposal.source,
+        paper: "a4",
+        template,
+      });
+    });
+    await click("button-correct-auto-perspective-only");
+
+    expect(applyPerspective).toHaveBeenLastCalledWith(
+      expect.objectContaining({ source: "template", template: "a4-experimental" }),
+      "a4-experimental",
+      false,
+    );
+    expect(trace.mode).toBe("calibrate");
+    expect(trace.calibration).toBeNull();
+    expect(trace.pendingAutoCalibration).toBeNull();
+    expect(section("scale")?.dataset.state).toBe("open");
+    expect(sectionTrigger("crop")?.disabled).toBe(true);
+    expect(host.querySelector('[data-testid="manual-scale-guidance"]')?.textContent).toContain("Set scale manually:");
+    expect(host.querySelector('[data-testid="button-set-scale"]')?.textContent).toBe("Placing ruler");
+    expect(document.activeElement).toBe(host.querySelector('[data-testid="button-set-scale"]'));
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+
+    await click("complete-manual-scale");
+    expect(document.activeElement).toBe(host.querySelector("#ruler-length"));
+    expect(sectionTrigger("crop")?.disabled).toBe(true);
+    await changeNumber("ruler-length", "182");
+    await confirmNumber("ruler-length");
+
+    expect(trace.calibrationSource).toBe("manual");
+    expect(trace.calibration?.lengthMm).toBe(182);
+    expect(section("crop")?.dataset.state).toBe("open");
+    expect(trace.perspectiveCorrection?.template).toBe("a4-experimental");
   });
 
   it("keeps an experimental sheet variant through perspective correction", async () => {
     await click("load-source");
     await click("detect-auto-experimental-perspective");
 
-    expect(section("scale")?.textContent).toContain(
+    expect(section("scale")?.textContent).not.toContain(
       "A4 experimental template detected automatically",
     );
     await click("button-apply-auto-perspective");
@@ -435,6 +640,7 @@ describe("TraceControlsPanel guided workflow", () => {
         template: "a4-experimental",
       }),
       "a4-experimental",
+      true,
     );
   });
 
@@ -459,7 +665,7 @@ describe("TraceControlsPanel guided workflow", () => {
     expect(section("scale")?.dataset.state).toBe("open");
     expect(sectionTrigger("crop")?.disabled).toBe(true);
 
-    await blurNumber("ruler-length");
+    await confirmNumber("ruler-length");
     expect(section("scale")?.dataset.state).toBe("closed");
     expect(section("crop")?.dataset.state).toBe("open");
     expect(section("detect")?.dataset.state).toBe("closed");
@@ -500,7 +706,9 @@ describe("TraceControlsPanel guided workflow", () => {
       host.querySelector('[data-testid="detection-tuning-guidance"]')
         ?.textContent,
     ).toContain("Reflections are usually not holes");
-    expect(host.querySelector('[data-testid="contour-editing-guidance"]')?.textContent).toContain("Detail and Smoothing preserve your edits");
+    expect(host.querySelector('[data-testid="contour-editing-guidance"]')?.textContent).toContain("Simplification adjusts your edited contour");
+    expect(section("detect")?.querySelector("#smoothing")).toBeNull();
+    expect(section("detect")?.textContent).not.toContain("Smoothing");
     expect(host.querySelector('#include-interior-holes')?.getAttribute("aria-checked")).toBe("false");
     expect(host.textContent).toContain("No contours yet");
     expect(
@@ -509,7 +717,7 @@ describe("TraceControlsPanel guided workflow", () => {
     expect(section("contours")).toBeNull();
     expect(
       section("detect")?.querySelector<HTMLButtonElement>("#margin")?.textContent,
-    ).toContain("0.5 mm");
+    ).toContain("0.0 mm");
     expect(section("detect")?.textContent).not.toContain(
       "Bin clearance is added on top",
     );
@@ -546,8 +754,7 @@ describe("TraceControlsPanel guided workflow", () => {
     expect(redraw?.textContent).toBe("Redraw ruler");
 
     // A real pointer click transfers focus before `click`, so the input's blur
-    // fires first. The redraw intent must suppress that stale scale commit or
-    // the guided workflow advances and remounts the button mid-interaction.
+    // fires first. Draft typing must not silently accept scale on blur.
     await React.act(async () => {
       const pointerDown = new MouseEvent("pointerdown", {
         bubbles: true,
@@ -578,7 +785,7 @@ describe("TraceControlsPanel guided workflow", () => {
     await click("load-source");
     await click("complete-manual-scale");
     await changeNumber("ruler-length", "50");
-    await blurNumber("ruler-length");
+    await confirmNumber("ruler-length");
 
     expect(section("scale")?.textContent).toContain("0.500 mm/px");
     await React.act(async () => {
@@ -586,6 +793,8 @@ describe("TraceControlsPanel guided workflow", () => {
       await new Promise((resolve) => window.setTimeout(resolve, 10));
     });
     await changeNumber("ruler-length", "200");
+    expect(trace.calibration?.lengthMm).toBe(50);
+    await confirmNumber("ruler-length");
     expect(section("scale")?.textContent).toContain("2.000 mm/px");
     expect(section("scale")?.textContent).toContain("2 mm/px (0.5 px/mm)");
   });
@@ -679,4 +888,19 @@ describe("automatic sensitivity detection", () => {
     expect(reprocess).toHaveBeenCalledExactlyOnceWith({ sensitivity: 128, includeInteriorHoles: true });
     expect(trace.includeInteriorHoles).toBe(true);
   });
+});
+
+
+it("blocks physical Save after Clear scale while keeping pixel SVG reachable", async () => {
+  await prepareOutline();
+  await React.act(async () => {
+    trace.dispatch({ type: "SET_EXPORT_FORMAT", exportFormat: "stl" });
+    trace.dispatch({ type: "SET_CALIBRATION", calibration: null });
+  });
+  const save = (name: string) => Array.from(host.querySelectorAll("button")).find(button => button.textContent?.trim() === name)!;
+  expect(save("Save STL").disabled).toBe(true);
+  expect(sectionTrigger("output")?.disabled).toBe(false);
+  expect(host.textContent).toContain("Set scale for STL, DXF or DWG");
+  await React.act(async () => trace.dispatch({ type: "SET_EXPORT_FORMAT", exportFormat: "svg" }));
+  expect(save("Save SVG (pixels)").disabled).toBe(false);
 });

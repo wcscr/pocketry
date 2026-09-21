@@ -273,7 +273,10 @@ dimensions or physical qualification for Pocketry.
   quarter pitch, with the minimum width and length calculated from wall thickness
   and support size (27 mm at the default; 35 mm at 4 mm walls). Minimum bin height is 2u.
 
-Project schema v26 replaces disabled Side springs and Spring latch selections with
+Project schema v27 combines the lid preview format with main’s basic-shape pockets
+and independent pocket names. It accepts main’s v18/v19 projects and earlier lid
+projects through v26, preserving visible designs and undo/redo history.
+Version 26 replaces disabled Side springs and Spring latch selections with
 Contact ribs in loaded designs and all saved history. Version 25 added the Grip
 recess preference (default off in older designs and every undo history entry).
 The format also stores rib spacing and the interface as well as shared magnet size, wall

@@ -472,7 +472,7 @@ interface ArrangeItem {
 
 /**
  * The measured footprint of one tool pocket at rotation 0 (mirror kept).
- * Independent finger holes are deliberately not moved by auto-arrange.
+ * Independent finger access features are deliberately not moved by auto-arrange.
  */
 function arrangeItem(
   cutout: CutoutPlacement,

@@ -16,6 +16,7 @@ import {
   effectiveFingerHoleDepthMm,
   fingerHoleFootprintRing,
   placementFootprint,
+  pocketName,
   pocketLayoutAllowanceMm,
   resolvePocketDepth,
   pocketDepths,
@@ -67,7 +68,7 @@ export interface ValidationIssue {
   message: string;
   /** Cutout(s) the issue is about, for per-cutout highlighting in the editor. */
   cutoutIds?: string[];
-  /** Independent finger-hole object(s) the issue is about. */
+  /** Independent finger access object(s) the issue is about. */
   fingerHoleIds?: string[];
 }
 
@@ -111,7 +112,7 @@ export function validatePocketFloorMaterials(
         severity: "warning",
         cutoutIds: [cutout.id],
         message:
-          `“${shape.name}”: Floor color may show on the underside. ` +
+          `“${pocketName(cutout, shape)}”: Floor color may show on the underside. ` +
           `The ${thicknessMm.toFixed(2)} mm color layer reaches ${recess}. ` +
           `Reduce pocket depth, increase the remaining floor, or use a thinner color layer.`,
       });
@@ -275,7 +276,7 @@ interface PlacedCutout {
   cutout: CutoutPlacement;
   shape: TracedShape;
   outline: Outline;
-  /** Finger-hole and scoop rims — cut at exact size, no fit clearance. */
+  /** Finger access and scoop rims — cut at exact size, no fit clearance. */
   features: Ring[];
   /** Outline rings plus feature rings: everything this placement removes. */
   rings: Ring[];
@@ -323,12 +324,12 @@ export function validateLayout(
       });
       continue;
     }
-    if (shape.sourceMmPerPx === null) {
+    if (shape.sourceMmPerPx === null && shape.source !== "basic-shape") {
       issues.push({
         code: "uncalibrated-scale",
         severity: "error",
         message:
-          `“${shape.name}” was traced without a scale — its real size is unknown. ` +
+          `“${pocketName(cutout, shape)}” was traced without a scale — its real size is unknown. ` +
           `Re-trace with a calibration.`,
         cutoutIds: [cutout.id],
       });
@@ -357,7 +358,7 @@ export function validateLayout(
       addBounds(ringBounds(feature));
     }
     if (!bounds) continue;
-    placed.push({ cutout, shape, outline, features, rings, bounds, label: shape.name });
+    placed.push({ cutout, shape, outline, features, rings, bounds, label: pocketName(cutout, shape) });
   }
 
   for (const p of placed) {
@@ -547,7 +548,7 @@ function validateFingerHoleAgainstBin(
   index: number,
 ): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
-  const label = `Finger hole ${index + 1}`;
+  const label = `Finger access ${index + 1}`;
   const ring = fingerHoleFootprintRing(
     hole,
     { position: { x: 0, y: 0 }, rotationDeg: 0, mirrored: false },

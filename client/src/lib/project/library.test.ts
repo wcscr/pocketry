@@ -99,7 +99,7 @@ describe("library JSON transfer", () => {
         // The removed liteBase flag belongs only to versions 1–10.
         const source = index < 10 ? airdusterV9 : DOC;
         const doc: Record<string, unknown> = { ...source, schemaVersion: index + 1 };
-        // Versions 1–6 predate the project-level finger-hole array.
+        // Versions 1–6 predate the project-level finger access array.
         if (index < 6) delete doc.fingerHoles;
         return doc;
       },

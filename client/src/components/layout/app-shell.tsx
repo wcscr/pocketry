@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 export interface AppShellProps {
-  /** Contents of the fixed-height top bar. Omit for a chrome-less shell. */
+  /** Contents of the top bar. Omit for a chrome-less shell. */
   header?: ReactNode;
   /** Fills every pixel below the header. */
   children: ReactNode;
@@ -19,9 +19,9 @@ export function AppShell({ header, children }: AppShellProps): JSX.Element {
   return (
     // h-dvh, not h-screen: on mobile browsers `100vh` includes the retracting
     // URL bar, so h-screen leaves the bottom of the app under it.
-    <div className="flex h-dvh w-full flex-col overflow-hidden bg-background text-foreground">
+    <div className="flex h-dvh w-full flex-col overflow-hidden bg-background text-foreground pt-[env(safe-area-inset-top)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
       {header ? (
-        <header className="flex h-12 shrink-0 items-center gap-2 border-b px-3">
+        <header className="flex h-12 shrink-0 items-center gap-2 border-b px-2 md:px-3">
           {header}
         </header>
       ) : null}

@@ -593,7 +593,7 @@ describe("buildBinWithCutouts", () => {
     expect(normal.solid.volume()).toBeLessThan(plain.solid.volume());
   });
 
-  it("a disjoint finger hole removes exactly its prism volume", () => {
+  it("a disjoint finger access removes exactly its prism volume", () => {
     // Hole fully outside the 30×10 rect (half-width 15): the removed volume
     // is the pocket prism plus the circle n-gon prism, both to the same
     // floor. The circle is an inscribed SEGMENTS-gon: area = ½n·r²·sin(2π/n).
@@ -631,7 +631,7 @@ describe("buildBinWithCutouts", () => {
     expect(Math.abs(removed - expected) / expected).toBeLessThan(1e-6);
   });
 
-  it("builds a finger hole without any tool pocket", () => {
+  it("builds a finger access without any tool pocket", () => {
     const depthMm = 5;
     const radius = 6;
     const plain = buildBin(kernel, SPEC, QUALITY);
@@ -657,7 +657,7 @@ describe("buildBinWithCutouts", () => {
     expect(Math.abs(removed - polygonArea * depthMm) / removed).toBeLessThan(1e-6);
   });
 
-  it("rounds both edges of a straight finger hole", () => {
+  it("rounds both edges of a straight finger access", () => {
     const plain = buildBin(kernel, SPEC, QUALITY);
     const makeHole = (topFilletMm: number, bottomFilletMm: number) =>
       buildBinWithCutouts(
@@ -725,7 +725,7 @@ describe("buildBinWithCutouts", () => {
   );
 
   it.each(["straight", "scoop", "deep-scoop", "oblong-deep-scoop", "flat-ended-scoop"] as const)(
-    "adds a top edge round to a %s finger hole",
+    "adds a top edge round to a %s finger access",
     (kind) => {
       const base = {
         id: `top-${kind}`,
@@ -904,7 +904,7 @@ describe("buildBinWithCutouts", () => {
     expect(removed).toBeGreaterThan(0.92 * analytic);
   });
 
-  it("cuts every independent scoop-style finger hole", () => {
+  it("cuts every independent scoop-style finger access", () => {
     const shape = rectShape("s1", 12, 8);
     const base = { depth: { mode: "mm", value: 4 } };
     const left = {
@@ -938,7 +938,7 @@ describe("buildBinWithCutouts", () => {
     expect(two.solid.volume()).toBeLessThan(one.solid.volume());
   });
 
-  it("keeps independent finger holes unchanged when a pocket is mirrored", () => {
+  it("keeps independent finger access features unchanged when a pocket is mirrored", () => {
     const shape = rectShape("s1", 30, 10);
     const features = {
       depth: { mode: "mm", value: 6 },

@@ -39,8 +39,8 @@ export function FingerAccessShapeControls({ hole, onChange }: {
         <RadioGroup value={options.shape} orientation="horizontal" aria-labelledby="finger-access-shape-label"
           className="flex min-w-0 flex-1 gap-0 rounded-md border bg-muted p-0.5"
           onValueChange={(shape: FingerAccessOptions["shape"]) => onChange({ shape })}>
-          <RadioGroupItem value="round" className={segmentClass} data-testid="finger-shape-round"><Circle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />Round</RadioGroupItem>
           <RadioGroupItem value="slot" className={segmentClass} data-testid="finger-shape-slot"><RectangleHorizontal className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />Slot</RadioGroupItem>
+          <RadioGroupItem value="round" className={segmentClass} data-testid="finger-shape-round"><Circle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />Round</RadioGroupItem>
         </RadioGroup>
       </div>
       <div className="flex items-center gap-2">

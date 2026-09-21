@@ -23,7 +23,7 @@ export const BUILD_FIT_CHECK_METHOD = "buildFitCheck";
 export const BUILD_SURFACE_FIT_CHECK_METHOD = "buildSurfaceFitCheck";
 export const SURFACE_FIT_CHECK_MIN_THICKNESS_MM = 0.4;
 export const SURFACE_FIT_CHECK_MAX_THICKNESS_MM = 3;
-export const SURFACE_FIT_CHECK_DEFAULT_THICKNESS_MM = 1.2;
+export const SURFACE_FIT_CHECK_DEFAULT_THICKNESS_MM = 0.8;
 
 export interface BuildBinLayoutRequest {
   /**
