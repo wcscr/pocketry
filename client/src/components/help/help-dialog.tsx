@@ -70,7 +70,7 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
             <strong>Save for later:</strong> In <strong>Project</strong>, use
             <strong> Save to library</strong> to name your design.
             <strong> Export project</strong> downloads an editable backup;
-            <strong> Open project</strong> restores it.
+            <strong> Open project</strong> restores it to this browser’s library.
           </p>
           <p>
             <strong>On a phone:</strong> use <strong>Adjust</strong> for quick changes,

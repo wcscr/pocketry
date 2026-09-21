@@ -58,6 +58,7 @@ import {
   duplicateProjectInLibrary,
   exportProjectLibrary,
   importProjectLibrary,
+  importProjectToLibrary,
   loadProjectDoc,
   loadProjectLibrary,
   openProjectFromLibrary,
@@ -504,12 +505,13 @@ function BinDesignerWorkspace(): JSX.Element {
   }, [saveProject, currentProjectDoc, projectLibrary.activeProjectId]);
 
   const handleImportProject = useCallback(
-    async (doc: ProjectDoc): Promise<boolean> => {
+    async (input: ProjectDoc): Promise<boolean> => {
       setProjectBusy(true);
       try {
         await saveBeforeReplacingProject();
-        const saved = await startNewProject(doc);
-        setDraftName(doc.name ?? null);
+        const opened = await importProjectToLibrary(input);
+        const { doc } = opened;
+        setDraftName(null);
         setKeepBinSize(doc.keepBinSize ?? false);
         library.replaceShapes(doc.shapes);
         dispatch({
@@ -520,10 +522,10 @@ function BinDesignerWorkspace(): JSX.Element {
           history: doc.history,
         });
         setSection(null);
-        setProjectLibrary(saved);
+        setProjectLibrary(opened.library);
         toast({
           title: "Backup imported",
-          description: `${doc.shapes.length} shape${doc.shapes.length === 1 ? "" : "s"}, ${doc.cutouts.length} pocket${doc.cutouts.length === 1 ? "" : "s"}. Opened as “${doc.name}”.`,
+          description: `${doc.shapes.length} shape${doc.shapes.length === 1 ? "" : "s"}, ${doc.cutouts.length} pocket${doc.cutouts.length === 1 ? "" : "s"}. Saved to your library and opened as “${doc.name}”.`,
         });
         return true;
       } catch (cause) {

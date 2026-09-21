@@ -1,4 +1,4 @@
-import { get, set } from "idb-keyval";
+import { get, set, setMany } from "idb-keyval";
 import {
   libraryBackupSchema,
   projectLibrarySchema,
@@ -157,6 +157,37 @@ export interface LibraryImportResult {
   renamed: number;
 }
 
+/** File imports always get an independent name, including case-insensitive collisions. */
+function importedProjectName(name: string, projects: readonly StoredProject[]): string {
+  let candidate = name;
+  let suffix = 1;
+  while (projects.some((project) => project.name.localeCompare(candidate, undefined, { sensitivity: "accent" }) === 0)) {
+    const ending = suffix === 1 ? " (imported)" : ` (imported ${suffix})`;
+    candidate = `${name.slice(0, PROJECT_NAME_MAX_LENGTH - ending.length).trimEnd()}${ending}`;
+    suffix++;
+  }
+  return candidate;
+}
+
+/** Save a project file as a new library entry and open it in one transaction. */
+export async function importProjectToLibrary(input: ProjectDoc): Promise<OpenedLibraryProject> {
+  const doc = parseProjectDoc(input);
+  if (!doc) throw new Error("Not a supported Pocketry project file.");
+  const sourceName = cleanProjectName(doc.name ?? "Imported project");
+  return mutateLibrary(async (library) => {
+    const name = importedProjectName(sourceName, library.projects);
+    let id = makeProjectId();
+    while (library.projects.some((project) => project.id === id)) id = makeProjectId();
+    const project = { id, name, updatedAt: new Date().toISOString() };
+    const namedDoc = { ...doc, name };
+    const next = { ...library, activeProjectId: id, projects: [...library.projects, { ...project, doc: namedDoc }] };
+    // A failed import must preserve both the outgoing working copy and its
+    // autosave target; writing these keys separately can leave them mismatched.
+    await setMany([[CURRENT_PROJECT_KEY, namedDoc], [PROJECT_LIBRARY_KEY, next]]);
+    return { doc: namedDoc, project, library: toSnapshot(next) };
+  });
+}
+
 /** Validate and migrate the entire backup before one atomic library write.
  * Conflicting entries become independent copies; the current design stays open.
  */
@@ -179,15 +210,7 @@ export async function importProjectLibrary(input: unknown): Promise<LibraryImpor
     const ids = new Set(projects.map((project) => project.id));
     let renamed = 0;
     for (const project of importedProjects) {
-      let name = project.name;
-      let suffix = 1;
-      while (projects.some((existing) =>
-        existing.name.localeCompare(name, undefined, { sensitivity: "accent" }) === 0,
-      )) {
-        const ending = suffix === 1 ? " (imported)" : ` (imported ${suffix})`;
-        name = `${project.name.slice(0, PROJECT_NAME_MAX_LENGTH - ending.length).trimEnd()}${ending}`;
-        suffix++;
-      }
+      const name = importedProjectName(project.name, projects);
       if (name !== project.name) renamed++;
       let id = project.id;
       while (ids.has(id)) id = makeProjectId();
