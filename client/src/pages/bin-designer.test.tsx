@@ -2344,13 +2344,15 @@ describe("BinDesignerPage", () => {
     expect(status.querySelector('[role="group"][aria-labelledby="current-project-label"]')?.textContent).toContain("Untitled project");
     expect(container.querySelector('#current-project-label')?.textContent).toBe("Current Project:");
     expect(container.querySelector('section[aria-label="Browser library"] h3')?.textContent).toBe("Browser Library");
-    expect(container.querySelector('section[aria-label="Portable backup"] h3')?.textContent).toBe("Portable Backup");
+    expect(container.querySelector('section[aria-label="Portable backup"]')).toBeNull();
     expect(status.textContent).not.toContain("draft resumes automatically");
     const autosaveHelp = status.querySelector<HTMLButtonElement>('[aria-label="About project autosave"]')!;
     React.act(() => autosaveHelp.click());
     expect(document.querySelector('[role="tooltip"]')!.textContent).toContain("draft resumes automatically");
     React.act(() => autosaveHelp.click());
-    expect(save.textContent).toContain("Save to library");
+    expect(save.textContent).toBe("");
+    expect(save.getAttribute("aria-label")).toBe("Save to library");
+    expect(save.title).toBe("Save to library");
     expect(container.querySelector('[data-testid="button-open-library"]')).toBeNull();
     expect(container.querySelector('[data-testid="button-export-library"]')).toBeNull();
     expect(container.querySelector('[data-testid="button-import-library"]')).toBeNull();
@@ -2362,26 +2364,22 @@ describe("BinDesignerPage", () => {
     expect(save.closest('section')?.getAttribute("aria-label")).toBe("Browser library");
     for (const action of transfers) {
       expect(action.disabled).toBe(false);
-      expect(action.closest('section')?.getAttribute("aria-label")).toBe("Portable backup");
+      expect(action.closest('[role="group"]')).toBe(fresh.closest('[role="group"]'));
     }
-    expect(container.querySelector('[data-testid="project-file-backup"]')?.textContent).toContain("Current project");
     expect(container.querySelector('[data-testid="library-file-backup"]')).toBeNull();
     unmount();
   });
 
-  it("names the current draft in the browser library without exporting a backup", async () => {
+  it.each(["current-project-title", "project-status-title"])("names a new draft by double-clicking %s without exporting a backup", async (titleId) => {
     const { container, unmount } = renderPage();
-    openSettingsSection(container, "project");
+    // The status title also works while Project is collapsed.
+    if (titleId === "current-project-title") openSettingsSection(container, "project");
     await flushHydration();
     React.act(() => projectSaveMock.onSaved?.(true));
     expect(container.querySelector('[data-testid="project-status"] [role="status"]')!.textContent).toBe("Draft — autosaved locally");
 
     React.act(() => {
-      (
-        container.querySelector(
-          '[data-testid="button-save-library"]',
-        ) as HTMLButtonElement
-      ).click();
+      container.querySelector(`[data-testid="${titleId}"]`)!.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
     });
     const name = document.querySelector(
       '[data-testid="input-project-name"]',
@@ -2422,6 +2420,39 @@ describe("BinDesignerPage", () => {
     expect(container.querySelector('[data-testid="project-status"] [role="status"]')!.textContent).toBe("Saved to browser library");
     React.act(() => projectSaveMock.onSaved?.(false));
     expect(container.querySelector('[data-testid="project-status"] [role="status"]')!.textContent).toBe("Could not save. Export this project to keep your work.");
+    unmount();
+  });
+
+  it("renames a saved project from its title, with Cancel preserving its name and identity", async () => {
+    const project = { id: "current", name: "Stapler", updatedAt: "2026-09-20T12:00:00.000Z" };
+    vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId: project.id, projects: [project] });
+    const { container, unmount } = renderPage();
+    openSettingsSection(container, "project");
+    await flushHydration();
+    const before = vi.mocked(useBinGeometry).mock.lastCall;
+    const openName = () => {
+      React.act(() => container.querySelector('[data-testid="current-project-title"]')!.dispatchEvent(new MouseEvent("dblclick", { bubbles: true })));
+      return document.querySelector<HTMLInputElement>('[data-testid="input-project-name"]')!;
+    };
+    const editName = (input: HTMLInputElement) => React.act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "Stapler tray");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    let input = openName();
+    expect(input.value).toBe("Stapler");
+    editName(input);
+    React.act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(button => button.textContent === "Cancel")!.click());
+    expect(ProjectPersistence.saveProjectToLibrary).not.toHaveBeenCalled();
+    expect(container.querySelector('[data-testid="current-project-title"]')?.textContent).toBe("Stapler");
+    input = openName();
+    expect(input.value).toBe("Stapler");
+    editName(input);
+    await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-confirm-save-library"]')!.click());
+    expect(ProjectPersistence.saveProjectToLibrary).toHaveBeenCalledWith(expect.objectContaining({ schemaVersion: PROJECT_SCHEMA_VERSION }), "Stapler tray", "current");
+    expect(container.querySelector('[data-testid="current-project-title"]')?.textContent).toBe("Stapler tray");
+    expect(container.querySelector('[data-testid="project-status-title"]')?.textContent).toBe("Stapler tray");
+    expect(vi.mocked(useBinGeometry).mock.lastCall).toEqual(before);
+    expect(ProjectPersistence.openProjectFromLibrary).not.toHaveBeenCalled();
     unmount();
   });
 
