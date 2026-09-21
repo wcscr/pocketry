@@ -1,3 +1,4 @@
+import type { ValidationIssue } from "@shared/gridfinity/validate";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { BufferGeometry } from "three";
@@ -63,6 +64,7 @@ export interface BinGeometryState {
   stats: BuildBinStats | null;
   /** Per-cutout build reports from the latest preview (emptied sections). */
   cutoutReports: CutoutBuildReport[];
+  validationIssues: ValidationIssue[];
   building: boolean;
   /** 0..1 as reported by the worker while building. */
   progress: number;
@@ -125,6 +127,7 @@ export function useBinGeometry(
   const [builtSpec, setBuiltSpec] = useState<BinSpec | null>(null);
   const [stats, setStats] = useState<BuildBinStats | null>(null);
   const [cutoutReports, setCutoutReports] = useState<CutoutBuildReport[]>([]);
+  const [validationIssues, setValidationIssues] = useState<ValidationIssue[]>([]);
   const [building, setBuilding] = useState(true);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -177,6 +180,7 @@ export function useBinGeometry(
   useEffect(() => {
     let stale = false;
     setBuilding(true);
+    setValidationIssues([]);
     setProgress(0);
 
     const timer = setTimeout(() => {
@@ -231,6 +235,7 @@ export function useBinGeometry(
           setBuiltSpec(spec);
           setStats(result.stats);
           setCutoutReports(result.cutoutReports ?? []);
+          setValidationIssues(result.validationIssues ?? []);
           setError(null);
           setBuilding(false);
           setProgress(1);
@@ -363,6 +368,7 @@ export function useBinGeometry(
     builtSpec,
     stats,
     cutoutReports,
+    validationIssues,
     building,
     progress,
     error,

@@ -1,3 +1,5 @@
+import type { ValidationIssue } from "@shared/gridfinity/validate";
+import { validateTiltedSolids } from "./validate-tilted-solids";
 // Type-only import: the kernel is injected (see `Kernel` in ../manifold/runtime).
 import type { Manifold } from "manifold-3d";
 
@@ -223,12 +225,14 @@ export function buildBinWithCutouts(
   solid: Manifold;
   materialParts: BinMaterialParts | null;
   cutoutReports: CutoutBuildReport[];
+  validationIssues: ValidationIssue[];
 } {
   const { Manifold, arena } = kernel;
   const base = buildBin(kernel, spec, quality);
   let solid = base.solid;
   let floorInserts: Manifold[] = [];
   let reports: CutoutBuildReport[] = [];
+  let validationIssues: ValidationIssue[] = [];
   if (layout && (layout.cutouts.length > 0 || layout.fingerHoles.length > 0)) {
     const builtCutouts = buildCutoutCutters(
       kernel,
@@ -238,6 +242,7 @@ export function buildBinWithCutouts(
       quality,
       { floorInsertThicknessMm: options.floorInsertThicknessMm },
     );
+    validationIssues = validateTiltedSolids(kernel, spec, layout.cutouts, layout.shapesById, builtCutouts.cutterGroups ?? [], base.parts.wall, base.parts.lip);
     floorInserts = builtCutouts.floorInserts;
     reports = builtCutouts.reports;
     const allCutters = [
@@ -305,7 +310,7 @@ export function buildBinWithCutouts(
     materialParts = { body, pocketFloors, stackingRim };
   }
 
-  return { parts: base.parts, solid, materialParts, cutoutReports: reports };
+  return { parts: base.parts, solid, materialParts, cutoutReports: reports, validationIssues };
 }
 
 /**

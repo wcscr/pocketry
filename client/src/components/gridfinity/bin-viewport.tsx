@@ -41,6 +41,7 @@ const EMPTY_MEASUREMENT_PATHS: MeasurementPaths = [];
  */
 export interface BinViewportProps {
   geometry: BufferGeometry | null;
+  pocketAxisGuide?: { origin: [number, number, number]; direction: [number, number, number] };
   /** Exact printable pocket-floor material volume. */
   pocketFloorGeometry?: BufferGeometry | null;
   /** Exact printable stacking-rim material volume. */
@@ -192,6 +193,7 @@ function CameraFit({ size }: { size: FitSize }): null {
 
 export function BinViewport({
   geometry,
+  pocketAxisGuide,
   pocketFloorGeometry = null,
   stackingRimGeometry = null,
   hasPocketFloor = false,
@@ -285,6 +287,7 @@ export function BinViewport({
             />
           </mesh>
         ) : null}
+        {pocketAxisGuide && !building && <arrowHelper args={[new Vector3(...pocketAxisGuide.direction), new Vector3(...pocketAxisGuide.origin), 22, 0x0891b2, 5, 3]} />}
         <PlanarRulerScene
           active={rulerActive}
           outlines={measurementOutlines}

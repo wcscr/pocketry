@@ -1,3 +1,5 @@
+import { validateLayout } from "@shared/gridfinity/validate";
+import { hasPocketTilt } from "@shared/gridfinity/pocket-orientation";
 import type { ManifoldToplevel } from "manifold-3d";
 
 import {
@@ -110,7 +112,11 @@ export function createBinWorkerHandlers(
     try {
       const kernel = createKernel(wasm, arena);
       const started = performance.now();
-      const { solid, materialParts, cutoutReports } = buildBinWithCutouts(
+      if (payload.exportTopology && layout?.cutouts.some(hasPocketTilt)) {
+        const errors = validateLayout(spec, layout.cutouts, layout.shapesById, layout.fingerHoles).filter(issue => issue.severity === "error");
+        if (errors.length) throw new Error(errors.map(issue => issue.message).join("\n"));
+      }
+      const { solid, materialParts, cutoutReports, validationIssues } = buildBinWithCutouts(
         kernel,
         spec,
         layout,
@@ -120,6 +126,9 @@ export function createBinWorkerHandlers(
           rimInsertThicknessMm: rimMaterialThicknessMm,
         },
       );
+      if (payload.exportTopology && validationIssues.some(issue => issue.severity === "error")) {
+        throw new Error(validationIssues.filter(issue => issue.severity === "error").map(issue => issue.message).join("\n"));
+      }
       context.progress(0.7);
       if (context.signal.aborted) throw new WorkerCancelledError();
 
@@ -188,6 +197,7 @@ export function createBinWorkerHandlers(
           buildMs: performance.now() - started,
         },
         cutoutReports,
+        validationIssues,
       };
       const transfer: Transferable[] = [mesh.positions.buffer, mesh.indices.buffer];
       if (mesh.normals) transfer.push(mesh.normals.buffer);

@@ -3,6 +3,7 @@ import {
   DEFAULT_TOP_EDGE_FILLET_MM,
   fingerHoleFootprintRing,
   placementFootprint,
+  pocketOccupiedOutline,
   pocketLayoutAllowanceMm,
   type CutoutPlacement,
   type FingerHole,
@@ -245,6 +246,7 @@ function existingBounds(
   cutouts: readonly CutoutPlacement[],
   shapesById: ReadonlyMap<string, TracedShape>,
   fingerHoles: readonly FingerHole[] = [],
+  spec: BinSpec = parseBinSpec({ gridX: 1, gridY: 1, heightUnits: 6 }),
 ): Bounds | null {
   let bounds: Bounds | null = null;
   const includePoint = (point: Point, allowanceMm: number) => {
@@ -266,7 +268,7 @@ function existingBounds(
   for (const cutout of cutouts) {
     const shape = shapesById.get(cutout.shapeId);
     if (!shape) continue;
-    const footprint = placementFootprint(shape, cutout);
+    const footprint = { outline: pocketOccupiedOutline(shape, cutout, spec) };
     const outlineAllowance = pocketLayoutAllowanceMm(cutout);
     for (const part of footprint.outline) {
       for (const point of part.outer) includePoint(point, outlineAllowance);
@@ -286,6 +288,7 @@ function existingBounds(
 }
 
 export interface AutoPlaceIncrementalOptions {
+  spec?: BinSpec;
   keepBinSize?: boolean;
   lip: BinSpec["lip"];
   gridPitch?: GridPitch;
@@ -305,7 +308,7 @@ export function autoPlaceIncremental(
   shapes: readonly TracedShape[],
   options: AutoPlaceIncrementalOptions,
 ): AutoPlaceResult {
-  const occupied = existingBounds(options.existing, options.shapesById);
+  const occupied = existingBounds(options.existing, options.shapesById, [], options.spec);
   if (!occupied) {
     if (options.keepBinSize) {
       const interior = interiorMm(options, placementInsetMm(options.lip), options.gridPitch);
@@ -396,13 +399,14 @@ export function fitLayoutToPlacements(
   lip: BinSpec["lip"],
   gridPitch: GridPitch = "full",
   fingerHoles: readonly FingerHole[] = [],
+  spec: BinSpec = parseBinSpec({ gridX: 1, gridY: 1, heightUnits: 6, lip, gridPitch }),
 ): {
   cutouts: CutoutPlacement[];
   fingerHoles: FingerHole[];
   gridX: number;
   gridY: number;
 } {
-  const bounds = existingBounds(cutouts, shapesById, fingerHoles);
+  const bounds = existingBounds(cutouts, shapesById, fingerHoles, spec);
   if (!bounds) {
     return {
       cutouts: [...cutouts],
@@ -467,12 +471,13 @@ interface ArrangeItem {
 function arrangeItem(
   cutout: CutoutPlacement,
   shape: TracedShape,
+  spec: BinSpec,
 ): ArrangeItem {
-  const local = placementFootprint(shape, {
+  const local = { outline: pocketOccupiedOutline(shape, {
     ...cutout,
     position: { x: 0, y: 0 },
     rotationDeg: 0,
-  });
+  }, spec), features: [] as Point[][] };
   const points: Point[] = [];
   for (const s of local.outline) {
     points.push(...s.outer);
@@ -519,7 +524,7 @@ export function trimFootprintToPlacements(
   fingerHoles: readonly FingerHole[] = [],
 ): BinFootprint {
   let cells = rectangleCells(spec.gridX, spec.gridY);
-  const bounds = existingBounds(cutouts, shapesById, fingerHoles);
+  const bounds = existingBounds(cutouts, shapesById, fingerHoles, spec);
   const centre = bounds
     ? { x: (bounds.minX + bounds.maxX) / 2, y: (bounds.minY + bounds.maxY) / 2 }
     : { x: 0, y: 0 };
@@ -573,6 +578,7 @@ export function fitFootprintToPlacements(
     spec.lip,
     spec.gridPitch,
     fingerHoles,
+    spec,
   );
   const fittedSpec = parseBinSpec({
     ...spec,
@@ -614,6 +620,7 @@ export function fitRectangularBinToPlacements(
       spec.lip,
       spec.gridPitch,
       fingerHoles,
+      spec,
     ),
     footprint: { kind: "rectangle" },
   };
@@ -639,7 +646,7 @@ export function autoArrangeLayout(
   for (const cutout of cutouts) {
     const shape = shapesById.get(cutout.shapeId);
     if (!shape) return null; // dangling reference: let validation surface it
-    items.push(arrangeItem(cutout, shape));
+    items.push(arrangeItem(cutout, shape, baseSpec ?? parseBinSpec({ gridX: 1, gridY: 1, heightUnits: 6, lip, gridPitch })));
   }
   if (items.length === 0) return null;
 

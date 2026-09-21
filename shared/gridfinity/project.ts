@@ -36,9 +36,10 @@ import { binHistorySchema } from "./history";
  * Version 17 preserves committed undo/redo history and its current position.
  * Version 18 identifies basic-shape pockets authored directly in millimetres.
  * Version 19 adds independent pocket names to placements and their history.
+ * Version 20 adds optional X/Y pocket tilt, including history snapshots.
  */
 
-export const PROJECT_SCHEMA_VERSION = 19 as const;
+export const PROJECT_SCHEMA_VERSION = 20 as const;
 
 const projectFields = {
   shapes: z.array(tracedShapeSchema),
@@ -86,6 +87,8 @@ const version17ProjectSchema = version16ProjectSchema.extend({
 const version18ProjectSchema = version17ProjectSchema.extend({
   schemaVersion: z.literal(18),
 });
+
+const version19ProjectSchema = version17ProjectSchema.extend({ schemaVersion: z.literal(19) });
 
 /** History and the visible design must describe one consistent saved snapshot. */
 export const projectDocSchema = version16ProjectSchema.extend({
@@ -197,6 +200,11 @@ export function parseProjectDoc(input: unknown): ProjectDoc | null {
       if (liteBase !== undefined && typeof liteBase !== "boolean") return null;
       input = { ...doc, spec };
     }
+  }
+  const version19 = version19ProjectSchema.safeParse(input);
+  if (version19.success) {
+    const migrated = projectDocSchema.safeParse({ ...version19.data, schemaVersion: PROJECT_SCHEMA_VERSION });
+    return migrated.success ? migrated.data : null;
   }
   const version18 = version18ProjectSchema.safeParse(input);
   if (version18.success) {

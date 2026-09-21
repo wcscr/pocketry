@@ -45,6 +45,22 @@ function enter(label: string, value: string) {
 }
 
 describe("pocket measurements", () => {
+  it("edits independent tilt angles and resets them with undo", () => {
+    enter("Pocket X tilt in degrees", "15");
+    enter("Pocket Y tilt in degrees", "-35");
+    expect(store.cutouts[0].tilt).toEqual({ xDeg: 15, yDeg: -35 });
+    expect(store.history.stack).toHaveLength(3);
+    React.act(() => store.dispatch({ type: "UNDO" }));
+    expect(store.cutouts[0].tilt).toEqual({ xDeg: 15, yDeg: 0 });
+    React.act(() => store.dispatch({ type: "REDO" }));
+    expect(host.textContent).toContain("Vertical depth");
+    expect(host.textContent).toContain("Along pocket axis");
+    React.act(() => [...host.querySelectorAll("button")].find(b => b.textContent === "Reset tilt")!.click());
+    expect(store.cutouts[0].tilt).toBeUndefined();
+    React.act(() => store.dispatch({ type: "UNDO" }));
+    expect(store.cutouts[0].tilt).toEqual({ xDeg: 15, yDeg: -35 });
+  });
+
   it("preserves precise imported coordinates and scale when rounded fields are only focused", () => {
     React.act(() => store.dispatch({
       type: "UPDATE_CUTOUT", id: "pocket",

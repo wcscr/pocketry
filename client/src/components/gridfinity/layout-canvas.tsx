@@ -1,3 +1,4 @@
+import { hasPocketTilt } from "@shared/gridfinity/pocket-orientation";
 import {
   Ruler,
   Hand,
@@ -23,6 +24,7 @@ import {
   hasFlatFingerHoleBottom,
   placementFootprint,
   pocketName,
+  pocketOccupiedOutline,
   resizeCutoutPlacementFromHandle,
   resizeFingerHoleFromWidthHandle,
   resizeElongatedFingerHoleFromEndpoint,
@@ -1510,6 +1512,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
                     : "fill-primary/15 stroke-primary/60";
             return (
               <g key={cutout.id}>
+                {isSelected && hasPocketTilt(cutout) && <path d={outlineToCanvasPath(pocketOccupiedOutline(shape, cutout, spec), spec)} fill="none" className="pointer-events-none stroke-muted-foreground" strokeWidth={1} strokeDasharray="4 4" vectorEffect="non-scaling-stroke" data-testid="tilted-pocket-envelope"><title>Conservative shaft extent below the opening and through the rim</title></path>}
                 <path
                   d={outlineToCanvasPath(outline, spec)}
                   fillRule="evenodd"

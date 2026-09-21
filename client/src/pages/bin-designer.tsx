@@ -1,5 +1,6 @@
+import { hasPocketTilt, pocketAxis } from "@shared/gridfinity/pocket-orientation";
 import { Box, History, Redo2, Undo2 } from "lucide-react";
-import { pocketDepths, pocketName } from "@shared/gridfinity/cutout";
+import { pocketDepths, pocketName, resolvePocketDepth } from "@shared/gridfinity/cutout";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { CanvasWarnings } from "@/components/gridfinity/canvas-warnings";
@@ -159,7 +160,7 @@ function BinDesignerWorkspace(): JSX.Element {
 
   // One validation result drives both the canvas feedback and export gates,
   // including when the controls are collapsed or the mobile drawer is closed.
-  const issues = useMemo(() => {
+  const layoutIssues = useMemo(() => {
     const shapesById = new Map(library.shapes.map((shape) => [shape.id, shape]));
     return [
       ...validateBinSpec(spec).issues,
@@ -273,6 +274,7 @@ function BinDesignerWorkspace(): JSX.Element {
       cutouts.length === 0 && !keepBinSize
         ? autoPlaceFresh(newShapes, spec.lip, spec.gridPitch)
         : autoPlaceIncremental(newShapes, {
+            spec,
             lip: spec.lip,
             gridPitch: spec.gridPitch,
             gridX: spec.gridX,
@@ -354,6 +356,7 @@ function BinDesignerWorkspace(): JSX.Element {
     builtSpec,
     stats,
     cutoutReports,
+    validationIssues: solidIssues = [],
     building,
     progress,
     error,
@@ -367,6 +370,10 @@ function BinDesignerWorkspace(): JSX.Element {
     section,
     { pocketFloorThicknessMm, stackingRimThicknessMm },
   );
+
+  const issues = [...layoutIssues, ...solidIssues];
+  const selectedTiltedPocket = previewLayout.cutouts.find(c => c.id === bin.selectedCutoutId && hasPocketTilt(c));
+  const selectedAxis = selectedTiltedPocket ? pocketAxis(selectedTiltedPocket) : null;
 
   // Keep the camera matched to the mesh that is actually on screen. If the
   // requested dimensions change, the old mesh and framing stay untouched
@@ -1041,6 +1048,7 @@ function BinDesignerWorkspace(): JSX.Element {
           {viewMode === "3d" ? (
             <BinViewport
               geometry={geometry}
+              pocketAxisGuide={selectedTiltedPocket && selectedAxis ? { origin: [selectedTiltedPocket.position.x, selectedTiltedPocket.position.y, resolvePocketDepth(committedSpec, selectedTiltedPocket.depth).infillTopZ], direction: [selectedAxis.x, selectedAxis.y, selectedAxis.z] } : undefined}
               pocketFloorGeometry={pocketFloorGeometry}
               stackingRimGeometry={stackingRimGeometry}
               hasPocketFloor={hasPocketFloor}

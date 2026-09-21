@@ -99,6 +99,24 @@ const REQUEST: BuildBinRequest = {
   quality: { circularSegments: 16 },
 };
 
+it("revalidates hidden tilted-shaft collisions on export and accepts a corrected layout", async () => {
+  const basic = createBasicPocket("rectangle", { x: -3, y: -16 }, { x: 3, y: 16 }, "tilted")!;
+  const cutouts = [-12, 12].map((x, index) => parseCutoutPlacement({
+    ...basic.cutout, id: `tilted-${index}`, position: { x, y: 0 },
+    tilt: { xDeg: 0, yDeg: index === 0 ? -45 : 45 }, depth: { mode: "mm", value: 35 },
+  }));
+  const request: BuildBinRequest = { spec: { gridX: 4, gridY: 4, heightUnits: 6, lip: "none" },
+    layout: { shapes: [basic.shape], cutouts, fingerHoles: [] }, quality: { circularSegments: 16 } };
+  const handler = getHandler();
+  const preview = await handler(request, context());
+  expect(preview.value.validationIssues?.some(issue => issue.code === "tilted-pocket-overlap")).toBe(true);
+  await expect(handler({ ...request, exportTopology: true }, context())).rejects.toThrow(/intersect in 3D/);
+  const corrected = await handler({ ...request, exportTopology: true,
+    layout: { ...request.layout!, cutouts: cutouts.map(c => ({ ...c, tilt: { xDeg: 0, yDeg: 45 } })) } }, context());
+  expect(corrected.value.validationIssues).toEqual([]);
+  expect(nonManifoldEdgeCount(corrected.value.mesh)).toBe(0);
+});
+
 describe("bin worker handlers", () => {
   it("builds geometric pockets with colored floors while same-depth finger access keeps the body material", async () => {
     const spec = parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 3, lip: "none", flatBottom: true });

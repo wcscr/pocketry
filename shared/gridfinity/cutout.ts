@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { hasPocketTilt, pocketAxis, pocketMouthBasis, rotatePocketVector } from "./pocket-orientation";
 
 import { ensureOrientation, mapRing } from "../geometry/rings";
 import {
@@ -560,6 +561,8 @@ const cutoutPlacementInputSchema = z
     position: vec2Schema,
     /** CCW-positive in the y-up bin frame. */
     rotationDeg: z.number().finite().default(0),
+    /** X/Y tilt about the pocket mouth center; Z remains rotationDeg. */
+    tilt: z.object({ xDeg: z.number().finite().min(-89).max(89), yDeg: z.number().finite().min(-89).max(89) }).strict().optional(),
     mirrored: z.boolean().default(false),
     /** Independent placement scale; 1 = the traced silhouette's true size. */
     scaleX: z.number().finite().min(0.05).max(20).default(1),
@@ -650,13 +653,19 @@ export function parseCutoutPlacement(input: unknown): CutoutPlacement {
 export type PlacementTransform = Pick<
   CutoutPlacement,
   "position" | "rotationDeg" | "mirrored"
-> & Partial<Pick<CutoutPlacement, "scaleX" | "scaleY">>;
+> & Partial<Pick<CutoutPlacement, "scaleX" | "scaleY" | "tilt">>;
 
 /** Applies scale → mirror → rotate → translate to one shape-local point. */
 export function transformPointPlacement(
   point: Point,
   placement: PlacementTransform,
 ): Point {
+  if (hasPocketTilt(placement)) {
+    const basis = pocketMouthBasis(placement);
+    const x = point.x * (placement.scaleX ?? 1) * (placement.mirrored ? -1 : 1);
+    const y = point.y * (placement.scaleY ?? 1);
+    return { x: placement.position.x + basis.x.x * x + basis.y.x * y, y: placement.position.y + basis.x.y * x + basis.y.y * y };
+  }
   const radians = (placement.rotationDeg * Math.PI) / 180;
   const cos = Math.cos(radians);
   const sin = Math.sin(radians);
@@ -674,6 +683,12 @@ export function untransformPointPlacement(
   point: Point,
   placement: PlacementTransform,
 ): Point {
+  if (hasPocketTilt(placement)) {
+    const basis = pocketMouthBasis(placement);
+    const dx = point.x - placement.position.x, dy = point.y - placement.position.y;
+    const determinant = basis.x.x * basis.y.y - basis.y.x * basis.x.y;
+    return { x: (dx * basis.y.y - dy * basis.y.x) / determinant / (placement.scaleX ?? 1) * (placement.mirrored ? -1 : 1), y: (dy * basis.x.x - dx * basis.x.y) / determinant / (placement.scaleY ?? 1) };
+  }
   const radians = (placement.rotationDeg * Math.PI) / 180;
   const cos = Math.cos(radians);
   const sin = Math.sin(radians);
@@ -774,16 +789,10 @@ export function resizeCutoutPlacementFromHandle(
     : resizeHandlePoint(localBounds, oppositeResizeHandle(handle));
   const anchorBin = transformPointPlacement(anchor, placement);
 
-  const radians = (placement.rotationDeg * Math.PI) / 180;
-  const cos = Math.cos(radians);
-  const sin = Math.sin(radians);
-  const dx = draggedBinPoint.x - anchorBin.x;
-  const dy = draggedBinPoint.y - anchorBin.y;
-  const rotatedX = dx * cos + dy * sin;
-  const localVector = {
-    x: placement.mirrored ? -rotatedX : rotatedX,
-    y: -dx * sin + dy * cos,
-  };
+  const localVector = untransformPointPlacement(
+    { x: draggedBinPoint.x - anchorBin.x, y: draggedBinPoint.y - anchorBin.y },
+    { ...placement, position: { x: 0, y: 0 }, scaleX: 1, scaleY: 1 },
+  );
   const basis = { x: moving.x - anchor.x, y: moving.y - anchor.y };
   const changesX = handle.includes("e") || handle.includes("w");
   const changesY = handle.includes("n") || handle.includes("s");
@@ -831,6 +840,7 @@ export function resizeCutoutPlacementFromHandle(
   }
 
   const withoutTranslation = transformPointPlacement(anchor, {
+    tilt: placement.tilt,
     position: { x: 0, y: 0 },
     rotationDeg: placement.rotationDeg,
     mirrored: placement.mirrored,
@@ -987,9 +997,9 @@ export interface PlacementFootprint {
  * The actual cutter and fit template apply the full signed clearance.
  */
 export function pocketLayoutAllowanceMm(
-  cutout: Pick<CutoutPlacement, "clearanceMm" | "topFilletMm">,
+  cutout: Pick<CutoutPlacement, "clearanceMm" | "topFilletMm"> & Partial<Pick<CutoutPlacement, "tilt" | "rotationDeg">>,
 ): number {
-  return Math.max(0, cutout.clearanceMm) + cutout.topFilletMm;
+  return Math.max(0, cutout.clearanceMm) / Math.max(0.01, pocketAxis({ ...cutout, rotationDeg: cutout.rotationDeg ?? 0 }).z) + cutout.topFilletMm;
 }
 
 /**
@@ -1002,7 +1012,7 @@ export function placementFootprint(
   placement: Pick<
     CutoutPlacement,
     "position" | "rotationDeg" | "mirrored" | "fingerHoles"
-  > & Partial<Pick<CutoutPlacement, "scaleX" | "scaleY">>,
+  > & Partial<Pick<CutoutPlacement, "scaleX" | "scaleY" | "tilt">>,
   segments = 24,
 ): PlacementFootprint {
   return {
@@ -1162,4 +1172,39 @@ export function canvasToBin(
     x: point.x - binFootprintMm(spec.gridX, spec.gridPitch) / 2,
     y: binFootprintMm(spec.gridY, spec.gridPitch) / 2 - point.y,
   };
+}
+
+/** Axial depth and actual lowest/highest floor for a tilted extrusion. The
+ * remaining-floor mode reserves clearance for the local outline offset too. */
+export function resolvePlacedPocketDepth(spec: Pick<BinSpec, "heightUnits" | "lip">, depth: DepthSpec, shape: Pick<TracedShape, "outlineMm">, cutout: CutoutPlacement): ResolvedPocket & { highestFloorZ: number | null; axialDepthMm: number | null } {
+  const ordinary = resolvePocketDepth(spec, depth);
+  if (!hasPocketTilt(cutout)) return { ...ordinary, highestFloorZ: ordinary.floorZ, axialDepthMm: ordinary.depthMm };
+  const axis = pocketAxis(cutout);
+  let minZ = Infinity, maxZ = -Infinity;
+  for (const part of shape.outlineMm) for (const p of part.outer) {
+    const v = rotatePocketVector({ x: p.x * cutout.scaleX * (cutout.mirrored ? -1 : 1), y: p.y * cutout.scaleY, z: 0 }, cutout);
+    minZ = Math.min(minZ, v.z); maxZ = Math.max(maxZ, v.z);
+  }
+  const allowance = Math.max(0, cutout.clearanceMm) * Math.sqrt(Math.max(0, 1 - axis.z ** 2));
+  minZ -= allowance; maxZ += allowance;
+  if (depth.mode === "through") return { ...ordinary, highestFloorZ: null, axialDepthMm: null };
+  const axialDepthMm = depth.mode === "mm" ? depth.value : (ordinary.infillTopZ + minZ - depth.floorThicknessMm) / Math.max(0.01, axis.z);
+  const floorZ = ordinary.infillTopZ + minZ - axialDepthMm * axis.z;
+  const highestFloorZ = ordinary.infillTopZ + maxZ - axialDepthMm * axis.z;
+  return { ...ordinary, floorZ, highestFloorZ, axialDepthMm, depthMm: ordinary.infillTopZ - floorZ };
+}
+
+/** Conservative cavity envelope for packing and immediate layout checks.
+ * Includes the full shaft from the floor through the rim, not only its mouth. */
+export function pocketOccupiedOutline(shape: Pick<TracedShape, "outlineMm">, cutout: CutoutPlacement, spec: Pick<BinSpec, "heightUnits" | "lip">): Outline {
+  if (!hasPocketTilt(cutout)) return placementFootprint(shape, cutout).outline;
+  const axis = pocketAxis(cutout);
+  const depths = pocketDepths(cutout).map(depth => resolvePlacedPocketDepth(spec, depth, shape, cutout));
+  const lowest = Math.min(...depths.map(p => p.floorZ ?? 0));
+  const top = depths[0].infillTopZ, rim = depths[0].cutterTopZ - 1;
+  const mouth = placementFootprint(shape, cutout).outline;
+  const points = mouth.flatMap(s => s.outer).flatMap(p => [lowest - top, rim - top].map(z => ({ x: p.x + axis.x * z / Math.max(0.01, axis.z), y: p.y + axis.y * z / Math.max(0.01, axis.z) })));
+  const minX = Math.min(...points.map(p => p.x)), maxX = Math.max(...points.map(p => p.x));
+  const minY = Math.min(...points.map(p => p.y)), maxY = Math.max(...points.map(p => p.y));
+  return [{ outer: [{ x: minX, y: minY }, { x: maxX, y: minY }, { x: maxX, y: maxY }, { x: minX, y: maxY }], holes: [] }];
 }

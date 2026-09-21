@@ -54,6 +54,13 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
               <strong> Bin size</strong>, then select each pocket to set its
               <strong> Depth</strong>.
             </p>
+            <p className="mt-1 text-muted-foreground">
+              To store tall items in a shorter drawer, open the pocket’s
+              <strong> Position &amp; rotation</strong> controls and set its X/Y tilt.
+              Items slide out along the tilted axis. Fixed depth follows that axis;
+              the opening expands to keep the path clear. Check the 3D preview
+              and the remaining floor before printing.
+            </p>
           </li>
           <li className="pl-1">
             <h3 className="font-semibold">Check the fit, then print</h3>

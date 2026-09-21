@@ -1,3 +1,4 @@
+import { hasPocketTilt, pocketAxis } from "./pocket-orientation";
 import {
   distanceToSegment,
   ringBounds,
@@ -17,6 +18,8 @@ import {
   fingerHoleFootprintRing,
   placementFootprint,
   pocketName,
+  resolvePlacedPocketDepth,
+  pocketOccupiedOutline,
   pocketLayoutAllowanceMm,
   resolvePocketDepth,
   pocketDepths,
@@ -98,7 +101,7 @@ export function validatePocketFloorMaterials(
   for (const cutout of cutouts) {
     const shape = shapesById.get(cutout.shapeId);
     for (const depth of pocketDepths(cutout)) {
-      const { floorZ, depthMm } = resolvePocketDepth(spec, depth);
+      const { floorZ, depthMm } = shape ? resolvePlacedPocketDepth(spec, depth, shape, cutout) : resolvePocketDepth(spec, depth);
       // Invalid and through pockets have no printable floor-color volume.
       if (!shape || floorZ === null || floorZ <= 0 || depthMm === null || depthMm <= 0) continue;
       const thicknessMm = Math.min(floorColorThicknessMm, floorZ);
@@ -323,6 +326,10 @@ export function validateLayout(
       });
     }
 
+    if (hasPocketTilt(cutout) && pocketAxis(cutout).z < 0.01) {
+      issues.push({ code: "invalid-pocket-tilt", severity: "error", cutoutIds: [cutout.id], message: `“${pocketName(cutout, shape)}”: Reduce the combined tilt so the pocket can exit through the top.` });
+      continue;
+    }
     const { outline, features } = placementFootprint(shape, cutout);
     const rings: Ring[] = [];
     let bounds: Bounds | null = null;
@@ -351,6 +358,14 @@ export function validateLayout(
 
   for (const p of placed) {
     issues.push(...validateAgainstBin(spec, p));
+    if (hasPocketTilt(p.cutout)) {
+      const occupied = pocketOccupiedOutline(p.shape, p.cutout, spec);
+      const allowance = pocketLayoutAllowanceMm(p.cutout);
+      if (occupied.some(s => s.outer.some(point => signedDistanceToInterior(point, spec) < allowance))) {
+        issues.push({ code: "tilted-pocket-envelope", severity: "warning", cutoutIds: [p.cutout.id],
+          message: `“${p.label}”: The tilted shaft approaches a wall below the opening. Check the 3D preview; export checks the actual cavity.` });
+      }
+    }
   }
   for (let i = 0; i < placed.length; i++) {
     for (let j = i + 1; j < placed.length; j++) {
@@ -461,7 +476,12 @@ function validateAgainstBin(spec: BinSpec, p: PlacedCutout): ValidationIssue[] {
   });
   for (const [index, depth] of pocketDepths(cutout).entries()) {
     const label = cutout.split ? `${p.label} · Section ${index === 0 ? "A" : "B"}` : p.label;
-    const pocket = resolvePocketDepth(spec, depth);
+    const region = split?.regions?.[index] ?? p.shape.outlineMm;
+    const pocket = resolvePlacedPocketDepth(spec, depth, { outlineMm: region }, cutout);
+    if (pocket.highestFloorZ !== null && pocket.highestFloorZ >= pocket.infillTopZ) issues.push({
+      code: "too-shallow", severity: "error", cutoutIds: [cutout.id],
+      message: `“${label}”: Increase depth or reduce tilt so the whole floor is below the opening.`,
+    });
     if (pocket.floorZ !== null) {
       if (pocket.floorZ < 0) {
         issues.push({
