@@ -437,8 +437,11 @@ describe("DXF and STL handedness", () => {
   function dxfRing(): Point[] {
     const lines = generateDXF(outline, scale).split("\n");
     const points: Point[] = [];
+    let inPolyline = false;
     for (let i = 0; i + 3 < lines.length; i += 2) {
-      if (lines[i].trim() !== "10") continue;
+      if (lines[i].trim() === "0") inPolyline = lines[i + 1] === "LWPOLYLINE";
+      // Model/paper-space BLOCK origins are coordinates, but not outline vertices.
+      if (!inPolyline || lines[i].trim() !== "10") continue;
       points.push({ x: Number(lines[i + 1]), y: Number(lines[i + 3]) });
     }
     return points;
