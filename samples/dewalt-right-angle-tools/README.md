@@ -1,6 +1,8 @@
 # DeWalt right-angle tools
 
-Separate pockets for the long and short right-angle adapters and handle, with a shared finger-access slot.
+Separate pockets for the long and short right-angle adapters and handle, with a
+shared finger-access slot. The long adapter and handle pockets are 31 mm deep;
+the short adapter pocket is 25 mm deep.
 
 - **Size:** 3 × 5; 5.5u. Grid cells are 42 mm; one height unit is 7 mm, before the stacking lip.
 - **Base:** Gridfinity.
@@ -11,10 +13,6 @@ Separate pockets for the long and short right-angle adapters and handle, with a 
 
 **Stacking:** As designed, the tools extend above the bin's top surface. Another
 bin cannot be stacked on top with the tools in place without modifying the design.
-
-Pocket depths were recovered from the printed model: 31 mm for the long adapter
-and handle, and 25 mm for the short adapter. See the [source record](../source-files.json)
-for the mesh comparison. Editable settings are rounded to tenths.
 
 ## Printed bin
 

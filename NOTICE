@@ -39,11 +39,8 @@ Sample projects and print photographs — contributor-supplied assets
 
 The editable project JSONs, 3MF print models, and photographs under `samples/`
 were supplied by Will Cobb for this repository. `samples/source-files.json`
-records their source files and published hashes. Project copies have descriptive
-names and omit unused shapes and undo history. Recovered projects were checked
-against their printed meshes. Editable distances and angles are rounded to tenths
-at the contributor's request; traced outlines retain their original precision.
-The 3MF files are unmodified copies of the supplied print exports.
+records their source files and published hashes. The 3MF files are unmodified
+copies of the supplied print exports.
 
 The photographs in the sample directories' `photos/` folders are copies of the supplied
 originals, cropped, rotated, and resized with ordinary pixel-processing tools. Embedded

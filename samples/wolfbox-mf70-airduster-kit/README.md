@@ -1,6 +1,7 @@
 # Wolfbox MF70 Airduster Kit
 
-Four pockets for the Wolfbox MF70 airduster, nozzle adapters, angled nozzle, and USB cable, with shared finger access.
+Four pockets for the Wolfbox MF70 airduster, nozzle adapters, angled nozzle, and
+USB cable, with shared finger access for lifting the tools and accessories.
 
 - **Size:** 4 × 4; 6.5u. Grid cells are 42 mm; one height unit is 7 mm, before the stacking lip.
 - **Base:** Gridfinity.
@@ -14,8 +15,5 @@ Four pockets for the Wolfbox MF70 airduster, nozzle adapters, angled nozzle, and
 ![Printed bin loaded with the air duster, nozzle adapters, angled nozzle, and USB cable](photos/printed-bin-loaded.jpg)
 
 ![Printed bin with the air duster beside it, showing the fitted pocket and orange floor](photos/printed-bin-pocket.jpg)
-
-These photographs show the printed Wolfbox MF70 kit design. The photos predate the
-latest tutorial export and do not establish an exact revision match.
 
 [All samples](../README.md)

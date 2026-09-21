@@ -1,6 +1,8 @@
 # Caliper storage
 
-Storage for digital calipers, measurement strips, and spare coin-cell batteries.
+Storage for digital calipers, 50 mm, 100 mm, and 200 mm measurement strips, and
+three spare coin-cell batteries. Separate finger-access openings make the
+calipers, strips, and batteries easy to lift from their pockets.
 
 - **Size:** 6 × 3; 3.5u. Grid cells are 42 mm; one height unit is 7 mm, before the stacking lip.
 - **Base:** Gridfinity.
@@ -11,12 +13,6 @@ Storage for digital calipers, measurement strips, and spare coin-cell batteries.
 
 **Stacking:** As designed, the tools extend above the bin's top surface. Another
 bin cannot be stacked on top with the tools in place without modifying the design.
-
-The project was reconstructed from the printed 3MF using the earlier caliper
-outline. The 3.5u height, pocket depths, accessory positions, and finger access
-were checked against the mesh before rounding editable settings to tenths. The
-measurement-strip slots are rounded from 3.75 mm to 3.8 mm wide. The supplied
-3MF is unchanged. See the [source record](../source-files.json).
 
 ## Printed bin
 

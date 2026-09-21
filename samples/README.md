@@ -33,17 +33,9 @@ before stacking another bin on top.
 3. Select the downloaded JSON to inspect or edit the bin, pockets, depths, and finger access.
 4. To print the supplied model, download its `.3mf` and open it in your slicer at **100% scale**. Choose filament and print settings, check the layer preview, and print a fit check if adapting it to your tools.
 
-The 3MFs retain the original exported geometry and color parts. They are model
-files; use your own printer, material, and process settings. A JSON is the editable
-design, and does not carry the slicer's settings or all 3MF color selections.
-
-The sample JSONs have descriptive object names and start with a clean editing
-history. Unused outline revisions were removed. Editable distances and angles are
-rounded to tenths, and scale percentages to tenths of a percent; traced outline
-coordinates retain their original precision. This rounding can produce small
-differences when regenerating a model. The supplied 3MFs remain unchanged.
-The originals are preserved outside this repository. File provenance and hashes
-are recorded in [source-files.json](source-files.json).
+The 3MFs include the bin geometry and color parts. Use your own printer,
+material, and process settings. A JSON is the editable design, and does not
+carry the slicer's settings or all 3MF color selections.
 
 ## Print photos
 
@@ -56,7 +48,8 @@ metadata. No generative editing was used.
 
 These designs and photographs were supplied by Will Cobb and are distributed
 under the repository's [AGPL-3.0-only license](../LICENSE). Product names and marks
-belong to their respective owners. See [NOTICE](../NOTICE) for provenance.
+belong to their respective owners. See [NOTICE](../NOTICE) for attribution and
+[source-files.json](source-files.json) for file provenance and hashes.
 
 If you share a design made with Pocketry, please link to
 [pocketry.xyz](https://pocketry.xyz).
