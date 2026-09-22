@@ -1,6 +1,6 @@
 import { Line, OrbitControls } from "@react-three/drei";
 import { Canvas, useThree, type ThreeEvent } from "@react-three/fiber";
-import { LoaderCircle, Ruler, X } from "lucide-react";
+import { LoaderCircle, Move3D, Rotate3D, Magnet, Ruler, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { BufferGeometry, PerspectiveCamera } from "three";
@@ -23,6 +23,9 @@ import {
   STACKING_RIM_COLOR,
 } from "@/lib/gridfinity/pocket-floor-mesh";
 import { cn } from "@/lib/utils";
+import { pocketName, type CutoutPlacement } from "@shared/gridfinity/cutout";
+import type { PocketTransformMode } from "@/lib/gridfinity/pocket-transform";
+import { PocketSelectionPlane, PocketTransformScene, PocketTransformWire, type PocketEditor } from "./pocket-transform-scene";
 
 const RULER_3D_SNAP_TOLERANCE_MM = 5;
 const RULER_3D_Z_FIGHT_OFFSET_MM = 0.25;
@@ -41,7 +44,7 @@ const EMPTY_MEASUREMENT_PATHS: MeasurementPaths = [];
  */
 export interface BinViewportProps {
   geometry: BufferGeometry | null;
-  pocketAxisGuide?: { origin: [number, number, number]; direction: [number, number, number] };
+  pocketEditor?: PocketEditor;
   /** Exact printable pocket-floor material volume. */
   pocketFloorGeometry?: BufferGeometry | null;
   /** Exact printable stacking-rim material volume. */
@@ -193,7 +196,7 @@ function CameraFit({ size }: { size: FitSize }): null {
 
 export function BinViewport({
   geometry,
-  pocketAxisGuide,
+  pocketEditor,
   pocketFloorGeometry = null,
   stackingRimGeometry = null,
   hasPocketFloor = false,
@@ -220,6 +223,24 @@ export function BinViewport({
   const [containerRef, containerSize] = useElementSize<HTMLDivElement>();
   const laidOut = containerSize.width > 0 && containerSize.height > 0;
   const [rulerActive, setRulerActive] = useState(false);
+  const [transformMode, setTransformMode] = useState<PocketTransformMode>("translate");
+  const [transformSpace, setTransformSpace] = useState<"world" | "local">("world");
+  const [snapTransform, setSnapTransform] = useState(false);
+  const [dragPreview, setDragPreview] = useState<CutoutPlacement | null>(null);
+  const [transformLimited, setTransformLimited] = useState(false);
+  const selectedPocket = pocketEditor?.pockets.find(p => p.cutout.id === pocketEditor.selectedId);
+  const displayedPocket = selectedPocket && { ...selectedPocket, cutout: dragPreview?.id === selectedPocket.cutout.id ? dragPreview : selectedPocket.cutout };
+  useEffect(() => {
+    const key = (event: KeyboardEvent) => {
+      if (!pocketEditor || !canHandleCanvasShortcut(event) || event.ctrlKey || event.metaKey || event.altKey) return;
+      if (event.key.toLowerCase() === "w" || event.key.toLowerCase() === "e") {
+        event.preventDefault(); setRulerActive(false);
+        setTransformMode(event.key.toLowerCase() === "w" ? "translate" : "rotate");
+      }
+    };
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
+  }, [pocketEditor]);
   const [measurementPoints, setMeasurementPoints] = useState<Point[]>([]);
   const measuredDistanceMm = useMemo(
     () =>
@@ -287,7 +308,12 @@ export function BinViewport({
             />
           </mesh>
         ) : null}
-        {pocketAxisGuide && !building && <arrowHelper args={[new Vector3(...pocketAxisGuide.direction), new Vector3(...pocketAxisGuide.origin), 22, 0x0891b2, 5, 3]} />}
+        {pocketEditor && <PocketSelectionPlane editor={pocketEditor} width={fitSize.widthMm} length={fitSize.lengthMm} disabled={rulerActive || !!dragPreview} />}
+        {displayedPocket && pocketEditor && !rulerActive && <PocketTransformWire pocket={displayedPocket} spec={pocketEditor.spec} />}
+        {selectedPocket && pocketEditor && !rulerActive && <PocketTransformScene
+          key={`${selectedPocket.cutout.id}-${transformMode}-${transformSpace}`}
+          pocket={selectedPocket} spec={pocketEditor.spec} mode={transformMode} space={transformSpace} snap={snapTransform}
+          onPreview={setDragPreview} onLimit={setTransformLimited} onCommit={pocketEditor.onCommit} /> }
         <PlanarRulerScene
           active={rulerActive}
           outlines={measurementOutlines}
@@ -321,6 +347,18 @@ export function BinViewport({
         className="absolute right-3 top-16 md:top-12 [@media(pointer:coarse)]:top-16 z-30 flex flex-col overflow-hidden rounded-md border bg-background/90 shadow-sm backdrop-blur"
         data-testid="bin-3d-tool-toolbar"
       >
+        {pocketEditor && <>
+          {(["translate", "rotate"] as const).map(mode => <Button key={mode} variant="ghost" size="icon"
+            className={cn("h-9 w-9 rounded-none [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11", !rulerActive && transformMode === mode && "bg-accent text-accent-foreground")}
+            aria-label={mode === "translate" ? "Move pocket (W)" : "Rotate pocket (E)"} aria-pressed={!rulerActive && transformMode === mode}
+            title={mode === "translate" ? "Move pocket along X, Y or Z (W)" : "Rotate pocket around X, Y or Z (E)"}
+            onClick={() => { setRulerActive(false); setTransformMode(mode); }}>
+            {mode === "translate" ? <Move3D className="h-4 w-4" /> : <Rotate3D className="h-4 w-4" />}
+          </Button>)}
+          <Button variant="ghost" size="icon" className={cn("h-9 w-9 rounded-none border-t [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11", snapTransform && "bg-accent text-accent-foreground")}
+            aria-label="Snap transforms to 1 mm and 5 degrees" aria-pressed={snapTransform} title="Snap: 1 mm moves / 5° rotations"
+            onClick={() => setSnapTransform(value => !value)}><Magnet className="h-4 w-4" /></Button>
+        </>}
         <Button
           variant="ghost"
           size="icon"
@@ -359,6 +397,26 @@ export function BinViewport({
           </Button>
         ) : null}
       </div>
+
+      {pocketEditor && !rulerActive && <div className="absolute left-3 top-16 md:top-12 z-20 w-52 max-w-[calc(100%-5rem)] space-y-1.5 rounded-md border bg-background/90 p-2 text-xs shadow-sm backdrop-blur" data-testid="pocket-3d-controls">
+        <select aria-label="Selected pocket in 3D" className="h-8 w-full rounded border bg-background px-2" value={pocketEditor.selectedId ?? ""}
+          onChange={event => pocketEditor.onSelect(event.target.value || null)}>
+          <option value="">Select a pocket</option>
+          {pocketEditor.pockets.map(({ cutout, shape }) => <option key={cutout.id} value={cutout.id}>{pocketName(cutout, shape)}</option>)}
+        </select>
+        {displayedPocket ? <>
+          <div className="flex items-center justify-between"><span>{transformMode === "translate" ? "Move" : "Rotate"} · X / Y / Z</span>
+            <select aria-label="Transform coordinate space" className="h-7 rounded border bg-background px-1" value={transformSpace}
+              onChange={event => setTransformSpace(event.target.value as "world" | "local")}><option value="world">World</option><option value="local">Local</option></select>
+          </div>
+          <p className="font-mono text-[11px] tabular-nums" data-testid="pocket-3d-transform-readout">{transformMode === "translate"
+            ? `X ${displayedPocket.cutout.position.x.toFixed(2)} · Y ${displayedPocket.cutout.position.y.toFixed(2)} · Z ${(displayedPocket.cutout.zOffsetMm ?? 0).toFixed(2)} mm`
+            : `X ${(displayedPocket.cutout.tilt?.xDeg ?? 0).toFixed(1)}° · Y ${(displayedPocket.cutout.tilt?.yDeg ?? 0).toFixed(1)}° · Z ${displayedPocket.cutout.rotationDeg.toFixed(1)}°`}</p>
+          <p className="text-[11px] text-muted-foreground">Drag an axis {transformMode === "rotate" ? "ring" : "arrow"} · Esc cancels{snapTransform ? " · Snap on" : ""}</p>
+          {transformMode === "translate" && <p className="text-[11px] text-muted-foreground">Z is offset from the original top plane.</p>}
+          {transformLimited && <p role="status" className="text-destructive">Keep X/Y tilt within ±89° and the pocket axis facing upward. Z offset is limited to ±300 mm.</p>}
+        </> : <p className="text-muted-foreground">Click a pocket opening to move or rotate it.</p>}
+      </div>}
 
       {rulerActive ? (
         <div

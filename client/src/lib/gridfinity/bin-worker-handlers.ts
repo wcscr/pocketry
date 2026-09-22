@@ -112,7 +112,7 @@ export function createBinWorkerHandlers(
     try {
       const kernel = createKernel(wasm, arena);
       const started = performance.now();
-      if (payload.exportTopology && layout?.cutouts.some(hasPocketTilt)) {
+      if (payload.exportTopology && layout?.cutouts.some(c => hasPocketTilt(c) || (c.zOffsetMm ?? 0) !== 0)) {
         const errors = validateLayout(spec, layout.cutouts, layout.shapesById, layout.fingerHoles).filter(issue => issue.severity === "error");
         if (errors.length) throw new Error(errors.map(issue => issue.message).join("\n"));
       }

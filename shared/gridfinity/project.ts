@@ -37,9 +37,10 @@ import { binHistorySchema } from "./history";
  * Version 18 identifies basic-shape pockets authored directly in millimetres.
  * Version 19 adds independent pocket names to placements and their history.
  * Version 20 adds optional X/Y pocket tilt, including history snapshots.
+ * Version 21 adds vertical pocket translation for the 3D editor.
  */
 
-export const PROJECT_SCHEMA_VERSION = 20 as const;
+export const PROJECT_SCHEMA_VERSION = 21 as const;
 
 const projectFields = {
   shapes: z.array(tracedShapeSchema),
@@ -89,6 +90,8 @@ const version18ProjectSchema = version17ProjectSchema.extend({
 });
 
 const version19ProjectSchema = version17ProjectSchema.extend({ schemaVersion: z.literal(19) });
+
+const version20ProjectSchema = version17ProjectSchema.extend({ schemaVersion: z.literal(20) });
 
 /** History and the visible design must describe one consistent saved snapshot. */
 export const projectDocSchema = version16ProjectSchema.extend({
@@ -200,6 +203,11 @@ export function parseProjectDoc(input: unknown): ProjectDoc | null {
       if (liteBase !== undefined && typeof liteBase !== "boolean") return null;
       input = { ...doc, spec };
     }
+  }
+  const version20 = version20ProjectSchema.safeParse(input);
+  if (version20.success) {
+    const migrated = projectDocSchema.safeParse({ ...version20.data, schemaVersion: PROJECT_SCHEMA_VERSION });
+    return migrated.success ? migrated.data : null;
   }
   const version19 = version19ProjectSchema.safeParse(input);
   if (version19.success) {

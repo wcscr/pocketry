@@ -46,7 +46,7 @@ describe("tilted pockets", () => {
   });
 
   it("shares invertible mouth placement with resize/contour editing under combined tilt", () => {
-    const combined = { ...pocket, rotationDeg: 37, tilt: { xDeg: -20, yDeg: 35 }, mirrored: true, scaleX: 1.2, scaleY: 0.8, position: { x: 20, y: -8 } };
+    const combined = { ...pocket, zOffsetMm: 4, rotationDeg: 37, tilt: { xDeg: -20, yDeg: 35 }, mirrored: true, scaleX: 1.2, scaleY: 0.8, position: { x: 20, y: -8 } };
     const source = { x: 2, y: -10 };
     const recovered = untransformPointPlacement(transformPointPlacement(source, combined), combined);
     expect(recovered.x).toBeCloseTo(source.x, 8); expect(recovered.y).toBeCloseTo(source.y, 8);
@@ -128,4 +128,44 @@ describe("tilted pockets", () => {
     const built = buildBinWithCutouts(kernel, { ...spec, gridX: arranged.gridX, gridY: arranged.gridY }, { shapesById: shapes, cutouts: arranged.cutouts, fingerHoles: [] }, EXPORT_QUALITY);
     expect(built.validationIssues).toEqual([]);
   });
+});
+
+it.each([undefined, { xDeg: 0, yDeg: 45 }])("translates a pocket floor in Z and preserves its clearance path (%j)", tilt => {
+  const original = { ...pocket, tilt, depth: { mode: "remaining" as const, floorThicknessMm: 10 } };
+  const moved = { ...original, zOffsetMm: -3 };
+  const resolved = resolvePlacedPocketDepth(spec, moved.depth, shape, moved);
+  expect(resolved.floorZ).toBeCloseTo(7, 8);
+  expect(resolved.axialDepthMm).toBeCloseTo(resolvePlacedPocketDepth(spec, original.depth, shape, original).axialDepthMm!, 8);
+  const built = buildCutoutCutters(kernel, shapes, [moved], spec, EXPORT_QUALITY);
+  const cutter = arena.track(kernel.Manifold.union(built.cutters));
+  expect(cutter.status()).toBe("NoError");
+  expect(cutter.boundingBox().min[2]).toBeCloseTo(7, 4);
+  const mouth = arena.track(cutter.slice(resolved.infillTopZ)).bounds();
+  const centre = transformPointPlacement({ x: 0, y: 0 }, moved);
+  expect((mouth.min[0] + mouth.max[0]) / 2).toBeCloseTo(centre.x, 4);
+  expect((mouth.min[1] + mouth.max[1]) / 2).toBeCloseTo(centre.y, 4);
+  const base = arena.track(kernel.Manifold.union(buildCutoutCutters(kernel, shapes, [original], spec, EXPORT_QUALITY).cutters));
+  // Below the bin top, the cavity is an exact rigid translation of the original.
+  const clip = arena.track(kernel.Manifold.cube([150, 150, 40]).translate([-75, -75, 0]));
+  const expected = arena.track(arena.track(base.translate([0, 0, -3])).intersect(clip));
+  const actual = arena.track(cutter.intersect(clip));
+  expect(arena.track(expected.subtract(actual)).volume()).toBeCloseTo(0, 4);
+  expect(arena.track(actual.subtract(expected)).volume()).toBeCloseTo(0, 4);
+});
+
+it("round-trips Z placement and history, migrates v20, and checks floor limits", () => {
+  const moved = { ...pocket, zOffsetMm: 3 };
+  const doc = { spec, cutouts: [moved], fingerHoles: [] };
+  const project = { schemaVersion: PROJECT_SCHEMA_VERSION, shapes: [shape], ...doc, history: { stack: [{ doc, label: "Move in Z" }], index: 0 } };
+  expect(parseProjectDoc(JSON.parse(JSON.stringify(project)))).toEqual(project);
+  expect(parseProjectDoc({ ...project, schemaVersion: 20, history: undefined, cutouts: [pocket] })?.cutouts[0].zOffsetMm).toBeUndefined();
+  expect(parseProjectDoc({ ...project, cutouts: [{ ...moved, zOffsetMm: Infinity }] })).toBeNull();
+  expect(validateLayout(spec, [{ ...moved, zOffsetMm: -100 }], shapes).some(i => i.code === "too-deep")).toBe(true);
+  expect(validateLayout(spec, [{ ...moved, zOffsetMm: 100 }], shapes).some(i => i.code === "too-shallow")).toBe(true);
+});
+
+it.each([-30, 30])("keeps both ends of a Z-translated tilted through pocket open (Z=%s)", zOffsetMm => {
+  const through = { ...pocket, zOffsetMm, depth: { mode: "through" as const } };
+  const cutter = arena.track(kernel.Manifold.union(buildCutoutCutters(kernel, shapes, [through], spec, EXPORT_QUALITY).cutters));
+  for (const z of [0, 42]) expect(arena.track(cutter.slice(z)).area()).toBeCloseTo(6 * 32 * Math.sqrt(2), 3);
 });

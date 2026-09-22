@@ -559,9 +559,11 @@ const cutoutPlacementInputSchema = z
     name: z.string().trim().min(1).optional(),
     /** Bin-local mm, y-up, origin at the bin centre. */
     position: vec2Schema,
+    /** Vertical translation from the original top-plane anchor, in mm. */
+    zOffsetMm: z.number().finite().min(-300).max(300).optional(),
     /** CCW-positive in the y-up bin frame. */
     rotationDeg: z.number().finite().default(0),
-    /** X/Y tilt about the pocket mouth center; Z remains rotationDeg. */
+    /** X/Y tilt about the original top-plane anchor plus Z offset; Z heading remains rotationDeg. */
     tilt: z.object({ xDeg: z.number().finite().min(-89).max(89), yDeg: z.number().finite().min(-89).max(89) }).strict().optional(),
     mirrored: z.boolean().default(false),
     /** Independent placement scale; 1 = the traced silhouette's true size. */
@@ -653,7 +655,7 @@ export function parseCutoutPlacement(input: unknown): CutoutPlacement {
 export type PlacementTransform = Pick<
   CutoutPlacement,
   "position" | "rotationDeg" | "mirrored"
-> & Partial<Pick<CutoutPlacement, "scaleX" | "scaleY" | "tilt">>;
+> & Partial<Pick<CutoutPlacement, "scaleX" | "scaleY" | "tilt" | "zOffsetMm">>;
 
 /** Applies scale → mirror → rotate → translate to one shape-local point. */
 export function transformPointPlacement(
@@ -664,7 +666,9 @@ export function transformPointPlacement(
     const basis = pocketMouthBasis(placement);
     const x = point.x * (placement.scaleX ?? 1) * (placement.mirrored ? -1 : 1);
     const y = point.y * (placement.scaleY ?? 1);
-    return { x: placement.position.x + basis.x.x * x + basis.y.x * y, y: placement.position.y + basis.x.y * x + basis.y.y * y };
+    const axis = pocketAxis(placement);
+    const offset = (placement.zOffsetMm ?? 0) / Math.max(0.01, axis.z);
+    return { x: placement.position.x + basis.x.x * x + basis.y.x * y - axis.x * offset, y: placement.position.y + basis.x.y * x + basis.y.y * y - axis.y * offset };
   }
   const radians = (placement.rotationDeg * Math.PI) / 180;
   const cos = Math.cos(radians);
@@ -685,7 +689,9 @@ export function untransformPointPlacement(
 ): Point {
   if (hasPocketTilt(placement)) {
     const basis = pocketMouthBasis(placement);
-    const dx = point.x - placement.position.x, dy = point.y - placement.position.y;
+    const axis = pocketAxis(placement);
+    const offset = (placement.zOffsetMm ?? 0) / Math.max(0.01, axis.z);
+    const dx = point.x - placement.position.x + axis.x * offset, dy = point.y - placement.position.y + axis.y * offset;
     const determinant = basis.x.x * basis.y.y - basis.y.x * basis.x.y;
     return { x: (dx * basis.y.y - dy * basis.y.x) / determinant / (placement.scaleX ?? 1) * (placement.mirrored ? -1 : 1), y: (dy * basis.x.x - dx * basis.x.y) / determinant / (placement.scaleY ?? 1) };
   }
@@ -791,7 +797,7 @@ export function resizeCutoutPlacementFromHandle(
 
   const localVector = untransformPointPlacement(
     { x: draggedBinPoint.x - anchorBin.x, y: draggedBinPoint.y - anchorBin.y },
-    { ...placement, position: { x: 0, y: 0 }, scaleX: 1, scaleY: 1 },
+    { ...placement, position: { x: 0, y: 0 }, zOffsetMm: 0, scaleX: 1, scaleY: 1 },
   );
   const basis = { x: moving.x - anchor.x, y: moving.y - anchor.y };
   const changesX = handle.includes("e") || handle.includes("w");
@@ -841,6 +847,7 @@ export function resizeCutoutPlacementFromHandle(
 
   const withoutTranslation = transformPointPlacement(anchor, {
     tilt: placement.tilt,
+    zOffsetMm: placement.zOffsetMm,
     position: { x: 0, y: 0 },
     rotationDeg: placement.rotationDeg,
     mirrored: placement.mirrored,
@@ -1012,7 +1019,7 @@ export function placementFootprint(
   placement: Pick<
     CutoutPlacement,
     "position" | "rotationDeg" | "mirrored" | "fingerHoles"
-  > & Partial<Pick<CutoutPlacement, "scaleX" | "scaleY" | "tilt">>,
+  > & Partial<Pick<CutoutPlacement, "scaleX" | "scaleY" | "tilt" | "zOffsetMm">>,
   segments = 24,
 ): PlacementFootprint {
   return {
@@ -1178,7 +1185,11 @@ export function canvasToBin(
  * remaining-floor mode reserves clearance for the local outline offset too. */
 export function resolvePlacedPocketDepth(spec: Pick<BinSpec, "heightUnits" | "lip">, depth: DepthSpec, shape: Pick<TracedShape, "outlineMm">, cutout: CutoutPlacement): ResolvedPocket & { highestFloorZ: number | null; axialDepthMm: number | null } {
   const ordinary = resolvePocketDepth(spec, depth);
-  if (!hasPocketTilt(cutout)) return { ...ordinary, highestFloorZ: ordinary.floorZ, axialDepthMm: ordinary.depthMm };
+  const offset = cutout.zOffsetMm ?? 0;
+  if (!hasPocketTilt(cutout)) {
+    const floorZ = ordinary.floorZ === null ? null : ordinary.floorZ + offset;
+    return { ...ordinary, floorZ, highestFloorZ: floorZ, axialDepthMm: ordinary.depthMm, depthMm: floorZ === null ? null : ordinary.infillTopZ - floorZ };
+  }
   const axis = pocketAxis(cutout);
   let minZ = Infinity, maxZ = -Infinity;
   for (const part of shape.outlineMm) for (const p of part.outer) {
@@ -1189,8 +1200,8 @@ export function resolvePlacedPocketDepth(spec: Pick<BinSpec, "heightUnits" | "li
   minZ -= allowance; maxZ += allowance;
   if (depth.mode === "through") return { ...ordinary, highestFloorZ: null, axialDepthMm: null };
   const axialDepthMm = depth.mode === "mm" ? depth.value : (ordinary.infillTopZ + minZ - depth.floorThicknessMm) / Math.max(0.01, axis.z);
-  const floorZ = ordinary.infillTopZ + minZ - axialDepthMm * axis.z;
-  const highestFloorZ = ordinary.infillTopZ + maxZ - axialDepthMm * axis.z;
+  const floorZ = ordinary.infillTopZ + offset + minZ - axialDepthMm * axis.z;
+  const highestFloorZ = ordinary.infillTopZ + offset + maxZ - axialDepthMm * axis.z;
   return { ...ordinary, floorZ, highestFloorZ, axialDepthMm, depthMm: ordinary.infillTopZ - floorZ };
 }
 

@@ -480,7 +480,7 @@ function validateAgainstBin(spec: BinSpec, p: PlacedCutout): ValidationIssue[] {
     const pocket = resolvePlacedPocketDepth(spec, depth, { outlineMm: region }, cutout);
     if (pocket.highestFloorZ !== null && pocket.highestFloorZ >= pocket.infillTopZ) issues.push({
       code: "too-shallow", severity: "error", cutoutIds: [cutout.id],
-      message: `“${label}”: Increase depth or reduce tilt so the whole floor is below the opening.`,
+      message: `“${label}”: Increase depth, lower Z, or reduce tilt so the whole floor is below the opening.`,
     });
     if (pocket.floorZ !== null) {
       if (pocket.floorZ < 0) {

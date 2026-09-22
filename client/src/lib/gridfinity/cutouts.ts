@@ -456,7 +456,7 @@ export function buildFingerHoleCutters(
 /** Build the complete shaft in its own frame, including split seats and color
  * bands, then rotate it. Headroom is measured along the axis so the far side
  * of the opening always clears the actual rim. */
-function buildTiltedCutout(
+function buildOrientedCutout(
   kernel: Kernel, shape: TracedShape, cutout: CutoutPlacement, spec: BinSpec,
   quality: BuildQuality, options: CutoutBuildOptions,
 ): CutoutCutters {
@@ -469,31 +469,32 @@ function buildTiltedCutout(
   const resolved = depths.map((depth, i) => resolvePlacedPocketDepth(spec, depth,
     { outlineMm: split?.regions?.[i] ?? shape.outlineMm }, cutout));
   if (resolved.some(p => p.axialDepthMm !== null && (p.axialDepthMm <= 0 || (p.highestFloorZ ?? 0) >= p.infillTopZ))) {
-    throw new Error("Increase pocket depth or reduce tilt: the whole pocket floor must sit below the opening.");
+    throw new Error("Increase pocket depth, lower Z, or reduce tilt: the whole pocket floor must sit below the opening.");
   }
   const real = resolved[0];
   const extent = Math.max(Math.abs(shape.bboxMm.minX), Math.abs(shape.bboxMm.maxX)) * cutout.scaleX
     + Math.max(Math.abs(shape.bboxMm.minY), Math.abs(shape.bboxMm.maxY)) * cutout.scaleY
     + Math.abs(cutout.clearanceMm) + cutout.topFilletMm + 2;
-  const headroom = (real.cutterTopZ - real.infillTopZ + extent) / axis.z + 2;
-  const maxDepth = Math.max(real.infillTopZ / axis.z + extent / axis.z, ...resolved.map(p => p.axialDepthMm ?? 0));
+  const anchorZ = real.infillTopZ + (cutout.zOffsetMm ?? 0);
+  const headroom = Math.max(0, (real.cutterTopZ - anchorZ + extent) / axis.z) + 2;
+  const maxDepth = Math.max(anchorZ / axis.z + extent / axis.z, ...resolved.map(p => p.axialDepthMm ?? 0));
   // A positive virtual floor lets the ordinary builder construct full color
   // bands. Only the local frame changes; the real bin is never resized.
   const localSpec = { ...spec, heightUnits: Math.ceil((maxDepth + 20) / 7) };
   const localTop = resolvePocketDepth(localSpec, { mode: "through" }).infillTopZ;
   const axialDepths = resolved.map(p => p.axialDepthMm === null
     ? { mode: "through" as const } : { mode: "mm" as const, value: p.axialDepthMm });
-  const localCutout: CutoutPlacement = { ...cutout, tilt: undefined, rotationDeg: 0,
+  const localCutout: CutoutPlacement = { ...cutout, tilt: undefined, zOffsetMm: undefined, rotationDeg: 0,
     position: { x: 0, y: 0 }, topFilletMm: 0, depth: axialDepths[0],
     split: cutout.split ? { ...cutout.split, depths: [axialDepths[0], axialDepths[1]] } : undefined };
   const built = buildCutoutCutters(kernel, new Map([[shape.id, shape]]), [localCutout], localSpec, quality,
     { ...options, axialHeadroomMm: headroom });
   const place = (solid: Manifold): Manifold => {
     let result = arena.track(solid.translate([0, 0, -localTop]));
-    result = arena.track(result.rotate([cutout.tilt!.xDeg, 0, 0]));
-    result = arena.track(result.rotate([0, cutout.tilt!.yDeg, 0]));
+    result = arena.track(result.rotate([cutout.tilt?.xDeg ?? 0, 0, 0]));
+    result = arena.track(result.rotate([0, cutout.tilt?.yDeg ?? 0, 0]));
     result = arena.track(result.rotate([0, 0, cutout.rotationDeg]));
-    return arena.track(result.translate([cutout.position.x, cutout.position.y, real.infillTopZ]));
+    return arena.track(result.translate([cutout.position.x, cutout.position.y, anchorZ]));
   };
   const cutters = built.cutters.map(place);
   if (cutout.topFilletMm > 0 && cutters.length > 0) {
@@ -537,8 +538,8 @@ function buildCutoutCuttersInternal(
       continue;
     }
 
-    if (hasPocketTilt(cutout)) {
-      const tilted = buildTiltedCutout(kernel, shape, cutout, spec, quality, options);
+    if (hasPocketTilt(cutout) || (cutout.zOffsetMm ?? 0) !== 0) {
+      const tilted = buildOrientedCutout(kernel, shape, cutout, spec, quality, options);
       cutters.push(...tilted.cutters);
       floorInserts.push(...tilted.floorInserts);
       reports.push(...tilted.reports);

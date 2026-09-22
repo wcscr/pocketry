@@ -22,8 +22,8 @@ rectangular slot tilted 45 degrees has a nominal 4.24 mm wide top opening.
 
 The depth summary shows axial depth, actual vertical depth, lowest floor and
 combined axis tilt. The 2D layout shows the nominal top opening; the selected
-pocket also shows a dashed conservative envelope of its shaft. The 3D arrow
-points along the removal direction. Fit and arrange account for the shaft as
+pocket also shows a dashed conservative envelope of its shaft. The 3D view
+shows the selected opening and seat as a wireframe. Fit and arrange account for the shaft as
 well as the opening. They can leave extra space around complicated outlines.
 
 Preview and printable export check actual pocket solids for hidden pocket
@@ -38,15 +38,48 @@ clearance or rounding. They cannot encode tilted depth. A surface fit template
 is a thin section of the actual cavity and checks that section only; print a
 small bin with the full slot depth to assess insertion and retention.
 
+## Move and rotate in 3D
+
+Click a pocket opening or choose it from the 3D pocket selector. **Move (W)**
+shows red X, green Y and blue Z arrows; drag an arrow to move along that axis,
+a plane handle to move in two axes, or the center to move in the view plane.
+**Rotate (E)** shows axis rings. **World** uses the bin axes; **Local** follows
+the pocket's orientation. The magnet toggles 1 mm translation and 5° rotation
+snapping. For combined rotations, the displayed Euler angles may differ from
+the snapped rotation about a world or local axis.
+
+Each drag previews the opening and seat immediately, rebuilds the solid on
+release, and adds one undo step. **Escape** cancels the active drag. Camera
+orbit is suspended while dragging a handle; drag empty space to orbit normally.
+The ruler temporarily hides the transform handles. Keyboard shortcuts leave
+text and number fields alone.
+
+Z is a millimetre offset from the pocket's original anchor at the fill surface.
+Positive Z raises the entire seat, negative Z lowers it. It is applied after
+depth resolution, including remaining-floor mode; the depth summary reports
+the actual remaining floor. The open shaft still extends through the top (and
+through the underside for through pockets). The numeric **Z offset** field
+under **Position & rotation** edits the same value. Zero restores the original
+height. For a vertical through pocket, Z movement has no visible effect on the
+clipped cavity because both ends remain open.
+
+A gizmo rotation keeps the seat geometry rigid around the anchor. Remaining-floor
+settings convert to equivalent fixed axial depths at the start of a completed
+rotation, including both seats in a split pocket. Numeric tilt controls continue
+to honor remaining-floor mode. Check the resulting floor, wall and intersection
+warnings after rotating or lowering a pocket. Undo restores both orientation
+and the original depth mode.
+
 ## Implementation
 
 The shared transform is `Rz * Ry * Rx`, applied after outline scaling and mirroring.
 The oblique section at the fill surface is used consistently for placement,
 selection, resizing and contour edits. The geometry kernel constructs the shaft,
 seats and floor bands in the pocket frame, then rotates them into the bin frame.
-Legacy placements without tilt use the existing geometry path. Project schema
-20 adds optional `tilt: { xDeg, yDeg }`; version 19 and older saves migrate without
-introducing angles. Each input axis is limited to ±89 degrees, and the combined
+Legacy placements without tilt or Z translation use the existing geometry path.
+Project schema 20 added optional `tilt: { xDeg, yDeg }`; schema 21 adds optional
+`zOffsetMm`, including history snapshots. Older saves migrate without introducing
+angles or offsets. Each input axis is limited to ±89 degrees, and the combined
 axis must retain a vertical component of at least 0.01.
 
 Regression coverage includes oblique opening dimensions, axial and remaining

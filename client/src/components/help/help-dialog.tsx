@@ -61,6 +61,14 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
               the opening expands to keep the path clear. Check the 3D preview
               and the remaining floor before printing.
             </p>
+            <p className="mt-1 text-muted-foreground">
+              In <strong>3D</strong>, click a pocket opening, then use
+              <strong> Move (W)</strong> or <strong>Rotate (E)</strong> to drag
+              its X/Y/Z handles. Choose world or local axes, or turn on the magnet
+              for 1 mm / 5° snapping. Escape cancels a drag. Z raises or lowers
+              the pocket floor; rotating keeps the seat rigid and converts
+              remaining-floor settings to fixed axial depths.
+            </p>
           </li>
           <li className="pl-1">
             <h3 className="font-semibold">Check the fit, then print</h3>

@@ -655,3 +655,15 @@ describe("complete surface fit test worker handler", () => {
     expect(Math.max(...zs)).toBeCloseTo(1.2);
   });
 });
+
+it("exports a Z-translated upright pocket and rejects its floor below the bin", async () => {
+  const basic = createBasicPocket("rectangle", { x: -5, y: -8 }, { x: 5, y: 8 }, "shifted")!;
+  const cutout = parseCutoutPlacement({ ...basic.cutout, depth: { mode: "remaining", floorThicknessMm: 10 }, zOffsetMm: -2 });
+  const request: BuildBinRequest = { spec: { gridX: 2, gridY: 2, heightUnits: 6, lip: "none" },
+    layout: { shapes: [basic.shape], cutouts: [cutout], fingerHoles: [] }, quality: { circularSegments: 16 }, exportTopology: true };
+  const handler = getHandler();
+  const built = await handler(request, context());
+  expect(built.value.mesh.indices.length).toBeGreaterThan(0);
+  expect(nonManifoldEdgeCount(built.value.mesh)).toBe(0);
+  await expect(handler({ ...request, layout: { ...request.layout!, cutouts: [{ ...cutout, zOffsetMm: -20 }] } }, context())).rejects.toThrow(/deeper than the bin/);
+});

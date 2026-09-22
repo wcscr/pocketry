@@ -17,6 +17,10 @@ vi.mock("@/hooks/use-element-size", () => ({
   useElementSize: () => [vi.fn(), { width: 800, height: 600 }],
 }));
 
+import { parseCutoutPlacement } from "@shared/gridfinity/cutout";
+import { parseBinSpec } from "@shared/gridfinity/types";
+import { createBasicPocket } from "@/lib/gridfinity/basic-shape";
+import type { PocketEditor } from "./pocket-transform-scene";
 import { BinViewport } from "./bin-viewport";
 import type { Outline } from "@shared/geometry/types";
 
@@ -33,6 +37,7 @@ function renderViewport(
   hasPocketFloor = false,
   hasStackingRim = false,
   measurementOutlines: readonly Outline[] = [],
+  pocketEditor?: PocketEditor,
 ): HTMLElement {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   const container = document.createElement("div");
@@ -42,6 +47,7 @@ function renderViewport(
     root.render(
       <BinViewport
         geometry={null}
+        pocketEditor={pocketEditor}
         hasPocketFloor={hasPocketFloor}
         hasStackingRim={hasStackingRim}
         pocketFloorColor="#123456"
@@ -114,4 +120,29 @@ it("offers a top-plane ruler in 3D and recommends Layout for precision", () => {
   expect(status?.textContent).toContain(
     "For the most accurate dimension check, use the ruler in Layout.",
   );
+});
+
+
+it("switches CAD modes without stealing field input and suspends them for the ruler", () => {
+  const basic = createBasicPocket("rectangle", { x: -5, y: -8 }, { x: 5, y: 8 }, "slot")!;
+  const cutout = parseCutoutPlacement({ ...basic.cutout, name: "Target", zOffsetMm: 2 });
+  const editor: PocketEditor = { spec: parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6 }), pockets: [{ cutout, shape: basic.shape }], selectedId: cutout.id, onSelect: vi.fn(), onCommit: vi.fn() };
+  const container = renderViewport(false, 1, false, false, [basic.shape.outlineMm], editor);
+  const button = (name: string) => container.querySelector(`[aria-label="${name}"]`) as HTMLButtonElement;
+  expect(container.querySelector('[data-testid="pocket-3d-transform-readout"]')?.textContent).toContain("Z 2.00 mm");
+  React.act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "e" })));
+  expect(button("Rotate pocket (E)").getAttribute("aria-pressed")).toBe("true");
+  const input = document.createElement("input"); container.append(input); input.focus();
+  React.act(() => input.dispatchEvent(new KeyboardEvent("keydown", { key: "w", bubbles: true })));
+  expect(button("Rotate pocket (E)").getAttribute("aria-pressed")).toBe("true");
+  React.act(() => button("Snap transforms to 1 mm and 5 degrees").click());
+  expect(button("Snap transforms to 1 mm and 5 degrees").getAttribute("aria-pressed")).toBe("true");
+  React.act(() => button("Measure between contours").click());
+  expect(container.querySelector('[data-testid="pocket-3d-controls"]')).toBeNull();
+  React.act(() => button("Move pocket (W)").click());
+  expect(container.querySelector('[data-testid="pocket-3d-controls"]')).not.toBeNull();
+  expect(button("Measure between contours").getAttribute("aria-pressed")).toBe("false");
+  const select = container.querySelector('[aria-label="Selected pocket in 3D"]') as HTMLSelectElement;
+  React.act(() => { select.value = ""; select.dispatchEvent(new Event("change", { bubbles: true })); });
+  expect(editor.onSelect).toHaveBeenLastCalledWith(null);
 });

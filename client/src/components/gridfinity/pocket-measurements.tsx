@@ -77,6 +77,12 @@ export function PocketMeasurements({ cutout, shape, children }: {
           </>}
         </div>
         <PositionInputs position={cutout.position} onChange={updatePosition} />
+        <Label className="flex items-center gap-2 text-xs">Z offset (mm)
+          <DraftNumberInput aria-label="Z offset in millimetres" className="h-8 min-w-0" value={cutout.zOffsetMm ?? 0} min={-300} max={300} step={0.5} displayPrecision={2}
+            onValueChange={value => dispatch({ type: "UPDATE_CUTOUT", id: cutout.id, patch: { zOffsetMm: value }, transient: true })}
+            onValueCommit={value => dispatch({ type: "UPDATE_CUTOUT", id: cutout.id, patch: { zOffsetMm: value } })} />
+        </Label>
+        <p className="text-muted-foreground">Z shifts the pocket and its floor from the original top-plane anchor. Positive Z raises the floor; the opening stays clear.</p>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={() => updatePosition({ ...cutout.position, x: cutout.position.x - (bounds.minX + bounds.maxX) / 2 })}>Center X</Button>
           <Button variant="outline" size="sm" onClick={() => updatePosition({ ...cutout.position, y: cutout.position.y - (bounds.minY + bounds.maxY) / 2 })}>Center Y</Button>

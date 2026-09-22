@@ -196,7 +196,7 @@ function specPatchLabel(patch: Partial<BinSpecInput>): string {
 
 function cutoutPatchLabel(patch: Partial<CutoutPlacement>): string {
   if ("shapeId" in patch) return "Edit contour";
-  if ("position" in patch) return "Move tool pocket";
+  if ("position" in patch || "zOffsetMm" in patch) return "Move tool pocket";
   if ("rotationDeg" in patch || "tilt" in patch) return "Rotate tool pocket";
   if ("mirrored" in patch) return "Mirror tool pocket";
   if ("scaleX" in patch || "scaleY" in patch) return "Scale tool pocket";

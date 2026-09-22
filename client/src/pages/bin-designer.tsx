@@ -1,4 +1,3 @@
-import { hasPocketTilt, pocketAxis } from "@shared/gridfinity/pocket-orientation";
 import { Box, History, Redo2, Undo2 } from "lucide-react";
 import { pocketDepths, pocketName, resolvePocketDepth } from "@shared/gridfinity/cutout";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -372,8 +371,10 @@ function BinDesignerWorkspace(): JSX.Element {
   );
 
   const issues = [...layoutIssues, ...solidIssues];
-  const selectedTiltedPocket = previewLayout.cutouts.find(c => c.id === bin.selectedCutoutId && hasPocketTilt(c));
-  const selectedAxis = selectedTiltedPocket ? pocketAxis(selectedTiltedPocket) : null;
+  const editablePockets = useMemo(() => cutouts.flatMap(cutout => {
+    const shape = library.shapes.find(shape => shape.id === cutout.shapeId);
+    return shape ? [{ cutout, shape }] : [];
+  }), [cutouts, library.shapes]);
 
   // Keep the camera matched to the mesh that is actually on screen. If the
   // requested dimensions change, the old mesh and framing stay untouched
@@ -1048,7 +1049,10 @@ function BinDesignerWorkspace(): JSX.Element {
           {viewMode === "3d" ? (
             <BinViewport
               geometry={geometry}
-              pocketAxisGuide={selectedTiltedPocket && selectedAxis ? { origin: [selectedTiltedPocket.position.x, selectedTiltedPocket.position.y, resolvePocketDepth(committedSpec, selectedTiltedPocket.depth).infillTopZ], direction: [selectedAxis.x, selectedAxis.y, selectedAxis.z] } : undefined}
+              pocketEditor={{ spec, pockets: editablePockets, selectedId: bin.selectedCutoutId,
+                onSelect: id => dispatch({ type: "SELECT_CUTOUT", id }),
+                onCommit: (id, patch, mode) => dispatch({ type: "UPDATE_CUTOUT", id, patch, historyLabel: mode === "translate" ? "Move pocket in 3D" : "Rotate pocket in 3D" }),
+              }}
               pocketFloorGeometry={pocketFloorGeometry}
               stackingRimGeometry={stackingRimGeometry}
               hasPocketFloor={hasPocketFloor}
