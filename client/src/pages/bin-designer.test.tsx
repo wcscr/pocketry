@@ -1258,7 +1258,7 @@ describe("BinDesignerPage", () => {
           selectPocket(container, "pocket");
         });
       }
-      openSettingsSection(container, kind.startsWith("surface-") || kind === "fit-check" || kind.startsWith("layout-") ? "check-fit" : "export");
+      openSettingsSection(container, kind.startsWith("surface-") || kind === "fit-check" ? "check-fit" : "export");
       if (kind === "surface-fit-test") {
         React.act(() => container.querySelector('[data-testid="select-surface-fit-test-style"]')!.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true })));
         React.act(() => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(option => option.textContent === "Full surface")!.click());
@@ -3652,9 +3652,17 @@ describe("BinDesignerPage", () => {
     expect(container.textContent).toContain("Bench wrench");
 
     openSettingsSection(container, "export");
-    expect(container.textContent).toContain("Export printable bin");
+    const exportSection = container.querySelector("#bin-settings-export")!;
+    expect(exportSection.querySelector("[data-panel-section-trigger]")?.textContent)
+      .toMatch(/^Export/);
+    expect(exportSection.textContent).toContain("Export shadow-board layout (top view)");
+    expect(exportSection.querySelector('[data-testid="button-layout-dxf"]')).not.toBeNull();
+    expect(exportSection.querySelector('[data-testid="button-layout-svg"]')).not.toBeNull();
     openSettingsSection(container, "check-fit");
-    expect(container.textContent).toContain("Fit templates and layout");
+    const fitSection = container.querySelector("#bin-settings-fit")!;
+    expect(fitSection.textContent).toContain("Fit templates");
+    expect(fitSection.querySelector('[data-testid="button-layout-dxf"]')).toBeNull();
+    expect(fitSection.querySelector('[data-testid="button-layout-svg"]')).toBeNull();
     expect(container.textContent).toContain("Surface fit test");
     expect(container.querySelector('[data-testid="select-surface-fit-test-style"]')?.textContent).toBe("Tool outlines · 5 mm");
     expect(container.textContent).toContain("Save surface fit test STL");
