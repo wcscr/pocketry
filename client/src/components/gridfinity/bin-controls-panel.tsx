@@ -47,12 +47,13 @@ import {
   hasFlatFingerHoleEnds,
   fingerAccessOptionsPatch,
   fingerHoleSizeLimits,
-  resolvePocketDepth,
+  resolvePlacedPocketDepth,
   pocketDepths,
   pocketName,
   type DepthSpec,
   type TracedShape,
 } from "@shared/gridfinity/cutout";
+import { resolvePocketSplit } from "@shared/gridfinity/pocket-split";
 import {
   binFootprintMm,
   GRID_PITCH_DIVISOR,
@@ -446,6 +447,11 @@ export function BinControlsPanel({
   const selectedShape = selectedCutout
     ? (shapesById.get(selectedCutout.shapeId) ?? null)
     : null;
+  const depthShape = useMemo(() => {
+    if (!selectedShape || !selectedCutout?.split) return selectedShape;
+    const split = resolvePocketSplit(selectedShape.outlineMm, selectedCutout.split.boundary);
+    return split.regions ? { ...selectedShape, outlineMm: split.regions[selectedPocketSection] } : selectedShape;
+  }, [selectedShape, selectedCutout?.split, selectedPocketSection]);
 
   const setPocketScale = (axis: "x" | "y", percent: number) => {
     if (!selectedCutout) return;
@@ -948,12 +954,12 @@ export function BinControlsPanel({
                   <Select
                     value={depthCutout!.depth.mode}
                     onValueChange={(mode) => {
-                      const resolved = resolvePocketDepth(spec, depthCutout!.depth);
+                      const resolved = resolvePlacedPocketDepth(spec, depthCutout!.depth, depthShape!, depthCutout!);
                       const depth =
                         mode === "through"
                           ? ({ mode: "through" } as const)
                           : mode === "mm"
-                            ? ({ mode: "mm", value: Math.max(0.1, resolved.depthMm ?? resolved.infillTopZ - defaultPocketFloorThicknessMm(spec)) } as const)
+                            ? ({ mode: "mm", value: Math.max(0.1, resolved.axialDepthMm ?? resolved.infillTopZ - defaultPocketFloorThicknessMm(spec)) } as const)
                             : ({ mode: "remaining", floorThicknessMm: spec.flatBottom ? defaultPocketFloorThicknessMm(spec) : Math.max(0, resolved.floorZ ?? defaultPocketFloorThicknessMm(spec)) } as const);
                       updatePocketDepth(depth);
                     }}
@@ -984,7 +990,7 @@ export function BinControlsPanel({
                 {depthCutout!.depth.mode === "remaining" && <MmSlider label="Remaining floor thickness" value={depthCutout!.depth.floorThicknessMm} min={0} max={Math.max(7, spec.heightUnits * 7)} step={0.5}
                   onChange={(floorThicknessMm, transient) => updatePocketDepth({ mode: "remaining", floorThicknessMm }, transient)} />}
 
-                <PocketDepthSummary cutout={depthCutout!} shape={selectedShape} section={section} inspect={onSectionChange} />
+                <PocketDepthSummary cutout={depthCutout!} shape={depthShape!} section={section} inspect={onSectionChange} />
               </section>
               <details className="group/size border-t pt-1 text-xs" aria-label="Pocket size and scale" data-testid="pocket-size-settings">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-2 py-2 font-medium [&::-webkit-details-marker]:hidden">

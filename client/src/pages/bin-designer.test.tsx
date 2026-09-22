@@ -8,7 +8,8 @@ import { WORKSPACES } from "@/components/layout/workspaces";
 import * as ShapeLibraryModule from "@/state/shape-library";
 import { ShapeLibraryProvider } from "@/state/shape-library";
 import { PROJECT_SCHEMA_VERSION, parseProjectDoc, type ProjectDoc } from "@shared/gridfinity/project";
-import { fingerHoleSchema, resolvePocketDepth, parseCutoutPlacement, type TracedShape } from "@shared/gridfinity/cutout";
+import { fingerHoleSchema, resolvePocketDepth, resolvePlacedPocketDepth, parseCutoutPlacement, type TracedShape } from "@shared/gridfinity/cutout";
+import { resolvePocketSplit } from "@shared/gridfinity/pocket-split";
 import { parseBinSpec } from "@shared/gridfinity/types";
 import { downloadBlob } from "@/lib/download";
 import { useBinGeometry } from "@/lib/gridfinity/use-bin-geometry";
@@ -2113,6 +2114,42 @@ describe("BinDesignerPage", () => {
     const floor = container.querySelector<HTMLInputElement>('input[aria-label="Remaining floor thickness in millimetres"]')!;
     expect(floor.value).toBe(flatBottom ? "2" : "7");
     unmount();
+  });
+
+  it.each([false, true])("preserves tilted seats across depth-mode changes and measures the selected region (split=%s)", async split => {
+    const shape = rectangularShape("tool", "Tilted depth test");
+    const spec = parseBinSpec({ gridX: 4, gridY: 4, heightUnits: 8, lip: "none" });
+    const original = parseCutoutPlacement({ id: "tilted", shapeId: shape.id, position: { x: 0, y: 0 }, tilt: { xDeg: 25, yDeg: 20 }, depth: { mode: "remaining", floorThicknessMm: 10 },
+      ...(split ? { split: { boundary: [{ x: -15, y: 0 }, { x: 15, y: 0 }], depths: [{ mode: "remaining", floorThicknessMm: 10 }, { mode: "remaining", floorThicknessMm: 20 }] } } : {}) });
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, spec, shapes: [shape], cutouts: [original] });
+    const { container, unmount } = renderPage();
+    await flushHydration();
+    try {
+      selectPocket(container, original.id);
+      const regions = original.split ? resolvePocketSplit(shape.outlineMm, original.split.boundary).regions! : [shape.outlineMm];
+      const changeMode = (label: string) => {
+        const trigger = container.querySelector<HTMLButtonElement>('[aria-label="Pocket depth mode"]')!;
+        React.act(() => trigger.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true })));
+        const option = [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(node => node.textContent === label)!;
+        React.act(() => option.click());
+      };
+      regions.forEach((outlineMm, index) => {
+        if (split) React.act(() => [...container.querySelectorAll('button')].find(button => button.textContent === `Section ${index === 0 ? "A" : "B"}`)!.click());
+        const depth = original.split?.depths[index] ?? original.depth;
+        const expected = resolvePlacedPocketDepth(spec, depth, { outlineMm }, original);
+        changeMode("Fixed depth");
+        const changed = vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0];
+        const actualDepth = changed.split?.depths[index] ?? changed.depth;
+        expect(actualDepth.mode).toBe("mm");
+        expect(actualDepth.mode === "mm" ? actualDepth.value : NaN).toBeCloseTo(expected.axialDepthMm!, 8);
+        expect(container.querySelector('[data-testid="pocket-depth-summary"]')!.textContent).toContain(`Floor: ${expected.floorZ!.toFixed(1)} mm`);
+        expect(container.querySelector('[data-testid="pocket-depth-summary"]')!.textContent).toContain(`Vertical depth: ${expected.depthMm!.toFixed(1)} mm`);
+        changeMode("Keep floor thickness");
+        const restored = vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0];
+        const restoredDepth = restored.split?.depths[index] ?? restored.depth;
+        expect(restoredDepth.mode === "remaining" ? restoredDepth.floorThicknessMm : NaN).toBeCloseTo(expected.floorZ!, 8);
+      });
+    } finally { unmount(); }
   });
 
   it("keeps error details on the canvas in both views, collapses them, and blocks export", async () => {

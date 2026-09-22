@@ -1181,13 +1181,17 @@ export function canvasToBin(
   };
 }
 
+/** Ignore floating-point residue at the bin underside (far below print precision). */
+export const POCKET_DEPTH_EPSILON_MM = 1e-8;
+const floorAtUnderside = (z: number): number => Math.abs(z) < POCKET_DEPTH_EPSILON_MM ? 0 : z;
+
 /** Axial depth and actual lowest/highest floor for a tilted extrusion. The
  * remaining-floor mode reserves clearance for the local outline offset too. */
 export function resolvePlacedPocketDepth(spec: Pick<BinSpec, "heightUnits" | "lip">, depth: DepthSpec, shape: Pick<TracedShape, "outlineMm">, cutout: CutoutPlacement): ResolvedPocket & { highestFloorZ: number | null; axialDepthMm: number | null } {
   const ordinary = resolvePocketDepth(spec, depth);
   const offset = cutout.zOffsetMm ?? 0;
   if (!hasPocketTilt(cutout)) {
-    const floorZ = ordinary.floorZ === null ? null : ordinary.floorZ + offset;
+    const floorZ = ordinary.floorZ === null ? null : floorAtUnderside(ordinary.floorZ + offset);
     return { ...ordinary, floorZ, highestFloorZ: floorZ, axialDepthMm: ordinary.depthMm, depthMm: floorZ === null ? null : ordinary.infillTopZ - floorZ };
   }
   const axis = pocketAxis(cutout);
@@ -1200,7 +1204,7 @@ export function resolvePlacedPocketDepth(spec: Pick<BinSpec, "heightUnits" | "li
   minZ -= allowance; maxZ += allowance;
   if (depth.mode === "through") return { ...ordinary, highestFloorZ: null, axialDepthMm: null };
   const axialDepthMm = depth.mode === "mm" ? depth.value : (ordinary.infillTopZ + minZ - depth.floorThicknessMm) / Math.max(0.01, axis.z);
-  const floorZ = ordinary.infillTopZ + offset + minZ - axialDepthMm * axis.z;
+  const floorZ = floorAtUnderside(ordinary.infillTopZ + offset + minZ - axialDepthMm * axis.z);
   const highestFloorZ = ordinary.infillTopZ + offset + maxZ - axialDepthMm * axis.z;
   return { ...ordinary, floorZ, highestFloorZ, axialDepthMm, depthMm: ordinary.infillTopZ - floorZ };
 }

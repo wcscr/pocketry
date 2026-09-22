@@ -1,6 +1,6 @@
 import { Euler, Quaternion, type Vector3 } from "three";
 import {
-  resolvePlacedPocketDepth, resolvePocketDepth, transformOutlinePlacement, transformPointPlacement,
+  POCKET_DEPTH_EPSILON_MM, resolvePlacedPocketDepth, resolvePocketDepth, transformOutlinePlacement, transformPointPlacement,
   type CutoutPlacement, type DepthSpec, type TracedShape,
 } from "@shared/gridfinity/cutout";
 import { pocketAxis, rotatePocketVector } from "@shared/gridfinity/pocket-orientation";
@@ -65,7 +65,7 @@ export function pocketTransformPatch(
     if (Math.abs(requestedDz) > 1e-7 && blind.length && lower > upper) return null;
     const dz = Math.abs(requestedDz) > 1e-7 && blind.length ? Math.max(lower, Math.min(upper, requestedDz)) : 0;
     const resize = (depth: DepthSpec): DepthSpec => depth.mode === "through" ? depth
-      : depth.mode === "remaining" ? { mode: "remaining", floorThicknessMm: depth.floorThicknessMm + dz }
+      : depth.mode === "remaining" ? { mode: "remaining", floorThicknessMm: Math.max(0, depth.floorThicknessMm + dz) }
         : { mode: "mm", value: depth.value - dz / nz };
     patch.depth = anchored.split ? anchored.depth : resize(anchored.depth);
     if (anchored.split) patch.split = { ...anchored.split, depths: [resize(anchored.split.depths[0]), resize(anchored.split.depths[1])] };
@@ -74,9 +74,15 @@ export function pocketTransformPatch(
   // Premultiplication rotates around fixed bin axes regardless of prior tilt.
   const rotated = quaternion.clone().multiply(pocketQuaternion(anchored));
   const angles = new Euler().setFromQuaternion(rotated, "ZYX");
-  const tilt = { xDeg: tidy(angles.x / RAD), yDeg: tidy(angles.y / RAD) };
+  // Keep full angular precision: rounding an unchanged X/Y tilt during a Z
+  // turn can move a seat across a depth limit and falsely reject the rotation.
+  const tilt = { xDeg: angles.x / RAD, yDeg: angles.y / RAD };
+  // Quaternion-to-Euler conversion can overshoot an exact ±89° by a few ulps.
+  for (const axis of ["xDeg", "yDeg"] as const) {
+    if (Math.abs(Math.abs(tilt[axis]) - 89) < 1e-10) tilt[axis] = Math.sign(tilt[axis]) * 89;
+  }
   if (Math.abs(tilt.xDeg) > 89 || Math.abs(tilt.yDeg) > 89 || pocketAxis({ tilt, rotationDeg: 0 }).z < 0.01) return null;
-  patch.rotationDeg = tidy(angles.z / RAD);
+  patch.rotationDeg = angles.z / RAD;
   patch.tilt = tilt;
   const freeze = (depth: DepthSpec, index: number): DepthSpec => depth.mode !== "remaining" ? depth
     : { mode: "mm", value: resolve(depth, index).axialDepthMm! };
@@ -90,7 +96,7 @@ export function pocketTransformPatch(
   const updated = { ...anchored, ...patch };
   const seats = (patch.split?.depths ?? [patch.depth]).map((depth, i) => resolvePlacedPocketDepth(spec, depth,
     { outlineMm: split?.regions?.[i] ?? shape.outlineMm }, updated));
-  if (seats.some(seat => seat.floorZ !== null && (seat.floorZ < 0 || seat.highestFloorZ! > top - 0.5))) return null;
+  if (seats.some(seat => seat.floorZ !== null && (seat.floorZ < 0 || seat.highestFloorZ! > top - 0.5 + POCKET_DEPTH_EPSILON_MM))) return null;
   return patch;
 }
 

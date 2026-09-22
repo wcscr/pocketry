@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { Quaternion, Vector3 } from "three";
 import { parseCutoutPlacement, resolvePlacedPocketDepth, transformPointPlacement, type TracedShape } from "@shared/gridfinity/cutout";
 import { parseBinSpec } from "@shared/gridfinity/types";
+import { parseProjectDoc, PROJECT_SCHEMA_VERSION } from "@shared/gridfinity/project";
 import { rotatePocketVector } from "@shared/gridfinity/pocket-orientation";
 import { pickPocketAtTop, pocketQuaternion, pocketTransformPatch, pocketTransformWires, surfaceAnchoredPocket, pocketTransformChanged, pocketVerticalDepthMm } from "./pocket-transform";
 
@@ -135,6 +136,41 @@ describe("surface-anchored pocket controls", () => {
     expect(pickPocketAtTop([item], { x: 100, y: 100 })).toBeNull();
     const withHole = { ...shape, outlineMm: [{ ...shape.outlineMm[0], holes: [[{ x: -1, y: -1 }, { x: -1, y: 1 }, { x: 1, y: 1 }, { x: 1, y: -1 }]] }] };
     expect(pickPocketAtTop([{ ...item, shape: withHole }], centre)).toBeNull();
+  });
+  it("keeps a lower-clamped remaining floor valid for persistence, including split history", () => {
+    const shallow = { ...pocket, rotationDeg: 0, tilt: { xDeg: 0, yDeg: 5 }, depth: { mode: "remaining" as const, floorThicknessMm: 13.1 } };
+    for (const original of [shallow, { ...shallow, split: { boundary: [{ x: -3, y: 0 }, { x: 3, y: 0 }], depths: [shallow.depth, { mode: "remaining" as const, floorThicknessMm: 20 }] as [typeof shallow.depth, typeof shallow.depth] } }]) {
+      const patch = pocketTransformPatch(original, shape, spec, new Vector3(5, -4, -1000), identity, "translate")!;
+      const changed = { ...original, ...patch };
+      expect((changed.split?.depths[0] ?? changed.depth)).toEqual({ mode: "remaining", floorThicknessMm: 0 });
+      const before = { spec, cutouts: [original], fingerHoles: [] }, after = { spec, cutouts: [changed], fingerHoles: [] };
+      const doc = { schemaVersion: PROJECT_SCHEMA_VERSION, shapes: [shape], ...after, history: { stack: [{ doc: before, label: "Before" }, { doc: after, label: "Move" }], index: 1 } };
+      expect(parseProjectDoc(JSON.parse(JSON.stringify(doc)))).not.toBeNull();
+    }
+  });
+  it.each([-1000, 1000])("allows Z heading changes after clamping depth by %s without crossing either floor limit", dz => {
+    const original = { ...pocket, tilt: { xDeg: 15.123456789, yDeg: -25.987654321 } };
+    for (const depth of [original.depth, { mode: "mm" as const, value: 25 }]) {
+      const start = { ...original, depth };
+      const moved = { ...start, ...pocketTransformPatch(start, shape, spec, new Vector3(5, -4, 42 + dz), identity, "translate")! };
+      const before = resolvePlacedPocketDepth(spec, moved.depth, shape, moved);
+      const patch = pocketTransformPatch(moved, shape, spec, origin, new Quaternion().setFromAxisAngle(new Vector3(0, 0, 1), Math.PI / 36), "rotate");
+      expect(patch).not.toBeNull();
+      const after = resolvePlacedPocketDepth(spec, patch!.depth, shape, { ...moved, ...patch! });
+      expect(after.floorZ).toBeCloseTo(before.floorZ!, 8);
+      expect(after.highestFloorZ).toBeCloseTo(before.highestFloorZ!, 8);
+    }
+  });
+  it("allows world Z turns at the supported ±89 degree tilt boundaries", () => {
+    for (const tilt of [{ xDeg: 89, yDeg: 0 }, { xDeg: -89, yDeg: 0 }, { xDeg: 0, yDeg: 89 }, { xDeg: 0, yDeg: -89 }]) {
+      for (const degrees of [-180, -90, -5, 5, 90, 180]) {
+        const start = { ...pocket, rotationDeg: 0, tilt, depth: { mode: "through" as const } };
+        const patch = pocketTransformPatch(start, shape, spec, origin, new Quaternion().setFromAxisAngle(new Vector3(0, 0, 1), degrees * Math.PI / 180), "rotate");
+        expect(patch).not.toBeNull();
+        expect(patch!.tilt!.xDeg).toBeCloseTo(tilt.xDeg, 9);
+        expect(patch!.tilt!.yDeg).toBeCloseTo(tilt.yDeg, 9);
+      }
+    }
   });
 });
 

@@ -76,6 +76,11 @@ to honor remaining-floor mode. The drag retains its last valid orientation if
 either seat would come within 0.5 mm of the surface or pass the underside.
 This prevents the floor and opening from crossing into an inverted preview or
 a failed solid build. Adjust depth or bin height if more tilt is needed.
+Angles retain full precision internally. Depth limits tolerate only numerical
+roundoff at the underside, and remaining-floor values clamp to zero so limit
+drags remain valid in saved projects and their undo history.
+The depth readout measures the selected split section, and switching between
+fixed depth and remaining-floor depth uses that section's tilted axis and floor.
 Check the resulting floor, wall and intersection
 warnings after rotating or lowering a pocket. Undo restores both orientation
 and the original depth mode.
