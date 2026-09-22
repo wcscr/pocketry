@@ -2379,6 +2379,9 @@ describe("BinDesignerPage", () => {
       const add = document.querySelector<HTMLButtonElement>('#bin-settings-pockets button[aria-haspopup="menu"]')!;
       React.act(() => add.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
       React.act(() => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(item => item.textContent === "Circle")!.click());
+      const dimensions = [...document.querySelectorAll('[role="dialog"]')].find(dialog => dialog.textContent?.includes("Add circle pocket"))!;
+      expect(dimensions.textContent).toContain("Add circle pocket");
+      React.act(() => [...dimensions.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === "Draw on canvas")!.click());
       expect(controls!.panelOpen).toBe(false);
       expect(container.querySelector('[data-testid="layout-canvas"]')).not.toBeNull();
       expect(container.textContent).toContain("Drag from the centre to the edge of the circle");

@@ -1,5 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
+import { getMobileLayoutSnapshot } from "@/hooks/use-mobile";
+
 /**
  * Whether the controls panel is open.
  *
@@ -19,7 +21,7 @@ interface PanelState {
 const PanelContext = createContext<PanelState | null>(null);
 
 export function PanelProvider({ children }: { children: ReactNode }): JSX.Element {
-  const [panelOpen, setPanelOpen] = useState(() => !window.matchMedia?.("(max-width: 767px)").matches);
+  const [panelOpen, setPanelOpen] = useState(() => !getMobileLayoutSnapshot());
   const [traceRestart, setTraceRestart] = useState<(() => void) | null>(null);
   const registerTraceRestart = useCallback((action: (() => void) | null) => setTraceRestart(() => action), []);
 

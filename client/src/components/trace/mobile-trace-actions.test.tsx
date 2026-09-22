@@ -5,10 +5,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TraceProvider, useTrace, type TraceStore } from "@/state/trace-store";
 import type { PerspectiveProposal } from "@/lib/calibrate/perspective";
 import { PanelProvider, usePanelState } from "@/components/layout/panel-context";
+import { MobileCanvasOverlayContext } from "@/components/layout/mobile-canvas-overlay";
 import { MobileTraceActions } from "./mobile-trace-actions";
 
 let trace: TraceStore;
 let host: HTMLDivElement;
+let overlay: HTMLDivElement;
 let root: Root;
 const openSettings = vi.fn();
 const addToBin = vi.fn();
@@ -39,14 +41,15 @@ beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
   vi.clearAllMocks();
+  overlay = document.createElement("div"); document.body.append(overlay);
   host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
-  React.act(() => root.render(<PanelProvider><TraceProvider><Harness /></TraceProvider></PanelProvider>));
+  React.act(() => root.render(<MobileCanvasOverlayContext.Provider value={overlay}><PanelProvider><TraceProvider><Harness /></TraceProvider></PanelProvider></MobileCanvasOverlayContext.Provider>));
 });
 afterEach(() => {
   React.act(() => root.unmount());
-  host.remove();
+  host.remove(); overlay.remove();
   vi.unstubAllGlobals();
 });
 describe("Mobile trace progression", () => {
@@ -239,6 +242,21 @@ describe("Mobile trace progression", () => {
     expect(trace.calibration).toBeNull();
     React.act(() => button("Confirm scale").click());
     expect(trace.calibration?.lengthMm).toBe(75);
+    expect(trace.mode).toBe("region");
+    expect(host.querySelector("#mobile-ruler-length")).toBeNull();
+  });
+  it("keeps a dismissed outline hint hidden when switching between editing and navigation", () => {
+    load();
+    React.act(() => {
+      trace.dispatch({ type: "SET_CALIBRATION", calibration });
+      trace.dispatch({ type: "OUTLINE_COMMITTED", outline: [{ outer: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }], holes: [] }] });
+      trace.dispatch({ type: "SET_MODE", mode: "edit" });
+    });
+    React.act(() => overlay.querySelector<HTMLButtonElement>('[aria-label="Dismiss hint"]')!.click());
+    React.act(() => trace.dispatch({ type: "SET_MODE", mode: "navigate" }));
+    expect(overlay.querySelector('[aria-label="Dismiss hint"]')).toBeNull();
+    React.act(() => trace.dispatch({ type: "SET_MODE", mode: "edit" }));
+    expect(overlay.querySelector('[aria-label="Dismiss hint"]')).toBeNull();
   });
   it("opens naming directly once a calibrated outline is available", () => {
     load();
