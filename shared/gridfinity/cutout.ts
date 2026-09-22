@@ -13,9 +13,11 @@ import {
   binFootprintMm,
   binHeightMm,
   binTotalHeightMm,
-  D_WALL,
+  binWallThicknessMm,
+  BASE_TOP_RADIUS,
   R_F2,
-  STACKING_LIP_SUPPORT_HEIGHT,
+  hasStackingLip,
+  infillTopAllowanceMm,
 } from "./standard";
 import {
   footprintInteriorRingMm,
@@ -1043,12 +1045,12 @@ export interface ResolvedPocket {
  * infill) are validation's job, not an exception here.
  */
 export function resolvePocketDepth(
-  spec: Pick<BinSpec, "heightUnits" | "lip">,
+  spec: Pick<BinSpec, "heightUnits" | "lip"> & Partial<Pick<BinSpec, "magneticLid" | "magneticLidStyle" | "magneticLidTop" | "lidMagnetHoles" | "lidFit" | "lidInterface">>,
   depth: DepthSpec,
 ): ResolvedPocket {
-  const lipAllowance = spec.lip === "standard" ? STACKING_LIP_SUPPORT_HEIGHT : 0;
+  const lipAllowance = infillTopAllowanceMm(spec);
   const infillTopZ = binHeightMm(spec.heightUnits) - lipAllowance;
-  const cutterTopZ = binTotalHeightMm(spec.heightUnits, spec.lip === "standard") + 1;
+  const cutterTopZ = binTotalHeightMm(spec.heightUnits, hasStackingLip(spec)) + 1;
 
   let floorZ: number | null;
   switch (depth.mode) {
@@ -1097,19 +1099,19 @@ export function defaultFingerAccessDepthMm(
 export interface BinInterior {
   widthMm: number;
   lengthMm: number;
-  /** Corner radius of the interior boundary (R_F2). */
+  /** Corner radius of the interior boundary after the wall inset. */
   cornerRadiusMm: number;
 }
 
 type GridFootprintSpec = Pick<BinSpec, "gridX" | "gridY"> &
-  Partial<Pick<BinSpec, "gridPitch">> & { footprint?: BinFootprint };
+  Partial<Pick<BinSpec, "gridPitch" | "wallThicknessMm">> & { footprint?: BinFootprint };
 
 /** The cavity footprint the pockets must stay inside. */
 export function binInteriorMm(spec: GridFootprintSpec): BinInterior {
   return {
-    widthMm: binFootprintMm(spec.gridX, spec.gridPitch) - 2 * D_WALL,
-    lengthMm: binFootprintMm(spec.gridY, spec.gridPitch) - 2 * D_WALL,
-    cornerRadiusMm: R_F2,
+    widthMm: binFootprintMm(spec.gridX, spec.gridPitch) - 2 * binWallThicknessMm(spec),
+    lengthMm: binFootprintMm(spec.gridY, spec.gridPitch) - 2 * binWallThicknessMm(spec),
+    cornerRadiusMm: Math.max(0, BASE_TOP_RADIUS - binWallThicknessMm(spec)),
   };
 }
 

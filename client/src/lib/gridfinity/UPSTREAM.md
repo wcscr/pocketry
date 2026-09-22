@@ -22,6 +22,7 @@ vendored into this repository — porting stays explicit.
 | `client/src/lib/gridfinity/bin.ts` | `src/core/bin.scad` `new_bin()`, `bin_render*()` | Assembly, infill height rule, height conventions |
 | `client/src/lib/gridfinity/holes.ts` | `src/core/gridfinity-rebuilt-holes.scad` `block_base_hole()`, `screw_hole()`, `make_hole_printable()`, `ribbed_circle()`/`ribbed_cylinder()`; `src/core/base.scad` `_base_holes()` | Magnet/screw holes, sequential-bridging ceilings, entry chamfer, crush ribs, hole grid |
 | `client/src/lib/gridfinity/fillet-stack.ts` | — (original) | K-slice stepped bottom fillet for cutout pockets |
+| `client/src/lib/gridfinity/lid-interface.ts` | — (original) | Side springs, angled fins, folded latch, and matching body recesses; mechanism principles informed by [Slant3D's lid design video](https://www.youtube.com/watch?v=IZKh6lo9SP4) at 2:04, 3:01, and 4:18. No CAD or source code copied. |
 | `client/src/lib/gridfinity/label-tab.ts` | `src/core/tab.scad` `tab()`, `src/core/standard.scad` `TAB_POLYGON` / `TAB_*` | Label tab profile prism, width styles (full / 42 mm left-center-right), wall placement |
 
 Not ported: the Gridfinity Refined hole, Lite Base and its `only_corners`
@@ -45,9 +46,12 @@ permissive).
   vertices on cardinal directions and bounding boxes stay exact). Note
   manifold's `revolve(segments, degrees)` spreads `segments` across the swept
   angle, so a quarter revolve is passed `circularSegments / 4`.
-- **`calculateNormals(0, 60)`, not `(3, 60)`.** The plan document predates
+- **`calculateNormals(0, 40)`, not `(3, 60)`.** The plan document predates
   manifold deprecating non-zero normal channel indices; channel 0 is the
-  "standard slot" and `getMesh()` then returns interleaved normals.
+  "standard slot" and `getMesh()` then returns interleaved normals. The 40°
+  threshold preserves the 45° chamfer and grip-recess edges; 60° smoothed them
+  into the flat walls, creating diagonal shading artifacts. Export geometry
+  is unchanged.
 - The infill spans the full footprint (as upstream, minus their tolerance
   shave) and parts may overlap; `buildBin` unions them. Multi-color 3MF export
   cuts configurable non-overlapping volumes downward from blind-pocket floors

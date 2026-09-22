@@ -18,6 +18,23 @@ interface RelatedProject {
   url: string;
 }
 
+const DESIGN_REFERENCES: readonly RelatedProject[] = [
+  {
+    name: "Design Compliant Lids for Perfect Tolerance Every Time",
+    description:
+      "Slant3D’s guide to compliant lids, rounded entries, and reduced contact surfaces informed Pocketry’s lid-fit design.",
+    badge: "Video",
+    url: "https://www.youtube.com/watch?v=IZKh6lo9SP4",
+  },
+  {
+    name: "This Makes 3D Printed Lids Fit Better",
+    description:
+      "More lid-fit design guidance from Slant3D for testing and refining printed lids.",
+    badge: "Video",
+    url: "https://www.youtube.com/watch?v=hrpYulJLnQY",
+  },
+];
+
 const OPEN_SOURCE_PROJECTS: readonly RelatedProject[] = [
   {
     name: "Gridfinity Rebuilt OpenSCAD",
@@ -226,6 +243,18 @@ export default function About(): JSX.Element {
                 The shipped NOTICE identifies their licenses and provenance and
                 inventories Pocketry&apos;s direct npm dependencies and build tools.
               </p>
+              <p>
+                Magnet crush ribs in the base and lid closure are adapted from{" "}
+                <a
+                  href="https://github.com/kennetek/gridfinity-rebuilt-openscad/blob/910e22d8607fd7f5f51ad5e5cbc5287a76810bfd/src/core/gridfinity-rebuilt-holes.scad#L29-L77"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline underline-offset-4 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                >
+                  Gridfinity Rebuilt&apos;s crush-rib design
+                </a>{" "}
+                (MIT).
+              </p>
             </CardContent>
           </Card>
         </section>
@@ -304,6 +333,20 @@ export default function About(): JSX.Element {
             <ProjectGrid projects={CLOSED_OR_FREEMIUM_TOOLS} />
           </section>
         </section>
+
+        <section className="space-y-3" aria-labelledby="design-references-heading">
+          <div className="space-y-1">
+            <h2 id="design-references-heading" className="text-2xl font-semibold tracking-tight">
+              Design references
+            </h2>
+            <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
+              Slant3D&apos;s videos explain practical ways to design lids that fit.
+              These are useful references when tuning and test-printing your own bins.
+            </p>
+          </div>
+          <ProjectGrid projects={DESIGN_REFERENCES} />
+        </section>
+
       </div>
     </main>
   );

@@ -31,6 +31,7 @@ vi.mock("@/components/gridfinity/bin-viewport", () => ({
     binColor,
     pocketFloorColor,
     stackingRimColor,
+    lidColor,
     showPocketFloorColor,
     showStackingRimColor,
     measurementOutlines,
@@ -42,6 +43,7 @@ vi.mock("@/components/gridfinity/bin-viewport", () => ({
     binColor: string;
     pocketFloorColor: string;
     stackingRimColor: string;
+    lidColor: string;
     showPocketFloorColor: boolean;
     showStackingRimColor: boolean;
     measurementOutlines: readonly unknown[];
@@ -61,6 +63,7 @@ vi.mock("@/components/gridfinity/bin-viewport", () => ({
       data-bin-color={binColor}
       data-floor-color={pocketFloorColor}
       data-rim-color={stackingRimColor}
+      data-lid-color={lidColor}
       data-measurement-splits={JSON.stringify(measurementSplitBoundaries)}
     >
       <button
@@ -273,6 +276,386 @@ function openSettingsSection(
     ).click();
   });
 }
+
+it.each([false, true])("enables magnetic lids independently of base magnets and supports undo (mobile=%s)", async mobile => {
+  let controls: ReturnType<typeof usePanelState>;
+  function PanelProbe() { controls = usePanelState(); return null; }
+  const { container, unmount } = render(<PanelProvider><PanelProbe /><ShapeLibraryProvider><BinDesignerPage /></ShapeLibraryProvider></PanelProvider>, { mobile });
+  await flushHydration();
+  try {
+    React.act(() => controls!.setPanelOpen(true));
+    const panel = mobile ? document.body : container;
+    openSettingsSection(panel, "construction");
+    React.act(() => panel.querySelector<HTMLButtonElement>('[role="switch"][aria-label="Lid"]')!.click());
+    expect(vi.mocked(useBinGeometry).mock.calls.at(-1)![0]).toMatchObject({ magneticLid: true, magnetHoles: false, lip: "standard" });
+    expect(panel.querySelector<HTMLButtonElement>('[role="switch"][aria-label="Stacking lip"]')!.disabled).toBe(true);
+    const viewport = container.querySelector('[data-testid="bin-viewport-stub"]')!;
+    expect(viewport.getAttribute("data-lid-color")).toBe(viewport.getAttribute("data-bin-color"));
+    expect(viewport.getAttribute("data-stacking-rim-color")).toBe("off");
+    openSettingsSection(panel, "materials");
+    expect(panel.querySelector('[role="switch"][aria-label="Color lid"]')).not.toBeNull();
+    expect(panel.querySelector('[data-testid="input-stacking-rim-thickness"]')).toBeNull();
+    openSettingsSection(panel, "construction");
+    React.act(() => panel.querySelector<HTMLButtonElement>('[data-testid="button-lid-top-stacking"]')!.click());
+    expect(vi.mocked(useBinGeometry).mock.calls.at(-1)![0].magneticLidTop).toBe("stacking");
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+
+    React.act(() => panel.querySelector<HTMLButtonElement>('[data-testid="button-lid-style-overlap"]')!.click());
+    expect(vi.mocked(useBinGeometry).mock.calls.at(-1)![0].magneticLidStyle).toBe("overlap");
+    expect(panel.querySelector('[role="switch"][aria-label="Stacking lip"]')!.getAttribute("aria-checked")).toBe("false");
+    React.act(() => panel.querySelector<HTMLButtonElement>('[data-testid="button-lid-style-inset"]')!.click());
+    expect(vi.mocked(useBinGeometry).mock.calls.at(-1)![0].magneticLidStyle).toBe("inset");
+    expect(panel.querySelector('[role="switch"][aria-label="Stacking lip"]')!.getAttribute("aria-checked")).toBe("true");
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+    openSettingsSection(panel, "export");
+    expect(panel.querySelector<HTMLButtonElement>('[data-testid="button-export-lid-stl"]')!.disabled).toBe(false);
+    expect(panel.querySelector<HTMLButtonElement>('[data-testid="button-export-lid-3mf"]')!.disabled).toBe(false);
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+    expect(vi.mocked(useBinGeometry).mock.calls.at(-1)![0].magneticLid).toBe(false);
+    expect(panel.querySelector('[data-testid="export-magnetic-lid"]')).toBeNull();
+  } finally { unmount(); }
+});
+
+it.each([false, true])("warns on the canvas about filled overlapping stacking lids only while enabled (mobile=%s)", async mobile => {
+  let controls: ReturnType<typeof usePanelState>;
+  function PanelProbe() { controls = usePanelState(); return null; }
+  const { container, unmount } = render(<PanelProvider><PanelProbe /><ShapeLibraryProvider><BinDesignerPage /></ShapeLibraryProvider></PanelProvider>, { mobile });
+  await flushHydration();
+  try {
+    React.act(() => controls!.setPanelOpen(true));
+    const panel = mobile ? document.body : container;
+    openSettingsSection(panel, "construction");
+    const warning = () => container.querySelector('[data-issue-code="overlap-stacking-filled-lid"]');
+    const click = (selector: string) => React.act(() => panel.querySelector<HTMLButtonElement>(selector)!.click());
+    expect(warning()).toBeNull();
+    click('[role="switch"][aria-label="Lid"]');
+    click('[data-testid="button-lid-style-overlap"]');
+    expect(warning()).toBeNull();
+    click('[data-testid="button-lid-top-stacking"]');
+    const warnings = container.querySelector('[data-testid="canvas-warnings"]')!;
+    expect(warnings.closest('[data-testid="bin-canvas"]')).not.toBeNull();
+    React.act(() => warnings.querySelector<HTMLButtonElement>('button[aria-expanded]')!.click());
+    expect(warning()?.textContent).toContain("currently require a filled lid for printability");
+    expect(panel.querySelector('#bin-settings-construction')?.textContent).not.toContain("currently require a filled lid");
+    React.act(() => controls!.setPanelOpen(false));
+    expect(warning()).not.toBeNull();
+    React.act(() => (warning() as HTMLButtonElement).click());
+    expect(controls!.panelOpen).toBe(true);
+    expect(panel.querySelector('#bin-settings-construction [role="switch"][aria-label="Lid"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="bin-viewport-stub"]')).not.toBeNull();
+    click('[data-testid="button-lid-style-inset"]');
+    expect(warning()).toBeNull();
+    click('[data-testid="button-lid-style-overlap"]');
+    expect(warning()).not.toBeNull();
+    click('[data-testid="button-lid-top-flat"]');
+    expect(warning()).toBeNull();
+    click('[data-testid="button-lid-top-stacking"]');
+    click('[role="switch"][aria-label="Lid"]');
+    expect(warning()).toBeNull();
+  } finally { unmount(); }
+});
+
+it.each([false, true])("adjusts shared walls with undo and retains the setting across styles (mobile=%s)", async mobile => {
+  let controls: ReturnType<typeof usePanelState>;
+  function PanelProbe() { controls = usePanelState(); return null; }
+  const { container, unmount } = render(<PanelProvider><PanelProbe /><ShapeLibraryProvider><BinDesignerPage /></ShapeLibraryProvider></PanelProvider>, { mobile });
+  await flushHydration();
+  try {
+    React.act(() => controls!.setPanelOpen(true));
+    const panel = mobile ? document.body : container;
+    const current = () => vi.mocked(useBinGeometry).mock.calls.at(-1)![0];
+    const wallInput = () => panel.querySelector<HTMLInputElement>('[aria-label="Wall thickness in millimetres"]');
+    openSettingsSection(panel, "construction");
+    expect(wallInput()).not.toBeNull();
+    React.act(() => panel.querySelector<HTMLButtonElement>('[role="switch"][aria-label="Lid"]')!.click());
+    React.act(() => panel.querySelector<HTMLButtonElement>('[data-testid="button-lid-style-overlap"]')!.click());
+    expect(wallInput()?.value).toBe("1.2");
+    const slider = panel.querySelector<HTMLElement>('[role="slider"][aria-label="Wall thickness"]')!;
+    React.act(() => slider.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })));
+    expect(current().wallThicknessMm).toBe(1.25);
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+    expect(current().wallThicknessMm).toBe(1.2);
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+    expect(current().wallThicknessMm).toBe(1.25);
+    React.act(() => panel.querySelector<HTMLButtonElement>('[data-testid="button-lid-style-inset"]')!.click());
+    expect(wallInput()).not.toBeNull();
+    React.act(() => panel.querySelector<HTMLButtonElement>('[data-testid="button-lid-style-overlap"]')!.click());
+    expect(wallInput()?.value).toBe("1.25");
+    React.act(() => panel.querySelector<HTMLButtonElement>('[role="switch"][aria-label="Lid"]')!.click());
+    expect(wallInput()).not.toBeNull();
+  } finally { unmount(); }
+});
+
+it.each([false, true])("shares magnet size across active magnets, undo, and hidden controls (mobile=%s)", async mobile => {
+  let controls: ReturnType<typeof usePanelState>;
+  function PanelProbe() { controls = usePanelState(); return null; }
+  const { container, unmount } = render(<PanelProvider><PanelProbe /><ShapeLibraryProvider><BinDesignerPage /></ShapeLibraryProvider></PanelProvider>, { mobile });
+  await flushHydration();
+  try {
+    React.act(() => controls!.setPanelOpen(true));
+    const panel = mobile ? document.body : container;
+    const toggle = (label: string) => React.act(() => panel.querySelector<HTMLButtonElement>(`[role="switch"][aria-label="${label}"]`)!.click());
+    const current = () => vi.mocked(useBinGeometry).mock.calls.at(-1)![0];
+    const groups = () => panel.querySelectorAll('[role="group"][aria-label="Magnet size"]');
+    const change = (label: string) => React.act(() => panel.querySelector<HTMLElement>(`[role="slider"][aria-label="${label}"]`)!
+      .dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })));
+    openSettingsSection(panel, "construction");
+    expect(groups()).toHaveLength(0);
+    toggle("Magnet holes");
+    expect(groups()).toHaveLength(1);
+    expect(current()).toMatchObject({ magnetDiameterMm: 6, magnetThicknessMm: 2 });
+    change("Magnet diameter");
+    change("Magnet thickness");
+    expect(current()).toMatchObject({ magnetDiameterMm: 6.1, magnetThicknessMm: 2.1 });
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+    expect(current().magnetThicknessMm).toBe(2);
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+    expect(current().magnetThicknessMm).toBe(2.1);
+    toggle("Lid");
+    expect(groups()).toHaveLength(1);
+    toggle("Lid crush ribs");
+    expect(current()).toMatchObject({ lidMagnetCrushRibs: true, magnetCrushRibs: false });
+    toggle("Base magnet holes");
+    expect(groups()).toHaveLength(1);
+    toggle("Lid magnet holes");
+    expect(groups()).toHaveLength(0);
+    toggle("Base magnet holes");
+    expect(groups()).toHaveLength(1);
+    toggle("Flat bottom");
+    expect(groups()).toHaveLength(0);
+    toggle("Lid magnet holes");
+    expect(groups()).toHaveLength(1);
+    expect(panel.querySelector<HTMLInputElement>('[aria-label="Magnet diameter in millimetres"]')?.value).toBe("6.1");
+    expect(panel.querySelector<HTMLInputElement>('[aria-label="Magnet thickness in millimetres"]')?.value).toBe("2.1");
+    toggle("Lid");
+    expect(groups()).toHaveLength(0);
+  } finally { unmount(); }
+});
+
+it.each([false, true])("allows larger base magnets to export and explains their shifted positions (mobile=%s)", async mobile => {
+  let controls: ReturnType<typeof usePanelState>;
+  function PanelProbe() { controls = usePanelState(); return null; }
+  const { container, unmount } = render(<PanelProvider><PanelProbe /><ShapeLibraryProvider><BinDesignerPage /></ShapeLibraryProvider></PanelProvider>, { mobile });
+  await flushHydration();
+  try {
+    React.act(() => controls!.setPanelOpen(true));
+    const panel = mobile ? document.body : container;
+    const toggle = (label: string) => React.act(() => panel.querySelector<HTMLButtonElement>(`[role="switch"][aria-label="${label}"]`)!.click());
+    const note = () => panel.querySelector('[data-testid="base-magnet-shift-note"]');
+    openSettingsSection(panel, "construction");
+    toggle("Lid");
+    toggle("Base magnet holes");
+    expect(note()).toBeNull();
+    React.act(() => panel.querySelector<HTMLElement>('[role="slider"][aria-label="Magnet diameter"]')!
+      .dispatchEvent(new KeyboardEvent("keydown", { key: "End", bubbles: true })));
+    expect(note()?.textContent).toContain("screw holes stay in place");
+    openSettingsSection(panel, "export");
+    expect(panel.querySelector<HTMLButtonElement>('[data-testid="button-export-stl"]')!.disabled).toBe(false);
+    expect(panel.querySelector<HTMLButtonElement>('[data-testid="button-export-lid-stl"]')!.disabled).toBe(false);
+    openSettingsSection(panel, "construction");
+    toggle("Base magnet holes");
+    expect(note()).toBeNull();
+    toggle("Base magnet holes");
+    expect(note()).not.toBeNull();
+    toggle("Flat bottom");
+    expect(note()).toBeNull();
+  } finally { unmount(); }
+});
+
+it.each([false, true])("offers fit and tuning only without lid magnets, retaining choices and undo (mobile=%s)", async mobile => {
+  let controls: ReturnType<typeof usePanelState>;
+  function PanelProbe() { controls = usePanelState(); return null; }
+  const { container, unmount } = render(<PanelProvider><PanelProbe /><ShapeLibraryProvider><BinDesignerPage /></ShapeLibraryProvider></PanelProvider>, { mobile });
+  await flushHydration();
+  try {
+    React.act(() => controls!.setPanelOpen(true));
+    const panel = mobile ? document.body : container;
+    const toggle = (label: string) => React.act(() => panel.querySelector<HTMLButtonElement>(`[role="switch"][aria-label="${label}"]`)!.click());
+    const current = () => vi.mocked(useBinGeometry).mock.calls.at(-1)![0];
+    openSettingsSection(panel, "construction");
+    expect(panel.querySelector('[data-testid="lid-fit-controls"]')).toBeNull();
+    toggle("Lid");
+    expect(panel.querySelector('[data-testid="lid-fit-controls"]')).toBeNull();
+    toggle("Grip recess");
+    expect(current().lidGripRecess).toBe(true);
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+    expect(current().lidGripRecess).toBe(false);
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+    expect(current().lidGripRecess).toBe(true);
+    toggle("Lid magnet holes");
+    expect(panel.querySelector('[data-testid="button-lid-fit-lift-off"]')?.getAttribute("aria-pressed")).toBe("true");
+    toggle("Base magnet holes");
+    expect(panel.querySelector('[data-testid="lid-fit-controls"]')).not.toBeNull();
+    React.act(() => panel.querySelector<HTMLButtonElement>('[data-testid="button-lid-fit-friction"]')!.click());
+    const slider = panel.querySelector<HTMLElement>('[role="slider"][aria-label="Lid fit adjustment"]')!;
+    React.act(() => slider.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })));
+    expect(current()).toMatchObject({ lidFit: "friction", lidFitAdjustmentMm: 0.05, magnetHoles: true, lidMagnetHoles: false });
+    expect(slider.getAttribute("aria-valuetext")).toBe("0.05 mm firmer");
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+    expect(current().lidFitAdjustmentMm).toBe(0);
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+    expect(current().lidFitAdjustmentMm).toBe(0.05);
+    toggle("Lid magnet holes");
+    expect(panel.querySelector('[data-testid="lid-fit-controls"]')).toBeNull();
+    toggle("Lid magnet holes");
+    expect(current()).toMatchObject({ lidFit: "friction", lidFitAdjustmentMm: 0.05 });
+    toggle("Lid");
+    expect(panel.querySelector('[data-testid="lid-fit-controls"]')).toBeNull();
+    expect(panel.querySelector('[role="switch"][aria-label="Grip recess"]')).toBeNull();
+    expect(current().lidGripRecess).toBe(true);
+  } finally { unmount(); }
+});
+
+it.each([false, true])("selects compliant interfaces with undo and hides them for magnetic closures (mobile=%s)", async mobile => {
+  let controls: ReturnType<typeof usePanelState>;
+  function PanelProbe() { controls = usePanelState(); return null; }
+  const { container, unmount } = render(<PanelProvider><PanelProbe /><ShapeLibraryProvider><BinDesignerPage /></ShapeLibraryProvider></PanelProvider>, { mobile });
+  await flushHydration();
+  try {
+    React.act(() => controls!.setPanelOpen(true));
+    const panel = mobile ? document.body : container;
+    const toggle = (label: string) => React.act(() => panel.querySelector<HTMLButtonElement>(`[role="switch"][aria-label="${label}"]`)!.click());
+    const current = () => vi.mocked(useBinGeometry).mock.calls.at(-1)![0];
+    const select = () => panel.querySelector<HTMLButtonElement>('[aria-label="Lid interface"]');
+    openSettingsSection(panel, "construction");
+    toggle("Lid");
+    toggle("Lid magnet holes");
+    expect(select()).toBeNull();
+    React.act(() => panel.querySelector<HTMLButtonElement>('[data-testid="button-lid-fit-friction"]')!.click());
+    expect(select()?.textContent).toContain("Contact ribs");
+    expect(panel.querySelector('[data-testid="lid-rib-count"]')?.textContent).toContain("3 along width · 3 along length");
+    React.act(() => panel.querySelector<HTMLElement>('[role="slider"][aria-label="Rib spacing"]')!
+      .dispatchEvent(new KeyboardEvent("keydown", { key: "Home", bubbles: true })));
+    expect(current().lidRibSpacingMm).toBe(8);
+    expect(panel.querySelector('[data-testid="lid-rib-count"]')?.textContent).toContain("8 along width · 8 along length");
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+    expect(current().lidRibSpacingMm).toBe(24);
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+    expect(current().lidRibSpacingMm).toBe(8);
+    React.act(() => select()!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+    const options = Array.from(document.querySelectorAll<HTMLElement>('[role="option"]'));
+    for (const label of ["Side springs", "Spring latch"]) {
+      const option = options.find(el => el.textContent === label)!;
+      expect(option.getAttribute("aria-disabled")).toBe("true");
+      React.act(() => option.click());
+      expect(current().lidInterface).toBe("ribs");
+    }
+    const fins = options.find(el => el.textContent === "Angled fins")!;
+    expect(fins.getAttribute("aria-disabled")).not.toBe("true");
+    React.act(() => fins.click());
+    expect(current().lidInterface).toBe("angled-fins");
+    expect(panel.querySelector('[data-testid="lid-rib-spacing-controls"]')).toBeNull();
+    expect(current().lidRibSpacingMm).toBe(8);
+    expect(panel.querySelector('[data-testid="lid-interface-unavailable"]')?.textContent).toContain("disabled pending redesign after fit testing");
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+    expect(current().lidInterface).toBe("ribs");
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+    expect(current().lidInterface).toBe("angled-fins");
+    React.act(() => panel.querySelector<HTMLButtonElement>('[data-testid="button-lid-style-overlap"]')!.click());
+    expect(current()).toMatchObject({ magneticLidStyle: "overlap", lidInterface: "angled-fins" });
+    React.act(() => select()!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+    expect(Array.from(document.querySelectorAll<HTMLElement>('[role="option"]')).map(el => [el.textContent, el.getAttribute("aria-disabled") === "true"]))
+      .toEqual([["Contact ribs", false], ["Side springs", true], ["Angled fins", false]]);
+    React.act(() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+    expect(current()).toMatchObject({ magneticLidStyle: "inset", lidInterface: "angled-fins" });
+    toggle("Base magnet holes");
+    expect(select()).not.toBeNull();
+    toggle("Lid magnet holes");
+    expect(select()).toBeNull();
+    toggle("Lid magnet holes");
+    expect(select()?.textContent).toContain("Angled fins");
+    React.act(() => panel.querySelector<HTMLButtonElement>('[data-testid="button-lid-fit-lift-off"]')!.click());
+    expect(select()).toBeNull();
+    expect(current().lidInterface).toBe("angled-fins");
+  } finally { unmount(); }
+});
+
+it.each(["side-springs", "spring-latch"] as const)("loads saved %s designs as contact ribs through undo and redo", async lidInterface => {
+  const spec = parseBinSpec({
+    ...EMPTY_PROJECT.spec, magneticLid: true, magneticLidStyle: "inset", lidMagnetHoles: false,
+    lidFit: "friction", lidInterface,
+  });
+  // Persistence and file imports share this parser; hydrate its migrated result.
+  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(parseProjectDoc({
+    ...EMPTY_PROJECT, schemaVersion: 25, spec,
+    history: { index: 1, stack: [
+      { ...spec, magneticLidStyle: "overlap", lidInterface: "side-springs" },
+      spec,
+      { ...spec, magneticLidTop: "stacking", lidInterface: "spring-latch" },
+    ].map((spec, index) => ({ label: `Step ${index}`, doc: { spec, cutouts: [], fingerHoles: [] } })) },
+  }));
+  const { container, unmount } = renderPage();
+  await flushHydration();
+  try {
+    openSettingsSection(container, "construction");
+    const current = () => vi.mocked(useBinGeometry).mock.calls.at(-1)![0];
+    const undo = () => React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+    const redo = () => React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+    expect(current()).toMatchObject({ magneticLidStyle: "inset", lidInterface: "ribs" });
+    expect(container.querySelector('[data-testid="select-lid-interface"]')!.textContent).toContain("Contact ribs");
+    undo();
+    expect(current()).toMatchObject({ magneticLidStyle: "overlap", lidInterface: "ribs" });
+    redo();
+    redo();
+    expect(current()).toMatchObject({ magneticLidTop: "stacking", lidInterface: "ribs" });
+  } finally { unmount(); }
+});
+
+it.each(["stl", "3mf"] as const)("exports the separate lid as %s with an optional editable project", async format => {
+  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, spec: { ...EMPTY_PROJECT.spec, magneticLid: true } });
+  const lidMesh = { positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1]), indices: new Uint32Array([0, 2, 1, 0, 1, 3, 0, 3, 2, 1, 2, 3]), normals: null };
+  // No body mesh: attempting to export the body accidentally will fail.
+  binGeometryMock.buildOnce.mockResolvedValue({ lidMesh });
+  const { container, unmount } = renderPage();
+  await flushHydration();
+  try {
+    openSettingsSection(container, "export");
+    React.act(() => container.querySelector<HTMLButtonElement>(`[data-testid="button-export-lid-${format}"]`)!.click());
+    expect(downloadBlob).not.toHaveBeenCalled();
+    React.act(() => document.querySelector<HTMLButtonElement>('[data-testid="checkbox-export-project"]')!.click());
+    await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-confirm-export"]')!.click());
+    expect(downloadBlob).toHaveBeenCalledTimes(2);
+    const [model, filename] = vi.mocked(downloadBlob).mock.calls.at(-1)!;
+    expect(filename).toContain("-lid-");
+    expect(filename).toMatch(new RegExp(`\\.${format}$`));
+    expect(model.size).toBeGreaterThan(84);
+    if (format === "stl") expect(model.size).toBe(84 + 50 * 4);
+  } finally { unmount(); }
+});
+
+it("keeps base and lid magnets independent and links lid color until customized", async () => {
+  const { container, unmount } = renderPage();
+  await flushHydration();
+  const toggle = (label: string) => React.act(() => container.querySelector<HTMLButtonElement>(`[role="switch"][aria-label="${label}"]`)!.click());
+  try {
+    openSettingsSection(container, "construction");
+    toggle("Lid");
+    toggle("Lid crush ribs");
+    expect(vi.mocked(useBinGeometry).mock.calls.at(-1)![0]).toMatchObject({ lidMagnetCrushRibs: true, magnetCrushRibs: false, magnetHoles: false });
+    toggle("Lid magnet holes");
+    expect(container.querySelector('[aria-label="Lid crush ribs"]')).toBeNull();
+    expect(vi.mocked(useBinGeometry).mock.calls.at(-1)![0]).toMatchObject({ magneticLid: true, lidMagnetHoles: false });
+    toggle("Base magnet holes");
+    toggle("Base crush ribs");
+    expect(vi.mocked(useBinGeometry).mock.calls.at(-1)![0]).toMatchObject({ magnetHoles: true, magnetCrushRibs: true, lidMagnetHoles: false });
+    openSettingsSection(container, "materials");
+    const setColor = (id: string, value: string) => React.act(() => {
+      const input = container.querySelector<HTMLInputElement>(`[data-testid="${id}"]`)!;
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const view = container.querySelector('[data-testid="bin-viewport-stub"]')!;
+    setColor("input-bin-color", "#123456");
+    expect(view.getAttribute("data-lid-color")).toBe("#123456");
+    setColor("input-stacking-rim-color", "#abcdef");
+    setColor("input-bin-color", "#654321");
+    expect(view.getAttribute("data-lid-color")).toBe("#abcdef");
+    expect(view.getAttribute("data-bin-color")).toBe("#654321");
+    expect(view.getAttribute("data-stacking-rim-color")).toBe("off");
+  } finally { unmount(); }
+});
 
 /** Use the compact pocket list without entering rename or changing geometry. */
 function selectPocket(container: HTMLElement, id: string): void {

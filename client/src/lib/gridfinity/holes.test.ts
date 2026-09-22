@@ -7,6 +7,7 @@ import {
   MAGNET_HOLE_RADIUS,
   SCREW_HOLE_RADIUS,
 } from "@shared/gridfinity/standard";
+import { magnetHoleDepthMm, magnetHoleRadiusMm, magnetCrushRadiusMm } from "@shared/gridfinity/magnets";
 import { parseBinSpec } from "@shared/gridfinity/types";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -132,9 +133,10 @@ describe("buildBase with holes", () => {
     expect(box.min[1]).toBeCloseTo(-13 - MAGNET_HOLE_RADIUS, 6);
   });
 
-  it("adds hole clusters only beneath occupied custom-footprint cells", () => {
+  it.each([6, 12])("adds %s mm magnet holes only beneath occupied custom-footprint cells", magnetDiameterMm => {
     const options = {
       magnet: true,
+      magnetDiameterMm,
       screw: false,
       supportless: false,
       chamfer: false,
@@ -199,6 +201,56 @@ describe("buildBase with holes", () => {
     // 16 supportless pockets: at least the nominal pocket volume each.
     const nominal = circleArea(MAGNET_HOLE_RADIUS, SEGMENTS) * MAGNET_HOLE_DEPTH;
     expect(plain.solid.volume() - holed.solid.volume()).toBeGreaterThan(16 * nominal);
+  });
+});
+
+describe("custom magnet sizes", () => {
+  it.each([[3, 1, 13], [6, 2, 13], [7.5, 5, 13], [8, 2, 12.75], [10, 3, 11.75], [12, 5, 10.75]])("uses %s × %s mm magnets in plain and ribbed underside bores", (magnetDiameterMm, magnetThicknessMm, offset) => {
+    const s = parseBinSpec({ gridX: 1, gridY: 1, heightUnits: 2, fill: "none", magnetHoles: true, magnetDiameterMm, magnetThicknessMm });
+    const radius = magnetHoleRadiusMm(s);
+    const depth = magnetHoleDepthMm(s);
+    for (const magnetCrushRibs of [false, true]) {
+      const options = holeOptionsFromSpec({ ...s, magnetCrushRibs });
+      const cutter = baseHoleCutter(kernel, { ...options, supportless: false }, SEGMENTS)!;
+      expect(cutter.boundingBox().max[2]).toBeCloseTo(depth, 6);
+      if (!magnetCrushRibs) expect(cutter.volume()).toBeCloseTo(circleArea(radius, SEGMENTS) * depth, 4);
+      const body = buildBin(kernel, { ...s, magnetCrushRibs }, { circularSegments: SEGMENTS }).solid;
+      expect(body.status()).toBe("NoError");
+      expect(body.genus()).toBe(0);
+      const clearRadius = (magnetCrushRibs ? magnetCrushRadiusMm(s) : radius) - 0.04;
+      const probe = arena.track(arena.track(kernel.Manifold.cylinder(depth - 0.02, clearRadius, clearRadius, 64)).translate([offset, offset, 0.01]));
+      expect(arena.track(body.intersect(probe)).volume()).toBeLessThan(1e-5);
+      const roof = arena.track(arena.track(kernel.Manifold.cube([0.5, 0.5, 0.5], true)).translate([offset, offset, 6.5]));
+      expect(arena.track(body.intersect(roof)).volume()).toBeCloseTo(0.125, 6);
+      const wall = arena.track(arena.track(kernel.Manifold.cube([0.6, 0.5, 0.5], true)).translate([17.4, offset, 0.3]));
+      expect(arena.track(body.intersect(wall)).volume()).toBeCloseTo(0.15, 6);
+    }
+  });
+
+  it.each([24, 64])("keeps standard screw positions with offset magnets and printable ceilings (%s segments)", segments => {
+    for (const [magnetDiameterMm, magnetThicknessMm] of [[8, 1], [12, 5]]) {
+      for (const crushRibs of [false, true]) {
+        for (const chamfer of [false, true]) {
+          const body = buildBase(kernel, { gridX: 1, gridY: 1 }, segments, {
+            magnet: true, screw: true, supportless: true, chamfer, crushRibs, magnetDiameterMm, magnetThicknessMm,
+          });
+          expect(body.status()).toBe("NoError");
+          expect(body.genus()).toBe(4);
+          const probe = arena.track(kernel.Manifold.cylinder(0.3, 1.4, 1.4, segments));
+          for (const [x, y] of [[13, 13], [-13, 13], [-13, -13], [13, -13]]) {
+            expect(arena.track(body.intersect(arena.track(probe.translate([x, y, 6.05])))).volume()).toBeLessThan(1e-6);
+          }
+          const pieces = body.decompose();
+          pieces.forEach(piece => arena.track(piece));
+          expect(pieces).toHaveLength(1);
+        }
+      }
+    }
+  });
+
+  it("refuses pockets that overlap even after moving inward, outside UI validation", () => {
+    expect(() => buildBase(kernel, { gridX: 1, gridY: 1 }, SEGMENTS,
+      { ...NO_HOLES, magnet: true, magnetDiameterMm: 18 })).toThrow(/material between/);
   });
 });
 

@@ -7,7 +7,7 @@ import type { MeshData } from "./mesh-data";
  * the typed arrays become the attribute storage directly.
  *
  * Deliberately **never** calls `computeVertexNormals()`. The mesh's normals
- * come from manifold's `calculateNormals` with a 60° crease threshold, which
+ * come from manifold's `calculateNormals` with a 40° crease threshold, which
  * keeps the base profile's 45° transitions crisp; three's recomputation would
  * average across those edges and smooth the Gridfinity silhouette into mush
  * (the plan calls this out explicitly). A mesh without normals gets flat

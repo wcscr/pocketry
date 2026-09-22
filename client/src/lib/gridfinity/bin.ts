@@ -11,6 +11,8 @@ import {
   FINGER_HOLE_EXPORT_CHORD_TOLERANCE_MM,
 } from "@shared/gridfinity/cutout";
 import {
+  hasStackingLip,
+  infillTopAllowanceMm,
   BASE_HEIGHT,
   BASE_TOP_RADIUS,
   binFootprintMm,
@@ -36,6 +38,10 @@ import { buildLabelTab } from "./label-tab";
 import { roundedRectPolygon } from "./profiles";
 import { footprintOuterSection } from "./footprint-section";
 import { buildStackingLip, buildWallRing } from "./wall";
+import { hasOverlappingLid } from "@shared/gridfinity/magnetic-lid";
+import { addLidRetention, buildLidSupports, buildInsetLidRim } from "./magnetic-lid";
+import { hasSpringLatch } from "@shared/gridfinity/magnetic-lid";
+import { lidDetentKeepout } from "./lid-interface";
 
 /**
  * Bin assembly: base + wall + lip + optional infill, ported from upstream
@@ -111,7 +117,7 @@ export interface BinParts {
 
 /** The infill's height: wall minus the lip's inner support, clamped at 0. */
 export function infillHeightMm(spec: BinSpec): number {
-  const lipAllowance = spec.lip === "standard" ? STACKING_LIP_SUPPORT_HEIGHT : 0;
+  const lipAllowance = infillTopAllowanceMm(spec);
   return Math.max(binWallHeightMm(spec.heightUnits) - lipAllowance, 0);
 }
 
@@ -126,7 +132,7 @@ export function binDimensionsMm(spec: BinSpec): {
     widthMm: binFootprintMm(spec.gridX, spec.gridPitch),
     lengthMm: binFootprintMm(spec.gridY, spec.gridPitch),
     heightToRimMm: binHeightMm(spec.heightUnits),
-    totalHeightMm: binTotalHeightMm(spec.heightUnits, spec.lip === "standard"),
+    totalHeightMm: binTotalHeightMm(spec.heightUnits, hasStackingLip(spec)),
   };
 }
 
@@ -148,7 +154,7 @@ export function buildBinParts(
         spec.gridPitch === "full" ? holeOptionsFromSpec(spec) : undefined,
       );
   let wall = buildWallRing(kernel, spec, segments);
-  const lip = spec.lip === "standard"
+  const lip = hasStackingLip(spec)
     ? buildStackingLip(kernel, spec, segments, quality.filletProfileStepMm)
     : null;
 
@@ -249,6 +255,17 @@ export function buildBinWithCutouts(
         allCutters.length === 1
           ? allCutters[0]
           : arena.track(Manifold.union(allCutters));
+      if (spec.magneticLid) {
+        if (hasSpringLatch(spec) && arena.track(lidDetentKeepout(kernel, spec).intersect(cutter)).volume() > 1e-5) {
+          throw new Error("A pocket or finger access cuts into a spring-latch recess. Move it farther from the rim.");
+        }
+        if (hasOverlappingLid(spec) && arena.track(buildInsetLidRim(kernel, spec, quality.circularSegments).intersect(cutter)).volume() > 1e-5) {
+          throw new Error("A pocket or finger access cuts into the inset lid rim. Move it farther from the edge or change the lid style.");
+        }
+        if (spec.lidMagnetHoles && arena.track(buildLidSupports(kernel, spec, quality.circularSegments).intersect(cutter)).volume() > 1e-5) {
+          throw new Error("A pocket or finger access cuts into a lid magnet support. Move it away from the corners or turn off Lid.");
+        }
+      }
       solid = arena.track(base.solid.subtract(cutter));
     }
   }
@@ -270,7 +287,7 @@ export function buildBinWithCutouts(
 
   let stackingRim: Manifold | null = null;
   if (
-    base.parts.lip &&
+    !spec.magneticLid && base.parts.lip &&
     options.rimInsertThicknessMm !== undefined &&
     Number.isFinite(options.rimInsertThicknessMm) &&
     options.rimInsertThicknessMm > 0
@@ -335,7 +352,8 @@ export function buildBin(
   const present = [parts.base, parts.wall, parts.lip, parts.infill].filter(
     (part): part is Manifold => part !== null,
   );
-  const solid = arena.track(Manifold.union(present));
+  let solid = arena.track(Manifold.union(present));
+  if (spec.magneticLid) solid = addLidRetention(kernel, spec, solid, quality.circularSegments);
 
   const status = solid.status();
   if (status !== "NoError") {

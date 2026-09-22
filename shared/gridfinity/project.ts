@@ -10,7 +10,7 @@ import {
   transformPointPlacement,
   type FingerHole,
 } from "./cutout";
-import { binSpecSchema } from "./types";
+import { binSpecSchema, type BinSpec } from "./types";
 import { binHistorySchema } from "./history";
 
 /**
@@ -34,11 +34,22 @@ import { binHistorySchema } from "./history";
  * Version 15 adds optional corner rounding for flat-ended slots (absent is sharp).
  * Version 16 adds an optional boundary and two depths inside one tool pocket.
  * Version 17 preserves committed undo/redo history and its current position.
- * Version 18 identifies basic-shape pockets authored directly in millimetres.
- * Version 19 adds independent pocket names to placements and their history.
+ * On main, versions 18 and 19 added basic-shape pockets and independent pocket names.
+ * The lid preview branch developed the following versions in parallel.
+ * Version 18 adds magnetic lids, defaulting off in designs and history entries.
+ * Version 19 adds lid styles, stacking tops, independent closure magnets, and tunable fit.
+ * Older lids remain inset with a flat top and plain closure recesses.
+ * Version 20 adds overlapping lid wall thickness.
+ * Version 21 links bin, rim and skirt thickness, preserving older paired dimensions.
+ * Version 22 adds shared magnet diameter and thickness; older holes retain their dimensions.
+ * Version 23 adds compliant lid interfaces, preserving existing contact ribs.
+ * Version 24 adds contact-rib spacing, retaining the original 24 mm target.
+ * Version 25 adds optional lid grip recesses, defaulting off in designs and history.
+ * Version 26 migrates disabled spring interfaces to contact ribs, including undo/redo.
+ * Version 27 unifies both formats, preserving pockets, lids, and undo/redo history.
  */
 
-export const PROJECT_SCHEMA_VERSION = 19 as const;
+export const PROJECT_SCHEMA_VERSION = 27 as const;
 
 const projectFields = {
   shapes: z.array(tracedShapeSchema),
@@ -185,6 +196,55 @@ function migrateLegacyProject(doc: LegacyProjectDoc): ProjectDoc {
  * an empty designer beats crashing the workspace.
  */
 export function parseProjectDoc(input: unknown): ProjectDoc | null {
+  // Validate first: migrating both snapshots must not conceal an inconsistent
+  // saved design/history pair or turn an unknown interface into valid data.
+  const doc = parseVersionedProject(input);
+  if (!doc) return null;
+  const migrateInterface = (spec: BinSpec): BinSpec =>
+    spec.lidInterface === "side-springs" || spec.lidInterface === "spring-latch"
+      ? { ...spec, lidInterface: "ribs" }
+      : spec;
+  return {
+    ...doc,
+    spec: migrateInterface(doc.spec),
+    ...(doc.history ? { history: {
+      ...doc.history,
+      stack: doc.history.stack.map(entry => ({
+        ...entry, doc: { ...entry.doc, spec: migrateInterface(entry.doc.spec) },
+      })),
+    } } : {}),
+  };
+}
+
+/** Upgrade the format and validate the original snapshots before normalizing interfaces. */
+function parseVersionedProject(input: unknown): ProjectDoc | null {
+  if (input && typeof input === "object" && !Array.isArray(input) &&
+      "schemaVersion" in input && typeof input.schemaVersion === "number" &&
+      Number.isInteger(input.schemaVersion) && input.schemaVersion >= 1 && input.schemaVersion <= 20) {
+    const version = input.schemaVersion;
+    const preserveWall = (value: unknown): unknown => {
+      if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+      const spec = value as Record<string, unknown>;
+      return { ...spec, wallThicknessMm: spec.wallThicknessMm === undefined ? 0.95 : spec.wallThicknessMm,
+        ...(version <= 19 && spec.magneticLidStyle === "overlap" && spec.lidWallThicknessMm === undefined
+          ? { lidWallThicknessMm: 0.8 } : {}),
+      };
+    };
+    const doc = input as Record<string, unknown>;
+    const history = doc.history;
+    input = { ...doc, spec: preserveWall(doc.spec),
+      ...(history && typeof history === "object" && !Array.isArray(history) && "stack" in history && Array.isArray(history.stack)
+        ? { history: { ...history, stack: history.stack.map(entry => {
+          if (!entry || typeof entry !== "object" || !entry.doc || typeof entry.doc !== "object") return entry;
+          return { ...entry, doc: { ...entry.doc, spec: preserveWall(entry.doc.spec) } };
+        }) } } : {}),
+      ...(version >= 17 ? { schemaVersion: PROJECT_SCHEMA_VERSION } : {}),
+    };
+  }
+  if (input && typeof input === "object" && !Array.isArray(input) &&
+      "schemaVersion" in input && (input.schemaVersion === 21 || input.schemaVersion === 22 || input.schemaVersion === 23 || input.schemaVersion === 24 || input.schemaVersion === 25 || input.schemaVersion === 26)) {
+    input = { ...input, schemaVersion: PROJECT_SCHEMA_VERSION };
+  }
   const result = projectDocSchema.safeParse(input);
   if (result.success) return result.data;
   // Only legacy documents may contain the removed flag. Keep malformed values

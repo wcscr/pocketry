@@ -7,7 +7,7 @@ import {
   BASE_TOP_RADIUS,
   binFootprintMm,
   binWallHeightMm,
-  D_WALL,
+  binWallThicknessMm,
   type GridPitch,
 } from "@shared/gridfinity/standard";
 
@@ -36,11 +36,12 @@ export interface WallSpec {
   gridPitch?: GridPitch;
   footprint?: BinFootprint;
   heightUnits: number;
+  wallThicknessMm?: number;
 }
 
 /**
  * The plain wall ring from the top of the base to the bin's nominal top:
- * a rounded-rect annulus of thickness {@link D_WALL}, extruded
+ * a rounded-rect annulus at the selected wall thickness, extruded
  * `heightUnits·7 − 7`. Returns `null` for a 1u bin, whose wall height is zero.
  */
 export function buildWallRing(
@@ -67,9 +68,9 @@ export function buildWallRing(
   // Winding is the hole marker: reversing the inner contour makes it negative
   // under manifold's Positive fill rule, so one CrossSection carries both.
   const inner = roundedRectPolygon(
-    widthMm - 2 * D_WALL,
-    lengthMm - 2 * D_WALL,
-    BASE_TOP_RADIUS,
+    widthMm - 2 * binWallThicknessMm(spec),
+    lengthMm - 2 * binWallThicknessMm(spec),
+    Math.min(BASE_TOP_RADIUS, (Math.min(widthMm, lengthMm) - 2 * binWallThicknessMm(spec)) / 2),
     circularSegments,
   ).reverse();
 

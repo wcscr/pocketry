@@ -41,6 +41,24 @@ function getHandler(): BuildHandler {
   return createBinWorkerHandlers(loadManifold)[BUILD_BIN_METHOD] as unknown as BuildHandler;
 }
 
+it.each(["overlap", "inset"] as const)("exports a separate printable lid and transfers its arrays without sectioning it (%s)", async magneticLidStyle => {
+  const request: BuildBinRequest = { spec: { gridX: 1, gridY: 1, heightUnits: 2, magneticLid: true, magneticLidStyle, fill: "none" }, quality: { circularSegments: 24 }, exportTopology: true };
+  const full = await getHandler()(request, context());
+  const section = await getHandler()({ ...request, section: { axis: "x", offsetMm: 0 } }, context());
+  expect(full.value.lidMesh).toBeDefined();
+  expect(section.value.lidMesh).toEqual(full.value.lidMesh);
+  const mesh = full.value.lidMesh!;
+  expect(mesh.normals).toBeNull();
+  expect(full.transfer).toContain(mesh.positions.buffer);
+  expect(full.transfer).toContain(mesh.indices.buffer);
+  const stl = writeBinarySTL(mesh, "Magnetic lid");
+  expect(new DataView(stl).getUint32(80, true)).toBe(mesh.indices.length / 3);
+  const archive = unzipSync(writeThreeMf([{ name: "Magnetic lid", mesh }]));
+  expect(strFromU8(archive["3D/3dmodel.model"])).toContain("Magnetic lid");
+  const plain = await getHandler()({ ...request, spec: { ...request.spec, magneticLid: false } }, context());
+  expect(plain.value.lidMesh).toBeUndefined();
+});
+
 type FitCheckHandler = (
   payload: BuildFitCheckRequest,
   context: HandlerContext,

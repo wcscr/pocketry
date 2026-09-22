@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { DEFAULT_LID_RIB_SPACING_MM, MIN_LID_RIB_SPACING_MM, MAX_LID_RIB_SPACING_MM } from "./lid-contact-ribs";
 
 import {
   footprintTopologyError,
@@ -6,6 +7,7 @@ import {
   type BoundaryEdge,
   type GridCell,
 } from "./footprint";
+import { DEFAULT_MAGNET_DIAMETER_MM, DEFAULT_MAGNET_THICKNESS_MM } from "./magnets";
 import { GRID_PITCH_DIVISOR, type GridPitch } from "./standard";
 
 /**
@@ -66,10 +68,36 @@ export const binSpecSchema = z
     fill: z.enum(["none", "solid"]).default("solid"),
     /** Smooth underside without Gridfinity sockets; preserves outer size and pocket heights. */
     flatBottom: z.boolean().default(false),
-    /** ⌀6.5 × 2.4 mm magnet pockets, four per cell, opening downward. */
+    /** Matching removable lid and four upper magnet recesses; independent of base holes. */
+    magneticLid: z.boolean().default(false),
+    /** Inset preserves the original lid geometry in saved projects. */
+    magneticLidStyle: z.enum(["overlap", "inset"]).default("inset"),
+    /** Optional Gridfinity locator on the lid itself. */
+    magneticLidTop: z.enum(["flat", "stacking"]).default("flat"),
+    /** Two shallow finger recesses below the lid joint, leaving its footprint unchanged. */
+    lidGripRecess: z.boolean().default(false),
+    /** Thickness of each bin wall, overlapping rim, and overlapping lid skirt. */
+    wallThicknessMm: z.number().min(0.8).max(4).default(1.2),
+    /** Legacy paired geometry; cleared when the shared wall control is edited. */
+    lidWallThicknessMm: z.number().min(0.8).max(2).optional(),
+    /** Paired closure recesses in the lid and bin rim, independent of underside magnets. */
+    lidMagnetHoles: z.boolean().default(true),
+    lidMagnetCrushRibs: z.boolean().default(false),
+    /** Retained while magnets are on, but only affects lids without closure magnets. */
+    lidFit: z.enum(["lift-off", "friction"]).default("lift-off"),
+    /** Compliant interface used without closure magnets; ribs preserve earlier lids. */
+    lidInterface: z.enum(["ribs", "side-springs", "angled-fins", "spring-latch"]).default("ribs"),
+    /** Target contact-rib spacing; automatically determines the count on each edge. */
+    lidRibSpacingMm: z.number().min(MIN_LID_RIB_SPACING_MM).max(MAX_LID_RIB_SPACING_MM).default(DEFAULT_LID_RIB_SPACING_MM),
+    /** Per-side adjustment: positive tightens the lid without changing the bin. */
+    lidFitAdjustmentMm: z.number().min(-0.1).max(0.1).multipleOf(0.05).default(0),
+    /** Actual magnet size, shared by underside and lid closure holes. */
+    magnetDiameterMm: z.number().min(3).max(12).default(DEFAULT_MAGNET_DIAMETER_MM),
+    magnetThicknessMm: z.number().min(1).max(5).default(DEFAULT_MAGNET_THICKNESS_MM),
+    /** Four underside magnet pockets per cell, opening downward. */
     magnetHoles: z.boolean().default(false),
     /**
-     * Crush ribs in the magnet bore: eight sinusoidal lobes (waist ⌀5.9)
+     * Crush ribs in the magnet bore: eight sinusoidal lobes (default waist ⌀5.9)
      * the magnet crushes on insertion — press fit, no glue. Only meaningful
      * with `magnetHoles`.
      */

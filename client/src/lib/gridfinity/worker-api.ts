@@ -67,6 +67,8 @@ export interface BuildBinStats {
 
 export interface BuildBinResult {
   mesh: MeshData;
+  /** Separate lid, already face-down on z=0 for printing; never section-cut. */
+  lidMesh?: MeshData;
   /** Non-overlapping material meshes whose union is `mesh`. */
   materialMeshes?: {
     body: MeshData;

@@ -2,6 +2,9 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { Arena } from "@/lib/manifold/arena";
 import { createKernel, loadManifold, type Kernel } from "@/lib/manifold/runtime";
+import { buildBin, PREVIEW_QUALITY } from "@/lib/gridfinity/bin";
+import { parseBinSpec } from "@shared/gridfinity/types";
+import { binFootprintMm } from "@shared/gridfinity/standard";
 
 import { extractMeshData } from "./mesh-data";
 
@@ -43,7 +46,7 @@ describe("extractMeshData", () => {
 
     expect(mesh.normals).not.toBeNull();
     const normals = mesh.normals!;
-    // 90° edges crease at the 60° threshold: vertices duplicate per face.
+    // 90° edges crease at the 40° threshold: vertices duplicate per face.
     expect(mesh.positions.length).toBeGreaterThan(8 * 3);
     expect(normals.length).toBe(mesh.positions.length);
 
@@ -91,5 +94,35 @@ describe("extractMeshData", () => {
         (positions[v + 2] / radius) * normals[v + 2];
       expect(dot).toBeGreaterThan(0.99);
     }
+  });
+
+  it.each(["overlap", "inset"] as const)("keeps grip-recess lighting off the flat wall without changing the mesh (%s)", magneticLidStyle => {
+    const spec = parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 5, wallThicknessMm: 2,
+      magneticLid: true, magneticLidStyle, lidMagnetHoles: false, lidGripRecess: true, fill: "none" });
+    const solid = buildBin(kernel, spec, PREVIEW_QUALITY).solid;
+    const raw = extractMeshData(kernel, solid);
+    const mesh = extractMeshData(kernel, solid, { normals: true });
+    const { positions, indices, normals } = mesh;
+    const face = binFootprintMm(spec.gridY) / 2;
+    let checked = 0;
+    for (const side of [-1, 1]) for (let t = 0; t < indices.length; t += 3) {
+      const corners = [indices[t] * 3, indices[t + 1] * 3, indices[t + 2] * 3];
+      if (!corners.every(i => Math.abs(positions[i + 1] - side * face) < 1e-5)) continue;
+      for (const i of corners) {
+        if (Math.abs(positions[i]) >= 10 || positions[i + 2] <= 25) continue;
+        // Keep the small blend into the inset lip's rounded crest, but reject
+        // the former roughly 30° tilt caused by averaging across the recess.
+        expect(side * normals![i + 1]).toBeGreaterThan(0.999);
+        checked++;
+      }
+    }
+    expect(checked).toBeGreaterThan(10);
+    // Preview-only duplicated vertices must describe exactly the same facets.
+    const facets = (data: typeof mesh) => Array.from({ length: data.indices.length / 3 }, (_, t) =>
+      [0, 1, 2].map(corner => {
+        const i = data.indices[t * 3 + corner] * 3;
+        return Array.from(data.positions.slice(i, i + 3)).join(",");
+      }).sort().join(";")).sort();
+    expect(facets(mesh)).toEqual(facets(raw));
   });
 });

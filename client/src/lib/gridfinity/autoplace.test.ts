@@ -43,6 +43,22 @@ describe("placementInsetMm", () => {
   });
 });
 
+it("grows automatic layouts to clear both walls of a thick overlapping rim", () => {
+  const walls = parseBinSpec({ gridX: 1, gridY: 1, heightUnits: 4, wallThicknessMm: 4,
+    magneticLid: true, magneticLidStyle: "overlap", lidMagnetHoles: false });
+  const shape = rectShape("wide", 28, 12);
+  const byId = new Map([[shape.id, shape]]);
+  expect(placementInsetMm("standard", 0, walls)).toBeCloseTo(9.3, 6);
+  const result = autoPlaceFresh([shape], "standard", "full", walls);
+  expect(result).toMatchObject({ gridX: 2, gridY: 1, overflow: false });
+  const fitted = fitRectangularBinToPlacements(result.cutouts, byId, walls);
+  expect(fitted).toMatchObject({ gridX: 2, gridY: 1 });
+  expect(validateLayout({ ...walls, gridX: 2 }, fitted.cutouts, byId).filter(issue => issue.severity === "error")).toEqual([]);
+  const fixed = autoPlaceIncremental([shape], { walls, lip: "standard", gridX: 1, gridY: 1,
+    keepBinSize: true, existing: [], shapesById: byId });
+  expect(fixed.overflow).toBe(true);
+});
+
 describe("autoPlaceFresh", () => {
   it("preserves inward clearance and valid packing bounds for a very narrow pocket", () => {
     const shape = rectShape("thin", 30, 0.8);
