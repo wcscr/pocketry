@@ -68,7 +68,8 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
               1 mm / 5° increments. Escape cancels a drag. Pull Z up for a
               shallower pocket or down for a deeper pocket; the opening stays
               at the surface. Rotating keeps the seat rigid and converts
-              remaining-floor settings to fixed axial depths.
+              remaining-floor settings to fixed axial depths. Rotation stops
+              before the floor crosses the surface or underside.
             </p>
           </li>
           <li className="pl-1">

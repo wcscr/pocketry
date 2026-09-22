@@ -417,7 +417,7 @@ export function BinViewport({
             })()}</p>
             <p className="text-[11px] text-muted-foreground">Z changes depth: up is shallower, down is deeper. The opening stays at the surface.</p>
           </>}
-          {transformLimited && <p role="status" className="text-destructive">Keep X/Y tilt within ±89° and the pocket axis facing upward.</p>}
+          {transformLimited && <p role="status" className="text-destructive">Limit reached: keep the pocket floor below the surface and above the underside, with its axis facing upward. Adjust depth or bin height for more tilt.</p>}
         </> : <p className="text-muted-foreground">Click a pocket opening to move or rotate it.</p>}
       </div>}
 

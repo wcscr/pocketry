@@ -36,14 +36,14 @@ afterEach(() => { cleanups.splice(0).forEach(fn => fn()); vi.unstubAllGlobals();
 function mount(mode: "translate" | "rotate" = "translate", selected = cutout) {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   const container = document.createElement("div"); document.body.append(container);
-  const root = createRoot(container), onCommit = vi.fn(), onPreview = vi.fn();
+  const root = createRoot(container), onCommit = vi.fn(), onPreview = vi.fn(), onLimit = vi.fn();
   // R3F primitive is intentionally inert in this event-contract test.
   const warning = vi.spyOn(console, "error").mockImplementation(() => {});
-  React.act(() => root.render(<PocketTransformScene pocket={{ cutout: selected, shape }} spec={spec} mode={mode} snap={false} onCommit={onCommit} onPreview={onPreview} onLimit={vi.fn()} />));
+  React.act(() => root.render(<PocketTransformScene pocket={{ cutout: selected, shape }} spec={spec} mode={mode} snap={false} onCommit={onCommit} onPreview={onPreview} onLimit={onLimit} />));
   warning.mockRestore();
   const unmount = () => React.act(() => root.unmount());
   cleanups.push(() => { unmount(); container.remove(); });
-  return { onCommit, onPreview, unmount };
+  return { onCommit, onPreview, onLimit, unmount };
 }
 function drag() {
   React.act(() => scene.handlers!.onMouseDown());
@@ -108,4 +108,33 @@ it("keeps the handles in fixed XYZ through repeated rotation gestures and remove
   expect(scene.handlers!.object.quaternion.equals(new Quaternion())).toBe(true);
   React.act(() => scene.handlers!.onMouseUp());
   expect(onCommit).toHaveBeenCalledWith("p", expect.objectContaining({ tilt: { xDeg: 0, yDeg: 35 } }), "rotate");
+});
+
+it("retains the last valid preview and commits only that orientation when an X drag crosses the surface", () => {
+  const shallow = { ...cutout, depth: { mode: "mm" as const, value: 3 } };
+  const { onCommit, onPreview, onLimit } = mount("rotate", shallow);
+  React.act(() => scene.handlers!.onMouseDown());
+  for (const degrees of [5, 65]) React.act(() => {
+    scene.handlers!.object.quaternion.setFromAxisAngle(new Vector3(1, 0, 0), degrees * Math.PI / 180);
+    scene.handlers!.onObjectChange();
+  });
+  expect(onPreview).toHaveBeenLastCalledWith(expect.objectContaining({ tilt: { xDeg: 5, yDeg: -0 } }));
+  expect(onLimit).toHaveBeenLastCalledWith(true);
+  expect(scene.handlers!.object.position.toArray()).toEqual([0, 0, 42]);
+  expect(scene.handlers!.object.quaternion.equals(new Quaternion())).toBe(true);
+  React.act(() => scene.handlers!.onMouseUp());
+  expect(onCommit).toHaveBeenCalledTimes(1);
+  expect(onCommit).toHaveBeenCalledWith("p", expect.objectContaining({ tilt: { xDeg: 5, yDeg: -0 }, depth: shallow.depth }), "rotate");
+});
+
+it("does not create an undo step when the first rotation sample is beyond the floor limit", () => {
+  const { onCommit, onLimit } = mount("rotate", { ...cutout, depth: { mode: "mm", value: 3 } });
+  React.act(() => {
+    scene.handlers!.onMouseDown();
+    scene.handlers!.object.quaternion.setFromAxisAngle(new Vector3(1, 0, 0), Math.PI / 3);
+    scene.handlers!.onObjectChange();
+  });
+  expect(onLimit).toHaveBeenLastCalledWith(true);
+  React.act(() => scene.handlers!.onMouseUp());
+  expect(onCommit).not.toHaveBeenCalled();
 });

@@ -83,6 +83,14 @@ export function pocketTransformPatch(
   patch.depth = anchored.split ? anchored.depth : freeze(anchored.depth, 0);
   if (anchored.split) patch.split = { ...anchored.split, depths: [freeze(anchored.split.depths[0], 0), freeze(anchored.split.depths[1], 1)] };
   if ((patch.split?.depths ?? [patch.depth]).some(d => d.mode === "mm" && d.value <= 0)) return null;
+  // A shallow, long slot can rotate its seat through the horizontal mouth
+  // well before its axis becomes horizontal. Joining those crossed planes
+  // draws an inverted cavity and the kernel then rejects the committed edit.
+  // Retain the last valid drag sample using the same vertical limits as Z.
+  const updated = { ...anchored, ...patch };
+  const seats = (patch.split?.depths ?? [patch.depth]).map((depth, i) => resolvePlacedPocketDepth(spec, depth,
+    { outlineMm: split?.regions?.[i] ?? shape.outlineMm }, updated));
+  if (seats.some(seat => seat.floorZ !== null && (seat.floorZ < 0 || seat.highestFloorZ! > top - 0.5))) return null;
   return patch;
 }
 

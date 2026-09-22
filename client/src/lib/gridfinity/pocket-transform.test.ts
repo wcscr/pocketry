@@ -88,6 +88,46 @@ describe("surface-anchored pocket controls", () => {
       expect(pocketTransformPatch(upright, shape, spec, origin, new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), degrees * Math.PI / 180), "rotate")).toBeNull();
     }
   });
+  it.each([-60, -10, 10, 60])("stops the shallow board rack's X rotation before its seat crosses the opening (%s degrees)", degrees => {
+    const rackSpec = { ...spec, heightUnits: 2 };
+    const board = { ...shape, outlineMm: [{ outer: [{ x: -1.1, y: -33.75 }, { x: 1.1, y: -33.75 }, { x: 1.1, y: 33.75 }, { x: -1.1, y: 33.75 }], holes: [] }] };
+    const slot = { ...pocket, rotationDeg: 0, tilt: { xDeg: 0, yDeg: 45 } };
+    const delta = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), degrees * Math.PI / 180);
+    expect(pocketTransformPatch(slot, board, rackSpec, new Vector3(5, -4, 14), delta, "rotate")).toBeNull();
+  });
+  it("keeps the board rack's valid X rotation rigid, planar, and entirely beneath its opening", () => {
+    const rackSpec = { ...spec, heightUnits: 2 };
+    const board = { ...shape, outlineMm: [{ outer: [{ x: -1.1, y: -33.75 }, { x: 1.1, y: -33.75 }, { x: 1.1, y: 33.75 }, { x: -1.1, y: 33.75 }], holes: [] }] };
+    const slot = { ...pocket, rotationDeg: 0, tilt: { xDeg: 0, yDeg: 45 } };
+    const delta = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), 4 * Math.PI / 180);
+    const patch = pocketTransformPatch(slot, board, rackSpec, new Vector3(5, -4, 14), delta, "rotate")!;
+    expect(patch).not.toBeNull();
+    const [mouth, seat, ...struts] = pocketTransformWires({ shape: board, cutout: { ...slot, ...patch } }, rackSpec);
+    expect(mouth.every(p => Math.abs(p[2] - 14) < 1e-8)).toBe(true);
+    expect(seat.every(p => p[2] >= 0 && p[2] <= 13.5)).toBe(true);
+    expect(struts.every(([top, bottom]) => top[2] > bottom[2])).toBe(true);
+    const vertices = seat.map(p => new Vector3(...p));
+    const ab = vertices[1].clone().sub(vertices[0]), ad = vertices[3].clone().sub(vertices[0]);
+    expect(ab.length()).toBeCloseTo(2.2, 8);
+    expect(ad.length()).toBeCloseTo(67.5, 8);
+    expect(ab.dot(ad)).toBeCloseTo(0, 8);
+    expect(ab.cross(ad).normalize().dot(vertices[2].clone().sub(vertices[0]))).toBeCloseTo(0, 8);
+  });
+  it("stops a fixed-depth seat from rotating through the underside", () => {
+    const deep = { ...pocket, rotationDeg: 0, tilt: undefined, depth: { mode: "mm" as const, value: 41 } };
+    const delta = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), Math.PI / 18);
+    expect(pocketTransformPatch(deep, shape, spec, origin, delta, "rotate")).toBeNull();
+  });
+  it("checks each split seat but allows through pockets to rotate without a floor limit", () => {
+    const split = { ...pocket, rotationDeg: 0, tilt: undefined, split: { boundary: [{ x: -3, y: 0 }, { x: 3, y: 0 }], depths: [{ mode: "mm" as const, value: 1 }, { mode: "mm" as const, value: 1 }] as const } };
+    for (const degrees of [-15, 15]) {
+      const delta = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), degrees * Math.PI / 180);
+      expect(pocketTransformPatch(parseCutoutPlacement(split), shape, spec, origin, delta, "rotate")).toBeNull();
+    }
+    const through = { ...pocket, depth: { mode: "through" as const } };
+    const delta = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), Math.PI / 3);
+    expect(pocketTransformPatch(through, shape, spec, origin, delta, "rotate")).not.toBeNull();
+  });
   it("picks the mouth and excludes holes", () => {
     const centre = transformPointPlacement({ x: 0, y: 0 }, pocket);
     const item = { cutout: pocket, shape };
