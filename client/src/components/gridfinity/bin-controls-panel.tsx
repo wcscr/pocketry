@@ -223,7 +223,7 @@ const BIN_SETTINGS_SECTIONS = [
 export interface BinControlsPanelProps {
   issues: readonly ValidationIssue[];
   /** A fresh request reveals settings after the controls drawer mounts. */
-  settingsSectionRequest?: { id: string };
+  settingsSectionRequest?: { id: string; focusId?: string };
   exportOnly?: boolean;
   /** Changes when the canvas explicitly requests the selected pocket editor. */
   pocketEditorRequest?: number;
@@ -361,7 +361,17 @@ export function BinControlsPanel({
   const lengthCellSpan = standardCellSpan(spec.gridY, spec.gridPitch);
   const hasFloorMaterialWarning = issues.some((issue) => issue.code === "floor-color-on-underside");
   useEffect(() => {
-    if (settingsSectionRequest) revealPanelSection(settingsSectionRequest.id, BIN_SETTINGS_SECTIONS);
+    if (!settingsSectionRequest) return;
+    const { id, focusId } = settingsSectionRequest;
+    revealPanelSection(id, BIN_SETTINGS_SECTIONS, focusId);
+    if (!focusId) return;
+    // Wait for the section and mobile drawer to mount before moving keyboard focus.
+    let frame = window.requestAnimationFrame(() => {
+      frame = window.requestAnimationFrame(() => {
+        document.getElementById(focusId)?.focus({ preventScroll: true });
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, [settingsSectionRequest]);
   const hasErrors = issues.some((issue) => issue.severity === "error");
   const enabledFeatureCount = [

@@ -29,6 +29,8 @@ const RULER_3D_Z_FIGHT_OFFSET_MM = 0.25;
 const EMPTY_MEASUREMENT_OUTLINES: readonly Outline[] = [];
 const EMPTY_MEASUREMENT_PATHS: MeasurementPaths = [];
 
+export type MaterialColorTarget = "bin" | "pocket-floor" | "stacking-rim";
+
 /**
  * The 3D preview for the bin designer: an r3f canvas dropped into the
  * workspace's canvas slot.
@@ -54,6 +56,8 @@ export interface BinViewportProps {
   stackingRimColor?: string;
   showPocketFloorColor?: boolean;
   showStackingRimColor?: boolean;
+  /** Reveal the matching material control from its legend entry. */
+  onEditColor: (target: MaterialColorTarget) => void;
   building: boolean;
   /** 0..1 while building. */
   progress: number;
@@ -201,6 +205,7 @@ export function BinViewport({
   stackingRimColor = STACKING_RIM_COLOR,
   showPocketFloorColor = true,
   showStackingRimColor = true,
+  onEditColor,
   building,
   progress,
   error,
@@ -385,36 +390,51 @@ export function BinViewport({
       {(hasPocketFloor && showPocketFloorColor) ||
       (hasStackingRim && showStackingRimColor) ? (
         <div
-          className="pointer-events-none absolute bottom-3 left-3 flex items-center gap-2 rounded-full border bg-background/90 px-2.5 py-1 text-xs font-medium text-foreground shadow-sm backdrop-blur"
+          className="absolute bottom-3 left-3 flex items-center gap-2 rounded-full border bg-background/90 px-2.5 py-1 text-xs font-medium text-foreground shadow-sm backdrop-blur"
           data-testid="material-color-legend"
         >
-          <span className="flex items-center gap-1.5">
+          <button
+            type="button"
+            className="-m-1 flex items-center gap-1.5 rounded-full p-1 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            onClick={() => onEditColor("bin")}
+            title="Edit bin body color"
+          >
             <span
               className="h-2.5 w-2.5 rounded-sm border border-black/10"
               style={{ backgroundColor: binColor }}
               aria-hidden="true"
             />
             Bin body
-          </span>
+          </button>
           {hasPocketFloor && showPocketFloorColor ? (
-            <span className="flex items-center gap-1.5">
+            <button
+              type="button"
+              className="-m-1 flex items-center gap-1.5 rounded-full p-1 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={() => onEditColor("pocket-floor")}
+              title="Edit pocket floor color"
+            >
               <span
                 className="h-2.5 w-2.5 rounded-sm border border-black/10"
                 style={{ backgroundColor: pocketFloorColor }}
                 aria-hidden="true"
               />
               Pocket floor
-            </span>
+            </button>
           ) : null}
           {hasStackingRim && showStackingRimColor ? (
-            <span className="flex items-center gap-1.5">
+            <button
+              type="button"
+              className="-m-1 flex items-center gap-1.5 rounded-full p-1 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={() => onEditColor("stacking-rim")}
+              title="Edit rim top color"
+            >
               <span
                 className="h-2.5 w-2.5 rounded-sm border border-black/10"
                 style={{ backgroundColor: stackingRimColor }}
                 aria-hidden="true"
               />
               Rim top
-            </span>
+            </button>
           ) : null}
         </div>
       ) : null}

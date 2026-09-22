@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PanelProvider, usePanelState } from "@/components/layout/panel-context";
 import { WORKSPACES } from "@/components/layout/workspaces";
+import type { MaterialColorTarget } from "@/components/gridfinity/bin-viewport";
 import * as ShapeLibraryModule from "@/state/shape-library";
 import { ShapeLibraryProvider } from "@/state/shape-library";
 import { PROJECT_SCHEMA_VERSION, parseProjectDoc, type ProjectDoc } from "@shared/gridfinity/project";
@@ -35,6 +36,7 @@ vi.mock("@/components/gridfinity/bin-viewport", () => ({
     showStackingRimColor,
     measurementOutlines,
     measurementSplitBoundaries,
+    onEditColor,
   }: {
     fitSize: { widthMm: number; lengthMm: number; heightMm: number };
     hasPocketFloor: boolean;
@@ -46,6 +48,7 @@ vi.mock("@/components/gridfinity/bin-viewport", () => ({
     showStackingRimColor: boolean;
     measurementOutlines: readonly unknown[];
     measurementSplitBoundaries: readonly unknown[];
+    onEditColor: (target: MaterialColorTarget) => void;
   }) => (
     <div
       data-testid="bin-viewport-stub"
@@ -68,6 +71,11 @@ vi.mock("@/components/gridfinity/bin-viewport", () => ({
         data-testid="button-3d-ruler"
         disabled={measurementOutlines.length === 0}
       />
+      {(["bin", "pocket-floor", "stacking-rim"] as const).map((target) => (
+        <button key={target} type="button" data-testid={`legend-${target}`} onClick={() => onEditColor(target)}>
+          {target}
+        </button>
+      ))}
     </div>
   ),
 }));
@@ -2066,6 +2074,29 @@ describe("BinDesignerPage", () => {
     expect(scroller.style.paddingBottom).toBe("400px");
     expect(scrollTo).toHaveBeenCalledWith({ top: 240, behavior: "auto" });
     requestFrame.mockRestore();
+    unmount();
+  });
+
+  it.each([false, true])("opens and focuses color controls from the legend with mobile=%s", async (mobile) => {
+    let controls: ReturnType<typeof usePanelState>;
+    function PanelProbe() { controls = usePanelState(); return null; }
+    const { container, unmount } = render(
+      <PanelProvider><PanelProbe /><ShapeLibraryProvider><BinDesignerPage /></ShapeLibraryProvider></PanelProvider>,
+      { mobile },
+    );
+    await flushHydration();
+    for (const target of ["bin", "pocket-floor", "stacking-rim", "bin"] as const) {
+      React.act(() => controls.setPanelOpen(false));
+      React.act(() => container.querySelector<HTMLButtonElement>(`[data-testid="legend-${target}"]`)!.click());
+      expect(controls!.panelOpen).toBe(true);
+      expect(document.querySelector('#bin-settings-materials')?.getAttribute('data-state')).toBe('open');
+      await vi.waitFor(() => expect(document.activeElement?.id).toBe(`input-${target}-color`));
+      // Returning from another section must also work for the same legend entry.
+      openSettingsSection(document.body, "size");
+      React.act(() => container.querySelector<HTMLButtonElement>(`[data-testid="legend-${target}"]`)!.click());
+      expect(document.querySelector('#bin-settings-materials')?.getAttribute('data-state')).toBe('open');
+      await vi.waitFor(() => expect(document.activeElement?.id).toBe(`input-${target}-color`));
+    }
     unmount();
   });
 

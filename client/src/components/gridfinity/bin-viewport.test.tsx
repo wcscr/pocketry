@@ -17,7 +17,7 @@ vi.mock("@/hooks/use-element-size", () => ({
   useElementSize: () => [vi.fn(), { width: 800, height: 600 }],
 }));
 
-import { BinViewport } from "./bin-viewport";
+import { BinViewport, type MaterialColorTarget } from "./bin-viewport";
 import type { Outline } from "@shared/geometry/types";
 
 const mounted: Array<() => void> = [];
@@ -33,6 +33,7 @@ function renderViewport(
   hasPocketFloor = false,
   hasStackingRim = false,
   measurementOutlines: readonly Outline[] = [],
+  onEditColor: (target: MaterialColorTarget) => void = vi.fn(),
 ): HTMLElement {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   const container = document.createElement("div");
@@ -45,6 +46,7 @@ function renderViewport(
         hasPocketFloor={hasPocketFloor}
         hasStackingRim={hasStackingRim}
         binColor="#654321"
+        onEditColor={onEditColor}
         pocketFloorColor="#123456"
         stackingRimColor="#abcdef"
         building={building}
@@ -80,7 +82,7 @@ it("labels the contrasting pocket-floor surface", () => {
   const legend = container.querySelector('[data-testid="material-color-legend"]');
   expect(legend?.textContent).toContain("Bin body");
   expect(legend?.textContent).toContain("Pocket floor");
-  expect((legend?.querySelector("span span") as HTMLElement).style.backgroundColor).toBe(
+  expect((legend?.querySelector("button span") as HTMLElement).style.backgroundColor).toBe(
     "rgb(101, 67, 33)",
   );
 });
@@ -90,9 +92,20 @@ it("labels the independently colored stacking-rim crest", () => {
   const legend = container.querySelector('[data-testid="material-color-legend"]');
   expect(legend?.textContent).toContain("Bin body");
   expect(legend?.textContent).toContain("Rim top");
-  expect((legend?.querySelector("span:last-child span") as HTMLElement).style.backgroundColor).toBe(
+  expect((legend?.querySelector("button:last-child span") as HTMLElement).style.backgroundColor).toBe(
     "rgb(171, 205, 239)",
   );
+});
+
+it("opens the matching material controls from each legend entry", () => {
+  const onEditColor = vi.fn();
+  const container = renderViewport(false, 1, true, true, [], onEditColor);
+  const buttons = container.querySelectorAll<HTMLButtonElement>('[data-testid="material-color-legend"] button');
+  expect([...buttons].map((button) => button.textContent?.trim())).toEqual([
+    "Bin body", "Pocket floor", "Rim top",
+  ]);
+  for (const button of buttons) React.act(() => button.click());
+  expect(onEditColor.mock.calls).toEqual([["bin"], ["pocket-floor"], ["stacking-rim"]]);
 });
 
 it("offers a top-plane ruler in 3D and recommends Layout for precision", () => {
