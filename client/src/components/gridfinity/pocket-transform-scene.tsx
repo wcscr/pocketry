@@ -6,7 +6,7 @@ import type { CutoutPlacement } from "@shared/gridfinity/cutout";
 import { resolvePocketDepth } from "@shared/gridfinity/cutout";
 import type { BinSpec } from "@shared/gridfinity/types";
 import {
-  pickPocketAtTop, pocketQuaternion, pocketTransformPatch, pocketTransformWires,
+  pickPocketAtTop, pocketTransformChanged, pocketTransformPatch, pocketTransformWires, surfaceAnchoredPocket,
   type EditablePocket, type PocketTransformMode, type PocketTransformPatch,
 } from "@/lib/gridfinity/pocket-transform";
 
@@ -35,9 +35,9 @@ export function PocketSelectionPlane({ editor, width, length, disabled }: {
 
 /** The gesture stays local until release: cancel, selection changes, navigation,
  * and undo cannot accidentally persist a half-dragged pocket. */
-export function PocketTransformScene({ pocket, spec, mode, space, snap, onPreview, onCommit, onLimit }: {
+export function PocketTransformScene({ pocket, spec, mode, snap, onPreview, onCommit, onLimit }: {
   pocket: EditablePocket; spec: BinSpec; mode: PocketTransformMode;
-  space: "world" | "local"; snap: boolean;
+  snap: boolean;
   onPreview: (cutout: CutoutPlacement | null) => void;
   onCommit: PocketEditor["onCommit"];
   onLimit: (limited: boolean) => void;
@@ -47,9 +47,21 @@ export function PocketTransformScene({ pocket, spec, mode, space, snap, onPrevie
   const controls = useRef<ElementRef<typeof TransformControls> | null>(null);
   // This Drei version leaves externally managed primitives undisposed.
   // Release DOM listeners and GPU resources on cancel, mode/selection changes.
+  const restoreHandles = useRef<() => void>(() => {});
   const attachControls = useCallback((next: ElementRef<typeof TransformControls> | null) => {
-    if (controls.current && controls.current !== next) controls.current.dispose();
+    if (controls.current === next) return;
+    restoreHandles.current();
+    controls.current?.dispose();
     controls.current = next;
+    // Three also supplies screen-space E/XYZE rotation and XYZ translation.
+    // Remove those visuals AND pickers so only bin-axis/plane handles can drag.
+    const removed: { parent: Object3D; child: Object3D }[] = [];
+    next?.traverse(child => {
+      if (["E", "XYZE", "XYZ"].includes(child.name) && child.parent) removed.push({ parent: child.parent, child });
+    });
+    removed.forEach(({ child }) => child.removeFromParent());
+    // Return them before disposal so their geometries/materials are released.
+    restoreHandles.current = () => removed.forEach(({ parent, child }) => parent.add(child));
   }, []);
   const orbit = useThree(state => state.controls) as unknown as { enabled: boolean } | null;
   const gesture = useRef<{ original: CutoutPlacement; patch: PocketTransformPatch | null } | null>(null);
@@ -57,8 +69,9 @@ export function PocketTransformScene({ pocket, spec, mode, space, snap, onPrevie
   callbacks.current = { onPreview, onCommit, onLimit };
   const top = resolvePocketDepth(spec, pocket.cutout.depth).infillTopZ;
   const place = useCallback((cutout: CutoutPlacement) => {
-    object.position.set(cutout.position.x, cutout.position.y, top + (cutout.zOffsetMm ?? 0));
-    object.quaternion.copy(pocketQuaternion(cutout));
+    const anchored = surfaceAnchoredPocket(cutout);
+    object.position.set(anchored.position.x, anchored.position.y, top);
+    object.quaternion.identity();
     object.updateMatrixWorld();
   }, [object, top]);
   useLayoutEffect(() => { if (!gesture.current) place(pocket.cutout); }, [place, pocket.cutout]);
@@ -96,6 +109,10 @@ export function PocketTransformScene({ pocket, spec, mode, space, snap, onPrevie
       callbacks.current.onLimit(true);
       return;
     }
+    // TransformControls recomputes each sample from its pointer-down pose.
+    // Reset the proxy after reading that delta so even mid-drag its visible
+    // handles stay on the surface and aligned to the fixed bin axes.
+    place({ ...drag.original, ...patch });
     drag.patch = patch;
     callbacks.current.onLimit(false);
     callbacks.current.onPreview({ ...drag.original, ...patch });
@@ -103,17 +120,16 @@ export function PocketTransformScene({ pocket, spec, mode, space, snap, onPrevie
   const finish = () => {
     const drag = gesture.current;
     gesture.current = null;
-    if (drag?.patch) {
-      const moved = Math.hypot(drag.patch.position.x - drag.original.position.x, drag.patch.position.y - drag.original.position.y, (drag.patch.zOffsetMm ?? 0) - (drag.original.zOffsetMm ?? 0)) > 1e-5;
-      const rotated = 1 - Math.abs(pocketQuaternion(drag.original).dot(pocketQuaternion({ ...drag.original, ...drag.patch }))) > 1e-12;
-      if (moved || rotated) callbacks.current.onCommit(drag.original.id, drag.patch, mode);
-    }
+    if (drag?.patch && pocketTransformChanged(drag.original, drag.patch, mode)) {
+      place({ ...drag.original, ...drag.patch });
+      callbacks.current.onCommit(drag.original.id, drag.patch, mode);
+    } else if (drag) place(drag.original);
     callbacks.current.onPreview(null);
     callbacks.current.onLimit(false);
   };
   return <>
     <primitive object={object} />
-    <TransformControls key={controlEpoch} ref={attachControls} object={object} mode={mode} space={space} size={0.85}
+    <TransformControls key={controlEpoch} ref={attachControls} object={object} mode={mode} space="world" size={0.85}
       translationSnap={snap ? 1 : null} rotationSnap={snap ? Math.PI / 36 : null}
       onMouseDown={() => { gesture.current = { original: pocket.cutout, patch: null }; callbacks.current.onPreview(pocket.cutout); }}
       onObjectChange={change} onMouseUp={finish} />

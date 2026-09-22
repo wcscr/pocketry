@@ -41,12 +41,15 @@ small bin with the full slot depth to assess insertion and retention.
 ## Move and rotate in 3D
 
 Click a pocket opening or choose it from the 3D pocket selector. **Move (W)**
-shows red X, green Y and blue Z arrows; drag an arrow to move along that axis,
-a plane handle to move in two axes, or the center to move in the view plane.
-**Rotate (E)** shows axis rings. **World** uses the bin axes; **Local** follows
-the pocket's orientation. The magnet toggles 1 mm translation and 5° rotation
-snapping. For combined rotations, the displayed Euler angles may differ from
-the snapped rotation about a world or local axis.
+shows red X, green Y and blue Z arrows. X/Y move the opening across the surface;
+Z changes depth beneath it. Plane handles combine their named axes.
+**Rotate (E)** shows only X/Y/Z axis rings. All handles stay aligned with the
+bin's fixed XYZ coordinate system, even when the pocket is tilted. There is
+no local-axis mode or free/view-plane rotation target.
+
+The **magnet** toggles 1 mm move increments and 5° rotation increments. Its
+tooltip describes the increments and whether snapping is on or off. For combined rotations, the displayed Euler
+angles may differ from the snapped rotation about a fixed bin axis.
 
 Each drag previews the opening and seat immediately, rebuilds the solid on
 release, and adds one undo step. **Escape** cancels the active drag. Camera
@@ -54,14 +57,17 @@ orbit is suspended while dragging a handle; drag empty space to orbit normally.
 The ruler temporarily hides the transform handles. Keyboard shortcuts leave
 text and number fields alone.
 
-Z is a millimetre offset from the pocket's original anchor at the fill surface.
-Positive Z raises the entire seat, negative Z lowers it. It is applied after
-depth resolution, including remaining-floor mode; the depth summary reports
-the actual remaining floor. The open shaft still extends through the top (and
-through the underside for through pockets). The numeric **Z offset** field
-under **Position & rotation** edits the same value. Zero restores the original
-height. For a vertical through pocket, Z movement has no visible effect on the
-clipped cavity because both ends remain open.
+Pulling Z up makes the pocket shallower; pulling down makes it deeper. Both
+the opening and the handles stay at the bin surface throughout the drag.
+Fixed axial depth or remaining-floor thickness updates directly, with the
+same vertical depth change applied to both split seats. Movement stops with
+at least 0.5 mm below the surface above the highest seat, and before the lowest
+seat passes the underside. A through pocket has no floor to adjust. Its Z
+drag has no effect. Use the existing Depth fields for exact dimensions.
+
+Older saved Z offsets remain readable. On editing, the offset is converted to
+an equivalent surface position and depth, preserving the existing cavity.
+New drags never store an above-surface pocket position.
 
 A gizmo rotation keeps the seat geometry rigid around the anchor. Remaining-floor
 settings convert to equivalent fixed axial depths at the start of a completed

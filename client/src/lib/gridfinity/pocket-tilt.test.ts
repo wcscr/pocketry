@@ -1,3 +1,5 @@
+import { Quaternion, Vector3 } from "three";
+import { pocketTransformPatch } from "./pocket-transform";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { parseCutoutPlacement, resolvePlacedPocketDepth, resolvePocketDepth, transformPointPlacement, untransformPointPlacement, resizeCutoutPlacementFromHandle, type TracedShape } from "@shared/gridfinity/cutout";
 import { parseBinSpec } from "@shared/gridfinity/types";
@@ -168,4 +170,32 @@ it.each([-30, 30])("keeps both ends of a Z-translated tilted through pocket open
   const through = { ...pocket, zOffsetMm, depth: { mode: "through" as const } };
   const cutter = arena.track(kernel.Manifold.union(buildCutoutCutters(kernel, shapes, [through], spec, EXPORT_QUALITY).cutters));
   for (const z of [0, 42]) expect(arena.track(cutter.slice(z)).area()).toBeCloseTo(6 * 32 * Math.sqrt(2), 3);
+});
+
+
+it("resizes tilted depth from the surface without sliding the mouth or raising geometry", () => {
+  const patch = pocketTransformPatch(pocket, shape, spec, new Vector3(0, 0, 47), new Quaternion(), "translate")!;
+  const updated = { ...pocket, ...patch };
+  const before = arena.track(kernel.Manifold.union(buildCutoutCutters(kernel, shapes, [pocket], spec, EXPORT_QUALITY).cutters));
+  const after = arena.track(kernel.Manifold.union(buildCutoutCutters(kernel, shapes, [updated], spec, EXPORT_QUALITY).cutters));
+  expect(after.boundingBox().min[2] - before.boundingBox().min[2]).toBeCloseTo(5, 5);
+  const a = arena.track(before.slice(42)), b = arena.track(after.slice(42));
+  expect(arena.track(a.subtract(b)).area()).toBeCloseTo(0, 5);
+  expect(arena.track(b.subtract(a)).area()).toBeCloseTo(0, 5);
+  const clip = arena.track(kernel.Manifold.cube([150, 150, 42]).translate([-75, -75, 0]));
+  expect(arena.track(before.intersect(clip)).volume() - arena.track(after.intersect(clip)).volume()).toBeCloseTo(6 * 32 * 5 * Math.sqrt(2), 3);
+});
+
+it("matches a rigid world-axis rotation in the actual cutter, with no twist or scaling", () => {
+  const original = { ...pocket, depth: { mode: "remaining" as const, floorThicknessMm: 9 } };
+  const delta = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), Math.PI / 18);
+  const patch = pocketTransformPatch(original, shape, spec, new Vector3(0, 0, 42), delta, "rotate")!;
+  const updated = { ...original, ...patch };
+  const before = arena.track(kernel.Manifold.union(buildCutoutCutters(kernel, shapes, [original], spec, EXPORT_QUALITY).cutters));
+  const rotated = arena.track(arena.track(arena.track(before.translate([0, 0, -42])).rotate([10, 0, 0])).translate([0, 0, 42]));
+  const after = arena.track(kernel.Manifold.union(buildCutoutCutters(kernel, shapes, [updated], spec, EXPORT_QUALITY).cutters));
+  const clip = arena.track(kernel.Manifold.cube([150, 150, 42]).translate([-75, -75, 0]));
+  const expected = arena.track(rotated.intersect(clip)), actual = arena.track(after.intersect(clip));
+  expect(arena.track(expected.subtract(actual)).volume()).toBeCloseTo(0, 3);
+  expect(arena.track(actual.subtract(expected)).volume()).toBeCloseTo(0, 3);
 });

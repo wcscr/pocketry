@@ -64,9 +64,10 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
             <p className="mt-1 text-muted-foreground">
               In <strong>3D</strong>, click a pocket opening, then use
               <strong> Move (W)</strong> or <strong>Rotate (E)</strong> to drag
-              its X/Y/Z handles. Choose world or local axes, or turn on the magnet
-              for 1 mm / 5° snapping. Escape cancels a drag. Z raises or lowers
-              the pocket floor; rotating keeps the seat rigid and converts
+              its fixed bin X/Y/Z handles. The <strong>magnet</strong> toggles
+              1 mm / 5° increments. Escape cancels a drag. Pull Z up for a
+              shallower pocket or down for a deeper pocket; the opening stays
+              at the surface. Rotating keeps the seat rigid and converts
               remaining-floor settings to fixed axial depths.
             </p>
           </li>
