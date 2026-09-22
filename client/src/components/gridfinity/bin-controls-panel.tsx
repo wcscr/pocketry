@@ -561,6 +561,143 @@ export function BinControlsPanel({
     });
   };
 
+  const fitTestControls = (
+          <div
+            className="space-y-3 rounded-lg border border-indigo-500/25 bg-indigo-500/5 p-3"
+            data-testid="export-preview-layout"
+          >
+            <div>
+              <SettingLabel label="Prepare fit test templates" hint="Print a thin template and try the actual tools before printing the full bin. Choose the full pocket-layout surface or 5 mm wide bands around tool openings. Tool outlines omit the bin perimeter and separate finger access features; widely spaced tools print as separate pieces. Thickness sets the printed height. Surface templates omit the base, walls, label tab, and stacking lip, so they do not test pocket depth or baseplate fit." />
+            </div>
+
+            {(cutouts.length > 0 || fingerHoles.length > 0) && (
+              <div
+                className="space-y-2"
+                data-testid="surface-fit-test-export"
+              >
+                <div className="flex items-center gap-2">
+                  <Label className="w-20 shrink-0 text-xs">Shape</Label>
+                  <Select value={surfaceFitCheckStyle} onValueChange={value => setSurfaceFitCheckStyle(surfaceFitCheckStyleSchema.parse(value))}>
+                    <SelectTrigger className="h-8" aria-label="Surface fit test shape" data-testid="select-surface-fit-test-style">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="full">Full surface</SelectItem>
+                      <SelectItem value="outline" disabled={cutouts.length === 0}>Tool outlines · {SURFACE_FIT_CHECK_OUTLINE_WIDTH_MM} mm</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Label className="w-20 shrink-0 text-xs">Thickness</Label>
+                  <DraftNumberInput
+                    className="h-8"
+                    value={surfaceFitCheckThicknessMm}
+                    min={SURFACE_FIT_CHECK_MIN_THICKNESS_MM}
+                    max={SURFACE_FIT_CHECK_MAX_THICKNESS_MM}
+                    step={0.2}
+                    normalize={(value) =>
+                      Math.min(
+                        SURFACE_FIT_CHECK_MAX_THICKNESS_MM,
+                        Math.max(SURFACE_FIT_CHECK_MIN_THICKNESS_MM, value),
+                      )
+                    }
+                    onValueChange={setSurfaceFitCheckThicknessMm}
+                    aria-label="Surface fit test thickness in millimetres"
+                    data-testid="input-surface-fit-test-thickness"
+                  />
+                  <span className="text-xs text-muted-foreground">mm</span>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  disabled={exporting || hasErrors || (surfaceFitCheckStyle === "outline" && cutouts.length === 0)}
+                  onClick={() =>
+                    setPendingExport({
+                      title: "Save surface fit test STL?",
+                      description: surfaceFitCheckStyle === "outline"
+                        ? `Download ${SURFACE_FIT_CHECK_OUTLINE_WIDTH_MM} mm wide tool outlines, ${surfaceFitCheckThicknessMm} mm thick.`
+                        : `Download the complete pocket layout as a ${surfaceFitCheckThicknessMm} mm thin plate.`,
+                      confirmLabel: "Download STL",
+                      onConfirm: (includeProject) => onExportSurfaceFitCheck(surfaceFitCheckThicknessMm, includeProject, surfaceFitCheckStyle),
+                    })
+                  }
+                  data-testid="button-export-surface-fit-test"
+                >
+                  <Download className="h-4 w-4" />
+                  {exporting ? "Building…" : "Save surface fit test STL"}
+                </Button>
+              </div>
+            )}
+
+            {selectedCutout && selectedShape ? (
+              <div className="space-y-2 border-t pt-2.5">
+                <div>
+                  <SettingLabel label="Tool fit template" hint={selectedCutout.profileBottom
+                    ? "The source silhouette, including its Trace margin and profile scale. Use a surface fit test to check the straight slot width."
+                    : "A filled tool outline without the bin or finger access features. Includes its Trace margin, signed pocket clearance, and outline corner rounding."} />
+                  <p className="truncate text-xs font-medium" title={pocketName(selectedCutout, selectedShape)}>{pocketName(selectedCutout, selectedShape)}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Label className="w-20 shrink-0 text-xs">Thickness</Label>
+                  <DraftNumberInput
+                    className="h-8"
+                    value={fitCheckDepthMm}
+                    min={0.5}
+                    max={30}
+                    step={0.5}
+                    normalize={(value) => Math.min(30, Math.max(0.5, value))}
+                    onValueChange={setFitCheckDepthMm}
+                    aria-label="Fit template thickness in millimetres"
+                    data-testid="input-fit-check-depth"
+                  />
+                  <span className="text-xs text-muted-foreground">mm</span>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  disabled={exporting}
+                  onClick={() => setPendingExport({
+                    title: "Save fit template STL?",
+                    description: selectedCutout.profileBottom
+                      ? `Download the source profile of “${pocketName(selectedCutout, selectedShape)}” at ${fitCheckDepthMm} mm thick. Use a surface fit test to check the slot width.`
+                      : `Download the filled outline of “${pocketName(selectedCutout, selectedShape)}” at ${fitCheckDepthMm} mm thick.`,
+                    confirmLabel: "Download STL",
+                    onConfirm: (includeProject) => onExportFitCheck(selectedCutout.id, fitCheckDepthMm, includeProject),
+                  })}
+                  data-testid="button-export-fit-check"
+                >
+                  <Download className="h-4 w-4" />
+                  {exporting ? "Building…" : "Save fit template STL"}
+                </Button>
+              </div>
+            ) : cutouts.length > 0 ? (
+              <p className="border-t pt-2.5 text-[11px] text-muted-foreground">
+                Select a tool cutout to export a fit template.
+              </p>
+            ) : (
+              <div
+                className="space-y-2 border-t pt-2.5"
+                data-testid="export-preview-empty"
+              >
+                <p className="text-[11px] text-muted-foreground">
+                  Add a tool cutout to enable fit templates.
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => navigate("/")}
+                  data-testid="button-go-to-trace"
+                >
+                  Go to Trace
+                </Button>
+              </div>
+            )}
+          </div>
+  );
+
   const pocketList = cutouts.length > 0 && (
             <div className="space-y-1" aria-label="Choose a pocket to edit">
               {cutouts.map((cutout) => {
@@ -1882,140 +2019,7 @@ export function BinControlsPanel({
               )}
             </div>
           </details>
-          <div
-            className="space-y-3 rounded-lg border border-indigo-500/25 bg-indigo-500/5 p-3"
-            data-testid="export-preview-layout"
-          >
-            <div>
-              <SettingLabel label="Prepare fit test templates" hint="Print a thin template and try the actual tools before printing the full bin. Choose the full pocket-layout surface or 5 mm wide bands around tool openings. Tool outlines omit the bin perimeter and separate finger access features; widely spaced tools print as separate pieces. Thickness sets the printed height. Surface templates omit the base, walls, label tab, and stacking lip, so they do not test pocket depth or baseplate fit." />
-            </div>
-
-            {(cutouts.length > 0 || fingerHoles.length > 0) && (
-              <div
-                className="space-y-2"
-                data-testid="surface-fit-test-export"
-              >
-                <div className="flex items-center gap-2">
-                  <Label className="w-20 shrink-0 text-xs">Shape</Label>
-                  <Select value={surfaceFitCheckStyle} onValueChange={value => setSurfaceFitCheckStyle(surfaceFitCheckStyleSchema.parse(value))}>
-                    <SelectTrigger className="h-8" aria-label="Surface fit test shape" data-testid="select-surface-fit-test-style">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="full">Full surface</SelectItem>
-                      <SelectItem value="outline" disabled={cutouts.length === 0}>Tool outlines · {SURFACE_FIT_CHECK_OUTLINE_WIDTH_MM} mm</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Label className="w-20 shrink-0 text-xs">Thickness</Label>
-                  <DraftNumberInput
-                    className="h-8"
-                    value={surfaceFitCheckThicknessMm}
-                    min={SURFACE_FIT_CHECK_MIN_THICKNESS_MM}
-                    max={SURFACE_FIT_CHECK_MAX_THICKNESS_MM}
-                    step={0.2}
-                    normalize={(value) =>
-                      Math.min(
-                        SURFACE_FIT_CHECK_MAX_THICKNESS_MM,
-                        Math.max(SURFACE_FIT_CHECK_MIN_THICKNESS_MM, value),
-                      )
-                    }
-                    onValueChange={setSurfaceFitCheckThicknessMm}
-                    aria-label="Surface fit test thickness in millimetres"
-                    data-testid="input-surface-fit-test-thickness"
-                  />
-                  <span className="text-xs text-muted-foreground">mm</span>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full"
-                  disabled={exporting || hasErrors || (surfaceFitCheckStyle === "outline" && cutouts.length === 0)}
-                  onClick={() =>
-                    setPendingExport({
-                      title: "Save surface fit test STL?",
-                      description: surfaceFitCheckStyle === "outline"
-                        ? `Download ${SURFACE_FIT_CHECK_OUTLINE_WIDTH_MM} mm wide tool outlines, ${surfaceFitCheckThicknessMm} mm thick.`
-                        : `Download the complete pocket layout as a ${surfaceFitCheckThicknessMm} mm thin plate.`,
-                      confirmLabel: "Download STL",
-                      onConfirm: (includeProject) => onExportSurfaceFitCheck(surfaceFitCheckThicknessMm, includeProject, surfaceFitCheckStyle),
-                    })
-                  }
-                  data-testid="button-export-surface-fit-test"
-                >
-                  <Download className="h-4 w-4" />
-                  {exporting ? "Building…" : "Save surface fit test STL"}
-                </Button>
-              </div>
-            )}
-
-            {selectedCutout && selectedShape ? (
-              <div className="space-y-2 border-t pt-2.5">
-                <div>
-                  <SettingLabel label="Tool fit template" hint={selectedCutout.profileBottom
-                    ? "The source silhouette, including its Trace margin and profile scale. Use a surface fit test to check the straight slot width."
-                    : "A filled tool outline without the bin or finger access features. Includes its Trace margin, signed pocket clearance, and outline corner rounding."} />
-                  <p className="truncate text-xs font-medium" title={pocketName(selectedCutout, selectedShape)}>{pocketName(selectedCutout, selectedShape)}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Label className="w-20 shrink-0 text-xs">Thickness</Label>
-                  <DraftNumberInput
-                    className="h-8"
-                    value={fitCheckDepthMm}
-                    min={0.5}
-                    max={30}
-                    step={0.5}
-                    normalize={(value) => Math.min(30, Math.max(0.5, value))}
-                    onValueChange={setFitCheckDepthMm}
-                    aria-label="Fit template thickness in millimetres"
-                    data-testid="input-fit-check-depth"
-                  />
-                  <span className="text-xs text-muted-foreground">mm</span>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full"
-                  disabled={exporting}
-                  onClick={() => setPendingExport({
-                    title: "Save fit template STL?",
-                    description: selectedCutout.profileBottom
-                      ? `Download the source profile of “${pocketName(selectedCutout, selectedShape)}” at ${fitCheckDepthMm} mm thick. Use a surface fit test to check the slot width.`
-                      : `Download the filled outline of “${pocketName(selectedCutout, selectedShape)}” at ${fitCheckDepthMm} mm thick.`,
-                    confirmLabel: "Download STL",
-                    onConfirm: (includeProject) => onExportFitCheck(selectedCutout.id, fitCheckDepthMm, includeProject),
-                  })}
-                  data-testid="button-export-fit-check"
-                >
-                  <Download className="h-4 w-4" />
-                  {exporting ? "Building…" : "Save fit template STL"}
-                </Button>
-              </div>
-            ) : cutouts.length > 0 ? (
-              <p className="border-t pt-2.5 text-[11px] text-muted-foreground">
-                Select a tool cutout to export a fit template.
-              </p>
-            ) : (
-              <div
-                className="space-y-2 border-t pt-2.5"
-                data-testid="export-preview-empty"
-              >
-                <p className="text-[11px] text-muted-foreground">
-                  Add a tool cutout to enable fit templates.
-                </p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full"
-                  onClick={() => navigate("/")}
-                  data-testid="button-go-to-trace"
-                >
-                  Go to Trace
-                </Button>
-              </div>
-            )}
-          </div>
+          {fitTestControls}
         </PanelSection>
 
         <PanelSection
@@ -2113,6 +2117,8 @@ export function BinControlsPanel({
               </Button>
             </div>
           </div>
+
+          {exportOnly && fitTestControls}
 
           {cutouts.length > 0 && (
             <div className="space-y-2 rounded-md border border-emerald-500/30 bg-emerald-500/5 p-2.5">

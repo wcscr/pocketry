@@ -497,6 +497,10 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
         handle: PocketResizeHandle;
         startPlacement: CutoutPlacement;
         localBounds: NonNullable<ReturnType<typeof outlineBounds>>;
+        grabOffset: Point;
+        startClient: Point;
+        slop: number;
+        moved: boolean;
       }
     | { kind: "finger-hole-move"; id: string; grabOffset: Point }
     | {
@@ -984,7 +988,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
     let touchHandle: PocketResizeHandle | "rotate" | null = null;
     if (event.pointerType === "touch" && selectedControls && editorMode === "placement") {
       const canvasPoint = binToCanvas(point, spec);
-      let best = 22 / scale;
+      let best = 28 / scale;
       for (const [handle, position] of [...selectedControls.handles.entries(), ["rotate", selectedControls.rotate] as const]) {
         const distance = Math.hypot(position.x - canvasPoint.x, position.y - canvasPoint.y);
         if (distance < best) { best = distance; touchHandle = handle; }
@@ -1001,12 +1005,19 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
         ? profileFootprint(selected.shape.outlineMm, { ...selected.cutout, position: { x: 0, y: 0 }, rotationDeg: 0 })
         : selected.shape.outlineMm);
       if (!localBounds) return;
+      const handlePoint = transformPointPlacement(pocketHandleLocalPoint(localBounds, resizeHandle), selected.cutout);
       dragRef.current = {
         kind: "resize",
         id: selected.cutout.id,
         handle: resizeHandle,
         startPlacement: selected.cutout,
         localBounds,
+        // Keep the original grab offset, including the extra space around a
+        // small pocket. A generous target must not jump to the finger on grab.
+        grabOffset: { x: point.x - handlePoint.x, y: point.y - handlePoint.y },
+        startClient: { x: event.clientX, y: event.clientY },
+        slop: event.pointerType === "touch" ? 8 : 4,
+        moved: false,
       };
       event.currentTarget.setPointerCapture(event.pointerId);
       return;
@@ -1220,11 +1231,13 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
     }
 
     if (drag.kind === "resize") {
+      if (!drag.moved && Math.hypot(event.clientX - drag.startClient.x, event.clientY - drag.startClient.y) <= drag.slop) return;
+      drag.moved = true;
       const resized = resizeCutoutPlacementFromHandle(
         drag.startPlacement,
         drag.localBounds,
         drag.handle,
-        point,
+        { x: point.x - drag.grabOffset.x, y: point.y - drag.grabOffset.y },
         event.altKey,
       );
       dispatch({
@@ -1336,6 +1349,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
       return;
     }
     // The gesture's frames were transient; one commit makes it undoable.
+    if (drag.kind === "resize" && !drag.moved) return;
     commitDrag(drag);
   };
 
@@ -1583,11 +1597,19 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
       x: (bounds.minX + bounds.maxX) / 2,
       y: (bounds.minY + bounds.maxY) / 2,
     };
-    const handles = new Map(
+    // Eight touch targets need space even when the pocket is zoomed out. Keep
+    // the actual boundary visible and connect it to an expanded control frame.
+    const halfWidth = Math.max((bounds.maxX - bounds.minX) / 2, 48 * inv / controlsPlacement.scaleX);
+    const halfHeight = Math.max((bounds.maxY - bounds.minY) / 2, 48 * inv / controlsPlacement.scaleY);
+    const controlBounds = touchControls ? {
+      minX: localCenter.x - halfWidth, maxX: localCenter.x + halfWidth,
+      minY: localCenter.y - halfHeight, maxY: localCenter.y + halfHeight,
+    } : bounds;
+    const controlPoints = (box: typeof bounds) => new Map(
       POCKET_RESIZE_HANDLES.map((handle) => {
         const point = binToCanvas(
           transformPointPlacement(
-            pocketHandleLocalPoint(bounds, handle),
+            pocketHandleLocalPoint(box, handle),
             controlsPlacement,
           ),
           spec,
@@ -1595,6 +1617,8 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
         return [handle, point] as const;
       }),
     );
+    const handles = controlPoints(controlBounds);
+    const actualHandles = controlPoints(bounds);
     const center = binToCanvas(
       transformPointPlacement(localCenter, controlsPlacement),
       spec,
@@ -1634,10 +1658,10 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
     const outward = { x: top.x - center.x, y: top.y - center.y };
     const length = Math.hypot(outward.x, outward.y) || 1;
     const rotate = {
-      x: top.x + (outward.x / length) * (touchControls ? 52 : ROTATE_HANDLE_OFFSET_PX) * inv,
-      y: top.y + (outward.y / length) * (touchControls ? 52 : ROTATE_HANDLE_OFFSET_PX) * inv,
+      x: top.x + (outward.x / length) * (touchControls ? 64 : ROTATE_HANDLE_OFFSET_PX) * inv,
+      y: top.y + (outward.y / length) * (touchControls ? 64 : ROTATE_HANDLE_OFFSET_PX) * inv,
     };
-    return { handles, cursors, center, top, rotate };
+    return { handles, actualHandles, cursors, center, top, rotate };
   }, [selected, spec, inv, touchControls]);
 
   return (
@@ -1954,7 +1978,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
               <polygon
                 points={(["nw", "ne", "se", "sw"] as const)
                   .map((handle) => {
-                    const point = selectedControls.handles.get(handle)!;
+                    const point = selectedControls.actualHandles.get(handle)!;
                     return `${point.x},${point.y}`;
                   })
                   .join(" ")}
@@ -1976,7 +2000,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
               <circle
                 cx={selectedControls.rotate.x}
                 cy={selectedControls.rotate.y}
-                r={6 * inv}
+                r={(touchControls ? 10 : 6) * inv}
                 className="fill-primary stroke-background"
                 strokeWidth={1.5}
                 vectorEffect="non-scaling-stroke"
@@ -1986,14 +2010,18 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
               />
               {!(hasProfileRotation(selected.cutout) || (hasRigidPocket(selected.cutout) && hasPocketTilt(selected.cutout))) && POCKET_RESIZE_HANDLES.map((handle) => {
                 const point = selectedControls.handles.get(handle)!;
+                const actual = selectedControls.actualHandles.get(handle)!;
+                const size = touchControls ? 28 : 10;
                 return (
+                  <g key={handle}>
+                  {touchControls && <line x1={actual.x} y1={actual.y} x2={point.x} y2={point.y}
+                    className="pointer-events-none stroke-primary/50" strokeWidth={1} vectorEffect="non-scaling-stroke" />}
                   <rect
-                    key={handle}
-                    x={point.x - 5 * inv}
-                    y={point.y - 5 * inv}
-                    width={10 * inv}
-                    height={10 * inv}
-                    rx={1.5 * inv}
+                    x={point.x - size / 2 * inv}
+                    y={point.y - size / 2 * inv}
+                    width={size * inv}
+                    height={size * inv}
+                    rx={(touchControls ? 7 : 1.5) * inv}
                     className="fill-background stroke-primary"
                     strokeWidth={1.75}
                     vectorEffect="non-scaling-stroke"
@@ -2003,6 +2031,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
                     data-pocket-resize-handle={handle}
                     data-testid={`pocket-resize-handle-${handle}`}
                   />
+                  </g>
                 );
               })}
             </g>
