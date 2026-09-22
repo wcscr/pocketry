@@ -131,6 +131,12 @@ describe("generateLayoutDXF", () => {
     const dxf = generateLayoutDXF(SPEC, [cutout()], BY_ID);
     expect(dxf.match(/LWPOLYLINE/g)).toHaveLength(2);
     expect(dxf).toContain("millimetres, bin top view");
+    // Layout exports need the same complete document as Trace for CAD imports.
+    for (const name of ["TABLES", "BLOCKS", "OBJECTS"]) {
+      expect(dxf).toContain(`  0\nSECTION\n  2\n${name}\n`);
+    }
+    expect(dxf).toContain("*Model_Space");
+    expect(dxf).toContain("ACAD_GROUP");
     // A pocket vertex in bin-frame mm survives untransformed: x = 5+15 = 20.
     expect(dxf).toContain("20.000000");
     expect(dxf.endsWith("EOF\n")).toBe(true);
