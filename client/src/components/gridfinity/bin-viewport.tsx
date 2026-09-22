@@ -388,6 +388,14 @@ export function BinViewport({
           className="pointer-events-none absolute bottom-3 left-3 flex items-center gap-2 rounded-full border bg-background/90 px-2.5 py-1 text-xs font-medium text-foreground shadow-sm backdrop-blur"
           data-testid="material-color-legend"
         >
+          <span className="flex items-center gap-1.5">
+            <span
+              className="h-2.5 w-2.5 rounded-sm border border-black/10"
+              style={{ backgroundColor: binColor }}
+              aria-hidden="true"
+            />
+            Bin body
+          </span>
           {hasPocketFloor && showPocketFloorColor ? (
             <span className="flex items-center gap-1.5">
               <span

@@ -44,6 +44,7 @@ function renderViewport(
         geometry={null}
         hasPocketFloor={hasPocketFloor}
         hasStackingRim={hasStackingRim}
+        binColor="#654321"
         pocketFloorColor="#123456"
         stackingRimColor="#abcdef"
         building={building}
@@ -76,16 +77,20 @@ it("hides preview progress when the geometry is current", () => {
 
 it("labels the contrasting pocket-floor surface", () => {
   const container = renderViewport(false, 1, true);
-  expect(container.querySelector('[data-testid="material-color-legend"]')?.textContent).toContain(
-    "Pocket floor",
+  const legend = container.querySelector('[data-testid="material-color-legend"]');
+  expect(legend?.textContent).toContain("Bin body");
+  expect(legend?.textContent).toContain("Pocket floor");
+  expect((legend?.querySelector("span span") as HTMLElement).style.backgroundColor).toBe(
+    "rgb(101, 67, 33)",
   );
 });
 
 it("labels the independently colored stacking-rim crest", () => {
   const container = renderViewport(false, 1, false, true);
   const legend = container.querySelector('[data-testid="material-color-legend"]');
+  expect(legend?.textContent).toContain("Bin body");
   expect(legend?.textContent).toContain("Rim top");
-  expect((legend?.querySelector("span span") as HTMLElement).style.backgroundColor).toBe(
+  expect((legend?.querySelector("span:last-child span") as HTMLElement).style.backgroundColor).toBe(
     "rgb(171, 205, 239)",
   );
 });
