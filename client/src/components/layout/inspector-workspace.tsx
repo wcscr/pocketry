@@ -44,7 +44,7 @@ export function InspectorWorkspace({ panel, canvas, inspector, panelOpen, onPane
   const restoreClass = "row-start-1 h-full w-full items-start rounded-none bg-muted/30 p-0 pt-3.5 text-muted-foreground hover:bg-accent hover:text-foreground [@media(pointer:coarse)]:pt-[18px]";
   return <MobileCanvasOverlayContext.Provider value={overlayRoot}>
     <div className={cn("flex h-full min-h-0 flex-col", phone && "compact-canvas")} style={{ maxHeight: Math.max(120, availableHeight - 56) }} data-testid="inspector-workspace">
-      {header && <div className="shrink-0 border-b bg-background max-md:hidden">{header}</div>}
+      {header && <div className={cn("shrink-0 border-b bg-background", phone && "hidden")}>{header}</div>}
       <div className="relative grid min-h-0 flex-1" style={{ gridTemplateColumns: `${!phone && leftVisible ? "min(280px, max(0px, calc(100% - 480px)))" : showLeftRestore ? "24px" : "0px"} minmax(0,1fr) ${!phone && rightVisible ? "min(340px, max(0px, calc(100% - 480px)))" : showRightRestore ? "24px" : "0px"}` }}>
         <div id="workflow-panel" hidden={!leftVisible} data-testid="desktop-workspace-controls" aria-label={`Design ${panelTitle.toLowerCase()}`}
           className={cn("relative min-h-0 min-w-0 overflow-hidden border-r bg-background", phone && "absolute inset-y-0 left-0 z-40 w-[min(320px,calc(100%-48px))] shadow-xl")}>

@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
+import { useIsMobile } from "./use-mobile";
 
-/** Keyboard height affects available space, never the width-based layout mode. */
+/** Available space follows the keyboard; layout shares the stable mobile decision. */
 export function useWorkspaceViewport() {
+  const phone = useIsMobile();
   const read = () => ({ width: window.innerWidth, height: window.innerHeight,
     availableHeight: window.visualViewport?.height ?? window.innerHeight,
     offsetTop: window.visualViewport?.offsetTop ?? 0 });
@@ -20,5 +22,5 @@ export function useWorkspaceViewport() {
       window.visualViewport?.removeEventListener("scroll", resize);
     };
   }, []);
-  return { ...size, phone: size.width < 768, tablet: size.width >= 768 && size.width < 1100 };
+  return { ...size, phone, tablet: !phone && size.width < 1100 };
 }
