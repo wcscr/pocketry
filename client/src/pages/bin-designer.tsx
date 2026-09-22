@@ -6,7 +6,7 @@ import { CanvasWarnings } from "@/components/gridfinity/canvas-warnings";
 import { validateBinSpec, validateLayout, validatePocketFloorMaterials, type ValidationIssue } from "@shared/gridfinity/validate";
 import { MobileBinActions } from "@/components/gridfinity/mobile-bin-actions";
 import { BinControlsPanel } from "@/components/gridfinity/bin-controls-panel";
-import { BinViewport } from "@/components/gridfinity/bin-viewport";
+import { BinViewport, type MaterialColorTarget } from "@/components/gridfinity/bin-viewport";
 import { LayoutCanvas } from "@/components/gridfinity/layout-canvas";
 import { EditHistoryMenu } from "@/components/history/edit-history-menu";
 import { usePanelState } from "@/components/layout/panel-context";
@@ -102,7 +102,11 @@ function BinDesignerWorkspace(): JSX.Element {
   const { panelOpen, setPanelOpen } = usePanelState();
   const [quickAdjustOpen, setQuickAdjustOpen] = useState(false);
   const [pocketEditorRequest, setPocketEditorRequest] = useState(0);
-  const [settingsSectionRequest, setSettingsSectionRequest] = useState<{ id: string }>();
+  const [settingsSectionRequest, setSettingsSectionRequest] = useState<{ id: string; focusId?: string }>();
+  const editMaterialColor = (target: MaterialColorTarget) => {
+    setSettingsSectionRequest({ id: "bin-settings-materials", focusId: `input-${target}-color` });
+    setPanelOpen(true);
+  };
   const editSelectedPocket = () => {
     setSettingsSectionRequest(undefined);
     if (isMobile) setQuickAdjustOpen(true);
@@ -1050,6 +1054,7 @@ function BinDesignerWorkspace(): JSX.Element {
               stackingRimColor={stackingRimColor}
               showPocketFloorColor={colorPocketFloors}
               showStackingRimColor={colorStackingRim}
+              onEditColor={editMaterialColor}
               building={building}
               progress={progress}
               error={error}
