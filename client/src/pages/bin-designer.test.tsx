@@ -1339,6 +1339,39 @@ describe("BinDesignerPage", () => {
     unmount();
   });
 
+  it("adjusts fill percentages with exact typing and keyboard, retaining the value while hollow", async () => {
+    const { container, unmount } = renderPage();
+    await flushHydration();
+    openSettingsSection(container, "construction");
+    const input = () => container.querySelector<HTMLInputElement>('[aria-label="Fill height percentage"]')!;
+    const dimensions = container.querySelector("#bin-settings-size")!.textContent;
+    expect(input().value).toBe("100");
+    React.act(() => {
+      input().focus();
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input(), "37.5");
+      input().dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    React.act(() => input().blur());
+    expect(input().value).toBe("37.5");
+    expect(vi.mocked(useBinGeometry).mock.lastCall?.[0].fillHeightPercent).toBe(37.5);
+    React.act(() => {
+      input().focus();
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input(), "50");
+      input().dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    React.act(() => input().blur());
+    const thumb = container.querySelector<HTMLElement>('[role="slider"][aria-label="Fill height"]')!;
+    React.act(() => thumb.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })));
+    expect(input().value).toBe("51");
+    const toggle = () => container.querySelector<HTMLButtonElement>('[role="switch"][aria-label="Solid fill"]')!;
+    React.act(() => toggle().click());
+    expect(input()).toBeNull();
+    React.act(() => toggle().click());
+    expect(input().value).toBe("51");
+    expect(container.querySelector("#bin-settings-size")!.textContent).toBe(dimensions);
+    unmount();
+  });
+
   it("toggles flat bottoms without resizing and restores base hole preferences", async () => {
     const { container, unmount } = renderPage();
     await flushHydration();

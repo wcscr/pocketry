@@ -76,6 +76,16 @@ function codes(
 // 2×2 bin: footprint 83.5, interior half-width 40.8.
 
 describe("validateLayout", () => {
+  it("revalidates fixed depths and remaining floors against the lowered surface", () => {
+    const shape = makeShape("s", 20, 20);
+    const fixed = makeCutout("p", "s", 0, 0, { depth: { mode: "mm", value: 20 } });
+    const remaining = makeCutout("r", "s", 0, 0, { depth: { mode: "remaining", floorThicknessMm: 20 } });
+    expect(codes(spec(), [fixed], [shape])).not.toContain("too-deep");
+    expect(codes(spec({ fillHeightPercent: 25 }), [fixed], [shape])).toContain("too-deep");
+    expect(codes(spec(), [remaining], [shape])).not.toContain("too-shallow");
+    expect(codes(spec({ fillHeightPercent: 25 }), [remaining], [shape])).toContain("too-shallow");
+  });
+
   it("identifies a renamed copy in warnings while preserving its source name", () => {
     const shape = makeShape("Shared source", 20, 20);
     const original = makeCutout("original", shape.id, 0, 0);

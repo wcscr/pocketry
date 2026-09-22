@@ -44,6 +44,34 @@ const VALID = {
 };
 
 describe("parseProjectDoc", () => {
+  it("migrates legacy fill heights in the current design and every undo/redo snapshot", () => {
+    const { fillHeightPercent: _removed, ...spec } = VALID.spec;
+    const doc = { spec, cutouts: [], fingerHoles: [] };
+    const legacy = { ...VALID, ...doc, schemaVersion: 19, history: {
+      stack: [
+        { doc, label: "Start" },
+        { doc: { ...doc, spec: { ...spec, gridX: 3 } }, label: "Change width" },
+      ], index: 0,
+    } };
+    const original = JSON.stringify(legacy);
+    const migrated = parseProjectDoc(legacy)!;
+    expect(migrated.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
+    expect(migrated.spec.fillHeightPercent).toBe(100);
+    expect(migrated.history!.stack.map(entry => entry.doc.spec.fillHeightPercent)).toEqual([100, 100]);
+    expect(migrated.history!.index).toBe(0);
+    expect(JSON.stringify(legacy)).toBe(original);
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(migrated)))).toEqual(migrated);
+  });
+
+  it("round-trips custom fill height and saved history", () => {
+    const doc = { spec: { ...VALID.spec, fillHeightPercent: 37.5 }, cutouts: [], fingerHoles: [] };
+    const project = parseProjectDoc({ ...VALID, ...doc, history: {
+      stack: [{ doc: { ...doc, spec: VALID.spec }, label: "Start" }, { doc, label: "Change fill height" }], index: 1,
+    } });
+    expect(project?.spec.fillHeightPercent).toBe(37.5);
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(project)))).toEqual(project);
+  });
+
   it("preserves independent pocket names alongside unnamed legacy placements", () => {
     const doc = parseProjectDoc({ ...VALID, cutouts: [
       { ...VALID.cutouts[0], name: "  First pocket  " },
@@ -82,7 +110,7 @@ describe("parseProjectDoc", () => {
     const original = JSON.stringify(airdusterV9);
     const doc = parseProjectDoc(airdusterV9);
     const { liteBase: _removed, ...spec } = airdusterV9.spec;
-    expect(doc).toEqual({ ...airdusterV9, spec: { ...spec, flatBottom: false }, schemaVersion: PROJECT_SCHEMA_VERSION });
+    expect(doc).toEqual({ ...airdusterV9, spec: { ...spec, flatBottom: false, fillHeightPercent: 100 }, schemaVersion: PROJECT_SCHEMA_VERSION });
     expect(doc!.shapes).toHaveLength(7);
     expect(doc!.cutouts).toHaveLength(4);
     expect(doc!.fingerHoles).toHaveLength(2);

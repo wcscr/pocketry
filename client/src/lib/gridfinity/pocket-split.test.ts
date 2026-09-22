@@ -24,6 +24,17 @@ const pocket = (extra: Partial<CutoutPlacement> = {}) => parseCutoutPlacement({ 
 const layout = (c: CutoutPlacement) => ({ cutouts: [c], shapesById, fingerHoles: [] });
 
 describe("split-pocket solids", () => {
+  it("keeps fixed and remaining-floor split depths at a lowered fill surface", () => {
+    const lowered = parseBinSpec({ ...spec, fillHeightPercent: 50 });
+    const c = pocket();
+    const base = buildBin(kernel, lowered, EXPORT_QUALITY).solid;
+    const built = buildBinWithCutouts(kernel, lowered, layout(c), EXPORT_QUALITY);
+    // Half of the 26.8 mm fill above the base: top 20.4, remaining floor 2.
+    expect(base.volume() - built.solid.volume()).toBeCloseTo(600 * (6 + 18.4), 5);
+    expect(built.solid.status()).toBe("NoError");
+    expect(built.solid.decompose().map(s => arena.track(s))).toHaveLength(1);
+  });
+
   // Full-resolution Ryobi meshes take 7–10 seconds on CI; keep export quality.
   it.each([PREVIEW_QUALITY, EXPORT_QUALITY])("reloads the saved Ryobi with a 16 mm blade recess and 55 mm body recess at quality %j", quality => {
     // Reduced from the library backup reported after switching designs. Probe

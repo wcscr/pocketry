@@ -30,7 +30,7 @@ export type BinViewMode = "3d" | "2d";
 export type BinEditorMode = "placement" | "contour" | "footprint" | "label-edge" | "split"
   | "draw-rectangle" | "draw-square" | "draw-circle";
 
-const BIN_SIZE_KEYS = ["gridX", "gridY", "gridPitch", "heightUnits", "lip"] as const;
+const BIN_SIZE_KEYS = ["gridX", "gridY", "gridPitch", "heightUnits", "lip", "fillHeightPercent"] as const;
 
 export interface BinState {
   spec: BinSpec;
@@ -190,6 +190,7 @@ function specPatchLabel(patch: Partial<BinSpecInput>): string {
   if ("gridPitch" in patch) return "Change grid pitch";
   if ("lip" in patch) return "Change stacking lip";
   if ("fill" in patch) return "Change solid fill";
+  if ("fillHeightPercent" in patch) return "Change fill height";
   if ("labelTab" in patch) return "Change label tab";
   return "Change bin construction";
 }
