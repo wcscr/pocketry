@@ -969,6 +969,15 @@ describe("BinDesignerPage", () => {
         expect(document.querySelector('#bin-settings-export')).not.toBeNull();
         expect(document.querySelector('#bin-settings-pockets')).toBeNull();
         expect(document.querySelector('#bin-settings-size')).toBeNull();
+        const exports = document.querySelector('#bin-settings-export')!;
+        expect(exports.querySelector('[data-testid="button-export-stl"]')).not.toBeNull();
+        expect(exports.querySelector('[data-testid="button-export-3mf"]')).not.toBeNull();
+        for (const [id, title] of [["button-export-surface-fit-test", "Save surface fit test STL?"], ["button-export-fit-check", "Save fit template STL?"]]) {
+          React.act(() => exports.querySelector<HTMLButtonElement>(`[data-testid="${id}"]`)!.click());
+          expect([...document.querySelectorAll('[role="dialog"]')].some(dialog => dialog.textContent?.includes(title))).toBe(true);
+          expect(downloadBlob).not.toHaveBeenCalled();
+          React.act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(button => button.textContent === "Cancel")!.click());
+        }
         React.act(() => [...document.querySelectorAll('button')].find(button => button.textContent === 'Back to canvas')!.click());
         React.act(() => [...container.querySelectorAll('button')].find(button => button.textContent === 'Adjust')!.click());
         React.act(() => [...container.querySelectorAll('button')].find(button => button.textContent === 'More settings')!.click());
@@ -978,6 +987,66 @@ describe("BinDesignerPage", () => {
       unmount();
     },
   );
+
+  it.each([
+    { rotationDeg: 0, mirrored: false, cancel: false },
+    { rotationDeg: 35, mirrored: true, cancel: false },
+    { rotationDeg: 35, mirrored: false, cancel: true },
+  ])("grabs an enlarged mobile resize target without jumping ($rotationDeg degrees, mirrored=$mirrored, cancel=$cancel)", async ({ rotationDeg, mirrored, cancel }) => {
+    const shape = rectangularShape("tool", "Wrench");
+    const original = parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 0, y: 0 },
+      rotationDeg, mirrored, scaleX: 1.5, scaleY: 0.8, aspectRatioLocked: false });
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape], cutouts: [original] });
+    const { container, unmount } = renderPage({ mobile: true });
+    try {
+      await flushHydration();
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
+      const svg = container.querySelector<SVGSVGElement>('[data-testid="layout-canvas"]')!;
+      Object.defineProperty(svg.querySelector('g')!, 'getScreenCTM', { value: () => ({ inverse: () => ({}) }) });
+      Object.defineProperties(svg, {
+        createSVGPoint: { value: () => ({ x: 0, y: 0, matrixTransform() { return { x: this.x, y: this.y }; } }) },
+        setPointerCapture: { value: () => {} },
+      });
+      const pointer = (type: string, x: number, y: number) => React.act(() => {
+        const event = new MouseEvent(type, { bubbles: true, button: 0, clientX: x, clientY: y });
+        Object.defineProperties(event, { pointerId: { value: 1 }, pointerType: { value: "touch" } });
+        svg.dispatchEvent(event);
+      });
+      pointer("pointerdown", 41.75, 41.75); pointer("pointerup", 41.75, 41.75);
+      const handles = [...svg.querySelectorAll<SVGRectElement>('[data-pocket-resize-handle]')];
+      const center = (handle: SVGRectElement) => ({ x: +handle.getAttribute('x')! + +handle.getAttribute('width')! / 2,
+        y: +handle.getAttribute('y')! + +handle.getAttribute('height')! / 2 });
+      expect(handles).toHaveLength(8);
+      for (const handle of handles) {
+        expect(+handle.getAttribute('width')!).toBe(28);
+        for (const other of handles.filter(other => other !== handle)) {
+          expect(Math.hypot(center(handle).x - center(other).x, center(handle).y - center(other).y)).toBeGreaterThanOrEqual(48 - 1e-6);
+        }
+      }
+      const east = center(svg.querySelector<SVGRectElement>('[data-pocket-resize-handle="e"]')!);
+      const radius = Math.hypot(east.x - 41.75, east.y - 41.75);
+      const direction = { x: (east.x - 41.75) / radius, y: (east.y - 41.75) / radius };
+      const at = (offset: number) => [east.x + direction.x * offset, east.y + direction.y * offset] as const;
+      const current = () => vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0];
+      const undo = container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!;
+      // Grab outside the visible square, jitter, and release: no resize or undo entry.
+      pointer("pointerdown", ...at(24)); pointer("pointermove", ...at(27)); pointer("pointerup", ...at(27));
+      expect(current()).toEqual(original); expect(undo.disabled).toBe(true);
+      const pocket = svg.querySelector('[data-cutout-id="pocket"]')!;
+      const before = pocket.getAttribute('d');
+      pointer("pointerdown", ...at(24)); pointer("pointermove", ...at(36));
+      expect(pocket.getAttribute('d')).not.toBe(before);
+      pointer(cancel ? "pointercancel" : "pointerup", ...at(36));
+      if (!cancel) {
+        expect(current().scaleX).toBeCloseTo(1.9); // 45 mm + 12 mm, not the distance to the enlarged handle.
+        expect(current().scaleY).toBe(0.8);
+        expect(current().rotationDeg).toBe(rotationDeg);
+        expect(undo.disabled).toBe(false); React.act(() => undo.click());
+      }
+      expect(current()).toEqual(original); expect(undo.disabled).toBe(true);
+      expect(pocket.getAttribute('d')).toBe(before);
+    } finally { unmount(); }
+  });
 
   it("edits and finishes a selected contour directly in Layout, including after using the ruler", async () => {
     const shape = rectangularShape("tool", "Wrench");
