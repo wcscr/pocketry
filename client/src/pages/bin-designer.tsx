@@ -161,6 +161,7 @@ function BinDesignerWorkspace(): JSX.Element {
   );
   const [projectLibrary, setProjectLibrary] = useState(EMPTY_PROJECT_LIBRARY);
   const [projectLibraryReady, setProjectLibraryReady] = useState(false);
+  const [projectRestoreFailed, setProjectRestoreFailed] = useState(false);
   const [projectBusy, setProjectBusy] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"saving" | "saved" | "error">("saving");
   const [draftName, setDraftName] = useState<string | null>(null);
@@ -200,10 +201,27 @@ function BinDesignerWorkspace(): JSX.Element {
     let cancelled = false;
     void loadProjectDoc().then(async (doc) => {
       if (cancelled) return;
-      const saved = await loadProjectLibrary(doc);
+      let saved: ProjectLibrarySnapshot;
+      try {
+        saved = await loadProjectLibrary(doc);
+      } catch (cause) {
+        if (cancelled) return;
+        saved = await loadProjectLibrary();
+        if (cancelled) return;
+        setProjectRestoreFailed(true);
+        setSaveStatus("error");
+        toast({ title: "Could not restore project to library",
+          description: `${cause instanceof Error ? cause.message : String(cause)} Your current design is still open. Export it or save it with a new name to keep your work.`,
+          variant: "destructive" });
+      }
       if (cancelled) return;
       setProjectLibrary(saved);
       setProjectLibraryReady(true);
+      const restoredName = saved.projects.find((project) => project.id === saved.activeProjectId)?.name;
+      if (doc?.name && restoredName && restoredName !== doc.name) {
+        toast({ title: "Project recovered",
+          description: `Your latest work was saved as “${restoredName}”. The earlier library version is still available.` });
+      }
       if (doc) {
         setDraftName(doc.name ?? null);
         setKeepBinSize(doc.keepBinSize ?? false);
@@ -249,10 +267,10 @@ function BinDesignerWorkspace(): JSX.Element {
     [library.shapes, committedDoc, bin.history, currentProjectName, keepBinSize],
   );
   useEffect(() => {
-    if (!bin.hydrated || projectBusy) return;
+    if (!bin.hydrated || projectBusy || projectRestoreFailed) return;
     setSaveStatus("saving");
     saveProject(currentProjectDoc, projectLibrary.activeProjectId);
-  }, [bin.hydrated, currentProjectDoc, saveProject, projectLibrary.activeProjectId, projectBusy]);
+  }, [bin.hydrated, currentProjectDoc, saveProject, projectLibrary.activeProjectId, projectBusy, projectRestoreFailed]);
 
   useEffect(() => {
     const flush = () => { void saveProject.flush(); };
@@ -534,6 +552,7 @@ function BinDesignerWorkspace(): JSX.Element {
         });
         setSection(null);
         setProjectLibrary(opened.library);
+        setProjectRestoreFailed(false);
         toast({
           title: "Backup imported",
           description: `${doc.shapes.length} shape${doc.shapes.length === 1 ? "" : "s"}, ${doc.cutouts.length} pocket${doc.cutouts.length === 1 ? "" : "s"}. Saved to your library and opened as “${doc.name}”.`,
@@ -577,6 +596,7 @@ function BinDesignerWorkspace(): JSX.Element {
       });
       setSection(null);
       setProjectLibrary(saved);
+      setProjectRestoreFailed(false);
       toast({
         title: "New project ready",
         description: "Ready for a new design.",
@@ -602,6 +622,7 @@ function BinDesignerWorkspace(): JSX.Element {
         projectLibrary.activeProjectId,
       );
       setProjectLibrary(saved);
+      setProjectRestoreFailed(false);
       toast({
         title: "Project saved",
         description: "It will keep updating automatically in this browser’s library.",
@@ -647,6 +668,7 @@ function BinDesignerWorkspace(): JSX.Element {
         ? await saveProjectToLibrary(currentProjectDoc, name, projectId)
         : await renameProjectInLibrary(projectId, name);
       setProjectLibrary(saved);
+      if (active) setProjectRestoreFailed(false);
       toast({ title: "Project renamed" });
       return true;
     } catch (cause) {
@@ -678,6 +700,7 @@ function BinDesignerWorkspace(): JSX.Element {
       });
       setSection(null);
       setProjectLibrary(opened.library);
+      setProjectRestoreFailed(false);
       toast({
         title: "Project opened",
         description: `“${opened.project.name}” will resume here automatically.`,
