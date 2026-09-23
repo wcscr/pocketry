@@ -59,7 +59,9 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
               and linked designs are experimental. Turn on <strong>Enable
               experimental features</strong> in <strong>Settings</strong> to use
               them (on mobile, open <strong>More options → Settings</strong>).
-              Turning the setting off preserves existing designs and links.
+              Opening a project that uses these features enables the tools and
+              shows a notification. Turning the setting off preserves existing
+              designs and links.
             </p>
             <p className="mt-1 text-muted-foreground">
               To store tall items in a shorter drawer, enable the experimental

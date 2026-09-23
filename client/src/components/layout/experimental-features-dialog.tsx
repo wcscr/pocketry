@@ -19,7 +19,7 @@ export function ExperimentalFeaturesDialog(): JSX.Element {
         <p id="experimental-features-description" className="mt-2 text-sm text-muted-foreground">
           Try pocket tilt, 3D move and rotate controls, multi-selection, alignment, distribution, and linked designs. These tools are still being refined.
         </p>
-        <p className="mt-3 text-xs text-muted-foreground">Off by default. Saved for this browser. Turning it off hides the tools; existing designs still load and export with their geometry and links intact.</p>
+        <p className="mt-3 text-xs text-muted-foreground">Off by default. Loading a project that uses experimental features enables them and shows a notification. Saved for this browser; turning it off hides the tools without changing existing designs or links.</p>
       </div>
       {persistenceUnavailable && <p role="status" className="text-sm text-muted-foreground">This preference applies for this tab only because browser storage is unavailable.</p>}
     </DialogContent>

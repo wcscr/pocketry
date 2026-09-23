@@ -121,7 +121,13 @@ function BinDesignerWorkspace(): JSX.Element {
   };
   const { toast } = useToast();
   const bin = useBin();
-  const { enabled: experimentalEnabled } = useExperimentalFeatures();
+  const { enabled: experimentalEnabled, enableForProject } = useExperimentalFeatures();
+  const enableProjectFeatures = useCallback((doc: ProjectDoc) => {
+    if (enableForProject(doc)) toast({
+      title: "Experimental features enabled",
+      description: "This project contains experimental pocket features. Their controls are now available. You can turn them off in Settings.",
+    });
+  }, [enableForProject, toast]);
   const { spec, cutouts, fingerHoles, viewMode, dispatch } = bin;
   useEffect(() => {
     if (!experimentalEnabled && bin.selection.length > 1) {
@@ -230,6 +236,7 @@ function BinDesignerWorkspace(): JSX.Element {
           description: `Your latest work was saved as “${restoredName}”. The earlier library version is still available.` });
       }
       if (doc) {
+        enableProjectFeatures(doc);
         setDraftName(doc.name ?? null);
         setKeepBinSize(doc.keepBinSize ?? false);
         library.mergeShapes(doc.shapes);
@@ -575,6 +582,7 @@ function BinDesignerWorkspace(): JSX.Element {
           title: "Backup imported",
           description: `${doc.shapes.length} shape${doc.shapes.length === 1 ? "" : "s"}, ${doc.cutouts.length} pocket${doc.cutouts.length === 1 ? "" : "s"}. Saved to your library and opened as “${doc.name}”.`,
         });
+        enableProjectFeatures(doc);
         return true;
       } catch (cause) {
         toast({
@@ -587,7 +595,7 @@ function BinDesignerWorkspace(): JSX.Element {
         setProjectBusy(false);
       }
     },
-    [library, dispatch, saveBeforeReplacingProject, toast],
+    [library, dispatch, saveBeforeReplacingProject, toast, enableProjectFeatures],
   );
 
   const handleNewProject = useCallback(async () => {
@@ -723,6 +731,7 @@ function BinDesignerWorkspace(): JSX.Element {
         title: "Project opened",
         description: `“${opened.project.name}” will resume here automatically.`,
       });
+      enableProjectFeatures(opened.doc);
       return true;
     } catch (cause) {
       toast({
@@ -734,7 +743,7 @@ function BinDesignerWorkspace(): JSX.Element {
     } finally {
       setProjectBusy(false);
     }
-  }, [library, dispatch, saveBeforeReplacingProject, toast]);
+  }, [library, dispatch, saveBeforeReplacingProject, toast, enableProjectFeatures]);
 
   const handleDeleteProject = useCallback(
     async (projectId: string): Promise<boolean> => {

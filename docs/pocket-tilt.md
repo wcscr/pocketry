@@ -4,12 +4,17 @@ These tools are experimental and hidden by default. Open **Settings** in the
 header (on mobile, **More options → Settings**) and turn on **Enable experimental
 features**. The setting exposes X/Y tilt, the 3D move/rotate widget,
 multi-selection, alignment/distribution, and linked designs. It persists in this
-browser and is independent of project files; importing a project never enables
-it automatically. If browser storage is blocked, it applies for the current tab.
+browser and is independent of project files. Loading a project with tilted
+pockets, legacy Z offsets, or linked pocket/thumb designs automatically enables
+the tools and shows a notification. Detection includes saved undo/redo states.
+Ordinary projects leave the preference unchanged. If browser storage is blocked,
+the preference applies for the current tab.
 
 Turning it off cancels an unfinished group drag and returns to single selection.
 It does not remove tilt, break links, rewrite history, or alter exports. Projects
 that already use these features show a notice with a shortcut to settings.
+Ordinary edits do not turn the tools back on after the user disables them;
+automatic activation only runs when restoring, importing, or opening a project.
 Existing linked designs still propagate ordinary size/depth edits to their
 copies; enable the tools to manage or remove those links.
 

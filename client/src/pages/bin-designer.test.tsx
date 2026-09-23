@@ -102,6 +102,8 @@ const binGeometryMock = vi.hoisted(() => ({
   buildSurfaceFitCheck: vi.fn(),
 }));
 
+const projectToast = vi.hoisted(() => vi.fn());
+vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: projectToast }) }));
 vi.mock("@/lib/download", () => ({ downloadBlob: vi.fn() }));
 
 vi.mock("@/lib/gridfinity/use-bin-geometry", () => ({
@@ -4292,7 +4294,7 @@ describe("project history restoration", () => {
   });
 });
 
-it("gates experimental controls and shortcuts without changing imported tilted or linked designs", async () => {
+it("enables restored experimental designs, then respects manual disabling without changing the design", async () => {
   const shape = rectangularShape("experimental-shape", "Target");
   const cutouts = [-18, 18].map((x, i) => parseCutoutPlacement({
     id: `experimental-${i}`, name: `Target ${i}`, shapeId: shape.id, position: { x, y: 0 },
@@ -4304,6 +4306,9 @@ it("gates experimental controls and shortcuts without changing imported tilted o
   try {
     await flushHydration();
     const before = structuredClone(vi.mocked(useBinGeometry).mock.lastCall![2]);
+    expect(container.querySelector('[data-experimental-editor="true"]')).not.toBeNull();
+    expect(projectToast).toHaveBeenCalledWith(expect.objectContaining({ title: "Experimental features enabled" }));
+    React.act(() => experimentalSettings.setEnabled(false));
     expect(container.querySelector('[data-experimental-editor="false"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="experimental-design-notice"]')).not.toBeNull();
     openSettingsSection(container, "tool-cutouts"); selectPocket(container, cutouts[0].id);
@@ -4382,4 +4387,40 @@ it.each(["release", "Escape", "blur", "pointercancel", "disable experimental"])(
   }
   expect(undo.disabled).toBe(true); expect(path()).toBe(beforePath);
   unmount();
+});
+
+
+it.each(["backup", "library"])("enables experimental tools and notifies when opening a %s", async source => {
+  const project = { id: "saved", name: "Linked access", updatedAt: "2026-09-23T12:00:00.000Z" };
+  const doc: ProjectDoc = { ...EMPTY_PROJECT, name: project.name, fingerHoles: [
+    fingerHoleSchema.parse({ id: "access", center: { x: 0, y: 0 }, designLink: { id: "linked-access" } }),
+  ] };
+  vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId: null, projects: [project] });
+  vi.mocked(ProjectPersistence.openProjectFromLibrary).mockResolvedValue({
+    doc, project, library: { activeProjectId: project.id, projects: [project] },
+  });
+  const { container, unmount } = renderPage({ experimental: false });
+  try {
+    await flushHydration();
+    expect(experimentalSettings.enabled).toBe(false);
+    expect(projectToast).not.toHaveBeenCalledWith(expect.objectContaining({ title: "Experimental features enabled" }));
+    openSettingsSection(container, "project");
+    if (source === "backup") {
+      const json = JSON.stringify(doc);
+      const input = container.querySelector<HTMLInputElement>('input[type="file"][accept*=".pocketry.json"]')!;
+      const file = new File([json], "Linked access.pocketry.json");
+      Object.defineProperty(file, "text", { value: async () => json });
+      Object.defineProperty(input, "files", { value: [file], configurable: true });
+      await React.act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
+      expect(ProjectPersistence.importProjectToLibrary).toHaveBeenCalledOnce();
+    } else {
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
+      await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-open-project-saved"]')!.click());
+      expect(ProjectPersistence.openProjectFromLibrary).toHaveBeenCalledExactlyOnceWith("saved");
+    }
+    expect(experimentalSettings.enabled).toBe(true);
+    expect(localStorage.getItem(EXPERIMENTAL_FEATURES_KEY)).toBe("true");
+    expect(projectToast).toHaveBeenLastCalledWith(expect.objectContaining({ title: "Experimental features enabled" }));
+    expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.fingerHoles).toEqual(doc.fingerHoles);
+  } finally { unmount(); }
 });
