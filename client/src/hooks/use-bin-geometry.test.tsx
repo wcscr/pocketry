@@ -348,6 +348,21 @@ describe("bin preview worker lifecycle", () => {
     expect(state!.error).toContain("Detailed preview failed");
   });
 
+  it("retries a crashed detailed worker without changing the model or discarding its draft", async () => {
+    await renderRounded(3); await tick(); await reply(() => worker().finish(0)); await tick(268);
+    const failed = detailWorker(), originalRequest = failed.calls[0].payload;
+    await reply(() => failed.dispatchEvent(new Event("error")));
+    expect(state!.error).toContain("worker stopped unexpectedly");
+    expect(state!.previewIsDraft).toBe(true);
+    await React.act(async () => state!.retryPreview());
+    await tick(); await reply(() => worker().finish(1)); await tick(268);
+    expect(detailWorker()).not.toBe(failed);
+    expect(detailWorker().calls[0].payload).toEqual(originalRequest);
+    await reply(() => detailWorker().finish(0, resultFor(77)));
+    expect(state!.error).toBeNull(); expect(state!.previewIsDraft).toBe(false);
+    expect(state!.stats?.volumeMm3).toBe(77);
+  });
+
   it("exports full authored settings while a draft is displayed", async () => {
     await renderRounded(3); await tick(); await reply(() => worker().finish(0));
     let exported!: Promise<BuildBinResult>;

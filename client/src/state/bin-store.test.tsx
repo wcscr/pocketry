@@ -697,3 +697,27 @@ describe("linked design transactions", () => {
     expect(getCommittedBinDoc(store())).toBe(committed); expect(store().editError).toContain("different design changes");
   });
 });
+
+
+it("keeps as-drawn references after history trimming, duplication, reload, and undo", () => {
+  const { store, act } = mountBin();
+  act(() => store().dispatch({ type: "ADD_PLACED", cutouts: [CUTOUT], gridX: 2, gridY: 2 }));
+  for (let x = 1; x <= 55; x++) act(() => store().dispatch({ type: "UPDATE_CUTOUT", id: CUTOUT.id, patch: { position: { x, y: 2 } } }));
+  expect(store().history.stack).toHaveLength(50);
+  expect(store().transformOrigins.pockets[0].cutout.position).toEqual({ x: 0, y: 0 });
+  act(() => store().dispatch({ type: "DUPLICATE_CUTOUT", id: CUTOUT.id, newId: "copy" }));
+  expect(store().transformOrigins.pockets.find(p => p.cutout.id === "copy")!.cutout.position).toEqual({ x: 65, y: -8 });
+  const saved = JSON.parse(JSON.stringify({ ...getCommittedBinDoc(store()), history: store().history, transformOrigins: store().transformOrigins }));
+  act(() => store().dispatch({ type: "HYDRATE", ...saved }));
+  act(() => store().dispatch({ type: "UNDO" }));
+  expect(store().transformOrigins.pockets[0].cutout.position).toEqual({ x: 0, y: 0 });
+});
+it("recovers legacy origins from the earliest retained state, including redo-only objects", () => {
+  const { store, act } = mountBin();
+  const before = { spec: store().spec, cutouts: [CUTOUT], fingerHoles: [] };
+  const after = { ...before, cutouts: [{ ...CUTOUT, position: { x: 20, y: 0 } }] };
+  act(() => store().dispatch({ type: "HYDRATE", ...after, history: { stack: [
+    { doc: before, label: "Draw" }, { doc: after, label: "Move" },
+  ], index: 1 } }));
+  expect(store().transformOrigins.pockets[0].cutout).toEqual(CUTOUT);
+});

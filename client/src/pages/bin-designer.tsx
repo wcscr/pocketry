@@ -1,3 +1,5 @@
+import { SelectionLinkControls } from "@/components/gridfinity/linked-design-controls";
+import { retainTransformOrigins } from "@shared/gridfinity/transform-origins";
 import { useExperimentalFeatures } from "@/state/experimental-features";
 import { Box, History, Redo2, Undo2 } from "lucide-react";
 import { pocketDepths, pocketName, resolvePocketDepth } from "@shared/gridfinity/cutout";
@@ -246,6 +248,7 @@ function BinDesignerWorkspace(): JSX.Element {
           cutouts: doc.cutouts,
           fingerHoles: doc.fingerHoles,
           history: doc.history,
+          transformOrigins: doc.transformOrigins,
         });
       } else {
         dispatch({ type: "MARK_HYDRATED" });
@@ -277,8 +280,9 @@ function BinDesignerWorkspace(): JSX.Element {
       shapes: library.shapes,
       ...committedDoc,
       history: bin.history,
+      transformOrigins: retainTransformOrigins(bin.transformOrigins, bin.history.stack.map(e => e.doc)),
     }),
-    [library.shapes, committedDoc, bin.history, currentProjectName, keepBinSize],
+    [library.shapes, committedDoc, bin.history, bin.transformOrigins, currentProjectName, keepBinSize],
   );
   useEffect(() => {
     if (!bin.hydrated || projectBusy || projectRestoreFailed) return;
@@ -404,6 +408,7 @@ function BinDesignerWorkspace(): JSX.Element {
     building,
     progress,
     error,
+    retryPreview,
     buildOnce,
     buildFitCheck,
     buildSurfaceFitCheck,
@@ -574,6 +579,7 @@ function BinDesignerWorkspace(): JSX.Element {
           cutouts: doc.cutouts,
           fingerHoles: doc.fingerHoles,
           history: doc.history,
+          transformOrigins: doc.transformOrigins,
         });
         setSection(null);
         setProjectLibrary(opened.library);
@@ -619,6 +625,7 @@ function BinDesignerWorkspace(): JSX.Element {
         cutouts: doc.cutouts,
         fingerHoles: doc.fingerHoles,
         history: doc.history,
+        transformOrigins: doc.transformOrigins,
       });
       setSection(null);
       setProjectLibrary(saved);
@@ -723,6 +730,7 @@ function BinDesignerWorkspace(): JSX.Element {
         cutouts: opened.doc.cutouts,
         fingerHoles: opened.doc.fingerHoles,
         history: opened.doc.history,
+        transformOrigins: opened.doc.transformOrigins,
       });
       setSection(null);
       setProjectLibrary(opened.library);
@@ -1104,7 +1112,7 @@ function BinDesignerWorkspace(): JSX.Element {
           {viewMode === "3d" ? (
             <BinViewport
               geometry={geometry}
-              pocketEditor={experimentalEnabled ? { spec, pockets: editablePockets, selectedId: bin.selectedCutoutId, fingerHoles, selection: bin.selection,
+              pocketEditor={experimentalEnabled ? { spec, transformOrigins: bin.transformOrigins, originShapes: library.shapes, linkControls: <SelectionLinkControls />, pockets: editablePockets, selectedId: bin.selectedCutoutId, fingerHoles, selection: bin.selection,
                 onSelectionChange: selection => dispatch({ type: "SET_SELECTION", selection }),
                 onCommitObjects: (edits, historyLabel) => dispatch({ type: "UPDATE_OBJECTS", edits, historyLabel }),
                 onSelect: id => dispatch({ type: "SELECT_CUTOUT", id }),
@@ -1124,6 +1132,7 @@ function BinDesignerWorkspace(): JSX.Element {
               previewIsDraft={previewIsDraft}
               progress={progress}
               error={error}
+              onRetryPreview={retryPreview}
               fitSize={fitSize}
               measurementOutlines={measurementOutlines}
               measurementSplitBoundaries={measurementSplitBoundaries}

@@ -12,6 +12,7 @@ import {
 } from "./cutout";
 import { binSpecSchema } from "./types";
 import { designLinkErrors } from "./design-links";
+import { transformOriginsSchema } from "./transform-origins";
 import { binHistorySchema } from "./history";
 
 /**
@@ -43,9 +44,10 @@ import { binHistorySchema } from "./history";
  * Version 21 adds vertical pocket translation for the 3D editor.
  * Version 22 unifies adjustable fill height, tilt and legacy vertical offsets.
  * Version 23 adds explicit linked pocket and thumb-access designs.
+ * Version 24 preserves as-drawn transform references independently of undo history.
  */
 
-export const PROJECT_SCHEMA_VERSION = 23 as const;
+export const PROJECT_SCHEMA_VERSION = 24 as const;
 
 const projectFields = {
   shapes: z.array(tracedShapeSchema),
@@ -102,9 +104,12 @@ const version21ProjectSchema = version17ProjectSchema.extend({ schemaVersion: z.
 
 const version22ProjectSchema = version17ProjectSchema.extend({ schemaVersion: z.literal(22) });
 
+const version23ProjectSchema = version17ProjectSchema.extend({ schemaVersion: z.literal(23) });
+
 /** History and the visible design must describe one consistent saved snapshot. */
 export const projectDocSchema = version16ProjectSchema.extend({
   schemaVersion: z.literal(PROJECT_SCHEMA_VERSION),
+  transformOrigins: transformOriginsSchema.optional(),
   history: binHistorySchema.optional(),
 }).superRefine((project, ctx) => {
   for (const message of designLinkErrors(project)) ctx.addIssue({ code: z.ZodIssueCode.custom, message });
@@ -213,6 +218,11 @@ export function parseProjectDoc(input: unknown): ProjectDoc | null {
       if (liteBase !== undefined && typeof liteBase !== "boolean") return null;
       input = { ...doc, spec };
     }
+  }
+  const version23 = version23ProjectSchema.safeParse(input);
+  if (version23.success) {
+    const migrated = projectDocSchema.safeParse({ ...version23.data, schemaVersion: PROJECT_SCHEMA_VERSION });
+    return migrated.success ? migrated.data : null;
   }
   const version22 = version22ProjectSchema.safeParse(input);
   if (version22.success) {

@@ -1,8 +1,9 @@
+import type { TransformOrigins } from "@shared/gridfinity/transform-origins";
 import { Line, TransformControls } from "@react-three/drei";
 import { useThree, type ThreeEvent } from "@react-three/fiber";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ElementRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ElementRef, type ReactNode } from "react";
 import { DoubleSide, Object3D, Quaternion, Vector3 } from "three";
-import type { CutoutPlacement, FingerHole } from "@shared/gridfinity/cutout";
+import type { CutoutPlacement, FingerHole, TracedShape } from "@shared/gridfinity/cutout";
 import { effectiveFingerHoleDepthMm, resolvePocketDepth } from "@shared/gridfinity/cutout";
 import type { BinSpec } from "@shared/gridfinity/types";
 import {
@@ -15,6 +16,9 @@ import { applyObjectEdits, objectEditsChanged, objectOutline, pickObject, select
   type EditableObject, type ObjectRef, type ObjectEdits, type RotationPivot } from "@/lib/gridfinity/object-arrangement";
 
 export interface PocketEditor {
+  transformOrigins?: TransformOrigins;
+  originShapes?: readonly TracedShape[];
+  linkControls?: ReactNode;
   spec: BinSpec;
   pockets: readonly EditablePocket[];
   selectedId: string | null;

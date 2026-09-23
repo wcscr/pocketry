@@ -1072,7 +1072,7 @@ describe("BinDesignerPage", () => {
     selectPocket(container, "pocket");
     const edit = container.querySelector<HTMLButtonElement>('[data-testid="button-layout-edit-contour"]')!;
     expect(edit.closest('[data-testid="layout-tool-toolbar"]')).not.toBeNull();
-    expect(edit.previousElementSibling?.getAttribute('data-testid')).toBe('button-layout-ruler');
+    expect(edit.previousElementSibling?.getAttribute('aria-label')).toBe('Object controls');
     expect(container.querySelector('[data-testid="button-edit-contour"]')!.closest('[data-testid="pocket-properties-heading"]')).not.toBeNull();
     expect(edit.textContent).toBe("");
     expect(edit.getAttribute("aria-label")).toBe("Edit contour");
@@ -1373,6 +1373,7 @@ describe("BinDesignerPage", () => {
       });
       expect(parseProjectDoc(JSON.parse(json))).toEqual({
         ...project, name: "Layout 2", keepBinSize: false,
+        transformOrigins: { pockets: project.cutouts.map(cutout => ({ cutout, spec: project.spec })), fingerHoles: project.fingerHoles },
         history: { index: 0, stack: [{ label: "Project opened", doc: {
           spec: project.spec, cutouts: project.cutouts, fingerHoles: project.fingerHoles,
         } }] },
@@ -4326,6 +4327,7 @@ it("enables restored experimental designs, then respects manual disabling withou
     expect(container.querySelector('[aria-label="Linked design"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="pocket-tilt-controls"]')).not.toBeNull();
     React.act(() => container.querySelector<HTMLInputElement>('[aria-label="Include Target 0 in selection"]')!.click());
+    React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Object controls"]')!.click());
     expect(container.querySelector('[data-testid="pocket-3d-controls"]')).not.toBeNull();
     React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-3d"]')!.click());
     expect(container.querySelector('[data-experimental-editor="true"]')).not.toBeNull();
@@ -4359,6 +4361,7 @@ it.each(["release", "Escape", "blur", "pointercancel", "disable experimental"])(
   for (const name of ["Multi 0", "Multi 1"]) React.act(() => container.querySelector<HTMLInputElement>(`[aria-label="Include ${name} in selection"]`)!.click());
   openSettingsSection(container, "finger-holes");
   React.act(() => container.querySelector<HTMLInputElement>('[aria-label="Include Test thumb in selection"]')!.click());
+  React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Object controls"]')!.click());
   expect(container.querySelector('[data-testid="pocket-3d-controls"]')?.textContent).toContain("3 objects selected");
   const svg = container.querySelector<SVGSVGElement>('[data-testid="layout-canvas"]')!;
   Object.defineProperty(svg.querySelector('g')!, 'getScreenCTM', { value: () => ({ inverse: () => ({}) }) });
@@ -4422,5 +4425,34 @@ it.each(["backup", "library"])("enables experimental tools and notifies when ope
     expect(localStorage.getItem(EXPERIMENTAL_FEATURES_KEY)).toBe("true");
     expect(projectToast).toHaveBeenLastCalledWith(expect.objectContaining({ title: "Experimental features enabled" }));
     expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.fingerHoles).toEqual(doc.fingerHoles);
+  } finally { unmount(); }
+});
+
+
+it.each(["shiftKey", "ctrlKey"])("adds and removes pockets with %s mouse clicks in Layout", async modifier => {
+  const shape = rectangularShape("mouse-shape", "Mouse pocket");
+  const cutouts = [-18, 18].map((x, i) => parseCutoutPlacement({ id: `mouse-${i}`, shapeId: shape.id, position: { x, y: 0 } }));
+  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape], cutouts });
+  const { container, unmount } = renderPage();
+  try {
+    await flushHydration();
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
+    const svg = container.querySelector<SVGSVGElement>('[data-testid="layout-canvas"]')!;
+    Object.defineProperty(svg.querySelector('g')!, 'getScreenCTM', { value: () => ({ inverse: () => ({}) }) });
+    Object.defineProperties(svg, {
+      createSVGPoint: { value: () => ({ x: 0, y: 0, matrixTransform() { return { x: this.x, y: this.y }; } }) },
+      setPointerCapture: { value: () => {} }, releasePointerCapture: { value: () => {} },
+    });
+    const click = (x: number, additive: boolean) => React.act(() => {
+      for (const type of ["pointerdown", "pointerup"]) {
+        const event = new MouseEvent(type, { bubbles: true, button: 0, clientX: x, clientY: 41.75, [modifier]: additive });
+        Object.defineProperty(event, "pointerId", { value: 11 }); svg.dispatchEvent(event);
+      }
+    });
+    click(23.75, false); click(59.75, true);
+    React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Object controls"]')!.click());
+    expect(container.querySelector('[data-testid="pocket-3d-controls"]')?.textContent).toContain("2 objects selected");
+    click(23.75, true);
+    expect(container.querySelector('[data-testid="pocket-3d-controls"]')?.textContent).toContain("1 object selected");
   } finally { unmount(); }
 });

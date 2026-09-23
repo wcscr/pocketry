@@ -58,15 +58,25 @@ small bin with the full slot depth to assess insertion and retention.
 
 ## Move and rotate in 3D
 
-Click an opening or use the checkboxes in the object list. **Move (W)**
+Open **Object controls** using the icon directly below the ruler in 3D or Layout.
+The panel starts closed and its X button dismisses it. Click an opening or use
+the checkboxes in the object list. **Move (W)**
 shows red X, green Y and blue Z arrows. X/Y move the opening across the surface;
 Z changes depth beneath it. Plane handles combine their named axes.
 **Rotate (E)** shows only X/Y/Z axis rings. All handles stay aligned with the
 bin's fixed XYZ coordinate system, even when the pocket is tilted. There is
 no local-axis mode or free/view-plane rotation target.
 
-The floating object panel contains **Move**, **Rotate**, and **Arrange** tools.
-Numeric XYZ fields apply relative millimetres or degrees in one undo step.
+The floating object panel contains **Move**, **Rotate**, **Arrange**, and **Links** tools.
+Numeric XYZ fields show the actual change from each object's **as-drawn** pose,
+including during gizmo drags. Enter a target offset and Apply (or press Enter);
+0 restores that axis while preserving the other axes. Repeated Apply does not
+accumulate the same offset. Mixed selections show **Mixed** where offsets differ;
+entering a value sets that offset for each selected member. References survive
+selection changes, closing the panel, undo history trimming, and project export
+and reload (project format 24). Older projects recover the earliest retained
+appearance in their history, or the loaded pose if no earlier state is available.
+The magnet is an icon-only toggle with a tooltip and pressed-state highlight.
 Solid axis lines and labeled grips identify the fixed bin axes.
 
 Use Shift, Command, or Control + click to add/remove pockets and thumb-access
@@ -152,20 +162,21 @@ hidden intersections, through cuts, packing, legacy saves and export validation.
 
 **Duplicate linked** creates another instance of the selected pocket or thumb
 slot. Ordinary pocket duplication remains independent. To link existing objects,
-select two or more pockets (or two or more thumb slots), open their properties,
-and choose **Link selected…**. Choose the source design before applying it. Only
+Shift/Ctrl/Command-click two or more pockets (or thumb slots). In **Object controls → Links**
+or properties, review **Use design from** and click **Link N pockets/slots**. The
+last selected object supplies the initial source choice; change it if needed. Only
 selected objects join the new set; unselected members of previous sets retain
 their links and designs. Pockets and thumb slots use separate design sets.
 
 Linked pockets share their outline, dimensions, aspect-ratio preference, depth,
 split settings, fit clearance, and edge rounding. Names, positions, mirroring,
-and orientation remain independent. **Link X/Y tilt** optionally shares tilt;
+and orientation remain independent. **Share X/Y tilt** optionally shares tilt;
 Z heading always remains independent. Enabling it adopts the active pocket's
 tilt for the set. Thumb slots share opening shape, width, length, depth and edge
 settings while keeping their positions, headings and names independent.
 
-The properties panel displays the linked member count. **Select linked** selects
-that set. **Make independent** (or **Make selected independent**) removes links
+Object controls and properties display the linked count and member names. **Select linked** selects
+that set. **Unlink** removes links from the selected members
 without changing geometry. There is no master instance: deleting the original
 does not delete or disconnect the remaining copies. Every link, unlink, linked
 edit and linked duplication is one undo step, including changes to unselected
@@ -185,3 +196,8 @@ fill height and pocket tilt) and legacy version-21 offsets. Format 23 adds expli
 linked-design membership. Each saved snapshot validates consistent design values
 within a linked set. Existing duplicates are never linked implicitly just because
 they reference the same outline.
+
+
+A failed preview retains the last available geometry and offers **Retry preview**.
+Retry starts a fresh build of the same design without adding an undo step; a failed
+worker is replaced lazily. A stopped local development server must first be restarted.

@@ -509,3 +509,13 @@ it.each([
   expect(JSON.stringify(input)).toBe(serialized);
   expect(parseProjectDoc(JSON.parse(JSON.stringify(migrated)))).toEqual(migrated);
 });
+
+
+it("round-trips as-drawn references and migrates version 23 without changing geometry", () => {
+  const doc = parseProjectDoc(VALID)!;
+  const transformOrigins = { pockets: [{ cutout: doc.cutouts[0], spec: doc.spec }], fingerHoles: [] };
+  const saved = { ...doc, transformOrigins, cutouts: [{ ...doc.cutouts[0], position: { x: 10, y: 4 } }] };
+  expect(parseProjectDoc(JSON.parse(JSON.stringify(saved)))).toEqual(saved);
+  expect(parseProjectDoc({ ...doc, schemaVersion: 23 })).toEqual(doc);
+  expect(parseProjectDoc({ ...saved, transformOrigins: { ...transformOrigins, pockets: [{ cutout: { ...doc.cutouts[0], rotationDeg: Infinity }, spec: doc.spec }] } })).toBeNull();
+});

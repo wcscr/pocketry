@@ -26,7 +26,7 @@ vi.mock("@react-three/drei", () => ({
     return null;
   }),
 }));
-import { PocketTransformScene } from "./pocket-transform-scene";
+import { PocketSelectionPlane, PocketTransformScene, type PocketEditor } from "./pocket-transform-scene";
 
 const spec = parseBinSpec({ gridX: 3, gridY: 3, heightUnits: 6, lip: "none" });
 const cutout = parseCutoutPlacement({ id: "p", shapeId: "s", position: { x: 0, y: 0 } });
@@ -137,4 +137,20 @@ it("does not create an undo step when the first rotation sample is beyond the fl
   expect(onLimit).toHaveBeenLastCalledWith(true);
   React.act(() => scene.handlers!.onMouseUp());
   expect(onCommit).not.toHaveBeenCalled();
+});
+
+
+it.each(["shiftKey", "ctrlKey", "metaKey"])("toggles 3D mouse selection with %s", modifier => {
+  const other = { ...cutout, id: "other", position: { x: 25, y: 0 } };
+  const onSelectionChange = vi.fn();
+  const editor: PocketEditor = { spec, pockets: [{ cutout, shape }, { cutout: other, shape }], selectedId: cutout.id,
+    selection: [{ kind: "pocket", id: cutout.id }], onSelect: vi.fn(), onCommit: vi.fn(), onSelectionChange };
+  const click = (x: number, next = editor) => {
+    const plane = PocketSelectionPlane({ editor: next, width: 126, length: 126, disabled: false });
+    plane.props.onClick({ button: 0, delta: 0, point: { x, y: 0 }, [modifier]: true, stopPropagation: vi.fn() });
+  };
+  click(25);
+  expect(onSelectionChange).toHaveBeenLastCalledWith([{ kind: "pocket", id: "p" }, { kind: "pocket", id: "other" }]);
+  click(0, { ...editor, selection: onSelectionChange.mock.lastCall![0] });
+  expect(onSelectionChange).toHaveBeenLastCalledWith([{ kind: "pocket", id: "other" }]);
 });

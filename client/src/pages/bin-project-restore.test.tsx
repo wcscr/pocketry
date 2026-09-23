@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setMany } from "idb-keyval";
 import { PanelProvider } from "@/components/layout/panel-context";
 import { ShapeLibraryProvider } from "@/state/shape-library";
+import { recordTransformOrigins } from "@shared/gridfinity/transform-origins";
 import { parseProjectDoc } from "@shared/gridfinity/project";
 import fixture from "@shared/gridfinity/fixtures/ryobi-split-reload.pocketry.json";
 import {
@@ -86,7 +87,7 @@ describe("named project recovery through the Bin workspace", () => {
       expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Project recovered" }));
       await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 600)); });
       expect(page.container.querySelector('[data-testid="project-status"] [role="status"]')!.textContent).toBe("Saved to browser library");
-      expect(await loadProjectDoc()).toEqual({ ...working, name: "Ryobi Cutter (recovered)" });
+      expect(await loadProjectDoc()).toEqual({ ...working, transformOrigins: recordTransformOrigins({ pockets: [], fingerHoles: [] }, working.history.stack.map(e => e.doc)), name: "Ryobi Cutter (recovered)" });
       expect((await exportProjectLibrary()).projects.find(project => project.id === originalId)!.doc).toEqual(original);
 
       await page.unmount();
@@ -100,7 +101,7 @@ describe("named project recovery through the Bin workspace", () => {
       expect(document.querySelector('[data-testid="button-discard-draft-open"]')).toBeNull();
       expect((await loadProjectLibrary()).activeProjectId).toBe(otherId);
       const stored = (await exportProjectLibrary()).projects.find(project => project.id === recovered.activeProjectId)!;
-      expect(stored.doc).toEqual({ ...working, name: "Ryobi Cutter (recovered)" });
+      expect(stored.doc).toEqual({ ...working, transformOrigins: recordTransformOrigins({ pockets: [], fingerHoles: [] }, working.history.stack.map(e => e.doc)), name: "Ryobi Cutter (recovered)" });
     } finally { await page.unmount(); }
   });
 
@@ -128,7 +129,7 @@ describe("named project recovery through the Bin workspace", () => {
       await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-confirm-save-library"]')!.click());
       await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 600)); });
       expect(page.container.querySelector('[data-testid="project-status"] [role="status"]')!.textContent).toBe("Saved to browser library");
-      expect(await loadProjectDoc()).toEqual({ ...working, name: "Recovered manually" });
+      expect(await loadProjectDoc()).toEqual({ ...working, transformOrigins: recordTransformOrigins({ pockets: [], fingerHoles: [] }, working.history.stack.map(e => e.doc)), name: "Recovered manually" });
     } finally { await page.unmount(); }
   });
 });

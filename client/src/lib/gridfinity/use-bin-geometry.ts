@@ -80,6 +80,8 @@ export interface BinGeometryState {
   /** 0..1 as reported by the worker while building. */
   progress: number;
   error: string | null;
+  /** Retry the current preview without creating a design/history edit. */
+  retryPreview: () => void;
   /**
    * One-off build at a different quality — the export path. Runs on its own
    * supersede channel so it never cancels the live preview.
@@ -160,6 +162,8 @@ export function useBinGeometry(
   const [previewIsDraft, setPreviewIsDraft] = useState(false);
   const [building, setBuilding] = useState(true);
   const [progress, setProgress] = useState(0);
+  const [retryVersion, setRetryVersion] = useState(0);
+  const retryPreview = useCallback(() => { previousKeysRef.current = null; setRetryVersion(v => v + 1); }, []);
   const [error, setError] = useState<string | null>(null);
 
   const ensureClient = useCallback((): WorkerClient => {
@@ -402,7 +406,7 @@ export function useBinGeometry(
     };
     // requestKey encodes spec + quality + layout by value.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [requestKey, ensureClient, ensureInteractiveClient]);
+  }, [requestKey, retryVersion, ensureClient, ensureInteractiveClient]);
 
   // Tear the worker down with the workspace.
   useEffect(
@@ -532,6 +536,7 @@ export function useBinGeometry(
     building,
     progress,
     error,
+    retryPreview,
     buildOnce,
     buildFitCheck,
     buildSurfaceFitCheck,

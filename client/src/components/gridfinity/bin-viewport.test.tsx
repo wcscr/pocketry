@@ -162,6 +162,8 @@ it("switches CAD modes without stealing field input and suspends them for the ru
   const editor: PocketEditor = { spec: parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6 }), pockets: [{ cutout, shape: basic.shape }], selectedId: cutout.id, onSelect: vi.fn(), onCommit: vi.fn() };
   const container = renderViewport(false, 1, false, false, [basic.shape.outlineMm], undefined, false, editor);
   const button = (name: string) => container.querySelector(`[aria-label="${name}"]`) as HTMLButtonElement;
+  expect(container.querySelector('[data-testid="pocket-3d-controls"]')).toBeNull();
+  React.act(() => button("Object controls").click());
   expect(container.querySelector('[data-testid="pocket-3d-depth-readout"]')?.textContent).toContain("Depth:");
   expect(container.querySelector('[aria-label="Transform coordinate space"]')).toBeNull();
   expect(button("Snap: 1 mm moves and 5 degree rotations").getAttribute("title")).toContain("Snap off");
@@ -181,6 +183,10 @@ it("switches CAD modes without stealing field input and suspends them for the ru
   expect(button("Measure between contours").getAttribute("aria-pressed")).toBe("false");
   React.act(() => (Array.from(container.querySelectorAll("button")).find(b => b.textContent === "Clear")!).click());
   expect(editor.onSelect).toHaveBeenLastCalledWith(null);
+  React.act(() => button("Close object controls").click());
+  expect(container.querySelector('[data-testid="pocket-3d-controls"]')).toBeNull();
+  React.act(() => button("Object controls").click());
+  expect(container.querySelector('[data-testid="pocket-3d-controls"]')).not.toBeNull();
 });
 
 it("keeps the workspace usable after a lost graphics context and can retry", () => {

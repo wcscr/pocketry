@@ -1,3 +1,4 @@
+import { recordTransformOrigins, type TransformOrigins } from "@shared/gridfinity/transform-origins";
 import { applyLinkedEdits, clampLinkedFingerHoles, pocketDesign, fingerDesign, type DesignObjectKind } from "@shared/gridfinity/design-links";
 import { sameObject, type ObjectRef, type ObjectEdits } from "@/lib/gridfinity/object-arrangement";
 
@@ -36,6 +37,7 @@ export type BinEditorMode = "placement" | "contour" | "footprint" | "label-edge"
 const BIN_SIZE_KEYS = ["gridX", "gridY", "gridPitch", "heightUnits", "lip", "fillHeightPercent"] as const;
 
 export interface BinState {
+  transformOrigins: TransformOrigins;
   spec: BinSpec;
   cutouts: CutoutPlacement[];
   fingerHoles: FingerHole[];
@@ -73,6 +75,7 @@ export type BinAction =
       fingerHoles?: FingerHole[];
       /** Validated saved history, absent on legacy projects and new designs. */
       history?: BinHistory;
+      transformOrigins?: TransformOrigins;
     }
   | { type: "MARK_HYDRATED" }
   | {
@@ -142,6 +145,7 @@ export const INITIAL_BIN_SPEC: BinSpec = parseBinSpec({
 });
 
 const INITIAL: BinState = {
+  transformOrigins: { pockets: [], fingerHoles: [] },
   spec: INITIAL_BIN_SPEC,
   cutouts: [],
   fingerHoles: [],
@@ -269,6 +273,14 @@ function linkedEditError(state: BinState): BinState {
 }
 
 function reducer(state: BinState, action: BinAction): BinState {
+  const next = reduceBin(state, action);
+  const origins = action.type === "HYDRATE" ? action.transformOrigins ?? { pockets: [], fingerHoles: [] } : state.transformOrigins;
+  const docs = action.type === "HYDRATE" ? [...next.history.stack.map(e => e.doc), next] : [getCommittedBinDoc(next)];
+  const transformOrigins = recordTransformOrigins(origins, docs);
+  return next.transformOrigins === transformOrigins ? next : { ...next, transformOrigins };
+}
+
+function reduceBin(state: BinState, action: BinAction): BinState {
   switch (action.type) {
     case "HYDRATE": {
       // Replace the outgoing project's entire history. Legacy projects start

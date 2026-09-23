@@ -30,8 +30,7 @@ function mount() {
 }
 it("previews the chosen source and links selected pockets without moving or renaming them", () => {
   const { host, click, store } = mount();
-  click("Link selected…");
-  expect(host.textContent).toContain("The 2 selected pockets will adopt this design");
+  expect(host.textContent).toContain("Copies adopt this shape, size and depth");
   const source = host.querySelector('[aria-label="Linked design source"]') as HTMLSelectElement;
   expect(source.value).toBe("b");
   React.act(() => { source.value = "a"; source.dispatchEvent(new Event("change", { bubbles: true })); });
@@ -40,7 +39,7 @@ it("previews the chosen source and links selected pockets without moving or rena
   expect(store().cutouts.map(c => c.name)).toEqual(["Alpha", "Beta"]);
   expect(store().cutouts.map(c => c.position.x)).toEqual([-15, 15]);
   expect(host.textContent).toContain("Linked design · 2 pockets");
-  click("Make selected independent");
+  click("Unlink 2 pockets");
   expect(store().cutouts.every(c => !c.designLink)).toBe(true);
   React.act(() => store().dispatch({ type: "UNDO" }));
   expect(host.textContent).toContain("Linked design · 2 pockets");
@@ -64,6 +63,6 @@ it("keeps mixed pocket and thumb selections in separate design sets", () => {
     store().dispatch({ type: "ADD_FINGER_HOLE", hole: fingerHoleSchema.parse({ id: "f", center: { x: 0, y: 0 } }) });
     store().dispatch({ type: "SET_SELECTION", selection: [{ kind: "pocket", id: "a" }, { kind: "finger", id: "f" }] });
   });
-  expect(button("Link selected…").disabled).toBe(true);
-  expect(host.textContent).toContain("Link pockets and thumb slots in separate sets");
+  expect(button("Link 2 thumb slots")).toBeUndefined();
+  expect(host.textContent).toContain("Pockets and thumb slots use separate designs");
 });

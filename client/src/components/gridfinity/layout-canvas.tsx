@@ -1,7 +1,9 @@
+import { SelectionLinkControls } from "./linked-design-controls";
 import { useExperimentalFeatures } from "@/state/experimental-features";
 import { hasPocketTilt } from "@shared/gridfinity/pocket-orientation";
 import {
   Ruler,
+  Move3D,
   Hand,
   Maximize2,
   Spline,
@@ -250,6 +252,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
     fingerHoles,
     selection,
     history,
+    transformOrigins,
     selectedCutoutId,
     selectedPocketSection,
     selectedFingerHoleId,
@@ -268,6 +271,8 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
     ...fingerHoles.map(hole => ({ kind: "finger" as const, hole })),
   ], [cutouts, fingerHoles, shapesById]);
   const selectedObjects = selection.flatMap(ref => arrangementObjects.filter(o => sameObject(objectRef(o), ref)));
+  const [objectControlsOpen, setObjectControlsOpen] = useState(false);
+  useEffect(() => { if (!experimentalEnabled) setObjectControlsOpen(false); }, [experimentalEnabled]);
   const [objectMode, setObjectMode] = useState<PocketTransformMode>("translate");
   const [objectPivot, setObjectPivot] = useState<RotationPivot>("individual");
   const [objectSnap, setObjectSnap] = useState(false);
@@ -1922,6 +1927,10 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
         >
           <Ruler className="h-4 w-4" />
         </Button>
+        {experimentalEnabled && <Button variant="ghost" size="icon"
+          className={cn("h-11 w-11 rounded-none border-t md:h-9 md:w-9 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11", objectControlsOpen && !rulerActive && "bg-accent text-accent-foreground")}
+          aria-label="Object controls" title="Move, rotate and arrange objects" aria-expanded={objectControlsOpen && !rulerActive}
+          onClick={() => { setObjectControlsOpen(open => !open || rulerActive); setRulerActive(false); dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" }); }}><Move3D className="h-4 w-4" /></Button>}
         {selected && (editorMode === "placement" || editorMode === "contour") && (
           <Button
             variant="ghost"
@@ -1989,13 +1998,13 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
         <p className="text-orange-700 dark:text-orange-300">Dashed outline: overlapping pockets</p>
       </div>}
 
-      {experimentalEnabled && selectedObjects.length > 1 && editorMode === "placement" && !rulerActive && <ObjectTransformPanel
-        editor={{ spec, pockets: arrangementObjects.flatMap(o => o.kind === "pocket" ? [o] : []), fingerHoles, selectedId: selectedCutoutId, selection,
+      {experimentalEnabled && objectControlsOpen && editorMode === "placement" && !rulerActive && <ObjectTransformPanel
+        editor={{ spec, transformOrigins, originShapes: shapes, linkControls: <SelectionLinkControls />, pockets: arrangementObjects.flatMap(o => o.kind === "pocket" ? [o] : []), fingerHoles, selectedId: selectedCutoutId, selection,
           onSelect: id => dispatch({ type: "SELECT_CUTOUT", id }), onCommit: () => {},
           onSelectionChange: selection => dispatch({ type: "SET_SELECTION", selection }),
           onCommitObjects: (edits, historyLabel) => dispatch({ type: "UPDATE_OBJECTS", edits, historyLabel }) }}
         objects={arrangementObjects} selected={selectedObjects} displayed={selectedObjects} mode={objectMode} setMode={setObjectMode}
-        snap={objectSnap} setSnap={setObjectSnap} pivot={objectPivot} setPivot={setObjectPivot} limited={false} />}
+        snap={objectSnap} setSnap={setObjectSnap} pivot={objectPivot} setPivot={setObjectPivot} limited={false} onClose={() => setObjectControlsOpen(false)} />}
 
       {editorMode === "contour" && selected && !panActive ? (
         <div className="bin-canvas-guidance absolute bottom-2 left-2 z-30">
