@@ -251,6 +251,7 @@ export function BinViewport({
   const [objectControlsOpen, setObjectControlsOpen] = useState(false);
   useEffect(() => { if (!pocketEditor) setObjectControlsOpen(false); }, [!!pocketEditor]);
   const [transformMode, setTransformMode] = useState<PocketTransformMode>("translate");
+  const [modeRequest, setModeRequest] = useState(0);
   const [snapTransform, setSnapTransform] = useState(false);
   const [dragPreview, setDragPreview] = useState<ObjectEdits | null>(null);
   const [transformLimited, setTransformLimited] = useState(false);
@@ -273,6 +274,7 @@ export function BinViewport({
       if (event.key.toLowerCase() === "w" || event.key.toLowerCase() === "e") {
         event.preventDefault(); setRulerActive(false); setObjectControlsOpen(true);
         setTransformMode(event.key.toLowerCase() === "w" ? "translate" : "rotate");
+        setModeRequest(value => value + 1);
       }
     };
     window.addEventListener("keydown", key);
@@ -431,7 +433,7 @@ export function BinViewport({
       </div>
 
       {pocketEditor && objectControlsOpen && !rulerActive && <ObjectTransformPanel editor={pocketEditor} objects={objects} selected={selectedObjects} displayed={displayedObjects}
-        mode={transformMode} setMode={mode => { setRulerActive(false); setTransformMode(mode); }} snap={snapTransform} setSnap={setSnapTransform}
+        mode={transformMode} modeRequest={modeRequest} setMode={mode => { setRulerActive(false); setTransformMode(mode); }} snap={snapTransform} setSnap={setSnapTransform}
         pivot={pivot} setPivot={setPivot} limited={transformLimited} onClose={() => setObjectControlsOpen(false)} />}
 
       {rulerActive ? (

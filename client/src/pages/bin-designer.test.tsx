@@ -4456,3 +4456,52 @@ it.each(["shiftKey", "ctrlKey"])("adds and removes pockets with %s mouse clicks 
     expect(container.querySelector('[data-testid="pocket-3d-controls"]')?.textContent).toContain("1 object selected");
   } finally { unmount(); }
 });
+
+it("opens Layout object controls with W/E and returns from Links or Arrange to the same mode", async () => {
+  const { container, unmount } = renderPage();
+  try {
+    await flushHydration();
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
+    const button = (name: string) => container.querySelector<HTMLButtonElement>(`[aria-label="${name}"]`)!;
+    for (const [key, mode] of [["w", "Move pocket (W)"], ["e", "Rotate pocket (E)"]] as const) {
+      React.act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key })));
+      expect(button(mode).getAttribute("aria-pressed")).toBe("true");
+      expect(container.querySelector('[data-testid="layout-add-pocket"]')).toBeNull();
+      expect(container.querySelector('.bin-canvas-guidance')).toBeNull();
+      for (const tab of ["Link and unlink designs", "Align and distribute objects"]) {
+        React.act(() => button(tab).click());
+        React.act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key })));
+        expect(button(mode).getAttribute("aria-pressed")).toBe("true");
+      }
+    }
+    React.act(() => button("Close object controls").click());
+    expect(container.querySelector('[data-testid="layout-add-pocket"]')).not.toBeNull();
+    React.act(() => experimentalSettings.setEnabled(false));
+    React.act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "w" })));
+    expect(container.querySelector('[data-testid="pocket-3d-controls"]')).toBeNull();
+  } finally { unmount(); }
+});
+
+it("rejects overflowing numeric moves without corrupting the document or undo history", async () => {
+  const shape = rectangularShape("overflow-shape", "Overflow pocket");
+  const cutout = parseCutoutPlacement({ id: "overflow-pocket", shapeId: shape.id, position: { x: 0, y: 0 } });
+  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape], cutouts: [cutout] });
+  const { container, unmount } = renderPage();
+  try {
+    await flushHydration();
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
+    openSettingsSection(container, "tool-cutouts"); selectPocket(container, cutout.id);
+    React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Object controls"]')!.click());
+    const input = container.querySelector<HTMLInputElement>('[aria-label="Move X by"]')!;
+    for (const value of ["1e308", "-1e308"]) {
+      React.act(() => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="pocket-3d-controls"] button[type="submit"]')!.click());
+      expect(container.querySelector('[data-testid="pocket-3d-controls"] [role="status"]')?.textContent).toContain("movement is too large");
+      expect(container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.disabled).toBe(true);
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]?.cutouts).toEqual([cutout]);
+    }
+  } finally { unmount(); }
+});

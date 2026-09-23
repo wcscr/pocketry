@@ -201,3 +201,19 @@ it("keeps the workspace usable after a lost graphics context and can retry", () 
     expect(container.querySelector('[role="alert"]')).toBeNull();
   } finally { canvasFailure.active = false; warning.mockRestore(); }
 });
+
+it("returns to the requested transform tab even when its mode was already active", () => {
+  const basic = createBasicPocket("rectangle", { x: -5, y: -8 }, { x: 5, y: 8 }, "shortcut")!;
+  const editor: PocketEditor = { spec: parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6 }),
+    pockets: [basic], selectedId: basic.cutout.id, onSelect: vi.fn(), onCommit: vi.fn(), linkControls: <span>Link actions</span> };
+  const container = renderViewport(false, 1, false, false, [], undefined, false, editor);
+  const button = (name: string) => container.querySelector<HTMLButtonElement>(`[aria-label="${name}"]`)!;
+  for (const [key, mode] of [["w", "Move pocket (W)"], ["e", "Rotate pocket (E)"]] as const) {
+    React.act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key })));
+    for (const tab of ["Link and unlink designs", "Align and distribute objects"]) {
+      React.act(() => button(tab).click());
+      React.act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key })));
+      expect(button(mode).getAttribute("aria-pressed")).toBe("true");
+    }
+  }
+});

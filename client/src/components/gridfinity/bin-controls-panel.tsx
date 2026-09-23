@@ -1279,7 +1279,7 @@ export function BinControlsPanel({
                   <h3 className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-cyan-700 dark:text-cyan-300">Finger access properties</h3>
                   <span className="min-w-[5rem] flex-1 truncate text-xs font-medium">{selectedFingerHole.name ?? `Finger access ${fingerHoles.indexOf(selectedFingerHole) + 1}`}</span>
                 </div>
-                {experimentalEnabled && <LinkedDesignControls kind="finger" activeId={selectedFingerHole.id} labels={new Map(fingerHoles.map((h, i) => [h.id, h.name ?? `Thumb access ${i + 1}`]))} />}
+                {experimentalEnabled && <LinkedDesignControls kind="finger" activeId={selectedFingerHole.id} labels={new Map(fingerHoles.map((h, i) => [h.id, h.name ?? `Finger access ${i + 1}`]))} />}
                 <FingerAccessShapeControls
                   hole={selectedFingerHole}
                   onChange={(change) => {

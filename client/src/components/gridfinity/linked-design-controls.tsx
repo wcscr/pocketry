@@ -11,7 +11,7 @@ export function SelectionLinkControls(): JSX.Element {
   const { cutouts, fingerHoles, selection } = useBin();
   const { shapes } = useShapeLibrary();
   const labels = new Map([...cutouts.map(c => [c.id, pocketName(c, shapes.find(s => s.id === c.shapeId))] as const),
-    ...fingerHoles.map((h, i) => [h.id, h.name ?? `Thumb access ${i + 1}`] as const)]);
+    ...fingerHoles.map((h, i) => [h.id, h.name ?? `Finger access ${i + 1}`] as const)]);
   return <div className="space-y-2">{(["pocket", "finger"] as const).map(kind => {
     const active = selection.filter(ref => ref.kind === kind).at(-1);
     return active ? <LinkedDesignControls key={kind} kind={kind} activeId={active.id} labels={labels} /> : null;

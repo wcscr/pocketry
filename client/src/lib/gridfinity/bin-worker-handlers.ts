@@ -11,7 +11,7 @@ import { parseBinSpec } from "@shared/gridfinity/types";
 
 import { Arena } from "@/lib/manifold/arena";
 import { createKernel } from "@/lib/manifold/runtime";
-import { extractMeshData } from "@/lib/mesh/mesh-data";
+import { extractMeshData, preparePrintableSolid } from "@/lib/mesh/mesh-data";
 import type { HandlerContext, HandlerMap } from "@/lib/worker/host";
 import { WorkerCancelledError } from "@/lib/worker/protocol";
 
@@ -151,17 +151,11 @@ export function createBinWorkerHandlers(
         Number.isFinite(payload.section.offsetMm)
           ? payload.section
           : null;
-      const displayed = section ? applySectionCut(kernel, solid, section) : solid;
+      let displayed = section ? applySectionCut(kernel, solid, section) : solid;
       const includePreviewNormals = payload.exportTopology !== true;
-
-      const mesh = extractMeshData(kernel, displayed, {
-        // The preview displays the material body when a partition exists.
-        // Keep the aggregate topology/stats without shading an unused mesh.
-        normals: includePreviewNormals && materialParts === null,
-      });
       const displayedPart = (part: BinMaterialParts["body"]) =>
         section ? applySectionCut(kernel, part, section) : part;
-      const displayedMaterialParts = materialParts
+      let displayedMaterialParts = materialParts
         ? {
             body: displayedPart(materialParts.body),
             pocketFloors: materialParts.pocketFloors
@@ -172,6 +166,30 @@ export function createBinWorkerHandlers(
               : null,
           }
         : null;
+      if (payload.exportTopology) {
+        displayed = preparePrintableSolid(kernel, displayed);
+        if (displayedMaterialParts) {
+          const pocketFloors = displayedMaterialParts.pocketFloors
+            ? preparePrintableSolid(kernel, displayedMaterialParts.pocketFloors) : null;
+          const stackingRim = displayedMaterialParts.stackingRim
+            ? preparePrintableSolid(kernel, displayedMaterialParts.stackingRim) : null;
+          // Split the body in export precision as well. Otherwise a microscopic
+          // gap at a tilted seat can collapse into two coincident faces between
+          // the body's outer shell and an internal material cavity.
+          const accents = [pocketFloors, stackingRim].filter(
+            (part): part is BinMaterialParts["body"] => part !== null,
+          );
+          const body = accents.length > 0
+            ? preparePrintableSolid(kernel, arena.track(kernel.Manifold.difference([displayed, ...accents])))
+            : displayed;
+          displayedMaterialParts = { body, pocketFloors, stackingRim };
+        }
+      }
+      const mesh = extractMeshData(kernel, displayed, {
+        // The preview displays the material body when a partition exists.
+        // Keep the aggregate topology/stats without shading an unused mesh.
+        normals: includePreviewNormals && materialParts === null,
+      });
       const materialMeshes = displayedMaterialParts
         ? {
             body: extractMeshData(kernel, displayedMaterialParts.body, {

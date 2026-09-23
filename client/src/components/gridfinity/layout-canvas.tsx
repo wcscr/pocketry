@@ -274,6 +274,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
   const [objectControlsOpen, setObjectControlsOpen] = useState(false);
   useEffect(() => { if (!experimentalEnabled) setObjectControlsOpen(false); }, [experimentalEnabled]);
   const [objectMode, setObjectMode] = useState<PocketTransformMode>("translate");
+  const [modeRequest, setModeRequest] = useState(0);
   const [objectPivot, setObjectPivot] = useState<RotationPivot>("individual");
   const [objectSnap, setObjectSnap] = useState(false);
   const widthMm = binFootprintMm(spec.gridX, spec.gridPitch);
@@ -510,6 +511,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
   }, [history, selection, dispatch, experimentalEnabled]);
   const [isRotating, setIsRotating] = useState(false);
   const [rulerActive, setRulerActive] = useState(false);
+  const showObjectControls = experimentalEnabled && objectControlsOpen && editorMode === "placement" && !rulerActive;
   useEffect(() => { if (rulerActive) setPanActive(false); }, [rulerActive]);
   const [measurementPoints, setMeasurementPoints] = useState<Point[]>([]);
   const hasPlacedCutouts = placed.length > 0;
@@ -1235,6 +1237,11 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
         event.preventDefault(); dispatch({ type: "SET_SELECTION", selection: arrangementObjects.map(objectRef) }); return;
       }
       if (event.ctrlKey || event.metaKey) return;
+      if (experimentalEnabled && editorMode === "placement" && ["w", "e"].includes(event.key.toLowerCase())) {
+        event.preventDefault(); setRulerActive(false); setObjectControlsOpen(true);
+        setObjectMode(event.key.toLowerCase() === "w" ? "translate" : "rotate");
+        setModeRequest(value => value + 1); return;
+      }
       if (event.key === "Escape" && dragRef.current?.kind === "selection-move") {
         dragRef.current = null; clickRef.current = null;
         dispatch({ type: "UPDATE_OBJECTS", edits: getCommittedBinDoc({ history }), transient: true, historyLabel: "Cancel move" });
@@ -1882,7 +1889,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
         </div>
       ) : null}
 
-      {!basicPocket.kind && <div className="absolute left-3 top-16 md:top-12 [@media(pointer:coarse)]:top-16 z-30" data-testid="layout-add-pocket">
+      {!basicPocket.kind && !showObjectControls && <div className="absolute left-3 top-16 md:top-12 [@media(pointer:coarse)]:top-16 z-30" data-testid="layout-add-pocket">
         <AddPocketMenu />
       </div>}
 
@@ -1998,12 +2005,12 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
         <p className="text-orange-700 dark:text-orange-300">Dashed outline: overlapping pockets</p>
       </div>}
 
-      {experimentalEnabled && objectControlsOpen && editorMode === "placement" && !rulerActive && <ObjectTransformPanel
+      {showObjectControls && <ObjectTransformPanel
         editor={{ spec, transformOrigins, originShapes: shapes, linkControls: <SelectionLinkControls />, pockets: arrangementObjects.flatMap(o => o.kind === "pocket" ? [o] : []), fingerHoles, selectedId: selectedCutoutId, selection,
           onSelect: id => dispatch({ type: "SELECT_CUTOUT", id }), onCommit: () => {},
           onSelectionChange: selection => dispatch({ type: "SET_SELECTION", selection }),
           onCommitObjects: (edits, historyLabel) => dispatch({ type: "UPDATE_OBJECTS", edits, historyLabel }) }}
-        objects={arrangementObjects} selected={selectedObjects} displayed={selectedObjects} mode={objectMode} setMode={setObjectMode}
+        objects={arrangementObjects} selected={selectedObjects} displayed={selectedObjects} mode={objectMode} modeRequest={modeRequest} setMode={setObjectMode}
         snap={objectSnap} setSnap={setObjectSnap} pivot={objectPivot} setPivot={setObjectPivot} limited={false} onClose={() => setObjectControlsOpen(false)} />}
 
       {editorMode === "contour" && selected && !panActive ? (
@@ -2017,7 +2024,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
               : removeVertices ? "Tap a vertex to remove it · Undo restores it" : "Drag points to move · Click near an edge to add · Select a point for Delete"}
           </WorkflowHint>
         </div>
-      ) : !basicPocket.kind && (
+      ) : !basicPocket.kind && !showObjectControls && (
       <WorkflowHint hintKey={`${editorMode}:${panActive ? "pan" : rulerActive ? "ruler" : selectedCutoutId ? "pocket" : selectedFingerHoleId ? "finger" : "selection"}`} className="bin-canvas-guidance absolute bottom-2 left-2 right-2 md:right-auto md:max-w-lg">
         {panActive
           ? "Drag to pan · Pinch to zoom · Tap the hand to resume editing"

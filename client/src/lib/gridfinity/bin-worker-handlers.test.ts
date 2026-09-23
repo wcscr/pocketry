@@ -14,6 +14,7 @@ import { WorkerCancelledError } from "@/lib/worker/protocol";
 import { createBinWorkerHandlers } from "./bin-worker-handlers";
 import { partitionPocketFloorTriangles } from "./pocket-floor-mesh";
 import { createBasicPocket } from "./basic-shape";
+import { EXPORT_QUALITY } from "./bin";
 import {
   BUILD_BIN_METHOD,
   BUILD_FIT_CHECK_METHOD,
@@ -94,10 +95,65 @@ function nonManifoldEdgeCount(mesh: BuildBinResult["mesh"], weldPositions = fals
   return [...edgeCounts.values()].filter((count) => count !== 2).length;
 }
 
+function printableMeshVolume(mesh: BuildBinResult["mesh"]): number {
+  let total = 0;
+  for (let i = 0; i < mesh.indices.length; i += 3) {
+    const [a, b, c] = Array.from(mesh.indices.subarray(i, i + 3), n => mesh.positions.subarray(n * 3, n * 3 + 3));
+    const u = Array.from(b, (v, j) => v - a[j]), v = Array.from(c, (n, j) => n - a[j]);
+    const cross = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
+    expect(Math.hypot(...cross)).toBeGreaterThan(0);
+    total += (a[0] * cross[0] + a[1] * cross[1] + a[2] * cross[2]) / 6;
+  }
+  expect(nonManifoldEdgeCount(mesh, true)).toBe(0);
+  return total;
+}
+
 const REQUEST: BuildBinRequest = {
   spec: { gridX: 1, gridY: 1, heightUnits: 2 },
   quality: { circularSegments: 16 },
 };
+
+it("exports the browser-authored linked-pocket design without collapsed Float32 triangles", async () => {
+  const basic = createBasicPocket("rectangle", { x: -5.352564334869385, y: -6.021635055541992 },
+    { x: 5.352564334869385, y: 6.021635055541992 }, "browser-test")!;
+  const result = await getHandler()({ spec: { gridX: 2, gridY: 2, heightUnits: 6, fill: "solid", lip: "standard" },
+    quality: EXPORT_QUALITY, exportTopology: true, pocketFloorMaterialThicknessMm: 0.6, stackingRimMaterialThicknessMm: 1.25,
+    layout: { shapes: [basic.shape], cutouts: [-27.668156, 0.331844, 28.331844].map((x, i) =>
+      parseCutoutPlacement({ ...basic.cutout, id: `browser-${i}`, position: { x, y: -4.061699 },
+        rotationDeg: i === 1 ? 14.999999999999998 : 0, depth: { mode: "mm", value: 20 },
+        designLink: { id: "linked-test", tilt: false } })),
+      fingerHoles: [fingerHoleSchema.parse({ id: "thumb", kind: "oblong-deep-scoop", center: { x: 0, y: 0 },
+        diameterMm: 18, lengthMm: 36, depthMm: 8, topFilletMm: 1, rotationDeg: 14.999999999999998 })] },
+  }, context());
+  const whole = printableMeshVolume(result.value.mesh);
+  expect(Math.abs(whole - result.value.stats.volumeMm3)).toBeLessThan(0.1);
+  const parts = Object.values(result.value.materialMeshes!).reduce((sum, mesh) => sum + printableMeshVolume(mesh), 0);
+  expect(Math.abs(parts - whole)).toBeLessThan(0.1);
+});
+
+it("exports the eight-slot CW313 rack without coincident material boundary faces", async () => {
+  const basic = createBasicPocket("rectangle", { x: -3.4, y: -33.75 }, { x: 3.4, y: 33.75 }, "cw313")!;
+  const result = await getHandler()({
+    spec: { gridX: 4, gridY: 3, heightUnits: 7, fill: "solid", lip: "none" },
+    quality: EXPORT_QUALITY, exportTopology: true, pocketFloorMaterialThicknessMm: 0.6,
+    layout: {
+      shapes: [basic.shape],
+      cutouts: [-36, 36].flatMap(x => [-13.904163, 9.095837, 32.095837, 55.095837].map((y, i) =>
+        parseCutoutPlacement({ ...basic.cutout, id: `slot-${x}-${i}`, position: { x, y },
+          rotationDeg: 90, tilt: { xDeg: 0, yDeg: 45 }, clearanceMm: 0,
+          cornerRoundMm: 0, topFilletMm: 0.4, bottomFilletMm: 0,
+          depth: { mode: "remaining", floorThicknessMm: 10 } }))),
+      fingerHoles: [-36, 36].map(x => fingerHoleSchema.parse({ id: `thumb-${x}`,
+        kind: "oblong-deep-scoop", center: { x, y: 8.595837 }, diameterMm: 30,
+        lengthMm: 90, depthMm: 9, topFilletMm: 1, bottomFilletMm: 1, rotationDeg: 90 })),
+    },
+  }, context());
+  const whole = printableMeshVolume(result.value.mesh);
+  const parts = Object.values(result.value.materialMeshes!).reduce((sum, mesh) => sum + printableMeshVolume(mesh), 0);
+  expect(Math.abs(whole - result.value.stats.volumeMm3)).toBeLessThan(0.1);
+  expect(Math.abs(parts - whole)).toBeLessThan(0.1);
+  expect(result.value.validationIssues).toEqual([]);
+});
 
 it("revalidates hidden tilted-shaft collisions on export and accepts a corrected layout", async () => {
   const basic = createBasicPocket("rectangle", { x: -3, y: -16 }, { x: 3, y: 16 }, "tilted")!;

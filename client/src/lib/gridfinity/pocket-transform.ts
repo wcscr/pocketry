@@ -50,6 +50,9 @@ export function pocketTransformPatch(
     position: { x: tidy(position.x), y: tidy(position.y) }, zOffsetMm: undefined,
     rotationDeg: anchored.rotationDeg, tilt: anchored.tilt, depth: anchored.depth, split: anchored.split,
   };
+  // Finite inputs can overflow during coordinate rounding. Never let a bad
+  // preview become a committed edit: it would also invalidate saved history.
+  if (![patch.position.x, patch.position.y].every(Number.isFinite)) return null;
   const split = anchored.split ? resolvePocketSplit(shape.outlineMm, anchored.split.boundary) : null;
   const resolve = (depth: DepthSpec, index: number) => resolvePlacedPocketDepth(spec, depth,
     { outlineMm: split?.regions?.[index] ?? shape.outlineMm }, anchored);
@@ -93,6 +96,7 @@ export function pocketTransformPatch(
   if (rigidZOffsetMm !== 0) {
     const axis = pocketAxis(patch);
     patch.position = { x: position.x - axis.x * rigidZOffsetMm / axis.z, y: position.y - axis.y * rigidZOffsetMm / axis.z };
+    if (![patch.position.x, patch.position.y].every(Number.isFinite)) return null;
     const reanchor = (depth: DepthSpec): DepthSpec => depth.mode === "mm" ? { mode: "mm", value: depth.value - rigidZOffsetMm / axis.z } : depth;
     patch.depth = reanchor(patch.depth);
     if (patch.split) patch.split = { ...patch.split, depths: [reanchor(patch.split.depths[0]), reanchor(patch.split.depths[1])] };

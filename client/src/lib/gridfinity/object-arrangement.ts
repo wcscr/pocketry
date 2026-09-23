@@ -93,6 +93,7 @@ export function transformObjects(objects: readonly EditableObject[], spec: BinSp
       ? new Vector3(start.x - center.x, start.y - center.y, 0).applyQuaternion(rotation)
       : new Vector3(start.x - center.x, start.y - center.y, 0);
     const position = { x: center.x + offset.x + delta.x, y: center.y + offset.y + delta.y };
+    if (![tidy(position.x), tidy(position.y)].every(Number.isFinite)) return null;
     if (object.kind === "finger") {
       const depth = effectiveFingerHoleDepthMm(object.hole);
       result.fingerHoles.push({ ...object.hole, center: { x: tidy(position.x), y: tidy(position.y) },

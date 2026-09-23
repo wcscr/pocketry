@@ -10,7 +10,6 @@ import { arrangeObjects, objectEditsChanged, objectKey, objectRef, selectionBoun
   type EditableObject, type ObjectEdits, type RotationPivot } from "@/lib/gridfinity/object-arrangement";
 import type { PocketEditor } from "./pocket-transform-scene";
 
-const label = (o: EditableObject, index: number) => o.kind === "pocket" ? pocketName(o.cutout, o.shape) : o.hole.name ?? `Thumb access ${index + 1}`;
 export function commitEditorObjects(editor: PocketEditor, edits: ObjectEdits, text: string, mode: PocketTransformMode): void {
   if (editor.onCommitObjects) editor.onCommitObjects(edits, text);
   else edits.cutouts.forEach(cutout => editor.onCommit(cutout.id, cutout, mode));
@@ -19,10 +18,12 @@ export function commitEditorObjects(editor: PocketEditor, edits: ObjectEdits, te
 /** As-drawn XYZ offsets work for a single object and mixed selections.
  * Each explicit Apply or arrangement command is one document transaction. */
 export function ObjectTransformPanel({ editor, objects, selected, displayed, mode, setMode, snap, setSnap,
-  pivot, setPivot, limited, onClose }: {
+  pivot, setPivot, limited, onClose, modeRequest = 0 }: {
   editor: PocketEditor; objects: readonly EditableObject[]; selected: readonly EditableObject[]; displayed: readonly EditableObject[];
   mode: PocketTransformMode; setMode: (mode: PocketTransformMode) => void; snap: boolean; setSnap: (value: boolean) => void;
   onClose: () => void;
+  /** A keyboard command can request the same mode while another tab is open. */
+  modeRequest?: number;
   pivot: RotationPivot; setPivot: (pivot: RotationPivot) => void; limited: boolean;
 }): JSX.Element {
   const [arranging, setArranging] = useState(false);
@@ -36,13 +37,16 @@ export function ObjectTransformPanel({ editor, objects, selected, displayed, mod
   const actual = [0, 1, 2].map(i => !offsets.length ? "0" : offsets.every(v => Math.abs(v[i] - offsets[0][i]) < 1e-5)
     ? String(Number(offsets[0][i].toFixed(4))) : "");
   const actualKey = JSON.stringify(offsets);
-  useEffect(() => { setDraft({}); setError(null); }, [key, mode, actualKey]);
-  useEffect(() => { setArranging(false); setLinking(false); }, [mode]);
+  useEffect(() => { setDraft({}); setError(null); }, [key, mode, actualKey, modeRequest]);
+  useEffect(() => { setArranging(false); setLinking(false); }, [mode, modeRequest]);
   const select = (next: EditableObject[]) => {
     if (editor.onSelectionChange) editor.onSelectionChange(next.map(objectRef));
     else editor.onSelect(next.at(-1)?.kind === "pocket" ? objectRef(next.at(-1)!).id : null);
   };
   const isSelected = (o: EditableObject) => selected.some(s => objectKey(objectRef(s)) === objectKey(objectRef(o)));
+  const fingerObjects = objects.filter(o => o.kind === "finger");
+  const label = (o: EditableObject) => o.kind === "pocket" ? pocketName(o.cutout, o.shape)
+    : o.hole.name ?? `Finger access ${fingerObjects.indexOf(o) + 1}`;
   const commit = (edits: ObjectEdits | null, text: string) => {
     if (!edits) { setError(arranging ? "There is not enough room for equal gaps between the outer objects." : "Cannot transform every affected copy. Check depth and tilt limits; try editing one linked copy."); return; }
     setError(null);
@@ -52,6 +56,9 @@ export function ObjectTransformPanel({ editor, objects, selected, displayed, mod
   const apply = () => {
     const numbers = [0, 1, 2].map(i => draft[i] === undefined ? undefined : draft[i].trim() ? Number(draft[i]) : NaN);
     if (!numbers.every(v => v === undefined || Number.isFinite(v))) { setError("Enter a finite number for each edited axis."); return; }
+    if (mode === "translate" && numbers.some(v => v !== undefined && !Number.isFinite(v * 1e6))) {
+      setError("That movement is too large. Enter a smaller distance."); return;
+    }
     commit(setObjectTransformOffsets(selected, editor.spec, editor.transformOrigins, mode, numbers, pivot, objects, editor.originShapes),
       `${mode === "translate" ? "Move" : "Rotate"} ${selected.length} object${selected.length === 1 ? "" : "s"}`);
   };
@@ -74,10 +81,10 @@ export function ObjectTransformPanel({ editor, objects, selected, displayed, mod
           <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => select([])}>Clear</Button>
         </div>
         <div className="max-h-40 overflow-y-auto" aria-label="Objects in selection">
-          {objects.map((o, i) => <label key={objectKey(objectRef(o))} className="flex min-h-9 cursor-pointer items-center gap-2 rounded-md px-2 hover:bg-accent">
-            <input type="checkbox" className="h-4 w-4 accent-primary" aria-label={`Select ${label(o, i)}`} checked={isSelected(o)}
+          {objects.map(o => <label key={objectKey(objectRef(o))} className="flex min-h-9 cursor-pointer items-center gap-2 rounded-md px-2 hover:bg-accent">
+            <input type="checkbox" className="h-4 w-4 accent-primary" aria-label={`Select ${label(o)}`} checked={isSelected(o)}
               onChange={() => select(isSelected(o) ? selected.filter(s => objectKey(objectRef(s)) !== objectKey(objectRef(o))) : [...selected, o])} />
-            <span className="truncate">{label(o, i)}</span>
+            <span className="truncate">{label(o)}</span>
           </label>)}
         </div>
         <p className="px-2 pt-1 text-[10px] text-muted-foreground">Shift / ⌘ / Ctrl + click to add or remove.</p>

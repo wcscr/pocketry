@@ -54,7 +54,7 @@ it("applies one mixed XYZ move and defaults rotation to individual centers", () 
 });
 it("supports explicit selection toggles, last selected alignment and equal center distribution", () => {
   const ui = mount();
-  React.act(() => (ui.container.querySelector('[aria-label="Select Thumb access 4"]') as HTMLInputElement).click());
+  React.act(() => (ui.container.querySelector('[aria-label="Select Finger access 1"]') as HTMLInputElement).click());
   expect(ui.onSelectionChange).toHaveBeenLastCalledWith([...objects, finger].map(objectRef));
   ui.click("Align and distribute objects"); ui.click("Equal centers");
   expect(ui.onCommitObjects.mock.calls[0][0].cutouts[0].position.x).toBe(7.5);

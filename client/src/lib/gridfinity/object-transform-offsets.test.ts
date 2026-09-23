@@ -46,3 +46,7 @@ it("keeps linked resets atomic when originals require conflicting depth changes"
     cutouts: [a.cutout, { ...b.cutout, depth: { mode: "mm", value: 20 } }], fingerHoles: [] }]);
   expect(setObjectTransformOffsets([a, b], spec, refs, "translate", [undefined, undefined, 0], "individual", [a, b])).toBeNull();
 });
+
+it("rejects finite numeric input that overflows the persisted coordinates", () => {
+  expect(setObjectTransformOffsets([original], spec, origins, "translate", [1e308, undefined, undefined], "individual", [original])).toBeNull();
+});

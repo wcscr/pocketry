@@ -106,6 +106,14 @@ describe("mixed object arrangement", () => {
     expect(objectEditsChanged(mixed, transformObjects(mixed, spec, new Vector3())!)).toBe(false);
     expect(objectEditsChanged(mixed, { cutouts: [], fingerHoles: [] })).toBe(false);
   });
+  it.each([-1e308, 1e308])("rejects overflowing moves for pockets, thumb slots and mixed groups (%s)", distance => {
+    for (const objects of [[pocket("overflow", 0)], [finger], mixed]) {
+      const before = JSON.stringify(objects);
+      expect(transformObjects(objects, spec, new Vector3(distance, 0, 0))).toBeNull();
+      expect(transformObjects(objects, spec, new Vector3(0, distance, 0))).toBeNull();
+      expect(JSON.stringify(objects)).toBe(before);
+    }
+  });
   it("picks access slots before overlapping pocket mouths, respecting holes", () => {
     const p = pocket("big", 40, 18, 60, 60);
     expect(pickObject([p, finger], { x: 40, y: 18 })).toEqual({ kind: "finger", id: "f" });
