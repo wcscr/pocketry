@@ -3,8 +3,9 @@ import * as React from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, expect, it, vi } from "vitest";
 
+const canvasFailure = vi.hoisted(() => ({ active: false }));
 vi.mock("@react-three/fiber", () => ({
-  Canvas: () => <div data-testid="canvas-stub" />,
+  Canvas: () => { if (canvasFailure.active) throw new Error("WebGL context lost"); return <div data-testid="canvas-stub" />; },
   useThree: vi.fn(),
 }));
 
@@ -143,10 +144,22 @@ it("switches CAD modes without stealing field input and suspends them for the ru
   expect(button("Snap: 1 mm moves and 5 degree rotations").getAttribute("title")).toContain("Snap on");
   React.act(() => button("Measure between contours").click());
   expect(container.querySelector('[data-testid="pocket-3d-controls"]')).toBeNull();
-  React.act(() => button("Move pocket (W)").click());
+  React.act(() => button("Stop measuring").click());
   expect(container.querySelector('[data-testid="pocket-3d-controls"]')).not.toBeNull();
   expect(button("Measure between contours").getAttribute("aria-pressed")).toBe("false");
-  const select = container.querySelector('[aria-label="Selected pocket in 3D"]') as HTMLSelectElement;
-  React.act(() => { select.value = ""; select.dispatchEvent(new Event("change", { bubbles: true })); });
+  React.act(() => (Array.from(container.querySelectorAll("button")).find(b => b.textContent === "Clear")!).click());
   expect(editor.onSelect).toHaveBeenLastCalledWith(null);
+});
+
+it("keeps the workspace usable after a lost graphics context and can retry", () => {
+  const warning = vi.spyOn(console, "error").mockImplementation(() => {});
+  canvasFailure.active = true;
+  try {
+    const container = renderViewport(false, 1);
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain("Your design is still open");
+    canvasFailure.active = false;
+    React.act(() => Array.from(container.querySelectorAll("button")).find(b => b.textContent === "Retry 3D preview")!.click());
+    expect(container.querySelector('[data-testid="canvas-stub"]')).not.toBeNull();
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+  } finally { canvasFailure.active = false; warning.mockRestore(); }
 });

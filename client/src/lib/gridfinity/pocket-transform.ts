@@ -41,7 +41,7 @@ export function surfaceAnchoredPocket(original: CutoutPlacement): CutoutPlacemen
  * displacement resizes depth; its quaternion is a world-axis rotation delta. */
 export function pocketTransformPatch(
   original: CutoutPlacement, shape: TracedShape, spec: BinSpec,
-  position: Pick<Vector3, "x" | "y" | "z">, quaternion: Quaternion, mode: PocketTransformMode,
+  position: Pick<Vector3, "x" | "y" | "z">, quaternion: Quaternion, mode: PocketTransformMode, rigidZOffsetMm = 0,
 ): PocketTransformPatch | null {
   const anchored = surfaceAnchoredPocket(original);
   const top = resolvePocketDepth(spec, anchored.depth).infillTopZ;
@@ -88,6 +88,15 @@ export function pocketTransformPatch(
     : { mode: "mm", value: resolve(depth, index).axialDepthMm! };
   patch.depth = anchored.split ? anchored.depth : freeze(anchored.depth, 0);
   if (anchored.split) patch.split = { ...anchored.split, depths: [freeze(anchored.split.depths[0], 0), freeze(anchored.split.depths[1], 1)] };
+  // A shared pivot moves the local origin vertically. Project its new mouth
+  // back to the surface while preserving the rigidly rotated seat below it.
+  if (rigidZOffsetMm !== 0) {
+    const axis = pocketAxis(patch);
+    patch.position = { x: position.x - axis.x * rigidZOffsetMm / axis.z, y: position.y - axis.y * rigidZOffsetMm / axis.z };
+    const reanchor = (depth: DepthSpec): DepthSpec => depth.mode === "mm" ? { mode: "mm", value: depth.value - rigidZOffsetMm / axis.z } : depth;
+    patch.depth = reanchor(patch.depth);
+    if (patch.split) patch.split = { ...patch.split, depths: [reanchor(patch.split.depths[0]), reanchor(patch.split.depths[1])] };
+  }
   if ((patch.split?.depths ?? [patch.depth]).some(d => d.mode === "mm" && d.value <= 0)) return null;
   // A shallow, long slot can rotate its seat through the horizontal mouth
   // well before its axis becomes horizontal. Joining those crossed planes

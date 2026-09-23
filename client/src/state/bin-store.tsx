@@ -1,3 +1,5 @@
+import { sameObject, type ObjectRef, type ObjectEdits } from "@/lib/gridfinity/object-arrangement";
+
 import {
   createContext,
   useContext,
@@ -36,6 +38,7 @@ export interface BinState {
   spec: BinSpec;
   cutouts: CutoutPlacement[];
   fingerHoles: FingerHole[];
+  selection: ObjectRef[];
   selectedCutoutId: string | null;
   selectedPocketSection: PocketSectionIndex;
   selectedFingerHoleId: string | null;
@@ -115,8 +118,10 @@ export type BinAction =
       specPatch?: Partial<BinSpecInput>;
       historyLabel?: string;
     }
-  | { type: "SELECT_CUTOUT"; id: string | null; section?: PocketSectionIndex }
-  | { type: "SELECT_FINGER_HOLE"; id: string | null }
+  | { type: "SELECT_CUTOUT"; id: string | null; section?: PocketSectionIndex; additive?: boolean }
+  | { type: "SELECT_FINGER_HOLE"; id: string | null; additive?: boolean }
+  | { type: "SET_SELECTION"; selection: ObjectRef[] }
+  | { type: "UPDATE_OBJECTS"; edits: ObjectEdits; historyLabel: string; transient?: boolean }
   | { type: "SET_VIEW_MODE"; viewMode: BinViewMode }
   | { type: "SET_EDITOR_MODE"; editorMode: BinEditorMode }
   | { type: "SET_GRID"; gridX: number; gridY: number; historyLabel?: string }
@@ -134,6 +139,7 @@ const INITIAL: BinState = {
   spec: INITIAL_BIN_SPEC,
   cutouts: [],
   fingerHoles: [],
+  selection: [],
   selectedCutoutId: null,
   selectedPocketSection: 0,
   selectedFingerHoleId: null,
@@ -168,6 +174,7 @@ function commit(
   return {
     ...state,
     ...rest,
+    ...selectionState(existingSelection(rest.selection ?? state.selection, doc)),
     spec: doc.spec,
     cutouts: doc.cutouts,
     fingerHoles: doc.fingerHoles,
@@ -238,6 +245,15 @@ function changeDefaultFloor(cutout: CutoutPlacement, previous: number, next: num
   } : {}) };
 }
 
+function selectionState(selection: ObjectRef[]): Pick<BinState, "selection" | "selectedCutoutId" | "selectedFingerHoleId"> {
+  const active = selection.at(-1);
+  return { selection, selectedCutoutId: active?.kind === "pocket" ? active.id : null,
+    selectedFingerHoleId: active?.kind === "finger" ? active.id : null };
+}
+function existingSelection(selection: ObjectRef[], doc: BinDoc): ObjectRef[] {
+  return selection.filter((ref, i) => selection.findIndex(r => sameObject(r, ref)) === i &&
+    (ref.kind === "pocket" ? doc.cutouts : doc.fingerHoles).some(o => o.id === ref.id));
+}
 function reducer(state: BinState, action: BinAction): BinState {
   switch (action.type) {
     case "HYDRATE": {
@@ -253,6 +269,7 @@ function reducer(state: BinState, action: BinAction): BinState {
         spec: doc.spec,
         cutouts: doc.cutouts,
         fingerHoles: doc.fingerHoles,
+        selection: [],
         selectedCutoutId: null,
         selectedPocketSection: 0,
         selectedFingerHoleId: null,
@@ -313,6 +330,7 @@ function reducer(state: BinState, action: BinAction): BinState {
         action.historyLabel ??
           `Add ${action.cutouts.length === 1 ? "tool pocket" : `${action.cutouts.length} tool pockets`}`,
         {
+          selection: action.cutouts.at(-1) ? [{ kind: "pocket", id: action.cutouts.at(-1)!.id }] : state.selection,
           selectedCutoutId: action.cutouts.at(-1)?.id ?? state.selectedCutoutId,
           selectedFingerHoleId: null,
         },
@@ -336,7 +354,7 @@ function reducer(state: BinState, action: BinAction): BinState {
           fingerHoles: [...state.fingerHoles, clampFingerHoleToBin(action.hole, state.spec)],
         },
         "Add finger access",
-        { selectedCutoutId: null, selectedFingerHoleId: action.hole.id },
+        { ...selectionState([{ kind: "finger", id: action.hole.id }]) },
       );
     case "UPDATE_FINGER_HOLE": {
       const doc = {
@@ -411,7 +429,7 @@ function reducer(state: BinState, action: BinAction): BinState {
           fingerHoles: state.fingerHoles,
         },
         "Duplicate tool pocket",
-        { selectedCutoutId: copy.id, selectedFingerHoleId: null },
+        { ...selectionState([{ kind: "pocket", id: copy.id }]) },
       );
     }
     case "REPLACE_LAYOUT":
@@ -443,19 +461,25 @@ function reducer(state: BinState, action: BinAction): BinState {
           pendingRemovalId: null,
         },
       );
+    case "UPDATE_OBJECTS": {
+      const doc = { spec: state.spec,
+        cutouts: state.cutouts.map(c => action.edits.cutouts.find(next => next.id === c.id) ?? c),
+        fingerHoles: state.fingerHoles.map(h => action.edits.fingerHoles.find(next => next.id === h.id) ?? h) };
+      if (JSON.stringify(doc) === JSON.stringify(getCommittedBinDoc(state))) return preview(state, doc);
+      return action.transient ? preview(state, doc) : commit(state, doc, action.historyLabel);
+    }
+    case "SET_SELECTION":
+      return { ...state, ...selectionState(existingSelection(action.selection, state)), selectedPocketSection: 0 };
     case "SELECT_CUTOUT":
-      return {
-        ...state,
-        selectedCutoutId: action.id,
-        selectedPocketSection: action.section ?? (action.id === state.selectedCutoutId ? state.selectedPocketSection : 0),
-        selectedFingerHoleId: action.id === null ? state.selectedFingerHoleId : null,
-      };
-    case "SELECT_FINGER_HOLE":
-      return {
-        ...state,
-        selectedFingerHoleId: action.id,
-        selectedCutoutId: action.id === null ? state.selectedCutoutId : null,
-      };
+    case "SELECT_FINGER_HOLE": {
+      const kind = action.type === "SELECT_CUTOUT" ? "pocket" : "finger";
+      const ref: ObjectRef | null = action.id ? { kind, id: action.id } : null;
+      const selection = ref ? action.additive
+        ? state.selection.some(r => sameObject(r, ref)) ? state.selection.filter(r => !sameObject(r, ref)) : [...state.selection, ref]
+        : [ref] : state.selection.filter(r => r.kind !== kind);
+      return { ...state, ...selectionState(existingSelection(selection, state)),
+        selectedPocketSection: action.type === "SELECT_CUTOUT" ? action.section ?? (action.id === state.selectedCutoutId ? state.selectedPocketSection : 0) : 0 };
+    }
     case "SET_VIEW_MODE":
       return {
         ...state,
@@ -510,16 +534,7 @@ function restore(state: BinState, entry: BinHistoryEntry, index: number): BinSta
     cutouts: doc.cutouts,
     fingerHoles: doc.fingerHoles,
     history: { ...state.history, index },
-    // Selection survives only if the cutout still exists at this point in
-    // time.
-    selectedCutoutId: doc.cutouts.some((c) => c.id === state.selectedCutoutId)
-      ? state.selectedCutoutId
-      : null,
-    selectedFingerHoleId: doc.fingerHoles.some(
-      (hole) => hole.id === state.selectedFingerHoleId,
-    )
-      ? state.selectedFingerHoleId
-      : null,
+    ...selectionState(existingSelection(state.selection, doc)),
     pendingRemovalId: null,
   };
 }

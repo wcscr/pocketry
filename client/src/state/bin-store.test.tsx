@@ -562,3 +562,32 @@ describe("restored project history", () => {
     expect(store().history.index).toBe(49);
   });
 });
+
+it("selects mixed objects additively, commits them atomically, and restores the whole document with one undo", () => {
+  const { store, act } = mountBin();
+  const hole = fingerHoleSchema.parse({ id: "f1", center: { x: 20, y: 0 }, diameterMm: 8, depthMm: 5 });
+  act(() => { store().dispatch({ type: "ADD_PLACED", cutouts: [CUTOUT, { ...CUTOUT, id: "c2" }], gridX: 4, gridY: 4 }); store().dispatch({ type: "ADD_FINGER_HOLE", hole }); });
+  act(() => store().dispatch({ type: "SELECT_CUTOUT", id: "c1", additive: true }));
+  expect(store().selection).toEqual([{ kind: "finger", id: "f1" }, { kind: "pocket", id: "c1" }]);
+  const before = getCommittedBinDoc(store()), index = store().history.index;
+  const edits = { cutouts: [{ ...CUTOUT, position: { x: 4, y: 9 } }], fingerHoles: [{ ...hole, center: { x: 24, y: 9 } }] };
+  act(() => store().dispatch({ type: "UPDATE_OBJECTS", edits, historyLabel: "Move selection" }));
+  expect(store().history.index).toBe(index + 1); expect(store().cutouts[1]).toEqual(before.cutouts[1]);
+  act(() => store().dispatch({ type: "UNDO" })); expect(getCommittedBinDoc(store())).toEqual(before);
+  expect(store().selection).toHaveLength(2);
+  act(() => store().dispatch({ type: "REDO" })); expect(store().fingerHoles[0].center).toEqual({ x: 24, y: 9 });
+  act(() => store().dispatch({ type: "SELECT_CUTOUT", id: "c1", additive: true }));
+  expect(store().selection).toEqual([{ kind: "finger", id: "f1" }]); expect(store().selectedFingerHoleId).toBe("f1");
+  act(() => store().dispatch({ type: "REMOVE_FINGER_HOLE", id: "f1" })); expect(store().selection).toEqual([]);
+});
+
+it("keeps selection transient, ignores missing IDs and avoids empty batch undo entries", () => {
+  const { store, act } = mountBin();
+  act(() => store().dispatch({ type: "ADD_PLACED", cutouts: [CUTOUT], gridX: 2, gridY: 2 }));
+  const index = store().history.index;
+  act(() => store().dispatch({ type: "SET_SELECTION", selection: [{ kind: "pocket", id: "c1" }, { kind: "pocket", id: "c1" }, { kind: "finger", id: "missing" }] }));
+  expect(store().selection).toEqual([{ kind: "pocket", id: "c1" }]); expect(store().history.index).toBe(index);
+  act(() => store().dispatch({ type: "UPDATE_OBJECTS", edits: { cutouts: [], fingerHoles: [] }, historyLabel: "No change" }));
+  expect(store().history.index).toBe(index);
+  act(() => store().dispatch({ type: "HYDRATE", ...getCommittedBinDoc(store()) })); expect(store().selection).toEqual([]);
+});

@@ -4083,3 +4083,44 @@ describe("project history restoration", () => {
     } finally { unmount(); }
   });
 });
+
+it.each(["release", "Escape", "blur", "pointercancel"])("%s of a mixed selection drag is one atomic edit or a complete cancellation", async ending => {
+  const shape = rectangularShape("multi-shape", "Test pocket");
+  const cutouts = [-18, 18].map((x, i) => parseCutoutPlacement({ id: `multi-${i}`, name: `Multi ${i}`, shapeId: shape.id, position: { x, y: 0 } }));
+  const hole = fingerHoleSchema.parse({ id: "multi-finger", name: "Test thumb", center: { x: 0, y: 26 }, diameterMm: 8, depthMm: 8 });
+  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape], cutouts, fingerHoles: [hole] });
+  const { container, unmount } = renderPage();
+  await flushHydration();
+  React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
+  openSettingsSection(container, "tool-cutouts");
+  for (const name of ["Multi 0", "Multi 1"]) React.act(() => container.querySelector<HTMLInputElement>(`[aria-label="Include ${name} in selection"]`)!.click());
+  openSettingsSection(container, "finger-holes");
+  React.act(() => container.querySelector<HTMLInputElement>('[aria-label="Include Test thumb in selection"]')!.click());
+  expect(container.querySelector('[data-testid="pocket-3d-controls"]')?.textContent).toContain("3 objects selected");
+  const svg = container.querySelector<SVGSVGElement>('[data-testid="layout-canvas"]')!;
+  Object.defineProperty(svg.querySelector('g')!, 'getScreenCTM', { value: () => ({ inverse: () => ({}) }) });
+  Object.defineProperties(svg, {
+    createSVGPoint: { value: () => ({ x: 0, y: 0, matrixTransform() { return { x: this.x, y: this.y }; } }) },
+    setPointerCapture: { value: () => {} },
+  });
+  const path = () => svg.querySelector('[data-cutout-id="multi-0"]')!.getAttribute('d');
+  const beforePath = path();
+  const pointer = (type: string, x: number, y: number) => React.act(() => {
+    const event = new MouseEvent(type, { bubbles: true, button: 0, clientX: x, clientY: y, altKey: true });
+    Object.defineProperty(event, 'pointerId', { value: 5 }); svg.dispatchEvent(event);
+  });
+  pointer('pointerdown', 23.75, 41.75); pointer('pointermove', 33.75, 35.75);
+  expect(path()).not.toBe(beforePath);
+  if (ending === "Escape") React.act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })));
+  else if (ending === "blur") React.act(() => window.dispatchEvent(new Event("blur")));
+  else pointer(ending === "release" ? "pointerup" : "pointercancel", 33.75, 35.75);
+  const undo = container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!;
+  if (ending === "release") {
+    const current = vi.mocked(useBinGeometry).mock.lastCall![2]!;
+    expect(current.cutouts.map(c => c.position)).toEqual([{ x: -8, y: 6 }, { x: 28, y: 6 }]);
+    expect(current.fingerHoles[0].center).toEqual({ x: 10, y: 32 });
+    expect(undo.disabled).toBe(false); React.act(() => undo.click());
+  }
+  expect(undo.disabled).toBe(true); expect(path()).toBe(beforePath);
+  unmount();
+});

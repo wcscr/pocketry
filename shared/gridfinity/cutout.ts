@@ -246,7 +246,7 @@ function maximumFingerAccessDimension(
   return Math.floor((low + 1e-7) * 100) / 100;
 }
 
-function maximumFingerAccessDepth(spec: FingerAccessBinSpec): number {
+export function maximumFingerAccessDepth(spec: FingerAccessBinSpec): number {
   const top = resolvePocketDepth(spec, { mode: "through" }).infillTopZ;
   return Math.min(120, top);
 }

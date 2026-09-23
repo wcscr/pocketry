@@ -1049,7 +1049,9 @@ function BinDesignerWorkspace(): JSX.Element {
           {viewMode === "3d" ? (
             <BinViewport
               geometry={geometry}
-              pocketEditor={{ spec, pockets: editablePockets, selectedId: bin.selectedCutoutId,
+              pocketEditor={{ spec, pockets: editablePockets, selectedId: bin.selectedCutoutId, fingerHoles, selection: bin.selection,
+                onSelectionChange: selection => dispatch({ type: "SET_SELECTION", selection }),
+                onCommitObjects: (edits, historyLabel) => dispatch({ type: "UPDATE_OBJECTS", edits, historyLabel }),
                 onSelect: id => dispatch({ type: "SELECT_CUTOUT", id }),
                 onCommit: (id, patch, mode) => dispatch({ type: "UPDATE_CUTOUT", id, patch, historyLabel: mode === "translate" ? "Move pocket in 3D" : "Rotate pocket in 3D" }),
               }}

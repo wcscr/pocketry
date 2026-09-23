@@ -332,6 +332,7 @@ export function BinControlsPanel({
     spec,
     cutouts,
     fingerHoles,
+    selection,
     selectedCutoutId,
     selectedPocketSection,
     selectedFingerHoleId,
@@ -869,12 +870,14 @@ export function BinControlsPanel({
               {cutouts.map((cutout) => {
                 const shape = shapesById.get(cutout.shapeId);
                 const name = pocketName(cutout, shape);
-                const isSelected = cutout.id === selectedCutoutId;
+                const isSelected = selection.some(ref => ref.kind === "pocket" && ref.id === cutout.id);
                 return (
                   <div key={cutout.id} data-testid={`cutout-row-${cutout.id}`} className={cn(
                     "flex items-center rounded-md border text-xs",
                     isSelected ? "border-violet-500/50 bg-violet-500/10" : "border-transparent hover:bg-accent",
                   )}>
+                    <input type="checkbox" className="ml-2 h-4 w-4 accent-primary" aria-label={`Include ${name} in selection`} checked={isSelected}
+                      onChange={() => dispatch({ type: "SELECT_CUTOUT", id: cutout.id, additive: true })} />
                     {renamingPocketId === cutout.id && shape ? (
                       <EditableObjectName key={cutout.id} name={name} kind="shape" onRename={(name) => dispatch({ type: "UPDATE_CUTOUT", id: cutout.id, patch: { name }, historyLabel: "Rename pocket" })} onDone={() => setRenamingPocketId(null)} />
                     ) : (
@@ -885,8 +888,8 @@ export function BinControlsPanel({
                       aria-pressed={isSelected}
                       aria-controls="pocket-properties"
                       data-testid={`button-select-${cutout.id}`}
-                      onClick={() => {
-                        dispatch({ type: "SELECT_CUTOUT", id: cutout.id });
+                      onClick={event => {
+                        dispatch({ type: "SELECT_CUTOUT", id: cutout.id, additive: event.shiftKey || event.metaKey || event.ctrlKey });
                         if (isSelected) revealPanelSection("bin-settings-pockets", BIN_SETTINGS_SECTIONS, "pocket-properties");
                       }}
                     >
@@ -1195,13 +1198,15 @@ export function BinControlsPanel({
             {fingerHoles.length > 0 && (
               <div className="space-y-1" aria-label="Choose finger access to edit">
                 {fingerHoles.map((hole, index) => {
-                  const isSelected = hole.id === selectedFingerHoleId;
+                  const isSelected = selection.some(ref => ref.kind === "finger" && ref.id === hole.id);
                   const name = hole.name ?? `Finger access ${index + 1}`;
                   return (
                     <div key={hole.id} data-testid={`finger-hole-row-${hole.id}`} className={cn(
                       "flex items-center rounded-md border text-xs",
                       isSelected ? "border-cyan-500/50 bg-cyan-500/10" : "border-transparent hover:bg-accent",
                     )}>
+                      <input type="checkbox" className="ml-2 h-4 w-4 accent-primary" aria-label={`Include ${name} in selection`} checked={isSelected}
+                        onChange={() => dispatch({ type: "SELECT_FINGER_HOLE", id: hole.id, additive: true })} />
                       {renamingFingerId === hole.id ? (
                         <EditableObjectName key={hole.id} name={name} kind="finger-hole"
                           onRename={(name) => dispatch({ type: "UPDATE_FINGER_HOLE", id: hole.id, patch: { name }, historyLabel: "Rename finger access" })}
@@ -1211,7 +1216,7 @@ export function BinControlsPanel({
                           className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded px-2 py-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                           aria-label={`${name} — edit finger access properties`} aria-pressed={isSelected} aria-controls="finger-access-properties"
                           data-testid={`button-select-finger-hole-${hole.id}`}
-                          onClick={() => dispatch({ type: "SELECT_FINGER_HOLE", id: hole.id })}>
+                          onClick={event => dispatch({ type: "SELECT_FINGER_HOLE", id: hole.id, additive: event.shiftKey || event.metaKey || event.ctrlKey })}>
                           <span className={cn("min-w-0 flex-1 truncate", isSelected && "font-medium text-cyan-700 dark:text-cyan-300")}>{name}</span>
                         </button>
                       )}

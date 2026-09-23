@@ -40,12 +40,41 @@ small bin with the full slot depth to assess insertion and retention.
 
 ## Move and rotate in 3D
 
-Click a pocket opening or choose it from the 3D pocket selector. **Move (W)**
+Click an opening or use the checkboxes in the object list. **Move (W)**
 shows red X, green Y and blue Z arrows. X/Y move the opening across the surface;
 Z changes depth beneath it. Plane handles combine their named axes.
 **Rotate (E)** shows only X/Y/Z axis rings. All handles stay aligned with the
 bin's fixed XYZ coordinate system, even when the pocket is tilted. There is
 no local-axis mode or free/view-plane rotation target.
+
+The floating object panel contains **Move**, **Rotate**, and **Arrange** tools.
+Numeric XYZ fields apply relative millimetres or degrees in one undo step.
+Solid axis lines and labeled grips identify the fixed bin axes.
+
+Use Shift, Command, or Control + click to add/remove pockets and thumb-access
+features from a selection; checkboxes work without a keyboard. Command/Control+A
+selects all objects when a text field or dialog does not own the shortcut.
+Selection carries between 3D and Layout. Each group drag or command is one undo
+step and changes only selected objects. In Layout, drag any selected body to move
+the group; arrows nudge it (Shift = 10 mm), R rotates 15 degrees (Shift reverses).
+Escape, blur, and pointer cancellation discard incomplete drags.
+
+Group rotation defaults to **Each object's center**. **Selection center** also
+rotates their positions around the shared bounding-box center. Rotated pocket
+origins project back to the top surface, retaining the rigidly rotated seats.
+If any member reaches a floor or tilt limit, the entire group retains the last
+valid rotation. Z movement uses the most restrictive depth limit of all selected
+objects, so their relative floor depths remain unchanged. Through pockets have
+no floor to move. Thumb access remains upright: mixed selections support XYZ
+movement/depth changes and Z rotation; select only pockets to enable X/Y tilt.
+
+**Arrange** aligns nominal opening bounds on X or Y: minimum edge, center, or
+maximum edge. Choose the selection bounds or the last selected object as the
+reference. Rotated, tilted, and mirrored openings use their transformed outline.
+**Equal centers** and **Equal gaps** require at least three objects and leave the
+two outer objects fixed. Equal gaps is unavailable when the objects cannot fit
+between those endpoints without overlap. Clearance/rounding and collisions still
+use the normal layout warnings; arrangement never auto-resizes the bin.
 
 The **magnet** toggles 1 mm move increments and 5° rotation increments. Its
 tooltip describes the increments and whether snapping is on or off. For combined rotations, the displayed Euler
