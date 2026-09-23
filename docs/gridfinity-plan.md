@@ -537,9 +537,23 @@ manifolds — at N=1000 that is catastrophic. Therefore:
   with a quality-dependent angular minimum).
 - Preview/export quality presets (~5× triangle difference). Note these are **global** on
   the manifold toplevel, so they are only safe because the worker is single-threaded.
-- **Structural-hash memoization split by stage** inside the worker, so the shell is reused
-  and only the final subtract re-runs on a drag.
-- Debounce 120 ms, supersede with `ExecutionContext.cancel()`, transferables for mesh data.
+- **Deferred: structural-hash memoization split by stage.** Current builds do not cache
+  solids across requests; persistent WASM handles need explicit ownership and eviction.
+- Debounce 120 ms and retain at most one dispatched preview plus one replaceable pending
+  preview. A newer edit invalidates old UI callbacks immediately, including during its
+  debounce, but lets the running RPC finish: cancellation cannot interrupt synchronous
+  WASM. Export and both fit-check channels retain their own captured requests.
+- Compute normals only for meshes used by the preview. When material parts supply the
+  displayed body, retain the aggregate topology/statistics without calculating its
+  unused normals. Single-mesh fallback previews still receive normals; export topology
+  is unchanged. Empty section meshes return empty buffers without normal-channel errors.
+- Transfer mesh buffers rather than copy them. Worker `error`/`messageerror` rejects all
+  affected jobs and releases the endpoint; a later request can spawn a fresh worker.
+  Failed exports surface an error rather than being silently retried.
+
+The Wiha split-depth/fillet investigation is documented in
+[`preview-performance.md`](preview-performance.md), including the benchmark limits
+and lifecycle regression coverage.
 
 ## Libraries
 

@@ -42,8 +42,8 @@ export interface BinGeometryLayout {
 
 /**
  * Debounce before a build is dispatched. Slider drags emit a burst of spec
- * changes; the worker's supersede channel already cancels stale requests, and
- * the debounce keeps most of them from ever being sent (plan: "Performance").
+ * changes; only the latest debounced preview waits behind a running build.
+ * Cancelling its RPC promise would not interrupt the synchronous WASM work.
  */
 const DEBOUNCE_MS = 120;
 
@@ -95,7 +95,7 @@ export interface BinGeometryState {
 
 /**
  * Live bin geometry over the worker pipeline: spec in, `BufferGeometry` out,
- * with debounce, supersede-on-newer, cooperative cancel, and progress — the
+ * with debounce, one running preview, one replaceable pending preview, and progress — the
  * G2 milestone contract ("reacting to sliders without jank").
  */
 export function useBinGeometry(
@@ -111,6 +111,10 @@ export function useBinGeometry(
   } = {},
 ): BinGeometryState {
   const clientRef = useRef<WorkerClient | null>(null);
+  const previewQueueRef = useRef<{
+    running: boolean;
+    pending: (() => Promise<void>) | null;
+  }>({ running: false, pending: null });
   const geometryRef = useRef<BufferGeometry | null>(null);
   const pocketFloorGeometryRef = useRef<BufferGeometry | null>(null);
   const stackingRimGeometryRef = useRef<BufferGeometry | null>(null);
@@ -176,75 +180,89 @@ export function useBinGeometry(
 
   useEffect(() => {
     let stale = false;
+    // Capture this worker lifetime. A disposed/StrictMode lifetime must not
+    // drain or unlock the queue belonging to its replacement.
+    const queue = previewQueueRef.current;
     setBuilding(true);
     setProgress(0);
 
-    const timer = setTimeout(() => {
-      const request: BuildBinRequest = {
-        spec,
-        quality,
-        layout:
-          layout && (layout.cutouts.length > 0 || layout.fingerHoles.length > 0)
-            ? {
-                shapes: layout.shapes,
-                cutouts: layout.cutouts,
-                fingerHoles: layout.fingerHoles,
-              }
-            : undefined,
-        section: section ?? undefined,
-        pocketFloorMaterialThicknessMm:
-          previewMaterials.pocketFloorThicknessMm ??
-          MULTICOLOR_FLOOR_THICKNESS_MM,
-        stackingRimMaterialThicknessMm:
-          previewMaterials.stackingRimThicknessMm ??
-          MULTICOLOR_RIM_THICKNESS_MM,
-      };
-      ensureClient()
-        .call<BuildBinResult>(BUILD_BIN_METHOD, request, {
+    const build = async () => {
+      queue.running = true;
+      try {
+        const request: BuildBinRequest = {
+          spec,
+          quality,
+          layout:
+            layout && (layout.cutouts.length > 0 || layout.fingerHoles.length > 0)
+              ? {
+                  shapes: layout.shapes,
+                  cutouts: layout.cutouts,
+                  fingerHoles: layout.fingerHoles,
+                }
+              : undefined,
+          section: section ?? undefined,
+          pocketFloorMaterialThicknessMm:
+            previewMaterials.pocketFloorThicknessMm ??
+            MULTICOLOR_FLOOR_THICKNESS_MM,
+          stackingRimMaterialThicknessMm:
+            previewMaterials.stackingRimThicknessMm ??
+            MULTICOLOR_RIM_THICKNESS_MM,
+        };
+        const result = await ensureClient().call<BuildBinResult>(BUILD_BIN_METHOD, request, {
           channel: "preview",
           onProgress: (value) => {
             if (!stale) setProgress(value);
           },
-        })
-        .then((result) => {
-          if (stale) return;
-          const next = toBufferGeometry(
-            result.materialMeshes?.body ?? result.mesh,
-          );
-          const nextPocketFloor = result.materialMeshes?.pocketFloors
-            ? toBufferGeometry(result.materialMeshes.pocketFloors)
-            : null;
-          const nextStackingRim = result.materialMeshes?.stackingRim
-            ? toBufferGeometry(result.materialMeshes.stackingRim)
-            : null;
-          geometryRef.current?.dispose();
-          pocketFloorGeometryRef.current?.dispose();
-          stackingRimGeometryRef.current?.dispose();
-          geometryRef.current = next;
-          pocketFloorGeometryRef.current = nextPocketFloor;
-          stackingRimGeometryRef.current = nextStackingRim;
-          setGeometry(next);
-          setPocketFloorGeometry(nextPocketFloor);
-          setStackingRimGeometry(nextStackingRim);
-          setHasPocketFloor(nextPocketFloor !== null);
-          setHasStackingRim(nextStackingRim !== null);
-          setBuiltSpec(spec);
-          setStats(result.stats);
-          setCutoutReports(result.cutoutReports ?? []);
-          setError(null);
-          setBuilding(false);
-          setProgress(1);
-        })
-        .catch((cause: unknown) => {
-          if (stale || cause instanceof WorkerCancelledError) return;
-          setError(cause instanceof Error ? cause.message : String(cause));
-          setBuilding(false);
         });
+        if (stale) return;
+        const next = toBufferGeometry(
+          result.materialMeshes?.body ?? result.mesh,
+        );
+        const nextPocketFloor = result.materialMeshes?.pocketFloors
+          ? toBufferGeometry(result.materialMeshes.pocketFloors)
+          : null;
+        const nextStackingRim = result.materialMeshes?.stackingRim
+          ? toBufferGeometry(result.materialMeshes.stackingRim)
+          : null;
+        geometryRef.current?.dispose();
+        pocketFloorGeometryRef.current?.dispose();
+        stackingRimGeometryRef.current?.dispose();
+        geometryRef.current = next;
+        pocketFloorGeometryRef.current = nextPocketFloor;
+        stackingRimGeometryRef.current = nextStackingRim;
+        setGeometry(next);
+        setPocketFloorGeometry(nextPocketFloor);
+        setStackingRimGeometry(nextStackingRim);
+        setHasPocketFloor(nextPocketFloor !== null);
+        setHasStackingRim(nextStackingRim !== null);
+        setBuiltSpec(spec);
+        setStats(result.stats);
+        setCutoutReports(result.cutoutReports ?? []);
+        setError(null);
+        setBuilding(false);
+        setProgress(1);
+      } catch (cause: unknown) {
+        if (stale || cause instanceof WorkerCancelledError) return;
+        setError(cause instanceof Error ? cause.message : String(cause));
+        setBuilding(false);
+      } finally {
+        // This promise stays alive until the worker actually completes. New
+        // previews only replace pending work; exports keep their own RPCs.
+        queue.running = false;
+        const next = queue.pending;
+        queue.pending = null;
+        if (next) void next();
+      }
+    };
+    const timer = setTimeout(() => {
+      if (queue.running) queue.pending = build;
+      else void build();
     }, DEBOUNCE_MS);
 
     return () => {
       stale = true;
       clearTimeout(timer);
+      if (queue.pending === build) queue.pending = null;
     };
     // requestKey encodes spec + quality + layout by value.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -253,6 +271,8 @@ export function useBinGeometry(
   // Tear the worker down with the workspace.
   useEffect(
     () => () => {
+      previewQueueRef.current.pending = null;
+      previewQueueRef.current = { running: false, pending: null };
       clientRef.current?.dispose();
       clientRef.current = null;
       geometryRef.current?.dispose();

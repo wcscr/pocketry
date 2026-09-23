@@ -7,16 +7,16 @@ import {
 } from "./protocol";
 
 export interface CallOptions {
-  /** Aborts the call and tells the worker to stop. */
+  /** Rejects the call and requests cooperative cancellation in the worker. */
   signal?: AbortSignal;
   /** Buffers to move rather than copy. */
   transfer?: Transferable[];
   /** Receives 0..1 progress updates, if the method reports any. */
   onProgress?: (value: number) => void;
   /**
-   * Supersede key. A new call on a channel cancels the one already in flight
-   * on it — the right behaviour for slider-driven recomputation, where only
-   * the newest request matters.
+   * Supersede key. A new call rejects the previous call on this channel and
+   * requests cancellation. This does not interrupt synchronous worker work;
+   * callers that bound physical jobs must wait for completion instead.
    */
   channel?: string;
 }
@@ -66,8 +66,8 @@ export function createWorkerClient(spawn: () => MessageEndpoint): WorkerClient {
     return call;
   };
 
-  const handleMessage = (event: MessageEvent) => {
-    const message = event.data as WorkerMessage;
+  const handleMessage = (event: Event) => {
+    const message = (event as MessageEvent).data as WorkerMessage;
     if (message.kind === "progress") {
       pending.get(message.id)?.onProgress?.(message.value);
       return;
@@ -78,10 +78,32 @@ export function createWorkerClient(spawn: () => MessageEndpoint): WorkerClient {
     else call.reject(deserializeError(message.error));
   };
 
+  const detachEndpoint = () => {
+    if (!endpoint) return;
+    endpoint.removeEventListener("message", handleMessage);
+    endpoint.removeEventListener("error", handleFailure);
+    endpoint.removeEventListener("messageerror", handleFailure);
+    endpoint.terminate?.();
+    endpoint = null;
+  };
+
+  // A crashed worker cannot complete the physical preview job. Reject all
+  // affected calls (including exports) instead of leaving the queue locked.
+  // A later request may create a fresh worker; failed exports are not retried.
+  const handleFailure = (event: Event) => {
+    const error = new Error(event.type === "messageerror"
+      ? "Could not read the worker response. Please try again."
+      : "The worker stopped unexpectedly. Please try again.");
+    detachEndpoint();
+    for (const id of [...pending.keys()]) settle(id)?.reject(error);
+  };
+
   const ensureEndpoint = (): MessageEndpoint => {
     if (!endpoint) {
       endpoint = spawn();
       endpoint.addEventListener("message", handleMessage);
+      endpoint.addEventListener("error", handleFailure);
+      endpoint.addEventListener("messageerror", handleFailure);
     }
     return endpoint;
   };
@@ -138,7 +160,12 @@ export function createWorkerClient(spawn: () => MessageEndpoint): WorkerClient {
         pending.set(id, call);
         if (options.channel !== undefined) channels.set(options.channel, id);
 
-        post({ id, kind: "call", method, payload }, options.transfer);
+        try {
+          post({ id, kind: "call", method, payload }, options.transfer);
+        } catch (error) {
+          // Spawn/structured-clone errors must not strand a pending entry.
+          settle(id)?.reject(error);
+        }
       });
     },
 
@@ -150,11 +177,7 @@ export function createWorkerClient(spawn: () => MessageEndpoint): WorkerClient {
         call?.reject(new WorkerCancelledError("Worker client disposed"));
       }
       channels.clear();
-      if (endpoint) {
-        endpoint.removeEventListener("message", handleMessage);
-        endpoint.terminate?.();
-        endpoint = null;
-      }
+      detachEndpoint();
     },
   };
 }
