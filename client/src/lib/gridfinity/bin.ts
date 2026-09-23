@@ -18,12 +18,12 @@ import {
   binFootprintMm,
   binHeightMm,
   binTotalHeightMm,
-  binWallHeightMm,
   STACKING_LIP_HEIGHT_ACTUAL,
-  STACKING_LIP_SUPPORT_HEIGHT,
   STACKING_LIP_SUPPORT_HEIGHT_MM,
 } from "@shared/gridfinity/standard";
 import type { BinSpec } from "@shared/gridfinity/types";
+import { infillHeightMm } from "@shared/gridfinity/fill";
+export { infillHeightMm } from "@shared/gridfinity/fill";
 
 import type { Kernel } from "@/lib/manifold/runtime";
 
@@ -109,12 +109,6 @@ export interface BinParts {
   lip: Manifold | null;
   /** Solid interior fill. `null` unless `spec.fill` is "solid" with room. */
   infill: Manifold | null;
-}
-
-/** The infill's height: wall minus the lip's inner support, clamped at 0. */
-export function infillHeightMm(spec: BinSpec): number {
-  const lipAllowance = spec.lip === "standard" ? STACKING_LIP_SUPPORT_HEIGHT : 0;
-  return Math.max(binWallHeightMm(spec.heightUnits) - lipAllowance, 0);
 }
 
 /** Outer dimensions of the bin a spec describes, without building it. */

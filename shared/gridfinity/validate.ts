@@ -37,7 +37,6 @@ import {
   D_WALL,
   gridPitchMm,
   STACKING_LIP_DEPTH,
-  STACKING_LIP_SUPPORT_HEIGHT,
   STACKING_LIP_SUPPORT_HEIGHT_MM,
   TAB_DEPTH_MM,
   TAB_HEIGHT_MM,
@@ -45,6 +44,7 @@ import {
   binFootprintMm,
 } from "./standard";
 import type { BinSpec } from "./types";
+import { infillHeightMm } from "./fill";
 import { resolvePocketSplit } from "./pocket-split";
 
 /**
@@ -140,8 +140,7 @@ export function validateBinSpec(spec: BinSpec): ValidationResult {
   }
 
   if (spec.fill === "solid") {
-    const lipAllowance = spec.lip === "standard" ? STACKING_LIP_SUPPORT_HEIGHT : 0;
-    const fillHeight = wallHeight - lipAllowance;
+    const fillHeight = infillHeightMm(spec);
     if (fillHeight <= 0) {
       issues.push({
         code: "no-infill-space",

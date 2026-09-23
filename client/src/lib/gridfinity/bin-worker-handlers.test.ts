@@ -377,6 +377,23 @@ describe("bin worker handlers", () => {
     expect(model.match(/<vertex /g)?.length).toBe(mesh.positions.length / 3);
   });
 
+  it("exports partial fill through the worker to closed STL and 3MF geometry", async () => {
+    const result = await getHandler()({
+      ...REQUEST,
+      spec: { ...REQUEST.spec, fill: "solid", fillHeightPercent: 37.5 },
+      exportTopology: true,
+    }, context());
+    const full = await getHandler()({ ...REQUEST, spec: { ...REQUEST.spec, fill: "solid" }, exportTopology: true }, context());
+    const { mesh } = result.value;
+    expect(nonManifoldEdgeCount(mesh)).toBe(0);
+    expect(result.value.stats.volumeMm3).toBeLessThan(full.value.stats.volumeMm3);
+    const stl = writeBinarySTL(mesh);
+    expect(new DataView(stl).getUint32(80, true)).toBe(mesh.indices.length / 3);
+    const model = strFromU8(unzipSync(writeThreeMf([{ name: "partial-fill", mesh }]))["3D/3dmodel.model"]);
+    expect(model.match(/<triangle /g)?.length).toBe(mesh.indices.length / 3);
+    expect(model.match(/<vertex /g)?.length).toBe(mesh.positions.length / 3);
+  });
+
   it("rejects a malformed layout at the boundary", async () => {
     await expect(
       getHandler()(

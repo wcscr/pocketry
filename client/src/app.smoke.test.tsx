@@ -105,7 +105,7 @@ describe("App", () => {
       [...container.querySelectorAll("nav a")].map((link) =>
         link.textContent?.trim(),
       ),
-    ).toEqual(["Trace", "Bin"]);
+    ).toEqual(["Trace", "Bin", "Library"]);
     expect(
       container
         .querySelector<HTMLAnchorElement>('[aria-label="Pocketry on GitHub"]')

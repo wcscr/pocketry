@@ -1,5 +1,16 @@
 # Gridfinity bin generator — design and roadmap
 
+**Construction → Fill height** adjusts solid fill from 1–100%, with slider marks at
+25%, 50%, 75%, and 100%. The slider snaps within three percentage points of those
+marks on release; keyboard steps and typed percentages remain exact. The percentage
+scales the available fill height above the fixed base, leaving the outer walls and
+stacking lip at full height. Fixed-depth pockets and finger access start at the
+lowered surface; remaining-floor pockets keep their absolute floor height. Existing
+depth validation blocks pockets that no longer fit. Preview, STL, 3MF and floor
+colors use the same surface. Schema v20 saves the percentage and undo/redo history;
+older projects and history snapshots default to 100%. Toggling solid fill off
+retains the percentage for the next time it is enabled.
+
 The interface consistently calls grip openings **finger access**, including
 controls, default names, layout guidance, validation, and edit history. Older
 history labels use the current wording when displayed; saved geometry, custom
@@ -149,9 +160,22 @@ and per-pocket duplicate. The Project
 section is pinned to the top of the Bin controls: a draft resumes automatically,
 The save icon gives it a library name; double-clicking either current-project
 title opens the same name dialog for new drafts and saved projects.
-Manage presents the browser-local named projects,
-and New detaches a clean draft without deleting saved projects. Opening another
-design, opening a project file, and New Project all save the outgoing named
+Manage presents the browser-local named projects. **Library** beside Trace and
+Bin opens the same manager in the Bin workspace; it is also available in the
+mobile workspace menu. New detaches a clean draft without deleting saved projects. A subsequent
+workspace visit restores a detached named working copy's library identity only
+when its document matches exactly one same-name saved entry after normalizing
+migrations and hydration defaults. When a same-name library entry differs (for
+example, the resumed copy has newer edits or undo history), restore the complete
+working copy as a separate “(recovered)” library project. Preserve the earlier
+entry, persist the recovered identity atomically, and explain the new name.
+Unnamed drafts and named drafts without a same-name library entry retain discard
+confirmation. A recovery write failure keeps both versions intact, shows the save
+error, and pauses autosave until the user saves or opens a project successfully.
+Working-copy and
+library updates for save, rename, open, new, and named autosave commit atomically,
+so a failed write cannot leave the restored document attached to the wrong entry.
+Opening another design, opening a project file, and New Project all save the outgoing named
 design's latest edits before changing the autosave target. A failed save keeps
 the current design open. Library import/export also lives in Manage; the main
 Project section places New project, Open project, and Export project in one

@@ -44,6 +44,34 @@ const VALID = {
 };
 
 describe("parseProjectDoc", () => {
+  it("migrates legacy fill heights in the current design and every undo/redo snapshot", () => {
+    const { fillHeightPercent: _removed, ...spec } = VALID.spec;
+    const doc = { spec, cutouts: [], fingerHoles: [] };
+    const legacy = { ...VALID, ...doc, schemaVersion: 19, history: {
+      stack: [
+        { doc, label: "Start" },
+        { doc: { ...doc, spec: { ...spec, gridX: 3 } }, label: "Change width" },
+      ], index: 0,
+    } };
+    const original = JSON.stringify(legacy);
+    const migrated = parseProjectDoc(legacy)!;
+    expect(migrated.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
+    expect(migrated.spec.fillHeightPercent).toBe(100);
+    expect(migrated.history!.stack.map(entry => entry.doc.spec.fillHeightPercent)).toEqual([100, 100]);
+    expect(migrated.history!.index).toBe(0);
+    expect(JSON.stringify(legacy)).toBe(original);
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(migrated)))).toEqual(migrated);
+  });
+
+  it("round-trips custom fill height and saved history", () => {
+    const doc = { spec: { ...VALID.spec, fillHeightPercent: 37.5 }, cutouts: [], fingerHoles: [] };
+    const project = parseProjectDoc({ ...VALID, ...doc, history: {
+      stack: [{ doc: { ...doc, spec: VALID.spec }, label: "Start" }, { doc, label: "Change fill height" }], index: 1,
+    } });
+    expect(project?.spec.fillHeightPercent).toBe(37.5);
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(project)))).toEqual(project);
+  });
+
   it("preserves independent pocket names alongside unnamed legacy placements", () => {
     const doc = parseProjectDoc({ ...VALID, cutouts: [
       { ...VALID.cutouts[0], name: "  First pocket  " },
@@ -82,7 +110,7 @@ describe("parseProjectDoc", () => {
     const original = JSON.stringify(airdusterV9);
     const doc = parseProjectDoc(airdusterV9);
     const { liteBase: _removed, ...spec } = airdusterV9.spec;
-    expect(doc).toEqual({ ...airdusterV9, spec: { ...spec, flatBottom: false }, schemaVersion: PROJECT_SCHEMA_VERSION });
+    expect(doc).toEqual({ ...airdusterV9, spec: { ...spec, flatBottom: false, fillHeightPercent: 100 }, schemaVersion: PROJECT_SCHEMA_VERSION });
     expect(doc!.shapes).toHaveLength(7);
     expect(doc!.cutouts).toHaveLength(4);
     expect(doc!.fingerHoles).toHaveLength(2);
@@ -455,4 +483,29 @@ it("migrates v14 with sharp slot corners and round-trips explicit and retained c
     expect(doc?.fingerHoles[0]).toMatchObject({ kind, cornerRoundMm: 8, lengthMm: 6, depthMm: 1 });
     expect(parseProjectDoc(JSON.parse(JSON.stringify(doc)))).toEqual(doc);
   }
+});
+
+it.each([
+  { version: 20, fill: 55, tilt: undefined, offset: undefined },
+  { version: 20, fill: undefined, tilt: { xDeg: 12, yDeg: 30 }, offset: undefined },
+  { version: 21, fill: undefined, tilt: { xDeg: 12, yDeg: 30 }, offset: 2 },
+])("migrates both version-20 branches and v21 without losing history: %j", ({ version, fill, tilt, offset }) => {
+  const { fillHeightPercent: _fill, ...oldSpec } = VALID.spec;
+  const spec = fill === undefined ? oldSpec : { ...oldSpec, fillHeightPercent: fill };
+  const cutouts = [{ ...VALID.cutouts[0], ...(tilt ? { tilt } : {}), ...(offset === undefined ? {} : { zOffsetMm: offset }) }];
+  const doc = { spec, cutouts, fingerHoles: [] };
+  const input = { ...VALID, ...doc, schemaVersion: version, history: {
+    stack: [{ doc, label: "Start" }, { doc: { ...doc, cutouts: [{ ...cutouts[0], position: { x: 10, y: 5 } }] }, label: "Move" }], index: 0,
+  } };
+  const serialized = JSON.stringify(input), migrated = parseProjectDoc(input)!;
+  expect(migrated).not.toBeNull();
+  expect(migrated.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
+  expect(migrated.spec.fillHeightPercent).toBe(fill ?? 100);
+  for (const entry of migrated.history!.stack) {
+    expect(entry.doc.spec.fillHeightPercent).toBe(fill ?? 100);
+    expect(entry.doc.cutouts[0].tilt).toEqual(tilt);
+    expect(entry.doc.cutouts[0].zOffsetMm).toBe(offset);
+  }
+  expect(JSON.stringify(input)).toBe(serialized);
+  expect(parseProjectDoc(JSON.parse(JSON.stringify(migrated)))).toEqual(migrated);
 });

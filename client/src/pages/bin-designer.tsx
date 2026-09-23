@@ -6,7 +6,7 @@ import { CanvasWarnings } from "@/components/gridfinity/canvas-warnings";
 import { validateBinSpec, validateLayout, validatePocketFloorMaterials, type ValidationIssue } from "@shared/gridfinity/validate";
 import { MobileBinActions } from "@/components/gridfinity/mobile-bin-actions";
 import { BinControlsPanel } from "@/components/gridfinity/bin-controls-panel";
-import { BinViewport } from "@/components/gridfinity/bin-viewport";
+import { BinViewport, type MaterialColorTarget } from "@/components/gridfinity/bin-viewport";
 import { LayoutCanvas } from "@/components/gridfinity/layout-canvas";
 import { EditHistoryMenu } from "@/components/history/edit-history-menu";
 import { usePanelState } from "@/components/layout/panel-context";
@@ -99,10 +99,19 @@ export default function BinDesignerPage(): JSX.Element {
 }
 
 function BinDesignerWorkspace(): JSX.Element {
-  const { panelOpen, setPanelOpen } = usePanelState();
+  const { panelOpen, setPanelOpen, libraryRequested } = usePanelState();
   const [quickAdjustOpen, setQuickAdjustOpen] = useState(false);
   const [pocketEditorRequest, setPocketEditorRequest] = useState(0);
-  const [settingsSectionRequest, setSettingsSectionRequest] = useState<{ id: string }>();
+  const [settingsSectionRequest, setSettingsSectionRequest] = useState<{ id: string; focusId?: string }>();
+  useEffect(() => {
+    if (!libraryRequested) return;
+    setSettingsSectionRequest({ id: "bin-settings-project" });
+    setPanelOpen(true);
+  }, [libraryRequested, setPanelOpen]);
+  const editMaterialColor = (target: MaterialColorTarget) => {
+    setSettingsSectionRequest({ id: "bin-settings-materials", focusId: `input-${target}-color` });
+    setPanelOpen(true);
+  };
   const editSelectedPocket = () => {
     setSettingsSectionRequest(undefined);
     if (isMobile) setQuickAdjustOpen(true);
@@ -152,6 +161,7 @@ function BinDesignerWorkspace(): JSX.Element {
   );
   const [projectLibrary, setProjectLibrary] = useState(EMPTY_PROJECT_LIBRARY);
   const [projectLibraryReady, setProjectLibraryReady] = useState(false);
+  const [projectRestoreFailed, setProjectRestoreFailed] = useState(false);
   const [projectBusy, setProjectBusy] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"saving" | "saved" | "error">("saving");
   const [draftName, setDraftName] = useState<string | null>(null);
@@ -189,10 +199,29 @@ function BinDesignerWorkspace(): JSX.Element {
   // workspace places into the *restored* layout, not the empty default.
   useEffect(() => {
     let cancelled = false;
-    void Promise.all([loadProjectDoc(), loadProjectLibrary()]).then(([doc, saved]) => {
+    void loadProjectDoc().then(async (doc) => {
+      if (cancelled) return;
+      let saved: ProjectLibrarySnapshot;
+      try {
+        saved = await loadProjectLibrary(doc);
+      } catch (cause) {
+        if (cancelled) return;
+        saved = await loadProjectLibrary();
+        if (cancelled) return;
+        setProjectRestoreFailed(true);
+        setSaveStatus("error");
+        toast({ title: "Could not restore project to library",
+          description: `${cause instanceof Error ? cause.message : String(cause)} Your current design is still open. Export it or save it with a new name to keep your work.`,
+          variant: "destructive" });
+      }
       if (cancelled) return;
       setProjectLibrary(saved);
       setProjectLibraryReady(true);
+      const restoredName = saved.projects.find((project) => project.id === saved.activeProjectId)?.name;
+      if (doc?.name && restoredName && restoredName !== doc.name) {
+        toast({ title: "Project recovered",
+          description: `Your latest work was saved as “${restoredName}”. The earlier library version is still available.` });
+      }
       if (doc) {
         setDraftName(doc.name ?? null);
         setKeepBinSize(doc.keepBinSize ?? false);
@@ -238,10 +267,10 @@ function BinDesignerWorkspace(): JSX.Element {
     [library.shapes, committedDoc, bin.history, currentProjectName, keepBinSize],
   );
   useEffect(() => {
-    if (!bin.hydrated || projectBusy) return;
+    if (!bin.hydrated || projectBusy || projectRestoreFailed) return;
     setSaveStatus("saving");
     saveProject(currentProjectDoc, projectLibrary.activeProjectId);
-  }, [bin.hydrated, currentProjectDoc, saveProject, projectLibrary.activeProjectId, projectBusy]);
+  }, [bin.hydrated, currentProjectDoc, saveProject, projectLibrary.activeProjectId, projectBusy, projectRestoreFailed]);
 
   useEffect(() => {
     const flush = () => { void saveProject.flush(); };
@@ -531,6 +560,7 @@ function BinDesignerWorkspace(): JSX.Element {
         });
         setSection(null);
         setProjectLibrary(opened.library);
+        setProjectRestoreFailed(false);
         toast({
           title: "Backup imported",
           description: `${doc.shapes.length} shape${doc.shapes.length === 1 ? "" : "s"}, ${doc.cutouts.length} pocket${doc.cutouts.length === 1 ? "" : "s"}. Saved to your library and opened as “${doc.name}”.`,
@@ -574,6 +604,7 @@ function BinDesignerWorkspace(): JSX.Element {
       });
       setSection(null);
       setProjectLibrary(saved);
+      setProjectRestoreFailed(false);
       toast({
         title: "New project ready",
         description: "Ready for a new design.",
@@ -599,6 +630,7 @@ function BinDesignerWorkspace(): JSX.Element {
         projectLibrary.activeProjectId,
       );
       setProjectLibrary(saved);
+      setProjectRestoreFailed(false);
       toast({
         title: "Project saved",
         description: "It will keep updating automatically in this browser’s library.",
@@ -644,6 +676,7 @@ function BinDesignerWorkspace(): JSX.Element {
         ? await saveProjectToLibrary(currentProjectDoc, name, projectId)
         : await renameProjectInLibrary(projectId, name);
       setProjectLibrary(saved);
+      if (active) setProjectRestoreFailed(false);
       toast({ title: "Project renamed" });
       return true;
     } catch (cause) {
@@ -675,6 +708,7 @@ function BinDesignerWorkspace(): JSX.Element {
       });
       setSection(null);
       setProjectLibrary(opened.library);
+      setProjectRestoreFailed(false);
       toast({
         title: "Project opened",
         description: `“${opened.project.name}” will resume here automatically.`,
@@ -1064,6 +1098,7 @@ function BinDesignerWorkspace(): JSX.Element {
               stackingRimColor={stackingRimColor}
               showPocketFloorColor={colorPocketFloors}
               showStackingRimColor={colorStackingRim}
+              onEditColor={editMaterialColor}
               building={building}
               progress={progress}
               error={error}

@@ -77,7 +77,7 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
             <p className="text-muted-foreground">
               Print a <strong>Surface fit test</strong> from <strong>Check fit</strong>{" "}
               and try your tools. When the fit is right, choose <strong>Save 3MF</strong>{" "}
-              under <strong>Export printable bin</strong> and open it in your slicer.
+              under <strong>Export</strong> and open it in your slicer.
             </p>
           </li>
         </ol>

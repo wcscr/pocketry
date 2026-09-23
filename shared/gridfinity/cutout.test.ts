@@ -401,6 +401,25 @@ describe("resizeCutoutPlacementFromHandle", () => {
 describe("resolvePocketDepth", () => {
   const spec = { heightUnits: 6, lip: "standard" as const };
 
+  it.each([25, 50, 75, 100])("resolves all depth modes at %s percent without lowering the lip cutter", (fillHeightPercent) => {
+    const lowered = { ...spec, fillHeightPercent };
+    const top = 7 + 33.8 * fillHeightPercent / 100;
+    const fixed = resolvePocketDepth(lowered, { mode: "mm", value: 5 });
+    expect(fixed.infillTopZ).toBeCloseTo(top, 9);
+    expect(fixed.floorZ).toBeCloseTo(top - 5, 9);
+    expect(fixed.depthMm).toBeCloseTo(5, 9);
+    expect(fixed.cutterTopZ).toBe(resolvePocketDepth(spec, { mode: "through" }).cutterTopZ);
+    const remaining = resolvePocketDepth(lowered, { mode: "remaining", floorThicknessMm: 7 });
+    expect(remaining.floorZ).toBe(7);
+    expect(remaining.depthMm).toBeCloseTo(top - 7, 9);
+    expect(resolvePocketDepth(lowered, { mode: "through" }).floorZ).toBeNull();
+  });
+
+  it("scales custom fill heights without a stacking lip", () => {
+    const pocket = resolvePocketDepth({ heightUnits: 6, lip: "none", fillHeightPercent: 37.5 }, { mode: "mm", value: 5 });
+    expect(pocket.infillTopZ).toBeCloseTo(7 + 35 * 0.375, 9);
+  });
+
   it("remaining measures the floor from the bin bottom (default → base top)", () => {
     const pocket = resolvePocketDepth(spec, {
       mode: "remaining",

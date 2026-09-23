@@ -22,7 +22,7 @@ import { parseCutoutPlacement } from "@shared/gridfinity/cutout";
 import { parseBinSpec } from "@shared/gridfinity/types";
 import { createBasicPocket } from "@/lib/gridfinity/basic-shape";
 import type { PocketEditor } from "./pocket-transform-scene";
-import { BinViewport } from "./bin-viewport";
+import { BinViewport, type MaterialColorTarget } from "./bin-viewport";
 import type { Outline } from "@shared/geometry/types";
 
 const mounted: Array<() => void> = [];
@@ -38,6 +38,7 @@ function renderViewport(
   hasPocketFloor = false,
   hasStackingRim = false,
   measurementOutlines: readonly Outline[] = [],
+  onEditColor: (target: MaterialColorTarget) => void = vi.fn(),
   pocketEditor?: PocketEditor,
 ): HTMLElement {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
@@ -51,6 +52,8 @@ function renderViewport(
         pocketEditor={pocketEditor}
         hasPocketFloor={hasPocketFloor}
         hasStackingRim={hasStackingRim}
+        binColor="#654321"
+        onEditColor={onEditColor}
         pocketFloorColor="#123456"
         stackingRimColor="#abcdef"
         building={building}
@@ -83,18 +86,33 @@ it("hides preview progress when the geometry is current", () => {
 
 it("labels the contrasting pocket-floor surface", () => {
   const container = renderViewport(false, 1, true);
-  expect(container.querySelector('[data-testid="material-color-legend"]')?.textContent).toContain(
-    "Pocket floor",
+  const legend = container.querySelector('[data-testid="material-color-legend"]');
+  expect(legend?.textContent).toContain("Bin body");
+  expect(legend?.textContent).toContain("Pocket floor");
+  expect((legend?.querySelector("button span") as HTMLElement).style.backgroundColor).toBe(
+    "rgb(101, 67, 33)",
   );
 });
 
 it("labels the independently colored stacking-rim crest", () => {
   const container = renderViewport(false, 1, false, true);
   const legend = container.querySelector('[data-testid="material-color-legend"]');
+  expect(legend?.textContent).toContain("Bin body");
   expect(legend?.textContent).toContain("Rim top");
-  expect((legend?.querySelector("span span") as HTMLElement).style.backgroundColor).toBe(
+  expect((legend?.querySelector("button:last-child span") as HTMLElement).style.backgroundColor).toBe(
     "rgb(171, 205, 239)",
   );
+});
+
+it("opens the matching material controls from each legend entry", () => {
+  const onEditColor = vi.fn();
+  const container = renderViewport(false, 1, true, true, [], onEditColor);
+  const buttons = container.querySelectorAll<HTMLButtonElement>('[data-testid="material-color-legend"] button');
+  expect([...buttons].map((button) => button.textContent?.trim())).toEqual([
+    "Bin body", "Pocket floor", "Rim top",
+  ]);
+  for (const button of buttons) React.act(() => button.click());
+  expect(onEditColor.mock.calls).toEqual([["bin"], ["pocket-floor"], ["stacking-rim"]]);
 });
 
 it("offers a top-plane ruler in 3D and recommends Layout for precision", () => {
@@ -128,7 +146,7 @@ it("switches CAD modes without stealing field input and suspends them for the ru
   const basic = createBasicPocket("rectangle", { x: -5, y: -8 }, { x: 5, y: 8 }, "slot")!;
   const cutout = parseCutoutPlacement({ ...basic.cutout, name: "Target", zOffsetMm: 2 });
   const editor: PocketEditor = { spec: parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6 }), pockets: [{ cutout, shape: basic.shape }], selectedId: cutout.id, onSelect: vi.fn(), onCommit: vi.fn() };
-  const container = renderViewport(false, 1, false, false, [basic.shape.outlineMm], editor);
+  const container = renderViewport(false, 1, false, false, [basic.shape.outlineMm], undefined, editor);
   const button = (name: string) => container.querySelector(`[aria-label="${name}"]`) as HTMLButtonElement;
   expect(container.querySelector('[data-testid="pocket-3d-depth-readout"]')?.textContent).toContain("Depth:");
   expect(container.querySelector('[aria-label="Transform coordinate space"]')).toBeNull();

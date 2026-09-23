@@ -12,11 +12,9 @@ import {
 import {
   BASE_HEIGHT,
   binFootprintMm,
-  binHeightMm,
   binTotalHeightMm,
   D_WALL,
   R_F2,
-  STACKING_LIP_SUPPORT_HEIGHT,
 } from "./standard";
 import {
   footprintInteriorRingMm,
@@ -24,6 +22,7 @@ import {
   type BinFootprint,
 } from "./footprint";
 import { MAX_GRID, type BinSpec } from "./types";
+import { infillTopZ as resolveInfillTopZ, type FillHeightSpec } from "./fill";
 
 /**
  * The cutout model: traced shapes placed into a bin as pockets. Pure data and
@@ -203,7 +202,7 @@ export const MAX_OBLONG_DEEP_SCOOP_LENGTH_MM = 160;
 export const MIN_OBLONG_DEEP_SCOOP_SPAN_MM = 2;
 const FINGER_ACCESS_BIN_ALLOWANCE = 1.05;
 
-type FingerAccessBinSpec = Pick<BinSpec, "gridX" | "gridY" | "gridPitch" | "heightUnits" | "lip">;
+type FingerAccessBinSpec = Pick<BinSpec, "gridX" | "gridY" | "gridPitch"> & FillHeightSpec;
 
 function fingerAccessBinBounds(spec: FingerAccessBinSpec, hole: FingerHole) {
   const allowance = isElongatedFingerHole(hole) ? FINGER_ACCESS_BIN_ALLOWANCE : 1;
@@ -1053,18 +1052,17 @@ export interface ResolvedPocket {
 /**
  * Turns a {@link DepthSpec} into absolute z values in the bin frame.
  *
- * The infill top is `binHeightMm − lipAllowance` (see `infillHeightMm` in
- * lib/gridfinity/bin.ts — same rule); `remaining` measures the floor from the
+ * The infill top uses the shared percentage-based fill height above the base.
+ * `remaining` measures the floor from the
  * bin's bottom, so the default `BASE_HEIGHT` puts the pocket floor exactly on
  * top of the base. Geometric impossibilities (negative depth, floor above the
  * infill) are validation's job, not an exception here.
  */
 export function resolvePocketDepth(
-  spec: Pick<BinSpec, "heightUnits" | "lip">,
+  spec: FillHeightSpec,
   depth: DepthSpec,
 ): ResolvedPocket {
-  const lipAllowance = spec.lip === "standard" ? STACKING_LIP_SUPPORT_HEIGHT : 0;
-  const infillTopZ = binHeightMm(spec.heightUnits) - lipAllowance;
+  const infillTopZ = resolveInfillTopZ(spec);
   const cutterTopZ = binTotalHeightMm(spec.heightUnits, spec.lip === "standard") + 1;
 
   let floorZ: number | null;
@@ -1090,7 +1088,7 @@ export function resolvePocketDepth(
 
 /** Initial access bottom sits 1 mm above the highest usable pocket floor. */
 export function defaultFingerAccessDepthMm(
-  spec: Pick<BinSpec, "heightUnits" | "lip">,
+  spec: FillHeightSpec,
   cutouts: readonly Pick<CutoutPlacement, "depth" | "split">[],
 ): number {
   const { infillTopZ } = resolvePocketDepth(spec, { mode: "through" });

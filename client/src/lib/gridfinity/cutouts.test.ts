@@ -110,6 +110,37 @@ function cutout(
 const SPEC = parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6, fill: "solid" });
 
 describe("buildBinWithCutouts", () => {
+  it.each([PREVIEW_QUALITY, EXPORT_QUALITY])("cuts pockets and floor colors from a lowered fill surface at $circularSegments segments", (quality) => {
+    const spec = parseBinSpec({ ...SPEC, fillHeightPercent: 50 });
+    const shape = rectShape("lowered", 20, 20);
+    const pocket = cutout("p", shape.id, { depth: { mode: "mm", value: 5 } });
+    const full = buildBin(kernel, spec, quality);
+    const built = buildBinWithCutouts(kernel, spec, layoutFor([shape], [pocket]), quality, {
+      floorInsertThicknessMm: 0.6, rimInsertThicknessMm: 1.25,
+    });
+    expect(built.solid.status()).toBe("NoError");
+    expect(built.solid.genus()).toBe(0);
+    // The 20 by 20 mm pocket cuts exactly 5 mm from the 23.9 mm fill surface.
+    expect(full.solid.volume() - built.solid.volume()).toBeCloseTo(20 * 20 * 5, 4);
+    const floor = built.materialParts!.pocketFloors!;
+    expect(floor.boundingBox().max[2]).toBeCloseTo(18.9, 6);
+    expect(floor.boundingBox().min[2]).toBeCloseTo(18.3, 6);
+    const { body, stackingRim } = built.materialParts!;
+    expect(body.volume() + floor.volume() + stackingRim!.volume()).toBeCloseTo(built.solid.volume(), 4);
+    expect(arena.track(body.intersect(floor)).volume()).toBeCloseTo(0, 6);
+    expect(stackingRim!.boundingBox().max[2]).toBeCloseTo(full.solid.boundingBox().max[2], 6);
+  });
+
+  it("lowers independent finger access with partial fill", () => {
+    const spec = parseBinSpec({ ...SPEC, fillHeightPercent: 25 });
+    const hole = fingerHoleSchema.parse({ id: "lowered", kind: "straight", center: { x: 0, y: 0 }, diameterMm: 12, depthMm: 3 });
+    const cutter = buildFingerHoleCutters(kernel, [hole], spec, QUALITY)[0];
+    expect(cutter.boundingBox().min[2]).toBeCloseTo(7 + 33.8 * 0.25 - 3, 6);
+    const built = buildBinWithCutouts(kernel, spec, layoutFor([], [], [hole]), QUALITY);
+    expect(built.solid.status()).toBe("NoError");
+    expect(built.solid.genus()).toBe(0);
+  });
+
   it.each(["straight", "deep-scoop"] as const)("bounds large %s mouth faceting in preview and export meshes", (kind) => {
     const spec = parseBinSpec({ gridX: 4, gridY: 4, heightUnits: 6 });
     for (const quality of [PREVIEW_QUALITY, EXPORT_QUALITY]) {

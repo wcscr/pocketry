@@ -29,6 +29,8 @@ import {
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useLocation } from "wouter";
 import { AddPocketMenu } from "./add-pocket-menu";
+import { usePanelState } from "@/components/layout/panel-context";
+import { FillHeightControl } from "./fill-height-control";
 
 import {
   DEFAULT_OBLONG_DEEP_SCOOP_LENGTH_MM,
@@ -224,7 +226,7 @@ const BIN_SETTINGS_SECTIONS = [
 export interface BinControlsPanelProps {
   issues: readonly ValidationIssue[];
   /** A fresh request reveals settings after the controls drawer mounts. */
-  settingsSectionRequest?: { id: string };
+  settingsSectionRequest?: { id: string; focusId?: string };
   exportOnly?: boolean;
   /** Changes when the canvas explicitly requests the selected pocket editor. */
   pocketEditorRequest?: number;
@@ -363,7 +365,17 @@ export function BinControlsPanel({
   const lengthCellSpan = standardCellSpan(spec.gridY, spec.gridPitch);
   const hasFloorMaterialWarning = issues.some((issue) => issue.code === "floor-color-on-underside");
   useEffect(() => {
-    if (settingsSectionRequest) revealPanelSection(settingsSectionRequest.id, BIN_SETTINGS_SECTIONS);
+    if (!settingsSectionRequest) return;
+    const { id, focusId } = settingsSectionRequest;
+    revealPanelSection(id, BIN_SETTINGS_SECTIONS, focusId);
+    if (!focusId) return;
+    // Wait for the section and mobile drawer to mount before moving keyboard focus.
+    let frame = window.requestAnimationFrame(() => {
+      frame = window.requestAnimationFrame(() => {
+        document.getElementById(focusId)?.focus({ preventScroll: true });
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, [settingsSectionRequest]);
   const hasErrors = issues.some((issue) => issue.severity === "error");
   const enabledFeatureCount = [
@@ -735,6 +747,12 @@ export function BinControlsPanel({
             checked={spec.fill === "solid"}
             onChange={(on) => patchSpec({ fill: on ? "solid" : "none" })}
           />
+          {spec.fill === "solid" && (
+            <FillHeightControl
+              value={spec.fillHeightPercent}
+              onChange={(fillHeightPercent, transient) => patchSpec({ fillHeightPercent }, transient)}
+            />
+          )}
           {!spec.flatBottom && (
             <>
               <FeatureSwitch
@@ -1691,7 +1709,7 @@ export function BinControlsPanel({
             data-testid="export-preview-layout"
           >
             <div>
-              <SettingLabel label="Fit templates and layout" hint="Print a thin template and try the actual tools before printing the full bin. These lightweight outputs check fit or plan a shadow board; they are not the final bin model." />
+              <SettingLabel label="Fit templates" hint="Print a thin template and try the actual tools before printing the full bin." />
             </div>
 
             {(cutouts.length > 0 || fingerHoles.length > 0) && (
@@ -1805,8 +1823,7 @@ export function BinControlsPanel({
                 data-testid="export-preview-empty"
               >
                 <p className="text-[11px] text-muted-foreground">
-                  Add a tool cutout to enable fit templates and shadow-board
-                  DXF/SVG files.
+                  Add a tool cutout to enable fit templates.
                 </p>
                 <Button
                   variant="outline"
@@ -1819,48 +1836,12 @@ export function BinControlsPanel({
                 </Button>
               </div>
             )}
-
-            {cutouts.length > 0 && (
-              <div className="space-y-1.5 border-t pt-2.5">
-                <SettingLabel label="Shadow-board layout (top view)" hint="Bin footprint and pocket silhouettes in millimetres, for CNC or laser shadow boards." />
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1"
-                    onClick={() => setPendingExport({
-                      title: "Save layout DXF?",
-                      description: "Download the bin footprint and pocket outlines in millimetres.",
-                      confirmLabel: "Download DXF",
-                      onConfirm: (includeProject) => onExportLayout("dxf", includeProject),
-                    })}
-                    data-testid="button-layout-dxf"
-                  >
-                    Layout DXF
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1"
-                    onClick={() => setPendingExport({
-                      title: "Save layout SVG?",
-                      description: "Download the bin footprint and pocket outlines in millimetres.",
-                      confirmLabel: "Download SVG",
-                      onConfirm: (includeProject) => onExportLayout("svg", includeProject),
-                    })}
-                    data-testid="button-layout-svg"
-                  >
-                    Layout SVG
-                  </Button>
-                </div>
-              </div>
-            )}
           </div>
         </PanelSection>
 
         <PanelSection
           id="bin-settings-export"
-          title="Export printable bin"
+          title="Export"
           icon={Download}
           tone="emerald"
           summary={
@@ -1916,7 +1897,7 @@ export function BinControlsPanel({
             data-testid="export-final-model"
           >
             <div>
-              <SettingLabel label="Export printable bin" hint="Export the complete bin at print quality. Use 3MF to preserve optional material colors. Select the editable-project checkbox in the export dialog to also save a project JSON with your tools and settings." />
+              <SettingLabel label="Export bin design" hint="Export the complete bin at print quality. Use 3MF to preserve optional material colors. Select the editable-project checkbox in the export dialog to also save a project JSON with your tools and settings." />
             </div>
             <div className="flex gap-2">
               <Button
@@ -1949,6 +1930,41 @@ export function BinControlsPanel({
             </div>
           </div>
 
+          {cutouts.length > 0 && (
+            <div className="space-y-2 rounded-md border border-emerald-500/30 bg-emerald-500/5 p-2.5">
+              <SettingLabel label="Export shadow-board layout (top view)" hint="Bin footprint and pocket silhouettes in millimetres, for CNC or laser shadow boards." />
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => setPendingExport({
+                    title: "Save layout DXF?",
+                    description: "Download the bin footprint and pocket outlines in millimetres.",
+                    confirmLabel: "Download DXF",
+                    onConfirm: (includeProject) => onExportLayout("dxf", includeProject),
+                  })}
+                  data-testid="button-layout-dxf"
+                >
+                  Save DXF
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => setPendingExport({
+                    title: "Save layout SVG?",
+                    description: "Download the bin footprint and pocket outlines in millimetres.",
+                    confirmLabel: "Download SVG",
+                    onConfirm: (includeProject) => onExportLayout("svg", includeProject),
+                  })}
+                  data-testid="button-layout-svg"
+                >
+                  Save SVG
+                </Button>
+              </div>
+            </div>
+          )}
         </PanelSection>
       </PanelBody>
 
@@ -2151,6 +2167,14 @@ function ProjectControls({
   const [pendingOpenProject, setPendingOpenProject] = useState<ProjectOpenTarget | null>(null);
   const { toast } = useToast();
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const { libraryRequested, setLibraryRequested } = usePanelState();
+  useEffect(() => {
+    if (!libraryRequested || !ready || busy) return;
+    setLibraryOpen(true);
+    setSelectedProjectId(activeProjectId);
+    setLibraryRequested(false);
+    onRefreshProjects();
+  }, [libraryRequested, ready, busy, activeProjectId, setLibraryRequested, onRefreshProjects]);
   const [projectName, setProjectName] = useState("");
   useEffect(() => {
     if (saveOpen) setProjectName(currentProjectName ?? "");
