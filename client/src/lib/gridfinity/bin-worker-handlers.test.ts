@@ -331,6 +331,31 @@ describe("bin worker handlers", () => {
     expect(result.value.mesh.indices.length).toBeGreaterThan(0);
   });
 
+  it.each([undefined, 1.25].flatMap(stackingRimMaterialThicknessMm =>
+    [-62.75, -63].map(offsetMm => ({ stackingRimMaterialThicknessMm, offsetMm })),
+  ))("handles an empty aggregate at X=$offsetMm with rim material=$stackingRimMaterialThicknessMm", async ({ stackingRimMaterialThicknessMm, offsetMm }) => {
+    const request: BuildBinRequest = {
+      spec: { gridX: 3, gridY: 7, heightUnits: 3, fill: "solid" },
+      quality: { circularSegments: 16 }, stackingRimMaterialThicknessMm,
+    };
+    const whole = await getHandler()(request, context());
+    const cut = await getHandler()({ ...request, section: { axis: "x", offsetMm } }, context());
+    expect(cut.value.mesh.indices).toHaveLength(0);
+    expect(cut.value.stats.triangles).toBe(0);
+    expect(cut.value.stats.volumeMm3).toBe(whole.value.stats.volumeMm3);
+    if (cut.value.materialMeshes) {
+      // Independent boolean trims can leave tiny coplanar fragments exactly
+      // on the boundary. Every surviving body vertex still needs its normal.
+      const body = cut.value.materialMeshes.body;
+      expect(body.normals?.length).toBe(body.positions.length);
+      if (offsetMm < -62.75) expect(body.positions).toHaveLength(0);
+      expect(cut.value.materialMeshes.stackingRim).toBeUndefined();
+    }
+    expect(new Set(cut.transfer).size).toBe(cut.transfer.length);
+    const moved = structuredClone(cut.value, { transfer: cut.transfer });
+    expect(moved.mesh.indices).toHaveLength(0);
+  });
+
   it("returns topology-preserving meshes for export builds", async () => {
     const result = await getHandler()(
       {
