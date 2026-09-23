@@ -126,6 +126,17 @@ npm run db:push      # Push Drizzle schema to the database (needs DATABASE_URL)
 
 **`npm run check && npm test` is the required gate for every change.**
 
+### Local-only verification
+
+- Run type checks, tests, and production builds locally. GitHub Actions credits
+  are exhausted; do not run CI on GitHub for routine updates, pushes, or PRs.
+- Do not enable, dispatch, or rerun GitHub CI unless the user explicitly
+  authorizes that hosted run. Do not add automatic push or pull-request triggers.
+- The repository's CI workflow is disabled in GitHub. Keep it disabled unless
+  the user explicitly changes this policy.
+- Include the local verification commands and results in the PR or completion
+  report. Missing hosted checks are expected and are not a reason to start CI.
+
 Vitest config lives in its own `vitest.config.ts` that `mergeConfig`s `vite.config.ts` —
 never add a `test` key to `vite.config.ts`, because `server/vite.ts` imports that file
 into the bundled Node server. Two projects are configured: `geometry` (node env, covers
