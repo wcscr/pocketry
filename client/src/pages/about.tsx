@@ -169,6 +169,18 @@ export default function About(): JSX.Element {
               shadow-board layouts, and printable Gridfinity bins. Image processing,
               project storage, and model generation run locally in your browser.
             </p>
+            <p className="max-w-3xl text-base leading-7 text-muted-foreground">
+              Pocketry began in March 2025 as{" "}
+              <a
+                href="https://www.reddit.com/r/gridfinity/comments/1j801r8/tooltrace_svg_generator/"
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-sm underline underline-offset-4 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                ToolTrace SVG Generator
+              </a>
+              {" "}and was renamed in August 2026.
+            </p>
           </div>
 
           <div className="flex flex-wrap gap-2">
