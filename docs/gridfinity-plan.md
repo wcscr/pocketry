@@ -627,3 +627,14 @@ version bump or quality change; store *golden invariants* instead —
    with its own blast radius — do not let it become implicit.
 6. **Dimensional correctness is only verifiable by printing.** Budget the G1 and G3 print
    gates as real schedule.
+
+### Preview interaction follow-up (2026-09-23)
+
+Addressed progressive-preview UX regressions: continuous gestures now publish
+intermediate meshes within guarded gesture boundaries; inexpensive rounded bins
+build directly with adaptive cost feedback; fillet-only edits retain a coarser
+rounded preview; section-only edits preserve full rounding. Previous exact model
+statistics remain labeled as updating, and brief builds no longer flash a
+percentage indicator. Full detail and export mesh comparisons across 14 designs
+remain identical to the baseline. See `preview-performance.md` for evidence and
+remaining complex-fillet/section latency limitations.

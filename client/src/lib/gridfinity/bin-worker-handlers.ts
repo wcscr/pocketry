@@ -123,7 +123,9 @@ export function createBinWorkerHandlers(
         kernel,
         spec,
         layout,
-        payload.quality,
+        payload.previewDraft === "rounded" && payload.exportTopology !== true
+          ? { ...payload.quality, circularSegments: 16, filletProfileStepMm: Math.max(2, payload.quality.filletProfileStepMm ?? 0.5) }
+          : payload.quality,
         {
           floorInsertThicknessMm: floorMaterialThicknessMm,
           rimInsertThicknessMm: rimMaterialThicknessMm,

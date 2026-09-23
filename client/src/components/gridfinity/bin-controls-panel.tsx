@@ -27,6 +27,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useDelayedBusy } from "@/hooks/use-delayed-busy";
 import { useLocation } from "wouter";
 import { AddPocketMenu } from "./add-pocket-menu";
 import { usePanelState } from "@/components/layout/panel-context";
@@ -233,6 +234,7 @@ export interface BinControlsPanelProps {
   onKeepBinSizeChange?: (fixed: boolean) => void;
   saveStatus?: "saving" | "saved" | "error";
   stats: BuildBinStats | null;
+  statsAreStale?: boolean;
   building: boolean;
   previewIsDraft?: boolean;
   exporting: boolean;
@@ -286,6 +288,7 @@ export function BinControlsPanel({
   settingsSectionRequest,
   exportOnly = false,
   stats,
+  statsAreStale = false,
   building,
   previewIsDraft = false,
   exporting,
@@ -331,6 +334,7 @@ export function BinControlsPanel({
   onKeepBinSizeChange,
   saveStatus = "saved",
 }: BinControlsPanelProps): JSX.Element {
+  const showPreviewBusy = useDelayedBusy(building);
   const {
     spec,
     cutouts,
@@ -672,7 +676,7 @@ export function BinControlsPanel({
               ? ` (rim + ${STACKING_LIP_HEIGHT_ACTUAL.toFixed(1)} mm lip)`
               : ""}
           </p>
-          {building && (
+          {showPreviewBusy && (
             <div
               className="flex items-center gap-1.5 rounded-md border border-blue-500/25 bg-blue-500/10 px-2.5 py-1.5 text-xs font-medium text-blue-800 dark:text-blue-100"
               role="status"
@@ -1840,10 +1844,12 @@ export function BinControlsPanel({
               ? "Needs attention"
               : issues.length > 0
                 ? `${issues.length} ${issues.length === 1 ? "warning" : "warnings"}`
-              : building
+              : showPreviewBusy
                 ? stats
                   ? "Updating"
                   : "Building"
+                : !building && statsAreStale
+                  ? "Preview unavailable"
                 : cutouts.length === 0 && fingerHoles.length === 0
                   ? "No cutouts"
                 : stats
@@ -1861,11 +1867,12 @@ export function BinControlsPanel({
                   {stats.triangles.toLocaleString()} triangles ·{" "}
                   {(stats.volumeMm3 / 1000).toFixed(1)} cm³ model volume
                 </p>
+                {statsAreStale ? <p>{building ? "Previous model · updating…" : "Previous model · preview unavailable"}</p> : null}
               </div>
             ) : (
               <p className="text-xs text-muted-foreground">
                 {previewIsDraft
-                  ? building ? "Draft preview. Model volume will appear after rounding is complete." : "Draft preview. Detailed model statistics are unavailable."
+                  ? building ? "Simplified preview. Model volume will appear when details are ready." : "Simplified preview. Detailed model statistics are unavailable."
                   : building ? "Building preview…" : "No preview yet."}
               </p>
             )}

@@ -136,6 +136,34 @@ describe("bin worker handlers", () => {
     expect(flagged.stats.volumeMm3).not.toBe(draft.stats.volumeMm3);
   });
 
+  it("keeps visible rounding in a coarse draft and ignores that tier for exports", async () => {
+    const { shape, cutout } = createBasicPocket("rectangle", { x: -10, y: -15 }, { x: 10, y: 15 }, "rounded-draft")!;
+    const placement = parseCutoutPlacement({ ...cutout, topFilletMm: 2, bottomFilletMm: 3, depth: { mode: "mm", value: 10 } });
+    const request: BuildBinRequest = {
+      spec: { gridX: 2, gridY: 2, heightUnits: 3 },
+      quality: { circularSegments: 24, filletProfileStepMm: 0.5 },
+      layout: { shapes: [shape], cutouts: [placement], fingerHoles: [] },
+      pocketFloorMaterialThicknessMm: 0.6, stackingRimMaterialThicknessMm: 1.25,
+    };
+    const original = structuredClone(request);
+    const coarse = (await getHandler()({ ...request, previewDraft: "rounded" }, context())).value;
+    const sharp = (await getHandler()({ ...request, quality: { ...request.quality, circularSegments: 16, filletProfileStepMm: 2 }, previewDraft: true }, context())).value;
+    const changed = (await getHandler()({ ...request, previewDraft: "rounded", layout: { ...request.layout!,
+      cutouts: [{ ...placement, topFilletMm: 4 }] } }, context())).value;
+    expect(coarse.stats.triangles).toBeGreaterThan(sharp.stats.triangles);
+    expect(changed.stats.volumeMm3).toBeLessThan(coarse.stats.volumeMm3);
+    expect(coarse.materialMeshes?.pocketFloors).toBeDefined();
+    expect(request).toEqual(original);
+    // Aggregate meshes retain indexed topology; welding touching vertices can
+    // create artificial non-manifold edges at material boundaries.
+    expect(coarse.mesh.normals).toBeNull();
+    expect(nonManifoldEdgeCount(coarse.mesh)).toBe(0);
+    const detailed = (await getHandler()({ ...request, exportTopology: true }, context())).value;
+    const flagged = (await getHandler()({ ...request, exportTopology: true, previewDraft: "rounded" }, context())).value;
+    expect(flagged.mesh).toEqual(detailed.mesh);
+    expect(flagged.materialMeshes).toEqual(detailed.materialMeshes);
+  });
+
   it("validates authored rounding before approximating a draft", async () => {
     const { shape, cutout } = createBasicPocket("rectangle", { x: -10, y: -10 }, { x: 10, y: 10 }, "invalid")!;
     await expect(getHandler()({ ...REQUEST, previewDraft: true,

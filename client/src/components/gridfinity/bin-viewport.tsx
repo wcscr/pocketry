@@ -10,6 +10,7 @@ import type { Outline, Point } from "@shared/geometry/types";
 
 import { Button } from "@/components/ui/button";
 import { canHandleCanvasShortcut } from "@/lib/canvas-keyboard";
+import { useDelayedBusy } from "@/hooks/use-delayed-busy";
 import { useElementSize } from "@/hooks/use-element-size";
 import { fitDistanceMm, type FitSize } from "@/lib/gridfinity/camera-fit";
 import {
@@ -59,7 +60,7 @@ export interface BinViewportProps {
   /** Reveal the matching material control from its legend entry. */
   onEditColor: (target: MaterialColorTarget) => void;
   building: boolean;
-  /** The displayed preview temporarily omits pocket rounding. */
+  /** The displayed preview is temporarily simplified. */
   previewIsDraft?: boolean;
   /** 0..1 while building. */
   progress: number;
@@ -210,7 +211,6 @@ export function BinViewport({
   onEditColor,
   building,
   previewIsDraft = false,
-  progress,
   error,
   fitSize,
   measurementOutlines = EMPTY_MEASUREMENT_OUTLINES,
@@ -227,6 +227,7 @@ export function BinViewport({
   const laidOut = containerSize.width > 0 && containerSize.height > 0;
   const [rulerActive, setRulerActive] = useState(false);
   const [measurementPoints, setMeasurementPoints] = useState<Point[]>([]);
+  const showBusy = useDelayedBusy(building);
   const measuredDistanceMm = useMemo(
     () =>
       measurementPoints.length === 2
@@ -442,7 +443,7 @@ export function BinViewport({
         </div>
       ) : null}
 
-      {building || previewIsDraft ? (
+      {showBusy || previewIsDraft ? (
         <div
           className="pointer-events-none absolute left-1/2 top-16 flex w-max max-w-[calc(100%-1.5rem)] -translate-x-1/2 items-center gap-2 rounded-full border bg-background/95 px-3 py-1.5 text-center text-xs font-medium tabular-nums text-foreground shadow-lg backdrop-blur"
           role="status"
@@ -453,9 +454,9 @@ export function BinViewport({
           <span>
             {previewIsDraft
               ? building
-                ? `Draft preview · adding pocket rounding… ${Math.round(progress * 100)}%`
-                : "Draft preview · pocket rounding omitted"
-              : `Updating 3D preview… ${Math.round(progress * 100)}%`}
+                ? "Simplified preview · refining details…"
+                : "Simplified preview · detailed preview unavailable"
+              : "Updating preview…"}
           </span>
         </div>
       ) : null}

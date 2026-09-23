@@ -24,6 +24,7 @@ const mounted: Array<() => void> = [];
 
 afterEach(() => {
   while (mounted.length > 0) mounted.pop()?.();
+  vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
@@ -67,11 +68,15 @@ function renderViewport(
   return container;
 }
 
-it("shows prominent live progress while the preview updates", () => {
+it("delays transient busy UI and uses a stage label without restarting percentages", () => {
+  vi.useFakeTimers();
   const container = renderViewport(true, 0.42);
+  expect(container.querySelector('[data-testid="bin-preview-status"]')).toBeNull();
+  React.act(() => vi.advanceTimersByTime(150));
   const status = container.querySelector('[data-testid="bin-preview-status"]');
   expect(status?.getAttribute("role")).toBe("status");
-  expect(status?.textContent).toContain("Updating 3D preview… 42%");
+  expect(status?.textContent).toContain("Updating preview…");
+  expect(status?.textContent).not.toContain("%");
 });
 
 it("hides preview progress when the geometry is current", () => {
@@ -82,8 +87,8 @@ it("hides preview progress when the geometry is current", () => {
 it.each([true, false])("labels omitted rounding on a draft with refinement running=%s", building => {
   const container = renderViewport(building, 0.4, false, false, [], vi.fn(), true);
   const status = container.querySelector('[data-testid="bin-preview-status"]');
-  expect(status?.textContent).toContain("Draft preview");
-  expect(status?.textContent).toContain(building ? "adding pocket rounding… 40%" : "pocket rounding omitted");
+  expect(status?.textContent).toContain("Simplified preview");
+  expect(status?.textContent).toContain(building ? "refining details…" : "detailed preview unavailable");
 });
 
 it("labels the contrasting pocket-floor surface", () => {

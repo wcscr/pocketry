@@ -86,6 +86,7 @@ vi.mock("@/components/gridfinity/bin-viewport", () => ({
 
 const binGeometryMock = vi.hoisted(() => ({
   building: false,
+  statsAreStale: false,
   previewIsDraft: false,
   progress: 1,
   builtSpec: null as ReturnType<typeof parseBinSpec> | null,
@@ -106,6 +107,7 @@ vi.mock("@/lib/gridfinity/use-bin-geometry", () => ({
     builtSpec: binGeometryMock.builtSpec,
     stats: binGeometryMock.previewIsDraft ? null : { triangles: 8400, volumeMm3: 82404, buildMs: 45 },
     previewIsDraft: binGeometryMock.previewIsDraft,
+    statsAreStale: binGeometryMock.statsAreStale,
     cutoutReports: [],
     building: binGeometryMock.building,
     progress: binGeometryMock.progress,
@@ -222,6 +224,7 @@ afterEach(() => {
 
 beforeEach(() => {
   binGeometryMock.previewIsDraft = false;
+  binGeometryMock.statsAreStale = false;
   vi.clearAllMocks();
   projectSaveMock.onSaved = undefined;
   binGeometryMock.building = false;
@@ -997,9 +1000,13 @@ describe("BinDesignerPage", () => {
         const args = vi.mocked(useBinGeometry).mock.lastCall!;
         expect(args[2]!.cutouts[0].position.x).toBe(1.25);
         expect(args[5]!.layout.cutouts[0].position.x).not.toBe(1.25);
+        expect(args[5]!.gesture).toBeDefined();
+        pointer('pointermove', 57);
+        expect(vi.mocked(useBinGeometry).mock.lastCall![5]!.gesture).toBe(args[5]!.gesture);
       }
       if (gesture === 'jitter') pointer('pointermove', 44);
       pointer(gesture === 'cancel' ? 'pointercancel' : 'pointerup', gesture === 'drag' ? 55 : gesture === 'jitter' ? 44 : 43);
+      expect(vi.mocked(useBinGeometry).mock.lastCall![5]!.gesture).toBeUndefined();
       expect(controls!.panelOpen).toBe(gesture === 'jitter');
       if (gesture === 'tap') {
         expect(container.querySelector('.mobile-adjustment-tray')?.textContent).toContain('Wrench');
@@ -2060,10 +2067,11 @@ describe("BinDesignerPage", () => {
     unmount();
   });
 
-  it("shows preview processing beside the size controls", () => {
+  it("shows preview processing beside the size controls after a short delay", async () => {
     binGeometryMock.building = true;
     binGeometryMock.progress = 0.4;
     const { container, unmount } = renderPage();
+    await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 170)); });
 
     expect(
       container.querySelector('[data-testid="bin-size-preview-status"]')?.textContent,
@@ -2081,12 +2089,24 @@ describe("BinDesignerPage", () => {
     try {
       openSettingsSection(container, "export");
       const panel = container.querySelector("#bin-settings-export")!;
-      expect(panel.textContent).toContain("Model volume will appear after rounding is complete");
+      expect(panel.textContent).toContain("Model volume will appear when details are ready");
       expect(panel.textContent).not.toContain("cm³ model volume");
       // A preview approximation never disables the independent full-quality export.
       const exportButton = container.querySelector<HTMLButtonElement>('[data-testid="button-export-3mf"]');
       expect(exportButton).not.toBeNull();
       expect(exportButton!.disabled).toBe(false);
+    } finally { unmount(); }
+  });
+
+  it("retains previous exact volume with an explicit updating label", () => {
+    binGeometryMock.statsAreStale = true;
+    binGeometryMock.building = true;
+    const { container, unmount } = renderPage();
+    try {
+      openSettingsSection(container, "export");
+      const panel = container.querySelector("#bin-settings-export")!;
+      expect(panel.textContent).toContain("82.4 cm³ model volume");
+      expect(panel.textContent).toContain("Previous model · updating…");
     } finally { unmount(); }
   });
 

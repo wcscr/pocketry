@@ -382,6 +382,7 @@ function BinDesignerWorkspace(): JSX.Element {
     hasStackingRim,
     builtSpec,
     stats,
+    statsAreStale,
     cutoutReports,
     previewIsDraft,
     building,
@@ -396,7 +397,7 @@ function BinDesignerWorkspace(): JSX.Element {
     committedLayout,
     section,
     { pocketFloorThicknessMm, stackingRimThicknessMm },
-    { spec, layout },
+    { spec, layout, gesture: spec !== committedSpec || cutouts !== committedCutouts || fingerHoles !== committedFingerHoles ? committedDoc : undefined },
   );
 
   // Keep the camera matched to the mesh that is actually on screen. If the
@@ -1021,6 +1022,7 @@ function BinDesignerWorkspace(): JSX.Element {
           keepBinSize={keepBinSize}
           onKeepBinSizeChange={setKeepBinSize}
           stats={stats}
+          statsAreStale={statsAreStale}
           building={building}
           previewIsDraft={previewIsDraft}
           exporting={exporting}

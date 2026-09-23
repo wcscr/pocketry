@@ -53,7 +53,7 @@ describe("bin preview worker lifecycle", () => {
   const tick = async (ms = 32) => { await React.act(async () => vi.advanceTimersByTimeAsync(ms)); };
   const worker = () => TestWorker.instances.filter(w => w.options.name === "pocketry-interactive").at(-1)!;
   const detailWorker = () => TestWorker.instances.filter(w => w.options.name === "pocketry-detail").at(-1)!;
-  const roundedLayout = { ...layout, cutouts: [{ ...cutout, topFilletMm: 1, bottomFilletMm: 2 }] };
+  const roundedLayout = { ...layout, shapes: [{ ...shape, pointCount: 100 }], cutouts: [{ ...cutout, topFilletMm: 1, bottomFilletMm: 2 }] };
   const renderRounded = async (height: number, strict = false) => {
     const args: Parameters<typeof useBinGeometry> = [spec(height), PREVIEW_QUALITY, roundedLayout];
     await React.act(async () => root.render(strict ? <React.StrictMode><Probe args={args} /></React.StrictMode> : <Probe args={args} />));
@@ -223,8 +223,9 @@ describe("bin preview worker lifecycle", () => {
     await reply(() => detailWorker().finish(0, resultFor(20)));
     expect(state!.previewIsDraft).toBe(false); expect(state!.building).toBe(false);
     expect(state!.stats?.volumeMm3).toBe(20); expect(dispose).toHaveBeenCalledOnce();
-    // Editing invalidates detailed statistics before the next draft is ready.
-    await renderRounded(4); expect(state!.stats).toBeNull();
+    // Retain exact previous statistics, explicitly marked out of date.
+    await renderRounded(4); expect(state!.stats?.volumeMm3).toBe(20);
+    expect(state!.statsAreStale).toBe(true);
   });
 
   it("waits for a slow draft to finish before spending CPU on its refinement", async () => {
@@ -311,7 +312,7 @@ describe("bin preview worker lifecycle", () => {
     const draft = state!.geometry;
     await reply(() => detailWorker().fail(1));
     expect(state!.geometry).toBe(draft); expect(state!.previewIsDraft).toBe(true);
-    expect(state!.stats).toBeNull(); expect(state!.building).toBe(false);
+    expect(state!.stats?.volumeMm3).toBe(1); expect(state!.statsAreStale).toBe(true); expect(state!.building).toBe(false);
     expect(state!.error).toContain("Detailed preview failed");
   });
 
@@ -369,4 +370,103 @@ describe("bin preview worker lifecycle", () => {
     expect(detailWorker().calls).toHaveLength(1);
     expect(oldWorkers[1].calls).toHaveLength(1);
   });
+
+  const renderArgs = async (args: Parameters<typeof useBinGeometry>) => {
+    await React.act(async () => root.render(<Probe args={args} />));
+  };
+
+  it("builds a simple rounded pocket directly without removing its rounding or waiting for idle", async () => {
+    const simple = { ...roundedLayout, shapes: [shape] };
+    await renderArgs([spec(3), PREVIEW_QUALITY, simple]); await tick();
+    expect((worker().calls[0].payload as BuildBinRequest).previewDraft).toBeUndefined();
+    await reply(() => worker().finish(0));
+    expect(state!.previewIsDraft).toBe(false); expect(state!.building).toBe(false);
+    expect(state!.statsAreStale).toBe(false);
+    await tick(500); expect(detailWorker()).toBeUndefined();
+  });
+
+  it("adapts a simple model to measured slow builds on subsequent positional edits", async () => {
+    const simple = { ...roundedLayout, shapes: [shape] };
+    await renderArgs([spec(3), PREVIEW_QUALITY, simple]); await tick();
+    const slow = resultFor(10); slow.stats.buildMs = 240;
+    await reply(() => worker().finish(0, slow));
+    await renderArgs([spec(3), PREVIEW_QUALITY, { ...simple, cutouts: simple.cutouts.map(c => ({ ...c, position: { x: 1, y: 0 } })) }]);
+    await tick(); expect((worker().calls[1].payload as BuildBinRequest).previewDraft).toBe(true);
+    await reply(() => worker().finish(1));
+    expect(state!.stats?.volumeMm3).toBe(10); expect(state!.statsAreStale).toBe(true);
+  });
+
+  it("uses measured fast detail to avoid further approximations of the same complex model", async () => {
+    await renderRounded(3); await tick(); await reply(() => worker().finish(0)); await tick(268);
+    const fast = resultFor(20); fast.stats.buildMs = 95;
+    await reply(() => detailWorker().finish(0, fast));
+    await renderArgs([spec(3), PREVIEW_QUALITY, { ...roundedLayout, cutouts: roundedLayout.cutouts.map(c => ({ ...c, position: { x: 1, y: 0 } })) }]);
+    await tick(); expect((worker().calls[1].payload as BuildBinRequest).previewDraft).toBeUndefined();
+    await reply(() => worker().finish(1)); await tick(500);
+    expect(detailWorker().calls).toHaveLength(1);
+  });
+
+  it("actually publishes successive intermediate previews throughout continuous gestures", async () => {
+    const gesture = {};
+    const drag = async (height: number) => renderArgs([spec(2), PREVIEW_QUALITY, roundedLayout, undefined, {},
+      { spec: spec(height), layout: roundedLayout, gesture }]);
+    await renderRounded(2); await tick(); await reply(() => worker().finish(0));
+    for (let cycle = 0; cycle < 12; cycle++) {
+      await drag(3 + cycle / 2); await tick(32);
+      await drag(3.5 + cycle / 2); await tick(8);
+      await reply(() => worker().finish(cycle + 1));
+      expect(state!.builtSpec?.heightUnits).toBe(3 + cycle / 2);
+      expect(state!.building).toBe(true);
+    }
+    await reply(() => worker().finish(13));
+    expect(state!.builtSpec?.heightUnits).toBe(9);
+    expect(detailWorker()).toBeUndefined();
+  });
+
+  it.each(["commit", "undo", "project"])("does not publish a previous gesture after %s", async boundary => {
+    const gesture = {};
+    await renderArgs([spec(2), PREVIEW_QUALITY, roundedLayout, undefined, {},
+      { spec: spec(3), layout: roundedLayout, gesture }]); await tick();
+    const nextHeight = boundary === "undo" ? 2 : 4;
+    await renderArgs([spec(nextHeight), PREVIEW_QUALITY, roundedLayout, undefined, {},
+      { spec: spec(nextHeight), layout: roundedLayout }]);
+    await reply(() => worker().finish(0));
+    expect(state!.geometry).toBeNull();
+    await reply(() => worker().finish(1));
+    expect(state!.builtSpec?.heightUnits).toBe(nextHeight);
+  });
+
+  it("does not revive an old gesture after returning to the same history entry", async () => {
+    const gesture = {};
+    const args: Parameters<typeof useBinGeometry> = [spec(2), PREVIEW_QUALITY, roundedLayout, undefined, {},
+      { spec: spec(3), layout: roundedLayout, gesture }];
+    await renderArgs(args); await tick();
+    await renderRounded(2);
+    await renderArgs([spec(2), PREVIEW_QUALITY, roundedLayout, undefined, {},
+      { spec: spec(4), layout: roundedLayout, gesture }]);
+    await reply(() => worker().finish(0));
+    expect(state!.geometry).toBeNull();
+    await reply(() => worker().finish(1)); expect(state!.builtSpec?.heightUnits).toBe(4);
+  });
+
+  it("previews the edited rounding instead of repeatedly showing the same sharp draft", async () => {
+    await renderRounded(3); await tick(); await reply(() => worker().finish(0));
+    await renderArgs([spec(3), PREVIEW_QUALITY, { ...roundedLayout,
+      cutouts: roundedLayout.cutouts.map(c => ({ ...c, topFilletMm: 3 })) }]); await tick();
+    expect(worker().calls[1].payload).toMatchObject({ previewDraft: "rounded",
+      layout: { cutouts: [{ topFilletMm: 3, bottomFilletMm: 2 }] } });
+  });
+
+  it("preserves rounding for section-only changes without a draft or idle wait", async () => {
+    await renderRounded(3); await tick(); await reply(() => worker().finish(0)); await tick(268);
+    const slow = resultFor(20); slow.stats.buildMs = 400;
+    await reply(() => detailWorker().finish(0, slow));
+    await renderArgs([spec(3), PREVIEW_QUALITY, roundedLayout, { axis: "x", offsetMm: 2 }]); await tick();
+    expect((worker().calls[1].payload as BuildBinRequest).previewDraft).toBeUndefined();
+    expect(state!.previewIsDraft).toBe(false);
+    expect(state!.statsAreStale).toBe(true);
+    await reply(() => worker().finish(1)); await tick(500);
+    expect(detailWorker().calls).toHaveLength(1); expect(state!.statsAreStale).toBe(false);
+  });
+
 });

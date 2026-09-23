@@ -12,17 +12,31 @@ and history are not sent to the geometry worker; only referenced shapes are used
   displayed meshes. Preserve normals for every displayed material mesh and for
   fallback previews without material parts. Aggregate topology/statistics and
   export topology remain available.
-- Publish a fast draft for layouts with pocket rounding, then restore the
-  authored top/bottom fillets after 300 ms of idle input and completion of the
-  draft. Drafts retain outline resolution, corner rounding, split depths,
-  finger access, and material colors. Layouts without pocket rounding build
-  once. The UI labels omitted rounding and withholds draft statistics and
-  collapse reports.
+- Use full preview detail directly for inexpensive rounded designs. Initial
+  estimates account for outline size, fillet bands, split pockets, pocket count,
+  and bin area. A bounded cache of detailed build times overrides the estimate
+  for subsequent positional edits (150 ms threshold); changed dimensions,
+  depth/rounding, shapes, materials, or quality receive fresh estimates.
+- Expensive layouts get a fast simplified preview, followed by authored detail
+  after 300 ms of idle input and completion of the current preview. Normal drafts
+  retain outline resolution, corner rounding, split depths, finger access, and
+  material colors while omitting pocket top/bottom fillets. When only fillet
+  settings change, a coarser rounded preview retains visible feedback for those
+  controls (16 circular segments and a 2 mm fillet-profile step). Section-only
+  changes build full detail immediately, retaining the previous mesh until
+  completion instead of removing its rounding.
 - Batch initial interactive input for 32 ms without resetting the deadline on
-  each edit. Once running, immediately drain only the latest pending request.
-  This also produces drafts during continuous 60/120 Hz gestures, which a
-  restarting debounce would starve. Each lane retains one physical RPC until
-  completion; cancellation cannot interrupt synchronous WASM.
+  each edit, then drain only the latest pending request. Publish monotonically
+  newer intermediate results during the same transient gesture; do not publish
+  obsolete detail or results across gesture completion, undo, or project changes.
+  The page supplies the stable committed-document identity only while a gesture
+  is transient. The hook also advances an epoch at gesture boundaries, preventing
+  old replies from reviving after returning to the same history entry.
+- Label simplified geometry, withhold its approximate statistics and collapse
+  reports, and retain previous exact statistics with an explicit updating label.
+  Use stable status text without resetting percentages; show transient busy
+  indicators only after 150 ms. A failed refinement retains the simplified label
+  and marks previous statistics as unavailable for the current preview.
 - Use at most two lazy workers: interactive previews have their own worker;
   refinement and all three export channels share the other. A slow detailed
   build or export cannot queue ahead of a new draft. Wait for the current draft
@@ -84,15 +98,17 @@ WorkerClient through a controlled Worker endpoint. It covers debounce boundaries
 stale progress/results/errors, A→B→A, replacement of pending work, preservation
 and disposal of existing geometry, section/material changes, all three export
 payloads, unmount, StrictMode replay, and worker failure/recovery. Progressive
-coverage adds 120 Hz input, two independent lanes, idle refinement, stale detailed
-results, draft/detail errors, removing rounding, statistics withholding, and live
+coverage adds continuous input with actual intermediate publication, two independent
+lanes, idle refinement, stale detailed results, gesture/undo/project boundaries,
+draft/detail errors, adaptive direct builds, rounding edits, section-only changes,
+explicitly stale statistics, delayed status labels, and live
 preview versus committed export payloads. Page coverage verifies that a pointer
 drag reaches the live input while the export snapshot remains committed. Geometry tests
 exercise actual material availability, fallback normals, cut sections, empty
 section buffers, and transferable buffer ownership. Worker RPC tests cover
 failure of all pending channels, detached endpoints, and synchronous post errors.
 
-Validation on 2026-09-23: `npm run check`, all 1,841 tests in 107 files,
+Validation on 2026-09-23: `npm run check`, all 1,853 tests in 107 files,
 `npm run build`, and `git diff --check` passed. These local checks used Node
 26.8.1; the repository's target runtime remains Node 22. The production build
 retains its existing large-chunk warning.
@@ -104,3 +120,22 @@ volume. Draft and detailed geometry were visually inspected, and a full
 multicolor export reached its success notification. The prior fixes also
 verified material toggles and empty sections. This does not establish performance on slower devices,
 validate a slicer's interpretation of the export, or validate physical print fit.
+
+## UX regression follow-up
+
+The initial progressive implementation discarded every completed result during
+continuous input and applied its idle delay even to inexpensive rounded models.
+Those cases now have dedicated publication and direct-build regression tests.
+A fresh comparison of all eight shipped samples, five synthetic designs, and
+Wiha retained byte-identical final displayed meshes, exact volumes, and export
+material meshes relative to the original baseline. The new rounded preview tier
+is separately checked for preserved rounding feedback, closed indexed topology,
+input immutability, and exclusion from exports.
+
+Three-build handler medians on the same M5 Max measured 134 ms for the normal
+Wiha draft, 876 ms for its coarser rounded preview, and 1,624 ms for full detail.
+The rounded tier is used for fillet-only edits; ordinary edits retain the faster
+unrounded draft. Complex fillet tuning and section cuts can still take noticeable
+time. The single rounded rectangular test design takes the direct path, avoiding
+both the 300 ms idle wait and a temporary sharp opening. These handler measurements
+exclude browser paint, scheduling, transfer, and startup costs.
