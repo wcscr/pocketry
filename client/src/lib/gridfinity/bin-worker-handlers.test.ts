@@ -253,6 +253,7 @@ describe("bin worker handlers", () => {
       context(),
     );
     const materialMeshes = multicolor.value.materialMeshes;
+    expect(multicolor.value.mesh.normals).toBeNull();
     expect(materialMeshes).toBeDefined();
     expect(materialMeshes!.body.indices.length).toBeGreaterThan(0);
     expect(materialMeshes!.body.normals).not.toBeNull();
@@ -305,6 +306,7 @@ describe("bin worker handlers", () => {
     );
 
     expect(result.value.materialMeshes?.stackingRim).toBeDefined();
+    expect(result.value.mesh.normals).toBeNull();
     for (const mesh of [
       result.value.materialMeshes!.body,
       result.value.materialMeshes!.stackingRim!,
@@ -313,7 +315,20 @@ describe("bin worker handlers", () => {
         mesh.positions.filter((_, index) => index % 3 === 0),
       );
       expect(Math.max(...xs)).toBeLessThanOrEqual(0.001);
+      expect(mesh.normals).not.toBeNull();
     }
+  });
+
+  it("keeps fallback normals when requested materials have no printable volume", async () => {
+    const result = await getHandler()({
+      spec: { gridX: 1, gridY: 1, heightUnits: 3, lip: "none", fill: "none" },
+      quality: { circularSegments: 16 },
+      pocketFloorMaterialThicknessMm: 0.6,
+      stackingRimMaterialThicknessMm: 1.25,
+    }, context());
+    expect(result.value.materialMeshes).toBeUndefined();
+    expect(result.value.mesh.normals?.length).toBe(result.value.mesh.positions.length);
+    expect(result.value.mesh.indices.length).toBeGreaterThan(0);
   });
 
   it("returns topology-preserving meshes for export builds", async () => {

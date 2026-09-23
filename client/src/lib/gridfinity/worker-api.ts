@@ -66,6 +66,7 @@ export interface BuildBinStats {
 }
 
 export interface BuildBinResult {
+  /** Complete topology; preview normals are omitted when materialMeshes supplies the view. */
   mesh: MeshData;
   /** Non-overlapping material meshes whose union is `mesh`. */
   materialMeshes?: {

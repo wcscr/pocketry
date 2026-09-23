@@ -135,7 +135,9 @@ export function createBinWorkerHandlers(
       const includePreviewNormals = payload.exportTopology !== true;
 
       const mesh = extractMeshData(kernel, displayed, {
-        normals: includePreviewNormals,
+        // The preview displays the material body when a partition exists.
+        // Keep the aggregate topology/stats without shading an unused mesh.
+        normals: includePreviewNormals && materialParts === null,
       });
       const displayedPart = (part: BinMaterialParts["body"]) =>
         section ? applySectionCut(kernel, part, section) : part;
