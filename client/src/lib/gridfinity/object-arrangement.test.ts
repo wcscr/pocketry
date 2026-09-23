@@ -132,3 +132,25 @@ describe("mixed object arrangement", () => {
     }
   });
 });
+
+it("propagates linked Z depth and optional tilt to unselected copies without moving them", () => {
+  const a = pocket("a", -20), b = pocket("b", 20);
+  a.cutout.designLink = { id: "group", tilt: true };
+  b.cutout = { ...a.cutout, id: b.cutout.id, position: b.cutout.position, rotationDeg: 90 };
+  b.shape = a.shape;
+  const all = [a, b];
+  const move = transformObjects([a], spec, new Vector3(3, 0, 2), undefined, "individual", all)!;
+  expect(move.cutouts[1].depth).toEqual({ mode: "mm", value: 18 });
+  expect(move.cutouts[1].position).toEqual(b.cutout.position);
+  const turn = transformObjects([a], spec, new Vector3(), rotate("y", 15), "individual", all)!;
+  expect(turn.cutouts[1].tilt).toEqual(turn.cutouts[0].tilt);
+  expect(turn.cutouts[1].rotationDeg).toBe(90);
+});
+
+it("rejects a linked depth change that would move an unselected seat through the surface", () => {
+  const a = pocket("a", -20, 0, 8, 60), b = pocket("b", 20);
+  a.cutout.designLink = { id: "group", tilt: false };
+  b.cutout = { ...a.cutout, id: b.cutout.id, position: b.cutout.position, tilt: { xDeg: 25, yDeg: 0 } };
+  b.shape = a.shape;
+  expect(transformObjects([a], spec, new Vector3(0, 0, 15), undefined, "individual", [a, b])).toBeNull();
+});

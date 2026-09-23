@@ -37,7 +37,7 @@ export function ObjectTransformPanel({ editor, objects, selected, displayed, mod
   };
   const isSelected = (o: EditableObject) => selected.some(s => objectKey(objectRef(s)) === objectKey(objectRef(o)));
   const commit = (edits: ObjectEdits | null, text: string) => {
-    if (!edits) { setError(arranging ? "There is not enough room for equal gaps between the outer objects." : "Limit reached. Adjust depth or bin height for more tilt."); return; }
+    if (!edits) { setError(arranging ? "There is not enough room for equal gaps between the outer objects." : "Cannot transform every affected copy. Check depth and tilt limits; try editing one linked copy."); return; }
     setError(null);
     if (objectEditsChanged(selected, edits)) commitEditorObjects(editor, edits, text, mode);
     setValues(["0", "0", "0"]);
@@ -45,12 +45,12 @@ export function ObjectTransformPanel({ editor, objects, selected, displayed, mod
   const apply = () => {
     const numbers = values.map(v => v.trim() ? Number(v) : NaN);
     if (!numbers.every(Number.isFinite)) { setError("Enter a finite number for each axis."); return; }
-    if (mode === "translate") commit(transformObjects(selected, editor.spec, new Vector3(...numbers)), `Move ${selected.length} object${selected.length === 1 ? "" : "s"}`);
+    if (mode === "translate") commit(transformObjects(selected, editor.spec, new Vector3(...numbers), undefined, "individual", objects), `Move ${selected.length} object${selected.length === 1 ? "" : "s"}`);
     else {
       // UI fields are successive rotations about fixed world axes, X then Y then Z.
       const rotation = new Quaternion();
       numbers.forEach((v, i) => rotation.premultiply(new Quaternion().setFromAxisAngle(new Vector3(...[0, 1, 2].map(n => n === i ? 1 : 0)), v * Math.PI / 180)));
-      commit(transformObjects(selected, editor.spec, new Vector3(), rotation, pivot), `Rotate ${selected.length} object${selected.length === 1 ? "" : "s"}`);
+      commit(transformObjects(selected, editor.spec, new Vector3(), rotation, pivot, objects), `Rotate ${selected.length} object${selected.length === 1 ? "" : "s"}`);
     }
   };
   const mixed = selected.some(o => o.kind === "finger");
@@ -132,7 +132,7 @@ export function ObjectTransformPanel({ editor, objects, selected, displayed, mod
         </div>}
         <p className="text-[10px] leading-relaxed text-muted-foreground">{mode === "translate" ? "Z changes depth: up is shallower, down is deeper. Openings stay at the surface." : mixed ? "Thumb access stays upright. Select only pockets to tilt around X or Y." : "Drag a colored ring or enter an angle. Esc cancels a drag."}</p>
       </>}
-      {(limited || error) && <p role="status" className="text-[11px] text-destructive">{error ?? "Limit reached: keep every floor below the surface and above the underside. Adjust depth or bin height for more tilt."}</p>}
+      {(limited || error) && <p role="status" className="text-[11px] text-destructive">{error ?? "Cannot transform every affected copy. Keep floors within the bin; edit one linked copy if the group needs different design changes."}</p>}
     </div>
   </div>;
 }

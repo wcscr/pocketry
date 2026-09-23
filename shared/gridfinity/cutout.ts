@@ -139,9 +139,16 @@ export const MAX_FINGER_SLOT_WIDTH_MM = 80;
  * mouth and cylindrical bottom with planar ends. Every hole is positioned directly in
  * the bin frame, independently from tool-pocket transforms.
  */
+/** Explicit project-local design membership; ordinary copies remain independent. */
+export const designLinkSchema = z.object({
+  id: z.string().min(1),
+  tilt: z.boolean().default(false),
+}).strict();
+
 export const fingerHoleSchema = z
   .object({
     id: z.string().min(1),
+    designLink: designLinkSchema.optional(),
     /** Optional display name; older projects use a numbered label. */
     name: z.string().trim().min(1).optional(),
     /** Bin-local mm, y-up, origin at the bin centre. */
@@ -554,6 +561,7 @@ const cutoutPlacementInputSchema = z
   .object({
     id: z.string().min(1),
     shapeId: z.string().min(1),
+    designLink: designLinkSchema.optional(),
     /** Placement-local name; absent on older pockets that use the source name. */
     name: z.string().trim().min(1).optional(),
     /** Bin-local mm, y-up, origin at the bin centre. */

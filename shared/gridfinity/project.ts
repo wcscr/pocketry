@@ -11,6 +11,7 @@ import {
   type FingerHole,
 } from "./cutout";
 import { binSpecSchema } from "./types";
+import { designLinkErrors } from "./design-links";
 import { binHistorySchema } from "./history";
 
 /**
@@ -41,9 +42,10 @@ import { binHistorySchema } from "./history";
  * on input, so either variant migrates without discarding data.
  * Version 21 adds vertical pocket translation for the 3D editor.
  * Version 22 unifies adjustable fill height, tilt and legacy vertical offsets.
+ * Version 23 adds explicit linked pocket and thumb-access designs.
  */
 
-export const PROJECT_SCHEMA_VERSION = 22 as const;
+export const PROJECT_SCHEMA_VERSION = 23 as const;
 
 const projectFields = {
   shapes: z.array(tracedShapeSchema),
@@ -98,11 +100,14 @@ const version20ProjectSchema = version17ProjectSchema.extend({ schemaVersion: z.
 
 const version21ProjectSchema = version17ProjectSchema.extend({ schemaVersion: z.literal(21) });
 
+const version22ProjectSchema = version17ProjectSchema.extend({ schemaVersion: z.literal(22) });
+
 /** History and the visible design must describe one consistent saved snapshot. */
 export const projectDocSchema = version16ProjectSchema.extend({
   schemaVersion: z.literal(PROJECT_SCHEMA_VERSION),
   history: binHistorySchema.optional(),
 }).superRefine((project, ctx) => {
+  for (const message of designLinkErrors(project)) ctx.addIssue({ code: z.ZodIssueCode.custom, message });
   if (!project.history) return;
   const current = project.history.stack[project.history.index]?.doc;
   const material = { spec: project.spec, cutouts: project.cutouts, fingerHoles: project.fingerHoles };
@@ -208,6 +213,11 @@ export function parseProjectDoc(input: unknown): ProjectDoc | null {
       if (liteBase !== undefined && typeof liteBase !== "boolean") return null;
       input = { ...doc, spec };
     }
+  }
+  const version22 = version22ProjectSchema.safeParse(input);
+  if (version22.success) {
+    const migrated = projectDocSchema.safeParse({ ...version22.data, schemaVersion: PROJECT_SCHEMA_VERSION });
+    return migrated.success ? migrated.data : null;
   }
   const version21 = version21ProjectSchema.safeParse(input);
   if (version21.success) {

@@ -613,3 +613,87 @@ it("keeps selection transient, ignores missing IDs and avoids empty batch undo e
   expect(store().history.index).toBe(index);
   act(() => store().dispatch({ type: "HYDRATE", ...getCommittedBinDoc(store()) })); expect(store().selection).toEqual([]);
 });
+
+describe("linked design transactions", () => {
+  function setup() {
+    const test = mountBin();
+    test.act(() => test.store().dispatch({ type: "ADD_PLACED", cutouts: [
+      { ...CUTOUT, name: "First", position: { x: -15, y: 0 } },
+      { ...CUTOUT, id: "c2", name: "Second", position: { x: 15, y: 0 }, scaleX: 2, rotationDeg: 90 },
+      { ...CUTOUT, id: "c3", name: "Unlinked" },
+    ], gridX: 3, gridY: 3 }));
+    return test;
+  }
+  it("links existing pockets from the chosen source, with one reversible step", () => {
+    const { store, act } = setup(), old = getCommittedBinDoc(store()), index = store().history.index;
+    act(() => store().dispatch({ type: "LINK_DESIGNS", kind: "pocket", ids: ["c1", "c2"], sourceId: "c2", linkId: "g", tilt: false }));
+    expect(store().history.index).toBe(index + 1);
+    expect(store().cutouts.slice(0, 2).map(c => c.scaleX)).toEqual([2, 2]);
+    expect(store().cutouts.map(c => c.name)).toEqual(["First", "Second", "Unlinked"]);
+    expect(store().cutouts[0].position).toEqual({ x: -15, y: 0 });
+    expect(store().cutouts[1].rotationDeg).toBe(90);
+    const linked = getCommittedBinDoc(store());
+    act(() => store().dispatch({ type: "UNDO" })); expect(getCommittedBinDoc(store())).toEqual(old);
+    act(() => store().dispatch({ type: "REDO" })); expect(getCommittedBinDoc(store())).toEqual(linked);
+  });
+  it("propagates edits from either member and stores one final snapshot for a transient gesture", () => {
+    const { store, act } = setup();
+    act(() => store().dispatch({ type: "LINK_DESIGNS", kind: "pocket", ids: ["c1", "c2"], sourceId: "c1", linkId: "g", tilt: false }));
+    const index = store().history.index;
+    act(() => store().dispatch({ type: "UPDATE_CUTOUT", id: "c2", patch: { scaleX: 1.5, position: { x: 25, y: 0 } }, transient: true }));
+    expect(store().cutouts.slice(0, 2).map(c => c.scaleX)).toEqual([1.5, 1.5]);
+    expect(store().cutouts[0].position.x).toBe(-15); expect(store().history.index).toBe(index);
+    act(() => store().dispatch({ type: "UPDATE_CUTOUT", id: "c2", patch: { scaleX: 1.5 } }));
+    expect(store().history.index).toBe(index + 1);
+    act(() => store().dispatch({ type: "UNDO" }));
+    expect(store().cutouts.slice(0, 2).map(c => c.scaleX)).toEqual([1, 1]);
+  });
+  it("duplicates linked or independent, unlinks without changing geometry, and survives source deletion", () => {
+    const { store, act } = setup();
+    act(() => store().dispatch({ type: "DUPLICATE_LINKED", kind: "pocket", id: "c1", newId: "linked", linkId: "g" }));
+    act(() => store().dispatch({ type: "DUPLICATE_CUTOUT", id: "c1", newId: "ordinary" }));
+    expect(store().cutouts.find(c => c.id === "ordinary")!.designLink).toBeUndefined();
+    act(() => store().dispatch({ type: "REMOVE_CUTOUT", id: "c1" }));
+    act(() => store().dispatch({ type: "UPDATE_CUTOUT", id: "linked", patch: { clearanceMm: 0.75 } }));
+    const linked = store().cutouts.find(c => c.id === "linked")!;
+    expect(linked.clearanceMm).toBe(0.75);
+    act(() => store().dispatch({ type: "UNLINK_DESIGNS", kind: "pocket", ids: ["linked"] }));
+    expect(store().cutouts.find(c => c.id === "linked")).toEqual({ ...linked, designLink: undefined });
+    act(() => store().dispatch({ type: "UNDO" })); expect(store().cutouts.find(c => c.id === "linked")).toEqual(linked);
+  });
+  it("supports opt-in tilt while names, Z heading and XY placement stay local", () => {
+    const { store, act } = setup();
+    act(() => store().dispatch({ type: "LINK_DESIGNS", kind: "pocket", ids: ["c1", "c2"], sourceId: "c1", linkId: "g", tilt: false }));
+    act(() => store().dispatch({ type: "UPDATE_CUTOUT", id: "c1", patch: { tilt: { xDeg: 10, yDeg: 20 }, name: "A", rotationDeg: 45 } }));
+    expect(store().cutouts[1].tilt).toBeUndefined();
+    act(() => store().dispatch({ type: "SET_LINKED_TILT", id: "c1", enabled: true }));
+    expect(store().cutouts[1].tilt).toEqual({ xDeg: 10, yDeg: 20 });
+    expect(store().cutouts[1]).toMatchObject({ name: "Second", rotationDeg: 90 });
+    act(() => store().dispatch({ type: "SET_LINKED_TILT", id: "c1", enabled: false }));
+    act(() => store().dispatch({ type: "UPDATE_CUTOUT", id: "c1", patch: { tilt: { xDeg: 0, yDeg: 0 } } }));
+    expect(store().cutouts[1].tilt).toEqual({ xDeg: 10, yDeg: 20 });
+  });
+  it("keeps linked thumb designs identical through size, bottom and bin-height edits", () => {
+    const { store, act } = setup();
+    const hole = fingerHoleSchema.parse({ id: "f1", center: { x: -10, y: 0 }, kind: "oblong-straight", diameterMm: 20, lengthMm: 50, depthMm: 30 });
+    act(() => store().dispatch({ type: "ADD_FINGER_HOLE", hole }));
+    act(() => store().dispatch({ type: "DUPLICATE_LINKED", kind: "finger", id: "f1", newId: "f2", linkId: "fg" }));
+    act(() => store().dispatch({ type: "UPDATE_FINGER_HOLE", id: "f2", patch: { kind: "oblong-deep-scoop", diameterMm: 30 } }));
+    expect(store().fingerHoles.every(h => h.kind === "oblong-deep-scoop" && h.diameterMm === 30)).toBe(true);
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { heightUnits: 2 } }));
+    expect(store().fingerHoles.map(h => h.depthMm)).toEqual([12.8, 12.8]);
+    act(() => store().dispatch({ type: "UNDO" }));
+    expect(store().fingerHoles.map(h => h.depthMm)).toEqual([30, 30]);
+  });
+  it("propagates batch depth edits once and rejects conflicting design edits without changing history", () => {
+    const { store, act } = setup();
+    act(() => store().dispatch({ type: "LINK_DESIGNS", kind: "pocket", ids: ["c1", "c2"], sourceId: "c1", linkId: "g", tilt: false }));
+    const index = store().history.index;
+    act(() => store().dispatch({ type: "UPDATE_OBJECTS", edits: { cutouts: store().cutouts.slice(0, 2).map(c => ({ ...c, depth: { mode: "mm", value: 15 } })), fingerHoles: [] }, historyLabel: "Move Z" }));
+    expect(store().history.index).toBe(index + 1);
+    expect(store().cutouts.slice(0, 2).map(c => c.depth)).toEqual([{ mode: "mm", value: 15 }, { mode: "mm", value: 15 }]);
+    const committed = getCommittedBinDoc(store());
+    act(() => store().dispatch({ type: "UPDATE_OBJECTS", edits: { cutouts: store().cutouts.slice(0, 2).map((c, i) => ({ ...c, scaleX: i + 2 })), fingerHoles: [] }, historyLabel: "Conflict" }));
+    expect(getCommittedBinDoc(store())).toBe(committed); expect(store().editError).toContain("different design changes");
+  });
+});

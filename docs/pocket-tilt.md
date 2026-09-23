@@ -129,3 +129,41 @@ axis must retain a vertical component of at least 0.01.
 Regression coverage includes oblique opening dimensions, axial and remaining
 floor depths, combined transforms, resize anchors, split seats, floor colors,
 hidden intersections, through cuts, packing, legacy saves and export validation.
+
+## Linked designs
+
+**Duplicate linked** creates another instance of the selected pocket or thumb
+slot. Ordinary pocket duplication remains independent. To link existing objects,
+select two or more pockets (or two or more thumb slots), open their properties,
+and choose **Link selected…**. Choose the source design before applying it. Only
+selected objects join the new set; unselected members of previous sets retain
+their links and designs. Pockets and thumb slots use separate design sets.
+
+Linked pockets share their outline, dimensions, aspect-ratio preference, depth,
+split settings, fit clearance, and edge rounding. Names, positions, mirroring,
+and orientation remain independent. **Link X/Y tilt** optionally shares tilt;
+Z heading always remains independent. Enabling it adopts the active pocket's
+tilt for the set. Thumb slots share opening shape, width, length, depth and edge
+settings while keeping their positions, headings and names independent.
+
+The properties panel displays the linked member count. **Select linked** selects
+that set. **Make independent** (or **Make selected independent**) removes links
+without changing geometry. There is no master instance: deleting the original
+does not delete or disconnect the remaining copies. Every link, unlink, linked
+edit and linked duplication is one undo step, including changes to unselected
+copies. Links survive project/library export, import and saved undo/redo history.
+
+Movement across the surface stays independent. Z movement edits shared depth,
+so it changes all linked copies' depths. A group transform that gives linked
+members contradictory shared settings is rejected as a whole. Edit one member,
+use each-object rotation, or make copies independent when distinct designs are
+needed. Transform previews check affected unselected seats too. Normal layout
+and solid-build checks still report overlaps and wall conflicts after design
+changes. Linked thumb dimensions clamp to a size compatible with all members'
+headings when the bin or opening is resized.
+
+Project format 22 reconciles the two historical version-20 variants (adjustable
+fill height and pocket tilt) and legacy version-21 offsets. Format 23 adds explicit
+linked-design membership. Each saved snapshot validates consistent design values
+within a linked set. Existing duplicates are never linked implicitly just because
+they reference the same outline.

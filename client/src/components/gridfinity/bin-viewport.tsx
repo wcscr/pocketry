@@ -342,7 +342,7 @@ export function BinViewport({
         {pocketEditor && <PocketSelectionPlane editor={pocketEditor} width={fitSize.widthMm} length={fitSize.lengthMm} disabled={rulerActive || !!dragPreview} />}
         {pocketEditor && !rulerActive && displayedObjects.map(object => <ObjectTransformWire key={objectKey(objectRef(object))} object={object} spec={pocketEditor.spec} />)}
         {selectedObjects.length > 0 && pocketEditor && !rulerActive && <SelectionTransformScene
-          key={`${selectionKey}-${transformMode}`} objects={selectedObjects} spec={pocketEditor.spec} mode={transformMode} snap={snapTransform} pivot={pivot}
+          key={`${selectionKey}-${transformMode}`} objects={selectedObjects} allObjects={objects} spec={pocketEditor.spec} mode={transformMode} snap={snapTransform} pivot={pivot}
           onPreview={setDragPreview} onLimit={setTransformLimited}
           onCommit={edits => commitEditorObjects(pocketEditor, edits, `${transformMode === "translate" ? "Move" : "Rotate"} ${selectedObjects.length} objects in 3D`, transformMode)} />}
         <PlanarRulerScene

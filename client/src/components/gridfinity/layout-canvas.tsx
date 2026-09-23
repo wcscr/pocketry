@@ -1016,7 +1016,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
       if (clickRef.current) return;
       const delta = new Vector3(point.x - drag.start.x, point.y - drag.start.y, 0);
       if (objectSnap && !event.altKey) { delta.x = Math.round(delta.x); delta.y = Math.round(delta.y); }
-      const edits = transformObjects(drag.objects, spec, delta);
+      const edits = transformObjects(drag.objects, spec, delta, undefined, "individual", arrangementObjects);
       if (edits) { drag.latest = edits; dispatch({ type: "UPDATE_OBJECTS", edits, transient: true, historyLabel: "Move selected objects" }); }
       return;
     }
@@ -1240,7 +1240,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
           event.key === "ArrowDown" ? -step : event.key === "ArrowUp" ? step : 0, 0);
         if (delta.lengthSq() > 0 || event.key.toLowerCase() === "r") {
           const rotation = event.key.toLowerCase() === "r" ? new Quaternion().setFromAxisAngle(new Vector3(0, 0, 1), (event.shiftKey ? -15 : 15) * Math.PI / 180) : new Quaternion();
-          const edits = transformObjects(selectedObjects, spec, delta, rotation, objectPivot);
+          const edits = transformObjects(selectedObjects, spec, delta, rotation, objectPivot, arrangementObjects);
           if (edits) dispatch({ type: "UPDATE_OBJECTS", edits, historyLabel: delta.lengthSq() > 0 ? "Move selected objects" : "Rotate selected objects" });
           event.preventDefault(); return;
         }

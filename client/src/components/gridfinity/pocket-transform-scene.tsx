@@ -64,8 +64,8 @@ export function PocketTransformScene({ pocket, spec, mode, snap, onPreview, onCo
     onCommit={edits => { const cutout = edits.cutouts[0]; if (cutout) onCommit(cutout.id, cutout, mode); }} />;
 }
 
-export function SelectionTransformScene({ objects, spec, mode, snap, pivot, onPreview, onCommit, onLimit }: {
-  objects: readonly EditableObject[]; spec: BinSpec; mode: PocketTransformMode; snap: boolean; pivot: RotationPivot;
+export function SelectionTransformScene({ objects, allObjects = objects, spec, mode, snap, pivot, onPreview, onCommit, onLimit }: {
+  objects: readonly EditableObject[]; allObjects?: readonly EditableObject[]; spec: BinSpec; mode: PocketTransformMode; snap: boolean; pivot: RotationPivot;
   onPreview: (edits: ObjectEdits | null) => void; onCommit: (edits: ObjectEdits) => void; onLimit: (limited: boolean) => void;
 }): JSX.Element {
   const object = useMemo(() => new Object3D(), []);
@@ -117,13 +117,13 @@ export function SelectionTransformScene({ objects, spec, mode, snap, pivot, onPr
     };
   }, [cancel]);
   // A replaced document/undo/selection ends any local gesture without committing it.
-  useEffect(() => { cancel(); place(objects); }, [objects, spec, pivot, cancel, place]);
+  useEffect(() => { cancel(); place(objects); }, [objects, allObjects, spec, pivot, cancel, place]);
   const change = () => {
     const drag = gesture.current;
     if (!drag) return;
     const center = selectionCenter(drag.original);
     const delta = mode === "translate" ? object.position.clone().sub(new Vector3(center.x, center.y, top)) : new Vector3();
-    const patch = transformObjects(drag.original, spec, delta, mode === "rotate" ? object.quaternion : new Quaternion(), pivot);
+    const patch = transformObjects(drag.original, spec, delta, mode === "rotate" ? object.quaternion : new Quaternion(), pivot, allObjects);
     if (!patch) {
       place(drag.patch ? applyObjectEdits(drag.original, drag.patch) : drag.original);
       callbacks.current.onLimit(true);

@@ -1,3 +1,4 @@
+import { applyLinkedEdits } from "@shared/gridfinity/design-links";
 import { Quaternion, Vector3 } from "three";
 import type { Bounds, Outline, Point } from "@shared/geometry/types";
 import { pointInOutline, outlineBounds } from "@/lib/geometry/outline";
@@ -75,6 +76,7 @@ export function selectionZRange(objects: readonly EditableObject[], spec: BinSpe
 /** All members succeed together. Never persist a partially valid group rotation. */
 export function transformObjects(objects: readonly EditableObject[], spec: BinSpec,
   delta: Vector3, rotation: Quaternion = new Quaternion(), pivot: RotationPivot = "individual",
+  allObjects: readonly EditableObject[] = objects,
 ): ObjectEdits | null {
   if (![...delta.toArray(), ...rotation.toArray()].every(Number.isFinite)) return null;
   const rotating = 1 - Math.abs(rotation.w) > 1e-12;
@@ -103,7 +105,26 @@ export function transformObjects(objects: readonly EditableObject[], spec: BinSp
       result.cutouts.push({ ...object.cutout, ...patch });
     }
   }
-  return result;
+  return expandLinkedObjectEdits(allObjects, spec, result);
+}
+
+/** Preview and validate every affected linked copy, including unselected ones. */
+export function expandLinkedObjectEdits(objects: readonly EditableObject[], spec: BinSpec, edits: ObjectEdits): ObjectEdits | null {
+  const expanded = applyLinkedEdits({ cutouts: objects.flatMap(o => o.kind === "pocket" ? [o.cutout] : []),
+    fingerHoles: objects.flatMap(o => o.kind === "finger" ? [o.hole] : []) }, edits);
+  if (!expanded) return null;
+  const top = resolvePocketDepth(spec, { mode: "through" }).infillTopZ;
+  for (const next of expanded.cutouts) {
+    if (!next.designLink) continue;
+    const old = objects.find(o => o.kind === "pocket" && o.cutout.id === next.id);
+    if (old?.kind !== "pocket" || JSON.stringify(old.cutout) === JSON.stringify(next)) continue;
+    const split = next.split ? resolvePocketSplit(old.shape.outlineMm, next.split.boundary) : null;
+    for (const [i, depth] of (next.split?.depths ?? [next.depth]).entries()) {
+      const seat = resolvePlacedPocketDepth(spec, depth, { outlineMm: split?.regions?.[i] ?? old.shape.outlineMm }, next);
+      if (seat.floorZ !== null && (seat.floorZ < -1e-7 || seat.highestFloorZ! > top - 0.5 + 1e-7)) return null;
+    }
+  }
+  return expanded;
 }
 
 export function applyObjectEdits(objects: readonly EditableObject[], edits: ObjectEdits): EditableObject[] {

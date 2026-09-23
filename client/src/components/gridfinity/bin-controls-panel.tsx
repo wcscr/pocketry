@@ -10,6 +10,7 @@ import {
   FolderOpen,
   LayoutGrid,
   LibraryBig,
+  Link2,
   LoaderCircle,
   Magnet,
   MousePointerClick,
@@ -28,6 +29,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useLocation } from "wouter";
+import { LinkedDesignControls } from "./linked-design-controls";
 import { AddPocketMenu } from "./add-pocket-menu";
 import { usePanelState } from "@/components/layout/panel-context";
 import { FillHeightControl } from "./fill-height-control";
@@ -912,6 +914,7 @@ export function BinControlsPanel({
                       }}
                     >
                       <span className={cn("min-w-0 flex-1 truncate", isSelected && "font-medium text-violet-700 dark:text-violet-300")}>{name}</span>
+                      {cutout.designLink && <Link2 className="h-3 w-3 shrink-0" aria-label="Linked design" />}
                     </button>
                     )}
                     <button type="button" className="flex h-8 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11" aria-label={`Rename ${name}`} disabled={!shape} data-testid={`button-rename-${cutout.id}`} onClick={() => {
@@ -965,6 +968,7 @@ export function BinControlsPanel({
                   {editorMode === "contour" ? "Done" : "Edit contour"}
                 </Button>
               </div>
+              <LinkedDesignControls kind="pocket" activeId={selectedCutout.id} labels={new Map(cutouts.map(c => [c.id, pocketName(c, shapesById.get(c.shapeId))]))} />
               <section className="space-y-2" aria-label="Pocket depth" key={`${selectedCutout.id}-${selectedPocketSection}-${!!selectedCutout.split}`}>
                 <div className="flex items-center gap-1">
                   <h4 className="text-sm font-semibold">Depth</h4>
@@ -1236,6 +1240,7 @@ export function BinControlsPanel({
                           data-testid={`button-select-finger-hole-${hole.id}`}
                           onClick={event => dispatch({ type: "SELECT_FINGER_HOLE", id: hole.id, additive: event.shiftKey || event.metaKey || event.ctrlKey })}>
                           <span className={cn("min-w-0 flex-1 truncate", isSelected && "font-medium text-cyan-700 dark:text-cyan-300")}>{name}</span>
+                          {hole.designLink && <Link2 className="h-3 w-3 shrink-0" aria-label="Linked design" />}
                         </button>
                       )}
                       <button type="button" className="flex h-11 w-11 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -1261,6 +1266,7 @@ export function BinControlsPanel({
                   <h3 className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-cyan-700 dark:text-cyan-300">Finger access properties</h3>
                   <span className="min-w-[5rem] flex-1 truncate text-xs font-medium">{selectedFingerHole.name ?? `Finger access ${fingerHoles.indexOf(selectedFingerHole) + 1}`}</span>
                 </div>
+                <LinkedDesignControls kind="finger" activeId={selectedFingerHole.id} labels={new Map(fingerHoles.map((h, i) => [h.id, h.name ?? `Thumb access ${i + 1}`]))} />
                 <FingerAccessShapeControls
                   hole={selectedFingerHole}
                   onChange={(change) => {

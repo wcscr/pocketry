@@ -1,3 +1,4 @@
+import { applyLinkedEdits, clampLinkedFingerHoles, pocketDesign, fingerDesign, type DesignObjectKind } from "@shared/gridfinity/design-links";
 import { sameObject, type ObjectRef, type ObjectEdits } from "@/lib/gridfinity/object-arrangement";
 
 import {
@@ -39,6 +40,7 @@ export interface BinState {
   cutouts: CutoutPlacement[];
   fingerHoles: FingerHole[];
   selection: ObjectRef[];
+  editError: string | null;
   selectedCutoutId: string | null;
   selectedPocketSection: PocketSectionIndex;
   selectedFingerHoleId: string | null;
@@ -107,6 +109,10 @@ export type BinAction =
   | { type: "CANCEL_REMOVE_CUTOUT" }
   | { type: "REMOVE_CUTOUT"; id: string }
   | { type: "DUPLICATE_CUTOUT"; id: string; newId: string }
+  | { type: "DUPLICATE_LINKED"; kind: DesignObjectKind; id: string; newId: string; linkId: string }
+  | { type: "LINK_DESIGNS"; kind: DesignObjectKind; ids: string[]; sourceId: string; linkId: string; tilt: boolean }
+  | { type: "UNLINK_DESIGNS"; kind: DesignObjectKind; ids: string[] }
+  | { type: "SET_LINKED_TILT"; id: string; enabled: boolean }
   | {
       type: "REPLACE_LAYOUT";
       cutouts: CutoutPlacement[];
@@ -140,6 +146,7 @@ const INITIAL: BinState = {
   cutouts: [],
   fingerHoles: [],
   selection: [],
+  editError: null,
   selectedCutoutId: null,
   selectedPocketSection: 0,
   selectedFingerHoleId: null,
@@ -174,6 +181,7 @@ function commit(
   return {
     ...state,
     ...rest,
+    editError: null,
     ...selectionState(existingSelection(rest.selection ?? state.selection, doc)),
     spec: doc.spec,
     cutouts: doc.cutouts,
@@ -185,7 +193,7 @@ function commit(
 function limitFingerAccessForBinChange(state: BinState, doc: BinDoc): BinDoc {
   const previous = getCommittedBinDoc(state).spec;
   if (!BIN_SIZE_KEYS.some(key => previous[key] !== doc.spec[key])) return doc;
-  return { ...doc, fingerHoles: doc.fingerHoles.map(hole => clampFingerHoleToBin(hole, doc.spec)) };
+  return { ...doc, fingerHoles: clampLinkedFingerHoles(doc.fingerHoles, doc.spec) };
 }
 
 function specPatchLabel(patch: Partial<BinSpecInput>): string {
@@ -222,6 +230,7 @@ function preview(state: BinState, doc: BinDoc): BinState {
   doc = limitFingerAccessForBinChange(state, doc);
   return {
     ...state,
+    editError: null,
     spec: doc.spec,
     cutouts: doc.cutouts,
     fingerHoles: doc.fingerHoles,
@@ -255,6 +264,10 @@ function existingSelection(selection: ObjectRef[], doc: BinDoc): ObjectRef[] {
   return selection.filter((ref, i) => selection.findIndex(r => sameObject(r, ref)) === i &&
     (ref.kind === "pocket" ? doc.cutouts : doc.fingerHoles).some(o => o.id === ref.id));
 }
+function linkedEditError(state: BinState): BinState {
+  return { ...state, editError: "Linked copies received different design changes. Edit one copy, or make the copies independent first." };
+}
+
 function reducer(state: BinState, action: BinAction): BinState {
   switch (action.type) {
     case "HYDRATE": {
@@ -271,6 +284,7 @@ function reducer(state: BinState, action: BinAction): BinState {
         cutouts: doc.cutouts,
         fingerHoles: doc.fingerHoles,
         selection: [],
+        editError: null,
         selectedCutoutId: null,
         selectedPocketSection: 0,
         selectedFingerHoleId: null,
@@ -337,11 +351,9 @@ function reducer(state: BinState, action: BinAction): BinState {
         },
       );
     case "UPDATE_CUTOUT": {
-      const doc = {
-        spec: state.spec,
-        cutouts: patchCutouts(state.cutouts, action.id, action.patch),
-        fingerHoles: state.fingerHoles,
-      };
+      const edits = applyLinkedEdits(state, { cutouts: patchCutouts(state.cutouts, action.id, action.patch), fingerHoles: [] });
+      if (!edits) return linkedEditError(state);
+      const doc = { spec: state.spec, ...edits };
       return action.transient
         ? preview(state, doc)
         : commit(state, doc, action.historyLabel ?? cutoutPatchLabel(action.patch));
@@ -358,19 +370,15 @@ function reducer(state: BinState, action: BinAction): BinState {
         { ...selectionState([{ kind: "finger", id: action.hole.id }]) },
       );
     case "UPDATE_FINGER_HOLE": {
-      const doc = {
-        spec: state.spec,
-        cutouts: state.cutouts,
-        fingerHoles: state.fingerHoles.map((hole) => {
-          if (hole.id !== action.id) return hole;
-          const updated = { ...hole, ...action.patch, id: hole.id };
-          return ["diameterMm", "lengthMm", "depthMm", "kind", "rotationDeg"].some(key => key in action.patch)
-            ? clampFingerHoleToBin(updated, state.spec) : updated;
-        }),
-      };
-      return action.transient
-        ? preview(state, doc)
-        : commit(state, doc, action.historyLabel ?? "Edit finger access");
+      const source = state.fingerHoles.find(h => h.id === action.id);
+      if (!source) return state;
+      const edits = applyLinkedEdits(state, { cutouts: [], fingerHoles: [{ ...source, ...action.patch, id: source.id }] });
+      if (!edits) return linkedEditError(state);
+      if (["diameterMm", "lengthMm", "depthMm", "kind", "rotationDeg"].some(key => key in action.patch)) {
+        edits.fingerHoles = clampLinkedFingerHoles(edits.fingerHoles, state.spec, new Set([source.id]));
+      }
+      const doc = { spec: state.spec, ...edits };
+      return action.transient ? preview(state, doc) : commit(state, doc, action.historyLabel ?? "Edit finger access");
     }
     case "REMOVE_FINGER_HOLE":
       if (!state.fingerHoles.some((hole) => hole.id === action.id)) return state;
@@ -418,6 +426,7 @@ function reducer(state: BinState, action: BinAction): BinState {
       if (!source) return state;
       const copy: CutoutPlacement = {
         ...source,
+        designLink: undefined,
         id: action.newId,
         // Offset so the twin is visibly a twin, not a mystery no-op.
         position: { x: source.position.x + 10, y: source.position.y - 10 },
@@ -432,6 +441,52 @@ function reducer(state: BinState, action: BinAction): BinState {
         "Duplicate tool pocket",
         { ...selectionState([{ kind: "pocket", id: copy.id }]) },
       );
+    }
+    case "LINK_DESIGNS": {
+      const ids = new Set(action.ids);
+      const source = action.kind === "pocket" ? state.cutouts.find(c => c.id === action.sourceId) : state.fingerHoles.find(h => h.id === action.sourceId);
+      if (!source || ids.size < 2 || !ids.has(source.id)) return state;
+      const designLink = { id: action.linkId, tilt: action.kind === "pocket" && action.tilt };
+      const doc = action.kind === "pocket"
+        ? { spec: state.spec, fingerHoles: state.fingerHoles, cutouts: state.cutouts.map(c => ids.has(c.id)
+          ? { ...c, ...pocketDesign({ ...source as CutoutPlacement, designLink }), designLink } : c) }
+        : { spec: state.spec, cutouts: state.cutouts, fingerHoles: clampLinkedFingerHoles(state.fingerHoles.map(h => ids.has(h.id)
+          ? { ...h, ...fingerDesign(source as FingerHole), designLink } : h), state.spec, ids) };
+      return commit(state, doc, `Link ${action.kind === "pocket" ? "pocket" : "thumb-access"} designs`);
+    }
+    case "UNLINK_DESIGNS": {
+      const ids = new Set(action.ids);
+      const clear = <T extends { id: string; designLink?: { id: string; tilt: boolean } }>(items: T[]) =>
+        items.map(item => ids.has(item.id) ? { ...item, designLink: undefined } : item);
+      return commit(state, { spec: state.spec,
+        cutouts: action.kind === "pocket" ? clear(state.cutouts) : state.cutouts,
+        fingerHoles: action.kind === "finger" ? clear(state.fingerHoles) : state.fingerHoles }, "Make designs independent");
+    }
+    case "SET_LINKED_TILT": {
+      const source = state.cutouts.find(c => c.id === action.id);
+      if (!source?.designLink) return state;
+      return commit(state, { spec: state.spec, fingerHoles: state.fingerHoles, cutouts: state.cutouts.map(c => c.designLink?.id === source.designLink!.id
+        ? { ...c, designLink: { ...source.designLink!, tilt: action.enabled }, ...(action.enabled ? { tilt: source.tilt ?? { xDeg: 0, yDeg: 0 } } : {}) } : c) }, action.enabled ? "Link pocket tilt" : "Unlink pocket tilt");
+    }
+    case "DUPLICATE_LINKED": {
+      const source = action.kind === "pocket" ? state.cutouts.find(c => c.id === action.id) : state.fingerHoles.find(h => h.id === action.id);
+      if (!source) return state;
+      const designLink = source.designLink ?? { id: action.linkId, tilt: false };
+      let doc: BinDoc;
+      if (action.kind === "pocket") {
+        const pocket = source as CutoutPlacement;
+        doc = { spec: state.spec, fingerHoles: state.fingerHoles, cutouts: [
+          ...state.cutouts.map(c => c.id === source.id ? { ...c, designLink } : c),
+          { ...pocket, id: action.newId, designLink, position: { x: pocket.position.x + 10, y: pocket.position.y - 10 } },
+        ] };
+      } else {
+        const hole = source as FingerHole;
+        doc = { spec: state.spec, cutouts: state.cutouts, fingerHoles: [
+          ...state.fingerHoles.map(h => h.id === source.id ? { ...h, designLink } : h),
+          { ...hole, id: action.newId, designLink, center: { x: hole.center.x + 10, y: hole.center.y - 10 } },
+        ] };
+      }
+      return commit(state, doc, "Duplicate linked design", selectionState([{ kind: action.kind, id: action.newId }]));
     }
     case "REPLACE_LAYOUT":
       return commit(
@@ -463,9 +518,9 @@ function reducer(state: BinState, action: BinAction): BinState {
         },
       );
     case "UPDATE_OBJECTS": {
-      const doc = { spec: state.spec,
-        cutouts: state.cutouts.map(c => action.edits.cutouts.find(next => next.id === c.id) ?? c),
-        fingerHoles: state.fingerHoles.map(h => action.edits.fingerHoles.find(next => next.id === h.id) ?? h) };
+      const edits = applyLinkedEdits(state, action.edits);
+      if (!edits) return linkedEditError(state);
+      const doc = { spec: state.spec, ...edits };
       if (JSON.stringify(doc) === JSON.stringify(getCommittedBinDoc(state))) return preview(state, doc);
       return action.transient ? preview(state, doc) : commit(state, doc, action.historyLabel);
     }
@@ -531,6 +586,7 @@ function restore(state: BinState, entry: BinHistoryEntry, index: number): BinSta
   const { doc } = entry;
   return {
     ...state,
+    editError: null,
     spec: doc.spec,
     cutouts: doc.cutouts,
     fingerHoles: doc.fingerHoles,
