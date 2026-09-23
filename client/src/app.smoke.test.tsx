@@ -86,15 +86,11 @@ describe("App", () => {
 
   it("renders the shell chrome", () => {
     renderApp();
-    expect(container.textContent).toContain("ToolTrace");
+    expect(container.textContent).not.toContain("ToolTrace");
     expect(container.textContent).toContain("Pocketry");
-    const legacyWordmark = [...container.querySelectorAll("span")].find(
-      (element) => element.textContent === "ToolTrace",
-    );
     const pocketryWordmark = [...container.querySelectorAll("span")].find(
       (element) => element.textContent === "Pocketry",
     );
-    expect(legacyWordmark?.className).toContain("line-through");
     expect(pocketryWordmark?.style.fontFamily).toContain("Rockwell");
     expect(container.textContent).toContain("Trace");
     expect(
@@ -128,6 +124,15 @@ describe("App", () => {
 
     expect(window.location.pathname).toBe("/about");
     expect(container.textContent).toContain("About Pocketry");
+    expect(container.textContent).toContain(
+      "Pocketry began in March 2025 as ToolTrace SVG Generator and was renamed in August 2026.",
+    );
+    const originalAnnouncement = container.querySelector<HTMLAnchorElement>(
+      'a[href="https://www.reddit.com/r/gridfinity/comments/1j801r8/tooltrace_svg_generator/"]',
+    );
+    expect(originalAnnouncement?.textContent).toBe("ToolTrace SVG Generator");
+    expect(originalAnnouncement?.target).toBe("_blank");
+    expect(originalAnnouncement?.rel).toContain("noreferrer");
     expect(container.textContent).toContain("AGPL-3.0-only");
     const openSourceStatement = container.querySelector<HTMLAnchorElement>(
       'a[aria-label="Pocketry is fully open source under AGPL-3.0-only"]',
