@@ -53,6 +53,8 @@ export interface BuildBinRequest {
   section?: BuildBinSection;
   /** Return topology-preserving meshes without preview-only vertex normals. */
   exportTopology?: boolean;
+  /** Omit pocket top/bottom rounding for interactive previews; ignored for exports. */
+  previewDraft?: boolean;
   /** Split this depth below each printable pocket floor. */
   pocketFloorMaterialThicknessMm?: number;
   /** Split this depth down from the stacking-rim summit. */

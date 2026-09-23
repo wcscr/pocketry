@@ -234,6 +234,7 @@ export interface BinControlsPanelProps {
   saveStatus?: "saving" | "saved" | "error";
   stats: BuildBinStats | null;
   building: boolean;
+  previewIsDraft?: boolean;
   exporting: boolean;
   onExport: (format: "3mf" | "3mf-multicolor" | "stl", includeProject: boolean) => void;
   onExportFitCheck: (cutoutId: string, depthMm: number, includeProject: boolean) => void;
@@ -286,6 +287,7 @@ export function BinControlsPanel({
   exportOnly = false,
   stats,
   building,
+  previewIsDraft = false,
   exporting,
   onExport,
   onExportFitCheck,
@@ -1862,7 +1864,9 @@ export function BinControlsPanel({
               </div>
             ) : (
               <p className="text-xs text-muted-foreground">
-                {building ? "Building preview…" : "No preview yet."}
+                {previewIsDraft
+                  ? building ? "Draft preview. Model volume will appear after rounding is complete." : "Draft preview. Detailed model statistics are unavailable."
+                  : building ? "Building preview…" : "No preview yet."}
               </p>
             )}
           </div>

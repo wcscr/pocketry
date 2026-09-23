@@ -100,6 +100,49 @@ const REQUEST: BuildBinRequest = {
 };
 
 describe("bin worker handlers", () => {
+  it.each([false, true])("keeps split depths, materials, and authored settings in a draft with section=%s", async sectioned => {
+    const { shape, cutout } = createBasicPocket("rectangle", { x: -10, y: -15 }, { x: 10, y: 15 }, "draft")!;
+    const placement = parseCutoutPlacement({ ...cutout, clearanceMm: 0, cornerRoundMm: 0,
+      topFilletMm: 1, bottomFilletMm: 2,
+      split: { boundary: [{ x: 0, y: -20 }, { x: 0, y: 20 }], depths: [{ mode: "mm", value: 4 }, { mode: "mm", value: 8 }] },
+    });
+    const request: BuildBinRequest = {
+      spec: { gridX: 2, gridY: 2, heightUnits: 3, fill: "solid" },
+      quality: { circularSegments: 16, filletProfileStepMm: 0.5 },
+      layout: { shapes: [shape], cutouts: [placement], fingerHoles: [] },
+      section: sectioned ? { axis: "y", offsetMm: 0 } : undefined,
+      pocketFloorMaterialThicknessMm: 0.6, stackingRimMaterialThicknessMm: 1.25,
+    };
+    const original = structuredClone(request);
+    const draft = (await getHandler()({ ...request, previewDraft: true }, context())).value;
+    const sharp = (await getHandler()({ ...request, layout: { ...request.layout!,
+      cutouts: [{ ...placement, topFilletMm: 0, bottomFilletMm: 0 }] },
+    }, context())).value;
+    expect(draft.mesh).toEqual(sharp.mesh);
+    expect(draft.materialMeshes).toEqual(sharp.materialMeshes);
+    expect(draft.stats.volumeMm3).toBe(sharp.stats.volumeMm3);
+    expect(request).toEqual(original);
+    const heights = new Set(Array.from(draft.materialMeshes!.pocketFloors!.positions)
+      .filter((_, i) => i % 3 === 2).map(z => Math.round(z * 1000) / 1000));
+    for (const depth of placement.split!.depths) {
+      expect(heights).toContain(resolvePocketDepth(parseBinSpec(request.spec), depth).floorZ);
+    }
+    // Even a caller that accidentally combines both flags must export the
+    // authored rounded geometry, with exactly the normal export mesh data.
+    const exported = (await getHandler()({ ...request, section: undefined, exportTopology: true }, context())).value;
+    const flagged = (await getHandler()({ ...request, section: undefined, exportTopology: true, previewDraft: true }, context())).value;
+    expect(flagged.mesh).toEqual(exported.mesh);
+    expect(flagged.materialMeshes).toEqual(exported.materialMeshes);
+    expect(flagged.stats.volumeMm3).not.toBe(draft.stats.volumeMm3);
+  });
+
+  it("validates authored rounding before approximating a draft", async () => {
+    const { shape, cutout } = createBasicPocket("rectangle", { x: -10, y: -10 }, { x: 10, y: 10 }, "invalid")!;
+    await expect(getHandler()({ ...REQUEST, previewDraft: true,
+      layout: { shapes: [shape], cutouts: [{ ...cutout, topFilletMm: -1 }], fingerHoles: [] },
+    }, context())).rejects.toThrow();
+  });
+
   it("builds geometric pockets with colored floors while same-depth finger access keeps the body material", async () => {
     const spec = parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 3, lip: "none", flatBottom: true });
     const pockets = [

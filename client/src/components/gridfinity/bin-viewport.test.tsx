@@ -34,6 +34,7 @@ function renderViewport(
   hasStackingRim = false,
   measurementOutlines: readonly Outline[] = [],
   onEditColor: (target: MaterialColorTarget) => void = vi.fn(),
+  previewIsDraft = false,
 ): HTMLElement {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   const container = document.createElement("div");
@@ -50,6 +51,7 @@ function renderViewport(
         pocketFloorColor="#123456"
         stackingRimColor="#abcdef"
         building={building}
+        previewIsDraft={previewIsDraft}
         progress={progress}
         error={null}
         fitSize={{ widthMm: 84, lengthMm: 84, heightMm: 45.6 }}
@@ -75,6 +77,13 @@ it("shows prominent live progress while the preview updates", () => {
 it("hides preview progress when the geometry is current", () => {
   const container = renderViewport(false, 1);
   expect(container.querySelector('[data-testid="bin-preview-status"]')).toBeNull();
+});
+
+it.each([true, false])("labels omitted rounding on a draft with refinement running=%s", building => {
+  const container = renderViewport(building, 0.4, false, false, [], vi.fn(), true);
+  const status = container.querySelector('[data-testid="bin-preview-status"]');
+  expect(status?.textContent).toContain("Draft preview");
+  expect(status?.textContent).toContain(building ? "adding pocket rounding… 40%" : "pocket rounding omitted");
 });
 
 it("labels the contrasting pocket-floor surface", () => {

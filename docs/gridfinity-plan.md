@@ -539,10 +539,16 @@ manifolds — at N=1000 that is catastrophic. Therefore:
   the manifold toplevel, so they are only safe because the worker is single-threaded.
 - **Deferred: structural-hash memoization split by stage.** Current builds do not cache
   solids across requests; persistent WASM handles need explicit ownership and eviction.
-- Debounce 120 ms and retain at most one dispatched preview plus one replaceable pending
-  preview. A newer edit invalidates old UI callbacks immediately, including during its
-  debounce, but lets the running RPC finish: cancellation cannot interrupt synchronous
-  WASM. Export and both fit-check channels retain their own captured requests.
+- Progressive preview: omit pocket top/bottom rounding during interaction, then
+  refine after 300 ms of idle input and completion of the draft. Keep outline
+  resolution, split depths, and material colors. Label drafts and withhold their
+  approximate statistics; saved settings and export quality remain unchanged.
+- Batch initial live input for 32 ms without restarting the deadline on every
+  event, then retain only the latest pending preview behind each physical job.
+  Two lazy workers separate interactive previews from detailed previews/exports.
+  New edits invalidate old UI callbacks, but let the running RPC finish because
+  cancellation cannot interrupt synchronous WASM. Exports and autosaves retain
+  committed requests while the preview follows transient gestures.
 - Compute normals only for meshes used by the preview. When material parts supply the
   displayed body, retain the aggregate topology/statistics without calculating its
   unused normals. Single-mesh fallback previews still receive normals; export topology

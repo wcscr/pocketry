@@ -86,6 +86,7 @@ vi.mock("@/components/gridfinity/bin-viewport", () => ({
 
 const binGeometryMock = vi.hoisted(() => ({
   building: false,
+  previewIsDraft: false,
   progress: 1,
   builtSpec: null as ReturnType<typeof parseBinSpec> | null,
   hasPocketFloor: false,
@@ -103,7 +104,8 @@ vi.mock("@/lib/gridfinity/use-bin-geometry", () => ({
     hasPocketFloor: binGeometryMock.hasPocketFloor,
     hasStackingRim: binGeometryMock.hasStackingRim,
     builtSpec: binGeometryMock.builtSpec,
-    stats: { triangles: 8400, volumeMm3: 82404, buildMs: 45 },
+    stats: binGeometryMock.previewIsDraft ? null : { triangles: 8400, volumeMm3: 82404, buildMs: 45 },
+    previewIsDraft: binGeometryMock.previewIsDraft,
     cutoutReports: [],
     building: binGeometryMock.building,
     progress: binGeometryMock.progress,
@@ -219,6 +221,7 @@ afterEach(() => {
 });
 
 beforeEach(() => {
+  binGeometryMock.previewIsDraft = false;
   vi.clearAllMocks();
   projectSaveMock.onSaved = undefined;
   binGeometryMock.building = false;
@@ -989,7 +992,12 @@ describe("BinDesignerPage", () => {
         pocket.dispatchEvent(event);
       });
       pointer('pointerdown', 43);
-      if (gesture === 'drag') pointer('pointermove', 55);
+      if (gesture === 'drag') {
+        pointer('pointermove', 55);
+        const args = vi.mocked(useBinGeometry).mock.lastCall!;
+        expect(args[2]!.cutouts[0].position.x).toBe(1.25);
+        expect(args[5]!.layout.cutouts[0].position.x).not.toBe(1.25);
+      }
       if (gesture === 'jitter') pointer('pointermove', 44);
       pointer(gesture === 'cancel' ? 'pointercancel' : 'pointerup', gesture === 'drag' ? 55 : gesture === 'jitter' ? 44 : 43);
       expect(controls!.panelOpen).toBe(gesture === 'jitter');
@@ -2064,6 +2072,22 @@ describe("BinDesignerPage", () => {
       container.querySelector("#bin-settings-export")?.textContent,
     ).toContain("Updating");
     unmount();
+  });
+
+  it("withholds model volume while a rounded preview is still a draft", () => {
+    binGeometryMock.previewIsDraft = true;
+    binGeometryMock.building = true;
+    const { container, unmount } = renderPage();
+    try {
+      openSettingsSection(container, "export");
+      const panel = container.querySelector("#bin-settings-export")!;
+      expect(panel.textContent).toContain("Model volume will appear after rounding is complete");
+      expect(panel.textContent).not.toContain("cm³ model volume");
+      // A preview approximation never disables the independent full-quality export.
+      const exportButton = container.querySelector<HTMLButtonElement>('[data-testid="button-export-3mf"]');
+      expect(exportButton).not.toBeNull();
+      expect(exportButton!.disabled).toBe(false);
+    } finally { unmount(); }
   });
 
   it("keeps camera framing on the completed mesh while new dimensions build", async () => {

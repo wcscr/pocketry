@@ -59,6 +59,8 @@ export interface BinViewportProps {
   /** Reveal the matching material control from its legend entry. */
   onEditColor: (target: MaterialColorTarget) => void;
   building: boolean;
+  /** The displayed preview temporarily omits pocket rounding. */
+  previewIsDraft?: boolean;
   /** 0..1 while building. */
   progress: number;
   error: string | null;
@@ -207,6 +209,7 @@ export function BinViewport({
   showStackingRimColor = true,
   onEditColor,
   building,
+  previewIsDraft = false,
   progress,
   error,
   fitSize,
@@ -439,15 +442,21 @@ export function BinViewport({
         </div>
       ) : null}
 
-      {building ? (
+      {building || previewIsDraft ? (
         <div
-          className="pointer-events-none absolute left-1/2 top-16 flex -translate-x-1/2 items-center gap-2 rounded-full border bg-background/95 px-3 py-1.5 text-xs font-medium tabular-nums text-foreground shadow-lg backdrop-blur"
+          className="pointer-events-none absolute left-1/2 top-16 flex w-max max-w-[calc(100%-1.5rem)] -translate-x-1/2 items-center gap-2 rounded-full border bg-background/95 px-3 py-1.5 text-center text-xs font-medium tabular-nums text-foreground shadow-lg backdrop-blur"
           role="status"
           aria-live="polite"
           data-testid="bin-preview-status"
         >
-          <LoaderCircle className="h-3.5 w-3.5 animate-spin text-blue-600" />
-          Updating 3D preview… {Math.round(progress * 100)}%
+          {building ? <LoaderCircle className="h-3.5 w-3.5 shrink-0 animate-spin text-blue-600" /> : null}
+          <span>
+            {previewIsDraft
+              ? building
+                ? `Draft preview · adding pocket rounding… ${Math.round(progress * 100)}%`
+                : "Draft preview · pocket rounding omitted"
+              : `Updating 3D preview… ${Math.round(progress * 100)}%`}
+          </span>
         </div>
       ) : null}
       {error ? (

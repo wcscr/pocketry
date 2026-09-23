@@ -100,6 +100,15 @@ export function createBinWorkerHandlers(
           fingerHoleSchema.parse(hole),
         ),
       };
+      // Only the preview approximation drops rounding. Validate the authored
+      // settings first, and never alter export requests or the saved layout.
+      if (payload.previewDraft === true && payload.exportTopology !== true) {
+        layout.cutouts = layout.cutouts.map((cutout) => ({
+          ...cutout,
+          topFilletMm: 0,
+          bottomFilletMm: 0,
+        }));
+      }
     }
     context.progress(0.05);
 
