@@ -29,6 +29,7 @@ const mounted: Array<() => void> = [];
 
 afterEach(() => {
   while (mounted.length > 0) mounted.pop()?.();
+  vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
@@ -39,6 +40,7 @@ function renderViewport(
   hasStackingRim = false,
   measurementOutlines: readonly Outline[] = [],
   onEditColor: (target: MaterialColorTarget) => void = vi.fn(),
+  previewIsDraft = false,
   pocketEditor?: PocketEditor,
 ): HTMLElement {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
@@ -57,6 +59,7 @@ function renderViewport(
         pocketFloorColor="#123456"
         stackingRimColor="#abcdef"
         building={building}
+        previewIsDraft={previewIsDraft}
         progress={progress}
         error={null}
         fitSize={{ widthMm: 84, lengthMm: 84, heightMm: 45.6 }}
@@ -72,16 +75,27 @@ function renderViewport(
   return container;
 }
 
-it("shows prominent live progress while the preview updates", () => {
+it("delays transient busy UI and uses a stage label without restarting percentages", () => {
+  vi.useFakeTimers();
   const container = renderViewport(true, 0.42);
+  expect(container.querySelector('[data-testid="bin-preview-status"]')).toBeNull();
+  React.act(() => vi.advanceTimersByTime(150));
   const status = container.querySelector('[data-testid="bin-preview-status"]');
   expect(status?.getAttribute("role")).toBe("status");
-  expect(status?.textContent).toContain("Updating 3D preview… 42%");
+  expect(status?.textContent).toContain("Updating preview…");
+  expect(status?.textContent).not.toContain("%");
 });
 
 it("hides preview progress when the geometry is current", () => {
   const container = renderViewport(false, 1);
   expect(container.querySelector('[data-testid="bin-preview-status"]')).toBeNull();
+});
+
+it.each([true, false])("labels omitted rounding on a draft with refinement running=%s", building => {
+  const container = renderViewport(building, 0.4, false, false, [], vi.fn(), true);
+  const status = container.querySelector('[data-testid="bin-preview-status"]');
+  expect(status?.textContent).toContain("Simplified preview");
+  expect(status?.textContent).toContain(building ? "refining details…" : "detailed preview unavailable");
 });
 
 it("labels the contrasting pocket-floor surface", () => {
@@ -146,7 +160,7 @@ it("switches CAD modes without stealing field input and suspends them for the ru
   const basic = createBasicPocket("rectangle", { x: -5, y: -8 }, { x: 5, y: 8 }, "slot")!;
   const cutout = parseCutoutPlacement({ ...basic.cutout, name: "Target", zOffsetMm: 2 });
   const editor: PocketEditor = { spec: parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6 }), pockets: [{ cutout, shape: basic.shape }], selectedId: cutout.id, onSelect: vi.fn(), onCommit: vi.fn() };
-  const container = renderViewport(false, 1, false, false, [basic.shape.outlineMm], undefined, editor);
+  const container = renderViewport(false, 1, false, false, [basic.shape.outlineMm], undefined, false, editor);
   const button = (name: string) => container.querySelector(`[aria-label="${name}"]`) as HTMLButtonElement;
   expect(container.querySelector('[data-testid="pocket-3d-depth-readout"]')?.textContent).toContain("Depth:");
   expect(container.querySelector('[aria-label="Transform coordinate space"]')).toBeNull();

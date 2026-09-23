@@ -54,6 +54,8 @@ export interface BuildBinRequest {
   section?: BuildBinSection;
   /** Return topology-preserving meshes without preview-only vertex normals. */
   exportTopology?: boolean;
+  /** Fast preview: true omits pocket rounding; rounded keeps coarser fillets. Ignored for exports. */
+  previewDraft?: boolean | "rounded";
   /** Split this depth below each printable pocket floor. */
   pocketFloorMaterialThicknessMm?: number;
   /** Split this depth down from the stacking-rim summit. */
@@ -67,6 +69,7 @@ export interface BuildBinStats {
 }
 
 export interface BuildBinResult {
+  /** Complete topology; preview normals are omitted when materialMeshes supplies the view. */
   mesh: MeshData;
   /** Non-overlapping material meshes whose union is `mesh`. */
   materialMeshes?: {

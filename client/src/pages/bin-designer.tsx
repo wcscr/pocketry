@@ -131,9 +131,9 @@ function BinDesignerWorkspace(): JSX.Element {
   useEffect(() => { if (isMobile && !panelOpen) setSettingsSectionRequest(undefined); }, [isMobile, panelOpen]);
   const library = useShapeLibrary();
   // Sliders and canvas drags update the visible controls transiently, but the
-  // history entry remains the last committed design until pointer-up. Feeding
-  // that committed document to the worker prevents an expensive, obsolete
-  // CSG build for every intermediate mouse position.
+  // history entry remains the last committed design until pointer-up. Exports
+  // and autosaves retain that snapshot; the interactive preview also receives
+  // live gesture values so its fast drafts can follow the controls.
   const committedDoc = getCommittedBinDoc(bin);
   const committedSpec = committedDoc.spec;
   const committedCutouts = committedDoc.cutouts;
@@ -349,7 +349,7 @@ function BinDesignerWorkspace(): JSX.Element {
     };
   }, [library.shapes, cutouts, fingerHoles]);
 
-  const previewLayout = useMemo(() => {
+  const committedLayout = useMemo(() => {
     const referenced = new Set(
       committedCutouts.map((cutout) => cutout.shapeId),
     );
@@ -362,17 +362,17 @@ function BinDesignerWorkspace(): JSX.Element {
 
   const measurementOutlines = useMemo(() => {
     const shapesById = new Map(
-      previewLayout.shapes.map((shape) => [shape.id, shape]),
+      layout.shapes.map((shape) => [shape.id, shape]),
     );
-    return previewLayout.cutouts.flatMap((cutout) => {
+    return layout.cutouts.flatMap((cutout) => {
       const shape = shapesById.get(cutout.shapeId);
       return shape ? [placementFootprint(shape, cutout).outline] : [];
     });
-  }, [previewLayout]);
+  }, [layout]);
 
   const measurementSplitBoundaries = useMemo(
-    () => placedPocketSplitBoundaries(previewLayout.cutouts, new Map(previewLayout.shapes.map(shape => [shape.id, shape]))),
-    [previewLayout],
+    () => placedPocketSplitBoundaries(layout.cutouts, new Map(layout.shapes.map(shape => [shape.id, shape]))),
+    [layout],
   );
 
   const {
@@ -383,8 +383,10 @@ function BinDesignerWorkspace(): JSX.Element {
     hasStackingRim,
     builtSpec,
     stats,
+    statsAreStale,
     cutoutReports,
     validationIssues: solidIssues = [],
+    previewIsDraft,
     building,
     progress,
     error,
@@ -394,9 +396,10 @@ function BinDesignerWorkspace(): JSX.Element {
   } = useBinGeometry(
     committedSpec,
     PREVIEW_QUALITY,
-    previewLayout,
+    committedLayout,
     section,
     { pocketFloorThicknessMm, stackingRimThicknessMm },
+    { spec, layout, gesture: spec !== committedSpec || cutouts !== committedCutouts || fingerHoles !== committedFingerHoles ? committedDoc : undefined },
   );
 
   const issues = [...layoutIssues, ...solidIssues];
@@ -1027,7 +1030,9 @@ function BinDesignerWorkspace(): JSX.Element {
           keepBinSize={keepBinSize}
           onKeepBinSizeChange={setKeepBinSize}
           stats={stats}
+          statsAreStale={statsAreStale}
           building={building}
+          previewIsDraft={previewIsDraft}
           exporting={exporting}
           onExport={(format, includeProject) => void handleExport(format, includeProject)}
           onExportFitCheck={(cutoutId, depthMm, includeProject) =>
@@ -1100,6 +1105,7 @@ function BinDesignerWorkspace(): JSX.Element {
               showStackingRimColor={colorStackingRim}
               onEditColor={editMaterialColor}
               building={building}
+              previewIsDraft={previewIsDraft}
               progress={progress}
               error={error}
               fitSize={fitSize}

@@ -52,6 +52,16 @@ export function extractMeshData(
   const wantNormals = options.normals ?? false;
   const sharpAngleDeg = options.sharpAngleDeg ?? 60;
 
+  // A section plane can remove the entire solid. Manifold does not attach
+  // normal properties to an empty mesh; return a valid empty view explicitly.
+  if (solid.isEmpty()) {
+    return {
+      positions: new Float32Array(),
+      normals: wantNormals ? new Float32Array() : null,
+      indices: new Uint32Array(),
+    };
+  }
+
   if (!wantNormals) {
     const mesh = solid.getMesh();
     return {

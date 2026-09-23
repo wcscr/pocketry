@@ -10,6 +10,7 @@ import type { Outline, Point } from "@shared/geometry/types";
 
 import { Button } from "@/components/ui/button";
 import { canHandleCanvasShortcut } from "@/lib/canvas-keyboard";
+import { useDelayedBusy } from "@/hooks/use-delayed-busy";
 import { useElementSize } from "@/hooks/use-element-size";
 import { fitDistanceMm, type FitSize } from "@/lib/gridfinity/camera-fit";
 import {
@@ -78,6 +79,8 @@ export interface BinViewportProps {
   /** Reveal the matching material control from its legend entry. */
   onEditColor: (target: MaterialColorTarget) => void;
   building: boolean;
+  /** The displayed preview is temporarily simplified. */
+  previewIsDraft?: boolean;
   /** 0..1 while building. */
   progress: number;
   error: string | null;
@@ -227,7 +230,7 @@ export function BinViewport({
   showStackingRimColor = true,
   onEditColor,
   building,
-  progress,
+  previewIsDraft = false,
   error,
   fitSize,
   measurementOutlines = EMPTY_MEASUREMENT_OUTLINES,
@@ -272,6 +275,7 @@ export function BinViewport({
     return () => window.removeEventListener("keydown", key);
   }, [pocketEditor, objects]);
   const [measurementPoints, setMeasurementPoints] = useState<Point[]>([]);
+  const showBusy = useDelayedBusy(building);
   const measuredDistanceMm = useMemo(
     () =>
       measurementPoints.length === 2
@@ -499,15 +503,21 @@ export function BinViewport({
         </div>
       ) : null}
 
-      {building ? (
+      {showBusy || previewIsDraft ? (
         <div
-          className="pointer-events-none absolute left-1/2 top-16 flex -translate-x-1/2 items-center gap-2 rounded-full border bg-background/95 px-3 py-1.5 text-xs font-medium tabular-nums text-foreground shadow-lg backdrop-blur"
+          className="pointer-events-none absolute left-1/2 top-16 flex w-max max-w-[calc(100%-1.5rem)] -translate-x-1/2 items-center gap-2 rounded-full border bg-background/95 px-3 py-1.5 text-center text-xs font-medium tabular-nums text-foreground shadow-lg backdrop-blur"
           role="status"
           aria-live="polite"
           data-testid="bin-preview-status"
         >
-          <LoaderCircle className="h-3.5 w-3.5 animate-spin text-blue-600" />
-          Updating 3D preview… {Math.round(progress * 100)}%
+          {building ? <LoaderCircle className="h-3.5 w-3.5 shrink-0 animate-spin text-blue-600" /> : null}
+          <span>
+            {previewIsDraft
+              ? building
+                ? "Simplified preview · refining details…"
+                : "Simplified preview · detailed preview unavailable"
+              : "Updating preview…"}
+          </span>
         </div>
       ) : null}
       {error ? (

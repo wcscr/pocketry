@@ -60,14 +60,14 @@ export function AppHeader({
           <Link
             href="/"
             aria-label="Pocketry home"
-            className="group flex shrink-0 flex-col items-center rounded-sm leading-none hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="flex shrink-0 items-center rounded-md border-2 border-[#d97514] bg-[#151a20] px-2.5 py-1.5 leading-none text-[#e38225] shadow-[inset_0_0_0_2px_#080c10,inset_0_0_0_3px_#2b333d] transition-colors hover:border-[#ed8a27] hover:text-[#f0983e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
-            <span className="text-[9px] font-medium tracking-wide text-muted-foreground/70 line-through decoration-muted-foreground/60 group-hover:text-muted-foreground">
-              ToolTrace
-            </span>
             <span
-              className="text-base font-semibold tracking-[-0.015em]"
-              style={{ fontFamily: BRAND_FONT_FAMILY }}
+              className="translate-y-px text-base font-semibold leading-none tracking-[-0.015em]"
+              style={{
+                fontFamily: BRAND_FONT_FAMILY,
+                textShadow: "0 -1px 0 #080c10, 0 1px 0 rgb(255 158 54 / 0.15)",
+              }}
             >
               Pocketry
             </span>

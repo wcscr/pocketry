@@ -19,6 +19,19 @@ afterAll(() => {
 });
 
 describe("extractMeshData", () => {
+  it.each([false, true])("returns transferable empty buffers for an empty solid with normals=%s", normals => {
+    const cube = arena.track(kernel.Manifold.cube([2, 3, 4]));
+    const empty = arena.track(cube.subtract(cube));
+    const mesh = extractMeshData(kernel, empty, { normals });
+    expect(mesh.positions).toHaveLength(0);
+    expect(mesh.indices).toHaveLength(0);
+    if (normals) expect(mesh.normals).toHaveLength(0);
+    else expect(mesh.normals).toBeNull();
+    const transfer = [mesh.positions.buffer, mesh.indices.buffer];
+    if (mesh.normals) transfer.push(mesh.normals.buffer);
+    expect(structuredClone(mesh, { transfer }).positions).toHaveLength(0);
+  });
+
   it("copies positions and indices for a plain mesh", () => {
     const cube = arena.track(kernel.Manifold.cube([2, 3, 4], false));
     const mesh = extractMeshData(kernel, cube);

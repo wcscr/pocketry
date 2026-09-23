@@ -102,6 +102,15 @@ export function createBinWorkerHandlers(
           fingerHoleSchema.parse(hole),
         ),
       };
+      // Only the preview approximation drops rounding. Validate the authored
+      // settings first, and never alter export requests or the saved layout.
+      if (payload.previewDraft === true && payload.exportTopology !== true) {
+        layout.cutouts = layout.cutouts.map((cutout) => ({
+          ...cutout,
+          topFilletMm: 0,
+          bottomFilletMm: 0,
+        }));
+      }
     }
     context.progress(0.05);
 
@@ -120,7 +129,9 @@ export function createBinWorkerHandlers(
         kernel,
         spec,
         layout,
-        payload.quality,
+        payload.previewDraft === "rounded" && payload.exportTopology !== true
+          ? { ...payload.quality, circularSegments: 16, filletProfileStepMm: Math.max(2, payload.quality.filletProfileStepMm ?? 0.5) }
+          : payload.quality,
         {
           floorInsertThicknessMm: floorMaterialThicknessMm,
           rimInsertThicknessMm: rimMaterialThicknessMm,
@@ -144,7 +155,9 @@ export function createBinWorkerHandlers(
       const includePreviewNormals = payload.exportTopology !== true;
 
       const mesh = extractMeshData(kernel, displayed, {
-        normals: includePreviewNormals,
+        // The preview displays the material body when a partition exists.
+        // Keep the aggregate topology/stats without shading an unused mesh.
+        normals: includePreviewNormals && materialParts === null,
       });
       const displayedPart = (part: BinMaterialParts["body"]) =>
         section ? applySectionCut(kernel, part, section) : part;
