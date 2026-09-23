@@ -1,5 +1,18 @@
 # Tilted pockets
 
+These tools are experimental and hidden by default. Open **Settings** in the
+header (on mobile, **More options → Settings**) and turn on **Enable experimental
+features**. The setting exposes X/Y tilt, the 3D move/rotate widget,
+multi-selection, alignment/distribution, and linked designs. It persists in this
+browser and is independent of project files; importing a project never enables
+it automatically. If browser storage is blocked, it applies for the current tab.
+
+Turning it off cancels an unfinished group drag and returns to single selection.
+It does not remove tilt, break links, rewrite history, or alter exports. Projects
+that already use these features show a notice with a shortcut to settings.
+Existing linked designs still propagate ordinary size/depth edits to their
+copies; enable the tools to manage or remove those links.
+
 Select a pocket and open **Position & rotation**. X and Y tilt turn its depth
 axis; the existing Z rotation sets its heading in the bin. **Reset tilt** returns
 the pocket upright while keeping its heading. Each placement has its own angles,

@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { parseCutoutPlacement, resolvePocketDepth, type TracedShape } from "@shared/gridfinity/cutout";
 import { parseBinSpec } from "@shared/gridfinity/types";
+import { ExperimentalFeaturesProvider, EXPERIMENTAL_FEATURES_KEY } from "@/state/experimental-features";
 import { BinProvider, useBin, type BinStore } from "@/state/bin-store";
 import { ShapeLibraryProvider } from "@/state/shape-library";
 import { PocketDepthSummary, PocketMeasurements, PocketSizeInputs } from "./pocket-measurements";
@@ -28,15 +29,16 @@ function Probe() {
 beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   sessionStorage.clear();
+  localStorage.setItem(EXPERIMENTAL_FEATURES_KEY, "true");
   inspect.mockReset(); scale.mockReset();
   host = document.createElement("div"); document.body.append(host);
   root = createRoot(host);
-  React.act(() => root.render(<ShapeLibraryProvider><BinProvider><Probe /></BinProvider></ShapeLibraryProvider>));
+  React.act(() => root.render(<ExperimentalFeaturesProvider><ShapeLibraryProvider><BinProvider><Probe /></BinProvider></ShapeLibraryProvider></ExperimentalFeaturesProvider>));
   React.act(() => store.dispatch({ type: "HYDRATE", spec: parseBinSpec({ gridX: 4, gridY: 4, heightUnits: 6 }),
     cutouts: [parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 0, y: 0 }, scaleX: 0.9, scaleY: 0.9, clearanceMm: 0.5, depth: { mode: "mm", value: 12 } })] }));
   React.act(() => [...host.querySelectorAll("summary")].find((summary) => summary.textContent?.includes("Position"))!.click());
 });
-afterEach(() => { React.act(() => root.unmount()); host.remove(); vi.unstubAllGlobals(); });
+afterEach(() => { React.act(() => root.unmount()); host.remove(); localStorage.removeItem(EXPERIMENTAL_FEATURES_KEY); vi.unstubAllGlobals(); });
 
 function enter(label: string, value: string) {
   const input = host.querySelector<HTMLInputElement>(`[aria-label="${label}"]`)!;

@@ -1,3 +1,4 @@
+import { useExperimentalFeatures } from "@/state/experimental-features";
 import { hasPocketTilt } from "@shared/gridfinity/pocket-orientation";
 import {
   Ruler,
@@ -241,6 +242,7 @@ export function LayoutCanvas({ onEditPocket }: {
 }
 
 function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Element {
+  const { enabled: experimentalEnabled } = useExperimentalFeatures();
   const isMobile = useIsMobile();
   const {
     spec,
@@ -500,7 +502,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
       dragRef.current = null; clickRef.current = null;
       dispatch({ type: "UPDATE_OBJECTS", edits: getCommittedBinDoc({ history }), transient: true, historyLabel: "Cancel move" });
     }
-  }, [history, selection, dispatch]);
+  }, [history, selection, dispatch, experimentalEnabled]);
   const [isRotating, setIsRotating] = useState(false);
   const [rulerActive, setRulerActive] = useState(false);
   useEffect(() => { if (rulerActive) setPanActive(false); }, [rulerActive]);
@@ -666,7 +668,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
 
   const handlePointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
     if (mobileEditor.down(event)) return;
-    if (!panActive && editorMode === "placement" && !rulerActive && event.button === 0 && !viewport.isSpaceHeld && (event.shiftKey || event.metaKey || event.ctrlKey)) {
+    if (experimentalEnabled && !panActive && editorMode === "placement" && !rulerActive && event.button === 0 && !viewport.isSpaceHeld && (event.shiftKey || event.metaKey || event.ctrlKey)) {
       const point = toBin(event.clientX, event.clientY);
       const hole = point ? hitFingerHole(point) : null, pocket = !hole && point ? hitCutout(point) : null;
       if (hole || pocket) {
@@ -948,7 +950,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
 
     // Independent finger access features grab before pocket bodies when they overlap.
     const hitHole = hitFingerHole(point);
-    if (hitHole && selectedObjects.length > 1 && selection.some(ref => ref.kind === "finger" && ref.id === hitHole.id)) {
+    if (experimentalEnabled && hitHole && selectedObjects.length > 1 && selection.some(ref => ref.kind === "finger" && ref.id === hitHole.id)) {
       dragRef.current = { kind: "selection-move", objects: selectedObjects, start: point, latest: null };
       clickRef.current = { clientX: event.clientX, clientY: event.clientY };
       event.currentTarget.setPointerCapture(event.pointerId); return;
@@ -969,7 +971,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
 
     const hit = hitCutout(point);
     if (hit) {
-      if (selectedObjects.length > 1 && selection.some(ref => ref.kind === "pocket" && ref.id === hit.id)) {
+      if (experimentalEnabled && selectedObjects.length > 1 && selection.some(ref => ref.kind === "pocket" && ref.id === hit.id)) {
         dragRef.current = { kind: "selection-move", objects: selectedObjects, start: point, latest: null };
         clickRef.current = { clientX: event.clientX, clientY: event.clientY };
         event.currentTarget.setPointerCapture(event.pointerId); return;
@@ -1224,7 +1226,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (!canHandleCanvasShortcut(event) || event.altKey) return;
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a" && editorMode === "placement") {
+      if (experimentalEnabled && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a" && editorMode === "placement") {
         event.preventDefault(); dispatch({ type: "SET_SELECTION", selection: arrangementObjects.map(objectRef) }); return;
       }
       if (event.ctrlKey || event.metaKey) return;
@@ -1233,7 +1235,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
         dispatch({ type: "UPDATE_OBJECTS", edits: getCommittedBinDoc({ history }), transient: true, historyLabel: "Cancel move" });
         event.preventDefault(); return;
       }
-      if (editorMode === "placement" && selectedObjects.length > 1) {
+      if (experimentalEnabled && editorMode === "placement" && selectedObjects.length > 1) {
         if (event.key === "Escape") { dispatch({ type: "SET_SELECTION", selection: [] }); event.preventDefault(); return; }
         const step = event.shiftKey ? 10 : 1;
         const delta = new Vector3(event.key === "ArrowLeft" ? -step : event.key === "ArrowRight" ? step : 0,
@@ -1371,7 +1373,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
   }, [
     selectedCutoutId,
     selectedFingerHoleId,
-    arrangementObjects, selectedObjects, selection, history, objectPivot,
+    arrangementObjects, selectedObjects, selection, history, objectPivot, experimentalEnabled,
     cutouts,
     fingerHoles,
     editorMode,
@@ -1987,7 +1989,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
         <p className="text-orange-700 dark:text-orange-300">Dashed outline: overlapping pockets</p>
       </div>}
 
-      {selectedObjects.length > 1 && editorMode === "placement" && !rulerActive && <ObjectTransformPanel
+      {experimentalEnabled && selectedObjects.length > 1 && editorMode === "placement" && !rulerActive && <ObjectTransformPanel
         editor={{ spec, pockets: arrangementObjects.flatMap(o => o.kind === "pocket" ? [o] : []), fingerHoles, selectedId: selectedCutoutId, selection,
           onSelect: id => dispatch({ type: "SELECT_CUTOUT", id }), onCommit: () => {},
           onSelectionChange: selection => dispatch({ type: "SET_SELECTION", selection }),

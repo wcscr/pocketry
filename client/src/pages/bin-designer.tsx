@@ -1,3 +1,4 @@
+import { useExperimentalFeatures } from "@/state/experimental-features";
 import { Box, History, Redo2, Undo2 } from "lucide-react";
 import { pocketDepths, pocketName, resolvePocketDepth } from "@shared/gridfinity/cutout";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -120,7 +121,13 @@ function BinDesignerWorkspace(): JSX.Element {
   };
   const { toast } = useToast();
   const bin = useBin();
+  const { enabled: experimentalEnabled } = useExperimentalFeatures();
   const { spec, cutouts, fingerHoles, viewMode, dispatch } = bin;
+  useEffect(() => {
+    if (!experimentalEnabled && bin.selection.length > 1) {
+      dispatch({ type: "SET_SELECTION", selection: bin.selection.slice(-1) });
+    }
+  }, [experimentalEnabled, bin.selection, dispatch]);
   const isMobile = useIsMobile();
   useEffect(() => {
     if (isMobile && bin.editorMode !== "placement") setPanelOpen(false);
@@ -1088,12 +1095,12 @@ function BinDesignerWorkspace(): JSX.Element {
           {viewMode === "3d" ? (
             <BinViewport
               geometry={geometry}
-              pocketEditor={{ spec, pockets: editablePockets, selectedId: bin.selectedCutoutId, fingerHoles, selection: bin.selection,
+              pocketEditor={experimentalEnabled ? { spec, pockets: editablePockets, selectedId: bin.selectedCutoutId, fingerHoles, selection: bin.selection,
                 onSelectionChange: selection => dispatch({ type: "SET_SELECTION", selection }),
                 onCommitObjects: (edits, historyLabel) => dispatch({ type: "UPDATE_OBJECTS", edits, historyLabel }),
                 onSelect: id => dispatch({ type: "SELECT_CUTOUT", id }),
                 onCommit: (id, patch, mode) => dispatch({ type: "UPDATE_CUTOUT", id, patch, historyLabel: mode === "translate" ? "Move pocket in 3D" : "Rotate pocket in 3D" }),
-              }}
+              } : undefined}
               pocketFloorGeometry={pocketFloorGeometry}
               stackingRimGeometry={stackingRimGeometry}
               hasPocketFloor={hasPocketFloor}

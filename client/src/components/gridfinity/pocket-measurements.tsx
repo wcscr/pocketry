@@ -1,3 +1,4 @@
+import { useExperimentalFeatures } from "@/state/experimental-features";
 import { hasPocketTilt, pocketAxis } from "@shared/gridfinity/pocket-orientation";
 import { outlineBounds } from "@/lib/geometry/outline";
 import { useState, type ReactNode } from "react";
@@ -33,6 +34,7 @@ export function PocketMeasurements({ cutout, shape, children }: {
   children?: ReactNode;
 }): JSX.Element {
   const { spec, cutouts, dispatch } = useBin();
+  const { enabled: experimentalEnabled } = useExperimentalFeatures();
   const { shapes } = useShapeLibrary();
   const [neighborId, setNeighborId] = useState("");
   const [side, setSide] = useState<"right" | "left" | "above" | "below">("right");
@@ -62,7 +64,7 @@ export function PocketMeasurements({ cutout, shape, children }: {
       </summary>
       <div className="space-y-3 pb-2 pt-2">
         {children}
-        <div className="space-y-2" data-testid="pocket-tilt-controls">
+        {experimentalEnabled && <div className="space-y-2" data-testid="pocket-tilt-controls">
           <div className="flex items-center gap-1"><p className="font-medium">Tilt pocket</p><HelpHint label="pocket tilt">Tilt tall items to fit in less vertical space. Items slide along the tilted pocket axis. X/Y tilt is applied before Z rotation; the opening grows to keep that path clear.</HelpHint></div>
           <div className="grid grid-cols-2 gap-2">{(["xDeg", "yDeg"] as const).map((axis) => <Label key={axis} className="flex min-w-0 items-center gap-2 text-xs">
             {axis === "xDeg" ? "X" : "Y"}
@@ -75,9 +77,9 @@ export function PocketMeasurements({ cutout, shape, children }: {
             <p className="text-muted-foreground">Fixed depth follows the tilted axis. Remaining floor protects the lowest point.</p>
             <Button size="sm" variant="outline" onClick={() => dispatch({ type: "UPDATE_CUTOUT", id: cutout.id, patch: { tilt: undefined }, historyLabel: "Reset pocket tilt" })}>Reset tilt</Button>
           </>}
-        </div>
+        </div>}
         <PositionInputs position={cutout.position} onChange={updatePosition} />
-        <p className="text-muted-foreground">In 3D, the Z arrow adjusts depth below the surface. Pull up for a shallower pocket or down for a deeper pocket.</p>
+        {experimentalEnabled && <p className="text-muted-foreground">In 3D, the Z arrow adjusts depth below the surface. Pull up for a shallower pocket or down for a deeper pocket.</p>}
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={() => updatePosition({ ...cutout.position, x: cutout.position.x - (bounds.minX + bounds.maxX) / 2 })}>Center X</Button>
           <Button variant="outline" size="sm" onClick={() => updatePosition({ ...cutout.position, y: cutout.position.y - (bounds.minY + bounds.maxY) / 2 })}>Center Y</Button>

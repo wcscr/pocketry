@@ -26,6 +26,7 @@ let container: HTMLDivElement;
 let root: Root;
 
 beforeEach(() => {
+  localStorage.removeItem("pocketry:experimental-features");
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.stubGlobal("ResizeObserver", NoopResizeObserver);
   window.history.replaceState(null, "", "/");
@@ -51,6 +52,7 @@ afterEach(() => {
   container.remove();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  localStorage.removeItem("pocketry:experimental-features");
 });
 
 function renderApp(): void {
@@ -80,6 +82,20 @@ function openTraceSettings(section: "detect" | "scale" | "output"): void {
 }
 
 describe("App", () => {
+  it.each(["desktop", "mobile"])("opens experimental settings from the %s header", async mode => {
+    renderApp();
+    if (mode === "desktop") act(() => container.querySelector<HTMLButtonElement>('[aria-label="Settings"]')!.click());
+    else {
+      act(() => container.querySelector<HTMLButtonElement>('[aria-label="More options"]')!
+        .dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+      await act(async () => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(item => item.textContent === "Settings")!.click());
+    }
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Enable experimental features");
+    const toggle = document.querySelector<HTMLButtonElement>('#experimental-features')!;
+    expect(toggle.getAttribute("aria-checked")).toBe("false");
+    act(() => toggle.click());
+    expect(localStorage.getItem("pocketry:experimental-features")).toBe("true");
+  });
   it("mounts without throwing", () => {
     expect(() => renderApp()).not.toThrow();
   });

@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Route, Router, useLocation } from "wouter";
 import { memoryLocation } from "wouter/memory-location";
 
+import { ExperimentalFeaturesProvider, useExperimentalFeatures, EXPERIMENTAL_FEATURES_KEY } from "@/state/experimental-features";
 import { PanelProvider, usePanelState } from "@/components/layout/panel-context";
 import { AppHeader } from "@/components/layout/app-header";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -42,6 +43,7 @@ vi.mock("@/components/gridfinity/bin-viewport", () => ({
     measurementOutlines,
     measurementSplitBoundaries,
     onEditColor,
+    pocketEditor,
   }: {
     fitSize: { widthMm: number; lengthMm: number; heightMm: number };
     hasPocketFloor: boolean;
@@ -54,9 +56,11 @@ vi.mock("@/components/gridfinity/bin-viewport", () => ({
     measurementOutlines: readonly unknown[];
     measurementSplitBoundaries: readonly unknown[];
     onEditColor: (target: MaterialColorTarget) => void;
+    pocketEditor?: unknown;
   }) => (
     <div
       data-testid="bin-viewport-stub"
+      data-experimental-editor={Boolean(pocketEditor)}
       data-fit-width={fitSize.widthMm}
       data-fit-length={fitSize.lengthMm}
       data-fit-height={fitSize.heightMm}
@@ -187,7 +191,13 @@ class NoopResizeObserver implements ResizeObserver {
   disconnect() {}
 }
 
-function render(ui: React.ReactElement, { mobile = false } = {}) {
+let experimentalSettings: ReturnType<typeof useExperimentalFeatures>;
+function ExperimentalProbe({ children }: { children: React.ReactNode }) {
+  experimentalSettings = useExperimentalFeatures(); return <>{children}</>;
+}
+
+function render(ui: React.ReactElement, { mobile = false, experimental = true } = {}) {
+  localStorage.setItem(EXPERIMENTAL_FEATURES_KEY, String(experimental));
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.stubGlobal("ResizeObserver", NoopResizeObserver);
   vi.stubGlobal("matchMedia", (query: string) => ({
@@ -205,7 +215,7 @@ function render(ui: React.ReactElement, { mobile = false } = {}) {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
-  React.act(() => root.render(ui));
+  React.act(() => root.render(<ExperimentalFeaturesProvider><ExperimentalProbe>{ui}</ExperimentalProbe></ExperimentalFeaturesProvider>));
 
   const result = {
     container,
@@ -261,7 +271,7 @@ beforeEach(() => {
   );
 });
 
-function renderPage(options: { mobile?: boolean } = {}) {
+function renderPage(options: { mobile?: boolean; experimental?: boolean } = {}) {
   return render(
     <PanelProvider>
       <ShapeLibraryProvider>
@@ -4282,7 +4292,57 @@ describe("project history restoration", () => {
   });
 });
 
-it.each(["release", "Escape", "blur", "pointercancel"])("%s of a mixed selection drag is one atomic edit or a complete cancellation", async ending => {
+it("gates experimental controls and shortcuts without changing imported tilted or linked designs", async () => {
+  const shape = rectangularShape("experimental-shape", "Target");
+  const cutouts = [-18, 18].map((x, i) => parseCutoutPlacement({
+    id: `experimental-${i}`, name: `Target ${i}`, shapeId: shape.id, position: { x, y: 0 },
+    tilt: { xDeg: 15, yDeg: 0 }, depth: { mode: "mm", value: 8 }, designLink: { id: "targets" },
+  }));
+  const hole = fingerHoleSchema.parse({ id: "access", name: "Access", center: { x: 0, y: 26 }, designLink: { id: "access-design" } });
+  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape], cutouts, fingerHoles: [hole] });
+  const { container, unmount } = renderPage({ experimental: false });
+  try {
+    await flushHydration();
+    const before = structuredClone(vi.mocked(useBinGeometry).mock.lastCall![2]);
+    expect(container.querySelector('[data-experimental-editor="false"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="experimental-design-notice"]')).not.toBeNull();
+    openSettingsSection(container, "tool-cutouts"); selectPocket(container, cutouts[0].id);
+    expect(container.querySelector('[aria-label="Linked design"]')).toBeNull();
+    expect(container.querySelector('[data-testid="pocket-tilt-controls"]')).toBeNull();
+    expect(container.querySelector('[aria-label^="Include Target"]')).toBeNull();
+    React.act(() => container.querySelector<HTMLButtonElement>(`[data-testid="button-select-${cutouts[1].id}"]`)!
+      .dispatchEvent(new MouseEvent("click", { bubbles: true, ctrlKey: true })));
+    expect(container.querySelector(`[data-testid="button-select-${cutouts[0].id}"]`)?.getAttribute("aria-pressed")).toBe("false");
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
+    React.act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "a", ctrlKey: true })));
+    expect(container.querySelector('[data-testid="pocket-3d-controls"]')).toBeNull();
+
+    React.act(() => experimentalSettings.setEnabled(true));
+    expect(container.querySelector('[aria-label="Linked design"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="pocket-tilt-controls"]')).not.toBeNull();
+    React.act(() => container.querySelector<HTMLInputElement>('[aria-label="Include Target 0 in selection"]')!.click());
+    expect(container.querySelector('[data-testid="pocket-3d-controls"]')).not.toBeNull();
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-3d"]')!.click());
+    expect(container.querySelector('[data-experimental-editor="true"]')).not.toBeNull();
+
+    React.act(() => experimentalSettings.setEnabled(false));
+    expect(container.querySelector('[data-experimental-editor="false"]')).not.toBeNull();
+    expect(container.querySelector('[aria-label="Linked design"]')).toBeNull();
+    expect(vi.mocked(useBinGeometry).mock.lastCall![2]).toEqual(before);
+    expect(container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.disabled).toBe(true);
+    openSettingsSection(container, "project");
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-export-project"]')!.click());
+    const [blob] = vi.mocked(downloadBlob).mock.lastCall!;
+    const json = await new Promise<string>(resolve => {
+      const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.readAsText(blob);
+    });
+    const exported = parseProjectDoc(JSON.parse(json))!;
+    expect(exported.cutouts).toEqual(cutouts); expect(exported.fingerHoles).toEqual([hole]);
+    expect(localStorage.getItem(EXPERIMENTAL_FEATURES_KEY)).toBe("false");
+  } finally { unmount(); }
+});
+
+it.each(["release", "Escape", "blur", "pointercancel", "disable experimental"])("%s of a mixed selection drag is one atomic edit or a complete cancellation", async ending => {
   const shape = rectangularShape("multi-shape", "Test pocket");
   const cutouts = [-18, 18].map((x, i) => parseCutoutPlacement({ id: `multi-${i}`, name: `Multi ${i}`, shapeId: shape.id, position: { x, y: 0 } }));
   const hole = fingerHoleSchema.parse({ id: "multi-finger", name: "Test thumb", center: { x: 0, y: 26 }, diameterMm: 8, depthMm: 8 });
@@ -4311,6 +4371,7 @@ it.each(["release", "Escape", "blur", "pointercancel"])("%s of a mixed selection
   expect(path()).not.toBe(beforePath);
   if (ending === "Escape") React.act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })));
   else if (ending === "blur") React.act(() => window.dispatchEvent(new Event("blur")));
+  else if (ending === "disable experimental") React.act(() => experimentalSettings.setEnabled(false));
   else pointer(ending === "release" ? "pointerup" : "pointercancel", 33.75, 35.75);
   const undo = container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!;
   if (ending === "release") {

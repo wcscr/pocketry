@@ -6,6 +6,8 @@ import { HelpDialog } from "@/components/help/help-dialog";
 import { AppHeader } from "@/components/layout/app-header";
 import { AppShell } from "@/components/layout/app-shell";
 import { MobileDevelopmentWelcome } from "@/components/layout/mobile-development-welcome";
+import { ExperimentalFeaturesDialog } from "@/components/layout/experimental-features-dialog";
+import { ExperimentalFeaturesProvider } from "@/state/experimental-features";
 import { WORKSPACES } from "@/components/layout/workspaces";
 import { PanelProvider, usePanelState } from "@/components/layout/panel-context";
 import { Toaster } from "@/components/ui/toaster";
@@ -60,6 +62,7 @@ function Shell() {
         <Router />
       </AppShell>
       <HelpDialog open={helpOpen} onOpenChange={setHelpOpen} />
+      <ExperimentalFeaturesDialog />
       <MobileDevelopmentWelcome />
     </>
   );
@@ -70,6 +73,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       {/* Needed once, for the icon-only buttons in the header and toolbars. */}
       <TooltipProvider delayDuration={300}>
+        <ExperimentalFeaturesProvider>
         <PanelProvider>
           {/* Above the router: traced shapes must survive the Trace → Bin
               navigation, which unmounts both workspaces' own stores. */}
@@ -83,6 +87,7 @@ function App() {
             </TraceProvider>
           </ShapeLibraryProvider>
         </PanelProvider>
+        </ExperimentalFeaturesProvider>
       </TooltipProvider>
       <Toaster />
     </QueryClientProvider>

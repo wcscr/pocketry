@@ -1,3 +1,5 @@
+import { useExperimentalFeatures } from "@/state/experimental-features";
+import { hasPocketTilt } from "@shared/gridfinity/pocket-orientation";
 import {
   Box,
   ChevronDown,
@@ -338,6 +340,7 @@ export function BinControlsPanel({
   saveStatus = "saved",
 }: BinControlsPanelProps): JSX.Element {
   const showPreviewBusy = useDelayedBusy(building);
+  const { enabled: experimentalEnabled, setSettingsOpen } = useExperimentalFeatures();
   const {
     spec,
     cutouts,
@@ -536,6 +539,10 @@ export function BinControlsPanel({
   return (
     <PanelSectionFilterContext.Provider value={exportOnly ? "bin-settings-export" : null}>
     <div className="flex h-full flex-col">
+      {!experimentalEnabled && (cutouts.some(c => c.designLink || hasPocketTilt(c)) || fingerHoles.some(h => h.designLink)) && <div className="shrink-0 border-b bg-amber-50/60 px-3 py-2 text-xs dark:bg-amber-950/20" data-testid="experimental-design-notice">
+        <p>This project uses experimental pocket tools. Its geometry and links are preserved; edits to linked designs still update their copies.</p>
+        <Button size="sm" variant="link" className="h-9 px-0 text-xs" onClick={() => setSettingsOpen(true)}>Show experimental settings</Button>
+      </div>}
       <div className={exportOnly ? "hidden" : "shrink-0 border-b px-3 py-2"} data-testid="project-status">
         <p className="cursor-text truncate text-sm font-medium" data-testid="project-status-title"
           title={`${currentProjectName ?? "Untitled project"} — double-click to rename`}
@@ -902,8 +909,8 @@ export function BinControlsPanel({
                     "flex items-center rounded-md border text-xs",
                     isSelected ? "border-violet-500/50 bg-violet-500/10" : "border-transparent hover:bg-accent",
                   )}>
-                    <input type="checkbox" className="ml-2 h-4 w-4 accent-primary" aria-label={`Include ${name} in selection`} checked={isSelected}
-                      onChange={() => dispatch({ type: "SELECT_CUTOUT", id: cutout.id, additive: true })} />
+                    {experimentalEnabled && <input type="checkbox" className="ml-2 h-4 w-4 accent-primary" aria-label={`Include ${name} in selection`} checked={isSelected}
+                      onChange={() => dispatch({ type: "SELECT_CUTOUT", id: cutout.id, additive: true })} />}
                     {renamingPocketId === cutout.id && shape ? (
                       <EditableObjectName key={cutout.id} name={name} kind="shape" onRename={(name) => dispatch({ type: "UPDATE_CUTOUT", id: cutout.id, patch: { name }, historyLabel: "Rename pocket" })} onDone={() => setRenamingPocketId(null)} />
                     ) : (
@@ -915,12 +922,12 @@ export function BinControlsPanel({
                       aria-controls="pocket-properties"
                       data-testid={`button-select-${cutout.id}`}
                       onClick={event => {
-                        dispatch({ type: "SELECT_CUTOUT", id: cutout.id, additive: event.shiftKey || event.metaKey || event.ctrlKey });
+                        dispatch({ type: "SELECT_CUTOUT", id: cutout.id, additive: experimentalEnabled && (event.shiftKey || event.metaKey || event.ctrlKey) });
                         if (isSelected) revealPanelSection("bin-settings-pockets", BIN_SETTINGS_SECTIONS, "pocket-properties");
                       }}
                     >
                       <span className={cn("min-w-0 flex-1 truncate", isSelected && "font-medium text-violet-700 dark:text-violet-300")}>{name}</span>
-                      {cutout.designLink && <Link2 className="h-3 w-3 shrink-0" aria-label="Linked design" />}
+                      {experimentalEnabled && cutout.designLink && <Link2 className="h-3 w-3 shrink-0" aria-label="Linked design" />}
                     </button>
                     )}
                     <button type="button" className="flex h-8 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11" aria-label={`Rename ${name}`} disabled={!shape} data-testid={`button-rename-${cutout.id}`} onClick={() => {
@@ -974,7 +981,7 @@ export function BinControlsPanel({
                   {editorMode === "contour" ? "Done" : "Edit contour"}
                 </Button>
               </div>
-              <LinkedDesignControls kind="pocket" activeId={selectedCutout.id} labels={new Map(cutouts.map(c => [c.id, pocketName(c, shapesById.get(c.shapeId))]))} />
+              {experimentalEnabled && <LinkedDesignControls kind="pocket" activeId={selectedCutout.id} labels={new Map(cutouts.map(c => [c.id, pocketName(c, shapesById.get(c.shapeId))]))} />}
               <section className="space-y-2" aria-label="Pocket depth" key={`${selectedCutout.id}-${selectedPocketSection}-${!!selectedCutout.split}`}>
                 <div className="flex items-center gap-1">
                   <h4 className="text-sm font-semibold">Depth</h4>
@@ -1233,8 +1240,8 @@ export function BinControlsPanel({
                       "flex items-center rounded-md border text-xs",
                       isSelected ? "border-cyan-500/50 bg-cyan-500/10" : "border-transparent hover:bg-accent",
                     )}>
-                      <input type="checkbox" className="ml-2 h-4 w-4 accent-primary" aria-label={`Include ${name} in selection`} checked={isSelected}
-                        onChange={() => dispatch({ type: "SELECT_FINGER_HOLE", id: hole.id, additive: true })} />
+                      {experimentalEnabled && <input type="checkbox" className="ml-2 h-4 w-4 accent-primary" aria-label={`Include ${name} in selection`} checked={isSelected}
+                        onChange={() => dispatch({ type: "SELECT_FINGER_HOLE", id: hole.id, additive: true })} />}
                       {renamingFingerId === hole.id ? (
                         <EditableObjectName key={hole.id} name={name} kind="finger-hole"
                           onRename={(name) => dispatch({ type: "UPDATE_FINGER_HOLE", id: hole.id, patch: { name }, historyLabel: "Rename finger access" })}
@@ -1244,9 +1251,9 @@ export function BinControlsPanel({
                           className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded px-2 py-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                           aria-label={`${name} — edit finger access properties`} aria-pressed={isSelected} aria-controls="finger-access-properties"
                           data-testid={`button-select-finger-hole-${hole.id}`}
-                          onClick={event => dispatch({ type: "SELECT_FINGER_HOLE", id: hole.id, additive: event.shiftKey || event.metaKey || event.ctrlKey })}>
+                          onClick={event => dispatch({ type: "SELECT_FINGER_HOLE", id: hole.id, additive: experimentalEnabled && (event.shiftKey || event.metaKey || event.ctrlKey) })}>
                           <span className={cn("min-w-0 flex-1 truncate", isSelected && "font-medium text-cyan-700 dark:text-cyan-300")}>{name}</span>
-                          {hole.designLink && <Link2 className="h-3 w-3 shrink-0" aria-label="Linked design" />}
+                          {experimentalEnabled && hole.designLink && <Link2 className="h-3 w-3 shrink-0" aria-label="Linked design" />}
                         </button>
                       )}
                       <button type="button" className="flex h-11 w-11 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -1272,7 +1279,7 @@ export function BinControlsPanel({
                   <h3 className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-cyan-700 dark:text-cyan-300">Finger access properties</h3>
                   <span className="min-w-[5rem] flex-1 truncate text-xs font-medium">{selectedFingerHole.name ?? `Finger access ${fingerHoles.indexOf(selectedFingerHole) + 1}`}</span>
                 </div>
-                <LinkedDesignControls kind="finger" activeId={selectedFingerHole.id} labels={new Map(fingerHoles.map((h, i) => [h.id, h.name ?? `Thumb access ${i + 1}`]))} />
+                {experimentalEnabled && <LinkedDesignControls kind="finger" activeId={selectedFingerHole.id} labels={new Map(fingerHoles.map((h, i) => [h.id, h.name ?? `Thumb access ${i + 1}`]))} />}
                 <FingerAccessShapeControls
                   hole={selectedFingerHole}
                   onChange={(change) => {

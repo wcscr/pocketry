@@ -55,7 +55,15 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
               <strong> Depth</strong>.
             </p>
             <p className="mt-1 text-muted-foreground">
-              To store tall items in a shorter drawer, open the pocket’s
+              Pocket tilt, 3D transform controls, multi-selection, arrangement,
+              and linked designs are experimental. Turn on <strong>Enable
+              experimental features</strong> in <strong>Settings</strong> to use
+              them (on mobile, open <strong>More options → Settings</strong>).
+              Turning the setting off preserves existing designs and links.
+            </p>
+            <p className="mt-1 text-muted-foreground">
+              To store tall items in a shorter drawer, enable the experimental
+              tools, then open the pocket’s
               <strong> Position &amp; rotation</strong> controls and set its X/Y tilt.
               Items slide out along the tilted axis. Fixed depth follows that axis;
               the opening expands to keep the path clear. Check the 3D preview
