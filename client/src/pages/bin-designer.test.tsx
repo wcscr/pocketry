@@ -2,8 +2,12 @@
 import * as React from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { Route, Router, useLocation } from "wouter";
+import { memoryLocation } from "wouter/memory-location";
 
 import { PanelProvider, usePanelState } from "@/components/layout/panel-context";
+import { AppHeader } from "@/components/layout/app-header";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { WORKSPACES } from "@/components/layout/workspaces";
 import type { MaterialColorTarget } from "@/components/gridfinity/bin-viewport";
 import * as ShapeLibraryModule from "@/state/shape-library";
@@ -288,6 +292,53 @@ function selectPocket(container: HTMLElement, id: string): void {
 }
 
 describe("BinDesignerPage", () => {
+  it.each([false, true])("opens Library from navigation, waits for hydration, and reopens it with mobile=%s", async (mobile) => {
+    const { hook } = memoryLocation({ path: "/" });
+    function Navigation() {
+      const [path] = useLocation();
+      const { panelOpen, setPanelOpen } = usePanelState();
+      return <>
+        <AppHeader panelOpen={panelOpen} onPanelOpenChange={setPanelOpen} onHelpClick={() => {}} />
+        <output data-testid="test-route">{path}</output>
+        <Route path="/bin"><BinDesignerPage /></Route>
+      </>;
+    }
+    let finishRestore!: (doc: ProjectDoc | null) => void;
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockReturnValueOnce(new Promise(resolve => { finishRestore = resolve; }));
+    const { container, unmount } = render(<Router hook={hook}>
+      <TooltipProvider><PanelProvider><ShapeLibraryProvider><Navigation /></ShapeLibraryProvider></PanelProvider></TooltipProvider>
+    </Router>, { mobile });
+    try {
+      const openLibrary = async () => {
+        if (mobile) {
+          const menu = container.querySelector<HTMLButtonElement>('[aria-label^="Workspace:"]')!;
+          React.act(() => menu.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+          await React.act(async () => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')]
+            .find(item => item.textContent === "Library")!.click());
+        } else {
+          await React.act(async () => [...container.querySelectorAll<HTMLAnchorElement>('nav[aria-label="Workspaces"] a')]
+            .find(link => link.textContent === "Library")!.click());
+        }
+      };
+      await openLibrary();
+      expect(container.querySelector('[data-testid="test-route"]')!.textContent).toBe("/bin");
+      expect(document.querySelector('[data-testid="managed-project-list"]')).toBeNull();
+      await React.act(async () => finishRestore(EMPTY_PROJECT));
+      expect(document.querySelector('[data-testid="library-manager-header"]')!.textContent).toContain("Manage browser library");
+      expect(ProjectPersistence.loadProjectDoc).toHaveBeenCalledOnce();
+      React.act(() => document.querySelector<HTMLButtonElement>('[data-testid="library-manager-header"] [aria-label="Close"]')!.click());
+      expect(document.querySelector('[data-testid="managed-project-list"]')).toBeNull();
+      if (mobile) {
+        React.act(() => [...document.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === "Back to canvas")!.click());
+      } else {
+        React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Hide controls"]')!.click());
+      }
+      await openLibrary();
+      expect(document.querySelector('[data-testid="managed-project-list"]')).not.toBeNull();
+      expect(ProjectPersistence.loadProjectDoc).toHaveBeenCalledOnce();
+    } finally { unmount(); }
+  });
+
   it.each(["empty", "pockets", "split"] as const)("adds a curved, rounded slot using the %s layout's highest floor", async (layout) => {
     const shape = rectangularShape("shape", "Tool");
     const pocket = parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 0, y: 0 },
@@ -2660,6 +2711,37 @@ describe("BinDesignerPage", () => {
     expect(vi.mocked(useBinGeometry).mock.lastCall).toEqual(before);
     expect(ProjectPersistence.openProjectFromLibrary).not.toHaveBeenCalled();
     unmount();
+  });
+
+  it("restores library identity before showing the project status or opening another project", async () => {
+    const cutter = parseProjectDoc(ryobiReloadFixture)!;
+    const projects = [
+      { id: "cutter", name: "Ryobi Cutter", updatedAt: "2026-09-23T12:00:00.000Z" },
+      { id: "other", name: "Other tray", updatedAt: "2026-09-23T12:00:00.000Z" },
+    ];
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(cutter);
+    vi.mocked(ProjectPersistence.loadProjectLibrary).mockImplementation(async (doc) => ({
+      activeProjectId: doc === cutter ? "cutter" : null, projects,
+    }));
+    vi.mocked(ProjectPersistence.openProjectFromLibrary).mockResolvedValue({
+      doc: EMPTY_PROJECT, project: projects[1], library: { activeProjectId: "other", projects },
+    });
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      openSettingsSection(container, "project");
+      React.act(() => projectSaveMock.onSaved?.(true));
+      expect(ProjectPersistence.loadProjectLibrary).toHaveBeenCalledWith(cutter);
+      expect(container.querySelector('[data-testid="project-status"] [role="status"]')!.textContent).toBe("Saved to browser library");
+      expect(container.querySelector('[data-testid="current-project-title"]')!.textContent).toBe("Ryobi Cutter");
+      // A later refresh reads the identity that restoration already persisted.
+      vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId: "cutter", projects });
+      await React.act(async () => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
+      await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-open-project-other"]')!.click());
+      expect(document.querySelector('[data-testid="button-discard-draft-open"]')).toBeNull();
+      expect(ProjectPersistence.saveProjectDoc).toHaveBeenCalledWith(expect.objectContaining({ cutouts: cutter.cutouts }), "cutter");
+      expect(ProjectPersistence.openProjectFromLibrary).toHaveBeenCalledWith("other");
+    } finally { unmount(); }
   });
 
   it("lists named projects and opens the selected library entry", async () => {

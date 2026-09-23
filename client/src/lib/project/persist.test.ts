@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { setMany } from "idb-keyval";
+import { set, setMany } from "idb-keyval";
 
 import { PROJECT_SCHEMA_VERSION, type ProjectDoc } from "@shared/gridfinity/project";
 import { parseBinSpec } from "@shared/gridfinity/types";
 import airdusterV9 from "@shared/gridfinity/fixtures/airduster-v9.pocketry.json";
+import ryobiReloadFixture from "@shared/gridfinity/fixtures/ryobi-split-reload.pocketry.json";
 import { prepareProjectExport } from "./export";
 
 const memory = new Map<string, unknown>();
@@ -55,6 +56,95 @@ afterEach(() => {
 });
 
 describe("current project persistence", () => {
+  it("restores a detached Ryobi project to its matching library entry without replacing its working copy", async () => {
+    memory.set("tooltrace:project:v1", structuredClone(ryobiReloadFixture));
+    const doc = (await loadProjectDoc())!;
+    const saved = await saveProjectToLibrary(doc, "Ryobi Cutter", null);
+    await startNewProject({ ...doc, name: "Ryobi Cutter" });
+    const working = (await loadProjectDoc())!;
+    const restored = await loadProjectLibrary(working);
+    expect(restored.activeProjectId).toBe(saved.activeProjectId);
+    expect(restored.projects).toEqual(saved.projects);
+    expect(await loadProjectDoc()).toEqual(working);
+    expect(await loadProjectLibrary()).toEqual(restored);
+    expect(await saveProjectDoc({ ...working, keepBinSize: true }, restored.activeProjectId)).toBe(true);
+    expect((await openProjectFromLibrary(saved.activeProjectId!)).doc.keepBinSize).toBe(true);
+  });
+
+  it("recovers a legacy saved document after hydration adds defaults and a history baseline", async () => {
+    const saved = await saveProjectToLibrary(DOC, "Tools", null);
+    const history = { stack: [{ doc: { spec: DOC.spec, cutouts: [], fingerHoles: [] }, label: "Project opened" }], index: 0 };
+    const working = { ...DOC, name: "Tools", keepBinSize: false, history };
+    await startNewProject(working);
+    expect(await loadProjectLibrary(await loadProjectDoc())).toEqual(saved);
+    expect(await loadProjectDoc()).toEqual(working);
+  });
+
+  it.each(["edited", "unnamed", "different name", "ambiguous", "unsupported", "different history"])(
+    "keeps a %s detached working copy as a draft instead of guessing its identity", async (kind) => {
+      const doc = { ...DOC, name: "Tools" };
+      const entry = { id: "tools", name: "Tools", updatedAt: "2026-09-23T12:00:00.000Z", doc };
+      memory.set("tooltrace:project-library:v1", { schemaVersion: 1, activeProjectId: null,
+        projects: kind === "ambiguous" ? [entry, { ...entry, id: "other" }]
+          : [{ ...entry, doc: kind === "unsupported" ? { schemaVersion: 999 } : doc }],
+      });
+      const working = kind === "different history" ? { ...doc, history: {
+        stack: [
+          { doc: { spec: WIDE_DOC.spec, cutouts: [], fingerHoles: [] }, label: "Project opened" },
+          { doc: { spec: DOC.spec, cutouts: [], fingerHoles: [] }, label: "Resize bin" },
+        ], index: 1,
+      } } : kind === "edited" ? { ...WIDE_DOC, name: "Tools" }
+        : kind === "unnamed" ? DOC : kind === "different name" ? { ...doc, name: "Other" } : doc;
+      memory.set("tooltrace:project:v1", working);
+      const before = structuredClone([...memory]);
+      expect((await loadProjectLibrary(working)).activeProjectId).toBeNull();
+      expect([...memory]).toEqual(before);
+    },
+  );
+
+  it("does not steal an existing active project when a restored name matches another entry", async () => {
+    await saveProjectToLibrary(DOC, "First", null);
+    const active = await saveProjectToLibrary(WIDE_DOC, "Second", null);
+    expect(await loadProjectLibrary({ ...DOC, name: "First" })).toEqual(active);
+    expect((await loadProjectDoc())!.name).toBe("Second");
+  });
+
+  it("does not reattach a newer draft when an earlier workspace restore finishes late", async () => {
+    const saved = await saveProjectToLibrary(DOC, "Tools", null);
+    const outgoing = (await loadProjectDoc())!;
+    await startNewProject(WIDE_DOC);
+    expect(await loadProjectLibrary(outgoing)).toEqual({ ...saved, activeProjectId: null });
+    expect(await loadProjectDoc()).toEqual(WIDE_DOC);
+  });
+
+  it("preserves the draft and visible library when restoring its link fails, and allows retry", async () => {
+    const saved = await saveProjectToLibrary(DOC, "Tools", null);
+    const draft = { ...DOC, name: "Tools" };
+    await startNewProject(draft);
+    vi.mocked(set).mockRejectedValueOnce(new Error("Storage is full"));
+    expect(await loadProjectLibrary(draft)).toEqual({ ...saved, activeProjectId: null });
+    expect(await loadProjectDoc()).toEqual(draft);
+    expect(await loadProjectLibrary(draft)).toEqual(saved);
+  });
+
+  it.each(["save", "rename", "open", "new", "autosave"])(
+    "keeps the document and active project together when %s fails", async (action) => {
+      const first = await saveProjectToLibrary(DOC, "First", null);
+      const active = await saveProjectToLibrary(WIDE_DOC, "Second", null);
+      const before = structuredClone([...memory]);
+      vi.mocked(setMany).mockRejectedValueOnce(new Error("Storage is full"));
+      const attempt = () => action === "save" ? saveProjectToLibrary(DOC, "Third", null)
+        : action === "rename" ? saveProjectToLibrary(WIDE_DOC, "Renamed", active.activeProjectId)
+          : action === "open" ? openProjectFromLibrary(first.activeProjectId!)
+            : action === "new" ? startNewProject(DOC) : saveProjectDoc(DOC, active.activeProjectId);
+      if (action === "autosave") expect(await attempt()).toBe(false);
+      else await expect(attempt()).rejects.toThrow("Storage is full");
+      expect([...memory]).toEqual(before);
+      expect(await loadProjectLibrary(await loadProjectDoc())).toEqual(active);
+      await expect(attempt()).resolves.toBeTruthy();
+    },
+  );
+
   it("opens, saves, reloads and exports every item in the v9 Airduster project", async () => {
     memory.set("tooltrace:project:v1", structuredClone(airdusterV9));
     const migrated = (await loadProjectDoc())!;
@@ -168,6 +258,7 @@ describe("project file imports", () => {
 
   it("rejects inconsistent history before changing the saved project", async () => {
     const library = await saveProjectToLibrary(DOC, "Existing tray", null);
+    vi.mocked(setMany).mockClear();
     await expect(importProjectToLibrary({ ...WIDE_DOC, history: {
       stack: [{ doc: { spec: DOC.spec, cutouts: [], fingerHoles: [] }, label: "Project opened" }], index: 0,
     } })).rejects.toThrow("Not a supported Pocketry project file");

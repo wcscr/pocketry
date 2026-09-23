@@ -14,6 +14,9 @@ interface PanelState {
   togglePanel: () => void;
   traceRestart: (() => void) | null;
   registerTraceRestart: (action: (() => void) | null) => void;
+  /** Survives navigation from Trace until Bin can open the library manager. */
+  libraryRequested: boolean;
+  setLibraryRequested: (requested: boolean) => void;
 }
 
 const PanelContext = createContext<PanelState | null>(null);
@@ -21,6 +24,7 @@ const PanelContext = createContext<PanelState | null>(null);
 export function PanelProvider({ children }: { children: ReactNode }): JSX.Element {
   const [panelOpen, setPanelOpen] = useState(() => !window.matchMedia?.("(max-width: 767px)").matches);
   const [traceRestart, setTraceRestart] = useState<(() => void) | null>(null);
+  const [libraryRequested, setLibraryRequested] = useState(false);
   const registerTraceRestart = useCallback((action: (() => void) | null) => setTraceRestart(() => action), []);
 
   const value = useMemo<PanelState>(
@@ -30,8 +34,10 @@ export function PanelProvider({ children }: { children: ReactNode }): JSX.Elemen
       togglePanel: () => setPanelOpen((open) => !open),
       traceRestart,
       registerTraceRestart,
+      libraryRequested,
+      setLibraryRequested,
     }),
-    [panelOpen, traceRestart, registerTraceRestart],
+    [panelOpen, traceRestart, registerTraceRestart, libraryRequested],
   );
 
   return <PanelContext.Provider value={value}>{children}</PanelContext.Provider>;

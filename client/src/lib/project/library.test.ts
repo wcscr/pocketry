@@ -13,6 +13,9 @@ const memory = new Map<string, unknown>();
 vi.mock("idb-keyval", () => ({
   get: vi.fn(async (key: string) => memory.get(key)),
   set: vi.fn(async (key: string, value: unknown) => { memory.set(key, value); }),
+  setMany: vi.fn(async (entries: [IDBValidKey, unknown][]) => {
+    for (const [key, value] of entries) memory.set(String(key), value);
+  }),
 }));
 const DOC = parseProjectDoc(airdusterV9)!;
 const LIBRARY_KEY = "tooltrace:project-library:v1";

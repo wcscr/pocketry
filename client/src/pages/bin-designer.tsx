@@ -99,10 +99,15 @@ export default function BinDesignerPage(): JSX.Element {
 }
 
 function BinDesignerWorkspace(): JSX.Element {
-  const { panelOpen, setPanelOpen } = usePanelState();
+  const { panelOpen, setPanelOpen, libraryRequested } = usePanelState();
   const [quickAdjustOpen, setQuickAdjustOpen] = useState(false);
   const [pocketEditorRequest, setPocketEditorRequest] = useState(0);
   const [settingsSectionRequest, setSettingsSectionRequest] = useState<{ id: string; focusId?: string }>();
+  useEffect(() => {
+    if (!libraryRequested) return;
+    setSettingsSectionRequest({ id: "bin-settings-project" });
+    setPanelOpen(true);
+  }, [libraryRequested, setPanelOpen]);
   const editMaterialColor = (target: MaterialColorTarget) => {
     setSettingsSectionRequest({ id: "bin-settings-materials", focusId: `input-${target}-color` });
     setPanelOpen(true);
@@ -193,7 +198,9 @@ function BinDesignerWorkspace(): JSX.Element {
   // workspace places into the *restored* layout, not the empty default.
   useEffect(() => {
     let cancelled = false;
-    void Promise.all([loadProjectDoc(), loadProjectLibrary()]).then(([doc, saved]) => {
+    void loadProjectDoc().then(async (doc) => {
+      if (cancelled) return;
+      const saved = await loadProjectLibrary(doc);
       if (cancelled) return;
       setProjectLibrary(saved);
       setProjectLibraryReady(true);

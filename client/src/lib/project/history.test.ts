@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { set } from "idb-keyval";
+import { set, setMany } from "idb-keyval";
 import { parseProjectDoc } from "@shared/gridfinity/project";
 import fixture from "@shared/gridfinity/fixtures/ryobi-split-reload.pocketry.json";
 import { prepareProjectExport } from "./export";
@@ -13,6 +13,9 @@ const memory = new Map<string, unknown>();
 vi.mock("idb-keyval", () => ({
   get: vi.fn(async (key: string) => structuredClone(memory.get(key))),
   set: vi.fn(async (key: string, value: unknown) => { memory.set(key, structuredClone(value)); }),
+  setMany: vi.fn(async (entries: [IDBValidKey, unknown][]) => {
+    for (const [key, value] of entries) memory.set(String(key), structuredClone(value));
+  }),
 }));
 const project = parseProjectDoc(fixture)!;
 const baseline = { spec: project.spec, cutouts: [], fingerHoles: [] };
@@ -91,7 +94,7 @@ describe("saved undo/redo history", () => {
 
   it("retains the last durable history and reports storage failures", async () => {
     const a = await saveProjectToLibrary(saved, "A", null);
-    vi.mocked(set).mockRejectedValueOnce(new Error("Quota exceeded"));
+    vi.mocked(setMany).mockRejectedValueOnce(new Error("Quota exceeded"));
     const onSaved = vi.fn();
     const saver = createDebouncedProjectSaver(500, onSaved);
     saver(undone, a.activeProjectId);

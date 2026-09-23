@@ -29,6 +29,7 @@ import {
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useLocation } from "wouter";
 import { AddPocketMenu } from "./add-pocket-menu";
+import { usePanelState } from "@/components/layout/panel-context";
 import { FillHeightControl } from "./fill-height-control";
 
 import {
@@ -2155,6 +2156,14 @@ function ProjectControls({
   const [pendingOpenProject, setPendingOpenProject] = useState<ProjectOpenTarget | null>(null);
   const { toast } = useToast();
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const { libraryRequested, setLibraryRequested } = usePanelState();
+  useEffect(() => {
+    if (!libraryRequested || !ready || busy) return;
+    setLibraryOpen(true);
+    setSelectedProjectId(activeProjectId);
+    setLibraryRequested(false);
+    onRefreshProjects();
+  }, [libraryRequested, ready, busy, activeProjectId, setLibraryRequested, onRefreshProjects]);
   const [projectName, setProjectName] = useState("");
   useEffect(() => {
     if (saveOpen) setProjectName(currentProjectName ?? "");
