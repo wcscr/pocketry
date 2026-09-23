@@ -160,9 +160,16 @@ and per-pocket duplicate. The Project
 section is pinned to the top of the Bin controls: a draft resumes automatically,
 The save icon gives it a library name; double-clicking either current-project
 title opens the same name dialog for new drafts and saved projects.
-Manage presents the browser-local named projects,
-and New detaches a clean draft without deleting saved projects. Opening another
-design, opening a project file, and New Project all save the outgoing named
+Manage presents the browser-local named projects. **Library** beside Trace and
+Bin opens the same manager in the Bin workspace; it is also available in the
+mobile workspace menu. New detaches a clean draft without deleting saved projects. A subsequent
+workspace visit restores a detached named working copy's library identity only
+when its document matches exactly one same-name saved entry after normalizing
+migrations and hydration defaults;
+different or ambiguous drafts retain discard confirmation. Working-copy and
+library updates for save, rename, open, new, and named autosave commit atomically,
+so a failed write cannot leave the restored document attached to the wrong entry.
+Opening another design, opening a project file, and New Project all save the outgoing named
 design's latest edits before changing the autosave target. A failed save keeps
 the current design open. Library import/export also lives in Manage; the main
 Project section places New project, Open project, and Export project in one

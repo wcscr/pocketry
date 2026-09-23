@@ -2,6 +2,7 @@ import {
   CircleHelp,
   Github,
   Info,
+  LibraryBig,
   PanelLeftClose,
   PanelLeftOpen,
   ChevronDown,
@@ -20,6 +21,7 @@ import {
 import { cn } from "@/lib/utils";
 
 import { WORKSPACES } from "./workspaces";
+import { usePanelState } from "./panel-context";
 
 const BRAND_FONT_FAMILY =
   'Rockwell, "American Typewriter", "Courier New", ui-serif, serif';
@@ -48,6 +50,7 @@ export function AppHeader({
 }: AppHeaderProps): JSX.Element {
   const [isAbout] = useRoute("/about");
   const [location] = useLocation();
+  const { setLibraryRequested } = usePanelState();
   const currentWorkspace = WORKSPACES.find(workspace => workspace.path === location);
 
   return (
@@ -99,6 +102,10 @@ export function AppHeader({
             {workspace.label}
           </WorkspaceLink>
         ))}
+        <Link href="/bin" onClick={() => setLibraryRequested(true)} aria-haspopup="dialog"
+          className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground">
+          <LibraryBig className="h-4 w-4" aria-hidden />Library
+        </Link>
       </nav>
 
       <div className="ml-auto flex items-center gap-1 md:hidden">
@@ -114,6 +121,11 @@ export function AppHeader({
                 <workspace.icon className="mr-2 h-4 w-4" aria-hidden />{workspace.label}
               </Link>
             </DropdownMenuItem>)}
+            <DropdownMenuItem asChild className="min-h-11">
+              <Link href="/bin" onClick={() => setLibraryRequested(true)} aria-haspopup="dialog">
+                <LibraryBig className="mr-2 h-4 w-4" aria-hidden />Library
+              </Link>
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
         <DropdownMenu>

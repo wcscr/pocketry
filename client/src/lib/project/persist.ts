@@ -129,9 +129,45 @@ export async function loadProjectDoc(): Promise<ProjectDoc | null> {
   }
 }
 
-export async function loadProjectLibrary(): Promise<ProjectLibrarySnapshot> {
-  await libraryMutationQueue;
-  try { return toSnapshot(await readStoredLibrary()); }
+/** Normalize only defaults that hydration adds without an edit. A single
+ * history baseline has no undo/redo steps; longer histories must match in full.
+ */
+function restoredDocumentKey(doc: ProjectDoc): string {
+  return JSON.stringify({ ...doc, keepBinSize: doc.keepBinSize ?? false,
+    history: doc.history?.stack.length === 1 ? undefined : doc.history });
+}
+
+/** On workspace restore, recover a detached working copy only when its name
+ * and document match exactly one saved entry. A name alone is not
+ * identity: a separately imported or edited draft must keep discard protection.
+ */
+export async function loadProjectLibrary(restoredDoc?: ProjectDoc | null): Promise<ProjectLibrarySnapshot> {
+  try {
+    return await mutateLibrary(async (library) => {
+      if (!library.activeProjectId && restoredDoc?.name) {
+        const doc = parseProjectDoc(restoredDoc);
+        const key = doc ? restoredDocumentKey(doc) : null;
+        const current = parseProjectDoc(await get(CURRENT_PROJECT_KEY));
+        // A newer workspace may already have replaced the document while this
+        // restore waited for queued writes. Never attach that newer draft.
+        if (!current || restoredDocumentKey(current) !== key) return toSnapshot(library);
+        const matches = doc ? library.projects.filter((project) => {
+          if (project.name !== doc.name) return false;
+          const saved = parseProjectDoc({ ...project.doc, name: project.name });
+          return saved !== null && restoredDocumentKey(saved) === key;
+        }) : [];
+        if (matches.length === 1) {
+          const next = { ...library, activeProjectId: matches[0].id };
+          // Commit the recovered identity before autosave can use it. Keep the
+          // working document (including undo/redo history) untouched.
+          try { await set(PROJECT_LIBRARY_KEY, next); }
+          catch { return toSnapshot(library); }
+          return toSnapshot(next);
+        }
+      }
+      return toSnapshot(library);
+    });
+  }
   catch { return toSnapshot(EMPTY_LIBRARY); }
 }
 
@@ -240,8 +276,10 @@ export async function saveProjectDoc(
       if (previous != null && parseProjectDoc(previous) === null) {
         throw new Error("The existing working copy is unreadable and has been preserved.");
       }
-      await set(CURRENT_PROJECT_KEY, doc);
-      if (!library.activeProjectId) return;
+      if (!library.activeProjectId) {
+        await set(CURRENT_PROJECT_KEY, doc);
+        return;
+      }
       const index = library.projects.findIndex(
         (project) => project.id === library.activeProjectId,
       );
@@ -252,7 +290,7 @@ export async function saveProjectDoc(
         doc,
         updatedAt: new Date().toISOString(),
       };
-      await set(PROJECT_LIBRARY_KEY, { ...library, projects });
+      await setMany([[CURRENT_PROJECT_KEY, doc], [PROJECT_LIBRARY_KEY, { ...library, projects }]]);
     });
     // Clear only queued shapes whose placements have reached durable storage.
     try {
@@ -303,8 +341,7 @@ export async function saveProjectToLibrary(
       activeProjectId: id,
       projects,
     };
-    await set(CURRENT_PROJECT_KEY, namedDoc);
-    await set(PROJECT_LIBRARY_KEY, next);
+    await setMany([[CURRENT_PROJECT_KEY, namedDoc], [PROJECT_LIBRARY_KEY, next]]);
     return toSnapshot(next);
   });
 }
@@ -368,8 +405,7 @@ export async function openProjectFromLibrary(
     const doc = parseProjectDoc(stored.doc);
     if (!doc) throw new Error("That project was saved by an unsupported Pocketry version.");
     const next = { ...library, activeProjectId: stored.id };
-    await set(CURRENT_PROJECT_KEY, doc);
-    await set(PROJECT_LIBRARY_KEY, next);
+    await setMany([[CURRENT_PROJECT_KEY, doc], [PROJECT_LIBRARY_KEY, next]]);
     return {
       doc,
       project: { id: stored.id, name: stored.name, updatedAt: stored.updatedAt },
@@ -397,8 +433,7 @@ export async function deleteProjectFromLibrary(
 export async function startNewProject(doc: ProjectDoc): Promise<ProjectLibrarySnapshot> {
   return mutateLibrary(async (library) => {
     const next = { ...library, activeProjectId: null };
-    await set(CURRENT_PROJECT_KEY, doc);
-    await set(PROJECT_LIBRARY_KEY, next);
+    await setMany([[CURRENT_PROJECT_KEY, doc], [PROJECT_LIBRARY_KEY, next]]);
     return toSnapshot(next);
   });
 }
