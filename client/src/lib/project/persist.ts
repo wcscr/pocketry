@@ -137,38 +137,55 @@ function restoredDocumentKey(doc: ProjectDoc): string {
     history: doc.history?.stack.length === 1 ? undefined : doc.history });
 }
 
-/** On workspace restore, recover a detached working copy only when its name
- * and document match exactly one saved entry. A name alone is not
- * identity: a separately imported or edited draft must keep discard protection.
+/** On restore, reconnect an identical named copy. If a same-name saved project
+ * differs, preserve the working copy as a new library entry instead of leaving
+ * it stranded as a draft or overwriting either version. Recovery failures reject
+ * so the UI can keep the document open and pause autosave until it is saved.
  */
 export async function loadProjectLibrary(restoredDoc?: ProjectDoc | null): Promise<ProjectLibrarySnapshot> {
   try {
     return await mutateLibrary(async (library) => {
       if (!library.activeProjectId && restoredDoc?.name) {
         const doc = parseProjectDoc(restoredDoc);
-        const key = doc ? restoredDocumentKey(doc) : null;
+        if (!doc?.name) return toSnapshot(library);
+        const sourceName = doc.name;
+        const key = restoredDocumentKey(doc);
         const current = parseProjectDoc(await get(CURRENT_PROJECT_KEY));
         // A newer workspace may already have replaced the document while this
         // restore waited for queued writes. Never attach that newer draft.
         if (!current || restoredDocumentKey(current) !== key) return toSnapshot(library);
-        const matches = doc ? library.projects.filter((project) => {
-          if (project.name !== doc.name) return false;
+        const namedProjects = library.projects.filter((project) =>
+          project.name.localeCompare(sourceName, undefined, { sensitivity: "accent" }) === 0,
+        );
+        const matches = namedProjects.filter((project) => {
           const saved = parseProjectDoc({ ...project.doc, name: project.name });
           return saved !== null && restoredDocumentKey(saved) === key;
-        }) : [];
+        });
         if (matches.length === 1) {
           const next = { ...library, activeProjectId: matches[0].id };
           // Commit the recovered identity before autosave can use it. Keep the
           // working document (including undo/redo history) untouched.
-          try { await set(PROJECT_LIBRARY_KEY, next); }
-          catch { return toSnapshot(library); }
+          await set(PROJECT_LIBRARY_KEY, next);
+          return toSnapshot(next);
+        }
+        if (namedProjects.length > 0) {
+          const name = availableProjectName(sourceName, library.projects, "recovered");
+          let id = makeProjectId();
+          while (library.projects.some((project) => project.id === id)) id = makeProjectId();
+          const recoveredDoc = { ...doc, name };
+          const recovered = { id, name, doc: recoveredDoc, updatedAt: new Date().toISOString() };
+          const next = { ...library, activeProjectId: id, projects: [...library.projects, recovered] };
+          await setMany([[CURRENT_PROJECT_KEY, recoveredDoc], [PROJECT_LIBRARY_KEY, next]]);
           return toSnapshot(next);
         }
       }
       return toSnapshot(library);
     });
   }
-  catch { return toSnapshot(EMPTY_LIBRARY); }
+  catch (cause) {
+    if (restoredDoc) throw cause;
+    return toSnapshot(EMPTY_LIBRARY);
+  }
 }
 
 /** Include pending edits to the active named project without waiting for autosave.
@@ -193,12 +210,12 @@ export interface LibraryImportResult {
   renamed: number;
 }
 
-/** File imports always get an independent name, including case-insensitive collisions. */
-function importedProjectName(name: string, projects: readonly StoredProject[]): string {
+/** Imports and recovered working copies never overwrite a same-name project. */
+function availableProjectName(name: string, projects: readonly StoredProject[], reason: "imported" | "recovered"): string {
   let candidate = name;
   let suffix = 1;
   while (projects.some((project) => project.name.localeCompare(candidate, undefined, { sensitivity: "accent" }) === 0)) {
-    const ending = suffix === 1 ? " (imported)" : ` (imported ${suffix})`;
+    const ending = suffix === 1 ? ` (${reason})` : ` (${reason} ${suffix})`;
     candidate = `${name.slice(0, PROJECT_NAME_MAX_LENGTH - ending.length).trimEnd()}${ending}`;
     suffix++;
   }
@@ -211,7 +228,7 @@ export async function importProjectToLibrary(input: ProjectDoc): Promise<OpenedL
   if (!doc) throw new Error("Not a supported Pocketry project file.");
   const sourceName = cleanProjectName(doc.name ?? "Imported project");
   return mutateLibrary(async (library) => {
-    const name = importedProjectName(sourceName, library.projects);
+    const name = availableProjectName(sourceName, library.projects, "imported");
     let id = makeProjectId();
     while (library.projects.some((project) => project.id === id)) id = makeProjectId();
     const project = { id, name, updatedAt: new Date().toISOString() };
@@ -246,7 +263,7 @@ export async function importProjectLibrary(input: unknown): Promise<LibraryImpor
     const ids = new Set(projects.map((project) => project.id));
     let renamed = 0;
     for (const project of importedProjects) {
-      const name = importedProjectName(project.name, projects);
+      const name = availableProjectName(project.name, projects, "imported");
       if (name !== project.name) renamed++;
       let id = project.id;
       while (ids.has(id)) id = makeProjectId();

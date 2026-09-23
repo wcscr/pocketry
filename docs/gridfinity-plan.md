@@ -165,8 +165,14 @@ Bin opens the same manager in the Bin workspace; it is also available in the
 mobile workspace menu. New detaches a clean draft without deleting saved projects. A subsequent
 workspace visit restores a detached named working copy's library identity only
 when its document matches exactly one same-name saved entry after normalizing
-migrations and hydration defaults;
-different or ambiguous drafts retain discard confirmation. Working-copy and
+migrations and hydration defaults. When a same-name library entry differs (for
+example, the resumed copy has newer edits or undo history), restore the complete
+working copy as a separate “(recovered)” library project. Preserve the earlier
+entry, persist the recovered identity atomically, and explain the new name.
+Unnamed drafts and named drafts without a same-name library entry retain discard
+confirmation. A recovery write failure keeps both versions intact, shows the save
+error, and pauses autosave until the user saves or opens a project successfully.
+Working-copy and
 library updates for save, rename, open, new, and named autosave commit atomically,
 so a failed write cannot leave the restored document attached to the wrong entry.
 Opening another design, opening a project file, and New Project all save the outgoing named
