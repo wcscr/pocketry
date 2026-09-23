@@ -59,11 +59,13 @@ export const binSpecSchema = z
     /** Stacking lip on the rim. `none` gives a flush top. */
     lip: z.enum(["standard", "none"]).default("standard"),
     /**
-     * Interior fill. `solid` fills to the lip support line, ready for
+     * Interior fill. `solid` fills to the selected height, ready for
      * cutouts to be subtracted — the Pocketry pocket workflow, hence the
      * default. `none` is the classic hollow storage bin.
      */
     fill: z.enum(["none", "solid"]).default("solid"),
+    /** Percentage of available fill height above the fixed base; retained while hollow. */
+    fillHeightPercent: z.number().min(1).max(100).default(100),
     /** Smooth underside without Gridfinity sockets; preserves outer size and pocket heights. */
     flatBottom: z.boolean().default(false),
     /** ⌀6.5 × 2.4 mm magnet pockets, four per cell, opening downward. */

@@ -29,6 +29,7 @@ import {
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useLocation } from "wouter";
 import { AddPocketMenu } from "./add-pocket-menu";
+import { FillHeightControl } from "./fill-height-control";
 
 import {
   DEFAULT_OBLONG_DEEP_SCOOP_LENGTH_MM,
@@ -738,6 +739,12 @@ export function BinControlsPanel({
             checked={spec.fill === "solid"}
             onChange={(on) => patchSpec({ fill: on ? "solid" : "none" })}
           />
+          {spec.fill === "solid" && (
+            <FillHeightControl
+              value={spec.fillHeightPercent}
+              onChange={(fillHeightPercent, transient) => patchSpec({ fillHeightPercent }, transient)}
+            />
+          )}
           {!spec.flatBottom && (
             <>
               <FeatureSwitch

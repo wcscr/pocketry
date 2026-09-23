@@ -279,6 +279,23 @@ describe("buildBin", () => {
     expect(filled.solid.genus()).toBe(0);
   });
 
+  it.each([1, 25, 37.5, 50, 75, 100])("builds %s percent fill while preserving the base, walls and lip", (fillHeightPercent) => {
+    for (const lip of ["standard", "none"] as const) {
+      const full = buildBin(kernel, spec({ fill: "solid", lip }), QUALITY);
+      const partial = buildBin(kernel, spec({ fill: "solid", lip, fillHeightPercent }), QUALITY);
+      const height = (lip === "standard" ? 33.8 : 35) * fillHeightPercent / 100;
+      expect(partial.parts.infill!.boundingBox().min[2]).toBeCloseTo(7, 8);
+      expect(partial.parts.infill!.boundingBox().max[2]).toBeCloseTo(7 + height, 8);
+      expect(partial.parts.infill!.volume() / full.parts.infill!.volume()).toBeCloseTo(fillHeightPercent / 100, 8);
+      expect(partial.parts.base.volume()).toBe(full.parts.base.volume());
+      expect(partial.parts.wall!.volume()).toBe(full.parts.wall!.volume());
+      expect(partial.parts.lip?.volume()).toBe(full.parts.lip?.volume());
+      expect(partial.solid.boundingBox()).toEqual(full.solid.boundingBox());
+      expect(partial.solid.status()).toBe("NoError");
+      expect(partial.solid.genus()).toBe(0);
+    }
+  });
+
   it("1u bin: no wall, clamped lip, still watertight", () => {
     const { parts, solid } = buildBin(kernel, spec({ heightUnits: 1 }), QUALITY);
     expect(parts.wall).toBeNull();

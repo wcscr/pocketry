@@ -1,5 +1,16 @@
 # Gridfinity bin generator — design and roadmap
 
+**Construction → Fill height** adjusts solid fill from 1–100%, with slider marks at
+25%, 50%, 75%, and 100%. The slider snaps within three percentage points of those
+marks on release; keyboard steps and typed percentages remain exact. The percentage
+scales the available fill height above the fixed base, leaving the outer walls and
+stacking lip at full height. Fixed-depth pockets and finger access start at the
+lowered surface; remaining-floor pockets keep their absolute floor height. Existing
+depth validation blocks pockets that no longer fit. Preview, STL, 3MF and floor
+colors use the same surface. Schema v20 saves the percentage and undo/redo history;
+older projects and history snapshots default to 100%. Toggling solid fill off
+retains the percentage for the next time it is enabled.
+
 The interface consistently calls grip openings **finger access**, including
 controls, default names, layout guidance, validation, and edit history. Older
 history labels use the current wording when displayed; saved geometry, custom

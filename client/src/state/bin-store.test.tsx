@@ -47,6 +47,28 @@ const CUTOUT = parseCutoutPlacement({
 });
 
 describe("bin store", () => {
+  it("previews fill height with recoverable finger depths and commits one undoable change", () => {
+    const { store, act } = mountBin();
+    const hole = fingerHoleSchema.parse({ id: "fill", center: { x: 0, y: 0 }, depthMm: 30, kind: "straight" });
+    act(() => store().dispatch({ type: "ADD_FINGER_HOLE", hole }));
+    const steps = store().history.stack.length;
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { fillHeightPercent: 25 }, transient: true }));
+    expect(store().fingerHoles[0].depthMm).toBeCloseTo(15.45, 9);
+    expect(getCommittedBinDoc(store()).spec.fillHeightPercent).toBe(100);
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { fillHeightPercent: 100 }, transient: true }));
+    expect(store().fingerHoles[0].depthMm).toBe(30);
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { fillHeightPercent: 50 } }));
+    expect(store().history.stack).toHaveLength(steps + 1);
+    expect(store().history.stack.at(-1)!.label).toBe("Change fill height");
+    expect(store().fingerHoles[0].depthMm).toBeCloseTo(23.9, 9);
+    act(() => store().dispatch({ type: "UNDO" }));
+    expect(store().spec.fillHeightPercent).toBe(100);
+    expect(store().fingerHoles[0]).toEqual(hole);
+    act(() => store().dispatch({ type: "REDO" }));
+    expect(store().spec.fillHeightPercent).toBe(50);
+    expect(store().fingerHoles[0].depthMm).toBeCloseTo(23.9, 9);
+  });
+
   it("keeps a split inside one pocket across movement, duplication, base changes, undo and hydration", () => {
     const { store, act } = mountBin();
     const split = { boundary: [{ x: 0, y: -10 }, { x: 0, y: 10 }], depths: [
