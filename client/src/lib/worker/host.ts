@@ -58,8 +58,8 @@ export function serveWorker(
     endpoint.postMessage(message, transfer);
   };
 
-  const onMessage = (event: MessageEvent) => {
-    const message = event.data as ClientMessage;
+  const onMessage = (event: Event) => {
+    const message = (event as MessageEvent).data as ClientMessage;
 
     if (message.kind === "cancel") {
       inFlight.get(message.id)?.abort(new WorkerCancelledError());

@@ -537,9 +537,29 @@ manifolds — at N=1000 that is catastrophic. Therefore:
   with a quality-dependent angular minimum).
 - Preview/export quality presets (~5× triangle difference). Note these are **global** on
   the manifold toplevel, so they are only safe because the worker is single-threaded.
-- **Structural-hash memoization split by stage** inside the worker, so the shell is reused
-  and only the final subtract re-runs on a drag.
-- Debounce 120 ms, supersede with `ExecutionContext.cancel()`, transferables for mesh data.
+- **Deferred: structural-hash memoization split by stage.** Current builds do not cache
+  solids across requests; persistent WASM handles need explicit ownership and eviction.
+- Progressive preview: omit pocket top/bottom rounding during interaction, then
+  refine after 300 ms of idle input and completion of the draft. Keep outline
+  resolution, split depths, and material colors. Label drafts and withhold their
+  approximate statistics; saved settings and export quality remain unchanged.
+- Batch initial live input for 32 ms without restarting the deadline on every
+  event, then retain only the latest pending preview behind each physical job.
+  Two lazy workers separate interactive previews from detailed previews/exports.
+  New edits invalidate old UI callbacks, but let the running RPC finish because
+  cancellation cannot interrupt synchronous WASM. Exports and autosaves retain
+  committed requests while the preview follows transient gestures.
+- Compute normals only for meshes used by the preview. When material parts supply the
+  displayed body, retain the aggregate topology/statistics without calculating its
+  unused normals. Single-mesh fallback previews still receive normals; export topology
+  is unchanged. Empty section meshes return empty buffers without normal-channel errors.
+- Transfer mesh buffers rather than copy them. Worker `error`/`messageerror` rejects all
+  affected jobs and releases the endpoint; a later request can spawn a fresh worker.
+  Failed exports surface an error rather than being silently retried.
+
+The Wiha split-depth/fillet investigation is documented in
+[`preview-performance.md`](preview-performance.md), including the benchmark limits
+and lifecycle regression coverage.
 
 ## Libraries
 
@@ -607,3 +627,14 @@ version bump or quality change; store *golden invariants* instead —
    with its own blast radius — do not let it become implicit.
 6. **Dimensional correctness is only verifiable by printing.** Budget the G1 and G3 print
    gates as real schedule.
+
+### Preview interaction follow-up (2026-09-23)
+
+Addressed progressive-preview UX regressions: continuous gestures now publish
+intermediate meshes within guarded gesture boundaries; inexpensive rounded bins
+build directly with adaptive cost feedback; fillet-only edits retain a coarser
+rounded preview; section-only edits preserve full rounding. Previous exact model
+statistics remain labeled as updating, and brief builds no longer flash a
+percentage indicator. Full detail and export mesh comparisons across 14 designs
+remain identical to the baseline. See `preview-performance.md` for evidence and
+remaining complex-fillet/section latency limitations.

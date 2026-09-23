@@ -100,6 +100,77 @@ const REQUEST: BuildBinRequest = {
 };
 
 describe("bin worker handlers", () => {
+  it.each([false, true])("keeps split depths, materials, and authored settings in a draft with section=%s", async sectioned => {
+    const { shape, cutout } = createBasicPocket("rectangle", { x: -10, y: -15 }, { x: 10, y: 15 }, "draft")!;
+    const placement = parseCutoutPlacement({ ...cutout, clearanceMm: 0, cornerRoundMm: 0,
+      topFilletMm: 1, bottomFilletMm: 2,
+      split: { boundary: [{ x: 0, y: -20 }, { x: 0, y: 20 }], depths: [{ mode: "mm", value: 4 }, { mode: "mm", value: 8 }] },
+    });
+    const request: BuildBinRequest = {
+      spec: { gridX: 2, gridY: 2, heightUnits: 3, fill: "solid" },
+      quality: { circularSegments: 16, filletProfileStepMm: 0.5 },
+      layout: { shapes: [shape], cutouts: [placement], fingerHoles: [] },
+      section: sectioned ? { axis: "y", offsetMm: 0 } : undefined,
+      pocketFloorMaterialThicknessMm: 0.6, stackingRimMaterialThicknessMm: 1.25,
+    };
+    const original = structuredClone(request);
+    const draft = (await getHandler()({ ...request, previewDraft: true }, context())).value;
+    const sharp = (await getHandler()({ ...request, layout: { ...request.layout!,
+      cutouts: [{ ...placement, topFilletMm: 0, bottomFilletMm: 0 }] },
+    }, context())).value;
+    expect(draft.mesh).toEqual(sharp.mesh);
+    expect(draft.materialMeshes).toEqual(sharp.materialMeshes);
+    expect(draft.stats.volumeMm3).toBe(sharp.stats.volumeMm3);
+    expect(request).toEqual(original);
+    const heights = new Set(Array.from(draft.materialMeshes!.pocketFloors!.positions)
+      .filter((_, i) => i % 3 === 2).map(z => Math.round(z * 1000) / 1000));
+    for (const depth of placement.split!.depths) {
+      expect(heights).toContain(resolvePocketDepth(parseBinSpec(request.spec), depth).floorZ);
+    }
+    // Even a caller that accidentally combines both flags must export the
+    // authored rounded geometry, with exactly the normal export mesh data.
+    const exported = (await getHandler()({ ...request, section: undefined, exportTopology: true }, context())).value;
+    const flagged = (await getHandler()({ ...request, section: undefined, exportTopology: true, previewDraft: true }, context())).value;
+    expect(flagged.mesh).toEqual(exported.mesh);
+    expect(flagged.materialMeshes).toEqual(exported.materialMeshes);
+    expect(flagged.stats.volumeMm3).not.toBe(draft.stats.volumeMm3);
+  });
+
+  it("keeps visible rounding in a coarse draft and ignores that tier for exports", async () => {
+    const { shape, cutout } = createBasicPocket("rectangle", { x: -10, y: -15 }, { x: 10, y: 15 }, "rounded-draft")!;
+    const placement = parseCutoutPlacement({ ...cutout, topFilletMm: 2, bottomFilletMm: 3, depth: { mode: "mm", value: 10 } });
+    const request: BuildBinRequest = {
+      spec: { gridX: 2, gridY: 2, heightUnits: 3 },
+      quality: { circularSegments: 24, filletProfileStepMm: 0.5 },
+      layout: { shapes: [shape], cutouts: [placement], fingerHoles: [] },
+      pocketFloorMaterialThicknessMm: 0.6, stackingRimMaterialThicknessMm: 1.25,
+    };
+    const original = structuredClone(request);
+    const coarse = (await getHandler()({ ...request, previewDraft: "rounded" }, context())).value;
+    const sharp = (await getHandler()({ ...request, quality: { ...request.quality, circularSegments: 16, filletProfileStepMm: 2 }, previewDraft: true }, context())).value;
+    const changed = (await getHandler()({ ...request, previewDraft: "rounded", layout: { ...request.layout!,
+      cutouts: [{ ...placement, topFilletMm: 4 }] } }, context())).value;
+    expect(coarse.stats.triangles).toBeGreaterThan(sharp.stats.triangles);
+    expect(changed.stats.volumeMm3).toBeLessThan(coarse.stats.volumeMm3);
+    expect(coarse.materialMeshes?.pocketFloors).toBeDefined();
+    expect(request).toEqual(original);
+    // Aggregate meshes retain indexed topology; welding touching vertices can
+    // create artificial non-manifold edges at material boundaries.
+    expect(coarse.mesh.normals).toBeNull();
+    expect(nonManifoldEdgeCount(coarse.mesh)).toBe(0);
+    const detailed = (await getHandler()({ ...request, exportTopology: true }, context())).value;
+    const flagged = (await getHandler()({ ...request, exportTopology: true, previewDraft: "rounded" }, context())).value;
+    expect(flagged.mesh).toEqual(detailed.mesh);
+    expect(flagged.materialMeshes).toEqual(detailed.materialMeshes);
+  });
+
+  it("validates authored rounding before approximating a draft", async () => {
+    const { shape, cutout } = createBasicPocket("rectangle", { x: -10, y: -10 }, { x: 10, y: 10 }, "invalid")!;
+    await expect(getHandler()({ ...REQUEST, previewDraft: true,
+      layout: { shapes: [shape], cutouts: [{ ...cutout, topFilletMm: -1 }], fingerHoles: [] },
+    }, context())).rejects.toThrow();
+  });
+
   it("builds geometric pockets with colored floors while same-depth finger access keeps the body material", async () => {
     const spec = parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 3, lip: "none", flatBottom: true });
     const pockets = [
@@ -253,6 +324,7 @@ describe("bin worker handlers", () => {
       context(),
     );
     const materialMeshes = multicolor.value.materialMeshes;
+    expect(multicolor.value.mesh.normals).toBeNull();
     expect(materialMeshes).toBeDefined();
     expect(materialMeshes!.body.indices.length).toBeGreaterThan(0);
     expect(materialMeshes!.body.normals).not.toBeNull();
@@ -305,6 +377,7 @@ describe("bin worker handlers", () => {
     );
 
     expect(result.value.materialMeshes?.stackingRim).toBeDefined();
+    expect(result.value.mesh.normals).toBeNull();
     for (const mesh of [
       result.value.materialMeshes!.body,
       result.value.materialMeshes!.stackingRim!,
@@ -313,7 +386,45 @@ describe("bin worker handlers", () => {
         mesh.positions.filter((_, index) => index % 3 === 0),
       );
       expect(Math.max(...xs)).toBeLessThanOrEqual(0.001);
+      expect(mesh.normals).not.toBeNull();
     }
+  });
+
+  it("keeps fallback normals when requested materials have no printable volume", async () => {
+    const result = await getHandler()({
+      spec: { gridX: 1, gridY: 1, heightUnits: 3, lip: "none", fill: "none" },
+      quality: { circularSegments: 16 },
+      pocketFloorMaterialThicknessMm: 0.6,
+      stackingRimMaterialThicknessMm: 1.25,
+    }, context());
+    expect(result.value.materialMeshes).toBeUndefined();
+    expect(result.value.mesh.normals?.length).toBe(result.value.mesh.positions.length);
+    expect(result.value.mesh.indices.length).toBeGreaterThan(0);
+  });
+
+  it.each([undefined, 1.25].flatMap(stackingRimMaterialThicknessMm =>
+    [-62.75, -63].map(offsetMm => ({ stackingRimMaterialThicknessMm, offsetMm })),
+  ))("handles an empty aggregate at X=$offsetMm with rim material=$stackingRimMaterialThicknessMm", async ({ stackingRimMaterialThicknessMm, offsetMm }) => {
+    const request: BuildBinRequest = {
+      spec: { gridX: 3, gridY: 7, heightUnits: 3, fill: "solid" },
+      quality: { circularSegments: 16 }, stackingRimMaterialThicknessMm,
+    };
+    const whole = await getHandler()(request, context());
+    const cut = await getHandler()({ ...request, section: { axis: "x", offsetMm } }, context());
+    expect(cut.value.mesh.indices).toHaveLength(0);
+    expect(cut.value.stats.triangles).toBe(0);
+    expect(cut.value.stats.volumeMm3).toBe(whole.value.stats.volumeMm3);
+    if (cut.value.materialMeshes) {
+      // Independent boolean trims can leave tiny coplanar fragments exactly
+      // on the boundary. Every surviving body vertex still needs its normal.
+      const body = cut.value.materialMeshes.body;
+      expect(body.normals?.length).toBe(body.positions.length);
+      if (offsetMm < -62.75) expect(body.positions).toHaveLength(0);
+      expect(cut.value.materialMeshes.stackingRim).toBeUndefined();
+    }
+    expect(new Set(cut.transfer).size).toBe(cut.transfer.length);
+    const moved = structuredClone(cut.value, { transfer: cut.transfer });
+    expect(moved.mesh.indices).toHaveLength(0);
   });
 
   it("returns topology-preserving meshes for export builds", async () => {
