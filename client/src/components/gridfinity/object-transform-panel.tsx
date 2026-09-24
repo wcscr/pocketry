@@ -1,3 +1,5 @@
+import { createPortal } from "react-dom";
+import { useSelectionInspector } from "./selection-inspector-context";
 import { useEffect, useState } from "react";
 import { objectTransformOffsets, setObjectTransformOffsets } from "@/lib/gridfinity/object-transform-offsets";
 import { CheckSquare2, ChevronDown, X, Link2, Magnet, Move3D, Rotate3D, AlignHorizontalJustifyCenter } from "lucide-react";
@@ -26,6 +28,9 @@ export function ObjectTransformPanel({ editor, objects, selected, displayed, mod
   modeRequest?: number;
   pivot: RotationPivot; setPivot: (pivot: RotationPivot) => void; limited: boolean;
 }): JSX.Element {
+  const inspector = useSelectionInspector();
+  useEffect(() => { if (modeRequest) inspector?.setActiveTab("transform"); }, [modeRequest]);
+  const showLinks = editor.linkControls && !inspector;
   const [arranging, setArranging] = useState(false);
   const [linking, setLinking] = useState(false);
   const [draft, setDraft] = useState<Record<number, string>>({});
@@ -64,12 +69,12 @@ export function ObjectTransformPanel({ editor, objects, selected, displayed, mod
   };
   const mixed = selected.some(o => o.kind === "finger");
   const single = displayed.length === 1 ? displayed[0] : null;
-  return <div className="absolute left-3 top-16 z-20 max-h-[calc(100%-5rem)] w-64 max-w-[calc(100%-5rem)] overflow-y-auto rounded-xl border bg-background/95 text-xs shadow-lg backdrop-blur-md md:top-12" data-testid="pocket-3d-controls">
-    <div className="flex items-center justify-between border-b px-3 py-1">
+  const content = <div className={inspector ? "text-xs" : "absolute left-3 top-16 z-20 max-h-[calc(100%-5rem)] w-64 max-w-[calc(100%-5rem)] overflow-y-auto rounded-xl border bg-background/95 text-xs shadow-lg backdrop-blur-md md:top-12"} data-testid="pocket-3d-controls">
+    {!inspector && <div className="flex items-center justify-between border-b px-3 py-1">
       <span className="font-medium">Object controls</span>
       <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Close object controls" title="Close object controls" onClick={onClose}><X className="h-4 w-4" /></Button>
-    </div>
-    <details className="group border-b" open={selected.length === 0 || undefined}>
+    </div>}
+    {!inspector && <details className="group border-b" open={selected.length === 0 || undefined}>
       <summary className="flex min-h-10 cursor-pointer list-none items-center gap-2 px-3 py-2 font-medium">
         <CheckSquare2 className="h-4 w-4 text-primary" />
         <span className="flex-1">{selected.length ? `${selected.length} object${selected.length === 1 ? "" : "s"} selected` : "Select objects"}</span>
@@ -89,9 +94,9 @@ export function ObjectTransformPanel({ editor, objects, selected, displayed, mod
         </div>
         <p className="px-2 pt-1 text-[10px] text-muted-foreground">Shift / ⌘ / Ctrl + click to add or remove.</p>
       </div>
-    </details>
+    </details>}
     <div className="space-y-3 p-3">
-      <div className={cn("grid gap-1 rounded-lg bg-muted p-1", editor.linkControls ? "grid-cols-4" : "grid-cols-3")} role="group" aria-label="Object tools">
+      <div className={cn("grid gap-1 rounded-lg bg-muted p-1", showLinks ? "grid-cols-4" : "grid-cols-3")} role="group" aria-label="Object tools">
         {(["translate", "rotate", "arrange"] as const).map(tool => <button key={tool} type="button"
           className={cn("flex min-h-9 flex-col items-center justify-center gap-1 rounded-md px-1 py-1.5 text-[10px] font-medium transition-colors", (!linking && (tool === "arrange" ? arranging : !arranging && mode === tool)) ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}
           aria-label={tool === "translate" ? "Move pocket (W)" : tool === "rotate" ? "Rotate pocket (E)" : "Align and distribute objects"}
@@ -100,7 +105,7 @@ export function ObjectTransformPanel({ editor, objects, selected, displayed, mod
           {tool === "translate" ? <Move3D className="h-4 w-4" /> : tool === "rotate" ? <Rotate3D className="h-4 w-4" /> : <AlignHorizontalJustifyCenter className="h-4 w-4" />}
           {tool === "translate" ? "Move" : tool === "rotate" ? "Rotate" : "Arrange"}
         </button>)}
-        {editor.linkControls && <button type="button" aria-label="Link and unlink designs" aria-pressed={linking}
+        {showLinks && <button type="button" aria-label="Link and unlink designs" aria-pressed={linking}
           className={cn("flex min-h-9 flex-col items-center justify-center gap-1 rounded-md px-1 py-1.5 text-[10px] font-medium", linking ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground")}
           onClick={() => { setLinking(true); setError(null); }}><Link2 className="h-4 w-4" />Links</button>}
       </div>
@@ -152,4 +157,5 @@ export function ObjectTransformPanel({ editor, objects, selected, displayed, mod
       {(limited || error) && <p role="status" className="text-[11px] text-destructive">{error ?? "Cannot transform every affected copy. Keep floors within the bin; edit one linked copy if the group needs different design changes."}</p>}
     </div>
   </div>;
+  return inspector ? inspector.transforms ? createPortal(content, inspector.transforms) : <></> : content;
 }

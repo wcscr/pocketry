@@ -24,21 +24,22 @@ class NoopResizeObserver implements ResizeObserver {
  * actually run — a crash from an imperative API called too early, a mobile
  * branch that never renders its canvas.
  */
-function render(ui: React.ReactElement, { mobile = false, inspect }: {
+function render(ui: React.ReactElement, { mobile = false, landscape = false, inspect }: {
   mobile?: boolean;
+  landscape?: boolean;
   inspect?: (container: HTMLDivElement) => void;
 } = {}) {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.stubGlobal("ResizeObserver", NoopResizeObserver);
   // jsdom does not implement matchMedia, which useIsMobile() calls unguarded.
   vi.stubGlobal("matchMedia", (query: string) => ({
-    matches: mobile,
+    matches: query.includes("max-height") ? landscape : mobile,
     media: query,
     addEventListener: () => {},
     removeEventListener: () => {},
   }));
   Object.defineProperty(window, "innerWidth", {
-    value: mobile ? 400 : 1440,
+    value: mobile ? 400 : landscape ? 844 : 1440,
     writable: true,
     configurable: true,
   });
@@ -89,6 +90,24 @@ describe("AppShell", () => {
 
 describe("WorkspaceLayout", () => {
   const noop = () => {};
+
+  it("uses the inspector drawer on short landscape screens without transforming the canvas", () => {
+    render(<WorkspaceLayout autoSaveId="test:inspector" panelOpen onPanelOpenChange={noop}
+      panel={<div>object-list</div>} canvas={<div>canvas</div>} inspector={<div>selection-properties</div>} />, {
+      landscape: true,
+      inspect: container => {
+        const canvas = container.querySelector('[data-testid="mobile-workspace-canvas"]');
+        expect(canvas).not.toBeNull();
+        expect(canvas!.closest('[role="dialog"]')).toBeNull();
+        expect(container.querySelector('[data-testid="inspector-workspace"]')).toBeNull();
+        const dialog = document.querySelector('[role="dialog"]')!;
+        const properties = [...dialog.querySelectorAll('button')].find(b => b.textContent === "Properties")!;
+        React.act(() => properties.click());
+        expect(properties.getAttribute('aria-pressed')).toBe('true');
+        expect(dialog.textContent).toContain('selection-properties');
+      },
+    });
+  });
 
   it("renders panel and canvas side by side on desktop", () => {
     const html = render(

@@ -47,6 +47,29 @@ const CUTOUT = parseCutoutPlacement({
 });
 
 describe("bin store", () => {
+  it("duplicates and removes a mixed selection in single undo steps, preserving originals and bin size", () => {
+    const { store, act } = mountBin();
+    const hole = fingerHoleSchema.parse({ id: "f", center: { x: 10, y: 0 }, depthMm: 12 });
+    act(() => store().dispatch({ type: "ADD_PLACED", cutouts: [CUTOUT], gridX: 4, gridY: 4 }));
+    act(() => store().dispatch({ type: "ADD_FINGER_HOLE", hole }));
+    const selection = [{ kind: "pocket" as const, id: CUTOUT.id }, { kind: "finger" as const, id: hole.id }];
+    act(() => store().dispatch({ type: "SET_SELECTION", selection }));
+    const steps = store().history.stack.length;
+    act(() => store().dispatch({ type: "DUPLICATE_SELECTION", ids: [{ source: selection[0], id: "copy-p" }, { source: selection[1], id: "copy-f" }] }));
+    expect(store().history.stack).toHaveLength(steps + 1);
+    expect(store().selection).toEqual([{ kind: "pocket", id: "copy-p" }, { kind: "finger", id: "copy-f" }]);
+    expect(store().cutouts[0]).toEqual(CUTOUT);
+    expect(store().fingerHoles[1].center).toEqual({ x: 20, y: -10 });
+    act(() => store().dispatch({ type: "REMOVE_SELECTION" }));
+    expect(store().history.stack).toHaveLength(steps + 2);
+    expect(store().cutouts).toEqual([CUTOUT]); expect(store().fingerHoles).toEqual([hole]);
+    expect(store().spec.gridX).toBe(4);
+    act(() => store().dispatch({ type: "UNDO" }));
+    expect(store().cutouts).toHaveLength(2); expect(store().fingerHoles).toHaveLength(2);
+    act(() => store().dispatch({ type: "UNDO" }));
+    expect(store().cutouts).toEqual([CUTOUT]); expect(store().fingerHoles).toEqual([hole]);
+  });
+
   it("previews fill height with recoverable finger depths and commits one undoable change", () => {
     const { store, act } = mountBin();
     const hole = fingerHoleSchema.parse({ id: "fill", center: { x: 0, y: 0 }, depthMm: 30, kind: "straight" });

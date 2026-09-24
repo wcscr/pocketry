@@ -130,6 +130,8 @@ export type BinAction =
   | { type: "SELECT_CUTOUT"; id: string | null; section?: PocketSectionIndex; additive?: boolean }
   | { type: "SELECT_FINGER_HOLE"; id: string | null; additive?: boolean }
   | { type: "SET_SELECTION"; selection: ObjectRef[] }
+  | { type: "REMOVE_SELECTION" }
+  | { type: "DUPLICATE_SELECTION"; ids: { source: ObjectRef; id: string }[] }
   | { type: "UPDATE_OBJECTS"; edits: ObjectEdits; historyLabel: string; transient?: boolean }
   | { type: "SET_VIEW_MODE"; viewMode: BinViewMode }
   | { type: "SET_EDITOR_MODE"; editorMode: BinEditorMode }
@@ -535,6 +537,34 @@ function reduceBin(state: BinState, action: BinAction): BinState {
       const doc = { spec: state.spec, ...edits };
       if (JSON.stringify(doc) === JSON.stringify(getCommittedBinDoc(state))) return preview(state, doc);
       return action.transient ? preview(state, doc) : commit(state, doc, action.historyLabel);
+    }
+    case "REMOVE_SELECTION": {
+      if (!state.selection.length) return state;
+      return commit(state, { spec: state.spec,
+        cutouts: state.cutouts.filter(c => !state.selection.some(ref => ref.kind === "pocket" && ref.id === c.id)),
+        fingerHoles: state.fingerHoles.filter(h => !state.selection.some(ref => ref.kind === "finger" && ref.id === h.id)),
+      }, `Remove ${state.selection.length} objects`, { selection: [], pendingRemovalId: null });
+    }
+    case "DUPLICATE_SELECTION": {
+      const cutouts: CutoutPlacement[] = [], fingerHoles: FingerHole[] = [];
+      const selection: ObjectRef[] = [];
+      const used = new Set([...state.cutouts, ...state.fingerHoles].map(o => o.id));
+      for (const { source, id } of action.ids) {
+        if (used.has(id) || !state.selection.some(ref => sameObject(ref, source))) continue;
+        if (source.kind === "pocket") {
+          const original = state.cutouts.find(c => c.id === source.id);
+          if (!original) continue;
+          cutouts.push({ ...original, id, designLink: undefined, position: { x: original.position.x + 10, y: original.position.y - 10 } });
+        } else {
+          const original = state.fingerHoles.find(h => h.id === source.id);
+          if (!original) continue;
+          fingerHoles.push({ ...original, id, designLink: undefined, center: { x: original.center.x + 10, y: original.center.y - 10 } });
+        }
+        used.add(id); selection.push({ kind: source.kind, id });
+      }
+      if (!selection.length) return state;
+      return commit(state, { spec: state.spec, cutouts: [...state.cutouts, ...cutouts], fingerHoles: [...state.fingerHoles, ...fingerHoles] },
+        `Duplicate ${selection.length} objects`, { selection });
     }
     case "SET_SELECTION":
       return { ...state, ...selectionState(existingSelection(action.selection, state)), selectedPocketSection: 0 };

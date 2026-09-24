@@ -1,3 +1,4 @@
+import { useSelectionInspector } from "./selection-inspector-context";
 import { Line, OrbitControls } from "@react-three/drei";
 import { Canvas, useThree, type ThreeEvent } from "@react-three/fiber";
 import { LoaderCircle, Ruler, Move3D, X } from "lucide-react";
@@ -248,6 +249,7 @@ export function BinViewport({
   const [containerRef, containerSize] = useElementSize<HTMLDivElement>();
   const laidOut = containerSize.width > 0 && containerSize.height > 0;
   const [rulerActive, setRulerActive] = useState(false);
+  const inspector = useSelectionInspector();
   const [objectControlsOpen, setObjectControlsOpen] = useState(false);
   useEffect(() => { if (!pocketEditor) setObjectControlsOpen(false); }, [!!pocketEditor]);
   const [transformMode, setTransformMode] = useState<PocketTransformMode>("translate");
@@ -351,7 +353,7 @@ export function BinViewport({
         ) : null}
         {pocketEditor && <PocketSelectionPlane editor={pocketEditor} width={fitSize.widthMm} length={fitSize.lengthMm} disabled={rulerActive || !!dragPreview} />}
         {pocketEditor && !rulerActive && displayedObjects.map(object => <ObjectTransformWire key={objectKey(objectRef(object))} object={object} spec={pocketEditor.spec} />)}
-        {selectedObjects.length > 0 && pocketEditor && objectControlsOpen && !rulerActive && <SelectionTransformScene
+        {selectedObjects.length > 0 && pocketEditor && (inspector ? inspector.activeTab === "transform" : objectControlsOpen) && !rulerActive && <SelectionTransformScene
           key={`${selectionKey}-${transformMode}`} objects={selectedObjects} allObjects={objects} spec={pocketEditor.spec} mode={transformMode} snap={snapTransform} pivot={pivot}
           onPreview={setDragPreview} onLimit={setTransformLimited}
           onCommit={edits => commitEditorObjects(pocketEditor, edits, `${transformMode === "translate" ? "Move" : "Rotate"} ${selectedObjects.length} objects in 3D`, transformMode)} />}
@@ -413,7 +415,7 @@ export function BinViewport({
         >
           <Ruler className="h-4 w-4" />
         </Button>
-        {pocketEditor && <Button variant="ghost" size="icon"
+        {pocketEditor && !inspector && <Button variant="ghost" size="icon"
           className={cn("h-9 w-9 rounded-none border-t [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11", objectControlsOpen && !rulerActive && "bg-accent text-accent-foreground")}
           aria-label="Object controls" title="Move, rotate and arrange objects" aria-expanded={objectControlsOpen && !rulerActive}
           onClick={() => { setObjectControlsOpen(open => !open || rulerActive); setRulerActive(false); }}><Move3D className="h-4 w-4" /></Button>}
@@ -432,7 +434,7 @@ export function BinViewport({
         ) : null}
       </div>
 
-      {pocketEditor && objectControlsOpen && !rulerActive && <ObjectTransformPanel editor={pocketEditor} objects={objects} selected={selectedObjects} displayed={displayedObjects}
+      {pocketEditor && (objectControlsOpen || !!inspector && selectedObjects.length > 0) && !rulerActive && <ObjectTransformPanel editor={pocketEditor} objects={objects} selected={selectedObjects} displayed={displayedObjects}
         mode={transformMode} modeRequest={modeRequest} setMode={mode => { setRulerActive(false); setTransformMode(mode); }} snap={snapTransform} setSnap={setSnapTransform}
         pivot={pivot} setPivot={setPivot} limited={transformLimited} onClose={() => setObjectControlsOpen(false)} />}
 

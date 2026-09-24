@@ -1,3 +1,4 @@
+import { useSelectionInspector } from "./selection-inspector-context";
 import { SelectionLinkControls } from "./linked-design-controls";
 import { useExperimentalFeatures } from "@/state/experimental-features";
 import { hasPocketTilt } from "@shared/gridfinity/pocket-orientation";
@@ -244,7 +245,9 @@ export function LayoutCanvas({ onEditPocket }: {
 }
 
 function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Element {
-  const { enabled: experimentalEnabled } = useExperimentalFeatures();
+  const inspector = useSelectionInspector();
+  const { enabled: experimentalPreference } = useExperimentalFeatures();
+  const experimentalEnabled = experimentalPreference || !!inspector;
   const isMobile = useIsMobile();
   const {
     spec,
@@ -511,7 +514,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
   }, [history, selection, dispatch, experimentalEnabled]);
   const [isRotating, setIsRotating] = useState(false);
   const [rulerActive, setRulerActive] = useState(false);
-  const showObjectControls = experimentalEnabled && objectControlsOpen && editorMode === "placement" && !rulerActive;
+  const showObjectControls = experimentalEnabled && (objectControlsOpen || !!inspector && selection.length > 0) && editorMode === "placement" && !rulerActive;
   useEffect(() => { if (rulerActive) setPanActive(false); }, [rulerActive]);
   const [measurementPoints, setMeasurementPoints] = useState<Point[]>([]);
   const hasPlacedCutouts = placed.length > 0;
@@ -1233,6 +1236,10 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (!canHandleCanvasShortcut(event) || event.altKey) return;
+      if (inspector && editorMode === "placement" && selection.length && !event.ctrlKey && !event.metaKey
+        && (event.key === "Delete" || event.key === "Backspace")) {
+        event.preventDefault(); dispatch({ type: "REMOVE_SELECTION" }); return;
+      }
       if (experimentalEnabled && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a" && editorMode === "placement") {
         event.preventDefault(); dispatch({ type: "SET_SELECTION", selection: arrangementObjects.map(objectRef) }); return;
       }
@@ -1385,7 +1392,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
   }, [
     selectedCutoutId,
     selectedFingerHoleId,
-    arrangementObjects, selectedObjects, selection, history, objectPivot, experimentalEnabled,
+    arrangementObjects, selectedObjects, selection, history, objectPivot, experimentalEnabled, !!inspector,
     cutouts,
     fingerHoles,
     editorMode,
@@ -1934,7 +1941,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
         >
           <Ruler className="h-4 w-4" />
         </Button>
-        {experimentalEnabled && <Button variant="ghost" size="icon"
+        {experimentalEnabled && !inspector && <Button variant="ghost" size="icon"
           className={cn("h-11 w-11 rounded-none border-t md:h-9 md:w-9 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11", objectControlsOpen && !rulerActive && "bg-accent text-accent-foreground")}
           aria-label="Object controls" title="Move, rotate and arrange objects" aria-expanded={objectControlsOpen && !rulerActive}
           onClick={() => { setObjectControlsOpen(open => !open || rulerActive); setRulerActive(false); dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" }); }}><Move3D className="h-4 w-4" /></Button>}

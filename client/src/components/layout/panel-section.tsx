@@ -10,7 +10,7 @@ import {
 import { cn } from "@/lib/utils";
 
 /** A focused mobile form can reuse an existing section without mounting unrelated fields. */
-export const PanelSectionFilterContext = createContext<string | null>(null);
+export const PanelSectionFilterContext = createContext<string | readonly string[] | null>(null);
 
 export interface PanelSectionProps {
   /** Header label. Truncates rather than wrapping in a narrow panel. */
@@ -117,7 +117,7 @@ export function PanelSection({
   attention = false,
 }: PanelSectionProps): JSX.Element {
   const visibleSection = useContext(PanelSectionFilterContext);
-  if (visibleSection && id !== visibleSection) return <></>;
+  if (visibleSection && (typeof visibleSection === "string" ? id !== visibleSection : !id || !visibleSection.includes(id))) return <></>;
   const toneStyles = tone ? TONE_STYLES[tone] : null;
   return (
     <Collapsible

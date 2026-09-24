@@ -4505,3 +4505,68 @@ it("rejects overflowing numeric moves without corrupting the document or undo hi
     }
   } finally { unmount(); }
 });
+
+it("prototype keeps selection and list position while batch editing, undoing and switching panels", async () => {
+  const originalUrl = window.location.href;
+  window.history.replaceState(null, "", "/bin?inspector=1");
+  const shape = rectangularShape("proto", "Tool");
+  const cutouts = [10, 20].map((value, i) => parseCutoutPlacement({ id: `proto-${i}`, name: `Tool ${i + 1}`, shapeId: shape.id, position: { x: i * 40 - 20, y: 0 }, depth: { mode: "mm", value } }));
+  const finger = fingerHoleSchema.parse({ id: "proto-f", name: "Tool access", center: { x: 0, y: 0 }, depthMm: 8 });
+  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, spec: parseBinSpec({ gridX: 4, gridY: 4, heightUnits: 6 }), shapes: [shape], cutouts, fingerHoles: [finger] });
+  const { container, unmount } = renderPage({ experimental: false });
+  try {
+    await flushHydration();
+    const clickText = (text: string, within: ParentNode = container) => React.act(() => [...within.querySelectorAll<HTMLButtonElement>('button')].find(b => b.textContent === text)!.click());
+    const choose = (name: string) => React.act(() => container.querySelector<HTMLInputElement>(`[aria-label="Include ${name} in selection"]`)!.click());
+    const list = container.querySelector('#bin-settings-pockets')!.parentElement!;
+    list.scrollTop = 150;
+    selectPocket(container, 'proto-0');
+    expect(container.querySelector('#pocket-properties')!.closest('[data-testid="selection-inspector"]')).not.toBeNull();
+    expect(list.scrollTop).toBe(150);
+    choose('Tool 2'); choose('Tool access');
+    expect(container.querySelector('#pocket-properties')).toBeNull();
+    const inspector = container.querySelector('[data-testid="selection-inspector"]')!;
+    expect(inspector.textContent).toContain('3 selected');
+    const input = inspector.querySelector<HTMLInputElement>('[aria-label="Fixed cut depth for selected pockets"]')!;
+    expect(input.value).toBe(''); expect(input.placeholder).toBe('Mixed');
+    React.act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, '14');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    React.act(() => inspector.querySelector<HTMLButtonElement>('[aria-label="Apply fixed cut depth to selected pockets"]')!.click());
+    const doc = () => ({ cutouts: vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts, fingers: vi.mocked(useBinGeometry).mock.lastCall![2]!.fingerHoles });
+    expect(doc().cutouts.map(c => c.depth)).toEqual([{ mode: 'mm', value: 14 }, { mode: 'mm', value: 14 }]);
+    expect(doc().fingers).toEqual([finger]);
+    expect(inspector.textContent).toContain('3 selected'); expect(list.scrollTop).toBe(150);
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+    expect(doc().cutouts.map(c => c.depth)).toEqual(cutouts.map(c => c.depth));
+    expect(inspector.textContent).toContain('3 selected');
+    clickText('Bin & project');
+    expect(inspector.querySelector('[data-testid="batch-properties"]')).not.toBeNull();
+    clickText('Objects');
+    expect(container.querySelectorAll('[aria-label^="Include "]:checked')).toHaveLength(3);
+    clickText('Layout');
+    expect(inspector.querySelector('[data-testid="pocket-3d-controls"]')).not.toBeNull();
+    expect(inspector.querySelector('[aria-label="Objects in selection"]')).toBeNull();
+  } finally { unmount(); window.history.replaceState(null, '', originalUrl); }
+});
+
+it("prototype mobile keeps the canvas outside the properties drawer and switches to export explicitly", async () => {
+  const originalUrl = window.location.href;
+  window.history.replaceState(null, '', '/bin?inspector=1');
+  const shape = rectangularShape('proto-mobile', 'Mobile tool');
+  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape], cutouts: [parseCutoutPlacement({ id: 'mobile-p', shapeId: shape.id, position: { x: 0, y: 0 } })] });
+  const { container, unmount } = renderPage({ mobile: true });
+  try {
+    await flushHydration();
+    const click = (text: string) => React.act(() => [...document.querySelectorAll<HTMLButtonElement>('button')].find(b => b.textContent === text)!.click());
+    click('Objects');
+    selectPocket(document.body, 'mobile-p');
+    click('Properties');
+    expect(document.querySelector('#pocket-properties')!.closest('[hidden]')).toBeNull();
+    expect(container.querySelector('[data-testid="mobile-workspace-canvas"]')!.closest('[role="dialog"]')).toBeNull();
+    click('Back to canvas'); click('Export');
+    expect(document.querySelector('[data-testid="button-export-3mf"]')!.closest('[hidden]')).toBeNull();
+    expect(document.querySelector('[data-testid="selection-inspector"]')!.closest('[hidden]')).not.toBeNull();
+  } finally { unmount(); window.history.replaceState(null, '', originalUrl); }
+});

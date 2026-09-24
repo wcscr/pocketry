@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useElementSize } from "@/hooks/use-element-size";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { cn } from "@/lib/utils";
 import { MobileCanvasOverlayContext } from "./mobile-canvas-overlay";
 
 export interface WorkspaceLayoutProps {
@@ -23,6 +24,10 @@ export interface WorkspaceLayoutProps {
   panel: React.ReactNode;
   /** Fills all remaining space; rendered inside a relative, clipped box. */
   canvas: React.ReactNode;
+  /** Optional selection inspector with its own scroll position. */
+  inspector?: React.ReactNode;
+  inspectorRequest?: number;
+  controlsRequest?: unknown;
   /**
    * localStorage key for the persisted split, e.g. "tooltrace:trace".
    *
@@ -66,6 +71,9 @@ export interface WorkspaceLayoutProps {
 export function WorkspaceLayout({
   panel,
   canvas,
+  inspector,
+  inspectorRequest = 0,
+  controlsRequest,
   autoSaveId,
   panelSide = "left",
   defaultPanelSize = 26,
@@ -78,6 +86,18 @@ export function WorkspaceLayout({
   mobileActionsLayout = "bottom",
 }: WorkspaceLayoutProps): JSX.Element {
   const isMobile = useIsMobile();
+  const [inspectorLandscape, setInspectorLandscape] = React.useState(false);
+  React.useEffect(() => {
+    if (!inspector) return;
+    const query = window.matchMedia("(max-width: 1099px) and (max-height: 500px)");
+    const update = () => setInspectorLandscape(query.matches);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, [!!inspector]);
+  const [mobileInspector, setMobileInspector] = React.useState(false);
+  React.useEffect(() => { if (inspectorRequest) setMobileInspector(true); }, [inspectorRequest]);
+  React.useEffect(() => { if (controlsRequest) setMobileInspector(false); }, [controlsRequest]);
   const [overlayRoot, setOverlayRoot] = React.useState<HTMLDivElement | null>(null);
   const [workspaceRef, workspaceSize] = useElementSize<HTMLDivElement>();
   // Percentage-only limits make tablet controls narrower than their fields.
@@ -119,7 +139,7 @@ export function WorkspaceLayout({
   // guard no-ops when the group is already in the requested state, so the two
   // directions cannot ping-pong.
   React.useEffect(() => {
-    if (isMobile) {
+    if (isMobile || inspector) {
       // The group is unmounted on the drawer path; forget its state so a stale
       // value cannot drive the first sync after switching back to desktop.
       setCollapsed(null);
@@ -130,9 +150,9 @@ export function WorkspaceLayout({
     if (panelOpen === !collapsed) return;
     if (panelOpen) handle.expand();
     else handle.collapse();
-  }, [panelOpen, isMobile, collapsed]);
+  }, [panelOpen, isMobile, collapsed, !!inspector]);
 
-  if (isMobile) {
+  if (isMobile || inspectorLandscape) {
     return (
       <MobileCanvasOverlayContext.Provider value={overlayRoot}>
       <div ref={workspaceRef} data-landscape-actions={mobileActionsLayout === "landscape-side" || undefined}
@@ -169,12 +189,31 @@ export function WorkspaceLayout({
                 flex scroller can shrink within it. PanelBody owns scrolling;
                 this wrapper keeps panel-level navigation and the
                 PanelFooter remain pinned in the mobile drawer too. */}
-            <div className="min-h-0 flex-1 overflow-hidden" data-vaul-no-drag>{panel}</div>
+            {inspector && <div className="flex shrink-0 gap-2 border-b px-3 pb-2 [&_button]:min-h-11" role="group" aria-label="Editor panels">
+              <Button size="sm" variant={!mobileInspector ? "secondary" : "ghost"} aria-pressed={!mobileInspector} onClick={() => setMobileInspector(false)}>Objects &amp; settings</Button>
+              <Button size="sm" variant={mobileInspector ? "secondary" : "ghost"} aria-pressed={mobileInspector} onClick={() => setMobileInspector(true)}>Properties</Button>
+            </div>}
+            <div className="min-h-0 flex-1 overflow-hidden" data-vaul-no-drag>
+              <div className="h-full" hidden={!!inspector && mobileInspector}>{panel}</div>
+              {inspector && <div className="h-full" hidden={!mobileInspector}>{inspector}</div>}
+            </div>
           </DrawerContent>
         </Drawer>
       </div>
       </MobileCanvasOverlayContext.Provider>
     );
+  }
+
+  if (inspector) {
+    return <div ref={workspaceRef} className="h-full" data-testid="inspector-workspace">
+      <div className={cn("grid h-full min-h-0", panelOpen
+        ? "grid-cols-[320px_minmax(0,1fr)] grid-rows-[minmax(150px,42%)_minmax(0,1fr)] min-[1100px]:grid-cols-[280px_minmax(0,1fr)_320px] min-[1100px]:grid-rows-[minmax(0,1fr)]"
+        : "grid-cols-[minmax(0,1fr)_320px] grid-rows-[minmax(0,1fr)]")}>
+        <div hidden={!panelOpen} className="col-start-1 row-start-1 min-h-0 min-w-0 overflow-hidden border-r" data-testid="desktop-workspace-controls">{panel}</div>
+        <div className={cn("relative row-start-1 min-h-0 min-w-0 overflow-hidden", panelOpen ? "col-start-2 row-span-2 min-[1100px]:row-span-1" : "col-start-1")}>{canvas}</div>
+        <div className={cn("min-h-0 min-w-0 overflow-hidden border-l", panelOpen ? "col-start-1 row-start-2 min-[1100px]:col-start-3 min-[1100px]:row-start-1" : "col-start-2 row-start-1")}>{inspector}</div>
+      </div>
+    </div>;
   }
 
   // min-w-0 on both panels: a flex item's default `min-width: auto` refuses to

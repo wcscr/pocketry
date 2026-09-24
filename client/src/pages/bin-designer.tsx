@@ -13,7 +13,7 @@ import { BinViewport, type MaterialColorTarget } from "@/components/gridfinity/b
 import { LayoutCanvas } from "@/components/gridfinity/layout-canvas";
 import { EditHistoryMenu } from "@/components/history/edit-history-menu";
 import { usePanelState } from "@/components/layout/panel-context";
-import { WorkspaceLayout } from "@/components/layout/workspace-layout";
+import { BinEditingWorkspace } from "@/components/gridfinity/selection-inspector";
 import { Button } from "@/components/ui/button";
 import { canHandleCanvasShortcut } from "@/lib/canvas-keyboard";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -102,6 +102,7 @@ export default function BinDesignerPage(): JSX.Element {
 }
 
 function BinDesignerWorkspace(): JSX.Element {
+  const inspectorPrototype = new URLSearchParams(window.location.search).get("inspector") === "1";
   const { panelOpen, setPanelOpen, libraryRequested } = usePanelState();
   const [quickAdjustOpen, setQuickAdjustOpen] = useState(false);
   const [pocketEditorRequest, setPocketEditorRequest] = useState(0);
@@ -117,13 +118,14 @@ function BinDesignerWorkspace(): JSX.Element {
   };
   const editSelectedPocket = () => {
     setSettingsSectionRequest(undefined);
-    if (isMobile) setQuickAdjustOpen(true);
+    if (isMobile && !inspectorPrototype) setQuickAdjustOpen(true);
     else setPanelOpen(true);
     setPocketEditorRequest((request) => request + 1);
   };
   const { toast } = useToast();
   const bin = useBin();
-  const { enabled: experimentalEnabled, enableForProject } = useExperimentalFeatures();
+  const { enabled: experimentalPreference, enableForProject } = useExperimentalFeatures();
+  const experimentalEnabled = experimentalPreference || inspectorPrototype;
   const enableProjectFeatures = useCallback((doc: ProjectDoc) => {
     if (enableForProject(doc)) toast({
       title: "Experimental features enabled",
@@ -787,6 +789,10 @@ function BinDesignerWorkspace(): JSX.Element {
   // text inputs so the shortcuts don't eat form editing.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if (inspectorPrototype && viewMode === "3d" && bin.selection.length && canHandleCanvasShortcut(event)
+        && !event.ctrlKey && !event.metaKey && !event.altKey && (event.key === "Delete" || event.key === "Backspace")) {
+        event.preventDefault(); dispatch({ type: "REMOVE_SELECTION" }); return;
+      }
       if (!(event.metaKey || event.ctrlKey)) return;
       if (!canHandleCanvasShortcut(event) || event.altKey) return;
       const key = event.key.toLowerCase();
@@ -800,7 +806,7 @@ function BinDesignerWorkspace(): JSX.Element {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [dispatch]);
+  }, [dispatch, inspectorPrototype, viewMode, bin.selection]);
 
   const handleExport = useCallback(
     async (format: "3mf" | "3mf-multicolor" | "stl", includeProject: boolean) => {
@@ -1035,13 +1041,20 @@ function BinDesignerWorkspace(): JSX.Element {
   );
 
   return (
-    <WorkspaceLayout
+    <BinEditingWorkspace
+      enabled={inspectorPrototype}
+      inspectorRequest={pocketEditorRequest}
+      controlsRequest={settingsSectionRequest}
       autoSaveId="tooltrace:bin"
       panelOpen={panelOpen}
       onPanelOpenChange={setPanelOpen}
       panelTitle={isMobile && settingsSectionRequest?.id === "bin-settings-export" ? "Export bin" : "Bin designer"}
       mobileActionsLayout="landscape-side"
-      mobileActions={<MobileBinActions open={quickAdjustOpen} onOpenChange={setQuickAdjustOpen}
+      mobileActions={inspectorPrototype ? <div className="flex gap-2">
+        <Button variant="outline" className="min-h-11 flex-1" onClick={() => { setSettingsSectionRequest({ id: "bin-settings-pockets" }); setPanelOpen(true); }}>Objects</Button>
+        <Button variant="outline" className="min-h-11 flex-1" onClick={editSelectedPocket}>Properties</Button>
+        <Button className="min-h-11 flex-1" onClick={() => { setSettingsSectionRequest({ id: "bin-settings-export" }); setPanelOpen(true); }}>Export</Button>
+      </div> : <MobileBinActions open={quickAdjustOpen} onOpenChange={setQuickAdjustOpen}
         onMore={id => { setSettingsSectionRequest({ id }); setPanelOpen(true); }}
         onExport={() => { setSettingsSectionRequest({ id: "bin-settings-export" }); setPanelOpen(true); }} />}
       panel={
