@@ -154,7 +154,12 @@ licenses, copyright notices, and provenance are recorded in [NOTICE](NOTICE).
 The detailed direct-source review is available in
 [docs/open-source-review.md](docs/open-source-review.md).
 
-Pocketry was developed with OpenAI Codex.
+## Contributors
+
+Pocketry is developed and maintained by Will Cobb at Sugarcreek Research, LLC.
+[OpenAI Codex](https://openai.com/codex/) is an AI contributor to the project,
+assisting with implementation, testing, documentation, and code review. This
+acknowledgment includes work not individually credited in the commit history.
 
 ## Contributing
 
