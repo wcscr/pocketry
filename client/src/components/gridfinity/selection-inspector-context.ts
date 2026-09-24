@@ -1,6 +1,6 @@
 import { createContext, useContext } from "react";
 
-export type InspectorTool = "properties" | "translate" | "rotate" | "arrange";
+export type InspectorTool = "properties" | "translate" | "rotate" | "arrange" | "links";
 /** Portal destinations keep existing property editors and transform state mounted
  * once, while moving their controls out of the object list and canvas. */
 export const SelectionInspectorContext = createContext<{

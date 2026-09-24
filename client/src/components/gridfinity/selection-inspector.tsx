@@ -9,7 +9,6 @@ import { pocketName } from "@shared/gridfinity/cutout";
 import { sameObject, objectRef, type EditableObject } from "@/lib/gridfinity/object-arrangement";
 import { commonSelectionValue, selectionPropertyEdits, type SelectionProperty } from "@/lib/gridfinity/selection-properties";
 import { SelectionInspectorContext, useSelectionInspector, type InspectorTool } from "./selection-inspector-context";
-import { SelectionLinkControls } from "./linked-design-controls";
 
 /** Opt-in prototype reuses the actual editor, geometry, persistence and history. */
 export function BinEditingWorkspace({ enabled, ...props }: WorkspaceLayoutProps & { enabled: boolean }): JSX.Element {
@@ -24,7 +23,7 @@ export function BinEditingWorkspace({ enabled, ...props }: WorkspaceLayoutProps 
   const { selection } = useBin();
   const selectionKey = JSON.stringify(selection);
   useEffect(() => { if (enabled && selection.length) openInspector(); }, [enabled, selectionKey, openInspector]);
-  useEffect(() => { if (selection.length < 2 && tool === "arrange") updateTool("properties"); }, [selection.length, tool]);
+  useEffect(() => { if (selection.length < 2 && (tool === "arrange" || tool === "links")) updateTool("properties"); }, [selection.length, tool]);
   const targets = useMemo(() => ({ properties, transforms, pocketList, fingerList, tool, setTool, openInspector }),
     [properties, transforms, pocketList, fingerList, tool, setTool, openInspector]);
   if (!enabled) return <WorkspaceLayout {...props} />;
@@ -80,7 +79,7 @@ export function SelectionInspector({ propertiesRef, transformsRef, pocketListRef
   const single = chosen.length === 1 ? chosen[0] : null;
   const title = single ? single.kind === "pocket" ? pocketName(single.cutout, single.shape)
     : single.hole.name ?? `Finger access ${bin.fingerHoles.indexOf(single.hole) + 1}` : `${chosen.length} selected`;
-  const toolLabel = inspector?.tool === "translate" ? "Move" : inspector?.tool === "rotate" ? "Rotate" : inspector?.tool === "arrange" ? "Arrange" : "Properties";
+  const toolLabel = inspector?.tool === "translate" ? "Move" : inspector?.tool === "rotate" ? "Rotate" : inspector?.tool === "arrange" ? "Arrange" : inspector?.tool === "links" ? "Linked designs" : "Properties";
   const links = new Set(chosen.map(o => o.kind === "pocket" ? o.cutout.designLink?.id : o.hole.designLink?.id).filter(Boolean));
   const extraLinked = objects.filter(o => !chosen.includes(o) && links.has(o.kind === "pocket" ? o.cutout.designLink?.id : o.hole.designLink?.id)).length;
   return <aside className="flex h-full min-h-0 flex-col bg-background [@media(max-height:500px)]:overflow-y-auto [@media(pointer:coarse)]:[&_button]:min-h-11 [@media(pointer:coarse)]:[&_input:not([type=checkbox])]:min-h-11 [@media(pointer:coarse)]:[&_select]:min-h-11" aria-label="Selection inspector" data-testid="selection-inspector">
@@ -119,7 +118,6 @@ export function SelectionInspector({ propertiesRef, transformsRef, pocketListRef
             label={property === "depth" ? "Fixed cut depth" : property === "topFilletMm" ? "Top rounding" : "Extra clearance"} />)}
           {items.some(o => o.kind === "pocket" && o.cutout.split) && <p className="text-xs text-muted-foreground">Setting depth updates both sections of selected split pockets.</p>}
         </section>)}
-        <details><summary className="cursor-pointer py-2 text-xs font-medium">Linked designs</summary><SelectionLinkControls /></details>
       </div>}
       <div ref={propertiesRef} className="p-3 empty:hidden" data-testid="inspector-properties" />
       </div>

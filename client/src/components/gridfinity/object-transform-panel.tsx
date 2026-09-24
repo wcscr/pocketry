@@ -32,7 +32,8 @@ export function ObjectTransformPanel({ editor, objects, selected, displayed, mod
   const showLinks = editor.linkControls && !inspector;
   const [legacyArranging, setArranging] = useState(false);
   const arranging = inspector ? inspector.tool === "arrange" : legacyArranging;
-  const [linking, setLinking] = useState(false);
+  const [legacyLinking, setLinking] = useState(false);
+  const linking = inspector ? inspector.tool === "links" : legacyLinking;
   const [draft, setDraft] = useState<Record<number, string>>({});
   const pendingDraft = useRef<Record<number, string>>({});
   const [error, setError] = useState<string | null>(null);
@@ -174,7 +175,7 @@ export function ObjectTransformPanel({ editor, objects, selected, displayed, mod
         </div>}
         <p className="text-[10px] leading-relaxed text-muted-foreground">{mode === "translate" ? "Z changes depth: up is shallower, down is deeper. Openings stay at the surface." : mixed ? "Thumb access stays upright. Select only pockets to tilt around X or Y." : "Drag a colored ring or enter an angle. Esc cancels a drag."}</p>
       </>}
-      {(limited || error) && <p role="status" className="text-[11px] text-destructive">{error ?? "Cannot transform every affected copy. Keep floors within the bin; edit one linked copy if the group needs different design changes."}</p>}
+      {!linking && (limited || error) && <p role="status" className="text-[11px] text-destructive">{error ?? "Cannot transform every affected copy. Keep floors within the bin; edit one linked copy if the group needs different design changes."}</p>}
     </div>
   </div>;
   return inspector ? inspector.transforms ? createPortal(content, inspector.transforms) : <></> : content;

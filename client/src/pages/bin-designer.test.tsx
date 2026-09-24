@@ -4597,6 +4597,65 @@ it("prototype keeps selection and list position while batch editing, undoing and
   } finally { unmount(); window.history.replaceState(null, '', originalUrl); }
 });
 
+it.each([false, true])("prototype toolbar opens scoped link/unlink controls with undo on mobile=%s", async mobile => {
+  const originalUrl = window.location.href;
+  window.history.replaceState(null, '', '/bin?inspector=1');
+  const shape = rectangularShape('toolbar-links', 'Tool');
+  const cutouts = [10, 20].map((value, i) => parseCutoutPlacement({ id: `linked-tool-${i}`, name: `Tool ${i + 1}`, shapeId: shape.id,
+    position: { x: i * 40 - 20, y: 0 }, depth: { mode: 'mm', value } }));
+  const finger = fingerHoleSchema.parse({ id: 'toolbar-access', name: 'Tool access', center: { x: 0, y: 0 }, depthMm: 8 });
+  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, spec: parseBinSpec({ gridX: 4, gridY: 4, heightUnits: 6 }), shapes: [shape], cutouts, fingerHoles: [finger] });
+  const { container, unmount } = renderPage({ mobile, experimental: false });
+  try {
+    await flushHydration();
+    const button = (label: string) => container.querySelector<HTMLButtonElement>(`[aria-label="${label}"]`);
+    const click = (label: string) => React.act(() => button(label)!.click());
+    const choose = (name: string) => React.act(() => container.querySelector<HTMLInputElement>(`[aria-label="Include ${name} in selection"]`)!.click());
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
+    expect(button('Link and unlink selected objects')).toBeNull();
+    selectPocket(container, cutouts[0].id);
+    expect(button('Link and unlink selected objects')).toBeNull();
+    choose('Tool 2'); choose('Tool access');
+    expect(button('Arrange selected objects')!.nextElementSibling).toBe(button('Link and unlink selected objects'));
+    click('Collapse objects panel');
+    click('Link and unlink selected objects');
+    const inspector = container.querySelector('[data-testid="selection-inspector"]')!;
+    const header = () => inspector.querySelector('[data-testid="inspector-properties-header"] h3')!.textContent;
+    const controls = () => inspector.querySelector('[data-testid="inspector-transforms"]')!;
+    const action = (text: string) => React.act(() => [...controls().querySelectorAll<HTMLButtonElement>('button')].find(b => b.textContent === text)!.click());
+    const doc = () => ({ cutouts: vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts, fingers: vi.mocked(useBinGeometry).mock.lastCall![2]!.fingerHoles });
+    expect(inspector.closest('[hidden]')).toBeNull();
+    expect(header()).toBe('Linked designs');
+    expect(button('Link and unlink selected objects')!.getAttribute('aria-pressed')).toBe('true');
+    expect(controls().querySelector('[aria-label="Move X by"]')).toBeNull();
+    expect(controls().querySelectorAll('[aria-label="Linked design"]')).toHaveLength(2);
+    const source = controls().querySelector<HTMLSelectElement>('[aria-label="Linked design source"]')!;
+    expect(source.value).toBe(cutouts[1].id);
+    React.act(() => { source.value = cutouts[0].id; source.dispatchEvent(new Event('change', { bubbles: true })); });
+    action('Link 2 pockets');
+    expect(doc().cutouts[0].designLink?.id).toBeTruthy();
+    expect(doc().cutouts[1].designLink).toEqual(doc().cutouts[0].designLink);
+    expect(doc().cutouts.map(c => c.depth)).toEqual([cutouts[0].depth, cutouts[0].depth]);
+    expect(doc().cutouts.map(c => ({ name: c.name, position: c.position }))).toEqual(cutouts.map(c => ({ name: c.name, position: c.position })));
+    expect(doc().fingers).toEqual([finger]);
+    action('Unlink 2 pockets');
+    expect(doc().cutouts.every(c => !c.designLink)).toBe(true);
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+    expect(doc().cutouts.every(c => c.designLink)).toBe(true);
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+    expect(doc().cutouts).toEqual(cutouts);
+    expect(container.querySelectorAll('[aria-label^="Include "]:checked')).toHaveLength(3);
+    React.act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'w' })));
+    expect(header()).toBe('Move');
+    expect(button('Link and unlink selected objects')!.getAttribute('aria-pressed')).toBe('false');
+    click('Link and unlink selected objects');
+    choose('Tool access'); choose('Tool 2');
+    expect(button('Link and unlink selected objects')).toBeNull();
+    expect(header()).toBe('Properties');
+    expect(container.querySelector('#pocket-properties')!.closest('[hidden]')).toBeNull();
+  } finally { unmount(); window.history.replaceState(null, '', originalUrl); }
+});
+
 it("prototype compact panels stay accessible and preserve the canvas and selection while toggling", async () => {
   const originalUrl = window.location.href;
   window.history.replaceState(null, '', '/bin?inspector=1');
