@@ -47,10 +47,11 @@ This is synthetic test data; importing uses the normal browser-local project flo
   linked copies affected by property edits; the complete edit must fit the bin,
   including tilted linked copies, or nothing is applied.
 
-Both panels have independent collapse/expand buttons in a persistent bar above
-the workspace. Wide screens show the workflow, canvas, and objects/properties in
+Both panels have collapse icons in their existing headers. A collapsed panel
+leaves a small expand icon midway down its canvas edge, without taking up a row.
+Wide screens show the workflow, canvas, and objects/properties in
 three columns. Compact windows show one panel at a time beside the canvas; on
-phones it overlays the canvas. The panel buttons remain visible at every size,
+phones it overlays the canvas. The expand icons remain reachable at every size,
 and canvas tools reopen the object inspector. Toggling panels or resizing does
 not remount or transform the canvas.
 

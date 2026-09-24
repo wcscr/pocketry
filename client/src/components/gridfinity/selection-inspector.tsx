@@ -84,7 +84,7 @@ export function SelectionInspector({ propertiesRef, transformsRef, pocketListRef
   const extraLinked = objects.filter(o => !chosen.includes(o) && links.has(o.kind === "pocket" ? o.cutout.designLink?.id : o.hole.designLink?.id)).length;
   return <aside className="flex h-full min-h-0 flex-col bg-background [@media(max-height:500px)]:overflow-y-auto [@media(pointer:coarse)]:[&_button]:min-h-11 [@media(pointer:coarse)]:[&_input:not([type=checkbox])]:min-h-11 [@media(pointer:coarse)]:[&_select]:min-h-11" aria-label="Selection inspector" data-testid="selection-inspector">
     <section className="flex max-h-[38%] min-h-36 shrink-0 flex-col border-b [@media(max-height:500px)]:max-h-48" aria-label="Object selection">
-      <div className="flex shrink-0 items-center gap-1 px-3 py-1">
+      <div className="flex shrink-0 items-center gap-1 py-1 pl-3 pr-14">
         <span className="mr-auto text-xs font-semibold">Objects · {objects.length}</span>
         <Button size="sm" variant="ghost" className="h-8 px-2 text-xs" onClick={() => bin.dispatch({ type: "SET_SELECTION", selection: objects.map(objectRef) })}>Select all</Button>
         <Button size="icon" variant="ghost" className="h-8 w-8" disabled={!chosen.length} title="Clear selection" aria-label="Clear object selection" onClick={() => bin.dispatch({ type: "SET_SELECTION", selection: [] })}><X /></Button>

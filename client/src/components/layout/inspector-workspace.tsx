@@ -31,28 +31,30 @@ export function InspectorWorkspace({ panel, canvas, inspector, panelOpen, onPane
   useEffect(() => { if (controlsRequest) setCompactPane("workflow"); }, [controlsRequest]);
   const leftVisible = compact ? compactPane === "workflow" : panelOpen;
   const rightVisible = compact ? compactPane === "inspector" : rightOpen;
-  const LeftIcon = leftVisible ? PanelLeftClose : PanelLeftOpen;
-  const RightIcon = rightVisible ? PanelRightClose : PanelRightOpen;
+  const toggleLeft = () => { if (compact) setCompactPane(leftVisible ? null : "workflow"); else onPanelOpenChange(!panelOpen); };
+  const toggleRight = () => { if (compact) setCompactPane(rightVisible ? null : "inspector"); else setRightOpen(!rightOpen); };
+  const collapseClass = "absolute right-1 top-1 z-50 h-8 w-8 [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11";
+  const expandClass = "absolute top-1/2 z-50 h-9 w-9 -translate-y-1/2 border bg-background/95 shadow-sm [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11";
   return <MobileCanvasOverlayContext.Provider value={overlayRoot}>
-    <div className="flex h-full min-h-0 flex-col" data-testid="inspector-workspace">
-      <div className="flex min-h-11 shrink-0 items-center justify-between gap-2 border-b bg-background px-2" role="group" aria-label="Workspace panels">
-        <Button variant="ghost" size="sm" className="min-h-11 gap-2 px-2 text-xs" title={leftVisible ? "Collapse workflow panel" : "Expand workflow panel"}
-          aria-label={leftVisible ? "Collapse workflow panel" : "Expand workflow panel"} aria-expanded={leftVisible} aria-controls="workflow-panel"
-          onClick={() => { if (compact) setCompactPane(leftVisible ? null : "workflow"); else onPanelOpenChange(!panelOpen); }}><LeftIcon />Workflow</Button>
-        <Button variant="ghost" size="sm" className="min-h-11 gap-2 px-2 text-xs" title={rightVisible ? "Collapse objects panel" : "Expand objects panel"}
-          aria-label={rightVisible ? "Collapse objects panel" : "Expand objects panel"} aria-expanded={rightVisible} aria-controls="objects-panel"
-          onClick={() => { if (compact) setCompactPane(rightVisible ? null : "inspector"); else setRightOpen(!rightOpen); }}>Objects &amp; properties<RightIcon /></Button>
-      </div>
-      <div className={cn("relative min-h-0 flex-1", !overlay && "grid")} style={!overlay ? { gridTemplateColumns: `${leftVisible ? compact ? 280 : 320 : 0}px minmax(0,1fr) ${rightVisible ? 340 : 0}px` } : undefined}>
+    <div className="h-full min-h-0" data-testid="inspector-workspace">
+      <div className={cn("relative h-full min-h-0", !overlay && "grid")} style={!overlay ? { gridTemplateColumns: `${leftVisible ? compact ? 280 : 320 : 0}px minmax(0,1fr) ${rightVisible ? 340 : 0}px` } : undefined}>
         <div id="workflow-panel" hidden={!leftVisible} data-testid="desktop-workspace-controls" aria-label="Design workflow"
-          className={cn("min-h-0 min-w-0 overflow-hidden border-r bg-background", overlay && "absolute inset-y-0 left-0 z-40 w-[min(340px,calc(100%-24px))] shadow-xl")}>
+          className={cn("relative min-h-0 min-w-0 overflow-hidden border-r bg-background", overlay && "absolute inset-y-0 left-0 z-40 w-[min(340px,calc(100%-48px))] shadow-xl")}>
           {panel}
+          <Button variant="ghost" size="icon" className={collapseClass} title="Collapse workflow panel"
+            aria-label="Collapse workflow panel" aria-expanded={leftVisible} aria-controls="workflow-panel" onClick={toggleLeft}><PanelLeftClose /></Button>
         </div>
         <div className={cn("relative min-h-0 min-w-0 overflow-hidden", overlay ? "h-full" : "col-start-2")} data-testid="inspector-workspace-canvas">
           {canvas}<div ref={setOverlayRoot} className="pointer-events-none absolute inset-0 z-30" />
+          {!leftVisible && <Button variant="outline" size="icon" className={cn(expandClass, "left-1")} title="Expand workflow panel"
+            aria-label="Expand workflow panel" aria-expanded={false} aria-controls="workflow-panel" onClick={toggleLeft}><PanelLeftOpen /></Button>}
+          {!rightVisible && <Button variant="outline" size="icon" className={cn(expandClass, "right-1")} title="Expand objects panel"
+            aria-label="Expand objects panel" aria-expanded={false} aria-controls="objects-panel" onClick={toggleRight}><PanelRightOpen /></Button>}
         </div>
-        <div id="objects-panel" hidden={!rightVisible} className={cn("min-h-0 min-w-0 overflow-hidden border-l bg-background", overlay ? "absolute inset-y-0 right-0 z-40 w-[min(360px,calc(100%-24px))] shadow-xl" : "col-start-3")}>
+        <div id="objects-panel" hidden={!rightVisible} className={cn("relative min-h-0 min-w-0 overflow-hidden border-l bg-background", overlay ? "absolute inset-y-0 right-0 z-40 w-[min(360px,calc(100%-48px))] shadow-xl" : "col-start-3")}>
           {inspector}
+          <Button variant="ghost" size="icon" className={collapseClass} title="Collapse objects panel"
+            aria-label="Collapse objects panel" aria-expanded={rightVisible} aria-controls="objects-panel" onClick={toggleRight}><PanelRightClose /></Button>
         </div>
       </div>
     </div>

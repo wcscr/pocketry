@@ -1135,7 +1135,7 @@ export function BinControlsPanel({
         <p>This project uses experimental pocket tools. Its geometry and links are preserved; edits to linked designs still update their copies.</p>
         <Button size="sm" variant="link" className="h-9 px-0 text-xs" onClick={() => setSettingsOpen(true)}>Show experimental settings</Button>
       </div>}
-      <div className={!inspector && exportOnly ? "hidden" : "shrink-0 border-b px-3 py-2"} data-testid="project-status">
+      <div className={!inspector && exportOnly ? "hidden" : cn("shrink-0 border-b px-3 py-2", inspector && "pr-14")} data-testid="project-status">
         <p className="cursor-text truncate text-sm font-medium" data-testid="project-status-title"
           title={`${currentProjectName ?? "Untitled project"} — double-click to rename`}
           onDoubleClick={() => {
