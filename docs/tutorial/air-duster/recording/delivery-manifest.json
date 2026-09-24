@@ -1,0 +1,652 @@
+[
+  {
+    "path": "README.md",
+    "bytes": 4650,
+    "sha256": "8ad7eff44167f1868a7cd29f68157c1d3fde387bfa7c7c65981e43fee2090e91"
+  },
+  {
+    "path": "RECORDING-SCRIPT.md",
+    "bytes": 9304,
+    "sha256": "f2f9a9f655a8e8898f8c4a684b4968b20ab90d8fcce0a678280e114cc2c1d192"
+  },
+  {
+    "path": "chapters.txt",
+    "bytes": 514,
+    "sha256": "47620aec03cbcb6993d27ed6c7f2e52685b108b7c535d550f0b94c910088b2cd"
+  },
+  {
+    "path": "pocketry-air-duster-tutorial.mp4",
+    "bytes": 22681893,
+    "sha256": "e772d22cdbe727e4ed91cba567722612293d1364c362e8e2987af72044594922"
+  },
+  {
+    "path": "pocketry-air-duster-tutorial.srt",
+    "bytes": 5292,
+    "sha256": "8c7bb9cb3198582f8ea5fda38f4e978f468c945c390d240775f23027171eb711"
+  },
+  {
+    "path": "recording/PRODUCTION-NOTES.md",
+    "bytes": 4858,
+    "sha256": "5ee4a6952b6244fe51cccb28001b2b14d775582459e294f0f49a54abbaefc065"
+  },
+  {
+    "path": "recording/checkpoints/checkpoint-06-layout.json",
+    "bytes": 83036,
+    "sha256": "626968d496236ccc04ab2b779b6ee69c8e9333362132b3a44b82b4eef3f9bc61"
+  },
+  {
+    "path": "recording/checkpoints/checkpoint-13-final.json",
+    "bytes": 468438,
+    "sha256": "a144a17becbe81c2150f395804fc2369e8d40c21f86dfba07b2ba32557e00198"
+  },
+  {
+    "path": "recording/checkpoints/checkpoint-before-01.json",
+    "bytes": 2,
+    "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  {
+    "path": "recording/checkpoints/checkpoint-before-02.json",
+    "bytes": 2990,
+    "sha256": "66a704ad60ffae33d59032b658aafc6dca055e3efc06315b4c1a4379b59d1b88"
+  },
+  {
+    "path": "recording/checkpoints/checkpoint-before-03.json",
+    "bytes": 2990,
+    "sha256": "66a704ad60ffae33d59032b658aafc6dca055e3efc06315b4c1a4379b59d1b88"
+  },
+  {
+    "path": "recording/checkpoints/checkpoint-before-04.json",
+    "bytes": 2990,
+    "sha256": "66a704ad60ffae33d59032b658aafc6dca055e3efc06315b4c1a4379b59d1b88"
+  },
+  {
+    "path": "recording/checkpoints/checkpoint-before-05.json",
+    "bytes": 44412,
+    "sha256": "0792353f17a6ead2fa9ca91093cb43afef6d7fa502d562d57661b92122be929f"
+  },
+  {
+    "path": "recording/checkpoints/checkpoint-before-06.json",
+    "bytes": 204956,
+    "sha256": "57e6b9ae85fae9f308aafe92ff0b0a367438343144ce4898b4d60476fcd14bf7"
+  },
+  {
+    "path": "recording/checkpoints/checkpoint-before-07.json",
+    "bytes": 319326,
+    "sha256": "f61ee64f99a5940d41d730fb14bab757859ca0ac96e1144da834da5fe1e8f8c7"
+  },
+  {
+    "path": "recording/checkpoints/checkpoint-before-08.json",
+    "bytes": 415264,
+    "sha256": "16026673c91ac3c58a96be8d05b459121a497487519e4f4cf7d7fd0302678e3e"
+  },
+  {
+    "path": "recording/checkpoints/checkpoint-before-09.json",
+    "bytes": 415264,
+    "sha256": "16026673c91ac3c58a96be8d05b459121a497487519e4f4cf7d7fd0302678e3e"
+  },
+  {
+    "path": "recording/checkpoints/checkpoint-before-10.json",
+    "bytes": 415264,
+    "sha256": "c130013ddbba4e021ad94317f733b75e6624f8fa1a6d029364a110081ed0ff93"
+  },
+  {
+    "path": "recording/checkpoints/checkpoint-before-11.json",
+    "bytes": 460302,
+    "sha256": "501de7c15259d83cd5117f7c9c406f480872db121c792016d3f1c2bd80e04361"
+  },
+  {
+    "path": "recording/checkpoints/checkpoint-before-12.json",
+    "bytes": 468438,
+    "sha256": "89b81aefb94b9af6ecbdbd993474e92d84452be7cb20e3080bcd9245523fc81f"
+  },
+  {
+    "path": "recording/checkpoints/checkpoint-before-13.json",
+    "bytes": 468438,
+    "sha256": "89b81aefb94b9af6ecbdbd993474e92d84452be7cb20e3080bcd9245523fc81f"
+  },
+  {
+    "path": "recording/exports/Air-Duster-Tutorial-bin-4x4x6.5-multicolor-2026-09-15_16-18-19-214.3mf",
+    "bytes": 1790616,
+    "sha256": "601ac36c464637da8e13e31e83eba0d945d13039be77e5dcc5dadd4931675642"
+  },
+  {
+    "path": "recording/exports/Air-Duster-Tutorial-bin-4x4x6.5-multicolor-2026-09-15_16-18-19-214.pocketry.json",
+    "bytes": 201289,
+    "sha256": "f85ec9aed35ff2dd597d9cf1b00b89306d8488d7545907731258224a17f495b8"
+  },
+  {
+    "path": "recording/exports/Air-Duster-Tutorial-bin-4x4x6.5-surface-fit-test-1.2mm-2026-09-15_16-16-02-920.stl",
+    "bytes": 3847484,
+    "sha256": "bef1e7c23457131f1c900c8a4e1fa53a864f9fa9eb99d536cd872b61e64d6210"
+  },
+  {
+    "path": "recording/exports/Air-Duster-Tutorial-bin-4x4x6.5-tool-outlines-5mm-wide-1.2mm-thick-2026-09-15_16-15-52-087.stl",
+    "bytes": 3898784,
+    "sha256": "3f39658634222ef0b010c72f90e0080b057a2d716d8e5a4ca9d85b1af1243f8b"
+  },
+  {
+    "path": "recording/frames/3mf-confirmation.png",
+    "bytes": 138359,
+    "sha256": "59adff113844b6c48b4370ab16f258b11bc762fdae26c028c1d951779981ac8b"
+  },
+  {
+    "path": "recording/frames/3mf-downloaded.png",
+    "bytes": 175131,
+    "sha256": "ce23dc2c07c39e6fde946cbd57e06c33096364cceba8e2f8661b99aae7e37bb2"
+  },
+  {
+    "path": "recording/frames/adapters-contour-complete.png",
+    "bytes": 518635,
+    "sha256": "0dfe9f1f86537065a4915d885a4612cdf569c82ae7f4a1ead3ba5ff38ef97403"
+  },
+  {
+    "path": "recording/frames/adapters-corrected.png",
+    "bytes": 376924,
+    "sha256": "0d44bd193a2953817f1da82c73c0f0fe76fce9c7fd0ba64207c4f08f057e2b01"
+  },
+  {
+    "path": "recording/frames/adapters-ready.png",
+    "bytes": 519267,
+    "sha256": "c54c2c217e7cac42c6f6af7f82dd56f9c429bf5dbc5fd4abb434db189996be9a"
+  },
+  {
+    "path": "recording/frames/adapters-sized.png",
+    "bytes": 111208,
+    "sha256": "e85ad87e5d699955622f9809f4f15bf0bd8bba6ef7d5718626ad006fd47b3197"
+  },
+  {
+    "path": "recording/frames/air-duster-contour-complete.png",
+    "bytes": 514858,
+    "sha256": "daf7df5dfffbb056dd49484b6f2f349c8f94a06a4e55c99b7e741cff104d51cd"
+  },
+  {
+    "path": "recording/frames/angled-nozzle-contour-complete.png",
+    "bytes": 432644,
+    "sha256": "c67067b10c0ee2677316b80d764107ff4c84f1940480193d2a06cf960f36b555"
+  },
+  {
+    "path": "recording/frames/bin-sized.png",
+    "bytes": 160711,
+    "sha256": "d7eee860713b04db23717423c5bf0484a1017e73b93e035935fa68195fe6689e"
+  },
+  {
+    "path": "recording/frames/bin-with-scoops.png",
+    "bytes": 147381,
+    "sha256": "b546fc317e3b2d3264b384f42bfcd3283d0745d281b253fe643119be3861c2b5"
+  },
+  {
+    "path": "recording/frames/boundary-06-layout.png",
+    "bytes": 122157,
+    "sha256": "462f5ec0924e89126cc5e4ab51c7f3be8b9dbfc11ce106821966b22b4c161ff0"
+  },
+  {
+    "path": "recording/frames/boundary-13-final.png",
+    "bytes": 149475,
+    "sha256": "e38f547a5a111e8942a1ad24133389c0b1b9135e2e731d231112a35a6ff0ff1f"
+  },
+  {
+    "path": "recording/frames/boundary-before-01.png",
+    "bytes": 81393,
+    "sha256": "c5fee462305dbb06e4a9ad781b3bf86ec83b081d9435184fa949a4d997aa9be3"
+  },
+  {
+    "path": "recording/frames/boundary-before-02.png",
+    "bytes": 82798,
+    "sha256": "7dceb70eaaaf73b458ce0f7db8062973aa3943874ed4ba3dc6c5092d40823403"
+  },
+  {
+    "path": "recording/frames/boundary-before-03.png",
+    "bytes": 515764,
+    "sha256": "9e9c3039002c2937405e0d885f0c09bec3c91951d852f217da5da5225d445835"
+  },
+  {
+    "path": "recording/frames/boundary-before-04.png",
+    "bytes": 518983,
+    "sha256": "71bd115547bc076aee4674c06fc6f7cdaab1112f6641a1eb3ad25adb231947f0"
+  },
+  {
+    "path": "recording/frames/boundary-before-05.png",
+    "bytes": 134160,
+    "sha256": "0228f1cc1a77bbb91c4c2c9d3b13d242a5f51f4b2929d5dc7d2ff502c0b510a2"
+  },
+  {
+    "path": "recording/frames/boundary-before-06.png",
+    "bytes": 121819,
+    "sha256": "d127126137286c8cfd919147bc1188659760e454b3a4dfcfaeaae82b016046cd"
+  },
+  {
+    "path": "recording/frames/boundary-before-07.png",
+    "bytes": 113648,
+    "sha256": "2071089470445686cf72833d34c58e696a151cbff1f1039ede91c05029aa1a72"
+  },
+  {
+    "path": "recording/frames/boundary-before-08.png",
+    "bytes": 111830,
+    "sha256": "7aee566880918e88062775d85a348c310061bd7ecd4b2e816d7b580f0996f75d"
+  },
+  {
+    "path": "recording/frames/boundary-before-09.png",
+    "bytes": 93996,
+    "sha256": "fe7615aebabd461c8f250c9df2af416a0f3df48c0feb8a86ac22c0c8c6ccb705"
+  },
+  {
+    "path": "recording/frames/boundary-before-10.png",
+    "bytes": 105745,
+    "sha256": "c36fa2fb2c1c4f6180672204de865c342d6abde4e84bc4d28c08e4958725240e"
+  },
+  {
+    "path": "recording/frames/boundary-before-11.png",
+    "bytes": 147381,
+    "sha256": "b546fc317e3b2d3264b384f42bfcd3283d0745d281b253fe643119be3861c2b5"
+  },
+  {
+    "path": "recording/frames/boundary-before-12.png",
+    "bytes": 99421,
+    "sha256": "4425ca6f3ec25ef56a91f2e36b84098c9d5e7f7360d60468a91c59c2ee67163e"
+  },
+  {
+    "path": "recording/frames/boundary-before-13.png",
+    "bytes": 175967,
+    "sha256": "7e771c54a07167419d2e5bd65fe9ad510bdb0bc015350ecb26d420868bc53984"
+  },
+  {
+    "path": "recording/frames/cross-section.png",
+    "bytes": 174858,
+    "sha256": "d39a29c707b2870a56d340b0065848e349ab49485e8d4a0fa9c2989192e4ef76"
+  },
+  {
+    "path": "recording/frames/download-list-2.png",
+    "bytes": 51819,
+    "sha256": "1299c2b62771e5a76c18b46f775021db6f79c897cb4e99dc1a4e13ae0eb22a95"
+  },
+  {
+    "path": "recording/frames/downloads-final.png",
+    "bytes": 73365,
+    "sha256": "c6f1ea2c8cf8a8b31572395b1fa0db6845a28232b1e36af973feb111e97f91f0"
+  },
+  {
+    "path": "recording/frames/duster-before-handle.png",
+    "bytes": 127116,
+    "sha256": "975388bb4febb4f075f5023ed8c9001ad1e8326d661193a4d6752f75ee36c996"
+  },
+  {
+    "path": "recording/frames/duster-before-head.png",
+    "bytes": 126946,
+    "sha256": "375804b5bad3293e5c70b02ea419f8e7d6b5c03bd251a9f51599727412df749e"
+  },
+  {
+    "path": "recording/frames/duster-before-length.png",
+    "bytes": 127307,
+    "sha256": "98c14aae422ffa5fcc399a6f12cc63fa1f01b14e78ac6f383201dbf74eaf70c2"
+  },
+  {
+    "path": "recording/frames/duster-corrected.png",
+    "bytes": 385375,
+    "sha256": "59a031627a9f6a8782a509922e9251de48ab51395725a4cb83605c2e89979042"
+  },
+  {
+    "path": "recording/frames/duster-detected.png",
+    "bytes": 515305,
+    "sha256": "243be378d1696614e1094955882a8396588890bb6971988cefdebb47ea09110d"
+  },
+  {
+    "path": "recording/frames/duster-import.png",
+    "bytes": 539107,
+    "sha256": "899a8e144abf6b121d8c46c5b03c505a9ddf5d88d0be9c43cc6ef4ae75805f3d"
+  },
+  {
+    "path": "recording/frames/duster-original-size.png",
+    "bytes": 128168,
+    "sha256": "af405da218276e1b20e5714402b7c71f04b31952a329a3c3e89556d8d8744bc4"
+  },
+  {
+    "path": "recording/frames/duster-ready.png",
+    "bytes": 518802,
+    "sha256": "8f24688d7130c4a8ce7a8870f51a9a1859698b9c379c4e588e1bc872691bff36"
+  },
+  {
+    "path": "recording/frames/duster-simplified.png",
+    "bytes": 514926,
+    "sha256": "6b4422b80ffcf9034177d748438fe79123c3d22a0a9e293aaac8554b451d3e76"
+  },
+  {
+    "path": "recording/frames/duster-sized.png",
+    "bytes": 129949,
+    "sha256": "e21e3964b50259b7fd590503c3cc1eb044e5d5948dd4f1d13b3266eed03f7036"
+  },
+  {
+    "path": "recording/frames/export-ready.png",
+    "bytes": 100133,
+    "sha256": "2ba5c0a8f27c3da5aa27ba1288bfc5e16464af946ebe45ac87546a738582b025"
+  },
+  {
+    "path": "recording/frames/finger-round.png",
+    "bytes": 100883,
+    "sha256": "1d55fdd927b820ec21cecf6b5f3116fc76e0f4dfa822634715be2a0042261104"
+  },
+  {
+    "path": "recording/frames/finger-slot.png",
+    "bytes": 100173,
+    "sha256": "7ed248f56f6f8c9b3e935474854df730b66c449d0e8789ba57b6f0fcbf5cc7ec"
+  },
+  {
+    "path": "recording/frames/finished-bin.png",
+    "bytes": 149475,
+    "sha256": "e38f547a5a111e8942a1ad24133389c0b1b9135e2e731d231112a35a6ff0ff1f"
+  },
+  {
+    "path": "recording/frames/fit-choices.png",
+    "bytes": 110285,
+    "sha256": "c8697ced206f85cc98795ed16d20f61b600d19a396e8898c29d2f52487d41542"
+  },
+  {
+    "path": "recording/frames/fit-confirmation.png",
+    "bytes": 112874,
+    "sha256": "531aa98e406664562de8b12543a477b07f00fc42b181b3ea4fc9dd83b1b3d831"
+  },
+  {
+    "path": "recording/frames/fit-downloaded.png",
+    "bytes": 112324,
+    "sha256": "cf0afb6848f9598ecb462d4ee53056f44a4817692277a197fa2511f411bddf89"
+  },
+  {
+    "path": "recording/frames/fit-photo-placeholder.png",
+    "bytes": 37173,
+    "sha256": "4052525303f3166ca57f965be94be67796e4513b3455cdce91b9dcbf70300eee"
+  },
+  {
+    "path": "recording/frames/floor-warning-complete.png",
+    "bytes": 170129,
+    "sha256": "3cf1bca21f003f1d2ae540dddc31263d2832d956bca2d72e891fdb220dc4db70"
+  },
+  {
+    "path": "recording/frames/floor-warning.png",
+    "bytes": 171390,
+    "sha256": "907eb89b8f9e8b2e5dc0aababfcad915688f6071d3766c0c54a42ac34690f2dc"
+  },
+  {
+    "path": "recording/frames/full-bin-restored.png",
+    "bytes": 175967,
+    "sha256": "7e771c54a07167419d2e5bd65fe9ad510bdb0bc015350ecb26d420868bc53984"
+  },
+  {
+    "path": "recording/frames/inspect-3d.png",
+    "bytes": 178290,
+    "sha256": "59382b363c2b7bab5c94c6a7ecce5c84f1ea70cc2eb63963bbf4bc184798c03e"
+  },
+  {
+    "path": "recording/frames/layout-rough.png",
+    "bytes": 122074,
+    "sha256": "9cd8a576d9d5fed807d352f7609bf0af74860d9b929d18bf49baa6135cd710be"
+  },
+  {
+    "path": "recording/frames/layout-start.png",
+    "bytes": 110846,
+    "sha256": "c9572ba99c12ef61afd6e8e78d38c0ea7a087ef02d5e9ec3e806d73d04609e2c"
+  },
+  {
+    "path": "recording/frames/materials.png",
+    "bytes": 161432,
+    "sha256": "d9997d694acee36e0f0d84fd7ddf7e93ac2b4c67cbb5c5158bd6f5372db50321"
+  },
+  {
+    "path": "recording/frames/nozzle-corrected.png",
+    "bytes": 353322,
+    "sha256": "df016402d79ae91e11307404913c3187147506d025bbdb08f153011400d7b077"
+  },
+  {
+    "path": "recording/frames/nozzle-ready.png",
+    "bytes": 436915,
+    "sha256": "740d3f18ee00d0bd96905a7784ddd9470cf246d5d13de3c2bcafd72e4054667e"
+  },
+  {
+    "path": "recording/frames/nozzle-sized.png",
+    "bytes": 112585,
+    "sha256": "bd86ef2185c7b4e32e2a5a77b3a8a9890d5ef93aca75c8e590786c0d60d93c4b"
+  },
+  {
+    "path": "recording/frames/project-panel.png",
+    "bytes": 153626,
+    "sha256": "e10d8a0650f9b9c319d63840ca11d19369008d5ede135abbb2cbf72c170d1305"
+  },
+  {
+    "path": "recording/frames/usb-finger-pocket.png",
+    "bytes": 114572,
+    "sha256": "16d7e164c19523b0d7006505994c547294d4762a257d0e05bc2af060ab016785"
+  },
+  {
+    "path": "recording/frames/warning-cleared.png",
+    "bytes": 115196,
+    "sha256": "9dd6c7aa1aabefe10426a700689d96b06a09b878b9a4cb9e25c812bc27816af5"
+  },
+  {
+    "path": "recording/frames/warning-edit-pocket.png",
+    "bytes": 131479,
+    "sha256": "f0cb9a91b71181e2ba2153a6bdd2141e0a78309ee545b018342bbebfb2ecc8bb"
+  },
+  {
+    "path": "recording/geometry-verification.json",
+    "bytes": 6344,
+    "sha256": "b2c687ab4f4befc14cf23c702d0a3d52f4bfe5a974246c5a37b8a2568d6e50ef"
+  },
+  {
+    "path": "recording/originals/continuous-original.webm",
+    "bytes": 59204134,
+    "sha256": "ce2ebe432d2504e8000bd684197594a4b878006b190124cad3221d15597f8d30"
+  },
+  {
+    "path": "recording/originals/downloads.json",
+    "bytes": 592,
+    "sha256": "9f1d03dfcee6a49cd765603fe56b046256fccfb5674a54f297e999b8d926fd0c"
+  },
+  {
+    "path": "recording/originals/marks.json",
+    "bytes": 9114,
+    "sha256": "374ac057b8529a0ca744c0535ffe58d018e1783953af48c72c32c5679c007fc0"
+  },
+  {
+    "path": "recording/qa/build.log",
+    "bytes": 2170,
+    "sha256": "1624ff805477ec8298281eb77bb007d94821922971ff9824b7b2743547644078"
+  },
+  {
+    "path": "recording/qa/calipers-depth.png",
+    "bytes": 346519,
+    "sha256": "d19ec87181189d234dc1dcca61aca2a3d5749b8bbecd5249827bbc3c192fde6e"
+  },
+  {
+    "path": "recording/qa/check.log",
+    "bytes": 34,
+    "sha256": "a46a017a03ccbce6a11785073fc6ba6904936107ceda838d08b2b4b7f356a7df"
+  },
+  {
+    "path": "recording/qa/contact-sheet.jpg",
+    "bytes": 615987,
+    "sha256": "a958f9c101e4222714953fcca87deddab1940867059f384ff5c5f0ebef8ec9a9"
+  },
+  {
+    "path": "recording/qa/cross-section-actual.png",
+    "bytes": 398025,
+    "sha256": "e712dd76ab4fd9bcfbde44844537c6b899bef5df1288d4348f0e39dc0f6b9678"
+  },
+  {
+    "path": "recording/qa/tests.log",
+    "bytes": 12306,
+    "sha256": "384844bbc07592f31c7a63fc33ae43c71f971d4adb77b7155e27a771bec15d5e"
+  },
+  {
+    "path": "recording/qa/trace-plan-Adapters.json",
+    "bytes": 27483,
+    "sha256": "876a24aade32d0e0bcd55cade43f1bba9a2ae5edb3f4fc1c007e1b78187fa405"
+  },
+  {
+    "path": "recording/qa/trace-plan-Air-Duster.json",
+    "bytes": 14995,
+    "sha256": "94efa766073907936fdc431f578967bc5241c536189c11f944d4ca8373a990d9"
+  },
+  {
+    "path": "recording/qa/trace-plan-Angled-Nozzle.json",
+    "bytes": 9933,
+    "sha256": "4fac17fa5b2c9a5afa78e95aaccf7752959740013f07c0fd4ffbefff8a13207d"
+  },
+  {
+    "path": "recording/qa/trace-result-Adapters.json",
+    "bytes": 4527,
+    "sha256": "7b8dfac505875e82ecd175ba33bd3606d1d0be1dbe0430325568540244238ae7"
+  },
+  {
+    "path": "recording/qa/trace-result-Air-Duster.json",
+    "bytes": 2684,
+    "sha256": "5948c591e0cfaa27830de66dd610558eb1bca10d6897de9489bd295cad45ebcf"
+  },
+  {
+    "path": "recording/qa/trace-result-Angled-Nozzle.json",
+    "bytes": 2035,
+    "sha256": "5268af8ee0263f2083bdea4cf96f2a461a9708b9ef7309d7347c3e95a24791de"
+  },
+  {
+    "path": "recording/qa/usb-caption.png",
+    "bytes": 355601,
+    "sha256": "67dc3f2270b90f1aa2b90da0a8be0a7cb8e8fbfdaef73c4af1fe2958b6f3b0e8"
+  },
+  {
+    "path": "recording/segments/00-prepare-your-photographs.mp4",
+    "bytes": 557880,
+    "sha256": "4c43db97342f6f64a8b8d01db9d0eb72db46c8c11b52880a7b0e09db1ea80895"
+  },
+  {
+    "path": "recording/segments/01-start-a-project.mp4",
+    "bytes": 770560,
+    "sha256": "72b48f0763bf6107b0ef761519518bd445591ace02c7b761eec12291f14657c0"
+  },
+  {
+    "path": "recording/segments/02-trace-the-air-duster.mp4",
+    "bytes": 2444007,
+    "sha256": "564bfc93bf4be9a5eea3885589c2beaeee49c9c92c61b7982a5a565ad9bd6d61"
+  },
+  {
+    "path": "recording/segments/03-trace-the-adapters.mp4",
+    "bytes": 4712372,
+    "sha256": "711d3cbb04f3d6b7a8b5fc16d235590609d264f2b6894a7f85a0e3bf563da05c"
+  },
+  {
+    "path": "recording/segments/04-trace-the-angled-nozzle.mp4",
+    "bytes": 2304775,
+    "sha256": "dc0a473db463e9d947e538e48839c9bc56f3414a36a977d30ef26cdcdc6ef3d5"
+  },
+  {
+    "path": "recording/segments/05-set-the-bin-size-and-rough-layout.mp4",
+    "bytes": 2837340,
+    "sha256": "46d30a35e50b2e80c94d02d7bf1ab2a704825bd1ff97849e7ea29bc388ae9d56"
+  },
+  {
+    "path": "recording/segments/06-create-the-usb-cable-pocket-with-finger-access.mp4",
+    "bytes": 812790,
+    "sha256": "fd41604e82461e4cb90cc39a2c123e05910b519b3c8510a257f5c324b3d8de98"
+  },
+  {
+    "path": "recording/segments/07-measure-once-and-adjust-x-y-scale.mp4",
+    "bytes": 1460274,
+    "sha256": "091d9608874679ccf694259e653a056a0d9bf272398602120cd1da531e6f54b0"
+  },
+  {
+    "path": "recording/segments/08-export-the-tool-fit-check.mp4",
+    "bytes": 1242563,
+    "sha256": "fac39ffcf4d63eed221d78a9d7e4b9deea063a56ff2f78b365f3406567536d9a"
+  },
+  {
+    "path": "recording/segments/09-try-the-fit-check-with-the-real-tools.mp4",
+    "bytes": 325388,
+    "sha256": "39abaaabbcdcc4133e182f380f31494ef7004c5e0c681cd46d52282d6b496f42"
+  },
+  {
+    "path": "recording/segments/10-set-pocket-depths-and-add-finger-access.mp4",
+    "bytes": 1507468,
+    "sha256": "135eed0e0d89aed76028d79207078c5089651fbaf8071ddc11b3b9119f3d487a"
+  },
+  {
+    "path": "recording/segments/11-color-the-bin-and-fix-the-warning.mp4",
+    "bytes": 725494,
+    "sha256": "3a0bdfd197b35f7dd8ef459329e58a483050825acd24d1d9b1deecaa3cca858a"
+  },
+  {
+    "path": "recording/segments/12-inspect-the-completed-bin.mp4",
+    "bytes": 1621746,
+    "sha256": "7a9fe48435e80634363123855be230b49b15913f84858f648ba9547deaca22de"
+  },
+  {
+    "path": "recording/segments/13-export-the-final-bin-and-preserve-the-project.mp4",
+    "bytes": 1367622,
+    "sha256": "9efc2005f5ba7a04efbd8a8b15901a8242c15c01c7752fd3c451f637d2f62fa5"
+  },
+  {
+    "path": "recording/served-build-verification.json",
+    "bytes": 885,
+    "sha256": "2bd0b9d40f2499e1b2cb14d8b1c0aa9e89ee93312bc828a3cd195f5415e30d63"
+  },
+  {
+    "path": "recording/tools/bin-job.js",
+    "bytes": 7492,
+    "sha256": "36d277afc1b72307f92a846b80a07e9fec399ebea0efbafa5ee952b6efa29990"
+  },
+  {
+    "path": "recording/tools/capture.mjs",
+    "bytes": 18369,
+    "sha256": "9176da5fb09e51093e9338f2d5b9caf0c25bad4ae0b97d1d5c970e03797292df"
+  },
+  {
+    "path": "recording/tools/finish-job.js",
+    "bytes": 7496,
+    "sha256": "06b9f061220b7eb573b932da24abfec2c1b6e6d0bf38bb3bfed2b2ed6187182c"
+  },
+  {
+    "path": "recording/tools/fit-job.js",
+    "bytes": 4216,
+    "sha256": "fe9b5156d7ee3eb06d8673dc24f07cae73cb62bc1c571f49c9d67fa8ccd0ad62"
+  },
+  {
+    "path": "recording/tools/package_deliverables.py",
+    "bytes": 8857,
+    "sha256": "47a579f2dbaeb6baaa7e76a067a503902c3058410c93c53334a681e23c226d25"
+  },
+  {
+    "path": "recording/tools/qa_video.py",
+    "bytes": 3334,
+    "sha256": "e5d430b3a8e78891f05ccf91ed2d501f1b6e95a47d5b1d7e9b6bf500f15b187f"
+  },
+  {
+    "path": "recording/tools/render_video.py",
+    "bytes": 4865,
+    "sha256": "b3d911c23df44fbd7b3d2d3b228fea60fc5609f5aafaab0530d2c58b4cefc5d9"
+  },
+  {
+    "path": "recording/tools/serve-preview.mjs",
+    "bytes": 1097,
+    "sha256": "1eb5cec572c98dbe908501f20c4b7abd8d02b02de0faad6eb70aabcc1ddda396"
+  },
+  {
+    "path": "recording/tools/trace-editor.mjs",
+    "bytes": 6428,
+    "sha256": "466ff55244926c1ff0b85e70de4573de9115cf8bda1555083b27596557033837"
+  },
+  {
+    "path": "recording/tools/verify_final.py",
+    "bytes": 5877,
+    "sha256": "4e644fc2086fa6fd55c807766b351306da1a16d44b87d04464c38be7eb60218a"
+  },
+  {
+    "path": "recording/video-verification.json",
+    "bytes": 385,
+    "sha256": "1a2e047224b1317fd61b1f07e03fd58176d192520c58f648e2686f5a58eb3921"
+  },
+  {
+    "path": "timeline.json",
+    "bytes": 18926,
+    "sha256": "4d6cf3208a132dd01fda3332d8216f38aa0ced6debb74980cb62f182148adef9"
+  },
+  {
+    "path": "verification.md",
+    "bytes": 1728,
+    "sha256": "076819d7b3aa8483cfa21ca5929a186ea5096e27b2fdb7a7af25067c630fa54a"
+  }
+]

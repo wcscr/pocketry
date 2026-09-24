@@ -1,0 +1,704 @@
+{
+  "durationSeconds": 425.33678235294116,
+  "resolution": [
+    1440,
+    900
+  ],
+  "outputFps": 30,
+  "sourceFps": 25,
+  "audioTracks": 0,
+  "chapters": [
+    {
+      "type": "section",
+      "id": "00",
+      "title": "Prepare your photographs",
+      "time": 1.214,
+      "file": "recording/segments/00-prepare-your-photographs.mp4",
+      "sourceStart": 1.214,
+      "sourceEnd": 23.392,
+      "start": 0,
+      "end": 22.178,
+      "pieces": [
+        {
+          "id": "00",
+          "start": 1.214,
+          "end": 23.392,
+          "speed": 1,
+          "protected": true
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "id": "01",
+      "title": "Start a project",
+      "time": 23.392,
+      "file": "recording/segments/01-start-a-project.mp4",
+      "sourceStart": 23.392,
+      "sourceEnd": 36.556,
+      "start": 22.178,
+      "end": 35.342,
+      "pieces": [
+        {
+          "id": "01",
+          "start": 23.392,
+          "end": 36.556,
+          "speed": 1,
+          "protected": true
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "id": "02",
+      "title": "Trace the air duster",
+      "time": 36.556,
+      "file": "recording/segments/02-trace-the-air-duster.mp4",
+      "sourceStart": 36.556,
+      "sourceEnd": 108.246,
+      "start": 35.342,
+      "end": 74.23633333333333,
+      "pieces": [
+        {
+          "id": "02",
+          "start": 36.556,
+          "end": 54.852,
+          "speed": 1.5,
+          "protected": false
+        },
+        {
+          "id": "02",
+          "start": 54.852,
+          "end": 64.552,
+          "speed": 2.0,
+          "protected": false
+        },
+        {
+          "id": "02",
+          "start": 64.552,
+          "end": 94.749,
+          "speed": 2.0,
+          "protected": false
+        },
+        {
+          "id": "02",
+          "start": 94.749,
+          "end": 108.246,
+          "speed": 2.0,
+          "protected": false
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "id": "03",
+      "title": "Trace the adapters",
+      "time": 108.246,
+      "file": "recording/segments/03-trace-the-adapters.mp4",
+      "sourceStart": 108.247,
+      "sourceEnd": 228.694,
+      "start": 74.23633333333333,
+      "end": 137.3895,
+      "pieces": [
+        {
+          "id": "03",
+          "start": 108.247,
+          "end": 125.825,
+          "speed": 1.5,
+          "protected": false
+        },
+        {
+          "id": "03",
+          "start": 125.825,
+          "end": 139.733,
+          "speed": 2.0,
+          "protected": false
+        },
+        {
+          "id": "03",
+          "start": 139.733,
+          "end": 181.512,
+          "speed": 2.0,
+          "protected": false
+        },
+        {
+          "id": "03",
+          "start": 181.512,
+          "end": 228.694,
+          "speed": 2.0,
+          "protected": false
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "id": "04",
+      "title": "Trace the angled nozzle",
+      "time": 228.694,
+      "file": "recording/segments/04-trace-the-angled-nozzle.mp4",
+      "sourceStart": 228.695,
+      "sourceEnd": 288.817,
+      "start": 137.3895,
+      "end": 170.20316666666668,
+      "pieces": [
+        {
+          "id": "04",
+          "start": 228.695,
+          "end": 245.211,
+          "speed": 1.5,
+          "protected": false
+        },
+        {
+          "id": "04",
+          "start": 245.211,
+          "end": 253.492,
+          "speed": 2.0,
+          "protected": false
+        },
+        {
+          "id": "04",
+          "start": 253.492,
+          "end": 272.69,
+          "speed": 2.0,
+          "protected": false
+        },
+        {
+          "id": "04",
+          "start": 272.69,
+          "end": 288.817,
+          "speed": 2.0,
+          "protected": false
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "id": "05",
+      "title": "Set the bin size and rough layout",
+      "time": 288.817,
+      "file": "recording/segments/05-set-the-bin-size-and-rough-layout.mp4",
+      "sourceStart": 288.818,
+      "sourceEnd": 370.265,
+      "start": 170.20316666666668,
+      "end": 215.4515,
+      "pieces": [
+        {
+          "id": "05",
+          "start": 288.818,
+          "end": 370.265,
+          "speed": 1.8,
+          "protected": false
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "id": "06",
+      "title": "Create the USB cable pocket with Finger access",
+      "time": 370.265,
+      "file": "recording/segments/06-create-the-usb-cable-pocket-with-finger-access.mp4",
+      "sourceStart": 370.265,
+      "sourceEnd": 407.046,
+      "start": 215.4515,
+      "end": 237.08738235294118,
+      "pieces": [
+        {
+          "id": "06",
+          "start": 370.265,
+          "end": 407.046,
+          "speed": 1.7,
+          "protected": false
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "id": "07",
+      "title": "Measure once and adjust X/Y scale",
+      "time": 407.046,
+      "file": "recording/segments/07-measure-once-and-adjust-x-y-scale.mp4",
+      "sourceStart": 407.046,
+      "sourceEnd": 450.309,
+      "start": 237.08738235294118,
+      "end": 273.6777823529412,
+      "pieces": [
+        {
+          "id": "07",
+          "start": 407.046,
+          "end": 415.172,
+          "speed": 1.25,
+          "protected": false
+        },
+        {
+          "id": "07",
+          "start": 415.172,
+          "end": 418.47200000000004,
+          "speed": 1,
+          "protected": true
+        },
+        {
+          "id": "07",
+          "start": 418.47200000000004,
+          "end": 419.053,
+          "speed": 1.25,
+          "protected": false
+        },
+        {
+          "id": "07",
+          "start": 419.053,
+          "end": 422.353,
+          "speed": 1,
+          "protected": true
+        },
+        {
+          "id": "07",
+          "start": 422.353,
+          "end": 422.919,
+          "speed": 1.25,
+          "protected": false
+        },
+        {
+          "id": "07",
+          "start": 422.919,
+          "end": 426.219,
+          "speed": 1,
+          "protected": true
+        },
+        {
+          "id": "07",
+          "start": 426.219,
+          "end": 450.309,
+          "speed": 1.25,
+          "protected": false
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "id": "08",
+      "title": "Export the tool fit check",
+      "time": 450.309,
+      "file": "recording/segments/08-export-the-tool-fit-check.mp4",
+      "sourceStart": 450.309,
+      "sourceEnd": 481.557,
+      "start": 273.6777823529412,
+      "end": 304.9257823529412,
+      "pieces": [
+        {
+          "id": "08",
+          "start": 450.309,
+          "end": 481.557,
+          "speed": 1,
+          "protected": true
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "id": "09",
+      "title": "Try the fit check with the real tools",
+      "time": 481.557,
+      "file": "recording/segments/09-try-the-fit-check-with-the-real-tools.mp4",
+      "sourceStart": 481.557,
+      "sourceEnd": 496.658,
+      "start": 304.9257823529412,
+      "end": 320.0267823529412,
+      "pieces": [
+        {
+          "id": "09",
+          "start": 481.557,
+          "end": 496.658,
+          "speed": 1,
+          "protected": true
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "id": "10",
+      "title": "Set pocket depths and add finger access",
+      "time": 496.658,
+      "file": "recording/segments/10-set-pocket-depths-and-add-finger-access.mp4",
+      "sourceStart": 496.658,
+      "sourceEnd": 560.189,
+      "start": 320.0267823529412,
+      "end": 355.32178235294117,
+      "pieces": [
+        {
+          "id": "10",
+          "start": 496.658,
+          "end": 560.189,
+          "speed": 1.8,
+          "protected": false
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "id": "11",
+      "title": "Color the bin and fix the warning",
+      "time": 560.189,
+      "file": "recording/segments/11-color-the-bin-and-fix-the-warning.mp4",
+      "sourceStart": 560.189,
+      "sourceEnd": 584.038,
+      "start": 355.32178235294117,
+      "end": 379.1707823529412,
+      "pieces": [
+        {
+          "id": "11",
+          "start": 560.189,
+          "end": 584.038,
+          "speed": 1,
+          "protected": true
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "id": "12",
+      "title": "Inspect the completed bin",
+      "time": 584.038,
+      "file": "recording/segments/12-inspect-the-completed-bin.mp4",
+      "sourceStart": 584.038,
+      "sourceEnd": 603.688,
+      "start": 379.1707823529412,
+      "end": 398.8207823529412,
+      "pieces": [
+        {
+          "id": "12",
+          "start": 584.038,
+          "end": 603.688,
+          "speed": 1,
+          "protected": true
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "id": "13",
+      "title": "Export the final bin and preserve the project",
+      "time": 603.688,
+      "file": "recording/segments/13-export-the-final-bin-and-preserve-the-project.mp4",
+      "sourceStart": 603.688,
+      "sourceEnd": 630.204,
+      "start": 398.8207823529412,
+      "end": 425.33678235294116,
+      "pieces": [
+        {
+          "id": "13",
+          "start": 603.688,
+          "end": 630.204,
+          "speed": 1,
+          "protected": true
+        }
+      ]
+    }
+  ],
+  "measurements": [
+    {
+      "type": "measurement",
+      "name": "duster-before-length",
+      "reading": "161.53 mm",
+      "time": 418.172,
+      "finalTime": 246.5881823529412
+    },
+    {
+      "type": "measurement",
+      "name": "duster-before-handle",
+      "reading": "53.54 mm",
+      "time": 422.053,
+      "finalTime": 250.35298235294118
+    },
+    {
+      "type": "measurement",
+      "name": "duster-before-head",
+      "reading": "97.84 mm",
+      "time": 425.919,
+      "finalTime": 254.1057823529412
+    }
+  ],
+  "captions": [
+    {
+      "type": "caption",
+      "time": 1.264,
+      "text": "Start with photographs of the tools you want to trace.",
+      "finalTime": 0.050000000000000044
+    },
+    {
+      "type": "caption",
+      "time": 3.774,
+      "text": "Photograph tools on the provided templates to make scaling easier.",
+      "finalTime": 2.56
+    },
+    {
+      "type": "caption",
+      "time": 8.312,
+      "text": "Here are the photographs we took of the air duster, adapters, and angled nozzle.",
+      "finalTime": 7.097999999999999
+    },
+    {
+      "type": "caption",
+      "time": 15.351,
+      "text": "Some of the shadowing isn\u2019t ideal. We\u2019ll correct it when editing the outlines.",
+      "finalTime": 14.137
+    },
+    {
+      "type": "caption",
+      "time": 23.393,
+      "text": "Start with a new project. We\u2019ll build this bin from the tool outlines.",
+      "finalTime": 22.179000000000002
+    },
+    {
+      "type": "caption",
+      "time": 36.557,
+      "text": "Print the calibration sheet at 100% and check its 100 mm reference bar.",
+      "finalTime": 35.342666666666666
+    },
+    {
+      "type": "caption",
+      "time": 46.566,
+      "text": "Follow the physical edge of the tool. Shadows and reflections can distort the trace.",
+      "finalTime": 42.01533333333334
+    },
+    {
+      "type": "caption",
+      "time": 54.852,
+      "text": "Right-click to remove extra points. Keep the corners that define the real tool.",
+      "finalTime": 47.53933333333333
+    },
+    {
+      "type": "caption",
+      "time": 64.552,
+      "text": "Drag points to refine the shape, using the real tool and its measurements as your guide.",
+      "finalTime": 52.38933333333334
+    },
+    {
+      "type": "caption",
+      "time": 94.749,
+      "text": "Click an edge to add a needed corner, then drag the new point into position.",
+      "finalTime": 67.48783333333333
+    },
+    {
+      "type": "caption",
+      "time": 108.247,
+      "text": "Check reflective areas carefully. The pocket should follow the outside edge.",
+      "finalTime": 74.23633333333333
+    },
+    {
+      "type": "caption",
+      "time": 125.825,
+      "text": "Right-click to remove extra points. Keep the corners that define the real tool.",
+      "finalTime": 85.955
+    },
+    {
+      "type": "caption",
+      "time": 139.733,
+      "text": "Drag points to refine the shape, using the real tool and its measurements as your guide.",
+      "finalTime": 92.909
+    },
+    {
+      "type": "caption",
+      "time": 181.512,
+      "text": "Click an edge to add a needed corner, then drag the new point into position.",
+      "finalTime": 113.7985
+    },
+    {
+      "type": "caption",
+      "time": 228.695,
+      "text": "Remove the false notch while preserving the nozzle\u2019s real corners.",
+      "finalTime": 137.3895
+    },
+    {
+      "type": "caption",
+      "time": 245.211,
+      "text": "Right-click to remove extra points. Keep the corners that define the real tool.",
+      "finalTime": 148.40016666666668
+    },
+    {
+      "type": "caption",
+      "time": 253.492,
+      "text": "Drag points to refine the shape, using the real tool and its measurements as your guide.",
+      "finalTime": 152.54066666666665
+    },
+    {
+      "type": "caption",
+      "time": 272.69,
+      "text": "Click an edge to add a needed corner, then drag the new point into position.",
+      "finalTime": 162.13966666666667
+    },
+    {
+      "type": "caption",
+      "time": 288.818,
+      "text": "Set the bin footprint, then size the pockets before fine-tuning their positions.",
+      "finalTime": 170.20316666666668
+    },
+    {
+      "type": "caption",
+      "time": 307.933,
+      "text": "Drag each pocket into a rough position. We\u2019ll check the size and gaps next.",
+      "finalTime": 180.82261111111112
+    },
+    {
+      "type": "caption",
+      "time": 323.901,
+      "text": "Use position and rotation to arrange the tools with room around each pocket.",
+      "finalTime": 189.69372222222225
+    },
+    {
+      "type": "caption",
+      "time": 347.877,
+      "text": "Round the pocket edges. Adjust clearance after trying the printed fit check.",
+      "finalTime": 203.01372222222224
+    },
+    {
+      "type": "caption",
+      "time": 371.537,
+      "text": "In addition to the photos, we\u2019ll create a pocket for the USB cable using Finger access.",
+      "finalTime": 216.19973529411766
+    },
+    {
+      "type": "caption",
+      "time": 382.533,
+      "text": "Measure the coiled cable, then set the slot\u2019s width, length, and depth. Calipers help with depth.",
+      "finalTime": 222.6679705882353
+    },
+    {
+      "type": "caption",
+      "time": 410.863,
+      "text": "Measure the real tool with calipers. Compare its length, handle width, and head width with the outline.",
+      "finalTime": 240.1409823529412
+    },
+    {
+      "type": "caption",
+      "time": 427.212,
+      "text": "Keep proportions links width and length. Unlock it when the X and Y corrections differ.",
+      "finalTime": 255.2001823529412
+    },
+    {
+      "type": "caption",
+      "time": 434.293,
+      "text": "Use your measured dimensions to size the other tools. These values are for this example.",
+      "finalTime": 260.8649823529412
+    },
+    {
+      "type": "caption",
+      "time": 451.583,
+      "text": "Export a thin fit check now, before committing to the full bin.",
+      "finalTime": 274.9517823529412
+    },
+    {
+      "type": "caption",
+      "time": 458.983,
+      "text": "Tool outlines uses less material to check the three photographed tools.",
+      "finalTime": 282.3517823529412
+    },
+    {
+      "type": "caption",
+      "time": 467.219,
+      "text": "Choose Full surface to include the USB cable pocket created with Finger access.",
+      "finalTime": 290.5877823529412
+    },
+    {
+      "type": "caption",
+      "time": 478.065,
+      "text": "The fit-check files are saved. Print at 100% scale and try the real tools.",
+      "finalTime": 301.4337823529412
+    },
+    {
+      "type": "caption",
+      "time": 482.097,
+      "text": "Place the real tools in the printed fit check. Use the fit and your measurements to guide adjustments.",
+      "finalTime": 305.4657823529412
+    },
+    {
+      "type": "caption",
+      "time": 487.155,
+      "text": "If needed, adjust the contour, size, or clearance and print another fit check.",
+      "finalTime": 310.52378235294117
+    },
+    {
+      "type": "caption",
+      "time": 491.36,
+      "text": "A thin fit check tests the openings. Measure pocket depth and tool seating separately.",
+      "finalTime": 314.7287823529412
+    },
+    {
+      "type": "caption",
+      "time": 499.178,
+      "text": "Adjust pocket depth based on measurements of each real tool. Use calipers for accurate depth measurements.",
+      "finalTime": 321.4267823529412
+    },
+    {
+      "type": "caption",
+      "time": 518.077,
+      "text": "Add two more finger-access scoops so the tools are easy to lift out.",
+      "finalTime": 331.92622679738565
+    },
+    {
+      "type": "caption",
+      "time": 560.19,
+      "text": "Use a gray body with black pocket floors and a black rim.",
+      "finalTime": 355.32278235294126
+    },
+    {
+      "type": "caption",
+      "time": 574.345,
+      "text": "The black floor layer reaches the recesses between the base feet.",
+      "finalTime": 369.47778235294123
+    },
+    {
+      "type": "caption",
+      "time": 577.213,
+      "text": "Reduce pocket depth from 39 to 38.5 mm to leave more floor underneath.",
+      "finalTime": 372.34578235294117
+    },
+    {
+      "type": "caption",
+      "time": 580.131,
+      "text": "The warning clears. The tool sits 0.5 mm higher; check that seating depth.",
+      "finalTime": 375.2637823529412
+    },
+    {
+      "type": "caption",
+      "time": 584.038,
+      "text": "Inspect the rounded edges, pocket floors, cable pocket, and finger scoops.",
+      "finalTime": 379.1707823529412
+    },
+    {
+      "type": "caption",
+      "time": 595.791,
+      "text": "Cross-section View helps inspect the interior. The exported model remains whole.",
+      "finalTime": 390.92378235294126
+    },
+    {
+      "type": "caption",
+      "time": 603.69,
+      "text": "After the real tools fit and pocket depths are checked, export the full bin.",
+      "finalTime": 398.82278235294126
+    },
+    {
+      "type": "caption",
+      "time": 609.02,
+      "text": "Save the finished bin and an editable project backup.",
+      "finalTime": 404.1527823529412
+    },
+    {
+      "type": "caption",
+      "time": 614.606,
+      "text": "Keep the editable project with the print file. Check the slicer preview before printing.",
+      "finalTime": 409.7387823529412
+    },
+    {
+      "type": "caption",
+      "time": 619.983,
+      "text": "Use Project \u2192 Export project to save another editable backup later.",
+      "finalTime": 415.11578235294115
+    },
+    {
+      "type": "caption",
+      "time": 625.824,
+      "text": "Print the fit test first. Then check the full model in your slicer.",
+      "finalTime": 420.95678235294116
+    }
+  ]
+}
