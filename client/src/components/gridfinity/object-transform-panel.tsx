@@ -1,6 +1,6 @@
 import { createPortal } from "react-dom";
 import { useSelectionInspector } from "./selection-inspector-context";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { objectTransformOffsets, setObjectTransformOffsets } from "@/lib/gridfinity/object-transform-offsets";
 import { CheckSquare2, ChevronDown, X, Link2, Magnet, Move3D, Rotate3D, AlignHorizontalJustifyCenter, AlignHorizontalJustifyStart, AlignHorizontalJustifyEnd, AlignVerticalJustifyStart, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd, AlignHorizontalDistributeCenter, AlignVerticalDistributeCenter, AlignHorizontalSpaceAround, AlignVerticalSpaceAround } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,7 @@ export function commitEditorObjects(editor: PocketEditor, edits: ObjectEdits, te
 }
 
 /** As-drawn XYZ offsets work for a single object and mixed selections.
- * Each explicit Apply or arrangement command is one document transaction. */
+ * Each finished axis edit or arrangement command is one document transaction. */
 export function ObjectTransformPanel({ editor, objects, selected, displayed, mode, setMode, snap, setSnap,
   pivot, setPivot, limited, onClose, modeRequest = 0 }: {
   editor: PocketEditor; objects: readonly EditableObject[]; selected: readonly EditableObject[]; displayed: readonly EditableObject[];
@@ -34,6 +34,7 @@ export function ObjectTransformPanel({ editor, objects, selected, displayed, mod
   const arranging = inspector ? inspector.tool === "arrange" : legacyArranging;
   const [linking, setLinking] = useState(false);
   const [draft, setDraft] = useState<Record<number, string>>({});
+  const pendingDraft = useRef<Record<number, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [reference, setReference] = useState<"selection" | "active">("selection");
   const key = JSON.stringify(selected.map(o => objectKey(objectRef(o))));
@@ -41,7 +42,8 @@ export function ObjectTransformPanel({ editor, objects, selected, displayed, mod
   const actual = [0, 1, 2].map(i => !offsets.length ? "0" : offsets.every(v => Math.abs(v[i] - offsets[0][i]) < 1e-5)
     ? String(Number(offsets[0][i].toFixed(4))) : "");
   const actualKey = JSON.stringify(offsets);
-  useEffect(() => { setDraft({}); setError(null); }, [key, mode, actualKey, modeRequest]);
+  const clearDraft = () => { pendingDraft.current = {}; setDraft({}); };
+  useEffect(() => { clearDraft(); setError(null); }, [key, mode, actualKey, modeRequest]);
   useEffect(() => { setArranging(false); setLinking(false); }, [mode, modeRequest]);
   const select = (next: EditableObject[]) => {
     if (editor.onSelectionChange) editor.onSelectionChange(next.map(objectRef));
@@ -55,14 +57,19 @@ export function ObjectTransformPanel({ editor, objects, selected, displayed, mod
     if (!edits) { setError(arranging ? "There is not enough room for equal gaps between the outer objects." : "Cannot transform every affected copy. Check depth and tilt limits; try editing one linked copy."); return; }
     setError(null);
     if (objectEditsChanged(selected, edits)) commitEditorObjects(editor, edits, text, mode);
-    setDraft({});
+    clearDraft();
   };
-  const apply = () => {
-    const numbers = [0, 1, 2].map(i => draft[i] === undefined ? undefined : draft[i].trim() ? Number(draft[i]) : NaN);
-    if (!numbers.every(v => v === undefined || Number.isFinite(v))) { setError("Enter a finite number for each edited axis."); return; }
-    if (mode === "translate" && numbers.some(v => v !== undefined && !Number.isFinite(v * 1e6))) {
+  const applyAxis = (axis: number) => {
+    const text = pendingDraft.current[axis];
+    if (text === undefined) return;
+    // Consume before blur can fire again; rejected edits restore the actual value.
+    clearDraft();
+    const value = text.trim() ? Number(text) : NaN;
+    if (!Number.isFinite(value)) { setError("Enter a finite number for the edited axis."); return; }
+    if (mode === "translate" && !Number.isFinite(value * 1e6)) {
       setError("That movement is too large. Enter a smaller distance."); return;
     }
+    const numbers = [0, 1, 2].map(i => i === axis ? value : undefined);
     commit(setObjectTransformOffsets(selected, editor.spec, editor.transformOrigins, mode, numbers, pivot, objects, editor.originShapes),
       `${mode === "translate" ? "Move" : "Rotate"} ${selected.length} object${selected.length === 1 ? "" : "s"}`);
   };
@@ -108,7 +115,6 @@ export function ObjectTransformPanel({ editor, objects, selected, displayed, mod
           className={cn("flex min-h-9 flex-col items-center justify-center gap-1 rounded-md px-1 py-1.5 text-[10px] font-medium", linking ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground")}
           onClick={() => { setLinking(true); setError(null); }}><Link2 className="h-4 w-4" />Links</button>}
       </div>}
-      {inspector && <h3 className="text-sm font-semibold">{arranging ? "Arrange selection" : mode === "translate" ? "Move selection" : "Rotate selection"}</h3>}
       {linking ? <>{selected.length ? editor.linkControls : <p className="text-muted-foreground">Select objects to link or unlink their designs.</p>}</> : arranging ? <>
         <label className="flex items-center gap-2 text-xs">Relative to
           <select aria-label="Align relative to" className="h-9 min-w-0 flex-1 rounded-md border bg-background px-2" value={reference} onChange={e => setReference(e.target.value as "selection" | "active")}>
@@ -137,22 +143,30 @@ export function ObjectTransformPanel({ editor, objects, selected, displayed, mod
         </div>
         <p className="text-[10px] leading-relaxed text-muted-foreground">Align opening edges or centers. Distribute keeps the two outer objects in place.{selected.length < 3 ? " Select 3 or more to distribute." : ""}</p>
       </> : <>
-        <div className="flex items-center justify-between"><span className="font-medium">{mode === "translate" ? "Move offset" : "Rotation offset"} <span className="font-normal text-muted-foreground">· Bin XYZ</span></span>
+        <div className="flex items-center justify-between"><span className="font-medium">{mode === "translate" ? "Move offset" : "Rotation offset"} <span className="font-normal text-muted-foreground">· Bin XYZ · {mode === "translate" ? "mm" : "°"}</span></span>
           <Button variant="ghost" size="icon" className={cn("h-8 w-8", snap && "bg-primary/10 text-primary")} aria-label="Snap: 1 mm moves and 5 degree rotations" aria-pressed={snap}
             title={`Snap ${snap ? "on" : "off"}: 1 mm moves / 5° rotations`} onClick={() => setSnap(!snap)}><Magnet className="h-4 w-4" /></Button>
         </div>
         <p className="text-[10px] text-muted-foreground">From as drawn · Set an axis to 0 to restore it.</p>
-        <form onSubmit={e => { e.preventDefault(); apply(); }} className="space-y-2">
+        <div className="space-y-2">
           <div className="grid grid-cols-3 gap-2">{["X", "Y", "Z"].map((a, i) => <label key={a} className="space-y-1">
             <span className={cn("font-semibold", i === 0 ? "text-red-500" : i === 1 ? "text-emerald-600 dark:text-emerald-400" : "text-blue-500")}>{a}</span>
             <Input aria-label={`${mode === "translate" ? "Move" : "Rotate"} ${a} by`} type="number" step="any" className="h-9 px-2 text-xs tabular-nums" placeholder="Mixed" value={draft[i] ?? actual[i]}
-              disabled={!selected.length || (mixed && mode === "rotate" && i < 2)} onChange={e => setDraft({ ...draft, [i]: e.target.value })} />
+              disabled={!selected.length || (mixed && mode === "rotate" && i < 2)}
+              title="Enter or leave the field to apply. Escape cancels."
+              onChange={e => { pendingDraft.current = { ...pendingDraft.current, [i]: e.target.value }; setDraft(pendingDraft.current); setError(null); }}
+              onBlur={() => applyAxis(i)}
+              onKeyDown={e => {
+                if (e.key !== "Enter" && e.key !== "Escape") return;
+                e.preventDefault(); e.stopPropagation();
+                if (e.key === "Escape") { clearDraft(); setError(null); }
+                e.currentTarget.blur();
+              }} />
           </label>)}</div>
           {mode === "rotate" && selected.length > 1 && <select aria-label="Rotation pivot" className="h-9 w-full rounded-md border bg-background px-2" value={pivot} onChange={e => setPivot(e.target.value as RotationPivot)}>
             <option value="individual">Each object’s center</option><option value="selection">Selection center</option>
           </select>}
-          <Button type="submit" size="sm" className="w-full" disabled={!selected.length}>Apply {mode === "translate" ? "move · mm" : "rotation · °"}</Button>
-        </form>
+        </div>
         {single?.kind === "pocket" && <div className="space-y-1 text-[10px] tabular-nums text-muted-foreground">
           <p data-testid="pocket-3d-transform-readout">{mode === "translate" ? `X ${single.cutout.position.x.toFixed(2)} · Y ${single.cutout.position.y.toFixed(2)} mm`
             : `X ${(single.cutout.tilt?.xDeg ?? 0).toFixed(1)}° · Y ${(single.cutout.tilt?.yDeg ?? 0).toFixed(1)}° · Z ${single.cutout.rotationDeg.toFixed(1)}°`}</p>

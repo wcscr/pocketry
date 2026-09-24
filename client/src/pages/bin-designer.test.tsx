@@ -4495,10 +4495,11 @@ it("rejects overflowing numeric moves without corrupting the document or undo hi
     const input = container.querySelector<HTMLInputElement>('[aria-label="Move X by"]')!;
     for (const value of ["1e308", "-1e308"]) {
       React.act(() => {
+        input.focus();
         Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
         input.dispatchEvent(new Event("input", { bubbles: true }));
       });
-      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="pocket-3d-controls"] button[type="submit"]')!.click());
+      React.act(() => input.blur());
       expect(container.querySelector('[data-testid="pocket-3d-controls"] [role="status"]')?.textContent).toContain("movement is too large");
       expect(container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.disabled).toBe(true);
       expect(vi.mocked(useBinGeometry).mock.lastCall![2]?.cutouts).toEqual([cutout]);
@@ -4522,6 +4523,10 @@ it("prototype keeps selection and list position while batch editing, undoing and
     list.scrollTop = 150;
     selectPocket(container, 'proto-0');
     expect(container.querySelector('#pocket-properties')!.closest('[data-testid="selection-inspector"]')).not.toBeNull();
+    const header = container.querySelector('[data-testid="inspector-properties-header"]')!;
+    expect(header.querySelector('h3')?.textContent).toBe('Properties');
+    expect(header.querySelector('[aria-label="Duplicate selection"]')).toBeNull();
+    expect(list.querySelector('[aria-label="Duplicate Tool 1"]')).not.toBeNull();
     expect(list.scrollTop).toBe(150);
     choose('Tool 2'); choose('Tool access');
     expect(container.querySelector('#pocket-properties')).toBeNull();
@@ -4559,6 +4564,26 @@ it("prototype keeps selection and list position while batch editing, undoing and
     clickLabel('Rotate selected objects');
     expect(inspector.closest('[hidden]')).toBeNull();
     expect(inspector.querySelector('[aria-label="Rotate Z by"]')).not.toBeNull();
+    expect(header.querySelector('h3')?.textContent).toBe('Rotate');
+    expect(header.querySelector('[aria-label="Duplicate selection"]')).not.toBeNull();
+    clickLabel('Back to properties');
+    expect(inspector.querySelector('[data-testid="batch-properties"]')!.closest('[hidden]')).toBeNull();
+    clickLabel('Move selected objects');
+    const moveX = inspector.querySelector<HTMLInputElement>('[aria-label="Move X by"]')!;
+    React.act(() => {
+      moveX.focus();
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(moveX, '5');
+      moveX.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    expect(doc().cutouts.map(c => c.position)).toEqual(cutouts.map(c => c.position));
+    React.act(() => moveX.blur());
+    expect(doc().cutouts.map(c => c.position.x)).toEqual(cutouts.map(c => c.position.x + 5));
+    expect(doc().fingers[0].center.x).toBe(finger.center.x + 5);
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+    expect(doc().cutouts.map(c => c.position)).toEqual(cutouts.map(c => c.position));
+    expect(doc().fingers).toEqual([finger]);
+    expect(moveX.value).toBe('0');
+    expect(list.scrollTop).toBe(150);
     clickLabel('Arrange selected objects');
     expect(inspector.querySelector('[aria-label="Align top edges"]')?.textContent).toBe('');
     clickLabel('Align horizontal centers');

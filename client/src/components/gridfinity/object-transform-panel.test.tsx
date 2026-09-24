@@ -33,18 +33,27 @@ function mount(selected = objects) {
   cleanups.push(() => { React.act(() => root.unmount()); container.remove(); });
   const button = (label: string) => Array.from(container.querySelectorAll("button")).find(b => b.getAttribute("aria-label") === label || b.textContent === label)!;
   const click = (label: string) => React.act(() => button(label).click());
+  const input = (label: string) => container.querySelector(`[aria-label="${label}"]`) as HTMLInputElement;
   const fill = (label: string, value: string) => React.act(() => {
-    const input = container.querySelector(`[aria-label="${label}"]`) as HTMLInputElement;
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
-    input.dispatchEvent(new Event("input", { bubbles: true }));
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input(label), value);
+    input(label).dispatchEvent(new Event("input", { bubbles: true }));
   });
-  return { container, click, button, fill, onCommitObjects, onSelectionChange, update: (edits: ObjectEdits) => React.act(() => update(edits)) };
+  const focus = (label: string) => React.act(() => input(label).focus());
+  const blur = (label: string) => React.act(() => input(label).blur());
+  const press = (label: string, key: string) => React.act(() => input(label).dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true })));
+  const edit = (label: string, value: string) => { focus(label); fill(label, value); blur(label); };
+  return { container, click, button, input, fill, focus, blur, press, edit, onCommitObjects, onSelectionChange, update: (edits: ObjectEdits) => React.act(() => update(edits)) };
 }
-it("applies one mixed XYZ move and defaults rotation to individual centers", () => {
+it("commits each finished axis edit for the whole mixed selection and defaults rotation to individual centers", () => {
   const ui = mount([...objects, finger]);
-  ui.fill("Move X by", "6.5"); ui.fill("Move Y by", "-3"); ui.click("Apply move · mm");
+  ui.focus("Move X by"); ui.fill("Move X by", "6.5");
+  expect(ui.onCommitObjects).not.toHaveBeenCalled();
+  // Moving focus to the next field (including Tab) commits the previous axis.
+  ui.focus("Move Y by");
   expect(ui.onCommitObjects).toHaveBeenCalledTimes(1);
-  const edits = ui.onCommitObjects.mock.calls[0][0];
+  ui.fill("Move Y by", "-3"); ui.press("Move Y by", "Enter");
+  expect(ui.onCommitObjects).toHaveBeenCalledTimes(2);
+  const edits = ui.onCommitObjects.mock.lastCall![0];
   expect(edits.cutouts[0].position).toEqual({ x: -18.5, y: -3 });
   expect(edits.fingerHoles[0].center).toEqual({ x: 16.5, y: -3 });
   ui.click("Rotate pocket (E)");
@@ -62,7 +71,7 @@ it("supports explicit selection toggles, last selected alignment and equal cente
 });
 it("requires three objects for distribution and ignores zero movement", () => {
   const ui = mount(objects.slice(0, 2));
-  ui.click("Apply move · mm"); expect(ui.onCommitObjects).not.toHaveBeenCalled();
+  ui.edit("Move X by", "0"); expect(ui.onCommitObjects).not.toHaveBeenCalled();
   ui.click("Align and distribute objects");
   expect(ui.button("Distribute horizontal centers").disabled).toBe(true); expect(ui.button("Equal horizontal gaps").disabled).toBe(true);
 });
@@ -70,11 +79,11 @@ it("requires three objects for distribution and ignores zero movement", () => {
 it("tracks actual offsets through repeated moves and resets only the entered axis", () => {
   const ui = mount([objects[0]]);
   const value = (axis: string) => (ui.container.querySelector(`[aria-label="Move ${axis} by"]`) as HTMLInputElement).value;
-  ui.fill("Move X by", "6"); ui.fill("Move Y by", "4"); ui.click("Apply move · mm");
+  ui.edit("Move X by", "6"); ui.edit("Move Y by", "4");
   expect(value("X")).toBe("6"); expect(value("Y")).toBe("4");
-  ui.fill("Move X by", "9"); ui.click("Apply move · mm");
+  ui.edit("Move X by", "9");
   expect(ui.onCommitObjects.mock.lastCall![0].cutouts[0].position).toEqual({ x: -16, y: 4 });
-  ui.fill("Move X by", "0"); ui.click("Apply move · mm");
+  ui.edit("Move X by", "0");
   expect(ui.onCommitObjects.mock.lastCall![0].cutouts[0].position).toEqual({ x: -25, y: 4 });
   ui.click("Rotate pocket (E)"); ui.click("Move pocket (W)");
   expect(value("Y")).toBe("4");
@@ -85,7 +94,47 @@ it("updates fields from external drag/undo poses and resets mixed group offsets"
   const first = objects[0]; if (first.kind !== "pocket") throw new Error("fixture");
   ui.update({ cutouts: [{ ...first.cutout, position: { x: -20, y: 2 } }], fingerHoles: [] });
   expect((ui.container.querySelector('[aria-label="Move X by"]') as HTMLInputElement).value).toBe("");
-  ui.fill("Move X by", "0"); ui.click("Apply move · mm");
+  ui.edit("Move X by", "0");
   expect(ui.onCommitObjects.mock.lastCall![0].cutouts.map((c: { position: { x: number } }) => c.position.x)).toEqual([-25, 0, 40]);
   expect(ui.onCommitObjects.mock.lastCall![0].cutouts[0].position.y).toBe(2);
+});
+
+it("cancels a draft with Escape and preserves untouched offset precision on blur", () => {
+  const ui = mount([objects[0]]);
+  const first = objects[0]; if (first.kind !== "pocket") throw new Error("fixture");
+  ui.update({ cutouts: [{ ...first.cutout, position: { x: -20.123456, y: 2 } }], fingerHoles: [] });
+  expect(ui.input("Move X by").value).toBe("4.8765");
+  ui.focus("Move X by"); ui.blur("Move X by");
+  ui.focus("Move X by"); ui.fill("Move X by", "10"); ui.press("Move X by", "Escape");
+  expect(ui.input("Move X by").value).toBe("4.8765");
+  expect(ui.onCommitObjects).not.toHaveBeenCalled();
+  ui.edit("Move Y by", "3");
+  expect(ui.onCommitObjects.mock.lastCall![0].cutouts[0].position.x).toBe(-20.123456);
+});
+
+it("restores invalid or incomplete numbers and permits a corrected edit", () => {
+  const ui = mount([objects[0]]);
+  for (const value of ["", "-", "1e", "1e308"]) {
+    ui.edit("Move X by", value);
+    expect(ui.onCommitObjects).not.toHaveBeenCalled();
+    expect(ui.input("Move X by").value).toBe("0");
+    expect(ui.container.querySelector('[role="status"]')).not.toBeNull();
+  }
+  ui.edit("Move X by", "-2.5");
+  expect(ui.onCommitObjects).toHaveBeenCalledTimes(1);
+  expect(ui.container.querySelector('[role="status"]')).toBeNull();
+});
+
+it("commits rotation once on Enter and restores geometry-invalid drafts", () => {
+  const ui = mount([objects[0]]);
+  ui.click("Rotate pocket (E)");
+  ui.focus("Rotate Z by"); ui.fill("Rotate Z by", "15");
+  expect(ui.onCommitObjects).not.toHaveBeenCalled();
+  ui.press("Rotate Z by", "Enter"); ui.blur("Rotate Z by");
+  expect(ui.onCommitObjects).toHaveBeenCalledTimes(1);
+  expect(ui.onCommitObjects.mock.lastCall![0].cutouts[0].rotationDeg).toBeCloseTo(15);
+  ui.edit("Rotate X by", "90");
+  expect(ui.onCommitObjects).toHaveBeenCalledTimes(1);
+  expect(ui.input("Rotate X by").value).toBe("0");
+  expect(ui.container.querySelector('[role="status"]')?.textContent).toContain("Cannot transform");
 });

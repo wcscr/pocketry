@@ -31,6 +31,9 @@ This is synthetic test data; importing uses the normal browser-local project flo
 - The inspector shows existing detailed controls for one object. Several selected
   objects get shared fields, with **Mixed** for differing values and explicit
   **Apply** buttons. Pocket and finger-access edits have separate scopes.
+  A compact header identifies the active tool; the object list identifies the
+  selection. Single-pocket actions stay in the row, while group actions remain
+  available in the header for multiple objects.
 - Bulk fields cover fixed cut depth and top rounding, plus pocket clearance.
   Setting pocket depth converts selected depth modes to fixed millimetres and
   updates both sections of split pockets. Boundary shapes remain unchanged.
@@ -39,6 +42,11 @@ This is synthetic test data; importing uses the normal browser-local project flo
   for multiple selected objects. Alignment and distribution use standard icons
   for both axes, with tooltips and accessible labels. Selection remains active
   while switching tools, bin settings, and 2D/3D views.
+- Move and rotation fields keep typing as a draft. **Enter**, **Tab**, or clicking
+  away commits that axis for the full selection in one undo step; **Escape**
+  cancels it. Invalid or incomplete values restore the current value and show an
+  error. Untouched axes retain their individual values and full precision.
+  These fields no longer need an Apply button.
 - **Duplicate** makes independent copies of the selection with a common offset.
   **Delete** removes the entire selection. Each command and bulk edit creates one
   undo step. Delete/Backspace also removes the selection when the canvas owns
@@ -67,7 +75,7 @@ shared fields; use single-object controls for contour, size and shape-specific
 edits. Design links are retained, but persistent spatial groups are not added.
 
 Validation is local: `npm run check` and `npm run build` pass; `npm test` passes
-all 2,013 tests across 120 files using Node 22. HTTP tests need localhost binding
+all 2,016 tests across 120 files using Node 22. HTTP tests need localhost binding
 permission when run in a restricted sandbox. Browser
 checks cover desktop, tablet, portrait phone and short landscape layouts,
 mixed selection, scoped edits, arrangement, undo, gizmos, and panel toggling.

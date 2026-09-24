@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Copy, MousePointer2, Trash2, X, SlidersHorizontal } from "lucide-react";
+import { Copy, Trash2, X, SlidersHorizontal } from "lucide-react";
 import { WorkspaceLayout, type WorkspaceLayoutProps } from "@/components/layout/workspace-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -80,6 +80,7 @@ export function SelectionInspector({ propertiesRef, transformsRef, pocketListRef
   const single = chosen.length === 1 ? chosen[0] : null;
   const title = single ? single.kind === "pocket" ? pocketName(single.cutout, single.shape)
     : single.hole.name ?? `Finger access ${bin.fingerHoles.indexOf(single.hole) + 1}` : `${chosen.length} selected`;
+  const toolLabel = inspector?.tool === "translate" ? "Move" : inspector?.tool === "rotate" ? "Rotate" : inspector?.tool === "arrange" ? "Arrange" : "Properties";
   const links = new Set(chosen.map(o => o.kind === "pocket" ? o.cutout.designLink?.id : o.hole.designLink?.id).filter(Boolean));
   const extraLinked = objects.filter(o => !chosen.includes(o) && links.has(o.kind === "pocket" ? o.cutout.designLink?.id : o.hole.designLink?.id)).length;
   return <aside className="flex h-full min-h-0 flex-col bg-background [@media(max-height:500px)]:overflow-y-auto [@media(pointer:coarse)]:[&_button]:min-h-11 [@media(pointer:coarse)]:[&_input:not([type=checkbox])]:min-h-11 [@media(pointer:coarse)]:[&_select]:min-h-11" aria-label="Selection inspector" data-testid="selection-inspector">
@@ -98,18 +99,13 @@ export function SelectionInspector({ propertiesRef, transformsRef, pocketListRef
         {!bin.fingerHoles.length && <p className="px-1 text-xs text-muted-foreground">No finger accesses yet.</p>}
       </div>
     </section>
-    <header className="shrink-0 border-b px-3 py-2">
-      <div className="flex items-center gap-2"><MousePointer2 className="h-4 w-4 shrink-0 text-violet-500" />
-        <p className="min-w-0 flex-1 truncate text-sm font-semibold" title={title} aria-live="polite">{chosen.length ? title : "Select an object"}</p>
-        {!!chosen.length && <>
-          <Button size="icon" variant="ghost" className="h-8 w-8" title="Duplicate selection" aria-label="Duplicate selection" onClick={() => bin.dispatch({ type: "DUPLICATE_SELECTION", ids: chosen.map(o => ({ source: objectRef(o), id: crypto.randomUUID() })) })}><Copy /></Button>
-          <Button size="icon" variant="ghost" className="h-8 w-8" title="Delete selection" aria-label="Delete selection" onClick={() => bin.dispatch({ type: "REMOVE_SELECTION" })}><Trash2 /></Button>
-        </>}
-      </div>
-      {!!chosen.length && <div className="mt-1 flex items-center justify-between gap-2">
-        <p className="text-xs text-muted-foreground">{[pockets.length ? `${pockets.length} pocket${pockets.length === 1 ? "" : "s"}` : "", fingers.length ? `${fingers.length} finger access${fingers.length === 1 ? "" : "es"}` : ""].filter(Boolean).join(" · ")}</p>
-        {inspector?.tool !== "properties" && <Button size="sm" variant="ghost" className="h-8 gap-1 px-2 text-xs" onClick={() => inspector?.setTool("properties")}><SlidersHorizontal />Properties</Button>}
-      </div>}
+    <header className="flex min-h-9 shrink-0 items-center gap-1 border-b px-3 py-0.5" data-testid="inspector-properties-header">
+      <h3 className="mr-auto text-xs font-semibold">{toolLabel}</h3>
+      <span className="sr-only" aria-live="polite">{chosen.length ? `${toolLabel} for ${title}` : "Select an object"}</span>
+      {chosen.length > 1 && <span className="mr-1 text-xs text-muted-foreground">{chosen.length} selected</span>}
+      {(chosen.length > 1 || single?.kind === "finger") && <Button size="icon" variant="ghost" className="h-8 w-8" title="Duplicate selection" aria-label="Duplicate selection" onClick={() => bin.dispatch({ type: "DUPLICATE_SELECTION", ids: chosen.map(o => ({ source: objectRef(o), id: crypto.randomUUID() })) })}><Copy /></Button>}
+      {chosen.length > 1 && <Button size="icon" variant="ghost" className="h-8 w-8" title="Delete selection" aria-label="Delete selection" onClick={() => bin.dispatch({ type: "REMOVE_SELECTION" })}><Trash2 /></Button>}
+      {!!chosen.length && inspector?.tool !== "properties" && <Button size="icon" variant="ghost" className="h-8 w-8" title="Back to properties" aria-label="Back to properties" onClick={() => inspector?.setTool("properties")}><SlidersHorizontal /></Button>}
     </header>
     <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain [@media(max-height:500px)]:flex-none [@media(max-height:500px)]:overflow-visible" data-testid="inspector-scroll">
       {!chosen.length && <p className="p-4 text-sm text-muted-foreground">Choose objects in the list or canvas. Use checkboxes or Shift-click to select several.</p>}
