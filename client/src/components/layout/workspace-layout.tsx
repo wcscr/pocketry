@@ -102,10 +102,8 @@ export function WorkspaceLayout({
    * The group reports its restored state once on mount. A collapsed restore has
    * to reach the caller — their toggle is the only way back to a panel that is
    * not on screen — but an expanded one is swallowed, because it is merely the
-   * default and echoing it would force `panelOpen` true. On a phone that is
-   * ruinous: `useIsMobile()` resolves in a passive effect, one tick *after* the
-   * desktop panel group has already mounted and reported, so the drawer would
-   * spring open on every page load.
+   * default and echoing it would override the caller's closed-panel choice.
+   * This also preserves the desktop collapsed-state restore contract.
    */
   const reportCollapsed = (next: boolean) => {
     const isFirstReport = collapsed === null;

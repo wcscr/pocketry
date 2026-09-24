@@ -17,14 +17,15 @@ beforeEach(() => {
 afterEach(() => { React.act(() => root.unmount()); host.remove(); vi.unstubAllGlobals(); });
 
 describe("contour precision view", () => {
-  it.each([true, false])("keeps its position and 3× zoom through a drag (compact: %s)", compact => {
+  it.each([true, false])("preserves 3× zoom and moves only the compact lens away from the finger (compact: %s)", compact => {
     render({ x: 40, y: 80 }, 864, 735, compact);
     const position = magnifier().getAttribute("style");
     const initialView = magnifier().querySelector('svg')!.getAttribute('viewBox');
     expect(Number.parseFloat(magnifier().style.left)).toBeGreaterThan(432);
     expect(Number.parseFloat(magnifier().style.top)).toBeGreaterThan(367);
     render({ x: 750, y: 650 }, 864, 735, compact);
-    expect(magnifier().getAttribute("style")).toBe(position);
+    if (compact) expect(magnifier().getAttribute("style")).not.toBe(position);
+    else expect(magnifier().getAttribute("style")).toBe(position);
     expect(magnifier().querySelector('svg')!.getAttribute('viewBox')).not.toBe(initialView);
     expect(magnifier().querySelector('use')!.getAttribute('href')).toBe('#contour-scene');
     const svg = magnifier().querySelector('svg')!;
@@ -38,6 +39,14 @@ describe("contour precision view", () => {
     render({ x: 750, y: 650 }, 864, 735, compact);
     expect(Number.parseFloat(magnifier().style.left)).toBeLessThan(432);
     expect(Number.parseFloat(magnifier().style.top)).toBeLessThan(367);
+  });
+
+  it("does not oscillate when the touch stays near the same corner", () => {
+    render({ x: 40, y: 80 }, 864, 735);
+    render({ x: 750, y: 650 }, 864, 735);
+    const position = magnifier().getAttribute("style");
+    render({ x: 745, y: 648 }, 864, 735);
+    expect(magnifier().getAttribute("style")).toBe(position);
   });
 
   it("keeps the fixed view inside a short phone canvas when the viewport resizes", () => {

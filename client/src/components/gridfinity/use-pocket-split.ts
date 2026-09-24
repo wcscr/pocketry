@@ -2,15 +2,18 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import { placementFootprint, untransformPointPlacement, type CutoutPlacement, type TracedShape } from "@shared/gridfinity/cutout";
 import { nearestPocketEdge, orientRedrawnPocketSplit, resolvePocketSplit } from "@shared/gridfinity/pocket-split";
 import type { Point } from "@shared/geometry/types";
+import { useDraftNavigation } from "@/hooks/use-draft-navigation";
+import type { ViewportPointerHandlers } from "@/hooks/use-viewport-transform";
 import { useBin } from "@/state/bin-store";
 
 /** Drafts never enter the document. Click-click and edge-to-edge dragging share
  * the same commit path, so cancellation and invalid attempts are lossless.
  */
-export function usePocketSplit({ cutout, shape, scale, toBin, onComplete }: {
+export function usePocketSplit({ cutout, shape, scale, toBin, viewport, onComplete }: {
   cutout: CutoutPlacement | null;
   shape: TracedShape | null;
   scale: number;
+  viewport: ViewportPointerHandlers;
   toBin: (x: number, y: number) => Point | null;
   onComplete?: () => void;
 }) {
@@ -20,16 +23,18 @@ export function usePocketSplit({ cutout, shape, scale, toBin, onComplete }: {
   const [hover, setHover] = useState<Point | null>(null);
   const [error, setError] = useState<string | null>(null);
   const startRef = useRef<Point | null>(null);
+  const secondEndpoint = useRef(false);
   const downRef = useRef<Point | null>(null);
   const placed = useMemo(() => cutout && shape ? placementFootprint(shape, cutout).outline : [], [cutout, shape]);
-  const reset = () => { startRef.current = null; downRef.current = null; setStart(null); setHover(null); setError(null); };
+  const reset = () => { secondEndpoint.current = false; startRef.current = null; downRef.current = null; setStart(null); setHover(null); setError(null); };
+  const navigation = useDraftNavigation(active, viewport, reset);
   useEffect(reset, [active, cutout?.id, shape?.id]);
 
-  const snap = (event: PointerEvent<SVGSVGElement>) => {
+  const snap = (event: PointerEvent<SVGSVGElement>, releasing = false) => {
     const p = toBin(event.clientX, event.clientY);
     if (!p || !cutout) return null;
     const edge = nearestPocketEdge(placed, p);
-    return edge && Math.hypot(edge.x - p.x, edge.y - p.y) * scale <= 16
+    return edge && Math.hypot(edge.x - p.x, edge.y - p.y) * scale <= (event.pointerType === "touch" ? releasing ? 32 : 24 : 16)
       ? untransformPointPlacement(edge, cutout) : null;
   };
   const finish = (end: Point | null) => {
@@ -50,9 +55,11 @@ export function usePocketSplit({ cutout, shape, scale, toBin, onComplete }: {
     active, start, hover, error,
     pointerDown(event: PointerEvent<SVGSVGElement>): boolean {
       if (!active) return false;
+      if (navigation.down(event)) return true;
       event.preventDefault();
       const point = snap(event);
-      if (startRef.current) { finish(point); return true; }
+      if (startRef.current && event.pointerType !== "touch") { finish(point); return true; }
+      if (startRef.current) { secondEndpoint.current = true; downRef.current = { x: event.clientX, y: event.clientY }; return true; }
       if (!point) { setError("Start on the pocket’s outer edge."); return true; }
       startRef.current = point;
       downRef.current = { x: event.clientX, y: event.clientY };
@@ -62,6 +69,7 @@ export function usePocketSplit({ cutout, shape, scale, toBin, onComplete }: {
     },
     pointerMove(event: PointerEvent<SVGSVGElement>): boolean {
       if (!active) return false;
+      if (navigation.move(event)) return true;
       const local = snap(event);
       const p = toBin(event.clientX, event.clientY);
       setHover(local ?? (p && cutout ? untransformPointPlacement(p, cutout) : null));
@@ -69,11 +77,13 @@ export function usePocketSplit({ cutout, shape, scale, toBin, onComplete }: {
     },
     pointerUp(event: PointerEvent<SVGSVGElement>): boolean {
       if (!active) return false;
+      if (navigation.end(event)) return true;
       if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
       if (event.type === "pointercancel") { reset(); return true; }
       const down = downRef.current;
       downRef.current = null;
-      if (down && Math.hypot(event.clientX - down.x, event.clientY - down.y) > 4) finish(snap(event));
+      if (secondEndpoint.current || (down && Math.hypot(event.clientX - down.x, event.clientY - down.y) > (event.pointerType === "touch" ? 8 : 4))) finish(snap(event, true));
+      secondEndpoint.current = false;
       return true;
     },
   };

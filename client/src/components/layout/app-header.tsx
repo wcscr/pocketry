@@ -20,6 +20,9 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
+import { useIsMobile } from "@/hooks/use-mobile";
+import { MobileFeedbackLink } from "./mobile-feedback-link";
+
 import { WORKSPACES } from "./workspaces";
 import { usePanelState } from "./panel-context";
 
@@ -48,6 +51,7 @@ export function AppHeader({
   onHelpClick,
   onStartOver,
 }: AppHeaderProps): JSX.Element {
+  const isMobile = useIsMobile();
   const [isAbout] = useRoute("/about");
   const [location] = useLocation();
   const { setLibraryRequested } = usePanelState();
@@ -95,7 +99,7 @@ export function AppHeader({
         </a>
       </div>
 
-      <nav className="hidden items-center gap-1 md:ml-4 md:flex" aria-label="Workspaces">
+      <nav className={cn("items-center gap-1 ml-4", isMobile ? "hidden" : "flex")} aria-label="Workspaces">
         {WORKSPACES.map((workspace) => (
           <WorkspaceLink key={workspace.path} path={workspace.path}>
             <workspace.icon className="h-4 w-4" aria-hidden />
@@ -108,7 +112,7 @@ export function AppHeader({
         </Link>
       </nav>
 
-      <div className="ml-auto flex items-center gap-1 md:hidden">
+      <div className={cn("ml-auto items-center gap-1", isMobile ? "flex" : "hidden")}>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="h-11 gap-1 px-2" aria-label={`Workspace: ${currentWorkspace?.label ?? "About"}`}>
@@ -134,12 +138,13 @@ export function AppHeader({
             {!isAbout && <DropdownMenuItem className="min-h-11" onSelect={() => onPanelOpenChange(true)}><PanelLeftOpen className="mr-2 h-4 w-4" />All settings</DropdownMenuItem>}
             <DropdownMenuItem className="min-h-11" onSelect={onHelpClick}><CircleHelp className="mr-2 h-4 w-4" />Help</DropdownMenuItem>
             <DropdownMenuItem asChild className="min-h-11"><Link href="/about"><Info className="mr-2 h-4 w-4" />About Pocketry</Link></DropdownMenuItem>
+            <MobileFeedbackLink />
             {onStartOver && <><DropdownMenuSeparator /><DropdownMenuItem className="min-h-11" onSelect={onStartOver}><RotateCcw className="mr-2 h-4 w-4" />Start over</DropdownMenuItem></>}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
 
-      <div className="ml-auto hidden shrink-0 items-center gap-1 md:flex">
+      <div className={cn("ml-auto shrink-0 items-center gap-1", isMobile ? "hidden" : "flex")}>
         {!isAbout ? (
           <Tooltip>
             <TooltipTrigger asChild>

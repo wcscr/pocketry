@@ -1,10 +1,10 @@
 import { Line, OrbitControls } from "@react-three/drei";
 import { Canvas, useThree, type ThreeEvent } from "@react-three/fiber";
-import { LoaderCircle, Ruler, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Hand, LoaderCircle, Rotate3d, Ruler, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { BufferGeometry, PerspectiveCamera } from "three";
-import { Vector3 } from "three";
+import { TOUCH, Vector3, Vector4 } from "three";
 
 import type { Outline, Point } from "@shared/geometry/types";
 
@@ -15,7 +15,6 @@ import { useElementSize } from "@/hooks/use-element-size";
 import { fitDistanceMm, type FitSize } from "@/lib/gridfinity/camera-fit";
 import {
   measurementDistanceMm,
-  snapToToolContour,
   type MeasurementPaths,
 } from "@/lib/gridfinity/layout-measure";
 import {
@@ -23,9 +22,10 @@ import {
   POCKET_FLOOR_COLOR,
   STACKING_RIM_COLOR,
 } from "@/lib/gridfinity/pocket-floor-mesh";
+import { snapToProjectedContours } from "@/lib/gridfinity/projected-measure";
+import { useHasTouchInput, useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 
-const RULER_3D_SNAP_TOLERANCE_MM = 5;
 const RULER_3D_Z_FIGHT_OFFSET_MM = 0.25;
 const EMPTY_MEASUREMENT_OUTLINES: readonly Outline[] = [];
 const EMPTY_MEASUREMENT_PATHS: MeasurementPaths = [];
@@ -83,7 +83,7 @@ function PlanarRulerScene({
   planeZMm,
   widthMm,
   lengthMm,
-  onPoint,
+  onPoint, onFeedback,
 }: {
   active: boolean;
   outlines: readonly Outline[];
@@ -93,20 +93,51 @@ function PlanarRulerScene({
   widthMm: number;
   lengthMm: number;
   onPoint: (point: Point) => void;
+  onFeedback: (feedback: { screen: Point; snapped: boolean } | null) => void;
 }): JSX.Element | null {
+  const camera = useThree(state => state.camera);
+  const gl = useThree(state => state.gl);
+  const down = useRef<{ id: number; x: number; y: number; slop: number } | null>(null);
+  const pointers = useRef(new Set<number>());
+  useEffect(() => { down.current = null; pointers.current.clear(); onFeedback(null); }, [active, onFeedback]);
+  useEffect(() => {
+    const cancel = () => { down.current = null; onFeedback(null); };
+    window.addEventListener("resize", cancel);
+    return () => window.removeEventListener("resize", cancel);
+  }, [onFeedback]);
   if (!active) return null;
-
   const displayZ = planeZMm + RULER_3D_Z_FIGHT_OFFSET_MM;
+  const snap = (event: ThreeEvent<PointerEvent>) => {
+    const rect = gl.domElement.getBoundingClientRect();
+    const screen = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+    const found = snapToProjectedContours(screen, outlines, splitBoundaries, point => {
+      const clip = new Vector4(point.x, point.y, planeZMm, 1).applyMatrix4(camera.matrixWorldInverse).applyMatrix4(camera.projectionMatrix);
+      const z = clip.z / clip.w;
+      return { x: (clip.x / clip.w + 1) * rect.width / 2, y: (1 - clip.y / clip.w) * rect.height / 2,
+        w: clip.w, visible: z >= -1 && z <= 1 };
+    }, event.pointerType === "touch" ? 28 : 10);
+    onFeedback({ screen: found?.screen ?? screen, snapped: !!found });
+    return found;
+  };
   const handlePointerDown = (event: ThreeEvent<PointerEvent>) => {
     if (event.button !== 0) return;
     event.stopPropagation();
-    const snapped = snapToToolContour(
-      { x: event.point.x, y: event.point.y },
-      outlines,
-      RULER_3D_SNAP_TOLERANCE_MM,
-      splitBoundaries,
-    );
-    if (snapped) onPoint(snapped.point);
+    pointers.current.add(event.pointerId);
+    if (pointers.current.size > 1) { down.current = null; onFeedback(null); return; }
+    down.current = { id: event.pointerId, x: event.clientX, y: event.clientY, slop: event.pointerType === "touch" ? 12 : 4 };
+    (event.target as Element).setPointerCapture(event.pointerId);
+    snap(event);
+  };
+  const handlePointerUp = (event: ThreeEvent<PointerEvent>) => {
+    event.stopPropagation();
+    pointers.current.delete(event.pointerId);
+    const start = down.current;
+    down.current = null;
+    if ((event.target as Element).hasPointerCapture(event.pointerId)) (event.target as Element).releasePointerCapture(event.pointerId);
+    if (event.type === "pointercancel" || !start || start.id !== event.pointerId
+      || Math.hypot(event.clientX - start.x, event.clientY - start.y) > start.slop) { onFeedback(null); return; }
+    const found = snap(event);
+    if (found) onPoint(found.point);
   };
 
   return (
@@ -114,6 +145,14 @@ function PlanarRulerScene({
       <mesh
         position={[0, 0, planeZMm + 0.01]}
         onPointerDown={handlePointerDown}
+        onPointerMove={event => {
+          if (down.current?.id !== event.pointerId) return;
+          const start = down.current;
+          if (Math.hypot(event.clientX - start.x, event.clientY - start.y) > start.slop) { down.current = null; onFeedback(null); }
+          else snap(event);
+        }}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
       >
         <planeGeometry args={[widthMm, lengthMm]} />
         <meshBasicMaterial
@@ -224,6 +263,11 @@ export function BinViewport({
   // the slot has real dimensions makes fiber's initial measurement the
   // correct one; after that its own observer tracks panel drags fine.
   const [containerRef, containerSize] = useElementSize<HTMLDivElement>();
+  const isMobile = useIsMobile();
+  const hasTouchInput = useHasTouchInput();
+  const touchControls = isMobile || hasTouchInput;
+  const [panTouch, setPanTouch] = useState(false);
+  const [rulerFeedback, setRulerFeedback] = useState<{ screen: Point; snapped: boolean } | null>(null);
   const laidOut = containerSize.width > 0 && containerSize.height > 0;
   const [rulerActive, setRulerActive] = useState(false);
   const [measurementPoints, setMeasurementPoints] = useState<Point[]>([]);
@@ -303,6 +347,7 @@ export function BinViewport({
           widthMm={fitSize.widthMm}
           lengthMm={fitSize.lengthMm}
           onPoint={recordMeasurementPoint}
+          onFeedback={setRulerFeedback}
         />
         {/* One line per 42 mm grid cell. gridHelper lives in three's y-up XZ
             plane; rotate it into our z-up world's XY. (Full 6-digit hex:
@@ -316,6 +361,7 @@ export function BinViewport({
             makeDefault
             target={[0, 0, 21]}
             enabled={!rulerActive}
+            touches={{ ONE: panTouch ? TOUCH.PAN : TOUCH.ROTATE, TWO: TOUCH.DOLLY_PAN }}
             enableDamping
             dampingFactor={0.12}
           />
@@ -324,9 +370,14 @@ export function BinViewport({
       ) : null}
 
       <div
-        className="absolute right-3 top-16 md:top-12 [@media(pointer:coarse)]:top-16 z-30 flex flex-col overflow-hidden rounded-md border bg-background/90 shadow-sm backdrop-blur"
+        className={cn("absolute right-3 z-30 flex flex-col overflow-hidden rounded-md border bg-background/90 shadow-sm backdrop-blur", touchControls ? "top-16" : "top-12")}
         data-testid="bin-3d-tool-toolbar"
       >
+        {touchControls && <Button variant="ghost" size="icon" className="h-11 w-11 rounded-none border-b"
+          aria-label={panTouch ? "Switch to orbit" : "Switch to pan"} aria-pressed={panTouch}
+          disabled={rulerActive} onClick={() => setPanTouch(value => !value)}>
+          {panTouch ? <Hand className="h-5 w-5" /> : <Rotate3d className="h-5 w-5" />}
+        </Button>}
         <Button
           variant="ghost"
           size="icon"
@@ -366,28 +417,27 @@ export function BinViewport({
         ) : null}
       </div>
 
+      {rulerActive && rulerFeedback && <div aria-hidden className={cn("pointer-events-none absolute z-30 h-7 w-7 -translate-x-1/2 -translate-y-1/2 rounded-full border-2", rulerFeedback.snapped ? "border-fuchsia-600" : "border-destructive")}
+        style={{ left: rulerFeedback.screen.x, top: rulerFeedback.screen.y }} />}
+      {touchControls && !rulerActive && <p className="pointer-events-none absolute bottom-14 left-3 rounded bg-background/90 px-2 py-1 text-xs">
+        {panTouch ? "Drag to pan" : "Drag to orbit"} · Pinch to zoom
+      </p>}
       {rulerActive ? (
         <div
-          className="pointer-events-none absolute right-14 top-12 [@media(pointer:coarse)]:right-16 [@media(pointer:coarse)]:top-16 z-20 max-w-60 rounded-md border bg-background/90 px-2.5 py-1.5 text-xs font-medium shadow-sm backdrop-blur"
+          className={cn("pointer-events-none absolute z-20 max-w-60 rounded-md border bg-background/90 px-2.5 py-1.5 text-xs font-medium shadow-sm backdrop-blur", touchControls ? "right-16 top-16" : "right-14 top-12")}
           role="status"
           data-testid="bin-3d-ruler-status"
         >
           <span className="block">
-            {measurementPoints.length === 0
-              ? "Click the first contour or split line on the top plane"
+            {rulerFeedback && !rulerFeedback.snapped ? "No edge nearby. Tap closer or zoom in before measuring." : measurementPoints.length === 0
+              ? "Tap the first contour or split line on the top plane"
               : measurementPoints.length === 1
-                ? "Click the second contour or split line on the top plane"
-                : `${measuredDistanceMm!.toFixed(2)} mm · click to start a new measurement`}
+                ? "Tap the second contour or split line on the top plane"
+                : `${measuredDistanceMm!.toFixed(2)} mm · tap to start a new measurement`}
           </span>
           <span className="mt-1 block text-[11px] font-normal text-muted-foreground">
             For the most accurate dimension check, use the ruler in Layout.
           </span>
-        </div>
-      ) : null}
-
-      {rulerActive ? (
-        <div className="pointer-events-none absolute bottom-2 left-2 rounded-md bg-background/85 px-2 py-1 text-[11px] text-muted-foreground shadow-sm backdrop-blur">
-          3D ruler · snap to contours or split lines on the top XY plane · Esc exits
         </div>
       ) : null}
 
