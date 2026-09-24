@@ -2,13 +2,13 @@ import { createPortal } from "react-dom";
 import { useSelectionInspector } from "./selection-inspector-context";
 import { useEffect, useState } from "react";
 import { objectTransformOffsets, setObjectTransformOffsets } from "@/lib/gridfinity/object-transform-offsets";
-import { CheckSquare2, ChevronDown, X, Link2, Magnet, Move3D, Rotate3D, AlignHorizontalJustifyCenter } from "lucide-react";
+import { CheckSquare2, ChevronDown, X, Link2, Magnet, Move3D, Rotate3D, AlignHorizontalJustifyCenter, AlignHorizontalJustifyStart, AlignHorizontalJustifyEnd, AlignVerticalJustifyStart, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd, AlignHorizontalDistributeCenter, AlignVerticalDistributeCenter, AlignHorizontalSpaceAround, AlignVerticalSpaceAround } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { pocketName } from "@shared/gridfinity/cutout";
 import { pocketVerticalDepthMm, type PocketTransformMode } from "@/lib/gridfinity/pocket-transform";
-import { arrangeObjects, objectEditsChanged, objectKey, objectRef, selectionBounds,
+import { arrangeObjects, objectEditsChanged, objectKey, objectRef,
   type EditableObject, type ObjectEdits, type RotationPivot } from "@/lib/gridfinity/object-arrangement";
 import type { PocketEditor } from "./pocket-transform-scene";
 
@@ -29,13 +29,12 @@ export function ObjectTransformPanel({ editor, objects, selected, displayed, mod
   pivot: RotationPivot; setPivot: (pivot: RotationPivot) => void; limited: boolean;
 }): JSX.Element {
   const inspector = useSelectionInspector();
-  useEffect(() => { if (modeRequest) inspector?.setActiveTab("transform"); }, [modeRequest]);
   const showLinks = editor.linkControls && !inspector;
-  const [arranging, setArranging] = useState(false);
+  const [legacyArranging, setArranging] = useState(false);
+  const arranging = inspector ? inspector.tool === "arrange" : legacyArranging;
   const [linking, setLinking] = useState(false);
   const [draft, setDraft] = useState<Record<number, string>>({});
   const [error, setError] = useState<string | null>(null);
-  const [axis, setAxis] = useState<"x" | "y">("x");
   const [reference, setReference] = useState<"selection" | "active">("selection");
   const key = JSON.stringify(selected.map(o => objectKey(objectRef(o))));
   const offsets = displayed.map(o => objectTransformOffsets(o, editor.spec, editor.transformOrigins, mode, editor.originShapes));
@@ -96,38 +95,45 @@ export function ObjectTransformPanel({ editor, objects, selected, displayed, mod
       </div>
     </details>}
     <div className="space-y-3 p-3">
-      <div className={cn("grid gap-1 rounded-lg bg-muted p-1", showLinks ? "grid-cols-4" : "grid-cols-3")} role="group" aria-label="Object tools">
+      {!inspector && <div className={cn("grid gap-1 rounded-lg bg-muted p-1", showLinks ? "grid-cols-4" : "grid-cols-3")} role="group" aria-label="Object tools">
         {(["translate", "rotate", "arrange"] as const).map(tool => <button key={tool} type="button"
           className={cn("flex min-h-9 flex-col items-center justify-center gap-1 rounded-md px-1 py-1.5 text-[10px] font-medium transition-colors", (!linking && (tool === "arrange" ? arranging : !arranging && mode === tool)) ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}
           aria-label={tool === "translate" ? "Move pocket (W)" : tool === "rotate" ? "Rotate pocket (E)" : "Align and distribute objects"}
           aria-pressed={!linking && (tool === "arrange" ? arranging : !arranging && mode === tool)}
-          onClick={() => { setLinking(false); setError(null); setArranging(tool === "arrange"); if (tool !== "arrange") setMode(tool); else if (selected.length) { const b = selectionBounds(selected); setAxis(b.maxX - b.minX >= b.maxY - b.minY ? "x" : "y"); } }}>
+          onClick={() => { setLinking(false); setError(null); setArranging(tool === "arrange"); if (tool !== "arrange") setMode(tool); }}>
           {tool === "translate" ? <Move3D className="h-4 w-4" /> : tool === "rotate" ? <Rotate3D className="h-4 w-4" /> : <AlignHorizontalJustifyCenter className="h-4 w-4" />}
           {tool === "translate" ? "Move" : tool === "rotate" ? "Rotate" : "Arrange"}
         </button>)}
         {showLinks && <button type="button" aria-label="Link and unlink designs" aria-pressed={linking}
           className={cn("flex min-h-9 flex-col items-center justify-center gap-1 rounded-md px-1 py-1.5 text-[10px] font-medium", linking ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground")}
           onClick={() => { setLinking(true); setError(null); }}><Link2 className="h-4 w-4" />Links</button>}
-      </div>
+      </div>}
+      {inspector && <h3 className="text-sm font-semibold">{arranging ? "Arrange selection" : mode === "translate" ? "Move selection" : "Rotate selection"}</h3>}
       {linking ? <>{selected.length ? editor.linkControls : <p className="text-muted-foreground">Select objects to link or unlink their designs.</p>}</> : arranging ? <>
-        <div className="flex gap-2">
-          <select aria-label="Arrangement axis" className="h-9 rounded-md border bg-background px-2" value={axis} onChange={e => setAxis(e.target.value as "x" | "y")}>
-            <option value="x">X axis</option><option value="y">Y axis</option>
-          </select>
+        <label className="flex items-center gap-2 text-xs">Relative to
           <select aria-label="Align relative to" className="h-9 min-w-0 flex-1 rounded-md border bg-background px-2" value={reference} onChange={e => setReference(e.target.value as "selection" | "active")}>
             <option value="selection">Selection bounds</option><option value="active">Last selected</option>
           </select>
+        </label>
+        <div className="grid grid-cols-3 gap-2" role="group" aria-label="Align objects">
+          {([
+            ["x", "min", AlignHorizontalJustifyStart, "Align left edges"],
+            ["x", "center", AlignHorizontalJustifyCenter, "Align horizontal centers"],
+            ["x", "max", AlignHorizontalJustifyEnd, "Align right edges"],
+            ["y", "max", AlignVerticalJustifyStart, "Align top edges"],
+            ["y", "center", AlignVerticalJustifyCenter, "Align vertical centers"],
+            ["y", "min", AlignVerticalJustifyEnd, "Align bottom edges"],
+          ] as const).map(([a, op, Icon, label]) => <Button key={label} variant="outline" size="icon" className="h-10 w-full" disabled={selected.length < 2}
+            aria-label={label} title={label} onClick={() => commit(arrangeObjects(selected, a, op, reference), `Align objects on ${a.toUpperCase()}`)}><Icon /></Button>)}
         </div>
-        <div className="grid grid-cols-3 gap-1.5">
-          {(["min", "center", "max"] as const).map(op => <Button key={op} variant="outline" size="sm" className="px-1 text-[11px]" disabled={selected.length < 2}
-            aria-label={`Align ${axis.toUpperCase()} ${op === "center" ? "centers" : op === "min" ? "minimum edges" : "maximum edges"}`}
-            onClick={() => commit(arrangeObjects(selected, axis, op, reference), `Align objects on ${axis.toUpperCase()}`)}>
-            {op === "center" ? "Center" : axis === "x" ? op === "min" ? "Left edge" : "Right edge" : op === "min" ? "Front edge" : "Back edge"}
-          </Button>)}
-        </div>
-        <div className="grid grid-cols-2 gap-2 border-t pt-3">
-          <Button variant="outline" size="sm" className="text-[11px]" disabled={selected.length < 3} onClick={() => commit(arrangeObjects(selected, axis, "centers"), `Distribute centers on ${axis.toUpperCase()}`)}>Equal centers</Button>
-          <Button variant="outline" size="sm" className="text-[11px]" disabled={selected.length < 3} onClick={() => commit(arrangeObjects(selected, axis, "gaps"), `Distribute gaps on ${axis.toUpperCase()}`)}>Equal gaps</Button>
+        <div className="grid grid-cols-2 gap-2 border-t pt-3" role="group" aria-label="Distribute objects">
+          {([
+            ["x", "centers", AlignHorizontalDistributeCenter, "Distribute horizontal centers"],
+            ["y", "centers", AlignVerticalDistributeCenter, "Distribute vertical centers"],
+            ["x", "gaps", AlignHorizontalSpaceAround, "Equal horizontal gaps"],
+            ["y", "gaps", AlignVerticalSpaceAround, "Equal vertical gaps"],
+          ] as const).map(([a, op, Icon, label]) => <Button key={label} variant="outline" size="icon" className="h-10 w-full" disabled={selected.length < 3}
+            aria-label={label} title={label} onClick={() => commit(arrangeObjects(selected, a, op), `Distribute ${op} on ${a.toUpperCase()}`)}><Icon /></Button>)}
         </div>
         <p className="text-[10px] leading-relaxed text-muted-foreground">Align opening edges or centers. Distribute keeps the two outer objects in place.{selected.length < 3 ? " Select 3 or more to distribute." : ""}</p>
       </> : <>

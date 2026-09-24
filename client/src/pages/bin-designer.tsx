@@ -119,7 +119,7 @@ function BinDesignerWorkspace(): JSX.Element {
   const editSelectedPocket = () => {
     setSettingsSectionRequest(undefined);
     if (isMobile && !inspectorPrototype) setQuickAdjustOpen(true);
-    else setPanelOpen(true);
+    else if (!inspectorPrototype) setPanelOpen(true);
     setPocketEditorRequest((request) => request + 1);
   };
   const { toast } = useToast();
@@ -1050,11 +1050,7 @@ function BinDesignerWorkspace(): JSX.Element {
       onPanelOpenChange={setPanelOpen}
       panelTitle={isMobile && settingsSectionRequest?.id === "bin-settings-export" ? "Export bin" : "Bin designer"}
       mobileActionsLayout="landscape-side"
-      mobileActions={inspectorPrototype ? <div className="flex gap-2">
-        <Button variant="outline" className="min-h-11 flex-1" onClick={() => { setSettingsSectionRequest({ id: "bin-settings-pockets" }); setPanelOpen(true); }}>Objects</Button>
-        <Button variant="outline" className="min-h-11 flex-1" onClick={editSelectedPocket}>Properties</Button>
-        <Button className="min-h-11 flex-1" onClick={() => { setSettingsSectionRequest({ id: "bin-settings-export" }); setPanelOpen(true); }}>Export</Button>
-      </div> : <MobileBinActions open={quickAdjustOpen} onOpenChange={setQuickAdjustOpen}
+      mobileActions={<MobileBinActions open={quickAdjustOpen} onOpenChange={setQuickAdjustOpen}
         onMore={id => { setSettingsSectionRequest({ id }); setPanelOpen(true); }}
         onExport={() => { setSettingsSectionRequest({ id: "bin-settings-export" }); setPanelOpen(true); }} />}
       panel={

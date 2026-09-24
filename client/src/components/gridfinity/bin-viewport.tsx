@@ -1,3 +1,4 @@
+import { SelectionToolButtons } from "./selection-tool-buttons";
 import { useSelectionInspector } from "./selection-inspector-context";
 import { Line, OrbitControls } from "@react-three/drei";
 import { Canvas, useThree, type ThreeEvent } from "@react-three/fiber";
@@ -254,6 +255,10 @@ export function BinViewport({
   useEffect(() => { if (!pocketEditor) setObjectControlsOpen(false); }, [!!pocketEditor]);
   const [transformMode, setTransformMode] = useState<PocketTransformMode>("translate");
   const [modeRequest, setModeRequest] = useState(0);
+  useEffect(() => {
+    if (inspector?.tool === "translate" || inspector?.tool === "rotate") setTransformMode(inspector.tool);
+    if (inspector && inspector.tool !== "properties") setRulerActive(false);
+  }, [inspector?.tool]);
   const [snapTransform, setSnapTransform] = useState(false);
   const [dragPreview, setDragPreview] = useState<ObjectEdits | null>(null);
   const [transformLimited, setTransformLimited] = useState(false);
@@ -276,12 +281,13 @@ export function BinViewport({
       if (event.key.toLowerCase() === "w" || event.key.toLowerCase() === "e") {
         event.preventDefault(); setRulerActive(false); setObjectControlsOpen(true);
         setTransformMode(event.key.toLowerCase() === "w" ? "translate" : "rotate");
+        inspector?.setTool(event.key.toLowerCase() === "w" ? "translate" : "rotate");
         setModeRequest(value => value + 1);
       }
     };
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
-  }, [pocketEditor, objects]);
+  }, [pocketEditor, objects, inspector?.setTool]);
   const [measurementPoints, setMeasurementPoints] = useState<Point[]>([]);
   const showBusy = useDelayedBusy(building);
   const measuredDistanceMm = useMemo(
@@ -353,7 +359,7 @@ export function BinViewport({
         ) : null}
         {pocketEditor && <PocketSelectionPlane editor={pocketEditor} width={fitSize.widthMm} length={fitSize.lengthMm} disabled={rulerActive || !!dragPreview} />}
         {pocketEditor && !rulerActive && displayedObjects.map(object => <ObjectTransformWire key={objectKey(objectRef(object))} object={object} spec={pocketEditor.spec} />)}
-        {selectedObjects.length > 0 && pocketEditor && (inspector ? inspector.activeTab === "transform" : objectControlsOpen) && !rulerActive && <SelectionTransformScene
+        {selectedObjects.length > 0 && pocketEditor && (inspector ? (inspector.tool === "translate" || inspector.tool === "rotate") : objectControlsOpen) && !rulerActive && <SelectionTransformScene
           key={`${selectionKey}-${transformMode}`} objects={selectedObjects} allObjects={objects} spec={pocketEditor.spec} mode={transformMode} snap={snapTransform} pivot={pivot}
           onPreview={setDragPreview} onLimit={setTransformLimited}
           onCommit={edits => commitEditorObjects(pocketEditor, edits, `${transformMode === "translate" ? "Move" : "Rotate"} ${selectedObjects.length} objects in 3D`, transformMode)} />}
@@ -415,6 +421,7 @@ export function BinViewport({
         >
           <Ruler className="h-4 w-4" />
         </Button>
+        {pocketEditor && inspector && <SelectionToolButtons count={selectedObjects.length} inactive={rulerActive} onActivate={() => setRulerActive(false)} />}
         {pocketEditor && !inspector && <Button variant="ghost" size="icon"
           className={cn("h-9 w-9 rounded-none border-t [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11", objectControlsOpen && !rulerActive && "bg-accent text-accent-foreground")}
           aria-label="Object controls" title="Move, rotate and arrange objects" aria-expanded={objectControlsOpen && !rulerActive}

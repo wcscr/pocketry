@@ -16,7 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useElementSize } from "@/hooks/use-element-size";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { cn } from "@/lib/utils";
+import { InspectorWorkspace } from "./inspector-workspace";
 import { MobileCanvasOverlayContext } from "./mobile-canvas-overlay";
 
 export interface WorkspaceLayoutProps {
@@ -86,18 +86,6 @@ export function WorkspaceLayout({
   mobileActionsLayout = "bottom",
 }: WorkspaceLayoutProps): JSX.Element {
   const isMobile = useIsMobile();
-  const [inspectorLandscape, setInspectorLandscape] = React.useState(false);
-  React.useEffect(() => {
-    if (!inspector) return;
-    const query = window.matchMedia("(max-width: 1099px) and (max-height: 500px)");
-    const update = () => setInspectorLandscape(query.matches);
-    update();
-    query.addEventListener("change", update);
-    return () => query.removeEventListener("change", update);
-  }, [!!inspector]);
-  const [mobileInspector, setMobileInspector] = React.useState(false);
-  React.useEffect(() => { if (inspectorRequest) setMobileInspector(true); }, [inspectorRequest]);
-  React.useEffect(() => { if (controlsRequest) setMobileInspector(false); }, [controlsRequest]);
   const [overlayRoot, setOverlayRoot] = React.useState<HTMLDivElement | null>(null);
   const [workspaceRef, workspaceSize] = useElementSize<HTMLDivElement>();
   // Percentage-only limits make tablet controls narrower than their fields.
@@ -152,7 +140,11 @@ export function WorkspaceLayout({
     else handle.collapse();
   }, [panelOpen, isMobile, collapsed, !!inspector]);
 
-  if (isMobile || inspectorLandscape) {
+  if (inspector) return <InspectorWorkspace panel={panel} canvas={canvas} inspector={inspector}
+    panelOpen={panelOpen} onPanelOpenChange={onPanelOpenChange}
+    inspectorRequest={inspectorRequest} controlsRequest={controlsRequest} />;
+
+  if (isMobile) {
     return (
       <MobileCanvasOverlayContext.Provider value={overlayRoot}>
       <div ref={workspaceRef} data-landscape-actions={mobileActionsLayout === "landscape-side" || undefined}
@@ -189,31 +181,12 @@ export function WorkspaceLayout({
                 flex scroller can shrink within it. PanelBody owns scrolling;
                 this wrapper keeps panel-level navigation and the
                 PanelFooter remain pinned in the mobile drawer too. */}
-            {inspector && <div className="flex shrink-0 gap-2 border-b px-3 pb-2 [&_button]:min-h-11" role="group" aria-label="Editor panels">
-              <Button size="sm" variant={!mobileInspector ? "secondary" : "ghost"} aria-pressed={!mobileInspector} onClick={() => setMobileInspector(false)}>Objects &amp; settings</Button>
-              <Button size="sm" variant={mobileInspector ? "secondary" : "ghost"} aria-pressed={mobileInspector} onClick={() => setMobileInspector(true)}>Properties</Button>
-            </div>}
-            <div className="min-h-0 flex-1 overflow-hidden" data-vaul-no-drag>
-              <div className="h-full" hidden={!!inspector && mobileInspector}>{panel}</div>
-              {inspector && <div className="h-full" hidden={!mobileInspector}>{inspector}</div>}
-            </div>
+            <div className="min-h-0 flex-1 overflow-hidden" data-vaul-no-drag>{panel}</div>
           </DrawerContent>
         </Drawer>
       </div>
       </MobileCanvasOverlayContext.Provider>
     );
-  }
-
-  if (inspector) {
-    return <div ref={workspaceRef} className="h-full" data-testid="inspector-workspace">
-      <div className={cn("grid h-full min-h-0", panelOpen
-        ? "grid-cols-[320px_minmax(0,1fr)] grid-rows-[minmax(150px,42%)_minmax(0,1fr)] min-[1100px]:grid-cols-[280px_minmax(0,1fr)_320px] min-[1100px]:grid-rows-[minmax(0,1fr)]"
-        : "grid-cols-[minmax(0,1fr)_320px] grid-rows-[minmax(0,1fr)]")}>
-        <div hidden={!panelOpen} className="col-start-1 row-start-1 min-h-0 min-w-0 overflow-hidden border-r" data-testid="desktop-workspace-controls">{panel}</div>
-        <div className={cn("relative row-start-1 min-h-0 min-w-0 overflow-hidden", panelOpen ? "col-start-2 row-span-2 min-[1100px]:row-span-1" : "col-start-1")}>{canvas}</div>
-        <div className={cn("min-h-0 min-w-0 overflow-hidden border-l", panelOpen ? "col-start-1 row-start-2 min-[1100px]:col-start-3 min-[1100px]:row-start-1" : "col-start-2 row-start-1")}>{inspector}</div>
-      </div>
-    </div>;
   }
 
   // min-w-0 on both panels: a flex item's default `min-width: auto` refuses to

@@ -91,20 +91,21 @@ describe("AppShell", () => {
 describe("WorkspaceLayout", () => {
   const noop = () => {};
 
-  it("uses the inspector drawer on short landscape screens without transforming the canvas", () => {
+  it("keeps both panel handles reachable on short landscape screens without remounting the canvas", () => {
     render(<WorkspaceLayout autoSaveId="test:inspector" panelOpen onPanelOpenChange={noop}
       panel={<div>object-list</div>} canvas={<div>canvas</div>} inspector={<div>selection-properties</div>} />, {
       landscape: true,
       inspect: container => {
-        const canvas = container.querySelector('[data-testid="mobile-workspace-canvas"]');
+        const canvas = container.querySelector('[data-testid="inspector-workspace-canvas"]');
         expect(canvas).not.toBeNull();
-        expect(canvas!.closest('[role="dialog"]')).toBeNull();
-        expect(container.querySelector('[data-testid="inspector-workspace"]')).toBeNull();
-        const dialog = document.querySelector('[role="dialog"]')!;
-        const properties = [...dialog.querySelectorAll('button')].find(b => b.textContent === "Properties")!;
-        React.act(() => properties.click());
-        expect(properties.getAttribute('aria-pressed')).toBe('true');
-        expect(dialog.textContent).toContain('selection-properties');
+        const click = (label: string) => React.act(() => container.querySelector<HTMLButtonElement>(`[aria-label="${label}"]`)!.click());
+        click('Expand objects panel');
+        expect(container.querySelector('#objects-panel')!.hasAttribute('hidden')).toBe(false);
+        expect(container.querySelector('#workflow-panel')!.hasAttribute('hidden')).toBe(true);
+        click('Collapse objects panel'); click('Expand workflow panel');
+        expect(container.querySelector('#workflow-panel')!.hasAttribute('hidden')).toBe(false);
+        expect(container.querySelector('[data-testid="inspector-workspace-canvas"]')).toBe(canvas);
+        expect(canvas!.closest('#workflow-panel, #objects-panel, [role="dialog"]')).toBeNull();
       },
     });
   });

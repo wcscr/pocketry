@@ -56,7 +56,7 @@ it("supports explicit selection toggles, last selected alignment and equal cente
   const ui = mount();
   React.act(() => (ui.container.querySelector('[aria-label="Select Finger access 1"]') as HTMLInputElement).click());
   expect(ui.onSelectionChange).toHaveBeenLastCalledWith([...objects, finger].map(objectRef));
-  ui.click("Align and distribute objects"); ui.click("Equal centers");
+  ui.click("Align and distribute objects"); ui.click("Distribute horizontal centers");
   expect(ui.onCommitObjects.mock.calls[0][0].cutouts[0].position.x).toBe(7.5);
   expect(ui.onCommitObjects.mock.calls[0][0].cutouts).toHaveLength(1);
 });
@@ -64,7 +64,7 @@ it("requires three objects for distribution and ignores zero movement", () => {
   const ui = mount(objects.slice(0, 2));
   ui.click("Apply move · mm"); expect(ui.onCommitObjects).not.toHaveBeenCalled();
   ui.click("Align and distribute objects");
-  expect(ui.button("Equal centers").disabled).toBe(true); expect(ui.button("Equal gaps").disabled).toBe(true);
+  expect(ui.button("Distribute horizontal centers").disabled).toBe(true); expect(ui.button("Equal horizontal gaps").disabled).toBe(true);
 });
 
 it("tracks actual offsets through repeated moves and resets only the entered axis", () => {

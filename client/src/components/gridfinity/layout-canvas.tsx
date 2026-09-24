@@ -1,3 +1,4 @@
+import { SelectionToolButtons } from "./selection-tool-buttons";
 import { useSelectionInspector } from "./selection-inspector-context";
 import { SelectionLinkControls } from "./linked-design-controls";
 import { useExperimentalFeatures } from "@/state/experimental-features";
@@ -514,6 +515,10 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
   }, [history, selection, dispatch, experimentalEnabled]);
   const [isRotating, setIsRotating] = useState(false);
   const [rulerActive, setRulerActive] = useState(false);
+  useEffect(() => {
+    if (inspector?.tool === "translate" || inspector?.tool === "rotate") setObjectMode(inspector.tool);
+    if (inspector && inspector.tool !== "properties") setRulerActive(false);
+  }, [inspector?.tool]);
   const showObjectControls = experimentalEnabled && (objectControlsOpen || !!inspector && selection.length > 0) && editorMode === "placement" && !rulerActive;
   useEffect(() => { if (rulerActive) setPanActive(false); }, [rulerActive]);
   const [measurementPoints, setMeasurementPoints] = useState<Point[]>([]);
@@ -1247,6 +1252,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
       if (experimentalEnabled && editorMode === "placement" && ["w", "e"].includes(event.key.toLowerCase())) {
         event.preventDefault(); setRulerActive(false); setObjectControlsOpen(true);
         setObjectMode(event.key.toLowerCase() === "w" ? "translate" : "rotate");
+        inspector?.setTool(event.key.toLowerCase() === "w" ? "translate" : "rotate");
         setModeRequest(value => value + 1); return;
       }
       if (event.key === "Escape" && dragRef.current?.kind === "selection-move") {
@@ -1941,6 +1947,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
         >
           <Ruler className="h-4 w-4" />
         </Button>
+        {inspector && <SelectionToolButtons count={selection.length} inactive={rulerActive} onActivate={() => { setRulerActive(false); dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" }); }} />}
         {experimentalEnabled && !inspector && <Button variant="ghost" size="icon"
           className={cn("h-11 w-11 rounded-none border-t md:h-9 md:w-9 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11", objectControlsOpen && !rulerActive && "bg-accent text-accent-foreground")}
           aria-label="Object controls" title="Move, rotate and arrange objects" aria-expanded={objectControlsOpen && !rulerActive}

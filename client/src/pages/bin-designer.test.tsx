@@ -4518,7 +4518,7 @@ it("prototype keeps selection and list position while batch editing, undoing and
     await flushHydration();
     const clickText = (text: string, within: ParentNode = container) => React.act(() => [...within.querySelectorAll<HTMLButtonElement>('button')].find(b => b.textContent === text)!.click());
     const choose = (name: string) => React.act(() => container.querySelector<HTMLInputElement>(`[aria-label="Include ${name} in selection"]`)!.click());
-    const list = container.querySelector('#bin-settings-pockets')!.parentElement!;
+    const list = container.querySelector('[data-testid="object-list-scroll"]')!;
     list.scrollTop = 150;
     selectPocket(container, 'proto-0');
     expect(container.querySelector('#pocket-properties')!.closest('[data-testid="selection-inspector"]')).not.toBeNull();
@@ -4541,17 +4541,38 @@ it("prototype keeps selection and list position while batch editing, undoing and
     React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
     expect(doc().cutouts.map(c => c.depth)).toEqual(cutouts.map(c => c.depth));
     expect(inspector.textContent).toContain('3 selected');
-    clickText('Bin & project');
+    const workflow = container.querySelector('#workflow-panel')!;
+    expect(workflow.querySelector('[aria-label="Choose a pocket to edit"]')).toBeNull();
+    for (const id of ['bin-settings-project', 'bin-settings-size', 'bin-settings-pockets', 'bin-settings-export']) {
+      expect(workflow.querySelector(`#${id}`)).not.toBeNull();
+    }
+    const clickLabel = (label: string) => React.act(() => container.querySelector<HTMLButtonElement>(`[aria-label="${label}"]`)!.click());
+    clickLabel('Collapse workflow panel');
+    expect(workflow.hasAttribute('hidden')).toBe(true);
     expect(inspector.querySelector('[data-testid="batch-properties"]')).not.toBeNull();
-    clickText('Objects');
+    clickLabel('Expand workflow panel');
     expect(container.querySelectorAll('[aria-label^="Include "]:checked')).toHaveLength(3);
     clickText('Layout');
     expect(inspector.querySelector('[data-testid="pocket-3d-controls"]')).not.toBeNull();
     expect(inspector.querySelector('[aria-label="Objects in selection"]')).toBeNull();
+    clickLabel('Collapse objects panel');
+    clickLabel('Rotate selected objects');
+    expect(inspector.closest('[hidden]')).toBeNull();
+    expect(inspector.querySelector('[aria-label="Rotate Z by"]')).not.toBeNull();
+    clickLabel('Arrange selected objects');
+    expect(inspector.querySelector('[aria-label="Align top edges"]')?.textContent).toBe('');
+    clickLabel('Align horizontal centers');
+    expect(doc().cutouts[0].position.x).toBe(doc().cutouts[1].position.x);
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+    expect(doc().cutouts.map(c => c.position)).toEqual(cutouts.map(c => c.position));
+    expect(list.scrollTop).toBe(150);
+    selectPocket(container, 'proto-0');
+    expect(container.querySelector('#pocket-properties')!.closest('[hidden]')).toBeNull();
+    expect(container.querySelector('[aria-label="Arrange selected objects"]')).toBeNull();
   } finally { unmount(); window.history.replaceState(null, '', originalUrl); }
 });
 
-it("prototype mobile keeps the canvas outside the properties drawer and switches to export explicitly", async () => {
+it("prototype compact panels stay accessible and preserve the canvas and selection while toggling", async () => {
   const originalUrl = window.location.href;
   window.history.replaceState(null, '', '/bin?inspector=1');
   const shape = rectangularShape('proto-mobile', 'Mobile tool');
@@ -4559,14 +4580,23 @@ it("prototype mobile keeps the canvas outside the properties drawer and switches
   const { container, unmount } = renderPage({ mobile: true });
   try {
     await flushHydration();
-    const click = (text: string) => React.act(() => [...document.querySelectorAll<HTMLButtonElement>('button')].find(b => b.textContent === text)!.click());
-    click('Objects');
-    selectPocket(document.body, 'mobile-p');
-    click('Properties');
-    expect(document.querySelector('#pocket-properties')!.closest('[hidden]')).toBeNull();
-    expect(container.querySelector('[data-testid="mobile-workspace-canvas"]')!.closest('[role="dialog"]')).toBeNull();
-    click('Back to canvas'); click('Export');
-    expect(document.querySelector('[data-testid="button-export-3mf"]')!.closest('[hidden]')).toBeNull();
-    expect(document.querySelector('[data-testid="selection-inspector"]')!.closest('[hidden]')).not.toBeNull();
+    const click = (label: string) => React.act(() => container.querySelector<HTMLButtonElement>(`[aria-label="${label}"]`)!.click());
+    const canvas = container.querySelector('[data-testid="inspector-workspace-canvas"]')!;
+    const workflow = container.querySelector('#workflow-panel')!;
+    expect(workflow.hasAttribute('hidden')).toBe(false);
+    click('Expand objects panel');
+    selectPocket(container, 'mobile-p');
+    expect(container.querySelector('#pocket-properties')!.closest('[hidden]')).toBeNull();
+    expect(workflow.hasAttribute('hidden')).toBe(true);
+    click('Collapse objects panel');
+    click('Expand workflow panel');
+    expect(workflow.hasAttribute('hidden')).toBe(false);
+    // The complete workflow, including export, remains in one left pane.
+    expect(workflow.querySelector('#bin-settings-export')).not.toBeNull();
+    click('Expand objects panel');
+    expect(container.querySelector('[data-testid="inspector-workspace-canvas"]')).toBe(canvas);
+    expect(canvas.closest('#workflow-panel, #objects-panel, [role="dialog"]')).toBeNull();
+    expect(container.querySelector<HTMLInputElement>('[aria-label="Include Mobile tool in selection"]')!.checked).toBe(true);
+    expect(container.querySelector('[aria-label="Arrange selected objects"]')).toBeNull();
   } finally { unmount(); window.history.replaceState(null, '', originalUrl); }
 });
