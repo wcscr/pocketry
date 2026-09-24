@@ -42,6 +42,8 @@ This is synthetic test data; importing uses the normal browser-local project flo
   for multiple selected objects. Alignment and distribution use standard icons
   for both axes, with tooltips and accessible labels. Selection remains active
   while switching tools, bin settings, and 2D/3D views.
+- The 3D **X/Y/Z letter grips** can be dragged directly, using the same axis
+  constraints, snapping and undo behavior as their lines or rotation rings.
 - A **Link / unlink** icon directly below Arrange appears for multiple selected
   objects in both views. It opens Linked designs in the right pane, including
   the source choice and Link/Unlink actions. Selecting a single object returns
@@ -79,7 +81,7 @@ shared fields; use single-object controls for contour, size and shape-specific
 edits. Design links are retained, but persistent spatial groups are not added.
 
 Validation is local: `npm run check` and `npm run build` pass; `npm test` passes
-all 2,018 tests across 120 files using Node 22. HTTP tests need localhost binding
+all 2,026 tests across 120 files using Node 22. HTTP tests need localhost binding
 permission when run in a restricted sandbox. Browser
 checks cover desktop, tablet, portrait phone and short landscape layouts,
 mixed selection, scoped edits, arrangement, undo, gizmos, and panel toggling.
