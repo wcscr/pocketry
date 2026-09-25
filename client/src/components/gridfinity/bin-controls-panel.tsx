@@ -1776,17 +1776,14 @@ export function BinControlsPanel({
             data-testid="export-preview-layout"
           >
             <div>
-              <SettingLabel label="Fit templates" hint="Print a thin template and try the actual tools before printing the full bin." />
+              <SettingLabel label="Prepare fit test templates" hint="Print a thin template and try the actual tools before printing the full bin. Choose the full pocket-layout surface or 5 mm wide bands around tool openings. Tool outlines omit the bin perimeter and separate finger access features; widely spaced tools print as separate pieces. Thickness sets the printed height. Surface templates omit the base, walls, label tab, and stacking lip, so they do not test pocket depth or baseplate fit." />
             </div>
 
             {(cutouts.length > 0 || fingerHoles.length > 0) && (
               <div
-                className="space-y-2 border-t pt-2.5"
+                className="space-y-2"
                 data-testid="surface-fit-test-export"
               >
-                <div>
-                  <SettingLabel label="Surface fit test" hint="Export the full pocket-layout surface or 5 mm wide bands around the tool openings only. Tool outlines omit the bin perimeter and separate finger access features. Widely spaced tools print as separate pieces. Thickness sets the printed height. Omits the base, wall height, label tab, and stacking lip; it does not test cut depth or baseplate fit." />
-                </div>
                 <div className="flex items-center gap-2">
                   <Label className="w-20 shrink-0 text-xs">Shape</Label>
                   <Select value={surfaceFitCheckStyle} onValueChange={value => setSurfaceFitCheckStyle(surfaceFitCheckStyleSchema.parse(value))}>

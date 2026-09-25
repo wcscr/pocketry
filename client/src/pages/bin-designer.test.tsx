@@ -3872,10 +3872,10 @@ describe("BinDesignerPage", () => {
     expect(exportSection.querySelector('[data-testid="button-layout-svg"]')).not.toBeNull();
     openSettingsSection(container, "check-fit");
     const fitSection = container.querySelector("#bin-settings-fit")!;
-    expect(fitSection.textContent).toContain("Fit templates");
+    expect(fitSection.textContent).toContain("Prepare fit test templates");
     expect(fitSection.querySelector('[data-testid="button-layout-dxf"]')).toBeNull();
     expect(fitSection.querySelector('[data-testid="button-layout-svg"]')).toBeNull();
-    expect(container.textContent).toContain("Surface fit test");
+    expect(fitSection.querySelector('[aria-label="About surface fit test"]')).toBeNull();
     expect(container.querySelector('[data-testid="select-surface-fit-test-style"]')?.textContent).toBe("Tool outlines · 5 mm");
     expect(container.textContent).toContain("Save surface fit test STL");
     expect(

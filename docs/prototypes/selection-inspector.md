@@ -64,7 +64,8 @@ This is synthetic test data; importing uses the normal browser-local project flo
 - **Project**, **Check fit**, and **Export** remain in the project header. They
   open focused dialogs without changing selection. The header also shows the
   project name and save status. **Check fit → Inspect inside** contains the
-  cross-section preview in every layout, followed by printable fit templates.
+  cross-section preview in every layout, followed by **Prepare fit test templates**.
+  Template shape, thickness, and export controls sit directly under that heading.
   Enabling the cutaway switches to 3D; exports still contain the complete bin.
   In Workflow layout these actions open their matching right-pane section and
   preserve selection. Selecting an object returns the inspector to that object.
