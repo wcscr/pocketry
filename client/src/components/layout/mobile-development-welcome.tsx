@@ -18,7 +18,7 @@ function wasDismissed(): boolean {
 }
 
 /** One welcome per browser; blocked storage falls back to this page session. */
-export function MobileDevelopmentWelcome(): JSX.Element {
+export function MobileDevelopmentWelcome({ onFeedbackClick }: { onFeedbackClick?: () => void } = {}): JSX.Element {
   const isMobile = useIsMobile();
   const [location] = useLocation();
   const [dismissed, setDismissed] = useState(wasDismissed);
@@ -66,7 +66,8 @@ export function MobileDevelopmentWelcome(): JSX.Element {
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-2 text-sm">
-          <p>Found a problem or have a suggestion? Please open a GitHub issue.</p>
+          <p>{onFeedbackClick ? "Found a problem or have a suggestion? Send us a private message. No account required." : "Found a problem or have a suggestion? Please open a GitHub issue."}</p>
+          {onFeedbackClick && <Button variant="outline" className="min-h-11" onClick={() => { dismiss(); onFeedbackClick(); }}>Send feedback</Button>}
           <div className="flex flex-col items-start">
             <a className="inline-flex min-h-11 items-center rounded font-medium text-primary underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               href="https://github.com/wcscr/pocketry/issues/new" target="_blank" rel="noopener noreferrer">

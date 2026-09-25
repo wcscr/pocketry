@@ -3,6 +3,8 @@
     "client/src/**/*",
     "shared/**/*",
     "server/**/*",
+    "cloudflare/**/*",
+    "functions/**/*",
     "scripts/**/*",
     "vite.config.ts",
     "vitest.config.ts"

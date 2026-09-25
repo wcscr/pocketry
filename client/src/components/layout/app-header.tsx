@@ -1,5 +1,7 @@
 import {
   CircleHelp,
+  MessageSquare,
+  Lightbulb,
   Github,
   Info,
   LibraryBig,
@@ -21,6 +23,7 @@ import {
 import { cn } from "@/lib/utils";
 
 import { WORKSPACES } from "./workspaces";
+import type { FeedbackKind } from "@/components/help/feedback-dialog";
 import { usePanelState } from "./panel-context";
 
 const BRAND_FONT_FAMILY =
@@ -30,6 +33,7 @@ export interface AppHeaderProps {
   panelOpen: boolean;
   onPanelOpenChange: (open: boolean) => void;
   onHelpClick: () => void;
+  onFeedbackClick?: (kind: FeedbackKind) => void;
   onStartOver?: () => void;
 }
 
@@ -46,6 +50,7 @@ export function AppHeader({
   panelOpen,
   onPanelOpenChange,
   onHelpClick,
+  onFeedbackClick,
   onStartOver,
 }: AppHeaderProps): JSX.Element {
   const [isAbout] = useRoute("/about");
@@ -133,6 +138,10 @@ export function AppHeader({
           <DropdownMenuContent align="end">
             {!isAbout && <DropdownMenuItem className="min-h-11" onSelect={() => onPanelOpenChange(true)}><PanelLeftOpen className="mr-2 h-4 w-4" />All settings</DropdownMenuItem>}
             <DropdownMenuItem className="min-h-11" onSelect={onHelpClick}><CircleHelp className="mr-2 h-4 w-4" />Help</DropdownMenuItem>
+            {onFeedbackClick && <>
+              <DropdownMenuItem className="min-h-11" onSelect={() => onFeedbackClick("problem")}><MessageSquare className="mr-2 h-4 w-4" />Report a Problem</DropdownMenuItem>
+              <DropdownMenuItem className="min-h-11" onSelect={() => onFeedbackClick("suggestion")}><Lightbulb className="mr-2 h-4 w-4" />Make a Suggestion</DropdownMenuItem>
+            </>}
             <DropdownMenuItem asChild className="min-h-11"><Link href="/about"><Info className="mr-2 h-4 w-4" />About Pocketry</Link></DropdownMenuItem>
             {onStartOver && <><DropdownMenuSeparator /><DropdownMenuItem className="min-h-11" onSelect={onStartOver}><RotateCcw className="mr-2 h-4 w-4" />Start over</DropdownMenuItem></>}
           </DropdownMenuContent>

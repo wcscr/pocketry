@@ -112,6 +112,12 @@ The static application processes images and generates models locally in the
 browser. Projects are stored in the browser using IndexedDB. The hosted version
 does not require uploading tool photographs to Pocketry's server.
 
+The optional **Report a Problem / Make a Suggestion** form sends only the text
+you enter and an optional reply email privately to the Pocketry team, through
+Cloudflare. Photos and projects are never automatically attached. No account is
+required. See [private feedback setup](docs/private-feedback.md) for hosting and
+email configuration.
+
 ## Run locally
 
 Pocketry requires Node.js 22 and npm.
