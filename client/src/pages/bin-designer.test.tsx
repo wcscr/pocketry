@@ -2167,7 +2167,7 @@ describe("BinDesignerPage", () => {
       ["bin-settings-construction", "rose", "closed"],
       ["bin-settings-pockets", "violet", "closed"],
       ["bin-settings-finger-holes", "cyan", "closed"],
-      ["bin-settings-fit", "emerald", "closed"],
+      ["bin-settings-fit", "indigo", "closed"],
       ["bin-settings-export", "emerald", "closed"],
     ] as const;
     for (const [id, tone, state] of expectedSections) {
@@ -4843,7 +4843,7 @@ it.each([false, true])("workflow layout routes every section to matching propert
       ['Bin size', 'blue', '[aria-label="Width in standard cells"]'],
       ['Construction', 'rose', '#bin-settings-construction'],
       ['Materials & Colors', 'amber', '#input-bin-color'],
-      ['Check fit', 'emerald', '#bin-settings-fit'],
+      ['Check fit', 'indigo', '#bin-settings-fit'],
       ['Export', 'emerald', '[data-testid="button-export-3mf"]'],
       ['Project', 'slate', '[aria-label="Browser library"]'],
     ]) {

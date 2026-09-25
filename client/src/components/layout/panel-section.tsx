@@ -43,6 +43,7 @@ export type PanelTone =
   | "violet"
   | "amber"
   | "rose"
+  | "indigo"
   | "emerald";
 
 const TONE_STYLES = {
@@ -90,6 +91,14 @@ const TONE_STYLES = {
     open: "data-[state=open]:bg-rose-500/5",
     summary: "bg-rose-500/10 text-rose-700 dark:text-rose-300",
     index: "bg-rose-500/5 text-rose-700 hover:bg-rose-500/10 dark:text-rose-300",
+  },
+  indigo: {
+    marker: "bg-indigo-500",
+    icon: "text-indigo-600 dark:text-indigo-400",
+    open: "data-[state=open]:bg-indigo-500/5",
+    summary: "bg-indigo-500/10 text-indigo-700 dark:text-indigo-300",
+    index:
+      "bg-indigo-500/5 text-indigo-700 hover:bg-indigo-500/10 dark:text-indigo-300",
   },
   emerald: {
     marker: "bg-emerald-500",

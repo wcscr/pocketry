@@ -1714,7 +1714,7 @@ export function BinControlsPanel({
             </div>
           </div>
         </PanelSection>
-        <PanelSection id="bin-settings-fit" title="Check fit" icon={ClipboardCheck} tone="emerald" defaultOpen={!!inspector || section !== null} summary={section ? "Cut open" : "Inspect & test"}>
+        <PanelSection id="bin-settings-fit" title="Check fit" icon={ClipboardCheck} tone="indigo" defaultOpen={!!inspector || section !== null} summary={section ? "Cut open" : "Inspect & test"}>
           <details className="group/section rounded-lg border px-3" data-testid="cross-section-settings">
             <summary className="flex cursor-pointer items-center justify-between gap-2 py-2 text-xs font-semibold">
               <span className="flex items-center gap-2"><Eye className="h-4 w-4 shrink-0" /><span>Inspect inside<span className="block text-[10px] font-normal text-muted-foreground">Cross-section view · {section ? "Cut open" : "Whole bin"}</span></span></span>
@@ -1772,7 +1772,7 @@ export function BinControlsPanel({
             </div>
           </details>
           <div
-            className="space-y-3 rounded-lg border border-emerald-500/25 bg-emerald-500/5 p-3"
+            className="space-y-3 rounded-lg border border-indigo-500/25 bg-indigo-500/5 p-3"
             data-testid="export-preview-layout"
           >
             <div>

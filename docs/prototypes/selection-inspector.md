@@ -26,6 +26,7 @@ Open `http://127.0.0.1:5187/bin?layout=workflow`, or choose a layout under
   color-coded **Find a setting** shortcuts open settings directly or reveal the
   matching object list. On short screens the section headers remain available
   while the shortcuts hide to leave room for controls.
+  Section headings and their status badges share one compact row.
 
 The layout choice is saved for this browser and survives Trace,
 Bin, Library, About, and page refreshes. The preview link sets the preference once
@@ -57,7 +58,7 @@ This is synthetic test data; importing uses the normal browser-local project flo
   and explicit **Apply** buttons. Pocket and finger-access edits have separate scopes.
 - Every property editor uses the originating section's color: blue for size,
   rose for construction, violet for pockets, cyan for finger access, amber for
-  materials, and emerald for fit/export. Shared spacing, field heights,
+  materials, indigo for Check fit, and emerald for Export. Shared spacing, field heights,
   headings, and disclosure arrows apply to single-object, bulk, and transform
   controls. Advanced placement and size groups remain collapsible.
 - **Project**, **Check fit**, and **Export** remain in the project header. They
