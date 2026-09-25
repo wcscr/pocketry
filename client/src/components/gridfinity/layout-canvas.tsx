@@ -1241,6 +1241,10 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (!canHandleCanvasShortcut(event) || event.altKey) return;
+      if (panActive) {
+        if (event.key === "Escape") { setPanActive(false); event.preventDefault(); }
+        return;
+      }
       if (inspector && editorMode === "placement" && selection.length && !event.ctrlKey && !event.metaKey
         && (event.key === "Delete" || event.key === "Backspace")) {
         event.preventDefault(); dispatch({ type: "REMOVE_SELECTION" }); return;
@@ -1403,10 +1407,12 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
     fingerHoles,
     editorMode,
     rulerActive,
+    panActive,
     dispatch,
   ]);
 
   const cursor =
+    panActive ? viewport.isPanning ? "grabbing" : "grab" :
     rulerActive
       ? "crosshair"
       : editorMode !== "placement"
@@ -1910,8 +1916,8 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
         className="absolute right-3 top-16 md:top-12 [@media(pointer:coarse)]:top-16 z-30 flex max-h-[calc(100%-5rem)] flex-col overflow-y-auto rounded-md md:max-h-[calc(100%-4rem)] [@media(pointer:coarse)]:max-h-[calc(100%-5rem)] [&>button]:shrink-0 border bg-background/90 shadow-sm backdrop-blur"
         data-testid="layout-tool-toolbar"
       >
-        <Button variant="ghost" size="icon" className="h-11 w-11 rounded-none border-b md:h-9 md:w-9 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11" aria-label="Pan layout" aria-pressed={panActive}
-          onClick={() => setPanActive(active => !active)}><Hand className="h-4 w-4" /></Button>
+        <Button variant="ghost" size="icon" className={cn("h-11 w-11 rounded-none border-b md:h-9 md:w-9 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11", panActive && "bg-accent text-accent-foreground ring-1 ring-inset ring-primary/40")} aria-label="Pan layout" aria-pressed={panActive}
+          onClick={() => { setPanActive(active => !active); setRulerActive(false); }}><Hand className="h-4 w-4" /></Button>
         <Button variant="ghost" size="icon" className="h-11 w-11 rounded-none border-b md:h-9 md:w-9 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11" aria-label="Fit layout to screen"
           onClick={viewport.fit}><Maximize2 className="h-4 w-4" /></Button>
         <Button
@@ -1934,7 +1940,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
               ? "Ruler: measure between points on contours or split lines"
               : "Add a tool cutout before measuring"
           }
-          disabled={!hasPlacedCutouts}
+          disabled={panActive || !hasPlacedCutouts}
           onClick={() => {
             const next = !rulerActive;
             setRulerActive(next);
@@ -1947,20 +1953,21 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
         >
           <Ruler className="h-4 w-4" />
         </Button>
-        {inspector && <SelectionToolButtons count={selection.length} inactive={rulerActive} onActivate={() => { setRulerActive(false); dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" }); }} />}
+        {inspector && <SelectionToolButtons count={selection.length} inactive={rulerActive} panning={panActive} onActivate={() => { setRulerActive(false); dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" }); }} />}
         {experimentalEnabled && !inspector && <Button variant="ghost" size="icon"
-          className={cn("h-11 w-11 rounded-none border-t md:h-9 md:w-9 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11", objectControlsOpen && !rulerActive && "bg-accent text-accent-foreground")}
-          aria-label="Object controls" title="Move, rotate and arrange objects" aria-expanded={objectControlsOpen && !rulerActive}
+          className={cn("h-11 w-11 rounded-none border-t md:h-9 md:w-9 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11", objectControlsOpen && !rulerActive && !panActive && "bg-accent text-accent-foreground")}
+          aria-label="Object controls" title="Move, rotate and arrange objects" disabled={panActive} aria-expanded={objectControlsOpen && !rulerActive && !panActive}
           onClick={() => { setObjectControlsOpen(open => !open || rulerActive); setRulerActive(false); dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" }); }}><Move3D className="h-4 w-4" /></Button>}
         {selected && (editorMode === "placement" || editorMode === "contour") && (
           <Button
             variant="ghost"
             size="icon"
-            className={cn("h-11 w-11 md:h-9 md:w-9 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11 rounded-none border-t", editorMode === "contour" && "bg-accent text-accent-foreground")}
+            className={cn("h-11 w-11 md:h-9 md:w-9 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11 rounded-none border-t", editorMode === "contour" && !panActive && "bg-accent text-accent-foreground")}
             aria-label={editorMode === "contour" ? "Finish contour editing" : "Edit contour"}
-            aria-pressed={editorMode === "contour"}
+            aria-pressed={!panActive && editorMode === "contour"}
             title={editorMode === "contour" ? "Finish contour editing" : "Edit contour"}
             data-testid="button-layout-edit-contour"
+            disabled={panActive}
             onClick={() => {
               setRulerActive(false);
               setMeasurementPoints([]);
@@ -2019,7 +2026,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
         <p className="text-orange-700 dark:text-orange-300">Dashed outline: overlapping pockets</p>
       </div>}
 
-      {showObjectControls && <ObjectTransformPanel
+      {showObjectControls && <ObjectTransformPanel disabled={panActive}
         editor={{ spec, transformOrigins, originShapes: shapes, linkControls: <SelectionLinkControls />, pockets: arrangementObjects.flatMap(o => o.kind === "pocket" ? [o] : []), fingerHoles, selectedId: selectedCutoutId, selection,
           onSelect: id => dispatch({ type: "SELECT_CUTOUT", id }), onCommit: () => {},
           onSelectionChange: selection => dispatch({ type: "SET_SELECTION", selection }),

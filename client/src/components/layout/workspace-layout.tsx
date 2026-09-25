@@ -1,4 +1,5 @@
 import * as React from "react";
+import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from "lucide-react";
 import type { ImperativePanelHandle } from "react-resizable-panels";
 
 import {
@@ -26,6 +27,7 @@ export interface WorkspaceLayoutProps {
   canvas: React.ReactNode;
   /** Optional selection inspector with its own scroll position. */
   inspector?: React.ReactNode;
+  inspectorPanelTitle?: string;
   inspectorHeader?: React.ReactNode;
   inspectorToolbar?: React.ReactNode;
   canvasEditingMode?: string;
@@ -75,6 +77,7 @@ export function WorkspaceLayout({
   panel,
   canvas,
   inspector,
+  inspectorPanelTitle,
   inspectorHeader,
   inspectorToolbar,
   canvasEditingMode,
@@ -147,7 +150,7 @@ export function WorkspaceLayout({
   }, [panelOpen, isMobile, collapsed, !!inspector]);
 
   if (inspector) return <InspectorWorkspace panel={panel} canvas={canvas} inspector={inspector}
-    panelOpen={panelOpen} onPanelOpenChange={onPanelOpenChange}
+    panelOpen={panelOpen} onPanelOpenChange={onPanelOpenChange} panelTitle={inspectorPanelTitle}
     inspectorRequest={inspectorRequest} header={inspectorHeader} toolbar={inspectorToolbar} canvasEditingMode={canvasEditingMode} />;
 
   if (isMobile) {
@@ -217,9 +220,15 @@ export function WorkspaceLayout({
       {/* A collapsed panel stays mounted to retain its settings. Native inert
           excludes its descendants from focus and interaction, while aria-hidden
           keeps the invisible controls out of the accessibility tree. */}
-      <div className="h-full" aria-hidden={panelOpen ? undefined : true}
+      <div id="workspace-controls" className="flex h-full flex-col" aria-hidden={panelOpen ? undefined : true}
         {...(!panelOpen ? { inert: "" } : {})} data-testid="desktop-workspace-controls">
-        {panel}
+        <div className="flex h-11 shrink-0 items-center justify-between border-b px-3">
+          <h2 className="text-xs font-semibold">{panelTitle}</h2>
+          <Button variant="ghost" size="icon" className="h-9 w-9" title="Hide controls ([)" aria-label="Hide controls" aria-controls="workspace-controls" aria-expanded={panelOpen} onClick={() => onPanelOpenChange(false)}>
+            {panelSide === "left" ? <PanelLeftClose className="h-4 w-4" /> : <PanelRightClose className="h-4 w-4" />}
+          </Button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-hidden">{panel}</div>
       </div>
     </ResizablePanel>
   );
@@ -237,7 +246,12 @@ export function WorkspaceLayout({
     >
       {/* relative + overflow-hidden anchors CanvasToolbar and clips anything
           the canvas pans outside its box. */}
-      <div className="relative h-full w-full overflow-hidden">{canvas}</div>
+      <div className="relative h-full w-full overflow-hidden">{canvas}
+        {!panelOpen && <Button variant="outline" className={`absolute top-1/2 z-40 h-11 -translate-y-1/2 gap-1.5 bg-background/95 text-xs shadow-sm ${panelSide === "left" ? "left-1" : "right-1"}`}
+          aria-label="Show controls" aria-controls="workspace-controls" aria-expanded={false} onClick={() => onPanelOpenChange(true)}>
+          {panelSide === "left" ? <PanelLeftOpen className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}Controls
+        </Button>}
+      </div>
     </ResizablePanel>
   );
 

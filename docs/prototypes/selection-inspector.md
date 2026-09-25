@@ -12,11 +12,21 @@ Use Node 22, run `npm ci`, then:
 npm exec -- vite --host 127.0.0.1 --port 5187 --strictPort
 ```
 
-Open `http://127.0.0.1:5187/bin?inspector=1`, or enable **Settings → Show properties
-on the right**. The layout choice is saved for this browser and survives Trace,
+Open `http://127.0.0.1:5187/bin?layout=workflow`, or choose a layout under
+**Settings → Bin editor layout**:
+
+- **Controls on the left** (`?layout=standard`): the original combined panel,
+  with Hide controls at its top right and Show controls beside the canvas.
+- **Objects left, properties right** (`?layout=objects`): the compact object tree
+  and selection inspector described below.
+- **Workflow left, properties right** (`?layout=workflow`): every workflow section
+  stays in order on the left; its property editor opens on the right. Pockets and
+  Finger access retain their add actions and object lists on the left.
+
+The layout choice is saved for this browser and survives Trace,
 Bin, Library, About, and page refreshes. The preview link sets the preference once
 and removes its flag, preserving other query parameters and the URL fragment.
-Turn the setting off (or open `/bin?inspector=0`) to compare the original layout.
+The previous `?inspector=1|0` links still select the object-tree or standard layout.
 With browser storage blocked, the preference lasts until the tab reloads. The
 inspector includes object tools without changing the separate experimental-tools
 preference or project data.
@@ -37,9 +47,18 @@ This is synthetic test data; importing uses the normal browser-local project flo
   other edge details, position, and linked copies use collapsible groups.
   Several selected objects get shared fields with **Mixed** for differing values
   and explicit **Apply** buttons. Pocket and finger-access edits have separate scopes.
+- Every property editor uses the originating section's color: blue for size,
+  rose for construction, violet for pockets, cyan for finger access, amber for
+  materials, and emerald for fit/export. Shared spacing, field heights,
+  headings, and disclosure arrows apply to single-object, bulk, and transform
+  controls. Advanced placement and size groups remain collapsible.
 - **Project**, **Check fit**, and **Export** remain in the project header. They
   open focused dialogs without changing selection. The header also shows the
-  project name and save status. Cross-section view is available below the tree.
+  project name and save status. **Check fit → Inspect inside** contains the
+  cross-section preview in every layout, followed by printable fit templates.
+  Enabling the cutaway switches to 3D; exports still contain the complete bin.
+  In Workflow layout these actions open their matching right-pane section and
+  preserve selection. Selecting an object returns the inspector to that object.
 - Bulk fields cover fixed cut depth and top rounding, plus pocket clearance.
   Setting pocket depth converts selected depth modes to fixed millimetres and
   updates both sections of split pockets. Boundary shapes remain unchanged.
@@ -52,6 +71,10 @@ This is synthetic test data; importing uses the normal browser-local project flo
   Arrange and Link require multiple objects; their controls operate on the
   existing selection and preserve each object's identity and position unless
   explicitly changed.
+- In Layout view, **Pan** highlights the hand icon and disables conflicting
+  selection, transform, contour, and measurement tools. Keyboard edit shortcuts
+  are suspended, and transform fields are disabled while panning. Fit to screen
+  remains available. Click Pan again or press Escape to restore editing.
 - Move and rotation fields keep typing as a draft. **Enter**, **Tab**, or clicking
   away commits that axis for the full selection in one undo step; **Escape**
   cancels it. Invalid or incomplete values restore the current value and show an
@@ -66,7 +89,7 @@ This is synthetic test data; importing uses the normal browser-local project flo
   including tilted linked copies, or nothing is applied.
 
 Wide screens show the object tree, canvas, and properties in three columns.
-Either panel can collapse. Compact screens have persistent **Objects** and
+Either panel can collapse. Compact screens have persistent **Objects** (or **Workflow**) and
 **Properties** buttons and show one pane at a time. On phones, Objects is a side
 drawer and Properties is a bottom sheet that leaves a visible canvas above it.
 Short landscape screens use a side inspector to preserve editing height. The editing canvas remains mounted in
@@ -85,7 +108,8 @@ edits. Design links are retained, but persistent spatial groups are not added.
 
 Validation is local: `npm run check`, `npm test`, and `npm run build`. Coverage
 includes selection identity and scoped batch edits, undo, transforms, persistent
-layout preferences, header dialogs preserving selection, and the canvas staying
+all three layout preferences, workflow sections preserving selection, Pan tool
+exclusivity, panel collapse controls, header dialogs, and the canvas staying
 mounted across panel toggles and responsive changes. Browser checks exercise bin
 size, single-pocket depth, multi-edit, project management, and export.
 HTTP tests need localhost binding permission in a restricted sandbox.

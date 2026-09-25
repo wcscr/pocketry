@@ -37,7 +37,7 @@ it("remembers the inspector preview across ordinary navigation and reloads, with
   cleanup.pop()!(); mount();
   expect(state.inspectorEnabled).toBe(true);
   React.act(() => state.setSettingsOpen(true));
-  React.act(() => document.querySelector<HTMLButtonElement>("#selection-inspector")!.click());
+  React.act(() => document.querySelector<HTMLInputElement>('input[name="editor-layout"][value="standard"]')!.click());
   expect(state.inspectorEnabled).toBe(false);
   cleanup.pop()!(); mount();
   expect(state.inspectorEnabled).toBe(false);
@@ -127,4 +127,35 @@ it("enables only projects needing the tools, once per activation, without changi
   expect(state.enabled).toBe(false);
   React.act(() => expect(state.enableForProject(linked)).toBe(true));
   expect(state.enabled).toBe(true);
+});
+
+it("migrates the old inspector choice and persists all three named layouts", () => {
+  localStorage.setItem(SELECTION_INSPECTOR_KEY, "true");
+  mount();
+  expect(state.editorLayout).toBe("objects");
+  React.act(() => state.setSettingsOpen(true));
+  const choices = document.querySelectorAll<HTMLInputElement>('input[name="editor-layout"]');
+  expect([...choices].map(choice => choice.value)).toEqual(["standard", "objects", "workflow"]);
+  React.act(() => choices[2].click());
+  expect(state.editorLayout).toBe("workflow");
+  cleanup.pop()!(); mount();
+  expect(state.editorLayout).toBe("workflow");
+  expect(state.inspectorEnabled).toBe(true);
+  React.act(() => window.history.pushState(null, "", "/bin?layout=standard&keep=yes#test"));
+  expect(state.editorLayout).toBe("standard");
+  expect(state.inspectorEnabled).toBe(false);
+  expect(window.location.search).toBe("?keep=yes");
+  expect(window.location.hash).toBe("#test");
+});
+
+it("restores the third layout from a link and syncs it across tabs", () => {
+  window.history.replaceState(null, "", "/bin?layout=workflow");
+  mount();
+  expect(state.editorLayout).toBe("workflow");
+  expect(state.enabled).toBe(false);
+  React.act(() => window.history.pushState(null, "", "/"));
+  expect(state.editorLayout).toBe("workflow");
+  localStorage.setItem("pocketry:editor-layout", "objects");
+  React.act(() => window.dispatchEvent(new StorageEvent("storage", { key: "pocketry:editor-layout" })));
+  expect(state.editorLayout).toBe("objects");
 });

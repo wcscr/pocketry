@@ -6,9 +6,10 @@ import { MobileCanvasOverlayContext } from "./mobile-canvas-overlay";
 
 /** Objects and properties have stable homes. Mobile sheets are siblings of the
  * canvas: resizing or opening a sheet never remounts or transforms the canvas. */
-export function InspectorWorkspace({ panel, canvas, inspector, panelOpen, onPanelOpenChange, inspectorRequest, header, toolbar, canvasEditingMode }: {
+export function InspectorWorkspace({ panel, canvas, inspector, panelOpen, onPanelOpenChange, inspectorRequest, header, toolbar, canvasEditingMode, panelTitle = "Objects" }: {
   panel: ReactNode; canvas: ReactNode; inspector: ReactNode; header?: ReactNode; toolbar?: ReactNode;
   panelOpen: boolean; onPanelOpenChange: (open: boolean) => void;
+  panelTitle?: string;
   inspectorRequest: number; canvasEditingMode?: string;
 }): JSX.Element {
   const [{ width, height }, setSize] = useState(() => ({ width: window.innerWidth, height: window.innerHeight }));
@@ -39,14 +40,14 @@ export function InspectorWorkspace({ panel, canvas, inspector, panelOpen, onPane
     <div className="flex h-full min-h-0 flex-col" data-testid="inspector-workspace">
       {header && <div className="shrink-0 border-b bg-background">{header}</div>}
       <div className="relative grid min-h-0 flex-1" style={{ gridTemplateColumns: `${!phone && leftVisible ? 280 : 0}px minmax(0,1fr) ${!bottomSheet && rightVisible ? 340 : 0}px` }}>
-        <div id="workflow-panel" hidden={!leftVisible} data-testid="desktop-workspace-controls" aria-label="Design objects"
+        <div id="workflow-panel" hidden={!leftVisible} data-testid="desktop-workspace-controls" aria-label={`Design ${panelTitle.toLowerCase()}`}
           className={cn("relative min-h-0 min-w-0 overflow-hidden border-r bg-background", phone && "absolute inset-y-0 left-0 z-40 w-[min(320px,calc(100%-48px))] shadow-xl")}>
           {panel}
-          <Button variant="ghost" size="icon" className={collapseClass} aria-label="Collapse objects panel" aria-controls="workflow-panel" onClick={toggleLeft}><PanelLeftClose /></Button>
+          <Button variant="ghost" size="icon" className={collapseClass} aria-label={`Collapse ${panelTitle.toLowerCase()} panel`} aria-controls="workflow-panel" onClick={toggleLeft}><PanelLeftClose /></Button>
         </div>
         <div className={cn("col-start-2 flex min-h-0 min-w-0 flex-col overflow-hidden", bottomSheet && rightVisible && "h-[40%]")}>
           <div className="flex min-h-11 shrink-0 items-center gap-1 overflow-x-auto border-b bg-background px-1" aria-label="Editing tools">
-            {!compact && !leftVisible && <Button variant="ghost" size="sm" className="shrink-0 gap-1" aria-label="Expand objects panel" onClick={toggleLeft}><PanelLeftOpen className="h-4 w-4" />Objects</Button>}
+            {!compact && !leftVisible && <Button variant="ghost" size="sm" className="shrink-0 gap-1" aria-label={`Expand ${panelTitle.toLowerCase()} panel`} onClick={toggleLeft}><PanelLeftOpen className="h-4 w-4" />{panelTitle}</Button>}
             {toolbar}
             {!compact && !rightVisible && <Button variant="ghost" size="sm" className="ml-auto shrink-0 gap-1" aria-label="Expand properties panel" onClick={toggleRight}><PanelRightOpen className="h-4 w-4" />Properties</Button>}
           </div>
@@ -60,7 +61,7 @@ export function InspectorWorkspace({ panel, canvas, inspector, panelOpen, onPane
         </div>
       </div>
       {compact && <nav className="flex shrink-0 border-t bg-background px-2 pb-[env(safe-area-inset-bottom)]" aria-label="Editor panels">
-        <Button variant={leftVisible ? "secondary" : "ghost"} className="h-11 flex-1 gap-2" aria-expanded={leftVisible} aria-controls="workflow-panel" onClick={toggleLeft}><PanelLeftOpen className="h-4 w-4" />Objects</Button>
+        <Button variant={leftVisible ? "secondary" : "ghost"} className="h-11 flex-1 gap-2" aria-expanded={leftVisible} aria-controls="workflow-panel" onClick={toggleLeft}><PanelLeftOpen className="h-4 w-4" />{panelTitle}</Button>
         <Button variant={rightVisible ? "secondary" : "ghost"} className="h-11 flex-1 gap-2" aria-expanded={rightVisible} aria-controls="objects-panel" onClick={toggleRight}><PanelRightOpen className="h-4 w-4" />Properties</Button>
       </nav>}
     </div>

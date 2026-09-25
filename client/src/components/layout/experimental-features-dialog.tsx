@@ -1,25 +1,24 @@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { useExperimentalFeatures } from "@/state/experimental-features";
+import { EDITOR_LAYOUTS, useExperimentalFeatures } from "@/state/experimental-features";
 
 export function ExperimentalFeaturesDialog(): JSX.Element {
-  const { enabled, setEnabled, inspectorEnabled, setInspectorEnabled, settingsOpen, setSettingsOpen, persistenceUnavailable } = useExperimentalFeatures();
+  const { enabled, setEnabled, editorLayout, setEditorLayout, settingsOpen, setSettingsOpen, persistenceUnavailable } = useExperimentalFeatures();
   return <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-    <DialogContent className="sm:max-w-md">
+    <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-md">
       <DialogHeader>
         <DialogTitle>Settings</DialogTitle>
         <DialogDescription>Choose which tools appear in Pocketry.</DialogDescription>
       </DialogHeader>
-      <div className="rounded-lg border p-4">
-        <div className="flex min-h-11 items-center justify-between gap-4">
-          <Label htmlFor="selection-inspector" className="cursor-pointer text-sm font-medium">Show properties on the right</Label>
-          <Switch id="selection-inspector" checked={inspectorEnabled} onCheckedChange={setInspectorEnabled} aria-describedby="selection-inspector-description" />
-        </div>
-        <p id="selection-inspector-description" className="mt-2 text-sm text-muted-foreground">
-          Try the new bin layout with objects and properties in a separate pane, including move, rotate, and arrangement tools. Saved for this browser across page changes and refreshes.
-        </p>
-      </div>
+      <fieldset className="space-y-2">
+        <legend className="mb-2 text-sm font-semibold">Bin editor layout</legend>
+        {EDITOR_LAYOUTS.map(layout => <label key={layout.value} className="flex min-h-14 cursor-pointer items-start gap-3 rounded-lg border p-3 has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+          <input type="radio" name="editor-layout" value={layout.value} checked={editorLayout === layout.value} onChange={() => setEditorLayout(layout.value)} className="mt-1 h-4 w-4 shrink-0 accent-primary" />
+          <span><span className="block text-sm font-medium">{layout.label}</span><span className="mt-1 block text-xs text-muted-foreground">{layout.description}</span></span>
+        </label>)}
+        <p className="text-xs text-muted-foreground">Saved for this browser across page changes and refreshes.</p>
+      </fieldset>
       <div className="rounded-lg border p-4">
         <div className="flex min-h-11 items-center justify-between gap-4">
           <Label htmlFor="experimental-features" className="cursor-pointer text-sm font-medium">Enable experimental features</Label>

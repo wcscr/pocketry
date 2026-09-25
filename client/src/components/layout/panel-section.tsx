@@ -32,6 +32,8 @@ export interface PanelSectionProps {
   tone?: PanelTone;
   /** Briefly draws the eye to the next section in a guided workflow. */
   attention?: boolean;
+  /** Workflow sections can reveal their matching inspector when expanded. */
+  onOpenChange?: (open: boolean) => void;
 }
 
 export type PanelTone =
@@ -119,6 +121,7 @@ export function PanelSection({
   summary,
   tone,
   attention = false,
+  onOpenChange,
 }: PanelSectionProps): JSX.Element {
   const visibleSection = useContext(PanelSectionFilterContext);
   if (visibleSection && (typeof visibleSection === "string" ? id !== visibleSection : !id || !visibleSection.includes(id))) return <></>;
@@ -127,6 +130,7 @@ export function PanelSection({
     <Collapsible
       id={id}
       defaultOpen={defaultOpen}
+      onOpenChange={onOpenChange}
       disabled={disabled}
       data-tone={tone}
       className={cn("border-b", className)}
@@ -191,7 +195,7 @@ export function PanelSection({
         ) : null}
         <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
       </CollapsibleTrigger>}
-      <CollapsibleContent className="space-y-3 px-3 pb-3">
+      <CollapsibleContent data-property-tone={tone ?? "slate"} className="property-surface space-y-3 px-3 pb-3">
         {children}
       </CollapsibleContent>
     </Collapsible>

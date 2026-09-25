@@ -84,8 +84,8 @@ export function PocketMeasurements({ cutout, shape, children }: {
           <Button variant="outline" size="sm" onClick={() => updatePosition({ ...cutout.position, x: cutout.position.x - (bounds.minX + bounds.maxX) / 2 })}>Center X</Button>
           <Button variant="outline" size="sm" onClick={() => updatePosition({ ...cutout.position, y: cutout.position.y - (bounds.minY + bounds.maxY) / 2 })}>Center Y</Button>
         </div>
-        {cutouts.length > 1 && <details className="space-y-2 text-xs">
-          <summary className="cursor-pointer">Space beside another pocket <HelpHint label="pocket spacing">Gap between pocket bounds, including clearance and top rounding. Tilted pockets also reserve space for the shaft below the opening.</HelpHint></summary>
+        {cutouts.length > 1 && <details className="group/spacing space-y-2 border-t text-xs">
+          <summary className="cursor-pointer"><span className="flex items-center gap-1">Space beside another pocket <HelpHint label="pocket spacing">Gap between pocket bounds, including clearance and top rounding. Tilted pockets also reserve space for the shaft below the opening.</HelpHint></span><ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/spacing:rotate-180" /></summary>
           <select className="h-8 w-full rounded border bg-background px-2" aria-label="Reference pocket" value={neighborId} onChange={(event) => setNeighborId(event.target.value)}>
             <option value="">Choose a pocket</option>
             {cutouts.filter((item) => item.id !== cutout.id).map((item) => <option key={item.id} value={item.id}>{pocketName(item, shapes.find((shape) => shape.id === item.shapeId))}</option>)}

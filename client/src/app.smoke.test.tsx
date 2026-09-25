@@ -28,6 +28,7 @@ let root: Root;
 beforeEach(() => {
   localStorage.removeItem("pocketry:experimental-features");
   localStorage.removeItem("pocketry:selection-inspector");
+  localStorage.removeItem("pocketry:editor-layout");
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.stubGlobal("ResizeObserver", NoopResizeObserver);
   window.history.replaceState(null, "", "/");
@@ -55,6 +56,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
   localStorage.removeItem("pocketry:experimental-features");
   localStorage.removeItem("pocketry:selection-inspector");
+  localStorage.removeItem("pocketry:editor-layout");
 });
 
 function renderApp(): void {
@@ -299,6 +301,8 @@ describe("App", () => {
     // toggle a user who collapses it has no way back on the next visit.
     const toggle = container.querySelector('[aria-label="Hide controls"]');
     expect(toggle).not.toBeNull();
+    expect(toggle!.closest('[data-testid="desktop-workspace-controls"]')).not.toBeNull();
+    expect(toggle!.closest("header")).toBeNull();
   });
 
   it("renders the controls panel sections", () => {

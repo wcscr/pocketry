@@ -20,12 +20,13 @@ export function commitEditorObjects(editor: PocketEditor, edits: ObjectEdits, te
 /** As-drawn XYZ offsets work for a single object and mixed selections.
  * Each finished axis edit or arrangement command is one document transaction. */
 export function ObjectTransformPanel({ editor, objects, selected, displayed, mode, setMode, snap, setSnap,
-  pivot, setPivot, limited, onClose, modeRequest = 0 }: {
+  pivot, setPivot, limited, onClose, modeRequest = 0, disabled = false }: {
   editor: PocketEditor; objects: readonly EditableObject[]; selected: readonly EditableObject[]; displayed: readonly EditableObject[];
   mode: PocketTransformMode; setMode: (mode: PocketTransformMode) => void; snap: boolean; setSnap: (value: boolean) => void;
   onClose: () => void;
   /** A keyboard command can request the same mode while another tab is open. */
   modeRequest?: number;
+  disabled?: boolean;
   pivot: RotationPivot; setPivot: (pivot: RotationPivot) => void; limited: boolean;
 }): JSX.Element {
   const inspector = useSelectionInspector();
@@ -76,8 +77,12 @@ export function ObjectTransformPanel({ editor, objects, selected, displayed, mod
   };
   const mixed = selected.some(o => o.kind === "finger");
   const single = displayed.length === 1 ? displayed[0] : null;
-  const content = <div className={inspector ? "text-xs" : "absolute left-3 top-16 z-20 max-h-[calc(100%-5rem)] w-64 max-w-[calc(100%-5rem)] overflow-y-auto rounded-xl border bg-background/95 text-xs shadow-lg backdrop-blur-md md:top-12"} data-testid="pocket-3d-controls">
-    {!inspector && <div className="flex items-center justify-between border-b px-3 py-1">
+  const tone = selected.length && selected.every(o => o.kind === "pocket") ? "violet"
+    : selected.length && selected.every(o => o.kind === "finger") ? "cyan" : "slate";
+  const content = <div data-property-tone={tone} className={inspector ? "text-xs" : "property-surface property-floating absolute left-3 top-16 z-20 max-h-[calc(100%-5rem)] w-64 max-w-[calc(100%-5rem)] overflow-y-auto rounded-xl border text-xs shadow-lg md:top-12"} data-testid="pocket-3d-controls">
+    {disabled && <p role="status" className="border-b px-3 py-2 text-xs text-muted-foreground">Pan is active. Turn off Pan to edit transforms.</p>}
+    <fieldset disabled={disabled} className="min-w-0 disabled:opacity-50">
+    {!inspector && <div className="property-heading flex items-center justify-between border-b px-3 py-1">
       <span className="font-medium">Object controls</span>
       <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Close object controls" title="Close object controls" onClick={onClose}><X className="h-4 w-4" /></Button>
     </div>}
@@ -177,6 +182,7 @@ export function ObjectTransformPanel({ editor, objects, selected, displayed, mod
       </>}
       {!linking && (limited || error) && <p role="status" className="text-[11px] text-destructive">{error ?? "Cannot transform every affected copy. Keep floors within the bin; edit one linked copy if the group needs different design changes."}</p>}
     </div>
+    </fieldset>
   </div>;
   return inspector ? inspector.transforms ? createPortal(content, inspector.transforms) : <></> : content;
 }

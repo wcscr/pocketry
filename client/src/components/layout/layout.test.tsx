@@ -112,6 +112,30 @@ describe("WorkspaceLayout", () => {
     });
   });
 
+  it("collapses from the panel header and restores from the canvas without remounting either", () => {
+    function Harness() {
+      const [open, setOpen] = React.useState(true);
+      return <WorkspaceLayout autoSaveId="test:panel-toggle" panelOpen={open} onPanelOpenChange={setOpen}
+        panelTitle="Bin designer" panel={<input aria-label="Example property" />} canvas={<div data-testid="retained-canvas">canvas</div>} />;
+    }
+    render(<Harness />, { inspect: container => {
+      const controls = container.querySelector('[data-testid="desktop-workspace-controls"]')!;
+      const canvas = container.querySelector('[data-testid="retained-canvas"]');
+      const field = controls.querySelector('input');
+      const hide = controls.querySelector<HTMLButtonElement>('[aria-label="Hide controls"]')!;
+      expect(hide).not.toBeNull();
+      React.act(() => hide.click());
+      expect(controls.getAttribute('aria-hidden')).toBe('true');
+      expect(controls.hasAttribute('inert')).toBe(true);
+      const show = container.querySelector<HTMLButtonElement>('[aria-label="Show controls"]')!;
+      expect(show.closest('[data-testid="desktop-workspace-controls"]')).toBeNull();
+      React.act(() => show.click());
+      expect(controls.hasAttribute('inert')).toBe(false);
+      expect(controls.querySelector('input')).toBe(field);
+      expect(container.querySelector('[data-testid="retained-canvas"]')).toBe(canvas);
+    } });
+  });
+
   it("renders panel and canvas side by side on desktop", () => {
     const html = render(
       <WorkspaceLayout

@@ -5,8 +5,8 @@ import { useBin } from "@/state/bin-store";
 import { useSelectionInspector } from "./selection-inspector-context";
 
 /** Stable, labeled tools share the same selection in either canvas view. */
-export function SelectionToolButtons({ count, onActivate, inactive = false }: {
-  count: number; onActivate: () => void; inactive?: boolean;
+export function SelectionToolButtons({ count, onActivate, inactive = false, panning = false }: {
+  count: number; onActivate: () => void; inactive?: boolean; panning?: boolean;
 }): JSX.Element | null {
   const inspector = useSelectionInspector();
   const { editorMode, dispatch } = useBin();
@@ -21,8 +21,8 @@ export function SelectionToolButtons({ count, onActivate, inactive = false }: {
     { tool: "arrange", Icon: AlignHorizontalDistributeCenter, label: "Arrange selected objects", text: "Arrange", minimum: 2 },
     { tool: "links", Icon: Link2, label: "Link and unlink selected objects", text: "Link", minimum: 2 },
   ] as const).map(({ tool, Icon, label, text, minimum }) => <Button key={tool} size="sm"
-    variant={!inactive && editorMode === "placement" && inspector.tool === tool ? "secondary" : "ghost"}
+    variant={!inactive && !panning && editorMode === "placement" && inspector.tool === tool ? "secondary" : "ghost"}
     className="h-10 shrink-0 gap-1.5 px-2 text-xs [@media(pointer:coarse)]:min-h-11"
-    disabled={count < minimum} aria-label={label} title={label} aria-pressed={!inactive && editorMode === "placement" && inspector.tool === tool}
+    disabled={panning || count < minimum} aria-label={label} title={panning ? `Turn off Pan to ${text.toLowerCase()}` : label} aria-pressed={!inactive && !panning && editorMode === "placement" && inspector.tool === tool}
     onClick={() => { dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" }); onActivate(); inspector.setTool(tool); }}><Icon className="h-4 w-4" />{text}</Button>)}</>, inspector.toolbar);
 }

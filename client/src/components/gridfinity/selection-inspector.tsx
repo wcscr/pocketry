@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useExperimentalFeatures } from "@/state/experimental-features";
+import { PropertySurface } from "@/components/layout/property-surface";
+import { BIN_WORKFLOW_SECTIONS } from "./bin-workflow";
 import { Copy, Trash2 } from "lucide-react";
 import { WorkspaceLayout, type WorkspaceLayoutProps } from "@/components/layout/workspace-layout";
 import { Button } from "@/components/ui/button";
@@ -13,6 +16,9 @@ import { SelectionInspectorContext, useSelectionInspector, type InspectorTool } 
 
 /** Opt-in prototype reuses the actual editor, geometry, persistence and history. */
 export function BinEditingWorkspace({ enabled, ...props }: WorkspaceLayoutProps & { enabled: boolean }): JSX.Element {
+  const { editorLayout } = useExperimentalFeatures();
+  const workflow = editorLayout === "workflow";
+  const [activeSection, setActiveSection] = useState<string | null>("bin-settings-size");
   const [properties, setProperties] = useState<HTMLDivElement | null>(null);
   const [transforms, setTransforms] = useState<HTMLDivElement | null>(null);
   const [settings, setSettings] = useState<HTMLDivElement | null>(null);
@@ -23,27 +29,33 @@ export function BinEditingWorkspace({ enabled, ...props }: WorkspaceLayoutProps 
   const [tool, updateTool] = useState<InspectorTool>("properties");
   const [openRequest, setOpenRequest] = useState(0);
   const openInspector = useCallback(() => setOpenRequest(n => n + 1), []);
-  const setTool = useCallback((next: InspectorTool) => { updateTool(next); openInspector(); }, [openInspector]);
+  const setTool = useCallback((next: InspectorTool) => { setActiveSection(null); updateTool(next); openInspector(); }, [openInspector]);
   const keepList = useRef(false);
-  const keepObjectsOpen = useCallback(() => { keepList.current = true; updateTool("properties"); }, []);
+  const keepObjectsOpen = useCallback(() => { keepList.current = true; setActiveSection(null); updateTool("properties"); }, []);
   const { selection, dispatch, editorMode } = useBin();
   const showSection = useCallback((id: string) => {
-    if (["bin-settings-project", "bin-settings-fit", "bin-settings-export", "bin-settings-view"].includes(id)) {
+    if (workflow) {
+      setActiveSection(id); updateTool("properties"); openInspector();
+      return;
+    }
+    if (["bin-settings-project", "bin-settings-fit", "bin-settings-export"].includes(id)) {
       setDialogSection(id);
     } else {
       dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" });
       dispatch({ type: "SET_SELECTION", selection: [] });
       setTool("properties");
     }
-  }, [dispatch, setTool]);
+  }, [workflow, dispatch, setTool, openInspector]);
   const selectionKey = JSON.stringify(selection);
-  useEffect(() => { if (enabled && selection.length && !keepList.current) openInspector(); keepList.current = false; }, [enabled, selectionKey, openInspector]);
+  useEffect(() => { if (enabled && selection.length) { setActiveSection(null); if (!keepList.current) openInspector(); } keepList.current = false; }, [enabled, selectionKey, openInspector]);
   useEffect(() => { if (!selection.length || selection.length < 2 && (tool === "arrange" || tool === "links")) updateTool("properties"); }, [selection.length, tool]);
-  const targets = useMemo(() => ({ properties, transforms, settings, projectHeader, toolbar, dialogContent, dialogSection, showSection, tool, setTool, openInspector, keepObjectsOpen }),
-    [properties, transforms, settings, projectHeader, toolbar, dialogContent, dialogSection, showSection, tool, setTool, openInspector, keepObjectsOpen]);
+  useEffect(() => { if (props.inspectorRequest) setActiveSection(null); }, [props.inspectorRequest]);
+  useEffect(() => { setDialogSection(null); }, [workflow]);
+  const targets = useMemo(() => ({ workflow, activeSection, properties, transforms, settings, projectHeader, toolbar, dialogContent, dialogSection, showSection, tool, setTool, openInspector, keepObjectsOpen }),
+    [workflow, activeSection, properties, transforms, settings, projectHeader, toolbar, dialogContent, dialogSection, showSection, tool, setTool, openInspector, keepObjectsOpen]);
   if (!enabled) return <WorkspaceLayout {...props} />;
   return <SelectionInspectorContext.Provider value={targets}>
-    <WorkspaceLayout {...props} autoSaveId={`${props.autoSaveId}:inspector`}
+    <WorkspaceLayout {...props} autoSaveId={`${props.autoSaveId}:inspector`} inspectorPanelTitle={workflow ? "Workflow" : "Objects"}
       inspectorRequest={(props.inspectorRequest ?? 0) + openRequest}
       canvasEditingMode={editorMode}
       inspectorHeader={<div ref={setProjectHeader} />}
@@ -52,8 +64,8 @@ export function BinEditingWorkspace({ enabled, ...props }: WorkspaceLayoutProps 
     <Dialog open={dialogSection !== null} onOpenChange={open => { if (!open) setDialogSection(null); }}>
       <DialogContent className="flex max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
         <DialogHeader className="shrink-0 border-b px-4 py-3 pr-12 text-left">
-          <DialogTitle>{dialogSection === "bin-settings-project" ? "Project" : dialogSection === "bin-settings-fit" ? "Check fit" : dialogSection === "bin-settings-view" ? "Cross-section view" : "Export"}</DialogTitle>
-          <DialogDescription>{dialogSection === "bin-settings-project" ? "Save, open, and manage projects in this browser." : dialogSection === "bin-settings-fit" ? "Print a small template before the full bin." : dialogSection === "bin-settings-view" ? "Inspect the inside of your bin." : "Download your bin for printing or fabrication."}</DialogDescription>
+          <DialogTitle>{dialogSection === "bin-settings-project" ? "Project" : dialogSection === "bin-settings-fit" ? "Check fit" : "Export"}</DialogTitle>
+          <DialogDescription>{dialogSection === "bin-settings-project" ? "Save, open, and manage projects in this browser." : dialogSection === "bin-settings-fit" ? "Inspect inside the bin or print a small fit template." : "Download your bin for printing or fabrication."}</DialogDescription>
         </DialogHeader>
         <div ref={setDialogContent} className="min-h-0 overflow-y-auto overscroll-contain" />
       </DialogContent>
@@ -104,42 +116,45 @@ export function SelectionInspector({ propertiesRef, transformsRef, settingsRef }
   const pockets = chosen.filter(o => o.kind === "pocket");
   const fingers = chosen.filter(o => o.kind === "finger");
   const single = chosen.length === 1 ? chosen[0] : null;
-  const title = single ? single.kind === "pocket" ? pocketName(single.cutout, single.shape)
-    : single.hole.name ?? `Finger access ${bin.fingerHoles.indexOf(single.hole) + 1}` : chosen.length ? `${chosen.length} selected` : "Bin";
+  const section = inspector?.workflow ? BIN_WORKFLOW_SECTIONS.find(item => item.id === inspector.activeSection) : null;
+  const showingSection = !!section;
+  const tone = section?.tone ?? (pockets.length && !fingers.length ? "violet" : fingers.length && !pockets.length ? "cyan" : chosen.length ? "slate" : "blue");
+  const title = section?.title ?? (single ? single.kind === "pocket" ? pocketName(single.cutout, single.shape)
+    : single.hole.name ?? `Finger access ${bin.fingerHoles.indexOf(single.hole) + 1}` : chosen.length ? `${chosen.length} selected` : "Bin");
   const toolLabel = inspector?.tool === "translate" ? "Move" : inspector?.tool === "rotate" ? "Rotate" : inspector?.tool === "arrange" ? "Arrange" : inspector?.tool === "links" ? "Linked designs" : "Properties";
   const links = new Set(chosen.map(o => o.kind === "pocket" ? o.cutout.designLink?.id : o.hole.designLink?.id).filter(Boolean));
   const extraLinked = objects.filter(o => !chosen.includes(o) && links.has(o.kind === "pocket" ? o.cutout.designLink?.id : o.hole.designLink?.id)).length;
   return <aside className="flex h-full min-h-0 flex-col bg-background [@media(pointer:coarse)]:[&_button]:min-h-11 [@media(pointer:coarse)]:[&_input:not([type=checkbox])]:min-h-11 [@media(pointer:coarse)]:[&_select]:min-h-11" aria-label="Selection inspector" data-testid="selection-inspector">
-    <header className="flex min-h-14 shrink-0 items-center gap-1 border-b py-2 pl-3 pr-12" data-testid="inspector-properties-header">
+    <header data-property-tone={tone} className="property-heading flex min-h-14 shrink-0 items-center gap-1 border-b py-2 pl-3 pr-12" data-testid="inspector-properties-header">
       <div className="mr-auto min-w-0" aria-live="polite">
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{single ? single.kind === "pocket" ? "Pocket" : "Finger access" : chosen.length ? "Selection" : "Properties"}</p>
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{section ? "Workflow properties" : single ? single.kind === "pocket" ? "Pocket" : "Finger access" : chosen.length ? "Selection" : "Properties"}</p>
         <h3 className="truncate text-sm font-semibold" title={title}>{title}</h3>
       </div>
-      {(chosen.length > 1 || single?.kind === "finger") && <Button size="icon" variant="ghost" className="h-8 w-8" title="Duplicate selection" aria-label="Duplicate selection" onClick={() => bin.dispatch({ type: "DUPLICATE_SELECTION", ids: chosen.map(o => ({ source: objectRef(o), id: crypto.randomUUID() })) })}><Copy /></Button>}
-      {chosen.length > 1 && <Button size="icon" variant="ghost" className="h-8 w-8" title="Delete selection" aria-label="Delete selection" onClick={() => bin.dispatch({ type: "REMOVE_SELECTION" })}><Trash2 /></Button>}
+      {!showingSection && (chosen.length > 1 || single?.kind === "finger") && <Button size="icon" variant="ghost" className="h-8 w-8" title="Duplicate selection" aria-label="Duplicate selection" onClick={() => bin.dispatch({ type: "DUPLICATE_SELECTION", ids: chosen.map(o => ({ source: objectRef(o), id: crypto.randomUUID() })) })}><Copy /></Button>}
+      {!showingSection && chosen.length > 1 && <Button size="icon" variant="ghost" className="h-8 w-8" title="Delete selection" aria-label="Delete selection" onClick={() => bin.dispatch({ type: "REMOVE_SELECTION" })}><Trash2 /></Button>}
     </header>
-    {!!chosen.length && <div className="flex min-h-10 shrink-0 items-center justify-between border-b px-3 text-xs font-medium" data-testid="inspector-active-tool">
+    {!showingSection && !!chosen.length && <div className="flex min-h-10 shrink-0 items-center justify-between border-b px-3 text-xs font-medium" data-testid="inspector-active-tool">
       <span>{bin.editorMode === "contour" ? "Editing contour" : toolLabel}</span>
       {(inspector?.tool !== "properties" || bin.editorMode === "contour") && <Button variant="ghost" size="sm" className="h-8" aria-label="Back to properties" onClick={() => {
         bin.dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" }); inspector?.setTool("properties");
       }}>Done</Button>}
     </div>}
     <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain" data-testid="inspector-scroll">
-      <div ref={settingsRef} hidden={!!chosen.length} data-testid="inspector-bin-settings" />
-      <div hidden={!chosen.length || inspector?.tool !== "properties"}>
+      <div ref={settingsRef} hidden={!showingSection && !!chosen.length} data-testid="inspector-bin-settings" />
+      <div hidden={showingSection || !chosen.length || inspector?.tool !== "properties"}>
       {!!extraLinked && <p className="m-3 rounded-md border border-violet-500/30 bg-violet-500/5 p-2 text-xs" role="status">Design edits also update {extraLinked} unselected linked {extraLinked === 1 ? "copy" : "copies"}. Movement stays independent.</p>}
       {chosen.length > 1 && <div className="space-y-4 p-3" data-testid="batch-properties">
-        {([pockets, fingers]).filter(items => items.length).map(items => <section key={items[0].kind} className="space-y-3" aria-label={`${items.length} selected ${items[0].kind === "pocket" ? `pocket${items.length === 1 ? "" : "s"}` : `finger access${items.length === 1 ? "" : "es"}`}`}>
+        {([pockets, fingers]).filter(items => items.length).map(items => <PropertySurface key={items[0].kind} tone={items[0].kind === "pocket" ? "violet" : "cyan"} role="region" aria-label={`${items.length} selected ${items[0].kind === "pocket" ? `pocket${items.length === 1 ? "" : "s"}` : `finger access${items.length === 1 ? "" : "es"}`}`}>
           <h3 className="border-b pb-2 text-xs font-semibold">{items.length} selected {items[0].kind === "pocket" ? `pocket${items.length === 1 ? "" : "s"}` : `finger access${items.length === 1 ? "" : "es"}`}</h3>
           {(["depth", "topFilletMm", ...(items[0].kind === "pocket" ? ["clearanceMm"] : [])] as SelectionProperty[]).map(property => <BatchField
             key={`${JSON.stringify(bin.selection)}:${JSON.stringify(items)}:${property}`} objects={items} all={objects} kind={items[0].kind} property={property}
             label={property === "depth" ? "Fixed cut depth" : property === "topFilletMm" ? "Top rounding" : "Extra clearance"} />)}
           {items.some(o => o.kind === "pocket" && o.cutout.split) && <p className="text-xs text-muted-foreground">Setting depth updates both sections of selected split pockets.</p>}
-        </section>)}
+        </PropertySurface>)}
       </div>}
       <div ref={propertiesRef} className="p-3 empty:hidden" data-testid="inspector-properties" />
       </div>
-      <div ref={transformsRef} hidden={!chosen.length || inspector?.tool === "properties"} className="empty:hidden" data-testid="inspector-transforms" />
+      <div data-property-tone={tone} className="property-surface m-3 rounded-lg border empty:hidden" ref={transformsRef} hidden={showingSection || !chosen.length || inspector?.tool === "properties"} data-testid="inspector-transforms" />
       {bin.editError && <p className="p-3 text-xs text-destructive" role="alert">{bin.editError}</p>}
     </div>
   </aside>;

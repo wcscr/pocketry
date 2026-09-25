@@ -37,7 +37,7 @@ export function LinkedDesignControls({ kind, activeId, labels }: {
   const noun = kind === "pocket" ? "pockets" : "thumb slots";
   const canLink = ids.length >= 2 && !sameDesign;
   const linkedSelected = items.filter(item => ids.includes(item.id) && item.designLink);
-  return <section aria-label="Linked design" className="space-y-2 rounded-lg border bg-background/70 p-2 text-xs">
+  return <section aria-label="Linked design" data-property-tone={kind === "pocket" ? "violet" : "cyan"} className="property-surface space-y-2 rounded-lg border p-3 text-xs">
     <div className="flex items-center gap-2 font-medium"><Link2 className="h-3.5 w-3.5 shrink-0" />
       <span>{sameDesign ? `Linked design · ${members.length} ${noun}` : ids.length > 1 ? `${ids.length} selected ${noun}` : "Independent design"}</span>
       {members.length > 1 && <Button size="sm" variant="ghost" className="ml-auto h-8 px-2 text-[10px]" onClick={() => dispatch({ type: "SET_SELECTION", selection: members.map(item => ({ kind, id: item.id })) })}>Select linked</Button>}
