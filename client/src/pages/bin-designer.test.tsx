@@ -2700,13 +2700,9 @@ describe("BinDesignerPage", () => {
     expect(status.textContent).toContain("Untitled project");
     expect(status.querySelector('[role="group"][aria-labelledby="current-project-label"]')?.textContent).toContain("Untitled project");
     expect(container.querySelector('#current-project-label')?.textContent).toBe("Current Project:");
-    expect(container.querySelector('section[aria-label="Browser library"] h3')?.textContent).toBe("Browser Library");
+    expect(container.querySelector('section[aria-label="Browser library"] h3')).toBeNull();
     expect(container.querySelector('section[aria-label="Portable backup"]')).toBeNull();
     expect(status.textContent).not.toContain("draft resumes automatically");
-    const autosaveHelp = status.querySelector<HTMLButtonElement>('[aria-label="About project autosave"]')!;
-    React.act(() => autosaveHelp.click());
-    expect(document.querySelector('[role="tooltip"]')!.textContent).toContain("draft resumes automatically");
-    React.act(() => autosaveHelp.click());
     expect(save.textContent).toBe("");
     expect(save.getAttribute("aria-label")).toBe("Save to library");
     expect(save.title).toBe("Save to library");
@@ -2717,7 +2713,8 @@ describe("BinDesignerPage", () => {
     expect(save.disabled).toBe(false);
     expect(fresh.disabled).toBe(false);
     expect(manage.disabled).toBe(false);
-    expect(manage.getAttribute("aria-label")).toBe("Manage library");
+    expect(manage.textContent).toBe("Manage Browser Library");
+    expect(manage.previousElementSibling).toBe(fresh.closest('[role="group"]'));
     expect(save.closest('section')?.getAttribute("aria-label")).toBe("Browser library");
     for (const action of transfers) {
       expect(action.disabled).toBe(false);

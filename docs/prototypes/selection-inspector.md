@@ -67,6 +67,8 @@ This is synthetic test data; importing uses the normal browser-local project flo
   Enabling the cutaway switches to 3D; exports still contain the complete bin.
   In Workflow layout these actions open their matching right-pane section and
   preserve selection. Selecting an object returns the inspector to that object.
+  Project shows the current name, then New/Open/Export project, followed by a
+  full-width **Manage Browser Library** button for saved projects and library backups.
 - Bulk fields cover fixed cut depth and top rounding, plus pocket clearance.
   Setting pocket depth converts selected depth modes to fixed millimetres and
   updates both sections of split pockets. Boundary shapes remain unchanged.
@@ -97,9 +99,10 @@ This is synthetic test data; importing uses the normal browser-local project flo
   including tilted linked copies, or nothing is applied.
 
 Wide screens show the object tree, canvas, and properties in three columns.
-Either panel can collapse. On desktop, a hidden left panel leaves a narrow,
-full-height strip with a centered expand icon beside the canvas. The same strip
-restores controls in the standard layout. Compact screens have persistent **Objects** (or **Workflow**) and
+Either panel can collapse. On desktop, each hidden panel leaves a narrow,
+full-height strip on its side of the canvas. Its expand icon stays at the same
+height as the panel's top collapse control. The same strip restores controls in
+the standard layout. Compact screens have persistent **Objects** (or **Workflow**) and
 **Properties** buttons and show one pane at a time. On phones, Objects is a side
 drawer and Properties is a bottom sheet that leaves a visible canvas above it.
 Short landscape screens use a side inspector to preserve editing height. The editing canvas remains mounted in

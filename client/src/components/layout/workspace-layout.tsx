@@ -248,7 +248,7 @@ export function WorkspaceLayout({
           the canvas pans outside its box. */}
       <div className="relative flex h-full w-full overflow-hidden">
         <div className="relative min-w-0 flex-1 overflow-hidden">{canvas}</div>
-        {!panelOpen && <Button variant="ghost" className={`h-full w-6 shrink-0 rounded-none bg-muted/30 p-0 text-muted-foreground hover:bg-accent hover:text-foreground ${panelSide === "left" ? "order-first border-r" : "border-l"}`}
+        {!panelOpen && <Button variant="ghost" className={`h-full w-6 shrink-0 items-start rounded-none bg-muted/30 p-0 pt-3.5 text-muted-foreground hover:bg-accent hover:text-foreground ${panelSide === "left" ? "order-first border-r" : "border-l"}`}
           data-testid="controls-restore-rail" title="Show controls ([)" aria-label="Show controls" aria-controls="workspace-controls" aria-expanded={false} onClick={() => onPanelOpenChange(true)}>
           {panelSide === "left" ? <PanelLeftOpen className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
         </Button>}

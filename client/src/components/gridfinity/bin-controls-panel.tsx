@@ -2387,16 +2387,14 @@ function ProjectControls({
     >
       <DialogTrigger asChild>
         <Button
-          variant="ghost"
+          variant="outline"
           size="sm"
           disabled={!ready || busy}
           data-testid="button-manage-library"
-          className="h-8 gap-1 px-2 text-xs text-muted-foreground [@media(pointer:coarse)]:min-h-11"
-          aria-label="Manage library"
-          title="Manage browser library"
+          className={cn(projectActionClass, "w-full")}
         >
           <LibraryBig className="h-3.5 w-3.5 shrink-0" />
-          Manage
+          Manage Browser Library
         </Button>
       </DialogTrigger>
       <DialogContent
@@ -2592,13 +2590,6 @@ function ProjectControls({
         className="space-y-2"
         data-testid="project-autosave-status"
       >
-        <div className="flex min-h-8 items-center gap-1">
-          <h3 className="text-sm font-semibold">Browser Library</h3>
-          {ready && <HelpHint label="project autosave">{activeProjectId
-            ? "Saved automatically in this browser’s Project Library."
-            : "This draft resumes automatically; save it to the library to name it."}</HelpHint>}
-          <div className="ml-auto">{renderLibraryDialog()}</div>
-        </div>
         <div
           className="flex min-h-8 items-center gap-1.5"
           data-testid="current-project-name-row"
@@ -2679,6 +2670,7 @@ function ProjectControls({
           <Download className="h-3.5 w-3.5 shrink-0" />Export project
         </Button>
       </div>
+      {renderLibraryDialog()}
       </section>
 
       <AlertDialog open={pendingOpenProject !== null} onOpenChange={(open) => {
