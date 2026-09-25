@@ -7,14 +7,17 @@ import {
 } from "@/components/ui/dialog";
 import { CalibrationDownloads } from "@/components/trace/calibration-downloads";
 import { Link } from "wouter";
+import { Button } from "@/components/ui/button";
+import type { FeedbackKind } from "./feedback-dialog";
 
 export interface HelpDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onFeedbackClick?: (kind: FeedbackKind) => void;
 }
 
 /** The essential steps for making a first bin in the default editor. */
-export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element {
+export function HelpDialog({ open, onOpenChange, onFeedbackClick }: HelpDialogProps): JSX.Element {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[85dvh] max-w-2xl overflow-y-auto">
@@ -216,6 +219,10 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
           </p>
           <p><Link href="/help/ultim8" className="text-primary underline underline-offset-4" onClick={() => onOpenChange(false)}>ULTIM8-compatible fixture guide</Link></p>
           <section aria-label="Feedback" className="flex flex-wrap gap-x-5 text-xs">
+            {onFeedbackClick && <div className="flex w-full flex-wrap gap-2 py-2">
+              <Button variant="outline" className="min-h-11" onClick={() => onFeedbackClick("problem")}>Report a Problem</Button>
+              <Button variant="outline" className="min-h-11" onClick={() => onFeedbackClick("suggestion")}>Make a Suggestion</Button>
+            </div>}
             <a className="inline-flex min-h-11 items-center text-primary underline underline-offset-4" href="https://github.com/wcscr/pocketry/issues/new" target="_blank" rel="noopener noreferrer">Report an issue on GitHub<span className="sr-only"> (opens a new tab)</span></a>
           </section>
         </div>

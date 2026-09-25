@@ -1,4 +1,5 @@
-import { Github, Mail, MessageSquare } from "lucide-react";
+import { Github, Lightbulb, Mail, MessageSquare } from "lucide-react";
+import type { FeedbackKind } from "@/components/help/feedback-dialog";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -11,9 +12,17 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 const FEEDBACK_LABEL = "Report an Issue / Provide Feedback";
 
 /** Shared contact options for the header icon and compact More options menu. */
-export function FeedbackMenuItems(): JSX.Element {
+export function FeedbackMenuItems({ onFeedbackClick }: { onFeedbackClick?: (kind: FeedbackKind) => void }): JSX.Element {
   return (
     <>
+      {onFeedbackClick && <>
+        <DropdownMenuItem className="min-h-11" onSelect={() => onFeedbackClick("problem")}>
+          <MessageSquare className="h-4 w-4" aria-hidden /> Report a problem privately
+        </DropdownMenuItem>
+        <DropdownMenuItem className="min-h-11" onSelect={() => onFeedbackClick("suggestion")}>
+          <Lightbulb className="h-4 w-4" aria-hidden /> Make a suggestion privately
+        </DropdownMenuItem>
+      </>}
       <DropdownMenuItem asChild className="min-h-11">
         <a href="mailto:feedback@pocketry.xyz">
           <Mail className="h-4 w-4" aria-hidden />
@@ -31,7 +40,7 @@ export function FeedbackMenuItems(): JSX.Element {
 }
 
 /** Opens feedback choices without leaving the current workspace. */
-export function FeedbackMenu(): JSX.Element {
+export function FeedbackMenu({ onFeedbackClick }: { onFeedbackClick?: (kind: FeedbackKind) => void }): JSX.Element {
   return (
     <DropdownMenu>
       <Tooltip>
@@ -45,7 +54,7 @@ export function FeedbackMenu(): JSX.Element {
         <TooltipContent>{FEEDBACK_LABEL}</TooltipContent>
       </Tooltip>
       <DropdownMenuContent align="end">
-        <FeedbackMenuItems />
+        <FeedbackMenuItems onFeedbackClick={onFeedbackClick} />
       </DropdownMenuContent>
     </DropdownMenu>
   );

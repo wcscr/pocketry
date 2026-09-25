@@ -23,6 +23,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { FeedbackMenu, FeedbackMenuItems } from "./feedback-menu";
 
 import { WORKSPACES } from "./workspaces";
+import type { FeedbackKind } from "@/components/help/feedback-dialog";
 import { usePanelState } from "./panel-context";
 import { useExperimentalFeatures } from "@/state/experimental-features";
 
@@ -33,6 +34,7 @@ export interface AppHeaderProps {
   panelOpen: boolean;
   onPanelOpenChange: (open: boolean) => void;
   onHelpClick: () => void;
+  onFeedbackClick?: (kind: FeedbackKind) => void;
   onStartOver?: () => void;
 }
 
@@ -45,6 +47,7 @@ export interface AppHeaderProps {
 export function AppHeader({
   onPanelOpenChange,
   onHelpClick,
+  onFeedbackClick,
   onStartOver,
 }: AppHeaderProps): JSX.Element {
   const isMobile = useIsMobile();
@@ -129,7 +132,7 @@ export function AppHeader({
             <DropdownMenuItem className="min-h-11" onSelect={() => setSettingsOpen(true)}><Settings className="mr-2 h-4 w-4" />App settings{experimentalEnabled && <span className="ml-auto pl-3 text-xs text-muted-foreground">Experimental on</span>}</DropdownMenuItem>
             <DropdownMenuItem className="min-h-11" onSelect={onHelpClick}><CircleHelp className="mr-2 h-4 w-4" />Help</DropdownMenuItem>
             <DropdownMenuItem asChild className="min-h-11"><Link href="/about"><Info className="mr-2 h-4 w-4" />About Pocketry</Link></DropdownMenuItem>
-            <FeedbackMenuItems />
+            <FeedbackMenuItems onFeedbackClick={onFeedbackClick} />
             {onStartOver && <><DropdownMenuSeparator /><DropdownMenuItem className="min-h-11" onSelect={onStartOver}><RotateCcw className="mr-2 h-4 w-4" />Start over</DropdownMenuItem></>}
           </DropdownMenuContent>
         </DropdownMenu>
@@ -171,7 +174,7 @@ export function AppHeader({
           <TooltipContent>How to use Pocketry</TooltipContent>
         </Tooltip>
 
-        <FeedbackMenu />
+        <FeedbackMenu onFeedbackClick={onFeedbackClick} />
       </div>
     </>
   );

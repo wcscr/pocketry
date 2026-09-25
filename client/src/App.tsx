@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Route, Switch, useLocation } from "wouter";
 
 import { HelpDialog } from "@/components/help/help-dialog";
+import { FeedbackDialog, type FeedbackKind } from "@/components/help/feedback-dialog";
 import { AppHeader } from "@/components/layout/app-header";
 import { AppShell } from "@/components/layout/app-shell";
 import { AppWelcome } from "@/components/layout/app-welcome";
@@ -63,6 +64,13 @@ export function Router(): JSX.Element {
 function Shell() {
   const { panelOpen, setPanelOpen, traceRestart } = usePanelState();
   const [helpOpen, setHelpOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackKind, setFeedbackKind] = useState<FeedbackKind>("problem");
+  const openFeedback = (kind: FeedbackKind) => {
+    setHelpOpen(false);
+    setFeedbackKind(kind);
+    setFeedbackOpen(true);
+  };
 
   return (
     <>
@@ -73,13 +81,15 @@ function Shell() {
             panelOpen={panelOpen}
             onPanelOpenChange={setPanelOpen}
             onHelpClick={() => setHelpOpen(true)}
+            onFeedbackClick={openFeedback}
             onStartOver={traceRestart ?? undefined}
           />
         }
       >
         <Router />
       </AppShell>
-      <HelpDialog open={helpOpen} onOpenChange={setHelpOpen} />
+      <HelpDialog open={helpOpen} onOpenChange={setHelpOpen} onFeedbackClick={openFeedback} />
+      <FeedbackDialog open={feedbackOpen} kind={feedbackKind} onOpenChange={setFeedbackOpen} />
       <ExperimentalFeaturesDialog />
       <AppWelcome />
     </>
