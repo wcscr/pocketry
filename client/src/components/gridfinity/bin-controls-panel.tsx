@@ -18,6 +18,7 @@ import {
   LoaderCircle,
   Magnet,
   MousePointerClick,
+  MoreHorizontal,
   Palette,
   Pencil,
   Plus,
@@ -31,12 +32,13 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Children, isValidElement, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useDelayedBusy } from "@/hooks/use-delayed-busy";
 import { useLocation } from "wouter";
 import { LinkedDesignControls } from "./linked-design-controls";
 import { AddPocketMenu } from "./add-pocket-menu";
-import { BinObjectList } from "./bin-object-list";
+import { InspectorPanelSections } from "./inspector-panel-sections";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { usePanelState } from "@/components/layout/panel-context";
 import { FillHeightControl } from "./fill-height-control";
 
@@ -76,7 +78,6 @@ import { MAX_GRID, maxGridCells, type BinSpecInput } from "@shared/gridfinity/ty
 import type { ValidationIssue } from "@shared/gridfinity/validate";
 
 import {
-  PanelBody,
   PanelSectionFilterContext,
   PanelSection,
   PanelSettingsIndex,
@@ -383,12 +384,15 @@ export function BinControlsPanel({
   useEffect(() => {
     if (!settingsSectionRequest) return;
     const { id, focusId } = settingsSectionRequest;
-    revealPanelSection(id, BIN_SETTINGS_SECTIONS, focusId);
-    if (!focusId) return;
+    inspector?.showSection(id);
+    if (!inspector) revealPanelSection(id, BIN_SETTINGS_SECTIONS, focusId);
+    if (!inspector && !focusId) return;
     // Wait for the section and mobile drawer to mount before moving keyboard focus.
-    let frame = window.requestAnimationFrame(() => {
+    let frame = 0;
+    frame = window.requestAnimationFrame(() => {
       frame = window.requestAnimationFrame(() => {
-        document.getElementById(focusId)?.focus({ preventScroll: true });
+        if (inspector) revealPanelSection(id, BIN_SETTINGS_SECTIONS, focusId);
+        if (focusId) document.getElementById(focusId)?.focus({ preventScroll: true });
       });
     });
     return () => window.cancelAnimationFrame(frame);
@@ -553,7 +557,7 @@ export function BinControlsPanel({
                     isSelected ? "border-violet-500/50 bg-violet-500/10" : "border-transparent hover:bg-accent",
                   )}>
                     {experimentalEnabled && <label className="ml-1 flex h-8 w-6 shrink-0 cursor-pointer items-center justify-center [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11"><input type="checkbox" className="h-4 w-4 accent-primary" aria-label={`Include ${name} in selection`} checked={isSelected}
-                      onChange={() => dispatch({ type: "SELECT_CUTOUT", id: cutout.id, additive: true })} /></label>}
+                      onChange={() => { inspector?.keepObjectsOpen(); dispatch({ type: "SELECT_CUTOUT", id: cutout.id, additive: true }); }} /></label>}
                     {renamingPocketId === cutout.id && shape ? (
                       <EditableObjectName key={cutout.id} name={name} kind="shape" onRename={(name) => dispatch({ type: "UPDATE_CUTOUT", id: cutout.id, patch: { name }, historyLabel: "Rename pocket" })} onDone={() => setRenamingPocketId(null)} />
                     ) : (
@@ -566,6 +570,8 @@ export function BinControlsPanel({
                       data-testid={`button-select-${cutout.id}`}
                       onClick={event => {
                         dispatch({ type: "SELECT_CUTOUT", id: cutout.id, additive: experimentalEnabled && (event.shiftKey || event.metaKey || event.ctrlKey) });
+                        if (event.shiftKey || event.metaKey || event.ctrlKey) inspector?.keepObjectsOpen();
+                        else inspector?.setTool("properties");
                         if (isSelected && !inspector) revealPanelSection("bin-settings-pockets", BIN_SETTINGS_SECTIONS, "pocket-properties");
                       }}
                     >
@@ -573,8 +579,9 @@ export function BinControlsPanel({
                       {experimentalEnabled && cutout.designLink && <Link2 className="h-3 w-3 shrink-0" aria-label="Linked design" />}
                     </button>
                     )}
+                    <ObjectActions name={name}>
                     <button type="button" className="flex h-8 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11" aria-label={`Rename ${name}`} disabled={!shape} data-testid={`button-rename-${cutout.id}`} onClick={() => {
-                      dispatch({ type: "SELECT_CUTOUT", id: cutout.id });
+                      if (!inspector) dispatch({ type: "SELECT_CUTOUT", id: cutout.id });
                       setRenamingPocketId(cutout.id);
                     }}>
                       <Pencil className="h-3.5 w-3.5" />
@@ -585,6 +592,7 @@ export function BinControlsPanel({
                     <button type="button" className="flex h-8 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11" aria-label={`Remove ${name}`} data-testid={`button-remove-${cutout.id}`} onClick={() => dispatch({ type: "REQUEST_REMOVE_CUTOUT", id: cutout.id })}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
+                    </ObjectActions>
                   </div>
                 );
               })}
@@ -601,7 +609,7 @@ export function BinControlsPanel({
                       isSelected ? "border-cyan-500/50 bg-cyan-500/10" : "border-transparent hover:bg-accent",
                     )}>
                       {experimentalEnabled && <label className="ml-1 flex h-8 w-6 shrink-0 cursor-pointer items-center justify-center [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11"><input type="checkbox" className="h-4 w-4 accent-primary" aria-label={`Include ${name} in selection`} checked={isSelected}
-                        onChange={() => dispatch({ type: "SELECT_FINGER_HOLE", id: hole.id, additive: true })} /></label>}
+                        onChange={() => { inspector?.keepObjectsOpen(); dispatch({ type: "SELECT_FINGER_HOLE", id: hole.id, additive: true }); }} /></label>}
                       {renamingFingerId === hole.id ? (
                         <EditableObjectName key={hole.id} name={name} kind="finger-hole"
                           onRename={(name) => dispatch({ type: "UPDATE_FINGER_HOLE", id: hole.id, patch: { name }, historyLabel: "Rename finger access" })}
@@ -611,15 +619,16 @@ export function BinControlsPanel({
                           className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded px-2 py-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                           aria-label={`${name} — edit finger access properties`} aria-pressed={isSelected} aria-controls="finger-access-properties"
                           data-testid={`button-select-finger-hole-${hole.id}`}
-                          onClick={event => dispatch({ type: "SELECT_FINGER_HOLE", id: hole.id, additive: experimentalEnabled && (event.shiftKey || event.metaKey || event.ctrlKey) })}>
+                          onClick={event => { dispatch({ type: "SELECT_FINGER_HOLE", id: hole.id, additive: experimentalEnabled && (event.shiftKey || event.metaKey || event.ctrlKey) }); if (event.shiftKey || event.metaKey || event.ctrlKey) inspector?.keepObjectsOpen(); else inspector?.setTool("properties"); }}>
                           <span className={cn("min-w-0 flex-1 truncate", isSelected && "font-medium text-cyan-700 dark:text-cyan-300")}>{name}</span>
                           {experimentalEnabled && hole.designLink && <Link2 className="h-3 w-3 shrink-0" aria-label="Linked design" />}
                         </button>
                       )}
+                      <ObjectActions name={name}>
                       <button type="button" className="flex h-11 w-11 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         aria-label={`Rename ${name}`} data-testid={`button-rename-finger-hole-${hole.id}`}
                         title={`Rename ${name}`}
-                        onClick={() => { dispatch({ type: "SELECT_FINGER_HOLE", id: hole.id }); setRenamingFingerId(hole.id); }}>
+                        onClick={() => { if (!inspector) dispatch({ type: "SELECT_FINGER_HOLE", id: hole.id }); setRenamingFingerId(hole.id); }}>
                         <Pencil className="h-3.5 w-3.5" />
                       </button>
                       <button type="button" className="flex h-11 w-11 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -627,16 +636,74 @@ export function BinControlsPanel({
                         aria-label={`Remove ${name}`} onClick={() => dispatch({ type: "REMOVE_FINGER_HOLE", id: hole.id })}>
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
+                      </ObjectActions>
                     </div>
                   );
                 })}
               </div>
             );
+  const pocketTopRounding = selectedCutout && (
+                  <MmSlider
+                    label="Top edge rounding"
+                    value={selectedCutout.topFilletMm}
+                    min={0}
+                    max={5}
+                    step={0.2}
+                    onChange={(topFilletMm, transient) =>
+                      dispatch({
+                        type: "UPDATE_CUTOUT",
+                        id: selectedCutout.id,
+                        patch: { topFilletMm },
+                        historyLabel: "Change top edge round",
+                        transient,
+                      })
+                    }
+                    hintAsTooltip
+                    hint="Rounds the pocket wall into the top surface of the bin."
+                  />
+  );
+  const pocketClearance = selectedCutout && selectedShape && (
+              <details open={!!inspector || undefined} className="group/clearance border-t pt-1 text-xs" data-testid="pocket-clearance-settings">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-2 py-2 font-medium [&::-webkit-details-marker]:hidden">
+                  <span className="flex items-center gap-1">Extra pocket clearance
+                    <HelpHint label="extra pocket clearance">
+                      Adjusts each edge after scaling. Negative values shrink the pocket; positive values enlarge it. Zero keeps the original outline size. Narrow features can disappear when shrunk.
+                      <span className="mt-1 block">{selectedShape.source === "basic-shape"
+                        ? `Drawn in millimetres. Extra allowance: ${selectedCutout.clearanceMm.toFixed(2)} mm per edge.`
+                        : selectedShape.traceMarginMm === undefined
+                        ? `Original trace margin unknown (older project). Extra allowance: ${selectedCutout.clearanceMm.toFixed(2)} mm per edge.`
+                        : `Trace margin: ${selectedShape.traceMarginMm.toFixed(2)} mm per edge before scaling. Nominal total allowance X/Y: ${(selectedShape.traceMarginMm * selectedCutout.scaleX + selectedCutout.clearanceMm).toFixed(2)} / ${(selectedShape.traceMarginMm * selectedCutout.scaleY + selectedCutout.clearanceMm).toFixed(2)} mm per edge.`}</span>
+                    </HelpHint>
+                  </span>
+                  <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/clearance:rotate-180" />
+                </summary>
+                <div className="space-y-2 pb-2" key={selectedCutout.id}>
+                  <MmSlider
+                    label="Extra pocket clearance"
+                    value={selectedCutout.clearanceMm}
+                    centered
+                    inline
+                    min={-2}
+                    max={2}
+                    step={0.1}
+                    onChange={(clearanceMm, transient) =>
+                      dispatch({
+                        type: "UPDATE_CUTOUT",
+                        id: selectedCutout.id,
+                        patch: { clearanceMm },
+                        historyLabel: "Change pocket clearance",
+                        transient,
+                      })
+                    }
+                  />
+                </div>
+              </details>
+  );
   const pocketProperties = selectedCutout && selectedShape && (
-            <div className="space-y-3 rounded-md border border-violet-500/30 bg-violet-500/[0.025] p-2.5" id="pocket-properties" role="region" aria-label="Selected pocket properties">
+            <div className={inspector ? "space-y-3" : "space-y-3 rounded-md border border-violet-500/30 bg-violet-500/[0.025] p-2.5"} id="pocket-properties" role="region" aria-label="Selected pocket properties">
               <div className="flex min-w-0 items-center gap-2 border-b border-violet-500/20 pb-2" data-testid="pocket-properties-heading">
-                <h3 className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-violet-700 dark:text-violet-300">Pocket properties</h3>
-                <span className="min-w-0 truncate text-xs font-medium" title={pocketName(selectedCutout, selectedShape)}>{pocketName(selectedCutout, selectedShape)}</span>
+                <h3 className={inspector ? "sr-only" : "shrink-0 text-[10px] font-semibold uppercase tracking-wide text-violet-700 dark:text-violet-300"}>Pocket properties</h3>
+                <span className={inspector ? "sr-only" : "min-w-0 truncate text-xs font-medium"} title={pocketName(selectedCutout, selectedShape)}>{pocketName(selectedCutout, selectedShape)}</span>
                 <Button
                   variant={editorMode === "contour" ? "default" : "outline"}
                   size="sm"
@@ -659,7 +726,9 @@ export function BinControlsPanel({
                   {editorMode === "contour" ? "Done" : "Edit contour"}
                 </Button>
               </div>
-              {experimentalEnabled && <LinkedDesignControls kind="pocket" activeId={selectedCutout.id} labels={new Map(cutouts.map(c => [c.id, pocketName(c, shapesById.get(c.shapeId))]))} />}
+
+
+              {!inspector && experimentalEnabled && <LinkedDesignControls kind="pocket" activeId={selectedCutout.id} labels={new Map(cutouts.map(c => [c.id, pocketName(c, shapesById.get(c.shapeId))]))} />}
               <section className="space-y-2" aria-label="Pocket depth" key={`${selectedCutout.id}-${selectedPocketSection}-${!!selectedCutout.split}`}>
                 <div className="flex items-center gap-1">
                   <h4 className="text-sm font-semibold">Depth</h4>
@@ -708,6 +777,7 @@ export function BinControlsPanel({
 
                 <PocketDepthSummary cutout={depthCutout!} shape={depthShape!} section={section} inspect={onSectionChange} />
               </section>
+              {inspector && <>{pocketClearance}{pocketTopRounding}</>}
               <details className="group/size border-t pt-1 text-xs" aria-label="Pocket size and scale" data-testid="pocket-size-settings">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-2 py-2 font-medium [&::-webkit-details-marker]:hidden">
                   Size &amp; scale
@@ -722,24 +792,7 @@ export function BinControlsPanel({
                   <ChevronDown className="h-3.5 w-3.5 transition-transform group-open/more:rotate-180" />
                 </summary>
                 <div className="space-y-3 pt-2" key={selectedCutout.id}>
-                  <MmSlider
-                    label="Top edge rounding"
-                    value={selectedCutout.topFilletMm}
-                    min={0}
-                    max={5}
-                    step={0.2}
-                    onChange={(topFilletMm, transient) =>
-                      dispatch({
-                        type: "UPDATE_CUTOUT",
-                        id: selectedCutout.id,
-                        patch: { topFilletMm },
-                        historyLabel: "Change top edge round",
-                        transient,
-                      })
-                    }
-                    hintAsTooltip
-                    hint="Rounds the pocket wall into the top surface of the bin."
-                  />
+                  {!inspector && pocketTopRounding}
                   <MmSlider
                     label="Bottom edge fillet"
                     value={selectedCutout.bottomFilletMm}
@@ -779,41 +832,7 @@ export function BinControlsPanel({
 
                 </div>
               </details>
-              <details className="group/clearance border-t pt-1 text-xs" data-testid="pocket-clearance-settings">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-2 py-2 font-medium [&::-webkit-details-marker]:hidden">
-                  <span className="flex items-center gap-1">Extra pocket clearance
-                    <HelpHint label="extra pocket clearance">
-                      Adjusts each edge after scaling. Negative values shrink the pocket; positive values enlarge it. Zero keeps the original outline size. Narrow features can disappear when shrunk.
-                      <span className="mt-1 block">{selectedShape.source === "basic-shape"
-                        ? `Drawn in millimetres. Extra allowance: ${selectedCutout.clearanceMm.toFixed(2)} mm per edge.`
-                        : selectedShape.traceMarginMm === undefined
-                        ? `Original trace margin unknown (older project). Extra allowance: ${selectedCutout.clearanceMm.toFixed(2)} mm per edge.`
-                        : `Trace margin: ${selectedShape.traceMarginMm.toFixed(2)} mm per edge before scaling. Nominal total allowance X/Y: ${(selectedShape.traceMarginMm * selectedCutout.scaleX + selectedCutout.clearanceMm).toFixed(2)} / ${(selectedShape.traceMarginMm * selectedCutout.scaleY + selectedCutout.clearanceMm).toFixed(2)} mm per edge.`}</span>
-                    </HelpHint>
-                  </span>
-                  <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/clearance:rotate-180" />
-                </summary>
-                <div className="space-y-2 pb-2" key={selectedCutout.id}>
-                  <MmSlider
-                    label="Extra pocket clearance"
-                    value={selectedCutout.clearanceMm}
-                    centered
-                    inline
-                    min={-2}
-                    max={2}
-                    step={0.1}
-                    onChange={(clearanceMm, transient) =>
-                      dispatch({
-                        type: "UPDATE_CUTOUT",
-                        id: selectedCutout.id,
-                        patch: { clearanceMm },
-                        historyLabel: "Change pocket clearance",
-                        transient,
-                      })
-                    }
-                  />
-                </div>
-              </details>
+              {!inspector && pocketClearance}
 
               <PocketMeasurements cutout={selectedCutout} shape={selectedShape}>
                 <div className="flex items-center gap-2">
@@ -857,6 +876,7 @@ export function BinControlsPanel({
                 </p>
               )}
 
+              {inspector && experimentalEnabled && <AdvancedLinks><LinkedDesignControls kind="pocket" activeId={selectedCutout.id} labels={new Map(cutouts.map(c => [c.id, pocketName(c, shapesById.get(c.shapeId))]))} /></AdvancedLinks>}
             </div>
           );
   const fingerProperties = selectedFingerHole && fingerSizeLimits && (
@@ -865,7 +885,9 @@ export function BinControlsPanel({
                   <h3 className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-cyan-700 dark:text-cyan-300">Finger access properties</h3>
                   <span className="min-w-[5rem] flex-1 truncate text-xs font-medium">{selectedFingerHole.name ?? `Finger access ${fingerHoles.indexOf(selectedFingerHole) + 1}`}</span>
                 </div>
-                {experimentalEnabled && <LinkedDesignControls kind="finger" activeId={selectedFingerHole.id} labels={new Map(fingerHoles.map((h, i) => [h.id, h.name ?? `Finger access ${i + 1}`]))} />}
+              {!inspector && experimentalEnabled && <LinkedDesignControls kind="finger" activeId={selectedFingerHole.id} labels={new Map(fingerHoles.map((h, i) => [h.id, h.name ?? `Finger access ${i + 1}`]))} />}
+
+
                 <FingerAccessShapeControls
                   hole={selectedFingerHole}
                   onChange={(change) => {
@@ -904,7 +926,7 @@ export function BinControlsPanel({
                   />
 
                 </section>
-                <details className="group/size border-t pt-1 text-xs" data-testid="finger-size-settings">
+                <details open={!!inspector || undefined} className="group/size border-t pt-1 text-xs" data-testid="finger-size-settings">
                   <summary className="flex cursor-pointer list-none items-center justify-between gap-2 py-2 font-medium [&::-webkit-details-marker]:hidden">
                     Size
                     <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/size:rotate-180" />
@@ -1126,8 +1148,23 @@ export function BinControlsPanel({
                 <PositionInputs position={selectedFingerHole.center} onChange={(center, transient) => dispatch({ type: "UPDATE_FINGER_HOLE", id: selectedFingerHole.id, patch: { center }, transient, historyLabel: "Position finger access" })} />
                   </div>
                 </details>
-              </div>
+                {inspector && experimentalEnabled && <AdvancedLinks><LinkedDesignControls kind="finger" activeId={selectedFingerHole.id} labels={new Map(fingerHoles.map((h, i) => [h.id, h.name ?? `Finger access ${i + 1}`]))} /></AdvancedLinks>}
+            </div>
             );
+
+  const projectStatus = (
+      <div className={!inspector && exportOnly ? "hidden" : cn("min-w-0 px-3 py-2", !inspector && "shrink-0 border-b", inspector && "flex-1")} data-testid="project-status">
+        <p className="cursor-text truncate text-sm font-medium" data-testid="project-status-title"
+          title={`${currentProjectName ?? "Untitled project"} — double-click to rename`}
+          onDoubleClick={() => {
+            if (!hydrated || !projectLibraryReady || projectBusy) return;
+            if (inspector) inspector.showSection("bin-settings-project");
+            else revealPanelSection("bin-settings-project", BIN_SETTINGS_SECTIONS);
+            setProjectNameOpen(true);
+          }}>{currentProjectName ?? "Untitled project"}</p>
+        <p className="text-[11px] text-muted-foreground" role="status">{!hydrated ? "Opening project…" : projectBusy ? "Working…" : saveStatus === "saving" ? activeProjectId ? "Saving to browser library…" : "Draft — saving locally…" : saveStatus === "error" ? "Could not save. Export this project to keep your work." : activeProjectId ? "Saved to browser library" : "Draft — autosaved locally"}</p>
+      </div>
+  );
 
   return (
     <PanelSectionFilterContext.Provider value={!inspector && exportOnly ? "bin-settings-export" : null}>
@@ -1136,33 +1173,32 @@ export function BinControlsPanel({
         <p>This project uses experimental pocket tools. Its geometry and links are preserved; edits to linked designs still update their copies.</p>
         <Button size="sm" variant="link" className="h-9 px-0 text-xs" onClick={() => setSettingsOpen(true)}>Show experimental settings</Button>
       </div>}
-      <div className={!inspector && exportOnly ? "hidden" : cn("shrink-0 border-b px-3 py-2", inspector && "pr-14")} data-testid="project-status">
-        <p className="cursor-text truncate text-sm font-medium" data-testid="project-status-title"
-          title={`${currentProjectName ?? "Untitled project"} — double-click to rename`}
-          onDoubleClick={() => {
-            if (!hydrated || !projectLibraryReady || projectBusy) return;
-            revealPanelSection("bin-settings-project", BIN_SETTINGS_SECTIONS);
-            setProjectNameOpen(true);
-          }}>{currentProjectName ?? "Untitled project"}</p>
-        <p className="text-[11px] text-muted-foreground" role="status">{!hydrated ? "Opening project…" : projectBusy ? "Working…" : saveStatus === "saving" ? activeProjectId ? "Saving to browser library…" : "Draft — saving locally…" : saveStatus === "error" ? "Could not save. Export this project to keep your work." : activeProjectId ? "Saved to browser library" : "Draft — autosaved locally"}</p>
-      </div>
+      {inspector ? <div className="shrink-0 border-b px-3 pb-2 pt-4">
+        <h2 className="mb-3 text-xs font-semibold">Objects</h2>
+        <Button variant={selection.length ? "ghost" : "secondary"} className="h-10 w-full justify-start gap-2" aria-label="Bin — edit size and construction" aria-pressed={!selection.length}
+          onClick={() => inspector.showSection("bin-settings-size")}><Box className="h-4 w-4" />Bin<span className="ml-auto text-xs font-normal text-muted-foreground">{formatUnitCount(widthCellSpan)} × {formatUnitCount(lengthCellSpan)}</span></Button>
+        <div className="mt-1 flex items-center justify-between text-xs">
+          <Button size="sm" variant="ghost" className="px-2 text-xs" disabled={!cutouts.length && !fingerHoles.length} onClick={() => dispatch({ type: "SET_SELECTION", selection: [...cutouts.map(c => ({ kind: "pocket" as const, id: c.id })), ...fingerHoles.map(h => ({ kind: "finger" as const, id: h.id }))] })}>Select all</Button>
+          <Button size="sm" variant="ghost" className="px-2 text-xs" disabled={!selection.length} aria-label="Clear object selection" onClick={() => inspector.showSection("bin-settings-size")}>Clear</Button>
+        </div>
+      </div> : projectStatus}
       {/* On short screens the section headers remain reachable by scrolling;
           reserve the limited height for editable fields instead of shortcuts. */}
-      <div className={!inspector && exportOnly ? "hidden" : "shrink-0 [@media(max-height:500px)]:hidden"}>
+      <div className={inspector || exportOnly ? "hidden" : "shrink-0 [@media(max-height:500px)]:hidden"}>
         <PanelSettingsIndex
           ariaLabel="Find bin settings"
           testIdPrefix="bin"
           items={BIN_SETTINGS_SECTIONS}
         />
       </div>
-      <PanelBody className="flex-1">
+      <InspectorPanelSections>
         <PanelSection
           id="bin-settings-project"
           title="Project"
           icon={FolderOpen}
           tone="slate"
           summary={projectBusy ? "Working…" : activeProjectId ? "Library" : "Draft"}
-          defaultOpen={false}
+          defaultOpen={!!inspector}
           className="scroll-mt-16"
         >
           <ProjectControls
@@ -1491,7 +1527,7 @@ export function BinControlsPanel({
           className="scroll-mt-16"
         >
           <div className="mb-2"><AddPocketMenu /></div>
-          {inspector ? <BinObjectList kind="pocket" /> : pocketList}
+          {pocketList}
           {!inspector && !selectedCutout && (
             <p className="rounded-md border border-dashed px-3 py-4 text-xs text-muted-foreground" id="pocket-properties" data-testid="pocket-selection-help">
               {cutouts.length === 0
@@ -1550,7 +1586,7 @@ export function BinControlsPanel({
               </Button>
             </div>
 
-            {inspector ? <BinObjectList kind="finger" /> : fingerList}
+            {fingerList}
 
             {!inspector && fingerProperties}
           </div>
@@ -1683,7 +1719,7 @@ export function BinControlsPanel({
             </div>
           </div>
         </PanelSection>
-        <PanelSection id="bin-settings-view" title="Cross-section View" icon={Eye} tone="amber" defaultOpen={section !== null} summary={section ? "Cut open" : "Whole bin"}>
+        <PanelSection id="bin-settings-view" title="Cross-section View" icon={Eye} tone="amber" defaultOpen={!!inspector || section !== null} summary={section ? "Cut open" : "Whole bin"}>
           <FeatureSwitch
             label="Cut the preview open"
             description="Slice the 3D view to inspect pockets. These controls only change the preview; exports always contain the complete bin."
@@ -1733,7 +1769,7 @@ export function BinControlsPanel({
           )}
         </PanelSection>
 
-        <PanelSection id="bin-settings-fit" title="Check fit" icon={ClipboardCheck} tone="emerald" defaultOpen={false} summary="Thin templates">
+        <PanelSection id="bin-settings-fit" title="Check fit" icon={ClipboardCheck} tone="emerald" defaultOpen={!!inspector} summary="Thin templates">
           <div
             className="space-y-3 rounded-md border border-violet-500/25 bg-violet-500/5 p-2.5"
             data-testid="export-preview-layout"
@@ -1891,7 +1927,7 @@ export function BinControlsPanel({
                   ? "Ready"
                   : "No preview"
           }
-          defaultOpen={hasErrors}
+          defaultOpen={!!inspector || hasErrors}
           className="scroll-mt-16"
         >
           <div className="space-y-1">
@@ -2001,7 +2037,8 @@ export function BinControlsPanel({
             </div>
           )}
         </PanelSection>
-      </PanelBody>
+      </InspectorPanelSections>
+      {inspector && <Button variant="ghost" className="h-11 shrink-0 justify-start gap-2 border-t px-3 text-xs" onClick={() => inspector.showSection("bin-settings-view")}><Eye className="h-4 w-4" />Cross-section view</Button>}
 
       <AlertDialog
         open={pendingRemoval !== null}
@@ -2139,8 +2176,14 @@ export function BinControlsPanel({
       )}
 
     </div>
-      {inspector?.pocketList && createPortal(pocketList, inspector.pocketList)}
-      {inspector?.fingerList && createPortal(fingerList, inspector.fingerList)}
+      {inspector?.projectHeader && createPortal(<div className="flex flex-wrap items-center gap-1 pr-2" data-testid="editor-project-header">
+        {projectStatus}
+        <div className="flex shrink-0 items-center gap-1 max-[500px]:w-full max-[500px]:justify-end max-[500px]:border-t max-[500px]:py-1">
+          <Button size="sm" variant="ghost" className="gap-1.5" onClick={() => inspector.showSection("bin-settings-project")}><FolderOpen className="h-4 w-4" />Project</Button>
+          <Button size="sm" variant="ghost" className="gap-1.5" onClick={() => inspector.showSection("bin-settings-fit")}><ClipboardCheck className="h-4 w-4" />Check fit</Button>
+          <Button size="sm" className="gap-1.5" onClick={() => inspector.showSection("bin-settings-export")}><Download className="h-4 w-4" />Export</Button>
+        </div>
+      </div>, inspector.projectHeader)}
       {inspector?.properties && selection.length === 1 && createPortal(<>{pocketProperties}{fingerProperties}</>, inspector.properties)}
     </PanelSectionFilterContext.Provider>
   );
@@ -2829,4 +2872,31 @@ function FeatureSwitch({
       />
     </div>
   );
+}
+
+/** The tree stays readable; less frequent row actions remain keyboard reachable. */
+function ObjectActions({ name, children }: { name: string; children: ReactNode }): JSX.Element {
+  const inspector = useSelectionInspector();
+  const pendingAction = useRef<(() => void) | null>(null);
+  if (!inspector) return <>{children}</>;
+  return <DropdownMenu>
+    <DropdownMenuTrigger asChild><Button size="icon" variant="ghost" className="h-9 w-9 shrink-0 [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11" aria-label={`Actions for ${name}`}><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
+    <DropdownMenuContent align="end" onCloseAutoFocus={event => {
+      // Open the inline name editor only after the menu releases its focus trap.
+      const action = pendingAction.current;
+      pendingAction.current = null;
+      if (action) { event.preventDefault(); action(); }
+    }}>
+      {Children.map(children, child => isValidElement<{ children: ReactNode; "aria-label": string; disabled?: boolean; onClick: () => void }>(child) &&
+        <DropdownMenuItem disabled={child.props.disabled} aria-label={child.props["aria-label"]}
+          className="min-h-9 gap-2 text-xs [@media(pointer:coarse)]:min-h-11" onSelect={() => { pendingAction.current = child.props.onClick; }}>
+          {child.props.children}<span>{child.props["aria-label"]}</span>
+        </DropdownMenuItem>)}
+    </DropdownMenuContent>
+  </DropdownMenu>;
+}
+
+function AdvancedLinks({ children }: { children: ReactNode }): JSX.Element {
+  const inspector = useSelectionInspector();
+  return inspector ? <details className="rounded border px-2 py-1 text-xs"><summary className="cursor-pointer py-1 font-medium">Linked copies</summary>{children}</details> : <>{children}</>;
 }

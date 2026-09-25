@@ -98,14 +98,16 @@ describe("WorkspaceLayout", () => {
       inspect: container => {
         const canvas = container.querySelector('[data-testid="inspector-workspace-canvas"]');
         expect(canvas).not.toBeNull();
-        const click = (label: string) => React.act(() => container.querySelector<HTMLButtonElement>(`[aria-label="${label}"]`)!.click());
-        click('Expand objects panel');
+        const click = (id: string) => React.act(() => container.querySelector<HTMLButtonElement>(`nav[aria-label="Editor panels"] button[aria-controls="${id}"]`)!.click());
+        click('objects-panel');
         expect(container.querySelector('#objects-panel')!.hasAttribute('hidden')).toBe(false);
         expect(container.querySelector('#workflow-panel')!.hasAttribute('hidden')).toBe(true);
-        click('Collapse objects panel'); click('Expand workflow panel');
+        click('objects-panel'); click('workflow-panel');
         expect(container.querySelector('#workflow-panel')!.hasAttribute('hidden')).toBe(false);
         expect(container.querySelector('[data-testid="inspector-workspace-canvas"]')).toBe(canvas);
         expect(canvas!.closest('#workflow-panel, #objects-panel, [role="dialog"]')).toBeNull();
+        React.act(() => { Object.defineProperty(window, "innerWidth", { configurable: true, value: 1440 }); window.dispatchEvent(new Event("resize")); });
+        expect(container.querySelector('[data-testid="inspector-workspace-canvas"]')).toBe(canvas);
       },
     });
   });

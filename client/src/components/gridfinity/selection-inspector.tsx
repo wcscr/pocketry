@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Copy, Trash2, X, SlidersHorizontal } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Copy, Trash2 } from "lucide-react";
 import { WorkspaceLayout, type WorkspaceLayoutProps } from "@/components/layout/workspace-layout";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useBin } from "@/state/bin-store";
 import { useShapeLibrary } from "@/state/shape-library";
@@ -14,23 +15,49 @@ import { SelectionInspectorContext, useSelectionInspector, type InspectorTool } 
 export function BinEditingWorkspace({ enabled, ...props }: WorkspaceLayoutProps & { enabled: boolean }): JSX.Element {
   const [properties, setProperties] = useState<HTMLDivElement | null>(null);
   const [transforms, setTransforms] = useState<HTMLDivElement | null>(null);
-  const [pocketList, setPocketList] = useState<HTMLDivElement | null>(null);
-  const [fingerList, setFingerList] = useState<HTMLDivElement | null>(null);
+  const [settings, setSettings] = useState<HTMLDivElement | null>(null);
+  const [projectHeader, setProjectHeader] = useState<HTMLDivElement | null>(null);
+  const [toolbar, setToolbar] = useState<HTMLDivElement | null>(null);
+  const [dialogContent, setDialogContent] = useState<HTMLDivElement | null>(null);
+  const [dialogSection, setDialogSection] = useState<string | null>(null);
   const [tool, updateTool] = useState<InspectorTool>("properties");
   const [openRequest, setOpenRequest] = useState(0);
   const openInspector = useCallback(() => setOpenRequest(n => n + 1), []);
   const setTool = useCallback((next: InspectorTool) => { updateTool(next); openInspector(); }, [openInspector]);
-  const { selection } = useBin();
+  const keepList = useRef(false);
+  const keepObjectsOpen = useCallback(() => { keepList.current = true; updateTool("properties"); }, []);
+  const { selection, dispatch, editorMode } = useBin();
+  const showSection = useCallback((id: string) => {
+    if (["bin-settings-project", "bin-settings-fit", "bin-settings-export", "bin-settings-view"].includes(id)) {
+      setDialogSection(id);
+    } else {
+      dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" });
+      dispatch({ type: "SET_SELECTION", selection: [] });
+      setTool("properties");
+    }
+  }, [dispatch, setTool]);
   const selectionKey = JSON.stringify(selection);
-  useEffect(() => { if (enabled && selection.length) openInspector(); }, [enabled, selectionKey, openInspector]);
-  useEffect(() => { if (selection.length < 2 && (tool === "arrange" || tool === "links")) updateTool("properties"); }, [selection.length, tool]);
-  const targets = useMemo(() => ({ properties, transforms, pocketList, fingerList, tool, setTool, openInspector }),
-    [properties, transforms, pocketList, fingerList, tool, setTool, openInspector]);
+  useEffect(() => { if (enabled && selection.length && !keepList.current) openInspector(); keepList.current = false; }, [enabled, selectionKey, openInspector]);
+  useEffect(() => { if (!selection.length || selection.length < 2 && (tool === "arrange" || tool === "links")) updateTool("properties"); }, [selection.length, tool]);
+  const targets = useMemo(() => ({ properties, transforms, settings, projectHeader, toolbar, dialogContent, dialogSection, showSection, tool, setTool, openInspector, keepObjectsOpen }),
+    [properties, transforms, settings, projectHeader, toolbar, dialogContent, dialogSection, showSection, tool, setTool, openInspector, keepObjectsOpen]);
   if (!enabled) return <WorkspaceLayout {...props} />;
   return <SelectionInspectorContext.Provider value={targets}>
     <WorkspaceLayout {...props} autoSaveId={`${props.autoSaveId}:inspector`}
       inspectorRequest={(props.inspectorRequest ?? 0) + openRequest}
-      inspector={<SelectionInspector propertiesRef={setProperties} transformsRef={setTransforms} pocketListRef={setPocketList} fingerListRef={setFingerList} />} />
+      canvasEditingMode={editorMode}
+      inspectorHeader={<div ref={setProjectHeader} />}
+      inspectorToolbar={<div ref={setToolbar} className="flex min-w-max items-center gap-1" />}
+      inspector={<SelectionInspector propertiesRef={setProperties} transformsRef={setTransforms} settingsRef={setSettings} />} />
+    <Dialog open={dialogSection !== null} onOpenChange={open => { if (!open) setDialogSection(null); }}>
+      <DialogContent className="flex max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
+        <DialogHeader className="shrink-0 border-b px-4 py-3 pr-12 text-left">
+          <DialogTitle>{dialogSection === "bin-settings-project" ? "Project" : dialogSection === "bin-settings-fit" ? "Check fit" : dialogSection === "bin-settings-view" ? "Cross-section view" : "Export"}</DialogTitle>
+          <DialogDescription>{dialogSection === "bin-settings-project" ? "Save, open, and manage projects in this browser." : dialogSection === "bin-settings-fit" ? "Print a small template before the full bin." : dialogSection === "bin-settings-view" ? "Inspect the inside of your bin." : "Download your bin for printing or fabrication."}</DialogDescription>
+        </DialogHeader>
+        <div ref={setDialogContent} className="min-h-0 overflow-y-auto overscroll-contain" />
+      </DialogContent>
+    </Dialog>
   </SelectionInspectorContext.Provider>;
 }
 
@@ -62,9 +89,9 @@ function BatchField({ objects, all, kind, property, label }: {
   </form>;
 }
 
-export function SelectionInspector({ propertiesRef, transformsRef, pocketListRef, fingerListRef }: {
+export function SelectionInspector({ propertiesRef, transformsRef, settingsRef }: {
   propertiesRef: (node: HTMLDivElement | null) => void; transformsRef: (node: HTMLDivElement | null) => void;
-  pocketListRef: (node: HTMLDivElement | null) => void; fingerListRef: (node: HTMLDivElement | null) => void;
+  settingsRef: (node: HTMLDivElement | null) => void;
 }): JSX.Element {
   const bin = useBin();
   const inspector = useSelectionInspector();
@@ -78,37 +105,28 @@ export function SelectionInspector({ propertiesRef, transformsRef, pocketListRef
   const fingers = chosen.filter(o => o.kind === "finger");
   const single = chosen.length === 1 ? chosen[0] : null;
   const title = single ? single.kind === "pocket" ? pocketName(single.cutout, single.shape)
-    : single.hole.name ?? `Finger access ${bin.fingerHoles.indexOf(single.hole) + 1}` : `${chosen.length} selected`;
+    : single.hole.name ?? `Finger access ${bin.fingerHoles.indexOf(single.hole) + 1}` : chosen.length ? `${chosen.length} selected` : "Bin";
   const toolLabel = inspector?.tool === "translate" ? "Move" : inspector?.tool === "rotate" ? "Rotate" : inspector?.tool === "arrange" ? "Arrange" : inspector?.tool === "links" ? "Linked designs" : "Properties";
   const links = new Set(chosen.map(o => o.kind === "pocket" ? o.cutout.designLink?.id : o.hole.designLink?.id).filter(Boolean));
   const extraLinked = objects.filter(o => !chosen.includes(o) && links.has(o.kind === "pocket" ? o.cutout.designLink?.id : o.hole.designLink?.id)).length;
-  return <aside className="flex h-full min-h-0 flex-col bg-background [@media(max-height:500px)]:overflow-y-auto [@media(pointer:coarse)]:[&_button]:min-h-11 [@media(pointer:coarse)]:[&_input:not([type=checkbox])]:min-h-11 [@media(pointer:coarse)]:[&_select]:min-h-11" aria-label="Selection inspector" data-testid="selection-inspector">
-    <section className="flex max-h-[38%] min-h-36 shrink-0 flex-col border-b [@media(max-height:500px)]:max-h-48" aria-label="Object selection">
-      <div className="flex shrink-0 items-center gap-1 py-1 pl-3 pr-14">
-        <span className="mr-auto text-xs font-semibold">Objects · {objects.length}</span>
-        <Button size="sm" variant="ghost" className="h-8 px-2 text-xs" onClick={() => bin.dispatch({ type: "SET_SELECTION", selection: objects.map(objectRef) })}>Select all</Button>
-        <Button size="icon" variant="ghost" className="h-8 w-8" disabled={!chosen.length} title="Clear selection" aria-label="Clear object selection" onClick={() => bin.dispatch({ type: "SET_SELECTION", selection: [] })}><X /></Button>
+  return <aside className="flex h-full min-h-0 flex-col bg-background [@media(pointer:coarse)]:[&_button]:min-h-11 [@media(pointer:coarse)]:[&_input:not([type=checkbox])]:min-h-11 [@media(pointer:coarse)]:[&_select]:min-h-11" aria-label="Selection inspector" data-testid="selection-inspector">
+    <header className="flex min-h-14 shrink-0 items-center gap-1 border-b py-2 pl-3 pr-12" data-testid="inspector-properties-header">
+      <div className="mr-auto min-w-0" aria-live="polite">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{single ? single.kind === "pocket" ? "Pocket" : "Finger access" : chosen.length ? "Selection" : "Properties"}</p>
+        <h3 className="truncate text-sm font-semibold" title={title}>{title}</h3>
       </div>
-      <div className="min-h-0 overflow-y-auto overscroll-contain px-2 pb-2" data-testid="object-list-scroll">
-        <h3 className="px-1 py-1 text-[10px] font-semibold uppercase tracking-wide text-violet-600 dark:text-violet-400">Pockets</h3>
-        <div ref={pocketListRef} />
-        {!pockets.length && !bin.cutouts.length && <p className="px-1 text-xs text-muted-foreground">Add a pocket from the workflow.</p>}
-        <h3 className="px-1 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-cyan-700 dark:text-cyan-400">Finger access</h3>
-        <div ref={fingerListRef} />
-        {!bin.fingerHoles.length && <p className="px-1 text-xs text-muted-foreground">No finger accesses yet.</p>}
-      </div>
-    </section>
-    <header className="flex min-h-9 shrink-0 items-center gap-1 border-b px-3 py-0.5" data-testid="inspector-properties-header">
-      <h3 className="mr-auto text-xs font-semibold">{toolLabel}</h3>
-      <span className="sr-only" aria-live="polite">{chosen.length ? `${toolLabel} for ${title}` : "Select an object"}</span>
-      {chosen.length > 1 && <span className="mr-1 text-xs text-muted-foreground">{chosen.length} selected</span>}
       {(chosen.length > 1 || single?.kind === "finger") && <Button size="icon" variant="ghost" className="h-8 w-8" title="Duplicate selection" aria-label="Duplicate selection" onClick={() => bin.dispatch({ type: "DUPLICATE_SELECTION", ids: chosen.map(o => ({ source: objectRef(o), id: crypto.randomUUID() })) })}><Copy /></Button>}
       {chosen.length > 1 && <Button size="icon" variant="ghost" className="h-8 w-8" title="Delete selection" aria-label="Delete selection" onClick={() => bin.dispatch({ type: "REMOVE_SELECTION" })}><Trash2 /></Button>}
-      {!!chosen.length && inspector?.tool !== "properties" && <Button size="icon" variant="ghost" className="h-8 w-8" title="Back to properties" aria-label="Back to properties" onClick={() => inspector?.setTool("properties")}><SlidersHorizontal /></Button>}
     </header>
-    <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain [@media(max-height:500px)]:flex-none [@media(max-height:500px)]:overflow-visible" data-testid="inspector-scroll">
-      {!chosen.length && <p className="p-4 text-sm text-muted-foreground">Choose objects in the list or canvas. Use checkboxes or Shift-click to select several.</p>}
-      <div hidden={inspector?.tool !== "properties"}>
+    {!!chosen.length && <div className="flex min-h-10 shrink-0 items-center justify-between border-b px-3 text-xs font-medium" data-testid="inspector-active-tool">
+      <span>{bin.editorMode === "contour" ? "Editing contour" : toolLabel}</span>
+      {(inspector?.tool !== "properties" || bin.editorMode === "contour") && <Button variant="ghost" size="sm" className="h-8" aria-label="Back to properties" onClick={() => {
+        bin.dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" }); inspector?.setTool("properties");
+      }}>Done</Button>}
+    </div>}
+    <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain" data-testid="inspector-scroll">
+      <div ref={settingsRef} hidden={!!chosen.length} data-testid="inspector-bin-settings" />
+      <div hidden={!chosen.length || inspector?.tool !== "properties"}>
       {!!extraLinked && <p className="m-3 rounded-md border border-violet-500/30 bg-violet-500/5 p-2 text-xs" role="status">Design edits also update {extraLinked} unselected linked {extraLinked === 1 ? "copy" : "copies"}. Movement stays independent.</p>}
       {chosen.length > 1 && <div className="space-y-4 p-3" data-testid="batch-properties">
         {([pockets, fingers]).filter(items => items.length).map(items => <section key={items[0].kind} className="space-y-3" aria-label={`${items.length} selected ${items[0].kind === "pocket" ? `pocket${items.length === 1 ? "" : "s"}` : `finger access${items.length === 1 ? "" : "es"}`}`}>
@@ -121,7 +139,7 @@ export function SelectionInspector({ propertiesRef, transformsRef, pocketListRef
       </div>}
       <div ref={propertiesRef} className="p-3 empty:hidden" data-testid="inspector-properties" />
       </div>
-      <div ref={transformsRef} hidden={inspector?.tool === "properties"} className="empty:hidden" data-testid="inspector-transforms" />
+      <div ref={transformsRef} hidden={!chosen.length || inspector?.tool === "properties"} className="empty:hidden" data-testid="inspector-transforms" />
       {bin.editError && <p className="p-3 text-xs text-destructive" role="alert">{bin.editError}</p>}
     </div>
   </aside>;

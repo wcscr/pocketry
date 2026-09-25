@@ -53,7 +53,7 @@ export function AppHeader({
   const [isAbout] = useRoute("/about");
   const [location] = useLocation();
   const { setLibraryRequested } = usePanelState();
-  const { enabled: experimentalEnabled, setSettingsOpen } = useExperimentalFeatures();
+  const { enabled: experimentalEnabled, inspectorEnabled, setSettingsOpen } = useExperimentalFeatures();
   const currentWorkspace = WORKSPACES.find(workspace => workspace.path === location);
 
   return (
@@ -153,7 +153,7 @@ export function AppHeader({
           </TooltipTrigger>
           <TooltipContent>{experimentalEnabled ? "Settings · experimental features on" : "Settings"}</TooltipContent>
         </Tooltip>
-        {!isAbout ? (
+        {!isAbout && !(location === "/bin" && inspectorEnabled) ? (
           <Tooltip>
             <TooltipTrigger asChild>
               <Button

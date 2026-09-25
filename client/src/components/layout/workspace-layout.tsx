@@ -26,6 +26,9 @@ export interface WorkspaceLayoutProps {
   canvas: React.ReactNode;
   /** Optional selection inspector with its own scroll position. */
   inspector?: React.ReactNode;
+  inspectorHeader?: React.ReactNode;
+  inspectorToolbar?: React.ReactNode;
+  canvasEditingMode?: string;
   inspectorRequest?: number;
   controlsRequest?: unknown;
   /**
@@ -72,6 +75,9 @@ export function WorkspaceLayout({
   panel,
   canvas,
   inspector,
+  inspectorHeader,
+  inspectorToolbar,
+  canvasEditingMode,
   inspectorRequest = 0,
   controlsRequest,
   autoSaveId,
@@ -142,7 +148,7 @@ export function WorkspaceLayout({
 
   if (inspector) return <InspectorWorkspace panel={panel} canvas={canvas} inspector={inspector}
     panelOpen={panelOpen} onPanelOpenChange={onPanelOpenChange}
-    inspectorRequest={inspectorRequest} controlsRequest={controlsRequest} />;
+    inspectorRequest={inspectorRequest} header={inspectorHeader} toolbar={inspectorToolbar} canvasEditingMode={canvasEditingMode} />;
 
   if (isMobile) {
     return (

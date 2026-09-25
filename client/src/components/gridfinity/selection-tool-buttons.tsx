@@ -1,21 +1,28 @@
-import { AlignHorizontalDistributeCenter, Link2, Move3D, Rotate3D } from "lucide-react";
+import { createPortal } from "react-dom";
+import { AlignHorizontalDistributeCenter, Link2, Move3D, Rotate3D, MousePointer2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { useBin } from "@/state/bin-store";
 import { useSelectionInspector } from "./selection-inspector-context";
 
-/** The canvas toolbar selects a tool and opens its inspector in either view. */
+/** Stable, labeled tools share the same selection in either canvas view. */
 export function SelectionToolButtons({ count, onActivate, inactive = false }: {
   count: number; onActivate: () => void; inactive?: boolean;
 }): JSX.Element | null {
   const inspector = useSelectionInspector();
-  if (!inspector) return null;
-  return <>{([
-    { tool: "translate", Icon: Move3D, label: "Move selected objects", hint: "Move (W)" },
-    { tool: "rotate", Icon: Rotate3D, label: "Rotate selected objects", hint: "Rotate (E)" },
-    { tool: "arrange", Icon: AlignHorizontalDistributeCenter, label: "Arrange selected objects", hint: "Align and distribute" },
-    { tool: "links", Icon: Link2, label: "Link and unlink selected objects", hint: "Link / unlink designs" },
-  ] as const).filter(({ tool }) => count > 1 || tool === "translate" || tool === "rotate").map(({ tool, Icon, label, hint }) => <Button key={tool} size="icon" variant="ghost"
-    className={cn("h-9 w-9 rounded-none border-t [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11", !inactive && inspector.tool === tool && "bg-accent text-accent-foreground")}
-    disabled={!count} aria-label={label} title={hint} aria-pressed={!inactive && inspector.tool === tool}
-    onClick={() => { onActivate(); inspector.setTool(tool); }}><Icon className="h-4 w-4" /></Button>)}</>;
+  const { editorMode, dispatch } = useBin();
+  if (!inspector?.toolbar) return null;
+  const modeLabel = editorMode.startsWith("draw-") ? `Draw ${editorMode.slice(5)}` : editorMode === "contour" ? "Edit contour" : editorMode === "footprint" ? "Edit footprint" : editorMode === "split" ? "Split pocket" : "Choose label edge";
+  return createPortal(<>
+    {editorMode !== "placement" && <div className="flex shrink-0 items-center gap-2 border-r pr-2 text-xs" role="status"><span>{modeLabel}</span><Button size="sm" className="h-9" aria-label="Finish canvas editing" onClick={() => { dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" }); inspector.setTool("properties"); }}>Done</Button></div>}
+    {([
+    { tool: "properties", Icon: MousePointer2, label: "Select objects", text: "Select", minimum: 0 },
+    { tool: "translate", Icon: Move3D, label: "Move selected objects", text: "Move", minimum: 1 },
+    { tool: "rotate", Icon: Rotate3D, label: "Rotate selected objects", text: "Rotate", minimum: 1 },
+    { tool: "arrange", Icon: AlignHorizontalDistributeCenter, label: "Arrange selected objects", text: "Arrange", minimum: 2 },
+    { tool: "links", Icon: Link2, label: "Link and unlink selected objects", text: "Link", minimum: 2 },
+  ] as const).map(({ tool, Icon, label, text, minimum }) => <Button key={tool} size="sm"
+    variant={!inactive && editorMode === "placement" && inspector.tool === tool ? "secondary" : "ghost"}
+    className="h-10 shrink-0 gap-1.5 px-2 text-xs [@media(pointer:coarse)]:min-h-11"
+    disabled={count < minimum} aria-label={label} title={label} aria-pressed={!inactive && editorMode === "placement" && inspector.tool === tool}
+    onClick={() => { dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" }); onActivate(); inspector.setTool(tool); }}><Icon className="h-4 w-4" />{text}</Button>)}</>, inspector.toolbar);
 }
