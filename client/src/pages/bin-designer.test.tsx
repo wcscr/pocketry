@@ -2662,9 +2662,9 @@ describe("BinDesignerPage", () => {
     expect(ruler.title).toContain("Add a tool cutout");
     expect(
       container.querySelector('[data-testid="layout-empty-state"]')?.textContent,
-    ).toContain("Use Add pocket to draw a shape");
+    ).toContain("Use Add simple pocket to draw a shape");
     expect(container.querySelector('[data-testid="layout-ruler-status"]')).toBeNull();
-    expect(container.textContent).toContain("Choose Add pocket to draw a shape");
+    expect(container.textContent).toContain("Choose Add simple pocket to draw a shape");
     unmount();
   });
 
@@ -4504,6 +4504,83 @@ it("rejects overflowing numeric moves without corrupting the document or undo hi
       expect(container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.disabled).toBe(true);
       expect(vi.mocked(useBinGeometry).mock.lastCall![2]?.cutouts).toEqual([cutout]);
     }
+  } finally { unmount(); }
+});
+
+it.each([false, true])("prototype workflow lists synchronize selection and reopen properties without scrolling on mobile=%s", async mobile => {
+  const originalUrl = window.location.href;
+  window.history.replaceState(null, "", "/bin?inspector=1");
+  const shape = rectangularShape("workflow-tool", "Tool");
+  const cutouts = [0, 1].map(i => parseCutoutPlacement({ id: `workflow-${i}`, name: `Tool ${i + 1}`, shapeId: shape.id, position: { x: i * 40 - 20, y: 0 } }));
+  const finger = fingerHoleSchema.parse({ id: "workflow-f", name: "Thumb access", center: { x: 0, y: 0 } });
+  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, spec: parseBinSpec({ gridX: 4, gridY: 4, heightUnits: 6 }), shapes: [shape], cutouts, fingerHoles: [finger] });
+  const { container, unmount } = renderPage({ mobile, experimental: false });
+  try {
+    await flushHydration();
+    const workflow = container.querySelector<HTMLElement>('#workflow-panel')!;
+    const inspector = container.querySelector<HTMLElement>('[data-testid="selection-inspector"]')!;
+    const leftScroll = workflow.querySelector('#bin-settings-pockets')!.parentElement!;
+    const rightScroll = inspector.querySelector('[data-testid="object-list-scroll"]')!;
+    leftScroll.scrollTop = 230;
+    rightScroll.scrollTop = 120;
+    const leftButton = (kind: string, id: string) => workflow.querySelector<HTMLButtonElement>(`[data-testid="workflow-select-${kind}-${id}"]`)!;
+    const click = (label: string) => React.act(() => container.querySelector<HTMLButtonElement>(`[aria-label="${label}"]`)!.click());
+    const showWorkflow = () => { if (workflow.hidden) click('Expand workflow panel'); };
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
+    expect(workflow.querySelectorAll('[data-testid^="workflow-select-"]')).toHaveLength(3);
+    expect(workflow.querySelector('[aria-label^="Rename "]')).toBeNull();
+    expect(workflow.textContent).toContain('Add simple pocket');
+    React.act(() => leftButton('pocket', 'workflow-0').click());
+    expect(leftButton('pocket', 'workflow-0').getAttribute('aria-pressed')).toBe('true');
+    expect(inspector.querySelector<HTMLInputElement>('[aria-label="Include Tool 1 in selection"]')!.checked).toBe(true);
+    expect(inspector.querySelector('#pocket-properties')!.closest('[hidden]')).toBeNull();
+    expect(workflow.hidden).toBe(mobile);
+
+    // Choosing the same item must reopen the inspector and leave a transform tool.
+    click('Rotate selected objects');
+    click('Collapse objects panel');
+    showWorkflow();
+    React.act(() => leftButton('pocket', 'workflow-0').click());
+    expect(inspector.closest('[hidden]')).toBeNull();
+    expect(inspector.querySelector('[data-testid="inspector-properties-header"] h3')!.textContent).toBe('Properties');
+
+    // Selection from the existing right-hand list also updates the left list.
+    selectPocket(container, 'workflow-1');
+    expect(leftButton('pocket', 'workflow-0').getAttribute('aria-pressed')).toBe('false');
+    expect(leftButton('pocket', 'workflow-1').getAttribute('aria-pressed')).toBe('true');
+    showWorkflow();
+    React.act(() => leftButton('finger', 'workflow-f').dispatchEvent(new MouseEvent('click', { bubbles: true, shiftKey: true })));
+    expect(inspector.querySelector('[data-testid="batch-properties"]')).not.toBeNull();
+    expect(inspector.querySelectorAll('input[type="checkbox"]:checked')).toHaveLength(2);
+    showWorkflow();
+    React.act(() => leftButton('finger', 'workflow-f').click());
+    expect(leftButton('pocket', 'workflow-1').getAttribute('aria-pressed')).toBe('false');
+    expect(leftButton('finger', 'workflow-f').getAttribute('aria-pressed')).toBe('true');
+    expect(inspector.querySelector('#finger-access-properties')!.closest('[hidden]')).toBeNull();
+    expect(workflow.querySelector('#pocket-properties, #finger-access-properties')).toBeNull();
+    expect(leftScroll.scrollTop).toBe(230);
+    expect(rightScroll.scrollTop).toBe(120);
+  } finally { unmount(); window.history.replaceState(null, '', originalUrl); }
+});
+
+it("keeps finger-access guidance beside the collapsed section title without toggling it", async () => {
+  const { container, unmount } = renderPage();
+  try {
+    await flushHydration();
+    const section = container.querySelector<HTMLElement>('#bin-settings-finger-holes')!;
+    const toggle = section.querySelector<HTMLButtonElement>('[data-panel-section-trigger]')!;
+    const hint = section.querySelector<HTMLButtonElement>('[aria-label="About finger access"]')!;
+    expect(hint.closest('[data-panel-section-header]')).toBe(toggle.parentElement);
+    expect(toggle.contains(hint)).toBe(false);
+    expect(section.dataset.state).toBe('closed');
+    await React.act(async () => hint.click());
+    expect(document.querySelector('[role="tooltip"]')?.textContent).toContain('Allow room beside the tool');
+    expect(section.dataset.state).toBe('closed');
+    React.act(() => hint.click());
+    expect(document.querySelector('[role="tooltip"]')).toBeNull();
+    React.act(() => toggle.click());
+    expect(section.dataset.state).toBe('open');
+    expect(section.querySelector('[aria-label="About openings"]')).toBeNull();
   } finally { unmount(); }
 });
 

@@ -36,6 +36,7 @@ import { useDelayedBusy } from "@/hooks/use-delayed-busy";
 import { useLocation } from "wouter";
 import { LinkedDesignControls } from "./linked-design-controls";
 import { AddPocketMenu } from "./add-pocket-menu";
+import { BinObjectList } from "./bin-object-list";
 import { usePanelState } from "@/components/layout/panel-context";
 import { FillHeightControl } from "./fill-height-control";
 
@@ -1490,12 +1491,11 @@ export function BinControlsPanel({
           className="scroll-mt-16"
         >
           <div className="mb-2"><AddPocketMenu /></div>
-          {!inspector && pocketList}
-          {inspector && cutouts.length > 0 && <Button variant="ghost" size="sm" onClick={inspector.openInspector}>Select & edit pockets</Button>}
+          {inspector ? <BinObjectList kind="pocket" /> : pocketList}
           {!inspector && !selectedCutout && (
             <p className="rounded-md border border-dashed px-3 py-4 text-xs text-muted-foreground" id="pocket-properties" data-testid="pocket-selection-help">
               {cutouts.length === 0
-                ? "Choose Add pocket to draw a basic shape, or trace a tool and press “Add to bin”."
+                ? "Choose Add simple pocket to draw a basic shape, or trace a tool and press “Add to bin”."
                 : "Select a pocket on the canvas or in the list above. Its properties appear here."}
             </p>
           )}
@@ -1513,15 +1513,16 @@ export function BinControlsPanel({
           key={fingerHoles.length > 0 ? "finger-holes" : "finger-holes-empty"}
           id="bin-settings-finger-holes"
           title="Finger access"
+          hint="Allow room beside the tool at the depth where you will grip it. Wider slots can accommodate more fingers or gloves. Check the fit with the actual tool and hand before printing the full bin."
           icon={CircleDot}
           tone="cyan"
-          summary={`${fingerHoles.length} feature${fingerHoles.length === 1 ? "" : "s"}`}
+          summary={<span>{fingerHoles.length}<span className="sr-only"> feature{fingerHoles.length === 1 ? "" : "s"}</span></span>}
           defaultOpen={!!inspector || fingerHoles.length > 0}
           className="scroll-mt-16"
         >
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-3">
-              <SettingLabel label="Openings" hint="Allow room beside the tool at the depth where you will grip it. Wider slots can accommodate more fingers or gloves. Check the fit with the actual tool and hand before printing the full bin." />
+              <span className="text-xs font-medium">Openings</span>
               <Button
                 variant="outline"
                 size="sm"
@@ -1549,8 +1550,7 @@ export function BinControlsPanel({
               </Button>
             </div>
 
-            {!inspector && fingerList}
-            {inspector && fingerHoles.length > 0 && <Button variant="ghost" size="sm" onClick={inspector.openInspector}>Select & edit finger access</Button>}
+            {inspector ? <BinObjectList kind="finger" /> : fingerList}
 
             {!inspector && fingerProperties}
           </div>

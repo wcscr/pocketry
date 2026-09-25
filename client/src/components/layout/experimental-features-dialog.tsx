@@ -4,13 +4,22 @@ import { Label } from "@/components/ui/label";
 import { useExperimentalFeatures } from "@/state/experimental-features";
 
 export function ExperimentalFeaturesDialog(): JSX.Element {
-  const { enabled, setEnabled, settingsOpen, setSettingsOpen, persistenceUnavailable } = useExperimentalFeatures();
+  const { enabled, setEnabled, inspectorEnabled, setInspectorEnabled, settingsOpen, setSettingsOpen, persistenceUnavailable } = useExperimentalFeatures();
   return <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
     <DialogContent className="sm:max-w-md">
       <DialogHeader>
         <DialogTitle>Settings</DialogTitle>
         <DialogDescription>Choose which tools appear in Pocketry.</DialogDescription>
       </DialogHeader>
+      <div className="rounded-lg border p-4">
+        <div className="flex min-h-11 items-center justify-between gap-4">
+          <Label htmlFor="selection-inspector" className="cursor-pointer text-sm font-medium">Show properties on the right</Label>
+          <Switch id="selection-inspector" checked={inspectorEnabled} onCheckedChange={setInspectorEnabled} aria-describedby="selection-inspector-description" />
+        </div>
+        <p id="selection-inspector-description" className="mt-2 text-sm text-muted-foreground">
+          Try the new bin layout with objects and properties in a separate pane, including move, rotate, and arrangement tools. Saved for this browser across page changes and refreshes.
+        </p>
+      </div>
       <div className="rounded-lg border p-4">
         <div className="flex min-h-11 items-center justify-between gap-4">
           <Label htmlFor="experimental-features" className="cursor-pointer text-sm font-medium">Enable experimental features</Label>

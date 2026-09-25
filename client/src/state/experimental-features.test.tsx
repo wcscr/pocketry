@@ -2,7 +2,7 @@
 import * as React from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { ExperimentalFeaturesProvider, useExperimentalFeatures, EXPERIMENTAL_FEATURES_KEY } from "./experimental-features";
+import { ExperimentalFeaturesProvider, useExperimentalFeatures, EXPERIMENTAL_FEATURES_KEY, SELECTION_INSPECTOR_KEY } from "./experimental-features";
 import { PROJECT_SCHEMA_VERSION, type ProjectDoc } from "@shared/gridfinity/project";
 import { parseBinSpec } from "@shared/gridfinity/types";
 import { fingerHoleSchema } from "@shared/gridfinity/cutout";
@@ -18,8 +18,62 @@ function mount() {
   cleanup.push(unmount);
   return unmount;
 }
-beforeEach(() => { vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true); localStorage.clear(); });
-afterEach(() => { cleanup.splice(0).forEach(fn => fn()); vi.restoreAllMocks(); vi.unstubAllGlobals(); localStorage.clear(); });
+beforeEach(() => { vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true); localStorage.clear(); window.history.replaceState(null, "", "/"); });
+afterEach(() => { cleanup.splice(0).forEach(fn => fn()); vi.restoreAllMocks(); vi.unstubAllGlobals(); localStorage.clear(); window.history.replaceState(null, "", "/"); });
+
+it("remembers the inspector preview across ordinary navigation and reloads, with a working Settings opt-out", () => {
+  window.history.replaceState({ retained: true }, "", "/bin?inspector=1&keep=yes#properties");
+  mount();
+  expect(state.inspectorEnabled).toBe(true);
+  expect(state.enabled).toBe(false);
+  expect(localStorage.getItem(SELECTION_INSPECTOR_KEY)).toBe("true");
+  expect(window.location.search).toBe("?keep=yes");
+  expect(window.location.hash).toBe("#properties");
+  expect(window.history.state).toEqual({ retained: true });
+  for (const route of ["/", "/bin", "/about", "/bin"]) {
+    React.act(() => window.history.pushState(null, "", route));
+    expect(state.inspectorEnabled).toBe(true);
+  }
+  cleanup.pop()!(); mount();
+  expect(state.inspectorEnabled).toBe(true);
+  React.act(() => state.setSettingsOpen(true));
+  React.act(() => document.querySelector<HTMLButtonElement>("#selection-inspector")!.click());
+  expect(state.inspectorEnabled).toBe(false);
+  cleanup.pop()!(); mount();
+  expect(state.inspectorEnabled).toBe(false);
+});
+
+it("applies inspector links after the app mounts and supports an explicit return to the original layout", () => {
+  mount(); expect(state.inspectorEnabled).toBe(false);
+  React.act(() => window.history.pushState(null, "", "/bin?inspector=1"));
+  expect(state.inspectorEnabled).toBe(true);
+  React.act(() => window.history.pushState(null, "", "/bin?inspector=0"));
+  expect(state.inspectorEnabled).toBe(false);
+  expect(localStorage.getItem(SELECTION_INSPECTOR_KEY)).toBe("false");
+  expect(window.location.search).toBe("");
+});
+
+it("synchronizes the inspector choice across tabs without changing the experimental-tools preference", () => {
+  mount(); localStorage.setItem(SELECTION_INSPECTOR_KEY, "true");
+  React.act(() => window.dispatchEvent(new StorageEvent("storage", { key: SELECTION_INSPECTOR_KEY })));
+  expect(state.inspectorEnabled).toBe(true); expect(state.enabled).toBe(false);
+  localStorage.clear();
+  React.act(() => window.dispatchEvent(new StorageEvent("storage", { key: null })));
+  expect(state.inspectorEnabled).toBe(false);
+});
+
+it("retains the inspector during navigation when browser storage is blocked", () => {
+  vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new Error("blocked"); });
+  vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("blocked"); });
+  window.history.replaceState(null, "", "/bin?inspector=1");
+  mount();
+  React.act(() => window.history.pushState(null, "", "/"));
+  React.act(() => window.history.pushState(null, "", "/bin"));
+  expect(state.inspectorEnabled).toBe(true);
+  expect(state.persistenceUnavailable).toBe(true);
+  React.act(() => state.setInspectorEnabled(false));
+  expect(state.inspectorEnabled).toBe(false);
+});
 
 it("defaults off, persists an explicit choice and restores it after remount", () => {
   mount(); expect(state.enabled).toBe(false);

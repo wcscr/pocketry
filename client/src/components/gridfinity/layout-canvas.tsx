@@ -1896,7 +1896,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
           <div className="max-w-sm rounded-lg border border-dashed bg-background/90 px-5 py-4 text-center shadow-sm backdrop-blur">
             <p className="font-medium">No layout objects yet</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              Use Add pocket to draw a shape, or add a traced tool or finger access.
+              Use Add simple pocket to draw a shape, or add a traced tool or finger access.
             </p>
           </div>
         </div>
@@ -2049,7 +2049,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
           : editorMode === "label-edge"
           ? "Label tab · tap a highlighted boundary edge"
           : !hasPlacedObjects
-          ? "Choose Add pocket to draw a shape"
+          ? "Choose Add simple pocket to draw a shape"
           : editorMode === "split" ? "Split pocket · draw a straight line between two outer edge points" : editorMode === "contour"
           ? selectedCutoutId
             ? "Contour edit · drag points · click near an edge to add · right-click a point to remove · Esc finishes"

@@ -8,6 +8,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
+import { HelpHint } from "@/components/ui/help-hint";
 
 /** A focused mobile form can reuse an existing section without mounting unrelated fields. */
 export const PanelSectionFilterContext = createContext<string | readonly string[] | null>(null);
@@ -15,6 +16,8 @@ export const PanelSectionFilterContext = createContext<string | readonly string[
 export interface PanelSectionProps {
   /** Header label. Truncates rather than wrapping in a narrow panel. */
   title: string;
+  /** Guidance beside the title, available even while the section is collapsed. */
+  hint?: ReactNode;
   icon?: LucideIcon;
   defaultOpen?: boolean;
   /** Greys the header and blocks toggling — e.g. before an image is loaded. */
@@ -106,6 +109,7 @@ const TONE_STYLES = {
  */
 export function PanelSection({
   title,
+  hint,
   icon: Icon,
   defaultOpen = true,
   disabled = false,
@@ -127,7 +131,26 @@ export function PanelSection({
       data-tone={tone}
       className={cn("border-b", className)}
     >
-      <CollapsibleTrigger
+      {hint ? (
+        <div className="relative flex items-center gap-2 px-3 py-2 text-sm font-medium" data-panel-section-header>
+          {/* The hint is a sibling of the toggle so clicking it never collapses
+              the section or nests one interactive button inside another. */}
+          <CollapsibleTrigger data-panel-section-trigger aria-label={title}
+            className={cn("peer absolute inset-0 transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
+              attention && "animate-[pulse_1s_ease-in-out_3] motion-reduce:animate-none", toneStyles?.open)}>
+            <span className="sr-only">{title}</span>
+          </CollapsibleTrigger>
+          {toneStyles && <span aria-hidden className={cn("pointer-events-none absolute inset-y-1.5 left-0 w-0.5 rounded-r-full", toneStyles.marker)} />}
+          {Icon && <Icon className={cn("pointer-events-none relative h-4 w-4 shrink-0 text-muted-foreground", toneStyles?.icon)} />}
+          <span aria-hidden className="pointer-events-none relative min-w-0 truncate">{title}</span>
+          <span className="relative flex shrink-0 [@media(pointer:coarse)]:[&_button]:h-11 [@media(pointer:coarse)]:[&_button]:w-11">
+            <HelpHint label={title.toLowerCase()}>{hint}</HelpHint>
+          </span>
+          <span className="pointer-events-none flex-1" />
+          {summary && <span className={cn("pointer-events-none relative max-w-24 shrink-0 truncate rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground", toneStyles?.summary)}>{summary}</span>}
+          <ChevronDown aria-hidden className="pointer-events-none relative h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 peer-data-[state=open]:rotate-180" />
+        </div>
+      ) : <CollapsibleTrigger
         data-panel-section-trigger
         className={cn(
           "group relative flex w-full items-center gap-2 overflow-hidden px-3 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
@@ -167,7 +190,7 @@ export function PanelSection({
           </span>
         ) : null}
         <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
-      </CollapsibleTrigger>
+      </CollapsibleTrigger>}
       <CollapsibleContent className="space-y-3 px-3 pb-3">
         {children}
       </CollapsibleContent>

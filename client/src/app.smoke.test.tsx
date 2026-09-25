@@ -27,6 +27,7 @@ let root: Root;
 
 beforeEach(() => {
   localStorage.removeItem("pocketry:experimental-features");
+  localStorage.removeItem("pocketry:selection-inspector");
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.stubGlobal("ResizeObserver", NoopResizeObserver);
   window.history.replaceState(null, "", "/");
@@ -53,6 +54,7 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   localStorage.removeItem("pocketry:experimental-features");
+  localStorage.removeItem("pocketry:selection-inspector");
 });
 
 function renderApp(): void {
@@ -82,6 +84,25 @@ function openTraceSettings(section: "detect" | "scale" | "output"): void {
 }
 
 describe("App", () => {
+  it("keeps right-side properties through Trace, Bin, Library and a fresh app mount", async () => {
+    window.history.replaceState(null, "", "/bin?inspector=1");
+    renderApp();
+    const inspector = () => container.querySelector('[aria-label="Selection inspector"]');
+    expect(inspector()).not.toBeNull();
+    clickWorkspace("Trace");
+    expect(inspector()).toBeNull();
+    clickWorkspace("Bin");
+    expect(inspector()).not.toBeNull();
+    const library = [...container.querySelectorAll<HTMLAnchorElement>("nav a")].find(link => link.textContent?.trim() === "Library")!;
+    await act(async () => library.click());
+    expect(inspector()).not.toBeNull();
+    expect(window.location.search).toBe("");
+    act(() => root.unmount());
+    root = createRoot(container);
+    renderApp();
+    expect(inspector()).not.toBeNull();
+  });
+
   it.each(["desktop", "mobile"])("opens experimental settings from the %s header", async mode => {
     renderApp();
     if (mode === "desktop") act(() => container.querySelector<HTMLButtonElement>('[aria-label="Settings"]')!.click());

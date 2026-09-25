@@ -12,9 +12,14 @@ Use Node 22, run `npm ci`, then:
 npm exec -- vite --host 127.0.0.1 --port 5187 --strictPort
 ```
 
-Open `http://127.0.0.1:5187/bin?inspector=1`. The regular `/bin` URL retains the
-existing layout for comparison. The query flag enables the rotation branch's
-object tools for this session without changing the saved experimental preference.
+Open `http://127.0.0.1:5187/bin?inspector=1`, or enable **Settings → Show properties
+on the right**. The layout choice is saved for this browser and survives Trace,
+Bin, Library, About, and page refreshes. The preview link sets the preference once
+and removes its flag, preserving other query parameters and the URL fragment.
+Turn the setting off (or open `/bin?inspector=0`) to compare the original layout.
+With browser storage blocked, the preference lasts until the tab reloads. The
+inspector includes object tools without changing the separate experimental-tools
+preference or project data.
 
 Open `selection-inspector-demo.pocketry.json` through **Workflow →
 Project → Open project**. It contains four pockets and two finger accesses.
@@ -24,6 +29,13 @@ This is synthetic test data; importing uses the normal browser-local project flo
 
 - **Workflow** keeps project, size, construction, pocket creation, finger access,
   materials, fit checks and export in one continuous left pane.
+  The collapsible Pockets and Finger access sections also keep compact object
+  lists with names, type icons, and selection highlights. Selecting a row opens
+  its properties on the right, including when reselecting the current object.
+  Shift/Command/Control-click supports multiple objects. Both lists and the
+  canvas share selection without scrolling the workflow to the property editor.
+  **Add simple pocket** starts a basic shape; the Finger access heading's help
+  icon explains opening clearance without expanding or collapsing the section.
 - **Objects & properties** keeps the pocket and finger-access lists in their own
   scroll area above the right-side property inspector.
   Selecting objects does not scroll the list to a properties section. Use row
@@ -81,8 +93,14 @@ shared fields; use single-object controls for contour, size and shape-specific
 edits. Design links are retained, but persistent spatial groups are not added.
 
 Validation is local: `npm run check` and `npm run build` pass; `npm test` passes
-all 2,026 tests across 120 files using Node 22. HTTP tests need localhost binding
+all 2,034 tests across 120 files using Node 22. Regression coverage includes saved
+inspector preferences, Trace/Bin/Library navigation, app remounts, Settings
+opt-out, cross-tab synchronization, and unavailable browser storage.
+HTTP tests need localhost binding
 permission when run in a restricted sandbox. Browser
 checks cover desktop, tablet, portrait phone and short landscape layouts,
 mixed selection, scoped edits, arrangement, undo, gizmos, and panel toggling.
+Workflow-list selection was also checked on desktop and phone, including
+reopening the current object's inspector with the keyboard. The section-title
+hint was checked on desktop, portrait phone, and short landscape layouts.
 No hosted CI or physical-print qualification is part of this UI prototype.
