@@ -836,7 +836,7 @@ describe("BinDesignerPage", () => {
       expect(editor.querySelector<HTMLDetailsElement>(`[data-testid="${id}"]`)!.open).toBe(false);
     }
     expect(editor.querySelector('[aria-label="Extra pocket clearance in millimetres"]')!.closest('details')!.dataset.testid).toBe('pocket-clearance-settings');
-    expect(editor.lastElementChild?.querySelector('[data-testid="pocket-position-settings"]')).not.toBeNull();
+    expect(editor.lastElementChild?.getAttribute('data-testid')).toBe('pocket-clearance-settings');
     expect(editor.querySelector('[data-testid="button-inspect-pocket"]')!.closest('details')!.dataset.testid).toBe('pocket-depth-summary');
     expect(editor.querySelector<HTMLDetailsElement>('[data-testid="pocket-depth-summary"]')!.open).toBe(false);
     expect(container.querySelector('[data-testid="button-layout-edit-pocket"]')).toBeNull();
@@ -4605,8 +4605,9 @@ it("prototype keeps selection and list position while batch editing, undoing and
     const header = container.querySelector('[data-testid="inspector-properties-header"]')!;
     expect(header.querySelector('h3')?.textContent).toBe('Tool 1');
     expect(container.querySelector('[aria-label="Pocket cut depth in millimetres"]')).not.toBeNull();
-    expect(container.querySelector<HTMLDetailsElement>('[data-testid="pocket-clearance-settings"]')!.open).toBe(true);
-    expect(container.querySelector('[aria-label="Top edge rounding in millimetres"]')!.closest('details')).toBeNull();
+    expect(container.querySelector<HTMLDetailsElement>('[data-testid="pocket-clearance-settings"]')!.open).toBe(false);
+    expect(container.querySelector('#pocket-properties')!.lastElementChild?.getAttribute('data-testid')).toBe('pocket-clearance-settings');
+    expect(container.querySelector('[aria-label="Top edge rounding in millimetres"]')!.closest('details')!.dataset.testid).toBe('pocket-edge-settings');
     expect(header.querySelector('[aria-label="Duplicate selection"]')).toBeNull();
     expect(list.querySelector('[aria-label="Actions for Tool 1"]')).not.toBeNull();
     expect(list.scrollTop).toBe(150);

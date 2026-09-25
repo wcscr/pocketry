@@ -653,7 +653,7 @@ export function BinControlsPanel({
                   />
   );
   const pocketClearance = selectedCutout && selectedShape && (
-              <details open={!!inspector || undefined} className="group/clearance border-t pt-1 text-xs" data-testid="pocket-clearance-settings">
+              <details className="group/clearance border-t pt-1 text-xs" data-testid="pocket-clearance-settings">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-2 py-2 font-medium [&::-webkit-details-marker]:hidden">
                   <span className="flex items-center gap-1">Extra pocket clearance
                     <HelpHint label="extra pocket clearance">
@@ -767,7 +767,6 @@ export function BinControlsPanel({
 
                 <PocketDepthSummary cutout={depthCutout!} shape={depthShape!} section={section} inspect={onSectionChange} />
               </section>
-              {inspector && <>{pocketClearance}{pocketTopRounding}</>}
               <details className="group/size border-t pt-1 text-xs" aria-label="Pocket size and scale" data-testid="pocket-size-settings">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-2 py-2 font-medium [&::-webkit-details-marker]:hidden">
                   Size &amp; scale
@@ -782,7 +781,7 @@ export function BinControlsPanel({
                   <ChevronDown className="h-3.5 w-3.5 transition-transform group-open/more:rotate-180" />
                 </summary>
                 <div className="space-y-3 pt-2" key={selectedCutout.id}>
-                  {!inspector && pocketTopRounding}
+                  {pocketTopRounding}
                   <MmSlider
                     label="Bottom edge fillet"
                     value={selectedCutout.bottomFilletMm}
@@ -822,7 +821,6 @@ export function BinControlsPanel({
 
                 </div>
               </details>
-              {!inspector && pocketClearance}
 
               <PocketMeasurements cutout={selectedCutout} shape={selectedShape}>
                 <div className="flex items-center gap-2">
@@ -867,6 +865,7 @@ export function BinControlsPanel({
               )}
 
               {inspector && experimentalEnabled && <AdvancedLinks><LinkedDesignControls kind="pocket" activeId={selectedCutout.id} labels={new Map(cutouts.map(c => [c.id, pocketName(c, shapesById.get(c.shapeId))]))} /></AdvancedLinks>}
+              {pocketClearance}
             </PropertySurface>
           );
   const fingerProperties = selectedFingerHole && fingerSizeLimits && (

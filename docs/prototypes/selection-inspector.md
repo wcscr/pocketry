@@ -43,8 +43,10 @@ This is synthetic test data; importing uses the normal browser-local project flo
   object drawer. A regular row click opens Properties, even when reselecting.
 - **Properties** occupies the right pane. Its heading always identifies the
   selected object, including while moving or rotating. No object selected means
-  Bin settings. Pocket depth, clearance, and top rounding are visible; size,
-  other edge details, position, and linked copies use collapsible groups.
+  Bin settings. Pocket depth stays visible; size, edges and corners, position,
+  and linked copies use collapsible groups. Top edge rounding belongs in Edges
+  & corners in every layout.
+  Extra pocket clearance is collapsed at the bottom in all three layouts.
   Several selected objects get shared fields with **Mixed** for differing values
   and explicit **Apply** buttons. Pocket and finger-access edits have separate scopes.
 - Every property editor uses the originating section's color: blue for size,
