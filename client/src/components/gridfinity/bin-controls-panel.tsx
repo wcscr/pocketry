@@ -37,7 +37,7 @@ import { useDelayedBusy } from "@/hooks/use-delayed-busy";
 import { useLocation } from "wouter";
 import { LinkedDesignControls } from "./linked-design-controls";
 import { AddPocketMenu } from "./add-pocket-menu";
-import { BIN_WORKFLOW_SECTIONS as BIN_SETTINGS_SECTIONS } from "./bin-workflow";
+import { BIN_OBJECT_SECTIONS, BIN_WORKFLOW_SECTIONS as BIN_SETTINGS_SECTIONS } from "./bin-workflow";
 import { PropertySurface } from "@/components/layout/property-surface";
 import { InspectorPanelSections } from "./inspector-panel-sections";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
@@ -722,9 +722,9 @@ export function BinControlsPanel({
               <section className="space-y-2" aria-label="Pocket depth" key={`${selectedCutout.id}-${selectedPocketSection}-${!!selectedCutout.split}`}>
                 <div className="flex items-center gap-1">
                   <h4 className="text-sm font-semibold">Depth</h4>
+                  {selectedCutout.split && <span className="ml-auto text-xs text-muted-foreground">Section {selectedPocketSection === 0 ? "A" : "B"}</span>}
                   {spec.flatBottom && depthCutout!.depth.mode === "remaining" && <HelpHint label="remaining floor thickness">Measured from the flat underside. A 2 mm floor lets pockets extend into the former base area.</HelpHint>}
                 </div>
-                <PocketSplitControls cutout={selectedCutout} />
                 <div className="flex items-center gap-2">
                   <Select
                     value={depthCutout!.depth.mode}
@@ -767,6 +767,7 @@ export function BinControlsPanel({
 
                 <PocketDepthSummary cutout={depthCutout!} shape={depthShape!} section={section} inspect={onSectionChange} />
               </section>
+              <PocketSplitControls cutout={selectedCutout} />
               <details className="group/size border-t pt-1 text-xs" aria-label="Pocket size and scale" data-testid="pocket-size-settings">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-2 py-2 font-medium [&::-webkit-details-marker]:hidden">
                   Size &amp; scale
@@ -1173,11 +1174,16 @@ export function BinControlsPanel({
       </div> : projectStatus}
       {/* On short screens the section headers remain reachable by scrolling;
           reserve the limited height for editable fields instead of shortcuts. */}
-      <div className={inspector || exportOnly ? "hidden" : "shrink-0 [@media(max-height:500px)]:hidden"}>
+      <div className={(inspector ? !inspector.workflow : exportOnly) ? "hidden" : "shrink-0 [@media(max-height:500px)]:hidden"}>
         <PanelSettingsIndex
           ariaLabel="Find bin settings"
           testIdPrefix="bin"
           items={BIN_SETTINGS_SECTIONS}
+          activeSectionId={inspector?.workflow ? inspector.activeSection : undefined}
+          onNavigate={inspector?.workflow ? id => {
+            if (BIN_OBJECT_SECTIONS.has(id)) revealPanelSection(id, BIN_SETTINGS_SECTIONS);
+            inspector.showSection(id);
+          } : undefined}
         />
       </div>
       <InspectorPanelSections>

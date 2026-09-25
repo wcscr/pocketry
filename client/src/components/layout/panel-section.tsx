@@ -216,6 +216,9 @@ export interface PanelSettingsIndexProps {
   /** Used for stable test hooks, e.g. `bin` or `trace`. */
   testIdPrefix: string;
   items: readonly PanelSettingsIndexItem[];
+  /** Split layouts route settings to their editor instead of scrolling the panel. */
+  onNavigate?: (id: string) => void;
+  activeSectionId?: string | null;
 }
 
 /**
@@ -303,6 +306,8 @@ export function PanelSettingsIndex({
   ariaLabel,
   testIdPrefix,
   items,
+  onNavigate,
+  activeSectionId,
 }: PanelSettingsIndexProps): JSX.Element {
 
   return (
@@ -316,7 +321,7 @@ export function PanelSettingsIndex({
           Find a setting
         </span>
       </div>
-      <div className="grid grid-cols-3 gap-1">
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,7rem),1fr))] gap-1">
         {items.map((item) => {
           const styles = TONE_STYLES[item.tone];
           return (
@@ -324,13 +329,14 @@ export function PanelSettingsIndex({
               key={item.id}
               type="button"
               className={cn(
-                "flex min-w-0 items-center gap-1.5 rounded px-2 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40",
+                "flex min-w-0 items-center gap-1.5 rounded px-2 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring aria-[current=location]:ring-1 aria-[current=location]:ring-current disabled:cursor-not-allowed disabled:opacity-40",
                 styles.index,
               )}
               aria-controls={item.id}
+              aria-current={activeSectionId === item.id ? "location" : undefined}
               disabled={item.disabled}
               title={item.disabled ? item.disabledReason : undefined}
-              onClick={() => revealPanelSection(item.id, items)}
+              onClick={() => onNavigate ? onNavigate(item.id) : revealPanelSection(item.id, items)}
               data-testid={`${testIdPrefix}-settings-jump-${item.label
                 .toLowerCase()
                 .replace(/\s+/g, "-")}`}

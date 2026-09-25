@@ -33,21 +33,23 @@ export function InspectorWorkspace({ panel, canvas, inspector, panelOpen, onPane
   useEffect(() => { if (canvasEditingMode && canvasEditingMode !== "placement") setCompactPane(null); }, [canvasEditingMode]);
   const leftVisible = compact ? compactPane === "objects" : panelOpen;
   const rightVisible = compact ? compactPane === "properties" : rightOpen;
+  const showLeftRestore = !compact && !leftVisible;
   const toggleLeft = () => { if (compact) setCompactPane(leftVisible ? null : "objects"); else onPanelOpenChange(!panelOpen); };
   const toggleRight = () => { if (compact) setCompactPane(rightVisible ? null : "properties"); else setRightOpen(!rightOpen); };
   const collapseClass = "absolute right-1 top-1 z-40 h-9 w-9 [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11";
   return <MobileCanvasOverlayContext.Provider value={overlayRoot}>
     <div className="flex h-full min-h-0 flex-col" data-testid="inspector-workspace">
       {header && <div className="shrink-0 border-b bg-background">{header}</div>}
-      <div className="relative grid min-h-0 flex-1" style={{ gridTemplateColumns: `${!phone && leftVisible ? 280 : 0}px minmax(0,1fr) ${!bottomSheet && rightVisible ? 340 : 0}px` }}>
+      <div className="relative grid min-h-0 flex-1" style={{ gridTemplateColumns: `${!phone && leftVisible ? 280 : showLeftRestore ? 24 : 0}px minmax(0,1fr) ${!bottomSheet && rightVisible ? 340 : 0}px` }}>
         <div id="workflow-panel" hidden={!leftVisible} data-testid="desktop-workspace-controls" aria-label={`Design ${panelTitle.toLowerCase()}`}
           className={cn("relative min-h-0 min-w-0 overflow-hidden border-r bg-background", phone && "absolute inset-y-0 left-0 z-40 w-[min(320px,calc(100%-48px))] shadow-xl")}>
           {panel}
           <Button variant="ghost" size="icon" className={collapseClass} aria-label={`Collapse ${panelTitle.toLowerCase()} panel`} aria-controls="workflow-panel" onClick={toggleLeft}><PanelLeftClose /></Button>
         </div>
+        {showLeftRestore && <Button variant="ghost" className="col-start-1 row-start-1 h-full w-full rounded-none border-r bg-muted/30 p-0 text-muted-foreground hover:bg-accent hover:text-foreground"
+          data-testid="left-panel-restore-rail" aria-label={`Expand ${panelTitle.toLowerCase()} panel`} title={`Show ${panelTitle.toLowerCase()} panel`} aria-controls="workflow-panel" aria-expanded={false} onClick={toggleLeft}><PanelLeftOpen className="h-4 w-4" /></Button>}
         <div className={cn("col-start-2 flex min-h-0 min-w-0 flex-col overflow-hidden", bottomSheet && rightVisible && "h-[40%]")}>
           <div className="flex min-h-11 shrink-0 items-center gap-1 overflow-x-auto border-b bg-background px-1" aria-label="Editing tools">
-            {!compact && !leftVisible && <Button variant="ghost" size="sm" className="shrink-0 gap-1" aria-label={`Expand ${panelTitle.toLowerCase()} panel`} onClick={toggleLeft}><PanelLeftOpen className="h-4 w-4" />{panelTitle}</Button>}
             {toolbar}
             {!compact && !rightVisible && <Button variant="ghost" size="sm" className="ml-auto shrink-0 gap-1" aria-label="Expand properties panel" onClick={toggleRight}><PanelRightOpen className="h-4 w-4" />Properties</Button>}
           </div>

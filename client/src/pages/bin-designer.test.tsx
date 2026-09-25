@@ -674,6 +674,10 @@ describe("BinDesignerPage", () => {
     await flushHydration();
     selectPocket(container, "split-test");
     const button = (label: string) => [...container.querySelectorAll<HTMLButtonElement>('button')].find(b => b.textContent === label)!;
+    const splitSettings = container.querySelector<HTMLDetailsElement>('[data-testid="pocket-split-settings"]')!;
+    expect(splitSettings.closest('[aria-label="Pocket depth"]')).toBeNull();
+    expect(splitSettings.open).toBe(false);
+    React.act(() => splitSettings.querySelector('summary')!.click());
     React.act(() => button("Split pocket").click());
     const svg = container.querySelector<SVGSVGElement>('[data-testid="layout-canvas"]')!;
     Object.defineProperty(svg.querySelector('g')!, 'getScreenCTM', { value: () => ({ inverse: () => ({}) }) });
@@ -699,6 +703,8 @@ describe("BinDesignerPage", () => {
     const depth = () => container.querySelector<HTMLInputElement>('[aria-label="Pocket cut depth in millimetres"]')!;
     expect(depth().value).toBe('20');
     React.act(() => button("Section B").click());
+    expect(container.querySelector('[aria-label="Pocket depth"]')!.textContent).toContain('Section B');
+    expect(splitSettings.open).toBe(true);
     React.act(() => {
       depth().focus();
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(depth(), '6');
@@ -4826,6 +4832,12 @@ it.each([false, true])("workflow layout routes every section to matching propert
     const right = container.querySelector('[data-testid="selection-inspector"]')!;
     const canvas = container.querySelector('[data-testid="inspector-workspace-canvas"]');
     const chooseSection = (name: string) => React.act(() => left.querySelector<HTMLButtonElement>(`[aria-label="${name} — show properties"]`)!.click());
+    const index = left.querySelector<HTMLElement>('[aria-label="Find bin settings"]')!;
+    const jumpTo = (label: string) => React.act(() => Array.from(index.querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent === label)!.click());
+    expect(index.textContent).toContain('Find a setting');
+    expect(index.parentElement!.classList.contains('hidden')).toBe(false);
+    expect(index.closest('[data-testid="object-list-scroll"]')).toBeNull();
+    expect(index.querySelectorAll('button')).toHaveLength(8);
     expect(left.querySelector('#bin-settings-pockets')).not.toBeNull();
     expect(left.querySelector('#bin-settings-finger-holes')).not.toBeNull();
     expect(left.querySelectorAll('button[data-testid^="workflow-section-"]')).toHaveLength(6);
@@ -4843,18 +4855,32 @@ it.each([false, true])("workflow layout routes every section to matching propert
       expect(right.querySelector(selector)).not.toBeNull();
       expect(right.querySelector('[data-testid="inspector-properties-header"]')!.getAttribute('data-property-tone')).toBe(tone);
       expect(right.querySelector('[data-testid="inspector-bin-settings"] > [data-property-tone]')!.getAttribute('data-property-tone')).toBe(tone);
+      jumpTo('Pockets');
+      jumpTo(name === 'Bin size' ? 'Size' : name);
+      expect(right.querySelector('[data-testid="inspector-properties-header"] h3')!.textContent).toBe(name);
+      expect(index.querySelector('[aria-current="location"]')!.textContent).toBe(name === 'Bin size' ? 'Size' : name);
     }
     selectPocket(container, 'flow-pocket');
     expect(right.querySelector('#pocket-properties')!.getAttribute('data-property-tone')).toBe('violet');
-    chooseSection('Export');
+    jumpTo('Export');
     expect(left.querySelector<HTMLInputElement>('[aria-label="Include Tool in selection"]')!.checked).toBe(true);
     selectPocket(container, 'flow-pocket');
     expect(right.querySelector('#pocket-properties')!.closest('[hidden]')).toBeNull();
+    jumpTo('Finger access');
     React.act(() => left.querySelector<HTMLButtonElement>('[aria-label="Thumb — edit finger access properties"]')!.click());
     expect(right.querySelector('#finger-access-properties')!.getAttribute('data-property-tone')).toBe('cyan');
     React.act(() => left.querySelector<HTMLButtonElement>('[aria-label="Clear object selection"]')!.click());
     expect(left.querySelectorAll('input:checked')).toHaveLength(0);
     expect(right.querySelector('[data-testid="inspector-properties-header"] h3')!.textContent).toBe('Bin size');
+    if (mobile) React.act(() => Array.from(container.querySelectorAll<HTMLButtonElement>('nav[aria-label="Editor panels"] button')).find(button => button.textContent === 'Workflow')!.click());
+    jumpTo('Finger access');
+    expect(left.querySelector('#bin-settings-finger-holes')!.getAttribute('data-state')).toBe('open');
+    expect(left.querySelector('#bin-settings-pockets')!.getAttribute('data-state')).toBe('closed');
+    expect(left.hasAttribute('hidden')).toBe(false);
+    jumpTo('Pockets');
+    expect(left.querySelector('#bin-settings-pockets')!.getAttribute('data-state')).toBe('open');
+    expect(left.querySelector('#bin-settings-finger-holes')!.getAttribute('data-state')).toBe('closed');
+    expect(left.hasAttribute('hidden')).toBe(false);
     expect(container.querySelector('[data-testid="inspector-workspace-canvas"]')).toBe(canvas);
   } finally { unmount(); window.history.replaceState(null, '', originalUrl); }
 });

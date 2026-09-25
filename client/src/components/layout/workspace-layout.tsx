@@ -246,10 +246,11 @@ export function WorkspaceLayout({
     >
       {/* relative + overflow-hidden anchors CanvasToolbar and clips anything
           the canvas pans outside its box. */}
-      <div className="relative h-full w-full overflow-hidden">{canvas}
-        {!panelOpen && <Button variant="outline" className={`absolute top-1/2 z-40 h-11 -translate-y-1/2 gap-1.5 bg-background/95 text-xs shadow-sm ${panelSide === "left" ? "left-1" : "right-1"}`}
-          aria-label="Show controls" aria-controls="workspace-controls" aria-expanded={false} onClick={() => onPanelOpenChange(true)}>
-          {panelSide === "left" ? <PanelLeftOpen className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}Controls
+      <div className="relative flex h-full w-full overflow-hidden">
+        <div className="relative min-w-0 flex-1 overflow-hidden">{canvas}</div>
+        {!panelOpen && <Button variant="ghost" className={`h-full w-6 shrink-0 rounded-none bg-muted/30 p-0 text-muted-foreground hover:bg-accent hover:text-foreground ${panelSide === "left" ? "order-first border-r" : "border-l"}`}
+          data-testid="controls-restore-rail" title="Show controls ([)" aria-label="Show controls" aria-controls="workspace-controls" aria-expanded={false} onClick={() => onPanelOpenChange(true)}>
+          {panelSide === "left" ? <PanelLeftOpen className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
         </Button>}
       </div>
     </ResizablePanel>

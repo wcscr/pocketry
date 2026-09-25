@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useExperimentalFeatures } from "@/state/experimental-features";
 import { PropertySurface } from "@/components/layout/property-surface";
-import { BIN_WORKFLOW_SECTIONS } from "./bin-workflow";
+import { BIN_OBJECT_SECTIONS, BIN_WORKFLOW_SECTIONS } from "./bin-workflow";
 import { Copy, Trash2 } from "lucide-react";
 import { WorkspaceLayout, type WorkspaceLayoutProps } from "@/components/layout/workspace-layout";
 import { Button } from "@/components/ui/button";
@@ -35,7 +35,10 @@ export function BinEditingWorkspace({ enabled, ...props }: WorkspaceLayoutProps 
   const { selection, dispatch, editorMode } = useBin();
   const showSection = useCallback((id: string) => {
     if (workflow) {
-      setActiveSection(id); updateTool("properties"); openInspector();
+      setActiveSection(id); updateTool("properties");
+      // Object navigation keeps the list available, including in the phone drawer.
+      // Choosing a row then opens that object's properties.
+      if (!BIN_OBJECT_SECTIONS.has(id)) openInspector();
       return;
     }
     if (["bin-settings-project", "bin-settings-fit", "bin-settings-export"].includes(id)) {

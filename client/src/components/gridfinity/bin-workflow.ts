@@ -1,4 +1,6 @@
 /** Shared identity, order, and colors for workflow navigation and its editors. */
+export const BIN_OBJECT_SECTIONS = new Set(["bin-settings-pockets", "bin-settings-finger-holes"]);
+
 export const BIN_WORKFLOW_SECTIONS = [
   { id: "bin-settings-project", label: "Project", title: "Project", tone: "slate", description: "Save, open, and manage your projects." },
   { id: "bin-settings-size", label: "Size", title: "Bin size", tone: "blue", description: "Set the footprint, height, and grid pitch." },

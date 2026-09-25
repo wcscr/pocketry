@@ -16,12 +16,16 @@ Open `http://127.0.0.1:5187/bin?layout=workflow`, or choose a layout under
 **Settings → Bin editor layout**:
 
 - **Controls on the left** (`?layout=standard`): the original combined panel,
-  with Hide controls at its top right and Show controls beside the canvas.
+  with Hide controls at its top right and a narrow, full-height restore strip
+  beside the canvas.
 - **Objects left, properties right** (`?layout=objects`): the compact object tree
   and selection inspector described below.
 - **Workflow left, properties right** (`?layout=workflow`): every workflow section
   stays in order on the left; its property editor opens on the right. Pockets and
-  Finger access retain their add actions and object lists on the left.
+  Finger access retain their add actions and object lists on the left. The pinned,
+  color-coded **Find a setting** shortcuts open settings directly or reveal the
+  matching object list. On short screens the section headers remain available
+  while the shortcuts hide to leave room for controls.
 
 The layout choice is saved for this browser and survives Trace,
 Bin, Library, About, and page refreshes. The preview link sets the preference once
@@ -47,6 +51,8 @@ This is synthetic test data; importing uses the normal browser-local project flo
   and linked copies use collapsible groups. Top edge rounding belongs in Edges
   & corners in every layout.
   Extra pocket clearance is collapsed at the bottom in all three layouts.
+  Split pocket has its own collapsible group after Depth. It opens for an
+  existing split, and Depth identifies the section being edited.
   Several selected objects get shared fields with **Mixed** for differing values
   and explicit **Apply** buttons. Pocket and finger-access edits have separate scopes.
 - Every property editor uses the originating section's color: blue for size,
@@ -91,7 +97,9 @@ This is synthetic test data; importing uses the normal browser-local project flo
   including tilted linked copies, or nothing is applied.
 
 Wide screens show the object tree, canvas, and properties in three columns.
-Either panel can collapse. Compact screens have persistent **Objects** (or **Workflow**) and
+Either panel can collapse. On desktop, a hidden left panel leaves a narrow,
+full-height strip with a centered expand icon beside the canvas. The same strip
+restores controls in the standard layout. Compact screens have persistent **Objects** (or **Workflow**) and
 **Properties** buttons and show one pane at a time. On phones, Objects is a side
 drawer and Properties is a bottom sheet that leaves a visible canvas above it.
 Short landscape screens use a side inspector to preserve editing height. The editing canvas remains mounted in

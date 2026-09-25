@@ -4,9 +4,8 @@ import { ChevronRight } from "lucide-react";
 import { PanelBody, type PanelSectionProps } from "@/components/layout/panel-section";
 import { PropertySurface } from "@/components/layout/property-surface";
 import { useSelectionInspector } from "./selection-inspector-context";
-import { BIN_WORKFLOW_SECTIONS } from "./bin-workflow";
+import { BIN_OBJECT_SECTIONS as objectSections, BIN_WORKFLOW_SECTIONS } from "./bin-workflow";
 
-const objectSections = new Set(["bin-settings-pockets", "bin-settings-finger-holes"]);
 const binSections = new Set(["bin-settings-size", "bin-settings-construction", "bin-settings-materials"]);
 
 /** Keep every editor mounted once; workflow navigation chooses its right-hand home. */
