@@ -8,6 +8,7 @@ model generation kept on the user's device.
 [Try Pocketry](https://pocketry.xyz) ·
 [Sample projects](samples/README.md) ·
 [View the source](https://github.com/wcscr/pocketry) ·
+[Version history](CHANGELOG.md) ·
 [Read the license](LICENSE) ·
 [Read third-party notices](NOTICE)
 
@@ -141,6 +142,15 @@ npm run build
 ```
 
 The build includes `LICENSE.txt` and `NOTICE.txt` alongside the application.
+
+## Versions and update history
+
+About displays the version from `package.json`; [CHANGELOG.md](CHANGELOG.md)
+tracks notable updates. Keep entries to a few short bullets per version.
+
+For releases, use `npm version patch --no-git-tag-version` (or `minor` for new
+features, `major` for breaking changes), then date the matching changelog entry.
+Commit both package files and the changelog together after verification.
 
 ## License and attribution
 
