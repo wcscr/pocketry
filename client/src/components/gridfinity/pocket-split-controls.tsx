@@ -5,7 +5,7 @@ import { useBin } from "@/state/bin-store";
 
 /** Split is part of one pocket, so it needs no extra list or placement tools. */
 export function PocketSplitControls({ cutout }: { cutout: CutoutPlacement }): JSX.Element {
-  const { selectedPocketSection, editorMode, dispatch } = useBin();
+  const { editorMode, dispatch } = useBin();
   const begin = () => {
     dispatch({ type: "SET_VIEW_MODE", viewMode: "2d" });
     dispatch({ type: "SET_EDITOR_MODE", editorMode: "split" });
@@ -17,14 +17,6 @@ export function PocketSplitControls({ cutout }: { cutout: CutoutPlacement }): JS
       <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/split:rotate-180" />
     </summary>
     <div className="space-y-2 pb-2" aria-label="Pocket sections">
-    {cutout.split && <div className="flex gap-1" role="group" aria-label="Section to edit">
-      {([0, 1] as const).map(index => <Button key={index} type="button" size="sm"
-        className="h-9 flex-1 text-xs" variant={selectedPocketSection === index ? "secondary" : "outline"}
-        aria-pressed={selectedPocketSection === index}
-        onClick={() => dispatch({ type: "SELECT_CUTOUT", id: cutout.id, section: index })}>
-        Section {index === 0 ? "A" : "B"}
-      </Button>)}
-    </div>}
     <div className="flex flex-wrap gap-1">
       <Button type="button" size="sm" variant="outline" className="h-9 text-xs" onClick={begin} disabled={editorMode === "split"}>
         {cutout.split ? "Redraw split" : "Split pocket"}
@@ -38,7 +30,6 @@ export function PocketSplitControls({ cutout }: { cutout: CutoutPlacement }): JS
       {editorMode === "split" && <Button type="button" size="sm" variant="ghost" className="h-9 text-xs"
         onClick={() => dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" })}>Cancel split</Button>}
     </div>
-    {cutout.split && <p className="text-[11px] text-muted-foreground">Depth applies to the selected section. Size and edges apply to the whole pocket.</p>}
     </div>
   </details>;
 }

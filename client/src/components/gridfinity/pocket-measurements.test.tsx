@@ -103,6 +103,9 @@ describe("pocket measurements", () => {
     const resolved = resolvePocketDepth(store.spec, store.cutouts[0].depth);
     expect(host.textContent).toContain(`Floor: ${resolved.floorZ!.toFixed(1)} mm`);
     expect(host.textContent).toContain("Cut depth: 12.0 mm");
+    const depthGroup = host.querySelector<HTMLDetailsElement>('[data-testid="pocket-depth-summary"]')!;
+    expect(depthGroup.open).toBe(true);
+    expect(depthGroup.querySelector('summary')!.textContent).toBe('Depth');
     enter("Pocket width in millimetres", "50");
     expect(scale.mock.lastCall?.[0]).toBe("x");
     expect(scale.mock.lastCall?.[1]).toBeCloseTo(122.5);

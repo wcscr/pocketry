@@ -702,8 +702,11 @@ describe("BinDesignerPage", () => {
     expect(path.getAttribute('d')).toBe(outline);
     const depth = () => container.querySelector<HTMLInputElement>('[aria-label="Pocket cut depth in millimetres"]')!;
     expect(depth().value).toBe('20');
+    const sectionButtons = container.querySelector('[role="group"][aria-label="Section to edit"]')!;
+    expect(sectionButtons.closest('details')?.getAttribute('data-testid')).toBe('pocket-depth-summary');
+    expect(splitSettings.contains(sectionButtons)).toBe(false);
     React.act(() => button("Section B").click());
-    expect(container.querySelector('[aria-label="Pocket depth"]')!.textContent).toContain('Section B');
+    expect(button("Section B").getAttribute('aria-pressed')).toBe('true');
     expect(splitSettings.open).toBe(true);
     React.act(() => {
       depth().focus();
@@ -844,7 +847,7 @@ describe("BinDesignerPage", () => {
     expect(editor.querySelector('[aria-label="Extra pocket clearance in millimetres"]')!.closest('details')!.dataset.testid).toBe('pocket-clearance-settings');
     expect(editor.lastElementChild?.getAttribute('data-testid')).toBe('pocket-clearance-settings');
     expect(editor.querySelector('[data-testid="button-inspect-pocket"]')!.closest('details')!.dataset.testid).toBe('pocket-depth-summary');
-    expect(editor.querySelector<HTMLDetailsElement>('[data-testid="pocket-depth-summary"]')!.open).toBe(false);
+    expect(editor.querySelector<HTMLDetailsElement>('[data-testid="pocket-depth-summary"]')!.open).toBe(true);
     expect(container.querySelector('[data-testid="button-layout-edit-pocket"]')).toBeNull();
     expect(pockets.getAttribute('data-state')).toBe('open');
     expect(container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.disabled).toBe(true);
@@ -5026,7 +5029,9 @@ it.each(['standard', 'workflow'])('keeps pocket depth controls inside the depth 
   window.history.replaceState(null, '', `/bin?layout=${layout}`);
   const shape = rectangularShape('depth-group-shape', 'Depth tool');
   const pocket = parseCutoutPlacement({ id: 'depth-group', shapeId: shape.id, position: { x: 0, y: 0 }, depth: { mode: 'mm', value: 12 } });
-  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape], cutouts: [pocket] });
+  const splitPocket = parseCutoutPlacement({ id: 'depth-split', shapeId: shape.id, position: { x: 25, y: 0 }, depth: { mode: 'mm', value: 10 },
+    split: { boundary: [{ x: -15, y: 0 }, { x: 15, y: 0 }], depths: [{ mode: 'mm', value: 10 }, { mode: 'mm', value: 6 }] } });
+  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape], cutouts: [pocket, splitPocket] });
   const { container, unmount } = renderPage();
   try {
     await flushHydration();
@@ -5036,11 +5041,10 @@ it.each(['standard', 'workflow'])('keeps pocket depth controls inside the depth 
     expect(input.closest('details')).toBe(group);
     expect(group.querySelector('[aria-label="Pocket depth mode"]')).not.toBeNull();
     expect(group.querySelector('[data-testid="button-inspect-pocket"]')).not.toBeNull();
-    expect(group.open).toBe(false);
+    expect(group.open).toBe(true);
+    expect(group.querySelector('summary')!.textContent).toBe('Depth');
     expect(container.querySelector('[data-testid="inspector-active-tool"]')).toBeNull();
     expect(container.querySelector('[data-testid="pocket-properties-heading"]')!.textContent).toContain('Pocket properties');
-    React.act(() => group.querySelector('summary')!.click());
-    expect(group.open).toBe(true);
     React.act(() => {
       input.focus();
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, '14');
@@ -5050,7 +5054,8 @@ it.each(['standard', 'workflow'])('keeps pocket depth controls inside the depth 
     expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0].depth).toEqual({ mode: 'mm', value: 14 });
     React.act(() => group.querySelector('summary')!.click());
     expect(group.open).toBe(false);
-    expect(group.querySelector('summary')!.textContent).toContain('14.0 mm');
+    expect(group.querySelector('summary')!.textContent).toBe('Depth');
+    expect(group.textContent).toContain('Cut depth: 14.0 mm');
     React.act(() => group.querySelector('summary')!.click());
     expect(input.value).toBe('14');
     React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
@@ -5058,5 +5063,23 @@ it.each(['standard', 'workflow'])('keeps pocket depth controls inside the depth 
     selectPocket(container, pocket.id);
     expect(container.querySelector<HTMLInputElement>('[aria-label="Pocket cut depth in millimetres"]')!.value).toBe('12');
     expect(container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.disabled).toBe(true);
+    const currentGroup = () => container.querySelector<HTMLDetailsElement>('[data-testid="pocket-depth-summary"]')!;
+    React.act(() => currentGroup().querySelector('summary')!.click());
+    expect(currentGroup().open).toBe(false);
+    selectPocket(container, splitPocket.id);
+    expect(currentGroup().open).toBe(true);
+    expect(currentGroup().querySelector('summary')!.textContent).toBe('Depth');
+    const sectionButtons = container.querySelector('[role="group"][aria-label="Section to edit"]')!;
+    expect(sectionButtons.closest('details')).toBe(currentGroup());
+    expect(container.querySelector('[data-testid="pocket-split-settings"]')!.contains(sectionButtons)).toBe(false);
+    const sectionB = [...sectionButtons.querySelectorAll('button')].find(button => button.textContent === 'Section B')!;
+    React.act(() => sectionB.click());
+    expect(sectionB.getAttribute('aria-pressed')).toBe('true');
+    expect(currentGroup().open).toBe(true);
+    expect(currentGroup().querySelector<HTMLInputElement>('[aria-label="Pocket cut depth in millimetres"]')!.value).toBe('6');
+    React.act(() => currentGroup().querySelector('summary')!.click());
+    expect(currentGroup().open).toBe(false);
+    selectPocket(container, pocket.id);
+    expect(currentGroup().open).toBe(true);
   } finally { unmount(); window.history.replaceState(null, '', originalUrl); }
 });

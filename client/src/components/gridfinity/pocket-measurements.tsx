@@ -105,7 +105,7 @@ export function PocketMeasurements({ cutout, shape, children }: {
   </div>;
 }
 
-/** Depth controls, feedback, and inspection share one collapsible section. */
+/** Depth controls, feedback, and inspection share one section, expanded for each newly selected pocket. */
 export function PocketDepthSummary({ cutout, shape, section, inspect, children }: {
   cutout: CutoutPlacement; shape: TracedShape;
   section: BuildBinSection | null;
@@ -117,13 +117,14 @@ export function PocketDepthSummary({ cutout, shape, section, inspect, children }
   const total = binTotalHeightMm(spec.heightUnits, spec.lip === "standard");
   const bounds = outlineBounds(placementFootprint(shape, cutout).outline)!;
   return <div className="space-y-2">
-    <details className="group/depth text-xs" data-testid="pocket-depth-summary">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded py-1.5 text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
-        <span>{hasPocketTilt(cutout) ? "Vertical depth" : "Cut depth"}: {pocket.depthMm === null ? "through" : `${pocket.depthMm.toFixed(1)} mm`} · Floor: {(pocket.floorZ ?? 0).toFixed(1)} mm</span>
+    <details key={cutout.id} open className="group/depth text-xs" data-testid="pocket-depth-summary">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded py-2 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+        <span>Depth</span>
         <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/depth:rotate-180" />
       </summary>
       {children}
       <div className="rounded border bg-muted/30 p-2">
+        <p className="text-muted-foreground">{hasPocketTilt(cutout) ? "Vertical depth" : "Cut depth"}: {pocket.depthMm === null ? "through" : `${pocket.depthMm.toFixed(1)} mm`} · Floor: {(pocket.floorZ ?? 0).toFixed(1)} mm</p>
         <p className="text-muted-foreground">Infill top: {pocket.infillTopZ.toFixed(1)} mm · Total bin: {total.toFixed(1)} mm</p>
         {hasPocketTilt(cutout) && <p className="mt-1 text-muted-foreground">Along pocket axis: {pocket.axialDepthMm === null ? "through" : `${pocket.axialDepthMm.toFixed(1)} mm`} · Axis tilt: {(Math.acos(pocketAxis(cutout).z) * 180 / Math.PI).toFixed(1)}°</p>}
         {!hasPocketTilt(cutout) && <svg viewBox="0 0 240 65" className="mt-2 h-16 w-full" role="img" aria-label="Cross-section: pocket depth above remaining floor, with stacking rim above infill">

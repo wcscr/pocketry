@@ -50,13 +50,15 @@ This is synthetic test data; importing uses the normal browser-local project flo
 - **Properties** occupies the right pane. Its heading always identifies the
   selected object, including while moving or rotating. The shaded panel keeps
   its properties heading without a separate Properties row above it. No object selected means
-  Bin settings. The depth mode and value sit inside the Cut depth / Vertical
-  depth collapsible section. Size, edges and corners, position, and linked
-  copies also use collapsible groups. Top edge rounding belongs in Edges
+  Bin settings. Depth opens expanded when a pocket is selected; its plain
+  heading keeps measurements in the section body. The depth mode, value,
+  and split-pocket Section A/B buttons sit together inside it. Size, edges and
+  corners, position, and linked copies also use collapsible groups. Top edge rounding belongs in Edges
   & corners in every layout.
   Extra pocket clearance is collapsed at the bottom in both layouts.
-  Split pocket has its own collapsible group after Depth. It opens for an
-  existing split, and Depth identifies the section being edited.
+  Split creation, redrawing, and removal have their own collapsible group
+  after Depth. It opens for an existing split, and Depth highlights the section
+  being edited.
   Several selected objects get shared fields with **Mixed** for differing values
   and explicit **Apply** buttons. Pocket and finger-access edits have separate scopes.
 - Every property editor uses the originating section's color: blue for size,

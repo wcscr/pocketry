@@ -734,12 +734,15 @@ export function BinControlsPanel({
 
               {!inspector && experimentalEnabled && <LinkedDesignControls kind="pocket" activeId={selectedCutout.id} labels={new Map(cutouts.map(c => [c.id, pocketName(c, shapesById.get(c.shapeId))]))} />}
               <PocketDepthSummary cutout={depthCutout!} shape={depthShape!} section={section} inspect={onSectionChange}>
+                {selectedCutout.split && <div className="flex gap-1 pb-2" role="group" aria-label="Section to edit">
+                  {([0, 1] as const).map(index => <Button key={index} type="button" size="sm"
+                    className="h-9 flex-1 text-xs" variant={selectedPocketSection === index ? "secondary" : "outline"}
+                    aria-pressed={selectedPocketSection === index}
+                    onClick={() => dispatch({ type: "SELECT_CUTOUT", id: selectedCutout.id, section: index })}>
+                    Section {index === 0 ? "A" : "B"}
+                  </Button>)}
+                </div>}
                 <section className="space-y-2 pb-2" aria-label="Pocket depth" key={`${selectedCutout.id}-${selectedPocketSection}-${!!selectedCutout.split}`}>
-                  <div className="flex items-center gap-1">
-                    <h4 className="text-sm font-semibold">Depth</h4>
-                    {selectedCutout.split && <span className="ml-auto text-xs text-muted-foreground">Section {selectedPocketSection === 0 ? "A" : "B"}</span>}
-                    {spec.flatBottom && depthCutout!.depth.mode === "remaining" && <HelpHint label="remaining floor thickness">Measured from the flat underside. A 2 mm floor lets pockets extend into the former base area.</HelpHint>}
-                  </div>
                   <div className="flex items-center gap-2">
                     <Select
                       value={depthCutout!.depth.mode}
@@ -763,6 +766,7 @@ export function BinControlsPanel({
                         <SelectItem value="through">Through</SelectItem>
                       </SelectContent>
                     </Select>
+                    {spec.flatBottom && depthCutout!.depth.mode === "remaining" && <HelpHint label="remaining floor thickness">Measured from the flat underside. A 2 mm floor lets pockets extend into the former base area.</HelpHint>}
                     {depthCutout!.depth.mode === "mm" && (
                       <DraftNumberInput
                         className="h-9 w-20 text-base font-semibold"
@@ -782,7 +786,7 @@ export function BinControlsPanel({
 
                   {depthCutout!.depth.mode === "remaining" && <MmSlider label="Remaining floor thickness" value={depthCutout!.depth.floorThicknessMm} min={0} max={Math.max(7, spec.heightUnits * 7)} step={0.5}
                     onChange={(floorThicknessMm, transient) => updatePocketDepth({ mode: "remaining", floorThicknessMm }, transient)} />}
-
+                  {selectedCutout.split && <p className="text-[11px] text-muted-foreground">Depth applies to the selected section. Size and edges apply to the whole pocket.</p>}
                 </section>
               </PocketDepthSummary>
               <PocketSplitControls cutout={selectedCutout} />
