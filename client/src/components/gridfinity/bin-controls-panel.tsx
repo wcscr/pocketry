@@ -335,8 +335,7 @@ export function BinControlsPanel({
 }: BinControlsPanelProps): JSX.Element {
   const showPreviewBusy = useDelayedBusy(building);
   const inspector = useSelectionInspector();
-  const { enabled: experimentalPreference, setSettingsOpen } = useExperimentalFeatures();
-  const experimentalEnabled = experimentalPreference || !!inspector;
+  const { enabled: experimentalEnabled, setSettingsOpen } = useExperimentalFeatures();
   const {
     spec,
     cutouts,
@@ -1188,7 +1187,7 @@ export function BinControlsPanel({
       {inspector ? <div className="shrink-0 border-b px-3 pb-2 pt-4">
         <h2 className="mb-3 text-xs font-semibold">Design workflow</h2>
         <div className="mt-1 flex items-center justify-between text-xs">
-          <Button size="sm" variant="ghost" className="px-2 text-xs" disabled={!cutouts.length && !fingerHoles.length} onClick={() => dispatch({ type: "SET_SELECTION", selection: [...cutouts.map(c => ({ kind: "pocket" as const, id: c.id })), ...fingerHoles.map(h => ({ kind: "finger" as const, id: h.id }))] })}>Select all</Button>
+          {experimentalEnabled && <Button size="sm" variant="ghost" className="px-2 text-xs" disabled={!cutouts.length && !fingerHoles.length} onClick={() => dispatch({ type: "SET_SELECTION", selection: [...cutouts.map(c => ({ kind: "pocket" as const, id: c.id })), ...fingerHoles.map(h => ({ kind: "finger" as const, id: h.id }))] })}>Select all</Button>}
           <Button size="sm" variant="ghost" className="px-2 text-xs" disabled={!selection.length} aria-label="Clear object selection" onClick={() => { dispatch({ type: "SET_SELECTION", selection: [] }); inspector.showSection("bin-settings-size"); }}>Clear</Button>
         </div>
       </div> : projectStatus}

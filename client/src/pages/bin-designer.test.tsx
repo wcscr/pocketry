@@ -4520,7 +4520,7 @@ it.each([false, true])("prototype has one object list and preserves identity whe
   const cutouts = [0, 1].map(i => parseCutoutPlacement({ id: `workflow-${i}`, name: `Tool ${i + 1}`, shapeId: shape.id, position: { x: i * 40 - 20, y: 0 } }));
   const finger = fingerHoleSchema.parse({ id: "workflow-f", name: "Thumb access", center: { x: 0, y: 0 } });
   vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, spec: parseBinSpec({ gridX: 4, gridY: 4, heightUnits: 6 }), shapes: [shape], cutouts, fingerHoles: [finger] });
-  const { container, unmount } = renderPage({ mobile, experimental: false });
+  const { container, unmount } = renderPage({ mobile, experimental: true });
   try {
     await flushHydration();
     const workflow = container.querySelector<HTMLElement>('#workflow-panel')!;
@@ -4599,7 +4599,7 @@ it("prototype keeps selection and list position while batch editing, undoing and
   const cutouts = [10, 20].map((value, i) => parseCutoutPlacement({ id: `proto-${i}`, name: `Tool ${i + 1}`, shapeId: shape.id, position: { x: i * 40 - 20, y: 0 }, depth: { mode: "mm", value } }));
   const finger = fingerHoleSchema.parse({ id: "proto-f", name: "Tool access", center: { x: 0, y: 0 }, depthMm: 8 });
   vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, spec: parseBinSpec({ gridX: 4, gridY: 4, heightUnits: 6 }), shapes: [shape], cutouts, fingerHoles: [finger] });
-  const { container, unmount } = renderPage({ experimental: false });
+  const { container, unmount } = renderPage({ experimental: true });
   try {
     await flushHydration();
     const clickText = (text: string, within: ParentNode = container) => React.act(() => [...within.querySelectorAll<HTMLButtonElement>('button')].find(b => b.textContent === text)!.click());
@@ -4694,7 +4694,7 @@ it.each([false, true])("prototype toolbar opens scoped link/unlink controls with
     position: { x: i * 40 - 20, y: 0 }, depth: { mode: 'mm', value } }));
   const finger = fingerHoleSchema.parse({ id: 'toolbar-access', name: 'Tool access', center: { x: 0, y: 0 }, depthMm: 8 });
   vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, spec: parseBinSpec({ gridX: 4, gridY: 4, heightUnits: 6 }), shapes: [shape], cutouts, fingerHoles: [finger] });
-  const { container, unmount } = renderPage({ mobile, experimental: false });
+  const { container, unmount } = renderPage({ mobile, experimental: true });
   try {
     await flushHydration();
     const button = (label: string) => container.querySelector<HTMLButtonElement>(`[aria-label="${label}"]`);
@@ -5083,3 +5083,53 @@ it.each(['standard', 'workflow'])('keeps pocket depth controls inside the depth 
     expect(currentGroup().open).toBe(true);
   } finally { unmount(); window.history.replaceState(null, '', originalUrl); }
 });
+
+it.each(['Move selected objects', 'Rotate selected objects', 'Arrange selected objects', 'Link and unlink selected objects'])(
+  'respects the experimental toggle in Workflow after using %s', async activeTool => {
+    const originalUrl = window.location.href;
+    window.history.replaceState(null, '', '/bin?layout=workflow');
+    const shape = rectangularShape('optional-tool-shape', 'Tool');
+    const cutouts = [-20, 20].map((x, i) => parseCutoutPlacement({ id: `optional-tool-${i}`, name: `Tool ${i + 1}`, shapeId: shape.id,
+      position: { x, y: 0 }, depth: { mode: 'mm', value: 12 } }));
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape], cutouts });
+    const { container, unmount } = renderPage({ experimental: false });
+    const advancedLabels = ['Move selected objects', 'Rotate selected objects', 'Arrange selected objects', 'Link and unlink selected objects'];
+    const button = (label: string) => container.querySelector<HTMLButtonElement>(`[aria-label="${label}"]`);
+    const clickView = (view: string) => React.act(() => container.querySelector<HTMLButtonElement>(`[data-testid="view-toggle-${view}"]`)!.click());
+    try {
+      await flushHydration();
+      expect(container.querySelector('[data-experimental-editor="false"]')).not.toBeNull();
+      clickView('2d');
+      selectPocket(container, cutouts[0].id);
+      for (const label of advancedLabels) expect(button(label)).toBeNull();
+      expect(button('Select objects')!.getAttribute('aria-pressed')).toBe('true');
+      expect(container.querySelector('[aria-label^="Include Tool"]')).toBeNull();
+      expect([...container.querySelectorAll('button')].find(button => button.textContent === 'Select all')).toBeUndefined();
+      expect(container.querySelector('#pocket-properties')!.closest('[data-testid="selection-inspector"]')).not.toBeNull();
+      React.act(() => experimentalSettings.setEnabled(true));
+      React.act(() => container.querySelector<HTMLInputElement>('[aria-label="Include Tool 2 in selection"]')!.click());
+      for (const label of advancedLabels) expect(button(label)!.disabled).toBe(false);
+      React.act(() => button(activeTool)!.click());
+      expect(button(activeTool)!.getAttribute('aria-pressed')).toBe('true');
+      React.act(() => experimentalSettings.setEnabled(false));
+      for (const label of advancedLabels) expect(button(label)).toBeNull();
+      expect(container.querySelector('[data-testid="pocket-3d-controls"]')).toBeNull();
+      expect(container.querySelector('[data-testid="inspector-active-tool"]')).toBeNull();
+      expect(container.querySelector('[data-testid="batch-properties"]')).toBeNull();
+      expect(container.querySelector('#pocket-properties')!.closest('[hidden]')).toBeNull();
+      expect(button('Select objects')!.getAttribute('aria-pressed')).toBe('true');
+      for (const key of ['w', 'e', 'a']) React.act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key, ctrlKey: key === 'a' })));
+      expect(container.querySelector('[data-testid="inspector-active-tool"]')).toBeNull();
+      expect(container.querySelector('[data-testid="pocket-3d-controls"]')).toBeNull();
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toEqual(cutouts);
+      expect(container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.disabled).toBe(true);
+      clickView('3d');
+      expect(container.querySelector('[data-experimental-editor="false"]')).not.toBeNull();
+      React.act(() => experimentalSettings.setEnabled(true));
+      expect(container.querySelector('[data-experimental-editor="true"]')).not.toBeNull();
+      clickView('2d');
+      for (const label of advancedLabels) expect(button(label)).not.toBeNull();
+      expect(button('Select objects')!.getAttribute('aria-pressed')).toBe('true');
+    } finally { unmount(); window.history.replaceState(null, '', originalUrl); }
+  },
+);

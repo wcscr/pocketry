@@ -5,6 +5,7 @@ import { Copy, Trash2 } from "lucide-react";
 import { WorkspaceLayout, type WorkspaceLayoutProps } from "@/components/layout/workspace-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useExperimentalFeatures } from "@/state/experimental-features";
 import { useBin } from "@/state/bin-store";
 import { useShapeLibrary } from "@/state/shape-library";
 import { pocketName } from "@shared/gridfinity/cutout";
@@ -20,7 +21,9 @@ export function BinEditingWorkspace({ enabled, ...props }: WorkspaceLayoutProps 
   const [settings, setSettings] = useState<HTMLDivElement | null>(null);
   const [projectHeader, setProjectHeader] = useState<HTMLDivElement | null>(null);
   const [toolbar, setToolbar] = useState<HTMLDivElement | null>(null);
+  const { enabled: experimentalEnabled } = useExperimentalFeatures();
   const [tool, updateTool] = useState<InspectorTool>("properties");
+  useEffect(() => { if (!experimentalEnabled) updateTool("properties"); }, [experimentalEnabled]);
   const [openRequest, setOpenRequest] = useState(0);
   const openInspector = useCallback(() => setOpenRequest(n => n + 1), []);
   const setTool = useCallback((next: InspectorTool) => { setActiveSection(null); updateTool(next); openInspector(); }, [openInspector]);

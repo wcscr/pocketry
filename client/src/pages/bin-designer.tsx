@@ -102,7 +102,7 @@ export default function BinDesignerPage(): JSX.Element {
 }
 
 function BinDesignerWorkspace(): JSX.Element {
-  const { inspectorEnabled: inspectorPrototype, enabled: experimentalPreference, enableForProject } = useExperimentalFeatures();
+  const { inspectorEnabled: inspectorPrototype, enabled: experimentalEnabled, enableForProject } = useExperimentalFeatures();
   const { panelOpen, setPanelOpen, libraryRequested } = usePanelState();
   const [quickAdjustOpen, setQuickAdjustOpen] = useState(false);
   const [pocketEditorRequest, setPocketEditorRequest] = useState(0);
@@ -124,7 +124,6 @@ function BinDesignerWorkspace(): JSX.Element {
   };
   const { toast } = useToast();
   const bin = useBin();
-  const experimentalEnabled = experimentalPreference || inspectorPrototype;
   const enableProjectFeatures = useCallback((doc: ProjectDoc) => {
     if (enableForProject(doc)) toast({
       title: "Experimental features enabled",

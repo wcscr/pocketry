@@ -247,8 +247,7 @@ export function LayoutCanvas({ onEditPocket }: {
 
 function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Element {
   const inspector = useSelectionInspector();
-  const { enabled: experimentalPreference } = useExperimentalFeatures();
-  const experimentalEnabled = experimentalPreference || !!inspector;
+  const { enabled: experimentalEnabled } = useExperimentalFeatures();
   const isMobile = useIsMobile();
   const {
     spec,

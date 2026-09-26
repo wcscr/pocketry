@@ -32,8 +32,9 @@ and removes its flag, preserving other query parameters and the URL fragment.
 Retired `?layout=objects` and `?inspector=1|0` links return to Controls on the left.
 Saved object-tree and legacy inspector preferences also fall back to this default.
 With browser storage blocked, the preference lasts until the tab reloads. The
-inspector includes object tools without changing the separate experimental-tools
-preference or project data.
+layout choice is independent of experimental tools. Move, Rotate, Arrange, Link,
+and multi-selection require **Enable experimental features**. Turning it off
+returns an active advanced tool to Select and preserves project geometry and links.
 
 Open `selection-inspector-demo.pocketry.json` through **Project → Open project**. It contains four pockets and two finger accesses.
 This is synthetic test data; importing uses the normal browser-local project flow.
@@ -79,8 +80,9 @@ This is synthetic test data; importing uses the normal browser-local project flo
   Setting pocket depth converts selected depth modes to fixed millimetres and
   updates both sections of split pockets. Boundary shapes remain unchanged.
 - The labeled **Select**, **Move**, **Rotate**, **Arrange**, and **Link** toolbar
-  stays above the canvas in both views. Unavailable tools stay visible but
-  disabled. The active tool is highlighted and named in Properties; **Done**
+  stays above the canvas in both views. Move, Rotate, Arrange, and Link are
+  hidden when experimental features are off; Select and canvas-mode Done remain.
+  With experimental features on, tools unavailable for the selection stay disabled. The active tool is highlighted and named in Properties; **Done**
   returns to regular editing, including when editing a contour.
   Move and Rotate activate their 3D gizmos. The X/Y/Z letter grips support the
   same axis constraints, snapping, and undo as their lines or rotation rings.

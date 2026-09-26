@@ -421,7 +421,7 @@ export function BinViewport({
         >
           <Ruler className="h-4 w-4" />
         </Button>
-        {pocketEditor && inspector && <SelectionToolButtons count={selectedObjects.length} inactive={rulerActive} onActivate={() => setRulerActive(false)} />}
+        {inspector && <SelectionToolButtons count={selectedObjects.length} inactive={rulerActive} onActivate={() => setRulerActive(false)} />}
         {pocketEditor && !inspector && <Button variant="ghost" size="icon"
           className={cn("h-9 w-9 rounded-none border-t [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11", objectControlsOpen && !rulerActive && "bg-accent text-accent-foreground")}
           aria-label="Object controls" title="Move, rotate and arrange objects" aria-expanded={objectControlsOpen && !rulerActive}
