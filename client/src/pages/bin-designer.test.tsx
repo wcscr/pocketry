@@ -375,7 +375,7 @@ describe("BinDesignerPage", () => {
       await flushHydration();
       openSettingsSection(container, "finger-holes");
       const add = container.querySelector<HTMLButtonElement>('[data-testid="button-add-finger-hole"]')!;
-      expect(add.textContent?.trim()).toBe("Add");
+      expect(add.textContent?.trim()).toBe("Add Finger Access");
       React.act(() => add.click());
       const expectedDepth = layout === "empty" ? 12 : layout === "split" ? 7 : 17;
       const added = vi.mocked(useBinGeometry).mock.lastCall![2]!.fingerHoles[1];

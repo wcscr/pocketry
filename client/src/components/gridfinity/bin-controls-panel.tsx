@@ -1552,8 +1552,7 @@ export function BinControlsPanel({
           className="scroll-mt-16"
         >
           <div className="space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-xs font-medium">Openings</span>
+            <div className="flex items-center justify-start gap-3">
               <Button
                 variant="outline"
                 size="sm"
@@ -1577,7 +1576,7 @@ export function BinControlsPanel({
                 }
               >
                 <Plus className="mr-1 h-3 w-3" />
-                Add
+                Add Finger Access
               </Button>
             </div>
 
