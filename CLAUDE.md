@@ -89,6 +89,14 @@ disagreed about Y, which shipped mirrored STLs.
 - Author: Will Cobb <will.cobb@sugarcreekresearch.com>
 - Never add Co-Authored-By lines
 
+## Versions & Changelog
+
+- About reads `package.json`; keep `package-lock.json` in sync when bumping it.
+- Add notable user-visible changes to **Unreleased** in `CHANGELOG.md`. Keep
+  entries to a few short bullets; omit internal-only refactors.
+- On release, use major/minor/patch versioning and a dated changelog section,
+  newest first. Application and saved-project schema versions are independent.
+
 ## Runtime & Dependencies
 
 - Node.js 22, npm with a committed `package-lock.json`.

@@ -1,6 +1,5 @@
 {
   "description": "Contributor-supplied sample designs and original print exports. See each sample README for availability.",
-  "projectCleanup": "Descriptive project, pocket, shape, and finger-access names; unused shapes and undo history omitted. Editable distances and angles rounded to tenths; scale ratios retain tenths of a percent. Traced outline coordinates retain full precision. Original 3MF models are unchanged.",
   "samples": [
     {
       "directory": "wolfbox-mf70-airduster-kit",
@@ -12,8 +11,7 @@
       "project": {
         "file": "wolfbox-mf70-airduster-kit.pocketry.json",
         "sha256": "e1fc4c5f842009b376987ae9b88140aff050f25b59fb41e5944ec13be8eeb073",
-        "sourceFile": "Airduster-Tutorial-bin-4x4x6.5-2026-09-15_11-44-08-375.pocketry.json",
-        "matchEvidence": "Source project content matches the JSON downloaded alongside the selected 3MF export. Published settings are rounded to tenths as requested."
+        "sourceFile": "Airduster-Tutorial-bin-4x4x6.5-2026-09-15_11-44-08-375.pocketry.json"
       },
       "photos": [
         {
@@ -54,9 +52,7 @@
       "project": {
         "file": "dewalt-right-angle-tools.pocketry.json",
         "sha256": "f65490caed63354b04682111cceb94e03d392dd59a38262b6efb3fd08927b702",
-        "sourceFile": "Dewalt-90-degree-adapters-bin-3x5x5.5-2026-09-07_13-20-04-866.pocketry.json",
-        "recovery": "The print floor elevations establish pocket depths of 31 mm for the long adapter, 31 mm for the handle, and 25 mm for the short adapter.",
-        "matchEvidence": "After depth recovery, the current generator differs from the printed mesh by approximately 31.522 mm3 (0.0053 percent of model volume), before rounding settings to tenths. Outline geometry and placement are retained from the source project."
+        "sourceFile": "Dewalt-90-degree-adapters-bin-3x5x5.5-2026-09-07_13-20-04-866.pocketry.json"
       },
       "photos": [
         {
@@ -84,9 +80,7 @@
       "project": {
         "file": "ryobi-cutter.pocketry.json",
         "sha256": "a9742f58ea0c998fd06d9e6c949fbf4b6dce6103b1f4e8a5ca208afe7739521a",
-        "sourceFile": "Ryobi-Cutter-recovered.pocketry.json",
-        "recovery": "Recovered tool outline, split depths, and finger slot; height restored to 9u and Gridfinity base restored from the printed 3MF.",
-        "matchEvidence": "Symmetric mesh volume difference 0.0574 mm3 across a 948849 mm3 solid, consistent with floating-point mesh precision, before user-requested rounding of settings to tenths."
+        "sourceFile": "Ryobi-Cutter-recovered.pocketry.json"
       },
       "photos": [
         {
@@ -127,9 +121,7 @@
       "project": {
         "file": "caliper-storage.pocketry.json",
         "sha256": "e5a570a11eb324577d68ff649362e28e80d1e1565fdccbf456ed4076f7fbbd4f",
-        "sourceFile": "Digital-Calipers-bin-6x3x3-2026-09-19_13-14-09-294.pocketry.json",
-        "recovery": "Reconstructed from the newest printed 6x3x3.5u 3MF: retained the caliper outline, restored 17 mm caliper and battery pocket depths, 12 mm measurement-strip depths, accessory dimensions and positions, and the enlarged/repositioned caliper and measurement-strip finger openings. Pockets, shapes, and access openings have descriptive names. Rectangular accessories use explicit dimensions with unit scale.",
-        "matchEvidence": "Before rounding, symmetric mesh volume difference was 1.0141 mm3 (0.0002 percent of the 560503 mm3 printed solid). After rounding editable settings to tenths, including measurement-strip slot widths from 3.75 to 3.8 mm, the difference is 543.079 mm3 (0.0969 percent). Original 3MF unchanged."
+        "sourceFile": "Digital-Calipers-bin-6x3x3-2026-09-19_13-14-09-294.pocketry.json"
       },
       "photos": [
         {
@@ -172,8 +164,7 @@
         "sha256": "edcf8ccdeb33c35eccb88f4ff163c3b194a5aa81c1848b1b48365be3bd4fa735",
         "sourceFile": "pocketry-library-2026-09-21T14-21-47-136Z.json",
         "sourceProject": "Stapler (copy)",
-        "sourceHistoryIndex": 40,
-        "matchEvidence": "Saved 5x2x7u history snapshot; symmetric mesh volume difference 0.0225 mm3, consistent with floating-point precision, before user-requested rounding of settings to tenths."
+        "sourceHistoryIndex": 40
       },
       "photos": [
         {
@@ -214,8 +205,7 @@
       "project": {
         "file": "wire-strippers.pocketry.json",
         "sha256": "47e59355b684a56bda4d6812f26965bc8d07c5a5716783272822bcc202fccbd4",
-        "sourceFile": "WireStipper_Astra_Finetuned-bin-6x2x3.5-multicolor-2026-09-07_08-29-07-921.pocketry.json",
-        "matchEvidence": "Source project content matches the JSON downloaded alongside the selected 3MF export. Published settings are rounded to tenths as requested."
+        "sourceFile": "WireStipper_Astra_Finetuned-bin-6x2x3.5-multicolor-2026-09-07_08-29-07-921.pocketry.json"
       },
       "photos": [
         {
@@ -257,8 +247,7 @@
         "file": "klein-voltage-tester.pocketry.json",
         "sha256": "aa72cdc0e9e79d089df34374ed15abc353069d1a026befa854fbb1a36f0ca3ac",
         "sourceFile": "pocketry-library-2026-09-21T14-21-47-136Z.json",
-        "sourceProject": "Klein Voltage Meter (imported)",
-        "matchEvidence": "Matching 1x4x4u tool layout. Original 3MF filename retained the previous DeWalt project name. Current generator differs by approximately 8.617 mm3 (0.0073 percent of model volume), before user-requested rounding of settings to tenths."
+        "sourceProject": "Klein Voltage Meter (imported)"
       },
       "photos": [
         {
@@ -300,8 +289,7 @@
         "file": "mouldline-remover.pocketry.json",
         "sha256": "e7b1064e6bf67b0af067f77aa6ad7b68e66d7081f1cb049fecbd9b4d1f2a3834",
         "sourceFile": "pocketry-library-2026-09-21T14-21-47-136Z.json",
-        "sourceProject": "Citadel Mouldline Remover",
-        "matchEvidence": "The saved 1x4x3.5u project matches the newest 3MF: symmetric volume difference is approximately 0.0052 mm3 before rounding (floating-point tolerance). Settings rounded to tenths produce approximately 37.183 mm3 difference, 0.0284 percent of the model volume. Unused shapes reduced from 418 to the one referenced tool outline; undo history removed. Original 3MF bytes are unchanged."
+        "sourceProject": "Citadel Mouldline Remover"
       },
       "photos": [
         {
@@ -329,6 +317,50 @@
           "rotationAfterCropDegreesCounterclockwise": 0,
           "processing": "EXIF orientation applied to pixels; cropped; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
           "sha256": "3494ec8869002d754c5de30572999f166a52a4b7de121a597dd85b1f6ad85e08"
+        }
+      ]
+    },
+    {
+      "directory": "wiha-drivers",
+      "model": {
+        "file": "wiha-drivers.3mf",
+        "sourceFile": "Wiha-Drivers-2-Styles---Long-bin-3x7x3.5-multicolor-2026-09-23_10-10-40-482.3mf",
+        "sha256": "7f3d320ba9b69fed8acea762ea3be8a8b5651e3b26c82109d510585fdff40370"
+      },
+      "project": {
+        "file": "wiha-drivers.pocketry.json",
+        "sourceFile": "New SCHEMA - Wiha-Drivers-2-Styles---Long-bin-3x7x3-2026-09-23_07-04-44-915.pocketry.json",
+        "sourceSha256": "690d1e20cfed6ab8ec95661ee21ed25adc20b212ba0f27bda67932ea9cfbcdbb",
+        "sha256": "170c7b2537bc360d646fd6383fcab8e31b6a6b1354d106089fc9a909e7dcf7e5"
+      },
+      "photos": [
+        {
+          "file": "photos/printed-bin-loaded.jpg",
+          "sourceFile": "20260923_101521.jpg",
+          "sourceSha256": "a8d94419e8f9bf205d46134ecd394ef589fec8bf7777b6d350cc418cdc4b21a8",
+          "cropPixelsAfterOrientation": [
+            650,
+            150,
+            2425,
+            3925
+          ],
+          "rotationAfterCropDegreesCounterclockwise": 0,
+          "processing": "EXIF orientation applied to pixels; cropped; resized to 564 by 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "f59205efb40026d9c2dda098336f9c16b9ce6dcf21f47e5fc0483e5e0d8356d2"
+        },
+        {
+          "file": "photos/printed-bin-pocket.jpg",
+          "sourceFile": "20260923_101541.jpg",
+          "sourceSha256": "ea2183578ae3488191195b6a3dcc3a498b6733b17117252ff7d886f2540913d8",
+          "cropPixelsAfterOrientation": [
+            260,
+            140,
+            2880,
+            3900
+          ],
+          "rotationAfterCropDegreesCounterclockwise": 0,
+          "processing": "EXIF orientation applied to pixels; cropped; resized to 836 by 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "4bec60ff4cb62da377357596a122b59efe841e1b1e39982ec2600a422fa58788"
         }
       ]
     }
