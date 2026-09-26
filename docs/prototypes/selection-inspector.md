@@ -42,7 +42,9 @@ This is synthetic test data; importing uses the normal browser-local project flo
 
 - **Workflow** keeps each design section on the left. Choose a section for its
   settings, or a pocket/finger access for its properties.
-  Row menus contain rename, duplicate, and remove actions. Checkboxes and
+  Double-click a pocket or finger-access name to rename it inline; Enter or
+  clicking away saves, and Escape cancels. Row menus also contain rename,
+  duplicate, and remove actions. Checkboxes and
   Shift/Command/Control-click build a selection without closing the mobile
   object drawer. A regular row click opens Properties, even when reselecting.
 - **Properties** occupies the right pane. Its heading always identifies the

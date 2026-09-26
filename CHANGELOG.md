@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Double-click pocket and finger-access names to rename them inline.
 - Simplified the editor to Controls on the left (default) and Workflow left, properties right.
 - Clarified the Finger access add button and aligned it with the section's left edge.
 - Added the Wiha drivers example, showing adjustable solid fill height for stacking.

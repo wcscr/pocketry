@@ -4956,3 +4956,67 @@ it.each(['standard', 'workflow'])("Pan exclusively owns the canvas tools in the 
     if (layout !== 'standard') expect(button('Move selected objects').disabled).toBe(false);
   } finally { unmount(); window.history.replaceState(null, '', originalUrl); }
 });
+
+it.each([
+  { layout: 'standard', kind: 'pocket' },
+  { layout: 'standard', kind: 'finger' },
+  { layout: 'workflow', kind: 'pocket' },
+  { layout: 'workflow', kind: 'finger' },
+] as const)('double-click renames a $kind in the $layout layout with focus, cancellation and undo', async ({ layout, kind }) => {
+  const originalUrl = window.location.href;
+  window.history.replaceState(null, '', `/bin?layout=${layout}`);
+  const shape = rectangularShape('rename-shape', 'Tool');
+  const pockets = [-20, 20].map((x, index) => parseCutoutPlacement({ id: `rename-pocket-${index}`, shapeId: shape.id, position: { x, y: 0 } }));
+  const finger = fingerHoleSchema.parse({ id: 'rename-finger', center: { x: 0, y: 25 } });
+  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape], cutouts: pockets, fingerHoles: [finger] });
+  const { container, unmount } = renderPage();
+  try {
+    await flushHydration();
+    openSettingsSection(container, kind === 'pocket' ? 'tool-cutouts' : 'finger-holes');
+    const selector = kind === 'pocket' ? '[data-testid="button-select-rename-pocket-0"]' : '[data-testid="button-select-finger-hole-rename-finger"]';
+    const originalName = kind === 'pocket' ? 'Tool' : 'Finger access 1';
+    const nameButton = () => container.querySelector<HTMLButtonElement>(selector)!;
+    const beginRename = () => {
+      const button = nameButton();
+      React.act(() => button.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 })));
+      expect(container.querySelector('input[aria-label="Pocket name"], input[aria-label="Finger access name"]')).toBeNull();
+      React.act(() => button.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 2 })));
+      React.act(() => button.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, detail: 2 })));
+      const input = container.querySelector<HTMLInputElement>(`[aria-label="${kind === 'pocket' ? 'Pocket' : 'Finger access'} name"]`)!;
+      expect(input).not.toBeNull();
+      expect(document.activeElement).toBe(input);
+      expect(input.selectionStart).toBe(0);
+      expect(input.selectionEnd).toBe(input.value.length);
+      return input;
+    };
+    const typeName = (input: HTMLInputElement, value: string) => React.act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    let input = beginRename();
+    expect(input.value).toBe(originalName);
+    expect(container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.disabled).toBe(true);
+    typeName(input, '  Renamed item  ');
+    React.act(() => input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
+    expect(nameButton().textContent).toBe('Renamed item');
+    expect(nameButton().getAttribute('aria-pressed')).toBe('true');
+    expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[1]).toEqual(pockets[1]);
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+    expect(nameButton().textContent).toBe(originalName);
+    expect(container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.disabled).toBe(true);
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+    expect(nameButton().textContent).toBe('Renamed item');
+    input = beginRename();
+    typeName(input, 'Cancelled');
+    React.act(() => input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+    expect(nameButton().textContent).toBe('Renamed item');
+    input = beginRename();
+    typeName(input, '   ');
+    React.act(() => input.blur());
+    expect(nameButton().textContent).toBe('Renamed item');
+    input = beginRename();
+    typeName(input, 'Saved on blur');
+    React.act(() => input.blur());
+    expect(nameButton().textContent).toBe('Saved on blur');
+  } finally { unmount(); window.history.replaceState(null, '', originalUrl); }
+});

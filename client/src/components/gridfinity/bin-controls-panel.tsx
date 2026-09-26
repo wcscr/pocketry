@@ -355,8 +355,11 @@ export function BinControlsPanel({
   const { shapes } = useShapeLibrary();
   const [renamingFingerId, setRenamingFingerId] = useState<string | null>(null);
   const [renamingPocketId, setRenamingPocketId] = useState<string | null>(null);
+  const selectingPocketFromList = useRef(false);
   useEffect(() => {
-    if (inspector || !selectedCutoutId || renamingPocketId === selectedCutoutId) return;
+    const keepListPosition = selectingPocketFromList.current;
+    selectingPocketFromList.current = false;
+    if (keepListPosition || inspector || !selectedCutoutId || renamingPocketId === selectedCutoutId) return;
     // Selection brings the fixed Pockets section into view. Re-selecting the
     // same canvas pocket increments the request so it is reachable from any section.
     revealPanelSection("bin-settings-pockets", BIN_SETTINGS_SECTIONS, "pocket-properties");
@@ -541,6 +544,11 @@ export function BinControlsPanel({
                 const shape = shapesById.get(cutout.shapeId);
                 const name = pocketName(cutout, shape);
                 const isSelected = selection.some(ref => ref.kind === "pocket" && ref.id === cutout.id);
+                const startRenaming = () => {
+                  if (!shape) return;
+                  if (!inspector) dispatch({ type: "SELECT_CUTOUT", id: cutout.id });
+                  setRenamingPocketId(cutout.id);
+                };
                 return (
                   <div key={cutout.id} data-testid={`cutout-row-${cutout.id}`} className={cn(
                     "flex items-center rounded-md border text-xs",
@@ -558,11 +566,14 @@ export function BinControlsPanel({
                       aria-pressed={isSelected}
                       aria-controls="pocket-properties"
                       data-testid={`button-select-${cutout.id}`}
+                      title="Double-click to rename"
+                      onDoubleClick={startRenaming}
                       onClick={event => {
+                        // Keep the name under the pointer for a possible second click.
+                        selectingPocketFromList.current = selectedCutoutId !== cutout.id;
                         dispatch({ type: "SELECT_CUTOUT", id: cutout.id, additive: experimentalEnabled && (event.shiftKey || event.metaKey || event.ctrlKey) });
                         if (event.shiftKey || event.metaKey || event.ctrlKey) inspector?.keepObjectsOpen();
                         else inspector?.setTool("properties");
-                        if (isSelected && !inspector) revealPanelSection("bin-settings-pockets", BIN_SETTINGS_SECTIONS, "pocket-properties");
                       }}
                     >
                       <span className={cn("min-w-0 flex-1 truncate", isSelected && "font-medium text-violet-700 dark:text-violet-300")}>{name}</span>
@@ -570,10 +581,7 @@ export function BinControlsPanel({
                     </button>
                     )}
                     <ObjectActions name={name}>
-                    <button type="button" className="flex h-8 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11" aria-label={`Rename ${name}`} disabled={!shape} data-testid={`button-rename-${cutout.id}`} onClick={() => {
-                      if (!inspector) dispatch({ type: "SELECT_CUTOUT", id: cutout.id });
-                      setRenamingPocketId(cutout.id);
-                    }}>
+                    <button type="button" className="flex h-8 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11" aria-label={`Rename ${name}`} disabled={!shape} data-testid={`button-rename-${cutout.id}`} onClick={startRenaming}>
                       <Pencil className="h-3.5 w-3.5" />
                     </button>
                     <button type="button" className="flex h-8 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11" aria-label={`Duplicate ${name}`} data-testid={`button-duplicate-${cutout.id}`} onClick={() => dispatch({ type: "DUPLICATE_CUTOUT", id: cutout.id, newId: crypto.randomUUID() })}>
@@ -593,6 +601,10 @@ export function BinControlsPanel({
                 {fingerHoles.map((hole, index) => {
                   const isSelected = selection.some(ref => ref.kind === "finger" && ref.id === hole.id);
                   const name = hole.name ?? `Finger access ${index + 1}`;
+                  const startRenaming = () => {
+                    if (!inspector) dispatch({ type: "SELECT_FINGER_HOLE", id: hole.id });
+                    setRenamingFingerId(hole.id);
+                  };
                   return (
                     <div key={hole.id} data-testid={`finger-hole-row-${hole.id}`} className={cn(
                       "flex items-center rounded-md border text-xs",
@@ -609,6 +621,8 @@ export function BinControlsPanel({
                           className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded px-2 py-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                           aria-label={`${name} — edit finger access properties`} aria-pressed={isSelected} aria-controls="finger-access-properties"
                           data-testid={`button-select-finger-hole-${hole.id}`}
+                          title="Double-click to rename"
+                          onDoubleClick={startRenaming}
                           onClick={event => { dispatch({ type: "SELECT_FINGER_HOLE", id: hole.id, additive: experimentalEnabled && (event.shiftKey || event.metaKey || event.ctrlKey) }); if (event.shiftKey || event.metaKey || event.ctrlKey) inspector?.keepObjectsOpen(); else inspector?.setTool("properties"); }}>
                           <span className={cn("min-w-0 flex-1 truncate", isSelected && "font-medium text-cyan-700 dark:text-cyan-300")}>{name}</span>
                           {experimentalEnabled && hole.designLink && <Link2 className="h-3 w-3 shrink-0" aria-label="Linked design" />}
@@ -618,7 +632,7 @@ export function BinControlsPanel({
                       <button type="button" className="flex h-11 w-11 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         aria-label={`Rename ${name}`} data-testid={`button-rename-finger-hole-${hole.id}`}
                         title={`Rename ${name}`}
-                        onClick={() => { if (!inspector) dispatch({ type: "SELECT_FINGER_HOLE", id: hole.id }); setRenamingFingerId(hole.id); }}>
+                        onClick={startRenaming}>
                         <Pencil className="h-3.5 w-3.5" />
                       </button>
                       <button type="button" className="flex h-11 w-11 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
