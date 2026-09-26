@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useExperimentalFeatures } from "@/state/experimental-features";
 import { PropertySurface } from "@/components/layout/property-surface";
 import { BIN_OBJECT_SECTIONS, BIN_WORKFLOW_SECTIONS } from "./bin-workflow";
 import { Copy, Trash2 } from "lucide-react";
 import { WorkspaceLayout, type WorkspaceLayoutProps } from "@/components/layout/workspace-layout";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useBin } from "@/state/bin-store";
 import { useShapeLibrary } from "@/state/shape-library";
@@ -16,63 +14,39 @@ import { SelectionInspectorContext, useSelectionInspector, type InspectorTool } 
 
 /** Opt-in prototype reuses the actual editor, geometry, persistence and history. */
 export function BinEditingWorkspace({ enabled, ...props }: WorkspaceLayoutProps & { enabled: boolean }): JSX.Element {
-  const { editorLayout } = useExperimentalFeatures();
-  const workflow = editorLayout === "workflow";
   const [activeSection, setActiveSection] = useState<string | null>("bin-settings-size");
   const [properties, setProperties] = useState<HTMLDivElement | null>(null);
   const [transforms, setTransforms] = useState<HTMLDivElement | null>(null);
   const [settings, setSettings] = useState<HTMLDivElement | null>(null);
   const [projectHeader, setProjectHeader] = useState<HTMLDivElement | null>(null);
   const [toolbar, setToolbar] = useState<HTMLDivElement | null>(null);
-  const [dialogContent, setDialogContent] = useState<HTMLDivElement | null>(null);
-  const [dialogSection, setDialogSection] = useState<string | null>(null);
   const [tool, updateTool] = useState<InspectorTool>("properties");
   const [openRequest, setOpenRequest] = useState(0);
   const openInspector = useCallback(() => setOpenRequest(n => n + 1), []);
   const setTool = useCallback((next: InspectorTool) => { setActiveSection(null); updateTool(next); openInspector(); }, [openInspector]);
   const keepList = useRef(false);
   const keepObjectsOpen = useCallback(() => { keepList.current = true; setActiveSection(null); updateTool("properties"); }, []);
-  const { selection, dispatch, editorMode } = useBin();
+  const { selection, editorMode } = useBin();
   const showSection = useCallback((id: string) => {
-    if (workflow) {
-      setActiveSection(id); updateTool("properties");
-      // Object navigation keeps the list available, including in the phone drawer.
-      // Choosing a row then opens that object's properties.
-      if (!BIN_OBJECT_SECTIONS.has(id)) openInspector();
-      return;
-    }
-    if (["bin-settings-project", "bin-settings-fit", "bin-settings-export"].includes(id)) {
-      setDialogSection(id);
-    } else {
-      dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" });
-      dispatch({ type: "SET_SELECTION", selection: [] });
-      setTool("properties");
-    }
-  }, [workflow, dispatch, setTool, openInspector]);
+    setActiveSection(id); updateTool("properties");
+    // Object navigation keeps the list available, including in the phone drawer.
+    // Choosing a row then opens that object's properties.
+    if (!BIN_OBJECT_SECTIONS.has(id)) openInspector();
+  }, [openInspector]);
   const selectionKey = JSON.stringify(selection);
   useEffect(() => { if (enabled && selection.length) { setActiveSection(null); if (!keepList.current) openInspector(); } keepList.current = false; }, [enabled, selectionKey, openInspector]);
   useEffect(() => { if (!selection.length || selection.length < 2 && (tool === "arrange" || tool === "links")) updateTool("properties"); }, [selection.length, tool]);
   useEffect(() => { if (props.inspectorRequest) setActiveSection(null); }, [props.inspectorRequest]);
-  useEffect(() => { setDialogSection(null); }, [workflow]);
-  const targets = useMemo(() => ({ workflow, activeSection, properties, transforms, settings, projectHeader, toolbar, dialogContent, dialogSection, showSection, tool, setTool, openInspector, keepObjectsOpen }),
-    [workflow, activeSection, properties, transforms, settings, projectHeader, toolbar, dialogContent, dialogSection, showSection, tool, setTool, openInspector, keepObjectsOpen]);
+  const targets = useMemo(() => ({ activeSection, properties, transforms, settings, projectHeader, toolbar, showSection, tool, setTool, openInspector, keepObjectsOpen }),
+    [activeSection, properties, transforms, settings, projectHeader, toolbar, showSection, tool, setTool, openInspector, keepObjectsOpen]);
   if (!enabled) return <WorkspaceLayout {...props} />;
   return <SelectionInspectorContext.Provider value={targets}>
-    <WorkspaceLayout {...props} autoSaveId={`${props.autoSaveId}:inspector`} inspectorPanelTitle={workflow ? "Workflow" : "Objects"}
+    <WorkspaceLayout {...props} autoSaveId={`${props.autoSaveId}:inspector`} inspectorPanelTitle="Workflow"
       inspectorRequest={(props.inspectorRequest ?? 0) + openRequest}
       canvasEditingMode={editorMode}
       inspectorHeader={<div ref={setProjectHeader} />}
       inspectorToolbar={<div ref={setToolbar} className="flex min-w-max items-center gap-1" />}
       inspector={<SelectionInspector propertiesRef={setProperties} transformsRef={setTransforms} settingsRef={setSettings} />} />
-    <Dialog open={dialogSection !== null} onOpenChange={open => { if (!open) setDialogSection(null); }}>
-      <DialogContent className="flex max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
-        <DialogHeader className="shrink-0 border-b px-4 py-3 pr-12 text-left">
-          <DialogTitle>{dialogSection === "bin-settings-project" ? "Project" : dialogSection === "bin-settings-fit" ? "Check fit" : "Export"}</DialogTitle>
-          <DialogDescription>{dialogSection === "bin-settings-project" ? "Save, open, and manage projects in this browser." : dialogSection === "bin-settings-fit" ? "Inspect inside the bin or print a small fit template." : "Download your bin for printing or fabrication."}</DialogDescription>
-        </DialogHeader>
-        <div ref={setDialogContent} className="min-h-0 overflow-y-auto overscroll-contain" />
-      </DialogContent>
-    </Dialog>
   </SelectionInspectorContext.Provider>;
 }
 
@@ -119,7 +93,7 @@ export function SelectionInspector({ propertiesRef, transformsRef, settingsRef }
   const pockets = chosen.filter(o => o.kind === "pocket");
   const fingers = chosen.filter(o => o.kind === "finger");
   const single = chosen.length === 1 ? chosen[0] : null;
-  const section = inspector?.workflow ? BIN_WORKFLOW_SECTIONS.find(item => item.id === inspector.activeSection) : null;
+  const section = inspector ? BIN_WORKFLOW_SECTIONS.find(item => item.id === inspector.activeSection) : null;
   const showingSection = !!section;
   const tone = section?.tone ?? (pockets.length && !fingers.length ? "violet" : fingers.length && !pockets.length ? "cyan" : chosen.length ? "slate" : "blue");
   const title = section?.title ?? (single ? single.kind === "pocket" ? pocketName(single.cutout, single.shape)

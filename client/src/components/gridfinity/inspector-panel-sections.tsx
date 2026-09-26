@@ -19,9 +19,8 @@ export function InspectorPanelSections({ children }: { children: ReactNode }): J
       {sections.map(child => {
         const { id = "", title, tone, icon: Icon, summary } = child.props;
         if (objectSections.has(id)) return cloneElement(child, {
-          onOpenChange: inspector.workflow ? (open: boolean) => { if (open) inspector.showSection(id); } : undefined,
+          onOpenChange: (open: boolean) => { if (open) inspector.showSection(id); },
         });
-        if (!inspector.workflow) return null;
         return <button key={id} type="button" data-testid={`workflow-section-${id}`} data-property-tone={tone}
           className="property-heading flex min-h-9 w-full items-center gap-2 border-b border-l-2 px-3 py-2 text-left hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring aria-pressed:border-l-4 aria-pressed:bg-accent/60 [@media(pointer:coarse)]:min-h-11"
           aria-label={`${title} — show properties`} aria-pressed={inspector.activeSection === id} aria-controls="objects-panel"
@@ -33,12 +32,11 @@ export function InspectorPanelSections({ children }: { children: ReactNode }): J
         </button>;
       })}
     </div>
-    {inspector.settings && createPortal(inspector.workflow && active ?
+    {inspector.settings && createPortal(active ?
       objectSections.has(active.id) ? <PropertySurface tone={active.tone} className="m-3"><p className="text-sm">{active.description}</p></PropertySurface>
         : sections.filter(child => child.props.id === active.id).map(child => <PropertySurface id={active.id} key={active.id} tone={active.tone} className="m-3" aria-label={`${active.title} properties`}>
           <p className="text-xs text-muted-foreground">{active.description}</p>{child.props.children}
         </PropertySurface>)
       : sections.filter(child => binSections.has(child.props.id ?? "")), inspector.settings)}
-    {inspector.dialogContent && createPortal(sections.filter(child => child.props.id === inspector.dialogSection), inspector.dialogContent)}
   </>;
 }

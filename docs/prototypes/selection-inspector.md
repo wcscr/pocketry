@@ -16,10 +16,8 @@ Open `http://127.0.0.1:5187/bin?layout=workflow`, or choose a layout under
 **Settings → Bin editor layout**:
 
 - **Controls on the left** (`?layout=standard`): the original combined panel,
-  with Hide controls at its top right and a narrow, full-height restore strip
+  the default, with Hide controls at its top right and a narrow, full-height restore strip
   beside the canvas.
-- **Objects left, properties right** (`?layout=objects`): the compact object tree
-  and selection inspector described below.
 - **Workflow left, properties right** (`?layout=workflow`): every workflow section
   stays in order on the left; its property editor opens on the right. Pockets and
   Finger access retain their add actions and object lists on the left. The pinned,
@@ -31,7 +29,8 @@ Open `http://127.0.0.1:5187/bin?layout=workflow`, or choose a layout under
 The layout choice is saved for this browser and survives Trace,
 Bin, Library, About, and page refreshes. The preview link sets the preference once
 and removes its flag, preserving other query parameters and the URL fragment.
-The previous `?inspector=1|0` links still select the object-tree or standard layout.
+Retired `?layout=objects` and `?inspector=1|0` links return to Controls on the left.
+Saved object-tree and legacy inspector preferences also fall back to this default.
 With browser storage blocked, the preference lasts until the tab reloads. The
 inspector includes object tools without changing the separate experimental-tools
 preference or project data.
@@ -41,8 +40,8 @@ This is synthetic test data; importing uses the normal browser-local project flo
 
 ## Interaction
 
-- **Objects** is the single left-hand design tree. Choose **Bin** for size,
-  construction, and materials, or a pocket/finger access for its properties.
+- **Workflow** keeps each design section on the left. Choose a section for its
+  settings, or a pocket/finger access for its properties.
   Row menus contain rename, duplicate, and remove actions. Checkboxes and
   Shift/Command/Control-click build a selection without closing the mobile
   object drawer. A regular row click opens Properties, even when reselecting.
@@ -51,7 +50,7 @@ This is synthetic test data; importing uses the normal browser-local project flo
   Bin settings. Pocket depth stays visible; size, edges and corners, position,
   and linked copies use collapsible groups. Top edge rounding belongs in Edges
   & corners in every layout.
-  Extra pocket clearance is collapsed at the bottom in all three layouts.
+  Extra pocket clearance is collapsed at the bottom in both layouts.
   Split pocket has its own collapsible group after Depth. It opens for an
   existing split, and Depth identifies the section being edited.
   Several selected objects get shared fields with **Mixed** for differing values
@@ -62,13 +61,12 @@ This is synthetic test data; importing uses the normal browser-local project flo
   headings, and disclosure arrows apply to single-object, bulk, and transform
   controls. Advanced placement and size groups remain collapsible.
 - **Project**, **Check fit**, and **Export** remain in the project header. They
-  open focused dialogs without changing selection. The header also shows the
+  open their matching right-pane section without changing selection. The header also shows the
   project name and save status. **Check fit → Inspect inside** contains the
   cross-section preview in every layout, followed by **Prepare fit test templates**.
   Template shape, thickness, and export controls sit directly under that heading.
   Enabling the cutaway switches to 3D; exports still contain the complete bin.
-  In Workflow layout these actions open their matching right-pane section and
-  preserve selection. Selecting an object returns the inspector to that object.
+  Selecting an object returns the inspector to that object.
   Project shows the current name, then New/Open/Export project, followed by a
   full-width **Manage Browser Library** button for saved projects and library backups.
 - Bulk fields cover fixed cut depth and top rounding, plus pocket clearance.
@@ -100,12 +98,12 @@ This is synthetic test data; importing uses the normal browser-local project flo
   linked copies affected by property edits; the complete edit must fit the bin,
   including tilted linked copies, or nothing is applied.
 
-Wide screens show the object tree, canvas, and properties in three columns.
+In Workflow layout, wide screens show workflow sections, canvas, and properties in three columns.
 Either panel can collapse. On desktop, each hidden panel leaves a narrow,
 full-height strip on its side of the canvas. Its expand icon stays at the same
 height as the panel's top collapse control. The same strip restores controls in
-the standard layout. Compact screens have persistent **Objects** (or **Workflow**) and
-**Properties** buttons and show one pane at a time. On phones, Objects is a side
+the standard layout. Compact screens have persistent **Workflow** and
+**Properties** buttons and show one pane at a time. On phones, Workflow is a side
 drawer and Properties is a bottom sheet that leaves a visible canvas above it.
 Short landscape screens use a side inspector to preserve editing height. The editing canvas remains mounted in
 the same untransformed container across panel changes and window resizing.
@@ -122,9 +120,9 @@ shared fields; use single-object controls for contour, size and shape-specific
 edits. Design links are retained, but persistent spatial groups are not added.
 
 Validation is local: `npm run check`, `npm test`, and `npm run build`. Coverage
-includes selection identity and scoped batch edits, undo, transforms, persistent
-all three layout preferences, workflow sections preserving selection, Pan tool
-exclusivity, panel collapse controls, header dialogs, and the canvas staying
+includes selection identity and scoped batch edits, undo, transforms, both persistent
+layout preferences and retired-layout fallback, workflow sections preserving selection, Pan tool
+exclusivity, panel collapse controls, header section navigation, and the canvas staying
 mounted across panel toggles and responsive changes. Browser checks exercise bin
 size, single-pocket depth, multi-edit, project management, and export.
 HTTP tests need localhost binding permission in a restricted sandbox.

@@ -87,7 +87,7 @@ function openTraceSettings(section: "detect" | "scale" | "output"): void {
 
 describe("App", () => {
   it("keeps right-side properties through Trace, Bin, Library and a fresh app mount", async () => {
-    window.history.replaceState(null, "", "/bin?inspector=1");
+    window.history.replaceState(null, "", "/bin?layout=workflow");
     renderApp();
     const inspector = () => container.querySelector('[aria-label="Selection inspector"]');
     expect(inspector()).not.toBeNull();

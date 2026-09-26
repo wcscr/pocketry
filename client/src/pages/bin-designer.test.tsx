@@ -4512,7 +4512,7 @@ it("rejects overflowing numeric moves without corrupting the document or undo hi
 
 it.each([false, true])("prototype has one object list and preserves identity when reopening properties on mobile=%s", async mobile => {
   const originalUrl = window.location.href;
-  window.history.replaceState(null, "", "/bin?inspector=1");
+  window.history.replaceState(null, "", "/bin?layout=workflow");
   const shape = rectangularShape("workflow-tool", "Tool");
   const cutouts = [0, 1].map(i => parseCutoutPlacement({ id: `workflow-${i}`, name: `Tool ${i + 1}`, shapeId: shape.id, position: { x: i * 40 - 20, y: 0 } }));
   const finger = fingerHoleSchema.parse({ id: "workflow-f", name: "Thumb access", center: { x: 0, y: 0 } });
@@ -4591,7 +4591,7 @@ it("keeps finger-access guidance beside the collapsed section title without togg
 
 it("prototype keeps selection and list position while batch editing, undoing and switching panels", async () => {
   const originalUrl = window.location.href;
-  window.history.replaceState(null, "", "/bin?inspector=1");
+  window.history.replaceState(null, "", "/bin?layout=workflow");
   const shape = rectangularShape("proto", "Tool");
   const cutouts = [10, 20].map((value, i) => parseCutoutPlacement({ id: `proto-${i}`, name: `Tool ${i + 1}`, shapeId: shape.id, position: { x: i * 40 - 20, y: 0 }, depth: { mode: "mm", value } }));
   const finger = fingerHoleSchema.parse({ id: "proto-f", name: "Tool access", center: { x: 0, y: 0 }, depthMm: 8 });
@@ -4637,10 +4637,10 @@ it("prototype keeps selection and list position while batch editing, undoing and
     expect(workflow.querySelector('#bin-settings-pockets')).not.toBeNull();
     expect(workflow.querySelector('#bin-settings-size, #bin-settings-project, #bin-settings-export')).toBeNull();
     const clickLabel = (label: string) => React.act(() => container.querySelector<HTMLButtonElement>(`[aria-label="${label}"]`)!.click());
-    clickLabel('Collapse objects panel');
+    clickLabel('Collapse workflow panel');
     expect(workflow.hasAttribute('hidden')).toBe(true);
     expect(inspector.querySelector('[data-testid="batch-properties"]')).not.toBeNull();
-    clickLabel('Expand objects panel');
+    clickLabel('Expand workflow panel');
     expect(container.querySelectorAll('[aria-label^="Include "]:checked')).toHaveLength(3);
     clickText('Layout');
     expect(inspector.querySelector('[data-testid="pocket-3d-controls"]')).not.toBeNull();
@@ -4685,7 +4685,7 @@ it("prototype keeps selection and list position while batch editing, undoing and
 
 it.each([false, true])("prototype toolbar opens scoped link/unlink controls with undo on mobile=%s", async mobile => {
   const originalUrl = window.location.href;
-  window.history.replaceState(null, '', '/bin?inspector=1');
+  window.history.replaceState(null, '', '/bin?layout=workflow');
   const shape = rectangularShape('toolbar-links', 'Tool');
   const cutouts = [10, 20].map((value, i) => parseCutoutPlacement({ id: `linked-tool-${i}`, name: `Tool ${i + 1}`, shapeId: shape.id,
     position: { x: i * 40 - 20, y: 0 }, depth: { mode: 'mm', value } }));
@@ -4744,7 +4744,7 @@ it.each([false, true])("prototype toolbar opens scoped link/unlink controls with
 
 it("prototype compact panels preserve canvas, selection and header actions", async () => {
   const originalUrl = window.location.href;
-  window.history.replaceState(null, '', '/bin?inspector=1');
+  window.history.replaceState(null, '', '/bin?layout=workflow');
   const shape = rectangularShape('proto-mobile', 'Mobile tool');
   vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape], cutouts: [parseCutoutPlacement({ id: 'mobile-p', shapeId: shape.id, position: { x: 0, y: 0 } })] });
   const { container, unmount } = renderPage({ mobile: true });
@@ -4770,15 +4770,15 @@ it("prototype compact panels preserve canvas, selection and header actions", asy
     for (const label of ['Check fit', 'Export', 'Project']) {
       React.act(() => [...header.querySelectorAll<HTMLButtonElement>('button')].find(b => b.textContent === label)!.click());
       await flushHydration();
-      const dialog = document.querySelector('[role="dialog"]')!;
-      expect(dialog.textContent).toContain(label);
-      if (label === 'Export') expect(dialog.querySelector('[data-testid="button-export-3mf"]')).not.toBeNull();
+      const properties = container.querySelector('[data-testid="selection-inspector"]')!;
+      expect(properties.querySelector('[data-testid="inspector-properties-header"] h3')!.textContent).toBe(label);
+      expect(properties.closest('[hidden]')).toBeNull();
+      if (label === 'Export') expect(properties.querySelector('[data-testid="button-export-3mf"]')).not.toBeNull();
       expect(selected()).toBe(true);
-      React.act(() => [...dialog.querySelectorAll<HTMLButtonElement>('button')].find(b => b.textContent === 'Close')!.click());
     }
-    // Bin selection reveals settings on the right, never inside the object tree.
-    React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Bin — edit size and construction"]')!.click());
-    expect(selected()).toBe(false);
+    // Workflow navigation reveals settings on the right and preserves selection.
+    React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Bin size — show properties"]')!.click());
+    expect(selected()).toBe(true);
     expect(container.querySelector('#bin-settings-size')!.closest('[hidden]')).toBeNull();
     expect(workflow.querySelector('#bin-settings-size')).toBeNull();
     React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-edit-footprint"]')!.click());
@@ -4791,7 +4791,7 @@ it("prototype compact panels preserve canvas, selection and header actions", asy
 
 it("prototype renames from the object menu without losing inline focus or changing selection", async () => {
   const originalUrl = window.location.href;
-  window.history.replaceState(null, '', '/bin?inspector=1');
+  window.history.replaceState(null, '', '/bin?layout=workflow');
   const shape = rectangularShape('rename-menu', 'Pliers');
   vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape], cutouts: [parseCutoutPlacement({ id: 'rename-p', shapeId: shape.id, position: { x: 0, y: 0 } })] });
   const { container, unmount } = renderPage({ mobile: true });
@@ -4806,7 +4806,7 @@ it("prototype renames from the object menu without losing inline focus or changi
     expect(input).not.toBeNull();
     expect(document.activeElement).toBe(input);
     expect(container.querySelector('#workflow-panel')!.hasAttribute('hidden')).toBe(false);
-    expect(container.querySelector('[data-testid="inspector-properties-header"] h3')!.textContent).toBe('Bin');
+    expect(container.querySelector('[data-testid="inspector-properties-header"] h3')!.textContent).toBe('Bin size');
     React.act(() => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, 'Renamed pliers');
       input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -4882,7 +4882,7 @@ it.each([false, true])("workflow layout routes every section to matching propert
   } finally { unmount(); window.history.replaceState(null, '', originalUrl); }
 });
 
-it.each(['standard', 'objects', 'workflow'])("keeps the cross-section preview inside Check fit in the %s layout", async layout => {
+it.each(['standard', 'workflow'])("keeps the cross-section preview inside Check fit in the %s layout", async layout => {
   const originalUrl = window.location.href;
   window.history.replaceState(null, '', `/bin?layout=${layout}`);
   const shape = rectangularShape('fit-tool', 'Tool');
@@ -4916,7 +4916,7 @@ it.each(['standard', 'objects', 'workflow'])("keeps the cross-section preview in
   } finally { unmount(); window.history.replaceState(null, '', originalUrl); }
 });
 
-it.each(['standard', 'objects', 'workflow'])("Pan exclusively owns the canvas tools in the %s layout", async layout => {
+it.each(['standard', 'workflow'])("Pan exclusively owns the canvas tools in the %s layout", async layout => {
   const originalUrl = window.location.href;
   window.history.replaceState(null, '', `/bin?layout=${layout}`);
   const shape = rectangularShape('pan-tool', 'Tool');

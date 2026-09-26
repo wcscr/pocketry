@@ -1164,9 +1164,7 @@ export function BinControlsPanel({
         <Button size="sm" variant="link" className="h-9 px-0 text-xs" onClick={() => setSettingsOpen(true)}>Show experimental settings</Button>
       </div>}
       {inspector ? <div className="shrink-0 border-b px-3 pb-2 pt-4">
-        <h2 className="mb-3 text-xs font-semibold">{inspector.workflow ? "Design workflow" : "Objects"}</h2>
-        {!inspector.workflow && <Button variant={selection.length ? "ghost" : "secondary"} className="h-10 w-full justify-start gap-2" aria-label="Bin — edit size and construction" aria-pressed={!selection.length}
-          onClick={() => inspector.showSection("bin-settings-size")}><Box className="h-4 w-4" />Bin<span className="ml-auto text-xs font-normal text-muted-foreground">{formatUnitCount(widthCellSpan)} × {formatUnitCount(lengthCellSpan)}</span></Button>}
+        <h2 className="mb-3 text-xs font-semibold">Design workflow</h2>
         <div className="mt-1 flex items-center justify-between text-xs">
           <Button size="sm" variant="ghost" className="px-2 text-xs" disabled={!cutouts.length && !fingerHoles.length} onClick={() => dispatch({ type: "SET_SELECTION", selection: [...cutouts.map(c => ({ kind: "pocket" as const, id: c.id })), ...fingerHoles.map(h => ({ kind: "finger" as const, id: h.id }))] })}>Select all</Button>
           <Button size="sm" variant="ghost" className="px-2 text-xs" disabled={!selection.length} aria-label="Clear object selection" onClick={() => { dispatch({ type: "SET_SELECTION", selection: [] }); inspector.showSection("bin-settings-size"); }}>Clear</Button>
@@ -1174,13 +1172,13 @@ export function BinControlsPanel({
       </div> : projectStatus}
       {/* On short screens the section headers remain reachable by scrolling;
           reserve the limited height for editable fields instead of shortcuts. */}
-      <div className={(inspector ? !inspector.workflow : exportOnly) ? "hidden" : "shrink-0 [@media(max-height:500px)]:hidden"}>
+      <div className={(!inspector && exportOnly) ? "hidden" : "shrink-0 [@media(max-height:500px)]:hidden"}>
         <PanelSettingsIndex
           ariaLabel="Find bin settings"
           testIdPrefix="bin"
           items={BIN_SETTINGS_SECTIONS}
-          activeSectionId={inspector?.workflow ? inspector.activeSection : undefined}
-          onNavigate={inspector?.workflow ? id => {
+          activeSectionId={inspector?.activeSection}
+          onNavigate={inspector ? id => {
             if (BIN_OBJECT_SECTIONS.has(id)) revealPanelSection(id, BIN_SETTINGS_SECTIONS);
             inspector.showSection(id);
           } : undefined}
