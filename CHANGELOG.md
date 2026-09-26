@@ -7,6 +7,7 @@
 Initial versioned baseline.
 
 - Photo tracing, calibration, custom Gridfinity bins, fit checks, and exports.
+- Adjustable solid fill height and customizable, non-rectangular bin footprints.
 - Local project library, backups, undo, and sample projects.
 - Faster previews and improved project recovery.
 - Better Fusion DXF compatibility and calibration-marker detection.
