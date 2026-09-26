@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Added private problem reports and suggestions with a spam check; no account required.
 - Added the Wiha drivers example, showing adjustable solid fill height for stacking.
 
 ## 1.0.0 — 2026-09-26

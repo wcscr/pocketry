@@ -16,11 +16,14 @@ and sends plain-text email through Cloudflare Email Service's REST API. There
 is no feedback database or public issue creation. The configured recipient's
 mailbox is the inbox and determines message retention.
 
-- **Pages:** `functions/api/feedback.ts` handles the endpoint. Vite copies
+- **Pages (Pocketry's current deployment):** `wrangler.jsonc` sets
+  `pages_build_output_dir` and the public runtime variables. `functions/api/feedback.ts`
+  handles the endpoint. Vite copies
   `client/public/_routes.json` to `dist/public` so only feedback invokes a
   function; normal app requests remain static.
-- **Workers Static Assets:** `wrangler.jsonc` uses `cloudflare/worker.ts` and
-  runs the Worker first only for the feedback endpoint. Other paths use assets.
+- **Optional Workers Static Assets:** `wrangler.worker.jsonc` uses
+  `cloudflare/worker.ts` and runs the Worker first only for the feedback endpoint.
+  Select it explicitly with `wrangler deploy --config wrangler.worker.jsonc`.
 - Both adapters call `cloudflare/feedback.ts`. The existing Express image API
   is not deployed or needed for this feature. `npm run dev` alone does not
   emulate the Cloudflare endpoint; the form shows an unavailable message there.
@@ -28,10 +31,11 @@ mailbox is the inbox and determines message retention.
 ## Production setup
 
 The receiving address is `contact@pocketry.xyz`, which the site owner configured
-to forward to their inbox. This is recorded in the Workers configuration and
-local settings example. For Pages, set `FEEDBACK_TO=contact@pocketry.xyz` in the
-project's runtime variables as well; the Workers configuration does not configure
-Pages. Live forwarding and form-to-inbox delivery have not yet been verified.
+to forward to their inbox. The same address is the fixed sender under the
+onboarded `pocketry.xyz` domain. The Pages configuration supplies both addresses,
+the account ID from the project's deployment record, the public Turnstile site
+key, and the allowed hostname. Live forwarding and form-to-inbox delivery have
+not yet been verified.
 The forwarding address provides the receiving side; the sending service and
 Turnstile settings below are still required.
 
@@ -46,31 +50,32 @@ Turnstile settings below are still required.
    replacement widget or change its pre-clearance settings. Preview deployments
    need their own allowed hostname and settings; avoid allowing arbitrary
    preview hosts to send to the production inbox.
-4. Add the following **runtime** settings in the Cloudflare project. The
-   token and secret key must be encrypted secrets, never `VITE_*` variables.
+4. The non-secret **runtime** settings below are applied automatically from
+   `wrangler.jsonc` when deploying. Add only the two encrypted secrets in the
+   Cloudflare project; never use `VITE_*` variables for secrets.
 
    | Setting | Value |
    | --- | --- |
    | `TURNSTILE_SITE_KEY` | `0x4AAAAAAFEX5UTaSUHC-qpj` (public) |
    | `TURNSTILE_SECRET_KEY` | Existing widget's secret key (encrypted secret) |
    | `TURNSTILE_HOSTNAMES` | `pocketry.xyz` (comma-separated exact hostnames) |
-   | `FEEDBACK_ACCOUNT_ID` | 32-character Cloudflare account ID |
+   | `FEEDBACK_ACCOUNT_ID` | `83f2f573b101abdbbd8300b84c2cdbe9` |
    | `FEEDBACK_EMAIL_TOKEN` | Scoped Email Sending token |
-   | `FEEDBACK_FROM` | Fixed sender address in the configured sender domain |
+   | `FEEDBACK_FROM` | `contact@pocketry.xyz` |
    | `FEEDBACK_TO` | `contact@pocketry.xyz`; verify this recipient with Cloudflare |
 
    In **Workers & Pages → Pocketry → Settings → Variables and Secrets**, select
-   **Production** and add the settings before deployment. The Workers config
-   supplies the public site key, hostname allowlist, and recipient; a Pages
-   project needs those same three values entered in its runtime settings.
+   **Production** and add `TURNSTILE_SECRET_KEY` and `FEEDBACK_EMAIL_TOKEN` as
+   encrypted secrets before deployment. The configuration file owns the other
+   settings; edit those values in the file rather than the dashboard.
    Production hostnames must not contain `localhost` or `127.0.0.1`. Keep the
    server allowlist consistent with the widget's dashboard hostname list.
 
 5. Deploy using the existing Pages Git integration (root `functions/` and
-   build output `dist/public`) or the Workers configuration. Keep GitHub CI
-   disabled per `CLAUDE.md`; run checks locally. The root Wrangler file is a
-   Workers configuration, not a Pages configuration; do not use it as a Pages
-   configuration file or add `pages_build_output_dir` to it.
+   build output `dist/public`). Keep GitHub CI disabled per `CLAUDE.md`; run
+   checks locally. The root Wrangler file is a Pages configuration and must not
+   contain Workers-only `main` or `assets` fields. A file without
+   `pages_build_output_dir` does not apply runtime settings to Pages deployments.
 6. Submit one clearly marked test with a fresh real Turnstile token from the
    deployed site and confirm the email
    arrives. Verify the sender, recipient, problem/suggestion prefix, optional
@@ -85,6 +90,28 @@ Spin flow requires an approved external Wrangler installation and a confirmed
 secret destination for automatic retrieval; use the dashboard's normal secret
 management when those prerequisites are unavailable. Destination validation
 remains pending until a deployed request succeeds and replay is rejected.
+
+## Preview setup and troubleshooting
+
+Use the stable branch preview at
+`https://codex-private-feedback.pocketry.pages.dev` for this feature.
+`env.preview.vars` provides all five public settings and allows only that exact
+preview hostname. Production keeps its separate `pocketry.xyz` allowlist.
+
+1. In the Pages project's **Settings → Variables and Secrets**, select
+   **Preview** and save `TURNSTILE_SECRET_KEY` and `FEEDBACK_EMAIL_TOKEN` as
+   encrypted secrets. Settings saved for Production do not configure Preview.
+2. In the existing Turnstile widget's **Settings → Hostname Management**, add
+   `codex-private-feedback.pocketry.pages.dev`. Keep `pocketry.xyz` allowed.
+3. Create a new preview deployment after changing secrets, then test using the
+   stable branch URL above. The deployment-specific hash URL is not in the
+   server allowlist. Do not add every `pages.dev` hostname or disable validation.
+
+Check `GET /api/feedback` before trying the form. A JSON response with `siteKey`
+means the settings have the expected shape; it does not validate secret values.
+HTTP 503 means at least one required setting is missing or malformed. HTML means
+the route did not reach the Pages Function. A widget error after configuration
+loads can mean the preview hostname is missing from the widget's allowed list.
 
 Turnstile loads only while the feedback form is open. If adding a Content
 Security Policy, permit the documented Turnstile script/frame origins.
@@ -112,7 +139,7 @@ use a separately installed Wrangler with the built app. Real credentials can
 send real email; use a dedicated test inbox and widget. Turnstile dummy keys
 are for test environments only and must never be used in production.
 
-Implementation verification: `npm run check`, all 1,907 tests in 110 files,
+Implementation verification: `npm run check`, all 1,911 tests in 110 files,
 and `npm run build` passed on Node 22.23.2. Both Cloudflare entry points also
 bundled with esbuild's browser target. Tests cover mismatched hostnames/actions,
 malformed Siteverify responses, simulated token replay rejection, and retrying
@@ -121,12 +148,17 @@ mobile-menu entry at 375 × 812, dialog scrolling, unavailable service feedback,
 and draft preservation. External APIs were mocked in tests; real Turnstile
 verification and inbox delivery remain deployment checks.
 
-On September 26, 2026, the live `GET https://pocketry.xyz/api/feedback` still
-returned HTML rather than JSON, so the feedback backend was not yet deployed.
+On September 26, 2026, the feature preview returned HTTP 503 JSON: the Function
+was deployed, but its runtime settings were incomplete. The original root file
+was a Workers configuration and Pages ignored its variables. The corrected
+Pages configuration and separate preview settings address that deployment gap.
 
 ## References
 
 - [Pages Functions routing](https://developers.cloudflare.com/pages/functions/routing/)
+- [Pages Wrangler configuration and preview overrides](https://developers.cloudflare.com/pages/functions/wrangler-configuration/)
+- [Pages secrets](https://developers.cloudflare.com/pages/functions/bindings/#secrets)
+- [Turnstile hostname management](https://developers.cloudflare.com/turnstile/additional-configuration/hostname-management/)
 - [Workers Static Assets routing](https://developers.cloudflare.com/workers/static-assets/routing/worker-script/)
 - [Turnstile server verification](https://developers.cloudflare.com/turnstile/get-started/server-side-validation/)
 - [Turnstile Spin existing-widget flow](https://developers.cloudflare.com/turnstile/spin/prompt.md)

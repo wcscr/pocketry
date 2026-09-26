@@ -1,16 +1,23 @@
 {
   "name": "pocketry",
   "compatibility_date": "2026-08-26",
-  "main": "cloudflare/worker.ts",
+  "pages_build_output_dir": "./dist/public",
   "vars": {
+    "FEEDBACK_ACCOUNT_ID": "83f2f573b101abdbbd8300b84c2cdbe9",
+    "FEEDBACK_FROM": "contact@pocketry.xyz",
     "FEEDBACK_TO": "contact@pocketry.xyz",
     "TURNSTILE_SITE_KEY": "0x4AAAAAAFEX5UTaSUHC-qpj",
     "TURNSTILE_HOSTNAMES": "pocketry.xyz"
   },
-  "assets": {
-    "binding": "ASSETS",
-    "run_worker_first": ["/api/feedback", "/api/feedback/"],
-    "directory": "./dist/public",
-    "not_found_handling": "single-page-application"
+  "env": {
+    "preview": {
+      "vars": {
+        "FEEDBACK_ACCOUNT_ID": "83f2f573b101abdbbd8300b84c2cdbe9",
+        "FEEDBACK_FROM": "contact@pocketry.xyz",
+        "FEEDBACK_TO": "contact@pocketry.xyz",
+        "TURNSTILE_SITE_KEY": "0x4AAAAAAFEX5UTaSUHC-qpj",
+        "TURNSTILE_HOSTNAMES": "codex-private-feedback.pocketry.pages.dev"
+      }
+    }
   }
 }
