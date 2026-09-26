@@ -1,3 +1,4 @@
+import type { ValidationIssue } from "@shared/gridfinity/validate";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import type { BufferGeometry } from "three";
@@ -71,12 +72,16 @@ export interface BinGeometryState {
   statsAreStale: boolean;
   /** Per-cutout build reports from the latest preview (emptied sections). */
   cutoutReports: CutoutBuildReport[];
+  /** Solid warnings belong to the current detailed model, never a draft. */
+  validationIssues: ValidationIssue[];
   /** The displayed geometry is simplified, even if refinement failed. */
   previewIsDraft: boolean;
   building: boolean;
   /** 0..1 as reported by the worker while building. */
   progress: number;
   error: string | null;
+  /** Retry the current preview without creating a design/history edit. */
+  retryPreview: () => void;
   /**
    * One-off build at a different quality — the export path. Runs on its own
    * supersede channel so it never cancels the live preview.
@@ -153,9 +158,12 @@ export function useBinGeometry(
   const [stats, setStats] = useState<BuildBinStats | null>(null);
   const [statsAreStale, setStatsAreStale] = useState(false);
   const [cutoutReports, setCutoutReports] = useState<CutoutBuildReport[]>([]);
+  const [validationIssues, setValidationIssues] = useState<ValidationIssue[]>([]);
   const [previewIsDraft, setPreviewIsDraft] = useState(false);
   const [building, setBuilding] = useState(true);
   const [progress, setProgress] = useState(0);
+  const [retryVersion, setRetryVersion] = useState(0);
+  const retryPreview = useCallback(() => { previousKeysRef.current = null; setRetryVersion(v => v + 1); }, []);
   const [error, setError] = useState<string | null>(null);
 
   const ensureClient = useCallback((): WorkerClient => {
@@ -251,6 +259,7 @@ export function useBinGeometry(
     setError(null);
     setStatsAreStale(true);
     setCutoutReports([]);
+    setValidationIssues([]);
 
     const request: BuildBinRequest = {
       spec: previewSpec,
@@ -297,6 +306,7 @@ export function useBinGeometry(
         setStats(result.stats);
         setStatsAreStale(false);
         setCutoutReports(result.cutoutReports ?? []);
+        setValidationIssues(result.validationIssues ?? []);
       }
       if (!intermediate) {
         setError(null);
@@ -396,7 +406,7 @@ export function useBinGeometry(
     };
     // requestKey encodes spec + quality + layout by value.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [requestKey, ensureClient, ensureInteractiveClient]);
+  }, [requestKey, retryVersion, ensureClient, ensureInteractiveClient]);
 
   // Tear the worker down with the workspace.
   useEffect(
@@ -521,10 +531,12 @@ export function useBinGeometry(
     stats,
     statsAreStale,
     cutoutReports,
+    validationIssues,
     previewIsDraft,
     building,
     progress,
     error,
+    retryPreview,
     buildOnce,
     buildFitCheck,
     buildSurfaceFitCheck,

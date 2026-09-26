@@ -54,6 +54,33 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
               <strong> Bin size</strong>, then select each pocket to set its
               <strong> Depth</strong>.
             </p>
+            <p className="mt-1 text-muted-foreground">
+              Pocket tilt, 3D transform controls, multi-selection, arrangement,
+              and linked designs are experimental. Turn on <strong>Enable
+              experimental features</strong> in <strong>Settings</strong> to use
+              them (on mobile, open <strong>More options → Settings</strong>).
+              Opening a project that uses these features enables the tools and
+              shows a notification. Turning the setting off preserves existing
+              designs and links.
+            </p>
+            <p className="mt-1 text-muted-foreground">
+              To store tall items in a shorter drawer, enable the experimental
+              tools, then open the pocket’s
+              <strong> Position &amp; rotation</strong> controls and set its X/Y tilt.
+              Items slide out along the tilted axis. Fixed depth follows that axis;
+              the opening expands to keep the path clear. Check the 3D preview
+              and the remaining floor before printing.
+            </p>
+            <p className="mt-1 text-muted-foreground">
+              In <strong>3D</strong>, click a pocket opening, then use
+              <strong> Move (W)</strong> or <strong>Rotate (E)</strong> to drag
+              its fixed bin X/Y/Z handles. The <strong>magnet</strong> toggles
+              1 mm / 5° increments. Escape cancels a drag. Pull Z up for a
+              shallower pocket or down for a deeper pocket; the opening stays
+              at the surface. Rotating keeps the seat rigid and converts
+              remaining-floor settings to fixed axial depths. Rotation stops
+              before the floor crosses the surface or underside.
+            </p>
           </li>
           <li className="pl-1">
             <h3 className="font-semibold">Check the fit, then print</h3>

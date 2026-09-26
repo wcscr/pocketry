@@ -33,7 +33,7 @@ Pocket-list selection, rename, duplicate, and remove targets grow to at least
 STL and 3MF confirmations show outer width × length × height in millimetres,
 including the stacking lip when enabled.
 
-Basic-shape pockets are available from **Layout → Add pocket** and the **Pockets**
+Basic-shape pockets are available from **Layout → Add simple pocket** and the **Pockets**
 panel. Draw a rectangle or square between opposite corners, or a circle from its
 centre to its edge. A live outline shows dimensions; release adds one ordinary
 pocket, and Escape/Cancel or a cancelled/tiny gesture leaves the project unchanged.

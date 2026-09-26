@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Double-click pocket and finger-access names to rename them inline; duplicates now receive distinct copy names, including linked copies and multi-selection duplicates.
+- Simplified the editor to Controls on the left (default) and Workflow left, properties right; both respect the experimental-tools toggle, which recommends Workflow when enabled.
+- Clarified and left-aligned the Finger access add button; removed duplicate Properties headings and grouped depth controls and split-section selection in an initially expanded Depth section.
 - Added the Wiha drivers example, showing adjustable solid fill height for stacking.
 
 ## 1.0.0 — 2026-09-26

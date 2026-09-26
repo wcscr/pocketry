@@ -1,7 +1,9 @@
+import { useExperimentalFeatures } from "@/state/experimental-features";
+import { hasPocketTilt, pocketAxis } from "@shared/gridfinity/pocket-orientation";
 import { outlineBounds } from "@/lib/geometry/outline";
 import { useState, type ReactNode } from "react";
 import { ChevronDown, Lock, Unlock } from "lucide-react";
-import { pocketName, placementFootprint, resolvePocketDepth, type CutoutPlacement, type TracedShape } from "@shared/gridfinity/cutout";
+import { pocketName, placementFootprint, resolvePlacedPocketDepth, pocketOccupiedOutline, pocketLayoutAllowanceMm, type CutoutPlacement, type TracedShape } from "@shared/gridfinity/cutout";
 import { binTotalHeightMm } from "@shared/gridfinity/standard";
 import { Button } from "@/components/ui/button";
 import { DraftNumberInput } from "@/components/ui/draft-number-input";
@@ -31,20 +33,25 @@ export function PocketMeasurements({ cutout, shape, children }: {
   cutout: CutoutPlacement; shape: TracedShape;
   children?: ReactNode;
 }): JSX.Element {
-  const { cutouts, dispatch } = useBin();
+  const { spec, cutouts, dispatch } = useBin();
+  const { enabled: experimentalEnabled } = useExperimentalFeatures();
   const { shapes } = useShapeLibrary();
   const [neighborId, setNeighborId] = useState("");
   const [side, setSide] = useState<"right" | "left" | "above" | "below">("right");
   const [gap, setGap] = useState(3);
   const updatePosition = (position: CutoutPlacement["position"], transient = false) => dispatch({ type: "UPDATE_CUTOUT", id: cutout.id, patch: { position }, transient, historyLabel: "Position tool pocket" });
-  const bounds = outlineBounds(placementFootprint(shape, cutout).outline)!;
+  const updateTilt = (axis: "xDeg" | "yDeg", value: number, transient: boolean) => dispatch({
+    type: "UPDATE_CUTOUT", id: cutout.id, transient, historyLabel: "Tilt tool pocket",
+    patch: { tilt: { xDeg: cutout.tilt?.xDeg ?? 0, yDeg: cutout.tilt?.yDeg ?? 0, [axis]: value } },
+  });
+  const bounds = outlineBounds(pocketOccupiedOutline(shape, cutout, spec))!;
   const neighbor = cutouts.find((item) => item.id === neighborId && item.id !== cutout.id);
   const neighborShape = shapes.find((item) => item.id === neighbor?.shapeId);
   const spaceFromNeighbor = () => {
     if (!neighbor || !neighborShape) return;
-    const target = outlineBounds(placementFootprint(neighborShape, neighbor).outline)!;
-    // Mouth-to-mouth spacing includes clearance and the top edge round.
-    const allowance = cutout.clearanceMm + cutout.topFilletMm + neighbor.clearanceMm + neighbor.topFilletMm + gap;
+    const target = outlineBounds(pocketOccupiedOutline(neighborShape, neighbor, spec))!;
+    // Tilted shafts use conservative bounds, including clearance and rounding.
+    const allowance = pocketLayoutAllowanceMm(cutout) + pocketLayoutAllowanceMm(neighbor) + gap;
     const dx = side === "right" ? target.maxX + allowance - bounds.minX : side === "left" ? target.minX - allowance - bounds.maxX : 0;
     const dy = side === "above" ? target.maxY + allowance - bounds.minY : side === "below" ? target.minY - allowance - bounds.maxY : 0;
     updatePosition({ x: cutout.position.x + dx, y: cutout.position.y + dy });
@@ -57,13 +64,28 @@ export function PocketMeasurements({ cutout, shape, children }: {
       </summary>
       <div className="space-y-3 pb-2 pt-2">
         {children}
+        {experimentalEnabled && <div className="space-y-2" data-testid="pocket-tilt-controls">
+          <div className="flex items-center gap-1"><p className="font-medium">Tilt pocket</p><HelpHint label="pocket tilt">Tilt tall items to fit in less vertical space. Items slide along the tilted pocket axis. X/Y tilt is applied before Z rotation; the opening grows to keep that path clear.</HelpHint></div>
+          <div className="grid grid-cols-2 gap-2">{(["xDeg", "yDeg"] as const).map((axis) => <Label key={axis} className="flex min-w-0 items-center gap-2 text-xs">
+            {axis === "xDeg" ? "X" : "Y"}
+            <DraftNumberInput className="h-8 min-w-0" aria-label={`Pocket ${axis === "xDeg" ? "X" : "Y"} tilt in degrees`} value={cutout.tilt?.[axis] ?? 0} min={-89} max={89} step={5} displayPrecision={1}
+              onValueChange={(value) => updateTilt(axis, value, true)}
+              onValueCommit={(value) => updateTilt(axis, value, false)} />
+            <span>°</span>
+          </Label>)}</div>
+          {hasPocketTilt(cutout) && <>
+            <p className="text-muted-foreground">Fixed depth follows the tilted axis. Remaining floor protects the lowest point.</p>
+            <Button size="sm" variant="outline" onClick={() => dispatch({ type: "UPDATE_CUTOUT", id: cutout.id, patch: { tilt: undefined }, historyLabel: "Reset pocket tilt" })}>Reset tilt</Button>
+          </>}
+        </div>}
         <PositionInputs position={cutout.position} onChange={updatePosition} />
+        {experimentalEnabled && <p className="text-muted-foreground">In 3D, the Z arrow adjusts depth below the surface. Pull up for a shallower pocket or down for a deeper pocket.</p>}
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={() => updatePosition({ ...cutout.position, x: cutout.position.x - (bounds.minX + bounds.maxX) / 2 })}>Center X</Button>
           <Button variant="outline" size="sm" onClick={() => updatePosition({ ...cutout.position, y: cutout.position.y - (bounds.minY + bounds.maxY) / 2 })}>Center Y</Button>
         </div>
-        {cutouts.length > 1 && <details className="space-y-2 text-xs">
-          <summary className="cursor-pointer">Space beside another pocket <HelpHint label="pocket spacing">Gap between opening bounds, including top rounding.</HelpHint></summary>
+        {cutouts.length > 1 && <details className="group/spacing space-y-2 border-t text-xs">
+          <summary className="cursor-pointer"><span className="flex items-center gap-1">Space beside another pocket <HelpHint label="pocket spacing">Gap between pocket bounds, including clearance and top rounding. Tilted pockets also reserve space for the shaft below the opening.</HelpHint></span><ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/spacing:rotate-180" /></summary>
           <select className="h-8 w-full rounded border bg-background px-2" aria-label="Reference pocket" value={neighborId} onChange={(event) => setNeighborId(event.target.value)}>
             <option value="">Choose a pocket</option>
             {cutouts.filter((item) => item.id !== cutout.id).map((item) => <option key={item.id} value={item.id}>{pocketName(item, shapes.find((shape) => shape.id === item.shapeId))}</option>)}
@@ -83,30 +105,34 @@ export function PocketMeasurements({ cutout, shape, children }: {
   </div>;
 }
 
-/** Depth feedback and inspection stay beside the primary depth controls. */
-export function PocketDepthSummary({ cutout, shape, section, inspect }: {
+/** Depth controls, feedback, and inspection share one section, expanded for each newly selected pocket. */
+export function PocketDepthSummary({ cutout, shape, section, inspect, children }: {
   cutout: CutoutPlacement; shape: TracedShape;
   section: BuildBinSection | null;
   inspect: (section: BuildBinSection | null) => void;
+  children?: ReactNode;
 }): JSX.Element {
   const { spec, dispatch } = useBin();
-  const pocket = resolvePocketDepth(spec, cutout.depth);
+  const pocket = resolvePlacedPocketDepth(spec, cutout.depth, shape, cutout);
   const total = binTotalHeightMm(spec.heightUnits, spec.lip === "standard");
   const bounds = outlineBounds(placementFootprint(shape, cutout).outline)!;
   return <div className="space-y-2">
-    <details className="group/depth text-xs" data-testid="pocket-depth-summary">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded py-1.5 text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
-        <span>Cut depth: {pocket.depthMm === null ? "through" : `${pocket.depthMm.toFixed(1)} mm`} · Floor: {(pocket.floorZ ?? 0).toFixed(1)} mm</span>
+    <details key={cutout.id} open className="group/depth text-xs" data-testid="pocket-depth-summary">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded py-2 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+        <span>Depth</span>
         <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/depth:rotate-180" />
       </summary>
+      {children}
       <div className="rounded border bg-muted/30 p-2">
+        <p className="text-muted-foreground">{hasPocketTilt(cutout) ? "Vertical depth" : "Cut depth"}: {pocket.depthMm === null ? "through" : `${pocket.depthMm.toFixed(1)} mm`} · Floor: {(pocket.floorZ ?? 0).toFixed(1)} mm</p>
         <p className="text-muted-foreground">Infill top: {pocket.infillTopZ.toFixed(1)} mm · Total bin: {total.toFixed(1)} mm</p>
-        <svg viewBox="0 0 240 65" className="mt-2 h-16 w-full" role="img" aria-label="Cross-section: pocket depth above remaining floor, with stacking rim above infill">
+        {hasPocketTilt(cutout) && <p className="mt-1 text-muted-foreground">Along pocket axis: {pocket.axialDepthMm === null ? "through" : `${pocket.axialDepthMm.toFixed(1)} mm`} · Axis tilt: {(Math.acos(pocketAxis(cutout).z) * 180 / Math.PI).toFixed(1)}°</p>}
+        {!hasPocketTilt(cutout) && <svg viewBox="0 0 240 65" className="mt-2 h-16 w-full" role="img" aria-label="Cross-section: pocket depth above remaining floor, with stacking rim above infill">
           <path d="M20 5 H40 V15 H200 V5 H220 V60 H20 Z" fill="currentColor" opacity="0.2" />
           <rect x="70" y="15" width="100" height={45 * Math.min(1, Math.max(0, (pocket.depthMm ?? pocket.infillTopZ) / pocket.infillTopZ))} fill="hsl(var(--background))" stroke="currentColor" />
           <text x="120" y="28" textAnchor="middle" fontSize="9" fill="currentColor">Pocket</text>
           <text x="230" y="57" textAnchor="end" fontSize="9" fill="currentColor">Floor</text>
-        </svg>
+        </svg>}
       </div>
       <Button className="mt-2 h-8 w-full text-xs" size="sm" variant="outline" data-testid="button-inspect-pocket" onClick={() => {
         dispatch({ type: "SET_VIEW_MODE", viewMode: "3d" });

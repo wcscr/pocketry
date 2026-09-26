@@ -1,3 +1,7 @@
+import { recordTransformOrigins, type TransformOrigins } from "@shared/gridfinity/transform-origins";
+import { applyLinkedEdits, clampLinkedFingerHoles, pocketDesign, fingerDesign, type DesignObjectKind } from "@shared/gridfinity/design-links";
+import { sameObject, type ObjectRef, type ObjectEdits } from "@/lib/gridfinity/object-arrangement";
+
 import {
   createContext,
   useContext,
@@ -33,9 +37,12 @@ export type BinEditorMode = "placement" | "contour" | "footprint" | "label-edge"
 const BIN_SIZE_KEYS = ["gridX", "gridY", "gridPitch", "heightUnits", "lip", "fillHeightPercent"] as const;
 
 export interface BinState {
+  transformOrigins: TransformOrigins;
   spec: BinSpec;
   cutouts: CutoutPlacement[];
   fingerHoles: FingerHole[];
+  selection: ObjectRef[];
+  editError: string | null;
   selectedCutoutId: string | null;
   selectedPocketSection: PocketSectionIndex;
   selectedFingerHoleId: string | null;
@@ -68,6 +75,7 @@ export type BinAction =
       fingerHoles?: FingerHole[];
       /** Validated saved history, absent on legacy projects and new designs. */
       history?: BinHistory;
+      transformOrigins?: TransformOrigins;
     }
   | { type: "MARK_HYDRATED" }
   | {
@@ -103,7 +111,11 @@ export type BinAction =
   | { type: "REQUEST_REMOVE_CUTOUT"; id: string }
   | { type: "CANCEL_REMOVE_CUTOUT" }
   | { type: "REMOVE_CUTOUT"; id: string }
-  | { type: "DUPLICATE_CUTOUT"; id: string; newId: string }
+  | { type: "DUPLICATE_CUTOUT"; id: string; newId: string; labels?: ReadonlyMap<string, string> }
+  | { type: "DUPLICATE_LINKED"; kind: DesignObjectKind; id: string; newId: string; linkId: string; labels?: ReadonlyMap<string, string> }
+  | { type: "LINK_DESIGNS"; kind: DesignObjectKind; ids: string[]; sourceId: string; linkId: string; tilt: boolean }
+  | { type: "UNLINK_DESIGNS"; kind: DesignObjectKind; ids: string[] }
+  | { type: "SET_LINKED_TILT"; id: string; enabled: boolean }
   | {
       type: "REPLACE_LAYOUT";
       cutouts: CutoutPlacement[];
@@ -115,8 +127,12 @@ export type BinAction =
       specPatch?: Partial<BinSpecInput>;
       historyLabel?: string;
     }
-  | { type: "SELECT_CUTOUT"; id: string | null; section?: PocketSectionIndex }
-  | { type: "SELECT_FINGER_HOLE"; id: string | null }
+  | { type: "SELECT_CUTOUT"; id: string | null; section?: PocketSectionIndex; additive?: boolean }
+  | { type: "SELECT_FINGER_HOLE"; id: string | null; additive?: boolean }
+  | { type: "SET_SELECTION"; selection: ObjectRef[] }
+  | { type: "REMOVE_SELECTION" }
+  | { type: "DUPLICATE_SELECTION"; ids: { source: ObjectRef; id: string }[]; labels?: ReadonlyMap<string, string> }
+  | { type: "UPDATE_OBJECTS"; edits: ObjectEdits; historyLabel: string; transient?: boolean }
   | { type: "SET_VIEW_MODE"; viewMode: BinViewMode }
   | { type: "SET_EDITOR_MODE"; editorMode: BinEditorMode }
   | { type: "SET_GRID"; gridX: number; gridY: number; historyLabel?: string }
@@ -131,9 +147,12 @@ export const INITIAL_BIN_SPEC: BinSpec = parseBinSpec({
 });
 
 const INITIAL: BinState = {
+  transformOrigins: { pockets: [], fingerHoles: [] },
   spec: INITIAL_BIN_SPEC,
   cutouts: [],
   fingerHoles: [],
+  selection: [],
+  editError: null,
   selectedCutoutId: null,
   selectedPocketSection: 0,
   selectedFingerHoleId: null,
@@ -152,6 +171,24 @@ const INITIAL: BinState = {
   },
 };
 
+/** Labels supply legacy shape-name fallbacks; copy names stay placement-local.
+ * Reserve each generated name so a batch cannot create duplicate labels. */
+function copyNameAllocator(state: BinDoc, labels?: ReadonlyMap<string, string>): (id: string) => string {
+  const names = new Map([
+    ...state.cutouts.map(c => [c.id, c.name ?? labels?.get(c.id) ?? "Pocket"] as const),
+    ...state.fingerHoles.map((h, i) => [h.id, h.name ?? labels?.get(h.id) ?? `Finger access ${i + 1}`] as const),
+  ]);
+  const used = new Set([...names.values()].map(name => name.toLowerCase()));
+  return id => {
+    const base = names.get(id)!.replace(/ \(copy(?: \d+)?\)$/i, "");
+    let number = 1;
+    let name = `${base} (copy)`;
+    while (used.has(name.toLowerCase())) name = `${base} (copy ${++number})`;
+    used.add(name.toLowerCase());
+    return name;
+  };
+}
+
 /** Applies a material change: new doc becomes present, redo tail is cut. */
 function commit(
   state: BinState,
@@ -168,6 +205,8 @@ function commit(
   return {
     ...state,
     ...rest,
+    editError: null,
+    ...selectionState(existingSelection(rest.selection ?? state.selection, doc)),
     spec: doc.spec,
     cutouts: doc.cutouts,
     fingerHoles: doc.fingerHoles,
@@ -178,7 +217,7 @@ function commit(
 function limitFingerAccessForBinChange(state: BinState, doc: BinDoc): BinDoc {
   const previous = getCommittedBinDoc(state).spec;
   if (!BIN_SIZE_KEYS.some(key => previous[key] !== doc.spec[key])) return doc;
-  return { ...doc, fingerHoles: doc.fingerHoles.map(hole => clampFingerHoleToBin(hole, doc.spec)) };
+  return { ...doc, fingerHoles: clampLinkedFingerHoles(doc.fingerHoles, doc.spec) };
 }
 
 function specPatchLabel(patch: Partial<BinSpecInput>): string {
@@ -197,8 +236,8 @@ function specPatchLabel(patch: Partial<BinSpecInput>): string {
 
 function cutoutPatchLabel(patch: Partial<CutoutPlacement>): string {
   if ("shapeId" in patch) return "Edit contour";
-  if ("position" in patch) return "Move tool pocket";
-  if ("rotationDeg" in patch) return "Rotate tool pocket";
+  if ("position" in patch || "zOffsetMm" in patch) return "Move tool pocket";
+  if ("rotationDeg" in patch || "tilt" in patch) return "Rotate tool pocket";
   if ("mirrored" in patch) return "Mirror tool pocket";
   if ("scaleX" in patch || "scaleY" in patch) return "Scale tool pocket";
   if ("aspectRatioLocked" in patch) return "Change pocket aspect ratio lock";
@@ -215,6 +254,7 @@ function preview(state: BinState, doc: BinDoc): BinState {
   doc = limitFingerAccessForBinChange(state, doc);
   return {
     ...state,
+    editError: null,
     spec: doc.spec,
     cutouts: doc.cutouts,
     fingerHoles: doc.fingerHoles,
@@ -239,7 +279,28 @@ function changeDefaultFloor(cutout: CutoutPlacement, previous: number, next: num
   } : {}) };
 }
 
+function selectionState(selection: ObjectRef[]): Pick<BinState, "selection" | "selectedCutoutId" | "selectedFingerHoleId"> {
+  const active = selection.at(-1);
+  return { selection, selectedCutoutId: active?.kind === "pocket" ? active.id : null,
+    selectedFingerHoleId: active?.kind === "finger" ? active.id : null };
+}
+function existingSelection(selection: ObjectRef[], doc: BinDoc): ObjectRef[] {
+  return selection.filter((ref, i) => selection.findIndex(r => sameObject(r, ref)) === i &&
+    (ref.kind === "pocket" ? doc.cutouts : doc.fingerHoles).some(o => o.id === ref.id));
+}
+function linkedEditError(state: BinState): BinState {
+  return { ...state, editError: "Linked copies received different design changes. Edit one copy, or make the copies independent first." };
+}
+
 function reducer(state: BinState, action: BinAction): BinState {
+  const next = reduceBin(state, action);
+  const origins = action.type === "HYDRATE" ? action.transformOrigins ?? { pockets: [], fingerHoles: [] } : state.transformOrigins;
+  const docs = action.type === "HYDRATE" ? [...next.history.stack.map(e => e.doc), next] : [getCommittedBinDoc(next)];
+  const transformOrigins = recordTransformOrigins(origins, docs);
+  return next.transformOrigins === transformOrigins ? next : { ...next, transformOrigins };
+}
+
+function reduceBin(state: BinState, action: BinAction): BinState {
   switch (action.type) {
     case "HYDRATE": {
       // Replace the outgoing project's entire history. Legacy projects start
@@ -254,6 +315,8 @@ function reducer(state: BinState, action: BinAction): BinState {
         spec: doc.spec,
         cutouts: doc.cutouts,
         fingerHoles: doc.fingerHoles,
+        selection: [],
+        editError: null,
         selectedCutoutId: null,
         selectedPocketSection: 0,
         selectedFingerHoleId: null,
@@ -314,16 +377,15 @@ function reducer(state: BinState, action: BinAction): BinState {
         action.historyLabel ??
           `Add ${action.cutouts.length === 1 ? "tool pocket" : `${action.cutouts.length} tool pockets`}`,
         {
+          selection: action.cutouts.at(-1) ? [{ kind: "pocket", id: action.cutouts.at(-1)!.id }] : state.selection,
           selectedCutoutId: action.cutouts.at(-1)?.id ?? state.selectedCutoutId,
           selectedFingerHoleId: null,
         },
       );
     case "UPDATE_CUTOUT": {
-      const doc = {
-        spec: state.spec,
-        cutouts: patchCutouts(state.cutouts, action.id, action.patch),
-        fingerHoles: state.fingerHoles,
-      };
+      const edits = applyLinkedEdits(state, { cutouts: patchCutouts(state.cutouts, action.id, action.patch), fingerHoles: [] });
+      if (!edits) return linkedEditError(state);
+      const doc = { spec: state.spec, ...edits };
       return action.transient
         ? preview(state, doc)
         : commit(state, doc, action.historyLabel ?? cutoutPatchLabel(action.patch));
@@ -337,22 +399,18 @@ function reducer(state: BinState, action: BinAction): BinState {
           fingerHoles: [...state.fingerHoles, clampFingerHoleToBin(action.hole, state.spec)],
         },
         "Add finger access",
-        { selectedCutoutId: null, selectedFingerHoleId: action.hole.id },
+        { ...selectionState([{ kind: "finger", id: action.hole.id }]) },
       );
     case "UPDATE_FINGER_HOLE": {
-      const doc = {
-        spec: state.spec,
-        cutouts: state.cutouts,
-        fingerHoles: state.fingerHoles.map((hole) => {
-          if (hole.id !== action.id) return hole;
-          const updated = { ...hole, ...action.patch, id: hole.id };
-          return ["diameterMm", "lengthMm", "depthMm", "kind", "rotationDeg"].some(key => key in action.patch)
-            ? clampFingerHoleToBin(updated, state.spec) : updated;
-        }),
-      };
-      return action.transient
-        ? preview(state, doc)
-        : commit(state, doc, action.historyLabel ?? "Edit finger access");
+      const source = state.fingerHoles.find(h => h.id === action.id);
+      if (!source) return state;
+      const edits = applyLinkedEdits(state, { cutouts: [], fingerHoles: [{ ...source, ...action.patch, id: source.id }] });
+      if (!edits) return linkedEditError(state);
+      if (["diameterMm", "lengthMm", "depthMm", "kind", "rotationDeg"].some(key => key in action.patch)) {
+        edits.fingerHoles = clampLinkedFingerHoles(edits.fingerHoles, state.spec, new Set([source.id]));
+      }
+      const doc = { spec: state.spec, ...edits };
+      return action.transient ? preview(state, doc) : commit(state, doc, action.historyLabel ?? "Edit finger access");
     }
     case "REMOVE_FINGER_HOLE":
       if (!state.fingerHoles.some((hole) => hole.id === action.id)) return state;
@@ -400,6 +458,8 @@ function reducer(state: BinState, action: BinAction): BinState {
       if (!source) return state;
       const copy: CutoutPlacement = {
         ...source,
+        name: copyNameAllocator(state, action.labels)(source.id),
+        designLink: undefined,
         id: action.newId,
         // Offset so the twin is visibly a twin, not a mystery no-op.
         position: { x: source.position.x + 10, y: source.position.y - 10 },
@@ -412,8 +472,55 @@ function reducer(state: BinState, action: BinAction): BinState {
           fingerHoles: state.fingerHoles,
         },
         "Duplicate tool pocket",
-        { selectedCutoutId: copy.id, selectedFingerHoleId: null },
+        { ...selectionState([{ kind: "pocket", id: copy.id }]) },
       );
+    }
+    case "LINK_DESIGNS": {
+      const ids = new Set(action.ids);
+      const source = action.kind === "pocket" ? state.cutouts.find(c => c.id === action.sourceId) : state.fingerHoles.find(h => h.id === action.sourceId);
+      if (!source || ids.size < 2 || !ids.has(source.id)) return state;
+      const designLink = { id: action.linkId, tilt: action.kind === "pocket" && action.tilt };
+      const doc = action.kind === "pocket"
+        ? { spec: state.spec, fingerHoles: state.fingerHoles, cutouts: state.cutouts.map(c => ids.has(c.id)
+          ? { ...c, ...pocketDesign({ ...source as CutoutPlacement, designLink }), designLink } : c) }
+        : { spec: state.spec, cutouts: state.cutouts, fingerHoles: clampLinkedFingerHoles(state.fingerHoles.map(h => ids.has(h.id)
+          ? { ...h, ...fingerDesign(source as FingerHole), designLink } : h), state.spec, ids) };
+      return commit(state, doc, `Link ${action.kind === "pocket" ? "pocket" : "thumb-access"} designs`);
+    }
+    case "UNLINK_DESIGNS": {
+      const ids = new Set(action.ids);
+      const clear = <T extends { id: string; designLink?: { id: string; tilt: boolean } }>(items: T[]) =>
+        items.map(item => ids.has(item.id) ? { ...item, designLink: undefined } : item);
+      return commit(state, { spec: state.spec,
+        cutouts: action.kind === "pocket" ? clear(state.cutouts) : state.cutouts,
+        fingerHoles: action.kind === "finger" ? clear(state.fingerHoles) : state.fingerHoles }, "Make designs independent");
+    }
+    case "SET_LINKED_TILT": {
+      const source = state.cutouts.find(c => c.id === action.id);
+      if (!source?.designLink) return state;
+      return commit(state, { spec: state.spec, fingerHoles: state.fingerHoles, cutouts: state.cutouts.map(c => c.designLink?.id === source.designLink!.id
+        ? { ...c, designLink: { ...source.designLink!, tilt: action.enabled }, ...(action.enabled ? { tilt: source.tilt ?? { xDeg: 0, yDeg: 0 } } : {}) } : c) }, action.enabled ? "Link pocket tilt" : "Unlink pocket tilt");
+    }
+    case "DUPLICATE_LINKED": {
+      const source = action.kind === "pocket" ? state.cutouts.find(c => c.id === action.id) : state.fingerHoles.find(h => h.id === action.id);
+      if (!source) return state;
+      const designLink = source.designLink ?? { id: action.linkId, tilt: false };
+      const name = copyNameAllocator(state, action.labels)(source.id);
+      let doc: BinDoc;
+      if (action.kind === "pocket") {
+        const pocket = source as CutoutPlacement;
+        doc = { spec: state.spec, fingerHoles: state.fingerHoles, cutouts: [
+          ...state.cutouts.map(c => c.id === source.id ? { ...c, designLink } : c),
+          { ...pocket, name, id: action.newId, designLink, position: { x: pocket.position.x + 10, y: pocket.position.y - 10 } },
+        ] };
+      } else {
+        const hole = source as FingerHole;
+        doc = { spec: state.spec, cutouts: state.cutouts, fingerHoles: [
+          ...state.fingerHoles.map(h => h.id === source.id ? { ...h, designLink } : h),
+          { ...hole, name, id: action.newId, designLink, center: { x: hole.center.x + 10, y: hole.center.y - 10 } },
+        ] };
+      }
+      return commit(state, doc, "Duplicate linked design", selectionState([{ kind: action.kind, id: action.newId }]));
     }
     case "REPLACE_LAYOUT":
       return commit(
@@ -444,19 +551,54 @@ function reducer(state: BinState, action: BinAction): BinState {
           pendingRemovalId: null,
         },
       );
+    case "UPDATE_OBJECTS": {
+      const edits = applyLinkedEdits(state, action.edits);
+      if (!edits) return linkedEditError(state);
+      const doc = { spec: state.spec, ...edits };
+      if (JSON.stringify(doc) === JSON.stringify(getCommittedBinDoc(state))) return preview(state, doc);
+      return action.transient ? preview(state, doc) : commit(state, doc, action.historyLabel);
+    }
+    case "REMOVE_SELECTION": {
+      if (!state.selection.length) return state;
+      return commit(state, { spec: state.spec,
+        cutouts: state.cutouts.filter(c => !state.selection.some(ref => ref.kind === "pocket" && ref.id === c.id)),
+        fingerHoles: state.fingerHoles.filter(h => !state.selection.some(ref => ref.kind === "finger" && ref.id === h.id)),
+      }, `Remove ${state.selection.length} objects`, { selection: [], pendingRemovalId: null });
+    }
+    case "DUPLICATE_SELECTION": {
+      const cutouts: CutoutPlacement[] = [], fingerHoles: FingerHole[] = [];
+      const selection: ObjectRef[] = [];
+      const used = new Set([...state.cutouts, ...state.fingerHoles].map(o => o.id));
+      const copyName = copyNameAllocator(state, action.labels);
+      for (const { source, id } of action.ids) {
+        if (used.has(id) || !state.selection.some(ref => sameObject(ref, source))) continue;
+        if (source.kind === "pocket") {
+          const original = state.cutouts.find(c => c.id === source.id);
+          if (!original) continue;
+          cutouts.push({ ...original, name: copyName(original.id), id, designLink: undefined, position: { x: original.position.x + 10, y: original.position.y - 10 } });
+        } else {
+          const original = state.fingerHoles.find(h => h.id === source.id);
+          if (!original) continue;
+          fingerHoles.push({ ...original, name: copyName(original.id), id, designLink: undefined, center: { x: original.center.x + 10, y: original.center.y - 10 } });
+        }
+        used.add(id); selection.push({ kind: source.kind, id });
+      }
+      if (!selection.length) return state;
+      return commit(state, { spec: state.spec, cutouts: [...state.cutouts, ...cutouts], fingerHoles: [...state.fingerHoles, ...fingerHoles] },
+        `Duplicate ${selection.length} objects`, { selection });
+    }
+    case "SET_SELECTION":
+      return { ...state, ...selectionState(existingSelection(action.selection, state)), selectedPocketSection: 0 };
     case "SELECT_CUTOUT":
-      return {
-        ...state,
-        selectedCutoutId: action.id,
-        selectedPocketSection: action.section ?? (action.id === state.selectedCutoutId ? state.selectedPocketSection : 0),
-        selectedFingerHoleId: action.id === null ? state.selectedFingerHoleId : null,
-      };
-    case "SELECT_FINGER_HOLE":
-      return {
-        ...state,
-        selectedFingerHoleId: action.id,
-        selectedCutoutId: action.id === null ? state.selectedCutoutId : null,
-      };
+    case "SELECT_FINGER_HOLE": {
+      const kind = action.type === "SELECT_CUTOUT" ? "pocket" : "finger";
+      const ref: ObjectRef | null = action.id ? { kind, id: action.id } : null;
+      const selection = ref ? action.additive
+        ? state.selection.some(r => sameObject(r, ref)) ? state.selection.filter(r => !sameObject(r, ref)) : [...state.selection, ref]
+        : [ref] : state.selection.filter(r => r.kind !== kind);
+      return { ...state, ...selectionState(existingSelection(selection, state)),
+        selectedPocketSection: action.type === "SELECT_CUTOUT" ? action.section ?? (action.id === state.selectedCutoutId ? state.selectedPocketSection : 0) : 0 };
+    }
     case "SET_VIEW_MODE":
       return {
         ...state,
@@ -507,20 +649,12 @@ function restore(state: BinState, entry: BinHistoryEntry, index: number): BinSta
   const { doc } = entry;
   return {
     ...state,
+    editError: null,
     spec: doc.spec,
     cutouts: doc.cutouts,
     fingerHoles: doc.fingerHoles,
     history: { ...state.history, index },
-    // Selection survives only if the cutout still exists at this point in
-    // time.
-    selectedCutoutId: doc.cutouts.some((c) => c.id === state.selectedCutoutId)
-      ? state.selectedCutoutId
-      : null,
-    selectedFingerHoleId: doc.fingerHoles.some(
-      (hole) => hole.id === state.selectedFingerHoleId,
-    )
-      ? state.selectedFingerHoleId
-      : null,
+    ...selectionState(existingSelection(state.selection, doc)),
     pendingRemovalId: null,
   };
 }

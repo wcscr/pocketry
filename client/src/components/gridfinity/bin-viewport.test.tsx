@@ -3,8 +3,9 @@ import * as React from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, expect, it, vi } from "vitest";
 
+const canvasFailure = vi.hoisted(() => ({ active: false }));
 vi.mock("@react-three/fiber", () => ({
-  Canvas: () => <div data-testid="canvas-stub" />,
+  Canvas: () => { if (canvasFailure.active) throw new Error("WebGL context lost"); return <div data-testid="canvas-stub" />; },
   useThree: vi.fn(),
 }));
 
@@ -17,6 +18,10 @@ vi.mock("@/hooks/use-element-size", () => ({
   useElementSize: () => [vi.fn(), { width: 800, height: 600 }],
 }));
 
+import { parseCutoutPlacement } from "@shared/gridfinity/cutout";
+import { parseBinSpec } from "@shared/gridfinity/types";
+import { createBasicPocket } from "@/lib/gridfinity/basic-shape";
+import type { PocketEditor } from "./pocket-transform-scene";
 import { BinViewport, type MaterialColorTarget } from "./bin-viewport";
 import type { Outline } from "@shared/geometry/types";
 
@@ -36,6 +41,7 @@ function renderViewport(
   measurementOutlines: readonly Outline[] = [],
   onEditColor: (target: MaterialColorTarget) => void = vi.fn(),
   previewIsDraft = false,
+  pocketEditor?: PocketEditor,
 ): HTMLElement {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   const container = document.createElement("div");
@@ -45,6 +51,7 @@ function renderViewport(
     root.render(
       <BinViewport
         geometry={null}
+        pocketEditor={pocketEditor}
         hasPocketFloor={hasPocketFloor}
         hasStackingRim={hasStackingRim}
         binColor="#654321"
@@ -146,4 +153,67 @@ it("offers a top-plane ruler in 3D and recommends Layout for precision", () => {
   expect(status?.textContent).toContain(
     "For the most accurate dimension check, use the ruler in Layout.",
   );
+});
+
+
+it("switches CAD modes without stealing field input and suspends them for the ruler", () => {
+  const basic = createBasicPocket("rectangle", { x: -5, y: -8 }, { x: 5, y: 8 }, "slot")!;
+  const cutout = parseCutoutPlacement({ ...basic.cutout, name: "Target", zOffsetMm: 2 });
+  const editor: PocketEditor = { spec: parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6 }), pockets: [{ cutout, shape: basic.shape }], selectedId: cutout.id, onSelect: vi.fn(), onCommit: vi.fn() };
+  const container = renderViewport(false, 1, false, false, [basic.shape.outlineMm], undefined, false, editor);
+  const button = (name: string) => container.querySelector(`[aria-label="${name}"]`) as HTMLButtonElement;
+  expect(container.querySelector('[data-testid="pocket-3d-controls"]')).toBeNull();
+  React.act(() => button("Object controls").click());
+  expect(container.querySelector('[data-testid="pocket-3d-depth-readout"]')?.textContent).toContain("Depth:");
+  expect(container.querySelector('[aria-label="Transform coordinate space"]')).toBeNull();
+  expect(button("Snap: 1 mm moves and 5 degree rotations").getAttribute("title")).toContain("Snap off");
+  expect(button("Snap: 1 mm moves and 5 degree rotations").getAttribute("title")).toContain("1 mm moves / 5° rotations");
+  React.act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "e" })));
+  expect(button("Rotate pocket (E)").getAttribute("aria-pressed")).toBe("true");
+  const input = document.createElement("input"); container.append(input); input.focus();
+  React.act(() => input.dispatchEvent(new KeyboardEvent("keydown", { key: "w", bubbles: true })));
+  expect(button("Rotate pocket (E)").getAttribute("aria-pressed")).toBe("true");
+  React.act(() => button("Snap: 1 mm moves and 5 degree rotations").click());
+  expect(button("Snap: 1 mm moves and 5 degree rotations").getAttribute("aria-pressed")).toBe("true");
+  expect(button("Snap: 1 mm moves and 5 degree rotations").getAttribute("title")).toContain("Snap on");
+  React.act(() => button("Measure between contours").click());
+  expect(container.querySelector('[data-testid="pocket-3d-controls"]')).toBeNull();
+  React.act(() => button("Stop measuring").click());
+  expect(container.querySelector('[data-testid="pocket-3d-controls"]')).not.toBeNull();
+  expect(button("Measure between contours").getAttribute("aria-pressed")).toBe("false");
+  React.act(() => (Array.from(container.querySelectorAll("button")).find(b => b.textContent === "Clear")!).click());
+  expect(editor.onSelect).toHaveBeenLastCalledWith(null);
+  React.act(() => button("Close object controls").click());
+  expect(container.querySelector('[data-testid="pocket-3d-controls"]')).toBeNull();
+  React.act(() => button("Object controls").click());
+  expect(container.querySelector('[data-testid="pocket-3d-controls"]')).not.toBeNull();
+});
+
+it("keeps the workspace usable after a lost graphics context and can retry", () => {
+  const warning = vi.spyOn(console, "error").mockImplementation(() => {});
+  canvasFailure.active = true;
+  try {
+    const container = renderViewport(false, 1);
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain("Your design is still open");
+    canvasFailure.active = false;
+    React.act(() => Array.from(container.querySelectorAll("button")).find(b => b.textContent === "Retry 3D preview")!.click());
+    expect(container.querySelector('[data-testid="canvas-stub"]')).not.toBeNull();
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+  } finally { canvasFailure.active = false; warning.mockRestore(); }
+});
+
+it("returns to the requested transform tab even when its mode was already active", () => {
+  const basic = createBasicPocket("rectangle", { x: -5, y: -8 }, { x: 5, y: 8 }, "shortcut")!;
+  const editor: PocketEditor = { spec: parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6 }),
+    pockets: [basic], selectedId: basic.cutout.id, onSelect: vi.fn(), onCommit: vi.fn(), linkControls: <span>Link actions</span> };
+  const container = renderViewport(false, 1, false, false, [], undefined, false, editor);
+  const button = (name: string) => container.querySelector<HTMLButtonElement>(`[aria-label="${name}"]`)!;
+  for (const [key, mode] of [["w", "Move pocket (W)"], ["e", "Rotate pocket (E)"]] as const) {
+    React.act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key })));
+    for (const tab of ["Link and unlink designs", "Align and distribute objects"]) {
+      React.act(() => button(tab).click());
+      React.act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key })));
+      expect(button(mode).getAttribute("aria-pressed")).toBe("true");
+    }
+  }
 });

@@ -24,21 +24,22 @@ class NoopResizeObserver implements ResizeObserver {
  * actually run — a crash from an imperative API called too early, a mobile
  * branch that never renders its canvas.
  */
-function render(ui: React.ReactElement, { mobile = false, inspect }: {
+function render(ui: React.ReactElement, { mobile = false, landscape = false, inspect }: {
   mobile?: boolean;
+  landscape?: boolean;
   inspect?: (container: HTMLDivElement) => void;
 } = {}) {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.stubGlobal("ResizeObserver", NoopResizeObserver);
   // jsdom does not implement matchMedia, which useIsMobile() calls unguarded.
   vi.stubGlobal("matchMedia", (query: string) => ({
-    matches: mobile,
+    matches: query.includes("max-height") ? landscape : mobile,
     media: query,
     addEventListener: () => {},
     removeEventListener: () => {},
   }));
   Object.defineProperty(window, "innerWidth", {
-    value: mobile ? 400 : 1440,
+    value: mobile ? 400 : landscape ? 844 : 1440,
     writable: true,
     configurable: true,
   });
@@ -90,6 +91,87 @@ describe("AppShell", () => {
 describe("WorkspaceLayout", () => {
   const noop = () => {};
 
+  it("keeps both panel handles reachable on short landscape screens without remounting the canvas", () => {
+    render(<WorkspaceLayout autoSaveId="test:inspector" panelOpen onPanelOpenChange={noop}
+      panel={<div>object-list</div>} canvas={<div>canvas</div>} inspector={<div>selection-properties</div>} />, {
+      landscape: true,
+      inspect: container => {
+        const canvas = container.querySelector('[data-testid="inspector-workspace-canvas"]');
+        expect(canvas).not.toBeNull();
+        expect(container.querySelector('[data-testid$="restore-rail"]')).toBeNull();
+        const click = (id: string) => React.act(() => container.querySelector<HTMLButtonElement>(`nav[aria-label="Editor panels"] button[aria-controls="${id}"]`)!.click());
+        click('objects-panel');
+        expect(container.querySelector('#objects-panel')!.hasAttribute('hidden')).toBe(false);
+        expect(container.querySelector('#workflow-panel')!.hasAttribute('hidden')).toBe(true);
+        click('objects-panel'); click('workflow-panel');
+        expect(container.querySelector('#workflow-panel')!.hasAttribute('hidden')).toBe(false);
+        expect(container.querySelector('[data-testid="inspector-workspace-canvas"]')).toBe(canvas);
+        expect(canvas!.closest('#workflow-panel, #objects-panel, [role="dialog"]')).toBeNull();
+        React.act(() => { Object.defineProperty(window, "innerWidth", { configurable: true, value: 1440 }); window.dispatchEvent(new Event("resize")); });
+        expect(container.querySelector('[data-testid="inspector-workspace-canvas"]')).toBe(canvas);
+      },
+    });
+  });
+
+  it("collapses from the panel header and restores from the canvas without remounting either", () => {
+    function Harness() {
+      const [open, setOpen] = React.useState(true);
+      return <WorkspaceLayout autoSaveId="test:panel-toggle" panelOpen={open} onPanelOpenChange={setOpen}
+        panelTitle="Bin designer" panel={<input aria-label="Example property" />} canvas={<div data-testid="retained-canvas">canvas</div>} />;
+    }
+    render(<Harness />, { inspect: container => {
+      const controls = container.querySelector('[data-testid="desktop-workspace-controls"]')!;
+      const canvas = container.querySelector('[data-testid="retained-canvas"]');
+      const field = controls.querySelector('input');
+      const hide = controls.querySelector<HTMLButtonElement>('[aria-label="Hide controls"]')!;
+      expect(hide).not.toBeNull();
+      React.act(() => hide.click());
+      expect(controls.getAttribute('aria-hidden')).toBe('true');
+      expect(controls.hasAttribute('inert')).toBe(true);
+      const show = container.querySelector<HTMLButtonElement>('[aria-label="Show controls"]')!;
+      expect(show.closest('[data-testid="desktop-workspace-controls"]')).toBeNull();
+      expect(show.dataset.testid).toBe('controls-restore-rail');
+      React.act(() => show.click());
+      expect(controls.hasAttribute('inert')).toBe(false);
+      expect(controls.querySelector('input')).toBe(field);
+      expect(container.querySelector('[data-testid="retained-canvas"]')).toBe(canvas);
+    } });
+  });
+
+  it("restores either desktop panel from its own strip without remounting its fields or canvas", () => {
+    function Harness() {
+      const [open, setOpen] = React.useState(true);
+      return <WorkspaceLayout autoSaveId="test:workflow-restore" panelOpen={open} onPanelOpenChange={setOpen}
+        inspectorPanelTitle="Workflow" panel={<input aria-label="Retained object" />}
+        canvas={<div data-testid="retained-canvas">canvas</div>} inspector={<input aria-label="Retained property" />} />;
+    }
+    render(<Harness />, { inspect: container => {
+      const canvas = container.querySelector('[data-testid="retained-canvas"]');
+      const panel = container.querySelector('#workflow-panel')!;
+      const properties = container.querySelector('#objects-panel')!;
+      const field = panel.querySelector('input');
+      const property = properties.querySelector('input');
+      React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Collapse workflow panel"]')!.click());
+      React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Collapse properties panel"]')!.click());
+      expect(panel.hasAttribute('hidden')).toBe(true);
+      expect(properties.hasAttribute('hidden')).toBe(true);
+      const restore = container.querySelector<HTMLButtonElement>('[aria-label="Expand workflow panel"]')!;
+      const restoreProperties = container.querySelector<HTMLButtonElement>('[aria-label="Expand properties panel"]')!;
+      expect(restore.dataset.testid).toBe('left-panel-restore-rail');
+      expect(restoreProperties.dataset.testid).toBe('right-panel-restore-rail');
+      expect(restore.closest('[aria-label="Editing tools"]')).toBeNull();
+      expect(restoreProperties.closest('[aria-label="Editing tools"]')).toBeNull();
+      React.act(() => restore.click());
+      expect(panel.hasAttribute('hidden')).toBe(false);
+      expect(properties.hasAttribute('hidden')).toBe(true);
+      React.act(() => restoreProperties.click());
+      expect(properties.hasAttribute('hidden')).toBe(false);
+      expect(panel.querySelector('input')).toBe(field);
+      expect(properties.querySelector('input')).toBe(property);
+      expect(container.querySelector('[data-testid="retained-canvas"]')).toBe(canvas);
+    } });
+  });
+
   it("renders panel and canvas side by side on desktop", () => {
     const html = render(
       <WorkspaceLayout
@@ -105,7 +187,7 @@ describe("WorkspaceLayout", () => {
     expect(html).toContain("canvas-content");
     // Both panels must be allowed to shrink below their content width, or the
     // drag handle jams well above minPanelSize.
-    expect(html.match(/min-w-0/g)).toHaveLength(2);
+    expect(html.match(/min-w-0/g)).toHaveLength(3);
   });
 
   it("mounts without touching the panel group's imperative API before it has a layout", () => {

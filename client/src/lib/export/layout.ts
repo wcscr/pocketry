@@ -96,7 +96,7 @@ function roundedRectRing(
 }
 
 const LAYOUT_COMMENT =
-  "Units: millimetres, bin top view (y-up) - pocket rings are tool silhouettes; per-pocket fit clearance and 3D edge rounds are applied at cut time, not baked in";
+  "Units: millimetres, bin top view (y-up) - pocket rings are nominal top openings (oblique sections for tilted pockets); per-pocket fit clearance and 3D edge rounds are applied at cut time, not baked in; 2D templates do not encode tilted depth or insertion paths";
 
 /** The layout as a DXF drawing (one closed LWPOLYLINE per ring). */
 export function generateLayoutDXF(

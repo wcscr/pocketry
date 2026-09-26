@@ -235,6 +235,38 @@ describe("bin preview worker lifecycle", () => {
     expect(detailWorker().calls).toHaveLength(1);
   });
 
+  it("publishes solid warnings only from the current detailed model", async () => {
+    const withWarning = (id: number): BuildBinResult => ({ ...resultFor(id), validationIssues: [
+      { code: "pocket-wall-breach", severity: "error", message: `Wall breach ${id}`, cutoutIds: [cutout.id] },
+    ] });
+    await renderRounded(2); await tick();
+    await reply(() => worker().finish(0, withWarning(10)));
+    expect(state!.validationIssues).toEqual([]);
+    await tick(268);
+    await renderRounded(3); await tick();
+    await reply(() => worker().finish(1, withWarning(20)));
+    await tick(268);
+    // Neither a simplified cavity nor a late detailed result is authoritative.
+    await reply(() => detailWorker().finish(0, withWarning(30)));
+    expect(state!.validationIssues).toEqual([]);
+    await reply(() => detailWorker().finish(1, withWarning(40)));
+    expect(state!.validationIssues).toEqual(withWarning(40).validationIssues);
+    await renderRounded(4);
+    expect(state!.validationIssues).toEqual([]);
+  });
+
+  it("reports and clears solid warnings for a direct full-detail preview", async () => {
+    await render(2); await tick();
+    const result = resultFor(10);
+    result.validationIssues = [{ code: "pocket-wall-breach", severity: "error", message: "Wall breach", cutoutIds: [cutout.id] }];
+    await reply(() => worker().finish(0, result));
+    expect(state!.validationIssues).toEqual(result.validationIssues);
+    await render(3);
+    expect(state!.validationIssues).toEqual([]);
+    await tick(); await reply(() => worker().finish(1));
+    expect(state!.validationIssues).toEqual([]);
+  });
+
   it("keeps drafts responsive during refinement and discards old detailed results", async () => {
     await renderRounded(2); await tick(); await reply(() => worker().finish(0)); await tick(268);
     const detail = detailWorker();
@@ -314,6 +346,21 @@ describe("bin preview worker lifecycle", () => {
     expect(state!.geometry).toBe(draft); expect(state!.previewIsDraft).toBe(true);
     expect(state!.stats?.volumeMm3).toBe(1); expect(state!.statsAreStale).toBe(true); expect(state!.building).toBe(false);
     expect(state!.error).toContain("Detailed preview failed");
+  });
+
+  it("retries a crashed detailed worker without changing the model or discarding its draft", async () => {
+    await renderRounded(3); await tick(); await reply(() => worker().finish(0)); await tick(268);
+    const failed = detailWorker(), originalRequest = failed.calls[0].payload;
+    await reply(() => failed.dispatchEvent(new Event("error")));
+    expect(state!.error).toContain("worker stopped unexpectedly");
+    expect(state!.previewIsDraft).toBe(true);
+    await React.act(async () => state!.retryPreview());
+    await tick(); await reply(() => worker().finish(1)); await tick(268);
+    expect(detailWorker()).not.toBe(failed);
+    expect(detailWorker().calls[0].payload).toEqual(originalRequest);
+    await reply(() => detailWorker().finish(0, resultFor(77)));
+    expect(state!.error).toBeNull(); expect(state!.previewIsDraft).toBe(false);
+    expect(state!.stats?.volumeMm3).toBe(77);
   });
 
   it("exports full authored settings while a draft is displayed", async () => {

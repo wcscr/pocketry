@@ -1,4 +1,5 @@
 import * as React from "react";
+import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from "lucide-react";
 import type { ImperativePanelHandle } from "react-resizable-panels";
 
 import {
@@ -16,6 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useElementSize } from "@/hooks/use-element-size";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { InspectorWorkspace } from "./inspector-workspace";
 import { MobileCanvasOverlayContext } from "./mobile-canvas-overlay";
 
 export interface WorkspaceLayoutProps {
@@ -23,6 +25,14 @@ export interface WorkspaceLayoutProps {
   panel: React.ReactNode;
   /** Fills all remaining space; rendered inside a relative, clipped box. */
   canvas: React.ReactNode;
+  /** Optional selection inspector with its own scroll position. */
+  inspector?: React.ReactNode;
+  inspectorPanelTitle?: string;
+  inspectorHeader?: React.ReactNode;
+  inspectorToolbar?: React.ReactNode;
+  canvasEditingMode?: string;
+  inspectorRequest?: number;
+  controlsRequest?: unknown;
   /**
    * localStorage key for the persisted split, e.g. "tooltrace:trace".
    *
@@ -66,6 +76,13 @@ export interface WorkspaceLayoutProps {
 export function WorkspaceLayout({
   panel,
   canvas,
+  inspector,
+  inspectorPanelTitle,
+  inspectorHeader,
+  inspectorToolbar,
+  canvasEditingMode,
+  inspectorRequest = 0,
+  controlsRequest,
   autoSaveId,
   panelSide = "left",
   defaultPanelSize = 26,
@@ -119,7 +136,7 @@ export function WorkspaceLayout({
   // guard no-ops when the group is already in the requested state, so the two
   // directions cannot ping-pong.
   React.useEffect(() => {
-    if (isMobile) {
+    if (isMobile || inspector) {
       // The group is unmounted on the drawer path; forget its state so a stale
       // value cannot drive the first sync after switching back to desktop.
       setCollapsed(null);
@@ -130,7 +147,11 @@ export function WorkspaceLayout({
     if (panelOpen === !collapsed) return;
     if (panelOpen) handle.expand();
     else handle.collapse();
-  }, [panelOpen, isMobile, collapsed]);
+  }, [panelOpen, isMobile, collapsed, !!inspector]);
+
+  if (inspector) return <InspectorWorkspace panel={panel} canvas={canvas} inspector={inspector}
+    panelOpen={panelOpen} onPanelOpenChange={onPanelOpenChange} panelTitle={inspectorPanelTitle}
+    inspectorRequest={inspectorRequest} header={inspectorHeader} toolbar={inspectorToolbar} canvasEditingMode={canvasEditingMode} />;
 
   if (isMobile) {
     return (
@@ -199,9 +220,15 @@ export function WorkspaceLayout({
       {/* A collapsed panel stays mounted to retain its settings. Native inert
           excludes its descendants from focus and interaction, while aria-hidden
           keeps the invisible controls out of the accessibility tree. */}
-      <div className="h-full" aria-hidden={panelOpen ? undefined : true}
+      <div id="workspace-controls" className="flex h-full flex-col" aria-hidden={panelOpen ? undefined : true}
         {...(!panelOpen ? { inert: "" } : {})} data-testid="desktop-workspace-controls">
-        {panel}
+        <div className="flex h-11 shrink-0 items-center justify-between border-b px-3">
+          <h2 className="text-xs font-semibold">{panelTitle}</h2>
+          <Button variant="ghost" size="icon" className="h-9 w-9" title="Hide controls ([)" aria-label="Hide controls" aria-controls="workspace-controls" aria-expanded={panelOpen} onClick={() => onPanelOpenChange(false)}>
+            {panelSide === "left" ? <PanelLeftClose className="h-4 w-4" /> : <PanelRightClose className="h-4 w-4" />}
+          </Button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-hidden">{panel}</div>
       </div>
     </ResizablePanel>
   );
@@ -219,7 +246,13 @@ export function WorkspaceLayout({
     >
       {/* relative + overflow-hidden anchors CanvasToolbar and clips anything
           the canvas pans outside its box. */}
-      <div className="relative h-full w-full overflow-hidden">{canvas}</div>
+      <div className="relative flex h-full w-full overflow-hidden">
+        <div className="relative min-w-0 flex-1 overflow-hidden">{canvas}</div>
+        {!panelOpen && <Button variant="ghost" className={`h-full w-6 shrink-0 items-start rounded-none bg-muted/30 p-0 pt-3.5 text-muted-foreground hover:bg-accent hover:text-foreground ${panelSide === "left" ? "order-first border-r" : "border-l"}`}
+          data-testid="controls-restore-rail" title="Show controls ([)" aria-label="Show controls" aria-controls="workspace-controls" aria-expanded={false} onClick={() => onPanelOpenChange(true)}>
+          {panelSide === "left" ? <PanelLeftOpen className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
+        </Button>}
+      </div>
     </ResizablePanel>
   );
 

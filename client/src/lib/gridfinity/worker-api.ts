@@ -1,3 +1,4 @@
+import type { ValidationIssue } from "@shared/gridfinity/validate";
 import type {
   CutoutPlacementInput,
   FingerHole,
@@ -79,6 +80,7 @@ export interface BuildBinResult {
   stats: BuildBinStats;
   /** One entry per requested cutout; `emptied` flags collapsed sections. */
   cutoutReports: CutoutBuildReport[];
+  validationIssues?: ValidationIssue[];
 }
 
 export interface BuildFitCheckRequest {

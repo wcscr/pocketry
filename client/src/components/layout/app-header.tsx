@@ -3,11 +3,11 @@ import {
   Github,
   Info,
   LibraryBig,
-  PanelLeftClose,
   PanelLeftOpen,
   ChevronDown,
   Ellipsis,
   RotateCcw,
+  Settings,
 } from "lucide-react";
 import { Link, useLocation, useRoute } from "wouter";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 
 import { WORKSPACES } from "./workspaces";
 import { usePanelState } from "./panel-context";
+import { useExperimentalFeatures } from "@/state/experimental-features";
 
 const BRAND_FONT_FAMILY =
   'Rockwell, "American Typewriter", "Courier New", ui-serif, serif';
@@ -37,13 +38,9 @@ export interface AppHeaderProps {
  * The header above every workspace: branding, workspace nav, and the
  * controls that do not belong to any one canvas.
  *
- * The panel toggle lives here rather than in the panel itself because
- * `WorkspaceLayout` persists its collapsed state in localStorage — without an
- * always-visible way back, a user who collapses the panel finds it missing on
- * their next visit with no obvious way to restore it.
+ * WorkspaceLayout owns the panel collapse and restore controls.
  */
 export function AppHeader({
-  panelOpen,
   onPanelOpenChange,
   onHelpClick,
   onStartOver,
@@ -51,6 +48,7 @@ export function AppHeader({
   const [isAbout] = useRoute("/about");
   const [location] = useLocation();
   const { setLibraryRequested } = usePanelState();
+  const { enabled: experimentalEnabled, inspectorEnabled, setSettingsOpen } = useExperimentalFeatures();
   const currentWorkspace = WORKSPACES.find(workspace => workspace.path === location);
 
   return (
@@ -131,7 +129,8 @@ export function AppHeader({
         <DropdownMenu>
           <DropdownMenuTrigger asChild><Button variant="ghost" className="h-11 w-11 p-0" aria-label="More options"><Ellipsis className="h-5 w-5" /></Button></DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            {!isAbout && <DropdownMenuItem className="min-h-11" onSelect={() => onPanelOpenChange(true)}><PanelLeftOpen className="mr-2 h-4 w-4" />All settings</DropdownMenuItem>}
+            {!isAbout && !(location === "/bin" && inspectorEnabled) && <DropdownMenuItem className="min-h-11" onSelect={() => onPanelOpenChange(true)}><PanelLeftOpen className="mr-2 h-4 w-4" />All settings</DropdownMenuItem>}
+            <DropdownMenuItem className="min-h-11" onSelect={() => setSettingsOpen(true)}><Settings className="mr-2 h-4 w-4" />Settings{experimentalEnabled && <span className="ml-auto pl-3 text-xs text-muted-foreground">Experimental on</span>}</DropdownMenuItem>
             <DropdownMenuItem className="min-h-11" onSelect={onHelpClick}><CircleHelp className="mr-2 h-4 w-4" />Help</DropdownMenuItem>
             <DropdownMenuItem asChild className="min-h-11"><Link href="/about"><Info className="mr-2 h-4 w-4" />About Pocketry</Link></DropdownMenuItem>
             {onStartOver && <><DropdownMenuSeparator /><DropdownMenuItem className="min-h-11" onSelect={onStartOver}><RotateCcw className="mr-2 h-4 w-4" />Start over</DropdownMenuItem></>}
@@ -140,28 +139,15 @@ export function AppHeader({
       </div>
 
       <div className="ml-auto hidden shrink-0 items-center gap-1 md:flex">
-        {!isAbout ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => onPanelOpenChange(!panelOpen)}
-                aria-label={panelOpen ? "Hide controls" : "Show controls"}
-                aria-pressed={panelOpen}
-              >
-                {panelOpen ? (
-                  <PanelLeftClose className="h-4 w-4" />
-                ) : (
-                  <PanelLeftOpen className="h-4 w-4" />
-                )}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              {panelOpen ? "Hide controls" : "Show controls"} ([)
-            </TooltipContent>
-          </Tooltip>
-        ) : null}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="icon" aria-label="Settings" onClick={() => setSettingsOpen(true)} className="relative">
+              <Settings className="h-4 w-4" />
+              {experimentalEnabled && <span aria-label="Experimental features enabled" className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-amber-500" />}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{experimentalEnabled ? "Settings · experimental features on" : "Settings"}</TooltipContent>
+        </Tooltip>
 
         <Tooltip>
           <TooltipTrigger asChild>

@@ -1,7 +1,9 @@
+import { SelectionToolButtons } from "./selection-tool-buttons";
+import { useSelectionInspector } from "./selection-inspector-context";
 import { Line, OrbitControls } from "@react-three/drei";
 import { Canvas, useThree, type ThreeEvent } from "@react-three/fiber";
-import { LoaderCircle, Ruler, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { LoaderCircle, Ruler, Move3D, X } from "lucide-react";
+import { Component, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 
 import type { BufferGeometry, PerspectiveCamera } from "three";
 import { Vector3 } from "three";
@@ -24,6 +26,11 @@ import {
   STACKING_RIM_COLOR,
 } from "@/lib/gridfinity/pocket-floor-mesh";
 import { cn } from "@/lib/utils";
+import { type PocketTransformMode } from "@/lib/gridfinity/pocket-transform";
+import { PocketSelectionPlane, SelectionTransformScene, ObjectTransformWire, type PocketEditor } from "./pocket-transform-scene";
+
+import { ObjectTransformPanel, commitEditorObjects } from "./object-transform-panel";
+import { applyObjectEdits, objectKey, objectRef, type EditableObject, type ObjectEdits, type RotationPivot } from "@/lib/gridfinity/object-arrangement";
 
 const RULER_3D_SNAP_TOLERANCE_MM = 5;
 const RULER_3D_Z_FIGHT_OFFSET_MM = 0.25;
@@ -31,6 +38,19 @@ const EMPTY_MEASUREMENT_OUTLINES: readonly Outline[] = [];
 const EMPTY_MEASUREMENT_PATHS: MeasurementPaths = [];
 
 export type MaterialColorTarget = "bin" | "pocket-floor" | "stacking-rim";
+
+/** A lost GPU context must not take the project, history, or Layout view down. */
+class PreviewBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  render() {
+    if (!this.state.failed) return this.props.children;
+    return <div role="alert" className="absolute bottom-16 left-3 right-3 rounded-lg border bg-background p-4 text-sm shadow-sm">
+      <p>3D preview is unavailable. Your design is still open; use Layout to keep editing.</p>
+      <Button variant="outline" size="sm" className="mt-2" onClick={() => this.setState({ failed: false })}>Retry 3D preview</Button>
+    </div>;
+  }
+}
 
 /**
  * The 3D preview for the bin designer: an r3f canvas dropped into the
@@ -44,6 +64,7 @@ export type MaterialColorTarget = "bin" | "pocket-floor" | "stacking-rim";
  */
 export interface BinViewportProps {
   geometry: BufferGeometry | null;
+  pocketEditor?: PocketEditor;
   /** Exact printable pocket-floor material volume. */
   pocketFloorGeometry?: BufferGeometry | null;
   /** Exact printable stacking-rim material volume. */
@@ -65,6 +86,7 @@ export interface BinViewportProps {
   /** 0..1 while building. */
   progress: number;
   error: string | null;
+  onRetryPreview?: () => void;
   /** Outer bin dimensions; the camera re-fits when these change. */
   fitSize: FitSize;
   /** Placed tool outlines in bin-frame XY millimetres. */
@@ -199,6 +221,7 @@ function CameraFit({ size }: { size: FitSize }): null {
 
 export function BinViewport({
   geometry,
+  pocketEditor,
   pocketFloorGeometry = null,
   stackingRimGeometry = null,
   hasPocketFloor = false,
@@ -212,6 +235,7 @@ export function BinViewport({
   building,
   previewIsDraft = false,
   error,
+  onRetryPreview,
   fitSize,
   measurementOutlines = EMPTY_MEASUREMENT_OUTLINES,
   measurementSplitBoundaries = EMPTY_MEASUREMENT_PATHS,
@@ -226,6 +250,44 @@ export function BinViewport({
   const [containerRef, containerSize] = useElementSize<HTMLDivElement>();
   const laidOut = containerSize.width > 0 && containerSize.height > 0;
   const [rulerActive, setRulerActive] = useState(false);
+  const inspector = useSelectionInspector();
+  const [objectControlsOpen, setObjectControlsOpen] = useState(false);
+  useEffect(() => { if (!pocketEditor) setObjectControlsOpen(false); }, [!!pocketEditor]);
+  const [transformMode, setTransformMode] = useState<PocketTransformMode>("translate");
+  const [modeRequest, setModeRequest] = useState(0);
+  useEffect(() => {
+    if (inspector?.tool === "translate" || inspector?.tool === "rotate") setTransformMode(inspector.tool);
+    if (inspector && inspector.tool !== "properties") setRulerActive(false);
+  }, [inspector?.tool]);
+  const [snapTransform, setSnapTransform] = useState(false);
+  const [dragPreview, setDragPreview] = useState<ObjectEdits | null>(null);
+  const [transformLimited, setTransformLimited] = useState(false);
+  const [pivot, setPivot] = useState<RotationPivot>("individual");
+  const objects = useMemo<EditableObject[]>(() => pocketEditor ? [
+    ...pocketEditor.pockets.map(p => ({ ...p, kind: "pocket" as const })),
+    ...(pocketEditor.fingerHoles ?? []).map(hole => ({ hole, kind: "finger" as const })),
+  ] : [], [pocketEditor?.pockets, pocketEditor?.fingerHoles]);
+  const selectionKey = JSON.stringify((pocketEditor?.selection ?? (pocketEditor?.selectedId ? [{ kind: "pocket" as const, id: pocketEditor.selectedId }] : [])).map(objectKey));
+  const selectedObjects = useMemo(() => (JSON.parse(selectionKey) as string[]).flatMap(key => objects.filter(o => objectKey(objectRef(o)) === key)), [objects, selectionKey]);
+  const displayedObjects = dragPreview ? applyObjectEdits(selectedObjects, dragPreview) : selectedObjects;
+  useEffect(() => {
+    const key = (event: KeyboardEvent) => {
+      if (!pocketEditor || !canHandleCanvasShortcut(event) || event.altKey) return;
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a") {
+        event.preventDefault(); pocketEditor.onSelectionChange?.(objects.map(objectRef)); return;
+      }
+      if (event.ctrlKey || event.metaKey) return;
+      if (event.key === "Escape") { pocketEditor.onSelectionChange?.([]); return; }
+      if (event.key.toLowerCase() === "w" || event.key.toLowerCase() === "e") {
+        event.preventDefault(); setRulerActive(false); setObjectControlsOpen(true);
+        setTransformMode(event.key.toLowerCase() === "w" ? "translate" : "rotate");
+        inspector?.setTool(event.key.toLowerCase() === "w" ? "translate" : "rotate");
+        setModeRequest(value => value + 1);
+      }
+    };
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
+  }, [pocketEditor, objects, inspector?.setTool]);
   const [measurementPoints, setMeasurementPoints] = useState<Point[]>([]);
   const showBusy = useDelayedBusy(building);
   const measuredDistanceMm = useMemo(
@@ -265,6 +327,7 @@ export function BinViewport({
   return (
     <div ref={containerRef} className="absolute inset-0" data-testid="bin-viewport">
       {laidOut ? (
+        <PreviewBoundary>
         <Canvas
           camera={{ position: [150, -170, 130], up: [0, 0, 1], fov: 40, near: 1, far: 6000 }}
         >
@@ -294,6 +357,12 @@ export function BinViewport({
             />
           </mesh>
         ) : null}
+        {pocketEditor && <PocketSelectionPlane editor={pocketEditor} width={fitSize.widthMm} length={fitSize.lengthMm} disabled={rulerActive || !!dragPreview} />}
+        {pocketEditor && !rulerActive && displayedObjects.map(object => <ObjectTransformWire key={objectKey(objectRef(object))} object={object} spec={pocketEditor.spec} />)}
+        {selectedObjects.length > 0 && pocketEditor && (inspector ? (inspector.tool === "translate" || inspector.tool === "rotate") : objectControlsOpen) && !rulerActive && <SelectionTransformScene
+          key={`${selectionKey}-${transformMode}`} objects={selectedObjects} allObjects={objects} spec={pocketEditor.spec} mode={transformMode} snap={snapTransform} pivot={pivot}
+          onPreview={setDragPreview} onLimit={setTransformLimited}
+          onCommit={edits => commitEditorObjects(pocketEditor, edits, `${transformMode === "translate" ? "Move" : "Rotate"} ${selectedObjects.length} objects in 3D`, transformMode)} />}
         <PlanarRulerScene
           active={rulerActive}
           outlines={measurementOutlines}
@@ -321,6 +390,7 @@ export function BinViewport({
           />
           <CameraFit size={fitSize} />
         </Canvas>
+        </PreviewBoundary>
       ) : null}
 
       <div
@@ -351,6 +421,11 @@ export function BinViewport({
         >
           <Ruler className="h-4 w-4" />
         </Button>
+        {inspector && <SelectionToolButtons count={selectedObjects.length} inactive={rulerActive} onActivate={() => setRulerActive(false)} />}
+        {pocketEditor && !inspector && <Button variant="ghost" size="icon"
+          className={cn("h-9 w-9 rounded-none border-t [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11", objectControlsOpen && !rulerActive && "bg-accent text-accent-foreground")}
+          aria-label="Object controls" title="Move, rotate and arrange objects" aria-expanded={objectControlsOpen && !rulerActive}
+          onClick={() => { setObjectControlsOpen(open => !open || rulerActive); setRulerActive(false); }}><Move3D className="h-4 w-4" /></Button>}
         {measurementPoints.length > 0 ? (
           <Button
             variant="ghost"
@@ -365,6 +440,10 @@ export function BinViewport({
           </Button>
         ) : null}
       </div>
+
+      {pocketEditor && (objectControlsOpen || !!inspector && selectedObjects.length > 0) && !rulerActive && <ObjectTransformPanel editor={pocketEditor} objects={objects} selected={selectedObjects} displayed={displayedObjects}
+        mode={transformMode} modeRequest={modeRequest} setMode={mode => { setRulerActive(false); setTransformMode(mode); }} snap={snapTransform} setSnap={setSnapTransform}
+        pivot={pivot} setPivot={setPivot} limited={transformLimited} onClose={() => setObjectControlsOpen(false)} />}
 
       {rulerActive ? (
         <div
@@ -461,8 +540,9 @@ export function BinViewport({
         </div>
       ) : null}
       {error ? (
-        <div className="pointer-events-none absolute inset-x-0 bottom-3 mx-auto w-fit max-w-[80%] rounded-md bg-destructive/90 px-3 py-1.5 text-xs text-destructive-foreground shadow">
+        <div className="pointer-events-none absolute inset-x-0 bottom-3 z-30 mx-auto w-fit max-w-[80%] rounded-md bg-destructive/90 px-3 py-1.5 text-xs text-destructive-foreground shadow">
           {error}
+          {onRetryPreview && <Button variant="outline" size="sm" className="pointer-events-auto ml-2" onClick={onRetryPreview}>Retry preview</Button>}
         </div>
       ) : null}
     </div>

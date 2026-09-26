@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { parseCutoutPlacement, resolvePocketDepth, type TracedShape } from "@shared/gridfinity/cutout";
 import { parseBinSpec } from "@shared/gridfinity/types";
+import { ExperimentalFeaturesProvider, EXPERIMENTAL_FEATURES_KEY } from "@/state/experimental-features";
 import { BinProvider, useBin, type BinStore } from "@/state/bin-store";
 import { ShapeLibraryProvider } from "@/state/shape-library";
 import { PocketDepthSummary, PocketMeasurements, PocketSizeInputs } from "./pocket-measurements";
@@ -28,15 +29,16 @@ function Probe() {
 beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   sessionStorage.clear();
+  localStorage.setItem(EXPERIMENTAL_FEATURES_KEY, "true");
   inspect.mockReset(); scale.mockReset();
   host = document.createElement("div"); document.body.append(host);
   root = createRoot(host);
-  React.act(() => root.render(<ShapeLibraryProvider><BinProvider><Probe /></BinProvider></ShapeLibraryProvider>));
+  React.act(() => root.render(<ExperimentalFeaturesProvider><ShapeLibraryProvider><BinProvider><Probe /></BinProvider></ShapeLibraryProvider></ExperimentalFeaturesProvider>));
   React.act(() => store.dispatch({ type: "HYDRATE", spec: parseBinSpec({ gridX: 4, gridY: 4, heightUnits: 6 }),
     cutouts: [parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 0, y: 0 }, scaleX: 0.9, scaleY: 0.9, clearanceMm: 0.5, depth: { mode: "mm", value: 12 } })] }));
   React.act(() => [...host.querySelectorAll("summary")].find((summary) => summary.textContent?.includes("Position"))!.click());
 });
-afterEach(() => { React.act(() => root.unmount()); host.remove(); vi.unstubAllGlobals(); });
+afterEach(() => { React.act(() => root.unmount()); host.remove(); localStorage.removeItem(EXPERIMENTAL_FEATURES_KEY); vi.unstubAllGlobals(); });
 
 function enter(label: string, value: string) {
   const input = host.querySelector<HTMLInputElement>(`[aria-label="${label}"]`)!;
@@ -45,6 +47,22 @@ function enter(label: string, value: string) {
 }
 
 describe("pocket measurements", () => {
+  it("edits independent tilt angles and resets them with undo", () => {
+    enter("Pocket X tilt in degrees", "15");
+    enter("Pocket Y tilt in degrees", "-35");
+    expect(store.cutouts[0].tilt).toEqual({ xDeg: 15, yDeg: -35 });
+    expect(store.history.stack).toHaveLength(3);
+    React.act(() => store.dispatch({ type: "UNDO" }));
+    expect(store.cutouts[0].tilt).toEqual({ xDeg: 15, yDeg: 0 });
+    React.act(() => store.dispatch({ type: "REDO" }));
+    expect(host.textContent).toContain("Vertical depth");
+    expect(host.textContent).toContain("Along pocket axis");
+    React.act(() => [...host.querySelectorAll("button")].find(b => b.textContent === "Reset tilt")!.click());
+    expect(store.cutouts[0].tilt).toBeUndefined();
+    React.act(() => store.dispatch({ type: "UNDO" }));
+    expect(store.cutouts[0].tilt).toEqual({ xDeg: 15, yDeg: -35 });
+  });
+
   it("preserves precise imported coordinates and scale when rounded fields are only focused", () => {
     React.act(() => store.dispatch({
       type: "UPDATE_CUTOUT", id: "pocket",
@@ -85,6 +103,9 @@ describe("pocket measurements", () => {
     const resolved = resolvePocketDepth(store.spec, store.cutouts[0].depth);
     expect(host.textContent).toContain(`Floor: ${resolved.floorZ!.toFixed(1)} mm`);
     expect(host.textContent).toContain("Cut depth: 12.0 mm");
+    const depthGroup = host.querySelector<HTMLDetailsElement>('[data-testid="pocket-depth-summary"]')!;
+    expect(depthGroup.open).toBe(true);
+    expect(depthGroup.querySelector('summary')!.textContent).toBe('Depth');
     enter("Pocket width in millimetres", "50");
     expect(scale.mock.lastCall?.[0]).toBe("x");
     expect(scale.mock.lastCall?.[1]).toBeCloseTo(122.5);

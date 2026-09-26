@@ -1,5 +1,11 @@
+import { SelectionToolButtons } from "./selection-tool-buttons";
+import { useSelectionInspector } from "./selection-inspector-context";
+import { SelectionLinkControls } from "./linked-design-controls";
+import { useExperimentalFeatures } from "@/state/experimental-features";
+import { hasPocketTilt } from "@shared/gridfinity/pocket-orientation";
 import {
   Ruler,
+  Move3D,
   Hand,
   Maximize2,
   Spline,
@@ -23,6 +29,7 @@ import {
   hasFlatFingerHoleBottom,
   placementFootprint,
   pocketName,
+  pocketOccupiedOutline,
   resizeCutoutPlacementFromHandle,
   resizeFingerHoleFromWidthHandle,
   resizeElongatedFingerHoleFromEndpoint,
@@ -95,7 +102,11 @@ import { usePocketSplit } from "./use-pocket-split";
 import { useBasicPocket } from "./use-basic-pocket";
 import { AddPocketMenu } from "./add-pocket-menu";
 import { cn } from "@/lib/utils";
-import { useBin } from "@/state/bin-store";
+import { getCommittedBinDoc, useBin } from "@/state/bin-store";
+import { Vector3, Quaternion } from "three";
+import { objectRef, sameObject, transformObjects, type EditableObject, type RotationPivot, type ObjectEdits } from "@/lib/gridfinity/object-arrangement";
+import { ObjectTransformPanel } from "./object-transform-panel";
+import type { PocketTransformMode } from "@/lib/gridfinity/pocket-transform";
 import { useShapeLibrary } from "@/state/shape-library";
 
 /**
@@ -235,11 +246,16 @@ export function LayoutCanvas({ onEditPocket }: {
 }
 
 function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Element {
+  const inspector = useSelectionInspector();
+  const { enabled: experimentalEnabled } = useExperimentalFeatures();
   const isMobile = useIsMobile();
   const {
     spec,
     cutouts,
     fingerHoles,
+    selection,
+    history,
+    transformOrigins,
     selectedCutoutId,
     selectedPocketSection,
     selectedFingerHoleId,
@@ -253,6 +269,17 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
   );
 
   const pitchMm = gridPitchMm(spec.gridPitch);
+  const arrangementObjects = useMemo<EditableObject[]>(() => [
+    ...cutouts.flatMap(cutout => { const shape = shapesById.get(cutout.shapeId); return shape ? [{ kind: "pocket" as const, cutout, shape }] : []; }),
+    ...fingerHoles.map(hole => ({ kind: "finger" as const, hole })),
+  ], [cutouts, fingerHoles, shapesById]);
+  const selectedObjects = selection.flatMap(ref => arrangementObjects.filter(o => sameObject(objectRef(o), ref)));
+  const [objectControlsOpen, setObjectControlsOpen] = useState(false);
+  useEffect(() => { if (!experimentalEnabled) setObjectControlsOpen(false); }, [experimentalEnabled]);
+  const [objectMode, setObjectMode] = useState<PocketTransformMode>("translate");
+  const [modeRequest, setModeRequest] = useState(0);
+  const [objectPivot, setObjectPivot] = useState<RotationPivot>("individual");
+  const [objectSnap, setObjectSnap] = useState(false);
   const widthMm = binFootprintMm(spec.gridX, spec.gridPitch);
   const lengthMm = binFootprintMm(spec.gridY, spec.gridPitch);
   const footprintEditorPaddingMm = editorMode === "footprint" ? pitchMm : 0;
@@ -439,6 +466,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
   // --- interactions -------------------------------------------------------
 
   const dragRef = useRef<
+    | { kind: "selection-move"; objects: EditableObject[]; start: Point; latest: ObjectEdits | null }
     | { kind: "move"; id: string; grabOffset: Point }
     | { kind: "rotate"; id: string; center: Point; startPointerDeg: number; startRotationDeg: number }
     | {
@@ -466,8 +494,31 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
     | null
   >(null);
   const clickRef = useRef<{ clientX: number; clientY: number } | null>(null);
+  const committedHistory = useRef(history);
+  committedHistory.current = history;
+  useEffect(() => {
+    const cancelGroup = () => {
+      if (dragRef.current?.kind !== "selection-move") return;
+      dragRef.current = null; clickRef.current = null;
+      dispatch({ type: "UPDATE_OBJECTS", edits: getCommittedBinDoc({ history: committedHistory.current }), transient: true, historyLabel: "Cancel move" });
+    };
+    window.addEventListener("blur", cancelGroup);
+    return () => { window.removeEventListener("blur", cancelGroup); cancelGroup(); };
+  }, [dispatch]);
+  useEffect(() => {
+    // Undo, redo or switching selection during a gesture replaces its baseline.
+    if (dragRef.current?.kind === "selection-move") {
+      dragRef.current = null; clickRef.current = null;
+      dispatch({ type: "UPDATE_OBJECTS", edits: getCommittedBinDoc({ history }), transient: true, historyLabel: "Cancel move" });
+    }
+  }, [history, selection, dispatch, experimentalEnabled]);
   const [isRotating, setIsRotating] = useState(false);
   const [rulerActive, setRulerActive] = useState(false);
+  useEffect(() => {
+    if (inspector?.tool === "translate" || inspector?.tool === "rotate") setObjectMode(inspector.tool);
+    if (inspector && inspector.tool !== "properties") setRulerActive(false);
+  }, [inspector?.tool]);
+  const showObjectControls = experimentalEnabled && (objectControlsOpen || !!inspector && selection.length > 0) && editorMode === "placement" && !rulerActive;
   useEffect(() => { if (rulerActive) setPanActive(false); }, [rulerActive]);
   const [measurementPoints, setMeasurementPoints] = useState<Point[]>([]);
   const hasPlacedCutouts = placed.length > 0;
@@ -501,6 +552,10 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
    * gesture lands in history as a single undo step.
    */
   const commitDrag = (drag: NonNullable<typeof dragRef.current>) => {
+    if (drag.kind === "selection-move") {
+      if (drag.latest) dispatch({ type: "UPDATE_OBJECTS", edits: drag.latest, historyLabel: "Move selected objects" });
+      return;
+    }
     if (
       drag.kind === "finger-hole-move" ||
       drag.kind === "feature-end" ||
@@ -627,6 +682,14 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
 
   const handlePointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
     if (mobileEditor.down(event)) return;
+    if (experimentalEnabled && !panActive && editorMode === "placement" && !rulerActive && event.button === 0 && !viewport.isSpaceHeld && (event.shiftKey || event.metaKey || event.ctrlKey)) {
+      const point = toBin(event.clientX, event.clientY);
+      const hole = point ? hitFingerHole(point) : null, pocket = !hole && point ? hitCutout(point) : null;
+      if (hole || pocket) {
+        dispatch(hole ? { type: "SELECT_FINGER_HOLE", id: hole.id, additive: true } : { type: "SELECT_CUTOUT", id: pocket!.id, additive: true });
+        clickRef.current = null; return;
+      }
+    }
     if (panActive || event.button !== 0 || event.shiftKey || viewport.isSpaceHeld) {
       viewport.handlers.onPointerDown(event);
       return;
@@ -901,6 +964,11 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
 
     // Independent finger access features grab before pocket bodies when they overlap.
     const hitHole = hitFingerHole(point);
+    if (experimentalEnabled && hitHole && selectedObjects.length > 1 && selection.some(ref => ref.kind === "finger" && ref.id === hitHole.id)) {
+      dragRef.current = { kind: "selection-move", objects: selectedObjects, start: point, latest: null };
+      clickRef.current = { clientX: event.clientX, clientY: event.clientY };
+      event.currentTarget.setPointerCapture(event.pointerId); return;
+    }
     if (hitHole) {
       dispatch({ type: "SELECT_FINGER_HOLE", id: hitHole.id });
       dragRef.current = {
@@ -917,6 +985,11 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
 
     const hit = hitCutout(point);
     if (hit) {
+      if (experimentalEnabled && selectedObjects.length > 1 && selection.some(ref => ref.kind === "pocket" && ref.id === hit.id)) {
+        dragRef.current = { kind: "selection-move", objects: selectedObjects, start: point, latest: null };
+        clickRef.current = { clientX: event.clientX, clientY: event.clientY };
+        event.currentTarget.setPointerCapture(event.pointerId); return;
+      }
       selectPocketAt(hit, point);
       clickRef.current = { clientX: event.clientX, clientY: event.clientY };
       dragRef.current = {
@@ -955,6 +1028,14 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
     const point = toBin(event.clientX, event.clientY);
     if (!point) return;
 
+    if (drag.kind === "selection-move") {
+      if (clickRef.current) return;
+      const delta = new Vector3(point.x - drag.start.x, point.y - drag.start.y, 0);
+      if (objectSnap && !event.altKey) { delta.x = Math.round(delta.x); delta.y = Math.round(delta.y); }
+      const edits = transformObjects(drag.objects, spec, delta, undefined, "individual", arrangementObjects);
+      if (edits) { drag.latest = edits; dispatch({ type: "UPDATE_OBJECTS", edits, transient: true, historyLabel: "Move selected objects" }); }
+      return;
+    }
     if (drag.kind === "contour") {
       const current = cutouts.find((cutout) => cutout.id === drag.id);
       const draft = draftContourRef.current;
@@ -1106,6 +1187,9 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
       viewport.handlers.onPointerUp(event);
       return;
     }
+    if (drag.kind === "selection-move" && event.type === "pointercancel") {
+      dispatch({ type: "UPDATE_OBJECTS", edits: getCommittedBinDoc({ history }), transient: true, historyLabel: "Cancel move" }); return;
+    }
     if (drag.kind === "contour") {
       const sourceShape = shapesById.get(drag.shapeId);
       const draft = draftContourRef.current;
@@ -1155,7 +1239,43 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
   // view), delete, deselect. Native controls and open dialogs own their keys.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (!canHandleCanvasShortcut(event) || event.ctrlKey || event.metaKey || event.altKey) return;
+      if (!canHandleCanvasShortcut(event) || event.altKey) return;
+      if (panActive) {
+        if (event.key === "Escape") { setPanActive(false); event.preventDefault(); }
+        return;
+      }
+      if (inspector && editorMode === "placement" && selection.length && !event.ctrlKey && !event.metaKey
+        && (event.key === "Delete" || event.key === "Backspace")) {
+        event.preventDefault(); dispatch({ type: "REMOVE_SELECTION" }); return;
+      }
+      if (experimentalEnabled && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a" && editorMode === "placement") {
+        event.preventDefault(); dispatch({ type: "SET_SELECTION", selection: arrangementObjects.map(objectRef) }); return;
+      }
+      if (event.ctrlKey || event.metaKey) return;
+      if (experimentalEnabled && editorMode === "placement" && ["w", "e"].includes(event.key.toLowerCase())) {
+        event.preventDefault(); setRulerActive(false); setObjectControlsOpen(true);
+        setObjectMode(event.key.toLowerCase() === "w" ? "translate" : "rotate");
+        inspector?.setTool(event.key.toLowerCase() === "w" ? "translate" : "rotate");
+        setModeRequest(value => value + 1); return;
+      }
+      if (event.key === "Escape" && dragRef.current?.kind === "selection-move") {
+        dragRef.current = null; clickRef.current = null;
+        dispatch({ type: "UPDATE_OBJECTS", edits: getCommittedBinDoc({ history }), transient: true, historyLabel: "Cancel move" });
+        event.preventDefault(); return;
+      }
+      if (experimentalEnabled && editorMode === "placement" && selectedObjects.length > 1) {
+        if (event.key === "Escape") { dispatch({ type: "SET_SELECTION", selection: [] }); event.preventDefault(); return; }
+        const step = event.shiftKey ? 10 : 1;
+        const delta = new Vector3(event.key === "ArrowLeft" ? -step : event.key === "ArrowRight" ? step : 0,
+          event.key === "ArrowDown" ? -step : event.key === "ArrowUp" ? step : 0, 0);
+        if (delta.lengthSq() > 0 || event.key.toLowerCase() === "r") {
+          const rotation = event.key.toLowerCase() === "r" ? new Quaternion().setFromAxisAngle(new Vector3(0, 0, 1), (event.shiftKey ? -15 : 15) * Math.PI / 180) : new Quaternion();
+          const edits = transformObjects(selectedObjects, spec, delta, rotation, objectPivot, arrangementObjects);
+          if (edits) dispatch({ type: "UPDATE_OBJECTS", edits, historyLabel: delta.lengthSq() > 0 ? "Move selected objects" : "Rotate selected objects" });
+          event.preventDefault(); return;
+        }
+        return;
+      }
       if (rulerActive && event.key === "Escape") {
         setRulerActive(false);
         setMeasurementPoints([]);
@@ -1281,14 +1401,17 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
   }, [
     selectedCutoutId,
     selectedFingerHoleId,
+    arrangementObjects, selectedObjects, selection, history, objectPivot, experimentalEnabled, !!inspector,
     cutouts,
     fingerHoles,
     editorMode,
     rulerActive,
+    panActive,
     dispatch,
   ]);
 
   const cursor =
+    panActive ? viewport.isPanning ? "grabbing" : "grab" :
     rulerActive
       ? "crosshair"
       : editorMode !== "placement"
@@ -1497,7 +1620,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
 
           {placed.map(({ cutout, shape, outline }) => {
             const severity = severityByCutout.get(cutout.id);
-            const isSelected = cutout.id === selectedCutoutId;
+            const isSelected = selection.some(ref => ref.kind === "pocket" && ref.id === cutout.id);
             const tone =
               overlappingCutouts.has(cutout.id) && !boundaryCutouts.has(cutout.id)
                 ? "fill-orange-500/25 stroke-orange-600"
@@ -1510,6 +1633,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
                     : "fill-primary/15 stroke-primary/60";
             return (
               <g key={cutout.id}>
+                {isSelected && hasPocketTilt(cutout) && <path d={outlineToCanvasPath(pocketOccupiedOutline(shape, cutout, spec), spec)} fill="none" className="pointer-events-none stroke-muted-foreground" strokeWidth={1} strokeDasharray="4 4" vectorEffect="non-scaling-stroke" data-testid="tilted-pocket-envelope"><title>Conservative shaft extent below the opening and through the rim</title></path>}
                 <path
                   d={outlineToCanvasPath(outline, spec)}
                   fillRule="evenodd"
@@ -1537,7 +1661,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
 
           {placedFingerHoles.map(({ hole, ring, endpoints, widthHandle }) => {
             const severity = severityByFingerHole.get(hole.id);
-            const isSelected = hole.id === selectedFingerHoleId;
+            const isSelected = selection.some(ref => ref.kind === "finger" && ref.id === hole.id);
             const tone =
               severity === "error"
                 ? "fill-destructive/30 stroke-destructive"
@@ -1558,7 +1682,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
                   data-feature-id={hole.id}
                   data-testid={`finger-hole-${hole.kind}-${hole.id}`}
                 />
-                {isSelected && (
+                {isSelected && selection.length === 1 && (
                   <>
                     <circle
                       cx={widthCanvas.x}
@@ -1699,7 +1823,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
               return <circle key={i} cx={c.x} cy={c.y} r={4 * inv} className="fill-background stroke-primary" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />;
             })}
           </g>}
-          {editorMode === "placement" && selectedControls && selected && (
+          {editorMode === "placement" && selection.length === 1 && selectedControls && selected && (
             <g>
               <polygon
                 points={(["nw", "ne", "se", "sw"] as const)
@@ -1777,13 +1901,13 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
           <div className="max-w-sm rounded-lg border border-dashed bg-background/90 px-5 py-4 text-center shadow-sm backdrop-blur">
             <p className="font-medium">No layout objects yet</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              Use Add pocket to draw a shape, or add a traced tool or finger access.
+              Use Add simple pocket to draw a shape, or add a traced tool or finger access.
             </p>
           </div>
         </div>
       ) : null}
 
-      {!basicPocket.kind && <div className="absolute left-3 top-16 md:top-12 [@media(pointer:coarse)]:top-16 z-30" data-testid="layout-add-pocket">
+      {!basicPocket.kind && !showObjectControls && <div className="absolute left-3 top-16 md:top-12 [@media(pointer:coarse)]:top-16 z-30" data-testid="layout-add-pocket">
         <AddPocketMenu />
       </div>}
 
@@ -1791,8 +1915,8 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
         className="absolute right-3 top-16 md:top-12 [@media(pointer:coarse)]:top-16 z-30 flex max-h-[calc(100%-5rem)] flex-col overflow-y-auto rounded-md md:max-h-[calc(100%-4rem)] [@media(pointer:coarse)]:max-h-[calc(100%-5rem)] [&>button]:shrink-0 border bg-background/90 shadow-sm backdrop-blur"
         data-testid="layout-tool-toolbar"
       >
-        <Button variant="ghost" size="icon" className="h-11 w-11 rounded-none border-b md:h-9 md:w-9 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11" aria-label="Pan layout" aria-pressed={panActive}
-          onClick={() => setPanActive(active => !active)}><Hand className="h-4 w-4" /></Button>
+        <Button variant="ghost" size="icon" className={cn("h-11 w-11 rounded-none border-b md:h-9 md:w-9 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11", panActive && "bg-accent text-accent-foreground ring-1 ring-inset ring-primary/40")} aria-label="Pan layout" aria-pressed={panActive}
+          onClick={() => { setPanActive(active => !active); setRulerActive(false); }}><Hand className="h-4 w-4" /></Button>
         <Button variant="ghost" size="icon" className="h-11 w-11 rounded-none border-b md:h-9 md:w-9 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11" aria-label="Fit layout to screen"
           onClick={viewport.fit}><Maximize2 className="h-4 w-4" /></Button>
         <Button
@@ -1815,7 +1939,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
               ? "Ruler: measure between points on contours or split lines"
               : "Add a tool cutout before measuring"
           }
-          disabled={!hasPlacedCutouts}
+          disabled={panActive || !hasPlacedCutouts}
           onClick={() => {
             const next = !rulerActive;
             setRulerActive(next);
@@ -1828,15 +1952,21 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
         >
           <Ruler className="h-4 w-4" />
         </Button>
+        {inspector && <SelectionToolButtons count={selection.length} inactive={rulerActive} panning={panActive} onActivate={() => { setRulerActive(false); dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" }); }} />}
+        {experimentalEnabled && !inspector && <Button variant="ghost" size="icon"
+          className={cn("h-11 w-11 rounded-none border-t md:h-9 md:w-9 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11", objectControlsOpen && !rulerActive && !panActive && "bg-accent text-accent-foreground")}
+          aria-label="Object controls" title="Move, rotate and arrange objects" disabled={panActive} aria-expanded={objectControlsOpen && !rulerActive && !panActive}
+          onClick={() => { setObjectControlsOpen(open => !open || rulerActive); setRulerActive(false); dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" }); }}><Move3D className="h-4 w-4" /></Button>}
         {selected && (editorMode === "placement" || editorMode === "contour") && (
           <Button
             variant="ghost"
             size="icon"
-            className={cn("h-11 w-11 md:h-9 md:w-9 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11 rounded-none border-t", editorMode === "contour" && "bg-accent text-accent-foreground")}
+            className={cn("h-11 w-11 md:h-9 md:w-9 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11 rounded-none border-t", editorMode === "contour" && !panActive && "bg-accent text-accent-foreground")}
             aria-label={editorMode === "contour" ? "Finish contour editing" : "Edit contour"}
-            aria-pressed={editorMode === "contour"}
+            aria-pressed={!panActive && editorMode === "contour"}
             title={editorMode === "contour" ? "Finish contour editing" : "Edit contour"}
             data-testid="button-layout-edit-contour"
+            disabled={panActive}
             onClick={() => {
               setRulerActive(false);
               setMeasurementPoints([]);
@@ -1895,6 +2025,14 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
         <p className="text-orange-700 dark:text-orange-300">Dashed outline: overlapping pockets</p>
       </div>}
 
+      {showObjectControls && <ObjectTransformPanel disabled={panActive}
+        editor={{ spec, transformOrigins, originShapes: shapes, linkControls: <SelectionLinkControls />, pockets: arrangementObjects.flatMap(o => o.kind === "pocket" ? [o] : []), fingerHoles, selectedId: selectedCutoutId, selection,
+          onSelect: id => dispatch({ type: "SELECT_CUTOUT", id }), onCommit: () => {},
+          onSelectionChange: selection => dispatch({ type: "SET_SELECTION", selection }),
+          onCommitObjects: (edits, historyLabel) => dispatch({ type: "UPDATE_OBJECTS", edits, historyLabel }) }}
+        objects={arrangementObjects} selected={selectedObjects} displayed={selectedObjects} mode={objectMode} modeRequest={modeRequest} setMode={setObjectMode}
+        snap={objectSnap} setSnap={setObjectSnap} pivot={objectPivot} setPivot={setObjectPivot} limited={false} onClose={() => setObjectControlsOpen(false)} />}
+
       {editorMode === "contour" && selected && !panActive ? (
         <div className="bin-canvas-guidance absolute bottom-2 left-2 z-30">
           {isMobile ? <MobileContourTools selected={!!mobileEditor.selectedPoint} canRemove={mobileEditor.canRemove} onRemove={mobileEditor.removeSelected}
@@ -1906,7 +2044,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
               : removeVertices ? "Tap a vertex to remove it · Undo restores it" : "Drag points to move · Click near an edge to add · Select a point for Delete"}
           </WorkflowHint>
         </div>
-      ) : !basicPocket.kind && (
+      ) : !basicPocket.kind && !showObjectControls && (
       <WorkflowHint hintKey={`${editorMode}:${panActive ? "pan" : rulerActive ? "ruler" : selectedCutoutId ? "pocket" : selectedFingerHoleId ? "finger" : "selection"}`} className="bin-canvas-guidance absolute bottom-2 left-2 right-2 md:right-auto md:max-w-lg">
         {panActive
           ? "Drag to pan · Pinch to zoom · Tap the hand to resume editing"
@@ -1917,7 +2055,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
           : editorMode === "label-edge"
           ? "Label tab · tap a highlighted boundary edge"
           : !hasPlacedObjects
-          ? "Choose Add pocket to draw a shape"
+          ? "Choose Add simple pocket to draw a shape"
           : editorMode === "split" ? "Split pocket · draw a straight line between two outer edge points" : editorMode === "contour"
           ? selectedCutoutId
             ? "Contour edit · drag points · click near an edge to add · right-click a point to remove · Esc finishes"

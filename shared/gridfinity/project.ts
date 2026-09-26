@@ -11,6 +11,8 @@ import {
   type FingerHole,
 } from "./cutout";
 import { binSpecSchema } from "./types";
+import { designLinkErrors } from "./design-links";
+import { transformOriginsSchema } from "./transform-origins";
 import { binHistorySchema } from "./history";
 
 /**
@@ -36,10 +38,16 @@ import { binHistorySchema } from "./history";
  * Version 17 preserves committed undo/redo history and its current position.
  * Version 18 identifies basic-shape pockets authored directly in millimetres.
  * Version 19 adds independent pocket names to placements and their history.
- * Version 20 adds solid-fill height percentages, defaulting old snapshots to 100%.
+ * Version 20 was used by two branches: solid-fill height percentages on main,
+ * and optional X/Y pocket tilt on the feature branch. Both fields are optional
+ * on input, so either variant migrates without discarding data.
+ * Version 21 adds vertical pocket translation for the 3D editor.
+ * Version 22 unifies adjustable fill height, tilt and legacy vertical offsets.
+ * Version 23 adds explicit linked pocket and thumb-access designs.
+ * Version 24 preserves as-drawn transform references independently of undo history.
  */
 
-export const PROJECT_SCHEMA_VERSION = 20 as const;
+export const PROJECT_SCHEMA_VERSION = 24 as const;
 
 const projectFields = {
   shapes: z.array(tracedShapeSchema),
@@ -88,15 +96,23 @@ const version18ProjectSchema = version17ProjectSchema.extend({
   schemaVersion: z.literal(18),
 });
 
-const version19ProjectSchema = version17ProjectSchema.extend({
-  schemaVersion: z.literal(19),
-});
+const version19ProjectSchema = version17ProjectSchema.extend({ schemaVersion: z.literal(19) });
+
+const version20ProjectSchema = version17ProjectSchema.extend({ schemaVersion: z.literal(20) });
+
+const version21ProjectSchema = version17ProjectSchema.extend({ schemaVersion: z.literal(21) });
+
+const version22ProjectSchema = version17ProjectSchema.extend({ schemaVersion: z.literal(22) });
+
+const version23ProjectSchema = version17ProjectSchema.extend({ schemaVersion: z.literal(23) });
 
 /** History and the visible design must describe one consistent saved snapshot. */
 export const projectDocSchema = version16ProjectSchema.extend({
   schemaVersion: z.literal(PROJECT_SCHEMA_VERSION),
+  transformOrigins: transformOriginsSchema.optional(),
   history: binHistorySchema.optional(),
 }).superRefine((project, ctx) => {
+  for (const message of designLinkErrors(project)) ctx.addIssue({ code: z.ZodIssueCode.custom, message });
   if (!project.history) return;
   const current = project.history.stack[project.history.index]?.doc;
   const material = { spec: project.spec, cutouts: project.cutouts, fingerHoles: project.fingerHoles };
@@ -202,6 +218,26 @@ export function parseProjectDoc(input: unknown): ProjectDoc | null {
       if (liteBase !== undefined && typeof liteBase !== "boolean") return null;
       input = { ...doc, spec };
     }
+  }
+  const version23 = version23ProjectSchema.safeParse(input);
+  if (version23.success) {
+    const migrated = projectDocSchema.safeParse({ ...version23.data, schemaVersion: PROJECT_SCHEMA_VERSION });
+    return migrated.success ? migrated.data : null;
+  }
+  const version22 = version22ProjectSchema.safeParse(input);
+  if (version22.success) {
+    const migrated = projectDocSchema.safeParse({ ...version22.data, schemaVersion: PROJECT_SCHEMA_VERSION });
+    return migrated.success ? migrated.data : null;
+  }
+  const version21 = version21ProjectSchema.safeParse(input);
+  if (version21.success) {
+    const migrated = projectDocSchema.safeParse({ ...version21.data, schemaVersion: PROJECT_SCHEMA_VERSION });
+    return migrated.success ? migrated.data : null;
+  }
+  const version20 = version20ProjectSchema.safeParse(input);
+  if (version20.success) {
+    const migrated = projectDocSchema.safeParse({ ...version20.data, schemaVersion: PROJECT_SCHEMA_VERSION });
+    return migrated.success ? migrated.data : null;
   }
   const version19 = version19ProjectSchema.safeParse(input);
   if (version19.success) {

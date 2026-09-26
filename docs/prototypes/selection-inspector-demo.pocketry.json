@@ -1,0 +1,291 @@
+{
+  "schemaVersion": 24,
+  "shapes": [
+    {
+      "id": "demo-0",
+      "name": "Driver",
+      "outlineMm": [
+        {
+          "outer": [
+            {
+              "x": -11,
+              "y": -43
+            },
+            {
+              "x": 11,
+              "y": -43
+            },
+            {
+              "x": 11,
+              "y": 43
+            },
+            {
+              "x": -11,
+              "y": 43
+            }
+          ],
+          "holes": []
+        }
+      ],
+      "bboxMm": {
+        "minX": -11,
+        "minY": -43,
+        "maxX": 11,
+        "maxY": 43
+      },
+      "pointCount": 4,
+      "sourceMmPerPx": null,
+      "source": "basic-shape"
+    },
+    {
+      "id": "demo-1",
+      "name": "Pliers",
+      "outlineMm": [
+        {
+          "outer": [
+            {
+              "x": -15,
+              "y": -43
+            },
+            {
+              "x": 15,
+              "y": -43
+            },
+            {
+              "x": 15,
+              "y": 43
+            },
+            {
+              "x": -15,
+              "y": 43
+            }
+          ],
+          "holes": []
+        }
+      ],
+      "bboxMm": {
+        "minX": -15,
+        "minY": -43,
+        "maxX": 15,
+        "maxY": 43
+      },
+      "pointCount": 4,
+      "sourceMmPerPx": null,
+      "source": "basic-shape"
+    },
+    {
+      "id": "demo-2",
+      "name": "Probe",
+      "outlineMm": [
+        {
+          "outer": [
+            {
+              "x": -9,
+              "y": -43
+            },
+            {
+              "x": 9,
+              "y": -43
+            },
+            {
+              "x": 9,
+              "y": 43
+            },
+            {
+              "x": -9,
+              "y": 43
+            }
+          ],
+          "holes": []
+        }
+      ],
+      "bboxMm": {
+        "minX": -9,
+        "minY": -43,
+        "maxX": 9,
+        "maxY": 43
+      },
+      "pointCount": 4,
+      "sourceMmPerPx": null,
+      "source": "basic-shape"
+    },
+    {
+      "id": "demo-3",
+      "name": "Bits",
+      "outlineMm": [
+        {
+          "outer": [
+            {
+              "x": -60,
+              "y": -10
+            },
+            {
+              "x": 60,
+              "y": -10
+            },
+            {
+              "x": 60,
+              "y": 10
+            },
+            {
+              "x": -60,
+              "y": 10
+            }
+          ],
+          "holes": []
+        }
+      ],
+      "bboxMm": {
+        "minX": -60,
+        "minY": -10,
+        "maxX": 60,
+        "maxY": 10
+      },
+      "pointCount": 4,
+      "sourceMmPerPx": null,
+      "source": "basic-shape"
+    }
+  ],
+  "spec": {
+    "gridX": 4,
+    "gridY": 4,
+    "gridPitch": "full",
+    "footprint": {
+      "kind": "rectangle"
+    },
+    "heightUnits": 6,
+    "lip": "standard",
+    "fill": "solid",
+    "fillHeightPercent": 100,
+    "flatBottom": false,
+    "magnetHoles": false,
+    "magnetCrushRibs": false,
+    "screwHoles": false,
+    "labelTab": null
+  },
+  "cutouts": [
+    {
+      "id": "cutout-demo-0",
+      "shapeId": "demo-0",
+      "name": "Driver",
+      "position": {
+        "x": -50,
+        "y": 12
+      },
+      "rotationDeg": 0,
+      "mirrored": false,
+      "scaleX": 1,
+      "scaleY": 1,
+      "aspectRatioLocked": false,
+      "depth": {
+        "mode": "mm",
+        "value": 20
+      },
+      "clearanceMm": 0,
+      "cornerRoundMm": 0,
+      "topFilletMm": 1,
+      "bottomFilletMm": 0,
+      "fingerHoles": []
+    },
+    {
+      "id": "cutout-demo-1",
+      "shapeId": "demo-1",
+      "name": "Pliers",
+      "position": {
+        "x": 0,
+        "y": 12
+      },
+      "rotationDeg": 0,
+      "mirrored": false,
+      "scaleX": 1,
+      "scaleY": 1,
+      "aspectRatioLocked": false,
+      "depth": {
+        "mode": "mm",
+        "value": 20
+      },
+      "clearanceMm": 0,
+      "cornerRoundMm": 0,
+      "topFilletMm": 1,
+      "bottomFilletMm": 0,
+      "fingerHoles": []
+    },
+    {
+      "id": "cutout-demo-2",
+      "shapeId": "demo-2",
+      "name": "Probe",
+      "position": {
+        "x": 50,
+        "y": 12
+      },
+      "rotationDeg": 0,
+      "mirrored": false,
+      "scaleX": 1,
+      "scaleY": 1,
+      "aspectRatioLocked": false,
+      "depth": {
+        "mode": "mm",
+        "value": 26
+      },
+      "clearanceMm": 0,
+      "cornerRoundMm": 0,
+      "topFilletMm": 1,
+      "bottomFilletMm": 0,
+      "fingerHoles": []
+    },
+    {
+      "id": "cutout-demo-3",
+      "shapeId": "demo-3",
+      "name": "Bits",
+      "position": {
+        "x": 0,
+        "y": -58
+      },
+      "rotationDeg": 0,
+      "mirrored": false,
+      "scaleX": 1,
+      "scaleY": 1,
+      "aspectRatioLocked": false,
+      "depth": {
+        "mode": "mm",
+        "value": 12
+      },
+      "clearanceMm": 0,
+      "cornerRoundMm": 0,
+      "topFilletMm": 1,
+      "bottomFilletMm": 0,
+      "fingerHoles": []
+    }
+  ],
+  "fingerHoles": [
+    {
+      "id": "access-0",
+      "name": "Driver access",
+      "center": {
+        "x": -27,
+        "y": 12
+      },
+      "diameterMm": 18,
+      "depthMm": 12,
+      "topFilletMm": 1,
+      "bottomFilletMm": 0,
+      "lengthMm": 34,
+      "kind": "oblong-deep-scoop"
+    },
+    {
+      "id": "access-1",
+      "name": "Probe access",
+      "center": {
+        "x": 28,
+        "y": 12
+      },
+      "diameterMm": 18,
+      "depthMm": 12,
+      "topFilletMm": 1,
+      "bottomFilletMm": 0,
+      "lengthMm": 34,
+      "kind": "oblong-deep-scoop"
+    }
+  ],
+  "name": "Selection inspector demo"
+}

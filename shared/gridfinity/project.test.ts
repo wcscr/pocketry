@@ -484,3 +484,38 @@ it("migrates v14 with sharp slot corners and round-trips explicit and retained c
     expect(parseProjectDoc(JSON.parse(JSON.stringify(doc)))).toEqual(doc);
   }
 });
+
+it.each([
+  { version: 20, fill: 55, tilt: undefined, offset: undefined },
+  { version: 20, fill: undefined, tilt: { xDeg: 12, yDeg: 30 }, offset: undefined },
+  { version: 21, fill: undefined, tilt: { xDeg: 12, yDeg: 30 }, offset: 2 },
+])("migrates both version-20 branches and v21 without losing history: %j", ({ version, fill, tilt, offset }) => {
+  const { fillHeightPercent: _fill, ...oldSpec } = VALID.spec;
+  const spec = fill === undefined ? oldSpec : { ...oldSpec, fillHeightPercent: fill };
+  const cutouts = [{ ...VALID.cutouts[0], ...(tilt ? { tilt } : {}), ...(offset === undefined ? {} : { zOffsetMm: offset }) }];
+  const doc = { spec, cutouts, fingerHoles: [] };
+  const input = { ...VALID, ...doc, schemaVersion: version, history: {
+    stack: [{ doc, label: "Start" }, { doc: { ...doc, cutouts: [{ ...cutouts[0], position: { x: 10, y: 5 } }] }, label: "Move" }], index: 0,
+  } };
+  const serialized = JSON.stringify(input), migrated = parseProjectDoc(input)!;
+  expect(migrated).not.toBeNull();
+  expect(migrated.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
+  expect(migrated.spec.fillHeightPercent).toBe(fill ?? 100);
+  for (const entry of migrated.history!.stack) {
+    expect(entry.doc.spec.fillHeightPercent).toBe(fill ?? 100);
+    expect(entry.doc.cutouts[0].tilt).toEqual(tilt);
+    expect(entry.doc.cutouts[0].zOffsetMm).toBe(offset);
+  }
+  expect(JSON.stringify(input)).toBe(serialized);
+  expect(parseProjectDoc(JSON.parse(JSON.stringify(migrated)))).toEqual(migrated);
+});
+
+
+it("round-trips as-drawn references and migrates version 23 without changing geometry", () => {
+  const doc = parseProjectDoc(VALID)!;
+  const transformOrigins = { pockets: [{ cutout: doc.cutouts[0], spec: doc.spec }], fingerHoles: [] };
+  const saved = { ...doc, transformOrigins, cutouts: [{ ...doc.cutouts[0], position: { x: 10, y: 4 } }] };
+  expect(parseProjectDoc(JSON.parse(JSON.stringify(saved)))).toEqual(saved);
+  expect(parseProjectDoc({ ...doc, schemaVersion: 23 })).toEqual(doc);
+  expect(parseProjectDoc({ ...saved, transformOrigins: { ...transformOrigins, pockets: [{ cutout: { ...doc.cutouts[0], rotationDeg: Infinity }, spec: doc.spec }] } })).toBeNull();
+});

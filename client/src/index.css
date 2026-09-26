@@ -158,3 +158,49 @@
     overflow-y: auto;
   }
 }
+
+/* Workflow colors follow settings into every property editor. */
+[data-property-tone] { --property-rgb: 100 116 139; --property-ink: 71 85 105; }
+[data-property-tone="blue"] { --property-rgb: 59 130 246; --property-ink: 29 78 216; }
+[data-property-tone="rose"] { --property-rgb: 244 63 94; --property-ink: 190 18 60; }
+[data-property-tone="violet"] { --property-rgb: 139 92 246; --property-ink: 109 40 217; }
+[data-property-tone="cyan"] { --property-rgb: 6 182 212; --property-ink: 14 116 144; }
+[data-property-tone="amber"] { --property-rgb: 245 158 11; --property-ink: 146 64 14; }
+[data-property-tone="indigo"] { --property-rgb: 99 102 241; --property-ink: 67 56 202; }
+[data-property-tone="emerald"] { --property-rgb: 16 185 129; --property-ink: 4 120 87; }
+.dark [data-property-tone] { --property-ink: var(--property-rgb); }
+.property-surface, .property-heading {
+  border-color: rgb(var(--property-rgb) / .28);
+  background-color: rgb(var(--property-rgb) / .045);
+}
+.property-heading { color: rgb(var(--property-ink)); }
+.property-floating {
+  background-image: linear-gradient(rgb(var(--property-rgb) / .045), rgb(var(--property-rgb) / .045));
+  background-color: hsl(var(--background));
+}
+.property-surface details { border-color: rgb(var(--property-rgb) / .22); }
+.property-surface details > summary {
+  display: flex;
+  min-height: 2.5rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  padding: .5rem 0;
+  cursor: pointer;
+  list-style: none;
+  font-size: .75rem;
+  font-weight: 600;
+  color: rgb(var(--property-ink));
+}
+.property-surface details > summary::-webkit-details-marker { display: none; }
+.property-surface details > summary:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; border-radius: .25rem; }
+.property-surface input:not([type="checkbox"]):not([type="radio"]),
+.property-surface select, .property-surface [role="combobox"] { min-height: 2.25rem; }
+@media (pointer: coarse) {
+  .property-surface [data-mm-slider-track] { min-height: 2.75rem; }
+  .property-surface [role="slider"] { position: relative; }
+  .property-surface [role="slider"]::before { content: ""; position: absolute; inset: -.75rem; }
+  .property-surface button, .property-surface summary,
+  .property-surface input:not([type="checkbox"]):not([type="radio"]),
+  .property-surface select, .property-surface [role="combobox"] { min-height: 2.75rem; }
+}

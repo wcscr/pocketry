@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { cutoutPlacementSchema, fingerHoleSchema } from "./cutout";
+import { designLinkErrors } from "./design-links";
 import { binSpecSchema } from "./types";
 
 /** The same retention limit applies in memory and in portable projects. */
@@ -11,7 +12,9 @@ export const binDocSchema = z.object({
   spec: binSpecSchema,
   cutouts: z.array(cutoutPlacementSchema),
   fingerHoles: z.array(fingerHoleSchema),
-}).strict();
+}).strict().superRefine((doc, ctx) => {
+  for (const message of designLinkErrors(doc)) ctx.addIssue({ code: z.ZodIssueCode.custom, message });
+});
 
 export const binHistoryEntrySchema = z.object({
   doc: binDocSchema,

@@ -14,7 +14,7 @@ export function AddPocketMenu(): JSX.Element {
   return <DropdownMenu>
     <DropdownMenuTrigger asChild>
       <Button type="button" variant="outline" size="sm" className="gap-1.5 bg-background/90 [@media(pointer:coarse)]:min-h-11">
-        <Plus className="h-3.5 w-3.5" />Add pocket<ChevronDown className="h-3.5 w-3.5" />
+        <Plus className="h-3.5 w-3.5" />Add simple pocket<ChevronDown className="h-3.5 w-3.5" />
       </Button>
     </DropdownMenuTrigger>
     <DropdownMenuContent align="start">

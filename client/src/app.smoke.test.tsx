@@ -26,6 +26,9 @@ let container: HTMLDivElement;
 let root: Root;
 
 beforeEach(() => {
+  localStorage.removeItem("pocketry:experimental-features");
+  localStorage.removeItem("pocketry:selection-inspector");
+  localStorage.removeItem("pocketry:editor-layout");
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.stubGlobal("ResizeObserver", NoopResizeObserver);
   window.history.replaceState(null, "", "/");
@@ -51,6 +54,9 @@ afterEach(() => {
   container.remove();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  localStorage.removeItem("pocketry:experimental-features");
+  localStorage.removeItem("pocketry:selection-inspector");
+  localStorage.removeItem("pocketry:editor-layout");
 });
 
 function renderApp(): void {
@@ -80,6 +86,39 @@ function openTraceSettings(section: "detect" | "scale" | "output"): void {
 }
 
 describe("App", () => {
+  it("keeps right-side properties through Trace, Bin, Library and a fresh app mount", async () => {
+    window.history.replaceState(null, "", "/bin?layout=workflow");
+    renderApp();
+    const inspector = () => container.querySelector('[aria-label="Selection inspector"]');
+    expect(inspector()).not.toBeNull();
+    clickWorkspace("Trace");
+    expect(inspector()).toBeNull();
+    clickWorkspace("Bin");
+    expect(inspector()).not.toBeNull();
+    const library = [...container.querySelectorAll<HTMLAnchorElement>("nav a")].find(link => link.textContent?.trim() === "Library")!;
+    await act(async () => library.click());
+    expect(inspector()).not.toBeNull();
+    expect(window.location.search).toBe("");
+    act(() => root.unmount());
+    root = createRoot(container);
+    renderApp();
+    expect(inspector()).not.toBeNull();
+  });
+
+  it.each(["desktop", "mobile"])("opens experimental settings from the %s header", async mode => {
+    renderApp();
+    if (mode === "desktop") act(() => container.querySelector<HTMLButtonElement>('[aria-label="Settings"]')!.click());
+    else {
+      act(() => container.querySelector<HTMLButtonElement>('[aria-label="More options"]')!
+        .dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+      await act(async () => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(item => item.textContent === "Settings")!.click());
+    }
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Enable experimental features");
+    const toggle = document.querySelector<HTMLButtonElement>('#experimental-features')!;
+    expect(toggle.getAttribute("aria-checked")).toBe("false");
+    act(() => toggle.click());
+    expect(localStorage.getItem("pocketry:experimental-features")).toBe("true");
+  });
   it("mounts without throwing", () => {
     expect(() => renderApp()).not.toThrow();
   });
@@ -262,6 +301,8 @@ describe("App", () => {
     // toggle a user who collapses it has no way back on the next visit.
     const toggle = container.querySelector('[aria-label="Hide controls"]');
     expect(toggle).not.toBeNull();
+    expect(toggle!.closest('[data-testid="desktop-workspace-controls"]')).not.toBeNull();
+    expect(toggle!.closest("header")).toBeNull();
   });
 
   it("renders the controls panel sections", () => {
