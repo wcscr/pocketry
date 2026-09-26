@@ -89,6 +89,17 @@ disagreed about Y, which shipped mirrored STLs.
 - Author: Will Cobb <will.cobb@sugarcreekresearch.com>
 - Never add Co-Authored-By lines
 
+## Versions & Changelog
+
+- `package.json` is the application version source of truth; About imports it
+  directly. Keep `package-lock.json` in sync when bumping the version.
+- Record notable user-visible features, changes, and fixes under **Unreleased**
+  in `CHANGELOG.md` as part of the same change. Omit internal-only refactors.
+- For a release, use major/minor/patch versioning, move Unreleased notes into a
+  dated section matching the package version, and keep newest versions first.
+  See README's "Versions and update history" for the release steps.
+- Application versions and saved-project schema versions are independent.
+
 ## Runtime & Dependencies
 
 - Node.js 22, npm with a committed `package-lock.json`.

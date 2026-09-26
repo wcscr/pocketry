@@ -1,4 +1,5 @@
 import { ExternalLink, Github, Scale } from "lucide-react";
+import { version } from "../../../package.json";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -141,6 +142,20 @@ export default function About(): JSX.Element {
             <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
               About Pocketry
             </h1>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+              <span className="rounded-full bg-muted px-2.5 py-1 font-medium text-muted-foreground">
+                Version {version}
+              </span>
+              <a
+                href={`${SOURCE_URL}/blob/main/CHANGELOG.md`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 rounded-sm text-muted-foreground underline underline-offset-4 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                Version history
+                <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+              </a>
+            </div>
             <p className="text-sm text-muted-foreground">
               Pocketry is developed by{" "}
               <a
