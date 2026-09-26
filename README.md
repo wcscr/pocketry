@@ -145,21 +145,12 @@ The build includes `LICENSE.txt` and `NOTICE.txt` alongside the application.
 
 ## Versions and update history
 
-The About screen shows the application version from `package.json` and links to
-[CHANGELOG.md](CHANGELOG.md), which records notable changes by version, newest first.
-Application versions are separate from the saved-project schema version.
+About displays the version from `package.json`; [CHANGELOG.md](CHANGELOG.md)
+tracks notable updates. Keep entries to a few short bullets per version.
 
-For each release:
-
-1. Choose a **major** version for breaking changes, a **minor** version for new
-   features, or a **patch** version for fixes and small improvements.
-2. Run `npm version <major|minor|patch> --no-git-tag-version` to update
-   `package.json` and `package-lock.json` together (choose one of the three options).
-3. Move the changelog's **Unreleased** notes into a section with that version and
-   the release date. Summarize user-visible changes; keep the Unreleased heading
-   for future work.
-4. Run `npm run check`, `npm test`, and `npm run build`, then include the version
-   files and changelog in the same release change.
+For releases, use `npm version patch --no-git-tag-version` (or `minor` for new
+features, `major` for breaking changes), then date the matching changelog entry.
+Commit both package files and the changelog together after verification.
 
 ## License and attribution
 

@@ -91,14 +91,11 @@ disagreed about Y, which shipped mirrored STLs.
 
 ## Versions & Changelog
 
-- `package.json` is the application version source of truth; About imports it
-  directly. Keep `package-lock.json` in sync when bumping the version.
-- Record notable user-visible features, changes, and fixes under **Unreleased**
-  in `CHANGELOG.md` as part of the same change. Omit internal-only refactors.
-- For a release, use major/minor/patch versioning, move Unreleased notes into a
-  dated section matching the package version, and keep newest versions first.
-  See README's "Versions and update history" for the release steps.
-- Application versions and saved-project schema versions are independent.
+- About reads `package.json`; keep `package-lock.json` in sync when bumping it.
+- Add notable user-visible changes to **Unreleased** in `CHANGELOG.md`. Keep
+  entries to a few short bullets; omit internal-only refactors.
+- On release, use major/minor/patch versioning and a dated changelog section,
+  newest first. Application and saved-project schema versions are independent.
 
 ## Runtime & Dependencies
 
