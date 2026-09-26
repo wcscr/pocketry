@@ -3,7 +3,9 @@
   "compatibility_date": "2026-08-26",
   "main": "cloudflare/worker.ts",
   "vars": {
-    "FEEDBACK_TO": "contact@pocketry.xyz"
+    "FEEDBACK_TO": "contact@pocketry.xyz",
+    "TURNSTILE_SITE_KEY": "0x4AAAAAAFEX5UTaSUHC-qpj",
+    "TURNSTILE_HOSTNAMES": "pocketry.xyz"
   },
   "assets": {
     "binding": "ASSETS",

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface TurnstileApi {
   render(element: HTMLElement, options: {
@@ -10,6 +10,7 @@ interface TurnstileApi {
     "error-callback": () => void;
   }): string;
   remove(id: string): void;
+  reset(id: string): void;
 }
 declare global { interface Window { turnstile?: TurnstileApi } }
 let loading: Promise<TurnstileApi> | undefined;
@@ -41,12 +42,16 @@ function loadTurnstile(): Promise<TurnstileApi> {
 }
 
 /** Remove the widget on close; expired/failed tokens cannot enable submission. */
-export function Turnstile({ siteKey, onToken, onError }: {
+export function Turnstile({ siteKey, resetKey, onToken, onError }: {
   siteKey: string;
+  resetKey: number;
   onToken: (token: string) => void;
   onError: () => void;
 }): JSX.Element {
   const container = useRef<HTMLDivElement>(null);
+  const currentWidget = useRef<{ api: TurnstileApi; id: string }>();
+  const previousReset = useRef(resetKey);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const callbacks = useRef({ onToken, onError });
   callbacks.current = { onToken, onError };
   useEffect(() => {
@@ -62,8 +67,25 @@ export function Turnstile({ siteKey, onToken, onError }: {
         "expired-callback": () => { if (!disposed) callbacks.current.onToken(""); },
         "error-callback": () => { if (!disposed) { callbacks.current.onToken(""); callbacks.current.onError(); } },
       });
+      currentWidget.current = { api, id: widget };
     }).catch(() => { if (!disposed) callbacks.current.onError(); });
-    return () => { disposed = true; if (api && widget !== undefined) api.remove(widget); };
-  }, [siteKey]);
+    return () => {
+      disposed = true;
+      currentWidget.current = undefined;
+      if (api && widget !== undefined) api.remove(widget);
+    };
+  }, [siteKey, loadAttempt]);
+  useEffect(() => {
+    if (previousReset.current === resetKey) return;
+    previousReset.current = resetKey;
+    callbacks.current.onToken("");
+    if (currentWidget.current) {
+      try { currentWidget.current.api.reset(currentWidget.current.id); }
+      catch { callbacks.current.onError(); }
+    } else {
+      // Retry a failed script load or render, where no widget ID exists yet.
+      setLoadAttempt((attempt) => attempt + 1);
+    }
+  }, [resetKey]);
   return <div ref={container} aria-label="Spam check" className="min-h-16" />;
 }

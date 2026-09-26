@@ -41,30 +41,50 @@ Turnstile settings below are still required.
    enabling the feature; the current sending API is documented as beta.
 2. Create an API token scoped to this account with **Email Sending: Edit**.
    Use a dedicated token rather than a general Cloudflare deployment token.
-3. Create a managed Turnstile widget for the exact production hostname(s).
-   Preview deployments need their own allowed hostname and settings; avoid
-   allowing arbitrary preview hosts to send to the production inbox.
+3. Use the existing Turnstile widget with public site key
+   `0x4AAAAAAFEX5UTaSUHC-qpj`, configured for `pocketry.xyz`. Do not create a
+   replacement widget or change its pre-clearance settings. Preview deployments
+   need their own allowed hostname and settings; avoid allowing arbitrary
+   preview hosts to send to the production inbox.
 4. Add the following **runtime** settings in the Cloudflare project. The
    token and secret key must be encrypted secrets, never `VITE_*` variables.
 
    | Setting | Value |
    | --- | --- |
-   | `TURNSTILE_SITE_KEY` | Public widget key |
-   | `TURNSTILE_SECRET_KEY` | Secret widget key |
+   | `TURNSTILE_SITE_KEY` | `0x4AAAAAAFEX5UTaSUHC-qpj` (public) |
+   | `TURNSTILE_SECRET_KEY` | Existing widget's secret key (encrypted secret) |
+   | `TURNSTILE_HOSTNAMES` | `pocketry.xyz` (comma-separated exact hostnames) |
    | `FEEDBACK_ACCOUNT_ID` | 32-character Cloudflare account ID |
    | `FEEDBACK_EMAIL_TOKEN` | Scoped Email Sending token |
    | `FEEDBACK_FROM` | Fixed sender address in the configured sender domain |
    | `FEEDBACK_TO` | `contact@pocketry.xyz`; verify this recipient with Cloudflare |
+
+   In **Workers & Pages → Pocketry → Settings → Variables and Secrets**, select
+   **Production** and add the settings before deployment. The Workers config
+   supplies the public site key, hostname allowlist, and recipient; a Pages
+   project needs those same three values entered in its runtime settings.
+   Production hostnames must not contain `localhost` or `127.0.0.1`. Keep the
+   server allowlist consistent with the widget's dashboard hostname list.
 
 5. Deploy using the existing Pages Git integration (root `functions/` and
    build output `dist/public`) or the Workers configuration. Keep GitHub CI
    disabled per `CLAUDE.md`; run checks locally. The root Wrangler file is a
    Workers configuration, not a Pages configuration; do not use it as a Pages
    configuration file or add `pages_build_output_dir` to it.
-6. Submit one clearly marked test from the deployed site and confirm the email
+6. Submit one clearly marked test with a fresh real Turnstile token from the
+   deployed site and confirm the email
    arrives. Verify the sender, recipient, problem/suggestion prefix, optional
    reply address in the message body, and that replying manually is possible.
-   Local tests do not prove live delivery or mailbox placement.
+   Replay that same POST once and confirm HTTP 403 with no second email sent.
+   Local tests and the presence of a secret binding do not prove that its value
+   matches the widget, live verification succeeds, or inbox delivery works.
+
+The owner reported saving `TURNSTILE_SECRET_KEY` through Cloudflare's dashboard.
+The secret was not retrieved into the repository or chat. The existing-widget
+Spin flow requires an approved external Wrangler installation and a confirmed
+secret destination for automatic retrieval; use the dashboard's normal secret
+management when those prerequisites are unavailable. Destination validation
+remains pending until a deployed request succeeds and replay is rejected.
 
 Turnstile loads only while the feedback form is open. If adding a Content
 Security Policy, permit the documented Turnstile script/frame origins.
@@ -76,7 +96,7 @@ tokens. There is no application-level per-IP rate limiter or durable queue.
 Success means Cloudflare reports the configured recipient as delivered or
 queued. A rejection, bounce, malformed response, timeout, or missing runtime
 setting never produces a success message. The form retains its text and requires
-a fresh token on retry. An ambiguous email timeout can result in a duplicate
+a fresh token on retry by resetting its specific widget ID. An ambiguous email timeout can result in a duplicate
 message if the visitor retries; there is no persistent deduplication store.
 Application logs intentionally exclude feedback contents and upstream responses.
 Cloudflare and the destination mail provider still process normal request and
@@ -92,18 +112,24 @@ use a separately installed Wrangler with the built app. Real credentials can
 send real email; use a dedicated test inbox and widget. Turnstile dummy keys
 are for test environments only and must never be used in production.
 
-Implementation verification: Node 22.23.2 passed `npm run check`, all 1,895
-tests in 110 files, and `npm run build`. Both Cloudflare entry points also
-bundled with esbuild's browser target. Browser inspection covered Help,
+Implementation verification: `npm run check`, all 1,907 tests in 110 files,
+and `npm run build` passed on Node 22.23.2. Both Cloudflare entry points also
+bundled with esbuild's browser target. Tests cover mismatched hostnames/actions,
+malformed Siteverify responses, simulated token replay rejection, and retrying
+with a fresh token on the same widget. Browser inspection covered Help,
 mobile-menu entry at 375 × 812, dialog scrolling, unavailable service feedback,
 and draft preservation. External APIs were mocked in tests; real Turnstile
 verification and inbox delivery remain deployment checks.
+
+On September 26, 2026, the live `GET https://pocketry.xyz/api/feedback` still
+returned HTML rather than JSON, so the feedback backend was not yet deployed.
 
 ## References
 
 - [Pages Functions routing](https://developers.cloudflare.com/pages/functions/routing/)
 - [Workers Static Assets routing](https://developers.cloudflare.com/workers/static-assets/routing/worker-script/)
 - [Turnstile server verification](https://developers.cloudflare.com/turnstile/get-started/server-side-validation/)
+- [Turnstile Spin existing-widget flow](https://developers.cloudflare.com/turnstile/spin/prompt.md)
 - [Cloudflare Email Service REST API](https://developers.cloudflare.com/email-service/api/send-emails/rest-api/)
 - [Email domain setup](https://developers.cloudflare.com/email-service/get-started/send-emails/)
 - [Email pricing](https://developers.cloudflare.com/email-service/platform/pricing/)

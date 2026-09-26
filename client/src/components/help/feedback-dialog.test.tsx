@@ -6,14 +6,15 @@ import { FeedbackDialog } from "./feedback-dialog";
 let root: Root;
 let widgetOptions: Parameters<NonNullable<Window["turnstile"]>["render"]>[1];
 const remove = vi.fn();
+const reset = vi.fn();
 const fetchMock = vi.fn<typeof fetch>();
 const onOpenChange = vi.fn();
 beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-  fetchMock.mockReset(); remove.mockReset(); onOpenChange.mockReset();
+  fetchMock.mockReset(); remove.mockReset(); reset.mockReset(); onOpenChange.mockReset();
   fetchMock.mockResolvedValueOnce(Response.json({ siteKey: "test-site-key" }));
   vi.stubGlobal("fetch", fetchMock);
-  window.turnstile = { render: vi.fn((_element, options) => { widgetOptions = options; return "widget"; }), remove };
+  window.turnstile = { render: vi.fn((_element, options) => { widgetOptions = options; return "widget"; }), remove, reset };
   const host = document.createElement("div"); document.body.appendChild(host); root = createRoot(host);
 });
 afterEach(() => {
@@ -66,7 +67,28 @@ it("preserves the draft on delivery failure and requires a fresh spam check", as
   expect(document.querySelector('[role="alert"]')?.textContent).toContain("Could not send");
   expect((document.getElementById("feedback-message") as HTMLTextAreaElement).value).toContain("nothing downloaded");
   expect((document.querySelector('[type="submit"]') as HTMLButtonElement).disabled).toBe(true);
-  expect(remove).toHaveBeenCalled();
+  expect(reset).toHaveBeenCalledWith("widget");
+  expect(remove).not.toHaveBeenCalled();
+});
+
+it("retries with a fresh token on the same widget", async () => {
+  await render(); complete();
+  fetchMock.mockResolvedValueOnce(Response.json({ error: "Try again." }, { status: 503 }));
+  await submit();
+  expect(reset).toHaveBeenCalledTimes(1);
+  React.act(() => widgetOptions.callback("fresh-token"));
+  fetchMock.mockResolvedValueOnce(Response.json({ ok: true }));
+  await submit();
+  expect(JSON.parse(String(fetchMock.mock.calls[2][1]?.body)).turnstileToken).toBe("fresh-token");
+  expect(window.turnstile!.render).toHaveBeenCalledTimes(1);
+});
+
+it("uses the provided site key and feedback action", async () => {
+  fetchMock.mockReset();
+  fetchMock.mockResolvedValueOnce(Response.json({ siteKey: "0x4AAAAAAFEX5UTaSUHC-qpj" }));
+  await render();
+  expect(widgetOptions.sitekey).toBe("0x4AAAAAAFEX5UTaSUHC-qpj");
+  expect(widgetOptions.action).toBe("feedback");
 });
 
 it("retains unsent text when closed and reopened", async () => {
