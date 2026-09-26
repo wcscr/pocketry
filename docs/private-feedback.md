@@ -27,6 +27,14 @@ mailbox is the inbox and determines message retention.
 
 ## Production setup
 
+The receiving address is `contact@pocketry.xyz`, which the site owner configured
+to forward to their inbox. This is recorded in the Workers configuration and
+local settings example. For Pages, set `FEEDBACK_TO=contact@pocketry.xyz` in the
+project's runtime variables as well; the Workers configuration does not configure
+Pages. Live forwarding and form-to-inbox delivery have not yet been verified.
+The forwarding address provides the receiving side; the sending service and
+Turnstile settings below are still required.
+
 1. Configure a sender domain in Cloudflare Email Service. The domain must use
    Cloudflare DNS. Verify the intended feedback inbox as a destination address
    in your account. Confirm Email Sending is available in the account before
@@ -46,7 +54,7 @@ mailbox is the inbox and determines message retention.
    | `FEEDBACK_ACCOUNT_ID` | 32-character Cloudflare account ID |
    | `FEEDBACK_EMAIL_TOKEN` | Scoped Email Sending token |
    | `FEEDBACK_FROM` | Fixed sender address in the configured sender domain |
-   | `FEEDBACK_TO` | Fixed private inbox, verified with Cloudflare |
+   | `FEEDBACK_TO` | `contact@pocketry.xyz`; verify this recipient with Cloudflare |
 
 5. Deploy using the existing Pages Git integration (root `functions/` and
    build output `dist/public`) or the Workers configuration. Keep GitHub CI
