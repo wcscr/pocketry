@@ -35,6 +35,9 @@ With browser storage blocked, the preference lasts until the tab reloads. The
 layout choice is independent of experimental tools. Move, Rotate, Arrange, Link,
 and multi-selection require **Enable experimental features**. Turning it off
 returns an active advanced tool to Select and preserves project geometry and links.
+When experimental features are enabled, Settings recommends Workflow left,
+properties right for its dedicated toolbar and properties panel. The selected
+layout changes only when the user chooses it.
 
 Open `selection-inspector-demo.pocketry.json` through **Project → Open project**. It contains four pockets and two finger accesses.
 This is synthetic test data; importing uses the normal browser-local project flow.

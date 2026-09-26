@@ -138,7 +138,16 @@ it("defaults to Controls on the left and offers only the two supported layouts",
   expect([...choices].map(choice => choice.value)).toEqual(["standard", "workflow"]);
   expect(choices[0].checked).toBe(true);
   expect(document.querySelector('[role="dialog"]')!.textContent).not.toContain("Objects left");
+  expect(document.querySelector('#experimental-layout-recommendation')).toBeNull();
+  const toggle = document.querySelector<HTMLButtonElement>('#experimental-features')!;
+  React.act(() => toggle.click());
+  expect(document.querySelector('#experimental-layout-recommendation')!.textContent).toContain("we recommend Workflow left, properties right");
+  expect(state.editorLayout).toBe("standard");
+  expect(choices[0].checked).toBe(true);
   React.act(() => choices[1].click());
+  expect(state.editorLayout).toBe("workflow");
+  React.act(() => toggle.click());
+  expect(document.querySelector('#experimental-layout-recommendation')).toBeNull();
   expect(state.editorLayout).toBe("workflow");
   cleanup.pop()!(); mount();
   expect(state.editorLayout).toBe("workflow");
