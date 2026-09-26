@@ -5,6 +5,19 @@ import { HelpDialog } from "./help-dialog";
 
 afterEach(() => { vi.unstubAllGlobals(); document.body.replaceChildren(); });
 
+it("opens each private feedback kind from Help", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  const host = document.createElement("div"); document.body.appendChild(host);
+  const root = createRoot(host); const feedback = vi.fn();
+  try {
+    await React.act(async () => { root.render(<HelpDialog open onOpenChange={() => {}} onFeedbackClick={feedback} />); });
+    for (const text of ["Report a Problem", "Make a Suggestion"]) {
+      React.act(() => Array.from(document.querySelectorAll("button")).find((button) => button.textContent === text)!.click());
+    }
+    expect(feedback.mock.calls).toEqual([["problem"], ["suggestion"]]);
+  } finally { React.act(() => root.unmount()); }
+});
+
 it("keeps GitHub feedback available in Help after the welcome has been dismissed", async () => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   const host = document.createElement("div");
