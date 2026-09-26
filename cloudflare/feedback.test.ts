@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
 import { handleFeedback, type FeedbackEnv } from "./feedback";
 import worker from "./worker";
 import { onRequest } from "../functions/api/feedback";
@@ -25,6 +26,47 @@ function verify(overrides: object = {}) {
 }
 beforeEach(() => { fetchMock.mockReset(); vi.stubGlobal("fetch", fetchMock); });
 afterEach(() => vi.unstubAllGlobals());
+
+describe("committed Pages deployment settings", () => {
+  const config = JSON.parse(readFileSync(new URL("../wrangler.jsonc", import.meta.url), "utf8")) as {
+    pages_build_output_dir: string;
+    vars: FeedbackEnv;
+    env: { preview: { vars: FeedbackEnv } };
+  };
+  const secrets = { TURNSTILE_SECRET_KEY: "test-secret", FEEDBACK_EMAIL_TOKEN: "test-email-token" };
+
+  it("opts into Pages configuration instead of an ignored Workers config", () => {
+    expect(config.pages_build_output_dir).toBe("./dist/public");
+    expect(config).not.toHaveProperty("main");
+    expect(config).not.toHaveProperty("assets");
+  });
+
+  it.each([
+    { environment: "production", vars: config.vars, hostname: "pocketry.xyz" },
+    { environment: "preview", vars: config.env.preview.vars, hostname: "codex-private-feedback.pocketry.pages.dev" },
+  ])("needs only the two dashboard secrets in $environment", async ({ vars, hostname }) => {
+    const configured = { ...vars, ...secrets };
+    const endpoint = `https://${hostname}/api/feedback`;
+    const get = await onRequest({ request: new Request(endpoint), env: configured });
+    expect(get.status).toBe(200);
+    expect(await get.json()).toEqual({ siteKey: "0x4AAAAAAFEX5UTaSUHC-qpj" });
+    fetchMock.mockResolvedValueOnce(Response.json({ success: true, hostname, action: "feedback" }));
+    fetchMock.mockResolvedValueOnce(Response.json({ success: true, result: { delivered: [vars.FEEDBACK_TO], queued: [], permanent_bounces: [] } }));
+    const post = new Request(endpoint, {
+      method: "POST", headers: { Origin: `https://${hostname}`, "Content-Type": "application/json" }, body: JSON.stringify(submission),
+    });
+    expect((await onRequest({ request: post, env: configured })).status).toBe(200);
+  });
+
+  it("keeps preview submissions outside the production allowlist", async () => {
+    const post = new Request("https://codex-private-feedback.pocketry.pages.dev/api/feedback", {
+      method: "POST", headers: { Origin: "https://codex-private-feedback.pocketry.pages.dev", "Content-Type": "application/json" },
+      body: JSON.stringify(submission),
+    });
+    expect((await onRequest({ request: post, env: { ...config.vars, ...secrets } })).status).toBe(403);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
 
 describe("private feedback", () => {
   it("exposes only the public site key and does not send email on GET", async () => {

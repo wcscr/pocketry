@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add private, account-free problem reports and suggestions with an optional reply address.
+
 ## 1.12.3 — 2026-11-16
 
 - Export surface-anchored tilted pockets whose floors cross the fill surface,
