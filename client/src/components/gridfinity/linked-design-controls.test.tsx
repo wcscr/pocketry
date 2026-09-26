@@ -51,6 +51,8 @@ it("offers linked duplication, optional tilt and selection of all linked copies"
   expect(store().cutouts).toHaveLength(3);
   const original = store().cutouts[0], duplicate = store().cutouts[2];
   expect(duplicate.designLink).toEqual(original.designLink);
+  expect(duplicate.name).toBe("Alpha (copy)");
+  expect(original.name).toBe("Alpha");
   const checkbox = host.querySelector('input[type="checkbox"]') as HTMLInputElement;
   React.act(() => checkbox.click());
   expect(store().cutouts[0].designLink!.tilt).toBe(true);

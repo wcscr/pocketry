@@ -67,7 +67,7 @@ export function LinkedDesignControls({ kind, activeId, labels }: {
       {linkedSelected.length > 0 && <Button variant="outline" size="sm" className="min-h-9 gap-1.5 px-2 text-[11px]"
         title="Keep the current design and edit these objects independently"
         onClick={() => dispatch({ type: "UNLINK_DESIGNS", kind, ids })}><Unlink className="h-3.5 w-3.5" />{ids.length > 1 ? `Unlink ${linkedSelected.length} ${noun}` : "Unlink"}</Button>}
-      {ids.length === 1 && <Button variant="outline" size="sm" className="min-h-9 gap-1.5 px-2 text-[11px]" onClick={() => dispatch({ type: "DUPLICATE_LINKED", kind, id: activeId, newId: crypto.randomUUID(), linkId: crypto.randomUUID() })}><CopyPlus className="h-3.5 w-3.5" />Duplicate linked</Button>}
+      {ids.length === 1 && <Button variant="outline" size="sm" className="min-h-9 gap-1.5 px-2 text-[11px]" onClick={() => dispatch({ type: "DUPLICATE_LINKED", kind, id: activeId, newId: crypto.randomUUID(), linkId: crypto.randomUUID(), labels })}><CopyPlus className="h-3.5 w-3.5" />Duplicate linked</Button>}
     </div>
     {ids.length < 2 && !sameDesign && <p className="text-[10px] text-muted-foreground">Shift/Ctrl-click another {kind === "pocket" ? "pocket" : "thumb slot"} to link existing designs.</p>}
     {selection.some(ref => ref.kind !== kind) && <p className="text-[10px] text-muted-foreground">Pockets and thumb slots use separate designs.</p>}

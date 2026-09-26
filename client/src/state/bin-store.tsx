@@ -111,8 +111,8 @@ export type BinAction =
   | { type: "REQUEST_REMOVE_CUTOUT"; id: string }
   | { type: "CANCEL_REMOVE_CUTOUT" }
   | { type: "REMOVE_CUTOUT"; id: string }
-  | { type: "DUPLICATE_CUTOUT"; id: string; newId: string }
-  | { type: "DUPLICATE_LINKED"; kind: DesignObjectKind; id: string; newId: string; linkId: string }
+  | { type: "DUPLICATE_CUTOUT"; id: string; newId: string; labels?: ReadonlyMap<string, string> }
+  | { type: "DUPLICATE_LINKED"; kind: DesignObjectKind; id: string; newId: string; linkId: string; labels?: ReadonlyMap<string, string> }
   | { type: "LINK_DESIGNS"; kind: DesignObjectKind; ids: string[]; sourceId: string; linkId: string; tilt: boolean }
   | { type: "UNLINK_DESIGNS"; kind: DesignObjectKind; ids: string[] }
   | { type: "SET_LINKED_TILT"; id: string; enabled: boolean }
@@ -131,7 +131,7 @@ export type BinAction =
   | { type: "SELECT_FINGER_HOLE"; id: string | null; additive?: boolean }
   | { type: "SET_SELECTION"; selection: ObjectRef[] }
   | { type: "REMOVE_SELECTION" }
-  | { type: "DUPLICATE_SELECTION"; ids: { source: ObjectRef; id: string }[] }
+  | { type: "DUPLICATE_SELECTION"; ids: { source: ObjectRef; id: string }[]; labels?: ReadonlyMap<string, string> }
   | { type: "UPDATE_OBJECTS"; edits: ObjectEdits; historyLabel: string; transient?: boolean }
   | { type: "SET_VIEW_MODE"; viewMode: BinViewMode }
   | { type: "SET_EDITOR_MODE"; editorMode: BinEditorMode }
@@ -170,6 +170,24 @@ const INITIAL: BinState = {
     index: 0,
   },
 };
+
+/** Labels supply legacy shape-name fallbacks; copy names stay placement-local.
+ * Reserve each generated name so a batch cannot create duplicate labels. */
+function copyNameAllocator(state: BinDoc, labels?: ReadonlyMap<string, string>): (id: string) => string {
+  const names = new Map([
+    ...state.cutouts.map(c => [c.id, c.name ?? labels?.get(c.id) ?? "Pocket"] as const),
+    ...state.fingerHoles.map((h, i) => [h.id, h.name ?? labels?.get(h.id) ?? `Finger access ${i + 1}`] as const),
+  ]);
+  const used = new Set([...names.values()].map(name => name.toLowerCase()));
+  return id => {
+    const base = names.get(id)!.replace(/ \(copy(?: \d+)?\)$/i, "");
+    let number = 1;
+    let name = `${base} (copy)`;
+    while (used.has(name.toLowerCase())) name = `${base} (copy ${++number})`;
+    used.add(name.toLowerCase());
+    return name;
+  };
+}
 
 /** Applies a material change: new doc becomes present, redo tail is cut. */
 function commit(
@@ -440,6 +458,7 @@ function reduceBin(state: BinState, action: BinAction): BinState {
       if (!source) return state;
       const copy: CutoutPlacement = {
         ...source,
+        name: copyNameAllocator(state, action.labels)(source.id),
         designLink: undefined,
         id: action.newId,
         // Offset so the twin is visibly a twin, not a mystery no-op.
@@ -486,18 +505,19 @@ function reduceBin(state: BinState, action: BinAction): BinState {
       const source = action.kind === "pocket" ? state.cutouts.find(c => c.id === action.id) : state.fingerHoles.find(h => h.id === action.id);
       if (!source) return state;
       const designLink = source.designLink ?? { id: action.linkId, tilt: false };
+      const name = copyNameAllocator(state, action.labels)(source.id);
       let doc: BinDoc;
       if (action.kind === "pocket") {
         const pocket = source as CutoutPlacement;
         doc = { spec: state.spec, fingerHoles: state.fingerHoles, cutouts: [
           ...state.cutouts.map(c => c.id === source.id ? { ...c, designLink } : c),
-          { ...pocket, id: action.newId, designLink, position: { x: pocket.position.x + 10, y: pocket.position.y - 10 } },
+          { ...pocket, name, id: action.newId, designLink, position: { x: pocket.position.x + 10, y: pocket.position.y - 10 } },
         ] };
       } else {
         const hole = source as FingerHole;
         doc = { spec: state.spec, cutouts: state.cutouts, fingerHoles: [
           ...state.fingerHoles.map(h => h.id === source.id ? { ...h, designLink } : h),
-          { ...hole, id: action.newId, designLink, center: { x: hole.center.x + 10, y: hole.center.y - 10 } },
+          { ...hole, name, id: action.newId, designLink, center: { x: hole.center.x + 10, y: hole.center.y - 10 } },
         ] };
       }
       return commit(state, doc, "Duplicate linked design", selectionState([{ kind: action.kind, id: action.newId }]));
@@ -549,16 +569,17 @@ function reduceBin(state: BinState, action: BinAction): BinState {
       const cutouts: CutoutPlacement[] = [], fingerHoles: FingerHole[] = [];
       const selection: ObjectRef[] = [];
       const used = new Set([...state.cutouts, ...state.fingerHoles].map(o => o.id));
+      const copyName = copyNameAllocator(state, action.labels);
       for (const { source, id } of action.ids) {
         if (used.has(id) || !state.selection.some(ref => sameObject(ref, source))) continue;
         if (source.kind === "pocket") {
           const original = state.cutouts.find(c => c.id === source.id);
           if (!original) continue;
-          cutouts.push({ ...original, id, designLink: undefined, position: { x: original.position.x + 10, y: original.position.y - 10 } });
+          cutouts.push({ ...original, name: copyName(original.id), id, designLink: undefined, position: { x: original.position.x + 10, y: original.position.y - 10 } });
         } else {
           const original = state.fingerHoles.find(h => h.id === source.id);
           if (!original) continue;
-          fingerHoles.push({ ...original, id, designLink: undefined, center: { x: original.center.x + 10, y: original.center.y - 10 } });
+          fingerHoles.push({ ...original, name: copyName(original.id), id, designLink: undefined, center: { x: original.center.x + 10, y: original.center.y - 10 } });
         }
         used.add(id); selection.push({ kind: source.kind, id });
       }

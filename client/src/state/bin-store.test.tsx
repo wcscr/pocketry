@@ -468,7 +468,41 @@ describe("bin store history (G4 undo/redo)", () => {
     expect(store().selectedFingerHoleId).toBe("f1");
   });
 
-  it("duplicate copies everything but identity and offsets the twin", () => {
+  it("names repeated copies and copies of copies without changing their source", () => {
+    const { store, act } = mountBin();
+    const source = { ...CUTOUT, name: "Pliers" };
+    act(() => store().dispatch({ type: "ADD_PLACED", cutouts: [source], gridX: 2, gridY: 2 }));
+    act(() => store().dispatch({ type: "DUPLICATE_CUTOUT", id: "c1", newId: "copy-1" }));
+    act(() => store().dispatch({ type: "DUPLICATE_CUTOUT", id: "c1", newId: "copy-2" }));
+    act(() => store().dispatch({ type: "DUPLICATE_CUTOUT", id: "copy-2", newId: "copy-3" }));
+    expect(store().cutouts.map(c => c.name)).toEqual(["Pliers", "Pliers (copy)", "Pliers (copy 2)", "Pliers (copy 3)"]);
+    expect(store().cutouts[0]).toEqual(source);
+    const doc = getCommittedBinDoc(store());
+    act(() => store().dispatch({ type: "UNDO" }));
+    expect(store().cutouts).toHaveLength(3);
+    act(() => store().dispatch({ type: "REDO" }));
+    expect(getCommittedBinDoc(store())).toEqual(doc);
+  });
+
+  it("reserves batch copy names against legacy display labels and names generated in the same batch", () => {
+    const { store, act } = mountBin();
+    const pockets = [CUTOUT, { ...CUTOUT, id: "c2" }, { ...CUTOUT, id: "reserved" }];
+    const labels = new Map([["c1", "Pliers"], ["c2", "Pliers"], ["reserved", "PLIERS (COPY)"]]);
+    act(() => store().dispatch({ type: "ADD_PLACED", cutouts: pockets, gridX: 4, gridY: 4 }));
+    const hole = fingerHoleSchema.parse({ id: "f", name: "Access", center: { x: 0, y: 0 } });
+    act(() => store().dispatch({ type: "ADD_FINGER_HOLE", hole }));
+    const selection = [{ kind: "pocket" as const, id: "c1" }, { kind: "pocket" as const, id: "c2" }, { kind: "finger" as const, id: "f" }];
+    act(() => store().dispatch({ type: "SET_SELECTION", selection }));
+    const before = getCommittedBinDoc(store()), steps = store().history.stack.length;
+    act(() => store().dispatch({ type: "DUPLICATE_SELECTION", labels, ids: selection.map((source, i) => ({ source, id: `copy-${i}` })) }));
+    expect(store().cutouts.slice(3).map(c => c.name)).toEqual(["Pliers (copy 2)", "Pliers (copy 3)"]);
+    expect(store().fingerHoles[1].name).toBe("Access (copy)");
+    expect(store().history.stack).toHaveLength(steps + 1);
+    act(() => store().dispatch({ type: "UNDO" }));
+    expect(getCommittedBinDoc(store())).toEqual(before);
+  });
+
+  it("duplicate copies geometry, gives the copy its own name, and offsets the twin", () => {
     const { store, act } = mountBin();
     const featured = parseCutoutPlacement({
       id: "c1",
@@ -675,6 +709,8 @@ describe("linked design transactions", () => {
     const { store, act } = setup();
     act(() => store().dispatch({ type: "DUPLICATE_LINKED", kind: "pocket", id: "c1", newId: "linked", linkId: "g" }));
     act(() => store().dispatch({ type: "DUPLICATE_CUTOUT", id: "c1", newId: "ordinary" }));
+    expect(store().cutouts.find(c => c.id === "linked")!.name).toBe("First (copy)");
+    expect(store().cutouts.find(c => c.id === "ordinary")!.name).toBe("First (copy 2)");
     expect(store().cutouts.find(c => c.id === "ordinary")!.designLink).toBeUndefined();
     act(() => store().dispatch({ type: "REMOVE_CUTOUT", id: "c1" }));
     act(() => store().dispatch({ type: "UPDATE_CUTOUT", id: "linked", patch: { clearanceMm: 0.75 } }));
@@ -701,6 +737,7 @@ describe("linked design transactions", () => {
     const hole = fingerHoleSchema.parse({ id: "f1", center: { x: -10, y: 0 }, kind: "oblong-straight", diameterMm: 20, lengthMm: 50, depthMm: 30 });
     act(() => store().dispatch({ type: "ADD_FINGER_HOLE", hole }));
     act(() => store().dispatch({ type: "DUPLICATE_LINKED", kind: "finger", id: "f1", newId: "f2", linkId: "fg" }));
+    expect(store().fingerHoles[1].name).toBe("Finger access 1 (copy)");
     act(() => store().dispatch({ type: "UPDATE_FINGER_HOLE", id: "f2", patch: { kind: "oblong-deep-scoop", diameterMm: 30 } }));
     expect(store().fingerHoles.every(h => h.kind === "oblong-deep-scoop" && h.diameterMm === 30)).toBe(true);
     act(() => store().dispatch({ type: "PATCH_SPEC", patch: { heightUnits: 2 } }));
