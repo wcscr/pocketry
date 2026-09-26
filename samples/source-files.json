@@ -347,6 +347,20 @@
           "rotationAfterCropDegreesCounterclockwise": 0,
           "processing": "EXIF orientation applied to pixels; cropped; resized to 564 by 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
           "sha256": "f59205efb40026d9c2dda098336f9c16b9ce6dcf21f47e5fc0483e5e0d8356d2"
+        },
+        {
+          "file": "photos/printed-bin-pocket.jpg",
+          "sourceFile": "20260923_101541.jpg",
+          "sourceSha256": "ea2183578ae3488191195b6a3dcc3a498b6733b17117252ff7d886f2540913d8",
+          "cropPixelsAfterOrientation": [
+            260,
+            140,
+            2880,
+            3900
+          ],
+          "rotationAfterCropDegreesCounterclockwise": 0,
+          "processing": "EXIF orientation applied to pixels; cropped; resized to 836 by 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "4bec60ff4cb62da377357596a122b59efe841e1b1e39982ec2600a422fa58788"
         }
       ]
     }

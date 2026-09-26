@@ -41,7 +41,7 @@ carry the slicer's settings or all 3MF color selections.
 ## Print photos
 
 All nine designs include photographs of their finished bins. Except for the
-DeWalt and Wiha sets, each sample also includes a view with the main tool removed.
+DeWalt set, each sample also includes a view with tools removed.
 The photos are cropped, rotated for viewing, resized, and stripped of embedded
 metadata. No generative editing was used.
 

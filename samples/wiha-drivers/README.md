@@ -14,6 +14,8 @@ allows stacking without fully recessing the screwdrivers into the solid fill.
 
 <a href="photos/printed-bin-loaded.jpg"><img src="photos/printed-bin-loaded.jpg" width="564" alt="Five Wiha screwdrivers in a printed bin with lowered solid fill and an orange stacking rim"></a>
 
-The lettering shown in the photo is not included in the project or 3MF.
+<a href="photos/printed-bin-pocket.jpg"><img src="photos/printed-bin-pocket.jpg" width="640" alt="Two Wiha screwdrivers removed beside the bin, revealing the shaped pockets and orange pocket floors"></a>
+
+The lettering shown in the photos is not included in the project or 3MF.
 
 [All samples](../README.md)
