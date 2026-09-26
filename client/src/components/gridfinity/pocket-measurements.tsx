@@ -105,11 +105,12 @@ export function PocketMeasurements({ cutout, shape, children }: {
   </div>;
 }
 
-/** Depth feedback and inspection stay beside the primary depth controls. */
-export function PocketDepthSummary({ cutout, shape, section, inspect }: {
+/** Depth controls, feedback, and inspection share one collapsible section. */
+export function PocketDepthSummary({ cutout, shape, section, inspect, children }: {
   cutout: CutoutPlacement; shape: TracedShape;
   section: BuildBinSection | null;
   inspect: (section: BuildBinSection | null) => void;
+  children?: ReactNode;
 }): JSX.Element {
   const { spec, dispatch } = useBin();
   const pocket = resolvePlacedPocketDepth(spec, cutout.depth, shape, cutout);
@@ -121,6 +122,7 @@ export function PocketDepthSummary({ cutout, shape, section, inspect }: {
         <span>{hasPocketTilt(cutout) ? "Vertical depth" : "Cut depth"}: {pocket.depthMm === null ? "through" : `${pocket.depthMm.toFixed(1)} mm`} · Floor: {(pocket.floorZ ?? 0).toFixed(1)} mm</span>
         <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/depth:rotate-180" />
       </summary>
+      {children}
       <div className="rounded border bg-muted/30 p-2">
         <p className="text-muted-foreground">Infill top: {pocket.infillTopZ.toFixed(1)} mm · Total bin: {total.toFixed(1)} mm</p>
         {hasPocketTilt(cutout) && <p className="mt-1 text-muted-foreground">Along pocket axis: {pocket.axialDepthMm === null ? "through" : `${pocket.axialDepthMm.toFixed(1)} mm`} · Axis tilt: {(Math.acos(pocketAxis(cutout).z) * 180 / Math.PI).toFixed(1)}°</p>}

@@ -110,11 +110,11 @@ export function SelectionInspector({ propertiesRef, transformsRef, settingsRef }
       {!showingSection && (chosen.length > 1 || single?.kind === "finger") && <Button size="icon" variant="ghost" className="h-8 w-8" title="Duplicate selection" aria-label="Duplicate selection" onClick={() => bin.dispatch({ type: "DUPLICATE_SELECTION", ids: chosen.map(o => ({ source: objectRef(o), id: crypto.randomUUID() })) })}><Copy /></Button>}
       {!showingSection && chosen.length > 1 && <Button size="icon" variant="ghost" className="h-8 w-8" title="Delete selection" aria-label="Delete selection" onClick={() => bin.dispatch({ type: "REMOVE_SELECTION" })}><Trash2 /></Button>}
     </header>
-    {!showingSection && !!chosen.length && <div className="flex min-h-10 shrink-0 items-center justify-between border-b px-3 text-xs font-medium" data-testid="inspector-active-tool">
+    {!showingSection && !!chosen.length && (inspector?.tool !== "properties" || bin.editorMode === "contour") && <div className="flex min-h-10 shrink-0 items-center justify-between border-b px-3 text-xs font-medium" data-testid="inspector-active-tool">
       <span>{bin.editorMode === "contour" ? "Editing contour" : toolLabel}</span>
-      {(inspector?.tool !== "properties" || bin.editorMode === "contour") && <Button variant="ghost" size="sm" className="h-8" aria-label="Back to properties" onClick={() => {
+      <Button variant="ghost" size="sm" className="h-8" aria-label="Back to properties" onClick={() => {
         bin.dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" }); inspector?.setTool("properties");
-      }}>Done</Button>}
+      }}>Done</Button>
     </div>}
     <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain" data-testid="inspector-scroll">
       <div ref={settingsRef} hidden={!showingSection && !!chosen.length} data-testid="inspector-bin-settings" />

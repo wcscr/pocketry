@@ -48,9 +48,11 @@ This is synthetic test data; importing uses the normal browser-local project flo
   Shift/Command/Control-click build a selection without closing the mobile
   object drawer. A regular row click opens Properties, even when reselecting.
 - **Properties** occupies the right pane. Its heading always identifies the
-  selected object, including while moving or rotating. No object selected means
-  Bin settings. Pocket depth stays visible; size, edges and corners, position,
-  and linked copies use collapsible groups. Top edge rounding belongs in Edges
+  selected object, including while moving or rotating. The shaded panel keeps
+  its properties heading without a separate Properties row above it. No object selected means
+  Bin settings. The depth mode and value sit inside the Cut depth / Vertical
+  depth collapsible section. Size, edges and corners, position, and linked
+  copies also use collapsible groups. Top edge rounding belongs in Edges
   & corners in every layout.
   Extra pocket clearance is collapsed at the bottom in both layouts.
   Split pocket has its own collapsible group after Depth. It opens for an

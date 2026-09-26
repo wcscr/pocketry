@@ -4737,7 +4737,7 @@ it.each([false, true])("prototype toolbar opens scoped link/unlink controls with
     click('Link and unlink selected objects');
     choose('Tool access'); choose('Tool 2');
     expect(button('Link and unlink selected objects')!.disabled).toBe(true);
-    expect(header()).toBe('Properties');
+    expect(inspector.querySelector('[data-testid="inspector-active-tool"]')).toBeNull();
     expect(container.querySelector('#pocket-properties')!.closest('[hidden]')).toBeNull();
   } finally { unmount(); window.history.replaceState(null, '', originalUrl); }
 });
@@ -5018,5 +5018,45 @@ it.each([
     typeName(input, 'Saved on blur');
     React.act(() => input.blur());
     expect(nameButton().textContent).toBe('Saved on blur');
+  } finally { unmount(); window.history.replaceState(null, '', originalUrl); }
+});
+
+it.each(['standard', 'workflow'])('keeps pocket depth controls inside the depth disclosure in the %s layout', async layout => {
+  const originalUrl = window.location.href;
+  window.history.replaceState(null, '', `/bin?layout=${layout}`);
+  const shape = rectangularShape('depth-group-shape', 'Depth tool');
+  const pocket = parseCutoutPlacement({ id: 'depth-group', shapeId: shape.id, position: { x: 0, y: 0 }, depth: { mode: 'mm', value: 12 } });
+  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape], cutouts: [pocket] });
+  const { container, unmount } = renderPage();
+  try {
+    await flushHydration();
+    selectPocket(container, pocket.id);
+    const group = container.querySelector<HTMLDetailsElement>('[data-testid="pocket-depth-summary"]')!;
+    const input = container.querySelector<HTMLInputElement>('[aria-label="Pocket cut depth in millimetres"]')!;
+    expect(input.closest('details')).toBe(group);
+    expect(group.querySelector('[aria-label="Pocket depth mode"]')).not.toBeNull();
+    expect(group.querySelector('[data-testid="button-inspect-pocket"]')).not.toBeNull();
+    expect(group.open).toBe(false);
+    expect(container.querySelector('[data-testid="inspector-active-tool"]')).toBeNull();
+    expect(container.querySelector('[data-testid="pocket-properties-heading"]')!.textContent).toContain('Pocket properties');
+    React.act(() => group.querySelector('summary')!.click());
+    expect(group.open).toBe(true);
+    React.act(() => {
+      input.focus();
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, '14');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    React.act(() => input.blur());
+    expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0].depth).toEqual({ mode: 'mm', value: 14 });
+    React.act(() => group.querySelector('summary')!.click());
+    expect(group.open).toBe(false);
+    expect(group.querySelector('summary')!.textContent).toContain('14.0 mm');
+    React.act(() => group.querySelector('summary')!.click());
+    expect(input.value).toBe('14');
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+    expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0].depth).toEqual({ mode: 'mm', value: 12 });
+    selectPocket(container, pocket.id);
+    expect(container.querySelector<HTMLInputElement>('[aria-label="Pocket cut depth in millimetres"]')!.value).toBe('12');
+    expect(container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.disabled).toBe(true);
   } finally { unmount(); window.history.replaceState(null, '', originalUrl); }
 });

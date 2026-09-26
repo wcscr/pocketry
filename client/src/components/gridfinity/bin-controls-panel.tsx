@@ -733,54 +733,58 @@ export function BinControlsPanel({
 
 
               {!inspector && experimentalEnabled && <LinkedDesignControls kind="pocket" activeId={selectedCutout.id} labels={new Map(cutouts.map(c => [c.id, pocketName(c, shapesById.get(c.shapeId))]))} />}
-              <section className="space-y-2" aria-label="Pocket depth" key={`${selectedCutout.id}-${selectedPocketSection}-${!!selectedCutout.split}`}>
-                <div className="flex items-center gap-1">
-                  <h4 className="text-sm font-semibold">Depth</h4>
-                  {selectedCutout.split && <span className="ml-auto text-xs text-muted-foreground">Section {selectedPocketSection === 0 ? "A" : "B"}</span>}
-                  {spec.flatBottom && depthCutout!.depth.mode === "remaining" && <HelpHint label="remaining floor thickness">Measured from the flat underside. A 2 mm floor lets pockets extend into the former base area.</HelpHint>}
-                </div>
-                <div className="flex items-center gap-2">
-                  <Select
-                    value={depthCutout!.depth.mode}
-                    onValueChange={(mode) => {
-                      const resolved = resolvePlacedPocketDepth(spec, depthCutout!.depth, depthShape!, depthCutout!);
-                      const depth =
-                        mode === "through"
-                          ? ({ mode: "through" } as const)
-                          : mode === "mm"
-                            ? ({ mode: "mm", value: Math.max(0.1, resolved.axialDepthMm ?? resolved.infillTopZ - defaultPocketFloorThicknessMm(spec)) } as const)
-                            : ({ mode: "remaining", floorThicknessMm: spec.flatBottom ? defaultPocketFloorThicknessMm(spec) : Math.max(0, resolved.floorZ ?? defaultPocketFloorThicknessMm(spec)) } as const);
-                      updatePocketDepth(depth);
-                    }}
-                  >
-                    <SelectTrigger className="h-9 flex-1" aria-label="Pocket depth mode">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="remaining">Keep floor thickness</SelectItem>
-                      <SelectItem value="mm">Fixed depth</SelectItem>
-                      <SelectItem value="through">Through</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {depthCutout!.depth.mode === "mm" && (
-                    <DraftNumberInput
-                      className="h-9 w-20 text-base font-semibold"
-                      aria-label="Pocket cut depth in millimetres"
-                      value={depthCutout!.depth.value}
-                      min={1}
-                      step={1}
-                      onValueChange={(value) =>
-                        updatePocketDepth({ mode: "mm", value })
-                      }
-                    />
-                  )}
-                </div>
+              <PocketDepthSummary cutout={depthCutout!} shape={depthShape!} section={section} inspect={onSectionChange}>
+                <section className="space-y-2 pb-2" aria-label="Pocket depth" key={`${selectedCutout.id}-${selectedPocketSection}-${!!selectedCutout.split}`}>
+                  <div className="flex items-center gap-1">
+                    <h4 className="text-sm font-semibold">Depth</h4>
+                    {selectedCutout.split && <span className="ml-auto text-xs text-muted-foreground">Section {selectedPocketSection === 0 ? "A" : "B"}</span>}
+                    {spec.flatBottom && depthCutout!.depth.mode === "remaining" && <HelpHint label="remaining floor thickness">Measured from the flat underside. A 2 mm floor lets pockets extend into the former base area.</HelpHint>}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Select
+                      value={depthCutout!.depth.mode}
+                      onValueChange={(mode) => {
+                        const resolved = resolvePlacedPocketDepth(spec, depthCutout!.depth, depthShape!, depthCutout!);
+                        const depth =
+                          mode === "through"
+                            ? ({ mode: "through" } as const)
+                            : mode === "mm"
+                              ? ({ mode: "mm", value: Math.max(0.1, resolved.axialDepthMm ?? resolved.infillTopZ - defaultPocketFloorThicknessMm(spec)) } as const)
+                              : ({ mode: "remaining", floorThicknessMm: spec.flatBottom ? defaultPocketFloorThicknessMm(spec) : Math.max(0, resolved.floorZ ?? defaultPocketFloorThicknessMm(spec)) } as const);
+                        updatePocketDepth(depth);
+                      }}
+                    >
+                      <SelectTrigger className="h-9 flex-1" aria-label="Pocket depth mode">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="remaining">Keep floor thickness</SelectItem>
+                        <SelectItem value="mm">Fixed depth</SelectItem>
+                        <SelectItem value="through">Through</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {depthCutout!.depth.mode === "mm" && (
+                      <DraftNumberInput
+                        className="h-9 w-20 text-base font-semibold"
+                        aria-label="Pocket cut depth in millimetres"
+                        value={depthCutout!.depth.value}
+                        min={1}
+                        step={1}
+                        onValueChange={(value) => {
+                          // Blurring the field also commits; avoid a duplicate undo step.
+                          if (depthCutout!.depth.mode !== "mm" || depthCutout!.depth.value !== value) {
+                            updatePocketDepth({ mode: "mm", value });
+                          }
+                        }}
+                      />
+                    )}
+                  </div>
 
-                {depthCutout!.depth.mode === "remaining" && <MmSlider label="Remaining floor thickness" value={depthCutout!.depth.floorThicknessMm} min={0} max={Math.max(7, spec.heightUnits * 7)} step={0.5}
-                  onChange={(floorThicknessMm, transient) => updatePocketDepth({ mode: "remaining", floorThicknessMm }, transient)} />}
+                  {depthCutout!.depth.mode === "remaining" && <MmSlider label="Remaining floor thickness" value={depthCutout!.depth.floorThicknessMm} min={0} max={Math.max(7, spec.heightUnits * 7)} step={0.5}
+                    onChange={(floorThicknessMm, transient) => updatePocketDepth({ mode: "remaining", floorThicknessMm }, transient)} />}
 
-                <PocketDepthSummary cutout={depthCutout!} shape={depthShape!} section={section} inspect={onSectionChange} />
-              </section>
+                </section>
+              </PocketDepthSummary>
               <PocketSplitControls cutout={selectedCutout} />
               <details className="group/size border-t pt-1 text-xs" aria-label="Pocket size and scale" data-testid="pocket-size-settings">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-2 py-2 font-medium [&::-webkit-details-marker]:hidden">
