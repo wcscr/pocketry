@@ -2,6 +2,10 @@
 
 A two-level pocket with 32 mm and 42 mm depths, plus finger access at the end.
 
+**Lift-out note:** As designed, the stapler is difficult to lift out. Before
+printing, lower the solid fill height or add another finger access opening in
+the editable project, then export and print the revised model.
+
 - **Size:** 5 × 2; 7u. Grid cells are 42 mm; one height unit is 7 mm, before the stacking lip.
 - **Base:** Gridfinity.
 - **Print model:** [stapler.3mf](stapler.3mf).
