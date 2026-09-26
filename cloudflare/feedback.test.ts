@@ -5,6 +5,7 @@ import { onRequest } from "../functions/api/feedback";
 
 const env = {
   TURNSTILE_SITE_KEY: "site", TURNSTILE_SECRET_KEY: "secret",
+  TURNSTILE_HOSTNAMES: "pocketry.example",
   FEEDBACK_ACCOUNT_ID: "a".repeat(32), FEEDBACK_EMAIL_TOKEN: "private-token",
   FEEDBACK_FROM: "feedback@example.com", FEEDBACK_TO: "inbox@example.com",
 };
@@ -45,6 +46,8 @@ describe("private feedback", () => {
     expect(await response.json()).toEqual({ ok: true });
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(String(fetchMock.mock.calls[0][0])).toBe("https://challenges.cloudflare.com/turnstile/v0/siteverify");
+    expect(fetchMock.mock.calls[0][1]?.headers).toEqual({ "Content-Type": "application/x-www-form-urlencoded" });
+    expect(new URLSearchParams(String(fetchMock.mock.calls[0][1]?.body)).get("response")).toBe("verified-token");
     const outgoing = JSON.parse(String(fetchMock.mock.calls[1][1]?.body));
     expect(outgoing).toEqual({ from: env.FEEDBACK_FROM, to: env.FEEDBACK_TO,
       subject: "[Pocketry Problem] Export stopped",
@@ -64,7 +67,7 @@ describe("private feedback", () => {
 
   it.each([{ success: false }, { hostname: "attacker.example" }, { action: "login" }])("rejects an invalid token result: %j", async (result) => {
     verify(result);
-    expect((await handleFeedback(request(), env)).status).toBe(400);
+    expect((await handleFeedback(request(), env)).status).toBe(403);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
@@ -74,10 +77,53 @@ describe("private feedback", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it("rejects a request on an unapproved hostname before any external call", async () => {
+    const alternate = new Request("https://preview.example/api/feedback", {
+      method: "POST", body: JSON.stringify(submission),
+      headers: { Origin: "https://preview.example", "Content-Type": "application/json" },
+    });
+    expect((await handleFeedback(alternate, env)).status).toBe(403);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects an empty configured hostname list", async () => {
+    expect((await handleFeedback(request(), { ...env, TURNSTILE_HOSTNAMES: " , " })).status).toBe(503);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("normalizes an explicit comma-separated hostname list", async () => {
+    verify(); fetchMock.mockResolvedValueOnce(Response.json(accepted));
+    expect((await handleFeedback(request(), { ...env, TURNSTILE_HOSTNAMES: " pocketry.example, WWW.POCKETRY.EXAMPLE " })).status).toBe(200);
+  });
+
+  it("does not accept another approved hostname's token for this request", async () => {
+    verify({ hostname: "www.pocketry.example" });
+    expect((await handleFeedback(request(), { ...env, TURNSTILE_HOSTNAMES: "pocketry.example,www.pocketry.example" })).status).toBe(403);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects a replay when Siteverify returns timeout-or-duplicate, without sending again", async () => {
+    verify(); fetchMock.mockResolvedValueOnce(Response.json(accepted));
+    expect((await handleFeedback(request(), env)).status).toBe(200);
+    fetchMock.mockResolvedValueOnce(Response.json({ success: false, "error-codes": ["timeout-or-duplicate"] }));
+    expect((await handleFeedback(request(), env)).status).toBe(403);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it.each([
+    () => new Response("upstream unavailable", { status: 503 }),
+    () => new Response("not JSON"),
+    () => Response.json({ success: "true", hostname: "pocketry.example", action: "feedback" }),
+  ])("fails closed for HTTP, JSON, and invalid success-type responses", async (response) => {
+    fetchMock.mockResolvedValueOnce(response());
+    expect((await handleFeedback(request(), env)).status).toBeGreaterThanOrEqual(400);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it.each([
     { subject: "  " }, { subject: "hello\r\nBcc: someone@example.com" },
     { message: "short" }, { message: "x".repeat(5001) }, { replyEmail: "invalid" },
-    { website: "spam" }, { turnstileToken: "" }, { to: "attacker@example.com" },
+    { website: "spam" }, { turnstileToken: "" }, { turnstileToken: "x".repeat(2049) }, { to: "attacker@example.com" },
   ])("rejects invalid or unexpected fields before calling external APIs: %j", async (override) => {
     expect((await handleFeedback(request({ ...submission, ...override }), env)).status).toBe(400);
     expect(fetchMock).not.toHaveBeenCalled();

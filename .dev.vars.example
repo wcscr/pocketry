@@ -1,7 +1,8 @@
 # Server-side settings for local Cloudflare development. Copy to .dev.vars.
 # Do not prefix secrets with VITE_; Vite values are public browser code.
-TURNSTILE_SITE_KEY=
+TURNSTILE_SITE_KEY=0x4AAAAAAFEX5UTaSUHC-qpj
 TURNSTILE_SECRET_KEY=
+TURNSTILE_HOSTNAMES=pocketry.xyz
 FEEDBACK_ACCOUNT_ID=
 FEEDBACK_EMAIL_TOKEN=
 FEEDBACK_FROM=

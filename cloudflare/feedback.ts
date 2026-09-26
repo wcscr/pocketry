@@ -5,6 +5,7 @@ import { feedbackSchema } from "../shared/schema";
 export interface FeedbackEnv {
   TURNSTILE_SITE_KEY?: string;
   TURNSTILE_SECRET_KEY?: string;
+  TURNSTILE_HOSTNAMES?: string;
   FEEDBACK_FROM?: string;
   FEEDBACK_TO?: string;
   FEEDBACK_ACCOUNT_ID?: string;
@@ -14,6 +15,10 @@ export interface FeedbackEnv {
 const settingsSchema = z.object({
   TURNSTILE_SITE_KEY: z.string().min(1),
   TURNSTILE_SECRET_KEY: z.string().min(1),
+  // Deployment-specific allowlist; never infer approved hosts from the request.
+  TURNSTILE_HOSTNAMES: z.string()
+    .transform((value) => value.split(",").map((hostname) => hostname.trim().toLowerCase()).filter(Boolean))
+    .pipe(z.array(z.string().max(253).regex(/^[a-z0-9.-]+$/)).nonempty()),
   FEEDBACK_FROM: z.string().email(),
   FEEDBACK_TO: z.string().email(),
   FEEDBACK_ACCOUNT_ID: z.string().regex(/^[a-f0-9]{32}$/i),
@@ -77,6 +82,7 @@ export async function handleFeedback(request: Request, env: FeedbackEnv): Promis
   if (request.method === "GET") return json(200, { siteKey: settings.data.TURNSTILE_SITE_KEY });
 
   const url = new URL(request.url);
+  if (!settings.data.TURNSTILE_HOSTNAMES.includes(url.hostname)) return json(403, { error: "Please send feedback from Pocketry." });
   if (request.headers.get("Origin") !== url.origin) return json(403, { error: "Please send feedback from Pocketry." });
   if (request.headers.get("Content-Type")?.split(";")[0].trim() !== "application/json") {
     return json(415, { error: "Expected a JSON submission." });
@@ -99,13 +105,14 @@ export async function handleFeedback(request: Request, env: FeedbackEnv): Promis
   try {
     const verification = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ secret: config.TURNSTILE_SECRET_KEY, response: feedback.turnstileToken }),
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ secret: config.TURNSTILE_SECRET_KEY, response: feedback.turnstileToken }),
       signal: AbortSignal.timeout(10_000),
     });
+    if (!verification.ok) return json(503, { error: "The spam check is unavailable. Please try again." });
     const verified = verificationSchema.safeParse(await verification.json());
-    if (!verification.ok || !verified.success || verified.data.hostname !== url.hostname) {
-      return json(400, { error: "The spam check expired or failed. Please complete it again." });
+    if (!verified.success || !config.TURNSTILE_HOSTNAMES.includes(verified.data.hostname) || verified.data.hostname !== url.hostname) {
+      return json(403, { error: "The spam check expired or failed. Please complete it again." });
     }
   } catch {
     return json(503, { error: "The spam check is unavailable. Please try again." });
