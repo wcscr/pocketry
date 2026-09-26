@@ -1,6 +1,6 @@
 {
   "description": "Contributor-supplied sample designs and original print exports. See each sample README for availability.",
-  "projectCleanup": "Descriptive project, pocket, shape, and finger-access names; unused shapes and undo history omitted. Editable distances and angles rounded to tenths; scale ratios retain tenths of a percent. Traced outline coordinates retain full precision. Original 3MF models are unchanged.",
+  "projectCleanup": "Descriptive names; unused shapes and undo history omitted. Earlier samples round editable settings to tenths; Wiha retains full precision to match its print export. Traced outlines retain full precision. Original 3MF models are unchanged.",
   "samples": [
     {
       "directory": "wolfbox-mf70-airduster-kit",
@@ -329,6 +329,39 @@
           "rotationAfterCropDegreesCounterclockwise": 0,
           "processing": "EXIF orientation applied to pixels; cropped; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
           "sha256": "3494ec8869002d754c5de30572999f166a52a4b7de121a597dd85b1f6ad85e08"
+        }
+      ]
+    },
+    {
+      "directory": "wiha-drivers",
+      "model": {
+        "file": "wiha-drivers.3mf",
+        "sourceFile": "Wiha-Drivers-2-Styles---Long-bin-3x7x3.5-multicolor-2026-09-23_10-10-40-482.3mf",
+        "sha256": "7f3d320ba9b69fed8acea762ea3be8a8b5651e3b26c82109d510585fdff40370"
+      },
+      "project": {
+        "file": "wiha-drivers.pocketry.json",
+        "sourceFile": "New SCHEMA - Wiha-Drivers-2-Styles---Long-bin-3x7x3-2026-09-23_07-04-44-915.pocketry.json",
+        "sourceSha256": "690d1e20cfed6ab8ec95661ee21ed25adc20b212ba0f27bda67932ea9cfbcdbb",
+        "sha256": "170c7b2537bc360d646fd6383fcab8e31b6a6b1354d106089fc9a909e7dcf7e5",
+        "recovery": "Restored the 3.5u height from the selected 3MF; retained the source project's full-pitch 3 by 7 footprint, 80 percent solid fill, five split pockets, placements, and shared finger access. Removed unused shapes and undo history and clarified names without rounding geometry.",
+        "matchEvidence": "The current generator and combined original 3MF have 588971.335 and 588971.352 mm3 volumes. Boolean comparison produced 0.959 mm3 of absolute residual volume (0.000163 percent), consistent with mesh rounding precision.",
+        "photoDifference": "The photographed Wiha Drivers lettering is absent from both supplied geometry files."
+      },
+      "photos": [
+        {
+          "file": "photos/printed-bin-loaded.jpg",
+          "sourceFile": "20260923_101521.jpg",
+          "sourceSha256": "a8d94419e8f9bf205d46134ecd394ef589fec8bf7777b6d350cc418cdc4b21a8",
+          "cropPixelsAfterOrientation": [
+            650,
+            150,
+            2425,
+            3925
+          ],
+          "rotationAfterCropDegreesCounterclockwise": 0,
+          "processing": "EXIF orientation applied to pixels; cropped; resized to 564 by 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "f59205efb40026d9c2dda098336f9c16b9ce6dcf21f47e5fc0483e5e0d8356d2"
         }
       ]
     }

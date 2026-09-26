@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added the Wiha drivers example, showing adjustable solid fill height for stacking.
+
 ## 1.0.0 — 2026-09-26
 
 Initial versioned baseline.

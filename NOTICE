@@ -63,7 +63,8 @@ Sample projects and print photographs — contributor-supplied assets
 ================================================================================
 
 The editable project JSONs, 3MF print models, and photographs under `samples/`
-were supplied by Will Cobb for this repository. `samples/source-files.json`
+were supplied by Will Cobb for this repository, including the Wiha drivers
+example. `samples/source-files.json`
 records their source files and published hashes. The 3MF files are unmodified
 copies of the supplied print exports.
 
