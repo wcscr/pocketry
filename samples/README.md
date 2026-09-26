@@ -27,6 +27,10 @@ The **caliper** and **DeWalt right-angle** bins are not stackable with the tools
 in place as designed: the tools extend above the top surface. Modify the designs
 before stacking another bin on top.
 
+The **[stapler](stapler/)** is difficult to lift out as designed. Before printing,
+lower the solid fill height or add another finger access opening in the editable
+project, then export and print the revised model.
+
 ## Using a sample
 
 1. Download a `.pocketry.json` file. On GitHub, open the file and choose **Download raw file**.
