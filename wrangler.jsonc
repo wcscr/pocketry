@@ -2,6 +2,9 @@
   "name": "pocketry",
   "compatibility_date": "2026-08-26",
   "main": "cloudflare/worker.ts",
+  "vars": {
+    "FEEDBACK_TO": "contact@pocketry.xyz"
+  },
   "assets": {
     "binding": "ASSETS",
     "run_worker_first": ["/api/feedback", "/api/feedback/"],
