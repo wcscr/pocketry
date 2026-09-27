@@ -1,5 +1,6 @@
 import type { Calibration } from "@shared/geometry/scale";
 import { ScanLine, Sparkles } from "lucide-react";
+import { HelpHint } from "@/components/ui/help-hint";
 import { Button } from "@/components/ui/button";
 import type { PerspectiveProposal } from "@/lib/calibrate/perspective";
 import { referenceStripFromRulerLength } from "@/lib/calibrate/reference-strip";
@@ -37,6 +38,7 @@ export function AutoCalibrationOptions({ onSetManually, onApplyPerspective, onDe
       <div className="flex items-center gap-2 text-sm font-semibold text-amber-800 dark:text-amber-200">
         <Sparkles className="h-4 w-4 shrink-0" />
         {paper ? "Paper and measurement aid detected" : source === "strip" ? "Scale detected from the reference strip" : "Scale detected from the sheet"}
+        {hasPerspective && <HelpHint label="perspective correction">Correction starts cropped to the paper. Reveal the full corrected photo in Region for larger tools.</HelpHint>}
       </div>
       {hasPerspective ? paper ? (
         <Button size="sm" className={actionClass} disabled={processing}
@@ -76,7 +78,6 @@ export function AutoCalibrationOptions({ onSetManually, onApplyPerspective, onDe
             onClick={() => dispatch({ type: "DISMISS_AUTO_CALIBRATION" })}>Dismiss detected scale</Button>
         </div>
       </details>
-      {hasPerspective && <p className="text-[11px] text-muted-foreground">Correction starts cropped to the paper. Reveal the full corrected photo in Region for larger tools.</p>}
       <CalibrationAccuracyHint>
         <p>{paper
           ? "The recommended option corrects perspective using the paper corners and sets scale from the aid at the tool’s height."

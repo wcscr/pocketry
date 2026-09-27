@@ -84,11 +84,15 @@ describe("trace workflow and properties", () => {
     const left = host.querySelector("#workflow-panel")!;
     const right = host.querySelector("#objects-panel")!;
     expect(left.querySelector("#ruler-length")).toBeNull();
+    expect(left.textContent).not.toContain("Choose a clear photo of the whole tool.");
     expect(right.querySelector("#ruler-length")).not.toBeNull();
     expect(host.querySelectorAll("#ruler-length")).toHaveLength(1);
     expect(button("trace-workflow-region").disabled).toBe(true);
     await act(() => button("trace-workflow-photo").click());
     expect(right.textContent).toContain("Tool photo");
+    await act(() => host.querySelector<HTMLButtonElement>('[aria-label="About photo step"]')!.click());
+    expect(document.querySelector('[role="tooltip"]')?.textContent).toContain("Choose a clear photo of the whole tool.");
+    await act(() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
     expect(right.querySelector("#ruler-length")).toBeNull();
     expect(canvasMounts).toBe(1);
   });
@@ -204,7 +208,11 @@ describe("trace workflow and properties", () => {
     await act(() => button("button-reset-margin").click());
     expect(trace.margin).toBe(0);
     expect(reprocess).not.toHaveBeenCalled();
-    expect(host.querySelector("#objects-panel")?.textContent).toContain("Bin clearance is added on top");
+    expect(host.querySelector("#objects-panel")?.textContent).not.toContain("Bin clearance is added on top");
+    await act(() => host.querySelector<HTMLButtonElement>('[aria-label="About trace margin"]')!.click());
+    expect(document.querySelector('[role="tooltip"]')?.textContent).toContain("Bin clearance is added on top");
+    expect(trace.margin).toBe(0);
+    await act(() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
     await act(() => trace.dispatch({ type: "UNDO" }));
     expect(trace.margin).toBe(1);
   });

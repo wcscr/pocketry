@@ -1,3 +1,4 @@
+import { HelpHint } from "@/components/ui/help-hint";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
@@ -37,9 +38,10 @@ export function LabelledSlider({
   return (
     <div className={cn("space-y-1.5", className)}>
       <div className="flex items-baseline justify-between">
-        <Label htmlFor={id} className="text-xs">
-          {label}
-        </Label>
+        <div className="flex items-center gap-1">
+          <Label htmlFor={id} className="text-xs">{label}</Label>
+          {hint && <HelpHint label={label.toLowerCase()}>{hint}</HelpHint>}
+        </div>
         <span className="text-xs tabular-nums text-muted-foreground">
           {format(value)}
         </span>
@@ -56,7 +58,6 @@ export function LabelledSlider({
         onValueChange={(values) => onChange(values[0])}
         onValueCommit={(values) => onCommit?.(values[0])}
       />
-      {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
     </div>
   );
 }

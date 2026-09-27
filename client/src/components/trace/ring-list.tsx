@@ -4,6 +4,7 @@ import { ringArea } from "@shared/geometry/rings";
 import { mmPerPixel } from "@shared/geometry/scale";
 import { OUTER_RING, type RingRef } from "@shared/geometry/types";
 
+import { HelpHint } from "@/components/ui/help-hint";
 import { Button } from "@/components/ui/button";
 import { iterateRings, removeRing, sameRingRef } from "@/lib/geometry/outline";
 import { cn } from "@/lib/utils";
@@ -60,17 +61,19 @@ export function RingList(): JSX.Element {
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap gap-2">
-        <Button size="sm" variant="outline" disabled={!outline.some((shape) => shape.holes.length)}
-          onClick={() => { dispatch({ type: "OUTLINE_COMMITTED", outline: outline.map((shape) => ({ ...shape, holes: [] })), label: "Remove all interior holes" }); dispatch({ type: "SELECT_RING", selection: null }); }}>
-          Remove all holes
-        </Button>
-        <Button size="sm" variant="outline" disabled={!tinyShapes.length || tinyShapes.length === outline.length}
-          onClick={() => { dispatch({ type: "OUTLINE_COMMITTED", outline: outline.filter((shape) => !tinyShapes.includes(shape)), label: "Remove tiny shapes" }); dispatch({ type: "SELECT_RING", selection: null }); }}>
-          Remove specks ({tinyShapes.length})
-        </Button>
+      <div className="flex items-center gap-1">
+        <div className="grid min-w-0 flex-1 grid-cols-2 gap-1">
+          <Button size="sm" variant="outline" className="h-auto min-h-8 min-w-0 whitespace-normal px-1 text-xs leading-tight" aria-label="Remove all holes" disabled={!outline.some((shape) => shape.holes.length)}
+            onClick={() => { dispatch({ type: "OUTLINE_COMMITTED", outline: outline.map((shape) => ({ ...shape, holes: [] })), label: "Remove all interior holes" }); dispatch({ type: "SELECT_RING", selection: null }); }}>
+            Remove holes
+          </Button>
+          <Button size="sm" variant="outline" className="h-auto min-h-8 min-w-0 whitespace-normal px-1 text-xs leading-tight" disabled={!tinyShapes.length || tinyShapes.length === outline.length}
+            onClick={() => { dispatch({ type: "OUTLINE_COMMITTED", outline: outline.filter((shape) => !tinyShapes.includes(shape)), label: "Remove tiny shapes" }); dispatch({ type: "SELECT_RING", selection: null }); }}>
+            Remove specks ({tinyShapes.length})
+          </Button>
+        </div>
+        <HelpHint label="contour cleanup">Remove all holes fills interior openings. Specks are separate shapes smaller than 2 mm². Removal can be undone.</HelpHint>
       </div>
-      <p className="text-[11px] text-muted-foreground">Specks are separate shapes smaller than 2 mm². Removal can be undone.</p>
     <ul className="space-y-0.5">
       {rings.map(({ ref, ring }) => {
         const isOuter = ref.ringIndex === OUTER_RING;

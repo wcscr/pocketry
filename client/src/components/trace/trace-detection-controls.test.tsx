@@ -24,6 +24,12 @@ it.each([false, true])("names point reduction consistently in drawer and compact
     });
     const slider = host.querySelector(`[id="${compact ? "mobile-detail" : "detail"}"]`);
     expect(slider?.getAttribute("aria-label")).toBe("Simplification");
-    if (!compact) expect(host.textContent).toContain("Higher values use fewer points and may omit small features");
+    expect(host.textContent).not.toContain("Higher values use fewer points and may omit small features");
+    if (!compact) {
+      await React.act(async () => host.querySelector<HTMLButtonElement>('[aria-label="About simplification"]')!.focus());
+      expect(document.querySelector('[role="tooltip"]')?.textContent).toContain("Higher values use fewer points and may omit small features");
+      React.act(() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+      expect(document.querySelector('[role="tooltip"]')).toBeNull();
+    }
   } finally { React.act(() => root.unmount()); }
 });

@@ -61,6 +61,7 @@ import {
   MARGIN_MM_OPTIONS,
 } from "@/lib/image-processor";
 import { cn } from "@/lib/utils";
+import { HelpHint } from "@/components/ui/help-hint";
 import { useToast } from "@/hooks/use-toast";
 import { useShapeLibrary } from "@/state/shape-library";
 import { useTrace, type ExportFormat } from "@/state/trace-store";
@@ -381,7 +382,7 @@ export function TraceControlsPanel({
             ? section?.querySelector<HTMLInputElement>("#ruler-length")
             : section?.querySelector<HTMLElement>(
                 "[data-panel-section-trigger]",
-              );
+              ) ?? section;
     if (!section || !focusTarget) return;
     focusWhenReady.current = null;
     focusTarget.focus({ preventScroll: true });
@@ -803,13 +804,7 @@ export function TraceControlsPanel({
               className="flex gap-2 rounded-md border border-rose-500/60 bg-rose-500/10 p-3 text-rose-900 ring-2 ring-rose-500/20 dark:text-rose-100"
             >
               <Crop className="mt-0.5 h-4 w-4 shrink-0" />
-              <div className="space-y-1">
-                <p className="text-sm font-semibold">Draw a box around the tool</p>
-                <p className="text-xs leading-relaxed">
-                  Click and drag on the image to enclose the entire tool inside
-                  the detection region.
-                </p>
-              </div>
+              <p className="text-xs font-medium">Click and drag around the tool.</p>
             </div>
           ) : (
             <p className="text-xs text-muted-foreground">
@@ -863,18 +858,16 @@ export function TraceControlsPanel({
           className="scroll-mt-16"
           disabled={!scale.mmPerPx || !hasDetectionRegion || reviewingScale}
         >
-          <p className="text-xs text-muted-foreground" data-testid="detection-tuning-guidance">
-            Follow the outside edge. Reflections are usually not holes.
-          </p>
-          <details className="text-xs text-muted-foreground">
-            <summary className="cursor-pointer">How to edit the outline</summary>
-            <p className="pt-2" data-testid="contour-editing-guidance">Choose Edit contours to select the largest contour. On a phone, choose Move, Add, or Remove; drag empty space to pan and pinch to zoom. Holding a point shows a magnified view. On desktop, drag a vertex to move it, click an edge to add one, or toggle Remove to delete vertices. Simplification adjusts your edited contour. Changing Sensitivity or interior holes re-detects from the photo and asks before replacing manual edits. Undo restores your contour.</p>
-          </details>
-
           <TraceDetectionControls onReprocess={onReprocess} />
 
           <div className="space-y-1.5" data-testid="detection-contours">
-            <p className="text-xs font-semibold">Contours</p>
+            <div className="flex items-center gap-1">
+              <p className="text-xs font-semibold">Contours</p>
+              <HelpHint label="contour editing">
+                Choose Edit contours. Drag a point to move it; click an edge to add one. On a phone, use Move, Add, or Remove and pinch to zoom.
+                Simplification adjusts your edited contour. Sensitivity and interior holes re-detect from the photo and ask before replacing manual edits. Undo restores your contour.
+              </HelpHint>
+            </div>
             <RingList />
           </div>
         </PanelSection>
@@ -890,9 +883,13 @@ export function TraceControlsPanel({
           disabled={!hasOutline || !scale.mmPerPx || reviewingScale}
         >
           <div className="space-y-1.5">
-            <Label htmlFor="margin" className="text-xs">
-              Offset (mm)
-            </Label>
+            <div className="flex items-center gap-1">
+              <Label htmlFor="margin" className="text-xs">Offset (mm)</Label>
+              <HelpHint label="trace margin">
+                Adds space around the edited outline without re-detecting it. Changes can be undone.
+                Bin clearance is added on top of this trace margin. Leave this at zero to adjust fit in the bin designer.
+              </HelpHint>
+            </div>
             <Select
               value={scale.mmPerPx && margin !== null ? String(margin) : undefined}
               onValueChange={(value) => handleMarginChange(Number(value))}
@@ -911,18 +908,10 @@ export function TraceControlsPanel({
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-[11px] text-muted-foreground">
-              Adds space around the current edited outline without re-detecting it.
-              Defaults to 0 mm. Changes are saved in Edit history.
-            </p>
           </div>
 
           <Button variant="outline" size="sm" className="w-full" disabled={!margin}
             data-testid="button-reset-margin" onClick={() => handleMarginChange(0)}>Reset to zero</Button>
-          <p className="text-xs text-muted-foreground">
-            Bin clearance is added on top of this trace margin. Leave margin at zero
-            to keep the tool’s traced size and adjust fit in the bin designer.
-          </p>
         </PanelSection>
 
         <PanelSection

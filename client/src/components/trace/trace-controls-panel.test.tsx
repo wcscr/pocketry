@@ -685,11 +685,7 @@ describe("TraceControlsPanel guided workflow", () => {
     expect(
       host.querySelector('[data-testid="detection-region-guidance"]')
         ?.textContent,
-    ).toContain("Click and drag on the image");
-    expect(
-      host.querySelector('[data-testid="detection-region-guidance"]')
-        ?.textContent,
-    ).toContain("entire tool");
+    ).toContain("Click and drag around the tool.");
     expect(emptyClearRegion?.textContent).toContain("Clear Region");
     expect(emptyClearRegion?.disabled).toBe(true);
     expect(emptyClearRegion?.parentElement?.className).toContain("grid-cols-2");
@@ -703,11 +699,11 @@ describe("TraceControlsPanel guided workflow", () => {
     expect(sectionTrigger("detect")?.className).toContain(
       "animate-[pulse_1s_ease-in-out_3]",
     );
-    expect(
-      host.querySelector('[data-testid="detection-tuning-guidance"]')
-        ?.textContent,
-    ).toContain("Reflections are usually not holes");
-    expect(host.querySelector('[data-testid="contour-editing-guidance"]')?.textContent).toContain("Simplification adjusts your edited contour");
+    expect(host.textContent).not.toContain("Reflections are usually not holes");
+    expect(host.querySelector('[aria-label="About interior holes"]')).not.toBeNull();
+    await React.act(async () => host.querySelector<HTMLButtonElement>('[aria-label="About contour editing"]')!.click());
+    expect(document.querySelector('[role="tooltip"]')?.textContent).toContain("Simplification adjusts your edited contour");
+    React.act(() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
     expect(section("detect")?.querySelector("#smoothing")).toBeNull();
     expect(section("detect")?.textContent).not.toContain("Smoothing");
     expect(host.querySelector('#include-interior-holes')?.getAttribute("aria-checked")).toBe("false");
@@ -737,7 +733,7 @@ describe("TraceControlsPanel guided workflow", () => {
     expect(section("crop")?.dataset.state).toBe("open");
     expect(sectionTrigger("detect")?.disabled).toBe(true);
     expect(host.textContent).toContain(
-      "Click and drag on the image",
+      "Click and drag around the tool.",
     );
   });
 
