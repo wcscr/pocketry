@@ -1541,21 +1541,20 @@ export function BinControlsPanel({
           className="scroll-mt-16"
         >
           {pocketList}
-          <AddPocketMenu className="w-full" />
+          <div className="grid grid-cols-2 gap-1">
+            <AddPocketMenu className="min-w-0 gap-1 px-1.5" />
+            <Button variant="outline" size="sm" className="min-w-0 gap-1 px-1.5" onClick={onAutoArrange} disabled={cutouts.length === 0} data-testid="button-auto-arrange">
+              <LayoutGrid className="h-4 w-4" />Auto-arrange
+            </Button>
+          </div>
           {!inspector && !selectedCutout && (
             <p className="rounded-md border border-dashed px-3 py-4 text-xs text-muted-foreground" id="pocket-properties" data-testid="pocket-selection-help">
               {cutouts.length === 0
-                ? "Choose Add simple pocket to draw a basic shape, or trace a tool and press “Add to bin”."
+                ? "Choose Add pocket to draw a basic shape, or trace a tool and press “Add to bin”."
                 : "Select a pocket on the canvas or in the list above. Its properties appear here."}
             </p>
           )}
           {!inspector && pocketProperties}
-
-          <div className="flex flex-wrap gap-2 border-t pt-3">
-            <Button variant="outline" size="sm" onClick={onAutoArrange} disabled={cutouts.length === 0} data-testid="button-auto-arrange">
-              <LayoutGrid className="h-4 w-4" />Auto-arrange
-            </Button>
-          </div>
 
         </PanelSection>
 

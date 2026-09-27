@@ -2672,9 +2672,9 @@ describe("BinDesignerPage", () => {
     expect(ruler.title).toContain("Add a tool cutout");
     expect(
       container.querySelector('[data-testid="layout-empty-state"]')?.textContent,
-    ).toContain("Use Add simple pocket to draw a shape");
+    ).toContain("Use Add pocket to draw a shape");
     expect(container.querySelector('[data-testid="layout-ruler-status"]')).toBeNull();
-    expect(container.textContent).toContain("Choose Add simple pocket to draw a shape");
+    expect(container.textContent).toContain("Choose Add pocket to draw a shape");
     unmount();
   });
 
@@ -4535,7 +4535,7 @@ it.each([false, true])("prototype has one object list and preserves identity whe
     React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
     expect(workflow.querySelectorAll('button[data-testid^="button-select-"]')).toHaveLength(3);
     expect(workflow.querySelector('[aria-label^="Rename "]')).toBeNull();
-    expect(workflow.textContent).toContain('Add simple pocket');
+    expect(workflow.textContent).toContain('Add pocket');
     for (const [row, add] of [
       [leftButton('pocket', 'workflow-1'), workflow.querySelector('[data-testid="button-add-pocket"]')!],
       [leftButton('finger', 'workflow-f'), workflow.querySelector('[data-testid="button-add-finger-hole"]')!],
@@ -4576,25 +4576,29 @@ it.each([false, true])("prototype has one object list and preserves identity whe
   } finally { unmount(); window.history.replaceState(null, '', originalUrl); }
 });
 
-it.each([false, true])("workflow toolbar creates pockets and finger access with undo on mobile=%s", async mobile => {
+it.each([
+  { mobile: false, experimental: false }, { mobile: true, experimental: false },
+  { mobile: false, experimental: true }, { mobile: true, experimental: true },
+])("workflow toolbar Add menu creates pockets and finger access with undo: %o", async ({ mobile, experimental }) => {
   const originalUrl = window.location.href;
   window.history.replaceState(null, "", "/bin?layout=workflow");
   vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(EMPTY_PROJECT);
-  const { container, unmount } = renderPage({ mobile, experimental: false });
+  const { container, unmount } = renderPage({ mobile, experimental });
   try {
     await flushHydration();
     const click = (id: string) => React.act(() => container.querySelector<HTMLButtonElement>(`[data-testid="${id}"]`)!.click());
     click("view-toggle-2d");
     const toolbar = container.querySelector('[aria-label="Editing tools"]')!;
-    expect(toolbar.querySelectorAll('[data-testid="toolbar-add-pocket"]')).toHaveLength(1);
-    expect(toolbar.querySelectorAll('[data-testid="toolbar-add-finger-hole"]')).toHaveLength(1);
+    const add = toolbar.querySelector('[data-testid="toolbar-add-object"]')!;
+    expect(toolbar.querySelectorAll('[data-testid="toolbar-add-object"]')).toHaveLength(1);
+    expect([...toolbar.querySelectorAll('button')].at(-1)).toBe(add);
     expect(container.querySelector('[data-testid="layout-add-pocket"]')).toBeNull();
     React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Pan layout"]')!.click());
-    const draw = (kind: string) => {
-      React.act(() => toolbar.querySelector('[data-testid="toolbar-add-pocket"]')!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
-      React.act(() => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(item => item.textContent === kind)!.click());
+    const choose = (itemLabel: string) => {
+      React.act(() => add.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+      React.act(() => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(item => item.textContent === itemLabel)!.click());
     };
-    draw("Rectangle");
+    choose("Rectangle pocket");
     expect(container.querySelector('[aria-label="Pan layout"]')!.getAttribute("aria-pressed")).toBe("false");
     const svg = container.querySelector<SVGSVGElement>('[data-testid="layout-canvas"]')!;
     Object.defineProperty(svg.querySelector('g')!, 'getScreenCTM', { value: () => ({ inverse: () => ({}) }) });
@@ -4607,9 +4611,9 @@ it.each([false, true])("workflow toolbar creates pockets and finger access with 
     }
     const layout = () => vi.mocked(useBinGeometry).mock.lastCall![2]!;
     expect(layout().cutouts).toHaveLength(1);
-    draw("Circle");
+    choose("Circle pocket");
     expect(container.textContent).toContain("Draw circle");
-    click("toolbar-add-finger-hole");
+    choose("Finger access");
     expect(container.textContent).not.toContain("Draw circle");
     expect(layout().fingerHoles).toHaveLength(1);
     expect(layout().fingerHoles[0]).toMatchObject({ kind: "oblong-deep-scoop", slotEnds: "rounded", lengthMm: 36 });

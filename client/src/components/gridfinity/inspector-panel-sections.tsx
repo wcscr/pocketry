@@ -35,7 +35,7 @@ export function InspectorPanelSections({ children }: { children: ReactNode }): J
     {inspector.settings && createPortal(active ?
       objectSections.has(active.id) ? <PropertySurface tone={active.tone} className="m-3"><p className="text-sm">{active.description}</p></PropertySurface>
         : sections.filter(child => child.props.id === active.id).map(child => <PropertySurface id={active.id} key={active.id} tone={active.tone} className="m-3" aria-label={`${active.title} properties`}>
-          <p className="text-xs text-muted-foreground">{active.description}</p>{child.props.children}
+          {active.description && <p className="text-xs text-muted-foreground">{active.description}</p>}{child.props.children}
         </PropertySurface>)
       : sections.filter(child => binSections.has(child.props.id ?? "")), inspector.settings)}
   </>;
