@@ -38,7 +38,7 @@ import { useLocation } from "wouter";
 import { LinkedDesignControls } from "./linked-design-controls";
 import { AddPocketMenu } from "./add-pocket-menu";
 import { AddFingerAccessButton } from "./add-finger-access-button";
-import { BIN_OBJECT_SECTIONS, BIN_WORKFLOW_SECTIONS as BIN_SETTINGS_SECTIONS } from "./bin-workflow";
+import { BIN_WORKFLOW_SECTIONS as BIN_SETTINGS_SECTIONS } from "./bin-workflow";
 import { PropertySurface } from "@/components/layout/property-surface";
 import { InspectorPanelSections } from "./inspector-panel-sections";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
@@ -1195,18 +1195,13 @@ export function BinControlsPanel({
       </div> : projectStatus}
       {/* On short screens the section headers remain reachable by scrolling;
           reserve the limited height for editable fields instead of shortcuts. */}
-      <div className={(!inspector && exportOnly) ? "hidden" : "shrink-0 [@media(max-height:500px)]:hidden"}>
+      {!inspector && <div className={exportOnly ? "hidden" : "shrink-0 [@media(max-height:500px)]:hidden"}>
         <PanelSettingsIndex
           ariaLabel="Find bin settings"
           testIdPrefix="bin"
           items={BIN_SETTINGS_SECTIONS}
-          activeSectionId={inspector?.activeSection}
-          onNavigate={inspector ? id => {
-            if (BIN_OBJECT_SECTIONS.has(id)) revealPanelSection(id, BIN_SETTINGS_SECTIONS);
-            inspector.showSection(id);
-          } : undefined}
         />
-      </div>
+      </div>}
       <InspectorPanelSections>
         <PanelSection
           id="bin-settings-project"
