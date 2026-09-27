@@ -12,12 +12,12 @@ export function ExperimentalFeaturesDialog(): JSX.Element {
         <DialogDescription>Choose which tools appear in Pocketry.</DialogDescription>
       </DialogHeader>
       <fieldset className="space-y-2">
-        <legend className="mb-2 text-sm font-semibold">Bin editor layout</legend>
+        <legend className="mb-2 text-sm font-semibold">Editor layout</legend>
         {EDITOR_LAYOUTS.map(layout => <label key={layout.value} className="flex min-h-14 cursor-pointer items-start gap-3 rounded-lg border p-3 has-[:checked]:border-primary has-[:checked]:bg-primary/5">
           <input type="radio" name="editor-layout" value={layout.value} checked={editorLayout === layout.value} onChange={() => setEditorLayout(layout.value)} className="mt-1 h-4 w-4 shrink-0 accent-primary" />
           <span><span className="block text-sm font-medium">{layout.label}</span><span className="mt-1 block text-xs text-muted-foreground">{layout.description}</span></span>
         </label>)}
-        <p className="text-xs text-muted-foreground">Saved for this browser across page changes and refreshes.</p>
+        <p className="text-xs text-muted-foreground">Applies to the bin editor and photo tracing. Phones keep compact tracing controls. Saved for this browser across page changes and refreshes.</p>
       </fieldset>
       <div className="rounded-lg border p-4">
         <div className="flex min-h-11 items-center justify-between gap-4">
@@ -28,7 +28,7 @@ export function ExperimentalFeaturesDialog(): JSX.Element {
           Try pocket tilt, 3D move and rotate controls, multi-selection, alignment, distribution, and linked designs. These tools are still being refined.
         </p>
         {enabled && <p id="experimental-layout-recommendation" className="mt-3 rounded-md bg-primary/5 p-3 text-sm">
-          For experimental tools, we recommend <strong>Workflow left, properties right</strong> for its dedicated toolbar and properties panel.
+          For experimental tools, we recommend <strong>New UI: Split Workflow and Properties</strong> for its dedicated toolbar and properties panel.
         </p>}
         <p className="mt-3 text-xs text-muted-foreground">Off by default. Loading a project that uses experimental features enables them and shows a notification. Saved for this browser; turning it off hides the tools without changing existing designs or links.</p>
       </div>

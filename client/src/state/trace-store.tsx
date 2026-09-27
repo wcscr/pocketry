@@ -72,7 +72,7 @@ export type TraceMode =
   | "measure"
   | "perspective";
 
-export type ExportFormat = "svg" | "dxf" | "dwg" | "stl";
+export type ExportFormat = "svg" | "dxf" | "stl";
 export type CalibrationSource = "manual" | "sheet" | "strip";
 
 export interface TraceHistoryEntry {
@@ -145,6 +145,8 @@ export interface TraceState {
   pendingPerspective: PerspectiveProposal | null;
   /** Page corners placed manually in top-left clockwise order. */
   manualPerspectivePoints: Point[];
+  /** Paper choice survives responsive panel remounts while placing corners. */
+  manualPerspectivePaper: TemplatePaper | null;
   /** Original source retained so a correction remains reversible. */
   perspectiveOriginalImageUrl: string | null;
   /** Orientation of the retained source before perspective correction. */
@@ -154,6 +156,10 @@ export interface TraceState {
     source: PerspectiveSource;
     paper: TemplatePaper;
     template?: TemplateVariant;
+    /** Presentation-only crop in the corrected image's coordinate system. */
+    paperBounds?: Rect;
+    showFullPhoto?: boolean;
+    fullPhotoUnavailableReason?: string;
   } | null;
 
   region: Rect | null;
@@ -200,13 +206,14 @@ export const initialTraceState: TraceState = {
   rulerLengthInput: "100",
   pendingPerspective: null,
   manualPerspectivePoints: [],
+  manualPerspectivePaper: null,
   perspectiveOriginalImageUrl: null,
   perspectiveOriginalImageRotation: null,
   perspectiveCorrection: null,
   region: null,
   mode: "pan",
   processing: false,
-  exportFormat: "stl",
+  exportFormat: "svg",
   extrusionHeight: 14,
 };
 
@@ -247,6 +254,8 @@ export type TraceAction =
   | { type: "SELECT_RING"; selection: RingRef | null }
   | { type: "SET_MODE"; mode: TraceMode }
   | { type: "SET_REGION"; region: Rect | null }
+  | { type: "REGION_PREVIEW"; region: Rect | null }
+  | { type: "SET_PERSPECTIVE_PAPER"; paper: TemplatePaper | null }
   /** A valid crop drag is complete; return to the normal pointer mode. */
   | { type: "REGION_COMMITTED" }
   | { type: "SET_PROCESSING"; processing: boolean }
@@ -288,7 +297,10 @@ export type TraceAction =
       source: PerspectiveSource;
       paper: TemplatePaper;
       template?: TemplateVariant;
+      paperBounds?: Rect;
+      fullPhotoUnavailableReason?: string;
     }
+  | { type: "SET_SHOW_FULL_PHOTO"; show: boolean }
   | { type: "RESTORE_PERSPECTIVE_SOURCE" }
   | { type: "SET_EXPORT_FORMAT"; exportFormat: ExportFormat }
   | { type: "SET_EXTRUSION_HEIGHT"; extrusionHeight: number };
@@ -440,6 +452,10 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         ...state,
         imageSize,
         imageRotation,
+        perspectiveCorrection: state.perspectiveCorrection?.paperBounds ? {
+          ...state.perspectiveCorrection,
+          paperBounds: rotateImageRect(state.perspectiveCorrection.paperBounds, state.imageSize, imageSize, action.direction),
+        } : state.perspectiveCorrection,
         outline: rotateImageOutline(
           state.outline,
           state.imageSize,
@@ -677,6 +693,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         // accepted one. Invalidate both the old scale and any completed draft
         // when manual placement starts; repeat clicks on the active tool leave
         // the ruler currently being placed alone.
+        manualPerspectivePoints: startsCalibration ? [] : state.manualPerspectivePoints,
         calibration: startsCalibration ? null : state.calibration,
         calibrationSource: startsCalibration ? null : state.calibrationSource,
         // Choosing a manual tool is an explicit rejection of the automatic
@@ -697,6 +714,13 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
               : null,
       };
     }
+
+    case "SET_PERSPECTIVE_PAPER":
+      return { ...state, manualPerspectivePaper: action.paper };
+
+    case "REGION_PREVIEW":
+      // A cancelled gesture restores its previous rectangle without clearing edits.
+      return { ...state, region: action.region };
 
     case "SET_REGION":
       if (action.region !== null) return { ...state, region: action.region };
@@ -904,11 +928,17 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
           source: action.source,
           paper: action.paper,
           ...(action.template ? { template: action.template } : {}),
+          ...(action.paperBounds ? { paperBounds: action.paperBounds, showFullPhoto: false } : {}),
+          ...(action.fullPhotoUnavailableReason ? { fullPhotoUnavailableReason: action.fullPhotoUnavailableReason } : {}),
         },
         mode: action.calibration ? "region" : "calibrate",
         exportFormat: state.exportFormat,
         extrusionHeight: state.extrusionHeight,
       };
+
+    case "SET_SHOW_FULL_PHOTO":
+      if (!state.perspectiveCorrection?.paperBounds) return state;
+      return { ...state, perspectiveCorrection: { ...state.perspectiveCorrection, showFullPhoto: action.show } };
 
     case "RESTORE_PERSPECTIVE_SOURCE":
       if (!state.perspectiveOriginalImageUrl) return state;

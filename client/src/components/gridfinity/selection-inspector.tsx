@@ -115,7 +115,7 @@ export function SelectionInspector({ propertiesRef, transformsRef, settingsRef }
     </header>
     {!showingSection && !!chosen.length && (inspector?.tool !== "properties" || bin.editorMode === "contour") && <div className="flex min-h-10 shrink-0 items-center justify-between border-b px-3 text-xs font-medium" data-testid="inspector-active-tool">
       <span>{bin.editorMode === "contour" ? "Editing contour" : toolLabel}</span>
-      <Button variant="ghost" size="sm" className="h-8" aria-label="Back to properties" onClick={() => {
+      <Button variant="ghost" size="sm" aria-label="Back to properties" onClick={() => {
         bin.dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" }); inspector?.setTool("properties");
       }}>Done</Button>
     </div>}

@@ -83,7 +83,7 @@ vi.mock("@/lib/calibrate/auto-calibrate", () => ({ autoCalibrate: vi.fn() }));
 
 const exportOutline: Outline = [{ outer: [{ x: 10, y: 20 }, { x: 70, y: 20 }, { x: 70, y: 60 }, { x: 10, y: 60 }], holes: [] }];
 
-function SeedExportOutline({ format, calibrated = true }: { format: "svg" | "dxf" | "dwg" | "stl"; calibrated?: boolean }): null {
+function SeedExportOutline({ format, calibrated = true }: { format: "svg" | "dxf" | "stl"; calibrated?: boolean }): null {
   const { dispatch } = useTrace();
   React.useEffect(() => {
     dispatch({ type: "SOURCE_LOADED", imageUrl: "data:image/png;base64,source", fileName: "Test tool" });
@@ -400,12 +400,10 @@ describe("Trace detection workflow", () => {
     Object.defineProperty(window, "innerWidth", { value: 1024, configurable: true, writable: true });
   });
 
-  it.each((["svg", "dxf", "dwg", "stl"] as const).flatMap((format) => [false, true].map((includeProject) => ({ format, includeProject }))))(
+  it.each((["svg", "dxf", "stl"] as const).flatMap((format) => [false, true].map((includeProject) => ({ format, includeProject }))))(
     "exports Trace $format with JSON only when requested ($includeProject)",
     async ({ format, includeProject }) => {
       await React.act(async () => root.render(<PanelProvider><TraceProvider><SeedExportOutline format={format} /><TracePage /></TraceProvider></PanelProvider>));
-      // The existing DWG explanation is separate from the export request.
-      if (format === "dwg") React.act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find((button) => button.textContent === "Close")!.click());
       React.act(() => host.querySelector<HTMLButtonElement>('[data-testid="export-trace"]')!.click());
       const checkbox = document.querySelector<HTMLButtonElement>('[data-testid="checkbox-export-project"]')!;
       expect(checkbox.getAttribute("aria-checked")).toBe("false");
@@ -443,9 +441,8 @@ describe("Trace detection workflow", () => {
     expect(vi.mocked(downloadBlob).mock.calls[0][1]).toMatch(/\.svg$/);
   });
 
-  it.each(["stl", "dxf", "dwg"] as const)("blocks uncalibrated %s even when a caller bypasses the disabled UI", async (format) => {
+  it.each(["stl", "dxf"] as const)("blocks uncalibrated %s even when a caller bypasses the disabled UI", async (format) => {
     await React.act(async () => root.render(<PanelProvider><TraceProvider><SeedExportOutline format={format} calibrated={false} /><TracePage /></TraceProvider></PanelProvider>));
-    if (format === "dwg") React.act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(button => button.textContent === "Got it")!.click());
     React.act(() => host.querySelector<HTMLButtonElement>('[data-testid="export-trace"]')!.click());
     expect(document.querySelector('[data-testid="button-confirm-export"]')).toBeNull();
     expect(generateSTL).not.toHaveBeenCalled();

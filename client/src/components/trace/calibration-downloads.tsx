@@ -33,14 +33,14 @@ export function CalibrationDownloads({ onPaperSelected, open: controlledOpen, on
           <DialogTitle>Calibration aids</DialogTitle>
           <DialogDescription>
             Print at 100% and verify a known dimension before use. Paper sheets
-            go beneath the tool; measurement aids sit on top near the feature you need to measure.
+            go beneath or beside the tool on the same flat surface; measurement aids sit on top near the feature you need to measure.
           </DialogDescription>
         </DialogHeader>
         <section className="space-y-3 rounded-md border p-3 text-left" aria-label="Paper printable aids">
           <h3 className="text-sm font-medium">Paper printable aids</h3>
           <div className="space-y-2">
             <p className="text-xs font-medium">Calibration sheets</p>
-            <p className="text-xs text-muted-foreground">Experimental corner-marker layout. Place beneath the tool and keep all four markers visible.</p>
+            <p className="text-xs text-muted-foreground">Experimental corner-marker layout. Keep all four markers visible. For tools larger than the paper, enable Show full corrected photo in Region after correction.</p>
             <div className="flex flex-wrap gap-2">
               {(["a4", "letter"] as const).map((paper) => (
                 <Button key={paper} variant="outline" size="sm"

@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Settings } from "lucide-react";
+import { useExperimentalFeatures } from "@/state/experimental-features";
 import { useIsMobile } from "@/hooks/use-mobile";
 
-const DISMISSAL_KEY = "pocketry:mobile-development-welcome:v1";
+const DISMISSAL_KEY = "pocketry:welcome:1.1.1";
 let dismissedThisSession = false;
 
 function wasDismissed(): boolean {
@@ -18,15 +20,17 @@ function wasDismissed(): boolean {
 }
 
 /** One welcome per browser; blocked storage falls back to this page session. */
-export function MobileDevelopmentWelcome(): JSX.Element {
+export function AppWelcome(): JSX.Element {
   const isMobile = useIsMobile();
+  const { setSettingsOpen } = useExperimentalFeatures();
+  const openingSettings = useRef(false);
   const [location] = useLocation();
   const [dismissed, setDismissed] = useState(wasDismissed);
   const hasOpened = useRef(false);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const returnFocus = useRef<HTMLElement | null>(null);
   const workspace = location === "/" || location === "/bin";
-  const open = isMobile && workspace && !dismissed;
+  const open = workspace && !dismissed;
 
   const dismiss = useCallback(() => {
     dismissedThisSession = true;
@@ -55,26 +59,34 @@ export function MobileDevelopmentWelcome(): JSX.Element {
         }}
         onCloseAutoFocus={(event) => {
           event.preventDefault();
-          if (returnFocus.current?.isConnected) returnFocus.current.focus({ preventScroll: true });
+          if (!openingSettings.current && returnFocus.current?.isConnected) returnFocus.current.focus({ preventScroll: true });
         }}
       >
         <DialogHeader>
-          <DialogTitle ref={headingRef} tabIndex={-1}>Help improve Pocketry on mobile</DialogTitle>
+          <DialogTitle ref={headingRef} tabIndex={-1}>Welcome to Pocketry</DialogTitle>
           <DialogDescription>
-            The mobile interface is in early development. We’re looking for feedback
-            on what works and what makes tracing or designing bins difficult.
+            New experimental tools and a new editor layout are available in Settings.
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-2 text-sm">
-          <p>Found a problem or have a suggestion? Please open a GitHub issue.</p>
-          <div className="flex flex-col items-start">
-            <a className="inline-flex min-h-11 items-center rounded font-medium text-primary underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        <div className="space-y-3 text-sm">
+          <p><strong>New layout:</strong> Choose “New UI: Split Workflow and Properties” for photo tracing and bin design.</p>
+          <p><strong>Experimental features:</strong> Try pocket tilt, 3D move and rotate, multi-selection, and linked designs.</p>
+          {isMobile && <p className="border-t pt-3 text-xs text-muted-foreground">
+            The mobile interface is still being refined.{" "}
+            <a className="rounded text-primary underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               href="https://github.com/wcscr/pocketry/issues/new" target="_blank" rel="noopener noreferrer">
-              Open a GitHub issue<span className="sr-only"> (opens in a new tab)</span>
-            </a>
-          </div>
+              Share feedback on GitHub<span className="sr-only"> (opens in a new tab)</span>
+            </a>.
+          </p>}
         </div>
-        <Button className="min-h-11 w-full" onClick={dismiss}>Continue</Button>
+        <DialogFooter>
+          <Button variant="outline" size="sm" onClick={dismiss}>Continue</Button>
+          <Button size="sm" onClick={() => {
+            openingSettings.current = true;
+            dismiss();
+            setSettingsOpen(true);
+          }}><Settings aria-hidden="true" />Open Settings</Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

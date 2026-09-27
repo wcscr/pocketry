@@ -8,8 +8,8 @@ export const SELECTION_INSPECTOR_KEY = "pocketry:selection-inspector";
 export const EDITOR_LAYOUT_KEY = "pocketry:editor-layout";
 export type EditorLayout = "standard" | "workflow";
 export const EDITOR_LAYOUTS = [
-  { value: "standard", label: "Controls on the left", description: "The full workflow and its settings in one panel." },
-  { value: "workflow", label: "Workflow left, properties right", description: "Every workflow section on the left; its settings on the right." },
+  { value: "standard", label: "Original: All Controls on Left", description: "The full workflow and its settings in one panel." },
+  { value: "workflow", label: "New UI: Split Workflow and Properties", description: "Every workflow section on the left; its settings on the right." },
 ] as const;
 const isEditorLayout = (value: string | null): value is EditorLayout => EDITOR_LAYOUTS.some(layout => layout.value === value);
 function readLayout(): EditorLayout {

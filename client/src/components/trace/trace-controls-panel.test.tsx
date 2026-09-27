@@ -358,16 +358,17 @@ describe("TraceControlsPanel guided workflow", () => {
       "trace-settings-scale",
       "trace-settings-crop",
       "trace-settings-detect",
+      "trace-settings-margin",
       "trace-settings-output",
     ]);
 
-    for (const id of ["source", "detect", "crop", "output"]) {
+    for (const id of ["source", "detect", "crop", "margin", "output"]) {
       expect(section(id)?.dataset.state).toBe("closed");
     }
     expect(section("scale")?.dataset.state).toBe("open");
     expect(section("source")?.textContent).toContain("new-source");
     expect(sectionTrigger("scale")?.disabled).toBe(false);
-    for (const id of ["crop", "detect", "output"]) {
+    for (const id of ["crop", "detect", "margin", "output"]) {
       expect(sectionTrigger(id)?.disabled).toBe(true);
     }
     expect(document.activeElement).toBe(sectionTrigger("scale"));
@@ -679,17 +680,13 @@ describe("TraceControlsPanel guided workflow", () => {
     const emptyClearRegion = host.querySelector<HTMLButtonElement>(
       '[data-testid="button-clear-region"]',
     );
-    expect(setRegion?.textContent).toContain("Set Region");
+    expect(setRegion?.textContent).toContain("Set region");
     expect(setRegion?.getAttribute("aria-pressed")).toBe("true");
     expect(
       host.querySelector('[data-testid="detection-region-guidance"]')
         ?.textContent,
-    ).toContain("Click and drag on the image");
-    expect(
-      host.querySelector('[data-testid="detection-region-guidance"]')
-        ?.textContent,
-    ).toContain("entire tool");
-    expect(emptyClearRegion?.textContent).toContain("Clear Region");
+    ).toContain("Click and drag around the tool.");
+    expect(emptyClearRegion?.textContent).toContain("Clear region");
     expect(emptyClearRegion?.disabled).toBe(true);
     expect(emptyClearRegion?.parentElement?.className).toContain("grid-cols-2");
     await click("button-set-region");
@@ -702,11 +699,11 @@ describe("TraceControlsPanel guided workflow", () => {
     expect(sectionTrigger("detect")?.className).toContain(
       "animate-[pulse_1s_ease-in-out_3]",
     );
-    expect(
-      host.querySelector('[data-testid="detection-tuning-guidance"]')
-        ?.textContent,
-    ).toContain("Reflections are usually not holes");
-    expect(host.querySelector('[data-testid="contour-editing-guidance"]')?.textContent).toContain("Simplification adjusts your edited contour");
+    expect(host.textContent).not.toContain("Reflections are usually not holes");
+    expect(host.querySelector('[aria-label="About interior holes"]')).not.toBeNull();
+    await React.act(async () => host.querySelector<HTMLButtonElement>('[aria-label="About contour editing"]')!.click());
+    expect(document.querySelector('[role="tooltip"]')?.textContent).toContain("Simplification adjusts your edited contour");
+    React.act(() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
     expect(section("detect")?.querySelector("#smoothing")).toBeNull();
     expect(section("detect")?.textContent).not.toContain("Smoothing");
     expect(host.querySelector('#include-interior-holes')?.getAttribute("aria-checked")).toBe("false");
@@ -715,9 +712,8 @@ describe("TraceControlsPanel guided workflow", () => {
       section("detect")?.querySelector("[data-testid='detection-contours']"),
     ).not.toBeNull();
     expect(section("contours")).toBeNull();
-    expect(
-      section("detect")?.querySelector<HTMLButtonElement>("#margin")?.textContent,
-    ).toContain("0.0 mm");
+    expect(section("detect")?.querySelector("#margin")).toBeNull();
+    expect(sectionTrigger("margin")?.disabled).toBe(true);
     expect(section("detect")?.textContent).not.toContain(
       "Bin clearance is added on top",
     );
@@ -729,7 +725,7 @@ describe("TraceControlsPanel guided workflow", () => {
     const clearRegion = host.querySelector<HTMLButtonElement>(
       '[data-testid="button-clear-region"]',
     );
-    expect(clearRegion?.textContent).toContain("Clear Region");
+    expect(clearRegion?.textContent).toContain("Clear region");
     expect(clearRegion?.disabled).toBe(false);
     expect(clearRegion?.parentElement?.className).toContain("grid-cols-2");
 
@@ -737,7 +733,7 @@ describe("TraceControlsPanel guided workflow", () => {
     expect(section("crop")?.dataset.state).toBe("open");
     expect(sectionTrigger("detect")?.disabled).toBe(true);
     expect(host.textContent).toContain(
-      "Click and drag on the image",
+      "Click and drag around the tool.",
     );
   });
 
@@ -900,7 +896,7 @@ it("blocks physical Save after Clear scale while keeping pixel SVG reachable", a
   const save = (name: string) => Array.from(host.querySelectorAll("button")).find(button => button.textContent?.trim() === name)!;
   expect(save("Save STL").disabled).toBe(true);
   expect(sectionTrigger("output")?.disabled).toBe(false);
-  expect(host.textContent).toContain("Set scale for STL, DXF or DWG");
+  expect(host.textContent).toContain("Set scale for STL or DXF");
   await React.act(async () => trace.dispatch({ type: "SET_EXPORT_FORMAT", exportFormat: "svg" }));
   expect(save("Save SVG (pixels)").disabled).toBe(false);
 });

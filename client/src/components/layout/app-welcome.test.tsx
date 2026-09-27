@@ -4,17 +4,19 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const route = vi.hoisted(() => ({ path: "/" }));
-vi.mock("wouter", () => ({ useLocation: () => [route.path, vi.fn()] }));
+vi.mock("wouter", () => ({ useLocation: () => [route.path, vi.fn()], useSearch: () => "" }));
 
-let Welcome: typeof import("./mobile-development-welcome").MobileDevelopmentWelcome;
+let Welcome: typeof import("./app-welcome").AppWelcome;
+let Provider: typeof import("@/state/experimental-features").ExperimentalFeaturesProvider;
+let SettingsDialog: typeof import("./experimental-features-dialog").ExperimentalFeaturesDialog;
 let host: HTMLDivElement;
 let root: Root;
 let values: Map<string, string>;
-let storage: { getItem: ReturnType<typeof vi.fn>; setItem: ReturnType<typeof vi.fn> };
+let storage: { getItem: ReturnType<typeof vi.fn>; setItem: ReturnType<typeof vi.fn>; removeItem: ReturnType<typeof vi.fn> };
 let resizeListeners: Set<() => void>;
-const KEY = "pocketry:mobile-development-welcome:v1";
+const KEY = "pocketry:welcome:1.1.1";
 const dialog = () => document.querySelector<HTMLElement>('[role="dialog"]');
-const render = async () => React.act(async () => root.render(<Welcome />));
+const render = async () => React.act(async () => root.render(<Provider><Welcome /><SettingsDialog /></Provider>));
 const resize = async (width: number) => React.act(async () => {
   Object.defineProperty(window, "innerWidth", { configurable: true, value: width });
   for (const listener of resizeListeners) listener();
@@ -34,6 +36,7 @@ beforeEach(async () => {
   storage = {
     getItem: vi.fn((key: string) => values.get(key) ?? null),
     setItem: vi.fn((key: string, value: string) => { values.set(key, value); }),
+    removeItem: vi.fn((key: string) => { values.delete(key); }),
   };
   vi.stubGlobal("localStorage", storage);
   resizeListeners = new Set();
@@ -44,7 +47,9 @@ beforeEach(async () => {
     addEventListener: (_type: string, listener: () => void) => resizeListeners.add(listener),
     removeEventListener: (_type: string, listener: () => void) => resizeListeners.delete(listener),
   }));
-  ({ MobileDevelopmentWelcome: Welcome } = await import("./mobile-development-welcome"));
+  ({ AppWelcome: Welcome } = await import("./app-welcome"));
+  ({ ExperimentalFeaturesProvider: Provider } = await import("@/state/experimental-features"));
+  ({ ExperimentalFeaturesDialog: SettingsDialog } = await import("./experimental-features-dialog"));
   host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
@@ -56,13 +61,14 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("mobile development welcome", () => {
-  it("shows the mobile introduction and GitHub feedback link without navigating", async () => {
+describe("new features welcome", () => {
+  it("introduces the new layout and optional tools, with mobile feedback in the same dialog", async () => {
     await render();
-    expect(dialog()?.textContent).toContain("The mobile interface is in early development.");
-    expect(dialog()?.textContent).toContain("We’re looking for feedback");
-    expect(document.activeElement?.textContent).toBe("Help improve Pocketry on mobile");
-    expect(dialog()?.textContent).toContain("Please open a GitHub issue.");
+    expect(dialog()?.textContent).toContain("New experimental tools and a new editor layout are available in Settings.");
+    expect(dialog()?.textContent).toContain("New UI: Split Workflow and Properties");
+    expect(dialog()?.textContent).toContain("The mobile interface is still being refined.");
+    expect(document.activeElement?.textContent).toBe("Welcome to Pocketry");
+    expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(1);
     expect(dialog()!.querySelector('a[href^="mailto:"]')).toBeNull();
     const github = dialog()!.querySelector<HTMLAnchorElement>('a[href="https://github.com/wcscr/pocketry/issues/new"]')!;
     expect(github.target).toBe("_blank");
@@ -70,16 +76,44 @@ describe("mobile development welcome", () => {
     expect(storage.setItem).not.toHaveBeenCalled();
   });
 
-  it("stays out of desktop, About and unknown routes, then welcomes a mobile workspace", async () => {
+  it("welcomes desktop users too, while keeping About and unknown routes unobstructed", async () => {
     await resize(1280);
-    await render();
-    expect(dialog()).toBeNull();
     await navigate("/about");
-    await resize(390);
     expect(dialog()).toBeNull();
     await navigate("/missing");
     expect(dialog()).toBeNull();
     await navigate("/bin");
+    expect(dialog()).not.toBeNull();
+    expect(dialog()?.textContent).not.toContain("mobile interface");
+    await resize(390);
+    expect(dialog()?.textContent).toContain("mobile interface");
+  });
+
+  it("opens Settings without enabling tools or changing layouts until the user chooses", async () => {
+    await render();
+    await close("Open Settings");
+    expect(values.get(KEY)).toBe("dismissed");
+    expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(1);
+    expect(dialog()?.textContent).toContain("Choose which tools appear in Pocketry.");
+    expect(dialog()?.contains(document.activeElement)).toBe(true);
+    const toggle = document.querySelector<HTMLButtonElement>('#experimental-features')!;
+    const workflow = document.querySelector<HTMLInputElement>('input[name="editor-layout"][value="workflow"]')!;
+    expect(toggle.getAttribute('aria-checked')).toBe('false');
+    expect(workflow.checked).toBe(false);
+    expect(values.has('pocketry:experimental-features')).toBe(false);
+    expect(values.has('pocketry:editor-layout')).toBe(false);
+    await React.act(async () => { toggle.click(); workflow.click(); });
+    expect(values.get('pocketry:experimental-features')).toBe('true');
+    expect(values.get('pocketry:editor-layout')).toBe('workflow');
+    await close("Close");
+    expect(dialog()).toBeNull();
+    await navigate("/bin");
+    expect(dialog()).toBeNull();
+  });
+
+  it("shows this update even when the old mobile welcome was already dismissed", async () => {
+    values.set('pocketry:mobile-development-welcome:v1', 'dismissed');
+    await render();
     expect(dialog()).not.toBeNull();
   });
 
@@ -94,7 +128,9 @@ describe("mobile development welcome", () => {
     expect(dialog()).toBeNull();
     React.act(() => root.unmount());
     vi.resetModules();
-    ({ MobileDevelopmentWelcome: Welcome } = await import("./mobile-development-welcome"));
+    ({ AppWelcome: Welcome } = await import("./app-welcome"));
+    ({ ExperimentalFeaturesProvider: Provider } = await import("@/state/experimental-features"));
+    ({ ExperimentalFeaturesDialog: SettingsDialog } = await import("./experimental-features-dialog"));
     root = createRoot(host);
     await render();
     expect(dialog()).toBeNull();
@@ -108,13 +144,11 @@ describe("mobile development welcome", () => {
     expect(values.get(KEY)).toBe("dismissed");
   });
 
-  it.each(["route", "viewport"])("does not repeat after leaving an open welcome by changing the %s", async (change) => {
+  it("does not repeat after navigating away from an open welcome", async () => {
     await render();
-    if (change === "route") await navigate("/about");
-    else await resize(1280);
+    await navigate("/about");
     expect(dialog()).toBeNull();
     await navigate("/bin");
-    await resize(390);
     expect(dialog()).toBeNull();
   });
 

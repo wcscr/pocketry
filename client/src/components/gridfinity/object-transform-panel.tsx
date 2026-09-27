@@ -94,8 +94,8 @@ export function ObjectTransformPanel({ editor, objects, selected, displayed, mod
       </summary>
       <div className="border-t bg-muted/25 px-2 pb-2">
         <div className="flex justify-between py-1">
-          <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => select([...objects])}>Select all</Button>
-          <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => select([])}>Clear</Button>
+          <Button size="sm" variant="ghost" onClick={() => select([...objects])}>Select all</Button>
+          <Button size="sm" variant="ghost" onClick={() => select([])}>Clear</Button>
         </div>
         <div className="max-h-40 overflow-y-auto" aria-label="Objects in selection">
           {objects.map(o => <label key={objectKey(objectRef(o))} className="flex min-h-9 cursor-pointer items-center gap-2 rounded-md px-2 hover:bg-accent">

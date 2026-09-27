@@ -5,7 +5,7 @@ import { Route, Switch } from "wouter";
 import { HelpDialog } from "@/components/help/help-dialog";
 import { AppHeader } from "@/components/layout/app-header";
 import { AppShell } from "@/components/layout/app-shell";
-import { MobileDevelopmentWelcome } from "@/components/layout/mobile-development-welcome";
+import { AppWelcome } from "@/components/layout/app-welcome";
 import { ExperimentalFeaturesDialog } from "@/components/layout/experimental-features-dialog";
 import { ExperimentalFeaturesProvider } from "@/state/experimental-features";
 import { WORKSPACES } from "@/components/layout/workspaces";
@@ -63,7 +63,7 @@ function Shell() {
       </AppShell>
       <HelpDialog open={helpOpen} onOpenChange={setHelpOpen} />
       <ExperimentalFeaturesDialog />
-      <MobileDevelopmentWelcome />
+      <AppWelcome />
     </>
   );
 }

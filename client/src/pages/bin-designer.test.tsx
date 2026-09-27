@@ -297,11 +297,19 @@ function openSettingsSection(
     | "check-fit",
 ): void {
   React.act(() => {
-    (
-      container.querySelector(
+    if (container.querySelector('#workflow-panel')) {
+      const id = `bin-settings-${section === "tool-cutouts" ? "pockets" : section === "check-fit" ? "fit" : section}`;
+      const navigation = container.querySelector<HTMLButtonElement>(`[data-testid="workflow-section-${id}"]`);
+      if (navigation) navigation.click();
+      else {
+        const trigger = container.querySelector<HTMLButtonElement>(`#${id} [data-panel-section-trigger]`)!;
+        if (trigger.getAttribute('aria-expanded') !== 'true') trigger.click();
+      }
+    } else {
+      container.querySelector<HTMLButtonElement>(
         `[data-testid="bin-settings-jump-${section === "tool-cutouts" ? "pockets" : section === "finger-holes" ? "finger-access" : section === "materials" ? "materials-&-colors" : section}"]`,
-      ) as HTMLButtonElement
-    ).click();
+      )!.click();
+    }
   });
 }
 
@@ -375,7 +383,7 @@ describe("BinDesignerPage", () => {
       await flushHydration();
       openSettingsSection(container, "finger-holes");
       const add = container.querySelector<HTMLButtonElement>('[data-testid="button-add-finger-hole"]')!;
-      expect(add.textContent?.trim()).toBe("Add Finger Access");
+      expect(add.textContent?.trim()).toBe("Add finger access");
       React.act(() => add.click());
       const expectedDepth = layout === "empty" ? 12 : layout === "split" ? 7 : 17;
       const added = vi.mocked(useBinGeometry).mock.lastCall![2]!.fingerHoles[1];
@@ -2672,9 +2680,9 @@ describe("BinDesignerPage", () => {
     expect(ruler.title).toContain("Add a tool cutout");
     expect(
       container.querySelector('[data-testid="layout-empty-state"]')?.textContent,
-    ).toContain("Use Add simple pocket to draw a shape");
+    ).toContain("Use Add pocket to draw a shape");
     expect(container.querySelector('[data-testid="layout-ruler-status"]')).toBeNull();
-    expect(container.textContent).toContain("Choose Add simple pocket to draw a shape");
+    expect(container.textContent).toContain("Choose Add pocket to draw a shape");
     unmount();
   });
 
@@ -2728,16 +2736,20 @@ describe("BinDesignerPage", () => {
     unmount();
   });
 
-  it.each(["current-project-title", "project-status-title"])("names a new draft by double-clicking %s without exporting a backup", async (titleId) => {
+  it.each(["current-project-title", "project-status-title", "button-edit-project-name"])("names a new draft from %s without exporting a backup", async (titleId) => {
     const { container, unmount } = renderPage();
-    // The status title also works while Project is collapsed.
+    // The status title and pencil also work while Project is collapsed.
     if (titleId === "current-project-title") openSettingsSection(container, "project");
+    expect(container.querySelector<HTMLButtonElement>('[data-testid="button-edit-project-name"]')!.disabled).toBe(true);
     await flushHydration();
+    expect(container.querySelector<HTMLButtonElement>('[data-testid="button-edit-project-name"]')!.disabled).toBe(false);
     React.act(() => projectSaveMock.onSaved?.(true));
     expect(container.querySelector('[data-testid="project-status"] [role="status"]')!.textContent).toBe("Draft — autosaved locally");
 
     React.act(() => {
-      container.querySelector(`[data-testid="${titleId}"]`)!.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      const trigger = container.querySelector<HTMLElement>(`[data-testid="${titleId}"]`)!;
+      if (titleId === "button-edit-project-name") trigger.click();
+      else trigger.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
     });
     const name = document.querySelector(
       '[data-testid="input-project-name"]',
@@ -2781,37 +2793,53 @@ describe("BinDesignerPage", () => {
     unmount();
   });
 
-  it("renames a saved project from its title, with Cancel preserving its name and identity", async () => {
+  it.each([
+    { trigger: 'title', layout: 'standard', mobile: false },
+    { trigger: 'pencil', layout: 'standard', mobile: false },
+    { trigger: 'pencil', layout: 'standard', mobile: true },
+    { trigger: 'pencil', layout: 'workflow', mobile: false },
+    { trigger: 'pencil', layout: 'workflow', mobile: true },
+  ])("renames a saved project from its $trigger in $layout with mobile=$mobile, preserving its identity and supporting Cancel", async ({ trigger, layout, mobile }) => {
+    const originalUrl = window.location.href;
+    window.history.replaceState(null, '', `/bin?layout=${layout}`);
     const project = { id: "current", name: "Stapler", updatedAt: "2026-09-20T12:00:00.000Z" };
     vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId: project.id, projects: [project] });
-    const { container, unmount } = renderPage();
-    openSettingsSection(container, "project");
-    await flushHydration();
-    const before = vi.mocked(useBinGeometry).mock.lastCall;
-    const openName = () => {
-      React.act(() => container.querySelector('[data-testid="current-project-title"]')!.dispatchEvent(new MouseEvent("dblclick", { bubbles: true })));
-      return document.querySelector<HTMLInputElement>('[data-testid="input-project-name"]')!;
-    };
-    const editName = (input: HTMLInputElement) => React.act(() => {
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "Stapler tray");
-      input.dispatchEvent(new Event("input", { bubbles: true }));
-    });
-    let input = openName();
-    expect(input.value).toBe("Stapler");
-    editName(input);
-    React.act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(button => button.textContent === "Cancel")!.click());
-    expect(ProjectPersistence.saveProjectToLibrary).not.toHaveBeenCalled();
-    expect(container.querySelector('[data-testid="current-project-title"]')?.textContent).toBe("Stapler");
-    input = openName();
-    expect(input.value).toBe("Stapler");
-    editName(input);
-    await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-confirm-save-library"]')!.click());
-    expect(ProjectPersistence.saveProjectToLibrary).toHaveBeenCalledWith(expect.objectContaining({ schemaVersion: PROJECT_SCHEMA_VERSION }), "Stapler tray", "current");
-    expect(container.querySelector('[data-testid="current-project-title"]')?.textContent).toBe("Stapler tray");
-    expect(container.querySelector('[data-testid="project-status-title"]')?.textContent).toBe("Stapler tray");
-    expect(vi.mocked(useBinGeometry).mock.lastCall).toEqual(before);
-    expect(ProjectPersistence.openProjectFromLibrary).not.toHaveBeenCalled();
-    unmount();
+    const { container, unmount } = renderPage({ mobile });
+    try {
+      if (trigger === 'title') openSettingsSection(container, "project");
+      await flushHydration();
+      if (layout === 'standard' && mobile) {
+        React.act(() => [...container.querySelectorAll('button')].find(button => button.textContent === 'Adjust')!.click());
+        React.act(() => [...document.querySelectorAll('button')].find(button => button.textContent === 'More settings')!.click());
+      }
+      const before = vi.mocked(useBinGeometry).mock.lastCall;
+      const openName = () => {
+        React.act(() => {
+          if (trigger === 'pencil') document.querySelector<HTMLButtonElement>('[data-testid="button-edit-project-name"]')!.click();
+          else document.querySelector('[data-testid="current-project-title"]')!.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+        });
+        return document.querySelector<HTMLInputElement>('[data-testid="input-project-name"]')!;
+      };
+      const editName = (input: HTMLInputElement) => React.act(() => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "Stapler tray");
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      let input = openName();
+      expect(input.value).toBe("Stapler");
+      editName(input);
+      React.act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(button => button.textContent === "Cancel")!.click());
+      expect(ProjectPersistence.saveProjectToLibrary).not.toHaveBeenCalled();
+      expect(document.querySelector('[data-testid="current-project-title"]')?.textContent).toBe("Stapler");
+      input = openName();
+      expect(input.value).toBe("Stapler");
+      editName(input);
+      await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-confirm-save-library"]')!.click());
+      expect(ProjectPersistence.saveProjectToLibrary).toHaveBeenCalledWith(expect.objectContaining({ schemaVersion: PROJECT_SCHEMA_VERSION }), "Stapler tray", "current");
+      expect(document.querySelector('[data-testid="current-project-title"]')?.textContent).toBe("Stapler tray");
+      expect(document.querySelector('[data-testid="project-status-title"]')?.textContent).toBe("Stapler tray");
+      expect(vi.mocked(useBinGeometry).mock.lastCall).toEqual(before);
+      expect(ProjectPersistence.openProjectFromLibrary).not.toHaveBeenCalled();
+    } finally { unmount(); window.history.replaceState(null, '', originalUrl); }
   });
 
   it("restores library identity before showing the project status or opening another project", async () => {
@@ -3617,13 +3645,69 @@ describe("BinDesignerPage", () => {
     Object.defineProperty(file, "text", { value: async () => JSON.stringify(data) });
     Object.defineProperty(input, "files", { value: [file] });
     await React.act(async () => { input.dispatchEvent(new Event("change", { bubbles: true })); });
-    expect(ProjectPersistence.importProjectLibrary).toHaveBeenCalledWith(data);
+    expect(ProjectPersistence.importProjectLibrary).not.toHaveBeenCalled();
+    expect(document.querySelector('#library-import-merge')?.getAttribute('aria-checked')).toBe('true');
+    await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-confirm-import-library"]')!.click());
+    expect(ProjectPersistence.importProjectLibrary).toHaveBeenCalledWith(data, "merge", undefined);
     expect(input.value).toBe("");
     expect(document.querySelector('[role="dialog"]')?.textContent).toContain("1 saved project");
     expect(ProjectPersistence.startNewProject).not.toHaveBeenCalled();
     expect(ProjectPersistence.openProjectFromLibrary).not.toHaveBeenCalled();
     expect(document.querySelector('[data-testid="managed-project-list"]')?.textContent).toContain("Imported tray");
     unmount();
+  });
+
+  it.each([false, true])("replaces only the saved library after confirmation on mobile=%s", async mobile => {
+    const existing = { id: "existing", name: "Current design", updatedAt: "2026-09-12T12:00:00.000Z" };
+    const imported = { id: "imported", name: "Imported tray", updatedAt: existing.updatedAt };
+    const shape = rectangularShape('current-tool', 'Current tool');
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, name: existing.name, keepBinSize: true,
+      shapes: [shape], cutouts: [parseCutoutPlacement({ id: 'current-pocket', shapeId: shape.id, position: { x: 0, y: 0 }, depth: { mode: 'mm', value: 12 } })] });
+    vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId: existing.id, projects: [existing] });
+    vi.mocked(ProjectPersistence.importProjectLibrary).mockResolvedValue({ library: { activeProjectId: null, projects: [imported] }, imported: 1, upgraded: 0, renamed: 0 });
+    const { container, unmount } = renderPage({ mobile });
+    try {
+      await flushHydration();
+      if (mobile) {
+        React.act(() => [...container.querySelectorAll('button')].find(b => b.textContent === 'Adjust')!.click());
+        React.act(() => [...container.querySelectorAll('button')].find(b => b.textContent === 'More settings')!.click());
+      }
+      openSettingsSection(document.body, "project");
+      React.act(() => document.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
+      await flushHydration();
+      const input = document.querySelector<HTMLInputElement>('[data-testid="input-import-library"]')!;
+      const data = { format: "pocketry-library", schemaVersion: 1, projects: [] };
+      const file = new File([JSON.stringify(data)], 'library.json');
+      Object.defineProperty(file, 'text', { value: async () => JSON.stringify(data) });
+      Object.defineProperty(input, 'files', { value: [file] });
+      const chooseFile = () => React.act(() => input.dispatchEvent(new Event('change', { bubbles: true })));
+      chooseFile();
+      React.act(() => document.querySelector<HTMLButtonElement>('#library-import-replace')!.click());
+      expect(ProjectPersistence.importProjectLibrary).not.toHaveBeenCalled();
+      const dialog = document.querySelector('[data-testid="button-confirm-import-library"]')!.closest('[role="dialog"]')!;
+      expect(dialog.textContent).toContain('unnamed draft');
+      React.act(() => [...dialog.querySelectorAll<HTMLButtonElement>('button')].find(b => b.textContent === 'Cancel')!.click());
+      expect(ProjectPersistence.importProjectLibrary).not.toHaveBeenCalled();
+      chooseFile();
+      expect(document.querySelector('#library-import-merge')?.getAttribute('aria-checked')).toBe('true');
+      React.act(() => document.querySelector<HTMLButtonElement>('#library-import-replace')!.click());
+      const before = vi.mocked(useBinGeometry).mock.lastCall![2]!;
+      vi.mocked(ProjectPersistence.importProjectLibrary).mockRejectedValueOnce(new Error('Storage is full'));
+      await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-confirm-import-library"]')!.click());
+      expect(document.querySelector('[data-testid="current-project-title"]')?.textContent).toBe(existing.name);
+      expect(document.querySelector('[data-testid="managed-project-list"]')?.textContent).toContain(existing.name);
+      expect(document.querySelector('#library-import-replace')?.getAttribute('aria-checked')).toBe('true');
+      expect(document.querySelector<HTMLButtonElement>('[data-testid="button-confirm-import-library"]')!.disabled).toBe(false);
+      await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-confirm-import-library"]')!.click());
+      expect(ProjectPersistence.importProjectLibrary).toHaveBeenCalledWith(data, 'replace', expect.objectContaining({ name: existing.name, keepBinSize: true }));
+      expect(document.querySelector('[data-testid="button-confirm-import-library"]')).toBeNull();
+      expect(document.querySelector('[data-testid="managed-project-list"]')?.textContent).toContain(imported.name);
+      expect(document.querySelector('[data-testid="managed-project-list"]')?.textContent).not.toContain(existing.name);
+      expect(document.querySelector('[data-testid="current-project-title"]')?.textContent).toBe('Untitled project');
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]).toEqual(before);
+      expect(ProjectPersistence.openProjectFromLibrary).not.toHaveBeenCalled();
+      expect(ProjectPersistence.startNewProject).not.toHaveBeenCalled();
+    } finally { unmount(); }
   });
 
   it("disables project and library actions while exporting and recovers after an export error", async () => {
@@ -3659,7 +3743,10 @@ describe("BinDesignerPage", () => {
     Object.defineProperty(file, "text", { value: async () => "{" });
     Object.defineProperty(input, "files", { value: [file] });
     await React.act(async () => { input.dispatchEvent(new Event("change", { bubbles: true })); });
+    await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-confirm-import-library"]')!.click());
     expect(ProjectPersistence.importProjectLibrary).not.toHaveBeenCalled();
+    expect(projectToast).toHaveBeenCalledWith(expect.objectContaining({ title: "Could not import library" }));
+    expect(document.querySelector('[data-testid="button-confirm-import-library"]')).not.toBeNull();
     expect((document.querySelector('[data-testid="button-import-library"]') as HTMLButtonElement).disabled).toBe(false);
     unmount();
   });
@@ -4535,7 +4622,11 @@ it.each([false, true])("prototype has one object list and preserves identity whe
     React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
     expect(workflow.querySelectorAll('button[data-testid^="button-select-"]')).toHaveLength(3);
     expect(workflow.querySelector('[aria-label^="Rename "]')).toBeNull();
-    expect(workflow.textContent).toContain('Add simple pocket');
+    expect(workflow.textContent).toContain('Add pocket');
+    for (const [row, add] of [
+      [leftButton('pocket', 'workflow-1'), workflow.querySelector('[data-testid="button-add-pocket"]')!],
+      [leftButton('finger', 'workflow-f'), workflow.querySelector('[data-testid="button-add-finger-hole"]')!],
+    ]) expect(row.compareDocumentPosition(add) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     React.act(() => leftButton('pocket', 'workflow-0').click());
     expect(leftButton('pocket', 'workflow-0').getAttribute('aria-pressed')).toBe('true');
     expect(workflow.querySelector<HTMLInputElement>('[aria-label="Include Tool 1 in selection"]')!.checked).toBe(true);
@@ -4570,6 +4661,56 @@ it.each([false, true])("prototype has one object list and preserves identity whe
     expect(workflow.querySelectorAll('input[type="checkbox"]:checked')).toHaveLength(2);
     expect(leftScroll.scrollTop).toBe(230);
   } finally { unmount(); window.history.replaceState(null, '', originalUrl); }
+});
+
+it.each([
+  { mobile: false, experimental: false }, { mobile: true, experimental: false },
+  { mobile: false, experimental: true }, { mobile: true, experimental: true },
+])("workflow toolbar Add menu creates pockets and finger access with undo: %o", async ({ mobile, experimental }) => {
+  const originalUrl = window.location.href;
+  window.history.replaceState(null, "", "/bin?layout=workflow");
+  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(EMPTY_PROJECT);
+  const { container, unmount } = renderPage({ mobile, experimental });
+  try {
+    await flushHydration();
+    const click = (id: string) => React.act(() => container.querySelector<HTMLButtonElement>(`[data-testid="${id}"]`)!.click());
+    click("view-toggle-2d");
+    const toolbar = container.querySelector('[aria-label="Editing tools"]')!;
+    const add = toolbar.querySelector('[data-testid="toolbar-add-object"]')!;
+    expect(toolbar.querySelectorAll('[data-testid="toolbar-add-object"]')).toHaveLength(1);
+    expect([...toolbar.querySelectorAll('button')].at(-1)).toBe(add);
+    expect(container.querySelector('[data-testid="layout-add-pocket"]')).toBeNull();
+    React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Pan layout"]')!.click());
+    const choose = (itemLabel: string) => {
+      React.act(() => add.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+      React.act(() => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(item => item.textContent === itemLabel)!.click());
+    };
+    choose("Rectangle pocket");
+    expect(container.querySelector('[aria-label="Pan layout"]')!.getAttribute("aria-pressed")).toBe("false");
+    const svg = container.querySelector<SVGSVGElement>('[data-testid="layout-canvas"]')!;
+    Object.defineProperty(svg.querySelector('g')!, 'getScreenCTM', { value: () => ({ inverse: () => ({}) }) });
+    Object.defineProperties(svg, {
+      createSVGPoint: { value: () => ({ x: 0, y: 0, matrixTransform() { return { x: this.x, y: this.y }; } }) },
+      setPointerCapture: { value: () => {} },
+    });
+    for (const [type, x, y] of [["pointerdown", 30, 30], ["pointermove", 50, 45], ["pointerup", 50, 45]] as const) {
+      React.act(() => svg.dispatchEvent(new MouseEvent(type, { bubbles: true, button: 0, clientX: x, clientY: y })));
+    }
+    const layout = () => vi.mocked(useBinGeometry).mock.lastCall![2]!;
+    expect(layout().cutouts).toHaveLength(1);
+    choose("Circle pocket");
+    expect(container.textContent).toContain("Draw circle");
+    choose("Finger access");
+    expect(container.textContent).not.toContain("Draw circle");
+    expect(layout().fingerHoles).toHaveLength(1);
+    expect(layout().fingerHoles[0]).toMatchObject({ kind: "oblong-deep-scoop", slotEnds: "rounded", lengthMm: 36 });
+    expect(container.querySelector('#finger-access-properties')?.closest('[hidden]')).toBeNull();
+    click("button-bin-undo");
+    expect(layout().fingerHoles).toEqual([]);
+    expect(layout().cutouts).toHaveLength(1);
+    click("button-bin-redo");
+    expect(layout().fingerHoles).toHaveLength(1);
+  } finally { unmount(); window.history.replaceState(null, "", originalUrl); }
 });
 
 it("keeps finger-access guidance beside the collapsed section title without toggling it", async () => {
@@ -4833,12 +4974,10 @@ it.each([false, true])("workflow layout routes every section to matching propert
     const right = container.querySelector('[data-testid="selection-inspector"]')!;
     const canvas = container.querySelector('[data-testid="inspector-workspace-canvas"]');
     const chooseSection = (name: string) => React.act(() => left.querySelector<HTMLButtonElement>(`[aria-label="${name} — show properties"]`)!.click());
-    const index = left.querySelector<HTMLElement>('[aria-label="Find bin settings"]')!;
-    const jumpTo = (label: string) => React.act(() => Array.from(index.querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent === label)!.click());
-    expect(index.textContent).toContain('Find a setting');
-    expect(index.parentElement!.classList.contains('hidden')).toBe(false);
-    expect(index.closest('[data-testid="object-list-scroll"]')).toBeNull();
-    expect(index.querySelectorAll('button')).toHaveLength(8);
+    expect(left.querySelector('[aria-label="Find bin settings"]')).toBeNull();
+    expect(left.textContent).not.toContain('Find a setting');
+    expect(left.querySelector('[aria-label="Clear object selection"]')).toBeNull();
+    expect([...left.querySelectorAll('button')].find(button => button.textContent === 'Select all')).toBeUndefined();
     expect(left.querySelector('#bin-settings-pockets')).not.toBeNull();
     expect(left.querySelector('#bin-settings-finger-holes')).not.toBeNull();
     expect(left.querySelectorAll('button[data-testid^="workflow-section-"]')).toHaveLength(6);
@@ -4856,32 +4995,32 @@ it.each([false, true])("workflow layout routes every section to matching propert
       expect(right.querySelector(selector)).not.toBeNull();
       expect(right.querySelector('[data-testid="inspector-properties-header"]')!.getAttribute('data-property-tone')).toBe(tone);
       expect(right.querySelector('[data-testid="inspector-bin-settings"] > [data-property-tone]')!.getAttribute('data-property-tone')).toBe(tone);
-      jumpTo('Pockets');
-      jumpTo(name === 'Bin size' ? 'Size' : name);
-      expect(right.querySelector('[data-testid="inspector-properties-header"] h3')!.textContent).toBe(name);
-      expect(index.querySelector('[aria-current="location"]')!.textContent).toBe(name === 'Bin size' ? 'Size' : name);
+      expect(left.querySelector(`[aria-label="${name} — show properties"]`)!.getAttribute('aria-pressed')).toBe('true');
     }
     selectPocket(container, 'flow-pocket');
     expect(right.querySelector('#pocket-properties')!.getAttribute('data-property-tone')).toBe('violet');
-    jumpTo('Export');
+    chooseSection('Export');
     expect(left.querySelector<HTMLInputElement>('[aria-label="Include Tool in selection"]')!.checked).toBe(true);
     selectPocket(container, 'flow-pocket');
     expect(right.querySelector('#pocket-properties')!.closest('[hidden]')).toBeNull();
-    jumpTo('Finger access');
+    openSettingsSection(container, 'finger-holes');
     React.act(() => left.querySelector<HTMLButtonElement>('[aria-label="Thumb — edit finger access properties"]')!.click());
     expect(right.querySelector('#finger-access-properties')!.getAttribute('data-property-tone')).toBe('cyan');
-    React.act(() => left.querySelector<HTMLButtonElement>('[aria-label="Clear object selection"]')!.click());
-    expect(left.querySelectorAll('input:checked')).toHaveLength(0);
+    chooseSection('Bin size');
+    expect(left.querySelector('[aria-label="Thumb — edit finger access properties"]')!.getAttribute('aria-pressed')).toBe('true');
     expect(right.querySelector('[data-testid="inspector-properties-header"] h3')!.textContent).toBe('Bin size');
     if (mobile) React.act(() => Array.from(container.querySelectorAll<HTMLButtonElement>('nav[aria-label="Editor panels"] button')).find(button => button.textContent === 'Workflow')!.click());
-    jumpTo('Finger access');
-    expect(left.querySelector('#bin-settings-finger-holes')!.getAttribute('data-state')).toBe('open');
-    expect(left.querySelector('#bin-settings-pockets')!.getAttribute('data-state')).toBe('closed');
-    expect(left.hasAttribute('hidden')).toBe(false);
-    jumpTo('Pockets');
-    expect(left.querySelector('#bin-settings-pockets')!.getAttribute('data-state')).toBe('open');
-    expect(left.querySelector('#bin-settings-finger-holes')!.getAttribute('data-state')).toBe('closed');
-    expect(left.hasAttribute('hidden')).toBe(false);
+    openSettingsSection(container, 'finger-holes');
+    for (const id of ['bin-settings-finger-holes', 'bin-settings-pockets']) {
+      const section = left.querySelector(`#${id}`)!;
+      const trigger = section.querySelector<HTMLButtonElement>('[data-panel-section-trigger]')!;
+      expect(section.getAttribute('data-state')).toBe('open');
+      React.act(() => trigger.click());
+      expect(section.getAttribute('data-state')).toBe('closed');
+      React.act(() => trigger.click());
+      expect(section.getAttribute('data-state')).toBe('open');
+      expect(left.hasAttribute('hidden')).toBe(false);
+    }
     expect(container.querySelector('[data-testid="inspector-workspace-canvas"]')).toBe(canvas);
   } finally { unmount(); window.history.replaceState(null, '', originalUrl); }
 });

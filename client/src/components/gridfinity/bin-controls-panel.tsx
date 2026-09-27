@@ -37,7 +37,8 @@ import { useDelayedBusy } from "@/hooks/use-delayed-busy";
 import { useLocation } from "wouter";
 import { LinkedDesignControls } from "./linked-design-controls";
 import { AddPocketMenu } from "./add-pocket-menu";
-import { BIN_OBJECT_SECTIONS, BIN_WORKFLOW_SECTIONS as BIN_SETTINGS_SECTIONS } from "./bin-workflow";
+import { AddFingerAccessButton } from "./add-finger-access-button";
+import { BIN_WORKFLOW_SECTIONS as BIN_SETTINGS_SECTIONS } from "./bin-workflow";
 import { PropertySurface } from "@/components/layout/property-surface";
 import { InspectorPanelSections } from "./inspector-panel-sections";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
@@ -48,7 +49,6 @@ import {
   DEFAULT_OBLONG_DEEP_SCOOP_LENGTH_MM,
   DEFAULT_TOP_EDGE_FILLET_MM,
   defaultPocketFloorThicknessMm,
-  defaultFingerAccessDepthMm,
   isElongatedFingerHole,
   effectiveFingerHoleDepthMm,
   effectiveFingerHoleTopFilletMm,
@@ -111,6 +111,8 @@ import {
 import { HelpHint } from "@/components/ui/help-hint";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import type { LibraryImportMode } from "@shared/gridfinity/library";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
@@ -256,7 +258,7 @@ export interface BinControlsPanelProps {
   onDeleteProject: (projectId: string) => Promise<boolean>;
   onRefreshProjects: () => void;
   onExportLibrary: () => void;
-  onImportLibrary: (file: File) => void;
+  onImportLibrary: (file: File, mode: LibraryImportMode) => Promise<boolean>;
   onNewProject: () => void;
   section: BuildBinSection | null;
   onSectionChange: (section: BuildBinSection | null) => void;
@@ -710,7 +712,7 @@ export function BinControlsPanel({
                 <Button
                   variant={editorMode === "contour" ? "default" : "outline"}
                   size="sm"
-                  className="ml-auto h-9 shrink-0 gap-1 px-2 text-xs"
+                  className="ml-auto shrink-0"
                   aria-label={editorMode === "contour" ? "Finish contour editing" : "Edit contour"}
                   aria-pressed={editorMode === "contour"}
                   data-testid="button-edit-contour"
@@ -735,7 +737,7 @@ export function BinControlsPanel({
               <PocketDepthSummary cutout={depthCutout!} shape={depthShape!} section={section} inspect={onSectionChange}>
                 {selectedCutout.split && <div className="flex gap-1 pb-2" role="group" aria-label="Section to edit">
                   {([0, 1] as const).map(index => <Button key={index} type="button" size="sm"
-                    className="h-9 flex-1 text-xs" variant={selectedPocketSection === index ? "secondary" : "outline"}
+                    className="flex-1" variant={selectedPocketSection === index ? "secondary" : "outline"}
                     aria-pressed={selectedPocketSection === index}
                     onClick={() => dispatch({ type: "SELECT_CUTOUT", id: selectedCutout.id, section: index })}>
                     Section {index === 0 ? "A" : "B"}
@@ -1163,16 +1165,28 @@ export function BinControlsPanel({
             </PropertySurface>
             );
 
+  const openProjectName = () => {
+    if (!hydrated || !projectLibraryReady || projectBusy) return;
+    if (inspector) inspector.showSection("bin-settings-project");
+    else revealPanelSection("bin-settings-project", BIN_SETTINGS_SECTIONS);
+    setProjectNameOpen(true);
+  };
+
   const projectStatus = (
       <div className={!inspector && exportOnly ? "hidden" : cn("min-w-0 px-3 py-2", !inspector && "shrink-0 border-b", inspector && "flex-1")} data-testid="project-status">
-        <p className="cursor-text truncate text-sm font-medium" data-testid="project-status-title"
-          title={`${currentProjectName ?? "Untitled project"} — double-click to rename`}
-          onDoubleClick={() => {
-            if (!hydrated || !projectLibraryReady || projectBusy) return;
-            if (inspector) inspector.showSection("bin-settings-project");
-            else revealPanelSection("bin-settings-project", BIN_SETTINGS_SECTIONS);
-            setProjectNameOpen(true);
-          }}>{currentProjectName ?? "Untitled project"}</p>
+        <div className="flex min-w-0 items-center gap-1">
+          <p className="cursor-text truncate text-sm font-medium" data-testid="project-status-title"
+            title={`${currentProjectName ?? "Untitled project"} — double-click to rename`}
+            onDoubleClick={openProjectName}>{currentProjectName ?? "Untitled project"}</p>
+          <Button type="button" variant="ghost" size="icon"
+            className="h-8 w-8 shrink-0 text-muted-foreground [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11"
+            aria-label="Edit project name" title="Edit project name"
+            data-testid="button-edit-project-name"
+            disabled={!hydrated || !projectLibraryReady || projectBusy}
+            onClick={openProjectName}>
+            <Pencil aria-hidden="true" />
+          </Button>
+        </div>
         <p className="text-[11px] text-muted-foreground" role="status">{!hydrated ? "Opening project…" : projectBusy ? "Working…" : saveStatus === "saving" ? activeProjectId ? "Saving to browser library…" : "Draft — saving locally…" : saveStatus === "error" ? "Could not save. Export this project to keep your work." : activeProjectId ? "Saved to browser library" : "Draft — autosaved locally"}</p>
       </div>
   );
@@ -1184,27 +1198,18 @@ export function BinControlsPanel({
         <p>This project uses experimental pocket tools. Its geometry and links are preserved; edits to linked designs still update their copies.</p>
         <Button size="sm" variant="link" className="h-9 px-0 text-xs" onClick={() => setSettingsOpen(true)}>Show experimental settings</Button>
       </div>}
-      {inspector ? <div className="shrink-0 border-b px-3 pb-2 pt-4">
-        <h2 className="mb-3 text-xs font-semibold">Design workflow</h2>
-        <div className="mt-1 flex items-center justify-between text-xs">
-          {experimentalEnabled && <Button size="sm" variant="ghost" className="px-2 text-xs" disabled={!cutouts.length && !fingerHoles.length} onClick={() => dispatch({ type: "SET_SELECTION", selection: [...cutouts.map(c => ({ kind: "pocket" as const, id: c.id })), ...fingerHoles.map(h => ({ kind: "finger" as const, id: h.id }))] })}>Select all</Button>}
-          <Button size="sm" variant="ghost" className="px-2 text-xs" disabled={!selection.length} aria-label="Clear object selection" onClick={() => { dispatch({ type: "SET_SELECTION", selection: [] }); inspector.showSection("bin-settings-size"); }}>Clear</Button>
-        </div>
+      {inspector ? <div className="shrink-0 border-b px-3 py-3">
+        <h2 className="text-xs font-semibold">Design workflow</h2>
       </div> : projectStatus}
       {/* On short screens the section headers remain reachable by scrolling;
           reserve the limited height for editable fields instead of shortcuts. */}
-      <div className={(!inspector && exportOnly) ? "hidden" : "shrink-0 [@media(max-height:500px)]:hidden"}>
+      {!inspector && <div className={exportOnly ? "hidden" : "shrink-0 [@media(max-height:500px)]:hidden"}>
         <PanelSettingsIndex
           ariaLabel="Find bin settings"
           testIdPrefix="bin"
           items={BIN_SETTINGS_SECTIONS}
-          activeSectionId={inspector?.activeSection}
-          onNavigate={inspector ? id => {
-            if (BIN_OBJECT_SECTIONS.has(id)) revealPanelSection(id, BIN_SETTINGS_SECTIONS);
-            inspector.showSection(id);
-          } : undefined}
         />
-      </div>
+      </div>}
       <InspectorPanelSections>
         <PanelSection
           id="bin-settings-project"
@@ -1368,7 +1373,7 @@ export function BinControlsPanel({
               if (!editing) dispatch({ type: "SET_VIEW_MODE", viewMode: "2d" });
             }}
           >
-            <LayoutGrid className="mr-1.5 h-3.5 w-3.5" />
+            <LayoutGrid className="h-4 w-4" />
             {editorMode === "footprint" ? "Finish footprint editing" : "Edit footprint"}
           </Button>
           {spec.footprint.kind === "custom" && (
@@ -1520,7 +1525,7 @@ export function BinControlsPanel({
                     if (!editing) dispatch({ type: "SET_VIEW_MODE", viewMode: "2d" });
                   }}
                 >
-                  <MousePointerClick className="mr-1.5 h-3.5 w-3.5" />
+                  <MousePointerClick className="h-4 w-4" />
                   {editorMode === "label-edge" ? "Cancel edge selection" : "Choose any edge"}
                 </Button>
               </div>
@@ -1540,22 +1545,21 @@ export function BinControlsPanel({
           defaultOpen={!!inspector || cutouts.length > 0}
           className="scroll-mt-16"
         >
-          <div className="mb-2"><AddPocketMenu /></div>
           {pocketList}
+          <div className="grid grid-cols-2 gap-1">
+            <AddPocketMenu className="min-w-0 gap-1 px-1.5" />
+            <Button variant="outline" size="sm" className="min-w-0 gap-1 px-1.5" onClick={onAutoArrange} disabled={cutouts.length === 0} data-testid="button-auto-arrange">
+              <LayoutGrid className="h-4 w-4" />Auto-arrange
+            </Button>
+          </div>
           {!inspector && !selectedCutout && (
             <p className="rounded-md border border-dashed px-3 py-4 text-xs text-muted-foreground" id="pocket-properties" data-testid="pocket-selection-help">
               {cutouts.length === 0
-                ? "Choose Add simple pocket to draw a basic shape, or trace a tool and press “Add to bin”."
+                ? "Choose Add pocket to draw a basic shape, or trace a tool and press “Add to bin”."
                 : "Select a pocket on the canvas or in the list above. Its properties appear here."}
             </p>
           )}
           {!inspector && pocketProperties}
-
-          <div className="flex flex-wrap gap-2 border-t pt-3">
-            <Button variant="outline" size="sm" onClick={onAutoArrange} disabled={cutouts.length === 0} data-testid="button-auto-arrange">
-              <LayoutGrid className="mr-1.5 h-3.5 w-3.5" />Auto-arrange
-            </Button>
-          </div>
 
         </PanelSection>
 
@@ -1571,35 +1575,8 @@ export function BinControlsPanel({
           className="scroll-mt-16"
         >
           <div className="space-y-3">
-            <div className="flex items-center justify-start gap-3">
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-11 shrink-0 px-2 text-xs"
-                data-testid="button-add-finger-hole"
-                onClick={() =>
-                  dispatch({
-                    type: "ADD_FINGER_HOLE",
-                    hole: {
-                      id: crypto.randomUUID(),
-                      center: { x: 0, y: 0 },
-                      diameterMm: 18,
-                      kind: "oblong-deep-scoop",
-                      slotEnds: "rounded",
-                      lengthMm: DEFAULT_OBLONG_DEEP_SCOOP_LENGTH_MM,
-                      depthMm: defaultFingerAccessDepthMm(spec, cutouts),
-                      topFilletMm: DEFAULT_TOP_EDGE_FILLET_MM,
-                      bottomFilletMm: 0,
-                    },
-                  })
-                }
-              >
-                <Plus className="mr-1 h-3 w-3" />
-                Add Finger Access
-              </Button>
-            </div>
-
             {fingerList}
+            <AddFingerAccessButton className="w-full" />
 
             {!inspector && fingerProperties}
           </div>
@@ -1851,7 +1828,7 @@ export function BinControlsPanel({
                   }
                   data-testid="button-export-surface-fit-test"
                 >
-                  <Download className="mr-1.5 h-3.5 w-3.5" />
+                  <Download className="h-4 w-4" />
                   {exporting ? "Building…" : "Save surface fit test STL"}
                 </Button>
               </div>
@@ -1891,7 +1868,7 @@ export function BinControlsPanel({
                   })}
                   data-testid="button-export-fit-check"
                 >
-                  <Download className="mr-1.5 h-3.5 w-3.5" />
+                  <Download className="h-4 w-4" />
                   {exporting ? "Building…" : "Save fit template STL"}
                 </Button>
               </div>
@@ -1994,7 +1971,7 @@ export function BinControlsPanel({
                 onClick={() => { setIncludeThreeMfProject(false); setThreeMfDialogOpen(true); }}
                 data-testid="button-export-3mf"
               >
-                <Box className="mr-1.5 h-4 w-4" />
+                <Box className="h-4 w-4" />
                 {exporting ? "Exporting…" : "Save 3MF"}
               </Button>
               <Button
@@ -2134,7 +2111,7 @@ export function BinControlsPanel({
               }}
               data-testid="button-export-single-color-3mf"
             >
-              <Box className="mr-2 mt-0.5 h-4 w-4 shrink-0" />
+              <Box className="mt-0.5 h-4 w-4 shrink-0" />
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-medium">Single-color 3MF</span>
                 <span className="block text-[11px] font-normal text-muted-foreground">
@@ -2151,7 +2128,7 @@ export function BinControlsPanel({
               }}
               data-testid="button-export-multicolor-3mf"
             >
-              <Palette className="mr-2 mt-0.5 h-4 w-4 shrink-0" />
+              <Palette className="mt-0.5 h-4 w-4 shrink-0" />
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-medium">Multi-color 3MF</span>
                 <span className="block text-[11px] font-normal opacity-80">
@@ -2222,7 +2199,7 @@ interface ProjectControlsProps {
   onDeleteProject: (projectId: string) => Promise<boolean>;
   onRefreshProjects: () => void;
   onExportLibrary: () => void;
-  onImportLibrary: (file: File) => void;
+  onImportLibrary: (file: File, mode: LibraryImportMode) => Promise<boolean>;
   onNewProject: () => void;
   onExportProject: () => void;
   onImportProject: (doc: ProjectDoc) => Promise<boolean>;
@@ -2260,6 +2237,8 @@ function ProjectControls({
   const ready = hydrated && libraryReady;
   const [renameProjectId, setRenameProjectId] = useState<string | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
+  const [pendingLibraryFile, setPendingLibraryFile] = useState<File | null>(null);
+  const [libraryImportMode, setLibraryImportMode] = useState<LibraryImportMode>("merge");
   const [pendingOpenProject, setPendingOpenProject] = useState<ProjectOpenTarget | null>(null);
   const { toast } = useToast();
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
@@ -2574,7 +2553,7 @@ function ProjectControls({
         </ScrollArea>
         <div className="shrink-0 space-y-1.5 border-t pt-3" data-testid="library-file-backup">
           <div className="flex items-center justify-between gap-2">
-            <SettingLabel label="Entire library" hint="Exports every named project saved in this browser as one JSON file. Unnamed drafts are not included. Import adds projects without replacing your current design or existing library; duplicate names receive an imported suffix." />
+            <SettingLabel label="Entire library" hint="Exports every named project saved in this browser as one JSON file. Unnamed drafts are not included. Import lets you merge with this library or replace it. Your current design stays open; duplicate names receive an imported suffix when merging." />
           </div>
           <div className="grid grid-cols-2 gap-2">
             <Button size="sm" variant="outline" className={projectActionClass} disabled={!ready || busy}
@@ -2592,7 +2571,7 @@ function ProjectControls({
           onChange={(event) => {
             const file = event.currentTarget.files?.[0];
             event.currentTarget.value = "";
-            if (file) onImportLibrary(file);
+            if (file && !busy) { setLibraryImportMode("merge"); setPendingLibraryFile(file); }
           }} />
       </DialogContent>
     </Dialog>
@@ -2687,6 +2666,48 @@ function ProjectControls({
       </div>
       {renderLibraryDialog()}
       </section>
+
+      <Dialog open={pendingLibraryFile !== null} onOpenChange={(open) => { if (!open && !busy) setPendingLibraryFile(null); }}>
+        <DialogContent className="max-h-[85dvh] overflow-y-auto" onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          libraryDialogRef.current?.querySelector<HTMLButtonElement>('[data-testid="button-import-library"]')?.focus();
+        }}>
+          <DialogHeader>
+            <DialogTitle>Import library</DialogTitle>
+            <DialogDescription className="break-words">Choose how to import {pendingLibraryFile?.name}.</DialogDescription>
+          </DialogHeader>
+          <RadioGroup aria-label="Library import mode" value={libraryImportMode} disabled={busy}
+            onValueChange={(value) => setLibraryImportMode(value === "replace" ? "replace" : "merge")}>
+            <label className="flex cursor-pointer items-start gap-3 rounded-md border p-3">
+              <RadioGroupItem value="merge" id="library-import-merge" aria-label="Merge with current library" className="mt-0.5 shrink-0" aria-describedby="library-import-merge-description" />
+              <span className="min-w-0">
+                <span className="block text-sm font-medium">Merge with current library</span>
+                <span id="library-import-merge-description" className="mt-1 block text-xs text-muted-foreground">Keep existing projects and add the imported ones. Conflicting names get an imported suffix.</span>
+              </span>
+            </label>
+            <label className="flex cursor-pointer items-start gap-3 rounded-md border p-3">
+              <RadioGroupItem value="replace" id="library-import-replace" aria-label="Replace current library" className="mt-0.5 shrink-0" aria-describedby="library-import-replace-description" />
+              <span className="min-w-0">
+                <span className="block text-sm font-medium">Replace current library</span>
+                <span id="library-import-replace-description" className="mt-1 block text-xs text-muted-foreground">Start fresh with only the imported projects. Removes the saved library from this browser.</span>
+              </span>
+            </label>
+          </RadioGroup>
+          <p className="text-sm text-muted-foreground">
+            {libraryImportMode === "replace"
+              ? "Your current design stays open as an unnamed draft. Export your library first if you want to keep its saved projects."
+              : "Your current design stays open."}
+          </p>
+          <DialogFooter>
+            <Button variant="outline" disabled={busy} onClick={() => setPendingLibraryFile(null)}>Cancel</Button>
+            <Button variant={libraryImportMode === "replace" ? "destructive" : "default"} disabled={busy || !pendingLibraryFile}
+              data-testid="button-confirm-import-library" onClick={async () => {
+                if (!pendingLibraryFile || busy) return;
+                if (await onImportLibrary(pendingLibraryFile, libraryImportMode)) setPendingLibraryFile(null);
+              }}>{busy ? "Importing…" : libraryImportMode === "replace" ? "Replace library" : "Merge library"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={pendingOpenProject !== null} onOpenChange={(open) => {
         if (!open && !busy) setPendingOpenProject(null);
@@ -2896,7 +2917,7 @@ function ObjectActions({ name, children }: { name: string; children: ReactNode }
     }}>
       {Children.map(children, child => isValidElement<{ children: ReactNode; "aria-label": string; disabled?: boolean; onClick: () => void }>(child) &&
         <DropdownMenuItem disabled={child.props.disabled} aria-label={child.props["aria-label"]}
-          className="min-h-9 gap-2 text-xs [@media(pointer:coarse)]:min-h-11" onSelect={() => { pendingAction.current = child.props.onClick; }}>
+          className="min-h-9 gap-1.5 [@media(pointer:coarse)]:min-h-11" onSelect={() => { pendingAction.current = child.props.onClick; }}>
           {child.props.children}<span>{child.props["aria-label"]}</span>
         </DropdownMenuItem>)}
     </DropdownMenuContent>

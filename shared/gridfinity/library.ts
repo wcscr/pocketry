@@ -17,7 +17,10 @@ export const projectLibrarySchema = z.object({
   projects: z.array(storedProjectSchema),
 }).strict();
 
-/** Portable named-library backup; importing never changes the working draft. */
+/** Importing can add independent copies or replace the saved library. */
+export type LibraryImportMode = "merge" | "replace";
+
+/** Portable named-library backup; the current design remains open on import. */
 export const libraryBackupSchema = z.object({
   format: z.literal("pocketry-library"),
   schemaVersion: z.literal(PROJECT_LIBRARY_VERSION),

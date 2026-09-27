@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 1.1.1 — 2026-09-27
+
+- UI cleanup and consistency updates.
 
 ## 1.1.0 — 2026-09-26
 

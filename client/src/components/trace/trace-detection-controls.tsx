@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { HelpHint } from "@/components/ui/help-hint";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useTrace } from "@/state/trace-store";
@@ -44,7 +45,10 @@ export function TraceDetectionControls({ onReprocess, compact = false }: {
 
   return <>
     {!compact && <div className="flex items-center justify-between gap-2">
-      <Label htmlFor="include-interior-holes" className="text-xs">Include interior holes</Label>
+      <div className="flex items-center gap-1">
+        <Label htmlFor="include-interior-holes" className="text-xs">Include interior holes</Label>
+        <HelpHint label="interior holes">Trace openings inside the tool. Reflections are usually not holes. Changing this setting asks before replacing manual edits.</HelpHint>
+      </div>
       <Switch id="include-interior-holes" checked={includeInteriorHoles} disabled={processing}
         onCheckedChange={(include) => request({ sensitivity, includeInteriorHoles: include })} />
     </div>}

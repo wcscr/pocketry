@@ -129,7 +129,7 @@ it("enables only projects needing the tools, once per activation, without changi
   expect(state.enabled).toBe(true);
 });
 
-it("defaults to Controls on the left and offers only the two supported layouts", () => {
+it("defaults to Original: All Controls on Left and offers only the two supported layouts", () => {
   mount();
   expect(state.editorLayout).toBe("standard");
   expect(state.inspectorEnabled).toBe(false);
@@ -141,7 +141,7 @@ it("defaults to Controls on the left and offers only the two supported layouts",
   expect(document.querySelector('#experimental-layout-recommendation')).toBeNull();
   const toggle = document.querySelector<HTMLButtonElement>('#experimental-features')!;
   React.act(() => toggle.click());
-  expect(document.querySelector('#experimental-layout-recommendation')!.textContent).toContain("we recommend Workflow left, properties right");
+  expect(document.querySelector('#experimental-layout-recommendation')!.textContent).toContain("we recommend New UI: Split Workflow and Properties");
   expect(state.editorLayout).toBe("standard");
   expect(choices[0].checked).toBe(true);
   React.act(() => choices[1].click());
@@ -159,7 +159,7 @@ it("defaults to Controls on the left and offers only the two supported layouts",
   expect(window.location.hash).toBe("#test");
 });
 
-it.each([null, "objects", "invalid"])("falls back to Controls on the left for retired or invalid saved layout %s", saved => {
+it.each([null, "objects", "invalid"])("falls back to Original: All Controls on Left for retired or invalid saved layout %s", saved => {
   localStorage.setItem(SELECTION_INSPECTOR_KEY, "true");
   if (saved) localStorage.setItem(EDITOR_LAYOUT_KEY, saved);
   mount();
@@ -171,7 +171,7 @@ it.each([null, "objects", "invalid"])("falls back to Controls on the left for re
   expect(state.editorLayout).toBe("workflow");
 });
 
-it.each(["layout=objects", "inspector=1", "inspector=0"])("consumes retired preview link %s and returns to Controls on the left", query => {
+it.each(["layout=objects", "inspector=1", "inspector=0"])("consumes retired preview link %s and returns to Original: All Controls on Left", query => {
   localStorage.setItem(EDITOR_LAYOUT_KEY, "workflow");
   window.history.replaceState({ retained: true }, "", `/bin?${query}&keep=yes#properties`);
   mount();

@@ -18,16 +18,16 @@ export function PocketSplitControls({ cutout }: { cutout: CutoutPlacement }): JS
     </summary>
     <div className="space-y-2 pb-2" aria-label="Pocket sections">
     <div className="flex flex-wrap gap-1">
-      <Button type="button" size="sm" variant="outline" className="h-9 text-xs" onClick={begin} disabled={editorMode === "split"}>
+      <Button type="button" size="sm" variant="outline" onClick={begin} disabled={editorMode === "split"}>
         {cutout.split ? "Redraw split" : "Split pocket"}
       </Button>
-      {cutout.split && <Button type="button" size="sm" variant="ghost" className="h-9 text-xs"
+      {cutout.split && <Button type="button" size="sm" variant="ghost"
         title="Restore the original whole-pocket depth"
         onClick={() => {
           dispatch({ type: "UPDATE_CUTOUT", id: cutout.id, patch: { split: undefined }, historyLabel: "Remove pocket split" });
           dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" });
         }}>Remove split</Button>}
-      {editorMode === "split" && <Button type="button" size="sm" variant="ghost" className="h-9 text-xs"
+      {editorMode === "split" && <Button type="button" size="sm" variant="ghost"
         onClick={() => dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" })}>Cancel split</Button>}
     </div>
     </div>
