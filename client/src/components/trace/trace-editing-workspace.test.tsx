@@ -156,7 +156,7 @@ describe("trace workflow and properties", () => {
       Object.defineProperty(window, "innerWidth", { configurable: true, value: 900 });
       window.dispatchEvent(new Event("resize"));
     });
-    await act(() => button("trace-workflow-export").click());
+    await act(() => button("trace-workflow-export-outline").click());
     expect(host.querySelector("#objects-panel #format")).not.toBeNull();
     await act(() => [...host.querySelectorAll<HTMLButtonElement>("button")].find(item => item.textContent?.includes("Save STL"))!.click());
     expect(exportTrace).toHaveBeenCalledOnce();
@@ -294,7 +294,7 @@ describe("trace workflow and properties", () => {
     await act(() => trace.dispatch({ type: "SET_MARGIN", margin }));
     const completion = () => button("trace-workflow-margin").getAttribute("aria-label");
     expect(completion()).toBe("5. Margin");
-    await act(() => button("trace-workflow-export").click());
+    await act(() => button("trace-workflow-export-outline").click());
     expect(completion()).toBe("5. Margin");
     await act(() => button("trace-workflow-margin").click());
     expect(completion()).toBe("5. Margin (complete)");
@@ -315,7 +315,7 @@ describe("trace workflow and properties", () => {
     await finishTrace();
     await act(() => host.querySelector<HTMLButtonElement>('[aria-label="Collapse properties panel"]')!.click());
     expect(host.querySelector("#objects-panel")!.hasAttribute("hidden")).toBe(true);
-    await act(() => button("trace-workflow-export").click());
+    await act(() => button("trace-workflow-export-outline").click());
     expect(host.querySelector("#objects-panel")!.hasAttribute("hidden")).toBe(false);
     expect(host.querySelector("#objects-panel #format")).not.toBeNull();
   });

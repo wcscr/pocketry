@@ -28,7 +28,7 @@ export function ExperimentalFeaturesDialog(): JSX.Element {
           Try pocket tilt, 3D move and rotate controls, multi-selection, alignment, distribution, and linked designs. These tools are still being refined.
         </p>
         {enabled && <p id="experimental-layout-recommendation" className="mt-3 rounded-md bg-primary/5 p-3 text-sm">
-          For experimental tools, we recommend <strong>Workflow left, properties right</strong> for its dedicated toolbar and properties panel.
+          For experimental tools, we recommend <strong>New UI: Split Workflow and Properties</strong> for its dedicated toolbar and properties panel.
         </p>}
         <p className="mt-3 text-xs text-muted-foreground">Off by default. Loading a project that uses experimental features enables them and shows a notification. Saved for this browser; turning it off hides the tools without changing existing designs or links.</p>
       </div>

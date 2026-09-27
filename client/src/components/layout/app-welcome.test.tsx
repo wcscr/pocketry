@@ -65,7 +65,7 @@ describe("new features welcome", () => {
   it("introduces the new layout and optional tools, with mobile feedback in the same dialog", async () => {
     await render();
     expect(dialog()?.textContent).toContain("New experimental tools and a new editor layout are available in Settings.");
-    expect(dialog()?.textContent).toContain("Workflow left, properties right");
+    expect(dialog()?.textContent).toContain("New UI: Split Workflow and Properties");
     expect(dialog()?.textContent).toContain("The mobile interface is still being refined.");
     expect(document.activeElement?.textContent).toBe("Welcome to Pocketry");
     expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(1);

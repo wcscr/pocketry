@@ -15,10 +15,10 @@ npm exec -- vite --host 127.0.0.1 --port 5187 --strictPort
 Open `http://127.0.0.1:5187/bin?layout=workflow`, or choose a layout under
 **Settings → Bin editor layout**:
 
-- **Controls on the left** (`?layout=standard`): the original combined panel,
+- **Original: All Controls on Left** (`?layout=standard`): the original combined panel,
   the default, with Hide controls at its top right and a narrow, full-height restore strip
   beside the canvas.
-- **Workflow left, properties right** (`?layout=workflow`): every workflow section
+- **New UI: Split Workflow and Properties** (`?layout=workflow`): every workflow section
   stays in order on the left; its property editor opens on the right. Pockets and
   Finger access retain their add actions and object lists on the left. The pinned,
   color-coded **Find a setting** shortcuts open settings directly or reveal the
@@ -29,7 +29,7 @@ Open `http://127.0.0.1:5187/bin?layout=workflow`, or choose a layout under
 The layout choice is saved for this browser and survives Trace,
 Bin, Library, About, and page refreshes. The preview link sets the preference once
 and removes its flag, preserving other query parameters and the URL fragment.
-Retired `?layout=objects` and `?inspector=1|0` links return to Controls on the left.
+Retired `?layout=objects` and `?inspector=1|0` links return to Original: All Controls on Left.
 Saved object-tree and legacy inspector preferences also fall back to this default.
 With browser storage blocked, the preference lasts until the tab reloads. The
 layout choice is independent of experimental tools. Move, Rotate, Arrange, Link,

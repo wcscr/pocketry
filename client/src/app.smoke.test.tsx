@@ -315,7 +315,7 @@ describe("App", () => {
       "Scale",
       "Region",
       "Margin",
-      "Export outline",
+      "Export Outline",
     ]) {
       expect(text).toContain(section);
     }

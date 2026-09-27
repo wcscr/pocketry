@@ -928,7 +928,7 @@ export function TraceControlsPanel({
 
         <PanelSection
           id="trace-settings-output"
-          title="Export outline"
+          title="Export Outline"
           icon={Download}
           tone="emerald"
           summary={exportFormat.toUpperCase()}
@@ -1043,7 +1043,7 @@ export function TraceControlsPanel({
             Save {exportFormat.toUpperCase()}{!scale.mmPerPx && exportFormat === "svg" ? " (pixels)" : ""}
           </Button>
         </div>
-        {hasOutline && !scale.mmPerPx && <p className="mt-2 text-xs text-muted-foreground">Set scale for STL, DXF or DWG. Choose SVG in Export to save image pixels without a physical size.</p>}
+        {hasOutline && !scale.mmPerPx && <p className="mt-2 text-xs text-muted-foreground">Set scale for STL, DXF or DWG. Choose SVG in Export Outline to save image pixels without a physical size.</p>}
       </PanelFooter>
     </div>
   );

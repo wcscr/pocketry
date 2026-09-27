@@ -32,7 +32,7 @@ export function TracePanelSections({ children }: { children: ReactNode }): JSX.E
         const { id, summary, disabled } = child.props;
         const step = TRACE_WORKFLOW_SECTIONS.find(item => item.id === id);
         if (!step) return null;
-        return <button key={id} type="button" data-testid={`trace-workflow-${step.label.toLowerCase()}`} data-property-tone={step.tone}
+        return <button key={id} type="button" data-testid={`trace-workflow-${step.label.toLowerCase().replace(/\s+/g, "-")}`} data-property-tone={step.tone}
           className="property-heading flex min-h-14 w-full items-start gap-2 border-b border-l-2 px-3 py-2 text-left hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring aria-[current=step]:border-l-4 aria-[current=step]:bg-accent/60 disabled:cursor-not-allowed disabled:opacity-40"
           aria-label={`${index + 1}. ${step.label}${complete[index] ? " (complete)" : ""}`} aria-current={inspector.activeSection === id ? "step" : undefined}
           aria-controls="objects-panel" disabled={disabled} onClick={() => inspector.showSection(step.id)}>

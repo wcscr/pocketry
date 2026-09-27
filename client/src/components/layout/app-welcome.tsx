@@ -69,7 +69,7 @@ export function AppWelcome(): JSX.Element {
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3 text-sm">
-          <p><strong>New layout:</strong> Choose “Workflow left, properties right” for photo tracing and bin design.</p>
+          <p><strong>New layout:</strong> Choose “New UI: Split Workflow and Properties” for photo tracing and bin design.</p>
           <p><strong>Experimental features:</strong> Try pocket tilt, 3D move and rotate, multi-selection, and linked designs.</p>
           {isMobile && <p className="border-t pt-3 text-xs text-muted-foreground">
             The mobile interface is still being refined.{" "}

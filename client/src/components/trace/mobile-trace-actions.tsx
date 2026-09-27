@@ -96,7 +96,7 @@ export function MobileTraceActions({ onChoosePhoto, onAddToBin, onStartOver, onO
       <TraceDetectionControls compact onReprocess={onReprocess} />
       <div className="mt-1 grid grid-cols-2 gap-1">
         <Button variant="ghost" className="h-11" onClick={() => openFullSettings("trace-settings-margin")}>Margin</Button>
-        <Button variant="ghost" className="h-11" onClick={() => openFullSettings("trace-settings-output")}>Export outline</Button>
+        <Button variant="ghost" className="h-11" onClick={() => openFullSettings("trace-settings-output")}>Export Outline</Button>
       </div>
     </MobileAdjustmentTray>}
     {step === "region" && <div className="mb-2"><TracePhotoBoundsControl /></div>}
