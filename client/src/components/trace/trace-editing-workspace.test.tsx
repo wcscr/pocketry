@@ -26,10 +26,10 @@ function Canvas(): JSX.Element {
   React.useEffect(() => { canvasMounts += 1; }, []);
   return <div data-testid="trace-canvas-sentinel" />;
 }
-function Harness(): JSX.Element {
+function Harness({ enabled = true }: { enabled?: boolean }): JSX.Element {
   trace = useTrace();
   const [panelOpen, setPanelOpen] = React.useState(true);
-  return <TraceEditingWorkspace enabled autoSaveId="test-trace" panelOpen={panelOpen} onPanelOpenChange={setPanelOpen}
+  return <TraceEditingWorkspace enabled={enabled} autoSaveId="test-trace" panelOpen={panelOpen} onPanelOpenChange={setPanelOpen}
     panel={<TraceControlsPanel active onReplaceImage={() => {}} onRotateImage={() => {}} onExport={exportTrace}
       onReprocess={reprocess} onDetectMarkers={() => {}} onApplyPerspective={() => {}} />}
     canvas={<Canvas />} />;
@@ -95,6 +95,13 @@ describe("trace workflow and properties", () => {
     await act(() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
     expect(right.querySelector("#ruler-length")).toBeNull();
     expect(canvasMounts).toBe(1);
+  });
+
+  it("keeps the guided Scale step while a new photo finishes decoding", async () => {
+    await act(() => trace.dispatch({ type: "SOURCE_LOADED", imageUrl: "photo", fileName: "Manual photo" }));
+    await act(() => trace.dispatch({ type: "SOURCE_READY", imageSize: { width: 800, height: 600 } }));
+    expect(button("trace-workflow-scale").getAttribute("aria-current")).toBe("step");
+    expect(host.querySelector("#objects-panel #ruler-length")).not.toBeNull();
   });
 
   it("requires explicit auto-scale acceptance before advancing to region and outline", async () => {
@@ -168,6 +175,47 @@ describe("trace workflow and properties", () => {
     });
     expect(host.querySelector("#objects-panel")!.hasAttribute("hidden")).toBe(false);
     expect(document.activeElement?.id).toBe("ruler-length");
+  });
+
+  it("returns to correction settings after four page corners on a compact canvas", async () => {
+    await loadPhoto();
+    await act(() => {
+      Object.defineProperty(window, "innerWidth", { configurable: true, value: 900 });
+      window.dispatchEvent(new Event("resize"));
+    });
+    await act(() => button("button-select-perspective-points").click());
+    expect(host.querySelector("#objects-panel")!.hasAttribute("hidden")).toBe(true);
+    for (const point of [{ x: 10, y: 10 }, { x: 500, y: 10 }, { x: 500, y: 400 }, { x: 10, y: 400 }]) {
+      await act(() => trace.dispatch({ type: "ADD_PERSPECTIVE_POINT", point }));
+    }
+    expect(trace.mode).toBe("pan");
+    expect(host.querySelector("#objects-panel")!.hasAttribute("hidden")).toBe(false);
+    expect(button("button-apply-manual-perspective")).not.toBeNull();
+  });
+
+  it("returns to an available step when clearing prerequisites", async () => {
+    await finishTrace();
+    await act(() => button("trace-workflow-margin").click());
+    await act(() => trace.dispatch({ type: "SET_REGION", region: null }));
+    expect(button("trace-workflow-region").getAttribute("aria-current")).toBe("step");
+    expect(host.querySelector("#objects-panel #margin")).toBeNull();
+    await act(() => trace.dispatch({ type: "SET_MODE", mode: "calibrate" }));
+    expect(button("trace-workflow-scale").getAttribute("aria-current")).toBe("step");
+  });
+
+  it("keeps paper selection when changing layouts and hides unavailable controls", async () => {
+    await loadPhoto();
+    await act(() => trace.dispatch({ type: "SET_PERSPECTIVE_PAPER", paper: "letter" }));
+    await act(() => root.render(<TooltipProvider><ShapeLibraryProvider><TraceProvider><Harness enabled={false} /></TraceProvider></ShapeLibraryProvider></TooltipProvider>));
+    expect(host.querySelector("#manual-perspective-paper")?.textContent).toContain("US Letter");
+    expect(host.querySelector("#include-interior-holes")).toBeNull();
+    expect(host.querySelector('[role="slider"][aria-label="Sensitivity"]')).toBeNull();
+    await act(() => trace.dispatch({ type: "SET_CALIBRATION", calibration }));
+    await act(() => {
+      trace.dispatch({ type: "SET_REGION", region: { x: 0, y: 0, width: 100, height: 100 } });
+      trace.dispatch({ type: "REGION_COMMITTED" });
+    });
+    expect(host.querySelector("#include-interior-holes")).not.toBeNull();
   });
 
   it("defaults to the paper and lets Region reveal the full corrected photo without losing edits", async () => {

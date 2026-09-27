@@ -145,6 +145,8 @@ export interface TraceState {
   pendingPerspective: PerspectiveProposal | null;
   /** Page corners placed manually in top-left clockwise order. */
   manualPerspectivePoints: Point[];
+  /** Paper choice survives responsive panel remounts while placing corners. */
+  manualPerspectivePaper: TemplatePaper | null;
   /** Original source retained so a correction remains reversible. */
   perspectiveOriginalImageUrl: string | null;
   /** Orientation of the retained source before perspective correction. */
@@ -204,6 +206,7 @@ export const initialTraceState: TraceState = {
   rulerLengthInput: "100",
   pendingPerspective: null,
   manualPerspectivePoints: [],
+  manualPerspectivePaper: null,
   perspectiveOriginalImageUrl: null,
   perspectiveOriginalImageRotation: null,
   perspectiveCorrection: null,
@@ -251,6 +254,8 @@ export type TraceAction =
   | { type: "SELECT_RING"; selection: RingRef | null }
   | { type: "SET_MODE"; mode: TraceMode }
   | { type: "SET_REGION"; region: Rect | null }
+  | { type: "REGION_PREVIEW"; region: Rect | null }
+  | { type: "SET_PERSPECTIVE_PAPER"; paper: TemplatePaper | null }
   /** A valid crop drag is complete; return to the normal pointer mode. */
   | { type: "REGION_COMMITTED" }
   | { type: "SET_PROCESSING"; processing: boolean }
@@ -688,6 +693,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         // accepted one. Invalidate both the old scale and any completed draft
         // when manual placement starts; repeat clicks on the active tool leave
         // the ruler currently being placed alone.
+        manualPerspectivePoints: startsCalibration ? [] : state.manualPerspectivePoints,
         calibration: startsCalibration ? null : state.calibration,
         calibrationSource: startsCalibration ? null : state.calibrationSource,
         // Choosing a manual tool is an explicit rejection of the automatic
@@ -708,6 +714,13 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
               : null,
       };
     }
+
+    case "SET_PERSPECTIVE_PAPER":
+      return { ...state, manualPerspectivePaper: action.paper };
+
+    case "REGION_PREVIEW":
+      // A cancelled gesture restores its previous rectangle without clearing edits.
+      return { ...state, region: action.region };
 
     case "SET_REGION":
       if (action.region !== null) return { ...state, region: action.region };

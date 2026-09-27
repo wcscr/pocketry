@@ -51,6 +51,7 @@ export const traceDraftSchema = z.object({
     draftCalibration: z.object(calibrationFields).partial().nullable(),
     rulerLengthMm: finite.positive(), rulerLengthInput: z.string().max(200),
     pendingPerspective: perspective.nullable(), manualPerspectivePoints: z.array(vec2Schema).max(4),
+    manualPerspectivePaper: paper.nullable().default(null),
     perspectiveOriginalImageUrl: imageUrl.nullable(), perspectiveOriginalImageRotation: rotation.nullable(),
     perspectiveCorrection: z.object({
       source: z.enum(["template", "manual"]), paper, template: template.optional(),

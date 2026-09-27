@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Cancelled region selections and contour drags preserve edits and undo history. Trace tools respect scale prerequisites, and completing manual page corners returns to correction settings on compact screens.
+
 - Photo tracing now follows the workflow layout preference, with guided steps on the left and the selected step’s settings on the right and a separate optional Margin section. Secondary guidance is available through hover, focus, or tap hints, and shape and hole delete buttons stay visible in the contour list.
 - Perspective correction starts cropped to the calibration paper; Show full corrected photo in Region reveals larger tools beyond the sheet while keeping their calibrated scale and edits.
 

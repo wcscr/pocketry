@@ -222,13 +222,14 @@ export function TraceControlsPanel({
   };
   // The template marker family identifies paper automatically. A markerless
   // four-corner fallback still needs the printed paper's dimensions.
-  const [perspectivePaper, setPerspectivePaper] =
-    useState<TemplatePaper | null>(null);
+  const perspectivePaper = store.manualPerspectivePaper;
+  const setPerspectivePaper = (paper: TemplatePaper) => dispatch({ type: "SET_PERSPECTIVE_PAPER", paper });
   const previousSourceRevision = useRef(sourceRevision);
   const previousScaleComplete = useRef(scale.mmPerPx !== null);
   const previousAutoPending = useRef(pendingAutoCalibration !== null);
   const previousManualRulerPending = useRef(manualRulerPending);
   const previousMode = useRef(store.mode);
+  const previousPerspectiveCount = useRef(manualPerspectivePoints.length);
   const focusWhenReady = useRef<
     "scale" | "auto" | "ruler" | "length" | "region" | "detection" | null
   >(null);
@@ -312,6 +313,17 @@ export function TraceControlsPanel({
     focusWhenReady.current = "length";
     setSectionEpoch((epoch) => epoch + 1);
   }, [manualRulerPending]);
+
+  // The fourth corner ends canvas selection. Bring its review/apply controls
+  // back into view, including when a compact inspector was hidden for drawing.
+  useEffect(() => {
+    const completed = previousPerspectiveCount.current < 4 && manualPerspectivePoints.length === 4;
+    previousPerspectiveCount.current = manualPerspectivePoints.length;
+    if (!completed) return;
+    guideTo("scale");
+    focusWhenReady.current = "scale";
+    setSectionEpoch(epoch => epoch + 1);
+  }, [manualPerspectivePoints.length]);
 
   // A usable manual scale advances only after reference-length confirmation.
   // An automatically detected scale is likewise incomplete until accepted.

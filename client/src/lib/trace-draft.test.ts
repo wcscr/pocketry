@@ -48,6 +48,17 @@ describe("browser-local Trace recovery", () => {
     expect(traceReducer(restored, { type: "UNDO" }).outline).toEqual([]);
   });
 
+  it("restores manual paper selection and accepts older drafts without it", async () => {
+    const state = traceReducer(calibrated(), { type: "SET_PERSPECTIVE_PAPER", paper: "letter" });
+    await saveTraceDraft(traceDraftSnapshot(state));
+    expect((await loadTraceDraft())!.state.manualPerspectivePaper).toBe("letter");
+    const snapshot = traceDraftSnapshot(state)!;
+    const { manualPerspectivePaper: _paper, ...legacy } = snapshot.state;
+    const restored = traceReducer(initialTraceState, { type: "TRACE_DRAFT_RESTORED", draft: traceDraftSchema.parse({ ...snapshot, state: legacy }) });
+    expect(restored.manualPerspectivePaper).toBeNull();
+    expect(restored.outline).toEqual(state.outline);
+  });
+
   it("retains invalid unconfirmed ruler text without replacing the accepted calibration", async () => {
     const state = traceReducer(calibrated(), { type: "SET_RULER_LENGTH_INPUT", value: "" });
     await saveTraceDraft(traceDraftSnapshot(state));

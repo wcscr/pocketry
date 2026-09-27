@@ -1,4 +1,4 @@
-import { Children, isValidElement, type ReactNode } from "react";
+import { Children, cloneElement, isValidElement, useEffect, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronRight } from "lucide-react";
 import { PanelBody, type PanelSectionProps } from "@/components/layout/panel-section";
@@ -11,8 +11,17 @@ import { TRACE_WORKFLOW_SECTIONS } from "./trace-workflow";
 export function TracePanelSections({ children }: { children: ReactNode }): JSX.Element {
   const inspector = useTraceInspector();
   const trace = useTrace();
-  if (!inspector) return <PanelBody className="[overflow-anchor:none]">{children}</PanelBody>;
   const sections = Children.toArray(children).filter(child => isValidElement<PanelSectionProps>(child));
+  const selectedIndex = sections.findIndex(child => child.props.id === inspector?.activeSection);
+  // Preserve the guided destination while a replacement photo is decoding.
+  const sourceReady = !trace.imageUrl || trace.imageSize.width > 0;
+  const fallback = sourceReady && selectedIndex >= 0 && sections[selectedIndex].props.disabled
+    ? sections.slice(0, selectedIndex).reverse().find(child => !child.props.disabled)?.props.id : undefined;
+  const showSection = inspector?.showSection;
+  useEffect(() => { if (fallback) showSection?.(fallback, false); }, [fallback, showSection]);
+  if (!inspector) return <PanelBody className="[overflow-anchor:none]">
+    {sections.map(child => child.props.disabled ? cloneElement(child, { children: null }) : child)}
+  </PanelBody>;
   const complete = [!!trace.imageSize.width, !!trace.calibration && !trace.pendingAutoCalibration,
     !!trace.region && trace.region.width > 5 && trace.region.height > 5, !!trace.outline.length, false, false];
   const active = TRACE_WORKFLOW_SECTIONS.find(section => section.id === inspector.activeSection);
@@ -36,7 +45,7 @@ export function TracePanelSections({ children }: { children: ReactNode }): JSX.E
         </button>;
       })}
     </nav>
-    {inspector.settings && active && createPortal(sections.filter(child => child.props.id === active.id).map(child =>
+    {inspector.settings && active && createPortal(sections.filter(child => child.props.id === active.id && !child.props.disabled).map(child =>
       <PropertySurface id={active.id} key={active.id} tone={active.tone} className="m-3" tabIndex={-1} aria-label={`${active.label} properties`}>
         {child.props.children}
       </PropertySurface>), inspector.settings)}

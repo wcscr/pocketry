@@ -231,6 +231,62 @@ afterEach(() => {
 });
 
 describe("TraceCanvas edit history", () => {
+  it.each(["click", "tiny", "cancel", "escape", "commit"])("preserves edited geometry through region %s", async gesture => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+    vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
+    const restore = installIdentitySvgCoordinates();
+    const host = document.createElement("div"); document.body.append(host);
+    const root = createRoot(host);
+    let trace: TraceStore;
+    function Probe() { trace = useTrace(); return null; }
+    const reprocess = vi.fn();
+    try {
+      await React.act(async () => root.render(<TraceProvider><SeedTrace /><Probe /><TooltipProvider><TraceCanvas onReprocess={reprocess} /></TooltipProvider></TraceProvider>));
+      const before = trace!;
+      const svg = host.querySelector("svg")!;
+      Object.defineProperty(svg, "setPointerCapture", { value: () => {} });
+      const pointer = (type: string, x: number, y: number) => React.act(() => svg.dispatchEvent(new MouseEvent(type, { bubbles: true, button: 0, clientX: x, clientY: y })));
+      React.act(() => trace.dispatch({ type: "SET_MODE", mode: "region" }));
+      pointer("pointerdown", 20, 20);
+      if (gesture !== "click") pointer("pointermove", gesture === "tiny" ? 22 : 70, 70);
+      if (gesture === "escape") React.act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+      pointer(gesture === "cancel" ? "pointercancel" : "pointerup", 70, 70);
+      expect(trace!.outline).toBe(before.outline);
+      expect(trace!.history).toBe(before.history);
+      expect(trace!.region).toEqual(gesture === "commit" ? { x: 20, y: 20, width: 50, height: 50 } : before.region);
+      expect(reprocess).toHaveBeenCalledTimes(gesture === "commit" ? 1 : 0);
+      React.act(() => trace.undo());
+      expect(trace!.outline).toEqual(detected);
+    } finally { React.act(() => root.unmount()); restore(); }
+  });
+
+  it.each([false, true])("blocks region drawing until scale is accepted (pending: %s)", async pending => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+    vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
+    const restore = installIdentitySvgCoordinates();
+    const host = document.createElement("div"); document.body.append(host);
+    const root = createRoot(host);
+    let trace: TraceStore;
+    function Probe() { trace = useTrace(); return null; }
+    try {
+      await React.act(async () => root.render(<TraceProvider><Probe /><TooltipProvider><TraceCanvas onReprocess={() => {}} /></TooltipProvider></TraceProvider>));
+      React.act(() => {
+        trace.dispatch({ type: "SOURCE_LOADED", imageUrl: "photo", fileName: "tool" });
+        trace.dispatch({ type: "SOURCE_READY", imageSize: { width: 100, height: 100 } });
+        if (pending) trace.dispatch({ type: "AUTO_CALIBRATION_DETECTED", sourceImageUrl: "photo", calibration: { startX: 0, startY: 0, endX: 100, endY: 0, lengthMm: 50 } });
+        trace.dispatch({ type: "SET_MODE", mode: "region" });
+      });
+      const regionButton = host.querySelector<HTMLButtonElement>('[aria-label="Region"]')!;
+      expect(regionButton.disabled).toBe(true);
+      const svg = host.querySelector("svg")!;
+      Object.defineProperty(svg, "setPointerCapture", { value: () => {} });
+      React.act(() => svg.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, button: 0, clientX: 20, clientY: 20 })));
+      expect(trace!.region).toBeNull();
+    } finally { React.act(() => root.unmount()); restore(); }
+  });
+
   it("clips to the paper by default and reveals the same corrected image when toggled", async () => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     vi.stubGlobal("ResizeObserver", NoopResizeObserver);
@@ -1002,6 +1058,11 @@ describe("desktop point focus", () => {
       expect(host.querySelector('[data-point-selected]')).not.toBeNull();
       React.act(() => trace!.undo());
       expect(trace!.outline).toEqual(edited);
+      React.act(() => trace!.dispatch({ type: "SELECT_RING", selection: { shapeIndex: 0, ringIndex: -1 } }));
+      const beforeCancel = trace!.history;
+      pointer('pointerdown', 10, 10); pointer('pointermove', 30, 30); pointer('pointercancel', 30, 30);
+      expect(trace!.outline).toEqual(edited);
+      expect(trace!.history).toBe(beforeCancel);
       expect(remove()).toBeUndefined();
       React.act(() => trace!.dispatch({ type: "SELECT_RING", selection: { shapeIndex: 0, ringIndex: -1 } }));
       pointer('pointerdown', 10, 10); pointer('pointerup', 10, 10);

@@ -28,7 +28,7 @@ import {
   hasCalibrationEndpoints,
   mmPerPixel,
 } from "@shared/geometry/scale";
-import { OUTER_RING, type Point, type Rect, type RingRef } from "@shared/geometry/types";
+import { OUTER_RING, type Outline, type Point, type Rect, type RingRef } from "@shared/geometry/types";
 
 import {
   CanvasViewport,
@@ -274,8 +274,8 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
 
   // What the current drag is doing, if anything.
   const dragRef = useRef<
-    | { kind: "region"; origin: Point }
-    | { kind: "vertex"; ref: RingRef; index: number; origin: Point; moved: boolean }
+    | { kind: "region"; origin: Point; previousRegion: Rect | null }
+    | { kind: "vertex"; ref: RingRef; index: number; origin: Point; moved: boolean; originalOutline: Outline }
     | { kind: "ruler"; end: "start" | "end" }
     | { kind: "perspective"; index: number }
     | null
@@ -286,6 +286,19 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
   // the start of a (failed) drag.
   const clickRef = useRef<{ clientX: number; clientY: number } | null>(null);
   const CLICK_SLOP_PX = 4;
+  const canSelectRegion = measurementMmPerPx !== null && !pendingAutoCalibration;
+
+  useEffect(() => {
+    const cancelRegion = (event: KeyboardEvent) => {
+      const drag = dragRef.current;
+      if (event.key !== "Escape" || drag?.kind !== "region" || !canHandleCanvasShortcut(event)) return;
+      event.preventDefault();
+      dragRef.current = null;
+      dispatch({ type: "REGION_PREVIEW", region: drag.previousRegion });
+    };
+    window.addEventListener("keydown", cancelRegion);
+    return () => window.removeEventListener("keydown", cancelRegion);
+  }, [dispatch]);
 
   useEffect(() => {
     // Pointer previews and active drags belong to the previous image frame;
@@ -296,7 +309,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
     setMeasurement(null);
     setMeasurementPointer(null);
     setPerspectivePointer(null);
-  }, [imageRotation]);
+  }, [imageRotation, store.sourceRevision]);
 
   /**
    * The vertex currently under the cursor, on the selected ring. Feedback
@@ -454,13 +467,14 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
     }
 
     if (mode === "region" && event.button === 0) {
+      if (!canSelectRegion) return;
       const origin = imageCrop ? {
         x: Math.max(imageCrop.x, Math.min(imageCrop.x + imageCrop.width, image.x)),
         y: Math.max(imageCrop.y, Math.min(imageCrop.y + imageCrop.height, image.y)),
       } : image;
-      dragRef.current = { kind: "region", origin };
+      dragRef.current = { kind: "region", origin, previousRegion: region };
       dispatch({
-        type: "SET_REGION",
+        type: "REGION_PREVIEW",
         region: { x: origin.x, y: origin.y, width: 0, height: 0 },
       });
       event.currentTarget.setPointerCapture(event.pointerId);
@@ -512,7 +526,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
       const vertex = nearestVertex(outline, image, pointerPickRadius, selection);
       if (vertex) {
         dragRef.current = { kind: "vertex", ref: vertex.ref, index: vertex.index,
-          origin: { x: event.clientX, y: event.clientY }, moved: false };
+          origin: { x: event.clientX, y: event.clientY }, moved: false, originalOutline: outline };
         desktopPoint.select(vertex.ref, vertex.index, getRing(outline, vertex.ref)![vertex.index], true);
         dispatch({ type: "SELECT_RING", selection: vertex.ref });
         event.currentTarget.setPointerCapture(event.pointerId);
@@ -559,7 +573,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
       const vertex = nearestVertex(outline, image, pointerPickRadius, selection);
       if (vertex) {
         dragRef.current = { kind: "vertex", ref: vertex.ref, index: vertex.index,
-          origin: { x: event.clientX, y: event.clientY }, moved: false };
+          origin: { x: event.clientX, y: event.clientY }, moved: false, originalOutline: outline };
         desktopPoint.select(vertex.ref, vertex.index, getRing(outline, vertex.ref)![vertex.index], true);
         event.currentTarget.setPointerCapture(event.pointerId);
         return;
@@ -623,7 +637,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
 
     if (drag.kind === "region") {
       dispatch({
-        type: "SET_REGION",
+        type: "REGION_PREVIEW",
         region: rectFromPoints(drag.origin, image, imageCrop ?? imageSize),
       });
       return;
@@ -681,7 +695,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
 
     if (!drag) {
       // A click that survived without becoming a drag edits the contour.
-      if (click && event.button === 0) {
+      if (click && event.type !== "pointercancel" && event.button === 0) {
         const image = toImage(event.clientX, event.clientY);
         if (image && handleContourClick(image)) return;
       }
@@ -691,14 +705,20 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
 
     if (drag.kind === "region") {
       // A stray click should not commit a degenerate crop.
-      if (region && region.width > 5 && region.height > 5) {
+      if (event.type !== "pointercancel" && region && region.width > 5 && region.height > 5) {
         dispatch({ type: "REGION_COMMITTED" });
         onReprocess();
         // Framing what was just cropped is the whole point of cropping.
         viewport.fitToRect(region);
       } else {
-        dispatch({ type: "SET_REGION", region: null });
+        dispatch({ type: "REGION_PREVIEW", region: drag.previousRegion });
       }
+      return;
+    }
+
+    if (drag.kind === "vertex" && event.type === "pointercancel") {
+      dispatch({ type: "OUTLINE_DRAGGING", outline: drag.originalOutline });
+      desktopPoint.clear();
       return;
     }
 
@@ -847,13 +867,13 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
               <ModeButton mode="navigate" icon={Hand} label="Pan photo" />
               {mode === "measure" ? <ModeButton mode="measure" icon={Ruler} label="Measure distance" />
                 : !calibration || mode === "calibrate" || mode === "perspective" ? <ModeButton mode="calibrate" icon={Scaling} label="Set scale" />
-                : mode === "region" || outline.length === 0 ? <ModeButton mode="region" icon={Crop} label="Region" />
+                : mode === "region" || outline.length === 0 ? <ModeButton mode="region" icon={Crop} label="Region" disabled={!canSelectRegion} />
                 : <ModeButton mode="edit" icon={Spline} label="Edit contours" onSelect={focusContour} />}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-11 w-11" aria-label="More trace tools"><Ellipsis className="h-4 w-4" /></Button></DropdownMenuTrigger>
                 <DropdownMenuContent align="start">
                   {([
-                    { mode: "region", label: "Region", icon: Crop, disabled: false },
+                    { mode: "region", label: "Region", icon: Crop, disabled: !canSelectRegion },
                     { mode: "edit", label: "Edit contours", icon: Spline, disabled: outline.length === 0 },
                     { mode: "calibrate", label: "Set scale", icon: Scaling, disabled: false },
                     { mode: "measure", label: "Measure distance", icon: Ruler, disabled: measurementMmPerPx === null },
@@ -864,7 +884,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
             </> : <>
               <ModeButton mode="pan" icon={MousePointer2} label="Select" />
               <ModeButton mode="navigate" icon={Hand} label="Pan photo" />
-              <ModeButton mode="region" icon={Crop} label="Region" />
+              <ModeButton mode="region" icon={Crop} label="Region" disabled={!canSelectRegion} />
               <ModeButton mode="edit" icon={Spline} label="Edit contours" disabled={outline.length === 0} />
               <ModeButton mode="calibrate" icon={Scaling} label="Set scale" />
               <ModeButton mode="measure" icon={Ruler} label="Measure distance" disabled={measurementMmPerPx === null} />

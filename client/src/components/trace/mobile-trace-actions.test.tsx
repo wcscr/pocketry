@@ -81,6 +81,22 @@ describe("Mobile trace progression", () => {
     expect(openSettings).not.toHaveBeenCalled();
   });
 
+  it.each([false, true])("keeps completed corners available for review (existing scale: %s)", existingScale => {
+    load();
+    if (existingScale) React.act(() => trace.dispatch({ type: "SET_CALIBRATION", calibration }));
+    React.act(() => trace.dispatch({ type: "START_PERSPECTIVE_SELECTION" }));
+    for (const point of [{ x: 10, y: 10 }, { x: 500, y: 10 }, { x: 500, y: 400 }, { x: 10, y: 400 }]) {
+      React.act(() => trace.dispatch({ type: "ADD_PERSPECTIVE_POINT", point }));
+    }
+    React.act(() => button("Review corners").click());
+    expect(openSettings).toHaveBeenCalledWith("trace-settings-scale");
+    expect(trace.manualPerspectivePoints).toHaveLength(4);
+    expect(trace.mode).toBe("pan");
+    React.act(() => trace.dispatch({ type: "SET_MODE", mode: "calibrate" }));
+    expect(trace.manualPerspectivePoints).toHaveLength(0);
+    expect(button("Set scale")).toBeDefined();
+  });
+
   it("confirms Start over and keeps the trace untouched when cancelled", () => {
     readyOutline();
     const outline = trace.outline;
@@ -117,6 +133,13 @@ describe("Mobile trace progression", () => {
     expect(trace.outline).toBe(edited);
     expect(openSettings).not.toHaveBeenCalled();
   });
+  it("opens Region settings from Adjust while drawing the crop", () => {
+    load();
+    React.act(() => trace.dispatch({ type: "SET_CALIBRATION", calibration }));
+    React.act(() => button("Adjust").click());
+    expect(openSettings).toHaveBeenCalledWith("trace-settings-crop");
+  });
+
   it("offers photo selection before any controls are needed", () => {
     React.act(() => button("Choose a photo").click());
     expect(choosePhoto).toHaveBeenCalledOnce();
