@@ -4,7 +4,8 @@ import { mmPerPixel, type Calibration } from "@shared/geometry/scale";
 import type { Rect } from "@shared/geometry/types";
 
 import { usePanelState } from "@/components/layout/panel-context";
-import { WorkspaceLayout } from "@/components/layout/workspace-layout";
+import { TraceEditingWorkspace } from "@/components/trace/trace-editing-workspace";
+import { useExperimentalFeatures } from "@/state/experimental-features";
 import { TraceHandoffDialog } from "@/components/trace/trace-handoff-dialog";
 import { MobileTraceActions } from "@/components/trace/mobile-trace-actions";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -96,6 +97,8 @@ function TraceWorkspace(): JSX.Element {
   const { toast } = useToast();
   const { panelOpen, setPanelOpen } = usePanelState();
   const isMobile = useIsMobile();
+  const { inspectorEnabled } = useExperimentalFeatures();
+  const workflowLayout = inspectorEnabled && !isMobile;
   const [handoffOpen, setHandoffOpen] = useState(false);
   const [settingsSectionRequest, setSettingsSectionRequest] = useState<{ id: string }>();
   const openSettings = (id: string) => {
@@ -464,6 +467,8 @@ function TraceWorkspace(): JSX.Element {
           sourceImageUrl: frame.sourceImageUrl,
           imageUrl,
           imageSize: { width: corrected.width, height: corrected.height },
+          paperBounds: corrected.paperBounds,
+          fullPhotoUnavailableReason: corrected.fullPhotoUnavailableReason,
           calibration: usePaperScale === false ? null : corrected.calibration,
           calibrationSource: typeof usePaperScale === "object" ? "strip" : "sheet",
           source: proposal.source,
@@ -693,7 +698,8 @@ function TraceWorkspace(): JSX.Element {
         onChange={(event) => { const file = event.target.files?.[0]; if (file) void handleFileSelected(file); event.target.value = ""; }} />
       {handoffOpen && <TraceHandoffDialog onClose={() => setHandoffOpen(false)}
         onChoosePhoto={() => photoInputRef.current?.click()} onCanvasInteraction={showCanvas} />}
-      <WorkspaceLayout
+      <TraceEditingWorkspace
+        enabled={workflowLayout}
         autoSaveId="tooltrace:trace"
         panelOpen={panelOpen}
         onPanelOpenChange={setPanelOpen}
@@ -710,7 +716,7 @@ function TraceWorkspace(): JSX.Element {
         />}
         panel={
           <TraceControlsPanel
-            active={panelOpen}
+            active={workflowLayout || panelOpen}
             settingsSectionRequest={settingsSectionRequest}
             onCanvasInteraction={showCanvas}
             onReplaceImage={() => photoInputRef.current?.click()}

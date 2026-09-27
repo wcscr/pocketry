@@ -154,6 +154,10 @@ export interface TraceState {
     source: PerspectiveSource;
     paper: TemplatePaper;
     template?: TemplateVariant;
+    /** Presentation-only crop in the corrected image's coordinate system. */
+    paperBounds?: Rect;
+    showFullPhoto?: boolean;
+    fullPhotoUnavailableReason?: string;
   } | null;
 
   region: Rect | null;
@@ -288,7 +292,10 @@ export type TraceAction =
       source: PerspectiveSource;
       paper: TemplatePaper;
       template?: TemplateVariant;
+      paperBounds?: Rect;
+      fullPhotoUnavailableReason?: string;
     }
+  | { type: "SET_SHOW_FULL_PHOTO"; show: boolean }
   | { type: "RESTORE_PERSPECTIVE_SOURCE" }
   | { type: "SET_EXPORT_FORMAT"; exportFormat: ExportFormat }
   | { type: "SET_EXTRUSION_HEIGHT"; extrusionHeight: number };
@@ -440,6 +447,10 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         ...state,
         imageSize,
         imageRotation,
+        perspectiveCorrection: state.perspectiveCorrection?.paperBounds ? {
+          ...state.perspectiveCorrection,
+          paperBounds: rotateImageRect(state.perspectiveCorrection.paperBounds, state.imageSize, imageSize, action.direction),
+        } : state.perspectiveCorrection,
         outline: rotateImageOutline(
           state.outline,
           state.imageSize,
@@ -904,11 +915,17 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
           source: action.source,
           paper: action.paper,
           ...(action.template ? { template: action.template } : {}),
+          ...(action.paperBounds ? { paperBounds: action.paperBounds, showFullPhoto: false } : {}),
+          ...(action.fullPhotoUnavailableReason ? { fullPhotoUnavailableReason: action.fullPhotoUnavailableReason } : {}),
         },
         mode: action.calibration ? "region" : "calibrate",
         exportFormat: state.exportFormat,
         extrusionHeight: state.extrusionHeight,
       };
+
+    case "SET_SHOW_FULL_PHOTO":
+      if (!state.perspectiveCorrection?.paperBounds) return state;
+      return { ...state, perspectiveCorrection: { ...state.perspectiveCorrection, showFullPhoto: action.show } };
 
     case "RESTORE_PERSPECTIVE_SOURCE":
       if (!state.perspectiveOriginalImageUrl) return state;

@@ -1,5 +1,6 @@
 import {
   memo,
+  useId,
   useEffect,
   useMemo,
   useRef,
@@ -32,6 +33,8 @@ export interface TraceSceneProps {
   imageUrl: string;
   imageSize: { width: number; height: number };
   imageRotation?: ImageQuarterTurns;
+  /** Visible crop only; every image and overlay retains full-photo coordinates. */
+  imageCrop?: Rect | null;
   transform: SceneTransform;
   outline: Outline;
   selection: RingRef | null;
@@ -120,6 +123,7 @@ export function TraceScene({
   imageUrl,
   imageSize,
   imageRotation = 0,
+  imageCrop = null,
   transform,
   outline,
   selection,
@@ -151,6 +155,7 @@ export function TraceScene({
   sceneId,
   cursor,
 }: TraceSceneProps): JSX.Element {
+  const cropId = useId();
   const { scale, translateX, translateY } = transform;
   const inv = scale > 0 ? 1 / scale : 1;
 
@@ -174,7 +179,11 @@ export function TraceScene({
       onPointerLeave={onPointerLeave}
       onContextMenu={onContextMenu}
     >
+      {imageCrop && <defs><clipPath id={cropId} clipPathUnits="userSpaceOnUse">
+        <rect {...imageCrop} data-testid="trace-paper-crop" />
+      </clipPath></defs>}
       <g
+        clipPath={imageCrop ? `url(#${cropId})` : undefined}
         ref={sceneRef}
         id={sceneId}
         transform={`translate(${translateX} ${translateY}) scale(${scale})`}

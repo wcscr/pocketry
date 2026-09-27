@@ -7,7 +7,7 @@ import { POCKETRY_ARUCO_BITS } from "./aruco-4x4";
 import { createPocketryTemplateDictionary, detectReferenceStripMarkers } from "./detect";
 import { REFERENCE_STRIP, referenceStripMarkers } from "./reference-strip";
 import { solveReferenceStrip } from "./solve-reference-strip";
-import { runPerspectiveCorrection } from "./perspective";
+import { perspectiveLayout, runPerspectiveCorrection } from "./perspective";
 import { referenceStripPdf } from "./reference-strip-pdf";
 import { PDF_POINTS_PER_MM } from "./template-pdf";
 import { TEMPLATE_PAPER_MM, templateMarkerCentersMm, templateMarkerSizeMm, type TemplateVariant } from "./template";
@@ -183,7 +183,10 @@ describe("object reference strip", () => {
     expect(result.solution.mmPerPx).toBeCloseTo(3 / 16, 2);
     const corrected = runPerspectiveCorrection(cv, image, result.sheet!.perspectiveProposal,
       sheet, undefined, result.calibration);
-    expect(mmPerPixel(corrected.calibration)).toBeCloseTo(result.solution.mmPerPx, 6);
+    const paperPxPerMm = perspectiveLayout(result.sheet!.perspectiveProposal, sheet).pxPerMm;
+    // Keeping the full photo can require a uniform downsample. The accepted
+    // physical aid scale must follow that same resize exactly.
+    expect(mmPerPixel(corrected.calibration)).toBeCloseTo(result.solution.mmPerPx * paperPxPerMm / corrected.pxPerMm, 6);
     expect(corrected.calibration.lengthMm).toBe(85);
   });
 

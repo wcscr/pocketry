@@ -137,6 +137,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
       (mode !== "calibrate" && hasCalibrationEndpoints(draftCalibration))
     );
   const measurementMmPerPx = mmPerPixel(calibration);
+  const imageCrop = store.perspectiveCorrection?.showFullPhoto ? null : store.perspectiveCorrection?.paperBounds ?? null;
 
   const handleRulerLengthCommit = useCallback(
     (lengthMm: number) => {
@@ -164,6 +165,11 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
     padding: containerSize.width < 768 ? 64 : 24,
     panEnabled: mode === "navigate",
   });
+
+  const { fit, fitToRect } = viewport;
+  const fitVisiblePhoto = useCallback(() => imageCrop ? fitToRect(imageCrop) : fit(), [imageCrop, fit, fitToRect]);
+  const viewportReady = containerSize.width > 0 && containerSize.height > 0;
+  useEffect(() => { if (viewportReady) fitVisiblePhoto(); }, [fitVisiblePhoto, viewportReady, imageSize.width, imageSize.height]);
 
   // Mirrors the hook's space tracking so the cursor can promise a pan before
   // the drag starts.
@@ -448,10 +454,14 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
     }
 
     if (mode === "region" && event.button === 0) {
-      dragRef.current = { kind: "region", origin: image };
+      const origin = imageCrop ? {
+        x: Math.max(imageCrop.x, Math.min(imageCrop.x + imageCrop.width, image.x)),
+        y: Math.max(imageCrop.y, Math.min(imageCrop.y + imageCrop.height, image.y)),
+      } : image;
+      dragRef.current = { kind: "region", origin };
       dispatch({
         type: "SET_REGION",
-        region: { x: image.x, y: image.y, width: 0, height: 0 },
+        region: { x: origin.x, y: origin.y, width: 0, height: 0 },
       });
       event.currentTarget.setPointerCapture(event.pointerId);
       return;
@@ -614,7 +624,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
     if (drag.kind === "region") {
       dispatch({
         type: "SET_REGION",
-        region: rectFromPoints(drag.origin, image, imageSize),
+        region: rectFromPoints(drag.origin, image, imageCrop ?? imageSize),
       });
       return;
     }
@@ -732,7 +742,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
   };
 
   useCanvasShortcuts({
-    fit: viewport.fit,
+    fit: fitVisiblePhoto,
     resetZoom: viewport.resetZoom,
     zoomIn: () => viewport.zoomBy(1.2),
     zoomOut: () => viewport.zoomBy(1 / 1.2),
@@ -770,6 +780,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
           imageUrl={imageUrl}
           imageSize={imageSize}
           imageRotation={imageRotation}
+          imageCrop={imageCrop}
           transform={viewport.transform}
           outline={outline}
           selection={selection}
@@ -930,7 +941,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
               label="Zoom in (+)"
               onClick={() => viewport.zoomBy(1.2)}
             />
-            <IconButton icon={Maximize2} label="Fit to screen (0)" onClick={viewport.fit} />
+            <IconButton icon={Maximize2} label="Fit to screen (0)" onClick={fitVisiblePhoto} />
           </CanvasToolbar>
 
           <CanvasToolbar position="bottom-left" className="max-w-[calc(100%-13rem)] max-md:hidden">
@@ -1043,12 +1054,14 @@ function IconButton({
 function rectFromPoints(
   a: Point,
   b: Point,
-  bounds: { width: number; height: number },
+  bounds: { x?: number; y?: number; width: number; height: number },
 ): Rect {
-  const x = Math.max(0, Math.min(a.x, b.x));
-  const y = Math.max(0, Math.min(a.y, b.y));
-  const right = Math.min(bounds.width, Math.max(a.x, b.x));
-  const bottom = Math.min(bounds.height, Math.max(a.y, b.y));
+  const left = bounds.x ?? 0;
+  const top = bounds.y ?? 0;
+  const x = Math.max(left, Math.min(a.x, b.x));
+  const y = Math.max(top, Math.min(a.y, b.y));
+  const right = Math.min(left + bounds.width, Math.max(a.x, b.x));
+  const bottom = Math.min(top + bounds.height, Math.max(a.y, b.y));
   return { x, y, width: Math.max(0, right - x), height: Math.max(0, bottom - y) };
 }
 

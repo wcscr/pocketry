@@ -52,9 +52,9 @@ export function InspectorWorkspace({ panel, canvas, inspector, panelOpen, onPane
         {showLeftRestore && <Button variant="ghost" className={cn(restoreClass, "col-start-1 border-r")}
           data-testid="left-panel-restore-rail" aria-label={`Expand ${panelTitle.toLowerCase()} panel`} title={`Show ${panelTitle.toLowerCase()} panel`} aria-controls="workflow-panel" aria-expanded={false} onClick={toggleLeft}><PanelLeftOpen className="h-4 w-4" /></Button>}
         <div className={cn("col-start-2 flex min-h-0 min-w-0 flex-col overflow-hidden", bottomSheet && rightVisible && "h-[40%]")}>
-          <div className="flex min-h-11 shrink-0 items-center gap-1 overflow-x-auto border-b bg-background px-1" aria-label="Editing tools">
+          {toolbar && <div className="flex min-h-11 shrink-0 items-center gap-1 overflow-x-auto border-b bg-background px-1" aria-label="Editing tools">
             {toolbar}
-          </div>
+          </div>}
           <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden" data-testid="inspector-workspace-canvas">
             {canvas}<div ref={setOverlayRoot} className="pointer-events-none absolute inset-0 z-30" />
           </div>

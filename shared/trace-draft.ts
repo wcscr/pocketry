@@ -52,7 +52,11 @@ export const traceDraftSchema = z.object({
     rulerLengthMm: finite.positive(), rulerLengthInput: z.string().max(200),
     pendingPerspective: perspective.nullable(), manualPerspectivePoints: z.array(vec2Schema).max(4),
     perspectiveOriginalImageUrl: imageUrl.nullable(), perspectiveOriginalImageRotation: rotation.nullable(),
-    perspectiveCorrection: z.object({ source: z.enum(["template", "manual"]), paper, template: template.optional() }).nullable(),
+    perspectiveCorrection: z.object({
+      source: z.enum(["template", "manual"]), paper, template: template.optional(),
+      paperBounds: z.object({ x: finite.nonnegative(), y: finite.nonnegative(), width: finite.positive(), height: finite.positive() }).optional(),
+      showFullPhoto: z.boolean().optional(), fullPhotoUnavailableReason: z.string().max(500).optional(),
+    }).nullable(),
     region: z.object({ x: finite, y: finite, width: finite.nonnegative(), height: finite.nonnegative() }).nullable(),
     mode: z.enum(["navigate", "remove", "pan", "region", "edit", "calibrate", "measure", "perspective"]),
     exportFormat: z.enum(["svg", "dxf", "dwg", "stl"]), extrusionHeight: finite.positive(),

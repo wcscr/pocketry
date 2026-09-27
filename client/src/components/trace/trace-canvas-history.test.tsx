@@ -6,10 +6,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Outline } from "@shared/geometry/types";
 import { mmPerPixel } from "@shared/geometry/scale";
 
-import { TraceProvider, useTrace } from "@/state/trace-store";
+import { TraceProvider, useTrace, type TraceStore } from "@/state/trace-store";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 import { TraceCanvas } from "./trace-canvas";
+import { TracePhotoBoundsControl } from "./trace-photo-bounds-control";
 
 class NoopResizeObserver implements ResizeObserver {
   observe() {}
@@ -230,6 +231,45 @@ afterEach(() => {
 });
 
 describe("TraceCanvas edit history", () => {
+  it("clips to the paper by default and reveals the same corrected image when toggled", async () => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+    vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const root = createRoot(host);
+    let trace: TraceStore;
+    function Probe() { trace = useTrace(); return <TracePhotoBoundsControl />; }
+    try {
+      await React.act(async () => root.render(<TraceProvider><Probe /><TooltipProvider><TraceCanvas onReprocess={() => {}} /></TooltipProvider></TraceProvider>));
+      await React.act(async () => {
+        trace.dispatch({ type: "SOURCE_LOADED", imageUrl: "original", fileName: "large-tool" });
+        trace.dispatch({ type: "SOURCE_READY", imageSize: { width: 1000, height: 800 } });
+        trace.dispatch({ type: "PERSPECTIVE_APPLIED", sourceImageUrl: "original", imageUrl: "corrected",
+          imageSize: { width: 1000, height: 800 }, paper: "a4", source: "template",
+          calibration: { startX: 200, startY: 100, endX: 410, endY: 100, lengthMm: 210 },
+          paperBounds: { x: 200, y: 100, width: 210, height: 297 } });
+      });
+      const crop = () => host.querySelector('[data-testid="trace-paper-crop"]');
+      expect(crop()?.getAttribute("x")).toBe("200");
+      expect(crop()?.getAttribute("width")).toBe("210");
+      const sourceImage = host.querySelector('[data-testid="trace-source-image"]');
+      const scale = trace!.calibration;
+      const toggle = host.querySelector<HTMLButtonElement>('[role="switch"]')!;
+      await React.act(async () => toggle.click());
+      expect(crop()).toBeNull();
+      expect(host.querySelector('[data-testid="trace-source-image"]')).toBe(sourceImage);
+      expect(trace!.calibration).toBe(scale);
+      await React.act(async () => toggle.click());
+      expect(crop()?.getAttribute("width")).toBe("210");
+      await React.act(async () => trace.dispatch({ type: "ROTATE_SOURCE", direction: "clockwise",
+        naturalSize: { width: 1000, height: 800 }, maxSize: { width: 1200, height: 1200 } }));
+      expect(crop()?.getAttribute("width")).toBe("297");
+      expect(crop()?.getAttribute("height")).toBe("210");
+      expect(trace!.perspectiveCorrection?.showFullPhoto).toBe(false);
+    } finally { React.act(() => root.unmount()); }
+  });
+
   it("leaves undo and zoom to dialogs, focused controls, and earlier handlers", async () => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     vi.stubGlobal("ResizeObserver", NoopResizeObserver);

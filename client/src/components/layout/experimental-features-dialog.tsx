@@ -12,12 +12,12 @@ export function ExperimentalFeaturesDialog(): JSX.Element {
         <DialogDescription>Choose which tools appear in Pocketry.</DialogDescription>
       </DialogHeader>
       <fieldset className="space-y-2">
-        <legend className="mb-2 text-sm font-semibold">Bin editor layout</legend>
+        <legend className="mb-2 text-sm font-semibold">Editor layout</legend>
         {EDITOR_LAYOUTS.map(layout => <label key={layout.value} className="flex min-h-14 cursor-pointer items-start gap-3 rounded-lg border p-3 has-[:checked]:border-primary has-[:checked]:bg-primary/5">
           <input type="radio" name="editor-layout" value={layout.value} checked={editorLayout === layout.value} onChange={() => setEditorLayout(layout.value)} className="mt-1 h-4 w-4 shrink-0 accent-primary" />
           <span><span className="block text-sm font-medium">{layout.label}</span><span className="mt-1 block text-xs text-muted-foreground">{layout.description}</span></span>
         </label>)}
-        <p className="text-xs text-muted-foreground">Saved for this browser across page changes and refreshes.</p>
+        <p className="text-xs text-muted-foreground">Applies to the bin editor and photo tracing. Phones keep compact tracing controls. Saved for this browser across page changes and refreshes.</p>
       </fieldset>
       <div className="rounded-lg border p-4">
         <div className="flex min-h-11 items-center justify-between gap-4">

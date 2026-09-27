@@ -1,5 +1,5 @@
 import { mmPerPixel, type Calibration } from "@shared/geometry/scale";
-import type { Point } from "@shared/geometry/types";
+import type { Point, Rect } from "@shared/geometry/types";
 
 import { loadOpenCV } from "@/lib/opencv";
 
@@ -14,6 +14,7 @@ import {
   type TemplateVariant,
 } from "./template";
 import type { DetectedMarker } from "./solve";
+import { photoPerspectiveLayout, PhotoPerspectiveBoundsError } from "./photo-perspective-layout";
 
 /** The four source points, ordered top-left, top-right, bottom-right, bottom-left. */
 export type PerspectiveQuad = [Point, Point, Point, Point];
@@ -45,15 +46,18 @@ export interface PerspectiveLayout {
 export interface PerspectiveCorrectionResult extends PerspectiveLayout {
   imageData: ImageData;
   calibration: Calibration;
+  /** Paper crop in the full corrected image, so revealing the photo keeps coordinates. */
+  paperBounds?: Rect;
+  /** A paper-only correction can still succeed when the full photo crosses a horizon. */
+  fullPhotoUnavailableReason?: string;
   /** Root-mean-square destination error; null for a four-click manual fit. */
   reprojectionErrorPx: number | null;
 }
 
 /**
- * Perspective correction gets a larger working plane than an ordinary source
- * image. At four pixels per millimetre A4 is 841 x 1189 and Letter is
- * 865 x 1119: large enough to retain readable text and sharp marker edges,
- * while still bounded to roughly one megapixel for interactive tracing.
+ * Perspective correction keeps the full photographed plane. Target four pixels
+ * per millimetre, then uniformly reduce the result to this bounded working
+ * raster when the photographed area extends beyond the reference sheet.
  */
 export const RECTIFIED_PX_PER_MM = 4;
 export const RECTIFIED_IMAGE_MAX = { width: 1200, height: 1200 } as const;
@@ -166,9 +170,9 @@ export function templateReprojectionErrorMm(
 
 /**
  * Carry detected marker geometry through a validated paper fit without
- * resampling/decoding its pixels. The returned coordinates use the same output
- * raster as runPerspectiveCorrection, so source-corner precision is retained.
- * Callers must validate the paper signature and fit before using this helper.
+ * resampling/decoding its pixels. Coordinates are on the paper's metric plane,
+ * which also extends beyond the paper itself. The final photo warp may translate
+ * and uniformly resize this plane. Callers must validate the paper fit first.
  */
 export function projectMarkersThroughTemplate(
   cv: any,
@@ -211,10 +215,15 @@ export function projectMarkersThroughTemplate(
       }));
       return { id, centerPx: points[0], cornersPx: points.slice(1) as PerspectiveQuad };
     });
-    // The combined correction crops to the paper. Do not propose an aid whose
-    // geometry would be clipped or mapped through a degenerate homography.
-    if (result.some((marker) => [marker.centerPx, ...marker.cornersPx].some(({ x, y }) =>
-      !Number.isFinite(x) || !Number.isFinite(y) || x < 0 || x >= layout.width || y < 0 || y >= layout.height))) return null;
+    // An aid can sit beside the paper. Its points must stay on the same side
+    // of the projective horizon as the sheet, and all results must be finite.
+    const h = transform.data64F as Float64Array;
+    const weight = ({ x, y }: Point) => h[6] * x + h[7] * y + h[8];
+    const sheetWeight = weight(proposal.points[0]);
+    if (markers.some(marker => [marker.centerPx, ...marker.cornersPx!].some(point =>
+      weight(point) * sheetWeight <= 0)) ||
+      result.some(marker => [marker.centerPx, ...marker.cornersPx].some(({ x, y }) =>
+        !Number.isFinite(x) || !Number.isFinite(y)))) return null;
     return result;
   } catch {
     return null;
@@ -310,8 +319,9 @@ export function validPerspectiveQuad(points: readonly Point[]): boolean {
 /* eslint-disable @typescript-eslint/no-explicit-any -- opencv.js is untyped */
 
 /**
- * Rectify from the paper geometry. An optional validated aid ruler, expressed
- * in source-image pixels, supplies the scale after its endpoints are warped.
+ * Rectify the full photo using the paper geometry as a metric reference.
+ * An optional validated aid ruler, expressed in source-image pixels, supplies
+ * the scale after its endpoints are carried through the final image warp.
  */
 export function runPerspectiveCorrection(
   cv: any,
@@ -334,9 +344,9 @@ export function runPerspectiveCorrection(
     throw new Error("The detected template does not match the requested correction.");
   }
 
-  const layout = perspectiveLayout(proposal, template, max);
-  const source = cv.matFromImageData(image);
-  const corrected = new cv.Mat();
+  const paperLayout = perspectiveLayout(proposal, template, max);
+  let source: any | null = null;
+  let corrected: any | null = null;
   const precisionFit =
     proposal.correspondences &&
     proposal.correspondences.source.length >= 4 &&
@@ -347,26 +357,24 @@ export function runPerspectiveCorrection(
   const sourceCoordinates = precisionFit?.source ?? proposal.points;
   const destinationCoordinates = precisionFit
     ? precisionFit.destinationMm.map(({ x, y }) => ({
-        x: x * layout.pxPerMm,
-        y: y * layout.pxPerMm,
+        x: x * paperLayout.pxPerMm,
+        y: y * paperLayout.pxPerMm,
       }))
-    : layout.destination;
-  const sourcePoints = cv.matFromArray(
-    sourceCoordinates.length,
-    1,
-    cv.CV_32FC2,
-    sourceCoordinates.flatMap(({ x, y }) => [x, y]),
-  );
-  const destinationPoints = cv.matFromArray(
-    destinationCoordinates.length,
-    1,
-    cv.CV_32FC2,
-    destinationCoordinates.flatMap(({ x, y }) => [x, y]),
-  );
+    : paperLayout.destination;
+  let sourcePoints: any | null = null;
+  let destinationPoints: any | null = null;
   let transform: any | null = null;
-  const projected = new cv.Mat();
+  let photoTransform: any | null = null;
+  let projected: any | null = null;
 
   try {
+    source = cv.matFromImageData(image);
+    corrected = new cv.Mat();
+    sourcePoints = cv.matFromArray(sourceCoordinates.length, 1, cv.CV_32FC2,
+      sourceCoordinates.flatMap(({ x, y }) => [x, y]));
+    destinationPoints = cv.matFromArray(destinationCoordinates.length, 1, cv.CV_32FC2,
+      destinationCoordinates.flatMap(({ x, y }) => [x, y]));
+    projected = new cv.Mat();
     transform = precisionFit
       ? cv.findHomography(sourcePoints, destinationPoints, 0)
       : cv.getPerspectiveTransform(sourcePoints, destinationPoints);
@@ -389,7 +397,7 @@ export function runPerspectiveCorrection(
       );
       if (
         !Number.isFinite(reprojectionErrorPx) ||
-        reprojectionErrorPx > MAX_REPROJECTION_RMS_PX
+        reprojectionErrorPx / paperLayout.pxPerMm > MAX_TEMPLATE_REPROJECTION_RMS_MM
       ) {
         throw new Error(
           "The template corners disagree too much for a precise correction. Flatten the sheet, avoid the phone's ultra-wide lens, and retake the photo.",
@@ -397,10 +405,32 @@ export function runPerspectiveCorrection(
       }
     }
 
+    let layout = paperLayout;
+    let paperBounds: Rect | undefined;
+    let fullPhotoUnavailableReason: string | undefined;
+    try {
+      const photo = photoPerspectiveLayout(transform.data64F as Float64Array, image, paperLayout, max);
+      layout = photo.layout;
+      photoTransform = cv.matFromArray(3, 3, cv.CV_64F, photo.transform);
+      const first = proposal.source === "template" ? templateMarkerCentersMm(template)[0] : { x: 0, y: 0 };
+      const originX = layout.destination[0].x - first.x * layout.pxPerMm;
+      const originY = layout.destination[0].y - first.y * layout.pxPerMm;
+      const x = Math.max(0, originX);
+      const y = Math.max(0, originY);
+      paperBounds = { x, y,
+        width: Math.min(layout.width, originX + TEMPLATE_PAPER_MM[paper].width * layout.pxPerMm + 1) - x,
+        height: Math.min(layout.height, originY + TEMPLATE_PAPER_MM[paper].height * layout.pxPerMm + 1) - y };
+    } catch (error) {
+      if (!(error instanceof PhotoPerspectiveBoundsError)) throw error;
+      // Preserve the established paper crop even when extrapolating its plane
+      // across the entire photograph would pass through infinity.
+      fullPhotoUnavailableReason = error.message;
+    }
+    if (reprojectionErrorPx !== null) reprojectionErrorPx *= layout.pxPerMm / paperLayout.pxPerMm;
     cv.warpPerspective(
       source,
       corrected,
-      transform,
+      photoTransform ?? transform,
       new cv.Size(layout.width, layout.height),
       cv.INTER_LINEAR,
       cv.BORDER_CONSTANT,
@@ -435,6 +465,10 @@ export function runPerspectiveCorrection(
     };
     if (referenceCalibration) {
       if (!mmPerPixel(referenceCalibration)) throw new Error("The measurement aid scale is invalid.");
+      if ([referenceCalibration.startX, referenceCalibration.endX].some(x => x < 0 || x >= image.width) ||
+        [referenceCalibration.startY, referenceCalibration.endY].some(y => y < 0 || y >= image.height)) {
+        throw new Error("The measurement aid lies outside the photo. Keep both aid markers in frame.");
+      }
       const referencePoints = cv.matFromArray(2, 1, cv.CV_32FC2, [
         referenceCalibration.startX, referenceCalibration.startY,
         referenceCalibration.endX, referenceCalibration.endY,
@@ -442,28 +476,31 @@ export function runPerspectiveCorrection(
       try {
         // Carry the already validated aid centres through the exact image warp.
         // Re-decoding interpolated marker pixels would lose source precision.
-        cv.perspectiveTransform(referencePoints, projected, transform);
+        cv.perspectiveTransform(referencePoints, projected, photoTransform ?? transform);
         const [startX, startY, endX, endY] = Array.from(projected.data32F) as number[];
         calibration = { startX, startY, endX, endY, lengthMm: referenceCalibration.lengthMm };
         if (!mmPerPixel(calibration) || [startX, endX].some((x) => x < 0 || x >= layout.width) ||
           [startY, endY].some((y) => y < 0 || y >= layout.height)) {
-          throw new Error("The measurement aid lies outside the corrected paper area. Use aid scale without correction or retake the photo with the aid over the sheet.");
+          throw new Error("The measurement aid lies outside the corrected photo. Keep both aid markers in frame.");
         }
       } finally { referencePoints.delete(); }
     }
     return {
       ...layout,
       imageData,
+      paperBounds,
+      fullPhotoUnavailableReason,
       reprojectionErrorPx,
       calibration,
     };
   } finally {
-    projected.delete();
+    photoTransform?.delete?.();
+    projected?.delete?.();
     transform?.delete?.();
-    destinationPoints.delete();
-    sourcePoints.delete();
-    corrected.delete();
-    source.delete();
+    destinationPoints?.delete?.();
+    sourcePoints?.delete?.();
+    corrected?.delete?.();
+    source?.delete?.();
   }
 }
 

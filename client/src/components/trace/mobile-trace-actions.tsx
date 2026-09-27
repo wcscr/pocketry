@@ -13,6 +13,7 @@ import type { TemplateVariant } from "@/lib/calibrate/template";
 import { useTrace } from "@/state/trace-store";
 import { AutoCalibrationOptions } from "./auto-calibration-options";
 import { TraceDetectionControls, type DetectionSettings } from "./trace-detection-controls";
+import { TracePhotoBoundsControl } from "./trace-photo-bounds-control";
 import { RulerLengthInput } from "./ruler-length-input";
 
 export interface MobileTraceActionsProps {
@@ -91,8 +92,12 @@ export function MobileTraceActions({ onChoosePhoto, onAddToBin, onStartOver, onO
     </MobileCanvasOverlay>
     {hasTuning && adjustOpen && <MobileAdjustmentTray title="Adjust outline" onClose={() => setAdjustOpen(false)} onMore={() => openFullSettings("trace-settings-detect")}>
       <TraceDetectionControls compact onReprocess={onReprocess} />
-      <Button variant="ghost" className="mt-1 h-11 w-full" onClick={() => openFullSettings("trace-settings-output")}>Export outline</Button>
+      <div className="mt-1 grid grid-cols-2 gap-1">
+        <Button variant="ghost" className="h-11" onClick={() => openFullSettings("trace-settings-margin")}>Margin</Button>
+        <Button variant="ghost" className="h-11" onClick={() => openFullSettings("trace-settings-output")}>Export outline</Button>
+      </div>
     </MobileAdjustmentTray>}
+    {step === "region" && <div className="mb-2"><TracePhotoBoundsControl /></div>}
     {step === "scale" && manualPending && !pendingAutoCalibration && !processing && <div className="mb-2 space-y-1" data-mobile-expanded="true">
       <label className="text-xs" htmlFor="mobile-ruler-length">Reference length (mm)</label>
       <RulerLengthInput id="mobile-ruler-length" />

@@ -28,7 +28,8 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
             <p className="text-muted-foreground">
               In <strong>Trace</strong>, upload a clear photo taken from above.
               Use a contrasting background and include a known measurement at the
-              tool’s height, or use a calibration template.
+              tool’s height, or use a calibration template. A template can sit beside a larger tool
+              on the same flat surface, with all four markers visible.
             </p>
             <CalibrationDownloads />
           </li>
@@ -43,7 +44,8 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
           <li className="pl-1">
             <h3 className="font-semibold">Trace the tool</h3>
             <p className="text-muted-foreground">
-              Draw a <strong>Region</strong> around the tool. Adjust the outline
+              Draw a <strong>Region</strong> around the tool. Correction crops to the paper by default;
+              enable <strong>Show full corrected photo</strong> in Region for larger tools. Adjust the outline
               if needed, then choose <strong>Add to bin</strong>.
             </p>
           </li>

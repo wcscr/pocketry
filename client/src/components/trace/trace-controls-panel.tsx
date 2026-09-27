@@ -10,6 +10,7 @@ import {
   RotateCw,
   ScanLine,
   Settings2,
+  Expand,
 } from "lucide-react";
 import { useLocation } from "wouter";
 
@@ -19,7 +20,6 @@ import {
 } from "@shared/geometry/scale";
 
 import {
-  PanelBody,
   PanelFooter,
   revealPanelSection,
   PanelSection,
@@ -69,6 +69,10 @@ import { CalibrationDownloads } from "./calibration-downloads";
 import { AutoCalibrationOptions } from "./auto-calibration-options";
 import { RingList } from "./ring-list";
 import { revealTraceStep } from "./reveal-trace-step";
+import { TracePhotoBoundsControl } from "./trace-photo-bounds-control";
+import { TracePanelSections } from "./trace-panel-sections";
+import { useTraceInspector } from "./trace-inspector-context";
+import { TRACE_WORKFLOW_SECTIONS } from "./trace-workflow";
 
 const RESPONSIVE_PANEL_ACTION =
   "h-auto min-h-9 w-full whitespace-normal break-words px-2 py-2 text-[clamp(0.75rem,4cqw,0.875rem)] leading-tight";
@@ -92,17 +96,7 @@ export interface TraceControlsPanelProps {
   ) => void;
 }
 
-const TRACE_SETTINGS_SECTION_DETAILS = [
-  { id: "trace-settings-source", label: "Photo", tone: "slate" },
-  { id: "trace-settings-scale", label: "Scale", tone: "amber" },
-  { id: "trace-settings-crop", label: "Region", tone: "rose" },
-  { id: "trace-settings-detect", label: "Outline", tone: "blue" },
-  {
-    id: "trace-settings-output",
-    label: "Export",
-    tone: "emerald",
-  },
-] as const;
+const TRACE_SETTINGS_SECTION_DETAILS = TRACE_WORKFLOW_SECTIONS;
 
 /**
  * Everything that used to sit above or below the canvas, moved into the side
@@ -120,9 +114,12 @@ export function TraceControlsPanel({
   onDetectMarkers,
   onApplyPerspective,
   settingsSectionRequest,
-  onCanvasInteraction,
+  onCanvasInteraction: onCanvasInteractionProp,
 }: TraceControlsPanelProps): JSX.Element {
   const store = useTrace();
+  const inspector = useTraceInspector();
+  const showSection = inspector?.showSection;
+  const onCanvasInteraction = () => { inspector?.showCanvas(); onCanvasInteractionProp?.(); };
   const {
     dispatch,
     imageUrl,
@@ -148,8 +145,10 @@ export function TraceControlsPanel({
   } = store;
   const { toast } = useToast();
   useEffect(() => {
-    if (active && settingsSectionRequest) revealPanelSection(settingsSectionRequest.id, TRACE_SETTINGS_SECTION_DETAILS);
-  }, [active, settingsSectionRequest]);
+    if (!active || !settingsSectionRequest) return;
+    if (showSection) showSection(settingsSectionRequest.id);
+    else revealPanelSection(settingsSectionRequest.id, TRACE_SETTINGS_SECTION_DETAILS);
+  }, [active, settingsSectionRequest, showSection]);
 
   const scale = exportScale(calibration, imageSize.height);
   const displayedScale = exportScale(
@@ -197,7 +196,7 @@ export function TraceControlsPanel({
     }
     return {
       ...item,
-      disabled: !hasOutline || reviewingScale,
+      disabled: !hasOutline || reviewingScale || (item.id === "trace-settings-margin" && !scale.mmPerPx),
       disabledReason: !hasImage
         ? "Choose a source image first"
         : "Detect a tool first",
@@ -215,6 +214,11 @@ export function TraceControlsPanel({
   const [guidedSection, setGuidedSection] = useState<
     "scale" | "region" | "detection" | null
   >(null);
+  const guideTo = (section: "scale" | "region" | "detection" | null, reveal = true) => {
+    setGuidedSection(section);
+    showSection?.(section === "scale" ? "trace-settings-scale" : section === "region" ? "trace-settings-crop"
+      : section === "detection" ? "trace-settings-detect" : "trace-settings-source", reveal);
+  };
   // The template marker family identifies paper automatically. A markerless
   // four-corner fallback still needs the printed paper's dimensions.
   const [perspectivePaper, setPerspectivePaper] =
@@ -290,7 +294,7 @@ export function TraceControlsPanel({
     if (sourceRevision === previousSourceRevision.current) return;
     previousSourceRevision.current = sourceRevision;
     const restoredSection = outline.length > 0 || region ? "detection" : "scale";
-    setGuidedSection(imageUrl === null ? null : restoredSection);
+    guideTo(imageUrl === null ? null : restoredSection);
     focusWhenReady.current = imageUrl === null ? null : restoredSection;
     setSectionEpoch((epoch) => epoch + 1);
   }, [imageUrl, sourceRevision, outline.length, region]);
@@ -303,7 +307,7 @@ export function TraceControlsPanel({
       !previousManualRulerPending.current && manualRulerPending;
     previousManualRulerPending.current = manualRulerPending;
     if (!becamePending) return;
-    setGuidedSection("scale");
+    guideTo("scale");
     focusWhenReady.current = "length";
     setSectionEpoch((epoch) => epoch + 1);
   }, [manualRulerPending]);
@@ -316,7 +320,7 @@ export function TraceControlsPanel({
     previousScaleComplete.current = complete;
     if (!becameComplete || outline.length > 0 || region) return;
     dispatch({ type: "SET_MODE", mode: "region" });
-    setGuidedSection("region");
+    guideTo("region");
     focusWhenReady.current = "region";
     setSectionEpoch((epoch) => epoch + 1);
   }, [scale.mmPerPx, outline.length, region, dispatch]);
@@ -331,13 +335,15 @@ export function TraceControlsPanel({
       previousMode.current === "region" && store.mode === "pan" && region !== null;
     previousMode.current = store.mode;
     if (rulerStarted) {
-      setGuidedSection("scale");
+      // Keep a compact canvas accessible while placing points; their length
+      // confirmation will reveal the inspector when the ruler is complete.
+      guideTo("scale", false);
       focusWhenReady.current = "ruler";
       setSectionEpoch((epoch) => epoch + 1);
       return;
     }
     if (!regionCommitted) return;
-    setGuidedSection("detection");
+    guideTo("detection");
     focusWhenReady.current = "detection";
     setSectionEpoch((epoch) => epoch + 1);
   }, [region, store.mode]);
@@ -349,7 +355,7 @@ export function TraceControlsPanel({
     const becamePending = !previousAutoPending.current && pending;
     previousAutoPending.current = pending;
     if (!becamePending) return;
-    setGuidedSection("scale");
+    guideTo("scale");
     focusWhenReady.current = "auto";
     setSectionEpoch((epoch) => epoch + 1);
   }, [pendingAutoCalibration]);
@@ -373,7 +379,7 @@ export function TraceControlsPanel({
           ? section?.querySelector<HTMLButtonElement>('[data-testid="button-set-scale"]')
           : requested === "length"
             ? section?.querySelector<HTMLInputElement>("#ruler-length")
-            : section?.querySelector<HTMLButtonElement>(
+            : section?.querySelector<HTMLElement>(
                 "[data-panel-section-trigger]",
               );
     if (!section || !focusTarget) return;
@@ -392,7 +398,7 @@ export function TraceControlsPanel({
           : null;
     const context = contextSelector ? section.querySelector<HTMLElement>(contextSelector) : section;
     return revealTraceStep(section, focusTarget, context ?? focusTarget);
-  }, [active, guidedSection, imageSize.width, sectionEpoch]);
+  }, [active, guidedSection, imageSize.width, sectionEpoch, inspector?.activeSection, inspector?.settings]);
 
   const shapeLibrary = useShapeLibrary();
   const [, navigate] = useLocation();
@@ -412,7 +418,7 @@ export function TraceControlsPanel({
     dispatch({ type: "SET_MODE", mode: "region" });
     onCanvasInteraction?.();
     dispatch({ type: "SET_REGION", region: null });
-    setGuidedSection("region");
+    guideTo("region");
     focusWhenReady.current = "region";
     setSectionEpoch((epoch) => epoch + 1);
   };
@@ -455,12 +461,15 @@ export function TraceControlsPanel({
 
   return (
     <div className="flex h-full flex-col [container-type:inline-size]">
-      <PanelSettingsIndex
+      {inspector ? <header className="min-h-14 shrink-0 border-b py-2 pl-3 pr-12">
+        <h2 className="text-sm font-semibold">Photo tracing</h2>
+        <p className="text-xs text-muted-foreground">From photo to pocket</p>
+      </header> : <PanelSettingsIndex
         ariaLabel="Find trace settings"
         testIdPrefix="trace"
         items={traceSettingsSections}
-      />
-      <PanelBody key={sectionEpoch} className="[overflow-anchor:none]">
+      />}
+      <TracePanelSections key={sectionEpoch}>
         <PanelSection
           key={hasImage ? "source-ready" : "source-empty"}
           id="trace-settings-source"
@@ -781,6 +790,7 @@ export function TraceControlsPanel({
           className="scroll-mt-16"
           disabled={!scale.mmPerPx || reviewingScale}
         >
+          <TracePhotoBoundsControl />
           {region ? (
             <p className="text-xs text-muted-foreground">
               {Math.round(region.width)} × {Math.round(region.height)} px at{" "}
@@ -863,9 +873,25 @@ export function TraceControlsPanel({
 
           <TraceDetectionControls onReprocess={onReprocess} />
 
+          <div className="space-y-1.5" data-testid="detection-contours">
+            <p className="text-xs font-semibold">Contours</p>
+            <RingList />
+          </div>
+        </PanelSection>
+
+        <PanelSection
+          id="trace-settings-margin"
+          title="Margin"
+          icon={Expand}
+          tone="violet"
+          summary={margin ? `${margin.toFixed(1)} mm` : "No margin"}
+          defaultOpen={false}
+          className="scroll-mt-16"
+          disabled={!hasOutline || !scale.mmPerPx || reviewingScale}
+        >
           <div className="space-y-1.5">
             <Label htmlFor="margin" className="text-xs">
-              Margin
+              Offset (mm)
             </Label>
             <Select
               value={scale.mmPerPx && margin !== null ? String(margin) : undefined}
@@ -880,21 +906,23 @@ export function TraceControlsPanel({
               <SelectContent>
                 {MARGIN_MM_OPTIONS.map((value) => (
                   <SelectItem key={value} value={String(value)}>
-                    {value.toFixed(1)} mm
+                    {value === 0 ? "0 mm — no margin" : `${value.toFixed(1)} mm`}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
             <p className="text-[11px] text-muted-foreground">
-              Offsets the current edited contour without re-detecting it. Margin
-              changes are saved in Edit history. Defaults to 0 mm.
+              Adds space around the current edited outline without re-detecting it.
+              Defaults to 0 mm. Changes are saved in Edit history.
             </p>
           </div>
 
-          <div className="space-y-1.5" data-testid="detection-contours">
-            <p className="text-xs font-semibold">Contours</p>
-            <RingList />
-          </div>
+          <Button variant="outline" size="sm" className="w-full" disabled={!margin}
+            data-testid="button-reset-margin" onClick={() => handleMarginChange(0)}>Reset to zero</Button>
+          <p className="text-xs text-muted-foreground">
+            Bin clearance is added on top of this trace margin. Leave margin at zero
+            to keep the tool’s traced size and adjust fit in the bin designer.
+          </p>
         </PanelSection>
 
         <PanelSection
@@ -949,7 +977,7 @@ export function TraceControlsPanel({
             />
           )}
         </PanelSection>
-      </PanelBody>
+      </TracePanelSections>
 
       <AlertDialog open={restoreSourceRevision === sourceRevision} onOpenChange={(open) => { if (!open) setRestoreSourceRevision(null); }}>
         <AlertDialogContent>

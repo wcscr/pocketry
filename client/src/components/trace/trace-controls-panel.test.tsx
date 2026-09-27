@@ -358,16 +358,17 @@ describe("TraceControlsPanel guided workflow", () => {
       "trace-settings-scale",
       "trace-settings-crop",
       "trace-settings-detect",
+      "trace-settings-margin",
       "trace-settings-output",
     ]);
 
-    for (const id of ["source", "detect", "crop", "output"]) {
+    for (const id of ["source", "detect", "crop", "margin", "output"]) {
       expect(section(id)?.dataset.state).toBe("closed");
     }
     expect(section("scale")?.dataset.state).toBe("open");
     expect(section("source")?.textContent).toContain("new-source");
     expect(sectionTrigger("scale")?.disabled).toBe(false);
-    for (const id of ["crop", "detect", "output"]) {
+    for (const id of ["crop", "detect", "margin", "output"]) {
       expect(sectionTrigger(id)?.disabled).toBe(true);
     }
     expect(document.activeElement).toBe(sectionTrigger("scale"));
@@ -715,9 +716,8 @@ describe("TraceControlsPanel guided workflow", () => {
       section("detect")?.querySelector("[data-testid='detection-contours']"),
     ).not.toBeNull();
     expect(section("contours")).toBeNull();
-    expect(
-      section("detect")?.querySelector<HTMLButtonElement>("#margin")?.textContent,
-    ).toContain("0.0 mm");
+    expect(section("detect")?.querySelector("#margin")).toBeNull();
+    expect(sectionTrigger("margin")?.disabled).toBe(true);
     expect(section("detect")?.textContent).not.toContain(
       "Bin clearance is added on top",
     );

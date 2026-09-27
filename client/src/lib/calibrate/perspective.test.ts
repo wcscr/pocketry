@@ -43,7 +43,7 @@ function imageData(width: number, height: number): ImageData {
 }
 
 function pixel(image: ImageData, x: number, y: number): number[] {
-  const at = (y * image.width + x) * 4;
+  const at = (Math.round(y) * image.width + Math.round(x)) * 4;
   return [...image.data.slice(at, at + 4)];
 }
 
@@ -268,9 +268,14 @@ describe("perspective correction with the shipped OpenCV build", () => {
         "a4",
       );
 
-      expect(corrected.width).toBe(841);
-      expect(corrected.height).toBe(1189);
-      expect(mmPerPixel(corrected.calibration)).toBeCloseTo(0.25, 9);
+      expect(corrected.width).toBeLessThanOrEqual(1200);
+      expect(corrected.height).toBeLessThanOrEqual(1200);
+      const paper = corrected.paperBounds!;
+      expect(paper.x).toBeGreaterThan(0);
+      expect(paper.y).toBeGreaterThan(0);
+      expect(mmPerPixel(corrected.calibration)).toBeCloseTo(1 / corrected.pxPerMm, 9);
+      expect((paper.width - 1) * mmPerPixel(corrected.calibration)!).toBeCloseTo(210, 6);
+      expect((paper.height - 1) * mmPerPixel(corrected.calibration)!).toBeCloseTo(297, 6);
       // A raised 85 mm aid spans 186 pixels on the canonical paper plane.
       // Project it into the same skewed photo, then recover its own scale.
       const aid = cv.matFromArray(2, 1, cv.CV_32FC2, [140, 210, 326, 210]);
@@ -282,18 +287,18 @@ describe("perspective correction with the shipped OpenCV build", () => {
           { source: "manual", points: photographedCorners }, "a4", undefined,
           { startX, startY, endX, endY, lengthMm: 85 });
         expect(combined.calibration.lengthMm).toBe(85);
-        expect(combined.calibration.startX).toBeCloseTo(280, 3);
-        expect(combined.calibration.startY).toBeCloseTo(420, 3);
-        expect(combined.calibration.endX).toBeCloseTo(652, 3);
-        expect(combined.calibration.endY).toBeCloseTo(420, 3);
-        expect(mmPerPixel(combined.calibration)).toBeCloseTo(85 / 372, 6);
+        expect(combined.calibration.startX).toBeCloseTo(paper.x + 70 * corrected.pxPerMm, 3);
+        expect(combined.calibration.startY).toBeCloseTo(paper.y + 105 * corrected.pxPerMm, 3);
+        expect(combined.calibration.endX).toBeCloseTo(paper.x + 163 * corrected.pxPerMm, 3);
+        expect(combined.calibration.endY).toBeCloseTo(paper.y + 105 * corrected.pxPerMm, 3);
+        expect(mmPerPixel(combined.calibration)).toBeCloseTo(85 / (93 * corrected.pxPerMm), 6);
         expect(Buffer.from(combined.imageData.data).equals(Buffer.from(corrected.imageData.data))).toBe(true);
       } finally { photographedAid.delete(); aid.delete(); }
       expect(corrected.reprojectionErrorPx).toBeNull();
-      expect(pixel(corrected.imageData, 420, 580).slice(0, 3)).toEqual([
+      expect(pixel(corrected.imageData, corrected.paperBounds!.x + 105 * corrected.pxPerMm, corrected.paperBounds!.y + 145 * corrected.pxPerMm).slice(0, 3)).toEqual([
         20, 80, 180,
       ]);
-      expect(pixel(corrected.imageData, 80, 200).slice(0, 3)).toEqual([
+      expect(pixel(corrected.imageData, paper.x + 20 * corrected.pxPerMm, paper.y + 50 * corrected.pxPerMm).slice(0, 3)).toEqual([
         255, 255, 255,
       ]);
     } finally {
@@ -305,6 +310,46 @@ describe("perspective correction with the shipped OpenCV build", () => {
     }
   });
 
+  it("retains a tool and measurement aid outside a detected template at the same metric scale", () => {
+    // The A4 sheet occupies x=400..820, y=100..694 of a 1000x800 photo.
+    // The colored tool occupies x=120..310, entirely beside the paper.
+    const centers = templateMarkerCentersMm("a4");
+    const corners = templateMarkerCornersMm("a4");
+    const toPhoto = ({ x, y }: { x: number; y: number }) => ({ x: 400 + x * 2, y: 100 + y * 2 });
+    const markers = centers.map((point, index) => ({ id: point.id, centerPx: toPhoto(point),
+      cornersPx: corners[index].corners.map(toPhoto) as PerspectiveQuad }));
+    const proposal = proposalFromTemplateMarkers(markers, "a4")!;
+    const photo = imageData(1000, 800);
+    const corrected = runPerspectiveCorrection(cv, photo, proposal, "a4");
+    const rulerScale = mmPerPixel(corrected.calibration)!;
+    expect(corrected.width).toBeLessThanOrEqual(1200);
+    expect(corrected.height).toBeLessThanOrEqual(1200);
+    expect(corrected.paperBounds!.x).toBeGreaterThan(0);
+    expect(corrected.fullPhotoUnavailableReason).toBeUndefined();
+    const photoScale = corrected.pxPerMm / 2;
+    expect(pixel(corrected.imageData, 210 * photoScale, 290 * photoScale).slice(0, 3)).toEqual([20, 80, 180]);
+    // A 500 px source segment spans 250 mm regardless of the output raster limit.
+    expect(500 * photoScale * rulerScale).toBeCloseTo(250, 5);
+    const aid = { startX: 140, startY: 210, endX: 310, endY: 210, lengthMm: 85 };
+    const combined = runPerspectiveCorrection(cv, photo, proposal, "a4", undefined, aid);
+    expect(mmPerPixel(combined.calibration)).toBeCloseTo(rulerScale, 5);
+    expect(combined.calibration.endX).toBeLessThan(corrected.paperBounds!.x);
+    const projected = projectMarkersThroughTemplate(cv, [marker(99, 200, 210)], proposal, "a4");
+    expect(projected).not.toBeNull();
+    expect(projected![0].centerPx.x).toBeLessThan(0);
+  });
+
+  it("keeps the default paper correction available when the full photo crosses a horizon", () => {
+    const corrected = runPerspectiveCorrection(cv, imageData(600, 600), { source: "manual", points: [
+      { x: 200, y: 200 }, { x: 400, y: 200 }, { x: 330, y: 300 }, { x: 270, y: 300 },
+    ] }, "a4");
+    expect(corrected.width).toBe(841);
+    expect(corrected.height).toBe(1189);
+    expect(corrected.paperBounds).toBeUndefined();
+    expect(corrected.fullPhotoUnavailableReason).toMatch(/too tilted/);
+    expect(mmPerPixel(corrected.calibration)).toBeCloseTo(0.25, 9);
+  });
+
   it("rejects an invalid or out-of-frame aid instead of substituting paper scale", () => {
     const photo = imageData(421, 595);
     const proposal = { source: "manual" as const, points: [
@@ -313,7 +358,7 @@ describe("perspective correction with the shipped OpenCV build", () => {
     expect(() => runPerspectiveCorrection(cv, photo, proposal, "a4", undefined,
       { startX: 50, startY: 100, endX: 150, endY: 100, lengthMm: 0 })).toThrow(/aid scale is invalid/);
     expect(() => runPerspectiveCorrection(cv, photo, proposal, "a4", undefined,
-      { startX: 50, startY: 100, endX: 500, endY: 100, lengthMm: 85 })).toThrow(/outside the corrected paper/);
+      { startX: 50, startY: 100, endX: 500, endY: 100, lengthMm: 85 })).toThrow(/outside the photo/);
   });
 
   it("uses all sixteen refined marker corners for a precision template fit", () => {
@@ -394,7 +439,7 @@ describe("perspective correction with the shipped OpenCV build", () => {
 
       expect(corrected.reprojectionErrorPx).not.toBeNull();
       expect(corrected.reprojectionErrorPx!).toBeLessThan(0.01);
-      expect(pixel(corrected.imageData, 420, 580).slice(0, 3)).toEqual([
+      expect(pixel(corrected.imageData, corrected.paperBounds!.x + 105 * corrected.pxPerMm, corrected.paperBounds!.y + 145 * corrected.pxPerMm).slice(0, 3)).toEqual([
         20, 80, 180,
       ]);
     } finally {

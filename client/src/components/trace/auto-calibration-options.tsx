@@ -76,6 +76,7 @@ export function AutoCalibrationOptions({ onSetManually, onApplyPerspective, onDe
             onClick={() => dispatch({ type: "DISMISS_AUTO_CALIBRATION" })}>Dismiss detected scale</Button>
         </div>
       </details>
+      {hasPerspective && <p className="text-[11px] text-muted-foreground">Correction starts cropped to the paper. Reveal the full corrected photo in Region for larger tools.</p>}
       <CalibrationAccuracyHint>
         <p>{paper
           ? "The recommended option corrects perspective using the paper corners and sets scale from the aid at the tool’s height."

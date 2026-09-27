@@ -81,7 +81,7 @@ export function RingList(): JSX.Element {
           <li key={`${ref.shapeIndex}:${ref.ringIndex}`}>
             <div
               className={cn(
-                "group flex items-center gap-2 rounded px-2 py-1 text-xs",
+                "flex items-center gap-2 rounded px-2 py-1 text-xs",
                 isSelected ? "bg-accent text-accent-foreground" : "hover:bg-accent/50",
               )}
             >
@@ -109,7 +109,7 @@ export function RingList(): JSX.Element {
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-5 w-5 shrink-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                className="h-5 w-5 shrink-0"
                 disabled={!canDelete}
                 onClick={() => remove(ref)}
                 aria-label={

@@ -93,6 +93,8 @@ describe("App", () => {
     expect(inspector()).not.toBeNull();
     clickWorkspace("Trace");
     expect(inspector()).toBeNull();
+    expect(container.querySelector('[aria-label="Trace properties"]')).not.toBeNull();
+    expect(container.querySelector('[aria-label="Photo tracing workflow"]')).not.toBeNull();
     clickWorkspace("Bin");
     expect(inspector()).not.toBeNull();
     const library = [...container.querySelectorAll<HTMLAnchorElement>("nav a")].find(link => link.textContent?.trim() === "Library")!;
@@ -313,6 +315,7 @@ describe("App", () => {
       "Outline",
       "Scale",
       "Region",
+      "Margin",
       "Export outline",
     ]) {
       expect(text).toContain(section);
@@ -331,6 +334,7 @@ describe("App", () => {
       ["trace-settings-scale", "amber", "closed"],
       ["trace-settings-detect", "blue", "closed"],
       ["trace-settings-crop", "rose", "closed"],
+      ["trace-settings-margin", "violet", "closed"],
       ["trace-settings-output", "emerald", "closed"],
     ] as const) {
       const section = container.querySelector<HTMLElement>(`#${id}`);
@@ -350,7 +354,7 @@ describe("App", () => {
       "trace-settings-detect",
     ]);
 
-    for (const section of ["scale", "crop", "detect", "output"]) {
+    for (const section of ["scale", "crop", "detect", "margin", "output"]) {
       const jump = container.querySelector<HTMLButtonElement>(
         `[aria-controls="trace-settings-${section}"]`,
       );
