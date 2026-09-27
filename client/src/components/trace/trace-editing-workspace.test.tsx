@@ -19,6 +19,7 @@ let trace: TraceStore;
 let host: HTMLDivElement;
 let root: Root;
 let canvasMounts: number;
+let previousScrollIntoView: PropertyDescriptor | undefined;
 const exportTrace = vi.fn();
 const reprocess = vi.fn();
 class NoopResizeObserver { observe() {} unobserve() {} disconnect() {} }
@@ -54,6 +55,8 @@ async function finishTrace(): Promise<void> {
   });
 }
 beforeEach(() => {
+  previousScrollIntoView = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollIntoView");
+  Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: vi.fn() });
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.stubGlobal("ResizeObserver", NoopResizeObserver);
   vi.stubGlobal("matchMedia", (query: string) => ({ matches: false, media: query, addEventListener() {}, removeEventListener() {} }));
@@ -71,6 +74,8 @@ beforeEach(() => {
 afterEach(() => {
   React.act(() => root.unmount());
   host.remove();
+  if (previousScrollIntoView) Object.defineProperty(HTMLElement.prototype, "scrollIntoView", previousScrollIntoView);
+  else Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
@@ -121,6 +126,7 @@ describe("trace workflow and properties", () => {
     expect(button("trace-workflow-outline").getAttribute("aria-current")).toBe("step");
     expect(host.querySelector("#objects-panel #include-interior-holes")).not.toBeNull();
     expect(button("trace-workflow-margin").disabled).toBe(true);
+    expect(button("trace-workflow-margin").getAttribute("aria-label")).toBe("5. Margin");
   });
 
   it("opens and focuses manual ruler confirmation even with the left panel collapsed", async () => {
@@ -197,6 +203,7 @@ describe("trace workflow and properties", () => {
     await finishTrace();
     await act(() => button("trace-workflow-margin").click());
     await act(() => trace.dispatch({ type: "SET_REGION", region: null }));
+    expect(button("trace-workflow-margin").getAttribute("aria-label")).toBe("5. Margin");
     expect(button("trace-workflow-region").getAttribute("aria-current")).toBe("step");
     expect(host.querySelector("#objects-panel #margin")).toBeNull();
     await act(() => trace.dispatch({ type: "SET_MODE", mode: "calibrate" }));
@@ -252,9 +259,17 @@ describe("trace workflow and properties", () => {
     await act(() => button("trace-workflow-margin").click());
     expect(host.querySelector("#objects-panel #margin")?.textContent).toContain("0 mm — no margin");
     expect(button("button-reset-margin").disabled).toBe(true);
-    await act(() => trace.dispatch({ type: "MARGIN_COMMITTED", outline, margin: 1 }));
+    expect(button("trace-workflow-margin").getAttribute("aria-label")).toBe("5. Margin (complete)");
+    // Choose a margin through the same dropdown used in the properties panel.
+    await act(() => host.querySelector<HTMLButtonElement>("#margin")!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+    await act(() => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(option => option.textContent === "1.0 mm")!.click());
+    expect(trace.margin).toBe(1);
+    expect(button("trace-workflow-margin").getAttribute("aria-label")).toBe("5. Margin (complete)");
+    expect(button("trace-workflow-margin").textContent).toContain("1.0 mm");
+    expect(button("trace-workflow-margin").querySelector("svg.lucide-check")).not.toBeNull();
     await act(() => button("button-reset-margin").click());
     expect(trace.margin).toBe(0);
+    expect(button("trace-workflow-margin").getAttribute("aria-label")).toBe("5. Margin (complete)");
     expect(reprocess).not.toHaveBeenCalled();
     expect(host.querySelector("#objects-panel")?.textContent).not.toContain("Bin clearance is added on top");
     await act(() => host.querySelector<HTMLButtonElement>('[aria-label="About trace margin"]')!.click());
@@ -263,6 +278,13 @@ describe("trace workflow and properties", () => {
     await act(() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
     await act(() => trace.dispatch({ type: "UNDO" }));
     expect(trace.margin).toBe(1);
+    expect(button("trace-workflow-margin").getAttribute("aria-label")).toBe("5. Margin (complete)");
+    expect(button("trace-workflow-margin").textContent).toContain("1.0 mm");
+    await act(() => trace.dispatch({ type: "REDO" }));
+    expect(trace.margin).toBe(0);
+    expect(button("trace-workflow-margin").getAttribute("aria-label")).toBe("5. Margin (complete)");
+    await act(() => trace.dispatch({ type: "SET_MARGIN", margin: null }));
+    expect(button("trace-workflow-margin").getAttribute("aria-label")).toBe("5. Margin");
   });
 
   it("restores a collapsed inspector when another workflow step is chosen", async () => {
