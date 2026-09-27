@@ -60,7 +60,9 @@ export const traceDraftSchema = z.object({
     }).nullable(),
     region: z.object({ x: finite, y: finite, width: finite.nonnegative(), height: finite.nonnegative() }).nullable(),
     mode: z.enum(["navigate", "remove", "pan", "region", "edit", "calibrate", "measure", "perspective"]),
-    exportFormat: z.enum(["svg", "dxf", "dwg", "stl"]), extrusionHeight: finite.positive(),
+    // Older drafts used DWG for DXF content with a renamed extension.
+    exportFormat: z.enum(["svg", "dxf", "dwg", "stl"]).transform(format => format === "dwg" ? "dxf" : format),
+    extrusionHeight: finite.positive(),
   }),
 });
 

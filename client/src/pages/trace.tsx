@@ -22,12 +22,10 @@ import {
   useImageSource,
 } from "@/components/trace/use-image-source";
 import { useOutlineRefinement } from "@/components/trace/use-outline-refinement";
-import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -119,7 +117,6 @@ function TraceWorkspace(): JSX.Element {
   const photoInputRef = useRef<HTMLInputElement>(null);
   const detectionRequest = useRef(0);
   const [uploadOpen, setUploadOpen] = useState(false);
-  const [dwgDialogOpen, setDwgDialogOpen] = useState(false);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [perspectiveReplacement, setPerspectiveReplacement] = useState<{
     proposal: PerspectiveProposal; template: TemplateVariant; scale: boolean | Calibration; sourceRevision: number;
@@ -578,7 +575,7 @@ function TraceWorkspace(): JSX.Element {
       return;
     }
     if (mmPerPixel(calibration) === null && exportFormat !== "svg") {
-      toast({ title: "Set scale before exporting", description: "STL, DXF and DWG need a physical scale. Set scale, or choose SVG to save image pixels.", variant: "destructive" });
+      toast({ title: "Set scale before exporting", description: "STL and DXF need a physical scale. Set scale, or choose SVG to save image pixels.", variant: "destructive" });
       openSettings("trace-settings-scale");
       return;
     }
@@ -599,7 +596,7 @@ function TraceWorkspace(): JSX.Element {
           mmPerPx: scale.mmPerPx,
           calibration,
         })], { type: "image/svg+xml" });
-      } else if (exportFormat === "dxf" || exportFormat === "dwg") {
+      } else if (exportFormat === "dxf") {
         model = new Blob([generateDXF(outline, scale)], { type: "application/dxf" });
       } else {
         const stl = await generateSTL(outline, { heightMm: extrusionHeight, scale });
@@ -607,13 +604,6 @@ function TraceWorkspace(): JSX.Element {
       }
       if (backup) downloadBlob(backup, `${stem}.pocketry.json`);
       downloadBlob(model, `${stem}.${exportFormat}`);
-      if (exportFormat === "dwg") {
-        toast({
-          title: "DWG compatibility file",
-          description: "A DXF file was saved with a .dwg name; CAD software will open it.",
-          duration: 5000,
-        });
-      }
       toast({ title: "Saved", description: `Exported as ${exportFormat.toUpperCase()}${includeProject ? " with an editable outline project" : ""}.` });
     } catch (error) {
       toast({
@@ -624,19 +614,10 @@ function TraceWorkspace(): JSX.Element {
     }
   };
 
-  // Selecting DWG explains the substitution once, when it is chosen.
-  const previousFormat = useRef(store.exportFormat);
-  useEffect(() => {
-    if (store.exportFormat === "dwg" && previousFormat.current !== "dwg") {
-      setDwgDialogOpen(true);
-    }
-    previousFormat.current = store.exportFormat;
-  }, [store.exportFormat]);
-
   const requestExport = () => {
     if (mmPerPixel(store.calibration) === null && store.exportFormat !== "svg") {
       openSettings("trace-settings-scale");
-      toast({ title: "Set scale before exporting", description: "STL, DXF and DWG need a physical scale. Set scale, or choose SVG to save image pixels.", variant: "destructive" });
+      toast({ title: "Set scale before exporting", description: "STL and DXF need a physical scale. Set scale, or choose SVG to save image pixels.", variant: "destructive" });
       return;
     }
     setExportDialogOpen(true);
@@ -766,28 +747,6 @@ function TraceWorkspace(): JSX.Element {
             </DialogDescription>
           </DialogHeader>
           {dropzone}
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={dwgDialogOpen} onOpenChange={setDwgDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>About DWG export</DialogTitle>
-            <DialogDescription>
-              DWG is a proprietary binary format that browsers cannot write.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3 text-sm text-muted-foreground">
-            <p>
-              Choosing DWG saves a DXF file with a <code>.dwg</code> extension.
-              AutoCAD, Fusion 360, FreeCAD and most CAM tools open it without
-              complaint, and can re-save it as true DWG.
-            </p>
-            <p>Choose DXF instead wherever your software accepts it.</p>
-          </div>
-          <DialogFooter>
-            <Button onClick={() => setDwgDialogOpen(false)}>Got it</Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>

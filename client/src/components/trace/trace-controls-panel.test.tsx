@@ -896,7 +896,7 @@ it("blocks physical Save after Clear scale while keeping pixel SVG reachable", a
   const save = (name: string) => Array.from(host.querySelectorAll("button")).find(button => button.textContent?.trim() === name)!;
   expect(save("Save STL").disabled).toBe(true);
   expect(sectionTrigger("output")?.disabled).toBe(false);
-  expect(host.textContent).toContain("Set scale for STL, DXF or DWG");
+  expect(host.textContent).toContain("Set scale for STL or DXF");
   await React.act(async () => trace.dispatch({ type: "SET_EXPORT_FORMAT", exportFormat: "svg" }));
   expect(save("Save SVG (pixels)").disabled).toBe(false);
 });

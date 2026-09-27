@@ -158,7 +158,7 @@ describe("trace workflow and properties", () => {
     });
     await act(() => button("trace-workflow-export-outline").click());
     expect(host.querySelector("#objects-panel #format")).not.toBeNull();
-    await act(() => [...host.querySelectorAll<HTMLButtonElement>("button")].find(item => item.textContent?.includes("Save STL"))!.click());
+    await act(() => [...host.querySelectorAll<HTMLButtonElement>("button")].find(item => item.textContent?.includes("Save SVG"))!.click());
     expect(exportTrace).toHaveBeenCalledOnce();
     expect(trace.outline).toBe(before);
     expect(canvasMounts).toBe(1);

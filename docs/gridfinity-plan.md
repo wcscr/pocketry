@@ -85,7 +85,7 @@ download and open actions appear side by side. Bin model, fit-template, and
 DXF/SVG layout exports offer an unchecked **Also download editable project**
 checkbox; canceling does not build or download files. When requested, the JSON
 and exported geometry come from the same snapshot and share a filename stem.
-Trace SVG, DXF, DWG-compatibility, and STL exports offer the same choice. Their
+Trace SVG, DXF, and STL exports offer the same choice. Their
 optional JSON reopens the current calibrated outline as an editable pocket in a
 new Bin project, preserving its contour, physical scale, and trace margin. This
 option requires calibration; exporting an outline alone remains available without it.

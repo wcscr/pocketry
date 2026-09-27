@@ -37,6 +37,18 @@ describe("browser-local Trace recovery", () => {
     expect(traceReducer(traceReducer(restored, { type: "UNDO" }), { type: "REDO" }).outline).toEqual(outline);
   });
 
+  it.each([
+    ["svg", "svg"], ["dxf", "dxf"], ["dwg", "dxf"], ["stl", "stl"],
+  ] as const)("recovers saved %s exports as %s without changing the trace", async (savedFormat, restoredFormat) => {
+    const state = calibrated();
+    const snapshot = traceDraftSnapshot(state)!;
+    storage.set(TRACE_DRAFT_KEY, { ...snapshot, state: { ...snapshot.state, exportFormat: savedFormat } });
+    const restored = traceReducer(initialTraceState, { type: "TRACE_DRAFT_RESTORED", draft: (await loadTraceDraft())! });
+    expect(restored).toEqual({ ...state, exportFormat: restoredFormat, sourceRevision: 1, processing: false });
+    await saveTraceDraft(traceDraftSnapshot(restored));
+    expect((await loadTraceDraft())!.state.exportFormat).toBe(restoredFormat);
+  });
+
   it.each([false, true])("recovers the paper crop and full-photo choice (%s) with edits intact", async showFullPhoto => {
     const state = { ...calibrated(), perspectiveCorrection: { source: "template" as const, paper: "a4" as const,
       paperBounds: { x: 100, y: 50, width: 300, height: 500 }, showFullPhoto } };

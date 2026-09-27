@@ -72,7 +72,7 @@ export type TraceMode =
   | "measure"
   | "perspective";
 
-export type ExportFormat = "svg" | "dxf" | "dwg" | "stl";
+export type ExportFormat = "svg" | "dxf" | "stl";
 export type CalibrationSource = "manual" | "sheet" | "strip";
 
 export interface TraceHistoryEntry {
@@ -213,7 +213,7 @@ export const initialTraceState: TraceState = {
   region: null,
   mode: "pan",
   processing: false,
-  exportFormat: "stl",
+  exportFormat: "svg",
   extrusionHeight: 14,
 };
 

@@ -7,7 +7,7 @@ This file is the single source of truth for all agents and tools working in this
 Pocketry is a web application that converts raster images (PNG, JPG) into editable
 vector outlines and printable Gridfinity tool bins. Users upload images, detect the
 tool's silhouette (including concave regions and interior holes), calibrate it to real
-dimensions, refine the rings, and export SVG, DXF, DWG-compatibility, or STL files.
+dimensions, refine the rings, and export SVG, DXF, or STL files.
 Calibrated traces can also be handed to the bin designer, arranged as pockets, and
 exported as 3MF or STL; top-down bin layouts export as SVG or DXF for shadow boards and
 CNC work.

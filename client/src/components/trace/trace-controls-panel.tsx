@@ -955,7 +955,6 @@ export function TraceControlsPanel({
               <SelectContent>
                 <SelectItem value="svg">{scale.mmPerPx ? "SVG — vector outline" : "SVG — image pixels (unscaled)"}</SelectItem>
                 <SelectItem value="dxf" disabled={!scale.mmPerPx}>DXF — CAD / CAM</SelectItem>
-                <SelectItem value="dwg" disabled={!scale.mmPerPx}>DWG — AutoCAD</SelectItem>
                 <SelectItem value="stl" disabled={!scale.mmPerPx}>STL — 3D print</SelectItem>
               </SelectContent>
             </Select>
@@ -1043,7 +1042,7 @@ export function TraceControlsPanel({
             Save {exportFormat.toUpperCase()}{!scale.mmPerPx && exportFormat === "svg" ? " (pixels)" : ""}
           </Button>
         </div>
-        {hasOutline && !scale.mmPerPx && <p className="mt-2 text-xs text-muted-foreground">Set scale for STL, DXF or DWG. Choose SVG in Export Outline to save image pixels without a physical size.</p>}
+        {hasOutline && !scale.mmPerPx && <p className="mt-2 text-xs text-muted-foreground">Set scale for STL or DXF. Choose SVG in Export Outline to save image pixels without a physical size.</p>}
       </PanelFooter>
     </div>
   );
