@@ -71,6 +71,7 @@ import {
   startNewProject,
   type ProjectLibrarySnapshot,
 } from "@/lib/project/persist";
+import type { LibraryImportMode } from "@shared/gridfinity/library";
 import { cn } from "@/lib/utils";
 import { WorkerCancelledError } from "@/lib/worker/protocol";
 import {
@@ -532,8 +533,9 @@ function BinDesignerWorkspace(): JSX.Element {
     }
   }, [currentProjectDoc, toast]);
 
-  const handleImportLibrary = useCallback(async (file: File) => {
+  const handleImportLibrary = useCallback(async (file: File, mode: LibraryImportMode): Promise<boolean> => {
     setProjectBusy(true);
+    if (mode === "replace") saveProject.cancel();
     try {
       let input: unknown;
       try {
@@ -541,18 +543,23 @@ function BinDesignerWorkspace(): JSX.Element {
       } catch {
         throw new Error("The file could not be read as JSON. No designs were imported.");
       }
-      const result = await importProjectLibrary(input);
+      const result = await importProjectLibrary(input, mode, mode === "replace" ? currentProjectDoc : undefined);
       setProjectLibrary(result.library);
+      if (mode === "replace") setDraftName(null);
       toast({
-        title: "Library imported",
-        description: `${result.imported} designs added, ${result.upgraded} upgraded, ${result.renamed} renamed.`,
+        title: mode === "replace" ? "Library replaced" : "Library imported",
+        description: mode === "replace"
+          ? `${result.imported} designs imported. Your current design is still open as an unnamed draft.`
+          : `${result.imported} designs added, ${result.upgraded} upgraded, ${result.renamed} renamed.`,
       });
+      return true;
     } catch (cause) {
       toast({ title: "Could not import library", description: cause instanceof Error ? cause.message : "No designs were imported.", variant: "destructive" });
+      return false;
     } finally {
       setProjectBusy(false);
     }
-  }, [toast]);
+  }, [toast, saveProject, currentProjectDoc]);
 
   /** Save while the outgoing named project still owns the autosave target. */
   const saveBeforeReplacingProject = useCallback(async () => {
@@ -1088,7 +1095,7 @@ function BinDesignerWorkspace(): JSX.Element {
           onDeleteProject={handleDeleteProject}
           onRefreshProjects={handleRefreshProjects}
           onExportLibrary={() => void handleExportLibrary()}
-          onImportLibrary={(file) => void handleImportLibrary(file)}
+          onImportLibrary={handleImportLibrary}
           onNewProject={() => void handleNewProject()}
           section={section}
           onSectionChange={setSection}

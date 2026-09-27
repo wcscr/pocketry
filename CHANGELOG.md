@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Library imports now offer Merge or Replace. Replacing validates the entire backup before swapping the saved library and keeps the current design open as an unnamed draft.
+
 - Common Trace and Bin actions now share button typography, spacing, and sizing. Pocket and finger-access creation buttons follow their existing objects, with Add pocket and Auto-arrange sharing a compact row. A single Add menu at the end of the workflow toolbar creates pockets and finger access in both Layout and 3D. Check fit omits redundant introductory text. GitHub remains linked from About instead of the main header.
 - Cancelled region selections and contour drags preserve edits and undo history. Trace tools respect scale prerequisites, and completing manual page corners returns to correction settings on compact screens.
 

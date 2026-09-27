@@ -3617,13 +3617,69 @@ describe("BinDesignerPage", () => {
     Object.defineProperty(file, "text", { value: async () => JSON.stringify(data) });
     Object.defineProperty(input, "files", { value: [file] });
     await React.act(async () => { input.dispatchEvent(new Event("change", { bubbles: true })); });
-    expect(ProjectPersistence.importProjectLibrary).toHaveBeenCalledWith(data);
+    expect(ProjectPersistence.importProjectLibrary).not.toHaveBeenCalled();
+    expect(document.querySelector('#library-import-merge')?.getAttribute('aria-checked')).toBe('true');
+    await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-confirm-import-library"]')!.click());
+    expect(ProjectPersistence.importProjectLibrary).toHaveBeenCalledWith(data, "merge", undefined);
     expect(input.value).toBe("");
     expect(document.querySelector('[role="dialog"]')?.textContent).toContain("1 saved project");
     expect(ProjectPersistence.startNewProject).not.toHaveBeenCalled();
     expect(ProjectPersistence.openProjectFromLibrary).not.toHaveBeenCalled();
     expect(document.querySelector('[data-testid="managed-project-list"]')?.textContent).toContain("Imported tray");
     unmount();
+  });
+
+  it.each([false, true])("replaces only the saved library after confirmation on mobile=%s", async mobile => {
+    const existing = { id: "existing", name: "Current design", updatedAt: "2026-09-12T12:00:00.000Z" };
+    const imported = { id: "imported", name: "Imported tray", updatedAt: existing.updatedAt };
+    const shape = rectangularShape('current-tool', 'Current tool');
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, name: existing.name, keepBinSize: true,
+      shapes: [shape], cutouts: [parseCutoutPlacement({ id: 'current-pocket', shapeId: shape.id, position: { x: 0, y: 0 }, depth: { mode: 'mm', value: 12 } })] });
+    vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId: existing.id, projects: [existing] });
+    vi.mocked(ProjectPersistence.importProjectLibrary).mockResolvedValue({ library: { activeProjectId: null, projects: [imported] }, imported: 1, upgraded: 0, renamed: 0 });
+    const { container, unmount } = renderPage({ mobile });
+    try {
+      await flushHydration();
+      if (mobile) {
+        React.act(() => [...container.querySelectorAll('button')].find(b => b.textContent === 'Adjust')!.click());
+        React.act(() => [...container.querySelectorAll('button')].find(b => b.textContent === 'More settings')!.click());
+      }
+      openSettingsSection(document.body, "project");
+      React.act(() => document.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
+      await flushHydration();
+      const input = document.querySelector<HTMLInputElement>('[data-testid="input-import-library"]')!;
+      const data = { format: "pocketry-library", schemaVersion: 1, projects: [] };
+      const file = new File([JSON.stringify(data)], 'library.json');
+      Object.defineProperty(file, 'text', { value: async () => JSON.stringify(data) });
+      Object.defineProperty(input, 'files', { value: [file] });
+      const chooseFile = () => React.act(() => input.dispatchEvent(new Event('change', { bubbles: true })));
+      chooseFile();
+      React.act(() => document.querySelector<HTMLButtonElement>('#library-import-replace')!.click());
+      expect(ProjectPersistence.importProjectLibrary).not.toHaveBeenCalled();
+      const dialog = document.querySelector('[data-testid="button-confirm-import-library"]')!.closest('[role="dialog"]')!;
+      expect(dialog.textContent).toContain('unnamed draft');
+      React.act(() => [...dialog.querySelectorAll<HTMLButtonElement>('button')].find(b => b.textContent === 'Cancel')!.click());
+      expect(ProjectPersistence.importProjectLibrary).not.toHaveBeenCalled();
+      chooseFile();
+      expect(document.querySelector('#library-import-merge')?.getAttribute('aria-checked')).toBe('true');
+      React.act(() => document.querySelector<HTMLButtonElement>('#library-import-replace')!.click());
+      const before = vi.mocked(useBinGeometry).mock.lastCall![2]!;
+      vi.mocked(ProjectPersistence.importProjectLibrary).mockRejectedValueOnce(new Error('Storage is full'));
+      await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-confirm-import-library"]')!.click());
+      expect(document.querySelector('[data-testid="current-project-title"]')?.textContent).toBe(existing.name);
+      expect(document.querySelector('[data-testid="managed-project-list"]')?.textContent).toContain(existing.name);
+      expect(document.querySelector('#library-import-replace')?.getAttribute('aria-checked')).toBe('true');
+      expect(document.querySelector<HTMLButtonElement>('[data-testid="button-confirm-import-library"]')!.disabled).toBe(false);
+      await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-confirm-import-library"]')!.click());
+      expect(ProjectPersistence.importProjectLibrary).toHaveBeenCalledWith(data, 'replace', expect.objectContaining({ name: existing.name, keepBinSize: true }));
+      expect(document.querySelector('[data-testid="button-confirm-import-library"]')).toBeNull();
+      expect(document.querySelector('[data-testid="managed-project-list"]')?.textContent).toContain(imported.name);
+      expect(document.querySelector('[data-testid="managed-project-list"]')?.textContent).not.toContain(existing.name);
+      expect(document.querySelector('[data-testid="current-project-title"]')?.textContent).toBe('Untitled project');
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]).toEqual(before);
+      expect(ProjectPersistence.openProjectFromLibrary).not.toHaveBeenCalled();
+      expect(ProjectPersistence.startNewProject).not.toHaveBeenCalled();
+    } finally { unmount(); }
   });
 
   it("disables project and library actions while exporting and recovers after an export error", async () => {
@@ -3659,7 +3715,10 @@ describe("BinDesignerPage", () => {
     Object.defineProperty(file, "text", { value: async () => "{" });
     Object.defineProperty(input, "files", { value: [file] });
     await React.act(async () => { input.dispatchEvent(new Event("change", { bubbles: true })); });
+    await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-confirm-import-library"]')!.click());
     expect(ProjectPersistence.importProjectLibrary).not.toHaveBeenCalled();
+    expect(projectToast).toHaveBeenCalledWith(expect.objectContaining({ title: "Could not import library" }));
+    expect(document.querySelector('[data-testid="button-confirm-import-library"]')).not.toBeNull();
     expect((document.querySelector('[data-testid="button-import-library"]') as HTMLButtonElement).disabled).toBe(false);
     unmount();
   });

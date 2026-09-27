@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { set } from "idb-keyval";
+import { set, setMany } from "idb-keyval";
 import { PROJECT_SCHEMA_VERSION, parseProjectDoc } from "@shared/gridfinity/project";
 import { type LibraryBackup } from "@shared/gridfinity/library";
 import airdusterV9 from "@shared/gridfinity/fixtures/airduster-v9.pocketry.json";
@@ -169,4 +169,64 @@ describe("library JSON transfer", () => {
     expect(exported.projects).toHaveLength(2);
     expect(exported.projects[0].doc.keepBinSize).toBe(true);
   });
+  it("replaces the saved library atomically while keeping latest work as an unlinked draft", async () => {
+    const saved = await saveProjectToLibrary(DOC, "Design 0", null);
+    await saveProjectToLibrary(DOC, "Remove me", null);
+    await openProjectFromLibrary(saved.activeProjectId!);
+    const currentDoc = { ...DOC, name: "Design 0", keepBinSize: true };
+    const input = backup();
+    input.projects[0].id = saved.activeProjectId!;
+    vi.mocked(setMany).mockClear();
+    const result = await importProjectLibrary(input, "replace", currentDoc);
+    expect(result).toMatchObject({ imported: 1, renamed: 0, library: { activeProjectId: null } });
+    expect(result.library.projects.map(p => p.name)).toEqual(["Design 0"]);
+    expect((await exportProjectLibrary()).projects[0].id).toBe(saved.activeProjectId);
+    expect((await exportProjectLibrary()).projects[0].doc.keepBinSize).not.toBe(true);
+    expect(await loadProjectDoc()).toEqual({ ...DOC, name: undefined, keepBinSize: true });
+    expect(currentDoc.name).toBe("Design 0");
+    expect(setMany).toHaveBeenCalledOnce();
+    expect(await loadProjectLibrary(await loadProjectDoc())).toEqual(result.library);
+    // A late autosave for an outgoing ID must not overwrite its imported namesake.
+    expect(await saveProjectDoc(currentDoc, saved.activeProjectId)).toBe(false);
+    expect((await exportProjectLibrary()).projects).toHaveLength(1);
+    expect((await exportProjectLibrary()).projects[0].doc.keepBinSize).not.toBe(true);
+  });
+
+  it("can replace with an empty backup and retain the current design as a draft", async () => {
+    await saveProjectToLibrary(DOC, "Existing", null);
+    const result = await importProjectLibrary(backup([]), "replace");
+    expect(result.library).toEqual({ activeProjectId: null, projects: [] });
+    expect(await loadProjectDoc()).toEqual({ ...DOC, name: undefined });
+    expect(await loadProjectLibrary(await loadProjectDoc())).toEqual(result.library);
+  });
+
+  it("replaces a library even when there is no working copy", async () => {
+    await importProjectLibrary(backup());
+    expect((await importProjectLibrary(backup([]), "replace")).library.projects).toEqual([]);
+    expect(await loadProjectDoc()).toBeNull();
+  });
+
+  it("keeps both current work and saved library if replacement storage fails", async () => {
+    await saveProjectToLibrary(DOC, "Existing", null);
+    const before = structuredClone([...memory]);
+    vi.mocked(setMany).mockRejectedValueOnce(new Error("Storage is full"));
+    await expect(importProjectLibrary(backup(), "replace", { ...DOC, keepBinSize: true })).rejects.toThrow("Storage is full");
+    expect([...memory]).toEqual(before);
+  });
+
+  it("validates the entire replacement before removing existing projects", async () => {
+    await saveProjectToLibrary(DOC, "Existing", null);
+    const before = structuredClone([...memory]);
+    await expect(importProjectLibrary(backup([DOC, { ...DOC, schemaVersion: 999 }]), "replace")).rejects.toThrow();
+    expect([...memory]).toEqual(before);
+  });
+
+  it("does not replace a library when its current working copy is unreadable", async () => {
+    await saveProjectToLibrary(DOC, "Existing", null);
+    memory.set("tooltrace:project:v1", { schemaVersion: 999 });
+    const before = structuredClone([...memory]);
+    await expect(importProjectLibrary(backup(), "replace")).rejects.toThrow("current design is unreadable");
+    expect([...memory]).toEqual(before);
+  });
+
 });

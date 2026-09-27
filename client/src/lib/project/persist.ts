@@ -5,6 +5,7 @@ import {
   PROJECT_LIBRARY_VERSION,
   PROJECT_NAME_MAX_LENGTH,
   type LibraryBackup,
+  type LibraryImportMode,
   type StoredProject,
   type StoredProjectLibrary,
 } from "@shared/gridfinity/library";
@@ -242,9 +243,10 @@ export async function importProjectToLibrary(input: ProjectDoc): Promise<OpenedL
 }
 
 /** Validate and migrate the entire backup before one atomic library write.
- * Conflicting entries become independent copies; the current design stays open.
+ * Merge keeps existing entries; replace detaches the working copy as an unnamed
+ * draft in the same transaction so autosave cannot overwrite an imported entry.
  */
-export async function importProjectLibrary(input: unknown): Promise<LibraryImportResult> {
+export async function importProjectLibrary(input: unknown, mode: LibraryImportMode = "merge", currentDoc?: ProjectDoc): Promise<LibraryImportResult> {
   const backup = libraryBackupSchema.safeParse(input);
   if (!backup.success) {
     throw new Error("Not a supported Pocketry library JSON file. No designs were imported.");
@@ -259,7 +261,7 @@ export async function importProjectLibrary(input: unknown): Promise<LibraryImpor
     return { ...project, name: cleanProjectName(project.name), doc };
   });
   return mutateLibrary(async (library) => {
-    const projects = [...library.projects];
+    const projects = mode === "replace" ? [] : [...library.projects];
     const ids = new Set(projects.map((project) => project.id));
     let renamed = 0;
     for (const project of importedProjects) {
@@ -270,8 +272,20 @@ export async function importProjectLibrary(input: unknown): Promise<LibraryImpor
       ids.add(id);
       projects.push({ ...project, id, name, doc: { ...project.doc, name } });
     }
-    const next = { ...library, projects };
-    if (importedProjects.length > 0) await set(PROJECT_LIBRARY_KEY, next);
+    const next = { ...library, activeProjectId: mode === "replace" ? null : library.activeProjectId, projects };
+    if (mode === "replace") {
+      const raw: unknown = currentDoc ?? await get(CURRENT_PROJECT_KEY);
+      const workingCopy = raw == null ? null : parseProjectDoc(raw);
+      if (raw != null && !workingCopy) throw new Error("The current design is unreadable. The library has been kept intact.");
+      if (workingCopy) {
+        // Removing its saved name prevents restore from reconnecting this draft
+        // to a same-name imported project or adding it back to the fresh library.
+        delete workingCopy.name;
+        await setMany([[CURRENT_PROJECT_KEY, workingCopy], [PROJECT_LIBRARY_KEY, next]]);
+      } else {
+        await set(PROJECT_LIBRARY_KEY, next);
+      }
+    } else if (importedProjects.length > 0) await set(PROJECT_LIBRARY_KEY, next);
     return { library: toSnapshot(next), imported: importedProjects.length, upgraded, renamed };
   });
 }

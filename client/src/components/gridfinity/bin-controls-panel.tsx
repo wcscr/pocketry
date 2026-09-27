@@ -111,6 +111,8 @@ import {
 import { HelpHint } from "@/components/ui/help-hint";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import type { LibraryImportMode } from "@shared/gridfinity/library";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
@@ -256,7 +258,7 @@ export interface BinControlsPanelProps {
   onDeleteProject: (projectId: string) => Promise<boolean>;
   onRefreshProjects: () => void;
   onExportLibrary: () => void;
-  onImportLibrary: (file: File) => void;
+  onImportLibrary: (file: File, mode: LibraryImportMode) => Promise<boolean>;
   onNewProject: () => void;
   section: BuildBinSection | null;
   onSectionChange: (section: BuildBinSection | null) => void;
@@ -2194,7 +2196,7 @@ interface ProjectControlsProps {
   onDeleteProject: (projectId: string) => Promise<boolean>;
   onRefreshProjects: () => void;
   onExportLibrary: () => void;
-  onImportLibrary: (file: File) => void;
+  onImportLibrary: (file: File, mode: LibraryImportMode) => Promise<boolean>;
   onNewProject: () => void;
   onExportProject: () => void;
   onImportProject: (doc: ProjectDoc) => Promise<boolean>;
@@ -2232,6 +2234,8 @@ function ProjectControls({
   const ready = hydrated && libraryReady;
   const [renameProjectId, setRenameProjectId] = useState<string | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
+  const [pendingLibraryFile, setPendingLibraryFile] = useState<File | null>(null);
+  const [libraryImportMode, setLibraryImportMode] = useState<LibraryImportMode>("merge");
   const [pendingOpenProject, setPendingOpenProject] = useState<ProjectOpenTarget | null>(null);
   const { toast } = useToast();
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
@@ -2546,7 +2550,7 @@ function ProjectControls({
         </ScrollArea>
         <div className="shrink-0 space-y-1.5 border-t pt-3" data-testid="library-file-backup">
           <div className="flex items-center justify-between gap-2">
-            <SettingLabel label="Entire library" hint="Exports every named project saved in this browser as one JSON file. Unnamed drafts are not included. Import adds projects without replacing your current design or existing library; duplicate names receive an imported suffix." />
+            <SettingLabel label="Entire library" hint="Exports every named project saved in this browser as one JSON file. Unnamed drafts are not included. Import lets you merge with this library or replace it. Your current design stays open; duplicate names receive an imported suffix when merging." />
           </div>
           <div className="grid grid-cols-2 gap-2">
             <Button size="sm" variant="outline" className={projectActionClass} disabled={!ready || busy}
@@ -2564,7 +2568,7 @@ function ProjectControls({
           onChange={(event) => {
             const file = event.currentTarget.files?.[0];
             event.currentTarget.value = "";
-            if (file) onImportLibrary(file);
+            if (file && !busy) { setLibraryImportMode("merge"); setPendingLibraryFile(file); }
           }} />
       </DialogContent>
     </Dialog>
@@ -2659,6 +2663,48 @@ function ProjectControls({
       </div>
       {renderLibraryDialog()}
       </section>
+
+      <Dialog open={pendingLibraryFile !== null} onOpenChange={(open) => { if (!open && !busy) setPendingLibraryFile(null); }}>
+        <DialogContent className="max-h-[85dvh] overflow-y-auto" onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          libraryDialogRef.current?.querySelector<HTMLButtonElement>('[data-testid="button-import-library"]')?.focus();
+        }}>
+          <DialogHeader>
+            <DialogTitle>Import library</DialogTitle>
+            <DialogDescription className="break-words">Choose how to import {pendingLibraryFile?.name}.</DialogDescription>
+          </DialogHeader>
+          <RadioGroup aria-label="Library import mode" value={libraryImportMode} disabled={busy}
+            onValueChange={(value) => setLibraryImportMode(value === "replace" ? "replace" : "merge")}>
+            <label className="flex cursor-pointer items-start gap-3 rounded-md border p-3">
+              <RadioGroupItem value="merge" id="library-import-merge" aria-label="Merge with current library" className="mt-0.5 shrink-0" aria-describedby="library-import-merge-description" />
+              <span className="min-w-0">
+                <span className="block text-sm font-medium">Merge with current library</span>
+                <span id="library-import-merge-description" className="mt-1 block text-xs text-muted-foreground">Keep existing projects and add the imported ones. Conflicting names get an imported suffix.</span>
+              </span>
+            </label>
+            <label className="flex cursor-pointer items-start gap-3 rounded-md border p-3">
+              <RadioGroupItem value="replace" id="library-import-replace" aria-label="Replace current library" className="mt-0.5 shrink-0" aria-describedby="library-import-replace-description" />
+              <span className="min-w-0">
+                <span className="block text-sm font-medium">Replace current library</span>
+                <span id="library-import-replace-description" className="mt-1 block text-xs text-muted-foreground">Start fresh with only the imported projects. Removes the saved library from this browser.</span>
+              </span>
+            </label>
+          </RadioGroup>
+          <p className="text-sm text-muted-foreground">
+            {libraryImportMode === "replace"
+              ? "Your current design stays open as an unnamed draft. Export your library first if you want to keep its saved projects."
+              : "Your current design stays open."}
+          </p>
+          <DialogFooter>
+            <Button variant="outline" disabled={busy} onClick={() => setPendingLibraryFile(null)}>Cancel</Button>
+            <Button variant={libraryImportMode === "replace" ? "destructive" : "default"} disabled={busy || !pendingLibraryFile}
+              data-testid="button-confirm-import-library" onClick={async () => {
+                if (!pendingLibraryFile || busy) return;
+                if (await onImportLibrary(pendingLibraryFile, libraryImportMode)) setPendingLibraryFile(null);
+              }}>{busy ? "Importing…" : libraryImportMode === "replace" ? "Replace library" : "Merge library"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={pendingOpenProject !== null} onOpenChange={(open) => {
         if (!open && !busy) setPendingOpenProject(null);
