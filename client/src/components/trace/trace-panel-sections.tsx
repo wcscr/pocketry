@@ -24,7 +24,7 @@ export function TracePanelSections({ children }: { children: ReactNode }): JSX.E
   </PanelBody>;
   const complete = [!!trace.imageSize.width, !!trace.calibration && !trace.pendingAutoCalibration,
     !!trace.region && trace.region.width > 5 && trace.region.height > 5, !!trace.outline.length,
-    !!trace.outline.length && !!trace.calibration && !trace.pendingAutoCalibration && trace.margin !== null, false];
+    inspector.marginVisited && !!trace.outline.length && !!trace.calibration && !trace.pendingAutoCalibration && trace.margin !== null, false];
   const active = TRACE_WORKFLOW_SECTIONS.find(section => section.id === inspector.activeSection);
   return <>
     <nav className="min-h-0 flex-1 overflow-y-auto overscroll-contain" aria-label="Photo tracing workflow">

@@ -256,6 +256,8 @@ describe("trace workflow and properties", () => {
   it("gives margin its own optional properties and resets it without re-detection", async () => {
     await finishTrace();
     expect(host.querySelector("#objects-panel #margin")).toBeNull();
+    expect(button("trace-workflow-margin").getAttribute("aria-label")).toBe("5. Margin");
+    expect(button("trace-workflow-margin").querySelector("svg.lucide-check")).toBeNull();
     await act(() => button("trace-workflow-margin").click());
     expect(host.querySelector("#objects-panel #margin")?.textContent).toContain("0 mm — no margin");
     expect(button("button-reset-margin").disabled).toBe(true);
@@ -285,6 +287,28 @@ describe("trace workflow and properties", () => {
     expect(button("trace-workflow-margin").getAttribute("aria-label")).toBe("5. Margin (complete)");
     await act(() => trace.dispatch({ type: "SET_MARGIN", margin: null }));
     expect(button("trace-workflow-margin").getAttribute("aria-label")).toBe("5. Margin");
+  });
+
+  it.each([0, 1])("requires a Margin visit even with an existing %s mm value, and resets review for a new photo", async margin => {
+    await finishTrace();
+    await act(() => trace.dispatch({ type: "SET_MARGIN", margin }));
+    const completion = () => button("trace-workflow-margin").getAttribute("aria-label");
+    expect(completion()).toBe("5. Margin");
+    await act(() => button("trace-workflow-export").click());
+    expect(completion()).toBe("5. Margin");
+    await act(() => button("trace-workflow-margin").click());
+    expect(completion()).toBe("5. Margin (complete)");
+    await act(() => button("trace-workflow-outline").click());
+    expect(completion()).toBe("5. Margin (complete)");
+    // Guided controls can remount their section bodies without losing the visit.
+    await act(() => trace.dispatch({ type: "SET_MODE", mode: "calibrate" }));
+    expect(completion()).toBe("5. Margin");
+    await act(() => trace.dispatch({ type: "SET_CALIBRATION", calibration }));
+    expect(completion()).toBe("5. Margin (complete)");
+    await finishTrace();
+    expect(completion()).toBe("5. Margin");
+    await act(() => button("trace-workflow-margin").click());
+    expect(completion()).toBe("5. Margin (complete)");
   });
 
   it("restores a collapsed inspector when another workflow step is chosen", async () => {

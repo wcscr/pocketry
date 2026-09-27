@@ -19,13 +19,18 @@ function TraceWorkflowWorkspace(props: WorkspaceLayoutProps): JSX.Element {
   const [settings, setSettings] = useState<HTMLDivElement | null>(null);
   const [openRequest, setOpenRequest] = useState(0);
   const [canvasRequest, setCanvasRequest] = useState(0);
+  const [marginVisitedRevision, setMarginVisitedRevision] = useState<number | null>(null);
+  const marginVisited = marginVisitedRevision === trace.sourceRevision;
   const showSection = useCallback((id: string, reveal = true) => {
     setActiveSection(id);
-    if (reveal) setOpenRequest(request => request + 1);
-  }, []);
+    if (reveal) {
+      setOpenRequest(request => request + 1);
+      if (id === "trace-settings-margin") setMarginVisitedRevision(trace.sourceRevision);
+    }
+  }, [trace.sourceRevision]);
   const showCanvas = useCallback(() => setCanvasRequest(request => request + 1), []);
-  const context = useMemo(() => ({ activeSection, settings, showSection, showCanvas }),
-    [activeSection, settings, showSection, showCanvas]);
+  const context = useMemo(() => ({ activeSection, marginVisited, settings, showSection, showCanvas }),
+    [activeSection, marginVisited, settings, showSection, showCanvas]);
   const section = TRACE_WORKFLOW_SECTIONS.find(item => item.id === activeSection) ?? TRACE_WORKFLOW_SECTIONS[0];
   return <TraceInspectorContext.Provider value={context}>
     <WorkspaceLayout {...props} inspectorPanelTitle="Workflow" inspectorRequest={openRequest}
