@@ -1165,16 +1165,28 @@ export function BinControlsPanel({
             </PropertySurface>
             );
 
+  const openProjectName = () => {
+    if (!hydrated || !projectLibraryReady || projectBusy) return;
+    if (inspector) inspector.showSection("bin-settings-project");
+    else revealPanelSection("bin-settings-project", BIN_SETTINGS_SECTIONS);
+    setProjectNameOpen(true);
+  };
+
   const projectStatus = (
       <div className={!inspector && exportOnly ? "hidden" : cn("min-w-0 px-3 py-2", !inspector && "shrink-0 border-b", inspector && "flex-1")} data-testid="project-status">
-        <p className="cursor-text truncate text-sm font-medium" data-testid="project-status-title"
-          title={`${currentProjectName ?? "Untitled project"} — double-click to rename`}
-          onDoubleClick={() => {
-            if (!hydrated || !projectLibraryReady || projectBusy) return;
-            if (inspector) inspector.showSection("bin-settings-project");
-            else revealPanelSection("bin-settings-project", BIN_SETTINGS_SECTIONS);
-            setProjectNameOpen(true);
-          }}>{currentProjectName ?? "Untitled project"}</p>
+        <div className="flex min-w-0 items-center gap-1">
+          <p className="cursor-text truncate text-sm font-medium" data-testid="project-status-title"
+            title={`${currentProjectName ?? "Untitled project"} — double-click to rename`}
+            onDoubleClick={openProjectName}>{currentProjectName ?? "Untitled project"}</p>
+          <Button type="button" variant="ghost" size="icon"
+            className="h-8 w-8 shrink-0 text-muted-foreground [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11"
+            aria-label="Edit project name" title="Edit project name"
+            data-testid="button-edit-project-name"
+            disabled={!hydrated || !projectLibraryReady || projectBusy}
+            onClick={openProjectName}>
+            <Pencil aria-hidden="true" />
+          </Button>
+        </div>
         <p className="text-[11px] text-muted-foreground" role="status">{!hydrated ? "Opening project…" : projectBusy ? "Working…" : saveStatus === "saving" ? activeProjectId ? "Saving to browser library…" : "Draft — saving locally…" : saveStatus === "error" ? "Could not save. Export this project to keep your work." : activeProjectId ? "Saved to browser library" : "Draft — autosaved locally"}</p>
       </div>
   );
@@ -1186,12 +1198,8 @@ export function BinControlsPanel({
         <p>This project uses experimental pocket tools. Its geometry and links are preserved; edits to linked designs still update their copies.</p>
         <Button size="sm" variant="link" className="h-9 px-0 text-xs" onClick={() => setSettingsOpen(true)}>Show experimental settings</Button>
       </div>}
-      {inspector ? <div className="shrink-0 border-b px-3 pb-2 pt-4">
-        <h2 className="mb-3 text-xs font-semibold">Design workflow</h2>
-        <div className="mt-1 flex items-center justify-between text-xs">
-          {experimentalEnabled && <Button size="sm" variant="ghost" disabled={!cutouts.length && !fingerHoles.length} onClick={() => dispatch({ type: "SET_SELECTION", selection: [...cutouts.map(c => ({ kind: "pocket" as const, id: c.id })), ...fingerHoles.map(h => ({ kind: "finger" as const, id: h.id }))] })}>Select all</Button>}
-          <Button size="sm" variant="ghost" disabled={!selection.length} aria-label="Clear object selection" onClick={() => { dispatch({ type: "SET_SELECTION", selection: [] }); inspector.showSection("bin-settings-size"); }}>Clear</Button>
-        </div>
+      {inspector ? <div className="shrink-0 border-b px-3 py-3">
+        <h2 className="text-xs font-semibold">Design workflow</h2>
       </div> : projectStatus}
       {/* On short screens the section headers remain reachable by scrolling;
           reserve the limited height for editable fields instead of shortcuts. */}

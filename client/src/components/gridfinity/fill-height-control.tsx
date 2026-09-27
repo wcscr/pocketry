@@ -28,11 +28,11 @@ export function FillHeightControl({ value, onChange }: {
             {" "}Snaps to 25%, 50%, 75%, and 100%.
           </HelpHint>
         </div>
-        <span className="flex items-center gap-1 text-xs tabular-nums text-muted-foreground">
+        <span className="flex shrink-0 items-center gap-1 text-xs tabular-nums text-muted-foreground">
           <DraftNumberInput
             id="fill-height-percent"
             aria-label="Fill height percentage"
-            className="h-8 w-16"
+            className="h-8 w-24 shrink-0"
             value={value}
             min={1}
             max={100}

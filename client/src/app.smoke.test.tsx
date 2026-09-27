@@ -26,6 +26,7 @@ let container: HTMLDivElement;
 let root: Root;
 
 beforeEach(() => {
+  localStorage.setItem("pocketry:welcome:1.1.1", "dismissed");
   localStorage.removeItem("pocketry:experimental-features");
   localStorage.removeItem("pocketry:selection-inspector");
   localStorage.removeItem("pocketry:editor-layout");
@@ -57,6 +58,7 @@ afterEach(() => {
   localStorage.removeItem("pocketry:experimental-features");
   localStorage.removeItem("pocketry:selection-inspector");
   localStorage.removeItem("pocketry:editor-layout");
+  localStorage.removeItem("pocketry:welcome:1.1.1");
 });
 
 function renderApp(): void {

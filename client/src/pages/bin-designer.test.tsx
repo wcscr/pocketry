@@ -2736,16 +2736,20 @@ describe("BinDesignerPage", () => {
     unmount();
   });
 
-  it.each(["current-project-title", "project-status-title"])("names a new draft by double-clicking %s without exporting a backup", async (titleId) => {
+  it.each(["current-project-title", "project-status-title", "button-edit-project-name"])("names a new draft from %s without exporting a backup", async (titleId) => {
     const { container, unmount } = renderPage();
-    // The status title also works while Project is collapsed.
+    // The status title and pencil also work while Project is collapsed.
     if (titleId === "current-project-title") openSettingsSection(container, "project");
+    expect(container.querySelector<HTMLButtonElement>('[data-testid="button-edit-project-name"]')!.disabled).toBe(true);
     await flushHydration();
+    expect(container.querySelector<HTMLButtonElement>('[data-testid="button-edit-project-name"]')!.disabled).toBe(false);
     React.act(() => projectSaveMock.onSaved?.(true));
     expect(container.querySelector('[data-testid="project-status"] [role="status"]')!.textContent).toBe("Draft — autosaved locally");
 
     React.act(() => {
-      container.querySelector(`[data-testid="${titleId}"]`)!.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      const trigger = container.querySelector<HTMLElement>(`[data-testid="${titleId}"]`)!;
+      if (titleId === "button-edit-project-name") trigger.click();
+      else trigger.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
     });
     const name = document.querySelector(
       '[data-testid="input-project-name"]',
@@ -2789,37 +2793,53 @@ describe("BinDesignerPage", () => {
     unmount();
   });
 
-  it("renames a saved project from its title, with Cancel preserving its name and identity", async () => {
+  it.each([
+    { trigger: 'title', layout: 'standard', mobile: false },
+    { trigger: 'pencil', layout: 'standard', mobile: false },
+    { trigger: 'pencil', layout: 'standard', mobile: true },
+    { trigger: 'pencil', layout: 'workflow', mobile: false },
+    { trigger: 'pencil', layout: 'workflow', mobile: true },
+  ])("renames a saved project from its $trigger in $layout with mobile=$mobile, preserving its identity and supporting Cancel", async ({ trigger, layout, mobile }) => {
+    const originalUrl = window.location.href;
+    window.history.replaceState(null, '', `/bin?layout=${layout}`);
     const project = { id: "current", name: "Stapler", updatedAt: "2026-09-20T12:00:00.000Z" };
     vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId: project.id, projects: [project] });
-    const { container, unmount } = renderPage();
-    openSettingsSection(container, "project");
-    await flushHydration();
-    const before = vi.mocked(useBinGeometry).mock.lastCall;
-    const openName = () => {
-      React.act(() => container.querySelector('[data-testid="current-project-title"]')!.dispatchEvent(new MouseEvent("dblclick", { bubbles: true })));
-      return document.querySelector<HTMLInputElement>('[data-testid="input-project-name"]')!;
-    };
-    const editName = (input: HTMLInputElement) => React.act(() => {
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "Stapler tray");
-      input.dispatchEvent(new Event("input", { bubbles: true }));
-    });
-    let input = openName();
-    expect(input.value).toBe("Stapler");
-    editName(input);
-    React.act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(button => button.textContent === "Cancel")!.click());
-    expect(ProjectPersistence.saveProjectToLibrary).not.toHaveBeenCalled();
-    expect(container.querySelector('[data-testid="current-project-title"]')?.textContent).toBe("Stapler");
-    input = openName();
-    expect(input.value).toBe("Stapler");
-    editName(input);
-    await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-confirm-save-library"]')!.click());
-    expect(ProjectPersistence.saveProjectToLibrary).toHaveBeenCalledWith(expect.objectContaining({ schemaVersion: PROJECT_SCHEMA_VERSION }), "Stapler tray", "current");
-    expect(container.querySelector('[data-testid="current-project-title"]')?.textContent).toBe("Stapler tray");
-    expect(container.querySelector('[data-testid="project-status-title"]')?.textContent).toBe("Stapler tray");
-    expect(vi.mocked(useBinGeometry).mock.lastCall).toEqual(before);
-    expect(ProjectPersistence.openProjectFromLibrary).not.toHaveBeenCalled();
-    unmount();
+    const { container, unmount } = renderPage({ mobile });
+    try {
+      if (trigger === 'title') openSettingsSection(container, "project");
+      await flushHydration();
+      if (layout === 'standard' && mobile) {
+        React.act(() => [...container.querySelectorAll('button')].find(button => button.textContent === 'Adjust')!.click());
+        React.act(() => [...document.querySelectorAll('button')].find(button => button.textContent === 'More settings')!.click());
+      }
+      const before = vi.mocked(useBinGeometry).mock.lastCall;
+      const openName = () => {
+        React.act(() => {
+          if (trigger === 'pencil') document.querySelector<HTMLButtonElement>('[data-testid="button-edit-project-name"]')!.click();
+          else document.querySelector('[data-testid="current-project-title"]')!.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+        });
+        return document.querySelector<HTMLInputElement>('[data-testid="input-project-name"]')!;
+      };
+      const editName = (input: HTMLInputElement) => React.act(() => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "Stapler tray");
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      let input = openName();
+      expect(input.value).toBe("Stapler");
+      editName(input);
+      React.act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(button => button.textContent === "Cancel")!.click());
+      expect(ProjectPersistence.saveProjectToLibrary).not.toHaveBeenCalled();
+      expect(document.querySelector('[data-testid="current-project-title"]')?.textContent).toBe("Stapler");
+      input = openName();
+      expect(input.value).toBe("Stapler");
+      editName(input);
+      await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-confirm-save-library"]')!.click());
+      expect(ProjectPersistence.saveProjectToLibrary).toHaveBeenCalledWith(expect.objectContaining({ schemaVersion: PROJECT_SCHEMA_VERSION }), "Stapler tray", "current");
+      expect(document.querySelector('[data-testid="current-project-title"]')?.textContent).toBe("Stapler tray");
+      expect(document.querySelector('[data-testid="project-status-title"]')?.textContent).toBe("Stapler tray");
+      expect(vi.mocked(useBinGeometry).mock.lastCall).toEqual(before);
+      expect(ProjectPersistence.openProjectFromLibrary).not.toHaveBeenCalled();
+    } finally { unmount(); window.history.replaceState(null, '', originalUrl); }
   });
 
   it("restores library identity before showing the project status or opening another project", async () => {
@@ -4956,6 +4976,8 @@ it.each([false, true])("workflow layout routes every section to matching propert
     const chooseSection = (name: string) => React.act(() => left.querySelector<HTMLButtonElement>(`[aria-label="${name} — show properties"]`)!.click());
     expect(left.querySelector('[aria-label="Find bin settings"]')).toBeNull();
     expect(left.textContent).not.toContain('Find a setting');
+    expect(left.querySelector('[aria-label="Clear object selection"]')).toBeNull();
+    expect([...left.querySelectorAll('button')].find(button => button.textContent === 'Select all')).toBeUndefined();
     expect(left.querySelector('#bin-settings-pockets')).not.toBeNull();
     expect(left.querySelector('#bin-settings-finger-holes')).not.toBeNull();
     expect(left.querySelectorAll('button[data-testid^="workflow-section-"]')).toHaveLength(6);
@@ -4984,8 +5006,8 @@ it.each([false, true])("workflow layout routes every section to matching propert
     openSettingsSection(container, 'finger-holes');
     React.act(() => left.querySelector<HTMLButtonElement>('[aria-label="Thumb — edit finger access properties"]')!.click());
     expect(right.querySelector('#finger-access-properties')!.getAttribute('data-property-tone')).toBe('cyan');
-    React.act(() => left.querySelector<HTMLButtonElement>('[aria-label="Clear object selection"]')!.click());
-    expect(left.querySelectorAll('input:checked')).toHaveLength(0);
+    chooseSection('Bin size');
+    expect(left.querySelector('[aria-label="Thumb — edit finger access properties"]')!.getAttribute('aria-pressed')).toBe('true');
     expect(right.querySelector('[data-testid="inspector-properties-header"] h3')!.textContent).toBe('Bin size');
     if (mobile) React.act(() => Array.from(container.querySelectorAll<HTMLButtonElement>('nav[aria-label="Editor panels"] button')).find(button => button.textContent === 'Workflow')!.click());
     openSettingsSection(container, 'finger-holes');
