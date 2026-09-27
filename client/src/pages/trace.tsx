@@ -760,7 +760,7 @@ function TraceWorkspace(): JSX.Element {
       <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Choose Source Image</DialogTitle>
+            <DialogTitle>Choose source image</DialogTitle>
             <DialogDescription>
               Loading a new image clears the current outline, region and scale.
             </DialogDescription>

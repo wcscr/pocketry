@@ -143,11 +143,7 @@ describe("App", () => {
         link.textContent?.trim(),
       ),
     ).toEqual(["Trace", "Bin", "Library"]);
-    expect(
-      container
-        .querySelector<HTMLAnchorElement>('[aria-label="Pocketry on GitHub"]')
-        ?.getAttribute("href"),
-    ).toBe("https://github.com/wcscr/pocketry");
+    expect(container.querySelector('header a[href="https://github.com/wcscr/pocketry"]')).toBeNull();
   });
 
   it("links to a scrollable About page with legal notices and related tools", () => {
@@ -165,6 +161,7 @@ describe("App", () => {
 
     expect(window.location.pathname).toBe("/about");
     expect(container.textContent).toContain("About Pocketry");
+    expect(container.querySelector('main a[href="https://github.com/wcscr/pocketry"]')?.textContent).toContain("View source on GitHub");
     expect(container.textContent).toContain(
       "Pocketry began in March 2025 as ToolTrace SVG Generator and was renamed in August 2026.",
     );

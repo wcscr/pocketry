@@ -1,6 +1,5 @@
 import {
   CircleHelp,
-  Github,
   Info,
   LibraryBig,
   PanelLeftOpen,
@@ -158,22 +157,6 @@ export function AppHeader({
             </Button>
           </TooltipTrigger>
           <TooltipContent>About, licenses, and related projects</TooltipContent>
-        </Tooltip>
-
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button asChild variant="ghost" size="icon" className="hidden sm:inline-flex">
-              <a
-                href="https://github.com/wcscr/pocketry"
-                target="_blank"
-                rel="noreferrer"
-                aria-label="Pocketry on GitHub"
-              >
-                <Github className="h-4 w-4" />
-              </a>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>View Pocketry on GitHub</TooltipContent>
         </Tooltip>
 
         <Tooltip>

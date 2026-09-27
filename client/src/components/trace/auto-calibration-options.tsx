@@ -28,7 +28,7 @@ export function AutoCalibrationOptions({ onSetManually, onApplyPerspective, onDe
     <Button variant={paper ? "outline" : "default"} size="sm" className={actionClass}
       disabled={processing} data-testid="button-apply-auto-perspective"
       onClick={() => onApplyPerspective(perspective, template, true)}>
-      <ScanLine className="mr-1.5 h-4 w-4 shrink-0" />
+      <ScanLine className="h-4 w-4 shrink-0" />
       {paper ? "Correct perspective & use paper scale" : "Correct perspective & use scale"}
     </Button>
   );

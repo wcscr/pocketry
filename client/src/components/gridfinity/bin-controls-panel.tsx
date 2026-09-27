@@ -37,6 +37,7 @@ import { useDelayedBusy } from "@/hooks/use-delayed-busy";
 import { useLocation } from "wouter";
 import { LinkedDesignControls } from "./linked-design-controls";
 import { AddPocketMenu } from "./add-pocket-menu";
+import { AddFingerAccessButton } from "./add-finger-access-button";
 import { BIN_OBJECT_SECTIONS, BIN_WORKFLOW_SECTIONS as BIN_SETTINGS_SECTIONS } from "./bin-workflow";
 import { PropertySurface } from "@/components/layout/property-surface";
 import { InspectorPanelSections } from "./inspector-panel-sections";
@@ -48,7 +49,6 @@ import {
   DEFAULT_OBLONG_DEEP_SCOOP_LENGTH_MM,
   DEFAULT_TOP_EDGE_FILLET_MM,
   defaultPocketFloorThicknessMm,
-  defaultFingerAccessDepthMm,
   isElongatedFingerHole,
   effectiveFingerHoleDepthMm,
   effectiveFingerHoleTopFilletMm,
@@ -710,7 +710,7 @@ export function BinControlsPanel({
                 <Button
                   variant={editorMode === "contour" ? "default" : "outline"}
                   size="sm"
-                  className="ml-auto h-9 shrink-0 gap-1 px-2 text-xs"
+                  className="ml-auto shrink-0"
                   aria-label={editorMode === "contour" ? "Finish contour editing" : "Edit contour"}
                   aria-pressed={editorMode === "contour"}
                   data-testid="button-edit-contour"
@@ -735,7 +735,7 @@ export function BinControlsPanel({
               <PocketDepthSummary cutout={depthCutout!} shape={depthShape!} section={section} inspect={onSectionChange}>
                 {selectedCutout.split && <div className="flex gap-1 pb-2" role="group" aria-label="Section to edit">
                   {([0, 1] as const).map(index => <Button key={index} type="button" size="sm"
-                    className="h-9 flex-1 text-xs" variant={selectedPocketSection === index ? "secondary" : "outline"}
+                    className="flex-1" variant={selectedPocketSection === index ? "secondary" : "outline"}
                     aria-pressed={selectedPocketSection === index}
                     onClick={() => dispatch({ type: "SELECT_CUTOUT", id: selectedCutout.id, section: index })}>
                     Section {index === 0 ? "A" : "B"}
@@ -1187,8 +1187,8 @@ export function BinControlsPanel({
       {inspector ? <div className="shrink-0 border-b px-3 pb-2 pt-4">
         <h2 className="mb-3 text-xs font-semibold">Design workflow</h2>
         <div className="mt-1 flex items-center justify-between text-xs">
-          {experimentalEnabled && <Button size="sm" variant="ghost" className="px-2 text-xs" disabled={!cutouts.length && !fingerHoles.length} onClick={() => dispatch({ type: "SET_SELECTION", selection: [...cutouts.map(c => ({ kind: "pocket" as const, id: c.id })), ...fingerHoles.map(h => ({ kind: "finger" as const, id: h.id }))] })}>Select all</Button>}
-          <Button size="sm" variant="ghost" className="px-2 text-xs" disabled={!selection.length} aria-label="Clear object selection" onClick={() => { dispatch({ type: "SET_SELECTION", selection: [] }); inspector.showSection("bin-settings-size"); }}>Clear</Button>
+          {experimentalEnabled && <Button size="sm" variant="ghost" disabled={!cutouts.length && !fingerHoles.length} onClick={() => dispatch({ type: "SET_SELECTION", selection: [...cutouts.map(c => ({ kind: "pocket" as const, id: c.id })), ...fingerHoles.map(h => ({ kind: "finger" as const, id: h.id }))] })}>Select all</Button>}
+          <Button size="sm" variant="ghost" disabled={!selection.length} aria-label="Clear object selection" onClick={() => { dispatch({ type: "SET_SELECTION", selection: [] }); inspector.showSection("bin-settings-size"); }}>Clear</Button>
         </div>
       </div> : projectStatus}
       {/* On short screens the section headers remain reachable by scrolling;
@@ -1368,7 +1368,7 @@ export function BinControlsPanel({
               if (!editing) dispatch({ type: "SET_VIEW_MODE", viewMode: "2d" });
             }}
           >
-            <LayoutGrid className="mr-1.5 h-3.5 w-3.5" />
+            <LayoutGrid className="h-4 w-4" />
             {editorMode === "footprint" ? "Finish footprint editing" : "Edit footprint"}
           </Button>
           {spec.footprint.kind === "custom" && (
@@ -1520,7 +1520,7 @@ export function BinControlsPanel({
                     if (!editing) dispatch({ type: "SET_VIEW_MODE", viewMode: "2d" });
                   }}
                 >
-                  <MousePointerClick className="mr-1.5 h-3.5 w-3.5" />
+                  <MousePointerClick className="h-4 w-4" />
                   {editorMode === "label-edge" ? "Cancel edge selection" : "Choose any edge"}
                 </Button>
               </div>
@@ -1540,8 +1540,8 @@ export function BinControlsPanel({
           defaultOpen={!!inspector || cutouts.length > 0}
           className="scroll-mt-16"
         >
-          <div className="mb-2"><AddPocketMenu /></div>
           {pocketList}
+          <AddPocketMenu className="w-full" />
           {!inspector && !selectedCutout && (
             <p className="rounded-md border border-dashed px-3 py-4 text-xs text-muted-foreground" id="pocket-properties" data-testid="pocket-selection-help">
               {cutouts.length === 0
@@ -1553,7 +1553,7 @@ export function BinControlsPanel({
 
           <div className="flex flex-wrap gap-2 border-t pt-3">
             <Button variant="outline" size="sm" onClick={onAutoArrange} disabled={cutouts.length === 0} data-testid="button-auto-arrange">
-              <LayoutGrid className="mr-1.5 h-3.5 w-3.5" />Auto-arrange
+              <LayoutGrid className="h-4 w-4" />Auto-arrange
             </Button>
           </div>
 
@@ -1571,35 +1571,8 @@ export function BinControlsPanel({
           className="scroll-mt-16"
         >
           <div className="space-y-3">
-            <div className="flex items-center justify-start gap-3">
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-11 shrink-0 px-2 text-xs"
-                data-testid="button-add-finger-hole"
-                onClick={() =>
-                  dispatch({
-                    type: "ADD_FINGER_HOLE",
-                    hole: {
-                      id: crypto.randomUUID(),
-                      center: { x: 0, y: 0 },
-                      diameterMm: 18,
-                      kind: "oblong-deep-scoop",
-                      slotEnds: "rounded",
-                      lengthMm: DEFAULT_OBLONG_DEEP_SCOOP_LENGTH_MM,
-                      depthMm: defaultFingerAccessDepthMm(spec, cutouts),
-                      topFilletMm: DEFAULT_TOP_EDGE_FILLET_MM,
-                      bottomFilletMm: 0,
-                    },
-                  })
-                }
-              >
-                <Plus className="mr-1 h-3 w-3" />
-                Add Finger Access
-              </Button>
-            </div>
-
             {fingerList}
+            <AddFingerAccessButton className="w-full" />
 
             {!inspector && fingerProperties}
           </div>
@@ -1851,7 +1824,7 @@ export function BinControlsPanel({
                   }
                   data-testid="button-export-surface-fit-test"
                 >
-                  <Download className="mr-1.5 h-3.5 w-3.5" />
+                  <Download className="h-4 w-4" />
                   {exporting ? "Building…" : "Save surface fit test STL"}
                 </Button>
               </div>
@@ -1891,7 +1864,7 @@ export function BinControlsPanel({
                   })}
                   data-testid="button-export-fit-check"
                 >
-                  <Download className="mr-1.5 h-3.5 w-3.5" />
+                  <Download className="h-4 w-4" />
                   {exporting ? "Building…" : "Save fit template STL"}
                 </Button>
               </div>
@@ -1994,7 +1967,7 @@ export function BinControlsPanel({
                 onClick={() => { setIncludeThreeMfProject(false); setThreeMfDialogOpen(true); }}
                 data-testid="button-export-3mf"
               >
-                <Box className="mr-1.5 h-4 w-4" />
+                <Box className="h-4 w-4" />
                 {exporting ? "Exporting…" : "Save 3MF"}
               </Button>
               <Button
@@ -2134,7 +2107,7 @@ export function BinControlsPanel({
               }}
               data-testid="button-export-single-color-3mf"
             >
-              <Box className="mr-2 mt-0.5 h-4 w-4 shrink-0" />
+              <Box className="mt-0.5 h-4 w-4 shrink-0" />
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-medium">Single-color 3MF</span>
                 <span className="block text-[11px] font-normal text-muted-foreground">
@@ -2151,7 +2124,7 @@ export function BinControlsPanel({
               }}
               data-testid="button-export-multicolor-3mf"
             >
-              <Palette className="mr-2 mt-0.5 h-4 w-4 shrink-0" />
+              <Palette className="mt-0.5 h-4 w-4 shrink-0" />
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-medium">Multi-color 3MF</span>
                 <span className="block text-[11px] font-normal opacity-80">
@@ -2896,7 +2869,7 @@ function ObjectActions({ name, children }: { name: string; children: ReactNode }
     }}>
       {Children.map(children, child => isValidElement<{ children: ReactNode; "aria-label": string; disabled?: boolean; onClick: () => void }>(child) &&
         <DropdownMenuItem disabled={child.props.disabled} aria-label={child.props["aria-label"]}
-          className="min-h-9 gap-2 text-xs [@media(pointer:coarse)]:min-h-11" onSelect={() => { pendingAction.current = child.props.onClick; }}>
+          className="min-h-9 gap-1.5 [@media(pointer:coarse)]:min-h-11" onSelect={() => { pendingAction.current = child.props.onClick; }}>
           {child.props.children}<span>{child.props["aria-label"]}</span>
         </DropdownMenuItem>)}
     </DropdownMenuContent>

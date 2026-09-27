@@ -1026,7 +1026,7 @@ function ModeButton({
         <Button
           variant={active ? "secondary" : "ghost"}
           size="icon"
-          className={cn("h-11 w-11 md:h-8 md:w-8 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11", active && "ring-1 ring-primary/40")}
+          className={cn("h-11 w-11 md:h-9 md:w-9 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11", active && "ring-1 ring-primary/40")}
           aria-pressed={active}
           aria-label={label}
           disabled={disabled}
@@ -1057,7 +1057,7 @@ function IconButton({
         <Button
           variant="ghost"
           size="icon"
-          className="h-11 w-11 md:h-8 md:w-8 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11"
+          className="h-11 w-11 md:h-9 md:w-9 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11"
           aria-label={label}
           disabled={disabled}
           onClick={onClick}

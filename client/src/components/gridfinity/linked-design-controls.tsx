@@ -38,9 +38,9 @@ export function LinkedDesignControls({ kind, activeId, labels }: {
   const canLink = ids.length >= 2 && !sameDesign;
   const linkedSelected = items.filter(item => ids.includes(item.id) && item.designLink);
   return <section aria-label="Linked design" data-property-tone={kind === "pocket" ? "violet" : "cyan"} className="property-surface space-y-2 rounded-lg border p-3 text-xs">
-    <div className="flex items-center gap-2 font-medium"><Link2 className="h-3.5 w-3.5 shrink-0" />
+    <div className="flex flex-wrap items-center gap-2 font-medium"><Link2 className="h-3.5 w-3.5 shrink-0" />
       <span>{sameDesign ? `Linked design · ${members.length} ${noun}` : ids.length > 1 ? `${ids.length} selected ${noun}` : "Independent design"}</span>
-      {members.length > 1 && <Button size="sm" variant="ghost" className="ml-auto h-8 px-2 text-[10px]" onClick={() => dispatch({ type: "SET_SELECTION", selection: members.map(item => ({ kind, id: item.id })) })}>Select linked</Button>}
+      {members.length > 1 && <Button size="sm" variant="ghost" className="ml-auto" onClick={() => dispatch({ type: "SET_SELECTION", selection: members.map(item => ({ kind, id: item.id })) })}>Select linked</Button>}
     </div>
     {sameDesign && <>
       <p className="truncate text-[10px] text-muted-foreground" title={members.map(m => labels.get(m.id) ?? m.id).join(", ")}>{members.map(m => labels.get(m.id) ?? m.id).join(", ")}</p>

@@ -63,11 +63,11 @@ export function RingList(): JSX.Element {
     <div className="space-y-2">
       <div className="flex items-center gap-1">
         <div className="grid min-w-0 flex-1 grid-cols-2 gap-1">
-          <Button size="sm" variant="outline" className="h-auto min-h-8 min-w-0 whitespace-normal px-1 text-xs leading-tight" aria-label="Remove all holes" disabled={!outline.some((shape) => shape.holes.length)}
+          <Button size="sm" variant="outline" className="h-auto min-h-9 min-w-0 whitespace-normal px-2 py-1.5 leading-tight" aria-label="Remove all holes" disabled={!outline.some((shape) => shape.holes.length)}
             onClick={() => { dispatch({ type: "OUTLINE_COMMITTED", outline: outline.map((shape) => ({ ...shape, holes: [] })), label: "Remove all interior holes" }); dispatch({ type: "SELECT_RING", selection: null }); }}>
             Remove holes
           </Button>
-          <Button size="sm" variant="outline" className="h-auto min-h-8 min-w-0 whitespace-normal px-1 text-xs leading-tight" disabled={!tinyShapes.length || tinyShapes.length === outline.length}
+          <Button size="sm" variant="outline" className="h-auto min-h-9 min-w-0 whitespace-normal px-2 py-1.5 leading-tight" disabled={!tinyShapes.length || tinyShapes.length === outline.length}
             onClick={() => { dispatch({ type: "OUTLINE_COMMITTED", outline: outline.filter((shape) => !tinyShapes.includes(shape)), label: "Remove tiny shapes" }); dispatch({ type: "SELECT_RING", selection: null }); }}>
             Remove specks ({tinyShapes.length})
           </Button>

@@ -76,7 +76,7 @@ import { useTraceInspector } from "./trace-inspector-context";
 import { TRACE_WORKFLOW_SECTIONS } from "./trace-workflow";
 
 const RESPONSIVE_PANEL_ACTION =
-  "h-auto min-h-9 w-full whitespace-normal break-words px-2 py-2 text-[clamp(0.75rem,4cqw,0.875rem)] leading-tight";
+  "h-auto min-h-9 w-full whitespace-normal break-words px-2 py-2 text-sm leading-tight";
 
 export interface TraceControlsPanelProps {
   /** Defer guided focus while the desktop controls are collapsed. */
@@ -513,7 +513,7 @@ export function TraceControlsPanel({
               </div>
               <Button variant="outline" size="sm" className="w-full"
                 onClick={onReplaceImage} data-testid="button-source-image">
-                Choose Source Image
+                Choose source image
               </Button>
               <div className="grid grid-cols-2 gap-2">
                 <Button
@@ -523,7 +523,7 @@ export function TraceControlsPanel({
                   onClick={() => onRotateImage("counterclockwise")}
                   data-testid="button-rotate-image-counterclockwise"
                 >
-                  <RotateCcw className="mr-1.5 h-4 w-4" />
+                  <RotateCcw className="h-4 w-4" />
                   Rotate left 90°
                 </Button>
                 <Button
@@ -533,7 +533,7 @@ export function TraceControlsPanel({
                   onClick={() => onRotateImage("clockwise")}
                   data-testid="button-rotate-image-clockwise"
                 >
-                  <RotateCw className="mr-1.5 h-4 w-4" />
+                  <RotateCw className="h-4 w-4" />
                   Rotate right 90°
                 </Button>
               </div>
@@ -681,7 +681,7 @@ export function TraceControlsPanel({
                     onClick={requestRestoreSource}
                     data-testid="button-restore-perspective-source"
                   >
-                    <RotateCcw className="mr-1.5 h-4 w-4" />
+                    <RotateCcw className="h-4 w-4" />
                     Restore original photo
                   </Button>
                 </>
@@ -785,7 +785,7 @@ export function TraceControlsPanel({
           )}
           {!pendingAutoCalibration && <details className="text-xs" data-testid="manual-calibration-advanced">
             <summary className="min-h-9 cursor-pointer rounded py-2 font-medium [@media(pointer:coarse)]:min-h-11">Advanced</summary>
-            <Button variant="outline" size="sm" className="min-h-11 w-full" disabled={!hasImage || processing}
+            <Button variant="outline" size="sm" className="w-full" disabled={!hasImage || processing}
               onClick={onDetectMarkers} data-testid="button-detect-markers">Detect references again</Button>
           </details>}
           <CalibrationDownloads onPaperSelected={setPerspectivePaper} />
@@ -820,7 +820,7 @@ export function TraceControlsPanel({
             </div>
           ) : (
             <p className="text-xs text-muted-foreground">
-              Choose Set Region, then draw a box around the entire tool.
+              Choose Set region, then draw a box around the entire tool.
             </p>
           )}
           <div className="grid grid-cols-2 gap-2">
@@ -832,7 +832,7 @@ export function TraceControlsPanel({
               data-testid="button-set-region"
               onClick={() => { dispatch({ type: "SET_MODE", mode: "region" }); onCanvasInteraction?.(); }}
             >
-              Set Region
+              Set region
             </Button>
             <Button
               variant="outline"
@@ -841,7 +841,7 @@ export function TraceControlsPanel({
               data-testid="button-clear-region"
               onClick={handleClearRegion}
             >
-              Clear Region
+              Clear region
             </Button>
           </div>
         </PanelSection>
@@ -1019,7 +1019,7 @@ export function TraceControlsPanel({
                   disabled={!hasOutline || !scale.mmPerPx || reviewingScale}
                   data-testid="button-add-to-bin"
                 >
-                  <Box className="mr-2 h-4 w-4" />
+                  <Box className="h-4 w-4" />
                   Add to bin
                 </Button>
               </span>
@@ -1039,7 +1039,7 @@ export function TraceControlsPanel({
             onClick={onExport}
             disabled={!hasOutline || reviewingScale || (!scale.mmPerPx && exportFormat !== "svg")}
           >
-            <Download className="mr-2 h-4 w-4" />
+            <Download className="h-4 w-4" />
             Save {exportFormat.toUpperCase()}{!scale.mmPerPx && exportFormat === "svg" ? " (pixels)" : ""}
           </Button>
         </div>

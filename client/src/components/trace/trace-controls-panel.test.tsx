@@ -680,13 +680,13 @@ describe("TraceControlsPanel guided workflow", () => {
     const emptyClearRegion = host.querySelector<HTMLButtonElement>(
       '[data-testid="button-clear-region"]',
     );
-    expect(setRegion?.textContent).toContain("Set Region");
+    expect(setRegion?.textContent).toContain("Set region");
     expect(setRegion?.getAttribute("aria-pressed")).toBe("true");
     expect(
       host.querySelector('[data-testid="detection-region-guidance"]')
         ?.textContent,
     ).toContain("Click and drag around the tool.");
-    expect(emptyClearRegion?.textContent).toContain("Clear Region");
+    expect(emptyClearRegion?.textContent).toContain("Clear region");
     expect(emptyClearRegion?.disabled).toBe(true);
     expect(emptyClearRegion?.parentElement?.className).toContain("grid-cols-2");
     await click("button-set-region");
@@ -725,7 +725,7 @@ describe("TraceControlsPanel guided workflow", () => {
     const clearRegion = host.querySelector<HTMLButtonElement>(
       '[data-testid="button-clear-region"]',
     );
-    expect(clearRegion?.textContent).toContain("Clear Region");
+    expect(clearRegion?.textContent).toContain("Clear region");
     expect(clearRegion?.disabled).toBe(false);
     expect(clearRegion?.parentElement?.className).toContain("grid-cols-2");
 

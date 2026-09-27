@@ -375,7 +375,7 @@ describe("BinDesignerPage", () => {
       await flushHydration();
       openSettingsSection(container, "finger-holes");
       const add = container.querySelector<HTMLButtonElement>('[data-testid="button-add-finger-hole"]')!;
-      expect(add.textContent?.trim()).toBe("Add Finger Access");
+      expect(add.textContent?.trim()).toBe("Add finger access");
       React.act(() => add.click());
       const expectedDepth = layout === "empty" ? 12 : layout === "split" ? 7 : 17;
       const added = vi.mocked(useBinGeometry).mock.lastCall![2]!.fingerHoles[1];
@@ -4536,6 +4536,10 @@ it.each([false, true])("prototype has one object list and preserves identity whe
     expect(workflow.querySelectorAll('button[data-testid^="button-select-"]')).toHaveLength(3);
     expect(workflow.querySelector('[aria-label^="Rename "]')).toBeNull();
     expect(workflow.textContent).toContain('Add simple pocket');
+    for (const [row, add] of [
+      [leftButton('pocket', 'workflow-1'), workflow.querySelector('[data-testid="button-add-pocket"]')!],
+      [leftButton('finger', 'workflow-f'), workflow.querySelector('[data-testid="button-add-finger-hole"]')!],
+    ]) expect(row.compareDocumentPosition(add) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     React.act(() => leftButton('pocket', 'workflow-0').click());
     expect(leftButton('pocket', 'workflow-0').getAttribute('aria-pressed')).toBe('true');
     expect(workflow.querySelector<HTMLInputElement>('[aria-label="Include Tool 1 in selection"]')!.checked).toBe(true);
@@ -4570,6 +4574,52 @@ it.each([false, true])("prototype has one object list and preserves identity whe
     expect(workflow.querySelectorAll('input[type="checkbox"]:checked')).toHaveLength(2);
     expect(leftScroll.scrollTop).toBe(230);
   } finally { unmount(); window.history.replaceState(null, '', originalUrl); }
+});
+
+it.each([false, true])("workflow toolbar creates pockets and finger access with undo on mobile=%s", async mobile => {
+  const originalUrl = window.location.href;
+  window.history.replaceState(null, "", "/bin?layout=workflow");
+  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(EMPTY_PROJECT);
+  const { container, unmount } = renderPage({ mobile, experimental: false });
+  try {
+    await flushHydration();
+    const click = (id: string) => React.act(() => container.querySelector<HTMLButtonElement>(`[data-testid="${id}"]`)!.click());
+    click("view-toggle-2d");
+    const toolbar = container.querySelector('[aria-label="Editing tools"]')!;
+    expect(toolbar.querySelectorAll('[data-testid="toolbar-add-pocket"]')).toHaveLength(1);
+    expect(toolbar.querySelectorAll('[data-testid="toolbar-add-finger-hole"]')).toHaveLength(1);
+    expect(container.querySelector('[data-testid="layout-add-pocket"]')).toBeNull();
+    React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Pan layout"]')!.click());
+    const draw = (kind: string) => {
+      React.act(() => toolbar.querySelector('[data-testid="toolbar-add-pocket"]')!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+      React.act(() => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(item => item.textContent === kind)!.click());
+    };
+    draw("Rectangle");
+    expect(container.querySelector('[aria-label="Pan layout"]')!.getAttribute("aria-pressed")).toBe("false");
+    const svg = container.querySelector<SVGSVGElement>('[data-testid="layout-canvas"]')!;
+    Object.defineProperty(svg.querySelector('g')!, 'getScreenCTM', { value: () => ({ inverse: () => ({}) }) });
+    Object.defineProperties(svg, {
+      createSVGPoint: { value: () => ({ x: 0, y: 0, matrixTransform() { return { x: this.x, y: this.y }; } }) },
+      setPointerCapture: { value: () => {} },
+    });
+    for (const [type, x, y] of [["pointerdown", 30, 30], ["pointermove", 50, 45], ["pointerup", 50, 45]] as const) {
+      React.act(() => svg.dispatchEvent(new MouseEvent(type, { bubbles: true, button: 0, clientX: x, clientY: y })));
+    }
+    const layout = () => vi.mocked(useBinGeometry).mock.lastCall![2]!;
+    expect(layout().cutouts).toHaveLength(1);
+    draw("Circle");
+    expect(container.textContent).toContain("Draw circle");
+    click("toolbar-add-finger-hole");
+    expect(container.textContent).not.toContain("Draw circle");
+    expect(layout().fingerHoles).toHaveLength(1);
+    expect(layout().fingerHoles[0]).toMatchObject({ kind: "oblong-deep-scoop", slotEnds: "rounded", lengthMm: 36 });
+    expect(container.querySelector('#finger-access-properties')?.closest('[hidden]')).toBeNull();
+    click("button-bin-undo");
+    expect(layout().fingerHoles).toEqual([]);
+    expect(layout().cutouts).toHaveLength(1);
+    click("button-bin-redo");
+    expect(layout().fingerHoles).toHaveLength(1);
+  } finally { unmount(); window.history.replaceState(null, "", originalUrl); }
 });
 
 it("keeps finger-access guidance beside the collapsed section title without toggling it", async () => {

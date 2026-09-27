@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Common Trace and Bin actions now share button typography, spacing, and sizing. Pocket and finger-access creation buttons follow their existing objects. The workflow toolbar also offers Add pocket and Add access in both Layout and 3D. GitHub remains linked from About instead of the main header.
 - Cancelled region selections and contour drags preserve edits and undo history. Trace tools respect scale prerequisites, and completing manual page corners returns to correction settings on compact screens.
 
 - Photo tracing now follows the workflow layout preference, with guided steps on the left and the selected step’s settings on the right and a separate optional Margin section. Secondary guidance is available through hover, focus, or tap hints, and shape and hole delete buttons stay visible in the contour list.
