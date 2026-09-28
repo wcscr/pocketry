@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Added a mini socket set example with an editable project, 3MF, and three print photos, reusing the pre-cut shadowbox supplied with the toolset.
 - Simplified the 3D pocket outline to show the solid’s exterior edges and a faint surface, with no internal subdivision lines. Rotation previews retain clean contour outlines while the solid updates.
 - Pocket inspection shows the outline by default with a “Hide pocket outline” option, and initially selects the pocket’s longest placed X or Y dimension as the cut axis.
 - Finger-access grooves can exceed 160 mm, with length limits based on the bin dimensions, slot width, and rotation.

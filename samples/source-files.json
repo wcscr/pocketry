@@ -363,12 +363,148 @@
           "sha256": "4bec60ff4cb62da377357596a122b59efe841e1b1e39982ec2600a422fa58788"
         }
       ]
+    },
+    {
+      "directory": "mini-socket-set",
+      "model": {
+        "file": "mini-socket-set.3mf",
+        "sourceFile": "Mini-Socket-Set-bin-4x3x2.5-multicolor-2026-09-27_16-36-14-465.3mf",
+        "sha256": "b8160e21643b81c5537c5ca4944fa0e8c392094d025c3affa5197ce3180f56f3"
+      },
+      "project": {
+        "file": "mini-socket-set.pocketry.json",
+        "sourceFile": "Mini-Socket-Set-bin-4x3x2.5-2026-09-27_16-36-24-232.pocketry.json",
+        "sourceSha256": "c2982600311bea921f64fcaf96342f4eee4720d3eaa9f80bad4f46258d7e2cbd",
+        "sha256": "4d2c9feb2b3952ccc46d7c6e31350ddbd7e89983332147c44b700b1d2d8a59fa"
+      },
+      "photos": [
+        {
+          "file": "photos/printed-bin-loaded-portrait.jpg",
+          "sourceFile": "20260928_092645.jpg",
+          "sourceSha256": "853e911a4612875dc5f9bd17109a0951667e62d8848c93eb0e03eced10901bcd",
+          "processing": "EXIF orientation applied to pixels; perspective straightened using the bin edges; cropped around the bin and tools; rotated to portrait with the socket row at the bottom; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "fde4a532a0ef567113a06745ef4ae88bd66d026b75fe97a970c3142dfb0cd639",
+          "perspectiveSourceCornersAfterOrientation": [
+            [
+              1079.007,
+              1452.366
+            ],
+            [
+              2334.683,
+              1341.946
+            ],
+            [
+              2396.736,
+              2310.657
+            ],
+            [
+              1123.142,
+              2374.209
+            ]
+          ],
+          "perspectiveTargetBinSizePixels": [
+            1800,
+            1349
+          ],
+          "perspectiveMarginsPixels": {
+            "left": 55,
+            "top": 55,
+            "right": 55,
+            "bottom": 55
+          },
+          "rotationAfterPerspectiveDegreesCounterclockwise": 270,
+          "publishedSizePixels": [
+            917,
+            1200
+          ]
+        },
+        {
+          "file": "photos/printed-bin-pocket-portrait.jpg",
+          "sourceFile": "20260928_092705.jpg",
+          "sourceSha256": "1596e0d18b77b4d6b5af9de6267e2d5afdba4daab144736547677208ca745028",
+          "processing": "EXIF orientation applied to pixels; perspective straightened using the bin edges; cropped around the bin and tools; rotated to portrait with the socket row at the bottom; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "f40538439113e228c6eaa943341da1c7b9ec55ab9714aa2ea72c18e296e80808",
+          "perspectiveSourceCornersAfterOrientation": [
+            [
+              1045.12,
+              1546.362
+            ],
+            [
+              2298.53,
+              1472.207
+            ],
+            [
+              2337.196,
+              2442.563
+            ],
+            [
+              1065.899,
+              2469.594
+            ]
+          ],
+          "perspectiveTargetBinSizePixels": [
+            1800,
+            1349
+          ],
+          "perspectiveMarginsPixels": {
+            "left": 55,
+            "top": 450,
+            "right": 55,
+            "bottom": 55
+          },
+          "rotationAfterPerspectiveDegreesCounterclockwise": 270,
+          "publishedSizePixels": [
+            1165,
+            1200
+          ]
+        },
+        {
+          "file": "photos/printed-bin-empty-portrait.jpg",
+          "sourceFile": "20260928_092729.jpg",
+          "sourceSha256": "0ce63d49fbe30cb178bc0c378b95a9222b2dd49d796ab1af3b668819ad580681",
+          "processing": "EXIF orientation applied to pixels; perspective straightened using the bin edges; cropped around the bin and tools; rotated to portrait with the socket row at the bottom; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "361428851210baae5433a882e9b4d7def51cb2615bc99d77ea92f3c68abd38ea",
+          "perspectiveSourceCornersAfterOrientation": [
+            [
+              1018.579,
+              1457.363
+            ],
+            [
+              2264.737,
+              1389.135
+            ],
+            [
+              2293.979,
+              2352.122
+            ],
+            [
+              1034.357,
+              2374.881
+            ]
+          ],
+          "perspectiveTargetBinSizePixels": [
+            1800,
+            1349
+          ],
+          "perspectiveMarginsPixels": {
+            "left": 55,
+            "top": 55,
+            "right": 55,
+            "bottom": 55
+          },
+          "rotationAfterPerspectiveDegreesCounterclockwise": 270,
+          "publishedSizePixels": [
+            917,
+            1200
+          ]
+        }
+      ]
     }
   ],
   "library": {
     "file": "pocketry-sample-library.json",
-    "projectCount": 8,
-    "description": "All eight finalized sample project JSONs, included verbatim in Pocketry library-backup format.",
-    "sha256": "8f507cedd47759d9964fd259d2e9e73727e9953fc327bee7223a2e62cad7c9f6"
+    "projectCount": 10,
+    "description": "All ten sample project JSONs, included verbatim in Pocketry library-backup format.",
+    "sha256": "22e35df52a788e8bc37c5efc71467b23bf664e9e65227efaf2c8f3ac98f3b8d3"
   }
 }
