@@ -44,6 +44,22 @@ const VALID = {
 };
 
 describe("parseProjectDoc", () => {
+  it("migrates version 24 projects and history without changing existing pocket geometry", () => {
+    const { adjustFixedPocketDepths: _removed, ...spec } = VALID.spec;
+    const cutouts = [parseProjectDoc(VALID)!.cutouts[0]];
+    const doc = { spec, cutouts, fingerHoles: [] };
+    const legacy = { ...VALID, ...doc, schemaVersion: 24,
+      transformOrigins: { pockets: [{ cutout: cutouts[0], spec }], fingerHoles: [] },
+      history: { stack: [{ doc, label: "Start" }], index: 0 } };
+    const migrated = parseProjectDoc(legacy)!;
+    expect(migrated).not.toBeNull();
+    expect(migrated.spec.adjustFixedPocketDepths).toBe(true);
+    expect(migrated.history!.stack[0].doc.spec.adjustFixedPocketDepths).toBe(true);
+    expect(migrated.cutouts).toEqual(cutouts);
+    expect(migrated.transformOrigins!.pockets[0].cutout).toEqual(cutouts[0]);
+    expect(migrated.cutouts[0].fillHeightReference).toBeUndefined();
+  });
+
   it("migrates legacy fill heights in the current design and every undo/redo snapshot", () => {
     const { fillHeightPercent: _removed, ...spec } = VALID.spec;
     const doc = { spec, cutouts: [], fingerHoles: [] };
@@ -110,7 +126,7 @@ describe("parseProjectDoc", () => {
     const original = JSON.stringify(airdusterV9);
     const doc = parseProjectDoc(airdusterV9);
     const { liteBase: _removed, ...spec } = airdusterV9.spec;
-    expect(doc).toEqual({ ...airdusterV9, spec: { ...spec, flatBottom: false, fillHeightPercent: 100 }, schemaVersion: PROJECT_SCHEMA_VERSION });
+    expect(doc).toEqual({ ...airdusterV9, spec: { ...spec, flatBottom: false, fillHeightPercent: 100, adjustFixedPocketDepths: true }, schemaVersion: PROJECT_SCHEMA_VERSION });
     expect(doc!.shapes).toHaveLength(7);
     expect(doc!.cutouts).toHaveLength(4);
     expect(doc!.fingerHoles).toHaveLength(2);

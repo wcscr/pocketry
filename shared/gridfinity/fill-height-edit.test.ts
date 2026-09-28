@@ -72,3 +72,17 @@ it("preserves linked designs and rejects incompatible independent tilts", () => 
   copies[1] = { ...copies[1], tilt: { xDeg: 0, yDeg: 30 } };
   expect(adjustPocketsForFillHeight(copies, spec, lowered).error).toContain("Linked pockets");
 });
+
+it("restores and reapplies tilted split depths exactly across repeated toggles", () => {
+  const original = parseCutoutPlacement({ ...pocket, tilt: { xDeg: 10, yDeg: 20 },
+    split: { boundary: [{ x: 0, y: -3 }, { x: 0, y: 3 }], depths: [pocket.depth, { mode: "mm", value: 25 }] } });
+  const lowered = { ...spec, fillHeightPercent: 75 };
+  let cutouts = adjustPocketsForFillHeight([original], spec, lowered).cutouts!;
+  const adjusted = cutouts[0];
+  for (let i = 0; i < 20; i++) {
+    cutouts = adjustPocketsForFillHeight(cutouts, lowered, lowered, false).cutouts!;
+    expect(cutouts[0]).toMatchObject({ depth: original.depth, split: original.split, position: original.position });
+    cutouts = adjustPocketsForFillHeight(cutouts, lowered, lowered, true).cutouts!;
+    expect(cutouts[0]).toEqual(adjusted);
+  }
+});

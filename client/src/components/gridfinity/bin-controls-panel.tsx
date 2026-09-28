@@ -1430,7 +1430,7 @@ export function BinControlsPanel({
                 <div className="space-y-1">
                   <Label htmlFor="adjust-fixed-pocket-depths" className="text-xs">Adjust fixed pocket depths</Label>
                   <p id="adjust-fixed-pocket-depths-help" className="text-[11px] text-muted-foreground">
-                    Keep existing pocket floors in place when changing fill height.
+                    Keep pocket floors in place. Uncheck to restore original depths.
                   </p>
                 </div>
               </div>

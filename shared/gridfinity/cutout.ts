@@ -562,6 +562,13 @@ const cutoutPlacementInputSchema = z
     id: z.string().min(1),
     shapeId: z.string().min(1),
     designLink: designLinkSchema.optional(),
+    /** Unadjusted depths and mouth anchor retained for reversible fill edits. */
+    fillHeightReference: z.object({
+      topZ: z.number().finite(),
+      position: vec2Schema,
+      depth: depthSpecSchema,
+      splitDepths: z.tuple([depthSpecSchema, depthSpecSchema]).optional(),
+    }).strict().optional(),
     /** Placement-local name; absent on older pockets that use the source name. */
     name: z.string().trim().min(1).optional(),
     /** Bin-local mm, y-up, origin at the bin centre. */

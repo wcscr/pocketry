@@ -1471,9 +1471,13 @@ describe("BinDesignerPage", () => {
       expect(resolvePocketDepth({ ...EMPTY_PROJECT.spec, fillHeightPercent: 75 }, adjusted.depth).floorZ).toBeCloseTo(20.8, 9);
       React.act(() => checkbox.click());
       expect(checkbox.getAttribute("data-state")).toBe("unchecked");
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0].depth).toEqual(pocket.depth);
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0].fillHeightPercent).toBe(75);
+      React.act(() => checkbox.click());
       expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0]).toEqual(adjusted);
+      React.act(() => checkbox.click());
       setFill("100");
-      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0]).toEqual(adjusted);
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0].depth).toEqual(pocket.depth);
       React.act(() => checkbox.click());
       setFill("25");
       expect(construction.querySelector('[role="alert"]')?.textContent).toContain("no depth");

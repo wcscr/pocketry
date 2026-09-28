@@ -35,6 +35,11 @@ describe("tilted pockets", () => {
     const before = a.materialParts!.pocketFloors!, after = b.materialParts!.pocketFloors!;
     expect(arena.track(before.subtract(after)).volume()).toBeLessThan(1e-4);
     expect(arena.track(after.subtract(before)).volume()).toBeLessThan(1e-4);
+    const restored = adjustPocketsForFillHeight(adjusted, next, next, false).cutouts!;
+    const off = buildBinWithCutouts(kernel, next, { shapesById: shapes, cutouts: restored, fingerHoles: [] }, EXPORT_QUALITY).solid;
+    const originalDepth = buildBinWithCutouts(kernel, next, { shapesById: shapes, cutouts: [pocket], fingerHoles: [] }, EXPORT_QUALITY).solid;
+    expect(arena.track(off.subtract(originalDepth)).volume()).toBeLessThan(1e-4);
+    expect(arena.track(originalDepth.subtract(off)).volume()).toBeLessThan(1e-4);
   });
 
   it("keeps a 35 mm axial pocket within a shorter vertical depth, with a larger mouth", () => {

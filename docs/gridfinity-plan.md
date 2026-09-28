@@ -5,12 +5,16 @@
 marks on release; keyboard steps and typed percentages remain exact. The percentage
 scales the available fill height above the fixed base, leaving the outer walls and
 stacking lip at full height. **Adjust fixed pocket depths**, directly below Fill
-height in Construction, is enabled by default for the editing session. When checked,
+height in Construction, is enabled by default. When checked,
 changing fill height resizes existing fixed depths to keep their floors in place;
-tilted pockets also move their openings along the same shaft. Unchecking it keeps
-fixed depths unchanged, so their floors move with the surface. Toggling the checkbox
-does not alter geometry or add an undo step. Opening saved projects preserves their
-geometry; fill edits save the adjusted depths and undo/redo them with the fill height.
+tilted pockets also move their openings along the same shaft. Unchecking restores
+the original fixed depths at the current fill height; rechecking reapplies the
+adjustment. Further fill edits while unchecked retain the original depths. Each
+toggle is undoable. Schema v25 saves the checkbox and original-depth references,
+so toggling still works after reopening a project or reaching the undo limit.
+Later pocket translations and names are retained; explicit depth, split or
+orientation edits establish a new reference for that pocket and its linked copies.
+Older projects keep their geometry and start with the checkbox enabled.
 Edits that would make a fixed depth zero or negative are rejected with guidance.
 Linked copies requiring different axial adjustments must share tilt, be unlinked,
 or use the unchecked behavior. Finger access follows the lowered surface;
