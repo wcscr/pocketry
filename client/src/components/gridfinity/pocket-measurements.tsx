@@ -131,12 +131,16 @@ export function PocketDepthSummary({ cutout, shape, section, inspect, children }
   children?: ReactNode;
 }): JSX.Element {
   const { spec, dispatch } = useBin();
-  const [inspectionAxis, setInspectionAxis] = useState<BuildBinSection["axis"]>("x");
+  const [chosenAxis, setChosenAxis] = useState<{ pocketId: string; axis: BuildBinSection["axis"] } | null>(null);
   const pocket = resolvePlacedPocketDepth(spec, cutout.depth, shape, cutout);
   const rigid = hasRigidPocket(cutout);
   const displayedDepth = rigid ? pocket.axialDepthMm : pocket.depthMm;
   const total = binTotalHeightMm(spec.heightUnits, spec.lip === "standard");
   const bounds = outlineBounds(placementFootprint(shape, cutout).outline)!;
+  // Use the placed solid's X/Y extents, including rotation and thickness.
+  // A manual choice belongs to this pocket; another pocket gets its own default.
+  const longestAxis = bounds.maxY - bounds.minY > bounds.maxX - bounds.minX + 1e-7 ? "y" : "x";
+  const inspectionAxis = chosenAxis?.pocketId === cutout.id ? chosenAxis.axis : longestAxis;
   const inspectionSection = (axis: BuildBinSection["axis"]): BuildBinSection => ({
     axis, offsetMm: axis === "x" ? (bounds.minX + bounds.maxX) / 2 : (bounds.minY + bounds.maxY) / 2,
   });
@@ -168,7 +172,7 @@ export function PocketDepthSummary({ cutout, shape, section, inspect, children }
         <span className="text-muted-foreground">Cut axis</span>
         {(["x", "y"] as const).map(axis => <Button key={axis} size="sm" variant={section.axis === axis ? "secondary" : "outline"}
           aria-label={`Inspect pocket along ${axis.toUpperCase()}`} aria-pressed={section.axis === axis}
-          onClick={() => { setInspectionAxis(axis); inspect(inspectionSection(axis)); }}>
+          onClick={() => { setChosenAxis({ pocketId: cutout.id, axis }); inspect(inspectionSection(axis)); }}>
           {axis.toUpperCase()}
         </Button>)}
       </div>}
