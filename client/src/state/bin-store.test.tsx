@@ -287,6 +287,19 @@ describe("bin store", () => {
     expect(store().fingerHoles[0]).toEqual(smallHole);
   });
 
+  it("keeps a long groove until the bin shrinks and restores it on undo", () => {
+    const { store, act } = mountBin();
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { gridX: 5, gridY: 5 } }));
+    const hole = fingerHoleSchema.parse({ id: "long", kind: "oblong-deep-scoop", center: { x: 0, y: 0 }, diameterMm: 23, lengthMm: 193, depthMm: 10 });
+    act(() => store().dispatch({ type: "ADD_FINGER_HOLE", hole }));
+    expect(store().fingerHoles[0]).toEqual(hole);
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { gridX: 2 } }));
+    expect(store().fingerHoles[0].lengthMm).toBe(87.67);
+    act(() => store().dispatch({ type: "UNDO" }));
+    expect(store().spec.gridX).toBe(5);
+    expect(store().fingerHoles[0]).toEqual(hole);
+  });
+
   it("keeps large round access through edits and hydration, and resizes it with bin width in one undo step", () => {
     const { store, act } = mountBin();
     act(() => store().dispatch({ type: "PATCH_SPEC", patch: { gridX: 6, gridY: 4 } }));

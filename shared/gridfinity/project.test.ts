@@ -79,6 +79,22 @@ describe("parseProjectDoc", () => {
     expect(parseProjectDoc(JSON.parse(JSON.stringify(migrated)))).toEqual(migrated);
   });
 
+  it("round-trips a long access groove and its undo history without changing existing geometry", () => {
+    const fingerHole = { id: "long", kind: "oblong-deep-scoop", center: { x: 0, y: 0 },
+      diameterMm: 23, depthMm: 10, lengthMm: 193, topFilletMm: 0.6 };
+    const doc = { spec: { ...VALID.spec, gridX: 5, gridY: 5 }, cutouts: VALID.cutouts, fingerHoles: [fingerHole] };
+    const project = parseProjectDoc({ ...VALID, ...doc, history: {
+      stack: [
+        { doc: { ...doc, fingerHoles: [{ ...fingerHole, lengthMm: 160 }] }, label: "Start" },
+        { doc, label: "Change length" },
+      ], index: 1,
+    } });
+    expect(project).not.toBeNull();
+    expect(project?.fingerHoles[0]).toMatchObject(fingerHole);
+    expect(project?.history?.stack[0].doc.fingerHoles[0].lengthMm).toBe(160);
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(project)))).toEqual(project);
+  });
+
   it("round-trips custom fill height and saved history", () => {
     const doc = { spec: { ...VALID.spec, fillHeightPercent: 37.5 }, cutouts: [], fingerHoles: [] };
     const project = parseProjectDoc({ ...VALID, ...doc, history: {
