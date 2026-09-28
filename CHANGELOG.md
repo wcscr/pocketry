@@ -10,7 +10,7 @@
 
 - Rotate generated pockets freely on all three axes and raise or lower them without changing their dimensions. Depth sets the extrusion thickness; the surface opening follows the solid’s intersection with the fill.
 - Reset pockets to their original X–Y plane while preserving Z rotation, position, elevation, and dimensions. Earlier profile prototypes migrate to ordinary pockets.
-- Choose X or Y when inspecting a pocket in 3D; leaving the pocket restores the full bin preview.
+- Choose X or Y when inspecting a pocket in 3D, with pocket outlines hidden by default and an option to show them; leaving the pocket restores the full bin preview.
 
 ## 1.1.0 — 2026-09-26
 

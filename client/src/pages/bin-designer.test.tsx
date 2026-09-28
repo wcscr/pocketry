@@ -50,6 +50,7 @@ vi.mock("@/components/gridfinity/bin-viewport", () => ({
     measurementSplitBoundaries,
     onEditColor,
     pocketEditor,
+    showPocketOutlines,
   }: {
     fitSize: { widthMm: number; lengthMm: number; heightMm: number };
     hasPocketFloor: boolean;
@@ -63,10 +64,12 @@ vi.mock("@/components/gridfinity/bin-viewport", () => ({
     measurementSplitBoundaries: readonly unknown[];
     onEditColor: (target: MaterialColorTarget) => void;
     pocketEditor?: PocketEditor;
+    showPocketOutlines?: boolean;
   }) => (
     <div
       data-testid="bin-viewport-stub"
       data-experimental-editor={Boolean(pocketEditor)}
+      data-pocket-outlines={showPocketOutlines ? "on" : "off"}
       data-fit-width={fitSize.widthMm}
       data-fit-length={fitSize.lengthMm}
       data-fit-height={fitSize.heightMm}
@@ -1343,6 +1346,16 @@ describe("BinDesignerPage", () => {
       expect(container.querySelector('[data-testid="bin-viewport-stub"]')).not.toBeNull();
       expect(vi.mocked(useBinGeometry).mock.lastCall![3]).toEqual({ axis: "x", offsetMm: 12 });
       expect(container.querySelector('[data-testid="button-inspect-pocket"]')!.textContent).toBe("Show full bin");
+      const outlines = container.querySelector<HTMLButtonElement>('#show-inspection-pocket-outline')!;
+      expect(outlines.getAttribute('aria-checked')).toBe('false');
+      expect(container.querySelector('[data-testid="bin-viewport-stub"]')!.getAttribute('data-pocket-outlines')).toBe('off');
+      const inspected = vi.mocked(useBinGeometry).mock.lastCall!;
+      React.act(() => outlines.click());
+      expect(outlines.getAttribute('aria-checked')).toBe('true');
+      expect(container.querySelector('[data-testid="bin-viewport-stub"]')!.getAttribute('data-pocket-outlines')).toBe('on');
+      expect(vi.mocked(useBinGeometry).mock.lastCall![3]).toBe(inspected[3]);
+      React.act(() => outlines.click());
+      expect(container.querySelector('[data-testid="bin-viewport-stub"]')!.getAttribute('data-pocket-outlines')).toBe('off');
       React.act(() => container.querySelector<HTMLButtonElement>(`[data-testid="${exitButton}"]`)!.click());
       const after = vi.mocked(useBinGeometry).mock.lastCall!;
       expect(after[3]).toBeNull();
@@ -1351,6 +1364,8 @@ describe("BinDesignerPage", () => {
       expect(container.querySelector('[data-testid="button-show-full-bin"]')).toBeNull();
       expect(container.querySelector('[data-testid="button-inspect-pocket"]')!.textContent).toBe("Inspect this pocket in 3D");
       expect(container.querySelector('[data-testid="bin-viewport-stub"]')).not.toBeNull();
+      expect(container.querySelector('[data-testid="bin-viewport-stub"]')!.getAttribute('data-pocket-outlines')).toBe('on');
+      expect(container.querySelector('#show-inspection-pocket-outline')).toBeNull();
       unmount();
     },
   );

@@ -17,6 +17,8 @@ import { EditHistoryMenu } from "@/components/history/edit-history-menu";
 import { usePanelState } from "@/components/layout/panel-context";
 import { BinEditingWorkspace } from "@/components/gridfinity/selection-inspector";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { canHandleCanvasShortcut } from "@/lib/canvas-keyboard";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useToast } from "@/hooks/use-toast";
@@ -164,6 +166,7 @@ function BinDesignerWorkspace(): JSX.Element {
 
   const [exporting, setExporting] = useState(false);
   const [section, setSection] = useState<BuildBinSection | null>(null);
+  const [showInspectionPocketOutline, setShowInspectionPocketOutline] = useState(false);
   const [colorPocketFloors, setColorPocketFloors] = useState(true);
   const [binColor, setBinColor] = useState<string>(BIN_BODY_COLOR);
   const [pocketFloorColor, setPocketFloorColor] =
@@ -1131,6 +1134,7 @@ function BinDesignerWorkspace(): JSX.Element {
           {viewMode === "3d" ? (
             <BinViewport
               geometry={geometry}
+              showPocketOutlines={!section || showInspectionPocketOutline}
               pocketEditor={{ spec, transformOrigins: bin.transformOrigins, originShapes: library.shapes, linkControls: <SelectionLinkControls />, pockets: editablePockets, selectedId: bin.selectedCutoutId, fingerHoles, selection: bin.selection,
                 onSelectionChange: selection => dispatch({ type: "SET_SELECTION", selection }),
                 onCommitObjects: (edits, historyLabel) => dispatch({ type: "UPDATE_OBJECTS", edits, historyLabel }),
@@ -1167,6 +1171,11 @@ function BinDesignerWorkspace(): JSX.Element {
           {viewMode === "3d" && section && (
             <div className="absolute left-3 top-16 md:top-12 [@media(pointer:coarse)]:top-16 z-30 flex max-w-[calc(100%_-_4.5rem)] flex-wrap items-center gap-x-3 gap-y-1 rounded-md border bg-background/95 p-2 shadow-sm backdrop-blur">
               <span className="text-xs text-muted-foreground">Section view</span>
+              <div className="flex items-center gap-2">
+                <Checkbox id="show-inspection-pocket-outline" checked={showInspectionPocketOutline}
+                  onCheckedChange={checked => setShowInspectionPocketOutline(checked === true)} />
+                <Label htmlFor="show-inspection-pocket-outline" className="cursor-pointer text-xs">Show pocket outline</Label>
+              </div>
               <Button
                 variant="outline"
                 size="sm"

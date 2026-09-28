@@ -31,6 +31,9 @@ editable at any orientation.
 or its properties restores the full bin, as does switching to Layout. The general
 cross-section controls under Check fit remain independent of pocket selection.
 Inspection changes neither the saved design nor exported geometry.
+Pocket outlines are hidden by default while inspecting, leaving the cutout visible
+in the bin. Enable **Show pocket outline** in the section-view toolbar to see the
+source outline again. Normal editing restores pocket outlines automatically.
 
 Untouched older pockets preserve their existing geometry. Starting a rigid edit
 resolves their current depth into a fixed source dimension, including each split
