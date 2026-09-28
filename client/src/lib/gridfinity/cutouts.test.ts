@@ -1105,6 +1105,30 @@ it("cuts flat-bottom pockets below the former feet while retaining a solid 2 mm 
 });
 
 
+describe.each(["oblong-deep-scoop", "flat-ended-scoop", "oblong-straight", "flat-ended-straight"] as const)("long %s groove", (kind) => {
+  it.each([0, 37, 90])("generates the full 193 mm cutter at %s degrees", (rotationDeg) => {
+    const spec = parseBinSpec({ gridX: 5, gridY: 5, heightUnits: 3 });
+    const hole = fingerHoleSchema.parse({ id: "long", kind, center: { x: 0, y: 0 },
+      diameterMm: 23, lengthMm: 193, depthMm: 10, rotationDeg });
+    for (const topFilletMm of [0, 0.6]) {
+      const cutter = buildFingerHoleCutters(kernel, [{ ...hole, topFilletMm }], spec, EXPORT_QUALITY)[0];
+      const bounds = arena.track(cutter.rotate([0, 0, -rotationDeg])).boundingBox();
+      expect(cutter.status()).toBe("NoError");
+      if (topFilletMm === 0) {
+        expect(bounds.min[0]).toBeCloseTo(-96.5, 5);
+        expect(bounds.max[0]).toBeCloseTo(96.5, 5);
+      } else {
+        // A shallow curved bottom meets the rim tangentially before a full-radius flare.
+        expect(bounds.min[0]).toBeLessThan(-96.5);
+        expect(bounds.max[0]).toBeGreaterThan(96.5);
+        expect(bounds.min[0]).toBeGreaterThanOrEqual(-97.1 - 1e-6);
+        expect(bounds.max[0]).toBeLessThanOrEqual(97.1 + 1e-6);
+      }
+      expect(bounds.min[2]).toBeCloseTo(resolvePocketDepth(spec, { mode: "mm", value: 10 }).infillTopZ - 10, 5);
+    }
+  });
+});
+
 describe("flat-ended cylindrical scoop solids", () => {
   it.each([0, 37, 90])("cuts the expected cylindrical volume at %s degrees", (rotationDeg) => {
     const hole = fingerHoleSchema.parse({

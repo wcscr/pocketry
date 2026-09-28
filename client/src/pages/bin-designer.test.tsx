@@ -1986,6 +1986,39 @@ describe("BinDesignerPage", () => {
     unmount();
   });
 
+  it.each(["oblong-deep-scoop", "flat-ended-scoop", "oblong-straight", "flat-ended-straight"] as const)(
+    "edits a 193 mm %s groove with slider, persistence and undo", async (kind) => {
+      const project = { ...EMPTY_PROJECT, spec: { ...EMPTY_PROJECT.spec, gridX: 5, gridY: 5 },
+        fingerHoles: [fingerHoleSchema.parse({ id: "long-slot", kind, center: { x: 0, y: 0 }, diameterMm: 23, depthMm: 10, lengthMm: 107 })] };
+      vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(project);
+      const { container, unmount } = renderPage();
+      await flushHydration();
+      openSettingsSection(container, "finger-holes");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-select-finger-hole-long-slot"]')!.click());
+      const field = () => container.querySelector<HTMLInputElement>('[aria-label="Length in millimetres"]')!;
+      const current = () => vi.mocked(useBinGeometry).mock.lastCall?.[2]?.fingerHoles?.[0];
+      const edit = (value: string) => {
+        React.act(() => {
+          Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(field(), value);
+          field().dispatchEvent(new Event("input", { bubbles: true }));
+        });
+        React.act(() => field().dispatchEvent(new FocusEvent("focusout", { bubbles: true })));
+      };
+      expect(field().max).toBe("219.97");
+      edit("193");
+      expect(current()).toMatchObject({ lengthMm: 193, diameterMm: 23, depthMm: 10 });
+      expect(parseProjectDoc(JSON.parse(JSON.stringify({ ...project, fingerHoles: [current()] })))?.fingerHoles[0]).toEqual(current());
+      edit("220");
+      expect(field().value).toBe("193");
+      const slider = container.querySelector<HTMLElement>('[role="slider"][aria-label="Length"]')!;
+      React.act(() => slider.dispatchEvent(new KeyboardEvent("keydown", { key: "End", bubbles: true })));
+      expect(field().value).toBe("219.97");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+      expect(field().value).toBe("193");
+      unmount();
+    },
+  );
+
   it("updates finger-access field limits with bin height and slot rotation, rejecting oversized input", async () => {
     vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT,
       spec: { ...EMPTY_PROJECT.spec, gridX: 1, gridY: 2, heightUnits: 2 },

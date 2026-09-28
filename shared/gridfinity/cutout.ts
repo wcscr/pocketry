@@ -133,6 +133,11 @@ export const MIN_FINGER_HOLE_DIAMETER_MM = 6;
 export const MAX_FINGER_HOLE_DIAMETER_MM = binFootprintMm(MAX_GRID);
 /** Slots retain their existing width ceiling and rotated mouth-fit limits. */
 export const MAX_FINGER_SLOT_WIDTH_MM = 80;
+const FINGER_ACCESS_BIN_ALLOWANCE = 1.05;
+/** A slot can span the largest supported bin diagonally; edits fit the current bin. */
+export const MAX_FINGER_SLOT_LENGTH_MM = Math.hypot(
+  binFootprintMm(MAX_GRID), binFootprintMm(MAX_GRID),
+) * FINGER_ACCESS_BIN_ALLOWANCE;
 
 /**
  * A draggable finger-access feature. Straight holes are vertical cylinders
@@ -184,8 +189,8 @@ export const fingerHoleSchema = z
     reachMm: z.number().min(1).max(120).optional(),
     /** Compatibility only; removed with the directed-trough prototype. */
     directionDeg: z.number().finite().optional(),
-    /** Overall end-to-end mouth length; used by elongated scoops only. */
-    lengthMm: z.number().min(6).max(160).optional(),
+    /** Overall end-to-end mouth length; used by elongated finger access. */
+    lengthMm: z.number().finite().min(6).max(MAX_FINGER_SLOT_LENGTH_MM).optional(),
     /** CCW mouth rotation in the bin-local y-up frame. */
     rotationDeg: z.number().finite().optional(),
     /** Remembers the slot ends while the opening is temporarily round. */
@@ -209,9 +214,7 @@ export type FingerHole = z.infer<typeof fingerHoleSchema>;
 /** Default top-surface round for newly created pockets and finger access features. */
 export const DEFAULT_TOP_EDGE_FILLET_MM = 1;
 export const DEFAULT_OBLONG_DEEP_SCOOP_LENGTH_MM = 36;
-export const MAX_OBLONG_DEEP_SCOOP_LENGTH_MM = 160;
 export const MIN_OBLONG_DEEP_SCOOP_SPAN_MM = 2;
-const FINGER_ACCESS_BIN_ALLOWANCE = 1.05;
 
 type FingerAccessBinSpec = Pick<BinSpec, "gridX" | "gridY" | "gridPitch"> & FillHeightSpec;
 
@@ -243,10 +246,11 @@ function maximumFingerAccessDimension(
   // Round access follows Width (X), including bins whose Length (Y) is shorter.
   // Placement and wall checks remain separate from this editing limit.
   if (!isElongatedFingerHole(hole)) {
-    return dimension === "diameterMm" ? bounds.x : MAX_OBLONG_DEEP_SCOOP_LENGTH_MM;
+    return dimension === "diameterMm" ? bounds.x : MAX_FINGER_SLOT_LENGTH_MM;
   }
   let low = MIN_FINGER_HOLE_DIAMETER_MM;
-  let high = dimension === "diameterMm" ? MAX_FINGER_SLOT_WIDTH_MM : MAX_OBLONG_DEEP_SCOOP_LENGTH_MM;
+  let high = dimension === "diameterMm" ? MAX_FINGER_SLOT_WIDTH_MM
+    : Math.min(MAX_FINGER_SLOT_LENGTH_MM, Math.hypot(bounds.x, bounds.y));
   for (let i = 0; i < 32; i++) {
     const mid = (low + high) / 2;
     if (fingerAccessMouthFits({ ...hole, [dimension]: mid }, bounds)) low = mid;
@@ -440,7 +444,7 @@ export function elongatedFingerHoleEndpoints(
 ): ElongatedFingerHoleEndpoints {
   const minimumLength = minimumFingerHoleLengthMm({ ...hole, kind: hole.kind ?? "oblong-deep-scoop" });
   const lengthMm = Math.min(
-    MAX_OBLONG_DEEP_SCOOP_LENGTH_MM,
+    MAX_FINGER_SLOT_LENGTH_MM,
     Math.max(hole.lengthMm ?? DEFAULT_OBLONG_DEEP_SCOOP_LENGTH_MM, minimumLength),
   );
   const halfSpan = (lengthMm - (hasFlatFingerHoleEnds(hole) ? 0 : hole.diameterMm)) / 2;
@@ -478,7 +482,7 @@ export function resizeElongatedFingerHoleFromEndpoint(
   }
   const capLength = hasFlatFingerHoleEnds(hole) ? 0 : hole.diameterMm;
   const clampedSpan = Math.min(
-    MAX_OBLONG_DEEP_SCOOP_LENGTH_MM - capLength,
+    MAX_FINGER_SLOT_LENGTH_MM - capLength,
     Math.max(minimumFingerHoleLengthMm(hole) - capLength, span),
   );
   const ux = dx / span;
@@ -550,7 +554,7 @@ export function resizeFingerHoleFromWidthHandle(
         ));
   const diameterMm = Math.min(
     MAX_FINGER_SLOT_WIDTH_MM, Math.floor((maximumWidth + 1e-7) * 100) / 100,
-    hasFlatFingerHoleEnds(hole) ? MAX_FINGER_SLOT_WIDTH_MM : MAX_OBLONG_DEEP_SCOOP_LENGTH_MM - span,
+    hasFlatFingerHoleEnds(hole) ? MAX_FINGER_SLOT_WIDTH_MM : MAX_FINGER_SLOT_LENGTH_MM - span,
     Math.max(MIN_FINGER_HOLE_DIAMETER_MM, 2 * Math.abs(signedDistance)),
   );
   return {
