@@ -363,12 +363,70 @@
           "sha256": "4bec60ff4cb62da377357596a122b59efe841e1b1e39982ec2600a422fa58788"
         }
       ]
+    },
+    {
+      "directory": "mini-socket-set",
+      "model": {
+        "file": "mini-socket-set.3mf",
+        "sourceFile": "Mini-Socket-Set-bin-4x3x2.5-multicolor-2026-09-27_16-36-14-465.3mf",
+        "sha256": "b8160e21643b81c5537c5ca4944fa0e8c392094d025c3affa5197ce3180f56f3"
+      },
+      "project": {
+        "file": "mini-socket-set.pocketry.json",
+        "sourceFile": "Mini-Socket-Set-bin-4x3x2.5-2026-09-27_16-36-24-232.pocketry.json",
+        "sourceSha256": "c2982600311bea921f64fcaf96342f4eee4720d3eaa9f80bad4f46258d7e2cbd",
+        "sha256": "4d2c9feb2b3952ccc46d7c6e31350ddbd7e89983332147c44b700b1d2d8a59fa"
+      },
+      "photos": [
+        {
+          "file": "photos/printed-bin-loaded.jpg",
+          "sourceFile": "20260928_092645.jpg",
+          "sourceSha256": "853e911a4612875dc5f9bd17109a0951667e62d8848c93eb0e03eced10901bcd",
+          "cropPixelsAfterOrientation": [
+            1030,
+            1300,
+            2440,
+            2430
+          ],
+          "rotationAfterCropDegreesCounterclockwise": 180,
+          "processing": "EXIF orientation applied to pixels; cropped; rotated for upright labels; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "ea7140b93242a321f20c937e0a3b65935bcdcaf349b62ede4839600350da0b72"
+        },
+        {
+          "file": "photos/printed-bin-pocket.jpg",
+          "sourceFile": "20260928_092705.jpg",
+          "sourceSha256": "1596e0d18b77b4d6b5af9de6267e2d5afdba4daab144736547677208ca745028",
+          "cropPixelsAfterOrientation": [
+            990,
+            1200,
+            2380,
+            2520
+          ],
+          "rotationAfterCropDegreesCounterclockwise": 180,
+          "processing": "EXIF orientation applied to pixels; cropped; rotated for upright labels; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "2fda98fed530519e813bf697b97bf671d04439bd2aff5fb2d878721d602aed9f"
+        },
+        {
+          "file": "photos/printed-bin-empty.jpg",
+          "sourceFile": "20260928_092729.jpg",
+          "sourceSha256": "0ce63d49fbe30cb178bc0c378b95a9222b2dd49d796ab1af3b668819ad580681",
+          "cropPixelsAfterOrientation": [
+            970,
+            1350,
+            2340,
+            2440
+          ],
+          "rotationAfterCropDegreesCounterclockwise": 180,
+          "processing": "EXIF orientation applied to pixels; cropped; rotated for upright labels; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "8e398a4aa30ef68faed98b2b4bd8985ac359551a48558fad15012e8d4e255f89"
+        }
+      ]
     }
   ],
   "library": {
     "file": "pocketry-sample-library.json",
-    "projectCount": 8,
-    "description": "All eight finalized sample project JSONs, included verbatim in Pocketry library-backup format.",
-    "sha256": "8f507cedd47759d9964fd259d2e9e73727e9953fc327bee7223a2e62cad7c9f6"
+    "projectCount": 10,
+    "description": "All ten sample project JSONs, included verbatim in Pocketry library-backup format.",
+    "sha256": "22e35df52a788e8bc37c5efc71467b23bf664e9e65227efaf2c8f3ac98f3b8d3"
   }
 }

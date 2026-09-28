@@ -6842,6 +6842,97 @@
           }
         ]
       }
+    },
+    {
+      "id": "pocketry-sample-mini-socket-set",
+      "name": "Mini Socket Set",
+      "updatedAt": "2026-09-28T13:30:00.000Z",
+      "doc": {
+        "schemaVersion": 24,
+        "name": "Mini Socket Set",
+        "keepBinSize": false,
+        "shapes": [
+          {
+            "id": "302b28b3-9915-4d6c-a3d5-ffb59513956d",
+            "name": "Pre-cut shadowbox",
+            "outlineMm": [
+              {
+                "outer": [
+                  {
+                    "x": -76.46276462078094,
+                    "y": -55.05162858963013
+                  },
+                  {
+                    "x": 76.46276462078094,
+                    "y": -55.05162858963013
+                  },
+                  {
+                    "x": 76.46276462078094,
+                    "y": 55.05162858963013
+                  },
+                  {
+                    "x": -76.46276462078094,
+                    "y": 55.05162858963013
+                  }
+                ],
+                "holes": []
+              }
+            ],
+            "bboxMm": {
+              "minX": -76.46276462078094,
+              "minY": -55.05162858963013,
+              "maxX": 76.46276462078094,
+              "maxY": 55.05162858963013
+            },
+            "pointCount": 4,
+            "source": "basic-shape",
+            "sourceMmPerPx": null
+          }
+        ],
+        "spec": {
+          "gridX": 4,
+          "gridY": 3,
+          "gridPitch": "full",
+          "footprint": {
+            "kind": "rectangle"
+          },
+          "heightUnits": 2.5,
+          "lip": "standard",
+          "fill": "solid",
+          "fillHeightPercent": 100,
+          "flatBottom": false,
+          "magnetHoles": false,
+          "magnetCrushRibs": false,
+          "screwHoles": false,
+          "labelTab": null
+        },
+        "cutouts": [
+          {
+            "id": "cutout-302b28b3-9915-4d6c-a3d5-ffb59513956d",
+            "shapeId": "302b28b3-9915-4d6c-a3d5-ffb59513956d",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "rotationDeg": 0,
+            "mirrored": false,
+            "scaleX": 0.9906782781878747,
+            "scaleY": 0.9881206496579122,
+            "aspectRatioLocked": true,
+            "depth": {
+              "mode": "mm",
+              "value": 10.5
+            },
+            "clearanceMm": 0,
+            "cornerRoundMm": 0,
+            "topFilletMm": 0,
+            "bottomFilletMm": 0,
+            "fingerHoles": [],
+            "name": "Pre-cut shadowbox recess"
+          }
+        ],
+        "fingerHoles": []
+      }
     }
   ]
 }
