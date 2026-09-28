@@ -30,6 +30,11 @@ export function rigidPocket(p: CutoutPlacement, shape: Pick<TracedShape, "outlin
 /** Source extrusion occupies [-depth, 0] on its own Z axis. Through sections
  * use a long two-sided tool; the builder sizes it to the actual bin. */
 function sourceRegions(outline: Outline, p: CutoutPlacement, top: number, throughReach: number, nominalThrough: boolean) {
+  if (p.layers && p.depth.mode === "mm") {
+    const depth = p.depth.value;
+    return p.layers.map(layer => ({ region: layer.outlineMm,
+      limits: [(layer.bottom - 1) * depth, (layer.top - 1) * depth] }));
+  }
   const regions = p.split ? resolvePocketSplit(outline, p.split.boundary).regions : null;
   return (regions ?? [outline]).map((region, i) => {
     const d = p.split?.depths[i] ?? p.depth;

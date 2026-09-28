@@ -7,7 +7,7 @@ export interface DesignObjects { cutouts: CutoutPlacement[]; fingerHoles: Finger
 // Copies retain complete geometry for the existing worker/export paths. The
 // explicit link id, validated in every saved snapshot, makes these fields one
 // shared design. Shape revisions remain immutable and update all references.
-const pocketFields = ["shapeId", "scaleX", "scaleY", "aspectRatioLocked", "depth", "split", "profileBottom", "clearanceMm", "cornerRoundMm", "topFilletMm", "bottomFilletMm"] as const;
+const pocketFields = ["shapeId", "scaleX", "scaleY", "aspectRatioLocked", "depth", "split", "layers", "profileBottom", "clearanceMm", "cornerRoundMm", "topFilletMm", "bottomFilletMm"] as const;
 const fingerFields = ["kind", "diameterMm", "lengthMm", "depthMm", "topFilletMm", "bottomFilletMm", "cornerRoundMm", "slotEnds"] as const;
 const equal = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 

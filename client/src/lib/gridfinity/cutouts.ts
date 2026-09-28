@@ -714,6 +714,25 @@ export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: Cut
     heightUnits: Math.ceil((Math.max(reach, ...dimensions.map(d => d ?? 1)) + 20) / 7) };
   const localTop = resolvePocketDepth(localSpec, cutout.depth).infillTopZ;
   const buildSource = (throughDepth: number, extendThrough: boolean): Manifold => {
+    if (cutout.layers && cutout.depth.mode === "mm") {
+      const depth = cutout.depth.value;
+      const parts = cutout.layers.flatMap(layer => {
+        const local = { ...cutout, layers: undefined, position: { x: 0, y: 0 },
+          rotationDeg: 0, tilt: undefined, elevationMm: undefined, zOffsetMm: undefined };
+        const placed = transformOutlinePlacement(budgetOutline(layer.outlineMm, quality.cutoutVertexBudget ?? 150), local);
+        let section = toCrossSection(kernel, placed);
+        if (cutout.clearanceMm !== 0) {
+          section = arena.track(arena.track(section.offset(cutout.clearanceMm, "Round", 2, quality.circularSegments)).simplify(CLEANUP_EPSILON));
+        }
+        if (section.isEmpty()) return [];
+        const bottom = (layer.bottom - 1) * depth, top = (layer.top - 1) * depth;
+        // Set both cap planes from the shared fractions. Translating extrusions
+        // from a virtual bin top can leave roundoff-sized gaps between layers.
+        const unit = arena.track(section.extrude(1));
+        return [arena.track(unit.warp(v => { v[2] = v[2] < 0.5 ? bottom : top; }))];
+      });
+      return arena.track(Manifold.union(parts));
+    }
     const depths = dimensions.map(d => ({ mode: "mm" as const, value: d ?? throughDepth }));
     const local = { ...cutout, position: { x: 0, y: 0 }, rotationDeg: 0, tilt: undefined,
       elevationMm: undefined, zOffsetMm: undefined, depth: depths[0],

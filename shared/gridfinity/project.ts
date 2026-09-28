@@ -49,9 +49,10 @@ import { migrateProfilePocket } from "./rigid-pocket";
  * Version 25 retains original pocket depths and the reversible fill-adjustment setting.
  * Unreleased side-profile prototypes also used version 25 and migrate by their fields.
  * Version 26 gives generated pockets a finite solid and unrestricted rigid placement.
+ * Version 27 embeds stacked outline layers inside one editable pocket.
  */
 
-export const PROJECT_SCHEMA_VERSION = 26 as const;
+export const PROJECT_SCHEMA_VERSION = 27 as const;
 
 const projectFields = {
   shapes: z.array(tracedShapeSchema),
@@ -214,6 +215,12 @@ function migrateLegacyProject(doc: LegacyProjectDoc): ProjectDoc {
  * an empty designer beats crashing the workspace.
  */
 export function parseProjectDoc(input: unknown): ProjectDoc | null {
+  // v26 already has the complete rigid-object/history structure. Upgrade only
+  // the version, preserving strict validation and the profile migration below.
+  if (input && typeof input === "object" && !Array.isArray(input) &&
+      (input as Record<string, unknown>).schemaVersion === 26) {
+    input = { ...input, schemaVersion: PROJECT_SCHEMA_VERSION };
+  }
   const result = projectDocSchema.safeParse(input);
   if (result.success) {
     const doc = result.data;

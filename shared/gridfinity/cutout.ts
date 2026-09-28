@@ -565,6 +565,16 @@ export function resizeFingerHoleFromWidthHandle(
   };
 }
 
+/** Stacked sections of one finite pocket. XY uses the source shape's frame;
+ * fractions scale together with the pocket's total depth, bottom (0) to top (1).
+ * Layers are ordered and contiguous, so moving/resizing cannot separate seats.
+ */
+export const pocketLayerSchema = z.object({
+  outlineMm: outlineSchema,
+  bottom: z.number().finite().min(0).max(1),
+  top: z.number().finite().min(0).max(1),
+}).strict();
+
 const cutoutPlacementInputSchema = z
   .object({
     id: z.string().min(1),
@@ -600,6 +610,7 @@ const cutoutPlacementInputSchema = z
       floorThicknessMm: BASE_HEIGHT,
     }),
     split: pocketSplitSchema.optional(),
+    layers: z.array(pocketLayerSchema).min(2).max(32).optional(),
     profileBottom: profileBottomSchema.optional(),
     /** Free X/Y rotation of a profile object, independent of ordinary pocket tilt. */
     profileRotation: objectRotationSchema.pick({ xDeg: true, yDeg: true }).optional(),
@@ -623,7 +634,20 @@ const cutoutPlacementInputSchema = z
  * New documents never retain the legacy field, while old autosaves and files
  * load without losing geometry.
  */
-export const cutoutPlacementSchema = cutoutPlacementInputSchema.transform(
+export const cutoutPlacementSchema = cutoutPlacementInputSchema.superRefine((p, ctx) => {
+  if (!p.layers?.length) return;
+  const fail = (message: string) => ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["layers"], message });
+  if (p.depth.mode !== "mm" || !Number.isFinite(p.depth.value) || p.elevationMm === undefined || p.split || p.profileBottom || p.profileRotation || (p.zOffsetMm ?? 0) !== 0) {
+    fail("Layered pockets require a finite depth and elevation, without a split or side profile.");
+  }
+  if (p.cornerRoundMm !== 0 || p.topFilletMm !== 0 || p.bottomFilletMm !== 0) {
+    fail("Layered pocket edges are authored in their outlines; edge rounding must be zero.");
+  }
+  if (p.layers[0].bottom !== 0 || p.layers.at(-1)!.top !== 1 || p.layers.some((layer, i) =>
+    layer.top <= layer.bottom || (i > 0 && layer.bottom !== p.layers![i - 1].top))) {
+    fail("Pocket layers must meet in order and span the full depth from 0 to 1.");
+  }
+}).transform(
   ({ scoop, ...placement }) => {
     if (!scoop) return placement;
     const ids = new Set(placement.fingerHoles.map((hole) => hole.id));
@@ -683,7 +707,7 @@ export function parseCutoutPlacement(input: unknown): CutoutPlacement {
 export type PlacementTransform = Pick<
   CutoutPlacement,
   "position" | "rotationDeg" | "mirrored"
-> & Partial<Pick<CutoutPlacement, "scaleX" | "scaleY" | "tilt" | "zOffsetMm" | "profileBottom" | "profileRotation" | "elevationMm" | "depth" | "split">>;
+> & Partial<Pick<CutoutPlacement, "scaleX" | "scaleY" | "tilt" | "zOffsetMm" | "profileBottom" | "profileRotation" | "elevationMm" | "depth" | "split" | "layers">>;
 
 /** Applies scale → mirror → rotate → translate to one shape-local point. */
 export function transformPointPlacement(

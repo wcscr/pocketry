@@ -744,8 +744,8 @@ export function BinControlsPanel({
                   aria-label={editorMode === "contour" ? "Finish contour editing" : "Edit contour"}
                   aria-pressed={editorMode === "contour"}
                   data-testid="button-edit-contour"
-                  disabled={hasPocketTilt(selectedCutout)}
-                  title={hasPocketTilt(selectedCutout) ? "Reset to X–Y plane before editing the contour." : undefined}
+                  disabled={hasPocketTilt(selectedCutout) || !!selectedCutout.layers}
+                  title={selectedCutout.layers ? "Layered pockets move and scale as one object; individual contours are fixed." : hasPocketTilt(selectedCutout) ? "Reset to X–Y plane before editing the contour." : undefined}
                   onClick={() => {
                     const editing = editorMode === "contour";
                     dispatch({
@@ -776,6 +776,7 @@ export function BinControlsPanel({
                 <section className="space-y-2 pb-2" aria-label="Pocket depth" key={`${selectedCutout.id}-${selectedPocketSection}-${!!selectedCutout.split}`}>
                   <div className="flex items-center gap-2">
                     <Select
+                      disabled={!!selectedCutout.layers}
                       value={depthCutout!.depth.mode}
                       onValueChange={(mode) => {
                         const resolved = resolvePlacedPocketDepth(spec, depthCutout!.depth, depthShape!, depthCutout!);
@@ -821,7 +822,8 @@ export function BinControlsPanel({
                   {selectedCutout.split && <p className="text-[11px] text-muted-foreground">Depth applies to the selected section. Size and edges apply to the whole pocket.</p>}
                 </section>
               </PocketDepthSummary>
-              {!selectedCutout.profileBottom && <PocketSplitControls cutout={selectedCutout} />}
+              {selectedCutout.layers && <p className="text-xs text-muted-foreground" data-testid="layered-pocket-note">{selectedCutout.layers.length} layers in one pocket. Move, rotate, or resize them together. Depth scales all layer heights. Individual contours and edge rounding are fixed.</p>}
+              {!selectedCutout.profileBottom && !selectedCutout.layers && <PocketSplitControls cutout={selectedCutout} />}
               <details className="group/size border-t pt-1 text-xs" aria-label="Pocket size and scale" data-testid="pocket-size-settings">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-2 py-2 font-medium [&::-webkit-details-marker]:hidden">
                   Size &amp; scale
@@ -830,7 +832,7 @@ export function BinControlsPanel({
                 <div className="pb-2" key={selectedCutout.id}><PocketSizeInputs cutout={selectedCutout} shape={selectedShape} setScale={setPocketScale} /></div>
               </details>
 
-              {!selectedCutout.profileBottom && <details className="group/more border-t pt-1 text-xs" data-testid="pocket-edge-settings">
+              {!selectedCutout.profileBottom && !selectedCutout.layers && <details className="group/more border-t pt-1 text-xs" data-testid="pocket-edge-settings">
                 <summary className="flex cursor-pointer list-none items-center justify-between py-1.5 font-medium [&::-webkit-details-marker]:hidden">
                   <span className="flex items-center gap-1">Edges &amp; corners <HelpHint label="edges and corners">Soften sharp corners and edges. Values are rounding radii in millimetres; 0 keeps an edge sharp.</HelpHint></span>
                   <ChevronDown className="h-3.5 w-3.5 transition-transform group-open/more:rotate-180" />

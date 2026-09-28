@@ -1122,6 +1122,29 @@ describe("BinDesignerPage", () => {
     },
   );
 
+  it("keeps an imported layered PCB pocket editable as one object without destructive contour controls", async () => {
+    const shape = rectangularShape("pcb", "PCB with ribs");
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({
+      ...EMPTY_PROJECT, shapes: [shape], cutouts: [parseCutoutPlacement({
+        id:"pcb", shapeId:shape.id, position:{x:0,y:0}, elevationMm:7,
+        depth:{mode:"mm",value:12}, cornerRoundMm:0, bottomFilletMm:0,
+        layers:[{outlineMm:shape.outlineMm,bottom:0,top:0.25},{outlineMm:shape.outlineMm,bottom:0.25,top:1}],
+      })],
+    });
+    const { container, unmount } = renderPage();
+    await flushHydration();
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
+    openSettingsSection(container, "tool-cutouts"); selectPocket(container, "pcb");
+    expect(container.querySelector('[data-testid="layered-pocket-note"]')!.textContent).toContain("2 layers in one pocket");
+    expect(container.querySelector<HTMLButtonElement>('[data-testid="button-edit-contour"]')!.disabled).toBe(true);
+    expect(container.querySelector<HTMLButtonElement>('[data-testid="button-layout-edit-contour"]')!.disabled).toBe(true);
+    expect(container.querySelector<HTMLButtonElement>('[aria-label="Pocket depth mode"]')!.disabled).toBe(true);
+    expect(container.querySelector<HTMLInputElement>('[aria-label="Pocket cut depth in millimetres"]')!.disabled).toBe(false);
+    expect(container.querySelector('[data-testid="pocket-edge-settings"]')).toBeNull();
+    expect(container.querySelector('[data-testid="pocket-resize-handle-ne"]')).not.toBeNull();
+    unmount();
+  });
+
   it("edits and finishes a selected contour directly in Layout, including after using the ruler", async () => {
     const shape = rectangularShape("tool", "Wrench");
     vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({

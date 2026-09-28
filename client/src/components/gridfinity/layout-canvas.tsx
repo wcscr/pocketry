@@ -437,13 +437,13 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
 
   const selected = placed.find((p) => p.cutout.id === selectedCutoutId) ?? null;
   useEffect(() => {
-    if ((selected?.cutout.profileBottom || (selected && hasPocketTilt(selected.cutout))) && (editorMode === "contour" || editorMode === "split")) {
+    if ((selected?.cutout.profileBottom || selected?.cutout.layers || (selected && hasPocketTilt(selected.cutout))) && (editorMode === "contour" || editorMode === "split")) {
       dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" });
     }
-  }, [selected?.cutout.profileBottom, editorMode, dispatch]);
+  }, [selected?.cutout.profileBottom, selected?.cutout.layers, editorMode, dispatch]);
   const desktopPoint = useContourPointFocus({
     outline: selected?.shape.outlineMm ?? [],
-    enabled: !isMobile && editorMode === "contour" && !!selected && !selected.cutout.profileBottom && !hasPocketTilt(selected.cutout) && !panActive,
+    enabled: !isMobile && editorMode === "contour" && !!selected && !selected.cutout.profileBottom && !selected.cutout.layers && !hasPocketTilt(selected.cutout) && !panActive,
     contextKey: selectedCutoutId,
   });
   const splitEditor = usePocketSplit({ cutout: selected?.cutout ?? null, shape: selected?.shape ?? null,
@@ -659,7 +659,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
   };
 
   const mobileEditor = useMobileContourEditor({
-    enabled: isMobile && editorMode === "contour" && !!selected && !selected.cutout.profileBottom && !hasPocketTilt(selected.cutout) && !panActive,
+    enabled: isMobile && editorMode === "contour" && !!selected && !selected.cutout.profileBottom && !selected.cutout.layers && !hasPocketTilt(selected.cutout) && !panActive,
     outline: selected?.shape.outlineMm ?? [],
     selectionKey: selectedCutoutId,
     toLocal: point => {
@@ -1989,7 +1989,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
             aria-pressed={!panActive && editorMode === "contour"}
             title={editorMode === "contour" ? "Finish contour editing" : "Edit contour"}
             data-testid="button-layout-edit-contour"
-            disabled={panActive || !!selected.cutout.profileBottom || hasPocketTilt(selected.cutout)}
+            disabled={panActive || !!selected.cutout.profileBottom || !!selected.cutout.layers || hasPocketTilt(selected.cutout)}
             onClick={() => {
               setRulerActive(false);
               setMeasurementPoints([]);
