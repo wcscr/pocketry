@@ -15,6 +15,25 @@ const origin = new Vector3(5, -4, 42);
 const identity = new Quaternion();
 
 describe("surface-anchored pocket controls", () => {
+  it("draws only boundary rings and sparse struts for a concave, holed rigid drag preview", () => {
+    const outlineMm = [{ outer: [[0,0],[30,0],[30,10],[20,10],[20,20],[0,20]].map(([x,y]) => ({x,y})),
+      holes: [[[5,5],[5,10],[10,10],[10,5]].map(([x,y]) => ({x,y}))] }];
+    const source = { ...shape, outlineMm };
+    const cutout = { ...pocket, position: {x:0,y:0}, rotationDeg:0, tilt:undefined,
+      elevationMm:7, depth:{mode:"mm" as const,value:6} };
+    const wires = pocketTransformWires({ cutout, shape: source }, spec);
+    const contours = wires.filter(w => w.length > 2);
+    expect(contours).toHaveLength(4);
+    expect(contours.map(w => w.length)).toEqual([7,7,5,5]);
+    expect(wires).toHaveLength(14);
+    for (const [a,b] of wires.filter(w => w.length === 2)) {
+      expect(a.slice(0,2)).toEqual(b.slice(0,2));
+      expect(b[2] - a[2]).toBe(6);
+    }
+    const moved = pocketTransformWires({ cutout: {...cutout, tilt:{xDeg:90,yDeg:37}, mirrored:true}, shape:source }, spec);
+    expect(moved.map(w => w.length)).toEqual(wires.map(w => w.length));
+    expect(Math.min(...moved.flat().map(v => v[2]))).toBeCloseTo(7);
+  });
   it("moves bottom profiles through the top surface without changing thickness or dormant settings", () => {
     const p = { ...pocket, profileBottom: { edge: "bottom" as const, widthMm: 10, elevationMm: 12 }, zOffsetMm: 2 };
     const patch = pocketTransformPatch(p,shape,spec,new Vector3(8,-2,92),identity,"translate")!;

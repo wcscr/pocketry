@@ -5,7 +5,7 @@ import { SelectionLinkControls } from "./linked-design-controls";
 import { useExperimentalFeatures } from "@/state/experimental-features";
 import { hasPocketTilt } from "@shared/gridfinity/pocket-orientation";
 import { profileFootprint, hasProfileRotation } from "@shared/gridfinity/profile-bottom";
-import { usePocketFootprints } from "@/hooks/use-pocket-footprints";
+import { usePocketGeometry } from "@/hooks/use-pocket-geometry";
 import { resolvePocketDepth } from "@shared/gridfinity/cutout";
 import {
   Ruler,
@@ -355,7 +355,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
   // Transformed pocket outlines, recomputed per change — pure math over
   // recomputed per change — pure math over ≤150-point rings, cheap enough
   // per drag frame.
-  const profileOutlines = usePocketFootprints(cutouts, shapesById, spec);
+  const profileOutlines = usePocketGeometry(cutouts, shapesById, spec);
   const placed = useMemo(
     () =>
       cutouts.flatMap((cutout) => {

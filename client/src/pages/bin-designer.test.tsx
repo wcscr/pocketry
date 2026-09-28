@@ -31,9 +31,9 @@ import ryobiReloadFixture from "@shared/gridfinity/fixtures/ryobi-split-reload.p
  * lib/gridfinity/bin-worker-handlers.test.ts.
  */
 
-vi.mock("@/hooks/use-pocket-footprints", () => {
+vi.mock("@/hooks/use-pocket-geometry", () => {
   const outlines = new Map();
-  return { usePocketFootprints: () => outlines };
+  return { usePocketGeometry: () => outlines };
 });
 
 vi.mock("@/components/gridfinity/bin-viewport", () => ({

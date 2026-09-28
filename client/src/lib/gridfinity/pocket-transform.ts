@@ -1,4 +1,4 @@
-import { hasRigidPocket, rigidPocket, rigidPocketCells } from "@shared/gridfinity/rigid-pocket";
+import { hasRigidPocket, rigidPocket, rigidPocketVertices, pocketSourceRings } from "@shared/gridfinity/rigid-pocket";
 import { Euler, Quaternion, type Vector3 } from "three";
 import {
   defaultPocketFloorThicknessMm, resolvePlacedPocketDepth, resolvePocketDepth, transformOutlinePlacement, transformPointPlacement,
@@ -134,8 +134,23 @@ export function pocketTransformWires({ cutout, shape }: EditablePocket, spec: Bi
     }
     return wires;
   }
-  if (hasRigidPocket(cutout)) return rigidPocketCells(shape.outlineMm, cutout, top).flatMap(({vertices, edges}) =>
-    edges.map(([a,b]) => [vertices[a],vertices[b]].map(p => [p.x,p.y,p.z] as [number,number,number])));
+  if (hasRigidPocket(cutout)) {
+    const rings = pocketSourceRings(shape.outlineMm, cutout, top);
+    const vertices = rigidPocketVertices(shape.outlineMm, cutout, top);
+    const wires: PocketWire[] = [];
+    let offset = 0;
+    for (let i = 0; i < rings.length; i += 2) {
+      const count = rings[i].length;
+      const ring = (start: number): PocketWire => vertices.slice(start, start + count).map(p => [p.x, p.y, p.z]);
+      const bottom = ring(offset), upper = ring(offset + count);
+      if (count) {
+        wires.push([...bottom, bottom[0]], [...upper, upper[0]]);
+        for (let j = 0; j < count; j += Math.max(1, Math.ceil(count / 8))) wires.push([bottom[j], upper[j]]);
+      }
+      offset += count * 2;
+    }
+    return wires;
+  }
   const anchorZ = top + (cutout.zOffsetMm ?? 0);
   const axis = pocketAxis(cutout);
   const split = cutout.split ? resolvePocketSplit(shape.outlineMm, cutout.split.boundary) : null;

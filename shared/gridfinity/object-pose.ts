@@ -8,8 +8,8 @@ export const objectRotationSchema = z.object({
 export type ObjectRotation = z.infer<typeof objectRotationSchema>;
 export interface ObjectPose { rotation: ObjectRotation; position: Point; elevationMm: number }
 
-/** A convex volume from any source: an extruded outline today, or convex
- * pieces of a model later. Edges make surface sections independent of the source mesh. */
+/** Conservative, kernel-free helpers for generated-pocket picking and sections.
+ * These cells are not the source solid or a required format for imported models. */
 export interface ConvexObjectCell { vertices: Vec3[]; edges: [number, number][] }
 
 /** Fixed bin axes: Rz * Ry * Rx. Full turns and exact sideways/inverted poses
@@ -30,13 +30,25 @@ export function rotateObjectVector(p: Vec3, rotation: ObjectRotation): Vec3 {
 /** Apply one rigid pose to every cell. Re-anchor only Z so elevation always
  * means the object's lowest point, with local thickness/scale unchanged. */
 export function placeObjectCells(cells: readonly ConvexObjectCell[], pose: ObjectPose, anchor: readonly ConvexObjectCell[] = cells): ConvexObjectCell[] {
-  const rotated = cells.map(c => ({ ...c, vertices: c.vertices.map(p => rotateObjectVector(p, pose.rotation)) }));
+  const vertices = placeObjectVertices(cells.flatMap(c => c.vertices), pose, anchor.flatMap(c => c.vertices));
+  let offset = 0;
+  return cells.map(c => {
+    const placed = { ...c, vertices: vertices.slice(offset, offset + c.vertices.length) };
+    offset += c.vertices.length;
+    return placed;
+  });
+}
+
+/** Pose boundary vertices directly; rendering and rotation anchors do not need
+ * an interior decomposition. Elevation refers to the lowest anchor point. */
+export function placeObjectVertices(vertices: readonly Vec3[], pose: ObjectPose, anchor: readonly Vec3[] = vertices): Vec3[] {
+  const rotated = vertices.map(p => rotateObjectVector(p, pose.rotation));
   let bottom = Infinity;
-  const reference = anchor === cells ? rotated : anchor.map(c => ({ vertices: c.vertices.map(p => rotateObjectVector(p, pose.rotation)) }));
-  for (const cell of reference) for (const p of cell.vertices) bottom = Math.min(bottom, p.z);
-  return rotated.map(c => ({ ...c, vertices: c.vertices.map(p => ({
+  const reference = anchor === vertices ? rotated : anchor.map(p => rotateObjectVector(p, pose.rotation));
+  for (const p of reference) bottom = Math.min(bottom, p.z);
+  return rotated.map(p => ({
     x: p.x + pose.position.x, y: p.y + pose.position.y, z: p.z - bottom + pose.elevationMm,
-  })) }));
+  }));
 }
 
 /** Horizontal section through the actual cell, rather than its projected

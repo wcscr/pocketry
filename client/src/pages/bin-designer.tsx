@@ -2,7 +2,7 @@ import { hasRigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { SelectionLinkControls } from "@/components/gridfinity/linked-design-controls";
 import { retainTransformOrigins } from "@shared/gridfinity/transform-origins";
 import { useExperimentalFeatures } from "@/state/experimental-features";
-import { usePocketFootprints } from "@/hooks/use-pocket-footprints";
+import { usePocketGeometry } from "@/hooks/use-pocket-geometry";
 import { Box, History, Redo2, Undo2 } from "lucide-react";
 import { pocketDepths, pocketName, resolvePocketDepth } from "@shared/gridfinity/cutout";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -386,7 +386,7 @@ function BinDesignerWorkspace(): JSX.Element {
 
   const measurementShapes = useMemo(() => new Map(layout.shapes.map(shape => [shape.id, shape])), [layout.shapes]);
   const measurementTop = resolvePocketDepth(spec, { mode: "through" }).infillTopZ;
-  const profileOutlines = usePocketFootprints(layout.cutouts, measurementShapes, spec);
+  const profileOutlines = usePocketGeometry(layout.cutouts, measurementShapes, spec);
   const measurementOutlines = useMemo(() => {
     return layout.cutouts.flatMap((cutout) => {
       const shape = measurementShapes.get(cutout.shapeId);
@@ -1135,7 +1135,7 @@ function BinDesignerWorkspace(): JSX.Element {
             <BinViewport
               geometry={geometry}
               showPocketOutlines={!section || showInspectionPocketOutline}
-              pocketEditor={{ spec, transformOrigins: bin.transformOrigins, originShapes: library.shapes, linkControls: <SelectionLinkControls />, pockets: editablePockets, selectedId: bin.selectedCutoutId, fingerHoles, selection: bin.selection,
+              pocketEditor={{ spec, transformOrigins: bin.transformOrigins, originShapes: library.shapes, linkControls: <SelectionLinkControls />, pockets: editablePockets, pocketGeometry: profileOutlines, selectedId: bin.selectedCutoutId, fingerHoles, selection: bin.selection,
                 onSelectionChange: selection => dispatch({ type: "SET_SELECTION", selection }),
                 onCommitObjects: (edits, historyLabel) => dispatch({ type: "UPDATE_OBJECTS", edits, historyLabel }),
                 onSelect: id => dispatch({ type: "SELECT_CUTOUT", id }),

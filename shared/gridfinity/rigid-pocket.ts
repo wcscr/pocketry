@@ -2,7 +2,7 @@ import { convexHull } from "../geometry/obb";
 import { signedArea } from "../geometry/rings";
 import type { Outline } from "../geometry/types";
 import { resolvePlacedPocketDepth, type CutoutPlacement, type DepthSpec, type TracedShape } from "./cutout";
-import { placeObjectCells, rotateObjectVector, sectionObjectCell, type ConvexObjectCell, type ObjectRotation } from "./object-pose";
+import { placeObjectCells, placeObjectVertices, rotateObjectVector, sectionObjectCell, type ConvexObjectCell, type ObjectRotation, type Vec3 } from "./object-pose";
 import { profileCells } from "./profile-bottom";
 import { resolvePocketSplit } from "./pocket-split";
 import type { BinSpec } from "./types";
@@ -29,12 +29,33 @@ export function rigidPocket(p: CutoutPlacement, shape: Pick<TracedShape, "outlin
 
 /** Source extrusion occupies [-depth, 0] on its own Z axis. Through sections
  * use a long two-sided tool; the builder sizes it to the actual bin. */
-export function pocketSourceCells(outline: Outline, p: CutoutPlacement, top = 0, throughReach = 1000, nominalThrough = false): ConvexObjectCell[] {
+function sourceRegions(outline: Outline, p: CutoutPlacement, top: number, throughReach: number, nominalThrough: boolean) {
   const regions = p.split ? resolvePocketSplit(outline, p.split.boundary).regions : null;
-  return (regions ?? [outline]).flatMap((region, i) => {
+  return (regions ?? [outline]).map((region, i) => {
     const d = p.split?.depths[i] ?? p.depth;
     const depth = d.mode === "mm" ? d.value : d.mode === "remaining" ? Math.max(0.1, top - d.floorThicknessMm) : 1;
     const limits = d.mode === "through" ? nominalThrough ? [-1, 0] : [-throughReach, throughReach] : [-depth, 0];
+    return { region, limits };
+  });
+}
+
+/** Boundary loops for the immediate drag preview and nominal rotation anchor.
+ * Internal scan-line cells never participate in drawing the source outline. */
+export function pocketSourceRings(outline: Outline, p: CutoutPlacement, top = 0, nominalThrough = false): Vec3[][] {
+  return sourceRegions(outline, p, top, 1000, nominalThrough).flatMap(({ region, limits }) =>
+    region.flatMap(part => [part.outer, ...part.holes].flatMap(ring => limits.map(z => ring.map(v => ({
+      x: v.x * p.scaleX * (p.mirrored ? -1 : 1), y: v.y * p.scaleY, z,
+    }))))));
+}
+
+export function rigidPocketVertices(outline: Outline, p: CutoutPlacement, top = 0): Vec3[] {
+  return placeObjectVertices(pocketSourceRings(outline, p, top).flat(), {
+    rotation: pocketRotation(p), position: p.position, elevationMm: p.elevationMm ?? 0,
+  }, pocketSourceRings(outline, p, top, true).flat());
+}
+
+export function pocketSourceCells(outline: Outline, p: CutoutPlacement, top = 0, throughReach = 1000, nominalThrough = false): ConvexObjectCell[] {
+  return sourceRegions(outline, p, top, throughReach, nominalThrough).flatMap(({ region, limits }) => {
     return profileCells(region).map(ring => {
       const n = ring.length, edges: [number, number][] = [];
       for (let j = 0; j < n; j++) edges.push([j, (j + 1) % n], [j + n, (j + 1) % n + n], [j, j + n]);

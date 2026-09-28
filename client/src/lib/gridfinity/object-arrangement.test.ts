@@ -15,6 +15,17 @@ const mixed = [pocket("a", -40, -10, 8), pocket("b", -5, 8, 16), pocket("c", 25,
 const rotate = (axis: "x" | "y" | "z", degrees: number) => new Quaternion().setFromAxisAngle(new Vector3(axis === "x" ? 1 : 0, axis === "y" ? 1 : 0, axis === "z" ? 1 : 0), degrees * Math.PI / 180);
 
 describe("mixed object arrangement", () => {
+  it("picks the resolved solid projection, retaining holes and a synchronous fallback", () => {
+    const object = pocket("resolved", 0);
+    const geometry = new Map([[object.cutout.id, { full: [{
+      outer: [[-8,-8],[8,-8],[8,8],[-8,8]].map(([x,y]) => ({x,y})),
+      holes: [[[-2,-2],[-2,2],[2,2],[2,-2]].map(([x,y]) => ({x,y}))],
+    }] }]]);
+    expect(pickObject([object], {x:7,y:0})).toBeNull();
+    expect(pickObject([object], {x:7,y:0}, geometry)?.id).toBe(object.cutout.id);
+    expect(pickObject([object], {x:0,y:0}, geometry)).toBeNull();
+    expect(pickObject([object], {x:0,y:0}, new Map())?.id).toBe(object.cutout.id);
+  });
   it("moves pockets rigidly while retaining thumb access depth controls", () => {
     const edits = transformObjects(mixed, spec, new Vector3(7, -9, 2))!;
     const next = applyObjectEdits(mixed, edits);

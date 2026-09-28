@@ -3,6 +3,11 @@ import { Line, TransformControls } from "@react-three/drei";
 import { useThree, type ThreeEvent } from "@react-three/fiber";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ElementRef, type ReactNode } from "react";
 import { DoubleSide, Object3D, Quaternion, Vector3 } from "three";
+import { usePocketGeometry } from "@/hooks/use-pocket-geometry";
+import { objectEdges } from "@/lib/mesh/object-edges";
+import { toBufferGeometry } from "@/lib/mesh/to-buffer-geometry";
+import type { MeshData } from "@/lib/mesh/mesh-data";
+import type { Outline } from "@shared/geometry/types";
 import type { CutoutPlacement, FingerHole, TracedShape } from "@shared/gridfinity/cutout";
 import { effectiveFingerHoleDepthMm, resolvePocketDepth } from "@shared/gridfinity/cutout";
 import type { BinSpec } from "@shared/gridfinity/types";
@@ -21,6 +26,8 @@ export interface PocketEditor {
   linkControls?: ReactNode;
   spec: BinSpec;
   pockets: readonly EditablePocket[];
+  /** Settled picking uses the same solid projection as the visible preview. */
+  pocketGeometry?: ReadonlyMap<string, { full: Outline }>;
   selectedId: string | null;
   fingerHoles?: readonly FingerHole[];
   selection?: readonly ObjectRef[];
@@ -38,7 +45,7 @@ export function PocketSelectionPlane({ editor, width, length, disabled }: {
     ...(editor.fingerHoles ?? []).map(hole => ({ kind: "finger" as const, hole }))];
   const select = (event: ThreeEvent<MouseEvent>) => {
     if (disabled || event.button !== 0 || event.delta > 4) return;
-    const ref = pickObject(objects, event.point);
+    const ref = pickObject(objects, event.point, editor.pocketGeometry);
     event.stopPropagation();
     if (!editor.onSelectionChange) { editor.onSelect(ref?.kind === "pocket" ? ref.id : null); return; }
     const additive = event.shiftKey || event.metaKey || event.ctrlKey;
@@ -162,9 +169,27 @@ export function SelectionTransformScene({ objects, allObjects = objects, spec, m
 }
 
 export function PocketTransformWire({ pocket, spec }: { pocket: EditablePocket; spec: BinSpec }): JSX.Element {
-  const wires = useMemo(() => pocketTransformWires(pocket, spec), [pocket, spec]);
-  return <group name="selected-pocket-wire">{wires.map((points, i) => <Line key={i} points={points}
-    color="#0891b2" lineWidth={1.5} depthTest={false} renderOrder={100} />)}</group>;
+  const cutouts = useMemo(() => [pocket.cutout], [pocket.cutout]);
+  const shapes = useMemo(() => new Map([[pocket.shape.id, pocket.shape]]), [pocket.shape]);
+  const resolved = usePocketGeometry(cutouts, shapes, spec).get(pocket.cutout.id);
+  const points = useMemo(() => resolved?.mesh ? [] : pocketTransformWires(pocket, spec)
+    .flatMap(wire => wire.slice(1).flatMap((point, i) => [wire[i], point])), [pocket, spec, resolved]);
+  return <group name="selected-pocket-wire">{resolved?.mesh ? <ObjectSolidOutline mesh={resolved.mesh} />
+    : points.length > 0 && <Line points={points} segments color="#0891b2" lineWidth={1.5} depthTest={false} renderOrder={100} />}</group>;
+}
+
+/** One surface and one batched crease outline, independent of how the source
+ * solid was authored. The faint surface keeps smooth imported models readable. */
+export function ObjectSolidOutline({ mesh }: { mesh: MeshData }): JSX.Element {
+  const geometry = useMemo(() => toBufferGeometry(mesh), [mesh]);
+  const edges = useMemo(() => objectEdges(mesh), [mesh]);
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  return <>
+    <mesh geometry={geometry} renderOrder={99}>
+      <meshBasicMaterial color="#0891b2" transparent opacity={0.08} side={DoubleSide} depthWrite={false} depthTest={false} />
+    </mesh>
+    {edges.length > 0 && <Line points={edges} segments color="#0891b2" lineWidth={1.5} depthTest={false} renderOrder={100} />}
+  </>;
 }
 
 export function ObjectTransformWire({ object, spec }: { object: EditableObject; spec: BinSpec }): JSX.Element {

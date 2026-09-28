@@ -1,5 +1,5 @@
 import { hasRigidPocket, rigidPocketFootprint } from "@shared/gridfinity/rigid-pocket";
-import { resolvedPocketFootprints } from "@/lib/gridfinity/pocket-footprint";
+import { resolvedPocketGeometry } from "@/lib/gridfinity/pocket-geometry";
 import {
   fingerHoleFootprintRing,
   fingerHoleCircularSegments,
@@ -58,7 +58,7 @@ export function layoutRingsMm(
     const shape = shapesById.get(cutout.shapeId);
     if (!shape) continue;
     const budgeted = budgetOutline(shape.outlineMm, EXPORT_VERTEX_BUDGET);
-    const outline = hasRigidPocket(cutout) ? kernel ? resolvedPocketFootprints(kernel, shape, cutout, spec).opening
+    const outline = hasRigidPocket(cutout) ? kernel ? resolvedPocketGeometry(kernel, shape, cutout, spec).opening
       : rigidPocketFootprint(shape.outlineMm, cutout, resolvePocketDepth(spec, cutout.depth).infillTopZ) : cutout.profileBottom
       ? kernel ? resolvedProfileFootprint(kernel, shape.outlineMm, cutout, resolvePocketDepth(spec, { mode: "through" }).infillTopZ)
         : profileFootprint(shape.outlineMm, cutout, resolvePocketDepth(spec, { mode: "through" }).infillTopZ)

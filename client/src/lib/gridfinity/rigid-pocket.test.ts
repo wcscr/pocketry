@@ -8,7 +8,7 @@ import { createKernel, loadManifold, type Kernel, type ManifoldToplevel } from "
 import { toCrossSection } from "@/lib/geometry/offset";
 import { buildCutoutCutters, buildRigidPocket } from "./cutouts";
 import { buildProfileBottomCutout } from "./profile-bottom";
-import { resolvedPocketFootprints } from "./pocket-footprint";
+import { resolvedPocketGeometry } from "./pocket-geometry";
 import { EXPORT_QUALITY } from "./bin";
 
 let wasm: ManifoldToplevel, arena: Arena, kernel: Kernel;
@@ -29,7 +29,7 @@ describe("rigid generated pockets", () => {
       const complete = buildRigidPocket(kernel, shape, p, spec, EXPORT_QUALITY).cutters[0];
       expect(complete.volume()).toBeCloseTo(640 * 6, 5);
       expect(complete.boundingBox().min[2]).toBeCloseTo(25, 6);
-      const outlines = resolvedPocketFootprints(kernel, shape, p, spec);
+      const outlines = resolvedPocketGeometry(kernel, shape, p, spec);
       const expected = arena.track(complete.slice(42 - 1e-7));
       const actual = toCrossSection(kernel, outlines.opening);
       expect(arena.track(actual.subtract(expected)).area()).toBeCloseTo(0, 5);
@@ -37,11 +37,11 @@ describe("rigid generated pockets", () => {
       const moved = buildRigidPocket(kernel, shape, { ...p, elevationMm: 80 }, spec, EXPORT_QUALITY).cutters[0];
       expect(moved.volume()).toBeCloseTo(complete.volume(), 5);
       expect(moved.boundingBox().max[2] - complete.boundingBox().max[2]).toBeCloseTo(55, 5);
-      expect(resolvedPocketFootprints(kernel, shape, { ...p, elevationMm: 80 }, spec).opening).toEqual([]);
+      expect(resolvedPocketGeometry(kernel, shape, { ...p, elevationMm: 80 }, spec).opening).toEqual([]);
     });
   it("leaves a closed surface above a submerged tool", () => {
     const p = { ...pocket, tilt: { xDeg: 180, yDeg: 0 } };
-    expect(resolvedPocketFootprints(kernel, shape, p, spec).opening).toEqual([]);
+    expect(resolvedPocketGeometry(kernel, shape, p, spec).opening).toEqual([]);
     expect(buildCutoutCutters(kernel, new Map([[shape.id,shape]]), [p], spec, EXPORT_QUALITY).cutters[0].volume()).toBeCloseTo(3840, 5);
   });
   it("retains generated clearance, corner rounding, fillets and split seats under rotation", () => {
