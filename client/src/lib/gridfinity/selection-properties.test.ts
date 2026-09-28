@@ -13,6 +13,12 @@ const pockets: EditableObject[] = [10, 20].map((depth, i) => {
 const finger: EditableObject = { kind: "finger", hole: fingerHoleSchema.parse({ id: "f", center: { x: 0, y: 15 }, diameterMm: 10, depthMm: 8 }) };
 
 describe("selection property edits", () => {
+  it.each(["depth", "topFilletMm", "clearanceMm"] as const)("does not silently edit dormant %s on a profile", property => {
+    const source=pockets[0]; if(source.kind!=="pocket") throw new Error("Expected pocket");
+    const profile={...source,cutout:{...source.cutout,profileBottom:{edge:"bottom" as const,widthMm:8,elevationMm:12},profileRotation:{xDeg:135,yDeg:45}}};
+    expect(()=>selectionPropertyEdits([profile],[objectRef(profile)],"pocket",property,1,spec)).toThrow(/elevation and slot width/);
+    expect(profile.cutout.depth).toEqual(source.cutout.depth);
+  });
   it("shows mixed values and edits only the requested property and object type", () => {
     const all = [...pockets, finger];
     expect(commonSelectionValue(pockets, "depth")).toBeNull();

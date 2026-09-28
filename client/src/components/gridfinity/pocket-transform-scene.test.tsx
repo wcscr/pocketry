@@ -56,10 +56,10 @@ function drag() {
 it("previews locally and commits one complete XYZ move on release", () => {
   const { onCommit, onPreview } = mount(); drag();
   expect(onCommit).not.toHaveBeenCalled();
-  expect(onPreview).toHaveBeenLastCalledWith(expect.objectContaining({ position: { x: 3, y: 0 }, depth: { mode: "remaining", floorThicknessMm: 5 } }));
+  expect(onPreview).toHaveBeenLastCalledWith(expect.objectContaining({ position: { x: 3, y: 0 }, depth: { mode: "mm", value: 35 }, elevationMm: 5 }));
   React.act(() => scene.handlers!.onMouseUp());
   expect(onCommit).toHaveBeenCalledTimes(1);
-  expect(onCommit).toHaveBeenCalledWith("p", expect.objectContaining({ position: { x: 3, y: 0 }, depth: { mode: "remaining", floorThicknessMm: 5 } }), "translate");
+  expect(onCommit).toHaveBeenCalledWith("p", expect.objectContaining({ position: { x: 3, y: 0 }, depth: { mode: "mm", value: 35 }, elevationMm: 5 }), "translate");
   expect(onPreview).toHaveBeenLastCalledWith(null);
 });
 it.each(["Escape", "blur", "pointercancel"])("cancels %s without persisting and restores orbit and original pose", event => {
@@ -81,7 +81,7 @@ it("abandons a gesture when the view unmounts", () => {
 });
 
 
-it("keeps the gizmo on the surface throughout a pure Z drag and creates one depth undo", () => {
+it("keeps the gizmo on the surface throughout a pure Z drag and creates one elevation undo", () => {
   const { onCommit, onPreview } = mount();
   React.act(() => scene.handlers!.onMouseDown());
   for (const z of [44, 47, 90]) React.act(() => {
@@ -89,7 +89,7 @@ it("keeps the gizmo on the surface throughout a pure Z drag and creates one dept
     scene.handlers!.onObjectChange();
     expect(scene.handlers!.object.position.z).toBe(42);
   });
-  expect(onPreview).toHaveBeenLastCalledWith(expect.objectContaining({ depth: { mode: "remaining", floorThicknessMm: 41.5 }, zOffsetMm: undefined }));
+  expect(onPreview).toHaveBeenLastCalledWith(expect.objectContaining({ depth: { mode: "mm", value: 35 }, elevationMm: 55, zOffsetMm: undefined }));
   React.act(() => scene.handlers!.onMouseUp());
   expect(onCommit).toHaveBeenCalledTimes(1);
   expect(scene.handlers!.object.position.toArray()).toEqual([0, 0, 42]);
@@ -110,7 +110,7 @@ it("keeps the handles in fixed XYZ through repeated rotation gestures and remove
   expect(onCommit).toHaveBeenCalledWith("p", expect.objectContaining({ tilt: { xDeg: 0, yDeg: 35 } }), "rotate");
 });
 
-it("retains the last valid preview and commits only that orientation when an X drag crosses the surface", () => {
+it("accepts a rotation that crosses the surface while retaining source depth", () => {
   const shallow = { ...cutout, depth: { mode: "mm" as const, value: 3 } };
   const { onCommit, onPreview, onLimit } = mount("rotate", shallow);
   React.act(() => scene.handlers!.onMouseDown());
@@ -118,25 +118,26 @@ it("retains the last valid preview and commits only that orientation when an X d
     scene.handlers!.object.quaternion.setFromAxisAngle(new Vector3(1, 0, 0), degrees * Math.PI / 180);
     scene.handlers!.onObjectChange();
   });
-  expect(onPreview).toHaveBeenLastCalledWith(expect.objectContaining({ tilt: { xDeg: 5, yDeg: -0 } }));
-  expect(onLimit).toHaveBeenLastCalledWith(true);
+  expect(onPreview.mock.lastCall![0].tilt.xDeg).toBeCloseTo(65,10);
+  expect(onLimit).toHaveBeenLastCalledWith(false);
   expect(scene.handlers!.object.position.toArray()).toEqual([0, 0, 42]);
   expect(scene.handlers!.object.quaternion.equals(new Quaternion())).toBe(true);
   React.act(() => scene.handlers!.onMouseUp());
   expect(onCommit).toHaveBeenCalledTimes(1);
-  expect(onCommit).toHaveBeenCalledWith("p", expect.objectContaining({ tilt: { xDeg: 5, yDeg: -0 }, depth: shallow.depth }), "rotate");
+  expect(onCommit.mock.lastCall![1].tilt.xDeg).toBeCloseTo(65,10);
+  expect(onCommit.mock.lastCall![1].depth).toEqual(shallow.depth);
 });
 
-it("does not create an undo step when the first rotation sample is beyond the floor limit", () => {
+it("commits a shallow pocket rotation beyond the old floor limit", () => {
   const { onCommit, onLimit } = mount("rotate", { ...cutout, depth: { mode: "mm", value: 3 } });
   React.act(() => {
     scene.handlers!.onMouseDown();
     scene.handlers!.object.quaternion.setFromAxisAngle(new Vector3(1, 0, 0), Math.PI / 3);
     scene.handlers!.onObjectChange();
   });
-  expect(onLimit).toHaveBeenLastCalledWith(true);
+  expect(onLimit).toHaveBeenLastCalledWith(false);
   React.act(() => scene.handlers!.onMouseUp());
-  expect(onCommit).not.toHaveBeenCalled();
+  expect(onCommit).toHaveBeenCalledTimes(1);
 });
 
 

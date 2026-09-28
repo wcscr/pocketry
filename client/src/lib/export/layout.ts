@@ -1,8 +1,11 @@
+import { hasRigidPocket, rigidPocketFootprint } from "@shared/gridfinity/rigid-pocket";
+import { resolvedPocketFootprints } from "@/lib/gridfinity/pocket-footprint";
 import {
   fingerHoleFootprintRing,
   fingerHoleCircularSegments,
   FINGER_HOLE_EXPORT_CHORD_TOLERANCE_MM,
   transformOutlinePlacement,
+  resolvePocketDepth,
   type CutoutPlacement,
   type FingerHole,
   type TracedShape,
@@ -12,6 +15,9 @@ import type { BinSpec } from "@shared/gridfinity/types";
 import { isValidRing } from "@shared/geometry/rings";
 import type { Point, Ring } from "@shared/geometry/types";
 import { footprintOuterRingMm } from "@shared/gridfinity/footprint";
+import { profileFootprint } from "@shared/gridfinity/profile-bottom";
+import { resolvedProfileFootprint } from "@/lib/gridfinity/profile-bottom";
+import { withKernel, type Kernel } from "@/lib/manifold/runtime";
 
 import { budgetOutline } from "@/lib/gridfinity/cutouts";
 
@@ -36,6 +42,7 @@ export function layoutRingsMm(
   cutouts: readonly CutoutPlacement[],
   shapesById: ReadonlyMap<string, TracedShape>,
   fingerHoles: readonly FingerHole[] = [],
+  kernel?: Kernel,
 ): Ring[] {
   const rings: Ring[] = [
     spec.footprint.kind === "custom"
@@ -51,7 +58,12 @@ export function layoutRingsMm(
     const shape = shapesById.get(cutout.shapeId);
     if (!shape) continue;
     const budgeted = budgetOutline(shape.outlineMm, EXPORT_VERTEX_BUDGET);
-    for (const placedShape of transformOutlinePlacement(budgeted, cutout)) {
+    const outline = hasRigidPocket(cutout) ? kernel ? resolvedPocketFootprints(kernel, shape, cutout, spec).opening
+      : rigidPocketFootprint(shape.outlineMm, cutout, resolvePocketDepth(spec, cutout.depth).infillTopZ) : cutout.profileBottom
+      ? kernel ? resolvedProfileFootprint(kernel, shape.outlineMm, cutout, resolvePocketDepth(spec, { mode: "through" }).infillTopZ)
+        : profileFootprint(shape.outlineMm, cutout, resolvePocketDepth(spec, { mode: "through" }).infillTopZ)
+      : transformOutlinePlacement(budgeted, cutout);
+    for (const placedShape of outline) {
       rings.push(placedShape.outer, ...placedShape.holes);
     }
   }
@@ -99,14 +111,14 @@ const LAYOUT_COMMENT =
   "Units: millimetres, bin top view (y-up) - pocket rings are nominal top openings (oblique sections for tilted pockets); per-pocket fit clearance and 3D edge rounds are applied at cut time, not baked in; 2D templates do not encode tilted depth or insertion paths";
 
 /** The layout as a DXF drawing (one closed LWPOLYLINE per ring). */
-export function generateLayoutDXF(
+export async function generateLayoutDXF(
   spec: BinSpec,
   cutouts: readonly CutoutPlacement[],
   shapesById: ReadonlyMap<string, TracedShape>,
   fingerHoles: readonly FingerHole[] = [],
-): string {
+): Promise<string> {
   return dxfFromModelRings(
-    layoutRingsMm(spec, cutouts, shapesById, fingerHoles),
+    await exportLayoutRings(spec, cutouts, shapesById, fingerHoles),
     LAYOUT_COMMENT,
   );
 }
@@ -115,15 +127,15 @@ export function generateLayoutDXF(
  * The layout as a standalone SVG, sized in real millimetres. SVG is y-down,
  * so this is one of the exporters that flips — once, here.
  */
-export function generateLayoutSVG(
+export async function generateLayoutSVG(
   spec: BinSpec,
   cutouts: readonly CutoutPlacement[],
   shapesById: ReadonlyMap<string, TracedShape>,
   fingerHoles: readonly FingerHole[] = [],
-): string {
+): Promise<string> {
   const widthMm = binFootprintMm(spec.gridX, spec.gridPitch);
   const lengthMm = binFootprintMm(spec.gridY, spec.gridPitch);
-  const rings = layoutRingsMm(spec, cutouts, shapesById, fingerHoles);
+  const rings = await exportLayoutRings(spec, cutouts, shapesById, fingerHoles);
 
   const toView = (point: Point): Point => ({
     x: point.x + widthMm / 2,
@@ -147,4 +159,10 @@ export function generateLayoutSVG(
     `</svg>`,
     ``,
   ].join("\n");
+}
+
+async function exportLayoutRings(spec: BinSpec, cutouts: readonly CutoutPlacement[], shapes: ReadonlyMap<string, TracedShape>, fingers: readonly FingerHole[]): Promise<Ring[]> {
+  return cutouts.some(c => c.profileBottom || hasRigidPocket(c))
+    ? withKernel(kernel => layoutRingsMm(spec, cutouts, shapes, fingers, kernel))
+    : layoutRingsMm(spec, cutouts, shapes, fingers);
 }

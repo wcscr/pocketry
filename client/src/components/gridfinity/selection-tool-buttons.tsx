@@ -23,7 +23,7 @@ export function SelectionToolButtons({ count, onActivate, inactive = false, pann
     { tool: "rotate", Icon: Rotate3D, label: "Rotate selected objects", text: "Rotate", minimum: 1 },
     { tool: "arrange", Icon: AlignHorizontalDistributeCenter, label: "Arrange selected objects", text: "Arrange", minimum: 2 },
     { tool: "links", Icon: Link2, label: "Link and unlink selected objects", text: "Link", minimum: 2 },
-  ] as const).filter(({ tool }) => experimentalEnabled || tool === "properties").map(({ tool, Icon, label, text, minimum }) => <Button key={tool} size="sm"
+  ] as const).filter(({ tool }) => experimentalEnabled || tool === "properties" || tool === "translate" || tool === "rotate").map(({ tool, Icon, label, text, minimum }) => <Button key={tool} size="sm"
     variant={!inactive && !panning && editorMode === "placement" && inspector.tool === tool ? "secondary" : "ghost"}
     className="shrink-0 gap-1.5 [@media(pointer:coarse)]:min-h-11"
     disabled={panning || count < minimum} aria-label={label} title={panning ? `Turn off Pan to ${text.toLowerCase()}` : label} aria-pressed={!inactive && !panning && editorMode === "placement" && inspector.tool === tool}

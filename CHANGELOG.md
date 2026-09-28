@@ -4,6 +4,9 @@
 
 - UI cleanup and consistency updates.
 
+- Rotate generated pockets freely on all three axes and raise or lower them without changing their dimensions. Depth sets the extrusion thickness; the surface opening follows the solid’s intersection with the fill.
+- Reset pockets to their original X–Y plane while preserving Z rotation, position, elevation, and dimensions. Earlier profile prototypes migrate to ordinary pockets.
+
 ## 1.1.0 — 2026-09-26
 
 - Added experimental pocket tilt, 3D move and rotate controls, multi-selection, alignment, distribution, and linked designs.

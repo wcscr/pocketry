@@ -723,10 +723,12 @@ describe("linked design transactions", () => {
   it("supports opt-in tilt while names, Z heading and XY placement stay local", () => {
     const { store, act } = setup();
     act(() => store().dispatch({ type: "LINK_DESIGNS", kind: "pocket", ids: ["c1", "c2"], sourceId: "c1", linkId: "g", tilt: false }));
-    act(() => store().dispatch({ type: "UPDATE_CUTOUT", id: "c1", patch: { tilt: { xDeg: 10, yDeg: 20 }, name: "A", rotationDeg: 45 } }));
+    act(() => store().dispatch({ type: "UPDATE_CUTOUT", id: "c1", patch: { tilt: { xDeg: 10, yDeg: 20 }, profileRotation: { xDeg: 135, yDeg: 90 }, name: "A", rotationDeg: 45 } }));
     expect(store().cutouts[1].tilt).toBeUndefined();
+    expect(store().cutouts[1].profileRotation).toBeUndefined();
     act(() => store().dispatch({ type: "SET_LINKED_TILT", id: "c1", enabled: true }));
     expect(store().cutouts[1].tilt).toEqual({ xDeg: 10, yDeg: 20 });
+    expect(store().cutouts[1].profileRotation).toEqual({ xDeg: 135, yDeg: 90 });
     expect(store().cutouts[1]).toMatchObject({ name: "Second", rotationDeg: 90 });
     act(() => store().dispatch({ type: "SET_LINKED_TILT", id: "c1", enabled: false }));
     act(() => store().dispatch({ type: "UPDATE_CUTOUT", id: "c1", patch: { tilt: { xDeg: 0, yDeg: 0 } } }));

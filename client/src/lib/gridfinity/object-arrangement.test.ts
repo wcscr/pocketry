@@ -15,14 +15,15 @@ const mixed = [pocket("a", -40, -10, 8), pocket("b", -5, 8, 16), pocket("c", 25,
 const rotate = (axis: "x" | "y" | "z", degrees: number) => new Quaternion().setFromAxisAngle(new Vector3(axis === "x" ? 1 : 0, axis === "y" ? 1 : 0, axis === "z" ? 1 : 0), degrees * Math.PI / 180);
 
 describe("mixed object arrangement", () => {
-  it("moves pockets and access slots by the same XYZ delta without moving mouths off the surface", () => {
+  it("moves pockets rigidly while retaining thumb access depth controls", () => {
     const edits = transformObjects(mixed, spec, new Vector3(7, -9, 2))!;
     const next = applyObjectEdits(mixed, edits);
     next.forEach((o, i) => {
       expect(objectPosition(o).x - objectPosition(mixed[i]).x).toBeCloseTo(7);
       expect(objectPosition(o).y - objectPosition(mixed[i]).y).toBeCloseTo(-9);
     });
-    expect(edits.cutouts[0].depth).toEqual({ mode: "mm", value: 18 });
+    expect(edits.cutouts[0].depth).toEqual({ mode: "mm", value: 20 });
+    expect(edits.cutouts[0].elevationMm).toBe(24);
     expect(edits.fingerHoles[0].depthMm).toBe(8);
     expect(edits.cutouts.every(c => !c.zOffsetMm)).toBe(true);
   });
@@ -31,7 +32,7 @@ describe("mixed object arrangement", () => {
     for (const dz of [-1000, 1000]) {
       const edits = transformObjects(mixed, spec, new Vector3(0, 0, dz))!;
       const expected = dz < 0 ? low : high;
-      expect(20 - (edits.cutouts[0].depth as { value: number }).value).toBeCloseTo(expected);
+      expect(edits.cutouts[0].elevationMm! - 22).toBeCloseTo(expected);
       expect(10 - edits.fingerHoles[0].depthMm).toBeCloseTo(expected);
       edits.cutouts.forEach(c => expect(parseCutoutPlacement(c)).toEqual(c));
       expect(fingerHoleSchema.safeParse(edits.fingerHoles[0]).success).toBe(true);
@@ -53,16 +54,16 @@ describe("mixed object arrangement", () => {
     expect(edits).not.toBeNull();
     pair.forEach((p, i) => {
       const before = pocketTransformWires(p, spec)[1];
-      const after = pocketTransformWires({ ...p, cutout: edits.cutouts[i] }, spec)[1];
+      const after = pocketTransformWires({ ...p, cutout: edits.cutouts[i] }, spec).flat();
       before.forEach((v, n) => {
         const expected = new Vector3(...v).sub(new Vector3(0, 0, 42)).applyQuaternion(rotation).add(new Vector3(0, 0, 42));
-        expect(new Vector3(...after[n]).distanceTo(expected)).toBeLessThan(1e-7);
+        expect(Math.min(...after.map(v => new Vector3(...v).distanceTo(expected)))).toBeLessThan(1e-5);
       });
     });
   });
-  it("rejects a whole rotation when one pocket hits a floor limit, and rejects mixed XY tilts", () => {
+  it("allows shallow pockets to turn freely and keeps thumb access upright", () => {
     const shallow = pocket("shallow", 10); shallow.cutout.depth = { mode: "mm", value: 1 };
-    expect(transformObjects([pocket("deep", -20), shallow], spec, new Vector3(), rotate("x", 30))).toBeNull();
+    expect(transformObjects([pocket("deep", -20), shallow], spec, new Vector3(), rotate("x", 30))).not.toBeNull();
     expect(transformObjects(mixed, spec, new Vector3(), rotate("y", 10))).toBeNull();
   });
   it.each(["x", "y"] as const)("aligns all three opening features on %s, including tilted and mirrored outlines", axis => {
@@ -141,24 +142,28 @@ describe("mixed object arrangement", () => {
   });
 });
 
-it("propagates linked Z depth and optional tilt to unselected copies without moving them", () => {
+it("keeps elevation local and shares optional X/Y rotation with linked copies", () => {
   const a = pocket("a", -20), b = pocket("b", 20);
   a.cutout.designLink = { id: "group", tilt: true };
   b.cutout = { ...a.cutout, id: b.cutout.id, position: b.cutout.position, rotationDeg: 90 };
   b.shape = a.shape;
   const all = [a, b];
   const move = transformObjects([a], spec, new Vector3(3, 0, 2), undefined, "individual", all)!;
-  expect(move.cutouts[1].depth).toEqual({ mode: "mm", value: 18 });
+  expect(move.cutouts[1].depth).toEqual({ mode: "mm", value: 20 });
+  expect(move.cutouts[1].elevationMm).toBe(22);
+  expect(move.cutouts[0].elevationMm).toBe(24);
   expect(move.cutouts[1].position).toEqual(b.cutout.position);
   const turn = transformObjects([a], spec, new Vector3(), rotate("y", 15), "individual", all)!;
   expect(turn.cutouts[1].tilt).toEqual(turn.cutouts[0].tilt);
   expect(turn.cutouts[1].rotationDeg).toBe(90);
 });
 
-it("rejects a linked depth change that would move an unselected seat through the surface", () => {
+it("moving a pocket leaves the unselected linked seat unchanged", () => {
   const a = pocket("a", -20, 0, 8, 60), b = pocket("b", 20);
   a.cutout.designLink = { id: "group", tilt: false };
   b.cutout = { ...a.cutout, id: b.cutout.id, position: b.cutout.position, tilt: { xDeg: 25, yDeg: 0 } };
   b.shape = a.shape;
-  expect(transformObjects([a], spec, new Vector3(0, 0, 15), undefined, "individual", [a, b])).toBeNull();
+  const moved = transformObjects([a], spec, new Vector3(0, 0, 15), undefined, "individual", [a, b])!;
+  expect(moved.cutouts[1]).toEqual(b.cutout);
+  expect(moved.cutouts[0].depth).toEqual(a.cutout.depth);
 });

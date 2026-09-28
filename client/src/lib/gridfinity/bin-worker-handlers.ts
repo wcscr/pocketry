@@ -1,3 +1,4 @@
+import { hasRigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { validateLayout } from "@shared/gridfinity/validate";
 import { hasPocketTilt } from "@shared/gridfinity/pocket-orientation";
 import type { ManifoldToplevel } from "manifold-3d";
@@ -121,7 +122,7 @@ export function createBinWorkerHandlers(
     try {
       const kernel = createKernel(wasm, arena);
       const started = performance.now();
-      if (payload.exportTopology && layout?.cutouts.some(c => hasPocketTilt(c) || (c.zOffsetMm ?? 0) !== 0)) {
+      if (payload.exportTopology && layout?.cutouts.some(c => c.profileBottom || hasRigidPocket(c) || hasPocketTilt(c) || (c.zOffsetMm ?? 0) !== 0)) {
         const errors = validateLayout(spec, layout.cutouts, layout.shapesById, layout.fingerHoles).filter(issue => issue.severity === "error");
         if (errors.length) throw new Error(errors.map(issue => issue.message).join("\n"));
       }
@@ -169,18 +170,17 @@ export function createBinWorkerHandlers(
       if (payload.exportTopology) {
         displayed = preparePrintableSolid(kernel, displayed);
         if (displayedMaterialParts) {
+          const floorRegions = materialParts!.floorRegions.map(part => preparePrintableSolid(kernel, part));
           const pocketFloors = displayedMaterialParts.pocketFloors
             ? preparePrintableSolid(kernel, displayedMaterialParts.pocketFloors) : null;
           const stackingRim = displayedMaterialParts.stackingRim
             ? preparePrintableSolid(kernel, displayedMaterialParts.stackingRim) : null;
-          // Split the body in export precision as well. Otherwise a microscopic
-          // gap at a tilted seat can collapse into two coincident faces between
-          // the body's outer shell and an internal material cavity.
-          const accents = [pocketFloors, stackingRim].filter(
-            (part): part is BinMaterialParts["body"] => part !== null,
-          );
-          const body = accents.length > 0
-            ? preparePrintableSolid(kernel, arena.track(kernel.Manifold.difference([displayed, ...accents])))
+          // Subtract full insert regions in export precision. Re-subtracting an
+          // already clipped accent repeats the pocket boundary and can create
+          // coincident faces, especially around an enclosed profile cavity.
+          const bodyCutters = [...floorRegions, ...(stackingRim ? [stackingRim] : [])];
+          const body = bodyCutters.length > 0
+            ? preparePrintableSolid(kernel, arena.track(kernel.Manifold.difference([displayed, ...bodyCutters])))
             : displayed;
           displayedMaterialParts = { body, pocketFloors, stackingRim };
         }

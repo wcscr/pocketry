@@ -1,5 +1,7 @@
-import { useExperimentalFeatures } from "@/state/experimental-features";
+import { expandLinkedObjectEdits } from "@/lib/gridfinity/object-arrangement";
+import { hasRigidPocket, rigidPocket, resetPocketPlane } from "@shared/gridfinity/rigid-pocket";
 import { hasPocketTilt, pocketAxis } from "@shared/gridfinity/pocket-orientation";
+import { profileAlongX, profilePrisms, hasProfileRotation } from "@shared/gridfinity/profile-bottom";
 import { outlineBounds } from "@/lib/geometry/outline";
 import { useState, type ReactNode } from "react";
 import { ChevronDown, Lock, Unlock } from "lucide-react";
@@ -34,16 +36,22 @@ export function PocketMeasurements({ cutout, shape, children }: {
   children?: ReactNode;
 }): JSX.Element {
   const { spec, cutouts, dispatch } = useBin();
-  const { enabled: experimentalEnabled } = useExperimentalFeatures();
   const { shapes } = useShapeLibrary();
   const [neighborId, setNeighborId] = useState("");
   const [side, setSide] = useState<"right" | "left" | "above" | "below">("right");
   const [gap, setGap] = useState(3);
   const updatePosition = (position: CutoutPlacement["position"], transient = false) => dispatch({ type: "UPDATE_CUTOUT", id: cutout.id, patch: { position }, transient, historyLabel: "Position tool pocket" });
-  const updateTilt = (axis: "xDeg" | "yDeg", value: number, transient: boolean) => dispatch({
-    type: "UPDATE_CUTOUT", id: cutout.id, transient, historyLabel: "Tilt tool pocket",
-    patch: { tilt: { xDeg: cutout.tilt?.xDeg ?? 0, yDeg: cutout.tilt?.yDeg ?? 0, [axis]: value } },
-  });
+  const updateRigid = (patch: CutoutPlacement, transient: boolean, historyLabel: string) => {
+    const objects = cutouts.flatMap(c => {
+      const source = shapes.find(s => s.id === c.shapeId) ?? (c.shapeId === shape.id ? shape : undefined);
+      return source ? [{ kind: "pocket" as const, cutout: c, shape: source }] : [];
+    });
+    const edits = expandLinkedObjectEdits(objects, spec, { cutouts: [patch], fingerHoles: [] });
+    if (edits) dispatch({ type: "UPDATE_OBJECTS", edits, transient, historyLabel });
+  };
+  const updateTilt = (axis: "xDeg" | "yDeg", value: number, transient: boolean) => updateRigid({
+    ...rigidPocket(cutout, shape, spec), tilt: { xDeg: cutout.tilt?.xDeg ?? 0, yDeg: cutout.tilt?.yDeg ?? 0, [axis]: value },
+  }, transient, "Rotate tool pocket");
   const bounds = outlineBounds(pocketOccupiedOutline(shape, cutout, spec))!;
   const neighbor = cutouts.find((item) => item.id === neighborId && item.id !== cutout.id);
   const neighborShape = shapes.find((item) => item.id === neighbor?.shapeId);
@@ -64,22 +72,32 @@ export function PocketMeasurements({ cutout, shape, children }: {
       </summary>
       <div className="space-y-3 pb-2 pt-2">
         {children}
-        {experimentalEnabled && <div className="space-y-2" data-testid="pocket-tilt-controls">
-          <div className="flex items-center gap-1"><p className="font-medium">Tilt pocket</p><HelpHint label="pocket tilt">Tilt tall items to fit in less vertical space. Items slide along the tilted pocket axis. X/Y tilt is applied before Z rotation; the opening grows to keep that path clear.</HelpHint></div>
-          <div className="grid grid-cols-2 gap-2">{(["xDeg", "yDeg"] as const).map((axis) => <Label key={axis} className="flex min-w-0 items-center gap-2 text-xs">
+        <div className="space-y-2" data-testid="pocket-rotation-controls">
+          <div className="flex items-center gap-1"><p className="font-medium">Rotate pocket</p><HelpHint label="pocket rotation">Rotate the generated pocket around any axis. Depth is its thickness along the original outline’s normal. Elevation keeps its lowest point at the chosen height. The opening is where the solid intersects the fill surface.</HelpHint></div>
+          <div className="grid grid-cols-2 gap-2">{(["xDeg", "yDeg"] as const).map(axis => <Label key={axis} className="flex min-w-0 items-center gap-2 text-xs">
             {axis === "xDeg" ? "X" : "Y"}
-            <DraftNumberInput className="h-8 min-w-0" aria-label={`Pocket ${axis === "xDeg" ? "X" : "Y"} tilt in degrees`} value={cutout.tilt?.[axis] ?? 0} min={-89} max={89} step={5} displayPrecision={1}
-              onValueChange={(value) => updateTilt(axis, value, true)}
-              onValueCommit={(value) => updateTilt(axis, value, false)} />
+            <DraftNumberInput className="h-8 min-w-0" aria-label={`Pocket ${axis === "xDeg" ? "X" : "Y"} rotation in degrees`}
+              value={cutout.tilt?.[axis] ?? 0} step={5} displayPrecision={1}
+              normalize={value => ((value + 180) % 360 + 360) % 360 - 180}
+              onValueChange={value => updateTilt(axis, value, true)}
+              onValueCommit={value => updateTilt(axis, value, false)} />
             <span>°</span>
           </Label>)}</div>
-          {hasPocketTilt(cutout) && <>
-            <p className="text-muted-foreground">Fixed depth follows the tilted axis. Remaining floor protects the lowest point.</p>
-            <Button size="sm" variant="outline" onClick={() => dispatch({ type: "UPDATE_CUTOUT", id: cutout.id, patch: { tilt: undefined }, historyLabel: "Reset pocket tilt" })}>Reset tilt</Button>
-          </>}
-        </div>}
+          <Button size="sm" variant="outline" disabled={!hasPocketTilt(cutout)}
+            onClick={() => updateRigid(resetPocketPlane(cutout, shape, spec), false, "Reset pocket to X–Y plane")}>
+            Reset to X–Y plane
+          </Button>
+          <Label className="flex items-center gap-2 text-xs">Elevation
+            <DraftNumberInput className="h-8 min-w-0" aria-label="Pocket elevation in millimetres" min={0} max={300} step={0.5} displayPrecision={2}
+              value={rigidPocket(cutout, shape, spec).elevationMm ?? 0}
+              onValueChange={elevationMm => updateRigid({ ...rigidPocket(cutout, shape, spec), elevationMm }, true, "Raise or lower pocket")}
+              onValueCommit={elevationMm => updateRigid({ ...rigidPocket(cutout, shape, spec), elevationMm }, false, "Raise or lower pocket")} />
+            <span>mm</span>
+          </Label>
+          <p className="text-muted-foreground">Elevation is the lowest point above the bin underside. Raising or lowering keeps the pocket’s dimensions.</p>
+        </div>
         <PositionInputs position={cutout.position} onChange={updatePosition} />
-        {experimentalEnabled && <p className="text-muted-foreground">In 3D, the Z arrow adjusts depth below the surface. Pull up for a shallower pocket or down for a deeper pocket.</p>}
+
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={() => updatePosition({ ...cutout.position, x: cutout.position.x - (bounds.minX + bounds.maxX) / 2 })}>Center X</Button>
           <Button variant="outline" size="sm" onClick={() => updatePosition({ ...cutout.position, y: cutout.position.y - (bounds.minY + bounds.maxY) / 2 })}>Center Y</Button>
@@ -114,20 +132,24 @@ export function PocketDepthSummary({ cutout, shape, section, inspect, children }
 }): JSX.Element {
   const { spec, dispatch } = useBin();
   const pocket = resolvePlacedPocketDepth(spec, cutout.depth, shape, cutout);
+  const rigid = hasRigidPocket(cutout);
+  const displayedDepth = rigid ? pocket.axialDepthMm : pocket.depthMm;
   const total = binTotalHeightMm(spec.heightUnits, spec.lip === "standard");
   const bounds = outlineBounds(placementFootprint(shape, cutout).outline)!;
   return <div className="space-y-2">
     <details key={cutout.id} open className="group/depth text-xs" data-testid="pocket-depth-summary">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded py-2 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
-        <span>Depth</span>
+        <span>{cutout.profileBottom ? "Bottom profile" : "Depth"}</span>
         <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/depth:rotate-180" />
       </summary>
       {children}
       <div className="rounded border bg-muted/30 p-2">
-        <p className="text-muted-foreground">{hasPocketTilt(cutout) ? "Vertical depth" : "Cut depth"}: {pocket.depthMm === null ? "through" : `${pocket.depthMm.toFixed(1)} mm`} · Floor: {(pocket.floorZ ?? 0).toFixed(1)} mm</p>
+        <p className="text-muted-foreground">{rigid ? "Depth" : cutout.profileBottom ? "Deepest cut" : hasPocketTilt(cutout) ? "Vertical depth" : "Cut depth"}: {displayedDepth === null ? "through" : `${displayedDepth.toFixed(1)} mm`} · {cutout.profileBottom || rigid ? "Lowest point" : "Floor"}: {(pocket.floorZ ?? 0).toFixed(1)} mm</p>
         <p className="text-muted-foreground">Infill top: {pocket.infillTopZ.toFixed(1)} mm · Total bin: {total.toFixed(1)} mm</p>
         {hasPocketTilt(cutout) && <p className="mt-1 text-muted-foreground">Along pocket axis: {pocket.axialDepthMm === null ? "through" : `${pocket.axialDepthMm.toFixed(1)} mm`} · Axis tilt: {(Math.acos(pocketAxis(cutout).z) * 180 / Math.PI).toFixed(1)}°</p>}
-        {!hasPocketTilt(cutout) && <svg viewBox="0 0 240 65" className="mt-2 h-16 w-full" role="img" aria-label="Cross-section: pocket depth above remaining floor, with stacking rim above infill">
+        {cutout.profileBottom && !hasProfileRotation(cutout) && <ProfileSectionPreview cutout={cutout} shape={shape} top={pocket.infillTopZ} />}
+        {hasProfileRotation(cutout) && <p className="mt-1 text-muted-foreground">Rotated profile · Inspect in 3D to see the supporting contour.</p>}
+        {!cutout.profileBottom && !hasRigidPocket(cutout) && !hasPocketTilt(cutout) && <svg viewBox="0 0 240 65" className="mt-2 h-16 w-full" role="img" aria-label="Cross-section: pocket depth above remaining floor, with stacking rim above infill">
           <path d="M20 5 H40 V15 H200 V5 H220 V60 H20 Z" fill="currentColor" opacity="0.2" />
           <rect x="70" y="15" width="100" height={45 * Math.min(1, Math.max(0, (pocket.depthMm ?? pocket.infillTopZ) / pocket.infillTopZ))} fill="hsl(var(--background))" stroke="currentColor" />
           <text x="120" y="28" textAnchor="middle" fontSize="9" fill="currentColor">Pocket</text>
@@ -142,6 +164,24 @@ export function PocketDepthSummary({ cutout, shape, section, inspect, children }
   </div>;
 }
 
+/** Side view uses the same finite source cells as the cutter. */
+function ProfileSectionPreview({ cutout, shape, top }: { cutout: CutoutPlacement; shape: TracedShape; top: number }): JSX.Element {
+  const alongX = profileAlongX(cutout.profileBottom!);
+  const rings = profilePrisms(shape.outlineMm, { ...cutout, position: { x: 0, y: 0 }, rotationDeg: 0 })
+    .map(cell => cell.vertices.slice(0, cell.capSize).map(p => ({ x: alongX ? p.x : p.y, y: p.z })));
+  const points = rings.flat();
+  const min = Math.min(0, ...points.map(p => p.x)), max = Math.max(0, ...points.map(p => p.x));
+  const height = Math.max(top, ...points.map(p => p.y), 1);
+  const x = (u: number) => 20 + (u - min) / Math.max(0.1, max - min) * 200;
+  const y = (z: number) => 65 - z / height * 55;
+  return <svg viewBox="0 0 240 80" className="mt-2 h-20 w-full" role="img" aria-label="Side view: the profile intersects the dashed fill surface">
+    <rect x="15" y={y(top)} width="210" height={65 - y(top)} fill="currentColor" opacity="0.2" />
+    {rings.map((ring, i) => <path key={i} d={`M${ring.map(p => `${x(p.x)},${y(p.y)}`).join("L")}Z`} fill="hsl(var(--background))" />)}
+    <path d={`M15,${y(top)}H225`} stroke="currentColor" strokeDasharray="3 3" opacity="0.4" />
+    <text x="120" y="78" textAnchor="middle" fontSize="10" fill="currentColor">Bottom contour · side view</text>
+  </svg>;
+}
+
 /** Everyday dimensions are visible independently of precision placement controls. */
 export function PocketSizeInputs({ cutout, shape, setScale }: {
   cutout: CutoutPlacement;
@@ -149,10 +189,14 @@ export function PocketSizeInputs({ cutout, shape, setScale }: {
   setScale: (axis: "x" | "y", percent: number) => void;
 }): JSX.Element {
   const { dispatch } = useBin();
+  const clearance = cutout.profileBottom ? 0 : cutout.clearanceMm;
+  const dimension = (axis: "x" | "y") => cutout.profileBottom
+    ? ((axis === "x") === profileAlongX(cutout.profileBottom) ? "Profile length" : "Profile height")
+    : `Pocket ${axis === "x" ? "width" : "length"}`;
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1"><p className="text-xs font-medium">Dimensions</p><HelpHint label="pocket size">Width and length in mm, before rotation. Includes extra clearance; top edge rounding widens the opening further.</HelpHint></div>
+        <div className="flex items-center gap-1"><p className="text-xs font-medium">{cutout.profileBottom ? "Source profile dimensions" : "Dimensions"}</p><HelpHint label="pocket size">{cutout.profileBottom ? "Length and height of the upright source outline. Slot width is independent. Scaling keeps the lowest point at the selected elevation." : "Width and length in mm, before rotation. Includes extra clearance; top edge rounding widens the opening further."}</HelpHint></div>
         <Button
           type="button"
           variant={cutout.aspectRatioLocked ? "secondary" : "outline"}
@@ -176,16 +220,16 @@ export function PocketSizeInputs({ cutout, shape, setScale }: {
           const scale = axis === "x" ? cutout.scaleX : cutout.scaleY;
           return (
             <Label key={axis} className="flex min-w-0 items-center gap-1 text-xs">
-              {axis === "x" ? "W" : "L"}
+              {cutout.profileBottom ? (dimension(axis) === "Profile length" ? "L" : "H") : axis === "x" ? "W" : "L"}
               <DraftNumberInput
                 className="h-8 min-w-0"
-                aria-label={`Pocket ${axis === "x" ? "width" : "length"} in millimetres`}
-                value={Math.max(0, extent * scale + 2 * cutout.clearanceMm)}
+                aria-label={`${dimension(axis)} in millimetres`}
+                value={Math.max(0, extent * scale + 2 * clearance)}
                 displayPrecision={2}
-                min={Math.max(0, extent * 0.05 + 2 * cutout.clearanceMm)}
-                max={Math.max(0, extent * 20 + 2 * cutout.clearanceMm)}
+                min={Math.max(0, extent * 0.05 + 2 * clearance)}
+                max={Math.max(0, extent * 20 + 2 * clearance)}
                 step={0.1}
-                onValueChange={(value) => setScale(axis, (value - 2 * cutout.clearanceMm) / extent * 100)}
+                onValueChange={(value) => setScale(axis, (value - 2 * clearance) / extent * 100)}
               />
               <span className="text-[11px] text-muted-foreground">mm</span>
             </Label>
@@ -201,10 +245,10 @@ export function PocketSizeInputs({ cutout, shape, setScale }: {
       <div className="grid grid-cols-2 gap-2">
         {(["x", "y"] as const).map((axis) => (
           <Label key={axis} className="flex min-w-0 items-center gap-1 text-xs">
-            {axis === "x" ? "W" : "L"}
+            {cutout.profileBottom ? (dimension(axis) === "Profile length" ? "L" : "H") : axis === "x" ? "W" : "L"}
             <DraftNumberInput
               className="h-8 min-w-0"
-              aria-label={`Pocket ${axis === "x" ? "width" : "length"} scale percent`}
+              aria-label={`${dimension(axis)} scale percent`}
               data-testid={`input-pocket-scale-${axis}`}
               value={Math.round((axis === "x" ? cutout.scaleX : cutout.scaleY) * 1000) / 10}
               min={5} max={2000} step={1}

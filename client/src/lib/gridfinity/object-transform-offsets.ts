@@ -1,3 +1,4 @@
+import { hasRigidPocket, rigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { Euler, Quaternion, Vector3 } from "three";
 import { effectiveFingerHoleDepthMm, resolvePlacedPocketDepth, type TracedShape } from "@shared/gridfinity/cutout";
 import { pocketAxis } from "@shared/gridfinity/pocket-orientation";
@@ -32,11 +33,24 @@ export function objectTransformOffsets(object: EditableObject, spec: BinSpec, or
     shape: shapes.find(s => s.id === pocket.cutout.shapeId) ?? object.shape }
     : hole ? { kind: "finger", hole } : object;
   if (mode === "rotate") {
-    const relative = orientation(object).multiply(orientation(original).invert());
+    // Entering profile mode starts from its edge-down pose, independent of the
+    // ordinary tilt stored in an older creation reference.
+    const reference = object.kind === "pocket" && object.cutout.profileBottom && original.kind === "pocket" && !original.cutout.profileBottom
+      ? { ...original, cutout: { ...original.cutout, tilt: undefined } } : original;
+    const relative = orientation(object).multiply(orientation(reference).invert());
     const e = new Euler().setFromQuaternion(relative, "ZYX");
     return [e.x / RAD, e.y / RAD, e.z / RAD];
   }
   const start = objectPosition(original), current = objectPosition(object);
+  if (object.kind === "pocket" && object.cutout.profileBottom && original.kind === "pocket") {
+    const originalFloor = original.cutout.profileBottom?.elevationMm
+      ?? resolvePlacedPocketDepth(pocket?.spec ?? spec, original.cutout.depth, original.shape, original.cutout).floorZ ?? 0;
+    return [current.x - start.x, current.y - start.y, object.cutout.profileBottom.elevationMm - originalFloor];
+  }
+  if (object.kind === "pocket" && hasRigidPocket(object.cutout) && original.kind === "pocket") {
+    const originalFloor = rigidPocket(original.cutout, original.shape, pocket?.spec ?? spec).elevationMm ?? 0;
+    return [current.x - start.x, current.y - start.y, object.cutout.elevationMm! - originalFloor];
+  }
   const before = axialDepth(original, pocket?.spec ?? spec), after = axialDepth(object, spec);
   const nz = object.kind === "pocket" ? pocketAxis(object.cutout).z : 1;
   return [current.x - start.x, current.y - start.y, before === null || after === null ? 0 : (before - after) * nz];

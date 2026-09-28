@@ -30,6 +30,11 @@ import ryobiReloadFixture from "@shared/gridfinity/fixtures/ryobi-split-reload.p
  * lib/gridfinity/bin-worker-handlers.test.ts.
  */
 
+vi.mock("@/hooks/use-pocket-footprints", () => {
+  const outlines = new Map();
+  return { usePocketFootprints: () => outlines };
+});
+
 vi.mock("@/components/gridfinity/bin-viewport", () => ({
   BinViewport: ({
     fitSize,
@@ -319,6 +324,42 @@ function selectPocket(container: HTMLElement, id: string): void {
 }
 
 describe("BinDesignerPage", () => {
+  it.each([false,true])("rotates and resets ordinary pockets in the existing properties with experimental=%s", async experimental => {
+    const shape=rectangularShape("rotation-source","Rotation tool");
+    const original=parseCutoutPlacement({id:"rotated",shapeId:shape.id,position:{x:3,y:-2}, rotationDeg:20,
+      depth:{mode:"mm",value:18},clearanceMm:0.4,cornerRoundMm:1,
+      split:{boundary:[{x:0,y:-10},{x:0,y:10}],depths:[{mode:"mm",value:12},{mode:"mm",value:18}]}});
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({...EMPTY_PROJECT,shapes:[shape],cutouts:[original]});
+    const {container,unmount}=renderPage({experimental});
+    try {
+      await flushHydration(); selectPocket(container,original.id);
+      const latest=()=>vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0];
+      const edit=(label:string,value:string)=> {
+        const input=container.querySelector<HTMLInputElement>(`[aria-label="${label}"]`)!;
+        React.act(()=>{ input.focus(); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value")!.set!.call(input,value);
+          input.dispatchEvent(new Event("input",{bubbles:true})); });
+        React.act(()=>input.blur());
+      };
+      expect(container.querySelector('[aria-label="Use profile as bottom"]')).toBeNull();
+      expect(container.querySelector('[aria-label="Pocket depth mode"]')).not.toBeNull();
+      expect(container.querySelector('[data-testid="pocket-edge-settings"]')).not.toBeNull();
+      edit("Pocket X rotation in degrees","135"); edit("Pocket Y rotation in degrees","-24");
+      edit("Pocket elevation in millimetres","80");
+      expect(latest().tilt).toEqual({xDeg:135,yDeg:-24});
+      expect(latest().elevationMm).toBe(80);
+      expect(latest().depth).toEqual(original.depth); expect(latest().split).toEqual(original.split);
+      expect(latest().clearanceMm).toBe(0.4);
+      const reset=[...container.querySelectorAll<HTMLButtonElement>('button')].find(b=>b.textContent==='Reset to X–Y plane')!;
+      React.act(()=>reset.click());
+      expect(latest().tilt).toEqual({xDeg:0,yDeg:0});
+      expect(latest()).toMatchObject({elevationMm:80,rotationDeg:20,position:original.position,depth:original.depth,split:original.split});
+      React.act(()=>container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+      expect(latest().tilt).toEqual({xDeg:135,yDeg:-24});
+      React.act(()=>container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+      expect(latest().tilt).toEqual({xDeg:0,yDeg:0});
+      expect(parseProjectDoc({...EMPTY_PROJECT,shapes:[shape],cutouts:[latest()]})?.cutouts[0]).toEqual(latest());
+    } finally {unmount();}
+  });
   it.each([false, true])("opens Library from navigation, waits for hydration, and reopens it with mobile=%s", async (mobile) => {
     const { hook } = memoryLocation({ path: "/" });
     function Navigation() {
@@ -4404,11 +4445,11 @@ it("enables restored experimental designs, then respects manual disabling withou
     expect(container.querySelector('[data-experimental-editor="true"]')).not.toBeNull();
     expect(projectToast).toHaveBeenCalledWith(expect.objectContaining({ title: "Experimental features enabled" }));
     React.act(() => experimentalSettings.setEnabled(false));
-    expect(container.querySelector('[data-experimental-editor="false"]')).not.toBeNull();
+    expect(container.querySelector('[data-experimental-editor="true"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="experimental-design-notice"]')).not.toBeNull();
     openSettingsSection(container, "tool-cutouts"); selectPocket(container, cutouts[0].id);
     expect(container.querySelector('[aria-label="Linked design"]')).toBeNull();
-    expect(container.querySelector('[data-testid="pocket-tilt-controls"]')).toBeNull();
+    expect(container.querySelector('[data-testid="pocket-rotation-controls"]')).not.toBeNull();
     expect(container.querySelector('[aria-label^="Include Target"]')).toBeNull();
     React.act(() => container.querySelector<HTMLButtonElement>(`[data-testid="button-select-${cutouts[1].id}"]`)!
       .dispatchEvent(new MouseEvent("click", { bubbles: true, ctrlKey: true })));
@@ -4419,7 +4460,7 @@ it("enables restored experimental designs, then respects manual disabling withou
 
     React.act(() => experimentalSettings.setEnabled(true));
     expect(container.querySelector('[aria-label="Linked design"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="pocket-tilt-controls"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="pocket-rotation-controls"]')).not.toBeNull();
     React.act(() => container.querySelector<HTMLInputElement>('[aria-label="Include Target 0 in selection"]')!.click());
     React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Object controls"]')!.click());
     expect(container.querySelector('[data-testid="pocket-3d-controls"]')).not.toBeNull();
@@ -4427,7 +4468,7 @@ it("enables restored experimental designs, then respects manual disabling withou
     expect(container.querySelector('[data-experimental-editor="true"]')).not.toBeNull();
 
     React.act(() => experimentalSettings.setEnabled(false));
-    expect(container.querySelector('[data-experimental-editor="false"]')).not.toBeNull();
+    expect(container.querySelector('[data-experimental-editor="true"]')).not.toBeNull();
     expect(container.querySelector('[aria-label="Linked design"]')).toBeNull();
     expect(vi.mocked(useBinGeometry).mock.lastCall![2]).toEqual(before);
     expect(container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.disabled).toBe(true);
@@ -5233,15 +5274,23 @@ it.each(['Move selected objects', 'Rotate selected objects', 'Arrange selected o
       position: { x, y: 0 }, depth: { mode: 'mm', value: 12 } }));
     vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape], cutouts });
     const { container, unmount } = renderPage({ experimental: false });
-    const advancedLabels = ['Move selected objects', 'Rotate selected objects', 'Arrange selected objects', 'Link and unlink selected objects'];
+    const basicLabels = ['Move selected objects', 'Rotate selected objects'];
+    const advancedLabels = ['Arrange selected objects', 'Link and unlink selected objects'];
     const button = (label: string) => container.querySelector<HTMLButtonElement>(`[aria-label="${label}"]`);
     const clickView = (view: string) => React.act(() => container.querySelector<HTMLButtonElement>(`[data-testid="view-toggle-${view}"]`)!.click());
     try {
       await flushHydration();
-      expect(container.querySelector('[data-experimental-editor="false"]')).not.toBeNull();
+      expect(container.querySelector('[data-experimental-editor="true"]')).not.toBeNull();
       clickView('2d');
       selectPocket(container, cutouts[0].id);
       for (const label of advancedLabels) expect(button(label)).toBeNull();
+      for (const label of basicLabels) {
+        expect(button(label)!.disabled).toBe(false);
+        React.act(() => button(label)!.click());
+        expect(container.querySelector('[data-testid="pocket-3d-controls"]')).not.toBeNull();
+        expect(button(label)!.getAttribute('aria-pressed')).toBe('true');
+      }
+      React.act(() => button('Select objects')!.click());
       expect(button('Select objects')!.getAttribute('aria-pressed')).toBe('true');
       expect(container.querySelector('[aria-label^="Include Tool"]')).toBeNull();
       expect([...container.querySelectorAll('button')].find(button => button.textContent === 'Select all')).toBeUndefined();
@@ -5258,13 +5307,19 @@ it.each(['Move selected objects', 'Rotate selected objects', 'Arrange selected o
       expect(container.querySelector('[data-testid="batch-properties"]')).toBeNull();
       expect(container.querySelector('#pocket-properties')!.closest('[hidden]')).toBeNull();
       expect(button('Select objects')!.getAttribute('aria-pressed')).toBe('true');
-      for (const key of ['w', 'e', 'a']) React.act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key, ctrlKey: key === 'a' })));
+      for (const [key, label] of [['w', 'Move selected objects'], ['e', 'Rotate selected objects']]) {
+        React.act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key })));
+        expect(button(label)!.getAttribute('aria-pressed')).toBe('true');
+        expect(container.querySelector('[data-testid="pocket-3d-controls"]')).not.toBeNull();
+      }
+      React.act(() => button('Select objects')!.click());
+      React.act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', ctrlKey: true })));
       expect(container.querySelector('[data-testid="inspector-active-tool"]')).toBeNull();
       expect(container.querySelector('[data-testid="pocket-3d-controls"]')).toBeNull();
       expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toEqual(cutouts);
       expect(container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.disabled).toBe(true);
       clickView('3d');
-      expect(container.querySelector('[data-experimental-editor="false"]')).not.toBeNull();
+      expect(container.querySelector('[data-experimental-editor="true"]')).not.toBeNull();
       React.act(() => experimentalSettings.setEnabled(true));
       expect(container.querySelector('[data-experimental-editor="true"]')).not.toBeNull();
       clickView('2d');

@@ -1,3 +1,4 @@
+import { hasRigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { createPortal } from "react-dom";
 import { useSelectionInspector } from "./selection-inspector-context";
 import { useExperimentalFeatures } from "@/state/experimental-features";
@@ -460,7 +461,7 @@ export function BinControlsPanel({
   const selectedFingerHole =
     fingerHoles.find((hole) => hole.id === selectedFingerHoleId) ?? null;
   const fingerSizeLimits = selectedFingerHole ? fingerHoleSizeLimits(selectedFingerHole, spec) : null;
-  const depthCutout = selectedCutout && selectedCutout.split
+  const depthCutout = selectedCutout && selectedCutout.split && !selectedCutout.profileBottom
     ? { ...selectedCutout, depth: selectedCutout.split.depths[selectedPocketSection] }
     : selectedCutout;
   const updatePocketDepth = (depth: DepthSpec, transient = false) => {
@@ -475,10 +476,10 @@ export function BinControlsPanel({
     ? (shapesById.get(selectedCutout.shapeId) ?? null)
     : null;
   const depthShape = useMemo(() => {
-    if (!selectedShape || !selectedCutout?.split) return selectedShape;
+    if (!selectedShape || !selectedCutout?.split || selectedCutout.profileBottom) return selectedShape;
     const split = resolvePocketSplit(selectedShape.outlineMm, selectedCutout.split.boundary);
     return split.regions ? { ...selectedShape, outlineMm: split.regions[selectedPocketSection] } : selectedShape;
-  }, [selectedShape, selectedCutout?.split, selectedPocketSection]);
+  }, [selectedShape, selectedCutout?.split, selectedCutout?.profileBottom, selectedPocketSection]);
 
   const setPocketScale = (axis: "x" | "y", percent: number) => {
     if (!selectedCutout) return;
@@ -716,6 +717,8 @@ export function BinControlsPanel({
                   aria-label={editorMode === "contour" ? "Finish contour editing" : "Edit contour"}
                   aria-pressed={editorMode === "contour"}
                   data-testid="button-edit-contour"
+                  disabled={hasPocketTilt(selectedCutout)}
+                  title={hasPocketTilt(selectedCutout) ? "Reset to X–Y plane before editing the contour." : undefined}
                   onClick={() => {
                     const editing = editorMode === "contour";
                     dispatch({
@@ -762,7 +765,7 @@ export function BinControlsPanel({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="remaining">Keep floor thickness</SelectItem>
+                        {!hasRigidPocket(selectedCutout) && <SelectItem value="remaining">Keep floor thickness</SelectItem>}
                         <SelectItem value="mm">Fixed depth</SelectItem>
                         <SelectItem value="through">Through</SelectItem>
                       </SelectContent>
@@ -790,7 +793,7 @@ export function BinControlsPanel({
                   {selectedCutout.split && <p className="text-[11px] text-muted-foreground">Depth applies to the selected section. Size and edges apply to the whole pocket.</p>}
                 </section>
               </PocketDepthSummary>
-              <PocketSplitControls cutout={selectedCutout} />
+              {!selectedCutout.profileBottom && <PocketSplitControls cutout={selectedCutout} />}
               <details className="group/size border-t pt-1 text-xs" aria-label="Pocket size and scale" data-testid="pocket-size-settings">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-2 py-2 font-medium [&::-webkit-details-marker]:hidden">
                   Size &amp; scale
@@ -799,7 +802,7 @@ export function BinControlsPanel({
                 <div className="pb-2" key={selectedCutout.id}><PocketSizeInputs cutout={selectedCutout} shape={selectedShape} setScale={setPocketScale} /></div>
               </details>
 
-              <details className="group/more border-t pt-1 text-xs" data-testid="pocket-edge-settings">
+              {!selectedCutout.profileBottom && <details className="group/more border-t pt-1 text-xs" data-testid="pocket-edge-settings">
                 <summary className="flex cursor-pointer list-none items-center justify-between py-1.5 font-medium [&::-webkit-details-marker]:hidden">
                   <span className="flex items-center gap-1">Edges &amp; corners <HelpHint label="edges and corners">Soften sharp corners and edges. Values are rounding radii in millimetres; 0 keeps an edge sharp.</HelpHint></span>
                   <ChevronDown className="h-3.5 w-3.5 transition-transform group-open/more:rotate-180" />
@@ -844,7 +847,7 @@ export function BinControlsPanel({
                   />
 
                 </div>
-              </details>
+              </details>}
 
               <PocketMeasurements cutout={selectedCutout} shape={selectedShape}>
                 <div className="flex items-center gap-2">
@@ -889,7 +892,7 @@ export function BinControlsPanel({
               )}
 
               {inspector && experimentalEnabled && <AdvancedLinks><LinkedDesignControls kind="pocket" activeId={selectedCutout.id} labels={new Map(cutouts.map(c => [c.id, pocketName(c, shapesById.get(c.shapeId))]))} /></AdvancedLinks>}
-              {pocketClearance}
+              {!selectedCutout.profileBottom && pocketClearance}
             </PropertySurface>
           );
   const fingerProperties = selectedFingerHole && fingerSizeLimits && (
@@ -1194,7 +1197,7 @@ export function BinControlsPanel({
   return (
     <PanelSectionFilterContext.Provider value={!inspector && exportOnly ? "bin-settings-export" : null}>
     <div className="flex h-full flex-col">
-      {!experimentalEnabled && (cutouts.some(c => c.designLink || hasPocketTilt(c)) || fingerHoles.some(h => h.designLink)) && <div className="shrink-0 border-b bg-amber-50/60 px-3 py-2 text-xs dark:bg-amber-950/20" data-testid="experimental-design-notice">
+      {!experimentalEnabled && (cutouts.some(c => c.designLink) || fingerHoles.some(h => h.designLink)) && <div className="shrink-0 border-b bg-amber-50/60 px-3 py-2 text-xs dark:bg-amber-950/20" data-testid="experimental-design-notice">
         <p>This project uses experimental pocket tools. Its geometry and links are preserved; edits to linked designs still update their copies.</p>
         <Button size="sm" variant="link" className="h-9 px-0 text-xs" onClick={() => setSettingsOpen(true)}>Show experimental settings</Button>
       </div>}
@@ -1837,7 +1840,9 @@ export function BinControlsPanel({
             {selectedCutout && selectedShape ? (
               <div className="space-y-2 border-t pt-2.5">
                 <div>
-                  <SettingLabel label="Tool fit template" hint="A filled tool outline without the bin or finger access features. Includes its Trace margin, signed pocket clearance, and outline corner rounding." />
+                  <SettingLabel label="Tool fit template" hint={selectedCutout.profileBottom
+                    ? "The source silhouette, including its Trace margin and profile scale. Use a surface fit test to check the straight slot width."
+                    : "A filled tool outline without the bin or finger access features. Includes its Trace margin, signed pocket clearance, and outline corner rounding."} />
                   <p className="truncate text-xs font-medium" title={pocketName(selectedCutout, selectedShape)}>{pocketName(selectedCutout, selectedShape)}</p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -1862,7 +1867,9 @@ export function BinControlsPanel({
                   disabled={exporting}
                   onClick={() => setPendingExport({
                     title: "Save fit template STL?",
-                    description: `Download the filled outline of “${pocketName(selectedCutout, selectedShape)}” at ${fitCheckDepthMm} mm thick.`,
+                    description: selectedCutout.profileBottom
+                      ? `Download the source profile of “${pocketName(selectedCutout, selectedShape)}” at ${fitCheckDepthMm} mm thick. Use a surface fit test to check the slot width.`
+                      : `Download the filled outline of “${pocketName(selectedCutout, selectedShape)}” at ${fitCheckDepthMm} mm thick.`,
                     confirmLabel: "Download STL",
                     onConfirm: (includeProject) => onExportFitCheck(selectedCutout.id, fitCheckDepthMm, includeProject),
                   })}

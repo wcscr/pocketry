@@ -1,4 +1,5 @@
 import { hasPocketTilt, pocketAxis } from "./pocket-orientation";
+import { hasRigidPocket } from "./rigid-pocket";
 import {
   distanceToSegment,
   ringBounds,
@@ -15,6 +16,7 @@ import {
 } from "./footprint";
 import {
   effectiveFingerHoleDepthMm,
+  defaultPocketFloorThicknessMm,
   fingerHoleFootprintRing,
   placementFootprint,
   pocketName,
@@ -325,7 +327,7 @@ export function validateLayout(
       });
     }
 
-    if (hasPocketTilt(cutout) && pocketAxis(cutout).z < 0.01) {
+    if (!hasRigidPocket(cutout) && hasPocketTilt(cutout) && pocketAxis(cutout).z < 0.01) {
       issues.push({ code: "invalid-pocket-tilt", severity: "error", cutoutIds: [cutout.id], message: `“${pocketName(cutout, shape)}”: Reduce the combined tilt so the pocket can exit through the top.` });
       continue;
     }
@@ -416,7 +418,7 @@ function validateAgainstBin(spec: BinSpec, p: PlacedCutout): ValidationIssue[] {
   if (outside) {
     issues.push({
       code: "out-of-bounds",
-      severity: "error",
+      severity: hasRigidPocket(cutout) ? "warning" : "error",
       cutoutIds: [cutout.id],
       message: `“${label}” extends past the bin's footprint.`,
     });
@@ -448,7 +450,7 @@ function validateAgainstBin(spec: BinSpec, p: PlacedCutout): ValidationIssue[] {
   if (wallMargin < 0) {
     issues.push({
       code: "wall-breach",
-      severity: "error",
+      severity: hasRigidPocket(cutout) ? "warning" : "error",
       cutoutIds: [cutout.id],
       message: `“${label}” cuts into the bin wall once its ${outlineAllowance} mm combined clearance and top-edge round are added.`,
     });
@@ -468,6 +470,21 @@ function validateAgainstBin(spec: BinSpec, p: PlacedCutout): ValidationIssue[] {
     });
   }
 
+  if (cutout.profileBottom || hasRigidPocket(cutout)) {
+    const minimum = defaultPocketFloorThicknessMm(spec);
+    const elevation = cutout.profileBottom?.elevationMm ?? cutout.elevationMm!;
+    const through = pocketDepths(cutout).some(d => d.mode === "through");
+    if (!through && elevation < minimum) issues.push({
+      code: "too-deep", severity: "error", cutoutIds: [cutout.id],
+      message: `“${label}”: Raise the pocket to leave at least ${minimum} mm above the bin underside.`,
+    });
+    const top = resolvePocketDepth(spec, { mode: "through" }).infillTopZ;
+    if (!through && elevation >= top) issues.push({
+      code: "too-shallow", severity: "warning", cutoutIds: [cutout.id],
+      message: `“${label}”: The pocket is above the fill surface; no pocket remains in the fill.`,
+    });
+    return issues;
+  }
   const split = cutout.split ? resolvePocketSplit(p.shape.outlineMm, cutout.split.boundary) : null;
   if (split?.error) issues.push({
     code: "invalid-pocket-split", severity: "error", cutoutIds: [cutout.id],
@@ -657,6 +674,9 @@ function segmentsIntersect(a1: Point, a2: Point, b1: Point, b2: Point): boolean 
 }
 
 function validatePair(a: PlacedCutout, b: PlacedCutout): ValidationIssue | null {
+  // Projected solids can overlap while occupying different heights. The worker
+  // checks their actual intersection, including buried and raised objects.
+  if (hasRigidPocket(a.cutout) || hasRigidPocket(b.cutout)) return null;
   const edgeAllowance =
     pocketLayoutAllowanceMm(a.cutout) + pocketLayoutAllowanceMm(b.cutout);
   const warnGap = edgeAllowance + D_DIV;

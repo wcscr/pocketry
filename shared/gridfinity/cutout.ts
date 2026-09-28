@@ -1,5 +1,8 @@
 import { z } from "zod";
 import { hasPocketTilt, pocketAxis, pocketMouthBasis, rotatePocketVector } from "./pocket-orientation";
+import { profileAlongX, profileBottomSchema, profileFloorSegments, profileFootprint, profilePrisms, hasProfileRotation } from "./profile-bottom";
+import { objectRotationSchema } from "./object-pose";
+import { hasRigidPocket, rigidPocketFootprint } from "./rigid-pocket";
 
 import { ensureOrientation, mapRing } from "../geometry/rings";
 import {
@@ -99,7 +102,8 @@ export type TracedShape = z.infer<typeof tracedShapeSchema>;
 
 export const depthSpecSchema = z.discriminatedUnion("mode", [
   z.object({ mode: z.literal("through") }).strict(),
-  /** Pocket depth measured down from the infill top. */
+  /** Extrusion distance along the original outline normal. Upright pockets
+   * initially measure this down from the infill top. */
   z.object({ mode: z.literal("mm"), value: z.number().positive() }).strict(),
   /** Absolute material left below the pocket, from the bin's bottom (z = 0). */
   z
@@ -568,10 +572,12 @@ const cutoutPlacementInputSchema = z
     position: vec2Schema,
     /** Vertical translation from the original top-plane anchor, in mm. */
     zOffsetMm: z.number().finite().min(-300).max(300).optional(),
+    /** Lowest point of a rigid pocket. Absent on legacy surface-anchored pockets. */
+    elevationMm: z.number().finite().min(0).max(300).optional(),
     /** CCW-positive in the y-up bin frame. */
     rotationDeg: z.number().finite().default(0),
-    /** X/Y tilt about the original top-plane anchor plus Z offset; Z heading remains rotationDeg. */
-    tilt: z.object({ xDeg: z.number().finite().min(-89).max(89), yDeg: z.number().finite().min(-89).max(89) }).strict().optional(),
+    /** X/Y orientation in the authored frame; Z heading remains rotationDeg. */
+    tilt: objectRotationSchema.pick({ xDeg: true, yDeg: true }).optional(),
     mirrored: z.boolean().default(false),
     /** Independent placement scale; 1 = the traced silhouette's true size. */
     scaleX: z.number().finite().min(0.05).max(20).default(1),
@@ -583,6 +589,9 @@ const cutoutPlacementInputSchema = z
       floorThicknessMm: BASE_HEIGHT,
     }),
     split: pocketSplitSchema.optional(),
+    profileBottom: profileBottomSchema.optional(),
+    /** Free X/Y rotation of a profile object, independent of ordinary pocket tilt. */
+    profileRotation: objectRotationSchema.pick({ xDeg: true, yDeg: true }).optional(),
     /** Signed per-edge fit adjustment after scaling: negative shrinks, positive grows. */
     clearanceMm: z.number().min(-5).max(5).default(0),
     /** 2D rounding of vertical pocket edges (offset −r then +r). */
@@ -638,7 +647,8 @@ export function pocketName(
 }
 
 /** The original depth is retained for removing a split; only active depths cut. */
-export function pocketDepths(cutout: Pick<CutoutPlacement, "depth" | "split">): readonly DepthSpec[] {
+export function pocketDepths(cutout: Pick<CutoutPlacement, "depth" | "split"> & Partial<Pick<CutoutPlacement, "profileBottom">>): readonly DepthSpec[] {
+  if (cutout.profileBottom) return [{ mode: "remaining", floorThicknessMm: cutout.profileBottom.elevationMm }];
   return cutout.split?.depths ?? [cutout.depth];
 }
 
@@ -662,14 +672,14 @@ export function parseCutoutPlacement(input: unknown): CutoutPlacement {
 export type PlacementTransform = Pick<
   CutoutPlacement,
   "position" | "rotationDeg" | "mirrored"
-> & Partial<Pick<CutoutPlacement, "scaleX" | "scaleY" | "tilt" | "zOffsetMm">>;
+> & Partial<Pick<CutoutPlacement, "scaleX" | "scaleY" | "tilt" | "zOffsetMm" | "profileBottom" | "profileRotation" | "elevationMm" | "depth" | "split">>;
 
 /** Applies scale → mirror → rotate → translate to one shape-local point. */
 export function transformPointPlacement(
   point: Point,
   placement: PlacementTransform,
 ): Point {
-  if (hasPocketTilt(placement)) {
+  if (hasPocketTilt(placement) && !hasRigidPocket(placement)) {
     const basis = pocketMouthBasis(placement);
     const x = point.x * (placement.scaleX ?? 1) * (placement.mirrored ? -1 : 1);
     const y = point.y * (placement.scaleY ?? 1);
@@ -694,7 +704,7 @@ export function untransformPointPlacement(
   point: Point,
   placement: PlacementTransform,
 ): Point {
-  if (hasPocketTilt(placement)) {
+  if (hasPocketTilt(placement) && !hasRigidPocket(placement)) {
     const basis = pocketMouthBasis(placement);
     const axis = pocketAxis(placement);
     const offset = (placement.zOffsetMm ?? 0) / Math.max(0.01, axis.z);
@@ -720,6 +730,8 @@ export function transformOutlinePlacement(
   outlineMm: Outline,
   placement: PlacementTransform,
 ): Outline {
+  if (placement.profileBottom) return profileFootprint(outlineMm, placement);
+  if (hasRigidPocket(placement) && placement.depth) return rigidPocketFootprint(outlineMm, placement as CutoutPlacement);
   const transformPoint = (point: Point) => transformPointPlacement(point, placement);
   return outlineMm.map((shape) => ({
     outer: ensureOrientation(mapRing(shape.outer, transformPoint), OUTER_ORIENTATION),
@@ -793,6 +805,25 @@ export function resizeCutoutPlacementFromHandle(
   draggedBinPoint: Point,
   fromCenter = false,
 ): CutoutPlacement {
+  if (placement.profileBottom) {
+    // The plan-view handles edit slot length and thickness independently. The
+    // source's upright dimension never changes during a horizontal resize.
+    const profile = placement.profileBottom, alongX = profileAlongX(profile);
+    const virtual = { ...placement, profileBottom: undefined, tilt: undefined, zOffsetMm: undefined,
+      mirrored: false, scaleX: 1, scaleY: 1, aspectRatioLocked: false };
+    const resized = resizeCutoutPlacementFromHandle(virtual, localBounds, handle, draggedBinPoint, fromCenter);
+    const lengthScale = alongX ? placement.scaleX : placement.scaleY;
+    const nextScale = clampPocketScale(lengthScale * (alongX ? resized.scaleX : resized.scaleY));
+    const widthMm = Math.max(0.1, Math.min(300, profile.widthMm * (alongX ? resized.scaleY : resized.scaleX)));
+    const anchor = fromCenter ? { x: (localBounds.minX + localBounds.maxX) / 2, y: (localBounds.minY + localBounds.maxY) / 2 }
+      : resizeHandlePoint(localBounds, oppositeResizeHandle(handle));
+    const fixed = transformPointPlacement(anchor, virtual);
+    const moved = transformPointPlacement(anchor, { ...virtual, position: { x: 0, y: 0 },
+      scaleX: alongX ? nextScale / lengthScale : widthMm / profile.widthMm,
+      scaleY: alongX ? widthMm / profile.widthMm : nextScale / lengthScale });
+    return { ...placement, position: { x: fixed.x - moved.x, y: fixed.y - moved.y },
+      ...(alongX ? { scaleX: nextScale } : { scaleY: nextScale }), profileBottom: { ...profile, widthMm } };
+  }
   const moving = resizeHandlePoint(localBounds, handle);
   const anchor = fromCenter
     ? {
@@ -1011,8 +1042,9 @@ export interface PlacementFootprint {
  * The actual cutter and fit template apply the full signed clearance.
  */
 export function pocketLayoutAllowanceMm(
-  cutout: Pick<CutoutPlacement, "clearanceMm" | "topFilletMm"> & Partial<Pick<CutoutPlacement, "tilt" | "rotationDeg">>,
+  cutout: Pick<CutoutPlacement, "clearanceMm" | "topFilletMm"> & Partial<Pick<CutoutPlacement, "tilt" | "rotationDeg" | "profileBottom">>,
 ): number {
+  if (cutout.profileBottom) return 0;
   return Math.max(0, cutout.clearanceMm) / Math.max(0.01, pocketAxis({ ...cutout, rotationDeg: cutout.rotationDeg ?? 0 }).z) + cutout.topFilletMm;
 }
 
@@ -1026,7 +1058,7 @@ export function placementFootprint(
   placement: Pick<
     CutoutPlacement,
     "position" | "rotationDeg" | "mirrored" | "fingerHoles"
-  > & Partial<Pick<CutoutPlacement, "scaleX" | "scaleY" | "tilt" | "zOffsetMm">>,
+  > & Partial<Pick<CutoutPlacement, "scaleX" | "scaleY" | "tilt" | "zOffsetMm" | "profileBottom" | "profileRotation">>,
   segments = 24,
 ): PlacementFootprint {
   return {
@@ -1195,6 +1227,20 @@ const floorAtUnderside = (z: number): number => Math.abs(z) < POCKET_DEPTH_EPSIL
  * remaining-floor mode reserves clearance for the local outline offset too. */
 export function resolvePlacedPocketDepth(spec: Pick<BinSpec, "heightUnits" | "lip">, depth: DepthSpec, shape: Pick<TracedShape, "outlineMm">, cutout: CutoutPlacement): ResolvedPocket & { highestFloorZ: number | null; axialDepthMm: number | null } {
   const ordinary = resolvePocketDepth(spec, depth);
+  if (hasRigidPocket(cutout)) {
+    if (depth.mode === "through") return { ...ordinary, floorZ: null, highestFloorZ: null, axialDepthMm: null };
+    const floorZ = cutout.elevationMm!;
+    return { ...ordinary, floorZ, highestFloorZ: floorZ, axialDepthMm: ordinary.depthMm,
+      depthMm: Math.max(0, ordinary.infillTopZ - floorZ) };
+  }
+  if (cutout.profileBottom) {
+    const floorZ = cutout.profileBottom.elevationMm;
+    const segments = profileFloorSegments(shape.outlineMm, cutout);
+    const highestFloorZ = hasProfileRotation(cutout)
+      ? Math.max(floorZ, ...profilePrisms(shape.outlineMm, cutout).flatMap(c => c.vertices.map(p => p.z)))
+      : Math.max(floorZ, ...segments.flatMap(s => [s.a.y, s.b.y]));
+    return { ...ordinary, floorZ, highestFloorZ, axialDepthMm: null, depthMm: Math.max(0, ordinary.infillTopZ - floorZ) };
+  }
   const offset = cutout.zOffsetMm ?? 0;
   if (!hasPocketTilt(cutout)) {
     const floorZ = ordinary.floorZ === null ? null : floorAtUnderside(ordinary.floorZ + offset);
@@ -1218,6 +1264,8 @@ export function resolvePlacedPocketDepth(spec: Pick<BinSpec, "heightUnits" | "li
 /** Conservative cavity envelope for packing and immediate layout checks.
  * Includes the full shaft from the floor through the rim, not only its mouth. */
 export function pocketOccupiedOutline(shape: Pick<TracedShape, "outlineMm">, cutout: CutoutPlacement, spec: Pick<BinSpec, "heightUnits" | "lip">): Outline {
+  if (hasRigidPocket(cutout)) return rigidPocketFootprint(shape.outlineMm, cutout);
+  if (cutout.profileBottom) return profileFootprint(shape.outlineMm, cutout);
   if (!hasPocketTilt(cutout)) return placementFootprint(shape, cutout).outline;
   const axis = pocketAxis(cutout);
   const depths = pocketDepths(cutout).map(depth => resolvePlacedPocketDepth(spec, depth, shape, cutout));

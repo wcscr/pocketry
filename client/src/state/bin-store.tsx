@@ -237,7 +237,7 @@ function specPatchLabel(patch: Partial<BinSpecInput>): string {
 function cutoutPatchLabel(patch: Partial<CutoutPlacement>): string {
   if ("shapeId" in patch) return "Edit contour";
   if ("position" in patch || "zOffsetMm" in patch) return "Move tool pocket";
-  if ("rotationDeg" in patch || "tilt" in patch) return "Rotate tool pocket";
+  if ("rotationDeg" in patch || "tilt" in patch || "profileRotation" in patch) return "Rotate tool pocket";
   if ("mirrored" in patch) return "Mirror tool pocket";
   if ("scaleX" in patch || "scaleY" in patch) return "Scale tool pocket";
   if ("aspectRatioLocked" in patch) return "Change pocket aspect ratio lock";
@@ -499,7 +499,9 @@ function reduceBin(state: BinState, action: BinAction): BinState {
       const source = state.cutouts.find(c => c.id === action.id);
       if (!source?.designLink) return state;
       return commit(state, { spec: state.spec, fingerHoles: state.fingerHoles, cutouts: state.cutouts.map(c => c.designLink?.id === source.designLink!.id
-        ? { ...c, designLink: { ...source.designLink!, tilt: action.enabled }, ...(action.enabled ? { tilt: source.tilt ?? { xDeg: 0, yDeg: 0 } } : {}) } : c) }, action.enabled ? "Link pocket tilt" : "Unlink pocket tilt");
+        ? { ...c, designLink: { ...source.designLink!, tilt: action.enabled }, ...(action.enabled ? {
+          tilt: source.tilt ?? { xDeg: 0, yDeg: 0 }, profileRotation: source.profileRotation ?? { xDeg: 0, yDeg: 0 },
+        } : {}) } : c) }, action.enabled ? "Link pocket tilt" : "Unlink pocket tilt");
     }
     case "DUPLICATE_LINKED": {
       const source = action.kind === "pocket" ? state.cutouts.find(c => c.id === action.id) : state.fingerHoles.find(h => h.id === action.id);

@@ -1,6 +1,8 @@
+import { hasRigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { SelectionLinkControls } from "@/components/gridfinity/linked-design-controls";
 import { retainTransformOrigins } from "@shared/gridfinity/transform-origins";
 import { useExperimentalFeatures } from "@/state/experimental-features";
+import { usePocketFootprints } from "@/hooks/use-pocket-footprints";
 import { Box, History, Redo2, Undo2 } from "lucide-react";
 import { pocketDepths, pocketName, resolvePocketDepth } from "@shared/gridfinity/cutout";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -379,15 +381,18 @@ function BinDesignerWorkspace(): JSX.Element {
     };
   }, [library.shapes, committedCutouts, committedFingerHoles]);
 
+  const measurementShapes = useMemo(() => new Map(layout.shapes.map(shape => [shape.id, shape])), [layout.shapes]);
+  const measurementTop = resolvePocketDepth(spec, { mode: "through" }).infillTopZ;
+  const profileOutlines = usePocketFootprints(layout.cutouts, measurementShapes, spec);
   const measurementOutlines = useMemo(() => {
-    const shapesById = new Map(
-      layout.shapes.map((shape) => [shape.id, shape]),
-    );
     return layout.cutouts.flatMap((cutout) => {
-      const shape = shapesById.get(cutout.shapeId);
-      return shape ? [placementFootprint(shape, cutout).outline] : [];
+      const shape = measurementShapes.get(cutout.shapeId);
+      if (!shape) return [];
+      const outline = cutout.profileBottom || hasRigidPocket(cutout) ? profileOutlines.get(cutout.id)?.opening
+        ?? [] : placementFootprint(shape, cutout).outline;
+      return outline.length ? [outline] : [];
     });
-  }, [layout]);
+  }, [layout, measurementShapes, measurementTop, profileOutlines]);
 
   const measurementSplitBoundaries = useMemo(
     () => placedPocketSplitBoundaries(layout.cutouts, new Map(layout.shapes.map(shape => [shape.id, shape]))),
@@ -493,13 +498,13 @@ function BinDesignerWorkspace(): JSX.Element {
   }, [cutouts, fingerHoles, library.shapes, spec.lip, spec.gridPitch, dispatch, toast, keepBinSize, spec]);
 
   const handleExportLayout = useCallback(
-    (format: "dxf" | "svg", includeProject: boolean) => {
+    async (format: "dxf" | "svg", includeProject: boolean) => {
       const { spec, cutouts, fingerHoles, shapes } = exportProjectDoc;
       const shapesById = new Map(shapes.map((shape) => [shape.id, shape]));
       const project = prepareProjectExport(exportProjectDoc, currentProjectName, "layout");
       const model = format === "dxf"
-        ? new Blob([generateLayoutDXF(spec, cutouts, shapesById, fingerHoles)], { type: "application/dxf" })
-        : new Blob([generateLayoutSVG(spec, cutouts, shapesById, fingerHoles)], { type: "image/svg+xml" });
+        ? new Blob([await generateLayoutDXF(spec, cutouts, shapesById, fingerHoles)], { type: "application/dxf" })
+        : new Blob([await generateLayoutSVG(spec, cutouts, shapesById, fingerHoles)], { type: "image/svg+xml" });
       downloadModelWithProject(model, format, project, includeProject);
     },
     [exportProjectDoc, currentProjectName],
@@ -1126,12 +1131,12 @@ function BinDesignerWorkspace(): JSX.Element {
           {viewMode === "3d" ? (
             <BinViewport
               geometry={geometry}
-              pocketEditor={experimentalEnabled ? { spec, transformOrigins: bin.transformOrigins, originShapes: library.shapes, linkControls: <SelectionLinkControls />, pockets: editablePockets, selectedId: bin.selectedCutoutId, fingerHoles, selection: bin.selection,
+              pocketEditor={{ spec, transformOrigins: bin.transformOrigins, originShapes: library.shapes, linkControls: <SelectionLinkControls />, pockets: editablePockets, selectedId: bin.selectedCutoutId, fingerHoles, selection: bin.selection,
                 onSelectionChange: selection => dispatch({ type: "SET_SELECTION", selection }),
                 onCommitObjects: (edits, historyLabel) => dispatch({ type: "UPDATE_OBJECTS", edits, historyLabel }),
                 onSelect: id => dispatch({ type: "SELECT_CUTOUT", id }),
                 onCommit: (id, patch, mode) => dispatch({ type: "UPDATE_CUTOUT", id, patch, historyLabel: mode === "translate" ? "Move pocket in 3D" : "Rotate pocket in 3D" }),
-              } : undefined}
+              }}
               pocketFloorGeometry={pocketFloorGeometry}
               stackingRimGeometry={stackingRimGeometry}
               hasPocketFloor={hasPocketFloor}

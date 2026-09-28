@@ -79,14 +79,14 @@ export function buildFitCheckSolid(
   });
 
   let section = toCrossSection(kernel, normalized);
-  if (cutout.clearanceMm !== 0) {
+  if (!cutout.profileBottom && cutout.clearanceMm !== 0) {
     section = arena.track(
       arena
         .track(section.offset(cutout.clearanceMm, "Round", 2, segments))
         .simplify(CLEANUP_EPSILON),
     );
   }
-  if (cutout.cornerRoundMm > 0) {
+  if (!cutout.profileBottom && cutout.cornerRoundMm > 0) {
     section = arena.track(
       arena
         .track(section.offset(-cutout.cornerRoundMm, "Round", 2, segments))

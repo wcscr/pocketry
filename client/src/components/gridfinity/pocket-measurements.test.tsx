@@ -48,17 +48,17 @@ function enter(label: string, value: string) {
 
 describe("pocket measurements", () => {
   it("edits independent tilt angles and resets them with undo", () => {
-    enter("Pocket X tilt in degrees", "15");
-    enter("Pocket Y tilt in degrees", "-35");
+    enter("Pocket X rotation in degrees", "15");
+    enter("Pocket Y rotation in degrees", "-35");
     expect(store.cutouts[0].tilt).toEqual({ xDeg: 15, yDeg: -35 });
     expect(store.history.stack).toHaveLength(3);
     React.act(() => store.dispatch({ type: "UNDO" }));
     expect(store.cutouts[0].tilt).toEqual({ xDeg: 15, yDeg: 0 });
     React.act(() => store.dispatch({ type: "REDO" }));
-    expect(host.textContent).toContain("Vertical depth");
+    expect(host.textContent).toContain("Depth: 12.0 mm");
     expect(host.textContent).toContain("Along pocket axis");
-    React.act(() => [...host.querySelectorAll("button")].find(b => b.textContent === "Reset tilt")!.click());
-    expect(store.cutouts[0].tilt).toBeUndefined();
+    React.act(() => [...host.querySelectorAll("button")].find(b => b.textContent === "Reset to X–Y plane")!.click());
+    expect(store.cutouts[0].tilt).toEqual({xDeg:0,yDeg:0});
     React.act(() => store.dispatch({ type: "UNDO" }));
     expect(store.cutouts[0].tilt).toEqual({ xDeg: 15, yDeg: -35 });
   });
