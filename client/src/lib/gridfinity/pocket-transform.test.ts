@@ -15,6 +15,63 @@ const origin = new Vector3(5, -4, 42);
 const identity = new Quaternion();
 
 describe("surface-anchored pocket controls", () => {
+  it("draws only boundary rings and sparse struts for a concave, holed rigid drag preview", () => {
+    const outlineMm = [{ outer: [[0,0],[30,0],[30,10],[20,10],[20,20],[0,20]].map(([x,y]) => ({x,y})),
+      holes: [[[5,5],[5,10],[10,10],[10,5]].map(([x,y]) => ({x,y}))] }];
+    const source = { ...shape, outlineMm };
+    const cutout = { ...pocket, position: {x:0,y:0}, rotationDeg:0, tilt:undefined,
+      elevationMm:7, depth:{mode:"mm" as const,value:6} };
+    const wires = pocketTransformWires({ cutout, shape: source }, spec);
+    const contours = wires.filter(w => w.length > 2);
+    expect(contours).toHaveLength(4);
+    expect(contours.map(w => w.length)).toEqual([7,7,5,5]);
+    expect(wires).toHaveLength(14);
+    for (const [a,b] of wires.filter(w => w.length === 2)) {
+      expect(a.slice(0,2)).toEqual(b.slice(0,2));
+      expect(b[2] - a[2]).toBe(6);
+    }
+    const moved = pocketTransformWires({ cutout: {...cutout, tilt:{xDeg:90,yDeg:37}, mirrored:true}, shape:source }, spec);
+    expect(moved.map(w => w.length)).toEqual(wires.map(w => w.length));
+    expect(Math.min(...moved.flat().map(v => v[2]))).toBeCloseTo(7);
+  });
+  it("moves bottom profiles through the top surface without changing thickness or dormant settings", () => {
+    const p = { ...pocket, profileBottom: { edge: "bottom" as const, widthMm: 10, elevationMm: 12 }, zOffsetMm: 2 };
+    const patch = pocketTransformPatch(p,shape,spec,new Vector3(8,-2,92),identity,"translate")!;
+    expect(patch.profileBottom).toEqual({edge:"bottom",widthMm:10,elevationMm:62});
+    expect(patch.depth).toEqual(p.depth); expect(patch.tilt).toEqual(p.tilt); expect(patch.zOffsetMm).toBe(2);
+    expect(pocketTransformChanged(p,patch,"translate")).toBe(true);
+    expect(pocketVerticalDepthMm({cutout:{...p,...patch},shape},spec)).toBe(0);
+    expect(pocketTransformWires({cutout:{...p,...patch},shape},spec).flat().some(v=>v[2]>42)).toBe(true);
+    const low = pocketTransformPatch(p,shape,spec,new Vector3(5,-4,-500),identity,"translate")!;
+    expect(low.profileBottom?.elevationMm).toBe(7);
+  });
+  it("previews the finite profile height without extending its edges to the surface", () => {
+    const p={...pocket,profileBottom:{edge:"bottom" as const,widthMm:10,elevationMm:8}};
+    const vertices=pocketTransformWires({cutout:p,shape},spec).flat();
+    expect(Math.min(...vertices.map(p=>p[2]))).toBeCloseTo(8);
+    expect(Math.max(...vertices.map(p=>p[2]))).toBeCloseTo(28);
+  });
+  it("freely rotates bottom profiles while retaining elevation, thickness and dormant tilt", () => {
+    const p={...pocket,profileBottom:{edge:"right" as const,widthMm:10,elevationMm:12}};
+    const x=new Quaternion().setFromAxisAngle(new Vector3(1,0,0),Math.PI/4);
+    const z=new Quaternion().setFromAxisAngle(new Vector3(0,0,1),Math.PI/2);
+    const xPatch = pocketTransformPatch(p,shape,spec,origin,x,"rotate")!;
+    expect(xPatch).not.toBeNull();
+    expect(Math.abs(pocketQuaternion({...p,...xPatch}).dot(x.clone().multiply(pocketQuaternion(p))))).toBeCloseTo(1,12);
+    const patch=pocketTransformPatch(p,shape,spec,origin,z,"rotate")!;
+    expect(patch.rotationDeg).toBeCloseTo(122);
+    expect(patch.profileBottom).toEqual(p.profileBottom);
+    expect(patch.tilt).toEqual(p.tilt);
+    for (const axis of [new Vector3(1,0,0),new Vector3(0,1,0),new Vector3(0,0,1)]) {
+      for (const degrees of [90,180,270,360]) {
+        const q=new Quaternion().setFromAxisAngle(axis,degrees*Math.PI/180);
+        const pose=pocketTransformPatch(p,shape,spec,origin,q,"rotate")!;
+        expect(pose).not.toBeNull();
+        expect(Math.abs(pocketQuaternion({...p,...pose}).dot(q.clone().multiply(pocketQuaternion(p))))).toBeCloseTo(1,12);
+        expect(pose.profileBottom).toEqual(p.profileBottom);
+      }
+    }
+  });
   it("uses the same combined orientation as the kernel", () => {
     const point = new Vector3(3, 4, 12);
     const actual = point.clone().applyQuaternion(pocketQuaternion(pocket));
@@ -23,42 +80,31 @@ describe("surface-anchored pocket controls", () => {
     expect(actual.y).toBeCloseTo(expected.y, 9);
     expect(actual.z).toBeCloseTo(expected.z, 9);
   });
-  it("moves XY across the surface and uses Z to resize depth without moving the opening", () => {
-    const patch = pocketTransformPatch(pocket, shape, spec, new Vector3(9, -12, 47), identity, "translate")!;
-    expect(patch).toMatchObject({ position: { x: 9, y: -12 }, zOffsetMm: undefined, depth: { mode: "remaining", floorThicknessMm: 14 }, tilt: pocket.tilt, rotationDeg: 32 });
-    const updated = { ...pocket, ...patch };
-    expect(resolvePlacedPocketDepth(spec, patch.depth, shape, updated).floorZ).toBeCloseTo(14);
-    const before = transformPointPlacement({ x: 2, y: 3 }, pocket), after = transformPointPlacement({ x: 2, y: 3 }, updated);
-    expect(after.x - before.x).toBeCloseTo(4); expect(after.y - before.y).toBeCloseTo(-8);
+  it.each([5, -5, 100, -100])("moves the finite pocket rigidly in Z by %s without changing its dimensions", dz => {
+    const fixed = { ...pocket, elevationMm: 12, depth: {mode:"mm" as const,value:30} };
+    const patch = pocketTransformPatch(fixed,shape,spec,new Vector3(9,-12,42+dz),identity,"translate")!;
+    expect(patch.depth).toEqual(fixed.depth);
+    expect(patch.elevationMm).toBe(Math.max(0,12+dz));
+    expect(patch.position).toEqual({x:9,y:-12});
+    const before=pocketTransformWires({cutout:fixed,shape},spec).flat();
+    const after=pocketTransformWires({cutout:{...fixed,...patch},shape},spec).flat();
+    after.forEach((p,i)=>{
+      expect(p[0]-before[i][0]).toBeCloseTo(4,7);
+      expect(p[1]-before[i][1]).toBeCloseTo(-8,7);
+      expect(p[2]-before[i][2]).toBeCloseTo(patch.elevationMm!-12,7);
+    });
   });
-  it.each([5, -5, 100, -100])("keeps every seat between the surface and underside when moving Z by %s", dz => {
-    const fixed = { ...pocket, depth: { mode: "mm" as const, value: 30 } };
-    const patch = pocketTransformPatch(fixed, shape, spec, new Vector3(5, -4, 42 + dz), identity, "translate")!;
-    const updated = { ...fixed, ...patch };
-    const resolved = resolvePlacedPocketDepth(spec, patch.depth, shape, updated);
-    expect(resolved.floorZ).toBeGreaterThanOrEqual(-1e-8);
-    expect(resolved.highestFloorZ).toBeLessThanOrEqual(41.5 + 1e-8);
-    expect(patch.position).toEqual(pocket.position);
-    expect(patch.zOffsetMm).toBeUndefined();
-    expect(pocketTransformWires({ cutout: updated, shape }, spec).flat().every(p => p[2] <= 42 + 1e-8)).toBe(true);
-    if (Math.abs(dz) === 5) {
-      const originalFloor = resolvePlacedPocketDepth(spec, fixed.depth, shape, fixed).floorZ!;
-      expect(resolved.floorZ! - originalFloor).toBeCloseTo(dz);
+  it.each([[1,0,0],[0,1,0],[0,0,1]])("accepts full turns around fixed axis %j", (x,y,z) => {
+    const fixed={...pocket,elevationMm:12,depth:{mode:"mm" as const,value:30}};
+    for(const degrees of [90,135,180,270,360]) {
+      const delta=new Quaternion().setFromAxisAngle(new Vector3(x,y,z),degrees*Math.PI/180);
+      const patch=pocketTransformPatch(fixed,shape,spec,origin,delta,"rotate")!;
+      expect(patch).not.toBeNull();
+      expect(patch.depth).toEqual(fixed.depth);
+      expect(patch.elevationMm).toBe(12);
+      expect(Math.abs(pocketQuaternion({...fixed,...patch}).dot(delta.clone().multiply(pocketQuaternion(fixed))))).toBeCloseTo(1,10);
+      expect(parseCutoutPlacement({...fixed,...patch})).toMatchObject({elevationMm:12});
     }
-  });
-  it.each([[1, 0, 0], [0, 1, 0], [0, 0, 1]])("rotates rigidly around fixed bin axis %j without changing local edge lengths", (x, y, z) => {
-    const delta = new Quaternion().setFromAxisAngle(new Vector3(x, y, z), Math.PI / 18);
-    const patch = pocketTransformPatch(pocket, shape, spec, origin, delta, "rotate")!;
-    const expected = pocketQuaternion(pocket).premultiply(delta);
-    const updated = { ...pocket, ...patch };
-    expect(patch.depth.mode).toBe("mm");
-    expect(patch.position).toEqual(pocket.position);
-    expect(patch.zOffsetMm).toBeUndefined();
-    expect(resolvePlacedPocketDepth(spec, patch.depth, shape, updated).axialDepthMm).toBeCloseTo(resolvePlacedPocketDepth(spec, pocket.depth, shape, pocket).axialDepthMm!);
-    expect(Math.abs(pocketQuaternion(updated).dot(expected))).toBeCloseTo(1, 10);
-    const seat = pocketTransformWires({ cutout: updated, shape }, spec)[1];
-    expect(new Vector3(...seat[0]).distanceTo(new Vector3(...seat[1]))).toBeCloseTo(6, 8);
-    expect(new Vector3(...seat[1]).distanceTo(new Vector3(...seat[2]))).toBeCloseTo(20, 8);
   });
   it("re-anchors legacy offsets without changing their openings or seats, including a no-op drag", () => {
     const old = { ...pocket, zOffsetMm: 2 };
@@ -69,65 +115,15 @@ describe("surface-anchored pocket controls", () => {
     const patch = pocketTransformPatch(old, shape, spec, { ...anchored.position, z: 42 }, identity, "translate")!;
     expect(pocketTransformChanged(old, patch, "translate")).toBe(false);
   });
-  it("preserves the order and difference of split depths and leaves through cuts alone", () => {
-    const split = { ...pocket, tilt: undefined, split: { boundary: [{ x: -3, y: 0 }, { x: 3, y: 0 }], depths: [{ mode: "remaining" as const, floorThicknessMm: 20 }, { mode: "remaining" as const, floorThicknessMm: 8 }] as [{ mode: "remaining"; floorThicknessMm: number }, { mode: "remaining"; floorThicknessMm: number }] } };
-    const resized = pocketTransformPatch(split, shape, spec, new Vector3(5, -4, 45), identity, "translate")!;
-    expect(pocketVerticalDepthMm({ cutout: { ...split, ...resized }, shape }, spec)).toBeCloseTo(31);
-    expect(resized.split?.depths).toEqual([{ mode: "remaining", floorThicknessMm: 23 }, { mode: "remaining", floorThicknessMm: 11 }]);
-    const rotated = pocketTransformPatch(split, shape, spec, origin, new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), Math.PI / 18), "rotate")!;
-    expect(rotated.split?.depths).toEqual([{ mode: "mm", value: 22 }, { mode: "mm", value: 34 }]);
-    expect(rotated.depth).toEqual(split.depth);
-    expect(rotated.split?.boundary).toEqual(split.split.boundary);
-    const through = { ...pocket, depth: { mode: "through" as const } };
-    const unchanged = pocketTransformPatch(through, shape, spec, new Vector3(5, -4, 200), identity, "translate")!;
-    expect(unchanged.depth).toEqual(through.depth);
-    expect(pocketTransformChanged(through, unchanged, "translate")).toBe(false);
-  });
-  it("refuses downward or near-horizontal rotations", () => {
-    const upright = { ...pocket, tilt: undefined, rotationDeg: 0 };
-    for (const degrees of [90, 180]) {
-      expect(pocketTransformPatch(upright, shape, spec, origin, new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), degrees * Math.PI / 180), "rotate")).toBeNull();
-    }
-  });
-  it.each([-60, -10, 10, 60])("stops the shallow board rack's X rotation before its seat crosses the opening (%s degrees)", degrees => {
-    const rackSpec = { ...spec, heightUnits: 2 };
-    const board = { ...shape, outlineMm: [{ outer: [{ x: -1.1, y: -33.75 }, { x: 1.1, y: -33.75 }, { x: 1.1, y: 33.75 }, { x: -1.1, y: 33.75 }], holes: [] }] };
-    const slot = { ...pocket, rotationDeg: 0, tilt: { xDeg: 0, yDeg: 45 } };
-    const delta = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), degrees * Math.PI / 180);
-    expect(pocketTransformPatch(slot, board, rackSpec, new Vector3(5, -4, 14), delta, "rotate")).toBeNull();
-  });
-  it("keeps the board rack's valid X rotation rigid, planar, and entirely beneath its opening", () => {
-    const rackSpec = { ...spec, heightUnits: 2 };
-    const board = { ...shape, outlineMm: [{ outer: [{ x: -1.1, y: -33.75 }, { x: 1.1, y: -33.75 }, { x: 1.1, y: 33.75 }, { x: -1.1, y: 33.75 }], holes: [] }] };
-    const slot = { ...pocket, rotationDeg: 0, tilt: { xDeg: 0, yDeg: 45 } };
-    const delta = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), 4 * Math.PI / 180);
-    const patch = pocketTransformPatch(slot, board, rackSpec, new Vector3(5, -4, 14), delta, "rotate")!;
-    expect(patch).not.toBeNull();
-    const [mouth, seat, ...struts] = pocketTransformWires({ shape: board, cutout: { ...slot, ...patch } }, rackSpec);
-    expect(mouth.every(p => Math.abs(p[2] - 14) < 1e-8)).toBe(true);
-    expect(seat.every(p => p[2] >= 0 && p[2] <= 13.5)).toBe(true);
-    expect(struts.every(([top, bottom]) => top[2] > bottom[2])).toBe(true);
-    const vertices = seat.map(p => new Vector3(...p));
-    const ab = vertices[1].clone().sub(vertices[0]), ad = vertices[3].clone().sub(vertices[0]);
-    expect(ab.length()).toBeCloseTo(2.2, 8);
-    expect(ad.length()).toBeCloseTo(67.5, 8);
-    expect(ab.dot(ad)).toBeCloseTo(0, 8);
-    expect(ab.cross(ad).normalize().dot(vertices[2].clone().sub(vertices[0]))).toBeCloseTo(0, 8);
-  });
-  it("stops a fixed-depth seat from rotating through the underside", () => {
-    const deep = { ...pocket, rotationDeg: 0, tilt: undefined, depth: { mode: "mm" as const, value: 41 } };
-    const delta = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), Math.PI / 18);
-    expect(pocketTransformPatch(deep, shape, spec, origin, delta, "rotate")).toBeNull();
-  });
-  it("checks each split seat but allows through pockets to rotate without a floor limit", () => {
-    const split = { ...pocket, rotationDeg: 0, tilt: undefined, split: { boundary: [{ x: -3, y: 0 }, { x: 3, y: 0 }], depths: [{ mode: "mm" as const, value: 1 }, { mode: "mm" as const, value: 1 }] as const } };
-    for (const degrees of [-15, 15]) {
-      const delta = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), degrees * Math.PI / 180);
-      expect(pocketTransformPatch(parseCutoutPlacement(split), shape, spec, origin, delta, "rotate")).toBeNull();
-    }
-    const through = { ...pocket, depth: { mode: "through" as const } };
-    const delta = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), Math.PI / 3);
-    expect(pocketTransformPatch(through, shape, spec, origin, delta, "rotate")).not.toBeNull();
+  it("freezes split depths independently and preserves them through motion and rotation", () => {
+    const split={...pocket,tilt:undefined,split:{boundary:[{x:-3,y:0},{x:3,y:0}],
+      depths:[{mode:"remaining" as const,floorThicknessMm:20},{mode:"remaining" as const,floorThicknessMm:8}] as [{mode:"remaining";floorThicknessMm:number},{mode:"remaining";floorThicknessMm:number}]}};
+    const moved=pocketTransformPatch(split,shape,spec,new Vector3(5,-4,45),identity,"translate")!;
+    expect(moved.split?.depths).toEqual([{mode:"mm",value:22},{mode:"mm",value:34}]);
+    expect(moved.elevationMm).toBe(11);
+    const turned=pocketTransformPatch({...split,...moved},shape,spec,origin,new Quaternion().setFromAxisAngle(new Vector3(1,0,0),Math.PI/2),"rotate")!;
+    expect(turned.split).toEqual(moved.split);
+    expect(turned.elevationMm).toBe(11);
   });
   it("picks the mouth and excludes holes", () => {
     const centre = transformPointPlacement({ x: 0, y: 0 }, pocket);
@@ -137,16 +133,13 @@ describe("surface-anchored pocket controls", () => {
     const withHole = { ...shape, outlineMm: [{ ...shape.outlineMm[0], holes: [[{ x: -1, y: -1 }, { x: -1, y: 1 }, { x: 1, y: 1 }, { x: 1, y: -1 }]] }] };
     expect(pickPocketAtTop([{ ...item, shape: withHole }], centre)).toBeNull();
   });
-  it("keeps a lower-clamped remaining floor valid for persistence, including split history", () => {
-    const shallow = { ...pocket, rotationDeg: 0, tilt: { xDeg: 0, yDeg: 5 }, depth: { mode: "remaining" as const, floorThicknessMm: 13.1 } };
-    for (const original of [shallow, { ...shallow, split: { boundary: [{ x: -3, y: 0 }, { x: 3, y: 0 }], depths: [shallow.depth, { mode: "remaining" as const, floorThicknessMm: 20 }] as [typeof shallow.depth, typeof shallow.depth] } }]) {
-      const patch = pocketTransformPatch(original, shape, spec, new Vector3(5, -4, -1000), identity, "translate")!;
-      const changed = { ...original, ...patch };
-      expect((changed.split?.depths[0] ?? changed.depth)).toEqual({ mode: "remaining", floorThicknessMm: 0 });
-      const before = { spec, cutouts: [original], fingerHoles: [] }, after = { spec, cutouts: [changed], fingerHoles: [] };
-      const doc = { schemaVersion: PROJECT_SCHEMA_VERSION, shapes: [shape], ...after, history: { stack: [{ doc: before, label: "Before" }, { doc: after, label: "Move" }], index: 1 } };
-      expect(parseProjectDoc(JSON.parse(JSON.stringify(doc)))).not.toBeNull();
-    }
+  it("persists clamped elevation and split dimensions in history", () => {
+    const p={...pocket,elevationMm:12,depth:{mode:"mm" as const,value:20}};
+    const patch=pocketTransformPatch(p,shape,spec,new Vector3(5,-4,-1000),identity,"translate")!;
+    const next=parseCutoutPlacement({...p,...patch});
+    expect(next.elevationMm).toBe(0); expect(next.depth).toEqual(p.depth);
+    const doc={spec,cutouts:[next],fingerHoles:[]};
+    expect(parseProjectDoc({...doc,schemaVersion:PROJECT_SCHEMA_VERSION,shapes:[shape],history:{stack:[{doc,label:"Move"}],index:0}})).not.toBeNull();
   });
   it.each([-1000, 1000])("allows Z heading changes after clamping depth by %s without crossing either floor limit", dz => {
     const original = { ...pocket, tilt: { xDeg: 15.123456789, yDeg: -25.987654321 } };

@@ -125,7 +125,7 @@ it("restores invalid or incomplete numbers and permits a corrected edit", () => 
   expect(ui.container.querySelector('[role="status"]')).toBeNull();
 });
 
-it("commits rotation once on Enter and restores geometry-invalid drafts", () => {
+it("commits rotation once on Enter and accepts sideways poses", () => {
   const ui = mount([objects[0]]);
   ui.click("Rotate pocket (E)");
   ui.focus("Rotate Z by"); ui.fill("Rotate Z by", "15");
@@ -134,7 +134,10 @@ it("commits rotation once on Enter and restores geometry-invalid drafts", () => 
   expect(ui.onCommitObjects).toHaveBeenCalledTimes(1);
   expect(ui.onCommitObjects.mock.lastCall![0].cutouts[0].rotationDeg).toBeCloseTo(15);
   ui.edit("Rotate X by", "90");
-  expect(ui.onCommitObjects).toHaveBeenCalledTimes(1);
-  expect(ui.input("Rotate X by").value).toBe("0");
-  expect(ui.container.querySelector('[role="status"]')?.textContent).toContain("Cannot transform");
+  expect(ui.onCommitObjects).toHaveBeenCalledTimes(2);
+  expect(ui.input("Rotate X by").value).toBe("90");
+  expect(ui.container.querySelector('[role="status"]')).toBeNull();
+  ui.click("Reset to X–Y plane");
+  expect(ui.onCommitObjects.mock.lastCall![0].cutouts[0].tilt).toEqual({xDeg:0,yDeg:0});
+  expect(ui.onCommitObjects.mock.lastCall![0].cutouts[0].rotationDeg).toBeCloseTo(15);
 });

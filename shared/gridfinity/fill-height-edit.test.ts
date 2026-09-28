@@ -41,6 +41,21 @@ it("leaves remaining-floor and through-only pockets unchanged", () => {
   expect(adjustPocketsForFillHeight(cutouts, spec, { ...spec, fillHeightPercent: 1 }).cutouts).toEqual(cutouts);
 });
 
+it.each([0, 90, 145])("preserves placed solid dimensions and elevation at X=%s through fill changes and toggles", xDeg => {
+  const rigid = parseCutoutPlacement({ ...pocket, elevationMm: 12, tilt: { xDeg, yDeg: -20 },
+    split: { boundary: [{ x: 0, y: -3 }, { x: 0, y: 3 }], depths: [pocket.depth, { mode: "mm", value: 25 }] } });
+  let previous = spec;
+  for (const fillHeightPercent of [75, 1, 100]) {
+    const next = { ...spec, fillHeightPercent };
+    for (const enabled of [true, false]) {
+      const result = adjustPocketsForFillHeight([rigid], previous, next, enabled);
+      expect(result.error).toBeUndefined();
+      expect(result.cutouts![0]).toBe(rigid);
+    }
+    previous = next;
+  }
+});
+
 it("preserves tilted seat position in all axes, including legacy Z offsets", () => {
   const cutout = { ...pocket, tilt: { xDeg: -20, yDeg: 35 }, rotationDeg: 37, zOffsetMm: 2 };
   const lowered = { ...spec, fillHeightPercent: 75 };

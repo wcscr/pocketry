@@ -3,12 +3,18 @@
 ## Unreleased
 
 - Added a mini socket set example with an editable project, 3MF, and three print photos, reusing the pre-cut shadowbox supplied with the toolset.
-
+- Simplified the 3D pocket outline to show the solid’s exterior edges and a faint surface, with no internal subdivision lines. Rotation previews retain clean contour outlines while the solid updates.
+- Pocket inspection shows the outline by default with a “Hide pocket outline” option, and initially selects the pocket’s longest placed X or Y dimension as the cut axis.
+- Finger-access grooves can exceed 160 mm, with length limits based on the bin dimensions, slot width, and rotation.
 - Added an “Adjust fixed pocket depths” checkbox under Construction → Fill height, enabled by default, to keep existing pocket floors in place when changing solid fill height. Unchecking restores original depths; rechecking reapplies the adjustment. The setting and original depths are saved with the project.
 
 ## 1.1.1 — 2026-09-27
 
 - UI cleanup and consistency updates.
+
+- Rotate generated pockets freely on all three axes and raise or lower them without changing their dimensions. Depth sets the extrusion thickness; the surface opening follows the solid’s intersection with the fill.
+- Reset pockets to their original X–Y plane while preserving Z rotation, position, elevation, and dimensions. Earlier profile prototypes migrate to ordinary pockets.
+- Choose X or Y when inspecting a pocket in 3D, with pocket outlines hidden by default and an option to show them; leaving the pocket restores the full bin preview.
 
 ## 1.1.0 — 2026-09-26
 

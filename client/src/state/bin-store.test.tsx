@@ -49,6 +49,27 @@ const CUTOUT = parseCutoutPlacement({
 });
 
 describe("bin store", () => {
+  it("freezes adjusted source dimensions when a pocket gains 3D placement", () => {
+    const { store, act } = mountBin();
+    const fixed = { ...CUTOUT, depth: { mode: "mm" as const, value: 20 } };
+    act(() => store().dispatch({ type: "ADD_PLACED", cutouts: [fixed], gridX: 3, gridY: 3 }));
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { fillHeightPercent: 75 } }));
+    expect(store().cutouts[0].fillHeightReference).toBeDefined();
+    const depth = store().cutouts[0].depth;
+    act(() => store().dispatch({ type: "UPDATE_CUTOUT", id: fixed.id, patch: { elevationMm: 18 } }));
+    const placed = store().cutouts[0];
+    expect(placed.fillHeightReference).toBeUndefined();
+    act(() => store().dispatch({ type: "SET_ADJUST_FIXED_POCKET_DEPTHS", enabled: false }));
+    expect(store().cutouts[0].depth).toEqual(depth);
+    act(() => store().dispatch({ type: "SET_ADJUST_FIXED_POCKET_DEPTHS", enabled: true }));
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { fillHeightPercent: 1 } }));
+    expect(store().editError).toBeNull();
+    expect(store().cutouts[0]).toEqual(placed);
+    act(() => store().dispatch({ type: "UNDO" }));
+    expect(store().spec.fillHeightPercent).toBe(75);
+    expect(store().cutouts[0]).toEqual(placed);
+  });
+
   it("defaults to adjusting fixed depths and commits a fill drag once with save/reload and undo/redo", () => {
     const { store, act } = mountBin();
     const fixed = { ...CUTOUT, depth: { mode: "mm" as const, value: 20 } };
@@ -285,6 +306,19 @@ describe("bin store", () => {
     act(() => store().dispatch({ type: "REDO" }));
     expect(store().spec.heightUnits).toBe(1);
     expect(store().fingerHoles[0]).toEqual(smallHole);
+  });
+
+  it("keeps a long groove until the bin shrinks and restores it on undo", () => {
+    const { store, act } = mountBin();
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { gridX: 5, gridY: 5 } }));
+    const hole = fingerHoleSchema.parse({ id: "long", kind: "oblong-deep-scoop", center: { x: 0, y: 0 }, diameterMm: 23, lengthMm: 193, depthMm: 10 });
+    act(() => store().dispatch({ type: "ADD_FINGER_HOLE", hole }));
+    expect(store().fingerHoles[0]).toEqual(hole);
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { gridX: 2 } }));
+    expect(store().fingerHoles[0].lengthMm).toBe(87.67);
+    act(() => store().dispatch({ type: "UNDO" }));
+    expect(store().spec.gridX).toBe(5);
+    expect(store().fingerHoles[0]).toEqual(hole);
   });
 
   it("keeps large round access through edits and hydration, and resizes it with bin width in one undo step", () => {
@@ -865,10 +899,12 @@ describe("linked design transactions", () => {
   it("supports opt-in tilt while names, Z heading and XY placement stay local", () => {
     const { store, act } = setup();
     act(() => store().dispatch({ type: "LINK_DESIGNS", kind: "pocket", ids: ["c1", "c2"], sourceId: "c1", linkId: "g", tilt: false }));
-    act(() => store().dispatch({ type: "UPDATE_CUTOUT", id: "c1", patch: { tilt: { xDeg: 10, yDeg: 20 }, name: "A", rotationDeg: 45 } }));
+    act(() => store().dispatch({ type: "UPDATE_CUTOUT", id: "c1", patch: { tilt: { xDeg: 10, yDeg: 20 }, profileRotation: { xDeg: 135, yDeg: 90 }, name: "A", rotationDeg: 45 } }));
     expect(store().cutouts[1].tilt).toBeUndefined();
+    expect(store().cutouts[1].profileRotation).toBeUndefined();
     act(() => store().dispatch({ type: "SET_LINKED_TILT", id: "c1", enabled: true }));
     expect(store().cutouts[1].tilt).toEqual({ xDeg: 10, yDeg: 20 });
+    expect(store().cutouts[1].profileRotation).toEqual({ xDeg: 135, yDeg: 90 });
     expect(store().cutouts[1]).toMatchObject({ name: "Second", rotationDeg: 90 });
     act(() => store().dispatch({ type: "SET_LINKED_TILT", id: "c1", enabled: false }));
     act(() => store().dispatch({ type: "UPDATE_CUTOUT", id: "c1", patch: { tilt: { xDeg: 0, yDeg: 0 } } }));

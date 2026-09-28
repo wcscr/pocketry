@@ -7,13 +7,13 @@ export interface DesignObjects { cutouts: CutoutPlacement[]; fingerHoles: Finger
 // Copies retain complete geometry for the existing worker/export paths. The
 // explicit link id, validated in every saved snapshot, makes these fields one
 // shared design. Shape revisions remain immutable and update all references.
-const pocketFields = ["shapeId", "scaleX", "scaleY", "aspectRatioLocked", "depth", "split", "clearanceMm", "cornerRoundMm", "topFilletMm", "bottomFilletMm"] as const;
+const pocketFields = ["shapeId", "scaleX", "scaleY", "aspectRatioLocked", "depth", "split", "profileBottom", "clearanceMm", "cornerRoundMm", "topFilletMm", "bottomFilletMm"] as const;
 const fingerFields = ["kind", "diameterMm", "lengthMm", "depthMm", "topFilletMm", "bottomFilletMm", "cornerRoundMm", "slotEnds"] as const;
 const equal = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
 export function pocketDesign(pocket: CutoutPlacement): Partial<CutoutPlacement> {
   return { ...Object.fromEntries(pocketFields.map(key => [key, pocket[key]])),
-    ...(pocket.designLink?.tilt ? { tilt: pocket.tilt ?? { xDeg: 0, yDeg: 0 } } : {}) };
+    ...(pocket.designLink?.tilt ? { tilt: pocket.tilt ?? { xDeg: 0, yDeg: 0 }, profileRotation: pocket.profileRotation ?? { xDeg: 0, yDeg: 0 } } : {}) };
 }
 export function fingerDesign(hole: FingerHole): Partial<FingerHole> {
   return Object.fromEntries(fingerFields.map(key => [key, hole[key]]));

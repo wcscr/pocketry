@@ -1,3 +1,4 @@
+import { hasPocketTilt } from "@shared/gridfinity/pocket-orientation";
 import type { CutoutPlacement } from "@shared/gridfinity/cutout";
 import { ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -18,7 +19,7 @@ export function PocketSplitControls({ cutout }: { cutout: CutoutPlacement }): JS
     </summary>
     <div className="space-y-2 pb-2" aria-label="Pocket sections">
     <div className="flex flex-wrap gap-1">
-      <Button type="button" size="sm" variant="outline" onClick={begin} disabled={editorMode === "split"}>
+      <Button type="button" size="sm" variant="outline" onClick={begin} disabled={editorMode === "split" || hasPocketTilt(cutout)} title={hasPocketTilt(cutout) ? "Reset to X–Y plane before drawing the split." : undefined}>
         {cutout.split ? "Redraw split" : "Split pocket"}
       </Button>
       {cutout.split && <Button type="button" size="sm" variant="ghost"

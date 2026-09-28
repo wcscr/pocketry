@@ -1,3 +1,5 @@
+import { expandLinkedObjectEdits } from "@/lib/gridfinity/object-arrangement";
+import { hasRigidPocket, resetPocketPlane } from "@shared/gridfinity/rigid-pocket";
 import { createPortal } from "react-dom";
 import { useSelectionInspector } from "./selection-inspector-context";
 import { useEffect, useRef, useState } from "react";
@@ -76,6 +78,7 @@ export function ObjectTransformPanel({ editor, objects, selected, displayed, mod
       `${mode === "translate" ? "Move" : "Rotate"} ${selected.length} object${selected.length === 1 ? "" : "s"}`);
   };
   const mixed = selected.some(o => o.kind === "finger");
+
   const single = displayed.length === 1 ? displayed[0] : null;
   const tone = selected.length && selected.every(o => o.kind === "pocket") ? "violet"
     : selected.length && selected.every(o => o.kind === "finger") ? "cyan" : "slate";
@@ -175,10 +178,18 @@ export function ObjectTransformPanel({ editor, objects, selected, displayed, mod
         </div>
         {single?.kind === "pocket" && <div className="space-y-1 text-[10px] tabular-nums text-muted-foreground">
           <p data-testid="pocket-3d-transform-readout">{mode === "translate" ? `X ${single.cutout.position.x.toFixed(2)} · Y ${single.cutout.position.y.toFixed(2)} mm`
-            : `X ${(single.cutout.tilt?.xDeg ?? 0).toFixed(1)}° · Y ${(single.cutout.tilt?.yDeg ?? 0).toFixed(1)}° · Z ${single.cutout.rotationDeg.toFixed(1)}°`}</p>
-          <p data-testid="pocket-3d-depth-readout">{(() => { const depth = pocketVerticalDepthMm(single, editor.spec); return depth === null ? "Depth: through" : `Depth: ${depth.toFixed(2)} mm`; })()}</p>
+            : `X ${((single.cutout.profileBottom ? single.cutout.profileRotation : single.cutout.tilt)?.xDeg ?? 0).toFixed(1)}° · Y ${((single.cutout.profileBottom ? single.cutout.profileRotation : single.cutout.tilt)?.yDeg ?? 0).toFixed(1)}° · Z ${single.cutout.rotationDeg.toFixed(1)}°`}</p>
+          <p data-testid="pocket-3d-depth-readout">{hasRigidPocket(single.cutout)
+            ? `Lowest point: ${single.cutout.elevationMm!.toFixed(2)} mm`
+            : (() => { const depth = pocketVerticalDepthMm(single, editor.spec); return depth === null ? "Depth: through" : `Depth: ${depth.toFixed(2)} mm`; })()}</p>
         </div>}
-        <p className="text-[10px] leading-relaxed text-muted-foreground">{mode === "translate" ? "Z changes depth: up is shallower, down is deeper. Openings stay at the surface." : mixed ? "Thumb access stays upright. Select only pockets to tilt around X or Y." : "Drag a colored ring or enter an angle. Esc cancels a drag."}</p>
+        {mode === "rotate" && !mixed && <Button size="sm" variant="outline" className="w-full"
+          disabled={!selected.some(o => o.kind === "pocket" && ((o.cutout.tilt?.xDeg ?? 0) !== 0 || (o.cutout.tilt?.yDeg ?? 0) !== 0))}
+          onClick={() => commit(expandLinkedObjectEdits(objects, editor.spec, { cutouts: selected.flatMap(o => o.kind === "pocket"
+            ? [resetPocketPlane(o.cutout, o.shape, editor.spec)] : []), fingerHoles: [] }), "Reset pockets to X–Y plane")}>
+          Reset to X–Y plane
+        </Button>}
+        <p className="text-[10px] leading-relaxed text-muted-foreground">{mixed && mode === "rotate" ? "Thumb access stays upright. Select only pockets to rotate around X or Y." : mode === "translate" ? "Z raises or lowers the pocket. Its depth and dimensions stay unchanged." : "Drag a colored ring or enter an angle. Reset to X–Y plane clears X/Y rotation and keeps Z rotation and elevation."}</p>
       </>}
       {!linking && (limited || error) && <p role="status" className="text-[11px] text-destructive">{error ?? "Cannot transform every affected copy. Keep floors within the bin; edit one linked copy if the group needs different design changes."}</p>}
     </div>

@@ -1,3 +1,4 @@
+import { hasPocketTilt } from "@shared/gridfinity/pocket-orientation";
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import { placementFootprint, untransformPointPlacement, type CutoutPlacement, type TracedShape } from "@shared/gridfinity/cutout";
 import { nearestPocketEdge, orientRedrawnPocketSplit, resolvePocketSplit } from "@shared/gridfinity/pocket-split";
@@ -15,7 +16,7 @@ export function usePocketSplit({ cutout, shape, scale, toBin, onComplete }: {
   onComplete?: () => void;
 }) {
   const { editorMode, dispatch } = useBin();
-  const active = editorMode === "split" && !!cutout && !!shape;
+  const active = editorMode === "split" && !!cutout && !!shape && !cutout.profileBottom && !hasPocketTilt(cutout);
   const [start, setStart] = useState<Point | null>(null);
   const [hover, setHover] = useState<Point | null>(null);
   const [error, setError] = useState<string | null>(null);

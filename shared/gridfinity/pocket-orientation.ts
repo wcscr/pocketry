@@ -1,23 +1,22 @@
+import { rotateObjectVector } from "./object-pose";
+import type { Vec3 } from "./object-pose";
+export type { Vec3 } from "./object-pose";
+
 /** Shape axes are tilted X, then Y, then given the existing bin Z heading. */
 export interface PocketOrientation {
   rotationDeg: number;
   tilt?: { xDeg: number; yDeg: number };
+  profileBottom?: unknown;
 }
 
-export type Vec3 = { x: number; y: number; z: number };
 
-export function hasPocketTilt(pocket: Pick<PocketOrientation, "tilt">): boolean {
-  return (pocket.tilt?.xDeg ?? 0) !== 0 || (pocket.tilt?.yDeg ?? 0) !== 0;
+export function hasPocketTilt(pocket: Pick<PocketOrientation, "tilt" | "profileBottom">): boolean {
+  return !pocket.profileBottom && ((pocket.tilt?.xDeg ?? 0) !== 0 || (pocket.tilt?.yDeg ?? 0) !== 0);
 }
 
 /** Rz * Ry * Rx, independent of the renderer and geometry kernel. */
 export function rotatePocketVector(p: Vec3, orientation: PocketOrientation): Vec3 {
-  const x = (orientation.tilt?.xDeg ?? 0) * Math.PI / 180;
-  const y = (orientation.tilt?.yDeg ?? 0) * Math.PI / 180;
-  const z = orientation.rotationDeg * Math.PI / 180;
-  const a = { x: p.x, y: p.y * Math.cos(x) - p.z * Math.sin(x), z: p.y * Math.sin(x) + p.z * Math.cos(x) };
-  const b = { x: a.x * Math.cos(y) + a.z * Math.sin(y), y: a.y, z: -a.x * Math.sin(y) + a.z * Math.cos(y) };
-  return { x: b.x * Math.cos(z) - b.y * Math.sin(z), y: b.x * Math.sin(z) + b.y * Math.cos(z), z: b.z };
+  return rotateObjectVector(p, { xDeg: orientation.tilt?.xDeg ?? 0, yDeg: orientation.tilt?.yDeg ?? 0, zDeg: orientation.rotationDeg });
 }
 
 export function pocketAxis(orientation: PocketOrientation): Vec3 {

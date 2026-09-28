@@ -3,6 +3,7 @@ import { designLinkErrors } from "./design-links";
 import { infillTopZ, type FillHeightSpec } from "./fill";
 import type { BinDoc } from "./history";
 import { pocketAxis } from "./pocket-orientation";
+import { hasRigidPocket } from "./rigid-pocket";
 
 export type FillHeightEdit = { cutouts: CutoutPlacement[]; error?: never }
   | { cutouts?: never; error: string };
@@ -15,6 +16,12 @@ export function adjustPocketsForFillHeight(
 ): FillHeightEdit {
   const adjusted: CutoutPlacement[] = [];
   for (const cutout of cutouts) {
+    // Placed solids already keep their lowest point fixed. Resizing their source
+    // with the fill would change thickness or reject sideways/inverted poses.
+    if (hasRigidPocket(cutout) || cutout.profileBottom) {
+      adjusted.push(cutout.fillHeightReference ? withoutReference(cutout) : cutout);
+      continue;
+    }
     if (![cutout.depth, ...(cutout.split?.depths ?? [])].some(depth => depth.mode === "mm")) {
       adjusted.push(cutout);
       continue;
@@ -66,6 +73,7 @@ export function reconcileFillHeightReferences(previous: BinDoc, next: BinDoc): B
   let cutouts = next.cutouts.map(cutout => {
     const reference = cutout.fillHeightReference;
     if (!reference) return cutout;
+    if (hasRigidPocket(cutout) || cutout.profileBottom) return withoutReference(cutout);
     // Duplicates initially share the source's reference; translate it to the copy.
     const before = previous.cutouts.find(c => c.id === cutout.id)
       ?? previous.cutouts.find(c => c.fillHeightReference === reference);

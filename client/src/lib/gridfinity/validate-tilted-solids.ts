@@ -1,6 +1,7 @@
+import { hasRigidPocket } from "@shared/gridfinity/rigid-pocket";
 import type { Manifold } from "manifold-3d";
 import type { CutoutPlacement, TracedShape } from "@shared/gridfinity/cutout";
-import { pocketName, resolvePocketDepth } from "@shared/gridfinity/cutout";
+import { pocketName, pocketDepths, resolvePocketDepth } from "@shared/gridfinity/cutout";
 import { hasPocketTilt } from "@shared/gridfinity/pocket-orientation";
 import { D_DIV } from "@shared/gridfinity/standard";
 import type { BinSpec } from "@shared/gridfinity/types";
@@ -14,7 +15,8 @@ export function validateTiltedSolids(kernel: Kernel, spec: BinSpec,
   groups: readonly { id: string; cutters: Manifold[] }[],
   wall: Manifold | null, lip: Manifold | null,
 ): ValidationIssue[] {
-  if (!cutouts.some(hasPocketTilt)) return [];
+  const needsExact = (c: CutoutPlacement) => hasRigidPocket(c) || hasPocketTilt(c);
+  if (!cutouts.some(needsExact)) return [];
   const { arena, Manifold: M } = kernel;
   const top = resolvePocketDepth(spec, { mode: "through" }).cutterTopZ - 1;
   const clipped = groups.flatMap(group => {
@@ -32,7 +34,7 @@ export function validateTiltedSolids(kernel: Kernel, spec: BinSpec,
     return intersection.volume() > 1e-5;
   };
   for (const [i, item] of clipped.entries()) {
-    if (hasPocketTilt(item.cutout)) {
+    if (needsExact(item.cutout) && !(hasRigidPocket(item.cutout) && pocketDepths(item.cutout).some(d => d.mode === "through"))) {
       const boundaries = [wall, lip].filter((solid): solid is Manifold => solid !== null && !solid.isEmpty());
       if (boundaries.some(boundary => overlaps(item.solid, boundary))) {
         issues.push({ code: "tilted-pocket-wall", severity: "error", cutoutIds: [item.cutout.id],
@@ -43,7 +45,7 @@ export function validateTiltedSolids(kernel: Kernel, spec: BinSpec,
       }
     }
     for (const other of clipped.slice(i + 1)) {
-      if (!hasPocketTilt(item.cutout) && !hasPocketTilt(other.cutout)) continue;
+      if (!needsExact(item.cutout) && !needsExact(other.cutout)) continue;
       if (overlaps(item.solid, other.solid)) issues.push({ code: "tilted-pocket-overlap", severity: "error",
         cutoutIds: [item.cutout.id, other.cutout.id], message: `“${item.label}” and “${other.label}” intersect in 3D. Move their shafts farther apart.` });
       else if (item.solid.minGap(other.solid, D_DIV) < D_DIV - 1e-5) issues.push({ code: "tilted-pocket-thin-material", severity: "warning",

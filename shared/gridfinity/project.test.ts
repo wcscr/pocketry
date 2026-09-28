@@ -44,6 +44,44 @@ const VALID = {
 };
 
 describe("parseProjectDoc", () => {
+  it("migrates released v25 fill-depth references and settings without changing history", () => {
+    const original = parseProjectDoc(VALID)!;
+    const spec = { ...original.spec, fillHeightPercent: 75, adjustFixedPocketDepths: false };
+    const cutouts = [{ ...original.cutouts[0], depth: { mode: "mm" as const, value: 20 },
+      fillHeightReference: { topZ: 40.8, position: { x: 0, y: 0 }, depth: { mode: "mm" as const, value: 20 } } }];
+    const doc = { spec, cutouts, fingerHoles: [] };
+    const legacy = { ...original, ...doc, schemaVersion: 25,
+      history: { stack: [{ doc, label: "Restore original pocket depths" }], index: 0 },
+      transformOrigins: { pockets: [{ cutout: cutouts[0], spec }], fingerHoles: [] } };
+    const migrated = parseProjectDoc(JSON.parse(JSON.stringify(legacy)))!;
+    expect(migrated).toEqual({ ...legacy, schemaVersion: PROJECT_SCHEMA_VERSION });
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(migrated)))).toEqual(migrated);
+  });
+
+  it("migrates v24 without changing ordinary pockets or as-drawn references", () => {
+    const source = parseProjectDoc(VALID)!;
+    const legacy = { ...source, schemaVersion: 24, transformOrigins: { pockets: [{ cutout: source.cutouts[0], spec: source.spec }], fingerHoles: [] } };
+    const migrated = parseProjectDoc(legacy)!;
+    expect(migrated.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
+    expect(migrated.cutouts).toEqual(source.cutouts);
+    expect(migrated.transformOrigins).toEqual(legacy.transformOrigins);
+    expect(migrated.cutouts[0].profileBottom).toBeUndefined();
+  });
+  it("converts prototype profiles in every history snapshot and rejects malformed prototypes", () => {
+    const source = parseProjectDoc(VALID)!;
+    const before = { spec: source.spec, cutouts: source.cutouts, fingerHoles: [] };
+    const after = { ...before, cutouts: [{ ...source.cutouts[0], tilt: { xDeg: 30, yDeg: 0 },
+      profileBottom: { edge: "right" as const, widthMm: 8, elevationMm: 45 } }] };
+    const project = { ...source, ...after, history: { stack: [{ doc: before, label: "Before" }, { doc: after, label: "Profile bottom" }], index: 1 } };
+    const migrated = parseProjectDoc(JSON.parse(JSON.stringify(project)))!;
+    expect(migrated.cutouts[0]).toMatchObject({depth:{mode:"mm",value:8},elevationMm:45,tilt:{xDeg:0,yDeg:90}});
+    expect(migrated.history?.stack[0].doc).toEqual(before);
+    expect(migrated.history?.stack[1].doc.cutouts).toEqual(migrated.cutouts);
+    expect(JSON.stringify(parseProjectDoc(JSON.parse(JSON.stringify(migrated))))).toBe(JSON.stringify(migrated));
+    const bad = structuredClone(project);
+    bad.history.stack[1].doc.cutouts[0].profileBottom!.widthMm = -1;
+    expect(parseProjectDoc(bad)).toBeNull();
+  });
   it("migrates version 24 projects and history without changing existing pocket geometry", () => {
     const { adjustFixedPocketDepths: _removed, ...spec } = VALID.spec;
     const cutouts = [parseProjectDoc(VALID)!.cutouts[0]];
@@ -76,7 +114,23 @@ describe("parseProjectDoc", () => {
     expect(migrated.history!.stack.map(entry => entry.doc.spec.fillHeightPercent)).toEqual([100, 100]);
     expect(migrated.history!.index).toBe(0);
     expect(JSON.stringify(legacy)).toBe(original);
-    expect(parseProjectDoc(JSON.parse(JSON.stringify(migrated)))).toEqual(migrated);
+    expect(JSON.stringify(parseProjectDoc(JSON.parse(JSON.stringify(migrated))))).toBe(JSON.stringify(migrated));
+  });
+
+  it("round-trips a long access groove and its undo history without changing existing geometry", () => {
+    const fingerHole = { id: "long", kind: "oblong-deep-scoop", center: { x: 0, y: 0 },
+      diameterMm: 23, depthMm: 10, lengthMm: 193, topFilletMm: 0.6 };
+    const doc = { spec: { ...VALID.spec, gridX: 5, gridY: 5 }, cutouts: VALID.cutouts, fingerHoles: [fingerHole] };
+    const project = parseProjectDoc({ ...VALID, ...doc, history: {
+      stack: [
+        { doc: { ...doc, fingerHoles: [{ ...fingerHole, lengthMm: 160 }] }, label: "Start" },
+        { doc, label: "Change length" },
+      ], index: 1,
+    } });
+    expect(project).not.toBeNull();
+    expect(project?.fingerHoles[0]).toMatchObject(fingerHole);
+    expect(project?.history?.stack[0].doc.fingerHoles[0].lengthMm).toBe(160);
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(project)))).toEqual(project);
   });
 
   it("round-trips custom fill height and saved history", () => {
@@ -523,7 +577,7 @@ it.each([
     expect(entry.doc.cutouts[0].zOffsetMm).toBe(offset);
   }
   expect(JSON.stringify(input)).toBe(serialized);
-  expect(parseProjectDoc(JSON.parse(JSON.stringify(migrated)))).toEqual(migrated);
+  expect(JSON.stringify(parseProjectDoc(JSON.parse(JSON.stringify(migrated))))).toBe(JSON.stringify(migrated));
 });
 
 
