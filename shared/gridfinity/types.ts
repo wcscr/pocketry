@@ -66,6 +66,8 @@ export const binSpecSchema = z
     fill: z.enum(["none", "solid"]).default("solid"),
     /** Percentage of available fill height above the fixed base; retained while hollow. */
     fillHeightPercent: z.number().min(1).max(100).default(100),
+    /** Resize existing fixed depths with fill edits; unchecking restores their baseline. */
+    adjustFixedPocketDepths: z.boolean().default(true),
     /** Smooth underside without Gridfinity sockets; preserves outer size and pocket heights. */
     flatBottom: z.boolean().default(false),
     /** ⌀6.5 × 2.4 mm magnet pockets, four per cell, opening downward. */

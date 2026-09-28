@@ -45,9 +45,10 @@ import { binHistorySchema } from "./history";
  * Version 22 unifies adjustable fill height, tilt and legacy vertical offsets.
  * Version 23 adds explicit linked pocket and thumb-access designs.
  * Version 24 preserves as-drawn transform references independently of undo history.
+ * Version 25 retains original pocket depths and the reversible fill-adjustment setting.
  */
 
-export const PROJECT_SCHEMA_VERSION = 24 as const;
+export const PROJECT_SCHEMA_VERSION = 25 as const;
 
 const projectFields = {
   shapes: z.array(tracedShapeSchema),
@@ -105,6 +106,10 @@ const version21ProjectSchema = version17ProjectSchema.extend({ schemaVersion: z.
 const version22ProjectSchema = version17ProjectSchema.extend({ schemaVersion: z.literal(22) });
 
 const version23ProjectSchema = version17ProjectSchema.extend({ schemaVersion: z.literal(23) });
+
+const version24ProjectSchema = version23ProjectSchema.extend({
+  schemaVersion: z.literal(24), transformOrigins: transformOriginsSchema.optional(),
+});
 
 /** History and the visible design must describe one consistent saved snapshot. */
 export const projectDocSchema = version16ProjectSchema.extend({
@@ -218,6 +223,11 @@ export function parseProjectDoc(input: unknown): ProjectDoc | null {
       if (liteBase !== undefined && typeof liteBase !== "boolean") return null;
       input = { ...doc, spec };
     }
+  }
+  const version24 = version24ProjectSchema.safeParse(input);
+  if (version24.success) {
+    const migrated = projectDocSchema.safeParse({ ...version24.data, schemaVersion: PROJECT_SCHEMA_VERSION });
+    return migrated.success ? migrated.data : null;
   }
   const version23 = version23ProjectSchema.safeParse(input);
   if (version23.success) {

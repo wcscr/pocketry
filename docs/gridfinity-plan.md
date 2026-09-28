@@ -4,9 +4,22 @@
 25%, 50%, 75%, and 100%. The slider snaps within three percentage points of those
 marks on release; keyboard steps and typed percentages remain exact. The percentage
 scales the available fill height above the fixed base, leaving the outer walls and
-stacking lip at full height. Fixed-depth pockets and finger access start at the
-lowered surface; remaining-floor pockets keep their absolute floor height. Existing
-depth validation blocks pockets that no longer fit. Preview, STL, 3MF and floor
+stacking lip at full height. **Adjust fixed pocket depths**, directly below Fill
+height in Construction, is enabled by default. When checked,
+changing fill height resizes existing fixed depths to keep their floors in place;
+tilted pockets also move their openings along the same shaft. Unchecking restores
+the original fixed depths at the current fill height; rechecking reapplies the
+adjustment. Further fill edits while unchecked retain the original depths. Each
+toggle is undoable. Schema v25 saves the checkbox and original-depth references,
+so toggling still works after reopening a project or reaching the undo limit.
+Later pocket translations and names are retained; explicit depth, split or
+orientation edits establish a new reference for that pocket and its linked copies.
+Older projects keep their geometry and start with the checkbox enabled.
+Edits that would make a fixed depth zero or negative are rejected with guidance.
+Linked copies requiring different axial adjustments must share tilt, be unlinked,
+or use the unchecked behavior. Finger access follows the lowered surface;
+remaining-floor pockets keep their absolute floor height. Existing depth validation
+blocks other pockets that no longer fit. Preview, STL, 3MF and floor
 colors use the same surface. Schema v20 saves the percentage and undo/redo history;
 older projects and history snapshots default to 100%. Toggling solid fill off
 retains the percentage for the next time it is enabled.

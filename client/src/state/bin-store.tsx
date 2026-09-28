@@ -1,3 +1,4 @@
+import { adjustPocketsForFillHeight, reconcileFillHeightReferences } from "@shared/gridfinity/fill-height-edit";
 import { recordTransformOrigins, type TransformOrigins } from "@shared/gridfinity/transform-origins";
 import { applyLinkedEdits, clampLinkedFingerHoles, pocketDesign, fingerDesign, type DesignObjectKind } from "@shared/gridfinity/design-links";
 import { sameObject, type ObjectRef, type ObjectEdits } from "@/lib/gridfinity/object-arrangement";
@@ -78,6 +79,7 @@ export type BinAction =
       transformOrigins?: TransformOrigins;
     }
   | { type: "MARK_HYDRATED" }
+  | { type: "SET_ADJUST_FIXED_POCKET_DEPTHS"; enabled: boolean }
   | {
       type: "PATCH_SPEC";
       patch: Partial<BinSpecInput>;
@@ -196,6 +198,7 @@ function commit(
   label: string,
   rest: Partial<BinState> = {},
 ): BinState {
+  doc = reconcileFillHeightReferences(state, doc);
   doc = limitFingerAccessForBinChange(state, doc);
   const stack = [
     ...state.history.stack.slice(0, state.history.index + 1),
@@ -251,6 +254,7 @@ function cutoutPatchLabel(patch: Partial<CutoutPlacement>): string {
 
 /** A transient change: present state moves, the history does not. */
 function preview(state: BinState, doc: BinDoc): BinState {
+  doc = reconcileFillHeightReferences(state, doc);
   doc = limitFingerAccessForBinChange(state, doc);
   return {
     ...state,
@@ -331,6 +335,14 @@ function reduceBin(state: BinState, action: BinAction): BinState {
     }
     case "MARK_HYDRATED":
       return state.hydrated ? state : { ...state, hydrated: true };
+    case "SET_ADJUST_FIXED_POCKET_DEPTHS": {
+      if (action.enabled === state.spec.adjustFixedPocketDepths) return state;
+      const previous = getCommittedBinDoc(state);
+      const adjusted = adjustPocketsForFillHeight(previous.cutouts, previous.spec, previous.spec, action.enabled);
+      if (adjusted.error !== undefined) return { ...state, editError: adjusted.error };
+      return commit(state, { ...previous, spec: { ...previous.spec, adjustFixedPocketDepths: action.enabled },
+        cutouts: adjusted.cutouts }, action.enabled ? "Adjust fixed pocket depths" : "Restore original pocket depths");
+    }
     case "PATCH_SPEC": {
       const changesGrid = "gridX" in action.patch || "gridY" in action.patch;
       const doc = {
@@ -346,10 +358,16 @@ function reduceBin(state: BinState, action: BinAction): BinState {
         fingerHoles: BIN_SIZE_KEYS.some(key => key in action.patch)
           ? getCommittedBinDoc(state).fingerHoles : state.fingerHoles,
       };
+      if ("fillHeightPercent" in action.patch) {
+        const previous = getCommittedBinDoc(state);
+        const adjusted = adjustPocketsForFillHeight(previous.cutouts, previous.spec, doc.spec, doc.spec.adjustFixedPocketDepths);
+        if (adjusted.error !== undefined) return { ...state, ...(!action.transient ? previous : {}), editError: adjusted.error };
+        doc.cutouts = adjusted.cutouts;
+      }
       if (doc.spec.flatBottom !== state.spec.flatBottom) {
         const previousFloor = defaultPocketFloorThicknessMm(state.spec);
         const nextFloor = defaultPocketFloorThicknessMm(doc.spec);
-        doc.cutouts = state.cutouts.map((cutout) =>
+        doc.cutouts = doc.cutouts.map((cutout) =>
           changeDefaultFloor(cutout, previousFloor, nextFloor),
         );
       }
@@ -660,6 +678,7 @@ function restore(state: BinState, entry: BinHistoryEntry, index: number): BinSta
 }
 
 export interface BinStore extends BinState {
+  adjustFixedPocketDepths: boolean;
   dispatch: Dispatch<BinAction>;
   canUndo: boolean;
   canRedo: boolean;
@@ -676,6 +695,7 @@ export function BinProvider({ children }: { children: ReactNode }): JSX.Element 
   const value = useMemo<BinStore>(
     () => ({
       ...state,
+      adjustFixedPocketDepths: state.spec.adjustFixedPocketDepths,
       dispatch,
       canUndo: state.history.index > 0,
       canRedo: state.history.index < state.history.stack.length - 1,
