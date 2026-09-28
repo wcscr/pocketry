@@ -11,7 +11,7 @@ export function placedPocketSplitBoundaries(
 ): MeasurementPaths {
   return cutouts.flatMap(cutout => {
     const shape = shapesById.get(cutout.shapeId);
-    if (!cutout.split || !shape) return [];
+    if (!cutout.split || !shape || cutout.profileBottom) return [];
     const split = resolvePocketSplit(shape.outlineMm, cutout.split.boundary);
     return split.boundary ? [split.boundary.map(point => transformPointPlacement(point, cutout))] : [];
   });

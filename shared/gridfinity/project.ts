@@ -14,6 +14,7 @@ import { binSpecSchema } from "./types";
 import { designLinkErrors } from "./design-links";
 import { transformOriginsSchema } from "./transform-origins";
 import { binHistorySchema } from "./history";
+import { migrateProfilePocket } from "./rigid-pocket";
 
 /**
  * The persisted unit of user data: the shape library plus the bin being
@@ -46,9 +47,11 @@ import { binHistorySchema } from "./history";
  * Version 23 adds explicit linked pocket and thumb-access designs.
  * Version 24 preserves as-drawn transform references independently of undo history.
  * Version 25 retains original pocket depths and the reversible fill-adjustment setting.
+ * Unreleased side-profile prototypes also used version 25 and migrate by their fields.
+ * Version 26 gives generated pockets a finite solid and unrestricted rigid placement.
  */
 
-export const PROJECT_SCHEMA_VERSION = 25 as const;
+export const PROJECT_SCHEMA_VERSION = 26 as const;
 
 const projectFields = {
   shapes: z.array(tracedShapeSchema),
@@ -106,10 +109,10 @@ const version21ProjectSchema = version17ProjectSchema.extend({ schemaVersion: z.
 const version22ProjectSchema = version17ProjectSchema.extend({ schemaVersion: z.literal(22) });
 
 const version23ProjectSchema = version17ProjectSchema.extend({ schemaVersion: z.literal(23) });
-
 const version24ProjectSchema = version23ProjectSchema.extend({
   schemaVersion: z.literal(24), transformOrigins: transformOriginsSchema.optional(),
 });
+const version25ProjectSchema = version24ProjectSchema.extend({ schemaVersion: z.literal(25) });
 
 /** History and the visible design must describe one consistent saved snapshot. */
 export const projectDocSchema = version16ProjectSchema.extend({
@@ -212,7 +215,16 @@ function migrateLegacyProject(doc: LegacyProjectDoc): ProjectDoc {
  */
 export function parseProjectDoc(input: unknown): ProjectDoc | null {
   const result = projectDocSchema.safeParse(input);
-  if (result.success) return result.data;
+  if (result.success) {
+    const doc = result.data;
+    if (!doc.cutouts.some(c => c.profileBottom) && !doc.history?.stack.some(e => e.doc.cutouts.some(c => c.profileBottom))
+        && !doc.transformOrigins?.pockets.some(o => o.cutout.profileBottom)) return doc;
+    return projectDocSchema.parse({ ...doc, cutouts: doc.cutouts.map(migrateProfilePocket),
+      history: doc.history ? { ...doc.history, stack: doc.history.stack.map(entry => ({ ...entry,
+        doc: { ...entry.doc, cutouts: entry.doc.cutouts.map(migrateProfilePocket) } })) } : undefined,
+      transformOrigins: doc.transformOrigins ? { ...doc.transformOrigins,
+        pockets: doc.transformOrigins.pockets.map(origin => ({ ...origin, cutout: migrateProfilePocket(origin.cutout) })) } : undefined });
+  }
   // Only legacy documents may contain the removed flag. Keep malformed values
   // and unknown fields invalid, and never mutate the stored source document.
   if (input && typeof input === "object" && !Array.isArray(input)) {
@@ -223,6 +235,18 @@ export function parseProjectDoc(input: unknown): ProjectDoc | null {
       if (liteBase !== undefined && typeof liteBase !== "boolean") return null;
       input = { ...doc, spec };
     }
+  }
+  const version25 = version25ProjectSchema.safeParse(input);
+  if (version25.success) {
+    const doc = version25.data;
+    const migrated = projectDocSchema.safeParse({ ...doc, schemaVersion: PROJECT_SCHEMA_VERSION,
+      cutouts: doc.cutouts.map(migrateProfilePocket),
+      history: doc.history ? { ...doc.history, stack: doc.history.stack.map(entry => ({ ...entry,
+        doc: { ...entry.doc, cutouts: entry.doc.cutouts.map(migrateProfilePocket) } })) } : undefined,
+      transformOrigins: doc.transformOrigins ? { ...doc.transformOrigins,
+        pockets: doc.transformOrigins.pockets.map(origin => ({ ...origin, cutout: migrateProfilePocket(origin.cutout) })) } : undefined,
+    });
+    return migrated.success ? migrated.data : null;
   }
   const version24 = version24ProjectSchema.safeParse(input);
   if (version24.success) {

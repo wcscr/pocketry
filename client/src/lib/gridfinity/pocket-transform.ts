@@ -1,16 +1,18 @@
+import { hasRigidPocket, rigidPocket, rigidPocketVertices, pocketSourceRings } from "@shared/gridfinity/rigid-pocket";
 import { Euler, Quaternion, type Vector3 } from "three";
 import {
-  POCKET_DEPTH_EPSILON_MM, resolvePlacedPocketDepth, resolvePocketDepth, transformOutlinePlacement, transformPointPlacement,
+  defaultPocketFloorThicknessMm, resolvePlacedPocketDepth, resolvePocketDepth, transformOutlinePlacement, transformPointPlacement,
   type CutoutPlacement, type DepthSpec, type TracedShape,
 } from "@shared/gridfinity/cutout";
 import { pocketAxis, rotatePocketVector } from "@shared/gridfinity/pocket-orientation";
 import { resolvePocketSplit } from "@shared/gridfinity/pocket-split";
+import { profilePrisms } from "@shared/gridfinity/profile-bottom";
 import type { BinSpec } from "@shared/gridfinity/types";
 import { pointInOutline } from "@/lib/geometry/outline";
 import type { Point } from "@shared/geometry/types";
 
 export type PocketTransformMode = "translate" | "rotate";
-export type PocketTransformPatch = Pick<CutoutPlacement, "position" | "zOffsetMm" | "rotationDeg" | "tilt" | "depth" | "split">;
+export type PocketTransformPatch = Pick<CutoutPlacement, "position" | "zOffsetMm" | "rotationDeg" | "tilt" | "depth" | "split" | "profileBottom" | "profileRotation" | "elevationMm">;
 export interface EditablePocket { cutout: CutoutPlacement; shape: TracedShape }
 export type PocketWire = [number, number, number][];
 const RAD = Math.PI / 180;
@@ -18,14 +20,16 @@ const tidy = (value: number) => Math.round(value * 1e6) / 1e6;
 
 /** Three's ZYX Euler convention is the shared Rz * Ry * Rx pocket transform. */
 export function pocketQuaternion(pocket: CutoutPlacement): Quaternion {
+  const rotation = pocket.profileBottom ? pocket.profileRotation : pocket.tilt;
   return new Quaternion().setFromEuler(new Euler(
-    (pocket.tilt?.xDeg ?? 0) * RAD, (pocket.tilt?.yDeg ?? 0) * RAD, pocket.rotationDeg * RAD, "ZYX",
+    (rotation?.xDeg ?? 0) * RAD, (rotation?.yDeg ?? 0) * RAD, pocket.rotationDeg * RAD, "ZYX",
   ));
 }
 
 /** Preserve old translated cavities while returning an equivalent surface anchor.
- * New gestures edit depth instead of storing a floating Z translation. */
+ * Only legacy placement uses this adapter; rigid pockets already have an elevation. */
 export function surfaceAnchoredPocket(original: CutoutPlacement): CutoutPlacement {
+  if (original.profileBottom || hasRigidPocket(original)) return original;
   const offset = original.zOffsetMm ?? 0;
   if (offset === 0) return { ...original, zOffsetMm: undefined };
   const nz = Math.max(0.01, pocketAxis(original).z);
@@ -37,8 +41,8 @@ export function surfaceAnchoredPocket(original: CutoutPlacement): CutoutPlacemen
     split: original.split ? { ...original.split, depths: [depthAtSurface(original.split.depths[0]), depthAtSurface(original.split.depths[1])] } : undefined };
 }
 
-/** The gizmo stays at the top surface in the bin's fixed XYZ frame. Its Z
- * displacement resizes depth; its quaternion is a world-axis rotation delta. */
+/** The gizmo uses fixed bin axes. Z moves the generated solid rigidly; a
+ * rotation never changes its source dimensions. */
 export function pocketTransformPatch(
   original: CutoutPlacement, shape: TracedShape, spec: BinSpec,
   position: Pick<Vector3, "x" | "y" | "z">, quaternion: Quaternion, mode: PocketTransformMode, rigidZOffsetMm = 0,
@@ -48,68 +52,40 @@ export function pocketTransformPatch(
   if (![position.x, position.y, position.z, ...quaternion.toArray()].every(Number.isFinite)) return null;
   const patch: PocketTransformPatch = {
     position: { x: tidy(position.x), y: tidy(position.y) }, zOffsetMm: undefined,
-    rotationDeg: anchored.rotationDeg, tilt: anchored.tilt, depth: anchored.depth, split: anchored.split,
+    rotationDeg: anchored.rotationDeg, tilt: anchored.tilt, depth: anchored.depth, split: anchored.split, elevationMm: anchored.elevationMm,
   };
   // Finite inputs can overflow during coordinate rounding. Never let a bad
   // preview become a committed edit: it would also invalidate saved history.
   if (![patch.position.x, patch.position.y].every(Number.isFinite)) return null;
-  const split = anchored.split ? resolvePocketSplit(shape.outlineMm, anchored.split.boundary) : null;
-  const resolve = (depth: DepthSpec, index: number) => resolvePlacedPocketDepth(spec, depth,
-    { outlineMm: split?.regions?.[index] ?? shape.outlineMm }, anchored);
-  if (mode === "translate") {
-    const nz = pocketAxis(anchored).z;
-    if (nz < 0.01) return null;
-    const blind = (anchored.split?.depths ?? [anchored.depth]).map(resolve).filter(p => p.floorZ !== null);
-    // Stop before any seat crosses the top or underside. Preserve split-seat
-    // differences by applying one common vertical depth change to both seats.
-    const lower = Math.max(...blind.map(p => -p.floorZ!));
-    const upper = Math.min(...blind.map(p => top - p.highestFloorZ! - 0.5));
-    const requestedDz = position.z - top;
-    if (Math.abs(requestedDz) > 1e-7 && blind.length && lower > upper) return null;
-    const dz = Math.abs(requestedDz) > 1e-7 && blind.length ? Math.max(lower, Math.min(upper, requestedDz)) : 0;
-    const resize = (depth: DepthSpec): DepthSpec => depth.mode === "through" ? depth
-      : depth.mode === "remaining" ? { mode: "remaining", floorThicknessMm: Math.max(0, depth.floorThicknessMm + dz) }
-        : { mode: "mm", value: depth.value - dz / nz };
-    patch.depth = anchored.split ? anchored.depth : resize(anchored.depth);
-    if (anchored.split) patch.split = { ...anchored.split, depths: [resize(anchored.split.depths[0]), resize(anchored.split.depths[1])] };
+  if (original.profileBottom) {
+    patch.zOffsetMm = original.zOffsetMm;
+    patch.profileBottom = { ...original.profileBottom };
+    patch.profileRotation = original.profileRotation;
+    if (mode === "translate") {
+      patch.profileBottom.elevationMm = Math.max(defaultPocketFloorThicknessMm(spec), Math.min(300,
+        original.profileBottom.elevationMm + position.z - top));
+    } else {
+      const rotated = quaternion.clone().multiply(pocketQuaternion(original));
+      const angles = new Euler().setFromQuaternion(rotated, "ZYX");
+      patch.profileRotation = { xDeg: angles.x / RAD, yDeg: angles.y / RAD };
+      patch.rotationDeg = angles.z / RAD;
+      patch.profileBottom.elevationMm = Math.max(defaultPocketFloorThicknessMm(spec), Math.min(300,
+        original.profileBottom.elevationMm + rigidZOffsetMm));
+    }
     return patch;
   }
-  // Premultiplication rotates around fixed bin axes regardless of prior tilt.
-  const rotated = quaternion.clone().multiply(pocketQuaternion(anchored));
-  const angles = new Euler().setFromQuaternion(rotated, "ZYX");
-  // Keep full angular precision: rounding an unchanged X/Y tilt during a Z
-  // turn can move a seat across a depth limit and falsely reject the rotation.
-  const tilt = { xDeg: angles.x / RAD, yDeg: angles.y / RAD };
-  // Quaternion-to-Euler conversion can overshoot an exact ±89° by a few ulps.
-  for (const axis of ["xDeg", "yDeg"] as const) {
-    if (Math.abs(Math.abs(tilt[axis]) - 89) < 1e-10) tilt[axis] = Math.sign(tilt[axis]) * 89;
+  if (mode === "translate" && Math.abs(position.z - top) < 1e-8) return patch;
+  const rigid = rigidPocket(anchored, shape, spec);
+  patch.depth = rigid.depth;
+  patch.split = rigid.split;
+  patch.elevationMm = Math.max(0, Math.min(300, rigid.elevationMm! +
+    (mode === "translate" ? position.z - top : rigidZOffsetMm)));
+  if (mode === "rotate") {
+    const rotated = quaternion.clone().multiply(pocketQuaternion(rigid));
+    const angles = new Euler().setFromQuaternion(rotated, "ZYX");
+    patch.tilt = { xDeg: angles.x / RAD, yDeg: angles.y / RAD };
+    patch.rotationDeg = angles.z / RAD;
   }
-  if (Math.abs(tilt.xDeg) > 89 || Math.abs(tilt.yDeg) > 89 || pocketAxis({ tilt, rotationDeg: 0 }).z < 0.01) return null;
-  patch.rotationDeg = angles.z / RAD;
-  patch.tilt = tilt;
-  const freeze = (depth: DepthSpec, index: number): DepthSpec => depth.mode !== "remaining" ? depth
-    : { mode: "mm", value: resolve(depth, index).axialDepthMm! };
-  patch.depth = anchored.split ? anchored.depth : freeze(anchored.depth, 0);
-  if (anchored.split) patch.split = { ...anchored.split, depths: [freeze(anchored.split.depths[0], 0), freeze(anchored.split.depths[1], 1)] };
-  // A shared pivot moves the local origin vertically. Project its new mouth
-  // back to the surface while preserving the rigidly rotated seat below it.
-  if (rigidZOffsetMm !== 0) {
-    const axis = pocketAxis(patch);
-    patch.position = { x: position.x - axis.x * rigidZOffsetMm / axis.z, y: position.y - axis.y * rigidZOffsetMm / axis.z };
-    if (![patch.position.x, patch.position.y].every(Number.isFinite)) return null;
-    const reanchor = (depth: DepthSpec): DepthSpec => depth.mode === "mm" ? { mode: "mm", value: depth.value - rigidZOffsetMm / axis.z } : depth;
-    patch.depth = reanchor(patch.depth);
-    if (patch.split) patch.split = { ...patch.split, depths: [reanchor(patch.split.depths[0]), reanchor(patch.split.depths[1])] };
-  }
-  if ((patch.split?.depths ?? [patch.depth]).some(d => d.mode === "mm" && d.value <= 0)) return null;
-  // A shallow, long slot can rotate its seat through the horizontal mouth
-  // well before its axis becomes horizontal. Joining those crossed planes
-  // draws an inverted cavity and the kernel then rejects the committed edit.
-  // Retain the last valid drag sample using the same vertical limits as Z.
-  const updated = { ...anchored, ...patch };
-  const seats = (patch.split?.depths ?? [patch.depth]).map((depth, i) => resolvePlacedPocketDepth(spec, depth,
-    { outlineMm: split?.regions?.[i] ?? shape.outlineMm }, updated));
-  if (seats.some(seat => seat.floorZ !== null && (seat.floorZ < 0 || seat.highestFloorZ! > top - 0.5 + POCKET_DEPTH_EPSILON_MM))) return null;
   return patch;
 }
 
@@ -118,6 +94,8 @@ export function pocketTransformChanged(original: CutoutPlacement, patch: PocketT
   const anchored = surfaceAnchoredPocket(original);
   if (Math.hypot(patch.position.x - anchored.position.x, patch.position.y - anchored.position.y) > 1e-5) return true;
   if (mode === "rotate") return 1 - Math.abs(pocketQuaternion(original).dot(pocketQuaternion({ ...original, ...patch }))) > 1e-12;
+  if (original.profileBottom) return Math.abs(original.profileBottom.elevationMm - (patch.profileBottom?.elevationMm ?? original.profileBottom.elevationMm)) > 1e-7;
+  if (patch.elevationMm !== undefined) return Math.abs(patch.elevationMm - (original.elevationMm ?? 0)) > 1e-7;
   const before = anchored.split?.depths ?? [anchored.depth];
   return (patch.split?.depths ?? [patch.depth]).some((after, i) => {
     const previous = before[i];
@@ -138,6 +116,7 @@ export function pickPocketAtTop(pockets: readonly EditablePocket[], point: Point
 
 /** Actual maximum vertical depth, including both seats and legacy offsets. */
 export function pocketVerticalDepthMm({ cutout, shape }: EditablePocket, spec: BinSpec): number | null {
+  if (cutout.profileBottom) return resolvePlacedPocketDepth(spec, cutout.depth, shape, cutout).depthMm;
   const split = cutout.split ? resolvePocketSplit(shape.outlineMm, cutout.split.boundary) : null;
   const depths = (cutout.split?.depths ?? [cutout.depth]).map((depth, i) => resolvePlacedPocketDepth(spec, depth,
     { outlineMm: split?.regions?.[i] ?? shape.outlineMm }, cutout).depthMm);
@@ -147,6 +126,31 @@ export function pocketVerticalDepthMm({ cutout, shape }: EditablePocket, spec: B
 /** Nominal opening and seat edges for an immediate, kernel-free drag preview. */
 export function pocketTransformWires({ cutout, shape }: EditablePocket, spec: BinSpec): PocketWire[] {
   const top = resolvePocketDepth(spec, cutout.depth).infillTopZ;
+  if (cutout.profileBottom) {
+    const wires: PocketWire[] = [];
+    for (const { vertices, edges } of profilePrisms(shape.outlineMm, cutout)) {
+      const point = (i: number): [number, number, number] => [vertices[i].x, vertices[i].y, vertices[i].z];
+      for (const [i, j] of edges) wires.push([point(i), point(j)]);
+    }
+    return wires;
+  }
+  if (hasRigidPocket(cutout)) {
+    const rings = pocketSourceRings(shape.outlineMm, cutout, top);
+    const vertices = rigidPocketVertices(shape.outlineMm, cutout, top);
+    const wires: PocketWire[] = [];
+    let offset = 0;
+    for (let i = 0; i < rings.length; i += 2) {
+      const count = rings[i].length;
+      const ring = (start: number): PocketWire => vertices.slice(start, start + count).map(p => [p.x, p.y, p.z]);
+      const bottom = ring(offset), upper = ring(offset + count);
+      if (count) {
+        wires.push([...bottom, bottom[0]], [...upper, upper[0]]);
+        for (let j = 0; j < count; j += Math.max(1, Math.ceil(count / 8))) wires.push([bottom[j], upper[j]]);
+      }
+      offset += count * 2;
+    }
+    return wires;
+  }
   const anchorZ = top + (cutout.zOffsetMm ?? 0);
   const axis = pocketAxis(cutout);
   const split = cutout.split ? resolvePocketSplit(shape.outlineMm, cutout.split.boundary) : null;

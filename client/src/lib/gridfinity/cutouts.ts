@@ -1,6 +1,9 @@
 // Type-only import: the kernel is injected (see `Kernel` in ../manifold/runtime).
 import type { Manifold } from "manifold-3d";
 import { hasPocketTilt, pocketAxis } from "@shared/gridfinity/pocket-orientation";
+import { hasRigidPocket, pocketRotation } from "@shared/gridfinity/rigid-pocket";
+import { rotateObjectVector } from "@shared/gridfinity/object-pose";
+import { buildObjectCavity } from "./object-cavity";
 
 import {
   effectiveDeepScoopDepthMm,
@@ -36,6 +39,7 @@ import { simplifyRing } from "@/lib/geometry/simplify";
 import type { Kernel } from "@/lib/manifold/runtime";
 
 import type { BuildQuality } from "./bin";
+import { buildProfileBottomCutout } from "./profile-bottom";
 import { buildRoundedFingerAccessCutter } from "./finger-access-rounding";
 import {
   bottomFilletCutter,
@@ -122,6 +126,8 @@ export interface CutoutCutters {
   cutters: Manifold[];
   /** Optional printable material immediately below each blind pocket floor. */
   floorInserts: Manifold[];
+  /** Full subtraction regions for stable body partitioning; defaults to the bands. */
+  floorRegions?: Manifold[];
   reports: CutoutBuildReport[];
   cutterGroups?: { id: string; cutters: Manifold[] }[];
 }
@@ -692,8 +698,79 @@ function buildCutoutCuttersInternal(
   return { cutters, floorInserts, reports };
 }
 
+/** Generate in the outline's own frame, then apply one reusable rigid pose.
+ * The finite cap is essential: a tilted tool does not cut its shadow to the top. */
+export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: CutoutPlacement,
+  spec: BinSpec, quality: BuildQuality, options: CutoutBuildOptions = {}, top = Infinity,
+): CutoutCutters {
+  const { arena, Manifold } = kernel;
+  const realTop = resolvePocketDepth(spec, cutout.depth).infillTopZ;
+  const reach = Math.max(spec.gridX * 42, spec.gridY * 42, spec.heightUnits * 7,
+    Math.abs(cutout.position.x), Math.abs(cutout.position.y), cutout.elevationMm ?? 0,
+    ...shape.outlineMm.flatMap(s => s.outer.map(v => Math.abs(v.x * cutout.scaleX) + Math.abs(v.y * cutout.scaleY)))) * 4 + 100;
+  const dimensions = (cutout.split?.depths ?? [cutout.depth]).map(d => d.mode === "through" ? null
+    : d.mode === "mm" ? d.value : realTop - d.floorThicknessMm);
+  const localSpec = { ...spec, lip: "none" as const, fillHeightPercent: 100,
+    heightUnits: Math.ceil((Math.max(reach, ...dimensions.map(d => d ?? 1)) + 20) / 7) };
+  const localTop = resolvePocketDepth(localSpec, cutout.depth).infillTopZ;
+  const buildSource = (throughDepth: number, extendThrough: boolean): Manifold => {
+    const depths = dimensions.map(d => ({ mode: "mm" as const, value: d ?? throughDepth }));
+    const local = { ...cutout, position: { x: 0, y: 0 }, rotationDeg: 0, tilt: undefined,
+      elevationMm: undefined, zOffsetMm: undefined, depth: depths[0],
+      split: cutout.split ? { ...cutout.split, depths: [depths[0], depths[1]] as [typeof depths[number], typeof depths[number]] } : undefined };
+    if (dimensions.some(d => d === null)) {
+      const boundary = cutout.split?.boundary.map(p => transformPointPlacement(p, local));
+      const parts = dimensions.flatMap((dimension, i) => {
+        const through = dimension === null;
+        const built = buildCutoutCuttersInternal(kernel, new Map([[shape.id, shape]]), [{ ...local, split: undefined,
+          depth: { mode: "mm", value: through ? extendThrough ? 2 * reach : throughDepth : dimension },
+          // An unbounded extrusion has no axial cap to round. Keep the same
+          // perimeter and corner treatment on both sides of the source plane.
+          ...(through ? { topFilletMm: 0, bottomFilletMm: 0 } : {}),
+        }], localSpec, quality, { axialHeadroomMm: 0 });
+        return built.cutters.map(s => {
+          let part = arena.track(s.translate([0, 0, -localTop + (through && extendThrough ? reach : 0)]));
+          if (boundary) {
+            const [a,b] = boundary, sign = (cutout.mirrored ? -1 : 1) * (i === 0 ? 1 : -1);
+            const length = Math.hypot(b.x-a.x,b.y-a.y), nx = -(b.y-a.y)/length*sign, ny = (b.x-a.x)/length*sign;
+            part = arena.track(part.trimByPlane([nx,ny,0],nx*a.x+ny*a.y));
+          }
+          return part;
+        });
+      });
+      return arena.track(Manifold.union(parts));
+    }
+    const built = buildCutoutCuttersInternal(kernel, new Map([[shape.id, shape]]), [local], localSpec, quality,
+      { axialHeadroomMm: 0 });
+    const parts = built.cutters.map(s => arena.track(s.translate([0, 0, -localTop])));
+    return arena.track(Manifold.union(parts));
+  };
+  const hasThrough = dimensions.some(d => d === null);
+  const anchor = buildSource(1, false);
+  const source = hasThrough ? buildSource(reach, true) : anchor;
+  const pose = { rotation: pocketRotation(cutout), position: cutout.position, elevationMm: cutout.elevationMm ?? 0 };
+  const cutter = buildObjectCavity(kernel, source, pose, top, anchor);
+  const floorInserts: Manifold[] = [], floorRegions: Manifold[] = [];
+  const distance = Math.min(options.floorInsertThicknessMm ?? 0, pose.elevationMm);
+  if (cutter && distance > 0) {
+    const axes = [{x:1,y:0,z:0},{x:0,y:1,z:0},{x:0,y:0,z:1}].map(v => rotateObjectVector(v, pose.rotation));
+    const below = arena.track(source.translate(axes.map(v => -distance * v.z) as [number,number,number]));
+    const band = arena.track(below.subtract(source));
+    const insert = buildObjectCavity(kernel, band, pose, top, anchor);
+    const region = buildObjectCavity(kernel, below, pose, top, anchor);
+    if (insert) floorInserts.push(insert);
+    if (region) floorRegions.push(region);
+  }
+  return { cutters: cutter ? [cutter] : [], floorInserts, floorRegions,
+    reports: [{ id: cutout.id, emptied: source.isEmpty() }] };
+}
+
 /** Preserve placement identity for exact 3D validation, including split cutters. */
 export function buildCutoutCutters(kernel: Kernel, shapesById: ReadonlyMap<string, TracedShape>, cutouts: readonly CutoutPlacement[], spec: BinSpec, quality: BuildQuality, options: CutoutBuildOptions = {}): CutoutCutters {
-  const groups = cutouts.map(cutout => ({ id: cutout.id, built: buildCutoutCuttersInternal(kernel, shapesById, [cutout], spec, quality, options) }));
-  return { cutters: groups.flatMap(g => g.built.cutters), floorInserts: groups.flatMap(g => g.built.floorInserts), reports: groups.flatMap(g => g.built.reports), cutterGroups: groups.map(g => ({ id: g.id, cutters: g.built.cutters })) };
+  const groups = cutouts.map(cutout => ({ id: cutout.id, built: cutout.profileBottom && shapesById.has(cutout.shapeId)
+    ? buildProfileBottomCutout(kernel, shapesById.get(cutout.shapeId)!, cutout, spec, options.floorInsertThicknessMm)
+    : hasRigidPocket(cutout) && shapesById.has(cutout.shapeId)
+      ? buildRigidPocket(kernel, shapesById.get(cutout.shapeId)!, cutout, spec, quality, options, resolvePocketDepth(spec, cutout.depth).cutterTopZ)
+    : buildCutoutCuttersInternal(kernel, shapesById, [cutout], spec, quality, options) }));
+  return { cutters: groups.flatMap(g => g.built.cutters), floorInserts: groups.flatMap(g => g.built.floorInserts), floorRegions: groups.flatMap(g => g.built.floorRegions ?? g.built.floorInserts), reports: groups.flatMap(g => g.built.reports), cutterGroups: groups.map(g => ({ id: g.id, cutters: g.built.cutters })) };
 }

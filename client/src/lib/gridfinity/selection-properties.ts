@@ -1,3 +1,4 @@
+import { hasRigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { applyLinkedEdits } from "@shared/gridfinity/design-links";
 import { effectiveFingerHoleDepthMm, fingerHoleSchema, parseCutoutPlacement, pocketDepths, resolvePlacedPocketDepth,
   resolvePocketDepth, maximumFingerAccessDepth, type DepthSpec } from "@shared/gridfinity/cutout";
@@ -28,6 +29,9 @@ export function selectionPropertyEdits(objects: readonly EditableObject[], selec
   if (property === "topFilletMm" && (value < 0 || value > 5)) throw new Error("Top rounding must be between 0 and 5 mm.");
   if (property === "clearanceMm" && (value < -2 || value > 2)) throw new Error("Clearance must be between −2 and 2 mm.");
   const chosen = objects.filter(o => o.kind === kind && selection.some(ref => sameObject(ref, objectRef(o))));
+  if (chosen.some(o => o.kind === "pocket" && o.cutout.profileBottom)) {
+    throw new Error("Profile-bottom pockets use elevation and slot width. Select a profile to edit its dimensions; ordinary depth, clearance and rounding are inactive.");
+  }
   const edits: ObjectEdits = { cutouts: [], fingerHoles: [] };
   for (const object of chosen) {
     if (object.kind === "pocket") {
@@ -50,6 +54,7 @@ export function selectionPropertyEdits(objects: readonly EditableObject[], selec
   for (const next of expanded.cutouts) {
     const old = objects.find(o => o.kind === "pocket" && o.cutout.id === next.id);
     if (old?.kind !== "pocket" || JSON.stringify(old.cutout) === JSON.stringify(next)) continue;
+    if (hasRigidPocket(next)) continue;
     const split = next.split ? resolvePocketSplit(old.shape.outlineMm, next.split.boundary) : null;
     if (split && !split.regions) throw new Error("A selected pocket has an invalid split. Edit it individually first.");
     pocketDepths(next).forEach((depth, i) => {

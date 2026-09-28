@@ -1,9 +1,11 @@
+import { rotatePocketVector } from "@shared/gridfinity/pocket-orientation";
+import { hasRigidPocket, rigidPocket, rigidPocketVertices, pocketSourceRings } from "@shared/gridfinity/rigid-pocket";
 import { applyLinkedEdits } from "@shared/gridfinity/design-links";
 import { Quaternion, Vector3 } from "three";
 import type { Bounds, Outline, Point } from "@shared/geometry/types";
 import { pointInOutline, outlineBounds } from "@/lib/geometry/outline";
 import {
-  effectiveFingerHoleDepthMm, fingerHoleFootprintRing, resolvePocketDepth,
+  defaultPocketFloorThicknessMm, effectiveFingerHoleDepthMm, fingerHoleFootprintRing, resolvePocketDepth,
   resolvePlacedPocketDepth, transformOutlinePlacement, maximumFingerAccessDepth,
   type CutoutPlacement, type FingerHole,
 } from "@shared/gridfinity/cutout";
@@ -42,10 +44,13 @@ export function selectionCenter(objects: readonly EditableObject[]): Point {
   const b = selectionBounds(objects);
   return { x: (b.minX + b.maxX) / 2, y: (b.minY + b.maxY) / 2 };
 }
-export function pickObject(objects: readonly EditableObject[], point: Point): ObjectRef | null {
+export function pickObject(objects: readonly EditableObject[], point: Point,
+  pocketGeometry?: ReadonlyMap<string, { full: Outline }>,
+): ObjectRef | null {
   // Access slots take priority where their mouths overlap a pocket.
   const ordered = [...objects.filter(o => o.kind === "pocket"), ...objects.filter(o => o.kind === "finger")];
-  const hit = ordered.reverse().find(o => pointInOutline(objectOutline(o), point));
+  const hit = ordered.reverse().find(o => pointInOutline(
+    o.kind === "pocket" ? pocketGeometry?.get(o.cutout.id)?.full ?? objectOutline(o) : objectOutline(o), point));
   return hit ? objectRef(hit) : null;
 }
 
@@ -59,15 +64,10 @@ export function selectionZRange(objects: readonly EditableObject[], spec: BinSpe
       lower = Math.max(lower, depth - maximumFingerAccessDepth(spec));
       upper = Math.min(upper, depth - 1);
     } else {
-      const cutout = surfaceAnchoredPocket(object.cutout);
-      const split = cutout.split ? resolvePocketSplit(object.shape.outlineMm, cutout.split.boundary) : null;
-      (cutout.split?.depths ?? [cutout.depth]).forEach((depth, i) => {
-        const seat = resolvePlacedPocketDepth(spec, depth, { outlineMm: split?.regions?.[i] ?? object.shape.outlineMm }, cutout);
-        if (seat.floorZ !== null) {
-          lower = Math.max(lower, -seat.floorZ);
-          upper = Math.min(upper, top - seat.highestFloorZ! - 0.5);
-        }
-      });
+      const cutout = object.cutout.profileBottom ? object.cutout : rigidPocket(surfaceAnchoredPocket(object.cutout), object.shape, spec);
+      const elevation = cutout.profileBottom?.elevationMm ?? cutout.elevationMm!;
+      lower = Math.max(lower, -elevation);
+      upper = Math.min(upper, 300 - elevation);
     }
   }
   return [lower, upper];
@@ -92,7 +92,7 @@ export function transformObjects(objects: readonly EditableObject[], spec: BinSp
     const offset = pivot === "selection" && rotating
       ? new Vector3(start.x - center.x, start.y - center.y, 0).applyQuaternion(rotation)
       : new Vector3(start.x - center.x, start.y - center.y, 0);
-    const position = { x: center.x + offset.x + delta.x, y: center.y + offset.y + delta.y };
+    let position = { x: center.x + offset.x + delta.x, y: center.y + offset.y + delta.y };
     if (![tidy(position.x), tidy(position.y)].every(Number.isFinite)) return null;
     if (object.kind === "finger") {
       const depth = effectiveFingerHoleDepthMm(object.hole);
@@ -100,8 +100,21 @@ export function transformObjects(objects: readonly EditableObject[], spec: BinSp
         ...(rotating ? { rotationDeg: (object.hole.rotationDeg ?? 0) + 2 * Math.atan2(rotation.z, rotation.w) * 180 / Math.PI } : {}),
         ...(Math.abs(dz) > 1e-7 ? { depthMm: Math.max(1, depth - dz), kind: object.hole.kind === "scoop" ? "deep-scoop" : object.hole.kind } : {}) });
     } else {
+      let elevationDelta = offset.z + dz;
+      if (rotating && pivot === "selection" && !object.cutout.profileBottom) {
+        const rigid = rigidPocket(surfaceAnchoredPocket(object.cutout), object.shape, spec);
+        const source = pocketSourceRings(object.shape.outlineMm, rigid, top, true).flat();
+        const minimum = Math.min(...source.map(v => rotatePocketVector(v, rigid).z));
+        const sourceOrigin = new Vector3(rigid.position.x - center.x, rigid.position.y - center.y,
+          rigid.elevationMm! - minimum - top).applyQuaternion(rotation);
+        position = { x: center.x + sourceOrigin.x + delta.x, y: center.y + sourceOrigin.y + delta.y };
+        const floor = Math.min(...rigidPocketVertices(object.shape.outlineMm, rigid, top).map(v =>
+          new Vector3(v.x - center.x, v.y - center.y, v.z - top).applyQuaternion(rotation).z + top + dz));
+        if (floor < -1e-7 || floor > 300) return null;
+        elevationDelta = floor - rigid.elevationMm!;
+      }
       const patch = pocketTransformPatch(object.cutout, object.shape, spec, { ...position, z: top + dz }, rotation,
-        rotating ? "rotate" : "translate", offset.z);
+        rotating ? "rotate" : "translate", elevationDelta);
       if (!patch) return null;
       result.cutouts.push({ ...object.cutout, ...patch });
     }
@@ -114,11 +127,25 @@ export function expandLinkedObjectEdits(objects: readonly EditableObject[], spec
   const expanded = applyLinkedEdits({ cutouts: objects.flatMap(o => o.kind === "pocket" ? [o.cutout] : []),
     fingerHoles: objects.flatMap(o => o.kind === "finger" ? [o.hole] : []) }, edits);
   if (!expanded) return null;
+  // Linked orientation is shared; elevation remains placement-local. Initialize
+  // an untouched legacy copy in its own frame before applying a rigid rotation.
+  expanded.cutouts = expanded.cutouts.map(next => {
+    const old = objects.find(o => o.kind === "pocket" && o.cutout.id === next.id);
+    if (hasRigidPocket(next) || old?.kind !== "pocket" || !next.designLink?.tilt
+      || !edits.cutouts.some(c => c.designLink?.id === next.designLink?.id && hasRigidPocket(c))) return next;
+    const rigid = rigidPocket(old.cutout, old.shape, spec);
+    return { ...next, elevationMm: rigid.elevationMm };
+  });
   const top = resolvePocketDepth(spec, { mode: "through" }).infillTopZ;
   for (const next of expanded.cutouts) {
     if (!next.designLink) continue;
     const old = objects.find(o => o.kind === "pocket" && o.cutout.id === next.id);
     if (old?.kind !== "pocket" || JSON.stringify(old.cutout) === JSON.stringify(next)) continue;
+    if (hasRigidPocket(next)) continue;
+    if (next.profileBottom) {
+      if (next.profileBottom.elevationMm < defaultPocketFloorThicknessMm(spec) || next.profileBottom.elevationMm > 300) return null;
+      continue;
+    }
     const split = next.split ? resolvePocketSplit(old.shape.outlineMm, next.split.boundary) : null;
     for (const [i, depth] of (next.split?.depths ?? [next.depth]).entries()) {
       const seat = resolvePlacedPocketDepth(spec, depth, { outlineMm: split?.regions?.[i] ?? old.shape.outlineMm }, next);

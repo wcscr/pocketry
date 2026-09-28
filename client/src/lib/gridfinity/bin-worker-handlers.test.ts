@@ -113,6 +113,58 @@ const REQUEST: BuildBinRequest = {
   quality: { circularSegments: 16 },
 };
 
+it.each([undefined, {xDeg:32,yDeg:-24}, {xDeg:90,yDeg:0}, {xDeg:180,yDeg:0}, {xDeg:0,yDeg:90}, {xDeg:-30,yDeg:70}])("exports a profile floor with rotation %s alongside an ordinary pocket to closed STL/3MF meshes and protects the base", async profileRotation => {
+  const basic=createBasicPocket("rectangle",{x:-20,y:-10},{x:20,y:10},"profile-export")!;
+  const shape={...basic.shape,outlineMm:[{outer:[[-20,-10],[0,-10],[0,0],[20,0],[20,10],[-20,10]].map(([x,y])=>({x,y})),holes:[]}]};
+  const cutout=parseCutoutPlacement({...basic.cutout,profileBottom:{edge:"bottom",widthMm:9,elevationMm:12},rotationDeg:17,profileRotation});
+  const ordinary=createBasicPocket("rectangle",{x:26,y:26},{x:34,y:34},"ordinary-export")!;
+  const request:BuildBinRequest={spec:{gridX:2,gridY:2,heightUnits:6,fill:"solid",lip:"none"},quality:EXPORT_QUALITY,
+    exportTopology:true,pocketFloorMaterialThicknessMm:0.6,layout:{shapes:[shape,ordinary.shape],cutouts:[cutout,ordinary.cutout],fingerHoles:[]}};
+  const result=(await getHandler()(request,context())).value;
+  const whole=printableMeshVolume(result.mesh);
+  expect(Math.abs(whole-result.stats.volumeMm3)).toBeLessThan(0.1);
+  expect(result.materialMeshes?.pocketFloors).toBeDefined();
+  const sum=Object.values(result.materialMeshes!).reduce((total,mesh)=>total+printableMeshVolume(mesh),0);
+  expect(Math.abs(sum-whole)).toBeLessThan(0.1);
+  expect(writeBinarySTL(result.mesh).byteLength).toBe(84+result.mesh.indices.length/3*50);
+  const model=strFromU8(unzipSync(writeThreeMf([{name:"Profile bin",mesh:result.mesh}]))["3D/3dmodel.model"]);
+  expect(model.match(/<triangle /g)?.length).toBe(result.mesh.indices.length/3);
+  await expect(getHandler()({...request,layout:{...request.layout!,cutouts:[{...cutout,profileBottom:{...cutout.profileBottom!,elevationMm:1}}]}},context())).rejects.toThrow(/at least 7 mm/);
+});
+
+it.each([undefined, {xDeg:32,yDeg:-24}, {xDeg:90,yDeg:0}, {xDeg:180,yDeg:0}, {xDeg:0,yDeg:90}, {xDeg:-30,yDeg:70}])("exports a rigid generated pocket with rotation %s alongside an ordinary pocket to closed STL/3MF meshes and protects the base", async profileRotation => {
+  const basic=createBasicPocket("rectangle",{x:-20,y:-10},{x:20,y:10},"profile-export")!;
+  const shape={...basic.shape,outlineMm:[{outer:[[-20,-10],[0,-10],[0,0],[20,0],[20,10],[-20,10]].map(([x,y])=>({x,y})),holes:[]}]};
+  const cutout=parseCutoutPlacement({...basic.cutout,depth:{mode:"mm",value:9},elevationMm:12,rotationDeg:17,tilt:profileRotation,cornerRoundMm:0,bottomFilletMm:0});
+  const ordinary=createBasicPocket("rectangle",{x:26,y:26},{x:34,y:34},"ordinary-export")!;
+  const request:BuildBinRequest={spec:{gridX:2,gridY:2,heightUnits:6,fill:"solid",lip:"none"},quality:EXPORT_QUALITY,
+    exportTopology:true,pocketFloorMaterialThicknessMm:0.6,layout:{shapes:[shape,ordinary.shape],cutouts:[cutout,ordinary.cutout],fingerHoles:[]}};
+  const result=(await getHandler()(request,context())).value;
+  const whole=printableMeshVolume(result.mesh);
+  expect(Math.abs(whole-result.stats.volumeMm3)).toBeLessThan(0.1);
+  expect(result.materialMeshes?.pocketFloors).toBeDefined();
+  const sum=Object.values(result.materialMeshes!).reduce((total,mesh)=>total+printableMeshVolume(mesh),0);
+  expect(Math.abs(sum-whole)).toBeLessThan(0.1);
+  expect(writeBinarySTL(result.mesh).byteLength).toBe(84+result.mesh.indices.length/3*50);
+  const model=strFromU8(unzipSync(writeThreeMf([{name:"Profile bin",mesh:result.mesh}]))["3D/3dmodel.model"]);
+  expect(model.match(/<triangle /g)?.length).toBe(result.mesh.indices.length/3);
+  await expect(getHandler()({...request,layout:{...request.layout!,cutouts:[{...cutout,elevationMm:1}]}},context())).rejects.toThrow(/at least 7 mm/);
+});
+
+it.each([false, true])("exports rigid split pockets with floor colors and through section=%s", async through => {
+  const basic = createBasicPocket("rectangle", {x:-12,y:-10}, {x:12,y:10}, "rigid-split")!;
+  const cutout = parseCutoutPlacement({...basic.cutout, elevationMm:12, depth:{mode:"mm",value:9},
+    tilt:{xDeg:90,yDeg:0},rotationDeg:17,clearanceMm:0.4,cornerRoundMm:1,bottomFilletMm:1,topFilletMm:1,
+    split:{boundary:[{x:-12,y:0},{x:12,y:0}],depths:[{mode:"mm",value:9},through?{mode:"through"}:{mode:"mm",value:16}]}});
+  const result = (await getHandler()({spec:{gridX:3,gridY:3,heightUnits:6,fill:"solid",lip:"none"},quality:EXPORT_QUALITY,
+    exportTopology:true,pocketFloorMaterialThicknessMm:0.6,layout:{shapes:[basic.shape],cutouts:[cutout],fingerHoles:[]}},context())).value;
+  const whole = printableMeshVolume(result.mesh);
+  expect(result.materialMeshes?.pocketFloors).toBeDefined();
+  const sum = Object.values(result.materialMeshes!).reduce((total,mesh)=>total+printableMeshVolume(mesh),0);
+  expect(Math.abs(sum-whole)).toBeLessThan(0.1);
+  expect(Math.abs(whole-result.stats.volumeMm3)).toBeLessThan(0.1);
+});
+
 it("exports the browser-authored linked-pocket design without collapsed Float32 triangles", async () => {
   const basic = createBasicPocket("rectangle", { x: -5.352564334869385, y: -6.021635055541992 },
     { x: 5.352564334869385, y: 6.021635055541992 }, "browser-test")!;

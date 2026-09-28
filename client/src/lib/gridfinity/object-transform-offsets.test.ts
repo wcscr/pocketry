@@ -15,10 +15,31 @@ const original: EditableObject = { kind: "pocket", shape: basic.shape, cutout: p
 }) };
 const origins = recordTransformOrigins({ pockets: [], fingerHoles: [] }, [{ spec, cutouts: [original.cutout], fingerHoles: [] }]);
 
-it("tracks clamped vertical depth changes and restores zero at a pre-existing tilt", () => {
+it("resets compound profile rotations independently of dormant tilt and preserves pose on save", () => {
+  const start: EditableObject={...original,cutout:{...original.cutout,profileBottom:{edge:"bottom",widthMm:8,elevationMm:12}}};
+  const x=new Quaternion().setFromAxisAngle(new Vector3(1,0,0),140*Math.PI/180);
+  let current=applyObjectEdits([start],transformObjects([start],spec,new Vector3(),x)!);
+  expect(objectTransformOffsets(current[0],spec,origins,"rotate")[0]).toBeCloseTo(140);
+  const reset=setObjectTransformOffsets(current,spec,origins,"rotate",[0,0,0],"individual",current)!;
+  expect(Math.abs(pocketQuaternion(reset.cutouts[0]).dot(pocketQuaternion(start.cutout)))).toBeCloseTo(1,12);
+  expect(reset.cutouts[0].tilt).toEqual(original.cutout.tilt);
+  expect(parseCutoutPlacement(reset.cutouts[0]).profileRotation).toEqual(reset.cutouts[0].profileRotation);
+});
+
+it("reports and resets profile elevation offsets while retaining the straight width", () => {
+  const start: EditableObject={...original,cutout:{...original.cutout,profileBottom:{edge:"bottom",widthMm:8,elevationMm:12}}};
+  const refs=recordTransformOrigins({pockets:[],fingerHoles:[]},[{spec,cutouts:[start.cutout],fingerHoles:[]}]);
+  const moved=applyObjectEdits([start],transformObjects([start],spec,new Vector3(2,3,90))!);
+  expect(objectTransformOffsets(moved[0],spec,refs,"translate")).toEqual([2,3,90]);
+  const reset=setObjectTransformOffsets(moved,spec,refs,"translate",[undefined,undefined,0],"individual",moved)!;
+  expect(reset.cutouts[0].profileBottom).toEqual(start.cutout.profileBottom);
+  expect(reset.cutouts[0].position).toEqual({x:2,y:3});
+});
+
+it("tracks rigid vertical moves and restores zero at a pre-existing tilt", () => {
   let current = applyObjectEdits([original], transformObjects([original], spec, new Vector3(7, 4, 100))!);
   const delta = objectTransformOffsets(current[0], spec, origins, "translate");
-  expect(delta[0]).toBe(7); expect(delta[1]).toBe(4); expect(delta[2]).toBeGreaterThan(0); expect(delta[2]).toBeLessThan(30);
+  expect(delta[0]).toBe(7); expect(delta[1]).toBe(4); expect(delta[2]).toBeCloseTo(100);
   const restored = setObjectTransformOffsets(current, spec, origins, "translate", [undefined, undefined, 0], "individual", current)!;
   expect(restored.cutouts[0].depth).toEqual(original.cutout.depth);
   expect(restored.cutouts[0].position).toEqual({ x: 7, y: 4 });
@@ -39,12 +60,14 @@ it("resets compounded fixed-axis rotation to the original orientation without lo
   expect(reset.cutouts[0].position).toEqual({ x: 8, y: -2 });
 });
 
-it("keeps linked resets atomic when originals require conflicting depth changes", () => {
+it("restores linked placements independently without changing their shared depth", () => {
   const a = { ...original, cutout: { ...original.cutout, designLink: { id: "copies", tilt: false } } };
   const b = { ...a, cutout: { ...a.cutout, id: "copy", position: { x: 20, y: 0 } } };
   const refs = recordTransformOrigins({ pockets: [], fingerHoles: [] }, [{ spec,
     cutouts: [a.cutout, { ...b.cutout, depth: { mode: "mm", value: 20 } }], fingerHoles: [] }]);
-  expect(setObjectTransformOffsets([a, b], spec, refs, "translate", [undefined, undefined, 0], "individual", [a, b])).toBeNull();
+  const reset = setObjectTransformOffsets([a, b], spec, refs, "translate", [undefined, undefined, 0], "individual", [a, b])!;
+  expect(reset).not.toBeNull();
+  expect(reset.cutouts.every(c => JSON.stringify(c.depth) === JSON.stringify(a.cutout.depth))).toBe(true);
 });
 
 it("rejects finite numeric input that overflows the persisted coordinates", () => {

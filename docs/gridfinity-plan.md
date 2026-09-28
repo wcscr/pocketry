@@ -452,6 +452,20 @@ follow that file's shape.
 
 ## Cutout model
 
+Rigid pocket editing uses a source solid plus one XYZ rotation and elevation.
+`buildObjectCavity` poses the source for subtraction; `resolvedObjectGeometry`
+derives the preview mesh, projected selection outline and fill-surface opening
+from that same solid. These helpers also accept an arbitrary Manifold solid,
+without requiring an extruded profile or a convex decomposition.
+
+The 3D source preview draws a faint surface and batches its exterior creases;
+coplanar mesh triangles and internal helper-cell boundaries are hidden. Immediate
+drag previews use boundary rings with sparse connecting edges. Convex cells remain
+only as synchronous conservative footprint/section helpers; they are not the
+object definition or a format future model imports must produce. Derived preview
+data is detached from the kernel and cached per immutable placement, shape and
+bin specification; no arena-owned handles survive a build.
+
 ```ts
 interface CutoutPlacement {
   id: string; shapeId: string;

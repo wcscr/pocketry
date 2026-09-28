@@ -36,6 +36,19 @@ describe("explicit linked designs", () => {
     const tilted = applyLinkedEdits(linked, { cutouts: [{ ...linked.cutouts[0], tilt }], fingerHoles: [] })!;
     expect(tilted.cutouts[1].tilt).toEqual(tilt); expect(tilted.cutouts[1].rotationDeg).toBe(90);
   });
+  it("keeps profile rotation independent unless linked rotation is enabled", () => {
+    const profileBottom={edge:"bottom" as const,widthMm:8,elevationMm:12};
+    const source={...before,cutouts:[a,b].map(c=>({...c,profileBottom}))};
+    const profileRotation={xDeg:135,yDeg:92};
+    const independent=applyLinkedEdits(source,{cutouts:[{...source.cutouts[0],profileRotation}],fingerHoles:[]})!;
+    expect(independent.cutouts[1].profileRotation).toBeUndefined();
+    const linked={...source,cutouts:source.cutouts.map(c=>({...c,designLink:{id:"g",tilt:true}}))};
+    const rotated=applyLinkedEdits(linked,{cutouts:[{...linked.cutouts[0],profileRotation}],fingerHoles:[]})!;
+    expect(rotated.cutouts[1].profileRotation).toEqual(profileRotation);
+    expect(rotated.cutouts[1].position).toEqual(b.position);
+    expect(rotated.cutouts[1].rotationDeg).toBe(b.rotationDeg);
+    expect(designLinkErrors(rotated)).toEqual([]);
+  });
   it("applies matching batch edits once and rejects conflicting values atomically", () => {
     expect(applyLinkedEdits(before, { cutouts: [{ ...a, scaleX: 2 }, { ...b, scaleX: 3 }], fingerHoles: [] })).toBeNull();
     const both = applyLinkedEdits(before, { cutouts: [{ ...a, scaleX: 2 }, { ...b, scaleX: 2 }], fingerHoles: [] })!;

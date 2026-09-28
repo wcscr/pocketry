@@ -187,6 +187,8 @@ export interface BinLayout {
 }
 
 export interface BinMaterialParts {
+  /** Unclipped regions to subtract, avoiding coincident intermediate faces. */
+  floorRegions: Manifold[];
   /** Main bin with every requested contrasting volume removed. */
   body: Manifold;
   /** Thin printable volumes directly below the exposed pocket floors. */
@@ -224,7 +226,7 @@ export function buildBinWithCutouts(
   const { Manifold, arena } = kernel;
   const base = buildBin(kernel, spec, quality);
   let solid = base.solid;
-  let floorInserts: Manifold[] = [];
+  let floorInserts: Manifold[] = [], floorRegions: Manifold[] = [];
   let reports: CutoutBuildReport[] = [];
   let validationIssues: ValidationIssue[] = [];
   if (layout && (layout.cutouts.length > 0 || layout.fingerHoles.length > 0)) {
@@ -238,6 +240,7 @@ export function buildBinWithCutouts(
     );
     validationIssues = validateTiltedSolids(kernel, spec, layout.cutouts, layout.shapesById, builtCutouts.cutterGroups ?? [], base.parts.wall, base.parts.lip);
     floorInserts = builtCutouts.floorInserts;
+    floorRegions = builtCutouts.floorRegions ?? floorInserts;
     reports = builtCutouts.reports;
     const allCutters = [
       ...builtCutouts.cutters,
@@ -292,16 +295,15 @@ export function buildBinWithCutouts(
     (part): part is Manifold => part !== null,
   );
   if (accents.length > 0) {
-    const accent =
-      accents.length === 1 ? accents[0] : arena.track(Manifold.union(accents));
-    const body = arena.track(solid.subtract(accent));
+    const bodyCutters = [...floorRegions, ...(stackingRim ? [stackingRim] : [])];
+    const body = arena.track(Manifold.difference([solid, ...bodyCutters]));
     if (
       body.status() !== "NoError" ||
       accents.some((part) => part.status() !== "NoError")
     ) {
       throw new Error("buildBinWithCutouts: multi-color material split failed");
     }
-    materialParts = { body, pocketFloors, stackingRim };
+    materialParts = { body, pocketFloors, stackingRim, floorRegions };
   }
 
   return { parts: base.parts, solid, materialParts, cutoutReports: reports, validationIssues };

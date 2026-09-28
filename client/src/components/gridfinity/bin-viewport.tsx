@@ -65,6 +65,8 @@ class PreviewBoundary extends Component<{ children: ReactNode }, { failed: boole
 export interface BinViewportProps {
   geometry: BufferGeometry | null;
   pocketEditor?: PocketEditor;
+  /** Hide source outlines during inspection while keeping pocket selection active. */
+  showPocketOutlines?: boolean;
   /** Exact printable pocket-floor material volume. */
   pocketFloorGeometry?: BufferGeometry | null;
   /** Exact printable stacking-rim material volume. */
@@ -222,6 +224,7 @@ function CameraFit({ size }: { size: FitSize }): null {
 export function BinViewport({
   geometry,
   pocketEditor,
+  showPocketOutlines = true,
   pocketFloorGeometry = null,
   stackingRimGeometry = null,
   hasPocketFloor = false,
@@ -358,7 +361,8 @@ export function BinViewport({
           </mesh>
         ) : null}
         {pocketEditor && <PocketSelectionPlane editor={pocketEditor} width={fitSize.widthMm} length={fitSize.lengthMm} disabled={rulerActive || !!dragPreview} />}
-        {pocketEditor && !rulerActive && displayedObjects.map(object => <ObjectTransformWire key={objectKey(objectRef(object))} object={object} spec={pocketEditor.spec} />)}
+        {pocketEditor && !rulerActive && displayedObjects.filter(object => showPocketOutlines || object.kind !== "pocket")
+          .map(object => <ObjectTransformWire key={objectKey(objectRef(object))} object={object} spec={pocketEditor.spec} />)}
         {selectedObjects.length > 0 && pocketEditor && (inspector ? (inspector.tool === "translate" || inspector.tool === "rotate") : objectControlsOpen) && !rulerActive && <SelectionTransformScene
           key={`${selectionKey}-${transformMode}`} objects={selectedObjects} allObjects={objects} spec={pocketEditor.spec} mode={transformMode} snap={snapTransform} pivot={pivot}
           onPreview={setDragPreview} onLimit={setTransformLimited}

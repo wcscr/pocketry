@@ -1,6 +1,8 @@
+import { hasRigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { SelectionLinkControls } from "@/components/gridfinity/linked-design-controls";
 import { retainTransformOrigins } from "@shared/gridfinity/transform-origins";
 import { useExperimentalFeatures } from "@/state/experimental-features";
+import { usePocketGeometry } from "@/hooks/use-pocket-geometry";
 import { Box, History, Redo2, Undo2 } from "lucide-react";
 import { pocketDepths, pocketName, resolvePocketDepth } from "@shared/gridfinity/cutout";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -15,6 +17,8 @@ import { EditHistoryMenu } from "@/components/history/edit-history-menu";
 import { usePanelState } from "@/components/layout/panel-context";
 import { BinEditingWorkspace } from "@/components/gridfinity/selection-inspector";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { canHandleCanvasShortcut } from "@/lib/canvas-keyboard";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useToast } from "@/hooks/use-toast";
@@ -162,6 +166,7 @@ function BinDesignerWorkspace(): JSX.Element {
 
   const [exporting, setExporting] = useState(false);
   const [section, setSection] = useState<BuildBinSection | null>(null);
+  const [showInspectionPocketOutline, setShowInspectionPocketOutline] = useState(false);
   const [colorPocketFloors, setColorPocketFloors] = useState(true);
   const [binColor, setBinColor] = useState<string>(BIN_BODY_COLOR);
   const [pocketFloorColor, setPocketFloorColor] =
@@ -379,15 +384,18 @@ function BinDesignerWorkspace(): JSX.Element {
     };
   }, [library.shapes, committedCutouts, committedFingerHoles]);
 
+  const measurementShapes = useMemo(() => new Map(layout.shapes.map(shape => [shape.id, shape])), [layout.shapes]);
+  const measurementTop = resolvePocketDepth(spec, { mode: "through" }).infillTopZ;
+  const profileOutlines = usePocketGeometry(layout.cutouts, measurementShapes, spec);
   const measurementOutlines = useMemo(() => {
-    const shapesById = new Map(
-      layout.shapes.map((shape) => [shape.id, shape]),
-    );
     return layout.cutouts.flatMap((cutout) => {
-      const shape = shapesById.get(cutout.shapeId);
-      return shape ? [placementFootprint(shape, cutout).outline] : [];
+      const shape = measurementShapes.get(cutout.shapeId);
+      if (!shape) return [];
+      const outline = cutout.profileBottom || hasRigidPocket(cutout) ? profileOutlines.get(cutout.id)?.opening
+        ?? [] : placementFootprint(shape, cutout).outline;
+      return outline.length ? [outline] : [];
     });
-  }, [layout]);
+  }, [layout, measurementShapes, measurementTop, profileOutlines]);
 
   const measurementSplitBoundaries = useMemo(
     () => placedPocketSplitBoundaries(layout.cutouts, new Map(layout.shapes.map(shape => [shape.id, shape]))),
@@ -493,13 +501,13 @@ function BinDesignerWorkspace(): JSX.Element {
   }, [cutouts, fingerHoles, library.shapes, spec.lip, spec.gridPitch, dispatch, toast, keepBinSize, spec]);
 
   const handleExportLayout = useCallback(
-    (format: "dxf" | "svg", includeProject: boolean) => {
+    async (format: "dxf" | "svg", includeProject: boolean) => {
       const { spec, cutouts, fingerHoles, shapes } = exportProjectDoc;
       const shapesById = new Map(shapes.map((shape) => [shape.id, shape]));
       const project = prepareProjectExport(exportProjectDoc, currentProjectName, "layout");
       const model = format === "dxf"
-        ? new Blob([generateLayoutDXF(spec, cutouts, shapesById, fingerHoles)], { type: "application/dxf" })
-        : new Blob([generateLayoutSVG(spec, cutouts, shapesById, fingerHoles)], { type: "image/svg+xml" });
+        ? new Blob([await generateLayoutDXF(spec, cutouts, shapesById, fingerHoles)], { type: "application/dxf" })
+        : new Blob([await generateLayoutSVG(spec, cutouts, shapesById, fingerHoles)], { type: "image/svg+xml" });
       downloadModelWithProject(model, format, project, includeProject);
     },
     [exportProjectDoc, currentProjectName],
@@ -1126,12 +1134,13 @@ function BinDesignerWorkspace(): JSX.Element {
           {viewMode === "3d" ? (
             <BinViewport
               geometry={geometry}
-              pocketEditor={experimentalEnabled ? { spec, transformOrigins: bin.transformOrigins, originShapes: library.shapes, linkControls: <SelectionLinkControls />, pockets: editablePockets, selectedId: bin.selectedCutoutId, fingerHoles, selection: bin.selection,
+              showPocketOutlines={!section || showInspectionPocketOutline}
+              pocketEditor={{ spec, transformOrigins: bin.transformOrigins, originShapes: library.shapes, linkControls: <SelectionLinkControls />, pockets: editablePockets, pocketGeometry: profileOutlines, selectedId: bin.selectedCutoutId, fingerHoles, selection: bin.selection,
                 onSelectionChange: selection => dispatch({ type: "SET_SELECTION", selection }),
                 onCommitObjects: (edits, historyLabel) => dispatch({ type: "UPDATE_OBJECTS", edits, historyLabel }),
                 onSelect: id => dispatch({ type: "SELECT_CUTOUT", id }),
                 onCommit: (id, patch, mode) => dispatch({ type: "UPDATE_CUTOUT", id, patch, historyLabel: mode === "translate" ? "Move pocket in 3D" : "Rotate pocket in 3D" }),
-              } : undefined}
+              }}
               pocketFloorGeometry={pocketFloorGeometry}
               stackingRimGeometry={stackingRimGeometry}
               hasPocketFloor={hasPocketFloor}
@@ -1162,6 +1171,11 @@ function BinDesignerWorkspace(): JSX.Element {
           {viewMode === "3d" && section && (
             <div className="absolute left-3 top-16 md:top-12 [@media(pointer:coarse)]:top-16 z-30 flex max-w-[calc(100%_-_4.5rem)] flex-wrap items-center gap-x-3 gap-y-1 rounded-md border bg-background/95 p-2 shadow-sm backdrop-blur">
               <span className="text-xs text-muted-foreground">Section view</span>
+              <div className="flex items-center gap-2">
+                <Checkbox id="show-inspection-pocket-outline" checked={showInspectionPocketOutline}
+                  onCheckedChange={checked => setShowInspectionPocketOutline(checked === true)} />
+                <Label htmlFor="show-inspection-pocket-outline" className="cursor-pointer text-xs">Show pocket outline</Label>
+              </div>
               <Button
                 variant="outline"
                 size="sm"

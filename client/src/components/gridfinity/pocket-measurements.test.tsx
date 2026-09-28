@@ -8,6 +8,7 @@ import { ExperimentalFeaturesProvider, EXPERIMENTAL_FEATURES_KEY } from "@/state
 import { BinProvider, useBin, type BinStore } from "@/state/bin-store";
 import { ShapeLibraryProvider } from "@/state/shape-library";
 import { PocketDepthSummary, PocketMeasurements, PocketSizeInputs } from "./pocket-measurements";
+import type { BuildBinSection } from "@/lib/gridfinity/worker-api";
 
 const shape: TracedShape = {
   id: "tool", name: "Test tool", sourceMmPerPx: 0.25, traceMarginMm: 0.5, pointCount: 4,
@@ -22,8 +23,9 @@ const scale = vi.fn();
 
 function Probe() {
   store = useBin();
+  const [section, setSection] = React.useState<BuildBinSection | null>(null);
   const cutout = store.cutouts[0];
-  return cutout ? <><PocketSizeInputs cutout={cutout} shape={shape} setScale={scale} /><PocketMeasurements cutout={cutout} shape={shape} /><PocketDepthSummary cutout={cutout} shape={shape} section={null} inspect={inspect} /></> : null;
+  return cutout ? <><PocketSizeInputs cutout={cutout} shape={shape} setScale={scale} /><PocketMeasurements cutout={cutout} shape={shape} /><PocketDepthSummary cutout={cutout} shape={shape} section={section} inspect={next => { inspect(next); setSection(next); }} /></> : null;
 }
 
 beforeEach(() => {
@@ -48,17 +50,17 @@ function enter(label: string, value: string) {
 
 describe("pocket measurements", () => {
   it("edits independent tilt angles and resets them with undo", () => {
-    enter("Pocket X tilt in degrees", "15");
-    enter("Pocket Y tilt in degrees", "-35");
+    enter("Pocket X rotation in degrees", "15");
+    enter("Pocket Y rotation in degrees", "-35");
     expect(store.cutouts[0].tilt).toEqual({ xDeg: 15, yDeg: -35 });
     expect(store.history.stack).toHaveLength(3);
     React.act(() => store.dispatch({ type: "UNDO" }));
     expect(store.cutouts[0].tilt).toEqual({ xDeg: 15, yDeg: 0 });
     React.act(() => store.dispatch({ type: "REDO" }));
-    expect(host.textContent).toContain("Vertical depth");
+    expect(host.textContent).toContain("Depth: 12.0 mm");
     expect(host.textContent).toContain("Along pocket axis");
-    React.act(() => [...host.querySelectorAll("button")].find(b => b.textContent === "Reset tilt")!.click());
-    expect(store.cutouts[0].tilt).toBeUndefined();
+    React.act(() => [...host.querySelectorAll("button")].find(b => b.textContent === "Reset to X–Y plane")!.click());
+    expect(store.cutouts[0].tilt).toEqual({xDeg:0,yDeg:0});
     React.act(() => store.dispatch({ type: "UNDO" }));
     expect(store.cutouts[0].tilt).toEqual({ xDeg: 15, yDeg: -35 });
   });
@@ -87,6 +89,28 @@ describe("pocket measurements", () => {
     expect(store.viewMode).toBe("3d");
     React.act(() => store.dispatch({ type: "UNDO" }));
     expect(store.cutouts[0].position.x).toBe(0);
+  });
+
+  it("switches inspection axes through the rotated solid's center without changing the pocket", () => {
+    React.act(() => store.dispatch({ type: "UPDATE_CUTOUT", id: "pocket", patch: {
+      position: { x: 17.35, y: 6.8 }, scaleX: 1, scaleY: 1, tilt: { xDeg: 90, yDeg: 0 }, elevationMm: 10,
+    } }));
+    const before = store.cutouts[0], history = store.history;
+    const click = (selector: string) => React.act(() => host.querySelector<HTMLButtonElement>(selector)!.click());
+    click('[data-testid="button-inspect-pocket"]');
+    expect(inspect).toHaveBeenLastCalledWith({ axis: "x", offsetMm: 17.35 });
+    click('[aria-label="Inspect pocket along Y"]');
+    expect(inspect).toHaveBeenLastCalledWith({ axis: "y", offsetMm: 12.8 });
+    expect(host.querySelector('[aria-label="Inspect pocket along Y"]')!.getAttribute("aria-pressed")).toBe("true");
+    click('[aria-label="Inspect pocket along X"]');
+    expect(inspect).toHaveBeenLastCalledWith({ axis: "x", offsetMm: 17.35 });
+    click('[aria-label="Inspect pocket along Y"]');
+    click('[data-testid="button-inspect-pocket"]');
+    expect(inspect).toHaveBeenLastCalledWith(null);
+    click('[data-testid="button-inspect-pocket"]');
+    expect(inspect).toHaveBeenLastCalledWith({ axis: "y", offsetMm: 12.8 });
+    expect(store.cutouts[0]).toBe(before);
+    expect(store.history).toBe(history);
   });
 
   it("subtracts inward clearance from physical size and never displays a negative dimension", () => {
