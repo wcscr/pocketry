@@ -2,7 +2,7 @@
 import * as React from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { parseCutoutPlacement, resolvePocketDepth, type TracedShape } from "@shared/gridfinity/cutout";
+import { parseCutoutPlacement, resolvePocketDepth, type CutoutPlacement, type TracedShape } from "@shared/gridfinity/cutout";
 import { parseBinSpec } from "@shared/gridfinity/types";
 import { ExperimentalFeaturesProvider, EXPERIMENTAL_FEATURES_KEY } from "@/state/experimental-features";
 import { BinProvider, useBin, type BinStore } from "@/state/bin-store";
@@ -49,6 +49,31 @@ function enter(label: string, value: string) {
 }
 
 describe("pocket measurements", () => {
+  it.each<[string, Partial<CutoutPlacement>, "x" | "y"]>([
+    ["wide pocket", {}, "x"],
+    ["long pocket", { scaleY: 3 }, "y"],
+    ["rotated pocket", { rotationDeg: 90 }, "y"],
+    ["mirrored rotated pocket", { rotationDeg: 90, mirrored: true }, "y"],
+    ["sideways thick pocket", { tilt: { xDeg: 90, yDeg: 0 }, elevationMm: 7, depth: { mode: "mm", value: 60 } }, "y"],
+    ["equal dimensions", { scaleX: 0.5, scaleY: 1 }, "x"],
+  ])("defaults inspection to the longest placed dimension for a %s", (_name, patch, axis) => {
+    React.act(() => store.dispatch({ type: "UPDATE_CUTOUT", id: "pocket", patch }));
+    React.act(() => host.querySelector<HTMLButtonElement>('[data-testid="button-inspect-pocket"]')!.click());
+    expect(inspect.mock.lastCall![0].axis).toBe(axis);
+    expect(host.querySelector(`[aria-label="Inspect pocket along ${axis.toUpperCase()}"]`)!.getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("does not carry a manual axis choice into a different pocket", () => {
+    const click = (selector: string) => React.act(() => host.querySelector<HTMLButtonElement>(selector)!.click());
+    click('[data-testid="button-inspect-pocket"]');
+    click('[aria-label="Inspect pocket along Y"]');
+    click('[data-testid="button-inspect-pocket"]');
+    React.act(() => store.dispatch({ type: "HYDRATE", spec: store.spec,
+      cutouts: [{ ...store.cutouts[0], id: "other-pocket" }] }));
+    click('[data-testid="button-inspect-pocket"]');
+    expect(inspect.mock.lastCall![0].axis).toBe("x");
+  });
+
   it("edits independent tilt angles and resets them with undo", () => {
     enter("Pocket X rotation in degrees", "15");
     enter("Pocket Y rotation in degrees", "-35");

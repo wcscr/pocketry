@@ -1346,14 +1346,17 @@ describe("BinDesignerPage", () => {
       expect(container.querySelector('[data-testid="bin-viewport-stub"]')).not.toBeNull();
       expect(vi.mocked(useBinGeometry).mock.lastCall![3]).toEqual({ axis: "x", offsetMm: 12 });
       expect(container.querySelector('[data-testid="button-inspect-pocket"]')!.textContent).toBe("Show full bin");
-      const outlines = container.querySelector<HTMLButtonElement>('#show-inspection-pocket-outline')!;
+      const outlines = container.querySelector<HTMLButtonElement>('#hide-inspection-pocket-outline')!;
+      expect(container.querySelector('label[for="hide-inspection-pocket-outline"]')!.textContent).toBe('Hide pocket outline');
       expect(outlines.getAttribute('aria-checked')).toBe('false');
-      expect(container.querySelector('[data-testid="bin-viewport-stub"]')!.getAttribute('data-pocket-outlines')).toBe('off');
+      expect(container.querySelector('[data-testid="bin-viewport-stub"]')!.getAttribute('data-pocket-outlines')).toBe('on');
       const inspected = vi.mocked(useBinGeometry).mock.lastCall!;
       React.act(() => outlines.click());
       expect(outlines.getAttribute('aria-checked')).toBe('true');
-      expect(container.querySelector('[data-testid="bin-viewport-stub"]')!.getAttribute('data-pocket-outlines')).toBe('on');
+      expect(container.querySelector('[data-testid="bin-viewport-stub"]')!.getAttribute('data-pocket-outlines')).toBe('off');
       expect(vi.mocked(useBinGeometry).mock.lastCall![3]).toBe(inspected[3]);
+      React.act(() => outlines.click());
+      expect(container.querySelector('[data-testid="bin-viewport-stub"]')!.getAttribute('data-pocket-outlines')).toBe('on');
       React.act(() => outlines.click());
       expect(container.querySelector('[data-testid="bin-viewport-stub"]')!.getAttribute('data-pocket-outlines')).toBe('off');
       React.act(() => container.querySelector<HTMLButtonElement>(`[data-testid="${exitButton}"]`)!.click());
@@ -1365,7 +1368,7 @@ describe("BinDesignerPage", () => {
       expect(container.querySelector('[data-testid="button-inspect-pocket"]')!.textContent).toBe("Inspect this pocket in 3D");
       expect(container.querySelector('[data-testid="bin-viewport-stub"]')).not.toBeNull();
       expect(container.querySelector('[data-testid="bin-viewport-stub"]')!.getAttribute('data-pocket-outlines')).toBe('on');
-      expect(container.querySelector('#show-inspection-pocket-outline')).toBeNull();
+      expect(container.querySelector('#hide-inspection-pocket-outline')).toBeNull();
       unmount();
     },
   );
