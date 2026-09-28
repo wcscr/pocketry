@@ -3,7 +3,9 @@ import * as React from "react";
 import { createRoot } from "react-dom/client";
 import { describe, expect, it, vi } from "vitest";
 
-import { clampFingerHoleToBin, fingerHoleSchema, parseCutoutPlacement } from "@shared/gridfinity/cutout";
+import { clampFingerHoleToBin, fingerHoleSchema, parseCutoutPlacement, resolvePocketDepth } from "@shared/gridfinity/cutout";
+
+import { parseProjectDoc, PROJECT_SCHEMA_VERSION } from "@shared/gridfinity/project";
 
 import {
   BinProvider,
@@ -47,6 +49,69 @@ const CUTOUT = parseCutoutPlacement({
 });
 
 describe("bin store", () => {
+  it("defaults to adjusting fixed depths and commits a fill drag once with save/reload and undo/redo", () => {
+    const { store, act } = mountBin();
+    const fixed = { ...CUTOUT, depth: { mode: "mm" as const, value: 20 } };
+    act(() => store().dispatch({ type: "ADD_PLACED", cutouts: [fixed], gridX: 3, gridY: 3 }));
+    expect(store().adjustFixedPocketDepths).toBe(true);
+    const original = getCommittedBinDoc(store());
+    const steps = store().history.stack.length;
+    const floor = () => resolvePocketDepth(store().spec, store().cutouts[0].depth).floorZ;
+    for (const fillHeightPercent of [75, 62.5, 90, 100, 75]) {
+      act(() => store().dispatch({ type: "PATCH_SPEC", patch: { fillHeightPercent }, transient: true }));
+      expect(floor()).toBeCloseTo(20.8, 9);
+      expect(getCommittedBinDoc(store())).toBe(original);
+    }
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { fillHeightPercent: 75 } }));
+    expect(store().history.stack).toHaveLength(steps + 1);
+    expect(floor()).toBeCloseTo(20.8, 9);
+    const saved = parseProjectDoc(JSON.parse(JSON.stringify({ schemaVersion: PROJECT_SCHEMA_VERSION,
+      shapes: [{ id: "s1", name: "Tool", sourceMmPerPx: 1, pointCount: 4,
+        bboxMm: { minX: -2, minY: -2, maxX: 2, maxY: 2 },
+        outlineMm: [{ outer: [{ x: -2, y: -2 }, { x: 2, y: -2 }, { x: 2, y: 2 }, { x: -2, y: 2 }], holes: [] }] }],
+      ...getCommittedBinDoc(store()), history: store().history })));
+    expect(saved).not.toBeNull();
+    act(() => store().dispatch({ type: "HYDRATE", ...saved! }));
+    expect(floor()).toBeCloseTo(20.8, 9);
+    act(() => store().dispatch({ type: "UNDO" }));
+    expect(getCommittedBinDoc(store())).toEqual(original);
+    act(() => store().dispatch({ type: "REDO" }));
+    expect(store().spec.fillHeightPercent).toBe(75);
+    expect(floor()).toBeCloseTo(20.8, 9);
+  });
+
+  it("toggling the preference changes only future fill edits, preserving unchecked behavior", () => {
+    const { store, act } = mountBin();
+    const fixed = { ...CUTOUT, depth: { mode: "mm" as const, value: 20 } };
+    act(() => store().dispatch({ type: "ADD_PLACED", cutouts: [fixed], gridX: 3, gridY: 3 }));
+    const original = getCommittedBinDoc(store());
+    const history = store().history;
+    act(() => store().dispatch({ type: "SET_ADJUST_FIXED_POCKET_DEPTHS", enabled: false }));
+    expect(getCommittedBinDoc(store())).toBe(original);
+    expect(store().history).toBe(history);
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { fillHeightPercent: 75 } }));
+    expect(store().cutouts[0]).toEqual(fixed);
+    const loweredFloor = resolvePocketDepth(store().spec, fixed.depth).floorZ!;
+    act(() => store().dispatch({ type: "SET_ADJUST_FIXED_POCKET_DEPTHS", enabled: true }));
+    expect(store().cutouts[0]).toEqual(fixed);
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { fillHeightPercent: 100 } }));
+    expect(resolvePocketDepth(store().spec, store().cutouts[0].depth).floorZ).toBeCloseTo(loweredFloor, 9);
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { heightUnits: 7 } }));
+    expect(resolvePocketDepth(store().spec, store().cutouts[0].depth).floorZ).toBeCloseTo(loweredFloor + 7, 9);
+  });
+
+  it("rejects zero-depth fill commits without leaving an unsaved preview", () => {
+    const { store, act } = mountBin();
+    act(() => store().dispatch({ type: "ADD_PLACED", cutouts: [{ ...CUTOUT, depth: { mode: "mm", value: 10 } }], gridX: 3, gridY: 3 }));
+    const original = getCommittedBinDoc(store());
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { fillHeightPercent: 90 }, transient: true }));
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { fillHeightPercent: 50 } }));
+    expect(store().editError).toContain("no depth");
+    expect(store().spec).toEqual(original.spec);
+    expect(store().cutouts).toEqual(original.cutouts);
+    expect(getCommittedBinDoc(store())).toBe(original);
+  });
+
   it("duplicates and removes a mixed selection in single undo steps, preserving originals and bin size", () => {
     const { store, act } = mountBin();
     const hole = fingerHoleSchema.parse({ id: "f", center: { x: 10, y: 0 }, depthMm: 12 });

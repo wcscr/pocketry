@@ -1,3 +1,4 @@
+import { adjustPocketsForFillHeight } from "@shared/gridfinity/fill-height-edit";
 import { recordTransformOrigins, type TransformOrigins } from "@shared/gridfinity/transform-origins";
 import { applyLinkedEdits, clampLinkedFingerHoles, pocketDesign, fingerDesign, type DesignObjectKind } from "@shared/gridfinity/design-links";
 import { sameObject, type ObjectRef, type ObjectEdits } from "@/lib/gridfinity/object-arrangement";
@@ -38,6 +39,8 @@ const BIN_SIZE_KEYS = ["gridX", "gridY", "gridPitch", "heightUnits", "lip", "fil
 
 export interface BinState {
   transformOrigins: TransformOrigins;
+  /** Session editing preference; toggling it does not change saved geometry. */
+  adjustFixedPocketDepths: boolean;
   spec: BinSpec;
   cutouts: CutoutPlacement[];
   fingerHoles: FingerHole[];
@@ -78,6 +81,7 @@ export type BinAction =
       transformOrigins?: TransformOrigins;
     }
   | { type: "MARK_HYDRATED" }
+  | { type: "SET_ADJUST_FIXED_POCKET_DEPTHS"; enabled: boolean }
   | {
       type: "PATCH_SPEC";
       patch: Partial<BinSpecInput>;
@@ -147,6 +151,7 @@ export const INITIAL_BIN_SPEC: BinSpec = parseBinSpec({
 });
 
 const INITIAL: BinState = {
+  adjustFixedPocketDepths: true,
   transformOrigins: { pockets: [], fingerHoles: [] },
   spec: INITIAL_BIN_SPEC,
   cutouts: [],
@@ -331,6 +336,8 @@ function reduceBin(state: BinState, action: BinAction): BinState {
     }
     case "MARK_HYDRATED":
       return state.hydrated ? state : { ...state, hydrated: true };
+    case "SET_ADJUST_FIXED_POCKET_DEPTHS":
+      return { ...state, adjustFixedPocketDepths: action.enabled, editError: null };
     case "PATCH_SPEC": {
       const changesGrid = "gridX" in action.patch || "gridY" in action.patch;
       const doc = {
@@ -346,10 +353,20 @@ function reduceBin(state: BinState, action: BinAction): BinState {
         fingerHoles: BIN_SIZE_KEYS.some(key => key in action.patch)
           ? getCommittedBinDoc(state).fingerHoles : state.fingerHoles,
       };
+      if ("fillHeightPercent" in action.patch) {
+        const previous = getCommittedBinDoc(state);
+        if (state.adjustFixedPocketDepths) {
+          const adjusted = adjustPocketsForFillHeight(previous.cutouts, previous.spec, doc.spec);
+          if (adjusted.error !== undefined) return { ...state, ...(!action.transient ? previous : {}), editError: adjusted.error };
+          doc.cutouts = adjusted.cutouts;
+        } else {
+          doc.cutouts = previous.cutouts;
+        }
+      }
       if (doc.spec.flatBottom !== state.spec.flatBottom) {
         const previousFloor = defaultPocketFloorThicknessMm(state.spec);
         const nextFloor = defaultPocketFloorThicknessMm(doc.spec);
-        doc.cutouts = state.cutouts.map((cutout) =>
+        doc.cutouts = doc.cutouts.map((cutout) =>
           changeDefaultFloor(cutout, previousFloor, nextFloor),
         );
       }

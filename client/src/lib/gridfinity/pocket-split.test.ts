@@ -1,3 +1,4 @@
+import { adjustPocketsForFillHeight } from "@shared/gridfinity/fill-height-edit";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { parseCutoutPlacement, resolvePocketDepth, transformPointPlacement, type CutoutPlacement, type TracedShape } from "@shared/gridfinity/cutout";
 import { parseBinSpec } from "@shared/gridfinity/types";
@@ -24,6 +25,19 @@ const pocket = (extra: Partial<CutoutPlacement> = {}) => parseCutoutPlacement({ 
 const layout = (c: CutoutPlacement) => ({ cutouts: [c], shapesById, fingerHoles: [] });
 
 describe("split-pocket solids", () => {
+  it.each([PREVIEW_QUALITY, EXPORT_QUALITY])("preserves both split seats after adjusting fill height at quality %j", quality => {
+    const original = pocket({ depth: { mode: "mm", value: 12 } });
+    original.split!.depths = [{ mode: "mm", value: 12 }, { mode: "mm", value: 18 }];
+    const lowered = { ...spec, fillHeightPercent: 75 };
+    const adjusted = adjustPocketsForFillHeight([original], spec, lowered).cutouts![0];
+    const before = buildBinWithCutouts(kernel, spec, layout(original), quality, { floorInsertThicknessMm: 0.6 });
+    const after = buildBinWithCutouts(kernel, lowered, layout(adjusted), quality, { floorInsertThicknessMm: 0.6 });
+    expect(after.solid.status()).toBe("NoError");
+    const a = before.materialParts!.pocketFloors!, b = after.materialParts!.pocketFloors!;
+    expect(arena.track(a.subtract(b)).volume()).toBeLessThan(1e-5);
+    expect(arena.track(b.subtract(a)).volume()).toBeLessThan(1e-5);
+  });
+
   it("keeps fixed and remaining-floor split depths at a lowered fill surface", () => {
     const lowered = parseBinSpec({ ...spec, fillHeightPercent: 50 });
     const c = pocket();

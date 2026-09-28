@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Added an “Adjust fixed pocket depths” checkbox under Construction → Fill height, enabled by default, to keep existing pocket floors in place when changing solid fill height.
+
 ## 1.1.1 — 2026-09-27
 
 - UI cleanup and consistency updates.
