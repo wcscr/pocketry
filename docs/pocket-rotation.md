@@ -22,6 +22,12 @@ elevation and every source dimension, and is undoable. Reset before editing a
 contour or drawing a split in Layout. Source dimensions and split depths remain
 editable at any orientation.
 
+**Inspect this pocket in 3D** cuts the preview through the pocket's center. Use
+**Cut axis X/Y** to choose the inspection direction. Leaving the pocket selection
+or its properties restores the full bin, as does switching to Layout. The general
+cross-section controls under Check fit remain independent of pocket selection.
+Inspection changes neither the saved design nor exported geometry.
+
 Untouched older pockets preserve their existing geometry. Starting a rigid edit
 resolves their current depth into a fixed source dimension, including each split
 section independently. Elevation belongs to each placement; optional linked X/Y

@@ -349,10 +349,33 @@ export function BinControlsPanel({
     selectedFingerHoleId,
     pendingRemovalId,
     editorMode,
+    viewMode,
     hydrated,
     history,
     dispatch,
   } = useBin();
+  // Pocket inspection belongs to the selected pocket. General Check fit
+  // cross-sections remain independent of object selection and navigation.
+  const inspectedPocketId = useRef<string | null>(null);
+  const stopPocketInspection = () => {
+    if (!inspectedPocketId.current) return;
+    inspectedPocketId.current = null;
+    onSectionChange(null);
+  };
+  const inspectPocket = (next: BuildBinSection | null) => {
+    inspectedPocketId.current = next ? selectedCutoutId : null;
+    onSectionChange(next);
+  };
+  const changeBinSection = (next: BuildBinSection | null) => {
+    inspectedPocketId.current = null;
+    onSectionChange(next);
+  };
+  useEffect(() => {
+    if (!section) inspectedPocketId.current = null;
+    if (inspectedPocketId.current && (selectedCutoutId !== inspectedPocketId.current || selection.length !== 1
+        || viewMode !== "3d" || editorMode !== "placement" || inspector?.activeSection
+        || inspector && inspector.tool !== "properties")) stopPocketInspection();
+  }, [section, selectedCutoutId, selection.length, viewMode, editorMode, inspector?.activeSection, inspector?.tool, onSectionChange]);
   const [, navigate] = useLocation();
   const { shapes } = useShapeLibrary();
   const [renamingFingerId, setRenamingFingerId] = useState<string | null>(null);
@@ -378,6 +401,7 @@ export function BinControlsPanel({
   const hasFloorMaterialWarning = issues.some((issue) => issue.code === "floor-color-on-underside");
   useEffect(() => {
     if (!settingsSectionRequest) return;
+    stopPocketInspection();
     const { id, focusId } = settingsSectionRequest;
     inspector?.showSection(id);
     if (!inspector) revealPanelSection(id, BIN_SETTINGS_SECTIONS, focusId);
@@ -737,7 +761,7 @@ export function BinControlsPanel({
 
 
               {!inspector && experimentalEnabled && <LinkedDesignControls kind="pocket" activeId={selectedCutout.id} labels={new Map(cutouts.map(c => [c.id, pocketName(c, shapesById.get(c.shapeId))]))} />}
-              <PocketDepthSummary cutout={depthCutout!} shape={depthShape!} section={section} inspect={onSectionChange}>
+              <PocketDepthSummary cutout={depthCutout!} shape={depthShape!} section={section} inspect={inspectPocket}>
                 {selectedCutout.split && <div className="flex gap-1 pb-2" role="group" aria-label="Section to edit">
                   {([0, 1] as const).map(index => <Button key={index} type="button" size="sm"
                     className="flex-1" variant={selectedPocketSection === index ? "secondary" : "outline"}
@@ -1211,6 +1235,7 @@ export function BinControlsPanel({
           ariaLabel="Find bin settings"
           testIdPrefix="bin"
           items={BIN_SETTINGS_SECTIONS}
+          onNavigate={id => { stopPocketInspection(); revealPanelSection(id, BIN_SETTINGS_SECTIONS); }}
         />
       </div>}
       <InspectorPanelSections>
@@ -1724,7 +1749,7 @@ export function BinControlsPanel({
                 description="Slice the 3D view to inspect pockets. These controls only change the preview; exports always contain the complete bin."
                 checked={section !== null}
                 onChange={(on) => {
-                  onSectionChange(on ? { axis: "x", offsetMm: 0 } : null);
+                  changeBinSection(on ? { axis: "x", offsetMm: 0 } : null);
                   if (on) dispatch({ type: "SET_VIEW_MODE", viewMode: "3d" });
                 }}
               />
@@ -1735,7 +1760,7 @@ export function BinControlsPanel({
                     <Select
                       value={section.axis}
                       onValueChange={(axis) =>
-                        onSectionChange({ ...section, axis: axis as "x" | "y" })
+                        changeBinSection({ ...section, axis: axis as "x" | "y" })
                       }
                     >
                       <SelectTrigger className="h-8 flex-1" aria-label="Cross-section axis">
@@ -1763,7 +1788,7 @@ export function BinControlsPanel({
                       ) / 2
                     }
                     step={0.5}
-                    onChange={(offsetMm) => onSectionChange({ ...section, offsetMm })}
+                    onChange={(offsetMm) => changeBinSection({ ...section, offsetMm })}
                   />
                 </>
               )}

@@ -11,6 +11,7 @@ import { AppHeader } from "@/components/layout/app-header";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { WORKSPACES } from "@/components/layout/workspaces";
 import type { MaterialColorTarget } from "@/components/gridfinity/bin-viewport";
+import type { PocketEditor } from "@/components/gridfinity/pocket-transform-scene";
 import * as ShapeLibraryModule from "@/state/shape-library";
 import { ShapeLibraryProvider } from "@/state/shape-library";
 import { PROJECT_SCHEMA_VERSION, parseProjectDoc, type ProjectDoc } from "@shared/gridfinity/project";
@@ -61,7 +62,7 @@ vi.mock("@/components/gridfinity/bin-viewport", () => ({
     measurementOutlines: readonly unknown[];
     measurementSplitBoundaries: readonly unknown[];
     onEditColor: (target: MaterialColorTarget) => void;
-    pocketEditor?: unknown;
+    pocketEditor?: PocketEditor;
   }) => (
     <div
       data-testid="bin-viewport-stub"
@@ -80,6 +81,7 @@ vi.mock("@/components/gridfinity/bin-viewport", () => ({
       data-rim-color={stackingRimColor}
       data-measurement-splits={JSON.stringify(measurementSplitBoundaries)}
     >
+      <button data-testid="button-clear-3d-selection" onClick={() => pocketEditor?.onSelectionChange?.([])} />
       <button
         type="button"
         data-testid="button-3d-ruler"
@@ -1352,6 +1354,42 @@ describe("BinDesignerPage", () => {
       unmount();
     },
   );
+
+  it.each(['standard', 'workflow'])("ends pocket inspection when leaving its context in the %s layout", async layout => {
+    const originalUrl = window.location.href;
+    window.history.replaceState(null, '', `/bin?layout=${layout}`);
+    const shape = rectangularShape('inspect-tool', 'Tool');
+    const cutouts = [0, 1].map(i => parseCutoutPlacement({ id: `inspect-${i}`, shapeId: shape.id, position: { x: i * 20, y: 4 } }));
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape], cutouts });
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      const click = (testId: string) => React.act(() => container.querySelector<HTMLButtonElement>(`[data-testid="${testId}"]`)!.click());
+      for (const leave of [
+        () => click('button-clear-3d-selection'),
+        () => selectPocket(container, cutouts[1].id),
+        () => openSettingsSection(container, 'size'),
+        () => click('view-toggle-2d'),
+      ]) {
+        openSettingsSection(container, 'tool-cutouts');
+        selectPocket(container, cutouts[0].id);
+        click('button-inspect-pocket');
+        expect(vi.mocked(useBinGeometry).mock.lastCall![3]).toEqual({ axis: 'x', offsetMm: 0 });
+        leave();
+        expect(vi.mocked(useBinGeometry).mock.lastCall![3]).toBeNull();
+        expect(container.querySelector('[data-testid="button-show-full-bin"]')).toBeNull();
+        expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toEqual(cutouts);
+        expect(container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.disabled).toBe(true);
+      }
+      // A general cross-section remains useful while browsing different pockets.
+      openSettingsSection(container, 'check-fit');
+      const group = document.querySelector<HTMLDetailsElement>('[data-testid="cross-section-settings"]')!;
+      React.act(() => { group.open = true; group.querySelector<HTMLButtonElement>('[role="switch"]')!.click(); });
+      openSettingsSection(container, 'tool-cutouts');
+      selectPocket(container, cutouts[1].id);
+      expect(vi.mocked(useBinGeometry).mock.lastCall![3]).toEqual({ axis: 'x', offsetMm: 0 });
+    } finally { unmount(); window.history.replaceState(null, '', originalUrl); }
+  });
 
   it.each([
     ["stl", "", "stl"],

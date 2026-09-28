@@ -131,11 +131,15 @@ export function PocketDepthSummary({ cutout, shape, section, inspect, children }
   children?: ReactNode;
 }): JSX.Element {
   const { spec, dispatch } = useBin();
+  const [inspectionAxis, setInspectionAxis] = useState<BuildBinSection["axis"]>("x");
   const pocket = resolvePlacedPocketDepth(spec, cutout.depth, shape, cutout);
   const rigid = hasRigidPocket(cutout);
   const displayedDepth = rigid ? pocket.axialDepthMm : pocket.depthMm;
   const total = binTotalHeightMm(spec.heightUnits, spec.lip === "standard");
   const bounds = outlineBounds(placementFootprint(shape, cutout).outline)!;
+  const inspectionSection = (axis: BuildBinSection["axis"]): BuildBinSection => ({
+    axis, offsetMm: axis === "x" ? (bounds.minX + bounds.maxX) / 2 : (bounds.minY + bounds.maxY) / 2,
+  });
   return <div className="space-y-2">
     <details key={cutout.id} open className="group/depth text-xs" data-testid="pocket-depth-summary">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded py-2 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
@@ -158,8 +162,16 @@ export function PocketDepthSummary({ cutout, shape, section, inspect, children }
       </div>
       <Button className="mt-2 h-8 w-full text-xs" size="sm" variant="outline" data-testid="button-inspect-pocket" onClick={() => {
         dispatch({ type: "SET_VIEW_MODE", viewMode: "3d" });
-        inspect(section ? null : { axis: "x", offsetMm: (bounds.minX + bounds.maxX) / 2 });
+        inspect(section ? null : inspectionSection(inspectionAxis));
       }}>{section ? "Show full bin" : "Inspect this pocket in 3D"}</Button>
+      {section && <div className="mt-2 flex items-center gap-2" role="group" aria-label="Pocket inspection axis">
+        <span className="text-muted-foreground">Cut axis</span>
+        {(["x", "y"] as const).map(axis => <Button key={axis} size="sm" variant={section.axis === axis ? "secondary" : "outline"}
+          aria-label={`Inspect pocket along ${axis.toUpperCase()}`} aria-pressed={section.axis === axis}
+          onClick={() => { setInspectionAxis(axis); inspect(inspectionSection(axis)); }}>
+          {axis.toUpperCase()}
+        </Button>)}
+      </div>}
     </details>
   </div>;
 }
