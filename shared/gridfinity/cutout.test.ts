@@ -18,6 +18,7 @@ import {
   effectiveFingerHoleBottomFilletMm,
   effectiveFingerHoleCornerRoundMm,
   maximumFingerHoleCornerRoundMm,
+  MAX_FINGER_SLOT_LENGTH_MM,
   elongatedFingerHoleEndpoints,
   parseCutoutPlacement,
   placementFootprint,
@@ -742,10 +743,10 @@ describe("flat-ended cylindrical finger access", () => {
   });
 
   it("changes width without moving either flat end, including maximum length", () => {
-    const long = { ...hole, lengthMm: 160 };
+    const long = { ...hole, lengthMm: MAX_FINGER_SLOT_LENGTH_MM };
     const resized = resizeFingerHoleFromWidthHandle(long, { x: -9, y: 5 });
     expect(resized.diameterMm).toBeCloseTo(24, 8);
-    expect(resized.lengthMm).toBe(160);
+    expect(resized.lengthMm).toBe(MAX_FINGER_SLOT_LENGTH_MM);
     expect(elongatedFingerHoleEndpoints(resized)).toEqual(elongatedFingerHoleEndpoints(long));
   });
 
