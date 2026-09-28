@@ -382,43 +382,121 @@
           "file": "photos/printed-bin-loaded.jpg",
           "sourceFile": "20260928_092645.jpg",
           "sourceSha256": "853e911a4612875dc5f9bd17109a0951667e62d8848c93eb0e03eced10901bcd",
-          "cropPixelsAfterOrientation": [
-            1030,
-            1300,
-            2440,
-            2430
+          "processing": "EXIF orientation applied to pixels; perspective straightened using the bin edges; cropped around the bin and tools; rotated to portrait; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "c8b67fbd57cff4e97f3ed1fa92c0e7ab20760a28549b920587c5f1e3e73817db",
+          "perspectiveSourceCornersAfterOrientation": [
+            [
+              1079.007,
+              1452.366
+            ],
+            [
+              2334.683,
+              1341.946
+            ],
+            [
+              2396.736,
+              2310.657
+            ],
+            [
+              1123.142,
+              2374.209
+            ]
           ],
-          "rotationAfterCropDegreesCounterclockwise": 180,
-          "processing": "EXIF orientation applied to pixels; cropped; rotated for upright labels; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
-          "sha256": "ea7140b93242a321f20c937e0a3b65935bcdcaf349b62ede4839600350da0b72"
+          "perspectiveTargetBinSizePixels": [
+            1800,
+            1349
+          ],
+          "perspectiveMarginsPixels": {
+            "left": 55,
+            "top": 55,
+            "right": 55,
+            "bottom": 55
+          },
+          "rotationAfterPerspectiveDegreesCounterclockwise": 90,
+          "publishedSizePixels": [
+            917,
+            1200
+          ]
         },
         {
           "file": "photos/printed-bin-pocket.jpg",
           "sourceFile": "20260928_092705.jpg",
           "sourceSha256": "1596e0d18b77b4d6b5af9de6267e2d5afdba4daab144736547677208ca745028",
-          "cropPixelsAfterOrientation": [
-            990,
-            1200,
-            2380,
-            2520
+          "processing": "EXIF orientation applied to pixels; perspective straightened using the bin edges; cropped around the bin and tools; rotated to portrait; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "8158f2edade5290693cba44c0e5fae720801fa7d8e8a7ea0d13f0a00395b9e70",
+          "perspectiveSourceCornersAfterOrientation": [
+            [
+              1045.12,
+              1546.362
+            ],
+            [
+              2298.53,
+              1472.207
+            ],
+            [
+              2337.196,
+              2442.563
+            ],
+            [
+              1065.899,
+              2469.594
+            ]
           ],
-          "rotationAfterCropDegreesCounterclockwise": 180,
-          "processing": "EXIF orientation applied to pixels; cropped; rotated for upright labels; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
-          "sha256": "2fda98fed530519e813bf697b97bf671d04439bd2aff5fb2d878721d602aed9f"
+          "perspectiveTargetBinSizePixels": [
+            1800,
+            1349
+          ],
+          "perspectiveMarginsPixels": {
+            "left": 55,
+            "top": 450,
+            "right": 55,
+            "bottom": 55
+          },
+          "rotationAfterPerspectiveDegreesCounterclockwise": 90,
+          "publishedSizePixels": [
+            1165,
+            1200
+          ]
         },
         {
           "file": "photos/printed-bin-empty.jpg",
           "sourceFile": "20260928_092729.jpg",
           "sourceSha256": "0ce63d49fbe30cb178bc0c378b95a9222b2dd49d796ab1af3b668819ad580681",
-          "cropPixelsAfterOrientation": [
-            970,
-            1350,
-            2340,
-            2440
+          "processing": "EXIF orientation applied to pixels; perspective straightened using the bin edges; cropped around the bin and tools; rotated to portrait; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "3fdbb44733b0be7ac399cfa20399316f473fe1e5a1809722c2a18fc5e00d5808",
+          "perspectiveSourceCornersAfterOrientation": [
+            [
+              1018.579,
+              1457.363
+            ],
+            [
+              2264.737,
+              1389.135
+            ],
+            [
+              2293.979,
+              2352.122
+            ],
+            [
+              1034.357,
+              2374.881
+            ]
           ],
-          "rotationAfterCropDegreesCounterclockwise": 180,
-          "processing": "EXIF orientation applied to pixels; cropped; rotated for upright labels; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
-          "sha256": "8e398a4aa30ef68faed98b2b4bd8985ac359551a48558fad15012e8d4e255f89"
+          "perspectiveTargetBinSizePixels": [
+            1800,
+            1349
+          ],
+          "perspectiveMarginsPixels": {
+            "left": 55,
+            "top": 55,
+            "right": 55,
+            "bottom": 55
+          },
+          "rotationAfterPerspectiveDegreesCounterclockwise": 90,
+          "publishedSizePixels": [
+            917,
+            1200
+          ]
         }
       ]
     }

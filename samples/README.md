@@ -13,7 +13,7 @@ your library; select one there to open it. Existing projects are preserved.
 
 | Design | Printed bin | Files | Highlights |
 | --- | :---: | --- | --- |
-| [Mini socket set](mini-socket-set/) | <a href="mini-socket-set/photos/printed-bin-loaded.jpg"><img src="mini-socket-set/photos/printed-bin-loaded.jpg" width="125" height="100" alt="Finished mini socket set bin with its reused pre-cut shadowbox"></a> | [JSON](mini-socket-set/mini-socket-set.pocketry.json)<br>[3MF](mini-socket-set/mini-socket-set.3mf) | Reuses the pre-cut shadowbox that came with the toolset |
+| [Mini socket set](mini-socket-set/) | <a href="mini-socket-set/photos/printed-bin-loaded.jpg"><img src="mini-socket-set/photos/printed-bin-loaded.jpg" width="76" height="100" alt="Finished mini socket set bin with its reused pre-cut shadowbox"></a> | [JSON](mini-socket-set/mini-socket-set.pocketry.json)<br>[3MF](mini-socket-set/mini-socket-set.3mf) | Reuses the pre-cut shadowbox that came with the toolset |
 | [Wiha drivers](wiha-drivers/) | <a href="wiha-drivers/photos/printed-bin-loaded.jpg"><img src="wiha-drivers/photos/printed-bin-loaded.jpg" width="47" height="100" alt="Finished Wiha screwdriver bin"></a> | [JSON](wiha-drivers/wiha-drivers.pocketry.json)<br>[3MF](wiha-drivers/wiha-drivers.3mf) | 80% solid fill height allows stacking without fully recessing the screwdrivers |
 | [Wolfbox MF70 Airduster Kit](wolfbox-mf70-airduster-kit/) | <a href="wolfbox-mf70-airduster-kit/photos/printed-bin-loaded.jpg"><img src="wolfbox-mf70-airduster-kit/photos/printed-bin-loaded.jpg" width="117" height="100" alt="Finished Wolfbox MF70 Airduster Kit bin"></a> | [JSON](wolfbox-mf70-airduster-kit/wolfbox-mf70-airduster-kit.pocketry.json)<br>[3MF](wolfbox-mf70-airduster-kit/wolfbox-mf70-airduster-kit.3mf) | Tools, accessories, and shared finger access |
 | [DeWalt right-angle tools](dewalt-right-angle-tools/) | <a href="dewalt-right-angle-tools/photos/printed-bin-loaded.jpg"><img src="dewalt-right-angle-tools/photos/printed-bin-loaded.jpg" width="73" height="100" alt="Finished dewalt right-angle tools bin"></a> | [JSON](dewalt-right-angle-tools/dewalt-right-angle-tools.pocketry.json)<br>[3MF](dewalt-right-angle-tools/dewalt-right-angle-tools.3mf) | Multiple pockets and shared finger access |
@@ -47,8 +47,8 @@ carry the slicer's settings or all 3MF color selections.
 
 All ten designs include photographs of their finished bins. Except for the
 DeWalt set, each sample also includes a view with tools removed.
-The photos are cropped, rotated for viewing, resized, and stripped of embedded
-metadata. No generative editing was used.
+The photos are cropped, straightened where needed, rotated for viewing, resized,
+and stripped of embedded metadata. No generative editing was used.
 
 ## Reuse and attribution
 

@@ -45,7 +45,7 @@ to import all ten designs at once.
 | **[Klein voltage tester](samples/klein-voltage-tester/)** | **[Citadel mouldline remover](samples/mouldline-remover/)** |
 | <a href="samples/klein-voltage-tester/"><img src="samples/klein-voltage-tester/photos/printed-bin-loaded.jpg" width="300" height="91" alt="Klein voltage tester in its printed bin"></a> | <a href="samples/mouldline-remover/"><img src="samples/mouldline-remover/photos/printed-bin-loaded.jpg" width="67" height="210" alt="Citadel mouldline remover in its printed bin"></a> |
 | **[Wiha drivers](samples/wiha-drivers/)** | **[Mini socket set](samples/mini-socket-set/)** |
-| <a href="samples/wiha-drivers/"><img src="samples/wiha-drivers/photos/printed-bin-loaded.jpg" width="99" height="210" alt="Five Wiha screwdrivers in a bin with lowered solid fill for stacking"></a> | <a href="samples/mini-socket-set/"><img src="samples/mini-socket-set/photos/printed-bin-loaded.jpg" width="262" height="210" alt="Mini socket set in a printed bin with the reused pre-cut shadowbox"></a> |
+| <a href="samples/wiha-drivers/"><img src="samples/wiha-drivers/photos/printed-bin-loaded.jpg" width="99" height="210" alt="Five Wiha screwdrivers in a bin with lowered solid fill for stacking"></a> | <a href="samples/mini-socket-set/"><img src="samples/mini-socket-set/photos/printed-bin-loaded.jpg" width="160" height="210" alt="Mini socket set in a printed bin with the reused pre-cut shadowbox"></a> |
 
 We'd love to see what you make with Pocketry! If you share a design on MakerWorld,
 Printables, or elsewhere, please give Pocketry a shout-out and link to
