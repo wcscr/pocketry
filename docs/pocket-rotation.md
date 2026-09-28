@@ -17,6 +17,10 @@ above the fill. A submerged solid leaves an enclosed cavity. The surface opening
 is only the solid's intersection with the fill surface. Layout and SVG/DXF export
 use that same section; the full projected solid remains available for selection.
 
+Fill-height depth adjustment continues to work for surface-anchored pockets.
+Once a pocket uses 3D placement, fill edits and the adjustment checkbox preserve
+its source dimensions and elevation, including sideways and inverted poses.
+
 **Reset to X–Y plane** clears X/Y rotation. It preserves Z heading, XY position,
 elevation and every source dimension, and is undoable. Reset before editing a
 contour or drawing a split in Layout. Source dimensions and split depths remain

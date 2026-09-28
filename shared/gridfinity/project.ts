@@ -46,7 +46,8 @@ import { migrateProfilePocket } from "./rigid-pocket";
  * Version 22 unifies adjustable fill height, tilt and legacy vertical offsets.
  * Version 23 adds explicit linked pocket and thumb-access designs.
  * Version 24 preserves as-drawn transform references independently of undo history.
- * Version 25 adds side-profile pocket floors with independent width and elevation.
+ * Version 25 retains original pocket depths and the reversible fill-adjustment setting.
+ * Unreleased side-profile prototypes also used version 25 and migrate by their fields.
  * Version 26 gives generated pockets a finite solid and unrestricted rigid placement.
  */
 
@@ -108,7 +109,9 @@ const version21ProjectSchema = version17ProjectSchema.extend({ schemaVersion: z.
 const version22ProjectSchema = version17ProjectSchema.extend({ schemaVersion: z.literal(22) });
 
 const version23ProjectSchema = version17ProjectSchema.extend({ schemaVersion: z.literal(23) });
-const version24ProjectSchema = version17ProjectSchema.extend({ schemaVersion: z.literal(24), transformOrigins: transformOriginsSchema.optional() });
+const version24ProjectSchema = version23ProjectSchema.extend({
+  schemaVersion: z.literal(24), transformOrigins: transformOriginsSchema.optional(),
+});
 const version25ProjectSchema = version24ProjectSchema.extend({ schemaVersion: z.literal(25) });
 
 /** History and the visible design must describe one consistent saved snapshot. */

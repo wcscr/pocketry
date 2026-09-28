@@ -1524,6 +1524,47 @@ describe("BinDesignerPage", () => {
     unmount();
   });
 
+  it.each([false, true])("offers checked-by-default fixed-depth adjustment under Construction fill height (experimental=%s)", async experimental => {
+    const pocket = parseCutoutPlacement({ id: "fixed", shapeId: "s", position: { x: 0, y: 0 }, depth: { mode: "mm", value: 20 } });
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [rectangularShape("s", "Fixed")], cutouts: [pocket] });
+    const { container, unmount } = renderPage({ experimental });
+    try {
+      await flushHydration();
+      openSettingsSection(container, "construction");
+      const construction = container.querySelector("#bin-settings-construction")!;
+      const checkbox = construction.querySelector<HTMLButtonElement>('#adjust-fixed-pocket-depths')!;
+      expect(checkbox.getAttribute("data-state")).toBe("checked");
+      expect(construction.querySelector('label[for="adjust-fixed-pocket-depths"]')?.textContent).toBe("Adjust fixed pocket depths");
+      expect(construction.querySelector('[data-testid="fill-height-control"]')!.compareDocumentPosition(checkbox) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      const setFill = (value: string) => {
+        const input = construction.querySelector<HTMLInputElement>('[aria-label="Fill height percentage"]')!;
+        React.act(() => {
+          input.focus();
+          Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
+          input.dispatchEvent(new Event("input", { bubbles: true }));
+        });
+        React.act(() => input.blur());
+      };
+      setFill("75");
+      const adjusted = vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0];
+      expect(resolvePocketDepth({ ...EMPTY_PROJECT.spec, fillHeightPercent: 75 }, adjusted.depth).floorZ).toBeCloseTo(20.8, 9);
+      React.act(() => checkbox.click());
+      expect(checkbox.getAttribute("data-state")).toBe("unchecked");
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0].depth).toEqual(pocket.depth);
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0].fillHeightPercent).toBe(75);
+      React.act(() => checkbox.click());
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0]).toEqual(adjusted);
+      React.act(() => checkbox.click());
+      setFill("100");
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0].depth).toEqual(pocket.depth);
+      React.act(() => checkbox.click());
+      setFill("25");
+      expect(construction.querySelector('[role="alert"]')?.textContent).toContain("no depth");
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0].fillHeightPercent).toBe(100);
+      expect(construction.querySelector<HTMLInputElement>('[aria-label="Fill height percentage"]')!.value).toBe("100");
+    } finally { unmount(); }
+  });
+
   it("adjusts fill percentages with exact typing and keyboard, retaining the value while hollow", async () => {
     const { container, unmount } = renderPage();
     await flushHydration();

@@ -7,6 +7,7 @@ import {
   type FingerHole,
   type TracedShape,
 } from "@shared/gridfinity/cutout";
+import { adjustPocketsForFillHeight } from "@shared/gridfinity/fill-height-edit";
 import { parseBinSpec } from "@shared/gridfinity/types";
 import {
   binTotalHeightMm,
@@ -110,6 +111,20 @@ function cutout(
 const SPEC = parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6, fill: "solid" });
 
 describe("buildBinWithCutouts", () => {
+  it.each([PREVIEW_QUALITY, EXPORT_QUALITY])("keeps adjusted pocket floors and color bands at the original height at $circularSegments segments", quality => {
+    const shape = rectShape("adjusted", 20, 20);
+    const original = cutout("p", shape.id, { depth: { mode: "mm", value: 20 } });
+    const spec = { ...SPEC, fillHeightPercent: 75 };
+    const adjusted = adjustPocketsForFillHeight([original], SPEC, spec).cutouts!;
+    const full = buildBin(kernel, spec, quality);
+    const built = buildBinWithCutouts(kernel, spec, layoutFor([shape], adjusted), quality, { floorInsertThicknessMm: 0.6 });
+    expect(built.solid.status()).toBe("NoError");
+    expect(full.solid.volume() - built.solid.volume()).toBeCloseTo(20 * 20 * 11.55, 4);
+    const floor = built.materialParts!.pocketFloors!;
+    expect(floor.boundingBox().max[2]).toBeCloseTo(20.8, 6);
+    expect(floor.boundingBox().min[2]).toBeCloseTo(20.2, 6);
+  });
+
   it.each([PREVIEW_QUALITY, EXPORT_QUALITY])("cuts pockets and floor colors from a lowered fill surface at $circularSegments segments", (quality) => {
     const spec = parseBinSpec({ ...SPEC, fillHeightPercent: 50 });
     const shape = rectShape("lowered", 20, 20);

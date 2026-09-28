@@ -97,6 +97,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { DraftNumberInput } from "@/components/ui/draft-number-input";
 import {
@@ -341,6 +342,8 @@ export function BinControlsPanel({
   const { enabled: experimentalEnabled, setSettingsOpen } = useExperimentalFeatures();
   const {
     spec,
+    adjustFixedPocketDepths,
+    editError,
     cutouts,
     fingerHoles,
     selection,
@@ -800,6 +803,7 @@ export function BinControlsPanel({
                         className="h-9 w-20 text-base font-semibold"
                         aria-label="Pocket cut depth in millimetres"
                         value={depthCutout!.depth.value}
+                        displayPrecision={3}
                         min={1}
                         step={1}
                         onValueChange={(value) => {
@@ -1439,10 +1443,27 @@ export function BinControlsPanel({
             onChange={(on) => patchSpec({ fill: on ? "solid" : "none" })}
           />
           {spec.fill === "solid" && (
-            <FillHeightControl
-              value={spec.fillHeightPercent}
-              onChange={(fillHeightPercent, transient) => patchSpec({ fillHeightPercent }, transient)}
-            />
+            <div className="space-y-2">
+              <FillHeightControl
+                value={spec.fillHeightPercent}
+                onChange={(fillHeightPercent, transient) => patchSpec({ fillHeightPercent }, transient)}
+              />
+              <div className="flex items-start gap-2">
+                <Checkbox
+                  id="adjust-fixed-pocket-depths"
+                  checked={adjustFixedPocketDepths}
+                  onCheckedChange={(checked) => dispatch({ type: "SET_ADJUST_FIXED_POCKET_DEPTHS", enabled: checked === true })}
+                  aria-describedby="adjust-fixed-pocket-depths-help"
+                />
+                <div className="space-y-1">
+                  <Label htmlFor="adjust-fixed-pocket-depths" className="text-xs">Adjust fixed pocket depths</Label>
+                  <p id="adjust-fixed-pocket-depths-help" className="text-[11px] text-muted-foreground">
+                    Keep pocket floors in place. Uncheck to restore original depths.
+                  </p>
+                </div>
+              </div>
+              {editError && <p role="alert" className="text-xs text-destructive">{editError}</p>}
+            </div>
           )}
           {!spec.flatBottom && (
             <>

@@ -1,3 +1,4 @@
+import { adjustPocketsForFillHeight } from "@shared/gridfinity/fill-height-edit";
 import { Quaternion, Vector3 } from "three";
 import { pocketTransformPatch } from "./pocket-transform";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -24,6 +25,23 @@ beforeAll(async () => { arena = new Arena(); kernel = createKernel(await loadMan
 afterAll(() => arena.dispose());
 
 describe("tilted pockets", () => {
+  it("keeps the actual tilted seat solid stationary after a fill-height edit", () => {
+    const next = { ...spec, fillHeightPercent: 75 };
+    const adjusted = adjustPocketsForFillHeight([pocket], spec, next).cutouts!;
+    const a = buildBinWithCutouts(kernel, spec, { shapesById: shapes, cutouts: [pocket], fingerHoles: [] }, EXPORT_QUALITY, { floorInsertThicknessMm: 0.6 });
+    const b = buildBinWithCutouts(kernel, next, { shapesById: shapes, cutouts: adjusted, fingerHoles: [] }, EXPORT_QUALITY, { floorInsertThicknessMm: 0.6 });
+    expect(b.solid.status()).toBe("NoError");
+    expect(b.validationIssues).toEqual([]);
+    const before = a.materialParts!.pocketFloors!, after = b.materialParts!.pocketFloors!;
+    expect(arena.track(before.subtract(after)).volume()).toBeLessThan(1e-4);
+    expect(arena.track(after.subtract(before)).volume()).toBeLessThan(1e-4);
+    const restored = adjustPocketsForFillHeight(adjusted, next, next, false).cutouts!;
+    const off = buildBinWithCutouts(kernel, next, { shapesById: shapes, cutouts: restored, fingerHoles: [] }, EXPORT_QUALITY).solid;
+    const originalDepth = buildBinWithCutouts(kernel, next, { shapesById: shapes, cutouts: [pocket], fingerHoles: [] }, EXPORT_QUALITY).solid;
+    expect(arena.track(off.subtract(originalDepth)).volume()).toBeLessThan(1e-4);
+    expect(arena.track(originalDepth.subtract(off)).volume()).toBeLessThan(1e-4);
+  });
+
   it("keeps a 35 mm axial pocket within a shorter vertical depth, with a larger mouth", () => {
     const resolved = resolvePlacedPocketDepth(spec, pocket.depth, shape, pocket);
     expect(resolved.axialDepthMm).toBe(35);

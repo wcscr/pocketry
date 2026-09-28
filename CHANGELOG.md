@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Added an “Adjust fixed pocket depths” checkbox under Construction → Fill height, enabled by default, to keep existing pocket floors in place when changing solid fill height. Unchecking restores original depths; rechecking reapplies the adjustment. The setting and original depths are saved with the project.
+
 ## 1.1.1 — 2026-09-27
 
 - UI cleanup and consistency updates.

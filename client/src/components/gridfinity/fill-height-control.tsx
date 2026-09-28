@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 
 import { DraftNumberInput } from "@/components/ui/draft-number-input";
 import { HelpHint } from "@/components/ui/help-hint";
@@ -18,6 +18,7 @@ export function FillHeightControl({ value, onChange }: {
   onChange: (value: number, transient: boolean) => void;
 }): JSX.Element {
   const pointerInteraction = useRef(false);
+  const [inputRevision, setInputRevision] = useState(0);
   return (
     <div className="space-y-2" data-testid="fill-height-control">
       <div className="flex items-center justify-between gap-2">
@@ -30,6 +31,7 @@ export function FillHeightControl({ value, onChange }: {
         </div>
         <span className="flex shrink-0 items-center gap-1 text-xs tabular-nums text-muted-foreground">
           <DraftNumberInput
+            key={inputRevision}
             id="fill-height-percent"
             aria-label="Fill height percentage"
             className="h-8 w-24 shrink-0"
@@ -38,7 +40,11 @@ export function FillHeightControl({ value, onChange }: {
             max={100}
             step={1}
             onValueChange={(next) => onChange(next, true)}
-            onValueCommit={(next) => onChange(next, false)}
+            onValueCommit={(next) => {
+              onChange(next, false);
+              // A rejected fill edit must restore the accepted value on blur.
+              setInputRevision(revision => revision + 1);
+            }}
           /> %
         </span>
       </div>
