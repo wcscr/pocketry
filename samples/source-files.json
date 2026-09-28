@@ -379,7 +379,7 @@
       },
       "photos": [
         {
-          "file": "photos/printed-bin-loaded.jpg",
+          "file": "photos/printed-bin-loaded-portrait.jpg",
           "sourceFile": "20260928_092645.jpg",
           "sourceSha256": "853e911a4612875dc5f9bd17109a0951667e62d8848c93eb0e03eced10901bcd",
           "processing": "EXIF orientation applied to pixels; perspective straightened using the bin edges; cropped around the bin and tools; rotated to portrait with the socket row at the bottom; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
@@ -419,7 +419,7 @@
           ]
         },
         {
-          "file": "photos/printed-bin-pocket.jpg",
+          "file": "photos/printed-bin-pocket-portrait.jpg",
           "sourceFile": "20260928_092705.jpg",
           "sourceSha256": "1596e0d18b77b4d6b5af9de6267e2d5afdba4daab144736547677208ca745028",
           "processing": "EXIF orientation applied to pixels; perspective straightened using the bin edges; cropped around the bin and tools; rotated to portrait with the socket row at the bottom; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
@@ -459,7 +459,7 @@
           ]
         },
         {
-          "file": "photos/printed-bin-empty.jpg",
+          "file": "photos/printed-bin-empty-portrait.jpg",
           "sourceFile": "20260928_092729.jpg",
           "sourceSha256": "0ce63d49fbe30cb178bc0c378b95a9222b2dd49d796ab1af3b668819ad580681",
           "processing": "EXIF orientation applied to pixels; perspective straightened using the bin edges; cropped around the bin and tools; rotated to portrait with the socket row at the bottom; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
