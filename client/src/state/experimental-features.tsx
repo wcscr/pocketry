@@ -32,7 +32,7 @@ const ExperimentalFeaturesContext = createContext({
   editorLayout: "standard" as EditorLayout,
   setEditorLayout: (_layout: EditorLayout) => {},
   inspectorEnabled: false,
-  enableForProject: (_project: ProjectDoc): boolean => false,
+  needsOptInForProject: (_project: ProjectDoc): boolean => false,
   settingsOpen: false,
   setSettingsOpen: (_open: boolean) => {},
   persistenceUnavailable: false,
@@ -78,11 +78,10 @@ export function ExperimentalFeaturesProvider({ children }: { children: ReactNode
     if (isEditorLayout(layoutQuery) || layoutQuery === "objects") url.searchParams.delete("layout");
     window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
   }, [requestedLayout, layoutQuery, setEditorLayout]);
-  const enableForProject = useCallback((project: ProjectDoc): boolean => {
-    if (enabledRef.current || !projectUsesExperimentalFeatures(project)) return false;
-    setEnabled(true);
-    return true;
-  }, [setEnabled]);
+  // Loading a project is not consent to enable experimental editing tools.
+  // Read the latest preference even when a project was opened asynchronously.
+  const needsOptInForProject = useCallback((project: ProjectDoc): boolean =>
+    !enabledRef.current && projectUsesExperimentalFeatures(project), []);
   useEffect(() => {
     const sync = (event: StorageEvent) => {
       if (event.key === EXPERIMENTAL_FEATURES_KEY || event.key === null) {
@@ -96,7 +95,7 @@ export function ExperimentalFeaturesProvider({ children }: { children: ReactNode
     window.addEventListener("storage", sync);
     return () => window.removeEventListener("storage", sync);
   }, []);
-  return <ExperimentalFeaturesContext.Provider value={{ enabled, setEnabled, editorLayout, setEditorLayout, inspectorEnabled, enableForProject, settingsOpen, setSettingsOpen, persistenceUnavailable }}>
+  return <ExperimentalFeaturesContext.Provider value={{ enabled, setEnabled, editorLayout, setEditorLayout, inspectorEnabled, needsOptInForProject, settingsOpen, setSettingsOpen, persistenceUnavailable }}>
     {children}
   </ExperimentalFeaturesContext.Provider>;
 }

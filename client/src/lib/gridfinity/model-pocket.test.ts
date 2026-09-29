@@ -8,7 +8,7 @@ import { parseProjectDoc, PROJECT_SCHEMA_VERSION } from "@shared/gridfinity/proj
 import { validateLayout } from "@shared/gridfinity/validate";
 import { Arena } from "@/lib/manifold/arena";
 import { createKernel, loadManifold, type Kernel, type ManifoldToplevel } from "@/lib/manifold/runtime";
-import { extractMeshData, preparePrintableSolid } from "@/lib/mesh/mesh-data";
+import { extractMeshData, preparePrintableSolid, type MeshData } from "@/lib/mesh/mesh-data";
 import { writeBinarySTL } from "@/lib/export/stl-writer";
 import { writeThreeMf } from "@/lib/mesh/threemf";
 import { toCrossSection } from "@/lib/geometry/offset";
@@ -236,6 +236,33 @@ describe("model insertion cavities", () => {
     expect(xml.match(/<triangle /g)?.length).toBe(built.mesh.indices.length/3);
     for (const patch of [{elevationMm:1},{position:{x:35,y:0}},{topFilletMm:1},{depth:{mode:"through"}}]) {
       await expect(handler({...request,layout:{...request.layout,cutouts:[{...p,...patch}]}},context())).rejects.toThrow();
+    }
+  });
+  it("keeps cavity lining and configurable top borders closed and disjoint in export", async () => {
+    const handler = createBinWorkerHandlers(loadManifold)[BUILD_BIN_METHOD] as (payload: unknown, context: HandlerContext) => Promise<TransferableResult<BuildBinResult>>;
+    const built = (await handler({ spec, quality: { circularSegments: 16 }, exportTopology: true,
+      pocketFloorMaterialThicknessMm: 0.6, stackingRimMaterialThicknessMm: 1.25, borderWidthMm: 4,
+      layout: { shapes: [shape], cutouts: [{ ...p, clearanceMm: 0.3, modelSmoothingMm: 1 }], fingerHoles: [] },
+    }, context())).value;
+    expect(built.materialMeshes?.pocketFloors).toBeDefined();
+    expect(built.materialMeshes?.stackingRim).toBeDefined();
+    const inBinCoordinates = (mesh: MeshData) => {
+      // Validate serialized topology, but keep the original shared coordinates:
+      // the model importer recenters each incoming object independently.
+      expect(() => parseStl(writeBinarySTL(mesh), "mm")).not.toThrow();
+      const input = new kernel.Mesh({ numProp: 3, vertProperties: mesh.positions, triVerts: mesh.indices });
+      input.merge();
+      const solid = arena.track(new kernel.Manifold(input));
+      expect(solid.status()).toBe("NoError");
+      return solid;
+    };
+    const combined = inBinCoordinates(built.mesh);
+    const parts = Object.values(built.materialMeshes!).map(inBinCoordinates);
+    const joined = arena.track(kernel.Manifold.union(parts));
+    expect(arena.track(combined.subtract(joined)).volume()).toBeLessThan(0.01);
+    expect(arena.track(joined.subtract(combined)).volume()).toBeLessThan(0.01);
+    for (let i = 0; i < parts.length; i++) for (let j = i + 1; j < parts.length; j++) {
+      expect(arena.track(parts[i].intersect(parts[j])).volume()).toBeLessThan(0.01);
     }
   });
 });

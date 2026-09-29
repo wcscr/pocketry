@@ -4347,7 +4347,7 @@ describe("BinDesignerPage", () => {
     expect(multicolorExport).not.toBeNull();
     expect(multicolorExport.disabled).toBe(false);
     expect(document.body.textContent).toContain(
-      "Separate pocket floors (0.6 mm) and rim top (1.25 mm down) for slicer assignment.",
+      "Separate pocket floors (0.6 mm down) and rim top (1.25 mm down) for slicer assignment.",
     );
     const exportDialog = document.querySelector('[role="dialog"]') as HTMLElement;
     React.act(() => {
@@ -4737,7 +4737,7 @@ describe("project history restoration", () => {
   });
 });
 
-it("enables restored experimental designs, then respects manual disabling without changing the design", async () => {
+it("preserves restored experimental designs while waiting for explicit opt-in", async () => {
   const shape = rectangularShape("experimental-shape", "Target");
   const cutouts = [-18, 18].map((x, i) => parseCutoutPlacement({
     id: `experimental-${i}`, name: `Target ${i}`, shapeId: shape.id, position: { x, y: 0 },
@@ -4750,8 +4750,8 @@ it("enables restored experimental designs, then respects manual disabling withou
     await flushHydration();
     const before = structuredClone(vi.mocked(useBinGeometry).mock.lastCall![2]);
     expect(container.querySelector('[data-experimental-editor="true"]')).not.toBeNull();
-    expect(projectToast).toHaveBeenCalledWith(expect.objectContaining({ title: "Experimental features enabled" }));
-    React.act(() => experimentalSettings.setEnabled(false));
+    expect(projectToast).toHaveBeenCalledWith(expect.objectContaining({ title: "Experimental controls are off" }));
+    expect(experimentalSettings.enabled).toBe(false);
     expect(container.querySelector('[data-experimental-editor="true"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="experimental-design-notice"]')).not.toBeNull();
     openSettingsSection(container, "tool-cutouts"); selectPocket(container, cutouts[0].id);
@@ -4835,7 +4835,7 @@ it.each(["release", "Escape", "blur", "pointercancel", "disable experimental"])(
 });
 
 
-it.each(["backup", "library"])("enables experimental tools and notifies when opening a %s", async source => {
+it.each(["backup", "library"])("preserves opt-out and notifies when opening an experimental %s", async source => {
   const project = { id: "saved", name: "Linked access", updatedAt: "2026-09-23T12:00:00.000Z" };
   const doc: ProjectDoc = { ...EMPTY_PROJECT, name: project.name, fingerHoles: [
     fingerHoleSchema.parse({ id: "access", center: { x: 0, y: 0 }, designLink: { id: "linked-access" } }),
@@ -4863,9 +4863,9 @@ it.each(["backup", "library"])("enables experimental tools and notifies when ope
       await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-open-project-saved"]')!.click());
       expect(ProjectPersistence.openProjectFromLibrary).toHaveBeenCalledExactlyOnceWith("saved");
     }
-    expect(experimentalSettings.enabled).toBe(true);
-    expect(localStorage.getItem(EXPERIMENTAL_FEATURES_KEY)).toBe("true");
-    expect(projectToast).toHaveBeenLastCalledWith(expect.objectContaining({ title: "Experimental features enabled" }));
+    expect(experimentalSettings.enabled).toBe(false);
+    expect(localStorage.getItem(EXPERIMENTAL_FEATURES_KEY)).toBe("false");
+    expect(projectToast).toHaveBeenLastCalledWith(expect.objectContaining({ title: "Experimental controls are off" }));
     expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.fingerHoles).toEqual(doc.fingerHoles);
   } finally { unmount(); }
 });
@@ -5662,7 +5662,9 @@ it.each(["standard","workflow"])("gates model import behind the experimental opt
   } finally {unmount();window.history.replaceState(null,"",originalUrl);}
 });
 
-it("opens saved model pockets with experimental controls and keeps geometry intact after opt-out", async () => {
+it.each(["standard", "workflow"])("keeps saved model controls hidden until explicit opt-in in the %s layout", async layout => {
+  const originalUrl = window.location.href;
+  window.history.replaceState(null, "", `/bin?layout=${layout}`);
   const shape:TracedShape={...rectangularShape("saved-model","Saved model"),source:"model",
     model:{format:"stl",units:"mm",positions:[-10,-5,-3,10,-5,-3,0,5,-3,0,0,3],indices:[0,2,1,0,1,3,1,2,3,2,0,3]}};
   const placed=parseCutoutPlacement({id:"model-pocket",shapeId:shape.id,position:{x:0,y:0},elevationMm:12,
@@ -5671,15 +5673,20 @@ it("opens saved model pockets with experimental controls and keeps geometry inta
   const {container,unmount}=renderPage({experimental:false});
   try {
     await flushHydration();
-    expect(experimentalSettings.enabled).toBe(true);
-    expect(projectToast).toHaveBeenCalledWith(expect.objectContaining({title:"Experimental features enabled"}));
+    expect(experimentalSettings.enabled).toBe(false);
+    expect(projectToast).toHaveBeenCalledWith(expect.objectContaining({title:"Experimental controls are off"}));
     openSettingsSection(container,"tool-cutouts"); selectPocket(container,placed.id);
-    expect(container.querySelector('[aria-label="Imported model properties"]')).not.toBeNull();
     const before=structuredClone(vi.mocked(useBinGeometry).mock.lastCall![2]);
+    const modelControls = ["Imported model properties", "Model insertion path", "Model insertion depth in millimetres",
+      "Model X size in millimetres", "Model Y size in millimetres", "Model Z size in millimetres",
+      "Model fit margin in millimetres", "Model detail smoothing in millimetres"];
+    for (const label of modelControls) expect(container.querySelector(`[aria-label="${label}"]`)).toBeNull();
+    React.act(()=>experimentalSettings.setEnabled(true));
+    for (const label of modelControls) expect(container.querySelector(`[aria-label="${label}"]`)).not.toBeNull();
     React.act(()=>experimentalSettings.setEnabled(false));
-    expect(container.querySelector('[aria-label="Imported model properties"]')).toBeNull();
+    for (const label of modelControls) expect(container.querySelector(`[aria-label="${label}"]`)).toBeNull();
     expect(container.textContent).toContain("Its geometry is preserved");
     expect(vi.mocked(useBinGeometry).mock.lastCall![2]).toEqual(before);
     expect(container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.disabled).toBe(true);
-  } finally {unmount();}
+  } finally {unmount();window.history.replaceState(null,"",originalUrl);}
 });

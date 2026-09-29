@@ -454,6 +454,8 @@ export function BinControlsPanel({
   );
   const hasSelectedFloorColor = colorPocketFloors && (spec.fill === "none" || hasBlindPocket);
   const floorColorLabel = spec.fill === "none" ? "Bin floor" : "Pocket floors";
+  const floorThicknessUnit = spec.fill !== "none" && cutouts.some(cutout => shapesById.get(cutout.shapeId)?.model)
+    ? "mm" : "mm down";
   const hasSelectedRimColor = colorStackingRim;
   const rimColorLabel = spec.lip === "standard" ? "Stacking rim top" : "Top border";
   const hasSelectedMulticolor =
@@ -1712,7 +1714,7 @@ export function BinControlsPanel({
                   aria-label={spec.fill === "none" ? "Bin floor color thickness in millimetres" : "Pocket floor color thickness in millimetres"}
                   data-testid="input-pocket-floor-thickness"
                 />
-                <span className="text-[11px] text-muted-foreground">mm</span>
+                <span className="text-[11px] text-muted-foreground">{floorThicknessUnit}</span>
               </div>
             </div>
 
@@ -2220,7 +2222,7 @@ export function BinControlsPanel({
                   {hasSelectedMulticolor
                     ? `Separate ${[
                         hasSelectedFloorColor
-                          ? `${floorColorLabel.toLowerCase()} (${pocketFloorThicknessMm} mm)`
+                          ? `${floorColorLabel.toLowerCase()} (${pocketFloorThicknessMm} ${floorThicknessUnit})`
                           : null,
                         hasSelectedRimColor
                           ? `${spec.lip === "standard" ? "rim top" : "top border"} (${spec.lip === "none" ? `${borderWidthMm} mm wide, ` : ""}${stackingRimThicknessMm} mm down)`

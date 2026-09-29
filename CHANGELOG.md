@@ -3,6 +3,7 @@
 ## Unreleased
 
 - With experimental features enabled, import watertight STL models as shaped pockets with angled insertion or vertical drop-in, independent depth and XYZ scaling, adjustable fit margin and smoothing, preserved project geometry, and cavity color linings. Cached inspection cuts reuse the finished bin.
+- Opening an experimental project preserves the user's opt-in setting; its geometry stays loadable and exportable while experimental controls remain hidden until enabled in Settings.
 - Remove a collinear export seam that could leave a zero-area triangle in long bins.
 
 ## 1.2.0 — 2026-09-29

@@ -50,8 +50,10 @@ for ordinary outline pockets.
 
 Turning experimental features off hides import and model-specific editing controls
 and cancels an import in progress. Existing pockets remain visible, saved, and
-exportable. Like other experimental designs, opening a saved project containing
-model pockets (including undo/redo history) enables the tools with a notification.
+exportable. Opening a saved experimental project (including model pockets kept
+only in undo/redo history) preserves the current opt-in setting. If the tools are
+off, a notification explains how to enable them in Settings; loading or restoring
+a project never enables experimental controls automatically.
 
 ## Fit limitations
 
