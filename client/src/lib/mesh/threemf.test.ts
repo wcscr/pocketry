@@ -116,8 +116,8 @@ describe("writeThreeMf", () => {
     ).toBe(true);
   });
 
-  it("keeps a 4x4 multicolor bin body manifold after serialization", () => {
-    const spec = parseBinSpec({ gridX: 4, gridY: 4, heightUnits: 6.5 });
+  it.each(["standard", "none"] as const)("keeps a 4x4 multicolor bin manifold after serialization with %s lip", lip => {
+    const spec = parseBinSpec({ gridX: 4, gridY: 4, heightUnits: 6.5, lip });
     const { materialParts } = buildBinWithCutouts(
       kernel,
       spec,
@@ -141,6 +141,7 @@ describe("writeThreeMf", () => {
     expect(objectEdgeCounts(model, "4x4 body").every((count) => count === 2)).toBe(
       true,
     );
+    expect(objectEdgeCounts(model, "4x4 rim").every((count) => count === 2)).toBe(true);
   });
 
   it("writes compact round-trippable coordinates", () => {

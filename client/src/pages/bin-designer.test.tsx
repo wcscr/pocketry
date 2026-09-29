@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Route, Router, useLocation } from "wouter";
 import { memoryLocation } from "wouter/memory-location";
+import { strFromU8, unzipSync } from "fflate";
 
 import { ExperimentalFeaturesProvider, useExperimentalFeatures, EXPERIMENTAL_FEATURES_KEY } from "@/state/experimental-features";
 import { PanelProvider, usePanelState } from "@/components/layout/panel-context";
@@ -43,6 +44,7 @@ vi.mock("@/components/gridfinity/bin-viewport", () => ({
     hasStackingRim,
     binColor,
     pocketFloorColor,
+    floorColorLabel,
     stackingRimColor,
     showPocketFloorColor,
     showStackingRimColor,
@@ -57,6 +59,7 @@ vi.mock("@/components/gridfinity/bin-viewport", () => ({
     hasStackingRim: boolean;
     binColor: string;
     pocketFloorColor: string;
+    floorColorLabel?: string;
     stackingRimColor: string;
     showPocketFloorColor: boolean;
     showStackingRimColor: boolean;
@@ -81,6 +84,7 @@ vi.mock("@/components/gridfinity/bin-viewport", () => ({
       }
       data-bin-color={binColor}
       data-floor-color={pocketFloorColor}
+      data-floor-label={floorColorLabel}
       data-rim-color={stackingRimColor}
       data-measurement-splits={JSON.stringify(measurementSplitBoundaries)}
     >
@@ -2731,6 +2735,178 @@ describe("BinDesignerPage", () => {
     expect(floorThickness.value).toBe("1.2");
     expect(rimThickness.value).toBe("1.4");
     unmount();
+  });
+
+  it.each(["standard", "workflow"])("edits and exports a top border without a lip in the %s layout", async layout => {
+    const originalUrl = window.location.href;
+    window.history.replaceState(null, "", `/bin?layout=${layout}`);
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({
+      ...EMPTY_PROJECT, spec: { ...EMPTY_PROJECT.spec, lip: "none" },
+    });
+    const mesh = { positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]), indices: new Uint32Array([0, 1, 2]), normals: null };
+    binGeometryMock.buildOnce.mockResolvedValue({ mesh, materialMeshes: { body: mesh, stackingRim: mesh } });
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      openSettingsSection(container, "materials");
+      const color = container.querySelector<HTMLInputElement>('[data-testid="input-stacking-rim-color"]')!;
+      const depth = container.querySelector<HTMLInputElement>('[data-testid="input-stacking-rim-thickness"]')!;
+      const width = container.querySelector<HTMLInputElement>('[data-testid="input-border-width"]')!;
+      const toggle = container.querySelector<HTMLButtonElement>('[aria-label="Color top border"]')!;
+      expect(color.disabled).toBe(false);
+      expect(depth.disabled).toBe(false);
+      expect(width.disabled).toBe(false);
+      expect(width.value).toBe("0.95");
+      expect(toggle.getAttribute("aria-checked")).toBe("true");
+      const setValue = (input: HTMLInputElement, value: string) => React.act(() => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      setValue(color, "#778899");
+      setValue(depth, "2.5");
+      setValue(width, "4");
+      expect(vi.mocked(useBinGeometry).mock.lastCall![4]?.stackingRimThicknessMm).toBe(2.5);
+      expect(vi.mocked(useBinGeometry).mock.lastCall![4]?.borderWidthMm).toBe(4);
+      React.act(() => toggle.click());
+      expect(color.disabled).toBe(true);
+      expect(depth.disabled).toBe(true);
+      expect(width.disabled).toBe(true);
+      expect(container.querySelector('[data-testid="bin-viewport-stub"]')?.getAttribute("data-stacking-rim-color")).toBe("off");
+      openSettingsSection(container, "export");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-export-3mf"]')!.click());
+      expect(document.querySelector<HTMLButtonElement>('[data-testid="button-export-multicolor-3mf"]')!.disabled).toBe(true);
+      React.act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(button => button.textContent === "Cancel")!.click());
+      openSettingsSection(container, "materials");
+      React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Color top border"]')!.click());
+
+      // Construction undo restores the flush border and preserves material settings.
+      openSettingsSection(container, "construction");
+      React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Stacking lip"]')!.click());
+      openSettingsSection(container, "materials");
+      expect(container.querySelector('[aria-label="Color stacking rim top"]')?.getAttribute("aria-checked")).toBe("true");
+      expect(container.querySelector('[data-testid="input-border-width"]')).toBeNull();
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0].lip).toBe("none");
+      expect(container.querySelector('[aria-label="Color top border"]')?.getAttribute("aria-checked")).toBe("true");
+      expect(container.querySelector<HTMLInputElement>('[data-testid="input-stacking-rim-color"]')!.value).toBe("#778899");
+      expect(container.querySelector<HTMLInputElement>('[data-testid="input-stacking-rim-thickness"]')!.value).toBe("2.5");
+      expect(container.querySelector<HTMLInputElement>('[data-testid="input-border-width"]')!.value).toBe("4");
+      expect(container.querySelector('[data-testid="bin-viewport-stub"]')?.getAttribute("data-stacking-rim-color")).toBe("on");
+
+      openSettingsSection(container, "export");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-export-3mf"]')!.click());
+      expect(document.body.textContent).toContain("Separate top border (4 mm wide, 2.5 mm down) for slicer assignment.");
+      await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-export-multicolor-3mf"]')!.click());
+      expect(binGeometryMock.buildOnce).toHaveBeenLastCalledWith(expect.any(Object), {
+        pocketFloorMaterialThicknessMm: undefined, stackingRimMaterialThicknessMm: 2.5, borderWidthMm: 4,
+      });
+      expect(downloadBlob).toHaveBeenCalledTimes(1);
+      const blob = vi.mocked(downloadBlob).mock.calls[0][0];
+      const buffer = await new Promise<ArrayBuffer>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as ArrayBuffer);
+        reader.onerror = reject;
+        reader.readAsArrayBuffer(blob);
+      });
+      const model = strFromU8(unzipSync(new Uint8Array(buffer))["3D/3dmodel.model"]);
+      expect(model).toContain('<m:color color="#778899FF"/>');
+      expect(model).toContain('name="Gridfinity bin 2x2x6 top border" pid="1" pindex="1"');
+      expect(model).not.toContain("Stacking rim top");
+    } finally {
+      unmount();
+      window.history.replaceState(null, "", originalUrl);
+    }
+  });
+
+  it.each(["standard", "workflow"])("uses pocket-floor settings for a hollow bin and exports its floor in the %s layout", async layout => {
+    const originalUrl = window.location.href;
+    window.history.replaceState(null, "", `/bin?layout=${layout}`);
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({
+      ...EMPTY_PROJECT, spec: { ...EMPTY_PROJECT.spec, fill: "none", lip: "none" },
+    });
+    binGeometryMock.hasPocketFloor = true;
+    const mesh = { positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]), indices: new Uint32Array([0, 1, 2]), normals: null };
+    binGeometryMock.buildOnce.mockResolvedValue({ mesh, materialMeshes: { body: mesh, pocketFloors: mesh } });
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      openSettingsSection(container, "materials");
+      React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Color top border"]')!.click());
+      const color = container.querySelector<HTMLInputElement>('[aria-label="Bin floor color"]')!;
+      const depth = container.querySelector<HTMLInputElement>('[aria-label="Bin floor color thickness in millimetres"]')!;
+      const toggle = container.querySelector<HTMLButtonElement>('[aria-label="Color bin floor"]')!;
+      const setValue = (input: HTMLInputElement, value: string) => React.act(() => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      setValue(color, "#2255aa");
+      setValue(depth, "1.2");
+      expect(vi.mocked(useBinGeometry).mock.lastCall![4]?.pocketFloorThicknessMm).toBe(1.2);
+      const viewport = container.querySelector('[data-testid="bin-viewport-stub"]')!;
+      expect(viewport.getAttribute("data-floor-color")).toBe("#2255aa");
+      expect(viewport.getAttribute("data-floor-label")).toBe("Bin floor");
+      expect(viewport.getAttribute("data-pocket-floor-color")).toBe("on");
+      React.act(() => toggle.click());
+      expect(color.disabled).toBe(true);
+      expect(depth.disabled).toBe(true);
+      expect(viewport.getAttribute("data-pocket-floor-color")).toBe("off");
+      openSettingsSection(container, "export");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-export-3mf"]')!.click());
+      expect(document.querySelector<HTMLButtonElement>('[data-testid="button-export-multicolor-3mf"]')!.disabled).toBe(true);
+      React.act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(button => button.textContent === "Cancel")!.click());
+      openSettingsSection(container, "materials");
+      React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Color bin floor"]')!.click());
+
+      openSettingsSection(container, "construction");
+      React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Solid fill"]')!.click());
+      openSettingsSection(container, "materials");
+      expect(container.querySelector<HTMLInputElement>('[aria-label="Pocket floors color"]')!.value).toBe("#2255aa");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0].fill).toBe("none");
+      expect(container.querySelector<HTMLInputElement>('[aria-label="Bin floor color"]')!.value).toBe("#2255aa");
+      expect(container.querySelector<HTMLInputElement>('[aria-label="Bin floor color thickness in millimetres"]')!.value).toBe("1.2");
+
+      openSettingsSection(container, "export");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-export-3mf"]')!.click());
+      expect(document.body.textContent).toContain("Separate bin floor (1.2 mm down) for slicer assignment.");
+      await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-export-multicolor-3mf"]')!.click());
+      expect(binGeometryMock.buildOnce).toHaveBeenLastCalledWith(expect.any(Object), {
+        pocketFloorMaterialThicknessMm: 1.2, stackingRimMaterialThicknessMm: undefined, borderWidthMm: undefined,
+      });
+      expect(downloadBlob).toHaveBeenCalledTimes(1);
+      const blob = vi.mocked(downloadBlob).mock.calls[0][0];
+      const buffer = await new Promise<ArrayBuffer>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as ArrayBuffer);
+        reader.onerror = reject;
+        reader.readAsArrayBuffer(blob);
+      });
+      const model = strFromU8(unzipSync(new Uint8Array(buffer))["3D/3dmodel.model"]);
+      expect(model).toContain('<m:color color="#2255AAFF"/>');
+      expect(model).toContain('name="Gridfinity bin 2x2x6 bin floor" pid="1" pindex="1"');
+    } finally {
+      unmount();
+      window.history.replaceState(null, "", originalUrl);
+    }
+  });
+
+  it("exports the border color when a wide border leaves no body material", async () => {
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({
+      ...EMPTY_PROJECT,
+      spec: parseBinSpec({ gridX: 1, gridY: 1, gridPitch: "quarter", heightUnits: 1, lip: "none", flatBottom: true }),
+    });
+    const mesh = { positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]), indices: new Uint32Array([0, 1, 2]), normals: null };
+    const empty = { positions: new Float32Array(), indices: new Uint32Array(), normals: null };
+    binGeometryMock.buildOnce.mockResolvedValue({ mesh, materialMeshes: { body: empty, stackingRim: mesh } });
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      openSettingsSection(container, "export");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-export-3mf"]')!.click());
+      await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-export-multicolor-3mf"]')!.click());
+      expect(downloadBlob).toHaveBeenCalledTimes(1);
+      expect(projectToast).not.toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive" }));
+    } finally { unmount(); }
   });
 
   it("closes the mobile controls when starting a geometric pocket from the panel", async () => {
