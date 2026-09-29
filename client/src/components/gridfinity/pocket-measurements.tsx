@@ -73,7 +73,7 @@ export function PocketMeasurements({ cutout, shape, children }: {
       <div className="space-y-3 pb-2 pt-2">
         {children}
         <div className="space-y-2" data-testid="pocket-rotation-controls">
-          <div className="flex items-center gap-1"><p className="font-medium">Rotate pocket</p><HelpHint label="pocket rotation">Rotate the generated pocket around any axis. Depth is its thickness along the original outline’s normal. Elevation keeps its lowest point at the chosen height. The opening is where the solid intersects the fill surface.</HelpHint></div>
+          <div className="flex items-center gap-1"><p className="font-medium">Rotate pocket</p><HelpHint label="pocket rotation">Rotate the pocket around any axis. Model dimensions stay fixed; generated pocket depth is its thickness along the original outline’s normal. Elevation keeps its lowest point at the chosen height. The opening is where the solid intersects the fill surface.</HelpHint></div>
           <div className="grid grid-cols-2 gap-2">{(["xDeg", "yDeg"] as const).map(axis => <Label key={axis} className="flex min-w-0 items-center gap-2 text-xs">
             {axis === "xDeg" ? "X" : "Y"}
             <DraftNumberInput className="h-8 min-w-0" aria-label={`Pocket ${axis === "xDeg" ? "X" : "Y"} rotation in degrees`}
@@ -134,7 +134,7 @@ export function PocketDepthSummary({ cutout, shape, section, inspect, children }
   const [chosenAxis, setChosenAxis] = useState<{ pocketId: string; axis: BuildBinSection["axis"] } | null>(null);
   const pocket = resolvePlacedPocketDepth(spec, cutout.depth, shape, cutout);
   const rigid = hasRigidPocket(cutout);
-  const displayedDepth = rigid ? pocket.axialDepthMm : pocket.depthMm;
+  const displayedDepth = shape.model ? pocket.infillTopZ - (cutout.elevationMm ?? 0) : rigid ? pocket.axialDepthMm : pocket.depthMm;
   const total = binTotalHeightMm(spec.heightUnits, spec.lip === "standard");
   const bounds = outlineBounds(placementFootprint(shape, cutout).outline)!;
   // Use the placed solid's X/Y extents, including rotation and thickness.
@@ -147,14 +147,14 @@ export function PocketDepthSummary({ cutout, shape, section, inspect, children }
   return <div className="space-y-2">
     <details key={cutout.id} open className="group/depth text-xs" data-testid="pocket-depth-summary">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded py-2 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
-        <span>{cutout.profileBottom ? "Bottom profile" : "Depth"}</span>
+        <span>{shape.model ? "Model pocket" : cutout.profileBottom ? "Bottom profile" : "Depth"}</span>
         <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/depth:rotate-180" />
       </summary>
       {children}
       <div className="rounded border bg-muted/30 p-2">
-        <p className="text-muted-foreground">{rigid ? "Depth" : cutout.profileBottom ? "Deepest cut" : hasPocketTilt(cutout) ? "Vertical depth" : "Cut depth"}: {displayedDepth === null ? "through" : `${displayedDepth.toFixed(1)} mm`} · {cutout.profileBottom || rigid ? "Lowest point" : "Floor"}: {(pocket.floorZ ?? 0).toFixed(1)} mm</p>
+        <p className="text-muted-foreground">{shape.model ? "Insertion depth" : rigid ? "Depth" : cutout.profileBottom ? "Deepest cut" : hasPocketTilt(cutout) ? "Vertical depth" : "Cut depth"}: {displayedDepth === null ? "through" : `${displayedDepth.toFixed(1)} mm`} · {cutout.profileBottom || rigid ? "Lowest point" : "Floor"}: {(pocket.floorZ ?? 0).toFixed(1)} mm</p>
         <p className="text-muted-foreground">Infill top: {pocket.infillTopZ.toFixed(1)} mm · Total bin: {total.toFixed(1)} mm</p>
-        {hasPocketTilt(cutout) && <p className="mt-1 text-muted-foreground">Along pocket axis: {pocket.axialDepthMm === null ? "through" : `${pocket.axialDepthMm.toFixed(1)} mm`} · Axis tilt: {(Math.acos(pocketAxis(cutout).z) * 180 / Math.PI).toFixed(1)}°</p>}
+        {!shape.model && hasPocketTilt(cutout) && <p className="mt-1 text-muted-foreground">Along pocket axis: {pocket.axialDepthMm === null ? "through" : `${pocket.axialDepthMm.toFixed(1)} mm`} · Axis tilt: {(Math.acos(pocketAxis(cutout).z) * 180 / Math.PI).toFixed(1)}°</p>}
         {cutout.profileBottom && !hasProfileRotation(cutout) && <ProfileSectionPreview cutout={cutout} shape={shape} top={pocket.infillTopZ} />}
         {hasProfileRotation(cutout) && <p className="mt-1 text-muted-foreground">Rotated profile · Inspect in 3D to see the supporting contour.</p>}
         {!cutout.profileBottom && !hasRigidPocket(cutout) && !hasPocketTilt(cutout) && <svg viewBox="0 0 240 65" className="mt-2 h-16 w-full" role="img" aria-label="Cross-section: pocket depth above remaining floor, with stacking rim above infill">

@@ -1,3 +1,4 @@
+import { ModelPocketControls } from "./model-pocket-controls";
 import { hasRigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { createPortal } from "react-dom";
 import { useSelectionInspector } from "./selection-inspector-context";
@@ -744,8 +745,8 @@ export function BinControlsPanel({
                   aria-label={editorMode === "contour" ? "Finish contour editing" : "Edit contour"}
                   aria-pressed={editorMode === "contour"}
                   data-testid="button-edit-contour"
-                  disabled={hasPocketTilt(selectedCutout)}
-                  title={hasPocketTilt(selectedCutout) ? "Reset to X–Y plane before editing the contour." : undefined}
+                  disabled={!!selectedShape.model || hasPocketTilt(selectedCutout)}
+                  title={selectedShape.model ? "Edit the original STL to change its contours." : hasPocketTilt(selectedCutout) ? "Reset to X–Y plane before editing the contour." : undefined}
                   onClick={() => {
                     const editing = editorMode === "contour";
                     dispatch({
@@ -764,7 +765,7 @@ export function BinControlsPanel({
 
 
               {!inspector && experimentalEnabled && <LinkedDesignControls kind="pocket" activeId={selectedCutout.id} labels={new Map(cutouts.map(c => [c.id, pocketName(c, shapesById.get(c.shapeId))]))} />}
-              <PocketDepthSummary cutout={depthCutout!} shape={depthShape!} section={section} inspect={inspectPocket}>
+              {selectedShape.model ? <PocketDepthSummary shape={selectedShape} cutout={selectedCutout} section={section} inspect={inspectPocket}><ModelPocketControls shape={selectedShape} cutout={selectedCutout} /></PocketDepthSummary> : <PocketDepthSummary cutout={depthCutout!} shape={depthShape!} section={section} inspect={inspectPocket}>
                 {selectedCutout.split && <div className="flex gap-1 pb-2" role="group" aria-label="Section to edit">
                   {([0, 1] as const).map(index => <Button key={index} type="button" size="sm"
                     className="flex-1" variant={selectedPocketSection === index ? "secondary" : "outline"}
@@ -820,17 +821,17 @@ export function BinControlsPanel({
                     onChange={(floorThicknessMm, transient) => updatePocketDepth({ mode: "remaining", floorThicknessMm }, transient)} />}
                   {selectedCutout.split && <p className="text-[11px] text-muted-foreground">Depth applies to the selected section. Size and edges apply to the whole pocket.</p>}
                 </section>
-              </PocketDepthSummary>
-              {!selectedCutout.profileBottom && <PocketSplitControls cutout={selectedCutout} />}
-              <details className="group/size border-t pt-1 text-xs" aria-label="Pocket size and scale" data-testid="pocket-size-settings">
+              </PocketDepthSummary>}
+              {!selectedShape.model && !selectedCutout.profileBottom && <PocketSplitControls cutout={selectedCutout} />}
+              {!selectedShape.model && <details className="group/size border-t pt-1 text-xs" aria-label="Pocket size and scale" data-testid="pocket-size-settings">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-2 py-2 font-medium [&::-webkit-details-marker]:hidden">
                   Size &amp; scale
                   <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/size:rotate-180" />
                 </summary>
                 <div className="pb-2" key={selectedCutout.id}><PocketSizeInputs cutout={selectedCutout} shape={selectedShape} setScale={setPocketScale} /></div>
-              </details>
+              </details>}
 
-              {!selectedCutout.profileBottom && <details className="group/more border-t pt-1 text-xs" data-testid="pocket-edge-settings">
+              {!selectedShape.model && !selectedCutout.profileBottom && <details className="group/more border-t pt-1 text-xs" data-testid="pocket-edge-settings">
                 <summary className="flex cursor-pointer list-none items-center justify-between py-1.5 font-medium [&::-webkit-details-marker]:hidden">
                   <span className="flex items-center gap-1">Edges &amp; corners <HelpHint label="edges and corners">Soften sharp corners and edges. Values are rounding radii in millimetres; 0 keeps an edge sharp.</HelpHint></span>
                   <ChevronDown className="h-3.5 w-3.5 transition-transform group-open/more:rotate-180" />
@@ -920,7 +921,7 @@ export function BinControlsPanel({
               )}
 
               {inspector && experimentalEnabled && <AdvancedLinks><LinkedDesignControls kind="pocket" activeId={selectedCutout.id} labels={new Map(cutouts.map(c => [c.id, pocketName(c, shapesById.get(c.shapeId))]))} /></AdvancedLinks>}
-              {!selectedCutout.profileBottom && pocketClearance}
+              {!selectedShape.model && !selectedCutout.profileBottom && pocketClearance}
             </PropertySurface>
           );
   const fingerProperties = selectedFingerHole && fingerSizeLimits && (
@@ -1660,7 +1661,7 @@ export function BinControlsPanel({
           >
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <SettingLabel label="Pocket floors" hint="Separate material below blind-pocket surfaces." />
+                <SettingLabel label="Pocket floors" hint="Separate material below blind-pocket surfaces. Imported-model pockets also line steep and vertical cavity walls." />
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <MaterialColorSwatch
@@ -1678,7 +1679,7 @@ export function BinControlsPanel({
               </div>
             </div>
             <div className="flex items-center justify-between gap-3">
-              <SettingLabel label="Color thickness" htmlFor="input-pocket-floor-thickness" hint="Accent thickness replaces existing material downward from the original surface; it never adds height to the bin." />
+              <SettingLabel label="Color thickness" htmlFor="input-pocket-floor-thickness" hint="Accent thickness replaces existing material below the pocket surface, or around all cavity surfaces for imported models. It never changes the tool clearance or outer bin size." />
               <div className="flex items-center gap-1.5">
                 <DraftNumberInput
                   id="input-pocket-floor-thickness"
@@ -1700,7 +1701,7 @@ export function BinControlsPanel({
                   aria-label="Pocket floor color thickness in millimetres"
                   data-testid="input-pocket-floor-thickness"
                 />
-                <span className="text-[11px] text-muted-foreground">mm down</span>
+                <span className="text-[11px] text-muted-foreground">mm</span>
               </div>
             </div>
 
@@ -1883,7 +1884,7 @@ export function BinControlsPanel({
               </div>
             )}
 
-            {selectedCutout && selectedShape ? (
+            {selectedCutout && selectedShape && !selectedShape.model ? (
               <div className="space-y-2 border-t pt-2.5">
                 <div>
                   <SettingLabel label="Tool fit template" hint={selectedCutout.profileBottom
@@ -1927,7 +1928,7 @@ export function BinControlsPanel({
               </div>
             ) : cutouts.length > 0 ? (
               <p className="border-t pt-2.5 text-[11px] text-muted-foreground">
-                Select a tool cutout to export a fit template.
+                {selectedShape?.model ? "Imported models use the surface fit test. A flat tool template cannot represent their 3D contours." : "Select a tool cutout to export a fit template."}
               </p>
             ) : (
               <div
@@ -2188,7 +2189,7 @@ export function BinControlsPanel({
                   {hasSelectedMulticolor
                     ? `Separate ${[
                         hasSelectedFloorColor
-                          ? `pocket floors (${pocketFloorThicknessMm} mm down)`
+                          ? `pocket floors (${pocketFloorThicknessMm} mm)`
                           : null,
                         hasSelectedRimColor
                           ? `rim top (${stackingRimThicknessMm} mm down)`

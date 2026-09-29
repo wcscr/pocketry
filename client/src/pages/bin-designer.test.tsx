@@ -2689,10 +2689,11 @@ describe("BinDesignerPage", () => {
     expect(floorThickness.max).toBe("3");
     expect(rimThickness.max).toBe("7.35");
     expect(container.textContent).toContain("mm down");
-    expect(container.textContent).not.toContain("never adds height to the bin");
+    expect(container.textContent).not.toContain("never changes the tool clearance");
     const thicknessHelp = container.querySelector<HTMLButtonElement>('[data-testid="view-color-row-floor"] [aria-label="About color thickness"]')!;
     React.act(() => thicknessHelp.click());
-    expect(document.querySelector('[role="tooltip"]')!.textContent).toContain("never adds height to the bin");
+    expect(document.querySelector('[role="tooltip"]')!.textContent).toContain("around all cavity surfaces for imported models");
+    expect(document.querySelector('[role="tooltip"]')!.textContent).toContain("never changes the tool clearance");
     React.act(() => thicknessHelp.click());
 
     React.act(() => {
@@ -4170,7 +4171,7 @@ describe("BinDesignerPage", () => {
     expect(multicolorExport).not.toBeNull();
     expect(multicolorExport.disabled).toBe(false);
     expect(document.body.textContent).toContain(
-      "Separate pocket floors (0.6 mm down) and rim top (1.25 mm down) for slicer assignment.",
+      "Separate pocket floors (0.6 mm) and rim top (1.25 mm down) for slicer assignment.",
     );
     const exportDialog = document.querySelector('[role="dialog"]') as HTMLElement;
     React.act(() => {
@@ -5458,3 +5459,51 @@ it.each(['Move selected objects', 'Rotate selected objects', 'Arrange selected o
     } finally { unmount(); window.history.replaceState(null, '', originalUrl); }
   },
 );
+
+
+it.each(["standard","workflow"])("gates model import behind the experimental opt-in in the %s layout", async layout => {
+  const originalUrl=window.location.href;
+  window.history.replaceState(null,"",`/bin?layout=${layout}`);
+  const {container,unmount}=renderPage({experimental:false});
+  try {
+    await flushHydration();
+    React.act(()=>container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
+    openSettingsSection(container,"tool-cutouts");
+    const add=container.querySelector<HTMLButtonElement>(layout==="workflow"
+      ? '[data-testid="toolbar-add-object"]' : '[data-testid="button-add-pocket"]')!;
+    React.act(()=>add.dispatchEvent(new KeyboardEvent("keydown",{key:"Enter",bubbles:true})));
+    const importItem=()=>[...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(item=>item.textContent==="Import 3D model…");
+    expect(importItem()).toBeUndefined();
+    expect(document.querySelector('[role="menuitem"]')?.textContent).toContain("Rectangle");
+    React.act(()=>experimentalSettings.setEnabled(true));
+    expect(importItem()).toBeDefined();
+    React.act(()=>importItem()!.click());
+    expect(document.querySelector('[aria-label="STL file"]')).not.toBeNull();
+    React.act(()=>experimentalSettings.setEnabled(false));
+    expect(document.querySelector('[aria-label="STL file"]')).toBeNull();
+    React.act(()=>experimentalSettings.setEnabled(true));
+    expect(document.querySelector('[aria-label="STL file"]')).toBeNull();
+  } finally {unmount();window.history.replaceState(null,"",originalUrl);}
+});
+
+it("opens saved model pockets with experimental controls and keeps geometry intact after opt-out", async () => {
+  const shape:TracedShape={...rectangularShape("saved-model","Saved model"),source:"model",
+    model:{format:"stl",units:"mm",positions:[-10,-5,-3,10,-5,-3,0,5,-3,0,0,3],indices:[0,2,1,0,1,3,1,2,3,2,0,3]}};
+  const placed=parseCutoutPlacement({id:"model-pocket",shapeId:shape.id,position:{x:0,y:0},elevationMm:12,
+    depth:{mode:"mm",value:6},clearanceMm:0.3,modelSmoothingMm:1,cornerRoundMm:0,topFilletMm:0,bottomFilletMm:0});
+  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({...EMPTY_PROJECT,shapes:[shape],cutouts:[placed]});
+  const {container,unmount}=renderPage({experimental:false});
+  try {
+    await flushHydration();
+    expect(experimentalSettings.enabled).toBe(true);
+    expect(projectToast).toHaveBeenCalledWith(expect.objectContaining({title:"Experimental features enabled"}));
+    openSettingsSection(container,"tool-cutouts"); selectPocket(container,placed.id);
+    expect(container.querySelector('[aria-label="Imported model properties"]')).not.toBeNull();
+    const before=structuredClone(vi.mocked(useBinGeometry).mock.lastCall![2]);
+    React.act(()=>experimentalSettings.setEnabled(false));
+    expect(container.querySelector('[aria-label="Imported model properties"]')).toBeNull();
+    expect(container.textContent).toContain("Its geometry is preserved");
+    expect(vi.mocked(useBinGeometry).mock.lastCall![2]).toEqual(before);
+    expect(container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.disabled).toBe(true);
+  } finally {unmount();}
+});

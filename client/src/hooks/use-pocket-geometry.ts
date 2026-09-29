@@ -1,3 +1,4 @@
+import { inspectModel } from "@/lib/gridfinity/model-worker-client";
 import { useEffect, useMemo, useState } from "react";
 import type { Outline } from "@shared/geometry/types";
 import type { CutoutPlacement, TracedShape } from "@shared/gridfinity/cutout";
@@ -25,9 +26,16 @@ export function usePocketGeometry(cutouts: readonly CutoutPlacement[], shapesByI
   useEffect(() => {
     if (!request.cutouts.length) return;
     let current = true;
+    const models = request.cutouts.flatMap(cutout => {
+      const shape = request.shapesById.get(cutout.shapeId);
+      if (!shape?.model) return [];
+      const inspection = inspectModel(shape, cutout, request.spec);
+      void inspection.promise.catch(() => {});
+      return [{ id: cutout.id, ...inspection }];
+    });
     void withKernel(kernel => new Map(request.cutouts.flatMap(cutout => {
       const shape = request.shapesById.get(cutout.shapeId);
-      if (!shape) return [];
+      if (!shape || shape.model) return [];
       const cached = cache.get(cutout);
       if (cached?.shape === shape && cached.spec === request.spec) return [[cutout.id, cached.geometry] as const];
       const geometry = hasRigidPocket(cutout) ? resolvedPocketGeometry(kernel, shape, cutout, request.spec)
@@ -35,11 +43,14 @@ export function usePocketGeometry(cutouts: readonly CutoutPlacement[], shapesByI
           opening: resolvedProfileFootprint(kernel, shape.outlineMm, cutout, resolvePocketDepth(request.spec, cutout.depth).infillTopZ) };
       cache.set(cutout, { shape, spec: request.spec, geometry });
       return [[cutout.id, geometry] as const];
-    }))).then(outlines => { if (current) setResult({ request, outlines }); }).catch(() => {
+    }))).then(async outlines => {
+      const imported = await Promise.all(models.map(async item => [item.id, await item.promise] as const));
+      if (current) setResult({ request, outlines: new Map([...outlines, ...imported]) });
+    }).catch(() => {
       // The geometry worker reports model errors. Retain the synchronous
       // footprint for selection if the optional outline preview cannot build.
     });
-    return () => { current = false; };
+    return () => { current = false; models.forEach(item => item.release()); };
   }, [request]);
   return result?.request === request ? result.outlines : EMPTY;
 }

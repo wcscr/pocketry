@@ -19,7 +19,7 @@ const arena = new Arena();
 const directory = resolve(process.argv[2] ?? "exports/reference-strip");
 await mkdir(directory, { recursive: true });
 try {
-  const kernel = { Manifold: wasm.Manifold, CrossSection: wasm.CrossSection, triangulate: wasm.triangulate, arena };
+  const kernel = { Manifold: wasm.Manifold, Mesh: wasm.Mesh, CrossSection: wasm.CrossSection, triangulate: wasm.triangulate, arena };
   for (const length of MEASUREMENT_AID_LENGTHS) {
     const name = `pocketry-measurement-aid-${length}mm-v2`;
     await writeFile(resolve(directory, `${name}.3mf`), measurementAidThreeMf(kernel, length));
@@ -29,7 +29,7 @@ try {
   await writeFile(resolve(directory, "measurement-aids.json"), JSON.stringify({ designs: MEASUREMENT_AIDS, edges: MEASUREMENT_AID_EDGE, physicalValidation: "Print and measure before use" }, null, 2));
   await writeFile(resolve(directory, "README.md"), await readFile(new URL("../docs/calibration/object-reference-strip.md", import.meta.url)));
   await writeFile(resolve(directory, "pocketry-reference-strip-v1.3mf"), referenceStripThreeMf({
-    Manifold: wasm.Manifold, CrossSection: wasm.CrossSection, triangulate: wasm.triangulate, arena,
+    Manifold: wasm.Manifold, Mesh: wasm.Mesh, CrossSection: wasm.CrossSection, triangulate: wasm.triangulate, arena,
   }));
   for (const paper of ["a4", "letter"] as const) {
     await writeFile(resolve(directory, `pocketry-measurement-aids-v2-${paper}.pdf`), measurementAidsPdf(paper));

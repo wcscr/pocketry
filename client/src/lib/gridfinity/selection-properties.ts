@@ -32,6 +32,9 @@ export function selectionPropertyEdits(objects: readonly EditableObject[], selec
   if (chosen.some(o => o.kind === "pocket" && o.cutout.profileBottom)) {
     throw new Error("Profile-bottom pockets use elevation and slot width. Select a profile to edit its dimensions; ordinary depth, clearance and rounding are inactive.");
   }
+  if (chosen.some(o => o.kind === "pocket" && o.shape.model) && (property !== "clearanceMm" || value < 0)) {
+    throw new Error("Imported models use model scale and elevation. Only nonnegative model clearance can be edited with this selection.");
+  }
   const edits: ObjectEdits = { cutouts: [], fingerHoles: [] };
   for (const object of chosen) {
     if (object.kind === "pocket") {

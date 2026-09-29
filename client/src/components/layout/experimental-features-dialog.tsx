@@ -25,7 +25,7 @@ export function ExperimentalFeaturesDialog(): JSX.Element {
           <Switch id="experimental-features" checked={enabled} onCheckedChange={setEnabled} aria-describedby="experimental-features-description" />
         </div>
         <p id="experimental-features-description" className="mt-2 text-sm text-muted-foreground">
-          Try multi-selection, alignment, distribution, and linked designs. These tools are still being refined.
+          Try imported 3D model pockets, multi-selection, alignment, distribution, and linked designs. These tools are still being refined.
         </p>
         {enabled && <p id="experimental-layout-recommendation" className="mt-3 rounded-md bg-primary/5 p-3 text-sm">
           For experimental tools, we recommend <strong>New UI: Split Workflow and Properties</strong> for its dedicated toolbar and properties panel.

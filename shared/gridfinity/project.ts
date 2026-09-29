@@ -49,9 +49,10 @@ import { migrateProfilePocket } from "./rigid-pocket";
  * Version 25 retains original pocket depths and the reversible fill-adjustment setting.
  * Unreleased side-profile prototypes also used version 25 and migrate by their fields.
  * Version 26 gives generated pockets a finite solid and unrestricted rigid placement.
+ * Version 27 embeds imported STL geometry and independent model Z scale.
  */
 
-export const PROJECT_SCHEMA_VERSION = 26 as const;
+export const PROJECT_SCHEMA_VERSION = 27 as const;
 
 const projectFields = {
   shapes: z.array(tracedShapeSchema),
@@ -113,6 +114,7 @@ const version24ProjectSchema = version23ProjectSchema.extend({
   schemaVersion: z.literal(24), transformOrigins: transformOriginsSchema.optional(),
 });
 const version25ProjectSchema = version24ProjectSchema.extend({ schemaVersion: z.literal(25) });
+const version26ProjectSchema = version24ProjectSchema.extend({ schemaVersion: z.literal(26) });
 
 /** History and the visible design must describe one consistent saved snapshot. */
 export const projectDocSchema = version16ProjectSchema.extend({
@@ -236,6 +238,8 @@ export function parseProjectDoc(input: unknown): ProjectDoc | null {
       input = { ...doc, spec };
     }
   }
+  const version26 = version26ProjectSchema.safeParse(input);
+  if (version26.success) return parseProjectDoc({ ...version26.data, schemaVersion: PROJECT_SCHEMA_VERSION });
   const version25 = version25ProjectSchema.safeParse(input);
   if (version25.success) {
     const doc = version25.data;

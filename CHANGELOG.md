@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Remove a collinear export seam that could leave a zero-area triangle in long bins, including the new screwdriver model-pocket test case.
+
+- With experimental features enabled, import watertight STL models as shaped pockets that clear the model’s insertion path along its rotated axis, with optional vertical drop-in, independent insertion depth, XYZ scaling, rotation, adjustable fit margin, rounded storage contours and detail smoothing, and saved-project geometry. Inspection slices reuse the finished bin for faster updates. Model-pocket color linings cover steep and vertical faces without changing tool clearance.
+
 - Simplified the 3D pocket outline to show the solid’s exterior edges and a faint surface, with no internal subdivision lines. Rotation previews retain clean contour outlines while the solid updates.
 - Pocket inspection shows the outline by default with a “Hide pocket outline” option, and initially selects the pocket’s longest placed X or Y dimension as the cut axis.
 - Finger-access grooves can exceed 160 mm, with length limits based on the bin dimensions, slot width, and rotation.

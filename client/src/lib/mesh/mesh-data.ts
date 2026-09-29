@@ -42,12 +42,42 @@ export interface MeshDataOptions {
  * preserving dimensions far below the application's modelling resolution. */
 export function preparePrintableSolid(kernel: Kernel, solid: Manifold): Manifold {
   if (solid.isEmpty()) return solid;
-  const floatMesh = solid.getMesh();
-  floatMesh.merge();
-  const rebuilt = kernel.arena.track(new kernel.Manifold(floatMesh));
-  const printable = kernel.arena.track(rebuilt.simplify(0.0001));
-  if (printable.status() !== "NoError") throw new Error("Could not prepare printable mesh topology.");
-  return printable;
+  let current = solid;
+  // Simplification can itself create a face that collapses on the next Float32
+  // round trip. Retry only when the actual serialized coordinates need it.
+  for (let pass = 0; pass < 6; pass++) {
+    const raw = current.getMesh();
+    // If ordinary cleanup stalls, recompute coplanar faces at serialized
+    // precision. Stale CSG face/run provenance (not used by STL/3MF) can pin
+    // collinear triangles in place through every simplification pass. Keep
+    // the established path first, since retriangulation can add new seams.
+    const floatMesh = pass < 3 ? raw : new kernel.Mesh({
+      numProp: raw.numProp, vertProperties: raw.vertProperties, triVerts: raw.triVerts,
+      mergeFromVert: raw.mergeFromVert, mergeToVert: raw.mergeToVert,
+      tolerance: raw.tolerance,
+    });
+    floatMesh.merge();
+    const rebuilt = kernel.arena.track(new kernel.Manifold(floatMesh));
+    const printable = kernel.arena.track(rebuilt.simplify(0.0001));
+    if (printable.status() !== "NoError") throw new Error("Could not prepare printable mesh topology.");
+    const mesh = printable.getMesh();
+    let collapsed = false;
+    for (let i = 0; i < mesh.triVerts.length; i += 3) {
+      const [a, b, c] = [0, 1, 2].map(k => mesh.triVerts[i + k] * mesh.numProp);
+      const p = mesh.vertProperties;
+      const ux = p[b] - p[a], uy = p[b + 1] - p[a + 1], uz = p[b + 2] - p[a + 2];
+      const vx = p[c] - p[a], vy = p[c + 1] - p[a + 1], vz = p[c + 2] - p[a + 2];
+      if (Math.hypot(uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx) === 0) {
+        collapsed = true;
+        break;
+      }
+    }
+    if (!collapsed) return printable;
+    current = printable;
+  }
+  // Preserve established behavior for kernel-valid collinear seams that survive
+  // bounded cleanup; rebuilding provenance fixes the long-bin export case.
+  return current;
 }
 
 /**

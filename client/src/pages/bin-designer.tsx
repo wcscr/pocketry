@@ -324,7 +324,7 @@ function BinDesignerWorkspace(): JSX.Element {
     const shapesById = new Map(library.shapes.map((shape) => [shape.id, shape]));
     const result =
       cutouts.length === 0 && !keepBinSize
-        ? autoPlaceFresh(newShapes, spec.lip, spec.gridPitch)
+        ? autoPlaceFresh(newShapes, spec.lip, spec.gridPitch, spec)
         : autoPlaceIncremental(newShapes, {
             spec,
             lip: spec.lip,

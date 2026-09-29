@@ -1,7 +1,7 @@
 import { hasRigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { validateLayout } from "@shared/gridfinity/validate";
 import { hasPocketTilt } from "@shared/gridfinity/pocket-orientation";
-import type { ManifoldToplevel } from "manifold-3d";
+import type { Manifold, ManifoldToplevel } from "manifold-3d";
 
 import {
   cutoutPlacementSchema,
@@ -70,6 +70,13 @@ function parseMaterialThickness(
 export function createBinWorkerHandlers(
   loadRuntime: () => Promise<ManifoldToplevel>,
 ): HandlerMap {
+  // Keep one unsectioned preview as detached JS meshes. Section-only requests
+  // restore it without repeating cavity CSG; exported meshes never use this cache.
+  type Built = ReturnType<typeof buildBinWithCutouts>;
+  type Mesh = ReturnType<Manifold["getMesh"]>;
+  let previewCache: { key: string; solid: Mesh; materialParts: null | {
+    body: Mesh; pocketFloors: Mesh | null; stackingRim: Mesh | null; floorRegions: Mesh[];
+  }; cutoutReports: Built["cutoutReports"]; validationIssues: Built["validationIssues"]; volumeMm3: number } | null = null;
   const buildBinHandler = async (
     payload: BuildBinRequest,
     context: HandlerContext,
@@ -126,7 +133,18 @@ export function createBinWorkerHandlers(
         const errors = validateLayout(spec, layout.cutouts, layout.shapesById, layout.fingerHoles).filter(issue => issue.severity === "error");
         if (errors.length) throw new Error(errors.map(issue => issue.message).join("\n"));
       }
-      const { solid, materialParts, cutoutReports, validationIssues } = buildBinWithCutouts(
+      const cacheKey = payload.exportTopology ? null : JSON.stringify({ ...payload, section: undefined });
+      const cached = cacheKey !== null && previewCache?.key === cacheKey ? previewCache : null;
+      const restore = (mesh: Mesh) => arena.track(new kernel.Manifold(mesh));
+      const { solid, materialParts, cutoutReports, validationIssues } = cached ? {
+        solid: restore(cached.solid), cutoutReports: cached.cutoutReports, validationIssues: cached.validationIssues,
+        materialParts: cached.materialParts ? {
+          body: restore(cached.materialParts.body),
+          pocketFloors: cached.materialParts.pocketFloors ? restore(cached.materialParts.pocketFloors) : null,
+          stackingRim: cached.materialParts.stackingRim ? restore(cached.materialParts.stackingRim) : null,
+          floorRegions: cached.materialParts.floorRegions.map(restore),
+        } : null,
+      } : buildBinWithCutouts(
         kernel,
         spec,
         layout,
@@ -145,7 +163,15 @@ export function createBinWorkerHandlers(
       if (context.signal.aborted) throw new WorkerCancelledError();
 
       // Stats describe the real bin; the section cut below is view-only.
-      const volumeMm3 = solid.volume();
+      const volumeMm3 = cached?.volumeMm3 ?? solid.volume();
+      if (cacheKey !== null && !cached) {
+        previewCache = { key: cacheKey, solid: solid.getMesh(), cutoutReports, validationIssues, volumeMm3,
+          materialParts: materialParts ? { body: materialParts.body.getMesh(),
+            pocketFloors: materialParts.pocketFloors?.getMesh() ?? null,
+            stackingRim: materialParts.stackingRim?.getMesh() ?? null,
+            floorRegions: materialParts.floorRegions.map(part => part.getMesh()),
+          } : null };
+      }
       const section =
         payload.section &&
         (payload.section.axis === "x" || payload.section.axis === "y") &&

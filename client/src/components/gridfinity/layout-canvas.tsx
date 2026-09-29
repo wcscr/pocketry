@@ -828,7 +828,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
     }
 
     const target = event.target as Element;
-    if (editorMode === "contour") {
+    if (editorMode === "contour" && !selected?.shape.model) {
       // Keep source point order (also for mirrored pockets) while measuring the
       // pick distance after placement scaling, in the displayed bin frame.
       const displayedOutline = selected?.shape.outlineMm.map(shape => ({
@@ -917,7 +917,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
     if (
       editorMode === "placement" &&
       selected &&
-      !(hasProfileRotation(selected.cutout) || (hasRigidPocket(selected.cutout) && hasPocketTilt(selected.cutout))) &&
+      !selected.shape.model && !(hasProfileRotation(selected.cutout) || (hasRigidPocket(selected.cutout) && hasPocketTilt(selected.cutout))) &&
       isPocketResizeHandle(resizeHandle)
     ) {
       const localBounds = outlineBounds(selected.cutout.profileBottom
@@ -1881,7 +1881,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
                 style={{ cursor: ROTATE_CURSOR }}
                 data-testid="pocket-rotate-handle"
               />
-              {!(hasProfileRotation(selected.cutout) || (hasRigidPocket(selected.cutout) && hasPocketTilt(selected.cutout))) && POCKET_RESIZE_HANDLES.map((handle) => {
+              {!selected.shape.model && !(hasProfileRotation(selected.cutout) || (hasRigidPocket(selected.cutout) && hasPocketTilt(selected.cutout))) && POCKET_RESIZE_HANDLES.map((handle) => {
                 const point = selectedControls.handles.get(handle)!;
                 return (
                   <rect

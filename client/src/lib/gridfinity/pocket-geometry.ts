@@ -1,3 +1,4 @@
+import { buildModelPocket } from "./model-pocket";
 import type { CutoutPlacement, TracedShape } from "@shared/gridfinity/cutout";
 import { resolvePocketDepth } from "@shared/gridfinity/cutout";
 import type { BinSpec } from "@shared/gridfinity/types";
@@ -9,7 +10,7 @@ import { resolvedObjectGeometry } from "./object-geometry";
  * clearance and rounding. No separate extrusion model is used for rendering. */
 export function resolvedPocketGeometry(kernel: Kernel, shape: TracedShape, cutout: CutoutPlacement, spec: BinSpec) {
   const { arena, Manifold } = kernel;
-  const built = buildRigidPocket(kernel, shape, cutout, spec, { circularSegments: 64, cutoutVertexBudget: 600 });
+  const built = shape.model ? buildModelPocket(kernel, shape, cutout, spec, 0, Infinity) : buildRigidPocket(kernel, shape, cutout, spec, { circularSegments: 64, cutoutVertexBudget: 600 });
   const solid = arena.track(Manifold.union(built.cutters));
   const top = resolvePocketDepth(spec, cutout.depth).infillTopZ;
   return resolvedObjectGeometry(kernel, solid, top);
