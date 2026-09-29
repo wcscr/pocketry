@@ -68,9 +68,14 @@ records their source files and published hashes. The 3MF files are unmodified
 copies of the supplied print exports.
 
 The photographs in the sample directories' `photos/` folders are copies of the supplied
-originals, cropped, rotated, and resized with ordinary pixel-processing tools. Embedded
-metadata was removed. No generative image editing was used for these sample
-photographs; the supplied originals remain unchanged.
+originals, cropped, straightened where needed, rotated, and resized with ordinary
+pixel-processing tools. Embedded metadata was removed. No generative image
+editing was used for these sample photographs; the supplied originals remain
+unchanged.
+
+The mini socket set sample includes the supplied project, print export, and
+three photographs. Its design reuses the pre-cut shadowbox that came with
+the toolset.
 
 These sample assets are distributed under Pocketry's AGPL-3.0-only licence.
 Product names and marks retain their respective ownership.

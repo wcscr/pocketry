@@ -39,6 +39,7 @@ import {
   EXPORT_QUALITY,
   MULTICOLOR_FLOOR_THICKNESS_MM,
   MULTICOLOR_RIM_THICKNESS_MM,
+  MULTICOLOR_BORDER_WIDTH_MM,
   PREVIEW_QUALITY,
 } from "@/lib/gridfinity/bin";
 import { useBinGeometry } from "@/lib/gridfinity/use-bin-geometry";
@@ -180,6 +181,7 @@ function BinDesignerWorkspace(): JSX.Element {
   const [stackingRimThicknessMm, setStackingRimThicknessMm] = useState(
     MULTICOLOR_RIM_THICKNESS_MM,
   );
+  const [borderWidthMm, setBorderWidthMm] = useState(MULTICOLOR_BORDER_WIDTH_MM);
   const [projectLibrary, setProjectLibrary] = useState(EMPTY_PROJECT_LIBRARY);
   const [projectLibraryReady, setProjectLibraryReady] = useState(false);
   const [projectRestoreFailed, setProjectRestoreFailed] = useState(false);
@@ -426,7 +428,7 @@ function BinDesignerWorkspace(): JSX.Element {
     PREVIEW_QUALITY,
     committedLayout,
     section,
-    { pocketFloorThicknessMm, stackingRimThicknessMm },
+    { pocketFloorThicknessMm, stackingRimThicknessMm, borderWidthMm },
     { spec, layout, gesture: spec !== committedSpec || cutouts !== committedCutouts || fingerHoles !== committedFingerHoles ? committedDoc : undefined },
   );
 
@@ -835,9 +837,10 @@ function BinDesignerWorkspace(): JSX.Element {
         const includePocketFloors =
           multicolor &&
           colorPocketFloors &&
-          exportProjectDoc.cutouts.some((cutout) => pocketDepths(cutout).some(depth => depth.mode !== "through"));
+          (exportProjectDoc.spec.fill === "none" ||
+            exportProjectDoc.cutouts.some((cutout) => pocketDepths(cutout).some(depth => depth.mode !== "through")));
         const includeStackingRim =
-          multicolor && colorStackingRim && exportProjectDoc.spec.lip === "standard";
+          multicolor && colorStackingRim;
         const result = await buildOnce(EXPORT_QUALITY, {
           pocketFloorMaterialThicknessMm: includePocketFloors
             ? pocketFloorThicknessMm
@@ -845,11 +848,13 @@ function BinDesignerWorkspace(): JSX.Element {
           stackingRimMaterialThicknessMm: includeStackingRim
             ? stackingRimThicknessMm
             : undefined,
+          borderWidthMm: includeStackingRim && exportProjectDoc.spec.lip === "none"
+            ? borderWidthMm : undefined,
         });
         if (multicolor) {
           if (!result.materialMeshes) {
             throw new Error(
-              "This bin has no printable floor or stacking-rim color volume.",
+              "This bin has no printable floor, rim, or border color volume.",
             );
           }
           const objects: ThreeMfObject[] = [
@@ -863,32 +868,37 @@ function BinDesignerWorkspace(): JSX.Element {
             },
           ];
           if (includePocketFloors && result.materialMeshes.pocketFloors) {
+            const floorName = exportProjectDoc.spec.fill === "none" ? "Bin floor" : "Pocket floors";
             objects.push({
-              name: `Gridfinity bin ${label} pocket floors`,
+              name: `Gridfinity bin ${label} ${floorName.toLowerCase()}`,
               mesh: result.materialMeshes.pocketFloors,
               material: {
-                name: "Pocket floors",
+                name: floorName,
                 displayColor: pocketFloorColor as `#${string}`,
               },
             });
           }
           if (includeStackingRim && result.materialMeshes.stackingRim) {
+            const rimName = exportProjectDoc.spec.lip === "standard" ? "Stacking rim top" : "Top border";
             objects.push({
-              name: `Gridfinity bin ${label} stacking rim top`,
+              name: `Gridfinity bin ${label} ${rimName.toLowerCase()}`,
               mesh: result.materialMeshes.stackingRim,
               material: {
-                name: "Stacking rim top",
+                name: rimName,
                 displayColor: stackingRimColor as `#${string}`,
               },
             });
           }
-          if (objects.length < 2) {
+          // A wide, deep border can color all of a small bin. Keep its chosen
+          // color and omit the now-empty body rather than exporting an empty mesh.
+          const printableObjects = objects.filter(object => object.mesh.indices.length > 0);
+          if (printableObjects.length === 0 || (printableObjects.length === 1 && printableObjects[0].mesh === result.materialMeshes.body)) {
             throw new Error(
               "The selected color regions did not produce printable material volumes.",
             );
           }
           const bytes = writeThreeMf(
-            objects,
+            printableObjects,
             {
               title: `Pocketry multi-color Gridfinity bin ${label}`,
               assemble: true,
@@ -954,6 +964,7 @@ function BinDesignerWorkspace(): JSX.Element {
       pocketFloorThicknessMm,
       stackingRimColor,
       stackingRimThicknessMm,
+      borderWidthMm,
       toast,
     ],
   );
@@ -1121,6 +1132,8 @@ function BinDesignerWorkspace(): JSX.Element {
           onStackingRimColorChange={setStackingRimColor}
           stackingRimThicknessMm={stackingRimThicknessMm}
           onStackingRimThicknessChange={setStackingRimThicknessMm}
+          borderWidthMm={borderWidthMm}
+          onBorderWidthChange={setBorderWidthMm}
         />
       }
       canvas={
@@ -1147,6 +1160,7 @@ function BinDesignerWorkspace(): JSX.Element {
               hasStackingRim={hasStackingRim}
               binColor={binColor}
               pocketFloorColor={pocketFloorColor}
+              floorColorLabel={(builtSpec ?? committedSpec).fill === "none" ? "Bin floor" : "Pocket floor"}
               stackingRimColor={stackingRimColor}
               showPocketFloorColor={colorPocketFloors}
               showStackingRimColor={colorStackingRim}

@@ -67,16 +67,18 @@ export interface BinViewportProps {
   pocketEditor?: PocketEditor;
   /** Hide source outlines during inspection while keeping pocket selection active. */
   showPocketOutlines?: boolean;
-  /** Exact printable pocket-floor material volume. */
+  /** Exact printable pocket-floor or hollow-bin floor material volume. */
   pocketFloorGeometry?: BufferGeometry | null;
-  /** Exact printable stacking-rim material volume. */
+  /** Exact printable lip crest or flush border material volume. */
   stackingRimGeometry?: BufferGeometry | null;
   /** The preview includes a contrasting pocket-floor material volume. */
   hasPocketFloor?: boolean;
-  /** Geometry has a printable material group at the stacking-lip crest. */
+  /** Geometry has a printable material group at the lip crest or wall top. */
   hasStackingRim?: boolean;
   binColor?: string;
   pocketFloorColor?: string;
+  /** Name of the shared floor material in the displayed bin. */
+  floorColorLabel?: "Pocket floor" | "Bin floor";
   stackingRimColor?: string;
   showPocketFloorColor?: boolean;
   showStackingRimColor?: boolean;
@@ -231,6 +233,7 @@ export function BinViewport({
   hasStackingRim = false,
   binColor = BIN_BODY_COLOR,
   pocketFloorColor = POCKET_FLOOR_COLOR,
+  floorColorLabel = "Pocket floor",
   stackingRimColor = STACKING_RIM_COLOR,
   showPocketFloorColor = true,
   showStackingRimColor = true,
@@ -498,14 +501,14 @@ export function BinViewport({
               type="button"
               className="-m-1 flex items-center gap-1.5 rounded-full p-1 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               onClick={() => onEditColor("pocket-floor")}
-              title="Edit pocket floor color"
+              title={`Edit ${floorColorLabel.toLowerCase()} color`}
             >
               <span
                 className="h-2.5 w-2.5 rounded-sm border border-black/10"
                 style={{ backgroundColor: pocketFloorColor }}
                 aria-hidden="true"
               />
-              Pocket floor
+              {floorColorLabel}
             </button>
           ) : null}
           {hasStackingRim && showStackingRimColor ? (

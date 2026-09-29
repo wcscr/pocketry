@@ -318,14 +318,23 @@ groups controlled from Materials), magnet/screw holes ported from
 Refined remains deferred), and
 3MF/STL export from the page at export quality. The 3MF flow asks whether to
 export one material or a slicer-ready multi-color assembly. Selected blind
-pocket floors and the stacking-rim crest become configurable, separate,
+pocket floors and the stacking-rim crest (or a flush top border without a lip) become configurable, separate,
 non-overlapping material volumes alongside the configurable bin body. Their
 default display/material color is pure black, while the body retains its
 orange default. Their
 depths are independently selectable from 0.2–3.0 mm for pocket floors and
 0.2–7.35 mm for the stacking rim (0.6 mm pocket-floor and 1.25 mm rim
 defaults). The rim limit is the full
-modeled lip depth and does not extend into the bin wall. Both accents are cut
+modeled lip depth and does not extend into the bin wall when a lip is enabled.
+With Solid fill off, the pocket-floor color and thickness apply to the hollow
+bin's interior floor, labeled **Bin floor** in Materials & Colors and exports.
+This layer extends down from the base top without changing the floor height,
+coloring the walls, or closing base holes. It works with or without a stacking lip.
+Without a lip, Materials & Colors offers **Top border** with independent color
+width (0.2–20 mm inward, default 0.95 mm) and depth settings. Wider borders extend
+into the filled top or label shelf; hollow bins color only existing wall material.
+The band follows the perimeter, including custom bins, and also supports 1u bins,
+with the requested depth clipped to existing bin material. Both accents are cut
 downward from the original surfaces, never added above them; STL warns before
 dropping those color assignments. Pocket controls, Materials, and export show a
 nonblocking warning when a pocket's colored floor layer reaches the underside

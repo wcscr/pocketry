@@ -519,10 +519,9 @@ describe("bin worker handlers", () => {
 
   it("keeps fallback normals when requested materials have no printable volume", async () => {
     const result = await getHandler()({
-      spec: { gridX: 1, gridY: 1, heightUnits: 3, lip: "none", fill: "none" },
+      spec: { gridX: 1, gridY: 1, heightUnits: 3, lip: "none", fill: "solid" },
       quality: { circularSegments: 16 },
       pocketFloorMaterialThicknessMm: 0.6,
-      stackingRimMaterialThicknessMm: 1.25,
     }, context());
     expect(result.value.materialMeshes).toBeUndefined();
     expect(result.value.mesh.normals?.length).toBe(result.value.mesh.positions.length);
@@ -554,12 +553,14 @@ describe("bin worker handlers", () => {
     expect(moved.mesh.indices).toHaveLength(0);
   });
 
-  it("returns topology-preserving meshes for export builds", async () => {
+  it.each(["standard", "none"] as const)("returns topology-preserving colored meshes with %s lip", async lip => {
     const result = await getHandler()(
       {
         ...REQUEST,
+        spec: { ...REQUEST.spec, lip },
         exportTopology: true,
         stackingRimMaterialThicknessMm: 1.2,
+        borderWidthMm: 4,
       },
       context(),
     );
@@ -640,6 +641,50 @@ describe("bin worker handlers", () => {
         context(),
       ),
     ).rejects.toThrow("Stacking-rim material thickness must be between 0.2 and 7.35 mm");
+  });
+
+  it.each([NaN, Infinity, -1, 0, 0.19, 20.01])("rejects invalid border width %s before building", async borderWidthMm => {
+    await expect(getHandler()({ ...REQUEST, borderWidthMm }, context()))
+      .rejects.toThrow("Top-border color width must be between 0.2 and 20 mm");
+  });
+
+  it.each(["none", "standard"] as const)("exports a closed colored floor on a hollow bin with %s lip", async lip => {
+    const handler = getHandler();
+    const request: BuildBinRequest = {
+      spec: { gridX: 2, gridY: 2, heightUnits: 6, fill: "none", lip, screwHoles: true, magnetHoles: true },
+      quality: EXPORT_QUALITY, pocketFloorMaterialThicknessMm: 0.6,
+      stackingRimMaterialThicknessMm: 1.25,
+    };
+    const preview = await handler(request, context());
+    expect(preview.value.materialMeshes!.pocketFloors!.normals).not.toBeNull();
+    const exported = await handler({ ...request, exportTopology: true }, context());
+    expect(exported.value.stats.volumeMm3).toBe(preview.value.stats.volumeMm3);
+    const parts = exported.value.materialMeshes!;
+    for (const mesh of [parts.body, parts.pocketFloors!, parts.stackingRim!]) {
+      expect(mesh.indices.length).toBeGreaterThan(0);
+      expect(nonManifoldEdgeCount(mesh)).toBe(0);
+    }
+    const zs = parts.pocketFloors!.positions.filter((_, i) => i % 3 === 2);
+    expect(Math.min(...zs)).toBeCloseTo(6.4, 5);
+    expect(Math.max(...zs)).toBe(7);
+    const model = strFromU8(unzipSync(writeThreeMf([
+      { name: "Body", mesh: parts.body, material: { name: "Body", displayColor: "#bfbfbf" } },
+      { name: "Bin floor", mesh: parts.pocketFloors!, material: { name: "Bin floor", displayColor: "#2255aa" } },
+      { name: "Rim", mesh: parts.stackingRim!, material: { name: "Rim", displayColor: "#000000" } },
+    ], { assemble: true }))["3D/3dmodel.model"]);
+    expect(model).toContain('name="Bin floor"');
+    expect(model).toContain('<m:color color="#2255AAFF"/>');
+  });
+
+  it("allows a wide, deep border to consume a small bin's whole color volume", async () => {
+    const { value } = await getHandler()({
+      spec: { gridX: 1, gridY: 1, gridPitch: "quarter", heightUnits: 1, lip: "none", flatBottom: true },
+      quality: EXPORT_QUALITY, exportTopology: true,
+      stackingRimMaterialThicknessMm: 7.35, borderWidthMm: 20,
+    }, context());
+    expect(value.materialMeshes!.body.indices).toHaveLength(0);
+    expect(value.materialMeshes!.stackingRim!.indices.length).toBeGreaterThan(0);
+    expect(nonManifoldEdgeCount(value.materialMeshes!.stackingRim!)).toBe(0);
   });
 });
 

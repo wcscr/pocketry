@@ -165,6 +165,25 @@ describe("bin preview worker lifecycle", () => {
     expect(worker().calls[1].payload).toMatchObject({ section: { axis: "x", offsetMm: -5 }, pocketFloorMaterialThicknessMm: 1.2 });
   });
 
+  it("rebuilds for border-width-only edits and passes the chosen width to export", async () => {
+    const renderWidth = async (borderWidthMm: number) => {
+      await React.act(async () => root.render(<Probe args={[
+        { ...spec(2), lip: "none" }, PREVIEW_QUALITY, layout, null,
+        { borderWidthMm, stackingRimThicknessMm: 2.5 },
+      ]} />));
+    };
+    await renderWidth(0.95); await tick(); await reply(() => worker().finish(0));
+    await renderWidth(4); await tick();
+    expect(worker().calls).toHaveLength(2);
+    expect(worker().calls[1].payload).toMatchObject({ borderWidthMm: 4, stackingRimMaterialThicknessMm: 2.5 });
+    await reply(() => worker().finish(1));
+    let exported!: Promise<BuildBinResult>;
+    await React.act(async () => { exported = state.buildOnce(EXPORT_QUALITY, { borderWidthMm: 4, stackingRimMaterialThicknessMm: 2.5 }); });
+    expect(detailWorker().calls[0].payload).toMatchObject({ borderWidthMm: 4, stackingRimMaterialThicknessMm: 2.5, exportTopology: true });
+    await reply(() => detailWorker().finish(0));
+    await exported;
+  });
+
   it("does not restart pending work after unmount or an old worker reply", async () => {
     await render(2); await tick(); await render(3); await tick(); const old = worker();
     await React.act(async () => root.render(null));

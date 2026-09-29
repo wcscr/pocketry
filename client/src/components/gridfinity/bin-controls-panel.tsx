@@ -132,6 +132,7 @@ import {
   MULTICOLOR_FLOOR_MAX_THICKNESS_MM,
   MULTICOLOR_MIN_THICKNESS_MM,
   MULTICOLOR_RIM_MAX_THICKNESS_MM,
+  MULTICOLOR_BORDER_MAX_WIDTH_MM,
 } from "@/lib/gridfinity/bin";
 import {
   SURFACE_FIT_CHECK_DEFAULT_THICKNESS_MM,
@@ -279,6 +280,8 @@ export interface BinControlsPanelProps {
   onStackingRimColorChange: (color: string) => void;
   stackingRimThicknessMm: number;
   onStackingRimThicknessChange: (thicknessMm: number) => void;
+  borderWidthMm: number;
+  onBorderWidthChange: (widthMm: number) => void;
 }
 
 /**
@@ -333,6 +336,8 @@ export function BinControlsPanel({
   onStackingRimColorChange,
   stackingRimThicknessMm,
   onStackingRimThicknessChange,
+  borderWidthMm,
+  onBorderWidthChange,
   pocketEditorRequest = 0,
   keepBinSize = false,
   onKeepBinSizeChange,
@@ -447,8 +452,10 @@ export function BinControlsPanel({
   const hasBlindPocket = cutouts.some(
     (cutout) => pocketDepths(cutout).some(depth => depth.mode !== "through"),
   );
-  const hasSelectedFloorColor = colorPocketFloors && hasBlindPocket;
-  const hasSelectedRimColor = colorStackingRim && spec.lip === "standard";
+  const hasSelectedFloorColor = colorPocketFloors && (spec.fill === "none" || hasBlindPocket);
+  const floorColorLabel = spec.fill === "none" ? "Bin floor" : "Pocket floors";
+  const hasSelectedRimColor = colorStackingRim;
+  const rimColorLabel = spec.lip === "standard" ? "Stacking rim top" : "Top border";
   const hasSelectedMulticolor =
     hasSelectedFloorColor || hasSelectedRimColor;
   const activeColorCount =
@@ -1661,12 +1668,16 @@ export function BinControlsPanel({
           >
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <SettingLabel label="Pocket floors" hint="Separate material below blind-pocket surfaces. Imported-model pockets also line steep and vertical cavity walls." />
+                <SettingLabel label={floorColorLabel} hint={spec.fill === "none"
+                  ? "Uses the pocket-floor color and thickness for the interior floor of a hollow bin."
+                  : experimentalEnabled
+                    ? "Separate material below blind-pocket surfaces. Imported-model pockets also line steep and vertical cavity walls."
+                    : "Separate material below blind-pocket surfaces."} />
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <MaterialColorSwatch
                   id="input-pocket-floor-color"
-                  label="Pocket floors"
+                  label={floorColorLabel}
                   value={pocketFloorColor}
                   disabled={!colorPocketFloors}
                   onChange={onPocketFloorColorChange}
@@ -1674,7 +1685,7 @@ export function BinControlsPanel({
                 <Switch
                   checked={colorPocketFloors}
                   onCheckedChange={onColorPocketFloorsChange}
-                  aria-label="Color pocket floors"
+                  aria-label={`Color ${floorColorLabel.toLowerCase()}`}
                 />
               </div>
             </div>
@@ -1698,7 +1709,7 @@ export function BinControlsPanel({
                     )
                   }
                   onValueChange={onPocketFloorThicknessChange}
-                  aria-label="Pocket floor color thickness in millimetres"
+                  aria-label={spec.fill === "none" ? "Bin floor color thickness in millimetres" : "Pocket floor color thickness in millimetres"}
                   data-testid="input-pocket-floor-thickness"
                 />
                 <span className="text-[11px] text-muted-foreground">mm</span>
@@ -1712,27 +1723,27 @@ export function BinControlsPanel({
           >
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <SettingLabel label="Stacking rim top" hint="Separate material below the original rim surface." />
-                {spec.lip !== "standard" && <p className="text-[11px] text-muted-foreground">Turn on the stacking lip to enable this material.</p>}
+                <SettingLabel label={rimColorLabel} hint={spec.lip === "standard"
+                  ? "Separate material below the original rim surface."
+                  : "Color a band around the top perimeter without adding a stacking lip or changing the bin's height."} />
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <MaterialColorSwatch
                   id="input-stacking-rim-color"
-                  label="Stacking rim top"
+                  label={rimColorLabel}
                   value={stackingRimColor}
-                  disabled={!colorStackingRim || spec.lip !== "standard"}
+                  disabled={!colorStackingRim}
                   onChange={onStackingRimColorChange}
                 />
                 <Switch
-                  checked={colorStackingRim && spec.lip === "standard"}
-                  disabled={spec.lip !== "standard"}
+                  checked={colorStackingRim}
                   onCheckedChange={onColorStackingRimChange}
-                  aria-label="Color stacking rim top"
+                  aria-label={`Color ${rimColorLabel.toLowerCase()}`}
                 />
               </div>
             </div>
             <div className="flex items-center justify-between gap-3">
-              <SettingLabel label="Color thickness" htmlFor="input-stacking-rim-thickness" hint="Accent thickness replaces existing material downward from the original surface; it never adds height to the bin." />
+              <SettingLabel label={spec.lip === "standard" ? "Color thickness" : "Color depth"} htmlFor="input-stacking-rim-thickness" hint="Accent thickness replaces existing material downward from the original surface; it never adds height to the bin." />
               <div className="flex items-center gap-1.5">
                 <DraftNumberInput
                   id="input-stacking-rim-thickness"
@@ -1741,7 +1752,7 @@ export function BinControlsPanel({
                   min={MULTICOLOR_MIN_THICKNESS_MM}
                   max={MULTICOLOR_RIM_MAX_THICKNESS_MM}
                   step={0.05}
-                  disabled={!colorStackingRim || spec.lip !== "standard"}
+                  disabled={!colorStackingRim}
                   normalize={(value) =>
                     Number(
                       Math.min(
@@ -1751,12 +1762,32 @@ export function BinControlsPanel({
                     )
                   }
                   onValueChange={onStackingRimThicknessChange}
-                  aria-label="Stacking rim color thickness in millimetres"
+                  aria-label={spec.lip === "standard" ? "Stacking rim color thickness in millimetres" : "Top border color depth in millimetres"}
                   data-testid="input-stacking-rim-thickness"
                 />
                 <span className="text-[11px] text-muted-foreground">mm down</span>
               </div>
             </div>
+            {spec.lip === "none" && <div className="flex items-center justify-between gap-3">
+              <SettingLabel label="Color width" htmlFor="input-border-width" hint="Width inward from the outer edge. Colors existing material only; hollow bins are limited to their walls." />
+              <div className="flex items-center gap-1.5">
+                <DraftNumberInput
+                  id="input-border-width"
+                  className="h-7 w-20 text-right text-xs"
+                  value={borderWidthMm}
+                  min={MULTICOLOR_MIN_THICKNESS_MM}
+                  max={MULTICOLOR_BORDER_MAX_WIDTH_MM}
+                  step={0.05}
+                  disabled={!colorStackingRim}
+                  normalize={value => Number(Math.min(MULTICOLOR_BORDER_MAX_WIDTH_MM,
+                    Math.max(MULTICOLOR_MIN_THICKNESS_MM, value)).toFixed(2))}
+                  onValueChange={onBorderWidthChange}
+                  aria-label="Top border color width in millimetres"
+                  data-testid="input-border-width"
+                />
+                <span className="text-[11px] text-muted-foreground">mm in</span>
+              </div>
+            </div>}
           </div>
         </PanelSection>
         <PanelSection id="bin-settings-fit" title="Check fit" icon={ClipboardCheck} tone="indigo" defaultOpen={!!inspector || section !== null} summary={section ? "Cut open" : "Inspect & test"}>
@@ -2036,7 +2067,7 @@ export function BinControlsPanel({
                 onClick={() => setPendingExport({
                   title: hasSelectedMulticolor ? "STL will not include your colors" : "Save bin STL?",
                   description: exportDimensions + " " + (hasSelectedMulticolor
-                    ? "STL stores geometry only. Use multi-color 3MF to preserve the selected pocket-floor and rim-top materials."
+                    ? "STL stores geometry only. Use multi-color 3MF to preserve the selected floor and rim materials."
                     : "Download the complete bin at print quality."),
                   confirmLabel: hasSelectedMulticolor ? "Export STL without colors" : "Download STL",
                   onConfirm: (includeProject) => onExport("stl", includeProject),
@@ -2189,15 +2220,15 @@ export function BinControlsPanel({
                   {hasSelectedMulticolor
                     ? `Separate ${[
                         hasSelectedFloorColor
-                          ? `pocket floors (${pocketFloorThicknessMm} mm)`
+                          ? `${floorColorLabel.toLowerCase()} (${pocketFloorThicknessMm} mm)`
                           : null,
                         hasSelectedRimColor
-                          ? `rim top (${stackingRimThicknessMm} mm down)`
+                          ? `${spec.lip === "standard" ? "rim top" : "top border"} (${spec.lip === "none" ? `${borderWidthMm} mm wide, ` : ""}${stackingRimThicknessMm} mm down)`
                           : null,
                       ]
                         .filter(Boolean)
                         .join(" and ")} for slicer assignment.`
-                    : "Enable a floor or rim-top color in Materials & Colors first."}
+                    : "Enable a floor, rim, or border color in Materials & Colors first."}
                 </span>
               </span>
             </Button>
