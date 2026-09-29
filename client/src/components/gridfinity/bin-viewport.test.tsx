@@ -42,6 +42,7 @@ function renderViewport(
   onEditColor: (target: MaterialColorTarget) => void = vi.fn(),
   previewIsDraft = false,
   pocketEditor?: PocketEditor,
+  floorColorLabel: "Pocket floor" | "Bin floor" = "Pocket floor",
 ): HTMLElement {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   const container = document.createElement("div");
@@ -57,6 +58,7 @@ function renderViewport(
         binColor="#654321"
         onEditColor={onEditColor}
         pocketFloorColor="#123456"
+        floorColorLabel={floorColorLabel}
         stackingRimColor="#abcdef"
         building={building}
         previewIsDraft={previewIsDraft}
@@ -116,6 +118,16 @@ it("labels the independently colored stacking-rim crest", () => {
   expect((legend?.querySelector("button:last-child span") as HTMLElement).style.backgroundColor).toBe(
     "rgb(171, 205, 239)",
   );
+});
+
+it("uses the shared floor color and editor target for a hollow bin's floor", () => {
+  const onEditColor = vi.fn();
+  const container = renderViewport(false, 1, true, false, [], onEditColor, false, undefined, "Bin floor");
+  const button = container.querySelector<HTMLButtonElement>('button[title="Edit bin floor color"]')!;
+  expect(button.textContent).toContain("Bin floor");
+  expect(button.querySelector<HTMLElement>("span")!.style.backgroundColor).toBe("rgb(18, 52, 86)");
+  React.act(() => button.click());
+  expect(onEditColor).toHaveBeenCalledWith("pocket-floor");
 });
 
 it("opens the matching material controls from each legend entry", () => {

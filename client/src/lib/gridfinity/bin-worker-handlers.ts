@@ -22,6 +22,7 @@ import {
   MULTICOLOR_FLOOR_MAX_THICKNESS_MM,
   MULTICOLOR_MIN_THICKNESS_MM,
   MULTICOLOR_RIM_MAX_THICKNESS_MM,
+  MULTICOLOR_BORDER_MAX_WIDTH_MM,
   type BinMaterialParts,
   type BinLayout,
 } from "./bin";
@@ -85,6 +86,11 @@ export function createBinWorkerHandlers(
       "Stacking-rim material thickness",
       MULTICOLOR_RIM_MAX_THICKNESS_MM,
     );
+    const borderWidthMm = parseMaterialThickness(
+      payload.borderWidthMm,
+      "Top-border color width",
+      MULTICOLOR_BORDER_MAX_WIDTH_MM,
+    );
     // Re-validate the layout at the boundary, exactly like the spec.
     let layout: BinLayout | null = null;
     if (
@@ -136,6 +142,7 @@ export function createBinWorkerHandlers(
         {
           floorInsertThicknessMm: floorMaterialThicknessMm,
           rimInsertThicknessMm: rimMaterialThicknessMm,
+          borderWidthMm,
         },
       );
       if (payload.exportTopology && validationIssues.some(issue => issue.severity === "error")) {

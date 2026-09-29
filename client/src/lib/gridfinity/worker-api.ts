@@ -56,10 +56,12 @@ export interface BuildBinRequest {
   exportTopology?: boolean;
   /** Fast preview: true omits pocket rounding; rounded keeps coarser fillets. Ignored for exports. */
   previewDraft?: boolean | "rounded";
-  /** Split this depth below each printable pocket floor. */
+  /** Split this depth below pocket floors or the interior floor of a hollow bin. */
   pocketFloorMaterialThicknessMm?: number;
-  /** Split this depth down from the stacking-rim summit. */
+  /** Split this depth down from the lip summit or flush perimeter wall top. */
   stackingRimMaterialThicknessMm?: number;
+  /** Inward width of the flush top border. Ignored when the bin has a lip. */
+  borderWidthMm?: number;
 }
 
 export interface BuildBinStats {

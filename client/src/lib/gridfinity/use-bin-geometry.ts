@@ -18,6 +18,7 @@ import { WorkerCancelledError } from "@/lib/worker/protocol";
 import {
   MULTICOLOR_FLOOR_THICKNESS_MM,
   MULTICOLOR_RIM_THICKNESS_MM,
+  MULTICOLOR_BORDER_WIDTH_MM,
   type BuildQuality,
 } from "./bin";
 import { needsProgressivePreview } from "./preview-policy";
@@ -61,9 +62,9 @@ export interface BinGeometryState {
   pocketFloorGeometry: BufferGeometry | null;
   /** Stacking-rim material volume for the latest preview tier. */
   stackingRimGeometry: BufferGeometry | null;
-  /** True when the preview contains a pocket-floor material volume. */
+  /** True when the preview contains a pocket-floor or hollow-bin floor color volume. */
   hasPocketFloor: boolean;
-  /** True when the preview contains a stacking-rim material volume. */
+  /** True when the preview contains a rim or flush border material volume. */
   hasStackingRim: boolean;
   /** Spec that produced `geometry`; remains stable while a replacement builds. */
   builtSpec: BinSpec | null;
@@ -91,6 +92,7 @@ export interface BinGeometryState {
     options?: {
       pocketFloorMaterialThicknessMm?: number;
       stackingRimMaterialThicknessMm?: number;
+      borderWidthMm?: number;
     },
   ) => Promise<BuildBinResult>;
   /** Builds a standalone filled outline for an inexpensive print-fit check. */
@@ -123,6 +125,7 @@ export function useBinGeometry(
   previewMaterials: {
     pocketFloorThicknessMm?: number;
     stackingRimThicknessMm?: number;
+    borderWidthMm?: number;
   } = {},
   /** Live gesture values for preview only; exports still use the committed arguments above. */
   livePreview?: {
@@ -205,6 +208,7 @@ export function useBinGeometry(
         stackingRimThicknessMm:
           previewMaterials.stackingRimThicknessMm ??
           MULTICOLOR_RIM_THICKNESS_MM,
+        borderWidthMm: previewMaterials.borderWidthMm ?? MULTICOLOR_BORDER_WIDTH_MM,
       }),
     [
       previewSpec,
@@ -215,6 +219,7 @@ export function useBinGeometry(
       previewLayout,
       previewMaterials.pocketFloorThicknessMm,
       previewMaterials.stackingRimThicknessMm,
+      previewMaterials.borderWidthMm,
     ],
   );
 
@@ -273,6 +278,7 @@ export function useBinGeometry(
         previewMaterials.pocketFloorThicknessMm ?? MULTICOLOR_FLOOR_THICKNESS_MM,
       stackingRimMaterialThicknessMm:
         previewMaterials.stackingRimThicknessMm ?? MULTICOLOR_RIM_THICKNESS_MM,
+      borderWidthMm: previewMaterials.borderWidthMm ?? MULTICOLOR_BORDER_WIDTH_MM,
     };
 
     const publish = (result: BuildBinResult, draft: boolean, interactive = false) => {
@@ -438,6 +444,7 @@ export function useBinGeometry(
       options: {
         pocketFloorMaterialThicknessMm?: number;
         stackingRimMaterialThicknessMm?: number;
+        borderWidthMm?: number;
       } = {},
     ): Promise<BuildBinResult> => {
       const request: BuildBinRequest = {
@@ -456,6 +463,7 @@ export function useBinGeometry(
           options.pocketFloorMaterialThicknessMm,
         stackingRimMaterialThicknessMm:
           options.stackingRimMaterialThicknessMm,
+        borderWidthMm: options.borderWidthMm,
       };
       return ensureClient().call<BuildBinResult>(BUILD_BIN_METHOD, request, {
         channel: "export",
