@@ -9,6 +9,7 @@ import type { BufferGeometry, PerspectiveCamera } from "three";
 import { Vector3 } from "three";
 
 import type { Outline, Point } from "@shared/geometry/types";
+import type { SurfaceText } from "@shared/gridfinity/surface-text";
 
 import { Button } from "@/components/ui/button";
 import { canHandleCanvasShortcut } from "@/lib/canvas-keyboard";
@@ -37,7 +38,7 @@ const RULER_3D_Z_FIGHT_OFFSET_MM = 0.25;
 const EMPTY_MEASUREMENT_OUTLINES: readonly Outline[] = [];
 const EMPTY_MEASUREMENT_PATHS: MeasurementPaths = [];
 
-export type MaterialColorTarget = "bin" | "pocket-floor" | "stacking-rim";
+export type MaterialColorTarget = "bin" | "pocket-floor" | "stacking-rim" | "text";
 
 /** A lost GPU context must not take the project, history, or Layout view down. */
 class PreviewBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
@@ -71,6 +72,9 @@ export interface BinViewportProps {
   pocketFloorGeometry?: BufferGeometry | null;
   /** Exact printable lip crest or flush border material volume. */
   stackingRimGeometry?: BufferGeometry | null;
+  /** Separate raised labels sharing the project text color. */
+  textGeometries?: { label: SurfaceText; geometry: BufferGeometry }[];
+  textColor?: string;
   /** The preview includes a contrasting pocket-floor material volume. */
   hasPocketFloor?: boolean;
   /** Geometry has a printable material group at the lip crest or wall top. */
@@ -229,6 +233,8 @@ export function BinViewport({
   showPocketOutlines = true,
   pocketFloorGeometry = null,
   stackingRimGeometry = null,
+  textGeometries = [],
+  textColor = STACKING_RIM_COLOR,
   hasPocketFloor = false,
   hasStackingRim = false,
   binColor = BIN_BODY_COLOR,
@@ -354,6 +360,11 @@ export function BinViewport({
             />
           </mesh>
         ) : null}
+        {textGeometries.map(part => (
+          <mesh key={part.label.id} geometry={part.geometry}>
+            <meshStandardMaterial color={textColor} roughness={0.55} metalness={0.02} />
+          </mesh>
+        ))}
         {stackingRimGeometry ? (
           <mesh geometry={stackingRimGeometry}>
             <meshStandardMaterial
@@ -478,9 +489,9 @@ export function BinViewport({
       ) : null}
 
       {(hasPocketFloor && showPocketFloorColor) ||
-      (hasStackingRim && showStackingRimColor) ? (
+      (hasStackingRim && showStackingRimColor) || textGeometries.length > 0 ? (
         <div
-          className="absolute bottom-3 left-3 flex items-center gap-2 rounded-full border bg-background/90 px-2.5 py-1 text-xs font-medium text-foreground shadow-sm backdrop-blur"
+          className="absolute bottom-3 left-3 flex max-h-24 max-w-[calc(100%-1.5rem)] flex-wrap items-center gap-2 overflow-auto rounded-xl border bg-background/90 px-2.5 py-1 text-xs font-medium text-foreground shadow-sm backdrop-blur"
           data-testid="material-color-legend"
         >
           <button
@@ -526,6 +537,13 @@ export function BinViewport({
               Rim top
             </button>
           ) : null}
+          {textGeometries.length > 0 && (
+            <button type="button" className="inline-flex items-center gap-1.5 rounded px-1 py-0.5 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={() => onEditColor("text")} title="Edit text color">
+              <span className="h-2.5 w-2.5 rounded-sm border border-black/10" style={{ backgroundColor: textColor }} aria-hidden="true" />
+              Text
+            </button>
+          )}
         </div>
       ) : null}
 

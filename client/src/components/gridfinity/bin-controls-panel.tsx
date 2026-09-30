@@ -45,6 +45,8 @@ import { InspectorPanelSections } from "./inspector-panel-sections";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { usePanelState } from "@/components/layout/panel-context";
 import { FillHeightControl } from "./fill-height-control";
+import { SurfaceTextControls } from "./surface-text-controls";
+import { Type } from "lucide-react";
 
 import {
   DEFAULT_OBLONG_DEEP_SCOOP_LENGTH_MM,
@@ -239,6 +241,7 @@ export interface BinControlsPanelProps {
   saveStatus?: "saving" | "saved" | "error";
   stats: BuildBinStats | null;
   statsAreStale?: boolean;
+  geometryError?: string | null;
   building: boolean;
   previewIsDraft?: boolean;
   exporting: boolean;
@@ -295,6 +298,7 @@ export function BinControlsPanel({
   exportOnly = false,
   stats,
   statsAreStale = false,
+  geometryError,
   building,
   previewIsDraft = false,
   exporting,
@@ -454,11 +458,14 @@ export function BinControlsPanel({
   const hasSelectedFloorColor = colorPocketFloors && (spec.fill === "none" || hasBlindPocket);
   const floorColorLabel = spec.fill === "none" ? "Bin floor" : "Pocket floors";
   const hasSelectedRimColor = colorStackingRim;
+  const edgeBandColor = colorStackingRim ? stackingRimColor : binColor;
   const rimColorLabel = spec.lip === "standard" ? "Stacking rim top" : "Top border";
   const hasSelectedMulticolor =
-    hasSelectedFloorColor || hasSelectedRimColor;
+    hasSelectedFloorColor || hasSelectedRimColor || spec.surfaceTexts.length > 0;
   const activeColorCount =
-    1 + Number(hasSelectedFloorColor) + Number(hasSelectedRimColor);
+    new Set([binColor, ...(hasSelectedFloorColor ? [pocketFloorColor] : []),
+      ...(hasSelectedRimColor ? [stackingRimColor] : []), ...(spec.surfaceTexts.length ? [spec.textColor ?? edgeBandColor] : [])]
+      .map(color => color.toLowerCase())).size;
 
   const patchSpec = (
     patch: Partial<BinSpecInput>,
@@ -1639,6 +1646,12 @@ export function BinControlsPanel({
           </div>
         </PanelSection>
 
+        <PanelSection id="bin-settings-text" title="Surface text" icon={Type} tone="cyan"
+          summary={`${spec.surfaceTexts.length} label${spec.surfaceTexts.length === 1 ? "" : "s"}`} defaultOpen={false} className="scroll-mt-16">
+          <SurfaceTextControls edgeBandColor={edgeBandColor} />
+          {geometryError && spec.surfaceTexts.length > 0 && <p role="alert" className="text-xs text-destructive">{geometryError}</p>}
+        </PanelSection>
+
         <PanelSection
           id="bin-settings-materials"
           title="Materials & Colors"
@@ -2064,8 +2077,8 @@ export function BinControlsPanel({
                 disabled={exporting || hasErrors}
                 onClick={() => setPendingExport({
                   title: hasSelectedMulticolor ? "STL will not include your colors" : "Save bin STL?",
-                  description: exportDimensions + " " + (hasSelectedMulticolor
-                    ? "STL stores geometry only. Use multi-color 3MF to preserve the selected floor and rim materials."
+                  description: exportDimensions + (spec.surfaceTexts.length ? " STL joins text to the bin; use 3MF to keep labels as separate parts. " : " ") + (hasSelectedMulticolor
+                    ? "STL stores geometry only. Use multi-color 3MF to preserve your selected material colors."
                     : "Download the complete bin at print quality."),
                   confirmLabel: hasSelectedMulticolor ? "Export STL without colors" : "Download STL",
                   onConfirm: (includeProject) => onExport("stl", includeProject),
@@ -2198,7 +2211,7 @@ export function BinControlsPanel({
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-medium">Single-color 3MF</span>
                 <span className="block text-[11px] font-normal text-muted-foreground">
-                  One body using the selected bin color.
+                  {spec.surfaceTexts.length ? "Bin and separate text parts using the selected bin color." : "One body using the selected bin color."}
                 </span>
               </span>
             </Button>
@@ -2223,10 +2236,11 @@ export function BinControlsPanel({
                         hasSelectedRimColor
                           ? `${spec.lip === "standard" ? "rim top" : "top border"} (${spec.lip === "none" ? `${borderWidthMm} mm wide, ` : ""}${stackingRimThicknessMm} mm down)`
                           : null,
+                        spec.surfaceTexts.length ? "colored text parts" : null,
                       ]
                         .filter(Boolean)
                         .join(" and ")} for slicer assignment.`
-                    : "Enable a floor, rim, or border color in Materials & Colors first."}
+                    : "Add surface text, or enable a floor, rim, or border color in Materials & Colors first."}
                 </span>
               </span>
             </Button>

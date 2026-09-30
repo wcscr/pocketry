@@ -1,5 +1,6 @@
 import { hasRigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { SelectionToolButtons } from "./selection-tool-buttons";
+import { SurfaceTextLayer } from "./surface-text-layer";
 import { useSelectionInspector } from "./selection-inspector-context";
 import { SelectionLinkControls } from "./linked-design-controls";
 import { useExperimentalFeatures } from "@/state/experimental-features";
@@ -238,18 +239,19 @@ function nearestContourEdge(
   return best;
 }
 
-export function LayoutCanvas({ onEditPocket }: {
+export function LayoutCanvas({ onEditPocket, edgeBandColor }: {
   /** Called on a pocket tap or the explicit edit action, after any drag ends. */
   onEditPocket?: () => void;
+  edgeBandColor?: string;
 } = {}): JSX.Element {
   return (
     <CanvasViewport>
-      <LayoutStage onEditPocket={onEditPocket} />
+      <LayoutStage onEditPocket={onEditPocket} edgeBandColor={edgeBandColor} />
     </CanvasViewport>
   );
 }
 
-function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Element {
+function LayoutStage({ onEditPocket, edgeBandColor }: { onEditPocket?: () => void; edgeBandColor?: string }): JSX.Element {
   const inspector = useSelectionInspector();
   const { enabled: experimentalEnabled } = useExperimentalFeatures();
   const isMobile = useIsMobile();
@@ -533,7 +535,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
   useEffect(() => { if (rulerActive) setPanActive(false); }, [rulerActive]);
   const [measurementPoints, setMeasurementPoints] = useState<Point[]>([]);
   const hasPlacedCutouts = placed.length > 0;
-  const hasPlacedObjects = hasPlacedCutouts || placedFingerHoles.length > 0;
+  const hasPlacedObjects = hasPlacedCutouts || placedFingerHoles.length > 0 || spec.surfaceTexts.length > 0;
 
   useEffect(() => {
     if (hasPlacedObjects && editorMode !== "split" && !editorMode.startsWith("draw-")) return;
@@ -1569,6 +1571,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
             strokeWidth={1.5}
             vectorEffect="non-scaling-stroke"
           />
+          <SurfaceTextLayer edgeBandColor={edgeBandColor} interactive={editorMode === "placement" && !rulerActive && !panActive && !viewport.isSpaceHeld} />
           {/* Interior boundary the pockets must respect. */}
           <path
             d={ringToCanvasPath(interiorFootprint, spec)}
@@ -2088,6 +2091,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
             : selectedCutoutId
               ? selected && (hasProfileRotation(selected.cutout) || hasPocketTilt(selected.cutout)) ? "Pocket · drag to move · round handle rotates · edit dimensions in Depth and Size & scale"
                 : isMobile ? "Drag the pocket to move. Drag corners to resize or the round handle to rotate." : "Pocket · drag edges/corners to resize · Option resizes from center · round handle rotates"
+              : spec.surfaceTexts.length > 0 ? "Drag text to move it · Edit wording, size, and rotation in Surface text"
               : isMobile ? "Tap a pocket to select it. Use the hand to pan and pinch to zoom." : "Click a pocket or finger access to select · Shift-drag pans · Ctrl-scroll zooms"}
       </WorkflowHint>
       )}

@@ -2,6 +2,8 @@
 import * as React from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, expect, it, vi } from "vitest";
+import { BufferGeometry } from "three";
+import { surfaceTextSchema } from "@shared/gridfinity/surface-text";
 
 const canvasFailure = vi.hoisted(() => ({ active: false }));
 vi.mock("@react-three/fiber", () => ({
@@ -22,7 +24,7 @@ import { parseCutoutPlacement } from "@shared/gridfinity/cutout";
 import { parseBinSpec } from "@shared/gridfinity/types";
 import { createBasicPocket } from "@/lib/gridfinity/basic-shape";
 import type { PocketEditor } from "./pocket-transform-scene";
-import { BinViewport, type MaterialColorTarget } from "./bin-viewport";
+import { BinViewport, type MaterialColorTarget, type BinViewportProps } from "./bin-viewport";
 import type { Outline } from "@shared/geometry/types";
 
 const mounted: Array<() => void> = [];
@@ -43,6 +45,7 @@ function renderViewport(
   previewIsDraft = false,
   pocketEditor?: PocketEditor,
   floorColorLabel: "Pocket floor" | "Bin floor" = "Pocket floor",
+  textGeometries: BinViewportProps["textGeometries"] = [],
 ): HTMLElement {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   const container = document.createElement("div");
@@ -52,6 +55,8 @@ function renderViewport(
     root.render(
       <BinViewport
         geometry={null}
+        textGeometries={textGeometries}
+        textColor="#ff6600"
         pocketEditor={pocketEditor}
         hasPocketFloor={hasPocketFloor}
         hasStackingRim={hasStackingRim}
@@ -108,6 +113,21 @@ it("labels the contrasting pocket-floor surface", () => {
   expect((legend?.querySelector("button span") as HTMLElement).style.backgroundColor).toBe(
     "rgb(101, 67, 33)",
   );
+});
+
+it("offers one shared text color control even without floor or rim colors", () => {
+  const onEditColor = vi.fn();
+  const label = surfaceTextSchema.parse({ id: "metric", text: "METRIC", position: { x: 0, y: 0 } });
+  const geometry = new BufferGeometry();
+  const container = renderViewport(false, 1, false, false, [], onEditColor, false, undefined, "Pocket floor", [
+    { label, geometry }, { label: { ...label, id: "sae", text: "SAE" }, geometry },
+  ]);
+  expect(container.querySelectorAll('button[title="Edit text color"]')).toHaveLength(1);
+  const button = container.querySelector<HTMLButtonElement>('button[title="Edit text color"]')!;
+  expect(button.querySelector<HTMLElement>("span")!.style.backgroundColor).toBe("rgb(255, 102, 0)");
+  React.act(() => button.click());
+  expect(onEditColor).toHaveBeenCalledWith("text");
+  geometry.dispose();
 });
 
 it("labels the independently colored stacking-rim crest", () => {

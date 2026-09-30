@@ -77,6 +77,17 @@ portable copy of a calibrated outline and its bin settings.
 Move the tool outlines into a Gridfinity bin, arrange the duster and accessories,
 and add finger access for lifting them out.
 
+Use **Surface text → Add text** for raised labels on the flat interior surface
+(the floor of a hollow bin, or the top of its solid fill). Set the wording,
+font, size, raised height, and rotation; use X/Y coordinates or drag a label in
+the top view. Keep every letter clear of pockets, openings, other labels, and
+the perimeter. **Text color** applies to every label in the project and matches
+the edge band by default. Choose a custom color or return to **Use edge-band color**.
+
+The 11 bundled font choices are Sans and Sans Bold, Serif and Serif Bold,
+Monospace, Helvetiker and Helvetiker Bold, Optimer and Optimer Bold, and
+Gentilis and Gentilis Bold.
+
 ![Top-down Bin layout with pockets for the air duster, adapters, angled nozzle, and USB cable, plus finger access](docs/images/bin-layout.jpg)
 
 ### 3. Check tool shapes and sizes
@@ -101,6 +112,18 @@ full bin.
 Once the fit is verified and pocket depths are checked, export the full bin as
 **STL or 3MF**. Open it in your slicer at **100% scale**, choose your material and
 print settings, review the layer preview, and print.
+
+**Text labels:** 3MF exports each label as a separate named mesh part, including
+in single-color exports. Keep the bin and labels together as one multipart
+object when your slicer asks; select a label in the parts list to move, scale,
+recolor, or remove it. Choose **Multi-color 3MF** to preserve the shared text
+color; **Single-color 3MF** uses the bin color for all parts. The text color is saved
+with the project and supports undo/redo. Change wording in Pocketry and export again. STL fuses
+the text into the bin. The bundled fonts travel as mesh geometry,
+so slicers do not need them installed.
+
+Text projects use schema 28 and require this version of Pocketry to reopen.
+Existing schema-26 projects migrate with no labels; undo history is preserved.
 
 ![Printed black-and-orange bin with the air duster, nozzles, and cable in place](docs/images/printed-bin-loaded.jpg)
 

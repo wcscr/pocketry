@@ -46,6 +46,7 @@ vi.mock("@/components/gridfinity/bin-viewport", () => ({
     pocketFloorColor,
     floorColorLabel,
     stackingRimColor,
+    textColor,
     showPocketFloorColor,
     showStackingRimColor,
     measurementOutlines,
@@ -61,6 +62,7 @@ vi.mock("@/components/gridfinity/bin-viewport", () => ({
     pocketFloorColor: string;
     floorColorLabel?: string;
     stackingRimColor: string;
+    textColor: string;
     showPocketFloorColor: boolean;
     showStackingRimColor: boolean;
     measurementOutlines: readonly unknown[];
@@ -86,6 +88,7 @@ vi.mock("@/components/gridfinity/bin-viewport", () => ({
       data-floor-color={pocketFloorColor}
       data-floor-label={floorColorLabel}
       data-rim-color={stackingRimColor}
+      data-text-color={textColor}
       data-measurement-splits={JSON.stringify(measurementSplitBoundaries)}
     >
       <button data-testid="button-clear-3d-selection" onClick={() => pocketEditor?.onSelectionChange?.([])} />
@@ -305,6 +308,7 @@ function openSettingsSection(
     | "size"
     | "construction"
     | "materials"
+    | "text"
     | "tool-cutouts"
     | "finger-holes"
     | "export"
@@ -321,7 +325,7 @@ function openSettingsSection(
       }
     } else {
       container.querySelector<HTMLButtonElement>(
-        `[data-testid="bin-settings-jump-${section === "tool-cutouts" ? "pockets" : section === "finger-holes" ? "finger-access" : section === "materials" ? "materials-&-colors" : section}"]`,
+        `[data-testid="bin-settings-jump-${section === "tool-cutouts" ? "pockets" : section === "finger-holes" ? "finger-access" : section === "materials" ? "materials-&-colors" : section === "text" ? "surface-text" : section}"]`,
       )!.click();
     }
   });
@@ -333,6 +337,117 @@ function selectPocket(container: HTMLElement, id: string): void {
 }
 
 describe("BinDesignerPage", () => {
+  it.each(["standard", "workflow"])("edits surface text with undo and exports independent 3MF parts (%s)", async layout => {
+    const originalUrl = window.location.href;
+    window.history.replaceState(null, "", `/bin?layout=${layout}`);
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      React.act(() => {
+        const navigation = container.querySelector<HTMLButtonElement>('[data-testid="workflow-section-bin-settings-text"]');
+        if (navigation) navigation.click();
+        else container.querySelector<HTMLButtonElement>('#bin-settings-text [data-panel-section-trigger]')!.click();
+      });
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-add-surface-text"]')!.click());
+      const current = () => vi.mocked(useBinGeometry).mock.lastCall![0].surfaceTexts;
+      expect(current()).toHaveLength(1);
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
+      expect(container.querySelector('[data-testid="layout-empty-state"]')).toBeNull();
+      expect(container.querySelector('[data-testid="surface-text-layer"] path')).not.toBeNull();
+      const field = container.querySelector<HTMLInputElement>('[data-testid="surface-text-editor"] input[type="text"]')!;
+      React.act(() => {
+        field.focus();
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(field, "Metric & SAE");
+        field.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      React.act(() => field.blur());
+      expect(current()[0].text).toBe("Metric & SAE");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+      expect(current()[0].text).toBe("Text");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+      expect(current()[0].text).toBe("Metric & SAE");
+      const textColor = () => vi.mocked(useBinGeometry).mock.lastCall![0].textColor;
+      expect(textColor()).toBeNull();
+      expect(container.querySelector<HTMLInputElement>('[aria-label="Text color"]')!.value).toBe("#000000");
+      const fontField = () => container.querySelector<HTMLButtonElement>('[aria-label="Text 1 font"]')!;
+      React.act(() => fontField().dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true })));
+      const fontOptions = [...document.querySelectorAll<HTMLElement>('[role="option"]')];
+      expect(fontOptions.map(option => option.textContent)).toEqual([
+        "Sans", "Sans Bold", "Serif", "Serif Bold", "Monospace", "Helvetiker", "Helvetiker Bold",
+        "Optimer", "Optimer Bold", "Gentilis", "Gentilis Bold",
+      ]);
+      React.act(() => fontOptions.find(option => option.textContent === "Gentilis Bold")!.click());
+      expect(current()[0].font).toBe("gentilis-bold");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+      expect(current()[0].font).toBe("sans");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+      expect(current()[0].font).toBe("gentilis-bold");
+      const setTextColor = (color: string) => React.act(() => {
+        const input = container.querySelector<HTMLInputElement>('[aria-label="Text color"]')!;
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, color);
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      expect(container.querySelectorAll('[aria-label="Text color"]')).toHaveLength(1);
+      expect(container.querySelectorAll('[data-testid="surface-text-editor"] input[type="color"]')).toHaveLength(0);
+      setTextColor("#ff6600");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-add-surface-text"]')!.click());
+      expect([...container.querySelectorAll('[data-testid="surface-text-layer"] path')].map(path => path.getAttribute("fill"))).toEqual(["#ff6600", "#ff6600"]);
+      setTextColor("#2244ff");
+      expect(textColor()).toBe("#2244ff");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+      expect(textColor()).toBe("#ff6600");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+      expect(textColor()).toBe("#2244ff");
+      expect([...container.querySelectorAll('[data-testid="surface-text-layer"] path')].map(path => path.getAttribute("fill"))).toEqual(["#2244ff", "#2244ff"]);
+      const mesh = { positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]), indices: new Uint32Array([0, 1, 2]), normals: null };
+      const textMeshes = current().map(label => ({ label, z: 40.8, mesh }));
+      binGeometryMock.buildOnce.mockResolvedValue({ mesh, bodyMesh: mesh, materialMeshes: { body: mesh, stackingRim: mesh }, textMeshes });
+      for (const variant of ["single-color", "multicolor", "inherited", "text-only"]) {
+        if (variant === "inherited") {
+          openSettingsSection(container, "materials");
+          React.act(() => {
+            const input = container.querySelector<HTMLInputElement>('[data-testid="input-stacking-rim-color"]')!;
+            Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "#778899");
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+          });
+          expect(container.querySelector('[data-testid="surface-text-layer"] path')!.getAttribute("fill")).toBe("#2244ff");
+          openSettingsSection(container, "text");
+          React.act(() => [...container.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "Use edge-band color")!.click());
+          expect(textColor()).toBeNull();
+          expect([...container.querySelectorAll('[data-testid="surface-text-layer"] path')].map(path => path.getAttribute("fill"))).toEqual(["#778899", "#778899"]);
+        }
+        if (variant === "text-only") {
+          openSettingsSection(container, "materials");
+          React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Color stacking rim top"]')!.click());
+          binGeometryMock.buildOnce.mockResolvedValue({ mesh, bodyMesh: mesh, textMeshes });
+        }
+        openSettingsSection(container, "export");
+        React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-export-3mf"]')!.click());
+        const download = document.querySelector<HTMLButtonElement>(`[data-testid="button-export-${variant === "single-color" ? "single-color" : "multicolor"}-3mf"]`)!;
+        expect(download.disabled).toBe(false);
+        await React.act(async () => download.click());
+        const blob = vi.mocked(downloadBlob).mock.lastCall![0];
+        const buffer = await new Promise<ArrayBuffer>(resolve => {
+          const reader = new FileReader(); reader.onload = () => resolve(reader.result as ArrayBuffer); reader.readAsArrayBuffer(blob);
+        });
+        const entries = unzipSync(new Uint8Array(buffer));
+        const model = strFromU8(entries["3D/3dmodel.model"]);
+        expect(model).toContain('name="Text: Metric &amp; SAE"');
+        expect(model.match(/<component /g)).toHaveLength(variant === "multicolor" || variant === "inherited" ? 4 : 3);
+        expect(model.match(/<item /g)).toHaveLength(1);
+        const xml = new DOMParser().parseFromString(model, "application/xml");
+        const colors = [...xml.getElementsByTagName("m:color")].map(item => item.getAttribute("color"));
+        for (const label of current()) {
+          const object = [...xml.getElementsByTagName("object")].find(item => item.getAttribute("name") === `Text: ${label.text}`)!;
+          const color = colors[Number(object.getAttribute("pindex"))];
+          expect(color).toBe(variant === "single-color" || variant === "text-only" ? "#BFBFBFFF"
+            : variant === "inherited" ? "#778899FF" : `${textColor()!.toUpperCase()}FF`);
+        }
+        expect(strFromU8(entries["Metadata/model_settings.config"])).toContain('value="Text: Metric &amp; SAE"');
+      }
+    } finally { unmount(); window.history.replaceState(null, "", originalUrl); }
+  });
+
   const pocketFieldCases = [
     ["Pocket rotation in degrees", "180"],
     ["Pocket X rotation in degrees", "25"],
@@ -5518,12 +5633,13 @@ it.each([false, true])("workflow layout routes every section to matching propert
     expect([...left.querySelectorAll('button')].find(button => button.textContent === 'Select all')).toBeUndefined();
     expect(left.querySelector('#bin-settings-pockets')).not.toBeNull();
     expect(left.querySelector('#bin-settings-finger-holes')).not.toBeNull();
-    expect(left.querySelectorAll('button[data-testid^="workflow-section-"]')).toHaveLength(6);
+    expect(left.querySelectorAll('button[data-testid^="workflow-section-"]')).toHaveLength(7);
     expect(left.querySelector('[aria-label="Width in standard cells"]')).toBeNull();
     for (const [name, tone, selector] of [
       ['Bin size', 'blue', '[aria-label="Width in standard cells"]'],
       ['Construction', 'rose', '#bin-settings-construction'],
       ['Materials & Colors', 'amber', '#input-bin-color'],
+      ['Surface text', 'cyan', '[data-testid="button-add-surface-text"]'],
       ['Check fit', 'indigo', '#bin-settings-fit'],
       ['Export', 'emerald', '[data-testid="button-export-3mf"]'],
       ['Project', 'slate', '[aria-label="Browser library"]'],

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added raised surface text with 11 bundled font choices, position, size, rotation, height, and one project-wide color that defaults to the edge band. 3MF keeps each label as a separate named part for slicer editing, with the shared text color in multi-color exports; STL joins it to the bin.
+
 - Fixed pocket property drafts carrying over to another pocket; selection changes preserve pending edits in saved state and undo history.
 
 ## 1.2.0 — 2026-09-29

@@ -129,6 +129,27 @@ describe("bin preview worker lifecycle", () => {
     await reply(() => worker().finish(2)); expect(dispose).toHaveBeenCalledTimes(1); expect(state!.geometry).not.toBe(first);
   });
 
+  it("uses separate body and text previews and disposes replaced and removed labels", async () => {
+    const label = parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 3,
+      surfaceTexts: [{ id: "label", text: "METRIC", position: { x: 0, y: 0 } }],
+    }).surfaceTexts[0];
+    const labeled = { ...resultFor(1), bodyMesh: resultFor(2).mesh,
+      textMeshes: [{ label, z: 21, mesh: resultFor(3).mesh }] };
+    await render(2); await tick(); await reply(() => worker().finish(0, labeled));
+    expect(state!.geometry!.getAttribute("position").getX(0)).toBe(2);
+    expect(state!.textGeometries[0].label.text).toBe("METRIC");
+    expect(state!.textGeometries[0].geometry.getAttribute("position").getX(0)).toBe(3);
+    const dispose = vi.spyOn(state!.textGeometries[0].geometry, "dispose");
+    await render(3); await tick();
+    expect(dispose).not.toHaveBeenCalled();
+    await reply(() => worker().finish(1, labeled));
+    expect(dispose).toHaveBeenCalledOnce();
+    const removed = vi.spyOn(state!.textGeometries[0].geometry, "dispose");
+    await render(4); await tick(); await reply(() => worker().finish(2));
+    expect(state!.textGeometries).toEqual([]);
+    expect(removed).toHaveBeenCalledOnce();
+  });
+
   it("keeps each export payload while previews and project state change", async () => {
     await render(2, false, { 3: { axis: "x", offsetMm: 0 } }); await tick();
     let normal!: ReturnType<BinGeometryState["buildOnce"]>;

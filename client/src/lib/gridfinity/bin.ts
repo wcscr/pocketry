@@ -1,4 +1,5 @@
 import type { ValidationIssue } from "@shared/gridfinity/validate";
+import { buildSurfaceTexts } from "./surface-text";
 import { validateTiltedSolids } from "./validate-tilted-solids";
 // Type-only import: the kernel is injected (see `Kernel` in ../manifold/runtime).
 import type { Manifold } from "manifold-3d";
@@ -226,6 +227,9 @@ export function buildBinWithCutouts(
   parts: BinParts;
   solid: Manifold;
   materialParts: BinMaterialParts | null;
+  /** Original bin and individual labels for multipart 3MF exports. */
+  bodySolid: Manifold;
+  textParts: ReturnType<typeof buildSurfaceTexts>;
   cutoutReports: CutoutBuildReport[];
   validationIssues: ValidationIssue[];
 } {
@@ -336,7 +340,10 @@ export function buildBinWithCutouts(
     materialParts = { body, pocketFloors, stackingRim, floorRegions };
   }
 
-  return { parts: base.parts, solid, materialParts, cutoutReports: reports, validationIssues };
+  const bodySolid = solid;
+  const textParts = spec.surfaceTexts.length ? buildSurfaceTexts(kernel, spec, bodySolid) : [];
+  if (textParts.length) solid = arena.track(Manifold.union([bodySolid, ...textParts.map(part => part.solid)]));
+  return { parts: base.parts, solid, bodySolid, textParts, materialParts, cutoutReports: reports, validationIssues };
 }
 
 /**

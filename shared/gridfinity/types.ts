@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { surfaceTextSchema, textColorSchema } from "./surface-text";
 
 import {
   footprintTopologyError,
@@ -46,6 +47,11 @@ const boundaryEdgeSchema = z.object({
 
 export const binSpecSchema = z
   .object({
+    /** Editable raised labels on the interior's horizontal surface. */
+    surfaceTexts: z.array(surfaceTextSchema.extend({ color: textColorSchema.optional() })).max(32).default([])
+      .refine(labels => new Set(labels.map(label => label.id)).size === labels.length, "Text ids must be unique."),
+    /** One saved color for all labels; null inherits the displayed edge-band color. */
+    textColor: textColorSchema.nullable().optional(),
     /** Number of selected-pitch grid cells along x. */
     gridX: z.number().int().min(1).max(maxGridCells("quarter")),
     /** Number of selected-pitch grid cells along y. */
@@ -98,6 +104,12 @@ export const binSpecSchema = z
       .default(null),
   })
   .strict()
+  .transform(({ surfaceTexts, textColor, ...spec }) => ({
+    ...spec,
+    // Unreleased per-label color projects migrate to their first chosen color.
+    textColor: textColor !== undefined ? textColor : surfaceTexts.find(label => label.color !== undefined)?.color ?? null,
+    surfaceTexts: surfaceTexts.map(({ color: _legacyColor, ...label }) => label),
+  }))
   .superRefine((spec, context) => {
     const maximum = maxGridCells(spec.gridPitch);
     for (const axis of ["gridX", "gridY"] as const) {
