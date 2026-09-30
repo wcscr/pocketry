@@ -333,6 +333,197 @@ function selectPocket(container: HTMLElement, id: string): void {
 }
 
 describe("BinDesignerPage", () => {
+  const pocketFieldCases = [
+    ["Pocket rotation in degrees", "180"],
+    ["Pocket X rotation in degrees", "25"],
+    ["Pocket Y rotation in degrees", "-20"],
+    ["Pocket elevation in millimetres", "12"],
+    ["X position in millimetres", "8"],
+    ["Y position in millimetres", "-6"],
+    ["Pocket width in millimetres", "34"],
+    ["Pocket length in millimetres", "24"],
+    ["Pocket width scale percent", "120"],
+    ["Pocket length scale percent", "130"],
+    ["Pocket cut depth in millimetres", "18"],
+    ["Remaining floor thickness in millimetres", "8"],
+    ["Extra pocket clearance in millimetres", "0.6"],
+    ["Top edge rounding in millimetres", "1.2"],
+    ["Bottom edge fillet in millimetres", "1.4"],
+    ["Outline corner rounding in millimetres", "1.5"],
+  ];
+  describe.each(["standard", "workflow"])("pocket field ownership (%s)", layout => {
+    it.each(["", "-1"])("isolates an invalid draft (%j) and commits the last valid split-section edit", async invalid => {
+      const originalUrl = window.location.href;
+      window.history.replaceState(null, "", `/bin?layout=${layout}`);
+      const shape = rectangularShape("split-field-source", "Split driver");
+      const first = parseCutoutPlacement({ id: "first", shapeId: shape.id, position: { x: -15, y: 0 },
+        split: { boundary: [{ x: 0, y: -10 }, { x: 0, y: 10 }],
+          depths: [{ mode: "remaining", floorThicknessMm: 6 }, { mode: "remaining", floorThicknessMm: 4 }] } });
+      const second = { ...first, id: "second", position: { x: 15, y: 0 } };
+      vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape], cutouts: [first, second] });
+      const { container, unmount } = renderPage();
+      try {
+        await flushHydration();
+        openSettingsSection(container, "tool-cutouts");
+        selectPocket(container, first.id);
+        const committed = () => vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts;
+        const before = committed();
+        const field = () => container.querySelector<HTMLInputElement>('[aria-label="Remaining floor thickness in millimetres"]')!;
+        const input = field();
+        const type = (value: string) => React.act(() => {
+          input.focus();
+          Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
+          input.dispatchEvent(new Event("input", { bubbles: true }));
+        });
+        type("8");
+        type(invalid);
+        React.act(() => [...container.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === "Section B")!.click());
+        React.act(() => input.blur());
+        expect(field().value).toBe("4");
+        expect(committed()[0].split!.depths).toEqual([{ mode: "remaining", floorThicknessMm: 8 }, { mode: "remaining", floorThicknessMm: 4 }]);
+        expect(committed()[1]).toEqual(before[1]);
+        selectPocket(container, second.id);
+        expect(field().value).toBe("6");
+        const after = committed();
+        React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+        expect(committed()).toEqual(before);
+        React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+        expect(committed()).toEqual(after);
+      } finally {
+        unmount();
+        window.history.replaceState(null, "", originalUrl);
+      }
+    });
+
+    it("resets spacing choices and displays each pocket's controlled switches", async () => {
+      const originalUrl = window.location.href;
+      window.history.replaceState(null, "", `/bin?layout=${layout}`);
+      const shape = rectangularShape("spacing-source", "Driver");
+      const first = parseCutoutPlacement({ id: "first", shapeId: shape.id, position: { x: -15, y: 0 } });
+      const second = { ...first, id: "second", position: { x: 15, y: 0 }, mirrored: true, aspectRatioLocked: false };
+      vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape], cutouts: [first, second] });
+      const { container, unmount } = renderPage();
+      try {
+        await flushHydration();
+        openSettingsSection(container, "tool-cutouts");
+        selectPocket(container, first.id);
+        const reference = container.querySelector<HTMLSelectElement>('[aria-label="Reference pocket"]')!;
+        const side = container.querySelector<HTMLSelectElement>('[aria-label="Side of reference pocket"]')!;
+        React.act(() => {
+          reference.value = second.id; reference.dispatchEvent(new Event("change", { bubbles: true }));
+          side.value = "left"; side.dispatchEvent(new Event("change", { bubbles: true }));
+        });
+        selectPocket(container, second.id);
+        expect(container.querySelector<HTMLSelectElement>('[aria-label="Reference pocket"]')!.value).toBe("");
+        expect(container.querySelector<HTMLSelectElement>('[aria-label="Side of reference pocket"]')!.value).toBe("right");
+        expect([...container.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "Apply gap")!.disabled).toBe(true);
+        expect(container.querySelector('[aria-label="Lock pocket aspect ratio"]')?.getAttribute("aria-pressed")).toBe("false");
+        const mirror = container.querySelector('#pocket-properties [role="switch"][aria-label="Mirror"]')!;
+        expect(mirror.getAttribute("aria-checked")).toBe("true");
+      } finally {
+        unmount();
+        window.history.replaceState(null, "", originalUrl);
+      }
+    });
+
+    it.each(pocketFieldCases)("keeps %s and its undo entry with the edited pocket", async (label, value) => {
+      const originalUrl = window.location.href;
+      window.history.replaceState(null, "", `/bin?layout=${layout}`);
+      const shape = rectangularShape("field-source", "Driver");
+      const first = parseCutoutPlacement({ id: "first", shapeId: shape.id, position: { x: -15, y: 0 },
+        depth: label.startsWith("Remaining") ? { mode: "remaining", floorThicknessMm: 6 } : { mode: "mm", value: 12 } });
+      const second = { ...first, id: "second", position: { x: 15, y: 0 }, rotationDeg: 45 };
+      vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape], cutouts: [first, second] });
+      const { container, unmount } = renderPage();
+      try {
+        await flushHydration();
+        openSettingsSection(container, "tool-cutouts");
+        selectPocket(container, first.id);
+        const committed = () => vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts;
+        const live = () => vi.mocked(useBinGeometry).mock.lastCall![5]!.layout.cutouts;
+        const before = committed();
+        const input = container.querySelector<HTMLInputElement>(`[aria-label="${label}"]`)!;
+        React.act(() => {
+          input.closest("details")!.open = true;
+          input.focus();
+          Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
+          input.dispatchEvent(new Event("input", { bubbles: true }));
+        });
+        const edited = live()[0];
+        expect(edited).not.toEqual(before[0]);
+        // Selection on pointer-down precedes native blur, including warning-driven selection.
+        selectPocket(container, second.id);
+        React.act(() => input.blur());
+        expect(live()[1]).toEqual(before[1]);
+        expect(committed()).toEqual([edited, before[1]]);
+        expect(parseProjectDoc({ ...EMPTY_PROJECT, shapes: [shape], cutouts: committed() })?.cutouts).toEqual(committed());
+        selectPocket(container, first.id);
+        expect(container.querySelector<HTMLInputElement>(`[aria-label="${label}"]`)!.value).toBe(value);
+        React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+        expect(committed()).toEqual(before);
+        React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+        expect(committed()).toEqual([edited, before[1]]);
+      } finally {
+        unmount();
+        window.history.replaceState(null, "", originalUrl);
+      }
+    });
+  });
+
+  it.each(["standard", "workflow"])("keeps a copied pocket's rotation draft out of the next pocket's properties (%s)", async layout => {
+    const originalUrl = window.location.href;
+    window.history.replaceState(null, "", `/bin?layout=${layout}`);
+    const shape = rectangularShape("copy-rotation-source", "Rotation tool");
+    const original = parseCutoutPlacement({ id: "original", shapeId: shape.id, position: { x: 0, y: 0 } });
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape], cutouts: [original] });
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      openSettingsSection(container, "size");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-fit-bin"]')!.click());
+      openSettingsSection(container, "tool-cutouts");
+      selectPocket(container, original.id);
+      if (layout === "workflow") {
+        React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Actions for Rotation tool"]')!
+          .dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true })));
+        React.act(() => document.querySelector<HTMLElement>('[role="menuitem"][aria-label="Duplicate Rotation tool"]')!.click());
+        await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 50)); });
+      } else React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-duplicate-original"]')!.click());
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
+      const latest = () => vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts;
+      const copy = latest().find(c => c.id !== original.id)!;
+      const rotation = container.querySelector<HTMLInputElement>('[aria-label="Pocket rotation in degrees"]')!;
+      React.act(() => {
+        rotation.closest("details")!.open = true;
+        rotation.focus();
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(rotation, "180");
+        rotation.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      expect(latest().find(c => c.id === copy.id)!.rotationDeg).toBe(180);
+      // Canvas selection happens on pointer-down, before the browser blurs
+      // the focused field. Simulate that order instead of blurring first.
+      selectPocket(container, original.id);
+      React.act(() => rotation.blur());
+      expect(latest().find(c => c.id === original.id)!.rotationDeg).toBe(0);
+      expect(latest().find(c => c.id === copy.id)!.rotationDeg).toBe(180);
+      expect(container.querySelector<HTMLInputElement>('[aria-label="Pocket rotation in degrees"]')!.value).toBe("0");
+      expect(container.querySelector<HTMLDetailsElement>('[data-testid="pocket-position-settings"]')!.open).toBe(true);
+      const beforeMove = latest();
+      React.act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" })));
+      expect(latest().find(c => c.id === original.id)).toMatchObject({
+        rotationDeg: 0, position: { x: beforeMove[0].position.x + 1, y: beforeMove[0].position.y },
+      });
+      expect(latest().find(c => c.id === copy.id)).toEqual(beforeMove.find(c => c.id === copy.id));
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+      expect(latest()).toEqual(beforeMove);
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+      expect(latest().map(c => c.rotationDeg)).toEqual([0, 180]);
+    } finally {
+      unmount();
+      window.history.replaceState(null, "", originalUrl);
+    }
+  });
+
   it.each([false,true])("rotates and resets ordinary pockets in the existing properties with experimental=%s", async experimental => {
     const shape=rectangularShape("rotation-source","Rotation tool");
     const original=parseCutoutPlacement({id:"rotated",shapeId:shape.id,position:{x:3,y:-2}, rotationDeg:20,
