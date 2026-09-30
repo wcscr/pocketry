@@ -5853,6 +5853,34 @@ it.each(["standard","workflow"])("gates model import behind the experimental opt
   } finally {unmount();window.history.replaceState(null,"",originalUrl);}
 });
 
+it.each(["standard", "workflow"])("corrects a horizontal model path explicitly with undo and experimental gating in the %s layout", async layout => {
+  const originalUrl = window.location.href;
+  window.history.replaceState(null,"",`/bin?layout=${layout}`);
+  const shape:TracedShape={...rectangularShape("sideways-model","Sideways model"),source:"model",
+    model:{format:"stl",units:"mm",positions:[-10,-5,-3,10,-5,-3,0,5,-3,0,0,3],indices:[0,2,1,0,1,3,1,2,3,2,0,3]}};
+  const placed=parseCutoutPlacement({id:"sideways",shapeId:shape.id,position:{x:0,y:0},elevationMm:12,
+    tilt:{xDeg:-90,yDeg:0},depth:{mode:"mm",value:6},clearanceMm:0.3,modelSmoothingMm:1,cornerRoundMm:0,topFilletMm:0,bottomFilletMm:0});
+  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({...EMPTY_PROJECT,shapes:[shape],cutouts:[placed]});
+  const {container,unmount}=renderPage({experimental:false});
+  try {
+    await flushHydration();
+    openSettingsSection(container,"tool-cutouts"); selectPocket(container,placed.id);
+    const recovery = () => Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(b=>b.textContent==="Use vertical drop-in");
+    const latest = () => vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0];
+    expect(recovery()).toBeUndefined();
+    React.act(()=>experimentalSettings.setEnabled(true));
+    expect(recovery()).toBeDefined();
+    React.act(()=>recovery()!.click());
+    expect(latest()).toEqual({...placed,modelInsertionMode:"vertical"});
+    expect(recovery()).toBeUndefined();
+    React.act(()=>container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+    expect(latest()).toEqual(placed);
+    expect(recovery()).toBeDefined();
+    React.act(()=>experimentalSettings.setEnabled(false));
+    expect(recovery()).toBeUndefined();
+  } finally {unmount();window.history.replaceState(null,"",originalUrl);}
+});
+
 it.each(["standard", "workflow"])("keeps saved model controls hidden until explicit opt-in in the %s layout", async layout => {
   const originalUrl = window.location.href;
   window.history.replaceState(null, "", `/bin?layout=${layout}`);

@@ -2,7 +2,7 @@ import { modelPlacementDefaults } from "@shared/gridfinity/model-placement";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { strFromU8, unzipSync } from "fflate";
 import { parseCutoutPlacement, resolvePocketDepth, pocketOccupiedOutline, type CutoutPlacement, type TracedShape } from "@shared/gridfinity/cutout";
-import { importedModelSchema, MODEL_MAX_TRIANGLES, modelDimensions, modelInsertionAxis } from "@shared/gridfinity/model-pocket";
+import { importedModelSchema, MODEL_MAX_TRIANGLES, modelDimensions, modelInsertionAxis, modelFootprint, placedModelVertices } from "@shared/gridfinity/model-pocket";
 import { parseBinSpec } from "@shared/gridfinity/types";
 import { parseProjectDoc, PROJECT_SCHEMA_VERSION } from "@shared/gridfinity/project";
 import { validateLayout } from "@shared/gridfinity/validate";
@@ -112,6 +112,40 @@ function expectClearInsertion(placed: CutoutPlacement, input = shape) {
 }
 
 describe("model insertion cavities", () => {
+  it.each([{xDeg:-90,yDeg:0}, {xDeg:90,yDeg:0}, {xDeg:0,yDeg:-90}, {xDeg:0,yDeg:90}])("keeps previews and resizing live for an invalid horizontal path %o, but blocks export", async tilt => {
+    const handler = createBinWorkerHandlers(async () => wasm)[BUILD_BIN_METHOD] as (payload: unknown, context: HandlerContext) => Promise<TransferableResult<BuildBinResult>>;
+    const invalid = {...p, tilt, modelSmoothingMm:1};
+    const valid = {...p, id:"other-pocket", position:{x:25,y:0}};
+    const layout = {shapes:[shape],cutouts:[invalid,valid],fingerHoles:[]};
+    const original = structuredClone(layout);
+    const request = {spec,quality:{circularSegments:16},layout};
+    const first = (await handler(request,context())).value;
+    expect(first.validationIssues).toContainEqual(expect.objectContaining({code:"invalid-model-pocket",severity:"error",cutoutIds:[p.id]}));
+    expect(first.cutoutReports?.map(report=>report.id)).toEqual([valid.id]);
+    const withoutInvalid = (await handler({...request,layout:{...layout,cutouts:[valid]}},context())).value;
+    expect(first.stats.volumeMm3).toBeCloseTo(withoutInvalid.stats.volumeMm3,4);
+    const largerSpec = {...spec,gridX:3,heightUnits:7};
+    const enlarged = (await handler({...request,spec:largerSpec},context())).value;
+    expect(enlarged.stats.volumeMm3).toBeGreaterThan(first.stats.volumeMm3);
+    expect(Math.max(...enlarged.mesh.positions.filter((_,i)=>i%3===0))).toBeGreaterThan(Math.max(...first.mesh.positions.filter((_,i)=>i%3===0)));
+    const cached = (await handler({...request,spec:largerSpec,section:{axis:"y",offsetMm:0}},context())).value;
+    expect(cached.validationIssues).toEqual(enlarged.validationIssues);
+    await expect(handler({...request,exportTopology:true},context())).rejects.toThrow(/Vertical drop-in/);
+    const corrected = {...invalid,modelInsertionMode:"vertical" as const};
+    const repaired = (await handler({...request,exportTopology:true,layout:{...layout,cutouts:[corrected,valid]}},context())).value;
+    expect(repaired.validationIssues?.filter(i=>i.severity==="error")).toEqual([]);
+    expect(repaired.stats.volumeMm3).toBeLessThan(first.stats.volumeMm3);
+    expect(()=>parseStl(writeBinarySTL(repaired.mesh),"mm")).not.toThrow();
+    expect(layout).toEqual(original);
+    // Picking/packing must not inflate an invalid sideways model by hundreds of mm.
+    const footprint = modelFootprint(shape.model!,invalid,42)[0].outer;
+    const vertices = placedModelVertices(shape.model!,invalid);
+    for (const axis of ["x","y"] as const) {
+      const span = Math.max(...footprint.map(v=>v[axis]))-Math.min(...footprint.map(v=>v[axis]));
+      const sourceSpan = Math.max(...vertices.map(v=>v[axis]))-Math.min(...vertices.map(v=>v[axis]));
+      expect(span-sourceSpan).toBeLessThan(10);
+    }
+  });
   it.each([[0,0,0,false],[35,20,17,false],[125,-24,20,false],[0,60,0,true]])("clears the entire rotated-axis path at %s/%s/%s with mirror %s", (xDeg,yDeg,rotationDeg,mirrored) => {
     const placed = {...p, tilt:{xDeg,yDeg},rotationDeg,mirrored,scaleX:1.2,scaleY:0.8,modelScaleZ:1.5};
     const solid = expectClearInsertion(placed);

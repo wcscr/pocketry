@@ -1,5 +1,6 @@
 import { hasRigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { validateLayout } from "@shared/gridfinity/validate";
+import { modelPlacementError } from "@shared/gridfinity/model-pocket";
 import { hasPocketTilt } from "@shared/gridfinity/pocket-orientation";
 import type { Manifold, ManifoldToplevel } from "manifold-3d";
 
@@ -126,6 +127,19 @@ export function createBinWorkerHandlers(
         }));
       }
     }
+    // Invalid insertion paths are editable design errors. Omit only those
+    // cavities from previews so resizing the bin and editing other pockets
+    // still works. Export keeps the authored layout and rejects it below.
+    const omittedModelIssues = payload.exportTopology || !layout ? [] : layout.cutouts.flatMap(cutout => {
+      if (!layout!.shapesById.get(cutout.shapeId)?.model) return [];
+      const message = modelPlacementError(cutout);
+      return message ? [{ code: "invalid-model-pocket", severity: "error" as const,
+        cutoutIds: [cutout.id], message }] : [];
+    });
+    if (layout && omittedModelIssues.length) {
+      const omittedIds = new Set(omittedModelIssues.flatMap(issue => issue.cutoutIds));
+      layout = { ...layout, cutouts: layout.cutouts.filter(cutout => !omittedIds.has(cutout.id)) };
+    }
     context.progress(0.05);
 
     const wasm = await loadRuntime();
@@ -135,7 +149,7 @@ export function createBinWorkerHandlers(
     try {
       const kernel = createKernel(wasm, arena);
       const started = performance.now();
-      if (payload.exportTopology && layout?.cutouts.some(c => c.profileBottom || hasRigidPocket(c) || hasPocketTilt(c) || (c.zOffsetMm ?? 0) !== 0)) {
+      if (payload.exportTopology && layout?.cutouts.some(c => layout.shapesById.get(c.shapeId)?.model || c.profileBottom || hasRigidPocket(c) || hasPocketTilt(c) || (c.zOffsetMm ?? 0) !== 0)) {
         const errors = validateLayout(spec, layout.cutouts, layout.shapesById, layout.fingerHoles).filter(issue => issue.severity === "error");
         if (errors.length) throw new Error(errors.map(issue => issue.message).join("\n"));
       }
@@ -261,7 +275,7 @@ export function createBinWorkerHandlers(
           buildMs: performance.now() - started,
         },
         cutoutReports,
-        validationIssues,
+        validationIssues: [...omittedModelIssues, ...validationIssues],
       };
       const transfer: Transferable[] = [mesh.positions.buffer, mesh.indices.buffer];
       if (mesh.normals) transfer.push(mesh.normals.buffer);

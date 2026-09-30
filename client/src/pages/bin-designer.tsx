@@ -432,7 +432,8 @@ function BinDesignerWorkspace(): JSX.Element {
     { spec, layout, gesture: spec !== committedSpec || cutouts !== committedCutouts || fingerHoles !== committedFingerHoles ? committedDoc : undefined },
   );
 
-  const issues = [...layoutIssues, ...solidIssues];
+  const issues = [...layoutIssues, ...solidIssues.filter(issue => !layoutIssues.some(existing =>
+    existing.code === issue.code && JSON.stringify(existing.cutoutIds) === JSON.stringify(issue.cutoutIds)))];
   const editablePockets = useMemo(() => cutouts.flatMap(cutout => {
     const shape = library.shapes.find(shape => shape.id === cutout.shapeId);
     return shape ? [{ cutout, shape }] : [];

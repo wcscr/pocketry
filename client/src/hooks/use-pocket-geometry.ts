@@ -1,4 +1,5 @@
 import { inspectModel } from "@/lib/gridfinity/model-worker-client";
+import { modelPlacementError } from "@shared/gridfinity/model-pocket";
 import { useEffect, useMemo, useState } from "react";
 import type { Outline } from "@shared/geometry/types";
 import type { CutoutPlacement, TracedShape } from "@shared/gridfinity/cutout";
@@ -28,7 +29,7 @@ export function usePocketGeometry(cutouts: readonly CutoutPlacement[], shapesByI
     let current = true;
     const models = request.cutouts.flatMap(cutout => {
       const shape = request.shapesById.get(cutout.shapeId);
-      if (!shape?.model) return [];
+      if (!shape?.model || modelPlacementError(cutout)) return [];
       const inspection = inspectModel(shape, cutout, request.spec);
       void inspection.promise.catch(() => {});
       return [{ id: cutout.id, ...inspection }];

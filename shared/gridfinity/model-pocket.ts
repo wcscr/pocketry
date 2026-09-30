@@ -67,9 +67,11 @@ export function modelFootprint(model: ImportedModel, p: ModelPlacement, top = In
     const width = Math.max(...frame.map(v => v.x)) - Math.min(...frame.map(v => v.x));
     const depth = Math.max(...frame.map(v => v.y)) - Math.min(...frame.map(v => v.y));
     // Cell coverage, interpolation and boundary smoothing expand outward.
+    // An invalid horizontal path has no sweep: keep its picking/packing bounds
+    // near the seated tool instead of dividing by a near-zero vertical axis.
     const step = modelStorageGridStep(width, depth, smoothing);
     const pad = ((2 * Math.SQRT2 + 1.5 * Math.sqrt(3)) * step + 1.5 * Math.max(0.3, step)) /
-      Math.max(0.01, axis.z);
+      (axis.z >= 0.01 ? axis.z : 1);
     points = convexHull(points).flatMap(v => [-1,1].flatMap(x => [-1,1].map(y => ({x:v.x+x*pad,y:v.y+y*pad}))));
   }
   return [{ outer: convexHull(points), holes: [] }];
@@ -83,7 +85,7 @@ export function modelDimensions(model: ImportedModel): [number, number, number] 
 /** Outline-only operations must never silently replace or reshape a model. */
 export function modelPlacementError(p: CutoutPlacement): string | null {
   if (p.elevationMm === undefined || p.depth.mode !== "mm" || p.split || p.profileBottom || p.zOffsetMm) return "Imported models use elevation and model scale. Split, through, and outline-profile pockets are not supported.";
-  if (modelInsertionAxis(p).z < 0.01) return "Tilt the model’s insertion axis toward the bin opening. A horizontal path cannot enter through the top; choose Vertical drop-in or change the angle.";
+  if (modelInsertionAxis(p).z < 0.01) return "A horizontal insertion path cannot enter through the top. This pocket is omitted from the preview; choose Vertical drop-in or change the angle before exporting.";
   if (p.clearanceMm < 0) return "Model clearance must be zero or positive. Use model scale to shrink the cutter.";
   if (p.topFilletMm || p.bottomFilletMm || p.cornerRoundMm) return "Model edges come from the STL. Edit rounding in your modeling software before importing.";
   return null;

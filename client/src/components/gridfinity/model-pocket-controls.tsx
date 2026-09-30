@@ -1,4 +1,4 @@
-import { modelDimensions } from "@shared/gridfinity/model-pocket";
+import { modelDimensions, modelInsertionAxis } from "@shared/gridfinity/model-pocket";
 import { resolvePocketDepth, type CutoutPlacement, type TracedShape } from "@shared/gridfinity/cutout";
 import { DraftNumberInput } from "@/components/ui/draft-number-input";
 import { Label } from "@/components/ui/label";
@@ -37,6 +37,10 @@ export function ModelPocketControls({ shape, cutout }: { shape: TracedShape; cut
         <option value="vertical">Vertical drop-in</option>
       </select>
     </Label>
+    {modelInsertionAxis(cutout).z < 0.01 && <div className="space-y-2 rounded border border-destructive/50 p-2 text-xs" role="alert">
+      <p>This insertion path is horizontal. The pocket is omitted from the preview until you choose a path through the top.</p>
+      <Button size="sm" variant="outline" onClick={() => update({ modelInsertionMode: "vertical" }, "Use vertical drop-in")}>Use vertical drop-in</Button>
+    </div>}
     <Label className="flex items-center gap-2 text-xs">Insertion depth
       <DraftNumberInput aria-label="Model insertion depth in millimetres" value={top - (cutout.elevationMm ?? 0)} min={top - 300} max={top} step={0.5} displayPrecision={2}
         onValueChange={depth => update({ elevationMm: top - depth }, "Change model insertion depth", true)}

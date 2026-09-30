@@ -19,6 +19,10 @@ space for the model and its insertion path.
   rotated Z axis, pointing toward the bin opening. Inverted poses use the opposite
   end of the same axis. A horizontal or nearly horizontal axis needs a different
   angle or Vertical drop-in because it cannot exit through the top.
+  Invalid model pockets are omitted from the preview while the bin and other
+  pockets remain editable. Exports stay blocked. **Use vertical drop-in** in the
+  model properties corrects a horizontal path without changing the resting pose;
+  undo restores the previous mode.
 - **Insertion path → Vertical drop-in** clears straight upward in bin coordinates,
   allowing the model to be lowered vertically at its chosen resting angle.
   Switching modes leaves position, rotation, scale, and depth unchanged.
