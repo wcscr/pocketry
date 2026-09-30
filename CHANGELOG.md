@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fixed pocket property drafts carrying over to another pocket; selection changes preserve pending edits in saved state and undo history.
+
 ## 1.2.0 — 2026-09-29
 
 - Adjustable colored borders for bins without stacking lips; hollow-bin floors use the pocket-floor color. Both support multi-color 3MF export.

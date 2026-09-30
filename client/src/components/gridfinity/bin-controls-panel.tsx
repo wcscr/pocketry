@@ -890,7 +890,8 @@ export function BinControlsPanel({
                   <DraftNumberInput
                     className="h-8"
                     aria-label="Pocket rotation in degrees"
-                    value={Math.round(selectedCutout.rotationDeg * 10) / 10}
+                    value={selectedCutout.rotationDeg}
+                    displayPrecision={1}
                     step={15}
                     normalize={(value) => ((value % 360) + 360) % 360}
                     onValueChange={(rotationDeg) =>

@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { SlidersHorizontal } from "lucide-react";
 import { pocketName, type DepthSpec } from "@shared/gridfinity/cutout";
 import { useBin } from "@/state/bin-store";
@@ -33,7 +34,7 @@ export function MobileBinActions({ open, onOpenChange, onMore, onExport }: {
   return <div>
     {open && <MobileAdjustmentTray title={cutout ? pocketName(cutout, shape) : "Adjust bin"}
       onClose={() => onOpenChange(false)} onMore={() => onMore(cutout ? "bin-settings-pockets" : "bin-settings-size")}>
-      {cutout && depth ? <>
+      {cutout && depth ? <Fragment key={`${cutout.id}-${bin.selectedPocketSection}-${depth.mode}`}>
         {cutout.split && <div className="mb-2 flex gap-2" role="group" aria-label="Section to edit">
           {([0, 1] as const).map(section => <Button key={section} className="min-h-11 flex-1" variant={bin.selectedPocketSection === section ? "secondary" : "outline"}
             aria-pressed={bin.selectedPocketSection === section} onClick={() => bin.dispatch({ type: "SELECT_CUTOUT", id: cutout.id, section })}>Section {section === 0 ? "A" : "B"}</Button>)}
@@ -48,7 +49,7 @@ export function MobileBinActions({ open, onOpenChange, onMore, onExport }: {
           <LabelledSlider id="quick-pocket-clearance" label="Extra clearance" value={cutout.clearanceMm} min={-2} max={2} step={0.1} format={mm} touchTarget
             onChange={value => updateClearance(value, true)} onCommit={value => updateClearance(value, false)} />
         </div>
-      </> : <>
+      </Fragment> : <>
         <LabelledSlider id="quick-bin-height" label="Bin height" value={bin.spec.heightUnits} min={1} max={12} step={0.5} format={value => `${value} units`} touchTarget
           onChange={heightUnits => bin.dispatch({ type: "PATCH_SPEC", patch: { heightUnits }, transient: true })}
           onCommit={heightUnits => bin.dispatch({ type: "PATCH_SPEC", patch: { heightUnits } })} />
