@@ -28,7 +28,8 @@ import { parseBinSpec, type BinSpec, type BinSpecInput } from "@shared/gridfinit
  * that undoing should not yank around. The stack holds full snapshots with
  * `index` pointing at the present; drag frames dispatch with
  * `transient: true` so a whole gesture collapses into one undo step (the
- * pre-drag snapshot stays at `stack[index]` until the release commits).
+ * pre-drag snapshot stays at `stack[index]` until release or a selection change
+ * finishes the edit).
  */
 
 export type BinViewMode = "3d" | "2d";
@@ -55,6 +56,8 @@ export interface BinState {
   /** True once persistence has had its chance to restore a project. */
   hydrated: boolean;
   history: BinHistory;
+  /** A live field/gesture edit awaiting release or a change of selection. */
+  pendingHistoryLabel: string | null;
 }
 
 /**
@@ -162,6 +165,7 @@ const INITIAL: BinState = {
   viewMode: "3d",
   editorMode: "placement",
   hydrated: false,
+  pendingHistoryLabel: null,
   history: {
     stack: [
       {
@@ -209,6 +213,7 @@ function commit(
     ...state,
     ...rest,
     editError: null,
+    pendingHistoryLabel: null,
     ...selectionState(existingSelection(rest.selection ?? state.selection, doc)),
     spec: doc.spec,
     cutouts: doc.cutouts,
@@ -253,16 +258,31 @@ function cutoutPatchLabel(patch: Partial<CutoutPlacement>): string {
 }
 
 /** A transient change: present state moves, the history does not. */
-function preview(state: BinState, doc: BinDoc): BinState {
+function preview(state: BinState, doc: BinDoc, pendingHistoryLabel: string | null = null): BinState {
   doc = reconcileFillHeightReferences(state, doc);
   doc = limitFingerAccessForBinChange(state, doc);
   return {
     ...state,
     editError: null,
+    pendingHistoryLabel,
     spec: doc.spec,
     cutouts: doc.cutouts,
     fingerHoles: doc.fingerHoles,
   };
+}
+
+/** A focused field may unmount before native blur when selection changes on
+ * pointer-down. Finish its already validated preview before changing owners. */
+function changeSelection(state: BinState, selection: ObjectRef[], section: PocketSectionIndex): BinState {
+  selection = existingSelection(selection, state);
+  const changed = section !== state.selectedPocketSection || JSON.stringify(selection) !== JSON.stringify(state.selection);
+  if (changed && state.pendingHistoryLabel) {
+    const doc = { spec: state.spec, cutouts: state.cutouts, fingerHoles: state.fingerHoles };
+    state = JSON.stringify(doc) === JSON.stringify(getCommittedBinDoc(state))
+      ? { ...state, pendingHistoryLabel: null }
+      : commit(state, doc, state.pendingHistoryLabel);
+  }
+  return { ...state, ...selectionState(selection), selectedPocketSection: section };
 }
 
 function patchCutouts(
@@ -327,6 +347,7 @@ function reduceBin(state: BinState, action: BinAction): BinState {
         pendingRemovalId: null,
         editorMode: "placement",
         hydrated: true,
+        pendingHistoryLabel: null,
         history: action.history ?? {
           stack: [{ doc, label: "Project opened" }],
           index: 0,
@@ -372,7 +393,7 @@ function reduceBin(state: BinState, action: BinAction): BinState {
         );
       }
       return action.transient
-        ? preview(state, doc)
+        ? preview(state, doc, action.historyLabel ?? specPatchLabel(action.patch))
         : commit(state, doc, action.historyLabel ?? specPatchLabel(action.patch));
     }
     case "ADD_PLACED":
@@ -405,7 +426,7 @@ function reduceBin(state: BinState, action: BinAction): BinState {
       if (!edits) return linkedEditError(state);
       const doc = { spec: state.spec, ...edits };
       return action.transient
-        ? preview(state, doc)
+        ? preview(state, doc, action.historyLabel ?? cutoutPatchLabel(action.patch))
         : commit(state, doc, action.historyLabel ?? cutoutPatchLabel(action.patch));
     }
     case "ADD_FINGER_HOLE":
@@ -428,7 +449,7 @@ function reduceBin(state: BinState, action: BinAction): BinState {
         edits.fingerHoles = clampLinkedFingerHoles(edits.fingerHoles, state.spec, new Set([source.id]));
       }
       const doc = { spec: state.spec, ...edits };
-      return action.transient ? preview(state, doc) : commit(state, doc, action.historyLabel ?? "Edit finger access");
+      return action.transient ? preview(state, doc, action.historyLabel ?? "Edit finger access") : commit(state, doc, action.historyLabel ?? "Edit finger access");
     }
     case "REMOVE_FINGER_HOLE":
       if (!state.fingerHoles.some((hole) => hole.id === action.id)) return state;
@@ -576,7 +597,7 @@ function reduceBin(state: BinState, action: BinAction): BinState {
       if (!edits) return linkedEditError(state);
       const doc = { spec: state.spec, ...edits };
       if (JSON.stringify(doc) === JSON.stringify(getCommittedBinDoc(state))) return preview(state, doc);
-      return action.transient ? preview(state, doc) : commit(state, doc, action.historyLabel);
+      return action.transient ? preview(state, doc, action.historyLabel) : commit(state, doc, action.historyLabel);
     }
     case "REMOVE_SELECTION": {
       if (!state.selection.length) return state;
@@ -608,7 +629,7 @@ function reduceBin(state: BinState, action: BinAction): BinState {
         `Duplicate ${selection.length} objects`, { selection });
     }
     case "SET_SELECTION":
-      return { ...state, ...selectionState(existingSelection(action.selection, state)), selectedPocketSection: 0 };
+      return changeSelection(state, action.selection, 0);
     case "SELECT_CUTOUT":
     case "SELECT_FINGER_HOLE": {
       const kind = action.type === "SELECT_CUTOUT" ? "pocket" : "finger";
@@ -616,8 +637,8 @@ function reduceBin(state: BinState, action: BinAction): BinState {
       const selection = ref ? action.additive
         ? state.selection.some(r => sameObject(r, ref)) ? state.selection.filter(r => !sameObject(r, ref)) : [...state.selection, ref]
         : [ref] : state.selection.filter(r => r.kind !== kind);
-      return { ...state, ...selectionState(existingSelection(selection, state)),
-        selectedPocketSection: action.type === "SELECT_CUTOUT" ? action.section ?? (action.id === state.selectedCutoutId ? state.selectedPocketSection : 0) : 0 };
+      return changeSelection(state, selection,
+        action.type === "SELECT_CUTOUT" ? action.section ?? (action.id === state.selectedCutoutId ? state.selectedPocketSection : 0) : 0);
     }
     case "SET_VIEW_MODE":
       return {
@@ -670,6 +691,7 @@ function restore(state: BinState, entry: BinHistoryEntry, index: number): BinSta
   return {
     ...state,
     editError: null,
+    pendingHistoryLabel: null,
     spec: doc.spec,
     cutouts: doc.cutouts,
     fingerHoles: doc.fingerHoles,

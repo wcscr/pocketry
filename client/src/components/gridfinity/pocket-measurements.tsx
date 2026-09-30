@@ -35,6 +35,23 @@ export function PocketMeasurements({ cutout, shape, children }: {
   cutout: CutoutPlacement; shape: TracedShape;
   children?: ReactNode;
 }): JSX.Element {
+  return <div className="space-y-2">
+    <details className="group/precision border-t pt-1 text-xs" data-testid="pocket-position-settings">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded py-1.5 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+        Position &amp; rotation
+        <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/precision:rotate-180" />
+      </summary>
+      {/* Keep the disclosure open, but never reuse focused fields or spacing
+          choices for another pocket when selection precedes native blur. */}
+      <PocketMeasurementFields key={cutout.id} cutout={cutout} shape={shape}>{children}</PocketMeasurementFields>
+    </details>
+  </div>;
+}
+
+function PocketMeasurementFields({ cutout, shape, children }: {
+  cutout: CutoutPlacement; shape: TracedShape;
+  children?: ReactNode;
+}): JSX.Element {
   const { spec, cutouts, dispatch } = useBin();
   const { shapes } = useShapeLibrary();
   const [neighborId, setNeighborId] = useState("");
@@ -64,13 +81,7 @@ export function PocketMeasurements({ cutout, shape, children }: {
     const dy = side === "above" ? target.maxY + allowance - bounds.minY : side === "below" ? target.minY - allowance - bounds.maxY : 0;
     updatePosition({ x: cutout.position.x + dx, y: cutout.position.y + dy });
   };
-  return <div className="space-y-2">
-    <details className="group/precision border-t pt-1 text-xs" data-testid="pocket-position-settings">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded py-1.5 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
-        Position &amp; rotation
-        <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/precision:rotate-180" />
-      </summary>
-      <div className="space-y-3 pb-2 pt-2">
+  return <div className="space-y-3 pb-2 pt-2">
         {children}
         <div className="space-y-2" data-testid="pocket-rotation-controls">
           <div className="flex items-center gap-1"><p className="font-medium">Rotate pocket</p><HelpHint label="pocket rotation">Rotate the generated pocket around any axis. Depth is its thickness along the original outline’s normal. Elevation keeps its lowest point at the chosen height. The opening is where the solid intersects the fill surface.</HelpHint></div>
@@ -118,8 +129,6 @@ export function PocketMeasurements({ cutout, shape, children }: {
           <Button size="sm" variant="outline" disabled={!neighbor} onClick={spaceFromNeighbor}>Apply gap</Button>
         </details>}
 
-      </div>
-    </details>
   </div>;
 }
 

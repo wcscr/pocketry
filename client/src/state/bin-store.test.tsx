@@ -847,6 +847,51 @@ it("keeps selection transient, ignores missing IDs and avoids empty batch undo e
   act(() => store().dispatch({ type: "HYDRATE", ...getCommittedBinDoc(store()) })); expect(store().selection).toEqual([]);
 });
 
+it.each(["pocket", "finger", "batch", "clear"])("finishes a pending linked edit before changing to %s selection", target => {
+  const { store, act } = mountBin();
+  const linked = { ...CUTOUT, designLink: { id: "design", tilt: false } };
+  act(() => store().dispatch({ type: "ADD_PLACED", cutouts: [linked, { ...linked, id: "c2", position: { x: 25, y: 0 } }], gridX: 2, gridY: 2 }));
+  act(() => store().dispatch({ type: "ADD_FINGER_HOLE", hole: fingerHoleSchema.parse({ id: "finger", center: { x: 0, y: 0 }, diameterMm: 8, depthMm: 8 }) }));
+  act(() => store().dispatch({ type: "SELECT_CUTOUT", id: "c1" }));
+  const before = getCommittedBinDoc(store());
+  const index = store().history.index;
+  act(() => store().dispatch({ type: "UPDATE_CUTOUT", id: "c1", patch: { clearanceMm: 0.5 }, transient: true, historyLabel: "Change pocket clearance" }));
+  // Re-selecting the same object must not split a continuing edit into history steps.
+  act(() => store().dispatch({ type: "SELECT_CUTOUT", id: "c1" }));
+  expect(getCommittedBinDoc(store())).toBe(before);
+  act(() => store().dispatch(target === "pocket" ? { type: "SELECT_CUTOUT", id: "c2" }
+    : target === "finger" ? { type: "SELECT_FINGER_HOLE", id: "finger" }
+    : { type: "SET_SELECTION", selection: target === "clear" ? [] : [{ kind: "pocket", id: "c1" }, { kind: "pocket", id: "c2" }] }));
+  expect(store().history.index).toBe(index + 1);
+  expect(store().history.stack.at(-1)!.label).toBe("Change pocket clearance");
+  expect(getCommittedBinDoc(store()).cutouts.map(c => c.clearanceMm)).toEqual([0.5, 0.5]);
+  expect(store().pendingHistoryLabel).toBeNull();
+  const selection = store().selection;
+  act(() => store().dispatch({ type: "UNDO" }));
+  expect(getCommittedBinDoc(store())).toEqual(before);
+  expect(store().selection).toEqual(selection);
+  act(() => store().dispatch({ type: "REDO" }));
+  expect(store().cutouts.map(c => c.clearanceMm)).toEqual([0.5, 0.5]);
+});
+
+it("does not save a reverted preview or carry pending edits across history/project changes", () => {
+  const { store, act } = mountBin();
+  act(() => store().dispatch({ type: "ADD_PLACED", cutouts: [CUTOUT], gridX: 2, gridY: 2 }));
+  const before = getCommittedBinDoc(store());
+  const index = store().history.index;
+  act(() => store().dispatch({ type: "UPDATE_CUTOUT", id: CUTOUT.id, patch: { clearanceMm: 0.5 }, transient: true }));
+  act(() => store().dispatch({ type: "UPDATE_CUTOUT", id: CUTOUT.id, patch: { clearanceMm: CUTOUT.clearanceMm }, transient: true }));
+  act(() => store().dispatch({ type: "SET_SELECTION", selection: [] }));
+  expect(store().history.index).toBe(index);
+  expect(store().pendingHistoryLabel).toBeNull();
+  act(() => store().dispatch({ type: "UPDATE_CUTOUT", id: CUTOUT.id, patch: { clearanceMm: 0.5 }, transient: true }));
+  act(() => store().dispatch({ type: "UNDO" }));
+  expect(store().pendingHistoryLabel).toBeNull();
+  act(() => store().dispatch({ type: "HYDRATE", ...before }));
+  expect(store().pendingHistoryLabel).toBeNull();
+  expect(getCommittedBinDoc(store())).toEqual(before);
+});
+
 describe("linked design transactions", () => {
   function setup() {
     const test = mountBin();

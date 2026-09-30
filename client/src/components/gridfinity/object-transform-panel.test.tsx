@@ -20,8 +20,10 @@ function mount(selected = objects) {
   const origins = recordTransformOrigins({ pockets: [], fingerHoles: [] }, [{ spec,
     cutouts: selected.flatMap(o => o.kind === "pocket" ? [o.cutout] : []), fingerHoles: selected.flatMap(o => o.kind === "finger" ? [o.hole] : []) }]);
   let update!: (edits: ObjectEdits) => void;
+  let select!: (items: EditableObject[]) => void;
   function Harness() {
     const [current, setCurrent] = React.useState(selected);
+    select = setCurrent;
     update = edits => setCurrent(items => applyObjectEdits(items, edits));
     const [mode, setMode] = React.useState<"translate" | "rotate">("translate");
     const [pivot, setPivot] = React.useState<"individual" | "selection">("individual");
@@ -42,8 +44,24 @@ function mount(selected = objects) {
   const blur = (label: string) => React.act(() => input(label).blur());
   const press = (label: string, key: string) => React.act(() => input(label).dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true })));
   const edit = (label: string, value: string) => { focus(label); fill(label, value); blur(label); };
-  return { container, click, button, input, fill, focus, blur, press, edit, onCommitObjects, onSelectionChange, update: (edits: ObjectEdits) => React.act(() => update(edits)) };
+  return { container, click, button, input, fill, focus, blur, press, edit, onCommitObjects, onSelectionChange,
+    select: (items: EditableObject[]) => React.act(() => select(items)), update: (edits: ObjectEdits) => React.act(() => update(edits)) };
 }
+it.each(["Move X by", "Move Y by", "Move Z by", "Rotate X by", "Rotate Y by", "Rotate Z by"])("discards an unapplied %s draft when the selection changes before blur", label => {
+  const ui = mount([objects[0]]);
+  if (label.startsWith("Rotate")) ui.click("Rotate pocket (E)");
+  ui.focus(label); ui.fill(label, "25");
+  ui.select([objects[1]]);
+  ui.blur(label);
+  expect(ui.onCommitObjects).not.toHaveBeenCalled();
+  expect(ui.input(label).value).toBe("0");
+  ui.edit(label, "10");
+  expect(ui.onCommitObjects).toHaveBeenCalledTimes(1);
+  const updated = applyObjectEdits(objects, ui.onCommitObjects.mock.lastCall![0]);
+  expect(updated[0]).toEqual(objects[0]);
+  expect(updated[1]).not.toEqual(objects[1]);
+  expect(updated[2]).toEqual(objects[2]);
+});
 it("commits each finished axis edit for the whole mixed selection and defaults rotation to individual centers", () => {
   const ui = mount([...objects, finger]);
   ui.focus("Move X by"); ui.fill("Move X by", "6.5");
