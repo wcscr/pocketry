@@ -9,11 +9,11 @@ import { SurfaceTextLayer } from "./surface-text-layer";
 afterEach(() => vi.unstubAllGlobals());
 
 describe("text dragging", () => {
-  it("moves in the y-up frame, commits once and preserves saved undo history", () => {
+  it.each(["release", "disable editing"])("%s commits a text drag once and preserves saved undo history", ending => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     vi.stubGlobal("DOMPoint", class { constructor(public x: number, public y: number) {} matrixTransform() { return this; } });
     let store!: BinStore;
-    function Scene() { store = useBin(); return <svg><SurfaceTextLayer interactive /></svg>; }
+    function Scene({ interactive = true }: { interactive?: boolean }) { store = useBin(); return <svg><SurfaceTextLayer interactive={interactive} /></svg>; }
     const host = document.createElement("div");
     document.body.appendChild(host);
     const root = createRoot(host);
@@ -36,8 +36,20 @@ describe("text dragging", () => {
       pointer("pointermove", 16, 7);
       expect(store.spec.surfaceTexts[0].position).toEqual({ x: 6, y: 3 });
       expect(store.history.stack.length).toBe(historySize);
+      if (ending === "disable editing") {
+        React.act(() => root.render(<BinProvider><Scene interactive={false} /></BinProvider>));
+        pointer("pointermove", 22, 2);
+      }
       pointer("pointerup", 16, 7);
       expect(store.history.stack.length).toBe(historySize + 1);
+      expect(store.spec.surfaceTexts[0].position).toEqual({ x: 6, y: 3 });
+      if (ending === "disable editing") {
+        pointer("pointerdown", 16, 7);
+        pointer("pointermove", 30, 2);
+        pointer("pointerup", 30, 2);
+        expect(store.history.stack.length).toBe(historySize + 1);
+        expect(store.spec.surfaceTexts[0].position).toEqual({ x: 6, y: 3 });
+      }
       const saved = parseProjectDoc(JSON.parse(JSON.stringify({
         schemaVersion: PROJECT_SCHEMA_VERSION, spec: store.spec, shapes: [],
         cutouts: [], fingerHoles: [], history: store.history,

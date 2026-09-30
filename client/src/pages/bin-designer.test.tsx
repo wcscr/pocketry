@@ -97,7 +97,7 @@ vi.mock("@/components/gridfinity/bin-viewport", () => ({
         data-testid="button-3d-ruler"
         disabled={measurementOutlines.length === 0}
       />
-      {(["bin", "pocket-floor", "stacking-rim"] as const).map((target) => (
+      {(["bin", "pocket-floor", "stacking-rim", "text"] as const).map((target) => (
         <button key={target} type="button" data-testid={`legend-${target}`} onClick={() => onEditColor(target)}>
           {target}
         </button>
@@ -337,6 +337,73 @@ function selectPocket(container: HTMLElement, id: string): void {
 }
 
 describe("BinDesignerPage", () => {
+  it.each([
+    { layout: "standard", mobile: false }, { layout: "workflow", mobile: false },
+    { layout: "standard", mobile: true }, { layout: "workflow", mobile: true },
+  ])("gates text editing and dragging while retaining the design: %o", async ({ layout, mobile }) => {
+    const originalUrl = window.location.href;
+    window.history.replaceState(null, "", `/bin?layout=${layout}`);
+    const { container, unmount } = renderPage({ mobile, experimental: false });
+    const addText = () => document.querySelector<HTMLButtonElement>('[data-testid="button-add-surface-text"]');
+    const textNavigation = () => document.querySelector('[data-testid="bin-settings-jump-surface-text"], [data-testid="workflow-section-bin-settings-text"]');
+    try {
+      await flushHydration();
+      if (mobile && layout === "standard") {
+        React.act(() => [...container.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "Adjust")!.click());
+        React.act(() => [...document.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "More settings")!.click());
+      }
+      expect(addText()).toBeNull();
+      expect(textNavigation()).toBeNull();
+      React.act(() => experimentalSettings.setEnabled(true));
+      expect(textNavigation()).not.toBeNull();
+      openSettingsSection(document.body, "text");
+      React.act(() => addText()!.click());
+      const before = structuredClone(vi.mocked(useBinGeometry).mock.lastCall![0]);
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
+      const path = () => container.querySelector('[data-testid="surface-text-layer"] path')!;
+      expect(path().getAttribute("pointer-events")).toBe("visiblePainted");
+      React.act(() => experimentalSettings.setEnabled(false));
+      expect(addText()).toBeNull();
+      expect(textNavigation()).toBeNull();
+      expect(document.querySelector('[aria-label="Text color"]')).toBeNull();
+      expect(path().getAttribute("pointer-events")).toBe("none");
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toEqual(before);
+      expect(document.querySelector('[data-testid="experimental-design-notice"]')!.textContent).toContain("Labels remain visible and included in exports");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-3d"]')!.click());
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="legend-text"]')!.click());
+      expect(experimentalSettings.settingsOpen).toBe(true);
+      expect(addText()).toBeNull();
+      React.act(() => { experimentalSettings.setSettingsOpen(false); experimentalSettings.setEnabled(true); });
+      openSettingsSection(document.body, "text");
+      expect(document.querySelector<HTMLInputElement>('[data-testid="surface-text-editor"] input[type="text"]')!.value).toBe("Text");
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toEqual(before);
+    } finally { unmount(); window.history.replaceState(null, "", originalUrl); }
+  });
+
+  it.each([false, true])("reveals restored text projects, including history-only text=%s, then respects opt-out", async historyOnly => {
+    const spec = parseBinSpec({ ...EMPTY_PROJECT.spec, surfaceTexts: [
+      { id: "saved-label", text: "METRIC", position: { x: 0, y: 0 } },
+    ] });
+    const doc = { spec, cutouts: [], fingerHoles: [] };
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT,
+      spec: historyOnly ? EMPTY_PROJECT.spec : spec,
+      history: { index: historyOnly ? 1 : 0, stack: [
+        { doc, label: "Text" }, { doc: { ...doc, spec: EMPTY_PROJECT.spec }, label: "Removed text" },
+      ] },
+    });
+    const { container, unmount } = renderPage({ experimental: false });
+    try {
+      await flushHydration();
+      expect(experimentalSettings.enabled).toBe(true);
+      expect(projectToast).toHaveBeenCalledWith(expect.objectContaining({ title: "Experimental features enabled" }));
+      React.act(() => experimentalSettings.setEnabled(false));
+      if (historyOnly) React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+      expect(experimentalSettings.enabled).toBe(false);
+      expect(container.querySelector('[data-testid="button-add-surface-text"]')).toBeNull();
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0].surfaceTexts).toEqual(spec.surfaceTexts);
+    } finally { unmount(); }
+  });
+
   it.each(["standard", "workflow"])("edits surface text with undo and exports independent 3MF parts (%s)", async layout => {
     const originalUrl = window.location.href;
     window.history.replaceState(null, "", `/bin?layout=${layout}`);
@@ -402,7 +469,8 @@ describe("BinDesignerPage", () => {
       const mesh = { positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]), indices: new Uint32Array([0, 1, 2]), normals: null };
       const textMeshes = current().map(label => ({ label, z: 40.8, mesh }));
       binGeometryMock.buildOnce.mockResolvedValue({ mesh, bodyMesh: mesh, materialMeshes: { body: mesh, stackingRim: mesh }, textMeshes });
-      for (const variant of ["single-color", "multicolor", "inherited", "text-only"]) {
+      for (const variant of ["single-color", "multicolor", "opted-out", "inherited", "text-only"]) {
+        if (variant === "opted-out") React.act(() => experimentalSettings.setEnabled(false));
         if (variant === "inherited") {
           openSettingsSection(container, "materials");
           React.act(() => {
@@ -433,7 +501,7 @@ describe("BinDesignerPage", () => {
         const entries = unzipSync(new Uint8Array(buffer));
         const model = strFromU8(entries["3D/3dmodel.model"]);
         expect(model).toContain('name="Text: Metric &amp; SAE"');
-        expect(model.match(/<component /g)).toHaveLength(variant === "multicolor" || variant === "inherited" ? 4 : 3);
+        expect(model.match(/<component /g)).toHaveLength(["multicolor", "opted-out", "inherited"].includes(variant) ? 4 : 3);
         expect(model.match(/<item /g)).toHaveLength(1);
         const xml = new DOMParser().parseFromString(model, "application/xml");
         const colors = [...xml.getElementsByTagName("m:color")].map(item => item.getAttribute("color"));
@@ -444,6 +512,7 @@ describe("BinDesignerPage", () => {
             : variant === "inherited" ? "#778899FF" : `${textColor()!.toUpperCase()}FF`);
         }
         expect(strFromU8(entries["Metadata/model_settings.config"])).toContain('value="Text: Metric &amp; SAE"');
+        if (variant === "opted-out") React.act(() => experimentalSettings.setEnabled(true));
       }
     } finally { unmount(); window.history.replaceState(null, "", originalUrl); }
   });

@@ -29,6 +29,9 @@ export function SurfaceTextLayer({ interactive, edgeBandColor = STACKING_RIM_COL
     dispatch({ type: "PATCH_SPEC", patch: { surfaceTexts: drag.current.labels }, historyLabel: "Move surface text" });
     drag.current = null;
   };
+  // Finish a live gesture once when editing is disabled; later pointer events
+  // must not keep moving the label through the experimental opt-out.
+  useEffect(() => { if (!interactive) commit(); }, [interactive]);
   useEffect(() => {
     window.addEventListener("blur", commit);
     return () => { window.removeEventListener("blur", commit); commit(); };
@@ -53,7 +56,7 @@ export function SurfaceTextLayer({ interactive, edgeBandColor = STACKING_RIM_COL
       }}
       onPointerMove={event => {
         const active = drag.current;
-        if (!active || active.pointerId !== event.pointerId) return;
+        if (!interactive || !active || active.pointerId !== event.pointerId) return;
         event.stopPropagation();
         const next = point(event);
         if (!next) return;

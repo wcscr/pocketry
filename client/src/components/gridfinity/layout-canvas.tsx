@@ -1571,7 +1571,7 @@ function LayoutStage({ onEditPocket, edgeBandColor }: { onEditPocket?: () => voi
             strokeWidth={1.5}
             vectorEffect="non-scaling-stroke"
           />
-          <SurfaceTextLayer edgeBandColor={edgeBandColor} interactive={editorMode === "placement" && !rulerActive && !panActive && !viewport.isSpaceHeld} />
+          <SurfaceTextLayer edgeBandColor={edgeBandColor} interactive={experimentalEnabled && editorMode === "placement" && !rulerActive && !panActive && !viewport.isSpaceHeld} />
           {/* Interior boundary the pockets must respect. */}
           <path
             d={ringToCanvasPath(interiorFootprint, spec)}
@@ -2091,7 +2091,7 @@ function LayoutStage({ onEditPocket, edgeBandColor }: { onEditPocket?: () => voi
             : selectedCutoutId
               ? selected && (hasProfileRotation(selected.cutout) || hasPocketTilt(selected.cutout)) ? "Pocket · drag to move · round handle rotates · edit dimensions in Depth and Size & scale"
                 : isMobile ? "Drag the pocket to move. Drag corners to resize or the round handle to rotate." : "Pocket · drag edges/corners to resize · Option resizes from center · round handle rotates"
-              : spec.surfaceTexts.length > 0 ? "Drag text to move it · Edit wording, size, and rotation in Surface text"
+              : spec.surfaceTexts.length > 0 ? experimentalEnabled ? "Drag text to move it · Edit wording, size, and rotation in Surface text" : "Enable experimental features in Settings to edit surface text"
               : isMobile ? "Tap a pocket to select it. Use the hand to pan and pinch to zoom." : "Click a pocket or finger access to select · Shift-drag pans · Ctrl-scroll zooms"}
       </WorkflowHint>
       )}

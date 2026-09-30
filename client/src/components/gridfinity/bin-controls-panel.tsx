@@ -349,6 +349,10 @@ export function BinControlsPanel({
   const showPreviewBusy = useDelayedBusy(building);
   const inspector = useSelectionInspector();
   const { enabled: experimentalEnabled, setSettingsOpen } = useExperimentalFeatures();
+  const visibleSettingsSections = BIN_SETTINGS_SECTIONS.filter(section => experimentalEnabled || section.id !== "bin-settings-text");
+  useEffect(() => {
+    if (!experimentalEnabled && inspector?.activeSection === "bin-settings-text") inspector.showSection("bin-settings-size");
+  }, [experimentalEnabled, inspector?.activeSection, inspector?.showSection]);
   const {
     spec,
     adjustFixedPocketDepths,
@@ -415,6 +419,7 @@ export function BinControlsPanel({
     if (!settingsSectionRequest) return;
     stopPocketInspection();
     const { id, focusId } = settingsSectionRequest;
+    if (id === "bin-settings-text" && !experimentalEnabled) return;
     inspector?.showSection(id);
     if (!inspector) revealPanelSection(id, BIN_SETTINGS_SECTIONS, focusId);
     if (!inspector && !focusId) return;
@@ -427,7 +432,7 @@ export function BinControlsPanel({
       });
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [settingsSectionRequest]);
+  }, [settingsSectionRequest, experimentalEnabled]);
   const hasErrors = issues.some((issue) => issue.severity === "error");
   const enabledFeatureCount = [
     spec.lip === "standard",
@@ -1240,8 +1245,9 @@ export function BinControlsPanel({
   return (
     <PanelSectionFilterContext.Provider value={!inspector && exportOnly ? "bin-settings-export" : null}>
     <div className="flex h-full flex-col">
-      {!experimentalEnabled && (cutouts.some(c => c.designLink) || fingerHoles.some(h => h.designLink)) && <div className="shrink-0 border-b bg-amber-50/60 px-3 py-2 text-xs dark:bg-amber-950/20" data-testid="experimental-design-notice">
-        <p>This project uses experimental pocket tools. Its geometry and links are preserved; edits to linked designs still update their copies.</p>
+      {!experimentalEnabled && (spec.surfaceTexts.length > 0 || cutouts.some(c => c.designLink) || fingerHoles.some(h => h.designLink)) && <div className="shrink-0 border-b bg-amber-50/60 px-3 py-2 text-xs dark:bg-amber-950/20" data-testid="experimental-design-notice">
+        {(cutouts.some(c => c.designLink) || fingerHoles.some(h => h.designLink)) && <p>This project uses experimental pocket tools. Its geometry and links are preserved; edits to linked designs still update their copies.</p>}
+        {spec.surfaceTexts.length > 0 && <p>This project contains surface text. Labels remain visible and included in exports. Enable experimental features to edit them.</p>}
         <Button size="sm" variant="link" className="h-9 px-0 text-xs" onClick={() => setSettingsOpen(true)}>Show experimental settings</Button>
       </div>}
       {inspector ? <div className="shrink-0 border-b px-3 py-3">
@@ -1253,7 +1259,7 @@ export function BinControlsPanel({
         <PanelSettingsIndex
           ariaLabel="Find bin settings"
           testIdPrefix="bin"
-          items={BIN_SETTINGS_SECTIONS}
+          items={visibleSettingsSections}
           onNavigate={id => { stopPocketInspection(); revealPanelSection(id, BIN_SETTINGS_SECTIONS); }}
         />
       </div>}
@@ -1646,11 +1652,11 @@ export function BinControlsPanel({
           </div>
         </PanelSection>
 
-        <PanelSection id="bin-settings-text" title="Surface text" icon={Type} tone="cyan"
+        {experimentalEnabled && <PanelSection id="bin-settings-text" title="Surface text" icon={Type} tone="cyan"
           summary={`${spec.surfaceTexts.length} label${spec.surfaceTexts.length === 1 ? "" : "s"}`} defaultOpen={false} className="scroll-mt-16">
           <SurfaceTextControls edgeBandColor={edgeBandColor} />
           {geometryError && spec.surfaceTexts.length > 0 && <p role="alert" className="text-xs text-destructive">{geometryError}</p>}
-        </PanelSection>
+        </PanelSection>}
 
         <PanelSection
           id="bin-settings-materials"

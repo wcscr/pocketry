@@ -108,7 +108,7 @@ export default function BinDesignerPage(): JSX.Element {
 }
 
 function BinDesignerWorkspace(): JSX.Element {
-  const { inspectorEnabled: inspectorPrototype, enabled: experimentalEnabled, enableForProject } = useExperimentalFeatures();
+  const { inspectorEnabled: inspectorPrototype, enabled: experimentalEnabled, enableForProject, setSettingsOpen } = useExperimentalFeatures();
   const { panelOpen, setPanelOpen, libraryRequested } = usePanelState();
   const [quickAdjustOpen, setQuickAdjustOpen] = useState(false);
   const [pocketEditorRequest, setPocketEditorRequest] = useState(0);
@@ -119,6 +119,7 @@ function BinDesignerWorkspace(): JSX.Element {
     setPanelOpen(true);
   }, [libraryRequested, setPanelOpen]);
   const editMaterialColor = (target: MaterialColorTarget) => {
+    if (target === "text" && !experimentalEnabled) { setSettingsOpen(true); return; }
     setSettingsSectionRequest({ id: target === "text" ? "bin-settings-text" : "bin-settings-materials", focusId: `input-${target}-color` });
     setPanelOpen(true);
   };
@@ -133,7 +134,7 @@ function BinDesignerWorkspace(): JSX.Element {
   const enableProjectFeatures = useCallback((doc: ProjectDoc) => {
     if (enableForProject(doc)) toast({
       title: "Experimental features enabled",
-      description: "This project contains experimental pocket features. Their controls are now available. You can turn them off in Settings.",
+      description: "This project contains experimental features. Their controls are now available. You can turn them off in Settings.",
     });
   }, [enableForProject, toast]);
   const { spec, cutouts, fingerHoles, viewMode, dispatch } = bin;
