@@ -9,6 +9,7 @@ import type { BufferGeometry, PerspectiveCamera } from "three";
 import { Vector3 } from "three";
 
 import type { Outline, Point } from "@shared/geometry/types";
+import type { SurfaceText } from "@shared/gridfinity/surface-text";
 
 import { Button } from "@/components/ui/button";
 import { canHandleCanvasShortcut } from "@/lib/canvas-keyboard";
@@ -37,7 +38,7 @@ const RULER_3D_Z_FIGHT_OFFSET_MM = 0.25;
 const EMPTY_MEASUREMENT_OUTLINES: readonly Outline[] = [];
 const EMPTY_MEASUREMENT_PATHS: MeasurementPaths = [];
 
-export type MaterialColorTarget = "bin" | "pocket-floor" | "stacking-rim";
+export type MaterialColorTarget = "bin" | "pocket-floor" | "stacking-rim" | "text";
 
 /** A lost GPU context must not take the project, history, or Layout view down. */
 class PreviewBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
@@ -71,6 +72,9 @@ export interface BinViewportProps {
   pocketFloorGeometry?: BufferGeometry | null;
   /** Exact printable lip crest or flush border material volume. */
   stackingRimGeometry?: BufferGeometry | null;
+  /** Separate raised labels sharing the project text color. */
+  textGeometries?: { label: SurfaceText; geometry: BufferGeometry }[];
+  textColor?: string;
   /** The preview includes a contrasting pocket-floor material volume. */
   hasPocketFloor?: boolean;
   /** Geometry has a printable material group at the lip crest or wall top. */
@@ -91,6 +95,8 @@ export interface BinViewportProps {
   progress: number;
   error: string | null;
   onRetryPreview?: () => void;
+  /** Open label placement even when invalid text prevents a new 3D mesh. */
+  onPositionText?: () => void;
   /** Outer bin dimensions; the camera re-fits when these change. */
   fitSize: FitSize;
   /** Placed tool outlines in bin-frame XY millimetres. */
@@ -229,6 +235,8 @@ export function BinViewport({
   showPocketOutlines = true,
   pocketFloorGeometry = null,
   stackingRimGeometry = null,
+  textGeometries = [],
+  textColor = STACKING_RIM_COLOR,
   hasPocketFloor = false,
   hasStackingRim = false,
   binColor = BIN_BODY_COLOR,
@@ -242,6 +250,7 @@ export function BinViewport({
   previewIsDraft = false,
   error,
   onRetryPreview,
+  onPositionText,
   fitSize,
   measurementOutlines = EMPTY_MEASUREMENT_OUTLINES,
   measurementSplitBoundaries = EMPTY_MEASUREMENT_PATHS,
@@ -354,6 +363,11 @@ export function BinViewport({
             />
           </mesh>
         ) : null}
+        {textGeometries.map(part => (
+          <mesh key={part.label.id} geometry={part.geometry}>
+            <meshStandardMaterial color={textColor} roughness={0.55} metalness={0.02} />
+          </mesh>
+        ))}
         {stackingRimGeometry ? (
           <mesh geometry={stackingRimGeometry}>
             <meshStandardMaterial
@@ -478,9 +492,9 @@ export function BinViewport({
       ) : null}
 
       {(hasPocketFloor && showPocketFloorColor) ||
-      (hasStackingRim && showStackingRimColor) ? (
+      (hasStackingRim && showStackingRimColor) || textGeometries.length > 0 ? (
         <div
-          className="absolute bottom-3 left-3 flex items-center gap-2 rounded-full border bg-background/90 px-2.5 py-1 text-xs font-medium text-foreground shadow-sm backdrop-blur"
+          className="absolute bottom-3 left-3 flex max-h-24 max-w-[calc(100%-1.5rem)] flex-wrap items-center gap-2 overflow-auto rounded-xl border bg-background/90 px-2.5 py-1 text-xs font-medium text-foreground shadow-sm backdrop-blur"
           data-testid="material-color-legend"
         >
           <button
@@ -526,6 +540,13 @@ export function BinViewport({
               Rim top
             </button>
           ) : null}
+          {textGeometries.length > 0 && (
+            <button type="button" className="inline-flex items-center gap-1.5 rounded px-1 py-0.5 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={() => onEditColor("text")} title="Edit text color">
+              <span className="h-2.5 w-2.5 rounded-sm border border-black/10" style={{ backgroundColor: textColor }} aria-hidden="true" />
+              Text
+            </button>
+          )}
         </div>
       ) : null}
 
@@ -549,6 +570,7 @@ export function BinViewport({
       {error ? (
         <div className="pointer-events-none absolute inset-x-0 bottom-3 z-30 mx-auto w-fit max-w-[80%] rounded-md bg-destructive/90 px-3 py-1.5 text-xs text-destructive-foreground shadow">
           {error}
+          {onPositionText && <Button variant="outline" size="sm" className="pointer-events-auto ml-2 text-foreground" onClick={onPositionText}>Position text in Layout</Button>}
           {onRetryPreview && <Button variant="outline" size="sm" className="pointer-events-auto ml-2" onClick={onRetryPreview}>Retry preview</Button>}
         </div>
       ) : null}

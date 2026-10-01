@@ -108,7 +108,7 @@ export default function BinDesignerPage(): JSX.Element {
 }
 
 function BinDesignerWorkspace(): JSX.Element {
-  const { inspectorEnabled: inspectorPrototype, enabled: experimentalEnabled, enableForProject } = useExperimentalFeatures();
+  const { inspectorEnabled: inspectorPrototype, enabled: experimentalEnabled, enableForProject, setSettingsOpen } = useExperimentalFeatures();
   const { panelOpen, setPanelOpen, libraryRequested } = usePanelState();
   const [quickAdjustOpen, setQuickAdjustOpen] = useState(false);
   const [pocketEditorRequest, setPocketEditorRequest] = useState(0);
@@ -119,7 +119,8 @@ function BinDesignerWorkspace(): JSX.Element {
     setPanelOpen(true);
   }, [libraryRequested, setPanelOpen]);
   const editMaterialColor = (target: MaterialColorTarget) => {
-    setSettingsSectionRequest({ id: "bin-settings-materials", focusId: `input-${target}-color` });
+    if (target === "text" && !experimentalEnabled) { setSettingsOpen(true); return; }
+    setSettingsSectionRequest({ id: target === "text" ? "bin-settings-text" : "bin-settings-materials", focusId: `input-${target}-color` });
     setPanelOpen(true);
   };
   const editSelectedPocket = () => {
@@ -133,7 +134,7 @@ function BinDesignerWorkspace(): JSX.Element {
   const enableProjectFeatures = useCallback((doc: ProjectDoc) => {
     if (enableForProject(doc)) toast({
       title: "Experimental features enabled",
-      description: "This project contains experimental pocket features. Their controls are now available. You can turn them off in Settings.",
+      description: "This project contains experimental features. Their controls are now available. You can turn them off in Settings.",
     });
   }, [enableForProject, toast]);
   const { spec, cutouts, fingerHoles, viewMode, dispatch } = bin;
@@ -143,6 +144,16 @@ function BinDesignerWorkspace(): JSX.Element {
     }
   }, [experimentalEnabled, bin.selection, dispatch]);
   const isMobile = useIsMobile();
+  const [textPositionRequest, setTextPositionRequest] = useState(0);
+  const positionText = () => {
+    dispatch({ type: "SET_SELECTION", selection: [] });
+    dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" });
+    dispatch({ type: "SET_VIEW_MODE", viewMode: "2d" });
+    setTextPositionRequest(request => request + 1);
+    setSettingsSectionRequest({ id: "bin-settings-text" });
+    // The standard mobile drawer covers the canvas; return to it for dragging.
+    setPanelOpen(!isMobile);
+  };
   useEffect(() => {
     if (isMobile && bin.editorMode !== "placement") setPanelOpen(false);
   }, [bin.editorMode, isMobile, setPanelOpen]);
@@ -178,6 +189,7 @@ function BinDesignerWorkspace(): JSX.Element {
   const [colorStackingRim, setColorStackingRim] = useState(true);
   const [stackingRimColor, setStackingRimColor] =
     useState<string>(STACKING_RIM_COLOR);
+  const edgeBandColor = colorStackingRim ? stackingRimColor : binColor;
   const [stackingRimThicknessMm, setStackingRimThicknessMm] = useState(
     MULTICOLOR_RIM_THICKNESS_MM,
   );
@@ -406,6 +418,7 @@ function BinDesignerWorkspace(): JSX.Element {
 
   const {
     geometry,
+    textGeometries,
     pocketFloorGeometry,
     stackingRimGeometry,
     hasPocketFloor,
@@ -851,8 +864,13 @@ function BinDesignerWorkspace(): JSX.Element {
           borderWidthMm: includeStackingRim && exportProjectDoc.spec.lip === "none"
             ? borderWidthMm : undefined,
         });
+        const textObjects: ThreeMfObject[] = (result.textMeshes ?? []).map(part => ({
+          name: `Text: ${part.label.text}`,
+          mesh: part.mesh,
+          material: { name: "Text", displayColor: (multicolor ? exportProjectDoc.spec.textColor ?? edgeBandColor : binColor) as `#${string}` },
+        }));
         if (multicolor) {
-          if (!result.materialMeshes) {
+          if (!result.materialMeshes && (includePocketFloors || includeStackingRim)) {
             throw new Error(
               "This bin has no printable floor, rim, or border color volume.",
             );
@@ -860,14 +878,14 @@ function BinDesignerWorkspace(): JSX.Element {
           const objects: ThreeMfObject[] = [
             {
               name: `Gridfinity bin ${label} body`,
-              mesh: result.materialMeshes.body,
+              mesh: result.materialMeshes?.body ?? result.bodyMesh ?? result.mesh,
               material: {
                 name: "Bin body",
                 displayColor: binColor as `#${string}`,
               },
             },
           ];
-          if (includePocketFloors && result.materialMeshes.pocketFloors) {
+          if (includePocketFloors && result.materialMeshes?.pocketFloors) {
             const floorName = exportProjectDoc.spec.fill === "none" ? "Bin floor" : "Pocket floors";
             objects.push({
               name: `Gridfinity bin ${label} ${floorName.toLowerCase()}`,
@@ -878,7 +896,7 @@ function BinDesignerWorkspace(): JSX.Element {
               },
             });
           }
-          if (includeStackingRim && result.materialMeshes.stackingRim) {
+          if (includeStackingRim && result.materialMeshes?.stackingRim) {
             const rimName = exportProjectDoc.spec.lip === "standard" ? "Stacking rim top" : "Top border";
             objects.push({
               name: `Gridfinity bin ${label} ${rimName.toLowerCase()}`,
@@ -891,8 +909,8 @@ function BinDesignerWorkspace(): JSX.Element {
           }
           // A wide, deep border can color all of a small bin. Keep its chosen
           // color and omit the now-empty body rather than exporting an empty mesh.
-          const printableObjects = objects.filter(object => object.mesh.indices.length > 0);
-          if (printableObjects.length === 0 || (printableObjects.length === 1 && printableObjects[0].mesh === result.materialMeshes.body)) {
+          const printableObjects = objects.concat(textObjects).filter(object => object.mesh.indices.length > 0);
+          if (printableObjects.length === 0 || (printableObjects.length === 1 && printableObjects[0] === objects[0])) {
             throw new Error(
               "The selected color regions did not produce printable material volumes.",
             );
@@ -915,14 +933,15 @@ function BinDesignerWorkspace(): JSX.Element {
             [
               {
                 name: `Gridfinity bin ${label}`,
-                mesh: result.mesh,
+                mesh: result.bodyMesh ?? result.mesh,
                 material: {
                   name: "Bin body",
                   displayColor: binColor as `#${string}`,
                 },
               },
+              ...textObjects,
             ],
-            { title: `Pocketry Gridfinity bin ${label}` },
+            { title: `Pocketry Gridfinity bin ${label}`, assemble: textObjects.length > 0 },
           );
           downloadModelWithProject(new Blob([bytes], { type: "model/3mf" }), "3mf", project, includeProject);
         } else {
@@ -963,6 +982,7 @@ function BinDesignerWorkspace(): JSX.Element {
       pocketFloorColor,
       pocketFloorThicknessMm,
       stackingRimColor,
+      edgeBandColor,
       stackingRimThicknessMm,
       borderWidthMm,
       toast,
@@ -1087,6 +1107,8 @@ function BinDesignerWorkspace(): JSX.Element {
           keepBinSize={keepBinSize}
           onKeepBinSizeChange={setKeepBinSize}
           stats={stats}
+          geometryError={error}
+          onPositionText={positionText}
           statsAreStale={statsAreStale}
           building={building}
           previewIsDraft={previewIsDraft}
@@ -1156,6 +1178,8 @@ function BinDesignerWorkspace(): JSX.Element {
               }}
               pocketFloorGeometry={pocketFloorGeometry}
               stackingRimGeometry={stackingRimGeometry}
+              textGeometries={textGeometries}
+              textColor={spec.textColor ?? edgeBandColor}
               hasPocketFloor={hasPocketFloor}
               hasStackingRim={hasStackingRim}
               binColor={binColor}
@@ -1170,13 +1194,14 @@ function BinDesignerWorkspace(): JSX.Element {
               progress={progress}
               error={error}
               onRetryPreview={retryPreview}
+              onPositionText={experimentalEnabled && spec.surfaceTexts.length > 0 ? positionText : undefined}
               fitSize={fitSize}
               measurementOutlines={measurementOutlines}
               measurementSplitBoundaries={measurementSplitBoundaries}
               measurementPlaneZMm={builtDimensions.heightToRimMm}
             />
           ) : (
-            <LayoutCanvas onEditPocket={editSelectedPocket} />
+            <LayoutCanvas onEditPocket={editSelectedPocket} edgeBandColor={edgeBandColor} textPositionRequest={textPositionRequest} />
           )}
           <ViewToggle
             viewMode={viewMode}

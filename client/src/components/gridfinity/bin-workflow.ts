@@ -7,6 +7,7 @@ export const BIN_WORKFLOW_SECTIONS = [
   { id: "bin-settings-construction", label: "Construction", title: "Construction", tone: "rose", description: "Configure the base, rim, magnets, and label tab." },
   { id: "bin-settings-pockets", label: "Pockets", title: "Pockets", tone: "violet", description: "Add a pocket, then select it to edit its properties." },
   { id: "bin-settings-finger-holes", label: "Finger access", title: "Finger access", tone: "cyan", description: "Add an opening, then select it to edit its properties." },
+  { id: "bin-settings-text", label: "Surface text", title: "Surface text", tone: "cyan", description: "Add raised labels to the flat interior surface." },
   { id: "bin-settings-materials", label: "Materials & Colors", title: "Materials & Colors", tone: "amber", description: "Choose colors and material depths." },
   { id: "bin-settings-fit", label: "Check fit", title: "Check fit", tone: "indigo", description: null },
   { id: "bin-settings-export", label: "Export", title: "Export", tone: "emerald", description: "Download a printable bin or a layout for fabrication." },

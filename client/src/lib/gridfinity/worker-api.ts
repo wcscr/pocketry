@@ -8,6 +8,7 @@ import type { BinSpecInput } from "@shared/gridfinity/types";
 import type { SurfaceFitCheckStyle } from "@shared/gridfinity/fit-check";
 
 import type { MeshData } from "@/lib/mesh/mesh-data";
+import type { SurfaceText } from "@shared/gridfinity/surface-text";
 
 import type { BuildQuality } from "./bin";
 import type { CutoutBuildReport } from "./cutouts";
@@ -71,9 +72,13 @@ export interface BuildBinStats {
 }
 
 export interface BuildBinResult {
+  /** Bin without text for multipart 3MF or preview without color partitions. */
+  bodyMesh?: MeshData;
+  /** One independent mesh and identifying label per text part. */
+  textMeshes?: { label: SurfaceText; z: number; mesh: MeshData }[];
   /** Complete topology; preview normals are omitted when materialMeshes supplies the view. */
   mesh: MeshData;
-  /** Non-overlapping material meshes whose union is `mesh`. */
+  /** Non-overlapping bin material meshes; text always remains separate. */
   materialMeshes?: {
     body: MeshData;
     pocketFloors?: MeshData;

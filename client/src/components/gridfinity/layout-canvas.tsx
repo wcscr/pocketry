@@ -1,5 +1,6 @@
 import { hasRigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { SelectionToolButtons } from "./selection-tool-buttons";
+import { SurfaceTextLayer } from "./surface-text-layer";
 import { useSelectionInspector } from "./selection-inspector-context";
 import { SelectionLinkControls } from "./linked-design-controls";
 import { useExperimentalFeatures } from "@/state/experimental-features";
@@ -238,18 +239,21 @@ function nearestContourEdge(
   return best;
 }
 
-export function LayoutCanvas({ onEditPocket }: {
+export function LayoutCanvas({ onEditPocket, edgeBandColor, textPositionRequest = 0 }: {
   /** Called on a pocket tap or the explicit edit action, after any drag ends. */
   onEditPocket?: () => void;
+  edgeBandColor?: string;
+  /** A placement request exits canvas tools that intercept label dragging. */
+  textPositionRequest?: number;
 } = {}): JSX.Element {
   return (
     <CanvasViewport>
-      <LayoutStage onEditPocket={onEditPocket} />
+      <LayoutStage onEditPocket={onEditPocket} edgeBandColor={edgeBandColor} textPositionRequest={textPositionRequest} />
     </CanvasViewport>
   );
 }
 
-function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Element {
+function LayoutStage({ onEditPocket, edgeBandColor, textPositionRequest }: { onEditPocket?: () => void; edgeBandColor?: string; textPositionRequest: number }): JSX.Element {
   const inspector = useSelectionInspector();
   const { enabled: experimentalEnabled } = useExperimentalFeatures();
   const isMobile = useIsMobile();
@@ -525,6 +529,12 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
   const [isRotating, setIsRotating] = useState(false);
   const [rulerActive, setRulerActive] = useState(false);
   useEffect(() => {
+    if (!textPositionRequest) return;
+    setRulerActive(false);
+    setPanActive(false);
+    setObjectControlsOpen(false);
+  }, [textPositionRequest]);
+  useEffect(() => {
     if (inspector?.tool === "translate" || inspector?.tool === "rotate") setObjectMode(inspector.tool);
     if (inspector && inspector.tool !== "properties") setRulerActive(false);
   }, [inspector?.tool]);
@@ -533,7 +543,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
   useEffect(() => { if (rulerActive) setPanActive(false); }, [rulerActive]);
   const [measurementPoints, setMeasurementPoints] = useState<Point[]>([]);
   const hasPlacedCutouts = placed.length > 0;
-  const hasPlacedObjects = hasPlacedCutouts || placedFingerHoles.length > 0;
+  const hasPlacedObjects = hasPlacedCutouts || placedFingerHoles.length > 0 || spec.surfaceTexts.length > 0;
 
   useEffect(() => {
     if (hasPlacedObjects && editorMode !== "split" && !editorMode.startsWith("draw-")) return;
@@ -1798,6 +1808,10 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
             </g>
           ) : null}
 
+          {/* Labels must remain visible and receive pointer events above the
+              pockets/openings they may overlap while being positioned. */}
+          <SurfaceTextLayer edgeBandColor={edgeBandColor} interactive={experimentalEnabled && editorMode === "placement" && !rulerActive && !panActive && !viewport.isSpaceHeld} />
+
           {editorMode === "contour" &&
             selected &&
             selected.shape.outlineMm.flatMap((shape, shapeIndex) => {
@@ -2088,6 +2102,7 @@ function LayoutStage({ onEditPocket }: { onEditPocket?: () => void }): JSX.Eleme
             : selectedCutoutId
               ? selected && (hasProfileRotation(selected.cutout) || hasPocketTilt(selected.cutout)) ? "Pocket · drag to move · round handle rotates · edit dimensions in Depth and Size & scale"
                 : isMobile ? "Drag the pocket to move. Drag corners to resize or the round handle to rotate." : "Pocket · drag edges/corners to resize · Option resizes from center · round handle rotates"
+              : spec.surfaceTexts.length > 0 ? experimentalEnabled ? "Drag text to move it · Edit wording, size, and rotation in Surface text" : "Enable experimental features in Settings to edit surface text"
               : isMobile ? "Tap a pocket to select it. Use the hand to pan and pinch to zoom." : "Click a pocket or finger access to select · Shift-drag pans · Ctrl-scroll zooms"}
       </WorkflowHint>
       )}
