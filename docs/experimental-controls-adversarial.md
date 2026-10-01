@@ -22,7 +22,7 @@ The user's localhost:5202 project was preserved. Testing used disposable project
 | Workflow | Observed result |
 | --- | --- |
 | Fresh settings, experimental enable/disable, open controls, dismiss controls | Controls remain opt-in and open on demand. Disabling hides tools without editing the model. |
-| Restore an experimental project after disabling features | Features automatically enable and the notification explains why. |
+| Restore an experimental project after disabling features | Features stay disabled, geometry is preserved, and a notification directs the user to opt in through Settings. |
 | Draw a rectangle, move XYZ, rotate X/Y/Z, reset one axis to zero | Fields retain changes from the as-drawn pose; resetting one axis preserves the other axes. Layout/3D switching retains offsets. |
 | Drag the real 3D Z arrow and X rotation ring | Z changes pocket depth beneath the surface; X rotation updates its axis field and can be reset. Undo restores the prior geometry. |
 | Invalid tilt and overflowing numeric entry | Invalid changes are rejected. Last valid geometry and history are retained after the fixes. |

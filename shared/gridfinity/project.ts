@@ -49,7 +49,8 @@ import { migrateProfilePocket } from "./rigid-pocket";
  * Version 25 retains original pocket depths and the reversible fill-adjustment setting.
  * Unreleased side-profile prototypes also used version 25 and migrate by their fields.
  * Version 26 gives generated pockets a finite solid and unrestricted rigid placement.
- * Version 28 adds editable surface labels. Version 27 is reserved for imported models.
+ * Version 27 embeds imported STL geometry and independent model Z scale.
+ * Version 28 adds editable surface labels alongside imported model pockets.
  */
 
 export const PROJECT_SCHEMA_VERSION = 28 as const;
@@ -217,7 +218,7 @@ function migrateLegacyProject(doc: LegacyProjectDoc): ProjectDoc {
 export function parseProjectDoc(input: unknown): ProjectDoc | null {
   if (input && typeof input === "object" && !Array.isArray(input)
       && [26, 27].includes((input as Record<string, unknown>).schemaVersion as number)) {
-    // Strict current schemas still reject unsupported data from version-27 prototypes.
+    // Upgrade earlier model projects while preserving their geometry and history.
     return parseProjectDoc({ ...input, schemaVersion: PROJECT_SCHEMA_VERSION });
   }
   const result = projectDocSchema.safeParse(input);

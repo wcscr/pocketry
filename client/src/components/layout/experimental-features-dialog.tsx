@@ -25,12 +25,12 @@ export function ExperimentalFeaturesDialog(): JSX.Element {
           <Switch id="experimental-features" checked={enabled} onCheckedChange={setEnabled} aria-describedby="experimental-features-description" />
         </div>
         <p id="experimental-features-description" className="mt-2 text-sm text-muted-foreground">
-          Try surface text, multi-selection, alignment, distribution, and linked designs. These tools are still being refined.
+          Try imported 3D model pockets, surface text, multi-selection, alignment, distribution, and linked designs. These tools are still being refined.
         </p>
         {enabled && <p id="experimental-layout-recommendation" className="mt-3 rounded-md bg-primary/5 p-3 text-sm">
           For experimental tools, we recommend <strong>New UI: Split Workflow and Properties</strong> for its dedicated toolbar and properties panel.
         </p>}
-        <p className="mt-3 text-xs text-muted-foreground">Off by default. Loading a project that uses experimental features enables them and shows a notification. Saved for this browser; turning it off hides the tools without changing existing designs or links.</p>
+        <p className="mt-3 text-xs text-muted-foreground">Off by default. Loading a project keeps this setting unchanged. Enable it here to use experimental tools. Saved for this browser; turning it off hides the tools without changing existing designs or links.</p>
       </div>
       {persistenceUnavailable && <p role="status" className="text-sm text-muted-foreground">This preference applies for this tab only because browser storage is unavailable.</p>}
     </DialogContent>

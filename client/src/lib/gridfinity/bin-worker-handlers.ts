@@ -1,7 +1,8 @@
 import { hasRigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { validateLayout } from "@shared/gridfinity/validate";
+import { modelPlacementError } from "@shared/gridfinity/model-pocket";
 import { hasPocketTilt } from "@shared/gridfinity/pocket-orientation";
-import type { ManifoldToplevel } from "manifold-3d";
+import type { Manifold, ManifoldToplevel } from "manifold-3d";
 
 import {
   cutoutPlacementSchema,
@@ -71,6 +72,15 @@ function parseMaterialThickness(
 export function createBinWorkerHandlers(
   loadRuntime: () => Promise<ManifoldToplevel>,
 ): HandlerMap {
+  // Keep one unsectioned preview as detached JS meshes. Section-only requests
+  // restore it without repeating cavity CSG; exported meshes never use this cache.
+  type Built = ReturnType<typeof buildBinWithCutouts>;
+  type Mesh = ReturnType<Manifold["getMesh"]>;
+  let previewCache: { key: string; solid: Mesh; bodySolid: Mesh;
+    textParts: (Omit<Built["textParts"][number], "solid"> & { solid: Mesh })[];
+    materialParts: null | {
+    body: Mesh; pocketFloors: Mesh | null; stackingRim: Mesh | null; floorRegions: Mesh[];
+  }; cutoutReports: Built["cutoutReports"]; validationIssues: Built["validationIssues"]; volumeMm3: number } | null = null;
   const buildBinHandler = async (
     payload: BuildBinRequest,
     context: HandlerContext,
@@ -119,6 +129,19 @@ export function createBinWorkerHandlers(
         }));
       }
     }
+    // Invalid insertion paths are editable design errors. Omit only those
+    // cavities from previews so resizing the bin and editing other pockets
+    // still works. Export keeps the authored layout and rejects it below.
+    const omittedModelIssues = payload.exportTopology || !layout ? [] : layout.cutouts.flatMap(cutout => {
+      if (!layout!.shapesById.get(cutout.shapeId)?.model) return [];
+      const message = modelPlacementError(cutout);
+      return message ? [{ code: "invalid-model-pocket", severity: "error" as const,
+        cutoutIds: [cutout.id], message }] : [];
+    });
+    if (layout && omittedModelIssues.length) {
+      const omittedIds = new Set(omittedModelIssues.flatMap(issue => issue.cutoutIds));
+      layout = { ...layout, cutouts: layout.cutouts.filter(cutout => !omittedIds.has(cutout.id)) };
+    }
     context.progress(0.05);
 
     const wasm = await loadRuntime();
@@ -128,11 +151,24 @@ export function createBinWorkerHandlers(
     try {
       const kernel = createKernel(wasm, arena);
       const started = performance.now();
-      if (payload.exportTopology && layout?.cutouts.some(c => c.profileBottom || hasRigidPocket(c) || hasPocketTilt(c) || (c.zOffsetMm ?? 0) !== 0)) {
+      if (payload.exportTopology && layout?.cutouts.some(c => layout.shapesById.get(c.shapeId)?.model || c.profileBottom || hasRigidPocket(c) || hasPocketTilt(c) || (c.zOffsetMm ?? 0) !== 0)) {
         const errors = validateLayout(spec, layout.cutouts, layout.shapesById, layout.fingerHoles).filter(issue => issue.severity === "error");
         if (errors.length) throw new Error(errors.map(issue => issue.message).join("\n"));
       }
-      const { solid, bodySolid: binSolid, textParts, materialParts, cutoutReports, validationIssues } = buildBinWithCutouts(
+      const cacheKey = payload.exportTopology ? null : JSON.stringify({ ...payload, section: undefined });
+      const cached = cacheKey !== null && previewCache?.key === cacheKey ? previewCache : null;
+      const restore = (mesh: Mesh) => arena.track(new kernel.Manifold(mesh));
+      const { solid, bodySolid: binSolid, textParts, materialParts, cutoutReports, validationIssues } = cached ? {
+        solid: restore(cached.solid), cutoutReports: cached.cutoutReports, validationIssues: cached.validationIssues,
+        bodySolid: restore(cached.bodySolid),
+        textParts: cached.textParts.map(part => ({ ...part, solid: restore(part.solid) })),
+        materialParts: cached.materialParts ? {
+          body: restore(cached.materialParts.body),
+          pocketFloors: cached.materialParts.pocketFloors ? restore(cached.materialParts.pocketFloors) : null,
+          stackingRim: cached.materialParts.stackingRim ? restore(cached.materialParts.stackingRim) : null,
+          floorRegions: cached.materialParts.floorRegions.map(restore),
+        } : null,
+      } : buildBinWithCutouts(
         kernel,
         spec,
         layout,
@@ -152,7 +188,17 @@ export function createBinWorkerHandlers(
       if (context.signal.aborted) throw new WorkerCancelledError();
 
       // Stats describe the real bin; the section cut below is view-only.
-      const volumeMm3 = solid.volume();
+      const volumeMm3 = cached?.volumeMm3 ?? solid.volume();
+      if (cacheKey !== null && !cached) {
+        previewCache = { key: cacheKey, solid: solid.getMesh(), cutoutReports, validationIssues, volumeMm3,
+          bodySolid: binSolid.getMesh(),
+          textParts: textParts.map(part => ({ ...part, solid: part.solid.getMesh() })),
+          materialParts: materialParts ? { body: materialParts.body.getMesh(),
+            pocketFloors: materialParts.pocketFloors?.getMesh() ?? null,
+            stackingRim: materialParts.stackingRim?.getMesh() ?? null,
+            floorRegions: materialParts.floorRegions.map(part => part.getMesh()),
+          } : null };
+      }
       const section =
         payload.section &&
         (payload.section.axis === "x" || payload.section.axis === "y") &&
@@ -249,7 +295,7 @@ export function createBinWorkerHandlers(
           buildMs: performance.now() - started,
         },
         cutoutReports,
-        validationIssues,
+        validationIssues: [...omittedModelIssues, ...validationIssues],
       };
       const transfer: Transferable[] = [mesh.positions.buffer, mesh.indices.buffer];
       for (const extra of [value.bodyMesh, ...(value.textMeshes?.map(part => part.mesh) ?? [])]) {

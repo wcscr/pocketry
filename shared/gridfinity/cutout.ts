@@ -1,3 +1,4 @@
+import { importedModelSchema, modelFootprint, modelInsertionAxis } from "./model-pocket";
 import { z } from "zod";
 import { hasPocketTilt, pocketAxis, pocketMouthBasis, rotatePocketVector } from "./pocket-orientation";
 import { profileAlongX, profileBottomSchema, profileFloorSegments, profileFootprint, profilePrisms, hasProfileRotation } from "./profile-bottom";
@@ -92,11 +93,16 @@ export const tracedShapeSchema = z
      */
     sourceMmPerPx: z.number().positive().nullable(),
     /** Absent on older traces. Basic shapes are authored in mm, without a pixel scale. */
-    source: z.enum(["trace", "basic-shape"]).optional(),
+    source: z.enum(["trace", "basic-shape", "model"]).optional(),
     /** Margin already baked into the trace, before placement scaling. Absent in older projects. */
     traceMarginMm: z.number().finite().min(0).max(5).optional(),
+    model: importedModelSchema.optional(),
   })
-  .strict();
+  .strict().superRefine((shape, ctx) => {
+    if ((shape.source === "model") !== (shape.model !== undefined)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Imported model shapes require embedded geometry." });
+    }
+  });
 
 export type TracedShape = z.infer<typeof tracedShapeSchema>;
 
@@ -593,6 +599,12 @@ const cutoutPlacementInputSchema = z
     /** Independent placement scale; 1 = the traced silhouette's true size. */
     scaleX: z.number().finite().min(0.05).max(20).default(1),
     scaleY: z.number().finite().min(0.05).max(20).default(1),
+    /** Imported model scale along its authored Z axis. */
+    modelScaleZ: z.number().finite().min(0.05).max(20).optional(),
+    /** Default follows the rotated model axis; vertical supports drop-in storage. */
+    modelInsertionMode: z.enum(["axis", "vertical"]).optional(),
+    /** Radius used to clear small details; zero retains the CAD surface. */
+    modelSmoothingMm: z.number().finite().min(0).max(5).optional(),
     /** Editor preference for subsequent mouse/numeric resizing. */
     aspectRatioLocked: z.boolean().default(true),
     depth: depthSpecSchema.default({
@@ -1053,8 +1065,9 @@ export interface PlacementFootprint {
  * The actual cutter and fit template apply the full signed clearance.
  */
 export function pocketLayoutAllowanceMm(
-  cutout: Pick<CutoutPlacement, "clearanceMm" | "topFilletMm"> & Partial<Pick<CutoutPlacement, "tilt" | "rotationDeg" | "profileBottom">>,
+  cutout: Pick<CutoutPlacement, "clearanceMm" | "topFilletMm"> & Partial<Pick<CutoutPlacement, "tilt" | "rotationDeg" | "profileBottom" | "modelScaleZ" | "modelInsertionMode">>,
 ): number {
+  if (cutout.modelScaleZ !== undefined) return Math.max(0, cutout.clearanceMm) * Math.sqrt(3) / Math.max(0.01, modelInsertionAxis({ ...cutout, rotationDeg: cutout.rotationDeg ?? 0 }).z);
   if (cutout.profileBottom) return 0;
   return Math.max(0, cutout.clearanceMm) / Math.max(0.01, pocketAxis({ ...cutout, rotationDeg: cutout.rotationDeg ?? 0 }).z) + cutout.topFilletMm;
 }
@@ -1065,15 +1078,15 @@ export function pocketLayoutAllowanceMm(
  * finger access features are measured separately.
  */
 export function placementFootprint(
-  shape: Pick<TracedShape, "outlineMm">,
+  shape: Pick<TracedShape, "outlineMm" | "model">,
   placement: Pick<
     CutoutPlacement,
     "position" | "rotationDeg" | "mirrored" | "fingerHoles"
-  > & Partial<Pick<CutoutPlacement, "scaleX" | "scaleY" | "tilt" | "zOffsetMm" | "profileBottom" | "profileRotation">>,
+  > & Partial<Pick<CutoutPlacement, "scaleX" | "scaleY" | "tilt" | "zOffsetMm" | "profileBottom" | "profileRotation" | "modelScaleZ" | "elevationMm">>,
   segments = 24,
 ): PlacementFootprint {
   return {
-    outline: transformOutlinePlacement(shape.outlineMm, placement),
+    outline: shape.model ? modelFootprint(shape.model, placement) : transformOutlinePlacement(shape.outlineMm, placement),
     // Legacy nested holes migrate to project-level objects before current
     // layout math runs.
     features: [],
@@ -1236,7 +1249,7 @@ const floorAtUnderside = (z: number): number => Math.abs(z) < POCKET_DEPTH_EPSIL
 
 /** Axial depth and actual lowest/highest floor for a tilted extrusion. The
  * remaining-floor mode reserves clearance for the local outline offset too. */
-export function resolvePlacedPocketDepth(spec: Pick<BinSpec, "heightUnits" | "lip">, depth: DepthSpec, shape: Pick<TracedShape, "outlineMm">, cutout: CutoutPlacement): ResolvedPocket & { highestFloorZ: number | null; axialDepthMm: number | null } {
+export function resolvePlacedPocketDepth(spec: Pick<BinSpec, "heightUnits" | "lip">, depth: DepthSpec, shape: Pick<TracedShape, "outlineMm" | "model">, cutout: CutoutPlacement): ResolvedPocket & { highestFloorZ: number | null; axialDepthMm: number | null } {
   const ordinary = resolvePocketDepth(spec, depth);
   if (hasRigidPocket(cutout)) {
     if (depth.mode === "through") return { ...ordinary, floorZ: null, highestFloorZ: null, axialDepthMm: null };
@@ -1274,7 +1287,8 @@ export function resolvePlacedPocketDepth(spec: Pick<BinSpec, "heightUnits" | "li
 
 /** Conservative cavity envelope for packing and immediate layout checks.
  * Includes the full shaft from the floor through the rim, not only its mouth. */
-export function pocketOccupiedOutline(shape: Pick<TracedShape, "outlineMm">, cutout: CutoutPlacement, spec: Pick<BinSpec, "heightUnits" | "lip">): Outline {
+export function pocketOccupiedOutline(shape: Pick<TracedShape, "outlineMm" | "model">, cutout: CutoutPlacement, spec: Pick<BinSpec, "heightUnits" | "lip">): Outline {
+  if (shape.model) return modelFootprint(shape.model, cutout, resolvePocketDepth(spec, cutout.depth).cutterTopZ);
   if (hasRigidPocket(cutout)) return rigidPocketFootprint(shape.outlineMm, cutout);
   if (cutout.profileBottom) return profileFootprint(shape.outlineMm, cutout);
   if (!hasPocketTilt(cutout)) return placementFootprint(shape, cutout).outline;

@@ -53,6 +53,7 @@ export function buildFitCheckSolid(
   depthMm: number,
   quality: BuildQuality,
 ): Manifold {
+  if (shape.model) throw new Error("Use a surface fit test or export the bin to test an imported model cavity.");
   if (
     !Number.isFinite(depthMm) ||
     depthMm < FIT_CHECK_MIN_DEPTH_MM ||

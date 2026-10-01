@@ -58,12 +58,12 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
             </p>
             <p className="mt-1 text-muted-foreground">
               Pocket tilt, 3D transform controls, multi-selection, arrangement,
-              and linked designs are experimental. Turn on <strong>Enable
+              linked designs, and imported 3D model pockets are experimental. Turn on <strong>Enable
               experimental features</strong> in <strong>Settings</strong> to use
               them (on mobile, open <strong>More options → Settings</strong>).
-              Opening a project that uses these features enables the tools and
-              shows a notification. Turning the setting off preserves existing
-              designs and links.
+              Opening a project preserves this setting and its geometry. If the
+              tools are off, a notification points you to Settings. Turning the
+              setting off preserves existing designs and links.
             </p>
             <p className="mt-1 text-muted-foreground">
               To store tall items in a shorter drawer, enable the experimental

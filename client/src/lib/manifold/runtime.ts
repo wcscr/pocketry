@@ -70,6 +70,7 @@ export function preloadManifold(): void {
  */
 export interface Kernel {
   readonly CrossSection: ManifoldToplevel["CrossSection"];
+  readonly Mesh: ManifoldToplevel["Mesh"];
   readonly Manifold: ManifoldToplevel["Manifold"];
   readonly triangulate: ManifoldToplevel["triangulate"];
   readonly arena: Arena;
@@ -80,6 +81,7 @@ export function createKernel(wasm: ManifoldToplevel, arena: Arena): Kernel {
   return {
     CrossSection: wasm.CrossSection,
     Manifold: wasm.Manifold,
+    Mesh: wasm.Mesh,
     triangulate: wasm.triangulate,
     arena,
   };

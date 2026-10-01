@@ -1,3 +1,4 @@
+import { modelPlacementError } from "./model-pocket";
 import { hasPocketTilt, pocketAxis } from "./pocket-orientation";
 import { hasRigidPocket } from "./rigid-pocket";
 import {
@@ -316,7 +317,7 @@ export function validateLayout(
       });
       continue;
     }
-    if (shape.sourceMmPerPx === null && shape.source !== "basic-shape") {
+    if (shape.sourceMmPerPx === null && shape.source !== "basic-shape" && !shape.model) {
       issues.push({
         code: "uncalibrated-scale",
         severity: "error",
@@ -325,6 +326,14 @@ export function validateLayout(
           `Re-trace with a calibration.`,
         cutoutIds: [cutout.id],
       });
+    }
+
+    if (shape.model) {
+      const error = modelPlacementError(cutout);
+      if (error) {
+        issues.push({ code: "invalid-model-pocket", severity: "error", cutoutIds: [cutout.id], message: error });
+        continue;
+      }
     }
 
     if (!hasRigidPocket(cutout) && hasPocketTilt(cutout) && pocketAxis(cutout).z < 0.01) {

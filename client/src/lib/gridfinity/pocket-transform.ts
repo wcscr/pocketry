@@ -1,3 +1,4 @@
+import { placedModelVertices, modelFootprint } from "@shared/gridfinity/model-pocket";
 import { hasRigidPocket, rigidPocket, rigidPocketVertices, pocketSourceRings } from "@shared/gridfinity/rigid-pocket";
 import { Euler, Quaternion, type Vector3 } from "three";
 import {
@@ -109,7 +110,7 @@ export function pocketTransformChanged(original: CutoutPlacement, patch: PocketT
 export function pickPocketAtTop(pockets: readonly EditablePocket[], point: Point): string | null {
   for (let i = pockets.length - 1; i >= 0; i--) {
     const { cutout, shape } = pockets[i];
-    if (pointInOutline(transformOutlinePlacement(shape.outlineMm, cutout), point)) return cutout.id;
+    if (pointInOutline(shape.model ? modelFootprint(shape.model, cutout) : transformOutlinePlacement(shape.outlineMm, cutout), point)) return cutout.id;
   }
   return null;
 }
@@ -126,6 +127,17 @@ export function pocketVerticalDepthMm({ cutout, shape }: EditablePocket, spec: B
 /** Nominal opening and seat edges for an immediate, kernel-free drag preview. */
 export function pocketTransformWires({ cutout, shape }: EditablePocket, spec: BinSpec): PocketWire[] {
   const top = resolvePocketDepth(spec, cutout.depth).infillTopZ;
+  if (shape.model) {
+    const vertices = placedModelVertices(shape.model, cutout);
+    // Sparse triangle edges keep the drag responsive; settled views use the full solid.
+    const ids = shape.model.indices, wires: PocketWire[] = [];
+    const stride = Math.max(1, Math.ceil(ids.length / 3 / 300)) * 3;
+    for (let i = 0; i < ids.length; i += stride) {
+      const triangle = ids.slice(i, i + 3).map(id => { const p = vertices[id]; return [p.x, p.y, p.z] as [number, number, number]; });
+      wires.push([...triangle, triangle[0]]);
+    }
+    return wires;
+  }
   if (cutout.profileBottom) {
     const wires: PocketWire[] = [];
     for (const { vertices, edges } of profilePrisms(shape.outlineMm, cutout)) {

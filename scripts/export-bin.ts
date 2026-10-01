@@ -105,7 +105,7 @@ async function main(): Promise<void> {
   const arena = new Arena();
   const kernel: Kernel = {
     CrossSection: wasm.CrossSection,
-    Manifold: wasm.Manifold,
+    Manifold: wasm.Manifold, Mesh: wasm.Mesh,
     triangulate: wasm.triangulate,
     arena,
   };

@@ -2,8 +2,8 @@ import type { Manifold } from "manifold-3d";
 import type { ObjectPose } from "@shared/gridfinity/object-pose";
 import type { Kernel } from "@/lib/manifold/runtime";
 
-/** Pose a finite source solid without extending it to the fill surface. A
- * profile extrusion and a future imported model use this same rigid transform.
+/** Pose a finite source solid without extending it to the fill surface. Generated
+ * profile extrusions and prepared model cutters use this same rigid transform.
  * The source stays in its authored frame until rotation; only then is the
  * lowest point anchored to the requested elevation. An optional anchor keeps
  * attachments, such as a floor band, in the source object's placement frame. */

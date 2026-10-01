@@ -1,9 +1,13 @@
+import { parseBinSpec } from "@shared/gridfinity/types";
+import { buildBinWithCutouts, EXPORT_QUALITY } from "@/lib/gridfinity/bin";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { Arena } from "@/lib/manifold/arena";
 import { createKernel, loadManifold, type Kernel } from "@/lib/manifold/runtime";
 
-import { extractMeshData } from "./mesh-data";
+import { writeBinarySTL } from "@/lib/export/stl-writer";
+import { parseStl } from "@/lib/gridfinity/model-import";
+import { extractMeshData, preparePrintableSolid } from "./mesh-data";
 
 let arena: Arena;
 let kernel: Kernel;
@@ -105,4 +109,30 @@ describe("extractMeshData", () => {
       expect(dot).toBeGreaterThan(0.99);
     }
   });
+});
+
+it("exports rounded CSG intersections without Float32-collapsed faces", () => {
+  const box = arena.track(kernel.Manifold.cube([30,30,20],true));
+  const cylinder = arena.track(kernel.Manifold.cylinder(40,7,7,64,true));
+  const tilted = arena.track(cylinder.rotate([35,20,17]).translate([0.000001,0,0]));
+  const cut = arena.track(box.subtract(tilted));
+  const printable = preparePrintableSolid(kernel,cut);
+  expect(printable.volume()).toBeCloseTo(cut.volume(),1);
+  expect(()=>parseStl(writeBinarySTL(extractMeshData(kernel,printable)),"mm")).not.toThrow();
+});
+
+it("removes collinear face seams from a long bin before STL and 3MF export", () => {
+  // This ordinary 6x1 bin exposed the defect while testing a real screwdriver.
+  // It reproduces the failure without bundling manufacturer CAD in the tests.
+  const spec = parseBinSpec({ gridX: 6, gridY: 1, heightUnits: 6, fill: "solid" });
+  const solid = buildBinWithCutouts(kernel, spec, null, EXPORT_QUALITY).solid;
+  const printable = preparePrintableSolid(kernel, solid);
+  const mesh = extractMeshData(kernel, printable);
+  expect(printable.status()).toBe("NoError");
+  expect(printable.volume()).toBeCloseTo(solid.volume(), 1);
+  for (const bound of ["min", "max"] as const) {
+    printable.boundingBox()[bound].forEach((value, i) =>
+      expect(value).toBeCloseTo(solid.boundingBox()[bound][i], 5));
+  }
+  expect(() => parseStl(writeBinarySTL(mesh), "mm")).not.toThrow();
 });

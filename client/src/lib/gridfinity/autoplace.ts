@@ -1,3 +1,4 @@
+import { modelPlacementDefaults } from "@shared/gridfinity/model-placement";
 import {
   cutoutPlacementSchema,
   DEFAULT_TOP_EDGE_FILLET_MM,
@@ -172,6 +173,7 @@ function toPlacement(
   shapesById: ReadonlyMap<string, TracedShape>,
   offsetX: number,
   offsetY: number,
+  spec: BinSpec,
 ): CutoutPlacement {
   const shape = shapesById.get(item.key)!;
   const centre = {
@@ -185,6 +187,7 @@ function toPlacement(
     // so the *bbox* centre lands exactly on the packed position.
     position: { x: item.x + offsetX - centre.x, y: item.y + offsetY - centre.y },
     topFilletMm: DEFAULT_TOP_EDGE_FILLET_MM,
+    ...(shape.model ? modelPlacementDefaults(shape.model, spec) : {}),
   });
 }
 
@@ -204,6 +207,7 @@ export function autoPlaceFresh(
   shapes: readonly TracedShape[],
   lip: BinSpec["lip"],
   gridPitch: GridPitch = "full",
+  spec: BinSpec = parseBinSpec({ gridX: 1, gridY: 1, heightUnits: 6, lip, gridPitch }),
 ): AutoPlaceResult {
   if (shapes.length === 0) {
     return { cutouts: [], gridX: 1, gridY: 1, overflow: false };
@@ -218,7 +222,7 @@ export function autoPlaceFresh(
     const block = shelfPack(targets, interior.widthMm);
     if (block.widthMm <= interior.widthMm && block.heightMm <= interior.heightMm) {
       return {
-        cutouts: block.items.map((item) => toPlacement(item, byId, 0, 0)),
+        cutouts: block.items.map((item) => toPlacement(item, byId, 0, 0, spec)),
         gridX: grid.gridX,
         gridY: grid.gridY,
         overflow: false,
@@ -234,7 +238,7 @@ export function autoPlaceFresh(
     interiorMm({ gridX: maximum, gridY: maximum }, inset, gridPitch).widthMm,
   );
   return {
-    cutouts: block.items.map((item) => toPlacement(item, byId, 0, 0)),
+    cutouts: block.items.map((item) => toPlacement(item, byId, 0, 0, spec)),
     gridX: maximum,
     gridY: maximum,
     overflow: true,
@@ -308,17 +312,18 @@ export function autoPlaceIncremental(
   shapes: readonly TracedShape[],
   options: AutoPlaceIncrementalOptions,
 ): AutoPlaceResult {
+  const spec = options.spec ?? parseBinSpec({ gridX: options.gridX, gridY: options.gridY, heightUnits: 6, lip: options.lip, gridPitch: options.gridPitch });
   const occupied = existingBounds(options.existing, options.shapesById, [], options.spec);
   if (!occupied) {
     if (options.keepBinSize) {
       const interior = interiorMm(options, placementInsetMm(options.lip), options.gridPitch);
       const block = shelfPack(shapeTargets(shapes), interior.widthMm);
       const byId = new Map(shapes.map((shape) => [shape.id, shape]));
-      return { cutouts: block.items.map((item) => toPlacement(item, byId, 0, 0)),
+      return { cutouts: block.items.map((item) => toPlacement(item, byId, 0, 0, spec)),
         gridX: options.gridX, gridY: options.gridY,
         overflow: block.widthMm > interior.widthMm || block.heightMm > interior.heightMm };
     }
-    const fresh = autoPlaceFresh(shapes, options.lip, options.gridPitch);
+    const fresh = autoPlaceFresh(shapes, options.lip, options.gridPitch, spec);
     return {
       ...fresh,
       gridX: Math.max(fresh.gridX, options.gridX),
@@ -366,7 +371,7 @@ export function autoPlaceIncremental(
         const cx = strip.minX + strip.width / 2;
         const cy = strip.minY + strip.height / 2;
         return {
-          cutouts: block.items.map((item) => toPlacement(item, byId, cx, cy)),
+          cutouts: block.items.map((item) => toPlacement(item, byId, cx, cy, spec)),
           gridX: grid.gridX,
           gridY: grid.gridY,
           overflow: false,
@@ -379,7 +384,7 @@ export function autoPlaceIncremental(
   const block = shelfPack(targets, Number.POSITIVE_INFINITY);
   const cx = occupied.maxX + ITEM_GAP_MM + block.widthMm / 2;
   return {
-    cutouts: block.items.map((item) => toPlacement(item, byId, cx, 0)),
+    cutouts: block.items.map((item) => toPlacement(item, byId, cx, 0, spec)),
     gridX: options.keepBinSize ? options.gridX : maxGridCells(options.gridPitch),
     gridY: Math.max(options.gridY, 1),
     overflow: true,

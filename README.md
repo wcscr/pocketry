@@ -19,6 +19,7 @@ Pocketry's public deployment is [https://pocketry.xyz](https://pocketry.xyz).
 - Trace and refine outlines from PNG or JPEG photos.
 - Calibrate dimensions and correct perspective with printable reference sheets.
 - Design Gridfinity or flat bins with custom pockets, finger access, and colors.
+- With **Settings → Enable experimental features**, import STL models as shaped pockets that clear the model’s insertion path along its rotated axis. See [model pocket import](docs/model-pockets.md) for formats, units, and fit limitations.
 - Preview in 3D and export fit checks, STL, or 3MF models.
 - Export SVG or DXF files for shadow boards and CNC work.
 - Save projects locally, undo changes, and export editable backups.

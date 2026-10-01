@@ -51,3 +51,18 @@ it.each([0, 2])("detects linked thumb access only in undo/redo history at index 
     ],
   } })).toBe(true);
 });
+
+const modelShape: ProjectDoc["shapes"][number] = {id:"shape",name:"Imported model",source:"model",sourceMmPerPx:null,
+  outlineMm:[{outer:[{x:-10,y:-5},{x:10,y:-5},{x:10,y:5},{x:-10,y:5}],holes:[]}],
+  pointCount:4,bboxMm:{minX:-10,maxX:10,minY:-5,maxY:5},
+  model:{format:"stl",units:"mm",positions:[-10,-5,-3,10,-5,-3,0,5,-3,0,0,3],indices:[0,2,1,0,1,3,1,2,3,2,0,3]}};
+it("recognizes imported-model pockets without tilt or links, but ignores unused model assets", () => {
+  expect(projectUsesExperimentalFeatures({...ordinary,shapes:[modelShape]})).toBe(true);
+  expect(projectUsesExperimentalFeatures({...ordinary,shapes:[modelShape],cutouts:[]})).toBe(false);
+});
+it.each([0,2])("recognizes model pockets kept only in undo/redo history at index %s", index => {
+  const plain={spec:ordinary.spec,cutouts:[],fingerHoles:[]};
+  expect(projectUsesExperimentalFeatures({...ordinary,shapes:[modelShape],cutouts:[],history:{index,stack:[
+    {label:"Before",doc:plain}, {label:"Imported model",doc:{...plain,cutouts:ordinary.cutouts}}, {label:"Removed",doc:plain},
+  ]}})).toBe(true);
+});

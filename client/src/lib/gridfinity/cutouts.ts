@@ -1,3 +1,4 @@
+import { buildModelPocket } from "./model-pocket";
 // Type-only import: the kernel is injected (see `Kernel` in ../manifold/runtime).
 import type { Manifold } from "manifold-3d";
 import { hasPocketTilt, pocketAxis } from "@shared/gridfinity/pocket-orientation";
@@ -767,7 +768,9 @@ export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: Cut
 
 /** Preserve placement identity for exact 3D validation, including split cutters. */
 export function buildCutoutCutters(kernel: Kernel, shapesById: ReadonlyMap<string, TracedShape>, cutouts: readonly CutoutPlacement[], spec: BinSpec, quality: BuildQuality, options: CutoutBuildOptions = {}): CutoutCutters {
-  const groups = cutouts.map(cutout => ({ id: cutout.id, built: cutout.profileBottom && shapesById.has(cutout.shapeId)
+  const groups = cutouts.map(cutout => ({ id: cutout.id, built: shapesById.get(cutout.shapeId)?.model
+    ? buildModelPocket(kernel, shapesById.get(cutout.shapeId)!, cutout, spec, options.floorInsertThicknessMm)
+    : cutout.profileBottom && shapesById.has(cutout.shapeId)
     ? buildProfileBottomCutout(kernel, shapesById.get(cutout.shapeId)!, cutout, spec, options.floorInsertThicknessMm)
     : hasRigidPocket(cutout) && shapesById.has(cutout.shapeId)
       ? buildRigidPocket(kernel, shapesById.get(cutout.shapeId)!, cutout, spec, quality, options, resolvePocketDepth(spec, cutout.depth).cutterTopZ)

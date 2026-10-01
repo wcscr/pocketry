@@ -14,6 +14,7 @@ import { WorkerCancelledError } from "@/lib/worker/protocol";
 import { createBinWorkerHandlers } from "./bin-worker-handlers";
 import { partitionPocketFloorTriangles } from "./pocket-floor-mesh";
 import { createBasicPocket } from "./basic-shape";
+import * as binBuilders from "./bin";
 import { EXPORT_QUALITY } from "./bin";
 import {
   BUILD_BIN_METHOD,
@@ -95,16 +96,16 @@ function nonManifoldEdgeCount(mesh: BuildBinResult["mesh"], weldPositions = fals
   return [...edgeCounts.values()].filter((count) => count !== 2).length;
 }
 
-function printableMeshVolume(mesh: BuildBinResult["mesh"]): number {
+function printableMeshVolume(mesh: BuildBinResult["mesh"], requirePrintableFaces = true): number {
   let total = 0;
   for (let i = 0; i < mesh.indices.length; i += 3) {
     const [a, b, c] = Array.from(mesh.indices.subarray(i, i + 3), n => mesh.positions.subarray(n * 3, n * 3 + 3));
     const u = Array.from(b, (v, j) => v - a[j]), v = Array.from(c, (n, j) => n - a[j]);
     const cross = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
-    expect(Math.hypot(...cross)).toBeGreaterThan(0);
+    if (requirePrintableFaces) expect(Math.hypot(...cross)).toBeGreaterThan(0);
     total += (a[0] * cross[0] + a[1] * cross[1] + a[2] * cross[2]) / 6;
   }
-  expect(nonManifoldEdgeCount(mesh, true)).toBe(0);
+  if (requirePrintableFaces) expect(nonManifoldEdgeCount(mesh, true)).toBe(0);
   return total;
 }
 
@@ -947,4 +948,32 @@ it("exports a Z-translated upright pocket and rejects its floor below the bin", 
   expect(built.value.mesh.indices.length).toBeGreaterThan(0);
   expect(nonManifoldEdgeCount(built.value.mesh)).toBe(0);
   await expect(handler({ ...request, layout: { ...request.layout!, cutouts: [{ ...cutout, zOffsetMm: -20 }] } }, context())).rejects.toThrow(/deeper than the bin/);
+});
+
+it("reuses the complete bin for inspection cuts, survives transfer, and rebuilds edits and exports", async () => {
+  const spy = vi.spyOn(binBuilders, "buildBinWithCutouts");
+  const basic = createBasicPocket("rectangle", {x:-10,y:-8}, {x:10,y:8}, "cache-test")!;
+  const request: BuildBinRequest = {spec:{gridX:2,gridY:2,heightUnits:6,fill:"solid"},quality:EXPORT_QUALITY,
+    layout:{shapes:[basic.shape],cutouts:[basic.cutout],fingerHoles:[]},pocketFloorMaterialThicknessMm:0.6};
+  const handler = getHandler();
+  try {
+    const full = await handler(request,context());
+    const volume = full.value.stats.volumeMm3;
+    // Worker response buffers really leave the worker, while cached meshes stay usable.
+    structuredClone(full.value,{transfer:full.transfer});
+    const sectioned = (await handler({...structuredClone(request),section:{axis:"x",offsetMm:0}},context())).value;
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(sectioned.stats.volumeMm3).toBe(volume);
+    expect(sectioned.materialMeshes?.pocketFloors).toBeDefined();
+    const fresh = (await getHandler()({...request,section:{axis:"x",offsetMm:0}},context())).value;
+    // Preview meshes may contain collinear seams; export-only cleanup is independent.
+    expect(printableMeshVolume(sectioned.mesh, false)).toBeCloseTo(printableMeshVolume(fresh.mesh, false),2);
+    expect(sectioned.validationIssues).toEqual(fresh.validationIssues);
+    const calls = spy.mock.calls.length;
+    await handler({...request,section:{axis:"y",offsetMm:5}},context());
+    expect(spy).toHaveBeenCalledTimes(calls);
+    await handler({...request,layout:{...request.layout!,cutouts:[{...basic.cutout,clearanceMm:0.7}]}},context());
+    await handler({...request,exportTopology:true},context());
+    expect(spy).toHaveBeenCalledTimes(calls+2);
+  } finally { spy.mockRestore(); }
 });

@@ -1,3 +1,4 @@
+import { placedModelVertices, modelSourceVertices } from "@shared/gridfinity/model-pocket";
 import { rotatePocketVector } from "@shared/gridfinity/pocket-orientation";
 import { hasRigidPocket, rigidPocket, rigidPocketVertices, pocketSourceRings } from "@shared/gridfinity/rigid-pocket";
 import { applyLinkedEdits } from "@shared/gridfinity/design-links";
@@ -5,7 +6,7 @@ import { Quaternion, Vector3 } from "three";
 import type { Bounds, Outline, Point } from "@shared/geometry/types";
 import { pointInOutline, outlineBounds } from "@/lib/geometry/outline";
 import {
-  defaultPocketFloorThicknessMm, effectiveFingerHoleDepthMm, fingerHoleFootprintRing, resolvePocketDepth,
+  placementFootprint, defaultPocketFloorThicknessMm, effectiveFingerHoleDepthMm, fingerHoleFootprintRing, resolvePocketDepth,
   resolvePlacedPocketDepth, transformOutlinePlacement, maximumFingerAccessDepth,
   type CutoutPlacement, type FingerHole,
 } from "@shared/gridfinity/cutout";
@@ -25,7 +26,7 @@ const identity = { position: { x: 0, y: 0 }, rotationDeg: 0, scaleX: 1, scaleY: 
 const tidy = (v: number) => Math.round(v * 1e6) / 1e6;
 
 export function objectOutline(object: EditableObject): Outline {
-  return object.kind === "pocket" ? transformOutlinePlacement(object.shape.outlineMm, object.cutout)
+  return object.kind === "pocket" ? placementFootprint(object.shape, object.cutout).outline
     : [{ outer: fingerHoleFootprintRing(object.hole, identity, 96), holes: [] }];
 }
 export function objectBounds(object: EditableObject): Bounds {
@@ -103,12 +104,12 @@ export function transformObjects(objects: readonly EditableObject[], spec: BinSp
       let elevationDelta = offset.z + dz;
       if (rotating && pivot === "selection" && !object.cutout.profileBottom) {
         const rigid = rigidPocket(surfaceAnchoredPocket(object.cutout), object.shape, spec);
-        const source = pocketSourceRings(object.shape.outlineMm, rigid, top, true).flat();
+        const source = object.shape.model ? modelSourceVertices(object.shape.model, rigid) : pocketSourceRings(object.shape.outlineMm, rigid, top, true).flat();
         const minimum = Math.min(...source.map(v => rotatePocketVector(v, rigid).z));
         const sourceOrigin = new Vector3(rigid.position.x - center.x, rigid.position.y - center.y,
           rigid.elevationMm! - minimum - top).applyQuaternion(rotation);
         position = { x: center.x + sourceOrigin.x + delta.x, y: center.y + sourceOrigin.y + delta.y };
-        const floor = Math.min(...rigidPocketVertices(object.shape.outlineMm, rigid, top).map(v =>
+        const floor = Math.min(...(object.shape.model ? placedModelVertices(object.shape.model, rigid) : rigidPocketVertices(object.shape.outlineMm, rigid, top)).map(v =>
           new Vector3(v.x - center.x, v.y - center.y, v.z - top).applyQuaternion(rotation).z + top + dz));
         if (floor < -1e-7 || floor > 300) return null;
         elevationDelta = floor - rigid.elevationMm!;

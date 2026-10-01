@@ -81,6 +81,7 @@ it("defaults off, persists an explicit choice and restores it after remount", ()
   const toggle = document.querySelector<HTMLButtonElement>('#experimental-features')!;
   expect(document.querySelector('#experimental-features-description')!.textContent).toContain("surface text");
   expect(toggle.getAttribute("aria-checked")).toBe("false");
+  expect(document.querySelector("#experimental-features-description")!.textContent).toContain("imported 3D model pockets");
   React.act(() => toggle.click());
   expect(state.enabled).toBe(true); expect(localStorage.getItem(EXPERIMENTAL_FEATURES_KEY)).toBe("true");
   cleanup.pop()!(); mount(); expect(state.enabled).toBe(true);
@@ -107,7 +108,7 @@ it("keeps the option usable for the session when storage is blocked", () => {
 });
 
 
-it("enables only projects needing the tools, once per activation, without changing project data", () => {
+it("identifies projects needing opt-in without enabling tools or changing project data", () => {
   const ordinary: ProjectDoc = { schemaVersion: PROJECT_SCHEMA_VERSION, shapes: [],
     spec: parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6 }), cutouts: [], fingerHoles: [] };
   const linked = { ...ordinary, fingerHoles: [fingerHoleSchema.parse({
@@ -115,19 +116,22 @@ it("enables only projects needing the tools, once per activation, without changi
   })] };
   const before = structuredClone(linked);
   mount();
-  expect(state.enableForProject(ordinary)).toBe(false);
+  expect(state.needsOptInForProject(ordinary)).toBe(false);
   expect(state.enabled).toBe(false);
-  React.act(() => {
-    expect(state.enableForProject(linked)).toBe(true);
-    expect(state.enableForProject(linked)).toBe(false);
-  });
+  expect(state.needsOptInForProject(linked)).toBe(true);
+  expect(state.needsOptInForProject(linked)).toBe(true);
+  expect(state.enabled).toBe(false);
+  expect(localStorage.getItem(EXPERIMENTAL_FEATURES_KEY)).toBeNull();
+  React.act(() => state.setEnabled(true));
+  expect(state.needsOptInForProject(linked)).toBe(false);
   expect(state.enabled).toBe(true);
   expect(localStorage.getItem(EXPERIMENTAL_FEATURES_KEY)).toBe("true");
   expect(linked).toEqual(before);
   React.act(() => state.setEnabled(false));
   expect(state.enabled).toBe(false);
-  React.act(() => expect(state.enableForProject(linked)).toBe(true));
-  expect(state.enabled).toBe(true);
+  expect(state.needsOptInForProject(linked)).toBe(true);
+  expect(state.enabled).toBe(false);
+  expect(localStorage.getItem(EXPERIMENTAL_FEATURES_KEY)).toBe("false");
 });
 
 it("defaults to Original: All Controls on Left and offers only the two supported layouts", () => {

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- With experimental features enabled, import watertight STL models as shaped pockets with angled insertion or vertical drop-in, independent depth and XYZ scaling, adjustable fit margin and smoothing, preserved project geometry, and cavity color linings. Cached inspection cuts reuse the finished bin.
+- Opening an experimental project preserves the user's opt-in setting; its geometry stays loadable and exportable while experimental controls remain hidden until enabled in Settings.
+- Remove a collinear export seam that could leave a zero-area triangle in long bins.
+- Keep the bin preview responsive when an imported model has a horizontal insertion path, with a direct Vertical drop-in correction.
 - Added raised surface text behind the experimental-features opt-in, with 11 bundled font choices, position, size, rotation, height, and one project-wide color that defaults to the edge band. 3MF keeps each label as a separate named part for slicer editing, with the shared text color in multi-color exports; STL joins it to the bin.
 - Adding text opens Layout for positioning. Labels stay draggable above pockets, with a direct placement action when text prevents the 3D preview from building.
 
