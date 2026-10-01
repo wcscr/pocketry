@@ -124,7 +124,9 @@ selection and packing use a conservative convex footprint until exact model
 sections are available.
 
 Model data stays in the browser and is embedded in saved projects and exported
-project JSON (schema 27). Reopening needs no original file. Earlier projects
+project JSON (schema 28, shared with surface text). Schema-27 model projects
+upgrade with their geometry, history and transform references intact.
+Reopening needs no original file. Earlier projects
 migrate without changing their generated or traced pockets. No manufacturer
 models or additional runtime dependencies are bundled with this feature.
 

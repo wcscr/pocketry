@@ -46,6 +46,8 @@ import { InspectorPanelSections } from "./inspector-panel-sections";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { usePanelState } from "@/components/layout/panel-context";
 import { FillHeightControl } from "./fill-height-control";
+import { SurfaceTextControls } from "./surface-text-controls";
+import { Type } from "lucide-react";
 
 import {
   DEFAULT_OBLONG_DEEP_SCOOP_LENGTH_MM,
@@ -240,6 +242,8 @@ export interface BinControlsPanelProps {
   saveStatus?: "saving" | "saved" | "error";
   stats: BuildBinStats | null;
   statsAreStale?: boolean;
+  geometryError?: string | null;
+  onPositionText: () => void;
   building: boolean;
   previewIsDraft?: boolean;
   exporting: boolean;
@@ -296,6 +300,8 @@ export function BinControlsPanel({
   exportOnly = false,
   stats,
   statsAreStale = false,
+  geometryError,
+  onPositionText,
   building,
   previewIsDraft = false,
   exporting,
@@ -346,6 +352,10 @@ export function BinControlsPanel({
   const showPreviewBusy = useDelayedBusy(building);
   const inspector = useSelectionInspector();
   const { enabled: experimentalEnabled, setSettingsOpen } = useExperimentalFeatures();
+  const visibleSettingsSections = BIN_SETTINGS_SECTIONS.filter(section => experimentalEnabled || section.id !== "bin-settings-text");
+  useEffect(() => {
+    if (!experimentalEnabled && inspector?.activeSection === "bin-settings-text") inspector.showSection("bin-settings-size");
+  }, [experimentalEnabled, inspector?.activeSection, inspector?.showSection]);
   const {
     spec,
     adjustFixedPocketDepths,
@@ -412,6 +422,7 @@ export function BinControlsPanel({
     if (!settingsSectionRequest) return;
     stopPocketInspection();
     const { id, focusId } = settingsSectionRequest;
+    if (id === "bin-settings-text" && !experimentalEnabled) return;
     inspector?.showSection(id);
     if (!inspector) revealPanelSection(id, BIN_SETTINGS_SECTIONS, focusId);
     if (!inspector && !focusId) return;
@@ -424,7 +435,7 @@ export function BinControlsPanel({
       });
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [settingsSectionRequest]);
+  }, [settingsSectionRequest, experimentalEnabled]);
   const hasErrors = issues.some((issue) => issue.severity === "error");
   const enabledFeatureCount = [
     spec.lip === "standard",
@@ -457,11 +468,14 @@ export function BinControlsPanel({
   const floorThicknessUnit = spec.fill !== "none" && cutouts.some(cutout => shapesById.get(cutout.shapeId)?.model)
     ? "mm" : "mm down";
   const hasSelectedRimColor = colorStackingRim;
+  const edgeBandColor = colorStackingRim ? stackingRimColor : binColor;
   const rimColorLabel = spec.lip === "standard" ? "Stacking rim top" : "Top border";
   const hasSelectedMulticolor =
-    hasSelectedFloorColor || hasSelectedRimColor;
+    hasSelectedFloorColor || hasSelectedRimColor || spec.surfaceTexts.length > 0;
   const activeColorCount =
-    1 + Number(hasSelectedFloorColor) + Number(hasSelectedRimColor);
+    new Set([binColor, ...(hasSelectedFloorColor ? [pocketFloorColor] : []),
+      ...(hasSelectedRimColor ? [stackingRimColor] : []), ...(spec.surfaceTexts.length ? [spec.textColor ?? edgeBandColor] : [])]
+      .map(color => color.toLowerCase())).size;
 
   const patchSpec = (
     patch: Partial<BinSpecInput>,
@@ -1236,8 +1250,9 @@ export function BinControlsPanel({
   return (
     <PanelSectionFilterContext.Provider value={!inspector && exportOnly ? "bin-settings-export" : null}>
     <div className="flex h-full flex-col">
-      {!experimentalEnabled && (cutouts.some(c => c.designLink) || fingerHoles.some(h => h.designLink)) && <div className="shrink-0 border-b bg-amber-50/60 px-3 py-2 text-xs dark:bg-amber-950/20" data-testid="experimental-design-notice">
-        <p>This project uses experimental pocket tools. Its geometry and links are preserved; edits to linked designs still update their copies.</p>
+      {!experimentalEnabled && (spec.surfaceTexts.length > 0 || cutouts.some(c => c.designLink) || fingerHoles.some(h => h.designLink)) && <div className="shrink-0 border-b bg-amber-50/60 px-3 py-2 text-xs dark:bg-amber-950/20" data-testid="experimental-design-notice">
+        {(cutouts.some(c => c.designLink) || fingerHoles.some(h => h.designLink)) && <p>This project uses experimental pocket tools. Its geometry and links are preserved; edits to linked designs still update their copies.</p>}
+        {spec.surfaceTexts.length > 0 && <p>This project contains surface text. Labels remain visible and included in exports. Enable experimental features to edit them.</p>}
         <Button size="sm" variant="link" className="h-9 px-0 text-xs" onClick={() => setSettingsOpen(true)}>Show experimental settings</Button>
       </div>}
       {inspector ? <div className="shrink-0 border-b px-3 py-3">
@@ -1249,7 +1264,7 @@ export function BinControlsPanel({
         <PanelSettingsIndex
           ariaLabel="Find bin settings"
           testIdPrefix="bin"
-          items={BIN_SETTINGS_SECTIONS}
+          items={visibleSettingsSections}
           onNavigate={id => { stopPocketInspection(); revealPanelSection(id, BIN_SETTINGS_SECTIONS); }}
         />
       </div>}
@@ -1641,6 +1656,12 @@ export function BinControlsPanel({
             {!inspector && fingerProperties}
           </div>
         </PanelSection>
+
+        {experimentalEnabled && <PanelSection id="bin-settings-text" title="Surface text" icon={Type} tone="cyan"
+          summary={`${spec.surfaceTexts.length} label${spec.surfaceTexts.length === 1 ? "" : "s"}`} defaultOpen={false} className="scroll-mt-16">
+          <SurfaceTextControls edgeBandColor={edgeBandColor} onPositionText={onPositionText} />
+          {geometryError && spec.surfaceTexts.length > 0 && <p role="alert" className="text-xs text-destructive">{geometryError}</p>}
+        </PanelSection>}
 
         <PanelSection
           id="bin-settings-materials"
@@ -2069,8 +2090,8 @@ export function BinControlsPanel({
                 disabled={exporting || hasErrors}
                 onClick={() => setPendingExport({
                   title: hasSelectedMulticolor ? "STL will not include your colors" : "Save bin STL?",
-                  description: exportDimensions + " " + (hasSelectedMulticolor
-                    ? "STL stores geometry only. Use multi-color 3MF to preserve the selected floor and rim materials."
+                  description: exportDimensions + (spec.surfaceTexts.length ? " STL joins text to the bin; use 3MF to keep labels as separate parts. " : " ") + (hasSelectedMulticolor
+                    ? "STL stores geometry only. Use multi-color 3MF to preserve your selected material colors."
                     : "Download the complete bin at print quality."),
                   confirmLabel: hasSelectedMulticolor ? "Export STL without colors" : "Download STL",
                   onConfirm: (includeProject) => onExport("stl", includeProject),
@@ -2203,7 +2224,7 @@ export function BinControlsPanel({
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-medium">Single-color 3MF</span>
                 <span className="block text-[11px] font-normal text-muted-foreground">
-                  One body using the selected bin color.
+                  {spec.surfaceTexts.length ? "Bin and separate text parts using the selected bin color." : "One body using the selected bin color."}
                 </span>
               </span>
             </Button>
@@ -2228,10 +2249,11 @@ export function BinControlsPanel({
                         hasSelectedRimColor
                           ? `${spec.lip === "standard" ? "rim top" : "top border"} (${spec.lip === "none" ? `${borderWidthMm} mm wide, ` : ""}${stackingRimThicknessMm} mm down)`
                           : null,
+                        spec.surfaceTexts.length ? "colored text parts" : null,
                       ]
                         .filter(Boolean)
                         .join(" and ")} for slicer assignment.`
-                    : "Enable a floor, rim, or border color in Materials & Colors first."}
+                    : "Add surface text, or enable a floor, rim, or border color in Materials & Colors first."}
                 </span>
               </span>
             </Button>

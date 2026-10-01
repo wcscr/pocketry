@@ -9,6 +9,7 @@ import type {
   TracedShape,
 } from "@shared/gridfinity/cutout";
 import type { BinSpec } from "@shared/gridfinity/types";
+import type { SurfaceText } from "@shared/gridfinity/surface-text";
 import type { SurfaceFitCheckStyle } from "@shared/gridfinity/fit-check";
 
 import { toBufferGeometry } from "@/lib/mesh/to-buffer-geometry";
@@ -62,6 +63,8 @@ export interface BinGeometryState {
   pocketFloorGeometry: BufferGeometry | null;
   /** Stacking-rim material volume for the latest preview tier. */
   stackingRimGeometry: BufferGeometry | null;
+  /** Independent label meshes, owned and disposed by this hook. */
+  textGeometries: { label: SurfaceText; geometry: BufferGeometry }[];
   /** True when the preview contains a pocket-floor or hollow-bin floor color volume. */
   hasPocketFloor: boolean;
   /** True when the preview contains a rim or flush border material volume. */
@@ -149,6 +152,7 @@ export function useBinGeometry(
   const geometryRef = useRef<BufferGeometry | null>(null);
   const pocketFloorGeometryRef = useRef<BufferGeometry | null>(null);
   const stackingRimGeometryRef = useRef<BufferGeometry | null>(null);
+  const textGeometryRef = useRef<BufferGeometry[]>([]);
 
   const [geometry, setGeometry] = useState<BufferGeometry | null>(null);
   const [pocketFloorGeometry, setPocketFloorGeometry] =
@@ -156,6 +160,7 @@ export function useBinGeometry(
   const [stackingRimGeometry, setStackingRimGeometry] =
     useState<BufferGeometry | null>(null);
   const [hasPocketFloor, setHasPocketFloor] = useState(false);
+  const [textGeometries, setTextGeometries] = useState<BinGeometryState["textGeometries"]>([]);
   const [hasStackingRim, setHasStackingRim] = useState(false);
   const [builtSpec, setBuiltSpec] = useState<BinSpec | null>(null);
   const [stats, setStats] = useState<BuildBinStats | null>(null);
@@ -288,20 +293,24 @@ export function useBinGeometry(
         current.gesture === gesture && current.epoch === epoch;
       if ((obsolete && !intermediate) || sequence < displayedSequenceRef.current || (draft && detailedPublished)) return;
       displayedSequenceRef.current = sequence;
-      const next = toBufferGeometry(result.materialMeshes?.body ?? result.mesh);
+      const next = toBufferGeometry(result.materialMeshes?.body ?? result.bodyMesh ?? result.mesh);
       const nextPocketFloor = result.materialMeshes?.pocketFloors
         ? toBufferGeometry(result.materialMeshes.pocketFloors) : null;
       const nextStackingRim = result.materialMeshes?.stackingRim
         ? toBufferGeometry(result.materialMeshes.stackingRim) : null;
+      const nextTexts = (result.textMeshes ?? []).map(part => ({ label: part.label, geometry: toBufferGeometry(part.mesh) }));
       geometryRef.current?.dispose();
       pocketFloorGeometryRef.current?.dispose();
       stackingRimGeometryRef.current?.dispose();
+      textGeometryRef.current.forEach(part => part.dispose());
+      textGeometryRef.current = nextTexts.map(part => part.geometry);
       geometryRef.current = next;
       pocketFloorGeometryRef.current = nextPocketFloor;
       stackingRimGeometryRef.current = nextStackingRim;
       setGeometry(next);
       setPocketFloorGeometry(nextPocketFloor);
       setStackingRimGeometry(nextStackingRim);
+      setTextGeometries(nextTexts);
       setHasPocketFloor(nextPocketFloor !== null);
       setHasStackingRim(nextStackingRim !== null);
       setBuiltSpec(previewSpec);
@@ -434,6 +443,8 @@ export function useBinGeometry(
       pocketFloorGeometryRef.current = null;
       stackingRimGeometryRef.current?.dispose();
       stackingRimGeometryRef.current = null;
+      textGeometryRef.current.forEach(part => part.dispose());
+      textGeometryRef.current = [];
     },
     [],
   );
@@ -531,6 +542,7 @@ export function useBinGeometry(
 
   return {
     geometry,
+    textGeometries,
     pocketFloorGeometry,
     stackingRimGeometry,
     hasPocketFloor,

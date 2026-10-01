@@ -2,6 +2,7 @@ import { expect, it } from "vitest";
 import { parseCutoutPlacement, fingerHoleSchema } from "@shared/gridfinity/cutout";
 import { PROJECT_SCHEMA_VERSION, type ProjectDoc } from "@shared/gridfinity/project";
 import { parseBinSpec } from "@shared/gridfinity/types";
+import { surfaceTextSchema } from "@shared/gridfinity/surface-text";
 import { projectUsesExperimentalFeatures } from "./experimental-features";
 
 const ordinary: ProjectDoc = {
@@ -15,6 +16,17 @@ it("does not enable experimental tools for ordinary positions, heading or zero t
   expect(projectUsesExperimentalFeatures({ ...ordinary, cutouts: [
     { ...ordinary.cutouts[0], tilt: { xDeg: 0, yDeg: 0 }, zOffsetMm: 0 },
   ] })).toBe(false);
+});
+
+it("detects surface text in the current design and in saved undo/redo history", () => {
+  const label = surfaceTextSchema.parse({ id: "label", text: "METRIC", position: { x: 0, y: 0 } });
+  const spec = { ...ordinary.spec, surfaceTexts: [label] };
+  expect(projectUsesExperimentalFeatures({ ...ordinary, spec })).toBe(true);
+  expect(projectUsesExperimentalFeatures({ ...ordinary, history: { index: 1, stack: [
+    { label: "Text", doc: { spec, cutouts: [], fingerHoles: [] } },
+    { label: "Removed", doc: { spec: ordinary.spec, cutouts: [], fingerHoles: [] } },
+  ] } })).toBe(true);
+  expect(projectUsesExperimentalFeatures({ ...ordinary, spec: { ...ordinary.spec, textColor: "#ff8800" } })).toBe(false);
 });
 
 it.each([

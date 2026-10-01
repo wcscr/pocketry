@@ -79,6 +79,7 @@ it("defaults off, persists an explicit choice and restores it after remount", ()
   mount(); expect(state.enabled).toBe(false);
   React.act(() => state.setSettingsOpen(true));
   const toggle = document.querySelector<HTMLButtonElement>('#experimental-features')!;
+  expect(document.querySelector('#experimental-features-description')!.textContent).toContain("surface text");
   expect(toggle.getAttribute("aria-checked")).toBe("false");
   expect(document.querySelector("#experimental-features-description")!.textContent).toContain("imported 3D model pockets");
   React.act(() => toggle.click());

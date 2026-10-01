@@ -76,7 +76,9 @@ export function createBinWorkerHandlers(
   // restore it without repeating cavity CSG; exported meshes never use this cache.
   type Built = ReturnType<typeof buildBinWithCutouts>;
   type Mesh = ReturnType<Manifold["getMesh"]>;
-  let previewCache: { key: string; solid: Mesh; materialParts: null | {
+  let previewCache: { key: string; solid: Mesh; bodySolid: Mesh;
+    textParts: (Omit<Built["textParts"][number], "solid"> & { solid: Mesh })[];
+    materialParts: null | {
     body: Mesh; pocketFloors: Mesh | null; stackingRim: Mesh | null; floorRegions: Mesh[];
   }; cutoutReports: Built["cutoutReports"]; validationIssues: Built["validationIssues"]; volumeMm3: number } | null = null;
   const buildBinHandler = async (
@@ -156,8 +158,10 @@ export function createBinWorkerHandlers(
       const cacheKey = payload.exportTopology ? null : JSON.stringify({ ...payload, section: undefined });
       const cached = cacheKey !== null && previewCache?.key === cacheKey ? previewCache : null;
       const restore = (mesh: Mesh) => arena.track(new kernel.Manifold(mesh));
-      const { solid, materialParts, cutoutReports, validationIssues } = cached ? {
+      const { solid, bodySolid: binSolid, textParts, materialParts, cutoutReports, validationIssues } = cached ? {
         solid: restore(cached.solid), cutoutReports: cached.cutoutReports, validationIssues: cached.validationIssues,
+        bodySolid: restore(cached.bodySolid),
+        textParts: cached.textParts.map(part => ({ ...part, solid: restore(part.solid) })),
         materialParts: cached.materialParts ? {
           body: restore(cached.materialParts.body),
           pocketFloors: cached.materialParts.pocketFloors ? restore(cached.materialParts.pocketFloors) : null,
@@ -187,6 +191,8 @@ export function createBinWorkerHandlers(
       const volumeMm3 = cached?.volumeMm3 ?? solid.volume();
       if (cacheKey !== null && !cached) {
         previewCache = { key: cacheKey, solid: solid.getMesh(), cutoutReports, validationIssues, volumeMm3,
+          bodySolid: binSolid.getMesh(),
+          textParts: textParts.map(part => ({ ...part, solid: part.solid.getMesh() })),
           materialParts: materialParts ? { body: materialParts.body.getMesh(),
             pocketFloors: materialParts.pocketFloors?.getMesh() ?? null,
             stackingRim: materialParts.stackingRim?.getMesh() ?? null,
@@ -226,16 +232,19 @@ export function createBinWorkerHandlers(
           // already clipped accent repeats the pocket boundary and can create
           // coincident faces, especially around an enclosed profile cavity.
           const bodyCutters = [...floorRegions, ...(stackingRim ? [stackingRim] : [])];
-          const body = bodyCutters.length > 0
-            ? preparePrintableSolid(kernel, arena.track(kernel.Manifold.difference([displayed, ...bodyCutters])))
+          const printableBody = textParts.length
+            ? preparePrintableSolid(kernel, displayedPart(binSolid))
             : displayed;
+          const body = bodyCutters.length > 0
+            ? preparePrintableSolid(kernel, arena.track(kernel.Manifold.difference([printableBody, ...bodyCutters])))
+            : printableBody;
           displayedMaterialParts = { body, pocketFloors, stackingRim };
         }
       }
       const mesh = extractMeshData(kernel, displayed, {
         // The preview displays the material body when a partition exists.
         // Keep the aggregate topology/stats without shading an unused mesh.
-        normals: includePreviewNormals && materialParts === null,
+        normals: includePreviewNormals && materialParts === null && textParts.length === 0,
       });
       const materialMeshes = displayedMaterialParts
         ? {
@@ -268,6 +277,17 @@ export function createBinWorkerHandlers(
 
       const value: BuildBinResult = {
         mesh,
+        ...(textParts.length ? {
+          ...(payload.exportTopology || !materialMeshes ? {
+            bodyMesh: extractMeshData(kernel, payload.exportTopology
+              ? preparePrintableSolid(kernel, binSolid) : displayedPart(binSolid), { normals: includePreviewNormals }),
+          } : {}),
+          textMeshes: textParts.map(part => ({
+            label: part.label, z: part.z,
+            mesh: extractMeshData(kernel, payload.exportTopology
+              ? preparePrintableSolid(kernel, part.solid) : displayedPart(part.solid), { normals: includePreviewNormals }),
+          })),
+        } : {}),
         materialMeshes,
         stats: {
           triangles: mesh.indices.length / 3,
@@ -278,6 +298,12 @@ export function createBinWorkerHandlers(
         validationIssues: [...omittedModelIssues, ...validationIssues],
       };
       const transfer: Transferable[] = [mesh.positions.buffer, mesh.indices.buffer];
+      for (const extra of [value.bodyMesh, ...(value.textMeshes?.map(part => part.mesh) ?? [])]) {
+        if (extra) {
+          transfer.push(extra.positions.buffer, extra.indices.buffer);
+          if (extra.normals) transfer.push(extra.normals.buffer);
+        }
+      }
       if (mesh.normals) transfer.push(mesh.normals.buffer);
       if (materialMeshes) {
         transfer.push(

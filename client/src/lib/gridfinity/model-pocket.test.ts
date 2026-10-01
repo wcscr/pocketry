@@ -1,5 +1,5 @@
 import { modelPlacementDefaults } from "@shared/gridfinity/model-placement";
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { strFromU8, unzipSync } from "fflate";
 import { parseCutoutPlacement, resolvePocketDepth, pocketOccupiedOutline, type CutoutPlacement, type TracedShape } from "@shared/gridfinity/cutout";
 import { importedModelSchema, MODEL_MAX_TRIANGLES, modelDimensions, modelInsertionAxis, modelFootprint, placedModelVertices } from "@shared/gridfinity/model-pocket";
@@ -14,6 +14,8 @@ import { writeThreeMf } from "@/lib/mesh/threemf";
 import { toCrossSection } from "@/lib/geometry/offset";
 import { importModelShape, modelSolid, parseStl } from "./model-import";
 import { buildBinWithCutouts } from "./bin";
+import * as binBuilders from "./bin";
+import { surfaceTextSchema } from "@shared/gridfinity/surface-text";
 import { modelStorageEnvelope, smoothStorageBoundary } from "./model-storage-envelope";
 import { buildModelPocket } from "./model-pocket";
 import { resolvedPocketGeometry } from "./pocket-geometry";
@@ -112,6 +114,67 @@ function expectClearInsertion(placed: CutoutPlacement, input = shape) {
 }
 
 describe("model insertion cavities", () => {
+  it("migrates schema-27 model geometry, history and transform references alongside schema-28 text", () => {
+    const {surfaceTexts:_texts,textColor:_color,...legacySpec} = spec;
+    const doc = {spec:legacySpec,cutouts:[p],fingerHoles:[]};
+    const input = {schemaVersion:27,...doc,shapes:[shape],history:{index:0,stack:[{doc,label:"Import model"}]},
+      transformOrigins:{pockets:[{cutout:p,spec:legacySpec}],fingerHoles:[]}};
+    const before = structuredClone(input);
+    const migrated = parseProjectDoc(input)!;
+    expect(migrated.schemaVersion).toBe(28);
+    expect(migrated.shapes[0].model).toEqual(shape.model);
+    expect(migrated.cutouts).toEqual([p]);
+    expect(migrated.history!.stack[0].doc.cutouts).toEqual([p]);
+    expect(migrated.transformOrigins!.pockets[0].cutout).toEqual(p);
+    expect(migrated.spec.surfaceTexts).toEqual([]);
+    expect(migrated.history!.stack[0].doc.spec.surfaceTexts).toEqual([]);
+    const label = surfaceTextSchema.parse({id:"label",text:"TOOL",position:{x:0,y:25}});
+    const mixedDoc = {spec:{...migrated.spec,surfaceTexts:[label]},cutouts:[p],fingerHoles:[]};
+    const mixed = {...migrated,...mixedDoc,
+      history:{index:1,stack:[...migrated.history!.stack,{doc:mixedDoc,label:"Add text"}]}};
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(mixed)))).toEqual(mixed);
+    expect(input).toEqual(before);
+  });
+
+  it("preserves model linings and separate text parts through cached inspection, edits and export", async () => {
+    const handler = createBinWorkerHandlers(async () => wasm)[BUILD_BIN_METHOD] as (payload: unknown, context: HandlerContext) => Promise<TransferableResult<BuildBinResult>>;
+    const label = surfaceTextSchema.parse({id:"label",text:"TOOL",position:{x:0,y:25}});
+    const request = {spec:{...spec,surfaceTexts:[label]},quality:{circularSegments:16},
+      layout:{shapes:[shape],cutouts:[{...p,modelSmoothingMm:1,clearanceMm:0.3}],fingerHoles:[]},
+      pocketFloorMaterialThicknessMm:0.6,stackingRimMaterialThicknessMm:0.6};
+    const spy = vi.spyOn(binBuilders,"buildBinWithCutouts");
+    try {
+      const full = await handler(request,context());
+      const volume = full.value.stats.volumeMm3;
+      structuredClone(full.value,{transfer:full.transfer});
+      const clipped = (await handler({...request,section:{axis:"x",offsetMm:0}},context())).value;
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(clipped.stats.volumeMm3).toBe(volume);
+      expect(clipped.textMeshes?.[0].label).toEqual(label);
+      expect(clipped.materialMeshes?.pocketFloors).toBeDefined();
+      expect(Math.max(...clipped.textMeshes![0].mesh.positions.filter((_,i)=>i%3===0))).toBeLessThanOrEqual(0.0001);
+      const edited = {...request,spec:{...request.spec,surfaceTexts:[{...label,text:"DRIVER"}]}};
+      const changed = (await handler(edited,context())).value;
+      expect(spy).toHaveBeenCalledTimes(2);
+      expect(changed.textMeshes?.[0].label.text).toBe("DRIVER");
+      const exported = (await handler({...edited,exportTopology:true},context())).value;
+      expect(spy).toHaveBeenCalledTimes(3);
+      const parts = [
+        {name:"Body",mesh:exported.materialMeshes!.body},
+        {name:"Pocket lining",mesh:exported.materialMeshes!.pocketFloors!},
+        {name:"Rim",mesh:exported.materialMeshes!.stackingRim!},
+        ...exported.textMeshes!.map(part=>({name:`Text: ${part.label.text}`,mesh:part.mesh})),
+      ];
+      for (const mesh of [exported.mesh,exported.bodyMesh!,...parts.map(part=>part.mesh)]) {
+        expect(()=>parseStl(writeBinarySTL(mesh),"mm")).not.toThrow();
+      }
+      const model = strFromU8(unzipSync(writeThreeMf(parts,{assemble:true}))["3D/3dmodel.model"]);
+      expect(model).toContain('name="Text: DRIVER"');
+      expect(model.match(/<component /g)).toHaveLength(4);
+      expect(exported.validationIssues?.filter(issue=>issue.severity==="error")).toEqual([]);
+      await expect(handler({...edited,spec:{...edited.spec,surfaceTexts:[{...label,position:{x:0,y:0}}]},exportTopology:true},context())).rejects.toThrow("clear of pockets");
+    } finally {spy.mockRestore();}
+  });
   it.each([{xDeg:-90,yDeg:0}, {xDeg:90,yDeg:0}, {xDeg:0,yDeg:-90}, {xDeg:0,yDeg:90}])("keeps previews and resizing live for an invalid horizontal path %o, but blocks export", async tilt => {
     const handler = createBinWorkerHandlers(async () => wasm)[BUILD_BIN_METHOD] as (payload: unknown, context: HandlerContext) => Promise<TransferableResult<BuildBinResult>>;
     const invalid = {...p, tilt, modelSmoothingMm:1};
