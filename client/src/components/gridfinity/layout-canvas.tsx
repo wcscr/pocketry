@@ -239,19 +239,21 @@ function nearestContourEdge(
   return best;
 }
 
-export function LayoutCanvas({ onEditPocket, edgeBandColor }: {
+export function LayoutCanvas({ onEditPocket, edgeBandColor, textPositionRequest = 0 }: {
   /** Called on a pocket tap or the explicit edit action, after any drag ends. */
   onEditPocket?: () => void;
   edgeBandColor?: string;
+  /** A placement request exits canvas tools that intercept label dragging. */
+  textPositionRequest?: number;
 } = {}): JSX.Element {
   return (
     <CanvasViewport>
-      <LayoutStage onEditPocket={onEditPocket} edgeBandColor={edgeBandColor} />
+      <LayoutStage onEditPocket={onEditPocket} edgeBandColor={edgeBandColor} textPositionRequest={textPositionRequest} />
     </CanvasViewport>
   );
 }
 
-function LayoutStage({ onEditPocket, edgeBandColor }: { onEditPocket?: () => void; edgeBandColor?: string }): JSX.Element {
+function LayoutStage({ onEditPocket, edgeBandColor, textPositionRequest }: { onEditPocket?: () => void; edgeBandColor?: string; textPositionRequest: number }): JSX.Element {
   const inspector = useSelectionInspector();
   const { enabled: experimentalEnabled } = useExperimentalFeatures();
   const isMobile = useIsMobile();
@@ -526,6 +528,12 @@ function LayoutStage({ onEditPocket, edgeBandColor }: { onEditPocket?: () => voi
   }, [history, selection, dispatch, experimentalEnabled]);
   const [isRotating, setIsRotating] = useState(false);
   const [rulerActive, setRulerActive] = useState(false);
+  useEffect(() => {
+    if (!textPositionRequest) return;
+    setRulerActive(false);
+    setPanActive(false);
+    setObjectControlsOpen(false);
+  }, [textPositionRequest]);
   useEffect(() => {
     if (inspector?.tool === "translate" || inspector?.tool === "rotate") setObjectMode(inspector.tool);
     if (inspector && inspector.tool !== "properties") setRulerActive(false);
@@ -1571,7 +1579,6 @@ function LayoutStage({ onEditPocket, edgeBandColor }: { onEditPocket?: () => voi
             strokeWidth={1.5}
             vectorEffect="non-scaling-stroke"
           />
-          <SurfaceTextLayer edgeBandColor={edgeBandColor} interactive={experimentalEnabled && editorMode === "placement" && !rulerActive && !panActive && !viewport.isSpaceHeld} />
           {/* Interior boundary the pockets must respect. */}
           <path
             d={ringToCanvasPath(interiorFootprint, spec)}
@@ -1800,6 +1807,10 @@ function LayoutStage({ onEditPocket, edgeBandColor }: { onEditPocket?: () => voi
               })}
             </g>
           ) : null}
+
+          {/* Labels must remain visible and receive pointer events above the
+              pockets/openings they may overlap while being positioned. */}
+          <SurfaceTextLayer edgeBandColor={edgeBandColor} interactive={experimentalEnabled && editorMode === "placement" && !rulerActive && !panActive && !viewport.isSpaceHeld} />
 
           {editorMode === "contour" &&
             selected &&

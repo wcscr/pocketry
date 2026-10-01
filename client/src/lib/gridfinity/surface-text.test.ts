@@ -66,6 +66,22 @@ describe("surface text", () => {
     });
   });
 
+  it("builds a narrow bin after moving text off its central tool pocket", async () => {
+    const pocket = createBasicPocket("rectangle", { x: -8, y: -50 }, { x: 8, y: 50 }, "driver")!;
+    const label = surfaceTextSchema.parse({ id: "wiha", text: "Wiha", position: { x: 0, y: 0 } });
+    const narrow = parseBinSpec({ gridPitch: "half", gridX: 2, gridY: 7, heightUnits: 3, surfaceTexts: [label] });
+    const layout = { cutouts: [pocket.cutout], shapesById: new Map([[pocket.shape.id, pocket.shape]]), fingerHoles: [] };
+    await withKernel(kernel => {
+      expect(() => buildBinWithCutouts(kernel, narrow, layout, EXPORT_QUALITY)).toThrow("must fit on the flat surface");
+      const moved = { ...narrow, surfaceTexts: [{ ...label, position: { x: 0, y: 60 } }] };
+      const result = buildBinWithCutouts(kernel, moved, layout, EXPORT_QUALITY);
+      expect(result.textParts).toHaveLength(1);
+      expect(result.solid.status()).toBe("NoError");
+      expect(kernel.arena.track(result.textParts[0].solid.intersect(result.bodySolid)).volume()).toBeCloseTo(0, 6);
+      expect(result.solid.decompose().map(part => kernel.arena.track(part))).toHaveLength(1);
+    });
+  });
+
   it("migrates old projects and keeps text through save/load and saved history", () => {
     const legacySpec = { ...spec };
     delete (legacySpec as Partial<typeof spec>).surfaceTexts;

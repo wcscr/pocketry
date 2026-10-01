@@ -21,6 +21,7 @@ import { resolvePocketSplit } from "@shared/gridfinity/pocket-split";
 import { parseBinSpec } from "@shared/gridfinity/types";
 import { downloadBlob } from "@/lib/download";
 import { useBinGeometry } from "@/lib/gridfinity/use-bin-geometry";
+import { createBasicPocket } from "@/lib/gridfinity/basic-shape";
 import { footprintOuterRingMm, occupiedCellCount } from "@shared/gridfinity/footprint";
 import ryobiReloadFixture from "@shared/gridfinity/fixtures/ryobi-split-reload.pocketry.json";
 
@@ -54,6 +55,8 @@ vi.mock("@/components/gridfinity/bin-viewport", () => ({
     onEditColor,
     pocketEditor,
     showPocketOutlines,
+    error,
+    onPositionText,
   }: {
     fitSize: { widthMm: number; lengthMm: number; heightMm: number };
     hasPocketFloor: boolean;
@@ -70,6 +73,8 @@ vi.mock("@/components/gridfinity/bin-viewport", () => ({
     onEditColor: (target: MaterialColorTarget) => void;
     pocketEditor?: PocketEditor;
     showPocketOutlines?: boolean;
+    error: string | null;
+    onPositionText?: () => void;
   }) => (
     <div
       data-testid="bin-viewport-stub"
@@ -91,6 +96,7 @@ vi.mock("@/components/gridfinity/bin-viewport", () => ({
       data-text-color={textColor}
       data-measurement-splits={JSON.stringify(measurementSplitBoundaries)}
     >
+      {error && onPositionText && <button onClick={onPositionText}>Position text in Layout</button>}
       <button data-testid="button-clear-3d-selection" onClick={() => pocketEditor?.onSelectionChange?.([])} />
       <button
         type="button"
@@ -111,6 +117,7 @@ const binGeometryMock = vi.hoisted(() => ({
   statsAreStale: false,
   previewIsDraft: false,
   progress: 1,
+  error: null as string | null,
   builtSpec: null as ReturnType<typeof parseBinSpec> | null,
   hasPocketFloor: false,
   hasStackingRim: true,
@@ -135,7 +142,7 @@ vi.mock("@/lib/gridfinity/use-bin-geometry", () => ({
     cutoutReports: [],
     building: binGeometryMock.building,
     progress: binGeometryMock.progress,
-    error: null,
+    error: binGeometryMock.error,
     buildOnce: binGeometryMock.buildOnce,
     buildFitCheck: binGeometryMock.buildFitCheck,
     buildSurfaceFitCheck: binGeometryMock.buildSurfaceFitCheck,
@@ -259,6 +266,7 @@ beforeEach(() => {
   projectSaveMock.onSaved = undefined;
   binGeometryMock.building = false;
   binGeometryMock.progress = 1;
+  binGeometryMock.error = null;
   binGeometryMock.builtSpec = null;
   binGeometryMock.hasPocketFloor = false;
   binGeometryMock.hasStackingRim = true;
@@ -337,6 +345,67 @@ function selectPocket(container: HTMLElement, id: string): void {
 }
 
 describe("BinDesignerPage", () => {
+  it.each([
+    { layout: "standard", mobile: false }, { layout: "workflow", mobile: false },
+    { layout: "standard", mobile: true }, { layout: "workflow", mobile: true },
+  ])("allows positioning text over a pocket despite a failed preview: %o", async ({ layout, mobile }) => {
+    const originalUrl = window.location.href;
+    window.history.replaceState(null, "", `/bin?layout=${layout}`);
+    const pocket = createBasicPocket("rectangle", { x: -8, y: -50 }, { x: 8, y: 50 }, "driver")!;
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT,
+      spec: parseBinSpec({ gridPitch: "half", gridX: 2, gridY: 7, heightUnits: 3 }),
+      cutouts: [pocket.cutout], shapes: [pocket.shape],
+    });
+    binGeometryMock.error = 'Text “Wiha” must fit on the flat surface, clear of pockets and openings.';
+    const { container, unmount } = renderPage({ mobile });
+    try {
+      await flushHydration();
+      expect(container.querySelector('[data-testid="bin-viewport-stub"]')).not.toBeNull();
+      if (mobile && layout === "standard") {
+        React.act(() => [...container.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "Adjust")!.click());
+        React.act(() => [...document.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "More settings")!.click());
+      }
+      openSettingsSection(document.body, "text");
+      React.act(() => document.querySelector<HTMLButtonElement>('[data-testid="button-add-surface-text"]')!.click());
+      expect(container.querySelector('[data-testid="layout-canvas"]')).not.toBeNull();
+      if (mobile && layout === "standard") expect(document.querySelector('[role="dialog"][data-state="open"]')).toBeNull();
+      if (!mobile) {
+        for (const tool of ['[aria-label="Pan layout"]', '[data-testid="button-layout-ruler"]']) {
+          React.act(() => container.querySelector<HTMLButtonElement>(tool)!.click());
+          expect(container.querySelector('[data-testid="surface-text-layer"] path')!.getAttribute("pointer-events")).toBe("none");
+          React.act(() => [...container.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "Position text in Layout")!.click());
+          expect(container.querySelector('[data-testid="surface-text-layer"] path')!.getAttribute("pointer-events")).toBe("visiblePainted");
+        }
+      }
+      // Recovery must work for a label already stranded in the failed 3D preview.
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-3d"]')!.click());
+      React.act(() => [...container.querySelectorAll<HTMLButtonElement>('[data-testid="bin-viewport-stub"] button')].find(button => button.textContent === "Position text in Layout")!.click());
+      const layer = container.querySelector('[data-testid="surface-text-layer"]')!;
+      const path = layer.querySelector("path")!;
+      const pocketPath = container.querySelector(`[data-cutout-id="${pocket.cutout.id}"]`)!;
+      expect(pocketPath.compareDocumentPosition(layer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(path.getAttribute("pointer-events")).toBe("visiblePainted");
+      vi.stubGlobal("DOMPoint", class { constructor(public x: number, public y: number) {} matrixTransform() { return this; } });
+      Object.defineProperty(layer, "getScreenCTM", { value: () => ({ inverse: () => ({}) }) });
+      Object.defineProperty(path.parentElement!, "setPointerCapture", { value: vi.fn() });
+      const pointer = (type: string, y: number) => React.act(() => {
+        const event = new MouseEvent(type, { bubbles: true, button: 0, clientX: 0, clientY: y });
+        Object.defineProperty(event, "pointerId", { value: 1 });
+        path.dispatchEvent(event);
+      });
+      pointer("pointerdown", 60);
+      pointer("pointermove", 0);
+      pointer("pointerup", 0);
+      const current = () => vi.mocked(useBinGeometry).mock.lastCall![0];
+      expect(current().surfaceTexts[0].position).toEqual({ x: 0, y: 60 });
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toEqual([pocket.cutout]);
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+      expect(current().surfaceTexts[0].position).toEqual({ x: 0, y: 0 });
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+      expect(current().surfaceTexts[0].position).toEqual({ x: 0, y: 60 });
+    } finally { unmount(); window.history.replaceState(null, "", originalUrl); }
+  });
+
   it.each([
     { layout: "standard", mobile: false }, { layout: "workflow", mobile: false },
     { layout: "standard", mobile: true }, { layout: "workflow", mobile: true },

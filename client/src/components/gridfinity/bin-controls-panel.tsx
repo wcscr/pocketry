@@ -242,6 +242,7 @@ export interface BinControlsPanelProps {
   stats: BuildBinStats | null;
   statsAreStale?: boolean;
   geometryError?: string | null;
+  onPositionText: () => void;
   building: boolean;
   previewIsDraft?: boolean;
   exporting: boolean;
@@ -299,6 +300,7 @@ export function BinControlsPanel({
   stats,
   statsAreStale = false,
   geometryError,
+  onPositionText,
   building,
   previewIsDraft = false,
   exporting,
@@ -1654,7 +1656,7 @@ export function BinControlsPanel({
 
         {experimentalEnabled && <PanelSection id="bin-settings-text" title="Surface text" icon={Type} tone="cyan"
           summary={`${spec.surfaceTexts.length} label${spec.surfaceTexts.length === 1 ? "" : "s"}`} defaultOpen={false} className="scroll-mt-16">
-          <SurfaceTextControls edgeBandColor={edgeBandColor} />
+          <SurfaceTextControls edgeBandColor={edgeBandColor} onPositionText={onPositionText} />
           {geometryError && spec.surfaceTexts.length > 0 && <p role="alert" className="text-xs text-destructive">{geometryError}</p>}
         </PanelSection>}
 

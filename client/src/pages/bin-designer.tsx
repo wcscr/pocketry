@@ -144,6 +144,16 @@ function BinDesignerWorkspace(): JSX.Element {
     }
   }, [experimentalEnabled, bin.selection, dispatch]);
   const isMobile = useIsMobile();
+  const [textPositionRequest, setTextPositionRequest] = useState(0);
+  const positionText = () => {
+    dispatch({ type: "SET_SELECTION", selection: [] });
+    dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" });
+    dispatch({ type: "SET_VIEW_MODE", viewMode: "2d" });
+    setTextPositionRequest(request => request + 1);
+    setSettingsSectionRequest({ id: "bin-settings-text" });
+    // The standard mobile drawer covers the canvas; return to it for dragging.
+    setPanelOpen(!isMobile);
+  };
   useEffect(() => {
     if (isMobile && bin.editorMode !== "placement") setPanelOpen(false);
   }, [bin.editorMode, isMobile, setPanelOpen]);
@@ -1098,6 +1108,7 @@ function BinDesignerWorkspace(): JSX.Element {
           onKeepBinSizeChange={setKeepBinSize}
           stats={stats}
           geometryError={error}
+          onPositionText={positionText}
           statsAreStale={statsAreStale}
           building={building}
           previewIsDraft={previewIsDraft}
@@ -1183,13 +1194,14 @@ function BinDesignerWorkspace(): JSX.Element {
               progress={progress}
               error={error}
               onRetryPreview={retryPreview}
+              onPositionText={experimentalEnabled && spec.surfaceTexts.length > 0 ? positionText : undefined}
               fitSize={fitSize}
               measurementOutlines={measurementOutlines}
               measurementSplitBoundaries={measurementSplitBoundaries}
               measurementPlaneZMm={builtDimensions.heightToRimMm}
             />
           ) : (
-            <LayoutCanvas onEditPocket={editSelectedPocket} edgeBandColor={edgeBandColor} />
+            <LayoutCanvas onEditPocket={editSelectedPocket} edgeBandColor={edgeBandColor} textPositionRequest={textPositionRequest} />
           )}
           <ViewToggle
             viewMode={viewMode}

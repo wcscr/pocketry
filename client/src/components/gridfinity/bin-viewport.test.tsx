@@ -46,6 +46,7 @@ function renderViewport(
   pocketEditor?: PocketEditor,
   floorColorLabel: "Pocket floor" | "Bin floor" = "Pocket floor",
   textGeometries: BinViewportProps["textGeometries"] = [],
+  recovery: Pick<BinViewportProps, "error" | "onPositionText" | "onRetryPreview"> = { error: null },
 ): HTMLElement {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   const container = document.createElement("div");
@@ -68,7 +69,7 @@ function renderViewport(
         building={building}
         previewIsDraft={previewIsDraft}
         progress={progress}
-        error={null}
+        {...recovery}
         fitSize={{ widthMm: 84, lengthMm: 84, heightMm: 45.6 }}
         measurementOutlines={measurementOutlines}
         measurementPlaneZMm={42}
@@ -91,6 +92,20 @@ it("delays transient busy UI and uses a stage label without restarting percentag
   expect(status?.getAttribute("role")).toBe("status");
   expect(status?.textContent).toContain("Updating preview…");
   expect(status?.textContent).not.toContain("%");
+});
+
+it("offers working placement and retry actions when a text preview fails", () => {
+  const onPositionText = vi.fn();
+  const onRetryPreview = vi.fn();
+  const error = 'Text “Wiha” must fit on the flat surface, clear of pockets and openings.';
+  const container = renderViewport(false, 1, false, false, [], vi.fn(), false, undefined, "Pocket floor", [],
+    { error, onPositionText, onRetryPreview });
+  expect(container.textContent).toContain(error);
+  const buttons = [...container.querySelectorAll<HTMLButtonElement>("button")];
+  React.act(() => buttons.find(button => button.textContent === "Position text in Layout")!.click());
+  React.act(() => buttons.find(button => button.textContent === "Retry preview")!.click());
+  expect(onPositionText).toHaveBeenCalledOnce();
+  expect(onRetryPreview).toHaveBeenCalledOnce();
 });
 
 it("hides preview progress when the geometry is current", () => {

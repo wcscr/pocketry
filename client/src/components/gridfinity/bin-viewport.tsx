@@ -95,6 +95,8 @@ export interface BinViewportProps {
   progress: number;
   error: string | null;
   onRetryPreview?: () => void;
+  /** Open label placement even when invalid text prevents a new 3D mesh. */
+  onPositionText?: () => void;
   /** Outer bin dimensions; the camera re-fits when these change. */
   fitSize: FitSize;
   /** Placed tool outlines in bin-frame XY millimetres. */
@@ -248,6 +250,7 @@ export function BinViewport({
   previewIsDraft = false,
   error,
   onRetryPreview,
+  onPositionText,
   fitSize,
   measurementOutlines = EMPTY_MEASUREMENT_OUTLINES,
   measurementSplitBoundaries = EMPTY_MEASUREMENT_PATHS,
@@ -567,6 +570,7 @@ export function BinViewport({
       {error ? (
         <div className="pointer-events-none absolute inset-x-0 bottom-3 z-30 mx-auto w-fit max-w-[80%] rounded-md bg-destructive/90 px-3 py-1.5 text-xs text-destructive-foreground shadow">
           {error}
+          {onPositionText && <Button variant="outline" size="sm" className="pointer-events-auto ml-2 text-foreground" onClick={onPositionText}>Position text in Layout</Button>}
           {onRetryPreview && <Button variant="outline" size="sm" className="pointer-events-auto ml-2" onClick={onRetryPreview}>Retry preview</Button>}
         </div>
       ) : null}

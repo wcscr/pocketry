@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Added raised surface text behind the experimental-features opt-in, with 11 bundled font choices, position, size, rotation, height, and one project-wide color that defaults to the edge band. 3MF keeps each label as a separate named part for slicer editing, with the shared text color in multi-color exports; STL joins it to the bin.
+- Adding text opens Layout for positioning. Labels stay draggable above pockets, with a direct placement action when text prevents the 3D preview from building.
 
 - Fixed pocket property drafts carrying over to another pocket; selection changes preserve pending edits in saved state and undo history.
 

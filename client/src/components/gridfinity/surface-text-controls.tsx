@@ -10,12 +10,15 @@ import { surfaceTextOutline } from "@/lib/gridfinity/surface-text";
 import { useBin } from "@/state/bin-store";
 
 /** Label edits live in the bin spec, so persistence and undo use the existing document path. */
-export function SurfaceTextControls({ edgeBandColor }: { edgeBandColor: string }): JSX.Element {
+export function SurfaceTextControls({ edgeBandColor, onPositionText }: { edgeBandColor: string; onPositionText: () => void }): JSX.Element {
   const { spec, dispatch } = useBin();
   const update = (labels: SurfaceText[], historyLabel: string, transient = false) =>
     dispatch({ type: "PATCH_SPEC", patch: { surfaceTexts: labels }, historyLabel, transient });
   return <div className="space-y-3">
-    <p className="text-xs text-muted-foreground">Add raised text to the flat interior surface. Position it here or drag it in the top view, clear of pockets and openings.</p>
+    <p className="text-xs text-muted-foreground">Add raised text to the flat interior surface. Drag it in Layout, clear of pockets and openings. You can position text even when the 3D preview cannot build.</p>
+    {spec.surfaceTexts.length > 0 && <Button size="sm" variant="outline" className="w-full" onClick={onPositionText}>
+      Position text in Layout
+    </Button>}
     <div className="flex items-center justify-between gap-2">
       <div>
         <Label htmlFor="input-text-color" className="text-xs">Text color</Label>
@@ -34,9 +37,12 @@ export function SurfaceTextControls({ edgeBandColor }: { edgeBandColor: string }
       onChange={(patch, transient) => update(spec.surfaceTexts.map(item => item.id === label.id ? { ...item, ...patch } : item), "Edit surface text", transient)}
       onRemove={() => update(spec.surfaceTexts.filter(item => item.id !== label.id), "Remove surface text")} />)}
     <Button size="sm" variant="outline" className="w-full" disabled={spec.surfaceTexts.length >= 32}
-      onClick={() => update([...spec.surfaceTexts, surfaceTextSchema.parse({
-        id: crypto.randomUUID(), text: "Text", position: { x: 0, y: spec.surfaceTexts.length * 8 },
-      })], "Add surface text")} data-testid="button-add-surface-text">
+      onClick={() => {
+        update([...spec.surfaceTexts, surfaceTextSchema.parse({
+          id: crypto.randomUUID(), text: "Text", position: { x: 0, y: 0 },
+        })], "Add surface text");
+        onPositionText();
+      }} data-testid="button-add-surface-text">
       <Plus className="h-4 w-4" />Add text
     </Button>
     <p className="text-xs text-muted-foreground">3MF keeps each label as a separate named part for moving, scaling, or coloring in your slicer. Choose multi-color 3MF to preserve the text color. Change the wording in Pocketry. STL joins text to the bin.</p>

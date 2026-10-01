@@ -9,7 +9,7 @@ import { SurfaceTextLayer } from "./surface-text-layer";
 afterEach(() => vi.unstubAllGlobals());
 
 describe("text dragging", () => {
-  it.each(["release", "disable editing"])("%s commits a text drag once and preserves saved undo history", ending => {
+  it.each(["release", "disable editing", "grab between letters"])("%s commits a text drag once and preserves saved undo history", ending => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     vi.stubGlobal("DOMPoint", class { constructor(public x: number, public y: number) {} matrixTransform() { return this; } });
     let store!: BinStore;
@@ -24,8 +24,8 @@ describe("text dragging", () => {
       const historySize = store.history.stack.length;
       const group = host.querySelector("g")!;
       Object.defineProperty(group, "getScreenCTM", { value: () => ({ inverse: () => ({}) }) });
-      const path = host.querySelector("path")!;
-      Object.defineProperty(path, "setPointerCapture", { value: vi.fn() });
+      const path = host.querySelector(ending === "grab between letters" ? "rect" : "path")!;
+      Object.defineProperty(path.parentElement!, "setPointerCapture", { value: vi.fn() });
       const pointer = (type: string, x: number, y: number) => React.act(() => {
         const event = new MouseEvent(type, { bubbles: true, button: 0, clientX: x, clientY: y });
         Object.defineProperty(event, "pointerId", { value: 1 });
@@ -38,6 +38,7 @@ describe("text dragging", () => {
       expect(store.history.stack.length).toBe(historySize);
       if (ending === "disable editing") {
         React.act(() => root.render(<BinProvider><Scene interactive={false} /></BinProvider>));
+        expect(host.querySelector("rect")!.getAttribute("pointer-events")).toBe("none");
         pointer("pointermove", 22, 2);
       }
       pointer("pointerup", 16, 7);

@@ -79,9 +79,11 @@ and add finger access for lifting them out.
 
 Turn on **Settings → Enable experimental features**, then use
 **Surface text → Add text** for raised labels on the flat interior surface
-(the floor of a hollow bin, or the top of its solid fill). Set the wording,
-font, size, raised height, and rotation; use X/Y coordinates or drag a label in
-the top view. Keep every letter clear of pockets, openings, other labels, and
+(the floor of a hollow bin, or the top of its solid fill). Adding text opens
+Layout so you can drag the label into place, even if its starting position
+overlaps a pocket. **Position text in Layout** returns existing labels to this
+view after a preview error. Set the wording, font, size, raised height, and
+rotation; use X/Y coordinates or drag the label. Keep every letter clear of pockets, openings, other labels, and
 the perimeter. **Text color** applies to every label in the project and matches
 the edge band by default. Choose a custom color or return to **Use edge-band color**.
 
