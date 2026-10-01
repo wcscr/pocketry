@@ -1,0 +1,190 @@
+
+> rest-express@1.0.0 test
+> vitest run
+
+
+ RUN  v3.2.7 /Users/willcobb/Code.local/pocketry
+
+ ✓ |geometry| client/src/lib/gridfinity/flat-ended-scoop.test.ts (27 tests) 208ms
+ ✓ |geometry| client/src/lib/gridfinity/base.test.ts (10 tests) 225ms
+ ✓ |geometry| client/src/lib/gridfinity/holes.test.ts (15 tests) 188ms
+ ✓ |geometry| client/src/lib/calibrate/aruco-oracle.test.ts (18 tests) 375ms
+ ✓ |geometry| client/src/lib/detect/pipeline.test.ts (25 tests) 305ms
+ ✓ |geometry| client/src/lib/image-processor.test.ts (21 tests) 282ms
+ ✓ |geometry| client/src/lib/project/library.test.ts (15 tests) 296ms
+ ✓ |geometry| client/src/lib/gridfinity/label-tab.test.ts (7 tests) 412ms
+ ✓ |geometry| client/src/lib/detect/segment-opencv.test.ts (19 tests) 476ms
+ ✓ |geometry| client/src/lib/calibrate/perspective.test.ts (7 tests) 160ms
+ ✓ |geometry| shared/gridfinity/project.test.ts (35 tests) 47ms
+ ✓ |geometry| client/src/lib/mesh/threemf.test.ts (12 tests) 194ms
+ ✓ |geometry| client/src/lib/project/persist.test.ts (27 tests) 50ms
+ ✓ |geometry| client/src/lib/project/history.test.ts (6 tests) 61ms
+ ✓ |geometry| shared/gridfinity/finger-access-limits.test.ts (23 tests) 53ms
+ ✓ |geometry| client/src/lib/geometry/offset.test.ts (33 tests) 34ms
+ ✓ |geometry| client/src/lib/gridfinity/sweep.test.ts (6 tests) 26ms
+ ✓ |geometry| client/src/lib/geometry/simplify.test.ts (29 tests) 28ms
+ ✓ |geometry| shared/gridfinity/history.test.ts (9 tests) 33ms
+ ✓ |geometry| shared/gridfinity/validate-layout.test.ts (40 tests) 27ms
+ ✓ |geometry| client/src/lib/export/stl.test.ts (29 tests) 37ms
+ ✓ |geometry| client/src/lib/gridfinity/autoplace.test.ts (24 tests) 26ms
+ ✓ |geometry| client/src/lib/calibrate/detect.test.ts (21 tests) 968ms
+stdout | client/src/lib/gridfinity/fillet-stack.test.ts > bottomFilletCutter > builds a watertight stepped-fillet cutter for a 200-vertex ring in reasonable time
+[fillet-stack] 200-vertex ring: build 61.9 ms, subtract 0.0 ms, 53680 tris
+
+ ✓ |geometry| client/src/lib/gridfinity/fillet-stack.test.ts (7 tests) 1064ms
+   ✓ bottomFilletCutter > builds a watertight stepped-fillet cutter for a 200-vertex ring in reasonable time  1018ms
+ ✓ |geometry| client/src/lib/manifold/runtime.test.ts (8 tests) 15ms
+ ✓ |geometry| client/src/lib/mesh/mesh-data.test.ts (3 tests) 15ms
+ ✓ |geometry| shared/gridfinity/cutout.test.ts (64 tests) 19ms
+ ✓ |geometry| client/src/lib/mesh/to-buffer-geometry.test.ts (3 tests) 18ms
+ ✓ |geometry| client/src/lib/calibrate/template-pdf.test.ts (8 tests) 11ms
+ ✓ |geometry| client/src/lib/worker/client.test.ts (10 tests) 9ms
+ ✓ |geometry| client/src/lib/export/scale.test.ts (16 tests) 4ms
+ ✓ |geometry| client/src/lib/calibrate/template.test.ts (12 tests) 6ms
+ ✓ |geometry| client/src/lib/geometry/outline.test.ts (34 tests) 7ms
+ ✓ |geometry| client/src/lib/export/dxf.test.ts (18 tests) 13ms
+ ✓ |geometry| shared/gridfinity/validate-pocket-floor-materials.test.ts (18 tests) 5ms
+ ✓ |geometry| client/src/lib/geometry/trace.test.ts (16 tests) 16ms
+ ✓ |geometry| shared/gridfinity/validate.test.ts (16 tests) 7ms
+ ✓ |geometry| shared/gridfinity/grid-pitch.test.ts (4 tests) 12ms
+ ✓ |geometry| shared/gridfinity/pocket-split.test.ts (7 tests) 7ms
+ ✓ |geometry| client/src/lib/gridfinity/finger-access-rounding.test.ts (60 tests) 1496ms
+ ✓ |geometry| client/src/lib/export/layout.test.ts (9 tests) 12ms
+ ✓ |geometry| client/src/lib/gridfinity/bin-worker-handlers.test.ts (21 tests) 1244ms
+   ✓ bin worker handlers > exports a rounded 'oblong-straight' with corner radius +0 through the worker to closed STL/3MF geometry  359ms
+ ✓ |geometry| shared/geometry/rings.test.ts (26 tests) 6ms
+ ✓ |geometry| shared/gridfinity/standard.test.ts (11 tests) 4ms
+ ✓ |geometry| client/src/lib/gridfinity/profiles.test.ts (14 tests) 5ms
+ ✓ |geometry| server/vite.test.ts (2 tests) 29ms
+ ✓ |geometry| client/src/lib/project/export.test.ts (7 tests) 5ms
+ ✓ |geometry| client/src/lib/export/svg.test.ts (22 tests) 6ms
+ ✓ |geometry| client/src/lib/gridfinity/contour-edit.test.ts (3 tests) 2ms
+ ✓ |geometry| client/src/lib/calibrate/solve.test.ts (7 tests) 3ms
+ ✓ |geometry| client/src/lib/gridfinity/layout-measure.test.ts (6 tests) 4ms
+ ✓ |geometry| client/src/lib/geometry/image-rotation.test.ts (3 tests) 2ms
+ ✓ |geometry| client/src/lib/project/trace-export.test.ts (2 tests) 5ms
+ ✓ |geometry| client/src/lib/gridfinity/traced-shape.test.ts (4 tests) 2ms
+ ✓ |geometry| shared/geometry/obb.test.ts (8 tests) 3ms
+ ✓ |geometry| client/src/lib/detect/otsu.test.ts (14 tests) 3ms
+ ✓ |geometry| client/src/lib/gridfinity/pocket-floor-mesh.test.ts (3 tests) 3ms
+ ✓ |geometry| shared/gridfinity/footprint.test.ts (4 tests) 4ms
+ ✓ |geometry| client/src/lib/gridfinity/camera-fit.test.ts (3 tests) 2ms
+ ✓ |geometry| client/src/lib/gridfinity/bin.test.ts (28 tests) 2696ms
+   ✓ buildBin > preserves a custom flat-bottom bin and its label tab at half pitch  723ms
+   ✓ buildBin > preserves a custom flat-bottom bin and its label tab at quarter pitch  643ms
+   ✓ buildBin > builds a 3 by 5 standard-cell bin with 12 by 20 quarter sockets  330ms
+ ✓ |ui| client/src/hooks/use-viewport-transform.test.ts (45 tests) 47ms
+ ✓ |ui| client/src/components/trace/trace-scene.test.tsx (10 tests) 39ms
+stderr | client/src/state/bin-store.test.tsx > bin store > PATCH_SPEC revalidates through the schema
+ZodError: [
+  {
+    "code": "too_big",
+    "maximum": 64,
+    "type": "number",
+    "inclusive": true,
+    "exact": false,
+    "message": "Number must be less than or equal to 64",
+    "path": [
+      "gridX"
+    ]
+  },
+  {
+    "code": "too_big",
+    "type": "number",
+    "maximum": 16,
+    "inclusive": true,
+    "path": [
+      "gridX"
+    ],
+    "message": "Bin dimensions cannot exceed 16 standard 42 mm cells per axis."
+  }
+]
+    at Object.get error [as error] (file:///Users/willcobb/Code.local/pocketry/node_modules/zod/lib/index.mjs:587:31)
+    at ZodEffects.parse (file:///Users/willcobb/Code.local/pocketry/node_modules/zod/lib/index.mjs:692:22)
+    at Module.parseBinSpec (/Users/willcobb/Code.local/pocketry/shared/gridfinity/types.ts:133:24)
+    at reducer (/Users/willcobb/Code.local/pocketry/client/src/state/bin-store.tsx:272:15)
+    at updateReducer (/Users/willcobb/Code.local/pocketry/node_modules/react-dom/cjs/react-dom.development.js:15845:22)
+    at Object.useReducer (/Users/willcobb/Code.local/pocketry/node_modules/react-dom/cjs/react-dom.development.js:17079:16)
+    at Proxy.useReducer (/Users/willcobb/Code.local/pocketry/node_modules/react/cjs/react.development.js:1626:21)
+    at BinProvider (/Users/willcobb/Code.local/pocketry/client/src/state/bin-store.tsx:535:29)
+    at renderWithHooks (/Users/willcobb/Code.local/pocketry/node_modules/react-dom/cjs/react-dom.development.js:15486:18)
+    at updateFunctionComponent (/Users/willcobb/Code.local/pocketry/node_modules/react-dom/cjs/react-dom.development.js:19617:20)
+ZodError: [
+  {
+    "code": "too_big",
+    "maximum": 64,
+    "type": "number",
+    "inclusive": true,
+    "exact": false,
+    "message": "Number must be less than or equal to 64",
+    "path": [
+      "gridX"
+    ]
+  },
+  {
+    "code": "too_big",
+    "type": "number",
+    "maximum": 16,
+    "inclusive": true,
+    "path": [
+      "gridX"
+    ],
+    "message": "Bin dimensions cannot exceed 16 standard 42 mm cells per axis."
+  }
+]
+    at Object.get error [as error] (file:///Users/willcobb/Code.local/pocketry/node_modules/zod/lib/index.mjs:587:31)
+    at ZodEffects.parse (file:///Users/willcobb/Code.local/pocketry/node_modules/zod/lib/index.mjs:692:22)
+    at Module.parseBinSpec (/Users/willcobb/Code.local/pocketry/shared/gridfinity/types.ts:133:24)
+    at reducer (/Users/willcobb/Code.local/pocketry/client/src/state/bin-store.tsx:272:15)
+    at updateReducer (/Users/willcobb/Code.local/pocketry/node_modules/react-dom/cjs/react-dom.development.js:15845:22)
+    at Object.useReducer (/Users/willcobb/Code.local/pocketry/node_modules/react-dom/cjs/react-dom.development.js:17079:16)
+    at Proxy.useReducer (/Users/willcobb/Code.local/pocketry/node_modules/react/cjs/react.development.js:1626:21)
+    at BinProvider (/Users/willcobb/Code.local/pocketry/client/src/state/bin-store.tsx:535:29)
+    at renderWithHooks (/Users/willcobb/Code.local/pocketry/node_modules/react-dom/cjs/react-dom.development.js:15486:18)
+    at updateFunctionComponent (/Users/willcobb/Code.local/pocketry/node_modules/react-dom/cjs/react-dom.development.js:19617:20)
+The above error occurred in the <BinProvider> component:
+
+    at BinProvider (/Users/willcobb/Code.local/pocketry/client/src/state/bin-store.tsx:359:24)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.
+
+ ✓ |ui| client/src/state/bin-store.test.tsx (25 tests) 44ms
+ ✓ |ui| client/src/components/ui/help-hint.test.tsx (2 tests) 123ms
+ ✓ |ui| client/src/components/gridfinity/bin-viewport.test.tsx (5 tests) 45ms
+ ✓ |ui| client/src/components/history/edit-history-menu.test.tsx (1 test) 105ms
+ ✓ |ui| client/src/components/layout/layout.test.tsx (11 tests) 115ms
+ ✓ |ui| client/src/components/gridfinity/pocket-measurements.test.tsx (4 tests) 98ms
+ ✓ |ui| client/src/hooks/use-element-size.test.ts (5 tests) 13ms
+ ✓ |ui| client/src/components/trace/trace-canvas-history.test.tsx (8 tests) 306ms
+ ✓ |geometry| client/src/lib/gridfinity/fit-check.test.ts (5 tests) 3662ms
+   ✓ surface fit outlines > exports rounded Ryobi outlines without collapsed triangles  3640ms
+ ✓ |ui| client/src/pages/trace.test.tsx (14 tests) 404ms
+ ✓ |ui| client/src/components/trace/use-image-source.test.ts (13 tests) 5ms
+ ✓ |ui| client/src/state/trace-store.test.ts (45 tests) 7ms
+ ✓ |ui| client/src/components/canvas/canvas-viewport.test.tsx (6 tests) 25ms
+ ✓ |ui| client/src/components/ui/draft-number-input.test.tsx (4 tests) 28ms
+ ✓ |ui| client/src/state/shape-library.test.tsx (7 tests) 19ms
+ ✓ |ui| client/src/components/trace/use-outline-refinement.test.tsx (4 tests) 18ms
+stderr | client/src/app.smoke.test.tsx
+WARNING: Multiple instances of Three.js being imported.
+
+ ✓ |ui| client/src/app.smoke.test.tsx (15 tests) 479ms
+ ✓ |ui| client/src/components/trace/trace-controls-panel.test.tsx (12 tests) 1468ms
+ ✓ |geometry| client/src/lib/gridfinity/cutouts.test.ts (82 tests) 6113ms
+   ✓ buildBinWithCutouts > builds large round scoop cutters at full bin width without changing depth  382ms
+   ✓ buildBinWithCutouts > builds large round deep-scoop cutters at full bin width without changing depth  338ms
+   ✓ buildBinWithCutouts > survives a fuzzed 300-point blob end to end  1452ms
+ ✓ |geometry| client/src/lib/gridfinity/pocket-split.test.ts (14 tests) 9775ms
+   ✓ split-pocket solids > reloads the saved Ryobi with a 16 mm blade recess and 55 mm body recess at quality {"circularSegments":24,"fingerHoleChordToleranceMm":0.05,"cutoutVertexBudget":100,"filletProfileStepMm":0.5}  616ms
+   ✓ split-pocket solids > reloads the saved Ryobi with a 16 mm blade recess and 55 mm body recess at quality {"circularSegments":64,"fingerHoleChordToleranceMm":0.01,"cutoutVertexBudget":600,"filletProfileStepMm":0.1}  3828ms
+   ✓ split-pocket solids > equal depths preserve the unsplit rounded solid at quality {"circularSegments":64,"fingerHoleChordToleranceMm":0.01,"cutoutVertexBudget":600,"filletProfileStepMm":0.1}  674ms
+   ✓ split-pocket solids > leaves no seam sheet above the Ryobi shelf at quality {"circularSegments":24,"fingerHoleChordToleranceMm":0.05,"cutoutVertexBudget":100,"filletProfileStepMm":0.5}  452ms
+   ✓ split-pocket solids > leaves no seam sheet above the Ryobi shelf at quality {"circularSegments":64,"fingerHoleChordToleranceMm":0.01,"cutoutVertexBudget":600,"filletProfileStepMm":0.1}  3390ms
+ ✓ |ui| client/src/pages/bin-designer.test.tsx (121 tests) 6911ms
+   ✓ BinDesignerPage > saves pending edits before replacing a named project via new, and stops on save failure  323ms
+
+ Test Files  83 passed (83)
+      Tests  1417 passed (1417)
+   Start at  16:07:26
+   Duration  11.64s (transform 3.76s, setup 0ms, collect 18.88s, tests 41.13s, environment 18.84s, prepare 5.04s)
