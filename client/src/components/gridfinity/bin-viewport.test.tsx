@@ -2,6 +2,8 @@
 import * as React from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, expect, it, vi } from "vitest";
+const experimental = vi.hoisted(() => ({ enabled: true }));
+vi.mock("@/state/experimental-features", () => ({ useExperimentalFeatures: () => experimental }));
 import { BufferGeometry } from "three";
 import { surfaceTextSchema } from "@shared/gridfinity/surface-text";
 
@@ -30,6 +32,7 @@ import type { Outline } from "@shared/geometry/types";
 const mounted: Array<() => void> = [];
 
 afterEach(() => {
+  experimental.enabled = true;
   while (mounted.length > 0) mounted.pop()?.();
   vi.useRealTimers();
   vi.unstubAllGlobals();
@@ -263,4 +266,22 @@ it("returns to the requested transform tab even when its mode was already active
       expect(button(mode).getAttribute("aria-pressed")).toBe("true");
     }
   }
+});
+
+
+it("keeps original-UI linking, arrangement, and Select All behind experimental opt-in", () => {
+  experimental.enabled = false;
+  const basic = createBasicPocket("rectangle", { x: -5, y: -8 }, { x: 5, y: 8 }, "gating")!;
+  const onSelectionChange = vi.fn();
+  const editor: PocketEditor = { spec: parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6 }), pockets: [basic],
+    selectedId: basic.cutout.id, onSelect: vi.fn(), onCommit: vi.fn(), onSelectionChange, linkControls: <span>Link actions</span> };
+  const container = renderViewport(false, 1, false, false, [], undefined, false, editor);
+  React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Object controls"]')!.click());
+  expect(container.querySelector('[aria-label="Link and unlink designs"]')).toBeNull();
+  expect(container.querySelector('[aria-label="Align and distribute objects"]')).toBeNull();
+  expect(container.textContent).not.toContain("Select all");
+  React.act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "a", ctrlKey: true })));
+  expect(onSelectionChange).not.toHaveBeenCalled();
+  expect(container.querySelector('[aria-label="Move pocket (W)"]')).not.toBeNull();
+  expect(container.querySelector('[aria-label="Rotate pocket (E)"]')).not.toBeNull();
 });

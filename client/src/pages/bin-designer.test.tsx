@@ -12,6 +12,8 @@ import { AppHeader } from "@/components/layout/app-header";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { WORKSPACES } from "@/components/layout/workspaces";
 import type { MaterialColorTarget } from "@/components/gridfinity/bin-viewport";
+import { SelectionToolButtons } from "@/components/gridfinity/selection-tool-buttons";
+import type { SurfaceTextEditor } from "@/components/gridfinity/surface-text-transform-scene";
 import type { PocketEditor } from "@/components/gridfinity/pocket-transform-scene";
 import * as ShapeLibraryModule from "@/state/shape-library";
 import { ShapeLibraryProvider } from "@/state/shape-library";
@@ -57,6 +59,8 @@ vi.mock("@/components/gridfinity/bin-viewport", () => ({
     showPocketOutlines,
     error,
     onPositionText,
+    onSelectSurfaceText,
+    surfaceTextEditor,
   }: {
     fitSize: { widthMm: number; lengthMm: number; heightMm: number };
     hasPocketFloor: boolean;
@@ -75,6 +79,8 @@ vi.mock("@/components/gridfinity/bin-viewport", () => ({
     showPocketOutlines?: boolean;
     error: string | null;
     onPositionText?: () => void;
+    onSelectSurfaceText?: (id: string) => void;
+    surfaceTextEditor?: SurfaceTextEditor;
   }) => (
     <div
       data-testid="bin-viewport-stub"
@@ -96,6 +102,12 @@ vi.mock("@/components/gridfinity/bin-viewport", () => ({
       data-text-color={textColor}
       data-measurement-splits={JSON.stringify(measurementSplitBoundaries)}
     >
+      {surfaceTextEditor && <>
+        <SelectionToolButtons count={1} onActivate={() => {}} />
+        <button data-testid="commit-text-move" onClick={() => surfaceTextEditor.onCommit({ ...surfaceTextEditor.label, position: { x: 8, y: 20 } }, "translate")} />
+        <button data-testid="commit-text-rotation" onClick={() => surfaceTextEditor.onCommit({ ...surfaceTextEditor.label, rotationDeg: 45 }, "rotate")} />
+      </>}
+      {pocketEditor?.spec.surfaceTexts.map(label => <button key={label.id} data-testid={`button-select-text-3d-${label.id}`} disabled={!onSelectSurfaceText} onClick={() => onSelectSurfaceText?.(label.id)}>{label.text}</button>)}
       {error && onPositionText && <button onClick={onPositionText}>Position text in Layout</button>}
       <button data-testid="button-clear-3d-selection" onClick={() => pocketEditor?.onSelectionChange?.([])} />
       <button
@@ -226,6 +238,7 @@ function render(ui: React.ReactElement, { mobile = false, experimental = true } 
   localStorage.setItem(EXPERIMENTAL_FEATURES_KEY, String(experimental));
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+  if (!HTMLElement.prototype.scrollIntoView) HTMLElement.prototype.scrollIntoView = () => {};
   vi.stubGlobal("matchMedia", (query: string) => ({
     matches: mobile,
     media: query,
@@ -348,6 +361,194 @@ describe("BinDesignerPage", () => {
   it.each([
     { layout: "standard", mobile: false }, { layout: "workflow", mobile: false },
     { layout: "standard", mobile: true }, { layout: "workflow", mobile: true },
+  ])("opens the clicked text properties from either canvas without changing wording or history: %o", async ({ layout, mobile }) => {
+    const originalUrl = window.location.href;
+    window.history.replaceState(null, "", `/bin?layout=${layout}`);
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT,
+      spec: parseBinSpec({ ...EMPTY_PROJECT.spec, surfaceTexts: [{ id: "canvas-label", name: "Tool label", text: "METRIC", position: { x: 0, y: 25 } }] }),
+    });
+    const { container, unmount } = renderPage({ mobile });
+    try {
+      await flushHydration();
+      const click3D = () => React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-select-text-3d-canvas-label"]')!.click());
+      const wording = () => document.querySelector<HTMLInputElement>('[data-testid="surface-text-editor"] input[type="text"]')!;
+      click3D();
+      expect(wording().value).toBe("METRIC");
+      expect(wording().closest("[hidden]")).toBeNull();
+      expect(container.querySelector('[data-testid="bin-viewport-stub"]')).not.toBeNull();
+      if (layout === "workflow") {
+        expect(container.querySelector('[data-testid="inspector-properties-header"] h3')!.textContent).toBe("Tool label");
+        React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Collapse properties panel"]')!.click());
+        click3D();
+        expect(wording().closest("[hidden]")).toBeNull();
+      }
+      // Original mobile selection uses the nonmodal adjustment tray.
+      if (mobile && layout === "standard") {
+        expect(document.querySelector('[role="dialog"][data-state="open"]')).toBeNull();
+        expect(wording().closest('.mobile-adjustment-tray')).not.toBeNull();
+        React.act(() => [...document.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "More settings")!.click());
+      }
+      // Selecting in Layout must also reveal the editor when another section is open.
+      openSettingsSection(document.body, "size");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
+      const layer = container.querySelector('[data-testid="surface-text-layer"]')!;
+      const hit = layer.querySelector('rect')!;
+      vi.stubGlobal("DOMPoint", class { constructor(public x: number, public y: number) {} matrixTransform() { return this; } });
+      Object.defineProperty(layer, "getScreenCTM", { value: () => ({ inverse: () => ({}) }) });
+      Object.defineProperty(hit.parentElement!, "setPointerCapture", { value: vi.fn() });
+      for (const type of ["pointerdown", "pointerup"]) React.act(() => {
+        const event = new MouseEvent(type, { bubbles: true, button: 0, clientX: 10, clientY: 10 });
+        Object.defineProperty(event, "pointerId", { value: 1 });
+        hit.dispatchEvent(event);
+      });
+      expect(wording().value).toBe("METRIC");
+      expect(wording().closest("[hidden]")).toBeNull();
+      expect(container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.disabled).toBe(true);
+      React.act(() => experimentalSettings.setEnabled(false));
+      expect(document.querySelector('[data-testid="surface-text-editor"]')).toBeNull();
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-3d"]')!.click());
+      expect(container.querySelector<HTMLButtonElement>('[data-testid="button-select-text-3d-canvas-label"]')!.disabled).toBe(true);
+    } finally { unmount(); window.history.replaceState(null, "", originalUrl); }
+  });
+
+  it("keeps 3D text transforms active, commits each once, and routes its material legend", async () => {
+    const originalUrl = window.location.href;
+    window.history.replaceState(null, "", "/bin?layout=workflow");
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT,
+      spec: parseBinSpec({ ...EMPTY_PROJECT.spec, surfaceTexts: [{ id: "transform-text", name: "Tool label", text: "METRIC", position: { x: 0, y: 25 } }] }),
+    });
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-select-text-3d-transform-text"]')!.click());
+      const current = () => vi.mocked(useBinGeometry).mock.lastCall![0].surfaceTexts[0];
+      const initial = structuredClone(current());
+      for (const [tool, commit, patch] of [
+        ["Move", "move", { position: { x: 8, y: 20 } }], ["Rotate", "rotation", { rotationDeg: 45 }],
+      ] as const) {
+        const button = container.querySelector<HTMLButtonElement>(`[aria-label="${tool} selected objects"]`)!;
+        expect(button.disabled).toBe(false);
+        React.act(() => button.click());
+        expect(button.getAttribute("aria-pressed")).toBe("true");
+        expect(container.querySelector('[data-testid="surface-text-editor"]')!.closest('[hidden]')).toBeNull();
+        expect(container.querySelector<HTMLButtonElement>('[aria-label="Arrange selected objects"]')!.disabled).toBe(true);
+        React.act(() => container.querySelector<HTMLButtonElement>(`[data-testid="commit-text-${commit}"]`)!.click());
+        expect(current()).toEqual({ ...initial, ...patch });
+        React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+        expect(current()).toEqual(initial);
+        expect(container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.disabled).toBe(true);
+      }
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="legend-text"]')!.click());
+      expect(container.querySelector('[data-testid="inspector-properties-header"] h3')!.textContent).toBe("Materials & Colors");
+      expect(container.querySelector('[data-testid="input-text-color"]')!.closest('[hidden]')).toBeNull();
+      React.act(() => experimentalSettings.setEnabled(false));
+      expect(container.querySelector('[data-testid="commit-text-move"]')).toBeNull();
+      expect(container.querySelector('[data-testid="input-text-color"]')).toBeNull();
+    } finally { unmount(); window.history.replaceState(null, "", originalUrl); }
+  });
+
+  it.each([false, true])("keeps text instances on the left and only the selected properties on the right (mobile=%s)", async mobile => {
+    const originalUrl = window.location.href;
+    window.history.replaceState(null, "", "/bin?layout=workflow");
+    const shape = rectangularShape("text-pocket-shape", "Tool");
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape],
+      cutouts: [parseCutoutPlacement({ id: "text-pocket", shapeId: shape.id, position: { x: 0, y: 0 } })],
+      fingerHoles: [fingerHoleSchema.parse({ id: "text-finger", center: { x: 0, y: 0 } })],
+      spec: parseBinSpec({ ...EMPTY_PROJECT.spec, surfaceTexts: [
+        { id: "first-text", text: "Metric", position: { x: 0, y: 0 } },
+        { id: "second-text", text: "SAE", position: { x: 0, y: 10 } },
+      ] }),
+    });
+    const { container, unmount } = renderPage({ mobile });
+    try {
+      await flushHydration();
+      const left = container.querySelector<HTMLElement>("#workflow-panel")!;
+      const right = container.querySelector<HTMLElement>('[data-testid="selection-inspector"]')!;
+      const select = (id: string) => React.act(() => left.querySelector<HTMLButtonElement>(`[data-testid="button-select-surface-text-${id}"]`)!.click());
+      const current = () => vi.mocked(useBinGeometry).mock.lastCall![0].surfaceTexts;
+      const wording = () => right.querySelector<HTMLInputElement>('[data-testid="surface-text-editor"] input[type="text"]')!;
+      expect(left.querySelectorAll('[data-testid^="surface-text-row-"]')).toHaveLength(2);
+      expect(left.querySelector('[data-testid="button-add-surface-text"]')).not.toBeNull();
+      expect(right.querySelector('[data-testid="button-add-surface-text"]')).toBeNull();
+      expect(left.querySelector('[data-testid="surface-text-editor"]')).toBeNull();
+      select("first-text");
+      expect(wording().value).toBe("Metric");
+      expect(wording().closest("[hidden]")).toBeNull();
+      expect(left.hidden).toBe(mobile);
+      select("second-text");
+      expect(right.querySelectorAll('[data-testid="surface-text-editor"]')).toHaveLength(1);
+      expect(wording().value).toBe("SAE");
+      expect(right.querySelector('[data-testid="inspector-properties-header"] h3')!.textContent).toBe("SAE");
+      React.act(() => {
+        wording().focus();
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(wording(), "Imperial");
+        wording().dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      React.act(() => wording().blur());
+      expect(current().map(label => label.text)).toEqual(["Metric", "Imperial"]);
+      expect(left.querySelector('[data-testid="surface-text-row-second-text"]')!.textContent).toContain("Imperial");
+      React.act(() => left.querySelector<HTMLButtonElement>('#bin-settings-text [data-panel-section-trigger]')!.click());
+      expect(wording().value).toBe("Imperial");
+      expect(wording().closest("[hidden]")).toBeNull();
+      openSettingsSection(container, "text");
+      select("first-text");
+      selectPocket(container, "text-pocket");
+      expect(right.querySelector('[data-testid="surface-text-editor"]')).toBeNull();
+      expect(left.querySelector('[data-testid="button-select-surface-text-first-text"]')!.getAttribute("aria-pressed")).toBe("false");
+      select("first-text");
+      React.act(() => left.querySelector<HTMLButtonElement>('[aria-label="Finger access 1 — edit finger access properties"]')!.click());
+      expect(right.querySelector('[data-testid="surface-text-editor"]')).toBeNull();
+      select("second-text");
+      React.act(() => right.querySelector<HTMLButtonElement>('[aria-label="Remove text 2"]')!.click());
+      expect(current().map(label => label.text)).toEqual(["Metric"]);
+      expect(right.querySelector('[data-testid="surface-text-editor"]')).toBeNull();
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+      expect(current().map(label => label.text)).toEqual(["Metric", "Imperial"]);
+      select("second-text");
+      expect(wording().value).toBe("Imperial");
+    } finally { unmount(); window.history.replaceState(null, "", originalUrl); }
+  });
+
+  it.each([false, true])("adds surface text from the toolbar and gates the menu and instance limit (mobile=%s)", async mobile => {
+    const originalUrl = window.location.href;
+    window.history.replaceState(null, "", "/bin?layout=workflow");
+    const { container, unmount } = renderPage({ mobile, experimental: false });
+    try {
+      await flushHydration();
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
+      const menu = () => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(item => item.textContent === "Surface text");
+      const openAdd = () => React.act(() => container.querySelector('[data-testid="toolbar-add-object"]')!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+      const closeAdd = () => React.act(() => document.querySelector('[role="menu"]')!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+      openAdd();
+      expect(menu()).toBeUndefined();
+      closeAdd();
+      React.act(() => experimentalSettings.setEnabled(true));
+      for (let i = 0; i < 32; i++) {
+        openAdd();
+        React.act(() => menu()!.click());
+      }
+      const current = () => vi.mocked(useBinGeometry).mock.lastCall![0].surfaceTexts;
+      expect(current()).toHaveLength(32);
+      expect(container.querySelector('[data-testid="layout-canvas"]')).not.toBeNull();
+      expect(container.querySelector('[data-testid="surface-text-editor"]')!.closest("[hidden]")).toBeNull();
+      expect(container.querySelector('[data-testid="button-select-surface-text-' + current()[31].id + '"]')!.getAttribute("aria-pressed")).toBe("true");
+      expect(container.querySelector<HTMLButtonElement>('[data-testid="button-add-surface-text"]')!.disabled).toBe(true);
+      openAdd();
+      expect(menu()!.getAttribute("aria-disabled")).toBe("true");
+      closeAdd();
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+      expect(current()).toHaveLength(31);
+      expect(container.querySelector('[data-testid="surface-text-editor"]')).toBeNull();
+      React.act(() => experimentalSettings.setEnabled(false));
+      openAdd();
+      expect(menu()).toBeUndefined();
+      closeAdd();
+    } finally { unmount(); window.history.replaceState(null, "", originalUrl); }
+  });
+
+  it.each([
+    { layout: "standard", mobile: false }, { layout: "workflow", mobile: false },
+    { layout: "standard", mobile: true }, { layout: "workflow", mobile: true },
   ])("allows positioning text over a pocket despite a failed preview: %o", async ({ layout, mobile }) => {
     const originalUrl = window.location.href;
     window.history.replaceState(null, "", `/bin?layout=${layout}`);
@@ -372,19 +573,19 @@ describe("BinDesignerPage", () => {
       if (!mobile) {
         for (const tool of ['[aria-label="Pan layout"]', '[data-testid="button-layout-ruler"]']) {
           React.act(() => container.querySelector<HTMLButtonElement>(tool)!.click());
-          expect(container.querySelector('[data-testid="surface-text-layer"] path')!.getAttribute("pointer-events")).toBe("none");
+          expect(container.querySelector('[data-testid="surface-text-layer"] rect')!.getAttribute("pointer-events")).toBe("none");
           React.act(() => [...container.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "Position text in Layout")!.click());
-          expect(container.querySelector('[data-testid="surface-text-layer"] path')!.getAttribute("pointer-events")).toBe("visiblePainted");
+          expect(container.querySelector('[data-testid="surface-text-layer"] rect')!.getAttribute("pointer-events")).toBe("all");
         }
       }
       // Recovery must work for a label already stranded in the failed 3D preview.
       React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-3d"]')!.click());
       React.act(() => [...container.querySelectorAll<HTMLButtonElement>('[data-testid="bin-viewport-stub"] button')].find(button => button.textContent === "Position text in Layout")!.click());
       const layer = container.querySelector('[data-testid="surface-text-layer"]')!;
-      const path = layer.querySelector("path")!;
+      const path = layer.querySelector("rect")!;
       const pocketPath = container.querySelector(`[data-cutout-id="${pocket.cutout.id}"]`)!;
       expect(pocketPath.compareDocumentPosition(layer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-      expect(path.getAttribute("pointer-events")).toBe("visiblePainted");
+      expect(path.getAttribute("pointer-events")).toBe("all");
       vi.stubGlobal("DOMPoint", class { constructor(public x: number, public y: number) {} matrixTransform() { return this; } });
       Object.defineProperty(layer, "getScreenCTM", { value: () => ({ inverse: () => ({}) }) });
       Object.defineProperty(path.parentElement!, "setPointerCapture", { value: vi.fn() });
@@ -414,7 +615,7 @@ describe("BinDesignerPage", () => {
     window.history.replaceState(null, "", `/bin?layout=${layout}`);
     const { container, unmount } = renderPage({ mobile, experimental: false });
     const addText = () => document.querySelector<HTMLButtonElement>('[data-testid="button-add-surface-text"]');
-    const textNavigation = () => document.querySelector('[data-testid="bin-settings-jump-surface-text"], [data-testid="workflow-section-bin-settings-text"]');
+    const textNavigation = () => document.querySelector('[data-testid="bin-settings-jump-surface-text"], #workflow-panel #bin-settings-text');
     try {
       await flushHydration();
       if (mobile && layout === "standard") {
@@ -429,8 +630,8 @@ describe("BinDesignerPage", () => {
       React.act(() => addText()!.click());
       const before = structuredClone(vi.mocked(useBinGeometry).mock.lastCall![0]);
       React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
-      const path = () => container.querySelector('[data-testid="surface-text-layer"] path')!;
-      expect(path().getAttribute("pointer-events")).toBe("visiblePainted");
+      const path = () => container.querySelector('[data-testid="surface-text-layer"] rect')!;
+      expect(path().getAttribute("pointer-events")).toBe("all");
       React.act(() => experimentalSettings.setEnabled(false));
       expect(addText()).toBeNull();
       expect(textNavigation()).toBeNull();
@@ -504,20 +705,21 @@ describe("BinDesignerPage", () => {
       expect(current()[0].text).toBe("Metric & SAE");
       const textColor = () => vi.mocked(useBinGeometry).mock.lastCall![0].textColor;
       expect(textColor()).toBeNull();
-      expect(container.querySelector<HTMLInputElement>('[aria-label="Text color"]')!.value).toBe("#000000");
       const fontField = () => container.querySelector<HTMLButtonElement>('[aria-label="Text 1 font"]')!;
-      React.act(() => fontField().dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true })));
+      React.act(() => fontField().click());
       const fontOptions = [...document.querySelectorAll<HTMLElement>('[role="option"]')];
       expect(fontOptions.map(option => option.textContent)).toEqual([
-        "Sans", "Sans Bold", "Serif", "Serif Bold", "Monospace", "Helvetiker", "Helvetiker Bold",
-        "Optimer", "Optimer Bold", "Gentilis", "Gentilis Bold",
+        "Sans", "Sans Bold", "Helvetiker", "Helvetiker Bold", "Monospace",
       ]);
-      React.act(() => fontOptions.find(option => option.textContent === "Gentilis Bold")!.click());
-      expect(current()[0].font).toBe("gentilis-bold");
+      React.act(() => fontOptions.find(option => option.textContent === "Sans Bold")!.click());
+      expect(current()[0].font).toBe("sans-bold");
       React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
-      expect(current()[0].font).toBe("sans");
+      expect(current()[0].font).toBe("helvetiker");
       React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
-      expect(current()[0].font).toBe("gentilis-bold");
+      expect(current()[0].font).toBe("sans-bold");
+      openSettingsSection(container, "materials");
+      expect(document.querySelector<HTMLInputElement>('[aria-label="Text color"]')!.value).toBe("#000000");
+      expect(document.querySelector('[aria-label="Text color"]')!.closest('[data-testid="view-color-row-text"]')).not.toBeNull();
       const setTextColor = (color: string) => React.act(() => {
         const input = container.querySelector<HTMLInputElement>('[aria-label="Text color"]')!;
         Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, color);
@@ -526,7 +728,9 @@ describe("BinDesignerPage", () => {
       expect(container.querySelectorAll('[aria-label="Text color"]')).toHaveLength(1);
       expect(container.querySelectorAll('[data-testid="surface-text-editor"] input[type="color"]')).toHaveLength(0);
       setTextColor("#ff6600");
+      openSettingsSection(container, "text");
       React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-add-surface-text"]')!.click());
+      openSettingsSection(container, "materials");
       expect([...container.querySelectorAll('[data-testid="surface-text-layer"] path')].map(path => path.getAttribute("fill"))).toEqual(["#ff6600", "#ff6600"]);
       setTextColor("#2244ff");
       expect(textColor()).toBe("#2244ff");
@@ -548,7 +752,6 @@ describe("BinDesignerPage", () => {
             input.dispatchEvent(new Event("input", { bubbles: true }));
           });
           expect(container.querySelector('[data-testid="surface-text-layer"] path')!.getAttribute("fill")).toBe("#2244ff");
-          openSettingsSection(container, "text");
           React.act(() => [...container.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "Use edge-band color")!.click());
           expect(textColor()).toBeNull();
           expect([...container.querySelectorAll('[data-testid="surface-text-layer"] path')].map(path => path.getAttribute("fill"))).toEqual(["#778899", "#778899"]);
@@ -3380,7 +3583,7 @@ describe("BinDesignerPage", () => {
       React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Pan layout"]')!.click());
       const add = container.querySelector<HTMLButtonElement>('[data-testid="layout-add-pocket"] button')!;
       React.act(() => add.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
-      React.act(() => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(item => item.textContent === kind)!.click());
+      React.act(() => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(item => item.textContent === `${kind} pocket`)!.click());
       expect(container.querySelector('[aria-label="Pan layout"]')!.getAttribute("aria-pressed")).toBe("false");
       const svg = container.querySelector<SVGSVGElement>('[data-testid="layout-canvas"]')!;
       // A zoomed/panned scene: client -> model coordinates must use the SVG transform.
@@ -3425,7 +3628,7 @@ describe("BinDesignerPage", () => {
       React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
       const add = container.querySelector<HTMLButtonElement>('[data-testid="layout-add-pocket"] button')!;
       React.act(() => add.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
-      React.act(() => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(item => item.textContent === "Rectangle")!.click());
+      React.act(() => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(item => item.textContent === "Rectangle pocket")!.click());
       const svg = container.querySelector<SVGSVGElement>('[data-testid="layout-canvas"]')!;
       Object.defineProperty(svg.querySelector('g')!, 'getScreenCTM', { value: () => ({ inverse: () => ({}) }) });
       Object.defineProperties(svg, {
@@ -5771,13 +5974,12 @@ it.each([false, true])("workflow layout routes every section to matching propert
     expect([...left.querySelectorAll('button')].find(button => button.textContent === 'Select all')).toBeUndefined();
     expect(left.querySelector('#bin-settings-pockets')).not.toBeNull();
     expect(left.querySelector('#bin-settings-finger-holes')).not.toBeNull();
-    expect(left.querySelectorAll('button[data-testid^="workflow-section-"]')).toHaveLength(7);
+    expect(left.querySelectorAll('button[data-testid^="workflow-section-"]')).toHaveLength(6);
     expect(left.querySelector('[aria-label="Width in standard cells"]')).toBeNull();
     for (const [name, tone, selector] of [
       ['Bin size', 'blue', '[aria-label="Width in standard cells"]'],
       ['Construction', 'rose', '#bin-settings-construction'],
       ['Materials & Colors', 'amber', '#input-bin-color'],
-      ['Surface text', 'cyan', '[data-testid="button-add-surface-text"]'],
       ['Check fit', 'indigo', '#bin-settings-fit'],
       ['Export', 'emerald', '[data-testid="button-export-3mf"]'],
       ['Project', 'slate', '[aria-label="Browser library"]'],
@@ -5897,27 +6099,29 @@ it.each([
   { layout: 'standard', kind: 'finger' },
   { layout: 'workflow', kind: 'pocket' },
   { layout: 'workflow', kind: 'finger' },
+  { layout: 'standard', kind: 'text' },
+  { layout: 'workflow', kind: 'text' },
 ] as const)('double-click renames a $kind in the $layout layout with focus, cancellation and undo', async ({ layout, kind }) => {
   const originalUrl = window.location.href;
   window.history.replaceState(null, '', `/bin?layout=${layout}`);
   const shape = rectangularShape('rename-shape', 'Tool');
   const pockets = [-20, 20].map((x, index) => parseCutoutPlacement({ id: `rename-pocket-${index}`, shapeId: shape.id, position: { x, y: 0 } }));
   const finger = fingerHoleSchema.parse({ id: 'rename-finger', center: { x: 0, y: 25 } });
-  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape], cutouts: pockets, fingerHoles: [finger] });
+  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape], cutouts: pockets, fingerHoles: [finger], spec: parseBinSpec({ ...EMPTY_PROJECT.spec, surfaceTexts: [{ id: "rename-text-0", text: "Tool", position: { x: 0, y: 0 } }] }) });
   const { container, unmount } = renderPage();
   try {
     await flushHydration();
-    openSettingsSection(container, kind === 'pocket' ? 'tool-cutouts' : 'finger-holes');
-    const selector = kind === 'pocket' ? '[data-testid="button-select-rename-pocket-0"]' : '[data-testid="button-select-finger-hole-rename-finger"]';
-    const originalName = kind === 'pocket' ? 'Tool' : 'Finger access 1';
+    openSettingsSection(container, kind === 'pocket' ? 'tool-cutouts' : kind === 'finger' ? 'finger-holes' : 'text');
+    const selector = kind === 'pocket' ? '[data-testid="button-select-rename-pocket-0"]' : kind === 'finger' ? '[data-testid="button-select-finger-hole-rename-finger"]' : '[data-testid="button-select-surface-text-rename-text-0"]';
+    const originalName = kind === 'finger' ? 'Finger access 1' : 'Tool';
     const nameButton = () => container.querySelector<HTMLButtonElement>(selector)!;
     const beginRename = () => {
       const button = nameButton();
       React.act(() => button.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 })));
-      expect(container.querySelector('input[aria-label="Pocket name"], input[aria-label="Finger access name"]')).toBeNull();
+      expect(container.querySelector('input[aria-label="Pocket name"], input[aria-label="Finger access name"], input[aria-label="Surface text name"]')).toBeNull();
       React.act(() => button.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 2 })));
       React.act(() => button.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, detail: 2 })));
-      const input = container.querySelector<HTMLInputElement>(`[aria-label="${kind === 'pocket' ? 'Pocket' : 'Finger access'} name"]`)!;
+      const input = container.querySelector<HTMLInputElement>(`[aria-label="${kind === 'pocket' ? 'Pocket' : kind === 'finger' ? 'Finger access' : 'Surface text'} name"]`)!;
       expect(input).not.toBeNull();
       expect(document.activeElement).toBe(input);
       expect(input.selectionStart).toBe(0);
@@ -5953,6 +6157,10 @@ it.each([
     typeName(input, 'Saved on blur');
     React.act(() => input.blur());
     expect(nameButton().textContent).toBe('Saved on blur');
+    if (kind === 'text') {
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0].surfaceTexts[0]).toMatchObject({ name: 'Saved on blur', text: 'Tool' });
+      expect(container.querySelector<HTMLInputElement>('[data-testid="surface-text-editor"] input[type="text"]')!.value).toBe('Tool');
+    }
   } finally { unmount(); window.history.replaceState(null, '', originalUrl); }
 });
 
@@ -6079,3 +6287,97 @@ it.each(['Move selected objects', 'Rotate selected objects', 'Arrange selected o
     } finally { unmount(); window.history.replaceState(null, '', originalUrl); }
   },
 );
+
+it.each(["standard", "workflow"])("selecting text leaves contour editing and restores canvas interaction (%s)", async layout => {
+  const originalUrl=window.location.href;
+  window.history.replaceState(null,"",`/bin?layout=${layout}`);
+  const shape=rectangularShape("audit-shape","Audit pocket");
+  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({...EMPTY_PROJECT, shapes:[shape],
+    cutouts:[parseCutoutPlacement({id:"audit-pocket",shapeId:shape.id,position:{x:0,y:0}})],
+    spec:parseBinSpec({...EMPTY_PROJECT.spec,surfaceTexts:[{id:"audit-text",text:"Audit text",position:{x:0,y:20}}]})});
+  const {container,unmount}=renderPage();
+  try {
+    await flushHydration();
+    selectPocket(container,"audit-pocket");
+    React.act(()=>container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
+    React.act(()=>container.querySelector<HTMLButtonElement>('[data-testid="button-layout-edit-contour"]')!.click());
+    expect(container.querySelector('[data-testid="contour-vertex-handle"]')).not.toBeNull();
+    React.act(()=>container.querySelector<HTMLButtonElement>('[data-testid="button-select-surface-text-audit-text"]')!.click());
+    expect(container.querySelector('[data-testid="surface-text-editor"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="surface-text-hit-audit-text"]')!.getAttribute("pointer-events")).toBe("all");
+  } finally {unmount();window.history.replaceState(null,"",originalUrl);}
+});
+it.each(["standard", "workflow"])("3D text deletion respects inputs, undo, and opt-out (%s)", async layout => {
+  const originalUrl=window.location.href; window.history.replaceState(null,"",`/bin?layout=${layout}`);
+  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({...EMPTY_PROJECT,
+    spec:parseBinSpec({...EMPTY_PROJECT.spec,surfaceTexts:[{id:"audit-text",text:"Audit text",position:{x:0,y:20}}]})});
+  const {container,unmount}=renderPage();
+  try {
+    await flushHydration();
+    React.act(()=>container.querySelector<HTMLButtonElement>('[data-testid="button-select-text-3d-audit-text"]')!.click());
+    const current = () => vi.mocked(useBinGeometry).mock.lastCall![0].surfaceTexts;
+    const wording = container.querySelector<HTMLInputElement>('[data-testid="surface-text-editor"] input[type="text"]')!;
+    React.act(() => { wording.focus(); wording.dispatchEvent(new KeyboardEvent("keydown", { key: "Backspace", bubbles: true, cancelable: true })); });
+    expect(current()).toHaveLength(1);
+    React.act(() => wording.blur());
+    React.act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Delete", cancelable: true })));
+    expect(current()).toHaveLength(0);
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+    expect(current()).toHaveLength(1);
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-select-text-3d-audit-text"]')!.click());
+    React.act(() => experimentalSettings.setEnabled(false));
+    React.act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Backspace", cancelable: true })));
+    expect(current()).toHaveLength(1);
+  } finally {unmount();window.history.replaceState(null,"",originalUrl);}
+});
+
+it.each(["standard", "workflow"])("mobile canvas selection and inline editing remain accessible (%s)", async layout => {
+  const originalUrl=window.location.href; window.history.replaceState(null,"",`/bin?layout=${layout}`);
+  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({...EMPTY_PROJECT,
+    spec:parseBinSpec({...EMPTY_PROJECT.spec,surfaceTexts:[{id:"audit-text",text:"Audit text",position:{x:0,y:20}}]})});
+  const {container,unmount}=renderPage({mobile:true});
+  try {
+    await flushHydration();
+    React.act(()=>container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
+    const hit=container.querySelector('[data-testid="surface-text-hit-audit-text"]')!;
+    const layer = container.querySelector('[data-testid="surface-text-layer"]')!;
+    vi.stubGlobal("DOMPoint", class { constructor(public x: number, public y: number) {} matrixTransform() { return this; } });
+    Object.defineProperty(layer, "getScreenCTM", { value: () => ({ inverse: () => ({}) }) });
+    Object.defineProperty(hit.parentElement!, "setPointerCapture", { value: vi.fn() });
+    for (const type of ["pointerdown", "pointerup"]) React.act(() => {
+      const event = new MouseEvent(type, { bubbles: true, button: 0, clientX: 10, clientY: 10 });
+      Object.defineProperty(event, "pointerId", { value: 1 }); hit.dispatchEvent(event);
+    });
+    expect(document.querySelector('[data-testid="surface-text-editor"]')).not.toBeNull();
+    expect(document.querySelector('[role="dialog"][data-state="open"]')).toBeNull();
+    React.act(()=>hit.dispatchEvent(new MouseEvent("dblclick",{bubbles:true,button:0})));
+    const inline=container.querySelector<HTMLInputElement>('[aria-label="Edit surface text wording"]');
+    expect(inline).not.toBeNull();
+    expect(document.querySelector('[role="dialog"][data-state="open"]')).toBeNull();
+    expect(document.activeElement).toBe(inline);
+  } finally {unmount();window.history.replaceState(null,"",originalUrl);}
+});
+
+it.each([false, true])("offers surface text in the Original Layout toolbar only with opt-in (mobile=%s)", async mobile => {
+  const originalUrl = window.location.href;
+  window.history.replaceState(null, "", "/bin?layout=standard");
+  const { container, unmount } = renderPage({ mobile, experimental: false });
+  try {
+    await flushHydration();
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
+    const add = () => container.querySelector('[data-testid="bin-canvas"] [data-testid="button-add-pocket"]')!;
+    const openAdd = () => React.act(() => add().dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+    const textOption = () => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(item => item.textContent === "Surface text");
+    openAdd();
+    expect(textOption()).toBeUndefined();
+    expect([...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].some(item => item.textContent === "Finger access")).toBe(true);
+    React.act(() => document.querySelector('[role="menu"]')!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+    React.act(() => experimentalSettings.setEnabled(true));
+    openAdd();
+    React.act(() => textOption()!.click());
+    const labels = vi.mocked(useBinGeometry).mock.lastCall![0].surfaceTexts;
+    expect(labels).toHaveLength(1);
+    expect(container.querySelector(`[data-testid="surface-text-hit-${labels[0].id}"]`)!.getAttribute("pointer-events")).toBe("all");
+    if (mobile) expect(document.querySelector('[role="dialog"][data-state="open"]')).toBeNull();
+  } finally { unmount(); window.history.replaceState(null, "", originalUrl); }
+});

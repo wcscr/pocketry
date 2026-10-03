@@ -15,6 +15,8 @@ import { designLinkErrors } from "./design-links";
 import { transformOriginsSchema } from "./transform-origins";
 import { binHistorySchema } from "./history";
 import { migrateProfilePocket } from "./rigid-pocket";
+import { expandProjectFontSources } from "./project-font-sources";
+export { serializeProjectDoc } from "./project-font-sources";
 
 /**
  * The persisted unit of user data: the shape library plus the bin being
@@ -50,9 +52,12 @@ import { migrateProfilePocket } from "./rigid-pocket";
  * Unreleased side-profile prototypes also used version 25 and migrate by their fields.
  * Version 26 gives generated pockets a finite solid and unrestricted rigid placement.
  * Version 28 adds editable surface labels. Version 27 is reserved for imported models.
+ * Version 29 adds independent surface-text object names.
+ * Version 30 preserves user-selected font outlines for portable surface text.
+ * Version 31 stores font sources once per project, shared by labels and history.
  */
 
-export const PROJECT_SCHEMA_VERSION = 28 as const;
+export const PROJECT_SCHEMA_VERSION = 31 as const;
 
 const projectFields = {
   shapes: z.array(tracedShapeSchema),
@@ -215,8 +220,11 @@ function migrateLegacyProject(doc: LegacyProjectDoc): ProjectDoc {
  * an empty designer beats crashing the workspace.
  */
 export function parseProjectDoc(input: unknown): ProjectDoc | null {
+  if (input && typeof input === "object" && "schemaVersion" in input && input.schemaVersion === PROJECT_SCHEMA_VERSION) {
+    input = expandProjectFontSources(input);
+  }
   if (input && typeof input === "object" && !Array.isArray(input)
-      && [26, 27].includes((input as Record<string, unknown>).schemaVersion as number)) {
+      && [26, 27, 28, 29, 30].includes((input as Record<string, unknown>).schemaVersion as number)) {
     // Strict current schemas still reject unsupported data from version-27 prototypes.
     return parseProjectDoc({ ...input, schemaVersion: PROJECT_SCHEMA_VERSION });
   }

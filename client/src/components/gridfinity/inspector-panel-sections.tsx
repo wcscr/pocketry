@@ -6,7 +6,7 @@ import { PropertySurface } from "@/components/layout/property-surface";
 import { useSelectionInspector } from "./selection-inspector-context";
 import { BIN_OBJECT_SECTIONS as objectSections, BIN_WORKFLOW_SECTIONS } from "./bin-workflow";
 
-const binSections = new Set(["bin-settings-size", "bin-settings-construction", "bin-settings-materials", "bin-settings-text"]);
+const binSections = new Set(["bin-settings-size", "bin-settings-construction", "bin-settings-materials"]);
 
 /** Keep every editor mounted once; workflow navigation chooses its right-hand home. */
 export function InspectorPanelSections({ children }: { children: ReactNode }): JSX.Element {

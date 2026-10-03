@@ -1,6 +1,7 @@
 import { expandLinkedObjectEdits } from "@/lib/gridfinity/object-arrangement";
 import { hasRigidPocket, resetPocketPlane } from "@shared/gridfinity/rigid-pocket";
 import { createPortal } from "react-dom";
+import { useExperimentalFeatures } from "@/state/experimental-features";
 import { useSelectionInspector } from "./selection-inspector-context";
 import { useEffect, useRef, useState } from "react";
 import { objectTransformOffsets, setObjectTransformOffsets } from "@/lib/gridfinity/object-transform-offsets";
@@ -32,11 +33,12 @@ export function ObjectTransformPanel({ editor, objects, selected, displayed, mod
   pivot: RotationPivot; setPivot: (pivot: RotationPivot) => void; limited: boolean;
 }): JSX.Element {
   const inspector = useSelectionInspector();
-  const showLinks = editor.linkControls && !inspector;
+  const { enabled: experimentalEnabled } = useExperimentalFeatures();
+  const showLinks = experimentalEnabled && editor.linkControls && !inspector;
   const [legacyArranging, setArranging] = useState(false);
-  const arranging = inspector ? inspector.tool === "arrange" : legacyArranging;
+  const arranging = experimentalEnabled && (inspector ? inspector.tool === "arrange" : legacyArranging);
   const [legacyLinking, setLinking] = useState(false);
-  const linking = inspector ? inspector.tool === "links" : legacyLinking;
+  const linking = experimentalEnabled && (inspector ? inspector.tool === "links" : legacyLinking);
   const [draft, setDraft] = useState<Record<number, string>>({});
   const pendingDraft = useRef<Record<number, string>>({});
   const [error, setError] = useState<string | null>(null);
@@ -48,8 +50,9 @@ export function ObjectTransformPanel({ editor, objects, selected, displayed, mod
   const actualKey = JSON.stringify(offsets);
   const clearDraft = () => { pendingDraft.current = {}; setDraft({}); };
   useEffect(() => { clearDraft(); setError(null); }, [key, mode, actualKey, modeRequest]);
-  useEffect(() => { setArranging(false); setLinking(false); }, [mode, modeRequest]);
+  useEffect(() => { setArranging(false); setLinking(false); }, [mode, modeRequest, experimentalEnabled]);
   const select = (next: EditableObject[]) => {
+    if (!experimentalEnabled) next = next.slice(-1);
     if (editor.onSelectionChange) editor.onSelectionChange(next.map(objectRef));
     else editor.onSelect(next.at(-1)?.kind === "pocket" ? objectRef(next.at(-1)!).id : null);
   };
@@ -97,7 +100,7 @@ export function ObjectTransformPanel({ editor, objects, selected, displayed, mod
       </summary>
       <div className="border-t bg-muted/25 px-2 pb-2">
         <div className="flex justify-between py-1">
-          <Button size="sm" variant="ghost" onClick={() => select([...objects])}>Select all</Button>
+          {experimentalEnabled && <Button size="sm" variant="ghost" onClick={() => select([...objects])}>Select all</Button>}
           <Button size="sm" variant="ghost" onClick={() => select([])}>Clear</Button>
         </div>
         <div className="max-h-40 overflow-y-auto" aria-label="Objects in selection">
@@ -107,12 +110,12 @@ export function ObjectTransformPanel({ editor, objects, selected, displayed, mod
             <span className="truncate">{label(o)}</span>
           </label>)}
         </div>
-        <p className="px-2 pt-1 text-[10px] text-muted-foreground">Shift / ⌘ / Ctrl + click to add or remove.</p>
+        {experimentalEnabled && <p className="px-2 pt-1 text-[10px] text-muted-foreground">Shift / ⌘ / Ctrl + click to add or remove.</p>}
       </div>
     </details>}
     <div className="space-y-3 p-3">
-      {!inspector && <div className={cn("grid gap-1 rounded-lg bg-muted p-1", showLinks ? "grid-cols-4" : "grid-cols-3")} role="group" aria-label="Object tools">
-        {(["translate", "rotate", "arrange"] as const).map(tool => <button key={tool} type="button"
+      {!inspector && <div className={cn("grid gap-1 rounded-lg bg-muted p-1", showLinks ? "grid-cols-4" : experimentalEnabled ? "grid-cols-3" : "grid-cols-2")} role="group" aria-label="Object tools">
+        {(["translate", "rotate", "arrange"] as const).filter(tool => experimentalEnabled || tool !== "arrange").map(tool => <button key={tool} type="button"
           className={cn("flex min-h-9 flex-col items-center justify-center gap-1 rounded-md px-1 py-1.5 text-[10px] font-medium transition-colors", (!linking && (tool === "arrange" ? arranging : !arranging && mode === tool)) ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}
           aria-label={tool === "translate" ? "Move pocket (W)" : tool === "rotate" ? "Rotate pocket (E)" : "Align and distribute objects"}
           aria-pressed={!linking && (tool === "arrange" ? arranging : !arranging && mode === tool)}

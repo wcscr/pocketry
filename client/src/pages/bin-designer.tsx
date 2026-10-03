@@ -1,3 +1,4 @@
+import { surfaceTextZ } from "@/lib/gridfinity/surface-text";
 import { hasRigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { SelectionLinkControls } from "@/components/gridfinity/linked-design-controls";
 import { retainTransformOrigins } from "@shared/gridfinity/transform-origins";
@@ -120,7 +121,7 @@ function BinDesignerWorkspace(): JSX.Element {
   }, [libraryRequested, setPanelOpen]);
   const editMaterialColor = (target: MaterialColorTarget) => {
     if (target === "text" && !experimentalEnabled) { setSettingsOpen(true); return; }
-    setSettingsSectionRequest({ id: target === "text" ? "bin-settings-text" : "bin-settings-materials", focusId: `input-${target}-color` });
+    setSettingsSectionRequest({ id: "bin-settings-materials", focusId: `input-${target}-color` });
     setPanelOpen(true);
   };
   const editSelectedPocket = () => {
@@ -145,8 +146,15 @@ function BinDesignerWorkspace(): JSX.Element {
   }, [experimentalEnabled, bin.selection, dispatch]);
   const isMobile = useIsMobile();
   const [textPositionRequest, setTextPositionRequest] = useState(0);
+  const editSurfaceText = (id: string, inline = false) => {
+    if (!experimentalEnabled) return;
+    dispatch({ type: "SELECT_SURFACE_TEXT", id });
+    setSettingsSectionRequest({ id: "bin-settings-text" });
+    if (!inspectorPrototype) setPanelOpen(!isMobile);
+    setQuickAdjustOpen(isMobile && !inspectorPrototype && !inline);
+  };
   const positionText = () => {
-    dispatch({ type: "SET_SELECTION", selection: [] });
+    dispatch({ type: "SELECT_SURFACE_TEXT", id: bin.selectedSurfaceTextId });
     dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" });
     dispatch({ type: "SET_VIEW_MODE", viewMode: "2d" });
     setTextPositionRequest(request => request + 1);
@@ -817,9 +825,16 @@ function BinDesignerWorkspace(): JSX.Element {
   // text inputs so the shortcuts don't eat form editing.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (inspectorPrototype && viewMode === "3d" && bin.selection.length && canHandleCanvasShortcut(event)
+      if (viewMode === "3d" && canHandleCanvasShortcut(event)
         && !event.ctrlKey && !event.metaKey && !event.altKey && (event.key === "Delete" || event.key === "Backspace")) {
-        event.preventDefault(); dispatch({ type: "REMOVE_SELECTION" }); return;
+        if (experimentalEnabled && bin.selectedSurfaceTextId) {
+          event.preventDefault();
+          dispatch({ type: "PATCH_SPEC", patch: { surfaceTexts: spec.surfaceTexts.filter(label => label.id !== bin.selectedSurfaceTextId) }, historyLabel: "Remove surface text" });
+          return;
+        }
+        if (inspectorPrototype && bin.selection.length) {
+          event.preventDefault(); dispatch({ type: "REMOVE_SELECTION" }); return;
+        }
       }
       if (!(event.metaKey || event.ctrlKey)) return;
       if (!canHandleCanvasShortcut(event) || event.altKey) return;
@@ -834,7 +849,7 @@ function BinDesignerWorkspace(): JSX.Element {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [dispatch, inspectorPrototype, viewMode, bin.selection]);
+  }, [dispatch, experimentalEnabled, inspectorPrototype, viewMode, bin.selection, bin.selectedSurfaceTextId, spec.surfaceTexts]);
 
   const handleExport = useCallback(
     async (format: "3mf" | "3mf-multicolor" | "stl", includeProject: boolean) => {
@@ -865,7 +880,7 @@ function BinDesignerWorkspace(): JSX.Element {
             ? borderWidthMm : undefined,
         });
         const textObjects: ThreeMfObject[] = (result.textMeshes ?? []).map(part => ({
-          name: `Text: ${part.label.text}`,
+          name: part.label.name ?? `Text: ${part.label.text}`,
           mesh: part.mesh,
           material: { name: "Text", displayColor: (multicolor ? exportProjectDoc.spec.textColor ?? edgeBandColor : binColor) as `#${string}` },
         }));
@@ -1179,6 +1194,12 @@ function BinDesignerWorkspace(): JSX.Element {
               pocketFloorGeometry={pocketFloorGeometry}
               stackingRimGeometry={stackingRimGeometry}
               textGeometries={textGeometries}
+              selectedSurfaceTextId={experimentalEnabled ? bin.selectedSurfaceTextId : null}
+              onSelectSurfaceText={experimentalEnabled ? editSurfaceText : undefined}
+              surfaceTextEditor={experimentalEnabled && bin.selectedSurfaceTextId && spec.surfaceTexts.some(label => label.id === bin.selectedSurfaceTextId) ? {
+                label: spec.surfaceTexts.find(label => label.id === bin.selectedSurfaceTextId)!, z: surfaceTextZ(spec),
+                onCommit: (label, mode) => dispatch({ type: "PATCH_SPEC", patch: { surfaceTexts: spec.surfaceTexts.map(item => item.id === label.id ? label : item) }, historyLabel: `${mode === "translate" ? "Move" : "Rotate"} surface text in 3D` }),
+              } : undefined}
               textColor={spec.textColor ?? edgeBandColor}
               hasPocketFloor={hasPocketFloor}
               hasStackingRim={hasStackingRim}
@@ -1201,7 +1222,7 @@ function BinDesignerWorkspace(): JSX.Element {
               measurementPlaneZMm={builtDimensions.heightToRimMm}
             />
           ) : (
-            <LayoutCanvas onEditPocket={editSelectedPocket} edgeBandColor={edgeBandColor} textPositionRequest={textPositionRequest} />
+            <LayoutCanvas onEditPocket={editSelectedPocket} onSelectSurfaceText={editSurfaceText} edgeBandColor={edgeBandColor} textPositionRequest={textPositionRequest} />
           )}
           <ViewToggle
             viewMode={viewMode}

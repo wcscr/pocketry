@@ -1,31 +1,21 @@
 import type { Manifold } from "manifold-3d";
 import { FontLoader } from "three/examples/jsm/loaders/FontLoader.js";
-import sansData from "three/examples/fonts/droid/droid_sans_regular.typeface.json";
-import serifData from "three/examples/fonts/droid/droid_serif_regular.typeface.json";
-import monoData from "three/examples/fonts/droid/droid_sans_mono_regular.typeface.json";
-import sansBoldData from "three/examples/fonts/droid/droid_sans_bold.typeface.json";
-import serifBoldData from "three/examples/fonts/droid/droid_serif_bold.typeface.json";
-import helvetikerData from "three/examples/fonts/helvetiker_regular.typeface.json";
-import helvetikerBoldData from "three/examples/fonts/helvetiker_bold.typeface.json";
-import optimerData from "three/examples/fonts/optimer_regular.typeface.json";
-import optimerBoldData from "three/examples/fonts/optimer_bold.typeface.json";
-import gentilisData from "three/examples/fonts/gentilis_regular.typeface.json";
-import gentilisBoldData from "three/examples/fonts/gentilis_bold.typeface.json";
+import sans from "three/examples/fonts/droid/droid_sans_regular.typeface.json";
+import sansBold from "three/examples/fonts/droid/droid_sans_bold.typeface.json";
+import mono from "three/examples/fonts/droid/droid_sans_mono_regular.typeface.json";
+import helvetiker from "three/examples/fonts/helvetiker_regular.typeface.json";
+import helvetikerBold from "three/examples/fonts/helvetiker_bold.typeface.json";
 import type { SurfaceText } from "@shared/gridfinity/surface-text";
 import type { BinSpec } from "@shared/gridfinity/types";
 import { infillTopZ } from "@shared/gridfinity/fill";
 import { BASE_HEIGHT } from "@shared/gridfinity/standard";
-import { normalizeOutline } from "@/lib/geometry/outline";
+import { normalizeOutline, outlineBounds } from "@/lib/geometry/outline";
 import type { Kernel } from "@/lib/manifold/runtime";
 
 const loader = new FontLoader();
 const fonts = {
-  sans: loader.parse(sansData), "sans-bold": loader.parse(sansBoldData),
-  serif: loader.parse(serifData), "serif-bold": loader.parse(serifBoldData),
-  mono: loader.parse(monoData),
-  helvetiker: loader.parse(helvetikerData), "helvetiker-bold": loader.parse(helvetikerBoldData),
-  optimer: loader.parse(optimerData), "optimer-bold": loader.parse(optimerBoldData),
-  gentilis: loader.parse(gentilisData), "gentilis-bold": loader.parse(gentilisBoldData),
+  sans: loader.parse(sans), "sans-bold": loader.parse(sansBold), mono: loader.parse(mono),
+  helvetiker: loader.parse(helvetiker), "helvetiker-bold": loader.parse(helvetikerBold),
 };
 
 export function surfaceTextZ(spec: BinSpec): number {
@@ -34,7 +24,18 @@ export function surfaceTextZ(spec: BinSpec): number {
 
 /** Same outlines serve the layout and Manifold extrusion; never silently replace glyphs. */
 export function surfaceTextOutline(label: SurfaceText) {
-  const font = fonts[label.font];
+  const selectedFont = label.font;
+  const font = typeof selectedFont === "string" ? fonts[selectedFont] : loader.parse({
+    // FontLoader memoizes paths on glyph objects. Keep that cache out of saved data.
+    glyphs: Object.fromEntries([...new Set(label.text)].filter(key => Object.prototype.hasOwnProperty.call(selectedFont.glyphs, key))
+      .map(key => {
+        const glyph = selectedFont.glyphs[key];
+        return [key, { ...glyph, x_min: 0, x_max: glyph.ha }];
+      })),
+    familyName: selectedFont.name, resolution: selectedFont.resolution,
+    ascender: selectedFont.resolution, descender: 0, underlinePosition: 0, underlineThickness: 0,
+    boundingBox: { xMin: 0, yMin: 0, xMax: selectedFont.resolution, yMax: selectedFont.resolution }, original_font_information: {},
+  });
   for (const char of label.text) {
     if (!Object.prototype.hasOwnProperty.call(font.data.glyphs, char)) {
       throw new Error(`The label “${label.text}” contains an unsupported character: ${char}`);
@@ -50,10 +51,12 @@ export function surfaceTextOutline(label: SurfaceText) {
     };
     return { outer: ring(points.shape), holes: points.holes.map(ring) };
   }));
-  const points = outline.flatMap(shape => shape.outer);
-  if (!points.length) throw new Error("Enter some visible text.");
-  const cx = (Math.min(...points.map(p => p.x)) + Math.max(...points.map(p => p.x))) / 2;
-  const cy = (Math.min(...points.map(p => p.y)) + Math.max(...points.map(p => p.y))) / 2;
+  // Complex system fonts can produce hundreds of thousands of points. Avoid
+  // spreading them into function arguments, which exceeds browser stack limits.
+  const bounds = outlineBounds(outline);
+  if (!bounds) throw new Error("Enter some visible text.");
+  const cx = (bounds.minX + bounds.maxX) / 2;
+  const cy = (bounds.minY + bounds.maxY) / 2;
   const angle = label.rotationDeg * Math.PI / 180;
   const transform = (ring: { x: number; y: number }[]) => ring.map(p => ({
     x: (p.x - cx) * Math.cos(angle) - (p.y - cy) * Math.sin(angle) + label.position.x,

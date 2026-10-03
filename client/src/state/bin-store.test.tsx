@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { clampFingerHoleToBin, fingerHoleSchema, parseCutoutPlacement, resolvePocketDepth } from "@shared/gridfinity/cutout";
 
+import { surfaceTextSchema } from "@shared/gridfinity/surface-text";
 import { parseProjectDoc, PROJECT_SCHEMA_VERSION } from "@shared/gridfinity/project";
 
 import {
@@ -49,6 +50,37 @@ const CUTOUT = parseCutoutPlacement({
 });
 
 describe("bin store", () => {
+  it("commits pending text properties on selection changes and clears stale text selection", () => {
+    const { store, act } = mountBin();
+    const labels = ["a", "b"].map(id => surfaceTextSchema.parse({ id, text: id, position: { x: 0, y: 0 } }));
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { surfaceTexts: labels } }));
+    act(() => store().dispatch({ type: "SELECT_SURFACE_TEXT", id: "a" }));
+    const index = store().history.index;
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { surfaceTexts: [{ ...labels[0], sizeMm: 12 }, labels[1]] }, transient: true, historyLabel: "Resize text" }));
+    act(() => store().dispatch({ type: "SELECT_SURFACE_TEXT", id: "b" }));
+    expect(store().history.index).toBe(index + 1);
+    expect(getCommittedBinDoc(store()).spec.surfaceTexts[0].sizeMm).toBe(12);
+    expect(store().selectedSurfaceTextId).toBe("b");
+    act(() => store().dispatch({ type: "UNDO" }));
+    expect(store().spec.surfaceTexts[0].sizeMm).toBe(labels[0].sizeMm);
+    act(() => store().dispatch({ type: "REDO" }));
+    expect(store().spec.surfaceTexts[0].sizeMm).toBe(12);
+    act(() => store().dispatch({ type: "ADD_PLACED", cutouts: [CUTOUT], gridX: 2, gridY: 2 }));
+    expect(store().selectedSurfaceTextId).toBeNull();
+    act(() => store().dispatch({ type: "SET_EDITOR_MODE", editorMode: "contour" }));
+    act(() => store().dispatch({ type: "SELECT_SURFACE_TEXT", id: "a" }));
+    expect(store().editorMode).toBe("placement");
+    expect(store().selection).toEqual([]);
+    expect(store().selectedCutoutId).toBeNull();
+    act(() => store().dispatch({ type: "SET_SELECTION", selection: [] }));
+    expect(store().selectedSurfaceTextId).toBeNull();
+    act(() => store().dispatch({ type: "SELECT_SURFACE_TEXT", id: "missing" }));
+    expect(store().selectedSurfaceTextId).toBeNull();
+    act(() => store().dispatch({ type: "SELECT_SURFACE_TEXT", id: "a" }));
+    act(() => store().dispatch({ type: "HYDRATE", spec: store().spec, cutouts: [] }));
+    expect(store().selectedSurfaceTextId).toBeNull();
+  });
+
   it("freezes adjusted source dimensions when a pocket gains 3D placement", () => {
     const { store, act } = mountBin();
     const fixed = { ...CUTOUT, depth: { mode: "mm" as const, value: 20 } };
