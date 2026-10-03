@@ -17,6 +17,22 @@ const text = surfaceTextSchema.parse({ id: "text-1", text: "B8 & O", position: {
 const spec = parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 3, lip: "none", surfaceTexts: [text], textColor: "#ff6600" });
 
 describe("surface text", () => {
+  it("migrates v28 and round-trips independent label names through the document and history without changing geometry", () => {
+    const oldDoc = { spec, cutouts: [], fingerHoles: [] };
+    const named = { ...text, name: "Socket sizes" };
+    const namedDoc = { ...oldDoc, spec: { ...spec, surfaceTexts: [named] } };
+    const legacy = { schemaVersion: 28, ...oldDoc, shapes: [], history: { index: 0, stack: [{ doc: oldDoc, label: "Text" }] } };
+    const migrated = parseProjectDoc(legacy)!;
+    expect(migrated.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
+    expect(migrated.spec.surfaceTexts[0]).toEqual(text);
+    const current = { ...migrated, ...namedDoc, history: { index: 1, stack: [
+      { doc: oldDoc, label: "Text" }, { doc: namedDoc, label: "Rename surface text" },
+    ] } };
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(current)))).toEqual(current);
+    expect(surfaceTextOutline(named)).toEqual(surfaceTextOutline(text));
+    expect(surfaceTextSchema.safeParse({ ...text, name: " " }).success).toBe(false);
+  });
+
   it("keeps holes in glyphs and rejects unavailable glyphs", () => {
     const outline = surfaceTextOutline(text);
     expect(outline.reduce((count, shape) => count + shape.holes.length, 0)).toBeGreaterThanOrEqual(5);

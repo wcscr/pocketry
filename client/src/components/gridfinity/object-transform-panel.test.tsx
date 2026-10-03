@@ -2,6 +2,8 @@
 import * as React from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, expect, it, vi } from "vitest";
+const experimental = vi.hoisted(() => ({ enabled: true }));
+vi.mock("@/state/experimental-features", () => ({ useExperimentalFeatures: () => experimental }));
 import { fingerHoleSchema } from "@shared/gridfinity/cutout";
 import { parseBinSpec } from "@shared/gridfinity/types";
 import { createBasicPocket } from "@/lib/gridfinity/basic-shape";
@@ -12,7 +14,8 @@ const spec = parseBinSpec({ gridX: 6, gridY: 4, heightUnits: 6, lip: "none" });
 const objects: EditableObject[] = [-25, 0, 40].map((x, i) => ({ kind: "pocket", ...createBasicPocket("rectangle", { x: x - 4, y: -5 }, { x: x + 4, y: 5 }, String(i))! }));
 const finger: EditableObject = { kind: "finger", hole: fingerHoleSchema.parse({ id: "f", center: { x: 10, y: 0 }, diameterMm: 8, depthMm: 8 }) };
 const cleanups: (() => void)[] = [];
-afterEach(() => { cleanups.splice(0).forEach(fn => fn()); vi.unstubAllGlobals(); });
+afterEach(() => {
+  experimental.enabled = true; cleanups.splice(0).forEach(fn => fn()); vi.unstubAllGlobals(); });
 function mount(selected = objects) {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   const onCommitObjects = vi.fn(), onSelectionChange = vi.fn();
@@ -158,4 +161,21 @@ it("commits rotation once on Enter and accepts sideways poses", () => {
   ui.click("Reset to X–Y plane");
   expect(ui.onCommitObjects.mock.lastCall![0].cutouts[0].tilt).toEqual({xDeg:0,yDeg:0});
   expect(ui.onCommitObjects.mock.lastCall![0].cutouts[0].rotationDeg).toBeCloseTo(15);
+});
+
+
+it("hides experimental arrangement and multi-selection tools after opting out", () => {
+  const ui = mount([objects[0]]);
+  ui.click("Align and distribute objects");
+  experimental.enabled = false;
+  ui.select([objects[0]]);
+  expect(ui.container.querySelector('[aria-label="Align and distribute objects"]')).toBeNull();
+  expect(ui.container.querySelector('[aria-label="Align objects"]')).toBeNull();
+  expect(ui.container.textContent).not.toContain("Select all");
+  expect(ui.container.textContent).not.toContain("Shift / ⌘ / Ctrl");
+  const other = ui.container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')[1];
+  React.act(() => other.click());
+  expect(ui.onSelectionChange).toHaveBeenLastCalledWith([objectRef(objects[1])]);
+  ui.edit("Move X by", "2");
+  expect(ui.onCommitObjects).toHaveBeenCalledOnce();
 });

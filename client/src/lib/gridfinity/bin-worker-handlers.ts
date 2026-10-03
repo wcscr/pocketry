@@ -238,8 +238,11 @@ export function createBinWorkerHandlers(
           } : {}),
           textMeshes: textParts.map(part => ({
             label: part.label, z: part.z,
-            mesh: extractMeshData(kernel, payload.exportTopology
-              ? preparePrintableSolid(kernel, part.solid) : displayedPart(part.solid), { normals: includePreviewNormals }),
+            // Rotated font contours can leave nearly coincident vertices that
+            // crash Manifold's normal calculation. Use the same sub-micron
+            // cleanup as printable text before shading a preview, too.
+            mesh: extractMeshData(kernel, preparePrintableSolid(kernel,
+              payload.exportTopology ? part.solid : displayedPart(part.solid)), { normals: includePreviewNormals }),
           })),
         } : {}),
         materialMeshes,

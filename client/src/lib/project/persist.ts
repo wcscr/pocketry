@@ -1,4 +1,4 @@
-import { get, set, setMany } from "idb-keyval";
+import { get, set as setRaw, setMany as setManyRaw } from "idb-keyval";
 import {
   libraryBackupSchema,
   projectLibrarySchema,
@@ -12,6 +12,7 @@ import {
 
 import {
   parseProjectDoc,
+  serializeProjectDoc,
   type ProjectDoc,
 } from "@shared/gridfinity/project";
 
@@ -29,6 +30,23 @@ import {
 // browser-local projects or silently starts users from an empty library.
 const CURRENT_PROJECT_KEY = "tooltrace:project:v1";
 const PROJECT_LIBRARY_KEY = "tooltrace:project-library:v1";
+/** Compact every durable write, including library operations and working-copy
+ * recovery. Unknown future-version library documents stay byte-for-byte data. */
+function compactDocument(value: unknown): unknown {
+  const doc = parseProjectDoc(value);
+  return doc ? serializeProjectDoc(doc) : value;
+}
+function compactStoredValue(key: string, value: unknown): unknown {
+  if (key === CURRENT_PROJECT_KEY) return compactDocument(value);
+  if (key === PROJECT_LIBRARY_KEY) {
+    const library = value as StoredProjectLibrary;
+    return { ...library, projects: library.projects.map(project => ({ ...project, doc: compactDocument(project.doc) })) };
+  }
+  return value;
+}
+const set = (key: string, value: unknown) => setRaw(key, compactStoredValue(key, value));
+const setMany = (entries: [string, unknown][]) => setManyRaw(entries.map(([key, value]) => [key, compactStoredValue(key, value)]));
+
 export interface ProjectLibraryItem {
   id: string;
   name: string;
@@ -134,8 +152,8 @@ export async function loadProjectDoc(): Promise<ProjectDoc | null> {
  * history baseline has no undo/redo steps; longer histories must match in full.
  */
 function restoredDocumentKey(doc: ProjectDoc): string {
-  return JSON.stringify({ ...doc, keepBinSize: doc.keepBinSize ?? false,
-    history: doc.history?.stack.length === 1 ? undefined : doc.history });
+  return JSON.stringify(serializeProjectDoc({ ...doc, keepBinSize: doc.keepBinSize ?? false,
+    history: doc.history?.stack.length === 1 ? undefined : doc.history }));
 }
 
 /** On restore, reconnect an identical named copy. If a same-name saved project
@@ -198,8 +216,8 @@ export async function exportProjectLibrary(currentDoc?: ProjectDoc): Promise<Lib
     schemaVersion: PROJECT_LIBRARY_VERSION,
     projects: library.projects.map((project) =>
       currentDoc && project.id === library.activeProjectId
-        ? { ...project, doc: { ...currentDoc, name: project.name }, updatedAt: new Date().toISOString() }
-        : project,
+        ? { ...project, doc: serializeProjectDoc({ ...currentDoc, name: project.name }), updatedAt: new Date().toISOString() }
+        : { ...project, doc: compactDocument(project.doc) as Record<string, unknown> },
     ),
   }));
 }

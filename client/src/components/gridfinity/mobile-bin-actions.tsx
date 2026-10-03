@@ -1,4 +1,7 @@
 import { Fragment } from "react";
+import { surfaceTextName } from "@shared/gridfinity/surface-text";
+import { useExperimentalFeatures } from "@/state/experimental-features";
+import { SurfaceTextProperties } from "./surface-text-controls";
 import { SlidersHorizontal } from "lucide-react";
 import { pocketName, type DepthSpec } from "@shared/gridfinity/cutout";
 import { useBin } from "@/state/bin-store";
@@ -15,6 +18,8 @@ export function MobileBinActions({ open, onOpenChange, onMore, onExport }: {
   onExport: () => void;
 }) {
   const bin = useBin();
+  const { enabled: experimentalEnabled } = useExperimentalFeatures();
+  const text = experimentalEnabled ? bin.spec.surfaceTexts.find(item => item.id === bin.selectedSurfaceTextId) : undefined;
   const { shapes } = useShapeLibrary();
   const cutout = bin.cutouts.find(item => item.id === bin.selectedCutoutId);
   const shape = shapes.find(item => item.id === cutout?.shapeId);
@@ -32,9 +37,9 @@ export function MobileBinActions({ open, onOpenChange, onMore, onExport }: {
   };
   const mm = (value: number) => `${value.toFixed(1)} mm`;
   return <div>
-    {open && <MobileAdjustmentTray title={cutout ? pocketName(cutout, shape) : "Adjust bin"}
-      onClose={() => onOpenChange(false)} onMore={() => onMore(cutout ? "bin-settings-pockets" : "bin-settings-size")}>
-      {cutout && depth ? <Fragment key={`${cutout.id}-${bin.selectedPocketSection}-${depth.mode}`}>
+    {open && <MobileAdjustmentTray title={text ? surfaceTextName(text) : cutout ? pocketName(cutout, shape) : "Adjust bin"}
+      onClose={() => onOpenChange(false)} onMore={() => onMore(text ? "bin-settings-text" : cutout ? "bin-settings-pockets" : "bin-settings-size")}>
+      {text ? <SurfaceTextProperties /> : cutout && depth ? <Fragment key={`${cutout.id}-${bin.selectedPocketSection}-${depth.mode}`}>
         {cutout.split && <div className="mb-2 flex gap-2" role="group" aria-label="Section to edit">
           {([0, 1] as const).map(section => <Button key={section} className="min-h-11 flex-1" variant={bin.selectedPocketSection === section ? "secondary" : "outline"}
             aria-pressed={bin.selectedPocketSection === section} onClick={() => bin.dispatch({ type: "SELECT_CUTOUT", id: cutout.id, section })}>Section {section === 0 ? "A" : "B"}</Button>)}

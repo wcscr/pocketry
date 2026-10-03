@@ -1,5 +1,5 @@
 /** Shared identity, order, and colors for workflow navigation and its editors. */
-export const BIN_OBJECT_SECTIONS = new Set(["bin-settings-pockets", "bin-settings-finger-holes"]);
+export const BIN_OBJECT_SECTIONS = new Set(["bin-settings-pockets", "bin-settings-finger-holes", "bin-settings-text"]);
 
 export const BIN_WORKFLOW_SECTIONS = [
   { id: "bin-settings-project", label: "Project", title: "Project", tone: "slate", description: "Save, open, and manage your projects." },
@@ -7,7 +7,7 @@ export const BIN_WORKFLOW_SECTIONS = [
   { id: "bin-settings-construction", label: "Construction", title: "Construction", tone: "rose", description: "Configure the base, rim, magnets, and label tab." },
   { id: "bin-settings-pockets", label: "Pockets", title: "Pockets", tone: "violet", description: "Add a pocket, then select it to edit its properties." },
   { id: "bin-settings-finger-holes", label: "Finger access", title: "Finger access", tone: "cyan", description: "Add an opening, then select it to edit its properties." },
-  { id: "bin-settings-text", label: "Surface text", title: "Surface text", tone: "cyan", description: "Add raised labels to the flat interior surface." },
+  { id: "bin-settings-text", label: "Surface text", title: "Surface text", tone: "cyan", description: "Add surface text, then select a label to edit its properties." },
   { id: "bin-settings-materials", label: "Materials & Colors", title: "Materials & Colors", tone: "amber", description: "Choose colors and material depths." },
   { id: "bin-settings-fit", label: "Check fit", title: "Check fit", tone: "indigo", description: null },
   { id: "bin-settings-export", label: "Export", title: "Export", tone: "emerald", description: "Download a printable bin or a layout for fabrication." },

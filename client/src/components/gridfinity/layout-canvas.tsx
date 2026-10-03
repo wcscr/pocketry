@@ -239,21 +239,22 @@ function nearestContourEdge(
   return best;
 }
 
-export function LayoutCanvas({ onEditPocket, edgeBandColor, textPositionRequest = 0 }: {
+export function LayoutCanvas({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPositionRequest = 0 }: {
   /** Called on a pocket tap or the explicit edit action, after any drag ends. */
   onEditPocket?: () => void;
+  onSelectSurfaceText?: (id: string, inline?: boolean) => void;
   edgeBandColor?: string;
   /** A placement request exits canvas tools that intercept label dragging. */
   textPositionRequest?: number;
 } = {}): JSX.Element {
   return (
     <CanvasViewport>
-      <LayoutStage onEditPocket={onEditPocket} edgeBandColor={edgeBandColor} textPositionRequest={textPositionRequest} />
+      <LayoutStage onEditPocket={onEditPocket} onSelectSurfaceText={onSelectSurfaceText} edgeBandColor={edgeBandColor} textPositionRequest={textPositionRequest} />
     </CanvasViewport>
   );
 }
 
-function LayoutStage({ onEditPocket, edgeBandColor, textPositionRequest }: { onEditPocket?: () => void; edgeBandColor?: string; textPositionRequest: number }): JSX.Element {
+function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPositionRequest }: { onEditPocket?: () => void; onSelectSurfaceText?: (id: string, inline?: boolean) => void; edgeBandColor?: string; textPositionRequest: number }): JSX.Element {
   const inspector = useSelectionInspector();
   const { enabled: experimentalEnabled } = useExperimentalFeatures();
   const isMobile = useIsMobile();
@@ -267,6 +268,7 @@ function LayoutStage({ onEditPocket, edgeBandColor, textPositionRequest }: { onE
     selectedCutoutId,
     selectedPocketSection,
     selectedFingerHoleId,
+    selectedSurfaceTextId,
     editorMode,
     dispatch,
   } = useBin();
@@ -529,11 +531,11 @@ function LayoutStage({ onEditPocket, edgeBandColor, textPositionRequest }: { onE
   const [isRotating, setIsRotating] = useState(false);
   const [rulerActive, setRulerActive] = useState(false);
   useEffect(() => {
-    if (!textPositionRequest) return;
+    if (!textPositionRequest && !selectedSurfaceTextId) return;
     setRulerActive(false);
     setPanActive(false);
     setObjectControlsOpen(false);
-  }, [textPositionRequest]);
+  }, [textPositionRequest, selectedSurfaceTextId]);
   useEffect(() => {
     if (inspector?.tool === "translate" || inspector?.tool === "rotate") setObjectMode(inspector.tool);
     if (inspector && inspector.tool !== "properties") setRulerActive(false);
@@ -733,9 +735,9 @@ function LayoutStage({ onEditPocket, edgeBandColor, textPositionRequest }: { onE
         : [...current, cell];
       if (nextCells.length === 0) return;
 
-      // Empty perimeter rows/columns are discarded after every edit. Pockets
-      // and an explicit label anchor receive the same lattice translation so
-      // their position relative to the retained cells does not jump.
+      // Empty perimeter rows/columns are discarded after every edit. All
+      // placed objects and an explicit label anchor receive the same lattice
+      // translation so their positions relative to retained cells do not jump.
       const normalized = normalizeCustomFootprint(nextCells);
       if (normalized.gridX > maxGridCells(spec.gridPitch) || normalized.gridY > maxGridCells(spec.gridPitch)) return;
       if (
@@ -764,6 +766,14 @@ function LayoutStage({ onEditPocket, edgeBandColor, textPositionRequest }: { onE
           y: cutout.position.y + delta.y,
         },
       }));
+      const nextFingerHoles = fingerHoles.map(hole => ({
+        ...hole,
+        center: { x: hole.center.x + delta.x, y: hole.center.y + delta.y },
+      }));
+      const nextSurfaceTexts = spec.surfaceTexts.map(label => ({
+        ...label,
+        position: { x: label.position.x + delta.x, y: label.position.y + delta.y },
+      }));
       const tabEdge = spec.labelTab?.edge;
       const nextTabEdge = tabEdge
         ? {
@@ -788,10 +798,11 @@ function LayoutStage({ onEditPocket, edgeBandColor, textPositionRequest }: { onE
       dispatch({
         type: "REPLACE_LAYOUT",
         cutouts: nextCutouts,
+        fingerHoles: nextFingerHoles,
         gridX: normalized.gridX,
         gridY: normalized.gridY,
         footprint,
-        specPatch: { labelTab: nextLabelTab },
+        specPatch: { labelTab: nextLabelTab, surfaceTexts: nextSurfaceTexts },
         historyLabel: occupied ? "Remove footprint cell" : "Add footprint cell",
       });
       event.preventDefault();
@@ -1278,7 +1289,7 @@ function LayoutStage({ onEditPocket, edgeBandColor, textPositionRequest }: { onE
         event.preventDefault(); dispatch({ type: "SET_SELECTION", selection: arrangementObjects.map(objectRef) }); return;
       }
       if (event.ctrlKey || event.metaKey) return;
-      if ((experimentalEnabled || !!inspector && selection.length > 0) && editorMode === "placement" && ["w", "e"].includes(event.key.toLowerCase())) {
+      if (!selectedSurfaceTextId && (experimentalEnabled || !!inspector && selection.length > 0) && editorMode === "placement" && ["w", "e"].includes(event.key.toLowerCase())) {
         event.preventDefault(); setRulerActive(false); setObjectControlsOpen(true);
         setObjectMode(event.key.toLowerCase() === "w" ? "translate" : "rotate");
         inspector?.setTool(event.key.toLowerCase() === "w" ? "translate" : "rotate");
@@ -1427,6 +1438,7 @@ function LayoutStage({ onEditPocket, edgeBandColor, textPositionRequest }: { onE
   }, [
     selectedCutoutId,
     selectedFingerHoleId,
+    selectedSurfaceTextId,
     arrangementObjects, selectedObjects, selection, history, objectPivot, experimentalEnabled, !!inspector,
     cutouts,
     fingerHoles,
@@ -1810,7 +1822,7 @@ function LayoutStage({ onEditPocket, edgeBandColor, textPositionRequest }: { onE
 
           {/* Labels must remain visible and receive pointer events above the
               pockets/openings they may overlap while being positioned. */}
-          <SurfaceTextLayer edgeBandColor={edgeBandColor} interactive={experimentalEnabled && editorMode === "placement" && !rulerActive && !panActive && !viewport.isSpaceHeld} />
+          <SurfaceTextLayer inverseScale={inv} onSelect={onSelectSurfaceText} edgeBandColor={edgeBandColor} interactive={experimentalEnabled && editorMode === "placement" && !rulerActive && !panActive && !viewport.isSpaceHeld} />
 
           {editorMode === "contour" &&
             selected &&
@@ -1945,7 +1957,7 @@ function LayoutStage({ onEditPocket, edgeBandColor, textPositionRequest }: { onE
       ) : null}
 
       {!inspector && !basicPocket.kind && !showObjectControls && <div className="absolute left-3 top-16 md:top-12 [@media(pointer:coarse)]:top-16 z-30" data-testid="layout-add-pocket">
-        <AddPocketMenu />
+        <AddPocketMenu label="Add" includeFingerAccess />
       </div>}
 
       <div
@@ -2102,7 +2114,7 @@ function LayoutStage({ onEditPocket, edgeBandColor, textPositionRequest }: { onE
             : selectedCutoutId
               ? selected && (hasProfileRotation(selected.cutout) || hasPocketTilt(selected.cutout)) ? "Pocket · drag to move · round handle rotates · edit dimensions in Depth and Size & scale"
                 : isMobile ? "Drag the pocket to move. Drag corners to resize or the round handle to rotate." : "Pocket · drag edges/corners to resize · Option resizes from center · round handle rotates"
-              : spec.surfaceTexts.length > 0 ? experimentalEnabled ? "Drag text to move it · Edit wording, size, and rotation in Surface text" : "Enable experimental features in Settings to edit surface text"
+              : spec.surfaceTexts.length > 0 ? experimentalEnabled ? "Drag text to move · Drag the round handle to rotate · Double-click to edit wording" : "Enable experimental features in Settings to edit surface text"
               : isMobile ? "Tap a pocket to select it. Use the hand to pan and pinch to zoom." : "Click a pocket or finger access to select · Shift-drag pans · Ctrl-scroll zooms"}
       </WorkflowHint>
       )}

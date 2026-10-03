@@ -1,3 +1,4 @@
+import { surfaceTextSchema, type SurfaceText } from "@shared/gridfinity/surface-text";
 import { adjustPocketsForFillHeight, reconcileFillHeightReferences } from "@shared/gridfinity/fill-height-edit";
 import { recordTransformOrigins, type TransformOrigins } from "@shared/gridfinity/transform-origins";
 import { applyLinkedEdits, clampLinkedFingerHoles, pocketDesign, fingerDesign, type DesignObjectKind } from "@shared/gridfinity/design-links";
@@ -48,6 +49,8 @@ export interface BinState {
   selectedCutoutId: string | null;
   selectedPocketSection: PocketSectionIndex;
   selectedFingerHoleId: string | null;
+  /** Surface text has its own single selection, exclusive of pockets and finger access. */
+  selectedSurfaceTextId: string | null;
   /** Pocket awaiting the user's remove/resize decision. */
   pendingRemovalId: string | null;
   viewMode: BinViewMode;
@@ -104,6 +107,15 @@ export type BinAction =
       transient?: boolean;
       historyLabel?: string;
     }
+  | {
+      /** An async wording edit may finish after selection changes, but never after undo or another document edit. */
+      type: "COMMIT_SURFACE_TEXT_WORDING";
+      id: string;
+      expectedHistory: BinHistory;
+      expectedText: string;
+      text: string;
+      font: SurfaceText["font"];
+    }
   | { type: "ADD_FINGER_HOLE"; hole: FingerHole }
   | {
       type: "UPDATE_FINGER_HOLE";
@@ -134,6 +146,7 @@ export type BinAction =
     }
   | { type: "SELECT_CUTOUT"; id: string | null; section?: PocketSectionIndex; additive?: boolean }
   | { type: "SELECT_FINGER_HOLE"; id: string | null; additive?: boolean }
+  | { type: "SELECT_SURFACE_TEXT"; id: string | null }
   | { type: "SET_SELECTION"; selection: ObjectRef[] }
   | { type: "REMOVE_SELECTION" }
   | { type: "DUPLICATE_SELECTION"; ids: { source: ObjectRef; id: string }[]; labels?: ReadonlyMap<string, string> }
@@ -161,6 +174,7 @@ const INITIAL: BinState = {
   selectedCutoutId: null,
   selectedPocketSection: 0,
   selectedFingerHoleId: null,
+  selectedSurfaceTextId: null,
   pendingRemovalId: null,
   viewMode: "3d",
   editorMode: "placement",
@@ -273,16 +287,16 @@ function preview(state: BinState, doc: BinDoc, pendingHistoryLabel: string | nul
 
 /** A focused field may unmount before native blur when selection changes on
  * pointer-down. Finish its already validated preview before changing owners. */
-function changeSelection(state: BinState, selection: ObjectRef[], section: PocketSectionIndex): BinState {
+function changeSelection(state: BinState, selection: ObjectRef[], section: PocketSectionIndex, textId: string | null = null): BinState {
   selection = existingSelection(selection, state);
-  const changed = section !== state.selectedPocketSection || JSON.stringify(selection) !== JSON.stringify(state.selection);
+  const changed = textId !== state.selectedSurfaceTextId || section !== state.selectedPocketSection || JSON.stringify(selection) !== JSON.stringify(state.selection);
   if (changed && state.pendingHistoryLabel) {
     const doc = { spec: state.spec, cutouts: state.cutouts, fingerHoles: state.fingerHoles };
     state = JSON.stringify(doc) === JSON.stringify(getCommittedBinDoc(state))
       ? { ...state, pendingHistoryLabel: null }
       : commit(state, doc, state.pendingHistoryLabel);
   }
-  return { ...state, ...selectionState(selection), selectedPocketSection: section };
+  return { ...state, ...selectionState(selection), selectedPocketSection: section, selectedSurfaceTextId: textId };
 }
 
 function patchCutouts(
@@ -317,7 +331,10 @@ function linkedEditError(state: BinState): BinState {
 }
 
 function reducer(state: BinState, action: BinAction): BinState {
-  const next = reduceBin(state, action);
+  let next = reduceBin(state, action);
+  if (next.selectedSurfaceTextId && (next.selection.length > 0 || !next.spec.surfaceTexts.some(label => label.id === next.selectedSurfaceTextId))) {
+    next = { ...next, selectedSurfaceTextId: null };
+  }
   const origins = action.type === "HYDRATE" ? action.transformOrigins ?? { pockets: [], fingerHoles: [] } : state.transformOrigins;
   const docs = action.type === "HYDRATE" ? [...next.history.stack.map(e => e.doc), next] : [getCommittedBinDoc(next)];
   const transformOrigins = recordTransformOrigins(origins, docs);
@@ -344,6 +361,7 @@ function reduceBin(state: BinState, action: BinAction): BinState {
         selectedCutoutId: null,
         selectedPocketSection: 0,
         selectedFingerHoleId: null,
+        selectedSurfaceTextId: null,
         pendingRemovalId: null,
         editorMode: "placement",
         hydrated: true,
@@ -628,6 +646,20 @@ function reduceBin(state: BinState, action: BinAction): BinState {
       return commit(state, { spec: state.spec, cutouts: [...state.cutouts, ...cutouts], fingerHoles: [...state.fingerHoles, ...fingerHoles] },
         `Duplicate ${selection.length} objects`, { selection });
     }
+    case "COMMIT_SURFACE_TEXT_WORDING": {
+      const current = state.spec.surfaceTexts.find(label => label.id === action.id);
+      // Selection is UI-only. Any intervening document commit, undo, redo, or
+      // project replacement changes this checkpoint and supersedes the edit.
+      if (state.history !== action.expectedHistory || state.pendingHistoryLabel || !current || current.text !== action.expectedText) return state;
+      const parsed = surfaceTextSchema.safeParse({ ...current, text: action.text, font: action.font });
+      if (!parsed.success || parsed.data.text === current.text) return state;
+      return commit(state, {
+        spec: { ...state.spec, surfaceTexts: state.spec.surfaceTexts.map(label => label.id === action.id ? parsed.data : label) },
+        cutouts: state.cutouts, fingerHoles: state.fingerHoles,
+      }, "Edit surface text");
+    }
+    case "SELECT_SURFACE_TEXT":
+      return { ...changeSelection(state, [], 0, action.id), editorMode: action.id ? "placement" : state.editorMode };
     case "SET_SELECTION":
       return changeSelection(state, action.selection, 0);
     case "SELECT_CUTOUT":

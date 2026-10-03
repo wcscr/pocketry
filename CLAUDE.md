@@ -159,6 +159,7 @@ No linter is configured yet (prefer ESLint when one lands).
 - Path aliases per `tsconfig.json` (`@/...` for client src, `@shared/...` for shared).
 - Shared validation lives in `shared/schema.ts` as Zod schemas derived from Drizzle tables (`drizzle-zod`); never duplicate validation logic client- or server-side.
 - Storage access goes through the `IStorage` interface in `server/storage.ts` — do not reach around it to Drizzle directly from routes.
+- UI additions should maintain a consistent style, interaction design, and layout with existing controls. Reuse established patterns for similar tasks (including compact label/input rows, object lists, selection, renaming, property panels, toolbars, and hover hints) before introducing a new pattern.
 - UI: compose shadcn/ui components from `client/src/components/ui`; TailwindCSS for styling, with the shadcn design tokens defined as CSS variables at the top of `client/src/index.css`; `lucide-react` for icons.
 - Keep build tooling platform-independent. The app builds and runs anywhere with plain Node; do not add hosted-IDE-specific build plugins or theme configuration.
 - Server state via TanStack Query; local state via React hooks; routing via wouter.

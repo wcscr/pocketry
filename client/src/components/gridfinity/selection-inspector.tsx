@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { useExperimentalFeatures } from "@/state/experimental-features";
 import { useBin } from "@/state/bin-store";
 import { useShapeLibrary } from "@/state/shape-library";
+import { surfaceTextName } from "@shared/gridfinity/surface-text";
 import { pocketName } from "@shared/gridfinity/cutout";
 import { sameObject, objectRef, type EditableObject } from "@/lib/gridfinity/object-arrangement";
 import { commonSelectionValue, selectionPropertyEdits, type SelectionProperty } from "@/lib/gridfinity/selection-properties";
@@ -29,7 +30,8 @@ export function BinEditingWorkspace({ enabled, ...props }: WorkspaceLayoutProps 
   const setTool = useCallback((next: InspectorTool) => { setActiveSection(null); updateTool(next); openInspector(); }, [openInspector]);
   const keepList = useRef(false);
   const keepObjectsOpen = useCallback(() => { keepList.current = true; setActiveSection(null); updateTool("properties"); }, []);
-  const { selection, editorMode } = useBin();
+  const { selection, selectedSurfaceTextId, editorMode, viewMode } = useBin();
+  const textSelection = experimentalEnabled ? selectedSurfaceTextId : null;
   const showSection = useCallback((id: string) => {
     setActiveSection(id); updateTool("properties");
     // Object navigation keeps the list available, including in the phone drawer.
@@ -37,8 +39,8 @@ export function BinEditingWorkspace({ enabled, ...props }: WorkspaceLayoutProps 
     if (!BIN_OBJECT_SECTIONS.has(id)) openInspector();
   }, [openInspector]);
   const selectionKey = JSON.stringify(selection);
-  useEffect(() => { if (enabled && selection.length) { setActiveSection(null); if (!keepList.current) openInspector(); } keepList.current = false; }, [enabled, selectionKey, openInspector]);
-  useEffect(() => { if (!selection.length || selection.length < 2 && (tool === "arrange" || tool === "links")) updateTool("properties"); }, [selection.length, tool]);
+  useEffect(() => { if (enabled && (selection.length || textSelection)) { setActiveSection(null); if (!keepList.current) openInspector(); } keepList.current = false; }, [enabled, selectionKey, textSelection, openInspector]);
+  useEffect(() => { if (!selection.length && !(textSelection && viewMode === "3d") || selection.length < 2 && (tool === "arrange" || tool === "links")) updateTool("properties"); }, [selection.length, textSelection, viewMode, tool]);
   useEffect(() => { if (props.inspectorRequest) setActiveSection(null); }, [props.inspectorRequest]);
   const targets = useMemo(() => ({ activeSection, properties, transforms, settings, projectHeader, toolbar, showSection, tool, setTool, openInspector, keepObjectsOpen }),
     [activeSection, properties, transforms, settings, projectHeader, toolbar, showSection, tool, setTool, openInspector, keepObjectsOpen]);
@@ -86,6 +88,8 @@ export function SelectionInspector({ propertiesRef, transformsRef, settingsRef }
   settingsRef: (node: HTMLDivElement | null) => void;
 }): JSX.Element {
   const bin = useBin();
+  const { enabled: experimentalEnabled } = useExperimentalFeatures();
+  const selectedText = experimentalEnabled ? bin.spec.surfaceTexts.find(label => label.id === bin.selectedSurfaceTextId) : undefined;
   const inspector = useSelectionInspector();
   const { shapes } = useShapeLibrary();
   const objects: EditableObject[] = [...bin.cutouts.flatMap(cutout => {
@@ -98,8 +102,9 @@ export function SelectionInspector({ propertiesRef, transformsRef, settingsRef }
   const single = chosen.length === 1 ? chosen[0] : null;
   const section = inspector ? BIN_WORKFLOW_SECTIONS.find(item => item.id === inspector.activeSection) : null;
   const showingSection = !!section;
-  const tone = section?.tone ?? (pockets.length && !fingers.length ? "violet" : fingers.length && !pockets.length ? "cyan" : chosen.length ? "slate" : "blue");
-  const title = section?.title ?? (single ? single.kind === "pocket" ? pocketName(single.cutout, single.shape)
+  const hasSelection = chosen.length > 0 || !!selectedText;
+  const tone = section?.tone ?? (selectedText ? "cyan" : pockets.length && !fingers.length ? "violet" : fingers.length && !pockets.length ? "cyan" : chosen.length ? "slate" : "blue");
+  const title = section?.title ?? (selectedText ? surfaceTextName(selectedText) : single ? single.kind === "pocket" ? pocketName(single.cutout, single.shape)
     : single.hole.name ?? `Finger access ${bin.fingerHoles.indexOf(single.hole) + 1}` : chosen.length ? `${chosen.length} selected` : "Bin");
   const toolLabel = inspector?.tool === "translate" ? "Move" : inspector?.tool === "rotate" ? "Rotate" : inspector?.tool === "arrange" ? "Arrange" : inspector?.tool === "links" ? "Linked designs" : "Properties";
   const links = new Set(chosen.map(o => o.kind === "pocket" ? o.cutout.designLink?.id : o.hole.designLink?.id).filter(Boolean));
@@ -107,21 +112,21 @@ export function SelectionInspector({ propertiesRef, transformsRef, settingsRef }
   return <aside className="flex h-full min-h-0 flex-col bg-background [@media(pointer:coarse)]:[&_button]:min-h-11 [@media(pointer:coarse)]:[&_input:not([type=checkbox])]:min-h-11 [@media(pointer:coarse)]:[&_select]:min-h-11" aria-label="Selection inspector" data-testid="selection-inspector">
     <header data-property-tone={tone} className="property-heading flex min-h-14 shrink-0 items-center gap-1 border-b py-2 pl-3 pr-12" data-testid="inspector-properties-header">
       <div className="mr-auto min-w-0" aria-live="polite">
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{section ? "Workflow properties" : single ? single.kind === "pocket" ? "Pocket" : "Finger access" : chosen.length ? "Selection" : "Properties"}</p>
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{section ? "Workflow properties" : selectedText ? "Surface text" : single ? single.kind === "pocket" ? "Pocket" : "Finger access" : chosen.length ? "Selection" : "Properties"}</p>
         <h3 className="truncate text-sm font-semibold" title={title}>{title}</h3>
       </div>
       {!showingSection && (chosen.length > 1 || single?.kind === "finger") && <Button size="icon" variant="ghost" className="h-8 w-8" title="Duplicate selection" aria-label="Duplicate selection" onClick={() => bin.dispatch({ type: "DUPLICATE_SELECTION", labels: new Map(objects.map(o => [objectRef(o).id, o.kind === "pocket" ? pocketName(o.cutout, o.shape) : o.hole.name ?? `Finger access ${bin.fingerHoles.indexOf(o.hole) + 1}`])), ids: chosen.map(o => ({ source: objectRef(o), id: crypto.randomUUID() })) })}><Copy /></Button>}
       {!showingSection && chosen.length > 1 && <Button size="icon" variant="ghost" className="h-8 w-8" title="Delete selection" aria-label="Delete selection" onClick={() => bin.dispatch({ type: "REMOVE_SELECTION" })}><Trash2 /></Button>}
     </header>
-    {!showingSection && !!chosen.length && (inspector?.tool !== "properties" || bin.editorMode === "contour") && <div className="flex min-h-10 shrink-0 items-center justify-between border-b px-3 text-xs font-medium" data-testid="inspector-active-tool">
+    {!showingSection && hasSelection && (inspector?.tool !== "properties" || bin.editorMode === "contour") && <div className="flex min-h-10 shrink-0 items-center justify-between border-b px-3 text-xs font-medium" data-testid="inspector-active-tool">
       <span>{bin.editorMode === "contour" ? "Editing contour" : toolLabel}</span>
       <Button variant="ghost" size="sm" aria-label="Back to properties" onClick={() => {
         bin.dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" }); inspector?.setTool("properties");
       }}>Done</Button>
     </div>}
     <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain" data-testid="inspector-scroll">
-      <div ref={settingsRef} hidden={!showingSection && !!chosen.length} data-testid="inspector-bin-settings" />
-      <div hidden={showingSection || !chosen.length || inspector?.tool !== "properties"}>
+      <div ref={settingsRef} hidden={!showingSection && hasSelection} data-testid="inspector-bin-settings" />
+      <div hidden={showingSection || !hasSelection || !selectedText && inspector?.tool !== "properties"}>
       {!!extraLinked && <p className="m-3 rounded-md border border-violet-500/30 bg-violet-500/5 p-2 text-xs" role="status">Design edits also update {extraLinked} unselected linked {extraLinked === 1 ? "copy" : "copies"}. Movement stays independent.</p>}
       {chosen.length > 1 && <div className="space-y-4 p-3" data-testid="batch-properties">
         {([pockets, fingers]).filter(items => items.length).map(items => <PropertySurface key={items[0].kind} tone={items[0].kind === "pocket" ? "violet" : "cyan"} role="region" aria-label={`${items.length} selected ${items[0].kind === "pocket" ? `pocket${items.length === 1 ? "" : "s"}` : `finger access${items.length === 1 ? "" : "es"}`}`}>

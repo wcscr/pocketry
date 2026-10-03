@@ -1,3 +1,6 @@
+import { SurfaceTextTransformScene, type SurfaceTextEditor } from "./surface-text-transform-scene";
+import { SurfaceTextMesh } from "./surface-text-mesh";
+import { useExperimentalFeatures } from "@/state/experimental-features";
 import { SelectionToolButtons } from "./selection-tool-buttons";
 import { useSelectionInspector } from "./selection-inspector-context";
 import { Line, OrbitControls } from "@react-three/drei";
@@ -75,6 +78,10 @@ export interface BinViewportProps {
   /** Separate raised labels sharing the project text color. */
   textGeometries?: { label: SurfaceText; geometry: BufferGeometry }[];
   textColor?: string;
+  surfaceTextEditor?: SurfaceTextEditor;
+  selectedSurfaceTextId?: string | null;
+  /** Present only while experimental text editing is enabled. */
+  onSelectSurfaceText?: (id: string) => void;
   /** The preview includes a contrasting pocket-floor material volume. */
   hasPocketFloor?: boolean;
   /** Geometry has a printable material group at the lip crest or wall top. */
@@ -237,6 +244,9 @@ export function BinViewport({
   stackingRimGeometry = null,
   textGeometries = [],
   textColor = STACKING_RIM_COLOR,
+  surfaceTextEditor,
+  selectedSurfaceTextId = null,
+  onSelectSurfaceText,
   hasPocketFloor = false,
   hasStackingRim = false,
   binColor = BIN_BODY_COLOR,
@@ -266,6 +276,7 @@ export function BinViewport({
   const laidOut = containerSize.width > 0 && containerSize.height > 0;
   const [rulerActive, setRulerActive] = useState(false);
   const inspector = useSelectionInspector();
+  const { enabled: experimentalEnabled } = useExperimentalFeatures();
   const [objectControlsOpen, setObjectControlsOpen] = useState(false);
   useEffect(() => { if (!pocketEditor) setObjectControlsOpen(false); }, [!!pocketEditor]);
   const [transformMode, setTransformMode] = useState<PocketTransformMode>("translate");
@@ -275,6 +286,7 @@ export function BinViewport({
     if (inspector && inspector.tool !== "properties") setRulerActive(false);
   }, [inspector?.tool]);
   const [snapTransform, setSnapTransform] = useState(false);
+  const [textPreview, setTextPreview] = useState<SurfaceText | null>(null);
   const [dragPreview, setDragPreview] = useState<ObjectEdits | null>(null);
   const [transformLimited, setTransformLimited] = useState(false);
   const [pivot, setPivot] = useState<RotationPivot>("individual");
@@ -288,7 +300,7 @@ export function BinViewport({
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
       if (!pocketEditor || !canHandleCanvasShortcut(event) || event.altKey) return;
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a") {
+      if (experimentalEnabled && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a") {
         event.preventDefault(); pocketEditor.onSelectionChange?.(objects.map(objectRef)); return;
       }
       if (event.ctrlKey || event.metaKey) return;
@@ -302,7 +314,7 @@ export function BinViewport({
     };
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
-  }, [pocketEditor, objects, inspector?.setTool]);
+  }, [pocketEditor, objects, inspector?.setTool, experimentalEnabled]);
   const [measurementPoints, setMeasurementPoints] = useState<Point[]>([]);
   const showBusy = useDelayedBusy(building);
   const measuredDistanceMm = useMemo(
@@ -363,11 +375,19 @@ export function BinViewport({
             />
           </mesh>
         ) : null}
-        {textGeometries.map(part => (
-          <mesh key={part.label.id} geometry={part.geometry}>
-            <meshStandardMaterial color={textColor} roughness={0.55} metalness={0.02} />
-          </mesh>
-        ))}
+        {textGeometries.map(part => {
+          const display = surfaceTextEditor?.label.id === part.label.id ? textPreview ?? surfaceTextEditor.label : part.label;
+          return <group key={part.label.id} position={[display.position.x, display.position.y, 0]}
+            rotation={[0, 0, (display.rotationDeg - part.label.rotationDeg) * Math.PI / 180]}>
+          <group position={[-part.label.position.x, -part.label.position.y, 0]}>
+          <SurfaceTextMesh key={part.label.id} {...part} color={textColor} selected={selectedSurfaceTextId === part.label.id}
+            onSelect={!rulerActive && !dragPreview && !textPreview && onSelectSurfaceText ? id => {
+              setObjectControlsOpen(false);
+              inspector?.setTool("properties");
+              onSelectSurfaceText(id);
+            } : undefined} />
+          </group></group>;
+        })}
         {stackingRimGeometry ? (
           <mesh geometry={stackingRimGeometry}>
             <meshStandardMaterial
@@ -377,13 +397,15 @@ export function BinViewport({
             />
           </mesh>
         ) : null}
-        {pocketEditor && <PocketSelectionPlane editor={pocketEditor} width={fitSize.widthMm} length={fitSize.lengthMm} disabled={rulerActive || !!dragPreview} />}
+        {pocketEditor && <PocketSelectionPlane editor={pocketEditor} width={fitSize.widthMm} length={fitSize.lengthMm} disabled={rulerActive || !!dragPreview || !!textPreview} />}
         {pocketEditor && !rulerActive && displayedObjects.filter(object => showPocketOutlines || object.kind !== "pocket")
           .map(object => <ObjectTransformWire key={objectKey(objectRef(object))} object={object} spec={pocketEditor.spec} />)}
         {selectedObjects.length > 0 && pocketEditor && (inspector ? (inspector.tool === "translate" || inspector.tool === "rotate") : objectControlsOpen) && !rulerActive && <SelectionTransformScene
           key={`${selectionKey}-${transformMode}`} objects={selectedObjects} allObjects={objects} spec={pocketEditor.spec} mode={transformMode} snap={snapTransform} pivot={pivot}
           onPreview={setDragPreview} onLimit={setTransformLimited}
           onCommit={edits => commitEditorObjects(pocketEditor, edits, `${transformMode === "translate" ? "Move" : "Rotate"} ${selectedObjects.length} objects in 3D`, transformMode)} />}
+        {surfaceTextEditor && (inspector ? inspector.tool === "translate" || inspector.tool === "rotate" : objectControlsOpen) && !rulerActive &&
+          <SurfaceTextTransformScene key={`${surfaceTextEditor.label.id}-${transformMode}`} editor={surfaceTextEditor} mode={transformMode} snap={snapTransform} onPreview={setTextPreview} />}
         <PlanarRulerScene
           active={rulerActive}
           outlines={measurementOutlines}
@@ -442,7 +464,7 @@ export function BinViewport({
         >
           <Ruler className="h-4 w-4" />
         </Button>
-        {inspector && <SelectionToolButtons count={selectedObjects.length} inactive={rulerActive} onActivate={() => setRulerActive(false)} />}
+        {inspector && <SelectionToolButtons count={selectedObjects.length + (surfaceTextEditor ? 1 : 0)} inactive={rulerActive} onActivate={() => setRulerActive(false)} />}
         {pocketEditor && !inspector && <Button variant="ghost" size="icon"
           className={cn("h-9 w-9 rounded-none border-t [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11", objectControlsOpen && !rulerActive && "bg-accent text-accent-foreground")}
           aria-label="Object controls" title="Move, rotate and arrange objects" aria-expanded={objectControlsOpen && !rulerActive}
@@ -462,9 +484,15 @@ export function BinViewport({
         ) : null}
       </div>
 
-      {pocketEditor && (objectControlsOpen || !!inspector && selectedObjects.length > 0) && !rulerActive && <ObjectTransformPanel editor={pocketEditor} objects={objects} selected={selectedObjects} displayed={displayedObjects}
+      {pocketEditor && !surfaceTextEditor && (objectControlsOpen || !!inspector && selectedObjects.length > 0) && !rulerActive && <ObjectTransformPanel editor={pocketEditor} objects={objects} selected={selectedObjects} displayed={displayedObjects}
         mode={transformMode} modeRequest={modeRequest} setMode={mode => { setRulerActive(false); setTransformMode(mode); }} snap={snapTransform} setSnap={setSnapTransform}
         pivot={pivot} setPivot={setPivot} limited={transformLimited} onClose={() => setObjectControlsOpen(false)} />}
+
+      {surfaceTextEditor && objectControlsOpen && !inspector && !rulerActive && <div className="property-surface property-floating absolute left-3 top-16 z-20 w-64 rounded-xl border bg-background p-3 text-xs shadow-lg md:top-12" data-property-tone="cyan" data-testid="text-3d-controls">
+        <div className="flex items-center justify-between"><span className="font-medium">Object controls</span><Button size="icon" variant="ghost" className="h-8 w-8" aria-label="Close object controls" onClick={() => setObjectControlsOpen(false)}><X className="h-4 w-4" /></Button></div>
+        <div className="flex gap-2">{(["translate", "rotate"] as const).map(mode => <Button key={mode} size="sm" variant={transformMode === mode ? "secondary" : "ghost"} aria-pressed={transformMode === mode} onClick={() => setTransformMode(mode)}>{mode === "translate" ? "Move" : "Rotate"}</Button>)}
+          <Button size="sm" variant={snapTransform ? "secondary" : "ghost"} aria-pressed={snapTransform} onClick={() => setSnapTransform(value => !value)}>Snap</Button></div>
+      </div>}
 
       {rulerActive ? (
         <div

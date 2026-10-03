@@ -1,3 +1,4 @@
+import { EditableObjectName, ObjectActions } from "./object-list-controls";
 import { hasRigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { createPortal } from "react-dom";
 import { useSelectionInspector } from "./selection-inspector-context";
@@ -19,7 +20,6 @@ import {
   LoaderCircle,
   Magnet,
   MousePointerClick,
-  MoreHorizontal,
   Palette,
   Pencil,
   Plus,
@@ -33,7 +33,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import { Children, isValidElement, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useDelayedBusy } from "@/hooks/use-delayed-busy";
 import { useLocation } from "wouter";
 import { LinkedDesignControls } from "./linked-design-controls";
@@ -45,7 +45,7 @@ import { InspectorPanelSections } from "./inspector-panel-sections";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { usePanelState } from "@/components/layout/panel-context";
 import { FillHeightControl } from "./fill-height-control";
-import { SurfaceTextControls } from "./surface-text-controls";
+import { SurfaceTextControls, SurfaceTextProperties } from "./surface-text-controls";
 import { Type } from "lucide-react";
 
 import {
@@ -195,40 +195,6 @@ function MaterialColorSwatch({
   );
 }
 
-function EditableObjectName({ name, kind, onRename, onDone }: {
-  name: string;
-  kind: "shape" | "finger-hole";
-  onRename: (name: string) => void;
-  onDone: () => void;
-}): JSX.Element {
-  const [draft, setDraft] = useState(name);
-  const commit = () => {
-    const trimmedName = draft.trim();
-    if (trimmedName.length > 0 && trimmedName !== name) onRename(trimmedName);
-    onDone();
-  };
-  return (
-    <Input
-      autoFocus
-      value={draft}
-      onChange={(event) => setDraft(event.target.value)}
-      onFocus={(event) => event.currentTarget.select()}
-      onBlur={commit}
-      onKeyDown={(event) => {
-        if (event.key === "Enter") event.currentTarget.blur();
-        if (event.key === "Escape") {
-          event.preventDefault();
-          event.stopPropagation();
-          onDone();
-        }
-      }}
-      className={cn("min-w-0 flex-1 text-xs font-medium", kind === "finger-hole" ? "h-11" : "h-8")}
-      aria-label={kind === "shape" ? "Pocket name" : "Finger access name"}
-      data-testid={`input-${kind}-name`}
-    />
-  );
-}
-
 export interface BinControlsPanelProps {
   issues: readonly ValidationIssue[];
   /** A fresh request reveals settings after the controls drawer mounts. */
@@ -363,6 +329,7 @@ export function BinControlsPanel({
     fingerHoles,
     selection,
     selectedCutoutId,
+    selectedSurfaceTextId,
     selectedPocketSection,
     selectedFingerHoleId,
     pendingRemovalId,
@@ -422,14 +389,15 @@ export function BinControlsPanel({
     stopPocketInspection();
     const { id, focusId } = settingsSectionRequest;
     if (id === "bin-settings-text" && !experimentalEnabled) return;
-    inspector?.showSection(id);
+    if (id === "bin-settings-text" && selectedSurfaceTextId && !focusId) inspector?.setTool("properties");
+    else inspector?.showSection(id);
     if (!inspector) revealPanelSection(id, BIN_SETTINGS_SECTIONS, focusId);
     if (!inspector && !focusId) return;
     // Wait for the section and mobile drawer to mount before moving keyboard focus.
     let frame = 0;
     frame = window.requestAnimationFrame(() => {
       frame = window.requestAnimationFrame(() => {
-        if (inspector) revealPanelSection(id, BIN_SETTINGS_SECTIONS, focusId);
+        if (inspector) revealPanelSection(id, id === "bin-settings-text" ? [{ id }] : BIN_SETTINGS_SECTIONS, focusId);
         if (focusId) document.getElementById(focusId)?.focus({ preventScroll: true });
       });
     });
@@ -1654,9 +1622,10 @@ export function BinControlsPanel({
           </div>
         </PanelSection>
 
-        {experimentalEnabled && <PanelSection id="bin-settings-text" title="Surface text" icon={Type} tone="cyan"
-          summary={`${spec.surfaceTexts.length} label${spec.surfaceTexts.length === 1 ? "" : "s"}`} defaultOpen={false} className="scroll-mt-16">
-          <SurfaceTextControls edgeBandColor={edgeBandColor} onPositionText={onPositionText} />
+        {experimentalEnabled && <PanelSection key={spec.surfaceTexts.length ? "text" : "text-empty"} id="bin-settings-text" title="Surface text" icon={Type} tone="cyan"
+          hint="Add raised text to the flat interior surface. Drag it in Layout, clear of pockets and openings. Double-click a label to edit its wording. You can position text even when the 3D preview cannot build."
+          summary={`${spec.surfaceTexts.length} label${spec.surfaceTexts.length === 1 ? "" : "s"}`} defaultOpen={spec.surfaceTexts.length > 0} className="scroll-mt-16">
+          <SurfaceTextControls onPositionText={onPositionText} />
           {geometryError && spec.surfaceTexts.length > 0 && <p role="alert" className="text-xs text-destructive">{geometryError}</p>}
         </PanelSection>}
 
@@ -1683,6 +1652,15 @@ export function BinControlsPanel({
               onChange={onBinColorChange}
             />
           </div>
+          {experimentalEnabled && <div className="space-y-2 rounded-md border bg-background/60 px-2.5 py-2" data-testid="view-color-row-text">
+            <div className="flex items-center justify-between gap-3">
+              <SettingLabel label="Text color" htmlFor="input-text-color" hint="Applies to all surface text in the preview and multi-color 3MF. By default, text matches the edge band." />
+              <MaterialColorSwatch id="input-text-color" label="Text" value={spec.textColor ?? edgeBandColor}
+                onChange={textColor => dispatch({ type: "PATCH_SPEC", patch: { textColor }, historyLabel: "Change text color" })} />
+            </div>
+            {spec.textColor !== null && <Button variant="link" size="sm" className="h-auto p-0 text-xs"
+              onClick={() => dispatch({ type: "PATCH_SPEC", patch: { textColor: null }, historyLabel: "Match text to edge band" })}>Use edge-band color</Button>}
+          </div>}
           <div
             className="space-y-2 rounded-md border bg-background/60 px-2.5 py-2"
             data-testid="view-color-row-floor"
@@ -2281,6 +2259,7 @@ export function BinControlsPanel({
           <Button size="sm" className="gap-1.5" onClick={() => inspector.showSection("bin-settings-export")}><Download className="h-4 w-4" />Export</Button>
         </div>
       </div>, inspector.projectHeader)}
+      {experimentalEnabled && inspector?.properties && createPortal(<SurfaceTextProperties />, inspector.properties)}
       {inspector?.properties && selection.length === 1 && createPortal(<>{pocketProperties}{fingerProperties}</>, inspector.properties)}
     </PanelSectionFilterContext.Provider>
   );
@@ -3005,28 +2984,6 @@ function FeatureSwitch({
       />
     </div>
   );
-}
-
-/** The tree stays readable; less frequent row actions remain keyboard reachable. */
-function ObjectActions({ name, children }: { name: string; children: ReactNode }): JSX.Element {
-  const inspector = useSelectionInspector();
-  const pendingAction = useRef<(() => void) | null>(null);
-  if (!inspector) return <>{children}</>;
-  return <DropdownMenu>
-    <DropdownMenuTrigger asChild><Button size="icon" variant="ghost" className="h-9 w-9 shrink-0 [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11" aria-label={`Actions for ${name}`}><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
-    <DropdownMenuContent align="end" onCloseAutoFocus={event => {
-      // Open the inline name editor only after the menu releases its focus trap.
-      const action = pendingAction.current;
-      pendingAction.current = null;
-      if (action) { event.preventDefault(); action(); }
-    }}>
-      {Children.map(children, child => isValidElement<{ children: ReactNode; "aria-label": string; disabled?: boolean; onClick: () => void }>(child) &&
-        <DropdownMenuItem disabled={child.props.disabled} aria-label={child.props["aria-label"]}
-          className="min-h-9 gap-1.5 [@media(pointer:coarse)]:min-h-11" onSelect={() => { pendingAction.current = child.props.onClick; }}>
-          {child.props.children}<span>{child.props["aria-label"]}</span>
-        </DropdownMenuItem>)}
-    </DropdownMenuContent>
-  </DropdownMenu>;
 }
 
 function AdvancedLinks({ children }: { children: ReactNode }): JSX.Element {
