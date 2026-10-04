@@ -81,8 +81,10 @@ Multi-selection, Move, Rotate, alignment, and distribution are standard in both
 layouts. **Add** stays first in the canvas toolbar; narrower spaces put additional
 tools under **Tools**. Phones offer **Workflow**, **Adjust**, and **Export**.
 Selection updates the summary without opening Adjust; **All properties** opens
-the complete editor. Choose **Single panel** or **Workflow + properties** in
-**App settings**.
+the complete editor. New sessions without a saved layout use Workflow + properties
+at 1100 × 600 px or larger, and Single panel on smaller screens. Resizing adapts
+the workspace while retaining that session's choice. Choose **Single panel** or
+**Workflow + properties** in **App settings**.
 
 Turn on **App settings → Enable experimental features**, then use
 **Surface text → Add text** for raised labels on the flat interior surface

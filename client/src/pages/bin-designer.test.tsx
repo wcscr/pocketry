@@ -237,6 +237,9 @@ function ExperimentalProbe({ children }: { children: React.ReactNode }) {
 const renderCleanups: (() => void)[] = [];
 function render(ui: React.ReactElement, { mobile = false, experimental = true } = {}) {
   localStorage.setItem(EXPERIMENTAL_FEATURES_KEY, String(experimental));
+  // Most workflow cases exercise a deliberate Single panel choice. Layout
+  // links still override it; implicit viewport defaults have provider tests.
+  if (!localStorage.getItem("pocketry:editor-layout")) localStorage.setItem("pocketry:editor-layout", "standard");
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.stubGlobal("ResizeObserver", NoopResizeObserver);
   if (!HTMLElement.prototype.scrollIntoView) HTMLElement.prototype.scrollIntoView = () => {};

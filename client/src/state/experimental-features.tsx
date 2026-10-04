@@ -10,13 +10,14 @@ export const EDITOR_LAYOUTS = [
   { value: "workflow", label: "Workflow + properties", description: "Workflow and properties in separate panels on wide screens." },
 ] as const;
 const isEditorLayout = (value: string | null): value is EditorLayout => EDITOR_LAYOUTS.some(layout => layout.value === value);
-function readLayout(): EditorLayout {
+function readLayout(implicitLayout: EditorLayout): EditorLayout {
   try {
     const value = window.localStorage.getItem(EDITOR_LAYOUT_KEY);
     if (isEditorLayout(value)) return value;
+    // Keep the existing fallback for retired or malformed saved preferences.
+    if (value !== null || window.localStorage.getItem(SELECTION_INSPECTOR_KEY) !== null) return "standard";
   } catch { /* Blocked storage uses the default layout. */ }
-  // Retired object-tree preferences (including the old boolean) use the default.
-  return "standard";
+  return implicitLayout;
 }
 
 function readPreference(key = EXPERIMENTAL_FEATURES_KEY): boolean {
@@ -43,7 +44,10 @@ export function ExperimentalFeaturesProvider({ children }: { children: ReactNode
   const layoutQuery = params.get("layout");
   const retiredLayoutLink = layoutQuery === "objects" || inspectorQuery === "1" || inspectorQuery === "0";
   const requestedLayout = isEditorLayout(layoutQuery) ? layoutQuery : retiredLayoutLink ? "standard" : null;
-  const [editorLayout, setLayoutValue] = useState<EditorLayout>(() => requestedLayout ?? readLayout());
+  // Choose once per session. Resizing and the software keyboard adapt the
+  // workspace without changing this choice or persisting an implicit preference.
+  const [implicitLayout] = useState<EditorLayout>(() => window.innerWidth >= 1100 && window.innerHeight >= 600 ? "workflow" : "standard");
+  const [editorLayout, setLayoutValue] = useState<EditorLayout>(() => requestedLayout ?? readLayout(implicitLayout));
   const inspectorEnabled = editorLayout === "workflow";
   const [enabled, setValue] = useState(readPreference);
   const enabledRef = useRef(enabled);
@@ -82,12 +86,12 @@ export function ExperimentalFeaturesProvider({ children }: { children: ReactNode
         setValue(enabledRef.current);
       }
       if (event.key === EDITOR_LAYOUT_KEY || event.key === null) {
-        setLayoutValue(readLayout());
+        setLayoutValue(readLayout(implicitLayout));
       }
     };
     window.addEventListener("storage", sync);
     return () => window.removeEventListener("storage", sync);
-  }, []);
+  }, [implicitLayout]);
   return <ExperimentalFeaturesContext.Provider value={{ enabled, setEnabled, editorLayout, setEditorLayout, inspectorEnabled, settingsOpen, setSettingsOpen, persistenceUnavailable }}>
     {children}
   </ExperimentalFeaturesContext.Provider>;

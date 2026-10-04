@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- New desktop sessions use Workflow + properties; saved choices and compact phone defaults are preserved.
 - Consistent toolbars, compact phone adjustments, and tablet panels that preserve canvas space.
 - Live numeric previews with complete Escape rollback and clearer invalid-value handling.
 - Standard multi-selection and arrangement; matching text Move/Rotate controls in Layout and 3D.

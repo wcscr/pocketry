@@ -1,6 +1,6 @@
 # Workflow and properties layout
 
-This prototype separates choosing objects from editing them. It starts from
+This layout separates choosing objects from editing them. Its prototype started from
 `codex/pocket-tilt` at `169277ff`, preserving pocket tilt, design links, mixed
 selection, arrangement, geometry validation, and the existing project format.
 
@@ -16,7 +16,7 @@ Open `http://127.0.0.1:5187/bin?layout=workflow`, or choose a layout under
 **App settings → Bin editor layout**:
 
 - **Single panel** (`?layout=standard`): the original combined panel,
-  the default, with Hide controls at its top right and a narrow, full-height restore strip
+  with Hide controls at its top right and a narrow, full-height restore strip
   beside the canvas.
 - **Workflow + properties** (`?layout=workflow`): every workflow section
   stays in order on the left; its property editor opens on the right. Pockets and
@@ -26,11 +26,14 @@ Open `http://127.0.0.1:5187/bin?layout=workflow`, or choose a layout under
   while the shortcuts hide to leave room for controls.
   Section headings and their status badges share one compact row.
 
-The layout choice is saved for this browser and survives Trace,
+Without a saved choice, initial windows at least 1100 px wide and 600 px tall
+use Workflow + properties; smaller windows use Single panel. This implicit
+choice stays stable during the session and is not saved as a preference.
+Explicit layout choices are saved for this browser and survive Trace,
 Bin, Library, About, and page refreshes. The preview link sets the preference once
 and removes its flag, preserving other query parameters and the URL fragment.
 Retired `?layout=objects` and `?inspector=1|0` links return to Single panel.
-Saved object-tree and legacy inspector preferences also fall back to this default.
+Saved object-tree and legacy inspector preferences also fall back to Single panel.
 With browser storage blocked, the preference lasts until the tab reloads. The
 layout choice is independent of experimental tools. Multi-selection, Move,
 Rotate, alignment, and distribution are standard in both layouts. Link creation

@@ -16,12 +16,11 @@ layout choice or treating keyboard height as an orientation change.
 
 Browser checks covered 320 × 568, 360 × 800, 390 × 844, 430 × 932,
 667 × 375, 844 × 390, 768 × 1024, 1024 × 768, 1100 × 800, and
-1440 × 900, plus the 767 and 1099 px boundaries. The browser's 80% zoom
-produces fractional CSS sizes; the tablet boundary was also checked just above
-768 px. No horizontal page overflow appeared. At 320 px, the open compact tray
-left approximately 279 px of canvas height. At 667 × 375, side adjustments left
-approximately 427 × 274 px of canvas. A properties pane at the tablet boundary
-retained exactly 480 px after correcting fractional-width rounding.
+1440 × 900, plus the 767 and 1099 px boundaries, at 100% and 80% browser zoom.
+No horizontal page overflow appeared. At exactly 320 × 568, the open compact
+tray left 278 px of canvas height. At 667 × 375, side adjustments left
+427 × 274 px of canvas. A properties pane at the 768 px tablet boundary retained
+exactly 480 px, including after correcting fractional-width rounding at 80% zoom.
 
 The real-photo walkthrough covered upload, manual scale, region detection,
 contour movement, bin handoff, numeric adjustment, Library naming and return,
@@ -37,6 +36,12 @@ rotation, and Library save/cancel/failure modal ownership. Coarse-pointer target
 sizing is covered by CSS inspection; physical iOS Safari and Android Chrome
 gestures, virtual keyboards, and printing remain separate validation gates.
 No mobile default change is included.
+
+Final local verification: Node 22 type checks, all 2,569 tests across 142 files,
+production build, and whitespace checks passed. A separate rollout commit makes
+Workflow + properties the implicit desktop default at 1100 × 600 or larger.
+Provider tests and browser checks cover fresh defaults, saved choices, legacy
+links, storage failure, and session stability during resizing.
 
 ## Canvas space and point editing follow-up (2026-09-20)
 
