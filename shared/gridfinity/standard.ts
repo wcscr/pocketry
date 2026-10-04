@@ -210,6 +210,14 @@ export const STACKING_LIP_SUPPORT_HEIGHT_MM = 3.8; // SUPPORT_HEIGHT + DEPTH
 /** Minimum wall thickness of a bin. */
 export const D_WALL = 0.95;
 
+/** Maximum hollow-bin wall thickness; leaves a cavity even at quarter pitch. */
+export const MAX_HOLLOW_WALL_THICKNESS_MM = 3;
+
+/** Hollow-wall preference is retained, but has no effect on solid-fill bins. */
+export function binWallThicknessMm(spec: { fill?: "none" | "solid"; wallThicknessMm?: number }): number {
+  return spec.fill === "none" ? spec.wallThicknessMm ?? D_WALL : D_WALL;
+}
+
 /** Interior fillet radius (`BASE_TOP_RADIUS − D_WALL`). */
 export const R_F2 = 2.8;
 

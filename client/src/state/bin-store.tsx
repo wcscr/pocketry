@@ -251,6 +251,7 @@ function specPatchLabel(patch: Partial<BinSpecInput>): string {
   if ("gridPitch" in patch) return "Change grid pitch";
   if ("lip" in patch) return "Change stacking lip";
   if ("fill" in patch) return "Change solid fill";
+  if ("wallThicknessMm" in patch) return "Change wall thickness";
   if ("fillHeightPercent" in patch) return "Change fill height";
   if ("labelTab" in patch) return "Change label tab";
   return "Change bin construction";

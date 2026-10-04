@@ -73,8 +73,13 @@ import {
 import { resolvePocketSplit } from "@shared/gridfinity/pocket-split";
 import {
   binFootprintMm,
+  D_WALL,
   GRID_PITCH_DIVISOR,
+  HEIGHT_UNIT_MM,
+  MAX_HOLLOW_WALL_THICKNESS_MM,
   resizeGridToStandardCellSpan,
+  STACKING_LIP_FILLET_RADIUS,
+  STACKING_LIP_HEIGHT,
   STACKING_LIP_HEIGHT_ACTUAL,
   standardCellSpan,
   type GridPitch,
@@ -1215,9 +1220,10 @@ export function BinControlsPanel({
   return (
     <PanelSectionFilterContext.Provider value={!inspector && exportOnly ? "bin-settings-export" : null}>
     <div className="flex h-full flex-col">
-      {!experimentalEnabled && (spec.surfaceTexts.length > 0 || cutouts.some(c => c.designLink) || fingerHoles.some(h => h.designLink)) && <div className="shrink-0 border-b bg-amber-50/60 px-3 py-2 text-xs dark:bg-amber-950/20" data-testid="experimental-design-notice">
+      {!experimentalEnabled && (spec.wallThicknessMm !== D_WALL || spec.surfaceTexts.length > 0 || cutouts.some(c => c.designLink) || fingerHoles.some(h => h.designLink)) && <div className="shrink-0 border-b bg-amber-50/60 px-3 py-2 text-xs dark:bg-amber-950/20" data-testid="experimental-design-notice">
         {(cutouts.some(c => c.designLink) || fingerHoles.some(h => h.designLink)) && <p>This project uses experimental pocket tools. Its geometry and links are preserved; edits to linked designs still update their copies.</p>}
         {spec.surfaceTexts.length > 0 && <p>This project contains surface text. Labels remain visible and included in exports. Enable experimental features to edit them.</p>}
+        {spec.wallThicknessMm !== D_WALL && <p>This project has a custom hollow-wall thickness. Its saved thickness is preserved. Enable experimental features to edit it.</p>}
         <Button size="sm" variant="link" className="h-9 px-0 text-xs" onClick={() => setSettingsOpen(true)}>Show experimental settings</Button>
       </div>}
       {inspector ? <div className="shrink-0 border-b px-3 py-3">
@@ -1356,13 +1362,33 @@ export function BinControlsPanel({
               </span>
             </div>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Outer size {dims.widthMm.toFixed(1)} × {dims.lengthMm.toFixed(1)} ×{" "}
-            {dims.totalHeightMm.toFixed(1)} mm
-            {spec.lip === "standard"
-              ? ` (rim + ${STACKING_LIP_HEIGHT_ACTUAL.toFixed(1)} mm lip)`
-              : ""}
-          </p>
+          <div className="flex items-start gap-1">
+            <p className="text-xs text-muted-foreground">
+              Outer size {dims.widthMm.toFixed(1)} × {dims.lengthMm.toFixed(1)} ×{" "}
+              {dims.totalHeightMm.toFixed(1)} mm
+              {spec.lip === "standard"
+                ? ` (rim + ${STACKING_LIP_HEIGHT_ACTUAL.toFixed(1)} mm lip)`
+                : ""}
+            </p>
+            <HelpHint label="bin dimensions">
+              <p>
+                Outer size is width × length × total height, measured from the
+                bottom of the base, excluding any baseplate. Each height unit is{" "}
+                {HEIGHT_UNIT_MM} mm, including the base.
+              </p>
+              <p className="mt-2">
+                {spec.lip === "standard" ? <>
+                  Pocketry uses Gridfinity Rebuilt’s {STACKING_LIP_FILLET_RADIUS} mm
+                  lip rounding. The displayed height includes this lip, which adds
+                  approximately {STACKING_LIP_HEIGHT_ACTUAL.toFixed(2)} mm above the{" "}
+                  {HEIGHT_UNIT_MM} × units height ({STACKING_LIP_HEIGHT} mm before
+                  rounding). Rounding preserves the stacking contact surfaces.
+                </> : <>
+                  The stacking lip is off, so total height is {HEIGHT_UNIT_MM} × height units.
+                </>}
+              </p>
+            </HelpHint>
+          </div>
           {showPreviewBusy && (
             <div
               className="flex items-center gap-1.5 rounded-md border border-blue-500/25 bg-blue-500/10 px-2.5 py-1.5 text-xs font-medium text-blue-800 dark:text-blue-100"
@@ -1433,6 +1459,17 @@ export function BinControlsPanel({
             checked={spec.fill === "solid"}
             onChange={(on) => patchSpec({ fill: on ? "solid" : "none" })}
           />
+          {experimentalEnabled && spec.fill === "none" && (
+            <MmSlider
+              label="Wall thickness"
+              value={spec.wallThicknessMm}
+              min={D_WALL}
+              max={MAX_HOLLOW_WALL_THICKNESS_MM}
+              step={0.05}
+              hint={`Default: ${D_WALL} mm. Thicker walls grow inward, reducing storage space. Outside dimensions and stacking fit stay the same. Applies to hollow walls below the stacking lip; retained when solid fill is on.`}
+              onChange={(wallThicknessMm, transient) => patchSpec({ wallThicknessMm }, transient)}
+            />
+          )}
           {spec.fill === "solid" && (
             <div className="space-y-2">
               <FillHeightControl

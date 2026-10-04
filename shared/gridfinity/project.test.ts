@@ -44,6 +44,27 @@ const VALID = {
 };
 
 describe("parseProjectDoc", () => {
+  it("migrates v31 wall thickness through the design, history, and transform references", () => {
+    const { wallThicknessMm: _removed, ...spec } = VALID.spec;
+    const cutouts = [parseProjectDoc(VALID)!.cutouts[0]];
+    const doc = { spec: { ...spec, fill: "none" }, cutouts, fingerHoles: [] };
+    const legacy = { ...VALID, ...doc, schemaVersion: 31,
+      history: { stack: [{ doc, label: "Opened" }], index: 0 },
+      transformOrigins: { pockets: [{ cutout: cutouts[0], spec }], fingerHoles: [] } };
+    const original = JSON.stringify(legacy);
+    const migrated = parseProjectDoc(legacy)!;
+    expect(migrated.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
+    expect(migrated.spec.wallThicknessMm).toBe(0.95);
+    expect(migrated.history!.stack[0].doc.spec.wallThicknessMm).toBe(0.95);
+    expect(migrated.transformOrigins!.pockets[0].spec.wallThicknessMm).toBe(0.95);
+    expect(JSON.stringify(legacy)).toBe(original);
+    const thick = { ...migrated.spec, wallThicknessMm: 2.4 };
+    const saved = { ...migrated, spec: thick, history: { index: 1, stack: [
+      migrated.history!.stack[0],
+      { doc: { ...migrated.history!.stack[0].doc, spec: thick }, label: "Change wall thickness" },
+    ] } };
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(saved)))).toEqual(saved);
+  });
   it("migrates released v25 fill-depth references and settings without changing history", () => {
     const original = parseProjectDoc(VALID)!;
     const spec = { ...original.spec, fillHeightPercent: 75, adjustFixedPocketDepths: false };
@@ -180,7 +201,7 @@ describe("parseProjectDoc", () => {
     const original = JSON.stringify(airdusterV9);
     const doc = parseProjectDoc(airdusterV9);
     const { liteBase: _removed, ...spec } = airdusterV9.spec;
-    expect(doc).toEqual({ ...airdusterV9, spec: { ...spec, flatBottom: false, fillHeightPercent: 100, adjustFixedPocketDepths: true, surfaceTexts: [], textColor: null }, schemaVersion: PROJECT_SCHEMA_VERSION });
+    expect(doc).toEqual({ ...airdusterV9, spec: { ...spec, flatBottom: false, fillHeightPercent: 100, adjustFixedPocketDepths: true, surfaceTexts: [], textColor: null, wallThicknessMm: 0.95 }, schemaVersion: PROJECT_SCHEMA_VERSION });
     expect(doc!.shapes).toHaveLength(7);
     expect(doc!.cutouts).toHaveLength(4);
     expect(doc!.fingerHoles).toHaveLength(2);

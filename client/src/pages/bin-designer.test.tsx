@@ -1586,6 +1586,48 @@ describe("BinDesignerPage", () => {
     unmount();
   });
 
+  it.each([
+    { layout: "standard", lip: "standard", height: "45.6" },
+    { layout: "workflow", lip: "standard", height: "45.6" },
+    { layout: "standard", lip: "none", height: "42.0" },
+    { layout: "workflow", lip: "none", height: "42.0" },
+  ] as const)("explains total bin height only in the dimensions hint: $layout, $lip lip", async ({ layout, lip, height }) => {
+    const originalUrl = window.location.href;
+    window.history.replaceState(null, "", `/bin?layout=${layout}`);
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({
+      ...EMPTY_PROJECT,
+      spec: parseBinSpec({ ...EMPTY_PROJECT.spec, gridX: 2, gridY: 3, heightUnits: 6, lip }),
+    });
+    const { container, unmount } = renderPage({ experimental: false });
+    try {
+      await flushHydration();
+      openSettingsSection(container, "size");
+      const size = container.querySelector('#bin-settings-size')!;
+      expect(size.textContent).toContain(`Outer size 83.5 × 125.5 × ${height} mm`);
+      expect(document.querySelector('[role="tooltip"]')).toBeNull();
+      expect(size.textContent).not.toContain("Each height unit");
+      const hint = size.querySelector<HTMLButtonElement>('[aria-label="About bin dimensions"]')!;
+      React.act(() => hint.click());
+      const explanation = document.querySelector('[role="tooltip"]')!.textContent;
+      expect(explanation).toContain("bottom of the base, excluding any baseplate");
+      expect(explanation).toContain("Each height unit is 7 mm, including the base");
+      if (lip === "standard") {
+        expect(explanation).toContain("Gridfinity Rebuilt’s 0.6 mm lip rounding");
+        expect(explanation).toContain("displayed height includes this lip");
+        expect(explanation).toContain("3.55 mm above the 7 × units height (4.4 mm before rounding)");
+      } else {
+        expect(explanation).toContain("stacking lip is off, so total height is 7 × height units");
+        expect(explanation).not.toContain("3.55");
+      }
+      React.act(() => hint.click());
+      expect(document.querySelector('[role="tooltip"]')).toBeNull();
+      expect(size.querySelector<HTMLInputElement>('[aria-label="Bin height in units"]')!.value).toBe("6");
+    } finally {
+      unmount();
+      window.history.replaceState(null, "", originalUrl);
+    }
+  });
+
   it("keeps native slider and Manage keyboard interactions from editing the selected pocket", async () => {
     const shape = rectangularShape("tool", "Wrench");
     const pocket = parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 0, y: 0 } });
@@ -2265,6 +2307,74 @@ describe("BinDesignerPage", () => {
     expect(input().value).toBe("51");
     expect(container.querySelector("#bin-settings-size")!.textContent).toBe(dimensions);
     unmount();
+  });
+
+  it.each(["standard", "workflow"])("gates hollow wall thickness with undo and retained settings in %s layout", async layout => {
+    const originalUrl = window.location.href;
+    window.history.replaceState(null, "", `/bin?layout=${layout}`);
+    const { container, unmount } = renderPage({ experimental: false });
+    try {
+      await flushHydration();
+      openSettingsSection(container, "construction");
+      const field = () => container.querySelector<HTMLInputElement>('[aria-label="Wall thickness in millimetres"]');
+      const toggle = () => container.querySelector<HTMLButtonElement>('[role="switch"][aria-label="Solid fill"]')!;
+      expect(field()).toBeNull();
+      React.act(() => toggle().click());
+      expect(field()).toBeNull();
+      React.act(() => experimentalSettings.setEnabled(true));
+      expect(field()!.value).toBe("0.95");
+      React.act(() => {
+        field()!.focus();
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(field(), "2.4");
+        field()!.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      React.act(() => field()!.blur());
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toMatchObject({ fill: "none", wallThicknessMm: 2.4 });
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+      expect(field()!.value).toBe("0.95");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+      expect(field()!.value).toBe("2.4");
+      React.act(() => toggle().click());
+      expect(field()).toBeNull();
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toMatchObject({ fill: "solid", wallThicknessMm: 2.4 });
+      React.act(() => toggle().click());
+      expect(field()!.value).toBe("2.4");
+      React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="About wall thickness"]')!.click());
+      expect(document.querySelector('[role="tooltip"]')!.textContent).toContain("Thicker walls grow inward");
+      React.act(() => experimentalSettings.setEnabled(false));
+      expect(field()).toBeNull();
+      expect(container.querySelector('[aria-label="About wall thickness"]')).toBeNull();
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toMatchObject({ fill: "none", wallThicknessMm: 2.4 });
+      expect(container.querySelector('[data-testid="experimental-design-notice"]')!.textContent).toContain("Its saved thickness is preserved");
+      React.act(() => experimentalSettings.setEnabled(true));
+      expect(field()!.value).toBe("2.4");
+    } finally {
+      unmount();
+      window.history.replaceState(null, "", originalUrl);
+    }
+  });
+
+  it.each([false, true])("reveals restored custom wall thickness, including history-only=%s, then respects opt-out", async historyOnly => {
+    const spec = parseBinSpec({ ...EMPTY_PROJECT.spec, fill: "none", wallThicknessMm: 2.4 });
+    const doc = { spec, cutouts: [], fingerHoles: [] };
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT,
+      spec: historyOnly ? EMPTY_PROJECT.spec : spec,
+      history: { index: historyOnly ? 1 : 0, stack: [
+        { doc, label: "Thicker walls" }, { doc: { ...doc, spec: EMPTY_PROJECT.spec }, label: "Default walls" },
+      ] },
+    });
+    const { container, unmount } = renderPage({ experimental: false });
+    try {
+      await flushHydration();
+      expect(experimentalSettings.enabled).toBe(true);
+      expect(projectToast).toHaveBeenCalledWith(expect.objectContaining({ title: "Experimental features enabled" }));
+      React.act(() => experimentalSettings.setEnabled(false));
+      if (historyOnly) React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+      openSettingsSection(container, "construction");
+      expect(experimentalSettings.enabled).toBe(false);
+      expect(container.querySelector('[aria-label="Wall thickness in millimetres"]')).toBeNull();
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toMatchObject({ fill: "none", wallThicknessMm: 2.4 });
+    } finally { unmount(); }
   });
 
   it("toggles flat bottoms without resizing and restores base hole preferences", async () => {

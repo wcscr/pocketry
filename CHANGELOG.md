@@ -9,6 +9,8 @@
 - Saved system-font sources are shared across labels and undo steps, preventing oversized project backups and export failures. Canceling a pending font selection now reliably keeps the chosen font.
 - Adding text opens Layout for positioning. Labels stay draggable above pockets, with a direct placement action when text prevents the 3D preview from building.
 
+- Experimental: hollow bins support adjustable wall thickness from 0.95 to 3 mm, retaining the outside dimensions and stacking fit. Enable experimental features in Settings to adjust it.
+- Added a help hint beside bin dimensions explaining height units and Gridfinity Rebuilt's rounded stacking lip.
 - Fixed pocket property drafts carrying over to another pocket; selection changes preserve pending edits in saved state and undo history.
 
 ## 1.2.0 — 2026-09-29
