@@ -3,6 +3,7 @@ import { hasRigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { SelectionLinkControls } from "@/components/gridfinity/linked-design-controls";
 import { retainTransformOrigins } from "@shared/gridfinity/transform-origins";
 import { useExperimentalFeatures } from "@/state/experimental-features";
+import { ToastAction } from "@/components/ui/toast";
 import { usePocketGeometry } from "@/hooks/use-pocket-geometry";
 import { Box, History, Redo2, Undo2 } from "lucide-react";
 import { pocketDepths, pocketName, resolvePocketDepth } from "@shared/gridfinity/cutout";
@@ -109,7 +110,7 @@ export default function BinDesignerPage(): JSX.Element {
 }
 
 function BinDesignerWorkspace(): JSX.Element {
-  const { inspectorEnabled: inspectorPrototype, enabled: experimentalEnabled, enableForProject, setSettingsOpen } = useExperimentalFeatures();
+  const { inspectorEnabled: inspectorPrototype, enabled: experimentalEnabled, setEnabled: setExperimentalEnabled, setSettingsOpen } = useExperimentalFeatures();
   const { panelOpen, setPanelOpen, libraryRequested } = usePanelState();
   const [quickAdjustOpen, setQuickAdjustOpen] = useState(false);
   const [pocketEditorRequest, setPocketEditorRequest] = useState(0);
@@ -126,32 +127,26 @@ function BinDesignerWorkspace(): JSX.Element {
   };
   const editSelectedPocket = () => {
     setSettingsSectionRequest(undefined);
-    if (isMobile && !inspectorPrototype) setQuickAdjustOpen(true);
-    else if (!inspectorPrototype) setPanelOpen(true);
-    setPocketEditorRequest((request) => request + 1);
+    if (!isMobile) {
+      if (!inspectorPrototype) setPanelOpen(true);
+      setPocketEditorRequest((request) => request + 1);
+    }
   };
   const { toast } = useToast();
   const bin = useBin();
-  const enableProjectFeatures = useCallback((doc: ProjectDoc) => {
-    if (enableForProject(doc)) toast({
-      title: "Experimental features enabled",
-      description: "This project contains experimental features. Their controls are now available. You can turn them off in Settings.",
-    });
-  }, [enableForProject, toast]);
-  const { spec, cutouts, fingerHoles, viewMode, dispatch } = bin;
   useEffect(() => {
-    if (!experimentalEnabled && bin.selection.length > 1) {
-      dispatch({ type: "SET_SELECTION", selection: bin.selection.slice(-1) });
-    }
-  }, [experimentalEnabled, bin.selection, dispatch]);
+    if (bin.editError?.startsWith("Enable experimental tools")) toast({ title: "Change not applied", description: bin.editError,
+      action: <ToastAction altText="Enable experimental tools" onClick={() => setExperimentalEnabled(true)}>Enable tools</ToastAction> });
+  }, [bin.editError, setExperimentalEnabled, toast]);
+  const { spec, cutouts, fingerHoles, viewMode, dispatch } = bin;
   const isMobile = useIsMobile();
   const [textPositionRequest, setTextPositionRequest] = useState(0);
   const editSurfaceText = (id: string, inline = false) => {
     if (!experimentalEnabled) return;
     dispatch({ type: "SELECT_SURFACE_TEXT", id });
-    setSettingsSectionRequest({ id: "bin-settings-text" });
-    if (!inspectorPrototype) setPanelOpen(!isMobile);
-    setQuickAdjustOpen(isMobile && !inspectorPrototype && !inline);
+    if (!isMobile && inspectorPrototype) setPocketEditorRequest(request => request + 1);
+    if (!isMobile || panelOpen) setSettingsSectionRequest({ id: "bin-settings-text" });
+    if (!inspectorPrototype && !isMobile) setPanelOpen(true);
   };
   const positionText = () => {
     dispatch({ type: "SELECT_SURFACE_TEXT", id: bin.selectedSurfaceTextId });
@@ -168,7 +163,6 @@ function BinDesignerWorkspace(): JSX.Element {
   useEffect(() => {
     if (panelOpen || !isMobile || bin.editorMode !== "placement") setQuickAdjustOpen(false);
   }, [panelOpen, isMobile, bin.editorMode]);
-  useEffect(() => { if (isMobile && !panelOpen) setSettingsSectionRequest(undefined); }, [isMobile, panelOpen]);
   const library = useShapeLibrary();
   // Sliders and canvas drags update the visible controls transiently, but the
   // history entry remains the last committed design until pointer-up. Exports
@@ -266,7 +260,6 @@ function BinDesignerWorkspace(): JSX.Element {
           description: `Your latest work was saved as “${restoredName}”. The earlier library version is still available.` });
       }
       if (doc) {
-        enableProjectFeatures(doc);
         setDraftName(doc.name ?? null);
         setKeepBinSize(doc.keepBinSize ?? false);
         library.mergeShapes(doc.shapes);
@@ -626,7 +619,6 @@ function BinDesignerWorkspace(): JSX.Element {
           title: "Backup imported",
           description: `${doc.shapes.length} shape${doc.shapes.length === 1 ? "" : "s"}, ${doc.cutouts.length} pocket${doc.cutouts.length === 1 ? "" : "s"}. Saved to your library and opened as “${doc.name}”.`,
         });
-        enableProjectFeatures(doc);
         return true;
       } catch (cause) {
         toast({
@@ -639,7 +631,7 @@ function BinDesignerWorkspace(): JSX.Element {
         setProjectBusy(false);
       }
     },
-    [library, dispatch, saveBeforeReplacingProject, toast, enableProjectFeatures],
+    [library, dispatch, saveBeforeReplacingProject, toast],
   );
 
   const handleNewProject = useCallback(async () => {
@@ -777,7 +769,6 @@ function BinDesignerWorkspace(): JSX.Element {
         title: "Project opened",
         description: `“${opened.project.name}” will resume here automatically.`,
       });
-      enableProjectFeatures(opened.doc);
       return true;
     } catch (cause) {
       toast({
@@ -789,7 +780,7 @@ function BinDesignerWorkspace(): JSX.Element {
     } finally {
       setProjectBusy(false);
     }
-  }, [library, dispatch, saveBeforeReplacingProject, toast, enableProjectFeatures]);
+  }, [library, dispatch, saveBeforeReplacingProject, toast]);
 
   const handleDeleteProject = useCallback(
     async (projectId: string): Promise<boolean> => {
@@ -832,13 +823,17 @@ function BinDesignerWorkspace(): JSX.Element {
           dispatch({ type: "PATCH_SPEC", patch: { surfaceTexts: spec.surfaceTexts.filter(label => label.id !== bin.selectedSurfaceTextId) }, historyLabel: "Remove surface text" });
           return;
         }
-        if (inspectorPrototype && bin.selection.length) {
+        if (bin.selection.length) {
           event.preventDefault(); dispatch({ type: "REMOVE_SELECTION" }); return;
         }
       }
       if (!(event.metaKey || event.ctrlKey)) return;
       if (!canHandleCanvasShortcut(event) || event.altKey) return;
       const key = event.key.toLowerCase();
+      if (key === "d" && bin.editorMode === "placement" && bin.selection.length) {
+        dispatch({ type: "DUPLICATE_SELECTION", ids: bin.selection.map(source => ({ source, id: crypto.randomUUID() })) });
+        event.preventDefault(); return;
+      }
       if (key === "z") {
         dispatch({ type: event.shiftKey ? "REDO" : "UNDO" });
         event.preventDefault();
@@ -849,7 +844,7 @@ function BinDesignerWorkspace(): JSX.Element {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [dispatch, experimentalEnabled, inspectorPrototype, viewMode, bin.selection, bin.selectedSurfaceTextId, spec.surfaceTexts]);
+  }, [dispatch, experimentalEnabled, inspectorPrototype, viewMode, bin.selection, bin.selectedSurfaceTextId, bin.editorMode, spec.surfaceTexts]);
 
   const handleExport = useCallback(
     async (format: "3mf" | "3mf-multicolor" | "stl", includeProject: boolean) => {
@@ -1110,6 +1105,7 @@ function BinDesignerWorkspace(): JSX.Element {
       panelTitle={isMobile && settingsSectionRequest?.id === "bin-settings-export" ? "Export bin" : "Bin designer"}
       mobileActionsLayout="landscape-side"
       mobileActions={<MobileBinActions open={quickAdjustOpen} onOpenChange={setQuickAdjustOpen}
+        onWorkflow={() => { setSettingsSectionRequest(undefined); setPanelOpen(!panelOpen); }}
         onMore={id => { setSettingsSectionRequest({ id }); setPanelOpen(true); }}
         onExport={() => { setSettingsSectionRequest({ id: "bin-settings-export" }); setPanelOpen(true); }} />}
       panel={
@@ -1188,6 +1184,7 @@ function BinDesignerWorkspace(): JSX.Element {
               pocketEditor={{ spec, transformOrigins: bin.transformOrigins, originShapes: library.shapes, linkControls: <SelectionLinkControls />, pockets: editablePockets, pocketGeometry: profileOutlines, selectedId: bin.selectedCutoutId, fingerHoles, selection: bin.selection,
                 onSelectionChange: selection => dispatch({ type: "SET_SELECTION", selection }),
                 onCommitObjects: (edits, historyLabel) => dispatch({ type: "UPDATE_OBJECTS", edits, historyLabel }),
+                onPreviewObjects: (edits, historyLabel) => dispatch({ type: "UPDATE_OBJECTS", edits, historyLabel, transient: true }),
                 onSelect: id => dispatch({ type: "SELECT_CUTOUT", id }),
                 onCommit: (id, patch, mode) => dispatch({ type: "UPDATE_CUTOUT", id, patch, historyLabel: mode === "translate" ? "Move pocket in 3D" : "Rotate pocket in 3D" }),
               }}
@@ -1197,6 +1194,9 @@ function BinDesignerWorkspace(): JSX.Element {
               selectedSurfaceTextId={experimentalEnabled ? bin.selectedSurfaceTextId : null}
               onSelectSurfaceText={experimentalEnabled ? editSurfaceText : undefined}
               surfaceTextEditor={experimentalEnabled && bin.selectedSurfaceTextId && spec.surfaceTexts.some(label => label.id === bin.selectedSurfaceTextId) ? {
+                tool: bin.textTool, snap: bin.textSnap,
+                onToolChange: tool => dispatch({ type: "SET_TEXT_TOOL", tool }),
+                onSnapChange: snap => dispatch({ type: "SET_TEXT_SNAP", snap }),
                 label: spec.surfaceTexts.find(label => label.id === bin.selectedSurfaceTextId)!, z: surfaceTextZ(spec),
                 onCommit: (label, mode) => dispatch({ type: "PATCH_SPEC", patch: { surfaceTexts: spec.surfaceTexts.map(item => item.id === label.id ? label : item) }, historyLabel: `${mode === "translate" ? "Move" : "Rotate"} surface text in 3D` }),
               } : undefined}

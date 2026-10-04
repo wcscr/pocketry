@@ -1,6 +1,8 @@
 import { hasRigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { SelectionToolButtons } from "./selection-tool-buttons";
 import { SurfaceTextLayer } from "./surface-text-layer";
+import { SurfaceTextTransformControls } from "./surface-text-controls";
+import { useObjectToolbar } from "./object-toolbar-context";
 import { useSelectionInspector } from "./selection-inspector-context";
 import { SelectionLinkControls } from "./linked-design-controls";
 import { useExperimentalFeatures } from "@/state/experimental-features";
@@ -255,6 +257,7 @@ export function LayoutCanvas({ onEditPocket, onSelectSurfaceText, edgeBandColor,
 }
 
 function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPositionRequest }: { onEditPocket?: () => void; onSelectSurfaceText?: (id: string, inline?: boolean) => void; edgeBandColor?: string; textPositionRequest: number }): JSX.Element {
+  const toolbar = useObjectToolbar();
   const inspector = useSelectionInspector();
   const { enabled: experimentalEnabled } = useExperimentalFeatures();
   const isMobile = useIsMobile();
@@ -285,7 +288,6 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
   ], [cutouts, fingerHoles, shapesById]);
   const selectedObjects = selection.flatMap(ref => arrangementObjects.filter(o => sameObject(objectRef(o), ref)));
   const [objectControlsOpen, setObjectControlsOpen] = useState(false);
-  useEffect(() => { if (!experimentalEnabled) setObjectControlsOpen(false); }, [experimentalEnabled]);
   const [objectMode, setObjectMode] = useState<PocketTransformMode>("translate");
   const [modeRequest, setModeRequest] = useState(0);
   const [objectPivot, setObjectPivot] = useState<RotationPivot>("individual");
@@ -540,8 +542,14 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
     if (inspector?.tool === "translate" || inspector?.tool === "rotate") setObjectMode(inspector.tool);
     if (inspector && inspector.tool !== "properties") setRulerActive(false);
   }, [inspector?.tool]);
-  const showObjectControls = (experimentalEnabled || inspector?.tool === "translate" || inspector?.tool === "rotate")
+  const showObjectControls = true
     && (objectControlsOpen || !!inspector && selection.length > 0) && editorMode === "placement" && !rulerActive;
+  useEffect(() => {
+    if (!toolbar) return;
+    setObjectControlsOpen(toolbar.tool !== "properties");
+    if (toolbar.tool === "translate" || toolbar.tool === "rotate") setObjectMode(toolbar.tool);
+    setRulerActive(false);
+  }, [toolbar?.tool]);
   useEffect(() => { if (rulerActive) setPanActive(false); }, [rulerActive]);
   const [measurementPoints, setMeasurementPoints] = useState<Point[]>([]);
   const hasPlacedCutouts = placed.length > 0;
@@ -705,7 +713,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
 
   const handlePointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
     if (mobileEditor.down(event)) return;
-    if (experimentalEnabled && !panActive && editorMode === "placement" && !rulerActive && event.button === 0 && !viewport.isSpaceHeld && (event.shiftKey || event.metaKey || event.ctrlKey)) {
+    if (!panActive && editorMode === "placement" && !rulerActive && event.button === 0 && !viewport.isSpaceHeld && (event.shiftKey || event.metaKey || event.ctrlKey)) {
       const point = toBin(event.clientX, event.clientY);
       const hole = point ? hitFingerHole(point) : null, pocket = !hole && point ? hitCutout(point) : null;
       if (hole || pocket) {
@@ -1000,7 +1008,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
 
     // Independent finger access features grab before pocket bodies when they overlap.
     const hitHole = hitFingerHole(point);
-    if (experimentalEnabled && hitHole && selectedObjects.length > 1 && selection.some(ref => ref.kind === "finger" && ref.id === hitHole.id)) {
+    if (hitHole && selectedObjects.length > 1 && selection.some(ref => ref.kind === "finger" && ref.id === hitHole.id)) {
       dragRef.current = { kind: "selection-move", objects: selectedObjects, start: point, latest: null };
       clickRef.current = { clientX: event.clientX, clientY: event.clientY };
       event.currentTarget.setPointerCapture(event.pointerId); return;
@@ -1021,7 +1029,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
 
     const hit = hitCutout(point);
     if (hit) {
-      if (experimentalEnabled && selectedObjects.length > 1 && selection.some(ref => ref.kind === "pocket" && ref.id === hit.id)) {
+      if (selectedObjects.length > 1 && selection.some(ref => ref.kind === "pocket" && ref.id === hit.id)) {
         dragRef.current = { kind: "selection-move", objects: selectedObjects, start: point, latest: null };
         clickRef.current = { clientX: event.clientX, clientY: event.clientY };
         event.currentTarget.setPointerCapture(event.pointerId); return;
@@ -1281,18 +1289,18 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
         if (event.key === "Escape") { setPanActive(false); event.preventDefault(); }
         return;
       }
-      if (inspector && editorMode === "placement" && selection.length && !event.ctrlKey && !event.metaKey
+      if (editorMode === "placement" && selection.length && !event.ctrlKey && !event.metaKey
         && (event.key === "Delete" || event.key === "Backspace")) {
         event.preventDefault(); dispatch({ type: "REMOVE_SELECTION" }); return;
       }
-      if (experimentalEnabled && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a" && editorMode === "placement") {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a" && editorMode === "placement") {
         event.preventDefault(); dispatch({ type: "SET_SELECTION", selection: arrangementObjects.map(objectRef) }); return;
       }
       if (event.ctrlKey || event.metaKey) return;
-      if (!selectedSurfaceTextId && (experimentalEnabled || !!inspector && selection.length > 0) && editorMode === "placement" && ["w", "e"].includes(event.key.toLowerCase())) {
+      if (!selectedSurfaceTextId && (selection.length > 0) && editorMode === "placement" && ["w", "e"].includes(event.key.toLowerCase())) {
         event.preventDefault(); setRulerActive(false); setObjectControlsOpen(true);
         setObjectMode(event.key.toLowerCase() === "w" ? "translate" : "rotate");
-        inspector?.setTool(event.key.toLowerCase() === "w" ? "translate" : "rotate");
+        (inspector ?? toolbar)?.setTool(event.key.toLowerCase() === "w" ? "translate" : "rotate");
         setModeRequest(value => value + 1); return;
       }
       if (event.key === "Escape" && dragRef.current?.kind === "selection-move") {
@@ -1300,9 +1308,9 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
         dispatch({ type: "UPDATE_OBJECTS", edits: getCommittedBinDoc({ history }), transient: true, historyLabel: "Cancel move" });
         event.preventDefault(); return;
       }
-      if (experimentalEnabled && editorMode === "placement" && selectedObjects.length > 1) {
+      if (editorMode === "placement" && selectedObjects.length > 1) {
         if (event.key === "Escape") { dispatch({ type: "SET_SELECTION", selection: [] }); event.preventDefault(); return; }
-        const step = event.shiftKey ? 10 : 1;
+        const step = event.shiftKey ? 0.1 : 1;
         const delta = new Vector3(event.key === "ArrowLeft" ? -step : event.key === "ArrowRight" ? step : 0,
           event.key === "ArrowDown" ? -step : event.key === "ArrowUp" ? step : 0, 0);
         if (delta.lengthSq() > 0 || event.key.toLowerCase() === "r") {
@@ -1956,7 +1964,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
         </div>
       ) : null}
 
-      {!inspector && !basicPocket.kind && !showObjectControls && <div className="absolute left-3 top-16 md:top-12 [@media(pointer:coarse)]:top-16 z-30" data-testid="layout-add-pocket">
+      {!inspector && !toolbar && !basicPocket.kind && !showObjectControls && <div className="absolute left-3 top-16 md:top-12 [@media(pointer:coarse)]:top-16 z-30" data-testid="layout-add-pocket">
         <AddPocketMenu label="Add" includeFingerAccess />
       </div>}
 
@@ -2001,8 +2009,8 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
         >
           <Ruler className="h-4 w-4" />
         </Button>
-        {inspector && <SelectionToolButtons count={selection.length} inactive={rulerActive} panning={panActive} onActivate={() => { setPanActive(false); setRulerActive(false); dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" }); }} />}
-        {experimentalEnabled && !inspector && <Button variant="ghost" size="icon"
+        {(inspector || toolbar) && <SelectionToolButtons count={selection.length} inactive={rulerActive} panning={panActive} onActivate={() => { setPanActive(false); setRulerActive(false); dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" }); }} />}
+        {!inspector && <Button variant="ghost" size="icon"
           className={cn("h-11 w-11 rounded-none border-t md:h-9 md:w-9 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11", objectControlsOpen && !rulerActive && !panActive && "bg-accent text-accent-foreground")}
           aria-label="Object controls" title="Move, rotate and arrange objects" disabled={panActive} aria-expanded={objectControlsOpen && !rulerActive && !panActive}
           onClick={() => { setObjectControlsOpen(open => !open || rulerActive); setRulerActive(false); dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" }); }}><Move3D className="h-4 w-4" /></Button>}
@@ -2074,13 +2082,18 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
         <p className="text-orange-700 dark:text-orange-300">Dashed outline: overlapping pockets</p>
       </div>}
 
-      {showObjectControls && <ObjectTransformPanel disabled={panActive}
+      {showObjectControls && !selectedSurfaceTextId && <ObjectTransformPanel disabled={panActive}
         editor={{ spec, transformOrigins, originShapes: shapes, linkControls: <SelectionLinkControls />, pockets: arrangementObjects.flatMap(o => o.kind === "pocket" ? [o] : []), fingerHoles, selectedId: selectedCutoutId, selection,
           onSelect: id => dispatch({ type: "SELECT_CUTOUT", id }), onCommit: () => {},
           onSelectionChange: selection => dispatch({ type: "SET_SELECTION", selection }),
-          onCommitObjects: (edits, historyLabel) => dispatch({ type: "UPDATE_OBJECTS", edits, historyLabel }) }}
+          onCommitObjects: (edits, historyLabel) => dispatch({ type: "UPDATE_OBJECTS", edits, historyLabel }),
+          onPreviewObjects: (edits, historyLabel) => dispatch({ type: "UPDATE_OBJECTS", edits, historyLabel, transient: true }) }}
         objects={arrangementObjects} selected={selectedObjects} displayed={selectedObjects} mode={objectMode} modeRequest={modeRequest} setMode={setObjectMode}
-        snap={objectSnap} setSnap={setObjectSnap} pivot={objectPivot} setPivot={setObjectPivot} limited={false} onClose={() => setObjectControlsOpen(false)} />}
+        snap={objectSnap} setSnap={setObjectSnap} pivot={objectPivot} setPivot={setObjectPivot} limited={false} onClose={() => { setObjectControlsOpen(false); toolbar?.setTool("properties"); }} />}
+      {showObjectControls && selectedSurfaceTextId && experimentalEnabled && !inspector && <div className="property-surface property-floating absolute left-3 top-16 z-30 max-h-[calc(100%-5rem)] w-64 max-w-[calc(100%-5rem)] overflow-y-auto rounded-xl border bg-background p-2">
+        <Button variant="ghost" className="min-h-11 w-full" onClick={() => { setObjectControlsOpen(false); toolbar?.setTool("properties"); }}>Done</Button>
+        <SurfaceTextTransformControls />
+      </div>}
 
       {editorMode === "contour" && selected && !panActive ? (
         <div className="bin-canvas-guidance absolute bottom-2 left-2 z-30">

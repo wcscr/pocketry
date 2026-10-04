@@ -1,5 +1,7 @@
 import {
   useEffect,
+  useContext,
+  useId,
   useRef,
   useState,
   type ComponentProps,
@@ -7,6 +9,7 @@ import {
 } from "react";
 
 import { Input } from "@/components/ui/input";
+import { NumericEditContext, type NumericEditSession } from "./numeric-edit-context";
 
 export interface DraftNumberInputProps
   extends Omit<
@@ -16,9 +19,12 @@ export interface DraftNumberInputProps
   value: number;
   /** Round only the display; focusing and leaving it alone preserves stored precision. */
   displayPrecision?: number;
+  /** A selection can have different stored values; an explicit edit applies to all. */
+  mixed?: boolean;
   onValueChange: (value: number) => void;
   /** Called only when a valid draft is explicitly committed by blur or Enter. */
   onValueCommit?: (value: number) => void;
+  onValueCancel?: (value: number) => void;
   /** Applied before a valid draft is committed (for angle wrapping, for example). */
   normalize?: (value: number) => number;
 }
@@ -33,8 +39,10 @@ export interface DraftNumberInputProps
 export function DraftNumberInput({
   value,
   displayPrecision,
+  mixed = false,
   onValueChange,
   onValueCommit,
+  onValueCancel,
   normalize = (next) => next,
   min,
   max,
@@ -43,16 +51,24 @@ export function DraftNumberInput({
   onKeyDown,
   ...props
 }: DraftNumberInputProps): JSX.Element {
-  const format = (number: number) => String(
+  const format = (number: number) => mixed ? "" : String(
     displayPrecision === undefined ? number : Number(number.toFixed(displayPrecision)),
   );
   const [draft, setDraft] = useState(format(value));
+  const [error, setError] = useState<string | null>(null);
+  const coordinator = useContext(NumericEditContext);
+  const owner = useId();
+  const session = useRef<NumericEditSession | null>(null);
+  const initial = useRef(value);
+  const draftRef = useRef(draft);
   const focused = useRef(false);
   const edited = useRef(false);
+  const previewed = useRef(false);
 
   useEffect(() => {
-    if (!focused.current) setDraft(format(value));
-  }, [value, displayPrecision]);
+    if (session.current && !session.current.isCurrent()) { focused.current = false; session.current = null; }
+    if (!focused.current) { draftRef.current = format(value); setDraft(format(value)); }
+  }, [value, displayPrecision, mixed]);
 
   const parsedDraft = (text: string): number | null => {
     if (text.trim() === "") return null;
@@ -65,53 +81,96 @@ export function DraftNumberInput({
     return normalized;
   };
 
-  const commit = (text: string, revertInvalid: boolean) => {
-    const parsed = parsedDraft(text);
-    if (parsed === null) {
-      if (revertInvalid) setDraft(format(value));
-      return;
-    }
-    onValueChange(parsed);
-    if (revertInvalid) {
-      setDraft(format(parsed));
-      onValueCommit?.(parsed);
+  const rangeMessage = `Enter a number${typeof min === "number" ? ` from ${min}` : ""}${typeof max === "number" ? ` to ${max}` : ""}.`;
+  const begin = () => {
+    if (focused.current && (!session.current || session.current.isCurrent())) return;
+    focused.current = true;
+    initial.current = value;
+    draftRef.current = format(value);
+    edited.current = false;
+    previewed.current = false;
+    session.current = coordinator?.begin(owner) ?? null;
+    setError(null);
+  };
+  const finish = (cancel = false) => {
+    if (!focused.current) return;
+    focused.current = false;
+    const current = session.current;
+    session.current = null;
+    if (current && !current.isCurrent()) { setDraft(format(value)); return; }
+    if (!edited.current) { current?.cancel(() => {}); return; }
+    const parsed = parsedDraft(draftRef.current);
+    const restore = () => { if (previewed.current) (onValueCancel ?? onValueChange)(initial.current); };
+    if (cancel || parsed === null) {
+      if (current) current.cancel(restore); else restore();
+      setDraft(format(initial.current));
+      if (!cancel) setError(`${rangeMessage} Change not applied.`);
+    } else {
+      const update = () => {
+        if (edited.current && (mixed || parsed !== initial.current)) {
+          onValueChange(parsed);
+          onValueCommit?.(parsed);
+        }
+      };
+      if (current) current.commit(update); else update();
+      setDraft(format(edited.current ? parsed : initial.current));
     }
   };
+  const finishRef = useRef(finish);
+  finishRef.current = finish;
+  // A pane can unmount before the browser dispatches blur.
+  useEffect(() => () => finishRef.current(), []);
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     onKeyDown?.(event);
     if (event.defaultPrevented) return;
-    if (event.key === "Enter") event.currentTarget.blur();
+    if (event.key === "Enter") {
+      event.preventDefault(); event.stopPropagation();
+      if (parsedDraft(draftRef.current) === null) { setError(rangeMessage); return; }
+      finish();
+      event.currentTarget.blur();
+    }
     if (event.key === "Escape") {
-      setDraft(format(value));
+      event.preventDefault(); event.stopPropagation();
+      finish(true);
       event.currentTarget.blur();
     }
   };
 
   return (
+    <span className="relative inline-flex min-w-0 flex-col" style={{ maxWidth: "100%" }}>
     <Input
       {...props}
       type="number"
       min={min}
       max={max}
       value={draft}
+      aria-invalid={!!error}
+      aria-describedby={error ? `${owner}-error` : props["aria-describedby"]}
+      title={error ?? props.title}
       onFocus={(event) => {
-        focused.current = true;
-        edited.current = false;
+        begin();
         onFocus?.(event);
       }}
       onChange={(event) => {
+        begin();
         edited.current = true;
         const next = event.target.value;
+        draftRef.current = next;
         setDraft(next);
-        commit(next, false);
+        setError(null);
+        const parsed = parsedDraft(next);
+        if (parsed !== null && parsed !== initial.current) previewed.current = true;
+        if (session.current) session.current.preview(parsed !== null, parsed === null ? undefined : () => onValueChange(parsed));
+        else if (parsed !== null) onValueChange(parsed);
       }}
       onBlur={(event) => {
-        focused.current = false;
-        if (displayPrecision === undefined || edited.current) commit(draft, true);
+        finish();
         onBlur?.(event);
       }}
       onKeyDown={handleKeyDown}
     />
+    {error && <span id={`${owner}-error`} role="status" className="text-[10px] leading-tight text-destructive">{error}</span>}
+    </span>
   );
 }

@@ -1,5 +1,43 @@
 # Mobile experience review
 
+## UI consistency follow-up (2026-10-04)
+
+The current implementation supersedes the automatic-properties and scrolling
+toolbar behavior described in earlier reviews below. Phones use Workflow,
+Adjust, and Export; selection follows an open compact tray and leaves a closed
+tray closed. All properties opens the complete editor explicitly. Add stays
+visible beside Select, with a Tools menu when the toolbar is narrow.
+
+Breakpoints are phone below 768 px, tablet/narrow window below 1100 px, and
+desktop at 1100 px. Tablets show one side pane at a time and retain at least
+480 px of canvas. The canvas instance stays mounted across these transitions.
+Visual-viewport changes constrain workspaces and dialogs without changing the
+layout choice or treating keyboard height as an orientation change.
+
+Browser checks covered 320 × 568, 360 × 800, 390 × 844, 430 × 932,
+667 × 375, 844 × 390, 768 × 1024, 1024 × 768, 1100 × 800, and
+1440 × 900, plus the 767 and 1099 px boundaries. The browser's 80% zoom
+produces fractional CSS sizes; the tablet boundary was also checked just above
+768 px. No horizontal page overflow appeared. At 320 px, the open compact tray
+left approximately 279 px of canvas height. At 667 × 375, side adjustments left
+approximately 427 × 274 px of canvas. A properties pane at the tablet boundary
+retained exactly 480 px after correcting fractional-width rounding.
+
+The real-photo walkthrough covered upload, manual scale, region detection,
+contour movement, bin handoff, numeric adjustment, Library naming and return,
+and the STL Saved confirmation. The downloaded STL itself was not inspected;
+the arbitrary calibration used for this interaction check is not dimensional
+or print validation. Screenshots and measurements are retained locally in
+`/private/tmp/pocketry-ui-implementation-2026-10-04/`.
+
+Regression tests cover canvas identity and transforms during resizing,
+keyboard-constrained height, numeric rollback and stale callbacks, linked-edit
+restrictions, persistent opt-out, standard multi-selection, text movement and
+rotation, and Library save/cancel/failure modal ownership. Coarse-pointer target
+sizing is covered by CSS inspection; physical iOS Safari and Android Chrome
+gestures, virtual keyboards, and printing remain separate validation gates.
+No mobile default change is included.
+
 ## Canvas space and point editing follow-up (2026-09-20)
 
 Implemented from `origin/main` at `0e0923d` on `codex/mobile-canvas-space`.

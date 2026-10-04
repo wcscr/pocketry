@@ -33,6 +33,7 @@ export interface PocketEditor {
   selection?: readonly ObjectRef[];
   onSelectionChange?: (selection: ObjectRef[]) => void;
   onCommitObjects?: (edits: ObjectEdits, label: string) => void;
+  onPreviewObjects?: (edits: ObjectEdits, label: string) => void;
   onSelect: (id: string | null) => void;
   onCommit: (id: string, patch: PocketTransformPatch, mode: PocketTransformMode) => void;
 }

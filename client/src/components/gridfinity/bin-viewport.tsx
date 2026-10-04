@@ -3,13 +3,14 @@ import { SurfaceTextMesh } from "./surface-text-mesh";
 import { useExperimentalFeatures } from "@/state/experimental-features";
 import { SelectionToolButtons } from "./selection-tool-buttons";
 import { useSelectionInspector } from "./selection-inspector-context";
+import { useObjectToolbar } from "./object-toolbar-context";
 import { Line, OrbitControls } from "@react-three/drei";
 import { Canvas, useThree, type ThreeEvent } from "@react-three/fiber";
 import { LoaderCircle, Ruler, Move3D, X } from "lucide-react";
 import { Component, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 
 import type { BufferGeometry, PerspectiveCamera } from "three";
-import { Vector3 } from "three";
+import { Quaternion, Vector3 } from "three";
 
 import type { Outline, Point } from "@shared/geometry/types";
 import type { SurfaceText } from "@shared/gridfinity/surface-text";
@@ -34,7 +35,7 @@ import { type PocketTransformMode } from "@/lib/gridfinity/pocket-transform";
 import { PocketSelectionPlane, SelectionTransformScene, ObjectTransformWire, type PocketEditor } from "./pocket-transform-scene";
 
 import { ObjectTransformPanel, commitEditorObjects } from "./object-transform-panel";
-import { applyObjectEdits, objectKey, objectRef, type EditableObject, type ObjectEdits, type RotationPivot } from "@/lib/gridfinity/object-arrangement";
+import { applyObjectEdits, transformObjects, objectKey, objectRef, type EditableObject, type ObjectEdits, type RotationPivot } from "@/lib/gridfinity/object-arrangement";
 
 const RULER_3D_SNAP_TOLERANCE_MM = 5;
 const RULER_3D_Z_FIGHT_OFFSET_MM = 0.25;
@@ -276,10 +277,17 @@ export function BinViewport({
   const laidOut = containerSize.width > 0 && containerSize.height > 0;
   const [rulerActive, setRulerActive] = useState(false);
   const inspector = useSelectionInspector();
+  const toolbar = useObjectToolbar();
   const { enabled: experimentalEnabled } = useExperimentalFeatures();
   const [objectControlsOpen, setObjectControlsOpen] = useState(false);
   useEffect(() => { if (!pocketEditor) setObjectControlsOpen(false); }, [!!pocketEditor]);
   const [transformMode, setTransformMode] = useState<PocketTransformMode>("translate");
+  useEffect(() => {
+    if (!toolbar) return;
+    setObjectControlsOpen(toolbar.tool !== "properties");
+    if (toolbar.tool === "translate" || toolbar.tool === "rotate") setTransformMode(toolbar.tool);
+    setRulerActive(false);
+  }, [toolbar?.tool]);
   const [modeRequest, setModeRequest] = useState(0);
   useEffect(() => {
     if (inspector?.tool === "translate" || inspector?.tool === "rotate") setTransformMode(inspector.tool);
@@ -300,21 +308,33 @@ export function BinViewport({
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
       if (!pocketEditor || !canHandleCanvasShortcut(event) || event.altKey) return;
-      if (experimentalEnabled && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a") {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a") {
         event.preventDefault(); pocketEditor.onSelectionChange?.(objects.map(objectRef)); return;
       }
       if (event.ctrlKey || event.metaKey) return;
+      if (!surfaceTextEditor && selectedObjects.length && !rulerActive) {
+        const step = event.shiftKey ? 0.1 : 1;
+        const delta = new Vector3(event.key === "ArrowLeft" ? -step : event.key === "ArrowRight" ? step : 0,
+          event.key === "ArrowDown" ? -step : event.key === "ArrowUp" ? step : 0, 0);
+        if (delta.lengthSq() || event.key.toLowerCase() === "r") {
+          const rotation = event.key.toLowerCase() === "r" ? new Quaternion().setFromAxisAngle(new Vector3(0, 0, 1), (event.shiftKey ? -15 : 15) * Math.PI / 180) : new Quaternion();
+          const edits = transformObjects(selectedObjects, pocketEditor.spec, delta, rotation, pivot, objects);
+          if (edits) commitEditorObjects(pocketEditor, edits, delta.lengthSq() ? "Move selected objects" : "Rotate selected objects", delta.lengthSq() ? "translate" : "rotate");
+          event.preventDefault(); return;
+        }
+      }
       if (event.key === "Escape") { pocketEditor.onSelectionChange?.([]); return; }
       if (event.key.toLowerCase() === "w" || event.key.toLowerCase() === "e") {
         event.preventDefault(); setRulerActive(false); setObjectControlsOpen(true);
         setTransformMode(event.key.toLowerCase() === "w" ? "translate" : "rotate");
-        inspector?.setTool(event.key.toLowerCase() === "w" ? "translate" : "rotate");
+        surfaceTextEditor?.onToolChange?.(event.key.toLowerCase() === "w" ? "translate" : "rotate");
+        (inspector ?? toolbar)?.setTool(event.key.toLowerCase() === "w" ? "translate" : "rotate");
         setModeRequest(value => value + 1);
       }
     };
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
-  }, [pocketEditor, objects, inspector?.setTool, experimentalEnabled]);
+  }, [pocketEditor, objects, inspector?.setTool, experimentalEnabled, surfaceTextEditor, selectedObjects, rulerActive, pivot]);
   const [measurementPoints, setMeasurementPoints] = useState<Point[]>([]);
   const showBusy = useDelayedBusy(building);
   const measuredDistanceMm = useMemo(
@@ -405,7 +425,7 @@ export function BinViewport({
           onPreview={setDragPreview} onLimit={setTransformLimited}
           onCommit={edits => commitEditorObjects(pocketEditor, edits, `${transformMode === "translate" ? "Move" : "Rotate"} ${selectedObjects.length} objects in 3D`, transformMode)} />}
         {surfaceTextEditor && (inspector ? inspector.tool === "translate" || inspector.tool === "rotate" : objectControlsOpen) && !rulerActive &&
-          <SurfaceTextTransformScene key={`${surfaceTextEditor.label.id}-${transformMode}`} editor={surfaceTextEditor} mode={transformMode} snap={snapTransform} onPreview={setTextPreview} />}
+          <SurfaceTextTransformScene key={`${surfaceTextEditor.label.id}-${surfaceTextEditor.tool ?? transformMode}`} editor={surfaceTextEditor} mode={surfaceTextEditor.tool ?? transformMode} snap={surfaceTextEditor.snap ?? snapTransform} onPreview={setTextPreview} />}
         <PlanarRulerScene
           active={rulerActive}
           outlines={measurementOutlines}
@@ -464,7 +484,7 @@ export function BinViewport({
         >
           <Ruler className="h-4 w-4" />
         </Button>
-        {inspector && <SelectionToolButtons count={selectedObjects.length + (surfaceTextEditor ? 1 : 0)} inactive={rulerActive} onActivate={() => setRulerActive(false)} />}
+        {(inspector || toolbar) && <SelectionToolButtons count={selectedObjects.length + (surfaceTextEditor ? 1 : 0)} inactive={rulerActive} onActivate={() => setRulerActive(false)} />}
         {pocketEditor && !inspector && <Button variant="ghost" size="icon"
           className={cn("h-9 w-9 rounded-none border-t [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11", objectControlsOpen && !rulerActive && "bg-accent text-accent-foreground")}
           aria-label="Object controls" title="Move, rotate and arrange objects" aria-expanded={objectControlsOpen && !rulerActive}
@@ -486,12 +506,12 @@ export function BinViewport({
 
       {pocketEditor && !surfaceTextEditor && (objectControlsOpen || !!inspector && selectedObjects.length > 0) && !rulerActive && <ObjectTransformPanel editor={pocketEditor} objects={objects} selected={selectedObjects} displayed={displayedObjects}
         mode={transformMode} modeRequest={modeRequest} setMode={mode => { setRulerActive(false); setTransformMode(mode); }} snap={snapTransform} setSnap={setSnapTransform}
-        pivot={pivot} setPivot={setPivot} limited={transformLimited} onClose={() => setObjectControlsOpen(false)} />}
+        pivot={pivot} setPivot={setPivot} limited={transformLimited} onClose={() => { setObjectControlsOpen(false); toolbar?.setTool("properties"); }} />}
 
       {surfaceTextEditor && objectControlsOpen && !inspector && !rulerActive && <div className="property-surface property-floating absolute left-3 top-16 z-20 w-64 rounded-xl border bg-background p-3 text-xs shadow-lg md:top-12" data-property-tone="cyan" data-testid="text-3d-controls">
         <div className="flex items-center justify-between"><span className="font-medium">Object controls</span><Button size="icon" variant="ghost" className="h-8 w-8" aria-label="Close object controls" onClick={() => setObjectControlsOpen(false)}><X className="h-4 w-4" /></Button></div>
-        <div className="flex gap-2">{(["translate", "rotate"] as const).map(mode => <Button key={mode} size="sm" variant={transformMode === mode ? "secondary" : "ghost"} aria-pressed={transformMode === mode} onClick={() => setTransformMode(mode)}>{mode === "translate" ? "Move" : "Rotate"}</Button>)}
-          <Button size="sm" variant={snapTransform ? "secondary" : "ghost"} aria-pressed={snapTransform} onClick={() => setSnapTransform(value => !value)}>Snap</Button></div>
+        <div className="flex gap-2">{(["translate", "rotate"] as const).map(mode => <Button key={mode} size="sm" variant={(surfaceTextEditor.tool ?? transformMode) === mode ? "secondary" : "ghost"} aria-pressed={(surfaceTextEditor.tool ?? transformMode) === mode} onClick={() => { setTransformMode(mode); surfaceTextEditor.onToolChange?.(mode); }}>{mode === "translate" ? "Move" : "Rotate"}</Button>)}
+          <Button size="sm" variant={(surfaceTextEditor.snap ?? snapTransform) ? "secondary" : "ghost"} aria-pressed={surfaceTextEditor.snap ?? snapTransform} onClick={() => { setSnapTransform(value => !value); surfaceTextEditor.onSnapChange?.(!surfaceTextEditor.snap); }}>Snap</Button></div>
       </div>}
 
       {rulerActive ? (

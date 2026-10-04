@@ -1,15 +1,13 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { useSearch } from "wouter";
-import type { ProjectDoc } from "@shared/gridfinity/project";
-import { projectUsesExperimentalFeatures } from "@/lib/project/experimental-features";
 
 export const EXPERIMENTAL_FEATURES_KEY = "pocketry:experimental-features";
 export const SELECTION_INSPECTOR_KEY = "pocketry:selection-inspector";
 export const EDITOR_LAYOUT_KEY = "pocketry:editor-layout";
 export type EditorLayout = "standard" | "workflow";
 export const EDITOR_LAYOUTS = [
-  { value: "standard", label: "Original: All Controls on Left", description: "The full workflow and its settings in one panel." },
-  { value: "workflow", label: "New UI: Split Workflow and Properties", description: "Every workflow section on the left; its settings on the right." },
+  { value: "standard", label: "Single panel", description: "Workflow and properties together in one panel." },
+  { value: "workflow", label: "Workflow + properties", description: "Workflow and properties in separate panels on wide screens." },
 ] as const;
 const isEditorLayout = (value: string | null): value is EditorLayout => EDITOR_LAYOUTS.some(layout => layout.value === value);
 function readLayout(): EditorLayout {
@@ -32,7 +30,6 @@ const ExperimentalFeaturesContext = createContext({
   editorLayout: "standard" as EditorLayout,
   setEditorLayout: (_layout: EditorLayout) => {},
   inspectorEnabled: false,
-  enableForProject: (_project: ProjectDoc): boolean => false,
   settingsOpen: false,
   setSettingsOpen: (_open: boolean) => {},
   persistenceUnavailable: false,
@@ -78,11 +75,6 @@ export function ExperimentalFeaturesProvider({ children }: { children: ReactNode
     if (isEditorLayout(layoutQuery) || layoutQuery === "objects") url.searchParams.delete("layout");
     window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
   }, [requestedLayout, layoutQuery, setEditorLayout]);
-  const enableForProject = useCallback((project: ProjectDoc): boolean => {
-    if (enabledRef.current || !projectUsesExperimentalFeatures(project)) return false;
-    setEnabled(true);
-    return true;
-  }, [setEnabled]);
   useEffect(() => {
     const sync = (event: StorageEvent) => {
       if (event.key === EXPERIMENTAL_FEATURES_KEY || event.key === null) {
@@ -96,7 +88,7 @@ export function ExperimentalFeaturesProvider({ children }: { children: ReactNode
     window.addEventListener("storage", sync);
     return () => window.removeEventListener("storage", sync);
   }, []);
-  return <ExperimentalFeaturesContext.Provider value={{ enabled, setEnabled, editorLayout, setEditorLayout, inspectorEnabled, enableForProject, settingsOpen, setSettingsOpen, persistenceUnavailable }}>
+  return <ExperimentalFeaturesContext.Provider value={{ enabled, setEnabled, editorLayout, setEditorLayout, inspectorEnabled, settingsOpen, setSettingsOpen, persistenceUnavailable }}>
     {children}
   </ExperimentalFeaturesContext.Provider>;
 }

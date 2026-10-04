@@ -128,8 +128,8 @@ export function AppHeader({
         <DropdownMenu>
           <DropdownMenuTrigger asChild><Button variant="ghost" className="h-11 w-11 p-0" aria-label="More options"><Ellipsis className="h-5 w-5" /></Button></DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            {!isAbout && !(location === "/bin" && inspectorEnabled) && <DropdownMenuItem className="min-h-11" onSelect={() => onPanelOpenChange(true)}><PanelLeftOpen className="mr-2 h-4 w-4" />All settings</DropdownMenuItem>}
-            <DropdownMenuItem className="min-h-11" onSelect={() => setSettingsOpen(true)}><Settings className="mr-2 h-4 w-4" />Settings{experimentalEnabled && <span className="ml-auto pl-3 text-xs text-muted-foreground">Experimental on</span>}</DropdownMenuItem>
+            {!isAbout && !(location === "/bin" && inspectorEnabled) && <DropdownMenuItem className="min-h-11" onSelect={() => onPanelOpenChange(true)}><PanelLeftOpen className="mr-2 h-4 w-4" />All properties</DropdownMenuItem>}
+            <DropdownMenuItem className="min-h-11" onSelect={() => setSettingsOpen(true)}><Settings className="mr-2 h-4 w-4" />App settings{experimentalEnabled && <span className="ml-auto pl-3 text-xs text-muted-foreground">Experimental on</span>}</DropdownMenuItem>
             <DropdownMenuItem className="min-h-11" onSelect={onHelpClick}><CircleHelp className="mr-2 h-4 w-4" />Help</DropdownMenuItem>
             <DropdownMenuItem asChild className="min-h-11"><Link href="/about"><Info className="mr-2 h-4 w-4" />About Pocketry</Link></DropdownMenuItem>
             {onStartOver && <><DropdownMenuSeparator /><DropdownMenuItem className="min-h-11" onSelect={onStartOver}><RotateCcw className="mr-2 h-4 w-4" />Start over</DropdownMenuItem></>}
@@ -140,12 +140,12 @@ export function AppHeader({
       <div className="ml-auto hidden shrink-0 items-center gap-1 md:flex">
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button variant="ghost" size="icon" aria-label="Settings" onClick={() => setSettingsOpen(true)} className="relative">
+            <Button variant="ghost" size="icon" aria-label="App settings" onClick={() => setSettingsOpen(true)} className="relative">
               <Settings className="h-4 w-4" />
               {experimentalEnabled && <span aria-label="Experimental features enabled" className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-amber-500" />}
             </Button>
           </TooltipTrigger>
-          <TooltipContent>{experimentalEnabled ? "Settings · experimental features on" : "Settings"}</TooltipContent>
+          <TooltipContent>{experimentalEnabled ? "App settings · experimental features on" : "App settings"}</TooltipContent>
         </Tooltip>
 
         <Tooltip>

@@ -3,11 +3,12 @@ import { hasRigidPocket, resetPocketPlane } from "@shared/gridfinity/rigid-pocke
 import { createPortal } from "react-dom";
 import { useExperimentalFeatures } from "@/state/experimental-features";
 import { useSelectionInspector } from "./selection-inspector-context";
+import { useObjectToolbar } from "./object-toolbar-context";
 import { useEffect, useRef, useState } from "react";
 import { objectTransformOffsets, setObjectTransformOffsets } from "@/lib/gridfinity/object-transform-offsets";
 import { CheckSquare2, ChevronDown, X, Link2, Magnet, Move3D, Rotate3D, AlignHorizontalJustifyCenter, AlignHorizontalJustifyStart, AlignHorizontalJustifyEnd, AlignVerticalJustifyStart, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd, AlignHorizontalDistributeCenter, AlignVerticalDistributeCenter, AlignHorizontalSpaceAround, AlignVerticalSpaceAround } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { DraftNumberInput } from "@/components/ui/draft-number-input";
 import { cn } from "@/lib/utils";
 import { pocketName } from "@shared/gridfinity/cutout";
 import { pocketVerticalDepthMm, type PocketTransformMode } from "@/lib/gridfinity/pocket-transform";
@@ -33,26 +34,20 @@ export function ObjectTransformPanel({ editor, objects, selected, displayed, mod
   pivot: RotationPivot; setPivot: (pivot: RotationPivot) => void; limited: boolean;
 }): JSX.Element {
   const inspector = useSelectionInspector();
+  const toolbar = useObjectToolbar();
   const { enabled: experimentalEnabled } = useExperimentalFeatures();
   const showLinks = experimentalEnabled && editor.linkControls && !inspector;
   const [legacyArranging, setArranging] = useState(false);
-  const arranging = experimentalEnabled && (inspector ? inspector.tool === "arrange" : legacyArranging);
+  const arranging = (inspector ? inspector.tool === "arrange" : toolbar ? toolbar.tool === "arrange" : legacyArranging);
   const [legacyLinking, setLinking] = useState(false);
-  const linking = experimentalEnabled && (inspector ? inspector.tool === "links" : legacyLinking);
-  const [draft, setDraft] = useState<Record<number, string>>({});
-  const pendingDraft = useRef<Record<number, string>>({});
+  const linking = experimentalEnabled && (inspector ? inspector.tool === "links" : toolbar ? toolbar.tool === "links" : legacyLinking);
   const [error, setError] = useState<string | null>(null);
   const [reference, setReference] = useState<"selection" | "active">("selection");
   const key = JSON.stringify(selected.map(o => objectKey(objectRef(o))));
   const offsets = displayed.map(o => objectTransformOffsets(o, editor.spec, editor.transformOrigins, mode, editor.originShapes));
-  const actual = [0, 1, 2].map(i => !offsets.length ? "0" : offsets.every(v => Math.abs(v[i] - offsets[0][i]) < 1e-5)
-    ? String(Number(offsets[0][i].toFixed(4))) : "");
-  const actualKey = JSON.stringify(offsets);
-  const clearDraft = () => { pendingDraft.current = {}; setDraft({}); };
-  useEffect(() => { clearDraft(); setError(null); }, [key, mode, actualKey, modeRequest]);
+  useEffect(() => { setError(null); }, [key, mode, modeRequest]);
   useEffect(() => { setArranging(false); setLinking(false); }, [mode, modeRequest, experimentalEnabled]);
   const select = (next: EditableObject[]) => {
-    if (!experimentalEnabled) next = next.slice(-1);
     if (editor.onSelectionChange) editor.onSelectionChange(next.map(objectRef));
     else editor.onSelect(next.at(-1)?.kind === "pocket" ? objectRef(next.at(-1)!).id : null);
   };
@@ -64,21 +59,15 @@ export function ObjectTransformPanel({ editor, objects, selected, displayed, mod
     if (!edits) { setError(arranging ? "There is not enough room for equal gaps between the outer objects." : "Cannot transform every affected copy. Check depth and tilt limits; try editing one linked copy."); return; }
     setError(null);
     if (objectEditsChanged(selected, edits)) commitEditorObjects(editor, edits, text, mode);
-    clearDraft();
   };
-  const applyAxis = (axis: number) => {
-    const text = pendingDraft.current[axis];
-    if (text === undefined) return;
-    // Consume before blur can fire again; rejected edits restore the actual value.
-    clearDraft();
-    const value = text.trim() ? Number(text) : NaN;
-    if (!Number.isFinite(value)) { setError("Enter a finite number for the edited axis."); return; }
-    if (mode === "translate" && !Number.isFinite(value * 1e6)) {
-      setError("That movement is too large. Enter a smaller distance."); return;
-    }
+  const applyAxis = (axis: number, value: number, preview = false) => {
     const numbers = [0, 1, 2].map(i => i === axis ? value : undefined);
-    commit(setObjectTransformOffsets(selected, editor.spec, editor.transformOrigins, mode, numbers, pivot, objects, editor.originShapes),
-      `${mode === "translate" ? "Move" : "Rotate"} ${selected.length} object${selected.length === 1 ? "" : "s"}`);
+    const edits = setObjectTransformOffsets(selected, editor.spec, editor.transformOrigins, mode, numbers, pivot, objects, editor.originShapes);
+    if (!edits) { setError("Cannot transform every affected copy. Check depth and tilt limits."); return; }
+    setError(null);
+    const label = `${mode === "translate" ? "Move" : "Rotate"} ${selected.length} objects`;
+    if (preview) editor.onPreviewObjects?.(edits, label);
+    else commitEditorObjects(editor, edits, label, mode);
   };
   const mixed = selected.some(o => o.kind === "finger");
 
@@ -100,7 +89,7 @@ export function ObjectTransformPanel({ editor, objects, selected, displayed, mod
       </summary>
       <div className="border-t bg-muted/25 px-2 pb-2">
         <div className="flex justify-between py-1">
-          {experimentalEnabled && <Button size="sm" variant="ghost" onClick={() => select([...objects])}>Select all</Button>}
+          {<Button size="sm" variant="ghost" onClick={() => select([...objects])}>Select all</Button>}
           <Button size="sm" variant="ghost" onClick={() => select([])}>Clear</Button>
         </div>
         <div className="max-h-40 overflow-y-auto" aria-label="Objects in selection">
@@ -110,22 +99,22 @@ export function ObjectTransformPanel({ editor, objects, selected, displayed, mod
             <span className="truncate">{label(o)}</span>
           </label>)}
         </div>
-        {experimentalEnabled && <p className="px-2 pt-1 text-[10px] text-muted-foreground">Shift / ⌘ / Ctrl + click to add or remove.</p>}
+        {<p className="px-2 pt-1 text-[10px] text-muted-foreground">Shift / ⌘ / Ctrl + click to add or remove.</p>}
       </div>
     </details>}
     <div className="space-y-3 p-3">
-      {!inspector && <div className={cn("grid gap-1 rounded-lg bg-muted p-1", showLinks ? "grid-cols-4" : experimentalEnabled ? "grid-cols-3" : "grid-cols-2")} role="group" aria-label="Object tools">
-        {(["translate", "rotate", "arrange"] as const).filter(tool => experimentalEnabled || tool !== "arrange").map(tool => <button key={tool} type="button"
+      {!inspector && <div className={cn("grid gap-1 rounded-lg bg-muted p-1", showLinks ? "grid-cols-4" : "grid-cols-3")} role="group" aria-label="Object tools">
+        {(["translate", "rotate", "arrange"] as const).map(tool => <button key={tool} type="button"
           className={cn("flex min-h-9 flex-col items-center justify-center gap-1 rounded-md px-1 py-1.5 text-[10px] font-medium transition-colors", (!linking && (tool === "arrange" ? arranging : !arranging && mode === tool)) ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}
           aria-label={tool === "translate" ? "Move pocket (W)" : tool === "rotate" ? "Rotate pocket (E)" : "Align and distribute objects"}
           aria-pressed={!linking && (tool === "arrange" ? arranging : !arranging && mode === tool)}
-          onClick={() => { setLinking(false); setError(null); setArranging(tool === "arrange"); if (tool !== "arrange") setMode(tool); }}>
+          onClick={() => { toolbar?.setTool(tool); setLinking(false); setError(null); setArranging(tool === "arrange"); if (tool !== "arrange") setMode(tool); }}>
           {tool === "translate" ? <Move3D className="h-4 w-4" /> : tool === "rotate" ? <Rotate3D className="h-4 w-4" /> : <AlignHorizontalJustifyCenter className="h-4 w-4" />}
           {tool === "translate" ? "Move" : tool === "rotate" ? "Rotate" : "Arrange"}
         </button>)}
         {showLinks && <button type="button" aria-label="Link and unlink designs" aria-pressed={linking}
           className={cn("flex min-h-9 flex-col items-center justify-center gap-1 rounded-md px-1 py-1.5 text-[10px] font-medium", linking ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground")}
-          onClick={() => { setLinking(true); setError(null); }}><Link2 className="h-4 w-4" />Links</button>}
+          onClick={() => { toolbar?.setTool("links"); setLinking(true); setError(null); }}><Link2 className="h-4 w-4" />Links</button>}
       </div>}
       {linking ? <>{selected.length ? editor.linkControls : <p className="text-muted-foreground">Select objects to link or unlink their designs.</p>}</> : arranging ? <>
         <label className="flex items-center gap-2 text-xs">Relative to
@@ -163,17 +152,13 @@ export function ObjectTransformPanel({ editor, objects, selected, displayed, mod
         <div className="space-y-2">
           <div className="grid grid-cols-3 gap-2">{["X", "Y", "Z"].map((a, i) => <label key={a} className="space-y-1">
             <span className={cn("font-semibold", i === 0 ? "text-red-500" : i === 1 ? "text-emerald-600 dark:text-emerald-400" : "text-blue-500")}>{a}</span>
-            <Input aria-label={`${mode === "translate" ? "Move" : "Rotate"} ${a} by`} type="number" step="any" className="h-9 px-2 text-xs tabular-nums" placeholder="Mixed" value={draft[i] ?? actual[i]}
+            <DraftNumberInput key={`${key}:${mode}:${i}`} aria-label={`${mode === "translate" ? "Move" : "Rotate"} ${a} by`} step="any" className="h-9 w-full px-2 text-xs tabular-nums" displayPrecision={4}
+              value={offsets[0]?.[i] ?? 0} min={-1000000} max={1000000}
+              mixed={offsets.some(offset => Math.abs(offset[i] - offsets[0][i]) > 1e-5)} placeholder="Mixed"
               disabled={!selected.length || (mixed && mode === "rotate" && i < 2)}
-              title="Enter or leave the field to apply. Escape cancels."
-              onChange={e => { pendingDraft.current = { ...pendingDraft.current, [i]: e.target.value }; setDraft(pendingDraft.current); setError(null); }}
-              onBlur={() => applyAxis(i)}
-              onKeyDown={e => {
-                if (e.key !== "Enter" && e.key !== "Escape") return;
-                e.preventDefault(); e.stopPropagation();
-                if (e.key === "Escape") { clearDraft(); setError(null); }
-                e.currentTarget.blur();
-              }} />
+              title="Preview live. Enter or leave the field to apply. Escape cancels."
+              onValueChange={value => applyAxis(i, value, true)}
+              onValueCommit={value => applyAxis(i, value)} />
           </label>)}</div>
           {mode === "rotate" && selected.length > 1 && <select aria-label="Rotation pivot" className="h-9 w-full rounded-md border bg-background px-2" value={pivot} onChange={e => setPivot(e.target.value as RotationPivot)}>
             <option value="individual">Each object’s center</option><option value="selection">Selection center</option>

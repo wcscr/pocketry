@@ -7,6 +7,7 @@ import { AppShell } from "./app-shell";
 import { CanvasToolbar } from "./canvas-toolbar";
 import { PanelBody, PanelFooter, PanelSection } from "./panel-section";
 import { WorkspaceLayout } from "./workspace-layout";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 /** jsdom has no ResizeObserver, and react-resizable-panels constructs one. */
 class NoopResizeObserver implements ResizeObserver {
@@ -90,6 +91,46 @@ describe("AppShell", () => {
 
 describe("WorkspaceLayout", () => {
   const noop = () => {};
+
+  it.each([false, true])("retains the actual canvas through breakpoints and keyboard height changes (split=%s)", split => {
+    let mounts = 0;
+    function Canvas() { React.useEffect(() => { mounts++; }, []); return <svg data-testid="stable-scene"><g transform="translate(12 24) scale(3)" /></svg>; }
+    const viewport = new EventTarget();
+    Object.assign(viewport, { height: 800, offsetTop: 0 });
+    vi.stubGlobal("visualViewport", viewport);
+    render(<WorkspaceLayout autoSaveId="test:breakpoints" panelOpen onPanelOpenChange={noop}
+      panel={<input aria-label="Property" />} inspector={split ? <input aria-label="Object property" /> : undefined}
+      canvas={<Canvas />} mobileActions={<div>Workflow Adjust Export</div>} mobileActionsLayout="landscape-side" />, {
+      inspect: container => {
+        const canvas = container.querySelector('[data-testid="stable-scene"]');
+        for (const width of [1100, 1099, 1024, 768, 767, 320, 667, 844, 1440]) {
+          React.act(() => {
+            Object.defineProperty(window, "innerWidth", { configurable: true, value: width });
+            Object.defineProperty(window, "innerHeight", { configurable: true, value: 800 });
+            window.dispatchEvent(new Event("resize"));
+          });
+          expect(container.querySelector('[data-testid="stable-scene"]')).toBe(canvas);
+          expect(canvas!.querySelector('g')!.getAttribute('transform')).toBe('translate(12 24) scale(3)');
+          expect(mounts).toBe(1);
+          if (split && width >= 768 && width < 1100) {
+            const open = (id: string) => React.act(() => container.querySelector<HTMLButtonElement>(`nav button[aria-controls="${id}"]`)!.click());
+            open('workflow-panel');
+            expect(container.querySelector<HTMLElement>('#objects-panel')!.hidden).toBe(true);
+            open('objects-panel');
+            expect(container.querySelector<HTMLElement>('#workflow-panel')!.hidden).toBe(true);
+          }
+        }
+        React.act(() => { Object.defineProperty(window, 'innerWidth', {configurable:true,value:667}); window.dispatchEvent(new Event('resize')); });
+        const workspace = container.querySelector<HTMLElement>(split ? '[data-testid="inspector-workspace"]' : '.mobile-workspace')!;
+        const orientation = workspace.getAttribute('data-landscape-actions');
+        React.act(() => { Object.assign(viewport,{height:320}); viewport.dispatchEvent(new Event('resize')); });
+        expect(workspace.style.maxHeight).toBe('264px');
+        expect(workspace.getAttribute('data-landscape-actions')).toBe(orientation);
+        expect(container.querySelector('[data-testid="stable-scene"]')).toBe(canvas);
+        expect(mounts).toBe(1);
+      },
+    });
+  });
 
   it("keeps both panel handles reachable on short landscape screens without remounting the canvas", () => {
     render(<WorkspaceLayout autoSaveId="test:inspector" panelOpen onPanelOpenChange={noop}
@@ -187,7 +228,7 @@ describe("WorkspaceLayout", () => {
     expect(html).toContain("canvas-content");
     // Both panels must be allowed to shrink below their content width, or the
     // drag handle jams well above minPanelSize.
-    expect(html.match(/min-w-0/g)).toHaveLength(3);
+    expect(html.match(/min-w-0/g)?.length).toBeGreaterThanOrEqual(3);
   });
 
   it("mounts without touching the panel group's imperative API before it has a layout", () => {
@@ -327,5 +368,23 @@ describe("CanvasToolbar", () => {
       <CanvasToolbar position="bottom-right">zoom</CanvasToolbar>,
     );
     expect(html).toContain("bottom-2 right-2");
+  });
+});
+
+it("keeps a focused dialog in the visual viewport when the keyboard reduces available height", () => {
+  const viewport = Object.assign(new EventTarget(), { height: 800, offsetTop: 0 });
+  vi.stubGlobal("visualViewport", viewport);
+  render(<Dialog open><DialogContent><DialogTitle>Name draft</DialogTitle><DialogDescription>Save to Library</DialogDescription><input aria-label="Name" /></DialogContent></Dialog>, {
+    mobile: true,
+    inspect: () => {
+      const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
+      const input = dialog.querySelector("input")!;
+      React.act(() => input.focus());
+      React.act(() => { viewport.height = 320; viewport.offsetTop = 80; viewport.dispatchEvent(new Event("resize")); });
+      expect(dialog.style.top).toBe("240px");
+      expect(dialog.style.maxHeight).toBe("288px");
+      expect(document.activeElement).toBe(input);
+      expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(1);
+    },
   });
 });

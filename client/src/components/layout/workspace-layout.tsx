@@ -1,14 +1,9 @@
 import * as React from "react";
+import { createPortal } from "react-dom";
+import { useWorkspaceViewport } from "@/hooks/use-workspace-viewport";
 import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from "lucide-react";
 import type { ImperativePanelHandle } from "react-resizable-panels";
 
-import {
-  Drawer,
-  DrawerContent,
-  DrawerClose,
-  DrawerHeader,
-  DrawerTitle,
-} from "@/components/ui/drawer";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -73,7 +68,26 @@ export interface WorkspaceLayoutProps {
  * on drag as well as on window resize. On mobile the panel moves into a drawer
  * and the canvas goes full-bleed — there is no width to split at that size.
  */
-export function WorkspaceLayout({
+export function WorkspaceLayout(props: WorkspaceLayoutProps): JSX.Element {
+  const [canvasHost] = React.useState(() => {
+    const host = document.createElement("div");
+    host.className = "relative h-full w-full min-h-0 min-w-0";
+    return host;
+  });
+  const [overlayRoot, setOverlayRoot] = React.useState<HTMLDivElement | null>(null);
+  const attach = React.useCallback((slot: HTMLDivElement | null) => { if (slot) slot.appendChild(canvasHost); }, [canvasHost]);
+  // The portal's container never changes. Moving its host between responsive
+  // slots retains the SVG/WebGL instance, camera and pointer-coordinate state.
+  return <MobileCanvasOverlayContext.Provider value={overlayRoot}>
+    <WorkspaceShell {...props} canvas={<div ref={attach} className="h-full w-full" />} onOverlayRoot={setOverlayRoot} />
+    {createPortal(<div className="flex h-full min-h-0 flex-col">
+      {!props.inspector && props.inspectorToolbar && <div className="flex min-h-11 shrink-0 items-center border-b bg-background px-1" aria-label="Editing tools">{props.inspectorToolbar}</div>}
+      <div className="relative min-h-0 flex-1 overflow-hidden">{props.canvas}</div>
+    </div>, canvasHost)}
+  </MobileCanvasOverlayContext.Provider>;
+}
+
+function WorkspaceShell({
   panel,
   canvas,
   inspector,
@@ -93,14 +107,23 @@ export function WorkspaceLayout({
   panelTitle = "Controls",
   mobileActions,
   mobileActionsLayout = "bottom",
-}: WorkspaceLayoutProps): JSX.Element {
+  onOverlayRoot,
+}: WorkspaceLayoutProps & { onOverlayRoot: (element: HTMLDivElement | null) => void }): JSX.Element {
   const isMobile = useIsMobile();
+  React.useEffect(() => {
+    const focused = document.activeElement;
+    if (focused instanceof HTMLElement && focused.closest('[hidden], [inert]')) focused.blur();
+  }, [panelOpen, isMobile]);
+  const { availableHeight, width, height } = useWorkspaceViewport();
   const [overlayRoot, setOverlayRoot] = React.useState<HTMLDivElement | null>(null);
+  React.useEffect(() => { if (!inspector) onOverlayRoot(overlayRoot); }, [overlayRoot, onOverlayRoot, !!inspector]);
   const [workspaceRef, workspaceSize] = useElementSize<HTMLDivElement>();
   // Percentage-only limits make tablet controls narrower than their fields.
   // Keep a usable column while retaining collapse and the caller's maximum.
+  const effectiveMaxPanelSize = workspaceSize.width >= 768 && workspaceSize.width < 1100
+    ? Math.min(maxPanelSize, (workspaceSize.width - 480) / workspaceSize.width * 100) : maxPanelSize;
   const effectiveMinPanelSize = workspaceSize.width > 0
-    ? Math.min(maxPanelSize, Math.max(minPanelSize, 280 / workspaceSize.width * 100))
+    ? Math.min(effectiveMaxPanelSize, Math.max(minPanelSize, 280 / workspaceSize.width * 100))
     : minPanelSize;
   const effectiveDefaultPanelSize = Math.max(defaultPanelSize, effectiveMinPanelSize);
   const panelRef = React.useRef<ImperativePanelHandle>(null);
@@ -151,13 +174,13 @@ export function WorkspaceLayout({
 
   if (inspector) return <InspectorWorkspace panel={panel} canvas={canvas} inspector={inspector}
     panelOpen={panelOpen} onPanelOpenChange={onPanelOpenChange} panelTitle={inspectorPanelTitle}
-    inspectorRequest={inspectorRequest} header={inspectorHeader} toolbar={inspectorToolbar} canvasEditingMode={canvasEditingMode} />;
+    inspectorRequest={inspectorRequest} header={inspectorHeader} toolbar={inspectorToolbar} canvasEditingMode={canvasEditingMode} mobileActions={mobileActions} onOverlayRoot={onOverlayRoot} />;
 
   if (isMobile) {
     return (
       <MobileCanvasOverlayContext.Provider value={overlayRoot}>
-      <div ref={workspaceRef} data-landscape-actions={mobileActionsLayout === "landscape-side" || undefined}
-        className="mobile-workspace relative flex h-full w-full flex-col overflow-hidden">
+      <div ref={workspaceRef} data-landscape-actions={mobileActionsLayout === "landscape-side" && width >= 560 && width > height || undefined}
+        style={{ maxHeight: Math.max(120, availableHeight - 56) }} className="mobile-workspace relative flex h-full w-full flex-col overflow-hidden">
         {/*
           The canvas stays outside the drawer. vaul animates its content with
           CSS transforms, and the canvas relies on getScreenCTM() to map pointer
@@ -173,26 +196,14 @@ export function WorkspaceLayout({
             </Button>
           )}
         </div>
-        <Drawer open={panelOpen} onOpenChange={onPanelOpenChange} shouldScaleBackground={false}>
-          {/* aria-describedby={undefined} opts out of Radix's description
-              warning: this drawer is a controls tray, not a prose dialog. */}
-          <DrawerContent
-            className="h-[85dvh] max-h-[85dvh] pb-[env(safe-area-inset-bottom)]"
-            aria-describedby={undefined}
-          >
-            <DrawerHeader className="flex shrink-0 items-center justify-between py-2">
-              <DrawerTitle>{panelTitle}</DrawerTitle>
-              <DrawerClose asChild>
-                <Button variant="outline" className="min-h-11">Back to canvas</Button>
-              </DrawerClose>
-            </DrawerHeader>
-            {/* The drawer has a definite height so the panel's h-full and
-                flex scroller can shrink within it. PanelBody owns scrolling;
-                this wrapper keeps panel-level navigation and the
-                PanelFooter remain pinned in the mobile drawer too. */}
-            <div className="min-h-0 flex-1 overflow-hidden" data-vaul-no-drag>{panel}</div>
-          </DrawerContent>
-        </Drawer>
+        <section hidden={!panelOpen} aria-label="All properties" className={panelOpen ? "absolute inset-0 z-40 flex min-h-0 flex-col bg-background" : "hidden"} data-testid="mobile-properties-panel"
+          {...(!panelOpen ? { inert: "" } : {})}>
+          <header className="flex min-h-14 shrink-0 items-center justify-between gap-2 border-b px-3">
+            <h2 className="text-sm font-semibold">{panelTitle}</h2>
+            <Button variant="outline" className="min-h-11" onClick={() => onPanelOpenChange(false)}>Back to canvas</Button>
+          </header>
+          <div className="min-h-0 flex-1 overflow-hidden">{panel}</div>
+        </section>
       </div>
       </MobileCanvasOverlayContext.Provider>
     );
@@ -212,7 +223,7 @@ export function WorkspaceLayout({
       collapsedSize={0}
       defaultSize={effectiveDefaultPanelSize}
       minSize={effectiveMinPanelSize}
-      maxSize={maxPanelSize}
+      maxSize={effectiveMaxPanelSize}
       onCollapse={() => reportCollapsed(true)}
       onExpand={() => reportCollapsed(false)}
       className="min-w-0"

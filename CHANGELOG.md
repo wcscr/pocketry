@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Consistent toolbars, compact phone adjustments, and tablet panels that preserve canvas space.
+- Live numeric previews with complete Escape rollback and clearer invalid-value handling.
+- Standard multi-selection and arrangement; matching text Move/Rotate controls in Layout and 3D.
+- Persistent experimental opt-in, protected linked designs, and easier draft saving to Library.
+
 ## 1.3.0 — 2026-10-04
 
 - Experimental surface text with built-in and portable system fonts, easier editing, and separate label parts in 3MF exports.

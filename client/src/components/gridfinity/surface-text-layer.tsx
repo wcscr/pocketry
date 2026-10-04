@@ -8,13 +8,15 @@ import { STACKING_RIM_COLOR } from "@/lib/gridfinity/pocket-floor-mesh";
 import { Input } from "@/components/ui/input";
 import { useBin } from "@/state/bin-store";
 import { useSelectionInspector } from "./selection-inspector-context";
+import { useObjectToolbar } from "./object-toolbar-context";
 
 /** Millimetre SVG outlines share the printable font, including letter holes. */
 export function SurfaceTextLayer({ interactive, onSelect, inverseScale = 1, edgeBandColor = STACKING_RIM_COLOR }: {
   interactive: boolean; onSelect?: (id: string, inline?: boolean) => void; inverseScale?: number; edgeBandColor?: string;
 }): JSX.Element {
-  const { spec, selectedSurfaceTextId, dispatch, history } = useBin();
+  const { spec, selectedSurfaceTextId, dispatch, history, textTool, textSnap } = useBin();
   const inspector = useSelectionInspector();
+  const toolbar = useObjectToolbar();
   const group = useRef<SVGGElement>(null);
   const editingAllowed = useRef(interactive);
   editingAllowed.current = interactive;
@@ -51,9 +53,12 @@ export function SurfaceTextLayer({ interactive, onSelect, inverseScale = 1, edge
     drag.current = null;
     if (active?.moved) dispatch({ type: "PATCH_SPEC", patch: { surfaceTexts: active.labels }, historyLabel: active.kind === "rotate" ? "Rotate surface text" : "Move surface text" });
   };
-  // Finish a live gesture once when editing is disabled; later pointer events
-  // must not keep moving the label through the experimental opt-out.
-  useEffect(() => { if (!interactive) commit(); }, [interactive]);
+  const cancel = () => {
+    const active = drag.current;
+    drag.current = null;
+    if (active?.moved) dispatch({ type: "CANCEL_PREVIEW", expectedHistory: history });
+  };
+  useEffect(() => { if (!interactive) cancel(); }, [interactive]);
   useEffect(() => {
     window.addEventListener("blur", commit);
     return () => { window.removeEventListener("blur", commit); commit(); };
@@ -65,12 +70,15 @@ export function SurfaceTextLayer({ interactive, onSelect, inverseScale = 1, edge
       if (!interactive || editingId || !canHandleCanvasShortcut(event) || event.altKey || event.ctrlKey || event.metaKey) return;
       const label = spec.surfaceTexts.find(item => item.id === selectedSurfaceTextId);
       if (!label) return;
+      if (["w", "e"].includes(event.key.toLowerCase())) {
+        const tool = event.key.toLowerCase() === "w" ? "translate" : "rotate";
+        event.preventDefault(); dispatch({ type: "SET_TEXT_TOOL", tool }); (inspector ?? toolbar)?.setTool(tool); return;
+      }
       const active = drag.current;
       if (active) {
         if (event.key === "Escape") {
           event.preventDefault();
-          drag.current = null;
-          dispatch({ type: "PATCH_SPEC", patch: { surfaceTexts: spec.surfaceTexts.map(item => item.id === active.id ? active.original : item) }, transient: true });
+          cancel();
         }
         return;
       }
@@ -107,13 +115,13 @@ export function SurfaceTextLayer({ interactive, onSelect, inverseScale = 1, edge
     event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
     dispatch({ type: "SELECT_SURFACE_TEXT", id: label.id });
-    inspector?.setTool("properties");
+    if (inspector?.tool !== "translate" && inspector?.tool !== "rotate") inspector?.setTool("properties");
     drag.current = { kind, pointerId: event.pointerId, id: label.id, start, center: binToCanvas(label.position, spec), clientX: event.clientX, clientY: event.clientY, moved: false, original: label, labels: spec.surfaceTexts };
   };
   return <g ref={group} data-testid="surface-text-layer">
     {labels.map(({ label, d, bounds, center, stem, handle }) => <g key={label.id} className="group"
       style={{ cursor: interactive ? "grab" : undefined }}
-      onPointerDown={event => begin(event, label, "move")}
+      onPointerDown={event => begin(event, label, (inspector ? inspector.tool === "rotate" : textTool === "rotate") ? "rotate" : "move")}
       onDoubleClick={event => {
         if (!interactive || event.button !== 0) return;
         event.stopPropagation();
@@ -137,8 +145,12 @@ export function SurfaceTextLayer({ interactive, onSelect, inverseScale = 1, edge
           // Same near-angle snapping as pocket and finger-access handles; Alt frees it.
           const nearest = Math.round(rotation / 15) * 15;
           if (!event.altKey && Math.abs(nearest - rotation) <= 3) rotation = nearest;
+          if (!event.altKey && textSnap) rotation = Math.round(rotation / 5) * 5;
           patch = { rotationDeg: normalizeSurfaceTextRotation(rotation) };
-        } else patch = { position: { x: clamp(active.original.position.x + next.x - active.start.x), y: clamp(active.original.position.y - next.y + active.start.y) } };
+        } else {
+          const snap = (value: number) => clamp(textSnap && !event.altKey ? Math.round(value) : value);
+          patch = { position: { x: snap(active.original.position.x + next.x - active.start.x), y: snap(active.original.position.y - next.y + active.start.y) } };
+        }
         const current = active.labels.find(item => item.id === active.id)!;
         if ((!patch.position || patch.position.x === current.position.x && patch.position.y === current.position.y) &&
           (patch.rotationDeg === undefined || patch.rotationDeg === current.rotationDeg)) return;
@@ -153,7 +165,7 @@ export function SurfaceTextLayer({ interactive, onSelect, inverseScale = 1, edge
         commit();
         if (active.kind === "move" && Math.hypot(event.clientX - active.clientX, event.clientY - active.clientY) <= 4) onSelect?.(label.id);
       }}
-      onPointerCancel={event => { if (drag.current) { event.stopPropagation(); commit(); } }}
+      onPointerCancel={event => { if (drag.current) { event.stopPropagation(); cancel(); } }}
       onLostPointerCapture={commit}>
       <title>{`Text: ${surfaceTextName(label)}${interactive ? " — double-click to edit wording" : ""}`}</title>
       {/* Include letter holes and spaces in the hit area so a missed stroke

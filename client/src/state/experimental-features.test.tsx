@@ -1,3 +1,4 @@
+import { projectUsesExperimentalFeatures } from "@/lib/project/experimental-features";
 // @vitest-environment jsdom
 import * as React from "react";
 import { createRoot } from "react-dom/client";
@@ -107,27 +108,16 @@ it("keeps the option usable for the session when storage is blocked", () => {
 });
 
 
-it("enables only projects needing the tools, once per activation, without changing project data", () => {
+it("detects experimental projects without changing the preference or data", () => {
   const ordinary: ProjectDoc = { schemaVersion: PROJECT_SCHEMA_VERSION, shapes: [],
     spec: parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6 }), cutouts: [], fingerHoles: [] };
-  const linked = { ...ordinary, fingerHoles: [fingerHoleSchema.parse({
-    id: "access", center: { x: 0, y: 0 }, designLink: { id: "access-design" },
-  })] };
+  const linked = { ...ordinary, fingerHoles: [fingerHoleSchema.parse({ id: "access", center: { x: 0, y: 0 }, designLink: { id: "design" } })] };
   const before = structuredClone(linked);
   mount();
-  expect(state.enableForProject(ordinary)).toBe(false);
+  expect(projectUsesExperimentalFeatures(linked)).toBe(true);
   expect(state.enabled).toBe(false);
-  React.act(() => {
-    expect(state.enableForProject(linked)).toBe(true);
-    expect(state.enableForProject(linked)).toBe(false);
-  });
-  expect(state.enabled).toBe(true);
-  expect(localStorage.getItem(EXPERIMENTAL_FEATURES_KEY)).toBe("true");
+  expect(localStorage.getItem(EXPERIMENTAL_FEATURES_KEY)).not.toBe("true");
   expect(linked).toEqual(before);
-  React.act(() => state.setEnabled(false));
-  expect(state.enabled).toBe(false);
-  React.act(() => expect(state.enableForProject(linked)).toBe(true));
-  expect(state.enabled).toBe(true);
 });
 
 it("defaults to Original: All Controls on Left and offers only the two supported layouts", () => {
@@ -142,7 +132,7 @@ it("defaults to Original: All Controls on Left and offers only the two supported
   expect(document.querySelector('#experimental-layout-recommendation')).toBeNull();
   const toggle = document.querySelector<HTMLButtonElement>('#experimental-features')!;
   React.act(() => toggle.click());
-  expect(document.querySelector('#experimental-layout-recommendation')!.textContent).toContain("we recommend New UI: Split Workflow and Properties");
+  expect(document.querySelector('#experimental-layout-recommendation')!.textContent).toContain("we recommend Workflow + properties");
   expect(state.editorLayout).toBe("standard");
   expect(choices[0].checked).toBe(true);
   React.act(() => choices[1].click());

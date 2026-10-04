@@ -3,6 +3,7 @@ import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog"
 
 import { cn } from "@/lib/utils"
 import { buttonVariants } from "@/components/ui/button"
+import { useWorkspaceViewport } from "@/hooks/use-workspace-viewport"
 
 const AlertDialog = AlertDialogPrimitive.Root
 
@@ -28,7 +29,9 @@ AlertDialogOverlay.displayName = AlertDialogPrimitive.Overlay.displayName
 const AlertDialogContent = React.forwardRef<
   React.ElementRef<typeof AlertDialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Content>
->(({ className, ...props }, ref) => (
+>(({ className, style, ...props }, ref) => {
+  const { availableHeight, offsetTop } = useWorkspaceViewport();
+  return (
   <AlertDialogPortal>
     <AlertDialogOverlay />
     <AlertDialogPrimitive.Content
@@ -38,9 +41,11 @@ const AlertDialogContent = React.forwardRef<
         className
       )}
       {...props}
+      style={{ ...style, top: offsetTop + availableHeight / 2, maxHeight: Math.max(80, availableHeight - 32) }}
     />
   </AlertDialogPortal>
-))
+  );
+})
 AlertDialogContent.displayName = AlertDialogPrimitive.Content.displayName
 
 const AlertDialogHeader = ({

@@ -356,7 +356,7 @@ describe("Trace detection workflow", () => {
     if (success) {
       expect(current.mode).toBe("calibrate");
       expect(current.imageUrl).toBe("data:image/png;base64,corrected");
-      expect(host.textContent).toContain("Tap two points a known distance apart");
+      expect(host.querySelector('[aria-label="Show current hint"]')).not.toBeNull();
       expect(host.querySelector('[data-testid="perspective-only"]')).toBeNull();
     } else {
       expect(current.imageUrl).toBe("data:image/png;base64,source");

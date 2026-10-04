@@ -77,7 +77,14 @@ portable copy of a calibrated outline and its bin settings.
 Move the tool outlines into a Gridfinity bin, arrange the duster and accessories,
 and add finger access for lifting them out.
 
-Turn on **Settings → Enable experimental features**, then use
+Multi-selection, Move, Rotate, alignment, and distribution are standard in both
+layouts. **Add** stays first in the canvas toolbar; narrower spaces put additional
+tools under **Tools**. Phones offer **Workflow**, **Adjust**, and **Export**.
+Selection updates the summary without opening Adjust; **All properties** opens
+the complete editor. Choose **Single panel** or **Workflow + properties** in
+**App settings**.
+
+Turn on **App settings → Enable experimental features**, then use
 **Surface text → Add text** for raised labels on the flat interior surface
 (the floor of a hollow bin, or the top of its solid fill). Adding text opens
 Layout so you can drag the label into place, even if its starting position
@@ -92,9 +99,17 @@ Monospace, Helvetiker and Helvetiker Bold, Optimer and Optimer Bold, and
 Gentilis and Gentilis Bold.
 
 Turning experimental features off hides text editing and disables label dragging;
-existing labels remain visible, saved, and included in exports. Opening a project
-with text (including text in its undo history) enables the tools with a notification,
-following the existing experimental-project behavior.
+existing labels remain visible, saved, and included in exports. Loading projects
+and undo history never changes that preference. A notice offers explicit opt-in
+when the current design contains experimental features. Shared linked geometry
+requires opt-in; independent placement, naming, deletion, and independent copies
+remain available. Adjustable walls, text, fonts, and linked designs remain experimental.
+
+Numeric fields preview valid changes immediately. Enter or leaving the field
+commits once; Escape restores the whole edit, including dependent geometry.
+Invalid Enter keeps focus; invalid blur discards the edit. Batch fields still use
+**Apply**. Autosave and export use committed changes. An unnamed draft is separate
+from named Library storage; choose **Save this draft to Library** to name it.
 
 ![Top-down Bin layout with pockets for the air duster, adapters, angled nozzle, and USB cable, plus finger access](docs/images/bin-layout.jpg)
 

@@ -321,7 +321,7 @@ export function BinControlsPanel({
 }: BinControlsPanelProps): JSX.Element {
   const showPreviewBusy = useDelayedBusy(building);
   const inspector = useSelectionInspector();
-  const { enabled: experimentalEnabled, setSettingsOpen } = useExperimentalFeatures();
+  const { enabled: experimentalEnabled, setEnabled: setExperimentalEnabled, setSettingsOpen } = useExperimentalFeatures();
   const visibleSettingsSections = BIN_SETTINGS_SECTIONS.filter(section => experimentalEnabled || section.id !== "bin-settings-text");
   useEffect(() => {
     if (!experimentalEnabled && inspector?.activeSection === "bin-settings-text") inspector.showSection("bin-settings-size");
@@ -577,7 +577,7 @@ export function BinControlsPanel({
                     "flex items-center rounded-md border text-xs",
                     isSelected ? "border-violet-500/50 bg-violet-500/10" : "border-transparent hover:bg-accent",
                   )}>
-                    {experimentalEnabled && <label className="ml-1 flex h-8 w-6 shrink-0 cursor-pointer items-center justify-center [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11"><input type="checkbox" className="h-4 w-4 accent-primary" aria-label={`Include ${name} in selection`} checked={isSelected}
+                    {<label className="ml-1 flex h-8 w-6 shrink-0 cursor-pointer items-center justify-center [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11"><input type="checkbox" className="h-4 w-4 accent-primary" aria-label={`Include ${name} in selection`} checked={isSelected}
                       onChange={() => { inspector?.keepObjectsOpen(); dispatch({ type: "SELECT_CUTOUT", id: cutout.id, additive: true }); }} /></label>}
                     {renamingPocketId === cutout.id && shape ? (
                       <EditableObjectName key={cutout.id} name={name} kind="shape" onRename={(name) => dispatch({ type: "UPDATE_CUTOUT", id: cutout.id, patch: { name }, historyLabel: "Rename pocket" })} onDone={() => setRenamingPocketId(null)} />
@@ -594,13 +594,13 @@ export function BinControlsPanel({
                       onClick={event => {
                         // Keep the name under the pointer for a possible second click.
                         selectingPocketFromList.current = selectedCutoutId !== cutout.id;
-                        dispatch({ type: "SELECT_CUTOUT", id: cutout.id, additive: experimentalEnabled && (event.shiftKey || event.metaKey || event.ctrlKey) });
+                        dispatch({ type: "SELECT_CUTOUT", id: cutout.id, additive: (event.shiftKey || event.metaKey || event.ctrlKey) });
                         if (event.shiftKey || event.metaKey || event.ctrlKey) inspector?.keepObjectsOpen();
                         else inspector?.setTool("properties");
                       }}
                     >
                       <span className={cn("min-w-0 flex-1 truncate", isSelected && "font-medium text-violet-700 dark:text-violet-300")}>{name}</span>
-                      {experimentalEnabled && cutout.designLink && <Link2 className="h-3 w-3 shrink-0" aria-label="Linked design" />}
+                      {cutout.designLink && <Link2 className="h-3 w-3 shrink-0" aria-label="Linked design" />}
                     </button>
                     )}
                     <ObjectActions name={name}>
@@ -633,7 +633,7 @@ export function BinControlsPanel({
                       "flex items-center rounded-md border text-xs",
                       isSelected ? "border-cyan-500/50 bg-cyan-500/10" : "border-transparent hover:bg-accent",
                     )}>
-                      {experimentalEnabled && <label className="ml-1 flex h-8 w-6 shrink-0 cursor-pointer items-center justify-center [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11"><input type="checkbox" className="h-4 w-4 accent-primary" aria-label={`Include ${name} in selection`} checked={isSelected}
+                      {<label className="ml-1 flex h-8 w-6 shrink-0 cursor-pointer items-center justify-center [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11"><input type="checkbox" className="h-4 w-4 accent-primary" aria-label={`Include ${name} in selection`} checked={isSelected}
                         onChange={() => { inspector?.keepObjectsOpen(); dispatch({ type: "SELECT_FINGER_HOLE", id: hole.id, additive: true }); }} /></label>}
                       {renamingFingerId === hole.id ? (
                         <EditableObjectName key={hole.id} name={name} kind="finger-hole"
@@ -646,9 +646,9 @@ export function BinControlsPanel({
                           data-testid={`button-select-finger-hole-${hole.id}`}
                           title="Double-click to rename"
                           onDoubleClick={startRenaming}
-                          onClick={event => { dispatch({ type: "SELECT_FINGER_HOLE", id: hole.id, additive: experimentalEnabled && (event.shiftKey || event.metaKey || event.ctrlKey) }); if (event.shiftKey || event.metaKey || event.ctrlKey) inspector?.keepObjectsOpen(); else inspector?.setTool("properties"); }}>
+                          onClick={event => { dispatch({ type: "SELECT_FINGER_HOLE", id: hole.id, additive: (event.shiftKey || event.metaKey || event.ctrlKey) }); if (event.shiftKey || event.metaKey || event.ctrlKey) inspector?.keepObjectsOpen(); else inspector?.setTool("properties"); }}>
                           <span className={cn("min-w-0 flex-1 truncate", isSelected && "font-medium text-cyan-700 dark:text-cyan-300")}>{name}</span>
-                          {experimentalEnabled && hole.designLink && <Link2 className="h-3 w-3 shrink-0" aria-label="Linked design" />}
+                          {hole.designLink && <Link2 className="h-3 w-3 shrink-0" aria-label="Linked design" />}
                         </button>
                       )}
                       <ObjectActions name={name}>
@@ -757,7 +757,7 @@ export function BinControlsPanel({
               </div>
 
 
-              {!inspector && experimentalEnabled && <LinkedDesignControls kind="pocket" activeId={selectedCutout.id} labels={new Map(cutouts.map(c => [c.id, pocketName(c, shapesById.get(c.shapeId))]))} />}
+              {!inspector && <LinkedDesignControls kind="pocket" activeId={selectedCutout.id} labels={new Map(cutouts.map(c => [c.id, pocketName(c, shapesById.get(c.shapeId))]))} />}
               <PocketDepthSummary cutout={depthCutout!} shape={depthShape!} section={section} inspect={inspectPocket}>
                 {selectedCutout.split && <div className="flex gap-1 pb-2" role="group" aria-label="Section to edit">
                   {([0, 1] as const).map(index => <Button key={index} type="button" size="sm"
@@ -914,7 +914,7 @@ export function BinControlsPanel({
                 </p>
               )}
 
-              {inspector && experimentalEnabled && <AdvancedLinks><LinkedDesignControls kind="pocket" activeId={selectedCutout.id} labels={new Map(cutouts.map(c => [c.id, pocketName(c, shapesById.get(c.shapeId))]))} /></AdvancedLinks>}
+              {inspector && <AdvancedLinks><LinkedDesignControls kind="pocket" activeId={selectedCutout.id} labels={new Map(cutouts.map(c => [c.id, pocketName(c, shapesById.get(c.shapeId))]))} /></AdvancedLinks>}
               {!selectedCutout.profileBottom && pocketClearance}
             </PropertySurface>
           );
@@ -924,7 +924,7 @@ export function BinControlsPanel({
                   <h3 className="text-xs font-semibold">Finger access properties</h3>
                   <span className={inspector ? "sr-only" : "min-w-0 flex-1 truncate text-xs"}>{selectedFingerHole.name ?? `Finger access ${fingerHoles.indexOf(selectedFingerHole) + 1}`}</span>
                 </div>
-              {!inspector && experimentalEnabled && <LinkedDesignControls kind="finger" activeId={selectedFingerHole.id} labels={new Map(fingerHoles.map((h, i) => [h.id, h.name ?? `Finger access ${i + 1}`]))} />}
+              {!inspector && <LinkedDesignControls kind="finger" activeId={selectedFingerHole.id} labels={new Map(fingerHoles.map((h, i) => [h.id, h.name ?? `Finger access ${i + 1}`]))} />}
 
 
                 <FingerAccessShapeControls
@@ -1187,7 +1187,7 @@ export function BinControlsPanel({
                 <PositionInputs position={selectedFingerHole.center} onChange={(center, transient) => dispatch({ type: "UPDATE_FINGER_HOLE", id: selectedFingerHole.id, patch: { center }, transient, historyLabel: "Position finger access" })} />
                   </div>
                 </details>
-                {inspector && experimentalEnabled && <AdvancedLinks><LinkedDesignControls kind="finger" activeId={selectedFingerHole.id} labels={new Map(fingerHoles.map((h, i) => [h.id, h.name ?? `Finger access ${i + 1}`]))} /></AdvancedLinks>}
+                {inspector && <AdvancedLinks><LinkedDesignControls kind="finger" activeId={selectedFingerHole.id} labels={new Map(fingerHoles.map((h, i) => [h.id, h.name ?? `Finger access ${i + 1}`]))} /></AdvancedLinks>}
             </PropertySurface>
             );
 
@@ -1213,7 +1213,7 @@ export function BinControlsPanel({
             <Pencil aria-hidden="true" />
           </Button>
         </div>
-        <p className="text-[11px] text-muted-foreground" role="status">{!hydrated ? "Opening project…" : projectBusy ? "Working…" : saveStatus === "saving" ? activeProjectId ? "Saving to browser library…" : "Draft — saving locally…" : saveStatus === "error" ? "Could not save. Export this project to keep your work." : activeProjectId ? "Saved to browser library" : "Draft — autosaved locally"}</p>
+        <p className="text-[11px] text-muted-foreground" role="status">{!hydrated ? "Opening project…" : projectBusy ? "Working…" : saveStatus === "saving" ? activeProjectId ? "Saving to browser library…" : "Draft — saving locally…" : saveStatus === "error" ? "Could not save. Export this project to keep your work." : activeProjectId ? "Saved to Library in this browser" : "Draft autosaved in this browser · not in Library"}</p>
       </div>
   );
 
@@ -1221,10 +1221,11 @@ export function BinControlsPanel({
     <PanelSectionFilterContext.Provider value={!inspector && exportOnly ? "bin-settings-export" : null}>
     <div className="flex h-full flex-col">
       {!experimentalEnabled && (spec.wallThicknessMm !== D_WALL || spec.surfaceTexts.length > 0 || cutouts.some(c => c.designLink) || fingerHoles.some(h => h.designLink)) && <div className="shrink-0 border-b bg-amber-50/60 px-3 py-2 text-xs dark:bg-amber-950/20" data-testid="experimental-design-notice">
-        {(cutouts.some(c => c.designLink) || fingerHoles.some(h => h.designLink)) && <p>This project uses experimental pocket tools. Its geometry and links are preserved; edits to linked designs still update their copies.</p>}
-        {spec.surfaceTexts.length > 0 && <p>This project contains surface text. Labels remain visible and included in exports. Enable experimental features to edit them.</p>}
-        {spec.wallThicknessMm !== D_WALL && <p>This project has a custom hollow-wall thickness. Its saved thickness is preserved. Enable experimental features to edit it.</p>}
-        <Button size="sm" variant="link" className="h-9 px-0 text-xs" onClick={() => setSettingsOpen(true)}>Show experimental settings</Button>
+        <p>Saved experimental features: {[
+          spec.wallThicknessMm !== D_WALL && "wall thickness", spec.surfaceTexts.length > 0 && "surface text",
+          (cutouts.some(c => c.designLink) || fingerHoles.some(h => h.designLink)) && "linked designs",
+        ].filter(Boolean).join(", ")}. Preserved in previews and exports.</p>
+        <Button size="sm" variant="link" className="min-h-11 whitespace-normal px-0 text-xs" onClick={() => setExperimentalEnabled(true)}>Enable experimental tools</Button>
       </div>}
       {inspector ? <div className="shrink-0 border-b px-3 py-3">
         <h2 className="text-xs font-semibold">Design workflow</h2>
@@ -2358,6 +2359,16 @@ function ProjectControls({
   const ready = hydrated && libraryReady;
   const [renameProjectId, setRenameProjectId] = useState<string | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
+  const [removeProject, setRemoveProject] = useState<ProjectLibraryItem | null>(null);
+  const returnToLibrary = useRef(false);
+  const { settingsOpen } = useExperimentalFeatures();
+  useEffect(() => { if (settingsOpen) { setLibraryOpen(false); setSaveOpen(false); setRenameProjectId(null); setRemoveProject(null); } }, [settingsOpen, setSaveOpen]);
+  useEffect(() => { if (activeProjectId) setSelectedProjectId(activeProjectId); }, [activeProjectId]);
+  const saveDraftFromLibrary = () => { returnToLibrary.current = true; setLibraryOpen(false); setSaveOpen(true); };
+  const returnAfterNaming = () => {
+    if (returnToLibrary.current) { returnToLibrary.current = false; setLibraryOpen(true); }
+  };
+
   const [pendingLibraryFile, setPendingLibraryFile] = useState<File | null>(null);
   const [libraryImportMode, setLibraryImportMode] = useState<LibraryImportMode>("merge");
   const [pendingOpenProject, setPendingOpenProject] = useState<ProjectOpenTarget | null>(null);
@@ -2438,23 +2449,24 @@ function ProjectControls({
       if (project) setRenameProjectId(open ? project.id : null);
       else setSaveOpen(open);
       if (open) setProjectName(project?.name ?? currentProjectName ?? "");
+      else returnAfterNaming();
     };
     return (
       <Dialog open={project ? renameProjectId === project.id : saveOpen} onOpenChange={setOpen}>
-        <DialogTrigger asChild>
+        {!project && <DialogTrigger asChild>
           <Button
             variant={renaming ? "ghost" : "outline"}
             size="icon"
             className="h-8 w-8 shrink-0 text-muted-foreground [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11"
-            aria-label={project ? `Rename ${project.name}` : renaming ? "Rename project" : "Save to library"}
+            aria-label={renaming ? "Rename project" : "Save to library"}
             title={renaming ? "Rename project" : "Save to library"}
             disabled={!ready || busy}
-            data-testid={project ? `button-rename-project-${project.id}` : "button-save-library"}
+            data-testid="button-save-library"
           >
             {renaming ? <Pencil className="h-3.5 w-3.5 shrink-0" /> : <Save className="h-3.5 w-3.5 shrink-0" />}
           </Button>
-        </DialogTrigger>
-        <DialogContent className="grid-cols-1">
+        </DialogTrigger>}
+        <DialogContent className="grid-cols-1" onCloseAutoFocus={event => { if (libraryOpen || returnToLibrary.current) event.preventDefault(); }}>
           <form className="contents" onSubmit={async (event) => {
             event.preventDefault();
             if (busy) return;
@@ -2493,7 +2505,7 @@ function ProjectControls({
 
   const renderLibraryDialog = (): JSX.Element => (
     <Dialog
-      open={libraryOpen}
+      open={libraryOpen && !saveOpen && !renameProjectId && !removeProject && !pendingLibraryFile && !pendingOpenProject && !settingsOpen}
       onOpenChange={(open) => {
         setLibraryOpen(open);
         if (open) setSelectedProjectId(activeProjectId);
@@ -2514,6 +2526,7 @@ function ProjectControls({
       </DialogTrigger>
       <DialogContent
         ref={libraryDialogRef}
+        onCloseAutoFocus={event => { if (saveOpen || renameProjectId || removeProject || pendingLibraryFile || pendingOpenProject || settingsOpen) event.preventDefault(); }}
         className="flex max-h-[85dvh] flex-col overflow-hidden p-4 sm:p-6 [&>button]:hidden [@media(max-height:500px)]:max-h-[calc(100dvh_-_2rem)] [@media(max-height:500px)]:overflow-y-auto [@media(max-height:500px)]:scroll-pt-[var(--library-header-height)]"
         onOpenAutoFocus={(event) => {
           event.preventDefault();
@@ -2525,7 +2538,8 @@ function ProjectControls({
             '[data-testid="managed-project-list"] [data-project-id]',
           ) ?? [])];
           // Compare the data value rather than interpolating a saved ID into CSS.
-          const target = rows.find((row) => row.dataset.projectId === activeProjectId) ?? rows[0]
+          const target = rows.find((row) => row.dataset.projectId === (selectedProjectId ?? activeProjectId)) ?? rows[0]
+            ?? libraryDialogRef.current?.querySelector<HTMLElement>('[data-testid="button-save-draft-library"]')
             ?? libraryDialogRef.current?.querySelector<HTMLElement>('[data-testid="button-export-library"]');
           target?.focus({ preventScroll: true });
           target?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
@@ -2551,7 +2565,8 @@ function ProjectControls({
         <div className="space-y-2 pr-4" data-testid="managed-project-list">
           {projects.length === 0 ? (
             <div className="rounded-md border border-dashed p-5 text-center text-sm text-muted-foreground">
-              No named projects yet. Save the current draft to add one.
+              <p>No named projects yet.</p>
+              <Button className="mt-3 min-h-11 h-auto w-full whitespace-normal" data-testid="button-save-draft-library" disabled={!ready || busy} onClick={saveDraftFromLibrary}>Save this draft to Library</Button>
             </div>
           ) : (
             projects.map((project) => {
@@ -2596,7 +2611,8 @@ function ProjectControls({
                       <p className="min-w-0 truncate text-sm font-medium" title={project.name}>
                         {project.name}
                       </p>
-                      {renderNameDialog(project)}
+                      <Button variant="ghost" size="icon" className="h-11 w-11 shrink-0" aria-label={`Rename ${project.name}`} data-testid={`button-rename-project-${project.id}`} disabled={busy}
+                        onClick={() => { returnToLibrary.current = true; setProjectName(project.name); setLibraryOpen(false); setRenameProjectId(project.id); }}><Pencil className="h-4 w-4" /></Button>
                     </div>
                     {active && <p className="text-xs text-muted-foreground">Current project</p>}
                     <p className="text-[11px] text-muted-foreground">
@@ -2631,40 +2647,8 @@ function ProjectControls({
                   >
                     <Copy className="h-4 w-4" />Copy
                   </Button>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="min-h-11 shrink-0 gap-1.5 px-2 text-xs text-destructive hover:text-destructive"
-                        disabled={busy || active}
-                        aria-label={`Remove ${project.name} from library`}
-                        data-testid={`button-remove-project-${project.id}`}
-                      >
-                        <Trash2 className="h-4 w-4 shrink-0" />Remove
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent className="grid-cols-1">
-                      <AlertDialogHeader className="min-w-0 [overflow-wrap:anywhere]">
-                        <AlertDialogTitle>Remove “{project.name}” from library?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This removes the saved copy from this browser. Your current project
-                          will not change. Exported backup files are not affected.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Keep project</AlertDialogCancel>
-                        <AlertDialogAction
-                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                          disabled={busy || active}
-                          onClick={() => void onDeleteProject(project.id)}
-                          data-testid="button-confirm-remove-project"
-                        >
-                          Remove from library
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+                  <Button size="sm" variant="ghost" className="min-h-11 gap-1.5 px-2 text-xs text-destructive" disabled={busy || active}
+                    aria-label={`Remove ${project.name} from library`} data-testid={`button-remove-project-${project.id}`} onClick={() => setRemoveProject(project)}><Trash2 className="h-4 w-4" />Remove</Button>
                   </div>
                 </div>
               );
@@ -2785,7 +2769,16 @@ function ProjectControls({
           <Download className="h-3.5 w-3.5 shrink-0" />Export project
         </Button>
       </div>
+      {!activeProjectId && <Button variant="outline" className="min-h-11 h-auto w-full whitespace-normal" disabled={!ready || busy} onClick={() => setSaveOpen(true)}>Save this draft to Library</Button>}
       {renderLibraryDialog()}
+      {renameProjectId && projects.find(project => project.id === renameProjectId) && renderNameDialog(projects.find(project => project.id === renameProjectId))}
+      <AlertDialog open={!!removeProject} onOpenChange={open => { if (!open) setRemoveProject(null); }}>
+        <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Remove “{removeProject?.name}” from library?</AlertDialogTitle>
+          <AlertDialogDescription>This removes the saved copy from this browser. Your current project and exported backups will not change.</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter><AlertDialogCancel>Keep project</AlertDialogCancel><AlertDialogAction data-testid="button-confirm-remove-project" disabled={busy}
+            onClick={async event => { event.preventDefault(); if (removeProject && await onDeleteProject(removeProject.id)) setRemoveProject(null); }}>Remove from library</AlertDialogAction></AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       </section>
 
       <Dialog open={pendingLibraryFile !== null} onOpenChange={(open) => { if (!open && !busy) setPendingLibraryFile(null); }}>
