@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Corrected photo-outline detection so OpenCV and the JavaScript fallback use the same lightness scale and mask-cleanup rules.
+
 ## 1.3.0 — 2026-10-04
 
 - Experimental surface text with built-in and portable system fonts, easier editing, and separate label parts in 3MF exports.

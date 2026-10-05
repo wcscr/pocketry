@@ -5,6 +5,7 @@ import { describe, expect, it, beforeAll } from "vitest";
 import { outlineArea, outlineBounds, pointInOutline } from "../geometry/outline";
 import { buildOutline, normalizeOutline } from "../geometry/outline";
 import { traceIsoRings } from "../geometry/trace";
+import { labDistanceScore, rgbToLab } from "./background";
 import { buildScoreFieldJS } from "./segment-js";
 import { buildScoreFieldOpenCV, type OpenCV } from "./segment-opencv";
 import type { ImageLike, ScoreField } from "./types";
@@ -171,6 +172,27 @@ describe("buildScoreFieldOpenCV", () => {
     expect(field.score[2 * field.width + 2]).toBe(0);
   });
 
+  it.each([[0, 255], [64, 192], [120, 200], [180, 210]])("scores achromatic contrast in L* units (%s against %s)", (subject, background) => {
+    const image = photo(160, 160, box(40, 40, 120, 120));
+    for (let y = 0; y < image.height; y++) for (let x = 0; x < image.width; x++) {
+      const value = box(40, 40, 120, 120)(x, y) ? subject : background;
+      const i = (y * image.width + x) * 4;
+      image.data[i] = image.data[i + 1] = image.data[i + 2] = value;
+    }
+    const expected = labDistanceScore(rgbToLab(subject, subject, subject), rgbToLab(background, background, background));
+    expect(Math.abs(buildScoreFieldOpenCV(cv, image).score[80 * 160 + 80] - expected)).toBeLessThanOrEqual(1);
+  });
+
+  it.each([
+    [40, 40, 120, 120], [0, 40, 80, 120], [80, 40, 160, 120],
+    [40, 0, 120, 80], [40, 80, 120, 160],
+  ])("uses the reference cleanup for alpha corners and image edges (%s,%s,%s,%s)", (x0, y0, x1, y1) => {
+    // Alpha bypasses colour conversion, isolating kernel shape and edge policy.
+    const image = photo(160, 160, box(x0, y0, x1, y1), { alpha: true });
+    const options = { useAlpha: "always" as const };
+    expect(buildScoreFieldOpenCV(cv, image, options).score).toEqual(buildScoreFieldJS(image, options).score);
+  });
+
   it("does not leak Mats across repeated calls", () => {
     // A leak here grows the wasm heap until the tab dies, and would not show up
     // as a failure anywhere else.
@@ -197,9 +219,7 @@ describe("OpenCV and JS backends agree", () => {
     ["a coloured object on a neutral mat", colored(160, 160, box(40, 40, 120, 120))],
   ];
 
-  // Preserve the confirmed unit mismatch as an expected failure until the
-  // production correction lands. An unexpected pass requires removing .fails.
-  it.fails.each(cases)("scores pixels in the same units for %s", (_name, image) => {
+  it.each(cases)("scores pixels in the same units for %s", (_name, image) => {
     // Comparing outlines alone hid a units mismatch: OpenCV's 8-bit Lab scales
     // L to 0..255 while the JS reference uses L* in 0..100, which made the
     // shipped backend weight lightness 2.55x harder relative to chroma.
