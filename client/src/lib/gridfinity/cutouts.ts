@@ -1,9 +1,11 @@
 // Type-only import: the kernel is injected (see `Kernel` in ../manifold/runtime).
 import type { Manifold } from "manifold-3d";
 import { hasPocketTilt, pocketAxis } from "@shared/gridfinity/pocket-orientation";
-import { hasRigidPocket, pocketRotation } from "@shared/gridfinity/rigid-pocket";
+import { hasRigidPocket, pocketRotation, rigidPocket } from "@shared/gridfinity/rigid-pocket";
+import { pocketInsertionAxis, pocketInsertionError } from "@shared/gridfinity/pocket-insertion";
 import { rotateObjectVector } from "@shared/gridfinity/object-pose";
 import { buildObjectCavity } from "./object-cavity";
+import { sweepSolidAlongAxis } from "./insertion-sweep";
 
 import {
   effectiveDeepScoopDepthMm,
@@ -699,12 +701,16 @@ function buildCutoutCuttersInternal(
 }
 
 /** Generate in the outline's own frame, then apply one reusable rigid pose.
- * The finite cap is essential: a tilted tool does not cut its shadow to the top.
+ * The finite cap is retained unless insertion clearance is explicitly requested.
  * Top-edge rounding belongs to the bin surface intersection, not that cap. */
 export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: CutoutPlacement,
   spec: BinSpec, quality: BuildQuality, options: CutoutBuildOptions = {}, top = Infinity,
 ): CutoutCutters {
   const { arena, Manifold } = kernel;
+  // Keep the rest of the preview editable while an axial path is horizontal.
+  // Shared validation reports the error and exports reject it before building.
+  if (pocketInsertionError(cutout)) return { cutters: [], floorInserts: [], floorRegions: [],
+    reports: [{ id: cutout.id, emptied: false }] };
   const realTop = resolvePocketDepth(spec, cutout.depth).infillTopZ;
   const reach = Math.max(spec.gridX * 42, spec.gridY * 42, spec.heightUnits * 7,
     Math.abs(cutout.position.x), Math.abs(cutout.position.y), cutout.elevationMm ?? 0,
@@ -717,7 +723,7 @@ export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: Cut
   const buildSource = (throughDepth: number, extendThrough: boolean): Manifold => {
     const depths = dimensions.map(d => ({ mode: "mm" as const, value: d ?? throughDepth }));
     const local = { ...cutout, position: { x: 0, y: 0 }, rotationDeg: 0, tilt: undefined,
-      elevationMm: undefined, zOffsetMm: undefined, depth: depths[0], topFilletMm: 0,
+      elevationMm: undefined, zOffsetMm: undefined, insertionMode: undefined, depth: depths[0], topFilletMm: 0,
       split: cutout.split ? { ...cutout.split, depths: [depths[0], depths[1]] as [typeof depths[number], typeof depths[number]] } : undefined };
     if (dimensions.some(d => d === null)) {
       const boundary = cutout.split?.boundary.map(p => transformPointPlacement(p, local));
@@ -750,7 +756,13 @@ export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: Cut
   const anchor = buildSource(1, false);
   const source = hasThrough ? buildSource(reach, true) : anchor;
   const pose = { rotation: pocketRotation(cutout), position: cutout.position, elevationMm: cutout.elevationMm ?? 0 };
-  let cutter = buildObjectCavity(kernel, source, pose, top, anchor);
+  let cutter = buildObjectCavity(kernel, source, pose, cutout.insertionMode ? Infinity : top, anchor);
+  if (cutter && cutout.insertionMode) {
+    const axis = pocketInsertionAxis(cutout);
+    const ceiling = Math.max(realTop, cutter.boundingBox().max[2], Number.isFinite(top) ? top : realTop) + 1;
+    cutter = sweepSolidAlongAxis(kernel, cutter, [axis.x, axis.y, axis.z], ceiling);
+    if (Number.isFinite(top)) cutter = arena.track(cutter.trimByPlane([0, 0, -1], -top));
+  }
   if (cutter && cutout.topFilletMm > 0 && cutter.boundingBox().max[2] >= realTop - 1e-8) {
     // Slice after posing and joining the split seats. Only the opening that
     // actually reaches the fill gets a rim; submerged caps stay finite. Keep
@@ -784,8 +796,8 @@ export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: Cut
 export function buildCutoutCutters(kernel: Kernel, shapesById: ReadonlyMap<string, TracedShape>, cutouts: readonly CutoutPlacement[], spec: BinSpec, quality: BuildQuality, options: CutoutBuildOptions = {}): CutoutCutters {
   const groups = cutouts.map(cutout => ({ id: cutout.id, built: cutout.profileBottom && shapesById.has(cutout.shapeId)
     ? buildProfileBottomCutout(kernel, shapesById.get(cutout.shapeId)!, cutout, spec, options.floorInsertThicknessMm)
-    : hasRigidPocket(cutout) && shapesById.has(cutout.shapeId)
-      ? buildRigidPocket(kernel, shapesById.get(cutout.shapeId)!, cutout, spec, quality, options, resolvePocketDepth(spec, cutout.depth).cutterTopZ)
+    : (hasRigidPocket(cutout) || cutout.insertionMode) && shapesById.has(cutout.shapeId)
+      ? buildRigidPocket(kernel, shapesById.get(cutout.shapeId)!, rigidPocket(cutout, shapesById.get(cutout.shapeId)!, spec), spec, quality, options, resolvePocketDepth(spec, cutout.depth).cutterTopZ)
     : buildCutoutCuttersInternal(kernel, shapesById, [cutout], spec, quality, options) }));
   return { cutters: groups.flatMap(g => g.built.cutters), floorInserts: groups.flatMap(g => g.built.floorInserts), floorRegions: groups.flatMap(g => g.built.floorRegions ?? g.built.floorInserts), reports: groups.flatMap(g => g.built.reports), cutterGroups: groups.map(g => ({ id: g.id, cutters: g.built.cutters })) };
 }

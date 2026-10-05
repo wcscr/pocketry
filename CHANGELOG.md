@@ -10,6 +10,7 @@
 - Larger touch handles, exact pocket dimensions, and fit-test exports in the mobile export panel.
 - Responsive 3D Move/Rotate gestures use lightweight outlines; exact selection geometry and crease edges build in a shared worker.
 - Top-edge rounding follows the pocket opening at the bin surface when pockets are raised or tilted.
+- Optional insertion clearance for silhouette pockets: follow the pocket angle or clear a vertical drop-in path while preserving the seated shape.
 
 ## 1.3.0 — 2026-10-04
 

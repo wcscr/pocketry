@@ -60,17 +60,19 @@ it("shares detached geometry, coalesces pending poses, and rejects stale publica
   expect(view.current()[0].get("p")).toBe(view.current()[1].get("p"));
 });
 
-it("does not request solid geometry during 120 drag frames, then resolves the released pose once", async () => {
+it.each([undefined, "axis", "vertical"] as const)("does not request solid geometry during 120 drag frames with insertion=%s, then resolves once", async insertionMode => {
   const view = mount(); await tick(); await finish(0);
+  const posed = { ...pocket, insertionMode };
   for (let x = 1; x <= 120; x++) {
-    view.render({ items: [{ ...pocket, position: { x, y: 0 } }], enabled: false });
+    view.render({ items: [{ ...posed, position: { x, y: 0 } }], enabled: false });
     await tick();
     expect(view.current()[0].size).toBe(0);
   }
   expect(build.calls).toHaveLength(1);
-  view.render({ items: [{ ...pocket, position: { x: 120, y: 0 } }] }); await tick();
+  view.render({ items: [{ ...posed, position: { x: 120, y: 0 } }] }); await tick();
   expect(build.calls).toHaveLength(2);
   expect(build.calls[1].request.pockets[0].cutout.position.x).toBe(120);
+  expect(build.calls[1].request.pockets[0].cutout.insertionMode).toBe(insertionMode);
   await finish(1); expect(view.current()[0].get("p")).toBeDefined();
 });
 

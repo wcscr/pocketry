@@ -1,6 +1,7 @@
 import { expandLinkedObjectEdits } from "@/lib/gridfinity/object-arrangement";
 import { hasRigidPocket, rigidPocket, resetPocketPlane } from "@shared/gridfinity/rigid-pocket";
 import { hasPocketTilt, pocketAxis } from "@shared/gridfinity/pocket-orientation";
+import { pocketInsertionError } from "@shared/gridfinity/pocket-insertion";
 import { profileAlongX, profilePrisms, hasProfileRotation } from "@shared/gridfinity/profile-bottom";
 import { outlineBounds } from "@/lib/geometry/outline";
 import { useState, type ReactNode } from "react";
@@ -106,6 +107,25 @@ function PocketMeasurementFields({ cutout, shape, children }: {
             <span>mm</span>
           </Label>
           <p className="text-muted-foreground">Elevation is the lowest point above the bin underside. Raising or lowering keeps the pocket’s dimensions.</p>
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2 text-xs">
+              <input type="checkbox" aria-label="Clear pocket insertion path" checked={!!cutout.insertionMode}
+                onChange={event => updateRigid({ ...rigidPocket(cutout, shape, spec),
+                  insertionMode: event.target.checked ? "axis" : undefined }, false, "Change pocket insertion path")} />
+              Clear insertion path
+              <HelpHint label="pocket insertion path">Extend the opening so the object can reach its seated position. Follow pocket angle uses its tilted axis; Vertical drop-in clears straight down from the surface. The pocket’s pose and depth stay the same.</HelpHint>
+            </Label>
+            {cutout.insertionMode && <select aria-label="Pocket insertion direction" className="h-8 w-full rounded border bg-background px-2"
+              value={cutout.insertionMode} onChange={event => updateRigid({ ...rigidPocket(cutout, shape, spec),
+                insertionMode: event.target.value as "axis" | "vertical" }, false, "Change pocket insertion path")}>
+              <option value="axis">Follow pocket angle</option>
+              <option value="vertical">Vertical drop-in</option>
+            </select>}
+            {pocketInsertionError(cutout) && <div role="alert" className="space-y-1 text-destructive">
+              <p>{pocketInsertionError(cutout)}</p>
+              <Button size="sm" variant="outline" onClick={() => updateRigid({ ...cutout, insertionMode: "vertical" }, false, "Use vertical drop-in")}>Use vertical drop-in</Button>
+            </div>}
+          </div>
         </div>
         <PositionInputs position={cutout.position} onChange={updatePosition} />
 

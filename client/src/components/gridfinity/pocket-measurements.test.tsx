@@ -49,6 +49,33 @@ function enter(label: string, value: string) {
 }
 
 describe("pocket measurements", () => {
+  it("opts into either insertion direction and preserves pose and dimensions through undo", () => {
+    enter("Pocket X rotation in degrees", "30");
+    const before = store.cutouts[0];
+    React.act(() => host.querySelector<HTMLInputElement>('[aria-label="Clear pocket insertion path"]')!.click());
+    expect(store.cutouts[0]).toEqual({ ...before, insertionMode: "axis" });
+    const select = host.querySelector<HTMLSelectElement>('[aria-label="Pocket insertion direction"]')!;
+    React.act(() => { select.value = "vertical"; select.dispatchEvent(new Event("change", {bubbles:true})); });
+    expect(store.cutouts[0]).toEqual({ ...before, insertionMode: "vertical" });
+    React.act(() => store.dispatch({ type: "UNDO" }));
+    expect(store.cutouts[0]).toEqual({ ...before, insertionMode: "axis" });
+    React.act(() => store.dispatch({ type: "UNDO" }));
+    expect(store.cutouts[0]).toEqual(before);
+    expect(host.querySelector('[aria-label="Pocket insertion direction"]')).toBeNull();
+  });
+
+  it("recovers a horizontal insertion path through vertical drop-in with undo", () => {
+    enter("Pocket X rotation in degrees", "90");
+    React.act(() => host.querySelector<HTMLInputElement>('[aria-label="Clear pocket insertion path"]')!.click());
+    const before = store.cutouts[0];
+    expect(host.querySelector('[role="alert"]')!.textContent).toContain("horizontal");
+    React.act(() => [...host.querySelectorAll("button")].find(b => b.textContent === "Use vertical drop-in")!.click());
+    expect(store.cutouts[0]).toEqual({ ...before, insertionMode: "vertical" });
+    expect(host.querySelector('[role="alert"]')).toBeNull();
+    React.act(() => store.dispatch({ type: "UNDO" }));
+    expect(store.cutouts[0]).toEqual(before);
+  });
+
   it.each<[string, Partial<CutoutPlacement>, "x" | "y"]>([
     ["wide pocket", {}, "x"],
     ["long pocket", { scaleY: 3 }, "y"],

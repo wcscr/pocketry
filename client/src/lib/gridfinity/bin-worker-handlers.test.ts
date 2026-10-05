@@ -113,9 +113,14 @@ const REQUEST: BuildBinRequest = {
   quality: { circularSegments: 16 },
 };
 
-it.each([undefined, { xDeg: 20, yDeg: 25 }])("exports the raised surface rim to closed STL/3MF and nonoverlapping colors with tilt=%j", async tilt => {
+it.each([
+  { tilt: undefined, insertionMode: undefined },
+  { tilt: { xDeg: 20, yDeg: 25 }, insertionMode: undefined },
+  { tilt: { xDeg: 20, yDeg: 25 }, insertionMode: "axis" as const },
+  { tilt: { xDeg: 20, yDeg: 25 }, insertionMode: "vertical" as const },
+])("exports the raised surface rim to closed STL/3MF and nonoverlapping colors with %j", async ({tilt,insertionMode}) => {
   const { shape, cutout } = createBasicPocket("rectangle", { x: -10, y: -12 }, { x: 10, y: 12 }, "raised-rim")!;
-  const p = parseCutoutPlacement({ ...cutout, elevationMm: 12, tilt,
+  const p = parseCutoutPlacement({ ...cutout, elevationMm: 12, tilt, insertionMode,
     depth: { mode: "mm", value: 16 }, topFilletMm: 2, bottomFilletMm: 1 });
   const request: BuildBinRequest = { spec: { gridX: 2, gridY: 2, heightUnits: 3, fill: "solid", lip: "none" },
     quality: EXPORT_QUALITY, exportTopology: true, pocketFloorMaterialThicknessMm: 0.6,
@@ -134,6 +139,18 @@ it.each([undefined, { xDeg: 20, yDeg: 25 }])("exports the raised surface rim to 
   const model = strFromU8(unzipSync(writeThreeMf(parts))["3D/3dmodel.model"]);
   expect(model.match(/<triangle /g)?.length).toBe(parts.reduce((sum, part) => sum + part.mesh.indices.length / 3, 0));
   expect(request).toEqual(original);
+});
+
+it("blocks horizontal axial exports and exports a closed vertical recovery", async () => {
+  const { shape, cutout } = createBasicPocket("rectangle", {x:-10,y:-12}, {x:10,y:12}, "path-recovery")!;
+  const p = parseCutoutPlacement({ ...cutout, elevationMm: 7, tilt: {xDeg:90,yDeg:0},
+    depth: {mode:"mm",value:12}, insertionMode: "axis" });
+  const request: BuildBinRequest = { spec: { gridX: 3, gridY: 3, heightUnits: 6, fill: "solid", lip: "none" },
+    quality: EXPORT_QUALITY, exportTopology: true, layout: { shapes: [shape], cutouts: [p], fingerHoles: [] } };
+  await expect(getHandler()(request, context())).rejects.toThrow("vertical drop-in");
+  const recovered = (await getHandler()({ ...request, layout: { ...request.layout!, cutouts: [{ ...p, insertionMode: "vertical" }] } }, context())).value;
+  expect(printableMeshVolume(recovered.mesh)).toBeGreaterThan(0);
+  expect(recovered.validationIssues).toEqual([]);
 });
 
 it.each(["standard", "none"] as const)("exports thick hollow walls with floor and rim colors, %s lip", async lip => {

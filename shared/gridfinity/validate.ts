@@ -1,5 +1,6 @@
 import { hasPocketTilt, pocketAxis } from "./pocket-orientation";
 import { hasRigidPocket } from "./rigid-pocket";
+import { pocketInsertionError } from "./pocket-insertion";
 import {
   distanceToSegment,
   ringBounds,
@@ -327,6 +328,12 @@ export function validateLayout(
       });
     }
 
+    const insertionError = pocketInsertionError(cutout);
+    if (insertionError) {
+      issues.push({ code: "invalid-pocket-insertion", severity: "error", cutoutIds: [cutout.id],
+        message: `“${pocketName(cutout, shape)}”: ${insertionError}` });
+      continue;
+    }
     if (!hasRigidPocket(cutout) && hasPocketTilt(cutout) && pocketAxis(cutout).z < 0.01) {
       issues.push({ code: "invalid-pocket-tilt", severity: "error", cutoutIds: [cutout.id], message: `“${pocketName(cutout, shape)}”: Reduce the combined tilt so the pocket can exit through the top.` });
       continue;

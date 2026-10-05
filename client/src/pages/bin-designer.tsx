@@ -446,7 +446,10 @@ function BinDesignerWorkspace(): JSX.Element {
     { spec, layout, gesture: spec !== committedSpec || cutouts !== committedCutouts || fingerHoles !== committedFingerHoles ? committedDoc : undefined },
   );
 
-  const issues = [...layoutIssues, ...solidIssues];
+  // Pure and worker validation can both report the same invalid insertion.
+  const issues = [...layoutIssues, ...solidIssues.filter(issue => !layoutIssues.some(local =>
+    local.code === issue.code && local.message === issue.message && local.severity === issue.severity
+    && JSON.stringify(local.cutoutIds) === JSON.stringify(issue.cutoutIds)))];
   const editablePockets = useMemo(() => cutouts.flatMap(cutout => {
     const shape = library.shapes.find(shape => shape.id === cutout.shapeId);
     return shape ? [{ cutout, shape }] : [];
