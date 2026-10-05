@@ -12,14 +12,15 @@ browser's main-thread Manifold runtime. Crease-edge extraction also ran there.
 An asynchronous promise around these synchronous operations did not make them
 nonblocking. The cache keyed by placement object missed on every new drag pose.
 
-Active Move and Rotate gestures now use the existing kernel-free source wires.
-They follow position, elevation, rotation, concavities, holes, and split seats;
-rounding and clearance details return in the settled exact outline. The bin
+Selected pockets now always use the existing kernel-free source wires, during
+and after Move/Rotate gestures. They follow position, elevation, rotation,
+concavities, holes, and split seats. Rounding stays in the rendered bin rather
+than adding mesh edges to the selection overlay. The bin
 mesh stays at its committed pose during the gesture and rebuilds on release.
 The final model, exports, history, and Library save path are unchanged.
 
-Exact selection geometry and its crease edges now build in a shared lazy
-worker. Picking and outline consumers share in-flight requests and detached
+Exact geometry for picking, Layout and measurements builds in a shared lazy
+worker. Those consumers share in-flight requests and detached
 results. The queue permits one physical batch and only the newest pending pose
 per pocket, since cancelling a promise cannot interrupt synchronous CSG. Views
 ignore obsolete replies, and the worker and pending requests are released when
@@ -52,8 +53,8 @@ The measurement source and detailed results are temporary local artifacts at
 Regression tests cover 120 drag poses with no exact-geometry requests, one
 request for the released pose, shared requests, pending-pose coalescing, stale
 responses, shape/fill invalidation, worker failure recovery, and worker disposal.
-A component contract test requires every active selected-pocket preview to use
-the kernel-free path. Worker tests compare the rounded, mirrored, rotated split
+A component contract test requires selected-pocket outlines to use the
+kernel-free path during a drag and after release. Worker tests compare the rounded, mirrored, rotated split
 mesh and its boundaries with the existing exact implementation, verify prepared
 edges and transfer buffers, retain legacy profile boundaries, and reject invalid
 or cancelled requests. Existing commit/cancel/undo contracts remain in place.

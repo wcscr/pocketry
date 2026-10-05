@@ -249,6 +249,7 @@ export function buildBinWithCutouts(
       { floorInsertThicknessMm: options.floorInsertThicknessMm },
     );
     validationIssues = [
+      ...(builtCutouts.validationIssues ?? []),
       ...validateLayout(spec, layout.cutouts, layout.shapesById, layout.fingerHoles)
         .filter(issue => issue.code === "invalid-pocket-insertion"),
       ...validateTiltedSolids(kernel, spec, layout.cutouts, layout.shapesById, builtCutouts.cutterGroups ?? [], base.parts.wall, base.parts.lip),

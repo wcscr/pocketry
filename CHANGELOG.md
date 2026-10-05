@@ -10,7 +10,7 @@
 - Larger touch handles, exact pocket dimensions, and fit-test exports in the mobile export panel.
 - Responsive 3D Move/Rotate gestures use lightweight outlines; exact selection geometry and crease edges build in a shared worker.
 - Top-edge rounding follows the pocket opening at the bin surface when pockets are raised or tilted.
-- Optional pocket openings: preserve the tilted opening or clear the full top-down outline for vertical insertion while keeping the tilted seat.
+- Optional pocket openings: preserve the tilted opening or use vertical walls around the full top-down outline with an extended sloped floor. Selection outlines stay lightweight while rounding remains visible in the bin.
 
 ## 1.3.0 — 2026-10-04
 

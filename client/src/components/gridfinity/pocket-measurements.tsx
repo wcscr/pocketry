@@ -113,7 +113,7 @@ function PocketMeasurementFields({ cutout, shape, children }: {
                 onChange={event => updateRigid({ ...rigidPocket(cutout, shape, spec),
                   insertionMode: event.target.checked ? "axis" : undefined }, false, "Change pocket insertion path")} />
               Clear insertion path
-              <HelpHint label="pocket insertion path">Follow pocket angle keeps the opening aligned with the tilted pocket. Vertical drop-in opens the entire outline as seen from above, including portions above the surface, while keeping the tilted seat below it. The pocket’s pose and depth stay the same.</HelpHint>
+              <HelpHint label="pocket insertion path">Follow pocket angle keeps the opening aligned with the tilted pocket. Vertical drop-in uses the complete top-down outline, with vertical walls and an extended sloped bottom. The extension stops at the pocket’s lowest elevation. The tilted floor must fit below the bin surface.</HelpHint>
             </Label>
             {cutout.insertionMode && <select aria-label="Pocket insertion direction" className="h-8 w-full rounded border bg-background px-2"
               value={cutout.insertionMode} onChange={event => updateRigid({ ...rigidPocket(cutout, shape, spec),

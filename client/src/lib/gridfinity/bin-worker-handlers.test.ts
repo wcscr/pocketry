@@ -122,7 +122,7 @@ it.each([
   const { shape, cutout } = createBasicPocket("rectangle", { x: -10, y: -12 }, { x: 10, y: 12 }, "raised-rim")!;
   const p = parseCutoutPlacement({ ...cutout, elevationMm: 12, tilt, insertionMode,
     depth: { mode: "mm", value: 16 }, topFilletMm: 2, bottomFilletMm: 1 });
-  const request: BuildBinRequest = { spec: { gridX: 2, gridY: 2, heightUnits: 3, fill: "solid", lip: "none" },
+  const request: BuildBinRequest = { spec: { gridX: 2, gridY: 2, heightUnits: insertionMode === "vertical" ? 5 : 3, fill: "solid", lip: "none" },
     quality: EXPORT_QUALITY, exportTopology: true, pocketFloorMaterialThicknessMm: 0.6,
     stackingRimMaterialThicknessMm: 1.25, borderWidthMm: 2,
     layout: { shapes: [shape], cutouts: [p], fingerHoles: [] } };
@@ -151,6 +151,34 @@ it("blocks horizontal axial exports and exports a closed vertical recovery", asy
   const recovered = (await getHandler()({ ...request, layout: { ...request.layout!, cutouts: [{ ...p, insertionMode: "vertical" }] } }, context())).value;
   expect(printableMeshVolume(recovered.mesh)).toBeGreaterThan(0);
   expect(recovered.validationIssues).toEqual([]);
+});
+
+it.each([
+  {elevationMm:5.05,heightUnits:3,flatBottom:true},
+  {elevationMm:7,heightUnits:4,flatBottom:false},
+])("exports the reported compound tilt with an extended seat and closed color parts: %j", async ({elevationMm,heightUnits,flatBottom}) => {
+  const {shape,cutout}=createBasicPocket("rectangle",{x:-10,y:-12},{x:10,y:12},"vertical-regression")!;
+  const p=parseCutoutPlacement({...cutout,position:{x:28.07,y:-6.55},elevationMm,
+    tilt:{xDeg:20,yDeg:25},rotationDeg:17,depth:{mode:"mm",value:16},
+    insertionMode:"vertical",topFilletMm:2,bottomFilletMm:1});
+  const result=(await getHandler()({spec:{gridX:3,gridY:3,heightUnits,flatBottom,fill:"solid",lip:"none"},
+    quality:EXPORT_QUALITY,exportTopology:true,pocketFloorMaterialThicknessMm:0.6,
+    layout:{shapes:[shape],cutouts:[p],fingerHoles:[]}},context())).value;
+  expect(result.validationIssues).toEqual([]);
+  const whole=printableMeshVolume(result.mesh);
+  const parts=Object.entries(result.materialMeshes!).map(([name,mesh])=>({name,mesh}));
+  expect(Math.abs(parts.reduce((sum,part)=>sum+printableMeshVolume(part.mesh),0)-whole)).toBeLessThan(0.1);
+  expect(writeBinarySTL(result.mesh).byteLength).toBe(84+result.mesh.indices.length/3*50);
+  expect(strFromU8(unzipSync(writeThreeMf(parts))["3D/3dmodel.model"]).match(/<triangle /g)?.length)
+    .toBe(parts.reduce((sum,part)=>sum+part.mesh.indices.length/3,0));
+});
+
+it("blocks a vertical export when the tilted floor prevents a full opening", async () => {
+  const {shape,cutout}=createBasicPocket("rectangle",{x:-10,y:-12},{x:10,y:12},"high-seat")!;
+  const p=parseCutoutPlacement({...cutout,elevationMm:12,tilt:{xDeg:20,yDeg:25},depth:{mode:"mm",value:16},insertionMode:"vertical"});
+  await expect(getHandler()({spec:{gridX:3,gridY:3,heightUnits:3,fill:"solid",lip:"none"},
+    quality:EXPORT_QUALITY,exportTopology:true,layout:{shapes:[shape],cutouts:[p],fingerHoles:[]}},context()))
+    .rejects.toThrow("preventing a full vertical opening");
 });
 
 it.each(["standard", "none"] as const)("exports thick hollow walls with floor and rim colors, %s lip", async lip => {

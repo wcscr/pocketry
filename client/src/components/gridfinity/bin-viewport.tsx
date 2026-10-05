@@ -462,7 +462,7 @@ export function BinViewport({
         ) : null}
         {pocketEditor && <PocketSelectionPlane editor={pocketEditor} width={fitSize.widthMm} length={fitSize.lengthMm} disabled={rulerActive || !!dragPreview || !!textPreview} />}
         {pocketEditor && !rulerActive && displayedObjects.filter(object => showPocketOutlines || object.kind !== "pocket")
-          .map(object => <ObjectTransformWire key={objectKey(objectRef(object))} object={object} spec={pocketEditor.spec} preview={dragPreview !== null} />)}
+          .map(object => <ObjectTransformWire key={objectKey(objectRef(object))} object={object} spec={pocketEditor.spec} />)}
         {selectedObjects.length > 0 && pocketEditor && (inspector ? (inspector.tool === "translate" || inspector.tool === "rotate") : objectControlsOpen) && !rulerActive && <SelectionTransformScene
           key={`${selectionKey}-${transformMode}`} objects={selectedObjects} allObjects={objects} spec={pocketEditor.spec} mode={transformMode} snap={snapTransform} pivot={pivot}
           onPreview={setDragPreview} onLimit={setTransformLimited}

@@ -24,13 +24,39 @@ function cutter(p = pocket, s = shape) {
   return arena.track(kernel.Manifold.union(buildCutoutCutters(kernel, new Map([[s.id,s]]), [p], spec, EXPORT_QUALITY).cutters));
 }
 
+it.each([PREVIEW_QUALITY, EXPORT_QUALITY])("clears the reported rounded pocket continuously at quality=%j", quality => {
+  const p = {...pocket, position:{x:28.07,y:-6.55}, elevationMm:5.05, tilt:{xDeg:20,yDeg:25}, rotationDeg:17,
+    bottomFilletMm:1, topFilletMm:2, insertionMode:"vertical" as const};
+  const source = arena.track(kernel.Manifold.union(buildRigidPocket(kernel,shape,{...p,insertionMode:undefined,topFilletMm:0},spec,quality).cutters));
+  const built = buildCutoutCutters(kernel,map,[p],spec,quality);
+  const vertical = arena.track(kernel.Manifold.union(built.cutters));
+  const top = resolvePocketDepth(spec,p.depth).infillTopZ;
+  expect(built.validationIssues).toEqual([]);
+  expect(arena.track(arena.track(source.project()).subtract(arena.track(vertical.slice(top-1e-7)))).area()).toBeLessThan(0.001);
+  for (const travel of [0,0.1,0.3,1,3,7,12,20]) {
+    const shifted = arena.track(arena.track(source.translate([0,0,travel])).trimByPlane([0,0,-1],-top));
+    expect(arena.track(shifted.subtract(vertical)).volume(), `blocked volume after ${travel} mm travel`).toBeLessThan(0.001);
+  }
+});
+
+it("extends the tilted bottom across the projected outline instead of retaining the tilted sidewall", () => {
+  const vertical = cutter({...pocket,insertionMode:"vertical"});
+  // At y=-7 the tilted sidewall used to rise through the opening. The bottom
+  // plane extends below the requested lowest elevation here, so the remaining
+  // floor limit stops it at z=7. Above that, the vertical path must be empty.
+  const probe = (z:number) => arena.track(arena.track(kernel.Manifold.cube([2,1,0.2],true)).translate([0,-7,z]));
+  expect(arena.track(vertical.intersect(probe(9))).volume()).toBeCloseTo(0.4,7);
+  expect(arena.track(vertical.intersect(probe(6.5))).volume()).toBeLessThan(1e-7);
+});
+
 it.each([PREVIEW_QUALITY, EXPORT_QUALITY])("opens the full top-down perimeter even when the tool extends above the surface at quality=%j", quality => {
   const p = { ...pocket, elevationMm:12, tilt:{xDeg:20,yDeg:25}, rotationDeg:17 };
-  const top = resolvePocketDepth(spec,p.depth).infillTopZ;
-  const source = arena.track(kernel.Manifold.union(buildRigidPocket(kernel,shape,p,spec,quality).cutters));
-  expect(source.boundingBox().max[2]).toBeGreaterThan(top+5);
+  const taller = {...spec,heightUnits:5};
+  const top = resolvePocketDepth(taller,p.depth).infillTopZ;
+  const source = arena.track(kernel.Manifold.union(buildRigidPocket(kernel,shape,p,taller,quality).cutters));
+  expect(source.boundingBox().max[2]).toBeGreaterThan(top);
   const projected = arena.track(source.project());
-  const built = buildCutoutCutters(kernel,map,[{...p,insertionMode:"vertical"}],spec,quality);
+  const built = buildCutoutCutters(kernel,map,[{...p,insertionMode:"vertical"}],taller,quality);
   const vertical = arena.track(kernel.Manifold.union(built.cutters));
   // Sample at the actual surface. A sloped seat meeting it naturally excludes
   // an infinitesimal strip if sampled below that plane.
@@ -99,12 +125,12 @@ it.each(["axis", "vertical"] as const)("keeps %s openings rounded at the surface
   const top = resolvePocketDepth(spec, p.depth).infillTopZ;
   expect(arena.track(rounded.slice(top-1e-6)).area()).toBeGreaterThan(arena.track(sharp.slice(top-1e-6)).area());
   const layout = { shapesById: new Map([[s.id,s]]), cutouts: [p], fingerHoles: [] };
-  const built = buildBinWithCutouts(kernel, spec, layout, EXPORT_QUALITY, { floorInsertThicknessMm: 0.6 });
+  const built = buildBinWithCutouts(kernel, { ...spec,heightUnits:4 }, layout, EXPORT_QUALITY, { floorInsertThicknessMm: 0.6 });
   expect(built.validationIssues).toEqual([]);
   expect(built.solid.status()).toBe("NoError");
   expect(arena.track(built.materialParts!.body.intersect(built.materialParts!.pocketFloors!)).volume()).toBeLessThan(1e-5);
   expect(built.materialParts!.body.volume() + built.materialParts!.pocketFloors!.volume()).toBeCloseTo(built.solid.volume(), 4);
-});
+}, 30_000); // Three export-quality builds of a rounded, holed, split seat.
 
 it("opens submerged pockets only when clearance is explicitly enabled", () => {
   const p = { ...pocket, tilt: undefined, elevationMm: 7, depth: { mode: "mm" as const, value: 8 } };
@@ -137,4 +163,10 @@ it("isolates an invalid axial pocket in preview while retaining the other cavity
   const reference = buildBinWithCutouts(kernel, spec, { shapesById: map, cutouts: [other], fingerHoles: [] }, EXPORT_QUALITY);
   expect(built.validationIssues).toContainEqual(expect.objectContaining({ code: "invalid-pocket-insertion", severity: "error" }));
   expect(built.solid.volume()).toBeCloseTo(reference.solid.volume(), 5);
+});
+
+it("reports a tilted seat above the surface instead of adding deep projection trenches", () => {
+  const p = {...pocket,elevationMm:12,tilt:{xDeg:20,yDeg:25},insertionMode:"vertical" as const};
+  const built = buildBinWithCutouts(kernel,spec,{shapesById:map,cutouts:[p],fingerHoles:[]},EXPORT_QUALITY);
+  expect(built.validationIssues).toContainEqual(expect.objectContaining({code:"vertical-seat-above-surface",severity:"error",cutoutIds:[p.id]}));
 });

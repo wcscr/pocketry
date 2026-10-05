@@ -55,16 +55,15 @@ function drag() {
     scene.handlers!.onObjectChange();
   });
 }
-it("keeps the selected pocket wire on the kernel-free path throughout a drag", () => {
+it("keeps the selected pocket wire lightweight during a drag and after release", () => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   const container = document.createElement("div"), root = createRoot(container);
   const warning = vi.spyOn(console, "error").mockImplementation(() => {});
   cleanups.push(() => { React.act(() => root.unmount()); warning.mockRestore(); });
   for (let x = 0; x < 20; x++) React.act(() => root.render(<ObjectTransformWire
-    object={{ kind: "pocket", shape, cutout: { ...cutout, position: { x, y: 0 }, elevationMm: 7 } }} spec={spec} preview />));
-  expect(geometry.resolve.mock.calls.every(call => call[3] === false)).toBe(true);
+    object={{ kind: "pocket", shape, cutout: { ...cutout, position: { x, y: 0 }, elevationMm: 7 } }} spec={spec} />));
   React.act(() => root.render(<ObjectTransformWire object={{ kind: "pocket", shape, cutout }} spec={spec} />));
-  expect(geometry.resolve).toHaveBeenLastCalledWith(expect.any(Array), expect.any(Map), spec, true);
+  expect(geometry.resolve).not.toHaveBeenCalled();
 });
 it("previews locally and commits one complete XYZ move on release", () => {
   const { onCommit, onPreview } = mount(); drag();

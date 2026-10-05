@@ -1,13 +1,63 @@
-import type { Manifold, Vec3 } from "manifold-3d";
+import type { CrossSection, Manifold, Vec3 } from "manifold-3d";
 import type { Kernel } from "@/lib/manifold/runtime";
+import { bottomFilletCutter, type FilletOptions } from "./fillet-stack";
 
-/** Clear the complete top-down outline, keeping the original tilted seat.
- * First clear upward continuously. Source portions wholly above the fill do
- * not contribute to that opening, so their missing projection gets a vertical
- * column to the pocket's lowest elevation. A 1 micrometre overlap joins the
- * columns without zero-thickness seams at their boundary. */
-export function verticalDropInCutter(kernel: Kernel, source: Manifold, surface: number, ceiling: number): Manifold {
+export interface VerticalPocketSeat {
+  /** Shadow of the nominal tool, before the bin's bottom edge treatment. */
+  projection: CrossSection;
+  /** Upward normal of the authored bottom, after the pocket's rigid rotation. */
+  normal: Vec3;
+  /** Plane equation normal · position = offset; optional projected split region. */
+  floors: { offset: number; region?: CrossSection }[];
+  fillet: FilletOptions;
+}
+
+/** Extrude the object's XY shadow with vertical walls, then shear only the
+ * floor profile to the authored seat plane. Extending the bottom plane removes
+ * the tilted sidewalls that an upward sweep would otherwise retain as ridges.
+ * Clamp to the original lowest elevation so added clearance cannot lower the
+ * requested remaining floor. Split seats use the union of their vertical paths.
+ */
+function projectedPocket(kernel: Kernel, source: Manifold, ceiling: number, seat: VerticalPocketSeat): Manifold {
+  const { arena, Manifold: M } = kernel;
+  const projection = seat.projection;
+  const floor = source.boundingBox().min[2];
+  const [nx, ny, nz] = seat.normal;
+  const xy = projection.toPolygons().flat();
+  const pieces = seat.floors.map(({offset, region}) => {
+    const minPlane = Math.min(...xy.map(([x,y]) => (offset-nx*x-ny*y)/nz));
+    const local = bottomFilletCutter(kernel, projection, ceiling-minPlane+1, seat.fillet);
+    const sloped = arena.track(local.transform([
+      1,0,-nx/nz,0, 0,1,-ny/nz,0, 0,0,1,0, 0,0,offset/nz,1,
+    ]));
+    const bottomClipped = arena.track(sloped.trimByPlane([0,0,1],floor));
+    let clipped = arena.track(bottomClipped.trimByPlane([0,0,-1],-ceiling));
+    if (region) {
+      const column = arena.track(arena.track(region.extrude(ceiling-floor)).translate([0,0,floor]));
+      clipped = arena.track(clipped.intersect(column));
+    }
+    return clipped;
+  });
+  // Keep the authored object clear throughout insertion wherever the new wall
+  // fillet would touch it. A finite copy alone can leave small overhangs above
+  // the fillet's steps; its continuous upward sweep clears those as well.
+  if (seat.fillet.radiusMm > 0 && nz < 1-1e-8) {
+    // Sweep individual floor facets to keep work proportional to their count.
+    // A one-micrometre lateral overlap avoids coincident fillet seams; clipping
+    // to the nominal projection below preserves the exact outer perimeter.
+    pieces.push(sweepSolidAlongAxis(kernel,source,[0,0,1],ceiling,0.001));
+  }
+  const joined = arena.track(M.union(pieces));
+  const column = arena.track(arena.track(projection.extrude(ceiling-floor)).translate([0,0,floor]));
+  return arena.track(joined.intersect(column));
+}
+
+/** Extend an upward-facing seat across the object's complete XY shadow.
+ * Horizontal, inverted, and through pockets have no upward-facing authored
+ * bottom plane; retain their general solid sweep instead. */
+export function verticalDropInCutter(kernel: Kernel, source: Manifold, surface: number, ceiling: number, seat?: VerticalPocketSeat): Manifold {
   const { arena } = kernel;
+  if (seat && seat.normal[2] > 0.01 && !source.isEmpty()) return projectedPocket(kernel,source,ceiling,seat);
   const swept = sweepSolidAlongAxis(kernel, source, [0,0,1], ceiling);
   if (source.isEmpty() || source.boundingBox().min[2] >= surface) return swept;
   const projection = arena.track(source.project());
@@ -28,7 +78,7 @@ export function verticalDropInCutter(kernel: Kernel, source: Manifold, surface: 
 
 /** Continuous upward sweep; exiting triangles generate exact convex prisms.
  * No sampled poses or whole-object hull are used. */
-function sweepSolidAlongAxis(kernel: Kernel, source: Manifold, axis: Vec3, ceiling: number): Manifold {
+function sweepSolidAlongAxis(kernel: Kernel, source: Manifold, axis: Vec3, ceiling: number, lateralOverlap = 0): Manifold {
   if (source.isEmpty()) return source;
   const bounds = source.boundingBox();
   if (!axis.every(Number.isFinite) || axis[2] < 0.01 || !Number.isFinite(ceiling) || ceiling <= bounds.max[2]) {
@@ -48,10 +98,15 @@ function sweepSolidAlongAxis(kernel: Kernel, source: Manifold, axis: Vec3, ceili
     const [a,b,c] = points;
     const u = b.map((n,j) => n-a[j]), v = c.map((n,j) => n-a[j]);
     const normal = [u[1]*v[2]-u[2]*v[1], u[2]*v[0]-u[0]*v[2], u[0]*v[1]-u[1]*v[0]];
-    // Only outward faces in the travel direction bound new swept volume.
-    if (normal.reduce((sum,n,j) => sum+n*axis[j], 0) <= 1e-10) continue;
-    const exit = points.map(p => p.map((n,j) => n+axis[j]*travel) as Vec3);
-    const hull = arena.track(M.hull([...points, ...exit]));
+    const facing = normal.reduce((sum,n,j) => sum+n*axis[j], 0);
+    // For projected seats, sweep the downward-facing floor triangles. Their
+    // small lateral overlap also covers joins along the original floor, not
+    // just the volume above the object's exit faces.
+    if (lateralOverlap ? facing >= -1e-10 : facing <= 1e-10) continue;
+    const start = lateralOverlap ? points.flatMap(([x,y,z]) =>
+      [-1,1].flatMap(dx => [-1,1].map(dy => [x+dx*lateralOverlap,y+dy*lateralOverlap,z] as Vec3))) : points;
+    const exit = start.map(p => p.map((n,j) => n+axis[j]*travel) as Vec3);
+    const hull = arena.track(M.hull([...start, ...exit]));
     const prism = arena.track(hull.setTolerance(tolerance));
     if (!prism.isEmpty()) prisms.push(prism);
   }
