@@ -2,10 +2,10 @@
 import type { Manifold } from "manifold-3d";
 import { hasPocketTilt, pocketAxis } from "@shared/gridfinity/pocket-orientation";
 import { hasRigidPocket, pocketRotation, rigidPocket } from "@shared/gridfinity/rigid-pocket";
-import { pocketInsertionAxis, pocketInsertionError } from "@shared/gridfinity/pocket-insertion";
+import { pocketInsertionError } from "@shared/gridfinity/pocket-insertion";
 import { rotateObjectVector } from "@shared/gridfinity/object-pose";
 import { buildObjectCavity } from "./object-cavity";
-import { sweepSolidAlongAxis } from "./insertion-sweep";
+import { verticalDropInCutter } from "./insertion-sweep";
 
 import {
   effectiveDeepScoopDepthMm,
@@ -701,7 +701,8 @@ function buildCutoutCuttersInternal(
 }
 
 /** Generate in the outline's own frame, then apply one reusable rigid pose.
- * The finite cap is retained unless insertion clearance is explicitly requested.
+ * The finite cap is retained for the angled opening; vertical mode clears the
+ * full projected outline without flattening the existing seat.
  * Top-edge rounding belongs to the bin surface intersection, not that cap. */
 export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: CutoutPlacement,
   spec: BinSpec, quality: BuildQuality, options: CutoutBuildOptions = {}, top = Infinity,
@@ -756,13 +757,15 @@ export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: Cut
   const anchor = buildSource(1, false);
   const source = hasThrough ? buildSource(reach, true) : anchor;
   const pose = { rotation: pocketRotation(cutout), position: cutout.position, elevationMm: cutout.elevationMm ?? 0 };
-  let cutter = buildObjectCavity(kernel, source, pose, cutout.insertionMode ? Infinity : top, anchor);
-  if (cutter && cutout.insertionMode) {
-    const axis = pocketInsertionAxis(cutout);
+  // Follow pocket angle retains the authored tilted cavity and its surface
+  // intersection, exactly as before insertion options were introduced.
+  let cutter = buildObjectCavity(kernel, source, pose, cutout.insertionMode === "vertical" ? Infinity : top, anchor);
+  if (cutter && cutout.insertionMode === "vertical") {
     const ceiling = Math.max(realTop, cutter.boundingBox().max[2], Number.isFinite(top) ? top : realTop) + 1;
-    cutter = sweepSolidAlongAxis(kernel, cutter, [axis.x, axis.y, axis.z], ceiling);
+    cutter = verticalDropInCutter(kernel, cutter, realTop, ceiling);
     if (Number.isFinite(top)) cutter = arena.track(cutter.trimByPlane([0, 0, -1], -top));
   }
+  const seatedCutter = cutter;
   if (cutter && cutout.topFilletMm > 0 && cutter.boundingBox().max[2] >= realTop - 1e-8) {
     // Slice after posing and joining the split seats. Only the opening that
     // actually reaches the fill gets a rim; submerged caps stay finite. Keep
@@ -785,8 +788,25 @@ export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: Cut
     const band = arena.track(below.subtract(source));
     const insert = buildObjectCavity(kernel, band, pose, top, anchor);
     const region = buildObjectCavity(kernel, below, pose, top, anchor);
-    if (insert) floorInserts.push(insert);
+    // In vertical mode, the final cavity also contains the new clearance.
+    // Intersect the full region with the finished bin so the colored floor
+    // and body use precisely the same partition boundary.
+    if (cutout.insertionMode === "vertical" && region) floorInserts.push(region);
+    else if (insert) floorInserts.push(insert);
     if (region) floorRegions.push(region);
+    if (seatedCutter && cutout.insertionMode === "vertical") {
+      // The shaped seat retains its source-based floor band. New clearance
+      // columns have flat floors at the lowest elevation; color only that
+      // thin floor slab, rather than translating the entire clearance cavity
+      // and reproducing its wall boundaries in a second Boolean operation.
+      const floorZ = seatedCutter.boundingBox().min[2];
+      const footprint = arena.track(arena.track(seatedCutter.slice(floorZ+1e-7)).simplify(0.0001));
+      if (!footprint.isEmpty()) {
+        const extra = arena.track(arena.track(footprint.extrude(distance)).translate([0,0,floorZ-distance]));
+        floorInserts.push(extra);
+        floorRegions.push(extra);
+      }
+    }
   }
   return { cutters: cutter ? [cutter] : [], floorInserts, floorRegions,
     reports: [{ id: cutout.id, emptied: source.isEmpty() }] };

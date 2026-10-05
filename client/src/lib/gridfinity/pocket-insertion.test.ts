@@ -5,8 +5,8 @@ import { parseBinSpec } from "@shared/gridfinity/types";
 import { Arena } from "@/lib/manifold/arena";
 import { createKernel, loadManifold, type Kernel, type ManifoldToplevel } from "@/lib/manifold/runtime";
 import { outlineBounds } from "@/lib/geometry/outline";
-import { buildCutoutCutters } from "./cutouts";
-import { buildBinWithCutouts, EXPORT_QUALITY } from "./bin";
+import { buildCutoutCutters, buildRigidPocket } from "./cutouts";
+import { buildBinWithCutouts, EXPORT_QUALITY, PREVIEW_QUALITY } from "./bin";
 import { resolvedPocketGeometry } from "./pocket-geometry";
 
 let wasm: ManifoldToplevel, arena: Arena, kernel: Kernel;
@@ -24,6 +24,21 @@ function cutter(p = pocket, s = shape) {
   return arena.track(kernel.Manifold.union(buildCutoutCutters(kernel, new Map([[s.id,s]]), [p], spec, EXPORT_QUALITY).cutters));
 }
 
+it.each([PREVIEW_QUALITY, EXPORT_QUALITY])("opens the full top-down perimeter even when the tool extends above the surface at quality=%j", quality => {
+  const p = { ...pocket, elevationMm:12, tilt:{xDeg:20,yDeg:25}, rotationDeg:17 };
+  const top = resolvePocketDepth(spec,p.depth).infillTopZ;
+  const source = arena.track(kernel.Manifold.union(buildRigidPocket(kernel,shape,p,spec,quality).cutters));
+  expect(source.boundingBox().max[2]).toBeGreaterThan(top+5);
+  const projected = arena.track(source.project());
+  const built = buildCutoutCutters(kernel,map,[{...p,insertionMode:"vertical"}],spec,quality);
+  const vertical = arena.track(kernel.Manifold.union(built.cutters));
+  // Sample at the actual surface. A sloped seat meeting it naturally excludes
+  // an infinitesimal strip if sampled below that plane.
+  const opening = arena.track(vertical.slice(top-1e-8));
+  expect(arena.track(projected.subtract(opening)).area()).toBeLessThan(1e-5);
+  expect(arena.track(opening.subtract(projected)).area()).toBeLessThan(1e-5);
+});
+
 it("produces a wider vertical opening without changing the seated depth or elevation", () => {
   const top = resolvePocketDepth(spec, pocket.depth).infillTopZ;
   const axis = cutter({ ...pocket, insertionMode: "axis" });
@@ -33,10 +48,11 @@ it("produces a wider vertical opening without changing the seated depth or eleva
   expect(axis.boundingBox().min[2]).toBeCloseTo(source.boundingBox().min[2], 7);
   expect(vertical.boundingBox().min[2]).toBeCloseTo(source.boundingBox().min[2], 7);
   expect(arena.track(source.subtract(axis)).volume()).toBeLessThan(1e-6);
-  expect(arena.track(source.subtract(vertical)).volume()).toBeLessThan(1e-6);
+  // The seat prisms use Float32 mesh positions at 0.0001 mm tolerance.
+  expect(arena.track(source.subtract(vertical)).volume()).toBeLessThan(0.001);
 });
 
-it.each(["axis", "vertical"] as const)("clears all translated copies continuously along %s and reserves their bounds", insertionMode => {
+it.each(["vertical"] as const)("clears all translated copies continuously along %s and reserves their bounds", insertionMode => {
   const p = { ...pocket, insertionMode };
   const source = cutter(), swept = cutter(p), axis = pocketInsertionAxis(p);
   const top = resolvePocketDepth(spec, p.depth).cutterTopZ;
@@ -51,6 +67,28 @@ it.each(["axis", "vertical"] as const)("clears all translated copies continuousl
   expect(swept.boundingBox().min[0]).toBeGreaterThan(bounds.minX - 0.001);
   expect(swept.boundingBox().max[1]).toBeLessThan(bounds.maxY + 0.001);
   expect(resolvedPocketGeometry(kernel, shape, p, spec).opening.length).toBeGreaterThan(0);
+});
+
+it.each([
+  { tilt:{xDeg:30,yDeg:0}, rotationDeg:0, mirrored:false },
+  { tilt:{xDeg:20,yDeg:25}, rotationDeg:17, mirrored:true },
+])("preserves the original tilted opening exactly with pose=%j", pose => {
+  const p = { ...pocket, ...pose, topFilletMm:2, bottomFilletMm:1 };
+  const original = cutter(p), angled = cutter({ ...p, insertionMode:"axis" });
+  expect(arena.track(original.subtract(angled)).volume()).toBeLessThan(1e-8);
+  expect(arena.track(angled.subtract(original)).volume()).toBeLessThan(1e-8);
+});
+
+it("retains the tilted seat at different heights beneath a complete vertical mouth", () => {
+  const vertical = cutter({ ...pocket, insertionMode:"vertical" });
+  // The authored bottom cap is [-10,10] × [-12,12] at local Z=-16.
+  // After 30° pitch and lowest-point anchoring, its center is (0,8,13).
+  for (const y of [-6,6]) {
+    const worldY = 8 + y*Math.cos(Math.PI/6), seatZ = 13 + y*0.5;
+    const probe = (z: number) => arena.track(arena.track(kernel.Manifold.cube([1,0.2,0.1],true)).translate([0,worldY,z]));
+    expect(arena.track(vertical.intersect(probe(seatZ-0.3))).volume()).toBeLessThan(1e-7);
+    expect(arena.track(vertical.intersect(probe(seatZ+0.3))).volume()).toBeCloseTo(0.02,7);
+  }
 });
 
 it.each(["axis", "vertical"] as const)("keeps %s openings rounded at the surface and split floor colors nonoverlapping", insertionMode => {

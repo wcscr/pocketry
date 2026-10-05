@@ -4,6 +4,7 @@ import { pocketInsertionAxis, pocketInsertionError } from "./pocket-insertion";
 import { parseProjectDoc, PROJECT_SCHEMA_VERSION } from "./project";
 import { parseBinSpec } from "./types";
 import { applyLinkedEdits, designLinkErrors } from "./design-links";
+import { rigidPocketFootprint } from "./rigid-pocket";
 
 const spec = parseBinSpec({ gridX: 3, gridY: 3, heightUnits: 4 });
 const shape = { id: "s", name: "Tool", sourceMmPerPx: 1, pointCount: 4,
@@ -48,6 +49,12 @@ it("directs inverted axes upward and keeps vertical insertion independent of pos
   const inverted = { ...p, tilt: { xDeg: 180, yDeg: 25 } };
   expect(pocketInsertionAxis(inverted).z).toBeGreaterThan(0);
   expect(pocketInsertionAxis({ ...inverted, insertionMode: "vertical" })).toEqual({ x: 0, y: 0, z: 1 });
+});
+
+it("uses the entire top-down footprint even for source vertices above the fill", () => {
+  const raised = { ...p, elevationMm:23, rotationDeg:17, insertionMode:"vertical" as const };
+  const full = rigidPocketFootprint(shape.outlineMm,raised,Infinity,28);
+  expect(rigidPocketFootprint(shape.outlineMm,raised,28,28)).toEqual(full);
 });
 
 it("shares insertion choices in linked designs while preserving each pose", () => {
