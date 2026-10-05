@@ -113,6 +113,24 @@ const REQUEST: BuildBinRequest = {
   quality: { circularSegments: 16 },
 };
 
+it.each(["standard", "none"] as const)("exports thick hollow walls with floor and rim colors, %s lip", async lip => {
+  const request: BuildBinRequest = {
+    spec: { gridX: 1, gridY: 1, heightUnits: 3, fill: "none", wallThicknessMm: 3, lip },
+    quality: EXPORT_QUALITY, exportTopology: true,
+    pocketFloorMaterialThicknessMm: 0.6, stackingRimMaterialThicknessMm: 1.25, borderWidthMm: 3,
+  };
+  const result = (await getHandler()(request, context())).value;
+  const whole = printableMeshVolume(result.mesh);
+  expect(whole).toBeCloseTo(result.stats.volumeMm3, 1);
+  expect(result.materialMeshes?.pocketFloors).toBeDefined();
+  expect(result.materialMeshes?.stackingRim).toBeDefined();
+  const partsVolume = Object.values(result.materialMeshes!).reduce((sum, mesh) => sum + printableMeshVolume(mesh), 0);
+  expect(partsVolume).toBeCloseTo(whole, 1);
+  expect(writeBinarySTL(result.mesh).byteLength).toBe(84 + result.mesh.indices.length / 3 * 50);
+  const model = strFromU8(unzipSync(writeThreeMf([{ name: "Thick hollow bin", mesh: result.mesh }]))["3D/3dmodel.model"]);
+  expect(model.match(/<triangle /g)?.length).toBe(result.mesh.indices.length / 3);
+});
+
 it.each([undefined, {xDeg:32,yDeg:-24}, {xDeg:90,yDeg:0}, {xDeg:180,yDeg:0}, {xDeg:0,yDeg:90}, {xDeg:-30,yDeg:70}])("exports a profile floor with rotation %s alongside an ordinary pocket to closed STL/3MF meshes and protects the base", async profileRotation => {
   const basic=createBasicPocket("rectangle",{x:-20,y:-10},{x:20,y:10},"profile-export")!;
   const shape={...basic.shape,outlineMm:[{outer:[[-20,-10],[0,-10],[0,0],[20,0],[20,10],[-20,10]].map(([x,y])=>({x,y})),holes:[]}]};
