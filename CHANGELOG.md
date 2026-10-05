@@ -8,6 +8,7 @@
 - Standard multi-selection and arrangement; matching text Move/Rotate controls in Layout and 3D.
 - Persistent experimental opt-in, protected linked designs, and easier draft saving to Library.
 - Larger touch handles, exact pocket dimensions, and fit-test exports in the mobile export panel.
+- Responsive 3D Move/Rotate gestures use lightweight outlines; exact selection geometry and crease edges build in a shared worker.
 
 ## 1.3.0 — 2026-10-04
 

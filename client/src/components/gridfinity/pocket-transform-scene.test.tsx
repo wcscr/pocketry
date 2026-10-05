@@ -9,6 +9,8 @@ import { parseBinSpec } from "@shared/gridfinity/types";
 const scene = vi.hoisted(() => ({ control: null as Object3D | null, orbit: { enabled: true }, handlers: null as null | {
   object: Object3D; space: string; onMouseDown: () => void; onObjectChange: () => void; onMouseUp: () => void;
 } }));
+const geometry = vi.hoisted(() => ({ resolve: vi.fn((..._args: unknown[]) => new Map()) }));
+vi.mock("@/hooks/use-pocket-geometry", () => ({ usePocketGeometry: geometry.resolve }));
 vi.mock("@react-three/fiber", () => ({ useThree: (select: (state: { controls: typeof scene.orbit }) => unknown) => select({ controls: scene.orbit }) }));
 vi.mock("@react-three/drei", () => ({
   Line: () => null,
@@ -26,13 +28,13 @@ vi.mock("@react-three/drei", () => ({
     return null;
   }),
 }));
-import { PocketSelectionPlane, PocketTransformScene, type PocketEditor } from "./pocket-transform-scene";
+import { ObjectTransformWire, PocketSelectionPlane, PocketTransformScene, type PocketEditor } from "./pocket-transform-scene";
 
 const spec = parseBinSpec({ gridX: 3, gridY: 3, heightUnits: 6, lip: "none" });
 const cutout = parseCutoutPlacement({ id: "p", shapeId: "s", position: { x: 0, y: 0 } });
 const shape: TracedShape = { id: "s", name: "Slot", sourceMmPerPx: null, pointCount: 4, bboxMm: { minX: -5, minY: -5, maxX: 5, maxY: 5 }, outlineMm: [{ outer: [{ x: -5, y: -5 }, { x: 5, y: -5 }, { x: 5, y: 5 }, { x: -5, y: 5 }], holes: [] }] };
 const cleanups: (() => void)[] = [];
-afterEach(() => { cleanups.splice(0).forEach(fn => fn()); vi.unstubAllGlobals(); });
+afterEach(() => { cleanups.splice(0).forEach(fn => fn()); geometry.resolve.mockClear(); vi.unstubAllGlobals(); });
 function mount(mode: "translate" | "rotate" = "translate", selected = cutout) {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   const container = document.createElement("div"); document.body.append(container);
@@ -53,6 +55,17 @@ function drag() {
     scene.handlers!.onObjectChange();
   });
 }
+it("keeps the selected pocket wire on the kernel-free path throughout a drag", () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  const container = document.createElement("div"), root = createRoot(container);
+  const warning = vi.spyOn(console, "error").mockImplementation(() => {});
+  cleanups.push(() => { React.act(() => root.unmount()); warning.mockRestore(); });
+  for (let x = 0; x < 20; x++) React.act(() => root.render(<ObjectTransformWire
+    object={{ kind: "pocket", shape, cutout: { ...cutout, position: { x, y: 0 }, elevationMm: 7 } }} spec={spec} preview />));
+  expect(geometry.resolve.mock.calls.every(call => call[3] === false)).toBe(true);
+  React.act(() => root.render(<ObjectTransformWire object={{ kind: "pocket", shape, cutout }} spec={spec} />));
+  expect(geometry.resolve).toHaveBeenLastCalledWith(expect.any(Array), expect.any(Map), spec, true);
+});
 it("previews locally and commits one complete XYZ move on release", () => {
   const { onCommit, onPreview } = mount(); drag();
   expect(onCommit).not.toHaveBeenCalled();

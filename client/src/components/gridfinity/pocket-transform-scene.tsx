@@ -169,21 +169,21 @@ export function SelectionTransformScene({ objects, allObjects = objects, spec, m
   </>;
 }
 
-export function PocketTransformWire({ pocket, spec }: { pocket: EditablePocket; spec: BinSpec }): JSX.Element {
+export function PocketTransformWire({ pocket, spec, preview = false }: { pocket: EditablePocket; spec: BinSpec; preview?: boolean }): JSX.Element {
   const cutouts = useMemo(() => [pocket.cutout], [pocket.cutout]);
   const shapes = useMemo(() => new Map([[pocket.shape.id, pocket.shape]]), [pocket.shape]);
-  const resolved = usePocketGeometry(cutouts, shapes, spec).get(pocket.cutout.id);
+  const resolved = usePocketGeometry(cutouts, shapes, spec, !preview).get(pocket.cutout.id);
   const points = useMemo(() => resolved?.mesh ? [] : pocketTransformWires(pocket, spec)
     .flatMap(wire => wire.slice(1).flatMap((point, i) => [wire[i], point])), [pocket, spec, resolved]);
-  return <group name="selected-pocket-wire">{resolved?.mesh ? <ObjectSolidOutline mesh={resolved.mesh} />
+  return <group name="selected-pocket-wire">{resolved?.mesh ? <ObjectSolidOutline mesh={resolved.mesh} edges={resolved.edges} />
     : points.length > 0 && <Line points={points} segments color="#0891b2" lineWidth={1.5} depthTest={false} renderOrder={100} />}</group>;
 }
 
 /** One surface and one batched crease outline, independent of how the source
  * solid was authored. The faint surface keeps smooth imported models readable. */
-export function ObjectSolidOutline({ mesh }: { mesh: MeshData }): JSX.Element {
+export function ObjectSolidOutline({ mesh, edges: preparedEdges }: { mesh: MeshData; edges?: [number, number, number][] }): JSX.Element {
   const geometry = useMemo(() => toBufferGeometry(mesh), [mesh]);
-  const edges = useMemo(() => objectEdges(mesh), [mesh]);
+  const edges = useMemo(() => preparedEdges ?? objectEdges(mesh), [mesh, preparedEdges]);
   useEffect(() => () => geometry.dispose(), [geometry]);
   return <>
     <mesh geometry={geometry} renderOrder={99}>
@@ -193,8 +193,8 @@ export function ObjectSolidOutline({ mesh }: { mesh: MeshData }): JSX.Element {
   </>;
 }
 
-export function ObjectTransformWire({ object, spec }: { object: EditableObject; spec: BinSpec }): JSX.Element {
-  if (object.kind === "pocket") return <PocketTransformWire pocket={object} spec={spec} />;
+export function ObjectTransformWire({ object, spec, preview = false }: { object: EditableObject; spec: BinSpec; preview?: boolean }): JSX.Element {
+  if (object.kind === "pocket") return <PocketTransformWire pocket={object} spec={spec} preview={preview} />;
   const top = resolvePocketDepth(spec, { mode: "through" }).infillTopZ;
   const ring = objectOutline(object)[0].outer;
   const floor = top - effectiveFingerHoleDepthMm(object.hole);
