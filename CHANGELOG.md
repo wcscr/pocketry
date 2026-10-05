@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added ULTIM8 jig peg bottoms for eufyMake E1, with adjustable peg fit and length, sloped roots or a shorter bridged underside, and saved project/undo support. Through pockets omit fully or partially overlapped pegs.
+
 - Added raised surface text behind the experimental-features opt-in, with five built-in font choices, position, size, rotation, height, and one project-wide color that defaults to the edge band. 3MF keeps each label as a separate named part for slicer editing, with the shared text color in multi-color exports; STL joins it to the bin.
 - Surface text now has an instance list and Add button in the left workflow panel, selected-label properties on the right, and an entry in the toolbar Add menu. Click anywhere within a label’s bounds in Layout or 3D to open its properties, and double-click their list names to rename them independently of the printed wording. Drag the Layout rotation handle or use Move and Rotate in 3D; double-click a label in Layout to edit its wording. Text color lives in Materials & Colors, and new labels default to Helvetiker. All text editing remains behind experimental opt-in.
 - Surface text can use installed system fonts in supported browsers. Selected font data travels with the project so labels remain editable and exportable on other computers. One searchable font dropdown keeps built-ins first and hides system fonts that cannot render the current wording. Built-in choices are Sans, Sans Bold, Helvetiker, Helvetiker Bold, and Monospace.

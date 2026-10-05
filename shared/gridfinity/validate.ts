@@ -1,3 +1,4 @@
+import { hasSmoothBase, ultim8PegCenters } from "./peg-bottom";
 import { hasPocketTilt, pocketAxis } from "./pocket-orientation";
 import { hasRigidPocket } from "./rigid-pocket";
 import {
@@ -94,7 +95,7 @@ export function validatePocketFloorMaterials(
   shapesById: ReadonlyMap<string, TracedShape>,
   floorColorThicknessMm: number,
 ): ValidationIssue[] {
-  if (spec.flatBottom || spec.fill !== "solid" || !Number.isFinite(floorColorThicknessMm) || floorColorThicknessMm <= 0) return [];
+  if (hasSmoothBase(spec) || spec.fill !== "solid" || !Number.isFinite(floorColorThicknessMm) || floorColorThicknessMm <= 0) return [];
 
   const hasScrewBores = spec.screwHoles && spec.gridPitch === "full";
   const undersideHeightMm = hasScrewBores ? BASE_HEIGHT : BASE_PROFILE_HEIGHT;
@@ -129,6 +130,10 @@ const FOOTPRINT_WARN_MM = 260;
 export function validateBinSpec(spec: BinSpec): ValidationResult {
   const issues: ValidationIssue[] = [];
   const wallHeight = binWallHeightMm(spec.heightUnits);
+  if (spec.pegBottom && ultim8PegCenters(spec).length === 0) {
+    issues.push({ code: "no-ultim8-pegs", severity: "error",
+      message: "This footprint has no room for ULTIM8 pegs. Enlarge it or choose another bottom." });
+  }
 
   if (spec.lip === "standard" && wallHeight < STACKING_LIP_SUPPORT_HEIGHT_MM) {
     issues.push({
@@ -171,7 +176,7 @@ export function validateBinSpec(spec: BinSpec): ValidationResult {
     }
   }
 
-  if (!spec.flatBottom && spec.gridPitch !== "full" && (spec.magnetHoles || spec.screwHoles)) {
+  if (!hasSmoothBase(spec) && spec.gridPitch !== "full" && (spec.magnetHoles || spec.screwHoles)) {
     issues.push({
       code: "fractional-grid-holes",
       severity: "warning",
@@ -522,7 +527,7 @@ function validateAgainstBin(spec: BinSpec, p: PlacedCutout): ValidationIssue[] {
             message: `“${label}” leaves a ${pocket.floorZ.toFixed(1)} mm floor — likely to flex or delaminate.`,
           });
         }
-        if (!spec.flatBottom && spec.magnetHoles && pocket.floorZ < BASE_HEIGHT) {
+        if (!hasSmoothBase(spec) && spec.magnetHoles && pocket.floorZ < BASE_HEIGHT) {
           issues.push({
             code: "floor-in-base",
             severity: "warning",

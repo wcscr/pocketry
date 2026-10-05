@@ -1036,3 +1036,28 @@ it("recovers legacy origins from the earliest retained state, including redo-onl
   ], index: 1 } }));
   expect(store().transformOrigins.pockets[0].cutout).toEqual(CUTOUT);
 });
+
+
+it("changes peg bottoms and fit settings with undo, retaining custom pocket floors and hole preferences", () => {
+  const { store, act } = mountBin();
+  const custom = { ...CUTOUT, id: "custom", depth: { mode: "remaining" as const, floorThicknessMm: 4 } };
+  act(() => store().dispatch({ type: "ADD_PLACED", gridX: 2, gridY: 2, cutouts: [CUTOUT, custom] }));
+  act(() => store().dispatch({ type: "PATCH_SPEC", patch: { magnetHoles: true, screwHoles: true } }));
+  act(() => store().dispatch({ type: "PATCH_SPEC", patch: { pegBottom: { diameterMm: 4.8, lengthMm: 4 } } }));
+  expect(store().spec.pegBottom).toEqual({ diameterMm: 4.8, lengthMm: 4, underside: "sloped" });
+  expect(store().cutouts[0].depth).toEqual({ mode: "remaining", floorThicknessMm: 2 });
+  expect(store().cutouts[1]).toEqual(custom);
+  act(() => store().dispatch({ type: "PATCH_SPEC", patch: { pegBottom: { diameterMm: 4.6, lengthMm: 3 } } }));
+  act(() => store().dispatch({ type: "UNDO" }));
+  expect(store().spec.pegBottom).toEqual({ diameterMm: 4.8, lengthMm: 4, underside: "sloped" });
+  act(() => store().dispatch({ type: "UNDO" }));
+  expect(store().spec.pegBottom).toBeNull();
+  expect(store().cutouts[0].depth).toEqual(CUTOUT.depth);
+  act(() => store().dispatch({ type: "REDO" }));
+  act(() => store().dispatch({ type: "ADD_PLACED", gridX: 2, gridY: 2, cutouts: [{ ...CUTOUT, id: "new" }] }));
+  expect(store().cutouts.at(-1)!.depth).toEqual({ mode: "remaining", floorThicknessMm: 2 });
+  act(() => store().dispatch({ type: "PATCH_SPEC", patch: { pegBottom: null } }));
+  expect(store().spec.magnetHoles).toBe(true);
+  expect(store().spec.screwHoles).toBe(true);
+  expect(store().cutouts[0].depth).toEqual(CUTOUT.depth);
+});

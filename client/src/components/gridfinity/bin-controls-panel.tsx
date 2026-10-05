@@ -79,6 +79,7 @@ import {
   standardCellSpan,
   type GridPitch,
 } from "@shared/gridfinity/standard";
+import { DEFAULT_PEG_BOTTOM, hasSmoothBase, pegBottomExtensionMm } from "@shared/gridfinity/peg-bottom";
 import { MAX_GRID, maxGridCells, type BinSpecInput } from "@shared/gridfinity/types";
 import type { ValidationIssue } from "@shared/gridfinity/validate";
 
@@ -407,9 +408,9 @@ export function BinControlsPanel({
   const enabledFeatureCount = [
     spec.lip === "standard",
     spec.fill === "solid",
-    spec.flatBottom,
-    !spec.flatBottom && spec.magnetHoles,
-    !spec.flatBottom && spec.screwHoles,
+    hasSmoothBase(spec),
+    !hasSmoothBase(spec) && spec.magnetHoles,
+    !hasSmoothBase(spec) && spec.screwHoles,
     spec.labelTab !== null,
   ].filter(Boolean).length;
   const [fitCheckDepthMm, setFitCheckDepthMm] = useState(2);
@@ -773,7 +774,7 @@ export function BinControlsPanel({
                             ? ({ mode: "through" } as const)
                             : mode === "mm"
                               ? ({ mode: "mm", value: Math.max(0.1, resolved.axialDepthMm ?? resolved.infillTopZ - defaultPocketFloorThicknessMm(spec)) } as const)
-                              : ({ mode: "remaining", floorThicknessMm: spec.flatBottom ? defaultPocketFloorThicknessMm(spec) : Math.max(0, resolved.floorZ ?? defaultPocketFloorThicknessMm(spec)) } as const);
+                              : ({ mode: "remaining", floorThicknessMm: hasSmoothBase(spec) ? defaultPocketFloorThicknessMm(spec) : Math.max(0, resolved.floorZ ?? defaultPocketFloorThicknessMm(spec)) } as const);
                         updatePocketDepth(depth);
                       }}
                     >
@@ -786,7 +787,7 @@ export function BinControlsPanel({
                         <SelectItem value="through">Through</SelectItem>
                       </SelectContent>
                     </Select>
-                    {spec.flatBottom && depthCutout!.depth.mode === "remaining" && <HelpHint label="remaining floor thickness">Measured from the flat underside. A 2 mm floor lets pockets extend into the former base area.</HelpHint>}
+                    {hasSmoothBase(spec) && depthCutout!.depth.mode === "remaining" && <HelpHint label="remaining floor thickness">Measured from the flat slab underside above any peg roots. A 2 mm floor lets pockets extend into the former base area.</HelpHint>}
                     {depthCutout!.depth.mode === "mm" && (
                       <DraftNumberInput
                         className="h-9 w-20 text-base font-semibold"
@@ -1417,13 +1418,13 @@ export function BinControlsPanel({
           title="Construction"
           icon={Magnet}
           tone="rose"
-          summary={spec.flatBottom ? "Flat bottom" : `${enabledFeatureCount} on`}
+          summary={spec.pegBottom ? "ULTIM8 pegs" : spec.flatBottom ? "Flat bottom" : `${enabledFeatureCount} on`}
           defaultOpen={false}
           className="scroll-mt-16"
         >
           <FeatureSwitch
             label="Stacking lip"
-            description={spec.flatBottom ? "Receives a Gridfinity bin on top" : "Lets another bin stack on top"}
+            description={hasSmoothBase(spec) ? "Receives a Gridfinity bin on top" : "Lets another bin stack on top"}
             checked={spec.lip === "standard"}
             onChange={(on) => patchSpec({ lip: on ? "standard" : "none" })}
           />
@@ -1456,7 +1457,7 @@ export function BinControlsPanel({
               {editError && <p role="alert" className="text-xs text-destructive">{editError}</p>}
             </div>
           )}
-          {!spec.flatBottom && (
+          {!hasSmoothBase(spec) && (
             <>
               <FeatureSwitch
                 label="Magnet holes"
@@ -1491,12 +1492,45 @@ export function BinControlsPanel({
             </>
           )}
 
-          <FeatureSwitch
-            label="Flat bottom"
-            description="Smooth underside; no Gridfinity base."
-            checked={spec.flatBottom}
-            onChange={(flatBottom) => patchSpec({ flatBottom })}
-          />
+          <div className="space-y-2 border-t pt-3">
+            <div className="flex items-center gap-2">
+              <SettingLabel label="Bottom" htmlFor="select-bin-bottom" hint="Choose Gridfinity feet, a flat underside, or locating pegs for the ULTIM8 jig." />
+              <Select value={spec.pegBottom ? "ultim8" : spec.flatBottom ? "flat" : "gridfinity"}
+                onValueChange={(bottom) => patchSpec({ flatBottom: bottom === "flat", pegBottom: bottom === "ultim8" ? { ...DEFAULT_PEG_BOTTOM } : null })}>
+                <SelectTrigger id="select-bin-bottom" className="h-8 flex-1" aria-label="Bottom" data-testid="select-bin-bottom"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="gridfinity">Gridfinity feet</SelectItem>
+                  <SelectItem value="flat">Flat bottom</SelectItem>
+                  <SelectItem value="ultim8">ULTIM8 jig pegs</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {spec.pegBottom && <>
+              <p className="text-[11px] text-muted-foreground">For Wham Bam ULTIM8 mats on eufyMake E1. Print upright with supports off. The underside adds {pegBottomExtensionMm(spec).toFixed(1)} mm below the bin.</p>
+              <div className="flex items-center gap-2">
+                <SettingLabel label="Underside" htmlFor="select-peg-underside" hint="Short bridges reduce height on rectangular bins. Print a fit check to verify bridge quality. Sloped roots avoid bridges and also support custom footprints." />
+                <Select value={spec.pegBottom.underside} onValueChange={(underside: "sloped" | "bridged") => patchSpec({ pegBottom: { ...spec.pegBottom!, underside } })}>
+                  <SelectTrigger id="select-peg-underside" className="h-8 flex-1" aria-label="Peg underside"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="sloped">Sloped roots</SelectItem>
+                    <SelectItem value="bridged" disabled={spec.footprint.kind !== "rectangle"}>Short bridges</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {spec.pegBottom.underside === "bridged" && <p className="text-[11px] text-muted-foreground">Short bridges join the flared peg collars. Print a small fit check before a full fixture.</p>}
+              {(["diameterMm", "lengthMm"] as const).map((key) => <div key={key} className="flex items-center justify-between gap-3">
+                <SettingLabel label={key === "diameterMm" ? "Peg diameter" : "Peg length"} htmlFor={`peg-bottom-${key}`}
+                  hint={key === "diameterMm" ? "Locating pegs fit the jig’s 5 mm holes. Print a small fit check before a full bin." : "Straight length below the sloped root; tune it to your mat depth."} />
+                <div className="flex items-center gap-1.5">
+                  <DraftNumberInput id={`peg-bottom-${key}`} className="h-8 w-20" aria-label={key === "diameterMm" ? "Peg diameter in millimetres" : "Peg length in millimetres"}
+                    value={spec.pegBottom![key]} min={key === "diameterMm" ? 4 : 2} max={5} step={0.1}
+                    onValueChange={(value) => patchSpec({ pegBottom: { ...spec.pegBottom!, [key]: value } }, true)}
+                    onValueCommit={(value) => patchSpec({ pegBottom: { ...spec.pegBottom!, [key]: value } })} />
+                  <span className="text-xs text-muted-foreground">mm</span>
+                </div>
+              </div>)}
+            </>}
+          </div>
 
           <div className="space-y-2 border-t pt-3">
             <div className="flex items-center gap-2">

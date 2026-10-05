@@ -1,3 +1,4 @@
+import { hasSmoothBase } from "./peg-bottom";
 import { z } from "zod";
 import { hasPocketTilt, pocketAxis, pocketMouthBasis, rotatePocketVector } from "./pocket-orientation";
 import { profileAlongX, profileBottomSchema, profileFloorSegments, profileFootprint, profilePrisms, hasProfileRotation } from "./profile-bottom";
@@ -1085,8 +1086,8 @@ export function placementFootprint(
 // ---------------------------------------------------------------------------
 
 /** Default material left under a new pocket, measured from the actual underside. */
-export function defaultPocketFloorThicknessMm(spec: Pick<BinSpec, "flatBottom">): number {
-  return spec.flatBottom ? 2 : BASE_HEIGHT;
+export function defaultPocketFloorThicknessMm(spec: Pick<BinSpec, "flatBottom"> & Partial<Pick<BinSpec, "pegBottom">>): number {
+  return hasSmoothBase(spec) ? 2 : BASE_HEIGHT;
 }
 
 export interface ResolvedPocket {

@@ -403,7 +403,7 @@ function reduceBin(state: BinState, action: BinAction): BinState {
         if (adjusted.error !== undefined) return { ...state, ...(!action.transient ? previous : {}), editError: adjusted.error };
         doc.cutouts = adjusted.cutouts;
       }
-      if (doc.spec.flatBottom !== state.spec.flatBottom) {
+      if (defaultPocketFloorThicknessMm(doc.spec) !== defaultPocketFloorThicknessMm(state.spec)) {
         const previousFloor = defaultPocketFloorThicknessMm(state.spec);
         const nextFloor = defaultPocketFloorThicknessMm(doc.spec);
         doc.cutouts = doc.cutouts.map((cutout) =>
@@ -425,7 +425,7 @@ function reduceBin(state: BinState, action: BinAction): BinState {
             ...(action.footprint ? { footprint: action.footprint } : {}),
           }),
           cutouts: [...state.cutouts, ...action.cutouts.map((cutout): CutoutPlacement =>
-            state.spec.flatBottom
+            defaultPocketFloorThicknessMm(state.spec) !== defaultPocketFloorThicknessMm({ flatBottom: false })
               ? changeDefaultFloor(cutout, defaultPocketFloorThicknessMm({ flatBottom: false }), defaultPocketFloorThicknessMm(state.spec))
               : cutout,
           )],

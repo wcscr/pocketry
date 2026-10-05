@@ -2275,14 +2275,60 @@ describe("BinDesignerPage", () => {
     const dimensions = container.querySelector("#bin-settings-size")!.textContent;
     React.act(() => control("Magnet holes").click());
     expect(control("Magnet holes").getAttribute("aria-checked")).toBe("true");
-    React.act(() => control("Flat bottom").click());
-    expect(control("Flat bottom").getAttribute("aria-checked")).toBe("true");
+    const chooseBottom = (label: string) => {
+      const trigger = container.querySelector<HTMLButtonElement>('[data-testid="select-bin-bottom"]')!;
+      React.act(() => trigger.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true })));
+      React.act(() => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(option => option.textContent === label)!.click());
+    };
+    chooseBottom("Flat bottom");
+    expect(vi.mocked(useBinGeometry).mock.lastCall?.[0].flatBottom).toBe(true);
     expect(control("Magnet holes")).toBeNull();
     expect(control("Screw holes")).toBeNull();
     expect(container.querySelector("#bin-settings-size")!.textContent).toBe(dimensions);
-    React.act(() => control("Flat bottom").click());
+    chooseBottom("Gridfinity feet");
     expect(control("Magnet holes").getAttribute("aria-checked")).toBe("true");
     unmount();
+  });
+
+  it.each(["standard", "workflow"])("edits ULTIM8 peg bottoms, restores base holes, and undoes fit edits in the %s layout", async layout => {
+    window.history.replaceState(null, "", `/bin?layout=${layout}`);
+    const { container, unmount } = renderPage();
+    await flushHydration();
+    try {
+      openSettingsSection(container, "construction");
+      const choose = (label: string) => {
+        const trigger = container.querySelector<HTMLButtonElement>('[data-testid="select-bin-bottom"]')!;
+        React.act(() => trigger.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true })));
+        React.act(() => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(option => option.textContent === label)!.click());
+      };
+      const magnet = () => container.querySelector<HTMLButtonElement>('[role="switch"][aria-label="Magnet holes"]');
+      React.act(() => magnet()!.click());
+      choose("ULTIM8 jig pegs");
+      expect(magnet()).toBeNull();
+      expect(vi.mocked(useBinGeometry).mock.lastCall?.[0].pegBottom).toEqual({ diameterMm: 4.8, lengthMm: 4, underside: "sloped" });
+      const input = () => container.querySelector<HTMLInputElement>('[aria-label="Peg diameter in millimetres"]')!;
+      React.act(() => {
+        input().focus();
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input(), "4.6");
+        input().dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      React.act(() => input().blur());
+      expect(vi.mocked(useBinGeometry).mock.lastCall?.[0].pegBottom?.diameterMm).toBe(4.6);
+      const undo = container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!;
+      React.act(() => undo.click());
+      expect(input().value).toBe("4.8");
+      const underside = container.querySelector<HTMLButtonElement>('[aria-label="Peg underside"]')!;
+      React.act(() => underside.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true })));
+      React.act(() => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(option => option.textContent === "Short bridges")!.click());
+      expect(vi.mocked(useBinGeometry).mock.lastCall?.[0].pegBottom?.underside).toBe("bridged");
+      React.act(() => undo.click());
+      expect(vi.mocked(useBinGeometry).mock.lastCall?.[0].pegBottom?.underside).toBe("sloped");
+      choose("Gridfinity feet");
+      expect(magnet()!.getAttribute("aria-checked")).toBe("true");
+      expect(vi.mocked(useBinGeometry).mock.lastCall?.[0].pegBottom).toBeNull();
+      choose("Flat bottom");
+      expect(vi.mocked(useBinGeometry).mock.lastCall?.[0].flatBottom).toBe(true);
+    } finally { unmount(); }
   });
 
   it("switches a custom bin across full, half and quarter pitches without moving its split pocket", async () => {

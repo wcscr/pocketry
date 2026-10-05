@@ -4,6 +4,7 @@ import { strFromU8, unzipSync } from "fflate";
 import { fingerHoleSchema, parseCutoutPlacement, resolvePocketDepth } from "@shared/gridfinity/cutout";
 import { writeBinarySTL } from "@/lib/export/stl-writer";
 import { writeThreeMf } from "@/lib/mesh/threemf";
+import { pegBottomExtensionMm } from "@shared/gridfinity/peg-bottom";
 import { binTotalHeightMm } from "@shared/gridfinity/standard";
 import { parseBinSpec } from "@shared/gridfinity/types";
 import { loadManifold } from "@/lib/manifold/runtime";
@@ -947,4 +948,61 @@ it("exports a Z-translated upright pocket and rejects its floor below the bin", 
   expect(built.value.mesh.indices.length).toBeGreaterThan(0);
   expect(nonManifoldEdgeCount(built.value.mesh)).toBe(0);
   await expect(handler({ ...request, layout: { ...request.layout!, cutouts: [{ ...cutout, zOffsetMm: -20 }] } }, context())).rejects.toThrow(/deeper than the bin/);
+});
+
+
+it.each(["sloped", "bridged"] as const)("exports a %s peg bin as closed STL and multipart 3MF without dropping the pegs", async underside => {
+  const spec = parseBinSpec({ gridX: 1, gridY: 1, heightUnits: 2, lip: "none", pegBottom: { diameterMm: 4.8, lengthMm: 4, underside },
+    surfaceTexts: [{ id: "peg-text", text: "A", position: { x: 0, y: 0 } }] });
+  const result = (await getHandler()({ spec,
+    quality: EXPORT_QUALITY, exportTopology: true, pocketFloorMaterialThicknessMm: 0.6, stackingRimMaterialThicknessMm: 0.6 }, context())).value;
+  expect(nonManifoldEdgeCount(result.mesh)).toBe(0);
+  expect(printableMeshVolume(result.mesh)).toBeCloseTo(result.stats.volumeMm3, 1);
+  expect(Math.min(...result.mesh.positions.filter((_, index) => index % 3 === 2))).toBe(0);
+  const stl = new DataView(writeBinarySTL(result.mesh));
+  expect(stl.getUint32(80, true)).toBe(result.mesh.indices.length / 3);
+  const parts = result.materialMeshes!;
+  expect(parts.body).toBeTruthy();
+  const text = result.textMeshes![0];
+  const lift = pegBottomExtensionMm(spec);
+  const zs = (mesh: typeof text.mesh) => mesh.positions.filter((_, index) => index % 3 === 2);
+  expect(text.z).toBeCloseTo(14 + lift);
+  expect(Math.min(...zs(text.mesh))).toBeCloseTo(14 + lift);
+  expect(Math.max(...zs(result.bodyMesh!))).toBeCloseTo(14 + lift);
+  expect(Math.max(...zs(parts.stackingRim!))).toBeCloseTo(14 + lift);
+  const model = strFromU8(unzipSync(writeThreeMf([
+    { name: "Bin body", mesh: parts.body, material: { name: "Body", displayColor: "#202020" } },
+    { name: "Top border", mesh: parts.stackingRim!, material: { name: "Border", displayColor: "#ff6600" } },
+    { name: "Text", mesh: text.mesh, material: { name: "Text", displayColor: "#ffffff" } },
+  ], { assemble: true }))["3D/3dmodel.model"]);
+  expect(model).toContain('z="0"');
+  expect(model).not.toMatch(/z="-/);
+  expect(model).toContain('name="Top border"');
+});
+
+
+it.each(["sloped", "bridged"] as const)("exports a %s peg bin with the entire partially overlapped peg omitted", async underside => {
+  const spec = parseBinSpec({ gridX: 1, gridY: 1, heightUnits: 2, lip: "none",
+    pegBottom: { diameterMm: 4.8, lengthMm: 4, underside } });
+  const pocket = createBasicPocket("rectangle", { x: 1.8, y: -1 }, { x: 4, y: 1 }, "partial-peg")!;
+  pocket.cutout.depth = { mode: "through" };
+  const result = (await getHandler()({ spec, quality: EXPORT_QUALITY, exportTopology: true,
+    pocketFloorMaterialThicknessMm: 0.6, stackingRimMaterialThicknessMm: 0.6,
+    layout: { shapes: [pocket.shape], cutouts: [pocket.cutout], fingerHoles: [] },
+  }, context())).value;
+  expect(nonManifoldEdgeCount(result.mesh)).toBe(0);
+  expect(printableMeshVolume(result.mesh)).toBeCloseTo(result.stats.volumeMm3, 1);
+  const allMeshes = [result.mesh, ...Object.values(result.materialMeshes!)];
+  for (const mesh of allMeshes) {
+    for (let i = 0; i < mesh.positions.length; i += 3) {
+      const [x, y, z] = mesh.positions.subarray(i, i + 3);
+      if (z < 3.9) expect(Math.hypot(x, y)).toBeGreaterThan(2.5);
+    }
+  }
+  const stl = new DataView(writeBinarySTL(result.mesh));
+  expect(stl.getUint32(80, true)).toBe(result.mesh.indices.length / 3);
+  const model = strFromU8(unzipSync(writeThreeMf(Object.entries(result.materialMeshes!).map(([name, mesh]) => ({ name, mesh })),
+    { assemble: true }))["3D/3dmodel.model"]);
+  expect(model).toContain('z="0"');
+  expect(model).not.toMatch(/z="-/);
 });

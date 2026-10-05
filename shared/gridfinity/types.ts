@@ -76,6 +76,12 @@ export const binSpecSchema = z
     adjustFixedPocketDepths: z.boolean().default(true),
     /** Smooth underside without Gridfinity sockets; preserves outer size and pocket heights. */
     flatBottom: z.boolean().default(false),
+    /** Integral ULTIM8 pegs with sloped roots or a shorter bridged web. */
+    pegBottom: z.object({
+      diameterMm: z.number().min(4).max(5).default(4.8),
+      lengthMm: z.number().min(2).max(5).default(4),
+      underside: z.enum(["sloped", "bridged"]).default("sloped"),
+    }).strict().nullable().default(null),
     /** ⌀6.5 × 2.4 mm magnet pockets, four per cell, opening downward. */
     magnetHoles: z.boolean().default(false),
     /**
@@ -111,6 +117,10 @@ export const binSpecSchema = z
     surfaceTexts: surfaceTexts.map(({ color: _legacyColor, ...label }) => label),
   }))
   .superRefine((spec, context) => {
+    if (spec.flatBottom && spec.pegBottom) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ["pegBottom"],
+        message: "Choose either a flat bottom or an ULTIM8 peg bottom." });
+    }
     const maximum = maxGridCells(spec.gridPitch);
     for (const axis of ["gridX", "gridY"] as const) {
       if (spec[axis] > maximum) {

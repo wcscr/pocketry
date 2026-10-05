@@ -1,3 +1,4 @@
+import { pegBottomExtensionMm } from "@shared/gridfinity/peg-bottom";
 import { surfaceTextZ } from "@/lib/gridfinity/surface-text";
 import { hasRigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { SelectionLinkControls } from "@/components/gridfinity/linked-design-controls";
@@ -471,8 +472,9 @@ function BinDesignerWorkspace(): JSX.Element {
       widthMm: builtDimensions.widthMm,
       lengthMm: builtDimensions.lengthMm,
       heightMm: builtDimensions.totalHeightMm,
+      bottomZMm: -pegBottomExtensionMm(builtSpec ?? committedSpec),
     };
-  }, [builtDimensions]);
+  }, [builtDimensions, builtSpec, committedSpec]);
 
   // Surface collapsed cutouts once per occurrence, not once per rebuild.
   const emptiedSeenRef = useRef<Set<string>>(new Set());
