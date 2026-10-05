@@ -699,7 +699,8 @@ function buildCutoutCuttersInternal(
 }
 
 /** Generate in the outline's own frame, then apply one reusable rigid pose.
- * The finite cap is essential: a tilted tool does not cut its shadow to the top. */
+ * The finite cap is essential: a tilted tool does not cut its shadow to the top.
+ * Top-edge rounding belongs to the bin surface intersection, not that cap. */
 export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: CutoutPlacement,
   spec: BinSpec, quality: BuildQuality, options: CutoutBuildOptions = {}, top = Infinity,
 ): CutoutCutters {
@@ -716,7 +717,7 @@ export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: Cut
   const buildSource = (throughDepth: number, extendThrough: boolean): Manifold => {
     const depths = dimensions.map(d => ({ mode: "mm" as const, value: d ?? throughDepth }));
     const local = { ...cutout, position: { x: 0, y: 0 }, rotationDeg: 0, tilt: undefined,
-      elevationMm: undefined, zOffsetMm: undefined, depth: depths[0],
+      elevationMm: undefined, zOffsetMm: undefined, depth: depths[0], topFilletMm: 0,
       split: cutout.split ? { ...cutout.split, depths: [depths[0], depths[1]] as [typeof depths[number], typeof depths[number]] } : undefined };
     if (dimensions.some(d => d === null)) {
       const boundary = cutout.split?.boundary.map(p => transformPointPlacement(p, local));
@@ -749,7 +750,21 @@ export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: Cut
   const anchor = buildSource(1, false);
   const source = hasThrough ? buildSource(reach, true) : anchor;
   const pose = { rotation: pocketRotation(cutout), position: cutout.position, elevationMm: cutout.elevationMm ?? 0 };
-  const cutter = buildObjectCavity(kernel, source, pose, top, anchor);
+  let cutter = buildObjectCavity(kernel, source, pose, top, anchor);
+  if (cutter && cutout.topFilletMm > 0 && cutter.boundingBox().max[2] >= realTop - 1e-8) {
+    // Slice after posing and joining the split seats. Only the opening that
+    // actually reaches the fill gets a rim; submerged caps stay finite. Keep
+    // clearance, corner/bottom rounding and the deeper seats in the source.
+    const mouth = arena.track(cutter.slice(realTop - 1e-7));
+    const radius = Math.min(cutout.topFilletMm, ...dimensions.map(d => d === null ? Infinity : d / 2),
+      Math.max(0, realTop - cutter.boundingBox().min[2]) / 2);
+    if (radius > 0 && !mouth.isEmpty()) {
+      const flare = topEdgeFilletCutter(kernel, mouth, { radiusMm: radius,
+        profileStepMm: quality.filletProfileStepMm ?? FILLET_PROFILE_STEP_MM,
+        circularSegments: quality.circularSegments });
+      cutter = arena.track(cutter.add(arena.track(flare.translate([0, 0, realTop - radius]))));
+    }
+  }
   const floorInserts: Manifold[] = [], floorRegions: Manifold[] = [];
   const distance = Math.min(options.floorInsertThicknessMm ?? 0, pose.elevationMm);
   if (cutter && distance > 0) {

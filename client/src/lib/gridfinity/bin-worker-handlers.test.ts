@@ -113,6 +113,29 @@ const REQUEST: BuildBinRequest = {
   quality: { circularSegments: 16 },
 };
 
+it.each([undefined, { xDeg: 20, yDeg: 25 }])("exports the raised surface rim to closed STL/3MF and nonoverlapping colors with tilt=%j", async tilt => {
+  const { shape, cutout } = createBasicPocket("rectangle", { x: -10, y: -12 }, { x: 10, y: 12 }, "raised-rim")!;
+  const p = parseCutoutPlacement({ ...cutout, elevationMm: 12, tilt,
+    depth: { mode: "mm", value: 16 }, topFilletMm: 2, bottomFilletMm: 1 });
+  const request: BuildBinRequest = { spec: { gridX: 2, gridY: 2, heightUnits: 3, fill: "solid", lip: "none" },
+    quality: EXPORT_QUALITY, exportTopology: true, pocketFloorMaterialThicknessMm: 0.6,
+    stackingRimMaterialThicknessMm: 1.25, borderWidthMm: 2,
+    layout: { shapes: [shape], cutouts: [p], fingerHoles: [] } };
+  const original = structuredClone(request);
+  const result = (await getHandler()(request, context())).value;
+  const sharp = (await getHandler()({ ...request, layout: { ...request.layout!, cutouts: [{ ...p, topFilletMm: 0 }] } }, context())).value;
+  expect(result.validationIssues).toEqual([]);
+  expect(result.stats.volumeMm3).toBeLessThan(sharp.stats.volumeMm3);
+  const whole = printableMeshVolume(result.mesh);
+  const sum = Object.values(result.materialMeshes!).reduce((total, mesh) => total + printableMeshVolume(mesh), 0);
+  expect(Math.abs(sum - whole)).toBeLessThan(0.1);
+  expect(writeBinarySTL(result.mesh).byteLength).toBe(84 + result.mesh.indices.length / 3 * 50);
+  const parts = Object.entries(result.materialMeshes!).map(([name, mesh]) => ({ name, mesh }));
+  const model = strFromU8(unzipSync(writeThreeMf(parts))["3D/3dmodel.model"]);
+  expect(model.match(/<triangle /g)?.length).toBe(parts.reduce((sum, part) => sum + part.mesh.indices.length / 3, 0));
+  expect(request).toEqual(original);
+});
+
 it.each(["standard", "none"] as const)("exports thick hollow walls with floor and rim colors, %s lip", async lip => {
   const request: BuildBinRequest = {
     spec: { gridX: 1, gridY: 1, heightUnits: 3, fill: "none", wallThicknessMm: 3, lip },
