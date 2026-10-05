@@ -27,6 +27,7 @@ function Probe() {
 function render() { React.act(() => root.render(<PanelProvider><Probe /></PanelProvider>)); }
 function resize(w: number, h: number) {
   width = w; height = h;
+  vi.stubGlobal("innerWidth", w); vi.stubGlobal("innerHeight", h);
   React.act(() => { for (const listener of listeners) listener(); window.dispatchEvent(new Event("resize")); });
 }
 beforeEach(() => {
@@ -74,4 +75,28 @@ it("does not remount a tablet workspace while its keyboard shrinks the viewport"
 it("unsubscribes its media listeners", () => {
   render(); expect(listeners.size).toBeGreaterThan(0);
   React.act(() => root.render(null)); expect(listeners.size).toBe(0);
+});
+
+it.each([false, true])("keeps short touch landscape actions and canvas state in both editor layouts (workflow=%s)", workflow => {
+  vi.stubGlobal("ResizeObserver", class { observe() {} disconnect() {} unobserve() {} });
+  vi.stubGlobal("innerWidth", 390); vi.stubGlobal("innerHeight", 844);
+  function Workspace() {
+    const panel = usePanelState();
+    return <WorkspaceLayout autoSaveId="touch-workflow-integration" panelOpen={panel.panelOpen} onPanelOpenChange={panel.setPanelOpen}
+      panel={<div>Workflow settings</div>} inspector={workflow ? <input aria-label="Properties" /> : undefined}
+      canvas={<input aria-label="Canvas draft" defaultValue="draft" />} mobileActions={<button>Export bin</button>} />;
+  }
+  React.act(() => root.render(<PanelProvider><Workspace /></PanelProvider>));
+  const canvas = host.querySelector<HTMLInputElement>('[aria-label="Canvas draft"]')!;
+  canvas.value = "edited";
+  resize(932, 430);
+  expect(host.querySelector('[data-testid="mobile-workspace-actions"]')).not.toBeNull();
+  expect(host.querySelector('[aria-label="Canvas draft"]')).toBe(canvas);
+  expect(canvas.value).toBe("edited");
+  // A tablet's soft keyboard must not substitute phone actions for its panels.
+  resize(900, 1024);
+  React.act(() => canvas.focus());
+  resize(900, 430);
+  expect(host.querySelector('[data-testid="mobile-workspace-actions"]')).toBeNull();
+  expect(host.querySelector('[aria-label="Canvas draft"]')).toBe(canvas);
 });

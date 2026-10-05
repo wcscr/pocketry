@@ -539,22 +539,15 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
     }
   }, [history, selection, dispatch, experimentalEnabled]);
   const [isRotating, setIsRotating] = useState(false);
-  const dragOrigin = useRef<{ cutouts: CutoutPlacement[]; fingerHoles: FingerHole[] } | null>(null);
+  const dragOrigin = useRef<{ cutouts: CutoutPlacement[]; fingerHoles: FingerHole[]; history: typeof history } | null>(null);
   const cancelPlacement = () => {
     const drag = dragRef.current;
     const origin = dragOrigin.current;
-    if (drag?.kind === "selection-move") {
-      dispatch({ type: "UPDATE_OBJECTS", edits: getCommittedBinDoc({ history: committedHistory.current }), transient: true, historyLabel: "Cancel move" });
-    } else if (drag && origin) {
-      if (drag.kind === "contour") { setDraftContour(null); desktopPoint.clear(); }
-      else if (drag.kind === "finger-hole-move" || drag.kind === "feature-end" || drag.kind === "feature-width") {
-        const id = drag.kind === "finger-hole-move" ? drag.id : drag.featureId;
-        const hole = origin.fingerHoles.find(item => item.id === id);
-        if (hole) dispatch({ type: "UPDATE_FINGER_HOLE", id, patch: hole, transient: true });
-      } else {
-        const cutout = origin.cutouts.find(item => item.id === drag.id);
-        if (cutout) dispatch({ type: "UPDATE_CUTOUT", id: drag.id, patch: cutout, transient: true });
-      }
+    if (drag?.kind === "contour") { setDraftContour(null); desktopPoint.clear(); }
+    else if (drag && origin) {
+      // Restore the complete transaction, including linked copies and its
+      // pending history label. Replaying one object's patch leaves a live edit.
+      dispatch({ type: "CANCEL_PREVIEW", expectedHistory: origin.history });
     }
     dragRef.current = null; clickRef.current = null; dragOrigin.current = null; setIsRotating(false);
   };
@@ -844,7 +837,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
     if (basicPocket.pointerDown(event)) return;
     if (splitEditor.pointerDown(event)) return;
     if (editorMode === "placement" && placementNavigation.down(event)) return;
-    dragOrigin.current = { cutouts, fingerHoles };
+    dragOrigin.current = { cutouts, fingerHoles, history };
     const point = toBin(event.clientX, event.clientY);
     if (!point) return;
 

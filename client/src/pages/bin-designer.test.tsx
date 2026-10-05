@@ -5908,6 +5908,7 @@ it.each([
       React.act(() => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(item => item.textContent === itemLabel)!.click());
     };
     choose("Rectangle pocket");
+    if (mobile) React.act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(button => button.textContent === "Draw on canvas")!.click());
     expect(container.querySelector('[aria-label="Pan layout"]')!.getAttribute("aria-pressed")).toBe("false");
     const svg = container.querySelector<SVGSVGElement>('[data-testid="layout-canvas"]')!;
     Object.defineProperty(svg.querySelector('g')!, 'getScreenCTM', { value: () => ({ inverse: () => ({}) }) });
@@ -5921,6 +5922,7 @@ it.each([
     const layout = () => vi.mocked(useBinGeometry).mock.lastCall![2]!;
     expect(layout().cutouts).toHaveLength(1);
     choose("Circle pocket");
+    if (mobile) React.act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(button => button.textContent === "Draw on canvas")!.click());
     expect(container.textContent).toContain("Draw circle");
     React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Cancel drawing"]')!.click());
     choose("Finger access");
@@ -6141,7 +6143,7 @@ it("phone panes require explicit opening and keep canvas and selection through e
     expect(container.querySelector('[data-testid="button-export-3mf"]')!.closest('[hidden]')).toBeNull();
     expect(container.querySelector('[data-testid="layout-canvas"]')).toBe(canvas);
     expect(container.querySelector<HTMLInputElement>('[aria-label="Include Tool 1 in selection"]')!.checked).toBe(true);
-    expect(container.querySelector('[data-testid="editor-project-header"]')!.closest('.max-md\\:hidden')).not.toBeNull();
+    expect(container.querySelector('[data-testid="editor-project-header"]')!.closest('.hidden')).not.toBeNull();
   } finally {unmount();window.history.replaceState(null,'',originalUrl);}
 });
 

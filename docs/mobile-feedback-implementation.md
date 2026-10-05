@@ -1,6 +1,9 @@
 # Mobile feedback implementation
 
-This implements the full review in `agy-feedback-mobile.md`, including the landscape issue [#87](https://github.com/wcscr/pocketry/issues/87). The implementation is based on `origin/main` at `5382088`.
+Integrated with the newer UI consistency work on 1.3.0 on 2026-10-05; see
+`docs/mobile-ux-review.md` for the current layout and validation record.
+
+The original branch implements the full review in `agy-feedback-mobile.md`, including the landscape issue [#87](https://github.com/wcscr/pocketry/issues/87). The implementation is based on `origin/main` at `5382088`.
 
 ## Changes
 
@@ -16,7 +19,7 @@ This implements the full review in `agy-feedback-mobile.md`, including the lands
 | 3D ruler targets shrink with zoom | Picking uses projected contour segments and a 28 CSS px touch radius, with perspective-correct conversion back to model coordinates. Mouse radius is 10 px. A reticle and missed-edge feedback show the result. Movement, a second pointer, cancellation, and resize do not commit provisional measurements. |
 | Ruler keyboard occlusion and changing confirmation buttons | Decimal text input accepts both a dot and comma. One primary **Confirm scale** action validates the value, dismisses the input, and continues to region selection. Enter follows the same path. While typing, the photo frames both ruler endpoints as the canvas resizes. |
 | Dismissed hints return when changing tools | Trace hint dismissal belongs to the source and workflow step, independent of pan/edit mode. |
-| Blocking mobile welcome | First use is uninterrupted. **Give mobile feedback** is available under **More options**. |
+| Blocking mobile welcome | The old mobile-development dialog is retired; the shared app welcome explains layout and optional tools. **Give mobile feedback** is available under **More options**. |
 | Small footprint targets | Eligible cells have a 12 screen px near-miss allowance. Containment wins, and ambiguous equal-distance misses do nothing. Touch shows a provisional cell and commits on release; dragging, pinching, and cancellation do not change the footprint. Existing adjacency and topology validation remain in force. |
 | Drawing basic pockets hides dimensions under the thumb | Mobile/touch users can enter exact circle, square, or rectangle dimensions and depth, then **Place in center**, or choose **Draw on canvas**. Invalid values and cancellation do not create shapes. A submitted pocket is one undoable placement. The dialog fits the visible area above the keyboard. |
 | Test-fit printing is hidden on mobile | The mobile **Export bin** drawer includes surface fit-test and selected-tool fit-template saves alongside STL, 3MF, and shadow-board exports. Both fit options retain their thickness/style controls and existing download confirmation. Desktop **Check fit** remains available. |

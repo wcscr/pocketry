@@ -3,10 +3,11 @@
 ## Unreleased
 
 - New desktop sessions use Workflow + properties; saved choices and compact phone defaults are preserved.
-- Consistent toolbars, compact phone adjustments, and tablet panels that preserve canvas space.
-- Live numeric previews with complete Escape rollback and clearer invalid-value handling.
+- Consistent toolbars, compact phone adjustments, and tablet panels that preserve canvas space through landscape and keyboard changes.
+- Live numeric previews with complete Escape rollback and clearer invalid-value handling; cancelled touch gestures restore the complete edit.
 - Standard multi-selection and arrangement; matching text Move/Rotate controls in Layout and 3D.
 - Persistent experimental opt-in, protected linked designs, and easier draft saving to Library.
+- Larger touch handles, exact pocket dimensions, and fit-test exports in the mobile export panel.
 
 ## 1.3.0 — 2026-10-04
 

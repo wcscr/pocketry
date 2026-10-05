@@ -1,5 +1,33 @@
 # Mobile experience review
 
+## UI/mobile integration (2026-10-05)
+
+Integrated the UI consistency commits and PR #89 on the merged 1.3.0 baseline
+(`73a834a`). Both editor layouts share the same first-render and keyboard-stable
+mobile decision, including short touch landscape viewports. Canvas identity,
+selection, numeric transactions, experimental opt-out, surface text, profile
+pockets, and footprint coordinate normalization are preserved.
+
+A cancelled placement gesture now uses the complete transaction rollback,
+including linked copies and the pending history label. It cannot leave a live
+preview or create an undo entry. Mobile and touch Add menus offer exact pocket
+dimensions or canvas drawing. Mobile Export includes surface and selected-tool
+fit templates with the same settings and confirmations as desktop Check fit.
+
+Local verification: Node 22 type checks, all 2,620 tests in 150 files, production
+build, and whitespace checks pass. Browser checks confirm a 25 mm circle,
+Escape rollback from an 18 mm depth preview to 12 mm, both mobile fit-test
+confirmations, named Library saving, and a retained design across 390 x 844,
+667 x 375, and 1440 x 900. The 667 x 375 canvas measured 427 x 274 without
+horizontal overflow. Downloads and physical fit are not inferred from these
+interaction checks.
+
+Regression coverage includes both editor layouts at 932 x 430 with coarse
+input, tablet keyboard shrinkage, retained canvas drafts, cancelled placement,
+offset touch resizing, footprint edits with surface text, and explicit phone
+panel opening. Physical iOS and Android keyboard animations and finger gestures
+remain device validation, separate from automated pointer and viewport checks.
+
 ## UI consistency follow-up (2026-10-04)
 
 The current implementation supersedes the automatic-properties and scrolling
@@ -8,8 +36,9 @@ Adjust, and Export; selection follows an open compact tray and leaves a closed
 tray closed. All properties opens the complete editor explicitly. Add stays
 visible beside Select, with a Tools menu when the toolbar is narrow.
 
-Breakpoints are phone below 768 px, tablet/narrow window below 1100 px, and
-desktop at 1100 px. Tablets show one side pane at a time and retain at least
+The integrated mobile layout applies below 768 px and to coarse-pointer
+viewports below 1024 px wide and 600 px high. Larger tablets and narrow windows
+use compact side panels below 1100 px; desktop begins at 1100 px. Tablets show one side pane at a time and retain at least
 480 px of canvas. The canvas instance stays mounted across these transitions.
 Visual-viewport changes constrain workspaces and dialogs without changing the
 layout choice or treating keyboard height as an orientation change.

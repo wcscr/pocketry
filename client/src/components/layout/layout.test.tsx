@@ -32,18 +32,21 @@ function render(ui: React.ReactElement, { mobile = false, landscape = false, ins
 } = {}) {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.stubGlobal("ResizeObserver", NoopResizeObserver);
-  // jsdom does not implement matchMedia, which useIsMobile() calls unguarded.
+  Object.defineProperty(window, "innerWidth", { value: mobile ? 400 : landscape ? 844 : 1440, writable: true, configurable: true });
+  Object.defineProperty(window, "innerHeight", { value: landscape ? 375 : 800, writable: true, configurable: true });
+  // Media changes follow resize so the test exercises the real layout subscription.
   vi.stubGlobal("matchMedia", (query: string) => ({
-    matches: query.includes("max-height") ? landscape : mobile,
+    get matches() { return query.split(",").some(part => {
+      if (part.includes("pointer: coarse") && !(mobile || landscape)) return false;
+      return [...part.matchAll(/\((min|max)-(width|height): (\d+)px\)/g)].every(([, limit, dimension, threshold]) => {
+        const value = dimension === "width" ? window.innerWidth : window.innerHeight;
+        return limit === "min" ? value >= +threshold : value <= +threshold;
+      });
+    }); },
     media: query,
-    addEventListener: () => {},
-    removeEventListener: () => {},
+    addEventListener: (_: string, callback: EventListener) => window.addEventListener("resize", callback),
+    removeEventListener: (_: string, callback: EventListener) => window.removeEventListener("resize", callback),
   }));
-  Object.defineProperty(window, "innerWidth", {
-    value: mobile ? 400 : landscape ? 844 : 1440,
-    writable: true,
-    configurable: true,
-  });
 
   const container = document.createElement("div");
   document.body.appendChild(container);
