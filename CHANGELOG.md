@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added a top-right feedback menu with email and GitHub issue links; both are also available in mobile More options.
+
 - Corrected photo-outline detection so OpenCV and the JavaScript fallback use the same lightness scale and mask-cleanup rules.
 - Added Wiha stacking fit notes recommending lowering the driver pockets about 1 mm to avoid interference.
 
