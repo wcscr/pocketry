@@ -23,6 +23,15 @@ describe("physical CAD job lifecycle",()=>{
     const next=client.call("step",{});abort.abort();await result;
     expect(workers[0].terminate).toHaveBeenCalledOnce();expect(workers).toHaveLength(2);workers[1].reply("recovered");expect(await next).toBe("recovered");client.dispose();
   });
+  it("stops a synchronous modeling phase at 120 seconds",async()=>{
+    vi.useFakeTimers();
+    try{
+      const worker=new Endpoint(),client=createCadJobClient(()=>worker);
+      const job=client.call("step",{});const check=expect(job).rejects.toThrow("modeling exceeded 120 seconds");
+      worker.dispatchEvent(new MessageEvent("message",{data:{id:worker.calls[0].id,kind:"phase",phase:"Building bin blank"}}));
+      await vi.advanceTimersByTimeAsync(120_000);await check;expect(worker.terminate).toHaveBeenCalledOnce();client.dispose();
+    }finally{vi.useRealTimers();}
+  });
   it("recovers after a crash, load/geometry error, and timeout",async()=>{
     vi.useFakeTimers();
     try{

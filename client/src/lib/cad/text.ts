@@ -23,6 +23,9 @@ function reverse(curve:CadCurve):CadCurve {
  */
 export function buildCadText(c:CadContext,label:SurfaceText,z:number):CadShape {
   const shapes=surfaceTextShapes(label);
+  const segments=shapes.reduce((count,shape)=>count+shape.curves.length+shape.holes.reduce((n,hole)=>n+hole.curves.length,0),0);
+  c.authoredProfileSegments+=segments;
+  if(c.authoredProfileSegments>20_000)throw new Error("Original font outlines exceed the 20,000 profile-segment limit; text will not be simplified");
   const points=shapes.flatMap(shape=>shape.extractPoints(12).shape);
   let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
   for(const p of points){minX=Math.min(minX,p.x);minY=Math.min(minY,p.y);maxX=Math.max(maxX,p.x);maxY=Math.max(maxY,p.y);}

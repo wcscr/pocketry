@@ -19,7 +19,6 @@ describe("continuous B-rep insertion feasibility", () => {
     const c = new CadContext(oc);
     try {
       let source = c.extrude({kind:"rounded-rectangle",width:20,length:12,radius:2},0,8);
-      const bottom = c.subshapes(source,"edge").filter(edge => { const b=c.bounds(edge); return Math.abs(b.min.z)<1e-7&&Math.abs(b.max.z)<1e-7; });
       // Bottom rounding is exercised separately by the authored axial cap path.
       source = c.rotate(c.rotate(source,{x:1,y:0,z:0},25),{x:0,y:1,z:0},15);
       const axial = cadInsertionEnvelope(c,source,{x:5,y:-9,z:20});

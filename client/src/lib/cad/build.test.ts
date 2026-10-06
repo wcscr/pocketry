@@ -24,6 +24,8 @@ describe("shared CAD investigation fixtures",()=>{
       if(_name==="irregular") {
         expect(built.materials?.pocketFloors).toBeDefined();expect(built.materials?.stackingRim).toBeDefined();
         expect(built.textParts).toHaveLength(1);
+        // Thumb access is deeper than the circular pocket: its floor must also be colored.
+        expect(c.bounds(built.materials!.pocketFloors!).min.z).toBeLessThan(model.dimensions.fillZ-14);
         const volumes=built.materials!;
         expect(Math.abs(c.volume(c.boolean("common",volumes.body,volumes.pocketFloors!,"material overlap test",true)))).toBeLessThan(1e-6);
       }

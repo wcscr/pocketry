@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Early STEP CAD export for simple flat trays: analytic solids, named pocket cutter objects, and an editable Pocketry project in one package.
+- Experimental CAD investigations: curved STEP solids, named source objects and cutters, complete project packages, progress and cancellation. Production backend selection and remaining feature gates are pending.
 
 - Added Wiha stacking fit notes recommending lowering the driver pockets about 1 mm to avoid interference.
 

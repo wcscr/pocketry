@@ -4,7 +4,7 @@ import { CadContext, type CadShape, type CadProfile } from "./adapter";
 import { clipBelow, clipAbove, mouthFlare } from "./construction";
 import { roundPocketBottom } from "./profile-operations";
 
-export function buildCadFingerAccess(c:CadContext,hole:FingerHole,fillZ:number,binTop:number):CadShape {
+export function buildCadFingerAccess(c:CadContext,hole:FingerHole,fillZ:number,binTop:number,floorThicknessMm=0):{cutter:CadShape;floorBand?:CadShape} {
   const depth=effectiveFingerHoleDepthMm(hole),r=hole.diameterMm/2,elongated=isElongatedFingerHole(hole),flatEnds=hasFlatFingerHoleEnds(hole),flatBottom=hasFlatFingerHoleBottom(hole);
   const length=elongatedFingerHoleEndpoints(hole).lengthMm;
   const profile:CadProfile=!elongated?{kind:"ellipse",rx:r,ry:r}:{kind:"rounded-rectangle",width:length,length:hole.diameterMm,radius:flatEnds?effectiveFingerHoleCornerRoundMm(hole):r};
@@ -35,7 +35,8 @@ export function buildCadFingerAccess(c:CadContext,hole:FingerHole,fillZ:number,b
   }
   const radius=effectiveFingerHoleTopFilletMm(hole);
   if(radius>0&&(!flatBottom&&depth<r+radius))throw new Error("Shallow curved finger-access rounding needs a tangent-profile sweep; this requested operation is not supported yet");
+  const floorBand=floorThicknessMm>0?c.boolean("cut",c.move(cutter,{x:0,y:0,z:-floorThicknessMm}),cutter,"finger-access floor material region",true):undefined;
   cutter=mouthFlare(c,cutter,fillZ,binTop+1,radius);
-  cutter=c.rotate(cutter,{x:0,y:0,z:1},hole.rotationDeg??0);
-  return c.move(cutter,{...hole.center,z:0});
+  const place=(shape:CadShape)=>c.move(c.rotate(shape,{x:0,y:0,z:1},hole.rotationDeg??0),{...hole.center,z:0});
+  return {cutter:place(cutter),floorBand:floorBand?place(floorBand):undefined};
 }

@@ -27,6 +27,7 @@ const nonempty=(c:CadContext,s:CadShape)=>c.subshapes(s,"solid").length>0;
 
 export function buildCadDesign(c:CadContext,design:CadDesign,materials:CadMaterialOptions={},progress:(phase:string)=>void=()=>{}):BuiltCadDesign {
   const spec=design.spec,objects:CadObject[]=[],floorRegions:CadShape[]=[];
+  c.authoredProfileSegments=design.pockets.reduce((n,p)=>n+p.profiles.reduce((sum,profile)=>sum+(profile.kind==="polygon"?profile.outer.length+profile.holes.reduce((count,h)=>count+h.length,0):profile.kind==="ellipse"?1:4),0),0);
   const add=(object:Omit<CadObject,"order">)=>objects.push({...object,order:objects.length});
   progress("Building bin blank");const {blank,lip,interior}=buildCadBinBlank(c,spec);
   add({id:"bin-blank",name:"Bin blank",role:"bin-blank",status:"active",shape:blank});
@@ -53,7 +54,8 @@ export function buildCadDesign(c:CadContext,design:CadDesign,materials:CadMateri
   for(const hole of design.fingerHoles) {
     const name=hole.name??`Finger access ${hole.id}`;progress(`Building ${name}`);
     try {
-      const shape=buildCadFingerAccess(c,hole,design.dimensions.fillZ,design.dimensions.topZ);
+      const {cutter:shape,floorBand}=buildCadFingerAccess(c,hole,design.dimensions.fillZ,design.dimensions.topZ,materials.floorThicknessMm);
+      if(floorBand)floorRegions.push(floorBand);
       add({id:`finger:${hole.id}`,sourceId:hole.id,name,role:"finger-access-tool",status:"active",shape,designLink:hole.designLink});
       body=c.boolean("cut",body,shape,`${name}: subtract finger-access tool`,true);
     }catch(error){throw new Error(`${name} (${hole.id}): ${error instanceof Error?error.message:String(error)}`);}
