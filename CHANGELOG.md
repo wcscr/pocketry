@@ -6,6 +6,7 @@
 - Surface pockets set to Through open the full bin bottom, including peg roots, when overlapping finger access.
 - Pocket intersections in 3D are warnings and allow export of combined shapes, including upright, submerged, and tilted pockets.
 - Failed 3D updates clear obsolete bin meshes so they cannot appear beside the current pocket outline as misplaced duplicates.
+- Corrected photo-outline detection so OpenCV and the JavaScript fallback use the same lightness scale and mask-cleanup rules.
 - Added Wiha stacking fit notes recommending lowering the driver pockets about 1 mm to avoid interference.
 
 - Added Wiha 40, 50, and 60 mm examples with final editable designs, labeled 3MFs, and print photos; labeled the existing Wiha example 150 mm and expanded the sample library to 13 projects.

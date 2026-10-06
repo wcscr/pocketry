@@ -174,8 +174,9 @@ function alphaScore(
  * Weighted Lab distance from a border-band background estimate.
  *
  * OpenCV's `COLOR_RGB2Lab` on 8-bit input returns L in 0..255 and a/b offset by
- * 128, so the weights are applied in that scaled space and the result is
- * normalised to 0..255 at the end.
+ * 128. Restore L* to 0..100 before illumination correction and weighting,
+ * matching the JS reference. The constant a/b offsets cancel in the distance.
+ * See https://docs.opencv.org/4.11.0/de/d25/imgproc_color_conversions.html
  */
 function colorScore(
   cv: OpenCV,
@@ -204,6 +205,8 @@ function colorScore(
   // divide-based flat field follows any object wider than its kernel and
   // cancels the very contrast being measured.
   const lData = Float32Array.from(L.data as Uint8Array);
+  // Scale the existing typed buffer without a per-pixel conversion callback.
+  for (let i = 0; i < lData.length; i++) lData[i] *= 100 / 255;
   const band = borderBandWidth(width, height);
   removeIlluminationPlane(
     lData,
@@ -284,10 +287,11 @@ function cleanAndGate(
   cv.threshold(mask, binary, iso - 1, 255, cv.THRESH_BINARY);
 
   const kernel = scope.track(
-    cv.getStructuringElement(cv.MORPH_ELLIPSE, new cv.Size(size, size)),
+    // The JS reference uses a square min/max filter with clamped edges.
+    cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(size, size)),
   );
-  cv.morphologyEx(binary, binary, cv.MORPH_OPEN, kernel, new cv.Point(-1, -1), 1);
-  cv.morphologyEx(binary, binary, cv.MORPH_CLOSE, kernel, new cv.Point(-1, -1), 1);
+  cv.morphologyEx(binary, binary, cv.MORPH_OPEN, kernel, new cv.Point(-1, -1), 1, cv.BORDER_REPLICATE);
+  cv.morphologyEx(binary, binary, cv.MORPH_CLOSE, kernel, new cv.Point(-1, -1), 1, cv.BORDER_REPLICATE);
 
   const cleaned = binary.data as Uint8Array;
   for (let i = 0; i < score.length; i++) {

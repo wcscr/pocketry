@@ -88,6 +88,8 @@ disagreed about Y, which shipped mirrored STLs.
 
 - Author: Will Cobb <will.cobb@sugarcreekresearch.com>
 - Never add Co-Authored-By lines
+- Keep commit messages, PR titles/descriptions, and review comments brief and
+  concise. Include only the change, its purpose, and essential validation.
 
 ## Versions & Changelog
 
