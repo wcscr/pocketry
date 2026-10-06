@@ -23,7 +23,7 @@ export function surfaceTextZ(spec: BinSpec): number {
 }
 
 /** Same outlines serve the layout and Manifold extrusion; never silently replace glyphs. */
-export function surfaceTextOutline(label: SurfaceText) {
+export function surfaceTextShapes(label: SurfaceText) {
   const selectedFont = label.font;
   const font = typeof selectedFont === "string" ? fonts[selectedFont] : loader.parse({
     // FontLoader memoizes paths on glyph objects. Keep that cache out of saved data.
@@ -41,7 +41,11 @@ export function surfaceTextOutline(label: SurfaceText) {
       throw new Error(`The label “${label.text}” contains an unsupported character: ${char}`);
     }
   }
-  const shapes = font.generateShapes(label.text, label.sizeMm);
+  return font.generateShapes(label.text, label.sizeMm);
+}
+
+export function surfaceTextOutline(label: SurfaceText) {
+  const shapes = surfaceTextShapes(label);
   const outline = normalizeOutline(shapes.map(shape => {
     const points = shape.extractPoints(12);
     const ring = (items: { x: number; y: number }[]) => {

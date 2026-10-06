@@ -117,7 +117,7 @@ disagreed about Y, which shipped mirrored STLs.
   ArUco library from the University of Córdoba is **GPLv3 and specifically
   off-limits**, including as a porting reference.
 - Keep one major version of Vite in the tree. Vitest must dedupe onto the app's Vite so tests transform what actually ships (this is why Vitest is pinned to v3 while the app is on Vite 5).
-- `manifold-3d` (Apache-2.0) is the single geometry kernel — Clipper2-backed 2D offsetting, triangulation, and CSG. Do not add a second geometry library (`earcut`, `polygon-clipping`, `clipper-lib`); two kernels disagree at the seams.
+- `manifold-3d` (Apache-2.0) remains the production geometry kernel. The user explicitly authorized two isolated CAD investigations: `codex/step-cad-export` may use `replicad-opencascadejs@1.1.0` for STEP; `codex/cad-unified-geometry` may also derive bin preview/STL/3MF from that CAD model. Both consume authored project data, never convert meshes to STEP or mix kernels inside one construction. Keep CAD access experimental and stop for the user's comparison review before choosing a production backend. Other second geometry libraries remain prohibited. CAD handles must be scoped and disposed like Manifold handles.
 
 ## Build & Development Commands
 

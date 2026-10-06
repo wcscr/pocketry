@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { promoteLegacyAnalyticShape } from "./analytic-profile";
 
 import {
   cutoutPlacementSchema,
@@ -63,9 +64,10 @@ export { serializeProjectDoc } from "./project-font-sources";
  * Version 33 adds optional pocket insertion clearance; older pockets stay finite.
  * Version 34 retains unclipped source depth for rigid minimum-floor pockets.
  * Version 35 retains finite through-pocket objects during rigid movement.
+ * Version 36 retains authored analytic profiles for CAD construction.
  */
 
-export const PROJECT_SCHEMA_VERSION = 35 as const;
+export const PROJECT_SCHEMA_VERSION = 36 as const;
 
 const projectFields = {
   shapes: z.array(tracedShapeSchema),
@@ -270,11 +272,18 @@ function migrateLegacyProject(doc: LegacyProjectDoc): ProjectDoc {
  * an empty designer beats crashing the workspace.
  */
 export function parseProjectDoc(input: unknown): ProjectDoc | null {
+  if (input && typeof input === "object" && !Array.isArray(input)) {
+    const legacy = input as Record<string, unknown>;
+    if (typeof legacy.schemaVersion === "number" && legacy.schemaVersion >= 1 && legacy.schemaVersion <= 35 && Array.isArray(legacy.shapes)) {
+      // Work on new records; the same shared shapes also serve retained history.
+      input = { ...legacy, shapes: legacy.shapes.map(promoteLegacyAnalyticShape) };
+    }
+  }
   if (input && typeof input === "object" && "schemaVersion" in input && input.schemaVersion === PROJECT_SCHEMA_VERSION) {
     input = expandProjectFontSources(input);
   }
   if (input && typeof input === "object" && !Array.isArray(input)
-      && [26, 27, 28, 29, 30, 31, 32, 33, 34].includes((input as Record<string, unknown>).schemaVersion as number)) {
+      && [26, 27, 28, 29, 30, 31, 32, 33, 34, 35].includes((input as Record<string, unknown>).schemaVersion as number)) {
     // Strict current schemas still reject unsupported data from version-27 prototypes.
     return parseProjectDoc({ ...input, schemaVersion: PROJECT_SCHEMA_VERSION });
   }

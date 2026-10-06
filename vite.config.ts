@@ -39,7 +39,7 @@ export default defineConfig({
   },
   optimizeDeps: {
     // Emscripten glue does not survive esbuild's dependency pre-bundling.
-    exclude: ["@techstark/opencv-js", "manifold-3d"],
+    exclude: ["@techstark/opencv-js", "manifold-3d", "replicad-opencascadejs"],
     esbuildOptions: {
       loader: {
         ".js": "jsx",

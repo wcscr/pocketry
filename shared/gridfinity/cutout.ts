@@ -93,6 +93,11 @@ export const tracedShapeSchema = z
     sourceMmPerPx: z.number().positive().nullable(),
     /** Absent on older traces. Basic shapes are authored in mm, without a pixel scale. */
     source: z.enum(["trace", "basic-shape"]).optional(),
+    /** Authored curve intent; contour revisions remove it. Polygon outlines remain authoritative otherwise. */
+    analyticProfile: z.discriminatedUnion("kind", [
+      z.object({ kind: z.literal("rectangle"), widthMm: z.number().finite().positive(), lengthMm: z.number().finite().positive() }).strict(),
+      z.object({ kind: z.literal("circle"), radiusMm: z.number().finite().positive() }).strict(),
+    ]).optional(),
     /** Margin already baked into the trace, before placement scaling. Absent in older projects. */
     traceMarginMm: z.number().finite().min(0).max(5).optional(),
   })
