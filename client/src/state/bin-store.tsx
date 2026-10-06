@@ -41,7 +41,7 @@ export type BinViewMode = "3d" | "2d";
 export type BinEditorMode = "placement" | "contour" | "footprint" | "label-edge" | "split"
   | "draw-rectangle" | "draw-square" | "draw-circle";
 
-const BIN_SIZE_KEYS = ["gridX", "gridY", "gridPitch", "heightUnits", "lip", "fillHeightPercent"] as const;
+const BIN_SIZE_KEYS = ["gridX", "gridY", "gridPitch", "arbitrarySizeMm", "heightUnits", "lip", "fillHeightPercent"] as const;
 
 export interface BinState {
   /** Session-only permissions and field ownership; never serialized. */

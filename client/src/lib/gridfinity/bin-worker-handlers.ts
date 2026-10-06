@@ -203,11 +203,14 @@ export function createBinWorkerHandlers(
           displayedMaterialParts = { body, pocketFloors, stackingRim };
         }
       }
-      // Preview coordinates preserve pocket editing; exports put peg tips on z=0.
-      // Translate every material/text part together so 3MF assemblies stay aligned.
-      const exportLiftMm = payload.exportTopology ? pegBottomExtensionMm(spec) : 0;
+      // Preserve installed coordinates in preview. Pegs-up exports flip the whole
+      // assembly onto its highest face (including raised labels); other peg bases
+      // lift tips to z=0. Every colour/text part uses exactly the same transform.
+      const pegsUp = payload.exportTopology && spec.pegBottom?.underside === "flat";
+      const exportLiftMm = payload.exportTopology ? (pegsUp ? solid.boundingBox().max[2] : pegBottomExtensionMm(spec)) : 0;
       const extractOutputMesh = (part: BinMaterialParts["body"], options: { normals: boolean }) => {
-        const data = extractMeshData(kernel, exportLiftMm ? arena.track(part.translate([0, 0, exportLiftMm])) : part, options);
+        const oriented = pegsUp ? arena.track(part.rotate([180, 0, 0])) : part;
+        const data = extractMeshData(kernel, exportLiftMm ? arena.track(oriented.translate([0, 0, exportLiftMm])) : oriented, options);
         // Printable cleanup uses Float32 vertices; fractional bridge heights
         // can leave a sub-micron offset after lifting. Keep bed contacts at zero.
         if (exportLiftMm) {
@@ -257,7 +260,7 @@ export function createBinWorkerHandlers(
               ? preparePrintableSolid(kernel, binSolid) : displayedPart(binSolid), { normals: includePreviewNormals }),
           } : {}),
           textMeshes: textParts.map(part => ({
-            label: part.label, z: part.z + exportLiftMm,
+            label: part.label, z: pegsUp ? exportLiftMm - part.z : part.z + exportLiftMm,
             // Rotated font contours can leave nearly coincident vertices that
             // crash Manifold's normal calculation. Use the same sub-micron
             // cleanup as printable text before shading a preview, too.

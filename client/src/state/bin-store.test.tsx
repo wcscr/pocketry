@@ -1046,12 +1046,12 @@ it("changes peg bottoms and fit settings with undo, retaining custom pocket floo
   act(() => store().dispatch({ type: "ADD_PLACED", gridX: 2, gridY: 2, cutouts: [CUTOUT, custom] }));
   act(() => store().dispatch({ type: "PATCH_SPEC", patch: { magnetHoles: true, screwHoles: true } }));
   act(() => store().dispatch({ type: "PATCH_SPEC", patch: { pegBottom: { diameterMm: 4.8, lengthMm: 4 } } }));
-  expect(store().spec.pegBottom).toEqual({ diameterMm: 4.8, lengthMm: 4, underside: "sloped" });
+  expect(store().spec.pegBottom).toEqual({ diameterMm: 4.8, lengthMm: 4, underside: "sloped", density: 1 });
   expect(store().cutouts[0].depth).toEqual({ mode: "remaining", floorThicknessMm: 2 });
   expect(store().cutouts[1]).toEqual(custom);
   act(() => store().dispatch({ type: "PATCH_SPEC", patch: { pegBottom: { diameterMm: 4.6, lengthMm: 3 } } }));
   act(() => store().dispatch({ type: "UNDO" }));
-  expect(store().spec.pegBottom).toEqual({ diameterMm: 4.8, lengthMm: 4, underside: "sloped" });
+  expect(store().spec.pegBottom).toEqual({ diameterMm: 4.8, lengthMm: 4, underside: "sloped", density: 1 });
   act(() => store().dispatch({ type: "UNDO" }));
   expect(store().spec.pegBottom).toBeNull();
   expect(store().cutouts[0].depth).toEqual(CUTOUT.depth);

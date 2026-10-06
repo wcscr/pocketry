@@ -1,13 +1,14 @@
 import type { Manifold } from "manifold-3d";
 import type { BinSpec } from "@shared/gridfinity/types";
-import { BASE_HEIGHT } from "@shared/gridfinity/standard";
-import { pegBottomExtensionMm, pegBottomRootHeightMm, pegBridgeSpanMm, ultim8PegCenters, ULTIM8_COLLAR_HEIGHT_MM } from "@shared/gridfinity/peg-bottom";
+import { BASE_HEIGHT, binHeightMm } from "@shared/gridfinity/standard";
+import { pegBottomExtensionMm, pegBottomRootHeightMm, pegBridgeSpanMm, ultim8PegCenters, selectUltim8PegCenters, ULTIM8_COLLAR_HEIGHT_MM } from "@shared/gridfinity/peg-bottom";
 import type { Kernel } from "@/lib/manifold/runtime";
 import { footprintOuterSection } from "./footprint-section";
 
 /** Upright printing: chamfered tips, straight shafts, then 45 degree roots.
  * Sloped mode fully covers the slab; bridged mode joins flared collars with
- * small bridges and a chamfered perimeter. Both are clipped to the footprint.
+ * small bridges and a chamfered perimeter. Both are clipped to the footprint. Flat backing skips the roots and
+ * exports inverted, with sparse pegs printed upward from the slab.
  */
 export function buildPegBottom(
   kernel: Kernel, spec: BinSpec, segments: number,
@@ -34,10 +35,11 @@ export function buildPegBottom(
     through.trimByPlane([0, 0, -1], 0),
   ).trimByPlane([0, 0, 1], bottomZ)) : null;
   const exclusion = belowSlab ? arena.track(belowSlab.project()) : null;
-  const centers = exclusion && !exclusion.isEmpty() ? latticeCenters.filter(({ x, y }) => {
+  const available = exclusion && !exclusion.isEmpty() ? latticeCenters.filter(({ x, y }) => {
     const shaft = arena.track(arena.track(CrossSection.circle(radius, segments)).translate([x, y]));
     return arena.track(shaft.intersect(exclusion)).area() <= 1e-8;
   }) : latticeCenters;
+  const centers = selectUltim8PegCenters(spec, available);
   if (!centers.length) {
     throw new Error("Through pockets overlap every ULTIM8 peg. Move or resize the pockets, enlarge the footprint, or choose a flat bottom.");
   }
@@ -56,6 +58,7 @@ export function buildPegBottom(
   const pegs = centers.map(({ x, y }) => {
     const tip = arena.track(arena.track(Manifold.cylinder(chamfer, radius - chamfer, radius, segments)).translate([x, y, bottomZ]));
     const shaft = arena.track(arena.track(Manifold.cylinder(lengthMm - chamfer, radius, radius, segments)).translate([x, y, bottomZ + chamfer]));
+    if (underside === "flat") return arena.track(Manifold.union([tip, shaft]));
     const root = arena.track(arena.track(Manifold.cylinder(coneHeight, radius, radius + coneHeight, segments)).translate([x, y, -rootHeight]));
     return arena.track(Manifold.union([tip, shaft, root]));
   });
@@ -88,6 +91,6 @@ export function buildPegBottom(
   const roots = arena.track(Manifold.union(pegs));
   const clip = arena.track(arena.track(outer.extrude(pegBottomExtensionMm(spec) + 0.01)).translate([0, 0, bottomZ]));
   const clipped = arena.track(roots.intersect(clip));
-  const slab = arena.track(outer.extrude(BASE_HEIGHT));
+  const slab = arena.track(outer.extrude(Math.min(BASE_HEIGHT, binHeightMm(spec.heightUnits))));
   return arena.track(clipped.add(slab));
 }

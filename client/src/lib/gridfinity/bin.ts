@@ -1,3 +1,4 @@
+import { binWidthMm, binLengthMm } from "@shared/gridfinity/bin-size";
 import { validateLayout, type ValidationIssue } from "@shared/gridfinity/validate";
 import { buildSurfaceTexts } from "./surface-text";
 import { validateTiltedSolids } from "./validate-tilted-solids";
@@ -16,7 +17,6 @@ import {
 import {
   BASE_HEIGHT,
   BASE_TOP_RADIUS,
-  binFootprintMm,
   binHeightMm,
   binTotalHeightMm,
   D_WALL,
@@ -126,8 +126,8 @@ export function binDimensionsMm(spec: BinSpec): {
   totalHeightMm: number;
 } {
   return {
-    widthMm: binFootprintMm(spec.gridX, spec.gridPitch),
-    lengthMm: binFootprintMm(spec.gridY, spec.gridPitch),
+    widthMm: binWidthMm(spec),
+    lengthMm: binLengthMm(spec),
     heightToRimMm: binHeightMm(spec.heightUnits),
     totalHeightMm: binTotalHeightMm(spec.heightUnits, spec.lip === "standard") + pegBottomExtensionMm(spec),
   };
@@ -146,7 +146,7 @@ export function buildBinParts(
   const base = spec.pegBottom
     ? buildPegBottom(kernel, spec, segments, throughCutters)
     : spec.flatBottom
-    ? arena.track(footprintOuterSection(kernel, spec, segments).extrude(BASE_HEIGHT))
+    ? arena.track(footprintOuterSection(kernel, spec, segments).extrude(Math.min(BASE_HEIGHT, binHeightMm(spec.heightUnits))))
     : buildBase(
         kernel,
         spec,
@@ -175,8 +175,8 @@ export function buildBinParts(
       : arena.track(
           new CrossSection([
             roundedRectPolygon(
-              binFootprintMm(spec.gridX, spec.gridPitch),
-              binFootprintMm(spec.gridY, spec.gridPitch),
+              binWidthMm(spec),
+              binLengthMm(spec),
               BASE_TOP_RADIUS,
               segments,
             ),
@@ -291,7 +291,7 @@ export function buildBinWithCutouts(
     const interior = arena.track(outer.subtract(wall));
     const floorRegion = arena.track(
       arena.track(interior.extrude(options.floorInsertThicknessMm))
-        .translate([0, 0, BASE_HEIGHT - options.floorInsertThicknessMm]),
+        .translate([0, 0, Math.min(BASE_HEIGHT, binHeightMm(spec.heightUnits)) - options.floorInsertThicknessMm]),
     );
     floorInserts = [...floorInserts, floorRegion];
     floorRegions = [...floorRegions, floorRegion];

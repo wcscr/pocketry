@@ -1,3 +1,4 @@
+import { arbitrarySizePatch, gridSizeFromArbitrary } from "@shared/gridfinity/bin-size";
 import { EditableObjectName, ObjectActions } from "./object-list-controls";
 import { hasRigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { pocketDepthChangePatch } from "@shared/gridfinity/pocket-depth-change";
@@ -74,7 +75,6 @@ import {
 } from "@shared/gridfinity/cutout";
 import { resolvePocketSplit } from "@shared/gridfinity/pocket-split";
 import {
-  binFootprintMm,
   D_WALL,
   GRID_PITCH_DIVISOR,
   HEIGHT_UNIT_MM,
@@ -86,7 +86,7 @@ import {
   standardCellSpan,
   type GridPitch,
 } from "@shared/gridfinity/standard";
-import { DEFAULT_PEG_BOTTOM, hasSmoothBase, pegBottomExtensionMm } from "@shared/gridfinity/peg-bottom";
+import { DEFAULT_PEG_BOTTOM, PEG_DENSITIES, hasSmoothBase, pegBottomExtensionMm } from "@shared/gridfinity/peg-bottom";
 import { MAX_GRID, maxGridCells, type BinSpecInput } from "@shared/gridfinity/types";
 import type { ValidationIssue } from "@shared/gridfinity/validate";
 
@@ -1423,16 +1423,21 @@ export function BinControlsPanel({
           title="Bin size"
           icon={Scaling}
           tone="blue"
-          summary={`${formatUnitCount(widthCellSpan)} × ${formatUnitCount(lengthCellSpan)} × ${formatUnitCount(spec.heightUnits)}u`}
+          summary={spec.arbitrarySizeMm ? `${dims.widthMm} × ${dims.lengthMm} × ${Number((spec.heightUnits * HEIGHT_UNIT_MM).toFixed(3))} mm` : `${formatUnitCount(widthCellSpan)} × ${formatUnitCount(lengthCellSpan)} × ${formatUnitCount(spec.heightUnits)}u`}
           className="scroll-mt-16"
         >
           <div className="flex items-center gap-2">
-            <SettingLabel label="Grid pitch" hint="Pitch changes preserve the outer size and custom shape. A coarser pitch is available only when existing cells combine into whole cells." className="shrink-0" />
+            <SettingLabel label="Grid pitch" hint="Grid pitches preserve the outer size. Arbitrary uses millimetres with a flat bottom or ULTIM8 pegs. Returning to a grid requires sizes that fit its pitch and height increments." className="shrink-0" />
             <Select
-              value={spec.gridPitch}
+              value={spec.arbitrarySizeMm ? "arbitrary" : spec.gridPitch}
               onValueChange={(value) => {
+                if (value === "arbitrary") {
+                  const patch = arbitrarySizePatch(spec);
+                  if (patch) { patchSpec(patch); dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" }); }
+                  return;
+                }
                 const gridPitch = value as GridPitch;
-                const resized = changeBinGridPitchPreservingSize(spec, gridPitch);
+                const resized = spec.arbitrarySizeMm ? gridSizeFromArbitrary(spec, gridPitch) : changeBinGridPitchPreservingSize(spec, gridPitch);
                 if (!resized || resized.gridX > maxGridCells(gridPitch) || resized.gridY > maxGridCells(gridPitch)) return;
                 patchSpec({
                   ...resized,
@@ -1451,15 +1456,28 @@ export function BinControlsPanel({
               </SelectTrigger>
               <SelectContent>
                 {(["full", "half", "quarter"] as const).map((pitch) => {
-                  const resized = changeBinGridPitchPreservingSize(spec, pitch);
+                  const resized = spec.arbitrarySizeMm ? gridSizeFromArbitrary(spec, pitch) : changeBinGridPitchPreservingSize(spec, pitch);
                   const available = resized && resized.gridX <= maxGridCells(pitch) && resized.gridY <= maxGridCells(pitch);
                   return <SelectItem key={pitch} value={pitch} disabled={!available}>{pitch === "full" ? "Full · 42 mm" : pitch === "half" ? "Half · 21 mm" : "Quarter · 10.5 mm"}{!available ? " (would change shape)" : ""}</SelectItem>;
                 })}
+                <SelectItem value="arbitrary" disabled={spec.footprint.kind !== "rectangle"}>Arbitrary{spec.footprint.kind !== "rectangle" ? " (rectangles only)" : ""}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <FeatureSwitch label="Keep bin size fixed" description="Adding tools keeps these dimensions. Tools that do not fit stay visible for adjustment." checked={keepBinSize} onChange={(fixed) => onKeepBinSizeChange?.(fixed)} />
-          {spec.footprint.kind === "rectangle" ? (
+          {spec.arbitrarySizeMm ? (
+            <>
+              {(["width", "length"] as const).map(axis => <div key={axis} className="flex items-center justify-between gap-2">
+                <Label className="text-xs" htmlFor={`arbitrary-${axis}`}>{axis === "width" ? "Width" : "Length"}</Label>
+                <div className="flex items-center gap-1.5">
+                  <DraftNumberInput id={`arbitrary-${axis}`} className="h-8 w-24" aria-label={`Bin ${axis} in millimetres`} value={spec.arbitrarySizeMm![axis]} min={10} max={671.5} step={0.1}
+                    onValueChange={value => patchSpec({ arbitrarySizeMm: { ...spec.arbitrarySizeMm!, [axis]: value } }, true)}
+                    onValueCommit={value => patchSpec({ arbitrarySizeMm: { ...spec.arbitrarySizeMm!, [axis]: value } })} />
+                  <span className="text-xs text-muted-foreground">mm</span>
+                </div>
+              </div>)}
+            </>
+          ) : spec.footprint.kind === "rectangle" ? (
             <>
               <CellSlider
                 label="Width"
@@ -1484,7 +1502,15 @@ export function BinControlsPanel({
               or reset to a rectangle to use the size sliders.
             </div>
           )}
-          <div className="space-y-1.5">
+          {spec.arbitrarySizeMm ? <div className="flex items-center justify-between gap-2">
+            <SettingLabel label="Height" htmlFor="arbitrary-height" hint="Body height, excluding the stacking lip and peg length. Pocket floors stay measured from the flat backing." />
+            <div className="flex items-center gap-1.5">
+              <DraftNumberInput id="arbitrary-height" className="h-8 w-24" aria-label="Bin height in millimetres" value={Number((spec.heightUnits * HEIGHT_UNIT_MM).toFixed(6))} min={2} max={294} step={0.1}
+                onValueChange={value => patchSpec({ heightUnits: value / HEIGHT_UNIT_MM, ...(value < 7 ? { lip: "none" } : {}) }, true)}
+                onValueCommit={value => patchSpec({ heightUnits: value / HEIGHT_UNIT_MM, ...(value < 7 ? { lip: "none" } : {}) })} />
+              <span className="text-xs text-muted-foreground">mm</span>
+            </div>
+          </div> : <div className="space-y-1.5">
             <Label className="text-xs">Height</Label>
             <div className="flex items-center gap-2">
               <Slider
@@ -1503,7 +1529,7 @@ export function BinControlsPanel({
                 <DraftNumberInput className="h-8 w-20" aria-label="Bin height in units" value={spec.heightUnits} min={1} max={MAX_HEIGHT_UNITS_UI} step={0.5} normalize={(value) => Math.round(value * 2) / 2} onValueChange={(heightUnits) => patchSpec({ heightUnits }, true)} onValueCommit={(heightUnits) => patchSpec({ heightUnits })} /> units
               </span>
             </div>
-          </div>
+          </div>}
           <div className="flex items-start gap-1">
             <p className="text-xs text-muted-foreground">
               Outer size {dims.widthMm.toFixed(1)} × {dims.lengthMm.toFixed(1)} ×{" "}
@@ -1519,7 +1545,7 @@ export function BinControlsPanel({
                 {HEIGHT_UNIT_MM} mm, including the base.
               </p>
               <p className="mt-2">
-                {spec.lip === "standard" ? <>
+                {spec.arbitrarySizeMm ? <>Height is the body height in millimetres. Pegs and an enabled lip add to the total height.</> : spec.lip === "standard" ? <>
                   Pocketry uses Gridfinity Rebuilt’s {STACKING_LIP_FILLET_RADIUS} mm
                   lip rounding. The displayed height includes this lip, which adds
                   approximately {STACKING_LIP_HEIGHT_ACTUAL.toFixed(2)} mm above the{" "}
@@ -1558,6 +1584,7 @@ export function BinControlsPanel({
             size="sm"
             className="w-full"
             data-testid="button-edit-footprint"
+            disabled={!!spec.arbitrarySizeMm}
             onClick={() => {
               const editing = editorMode === "footprint";
               dispatch({ type: "SET_EDITOR_MODE", editorMode: editing ? "placement" : "footprint" });
@@ -1593,6 +1620,7 @@ export function BinControlsPanel({
             label="Stacking lip"
             description={hasSmoothBase(spec) ? "Receives a Gridfinity bin on top" : "Lets another bin stack on top"}
             checked={spec.lip === "standard"}
+            disabled={spec.heightUnits < 1}
             onChange={(on) => patchSpec({ lip: on ? "standard" : "none" })}
           />
           <FeatureSwitch
@@ -1677,24 +1705,32 @@ export function BinControlsPanel({
                 onValueChange={(bottom) => patchSpec({ flatBottom: bottom === "flat", pegBottom: bottom === "ultim8" ? { ...DEFAULT_PEG_BOTTOM } : null })}>
                 <SelectTrigger id="select-bin-bottom" className="h-8 flex-1" aria-label="Bottom" data-testid="select-bin-bottom"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="gridfinity">Gridfinity feet</SelectItem>
+                  <SelectItem value="gridfinity" disabled={!!spec.arbitrarySizeMm}>Gridfinity feet</SelectItem>
                   <SelectItem value="flat">Flat bottom</SelectItem>
                   <SelectItem value="ultim8">ULTIM8 jig pegs</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             {spec.pegBottom && <>
-              <p className="text-[11px] text-muted-foreground">For Wham Bam ULTIM8 mats on eufyMake E1. Print upright with supports off. The underside adds {pegBottomExtensionMm(spec).toFixed(1)} mm below the bin.</p>
+              <p className="text-[11px] text-muted-foreground">For Wham Bam ULTIM8 mats on eufyMake E1. {spec.pegBottom.underside === "flat" ? "Exports print pocket-side down, with pegs up. Check pocket bridges and overhangs in your slicer." : "Print upright with supports off."} The underside adds {pegBottomExtensionMm(spec).toFixed(1)} mm below the bin.</p>
               <div className="flex items-center gap-2">
-                <SettingLabel label="Underside" htmlFor="select-peg-underside" hint="Short bridges reduce height on rectangular bins. Print a fit check to verify bridge quality. Sloped roots avoid bridges and also support custom footprints." />
-                <Select value={spec.pegBottom.underside} onValueChange={(underside: "sloped" | "bridged") => patchSpec({ pegBottom: { ...spec.pegBottom!, underside } })}>
+                <SettingLabel label="Underside" htmlFor="select-peg-underside" hint="Flat backing removes tall peg roots and exports with the pegs up. Sloped roots and short bridges print with pegs down." />
+                <Select value={spec.pegBottom.underside} onValueChange={(underside: "sloped" | "bridged" | "flat") => patchSpec({ pegBottom: { ...spec.pegBottom!, underside, density: underside === "flat" ? spec.pegBottom!.density : 1 } })}>
                   <SelectTrigger id="select-peg-underside" className="h-8 flex-1" aria-label="Peg underside"><SelectValue /></SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="flat">Flat backing · pegs up</SelectItem>
                     <SelectItem value="sloped">Sloped roots</SelectItem>
                     <SelectItem value="bridged" disabled={spec.footprint.kind !== "rectangle"}>Short bridges</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
+              {spec.pegBottom.underside === "flat" && <div className="flex items-center gap-2">
+                <SettingLabel label="Peg density" htmlFor="select-peg-density" hint="Spacing applies in both directions. Corner pegs remain, and through pockets omit any pegs they overlap. Fewer pegs reduce material; check fit and stiffness with a test print." />
+                <Select value={String(spec.pegBottom.density)} onValueChange={value => patchSpec({ pegBottom: { ...spec.pegBottom!, density: value === "corners" ? "corners" : Number(value) as 1 | 2 | 3 | 4 | 5 } })}>
+                  <SelectTrigger id="select-peg-density" className="h-8 flex-1" aria-label="Peg density"><SelectValue /></SelectTrigger>
+                  <SelectContent>{PEG_DENSITIES.map(density => <SelectItem key={density} value={String(density)}>{density === "corners" ? "Corners only" : density === 1 ? "Every hole" : `Every ${density} holes`}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>}
               {spec.pegBottom.underside === "bridged" && <p className="text-[11px] text-muted-foreground">Short bridges join the flared peg collars. Print a small fit check before a full fixture.</p>}
               {(["diameterMm", "lengthMm"] as const).map((key) => <div key={key} className="flex items-center justify-between gap-3">
                 <SettingLabel label={key === "diameterMm" ? "Peg diameter" : "Peg length"} htmlFor={`peg-bottom-${key}`}
@@ -1771,6 +1807,7 @@ export function BinControlsPanel({
                   size="sm"
                   className="w-full"
                   data-testid="button-choose-label-edge"
+                  disabled={!!spec.arbitrarySizeMm}
                   onClick={() => {
                     const editing = editorMode === "label-edge";
                     dispatch({ type: "SET_EDITOR_MODE", editorMode: editing ? "placement" : "label-edge" });
@@ -2038,16 +2075,10 @@ export function BinControlsPanel({
                     label="Position"
                     value={section.offsetMm}
                     min={
-                      -binFootprintMm(
-                        section.axis === "x" ? spec.gridX : spec.gridY,
-                        spec.gridPitch,
-                      ) / 2
+                      -(section.axis === "x" ? dims.widthMm : dims.lengthMm) / 2
                     }
                     max={
-                      binFootprintMm(
-                        section.axis === "x" ? spec.gridX : spec.gridY,
-                        spec.gridPitch,
-                      ) / 2
+                      (section.axis === "x" ? dims.widthMm : dims.lengthMm) / 2
                     }
                     step={0.5}
                     onChange={(offsetMm) => changeBinSection({ ...section, offsetMm })}

@@ -1,7 +1,7 @@
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { ManifoldToplevel, Mesh } from "manifold-3d";
 import { parseBinSpec } from "@shared/gridfinity/types";
-import { DEFAULT_PEG_BOTTOM, pegBottomExtensionMm, pegBottomRootHeightMm, ultim8PegCenters, ULTIM8_COLLAR_HEIGHT_MM, ULTIM8_ROOT_HEIGHT_MM } from "@shared/gridfinity/peg-bottom";
+import { DEFAULT_PEG_BOTTOM, pegBottomExtensionMm, pegBottomRootHeightMm, ultim8PegCenters, ULTIM8_COLLAR_HEIGHT_MM, ULTIM8_ROOT_HEIGHT_MM, selectUltim8PegCenters } from "@shared/gridfinity/peg-bottom";
 import { Arena } from "@/lib/manifold/arena";
 import { createKernel, loadManifold } from "@/lib/manifold/runtime";
 import { buildBinWithCutouts, binDimensionsMm, EXPORT_QUALITY, PREVIEW_QUALITY } from "./bin";
@@ -287,4 +287,34 @@ describe("support-free peg bottoms", () => {
     expect(() => buildBinWithCutouts(kernel, s, { shapesById: new Map([[pocket.shape.id, pocket.shape]]), cutouts: [pocket.cutout], fingerHoles: [] }, EXPORT_QUALITY)).toThrow(/long bridges/);
   });
 
+});
+
+it.each(["corners", 1, 2, 3, 4, 5] as const)("builds a connected flat backing at density %s and arbitrary exact dimensions", density => {
+  const kernel = createKernel(wasm, arena);
+  const s = spec({ arbitrarySizeMm: { width: 171.2, length: 29.7 }, heightUnits: 7.3 / 7, pegBottom: { ...DEFAULT_PEG_BOTTOM, underside: "flat", density, lengthMm: 3.5 } });
+  const result = buildBinWithCutouts(kernel, s, null, EXPORT_QUALITY);
+  expect(result.solid.status()).toBe("NoError");
+  const pieces = result.solid.decompose(); pieces.forEach(p => arena.track(p)); expect(pieces).toHaveLength(1);
+  const box = result.solid.boundingBox();
+  expect(box.max[0] - box.min[0]).toBeCloseTo(171.2, 6); expect(box.max[1] - box.min[1]).toBeCloseTo(29.7, 6);
+  expect(box.min[2]).toBeCloseTo(-3.5, 6); expect(box.max[2]).toBeCloseTo(7.3, 6);
+  const count = selectUltim8PegCenters(s, ultim8PegCenters(s)).length;
+  expect(arena.track(result.solid.slice(-1)).area()).toBeCloseTo(count * arena.track(kernel.CrossSection.circle(2.4, EXPORT_QUALITY.circularSegments)).area(), 5);
+});
+it("omits a through-overlapped corner shaft and replaces it with another corner anchor", () => {
+  const kernel = createKernel(wasm, arena);
+  const s = spec({ gridX: 16, gridY: 3, gridPitch: "quarter", heightUnits: 1, pegBottom: { ...DEFAULT_PEG_BOTTOM, underside: "flat", density: "corners", lengthMm: 3.5 } });
+  const pocket = createBasicPocket("circle", { x: 0, y: 0 }, { x: 2.5, y: 0 }, "corner-test")!;
+  const c = { ...pocket.cutout, position: { x: 80, y: 10 }, depth: { mode: "through" as const } };
+  const result = buildBinWithCutouts(kernel, s, { shapesById: new Map([[pocket.shape.id, pocket.shape]]), cutouts: [c], fingerHoles: [] }, EXPORT_QUALITY);
+  const shafts = arena.track(result.solid.slice(-1));
+  expect(shafts.area()).toBeCloseTo(4 * arena.track(kernel.CrossSection.circle(2.4, EXPORT_QUALITY.circularSegments)).area(), 5);
+  const excluded = arena.track(arena.track(kernel.CrossSection.circle(2.4, 64)).translate([80, 10]));
+  expect(arena.track(shafts.intersect(excluded)).area()).toBe(0);
+});
+it("builds a thin arbitrary flat backing at its requested height", () => {
+  const kernel = createKernel(wasm, arena);
+  const s = spec({ arbitrarySizeMm: { width: 20.2, length: 14.1 }, heightUnits: 2.4 / 7, pegBottom: null, flatBottom: true });
+  const result = buildBinWithCutouts(kernel, s, null, EXPORT_QUALITY);
+  expect(result.solid.boundingBox().max[2]).toBeCloseTo(2.4, 6);
 });

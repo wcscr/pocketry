@@ -725,3 +725,25 @@ statistics remain labeled as updating, and brief builds no longer flash a
 percentage indicator. Full detail and export mesh comparisons across 14 designs
 remain identical to the baseline. See `preview-performance.md` for evidence and
 remaining complex-fillet/section latency limitations.
+
+### Flexible jig prototypes
+
+ULTIM8 flat backing attaches straight pegs directly to the existing body, removing
+root height. Preview and Layout keep the installed coordinate frame; STL and all
+3MF colour/text parts rotate together to print pocket-side down, pegs up. Corners
+only and every 2–5 holes apply in both staggered lattice directions and retain
+corner anchors. Through openings omit whole intersected shafts before sparse
+anchor selection. Sparse choices require flat backing; changing to upright roots
+restores every-hole pegs. Pocket roofs, hollow interiors, lips and raised text can
+introduce bridges, overhangs or reduced bed contact in this orientation. Warnings
+do not block export; inspect the slice and print a small fit/strength test.
+
+Grid pitch → Arbitrary uses explicit outer width and length (10–671.5 mm) and
+body height (2–294 mm). It supports rectangular flat and ULTIM8 bases; bodies below
+7 mm turn off the stacking lip. Entering mm mode preserves size and pocket
+coordinates; grid pitches are available again only when dimensions exactly fit,
+so switching never silently snaps a design. Cell footprint editing and Gridfinity
+feet require returning to a grid. Layout, geometry, fit templates, placement,
+validation, undo and project exports share the exact dimensions. Arbitrary sizes
+stay fixed during automatic placement; Fit bin to contents resizes in millimetres.
+Schema 39 defaults older projects to their prior grid and full peg lattice.

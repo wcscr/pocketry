@@ -1,3 +1,4 @@
+import { binWidthMm, binLengthMm } from "./bin-size";
 import { hasSmoothBase } from "./peg-bottom";
 import { z } from "zod";
 import { hasPocketTilt, pocketAxis, pocketMouthBasis, rotatePocketVector } from "./pocket-orientation";
@@ -222,13 +223,13 @@ export const DEFAULT_TOP_EDGE_FILLET_MM = 1;
 export const DEFAULT_OBLONG_DEEP_SCOOP_LENGTH_MM = 36;
 export const MIN_OBLONG_DEEP_SCOOP_SPAN_MM = 2;
 
-type FingerAccessBinSpec = Pick<BinSpec, "gridX" | "gridY" | "gridPitch"> & FillHeightSpec;
+type FingerAccessBinSpec = Pick<BinSpec, "gridX" | "gridY" | "gridPitch"> & Partial<Pick<BinSpec, "arbitrarySizeMm">> & FillHeightSpec;
 
 function fingerAccessBinBounds(spec: FingerAccessBinSpec, hole: FingerHole) {
   const allowance = isElongatedFingerHole(hole) ? FINGER_ACCESS_BIN_ALLOWANCE : 1;
   return {
-    x: binFootprintMm(spec.gridX, spec.gridPitch) * allowance,
-    y: binFootprintMm(spec.gridY, spec.gridPitch) * allowance,
+    x: binWidthMm(spec) * allowance,
+    y: binLengthMm(spec) * allowance,
   };
 }
 
@@ -1182,13 +1183,13 @@ export interface BinInterior {
 }
 
 type GridFootprintSpec = Pick<BinSpec, "gridX" | "gridY"> &
-  Partial<Pick<BinSpec, "gridPitch">> & { footprint?: BinFootprint };
+  Partial<Pick<BinSpec, "gridPitch" | "arbitrarySizeMm">> & { footprint?: BinFootprint };
 
 /** The cavity footprint the pockets must stay inside. */
 export function binInteriorMm(spec: GridFootprintSpec): BinInterior {
   return {
-    widthMm: binFootprintMm(spec.gridX, spec.gridPitch) - 2 * D_WALL,
-    lengthMm: binFootprintMm(spec.gridY, spec.gridPitch) - 2 * D_WALL,
+    widthMm: binWidthMm(spec) - 2 * D_WALL,
+    lengthMm: binLengthMm(spec) - 2 * D_WALL,
     cornerRadiusMm: R_F2,
   };
 }
@@ -1228,8 +1229,8 @@ export function binToCanvas(
   spec: GridFootprintSpec,
 ): Point {
   return {
-    x: point.x + binFootprintMm(spec.gridX, spec.gridPitch) / 2,
-    y: binFootprintMm(spec.gridY, spec.gridPitch) / 2 - point.y,
+    x: point.x + binWidthMm(spec) / 2,
+    y: binLengthMm(spec) / 2 - point.y,
   };
 }
 
@@ -1239,8 +1240,8 @@ export function canvasToBin(
   spec: GridFootprintSpec,
 ): Point {
   return {
-    x: point.x - binFootprintMm(spec.gridX, spec.gridPitch) / 2,
-    y: binFootprintMm(spec.gridY, spec.gridPitch) / 2 - point.y,
+    x: point.x - binWidthMm(spec) / 2,
+    y: binLengthMm(spec) / 2 - point.y,
   };
 }
 

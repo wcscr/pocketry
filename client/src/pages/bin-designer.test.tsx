@@ -1596,7 +1596,7 @@ describe("BinDesignerPage", () => {
     expect(container.textContent).toContain("Outer size");
     expect(container.querySelector('[data-testid="project-status"] [role="status"]')!.textContent).toBe("Draft — saving locally…");
     for (const [name, explanation] of [
-      ["grid pitch", "Pitch changes preserve the outer size"],
+      ["grid pitch", "Grid pitches preserve the outer size"],
       ["width", "Snaps to 21 mm grid increments"],
       ["length", "Snaps to 21 mm grid increments"],
       ["keep bin size fixed", "Adding tools keeps these dimensions"],
@@ -2511,7 +2511,7 @@ describe("BinDesignerPage", () => {
       React.act(() => magnet()!.click());
       choose("ULTIM8 jig pegs");
       expect(magnet()).toBeNull();
-      expect(vi.mocked(useBinGeometry).mock.lastCall?.[0].pegBottom).toEqual({ diameterMm: 4.8, lengthMm: 4, underside: "sloped" });
+      expect(vi.mocked(useBinGeometry).mock.lastCall?.[0].pegBottom).toEqual({ diameterMm: 4.8, lengthMm: 4, underside: "sloped", density: 1 });
       const input = () => container.querySelector<HTMLInputElement>('[aria-label="Peg diameter in millimetres"]')!;
       React.act(() => {
         input().focus();
@@ -2537,6 +2537,38 @@ describe("BinDesignerPage", () => {
     } finally { unmount(); }
   });
 
+  it.each(["standard", "workflow"] as const)("edits arbitrary millimetre sizes and sparse pegs with undo in the %s layout", async layoutMode => {
+    const original = parseBinSpec({ gridX: 16, gridY: 3, gridPitch: "quarter", heightUnits: 1, lip: "none", pegBottom: { underside: "flat", lengthMm: 3.5 } });
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, spec: original });
+    if (layoutMode === "workflow") localStorage.setItem("pocketry.layout-mode", "workflow");
+    const { container, unmount } = renderPage(); await flushHydration();
+    const choose = (selector: string, label: string) => {
+      const trigger = container.querySelector<HTMLButtonElement>(selector)!;
+      React.act(() => trigger.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true })));
+      React.act(() => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(o => o.textContent === label)!.click());
+    };
+    const enter = (label: string, value: string) => {
+      const input = container.querySelector<HTMLInputElement>(`[aria-label="${label}"]`)!;
+      React.act(() => { input.focus(); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value); input.dispatchEvent(new Event("input", { bubbles: true })); });
+      React.act(() => input.blur());
+    };
+    try {
+      openSettingsSection(container, "size");
+      choose('[data-testid="select-grid-pitch"]', "Arbitrary");
+      const current = () => vi.mocked(useBinGeometry).mock.lastCall![0];
+      expect(current().arbitrarySizeMm).toEqual({ width: 167.5, length: 31 });
+      enter("Bin width in millimetres", "171.2"); enter("Bin length in millimetres", "29.7"); enter("Bin height in millimetres", "7.3");
+      expect(current().arbitrarySizeMm).toEqual({ width: 171.2, length: 29.7 }); expect(current().heightUnits * 7).toBeCloseTo(7.3);
+      expect(container.querySelector<HTMLButtonElement>('[data-testid="button-edit-footprint"]')!.disabled).toBe(true);
+      openSettingsSection(container, "construction");
+      choose('[aria-label="Peg density"]', "Corners only"); expect(current().pegBottom!.density).toBe("corners");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+      expect(current().pegBottom!.density).toBe(1);
+      choose('[aria-label="Peg density"]', "Every 3 holes"); expect(current().pegBottom!.density).toBe(3);
+      choose('[aria-label="Peg underside"]', "Sloped roots"); expect(current().pegBottom!.density).toBe(1);
+    } finally { unmount(); }
+  });
+
   it("switches a custom bin across full, half and quarter pitches without moving its split pocket", async () => {
     const shape = rectangularShape("tool", "Cutter");
     const cutout = parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: -20, y: -20 },
@@ -2552,7 +2584,7 @@ describe("BinDesignerPage", () => {
       for (const [label, count] of [["Half · 21 mm", 12], ["Quarter · 10.5 mm", 48], ["Full · 42 mm", 3]] as const) {
         React.act(() => trigger.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true })));
         const options = [...document.querySelectorAll<HTMLElement>('[role="option"]')];
-        expect(options.every(option => option.getAttribute("aria-disabled") !== "true")).toBe(true);
+        expect(options.filter(option => !option.textContent?.startsWith("Arbitrary")).every(option => option.getAttribute("aria-disabled") !== "true")).toBe(true);
         React.act(() => options.find(option => option.textContent === label)!.click());
         const [spec, , layout] = vi.mocked(useBinGeometry).mock.lastCall!;
         expect(occupiedCellCount(spec)).toBe(count);

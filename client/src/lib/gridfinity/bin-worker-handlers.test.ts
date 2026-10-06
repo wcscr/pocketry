@@ -1,3 +1,4 @@
+import { validateLayout } from "@shared/gridfinity/validate";
 import { describe, expect, it, vi } from "vitest";
 import { strFromU8, unzipSync } from "fflate";
 
@@ -1226,3 +1227,37 @@ it("exports overlapping upright finite Through pockets as one surface opening", 
     expect(nonManifoldEdgeCount(combined.mesh)).toBe(0);
   }
 }, 15_000);
+
+it("flips every coloured export part together for pegs-up printing while preserving editing coordinates", async () => {
+  const spec = parseBinSpec({ gridX: 16, gridY: 3, gridPitch: "quarter", heightUnits: 1, lip: "none", pegBottom: { underside: "flat", density: "corners", lengthMm: 3.5 } });
+  const pocket = createBasicPocket("rectangle", { x: -10, y: -4 }, { x: 10, y: 4 }, "export-test")!;
+  const cutout = { ...pocket.cutout, position: { x: 42, y: 3 }, depth: { mode: "mm" as const, value: 4 }, topFilletMm: 0 };
+  const request = { spec, quality: EXPORT_QUALITY, layout: { shapes: [pocket.shape], cutouts: [cutout], fingerHoles: [] }, pocketFloorMaterialThicknessMm: 0.6, stackingRimMaterialThicknessMm: 0.6, borderWidthMm: 1.2 };
+  const handler = getHandler();
+  const preview = (await handler({ ...request, exportTopology: false }, context())).value;
+  const exported = (await handler({ ...request, exportTopology: true }, context())).value;
+  const zs = (mesh: BuildBinResult["mesh"]) => Array.from(mesh.positions).filter((_, i) => i % 3 === 2);
+  expect(Math.min(...zs(preview.mesh))).toBeCloseTo(-3.5, 5);
+  expect(Math.min(...zs(exported.mesh))).toBe(0); expect(Math.max(...zs(exported.mesh))).toBeCloseTo(10.5, 5);
+  expect(nonManifoldEdgeCount(exported.mesh)).toBe(0);
+  expect(exported.materialMeshes).toBeDefined();
+  for (const [name, part] of Object.entries(exported.materialMeshes!)) {
+    expect(nonManifoldEdgeCount(part), name).toBe(0);
+    expect(Math.min(...zs(part))).toBeGreaterThanOrEqual(0);
+    expect(Math.max(...zs(part))).toBeLessThanOrEqual(10.5);
+  }
+  expect(validateLayout(spec, [cutout], new Map([[pocket.shape.id, pocket.shape]])).some(i => i.code === "pegs-up-pocket-roof" && i.severity === "warning")).toBe(true);
+});
+
+it("keeps floor and border colour volumes inside a thin arbitrary body", async () => {
+  const spec = parseBinSpec({ gridX: 1, gridY: 1, arbitrarySizeMm: { width: 23.7, length: 17.8 }, heightUnits: 2.4 / 7, lip: "none", fill: "none", flatBottom: true });
+  const result = (await getHandler()({ spec, quality: EXPORT_QUALITY, exportTopology: true, pocketFloorMaterialThicknessMm: 0.6, stackingRimMaterialThicknessMm: 0.6, borderWidthMm: 1.2 }, context())).value;
+  expect(result.materialMeshes!.pocketFloors).toBeDefined();
+  const floorTop = Math.max(...Array.from(result.materialMeshes!.pocketFloors!.positions).filter((_, i) => i % 3 === 2));
+  expect(floorTop).toBeCloseTo(2.4, 5);
+  for (const part of Object.values(result.materialMeshes!)) {
+    expect(nonManifoldEdgeCount(part)).toBe(0);
+    const zs = Array.from(part.positions).filter((_, i) => i % 3 === 2);
+    expect(Math.min(...zs)).toBeGreaterThanOrEqual(0); expect(Math.max(...zs)).toBeLessThanOrEqual(2.4 + 1e-6);
+  }
+});

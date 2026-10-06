@@ -3,7 +3,7 @@ import { parseBinSpec } from "./types";
 import { defaultPocketFloorThicknessMm } from "./cutout";
 import { changeBinGridPitchPreservingSize } from "./grid-pitch";
 import { footprintOuterRingMm, signedDistanceToFootprintRing } from "./footprint";
-import { DEFAULT_PEG_BOTTOM, ultim8PegCenters, pegBottomExtensionMm, pegBridgeSpanMm } from "./peg-bottom";
+import { DEFAULT_PEG_BOTTOM, ultim8PegCenters, pegBottomExtensionMm, pegBridgeSpanMm, selectUltim8PegCenters } from "./peg-bottom";
 import { parseProjectDoc, PROJECT_SCHEMA_VERSION, serializeProjectDoc } from "./project";
 
 const bin = (patch: Record<string, unknown> = {}) => parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 3, pegBottom: DEFAULT_PEG_BOTTOM, ...patch });
@@ -66,4 +66,25 @@ describe("ULTIM8 peg specification", () => {
     expect(migrated.spec.pegBottom).toBeNull();
     expect(migrated.history!.stack[0].doc.spec.pegBottom).toBeNull();
   });
+});
+
+it.each(["corners", 1, 2, 3, 4, 5] as const)("selects sparse %s pegs from fitting holes without raising the backing", density => {
+  const spec = bin({ gridX: 16, gridY: 3, gridPitch: "quarter", pegBottom: { ...DEFAULT_PEG_BOTTOM, underside: "flat", lengthMm: 3.5, density } });
+  const full = ultim8PegCenters(spec), selected = selectUltim8PegCenters(spec, full);
+  expect(pegBottomExtensionMm(spec)).toBe(3.5);
+  if (density === "corners") expect(selected).toHaveLength(4);
+  else if (density === 1) expect(selected).toEqual(full);
+  else {
+    expect(selected.length).toBeLessThan(full.length);
+    const anchors = selectUltim8PegCenters(bin({ ...spec, pegBottom: { ...spec.pegBottom!, density: "corners" } }), full);
+    for (const point of selected.filter(p => !anchors.includes(p))) {
+      const row = point.y / 5, column = (point.x - Math.abs(row % 2) * 5) / 10;
+      expect(Math.abs(row % density)).toBe(0); expect(Math.abs(column % density)).toBe(0);
+    }
+  }
+  const omitted = selected[0];
+  const available = full.filter(p => p !== omitted);
+  const replacement = selectUltim8PegCenters(spec, available);
+  expect(replacement).not.toContain(omitted);
+  if (density === "corners") expect(replacement).toHaveLength(4);
 });

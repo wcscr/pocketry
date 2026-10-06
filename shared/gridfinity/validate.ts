@@ -1,3 +1,4 @@
+import { binWidthMm, binLengthMm } from "./bin-size";
 import { hasSmoothBase, ultim8PegCenters } from "./peg-bottom";
 import { hasPocketTilt, pocketAxis } from "./pocket-orientation";
 import { hasRigidPocket } from "./rigid-pocket";
@@ -131,6 +132,10 @@ const FOOTPRINT_WARN_MM = 260;
 export function validateBinSpec(spec: BinSpec): ValidationResult {
   const issues: ValidationIssue[] = [];
   const wallHeight = binWallHeightMm(spec.heightUnits);
+  const heightLabel = spec.arbitrarySizeMm ? `${binHeightMm(spec.heightUnits).toFixed(1)} mm` : `${spec.heightUnits}u`;
+  if (spec.pegBottom?.underside === "flat" && (spec.fill === "none" || spec.lip === "standard" || spec.labelTab || spec.surfaceTexts.length)) {
+    issues.push({ code: "pegs-up-overhang", severity: "warning", message: "Pegs-up printing places the top face on the bed. The cavity, lip, label tab or raised text can leave bridges or reduce bed contact. Inspect overhangs and first-layer contact in your slicer." });
+  }
   if (spec.pegBottom && ultim8PegCenters(spec).length === 0) {
     issues.push({ code: "no-ultim8-pegs", severity: "error",
       message: "This footprint has no room for ULTIM8 pegs. Enlarge it or choose another bottom." });
@@ -141,7 +146,7 @@ export function validateBinSpec(spec: BinSpec): ValidationResult {
       code: "lip-support-clipped",
       severity: "warning",
       message:
-        `A ${spec.heightUnits}u bin leaves only ${wallHeight.toFixed(1)} mm of wall; ` +
+        `A ${heightLabel} bin leaves only ${wallHeight.toFixed(1)} mm of wall; ` +
         `the stacking lip's ${STACKING_LIP_SUPPORT_HEIGHT_MM} mm support is clipped ` +
         `and the lip will be weaker than the spec intends.`,
     });
@@ -149,12 +154,12 @@ export function validateBinSpec(spec: BinSpec): ValidationResult {
 
   if (spec.fill === "solid") {
     const fillHeight = infillHeightMm(spec);
-    if (fillHeight <= 0) {
+    if (fillHeight <= 0 && !spec.arbitrarySizeMm) {
       issues.push({
         code: "no-infill-space",
         severity: "warning",
         message:
-          `A ${spec.heightUnits}u bin has no room above the ${BASE_HEIGHT} mm base ` +
+          `A ${heightLabel} bin has no room above the ${BASE_HEIGHT} mm base ` +
           `for solid fill; the bin will build as if fill were "none".`,
       });
     }
@@ -164,15 +169,14 @@ export function validateBinSpec(spec: BinSpec): ValidationResult {
     ["x", spec.gridX],
     ["y", spec.gridY],
   ] as const) {
-    const span = binFootprintMm(cells, spec.gridPitch);
+    const span = axis === "x" ? binWidthMm(spec) : binLengthMm(spec);
     const pitchMm = gridPitchMm(spec.gridPitch);
     if (span > FOOTPRINT_WARN_MM) {
       issues.push({
         code: "large-footprint",
         severity: "warning",
         message:
-          `${cells} ${spec.gridPitch}-pitch cells along ${axis} is ${span.toFixed(1)} mm ` +
-          `(${cells} × ${pitchMm} − gap) — check it fits the print bed.`,
+          spec.arbitrarySizeMm ? `${span.toFixed(1)} mm along ${axis} — check it fits the print bed.` : `${cells} ${spec.gridPitch}-pitch cells along ${axis} is ${span.toFixed(1)} mm (${cells} × ${pitchMm} − gap) — check it fits the print bed.`,
       });
     }
   }
@@ -194,7 +198,7 @@ export function validateBinSpec(spec: BinSpec): ValidationResult {
       code: "label-tab-clipped",
       severity: "warning",
       message:
-        `A ${spec.heightUnits}u bin is shorter than the ${TAB_HEIGHT_MM.toFixed(1)} mm ` +
+        `A ${heightLabel} bin is shorter than the ${TAB_HEIGHT_MM.toFixed(1)} mm ` +
         `label tab — the tab reaches down into the base and will look truncated.`,
     });
   }
@@ -301,6 +305,9 @@ export function validateLayout(
 ): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   if (cutouts.length === 0 && fingerHoles.length === 0) return issues;
+  if (spec.pegBottom?.underside === "flat" && (fingerHoles.length > 0 || cutouts.some(c => pocketDepths(c).some(d => d.mode !== "through") || hasRigidPocket(c) || hasPocketTilt(c)))) {
+    issues.push({ code: "pegs-up-pocket-roof", severity: "warning", message: "With pegs up, blind pockets and finger access print as pocket roofs. Bridge across the shortest span and inspect pocket overhangs in your slicer; some pocket shapes may need supports." });
+  }
 
   if (spec.fill !== "solid") {
     issues.push({
@@ -420,8 +427,8 @@ function validateAgainstBin(spec: BinSpec, p: PlacedCutout): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   const { cutout, label } = p;
 
-  const halfW = binFootprintMm(spec.gridX, spec.gridPitch) / 2;
-  const halfL = binFootprintMm(spec.gridY, spec.gridPitch) / 2;
+  const halfW = binWidthMm(spec) / 2;
+  const halfL = binLengthMm(spec) / 2;
   const outerBoundary = spec.footprint.kind === "custom" ? footprintOuterRingMm(spec) : null;
   const outside = outerBoundary
     ? p.rings.some((ring) => !ringInsideBoundary(ring, outerBoundary))
@@ -583,8 +590,8 @@ function validateFingerHoleAgainstBin(
   if (!bounds) return issues;
   const topAllowanceMm = hole.topFilletMm;
 
-  const halfW = binFootprintMm(spec.gridX, spec.gridPitch) / 2;
-  const halfL = binFootprintMm(spec.gridY, spec.gridPitch) / 2;
+  const halfW = binWidthMm(spec) / 2;
+  const halfL = binLengthMm(spec) / 2;
   const outerBoundary =
     spec.footprint.kind === "custom" ? footprintOuterRingMm(spec) : null;
   const outside = outerBoundary

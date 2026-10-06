@@ -1,3 +1,4 @@
+import { binWidthMm, binLengthMm } from "@shared/gridfinity/bin-size";
 import { hasRigidPocket, rigidPocketFootprint } from "@shared/gridfinity/rigid-pocket";
 import { resolvedPocketGeometry } from "@/lib/gridfinity/pocket-geometry";
 import {
@@ -10,7 +11,7 @@ import {
   type FingerHole,
   type TracedShape,
 } from "@shared/gridfinity/cutout";
-import { binFootprintMm, BASE_TOP_RADIUS } from "@shared/gridfinity/standard";
+import { BASE_TOP_RADIUS } from "@shared/gridfinity/standard";
 import type { BinSpec } from "@shared/gridfinity/types";
 import { isValidRing } from "@shared/geometry/rings";
 import type { Point, Ring } from "@shared/geometry/types";
@@ -48,8 +49,8 @@ export function layoutRingsMm(
     spec.footprint.kind === "custom"
       ? footprintOuterRingMm(spec, CIRCLE_SEGMENTS)
       : roundedRectRing(
-          binFootprintMm(spec.gridX, spec.gridPitch),
-          binFootprintMm(spec.gridY, spec.gridPitch),
+          binWidthMm(spec),
+          binLengthMm(spec),
           BASE_TOP_RADIUS,
         ),
   ];
@@ -133,8 +134,8 @@ export async function generateLayoutSVG(
   shapesById: ReadonlyMap<string, TracedShape>,
   fingerHoles: readonly FingerHole[] = [],
 ): Promise<string> {
-  const widthMm = binFootprintMm(spec.gridX, spec.gridPitch);
-  const lengthMm = binFootprintMm(spec.gridY, spec.gridPitch);
+  const widthMm = binWidthMm(spec);
+  const lengthMm = binLengthMm(spec);
   const rings = await exportLayoutRings(spec, cutouts, shapesById, fingerHoles);
 
   const toView = (point: Point): Point => ({

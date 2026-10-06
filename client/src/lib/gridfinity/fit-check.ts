@@ -1,3 +1,4 @@
+import { binWidthMm, binLengthMm } from "@shared/gridfinity/bin-size";
 import type { CrossSection, Manifold } from "manifold-3d";
 
 import {
@@ -178,8 +179,8 @@ export function buildSurfaceFitCheckSolid(
       : arena.track(
           new CrossSection([
             roundedRectPolygon(
-              binFootprintMm(spec.gridX, spec.gridPitch),
-              binFootprintMm(spec.gridY, spec.gridPitch),
+              binWidthMm(spec),
+              binLengthMm(spec),
               BASE_TOP_RADIUS,
               segments,
             ),

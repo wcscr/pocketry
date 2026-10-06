@@ -68,9 +68,10 @@ export { serializeProjectDoc } from "./project-font-sources";
  * Version 36 adds ULTIM8 peg bottoms; older projects keep their base.
  * Version 37 previewed optional peg density.
  * Version 38 restores every-hole pegs and repairs unraised surface-through pockets.
+ * Version 39 adds pegs-up flat backing, sparse pegs and arbitrary millimetre sizes.
  */
 
-export const PROJECT_SCHEMA_VERSION = 38 as const;
+export const PROJECT_SCHEMA_VERSION = 39 as const;
 
 const projectFields = {
   shapes: z.array(tracedShapeSchema),
@@ -335,12 +336,12 @@ export function parseProjectDoc(input: unknown): ProjectDoc | null {
     input = expandProjectFontSources(input);
   }
   if (input && typeof input === "object" && !Array.isArray(input)
-      && [26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37].includes((input as Record<string, unknown>).schemaVersion as number)) {
+      && [26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38].includes((input as Record<string, unknown>).schemaVersion as number)) {
     // Strict current schemas still reject unsupported data from version-27 prototypes.
     const legacy = input as Record<string, unknown>;
     const cleaned = legacy.schemaVersion === 37 ? removePreviewPegDensity(legacy) : legacy;
     const migrated = parseProjectDoc({ ...cleaned, schemaVersion: PROJECT_SCHEMA_VERSION });
-    return migrated && (legacy.schemaVersion as number) >= 35 ? restoreLegacySurfaceThrough(migrated) : migrated;
+    return migrated && (legacy.schemaVersion as number) >= 35 && (legacy.schemaVersion as number) <= 37 ? restoreLegacySurfaceThrough(migrated) : migrated;
   }
   const result = projectDocSchema.safeParse(input);
   if (result.success) {

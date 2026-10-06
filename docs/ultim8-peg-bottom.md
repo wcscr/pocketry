@@ -3,7 +3,7 @@
 In Bin → Construction → Bottom, choose **ULTIM8 jig pegs**. This replaces
 Gridfinity feet and hides their magnet/screw controls while retaining those
 preferences for switching back. Peg settings travel with projects and undo history.
-Pegs occupy every fitting mat hole; the density preview has been removed. Saved
+Upright sloped and bridged modes use every fitting mat hole. Saved
 preview projects return to the full lattice without losing their other settings.
 
 The reference is Wham Bam’s ULTIM8 mat for eufyMake E1:
@@ -69,3 +69,25 @@ Intersecting pockets combine their cuts in the printable bin. Three-dimensional
 intersections are warnings, including tilted or submerged pockets, and do not
 block export. Combining several editable pockets into one named pocket object
 is future work.
+
+## Flat backing prototype
+
+Choose **Flat backing · pegs up** to attach pegs directly to the flat underside,
+removing all root height. STL and 3MF exports are oriented pocket-side down with
+pegs up; all colour and text parts rotate together. The installed 3D view and
+Layout retain the editable coordinates. Choose **Corners only**, **Every hole**,
+or **Every 2, 3, 4, or 5 holes**. Spacing applies to both lattice directions,
+with nearest fitting corner anchors retained. Through pockets remove whole
+intersecting shafts before selection, so corner anchors can move to the next
+available hole. Sparse pegs do not grow taller roots. Upright modes restore the
+full lattice. Peg fit and sparse-jig stiffness need a physical test print.
+
+Blind pockets and finger access become roofs when printed this way. Warnings
+prompt inspection of pocket overhangs and short-span bridge direction in the
+slicer. Hollow bins, lips, tabs and raised text also need first-layer/bridge
+inspection. A successful support-free slice does not qualify print quality.
+
+**Grid pitch → Arbitrary** sets exact outer width, length and body height in
+millimetres with flat or ULTIM8 bottoms. Switching preserves the existing size.
+Body heights may go down to 2 mm; below 7 mm the stacking lip is off. Returning
+to a grid requires exactly matching grid dimensions and height increments.

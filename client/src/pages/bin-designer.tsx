@@ -339,7 +339,7 @@ function BinDesignerWorkspace(): JSX.Element {
 
     const shapesById = new Map(library.shapes.map((shape) => [shape.id, shape]));
     const result =
-      cutouts.length === 0 && !keepBinSize
+      cutouts.length === 0 && !keepBinSize && !spec.arbitrarySizeMm
         ? autoPlaceFresh(newShapes, spec.lip, spec.gridPitch)
         : autoPlaceIncremental(newShapes, {
             spec,
@@ -498,8 +498,8 @@ function BinDesignerWorkspace(): JSX.Element {
       spec.lip,
       spec.gridPitch,
       fingerHoles,
-      undefined,
-      keepBinSize ? spec : undefined,
+      spec,
+      (keepBinSize || spec.arbitrarySizeMm) ? spec : undefined,
     );
     if (!result) return;
     dispatch({

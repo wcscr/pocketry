@@ -577,3 +577,16 @@ describe("autoArrangeLayout", () => {
     expect(autoArrangeLayout(fresh.cutouts, new Map(), "standard")).toBeNull();
   });
 });
+
+it("packs new pockets and arranges inside actual arbitrary bounds even with a much smaller retained grid", () => {
+  const spec = parseBinSpec({ gridX: 1, gridY: 1, gridPitch: "quarter", heightUnits: 2, lip: "none", flatBottom: true, arbitrarySizeMm: { width: 123.2, length: 37.8 } });
+  const shape = rectShape("wide", 90, 15);
+  const byId = new Map([[shape.id, shape]]);
+  const placed = autoPlaceIncremental([shape], { spec, gridX: 1, gridY: 1, gridPitch: "quarter", lip: "none", existing: [], shapesById: byId });
+  expect(placed.overflow).toBe(false); expect(placed.gridX).toBe(1); expect(placed.gridY).toBe(1);
+  const arranged = autoArrangeLayout(placed.cutouts, byId, spec.lip, spec.gridPitch, [], spec, spec)!;
+  expect(arranged.overflow).toBe(false);
+  const fitted = fitRectangularBinToPlacements(placed.cutouts, byId, spec);
+  expect(fitted.specPatch!.arbitrarySizeMm!.width).toBeGreaterThan(90);
+  expect(fitted.specPatch!.arbitrarySizeMm!.width).toBeLessThan(110);
+});
