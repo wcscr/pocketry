@@ -22,6 +22,7 @@ export interface CadJobClient extends WorkerClient {
 export function createCadJobClient(spawn:()=>MessageEndpoint, timeoutMs=180_000):CadJobClient {
   let endpoint:MessageEndpoint|undefined,active:Job|undefined,timer:ReturnType<typeof setTimeout>|undefined,id=0,jobs=0;
   const queue:Job[]=[];
+  let jobStarted=0,modeling=false;
   const destroy=()=>{
     if(endpoint){endpoint.removeEventListener("message",message);endpoint.removeEventListener("error",failure);endpoint.removeEventListener("messageerror",failure);endpoint.terminate?.();}
     endpoint=undefined;jobs=0;
@@ -34,13 +35,21 @@ export function createCadJobClient(spawn:()=>MessageEndpoint, timeoutMs=180_000)
   };
   const message=(event:Event)=>{
     const reply=(event as MessageEvent).data as Reply;if(reply.id!==active?.id)return;
-    if(reply.kind==="phase"){active.options.onPhase?.(reply.phase);active.options.onProgress?.(0.5);}
+    if(reply.kind==="phase"){
+      const remaining=timeoutMs-(Date.now()-jobStarted);
+      if(!modeling&&reply.phase==="Building bin blank"){
+        modeling=true;clearTimeout(timer);timer=setTimeout(()=>finish(new Error("CAD modeling exceeded 120 seconds; the worker was stopped.")),Math.min(120_000,remaining));
+      }else if(modeling&&(reply.phase.startsWith("Writing finished")||reply.phase==="Tessellating CAD boundary surfaces")){
+        modeling=false;clearTimeout(timer);timer=setTimeout(()=>finish(new Error("The CAD job exceeded its time limit.")),Math.max(1,remaining));
+      }
+      active.options.onPhase?.(reply.phase);active.options.onProgress?.(0.5);
+    }
     else if(reply.kind==="error")finish(deserializeError(reply.error));
     else finish(undefined,reply.value,reply.recycle);
   };
   const failure=()=>finish(new Error("The CAD worker stopped unexpectedly. The project is safe; try the operation again."));
   const drain=()=>{
-    if(active||!queue.length)return;active=queue.shift()!;
+    if(active||!queue.length)return;active=queue.shift()!;jobStarted=Date.now();modeling=false;
     try{
       if(!endpoint){endpoint=spawn();endpoint.addEventListener("message",message);endpoint.addEventListener("error",failure);endpoint.addEventListener("messageerror",failure);}
       timer=setTimeout(()=>finish(new Error("The CAD job exceeded its time limit. Try fewer objects or a smaller design.")),timeoutMs);

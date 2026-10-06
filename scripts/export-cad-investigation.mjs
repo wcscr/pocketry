@@ -7,7 +7,6 @@ import { performance } from "node:perf_hooks";
 import { createServer } from "vite";
 import { unzipSync } from "fflate";
 import initCad from "replicad-opencascadejs";
-import initManifold from "manifold-3d";
 
 const output=resolve(process.argv[2]??"outputs/cad-investigation"),approach=process.argv[3]??"dedicated";
 mkdirSync(output,{recursive:true});
@@ -16,14 +15,18 @@ try{
   const {cadInvestigationFixtures}=await server.ssrLoadModule(resolve("client/src/lib/cad/fixtures.ts"));
   const {exportStepPackage}=await server.ssrLoadModule(resolve("client/src/lib/cad/package.ts"));
   const {buildCadBinMesh}=await server.ssrLoadModule(resolve("client/src/lib/cad/mesh-build.ts"));
-  const {createBinWorkerHandlers}=await server.ssrLoadModule(resolve("client/src/lib/gridfinity/bin-worker-handlers.ts"));
   const {EXPORT_QUALITY,PREVIEW_QUALITY}=await server.ssrLoadModule(resolve("client/src/lib/gridfinity/bin.ts"));
   const {writeBinarySTL}=await server.ssrLoadModule(resolve("client/src/lib/export/stl-writer.ts"));
   const {writeThreeMf}=await server.ssrLoadModule(resolve("client/src/lib/mesh/threemf.ts"));
   const createRuntime=()=>initCad({locateFile:()=>require.resolve("replicad-opencascadejs/wasm"),print:()=>{},printErr:()=>{}});
   const cold=performance.now();let oc=await createRuntime();const cadLoadMs=performance.now()-cold;
-  const manifoldCold=performance.now();const manifold=await initManifold({locateFile:()=>require.resolve("manifold-3d/manifold.wasm")});manifold.setup();
-  const manifoldLoadMs=performance.now()-manifoldCold,handlers=createBinWorkerHandlers(async()=>manifold);
+  let manifoldLoadMs=null,handlers;
+  if(approach==="dedicated"){
+    const {default:initManifold}=await import("manifold-3d");
+    const {createBinWorkerHandlers}=await server.ssrLoadModule(resolve("client/src/lib/gridfinity/bin-worker-handlers.ts"));
+    const manifoldCold=performance.now(),manifold=await initManifold({locateFile:()=>require.resolve("manifold-3d/manifold.wasm")});manifold.setup();
+    manifoldLoadMs=performance.now()-manifoldCold;handlers=createBinWorkerHandlers(async()=>manifold);
+  }
   const fixtures=cadInvestigationFixtures(),results=[];
   const build=async(request)=>approach==="unified"?buildCadBinMesh(request,oc):
     (await handlers.buildBin(request,{signal:new AbortController().signal,progress:()=>{}})).value;
@@ -48,7 +51,7 @@ try{
     const threeMf=writeThreeMf(objects,{title:`CAD investigation ${name}`,assemble:true});writeFileSync(join(directory,"bin.3mf"),threeMf);
     let meshVolume=0;const {positions:p,indices:t}=print.mesh;
     for(let i=0;i<t.length;i+=3){const a=t[i]*3,b=t[i+1]*3,c=t[i+2]*3;meshVolume+=(p[a]*(p[b+1]*p[c+2]-p[b+2]*p[c+1])+p[a+1]*(p[b+2]*p[c]-p[b]*p[c+2])+p[a+2]*(p[b]*p[c+1]-p[b+1]*p[c]))/6;}
-    results.push({name,approach,stepMs,previewMs,warmPreviewMs,printMs,cadVolumeMm3:cad.report.objects[0].volumeMm3,
+    results.push({name,approach,stepMs,previewMs,warmPreviewMs,printMs,blankVolumeMm3:cad.report.objects[0].volumeMm3,
       finishedCadSolidCount:cad.report.solidCounts.bin,printVolumeMm3:print.stats.volumeMm3,meshVolumeMm3:meshVolume,
       stepReport:cad.report,triangles:print.stats.triangles,meshBytes:stl.byteLength,threeMfBytes:threeMf.length,processMemory:process.memoryUsage()});
     console.log(`${name}: STEP ${stepMs.toFixed(0)} ms; preview ${previewMs.toFixed(0)} ms; print ${printMs.toFixed(0)} ms`);

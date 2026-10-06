@@ -20,6 +20,7 @@ export class CadContext {
   peakMemoryBytes = 0;
   maxNativeToleranceMm = 0;
   maxTopologyOccurrences = 0;
+  authoredProfileSegments = 0;
   constructor(readonly oc: OpenCascadeInstance, readonly checkpoint: (operation: string) => void = () => {}) {}
   own<T extends { delete(): void }>(value: T): T { return this.currentArena.own(value); }
   /** Release algorithm workspaces immediately; only a returned shape survives. */
