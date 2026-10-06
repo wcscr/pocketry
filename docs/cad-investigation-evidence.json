@@ -1,0 +1,1671 @@
+{
+  "date": "2026-10-06",
+  "stage": "experimental-investigations-review",
+  "engine": "replicad-opencascadejs@1.1.0 / OCCT 8.0.1",
+  "benchmarkGeometryCommits": {
+    "dedicated": "d31ee01",
+    "unified": "27684db"
+  },
+  "finalImplementationCommits": {
+    "dedicated": "178384f",
+    "unified": "e9c1eca"
+  },
+  "benchmarks": {
+    "dedicated": {
+      "node": "v22.23.3",
+      "platform": "darwin",
+      "cadLocalFileLoadMs": 77.00279100000006,
+      "manifoldLocalFileLoadMs": 5.033166000000051,
+      "results": [
+        {
+          "name": "standard-solid",
+          "stepMs": 694.796792,
+          "previewMs": 28.651624999999967,
+          "warmPreviewMs": 16.551584000000048,
+          "printMs": 48.75633300000004,
+          "triangles": 4886,
+          "meshBytes": 244384,
+          "threeMfBytes": 54755
+        },
+        {
+          "name": "standard-hollow",
+          "stepMs": 597.5156250000002,
+          "previewMs": 13.168500000000222,
+          "warmPreviewMs": 12.538082999999915,
+          "printMs": 38.707082999999784,
+          "triangles": 5796,
+          "meshBytes": 289884,
+          "threeMfBytes": 67328
+        },
+        {
+          "name": "mixed",
+          "stepMs": 1472.8177920000003,
+          "previewMs": 41.75245799999993,
+          "warmPreviewMs": 39.81608300000016,
+          "printMs": 182.25962500000014,
+          "triangles": 21012,
+          "meshBytes": 1050684,
+          "threeMfBytes": 232499
+        },
+        {
+          "name": "concave",
+          "stepMs": 801.4501250000003,
+          "previewMs": 50.952792000000045,
+          "warmPreviewMs": 40.240625000000364,
+          "printMs": 218.61108299999978,
+          "triangles": 22340,
+          "meshBytes": 1117084,
+          "threeMfBytes": 238159
+        },
+        {
+          "name": "tilted",
+          "stepMs": 268.7484169999998,
+          "previewMs": 317.89458300000024,
+          "warmPreviewMs": 321.99804199999926,
+          "printMs": 2544.5038749999994,
+          "triangles": 12240,
+          "meshBytes": 612084,
+          "threeMfBytes": 166521
+        },
+        {
+          "name": "irregular",
+          "stepMs": 845.7257089999985,
+          "previewMs": 118.1164579999986,
+          "warmPreviewMs": 104.51958399999967,
+          "printMs": 1357.9869579999995,
+          "triangles": 41184,
+          "meshBytes": 2059284,
+          "threeMfBytes": 440944
+        }
+      ],
+      "repeated": [
+        {
+          "job": 1,
+          "totalMs": 1512.202625,
+          "peakWasmMemoryBytes": 133234688,
+          "processMemory": {
+            "rss": 866156544,
+            "heapTotal": 159612928,
+            "heapUsed": 103462144,
+            "external": 473738306,
+            "arrayBuffers": 20236448
+          }
+        },
+        {
+          "job": 2,
+          "totalMs": 1500.7996670000011,
+          "peakWasmMemoryBytes": 133234688,
+          "processMemory": {
+            "rss": 875315200,
+            "heapTotal": 153845760,
+            "heapUsed": 102384144,
+            "external": 476203301,
+            "arrayBuffers": 22701443
+          }
+        },
+        {
+          "job": 3,
+          "totalMs": 1543.3090420000008,
+          "peakWasmMemoryBytes": 133234688,
+          "processMemory": {
+            "rss": 875724800,
+            "heapTotal": 139952128,
+            "heapUsed": 102036296,
+            "external": 476203303,
+            "arrayBuffers": 22701445
+          }
+        },
+        {
+          "job": 4,
+          "totalMs": 1511.0132499999982,
+          "peakWasmMemoryBytes": 133234688,
+          "processMemory": {
+            "rss": 968884224,
+            "heapTotal": 155025408,
+            "heapUsed": 116548840,
+            "external": 609439040,
+            "arrayBuffers": 22702494
+          }
+        },
+        {
+          "job": 5,
+          "totalMs": 1512.7536249999976,
+          "peakWasmMemoryBytes": 133234688,
+          "processMemory": {
+            "rss": 1062567936,
+            "heapTotal": 170360832,
+            "heapUsed": 131063760,
+            "external": 742674741,
+            "arrayBuffers": 22703507
+          }
+        },
+        {
+          "job": 6,
+          "totalMs": 1517.5041249999995,
+          "peakWasmMemoryBytes": 133234688,
+          "processMemory": {
+            "rss": 972750848,
+            "heapTotal": 157646848,
+            "heapUsed": 116804120,
+            "external": 609439030,
+            "arrayBuffers": 22702484
+          }
+        },
+        {
+          "job": 7,
+          "totalMs": 1511.5330420000028,
+          "peakWasmMemoryBytes": 133234688,
+          "processMemory": {
+            "rss": 1068335104,
+            "heapTotal": 170360832,
+            "heapUsed": 131268840,
+            "external": 742674742,
+            "arrayBuffers": 22703508
+          }
+        },
+        {
+          "job": 8,
+          "totalMs": 1531.5902080000014,
+          "peakWasmMemoryBytes": 133234688,
+          "processMemory": {
+            "rss": 980041728,
+            "heapTotal": 158171136,
+            "heapUsed": 116941192,
+            "external": 609439028,
+            "arrayBuffers": 22702482
+          }
+        },
+        {
+          "job": 9,
+          "totalMs": 1530.973667000002,
+          "peakWasmMemoryBytes": 133234688,
+          "processMemory": {
+            "rss": 980811776,
+            "heapTotal": 158433280,
+            "heapUsed": 117040208,
+            "external": 609439022,
+            "arrayBuffers": 22702476
+          }
+        },
+        {
+          "job": 10,
+          "totalMs": 1492.762458000001,
+          "peakWasmMemoryBytes": 133234688,
+          "processMemory": {
+            "rss": 980942848,
+            "heapTotal": 155811840,
+            "heapUsed": 117017952,
+            "external": 609439033,
+            "arrayBuffers": 22702487
+          }
+        },
+        {
+          "job": 11,
+          "totalMs": 1522.923625000003,
+          "peakWasmMemoryBytes": 133234688,
+          "processMemory": {
+            "rss": 1072447488,
+            "heapTotal": 170885120,
+            "heapUsed": 131491296,
+            "external": 742674757,
+            "arrayBuffers": 22703523
+          }
+        },
+        {
+          "job": 12,
+          "totalMs": 1507.8868750000001,
+          "peakWasmMemoryBytes": 133234688,
+          "processMemory": {
+            "rss": 979533824,
+            "heapTotal": 158171136,
+            "heapUsed": 116893856,
+            "external": 609439034,
+            "arrayBuffers": 22702488
+          }
+        },
+        {
+          "job": 13,
+          "totalMs": 1466.3987080000006,
+          "peakWasmMemoryBytes": 133234688,
+          "processMemory": {
+            "rss": 979648512,
+            "heapTotal": 158171136,
+            "heapUsed": 117030200,
+            "external": 609439045,
+            "arrayBuffers": 22702499
+          }
+        },
+        {
+          "job": 14,
+          "totalMs": 1502.2213340000017,
+          "peakWasmMemoryBytes": 133234688,
+          "processMemory": {
+            "rss": 979877888,
+            "heapTotal": 156073984,
+            "heapUsed": 117019704,
+            "external": 609439035,
+            "arrayBuffers": 22702489
+          }
+        },
+        {
+          "job": 15,
+          "totalMs": 1597.917042000001,
+          "peakWasmMemoryBytes": 133234688,
+          "processMemory": {
+            "rss": 1072955392,
+            "heapTotal": 170622976,
+            "heapUsed": 131498768,
+            "external": 742674747,
+            "arrayBuffers": 22703513
+          }
+        },
+        {
+          "job": 16,
+          "totalMs": 1530.716124999999,
+          "peakWasmMemoryBytes": 133234688,
+          "processMemory": {
+            "rss": 980041728,
+            "heapTotal": 158433280,
+            "heapUsed": 116961216,
+            "external": 609439039,
+            "arrayBuffers": 22702493
+          }
+        },
+        {
+          "job": 17,
+          "totalMs": 1555.6608750000014,
+          "peakWasmMemoryBytes": 133234688,
+          "processMemory": {
+            "rss": 1073266688,
+            "heapTotal": 170885120,
+            "heapUsed": 131366928,
+            "external": 742674763,
+            "arrayBuffers": 22703529
+          }
+        },
+        {
+          "job": 18,
+          "totalMs": 1555.6955420000013,
+          "peakWasmMemoryBytes": 133234688,
+          "processMemory": {
+            "rss": 980516864,
+            "heapTotal": 158171136,
+            "heapUsed": 117054008,
+            "external": 609439044,
+            "arrayBuffers": 22702498
+          }
+        },
+        {
+          "job": 19,
+          "totalMs": 1530.4690830000036,
+          "peakWasmMemoryBytes": 133234688,
+          "processMemory": {
+            "rss": 925876224,
+            "heapTotal": 159744000,
+            "heapUsed": 117112344,
+            "external": 609439056,
+            "arrayBuffers": 22702510
+          }
+        },
+        {
+          "job": 20,
+          "totalMs": 1519.755790999996,
+          "peakWasmMemoryBytes": 133234688,
+          "processMemory": {
+            "rss": 971898880,
+            "heapTotal": 155811840,
+            "heapUsed": 117059280,
+            "external": 609439049,
+            "arrayBuffers": 22702503
+          }
+        }
+      ],
+      "runtimeResets": 20
+    },
+    "unified": {
+      "node": "v22.23.3",
+      "platform": "darwin",
+      "cadLocalFileLoadMs": 81.77420799999993,
+      "manifoldLocalFileLoadMs": null,
+      "results": [
+        {
+          "name": "standard-solid",
+          "stepMs": 732.4643749999999,
+          "previewMs": 440.3492080000001,
+          "warmPreviewMs": 422.16045800000006,
+          "printMs": 538.988875,
+          "triangles": 17796,
+          "meshBytes": 889884,
+          "threeMfBytes": 209424
+        },
+        {
+          "name": "standard-hollow",
+          "stepMs": 593.8650829999997,
+          "previewMs": 501.3402080000001,
+          "warmPreviewMs": 486.35062500000004,
+          "printMs": 645.4153329999999,
+          "triangles": 20684,
+          "meshBytes": 1034284,
+          "threeMfBytes": 241207
+        },
+        {
+          "name": "mixed",
+          "stepMs": 1507.0369579999997,
+          "previewMs": 1245.738166,
+          "warmPreviewMs": 1247.6272909999989,
+          "printMs": 1564.0009170000012,
+          "triangles": 42556,
+          "meshBytes": 2127884,
+          "threeMfBytes": 502235
+        },
+        {
+          "name": "concave",
+          "stepMs": 821.0300829999996,
+          "previewMs": 646.4881670000013,
+          "warmPreviewMs": 647.6060830000006,
+          "printMs": 786.1082080000015,
+          "triangles": 22144,
+          "meshBytes": 1107284,
+          "threeMfBytes": 278171
+        },
+        {
+          "name": "tilted",
+          "stepMs": 251.0721250000006,
+          "previewMs": 207.01591700000063,
+          "warmPreviewMs": 208.70837500000016,
+          "printMs": 272.79854199999863,
+          "triangles": 8530,
+          "meshBytes": 426584,
+          "threeMfBytes": 120542
+        },
+        {
+          "name": "irregular",
+          "stepMs": 853.9430000000011,
+          "previewMs": 724.8833750000013,
+          "warmPreviewMs": 736.010542,
+          "printMs": 1392.2489580000001,
+          "triangles": 34884,
+          "meshBytes": 1744284,
+          "threeMfBytes": 649524
+        }
+      ],
+      "repeated": [
+        {
+          "job": 1,
+          "totalMs": 1524.556625000001,
+          "peakWasmMemoryBytes": 133234688,
+          "processMemory": {
+            "rss": 864763904,
+            "heapTotal": 153845760,
+            "heapUsed": 101283560,
+            "external": 520596542,
+            "arrayBuffers": 20236444
+          }
+        },
+        {
+          "job": 2,
+          "totalMs": 1510.9114590000027,
+          "peakWasmMemoryBytes": 250478592,
+          "processMemory": {
+            "rss": 948846592,
+            "heapTotal": 144703488,
+            "heapUsed": 99937120,
+            "external": 635117724,
+            "arrayBuffers": 17513722
+          }
+        },
+        {
+          "job": 3,
+          "totalMs": 1438.8367080000025,
+          "peakWasmMemoryBytes": 360775680,
+          "processMemory": {
+            "rss": 787120128,
+            "heapTotal": 132218880,
+            "heapUsed": 94017360,
+            "external": 387733916,
+            "arrayBuffers": 20608506
+          }
+        },
+        {
+          "job": 4,
+          "totalMs": 1531.606708000003,
+          "peakWasmMemoryBytes": 133234688,
+          "processMemory": {
+            "rss": 880214016,
+            "heapTotal": 139427840,
+            "heapUsed": 101334216,
+            "external": 520969604,
+            "arrayBuffers": 20609506
+          }
+        },
+        {
+          "job": 5,
+          "totalMs": 1518.6919590000034,
+          "peakWasmMemoryBytes": 250478592,
+          "processMemory": {
+            "rss": 964001792,
+            "heapTotal": 138149888,
+            "heapUsed": 100138168,
+            "external": 635117733,
+            "arrayBuffers": 17513731
+          }
+        },
+        {
+          "job": 6,
+          "totalMs": 1446.4867080000004,
+          "peakWasmMemoryBytes": 360775680,
+          "processMemory": {
+            "rss": 787398656,
+            "heapTotal": 126713856,
+            "heapUsed": 94207664,
+            "external": 387733918,
+            "arrayBuffers": 20608508
+          }
+        },
+        {
+          "job": 7,
+          "totalMs": 1494.1162079999995,
+          "peakWasmMemoryBytes": 133234688,
+          "processMemory": {
+            "rss": 880623616,
+            "heapTotal": 138379264,
+            "heapUsed": 100274240,
+            "external": 523066756,
+            "arrayBuffers": 22706658
+          }
+        },
+        {
+          "job": 8,
+          "totalMs": 1533.5714589999989,
+          "peakWasmMemoryBytes": 250478592,
+          "processMemory": {
+            "rss": 914964480,
+            "heapTotal": 137363456,
+            "heapUsed": 99055352,
+            "external": 637214883,
+            "arrayBuffers": 19610881
+          }
+        },
+        {
+          "job": 9,
+          "totalMs": 1506.7487080000028,
+          "peakWasmMemoryBytes": 133234688,
+          "processMemory": {
+            "rss": 796835840,
+            "heapTotal": 141262848,
+            "heapUsed": 100410520,
+            "external": 412769669,
+            "arrayBuffers": 22706659
+          }
+        },
+        {
+          "job": 10,
+          "totalMs": 1429.1835000000028,
+          "peakWasmMemoryBytes": 250478592,
+          "processMemory": {
+            "rss": 878886912,
+            "heapTotal": 137363456,
+            "heapUsed": 99139128,
+            "external": 526917791,
+            "arrayBuffers": 19610877
+          }
+        },
+        {
+          "job": 11,
+          "totalMs": 1446.9786659999954,
+          "peakWasmMemoryBytes": 360775680,
+          "processMemory": {
+            "rss": 786923520,
+            "heapTotal": 125140992,
+            "heapUsed": 93262272,
+            "external": 389831077,
+            "arrayBuffers": 22705667
+          }
+        },
+        {
+          "job": 12,
+          "totalMs": 1524.5016250000044,
+          "peakWasmMemoryBytes": 133234688,
+          "processMemory": {
+            "rss": 880001024,
+            "heapTotal": 138379264,
+            "heapUsed": 100403176,
+            "external": 523066764,
+            "arrayBuffers": 22706666
+          }
+        },
+        {
+          "job": 13,
+          "totalMs": 1436.0472919999957,
+          "peakWasmMemoryBytes": 250478592,
+          "processMemory": {
+            "rss": 963805184,
+            "heapTotal": 137625600,
+            "heapUsed": 99121496,
+            "external": 637214865,
+            "arrayBuffers": 19610863
+          }
+        },
+        {
+          "job": 14,
+          "totalMs": 1398.3840829999972,
+          "peakWasmMemoryBytes": 360775680,
+          "processMemory": {
+            "rss": 787120128,
+            "heapTotal": 127238144,
+            "heapUsed": 93185696,
+            "external": 389831066,
+            "arrayBuffers": 22705656
+          }
+        },
+        {
+          "job": 15,
+          "totalMs": 1481.0904579999988,
+          "peakWasmMemoryBytes": 133234688,
+          "processMemory": {
+            "rss": 855982080,
+            "heapTotal": 138379264,
+            "heapUsed": 100321616,
+            "external": 523066756,
+            "arrayBuffers": 22706658
+          }
+        },
+        {
+          "job": 16,
+          "totalMs": 1427.1313750000045,
+          "peakWasmMemoryBytes": 250478592,
+          "processMemory": {
+            "rss": 939769856,
+            "heapTotal": 137101312,
+            "heapUsed": 99028992,
+            "external": 637214890,
+            "arrayBuffers": 19610888
+          }
+        },
+        {
+          "job": 17,
+          "totalMs": 1457.9861669999955,
+          "peakWasmMemoryBytes": 133234688,
+          "processMemory": {
+            "rss": 794574848,
+            "heapTotal": 141262848,
+            "heapUsed": 100466656,
+            "external": 412769666,
+            "arrayBuffers": 22706656
+          }
+        },
+        {
+          "job": 18,
+          "totalMs": 1424.0441659999997,
+          "peakWasmMemoryBytes": 250478592,
+          "processMemory": {
+            "rss": 878329856,
+            "heapTotal": 137101312,
+            "heapUsed": 99241000,
+            "external": 526917788,
+            "arrayBuffers": 19610874
+          }
+        },
+        {
+          "job": 19,
+          "totalMs": 1446.3860000000059,
+          "peakWasmMemoryBytes": 360775680,
+          "processMemory": {
+            "rss": 786268160,
+            "heapTotal": 126976000,
+            "heapUsed": 93327560,
+            "external": 389831075,
+            "arrayBuffers": 22705665
+          }
+        },
+        {
+          "job": 20,
+          "totalMs": 1468.098291000002,
+          "peakWasmMemoryBytes": 133234688,
+          "processMemory": {
+            "rss": 879345664,
+            "heapTotal": 138117120,
+            "heapUsed": 100430680,
+            "external": 523066759,
+            "arrayBuffers": 22706661
+          }
+        }
+      ],
+      "runtimeResets": 8
+    }
+  },
+  "independentAcceptance": {
+    "dedicated": {
+      "reader": "cadquery-ocp 7.8.1.1.post1 / OCCT 7.8",
+      "results": [
+        {
+          "fixture": "concave",
+          "valid": true,
+          "counts": {
+            "bin": 1,
+            "designObjects": 5
+          },
+          "nativeSurfaces": {
+            "GeomAbs_SurfaceType.GeomAbs_Cylinder": 33,
+            "GeomAbs_SurfaceType.GeomAbs_Plane": 24,
+            "GeomAbs_SurfaceType.GeomAbs_SurfaceOfExtrusion": 1,
+            "GeomAbs_SurfaceType.GeomAbs_Torus": 5,
+            "GeomAbs_SurfaceType.GeomAbs_SurfaceOfRevolution": 5
+          },
+          "nativeCurves": {
+            "GeomAbs_CurveType.GeomAbs_Circle": 182,
+            "GeomAbs_CurveType.GeomAbs_Line": 338,
+            "GeomAbs_CurveType.GeomAbs_Ellipse": 38
+          },
+          "dimensionsMm": [
+            125.5,
+            83.5,
+            28.0000001
+          ],
+          "reconstructed": true,
+          "newFeatureSavedReopened": true,
+          "movedNamedCutter": true,
+          "cadVolumeMm3": 288532.54892513674,
+          "stlVolumeMm3": 288522.49879163253,
+          "meshMinusCadVolumeMm3": -10.050133504206315,
+          "threeMfParts": [
+            {
+              "name": "Bin body",
+              "volumeMm3": 288522.4987669732
+            }
+          ]
+        },
+        {
+          "fixture": "irregular",
+          "valid": true,
+          "counts": {
+            "bin": 4,
+            "designObjects": 7
+          },
+          "nativeSurfaces": {
+            "GeomAbs_SurfaceType.GeomAbs_Cylinder": 50,
+            "GeomAbs_SurfaceType.GeomAbs_Cone": 12,
+            "GeomAbs_SurfaceType.GeomAbs_Plane": 83,
+            "GeomAbs_SurfaceType.GeomAbs_Torus": 7,
+            "GeomAbs_SurfaceType.GeomAbs_SurfaceOfExtrusion": 48
+          },
+          "nativeCurves": {
+            "GeomAbs_CurveType.GeomAbs_Line": 564,
+            "GeomAbs_CurveType.GeomAbs_Circle": 174,
+            "GeomAbs_CurveType.GeomAbs_BSplineCurve": 192
+          },
+          "dimensionsMm": [
+            83.5,
+            83.5,
+            31.551471962576002
+          ],
+          "reconstructed": true,
+          "newFeatureSavedReopened": true,
+          "movedNamedCutter": true,
+          "cadVolumeMm3": 139938.2423197788,
+          "stlVolumeMm3": 139897.6631159283,
+          "meshMinusCadVolumeMm3": -40.57920385050238,
+          "threeMfParts": [
+            {
+              "name": "Bin body",
+              "volumeMm3": 139249.6444933006
+            },
+            {
+              "name": "Pocket floors",
+              "volumeMm3": 62.51277939082726
+            },
+            {
+              "name": "Stacking rim",
+              "volumeMm3": 562.0337682910875
+            },
+            {
+              "name": "CAD label",
+              "volumeMm3": 23.496375372134317
+            }
+          ]
+        },
+        {
+          "fixture": "mixed",
+          "valid": true,
+          "counts": {
+            "bin": 1,
+            "designObjects": 5
+          },
+          "nativeSurfaces": {
+            "GeomAbs_SurfaceType.GeomAbs_Cylinder": 68,
+            "GeomAbs_SurfaceType.GeomAbs_Plane": 214,
+            "GeomAbs_SurfaceType.GeomAbs_Cone": 55,
+            "GeomAbs_SurfaceType.GeomAbs_Torus": 8,
+            "GeomAbs_SurfaceType.GeomAbs_SurfaceOfRevolution": 4
+          },
+          "nativeCurves": {
+            "GeomAbs_CurveType.GeomAbs_Line": 1224,
+            "GeomAbs_CurveType.GeomAbs_Circle": 416
+          },
+          "dimensionsMm": [
+            125.5,
+            83.50000000000004,
+            31.551472062576067
+          ],
+          "reconstructed": true,
+          "newFeatureSavedReopened": true,
+          "movedNamedCutter": true,
+          "cadVolumeMm3": 269667.0102950138,
+          "stlVolumeMm3": 269701.03603586723,
+          "meshMinusCadVolumeMm3": 34.02574085345259,
+          "threeMfParts": [
+            {
+              "name": "Bin body",
+              "volumeMm3": 269701.0357312487
+            }
+          ]
+        },
+        {
+          "fixture": "standard-hollow",
+          "valid": true,
+          "counts": {
+            "bin": 1,
+            "designObjects": 1
+          },
+          "nativeSurfaces": {
+            "GeomAbs_SurfaceType.GeomAbs_Cylinder": 40,
+            "GeomAbs_SurfaceType.GeomAbs_Plane": 100,
+            "GeomAbs_SurfaceType.GeomAbs_Cone": 28,
+            "GeomAbs_SurfaceType.GeomAbs_Torus": 4
+          },
+          "nativeCurves": {
+            "GeomAbs_CurveType.GeomAbs_Circle": 160,
+            "GeomAbs_CurveType.GeomAbs_Line": 540,
+            "GeomAbs_CurveType.GeomAbs_BSplineCurve": 8,
+            "GeomAbs_CurveType.GeomAbs_Ellipse": 16
+          },
+          "dimensionsMm": [
+            83.50000010000001,
+            41.50000010000002,
+            24.551471962576002
+          ],
+          "reconstructed": true,
+          "newFeatureSavedReopened": true,
+          "movedNamedCutter": false,
+          "cadVolumeMm3": 27047.496879065755,
+          "stlVolumeMm3": 27046.618855874523,
+          "meshMinusCadVolumeMm3": -0.8780231912314775,
+          "threeMfParts": [
+            {
+              "name": "Bin body",
+              "volumeMm3": 27046.618975821184
+            }
+          ]
+        },
+        {
+          "fixture": "standard-solid",
+          "valid": true,
+          "counts": {
+            "bin": 1,
+            "designObjects": 1
+          },
+          "nativeSurfaces": {
+            "GeomAbs_SurfaceType.GeomAbs_Cylinder": 36,
+            "GeomAbs_SurfaceType.GeomAbs_Plane": 66,
+            "GeomAbs_SurfaceType.GeomAbs_Cone": 16,
+            "GeomAbs_SurfaceType.GeomAbs_Torus": 4
+          },
+          "nativeCurves": {
+            "GeomAbs_CurveType.GeomAbs_Line": 368,
+            "GeomAbs_CurveType.GeomAbs_Circle": 128
+          },
+          "dimensionsMm": [
+            41.5,
+            41.500000000000014,
+            24.551471962576002
+          ],
+          "reconstructed": true,
+          "newFeatureSavedReopened": true,
+          "movedNamedCutter": false,
+          "cadVolumeMm3": 34051.05254777352,
+          "stlVolumeMm3": 34049.50983305793,
+          "meshMinusCadVolumeMm3": -1.5427147155933199,
+          "threeMfParts": [
+            {
+              "name": "Bin body",
+              "volumeMm3": 34049.5097915132
+            }
+          ]
+        },
+        {
+          "fixture": "tilted",
+          "valid": true,
+          "counts": {
+            "bin": 1,
+            "designObjects": 4
+          },
+          "nativeSurfaces": {
+            "GeomAbs_SurfaceType.GeomAbs_Cylinder": 24,
+            "GeomAbs_SurfaceType.GeomAbs_Plane": 27,
+            "GeomAbs_SurfaceType.GeomAbs_SurfaceOfRevolution": 4
+          },
+          "nativeCurves": {
+            "GeomAbs_CurveType.GeomAbs_Circle": 140,
+            "GeomAbs_CurveType.GeomAbs_Line": 248,
+            "GeomAbs_CurveType.GeomAbs_Ellipse": 8
+          },
+          "dimensionsMm": [
+            125.5,
+            125.5,
+            35.00000000000052
+          ],
+          "reconstructed": true,
+          "newFeatureSavedReopened": true,
+          "movedNamedCutter": true,
+          "cadVolumeMm3": 545048.1646486622,
+          "stlVolumeMm3": 545016.0636213188,
+          "meshMinusCadVolumeMm3": -32.101027343422174,
+          "threeMfParts": [
+            {
+              "name": "Bin body",
+              "volumeMm3": 545016.0635905733
+            }
+          ]
+        }
+      ]
+    },
+    "unified": {
+      "reader": "cadquery-ocp 7.8.1.1.post1 / OCCT 7.8",
+      "results": [
+        {
+          "fixture": "concave",
+          "valid": true,
+          "counts": {
+            "bin": 1,
+            "designObjects": 5
+          },
+          "nativeSurfaces": {
+            "GeomAbs_SurfaceType.GeomAbs_Cylinder": 33,
+            "GeomAbs_SurfaceType.GeomAbs_Plane": 24,
+            "GeomAbs_SurfaceType.GeomAbs_SurfaceOfExtrusion": 1,
+            "GeomAbs_SurfaceType.GeomAbs_Torus": 5,
+            "GeomAbs_SurfaceType.GeomAbs_SurfaceOfRevolution": 5
+          },
+          "nativeCurves": {
+            "GeomAbs_CurveType.GeomAbs_Circle": 182,
+            "GeomAbs_CurveType.GeomAbs_Line": 338,
+            "GeomAbs_CurveType.GeomAbs_Ellipse": 38
+          },
+          "dimensionsMm": [
+            125.5,
+            83.5,
+            28.0000001
+          ],
+          "reconstructed": true,
+          "newFeatureSavedReopened": true,
+          "movedNamedCutter": true,
+          "cadVolumeMm3": 288532.54892513674,
+          "stlVolumeMm3": 288533.810201243,
+          "meshMinusCadVolumeMm3": 1.2612761062337086,
+          "threeMfParts": [
+            {
+              "name": "Bin body",
+              "volumeMm3": 288533.8101974572
+            }
+          ]
+        },
+        {
+          "fixture": "irregular",
+          "valid": true,
+          "counts": {
+            "bin": 4,
+            "designObjects": 7
+          },
+          "nativeSurfaces": {
+            "GeomAbs_SurfaceType.GeomAbs_Cylinder": 50,
+            "GeomAbs_SurfaceType.GeomAbs_Cone": 12,
+            "GeomAbs_SurfaceType.GeomAbs_Plane": 83,
+            "GeomAbs_SurfaceType.GeomAbs_Torus": 7,
+            "GeomAbs_SurfaceType.GeomAbs_SurfaceOfExtrusion": 48
+          },
+          "nativeCurves": {
+            "GeomAbs_CurveType.GeomAbs_Line": 564,
+            "GeomAbs_CurveType.GeomAbs_Circle": 174,
+            "GeomAbs_CurveType.GeomAbs_BSplineCurve": 192
+          },
+          "dimensionsMm": [
+            83.5,
+            83.5,
+            31.551471962576002
+          ],
+          "reconstructed": true,
+          "newFeatureSavedReopened": true,
+          "movedNamedCutter": true,
+          "cadVolumeMm3": 139938.2423197788,
+          "stlVolumeMm3": 139938.32554543164,
+          "meshMinusCadVolumeMm3": 0.08322565283742733,
+          "threeMfParts": [
+            {
+              "name": "Bin body",
+              "volumeMm3": 139250.34433640397
+            },
+            {
+              "name": "Pocket floors",
+              "volumeMm3": 109.81285651961105
+            },
+            {
+              "name": "Stacking rim",
+              "volumeMm3": 554.6848516702679
+            },
+            {
+              "name": "CAD label",
+              "volumeMm3": 23.48356357329961
+            }
+          ]
+        },
+        {
+          "fixture": "mixed",
+          "valid": true,
+          "counts": {
+            "bin": 1,
+            "designObjects": 5
+          },
+          "nativeSurfaces": {
+            "GeomAbs_SurfaceType.GeomAbs_Cylinder": 68,
+            "GeomAbs_SurfaceType.GeomAbs_Plane": 214,
+            "GeomAbs_SurfaceType.GeomAbs_Cone": 55,
+            "GeomAbs_SurfaceType.GeomAbs_Torus": 8,
+            "GeomAbs_SurfaceType.GeomAbs_SurfaceOfRevolution": 4
+          },
+          "nativeCurves": {
+            "GeomAbs_CurveType.GeomAbs_Line": 1224,
+            "GeomAbs_CurveType.GeomAbs_Circle": 416
+          },
+          "dimensionsMm": [
+            125.5,
+            83.50000000000004,
+            31.551472062576067
+          ],
+          "reconstructed": true,
+          "newFeatureSavedReopened": true,
+          "movedNamedCutter": true,
+          "cadVolumeMm3": 269667.0102950138,
+          "stlVolumeMm3": 269667.08291950094,
+          "meshMinusCadVolumeMm3": 0.07262448716210201,
+          "threeMfParts": [
+            {
+              "name": "Bin body",
+              "volumeMm3": 269667.0826128652
+            }
+          ]
+        },
+        {
+          "fixture": "standard-hollow",
+          "valid": true,
+          "counts": {
+            "bin": 1,
+            "designObjects": 1
+          },
+          "nativeSurfaces": {
+            "GeomAbs_SurfaceType.GeomAbs_Cylinder": 40,
+            "GeomAbs_SurfaceType.GeomAbs_Plane": 100,
+            "GeomAbs_SurfaceType.GeomAbs_Cone": 28,
+            "GeomAbs_SurfaceType.GeomAbs_Torus": 4
+          },
+          "nativeCurves": {
+            "GeomAbs_CurveType.GeomAbs_Circle": 160,
+            "GeomAbs_CurveType.GeomAbs_Line": 540,
+            "GeomAbs_CurveType.GeomAbs_BSplineCurve": 8,
+            "GeomAbs_CurveType.GeomAbs_Ellipse": 16
+          },
+          "dimensionsMm": [
+            83.50000010000001,
+            41.50000010000002,
+            24.551471962576002
+          ],
+          "reconstructed": true,
+          "newFeatureSavedReopened": true,
+          "movedNamedCutter": false,
+          "cadVolumeMm3": 27047.496879065755,
+          "stlVolumeMm3": 27047.14459772557,
+          "meshMinusCadVolumeMm3": -0.35228134018325363,
+          "threeMfParts": [
+            {
+              "name": "Bin body",
+              "volumeMm3": 27047.144715584313
+            }
+          ]
+        },
+        {
+          "fixture": "standard-solid",
+          "valid": true,
+          "counts": {
+            "bin": 1,
+            "designObjects": 1
+          },
+          "nativeSurfaces": {
+            "GeomAbs_SurfaceType.GeomAbs_Cylinder": 36,
+            "GeomAbs_SurfaceType.GeomAbs_Plane": 66,
+            "GeomAbs_SurfaceType.GeomAbs_Cone": 16,
+            "GeomAbs_SurfaceType.GeomAbs_Torus": 4
+          },
+          "nativeCurves": {
+            "GeomAbs_CurveType.GeomAbs_Line": 368,
+            "GeomAbs_CurveType.GeomAbs_Circle": 128
+          },
+          "dimensionsMm": [
+            41.5,
+            41.500000000000014,
+            24.551471962576002
+          ],
+          "reconstructed": true,
+          "newFeatureSavedReopened": true,
+          "movedNamedCutter": false,
+          "cadVolumeMm3": 34051.05254777352,
+          "stlVolumeMm3": 34050.63883148647,
+          "meshMinusCadVolumeMm3": -0.41371628705383046,
+          "threeMfParts": [
+            {
+              "name": "Bin body",
+              "volumeMm3": 34050.638789723314
+            }
+          ]
+        },
+        {
+          "fixture": "tilted",
+          "valid": true,
+          "counts": {
+            "bin": 1,
+            "designObjects": 4
+          },
+          "nativeSurfaces": {
+            "GeomAbs_SurfaceType.GeomAbs_Cylinder": 24,
+            "GeomAbs_SurfaceType.GeomAbs_Plane": 27,
+            "GeomAbs_SurfaceType.GeomAbs_SurfaceOfRevolution": 4
+          },
+          "nativeCurves": {
+            "GeomAbs_CurveType.GeomAbs_Circle": 140,
+            "GeomAbs_CurveType.GeomAbs_Line": 248,
+            "GeomAbs_CurveType.GeomAbs_Ellipse": 8
+          },
+          "dimensionsMm": [
+            125.5,
+            125.5,
+            35.00000000000052
+          ],
+          "reconstructed": true,
+          "newFeatureSavedReopened": true,
+          "movedNamedCutter": true,
+          "cadVolumeMm3": 545048.1646486622,
+          "stlVolumeMm3": 545047.5629419276,
+          "meshMinusCadVolumeMm3": -0.6017067346256226,
+          "threeMfParts": [
+            {
+              "name": "Bin body",
+              "volumeMm3": 545047.5629473759
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "nativeApplications": {
+    "FreeCAD": "not installed; native acceptance pending",
+    "Fusion": "launcher 2705.1.15; native inspection timed out; native acceptance pending",
+    "PrusaSlicer": "2.9.6: standard and tilted STL slices produced; color assembly slice unresolved",
+    "BambuStudio": "02.08.02.61: four-part assembly import/save verified; no completed color slice"
+  },
+  "repositoryGates": {
+    "node": "22.23.3",
+    "testFiles": 165,
+    "tests": 2778,
+    "commands": [
+      "npm run check",
+      "npm test",
+      "npm run build",
+      "git diff --check"
+    ],
+    "ci": "disabled"
+  },
+  "servedAssets": {
+    "sourceInputs": 6,
+    "sourceBytes": 105317260,
+    "sourceHashesVerifiedOverHttp": true,
+    "noticesVerifiedOverHttp": true,
+    "assets": [
+      {
+        "file": "cad.worker-BZIvnUMx.js",
+        "bytes": 1220876,
+        "gzipBytes": 385819,
+        "sha256": "6f383520c92a09a40bb897549a0582b5f0acde1d4d5ac2da2a84f6d29a83fcc2"
+      },
+      {
+        "file": "replicad_single-B_1cTsn_.wasm",
+        "bytes": 22980267,
+        "gzipBytes": 7193790,
+        "sha256": "4c9f22e9f3828dca6f3c95405934cdbe624e593c35266f47f392ab337478dbde"
+      }
+    ]
+  },
+  "browser3mf": {
+    "file": "input-bin-2x2x4-custom-3cell-multicolor-2026-10-06_14-43-27-863.3mf",
+    "parts": [
+      {
+        "name": "Gridfinity bin 2x2x4-custom-3cell body",
+        "vertices": 7033,
+        "triangles": 14062,
+        "minZ": 0.0,
+        "maxZ": 30.3014717
+      },
+      {
+        "name": "Gridfinity bin 2x2x4-custom-3cell pocket floors",
+        "vertices": 8716,
+        "triangles": 17424,
+        "minZ": 12.1999998,
+        "maxZ": 14.8000002
+      },
+      {
+        "name": "Gridfinity bin 2x2x4-custom-3cell stacking rim top",
+        "vertices": 10563,
+        "triangles": 21126,
+        "minZ": 30.3014717,
+        "maxZ": 31.5514717
+      },
+      {
+        "name": "CAD label",
+        "vertices": 875,
+        "triangles": 1746,
+        "minZ": 26.7999992,
+        "maxZ": 27.6000004
+      }
+    ],
+    "units": "millimeter"
+  },
+  "browserDownloads": {
+    "dedicated": {
+      "verifiedDownloads": 20,
+      "results": [
+        {
+          "file": "input-bin-3x2x4-2026-10-06_14-53-33-775-cad.zip",
+          "zipSha256": "7b0ebbaa57974742ffd7c4cd4ed18d7073e319fed382dc67e49e699486b18918",
+          "snapshotSha256": "eaad70585be2bb7c779e944cb5bde9ec6bcc8c24ee138830b1562b1fe48151c2",
+          "modelingMs": 1144.2000000476837,
+          "totalMs": 1435.8999999761581,
+          "peakWasmMemoryBytes": 133234688,
+          "solidCounts": {
+            "bin": 1,
+            "designObjects": 5
+          }
+        },
+        {
+          "file": "input-bin-3x2x4-2026-10-06_14-53-35-506-cad.zip",
+          "zipSha256": "1ed0f87d025b6bf315d8667128df33665bda5e51e0be3f36949809ca813015b8",
+          "snapshotSha256": "eaad70585be2bb7c779e944cb5bde9ec6bcc8c24ee138830b1562b1fe48151c2",
+          "modelingMs": 942.2999999523163,
+          "totalMs": 1162.2000000476837,
+          "peakWasmMemoryBytes": 133234688,
+          "solidCounts": {
+            "bin": 1,
+            "designObjects": 5
+          }
+        },
+        {
+          "file": "input-bin-3x2x4-2026-10-06_14-53-36-924-cad.zip",
+          "zipSha256": "5782a8c104a08cfd08455d4b926a074c047b4efe162563627031716085f0c12b",
+          "snapshotSha256": "eaad70585be2bb7c779e944cb5bde9ec6bcc8c24ee138830b1562b1fe48151c2",
+          "modelingMs": 933.2999999523163,
+          "totalMs": 1159.8999999761581,
+          "peakWasmMemoryBytes": 133234688,
+          "solidCounts": {
+            "bin": 1,
+            "designObjects": 5
+          }
+        },
+        {
+          "file": "input-bin-3x2x4-2026-10-06_14-53-38-256-cad.zip",
+          "zipSha256": "69f049ad5d0a326a02b21b3ab31aee3390d22d5863fb29fbb368c117bf2d546f",
+          "snapshotSha256": "eaad70585be2bb7c779e944cb5bde9ec6bcc8c24ee138830b1562b1fe48151c2",
+          "modelingMs": 928.0999999046326,
+          "totalMs": 1156.7000000476837,
+          "peakWasmMemoryBytes": 133234688,
+          "solidCounts": {
+            "bin": 1,
+            "designObjects": 5
+          }
+        },
+        {
+          "file": "input-bin-3x2x4-2026-10-06_14-53-39-673-cad.zip",
+          "zipSha256": "050f6ece3431db4879f38a9d92e557b0c6e3450b5d22c8f5bdb4aaf421a4788e",
+          "snapshotSha256": "eaad70585be2bb7c779e944cb5bde9ec6bcc8c24ee138830b1562b1fe48151c2",
+          "modelingMs": 943.3000000715256,
+          "totalMs": 1163.6000000238419,
+          "peakWasmMemoryBytes": 133234688,
+          "solidCounts": {
+            "bin": 1,
+            "designObjects": 5
+          }
+        },
+        {
+          "file": "input-bin-3x2x4-2026-10-06_14-53-41-091-cad.zip",
+          "zipSha256": "5df48843c6debfde8124b3596e903a0f905b268aaf5f1eb3d17718d9b7f65752",
+          "snapshotSha256": "eaad70585be2bb7c779e944cb5bde9ec6bcc8c24ee138830b1562b1fe48151c2",
+          "modelingMs": 943.5,
+          "totalMs": 1173.2999999523163,
+          "peakWasmMemoryBytes": 133234688,
+          "solidCounts": {
+            "bin": 1,
+            "designObjects": 5
+          }
+        },
+        {
+          "file": "input-bin-3x2x4-2026-10-06_14-53-42-529-cad.zip",
+          "zipSha256": "b6c38bd1d269af21cc04050cbc804d0c544a0d58fe8bf20b61c0c7714f87935c",
+          "snapshotSha256": "eaad70585be2bb7c779e944cb5bde9ec6bcc8c24ee138830b1562b1fe48151c2",
+          "modelingMs": 928.1999999284744,
+          "totalMs": 1154.3000000715256,
+          "peakWasmMemoryBytes": 133234688,
+          "solidCounts": {
+            "bin": 1,
+            "designObjects": 5
+          }
+        },
+        {
+          "file": "input-bin-3x2x4-2026-10-06_14-53-43-856-cad.zip",
+          "zipSha256": "a649a36ef803048f55dc58dd520026a21619e1235a59e0830f416807623f6061",
+          "snapshotSha256": "eaad70585be2bb7c779e944cb5bde9ec6bcc8c24ee138830b1562b1fe48151c2",
+          "modelingMs": 919.9000000953674,
+          "totalMs": 1140.1000000238419,
+          "peakWasmMemoryBytes": 133234688,
+          "solidCounts": {
+            "bin": 1,
+            "designObjects": 5
+          }
+        },
+        {
+          "file": "input-bin-3x2x4-2026-10-06_14-53-45-173-cad.zip",
+          "zipSha256": "26b0fd3545bdb45997ce4fb7c4a98698dacb4a00b370265180be7d951c53c81d",
+          "snapshotSha256": "eaad70585be2bb7c779e944cb5bde9ec6bcc8c24ee138830b1562b1fe48151c2",
+          "modelingMs": 930,
+          "totalMs": 1174,
+          "peakWasmMemoryBytes": 133234688,
+          "solidCounts": {
+            "bin": 1,
+            "designObjects": 5
+          }
+        },
+        {
+          "file": "input-bin-3x2x4-2026-10-06_14-53-46-609-cad.zip",
+          "zipSha256": "c08f47112df1a3caf5301435e0de3db12742bbaae2ed0c868745611bf8e632a1",
+          "snapshotSha256": "eaad70585be2bb7c779e944cb5bde9ec6bcc8c24ee138830b1562b1fe48151c2",
+          "modelingMs": 947.6000000238419,
+          "totalMs": 1175.6999999284744,
+          "peakWasmMemoryBytes": 133234688,
+          "solidCounts": {
+            "bin": 1,
+            "designObjects": 5
+          }
+        },
+        {
+          "file": "input-bin-3x2x4-2026-10-06_14-53-48-032-cad.zip",
+          "zipSha256": "b59e2abfd95f5ddf2fe9b0207f4c75ae522f9f09dd45749c244190b95706d1fc",
+          "snapshotSha256": "eaad70585be2bb7c779e944cb5bde9ec6bcc8c24ee138830b1562b1fe48151c2",
+          "modelingMs": 968.3999999761581,
+          "totalMs": 1202.8999999761581,
+          "peakWasmMemoryBytes": 133234688,
+          "solidCounts": {
+            "bin": 1,
+            "designObjects": 5
+          }
+        },
+        {
+          "file": "input-bin-3x2x4-2026-10-06_14-53-49-440-cad.zip",
+          "zipSha256": "eed226816ec6f515895bd85813ddf1f4b9988fc6898d54584591401eef082027",
+          "snapshotSha256": "eaad70585be2bb7c779e944cb5bde9ec6bcc8c24ee138830b1562b1fe48151c2",
+          "modelingMs": 961.2999999523163,
+          "totalMs": 1188.5999999046326,
+          "peakWasmMemoryBytes": 133234688,
+          "solidCounts": {
+            "bin": 1,
+            "designObjects": 5
+          }
+        },
+        {
+          "file": "input-bin-3x2x4-2026-10-06_14-53-50-857-cad.zip",
+          "zipSha256": "20d2cfa1b5d8489cee214f6307df1eba091852b7007243f90c7670256c7dcdb9",
+          "snapshotSha256": "eaad70585be2bb7c779e944cb5bde9ec6bcc8c24ee138830b1562b1fe48151c2",
+          "modelingMs": 944,
+          "totalMs": 1176.3000000715256,
+          "peakWasmMemoryBytes": 133234688,
+          "solidCounts": {
+            "bin": 1,
+            "designObjects": 5
+          }
+        },
+        {
+          "file": "input-bin-3x2x4-2026-10-06_14-53-52-273-cad.zip",
+          "zipSha256": "0cfa444e0042f25cebb9409aaa99c26b1cebb1898f22b686d664f347a327ba18",
+          "snapshotSha256": "eaad70585be2bb7c779e944cb5bde9ec6bcc8c24ee138830b1562b1fe48151c2",
+          "modelingMs": 954.8000000715256,
+          "totalMs": 1175.2999999523163,
+          "peakWasmMemoryBytes": 133234688,
+          "solidCounts": {
+            "bin": 1,
+            "designObjects": 5
+          }
+        },
+        {
+          "file": "input-bin-3x2x4-2026-10-06_14-53-53-701-cad.zip",
+          "zipSha256": "6e003ef6f48e7654d93fdad56bbe09023271949b9df3a3126a623cad356f1c72",
+          "snapshotSha256": "eaad70585be2bb7c779e944cb5bde9ec6bcc8c24ee138830b1562b1fe48151c2",
+          "modelingMs": 969.8000000715256,
+          "totalMs": 1203.3000000715256,
+          "peakWasmMemoryBytes": 133234688,
+          "solidCounts": {
+            "bin": 1,
+            "designObjects": 5
+          }
+        },
+        {
+          "file": "input-bin-3x2x4-2026-10-06_14-53-55-107-cad.zip",
+          "zipSha256": "f08c5417202231b1fb7032547490ef4968df6d9a7f4d4f4e205c5194b4b7fd59",
+          "snapshotSha256": "eaad70585be2bb7c779e944cb5bde9ec6bcc8c24ee138830b1562b1fe48151c2",
+          "modelingMs": 947.6999999284744,
+          "totalMs": 1178.5,
+          "peakWasmMemoryBytes": 133234688,
+          "solidCounts": {
+            "bin": 1,
+            "designObjects": 5
+          }
+        },
+        {
+          "file": "input-bin-3x2x4-2026-10-06_14-53-56-527-cad.zip",
+          "zipSha256": "1de015342ace2dc54ad0f54b48f587739faca62eb6ed1b3295956ef82ffb0e6b",
+          "snapshotSha256": "eaad70585be2bb7c779e944cb5bde9ec6bcc8c24ee138830b1562b1fe48151c2",
+          "modelingMs": 961.2000000476837,
+          "totalMs": 1189,
+          "peakWasmMemoryBytes": 133234688,
+          "solidCounts": {
+            "bin": 1,
+            "designObjects": 5
+          }
+        },
+        {
+          "file": "input-bin-3x2x4-2026-10-06_14-53-57-939-cad.zip",
+          "zipSha256": "c3d23c45efa785991a46ac71cdb9ddb0b59c624e8d2110d9ff3045abc37caa03",
+          "snapshotSha256": "eaad70585be2bb7c779e944cb5bde9ec6bcc8c24ee138830b1562b1fe48151c2",
+          "modelingMs": 947.8999999761581,
+          "totalMs": 1174.3000000715256,
+          "peakWasmMemoryBytes": 133234688,
+          "solidCounts": {
+            "bin": 1,
+            "designObjects": 5
+          }
+        },
+        {
+          "file": "input-bin-3x2x4-2026-10-06_14-53-59-364-cad.zip",
+          "zipSha256": "9c70ecac7afff46c7a7c67740db2e0ad6e4956ce8e0285bda598012753463c57",
+          "snapshotSha256": "eaad70585be2bb7c779e944cb5bde9ec6bcc8c24ee138830b1562b1fe48151c2",
+          "modelingMs": 985.3999999761581,
+          "totalMs": 1222.1999999284744,
+          "peakWasmMemoryBytes": 133234688,
+          "solidCounts": {
+            "bin": 1,
+            "designObjects": 5
+          }
+        },
+        {
+          "file": "input-bin-3x2x4-2026-10-06_14-54-00-807-cad.zip",
+          "zipSha256": "825daf3dac05fb647fea03e602ba1aa4f65a30878ecad8e82efedced9dad4c90",
+          "snapshotSha256": "eaad70585be2bb7c779e944cb5bde9ec6bcc8c24ee138830b1562b1fe48151c2",
+          "modelingMs": 978.3000000715256,
+          "totalMs": 1218.6000000238419,
+          "peakWasmMemoryBytes": 133234688,
+          "solidCounts": {
+            "bin": 1,
+            "designObjects": 5
+          }
+        }
+      ]
+    },
+    "unified": {
+      "verifiedDownloads": 20,
+      "results": [
+        {
+          "file": "input-bin-2x2x4-custom-3cell-2026-10-06_14-45-26-073-cad.zip",
+          "zipSha256": "6818fe65e45454e7df9348c2fd42943ae34ba7c13704a179eaca2187c6856dc5",
+          "snapshotSha256": "78650ab0e8a970130c5dc7256b09cea5a4fa96dc1c9306870e9b46a686753a67",
+          "modelingMs": 536.6000000238419,
+          "totalMs": 660.1999999284744,
+          "peakWasmMemoryBytes": 360775680,
+          "solidCounts": {
+            "bin": 4,
+            "designObjects": 7
+          }
+        },
+        {
+          "file": "input-bin-2x2x4-custom-3cell-2026-10-06_14-45-26-888-cad.zip",
+          "zipSha256": "ac902393496038936400ac814b6084f66732696dd935532330a4c7b466747835",
+          "snapshotSha256": "78650ab0e8a970130c5dc7256b09cea5a4fa96dc1c9306870e9b46a686753a67",
+          "modelingMs": 539.2999999523163,
+          "totalMs": 668.1000000238419,
+          "peakWasmMemoryBytes": 133234688,
+          "solidCounts": {
+            "bin": 4,
+            "designObjects": 7
+          }
+        },
+        {
+          "file": "input-bin-2x2x4-custom-3cell-2026-10-06_14-45-27-805-cad.zip",
+          "zipSha256": "a3c54a99f9d657386166c16956d7158e0131b7fb0326292b0932be80458bc86b",
+          "snapshotSha256": "78650ab0e8a970130c5dc7256b09cea5a4fa96dc1c9306870e9b46a686753a67",
+          "modelingMs": 519,
+          "totalMs": 641.0999999046326,
+          "peakWasmMemoryBytes": 208732160,
+          "solidCounts": {
+            "bin": 4,
+            "designObjects": 7
+          }
+        },
+        {
+          "file": "input-bin-2x2x4-custom-3cell-2026-10-06_14-45-28-612-cad.zip",
+          "zipSha256": "bf1e1293bd1d0c5bbc5f58cc5bcb85de75a2e02b433ff798d2ffa1fc0e861f83",
+          "snapshotSha256": "78650ab0e8a970130c5dc7256b09cea5a4fa96dc1c9306870e9b46a686753a67",
+          "modelingMs": 524.3999999761581,
+          "totalMs": 647.6999999284744,
+          "peakWasmMemoryBytes": 250478592,
+          "solidCounts": {
+            "bin": 4,
+            "designObjects": 7
+          }
+        },
+        {
+          "file": "input-bin-2x2x4-custom-3cell-2026-10-06_14-45-29-424-cad.zip",
+          "zipSha256": "d6058c1f7288a60b08999e355c80ce41d34260edd3a7b4ec67f09237560cc22f",
+          "snapshotSha256": "78650ab0e8a970130c5dc7256b09cea5a4fa96dc1c9306870e9b46a686753a67",
+          "modelingMs": 526.8999999761581,
+          "totalMs": 649,
+          "peakWasmMemoryBytes": 360775680,
+          "solidCounts": {
+            "bin": 4,
+            "designObjects": 7
+          }
+        },
+        {
+          "file": "input-bin-2x2x4-custom-3cell-2026-10-06_14-45-43-125-cad.zip",
+          "zipSha256": "cf90b83aa1a899a47f7ae22c303f53722bb57eecb31e3eed3e0b8810afb89496",
+          "snapshotSha256": "78650ab0e8a970130c5dc7256b09cea5a4fa96dc1c9306870e9b46a686753a67",
+          "modelingMs": 753.7000000476837,
+          "totalMs": 933.1999999284744,
+          "peakWasmMemoryBytes": 133234688,
+          "solidCounts": {
+            "bin": 4,
+            "designObjects": 7
+          }
+        },
+        {
+          "file": "input-bin-2x2x4-custom-3cell-2026-10-06_14-45-44-255-cad.zip",
+          "zipSha256": "aee030202e39834348c8f087a1936e703a301eff749185ae47bb6546a3f09f6e",
+          "snapshotSha256": "78650ab0e8a970130c5dc7256b09cea5a4fa96dc1c9306870e9b46a686753a67",
+          "modelingMs": 568.5,
+          "totalMs": 705.6000000238419,
+          "peakWasmMemoryBytes": 208732160,
+          "solidCounts": {
+            "bin": 4,
+            "designObjects": 7
+          }
+        },
+        {
+          "file": "input-bin-2x2x4-custom-3cell-2026-10-06_14-45-45-072-cad.zip",
+          "zipSha256": "3541256e72427b951f39f08dcb7bbfbe862dccf4ea853cecfe21188ad227c7db",
+          "snapshotSha256": "78650ab0e8a970130c5dc7256b09cea5a4fa96dc1c9306870e9b46a686753a67",
+          "modelingMs": 585,
+          "totalMs": 710.7000000476837,
+          "peakWasmMemoryBytes": 250478592,
+          "solidCounts": {
+            "bin": 4,
+            "designObjects": 7
+          }
+        },
+        {
+          "file": "input-bin-2x2x4-custom-3cell-2026-10-06_14-45-45-906-cad.zip",
+          "zipSha256": "81aa1a794bd40aa8db1c7efa8a7c82942d9cc49918773cb4275d07488ef587a9",
+          "snapshotSha256": "78650ab0e8a970130c5dc7256b09cea5a4fa96dc1c9306870e9b46a686753a67",
+          "modelingMs": 547.2999999523163,
+          "totalMs": 675.4000000953674,
+          "peakWasmMemoryBytes": 360775680,
+          "solidCounts": {
+            "bin": 4,
+            "designObjects": 7
+          }
+        },
+        {
+          "file": "input-bin-2x2x4-custom-3cell-2026-10-06_14-45-46-730-cad.zip",
+          "zipSha256": "c7772a0593dc5280d8fdcde2a57c9db874786246dabf4af9bc4a12444f5a05cf",
+          "snapshotSha256": "78650ab0e8a970130c5dc7256b09cea5a4fa96dc1c9306870e9b46a686753a67",
+          "modelingMs": 747.5,
+          "totalMs": 928.9000000953674,
+          "peakWasmMemoryBytes": 133234688,
+          "solidCounts": {
+            "bin": 4,
+            "designObjects": 7
+          }
+        },
+        {
+          "file": "input-bin-2x2x4-custom-3cell-2026-10-06_14-45-47-855-cad.zip",
+          "zipSha256": "d6afa1379cdbe1d191ed4be7115b594a2d99c10f85ce0227d722ffa72ff0b7d6",
+          "snapshotSha256": "78650ab0e8a970130c5dc7256b09cea5a4fa96dc1c9306870e9b46a686753a67",
+          "modelingMs": 548.3000000715256,
+          "totalMs": 675.6000000238419,
+          "peakWasmMemoryBytes": 208732160,
+          "solidCounts": {
+            "bin": 4,
+            "designObjects": 7
+          }
+        },
+        {
+          "file": "input-bin-2x2x4-custom-3cell-2026-10-06_14-45-48-676-cad.zip",
+          "zipSha256": "8c9a28fcddf5e3be4209dfd37f2a7cd4bfe3736acc5bac1b52a22e277c353c89",
+          "snapshotSha256": "78650ab0e8a970130c5dc7256b09cea5a4fa96dc1c9306870e9b46a686753a67",
+          "modelingMs": 537.1000000238419,
+          "totalMs": 662.1000000238419,
+          "peakWasmMemoryBytes": 250478592,
+          "solidCounts": {
+            "bin": 4,
+            "designObjects": 7
+          }
+        },
+        {
+          "file": "input-bin-2x2x4-custom-3cell-2026-10-06_14-45-49-489-cad.zip",
+          "zipSha256": "bffbe4b2946619bba5590508c11a2b21880f6229b4513cff39ac523ec4a904c2",
+          "snapshotSha256": "78650ab0e8a970130c5dc7256b09cea5a4fa96dc1c9306870e9b46a686753a67",
+          "modelingMs": 537.9000000953674,
+          "totalMs": 662.6000000238419,
+          "peakWasmMemoryBytes": 360775680,
+          "solidCounts": {
+            "bin": 4,
+            "designObjects": 7
+          }
+        },
+        {
+          "file": "input-bin-2x2x4-custom-3cell-2026-10-06_14-45-50-323-cad.zip",
+          "zipSha256": "b8071ecedcf1016ca4fd5772503a523aef14c78b6d24941adda288fb746df4cc",
+          "snapshotSha256": "78650ab0e8a970130c5dc7256b09cea5a4fa96dc1c9306870e9b46a686753a67",
+          "modelingMs": 738.5,
+          "totalMs": 920.3999999761581,
+          "peakWasmMemoryBytes": 133234688,
+          "solidCounts": {
+            "bin": 4,
+            "designObjects": 7
+          }
+        },
+        {
+          "file": "input-bin-2x2x4-custom-3cell-2026-10-06_14-45-51-439-cad.zip",
+          "zipSha256": "7276ffcd8832f9c330e16be528e4f3be09fdee6c49a00ff1b10660990c93e2c4",
+          "snapshotSha256": "78650ab0e8a970130c5dc7256b09cea5a4fa96dc1c9306870e9b46a686753a67",
+          "modelingMs": 552.2000000476837,
+          "totalMs": 680.5,
+          "peakWasmMemoryBytes": 208732160,
+          "solidCounts": {
+            "bin": 4,
+            "designObjects": 7
+          }
+        },
+        {
+          "file": "input-bin-2x2x4-custom-3cell-2026-10-06_14-45-52-261-cad.zip",
+          "zipSha256": "d77ee56db496478c8a5faa40db4fc6302407272b0b5db47ab31e8e07bf98b516",
+          "snapshotSha256": "78650ab0e8a970130c5dc7256b09cea5a4fa96dc1c9306870e9b46a686753a67",
+          "modelingMs": 540.1999999284744,
+          "totalMs": 666,
+          "peakWasmMemoryBytes": 250478592,
+          "solidCounts": {
+            "bin": 4,
+            "designObjects": 7
+          }
+        },
+        {
+          "file": "input-bin-2x2x4-custom-3cell-2026-10-06_14-45-53-091-cad.zip",
+          "zipSha256": "f54994c8641797e3c6c20ff42cb4d36afb1a692a9c46bbf0c5b3466e68b4bd2c",
+          "snapshotSha256": "78650ab0e8a970130c5dc7256b09cea5a4fa96dc1c9306870e9b46a686753a67",
+          "modelingMs": 539.9000000953674,
+          "totalMs": 665.2000000476837,
+          "peakWasmMemoryBytes": 360775680,
+          "solidCounts": {
+            "bin": 4,
+            "designObjects": 7
+          }
+        },
+        {
+          "file": "input-bin-2x2x4-custom-3cell-2026-10-06_14-45-53-890-cad.zip",
+          "zipSha256": "03683b854ea92570db8ec7ecc261ea96189583582ccb3d35d983936d41daf37f",
+          "snapshotSha256": "78650ab0e8a970130c5dc7256b09cea5a4fa96dc1c9306870e9b46a686753a67",
+          "modelingMs": 741.5999999046326,
+          "totalMs": 923.1000000238419,
+          "peakWasmMemoryBytes": 133234688,
+          "solidCounts": {
+            "bin": 4,
+            "designObjects": 7
+          }
+        },
+        {
+          "file": "input-bin-2x2x4-custom-3cell-2026-10-06_14-45-55-006-cad.zip",
+          "zipSha256": "48c464bae4054d373361d5e6dd65231fbdb0a8b5704cffe309209e23eacd165f",
+          "snapshotSha256": "78650ab0e8a970130c5dc7256b09cea5a4fa96dc1c9306870e9b46a686753a67",
+          "modelingMs": 548.0999999046326,
+          "totalMs": 676.5,
+          "peakWasmMemoryBytes": 208732160,
+          "solidCounts": {
+            "bin": 4,
+            "designObjects": 7
+          }
+        },
+        {
+          "file": "input-bin-2x2x4-custom-3cell-2026-10-06_14-45-55-807-cad.zip",
+          "zipSha256": "05d53d59c099af5901809a3a474c578cf9e7cff395c868cb3dda02e4963b236a",
+          "snapshotSha256": "78650ab0e8a970130c5dc7256b09cea5a4fa96dc1c9306870e9b46a686753a67",
+          "modelingMs": 553.8999999761581,
+          "totalMs": 687.7000000476837,
+          "peakWasmMemoryBytes": 250478592,
+          "solidCounts": {
+            "bin": 4,
+            "designObjects": 7
+          }
+        }
+      ]
+    }
+  }
+}

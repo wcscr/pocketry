@@ -104,6 +104,13 @@ for directory in sorted(path for path in root.iterdir() if path.is_dir()):
         expected=[*item["boundsMm"]["min"].values(),*item["boundsMm"]["max"].values()]
         assert all(math.isclose(a,b,abs_tol=2e-5) for a,b in zip(coords,expected)),(key,coords,expected)
     by_id={item["id"]:item for item in objects["objects"]}
+    source_project=json.loads((directory/"design.pocketry.json").read_text())
+    placements={placement["id"]:placement for placement in source_project["cutouts"]}
+    for item in objects["objects"]:
+        if item["role"]=="pocket-source":
+            original=placements[item["sourceId"]]
+            assert all(item["transform"][key]==original.get(key,1 if key!="mirrored" else False) for key in ["scaleX","scaleY","mirrored"])
+
     if directory.name in ["mixed","concave"]:
         source=next(item for item in objects["objects"] if item["role"]=="pocket-source" and item["shapeId"] in ["circle","ellipse"])
         actual=assembly[source["stepInstanceName"]]["shape"];radii=[]
