@@ -331,7 +331,8 @@
         "file": "wiha-drivers.pocketry.json",
         "sourceFile": "New SCHEMA - Wiha-Drivers-2-Styles---Long-bin-3x7x3-2026-09-23_07-04-44-915.pocketry.json",
         "sourceSha256": "690d1e20cfed6ab8ec95661ee21ed25adc20b212ba0f27bda67932ea9cfbcdbb",
-        "sha256": "170c7b2537bc360d646fd6383fcab8e31b6a6b1354d106089fc9a909e7dcf7e5"
+        "sha256": "4b3f5f027d38e7821da5c622b04b628aebffe3603457fc34c768a5e717edd417",
+        "processing": "Project name labeled by 150 mm blade length; design geometry unchanged."
       },
       "photos": [
         {
@@ -361,6 +362,24 @@
           "rotationAfterCropDegreesCounterclockwise": 0,
           "processing": "EXIF orientation applied to pixels; cropped; resized to 836 by 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
           "sha256": "4bec60ff4cb62da377357596a122b59efe841e1b1e39982ec2600a422fa58788"
+        },
+        {
+          "file": "photos/stacked-bins-in-drawer.jpg",
+          "sourceFile": "20261006_095708.jpg",
+          "sourceSha256": "6166f284f78974e69ea75528a6e2657b05020af4cb61e993ddbc39a888b0f1a7",
+          "rotationAfterOrientationDegreesCounterclockwise": -0.5,
+          "cropPixelsAfterRotation": [
+            25,
+            20,
+            2480,
+            3970
+          ],
+          "publishedSizePixels": [
+            746,
+            1200
+          ],
+          "processing": "EXIF orientation applied to pixels; straightened by 0.5 degrees; cropped to the loaded bins in the drawer; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "7b7bcdba56ae306e519e7c5d94836ae67756ee1a5f606f3805867cd2990af558"
         }
       ]
     },
@@ -497,6 +516,239 @@
             917,
             1200
           ]
+        }
+      ]
+    },
+    {
+      "directory": "wiha-40mm-drivers",
+      "model": {
+        "file": "wiha-40mm-drivers.3mf",
+        "sourceFile": "Wiha-40-mm---4-linked-pockets---same-direction---2u-bin-4x7x3-half-multicolor-2026-10-05_09-57-59-729.3mf",
+        "sha256": "4e97362ec55974d3fd4bf31c83d52766e6e26a7c978e8e7eb96805145cf0ca9b"
+      },
+      "project": {
+        "file": "wiha-40mm-drivers.pocketry.json",
+        "sourceFile": "Wiha-40-mm---4-linked-pockets---same-direction---2u-bin-4x7x3-half-multicolor-2026-10-05_09-57-59-729.pocketry.json",
+        "sha256": "980d74628713890bda76116947a2e19809dca6acaedc423f3c46103de8b35fad",
+        "processing": "Named final design snapshot; retained shapes referenced by placed pockets or transform origins; omitted editing history."
+      },
+      "photos": [
+        {
+          "file": "photos/printed-bin-loaded.jpg",
+          "sourceFile": "20261006_094756.jpg",
+          "sourceSha256": "a0209d73eb6d425967c6074402af875716803fe3bde7951a7e88875dd5538d92",
+          "perspectiveSourceCornersAfterOrientation": [
+            [
+              888.1578947368422,
+              2482.4561403508774
+            ],
+            [
+              2416.666666666667,
+              2212.719298245614
+            ],
+            [
+              2605.263157894737,
+              3109.6491228070176
+            ],
+            [
+              1039.4736842105265,
+              3383.7719298245615
+            ]
+          ],
+          "perspectiveTargetBinSizePixels": [
+            1000,
+            570
+          ],
+          "perspectiveMarginPixels": 28,
+          "rotationAfterPerspectiveDegreesCounterclockwise": -90,
+          "publishedSizePixels": [
+            626,
+            1056
+          ],
+          "processing": "EXIF orientation applied to pixels; perspective straightened using bin edges; cropped around the loaded bin; rotated for upright lettering; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "bb9b2abb1c8cbb64290ec9bb67a200e6e61e50e2e435bb11799b4f6d9534a8aa"
+        }
+      ]
+    },
+    {
+      "directory": "wiha-50mm-drivers",
+      "model": {
+        "file": "wiha-50mm-drivers.3mf",
+        "sourceFile": "Wiha-50-mm---2-pockets---same-direction---smooth-linked-bin-1x4x3-multicolor-2026-10-05_09-57-18-323.3mf",
+        "sha256": "1c55139b3a22bc464d3867c399582d8f5909ed4341ec9b34f85d60389667003e"
+      },
+      "project": {
+        "file": "wiha-50mm-drivers.pocketry.json",
+        "sourceFile": "Wiha-50-mm---2-pockets---same-direction---smooth-linked-bin-1x4x3-multicolor-2026-10-05_09-57-18-323.pocketry.json",
+        "sha256": "bb85eede0a5358b910fb99759689954b05c581e153e3ca2bb45dc45abdecf869",
+        "processing": "Named final design snapshot; retained shapes referenced by placed pockets or transform origins; omitted editing history."
+      },
+      "photos": [
+        {
+          "file": "photos/printed-bin-loaded.jpg",
+          "sourceFile": "20261006_094756.jpg",
+          "sourceSha256": "a0209d73eb6d425967c6074402af875716803fe3bde7951a7e88875dd5538d92",
+          "perspectiveSourceCornersAfterOrientation": [
+            [
+              686.4035087719299,
+              2085.5263157894738
+            ],
+            [
+              2449.561403508772,
+              1769.7368421052633
+            ],
+            [
+              2537.280701754386,
+              2195.1754385964914
+            ],
+            [
+              747.8070175438597,
+              2508.7719298245615
+            ]
+          ],
+          "perspectiveTargetBinSizePixels": [
+            1000,
+            248
+          ],
+          "perspectiveMarginPixels": 28,
+          "rotationAfterPerspectiveDegreesCounterclockwise": -90,
+          "publishedSizePixels": [
+            304,
+            1056
+          ],
+          "processing": "EXIF orientation applied to pixels; perspective straightened using bin edges; cropped around the loaded bin; rotated for upright lettering; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "92e19c277c611b215c5d353e19ab05755638c5e102838059e9ae50f67862bb8f"
+        }
+      ]
+    },
+    {
+      "directory": "wiha-60mm-drivers",
+      "model": {
+        "file": "wiha-60mm-drivers.3mf",
+        "sourceFile": "Small-Wiha---x60-bin-1x5x3-multicolor-2026-10-03_09-00-08-967.3mf",
+        "sha256": "74b2156300f4827291ff5d75683e06317e7347516d14f34682a9337433590de9"
+      },
+      "project": {
+        "file": "wiha-60mm-drivers.pocketry.json",
+        "sourceFile": "pocketry-library-2026-10-05T15-21-34-033Z.json",
+        "sha256": "3698bd540981a105bcfcc1004558cac31d90b5b5059a66a43ffdb4b4f0aa00d9",
+        "processing": "Named final design snapshot; retained shapes referenced by placed pockets or transform origins; omitted editing history.",
+        "sourceProjectId": "58291064-8aca-48c1-8fb4-aff2b51cae03",
+        "sourceProjectName": "Wiha 60 mm - 2 pockets"
+      },
+      "photos": [
+        {
+          "file": "photos/printed-bin-loaded.jpg",
+          "sourceFile": "codex-clipboard-aae5d3a8-f5ae-41ea-86ce-0e2861aa6e5f.jpg",
+          "sourceSha256": "ce275752a595ce25c12deb8e88e28292258bfde5094c3b55439ef5ebb9828e20",
+          "perspectiveSourceCornersAfterOrientation": [
+            [
+              171,
+              393
+            ],
+            [
+              437,
+              390
+            ],
+            [
+              458,
+              1723
+            ],
+            [
+              193,
+              1728
+            ]
+          ],
+          "perspectiveTargetBinSizePixels": [
+            265,
+            1338
+          ],
+          "perspectiveMarginsPixels": {
+            "left": 40,
+            "top": 40,
+            "right": 40,
+            "bottom": 40
+          },
+          "publishedSizePixels": [
+            292,
+            1200
+          ],
+          "processing": "Perspective straightened using the bin edges; cropped around the bin and tools; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "bb8a37a5f9c8fa5c62ca8621a533bbab278cfb598631f98d2b12a837e2f045b5"
+        },
+        {
+          "file": "photos/printed-bin-pocket.jpg",
+          "sourceFile": "codex-clipboard-0950e24d-b55b-4edf-aac2-c21fabed2a5c.jpg",
+          "sourceSha256": "f0d1351ec370bfd1906310c90e5f1570572290af5888cbee57977242c125731b",
+          "perspectiveSourceCornersAfterOrientation": [
+            [
+              365,
+              394
+            ],
+            [
+              629,
+              394
+            ],
+            [
+              629,
+              1722
+            ],
+            [
+              366,
+              1722
+            ]
+          ],
+          "perspectiveTargetBinSizePixels": [
+            265,
+            1338
+          ],
+          "perspectiveMarginsPixels": {
+            "left": 270,
+            "top": 40,
+            "right": 40,
+            "bottom": 40
+          },
+          "publishedSizePixels": [
+            487,
+            1200
+          ],
+          "processing": "Perspective straightened using the bin edges; cropped around the bin and tools; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "3cacab62d878c87f4ac358ab20947745570fc351215c2b7ef924f2c5dffff0e6"
+        },
+        {
+          "file": "photos/printed-bin-loaded-current.jpg",
+          "sourceFile": "20261006_094756.jpg",
+          "sourceSha256": "a0209d73eb6d425967c6074402af875716803fe3bde7951a7e88875dd5538d92",
+          "perspectiveSourceCornersAfterOrientation": [
+            [
+              326.75438596491233,
+              1684.2105263157896
+            ],
+            [
+              2559.2105263157896,
+              1291.6666666666667
+            ],
+            [
+              2635.964912280702,
+              1730.2631578947369
+            ],
+            [
+              388.15789473684214,
+              2111.842105263158
+            ]
+          ],
+          "perspectiveTargetBinSizePixels": [
+            1200,
+            238
+          ],
+          "perspectiveMarginPixels": 28,
+          "rotationAfterPerspectiveDegreesCounterclockwise": -90,
+          "publishedSizePixels": [
+            281,
+            1200
+          ],
+          "processing": "EXIF orientation applied to pixels; perspective straightened using bin edges; cropped around the loaded bin; rotated for upright lettering; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "9740695c69a5be566ef9ca9efbcedd3f590f8b0d9ba909c41ffbb572460056e9"
         }
       ]
     }
