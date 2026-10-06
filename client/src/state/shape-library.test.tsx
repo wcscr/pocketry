@@ -4,6 +4,8 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { TracedShape } from "@shared/gridfinity/cutout";
+import { createBasicPocket } from "@/lib/gridfinity/basic-shape";
+import { PROJECT_SCHEMA_VERSION } from "@shared/gridfinity/project";
 
 import { ShapeLibraryProvider, useShapeLibrary, type ShapeLibrary } from "./shape-library";
 
@@ -67,6 +69,37 @@ function mountLibrary(): { library: () => ShapeLibrary; act: (fn: () => void) =>
 }
 
 describe("shape library", () => {
+  it("migrates only unambiguous basic shapes in the legacy recovery queue", () => {
+    const { analyticProfile: _primitive, ...basic } = createBasicPocket("circle", { x: 0, y: 0 }, { x: 6, y: 0 }, "old-circle")!.shape;
+    const trace = { ...basic, id: "trace", source: "trace" as const };
+    const edited = structuredClone(basic); edited.id = "edited"; edited.outlineMm[0].outer[1].x += 0.1;
+    sessionStorage.setItem("pocketry:queued-tools", JSON.stringify([basic, trace, edited]));
+    const { library } = mountLibrary();
+    expect(library().shapes[0].analyticProfile).toEqual({ kind: "circle", radiusMm: 6 });
+    expect(library().shapes[0].outlineMm).toEqual(basic.outlineMm);
+    expect(library().shapes.slice(1).every(shape => shape.analyticProfile === undefined)).toBe(true);
+    expect(JSON.parse(sessionStorage.getItem("pocketry:queued-tools")!).schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
+  });
+
+  it("does not infer primitive intent from current polygon-only queued shapes", () => {
+    const { analyticProfile: _primitive, ...polygon } = createBasicPocket("rectangle", { x: -10, y: -5 }, { x: 10, y: 5 }, "revised")!.shape;
+    const first = mountLibrary();
+    first.act(() => first.library().addShape(polygon));
+    const reloaded = mountLibrary();
+    expect(reloaded.library().shapes).toEqual([polygon]);
+    expect(reloaded.library().shapes[0].analyticProfile).toBeUndefined();
+  });
+
+  it("round-trips authored primitive metadata through the versioned recovery queue", () => {
+    const basic = createBasicPocket("circle", { x: 0, y: 0 }, { x: 8, y: 0 }, "new-circle")!.shape;
+    const first = mountLibrary();
+    first.act(() => first.library().addShape(basic));
+    first.act(() => first.library().consumePending());
+    expect(mountLibrary().library().shapes).toEqual([basic]);
+    first.act(() => first.library().removeShape(basic.id));
+    expect(mountLibrary().library().pendingIds).toEqual([]);
+  });
+
   it("recovers queued geometry after reload and keeps it until placement is durable", () => {
     const first = mountLibrary();
     const shape = { ...makeShape("hand-edited"), traceMarginMm: 0.5 };
