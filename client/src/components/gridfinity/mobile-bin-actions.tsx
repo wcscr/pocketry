@@ -60,8 +60,8 @@ export function MobileBinActions({ open, onOpenChange, onMore, onExport, onWorkf
             <LabelledSlider id="quick-pocket-depth" label={depth.mode === "remaining" ? "Floor thickness" : "Pocket depth"}
               value={depth.mode === "remaining" ? depth.floorThicknessMm : depth.value} min={depth.mode === "remaining" ? 0 : 0.5}
               max={Math.max(7, bin.spec.heightUnits * 7)} step={0.5} format={mm} touchTarget
-              onChange={value => updateDepth(depth.mode === "remaining" ? { mode: "remaining", floorThicknessMm: value } : { mode: "mm", value }, true)}
-              onCommit={value => updateDepth(depth.mode === "remaining" ? { mode: "remaining", floorThicknessMm: value } : { mode: "mm", value }, false)} />}
+              onChange={value => updateDepth(depth.mode === "remaining" ? { ...depth, floorThicknessMm: value } : { mode: "mm", value }, true)}
+              onCommit={value => updateDepth(depth.mode === "remaining" ? { ...depth, floorThicknessMm: value } : { mode: "mm", value }, false)} />}
           <LabelledSlider id="quick-pocket-clearance" label="Extra clearance" value={cutout.clearanceMm} min={-2} max={2} step={0.1} format={mm} touchTarget
             onChange={value => updateClearance(value, true)} onCommit={value => updateClearance(value, false)} />
         </div>

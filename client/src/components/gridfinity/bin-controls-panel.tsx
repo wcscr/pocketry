@@ -487,6 +487,10 @@ export function BinControlsPanel({
     : selectedCutout;
   const updatePocketDepth = (depth: DepthSpec, transient = false) => {
     if (!selectedCutout) return;
+    if (depth.mode === "remaining" && hasRigidPocket(selectedCutout) && depthShape && depthCutout) {
+      const originalDepth = resolvePlacedPocketDepth(spec, depthCutout.depth, depthShape, depthCutout).axialDepthMm;
+      depth = { ...depth, sourceDepthMm: Math.max(0.1, originalDepth ?? 1) };
+    }
     const depths = selectedCutout.split ? [...selectedCutout.split.depths] as [DepthSpec, DepthSpec] : null;
     if (depths) depths[selectedPocketSection] = depth;
     dispatch({ type: "UPDATE_CUTOUT", id: selectedCutout.id,
@@ -923,7 +927,7 @@ export function BinControlsPanel({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {!hasRigidPocket(selectedCutout) && <SelectItem value="remaining">Keep floor thickness</SelectItem>}
+                        <SelectItem value="remaining">Keep floor thickness</SelectItem>
                         <SelectItem value="mm">Fixed depth</SelectItem>
                         <SelectItem value="through">Through</SelectItem>
                       </SelectContent>
@@ -949,6 +953,7 @@ export function BinControlsPanel({
 
                   {depthCutout!.depth.mode === "remaining" && <MmSlider label="Remaining floor thickness" value={depthCutout!.depth.floorThicknessMm} min={0} max={Math.max(7, spec.heightUnits * 7)} step={0.5}
                     onChange={(floorThicknessMm, transient) => updatePocketDepth({ mode: "remaining", floorThicknessMm }, transient)} />}
+                  {hasRigidPocket(selectedCutout) && depthCutout!.depth.mode === "remaining" && <p className="text-[11px] text-muted-foreground">The floor limit clips only the cut. Raising the pocket restores its original profile.</p>}
                   {selectedCutout.split && <p className="text-[11px] text-muted-foreground">Depth applies to the selected section. Size and edges apply to the whole pocket.</p>}
                 </section>
               </PocketDepthSummary>

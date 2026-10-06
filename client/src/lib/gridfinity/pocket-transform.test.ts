@@ -119,7 +119,7 @@ describe("surface-anchored pocket controls", () => {
     const split={...pocket,tilt:undefined,split:{boundary:[{x:-3,y:0},{x:3,y:0}],
       depths:[{mode:"remaining" as const,floorThicknessMm:20},{mode:"remaining" as const,floorThicknessMm:8}] as [{mode:"remaining";floorThicknessMm:number},{mode:"remaining";floorThicknessMm:number}]}};
     const moved=pocketTransformPatch(split,shape,spec,new Vector3(5,-4,45),identity,"translate")!;
-    expect(moved.split?.depths).toEqual([{mode:"mm",value:22},{mode:"mm",value:34}]);
+    expect(moved.split?.depths).toEqual([{mode:"remaining",floorThicknessMm:20,sourceDepthMm:22},{mode:"remaining",floorThicknessMm:8,sourceDepthMm:34}]);
     expect(moved.elevationMm).toBe(11);
     const turned=pocketTransformPatch({...split,...moved},shape,spec,origin,new Quaternion().setFromAxisAngle(new Vector3(1,0,0),Math.PI/2),"rotate")!;
     expect(turned.split).toEqual(moved.split);

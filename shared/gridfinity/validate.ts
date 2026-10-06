@@ -479,8 +479,12 @@ function validateAgainstBin(spec: BinSpec, p: PlacedCutout): ValidationIssue[] {
 
   if (cutout.profileBottom || hasRigidPocket(cutout)) {
     const minimum = defaultPocketFloorThicknessMm(spec);
-    const elevation = cutout.profileBottom?.elevationMm ?? cutout.elevationMm!;
-    const through = pocketDepths(cutout).some(d => d.mode === "through");
+    const sourceElevation = cutout.profileBottom?.elevationMm ?? cutout.elevationMm!;
+    const depths = pocketDepths(cutout);
+    // A minimum-floor cut can safely retain a source below the protected base.
+    const elevation = Math.min(...depths.map(d => d.mode === "remaining"
+      ? Math.max(sourceElevation, d.floorThicknessMm) : sourceElevation));
+    const through = depths.some(d => d.mode === "through");
     if (!through && elevation < minimum) issues.push({
       code: "too-deep", severity: "error", cutoutIds: [cutout.id],
       message: `“${label}”: Raise the pocket to leave at least ${minimum} mm above the bin underside.`,

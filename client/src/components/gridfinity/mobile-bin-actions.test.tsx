@@ -19,9 +19,9 @@ it.each(["depth", "clearance"])("keeps the mobile %s slider tied to its pocket a
   }
   try {
     React.act(() => root.render(<ShapeLibraryProvider><BinProvider><Probe /></BinProvider></ShapeLibraryProvider>));
-    const first = parseCutoutPlacement({ id: "first", shapeId: "source", position: { x: -15, y: 0 },
+    const first = parseCutoutPlacement({ id: "first", shapeId: "source", position: { x: -15, y: 0 }, elevationMm: 3,
       split: { boundary: [{ x: 0, y: -10 }, { x: 0, y: 10 }],
-        depths: [{ mode: "remaining", floorThicknessMm: 6 }, { mode: "remaining", floorThicknessMm: 4 }] } });
+        depths: [{ mode: "remaining", floorThicknessMm: 6, sourceDepthMm: 16 }, { mode: "remaining", floorThicknessMm: 4, sourceDepthMm: 20 }] } });
     const second = { ...first, id: "second", position: { x: 15, y: 0 }, clearanceMm: 0.5 };
     React.act(() => store.dispatch({ type: "ADD_PLACED", cutouts: [first, second], gridX: 2, gridY: 2 }));
     React.act(() => store.dispatch({ type: "SELECT_CUTOUT", id: first.id }));
@@ -30,6 +30,8 @@ it.each(["depth", "clearance"])("keeps the mobile %s slider tied to its pocket a
     React.act(() => previous.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })));
     const edited = store.cutouts[0];
     expect(edited).not.toEqual(first);
+    expect(edited.split!.depths[0]).toMatchObject({sourceDepthMm:16});
+    expect(edited.split!.depths[1]).toMatchObject({sourceDepthMm:20});
     React.act(() => store.dispatch({ type: "SELECT_CUTOUT", id: first.id, section: 1 }));
     expect(slider()).not.toBe(previous);
     React.act(() => store.dispatch({ type: "SELECT_CUTOUT", id: second.id }));

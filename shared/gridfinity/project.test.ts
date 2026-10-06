@@ -610,3 +610,18 @@ it("round-trips as-drawn references and migrates version 23 without changing geo
   expect(parseProjectDoc({ ...doc, schemaVersion: 23 })).toEqual(doc);
   expect(parseProjectDoc({ ...saved, transformOrigins: { ...transformOrigins, pockets: [{ cutout: { ...doc.cutouts[0], rotationDeg: Infinity }, spec: doc.spec }] } })).toBeNull();
 });
+
+it("retains unclipped rigid source depths with floor limits through save, history, and creation references", () => {
+  const previous = parseProjectDoc({...VALID,schemaVersion:33})!;
+  expect(previous).not.toBeNull();
+  const cutout = {...previous.cutouts[0],elevationMm:3,insertionMode:"vertical",tilt:{xDeg:20,yDeg:25},
+    depth:{mode:"remaining",floorThicknessMm:9,sourceDepthMm:16}};
+  const doc = {...previous,cutouts:[cutout],history:{index:0,stack:[{label:"Lower pocket",doc:{spec:previous.spec,cutouts:[cutout],fingerHoles:[]}}]},
+    transformOrigins:{pockets:[{cutout,spec:previous.spec}],fingerHoles:[]}};
+  const parsed = parseProjectDoc(JSON.parse(JSON.stringify(doc)))!;
+  expect(parsed).not.toBeNull();
+  expect(parsed.cutouts[0].depth).toEqual(cutout.depth);
+  expect(parsed.history!.stack[0].doc.cutouts[0].depth).toEqual(cutout.depth);
+  expect(parsed.transformOrigins!.pockets[0].cutout.depth).toEqual(cutout.depth);
+  expect(parseProjectDoc({...doc,cutouts:[{...cutout,depth:{...cutout.depth,sourceDepthMm:-1}}]})).toBeNull();
+});

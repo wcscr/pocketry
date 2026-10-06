@@ -718,15 +718,16 @@ export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: Cut
   const reach = Math.max(spec.gridX * 42, spec.gridY * 42, spec.heightUnits * 7,
     Math.abs(cutout.position.x), Math.abs(cutout.position.y), cutout.elevationMm ?? 0,
     ...shape.outlineMm.flatMap(s => s.outer.map(v => Math.abs(v.x * cutout.scaleX) + Math.abs(v.y * cutout.scaleY)))) * 4 + 100;
-  const dimensions = (cutout.split?.depths ?? [cutout.depth]).map(d => d.mode === "through" ? null
-    : d.mode === "mm" ? d.value : realTop - d.floorThicknessMm);
+  const depthSpecs = cutout.split?.depths ?? [cutout.depth];
+  const dimensions = depthSpecs.map(d => d.mode === "through" ? null
+    : d.mode === "mm" ? d.value : d.sourceDepthMm ?? realTop - d.floorThicknessMm);
   const localSpec = { ...spec, lip: "none" as const, fillHeightPercent: 100,
     heightUnits: Math.ceil((Math.max(reach, ...dimensions.map(d => d ?? 1)) + 20) / 7) };
   const localTop = resolvePocketDepth(localSpec, cutout.depth).infillTopZ;
-  const buildSource = (throughDepth: number, extendThrough: boolean, bottomFilletMm = cutout.bottomFilletMm): Manifold => {
+  const buildSource = (throughDepth: number, extendThrough: boolean): Manifold => {
     const depths = dimensions.map(d => ({ mode: "mm" as const, value: d ?? throughDepth }));
     const local = { ...cutout, position: { x: 0, y: 0 }, rotationDeg: 0, tilt: undefined,
-      elevationMm: undefined, zOffsetMm: undefined, insertionMode: undefined, depth: depths[0], topFilletMm: 0, bottomFilletMm,
+      elevationMm: undefined, zOffsetMm: undefined, insertionMode: undefined, depth: depths[0], topFilletMm: 0,
       split: cutout.split ? { ...cutout.split, depths: [depths[0], depths[1]] as [typeof depths[number], typeof depths[number]] } : undefined };
     if (dimensions.some(d => d === null)) {
       const boundary = cutout.split?.boundary.map(p => transformPointPlacement(p, local));
@@ -762,37 +763,34 @@ export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: Cut
   // Follow pocket angle retains the authored tilted cavity and its surface
   // intersection, exactly as before insertion options were introduced.
   let cutter = buildObjectCavity(kernel, source, pose, cutout.insertionMode === "vertical" ? Infinity : top, anchor);
-  const nominal = cutter && cutout.insertionMode === "vertical"
-    ? buildObjectCavity(kernel,buildSource(hasThrough ? reach : 1,hasThrough,0),pose,Infinity,anchor) : null;
-  const projectedSource = nominal ? arena.track(nominal.project()) : null;
+  const projectedSource = cutter && cutout.insertionMode === "vertical" ? arena.track(arena.track(cutter.project()).simplify(0.0001)) : null;
   const validationIssues: ValidationIssue[] = [];
-  if (cutter && cutout.insertionMode === "vertical") {
-    const ceiling = Math.max(realTop, cutter.boundingBox().max[2], Number.isFinite(top) ? top : realTop) + 1;
-    const axis = pocketAxis(cutout);
-    const rotatedAnchor = arena.track(anchor.rotate([pose.rotation.xDeg,pose.rotation.yDeg,pose.rotation.zDeg]));
-    const shiftZ = pose.elevationMm-rotatedAnchor.boundingBox().min[2];
-    const planeShift = axis.x*pose.position.x+axis.y*pose.position.y+axis.z*shiftZ;
-    const shallow = Math.min(...dimensions.map(d => d ?? Infinity));
-    const floors = dimensions.flatMap((dimension,i) => {
-      if (dimension === null) return [];
-      let region;
-      if (cutout.split && dimension > shallow) {
-        const local = { ...cutout, position:{x:0,y:0},rotationDeg:0 };
-        const [a,b] = cutout.split.boundary.map(p => transformPointPlacement(p,local));
-        const sign = (cutout.mirrored ? -1 : 1)*(i === 0 ? 1 : -1);
-        const length = Math.hypot(b.x-a.x,b.y-a.y), nx=-(b.y-a.y)/length*sign, ny=(b.x-a.x)/length*sign;
-        const part = arena.track(source.trimByPlane([nx,ny,0],nx*a.x+ny*a.y));
-        const posed = buildObjectCavity(kernel,part,pose,Infinity,anchor);
-        if (posed) region = arena.track(posed.project());
-      }
-      return [{offset:planeShift-dimension,region}];
+  const clearAndLimit = (posed: Manifold, floorThicknessMm?: number): Manifold => {
+    let result = posed;
+    if (cutout.insertionMode === "vertical") {
+      const ceiling = Math.max(realTop, posed.boundingBox().max[2], Number.isFinite(top) ? top : realTop) + 1;
+      result = verticalDropInCutter(kernel, posed, ceiling);
+    }
+    // Apply the floor constraint to the generated cavity, never the source.
+    // Rebuilding after raising the object therefore restores its whole profile.
+    if (floorThicknessMm !== undefined) result = arena.track(result.trimByPlane([0,0,1],floorThicknessMm));
+    if (Number.isFinite(top)) result = arena.track(result.trimByPlane([0,0,-1],-top));
+    return result;
+  };
+  if (cutter && cutout.split && depthSpecs.some(d => d.mode === "remaining")) {
+    const local = {...cutout,position:{x:0,y:0},rotationDeg:0};
+    const [a,b] = cutout.split.boundary.map(p => transformPointPlacement(p,local));
+    const length = Math.hypot(b.x-a.x,b.y-a.y);
+    const pieces = depthSpecs.flatMap((depth,i) => {
+      const sign = (cutout.mirrored ? -1 : 1)*(i === 0 ? 1 : -1);
+      const nx = -(b.y-a.y)/length*sign, ny = (b.x-a.x)/length*sign;
+      const part = arena.track(source.trimByPlane([nx,ny,0],nx*a.x+ny*a.y));
+      const posed = buildObjectCavity(kernel,part,pose,Infinity,anchor);
+      return posed ? [clearAndLimit(posed,depth.mode === "remaining" ? depth.floorThicknessMm : undefined)] : [];
     });
-    cutter = verticalDropInCutter(kernel, cutter, realTop, ceiling, !hasThrough && projectedSource ? {
-      projection:projectedSource, normal:[axis.x,axis.y,axis.z], floors,
-      fillet:{radiusMm:Math.min(cutout.bottomFilletMm,shallow/2),
-        profileStepMm:quality.filletProfileStepMm ?? FILLET_PROFILE_STEP_MM,circularSegments:quality.circularSegments},
-    } : undefined);
-    if (Number.isFinite(top)) cutter = arena.track(cutter.trimByPlane([0, 0, -1], -top));
+    cutter = arena.track(Manifold.union(pieces));
+  } else if (cutter) {
+    cutter = clearAndLimit(cutter,cutout.depth.mode === "remaining" ? cutout.depth.floorThicknessMm : undefined);
   }
   const seatedCutter = cutter;
   if (cutter && cutout.topFilletMm > 0 && cutter.boundingBox().max[2] >= realTop - 1e-8) {
@@ -809,7 +807,7 @@ export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: Cut
       cutter = arena.track(cutter.add(arena.track(flare.translate([0, 0, realTop - radius]))));
     }
   }
-  if (cutter && projectedSource && !hasThrough && pocketAxis(cutout).z > 0.01) {
+  if (cutter && projectedSource && !hasThrough) {
     const mouth = arena.track(cutter.slice(realTop-1e-7));
     if (arena.track(projectedSource.subtract(mouth)).area() > 0.01) {
       validationIssues.push({code:"vertical-seat-above-surface",severity:"error",cutoutIds:[cutout.id],
@@ -817,14 +815,15 @@ export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: Cut
     }
   }
   const floorInserts: Manifold[] = [], floorRegions: Manifold[] = [];
-  const distance = Math.min(options.floorInsertThicknessMm ?? 0, pose.elevationMm);
-  if (cutter && seatedCutter && distance > 0 && cutout.insertionMode === "vertical") {
-    // Color the extended sloped seat, including the added clearance area.
+  const distance = Math.min(options.floorInsertThicknessMm ?? 0, Math.max(0, seatedCutter?.boundingBox().min[2] ?? pose.elevationMm));
+  if (cutter && seatedCutter && distance > 0 && (cutout.insertionMode === "vertical" || depthSpecs.some(d => d.mode === "remaining"))) {
+    // Color the actual rotated underside beneath the cleared insertion path.
     // Inset the color at the wall fillet, as for ordinary pocket floors, so
     // independently exported materials do not share a vertical wall seam.
     let region = arena.track(seatedCutter.translate([0,0,-distance]));
-    if (projectedSource && cutout.bottomFilletMm > 0) {
-      const floorOutline = arena.track(projectedSource.offset(-cutout.bottomFilletMm,"Round",2,quality.circularSegments));
+    if (cutout.bottomFilletMm > 0) {
+      const projection = projectedSource ?? arena.track(seatedCutter.project());
+      const floorOutline = arena.track(projection.offset(-cutout.bottomFilletMm,"Round",2,quality.circularSegments));
       const bounds = region.boundingBox();
       const floorColumn = arena.track(arena.track(floorOutline.extrude(bounds.max[2]-bounds.min[2]+2)).translate([0,0,bounds.min[2]-1]));
       region = arena.track(region.intersect(floorColumn));

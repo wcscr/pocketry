@@ -85,7 +85,7 @@ describe("rigid generated pockets", () => {
   });
   it("freezes the current depth before a rigid edit", () => {
     const p = { ...pocket, elevationMm:undefined, depth:{mode:"remaining" as const,floorThicknessMm:9} };
-    expect(rigidPocket(p,shape,spec)).toMatchObject({ elevationMm:9, depth:{mode:"mm",value:33} });
+    expect(rigidPocket(p,shape,spec)).toMatchObject({ elevationMm:9, depth:{mode:"remaining",floorThicknessMm:9,sourceDepthMm:33} });
   });
   it.each([{xDeg:0,yDeg:0},{xDeg:90,yDeg:0},{xDeg:180,yDeg:0},{xDeg:30,yDeg:60}])("extends through cuts along their own rotated axis %j", tilt => {
     const p = {...pocket, depth:{mode:"through" as const}, tilt};

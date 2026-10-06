@@ -110,6 +110,8 @@ export const depthSpecSchema = z.discriminatedUnion("mode", [
     .object({
       mode: z.literal("remaining"),
       floorThicknessMm: z.number().min(0),
+      /** Unclipped extrusion retained during rigid edits; the floor is a bin-space limit. */
+      sourceDepthMm: z.number().positive().optional(),
     })
     .strict(),
 ]);
@@ -1248,8 +1250,8 @@ export function resolvePlacedPocketDepth(spec: Pick<BinSpec, "heightUnits" | "li
   const ordinary = resolvePocketDepth(spec, depth);
   if (hasRigidPocket(cutout)) {
     if (depth.mode === "through") return { ...ordinary, floorZ: null, highestFloorZ: null, axialDepthMm: null };
-    const floorZ = cutout.elevationMm!;
-    return { ...ordinary, floorZ, highestFloorZ: floorZ, axialDepthMm: ordinary.depthMm,
+    const floorZ = depth.mode === "remaining" ? Math.max(cutout.elevationMm!, depth.floorThicknessMm) : cutout.elevationMm!;
+    return { ...ordinary, floorZ, highestFloorZ: floorZ, axialDepthMm: depth.mode === "remaining" ? depth.sourceDepthMm ?? ordinary.depthMm : ordinary.depthMm,
       depthMm: Math.max(0, ordinary.infillTopZ - floorZ) };
   }
   if (cutout.profileBottom) {

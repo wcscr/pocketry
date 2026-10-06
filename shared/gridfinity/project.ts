@@ -57,9 +57,10 @@ export { serializeProjectDoc } from "./project-font-sources";
  * Version 31 stores font sources once per project, shared by labels and history.
  * Version 32 adds hollow-wall thickness, defaulting older bins to 0.95 mm.
  * Version 33 adds optional pocket insertion clearance; older pockets stay finite.
+ * Version 34 retains unclipped source depth for rigid minimum-floor pockets.
  */
 
-export const PROJECT_SCHEMA_VERSION = 33 as const;
+export const PROJECT_SCHEMA_VERSION = 34 as const;
 
 const projectFields = {
   shapes: z.array(tracedShapeSchema),
@@ -226,7 +227,7 @@ export function parseProjectDoc(input: unknown): ProjectDoc | null {
     input = expandProjectFontSources(input);
   }
   if (input && typeof input === "object" && !Array.isArray(input)
-      && [26, 27, 28, 29, 30, 31, 32].includes((input as Record<string, unknown>).schemaVersion as number)) {
+      && [26, 27, 28, 29, 30, 31, 32, 33].includes((input as Record<string, unknown>).schemaVersion as number)) {
     // Strict current schemas still reject unsupported data from version-27 prototypes.
     return parseProjectDoc({ ...input, schemaVersion: PROJECT_SCHEMA_VERSION });
   }

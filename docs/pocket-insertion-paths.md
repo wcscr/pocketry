@@ -5,71 +5,72 @@ silhouette pocket into one of two opening directions:
 
 - **Follow pocket angle** keeps the original authored tilted cavity and its
   surface intersection. Its geometry matches the existing angled opening.
-- **Vertical drop-in** opens the complete object projection as seen from above,
-  including portions above the fill, with vertical walls and the tilted bottom
-  extended beneath the larger opening. The floor extension stops at the original
-  lowest elevation. A floor reaching the surface is reported as an error.
+- **Vertical drop-in** clears the object's complete XY projection straight up
+  while retaining its actual rotated underside as the seat. A side face that
+  points downward after rotation is part of that seat too. No bottom plane is
+  extended across the footprint and no lowest-point plateau is added.
 
 Both preserve the authored pose, extrusion depth and lowest-point elevation.
-Disabling clearance retains the original finite cavity. Enabling it on a legacy
-pocket first freezes its current depth and elevation using the existing rigid-pocket
-conversion. Linked designs share the direction while keeping individual poses.
-The common properties component serves both editor layouts.
+Disabling clearance retains the original finite cavity. Linked designs share the
+choice while keeping individual poses. The common properties component serves
+both editor layouts.
 
-Project schema 33 stores the optional `insertionMode`. Earlier projects migrate
-with the field absent, including undo history and transform references, so their
-finite pocket geometry does not change. Undo/redo and browser Library saves retain
-the choice. This brings the opening directions from PR #118 to silhouette pockets;
-STL imports, model-specific smoothing/scaling and cavity lining remain in #118.
+## Minimum floor thickness
+
+**Keep floor thickness** remains available after rotation, elevation edits and
+insertion-mode changes. It clips the generated cut at the chosen bin-space floor
+height; the original source solid and extrusion depth remain intact. Raising the
+pocket restores the clipped portion of its profile. Fixed-depth pockets receive
+no such floor clipping. Split sections retain their individual depth modes and
+floor limits.
+
+Entering a rigid edit freezes each remaining-floor section's current extrusion
+length in `depth.sourceDepthMm` while retaining its floor constraint. Switching a
+rigid pocket from fixed depth to remaining floor preserves the same length;
+editing the floor limit or switching back to fixed depth does not resize it.
+Source wires show the full original shape even when the cut is floor-limited.
+
+Project schema 34 stores this optional source length; version 33 introduced
+`insertionMode`. Earlier projects migrate without activating clearance or rewriting
+existing shapes. Undo/redo, creation references and Library saves retain the source
+length and floor limit. Imported-model PR #118 remains separate.
 
 ## Geometry and responsiveness
 
-Follow pocket angle uses the finite source unchanged. Vertical drop-in projects
-its nominal outline before bottom rounding onto XY, then extrudes that projection
-vertically. A sheared bottom-fillet profile extends the authored seat plane across
-the projection. Split seats retain their separate depths. The extension is clipped
-to the original lowest elevation, preserving the requested remaining floor.
+Vertical drop-in continuously sweeps each downward-facing source triangle upward.
+The resulting lower surface is the object's underside at each XY point, preserving
+slopes, steps, concavities and holes. A 0.001 mm lateral facet overlap prevents
+coincident Float32 seams in exports. Clipping that overlap to the object's
+projection preserves the outside perimeter. Projection cleanup at 0.0001 mm
+removes numerical slivers from edge-on rounded faces. No whole-object convex hull
+or whole-solid Minkowski operation is used.
 
-Rounded source floors also receive a continuous upward facet sweep so their
-steps cannot block insertion. A 0.001 mm lateral overlap joins those facets without
-coincident seams; clipping to the nominal projection retains the exact outside
-perimeter and holes. This avoids a whole-solid Minkowski operation. Top rounding
-is applied at the actual fill surface. Floor colors cover the extended seat and
-stop inside the wall fillet; the material parts are clipped to the finished bin.
-Horizontal, inverted and through pockets retain the general solid-sweep path.
+Floor limits apply after the sweep, independently for each split section, and
+never modify the source. Top rounding is applied at the actual fill surface.
+Floor colors follow the finished seat, including floor-limited cuts, and the
+material parts are clipped to the finished bin.
 
-If the tilted floor itself reaches the bin surface and prevents the full opening,
-the preview explains how to correct the height or tilt and export is blocked.
-It does not add deep trenches beside a seat that cannot fit beneath the surface.
+If the rotated underside itself reaches the bin surface and prevents a complete
+opening, the preview explains how to correct the height or tilt and export is
+blocked. A taller bin is required for some placements previously made to appear
+valid by flattening the seat.
 
-Full exact geometry remains in the workers. Selection and Move/Rotate outlines
-always use lightweight source wires, without rounded mesh edges. Rounding remains
-visible in the rendered bin. Packing reserves the source and insertion envelope.
-A near-horizontal axial path is omitted from preview and reported as an error;
-other cavities stay editable, exports are blocked, and **Use vertical drop-in**
-changes only the direction, with undo.
+Full exact geometry remains in workers. Selection and Move/Rotate outlines use
+lightweight source wires without rounded mesh edges; rounding remains visible in
+the rendered bin. Packing reserves the source and insertion envelope. An invalid
+horizontal axial path remains recoverable through **Use vertical drop-in** and Undo.
 
 ## Verification
 
-Under Node 22, geometry tests check continuous translated-source clearance,
-the entire source projection with combined pitch/roll/heading above the fill,
-exact preservation of the angled geometry, tilted seat heights, concavities and
-holes, split depths, remaining floor depth, submerged opt-in behavior, surface rounding and nonoverlapping floor
-colors. Worker tests check closed STL/3MF topology, nondegenerate triangles,
-material volumes, invalid-axis rejection and vertical recovery. Project tests cover
-schema-32 migration and current-state/history/transform-reference round trips;
-UI and linked-copy tests cover conversion, direction edits, recovery and undo.
-Both modes retain the 120-frame no-exact-request drag regression.
+Tests compare hundreds of independently ray-measured seat heights against the
+actual rotated source at preview and export quality, including compound tilt,
+mirroring, holes, split seats, horizontal and inverted poses. They also check
+continuous translated-object clearance, full projections and unchanged angled
+cavities. Minimum-floor regressions lower, raise and lower the same pocket while
+checking source preservation, independent split limits and save/history/reference
+round trips. Worker tests check closed, nondegenerate STL/3MF meshes and floor-color
+volumes, including clipped floors. UI tests preserve the floor mode through tilt,
+elevation and Undo; browser checks exercise the restored depth-mode option.
 
-Browser validation loaded a side-by-side 30° comparison, confirmed the optional
-controls and unchanged 16 mm depth / 7 mm elevation, disabled clearance and undid
-the edit, exercised 90° recovery and undo, and moved Z by 1 mm then undid it.
-The updated comparison uses combined 20°/25° tilt, 17° heading, 7 mm elevation
-and a 4u bin, with the vertical pocket at X=28.07, Y=-6.55. Its saved Library
-project shows the extended seat and simple selection outline. Regression tests
-also cover the reported 5.05 mm elevation in a 3u bin, verify clearance throughout
-insertion, and exercise STL/3MF serialization with closed, nondegenerate color
-parts. Physical insertion fit remains unqualified.
-
-Local Node 22 gates pass: type checking, 2,673 tests in 154 files, production
-build and whitespace validation. GitHub Actions remains disabled.
+Physical insertion fit remains unqualified. Verification runs locally under Node
+22; GitHub Actions remains disabled.

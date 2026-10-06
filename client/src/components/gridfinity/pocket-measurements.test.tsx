@@ -64,6 +64,21 @@ describe("pocket measurements", () => {
     expect(host.querySelector('[aria-label="Pocket insertion direction"]')).toBeNull();
   });
 
+  it("keeps minimum-floor mode and source dimensions during tilt, lowering, raising, and undo", () => {
+    React.act(() => store.dispatch({type:"UPDATE_CUTOUT",id:"pocket",patch:{depth:{mode:"remaining",floorThicknessMm:9}}}));
+    enter("Pocket X rotation in degrees","30");
+    const depth = store.cutouts[0].depth;
+    expect(depth).toMatchObject({mode:"remaining",floorThicknessMm:9,sourceDepthMm:expect.any(Number)});
+    enter("Pocket elevation in millimetres","3");
+    expect(store.cutouts[0].depth).toEqual(depth);
+    expect(host.textContent).toContain("Lowest point: 9.0 mm");
+    enter("Pocket elevation in millimetres","12");
+    expect(store.cutouts[0].depth).toEqual(depth);
+    expect(host.textContent).toContain("Lowest point: 12.0 mm");
+    React.act(() => store.dispatch({type:"UNDO"}));
+    expect(store.cutouts[0]).toMatchObject({elevationMm:3,depth});
+  });
+
   it("recovers a horizontal insertion path through vertical drop-in with undo", () => {
     enter("Pocket X rotation in degrees", "90");
     React.act(() => host.querySelector<HTMLInputElement>('[aria-label="Clear pocket insertion path"]')!.click());

@@ -68,10 +68,10 @@ it("keeps the selected pocket wire lightweight during a drag and after release",
 it("previews locally and commits one complete XYZ move on release", () => {
   const { onCommit, onPreview } = mount(); drag();
   expect(onCommit).not.toHaveBeenCalled();
-  expect(onPreview).toHaveBeenLastCalledWith(expect.objectContaining({ position: { x: 3, y: 0 }, depth: { mode: "mm", value: 35 }, elevationMm: 5 }));
+  expect(onPreview).toHaveBeenLastCalledWith(expect.objectContaining({ position: { x: 3, y: 0 }, depth: { mode: "remaining", floorThicknessMm: 7, sourceDepthMm: 35 }, elevationMm: 5 }));
   React.act(() => scene.handlers!.onMouseUp());
   expect(onCommit).toHaveBeenCalledTimes(1);
-  expect(onCommit).toHaveBeenCalledWith("p", expect.objectContaining({ position: { x: 3, y: 0 }, depth: { mode: "mm", value: 35 }, elevationMm: 5 }), "translate");
+  expect(onCommit).toHaveBeenCalledWith("p", expect.objectContaining({ position: { x: 3, y: 0 }, depth: { mode: "remaining", floorThicknessMm: 7, sourceDepthMm: 35 }, elevationMm: 5 }), "translate");
   expect(onPreview).toHaveBeenLastCalledWith(null);
 });
 it.each(["Escape", "blur", "pointercancel"])("cancels %s without persisting and restores orbit and original pose", event => {
@@ -101,7 +101,7 @@ it("keeps the gizmo on the surface throughout a pure Z drag and creates one elev
     scene.handlers!.onObjectChange();
     expect(scene.handlers!.object.position.z).toBe(42);
   });
-  expect(onPreview).toHaveBeenLastCalledWith(expect.objectContaining({ depth: { mode: "mm", value: 35 }, elevationMm: 55, zOffsetMm: undefined }));
+  expect(onPreview).toHaveBeenLastCalledWith(expect.objectContaining({ depth: { mode: "remaining", floorThicknessMm: 7, sourceDepthMm: 35 }, elevationMm: 55, zOffsetMm: undefined }));
   React.act(() => scene.handlers!.onMouseUp());
   expect(onCommit).toHaveBeenCalledTimes(1);
   expect(scene.handlers!.object.position.toArray()).toEqual([0, 0, 42]);

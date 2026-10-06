@@ -335,7 +335,7 @@ function patchCutouts(
 
 function changeDefaultFloor(cutout: CutoutPlacement, previous: number, next: number): CutoutPlacement {
   const update = (depth: DepthSpec): DepthSpec => depth.mode === "remaining" && depth.floorThicknessMm === previous
-    ? { mode: "remaining", floorThicknessMm: next } : depth;
+    ? { ...depth, floorThicknessMm: next } : depth;
   return { ...cutout, depth: update(cutout.depth), ...(cutout.split ? {
     split: { ...cutout.split, depths: [update(cutout.split.depths[0]), update(cutout.split.depths[1])] },
   } : {}) };

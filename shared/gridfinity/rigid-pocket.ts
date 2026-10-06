@@ -15,13 +15,14 @@ export const pocketRotation = (p: Pick<CutoutPlacement, "tilt" | "rotationDeg">)
 /** Resolve the current dimensions once when starting a rigid edit. In particular,
  * each split seat uses its own outline when converting legacy floor clearance. */
 export function rigidPocket(p: CutoutPlacement, shape: Pick<TracedShape, "outlineMm">, spec: BinSpec): CutoutPlacement {
-  if (hasRigidPocket(p)) return p;
+  const alreadyRigid = hasRigidPocket(p);
+  if (alreadyRigid && (p.split?.depths ?? [p.depth]).every(d => d.mode !== "remaining" || d.sourceDepthMm !== undefined)) return p;
   const regions = p.split ? resolvePocketSplit(shape.outlineMm, p.split.boundary).regions : null;
   const resolved = (p.split?.depths ?? [p.depth]).map((d, i) => resolvePlacedPocketDepth(spec, d,
     { outlineMm: regions?.[i] ?? shape.outlineMm }, p));
   const freeze = (d: DepthSpec, i: number): DepthSpec => d.mode !== "remaining" ? d
-    : { mode: "mm", value: Math.max(0.1, resolved[i].axialDepthMm ?? resolved[i].depthMm ?? 1) };
-  return { ...p, zOffsetMm: undefined, elevationMm: Math.max(0, Math.min(300,
+    : { ...d, sourceDepthMm: d.sourceDepthMm ?? Math.max(0.1, resolved[i].axialDepthMm ?? resolved[i].depthMm ?? 1) };
+  return { ...p, zOffsetMm: undefined, elevationMm: p.elevationMm ?? Math.max(0, Math.min(300,
     Math.min(...resolved.map(r => r.floorZ ?? 0)))),
     depth: p.split ? p.depth : freeze(p.depth, 0),
     split: p.split ? { ...p.split, depths: [freeze(p.split.depths[0], 0), freeze(p.split.depths[1], 1)] } : undefined };
@@ -33,7 +34,7 @@ function sourceRegions(outline: Outline, p: CutoutPlacement, top: number, throug
   const regions = p.split ? resolvePocketSplit(outline, p.split.boundary).regions : null;
   return (regions ?? [outline]).map((region, i) => {
     const d = p.split?.depths[i] ?? p.depth;
-    const depth = d.mode === "mm" ? d.value : d.mode === "remaining" ? Math.max(0.1, top - d.floorThicknessMm) : 1;
+    const depth = d.mode === "mm" ? d.value : d.mode === "remaining" ? d.sourceDepthMm ?? Math.max(0.1, top - d.floorThicknessMm) : 1;
     const limits = d.mode === "through" ? nominalThrough ? [-1, 0] : [-throughReach, throughReach] : [-depth, 0];
     return { region, limits };
   });

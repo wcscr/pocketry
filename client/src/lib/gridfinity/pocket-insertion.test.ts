@@ -1,4 +1,5 @@
 import { afterEach, beforeAll, beforeEach, expect, it } from "vitest";
+import type { Manifold } from "manifold-3d";
 import { parseCutoutPlacement, resolvePocketDepth, pocketOccupiedOutline, type TracedShape } from "@shared/gridfinity/cutout";
 import { pocketInsertionAxis } from "@shared/gridfinity/pocket-insertion";
 import { parseBinSpec } from "@shared/gridfinity/types";
@@ -27,10 +28,11 @@ function cutter(p = pocket, s = shape) {
 it.each([PREVIEW_QUALITY, EXPORT_QUALITY])("clears the reported rounded pocket continuously at quality=%j", quality => {
   const p = {...pocket, position:{x:28.07,y:-6.55}, elevationMm:5.05, tilt:{xDeg:20,yDeg:25}, rotationDeg:17,
     bottomFilletMm:1, topFilletMm:2, insertionMode:"vertical" as const};
-  const source = arena.track(kernel.Manifold.union(buildRigidPocket(kernel,shape,{...p,insertionMode:undefined,topFilletMm:0},spec,quality).cutters));
-  const built = buildCutoutCutters(kernel,map,[p],spec,quality);
+  const taller = {...spec,heightUnits:4};
+  const source = arena.track(kernel.Manifold.union(buildRigidPocket(kernel,shape,{...p,insertionMode:undefined,topFilletMm:0},taller,quality).cutters));
+  const built = buildCutoutCutters(kernel,map,[p],taller,quality);
   const vertical = arena.track(kernel.Manifold.union(built.cutters));
-  const top = resolvePocketDepth(spec,p.depth).infillTopZ;
+  const top = resolvePocketDepth(taller,p.depth).infillTopZ;
   expect(built.validationIssues).toEqual([]);
   expect(arena.track(arena.track(source.project()).subtract(arena.track(vertical.slice(top-1e-7)))).area()).toBeLessThan(0.001);
   for (const travel of [0,0.1,0.3,1,3,7,12,20]) {
@@ -39,15 +41,65 @@ it.each([PREVIEW_QUALITY, EXPORT_QUALITY])("clears the reported rounded pocket c
   }
 });
 
-it("extends the tilted bottom across the projected outline instead of retaining the tilted sidewall", () => {
+/** Independent vertical-ray oracle: read the lowest triangle intersection at XY. */
+function undersideAt(solid: Manifold, x: number, y: number): number | undefined {
+  const mesh = solid.getMesh(), hits: number[] = [];
+  for (let i = 0; i < mesh.triVerts.length; i += 3) {
+    const [a,b,c] = Array.from(mesh.triVerts.subarray(i,i+3), index =>
+      Array.from(mesh.vertProperties.subarray(index*mesh.numProp,index*mesh.numProp+3)));
+    const det = (b[1]-c[1])*(a[0]-c[0])+(c[0]-b[0])*(a[1]-c[1]);
+    if (Math.abs(det) < 1e-10) continue;
+    const u = ((b[1]-c[1])*(x-c[0])+(c[0]-b[0])*(y-c[1]))/det;
+    const v = ((c[1]-a[1])*(x-c[0])+(a[0]-c[0])*(y-c[1]))/det;
+    if (u >= -1e-8 && v >= -1e-8 && u+v <= 1+1e-8) hits.push(u*a[2]+v*b[2]+(1-u-v)*c[2]);
+  }
+  return hits.length ? Math.min(...hits) : undefined;
+}
+
+it("preserves the object's lower side face instead of flattening it to the lowest point", () => {
   const vertical = cutter({...pocket,insertionMode:"vertical"});
-  // At y=-7 the tilted sidewall used to rise through the opening. The bottom
-  // plane extends below the requested lowest elevation here, so the remaining
-  // floor limit stops it at z=7. Above that, the vertical path must be empty.
-  const probe = (z:number) => arena.track(arena.track(kernel.Manifold.cube([2,1,0.2],true)).translate([0,-7,z]));
-  expect(arena.track(vertical.intersect(probe(9))).volume()).toBeCloseTo(0.4,7);
-  expect(arena.track(vertical.intersect(probe(6.5))).volume()).toBeLessThan(1e-7);
+  const source = cutter();
+  // At y=-7, the original side face becomes part of the rotated underside.
+  // Extending the bottom cap alone wrongly flattened this region to z=7.
+  const expected = 7 + (-12*Math.cos(Math.PI/6)+8-(-7))/Math.tan(Math.PI/6);
+  expect(undersideAt(source,0,-7)).toBeCloseTo(expected,5);
+  expect(undersideAt(vertical,0,-7)).toBeCloseTo(expected,2);
+  expect(expected).toBeGreaterThan(14);
 });
+
+it.each([
+  {tilt:{xDeg:20,yDeg:25},rotationDeg:17,mirrored:false,bottomFilletMm:0,split:false},
+  {tilt:{xDeg:-25,yDeg:30},rotationDeg:53,mirrored:true,bottomFilletMm:1,split:true},
+  {tilt:{xDeg:90,yDeg:0},rotationDeg:17,mirrored:false,bottomFilletMm:1,split:false},
+  {tilt:{xDeg:180,yDeg:0},rotationDeg:0,mirrored:false,bottomFilletMm:1,split:false},
+])("matches the actual rotated underside throughout the footprint with %j", variant => {
+  const s = {...shape,outlineMm:[{outer:[[-10,-12],[10,-12],[10,0],[3,0],[3,12],[-10,12]].map(([x,y])=>({x,y})),
+    holes:[[[-7,-7],[-7,-3],[-3,-3],[-3,-7]].map(([x,y])=>({x,y}))]}]};
+  const p = parseCutoutPlacement({...pocket,...variant,position:{x:24.82,y:-20.51},elevationMm:16.87,
+    split:variant.split ? {boundary:[{x:-15,y:5},{x:15,y:5}],depths:[{mode:"mm",value:10},{mode:"mm",value:16}]} : undefined});
+  const tall = {...spec,heightUnits:8};
+  for (const quality of [PREVIEW_QUALITY,EXPORT_QUALITY]) {
+    const source = arena.track(kernel.Manifold.union(buildRigidPocket(kernel,s,p,tall,quality).cutters));
+    const built = buildRigidPocket(kernel,s,{...p,insertionMode:"vertical"},tall,quality);
+    const vertical = arena.track(kernel.Manifold.union(built.cutters));
+    expect(built.validationIssues).toEqual([]);
+    const bounds = source.boundingBox();
+    let samples = 0;
+    for (let ix=0;ix<11;ix++) for(let iy=0;iy<11;iy++) {
+      const x=bounds.min[0]+(ix+0.37)/11*(bounds.max[0]-bounds.min[0]);
+      const y=bounds.min[1]+(iy+0.43)/11*(bounds.max[1]-bounds.min[1]);
+      const expected=undersideAt(source,x,y);
+      const actual=undersideAt(vertical,x,y);
+      if (expected === undefined) expect(actual).toBeUndefined();
+      else {
+        expect(actual,`underside at ${x}, ${y}`).toBeDefined();
+        expect(Math.abs(actual!-expected),`seat height at ${x}, ${y}`).toBeLessThan(0.01);
+        samples++;
+      }
+    }
+    expect(samples).toBeGreaterThan(30);
+  }
+},30_000);
 
 it.each([PREVIEW_QUALITY, EXPORT_QUALITY])("opens the full top-down perimeter even when the tool extends above the surface at quality=%j", quality => {
   const p = { ...pocket, elevationMm:12, tilt:{xDeg:20,yDeg:25}, rotationDeg:17 };
@@ -169,4 +221,39 @@ it("reports a tilted seat above the surface instead of adding deep projection tr
   const p = {...pocket,elevationMm:12,tilt:{xDeg:20,yDeg:25},insertionMode:"vertical" as const};
   const built = buildBinWithCutouts(kernel,spec,{shapesById:map,cutouts:[p],fingerHoles:[]},EXPORT_QUALITY);
   expect(built.validationIssues).toContainEqual(expect.objectContaining({code:"vertical-seat-above-surface",severity:"error",cutoutIds:[p.id]}));
+});
+
+it.each([undefined,"axis","vertical"] as const)("clips only the requested minimum floor and restores the source when raised: %s", insertionMode => {
+  const tall = {...spec,heightUnits:8};
+  const low = {...pocket,elevationMm:3,insertionMode,tilt:{xDeg:20,yDeg:25},rotationDeg:17,
+    depth:{mode:"remaining" as const,floorThicknessMm:9,sourceDepthMm:16}};
+  const original = structuredClone(low);
+  const make = (p: typeof low | typeof pocket) => arena.track(kernel.Manifold.union(buildRigidPocket(kernel,shape,p,tall,EXPORT_QUALITY).cutters));
+  const source = make({...low,depth:{mode:"mm",value:16}});
+  const limited = make(low);
+  const expected = arena.track(source.trimByPlane([0,0,1],9));
+  expect(source.boundingBox().min[2]).toBeCloseTo(3,5);
+  expect(limited.boundingBox().min[2]).toBeCloseTo(9,5);
+  expect(arena.track(limited.subtract(expected)).volume()).toBeLessThan(0.001);
+  expect(arena.track(expected.subtract(limited)).volume()).toBeLessThan(0.001);
+  expect(limited.volume()).toBeLessThan(source.volume());
+  const raised = make({...low,elevationMm:12});
+  const restored = make({...low,elevationMm:12,depth:{mode:"mm",value:16}});
+  expect(arena.track(raised.subtract(restored)).volume()).toBeLessThan(0.001);
+  expect(arena.track(restored.subtract(raised)).volume()).toBeLessThan(0.001);
+  expect(make(low).volume()).toBeCloseTo(limited.volume(),5);
+  expect(low).toEqual(original);
+});
+
+it("keeps each split section's floor constraint separate from the original seat", () => {
+  const tall = {...spec,heightUnits:8};
+  const p = parseCutoutPlacement({...pocket,elevationMm:3,insertionMode:"vertical",tilt:undefined,
+    split:{boundary:[{x:-15,y:0},{x:15,y:0}],depths:[
+      {mode:"remaining",floorThicknessMm:9,sourceDepthMm:16},{mode:"mm",value:16}]}});
+  const solid = buildRigidPocket(kernel,shape,p,tall,EXPORT_QUALITY).cutters[0];
+  expect(undersideAt(solid,0,6)).toBeCloseTo(9,4);
+  expect(undersideAt(solid,0,-6)).toBeCloseTo(3,4);
+  const raised = buildRigidPocket(kernel,shape,{...p,elevationMm:12},tall,EXPORT_QUALITY).cutters[0];
+  expect(undersideAt(raised,0,6)).toBeCloseTo(12,4);
+  expect(undersideAt(raised,0,-6)).toBeCloseTo(12,4);
 });
