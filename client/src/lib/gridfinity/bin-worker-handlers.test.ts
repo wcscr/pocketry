@@ -4,7 +4,7 @@ import { strFromU8, unzipSync } from "fflate";
 import { fingerHoleSchema, parseCutoutPlacement, resolvePocketDepth } from "@shared/gridfinity/cutout";
 import { writeBinarySTL } from "@/lib/export/stl-writer";
 import { writeThreeMf } from "@/lib/mesh/threemf";
-import { pegBottomExtensionMm } from "@shared/gridfinity/peg-bottom";
+import { PEG_DENSITIES, pegBottomExtensionMm } from "@shared/gridfinity/peg-bottom";
 import { binTotalHeightMm } from "@shared/gridfinity/standard";
 import { parseBinSpec } from "@shared/gridfinity/types";
 import { loadManifold } from "@/lib/manifold/runtime";
@@ -1151,6 +1151,23 @@ it.each(["sloped", "bridged"] as const)("exports a %s peg bin with the entire pa
   expect(stl.getUint32(80, true)).toBe(result.mesh.indices.length / 3);
   const model = strFromU8(unzipSync(writeThreeMf(Object.entries(result.materialMeshes!).map(([name, mesh]) => ({ name, mesh })),
     { assemble: true }))["3D/3dmodel.model"]);
+  expect(model).toContain('z="0"');
+  expect(model).not.toMatch(/z="-/);
+});
+
+it.each(PEG_DENSITIES)("exports density %s at the build plate with closed STL and 3MF geometry", async density => {
+  const spec = parseBinSpec({ gridX: 1, gridY: 1, heightUnits: 2, lip: "none",
+    pegBottom: { diameterMm: 4.8, lengthMm: 4, underside: "sloped", density } });
+  const result = (await getHandler()({ spec, quality: EXPORT_QUALITY, exportTopology: true,
+    pocketFloorMaterialThicknessMm: 0.6, stackingRimMaterialThicknessMm: 0.6 }, context())).value;
+  expect(nonManifoldEdgeCount(result.mesh)).toBe(0);
+  expect(printableMeshVolume(result.mesh)).toBeCloseTo(result.stats.volumeMm3, 1);
+  expect(Math.min(...result.mesh.positions.filter((_, index) => index % 3 === 2))).toBe(0);
+  const stl = new DataView(writeBinarySTL(result.mesh));
+  expect(stl.getUint32(80, true)).toBe(result.mesh.indices.length / 3);
+  const parts = Object.entries(result.materialMeshes!).map(([name, mesh]) => ({ name, mesh }));
+  for (const { mesh } of parts) expect(nonManifoldEdgeCount(mesh)).toBe(0);
+  const model = strFromU8(unzipSync(writeThreeMf(parts, { assemble: true }))["3D/3dmodel.model"]);
   expect(model).toContain('z="0"');
   expect(model).not.toMatch(/z="-/);
 });

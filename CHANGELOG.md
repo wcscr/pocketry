@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Added ULTIM8 jig peg bottoms for eufyMake E1, with adjustable peg fit and length, sloped roots or a shorter bridged underside, and saved project/undo support. Through pockets omit fully or partially overlapped pegs.
+- Added ULTIM8 jig peg bottoms for eufyMake E1, with adjustable peg fit, length, and density (corners only or every 1–5 holes), sloped roots or a shorter bridged underside, and saved project/undo support. Through pockets omit fully or partially overlapped pegs.
 - New desktop sessions use Workflow + properties; saved choices and compact phone defaults are preserved.
 - Consistent toolbars, compact phone adjustments, and tablet panels that preserve canvas space through landscape and keyboard changes.
 - Live numeric previews with complete Escape rollback and clearer invalid-value handling; cancelled touch gestures restore the complete edit.

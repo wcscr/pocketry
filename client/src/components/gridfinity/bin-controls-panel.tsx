@@ -85,7 +85,7 @@ import {
   standardCellSpan,
   type GridPitch,
 } from "@shared/gridfinity/standard";
-import { DEFAULT_PEG_BOTTOM, hasSmoothBase, pegBottomExtensionMm } from "@shared/gridfinity/peg-bottom";
+import { DEFAULT_PEG_BOTTOM, PEG_DENSITIES, hasSmoothBase, pegBottomExtensionMm } from "@shared/gridfinity/peg-bottom";
 import { MAX_GRID, maxGridCells, type BinSpecInput } from "@shared/gridfinity/types";
 import type { ValidationIssue } from "@shared/gridfinity/validate";
 
@@ -1693,12 +1693,24 @@ export function BinControlsPanel({
             {spec.pegBottom && <>
               <p className="text-[11px] text-muted-foreground">For Wham Bam ULTIM8 mats on eufyMake E1. Print upright with supports off. The underside adds {pegBottomExtensionMm(spec).toFixed(1)} mm below the bin.</p>
               <div className="flex items-center gap-2">
+                <SettingLabel label="Peg density" htmlFor="select-peg-density" hint="Space pegs in both grid directions while retaining corner anchors. Corners only uses the nearest fitting jig holes at each footprint corner." />
+                <Select value={String(spec.pegBottom.density)} onValueChange={(value) => patchSpec({ pegBottom: { ...spec.pegBottom!, density: value === "corners" ? "corners" : Number(value), underside: value === "1" ? spec.pegBottom!.underside : "sloped" } })}>
+                  <SelectTrigger id="select-peg-density" className="h-8 flex-1" aria-label="Peg density"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {PEG_DENSITIES.map(density => <SelectItem key={density} value={String(density)}>
+                      {density === "corners" ? "Corners only" : density === 1 ? "Every hole" : `Every ${density} holes`}
+                    </SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              {spec.pegBottom.density !== 1 && <p className="text-[11px] text-muted-foreground">Sparse pegs use taller sloped roots to avoid supports. Fewer pegs may still use more material.</p>}
+              <div className="flex items-center gap-2">
                 <SettingLabel label="Underside" htmlFor="select-peg-underside" hint="Short bridges reduce height on rectangular bins. Print a fit check to verify bridge quality. Sloped roots avoid bridges and also support custom footprints." />
                 <Select value={spec.pegBottom.underside} onValueChange={(underside: "sloped" | "bridged") => patchSpec({ pegBottom: { ...spec.pegBottom!, underside } })}>
                   <SelectTrigger id="select-peg-underside" className="h-8 flex-1" aria-label="Peg underside"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="sloped">Sloped roots</SelectItem>
-                    <SelectItem value="bridged" disabled={spec.footprint.kind !== "rectangle"}>Short bridges</SelectItem>
+                    <SelectItem value="bridged" disabled={spec.footprint.kind !== "rectangle" || spec.pegBottom.density !== 1}>Short bridges</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

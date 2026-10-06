@@ -1,7 +1,7 @@
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { ManifoldToplevel, Mesh } from "manifold-3d";
 import { parseBinSpec } from "@shared/gridfinity/types";
-import { DEFAULT_PEG_BOTTOM, pegBottomExtensionMm, pegBottomRootHeightMm, ultim8PegCenters, ULTIM8_COLLAR_HEIGHT_MM, ULTIM8_ROOT_HEIGHT_MM } from "@shared/gridfinity/peg-bottom";
+import { DEFAULT_PEG_BOTTOM, PEG_DENSITIES, pegBottomExtensionMm, pegBottomRootHeightMm, ultim8PegCenters, ULTIM8_COLLAR_HEIGHT_MM, ULTIM8_ROOT_HEIGHT_MM } from "@shared/gridfinity/peg-bottom";
 import { Arena } from "@/lib/manifold/arena";
 import { createKernel, loadManifold } from "@/lib/manifold/runtime";
 import { buildBinWithCutouts, binDimensionsMm, EXPORT_QUALITY, PREVIEW_QUALITY } from "./bin";
@@ -33,6 +33,36 @@ function checkSupportFree(mesh: Mesh, bottom: number, bridgeZ?: number): void {
 }
 
 describe("support-free peg bottoms", () => {
+  it.each(PEG_DENSITIES)("builds connected 45-degree undersides with the chosen shaft count at density %s", density => {
+    const kernel = createKernel(wasm, arena);
+    const s = spec({ pegBottom: { ...DEFAULT_PEG_BOTTOM, density } });
+    for (const quality of [PREVIEW_QUALITY, EXPORT_QUALITY]) {
+      const solid = buildPegBottom(kernel, s, quality.circularSegments);
+      const extension = pegBottomExtensionMm(s), root = pegBottomRootHeightMm(s);
+      expect(solid.status()).toBe("NoError");
+      expect(solid.boundingBox().min[2]).toBeCloseTo(-extension, 5);
+      expect(solid.boundingBox().max[2]).toBeCloseTo(7, 5);
+      expect(solid.decompose().map(p => arena.track(p))).toHaveLength(1);
+      const disk = arena.track(kernel.CrossSection.circle(s.pegBottom!.diameterMm / 2, quality.circularSegments));
+      expect(arena.track(solid.slice(-root - 1)).area()).toBeCloseTo(ultim8PegCenters(s).length * disk.area(), 5);
+      checkSupportFree(solid.getMesh(), -extension);
+    }
+  });
+  it.each(["corners", 2, 3, 4, 5] as const)("covers custom footprint interiors without supports at density %s", density => {
+    const kernel = createKernel(wasm, arena);
+    const s = spec({ gridX: 2, gridY: 2,
+      footprint: { kind: "custom", cells: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }] },
+      pegBottom: { ...DEFAULT_PEG_BOTTOM, density } });
+    const solid = buildPegBottom(kernel, s, PREVIEW_QUALITY.circularSegments);
+    expect(solid.status()).toBe("NoError");
+    expect(solid.decompose().map(p => arena.track(p))).toHaveLength(1);
+    checkSupportFree(solid.getMesh(), -pegBottomExtensionMm(s));
+  });
+  it("rejects short bridges at sparse density instead of generating unsupported spans", () => {
+    const kernel = createKernel(wasm, arena);
+    expect(() => buildPegBottom(kernel, spec({ pegBottom: { ...DEFAULT_PEG_BOTTOM, underside: "bridged", density: 2 } }), 24)).toThrow(/every hole/);
+  });
+
   it.each([PREVIEW_QUALITY, EXPORT_QUALITY])("builds a connected, watertight base with no unsupported underside at %j quality", quality => {
     const kernel = createKernel(wasm, arena);
     const s = spec();

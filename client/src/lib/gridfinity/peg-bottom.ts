@@ -16,6 +16,9 @@ export function buildPegBottom(
   if (!spec.pegBottom) throw new Error("Peg bottom settings are required.");
   const { Manifold, CrossSection, arena } = kernel;
   const { diameterMm, lengthMm, underside } = spec.pegBottom;
+  if (underside === "bridged" && spec.pegBottom.density !== 1) {
+    throw new Error("Short bridges require every hole. Choose sloped roots for sparse peg densities.");
+  }
   if (underside === "bridged" && spec.footprint.kind !== "rectangle") {
     throw new Error("Short bridges require a rectangular footprint. Choose the sloped underside for a custom footprint.");
   }
@@ -55,7 +58,9 @@ export function buildPegBottom(
   const chamfer = 0.4;
   const pegs = centers.map(({ x, y }) => {
     const tip = arena.track(arena.track(Manifold.cylinder(chamfer, radius - chamfer, radius, segments)).translate([x, y, bottomZ]));
-    const shaft = arena.track(arena.track(Manifold.cylinder(lengthMm - chamfer, radius, radius, segments)).translate([x, y, bottomZ + chamfer]));
+    // Fractional adaptive root heights can round the shared contact plane
+    // differently. A small overlap keeps shafts fused into their roots.
+    const shaft = arena.track(arena.track(Manifold.cylinder(lengthMm - chamfer + 0.01, radius, radius, segments)).translate([x, y, bottomZ + chamfer]));
     const root = arena.track(arena.track(Manifold.cylinder(coneHeight, radius, radius + coneHeight, segments)).translate([x, y, -rootHeight]));
     return arena.track(Manifold.union([tip, shaft, root]));
   });
