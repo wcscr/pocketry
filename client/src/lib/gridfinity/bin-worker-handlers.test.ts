@@ -357,7 +357,7 @@ it("exports the eight-slot CW313 rack without coincident material boundary faces
   expect(result.value.validationIssues).toEqual([]);
 });
 
-it("revalidates hidden tilted-shaft collisions on export and accepts a corrected layout", async () => {
+it("warns about hidden tilted-shaft intersections and exports their combined geometry", async () => {
   const basic = createBasicPocket("rectangle", { x: -3, y: -16 }, { x: 3, y: 16 }, "tilted")!;
   const cutouts = [-12, 12].map((x, index) => parseCutoutPlacement({
     ...basic.cutout, id: `tilted-${index}`, position: { x, y: 0 },
@@ -367,8 +367,11 @@ it("revalidates hidden tilted-shaft collisions on export and accepts a corrected
     layout: { shapes: [basic.shape], cutouts, fingerHoles: [] }, quality: { circularSegments: 16 } };
   const handler = getHandler();
   const preview = await handler(request, context());
-  expect(preview.value.validationIssues?.some(issue => issue.code === "tilted-pocket-overlap")).toBe(true);
-  await expect(handler({ ...request, exportTopology: true }, context())).rejects.toThrow(/intersect in 3D/);
+  expect(preview.value.validationIssues?.find(issue => issue.code === "tilted-pocket-overlap")?.severity).toBe("warning");
+  const combined = (await handler({ ...request, exportTopology: true }, context())).value;
+  expect(combined.validationIssues?.find(issue => issue.code === "tilted-pocket-overlap")?.severity).toBe("warning");
+  expect(nonManifoldEdgeCount(combined.mesh)).toBe(0);
+  expect(writeBinarySTL(combined.mesh).byteLength).toBe(84 + combined.mesh.indices.length / 3 * 50);
   const corrected = await handler({ ...request, exportTopology: true,
     layout: { ...request.layout!, cutouts: cutouts.map(c => ({ ...c, tilt: { xDeg: 0, yDeg: 45 } })) } }, context());
   expect(corrected.value.validationIssues).toEqual([]);
@@ -1190,3 +1193,32 @@ it("exports a surface Through rectangle inside a finger groove without a floor o
   const model = strFromU8(unzipSync(writeThreeMf(parts))["3D/3dmodel.model"]);
   expect(model.match(/<triangle /g)?.length).toBe(parts.reduce((sum, part) => sum + part.mesh.indices.length / 3, 0));
 });
+
+it("exports overlapping upright finite Through pockets as one surface opening", async () => {
+  const rectangle = createBasicPocket("rectangle", { x: 16.875925, y: -2.82763855 }, { x: 67.124075, y: 2.87236145 }, "rect")!;
+  const circle = createBasicPocket("circle", { x: 52.408386, y: 0.03009 }, { x: 56.708386, y: 0.03009 }, "circle")!;
+  const cutouts = [
+    { ...rectangle.cutout, elevationMm: 0, depth: { mode: "through" as const, sourceDepthMm: 14 }, insertionMode: "axis" as const },
+    { ...circle.cutout, elevationMm: 0, depth: { mode: "through" as const, sourceDepthMm: 12 } },
+  ];
+  const request: BuildBinRequest = { spec: { gridX: 16, gridY: 3, gridPitch: "quarter", heightUnits: 1, lip: "none", pegBottom: { lengthMm: 3.5 } },
+    quality: EXPORT_QUALITY, exportTopology: true, pocketFloorMaterialThicknessMm: 0.6, stackingRimMaterialThicknessMm: 0.6,
+    layout: { shapes: [rectangle.shape, circle.shape], cutouts,
+      fingerHoles: [fingerHoleSchema.parse({ id: "groove", kind: "oblong-deep-scoop", center: { x: 0, y: 0 }, diameterMm: 11.4,
+        lengthMm: 152.4, depthMm: 4, topFilletMm: 1, bottomFilletMm: 0 })] } };
+  const result = (await getHandler()(request, context())).value;
+  expect(result.validationIssues?.filter(issue => issue.severity === "error")).toEqual([]);
+  expect(printableMeshVolume(result.mesh)).toBeGreaterThan(0);
+  expect(writeBinarySTL(result.mesh).byteLength).toBe(84 + result.mesh.indices.length / 3 * 50);
+  const parts = Object.entries(result.materialMeshes!).map(([name, mesh]) => ({ name, mesh }));
+  const model = strFromU8(unzipSync(writeThreeMf(parts))["3D/3dmodel.model"]);
+  expect(model.match(/<triangle /g)?.length).toBe(parts.reduce((sum, part) => sum + part.mesh.indices.length / 3, 0));
+  expect(result.validationIssues?.find(issue => issue.code === "tilted-pocket-overlap")?.severity).toBe("warning");
+  // Submerged and tilted intersections are also permitted and reported.
+  for (const pockets of [cutouts.map(c => ({ ...c, depth: { mode: "through" as const, sourceDepthMm: 2 } })),
+    [cutouts[0], { ...cutouts[1], tilt: { xDeg: 1, yDeg: 0 } }]]) {
+    const combined = (await getHandler()({ ...request, layout: { ...request.layout!, cutouts: pockets } }, context())).value;
+    expect(combined.validationIssues?.find(issue => issue.code === "tilted-pocket-overlap")?.severity).toBe("warning");
+    expect(nonManifoldEdgeCount(combined.mesh)).toBe(0);
+  }
+}, 15_000);

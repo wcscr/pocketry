@@ -64,3 +64,8 @@ slab and peg roots, including when the pocket overlaps finger access. Subsequent
 Z movement treats it as a finite object and restores material when raised.
 Older preview projects repair an unchanged blind-floor conversion when saved
 history or creation references establish its original floor and depth.
+
+Intersecting pockets combine their cuts in the printable bin. Three-dimensional
+intersections are warnings, including tilted or submerged pockets, and do not
+block export. Combining several editable pockets into one named pocket object
+is future work.

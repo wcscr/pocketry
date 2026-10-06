@@ -4,6 +4,7 @@
 
 - Added ULTIM8 jig peg bottoms for eufyMake E1, with adjustable peg fit and length, sloped roots or a shorter bridged underside, and saved project/undo support. Through pockets omit fully or partially overlapped pegs.
 - Surface pockets set to Through open the full bin bottom, including peg roots, when overlapping finger access.
+- Pocket intersections in 3D are warnings and allow export of combined shapes, including upright, submerged, and tilted pockets.
 - Failed 3D updates clear obsolete bin meshes so they cannot appear beside the current pocket outline as misplaced duplicates.
 - Added Wiha stacking fit notes recommending lowering the driver pockets about 1 mm to avoid interference.
 

@@ -46,8 +46,8 @@ export function validateTiltedSolids(kernel: Kernel, spec: BinSpec,
     }
     for (const other of clipped.slice(i + 1)) {
       if (!needsExact(item.cutout) && !needsExact(other.cutout)) continue;
-      if (overlaps(item.solid, other.solid)) issues.push({ code: "tilted-pocket-overlap", severity: "error",
-        cutoutIds: [item.cutout.id, other.cutout.id], message: `“${item.label}” and “${other.label}” intersect in 3D. Move their shafts farther apart.` });
+      if (overlaps(item.solid, other.solid)) issues.push({ code: "tilted-pocket-overlap", severity: "warning",
+        cutoutIds: [item.cutout.id, other.cutout.id], message: `“${item.label}” and “${other.label}” intersect in 3D. Their cuts will be combined.` });
       else if (item.solid.minGap(other.solid, D_DIV) < D_DIV - 1e-5) issues.push({ code: "tilted-pocket-thin-material", severity: "warning",
         cutoutIds: [item.cutout.id, other.cutout.id], message: `“${item.label}” and “${other.label}” leave less than ${D_DIV} mm of material between their shafts.` });
     }
