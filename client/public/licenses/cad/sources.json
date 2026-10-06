@@ -1,0 +1,125 @@
+{
+  "package": "replicad-opencascadejs@1.1.0",
+  "sources": [
+    {
+      "name": "replicad",
+      "repository": "sgenoud/replicad",
+      "revision": "e4b05f67dc4e2393a876ce8c5064a9c93db05bf1",
+      "upstreamArchive": "https://codeload.github.com/sgenoud/replicad/tar.gz/e4b05f67dc4e2393a876ce8c5064a9c93db05bf1",
+      "archiveSha256": "92180710da11a6e67ab75eaac8b494b29d32011415c22e29f7fecb1c796da783",
+      "parts": [
+        {
+          "file": "replicad.tar.gz.part00",
+          "sha256": "92180710da11a6e67ab75eaac8b494b29d32011415c22e29f7fecb1c796da783",
+          "bytes": 17426998
+        }
+      ],
+      "notices": [
+        "replicad-package-LICENSE",
+        "replicad-root-LICENSE"
+      ]
+    },
+    {
+      "name": "ocjs",
+      "repository": "taucad/opencascade.js",
+      "revision": "ebd263f15337b440b391492af073662707e86482",
+      "upstreamArchive": "https://codeload.github.com/taucad/opencascade.js/tar.gz/ebd263f15337b440b391492af073662707e86482",
+      "archiveSha256": "1e0342c8dbdc04d1835c776d5e95ab25fcad56a5f4cafcbecad92a959b6b00b7",
+      "parts": [
+        {
+          "file": "ocjs.tar.gz.part00",
+          "sha256": "1e0342c8dbdc04d1835c776d5e95ab25fcad56a5f4cafcbecad92a959b6b00b7",
+          "bytes": 4449501
+        }
+      ],
+      "notices": [
+        "ocjs-LICENSE",
+        "ocjs-LICENSE.OCCT-Exception"
+      ]
+    },
+    {
+      "name": "occt",
+      "repository": "Open-Cascade-SAS/OCCT",
+      "revision": "b8f597c677811d1f9f4d8a97f5ae2825c0353a42",
+      "upstreamArchive": "https://codeload.github.com/Open-Cascade-SAS/OCCT/tar.gz/b8f597c677811d1f9f4d8a97f5ae2825c0353a42",
+      "archiveSha256": "dba62b81078dd43cec23feba89432be301582341001edad1b93342ad8bda35ea",
+      "parts": [
+        {
+          "file": "occt.tar.gz.part00",
+          "sha256": "7b44e8f675c24b97a5e5dce7d60142ce3c47a5031d1c5d22029587a349c67a0b",
+          "bytes": 20971520
+        },
+        {
+          "file": "occt.tar.gz.part01",
+          "sha256": "e4d0aacb34b326011a73cccfee04076fa7d010d4ca8021baab7e243a7f6f7e16",
+          "bytes": 20971520
+        },
+        {
+          "file": "occt.tar.gz.part02",
+          "sha256": "4d46755bd64c8c82c4ea924e63a4b91305cc97e7f6cec17ae311a36f845605bc",
+          "bytes": 3188774
+        }
+      ],
+      "notices": [
+        "occt-LICENSE_LGPL_21.txt",
+        "occt-OCCT_LGPL_EXCEPTION.txt"
+      ]
+    },
+    {
+      "name": "freetype",
+      "repository": "freetype/freetype",
+      "revision": "de8b92dd7ec634e9e2b25ef534c54a3537555c11",
+      "upstreamArchive": "https://codeload.github.com/freetype/freetype/tar.gz/de8b92dd7ec634e9e2b25ef534c54a3537555c11",
+      "archiveSha256": "14791d34053acf30394912a8b963277bee60b35fbb3038795d86555ba0415a44",
+      "parts": [
+        {
+          "file": "freetype.tar.gz.part00",
+          "sha256": "14791d34053acf30394912a8b963277bee60b35fbb3038795d86555ba0415a44",
+          "bytes": 2496556
+        }
+      ],
+      "notices": [
+        "freetype-FTL.TXT"
+      ]
+    },
+    {
+      "name": "rapidjson",
+      "repository": "Tencent/rapidjson",
+      "revision": "24b5e7a8b27f42fa16b96fc70aade9106cf7102f",
+      "upstreamArchive": "https://codeload.github.com/Tencent/rapidjson/tar.gz/24b5e7a8b27f42fa16b96fc70aade9106cf7102f",
+      "archiveSha256": "2d2601a82d2d3b7e143a3c8d43ef616671391034bc46891a9816b79cf2d3e7a8",
+      "parts": [
+        {
+          "file": "rapidjson.tar.gz.part00",
+          "sha256": "2d2601a82d2d3b7e143a3c8d43ef616671391034bc46891a9816b79cf2d3e7a8",
+          "bytes": 1116703
+        }
+      ],
+      "notices": [
+        "rapidjson-license.txt"
+      ]
+    },
+    {
+      "name": "emscripten",
+      "repository": "emscripten-core/emscripten",
+      "revision": "5.0.1",
+      "upstreamArchive": "https://codeload.github.com/emscripten-core/emscripten/tar.gz/5.0.1",
+      "archiveSha256": "4612f72f59b383d270ea17cc4b4e5b3837b83e42362733a127cc149298cbd77e",
+      "parts": [
+        {
+          "file": "emscripten.tar.gz.part00",
+          "sha256": "cedc074bbbeb0cc0fd4b89c2803b12db8ba0817266437af7c7ffb68c919a3d16",
+          "bytes": 20971520
+        },
+        {
+          "file": "emscripten.tar.gz.part01",
+          "sha256": "82ed85a85f3229e2899d5c90545bc38b33b9b65a49baf79a077b3ceabcfa1d0b",
+          "bytes": 13724168
+        }
+      ],
+      "notices": [
+        "emscripten-LICENSE"
+      ]
+    }
+  ]
+}

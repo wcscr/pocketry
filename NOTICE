@@ -428,6 +428,25 @@ https://github.com/Open-Cascade-SAS/OCCT/blob/master/OCCT_LGPL_EXCEPTION.txt
 
 Compatibility review: the optional reader executes in a separate development
 environment. No OCP/OCCT code or binaries are linked, copied, bundled, or served
-by Pocketry. The STEP writer is original Pocketry code and adds no application
-runtime dependency. Any future bundled CAD kernel requires a separate licence
-and architecture review.
+by Pocketry. The preserved handwritten STEP writer is a regression reference only. The
+experimental CAD writer uses the reviewed library described below.
+
+================================================================================
+Experimental replicad-opencascadejs 1.1.0 / Open CASCADE Technology — LGPL
+================================================================================
+
+The user-authorized CAD investigations use the single-threaded unmodified
+replicad-opencascadejs 1.1.0 library (Steve Genoud and contributors), declared
+LGPL-2.1-only. This software uses facilities provided by Open CASCADE Technology
+8.0.1, copyright Open CASCADE SAS and contributors, LGPL-2.1 with the Open CASCADE
+exception. The exception applies to OCCT portions, not to the whole package.
+The compiled library also includes FreeType 2.13.0 under the FreeType License,
+RapidJSON under MIT and its upstream notices, and Emscripten runtime portions
+under their upstream MIT/University of Illinois-NCSA terms and exceptions.
+
+Full notices, pinned corresponding source archives (including compiler patches,
+wrappers and build recipes), and SHA-256 manifest are served at /licenses/cad/.
+Prepare them with scripts/prepare-cad-sources.py before bundling. The compatibility
+review and exact provenance are documented in docs/cad-engine-review.md.
+Pocketry's adapter remains AGPL-3.0-only; third-party code retains its own terms.
+Public distribution requires verifying these files alongside the emitted binary.
