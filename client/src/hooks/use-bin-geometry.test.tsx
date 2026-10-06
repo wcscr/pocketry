@@ -9,6 +9,13 @@ import { useBinGeometry, type BinGeometryState } from "@/lib/gridfinity/use-bin-
 import type { BuildBinRequest, BuildBinResult, BuildFitCheckRequest, BuildSurfaceFitCheckRequest } from "@/lib/gridfinity/worker-api";
 import type { ClientMessage, WorkerMessage } from "@/lib/worker/protocol";
 
+// These hook tests inject worker clients to exercise display/gesture queues.
+// The physical one-worker CAD lifecycle is covered in cad/client.test.ts.
+vi.mock("@/lib/cad/unified-client", async () => {
+  const { createWorkerClient } = await vi.importActual<typeof import("@/lib/worker/client")>("@/lib/worker/client");
+  return { createUnifiedBinClient: (lane:"detail"|"interactive") => createWorkerClient(() => new Worker("/mock-display-worker",{type:"module",name:`pocketry-${lane}`})) };
+});
+
 type Call = Extract<ClientMessage, { kind: "call" }>;
 class TestWorker extends EventTarget {
   static instances: TestWorker[] = [];

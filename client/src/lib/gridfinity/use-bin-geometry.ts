@@ -13,7 +13,8 @@ import type { SurfaceText } from "@shared/gridfinity/surface-text";
 import type { SurfaceFitCheckStyle } from "@shared/gridfinity/fit-check";
 
 import { toBufferGeometry } from "@/lib/mesh/to-buffer-geometry";
-import { createWorkerClient, type WorkerClient } from "@/lib/worker/client";
+import type { WorkerClient } from "@/lib/worker/client";
+import { createUnifiedBinClient } from "@/lib/cad/unified-client";
 import { WorkerCancelledError } from "@/lib/worker/protocol";
 
 import {
@@ -175,21 +176,14 @@ export function useBinGeometry(
   const [error, setError] = useState<string | null>(null);
 
   const ensureClient = useCallback((): WorkerClient => {
-    clientRef.current ??= createWorkerClient(
-      () =>
-        new Worker(new URL("./bin.worker.ts", import.meta.url), {
-          type: "module", name: "pocketry-detail",
-        }),
-    );
+    clientRef.current ??= createUnifiedBinClient("detail");
     return clientRef.current;
   }, []);
 
-  // At most two lazy workers. Detailed previews share the export worker;
-  // interactive requests never wait behind either detailed builds or exports.
+  // Both UI lanes and STEP share one physical CAD job queue. The last
+  // displayed preview remains in the page across worker recycling.
   const ensureInteractiveClient = useCallback((): WorkerClient => {
-    interactiveClientRef.current ??= createWorkerClient(
-      () => new Worker(new URL("./bin.worker.ts", import.meta.url), { type: "module", name: "pocketry-interactive" }),
-    );
+    interactiveClientRef.current ??= createUnifiedBinClient("interactive");
     return interactiveClientRef.current;
   }, []);
 
