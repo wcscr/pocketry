@@ -30,10 +30,10 @@ Check dimensions against the real items and print a fit test before the final bi
 Browse the [sample projects](samples/README.md) for editable JSONs, 3MF print
 models, and photos of finished bins. The collection includes a Wolfbox MF70 Airduster Kit,
 DeWalt right-angle tools, a Ryobi cutter, caliper storage, a stapler, wire
-strippers, a Klein voltage tester, a Citadel mouldline remover, Wiha drivers with 40, 50, 60, and 150 mm blades, and a mini socket set.
+strippers, a Klein voltage tester, a Citadel mouldline remover, Wiha drivers with 40, 50, 60, and 150 mm blades, a mini socket set, and individual and combined Bessey Utility Knife and Gerber Multitool bins.
 
 [Download the complete sample library](samples/pocketry-sample-library.json)
-to import all 13 designs at once.
+to import all 16 designs at once.
 
 | **[Wolfbox MF70 Airduster Kit](samples/wolfbox-mf70-airduster-kit/)** | **[DeWalt right-angle tools](samples/dewalt-right-angle-tools/)** |
 | :---: | :---: |
@@ -50,6 +50,10 @@ to import all 13 designs at once.
 | <a href="samples/wiha-40mm-drivers/"><img src="samples/wiha-40mm-drivers/photos/printed-bin-loaded.jpg" width="124" height="210" alt="Four Wiha 40 mm drivers in their printed bin"></a> | <a href="samples/wiha-50mm-drivers/"><img src="samples/wiha-50mm-drivers/photos/printed-bin-loaded.jpg" width="60" height="210" alt="Two Wiha 50 mm drivers in their printed bin"></a> |
 | **[Wiha 60 mm drivers](samples/wiha-60mm-drivers/)** | **[Wiha bins stacked in a drawer](samples/README.md#print-photos)** |
 | <a href="samples/wiha-60mm-drivers/"><img src="samples/wiha-60mm-drivers/photos/printed-bin-loaded-current.jpg" width="49" height="210" alt="Two Wiha 60 mm drivers in their printed bin"></a> | <a href="samples/wiha-drivers/photos/stacked-bins-in-drawer.jpg"><img src="samples/wiha-drivers/photos/stacked-bins-in-drawer.jpg" width="131" height="210" alt="Wiha driver bins stacked with other Gridfinity bins in a drawer"></a> |
+| **[Bessey Utility Knife](samples/bessey-utility-knife/)** | **[Gerber Multitool](samples/gerber-multitool/)** |
+| <a href="samples/bessey-utility-knife/"><img src="samples/bessey-utility-knife/layout.svg" width="105" height="210" alt="Individual Bessey utility-knife bin layout preview"></a> | <a href="samples/gerber-multitool/"><img src="samples/gerber-multitool/layout.svg" width="105" height="210" alt="Individual Gerber Multitool bin layout preview"></a> |
+| **[Bessey and Gerber combined bin](samples/bessey-gerber/)** | **[All sample projects](samples/README.md)** |
+| <a href="samples/bessey-gerber/"><img src="samples/bessey-gerber/photos/printed-bin-loaded.jpg" width="280" height="210" alt="Original printed bin holding the Bessey Utility Knife and Gerber Multitool"></a> | [Download the complete editable library](samples/pocketry-sample-library.json) |
 
 The Wiha drivers sit slightly too high to stack the loaded bins without some
 interference. If stacking is desired, lower the driver pockets by about **1 mm**

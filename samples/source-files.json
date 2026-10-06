@@ -751,6 +751,89 @@
           "sha256": "9740695c69a5be566ef9ca9efbcedd3f590f8b0d9ba909c41ffbb572460056e9"
         }
       ]
+    },
+    {
+      "directory": "bessey-utility-knife",
+      "model": {
+        "file": "bessey-utility-knife.3mf",
+        "sourceFile": "bessey-utility-knife.pocketry.json",
+        "sha256": "d61106d3bf2246933ac9d42cb14428805f3eaac4bdcdf2345cc3c7174dae35cc",
+        "processing": "Exported with Pocketry 1.3.0 geometry at export quality; separate body, pocket-floor, and rim material parts."
+      },
+      "project": {
+        "file": "bessey-utility-knife.pocketry.json",
+        "sourceFile": "Gerber-and-Bessy-bin-7x6x4.5-half-multicolor-2026-09-28_10-52-35-481.pocketry.json",
+        "sourceSha256": "772d5f5559994705d6a288f2c9e3c55327004493c17483ba5856feb345e6e504",
+        "sha256": "3d91e5d9fcc5bfb4cfe7a0bd5639bee15bf2c5497c94d29a1c015da6f3b9ffed",
+        "processing": "Single-tool layout derived from the supplied combined design; tool outline, scale, pocket depth, and edge rounding retained; centered pocket and transverse finger access."
+      },
+      "previews": [
+        {
+          "file": "layout.svg",
+          "sourceFile": "bessey-utility-knife.pocketry.json",
+          "sha256": "163076f6bb72d697e3269200102f294909535a3cfbea67d33020a9b436b8957d",
+          "processing": "Vector layout illustration from the placed pocket outlines and finger-access dimensions."
+        }
+      ],
+      "photos": []
+    },
+    {
+      "directory": "gerber-multitool",
+      "model": {
+        "file": "gerber-multitool.3mf",
+        "sourceFile": "gerber-multitool.pocketry.json",
+        "sha256": "4eb3b5b349e5aaafeaa7f8979d12c7b68a9991e666a47cc6ad9d0c48fed7e557",
+        "processing": "Exported with Pocketry 1.3.0 geometry at export quality; separate body, pocket-floor, and rim material parts."
+      },
+      "project": {
+        "file": "gerber-multitool.pocketry.json",
+        "sourceFile": "Gerber-and-Bessy-bin-7x6x4.5-half-multicolor-2026-09-28_10-52-35-481.pocketry.json",
+        "sourceSha256": "772d5f5559994705d6a288f2c9e3c55327004493c17483ba5856feb345e6e504",
+        "sha256": "4bbfa3f77c4adfbd149df44563c235293698fabc838c8ec589b72d2b9533270b",
+        "processing": "Single-tool layout derived from the supplied combined design; tool outline, scale, pocket depth, and edge rounding retained; centered pocket and transverse finger access."
+      },
+      "previews": [
+        {
+          "file": "layout.svg",
+          "sourceFile": "gerber-multitool.pocketry.json",
+          "sha256": "7dea6666adda19101efd1760d6961d2862b335c47cef50782cbcd9b0232e6f1a",
+          "processing": "Vector layout illustration from the placed pocket outlines and finger-access dimensions."
+        }
+      ],
+      "photos": []
+    },
+    {
+      "directory": "bessey-gerber",
+      "model": {
+        "file": "bessey-gerber.3mf",
+        "sourceFile": "bessey-gerber.pocketry.json",
+        "sha256": "7b0fdd7e7c1eb2dfac40921900c7df033cf62fb0bcf3919df72eef053d0961de",
+        "processing": "Exported with Pocketry 1.3.0 geometry at export quality; separate body, pocket-floor, and rim material parts."
+      },
+      "project": {
+        "file": "bessey-gerber.pocketry.json",
+        "sourceFile": "Gerber-and-Bessy-bin-7x6x4.5-half-multicolor-2026-09-28_10-52-35-481.pocketry.json",
+        "sourceSha256": "772d5f5559994705d6a288f2c9e3c55327004493c17483ba5856feb345e6e504",
+        "sha256": "93b067a1e1cb1fa8d50f21683d92317506fca5f2c4061813ff35c8b117504360",
+        "processing": "Final combined design snapshot with normalized product names."
+      },
+      "previews": [
+        {
+          "file": "layout.svg",
+          "sourceFile": "bessey-gerber.pocketry.json",
+          "sha256": "41fe1c47ebc8424a92a498594b0319433f78bdbdf8724bbe116fd666f43335a4",
+          "processing": "Vector layout illustration from the placed pocket outlines and finger-access dimensions."
+        }
+      ],
+      "photos": [
+        {
+          "file": "photos/printed-bin-loaded.jpg",
+          "sourceFile": "codex-clipboard-2aad2df8-5795-413f-ac28-a4c96eb76388.jpg",
+          "sourceSha256": "cbfd92154d2129ae2a5c09a8d7bfc0f0034e307ff903fdbd5abe1450671567c3",
+          "sha256": "3f618c10b74582dff5ea7b2936e57e81c2722ab7d333a4161edfb90c2b130458",
+          "processing": "Original framing and dimensions retained; lossless JPEG metadata removal with jpegtran -copy none. No pixel changes or generative edits."
+        }
+      ]
     }
   ],
   "library": {
