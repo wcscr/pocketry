@@ -15,6 +15,12 @@ and shared finger access keep both drivers aligned and easy to lift out.
 [How to open, edit, and print](../README.md#using-a-sample) ·
 [Complete editable sample library](../pocketry-sample-library.json).
 
+## Fit and stacking
+
+The drivers sit slightly too high to stack the loaded bins without some
+interference. If stacking is desired, lower the driver pockets by about **1 mm**
+in the editable project before exporting a revised print model.
+
 ## Printed bin
 
 <a href="photos/printed-bin-loaded-current.jpg"><img src="photos/printed-bin-loaded-current.jpg" width="178" alt="Wiha 60 mm precision screwdrivers in a dark printed bin with an orange rim and raised Wiha lettering"></a>

@@ -2,8 +2,8 @@
 
 # Wiha 150 mm drivers
 
-Five Wiha precision screwdrivers with 150 mm blades and shared finger access. An 80% solid fill height
-allows stacking without fully recessing the screwdrivers into the solid fill.
+Five Wiha precision screwdrivers with 150 mm blades and shared finger access.
+The bin uses an 80% solid fill height.
 
 - **Blade length:** 150 mm.
 - **Size:** 3 × 7 grid; 3.5u. Grid cells are 42 mm; one height unit is 7 mm, before the stacking lip.
@@ -12,6 +12,12 @@ allows stacking without fully recessing the screwdrivers into the solid fill.
 - **Editable project:** [wiha-drivers.pocketry.json](wiha-drivers.pocketry.json).
 
 [How to open, edit, and print](../README.md#using-a-sample).
+
+## Fit and stacking
+
+The drivers sit slightly too high to stack the loaded bins without some
+interference. If stacking is desired, lower the driver pockets by about **1 mm**
+in the editable project before exporting a revised print model.
 
 ## Printed bin
 
