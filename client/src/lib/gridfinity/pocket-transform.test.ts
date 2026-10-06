@@ -15,8 +15,8 @@ const origin = new Vector3(5, -4, 42);
 const identity = new Quaternion();
 
 describe("surface-anchored pocket controls", () => {
-  it.each([{xDeg:20,yDeg:25},{xDeg:90,yDeg:0},{xDeg:180,yDeg:25}])("bounds through selection edges at the physical bin for pose %j", tilt => {
-    const cutout = {...pocket,elevationMm:0,depth:{mode:"through" as const},tilt,insertionMode:"vertical" as const};
+  it.each([{xDeg:20,yDeg:25},{xDeg:90,yDeg:0},{xDeg:180,yDeg:25}])("moves finite through selection edges along Z without X/Y drift for pose %j", tilt => {
+    const cutout = {...pocket,elevationMm:0,depth:{mode:"through" as const,sourceDepthMm:16},tilt,insertionMode:"vertical" as const};
     const wires = pocketTransformWires({cutout,shape},spec);
     expect(wires.length).toBeGreaterThan(0);
     for (const [x,y,z] of wires.flat()) {
@@ -28,7 +28,16 @@ describe("surface-anchored pocket controls", () => {
     }
     const upright = pocketTransformWires({cutout:{...cutout,tilt:undefined},shape},spec).flat();
     expect(Math.min(...upright.map(v=>v[2]))).toBe(0);
-    expect(Math.max(...upright.map(v=>v[2]))).toBe(42);
+    expect(Math.max(...upright.map(v=>v[2]))).toBe(16);
+    const raised = pocketTransformWires({cutout:{...cutout,elevationMm:50},shape},spec).flat();
+    wires.flat().forEach((v,i)=>{
+      expect(raised[i][0]).toBeCloseTo(v[0],8);
+      expect(raised[i][1]).toBeCloseTo(v[1],8);
+      expect(raised[i][2]).toBeCloseTo(v[2]+50,8);
+    });
+    const lowered = pocketTransformPatch(cutout,shape,spec,new Vector3(cutout.position.x,cutout.position.y,-500),identity,"translate")!;
+    expect(lowered.elevationMm).toBe(0);
+    expect(lowered.depth).toEqual(cutout.depth);
   });
   it("draws only boundary rings and sparse struts for a concave, holed rigid drag preview", () => {
     const outlineMm = [{ outer: [[0,0],[30,0],[30,10],[20,10],[20,20],[0,20]].map(([x,y]) => ({x,y})),

@@ -3370,6 +3370,35 @@ describe("BinDesignerPage", () => {
     } finally { unmount(); }
   });
 
+  it.each([false,true])("keeps the original object when selecting Through and restoring fixed depth (split=%s)", async split => {
+    const shape = rectangularShape("tool","Through source");
+    const spec = parseBinSpec({gridX:4,gridY:4,heightUnits:6,lip:"none"});
+    const original = parseCutoutPlacement({id:"through-source",shapeId:shape.id,position:{x:0,y:0},
+      elevationMm:12,tilt:{xDeg:20,yDeg:25},depth:{mode:"mm",value:16},
+      ...(split ? {split:{boundary:[{x:-15,y:0},{x:15,y:0}],depths:[{mode:"mm",value:10},{mode:"mm",value:16}]}} : {})});
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({...EMPTY_PROJECT,spec,shapes:[shape],cutouts:[original]});
+    const {container,unmount} = renderPage();
+    await flushHydration();
+    try {
+      selectPocket(container,original.id);
+      const changeMode = (label: string) => {
+        React.act(()=>container.querySelector<HTMLButtonElement>('[aria-label="Pocket depth mode"]')!
+          .dispatchEvent(new KeyboardEvent("keydown",{key:" ",bubbles:true})));
+        React.act(()=>[...document.querySelectorAll<HTMLElement>('[role="option"]')].find(node=>node.textContent === label)!.click());
+      };
+      changeMode("Through");
+      const through = vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0];
+      expect(through.elevationMm).toBe(12);
+      expect(through.position).toEqual(original.position);
+      expect(through.tilt).toEqual(original.tilt);
+      expect(through.split?.depths[0] ?? through.depth).toEqual({mode:"through",sourceDepthMm:split ? 10 : 16});
+      if (split) expect(through.split!.depths[1]).toEqual(original.split!.depths[1]);
+      changeMode("Fixed depth");
+      const restored = vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0];
+      expect(restored.split?.depths ?? restored.depth).toEqual(original.split?.depths ?? original.depth);
+    } finally { unmount(); }
+  });
+
   it("keeps error details on the canvas in both views, collapses them, and blocks export", async () => {
     const shape = rectangularShape("tool", "Wrench");
     vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({

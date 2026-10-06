@@ -113,6 +113,19 @@ const REQUEST: BuildBinRequest = {
   quality: { circularSegments: 16 },
 };
 
+it("restores the full colored bin when the finite through object is raised above it", async () => {
+  const {shape,cutout} = createBasicPocket("rectangle",{x:-10,y:-12},{x:10,y:12},"raised-through")!;
+  const p = parseCutoutPlacement({...cutout,elevationMm:87,tilt:{xDeg:20,yDeg:25},rotationDeg:17,
+    depth:{mode:"through",sourceDepthMm:16},insertionMode:"vertical",topFilletMm:2,bottomFilletMm:1});
+  const request: BuildBinRequest = {spec:{gridX:3,gridY:3,heightUnits:8,fill:"solid",lip:"none"},
+    quality:EXPORT_QUALITY,exportTopology:true,pocketFloorMaterialThicknessMm:0.6,stackingRimMaterialThicknessMm:1.25,
+    borderWidthMm:2,layout:{shapes:[shape],cutouts:[p],fingerHoles:[]}};
+  const result = (await getHandler()(request,context())).value;
+  const uncut = (await getHandler()({...request,layout:{shapes:[],cutouts:[],fingerHoles:[]}},context())).value;
+  expect(printableMeshVolume(result.mesh)).toBeCloseTo(printableMeshVolume(uncut.mesh),4);
+  for (const part of Object.values(result.materialMeshes!)) expect(printableMeshVolume(part)).toBeGreaterThan(0);
+});
+
 it.each([false,true])("exports a bounded vertical through pocket with an open underside, flat bottom=%s", async flatBottom => {
   const {shape,cutout} = createBasicPocket("rectangle",{x:-10,y:-12},{x:10,y:12},"bounded-through")!;
   const p = parseCutoutPlacement({...cutout,elevationMm:0,tilt:{xDeg:20,yDeg:25},rotationDeg:17,

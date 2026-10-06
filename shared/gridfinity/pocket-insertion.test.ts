@@ -58,16 +58,16 @@ it("uses the entire top-down footprint even for source vertices above the fill",
   expect(rigidPocketFootprint(shape.outlineMm,raised,28,28)).toEqual(full);
 });
 
-it("reserves only the through shaft between the underside and fill for drop-in placement", () => {
+it("reserves the original through object independently of bin height and Z movement", () => {
   const through = {...p,elevationMm:0,tilt:{xDeg:30,yDeg:0},rotationDeg:0,
-    depth:{mode:"through" as const},insertionMode:"vertical" as const};
+    depth:{mode:"through" as const,sourceDepthMm:16},insertionMode:"vertical" as const};
   for (const heightUnits of [2,4]) {
     const bin = {...spec,heightUnits};
     const points = pocketOccupiedOutline(shape,through,bin).flatMap(s=>s.outer);
-    const top = resolvePocketDepth(bin,through.depth).infillTopZ;
+    expect(pocketOccupiedOutline(shape,{...through,elevationMm:50},bin)).toEqual(pocketOccupiedOutline(shape,through,bin));
     expect(Math.max(...points.map(v=>v.x))-Math.min(...points.map(v=>v.x))).toBeCloseTo(10,6);
     expect(Math.max(...points.map(v=>v.y))-Math.min(...points.map(v=>v.y)))
-      .toBeCloseTo(16/Math.cos(Math.PI/6)+top*Math.tan(Math.PI/6),6);
+      .toBeCloseTo(16*Math.cos(Math.PI/6)+16*Math.sin(Math.PI/6),6);
     const neighbor = {...through,id:"neighbor",position:{x:40,y:0},tilt:undefined};
     expect(validateLayout(bin,[through,neighbor],new Map([[shape.id,shape]]))).toEqual([]);
   }

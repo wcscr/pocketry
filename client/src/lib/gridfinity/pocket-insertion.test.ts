@@ -8,6 +8,8 @@ import { createKernel, loadManifold, type Kernel, type ManifoldToplevel } from "
 import { outlineBounds } from "@/lib/geometry/outline";
 import { buildCutoutCutters, buildRigidPocket } from "./cutouts";
 import { buildBinWithCutouts, EXPORT_QUALITY, PREVIEW_QUALITY } from "./bin";
+import { Vector3 } from "three";
+import { transformObjects } from "./object-arrangement";
 import { resolvedPocketGeometry } from "./pocket-geometry";
 
 let wasm: ManifoldToplevel, arena: Arena, kernel: Kernel;
@@ -25,52 +27,47 @@ function cutter(p = pocket, s = shape) {
   return arena.track(kernel.Manifold.union(buildCutoutCutters(kernel, new Map([[s.id,s]]), [p], spec, EXPORT_QUALITY).cutters));
 }
 
-it.each([
-  {xDeg:30,yDeg:0}, {xDeg:20,yDeg:25}, {xDeg:180,yDeg:25},
-])("bounds a through drop-in opening by the true underside and fill surface: %j", tilt => {
-  const p = {...pocket,depth:{mode:"through" as const},elevationMm:0,tilt,rotationDeg:17,
+it.each([{xDeg:30,yDeg:0},{xDeg:20,yDeg:25},{xDeg:180,yDeg:25}])(
+  "moves the original through object in Z without moving its XY footprint: %j", tilt => {
+  const tall = {...spec,heightUnits:8};
+  const p = {...pocket,depth:{mode:"through" as const,sourceDepthMm:16},elevationMm:7,tilt,rotationDeg:17,
     insertionMode:"vertical" as const};
-  const top = resolvePocketDepth(spec,p.depth).infillTopZ;
+  const object = {kind:"pocket" as const,shape,cutout:p};
+  const raised = transformObjects([object],tall,new Vector3(0,0,5))!.cutouts[0];
+  expect(raised).toEqual({...p,elevationMm:12});
   for (const quality of [PREVIEW_QUALITY,EXPORT_QUALITY]) {
-    const source = buildRigidPocket(kernel,shape,{...p,insertionMode:undefined},spec,quality).cutters[0];
-    const bounded = arena.track(arena.track(source.trimByPlane([0,0,1],0)).trimByPlane([0,0,-1],-top));
-    const expected = arena.track(bounded.project());
-    const solid = buildCutoutCutters(kernel,map,[p],spec,quality).cutters[0];
-    const opening = arena.track(solid.slice(top-1e-7));
-    expect(arena.track(expected.subtract(opening)).area()).toBeLessThan(0.001);
-    expect(arena.track(opening.subtract(expected)).area()).toBeLessThan(0.001);
-    expect(solid.boundingBox().min[2]).toBeCloseTo(0,6);
-    expect(solid.boundingBox().max[0]-solid.boundingBox().min[0]).toBeLessThan(60);
-    // The bottom intersection remains open, while the tilted sides are retained.
-    const bottom = arena.track(source.slice(0.001));
-    expect(arena.track(bottom.subtract(arena.track(solid.slice(0.001)))).area()).toBeLessThan(0.001);
-    const bounds = outlineBounds(pocketOccupiedOutline(shape,p,spec))!;
-    expect(bounds.minX).toBeCloseTo(solid.boundingBox().min[0],3);
-    expect(bounds.maxY).toBeCloseTo(solid.boundingBox().max[1],3);
-    // Arbitrary Boolean-helper length must not influence the footprint.
-    const wide = buildCutoutCutters(kernel,map,[p],{...spec,gridX:8},quality).cutters[0];
-    expect(arena.track(wide.subtract(solid)).volume()).toBeLessThan(0.001);
-    expect(arena.track(solid.subtract(wide)).volume()).toBeLessThan(0.001);
+    const original = buildRigidPocket(kernel,shape,{...p,insertionMode:undefined},tall,quality).cutters[0];
+    const moved = buildRigidPocket(kernel,shape,{...raised,insertionMode:undefined},tall,quality).cutters[0];
+    const translated = arena.track(original.translate([0,0,5]));
+    expect(arena.track(moved.subtract(translated)).volume()).toBeLessThan(0.001);
+    expect(arena.track(translated.subtract(moved)).volume()).toBeLessThan(0.001);
+    const before = buildCutoutCutters(kernel,map,[p],tall,quality).cutters[0];
+    const after = buildCutoutCutters(kernel,map,[raised],tall,quality).cutters[0];
+    const top = resolvePocketDepth(tall,p.depth).infillTopZ;
+    const openingBefore = arena.track(before.slice(top-1e-7)), openingAfter = arena.track(after.slice(top-1e-7));
+    expect(arena.track(openingBefore.subtract(openingAfter)).area()).toBeLessThan(0.001);
+    expect(arena.track(openingAfter.subtract(openingBefore)).area()).toBeLessThan(0.001);
+    expect(undersideAt(after,0,0)).toBeCloseTo(undersideAt(before,0,0)!+5,2);
+    const lowered = transformObjects([object],tall,new Vector3(0,0,-100))!.cutouts[0];
+    const low = buildRigidPocket(kernel,shape,{...lowered,insertionMode:undefined},tall,quality).cutters[0];
+    expect(low.boundingBox().min[2]).toBeCloseTo(0,6);
+    expect(lowered.depth).toEqual(p.depth);
+    // A fully raised object no longer removes material anywhere in the bin.
+    const clear = buildCutoutCutters(kernel,map,[{...p,elevationMm:80}],tall,quality);
+    expect(arena.track(kernel.Manifold.union(clear.cutters)).isEmpty()).toBe(true);
+    expect(clear.validationIssues).toEqual([]);
   }
 });
 
-it("limits only the through half of a split pocket, retaining the finite raised seat", () => {
-  const p = parseCutoutPlacement({...pocket,tilt:{xDeg:0,yDeg:25},elevationMm:12,insertionMode:"vertical",
-    split:{boundary:[{x:-15,y:0},{x:15,y:0}],depths:[{mode:"through"},{mode:"mm",value:16}]}});
-  const through = buildCutoutCutters(kernel,map,[p],spec,EXPORT_QUALITY).cutters[0];
-  const source = buildRigidPocket(kernel,shape,{...p,insertionMode:undefined},spec,EXPORT_QUALITY).cutters[0];
-  // Negative Y is the blind half; its underside rises above the fill at one end.
-  // The through half's clipping must not truncate its complete finite footprint.
-  let samples = 0;
-  for (const x of [-12,-8,-4,0,4]) {
-    const seat = undersideAt(source,x,-6);
-    if (seat !== undefined && seat < 21) {
-      expect(undersideAt(through,x,-6)).toBeCloseTo(seat,2);
-      samples++;
-    }
-  }
-  expect(samples).toBeGreaterThanOrEqual(3);
-  expect(undersideAt(through,-14,6)).toBeCloseTo(0,4);
+it("preserves both original split seats when switching one section to through", () => {
+  const tall = {...spec,heightUnits:8};
+  const original = parseCutoutPlacement({...pocket,tilt:{xDeg:20,yDeg:25},elevationMm:12,insertionMode:"vertical",
+    split:{boundary:[{x:-15,y:0},{x:15,y:0}],depths:[{mode:"mm",value:10},{mode:"mm",value:16}]}});
+  const through = {...original,split:{...original.split!,depths:[{mode:"through" as const,sourceDepthMm:10},original.split!.depths[1]] as [typeof original.depth,typeof original.depth]}};
+  const before = buildCutoutCutters(kernel,map,[original],tall,EXPORT_QUALITY).cutters[0];
+  const after = buildCutoutCutters(kernel,map,[through],tall,EXPORT_QUALITY).cutters[0];
+  expect(arena.track(before.subtract(after)).volume()).toBeLessThan(0.001);
+  expect(arena.track(after.subtract(before)).volume()).toBeLessThan(0.001);
 });
 
 it.each([PREVIEW_QUALITY, EXPORT_QUALITY])("clears the reported rounded pocket continuously at quality=%j", quality => {

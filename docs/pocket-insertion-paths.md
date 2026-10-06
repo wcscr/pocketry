@@ -30,7 +30,7 @@ rigid pocket from fixed depth to remaining floor preserves the same length;
 editing the floor limit or switching back to fixed depth does not resize it.
 Source wires show the full original shape even when the cut is floor-limited.
 
-Project schema 34 stores this optional source length; version 33 introduced
+Project schema 35 also retains source depth for Through; version 34 introduced minimum-floor source depth and version 33 introduced
 `insertionMode`. Earlier projects migrate without activating clearance or rewriting
 existing shapes. Undo/redo, creation references and Library saves retain the source
 length and floor limit. Imported-model PR #118 remains separate.
@@ -50,11 +50,18 @@ never modify the source. Top rounding is applied at the actual fill surface.
 Floor colors follow the finished seat, including floor-limited cuts, and the
 material parts are clipped to the finished bin.
 
-Through sections use only the shaft between the true bin underside (Z=0) and the
-fill surface when calculating a vertical drop-in opening. The long Boolean helper
-below the bin must not enlarge that projection. Each split section is handled
-independently, preserving finite seats. Through selection wires stop at the physical
-bin, and placement checks use the bounded projection.
+Through retains the original finite extrusion, pose and rounding. It allows the
+seat to reach the true bin underside (Z=0); translation stops there, and rotation
+never places any part of the original object below it. It does not create an
+infinite tilted shaft. Pure Z moves leave every source X/Y coordinate unchanged;
+vertical clearance is regenerated from that moved object. Raising the complete
+object above the fill removes its cut. Selection wires show the finite original
+object and move with it, independently of the opening at the bin surface.
+
+Older rigid Through pockets recover their last finite depth from saved history
+or their creation reference. If neither contains a finite depth, the current fill
+height supplies a finite default, frozen on migration. Linked copies, split seats,
+Undo and later bin resizing retain that recovered depth.
 
 If the rotated underside itself reaches the bin surface and prevents a complete
 opening, the preview explains how to correct the height or tilt and export is
@@ -77,9 +84,10 @@ checking source preservation, independent split limits and save/history/referenc
 round trips. Worker tests check closed, nondegenerate STL/3MF meshes and floor-color
 volumes, including clipped floors. UI tests preserve the floor mode through tilt,
 elevation and Undo; browser checks exercise the restored depth-mode option.
-Through-pocket regressions check compound and inverted tilt, bin-height-dependent
-footprints, independence from helper length, bounded selection wires, split seats,
-and closed STL/3MF exports with both flat and Gridfinity bases.
+Through-pocket regressions check compound and inverted tilt, unchanged X/Y during
+Z moves, translated seat heights, the underside movement limit, independent split
+seats, source recovery through saved history and closed STL/3MF exports with both
+flat and Gridfinity bases.
 
 Physical insertion fit remains unqualified. Verification runs locally under Node
 22; GitHub Actions remains disabled.

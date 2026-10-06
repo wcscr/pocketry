@@ -101,7 +101,10 @@ export const tracedShapeSchema = z
 export type TracedShape = z.infer<typeof tracedShapeSchema>;
 
 export const depthSpecSchema = z.discriminatedUnion("mode", [
-  z.object({ mode: z.literal("through") }).strict(),
+  z.object({ mode: z.literal("through"),
+    /** Finite authored object retained when floor protection is disabled. */
+    sourceDepthMm: z.number().positive().optional(),
+  }).strict(),
   /** Extrusion distance along the original outline normal. Upright pockets
    * initially measure this down from the infill top. */
   z.object({ mode: z.literal("mm"), value: z.number().positive() }).strict(),
@@ -1249,7 +1252,8 @@ const floorAtUnderside = (z: number): number => Math.abs(z) < POCKET_DEPTH_EPSIL
 export function resolvePlacedPocketDepth(spec: Pick<BinSpec, "heightUnits" | "lip">, depth: DepthSpec, shape: Pick<TracedShape, "outlineMm">, cutout: CutoutPlacement): ResolvedPocket & { highestFloorZ: number | null; axialDepthMm: number | null } {
   const ordinary = resolvePocketDepth(spec, depth);
   if (hasRigidPocket(cutout)) {
-    if (depth.mode === "through") return { ...ordinary, floorZ: null, highestFloorZ: null, axialDepthMm: null };
+    if (depth.mode === "through") return { ...ordinary, floorZ: cutout.elevationMm!, highestFloorZ: cutout.elevationMm!,
+      axialDepthMm: depth.sourceDepthMm ?? ordinary.infillTopZ, depthMm: Math.max(0, ordinary.infillTopZ-cutout.elevationMm!) };
     const floorZ = depth.mode === "remaining" ? Math.max(cutout.elevationMm!, depth.floorThicknessMm) : cutout.elevationMm!;
     return { ...ordinary, floorZ, highestFloorZ: floorZ, axialDepthMm: depth.mode === "remaining" ? depth.sourceDepthMm ?? ordinary.depthMm : ordinary.depthMm,
       depthMm: Math.max(0, ordinary.infillTopZ - floorZ) };

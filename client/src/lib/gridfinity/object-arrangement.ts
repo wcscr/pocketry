@@ -103,7 +103,7 @@ export function transformObjects(objects: readonly EditableObject[], spec: BinSp
       let elevationDelta = offset.z + dz;
       if (rotating && pivot === "selection" && !object.cutout.profileBottom) {
         const rigid = rigidPocket(surfaceAnchoredPocket(object.cutout), object.shape, spec);
-        const source = pocketSourceRings(object.shape.outlineMm, rigid, top, true).flat();
+        const source = pocketSourceRings(object.shape.outlineMm, rigid, top).flat();
         const minimum = Math.min(...source.map(v => rotatePocketVector(v, rigid).z));
         const sourceOrigin = new Vector3(rigid.position.x - center.x, rigid.position.y - center.y,
           rigid.elevationMm! - minimum - top).applyQuaternion(rotation);

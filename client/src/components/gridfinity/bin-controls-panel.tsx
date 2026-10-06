@@ -1,5 +1,5 @@
 import { EditableObjectName, ObjectActions } from "./object-list-controls";
-import { hasRigidPocket } from "@shared/gridfinity/rigid-pocket";
+import { hasRigidPocket, rigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { createPortal } from "react-dom";
 import { useSelectionInspector } from "./selection-inspector-context";
 import { useExperimentalFeatures } from "@/state/experimental-features";
@@ -65,6 +65,7 @@ import {
   fingerAccessOptionsPatch,
   fingerHoleSizeLimits,
   resolvePlacedPocketDepth,
+  resolvePocketDepth,
   pocketDepths,
   pocketName,
   type DepthSpec,
@@ -487,14 +488,16 @@ export function BinControlsPanel({
     : selectedCutout;
   const updatePocketDepth = (depth: DepthSpec, transient = false) => {
     if (!selectedCutout) return;
-    if (depth.mode === "remaining" && hasRigidPocket(selectedCutout) && depthShape && depthCutout) {
+    const source = depth.mode === "through" && selectedShape ? rigidPocket(selectedCutout,selectedShape,spec) : selectedCutout;
+    if ((depth.mode === "through" || (depth.mode === "remaining" && hasRigidPocket(source))) && depthShape && depthCutout) {
       const originalDepth = resolvePlacedPocketDepth(spec, depthCutout.depth, depthShape, depthCutout).axialDepthMm;
-      depth = { ...depth, sourceDepthMm: Math.max(0.1, originalDepth ?? 1) };
+      depth = { ...depth, sourceDepthMm: Math.max(0.1, originalDepth ?? resolvePocketDepth(spec,depth).infillTopZ) };
     }
-    const depths = selectedCutout.split ? [...selectedCutout.split.depths] as [DepthSpec, DepthSpec] : null;
+    const depths = source.split ? [...source.split.depths] as [DepthSpec, DepthSpec] : null;
     if (depths) depths[selectedPocketSection] = depth;
     dispatch({ type: "UPDATE_CUTOUT", id: selectedCutout.id,
-      patch: selectedCutout.split && depths ? { split: { ...selectedCutout.split, depths } } : { depth },
+      patch: { elevationMm:source.elevationMm, zOffsetMm:source.zOffsetMm,
+        ...(source.split && depths ? { split: { ...source.split, depths } } : { depth }) },
       transient, historyLabel: selectedCutout.split ? "Change section depth" : "Change pocket depth" });
   };
   const selectedShape = selectedCutout
@@ -954,6 +957,7 @@ export function BinControlsPanel({
                   {depthCutout!.depth.mode === "remaining" && <MmSlider label="Remaining floor thickness" value={depthCutout!.depth.floorThicknessMm} min={0} max={Math.max(7, spec.heightUnits * 7)} step={0.5}
                     onChange={(floorThicknessMm, transient) => updatePocketDepth({ mode: "remaining", floorThicknessMm }, transient)} />}
                   {hasRigidPocket(selectedCutout) && depthCutout!.depth.mode === "remaining" && <p className="text-[11px] text-muted-foreground">The floor limit clips only the cut. Raising the pocket restores its original profile.</p>}
+                  {hasRigidPocket(selectedCutout) && depthCutout!.depth.mode === "through" && <p className="text-[11px] text-muted-foreground">Preserves the original shape. Z movement stops when the lowest point reaches the bin underside; raising it restores material.</p>}
                   {selectedCutout.split && <p className="text-[11px] text-muted-foreground">Depth applies to the selected section. Size and edges apply to the whole pocket.</p>}
                 </section>
               </PocketDepthSummary>

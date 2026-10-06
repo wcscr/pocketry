@@ -625,3 +625,49 @@ it("retains unclipped rigid source depths with floor limits through save, histor
   expect(parsed.transformOrigins!.pockets[0].cutout.depth).toEqual(cutout.depth);
   expect(parseProjectDoc({...doc,cutouts:[{...cutout,depth:{...cutout.depth,sourceDepthMm:-1}}]})).toBeNull();
 });
+
+it("recovers a through object's original depth from ordered history and preserves moves and Undo", () => {
+  const base = parseProjectDoc(VALID)!;
+  const finite = {...base.cutouts[0],elevationMm:12,depth:{mode:"mm" as const,value:16},tilt:{xDeg:20,yDeg:25}};
+  const through = {...finite,depth:{mode:"through" as const},elevationMm:50};
+  const later = {...finite,depth:{mode:"mm" as const,value:24}};
+  const snapshot = (cutout: typeof through | typeof finite) => ({spec:base.spec,cutouts:[cutout],fingerHoles:[]});
+  const input = {...base,...snapshot(through),schemaVersion:34,
+    history:{index:1,stack:[{label:"Original",doc:snapshot(finite)},{label:"Through and raise",doc:snapshot(through)},
+      {label:"Later resize",doc:snapshot(later)}]},
+    transformOrigins:{pockets:[{cutout:finite,spec:base.spec}],fingerHoles:[]}};
+  const saved = JSON.stringify(input);
+  const migrated = parseProjectDoc(JSON.parse(saved))!;
+  expect(migrated.cutouts[0]).toMatchObject({elevationMm:50,depth:{mode:"through",sourceDepthMm:16}});
+  expect(migrated.history!.stack[1].doc.cutouts).toEqual(migrated.cutouts);
+  expect(migrated.history!.stack[0].doc.cutouts[0].depth).toEqual(finite.depth);
+  expect(migrated.history!.stack[2].doc.cutouts[0].depth).toEqual(later.depth);
+  expect(parseProjectDoc(JSON.parse(JSON.stringify(migrated)))).toEqual(migrated);
+  expect(JSON.stringify(input)).toBe(saved);
+  expect(parseProjectDoc({...migrated,history:undefined,cutouts:[{...migrated.cutouts[0],elevationMm:-0.01}]})).toBeNull();
+});
+
+it("recovers retained creation depths without history and freezes a legacy through default once", () => {
+  const base = parseProjectDoc(VALID)!;
+  const original = {...base.cutouts[0],elevationMm:7,depth:{mode:"mm" as const,value:16}};
+  const through = {...original,depth:{mode:"through" as const}};
+  const recovered = parseProjectDoc({...base,schemaVersion:34,cutouts:[through],
+    transformOrigins:{pockets:[{cutout:original,spec:base.spec}],fingerHoles:[]}})!;
+  expect(recovered.cutouts[0].depth).toEqual({mode:"through",sourceDepthMm:16});
+  const migrated = parseProjectDoc({...base,schemaVersion:34,cutouts:[through]})!;
+  const sourceDepth = migrated.cutouts[0].depth;
+  expect(sourceDepth).toHaveProperty("sourceDepthMm");
+  expect(parseProjectDoc({...migrated,spec:{...base.spec,heightUnits:8}})!.cutouts[0].depth).toEqual(sourceDepth);
+});
+
+it("keeps migrated linked through designs consistent even when creation depths differed", () => {
+  const base = parseProjectDoc(VALID)!;
+  const first = {...base.cutouts[0],elevationMm:7,depth:{mode:"through" as const},designLink:{id:"linked",tilt:false}};
+  const second = {...first,id:"copy",elevationMm:12,position:{x:20,y:0}};
+  const migrated = parseProjectDoc({...base,schemaVersion:34,cutouts:[first,second],
+    transformOrigins:{pockets:[{cutout:{...first,designLink:undefined,depth:{mode:"mm",value:16}},spec:base.spec},
+      {cutout:{...second,designLink:undefined,depth:{mode:"mm",value:24}},spec:base.spec}],fingerHoles:[]}})!;
+  expect(migrated).not.toBeNull();
+  expect(migrated.cutouts[0].depth).toEqual({mode:"through",sourceDepthMm:16});
+  expect(migrated.cutouts[1].depth).toEqual(migrated.cutouts[0].depth);
+});
