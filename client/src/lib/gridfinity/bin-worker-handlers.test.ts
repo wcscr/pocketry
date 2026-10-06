@@ -1214,6 +1214,10 @@ it("exports overlapping upright finite Through pockets as one surface opening", 
   const model = strFromU8(unzipSync(writeThreeMf(parts))["3D/3dmodel.model"]);
   expect(model.match(/<triangle /g)?.length).toBe(parts.reduce((sum, part) => sum + part.mesh.indices.length / 3, 0));
   expect(result.validationIssues?.find(issue => issue.code === "tilted-pocket-overlap")?.severity).toBe("warning");
+  const surfaceCutouts = cutouts.map(c => ({ ...c, elevationMm: undefined, insertionMode: undefined, depth: { mode: "through" as const } }));
+  const surface = (await getHandler()({ ...request, layout: { ...request.layout!, cutouts: surfaceCutouts } }, context())).value;
+  expect(surface.validationIssues?.filter(issue => issue.severity === "error")).toEqual([]);
+  expect(printableMeshVolume(surface.mesh)).toBeGreaterThan(0);
   // Submerged and tilted intersections are also permitted and reported.
   for (const pockets of [cutouts.map(c => ({ ...c, depth: { mode: "through" as const, sourceDepthMm: 2 } })),
     [cutouts[0], { ...cutouts[1], tilt: { xDeg: 1, yDeg: 0 } }]]) {

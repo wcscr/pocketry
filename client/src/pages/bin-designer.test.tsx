@@ -3521,7 +3521,7 @@ describe("BinDesignerPage", () => {
     unmount();
   });
 
-  it("cycles between overlapping pockets from their canvas warning", async () => {
+  it("cycles between overlapping pockets from their warning and allows export in either view", async () => {
     const first = rectangularShape('first', 'Wrench');
     const second = rectangularShape('second', 'Pliers');
     vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({
@@ -3543,6 +3543,11 @@ describe("BinDesignerPage", () => {
     expect(issue.getAttribute('data-selected')).toBe('true');
     expect(container.querySelector('[data-testid="layout-canvas"]')).not.toBeNull();
     expect(container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.disabled).toBe(true);
+    for (const view of ["2d", "3d"]) {
+      React.act(() => container.querySelector<HTMLButtonElement>(`[data-testid="view-toggle-${view}"]`)!.click());
+      openSettingsSection(container, 'export');
+      expect(container.querySelector<HTMLButtonElement>('[data-testid="button-export-stl"]')!.disabled).toBe(false);
+    }
     unmount();
   });
 
