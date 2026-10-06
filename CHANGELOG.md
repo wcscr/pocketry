@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Upright alignment rotates the photo with its contours; symmetry previews support zoom and pan.
+
 ## 1.4.0 — 2026-10-06
 
 - Improved photo tracing for thin reflective tools, with symmetry, upright alignment, and clearer sensitivity controls.

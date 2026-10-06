@@ -18,7 +18,9 @@ import {
 } from "@shared/geometry/scale";
 import { OUTER_RING, type Outline, type Point, type Rect, type RingRef } from "@shared/geometry/types";
 import { ringArea } from "@shared/geometry/rings";
-import { getRing } from "@/lib/geometry/outline";
+import { getRing, mapOutline, normalizeOutline } from "@/lib/geometry/outline";
+import { composeImageMatrices, IDENTITY_IMAGE_MATRIX, inverseImageMatrix, rotateImageAlignment,
+  transformImagePoint, transformImageRect, type ImageAlignment, type ImageMatrix } from "@shared/geometry/image-alignment";
 
 import type {
   PerspectiveProposal,
@@ -75,6 +77,10 @@ export type TraceMode =
 export type ExportFormat = "svg" | "dxf" | "stl";
 export type CalibrationSource = "manual" | "sheet" | "strip";
 
+export type TracePhotoFrame = Pick<TraceState, "imageSize" | "imageRotation" | "imageAlignment" |
+  "calibration" | "pendingAutoCalibration" | "pendingPaperCalibration" | "draftCalibration" |
+  "region" | "pendingPerspective" | "manualPerspectivePoints" | "perspectiveCorrection">;
+
 export interface TraceHistoryEntry {
   outline: Outline;
   /** Human-readable operation that produced this state. */
@@ -88,6 +94,8 @@ export interface TraceHistoryEntry {
   smoothing?: number;
   /** Vertex/ring edits since detection; follows undo/redo, unlike general history. */
   hasManualEdits?: boolean;
+  /** Coordinate frame saved only when photo alignment enters the undo history. */
+  photoFrame?: TracePhotoFrame;
 }
 
 export interface TraceState {
@@ -100,6 +108,8 @@ export interface TraceState {
   imageSize: { width: number; height: number };
   /** Clockwise quarter-turns applied to the decoded source image. */
   imageRotation: ImageQuarterTurns;
+  /** Non-destructive transform after the source's quarter-turn orientation. */
+  imageAlignment: ImageAlignment | null;
 
   /** Presentation rings, after simplification, smoothing and margin. */
   outline: Outline;
@@ -178,6 +188,7 @@ export const initialTraceState: TraceState = {
   fileName: "",
   imageSize: { width: 0, height: 0 },
   imageRotation: 0,
+  imageAlignment: null,
   outline: [],
   rawOutline: [],
   svg: null,
@@ -244,6 +255,7 @@ export type TraceAction =
   | { type: "SET_INCLUDE_INTERIOR_HOLES"; include: boolean }
   /** A committed edit: pushes onto the undo stack. */
   | { type: "OUTLINE_COMMITTED"; outline: Outline; label?: string }
+  | { type: "ALIGN_UPRIGHT"; outline: Outline; expectedOutline: Outline; radians: number }
   /** An offset of the current edited contour and its physical setting. */
   | { type: "MARGIN_COMMITTED"; outline: Outline; margin: Margin }
   /** A mid-drag update: previews without touching the committed history. */
@@ -379,6 +391,85 @@ function primaryContour(outline: Outline): RingRef | null {
   return largest;
 }
 
+function photoFrame(state: TraceState): TracePhotoFrame {
+  const { imageSize, imageRotation, imageAlignment, calibration, pendingAutoCalibration, pendingPaperCalibration,
+    draftCalibration, region, pendingPerspective, manualPerspectivePoints, perspectiveCorrection } = state;
+  return { imageSize, imageRotation, imageAlignment, calibration, pendingAutoCalibration, pendingPaperCalibration,
+    draftCalibration, region, pendingPerspective, manualPerspectivePoints, perspectiveCorrection };
+}
+
+function historyPhotoFrame(state: TraceState): Pick<TraceHistoryEntry, "photoFrame"> {
+  return state.imageAlignment || state.history.stack.some(entry => entry.photoFrame)
+    ? { photoFrame: photoFrame(state) } : {};
+}
+
+function samePhotoFrame(a: TracePhotoFrame, b: TracePhotoFrame): boolean {
+  return JSON.stringify(a.imageAlignment) === JSON.stringify(b.imageAlignment) && a.imageRotation === b.imageRotation;
+}
+
+const transformOutline = (outline: Outline, matrix: ImageMatrix) =>
+  normalizeOutline(mapOutline(outline, p => transformImagePoint(p, matrix)));
+
+function commitPhotoRotation(state: TraceState, radians: number, outline: Outline, label: string, manual: boolean, quarterTurn?: ImageRotationDirection): TraceState {
+  if (!state.imageUrl || state.processing || !Number.isFinite(radians) || state.imageSize.width <= 0 || state.imageSize.height <= 0) return state;
+  const { alignment, transform } = rotateImageAlignment(state.imageSize, radians, state.imageAlignment);
+  const point = (p: Point) => transformImagePoint(p, transform);
+  const ruler = <T extends DraftCalibration | null>(value: T): T => {
+    if (!value) return value;
+    const result = { ...value };
+    if (value.startX !== undefined && value.startY !== undefined) {
+      const p = point({ x: value.startX, y: value.startY }); result.startX = p.x; result.startY = p.y;
+    }
+    if (value.endX !== undefined && value.endY !== undefined) {
+      const p = point({ x: value.endX, y: value.endY }); result.endX = p.x; result.endY = p.y;
+    }
+    return result;
+  };
+  const before = photoFrame(state);
+  const current = state.history.stack[state.history.index];
+  const rotated = transformOutline(outline, transform);
+  const next: TraceState = {
+    ...state, imageSize: alignment.size, imageAlignment: alignment, outline: rotated,
+    rawOutline: transformOutline(state.rawOutline, transform), svg: null, sourceRevision: state.sourceRevision + 1,
+    calibration: ruler(state.calibration), pendingAutoCalibration: ruler(state.pendingAutoCalibration),
+    pendingPaperCalibration: ruler(state.pendingPaperCalibration), draftCalibration: ruler(state.draftCalibration),
+    region: state.region && transformImageRect(state.region, transform),
+    manualPerspectivePoints: state.manualPerspectivePoints.map(point),
+    pendingPerspective: state.pendingPerspective && { ...state.pendingPerspective,
+      points: state.pendingPerspective.points.map(point) as PerspectiveQuad,
+      correspondences: state.pendingPerspective.correspondences && { ...state.pendingPerspective.correspondences,
+        source: state.pendingPerspective.correspondences.source.map(point) } },
+    perspectiveCorrection: state.perspectiveCorrection?.paperBounds ? { ...state.perspectiveCorrection,
+      paperBounds: transformImageRect(state.perspectiveCorrection.paperBounds, transform) } : state.perspectiveCorrection,
+  };
+  if (quarterTurn) {
+    const reorder = (points: Point[]) => points.length !== 4 ? [] : quarterTurn === "clockwise"
+      ? [points[3], points[0], points[1], points[2]] : [points[1], points[2], points[3], points[0]];
+    next.manualPerspectivePoints = reorder(next.manualPerspectivePoints);
+    if (next.pendingPerspective?.source === "manual") {
+      next.pendingPerspective = { ...next.pendingPerspective, points: reorder(next.pendingPerspective.points) as PerspectiveQuad };
+    }
+    if (state.manualPerspectivePoints.length > 0 && state.manualPerspectivePoints.length < 4 && state.mode === "perspective") next.mode = "pan";
+  }
+  next.history = pushHistory({ ...state.history, stack: state.history.stack.map(entry => ({ ...entry,
+    photoFrame: !entry.photoFrame || samePhotoFrame(entry.photoFrame, before) ? before : entry.photoFrame })) },
+    rotated, label, state.margin, { ...current, photoFrame: photoFrame(next), hasManualEdits: manual || current?.hasManualEdits,
+      refinementBase: manual ? rotated : transformOutline(current?.refinementBase ?? state.rawOutline, transform),
+      baselineMarginPx: manual ? marginToPixels(state.margin, state.calibration) : current?.baselineMarginPx,
+      tolerancePx: state.tolerancePx, smoothing: state.smoothing });
+  return next;
+}
+
+/** Crossing a photo-rotation edit restores its exact crop and rulers too. */
+function restorePhotoFrame(state: TraceState, entry: TraceHistoryEntry): TraceState {
+  const frame = entry.photoFrame;
+  if (!frame || samePhotoFrame(frame, state)) return state;
+  const matrix = composeImageMatrices(frame.imageAlignment?.matrix ?? IDENTITY_IMAGE_MATRIX,
+    inverseImageMatrix(state.imageAlignment?.matrix ?? IDENTITY_IMAGE_MATRIX));
+  return { ...state, ...frame, rawOutline: transformOutline(state.rawOutline, matrix),
+    sourceRevision: state.sourceRevision + 1, svg: null };
+}
+
 function retainedEditSelection(state: TraceState, outline: Outline): RingRef | null {
   return (state.mode === "edit" || state.mode === "remove") && state.selection &&
     (getRing(outline, state.selection)?.length ?? 0) >= 3 ? state.selection : null;
@@ -419,6 +510,10 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
       return { ...state, imageSize: action.imageSize };
 
     case "ROTATE_SOURCE": {
+      if (state.imageAlignment || state.history.stack.some(entry => entry.photoFrame)) {
+        return commitPhotoRotation(state, action.direction === "clockwise" ? Math.PI / 2 : -Math.PI / 2,
+          state.outline, "Rotate photo", false, action.direction);
+      }
       if (
         !state.imageUrl ||
         state.processing ||
@@ -568,6 +663,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
           state.rawOutline.length > 0 && state.detectedImageUrl === action.imageUrl ? state.history : { stack: [], index: -1 },
           action.outline, "Detected outline", state.margin,
           { refinementBase: action.rawOutline, baselineMarginPx: 0, hasManualEdits: false,
+            ...historyPhotoFrame(state),
             tolerancePx: state.tolerancePx, smoothing: state.smoothing },
         ),
       };
@@ -598,11 +694,16 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
           action.label ?? "Edit contour",
           state.margin,
           { refinementBase: action.outline, hasManualEdits: true,
+            ...historyPhotoFrame(state),
             baselineMarginPx: marginToPixels(state.margin, state.calibration),
             tolerancePx: state.tolerancePx, smoothing: state.smoothing },
         ),
       };
     }
+
+    case "ALIGN_UPRIGHT":
+      if (action.expectedOutline !== state.outline) return state;
+      return commitPhotoRotation(state, action.radians, action.outline, "Make contour symmetric and upright", true);
 
     case "MARGIN_COMMITTED":
       if (state.margin === action.margin && state.outline === action.outline) {
@@ -628,7 +729,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
       if (state.history.index <= 0) return state;
       const index = state.history.index - 1;
       return {
-        ...state,
+        ...restorePhotoFrame(state, state.history.stack[index]),
         outline: state.history.stack[index].outline,
         margin: state.history.stack[index].margin,
         tolerancePx: state.history.stack[index].tolerancePx ?? state.tolerancePx,
@@ -642,7 +743,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
       if (state.history.index >= state.history.stack.length - 1) return state;
       const index = state.history.index + 1;
       return {
-        ...state,
+        ...restorePhotoFrame(state, state.history.stack[index]),
         outline: state.history.stack[index].outline,
         margin: state.history.stack[index].margin,
         tolerancePx: state.history.stack[index].tolerancePx ?? state.tolerancePx,
@@ -662,7 +763,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         return state;
       }
       return {
-        ...state,
+        ...restorePhotoFrame(state, state.history.stack[action.index]),
         outline: state.history.stack[action.index].outline,
         margin: state.history.stack[action.index].margin,
         tolerancePx: state.history.stack[action.index].tolerancePx ?? state.tolerancePx,
