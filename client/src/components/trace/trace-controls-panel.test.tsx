@@ -835,8 +835,8 @@ describe("automatic sensitivity detection", () => {
   it("re-detects with the released value without a button or confirmation for automatic history", async () => {
     await prepareOutline();
     await stepSensitivity();
-    expect(reprocess).toHaveBeenLastCalledWith({ sensitivity: 129, includeInteriorHoles: false });
-    expect(trace.sensitivity).toBe(129);
+    expect(reprocess).toHaveBeenLastCalledWith({ sensitivity: 127, includeInteriorHoles: false });
+    expect(trace.sensitivity).toBe(127);
     expect(document.querySelector('[role="dialog"]')).toBeNull();
     expect([...host.querySelectorAll("button")].some((button) => button.textContent === "Re-detect outline")).toBe(false);
     await React.act(async () => {
@@ -844,7 +844,7 @@ describe("automatic sensitivity detection", () => {
       trace.dispatch({ type: "MARGIN_COMMITTED", outline: [...detectedOutline], margin: 1 });
     });
     await stepSensitivity();
-    expect(reprocess).toHaveBeenLastCalledWith({ sensitivity: 130, includeInteriorHoles: false });
+    expect(reprocess).toHaveBeenLastCalledWith({ sensitivity: 126, includeInteriorHoles: false });
     expect(document.querySelector('[role="dialog"]')).toBeNull();
   });
 
@@ -863,8 +863,8 @@ describe("automatic sensitivity detection", () => {
     expect(trace.sensitivity).toBe(128);
     await stepSensitivity();
     await chooseConfirmation("Replace manual edits");
-    expect(reprocess).toHaveBeenCalledExactlyOnceWith({ sensitivity: 129, includeInteriorHoles: false });
-    expect(trace.sensitivity).toBe(129);
+    expect(reprocess).toHaveBeenCalledExactlyOnceWith({ sensitivity: 127, includeInteriorHoles: false });
+    expect(trace.sensitivity).toBe(127);
   });
 
   it("does not ask after all manual vertex edits have been undone", async () => {

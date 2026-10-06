@@ -123,7 +123,7 @@ describe("Mobile trace progression", () => {
     });
     React.act(() => button("Adjust").click());
     await adjust("mobile-sensitivity");
-    expect(reprocess).toHaveBeenLastCalledWith({ sensitivity: 129, includeInteriorHoles: false });
+    expect(reprocess).toHaveBeenLastCalledWith({ sensitivity: 127, includeInteriorHoles: false });
     await adjust("mobile-detail");
     expect(trace.tolerancePx).toBeCloseTo(1.3);
     expect(reprocess).toHaveBeenCalledOnce();
@@ -132,7 +132,7 @@ describe("Mobile trace progression", () => {
     await adjust("mobile-sensitivity");
     expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Re-detect from the photo?");
     React.act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(button => button.textContent === "Keep my edits")!.click());
-    expect(trace.sensitivity).toBe(129);
+    expect(trace.sensitivity).toBe(127);
     expect(trace.outline).toBe(edited);
     expect(openSettings).not.toHaveBeenCalled();
   });

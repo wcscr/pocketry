@@ -855,9 +855,9 @@ export function TraceControlsPanel({
           summary={
             sensitivity === 128
               ? "Auto"
-              : sensitivity > 128
-                ? `+${sensitivity - 128}`
-                : `${sensitivity - 128}`
+              : sensitivity < 128
+                ? `+${128 - sensitivity}`
+                : `${128 - sensitivity}`
           }
           defaultOpen={
             guidedSection === "detection" ||
@@ -874,7 +874,7 @@ export function TraceControlsPanel({
 
           <div className="space-y-1.5" data-testid="detection-contours">
             <div className="flex items-center gap-1">
-              <p className="text-xs font-semibold">Contours</p>
+              <p className="text-xs font-semibold">Detected Contours</p>
               <HelpHint label="contour editing">
                 Choose Edit contours. Drag a point to move it; click an edge to add one. On a phone, use Move, Add, or Remove and pinch to zoom.
                 Simplification adjusts your edited contour. Sensitivity and interior holes re-detect from the photo and ask before replacing manual edits. Undo restores your contour.

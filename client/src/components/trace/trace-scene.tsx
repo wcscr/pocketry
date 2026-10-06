@@ -323,7 +323,7 @@ export function TraceScene({
  * width and height are exactly the working image size, which *is* the outline's
  * coordinate space.
  */
-const SourceImage = memo(function SourceImage({
+export const SourceImage = memo(function SourceImage({
   url,
   width,
   height,
