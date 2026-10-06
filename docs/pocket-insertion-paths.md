@@ -50,6 +50,12 @@ never modify the source. Top rounding is applied at the actual fill surface.
 Floor colors follow the finished seat, including floor-limited cuts, and the
 material parts are clipped to the finished bin.
 
+Through sections use only the shaft between the true bin underside (Z=0) and the
+fill surface when calculating a vertical drop-in opening. The long Boolean helper
+below the bin must not enlarge that projection. Each split section is handled
+independently, preserving finite seats. Through selection wires stop at the physical
+bin, and placement checks use the bounded projection.
+
 If the rotated underside itself reaches the bin surface and prevents a complete
 opening, the preview explains how to correct the height or tilt and export is
 blocked. A taller bin is required for some placements previously made to appear
@@ -71,6 +77,9 @@ checking source preservation, independent split limits and save/history/referenc
 round trips. Worker tests check closed, nondegenerate STL/3MF meshes and floor-color
 volumes, including clipped floors. UI tests preserve the floor mode through tilt,
 elevation and Undo; browser checks exercise the restored depth-mode option.
+Through-pocket regressions check compound and inverted tilt, bin-height-dependent
+footprints, independence from helper length, bounded selection wires, split seats,
+and closed STL/3MF exports with both flat and Gridfinity bases.
 
 Physical insertion fit remains unqualified. Verification runs locally under Node
 22; GitHub Actions remains disabled.

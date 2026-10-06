@@ -1,10 +1,11 @@
 import { expect, it } from "vitest";
-import { parseCutoutPlacement, pocketOccupiedOutline } from "./cutout";
+import { parseCutoutPlacement, pocketOccupiedOutline, resolvePocketDepth } from "./cutout";
 import { pocketInsertionAxis, pocketInsertionError } from "./pocket-insertion";
 import { parseProjectDoc, PROJECT_SCHEMA_VERSION } from "./project";
 import { parseBinSpec } from "./types";
 import { applyLinkedEdits, designLinkErrors } from "./design-links";
 import { rigidPocketFootprint } from "./rigid-pocket";
+import { validateLayout } from "./validate";
 
 const spec = parseBinSpec({ gridX: 3, gridY: 3, heightUnits: 4 });
 const shape = { id: "s", name: "Tool", sourceMmPerPx: 1, pointCount: 4,
@@ -55,6 +56,21 @@ it("uses the entire top-down footprint even for source vertices above the fill",
   const raised = { ...p, elevationMm:23, rotationDeg:17, insertionMode:"vertical" as const };
   const full = rigidPocketFootprint(shape.outlineMm,raised,Infinity,28);
   expect(rigidPocketFootprint(shape.outlineMm,raised,28,28)).toEqual(full);
+});
+
+it("reserves only the through shaft between the underside and fill for drop-in placement", () => {
+  const through = {...p,elevationMm:0,tilt:{xDeg:30,yDeg:0},rotationDeg:0,
+    depth:{mode:"through" as const},insertionMode:"vertical" as const};
+  for (const heightUnits of [2,4]) {
+    const bin = {...spec,heightUnits};
+    const points = pocketOccupiedOutline(shape,through,bin).flatMap(s=>s.outer);
+    const top = resolvePocketDepth(bin,through.depth).infillTopZ;
+    expect(Math.max(...points.map(v=>v.x))-Math.min(...points.map(v=>v.x))).toBeCloseTo(10,6);
+    expect(Math.max(...points.map(v=>v.y))-Math.min(...points.map(v=>v.y)))
+      .toBeCloseTo(16/Math.cos(Math.PI/6)+top*Math.tan(Math.PI/6),6);
+    const neighbor = {...through,id:"neighbor",position:{x:40,y:0},tilt:undefined};
+    expect(validateLayout(bin,[through,neighbor],new Map([[shape.id,shape]]))).toEqual([]);
+  }
 });
 
 it("shares insertion choices in linked designs while preserving each pose", () => {

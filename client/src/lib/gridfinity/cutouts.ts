@@ -26,7 +26,7 @@ import {
   pocketName,
   transformOutlinePlacement,
   transformPointPlacement,
-  type CutoutPlacement,
+  type CutoutPlacement, type DepthSpec,
   type FingerHole,
   type ResolvedPocket,
   type TracedShape,
@@ -765,19 +765,27 @@ export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: Cut
   let cutter = buildObjectCavity(kernel, source, pose, cutout.insertionMode === "vertical" ? Infinity : top, anchor);
   const projectedSource = cutter && cutout.insertionMode === "vertical" ? arena.track(arena.track(cutter.project()).simplify(0.0001)) : null;
   const validationIssues: ValidationIssue[] = [];
-  const clearAndLimit = (posed: Manifold, floorThicknessMm?: number): Manifold => {
+  const clearAndLimit = (posed: Manifold, depth: DepthSpec): Manifold => {
     let result = posed;
     if (cutout.insertionMode === "vertical") {
-      const ceiling = Math.max(realTop, posed.boundingBox().max[2], Number.isFinite(top) ? top : realTop) + 1;
-      result = verticalDropInCutter(kernel, posed, ceiling);
+      // Through tools are deliberately long on both sides of the source plane.
+      // Only their intersection with the bin belongs in the drop-in footprint;
+      // projecting the helper below the underside creates an enormous trench.
+      if (depth.mode === "through") {
+        result = arena.track(arena.track(result.trimByPlane([0,0,1],0)).trimByPlane([0,0,-1],-realTop));
+      }
+      if (!result.isEmpty()) {
+        const ceiling = Math.max(realTop, result.boundingBox().max[2], Number.isFinite(top) ? top : realTop) + 1;
+        result = verticalDropInCutter(kernel, result, ceiling);
+      }
     }
     // Apply the floor constraint to the generated cavity, never the source.
     // Rebuilding after raising the object therefore restores its whole profile.
-    if (floorThicknessMm !== undefined) result = arena.track(result.trimByPlane([0,0,1],floorThicknessMm));
+    if (depth.mode === "remaining") result = arena.track(result.trimByPlane([0,0,1],depth.floorThicknessMm));
     if (Number.isFinite(top)) result = arena.track(result.trimByPlane([0,0,-1],-top));
     return result;
   };
-  if (cutter && cutout.split && depthSpecs.some(d => d.mode === "remaining")) {
+  if (cutter && cutout.split && depthSpecs.some(d => d.mode === "remaining" || (d.mode === "through" && cutout.insertionMode === "vertical"))) {
     const local = {...cutout,position:{x:0,y:0},rotationDeg:0};
     const [a,b] = cutout.split.boundary.map(p => transformPointPlacement(p,local));
     const length = Math.hypot(b.x-a.x,b.y-a.y);
@@ -786,11 +794,11 @@ export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: Cut
       const nx = -(b.y-a.y)/length*sign, ny = (b.x-a.x)/length*sign;
       const part = arena.track(source.trimByPlane([nx,ny,0],nx*a.x+ny*a.y));
       const posed = buildObjectCavity(kernel,part,pose,Infinity,anchor);
-      return posed ? [clearAndLimit(posed,depth.mode === "remaining" ? depth.floorThicknessMm : undefined)] : [];
+      return posed ? [clearAndLimit(posed,depth)] : [];
     });
     cutter = arena.track(Manifold.union(pieces));
   } else if (cutter) {
-    cutter = clearAndLimit(cutter,cutout.depth.mode === "remaining" ? cutout.depth.floorThicknessMm : undefined);
+    cutter = clearAndLimit(cutter,cutout.depth);
   }
   const seatedCutter = cutter;
   if (cutter && cutout.topFilletMm > 0 && cutter.boundingBox().max[2] >= realTop - 1e-8) {

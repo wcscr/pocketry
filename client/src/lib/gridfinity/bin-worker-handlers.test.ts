@@ -113,6 +113,20 @@ const REQUEST: BuildBinRequest = {
   quality: { circularSegments: 16 },
 };
 
+it.each([false,true])("exports a bounded vertical through pocket with an open underside, flat bottom=%s", async flatBottom => {
+  const {shape,cutout} = createBasicPocket("rectangle",{x:-10,y:-12},{x:10,y:12},"bounded-through")!;
+  const p = parseCutoutPlacement({...cutout,elevationMm:0,tilt:{xDeg:20,yDeg:25},rotationDeg:17,
+    depth:{mode:"through"},insertionMode:"vertical",topFilletMm:2,bottomFilletMm:0,cornerRoundMm:1});
+  const request: BuildBinRequest = {spec:{gridX:3,gridY:3,heightUnits:3,fill:"solid",lip:"none",flatBottom},
+    quality:EXPORT_QUALITY,exportTopology:true,layout:{shapes:[shape],cutouts:[p],fingerHoles:[]}};
+  const result = (await getHandler()(request,context())).value;
+  expect(result.validationIssues?.filter(issue=>issue.severity === "error")).toEqual([]);
+  expect(printableMeshVolume(result.mesh)).toBeGreaterThan(200_000);
+  expect(writeBinarySTL(result.mesh).byteLength).toBe(84+result.mesh.indices.length/3*50);
+  const model = strFromU8(unzipSync(writeThreeMf([{name:"Through pocket",mesh:result.mesh}]))["3D/3dmodel.model"]);
+  expect(model.match(/<triangle /g)?.length).toBe(result.mesh.indices.length/3);
+});
+
 it.each([
   { tilt: undefined, insertionMode: undefined },
   { tilt: { xDeg: 20, yDeg: 25 }, insertionMode: undefined },

@@ -165,7 +165,8 @@ export function PocketDepthSummary({ cutout, shape, section, inspect, children }
   const rigid = hasRigidPocket(cutout);
   const displayedDepth = rigid ? pocket.axialDepthMm : pocket.depthMm;
   const total = binTotalHeightMm(spec.heightUnits, spec.lip === "standard");
-  const bounds = outlineBounds(placementFootprint(shape, cutout).outline)!;
+  const bounded = rigid && cutout.insertionMode === "vertical" ? pocketOccupiedOutline(shape,cutout,spec) : [];
+  const bounds = outlineBounds(bounded) ?? outlineBounds(placementFootprint(shape, cutout).outline)!;
   // Use the placed solid's X/Y extents, including rotation and thickness.
   // A manual choice belongs to this pocket; another pocket gets its own default.
   const longestAxis = bounds.maxY - bounds.minY > bounds.maxX - bounds.minX + 1e-7 ? "y" : "x";

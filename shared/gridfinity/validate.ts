@@ -338,7 +338,9 @@ export function validateLayout(
       issues.push({ code: "invalid-pocket-tilt", severity: "error", cutoutIds: [cutout.id], message: `“${pocketName(cutout, shape)}”: Reduce the combined tilt so the pocket can exit through the top.` });
       continue;
     }
-    const { outline, features } = placementFootprint(shape, cutout);
+    const { outline, features } = hasRigidPocket(cutout) && cutout.insertionMode === "vertical"
+      ? { outline: pocketOccupiedOutline(shape,cutout,spec), features: [] }
+      : placementFootprint(shape, cutout);
     const rings: Ring[] = [];
     let bounds: Bounds | null = null;
     const addBounds = (b: Bounds | null) => {

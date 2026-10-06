@@ -378,10 +378,11 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
           draftContour.shapeId === storedShape.id
             ? { ...storedShape, outlineMm: draftContour.outline }
             : storedShape;
-        const footprint = placementFootprint(shape, cutout);
+        const footprint = hasRigidPocket(cutout) && cutout.insertionMode === "vertical"
+          ? {outline:pocketOccupiedOutline(shape,cutout,spec)} : placementFootprint(shape, cutout);
         return [{ cutout, shape, outline: profileOutlines.get(cutout.id)?.full ?? footprint.outline }];
       }),
-    [cutouts, shapesById, draftContour, profileOutlines],
+    [cutouts, shapesById, draftContour, profileOutlines, spec],
   );
 
   const placedFingerHoles = useMemo(

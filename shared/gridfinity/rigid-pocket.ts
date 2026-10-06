@@ -1,7 +1,7 @@
 import { convexHull } from "../geometry/obb";
 import { signedArea } from "../geometry/rings";
 import type { Outline } from "../geometry/types";
-import { resolvePlacedPocketDepth, type CutoutPlacement, type DepthSpec, type TracedShape } from "./cutout";
+import { resolvePlacedPocketDepth, resolvePocketDepth, type CutoutPlacement, type DepthSpec, type TracedShape } from "./cutout";
 import { placeObjectCells, placeObjectVertices, rotateObjectVector, sectionObjectCell, type ConvexObjectCell, type ObjectRotation, type Vec3 } from "./object-pose";
 import { profileCells } from "./profile-bottom";
 import { resolvePocketSplit } from "./pocket-split";
@@ -36,7 +36,7 @@ function sourceRegions(outline: Outline, p: CutoutPlacement, top: number, throug
     const d = p.split?.depths[i] ?? p.depth;
     const depth = d.mode === "mm" ? d.value : d.mode === "remaining" ? d.sourceDepthMm ?? Math.max(0.1, top - d.floorThicknessMm) : 1;
     const limits = d.mode === "through" ? nominalThrough ? [-1, 0] : [-throughReach, throughReach] : [-depth, 0];
-    return { region, limits };
+    return { region, limits, through: d.mode === "through" };
   });
 }
 
@@ -55,12 +55,12 @@ export function rigidPocketVertices(outline: Outline, p: CutoutPlacement, top = 
   }, pocketSourceRings(outline, p, top, true).flat());
 }
 
-export function pocketSourceCells(outline: Outline, p: CutoutPlacement, top = 0, throughReach = 1000, nominalThrough = false): ConvexObjectCell[] {
-  return sourceRegions(outline, p, top, throughReach, nominalThrough).flatMap(({ region, limits }) => {
+export function pocketSourceCells(outline: Outline, p: CutoutPlacement, top = 0, throughReach = 1000, nominalThrough = false): (ConvexObjectCell & { through: boolean })[] {
+  return sourceRegions(outline, p, top, throughReach, nominalThrough).flatMap(({ region, limits, through }) => {
     return profileCells(region).map(ring => {
       const n = ring.length, edges: [number, number][] = [];
       for (let j = 0; j < n; j++) edges.push([j, (j + 1) % n], [j + n, (j + 1) % n + n], [j, j + n]);
-      return { edges, vertices: limits.flatMap(z => ring.map(v => ({
+      return { edges, through, vertices: limits.flatMap(z => ring.map(v => ({
         x: v.x * p.scaleX * (p.mirrored ? -1 : 1), y: v.y * p.scaleY, z,
       }))) };
     });
@@ -75,12 +75,58 @@ export function rigidPocketCells(outline: Outline, p: CutoutPlacement, top = 0):
 
 /** Immediate conservative footprint; final boundaries come from the generated solid. */
 export function rigidPocketFootprint(outline: Outline, p: CutoutPlacement, top = Infinity, sourceTop = Number.isFinite(top) ? top : 0): Outline {
-  return rigidPocketCells(outline, p, sourceTop).flatMap(cell => {
-    const points = !Number.isFinite(top) || p.insertionMode === "vertical"
-      ? cell.vertices : sectionObjectCell(cell, top);
+  const source = pocketSourceCells(outline, p, sourceTop);
+  const cells = placeObjectCells(source, {
+    rotation: pocketRotation(p), position: p.position, elevationMm: p.elevationMm ?? 0,
+  }, pocketSourceCells(outline, p, sourceTop, 1000, true));
+  return cells.flatMap((cell, i) => {
+    const boundedThrough = source[i].through && p.insertionMode === "vertical" && sourceTop > 0;
+    const points = boundedThrough
+      ? [...cell.vertices.filter(v => v.z >= 0 && v.z <= sourceTop), ...sectionObjectCell(cell, 0), ...sectionObjectCell(cell, sourceTop)]
+      : !Number.isFinite(top) || p.insertionMode === "vertical" ? cell.vertices : sectionObjectCell(cell, top);
     const outer = convexHull(points.map(({ x, y }) => ({ x, y })));
     return outer.length >= 3 && signedArea(outer) > 1e-8 ? [{ outer, holes: [] }] : [];
   });
+}
+
+/** Finite source wires stay intact. Through-pocket side faces stop at the bin.
+ * Clipping boundary faces also works for sideways and inverted shafts without
+ * dividing by the insertion axis or exposing the Boolean helper's end caps. */
+export function rigidPocketPreviewWires(outline: Outline, p: CutoutPlacement, spec: BinSpec): Vec3[][] {
+  const top = resolvePocketDepth(spec, p.depth).infillTopZ;
+  const regions = sourceRegions(outline, p, top, 1000, false);
+  const posed = rigidPocketVertices(outline, p, top);
+  const wires: Vec3[][] = [];
+  const planes: [keyof Vec3, number, number][] = [["z",0,1],["z",top,-1],
+    ["x",-spec.gridX*21,1],["x",spec.gridX*21,-1],["y",-spec.gridY*21,1],["y",spec.gridY*21,-1]];
+  let offset = 0;
+  for (const { region, through } of regions) for (const part of region) for (const ring of [part.outer, ...part.holes]) {
+    const n = ring.length;
+    if (!through && n) {
+      const bottom = posed.slice(offset,offset+n), upper = posed.slice(offset+n,offset+2*n);
+      wires.push([...bottom,bottom[0]],[...upper,upper[0]]);
+      for (let j = 0; j < n; j += Math.max(1,Math.ceil(n/8))) wires.push([bottom[j],upper[j]]);
+    }
+    if (through) for (let j = 0; j < n; j++) {
+      let face = [posed[offset+j], posed[offset+(j+1)%n], posed[offset+n+(j+1)%n], posed[offset+n+j]];
+      for (const [axis, limit, sign] of planes) {
+        const clipped: Vec3[] = [];
+        for (let k = 0; k < face.length; k++) {
+          const a = face[k], b = face[(k+1)%face.length];
+          const insideA = (a[axis]-limit)*sign >= 0, insideB = (b[axis]-limit)*sign >= 0;
+          if (insideA) clipped.push(a);
+          if (insideA !== insideB) {
+            const t = (limit-a[axis])/(b[axis]-a[axis]);
+            clipped.push({ x:a.x+t*(b.x-a.x), y:a.y+t*(b.y-a.y), z:a.z+t*(b.z-a.z), [axis]:limit });
+          }
+        }
+        face = clipped;
+      }
+      if (face.length >= 3) wires.push([...face,face[0]]);
+    }
+    offset += n*2;
+  }
+  return wires;
 }
 
 /** Reserve the entire seated pocket and its path, without dividing by a horizontal axis. */
