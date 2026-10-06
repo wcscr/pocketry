@@ -56,6 +56,7 @@ import {
 } from "@/lib/project/export";
 import { generateLayoutDXF, generateLayoutSVG } from "@/lib/export/layout";
 import { writeBinarySTL } from "@/lib/export/stl-writer";
+import { prepareStepBin, StepUnsupportedError, writeStepBinPackage } from "@/lib/export/step-bin";
 import { writeThreeMf, type ThreeMfObject } from "@/lib/mesh/threemf";
 import {
   BIN_BODY_COLOR,
@@ -325,6 +326,12 @@ function BinDesignerWorkspace(): JSX.Element {
 
   // Exports and autosaves use the same committed design/history snapshot.
   const exportProjectDoc = currentProjectDoc;
+  const stepUnavailableReason = useMemo(() => {
+    try { prepareStepBin(exportProjectDoc); return undefined; }
+    catch (cause) {
+      return cause instanceof StepUnsupportedError ? cause.reasons[0] : "This project cannot be exported to STEP.";
+    }
+  }, [exportProjectDoc]);
 
   // Consume shapes freshly arrived from the trace workspace: auto-place them
   // (incrementally when the bin already has arranged pockets) and make sure
@@ -850,7 +857,7 @@ function BinDesignerWorkspace(): JSX.Element {
   }, [dispatch, experimentalEnabled, inspectorPrototype, viewMode, bin.selection, bin.selectedSurfaceTextId, bin.editorMode, spec.surfaceTexts]);
 
   const handleExport = useCallback(
-    async (format: "3mf" | "3mf-multicolor" | "stl", includeProject: boolean) => {
+    async (format: "3mf" | "3mf-multicolor" | "stl" | "step", includeProject: boolean) => {
       setExporting(true);
       try {
         const label = binSizeLabel(exportProjectDoc.spec);
@@ -860,6 +867,12 @@ function BinDesignerWorkspace(): JSX.Element {
           currentProjectName,
           multicolor ? "multicolor" : "",
         );
+        if (format === "step") {
+          const bytes = writeStepBinPackage(exportProjectDoc);
+          downloadBlob(new Blob([bytes], { type: "application/zip" }), `${project.baseName}-cad.zip`);
+          toast({ title: "Saved", description: "Exported STEP solids, named pocket tools, and the editable Pocketry project in a CAD package." });
+          return;
+        }
         const includePocketFloors =
           multicolor &&
           colorPocketFloors &&
@@ -1127,6 +1140,7 @@ function BinDesignerWorkspace(): JSX.Element {
           building={building}
           previewIsDraft={previewIsDraft}
           exporting={exporting}
+          stepUnavailableReason={stepUnavailableReason}
           onExport={(format, includeProject) => void handleExport(format, includeProject)}
           onExportFitCheck={(cutoutId, depthMm, includeProject) =>
             void handleExportFitCheck(cutoutId, depthMm, includeProject)

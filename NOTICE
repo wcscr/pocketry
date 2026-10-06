@@ -413,3 +413,21 @@ MIT License:
 The full licence text and package-specific copyright notice for an installed
 npm dependency can be found in that package's `node_modules` directory and its
 upstream source repository.
+
+
+================================================================================
+Optional STEP acceptance reader (development only; not bundled)
+================================================================================
+
+scripts/verify-step-export.py can use cadquery-ocp 7.8.1.1.post1 as an independently
+installed verification tool. OCP is Apache-2.0, copyright 2020 OCP contributors:
+https://github.com/CadQuery/OCP/blob/master/LICENSE
+Its Open CASCADE Technology runtime uses LGPL-2.1 with the OCCT exception:
+https://github.com/Open-Cascade-SAS/OCCT/blob/master/LICENSE_LGPL_21.txt
+https://github.com/Open-Cascade-SAS/OCCT/blob/master/OCCT_LGPL_EXCEPTION.txt
+
+Compatibility review: the optional reader executes in a separate development
+environment. No OCP/OCCT code or binaries are linked, copied, bundled, or served
+by Pocketry. The STEP writer is original Pocketry code and adds no application
+runtime dependency. Any future bundled CAD kernel requires a separate licence
+and architecture review.

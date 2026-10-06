@@ -140,6 +140,8 @@ full bin.
 
 ![Exported tool-outline fit check loaded in Bambu Studio, with a 1.2 mm thickness shown in the model information](docs/images/fit-check-slicer.jpg)
 
+**CAD editing:** early [STEP CAD export](docs/step-export.md) supports simple flat trays and preserves named pocket cutter solids in a companion file.
+
 ### 5. Export and print the finished bin
 
 Once the fit is verified and pocket depths are checked, export the full bin as
