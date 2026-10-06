@@ -8,7 +8,7 @@ import { validateBinSpec, validateLayout } from "./validate";
 const readSample = (path: string) => readFileSync(new URL(`../../samples/${path}`, import.meta.url), "utf8");
 const library = libraryBackupSchema.parse(JSON.parse(readSample("pocketry-sample-library.json")));
 const slugs = ["bessey-utility-knife", "gerber-multitool", "bessey-gerber"];
-const docs = slugs.map(slug => parseProjectDoc(JSON.parse(readSample(`${slug}/${slug}.pocketry.json`)))!);
+const docs = slugs.map(slug => parseProjectDoc(JSON.parse(readSample(`bessey-gerber/${slug}.pocketry.json`)))!);
 
 describe("bundled Bessey and Gerber samples", () => {
   it("has unique library entries and the same editable documents as the downloads", () => {
@@ -50,14 +50,17 @@ describe("bundled Bessey and Gerber samples", () => {
   });
 
   it("records hashes for every supplied model, project, preview, and photo", () => {
-    const manifest: { samples: { directory: string; model: { file: string; sha256: string }; project: { file: string; sha256: string }; previews?: { file: string; sha256: string }[]; photos: { file: string; sha256: string }[] }[] } = JSON.parse(readSample("source-files.json"));
-    for (const slug of slugs) {
-      const sample = manifest.samples.find(candidate => candidate.directory === slug)!;
-      expect(sample).toBeDefined();
-      for (const file of [sample.model, sample.project, ...sample.previews ?? [], ...sample.photos]) {
-        const bytes = readFileSync(new URL(`../../samples/${slug}/${file.file}`, import.meta.url));
-        expect(createHash("sha256").update(bytes).digest("hex")).toBe(file.sha256);
-      }
+    type Asset = { file: string; sha256: string };
+    type Design = { model: Asset; project: Asset; previews?: Asset[] };
+    const manifest: { samples: (Design & { directory: string; variants?: Design[]; photos: Asset[] })[] } = JSON.parse(readSample("source-files.json"));
+    const sample = manifest.samples.find(candidate => candidate.directory === "bessey-gerber")!;
+    expect(sample).toBeDefined();
+    const designs = [sample, ...sample.variants ?? []];
+    expect(designs.map(design => design.project.file).sort()).toEqual(slugs.map(slug => `${slug}.pocketry.json`).sort());
+    const assets = [...designs.flatMap(design => [design.model, design.project, ...design.previews ?? []]), ...sample.photos];
+    for (const file of assets) {
+      const bytes = readFileSync(new URL(`../../samples/bessey-gerber/${file.file}`, import.meta.url));
+      expect(createHash("sha256").update(bytes).digest("hex")).toBe(file.sha256);
     }
   });
 });
