@@ -15,6 +15,9 @@ export function loadCad(): Promise<OpenCascadeInstance> {
       location = createRequire(import.meta.url).resolve("replicad-opencascadejs/wasm");
     }
     return init({ locateFile: () => location, print: () => {}, printErr: () => {} });
-  })().catch(error => { pending = undefined; throw error; });
+  })().catch(error => {
+    pending = undefined;
+    throw new Error("The CAD engine could not load. Check your connection and try again. Your project is unchanged.", { cause: error });
+  });
   return pending;
 }
