@@ -1,7 +1,8 @@
+import { hasPocketFill } from "@shared/gridfinity/fill";
 import type { Outline, Point } from "@shared/geometry/types";
 import { ensureOrientation } from "@shared/geometry/rings";
 import { analyticProfileMatchesOutline } from "@shared/gridfinity/analytic-profile";
-import { pocketName, resolvePocketDepth, resolvePlacedPocketDepth, type CutoutPlacement, type TracedShape } from "@shared/gridfinity/cutout";
+import { isShapeCalibrated, pocketName, resolvePocketDepth, resolvePlacedPocketDepth, type CutoutPlacement, type TracedShape } from "@shared/gridfinity/cutout";
 import { pocketInsertionError, pocketInsertionAxis } from "@shared/gridfinity/pocket-insertion";
 import { pocketRotation, hasRigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { resolvePocketSplit } from "@shared/gridfinity/pocket-split";
@@ -38,6 +39,7 @@ export class CadDesignError extends Error {
 const countOutline = (outline: Outline) => outline.reduce((n,s)=>n+s.outer.length+s.holes.reduce((sum,h)=>sum+h.length,0),0);
 export function getStepExportStatus(doc: ProjectDoc): StepExportStatus {
   const issues: CadIssue[]=[];
+  if ((doc.cutouts.length || doc.fingerHoles.length) && !hasPocketFill(doc.spec)) issues.push({operation:"bin construction",message:"Pockets and finger access need solid fill. Switch the bin to solid fill before exporting."});
   const shapes=new Map(doc.shapes.map(s=>[s.id,s]));
   let profileSegments=0;
   const authoredObjects=doc.cutouts.length+doc.fingerHoles.length+doc.spec.surfaceTexts.length;
@@ -45,6 +47,7 @@ export function getStepExportStatus(doc: ProjectDoc): StepExportStatus {
     const s=shapes.get(p.shapeId);
     const issue=(operation:string,message:string)=>issues.push({objectId:p.id,objectName:pocketName(p,s),operation,message});
     if (!s) { issue("profile","The source shape is missing");continue; }
+    if (!isShapeCalibrated(s)) issue("source units","This trace has no known scale. Re-trace it with calibration before exporting.");
     profileSegments+=s.analyticProfile ? 4 : countOutline(s.outlineMm);
     if (!analyticProfileMatchesOutline(s)) issue("primitive provenance","Primitive metadata disagrees with the authored boundary");
     const rotation = pocketRotation(p);

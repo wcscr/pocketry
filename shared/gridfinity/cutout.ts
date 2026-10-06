@@ -105,6 +105,11 @@ export const tracedShapeSchema = z
 
 export type TracedShape = z.infer<typeof tracedShapeSchema>;
 
+/** Basic shapes are authored in millimetres; traced shapes require a known scale. */
+export function isShapeCalibrated(shape: TracedShape): boolean {
+  return shape.source === "basic-shape" || shape.sourceMmPerPx !== null;
+}
+
 export const depthSpecSchema = z.discriminatedUnion("mode", [
   z.object({ mode: z.literal("through"),
     /** Finite authored object retained when floor protection is disabled. */
