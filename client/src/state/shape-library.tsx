@@ -10,6 +10,30 @@ import {
 } from "react";
 
 import { tracedShapeSchema, type TracedShape } from "@shared/gridfinity/cutout";
+import { PROJECT_SCHEMA_VERSION } from "@shared/gridfinity/project";
+import { promoteLegacyAnalyticShape } from "@shared/gridfinity/analytic-profile";
+import { z } from "zod";
+
+const queuedShapesSchema = z.object({
+  schemaVersion: z.literal(PROJECT_SCHEMA_VERSION),
+  shapes: tracedShapeSchema.array(),
+}).strict();
+
+/** Version the recovery queue so a revised polygon cannot regain primitive
+ * intent on reload. Only the old unversioned queue receives basic migration. */
+function readQueuedShapes(): TracedShape[] {
+  const input: unknown = JSON.parse(sessionStorage.getItem("pocketry:queued-tools") ?? "[]");
+  if (Array.isArray(input)) {
+    const parsed = tracedShapeSchema.array().safeParse(input.map(promoteLegacyAnalyticShape));
+    return parsed.success ? parsed.data : [];
+  }
+  const parsed = queuedShapesSchema.safeParse(input);
+  return parsed.success ? parsed.data.shapes : [];
+}
+
+function storeQueuedShapes(shapes: TracedShape[]): void {
+  sessionStorage.setItem("pocketry:queued-tools", JSON.stringify({ schemaVersion: PROJECT_SCHEMA_VERSION, shapes }));
+}
 
 /**
  * The app-level shape library: traced shapes on their way to (or living in)
@@ -94,13 +118,13 @@ const ShapeLibraryContext = createContext<ShapeLibrary | null>(null);
 export function ShapeLibraryProvider({ children }: { children: ReactNode }): JSX.Element {
   const [state, dispatch] = useReducer(reducer, { shapes: [], pendingIds: [] }, (initial) => {
     try {
-      const parsed = tracedShapeSchema.array().safeParse(JSON.parse(sessionStorage.getItem("pocketry:queued-tools") ?? "[]"));
-      return parsed.success ? { shapes: parsed.data, pendingIds: parsed.data.map((shape) => shape.id) } : initial;
+      const shapes = readQueuedShapes();
+      return { shapes, pendingIds: shapes.map((shape) => shape.id) };
     } catch { return initial; }
   });
   useEffect(() => {
     if (state.pendingIds.length === 0) return;
-    try { sessionStorage.setItem("pocketry:queued-tools", JSON.stringify(state.shapes.filter((shape) => state.pendingIds.includes(shape.id)))); }
+    try { storeQueuedShapes(state.shapes.filter((shape) => state.pendingIds.includes(shape.id))); }
     catch { /* The in-memory queue remains usable when browser storage is unavailable. */ }
   }, [state]);
 
@@ -118,14 +142,7 @@ export function ShapeLibraryProvider({ children }: { children: ReactNode }): JSX
   const removeShape = useCallback((id: string) => {
     // Removing the last queued shape must not revive it on the next reload.
     try {
-      const queued = tracedShapeSchema.array().safeParse(
-        JSON.parse(sessionStorage.getItem("pocketry:queued-tools") ?? "[]"),
-      );
-      if (queued.success) {
-        sessionStorage.setItem("pocketry:queued-tools", JSON.stringify(
-          queued.data.filter((shape) => shape.id !== id),
-        ));
-      }
+      storeQueuedShapes(readQueuedShapes().filter((shape) => shape.id !== id));
     } catch { /* The in-memory removal still succeeds. */ }
     dispatch({ type: "REMOVE_SHAPE", id });
   }, []);
