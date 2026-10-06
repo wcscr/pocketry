@@ -5,6 +5,7 @@ import { describe, expect, it, beforeAll } from "vitest";
 import { outlineArea, outlineBounds, pointInOutline } from "../geometry/outline";
 import { buildOutline, normalizeOutline } from "../geometry/outline";
 import { traceIsoRings } from "../geometry/trace";
+import { labDistanceScore, rgbToLab } from "./background";
 import { buildScoreFieldJS } from "./segment-js";
 import { buildScoreFieldOpenCV, type OpenCV } from "./segment-opencv";
 import type { ImageLike, ScoreField } from "./types";
@@ -56,6 +57,45 @@ function photo(
       data[i + 1] = inside ? 48 : 223;
       data[i + 2] = inside ? 52 : 219;
       data[i + 3] = options.alpha ? (inside ? 255 : 0) : 255;
+    }
+  }
+  return { width, height, data };
+}
+
+/**
+ * A dark subject on a light mat with an achromatic cast shadow beside it.
+ *
+ * The shadow is a pure luminance scale of the mat, as a real cast shadow under
+ * white light is, so it differs from the background only in L.
+ */
+function shadowed(width: number, height: number, subject: (x: number, y: number) => boolean,
+  shadow: (x: number, y: number) => boolean, strength: number): ImageLike {
+  const data = new Uint8ClampedArray(width * height * 4);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * 4;
+      const inside = subject(x, y);
+      const shade = !inside && shadow(x, y) ? 1 - strength : 1;
+      data[i] = (inside ? 45 : 226) * shade;
+      data[i + 1] = (inside ? 48 : 223) * shade;
+      data[i + 2] = (inside ? 52 : 219) * shade;
+      data[i + 3] = 255;
+    }
+  }
+  return { width, height, data };
+}
+
+/** A saturated subject on a neutral mat, so a and b carry the contrast. */
+function colored(width: number, height: number, subject: (x: number, y: number) => boolean): ImageLike {
+  const data = new Uint8ClampedArray(width * height * 4);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * 4;
+      const inside = subject(x, y);
+      data[i] = inside ? 200 : 180;
+      data[i + 1] = inside ? 60 : 178;
+      data[i + 2] = inside ? 50 : 175;
+      data[i + 3] = 255;
     }
   }
   return { width, height, data };
@@ -132,6 +172,27 @@ describe("buildScoreFieldOpenCV", () => {
     expect(field.score[2 * field.width + 2]).toBe(0);
   });
 
+  it.each([[0, 255], [64, 192], [120, 200], [180, 210]])("scores achromatic contrast in L* units (%s against %s)", (subject, background) => {
+    const image = photo(160, 160, box(40, 40, 120, 120));
+    for (let y = 0; y < image.height; y++) for (let x = 0; x < image.width; x++) {
+      const value = box(40, 40, 120, 120)(x, y) ? subject : background;
+      const i = (y * image.width + x) * 4;
+      image.data[i] = image.data[i + 1] = image.data[i + 2] = value;
+    }
+    const expected = labDistanceScore(rgbToLab(subject, subject, subject), rgbToLab(background, background, background));
+    expect(Math.abs(buildScoreFieldOpenCV(cv, image).score[80 * 160 + 80] - expected)).toBeLessThanOrEqual(1);
+  });
+
+  it.each([
+    [40, 40, 120, 120], [0, 40, 80, 120], [80, 40, 160, 120],
+    [40, 0, 120, 80], [40, 80, 120, 160],
+  ])("uses the reference cleanup for alpha corners and image edges (%s,%s,%s,%s)", (x0, y0, x1, y1) => {
+    // Alpha bypasses colour conversion, isolating kernel shape and edge policy.
+    const image = photo(160, 160, box(x0, y0, x1, y1), { alpha: true });
+    const options = { useAlpha: "always" as const };
+    expect(buildScoreFieldOpenCV(cv, image, options).score).toEqual(buildScoreFieldJS(image, options).score);
+  });
+
   it("does not leak Mats across repeated calls", () => {
     // A leak here grows the wasm heap until the tab dies, and would not show up
     // as a failure anywhere else.
@@ -151,7 +212,38 @@ describe("OpenCV and JS backends agree", () => {
       "two disjoint parts",
       photo(200, 120, (x, y) => box(20, 30, 70, 90)(x, y) || box(130, 30, 180, 90)(x, y)),
     ],
+    [
+      "an object beside a cast shadow",
+      shadowed(200, 160, box(40, 40, 110, 120), box(110, 50, 155, 140), 0.3),
+    ],
+    ["a coloured object on a neutral mat", colored(160, 160, box(40, 40, 120, 120))],
   ];
+
+  it.each(cases)("scores pixels in the same units for %s", (_name, image) => {
+    // Comparing outlines alone hid a units mismatch: OpenCV's 8-bit Lab scales
+    // L to 0..255 while the JS reference uses L* in 0..100, which made the
+    // shipped backend weight lightness 2.55x harder relative to chroma.
+    const viaCv = buildScoreFieldOpenCV(cv, image);
+    const viaJs = buildScoreFieldJS(image);
+
+    let total = 0;
+    let worst = 0;
+    for (let i = 0; i < viaJs.score.length; i++) {
+      const diff = Math.abs(viaCv.score[i] - viaJs.score[i]);
+      total += diff;
+      worst = Math.max(worst, diff);
+    }
+    expect(total / viaJs.score.length).toBeLessThan(0.5);
+    expect(worst).toBeLessThanOrEqual(3);
+  });
+
+  it("rejects a cast shadow on the OpenCV path too", () => {
+    const image = shadowed(200, 160, box(40, 40, 110, 120), box(110, 50, 155, 140), 0.3);
+    const outline = outlineOf(buildScoreFieldOpenCV(cv, image));
+
+    // The shadow extends to x=155; the object ends at x=110.
+    expect(outlineBounds(outline)!.maxX).toBeLessThan(115);
+  });
 
   it.each(cases)("picks a comparable threshold for %s", (_name, image) => {
     const viaCv = buildScoreFieldOpenCV(cv, image);

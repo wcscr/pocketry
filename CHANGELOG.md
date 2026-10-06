@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Corrected photo-outline detection so OpenCV and the JavaScript fallback use the same lightness scale and mask-cleanup rules.
 - Added Wiha stacking fit notes recommending lowering the driver pockets about 1 mm to avoid interference.
 
 - Added Wiha 40, 50, and 60 mm examples with final editable designs, labeled 3MFs, and print photos; labeled the existing Wiha example 150 mm and expanded the sample library to 13 projects.
