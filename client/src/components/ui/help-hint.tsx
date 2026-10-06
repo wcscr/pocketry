@@ -14,7 +14,7 @@ export function HelpHint({ label, children }: { label: string; children: ReactNo
           <button
             type="button"
             aria-label={`About ${label}`}
-            className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="inline-flex h-5 w-5 max-md:h-11 max-md:w-11 [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11 shrink-0 items-center justify-center rounded text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             onClick={(event) => {
               // Radix closes tooltips on click by default. Keep a tap usable,
               // and avoid toggling an enclosing details summary.

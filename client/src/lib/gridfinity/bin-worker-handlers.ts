@@ -7,12 +7,14 @@ import {
   cutoutPlacementSchema,
   fingerHoleSchema,
   tracedShapeSchema,
+  resolvePocketDepth,
 } from "@shared/gridfinity/cutout";
 import { parseBinSpec } from "@shared/gridfinity/types";
 
 import { Arena } from "@/lib/manifold/arena";
 import { createKernel } from "@/lib/manifold/runtime";
 import { extractMeshData, preparePrintableSolid } from "@/lib/mesh/mesh-data";
+import { objectEdges } from "@/lib/mesh/object-edges";
 import type { HandlerContext, HandlerMap } from "@/lib/worker/host";
 import { WorkerCancelledError } from "@/lib/worker/protocol";
 
@@ -27,10 +29,15 @@ import {
   type BinLayout,
 } from "./bin";
 import { buildFitCheckSolid, buildSurfaceFitCheckSolid } from "./fit-check";
+import { resolvedPocketGeometry } from "./pocket-geometry";
+import { resolvedProfileFootprint } from "./profile-bottom";
 import {
   BUILD_BIN_METHOD,
   BUILD_FIT_CHECK_METHOD,
   BUILD_SURFACE_FIT_CHECK_METHOD,
+  RESOLVE_POCKET_GEOMETRY_METHOD,
+  type ResolvePocketGeometryRequest,
+  type PocketGeometry,
   type BuildBinRequest,
   type BuildBinResult,
   type BuildFitCheckRequest,
@@ -395,9 +402,35 @@ export function createBinWorkerHandlers(
     }
   };
 
+  const resolvePocketGeometryHandler = async (payload: ResolvePocketGeometryRequest, context: HandlerContext) => {
+    const spec = parseBinSpec(payload.spec);
+    const pockets = payload.pockets.map(pocket => ({ shape: tracedShapeSchema.parse(pocket.shape), cutout: cutoutPlacementSchema.parse(pocket.cutout) }));
+    const wasm = await loadRuntime();
+    if (context.signal.aborted) throw new WorkerCancelledError();
+    const arena = new Arena();
+    try {
+      const kernel = createKernel(wasm, arena);
+      const value: PocketGeometry[] = pockets.map(({ shape, cutout }) => {
+        if (context.signal.aborted) throw new WorkerCancelledError();
+        if (hasRigidPocket(cutout)) {
+          const geometry = resolvedPocketGeometry(kernel, shape, cutout, spec);
+          return { ...geometry, edges: objectEdges(geometry.mesh) };
+        }
+        return { full: resolvedProfileFootprint(kernel, shape.outlineMm, cutout),
+          opening: resolvedProfileFootprint(kernel, shape.outlineMm, cutout, resolvePocketDepth(spec, cutout.depth).infillTopZ) };
+      });
+      const transfer: Transferable[] = value.flatMap(part => part.mesh
+        ? [part.mesh.positions.buffer, part.mesh.indices.buffer, ...(part.mesh.normals ? [part.mesh.normals.buffer] : [])] : []);
+      return { value, transfer };
+    } finally {
+      arena.dispose();
+    }
+  };
+
   return {
     [BUILD_BIN_METHOD]: buildBinHandler,
     [BUILD_FIT_CHECK_METHOD]: buildFitCheckHandler,
     [BUILD_SURFACE_FIT_CHECK_METHOD]: buildSurfaceFitCheckHandler,
+    [RESOLVE_POCKET_GEOMETRY_METHOD]: resolvePocketGeometryHandler,
   } satisfies HandlerMap;
 }

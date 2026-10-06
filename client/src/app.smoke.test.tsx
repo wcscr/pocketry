@@ -111,11 +111,11 @@ describe("App", () => {
 
   it.each(["desktop", "mobile"])("opens experimental settings from the %s header", async mode => {
     renderApp();
-    if (mode === "desktop") act(() => container.querySelector<HTMLButtonElement>('[aria-label="Settings"]')!.click());
+    if (mode === "desktop") act(() => container.querySelector<HTMLButtonElement>('[aria-label="App settings"]')!.click());
     else {
       act(() => container.querySelector<HTMLButtonElement>('[aria-label="More options"]')!
         .dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
-      await act(async () => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(item => item.textContent === "Settings")!.click());
+      await act(async () => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(item => item.textContent === "App settings")!.click());
     }
     expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Enable experimental features");
     const toggle = document.querySelector<HTMLButtonElement>('#experimental-features')!;

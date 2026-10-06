@@ -3,7 +3,6 @@ import { Line, TransformControls } from "@react-three/drei";
 import { useThree, type ThreeEvent } from "@react-three/fiber";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ElementRef, type ReactNode } from "react";
 import { DoubleSide, Object3D, Quaternion, Vector3 } from "three";
-import { usePocketGeometry } from "@/hooks/use-pocket-geometry";
 import { objectEdges } from "@/lib/mesh/object-edges";
 import { toBufferGeometry } from "@/lib/mesh/to-buffer-geometry";
 import type { MeshData } from "@/lib/mesh/mesh-data";
@@ -33,6 +32,7 @@ export interface PocketEditor {
   selection?: readonly ObjectRef[];
   onSelectionChange?: (selection: ObjectRef[]) => void;
   onCommitObjects?: (edits: ObjectEdits, label: string) => void;
+  onPreviewObjects?: (edits: ObjectEdits, label: string) => void;
   onSelect: (id: string | null) => void;
   onCommit: (id: string, patch: PocketTransformPatch, mode: PocketTransformMode) => void;
 }
@@ -169,20 +169,19 @@ export function SelectionTransformScene({ objects, allObjects = objects, spec, m
 }
 
 export function PocketTransformWire({ pocket, spec }: { pocket: EditablePocket; spec: BinSpec }): JSX.Element {
-  const cutouts = useMemo(() => [pocket.cutout], [pocket.cutout]);
-  const shapes = useMemo(() => new Map([[pocket.shape.id, pocket.shape]]), [pocket.shape]);
-  const resolved = usePocketGeometry(cutouts, shapes, spec).get(pocket.cutout.id);
-  const points = useMemo(() => resolved?.mesh ? [] : pocketTransformWires(pocket, spec)
-    .flatMap(wire => wire.slice(1).flatMap((point, i) => [wire[i], point])), [pocket, spec, resolved]);
-  return <group name="selected-pocket-wire">{resolved?.mesh ? <ObjectSolidOutline mesh={resolved.mesh} />
-    : points.length > 0 && <Line points={points} segments color="#0891b2" lineWidth={1.5} depthTest={false} renderOrder={100} />}</group>;
+  // Selection communicates pose and dimensions. Keep it on the immediate
+  // source-outline path, even after a drag; the bin mesh shows the rounding.
+  const points = useMemo(() => pocketTransformWires(pocket, spec)
+    .flatMap(wire => wire.slice(1).flatMap((point, i) => [wire[i], point])), [pocket, spec]);
+  return <group name="selected-pocket-wire">{points.length > 0 &&
+    <Line points={points} segments color="#0891b2" lineWidth={1.5} depthTest={false} renderOrder={100} />}</group>;
 }
 
 /** One surface and one batched crease outline, independent of how the source
  * solid was authored. The faint surface keeps smooth imported models readable. */
-export function ObjectSolidOutline({ mesh }: { mesh: MeshData }): JSX.Element {
+export function ObjectSolidOutline({ mesh, edges: preparedEdges }: { mesh: MeshData; edges?: [number, number, number][] }): JSX.Element {
   const geometry = useMemo(() => toBufferGeometry(mesh), [mesh]);
-  const edges = useMemo(() => objectEdges(mesh), [mesh]);
+  const edges = useMemo(() => preparedEdges ?? objectEdges(mesh), [mesh, preparedEdges]);
   useEffect(() => () => geometry.dispose(), [geometry]);
   return <>
     <mesh geometry={geometry} renderOrder={99}>

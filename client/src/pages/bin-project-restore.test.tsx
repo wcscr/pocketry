@@ -86,7 +86,7 @@ describe("named project recovery through the Bin workspace", () => {
       expect(page.container.querySelector('[data-testid="project-status-title"]')!.textContent).toBe("Ryobi Cutter (recovered)");
       expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Project recovered" }));
       await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 600)); });
-      expect(page.container.querySelector('[data-testid="project-status"] [role="status"]')!.textContent).toBe("Saved to browser library");
+      expect(page.container.querySelector('[data-testid="project-status"] [role="status"]')!.textContent).toBe("Saved to Library in this browser");
       expect(await loadProjectDoc()).toEqual({ ...working, transformOrigins: recordTransformOrigins({ pockets: [], fingerHoles: [] }, working.history.stack.map(e => e.doc)), name: "Ryobi Cutter (recovered)" });
       expect((await exportProjectLibrary()).projects.find(project => project.id === originalId)!.doc).toEqual(original);
 
@@ -128,7 +128,7 @@ describe("named project recovery through the Bin workspace", () => {
       });
       await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-confirm-save-library"]')!.click());
       await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 600)); });
-      expect(page.container.querySelector('[data-testid="project-status"] [role="status"]')!.textContent).toBe("Saved to browser library");
+      expect(page.container.querySelector('[data-testid="project-status"] [role="status"]')!.textContent).toBe("Saved to Library in this browser");
       expect(await loadProjectDoc()).toEqual({ ...working, transformOrigins: recordTransformOrigins({ pockets: [], fingerHoles: [] }, working.history.stack.map(e => e.doc)), name: "Recovered manually" });
     } finally { await page.unmount(); }
   });

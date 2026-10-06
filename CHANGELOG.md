@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- New desktop sessions use Workflow + properties; saved choices and compact phone defaults are preserved.
+- Consistent toolbars, compact phone adjustments, and tablet panels that preserve canvas space through landscape and keyboard changes.
+- Live numeric previews with complete Escape rollback and clearer invalid-value handling; cancelled touch gestures restore the complete edit.
+- Standard multi-selection and arrangement; matching text Move/Rotate controls in Layout and 3D.
+- Persistent experimental opt-in, protected linked designs, and easier draft saving to Library.
+- Larger touch handles, exact pocket dimensions, and fit-test exports in the mobile export panel.
+- Responsive 3D Move/Rotate gestures use lightweight outlines; exact selection geometry and crease edges build in a shared worker.
+- Top-edge rounding follows the pocket opening at the bin surface when pockets are raised or tilted.
+- Tilted-pocket insertion controls appear at the top of properties and default on when tilting. Both directions now clear a continuous path to the surface even for fully submerged objects. Follow the tilted axis or use vertical walls around the full top-down outline while preserving the rotated object’s underside. Keep floor thickness remains available after 3D edits and clips only the cut; raising the pocket restores the original profile. Through preserves the finite original object during Z moves and stops it at the bin underside. Selection outlines stay lightweight while rounding remains visible in the bin.
+
 ## 1.3.0 — 2026-10-04
 
 - Experimental surface text with built-in and portable system fonts, easier editing, and separate label parts in 3MF exports.

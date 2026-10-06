@@ -57,17 +57,16 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
               <strong> Depth</strong>.
             </p>
             <p className="mt-1 text-muted-foreground">
-              Pocket tilt, 3D transform controls, multi-selection, arrangement,
-              and linked designs are experimental. Turn on <strong>Enable
-              experimental features</strong> in <strong>Settings</strong> to use
-              them (on mobile, open <strong>More options → Settings</strong>).
-              Opening a project that uses these features enables the tools and
-              shows a notification. Turning the setting off preserves existing
-              designs and links.
+              Move, Rotate, multi-selection, alignment, and distribution are available in both layouts.
+              Select several pockets or finger accesses using their checkboxes or Shift/Ctrl/⌘-click.
+              Adjustable walls for empty bins, surface text, system fonts, and linked designs require
+              <strong> Enable experimental features</strong> in <strong>App settings</strong>
+              (on mobile, <strong>More options → App settings</strong>). Opening projects and restoring
+              history keep your preference. Saved experimental geometry remains visible and exportable;
+              editing shared linked geometry requires opt-in.
             </p>
             <p className="mt-1 text-muted-foreground">
-              To store tall items in a shorter drawer, enable the experimental
-              tools, then open the pocket’s
+              To store tall items in a shorter drawer, open the pocket’s
               <strong> Position &amp; rotation</strong> controls and set its X/Y tilt.
               Items slide out along the tilted axis. Fixed depth follows that axis;
               the opening expands to keep the path clear. Check the 3D preview

@@ -35,6 +35,7 @@ import {
   useCanvasViewportSize,
 } from "@/components/canvas/canvas-viewport";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useRulerInputFraming } from "./use-ruler-input-framing";
 import { useMobileContourEditor } from "@/hooks/use-mobile-contour-editor";
 import { useContourPointFocus } from "@/hooks/use-contour-point-focus";
 import { MobileContourTools } from "@/components/canvas/mobile-contour-tools";
@@ -162,9 +163,10 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
     containerWidth: containerSize.width,
     containerHeight: containerSize.height,
     // Fit the whole photo between the touch toolbars on compact canvases.
-    padding: containerSize.width < 768 ? 64 : 24,
+    padding: containerSize.width < 768 ? Math.min(64, containerSize.width / 5, containerSize.height / 5) : 24,
     panEnabled: mode === "navigate",
   });
+  useRulerInputFraming(isMobile, draftCalibration ?? calibration, containerSize, viewport);
 
   const { fit, fitToRect } = viewport;
   const fitVisiblePhoto = useCallback(() => imageCrop ? fitToRect(imageCrop) : fit(), [imageCrop, fit, fitToRect]);

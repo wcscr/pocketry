@@ -14,7 +14,7 @@ import { useTrace } from "@/state/trace-store";
 import { AutoCalibrationOptions } from "./auto-calibration-options";
 import { TraceDetectionControls, type DetectionSettings } from "./trace-detection-controls";
 import { TracePhotoBoundsControl } from "./trace-photo-bounds-control";
-import { RulerLengthInput } from "./ruler-length-input";
+import { RulerLengthInput, useRulerConfirmation } from "./ruler-length-input";
 
 export interface MobileTraceActionsProps {
   onChoosePhoto: () => void;
@@ -32,6 +32,7 @@ const STEPS: TraceStep[] = ["photo", "scale", "region", "outline"];
 /** Keep step navigation, guidance, and common adjustments beside the mobile canvas. */
 export function MobileTraceActions({ onChoosePhoto, onAddToBin, onStartOver, onOpenSettings, onApplyPerspective, onDetectMarkers, onReprocess }: MobileTraceActionsProps): JSX.Element {
   const trace = useTrace();
+  const manualScale = useRulerConfirmation();
   const { dispatch, pendingAutoCalibration, pendingPerspective, calibration, draftCalibration, processing } = trace;
   const [reviewStep, setReviewStep] = useState<"photo" | "scale" | null>(null);
   const [restartOpen, setRestartOpen] = useState(false);
@@ -88,7 +89,7 @@ export function MobileTraceActions({ onChoosePhoto, onAddToBin, onStartOver, onO
     <span className="sr-only" data-testid="trace-current-step">{STEPS.indexOf(step) + 1} / 4 · {step}</span>
     <MobileCanvasOverlay>
       <WorkflowHint className="absolute left-2 right-2 top-16"
-        hintKey={`${trace.sourceRevision}:${step}:${trace.mode === "edit" || trace.mode === "remove" ? "edit" : trace.mode === "navigate" ? "pan" : step}`}>
+        hintKey={`${trace.sourceRevision}:${step}`}>
         {guidance}
       </WorkflowHint>
     </MobileCanvasOverlay>
@@ -102,7 +103,7 @@ export function MobileTraceActions({ onChoosePhoto, onAddToBin, onStartOver, onO
     {step === "region" && <div className="mb-2"><TracePhotoBoundsControl /></div>}
     {step === "scale" && manualPending && !pendingAutoCalibration && !processing && <div className="mb-2 space-y-1" data-mobile-expanded="true">
       <label className="text-xs" htmlFor="mobile-ruler-length">Reference length (mm)</label>
-      <RulerLengthInput id="mobile-ruler-length" />
+      <RulerLengthInput id="mobile-ruler-length" showConfirm={false} onConfirmed={continueToRegion} />
     </div>}
     {step === "scale" && pendingAutoCalibration && <div className="mb-2 max-h-[35dvh] overflow-y-auto" data-mobile-expanded="true">
       <AutoCalibrationOptions onSetManually={redrawScale} onApplyPerspective={onApplyPerspective} onDetectMarkers={onDetectMarkers} />
@@ -114,6 +115,14 @@ export function MobileTraceActions({ onChoosePhoto, onAddToBin, onStartOver, onO
       {step === "photo" ? <>
         <Button variant="outline" className={actionClass} onClick={onChoosePhoto}>Change photo</Button>
         <Button className={actionClass} onClick={() => setReviewStep("scale")}>Use this photo</Button>
+      </> : step === "scale" && manualPending && !pendingAutoCalibration && !processing && !reviewingCorners ? <>
+        <Button variant="outline" className={actionClass} onClick={redrawScale}>Redraw scale</Button>
+        <Button className={actionClass} disabled={!manualScale.canConfirm} onClick={() => {
+          if (manualScale.confirm()) {
+            if (document.activeElement instanceof HTMLInputElement) document.activeElement.blur();
+            continueToRegion();
+          }
+        }}>Confirm scale</Button>
       </> : step === "scale" && calibration && !pendingAutoCalibration && !reviewingCorners ? <>
         <Button variant="outline" className={actionClass} onClick={redrawScale}>Redraw scale</Button>
         <Button className={actionClass} onClick={continueToRegion}>Use this scale</Button>

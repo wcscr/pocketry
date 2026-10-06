@@ -1,5 +1,5 @@
 import { EditableObjectName, ObjectActions } from "./object-list-controls";
-import { hasRigidPocket } from "@shared/gridfinity/rigid-pocket";
+import { hasRigidPocket, rigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { createPortal } from "react-dom";
 import { useSelectionInspector } from "./selection-inspector-context";
 import { useExperimentalFeatures } from "@/state/experimental-features";
@@ -65,6 +65,7 @@ import {
   fingerAccessOptionsPatch,
   fingerHoleSizeLimits,
   resolvePlacedPocketDepth,
+  resolvePocketDepth,
   pocketDepths,
   pocketName,
   type DepthSpec,
@@ -154,7 +155,7 @@ import { SURFACE_FIT_CHECK_OUTLINE_WIDTH_MM, surfaceFitCheckStyleSchema, type Su
 import { cn } from "@/lib/utils";
 import { PocketSplitControls } from "./pocket-split-controls";
 import { changeBinGridPitchPreservingSize } from "@shared/gridfinity/grid-pitch";
-import { PocketDepthSummary, PocketMeasurements, PocketSizeInputs, PositionInputs } from "./pocket-measurements";
+import { PocketDepthSummary, PocketInsertionControls, PocketMeasurements, PocketSizeInputs, PositionInputs } from "./pocket-measurements";
 import { ExportConfirmationDialog, ProjectBackupOption } from "./export-confirmation-dialog";
 import { FingerAccessShapeControls } from "./finger-access-shape-controls";
 import { INITIAL_BIN_SPEC, useBin } from "@/state/bin-store";
@@ -321,7 +322,7 @@ export function BinControlsPanel({
 }: BinControlsPanelProps): JSX.Element {
   const showPreviewBusy = useDelayedBusy(building);
   const inspector = useSelectionInspector();
-  const { enabled: experimentalEnabled, setSettingsOpen } = useExperimentalFeatures();
+  const { enabled: experimentalEnabled, setEnabled: setExperimentalEnabled, setSettingsOpen } = useExperimentalFeatures();
   const visibleSettingsSections = BIN_SETTINGS_SECTIONS.filter(section => experimentalEnabled || section.id !== "bin-settings-text");
   useEffect(() => {
     if (!experimentalEnabled && inspector?.activeSection === "bin-settings-text") inspector.showSection("bin-settings-size");
@@ -487,10 +488,16 @@ export function BinControlsPanel({
     : selectedCutout;
   const updatePocketDepth = (depth: DepthSpec, transient = false) => {
     if (!selectedCutout) return;
-    const depths = selectedCutout.split ? [...selectedCutout.split.depths] as [DepthSpec, DepthSpec] : null;
+    const source = depth.mode === "through" && selectedShape ? rigidPocket(selectedCutout,selectedShape,spec) : selectedCutout;
+    if ((depth.mode === "through" || (depth.mode === "remaining" && hasRigidPocket(source))) && depthShape && depthCutout) {
+      const originalDepth = resolvePlacedPocketDepth(spec, depthCutout.depth, depthShape, depthCutout).axialDepthMm;
+      depth = { ...depth, sourceDepthMm: Math.max(0.1, originalDepth ?? resolvePocketDepth(spec,depth).infillTopZ) };
+    }
+    const depths = source.split ? [...source.split.depths] as [DepthSpec, DepthSpec] : null;
     if (depths) depths[selectedPocketSection] = depth;
     dispatch({ type: "UPDATE_CUTOUT", id: selectedCutout.id,
-      patch: selectedCutout.split && depths ? { split: { ...selectedCutout.split, depths } } : { depth },
+      patch: { elevationMm:source.elevationMm, zOffsetMm:source.zOffsetMm,
+        ...(source.split && depths ? { split: { ...source.split, depths } } : { depth }) },
       transient, historyLabel: selectedCutout.split ? "Change section depth" : "Change pocket depth" });
   };
   const selectedShape = selectedCutout
@@ -561,6 +568,143 @@ export function BinControlsPanel({
     });
   };
 
+  const fitTestControls = (
+          <div
+            className="space-y-3 rounded-lg border border-indigo-500/25 bg-indigo-500/5 p-3"
+            data-testid="export-preview-layout"
+          >
+            <div>
+              <SettingLabel label="Prepare fit test templates" hint="Print a thin template and try the actual tools before printing the full bin. Choose the full pocket-layout surface or 5 mm wide bands around tool openings. Tool outlines omit the bin perimeter and separate finger access features; widely spaced tools print as separate pieces. Thickness sets the printed height. Surface templates omit the base, walls, label tab, and stacking lip, so they do not test pocket depth or baseplate fit." />
+            </div>
+
+            {(cutouts.length > 0 || fingerHoles.length > 0) && (
+              <div
+                className="space-y-2"
+                data-testid="surface-fit-test-export"
+              >
+                <div className="flex items-center gap-2">
+                  <Label className="w-20 shrink-0 text-xs">Shape</Label>
+                  <Select value={surfaceFitCheckStyle} onValueChange={value => setSurfaceFitCheckStyle(surfaceFitCheckStyleSchema.parse(value))}>
+                    <SelectTrigger className="h-8" aria-label="Surface fit test shape" data-testid="select-surface-fit-test-style">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="full">Full surface</SelectItem>
+                      <SelectItem value="outline" disabled={cutouts.length === 0}>Tool outlines · {SURFACE_FIT_CHECK_OUTLINE_WIDTH_MM} mm</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Label className="w-20 shrink-0 text-xs">Thickness</Label>
+                  <DraftNumberInput
+                    className="h-8"
+                    value={surfaceFitCheckThicknessMm}
+                    min={SURFACE_FIT_CHECK_MIN_THICKNESS_MM}
+                    max={SURFACE_FIT_CHECK_MAX_THICKNESS_MM}
+                    step={0.2}
+                    normalize={(value) =>
+                      Math.min(
+                        SURFACE_FIT_CHECK_MAX_THICKNESS_MM,
+                        Math.max(SURFACE_FIT_CHECK_MIN_THICKNESS_MM, value),
+                      )
+                    }
+                    onValueChange={setSurfaceFitCheckThicknessMm}
+                    aria-label="Surface fit test thickness in millimetres"
+                    data-testid="input-surface-fit-test-thickness"
+                  />
+                  <span className="text-xs text-muted-foreground">mm</span>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  disabled={exporting || hasErrors || (surfaceFitCheckStyle === "outline" && cutouts.length === 0)}
+                  onClick={() =>
+                    setPendingExport({
+                      title: "Save surface fit test STL?",
+                      description: surfaceFitCheckStyle === "outline"
+                        ? `Download ${SURFACE_FIT_CHECK_OUTLINE_WIDTH_MM} mm wide tool outlines, ${surfaceFitCheckThicknessMm} mm thick.`
+                        : `Download the complete pocket layout as a ${surfaceFitCheckThicknessMm} mm thin plate.`,
+                      confirmLabel: "Download STL",
+                      onConfirm: (includeProject) => onExportSurfaceFitCheck(surfaceFitCheckThicknessMm, includeProject, surfaceFitCheckStyle),
+                    })
+                  }
+                  data-testid="button-export-surface-fit-test"
+                >
+                  <Download className="h-4 w-4" />
+                  {exporting ? "Building…" : "Save surface fit test STL"}
+                </Button>
+              </div>
+            )}
+
+            {selectedCutout && selectedShape ? (
+              <div className="space-y-2 border-t pt-2.5">
+                <div>
+                  <SettingLabel label="Tool fit template" hint={selectedCutout.profileBottom
+                    ? "The source silhouette, including its Trace margin and profile scale. Use a surface fit test to check the straight slot width."
+                    : "A filled tool outline without the bin or finger access features. Includes its Trace margin, signed pocket clearance, and outline corner rounding."} />
+                  <p className="truncate text-xs font-medium" title={pocketName(selectedCutout, selectedShape)}>{pocketName(selectedCutout, selectedShape)}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Label className="w-20 shrink-0 text-xs">Thickness</Label>
+                  <DraftNumberInput
+                    className="h-8"
+                    value={fitCheckDepthMm}
+                    min={0.5}
+                    max={30}
+                    step={0.5}
+                    normalize={(value) => Math.min(30, Math.max(0.5, value))}
+                    onValueChange={setFitCheckDepthMm}
+                    aria-label="Fit template thickness in millimetres"
+                    data-testid="input-fit-check-depth"
+                  />
+                  <span className="text-xs text-muted-foreground">mm</span>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  disabled={exporting}
+                  onClick={() => setPendingExport({
+                    title: "Save fit template STL?",
+                    description: selectedCutout.profileBottom
+                      ? `Download the source profile of “${pocketName(selectedCutout, selectedShape)}” at ${fitCheckDepthMm} mm thick. Use a surface fit test to check the slot width.`
+                      : `Download the filled outline of “${pocketName(selectedCutout, selectedShape)}” at ${fitCheckDepthMm} mm thick.`,
+                    confirmLabel: "Download STL",
+                    onConfirm: (includeProject) => onExportFitCheck(selectedCutout.id, fitCheckDepthMm, includeProject),
+                  })}
+                  data-testid="button-export-fit-check"
+                >
+                  <Download className="h-4 w-4" />
+                  {exporting ? "Building…" : "Save fit template STL"}
+                </Button>
+              </div>
+            ) : cutouts.length > 0 ? (
+              <p className="border-t pt-2.5 text-[11px] text-muted-foreground">
+                Select a tool cutout to export a fit template.
+              </p>
+            ) : (
+              <div
+                className="space-y-2 border-t pt-2.5"
+                data-testid="export-preview-empty"
+              >
+                <p className="text-[11px] text-muted-foreground">
+                  Add a tool cutout to enable fit templates.
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => navigate("/")}
+                  data-testid="button-go-to-trace"
+                >
+                  Go to Trace
+                </Button>
+              </div>
+            )}
+          </div>
+  );
+
   const pocketList = cutouts.length > 0 && (
             <div className="space-y-1" aria-label="Choose a pocket to edit">
               {cutouts.map((cutout) => {
@@ -577,7 +721,7 @@ export function BinControlsPanel({
                     "flex items-center rounded-md border text-xs",
                     isSelected ? "border-violet-500/50 bg-violet-500/10" : "border-transparent hover:bg-accent",
                   )}>
-                    {experimentalEnabled && <label className="ml-1 flex h-8 w-6 shrink-0 cursor-pointer items-center justify-center [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11"><input type="checkbox" className="h-4 w-4 accent-primary" aria-label={`Include ${name} in selection`} checked={isSelected}
+                    {<label className="ml-1 flex h-8 w-6 shrink-0 cursor-pointer items-center justify-center [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11"><input type="checkbox" className="h-4 w-4 accent-primary" aria-label={`Include ${name} in selection`} checked={isSelected}
                       onChange={() => { inspector?.keepObjectsOpen(); dispatch({ type: "SELECT_CUTOUT", id: cutout.id, additive: true }); }} /></label>}
                     {renamingPocketId === cutout.id && shape ? (
                       <EditableObjectName key={cutout.id} name={name} kind="shape" onRename={(name) => dispatch({ type: "UPDATE_CUTOUT", id: cutout.id, patch: { name }, historyLabel: "Rename pocket" })} onDone={() => setRenamingPocketId(null)} />
@@ -594,13 +738,13 @@ export function BinControlsPanel({
                       onClick={event => {
                         // Keep the name under the pointer for a possible second click.
                         selectingPocketFromList.current = selectedCutoutId !== cutout.id;
-                        dispatch({ type: "SELECT_CUTOUT", id: cutout.id, additive: experimentalEnabled && (event.shiftKey || event.metaKey || event.ctrlKey) });
+                        dispatch({ type: "SELECT_CUTOUT", id: cutout.id, additive: (event.shiftKey || event.metaKey || event.ctrlKey) });
                         if (event.shiftKey || event.metaKey || event.ctrlKey) inspector?.keepObjectsOpen();
                         else inspector?.setTool("properties");
                       }}
                     >
                       <span className={cn("min-w-0 flex-1 truncate", isSelected && "font-medium text-violet-700 dark:text-violet-300")}>{name}</span>
-                      {experimentalEnabled && cutout.designLink && <Link2 className="h-3 w-3 shrink-0" aria-label="Linked design" />}
+                      {cutout.designLink && <Link2 className="h-3 w-3 shrink-0" aria-label="Linked design" />}
                     </button>
                     )}
                     <ObjectActions name={name}>
@@ -633,7 +777,7 @@ export function BinControlsPanel({
                       "flex items-center rounded-md border text-xs",
                       isSelected ? "border-cyan-500/50 bg-cyan-500/10" : "border-transparent hover:bg-accent",
                     )}>
-                      {experimentalEnabled && <label className="ml-1 flex h-8 w-6 shrink-0 cursor-pointer items-center justify-center [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11"><input type="checkbox" className="h-4 w-4 accent-primary" aria-label={`Include ${name} in selection`} checked={isSelected}
+                      {<label className="ml-1 flex h-8 w-6 shrink-0 cursor-pointer items-center justify-center [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11"><input type="checkbox" className="h-4 w-4 accent-primary" aria-label={`Include ${name} in selection`} checked={isSelected}
                         onChange={() => { inspector?.keepObjectsOpen(); dispatch({ type: "SELECT_FINGER_HOLE", id: hole.id, additive: true }); }} /></label>}
                       {renamingFingerId === hole.id ? (
                         <EditableObjectName key={hole.id} name={name} kind="finger-hole"
@@ -646,9 +790,9 @@ export function BinControlsPanel({
                           data-testid={`button-select-finger-hole-${hole.id}`}
                           title="Double-click to rename"
                           onDoubleClick={startRenaming}
-                          onClick={event => { dispatch({ type: "SELECT_FINGER_HOLE", id: hole.id, additive: experimentalEnabled && (event.shiftKey || event.metaKey || event.ctrlKey) }); if (event.shiftKey || event.metaKey || event.ctrlKey) inspector?.keepObjectsOpen(); else inspector?.setTool("properties"); }}>
+                          onClick={event => { dispatch({ type: "SELECT_FINGER_HOLE", id: hole.id, additive: (event.shiftKey || event.metaKey || event.ctrlKey) }); if (event.shiftKey || event.metaKey || event.ctrlKey) inspector?.keepObjectsOpen(); else inspector?.setTool("properties"); }}>
                           <span className={cn("min-w-0 flex-1 truncate", isSelected && "font-medium text-cyan-700 dark:text-cyan-300")}>{name}</span>
-                          {experimentalEnabled && hole.designLink && <Link2 className="h-3 w-3 shrink-0" aria-label="Linked design" />}
+                          {hole.designLink && <Link2 className="h-3 w-3 shrink-0" aria-label="Linked design" />}
                         </button>
                       )}
                       <ObjectActions name={name}>
@@ -757,7 +901,8 @@ export function BinControlsPanel({
               </div>
 
 
-              {!inspector && experimentalEnabled && <LinkedDesignControls kind="pocket" activeId={selectedCutout.id} labels={new Map(cutouts.map(c => [c.id, pocketName(c, shapesById.get(c.shapeId))]))} />}
+              <PocketInsertionControls cutout={selectedCutout} shape={selectedShape} />
+              {!inspector && <LinkedDesignControls kind="pocket" activeId={selectedCutout.id} labels={new Map(cutouts.map(c => [c.id, pocketName(c, shapesById.get(c.shapeId))]))} />}
               <PocketDepthSummary cutout={depthCutout!} shape={depthShape!} section={section} inspect={inspectPocket}>
                 {selectedCutout.split && <div className="flex gap-1 pb-2" role="group" aria-label="Section to edit">
                   {([0, 1] as const).map(index => <Button key={index} type="button" size="sm"
@@ -786,7 +931,7 @@ export function BinControlsPanel({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {!hasRigidPocket(selectedCutout) && <SelectItem value="remaining">Keep floor thickness</SelectItem>}
+                        <SelectItem value="remaining">Keep floor thickness</SelectItem>
                         <SelectItem value="mm">Fixed depth</SelectItem>
                         <SelectItem value="through">Through</SelectItem>
                       </SelectContent>
@@ -812,6 +957,8 @@ export function BinControlsPanel({
 
                   {depthCutout!.depth.mode === "remaining" && <MmSlider label="Remaining floor thickness" value={depthCutout!.depth.floorThicknessMm} min={0} max={Math.max(7, spec.heightUnits * 7)} step={0.5}
                     onChange={(floorThicknessMm, transient) => updatePocketDepth({ mode: "remaining", floorThicknessMm }, transient)} />}
+                  {hasRigidPocket(selectedCutout) && depthCutout!.depth.mode === "remaining" && <p className="text-[11px] text-muted-foreground">The floor limit clips only the cut. Raising the pocket restores its original profile.</p>}
+                  {hasRigidPocket(selectedCutout) && depthCutout!.depth.mode === "through" && <p className="text-[11px] text-muted-foreground">Preserves the original shape. Z movement stops when the lowest point reaches the bin underside; raising it restores material.</p>}
                   {selectedCutout.split && <p className="text-[11px] text-muted-foreground">Depth applies to the selected section. Size and edges apply to the whole pocket.</p>}
                 </section>
               </PocketDepthSummary>
@@ -914,7 +1061,7 @@ export function BinControlsPanel({
                 </p>
               )}
 
-              {inspector && experimentalEnabled && <AdvancedLinks><LinkedDesignControls kind="pocket" activeId={selectedCutout.id} labels={new Map(cutouts.map(c => [c.id, pocketName(c, shapesById.get(c.shapeId))]))} /></AdvancedLinks>}
+              {inspector && <AdvancedLinks><LinkedDesignControls kind="pocket" activeId={selectedCutout.id} labels={new Map(cutouts.map(c => [c.id, pocketName(c, shapesById.get(c.shapeId))]))} /></AdvancedLinks>}
               {!selectedCutout.profileBottom && pocketClearance}
             </PropertySurface>
           );
@@ -924,7 +1071,7 @@ export function BinControlsPanel({
                   <h3 className="text-xs font-semibold">Finger access properties</h3>
                   <span className={inspector ? "sr-only" : "min-w-0 flex-1 truncate text-xs"}>{selectedFingerHole.name ?? `Finger access ${fingerHoles.indexOf(selectedFingerHole) + 1}`}</span>
                 </div>
-              {!inspector && experimentalEnabled && <LinkedDesignControls kind="finger" activeId={selectedFingerHole.id} labels={new Map(fingerHoles.map((h, i) => [h.id, h.name ?? `Finger access ${i + 1}`]))} />}
+              {!inspector && <LinkedDesignControls kind="finger" activeId={selectedFingerHole.id} labels={new Map(fingerHoles.map((h, i) => [h.id, h.name ?? `Finger access ${i + 1}`]))} />}
 
 
                 <FingerAccessShapeControls
@@ -1187,7 +1334,7 @@ export function BinControlsPanel({
                 <PositionInputs position={selectedFingerHole.center} onChange={(center, transient) => dispatch({ type: "UPDATE_FINGER_HOLE", id: selectedFingerHole.id, patch: { center }, transient, historyLabel: "Position finger access" })} />
                   </div>
                 </details>
-                {inspector && experimentalEnabled && <AdvancedLinks><LinkedDesignControls kind="finger" activeId={selectedFingerHole.id} labels={new Map(fingerHoles.map((h, i) => [h.id, h.name ?? `Finger access ${i + 1}`]))} /></AdvancedLinks>}
+                {inspector && <AdvancedLinks><LinkedDesignControls kind="finger" activeId={selectedFingerHole.id} labels={new Map(fingerHoles.map((h, i) => [h.id, h.name ?? `Finger access ${i + 1}`]))} /></AdvancedLinks>}
             </PropertySurface>
             );
 
@@ -1213,7 +1360,7 @@ export function BinControlsPanel({
             <Pencil aria-hidden="true" />
           </Button>
         </div>
-        <p className="text-[11px] text-muted-foreground" role="status">{!hydrated ? "Opening project…" : projectBusy ? "Working…" : saveStatus === "saving" ? activeProjectId ? "Saving to browser library…" : "Draft — saving locally…" : saveStatus === "error" ? "Could not save. Export this project to keep your work." : activeProjectId ? "Saved to browser library" : "Draft — autosaved locally"}</p>
+        <p className="text-[11px] text-muted-foreground" role="status">{!hydrated ? "Opening project…" : projectBusy ? "Working…" : saveStatus === "saving" ? activeProjectId ? "Saving to browser library…" : "Draft — saving locally…" : saveStatus === "error" ? "Could not save. Export this project to keep your work." : activeProjectId ? "Saved to Library in this browser" : "Draft autosaved in this browser · not in Library"}</p>
       </div>
   );
 
@@ -1221,10 +1368,11 @@ export function BinControlsPanel({
     <PanelSectionFilterContext.Provider value={!inspector && exportOnly ? "bin-settings-export" : null}>
     <div className="flex h-full flex-col">
       {!experimentalEnabled && (spec.wallThicknessMm !== D_WALL || spec.surfaceTexts.length > 0 || cutouts.some(c => c.designLink) || fingerHoles.some(h => h.designLink)) && <div className="shrink-0 border-b bg-amber-50/60 px-3 py-2 text-xs dark:bg-amber-950/20" data-testid="experimental-design-notice">
-        {(cutouts.some(c => c.designLink) || fingerHoles.some(h => h.designLink)) && <p>This project uses experimental pocket tools. Its geometry and links are preserved; edits to linked designs still update their copies.</p>}
-        {spec.surfaceTexts.length > 0 && <p>This project contains surface text. Labels remain visible and included in exports. Enable experimental features to edit them.</p>}
-        {spec.wallThicknessMm !== D_WALL && <p>This project has a custom hollow-wall thickness. Its saved thickness is preserved. Enable experimental features to edit it.</p>}
-        <Button size="sm" variant="link" className="h-9 px-0 text-xs" onClick={() => setSettingsOpen(true)}>Show experimental settings</Button>
+        <p>Saved experimental features: {[
+          spec.wallThicknessMm !== D_WALL && "wall thickness", spec.surfaceTexts.length > 0 && "surface text",
+          (cutouts.some(c => c.designLink) || fingerHoles.some(h => h.designLink)) && "linked designs",
+        ].filter(Boolean).join(", ")}. Preserved in previews and exports.</p>
+        <Button size="sm" variant="link" className="min-h-11 whitespace-normal px-0 text-xs" onClick={() => setExperimentalEnabled(true)}>Enable experimental tools</Button>
       </div>}
       {inspector ? <div className="shrink-0 border-b px-3 py-3">
         <h2 className="text-xs font-semibold">Design workflow</h2>
@@ -1881,140 +2029,7 @@ export function BinControlsPanel({
               )}
             </div>
           </details>
-          <div
-            className="space-y-3 rounded-lg border border-indigo-500/25 bg-indigo-500/5 p-3"
-            data-testid="export-preview-layout"
-          >
-            <div>
-              <SettingLabel label="Prepare fit test templates" hint="Print a thin template and try the actual tools before printing the full bin. Choose the full pocket-layout surface or 5 mm wide bands around tool openings. Tool outlines omit the bin perimeter and separate finger access features; widely spaced tools print as separate pieces. Thickness sets the printed height. Surface templates omit the base, walls, label tab, and stacking lip, so they do not test pocket depth or baseplate fit." />
-            </div>
-
-            {(cutouts.length > 0 || fingerHoles.length > 0) && (
-              <div
-                className="space-y-2"
-                data-testid="surface-fit-test-export"
-              >
-                <div className="flex items-center gap-2">
-                  <Label className="w-20 shrink-0 text-xs">Shape</Label>
-                  <Select value={surfaceFitCheckStyle} onValueChange={value => setSurfaceFitCheckStyle(surfaceFitCheckStyleSchema.parse(value))}>
-                    <SelectTrigger className="h-8" aria-label="Surface fit test shape" data-testid="select-surface-fit-test-style">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="full">Full surface</SelectItem>
-                      <SelectItem value="outline" disabled={cutouts.length === 0}>Tool outlines · {SURFACE_FIT_CHECK_OUTLINE_WIDTH_MM} mm</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Label className="w-20 shrink-0 text-xs">Thickness</Label>
-                  <DraftNumberInput
-                    className="h-8"
-                    value={surfaceFitCheckThicknessMm}
-                    min={SURFACE_FIT_CHECK_MIN_THICKNESS_MM}
-                    max={SURFACE_FIT_CHECK_MAX_THICKNESS_MM}
-                    step={0.2}
-                    normalize={(value) =>
-                      Math.min(
-                        SURFACE_FIT_CHECK_MAX_THICKNESS_MM,
-                        Math.max(SURFACE_FIT_CHECK_MIN_THICKNESS_MM, value),
-                      )
-                    }
-                    onValueChange={setSurfaceFitCheckThicknessMm}
-                    aria-label="Surface fit test thickness in millimetres"
-                    data-testid="input-surface-fit-test-thickness"
-                  />
-                  <span className="text-xs text-muted-foreground">mm</span>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full"
-                  disabled={exporting || hasErrors || (surfaceFitCheckStyle === "outline" && cutouts.length === 0)}
-                  onClick={() =>
-                    setPendingExport({
-                      title: "Save surface fit test STL?",
-                      description: surfaceFitCheckStyle === "outline"
-                        ? `Download ${SURFACE_FIT_CHECK_OUTLINE_WIDTH_MM} mm wide tool outlines, ${surfaceFitCheckThicknessMm} mm thick.`
-                        : `Download the complete pocket layout as a ${surfaceFitCheckThicknessMm} mm thin plate.`,
-                      confirmLabel: "Download STL",
-                      onConfirm: (includeProject) => onExportSurfaceFitCheck(surfaceFitCheckThicknessMm, includeProject, surfaceFitCheckStyle),
-                    })
-                  }
-                  data-testid="button-export-surface-fit-test"
-                >
-                  <Download className="h-4 w-4" />
-                  {exporting ? "Building…" : "Save surface fit test STL"}
-                </Button>
-              </div>
-            )}
-
-            {selectedCutout && selectedShape ? (
-              <div className="space-y-2 border-t pt-2.5">
-                <div>
-                  <SettingLabel label="Tool fit template" hint={selectedCutout.profileBottom
-                    ? "The source silhouette, including its Trace margin and profile scale. Use a surface fit test to check the straight slot width."
-                    : "A filled tool outline without the bin or finger access features. Includes its Trace margin, signed pocket clearance, and outline corner rounding."} />
-                  <p className="truncate text-xs font-medium" title={pocketName(selectedCutout, selectedShape)}>{pocketName(selectedCutout, selectedShape)}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Label className="w-20 shrink-0 text-xs">Thickness</Label>
-                  <DraftNumberInput
-                    className="h-8"
-                    value={fitCheckDepthMm}
-                    min={0.5}
-                    max={30}
-                    step={0.5}
-                    normalize={(value) => Math.min(30, Math.max(0.5, value))}
-                    onValueChange={setFitCheckDepthMm}
-                    aria-label="Fit template thickness in millimetres"
-                    data-testid="input-fit-check-depth"
-                  />
-                  <span className="text-xs text-muted-foreground">mm</span>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full"
-                  disabled={exporting}
-                  onClick={() => setPendingExport({
-                    title: "Save fit template STL?",
-                    description: selectedCutout.profileBottom
-                      ? `Download the source profile of “${pocketName(selectedCutout, selectedShape)}” at ${fitCheckDepthMm} mm thick. Use a surface fit test to check the slot width.`
-                      : `Download the filled outline of “${pocketName(selectedCutout, selectedShape)}” at ${fitCheckDepthMm} mm thick.`,
-                    confirmLabel: "Download STL",
-                    onConfirm: (includeProject) => onExportFitCheck(selectedCutout.id, fitCheckDepthMm, includeProject),
-                  })}
-                  data-testid="button-export-fit-check"
-                >
-                  <Download className="h-4 w-4" />
-                  {exporting ? "Building…" : "Save fit template STL"}
-                </Button>
-              </div>
-            ) : cutouts.length > 0 ? (
-              <p className="border-t pt-2.5 text-[11px] text-muted-foreground">
-                Select a tool cutout to export a fit template.
-              </p>
-            ) : (
-              <div
-                className="space-y-2 border-t pt-2.5"
-                data-testid="export-preview-empty"
-              >
-                <p className="text-[11px] text-muted-foreground">
-                  Add a tool cutout to enable fit templates.
-                </p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full"
-                  onClick={() => navigate("/")}
-                  data-testid="button-go-to-trace"
-                >
-                  Go to Trace
-                </Button>
-              </div>
-            )}
-          </div>
+          {fitTestControls}
         </PanelSection>
 
         <PanelSection
@@ -2112,6 +2127,8 @@ export function BinControlsPanel({
               </Button>
             </div>
           </div>
+
+          {exportOnly && fitTestControls}
 
           {cutouts.length > 0 && (
             <div className="space-y-2 rounded-md border border-emerald-500/30 bg-emerald-500/5 p-2.5">
@@ -2358,6 +2375,16 @@ function ProjectControls({
   const ready = hydrated && libraryReady;
   const [renameProjectId, setRenameProjectId] = useState<string | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
+  const [removeProject, setRemoveProject] = useState<ProjectLibraryItem | null>(null);
+  const returnToLibrary = useRef(false);
+  const { settingsOpen } = useExperimentalFeatures();
+  useEffect(() => { if (settingsOpen) { setLibraryOpen(false); setSaveOpen(false); setRenameProjectId(null); setRemoveProject(null); } }, [settingsOpen, setSaveOpen]);
+  useEffect(() => { if (activeProjectId) setSelectedProjectId(activeProjectId); }, [activeProjectId]);
+  const saveDraftFromLibrary = () => { returnToLibrary.current = true; setLibraryOpen(false); setSaveOpen(true); };
+  const returnAfterNaming = () => {
+    if (returnToLibrary.current) { returnToLibrary.current = false; setLibraryOpen(true); }
+  };
+
   const [pendingLibraryFile, setPendingLibraryFile] = useState<File | null>(null);
   const [libraryImportMode, setLibraryImportMode] = useState<LibraryImportMode>("merge");
   const [pendingOpenProject, setPendingOpenProject] = useState<ProjectOpenTarget | null>(null);
@@ -2438,23 +2465,24 @@ function ProjectControls({
       if (project) setRenameProjectId(open ? project.id : null);
       else setSaveOpen(open);
       if (open) setProjectName(project?.name ?? currentProjectName ?? "");
+      else returnAfterNaming();
     };
     return (
       <Dialog open={project ? renameProjectId === project.id : saveOpen} onOpenChange={setOpen}>
-        <DialogTrigger asChild>
+        {!project && <DialogTrigger asChild>
           <Button
             variant={renaming ? "ghost" : "outline"}
             size="icon"
             className="h-8 w-8 shrink-0 text-muted-foreground [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11"
-            aria-label={project ? `Rename ${project.name}` : renaming ? "Rename project" : "Save to library"}
+            aria-label={renaming ? "Rename project" : "Save to library"}
             title={renaming ? "Rename project" : "Save to library"}
             disabled={!ready || busy}
-            data-testid={project ? `button-rename-project-${project.id}` : "button-save-library"}
+            data-testid="button-save-library"
           >
             {renaming ? <Pencil className="h-3.5 w-3.5 shrink-0" /> : <Save className="h-3.5 w-3.5 shrink-0" />}
           </Button>
-        </DialogTrigger>
-        <DialogContent className="grid-cols-1">
+        </DialogTrigger>}
+        <DialogContent className="grid-cols-1" onCloseAutoFocus={event => { if (libraryOpen || returnToLibrary.current) event.preventDefault(); }}>
           <form className="contents" onSubmit={async (event) => {
             event.preventDefault();
             if (busy) return;
@@ -2493,7 +2521,7 @@ function ProjectControls({
 
   const renderLibraryDialog = (): JSX.Element => (
     <Dialog
-      open={libraryOpen}
+      open={libraryOpen && !saveOpen && !renameProjectId && !removeProject && !pendingLibraryFile && !pendingOpenProject && !settingsOpen}
       onOpenChange={(open) => {
         setLibraryOpen(open);
         if (open) setSelectedProjectId(activeProjectId);
@@ -2514,6 +2542,7 @@ function ProjectControls({
       </DialogTrigger>
       <DialogContent
         ref={libraryDialogRef}
+        onCloseAutoFocus={event => { if (saveOpen || renameProjectId || removeProject || pendingLibraryFile || pendingOpenProject || settingsOpen) event.preventDefault(); }}
         className="flex max-h-[85dvh] flex-col overflow-hidden p-4 sm:p-6 [&>button]:hidden [@media(max-height:500px)]:max-h-[calc(100dvh_-_2rem)] [@media(max-height:500px)]:overflow-y-auto [@media(max-height:500px)]:scroll-pt-[var(--library-header-height)]"
         onOpenAutoFocus={(event) => {
           event.preventDefault();
@@ -2525,7 +2554,8 @@ function ProjectControls({
             '[data-testid="managed-project-list"] [data-project-id]',
           ) ?? [])];
           // Compare the data value rather than interpolating a saved ID into CSS.
-          const target = rows.find((row) => row.dataset.projectId === activeProjectId) ?? rows[0]
+          const target = rows.find((row) => row.dataset.projectId === (selectedProjectId ?? activeProjectId)) ?? rows[0]
+            ?? libraryDialogRef.current?.querySelector<HTMLElement>('[data-testid="button-save-draft-library"]')
             ?? libraryDialogRef.current?.querySelector<HTMLElement>('[data-testid="button-export-library"]');
           target?.focus({ preventScroll: true });
           target?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
@@ -2551,7 +2581,8 @@ function ProjectControls({
         <div className="space-y-2 pr-4" data-testid="managed-project-list">
           {projects.length === 0 ? (
             <div className="rounded-md border border-dashed p-5 text-center text-sm text-muted-foreground">
-              No named projects yet. Save the current draft to add one.
+              <p>No named projects yet.</p>
+              <Button className="mt-3 min-h-11 h-auto w-full whitespace-normal" data-testid="button-save-draft-library" disabled={!ready || busy} onClick={saveDraftFromLibrary}>Save this draft to Library</Button>
             </div>
           ) : (
             projects.map((project) => {
@@ -2596,7 +2627,8 @@ function ProjectControls({
                       <p className="min-w-0 truncate text-sm font-medium" title={project.name}>
                         {project.name}
                       </p>
-                      {renderNameDialog(project)}
+                      <Button variant="ghost" size="icon" className="h-11 w-11 shrink-0" aria-label={`Rename ${project.name}`} data-testid={`button-rename-project-${project.id}`} disabled={busy}
+                        onClick={() => { returnToLibrary.current = true; setProjectName(project.name); setLibraryOpen(false); setRenameProjectId(project.id); }}><Pencil className="h-4 w-4" /></Button>
                     </div>
                     {active && <p className="text-xs text-muted-foreground">Current project</p>}
                     <p className="text-[11px] text-muted-foreground">
@@ -2631,40 +2663,8 @@ function ProjectControls({
                   >
                     <Copy className="h-4 w-4" />Copy
                   </Button>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="min-h-11 shrink-0 gap-1.5 px-2 text-xs text-destructive hover:text-destructive"
-                        disabled={busy || active}
-                        aria-label={`Remove ${project.name} from library`}
-                        data-testid={`button-remove-project-${project.id}`}
-                      >
-                        <Trash2 className="h-4 w-4 shrink-0" />Remove
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent className="grid-cols-1">
-                      <AlertDialogHeader className="min-w-0 [overflow-wrap:anywhere]">
-                        <AlertDialogTitle>Remove “{project.name}” from library?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This removes the saved copy from this browser. Your current project
-                          will not change. Exported backup files are not affected.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Keep project</AlertDialogCancel>
-                        <AlertDialogAction
-                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                          disabled={busy || active}
-                          onClick={() => void onDeleteProject(project.id)}
-                          data-testid="button-confirm-remove-project"
-                        >
-                          Remove from library
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+                  <Button size="sm" variant="ghost" className="min-h-11 gap-1.5 px-2 text-xs text-destructive" disabled={busy || active}
+                    aria-label={`Remove ${project.name} from library`} data-testid={`button-remove-project-${project.id}`} onClick={() => setRemoveProject(project)}><Trash2 className="h-4 w-4" />Remove</Button>
                   </div>
                 </div>
               );
@@ -2785,7 +2785,16 @@ function ProjectControls({
           <Download className="h-3.5 w-3.5 shrink-0" />Export project
         </Button>
       </div>
+      {!activeProjectId && <Button variant="outline" className="min-h-11 h-auto w-full whitespace-normal" disabled={!ready || busy} onClick={() => setSaveOpen(true)}>Save this draft to Library</Button>}
       {renderLibraryDialog()}
+      {renameProjectId && projects.find(project => project.id === renameProjectId) && renderNameDialog(projects.find(project => project.id === renameProjectId))}
+      <AlertDialog open={!!removeProject} onOpenChange={open => { if (!open) setRemoveProject(null); }}>
+        <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Remove “{removeProject?.name}” from library?</AlertDialogTitle>
+          <AlertDialogDescription>This removes the saved copy from this browser. Your current project and exported backups will not change.</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter><AlertDialogCancel>Keep project</AlertDialogCancel><AlertDialogAction data-testid="button-confirm-remove-project" disabled={busy}
+            onClick={async event => { event.preventDefault(); if (removeProject && await onDeleteProject(removeProject.id)) setRemoveProject(null); }}>Remove from library</AlertDialogAction></AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       </section>
 
       <Dialog open={pendingLibraryFile !== null} onOpenChange={(open) => { if (!open && !busy) setPendingLibraryFile(null); }}>
