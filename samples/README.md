@@ -1,18 +1,21 @@
 # Sample projects
 
-Editable Pocketry designs and the 3MF exports used for the printed bins.
+Editable Pocketry designs, printable 3MF exports, and photos of sample bins.
 Start with a project to see how its pockets are arranged, or download a 3MF to
 open in your slicer.
 
 [Open Pocketry](https://pocketry.xyz) · [Back to the project](../README.md)
 
-**[Download all 13 projects as one library](pocketry-sample-library.json).**
+**[Download all 16 projects as one library](pocketry-sample-library.json).**
 Open the file on GitHub and choose **Download raw file**, then in Pocketry use
 **Bin → Project → Manage library → Import library**. The designs are added to
 your library; select one there to open it. Existing projects are preserved.
 
-| Design | Printed bin | Files | Highlights |
+| Design | Preview / printed bin | Files | Highlights |
 | --- | :---: | --- | --- |
+| [Bessey Utility Knife](bessey-utility-knife/) | <a href="bessey-utility-knife/layout.svg"><img src="bessey-utility-knife/layout.svg" width="50" height="100" alt="Bessey single-tool bin layout preview"></a> | [JSON](bessey-utility-knife/bessey-utility-knife.pocketry.json)<br>[3MF](bessey-utility-knife/bessey-utility-knife.3mf) | Individual bin for a closed Bessey D-BKWH knife; transverse finger access |
+| [Gerber Multitool](gerber-multitool/) | <a href="gerber-multitool/layout.svg"><img src="gerber-multitool/layout.svg" width="50" height="100" alt="Gerber single-tool bin layout preview"></a> | [JSON](gerber-multitool/gerber-multitool.pocketry.json)<br>[3MF](gerber-multitool/gerber-multitool.3mf) | Individual bin for the closed Gerber Multitool; transverse finger access |
+| [Bessey and Gerber](bessey-gerber/) | <a href="bessey-gerber/photos/printed-bin-loaded.jpg"><img src="bessey-gerber/photos/printed-bin-loaded.jpg" width="133" height="100" alt="Original printed combined Bessey and Gerber bin"></a> | [JSON](bessey-gerber/bessey-gerber.pocketry.json)<br>[3MF](bessey-gerber/bessey-gerber.3mf) | Combined tool pockets with shared rounded finger access |
 | [Mini socket set](mini-socket-set/) | <a href="mini-socket-set/photos/printed-bin-loaded-portrait.jpg"><img src="mini-socket-set/photos/printed-bin-loaded-portrait.jpg" width="76" height="100" alt="Finished mini socket set bin with its reused pre-cut shadowbox"></a> | [JSON](mini-socket-set/mini-socket-set.pocketry.json)<br>[3MF](mini-socket-set/mini-socket-set.3mf) | Reuses the pre-cut shadowbox that came with the toolset |
 | [Wiha 40 mm drivers](wiha-40mm-drivers/) | <a href="wiha-40mm-drivers/photos/printed-bin-loaded.jpg"><img src="wiha-40mm-drivers/photos/printed-bin-loaded.jpg" width="59" height="100" alt="Finished Wiha 40 mm driver bin"></a> | [JSON](wiha-40mm-drivers/wiha-40mm-drivers.pocketry.json)<br>[3MF](wiha-40mm-drivers/wiha-40mm-drivers.3mf) | Four linked pockets in the same direction; half-pitch footprint |
 | [Wiha 50 mm drivers](wiha-50mm-drivers/) | <a href="wiha-50mm-drivers/photos/printed-bin-loaded.jpg"><img src="wiha-50mm-drivers/photos/printed-bin-loaded.jpg" width="29" height="100" alt="Finished Wiha 50 mm driver bin"></a> | [JSON](wiha-50mm-drivers/wiha-50mm-drivers.pocketry.json)<br>[3MF](wiha-50mm-drivers/wiha-50mm-drivers.3mf) | Two linked pockets in the same direction; shared finger access |
@@ -53,7 +56,7 @@ carry the slicer's settings or all 3MF color selections.
 
 ## Print photos
 
-All 13 designs include photographs of their finished bins. The 40 mm and
+The original 13 designs include photographs of their finished bins. The 40 mm and
 50 mm Wiha samples show the loaded bins; the 60 mm sample also shows a pocket
 with a driver removed. The original ten samples include a view with tools
 removed except for the DeWalt set.
@@ -63,8 +66,12 @@ The drawer photo shows the Wiha bins stacked with other Gridfinity bins:
 
 <a href="wiha-drivers/photos/stacked-bins-in-drawer.jpg"><img src="wiha-drivers/photos/stacked-bins-in-drawer.jpg" width="560" alt="Wiha driver bins stacked with other loaded Gridfinity bins in a drawer"></a>
 
-The photos are cropped, straightened where needed, rotated for viewing, resized,
-and stripped of embedded metadata. No generative editing was used.
+The Bessey and Gerber combined bin also includes a photo of the original print.
+The individual Bessey and Gerber entries show layout previews.
+
+Most photos are cropped, straightened where needed, rotated for viewing, and
+resized. The Bessey and Gerber photo retains the supplied framing and pixels.
+Embedded metadata was removed from all photos. No generative editing was used.
 
 ## Reuse and attribution
 

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added individual and combined Bessey Utility Knife and Gerber Multitool samples with editable projects, 3MFs, layout previews, a print photo, and the Bessey affiliate link; expanded the sample library to 16 designs.
+
 - Upright alignment rotates the photo with its contours; symmetry previews support zoom and pan.
 
 ## 1.4.0 — 2026-10-06

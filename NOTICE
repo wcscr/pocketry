@@ -124,8 +124,9 @@ Sample projects and print photographs — contributor-supplied assets
 
 The editable project JSONs, 3MF print models, and photographs under `samples/`
 were supplied by Will Cobb for this repository. `samples/source-files.json`
-records their source files and published hashes. The 3MF files are unmodified
-copies of the supplied print exports.
+records their source files and published hashes. Most 3MF files are unmodified
+copies of the supplied print exports. The Bessey and Gerber models are Pocketry
+exports of the included designs.
 
 The photographs in the sample directories' `photos/` folders are copies of the supplied
 originals, cropped, straightened where needed, rotated, and resized with ordinary
@@ -138,6 +139,12 @@ an additional photograph showing the bins stacked in a drawer. The three new
 editable examples are final design snapshots; the 60 mm project was recovered
 from the contributor's supplied library backup. Individual JSONs and the
 combined sample library contain the same design snapshots.
+
+The Bessey and Gerber samples use the contributor-supplied tool traces and
+combined design. The individual bins rearrange one tool pocket with transverse
+finger access. Their 3MFs and the combined-bin 3MF were exported with Pocketry.
+The combined-bin photograph retains the supplied framing and pixels, with
+embedded metadata removed. The SVGs are Pocketry layout illustrations.
 
 The mini socket set sample includes the supplied project, print export, and
 three photographs. Its design reuses the pre-cut shadowbox that came with
