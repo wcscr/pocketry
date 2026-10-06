@@ -83,8 +83,6 @@ export const binSpecSchema = z
       diameterMm: z.number().min(4).max(5).default(4.8),
       lengthMm: z.number().min(2).max(5).default(4),
       underside: z.enum(["sloped", "bridged"]).default("sloped"),
-      /** Every N holes in both directions, or only the footprint corners. */
-      density: z.union([z.literal("corners"), z.number().int().min(1).max(5)]).default(1),
     }).strict().nullable().default(null),
     /** ⌀6.5 × 2.4 mm magnet pockets, four per cell, opening downward. */
     magnetHoles: z.boolean().default(false),

@@ -1,13 +1,15 @@
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { ManifoldToplevel, Mesh } from "manifold-3d";
 import { parseBinSpec } from "@shared/gridfinity/types";
-import { DEFAULT_PEG_BOTTOM, PEG_DENSITIES, pegBottomExtensionMm, pegBottomRootHeightMm, ultim8PegCenters, ULTIM8_COLLAR_HEIGHT_MM, ULTIM8_ROOT_HEIGHT_MM } from "@shared/gridfinity/peg-bottom";
+import { DEFAULT_PEG_BOTTOM, pegBottomExtensionMm, pegBottomRootHeightMm, ultim8PegCenters, ULTIM8_COLLAR_HEIGHT_MM, ULTIM8_ROOT_HEIGHT_MM } from "@shared/gridfinity/peg-bottom";
 import { Arena } from "@/lib/manifold/arena";
 import { createKernel, loadManifold } from "@/lib/manifold/runtime";
 import { buildBinWithCutouts, binDimensionsMm, EXPORT_QUALITY, PREVIEW_QUALITY } from "./bin";
 import { buildPegBottom } from "./peg-bottom";
 import { buildCutoutCutters } from "./cutouts";
-import type { CutoutPlacement } from "@shared/gridfinity/cutout";
+import { fingerHoleSchema, type CutoutPlacement } from "@shared/gridfinity/cutout";
+import { pocketDepthChangePatch } from "@shared/gridfinity/pocket-depth-change";
+import { rigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { createBasicPocket } from "./basic-shape";
 
 let wasm: ManifoldToplevel;
@@ -33,36 +35,6 @@ function checkSupportFree(mesh: Mesh, bottom: number, bridgeZ?: number): void {
 }
 
 describe("support-free peg bottoms", () => {
-  it.each(PEG_DENSITIES)("builds connected 45-degree undersides with the chosen shaft count at density %s", density => {
-    const kernel = createKernel(wasm, arena);
-    const s = spec({ pegBottom: { ...DEFAULT_PEG_BOTTOM, density } });
-    for (const quality of [PREVIEW_QUALITY, EXPORT_QUALITY]) {
-      const solid = buildPegBottom(kernel, s, quality.circularSegments);
-      const extension = pegBottomExtensionMm(s), root = pegBottomRootHeightMm(s);
-      expect(solid.status()).toBe("NoError");
-      expect(solid.boundingBox().min[2]).toBeCloseTo(-extension, 5);
-      expect(solid.boundingBox().max[2]).toBeCloseTo(7, 5);
-      expect(solid.decompose().map(p => arena.track(p))).toHaveLength(1);
-      const disk = arena.track(kernel.CrossSection.circle(s.pegBottom!.diameterMm / 2, quality.circularSegments));
-      expect(arena.track(solid.slice(-root - 1)).area()).toBeCloseTo(ultim8PegCenters(s).length * disk.area(), 5);
-      checkSupportFree(solid.getMesh(), -extension);
-    }
-  });
-  it.each(["corners", 2, 3, 4, 5] as const)("covers custom footprint interiors without supports at density %s", density => {
-    const kernel = createKernel(wasm, arena);
-    const s = spec({ gridX: 2, gridY: 2,
-      footprint: { kind: "custom", cells: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }] },
-      pegBottom: { ...DEFAULT_PEG_BOTTOM, density } });
-    const solid = buildPegBottom(kernel, s, PREVIEW_QUALITY.circularSegments);
-    expect(solid.status()).toBe("NoError");
-    expect(solid.decompose().map(p => arena.track(p))).toHaveLength(1);
-    checkSupportFree(solid.getMesh(), -pegBottomExtensionMm(s));
-  });
-  it("rejects short bridges at sparse density instead of generating unsupported spans", () => {
-    const kernel = createKernel(wasm, arena);
-    expect(() => buildPegBottom(kernel, spec({ pegBottom: { ...DEFAULT_PEG_BOTTOM, underside: "bridged", density: 2 } }), 24)).toThrow(/every hole/);
-  });
-
   it.each([PREVIEW_QUALITY, EXPORT_QUALITY])("builds a connected, watertight base with no unsupported underside at %j quality", quality => {
     const kernel = createKernel(wasm, arena);
     const s = spec();
@@ -121,6 +93,29 @@ describe("support-free peg bottoms", () => {
     expect(pegs.heightToRimMm).toBe(normal.heightToRimMm);
     expect(pegs.totalHeightMm).toBe(normal.totalHeightMm + pegBottomExtensionMm(spec()));
   });
+  it.each([PREVIEW_QUALITY, EXPORT_QUALITY])("opens a rectangle inside a finger groove through the floor and roots at %j quality", quality => {
+    const kernel = createKernel(wasm, arena);
+    const s = spec({ gridX: 3 });
+    const pocket = createBasicPocket("rectangle", { x: 27, y: -2 }, { x: 33, y: 2 }, "groove-through")!;
+    pocket.cutout.depth = { mode: "remaining", floorThicknessMm: 2 };
+    const finger = fingerHoleSchema.parse({ id: "groove", kind: "oblong-deep-scoop", center: { x: 0, y: 0 }, lengthMm: 100, diameterMm: 18, depthMm: 12 });
+    const build = (cutout: CutoutPlacement) => buildBinWithCutouts(kernel, s, {
+      shapesById: new Map([[pocket.shape.id, pocket.shape]]), cutouts: [cutout], fingerHoles: [finger],
+    }, quality).solid;
+    const probe = arena.track(kernel.Manifold.cylinder(pegBottomExtensionMm(s) + 23, 0.4, 0.4, 24)
+      .translate([30, 0, -pegBottomExtensionMm(s) - 0.5]));
+    const blind = build(pocket.cutout);
+    expect(arena.track(blind.intersect(probe)).volume()).toBeGreaterThan(0.1);
+    const through = { ...pocket.cutout, ...pocketDepthChangePatch(s, pocket.shape, pocket.cutout, { mode: "through" }) };
+    const solid = build(through);
+    expect(arena.track(solid.intersect(probe)).volume()).toBeLessThan(1e-6);
+    expect(solid.status()).toBe("NoError");
+    expect(solid.decompose().map(part => arena.track(part))).toHaveLength(1);
+    // A subsequent rigid Z move must still restore material beneath the finite object.
+    const raised = { ...rigidPocket(through, pocket.shape, s), elevationMm: 3 };
+    expect(arena.track(build(raised).intersect(probe)).volume()).toBeGreaterThan(0.1);
+  }, 15_000);
+
   it("through pockets remove the full shaft/root height and leave no disconnected stubs", () => {
     const kernel = createKernel(wasm, arena);
     const s = spec();

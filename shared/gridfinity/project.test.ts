@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { parseProjectDoc, PROJECT_SCHEMA_VERSION } from "./project";
 import { parseBinSpec } from "./types";
+import { rigidPocket } from "./rigid-pocket";
+import { DEFAULT_PEG_BOTTOM } from "./peg-bottom";
 import airdusterV9 from "./fixtures/airduster-v9.pocketry.json";
 
 const VALID = {
@@ -670,4 +672,59 @@ it("keeps migrated linked through designs consistent even when creation depths d
   expect(migrated).not.toBeNull();
   expect(migrated.cutouts[0].depth).toEqual({mode:"through",sourceDepthMm:16});
   expect(migrated.cutouts[1].depth).toEqual(migrated.cutouts[0].depth);
+});
+
+
+it.each(["corners", 1, 2, 3, 4, 5])("restores every-hole pegs from v37 density %s throughout saved projects", density => {
+  const base = parseProjectDoc(VALID)!;
+  const spec = { ...base.spec, pegBottom: { ...DEFAULT_PEG_BOTTOM, density } };
+  const snapshot = { spec, cutouts: base.cutouts, fingerHoles: base.fingerHoles };
+  const legacy = { ...base, ...snapshot, schemaVersion: 37,
+    history: { index: 0, stack: [{ label: "Start", doc: snapshot }] },
+    transformOrigins: { pockets: [{ cutout: base.cutouts[0], spec }], fingerHoles: [] } };
+  const original = JSON.stringify(legacy);
+  const migrated = parseProjectDoc(legacy)!;
+  expect(migrated.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
+  expect(migrated.spec.pegBottom).toEqual(DEFAULT_PEG_BOTTOM);
+  expect(migrated.history!.stack[0].doc.spec.pegBottom).toEqual(DEFAULT_PEG_BOTTOM);
+  expect(migrated.transformOrigins!.pockets[0].spec.pegBottom).toEqual(DEFAULT_PEG_BOTTOM);
+  expect(migrated.cutouts).toEqual(base.cutouts);
+  expect(JSON.stringify(legacy)).toBe(original);
+  expect(parseProjectDoc(JSON.parse(JSON.stringify(migrated)))).toEqual(migrated);
+});
+
+it.each([0, 6, 1.5, "everywhere", null])("rejects malformed v37 density %s", density => {
+  expect(parseProjectDoc({ ...VALID, schemaVersion: 37, spec: { ...VALID.spec, pegBottom: { ...DEFAULT_PEG_BOTTOM, density } } })).toBeNull();
+});
+
+it.each([35, 36, 37])("repairs proven unraised surface Through conversions in v%s history and current design", schemaVersion => {
+  const base = parseProjectDoc(VALID)!;
+  const original = base.cutouts[0];
+  const frozen = rigidPocket(original, base.shapes[0], base.spec);
+  const through = { ...frozen, depth: { mode: "through" as const, sourceDepthMm: frozen.depth.mode === "mm" ? frozen.depth.value : frozen.depth.sourceDepthMm } };
+  const snapshot = (cutout: typeof original) => ({ spec: base.spec, cutouts: [cutout], fingerHoles: [] });
+  const legacy = { ...base, ...snapshot(through), schemaVersion,
+    transformOrigins: { pockets: [{ cutout: original, spec: base.spec }], fingerHoles: [] },
+    history: { index: 1, stack: [{ label: "Draw", doc: snapshot(original) }, { label: "Through", doc: snapshot(through) },
+      { label: "Raise", doc: snapshot({ ...through, elevationMm: through.elevationMm! + 3 }) }] } };
+  const text = JSON.stringify(legacy);
+  const migrated = parseProjectDoc(legacy)!;
+  expect(migrated.cutouts[0].depth).toEqual({ mode: "through" });
+  expect(migrated.cutouts[0].elevationMm).toBeUndefined();
+  expect(migrated.history!.stack[0].doc.cutouts[0]).toEqual(original);
+  expect(migrated.history!.stack[1].doc.cutouts).toEqual(migrated.cutouts);
+  expect(migrated.history!.stack[2].doc.cutouts[0]).toEqual(legacy.history.stack[2].doc.cutouts[0]);
+  expect(migrated.transformOrigins).toEqual(legacy.transformOrigins);
+  expect(JSON.stringify(legacy)).toBe(text);
+  expect(parseProjectDoc(JSON.parse(JSON.stringify(migrated)))).toEqual(migrated);
+});
+
+it("preserves tilted, raised, and unproven finite Through pockets on upgrade", () => {
+  const base = parseProjectDoc(VALID)!;
+  const original = base.cutouts[0];
+  const frozen = rigidPocket(original, base.shapes[0], base.spec);
+  const through = { ...frozen, depth: { mode: "through" as const, sourceDepthMm: 16 } };
+  for (const cutout of [through, { ...through, elevationMm: 20 }, { ...through, tilt: { xDeg: 20, yDeg: 0 } }]) {
+    expect(parseProjectDoc({ ...base, schemaVersion: 36, cutouts: [cutout] })!.cutouts[0]).toEqual(cutout);
+  }
 });

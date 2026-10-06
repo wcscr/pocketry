@@ -129,6 +129,40 @@ describe("bin preview worker lifecycle", () => {
     await reply(() => worker().finish(2)); expect(dispose).toHaveBeenCalledTimes(1); expect(state!.geometry).not.toBe(first);
   });
 
+  it("clears an obsolete bin and all material meshes when the current design fails, then recovers", async () => {
+    const label = parseBinSpec({ gridX: 1, gridY: 1, heightUnits: 3, surfaceTexts: [{ id: "label", text: "A", position: { x: 0, y: 0 } }] }).surfaceTexts[0];
+    const old = { ...resultFor(1), materialMeshes: { body: resultFor(2).mesh,
+      pocketFloors: resultFor(3).mesh, stackingRim: resultFor(4).mesh },
+      textMeshes: [{ label, z: 21, mesh: resultFor(5).mesh }] };
+    await render(2); await tick(); await reply(() => worker().finish(0, old));
+    const meshes = [state!.geometry!, state!.pocketFloorGeometry!, state!.stackingRimGeometry!, state!.textGeometries[0].geometry];
+    const disposals = meshes.map(mesh => vi.spyOn(mesh, "dispose"));
+    await render(3); await tick();
+    expect(state!.geometry).toBe(meshes[0]);
+    await reply(() => worker().fail(1));
+    expect(state!.geometry).toBeNull(); expect(state!.builtSpec).toBeNull();
+    expect(state!.pocketFloorGeometry).toBeNull(); expect(state!.stackingRimGeometry).toBeNull();
+    expect(state!.textGeometries).toEqual([]);
+    expect(state!.hasPocketFloor).toBe(false); expect(state!.hasStackingRim).toBe(false);
+    expect(state!.statsAreStale).toBe(true); expect(state!.error).toBe("Bad geometry");
+    disposals.forEach(dispose => expect(dispose).toHaveBeenCalledOnce());
+    await render(4); await tick(); await reply(() => worker().finish(2, resultFor(9)));
+    expect(state!.error).toBeNull(); expect(state!.builtSpec?.heightUnits).toBe(4);
+    expect(state!.geometry!.getAttribute("position").getX(0)).toBe(9);
+    disposals.forEach(dispose => expect(dispose).toHaveBeenCalledOnce());
+  });
+
+  it("clears the old design if both the new draft and detailed preview fail", async () => {
+    await render(2); await tick(); await reply(() => worker().finish(0));
+    const old = state!.geometry!; const dispose = vi.spyOn(old, "dispose");
+    await renderRounded(3); await tick(); await reply(() => worker().fail(1));
+    expect(state!.geometry).toBe(old); expect(state!.building).toBe(true);
+    await tick(268); await reply(() => detailWorker().fail(0));
+    expect(state!.geometry).toBeNull(); expect(state!.builtSpec).toBeNull();
+    expect(state!.error).toContain("Detailed preview failed");
+    expect(dispose).toHaveBeenCalledOnce();
+  });
+
   it("uses separate body and text previews and disposes replaced and removed labels", async () => {
     const label = parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 3,
       surfaceTexts: [{ id: "label", text: "METRIC", position: { x: 0, y: 0 } }],
@@ -401,6 +435,16 @@ describe("bin preview worker lifecycle", () => {
     await reply(() => detailWorker().finish(0, resultFor(77)));
     expect(state!.error).toBeNull(); expect(state!.previewIsDraft).toBe(false);
     expect(state!.stats?.volumeMm3).toBe(77);
+  });
+
+  it("retains the current draft if retrying the same design fails in both lanes", async () => {
+    await renderRounded(3); await tick(); await reply(() => worker().finish(0)); await tick(268);
+    const draft = state!.geometry!; const dispose = vi.spyOn(draft, "dispose");
+    await reply(() => detailWorker().fail(0));
+    await React.act(async () => state!.retryPreview());
+    await tick(); await reply(() => worker().fail(1)); await tick(268); await reply(() => detailWorker().fail(1));
+    expect(state!.geometry).toBe(draft); expect(state!.previewIsDraft).toBe(true);
+    expect(state!.builtSpec?.heightUnits).toBe(3); expect(dispose).not.toHaveBeenCalled();
   });
 
   it("exports full authored settings while a draft is displayed", async () => {

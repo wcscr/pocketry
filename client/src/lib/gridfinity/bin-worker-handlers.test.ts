@@ -4,7 +4,8 @@ import { strFromU8, unzipSync } from "fflate";
 import { fingerHoleSchema, parseCutoutPlacement, resolvePocketDepth } from "@shared/gridfinity/cutout";
 import { writeBinarySTL } from "@/lib/export/stl-writer";
 import { writeThreeMf } from "@/lib/mesh/threemf";
-import { PEG_DENSITIES, pegBottomExtensionMm } from "@shared/gridfinity/peg-bottom";
+import { pocketDepthChangePatch } from "@shared/gridfinity/pocket-depth-change";
+import { pegBottomExtensionMm } from "@shared/gridfinity/peg-bottom";
 import { binTotalHeightMm } from "@shared/gridfinity/standard";
 import { parseBinSpec } from "@shared/gridfinity/types";
 import { loadManifold } from "@/lib/manifold/runtime";
@@ -1155,19 +1156,37 @@ it.each(["sloped", "bridged"] as const)("exports a %s peg bin with the entire pa
   expect(model).not.toMatch(/z="-/);
 });
 
-it.each(PEG_DENSITIES)("exports density %s at the build plate with closed STL and 3MF geometry", async density => {
-  const spec = parseBinSpec({ gridX: 1, gridY: 1, heightUnits: 2, lip: "none",
-    pegBottom: { diameterMm: 4.8, lengthMm: 4, underside: "sloped", density } });
-  const result = (await getHandler()({ spec, quality: EXPORT_QUALITY, exportTopology: true,
-    pocketFloorMaterialThicknessMm: 0.6, stackingRimMaterialThicknessMm: 0.6 }, context())).value;
-  expect(nonManifoldEdgeCount(result.mesh)).toBe(0);
-  expect(printableMeshVolume(result.mesh)).toBeCloseTo(result.stats.volumeMm3, 1);
-  expect(Math.min(...result.mesh.positions.filter((_, index) => index % 3 === 2))).toBe(0);
-  const stl = new DataView(writeBinarySTL(result.mesh));
-  expect(stl.getUint32(80, true)).toBe(result.mesh.indices.length / 3);
+
+it("exports a surface Through rectangle inside a finger groove without a floor or shifted opening", async () => {
+  const spec = parseBinSpec({ gridX: 3, gridY: 1, heightUnits: 3, lip: "none", pegBottom: {} });
+  const pocket = createBasicPocket("rectangle", { x: 27, y: -2 }, { x: 33, y: 2 }, "through-groove")!;
+  pocket.cutout.depth = { mode: "remaining", floorThicknessMm: 2 };
+  const cutout = { ...pocket.cutout, ...pocketDepthChangePatch(spec, pocket.shape, pocket.cutout, { mode: "through" }) };
+  const finger = fingerHoleSchema.parse({ id: "groove", kind: "oblong-deep-scoop", center: { x: 0, y: 0 }, lengthMm: 100, diameterMm: 18, depthMm: 12 });
+  const request = { spec, quality: EXPORT_QUALITY, exportTopology: true, pocketFloorMaterialThicknessMm: 0.6, stackingRimMaterialThicknessMm: 0.6,
+    layout: { shapes: [pocket.shape], cutouts: [cutout], fingerHoles: [finger] } };
+  const result = (await getHandler()(request, context())).value;
+  expect(result.validationIssues?.filter(issue => issue.severity === "error")).toEqual([]);
+  // A vertical ray through the layout's rectangle centre meets no printable surface.
+  const hits = (mesh: BuildBinResult["mesh"], x: number, y: number) => {
+    const zs: number[] = [];
+    for (let i = 0; i < mesh.indices.length; i += 3) {
+      const [a, b, c] = Array.from(mesh.indices.subarray(i, i + 3), n => mesh.positions.subarray(n * 3, n * 3 + 3));
+      const denominator = (b[1] - c[1]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[1] - c[1]);
+      if (Math.abs(denominator) < 1e-8) continue;
+      const u = ((b[1] - c[1]) * (x - c[0]) + (c[0] - b[0]) * (y - c[1])) / denominator;
+      const v = ((c[1] - a[1]) * (x - c[0]) + (a[0] - c[0]) * (y - c[1])) / denominator;
+      if (u >= -1e-6 && v >= -1e-6 && u + v <= 1 + 1e-6) zs.push(u * a[2] + v * b[2] + (1 - u - v) * c[2]);
+    }
+    return zs;
+  };
+  expect(hits(result.mesh, 30, 0)).toEqual([]);
+  expect(hits(result.mesh, -30, 0).length).toBeGreaterThan(0);
+  const volume = printableMeshVolume(result.mesh);
+  expect(volume).toBeGreaterThan(0);
+  expect(Object.values(result.materialMeshes!).reduce((sum, mesh) => sum + printableMeshVolume(mesh), 0)).toBeCloseTo(volume, 1);
+  expect(writeBinarySTL(result.mesh).byteLength).toBe(84 + result.mesh.indices.length / 3 * 50);
   const parts = Object.entries(result.materialMeshes!).map(([name, mesh]) => ({ name, mesh }));
-  for (const { mesh } of parts) expect(nonManifoldEdgeCount(mesh)).toBe(0);
-  const model = strFromU8(unzipSync(writeThreeMf(parts, { assemble: true }))["3D/3dmodel.model"]);
-  expect(model).toContain('z="0"');
-  expect(model).not.toMatch(/z="-/);
+  const model = strFromU8(unzipSync(writeThreeMf(parts))["3D/3dmodel.model"]);
+  expect(model.match(/<triangle /g)?.length).toBe(parts.reduce((sum, part) => sum + part.mesh.indices.length / 3, 0));
 });

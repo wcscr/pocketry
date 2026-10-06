@@ -147,6 +147,7 @@ export function useBinGeometry(
   const inputRef = useRef({ key: "", gesture: undefined as object | undefined, epoch: 0 });
   const sequenceRef = useRef(0);
   const displayedSequenceRef = useRef(0);
+  const displayedRequestKeyRef = useRef<string | null>(null);
   const previousKeysRef = useRef<{ model: string; unrounded: string } | null>(null);
   const detailedCostsRef = useRef(new Map<string, number>());
   const geometryRef = useRef<BufferGeometry | null>(null);
@@ -293,6 +294,7 @@ export function useBinGeometry(
         current.gesture === gesture && current.epoch === epoch;
       if ((obsolete && !intermediate) || sequence < displayedSequenceRef.current || (draft && detailedPublished)) return;
       displayedSequenceRef.current = sequence;
+      displayedRequestKeyRef.current = requestKey;
       const next = toBufferGeometry(result.materialMeshes?.body ?? result.bodyMesh ?? result.mesh);
       const nextPocketFloor = result.materialMeshes?.pocketFloors
         ? toBufferGeometry(result.materialMeshes.pocketFloors) : null;
@@ -331,6 +333,29 @@ export function useBinGeometry(
       if (!draft) detailedPublished = true;
     };
 
+    const clearObsoleteGeometry = () => {
+      // A current draft remains useful after refinement fails. An older bin
+      // beside the current selection outline looks like a misplaced duplicate.
+      if (displayedRequestKeyRef.current === requestKey) return;
+      displayedRequestKeyRef.current = null;
+      geometryRef.current?.dispose();
+      pocketFloorGeometryRef.current?.dispose();
+      stackingRimGeometryRef.current?.dispose();
+      textGeometryRef.current.forEach(part => part.dispose());
+      geometryRef.current = null;
+      pocketFloorGeometryRef.current = null;
+      stackingRimGeometryRef.current = null;
+      textGeometryRef.current = [];
+      setGeometry(null);
+      setPocketFloorGeometry(null);
+      setStackingRimGeometry(null);
+      setTextGeometries([]);
+      setHasPocketFloor(false);
+      setHasStackingRim(false);
+      setBuiltSpec(null);
+      setPreviewIsDraft(false);
+    };
+
     const rememberCost = (result: BuildBinResult) => {
       if (section) return;
       const costs = detailedCostsRef.current;
@@ -358,6 +383,7 @@ export function useBinGeometry(
         publish(result, false);
       } catch (cause: unknown) {
         if (stale || cause instanceof WorkerCancelledError) return;
+        clearObsoleteGeometry();
         setError(`Detailed preview failed: ${cause instanceof Error ? cause.message : String(cause)}`);
         setBuilding(false);
       } finally {
@@ -387,6 +413,7 @@ export function useBinGeometry(
         // A draft is optional. If it fails, try the authored detailed geometry
         // before reporting an error; a failed simple build has no fallback.
         if (!needsRefinement) {
+          clearObsoleteGeometry();
           setError(cause instanceof Error ? cause.message : String(cause));
           setBuilding(false);
         }
@@ -428,6 +455,7 @@ export function useBinGeometry(
     () => () => {
       inputRef.current = { key: "", gesture: undefined, epoch: inputRef.current.epoch + 1 };
       previousKeysRef.current = null;
+      displayedRequestKeyRef.current = null;
       previewQueueRef.current.pending = null;
       clearTimeout(previewQueueRef.current.timer);
       previewQueueRef.current = newPreviewQueue();

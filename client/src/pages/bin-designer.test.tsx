@@ -2511,7 +2511,7 @@ describe("BinDesignerPage", () => {
       React.act(() => magnet()!.click());
       choose("ULTIM8 jig pegs");
       expect(magnet()).toBeNull();
-      expect(vi.mocked(useBinGeometry).mock.lastCall?.[0].pegBottom).toEqual({ diameterMm: 4.8, lengthMm: 4, underside: "sloped", density: 1 });
+      expect(vi.mocked(useBinGeometry).mock.lastCall?.[0].pegBottom).toEqual({ diameterMm: 4.8, lengthMm: 4, underside: "sloped" });
       const input = () => container.querySelector<HTMLInputElement>('[aria-label="Peg diameter in millimetres"]')!;
       React.act(() => {
         input().focus();
@@ -2527,21 +2527,8 @@ describe("BinDesignerPage", () => {
       React.act(() => underside.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true })));
       React.act(() => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(option => option.textContent === "Short bridges")!.click());
       expect(vi.mocked(useBinGeometry).mock.lastCall?.[0].pegBottom?.underside).toBe("bridged");
-      const chooseDensity = (label: string) => {
-        const trigger = container.querySelector<HTMLButtonElement>('[aria-label="Peg density"]')!;
-        React.act(() => trigger.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true })));
-        React.act(() => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(option => option.textContent === label)!.click());
-      };
-      chooseDensity("Every 2 holes");
-      expect(vi.mocked(useBinGeometry).mock.lastCall?.[0].pegBottom).toMatchObject({ density: 2, underside: "sloped" });
-      React.act(() => undo.click());
-      expect(vi.mocked(useBinGeometry).mock.lastCall?.[0].pegBottom).toMatchObject({ density: 1, underside: "bridged" });
       React.act(() => undo.click());
       expect(vi.mocked(useBinGeometry).mock.lastCall?.[0].pegBottom?.underside).toBe("sloped");
-      for (const density of ["corners", 2, 3, 4, 5, 1] as const) {
-        chooseDensity(density === "corners" ? "Corners only" : density === 1 ? "Every hole" : `Every ${density} holes`);
-        expect(vi.mocked(useBinGeometry).mock.lastCall?.[0].pegBottom?.density).toBe(density);
-      }
       choose("Gridfinity feet");
       expect(magnet()!.getAttribute("aria-checked")).toBe("true");
       expect(vi.mocked(useBinGeometry).mock.lastCall?.[0].pegBottom).toBeNull();
@@ -3448,6 +3435,29 @@ describe("BinDesignerPage", () => {
       expect(controls.querySelector<HTMLInputElement>('input')!.checked).toBe(true);
       expect(controls.querySelector('select')!.value).toBe("axis");
     } finally { unmount(); window.history.replaceState(null,"",originalUrl); }
+  });
+
+  it.each(["standard", "workflow"])("opens a surface pocket fully through a finger groove in %s layout", async layout => {
+    const url = window.location.href;
+    window.history.replaceState(null, "", `/bin?layout=${layout}`);
+    const shape = rectangularShape("tool", "Through rectangle");
+    const spec = parseBinSpec({ gridX: 3, gridY: 1, heightUnits: 4, lip: "none", pegBottom: {} });
+    const original = parseCutoutPlacement({ id: "through-groove", shapeId: shape.id, position: { x: 30, y: 0 },
+      depth: { mode: "remaining", floorThicknessMm: 2 }, bottomFilletMm: 0 });
+    const finger = fingerHoleSchema.parse({ id: "groove", kind: "oblong-deep-scoop", center: { x: 0, y: 0 }, lengthMm: 100, diameterMm: 18, depthMm: 12 });
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, spec, shapes: [shape], cutouts: [original], fingerHoles: [finger] });
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration(); selectPocket(container, original.id);
+      React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Pocket depth mode"]')!
+        .dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true })));
+      React.act(() => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(node => node.textContent === "Through")!.click());
+      const changed = vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0];
+      expect(changed.depth).toEqual({ mode: "through" });
+      expect(changed.elevationMm).toBeUndefined(); expect(changed.zOffsetMm).toBeUndefined();
+      expect(changed.position).toEqual(original.position);
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.fingerHoles).toEqual([finger]);
+    } finally { unmount(); window.history.replaceState(null, "", url); }
   });
 
   it.each([false,true])("keeps the original object when selecting Through and restoring fixed depth (split=%s)", async split => {

@@ -17,7 +17,9 @@ import { binSpecSchema, type BinSpec } from "./types";
 import { designLinkErrors } from "./design-links";
 import { transformOriginsSchema } from "./transform-origins";
 import { binHistorySchema } from "./history";
-import { migrateProfilePocket } from "./rigid-pocket";
+import { hasRigidPocket, migrateProfilePocket } from "./rigid-pocket";
+import { hasPocketTilt } from "./pocket-orientation";
+import { pocketDepthChangePatch } from "./pocket-depth-change";
 import { resolvePocketSplit } from "./pocket-split";
 import { expandProjectFontSources } from "./project-font-sources";
 export { serializeProjectDoc } from "./project-font-sources";
@@ -64,10 +66,11 @@ export { serializeProjectDoc } from "./project-font-sources";
  * Version 34 retains unclipped source depth for rigid minimum-floor pockets.
  * Version 35 retains finite through-pocket objects during rigid movement.
  * Version 36 adds ULTIM8 peg bottoms; older projects keep their base.
- * Version 37 adds peg density; existing peg bottoms keep every hole.
+ * Version 37 previewed optional peg density.
+ * Version 38 restores every-hole pegs and repairs unraised surface-through pockets.
  */
 
-export const PROJECT_SCHEMA_VERSION = 37 as const;
+export const PROJECT_SCHEMA_VERSION = 38 as const;
 
 const projectFields = {
   shapes: z.array(tracedShapeSchema),
@@ -266,6 +269,62 @@ function migrateLegacyProject(doc: LegacyProjectDoc): ProjectDoc {
   });
 }
 
+/** Remove only the validated density field from the short-lived v37 preview.
+ * Preserve all other fields for strict validation, including malformed data. */
+function removePreviewPegDensity(input: Record<string, unknown>): Record<string, unknown> {
+  const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
+  const spec = (value: unknown): unknown => {
+    if (!record(value) || !record(value.pegBottom)) return value;
+    const { density, ...pegBottom } = value.pegBottom;
+    if (density !== undefined && density !== "corners" && !(typeof density === "number" && Number.isInteger(density) && density >= 1 && density <= 5)) return value;
+    return { ...value, pegBottom };
+  };
+  const history = input.history;
+  const origins = input.transformOrigins;
+  return { ...input, spec: spec(input.spec),
+    ...(record(history) && Array.isArray(history.stack) ? { history: { ...history, stack: history.stack.map(entry =>
+      record(entry) && record(entry.doc) ? { ...entry, doc: { ...entry.doc, spec: spec(entry.doc.spec) } } : entry) } } : {}),
+    ...(record(origins) && Array.isArray(origins.pockets) ? { transformOrigins: { ...origins, pockets: origins.pockets.map(origin =>
+      record(origin) ? { ...origin, spec: spec(origin.spec) } : origin) } } : {}),
+  };
+}
+
+/** Earlier depth controls froze ordinary through pockets at their blind floor.
+ * Repair only a proven, unchanged floor/depth from retained creation or history
+ * data. Raised/tilted finite pockets and documents without evidence stay intact. */
+function restoreLegacySurfaceThrough(doc: ProjectDoc): ProjectDoc {
+  const shapes = new Map(doc.shapes.map(shape => [shape.id, shape]));
+  type Reference = { cutout: CutoutPlacement; spec: BinSpec };
+  let references = new Map<string, Reference>();
+  const remember = (cutout: CutoutPlacement, spec: BinSpec) => {
+    if (!hasRigidPocket(cutout) && !hasPocketTilt(cutout) && !cutout.split && !cutout.profileBottom
+      && !(cutout.zOffsetMm ?? 0) && cutout.depth.mode !== "through") references.set(cutout.id, { cutout, spec });
+  };
+  for (const origin of doc.transformOrigins?.pockets ?? []) remember(origin.cutout, origin.spec);
+  const repair = (cutouts: CutoutPlacement[], spec: BinSpec): CutoutPlacement[] => cutouts.map(cutout => {
+    const reference = references.get(cutout.id), shape = shapes.get(cutout.shapeId);
+    if (cutout.depth.mode === "through" && hasRigidPocket(cutout) && !hasPocketTilt(cutout) && !cutout.split
+      && !cutout.profileBottom && reference && shape && reference.cutout.shapeId === cutout.shapeId) {
+      const previous = resolvePlacedPocketDepth(reference.spec, reference.cutout.depth, shape, reference.cutout);
+      if (previous.floorZ !== null && previous.floorZ > 0
+        && Math.abs(cutout.elevationMm! - previous.floorZ) < 1e-8
+        && Math.abs((cutout.depth.sourceDepthMm ?? -1) - (previous.axialDepthMm ?? -2)) < 1e-8) {
+        return { ...cutout, ...pocketDepthChangePatch(spec, shape, { ...cutout, elevationMm: undefined, zOffsetMm: undefined }, { mode: "through" }) };
+      }
+    }
+    remember(cutout, spec);
+    return cutout;
+  });
+  let currentReferences = references;
+  const history = doc.history ? { ...doc.history, stack: doc.history.stack.map((entry, index) => {
+    const cutouts = repair(entry.doc.cutouts, entry.doc.spec);
+    if (index === doc.history!.index) currentReferences = new Map(references);
+    return { ...entry, doc: { ...entry.doc, cutouts } };
+  }) } : undefined;
+  references = currentReferences;
+  return projectDocSchema.parse({ ...doc, cutouts: repair(doc.cutouts, doc.spec), history });
+}
+
 /**
  * Parses a stored document, returning null on any mismatch — a corrupt or
  * future-versioned doc must never clobber the in-memory state, and rendering
@@ -276,9 +335,12 @@ export function parseProjectDoc(input: unknown): ProjectDoc | null {
     input = expandProjectFontSources(input);
   }
   if (input && typeof input === "object" && !Array.isArray(input)
-      && [26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36].includes((input as Record<string, unknown>).schemaVersion as number)) {
+      && [26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37].includes((input as Record<string, unknown>).schemaVersion as number)) {
     // Strict current schemas still reject unsupported data from version-27 prototypes.
-    return parseProjectDoc({ ...input, schemaVersion: PROJECT_SCHEMA_VERSION });
+    const legacy = input as Record<string, unknown>;
+    const cleaned = legacy.schemaVersion === 37 ? removePreviewPegDensity(legacy) : legacy;
+    const migrated = parseProjectDoc({ ...cleaned, schemaVersion: PROJECT_SCHEMA_VERSION });
+    return migrated && (legacy.schemaVersion as number) >= 35 ? restoreLegacySurfaceThrough(migrated) : migrated;
   }
   const result = projectDocSchema.safeParse(input);
   if (result.success) {
