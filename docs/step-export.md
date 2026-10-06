@@ -1,120 +1,92 @@
-# STEP export for CAD editing
+# Experimental STEP export for CAD editing
 
-Pocketry's early STEP exporter reconstructs boundary-representation solids from
-the design's millimetre outlines and pocket depths. It does not convert STL,
-3MF, preview triangles, or Manifold mesh output to STEP.
+Two isolated investigations now build browser-local CAD boundary representations
+from Pocketry design data. Neither is a production default. See
+[the investigation comparison](step-export-investigations.md) for evidence,
+benchmarks, unsupported cases, and the required human selection gate.
 
-In **Export**, choose **Save STEP CAD package**. The single ZIP contains:
+## Download and editing contract
 
-- `bin.step`: the finished tray with its pockets subtracted.
-- `design-objects.step`: an assembly containing the bin blank and each named
-  pocket cutter, in their original positions. These are intentionally
-  overlapping construction tools, not additional printable parts.
-- `objects.json`: placement IDs, source shape IDs, names, roles, and units.
-- `design.pocketry.json`: the original editable Pocketry project, including
-  its settings and any saved history.
-- `README.txt`: instructions for the two STEP files.
+In Export, choose **Save STEP CAD package**. The ZIP contains:
 
-Import `bin.step` to add CAD features to the finished tray. Import
-`design-objects.step` when you want to reuse or change individual pocket tools
-and reconstruct the cuts. STEP carries named solids and boundary geometry;
-this implementation does not generate native FreeCAD or Fusion parametric
-features or a feature history. Keep the Pocketry JSON for design settings.
+| File | Contents |
+| --- | --- |
+| `bin.step` | Finished bin and valid separate text bodies. |
+| `design-objects.step` | Named bin blank, finite source objects, actual cutters, finger-access tools, and text bodies. Construction tools intentionally overlap. |
+| `design.pocketry.json` | The committed project snapshot, including retained history. |
+| `objects.json` | Stable IDs, names, roles, source references, assembly paths, transforms, links, status, and reconstruction order. |
+| `export-report.json` | Snapshot hash, engine/exporter versions, tolerances, timings, dimensions, topology, memory, and solid counts. |
+| `README.txt` | Import and reconstruction instructions. |
 
-## Current support
+STEP carries editable, named solids with their placement and applicable colors.
+It does not supply a native FreeCAD or Fusion parametric feature history. Keep
+the Pocketry project to retain authored settings and history. A fully raised
+pocket retains its finite source body and an inactive cutter entry without a
+dummy solid. Duplicate and Unicode names remain distinct through stable IDs.
 
-- Rectangular bins with a flat bottom, no stacking rim, solid fill at 100%.
-- Full, half, and quarter grid pitch; bin corners remain analytic cylinders.
-- Upright, surface-anchored pockets with a single fixed depth, remaining floor,
-  or through cut. Position, heading, mirroring, and outline scaling are retained.
-- Basic rectangles/squares and uniformly scaled authored circles. The circle
-  recognizer checks Pocketry's original regular-circle samples to within
-  0.00000001 mm; it never fits circles to traces or to changed contour points.
-- Simple concave traced outlines, retaining their original straight outline
-  segments as planar side faces. Traces are still polygonal boundaries, not
-  magically recovered splines, but their extrusion surfaces are not triangles.
-- Each pocket's bounding envelope must be strictly inside the rounded bin and
-  separate from every other envelope. This conservative restriction can reject
-  nonintersecting contours whose bounding boxes overlap.
-- At most 2,000 outline vertices across the placed pockets, to bound work in
-  this initial browser implementation.
+The OCCT XCAF writer emits AP214 B-reps in millimetres. STEP construction never
+reads preview, STL, 3MF, or mesh data. Authored polygons retain their original
+line boundaries; basic circles and rectangles retain primitive provenance in
+schema 36. Nonuniformly scaled circles become ellipses. Contour revision removes
+primitive metadata, and migration recognizes only unambiguous original basics.
 
-The export button explains the first unsupported setting. Export also checks
-the complete snapshot before creating any download. There is no mesh fallback,
-partial export, silent feature removal, or change to the saved design.
+## Investigation coverage
 
-Gridfinity feet, stacking rims, hollow/partial-fill bins, custom footprints,
-hardware holes, label tabs, finger access, text, edge rounding, clearance offsets,
-ellipses, tilted/raised/rigid pockets, split/profile bottoms, overlapping cuts,
-multiple outlines and outline islands are not supported yet.
+The shared corpus covers standard feet and lips, hollow and solid bins,
+irregular footprints, rotated/mirrored rectangles, circles, ellipses, concave
+contours with holes, overlapping cuts, clearance, corner and edge rounding,
+tilted rounded split sources with axial insertion, inactive raised sources,
+finger access, original Bézier text outlines, and separate floor/rim/text
+volumes. Full/half/quarter feet and partial fill have additional kernel tests.
 
-## Implementation and next milestones
+This is not full authored-feature support. Hardware tools, supportless hardware
+ceilings, crush ribs, label tabs, profile bottoms, tilted mouth rounding, and
+some curved insertion/finger-access operations remain unavailable. They are
+rejected before or during construction; there is no mesh fallback, omitted
+rounding, geometry-changing repair, or partial ZIP. B's CAD fit-check methods
+also remain unavailable. Read the comparison before relying on either branch.
 
-`client/src/lib/export/step.ts` is a dependency-free AP214 serializer using
-`ADVANCED_FACE`, `PLANE`, `CIRCLE`, `CYLINDRICAL_SURFACE`, shared edge topology,
-`CLOSED_SHELL`, `MANIFOLD_SOLID_BREP`, and product/assembly relationships.
-`step-bin.ts` resolves the supported design subset and writes the ZIP with the
-existing `fflate` dependency. No second geometry kernel is linked or bundled.
+## Local execution and limits
 
-The next work should preserve authored primitive intent explicitly in project
-data, extend the analytic model to ellipse/rounded pocket profiles and finger
-access, and add standard feet/lips. Arbitrary intersecting features and fillets
-need a reviewed CAD construction strategy and additional interoperability
-fixtures; they should not be approximated by wrapping a mesh in STEP.
+`replicad-opencascadejs@1.1.0` runs in one dedicated module worker. A retains
+Manifold for printing and loads CAD only for STEP, releasing the worker after
+every export. B constructs bins in CAD and tessellates those boundaries for
+preview and printing. B recycles after eight completed jobs or a heap reaching
+256 MiB. Cancellation, failure, crash, or timeout destroys the worker; the
+project and last preview remain outside it.
 
-## OpenSCAD review (2026-10-06)
+Operational guards are 20,000 profile segments, 200 authored objects, 120 seconds
+of modeling, and a 512 MiB heap check between operations. A 180-second job
+watchdog also covers loading/writing. Native allocations can exceed a guard
+before control returns; these limits cannot guarantee survival on a phone.
+The single-threaded build requires no new cross-origin isolation. Designs are
+not uploaded. See [the license/provenance review](cad-engine-review.md) and the
+served `/licenses/cad/` directory for notices, complete corresponding sources,
+hashes, and build recipes. Binary reproducibility remains unattested.
 
-Reviewed upstream OpenSCAD at `c0ac8289f1c9db6f70891da5df3b4085b7eaf8b6`:
-its [export format registry](https://github.com/openscad/openscad/blob/c0ac8289f1c9db6f70891da5df3b4085b7eaf8b6/src/io/export.cc)
-contains no STEP writer. Its [CSG export path](https://github.com/openscad/openscad/blob/c0ac8289f1c9db6f70891da5df3b4085b7eaf8b6/src/openscad.cc#L417)
-writes the evaluated construction tree before geometry rendering.
+## Verification and reproduction
 
-The useful reference is [scad123d](https://github.com/etjones/scad123d), reviewed
-at `85811a1a9daa291fb9ebfdfd8339322a9ec5b52c`. Its `openscad.py` obtains `.csg`,
-`build.py` rebuilds primitives/transforms/Booleans with build123d, and
-`solid123d/export.py` writes named assembly bodies through OCCT's XCAF STEP
-writer. It allows mesh fallbacks for some unsupported operations; Pocketry's
-STEP contract must reject those instead. No source from either project was
-copied into this implementation.
-
-The architectural lesson for broader Pocketry support is to retain a symbolic
-construction graph (profiles, extrusions, sweeps, transforms, named cuts) before
-mesh evaluation. A CAD backend could replay that graph to handle intersecting
-cuts and fillets. Pocketry already has source design data, so introducing an
-OpenSCAD parser/conversion dependency is unnecessary. This is a next-stage
-architecture inference, not an implemented general CAD backend or an exception
-to the repository's single-kernel policy.
-
-## Local acceptance checks
-
-Run the normal Node 22 type checks, test suite, and production build. Unit and
-page tests cover package contents, geometry contracts, project round trips,
-unsupported-feature blocking, and the export controls in both desktop layouts.
-
-Generate independent CAD acceptance fixtures:
+Use Node 22 for the required local check, test, build, and diff checks. GitHub CI
+remains disabled. Produce the same corpus in each worktree:
 
 ```sh
-npm exec -- tsx scripts/export-step-fixtures.ts /tmp/pocketry-step-acceptance
+node scripts/export-cad-investigation.mjs outputs/cad-investigation dedicated
+# In the unified worktree, use unified instead of dedicated.
 ```
 
-The optional reader runs separately from the application. In an isolated
-Python 3.12 environment install `cadquery-ocp==7.8.1.1.post1`, then run:
+In a separate Python environment with `cadquery-ocp==7.8.1.1.post1`:
 
 ```sh
-python scripts/verify-step-export.py /tmp/pocketry-step-acceptance
+python scripts/verify-cad-investigation.py outputs/cad-investigation
 ```
 
-It imports the finished and construction STEP files with OCCT, checks solid
-validity, analytic surface types, dimensions, exact expected volumes, assembly
-names (including Unicode), reconstructs the tray by subtracting the exported
-source cutters and verifies it equals the finished solid, and performs another
-Boolean cut on every finished
-bin. It saves `cad-verification.json`. Current fixtures cover rotated/mirrored
-rectangles, circular through holes, concave traces, and quarter-pitch empty bins.
+The independent reader checks solids, dimensions, circle/ellipse radii, names,
+placements, reconstruction, further editing and STEP reopening, plus printable
+mesh topology and 3MF part names. This is separate evidence from native CAD
+application checks, slicer qualification, and physical prints. Those remaining
+gates are recorded in the comparison.
 
-This independent reader verifies CAD topology, not application-specific UI
-interoperability. Direct import/edit acceptance in FreeCAD and Fusion 360 is
-still required before claiming full compatibility with either application.
-
-References: [OCCT STEP translator](https://raw.githubusercontent.com/Open-Cascade-SAS/OCCT/master/dox/user_guides/step/step.md),
-[FreeCAD topological scripting](https://github.com/FreeCAD/FreeCAD-documentation/blob/main/wiki/Topological_data_scripting.md).
+The original handwritten serializer and its fixtures remain as regression
+references. The investigation UI uses the worker/XCAF implementation. Removal
+of the early implementation and production completion require the selected
+approach to pass the agreed release gates.
