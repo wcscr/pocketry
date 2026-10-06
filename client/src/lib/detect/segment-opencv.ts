@@ -10,6 +10,7 @@ import {
 } from "./background";
 import { applySensitivity, otsuThreshold } from "./otsu";
 import { clampRoi, morphKernelSize } from "./segment-js";
+import { restoreThinFeatures } from "./thin-features";
 import { DETECT_DEFAULTS, type DetectOptions, type ImageLike, type ScoreField } from "./types";
 
 /**
@@ -282,7 +283,7 @@ function cleanAndGate(
   const size = morphKernelSize(width, height);
   if (size <= 1) return;
 
-  const mask = scope.track(cv.matFromArray(height, width, cv.CV_8UC1, Array.from(score)));
+  const mask = scope.track(cv.matFromArray(height, width, cv.CV_8UC1, score));
   const binary = scope.track(new cv.Mat());
   cv.threshold(mask, binary, iso - 1, 255, cv.THRESH_BINARY);
 
@@ -294,6 +295,7 @@ function cleanAndGate(
   cv.morphologyEx(binary, binary, cv.MORPH_CLOSE, kernel, new cv.Point(-1, -1), 1, cv.BORDER_REPLICATE);
 
   const cleaned = binary.data as Uint8Array;
+  restoreThinFeatures(score, cleaned, width, height, iso, size);
   for (let i = 0; i < score.length; i++) {
     if (cleaned[i] === 0) score[i] = 0;
   }
