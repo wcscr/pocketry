@@ -1,6 +1,11 @@
 import { binHeightMm, binWallHeightMm, STACKING_LIP_SUPPORT_HEIGHT } from "./standard";
 import type { BinSpec } from "./types";
 
+/** Pockets and finger access require solid material in the current design rules. */
+export function hasPocketFill(spec: Pick<BinSpec, "fill">): boolean {
+  return spec.fill === "solid";
+}
+
 /** Older callers without a percentage retain the full-height surface. */
 export type FillHeightSpec = Pick<BinSpec, "heightUnits" | "lip"> &
   Partial<Pick<BinSpec, "fillHeightPercent">>;

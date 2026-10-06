@@ -1,3 +1,4 @@
+import { hasPocketFill } from "./fill";
 import { hasPocketTilt, pocketAxis } from "./pocket-orientation";
 import { hasRigidPocket } from "./rigid-pocket";
 import { pocketInsertionError } from "./pocket-insertion";
@@ -17,6 +18,7 @@ import {
 } from "./footprint";
 import {
   effectiveFingerHoleDepthMm,
+  isShapeCalibrated,
   defaultPocketFloorThicknessMm,
   fingerHoleFootprintRing,
   placementFootprint,
@@ -297,7 +299,7 @@ export function validateLayout(
   const issues: ValidationIssue[] = [];
   if (cutouts.length === 0 && fingerHoles.length === 0) return issues;
 
-  if (spec.fill !== "solid") {
+  if (!hasPocketFill(spec)) {
     issues.push({
       code: "cutouts-require-solid-fill",
       severity: "error",
@@ -317,7 +319,7 @@ export function validateLayout(
       });
       continue;
     }
-    if (shape.sourceMmPerPx === null && shape.source !== "basic-shape") {
+    if (!isShapeCalibrated(shape)) {
       issues.push({
         code: "uncalibrated-scale",
         severity: "error",

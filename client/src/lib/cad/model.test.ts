@@ -29,6 +29,14 @@ describe("CAD construction model and inexpensive preflight",()=>{
     traced.shapes[0].outlineMm[0].outer=Array.from({length:CAD_LIMITS.profileSegments+1},(_,i)=>({x:i,y:i%2}));
     const status=getStepExportStatus(traced);expect(status.supported).toBe(false);expect(status.issues.some(i=>i.message.includes("will not be simplified"))).toBe(true);
   });
+  it("applies the shared calibration and solid-fill rules before CAD construction",()=>{
+    const doc=cadInvestigationFixtures().concave;doc.shapes[0].sourceMmPerPx=null;
+    expect(getStepExportStatus(doc).issues[0]).toMatchObject({objectId:"concave",operation:"source units"});
+    doc.shapes[0].sourceMmPerPx=1;doc.spec.fill="none";
+    expect(getStepExportStatus(doc).issues[0].operation).toBe("bin construction");
+    const basic=cadInvestigationFixtures().mixed;basic.shapes.forEach(s=>s.sourceMmPerPx=null);
+    expect(getStepExportStatus(basic).supported).toBe(true);
+  });
   it("identifies unsupported authored operations before loading CAD",()=>{
     const doc=cadInvestigationFixtures().tilted;doc.cutouts[0].topFilletMm=0.5;
     expect(getStepExportStatus(doc).issues[0]).toMatchObject({objectId:doc.cutouts[0].id,operation:"pocket mouth rounding"});
