@@ -7,6 +7,8 @@ import { TraceProvider, useTrace, type TraceStore } from "@/state/trace-store";
 import { rectRing } from "@/lib/geometry/fixtures";
 import { outlineToPathData } from "@/lib/export/svg";
 import { suggestSymmetryAxis } from "@/lib/geometry/symmetry";
+import { transformImagePoint } from "@shared/geometry/image-alignment";
+import { mmPerPixel } from "@shared/geometry/scale";
 import { TraceSymmetryTool } from "./trace-symmetry-tool";
 
 let trace: TraceStore;
@@ -90,21 +92,87 @@ describe("symmetry preview", () => {
     expect(trace.outline).toBe(original); expect(trace.history).toBe(history);
   });
 
-  it("applies the upright preview as one edit, keeping other shapes and calibration unchanged", () => {
+  it("applies the upright preview and matching photo rotation as one undoable edit", () => {
     ready(); const original = trace.outline, history = trace.history, image = trace.imageUrl;
     click("Symmetry & straighten"); toggleUpright(); const expected = uprightPreview();
+    const previewMatrix = document.querySelector('[data-testid="trace-image-alignment"]')!.getAttribute("transform");
     click("Apply symmetry & rotation");
     expect(outlineToPathData([trace.outline[1]])).toEqual(expected);
     const uprightAxis = suggestSymmetryAxis(trace.outline[1].outer);
     expect(uprightAxis.start.x).toBeCloseTo(uprightAxis.end.x, 8);
     expect(uprightAxis.end.y).toBeGreaterThan(uprightAxis.start.y);
-    expect(trace.outline[0]).toBe(original[0]); expect(trace.calibration).toBe(calibration);
-    expect(trace.imageUrl).toBe(image); expect(trace.imageSize).toEqual({ width: 200, height: 150 });
+    expect(`matrix(${trace.imageAlignment!.matrix.join(" ")})`).toBe(previewMatrix);
+    expect(trace.outline[0].outer).toEqual(original[0].outer.map(p => transformImagePoint(p, trace.imageAlignment!.matrix)));
+    expect(mmPerPixel(trace.calibration)).toBeCloseTo(mmPerPixel(calibration)!, 8);
+    expect(trace.imageUrl).toBe(image); expect(trace.imageSize).toEqual(trace.imageAlignment!.size);
     expect(trace.history.index).toBe(history.index + 1);
     expect(trace.history.stack[trace.history.index].label).toBe("Make contour symmetric and upright");
     const changed = trace.outline;
     React.act(() => trace.undo()); expect(trace.outline).toBe(original);
+    expect(trace.imageAlignment).toBeNull(); expect(trace.calibration).toBe(calibration);
+    expect(trace.imageSize).toEqual({ width: 200, height: 150 });
     React.act(() => trace.redo()); expect(trace.outline).toBe(changed);
+    expect(`matrix(${trace.imageAlignment!.matrix.join(" ")})`).toBe(previewMatrix);
+  });
+
+  it("zooms with buttons and wheel without changing the axis or committing the preview", () => {
+    ready(); const original = trace.outline, history = trace.history;
+    click("Symmetry & straighten"); const path = preview();
+    const viewport = document.querySelector('[data-testid="symmetry-viewport"]')!;
+    const initial = viewport.getAttribute("transform");
+    React.act(() => document.querySelector<HTMLButtonElement>('[aria-label="Zoom in symmetry preview"]')!.click());
+    expect(viewport.getAttribute("transform")).not.toEqual(initial);
+    expect(preview()).toEqual(path);
+    const zoomed = viewport.getAttribute("transform");
+    React.act(() => document.querySelector('[data-testid="symmetry-preview"]')!.dispatchEvent(
+      new WheelEvent("wheel", { deltaY: -120, clientX: 100, clientY: 100, bubbles: true, cancelable: true })));
+    expect(viewport.getAttribute("transform")).not.toEqual(zoomed);
+    click("Fit"); expect(viewport.getAttribute("transform")).toEqual(initial);
+    expect(preview()).toEqual(path); expect(trace.outline).toBe(original); expect(trace.history).toBe(history);
+  });
+
+
+  it("maps axis dragging through the zoomed and panned scene", () => {
+    ready(); const history = trace.history;
+    click("Symmetry & straighten");
+    React.act(() => document.querySelector<HTMLButtonElement>('[aria-label="Zoom in symmetry preview"]')!.click());
+    const canvas = document.querySelector<SVGSVGElement>('[data-testid="symmetry-preview"]')!;
+    const scene = document.querySelector('[data-testid="symmetry-scene"]')!;
+    const viewport = document.querySelector('[data-testid="symmetry-viewport"]')!;
+    const handle = document.querySelector('[aria-label="First axis handle"]')!;
+    Object.defineProperty(handle, "setPointerCapture", { value: vi.fn() });
+    const pointer = (element: Element, type: string, x: number, y: number, pointerId = 1, pointerType = "mouse") => React.act(() => {
+      const event = new Event(type, { bubbles: true });
+      Object.defineProperties(event, { pointerId: { value: pointerId }, pointerType: { value: pointerType },
+        button: { value: 0 }, clientX: { value: x }, clientY: { value: y } });
+      element.dispatchEvent(event);
+    });
+    // Pan the photograph without touching the draft axis.
+    const original = preview(), zoomed = viewport.getAttribute("transform");
+    pointer(canvas, "pointerdown", 10, 20); pointer(canvas, "pointermove", 70, 50); pointer(canvas, "pointerup", 70, 50);
+    expect(viewport.getAttribute("transform")).not.toBe(zoomed); expect(preview()).toBe(original);
+    const [tx, ty, scale] = viewport.getAttribute("transform")!.match(/-?[\d.]+/g)!.map(Number);
+    const [sx, sy] = scene.getAttribute("transform")!.match(/-?[\d.]+/g)!.map(Number);
+    Object.defineProperty(scene, "getScreenCTM", { value: () => ({ inverse: () => ({ scale, tx: tx + sx * scale, ty: ty + sy * scale }) }) });
+    Object.defineProperty(canvas, "createSVGPoint", { value: () => ({ x: 0, y: 0,
+      matrixTransform(m: { scale: number; tx: number; ty: number }) { return { x: (this.x - m.tx) / m.scale, y: (this.y - m.ty) / m.scale }; } }) });
+    pointer(handle, "pointerdown", 0, 0);
+    pointer(canvas, "pointermove", tx + (sx + 82) * scale, ty + (sy + 15) * scale);
+    pointer(canvas, "pointerup", 0, 0);
+    expect(Number(handle.getAttribute("cx"))).toBeCloseTo(82); expect(Number(handle.getAttribute("cy"))).toBeCloseTo(15);
+    expect(trace.history).toBe(history);
+
+    // A second finger switches an in-progress axis edit to pinch zoom, restoring that draft edit.
+    const axisBeforePinch = preview(), viewBeforePinch = viewport.getAttribute("transform");
+    pointer(handle, "pointerdown", 100, 100, 2, "touch");
+    pointer(canvas, "pointermove", tx + (sx + 84) * scale, ty + (sy + 15) * scale, 2, "touch");
+    expect(preview()).not.toBe(axisBeforePinch);
+    pointer(canvas, "pointerdown", 300, 300, 3, "touch");
+    expect(preview()).toBe(axisBeforePinch);
+    pointer(canvas, "pointermove", 400, 400, 3, "touch");
+    expect(viewport.getAttribute("transform")).not.toBe(viewBeforePinch); expect(preview()).toBe(axisBeforePinch);
+    pointer(canvas, "pointerup", 400, 400, 3, "touch"); pointer(canvas, "pointerup", 100, 100, 2, "touch");
+    click("Cancel"); expect(trace.history).toBe(history);
   });
 
   it("dismisses a stale preview after another edit or source replacement", () => {
@@ -132,7 +200,7 @@ describe("symmetry preview", () => {
     const canvas = document.querySelector<SVGSVGElement>('[data-testid="symmetry-preview"]')!;
     const handle = document.querySelector('[aria-label="First axis handle"]')!;
     Object.defineProperty(handle, "setPointerCapture", { value: vi.fn() });
-    Object.defineProperty(canvas, "getScreenCTM", { value: () => ({ inverse: () => ({}) }) });
+    Object.defineProperty(document.querySelector('[data-testid="symmetry-scene"]')!, "getScreenCTM", { value: () => ({ inverse: () => ({}) }) });
     Object.defineProperty(canvas, "createSVGPoint", { value: () => ({ x: 0, y: 0,
       matrixTransform() { return { x: this.x, y: this.y }; } }) });
     const pointer = (element: Element, type: string, x = 82, y = 15) => React.act(() => {

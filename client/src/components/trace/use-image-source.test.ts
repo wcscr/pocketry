@@ -7,9 +7,39 @@ import {
   decodeImageFile,
   detectionGeometry,
   drawImageWithRotation,
+  drawAlignedImage,
   fitWithin,
   IMAGE_CANVAS_MAX,
 } from "./use-image-source";
+import { rotateImageAlignment } from "@shared/geometry/image-alignment";
+
+it("uses the same photo matrix for working pixels and high-resolution re-detection", () => {
+  const { alignment } = rotateImageAlignment({ width: 400, height: 600 }, .6);
+  const context = { save: vi.fn(), restore: vi.fn(), scale: vi.fn(), transform: vi.fn(),
+    translate: vi.fn(), rotate: vi.fn(), drawImage: vi.fn() };
+  const image = {} as CanvasImageSource;
+  for (const scale of [1, 2]) {
+    drawAlignedImage(context as unknown as CanvasRenderingContext2D, image,
+      { width: alignment.size.width * scale, height: alignment.size.height * scale }, 1, alignment);
+    expect(context.scale).toHaveBeenLastCalledWith(scale, scale);
+    expect(context.transform).toHaveBeenLastCalledWith(...alignment.matrix);
+    expect(context.drawImage).toHaveBeenLastCalledWith(image, 0, 0, 600, 400);
+    expect(context.rotate).toHaveBeenLastCalledWith(Math.PI / 2);
+  }
+});
+
+it("keeps rotation padding opaque for photos and transparent for cut-out PNGs", () => {
+  const { alignment } = rotateImageAlignment({ width: 400, height: 600 }, .6);
+  const context = { save: vi.fn(), restore: vi.fn(), scale: vi.fn(), transform: vi.fn(),
+    drawImage: vi.fn(), fillRect: vi.fn(), fillStyle: "" };
+  const image = {} as CanvasImageSource;
+  drawAlignedImage(context as unknown as CanvasRenderingContext2D, image, alignment.size, 0, alignment, false);
+  expect(context.fillStyle).toBe("#fff");
+  expect(context.fillRect).toHaveBeenCalledWith(0, 0, alignment.size.width, alignment.size.height);
+  context.fillRect.mockClear();
+  drawAlignedImage(context as unknown as CanvasRenderingContext2D, image, alignment.size, 0, alignment, true);
+  expect(context.fillRect).not.toHaveBeenCalled();
+});
 
 describe("decodeImageFile", () => {
   it("validates a file and reports its natural dimensions before replacement", async () => {

@@ -155,6 +155,7 @@ function TraceWorkspace(): JSX.Element {
     store.fileName,
     workingImageMax,
     store.imageRotation,
+    store.imageAlignment,
   );
   useOutlineRefinement();
 

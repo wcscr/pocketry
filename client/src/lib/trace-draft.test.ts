@@ -26,6 +26,25 @@ const calibrated = () => {
 beforeEach(() => { storage.clear(); vi.clearAllMocks(); });
 
 describe("browser-local Trace recovery", () => {
+  it("persists aligned photos and restores their matching contours, crop, and scale with Undo", async () => {
+    const before = { ...calibrated(), processing: false, region: { x: 10, y: 20, width: 40, height: 60 } };
+    const aligned = traceReducer(before, { type: "ALIGN_UPRIGHT", outline: before.outline, expectedOutline: before.outline, radians: .5 });
+    await saveTraceDraft(traceDraftSnapshot(aligned));
+    const restored = traceReducer(initialTraceState, { type: "TRACE_DRAFT_RESTORED", draft: (await loadTraceDraft())! });
+    expect(restored.imageAlignment).toEqual(aligned.imageAlignment);
+    expect(restored.imageUrl).toBe(before.imageUrl);
+    const undone = traceReducer(restored, { type: "UNDO" });
+    expect(undone.imageAlignment).toBeNull(); expect(undone.region).toEqual(before.region);
+    expect(undone.outline).toEqual(before.outline); expect(undone.calibration).toEqual(before.calibration);
+    expect(traceReducer(undone, { type: "REDO" }).imageAlignment).toEqual(aligned.imageAlignment);
+  });
+
+  it("accepts older drafts without photo alignment", () => {
+    const snapshot = traceDraftSnapshot(calibrated())!;
+    const { imageAlignment: _alignment, ...legacy } = snapshot.state;
+    expect(traceDraftSchema.parse({ ...snapshot, state: legacy }).state.imageAlignment).toBeNull();
+  });
+
   it("recovers the photo, physical scale, edits, original source and undo history without a running job", async () => {
     const state = calibrated();
     const snapshot = traceDraftSnapshot(state)!;
