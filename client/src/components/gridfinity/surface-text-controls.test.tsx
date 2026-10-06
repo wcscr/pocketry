@@ -1,3 +1,5 @@
+// These geometry/editor tests explicitly opt in. Opt-out is covered by bin-edit-transactions.
+vi.mock("@/state/experimental-features", () => ({ useExperimentalFeatures: () => ({ enabled: true, setEnabled: vi.fn() }) }));
 import * as React from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";

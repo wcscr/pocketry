@@ -30,10 +30,10 @@ Check dimensions against the real items and print a fit test before the final bi
 Browse the [sample projects](samples/README.md) for editable JSONs, 3MF print
 models, and photos of finished bins. The collection includes a Wolfbox MF70 Airduster Kit,
 DeWalt right-angle tools, a Ryobi cutter, caliper storage, a stapler, wire
-strippers, a Klein voltage tester, a Citadel mouldline remover, Wiha drivers, and a mini socket set.
+strippers, a Klein voltage tester, a Citadel mouldline remover, Wiha drivers with 40, 50, 60, and 150 mm blades, and a mini socket set.
 
 [Download the complete sample library](samples/pocketry-sample-library.json)
-to import all ten designs at once.
+to import all 13 designs at once.
 
 | **[Wolfbox MF70 Airduster Kit](samples/wolfbox-mf70-airduster-kit/)** | **[DeWalt right-angle tools](samples/dewalt-right-angle-tools/)** |
 | :---: | :---: |
@@ -44,8 +44,16 @@ to import all ten designs at once.
 | <a href="samples/caliper-storage/"><img src="samples/caliper-storage/photos/printed-bin-loaded.jpg" width="300" height="159" alt="Calipers, measurement strips, and batteries in their printed bin"></a> | <a href="samples/stapler/"><img src="samples/stapler/photos/printed-bin-loaded.jpg" width="300" height="131" alt="Stapler in its printed bin"></a> |
 | **[Klein voltage tester](samples/klein-voltage-tester/)** | **[Citadel mouldline remover](samples/mouldline-remover/)** |
 | <a href="samples/klein-voltage-tester/"><img src="samples/klein-voltage-tester/photos/printed-bin-loaded.jpg" width="300" height="91" alt="Klein voltage tester in its printed bin"></a> | <a href="samples/mouldline-remover/"><img src="samples/mouldline-remover/photos/printed-bin-loaded.jpg" width="67" height="210" alt="Citadel mouldline remover in its printed bin"></a> |
-| **[Wiha drivers](samples/wiha-drivers/)** | **[Mini socket set](samples/mini-socket-set/)** |
-| <a href="samples/wiha-drivers/"><img src="samples/wiha-drivers/photos/printed-bin-loaded.jpg" width="99" height="210" alt="Five Wiha screwdrivers in a bin with lowered solid fill for stacking"></a> | <a href="samples/mini-socket-set/"><img src="samples/mini-socket-set/photos/printed-bin-loaded-portrait.jpg" width="160" height="210" alt="Mini socket set in a printed bin with the reused pre-cut shadowbox"></a> |
+| **[Wiha 150 mm drivers](samples/wiha-drivers/)** | **[Mini socket set](samples/mini-socket-set/)** |
+| <a href="samples/wiha-drivers/"><img src="samples/wiha-drivers/photos/printed-bin-loaded.jpg" width="99" height="210" alt="Five Wiha screwdrivers in a bin with lowered solid fill"></a> | <a href="samples/mini-socket-set/"><img src="samples/mini-socket-set/photos/printed-bin-loaded-portrait.jpg" width="160" height="210" alt="Mini socket set in a printed bin with the reused pre-cut shadowbox"></a> |
+| **[Wiha 40 mm drivers](samples/wiha-40mm-drivers/)** | **[Wiha 50 mm drivers](samples/wiha-50mm-drivers/)** |
+| <a href="samples/wiha-40mm-drivers/"><img src="samples/wiha-40mm-drivers/photos/printed-bin-loaded.jpg" width="124" height="210" alt="Four Wiha 40 mm drivers in their printed bin"></a> | <a href="samples/wiha-50mm-drivers/"><img src="samples/wiha-50mm-drivers/photos/printed-bin-loaded.jpg" width="60" height="210" alt="Two Wiha 50 mm drivers in their printed bin"></a> |
+| **[Wiha 60 mm drivers](samples/wiha-60mm-drivers/)** | **[Wiha bins stacked in a drawer](samples/README.md#print-photos)** |
+| <a href="samples/wiha-60mm-drivers/"><img src="samples/wiha-60mm-drivers/photos/printed-bin-loaded-current.jpg" width="49" height="210" alt="Two Wiha 60 mm drivers in their printed bin"></a> | <a href="samples/wiha-drivers/photos/stacked-bins-in-drawer.jpg"><img src="samples/wiha-drivers/photos/stacked-bins-in-drawer.jpg" width="131" height="210" alt="Wiha driver bins stacked with other Gridfinity bins in a drawer"></a> |
+
+The Wiha drivers sit slightly too high to stack the loaded bins without some
+interference. If stacking is desired, lower the driver pockets by about **1 mm**
+in the editable project before exporting a revised print model.
 
 We'd love to see what you make with Pocketry! If you share a design on MakerWorld,
 Printables, or elsewhere, please give Pocketry a shout-out and link to
@@ -77,7 +85,16 @@ portable copy of a calibrated outline and its bin settings.
 Move the tool outlines into a Gridfinity bin, arrange the duster and accessories,
 and add finger access for lifting them out.
 
-Turn on **Settings → Enable experimental features**, then use
+Multi-selection, Move, Rotate, alignment, and distribution are standard in both
+layouts. **Add** stays first in the canvas toolbar; narrower spaces put additional
+tools under **Tools**. Phones offer **Workflow**, **Adjust**, and **Export**.
+Selection updates the summary without opening Adjust; **All properties** opens
+the complete editor. New sessions without a saved layout use Workflow + properties
+at 1100 × 600 px or larger, and Single panel on smaller screens. Resizing adapts
+the workspace while retaining that session's choice. Choose **Single panel** or
+**Workflow + properties** in **App settings**.
+
+Turn on **App settings → Enable experimental features**, then use
 **Surface text → Add text** for raised labels on the flat interior surface
 (the floor of a hollow bin, or the top of its solid fill). Adding text opens
 Layout so you can drag the label into place, even if its starting position
@@ -92,9 +109,17 @@ Monospace, Helvetiker and Helvetiker Bold, Optimer and Optimer Bold, and
 Gentilis and Gentilis Bold.
 
 Turning experimental features off hides text editing and disables label dragging;
-existing labels remain visible, saved, and included in exports. Opening a project
-with text (including text in its undo history) enables the tools with a notification,
-following the existing experimental-project behavior.
+existing labels remain visible, saved, and included in exports. Loading projects
+and undo history never changes that preference. A notice offers explicit opt-in
+when the current design contains experimental features. Shared linked geometry
+requires opt-in; independent placement, naming, deletion, and independent copies
+remain available. Adjustable walls, text, fonts, and linked designs remain experimental.
+
+Numeric fields preview valid changes immediately. Enter or leaving the field
+commits once; Escape restores the whole edit, including dependent geometry.
+Invalid Enter keeps focus; invalid blur discards the edit. Batch fields still use
+**Apply**. Autosave and export use committed changes. An unnamed draft is separate
+from named Library storage; choose **Save this draft to Library** to name it.
 
 ![Top-down Bin layout with pockets for the air duster, adapters, angled nozzle, and USB cable, plus finger access](docs/images/bin-layout.jpg)
 
@@ -199,7 +224,7 @@ The detailed direct-source review is available in
 
 ## Contributors
 
-Pocketry is developed and maintained by Will Cobb at Sugarcreek Research, LLC.
+Pocketry is developed and maintained by Sugarcreek Research, LLC.
 [OpenAI Codex](https://openai.com/codex/) is an AI contributor to the project,
 assisting with implementation, testing, documentation, and code review. This
 acknowledgment includes work not individually credited in the commit history.

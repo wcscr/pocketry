@@ -1,6 +1,6 @@
-# Selection inspector prototype
+# Workflow and properties layout
 
-This prototype separates choosing objects from editing them. It starts from
+This layout separates choosing objects from editing them. Its prototype started from
 `codex/pocket-tilt` at `169277ff`, preserving pocket tilt, design links, mixed
 selection, arrangement, geometry validation, and the existing project format.
 
@@ -13,12 +13,12 @@ npm exec -- vite --host 127.0.0.1 --port 5187 --strictPort
 ```
 
 Open `http://127.0.0.1:5187/bin?layout=workflow`, or choose a layout under
-**Settings → Bin editor layout**:
+**App settings → Bin editor layout**:
 
-- **Original: All Controls on Left** (`?layout=standard`): the original combined panel,
-  the default, with Hide controls at its top right and a narrow, full-height restore strip
+- **Single panel** (`?layout=standard`): the original combined panel,
+  with Hide controls at its top right and a narrow, full-height restore strip
   beside the canvas.
-- **New UI: Split Workflow and Properties** (`?layout=workflow`): every workflow section
+- **Workflow + properties** (`?layout=workflow`): every workflow section
   stays in order on the left; its property editor opens on the right. Pockets and
   Finger access retain their add actions and object lists on the left. The pinned,
   color-coded **Find a setting** shortcuts open settings directly or reveal the
@@ -26,18 +26,23 @@ Open `http://127.0.0.1:5187/bin?layout=workflow`, or choose a layout under
   while the shortcuts hide to leave room for controls.
   Section headings and their status badges share one compact row.
 
-The layout choice is saved for this browser and survives Trace,
+Without a saved choice, initial windows at least 1100 px wide and 600 px tall
+use Workflow + properties; smaller windows use Single panel. This implicit
+choice stays stable during the session and is not saved as a preference.
+Explicit layout choices are saved for this browser and survive Trace,
 Bin, Library, About, and page refreshes. The preview link sets the preference once
 and removes its flag, preserving other query parameters and the URL fragment.
-Retired `?layout=objects` and `?inspector=1|0` links return to Original: All Controls on Left.
-Saved object-tree and legacy inspector preferences also fall back to this default.
+Retired `?layout=objects` and `?inspector=1|0` links return to Single panel.
+Saved object-tree and legacy inspector preferences also fall back to Single panel.
 With browser storage blocked, the preference lasts until the tab reloads. The
-layout choice is independent of experimental tools. Move, Rotate, Arrange, Link,
-and multi-selection require **Enable experimental features**. Turning it off
-returns an active advanced tool to Select and preserves project geometry and links.
-When experimental features are enabled, Settings recommends Workflow left,
-properties right for its dedicated toolbar and properties panel. The selected
-layout changes only when the user chooses it.
+layout choice is independent of experimental tools. Multi-selection, Move,
+Rotate, alignment, and distribution are standard in both layouts. Link creation
+and shared geometry edits require explicit experimental opt-in. Opting out keeps
+selection, saved geometry, badges, affected-copy counts, and undo history.
+Loading a project never changes the preference. Only features in the current
+history entry produce an opt-in notice. Independent placement, naming, deletion,
+and independent duplication remain available while opted out. Rejected shared
+edits leave the document and history unchanged and are not replayed after opt-in.
 
 Open `selection-inspector-demo.pocketry.json` through **Project → Open project**. It contains four pockets and two finger accesses.
 This is synthetic test data; importing uses the normal browser-local project flow.
@@ -50,7 +55,8 @@ This is synthetic test data; importing uses the normal browser-local project flo
   clicking away saves, and Escape cancels. Row menus also contain rename,
   duplicate, and remove actions. Checkboxes and
   Shift/Command/Control-click build a selection without closing the mobile
-  object drawer. A regular row click opens Properties, even when reselecting.
+  object pane. Phone selection updates the summary or the already-open Adjust
+  tray without opening full properties. Use All properties explicitly.
 - **Properties** occupies the right pane. Its heading always identifies the
   selected object, including while moving or rotating. The shaded panel keeps
   its properties heading without a separate Properties row above it. No object selected means
@@ -70,7 +76,7 @@ This is synthetic test data; importing uses the normal browser-local project flo
   materials, indigo for Check fit, and emerald for Export. Shared spacing, field heights,
   headings, and disclosure arrows apply to single-object, bulk, and transform
   controls. Advanced placement and size groups remain collapsible.
-- **Project**, **Check fit**, and **Export** remain in the project header. They
+- On wider screens, **Project**, **Check fit**, and **Export** remain in the project header. They
   open their matching right-pane section without changing selection. The header also shows the
   project name and save status. **Check fit → Inspect inside** contains the
   cross-section preview in every layout, followed by **Prepare fit test templates**.
@@ -82,24 +88,24 @@ This is synthetic test data; importing uses the normal browser-local project flo
 - Bulk fields cover fixed cut depth and top rounding, plus pocket clearance.
   Setting pocket depth converts selected depth modes to fixed millimetres and
   updates both sections of split pockets. Boundary shapes remain unchanged.
-- The labeled **Select**, **Move**, **Rotate**, **Arrange**, and **Link** toolbar
-  stays above the canvas in both views. Move, Rotate, Arrange, and Link are
-  hidden when experimental features are off; Select and canvas-mode Done remain.
-  With experimental features on, tools unavailable for the selection stay disabled. The active tool is highlighted and named in Properties; **Done**
-  returns to regular editing, including when editing a contour.
-  Move and Rotate activate their 3D gizmos. The X/Y/Z letter grips support the
-  same axis constraints, snapping, and undo as their lines or rotation rings.
-  Arrange and Link require multiple objects; their controls operate on the
-  existing selection and preserve each object's identity and position unless
-  explicitly changed.
+- **Add** stays first in the placement toolbar. Wide toolbars show Select, Move,
+  Rotate, Arrange, and eligible Link controls. Narrow toolbars show Add, Select,
+  and a labeled Tools menu with the active tool's name. Availability follows the
+  selected object and supported operations. Text moves in X/Y and rotates around
+  Z in Layout and 3D, with snapping and undo; text selection stays exclusive.
+  Arrange and Link apply to pockets and finger access. **Cancel** abandons an
+  unfinished drawing; **Done** leaves completed edits intact when exiting a mode.
 - In Layout view, **Pan** highlights the hand icon and disables conflicting
   selection, transform, contour, and measurement tools. Keyboard edit shortcuts
   are suspended, and transform fields are disabled while panning. Fit to screen
   remains available. Click Pan again or press Escape to restore editing.
 - Move and rotation fields keep typing as a draft. **Enter**, **Tab**, or clicking
   away commits that axis for the full selection in one undo step; **Escape**
-  cancels it. Invalid or incomplete values restore the current value and show an
-  error. Untouched axes retain their individual values and full precision.
+  restores the complete pre-edit document, including linked copies and adjusted
+  floors, without changing redo. Invalid Enter keeps focus with a range message;
+  invalid blur discards the entire edit. Selection changes finish valid edits or
+  cancel invalid ones. History/project replacement invalidates old callbacks.
+  Untouched axes retain their individual values and full precision.
   These fields no longer need an Apply button.
 - **Duplicate** makes independent copies of the selection with a common offset.
   **Delete** removes the entire selection. Each command and bulk edit creates one
@@ -113,11 +119,19 @@ In Workflow layout, wide screens show workflow sections, canvas, and properties 
 Either panel can collapse. On desktop, each hidden panel leaves a narrow,
 full-height strip on its side of the canvas. Its expand icon stays at the same
 height as the panel's top collapse control. The same strip restores controls in
-the standard layout. Compact screens have persistent **Workflow** and
-**Properties** buttons and show one pane at a time. On phones, Workflow is a side
-drawer and Properties is a bottom sheet that leaves a visible canvas above it.
-Short landscape screens use a side inspector to preserve editing height. The editing canvas remains mounted in
-the same untransformed container across panel changes and window resizing.
+the Single panel layout. Below 768 px, Workflow/Adjust/Export remain reachable.
+Adjust is a compact tray; All properties explicitly opens the full scrolling
+editor. Short landscape phones place adjustments beside the canvas when at least
+320 px of canvas width remains. From 768–1099 px, one workflow/properties pane is
+visible at a time and leaves at least 480 px for the canvas. Desktop starts at
+1100 px and retains both panels. A stable portal keeps the actual canvas mounted
+through pane, breakpoint, and orientation changes. Visual-viewport height limits
+controls above the keyboard without changing the width-based layout mode.
+
+Library offers Save this draft to Library in its empty state. Naming closes
+Library first; Cancel returns to Library, and successful save returns with the
+new project selected. Failure keeps the entered name and draft. App settings and
+Library transitions allow only one focus-owning modal at a time.
 
 ## Evaluation and limits
 

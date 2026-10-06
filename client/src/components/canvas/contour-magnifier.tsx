@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Point } from "@shared/geometry/types";
 
 /** Reuses the rendered SVG scene, so photo, contour and zoom stay registered. */
@@ -9,11 +9,11 @@ export function ContourMagnifier({ sceneId, point, canvasWidth, canvasHeight, co
   return <ActiveContourMagnifier sceneId={sceneId} point={point} canvasWidth={canvasWidth} canvasHeight={canvasHeight} compact={compact} />;
 }
 
-/** Mounting starts a new drag; its initial point chooses a corner for the whole gesture. */
+/** Stay steady until the finger approaches the lens; only touch views relocate. */
 function ActiveContourMagnifier({ sceneId, point, canvasWidth, canvasHeight, compact }: {
   sceneId: string; point: Point; canvasWidth: number; canvasHeight: number; compact: boolean;
 }) {
-  const [corner] = useState(() => ({
+  const [corner, setCorner] = useState(() => ({
     right: point.x < canvasWidth / 2,
     bottom: point.y < canvasHeight / 2,
   }));
@@ -22,6 +22,29 @@ function ActiveContourMagnifier({ sceneId, point, canvasWidth, canvasHeight, com
   const viewSize = size / 3;
   const outerSize = size + 4;
   const maxTop = Math.max(8, canvasHeight - outerSize - 8);
+  useEffect(() => {
+    if (!compact) return;
+    const bounds = (candidate: typeof corner) => ({
+      x: candidate.right ? Math.max(8, canvasWidth - outerSize - 8) : 8,
+      y: candidate.bottom ? Math.max(8, canvasHeight - outerSize - 64) : Math.min(64, maxTop),
+    });
+    const clearance = (candidate: typeof corner) => {
+      const { x, y } = bounds(candidate);
+      return Math.hypot(Math.max(x - point.x, 0, point.x - x - outerSize),
+        Math.max(y - point.y, 0, point.y - y - outerSize));
+    };
+    const current = clearance(corner);
+    if (current > 80) return;
+    let best = corner;
+    let distance = current;
+    for (const right of [false, true]) for (const bottom of [false, true]) {
+      const candidate = { right, bottom };
+      const next = clearance(candidate);
+      // The extra 40px is hysteresis: avoid oscillation in a small canvas.
+      if (next > distance + 40) { best = candidate; distance = next; }
+    }
+    if (best !== corner) setCorner(best);
+  }, [compact, point.x, point.y, canvasWidth, canvasHeight, outerSize, maxTop, corner]);
   return <div data-testid="contour-magnifier" aria-hidden="true"
     className="pointer-events-none absolute z-40 overflow-hidden rounded-lg border-2 border-primary bg-background shadow-lg"
     style={{ left: corner.right ? Math.max(8, canvasWidth - outerSize - 8) : 8,

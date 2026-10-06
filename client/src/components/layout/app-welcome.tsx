@@ -65,12 +65,13 @@ export function AppWelcome(): JSX.Element {
         <DialogHeader>
           <DialogTitle ref={headingRef} tabIndex={-1}>Welcome to Pocketry</DialogTitle>
           <DialogDescription>
-            New experimental tools and a new editor layout are available in Settings.
+            Choose your layout and optional tools in App settings.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3 text-sm">
-          <p><strong>New layout:</strong> Choose “New UI: Split Workflow and Properties” for photo tracing and bin design.</p>
-          <p><strong>Experimental features:</strong> Try pocket tilt, 3D move and rotate, multi-selection, and linked designs.</p>
+          <p><strong>Layouts:</strong> Choose “Single panel” or “Workflow + properties” for photo tracing and bin design. Phones keep compact adjustments.</p>
+          <p><strong>Object tools:</strong> Move, rotate, select multiple objects, align, and distribute in either layout.</p>
+          <p><strong>Experimental features:</strong> Opt in to adjustable walls for empty bins, surface text, system fonts, and linked designs.</p>
           {isMobile && <p className="border-t pt-3 text-xs text-muted-foreground">
             The mobile interface is still being refined.{" "}
             <a className="rounded text-primary underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -85,7 +86,7 @@ export function AppWelcome(): JSX.Element {
             openingSettings.current = true;
             dismiss();
             setSettingsOpen(true);
-          }}><Settings aria-hidden="true" />Open Settings</Button>
+          }}><Settings aria-hidden="true" />Open App settings</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

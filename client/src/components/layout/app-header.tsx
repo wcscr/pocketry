@@ -19,6 +19,9 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
+import { useIsMobile } from "@/hooks/use-mobile";
+import { MobileFeedbackLink } from "./mobile-feedback-link";
+
 import { WORKSPACES } from "./workspaces";
 import { usePanelState } from "./panel-context";
 import { useExperimentalFeatures } from "@/state/experimental-features";
@@ -44,6 +47,7 @@ export function AppHeader({
   onHelpClick,
   onStartOver,
 }: AppHeaderProps): JSX.Element {
+  const isMobile = useIsMobile();
   const [isAbout] = useRoute("/about");
   const [location] = useLocation();
   const { setLibraryRequested } = usePanelState();
@@ -92,7 +96,7 @@ export function AppHeader({
         </a>
       </div>
 
-      <nav className="hidden items-center gap-1 md:ml-4 md:flex" aria-label="Workspaces">
+      <nav className={cn("items-center gap-1 ml-4", isMobile ? "hidden" : "flex")} aria-label="Workspaces">
         {WORKSPACES.map((workspace) => (
           <WorkspaceLink key={workspace.path} path={workspace.path}>
             <workspace.icon className="h-4 w-4" aria-hidden />
@@ -105,7 +109,7 @@ export function AppHeader({
         </Link>
       </nav>
 
-      <div className="ml-auto flex items-center gap-1 md:hidden">
+      <div className={cn("ml-auto items-center gap-1", isMobile ? "flex" : "hidden")}>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="h-11 gap-1 px-2" aria-label={`Workspace: ${currentWorkspace?.label ?? "About"}`}>
@@ -128,24 +132,25 @@ export function AppHeader({
         <DropdownMenu>
           <DropdownMenuTrigger asChild><Button variant="ghost" className="h-11 w-11 p-0" aria-label="More options"><Ellipsis className="h-5 w-5" /></Button></DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            {!isAbout && !(location === "/bin" && inspectorEnabled) && <DropdownMenuItem className="min-h-11" onSelect={() => onPanelOpenChange(true)}><PanelLeftOpen className="mr-2 h-4 w-4" />All settings</DropdownMenuItem>}
-            <DropdownMenuItem className="min-h-11" onSelect={() => setSettingsOpen(true)}><Settings className="mr-2 h-4 w-4" />Settings{experimentalEnabled && <span className="ml-auto pl-3 text-xs text-muted-foreground">Experimental on</span>}</DropdownMenuItem>
+            {!isAbout && !(location === "/bin" && inspectorEnabled) && <DropdownMenuItem className="min-h-11" onSelect={() => onPanelOpenChange(true)}><PanelLeftOpen className="mr-2 h-4 w-4" />All properties</DropdownMenuItem>}
+            <DropdownMenuItem className="min-h-11" onSelect={() => setSettingsOpen(true)}><Settings className="mr-2 h-4 w-4" />App settings{experimentalEnabled && <span className="ml-auto pl-3 text-xs text-muted-foreground">Experimental on</span>}</DropdownMenuItem>
             <DropdownMenuItem className="min-h-11" onSelect={onHelpClick}><CircleHelp className="mr-2 h-4 w-4" />Help</DropdownMenuItem>
             <DropdownMenuItem asChild className="min-h-11"><Link href="/about"><Info className="mr-2 h-4 w-4" />About Pocketry</Link></DropdownMenuItem>
+            <MobileFeedbackLink />
             {onStartOver && <><DropdownMenuSeparator /><DropdownMenuItem className="min-h-11" onSelect={onStartOver}><RotateCcw className="mr-2 h-4 w-4" />Start over</DropdownMenuItem></>}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
 
-      <div className="ml-auto hidden shrink-0 items-center gap-1 md:flex">
+      <div className={cn("ml-auto shrink-0 items-center gap-1", isMobile ? "hidden" : "flex")}>
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button variant="ghost" size="icon" aria-label="Settings" onClick={() => setSettingsOpen(true)} className="relative">
+            <Button variant="ghost" size="icon" aria-label="App settings" onClick={() => setSettingsOpen(true)} className="relative">
               <Settings className="h-4 w-4" />
               {experimentalEnabled && <span aria-label="Experimental features enabled" className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-amber-500" />}
             </Button>
           </TooltipTrigger>
-          <TooltipContent>{experimentalEnabled ? "Settings · experimental features on" : "Settings"}</TooltipContent>
+          <TooltipContent>{experimentalEnabled ? "App settings · experimental features on" : "App settings"}</TooltipContent>
         </Tooltip>
 
         <Tooltip>

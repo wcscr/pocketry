@@ -8,7 +8,7 @@ type SelectedPoint = { ref: RingRef; index: number; point: Point };
 type Gesture = {
   id: number; start: Point; localStart: Point; outline: Outline;
   ref: RingRef; index: number; kind: "vertex" | "edge"; moved: boolean;
-  preview: Outline;
+  preview: Outline; slop: number;
 };
 
 /** Direct manipulation: drag points, tap the line to add, select a point to delete. */
@@ -39,6 +39,13 @@ export function useMobileContourEditor(options: {
     gesture.current = null;
     setActivePoint(null);
   };
+  const cancelRef = useRef(cancel);
+  cancelRef.current = cancel;
+  useEffect(() => {
+    const resized = () => cancelRef.current();
+    window.addEventListener("resize", resized);
+    return () => window.removeEventListener("resize", resized);
+  }, []);
   useEffect(() => {
     if (!options.enabled) { cancel(); setSelectedPoint(null); }
     // Tool exits cancel the provisional edit; normal preview renders retain it.
@@ -87,7 +94,7 @@ export function useMobileContourEditor(options: {
         startPoint = { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
       }
       gesture.current = { id: event.pointerId, start: screen, localStart: startPoint,
-        outline: options.outline, preview: options.outline, ref: hit.ref, index, kind: vertex ? "vertex" : "edge", moved: false };
+        outline: options.outline, preview: options.outline, slop: event.pointerType === "touch" ? 12 : 6, ref: hit.ref, index, kind: vertex ? "vertex" : "edge", moved: false };
       options.onSelect?.(hit.ref);
       setSelectedPoint(vertex ? { ref: hit.ref, index, point: ring[index] } : null);
       setActivePoint(vertex ? ring[index] : null);
@@ -103,7 +110,7 @@ export function useMobileContourEditor(options: {
     const current = gesture.current;
     if (!current || current.id !== event.pointerId) return true;
     const distance = Math.hypot(event.clientX - current.start.x, event.clientY - current.start.y);
-    if (distance < 6 && !current.moved) return true;
+    if (distance <= current.slop && !current.moved) return true;
     if (current.kind === "edge") {
       // Dragging the line is navigation, never point insertion.
       cancel();
@@ -129,7 +136,7 @@ export function useMobileContourEditor(options: {
     if (event.type === "pointercancel") cancel();
     else if (current?.id === event.pointerId) {
       const ring = getRing(current.outline, current.ref);
-      const tap = Math.hypot(event.clientX - current.start.x, event.clientY - current.start.y) < 6;
+      const tap = Math.hypot(event.clientX - current.start.x, event.clientY - current.start.y) <= current.slop;
       if (current.kind === "vertex" && current.moved) options.onCommit(current.preview, "Move contour node");
       else if (ring && tap && current.kind === "edge") {
         const next = [...ring]; next.splice(current.index, 0, current.localStart);

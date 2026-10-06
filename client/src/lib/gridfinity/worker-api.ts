@@ -8,6 +8,7 @@ import type { BinSpecInput } from "@shared/gridfinity/types";
 import type { SurfaceFitCheckStyle } from "@shared/gridfinity/fit-check";
 
 import type { MeshData } from "@/lib/mesh/mesh-data";
+import type { Outline } from "@shared/geometry/types";
 import type { SurfaceText } from "@shared/gridfinity/surface-text";
 
 import type { BuildQuality } from "./bin";
@@ -23,6 +24,20 @@ import type { CutoutBuildReport } from "./cutouts";
 export const BUILD_BIN_METHOD = "buildBin";
 export const BUILD_FIT_CHECK_METHOD = "buildFitCheck";
 export const BUILD_SURFACE_FIT_CHECK_METHOD = "buildSurfaceFitCheck";
+export const RESOLVE_POCKET_GEOMETRY_METHOD = "resolvePocketGeometry";
+
+/** Detached selection geometry; crease extraction also stays off the UI thread. */
+export interface PocketGeometry {
+  full: Outline;
+  opening: Outline;
+  mesh?: MeshData;
+  edges?: [number, number, number][];
+}
+
+export interface ResolvePocketGeometryRequest {
+  spec: BinSpecInput;
+  pockets: { shape: TracedShape; cutout: CutoutPlacementInput }[];
+}
 export const SURFACE_FIT_CHECK_MIN_THICKNESS_MM = 0.4;
 export const SURFACE_FIT_CHECK_MAX_THICKNESS_MM = 3;
 export const SURFACE_FIT_CHECK_DEFAULT_THICKNESS_MM = 0.8;

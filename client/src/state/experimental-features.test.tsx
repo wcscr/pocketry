@@ -1,3 +1,4 @@
+import { projectUsesExperimentalFeatures } from "@/lib/project/experimental-features";
 // @vitest-environment jsdom
 import * as React from "react";
 import { createRoot } from "react-dom/client";
@@ -18,7 +19,11 @@ function mount() {
   cleanup.push(unmount);
   return unmount;
 }
-beforeEach(() => { vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true); localStorage.clear(); window.history.replaceState(null, "", "/"); });
+beforeEach(() => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  vi.stubGlobal("innerWidth", 1024); vi.stubGlobal("innerHeight", 768);
+  localStorage.clear(); window.history.replaceState(null, "", "/");
+});
 afterEach(() => { cleanup.splice(0).forEach(fn => fn()); vi.restoreAllMocks(); vi.unstubAllGlobals(); localStorage.clear(); window.history.replaceState(null, "", "/"); });
 
 it("remembers the workflow preview across ordinary navigation and reloads, with a working Settings opt-out", () => {
@@ -107,30 +112,19 @@ it("keeps the option usable for the session when storage is blocked", () => {
 });
 
 
-it("enables only projects needing the tools, once per activation, without changing project data", () => {
+it("detects experimental projects without changing the preference or data", () => {
   const ordinary: ProjectDoc = { schemaVersion: PROJECT_SCHEMA_VERSION, shapes: [],
     spec: parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6 }), cutouts: [], fingerHoles: [] };
-  const linked = { ...ordinary, fingerHoles: [fingerHoleSchema.parse({
-    id: "access", center: { x: 0, y: 0 }, designLink: { id: "access-design" },
-  })] };
+  const linked = { ...ordinary, fingerHoles: [fingerHoleSchema.parse({ id: "access", center: { x: 0, y: 0 }, designLink: { id: "design" } })] };
   const before = structuredClone(linked);
   mount();
-  expect(state.enableForProject(ordinary)).toBe(false);
+  expect(projectUsesExperimentalFeatures(linked)).toBe(true);
   expect(state.enabled).toBe(false);
-  React.act(() => {
-    expect(state.enableForProject(linked)).toBe(true);
-    expect(state.enableForProject(linked)).toBe(false);
-  });
-  expect(state.enabled).toBe(true);
-  expect(localStorage.getItem(EXPERIMENTAL_FEATURES_KEY)).toBe("true");
+  expect(localStorage.getItem(EXPERIMENTAL_FEATURES_KEY)).not.toBe("true");
   expect(linked).toEqual(before);
-  React.act(() => state.setEnabled(false));
-  expect(state.enabled).toBe(false);
-  React.act(() => expect(state.enableForProject(linked)).toBe(true));
-  expect(state.enabled).toBe(true);
 });
 
-it("defaults to Original: All Controls on Left and offers only the two supported layouts", () => {
+it("defaults to Single panel on narrow screens and offers only the two supported layouts", () => {
   mount();
   expect(state.editorLayout).toBe("standard");
   expect(state.inspectorEnabled).toBe(false);
@@ -142,7 +136,7 @@ it("defaults to Original: All Controls on Left and offers only the two supported
   expect(document.querySelector('#experimental-layout-recommendation')).toBeNull();
   const toggle = document.querySelector<HTMLButtonElement>('#experimental-features')!;
   React.act(() => toggle.click());
-  expect(document.querySelector('#experimental-layout-recommendation')!.textContent).toContain("we recommend New UI: Split Workflow and Properties");
+  expect(document.querySelector('#experimental-layout-recommendation')!.textContent).toContain("we recommend Workflow + properties");
   expect(state.editorLayout).toBe("standard");
   expect(choices[0].checked).toBe(true);
   React.act(() => choices[1].click());
@@ -160,7 +154,8 @@ it("defaults to Original: All Controls on Left and offers only the two supported
   expect(window.location.hash).toBe("#test");
 });
 
-it.each([null, "objects", "invalid"])("falls back to Original: All Controls on Left for retired or invalid saved layout %s", saved => {
+it.each([null, "objects", "invalid"])("falls back to Single panel for retired or invalid saved layout %s", saved => {
+  vi.stubGlobal("innerWidth", 1440);
   localStorage.setItem(SELECTION_INSPECTOR_KEY, "true");
   if (saved) localStorage.setItem(EDITOR_LAYOUT_KEY, saved);
   mount();
@@ -172,7 +167,8 @@ it.each([null, "objects", "invalid"])("falls back to Original: All Controls on L
   expect(state.editorLayout).toBe("workflow");
 });
 
-it.each(["layout=objects", "inspector=1", "inspector=0"])("consumes retired preview link %s and returns to Original: All Controls on Left", query => {
+it.each(["layout=objects", "inspector=1", "inspector=0"])("consumes retired preview link %s and returns to Single panel", query => {
+  vi.stubGlobal("innerWidth", 1440);
   localStorage.setItem(EDITOR_LAYOUT_KEY, "workflow");
   window.history.replaceState({ retained: true }, "", `/bin?${query}&keep=yes#properties`);
   mount();
@@ -202,4 +198,41 @@ it("restores workflow from a link and falls back when another tab stores the ret
   React.act(() => window.dispatchEvent(new StorageEvent("storage", { key: EDITOR_LAYOUT_KEY })));
   expect(state.editorLayout).toBe("standard");
   expect(state.inspectorEnabled).toBe(false);
+});
+
+it.each([
+  [320, 568, "standard"], [768, 1024, "standard"], [1099, 900, "standard"],
+  [1100, 599, "standard"], [1100, 600, "workflow"], [1440, 900, "workflow"],
+] as const)("chooses the initial layout at %s by %s without storing it", (width, height, expected) => {
+  vi.stubGlobal("innerWidth", width); vi.stubGlobal("innerHeight", height);
+  mount();
+  expect(state.editorLayout).toBe(expected);
+  expect(localStorage.getItem(EDITOR_LAYOUT_KEY)).toBeNull();
+  React.act(() => {
+    vi.stubGlobal("innerWidth", expected === "workflow" ? 390 : 1440);
+    vi.stubGlobal("innerHeight", expected === "workflow" ? 320 : 900);
+    window.dispatchEvent(new Event("resize"));
+    window.dispatchEvent(new StorageEvent("storage", { key: null }));
+  });
+  expect(state.editorLayout).toBe(expected);
+});
+
+it.each(["standard", "workflow"] as const)("keeps an explicit %s preference despite the initial viewport", layout => {
+  vi.stubGlobal("innerWidth", layout === "standard" ? 1440 : 390);
+  localStorage.setItem(EDITOR_LAYOUT_KEY, layout);
+  mount();
+  expect(state.editorLayout).toBe(layout);
+  cleanup.pop()!(); mount();
+  expect(state.editorLayout).toBe(layout);
+});
+
+it("uses the desktop default with blocked storage and retains an explicit session choice", () => {
+  vi.stubGlobal("innerWidth", 1440);
+  vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new Error("blocked"); });
+  vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("blocked"); });
+  mount(); expect(state.editorLayout).toBe("workflow");
+  React.act(() => state.setEditorLayout("standard"));
+  React.act(() => { vi.stubGlobal("innerHeight", 500); window.dispatchEvent(new Event("resize")); });
+  expect(state.editorLayout).toBe("standard");
+  expect(state.persistenceUnavailable).toBe(true);
 });

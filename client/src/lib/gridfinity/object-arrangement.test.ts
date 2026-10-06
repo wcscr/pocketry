@@ -3,8 +3,10 @@ import { Quaternion, Vector3 } from "three";
 import { fingerHoleSchema, parseCutoutPlacement, resolvePlacedPocketDepth, type TracedShape } from "@shared/gridfinity/cutout";
 import { parseBinSpec } from "@shared/gridfinity/types";
 import { createBasicPocket } from "./basic-shape";
+import { rigidPocket } from "@shared/gridfinity/rigid-pocket";
+import { designLinkErrors } from "@shared/gridfinity/design-links";
 import { pocketQuaternion, pocketTransformWires } from "./pocket-transform";
-import { applyObjectEdits, arrangeObjects, objectBounds, objectEditsChanged, objectPosition, pickObject, selectionZRange, transformObjects, type EditableObject } from "./object-arrangement";
+import { applyObjectEdits, arrangeObjects, expandLinkedObjectEdits, objectBounds, objectEditsChanged, objectPosition, pickObject, selectionZRange, transformObjects, type EditableObject } from "./object-arrangement";
 const spec = parseBinSpec({ gridX: 6, gridY: 4, heightUnits: 6, lip: "none" });
 function pocket(id: string, x: number, y = 0, width = 10, height = 12): Extract<EditableObject, { kind: "pocket" }> {
   const basic = createBasicPocket("rectangle", { x: x - width / 2, y: y - height / 2 }, { x: x + width / 2, y: y + height / 2 }, id)!;
@@ -15,6 +17,19 @@ const mixed = [pocket("a", -40, -10, 8), pocket("b", -5, 8, 16), pocket("c", 25,
 const rotate = (axis: "x" | "y" | "z", degrees: number) => new Quaternion().setFromAxisAngle(new Vector3(axis === "x" ? 1 : 0, axis === "y" ? 1 : 0, axis === "z" ? 1 : 0), degrees * Math.PI / 180);
 
 describe("mixed object arrangement", () => {
+  it("initializes insertion clearance for every legacy linked copy while keeping their designs consistent", () => {
+    const base = pocket("linked", -20);
+    const a = { ...base, cutout: { ...base.cutout, depth: {mode:"remaining" as const,floorThicknessMm:7},
+      designLink: {id:"group",tilt:false} } };
+    const b = { ...a, cutout: { ...a.cutout, id:"copy", position:{x:20,y:0}, tilt:{xDeg:25,yDeg:0} } };
+    const next = { ...rigidPocket(a.cutout,a.shape,spec), insertionMode:"vertical" as const };
+    const result = expandLinkedObjectEdits([a,b],spec,{ cutouts:[next], fingerHoles:[] })!;
+    expect(result.cutouts.every(c => c.insertionMode === "vertical" && c.elevationMm !== undefined)).toBe(true);
+    expect(result.cutouts[1].position).toEqual(b.cutout.position);
+    expect(result.cutouts[1].tilt).toEqual(b.cutout.tilt);
+    expect(designLinkErrors(result)).toEqual([]);
+    result.cutouts.forEach(c => expect(parseCutoutPlacement(c)).toEqual(c));
+  });
   it("picks the resolved solid projection, retaining holes and a synchronous fallback", () => {
     const object = pocket("resolved", 0);
     const geometry = new Map([[object.cutout.id, { full: [{

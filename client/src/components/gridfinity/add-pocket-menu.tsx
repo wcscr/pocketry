@@ -1,10 +1,12 @@
+import { useState } from "react";
+import { BasicPocketDialog } from "./basic-pocket-dialog";
 import { ChevronDown, CircleDot, Circle, RectangleHorizontal, Square, Type } from "lucide-react";
 import { AddObjectButton } from "./add-object-button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { BASIC_POCKET_LABELS, type BasicPocketShape } from "@/lib/gridfinity/basic-shape";
 import { useBin } from "@/state/bin-store";
 import { usePanelState } from "@/components/layout/panel-context";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useHasTouchInput, useIsMobile } from "@/hooks/use-mobile";
 import { useAddSurfaceText } from "./use-add-surface-text";
 import { useExperimentalFeatures } from "@/state/experimental-features";
 import { useAddFingerAccess } from "./use-add-finger-access";
@@ -19,7 +21,15 @@ export function AddPocketMenu({ label = "Add pocket", className, onStart, testId
   const { setPanelOpen } = usePanelState();
   const isMobile = useIsMobile();
   const addFingerAccess = useAddFingerAccess(onStart);
-  return <DropdownMenu>
+  const hasTouch = useHasTouchInput();
+  const [dimensionKind, setDimensionKind] = useState<BasicPocketShape | null>(null);
+  const draw = (kind: BasicPocketShape) => {
+    onStart?.();
+    dispatch({ type: "SET_EDITOR_MODE", editorMode: `draw-${kind}` });
+    dispatch({ type: "SET_VIEW_MODE", viewMode: "2d" });
+    if (isMobile) setPanelOpen(false);
+  };
+  return <><DropdownMenu>
     <DropdownMenuTrigger asChild>
       <AddObjectButton className={className} data-testid={testId}>
         {label}{includeFingerAccess && <ChevronDown className="h-4 w-4" aria-hidden />}
@@ -30,9 +40,8 @@ export function AddPocketMenu({ label = "Add pocket", className, onStart, testId
         const Icon = kind === "circle" ? Circle : kind === "square" ? Square : RectangleHorizontal;
         return <DropdownMenuItem key={kind} className="[@media(pointer:coarse)]:min-h-11" onSelect={() => {
           onStart?.();
-          dispatch({ type: "SET_EDITOR_MODE", editorMode: `draw-${kind}` });
-          dispatch({ type: "SET_VIEW_MODE", viewMode: "2d" });
-          if (isMobile) setPanelOpen(false);
+          if (isMobile || hasTouch) setDimensionKind(kind);
+          else draw(kind);
         }}><Icon className="mr-2 h-4 w-4" />{BASIC_POCKET_LABELS[kind]}{includeFingerAccess ? " pocket" : ""}</DropdownMenuItem>;
       })}
       {includeFingerAccess && <>
@@ -45,5 +54,9 @@ export function AddPocketMenu({ label = "Add pocket", className, onStart, testId
         </DropdownMenuItem>}
       </>}
     </DropdownMenuContent>
-  </DropdownMenu>;
+  </DropdownMenu>
+    {dimensionKind && <BasicPocketDialog key={dimensionKind} kind={dimensionKind}
+      onClose={() => { setDimensionKind(null); if (isMobile) setPanelOpen(false); }}
+      onDraw={() => { draw(dimensionKind); setDimensionKind(null); }} />}
+  </>;
 }

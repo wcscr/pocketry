@@ -64,8 +64,8 @@ afterEach(() => {
 describe("new features welcome", () => {
   it("introduces the new layout and optional tools, with mobile feedback in the same dialog", async () => {
     await render();
-    expect(dialog()?.textContent).toContain("New experimental tools and a new editor layout are available in Settings.");
-    expect(dialog()?.textContent).toContain("New UI: Split Workflow and Properties");
+    expect(dialog()?.textContent).toContain("Choose your layout and optional tools in App settings.");
+    expect(dialog()?.textContent).toContain("Workflow + properties");
     expect(dialog()?.textContent).toContain("The mobile interface is still being refined.");
     expect(document.activeElement?.textContent).toBe("Welcome to Pocketry");
     expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(1);
@@ -91,7 +91,7 @@ describe("new features welcome", () => {
 
   it("opens Settings without enabling tools or changing layouts until the user chooses", async () => {
     await render();
-    await close("Open Settings");
+    await close("Open App settings");
     expect(values.get(KEY)).toBe("dismissed");
     expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(1);
     expect(dialog()?.textContent).toContain("Choose which tools appear in Pocketry.");

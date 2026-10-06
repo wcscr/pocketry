@@ -3,6 +3,8 @@ import { adjustPocketsForFillHeight, reconcileFillHeightReferences } from "@shar
 import { recordTransformOrigins, type TransformOrigins } from "@shared/gridfinity/transform-origins";
 import { applyLinkedEdits, clampLinkedFingerHoles, pocketDesign, fingerDesign, type DesignObjectKind } from "@shared/gridfinity/design-links";
 import { sameObject, type ObjectRef, type ObjectEdits } from "@/lib/gridfinity/object-arrangement";
+import { NumericEditContext, type NumericEditSession } from "@/components/ui/numeric-edit-context";
+import { useExperimentalFeatures } from "./experimental-features";
 
 import {
   createContext,
@@ -10,6 +12,8 @@ import {
   useEffect,
   useMemo,
   useReducer,
+  useRef,
+  useCallback,
   type Dispatch,
   type ReactNode,
 } from "react";
@@ -40,6 +44,12 @@ export type BinEditorMode = "placement" | "contour" | "footprint" | "label-edge"
 const BIN_SIZE_KEYS = ["gridX", "gridY", "gridPitch", "heightUnits", "lip", "fillHeightPercent"] as const;
 
 export interface BinState {
+  /** Session-only permissions and field ownership; never serialized. */
+  experimentalEditing: boolean;
+  editingEpoch: number;
+  textTool: "translate" | "rotate";
+  textSnap: boolean;
+  fieldEdit: { owner: string; token: string; checkpoint: BinHistory; valid: boolean } | null;
   transformOrigins: TransformOrigins;
   spec: BinSpec;
   cutouts: CutoutPlacement[];
@@ -74,7 +84,14 @@ export function getCommittedBinDoc(
   return state.history.stack[state.history.index].doc;
 }
 
-export type BinAction =
+export type BinAction = (
+  | { type: "SET_EDITING_CAPABILITY"; enabled: boolean }
+  | { type: "SET_TEXT_TOOL"; tool: "translate" | "rotate" }
+  | { type: "SET_TEXT_SNAP"; snap: boolean }
+  | { type: "CANCEL_PREVIEW"; expectedHistory: BinHistory }
+  | { type: "BEGIN_FIELD_EDIT"; owner: string; token: string }
+  | { type: "FIELD_VALIDITY"; valid: boolean }
+  | { type: "FINISH_FIELD_EDIT"; cancel?: boolean }
   | {
       type: "HYDRATE";
       spec: BinSpec;
@@ -112,6 +129,7 @@ export type BinAction =
       type: "COMMIT_SURFACE_TEXT_WORDING";
       id: string;
       expectedHistory: BinHistory;
+      expectedEditingEpoch?: number;
       expectedText: string;
       text: string;
       font: SurfaceText["font"];
@@ -156,7 +174,7 @@ export type BinAction =
   | { type: "SET_GRID"; gridX: number; gridY: number; historyLabel?: string }
   | { type: "UNDO" }
   | { type: "REDO" }
-  | { type: "JUMP_TO_HISTORY"; index: number };
+  | { type: "JUMP_TO_HISTORY"; index: number }) & { fieldEditToken?: string };
 
 export const INITIAL_BIN_SPEC: BinSpec = parseBinSpec({
   gridX: 2,
@@ -165,6 +183,11 @@ export const INITIAL_BIN_SPEC: BinSpec = parseBinSpec({
 });
 
 const INITIAL: BinState = {
+  experimentalEditing: false,
+  editingEpoch: 0,
+  textTool: "translate",
+  textSnap: false,
+  fieldEdit: null,
   transformOrigins: { pockets: [], fingerHoles: [] },
   spec: INITIAL_BIN_SPEC,
   cutouts: [],
@@ -312,7 +335,7 @@ function patchCutouts(
 
 function changeDefaultFloor(cutout: CutoutPlacement, previous: number, next: number): CutoutPlacement {
   const update = (depth: DepthSpec): DepthSpec => depth.mode === "remaining" && depth.floorThicknessMm === previous
-    ? { mode: "remaining", floorThicknessMm: next } : depth;
+    ? { ...depth, floorThicknessMm: next } : depth;
   return { ...cutout, depth: update(cutout.depth), ...(cutout.split ? {
     split: { ...cutout.split, depths: [update(cutout.split.depths[0]), update(cutout.split.depths[1])] },
   } : {}) };
@@ -331,8 +354,61 @@ function linkedEditError(state: BinState): BinState {
   return { ...state, editError: "Linked copies received different design changes. Edit one copy, or make the copies independent first." };
 }
 
-function reducer(state: BinState, action: BinAction): BinState {
+function finishFieldEdit(state: BinState, cancel = false): BinState {
+  if (!state.fieldEdit) return state;
+  const baseline = getCommittedBinDoc(state);
+  const doc = { spec: state.spec, cutouts: state.cutouts, fingerHoles: state.fingerHoles };
+  const changed = JSON.stringify(doc) !== JSON.stringify(baseline);
+  const valid = state.fieldEdit.valid;
+  const label = state.pendingHistoryLabel ?? "Edit dimensions";
+  state = { ...state, fieldEdit: null, pendingHistoryLabel: null };
+  return !cancel && valid && changed
+    ? commit(state, doc, label)
+    : { ...state, ...baseline };
+}
+
+/** Compare material design fields after all linked propagation and bin clamps.
+ * Placement, names, independent copies and removal remain available. */
+function changesLinkedDesign(before: BinDoc, after: BinDoc): boolean {
+  return before.cutouts.some(old => {
+    const next = after.cutouts.find(item => item.id === old.id);
+    return old.designLink && next && (JSON.stringify(old.designLink) !== JSON.stringify(next.designLink)
+      || JSON.stringify(pocketDesign(old)) !== JSON.stringify(pocketDesign(next)));
+  }) || before.fingerHoles.some(old => {
+    const next = after.fingerHoles.find(item => item.id === old.id);
+    return old.designLink && next && (JSON.stringify(old.designLink) !== JSON.stringify(next.designLink)
+      || JSON.stringify(fingerDesign(old)) !== JSON.stringify(fingerDesign(next)));
+  });
+}
+
+export function binReducer(state: BinState, action: BinAction): BinState {
+  if (action.fieldEditToken && (state.fieldEdit?.token !== action.fieldEditToken || state.fieldEdit.checkpoint !== state.history)) return state;
+  if (action.type === "BEGIN_FIELD_EDIT") {
+    state = finishFieldEdit(state);
+    return { ...state, fieldEdit: { owner: action.owner, token: action.token, checkpoint: state.history, valid: true } };
+  }
+  if (action.type === "FIELD_VALIDITY") return state.fieldEdit ? { ...state, fieldEdit: { ...state.fieldEdit, valid: action.valid } } : state;
+  if (action.type === "FINISH_FIELD_EDIT") return finishFieldEdit(state, action.cancel);
+  if (action.type === "SET_EDITING_CAPABILITY") {
+    state = finishFieldEdit(state, true);
+    return { ...state, ...(!action.enabled ? getCommittedBinDoc(state) : {}), experimentalEditing: action.enabled,
+      editingEpoch: state.editingEpoch + (state.experimentalEditing === action.enabled ? 0 : 1),
+      pendingHistoryLabel: null, editError: null, ...(!action.enabled ? { editorMode: "placement" as const } : {}) };
+  }
+  const restoring = ["HYDRATE", "UNDO", "REDO", "JUMP_TO_HISTORY"].includes(action.type);
+  if (!action.fieldEditToken) state = finishFieldEdit(state, restoring);
+  else state = { ...state, ...getCommittedBinDoc(state) };
+  if (!state.experimentalEditing && ["LINK_DESIGNS", "UNLINK_DESIGNS", "SET_LINKED_TILT", "DUPLICATE_LINKED", "COMMIT_SURFACE_TEXT_WORDING"].includes(action.type)) {
+    return { ...state, editError: "Enable experimental tools to edit this shared design or surface text. Your change was not applied." };
+  }
   let next = reduceBin(state, action);
+  if (!state.experimentalEditing && !restoring && (JSON.stringify(next.spec.surfaceTexts) !== JSON.stringify(state.spec.surfaceTexts)
+    || next.spec.wallThicknessMm !== state.spec.wallThicknessMm)) {
+    return { ...state, editError: "Enable experimental tools to edit surface text or wall thickness. Your change was not applied." };
+  }
+  if (!state.experimentalEditing && !restoring && changesLinkedDesign(state, next)) {
+    return { ...state, editError: "Enable experimental tools to change a linked design. This change affects linked copies and was not applied." };
+  }
   if (next.selectedSurfaceTextId && (next.selection.length > 0 || !next.spec.surfaceTexts.some(label => label.id === next.selectedSurfaceTextId))) {
     next = { ...next, selectedSurfaceTextId: null };
   }
@@ -344,6 +420,11 @@ function reducer(state: BinState, action: BinAction): BinState {
 
 function reduceBin(state: BinState, action: BinAction): BinState {
   switch (action.type) {
+    case "CANCEL_PREVIEW": return state.history === action.expectedHistory
+      ? { ...state, ...getCommittedBinDoc(state), pendingHistoryLabel: null } : state;
+    case "SET_TEXT_TOOL": return { ...state, textTool: action.tool };
+    case "SET_TEXT_SNAP": return { ...state, textSnap: action.snap };
+    case "BEGIN_FIELD_EDIT": case "FIELD_VALIDITY": case "FINISH_FIELD_EDIT": case "SET_EDITING_CAPABILITY": return state;
     case "HYDRATE": {
       // Replace the outgoing project's entire history. Legacy projects start
       // at one baseline; saved histories retain their undo and redo branches.
@@ -651,7 +732,7 @@ function reduceBin(state: BinState, action: BinAction): BinState {
       const current = state.spec.surfaceTexts.find(label => label.id === action.id);
       // Selection is UI-only. Any intervening document commit, undo, redo, or
       // project replacement changes this checkpoint and supersedes the edit.
-      if (state.history !== action.expectedHistory || state.pendingHistoryLabel || !current || current.text !== action.expectedText) return state;
+      if (state.history !== action.expectedHistory || (action.expectedEditingEpoch !== undefined && state.editingEpoch !== action.expectedEditingEpoch) || state.pendingHistoryLabel || !current || current.text !== action.expectedText) return state;
       const parsed = surfaceTextSchema.safeParse({ ...current, text: action.text, font: action.font });
       if (!parsed.success || parsed.data.text === current.text) return state;
       return commit(state, {
@@ -744,10 +825,52 @@ export interface BinStore extends BinState {
 const BinContext = createContext<BinStore | null>(null);
 
 export function BinProvider({ children }: { children: ReactNode }): JSX.Element {
-  const [state, dispatch] = useReducer(reducer, INITIAL, (initial): BinState => {
-    try { return { ...initial, viewMode: sessionStorage.getItem("pocketry:bin-view") === "2d" ? "2d" : "3d" }; }
-    catch { return initial; }
+  const { enabled } = useExperimentalFeatures();
+  const [state, rawDispatch] = useReducer(binReducer, INITIAL, (initial): BinState => {
+    try { return { ...initial, experimentalEditing: enabled, viewMode: sessionStorage.getItem("pocketry:bin-view") === "2d" ? "2d" : "3d" }; }
+    catch { return { ...initial, experimentalEditing: enabled }; }
   });
+  const owner = useRef<string | null>(null);
+  const scope = useRef<string | null>(null);
+  const counter = useRef(0);
+  const dispatch = useCallback<Dispatch<BinAction>>(action => {
+    if (scope.current) rawDispatch({ ...action, fieldEditToken: scope.current,
+      ...(["PATCH_SPEC", "UPDATE_CUTOUT", "UPDATE_FINGER_HOLE", "UPDATE_OBJECTS"].includes(action.type) ? { transient: true } : {}) } as BinAction);
+    else { owner.current = null; rawDispatch(action); }
+  }, []);
+  useEffect(() => {
+    owner.current = null;
+    rawDispatch({ type: "SET_EDITING_CAPABILITY", enabled });
+  }, [enabled]);
+  const numericEdits = useMemo(() => ({ begin: (fieldOwner: string): NumericEditSession => {
+    const token = `${fieldOwner}:${++counter.current}`;
+    owner.current = token;
+    rawDispatch({ type: "BEGIN_FIELD_EDIT", owner: fieldOwner, token });
+    const run = (update?: () => void) => {
+      scope.current = token;
+      try { update?.(); } finally { scope.current = null; }
+    };
+    return {
+      isCurrent: () => owner.current === token,
+      preview: (valid, update) => {
+        if (owner.current !== token) return;
+        rawDispatch({ type: "FIELD_VALIDITY", valid, fieldEditToken: token });
+        run(update);
+      },
+      commit: update => {
+        if (owner.current !== token) return;
+        run(update);
+        rawDispatch({ type: "FINISH_FIELD_EDIT", fieldEditToken: token });
+        owner.current = null;
+      },
+      cancel: restore => {
+        if (owner.current !== token) return;
+        run(restore);
+        rawDispatch({ type: "FINISH_FIELD_EDIT", cancel: true, fieldEditToken: token });
+        owner.current = null;
+      },
+    };
+  } }), []);
   useEffect(() => { try { sessionStorage.setItem("pocketry:bin-view", state.viewMode); } catch { /* View preference is optional. */ } }, [state.viewMode]);
   const value = useMemo<BinStore>(
     () => ({
@@ -757,9 +880,9 @@ export function BinProvider({ children }: { children: ReactNode }): JSX.Element 
       canUndo: state.history.index > 0,
       canRedo: state.history.index < state.history.stack.length - 1,
     }),
-    [state],
+    [state, dispatch],
   );
-  return <BinContext.Provider value={value}>{children}</BinContext.Provider>;
+  return <BinContext.Provider value={value}><NumericEditContext.Provider value={numericEdits}>{children}</NumericEditContext.Provider></BinContext.Provider>;
 }
 
 export function useBin(): BinStore {

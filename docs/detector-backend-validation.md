@@ -1,7 +1,8 @@
 # Detector backend validation
 
-Local validation, 2026-10-05. Baseline: `origin/main` at
-`73a834a812f24ad0b8ea52cdf7a883a5b1a91d39`.
+Initial comparison, 2026-10-05, against `73a834a812f24ad0b8ea52cdf7a883a5b1a91d39`.
+Revalidated on 2026-10-06 after integrating main at `7233310c`.
+The integration required only a changelog conflict resolution; detector code is unchanged.
 
 ## What changed
 
@@ -41,7 +42,11 @@ npm test -- client/src/lib/detect/segment-opencv.test.ts
 ```
 
 The full local gate also passes under Node 22: `npm run check`, `npm test`
-(2,554 tests in 141 files), `npm run build`, and `git diff --check`.
+(2,732 tests in 154 files), `npm run build`, and `git diff --check`.
+
+Two local HTTP tests initially could not bind localhost inside the sandbox;
+rerunning that test file with localhost permission passed both tests. The other
+2,730 tests passed in the full run. GitHub Actions remains disabled.
 
 ## Real-photo comparison
 
@@ -89,6 +94,37 @@ Source PNG SHA-256 values identify the local inputs without distributing photos:
 The local evaluation script, decoded RGBA inputs, manifest, and detailed results
 are retained under `/private/tmp/pocketry-detector-photos/`. They are temporary
 verification artifacts; the source photos and those files are not added to Git.
+
+## Browser revalidation, 2026-10-06
+
+Chrome 154.0.8037.98 ran the actual detector modules and bundled OpenCV loader
+against all four photos at both pixel budgets. All eight comparisons reproduced
+the score errors and mask IoUs above. Five warm runs per case compared the same
+baseline and corrected code. The normal viewport was 1280 × 900; the mobile
+emulation used 390 × 844, touch enabled, and 6× CPU throttling.
+
+| Browser setting | Segmentation pixels | Baseline OpenCV median range | Corrected OpenCV median range | JS median range |
+| --- | ---: | ---: | ---: | ---: |
+| Normal CPU | 250,358 | 13.9–15.6 ms | 13.9–15.6 ms | 31.0–33.9 ms |
+| Normal CPU | 990,000 | 26.5–29.6 ms | 26.5–29.4 ms | 98.8–101.7 ms |
+| 6× CPU throttle | 250,358 | 88.2–99.0 ms | 89.9–101.4 ms | 196.8–208.2 ms |
+| 6× CPU throttle | 990,000 | 168.3–180.9 ms | 170.2–190.3 ms | 631.9–655.0 ms |
+
+The full pipeline returned nonempty outlines using OpenCV in all 16 cases,
+with no uncaught page errors. Blocking the OpenCV script in a fresh mobile-sized
+browser session made automatic detection fall back to JavaScript and return a
+nonempty outline. These checks use emulation on a desktop, not physical phone
+hardware, and do not measure cold initialization or peak memory.
+
+The real upload flow also accepted sheet calibration, traced a manually selected
+region, and retained its outline after switching from desktop to the phone layout.
+The 40 mm photo produced a handle outline but missed its thin reflective shaft
+at the working-image resolution; a nonempty result is not proof of a complete
+tool outline.
+
+The browser harness and detailed results are retained locally as
+`/private/tmp/pocketry-detector-photos/browser-check.mjs` and
+`/private/tmp/pocketry-detector-photos/browser-results-2026-10-06.json`.
 
 ## Remaining limits
 

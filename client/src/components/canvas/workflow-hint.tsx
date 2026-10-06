@@ -4,6 +4,7 @@ import { MobileCanvasOverlayContext } from "@/components/layout/mobile-canvas-ov
 import { Lightbulb, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 /** Dismissal belongs to a workflow step, not each changing instruction within it. */
 export function WorkflowHint({ children, className, hintKey = children }: {
@@ -12,9 +13,11 @@ export function WorkflowHint({ children, className, hintKey = children }: {
   hintKey?: string;
 }) {
   const [dismissed, setDismissed] = useState<Set<string>>(() => new Set());
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
+  const compact = useIsMobile();
   const overlay = useContext(MobileCanvasOverlayContext);
   const start = useRef<{ id: number; x: number; y: number } | null>(null);
-  const hidden = dismissed.has(hintKey);
+  const hidden = dismissed.has(hintKey) || compact && !expanded.has(hintKey);
   const dismiss = () => setDismissed(keys => new Set(keys).add(hintKey));
   const finishSwipe = (event: PointerEvent<HTMLDivElement>) => {
     const origin = start.current;
@@ -23,9 +26,9 @@ export function WorkflowHint({ children, className, hintKey = children }: {
   };
   const restoreButton = <Button variant="outline" size="icon"
       data-minimized-hint="true" className={cn("pointer-events-auto h-11 w-11 bg-background/95 shadow-sm", overlay && "absolute right-2 top-2")}
-      aria-label="Show current hint" onClick={() => setDismissed(keys => {
+      aria-label="Show current hint" onClick={() => { setExpanded(keys => new Set(keys).add(hintKey)); setDismissed(keys => {
         const next = new Set(keys); next.delete(hintKey); return next;
-      })}><Lightbulb className="h-4 w-4" aria-hidden /></Button>;
+      }); }}><Lightbulb className="h-4 w-4" aria-hidden /></Button>;
   if (hidden && overlay) return createPortal(restoreButton, overlay);
   return <div className={cn("pointer-events-none flex justify-end", className)}>
     {hidden ? restoreButton :

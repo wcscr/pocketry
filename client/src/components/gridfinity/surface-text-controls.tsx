@@ -62,14 +62,41 @@ export function SurfaceTextControls({ onPositionText }: { onPositionText: () => 
 /** Mounted independently of the list so collapsing it keeps the selected editor available. */
 export function SurfaceTextProperties(): JSX.Element | null {
   const { spec, selectedSurfaceTextId, dispatch } = useBin();
+  const inspector = useSelectionInspector();
   const selected = spec.surfaceTexts.find(label => label.id === selectedSurfaceTextId);
   const update = (labels: SurfaceText[], historyLabel: string, transient = false) =>
     dispatch({ type: "PATCH_SPEC", patch: { surfaceTexts: labels }, historyLabel, transient });
+  if (selected && (inspector?.tool === "translate" || inspector?.tool === "rotate")) return <SurfaceTextTransformControls mode={inspector.tool} />;
   return selected ? <PropertySurface id="surface-text-properties" tone="cyan" aria-label="Surface text properties">
     <TextEditor key={selected.id} label={selected} index={spec.surfaceTexts.indexOf(selected)}
       onChange={(patch, transient) => update(spec.surfaceTexts.map(item => item.id === selected.id ? { ...item, ...patch } : item), "Edit surface text", transient)}
       onRemove={() => update(spec.surfaceTexts.filter(item => item.id !== selected.id), "Remove surface text")} />
   </PropertySurface> : null;
+}
+
+/** Surface-anchored text uses the same XY / Z controls in Layout and 3D. */
+export function SurfaceTextTransformControls({ mode }: { mode?: "translate" | "rotate" }): JSX.Element | null {
+  const bin = useBin();
+  const selected = bin.spec.surfaceTexts.find(label => label.id === bin.selectedSurfaceTextId);
+  if (!selected || !bin.experimentalEditing) return null;
+  const tool = mode ?? bin.textTool;
+  const update = (patch: Partial<SurfaceText>, transient: boolean) => bin.dispatch({ type: "PATCH_SPEC",
+    patch: { surfaceTexts: bin.spec.surfaceTexts.map(label => label.id === selected.id ? { ...label, ...patch } : label) },
+    transient, historyLabel: tool === "translate" ? "Move surface text" : "Rotate surface text" });
+  return <div className="space-y-3 p-2" data-testid="text-transform-controls">
+    <div className="flex flex-wrap gap-1">
+      {!mode && (["translate", "rotate"] as const).map(tool => <Button key={tool} size="sm" variant={bin.textTool === tool ? "secondary" : "ghost"} aria-pressed={bin.textTool === tool} onClick={() => bin.dispatch({ type: "SET_TEXT_TOOL", tool })}>{tool === "translate" ? "Move" : "Rotate"}</Button>)}
+      <Button size="sm" className="min-h-11" variant={bin.textSnap ? "secondary" : "outline"} aria-pressed={bin.textSnap} onClick={() => bin.dispatch({ type: "SET_TEXT_SNAP", snap: !bin.textSnap })}>Snap · 1 mm / 5°</Button>
+    </div>
+    {tool === "translate" ? <div className="grid grid-cols-2 gap-2">{(["x", "y"] as const).map(axis => <Label key={axis} className="space-y-1 text-xs">{axis.toUpperCase()} · mm
+      <DraftNumberInput aria-label={`Move text ${axis.toUpperCase()}`} className="h-11 w-full" value={selected.position[axis]} displayPrecision={2} min={-672} max={672} step={bin.textSnap ? 1 : "any"}
+        onValueChange={value => update({ position: { ...selected.position, [axis]: value } }, true)} onValueCommit={value => update({ position: { ...selected.position, [axis]: value } }, false)} />
+    </Label>)}</div> : <Label className="block space-y-1 text-xs">Z · degrees
+      <DraftNumberInput aria-label="Rotate text Z" className="h-11 w-full" value={selected.rotationDeg} displayPrecision={2} min={-180} max={180} step={bin.textSnap ? 5 : "any"}
+        onValueChange={rotationDeg => update({ rotationDeg }, true)} onValueCommit={rotationDeg => update({ rotationDeg }, false)} />
+    </Label>}
+    <p className="text-xs text-muted-foreground">Text stays anchored to its surface. Arrange and Link apply to pockets and finger access.</p>
+  </div>;
 }
 
 function TextEditor({ label, index, onChange, onRemove }: {

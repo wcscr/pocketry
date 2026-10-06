@@ -269,7 +269,7 @@ it("returns to the requested transform tab even when its mode was already active
 });
 
 
-it("keeps original-UI linking, arrangement, and Select All behind experimental opt-in", () => {
+it("keeps linking experimental while arrangement and Select All remain standard", () => {
   experimental.enabled = false;
   const basic = createBasicPocket("rectangle", { x: -5, y: -8 }, { x: 5, y: 8 }, "gating")!;
   const onSelectionChange = vi.fn();
@@ -278,10 +278,10 @@ it("keeps original-UI linking, arrangement, and Select All behind experimental o
   const container = renderViewport(false, 1, false, false, [], undefined, false, editor);
   React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Object controls"]')!.click());
   expect(container.querySelector('[aria-label="Link and unlink designs"]')).toBeNull();
-  expect(container.querySelector('[aria-label="Align and distribute objects"]')).toBeNull();
-  expect(container.textContent).not.toContain("Select all");
+  expect(container.querySelector('[aria-label="Align and distribute objects"]')).not.toBeNull();
+  expect(container.textContent).toContain("Select all");
   React.act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "a", ctrlKey: true })));
-  expect(onSelectionChange).not.toHaveBeenCalled();
+  expect(onSelectionChange).toHaveBeenCalledWith([{kind:"pocket",id:basic.cutout.id}]);
   expect(container.querySelector('[aria-label="Move pocket (W)"]')).not.toBeNull();
   expect(container.querySelector('[aria-label="Rotate pocket (E)"]')).not.toBeNull();
 });
