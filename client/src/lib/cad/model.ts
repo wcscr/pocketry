@@ -17,6 +17,7 @@ export interface StepExportStatus { supported: boolean; issues: CadIssue[]; prof
 export interface CadPocket {
   id: string; name: string; shapeId: string; profiles: CadProfile[];
   rotation: ObjectRotation; position: Point; elevationMm: number; rigid: boolean;
+  scaleX: number; scaleY: number; mirrored: boolean;
   depths: number[]; floors: (number|null)[]; sourceBottoms: number[];
   split?: { boundary: [Point,Point]; mirrored: boolean };
   clearanceMm: number; cornerRoundMm: number; bottomFilletMm: number; topFilletMm: number;
@@ -81,7 +82,7 @@ export function resolveCadDesign(doc: ProjectDoc): CadDesign {
       :resolvePlacedPocketDepth(spec,d,s,p).axialDepthMm??fillZ+1);
     const sourceBottoms=ds.map((d,i)=>rigid?-depths[i]:(resolvePlacedPocketDepth(spec,d,s,p).floorZ??-1));
     return {id:p.id,name:pocketName(p,s),shapeId:p.shapeId,profiles:profiles(s,p),rotation:pocketRotation(p),position:{...p.position},
-      rigid,elevationMm:p.elevationMm??0,depths,sourceBottoms,
+      rigid,elevationMm:p.elevationMm??0,scaleX:p.scaleX,scaleY:p.scaleY,mirrored:p.mirrored,depths,sourceBottoms,
       floors:ds.map(d=>d.mode==="remaining"?d.floorThicknessMm:d.mode==="through"?null:rigid?null:resolvePlacedPocketDepth(spec,d,s,p).floorZ),
       split:p.split?{boundary:p.split.boundary.map(v=>({x:v.x*p.scaleX*(p.mirrored?-1:1),y:v.y*p.scaleY})) as [Point,Point],mirrored:p.mirrored}:undefined,
       clearanceMm:p.clearanceMm,cornerRoundMm:p.cornerRoundMm,bottomFilletMm:p.bottomFilletMm,topFilletMm:p.topFilletMm,

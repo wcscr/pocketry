@@ -14,7 +14,7 @@ import type { NamedCadBody } from "./step";
 export interface CadObject extends Omit<NamedCadBody,"shape"> {
   shape?:CadShape;role:"bin-blank"|"pocket-source"|"pocket-cutter"|"finger-access-tool"|"text-body";
   sourceId?:string;shapeId?:string;status:"active"|"inactive";reason?:string;
-  transform?:{rotation:{xDeg:number;yDeg:number;zDeg:number};position:{x:number;y:number};elevationMm:number};
+  transform?:{rotation:{xDeg:number;yDeg:number;zDeg:number};position:{x:number;y:number};elevationMm:number;scaleX:number;scaleY:number;mirrored:boolean};
   designLink?:unknown;order:number;
 }
 export interface CadMaterialOptions {floorThicknessMm?:number;rimThicknessMm?:number;borderWidthMm?:number}
@@ -37,7 +37,7 @@ export function buildCadDesign(c:CadContext,design:CadDesign,materials:CadMateri
     try {
       const built=buildCadPocket(c,pocket,design.dimensions.fillZ,design.dimensions.topZ,materials.floorThicknessMm);
       add({id:`source:${pocket.id}`,sourceId:pocket.id,shapeId:pocket.shapeId,name:pocket.name,role:"pocket-source",shape:built.source,status:"active",designLink:pocket.designLink,
-        transform:{rotation:pocket.rotation,position:pocket.position,elevationMm:pocket.elevationMm}});
+        transform:{rotation:pocket.rotation,position:pocket.position,elevationMm:pocket.elevationMm,scaleX:pocket.scaleX,scaleY:pocket.scaleY,mirrored:pocket.mirrored}});
       let active=built.status==="active"&&Boolean(built.cutter);
       if(active) {
         const overlap=c.boolean("common",blank,built.cutter!,`${pocket.name}: cutting-volume intersection`,true);
