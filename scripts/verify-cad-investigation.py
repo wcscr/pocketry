@@ -15,6 +15,7 @@ from OCP.BRepBuilderAPI import BRepBuilderAPI_Transform
 from OCP.BRep import BRep_Tool
 from OCP.Bnd import Bnd_Box
 from OCP.GProp import GProp_GProps
+from OCP.GeomAbs import GeomAbs_Circle, GeomAbs_Ellipse
 from OCP.IFSelect import IFSelect_RetDone
 from OCP.STEPControl import STEPControl_Reader, STEPControl_Writer, STEPControl_AsIs
 from OCP.STEPCAFControl import STEPCAFControl_Reader
@@ -85,6 +86,12 @@ root=Path(sys.argv[1]);results=[]
 for directory in sorted(path for path in root.iterdir() if path.is_dir()):
     report=json.loads((directory/"export-report.json").read_text());objects=json.loads((directory/"objects.json").read_text())
     finished=read(directory/"bin.step");tools=read(directory/"design-objects.step")
+    # Fixture dimensions are specified independently of the exporter report.
+    expected_dimensions={"standard-solid":(41.5,41.5,24.551471862576),"standard-hollow":(83.5,41.5,24.551471862576),
+        "mixed":(125.5,83.5,31.551471862576),"concave":(125.5,83.5,28),"tilted":(125.5,125.5,35),"irregular":(83.5,83.5,31.551471862576)}
+    measured=Bnd_Box();BRepBndLib.AddOptimal_s(finished,measured,False,False);lo_x,lo_y,lo_z,hi_x,hi_y,hi_z=measured.Get()
+    dimensions=(hi_x-lo_x,hi_y-lo_y,hi_z-lo_z)
+    assert all(math.isclose(a,b,abs_tol=2e-5) for a,b in zip(dimensions,expected_dimensions[directory.name])),(directory.name,dimensions)
     counts={"bin":len(list(subshapes(finished,TopAbs_SOLID))),"designObjects":len(list(subshapes(tools,TopAbs_SOLID)))}
     assert counts==report["solidCounts"],(directory,counts,report["solidCounts"])
     assembly=components(directory/"design-objects.step")
@@ -97,6 +104,15 @@ for directory in sorted(path for path in root.iterdir() if path.is_dir()):
         expected=[*item["boundsMm"]["min"].values(),*item["boundsMm"]["max"].values()]
         assert all(math.isclose(a,b,abs_tol=2e-5) for a,b in zip(coords,expected)),(key,coords,expected)
     by_id={item["id"]:item for item in objects["objects"]}
+    if directory.name in ["mixed","concave"]:
+        source=next(item for item in objects["objects"] if item["role"]=="pocket-source" and item["shapeId"] in ["circle","ellipse"])
+        actual=assembly[source["stepInstanceName"]]["shape"];radii=[]
+        for edge in subshapes(actual,TopAbs_EDGE):
+            curve=BRepAdaptor_Curve(TopoDS.Edge_s(edge))
+            if curve.GetType()==GeomAbs_Circle:radii.append((curve.Circle().Radius(),curve.Circle().Radius()))
+            if curve.GetType()==GeomAbs_Ellipse:radii.append((curve.Ellipse().MajorRadius(),curve.Ellipse().MinorRadius()))
+        expected=(6,6) if directory.name=="mixed" else (9.8,4.9)
+        assert any(all(math.isclose(a,b,abs_tol=1e-7) for a,b in zip(radius,expected)) for radius in radii),(directory.name,radii)
     reconstructed=assembly[by_id["bin-blank"]["stepInstanceName"]]["shape"]
     for ident in objects["reconstructionOrder"][1:]:
         item=by_id[ident]
@@ -145,7 +161,7 @@ for directory in sorted(path for path in root.iterdir() if path.is_dir()):
             parts.append({'name':obj.attrib['name'],'volumeMm3':mesh_acceptance(vs,ts)})
         if directory.name=='irregular':assert len(parts)==4,parts
     results.append({'fixture':directory.name,'valid':True,'counts':counts,'nativeSurfaces':dict(surfaces),'nativeCurves':dict(curves),
-        'reconstructed':True,'newFeatureSavedReopened':True,'movedNamedCutter':bool(moved_result),'cadVolumeMm3':volume(finished),
+        'dimensionsMm':dimensions,'reconstructed':True,'newFeatureSavedReopened':True,'movedNamedCutter':bool(moved_result),'cadVolumeMm3':volume(finished),
         'stlVolumeMm3':stl_volume,'meshMinusCadVolumeMm3':stl_volume-volume(finished),'threeMfParts':parts})
 (root/'independent-verification.json').write_text(json.dumps({'reader':'cadquery-ocp 7.8.1.1.post1 / OCCT 7.8','results':results},indent=2))
 print(json.dumps({'fixtures':len(results),'valid':True,'results':results},indent=2))
