@@ -123,6 +123,34 @@ describe("App", () => {
     act(() => toggle.click());
     expect(localStorage.getItem("pocketry:experimental-features")).toBe("true");
   });
+  it.each(["desktop", "mobile"])("offers email and GitHub feedback from the %s header", mode => {
+    const matchMedia = window.matchMedia;
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      ...matchMedia(query),
+      matches: mode === "mobile" && query.includes("max-width"),
+    }));
+    renderApp();
+    expect(document.querySelector('a[href="mailto:feedback@pocketry.xyz"]')).toBeNull();
+    const trigger = container.querySelector<HTMLButtonElement>(
+      mode === "desktop"
+        ? '[aria-label="Report an Issue / Provide Feedback"]'
+        : '[aria-label="More options"]',
+    );
+    expect(trigger).not.toBeNull();
+    expect(trigger!.closest("header")).not.toBeNull();
+    expect(trigger!.parentElement?.classList.contains("hidden")).toBe(false);
+    act(() => trigger!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+    const menu = document.querySelector('[role="menu"]');
+    const email = menu?.querySelector<HTMLAnchorElement>('a[href="mailto:feedback@pocketry.xyz"]');
+    expect(email?.textContent).toContain("Email feedback@pocketry.xyz");
+    const github = menu?.querySelector<HTMLAnchorElement>('a[href="https://github.com/wcscr/pocketry/issues/new"]');
+    expect(github?.textContent).toContain("Open a GitHub issue");
+    expect(github?.target).toBe("_blank");
+    expect(github?.rel).toBe("noopener noreferrer");
+    act(() => menu!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+    expect(document.querySelector('[role="menu"]')).toBeNull();
+  });
+
   it("mounts without throwing", () => {
     expect(() => renderApp()).not.toThrow();
   });

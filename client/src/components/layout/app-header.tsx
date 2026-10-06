@@ -20,7 +20,7 @@ import {
 import { cn } from "@/lib/utils";
 
 import { useIsMobile } from "@/hooks/use-mobile";
-import { MobileFeedbackLink } from "./mobile-feedback-link";
+import { FeedbackMenu, FeedbackMenuItems } from "./feedback-menu";
 
 import { WORKSPACES } from "./workspaces";
 import { usePanelState } from "./panel-context";
@@ -136,7 +136,7 @@ export function AppHeader({
             <DropdownMenuItem className="min-h-11" onSelect={() => setSettingsOpen(true)}><Settings className="mr-2 h-4 w-4" />App settings{experimentalEnabled && <span className="ml-auto pl-3 text-xs text-muted-foreground">Experimental on</span>}</DropdownMenuItem>
             <DropdownMenuItem className="min-h-11" onSelect={onHelpClick}><CircleHelp className="mr-2 h-4 w-4" />Help</DropdownMenuItem>
             <DropdownMenuItem asChild className="min-h-11"><Link href="/about"><Info className="mr-2 h-4 w-4" />About Pocketry</Link></DropdownMenuItem>
-            <MobileFeedbackLink />
+            <FeedbackMenuItems />
             {onStartOver && <><DropdownMenuSeparator /><DropdownMenuItem className="min-h-11" onSelect={onStartOver}><RotateCcw className="mr-2 h-4 w-4" />Start over</DropdownMenuItem></>}
           </DropdownMenuContent>
         </DropdownMenu>
@@ -177,6 +177,8 @@ export function AppHeader({
           </TooltipTrigger>
           <TooltipContent>How to use Pocketry</TooltipContent>
         </Tooltip>
+
+        <FeedbackMenu />
       </div>
     </>
   );
