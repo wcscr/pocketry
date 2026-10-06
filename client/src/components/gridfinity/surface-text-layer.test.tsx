@@ -1,3 +1,5 @@
+// These geometry/editor tests explicitly opt in. Opt-out is covered by bin-edit-transactions.
+vi.mock("@/state/experimental-features", () => ({ useExperimentalFeatures: () => ({ enabled: true, setEnabled: vi.fn() }) }));
 import * as React from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -10,7 +12,7 @@ import { SurfaceTextLayer } from "./surface-text-layer";
 afterEach(() => vi.unstubAllGlobals());
 
 describe("text dragging", () => {
-  it.each(["release", "disable editing", "grab between letters"])("%s commits a text drag once and preserves saved undo history", ending => {
+  it.each(["release", "disable editing", "grab between letters"])("%s settles a text drag and preserves saved undo history", ending => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     vi.stubGlobal("DOMPoint", class { constructor(public x: number, public y: number) {} matrixTransform() { return this; } });
     let store!: BinStore;
@@ -44,15 +46,13 @@ describe("text dragging", () => {
         pointer("pointermove", 22, 2);
       }
       pointer("pointerup", 16, 7);
+      if (ending === "disable editing") {
+        expect(store.history.stack.length).toBe(historySize);
+        expect(store.spec.surfaceTexts[0].position).toEqual({ x: 0, y: 0 });
+        return;
+      }
       expect(store.history.stack.length).toBe(historySize + 1);
       expect(store.spec.surfaceTexts[0].position).toEqual({ x: 6, y: 3 });
-      if (ending === "disable editing") {
-        pointer("pointerdown", 16, 7);
-        pointer("pointermove", 30, 2);
-        pointer("pointerup", 30, 2);
-        expect(store.history.stack.length).toBe(historySize + 1);
-        expect(store.spec.surfaceTexts[0].position).toEqual({ x: 6, y: 3 });
-      }
       const saved = parseProjectDoc(JSON.parse(JSON.stringify({
         schemaVersion: PROJECT_SCHEMA_VERSION, spec: store.spec, shapes: [],
         cutouts: [], fingerHoles: [], history: store.history,
@@ -218,4 +218,30 @@ it("renders a maximum-length label with dense font outlines without overflowing 
   expect(bounds).not.toBeNull();
   expect(Number(bounds!.getAttribute("width"))).toBeCloseTo(719.8);
   expect(Number.isFinite(Number(host.querySelector("circle")!.getAttribute("cy")))).toBe(true);
+});
+
+it("uses selected Move/Rotate tools on the label body, with snapping and complete Escape rollback", () => {
+  const ui = mountText();
+  const store = ui.getStore;
+  React.act(() => {
+    store().dispatch({type:"SET_TEXT_TOOL",tool:"translate"});
+    store().dispatch({type:"SET_TEXT_SNAP",snap:true});
+  });
+  const history = store().history;
+  ui.pointer(ui.path,'pointerdown',10,10);
+  ui.pointer(ui.path,'pointermove',12.6,8.6);
+  expect(store().spec.surfaceTexts[0].position).toEqual({x:5,y:5});
+  React.act(()=>window.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'})));
+  expect(store().spec.surfaceTexts[0]).toEqual(ui.label);
+  expect(store().history).toBe(history);
+  React.act(()=>store().dispatch({type:'SET_TEXT_TOOL',tool:'rotate'}));
+  const center=binToCanvas(ui.label.position,store().spec);
+  ui.pointer(ui.path,'pointerdown',center.x+10,center.y);
+  ui.pointer(ui.path,'pointermove',center.x,center.y-10);
+  ui.pointer(ui.path,'pointerup',center.x,center.y-10);
+  expect(store().spec.surfaceTexts[0].position).toEqual(ui.label.position);
+  expect(store().spec.surfaceTexts[0].rotationDeg).toBe(-100);
+  expect(store().history.index).toBe(history.index+1);
+  React.act(()=>store().dispatch({type:'UNDO'}));
+  expect(store().spec.surfaceTexts[0]).toEqual(ui.label);
 });

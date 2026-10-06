@@ -103,7 +103,7 @@ export function transformObjects(objects: readonly EditableObject[], spec: BinSp
       let elevationDelta = offset.z + dz;
       if (rotating && pivot === "selection" && !object.cutout.profileBottom) {
         const rigid = rigidPocket(surfaceAnchoredPocket(object.cutout), object.shape, spec);
-        const source = pocketSourceRings(object.shape.outlineMm, rigid, top, true).flat();
+        const source = pocketSourceRings(object.shape.outlineMm, rigid, top).flat();
         const minimum = Math.min(...source.map(v => rotatePocketVector(v, rigid).z));
         const sourceOrigin = new Vector3(rigid.position.x - center.x, rigid.position.y - center.y,
           rigid.elevationMm! - minimum - top).applyQuaternion(rotation);
@@ -131,10 +131,12 @@ export function expandLinkedObjectEdits(objects: readonly EditableObject[], spec
   // an untouched legacy copy in its own frame before applying a rigid rotation.
   expanded.cutouts = expanded.cutouts.map(next => {
     const old = objects.find(o => o.kind === "pocket" && o.cutout.id === next.id);
-    if (hasRigidPocket(next) || old?.kind !== "pocket" || !next.designLink?.tilt
-      || !edits.cutouts.some(c => c.designLink?.id === next.designLink?.id && hasRigidPocket(c))) return next;
+    const linkedRotation = next.designLink?.tilt
+      && edits.cutouts.some(c => c.designLink?.id === next.designLink?.id && hasRigidPocket(c));
+    if (hasRigidPocket(next) || old?.kind !== "pocket" || (!next.insertionMode && !linkedRotation)) return next;
     const rigid = rigidPocket(old.cutout, old.shape, spec);
-    return { ...next, elevationMm: rigid.elevationMm };
+    return { ...next, elevationMm: rigid.elevationMm,
+      ...(next.insertionMode ? { zOffsetMm: undefined } : {}) };
   });
   const top = resolvePocketDepth(spec, { mode: "through" }).infillTopZ;
   for (const next of expanded.cutouts) {

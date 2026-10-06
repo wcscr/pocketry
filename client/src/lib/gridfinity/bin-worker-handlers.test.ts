@@ -102,7 +102,7 @@ function printableMeshVolume(mesh: BuildBinResult["mesh"]): number {
     const [a, b, c] = Array.from(mesh.indices.subarray(i, i + 3), n => mesh.positions.subarray(n * 3, n * 3 + 3));
     const u = Array.from(b, (v, j) => v - a[j]), v = Array.from(c, (n, j) => n - a[j]);
     const cross = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
-    expect(Math.hypot(...cross)).toBeGreaterThan(0);
+    expect(Math.hypot(...cross), `triangle ${JSON.stringify([Array.from(a),Array.from(b),Array.from(c)])}`).toBeGreaterThan(0);
     total += (a[0] * cross[0] + a[1] * cross[1] + a[2] * cross[2]) / 6;
   }
   expect(nonManifoldEdgeCount(mesh, true)).toBe(0);
@@ -113,6 +113,154 @@ const REQUEST: BuildBinRequest = {
   spec: { gridX: 1, gridY: 1, heightUnits: 2 },
   quality: { circularSegments: 16 },
 };
+
+it.each(["axis","vertical"] as const)("exports a submerged tilted pocket with %s clearance as closed colored STL/3MF", async insertionMode => {
+  const {shape,cutout} = createBasicPocket("rectangle",{x:-10,y:-12},{x:10,y:12},"submerged")!;
+  const p = parseCutoutPlacement({...cutout,elevationMm:7,tilt:{xDeg:20,yDeg:25},rotationDeg:17,
+    depth:{mode:"mm",value:16},insertionMode,topFilletMm:2,bottomFilletMm:1});
+  const request: BuildBinRequest = {spec:{gridX:3,gridY:3,heightUnits:8,fill:"solid",lip:"none"},
+    quality:EXPORT_QUALITY,exportTopology:true,pocketFloorMaterialThicknessMm:0.6,stackingRimMaterialThicknessMm:1.25,
+    borderWidthMm:2,layout:{shapes:[shape],cutouts:[p],fingerHoles:[]}};
+  const result = (await getHandler()(request,context())).value;
+  const closed = (await getHandler()({...request,layout:{...request.layout!,cutouts:[{...p,insertionMode:undefined}]}},context())).value;
+  expect(result.validationIssues?.filter(issue=>issue.severity === "error")).toEqual([]);
+  expect(printableMeshVolume(closed.mesh)-printableMeshVolume(result.mesh)).toBeGreaterThan(5000);
+  const sum = Object.values(result.materialMeshes!).reduce((total,mesh)=>total+printableMeshVolume(mesh),0);
+  expect(Math.abs(sum-printableMeshVolume(result.mesh))).toBeLessThan(0.1);
+  expect(writeBinarySTL(result.mesh).byteLength).toBe(84+result.mesh.indices.length/3*50);
+  const parts = Object.entries(result.materialMeshes!).map(([name,mesh])=>({name,mesh}));
+  const model = strFromU8(unzipSync(writeThreeMf(parts))["3D/3dmodel.model"]);
+  expect(model.match(/<triangle /g)?.length).toBe(parts.reduce((sum,part)=>sum+part.mesh.indices.length/3,0));
+});
+
+it("restores the full colored bin when the finite through object is raised above it", async () => {
+  const {shape,cutout} = createBasicPocket("rectangle",{x:-10,y:-12},{x:10,y:12},"raised-through")!;
+  const p = parseCutoutPlacement({...cutout,elevationMm:87,tilt:{xDeg:20,yDeg:25},rotationDeg:17,
+    depth:{mode:"through",sourceDepthMm:16},insertionMode:"vertical",topFilletMm:2,bottomFilletMm:1});
+  const request: BuildBinRequest = {spec:{gridX:3,gridY:3,heightUnits:8,fill:"solid",lip:"none"},
+    quality:EXPORT_QUALITY,exportTopology:true,pocketFloorMaterialThicknessMm:0.6,stackingRimMaterialThicknessMm:1.25,
+    borderWidthMm:2,layout:{shapes:[shape],cutouts:[p],fingerHoles:[]}};
+  const result = (await getHandler()(request,context())).value;
+  const uncut = (await getHandler()({...request,layout:{shapes:[],cutouts:[],fingerHoles:[]}},context())).value;
+  expect(printableMeshVolume(result.mesh)).toBeCloseTo(printableMeshVolume(uncut.mesh),4);
+  for (const part of Object.values(result.materialMeshes!)) expect(printableMeshVolume(part)).toBeGreaterThan(0);
+});
+
+it.each([false,true])("exports a bounded vertical through pocket with an open underside, flat bottom=%s", async flatBottom => {
+  const {shape,cutout} = createBasicPocket("rectangle",{x:-10,y:-12},{x:10,y:12},"bounded-through")!;
+  const p = parseCutoutPlacement({...cutout,elevationMm:0,tilt:{xDeg:20,yDeg:25},rotationDeg:17,
+    depth:{mode:"through"},insertionMode:"vertical",topFilletMm:2,bottomFilletMm:0,cornerRoundMm:1});
+  const request: BuildBinRequest = {spec:{gridX:3,gridY:3,heightUnits:3,fill:"solid",lip:"none",flatBottom},
+    quality:EXPORT_QUALITY,exportTopology:true,layout:{shapes:[shape],cutouts:[p],fingerHoles:[]}};
+  const result = (await getHandler()(request,context())).value;
+  expect(result.validationIssues?.filter(issue=>issue.severity === "error")).toEqual([]);
+  expect(printableMeshVolume(result.mesh)).toBeGreaterThan(200_000);
+  expect(writeBinarySTL(result.mesh).byteLength).toBe(84+result.mesh.indices.length/3*50);
+  const model = strFromU8(unzipSync(writeThreeMf([{name:"Through pocket",mesh:result.mesh}]))["3D/3dmodel.model"]);
+  expect(model.match(/<triangle /g)?.length).toBe(result.mesh.indices.length/3);
+});
+
+it.each([
+  { tilt: undefined, insertionMode: undefined },
+  { tilt: { xDeg: 20, yDeg: 25 }, insertionMode: undefined },
+  { tilt: { xDeg: 20, yDeg: 25 }, insertionMode: "axis" as const },
+  { tilt: { xDeg: 20, yDeg: 25 }, insertionMode: "vertical" as const },
+])("exports the raised surface rim to closed STL/3MF and nonoverlapping colors with %j", async ({tilt,insertionMode}) => {
+  const { shape, cutout } = createBasicPocket("rectangle", { x: -10, y: -12 }, { x: 10, y: 12 }, "raised-rim")!;
+  const p = parseCutoutPlacement({ ...cutout, elevationMm: 12, tilt, insertionMode,
+    depth: { mode: "mm", value: 16 }, topFilletMm: 2, bottomFilletMm: 1 });
+  const request: BuildBinRequest = { spec: { gridX: 2, gridY: 2, heightUnits: insertionMode === "vertical" ? 5 : 3, fill: "solid", lip: "none" },
+    quality: EXPORT_QUALITY, exportTopology: true, pocketFloorMaterialThicknessMm: 0.6,
+    stackingRimMaterialThicknessMm: 1.25, borderWidthMm: 2,
+    layout: { shapes: [shape], cutouts: [p], fingerHoles: [] } };
+  const original = structuredClone(request);
+  const result = (await getHandler()(request, context())).value;
+  const sharp = (await getHandler()({ ...request, layout: { ...request.layout!, cutouts: [{ ...p, topFilletMm: 0 }] } }, context())).value;
+  expect(result.validationIssues).toEqual([]);
+  expect(result.stats.volumeMm3).toBeLessThan(sharp.stats.volumeMm3);
+  const whole = printableMeshVolume(result.mesh);
+  const sum = Object.values(result.materialMeshes!).reduce((total, mesh) => total + printableMeshVolume(mesh), 0);
+  expect(Math.abs(sum - whole)).toBeLessThan(0.1);
+  expect(writeBinarySTL(result.mesh).byteLength).toBe(84 + result.mesh.indices.length / 3 * 50);
+  const parts = Object.entries(result.materialMeshes!).map(([name, mesh]) => ({ name, mesh }));
+  const model = strFromU8(unzipSync(writeThreeMf(parts))["3D/3dmodel.model"]);
+  expect(model.match(/<triangle /g)?.length).toBe(parts.reduce((sum, part) => sum + part.mesh.indices.length / 3, 0));
+  expect(request).toEqual(original);
+});
+
+it("blocks horizontal axial exports and exports a closed vertical recovery", async () => {
+  const { shape, cutout } = createBasicPocket("rectangle", {x:-10,y:-12}, {x:10,y:12}, "path-recovery")!;
+  const p = parseCutoutPlacement({ ...cutout, elevationMm: 7, tilt: {xDeg:90,yDeg:0},
+    depth: {mode:"mm",value:12}, insertionMode: "axis" });
+  const request: BuildBinRequest = { spec: { gridX: 3, gridY: 3, heightUnits: 6, fill: "solid", lip: "none" },
+    quality: EXPORT_QUALITY, exportTopology: true, layout: { shapes: [shape], cutouts: [p], fingerHoles: [] } };
+  await expect(getHandler()(request, context())).rejects.toThrow("vertical drop-in");
+  const recovered = (await getHandler()({ ...request, layout: { ...request.layout!, cutouts: [{ ...p, insertionMode: "vertical" }] } }, context())).value;
+  expect(printableMeshVolume(recovered.mesh)).toBeGreaterThan(0);
+  expect(recovered.validationIssues).toEqual([]);
+});
+
+it.each([
+  {elevationMm:5.05,heightUnits:4,flatBottom:true},
+  {elevationMm:7,heightUnits:4,flatBottom:false},
+  {elevationMm:16.87,heightUnits:6,flatBottom:false},
+])("exports the reported compound tilt with the actual rotated seat and closed color parts: %j", async ({elevationMm,heightUnits,flatBottom}) => {
+  const {shape,cutout}=createBasicPocket("rectangle",{x:-10,y:-12},{x:10,y:12},"vertical-regression")!;
+  const p=parseCutoutPlacement({...cutout,position:{x:28.07,y:-6.55},elevationMm,
+    tilt:{xDeg:20,yDeg:25},rotationDeg:17,depth:{mode:"mm",value:16},
+    insertionMode:"vertical",topFilletMm:2,bottomFilletMm:1});
+  const result=(await getHandler()({spec:{gridX:3,gridY:3,heightUnits,flatBottom,fill:"solid",lip:"none"},
+    quality:EXPORT_QUALITY,exportTopology:true,pocketFloorMaterialThicknessMm:0.6,
+    layout:{shapes:[shape],cutouts:[p],fingerHoles:[]}},context())).value;
+  expect(result.validationIssues).toEqual([]);
+  const whole=printableMeshVolume(result.mesh);
+  const parts=Object.entries(result.materialMeshes!).map(([name,mesh])=>({name,mesh}));
+  expect(Math.abs(parts.reduce((sum,part)=>sum+printableMeshVolume(part.mesh),0)-whole)).toBeLessThan(0.1);
+  expect(writeBinarySTL(result.mesh).byteLength).toBe(84+result.mesh.indices.length/3*50);
+  expect(strFromU8(unzipSync(writeThreeMf(parts))["3D/3dmodel.model"]).match(/<triangle /g)?.length)
+    .toBe(parts.reduce((sum,part)=>sum+part.mesh.indices.length/3,0));
+});
+
+it.each(["axis","vertical"] as const)("exports a floor-clipped %s pocket with closed material parts and retained source depth", async insertionMode => {
+  const {shape,cutout}=createBasicPocket("rectangle",{x:-10,y:-12},{x:10,y:12},"floor-limit")!;
+  const p=parseCutoutPlacement({...cutout,elevationMm:3,tilt:{xDeg:20,yDeg:25},rotationDeg:17,
+    depth:{mode:"remaining",floorThicknessMm:9,sourceDepthMm:16},insertionMode,topFilletMm:2,bottomFilletMm:1});
+  const result=(await getHandler()({spec:{gridX:3,gridY:3,heightUnits:5,fill:"solid",lip:"none"},
+    quality:EXPORT_QUALITY,exportTopology:true,pocketFloorMaterialThicknessMm:0.6,
+    layout:{shapes:[shape],cutouts:[p],fingerHoles:[]}},context())).value;
+  expect(result.validationIssues).toEqual([]);
+  const whole=printableMeshVolume(result.mesh);
+  const parts=Object.values(result.materialMeshes!);
+  expect(printableMeshVolume(result.materialMeshes!.pocketFloors!)).toBeGreaterThan(0);
+  expect(Math.abs(parts.reduce((sum,mesh)=>sum+printableMeshVolume(mesh),0)-whole)).toBeLessThan(0.1);
+  expect(p.depth).toEqual({mode:"remaining",floorThicknessMm:9,sourceDepthMm:16});
+});
+
+it("blocks a vertical export when the tilted floor prevents a full opening", async () => {
+  const {shape,cutout}=createBasicPocket("rectangle",{x:-10,y:-12},{x:10,y:12},"high-seat")!;
+  const p=parseCutoutPlacement({...cutout,elevationMm:12,tilt:{xDeg:20,yDeg:25},depth:{mode:"mm",value:16},insertionMode:"vertical"});
+  await expect(getHandler()({spec:{gridX:3,gridY:3,heightUnits:3,fill:"solid",lip:"none"},
+    quality:EXPORT_QUALITY,exportTopology:true,layout:{shapes:[shape],cutouts:[p],fingerHoles:[]}},context()))
+    .rejects.toThrow("preventing a full vertical opening");
+});
+
+it.each(["standard", "none"] as const)("exports thick hollow walls with floor and rim colors, %s lip", async lip => {
+  const request: BuildBinRequest = {
+    spec: { gridX: 1, gridY: 1, heightUnits: 3, fill: "none", wallThicknessMm: 3, lip },
+    quality: EXPORT_QUALITY, exportTopology: true,
+    pocketFloorMaterialThicknessMm: 0.6, stackingRimMaterialThicknessMm: 1.25, borderWidthMm: 3,
+  };
+  const result = (await getHandler()(request, context())).value;
+  const whole = printableMeshVolume(result.mesh);
+  expect(whole).toBeCloseTo(result.stats.volumeMm3, 1);
+  expect(result.materialMeshes?.pocketFloors).toBeDefined();
+  expect(result.materialMeshes?.stackingRim).toBeDefined();
+  const partsVolume = Object.values(result.materialMeshes!).reduce((sum, mesh) => sum + printableMeshVolume(mesh), 0);
+  expect(partsVolume).toBeCloseTo(whole, 1);
+  expect(writeBinarySTL(result.mesh).byteLength).toBe(84 + result.mesh.indices.length / 3 * 50);
+  const model = strFromU8(unzipSync(writeThreeMf([{ name: "Thick hollow bin", mesh: result.mesh }]))["3D/3dmodel.model"]);
+  expect(model.match(/<triangle /g)?.length).toBe(result.mesh.indices.length / 3);
+});
 
 it.each([undefined, {xDeg:32,yDeg:-24}, {xDeg:90,yDeg:0}, {xDeg:180,yDeg:0}, {xDeg:0,yDeg:90}, {xDeg:-30,yDeg:70}])("exports a profile floor with rotation %s alongside an ordinary pocket to closed STL/3MF meshes and protects the base", async profileRotation => {
   const basic=createBasicPocket("rectangle",{x:-20,y:-10},{x:20,y:10},"profile-export")!;

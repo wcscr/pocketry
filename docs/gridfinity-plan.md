@@ -1,5 +1,54 @@
 # Gridfinity bin generator — design and roadmap
 
+## Bin height and rounded stacking lip
+
+Pocketry uses **Gridfinity Rebuilt's rounded stacking lip**, with a **0.6 mm
+fillet radius** at the top edge. This rounding is inherited from Rebuilt.
+See the [pinned upstream bin-height notes](https://github.com/kennetek/gridfinity-rebuilt-openscad/blob/910e22d8607fd7f5f51ad5e5cbc5287a76810bfd/gridfinity-rebuilt-bins.scad#L8-L18)
+and the [port provenance](../client/src/lib/gridfinity/UPSTREAM.md).
+
+Heights are measured from the **bottom of the bin's feet**, excluding any
+baseplate. Each height unit is 7 mm and already includes the base:
+
+- Without a stacking lip: `7 × heightUnits` mm.
+- With Pocketry's standard rounded lip: `7 × heightUnits + 3.5515` mm
+  (rounded to four decimal places).
+- The theoretical sharp lip reaches `7 × heightUnits + 4.4` mm. The 0.6 mm
+  fillet lowers its peak to `4.4 − 0.6 × √2 ≈ 3.5515` mm above the nominal top.
+
+| Height units | Without lip | Pocketry rounded lip | Theoretical sharp lip |
+| --- | ---: | ---: | ---: |
+| 3u | 21 mm | 24.55 mm | 25.40 mm |
+| 6u | 42 mm | 45.55 mm | 46.40 mm |
+
+The rounding preserves the stacking contact surfaces; Rebuilt documents that
+it does not change the stacking height. A different lip-tip treatment can
+therefore change overall bin height without changing where the next bin seats.
+These are model dimensions; printed measurements also depend on slicing and
+printing. A measured height difference alone does not establish a stacking-fit
+problem or identify another generator's lip geometry.
+
+## Current behavior and implementation status
+
+**Construction → Wall thickness** appears when **Enable experimental features**
+is on in Settings and **Solid fill** is off. The
+0.95–3.00 mm setting defaults to Rebuilt's 0.95 mm wall and grows the main walls
+inward, reducing cavity space while preserving outside dimensions and base
+geometry. With a stacking lip, extra wall material stops 1.2 mm below the nominal
+top, preserving the original mating region. Without a lip, the thicker wall
+reaches the top. A 1u bin has no straight wall above the base to thicken.
+The setting applies to rectangular and custom footprints, including flat bottoms;
+preview, STL/3MF, and hollow-floor colors use it. Turning solid fill on retains
+the preference but uses the original solid-bin geometry, including at partial
+fill heights. Schema v32 defaults older designs and undo history to 0.95 mm.
+Turning experimental features off hides the control without changing the saved
+thickness or geometry. Loading a project with a custom thickness, including in
+undo/redo history, enables experimental features with the usual notification.
+
+The help button beside **Outer size** explains height units and the inherited
+rounded lip. With the lip off, it explains the flush height instead. The detailed
+explanation stays inside the hint in both editor layouts.
+
 **Construction → Fill height** adjusts solid fill from 1–100%, with slider marks at
 25%, 50%, 75%, and 100%. The slider snaps within three percentage points of those
 marks on release; keyboard steps and typed percentages remain exact. The percentage
@@ -434,7 +483,9 @@ Constants to port into `shared/gridfinity/standard.ts` (verified against upstrea
 - base top 41.5 mm, base gap 0.5 mm, `BASE_TOP_RADIUS 3.75`, `BASE_BOTTOM_RADIUS 0.8`,
   `BASE_BRIDGE_HEIGHT 2.25`
 - `STACKING_LIP_LINE = [[0,0],[0.7,0.7],[0.7,2.5],[2.6,4.4]]` — lip intrudes 2.6 mm, is
-  4.4 mm tall, support height 3.8 mm
+  4.4 mm tall before rounding, and has a 3.8 mm support below the nominal top.
+  The inherited 0.6 mm top fillet leaves an actual lip height of
+  `4.4 − 0.6 × √2 ≈ 3.5515` mm above the nominal top.
 - `d_wall 0.95`, `r_f2 2.8`, `d_div 1.2`
 - magnet ⌀6.5 × 2.4 deep (refined 5.86), screw r 1.5, `LAYER_HEIGHT 0.2`
 

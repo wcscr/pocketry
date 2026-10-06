@@ -3,7 +3,7 @@ import { z } from "zod";
 import { hasPocketTilt, pocketAxis, pocketMouthBasis, rotatePocketVector } from "./pocket-orientation";
 import { profileAlongX, profileBottomSchema, profileFloorSegments, profileFootprint, profilePrisms, hasProfileRotation } from "./profile-bottom";
 import { objectRotationSchema } from "./object-pose";
-import { hasRigidPocket, rigidPocketFootprint } from "./rigid-pocket";
+import { hasRigidPocket, rigidPocketFootprint, rigidPocketOccupiedFootprint } from "./rigid-pocket";
 
 import { ensureOrientation, mapRing } from "../geometry/rings";
 import {
@@ -102,7 +102,10 @@ export const tracedShapeSchema = z
 export type TracedShape = z.infer<typeof tracedShapeSchema>;
 
 export const depthSpecSchema = z.discriminatedUnion("mode", [
-  z.object({ mode: z.literal("through") }).strict(),
+  z.object({ mode: z.literal("through"),
+    /** Finite authored object retained when floor protection is disabled. */
+    sourceDepthMm: z.number().positive().optional(),
+  }).strict(),
   /** Extrusion distance along the original outline normal. Upright pockets
    * initially measure this down from the infill top. */
   z.object({ mode: z.literal("mm"), value: z.number().positive() }).strict(),
@@ -111,6 +114,8 @@ export const depthSpecSchema = z.discriminatedUnion("mode", [
     .object({
       mode: z.literal("remaining"),
       floorThicknessMm: z.number().min(0),
+      /** Unclipped extrusion retained during rigid edits; the floor is a bin-space limit. */
+      sourceDepthMm: z.number().positive().optional(),
     })
     .strict(),
 ]);
@@ -586,6 +591,8 @@ const cutoutPlacementInputSchema = z
     zOffsetMm: z.number().finite().min(-300).max(300).optional(),
     /** Lowest point of a rigid pocket. Absent on legacy surface-anchored pockets. */
     elevationMm: z.number().finite().min(0).max(300).optional(),
+    /** Optional upward clearance; absent preserves the finite authored pocket. */
+    insertionMode: z.enum(["axis", "vertical"]).optional(),
     /** CCW-positive in the y-up bin frame. */
     rotationDeg: z.number().finite().default(0),
     /** X/Y orientation in the authored frame; Z heading remains rotationDeg. */
@@ -617,7 +624,13 @@ const cutoutPlacementInputSchema = z
     /** Schema-v1 compatibility; normalized into a scoop finger access below. */
     scoop: legacyScoopSpecSchema.nullable().optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((pocket, context) => {
+    if (pocket.insertionMode && pocket.elevationMm === undefined) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ["insertionMode"],
+        message: "Insertion clearance requires a rigid pocket elevation." });
+    }
+  });
 
 /**
  * Normalizes schema-v1's one-off `scoop` into the schema-v2 per-hole model.
@@ -684,7 +697,7 @@ export function parseCutoutPlacement(input: unknown): CutoutPlacement {
 export type PlacementTransform = Pick<
   CutoutPlacement,
   "position" | "rotationDeg" | "mirrored"
-> & Partial<Pick<CutoutPlacement, "scaleX" | "scaleY" | "tilt" | "zOffsetMm" | "profileBottom" | "profileRotation" | "elevationMm" | "depth" | "split">>;
+> & Partial<Pick<CutoutPlacement, "scaleX" | "scaleY" | "tilt" | "zOffsetMm" | "profileBottom" | "profileRotation" | "elevationMm" | "depth" | "split" | "insertionMode">>;
 
 /** Applies scale → mirror → rotate → translate to one shape-local point. */
 export function transformPointPlacement(
@@ -1240,9 +1253,10 @@ const floorAtUnderside = (z: number): number => Math.abs(z) < POCKET_DEPTH_EPSIL
 export function resolvePlacedPocketDepth(spec: Pick<BinSpec, "heightUnits" | "lip">, depth: DepthSpec, shape: Pick<TracedShape, "outlineMm">, cutout: CutoutPlacement): ResolvedPocket & { highestFloorZ: number | null; axialDepthMm: number | null } {
   const ordinary = resolvePocketDepth(spec, depth);
   if (hasRigidPocket(cutout)) {
-    if (depth.mode === "through") return { ...ordinary, floorZ: null, highestFloorZ: null, axialDepthMm: null };
-    const floorZ = cutout.elevationMm!;
-    return { ...ordinary, floorZ, highestFloorZ: floorZ, axialDepthMm: ordinary.depthMm,
+    if (depth.mode === "through") return { ...ordinary, floorZ: cutout.elevationMm!, highestFloorZ: cutout.elevationMm!,
+      axialDepthMm: depth.sourceDepthMm ?? ordinary.infillTopZ, depthMm: Math.max(0, ordinary.infillTopZ-cutout.elevationMm!) };
+    const floorZ = depth.mode === "remaining" ? Math.max(cutout.elevationMm!, depth.floorThicknessMm) : cutout.elevationMm!;
+    return { ...ordinary, floorZ, highestFloorZ: floorZ, axialDepthMm: depth.mode === "remaining" ? depth.sourceDepthMm ?? ordinary.depthMm : ordinary.depthMm,
       depthMm: Math.max(0, ordinary.infillTopZ - floorZ) };
   }
   if (cutout.profileBottom) {
@@ -1276,7 +1290,12 @@ export function resolvePlacedPocketDepth(spec: Pick<BinSpec, "heightUnits" | "li
 /** Conservative cavity envelope for packing and immediate layout checks.
  * Includes the full shaft from the floor through the rim, not only its mouth. */
 export function pocketOccupiedOutline(shape: Pick<TracedShape, "outlineMm">, cutout: CutoutPlacement, spec: Pick<BinSpec, "heightUnits" | "lip">): Outline {
-  if (hasRigidPocket(cutout)) return rigidPocketFootprint(shape.outlineMm, cutout);
+  if (hasRigidPocket(cutout)) {
+    const depth = resolvePocketDepth(spec, cutout.depth);
+    return cutout.insertionMode
+      ? rigidPocketOccupiedFootprint(shape.outlineMm, cutout, depth.cutterTopZ, depth.infillTopZ)
+      : rigidPocketFootprint(shape.outlineMm, cutout);
+  }
   if (cutout.profileBottom) return profileFootprint(shape.outlineMm, cutout);
   if (!hasPocketTilt(cutout)) return placementFootprint(shape, cutout).outline;
   const axis = pocketAxis(cutout);

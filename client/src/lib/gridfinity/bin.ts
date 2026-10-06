@@ -1,4 +1,4 @@
-import type { ValidationIssue } from "@shared/gridfinity/validate";
+import { validateLayout, type ValidationIssue } from "@shared/gridfinity/validate";
 import { buildSurfaceTexts } from "./surface-text";
 import { validateTiltedSolids } from "./validate-tilted-solids";
 // Type-only import: the kernel is injected (see `Kernel` in ../manifold/runtime).
@@ -250,7 +250,12 @@ export function buildBinWithCutouts(
   let validationIssues: ValidationIssue[] = [];
   if (layout && (layout.cutouts.length > 0 || layout.fingerHoles.length > 0)) {
     if (builtCutouts) {
-      validationIssues = validateTiltedSolids(kernel, spec, layout.cutouts, layout.shapesById, builtCutouts.cutterGroups ?? [], base.parts.wall, base.parts.lip);
+      validationIssues = [
+        ...(builtCutouts.validationIssues ?? []),
+        ...validateLayout(spec, layout.cutouts, layout.shapesById, layout.fingerHoles)
+          .filter(issue => issue.code === "invalid-pocket-insertion"),
+        ...validateTiltedSolids(kernel, spec, layout.cutouts, layout.shapesById, builtCutouts.cutterGroups ?? [], base.parts.wall, base.parts.lip),
+      ];
       floorInserts = builtCutouts.floorInserts;
       floorRegions = builtCutouts.floorRegions ?? floorInserts;
       reports = builtCutouts.reports;

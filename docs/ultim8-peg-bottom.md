@@ -41,8 +41,12 @@ Through pockets omit every peg whose round shaft footprint overlaps any part of
 the opening, including partial overlaps; the whole shaft and its root are omitted.
 Clearance, corner rounding, placement, and outline holes are respected. Split
 pockets omit pegs only beneath through sections, while blind sections retain them.
-Tilted through pockets use their actual sweep beneath the slab. If omitted anchors
-leave an unsupported underside or long bridges, generation gives an actionable
+Tilted through pockets use their actual sweep beneath the slab. Rigid pockets
+retain their finite source from the current editor: only an opening that reaches
+the slab underside extends through the peg roots. Raising the source restores
+pegs beneath it; a tilted source that only touches the slab along an edge does
+not remove pegs. If omitted anchors leave an unsupported underside or long
+bridges, generation gives an actionable
 message. Through openings cut the full remaining root/web extension.
 STL and 3MF exports lift
 all parts together so peg tips start at Z = 0 on the build plate.

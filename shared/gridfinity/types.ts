@@ -7,7 +7,7 @@ import {
   type BoundaryEdge,
   type GridCell,
 } from "./footprint";
-import { GRID_PITCH_DIVISOR, type GridPitch } from "./standard";
+import { D_WALL, GRID_PITCH_DIVISOR, MAX_HOLLOW_WALL_THICKNESS_MM, type GridPitch } from "./standard";
 
 /**
  * The Gridfinity bin specification — what the user asks for, not how it is
@@ -70,6 +70,8 @@ export const binSpecSchema = z
      * default. `none` is the classic hollow storage bin.
      */
     fill: z.enum(["none", "solid"]).default("solid"),
+    /** Main hollow-wall thickness; retained while solid fill is enabled. */
+    wallThicknessMm: z.number().min(D_WALL).max(MAX_HOLLOW_WALL_THICKNESS_MM).default(D_WALL),
     /** Percentage of available fill height above the fixed base; retained while hollow. */
     fillHeightPercent: z.number().min(1).max(100).default(100),
     /** Resize existing fixed depths with fill edits; unchecking restores their baseline. */

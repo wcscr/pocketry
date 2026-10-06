@@ -50,16 +50,17 @@ function mount(selected = objects) {
   return { container, click, button, input, fill, focus, blur, press, edit, onCommitObjects, onSelectionChange,
     select: (items: EditableObject[]) => React.act(() => select(items)), update: (edits: ObjectEdits) => React.act(() => update(edits)) };
 }
-it.each(["Move X by", "Move Y by", "Move Z by", "Rotate X by", "Rotate Y by", "Rotate Z by"])("discards an unapplied %s draft when the selection changes before blur", label => {
+it.each(["Move X by", "Move Y by", "Move Z by", "Rotate X by", "Rotate Y by", "Rotate Z by"])("finishes a valid %s edit for its owner when selection changes before blur", label => {
   const ui = mount([objects[0]]);
   if (label.startsWith("Rotate")) ui.click("Rotate pocket (E)");
   ui.focus(label); ui.fill(label, "25");
   ui.select([objects[1]]);
   ui.blur(label);
-  expect(ui.onCommitObjects).not.toHaveBeenCalled();
+  expect(ui.onCommitObjects).toHaveBeenCalledTimes(1);
+  expect(ui.onCommitObjects.mock.calls[0][0].cutouts.map((c: { id: string }) => c.id)).toContain(objectRef(objects[0]).id);
   expect(ui.input(label).value).toBe("0");
   ui.edit(label, "10");
-  expect(ui.onCommitObjects).toHaveBeenCalledTimes(1);
+  expect(ui.onCommitObjects).toHaveBeenCalledTimes(2);
   const updated = applyObjectEdits(objects, ui.onCommitObjects.mock.lastCall![0]);
   expect(updated[0]).toEqual(objects[0]);
   expect(updated[1]).not.toEqual(objects[1]);
@@ -164,18 +165,18 @@ it("commits rotation once on Enter and accepts sideways poses", () => {
 });
 
 
-it("hides experimental arrangement and multi-selection tools after opting out", () => {
+it("keeps standard arrangement and multi-selection tools after opting out", () => {
   const ui = mount([objects[0]]);
   ui.click("Align and distribute objects");
   experimental.enabled = false;
   ui.select([objects[0]]);
-  expect(ui.container.querySelector('[aria-label="Align and distribute objects"]')).toBeNull();
+  expect(ui.container.querySelector('[aria-label="Align and distribute objects"]')).not.toBeNull();
   expect(ui.container.querySelector('[aria-label="Align objects"]')).toBeNull();
-  expect(ui.container.textContent).not.toContain("Select all");
-  expect(ui.container.textContent).not.toContain("Shift / ⌘ / Ctrl");
+  expect(ui.container.textContent).toContain("Select all");
+  expect(ui.container.textContent).toContain("Shift / ⌘ / Ctrl");
   const other = ui.container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')[1];
   React.act(() => other.click());
-  expect(ui.onSelectionChange).toHaveBeenLastCalledWith([objectRef(objects[1])]);
+  expect(ui.onSelectionChange).toHaveBeenLastCalledWith([objectRef(objects[0]), objectRef(objects[1])]);
   ui.edit("Move X by", "2");
   expect(ui.onCommitObjects).toHaveBeenCalledOnce();
 });

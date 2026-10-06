@@ -14,7 +14,7 @@ import { LayoutCanvas } from "./layout-canvas";
 import { PanelProvider } from "@/components/layout/panel-context";
 
 vi.mock("@/hooks/use-element-size", () => ({ useElementSize: () => [vi.fn(), { width: 800, height: 600 }] }));
-vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
+vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false, useHasTouchInput: () => false, getMobileLayoutSnapshot: () => false }));
 vi.mock("@/state/experimental-features", () => ({ useExperimentalFeatures: () => ({ enabled: true }) }));
 
 let store: BinStore;

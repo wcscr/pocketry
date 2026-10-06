@@ -150,13 +150,16 @@ describe("support-free peg bottoms", () => {
     expect(arena.track(build({ ...pocket.cutout, depth: { mode: "through" } }).slice(z)).area()).toBeCloseTo(original, 5);
     expect(arena.track(build({ ...pocket.cutout, clearanceMm: 0.3, cornerRoundMm: 0.3, depth: { mode: "through" } }).slice(z)).area()).toBeCloseTo(original - fullPegArea, 5);
   });
-  it.each([false, true])("omits only the through half of a transformed split pocket, mirrored=%s", mirrored => {
+  it.each([false, true].flatMap(mirrored => [false, true].map(rigid => ({ mirrored, rigid }))))(
+    "omits only the through half of a transformed split pocket, mirrored=$mirrored/rigid=$rigid", ({ mirrored, rigid }) => {
     const kernel = createKernel(wasm, arena);
     const s = spec();
     const pocket = createBasicPocket("rectangle", { x: -10, y: -3 }, { x: 10, y: 3 }, "split")!;
     pocket.cutout = { ...pocket.cutout, rotationDeg: 180, mirrored, scaleX: 1.1, scaleY: 1.2,
+      ...(rigid ? { elevationMm: 0 } : {}),
       split: { boundary: [{ x: 0, y: -3 }, { x: 0, y: 3 }], depths: [
-        { mode: "through" }, { mode: "remaining", floorThicknessMm: 2 },
+        { mode: "through", ...(rigid ? { sourceDepthMm: 16 } : {}) },
+        { mode: "remaining", floorThicknessMm: 2, ...(rigid ? { sourceDepthMm: 8 } : {}) },
       ] } };
     const result = buildBinWithCutouts(kernel, s, { shapesById: new Map([[pocket.shape.id, pocket.shape]]), cutouts: [pocket.cutout], fingerHoles: [] }, EXPORT_QUALITY);
     const shafts = arena.track(result.solid.slice(-pegBottomRootHeightMm(s) - 1));
@@ -180,7 +183,7 @@ describe("support-free peg bottoms", () => {
     const overlapping = arena.track(arena.track(kernel.CrossSection.circle(2.4, EXPORT_QUALITY.circularSegments)).translate([5, 5]));
     expect(arena.track(shafts.intersect(overlapping)).area()).toBeLessThan(1e-6);
   });
-  it.each([false, true])("omits complete pegs from the actual tilted through sweep, rigid=%s", rigid => {
+  it.each([false, true])("matches peg omission to the actual tilted through cut, rigid=%s", rigid => {
     const kernel = createKernel(wasm, arena);
     const s = spec();
     const pocket = createBasicPocket("rectangle", { x: 1.8, y: -1 }, { x: 4, y: 1 }, "tilted")!;
@@ -200,8 +203,40 @@ describe("support-free peg bottoms", () => {
       if (overlaps) omitted++;
       expect(arena.track(shafts.intersect(disk)).area()).toBeCloseTo(overlaps ? 0 : disk.area(), 5);
     }
-    expect(omitted).toBeGreaterThan(0);
+    // A finite tilted source only touches the slab at its lowest edge. It
+    // has no opening into the roots; an ordinary through shaft still does.
+    if (rigid) expect(omitted).toBe(0);
+    else expect(omitted).toBeGreaterThan(0);
     expect(result.solid.status()).toBe("NoError");
+  });
+  it.each(overlapCases)("restores pegs when a finite through pocket is raised at $underside/$quality.circularSegments quality", ({ quality, underside }) => {
+    const kernel = createKernel(wasm, arena);
+    const s = spec({ pegBottom: { ...DEFAULT_PEG_BOTTOM, underside } });
+    const pocket = createBasicPocket("rectangle", { x: 1.8, y: -1 }, { x: 4, y: 1 }, "finite through")!;
+    const source: CutoutPlacement = { ...pocket.cutout, elevationMm: 0, insertionMode: "vertical",
+      depth: { mode: "through", sourceDepthMm: 16 } };
+    const shapesById = new Map([[pocket.shape.id, pocket.shape]]);
+    const build = (elevationMm: number) => buildBinWithCutouts(kernel, s,
+      { shapesById, cutouts: [{ ...source, elevationMm }], fingerHoles: [] }, quality,
+      { floorInsertThicknessMm: 0.6, rimInsertThicknessMm: 0.6 });
+    const z = -pegBottomRootHeightMm(s) - 1;
+    const pegArea = arena.track(kernel.CrossSection.circle(2.4, quality.circularSegments)).area();
+    const fullArea = ultim8PegCenters(s).length * pegArea;
+    const seated = build(0);
+    expect(arena.track(seated.solid.slice(z)).area()).toBeCloseTo(fullArea - pegArea, 5);
+    const below = arena.track(kernel.Manifold.cylinder(pegBottomExtensionMm(s) + 0.5, 0.1, 0.1, 24)
+      .translate([3, 0, -pegBottomExtensionMm(s)]));
+    expect(arena.track(seated.solid.intersect(below)).volume()).toBeLessThan(1e-6);
+    for (const elevation of [1, 30]) {
+      const raised = build(elevation);
+      expect(arena.track(raised.solid.slice(z)).area()).toBeCloseTo(fullArea, 5);
+      expect(arena.track(raised.materialParts!.body.slice(z)).area()).toBeCloseTo(fullArea, 5);
+      expect(raised.solid.status()).toBe("NoError");
+      expect(raised.solid.decompose().map(part => arena.track(part))).toHaveLength(1);
+    }
+    const clear = buildCutoutCutters(kernel, shapesById, [{ ...source, elevationMm: 30 }], s, quality);
+    expect(clear.cutters).toEqual([]);
+    expect(clear.throughCutters).toEqual([]);
   });
   it("reports when through pockets leave no printable peg anchors", () => {
     const kernel = createKernel(wasm, arena);

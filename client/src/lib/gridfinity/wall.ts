@@ -7,7 +7,9 @@ import {
   BASE_TOP_RADIUS,
   binFootprintMm,
   binWallHeightMm,
+  binWallThicknessMm,
   D_WALL,
+  STACKING_LIP_SUPPORT_HEIGHT,
   type GridPitch,
 } from "@shared/gridfinity/standard";
 
@@ -36,12 +38,16 @@ export interface WallSpec {
   gridPitch?: GridPitch;
   footprint?: BinFootprint;
   heightUnits: number;
+  fill?: "none" | "solid";
+  lip?: "standard" | "none";
+  wallThicknessMm?: number;
 }
 
 /**
  * The plain wall ring from the top of the base to the bin's nominal top:
- * a rounded-rect annulus of thickness {@link D_WALL}, extruded
- * `heightUnits·7 − 7`. Returns `null` for a 1u bin, whose wall height is zero.
+ * Uses the requested hollow-wall thickness. Extra material stops below the
+ * lip's inner support face so the original mating region stays unchanged.
+ * Returns `null` for a 1u bin, whose wall height is zero.
  */
 export function buildWallRing(
   kernel: Kernel,
@@ -52,10 +58,17 @@ export function buildWallRing(
   const wallHeightMm = binWallHeightMm(spec.heightUnits);
   if (wallHeightMm <= 0) return null;
 
-  const annulus = buildWallSection(kernel, spec, circularSegments);
-  return arena.track(
-    arena.track(annulus.extrude(wallHeightMm)).translate([0, 0, BASE_HEIGHT]),
-  );
+  const widthMm = binWallThicknessMm(spec);
+  const annulus = buildWallSection(kernel, spec, circularSegments, D_WALL);
+  const originalWall = arena.track(annulus.extrude(wallHeightMm));
+  let wall = originalWall;
+  const thickHeightMm = spec.lip === "none" ? wallHeightMm
+    : Math.max(0, wallHeightMm - STACKING_LIP_SUPPORT_HEIGHT);
+  if (widthMm > D_WALL && thickHeightMm > 0) {
+    const thickSection = buildWallSection(kernel, spec, circularSegments, widthMm);
+    wall = arena.track(originalWall.add(arena.track(thickSection.extrude(thickHeightMm))));
+  }
+  return arena.track(wall.translate([0, 0, BASE_HEIGHT]));
 }
 
 /** Wall footprint or a wider/narrower inward border for a bin without a lip. */
@@ -63,7 +76,7 @@ export function buildWallSection(
   kernel: Kernel,
   spec: WallSpec,
   circularSegments: number,
-  widthMm = D_WALL,
+  widthMm = binWallThicknessMm(spec),
 ): CrossSection {
   const { CrossSection, arena } = kernel;
   if (!Number.isFinite(widthMm) || widthMm <= 0) {
@@ -89,7 +102,7 @@ export function buildWallSection(
   const inner = roundedRectPolygon(
     binWidthMm - 2 * widthMm,
     lengthMm - 2 * widthMm,
-    BASE_TOP_RADIUS,
+    Math.min(BASE_TOP_RADIUS, (binWidthMm - 2 * widthMm) / 2, (lengthMm - 2 * widthMm) / 2),
     circularSegments,
   ).reverse();
 

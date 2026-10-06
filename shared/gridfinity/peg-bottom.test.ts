@@ -49,14 +49,16 @@ describe("ULTIM8 peg specification", () => {
     expect(pegBridgeSpanMm([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 20, y: 0 }])).toBe(10);
     expect(pegBridgeSpanMm([{ x: 0, y: 0 }, { x: 20, y: 0 }])).toBe(20);
   });
-  it("migrates v31 projects and round-trips peg settings in saved history", () => {
+  it.each([31, 32, 33, 34, 35])("migrates v%s projects and round-trips peg settings in saved history", version => {
     const spec = bin({ pegBottom: { diameterMm: 4.7, lengthMm: 3.5, underside: "bridged" } });
     const doc = { spec, cutouts: [], fingerHoles: [] };
     const project = parseProjectDoc({ schemaVersion: PROJECT_SCHEMA_VERSION, shapes: [], ...doc,
       history: { stack: [{ doc, label: "Change bottom" }], index: 0 } })!;
     expect(parseProjectDoc(JSON.parse(JSON.stringify(serializeProjectDoc(project))))).toEqual(project);
     const legacy = JSON.parse(JSON.stringify(project));
-    legacy.schemaVersion = 31;
+    legacy.schemaVersion = version;
+    const withPegs = parseProjectDoc(legacy)!;
+    expect(withPegs).toEqual(project); // Includes the earlier version-32 peg prototype.
     delete legacy.spec.pegBottom;
     delete legacy.history.stack[0].doc.spec.pegBottom;
     const migrated = parseProjectDoc(legacy)!;

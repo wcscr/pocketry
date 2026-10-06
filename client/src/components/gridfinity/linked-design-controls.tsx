@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { CopyPlus, Link2, Unlink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useBin } from "@/state/bin-store";
+import { useExperimentalFeatures } from "@/state/experimental-features";
 import { useShapeLibrary } from "@/state/shape-library";
 import { pocketName } from "@shared/gridfinity/cutout";
 import type { DesignObjectKind } from "@shared/gridfinity/design-links";
@@ -23,6 +24,7 @@ export function LinkedDesignControls({ kind, activeId, labels }: {
   kind: DesignObjectKind; activeId: string; labels: ReadonlyMap<string, string>;
 }): JSX.Element | null {
   const { cutouts, fingerHoles, selection, dispatch, editError } = useBin();
+  const { enabled, setEnabled } = useExperimentalFeatures();
   const items = kind === "pocket" ? cutouts : fingerHoles;
   const active = items.find(item => item.id === activeId);
   const selected = selection.filter(ref => ref.kind === kind).map(ref => ref.id);
@@ -34,6 +36,11 @@ export function LinkedDesignControls({ kind, activeId, labels }: {
   const selectionKey = JSON.stringify(selection);
   useEffect(() => { setSourceId(activeId); setLinkTilt(false); }, [activeId, selectionKey]);
   if (!active) return null;
+  if (!enabled) return active.designLink ? <section aria-label="Linked design" className="rounded-lg border p-3 text-xs">
+    <p className="flex items-center gap-2"><Link2 className="h-4 w-4" />Linked design · {members.length} copies</p>
+    <p className="mt-1 text-muted-foreground">Placement stays independent. Shared geometry requires experimental tools.</p>
+    <Button variant="link" className="h-auto whitespace-normal px-0 text-xs" onClick={() => setEnabled(true)}>Enable experimental tools</Button>
+  </section> : null;
   const noun = kind === "pocket" ? "pockets" : "thumb slots";
   const canLink = ids.length >= 2 && !sameDesign;
   const linkedSelected = items.filter(item => ids.includes(item.id) && item.designLink);

@@ -14,7 +14,43 @@ const pocket = parseCutoutPlacement({ id: "p", shapeId: shape.id, position: { x:
 const origin = new Vector3(5, -4, 42);
 const identity = new Quaternion();
 
+it("enables insertion on a first 3D tilt and retains explicit choices during later transforms", () => {
+  const upright = {...pocket,tilt:undefined,elevationMm:7};
+  const rotation = new Quaternion().setFromAxisAngle(new Vector3(1,0,0),Math.PI/6);
+  const first = {...upright,...pocketTransformPatch(upright,shape,spec,origin,rotation,"rotate")!};
+  expect(first.insertionMode).toBe("axis");
+  for (const insertionMode of [undefined,"axis","vertical"] as const) {
+    const selected = {...first,insertionMode};
+    expect({...selected,...pocketTransformPatch(selected,shape,spec,origin,rotation,"rotate")!}.insertionMode).toBe(insertionMode);
+    expect({...selected,...pocketTransformPatch(selected,shape,spec,new Vector3(5,-4,47),identity,"translate")!}.insertionMode).toBe(insertionMode);
+  }
+});
+
 describe("surface-anchored pocket controls", () => {
+  it.each([{xDeg:20,yDeg:25},{xDeg:90,yDeg:0},{xDeg:180,yDeg:25}])("moves finite through selection edges along Z without X/Y drift for pose %j", tilt => {
+    const cutout = {...pocket,elevationMm:0,depth:{mode:"through" as const,sourceDepthMm:16},tilt,insertionMode:"vertical" as const};
+    const wires = pocketTransformWires({cutout,shape},spec);
+    expect(wires.length).toBeGreaterThan(0);
+    for (const [x,y,z] of wires.flat()) {
+      expect(Number.isFinite(x+y+z)).toBe(true);
+      expect(z).toBeGreaterThanOrEqual(-1e-8);
+      expect(z).toBeLessThanOrEqual(42+1e-8);
+      expect(Math.abs(x)).toBeLessThanOrEqual(84+1e-8);
+      expect(Math.abs(y)).toBeLessThanOrEqual(84+1e-8);
+    }
+    const upright = pocketTransformWires({cutout:{...cutout,tilt:undefined},shape},spec).flat();
+    expect(Math.min(...upright.map(v=>v[2]))).toBe(0);
+    expect(Math.max(...upright.map(v=>v[2]))).toBe(16);
+    const raised = pocketTransformWires({cutout:{...cutout,elevationMm:50},shape},spec).flat();
+    wires.flat().forEach((v,i)=>{
+      expect(raised[i][0]).toBeCloseTo(v[0],8);
+      expect(raised[i][1]).toBeCloseTo(v[1],8);
+      expect(raised[i][2]).toBeCloseTo(v[2]+50,8);
+    });
+    const lowered = pocketTransformPatch(cutout,shape,spec,new Vector3(cutout.position.x,cutout.position.y,-500),identity,"translate")!;
+    expect(lowered.elevationMm).toBe(0);
+    expect(lowered.depth).toEqual(cutout.depth);
+  });
   it("draws only boundary rings and sparse struts for a concave, holed rigid drag preview", () => {
     const outlineMm = [{ outer: [[0,0],[30,0],[30,10],[20,10],[20,20],[0,20]].map(([x,y]) => ({x,y})),
       holes: [[[5,5],[5,10],[10,10],[10,5]].map(([x,y]) => ({x,y}))] }];
@@ -119,7 +155,7 @@ describe("surface-anchored pocket controls", () => {
     const split={...pocket,tilt:undefined,split:{boundary:[{x:-3,y:0},{x:3,y:0}],
       depths:[{mode:"remaining" as const,floorThicknessMm:20},{mode:"remaining" as const,floorThicknessMm:8}] as [{mode:"remaining";floorThicknessMm:number},{mode:"remaining";floorThicknessMm:number}]}};
     const moved=pocketTransformPatch(split,shape,spec,new Vector3(5,-4,45),identity,"translate")!;
-    expect(moved.split?.depths).toEqual([{mode:"mm",value:22},{mode:"mm",value:34}]);
+    expect(moved.split?.depths).toEqual([{mode:"remaining",floorThicknessMm:20,sourceDepthMm:22},{mode:"remaining",floorThicknessMm:8,sourceDepthMm:34}]);
     expect(moved.elevationMm).toBe(11);
     const turned=pocketTransformPatch({...split,...moved},shape,spec,origin,new Quaternion().setFromAxisAngle(new Vector3(1,0,0),Math.PI/2),"rotate")!;
     expect(turned.split).toEqual(moved.split);

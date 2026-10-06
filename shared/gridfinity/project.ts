@@ -6,15 +6,19 @@ import {
   elongatedFingerHoleEndpoints,
   isElongatedFingerHole,
   resolvePocketDepth,
+  resolvePlacedPocketDepth,
   tracedShapeSchema,
   transformPointPlacement,
   type FingerHole,
+  type CutoutPlacement,
+  type DepthSpec,
 } from "./cutout";
-import { binSpecSchema } from "./types";
+import { binSpecSchema, type BinSpec } from "./types";
 import { designLinkErrors } from "./design-links";
 import { transformOriginsSchema } from "./transform-origins";
 import { binHistorySchema } from "./history";
 import { migrateProfilePocket } from "./rigid-pocket";
+import { resolvePocketSplit } from "./pocket-split";
 import { expandProjectFontSources } from "./project-font-sources";
 export { serializeProjectDoc } from "./project-font-sources";
 
@@ -55,10 +59,14 @@ export { serializeProjectDoc } from "./project-font-sources";
  * Version 29 adds independent surface-text object names.
  * Version 30 preserves user-selected font outlines for portable surface text.
  * Version 31 stores font sources once per project, shared by labels and history.
- * Version 32 adds support-free ULTIM8 peg bottoms; older projects keep their base.
+ * Version 32 adds hollow-wall thickness, defaulting older bins to 0.95 mm.
+ * Version 33 adds optional pocket insertion clearance; older pockets stay finite.
+ * Version 34 retains unclipped source depth for rigid minimum-floor pockets.
+ * Version 35 retains finite through-pocket objects during rigid movement.
+ * Version 36 adds ULTIM8 peg bottoms; older projects keep their base.
  */
 
-export const PROJECT_SCHEMA_VERSION = 32 as const;
+export const PROJECT_SCHEMA_VERSION = 36 as const;
 
 const projectFields = {
   shapes: z.array(tracedShapeSchema),
@@ -167,6 +175,48 @@ export type ProjectDoc = z.infer<typeof projectDocSchema>;
 
 type LegacyProjectDoc = z.infer<(typeof legacyProjectSchemas)[number]>;
 
+/** Recover the last finite depth before Through discarded it. History is walked
+ * in order, so later edits cannot resize an earlier object or its Undo state. */
+function retainThroughSources(doc: ProjectDoc): ProjectDoc {
+  const needsSource = (p: CutoutPlacement) => p.elevationMm !== undefined
+    && (p.split?.depths ?? [p.depth]).some(d => d.mode === "through" && d.sourceDepthMm === undefined);
+  if (!doc.cutouts.some(needsSource) && !doc.history?.stack.some(e=>e.doc.cutouts.some(needsSource))
+    && !doc.transformOrigins?.pockets.some(o=>needsSource(o.cutout))) return doc;
+  const known = new Map<string,number>();
+  const shapes = new Map(doc.shapes.map(s=>[s.id,s]));
+  const retain = (p: CutoutPlacement, spec: BinSpec, linked = new Map<string,number>()): CutoutPlacement => {
+    const shape = shapes.get(p.shapeId);
+    const regions = shape && p.split ? resolvePocketSplit(shape.outlineMm,p.split.boundary).regions : null;
+    const depths = (p.split?.depths ?? [p.depth]).map((d,i): DepthSpec => {
+      const key = `${p.id}:${i}`;
+      const group = p.designLink ? `${p.designLink.id}:${i}` : key;
+      if (d.mode === "through" && d.sourceDepthMm === undefined) {
+        if (p.elevationMm === undefined) return d;
+        const sourceDepthMm = linked.get(group) ?? known.get(key) ?? Math.max(0.1,resolvePocketDepth(spec,d).infillTopZ);
+        known.set(key,sourceDepthMm);
+        linked.set(group,sourceDepthMm);
+        return {...d,sourceDepthMm};
+      }
+      const depth = d.mode === "mm" ? d.value : d.sourceDepthMm
+        ?? (shape ? resolvePlacedPocketDepth(spec,d,{outlineMm:regions?.[i] ?? shape.outlineMm},p).axialDepthMm : resolvePocketDepth(spec,d).depthMm);
+      if (depth !== null && depth !== undefined) known.set(key,Math.max(0.1,depth));
+      return d;
+    });
+    return {...p,depth:p.split ? p.depth : depths[0],
+      split:p.split ? {...p.split,depths:[depths[0],depths[1]]} : undefined};
+  };
+  const transformOrigins = doc.transformOrigins ? {...doc.transformOrigins,
+    pockets:doc.transformOrigins.pockets.map(o=>({...o,cutout:retain(o.cutout,o.spec)}))} : undefined;
+  const retainAll = (cutouts: CutoutPlacement[], spec: BinSpec) => {
+    const linked = new Map<string,number>();
+    return cutouts.map(p=>retain(p,spec,linked));
+  };
+  const history = doc.history ? {...doc.history,stack:doc.history.stack.map(entry=>({...entry,
+    doc:{...entry.doc,cutouts:retainAll(entry.doc.cutouts,entry.doc.spec)}}))} : undefined;
+  const cutouts = history ? history.stack[history.index].doc.cutouts : retainAll(doc.cutouts,doc.spec);
+  return projectDocSchema.parse({...doc,cutouts,history,transformOrigins});
+}
+
 /** Keeps migrated ids unique now that formerly per-pocket arrays share one list. */
 function uniqueFingerHoleId(id: string, used: Set<string>): string {
   let candidate = id;
@@ -225,13 +275,13 @@ export function parseProjectDoc(input: unknown): ProjectDoc | null {
     input = expandProjectFontSources(input);
   }
   if (input && typeof input === "object" && !Array.isArray(input)
-      && [26, 27, 28, 29, 30, 31].includes((input as Record<string, unknown>).schemaVersion as number)) {
+      && [26, 27, 28, 29, 30, 31, 32, 33, 34, 35].includes((input as Record<string, unknown>).schemaVersion as number)) {
     // Strict current schemas still reject unsupported data from version-27 prototypes.
     return parseProjectDoc({ ...input, schemaVersion: PROJECT_SCHEMA_VERSION });
   }
   const result = projectDocSchema.safeParse(input);
   if (result.success) {
-    const doc = result.data;
+    const doc = retainThroughSources(result.data);
     if (!doc.cutouts.some(c => c.profileBottom) && !doc.history?.stack.some(e => e.doc.cutouts.some(c => c.profileBottom))
         && !doc.transformOrigins?.pockets.some(o => o.cutout.profileBottom)) return doc;
     return projectDocSchema.parse({ ...doc, cutouts: doc.cutouts.map(migrateProfilePocket),

@@ -10,6 +10,10 @@ export interface SurfaceTextEditor {
   label: SurfaceText;
   z: number;
   onCommit: (label: SurfaceText, mode: PocketTransformMode) => void;
+  tool?: PocketTransformMode;
+  snap?: boolean;
+  onToolChange?: (tool: PocketTransformMode) => void;
+  onSnapChange?: (snap: boolean) => void;
 }
 
 /** Raised labels stay on their surface: XY movement and Z rotation only.

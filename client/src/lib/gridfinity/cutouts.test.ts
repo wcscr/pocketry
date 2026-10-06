@@ -319,7 +319,7 @@ describe("buildBinWithCutouts", () => {
       kind: "custom", cells: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }],
     } },
   ])("colors a hollow bin's floor without changing its geometry: %o", settings => {
-    const spec = parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6, fill: "none", ...settings });
+    const spec = parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6, fill: "none", wallThicknessMm: 3, ...settings });
     const plain = buildBin(kernel, spec, QUALITY);
     const built = buildBinWithCutouts(kernel, spec, null, QUALITY, {
       floorInsertThicknessMm: 0.6, rimInsertThicknessMm: 1.25, borderWidthMm: 4,
