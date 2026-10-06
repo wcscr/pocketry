@@ -2,10 +2,10 @@
 import type { Manifold } from "manifold-3d";
 import { hasPocketTilt, pocketAxis } from "@shared/gridfinity/pocket-orientation";
 import { hasRigidPocket, pocketRotation, rigidPocket } from "@shared/gridfinity/rigid-pocket";
-import { pocketInsertionError } from "@shared/gridfinity/pocket-insertion";
+import { pocketInsertionAxis, pocketInsertionError } from "@shared/gridfinity/pocket-insertion";
 import { rotateObjectVector } from "@shared/gridfinity/object-pose";
 import { buildObjectCavity } from "./object-cavity";
-import { verticalDropInCutter } from "./insertion-sweep";
+import { directionalInsertionCutter } from "./insertion-sweep";
 
 import {
   effectiveDeepScoopDepthMm,
@@ -703,8 +703,7 @@ function buildCutoutCuttersInternal(
 }
 
 /** Generate in the outline's own frame, then apply one reusable rigid pose.
- * The finite cap is retained for the angled opening; vertical mode clears the
- * full projected outline without flattening the existing seat.
+ * Optional clearance sweeps the finite object upward in the selected direction.
  * Top-edge rounding belongs to the bin surface intersection, not that cap. */
 export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: CutoutPlacement,
   spec: BinSpec, quality: BuildQuality, options: CutoutBuildOptions = {}, top = Infinity,
@@ -729,17 +728,17 @@ export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: Cut
   const source = arena.track(Manifold.union(built.cutters.map(s => arena.track(s.translate([0,0,-localTop])))));
   const anchor = source;
   const pose = { rotation: pocketRotation(cutout), position: cutout.position, elevationMm: cutout.elevationMm ?? 0 };
-  // Follow pocket angle retains the authored tilted cavity and its surface
-  // intersection, exactly as before insertion options were introduced.
-  let cutter = buildObjectCavity(kernel, source, pose, cutout.insertionMode === "vertical" ? Infinity : top, anchor);
+  // Sweep the complete source before clipping; a submerged cap must still open
+  // through the surface, while an object wholly above the bin leaves no cut.
+  let cutter = buildObjectCavity(kernel, source, pose, cutout.insertionMode ? Infinity : top, anchor);
   const projectedSource = cutter && cutout.insertionMode === "vertical" ? arena.track(arena.track(cutter.project()).simplify(0.0001)) : null;
   const validationIssues: ValidationIssue[] = [];
   const clearAndLimit = (posed: Manifold, depth: DepthSpec): Manifold => {
     let result = posed;
-    if (cutout.insertionMode === "vertical") {
+    if (cutout.insertionMode) {
       if (!result.isEmpty()) {
         const ceiling = Math.max(realTop, result.boundingBox().max[2], Number.isFinite(top) ? top : realTop) + 1;
-        result = verticalDropInCutter(kernel, result, ceiling);
+        result = directionalInsertionCutter(kernel, result, ceiling, pocketInsertionAxis(cutout));
       }
     }
     // Apply the floor constraint to the generated cavity, never the source.
@@ -790,7 +789,7 @@ export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: Cut
   }
   const floorInserts: Manifold[] = [], floorRegions: Manifold[] = [];
   const distance = Math.min(options.floorInsertThicknessMm ?? 0, Math.max(0, seatedCutter?.boundingBox().min[2] ?? pose.elevationMm));
-  if (cutter && seatedCutter && distance > 0 && (cutout.insertionMode === "vertical" || depthSpecs.some(d => d.mode !== "mm"))) {
+  if (cutter && seatedCutter && distance > 0 && (cutout.insertionMode || depthSpecs.some(d => d.mode !== "mm"))) {
     // Color the actual rotated underside beneath the cleared insertion path.
     // Inset the color at the wall fillet, as for ordinary pocket floors, so
     // independently exported materials do not share a vertical wall seam.

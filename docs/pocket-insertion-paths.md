@@ -1,10 +1,16 @@
 # Optional silhouette-pocket insertion clearance
 
-Pocket properties → Position & rotation → **Clear insertion path** opts a
-silhouette pocket into one of two opening directions:
+**Clear insertion path** and its direction selector appear at the top of pocket
+properties when a pocket is tilted. A first tilt enables clearance using
+**Follow pocket angle**, from either numeric properties or 3D Rotate. Further
+pose edits retain the selected direction or disabled state. Saved projects retain
+their explicit choices. Resetting to the X–Y plane hides the controls.
 
-- **Follow pocket angle** keeps the original authored tilted cavity and its
-  surface intersection. Its geometry matches the existing angled opening.
+The two opening directions are:
+
+- **Follow pocket angle** clears every upward translation of the original
+  object along its tilted axis, including when the object is entirely submerged.
+  It retains the seated object and extends the path through the fill surface.
 - **Vertical drop-in** clears the object's complete XY projection straight up
   while retaining its actual rotated underside as the seat. A side face that
   points downward after rotation is part of that seat too. No bottom plane is
@@ -78,8 +84,10 @@ horizontal axial path remains recoverable through **Use vertical drop-in** and U
 Tests compare hundreds of independently ray-measured seat heights against the
 actual rotated source at preview and export quality, including compound tilt,
 mirroring, holes, split seats, horizontal and inverted poses. They also check
-continuous translated-object clearance, full projections and unchanged angled
-cavities. Minimum-floor regressions lower, raise and lower the same pocket while
+continuous translated-object clearance in both directions, fully submerged
+compound and inverted objects, full projections and finite disabled cavities.
+Worker regressions verify closed colored STL/3MF exports for submerged pockets.
+Minimum-floor regressions lower, raise and lower the same pocket while
 checking source preservation, independent split limits and save/history/reference
 round trips. Worker tests check closed, nondegenerate STL/3MF meshes and floor-color
 volumes, including clipped floors. UI tests preserve the floor mode through tilt,

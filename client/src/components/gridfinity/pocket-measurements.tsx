@@ -1,7 +1,7 @@
 import { expandLinkedObjectEdits } from "@/lib/gridfinity/object-arrangement";
 import { hasRigidPocket, rigidPocket, resetPocketPlane } from "@shared/gridfinity/rigid-pocket";
 import { hasPocketTilt, pocketAxis } from "@shared/gridfinity/pocket-orientation";
-import { pocketInsertionError } from "@shared/gridfinity/pocket-insertion";
+import { defaultPocketInsertion, pocketInsertionError } from "@shared/gridfinity/pocket-insertion";
 import { profileAlongX, profilePrisms, hasProfileRotation } from "@shared/gridfinity/profile-bottom";
 import { outlineBounds } from "@/lib/geometry/outline";
 import { useState, type ReactNode } from "react";
@@ -49,6 +49,46 @@ export function PocketMeasurements({ cutout, shape, children }: {
   </div>;
 }
 
+/** Shared by the top-level insertion controls and precision pose fields. */
+function usePocketRigidUpdate(shape: TracedShape) {
+  const { spec, cutouts, dispatch } = useBin();
+  const { shapes } = useShapeLibrary();
+  return (patch: CutoutPlacement, transient: boolean, historyLabel: string) => {
+    const objects = cutouts.flatMap(c => {
+      const source = shapes.find(s => s.id === c.shapeId) ?? (c.shapeId === shape.id ? shape : undefined);
+      return source ? [{ kind: "pocket" as const, cutout: c, shape: source }] : [];
+    });
+    const edits = expandLinkedObjectEdits(objects, spec, { cutouts: [patch], fingerHoles: [] });
+    if (edits) dispatch({ type: "UPDATE_OBJECTS", edits, transient, historyLabel });
+  };
+}
+
+/** Keep insertion choices visible above all pocket-property disclosures. */
+export function PocketInsertionControls({ cutout, shape }: { cutout: CutoutPlacement; shape: TracedShape }): JSX.Element | null {
+  const { spec } = useBin();
+  const updateRigid = usePocketRigidUpdate(shape);
+  if (!hasPocketTilt(cutout)) return null;
+  return <div className="space-y-2 rounded border bg-muted/30 p-2 text-xs" data-testid="pocket-insertion-controls">
+    <Label className="flex items-center gap-2 text-xs">
+      <input type="checkbox" aria-label="Clear pocket insertion path" checked={!!cutout.insertionMode}
+        onChange={event => updateRigid({ ...rigidPocket(cutout, shape, spec),
+          insertionMode: event.target.checked ? "axis" : undefined }, false, "Change pocket insertion path")} />
+      Clear insertion path
+      <HelpHint label="pocket insertion path">Follow pocket angle clears a path along the tilted axis all the way to the surface. Vertical drop-in clears the complete top-down outline while keeping the rotated object’s underside as the seat. Keep floor thickness clips the cut at the chosen floor limit without changing the original shape.</HelpHint>
+    </Label>
+    {cutout.insertionMode && <select aria-label="Pocket insertion direction" className="h-8 w-full rounded border bg-background px-2"
+      value={cutout.insertionMode} onChange={event => updateRigid({ ...rigidPocket(cutout, shape, spec),
+        insertionMode: event.target.value as "axis" | "vertical" }, false, "Change pocket insertion path")}>
+      <option value="axis">Follow pocket angle</option>
+      <option value="vertical">Vertical drop-in</option>
+    </select>}
+    {pocketInsertionError(cutout) && <div role="alert" className="space-y-1 text-destructive">
+      <p>{pocketInsertionError(cutout)}</p>
+      <Button size="sm" variant="outline" onClick={() => updateRigid({ ...cutout, insertionMode: "vertical" }, false, "Use vertical drop-in")}>Use vertical drop-in</Button>
+    </div>}
+  </div>;
+}
+
 function PocketMeasurementFields({ cutout, shape, children }: {
   cutout: CutoutPlacement; shape: TracedShape;
   children?: ReactNode;
@@ -59,17 +99,12 @@ function PocketMeasurementFields({ cutout, shape, children }: {
   const [side, setSide] = useState<"right" | "left" | "above" | "below">("right");
   const [gap, setGap] = useState(3);
   const updatePosition = (position: CutoutPlacement["position"], transient = false) => dispatch({ type: "UPDATE_CUTOUT", id: cutout.id, patch: { position }, transient, historyLabel: "Position tool pocket" });
-  const updateRigid = (patch: CutoutPlacement, transient: boolean, historyLabel: string) => {
-    const objects = cutouts.flatMap(c => {
-      const source = shapes.find(s => s.id === c.shapeId) ?? (c.shapeId === shape.id ? shape : undefined);
-      return source ? [{ kind: "pocket" as const, cutout: c, shape: source }] : [];
-    });
-    const edits = expandLinkedObjectEdits(objects, spec, { cutouts: [patch], fingerHoles: [] });
-    if (edits) dispatch({ type: "UPDATE_OBJECTS", edits, transient, historyLabel });
+  const updateRigid = usePocketRigidUpdate(shape);
+  const updateTilt = (axis: "xDeg" | "yDeg", value: number, transient: boolean) => {
+    const next = { ...rigidPocket(cutout, shape, spec),
+      tilt: { xDeg: cutout.tilt?.xDeg ?? 0, yDeg: cutout.tilt?.yDeg ?? 0, [axis]: value } };
+    updateRigid({ ...next, insertionMode: defaultPocketInsertion(cutout, next) }, transient, "Rotate tool pocket");
   };
-  const updateTilt = (axis: "xDeg" | "yDeg", value: number, transient: boolean) => updateRigid({
-    ...rigidPocket(cutout, shape, spec), tilt: { xDeg: cutout.tilt?.xDeg ?? 0, yDeg: cutout.tilt?.yDeg ?? 0, [axis]: value },
-  }, transient, "Rotate tool pocket");
   const bounds = outlineBounds(pocketOccupiedOutline(shape, cutout, spec))!;
   const neighbor = cutouts.find((item) => item.id === neighborId && item.id !== cutout.id);
   const neighborShape = shapes.find((item) => item.id === neighbor?.shapeId);
@@ -85,7 +120,7 @@ function PocketMeasurementFields({ cutout, shape, children }: {
   return <div className="space-y-3 pb-2 pt-2">
         {children}
         <div className="space-y-2" data-testid="pocket-rotation-controls">
-          <div className="flex items-center gap-1"><p className="font-medium">Rotate pocket</p><HelpHint label="pocket rotation">Rotate the generated pocket around any axis. Depth is its thickness along the original outline’s normal. Elevation keeps its lowest point at the chosen height. The opening is where the solid intersects the fill surface.</HelpHint></div>
+          <div className="flex items-center gap-1"><p className="font-medium">Rotate pocket</p><HelpHint label="pocket rotation">Rotate the generated pocket around any axis. Depth is its thickness along the original outline’s normal. Elevation keeps its lowest point at the chosen height. Enable Clear insertion path to extend the opening from the object to the fill surface.</HelpHint></div>
           <div className="grid grid-cols-2 gap-2">{(["xDeg", "yDeg"] as const).map(axis => <Label key={axis} className="flex min-w-0 items-center gap-2 text-xs">
             {axis === "xDeg" ? "X" : "Y"}
             <DraftNumberInput className="h-8 min-w-0" aria-label={`Pocket ${axis === "xDeg" ? "X" : "Y"} rotation in degrees`}
@@ -107,25 +142,6 @@ function PocketMeasurementFields({ cutout, shape, children }: {
             <span>mm</span>
           </Label>
           <p className="text-muted-foreground">Elevation is the lowest point above the bin underside. Raising or lowering keeps the pocket’s dimensions.</p>
-          <div className="space-y-2">
-            <Label className="flex items-center gap-2 text-xs">
-              <input type="checkbox" aria-label="Clear pocket insertion path" checked={!!cutout.insertionMode}
-                onChange={event => updateRigid({ ...rigidPocket(cutout, shape, spec),
-                  insertionMode: event.target.checked ? "axis" : undefined }, false, "Change pocket insertion path")} />
-              Clear insertion path
-              <HelpHint label="pocket insertion path">Follow pocket angle keeps the opening aligned with the tilted pocket. Vertical drop-in clears the complete top-down outline while keeping the rotated object’s underside as the seat. Keep floor thickness clips the cut at the chosen floor limit without changing the original shape.</HelpHint>
-            </Label>
-            {cutout.insertionMode && <select aria-label="Pocket insertion direction" className="h-8 w-full rounded border bg-background px-2"
-              value={cutout.insertionMode} onChange={event => updateRigid({ ...rigidPocket(cutout, shape, spec),
-                insertionMode: event.target.value as "axis" | "vertical" }, false, "Change pocket insertion path")}>
-              <option value="axis">Follow pocket angle</option>
-              <option value="vertical">Vertical drop-in</option>
-            </select>}
-            {pocketInsertionError(cutout) && <div role="alert" className="space-y-1 text-destructive">
-              <p>{pocketInsertionError(cutout)}</p>
-              <Button size="sm" variant="outline" onClick={() => updateRigid({ ...cutout, insertionMode: "vertical" }, false, "Use vertical drop-in")}>Use vertical drop-in</Button>
-            </div>}
-          </div>
         </div>
         <PositionInputs position={cutout.position} onChange={updatePosition} />
 

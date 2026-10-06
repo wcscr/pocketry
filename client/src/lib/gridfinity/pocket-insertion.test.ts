@@ -170,12 +170,12 @@ it("produces a wider vertical opening without changing the seated depth or eleva
   expect(arena.track(vertical.slice(top - 1e-6)).area()).toBeGreaterThan(arena.track(axis.slice(top - 1e-6)).area());
   expect(axis.boundingBox().min[2]).toBeCloseTo(source.boundingBox().min[2], 7);
   expect(vertical.boundingBox().min[2]).toBeCloseTo(source.boundingBox().min[2], 7);
-  expect(arena.track(source.subtract(axis)).volume()).toBeLessThan(1e-6);
+  expect(arena.track(source.subtract(axis)).volume()).toBeLessThan(0.001);
   // The seat prisms use Float32 mesh positions at 0.0001 mm tolerance.
   expect(arena.track(source.subtract(vertical)).volume()).toBeLessThan(0.001);
 });
 
-it.each(["vertical"] as const)("clears all translated copies continuously along %s and reserves their bounds", insertionMode => {
+it.each(["axis", "vertical"] as const)("clears all translated copies continuously along %s and reserves their bounds", insertionMode => {
   const p = { ...pocket, insertionMode };
   const source = cutter(), swept = cutter(p), axis = pocketInsertionAxis(p);
   const top = resolvePocketDepth(spec, p.depth).cutterTopZ;
@@ -195,11 +195,29 @@ it.each(["vertical"] as const)("clears all translated copies continuously along 
 it.each([
   { tilt:{xDeg:30,yDeg:0}, rotationDeg:0, mirrored:false },
   { tilt:{xDeg:20,yDeg:25}, rotationDeg:17, mirrored:true },
-])("preserves the original tilted opening exactly with pose=%j", pose => {
-  const p = { ...pocket, ...pose, topFilletMm:2, bottomFilletMm:1 };
-  const original = cutter(p), angled = cutter({ ...p, insertionMode:"axis" });
-  expect(arena.track(original.subtract(angled)).volume()).toBeLessThan(1e-8);
-  expect(arena.track(angled.subtract(original)).volume()).toBeLessThan(1e-8);
+  { tilt:{xDeg:180,yDeg:25}, rotationDeg:17, mirrored:false },
+])("opens a fully submerged object along either insertion direction with pose=%j", pose => {
+  const tall = {...spec,heightUnits:8};
+  const p = { ...pocket, ...pose, elevationMm:7, topFilletMm:2, bottomFilletMm:1 };
+  const top = resolvePocketDepth(tall,p.depth).infillTopZ;
+  for (const quality of [PREVIEW_QUALITY,EXPORT_QUALITY]) {
+    const source = buildRigidPocket(kernel,shape,{...p,topFilletMm:0},tall,quality).cutters[0];
+    expect(source.boundingBox().max[2]).toBeLessThan(top);
+    expect(arena.track(source.slice(top-1e-7)).area()).toBe(0);
+    for (const insertionMode of ["axis","vertical"] as const) {
+      const active = {...p,insertionMode};
+      const swept = buildCutoutCutters(kernel,map,[active],tall,quality).cutters[0];
+      expect(arena.track(swept.slice(top-1e-7)).area()).toBeGreaterThan(100);
+      const axis = pocketInsertionAxis(active);
+      for (const travel of [0,0.3,5,15,30,60]) {
+        const moved = arena.track(arena.track(source.translate([axis.x*travel,axis.y*travel,axis.z*travel])).trimByPlane([0,0,-1],-top));
+        expect(arena.track(moved.subtract(swept)).volume(), `${insertionMode}: blocked after ${travel} mm`).toBeLessThan(0.005);
+      }
+      const seat = arena.track(swept.trimByPlane([0,0,-1],-(p.elevationMm+0.5)));
+      expect(seat.boundingBox().min[2]).toBeCloseTo(p.elevationMm,3);
+      expect(buildCutoutCutters(kernel,map,[{...active,elevationMm:80}],tall,quality).cutters).toEqual([]);
+    }
+  }
 });
 
 it("retains the tilted seat at different heights beneath a complete vertical mouth", () => {

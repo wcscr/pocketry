@@ -1,5 +1,11 @@
 import type { CutoutPlacement } from "./cutout";
-import { pocketAxis, type Vec3 } from "./pocket-orientation";
+import { hasPocketTilt, pocketAxis, type Vec3 } from "./pocket-orientation";
+
+/** Turning an upright pocket on its side enables clearance once. Subsequent
+ * edits preserve the user's direction or explicit disabled state. */
+export function defaultPocketInsertion(previous: CutoutPlacement, next: CutoutPlacement): CutoutPlacement["insertionMode"] {
+  return next.insertionMode ?? (!hasPocketTilt(previous) && hasPocketTilt(next) ? "axis" : undefined);
+}
 
 /** The insertion direction always leads upward, including inverted pockets. */
 export function pocketInsertionAxis(pocket: CutoutPlacement): Vec3 {

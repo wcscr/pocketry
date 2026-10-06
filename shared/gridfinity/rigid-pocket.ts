@@ -6,6 +6,7 @@ import { placeObjectCells, placeObjectVertices, rotateObjectVector, sectionObjec
 import { profileCells } from "./profile-bottom";
 import { resolvePocketSplit } from "./pocket-split";
 import type { BinSpec } from "./types";
+import { pocketInsertionAxis } from "./pocket-insertion";
 
 export const hasRigidPocket = (p: { elevationMm?: number }): boolean => p.elevationMm !== undefined;
 export const pocketRotation = (p: Pick<CutoutPlacement, "tilt" | "rotationDeg">): ObjectRotation => ({
@@ -76,7 +77,13 @@ export function rigidPocketCells(outline: Outline, p: CutoutPlacement, top = 0):
 /** Immediate conservative footprint; final boundaries come from the generated solid. */
 export function rigidPocketFootprint(outline: Outline, p: CutoutPlacement, top = Infinity, sourceTop = Number.isFinite(top) ? top : 0): Outline {
   return rigidPocketCells(outline,p,sourceTop).flatMap(cell => {
-    const points = !Number.isFinite(top) || p.insertionMode === "vertical" ? cell.vertices : sectionObjectCell(cell,top);
+    const axis = pocketInsertionAxis(p);
+    const points = !Number.isFinite(top) || p.insertionMode === "vertical" ? cell.vertices
+      : p.insertionMode === "axis" && axis.z >= 0.01
+        ? cell.vertices.filter(v => v.z <= top).map(v => ({
+          x:v.x+axis.x*(top-v.z)/axis.z, y:v.y+axis.y*(top-v.z)/axis.z, z:top,
+        })).concat(sectionObjectCell(cell,top))
+        : sectionObjectCell(cell,top);
     const outer = convexHull(points.map(({ x, y }) => ({ x, y })));
     return outer.length >= 3 && signedArea(outer) > 1e-8 ? [{ outer, holes: [] }] : [];
   });
@@ -104,6 +111,16 @@ export function rigidPocketPreviewWires(outline: Outline, p: CutoutPlacement, sp
 
 /** Reserve the entire seated pocket and its path, without dividing by a horizontal axis. */
 export function rigidPocketOccupiedFootprint(outline: Outline, p: CutoutPlacement, top: number, sourceTop = top): Outline {
+  if (p.insertionMode === "axis") {
+    const axis = pocketInsertionAxis(p);
+    if (axis.z >= 0.01) return rigidPocketCells(outline,p,sourceTop).flatMap(cell => {
+      const points = cell.vertices.flatMap(v => [v, ...(v.z < top ? [{
+        x:v.x+axis.x*(top-v.z)/axis.z, y:v.y+axis.y*(top-v.z)/axis.z,
+      }] : [])]);
+      const outer = convexHull(points);
+      return outer.length >= 3 ? [{outer,holes:[]}] : [];
+    });
+  }
   const mouth = rigidPocketFootprint(outline, p, top, sourceTop);
   const source = rigidPocketFootprint(outline, p, Infinity, sourceTop);
   return [...source, ...mouth];

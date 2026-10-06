@@ -5,6 +5,7 @@ import {
   type CutoutPlacement, type DepthSpec, type TracedShape,
 } from "@shared/gridfinity/cutout";
 import { pocketAxis, rotatePocketVector } from "@shared/gridfinity/pocket-orientation";
+import { defaultPocketInsertion } from "@shared/gridfinity/pocket-insertion";
 import { resolvePocketSplit } from "@shared/gridfinity/pocket-split";
 import { profilePrisms } from "@shared/gridfinity/profile-bottom";
 import type { BinSpec } from "@shared/gridfinity/types";
@@ -12,7 +13,7 @@ import { pointInOutline } from "@/lib/geometry/outline";
 import type { Point } from "@shared/geometry/types";
 
 export type PocketTransformMode = "translate" | "rotate";
-export type PocketTransformPatch = Pick<CutoutPlacement, "position" | "zOffsetMm" | "rotationDeg" | "tilt" | "depth" | "split" | "profileBottom" | "profileRotation" | "elevationMm">;
+export type PocketTransformPatch = Pick<CutoutPlacement, "position" | "zOffsetMm" | "rotationDeg" | "tilt" | "depth" | "split" | "profileBottom" | "profileRotation" | "elevationMm" | "insertionMode">;
 export interface EditablePocket { cutout: CutoutPlacement; shape: TracedShape }
 export type PocketWire = [number, number, number][];
 const RAD = Math.PI / 180;
@@ -85,6 +86,7 @@ export function pocketTransformPatch(
     const angles = new Euler().setFromQuaternion(rotated, "ZYX");
     patch.tilt = { xDeg: angles.x / RAD, yDeg: angles.y / RAD };
     patch.rotationDeg = angles.z / RAD;
+    patch.insertionMode = defaultPocketInsertion(original, { ...original, ...patch });
   }
   return patch;
 }

@@ -7,7 +7,7 @@ import { parseBinSpec } from "@shared/gridfinity/types";
 import { ExperimentalFeaturesProvider, EXPERIMENTAL_FEATURES_KEY } from "@/state/experimental-features";
 import { BinProvider, useBin, type BinStore } from "@/state/bin-store";
 import { ShapeLibraryProvider } from "@/state/shape-library";
-import { PocketDepthSummary, PocketMeasurements, PocketSizeInputs } from "./pocket-measurements";
+import { PocketDepthSummary, PocketInsertionControls, PocketMeasurements, PocketSizeInputs } from "./pocket-measurements";
 import type { BuildBinSection } from "@/lib/gridfinity/worker-api";
 
 const shape: TracedShape = {
@@ -25,7 +25,7 @@ function Probe() {
   store = useBin();
   const [section, setSection] = React.useState<BuildBinSection | null>(null);
   const cutout = store.cutouts[0];
-  return cutout ? <><PocketSizeInputs cutout={cutout} shape={shape} setScale={scale} /><PocketMeasurements cutout={cutout} shape={shape} /><PocketDepthSummary cutout={cutout} shape={shape} section={section} inspect={next => { inspect(next); setSection(next); }} /></> : null;
+  return cutout ? <><PocketInsertionControls cutout={cutout} shape={shape} /><PocketSizeInputs cutout={cutout} shape={shape} setScale={scale} /><PocketMeasurements cutout={cutout} shape={shape} /><PocketDepthSummary cutout={cutout} shape={shape} section={section} inspect={next => { inspect(next); setSection(next); }} /></> : null;
 }
 
 beforeEach(() => {
@@ -49,19 +49,27 @@ function enter(label: string, value: string) {
 }
 
 describe("pocket measurements", () => {
-  it("opts into either insertion direction and preserves pose and dimensions through undo", () => {
+  it("enables clearance on tilt and preserves direction or disabling through subsequent edits and undo", () => {
+    expect(host.querySelector('[data-testid="pocket-insertion-controls"]')).toBeNull();
     enter("Pocket X rotation in degrees", "30");
     const before = store.cutouts[0];
-    React.act(() => host.querySelector<HTMLInputElement>('[aria-label="Clear pocket insertion path"]')!.click());
-    expect(store.cutouts[0]).toEqual({ ...before, insertionMode: "axis" });
+    expect(before.insertionMode).toBe("axis");
+    expect(host.querySelector<HTMLInputElement>('[aria-label="Clear pocket insertion path"]')!.checked).toBe(true);
+    expect(host.querySelector('[data-testid="pocket-insertion-controls"]')!.closest('details')).toBeNull();
     const select = host.querySelector<HTMLSelectElement>('[aria-label="Pocket insertion direction"]')!;
     React.act(() => { select.value = "vertical"; select.dispatchEvent(new Event("change", {bubbles:true})); });
     expect(store.cutouts[0]).toEqual({ ...before, insertionMode: "vertical" });
     React.act(() => store.dispatch({ type: "UNDO" }));
-    expect(store.cutouts[0]).toEqual({ ...before, insertionMode: "axis" });
-    React.act(() => store.dispatch({ type: "UNDO" }));
     expect(store.cutouts[0]).toEqual(before);
-    expect(host.querySelector('[aria-label="Pocket insertion direction"]')).toBeNull();
+    React.act(() => host.querySelector<HTMLInputElement>('[aria-label="Clear pocket insertion path"]')!.click());
+    expect(store.cutouts[0].insertionMode).toBeUndefined();
+    enter("Pocket Y rotation in degrees", "20");
+    enter("Pocket elevation in millimetres", "7");
+    expect(store.cutouts[0].insertionMode).toBeUndefined();
+    React.act(() => [...host.querySelectorAll("button")].find(b => b.textContent === "Reset to X–Y plane")!.click());
+    expect(host.querySelector('[data-testid="pocket-insertion-controls"]')).toBeNull();
+    React.act(() => store.dispatch({ type: "UNDO" }));
+    expect(host.querySelector<HTMLInputElement>('[aria-label="Clear pocket insertion path"]')!.checked).toBe(false);
   });
 
   it("keeps minimum-floor mode and source dimensions during tilt, lowering, raising, and undo", () => {
@@ -81,7 +89,6 @@ describe("pocket measurements", () => {
 
   it("recovers a horizontal insertion path through vertical drop-in with undo", () => {
     enter("Pocket X rotation in degrees", "90");
-    React.act(() => host.querySelector<HTMLInputElement>('[aria-label="Clear pocket insertion path"]')!.click());
     const before = store.cutouts[0];
     expect(host.querySelector('[role="alert"]')!.textContent).toContain("horizontal");
     React.act(() => [...host.querySelectorAll("button")].find(b => b.textContent === "Use vertical drop-in")!.click());

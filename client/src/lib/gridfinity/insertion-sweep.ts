@@ -1,6 +1,19 @@
 import type { Manifold, Vec3 } from "manifold-3d";
 import type { Kernel } from "@/lib/manifold/runtime";
 
+/** Shear the requested upward direction onto Z, sweep continuously, then undo
+ * the shear. Z is unchanged, so the ceiling stays in the bin's own frame. */
+export function directionalInsertionCutter(kernel: Kernel, source: Manifold, ceiling: number,
+  axis: { x: number; y: number; z: number },
+): Manifold {
+  if (axis.z < 0.01) throw new Error("The insertion path cannot reach the bin surface.");
+  const dx = axis.x / axis.z, dy = axis.y / axis.z;
+  if (Math.abs(dx) + Math.abs(dy) < 1e-10) return verticalDropInCutter(kernel, source, ceiling);
+  const aligned = kernel.arena.track(source.transform([1,0,0,0, 0,1,0,0, -dx,-dy,1,0, 0,0,0,1]));
+  const swept = verticalDropInCutter(kernel, aligned, ceiling);
+  return kernel.arena.track(swept.transform([1,0,0,0, 0,1,0,0, dx,dy,1,0, 0,0,0,1]));
+}
+
 /** Clear every upward translation of the rotated object. At each XY point the
  * floor is its lowest actual surface, including side faces turned downward by
  * rotation. Never extrapolate an authored bottom plane or flatten the seat.

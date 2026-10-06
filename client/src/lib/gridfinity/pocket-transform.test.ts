@@ -14,6 +14,18 @@ const pocket = parseCutoutPlacement({ id: "p", shapeId: shape.id, position: { x:
 const origin = new Vector3(5, -4, 42);
 const identity = new Quaternion();
 
+it("enables insertion on a first 3D tilt and retains explicit choices during later transforms", () => {
+  const upright = {...pocket,tilt:undefined,elevationMm:7};
+  const rotation = new Quaternion().setFromAxisAngle(new Vector3(1,0,0),Math.PI/6);
+  const first = {...upright,...pocketTransformPatch(upright,shape,spec,origin,rotation,"rotate")!};
+  expect(first.insertionMode).toBe("axis");
+  for (const insertionMode of [undefined,"axis","vertical"] as const) {
+    const selected = {...first,insertionMode};
+    expect({...selected,...pocketTransformPatch(selected,shape,spec,origin,rotation,"rotate")!}.insertionMode).toBe(insertionMode);
+    expect({...selected,...pocketTransformPatch(selected,shape,spec,new Vector3(5,-4,47),identity,"translate")!}.insertionMode).toBe(insertionMode);
+  }
+});
+
 describe("surface-anchored pocket controls", () => {
   it.each([{xDeg:20,yDeg:25},{xDeg:90,yDeg:0},{xDeg:180,yDeg:25}])("moves finite through selection edges along Z without X/Y drift for pose %j", tilt => {
     const cutout = {...pocket,elevationMm:0,depth:{mode:"through" as const,sourceDepthMm:16},tilt,insertionMode:"vertical" as const};

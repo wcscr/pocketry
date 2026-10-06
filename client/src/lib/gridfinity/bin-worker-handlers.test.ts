@@ -113,6 +113,25 @@ const REQUEST: BuildBinRequest = {
   quality: { circularSegments: 16 },
 };
 
+it.each(["axis","vertical"] as const)("exports a submerged tilted pocket with %s clearance as closed colored STL/3MF", async insertionMode => {
+  const {shape,cutout} = createBasicPocket("rectangle",{x:-10,y:-12},{x:10,y:12},"submerged")!;
+  const p = parseCutoutPlacement({...cutout,elevationMm:7,tilt:{xDeg:20,yDeg:25},rotationDeg:17,
+    depth:{mode:"mm",value:16},insertionMode,topFilletMm:2,bottomFilletMm:1});
+  const request: BuildBinRequest = {spec:{gridX:3,gridY:3,heightUnits:8,fill:"solid",lip:"none"},
+    quality:EXPORT_QUALITY,exportTopology:true,pocketFloorMaterialThicknessMm:0.6,stackingRimMaterialThicknessMm:1.25,
+    borderWidthMm:2,layout:{shapes:[shape],cutouts:[p],fingerHoles:[]}};
+  const result = (await getHandler()(request,context())).value;
+  const closed = (await getHandler()({...request,layout:{...request.layout!,cutouts:[{...p,insertionMode:undefined}]}},context())).value;
+  expect(result.validationIssues?.filter(issue=>issue.severity === "error")).toEqual([]);
+  expect(printableMeshVolume(closed.mesh)-printableMeshVolume(result.mesh)).toBeGreaterThan(5000);
+  const sum = Object.values(result.materialMeshes!).reduce((total,mesh)=>total+printableMeshVolume(mesh),0);
+  expect(Math.abs(sum-printableMeshVolume(result.mesh))).toBeLessThan(0.1);
+  expect(writeBinarySTL(result.mesh).byteLength).toBe(84+result.mesh.indices.length/3*50);
+  const parts = Object.entries(result.materialMeshes!).map(([name,mesh])=>({name,mesh}));
+  const model = strFromU8(unzipSync(writeThreeMf(parts))["3D/3dmodel.model"]);
+  expect(model.match(/<triangle /g)?.length).toBe(parts.reduce((sum,part)=>sum+part.mesh.indices.length/3,0));
+});
+
 it("restores the full colored bin when the finite through object is raised above it", async () => {
   const {shape,cutout} = createBasicPocket("rectangle",{x:-10,y:-12},{x:10,y:12},"raised-through")!;
   const p = parseCutoutPlacement({...cutout,elevationMm:87,tilt:{xDeg:20,yDeg:25},rotationDeg:17,

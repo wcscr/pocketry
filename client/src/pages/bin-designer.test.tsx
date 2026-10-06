@@ -3370,6 +3370,27 @@ describe("BinDesignerPage", () => {
     } finally { unmount(); }
   });
 
+  it.each(["standard","workflow"])("shows tilted insertion controls above pocket depth in %s layout", async layout => {
+    const originalUrl = window.location.href;
+    window.history.replaceState(null,"",`/bin?layout=${layout}`);
+    const shape = rectangularShape("tool","Tilted tool");
+    const pocket = parseCutoutPlacement({id:"tilted",shapeId:shape.id,position:{x:0,y:0},
+      elevationMm:7,tilt:{xDeg:20,yDeg:25},insertionMode:"axis",depth:{mode:"mm",value:16}});
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({...EMPTY_PROJECT,shapes:[shape],cutouts:[pocket]});
+    const {container,unmount} = renderPage();
+    try {
+      await flushHydration();
+      selectPocket(container,pocket.id);
+      const controls = document.querySelector('[data-testid="pocket-insertion-controls"]')!;
+      expect(controls).not.toBeNull();
+      expect(controls.closest('details')).toBeNull();
+      const depth = document.querySelector('[data-testid="pocket-depth-summary"]')!;
+      expect(controls.compareDocumentPosition(depth) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(controls.querySelector<HTMLInputElement>('input')!.checked).toBe(true);
+      expect(controls.querySelector('select')!.value).toBe("axis");
+    } finally { unmount(); window.history.replaceState(null,"",originalUrl); }
+  });
+
   it.each([false,true])("keeps the original object when selecting Through and restoring fixed depth (split=%s)", async split => {
     const shape = rectangularShape("tool","Through source");
     const spec = parseBinSpec({gridX:4,gridY:4,heightUnits:6,lip:"none"});

@@ -10,7 +10,7 @@
 - Larger touch handles, exact pocket dimensions, and fit-test exports in the mobile export panel.
 - Responsive 3D Move/Rotate gestures use lightweight outlines; exact selection geometry and crease edges build in a shared worker.
 - Top-edge rounding follows the pocket opening at the bin surface when pockets are raised or tilted.
-- Optional pocket openings: preserve the tilted opening or use vertical walls around the full top-down outline while preserving the rotated object’s underside. Keep floor thickness remains available after 3D edits and clips only the cut; raising the pocket restores the original profile. Through preserves the finite original object during Z moves and stops it at the bin underside. Selection outlines stay lightweight while rounding remains visible in the bin.
+- Tilted-pocket insertion controls appear at the top of properties and default on when tilting. Both directions now clear a continuous path to the surface even for fully submerged objects. Follow the tilted axis or use vertical walls around the full top-down outline while preserving the rotated object’s underside. Keep floor thickness remains available after 3D edits and clips only the cut; raising the pocket restores the original profile. Through preserves the finite original object during Z moves and stops it at the bin underside. Selection outlines stay lightweight while rounding remains visible in the bin.
 
 ## 1.3.0 — 2026-10-04
 

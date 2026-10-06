@@ -155,7 +155,7 @@ import { SURFACE_FIT_CHECK_OUTLINE_WIDTH_MM, surfaceFitCheckStyleSchema, type Su
 import { cn } from "@/lib/utils";
 import { PocketSplitControls } from "./pocket-split-controls";
 import { changeBinGridPitchPreservingSize } from "@shared/gridfinity/grid-pitch";
-import { PocketDepthSummary, PocketMeasurements, PocketSizeInputs, PositionInputs } from "./pocket-measurements";
+import { PocketDepthSummary, PocketInsertionControls, PocketMeasurements, PocketSizeInputs, PositionInputs } from "./pocket-measurements";
 import { ExportConfirmationDialog, ProjectBackupOption } from "./export-confirmation-dialog";
 import { FingerAccessShapeControls } from "./finger-access-shape-controls";
 import { INITIAL_BIN_SPEC, useBin } from "@/state/bin-store";
@@ -901,6 +901,7 @@ export function BinControlsPanel({
               </div>
 
 
+              <PocketInsertionControls cutout={selectedCutout} shape={selectedShape} />
               {!inspector && <LinkedDesignControls kind="pocket" activeId={selectedCutout.id} labels={new Map(cutouts.map(c => [c.id, pocketName(c, shapesById.get(c.shapeId))]))} />}
               <PocketDepthSummary cutout={depthCutout!} shape={depthShape!} section={section} inspect={inspectPocket}>
                 {selectedCutout.split && <div className="flex gap-1 pb-2" role="group" aria-label="Section to edit">
