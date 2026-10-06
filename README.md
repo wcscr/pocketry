@@ -30,10 +30,10 @@ Check dimensions against the real items and print a fit test before the final bi
 Browse the [sample projects](samples/README.md) for editable JSONs, 3MF print
 models, and photos of finished bins. The collection includes a Wolfbox MF70 Airduster Kit,
 DeWalt right-angle tools, a Ryobi cutter, caliper storage, a stapler, wire
-strippers, a Klein voltage tester, a Citadel mouldline remover, Wiha drivers, and a mini socket set.
+strippers, a Klein voltage tester, a Citadel mouldline remover, Wiha drivers with 40, 50, 60, and 150 mm blades, and a mini socket set.
 
 [Download the complete sample library](samples/pocketry-sample-library.json)
-to import all ten designs at once.
+to import all 13 designs at once.
 
 | **[Wolfbox MF70 Airduster Kit](samples/wolfbox-mf70-airduster-kit/)** | **[DeWalt right-angle tools](samples/dewalt-right-angle-tools/)** |
 | :---: | :---: |
@@ -44,8 +44,16 @@ to import all ten designs at once.
 | <a href="samples/caliper-storage/"><img src="samples/caliper-storage/photos/printed-bin-loaded.jpg" width="300" height="159" alt="Calipers, measurement strips, and batteries in their printed bin"></a> | <a href="samples/stapler/"><img src="samples/stapler/photos/printed-bin-loaded.jpg" width="300" height="131" alt="Stapler in its printed bin"></a> |
 | **[Klein voltage tester](samples/klein-voltage-tester/)** | **[Citadel mouldline remover](samples/mouldline-remover/)** |
 | <a href="samples/klein-voltage-tester/"><img src="samples/klein-voltage-tester/photos/printed-bin-loaded.jpg" width="300" height="91" alt="Klein voltage tester in its printed bin"></a> | <a href="samples/mouldline-remover/"><img src="samples/mouldline-remover/photos/printed-bin-loaded.jpg" width="67" height="210" alt="Citadel mouldline remover in its printed bin"></a> |
-| **[Wiha drivers](samples/wiha-drivers/)** | **[Mini socket set](samples/mini-socket-set/)** |
-| <a href="samples/wiha-drivers/"><img src="samples/wiha-drivers/photos/printed-bin-loaded.jpg" width="99" height="210" alt="Five Wiha screwdrivers in a bin with lowered solid fill for stacking"></a> | <a href="samples/mini-socket-set/"><img src="samples/mini-socket-set/photos/printed-bin-loaded-portrait.jpg" width="160" height="210" alt="Mini socket set in a printed bin with the reused pre-cut shadowbox"></a> |
+| **[Wiha 150 mm drivers](samples/wiha-drivers/)** | **[Mini socket set](samples/mini-socket-set/)** |
+| <a href="samples/wiha-drivers/"><img src="samples/wiha-drivers/photos/printed-bin-loaded.jpg" width="99" height="210" alt="Five Wiha screwdrivers in a bin with lowered solid fill"></a> | <a href="samples/mini-socket-set/"><img src="samples/mini-socket-set/photos/printed-bin-loaded-portrait.jpg" width="160" height="210" alt="Mini socket set in a printed bin with the reused pre-cut shadowbox"></a> |
+| **[Wiha 40 mm drivers](samples/wiha-40mm-drivers/)** | **[Wiha 50 mm drivers](samples/wiha-50mm-drivers/)** |
+| <a href="samples/wiha-40mm-drivers/"><img src="samples/wiha-40mm-drivers/photos/printed-bin-loaded.jpg" width="124" height="210" alt="Four Wiha 40 mm drivers in their printed bin"></a> | <a href="samples/wiha-50mm-drivers/"><img src="samples/wiha-50mm-drivers/photos/printed-bin-loaded.jpg" width="60" height="210" alt="Two Wiha 50 mm drivers in their printed bin"></a> |
+| **[Wiha 60 mm drivers](samples/wiha-60mm-drivers/)** | **[Wiha bins stacked in a drawer](samples/README.md#print-photos)** |
+| <a href="samples/wiha-60mm-drivers/"><img src="samples/wiha-60mm-drivers/photos/printed-bin-loaded-current.jpg" width="49" height="210" alt="Two Wiha 60 mm drivers in their printed bin"></a> | <a href="samples/wiha-drivers/photos/stacked-bins-in-drawer.jpg"><img src="samples/wiha-drivers/photos/stacked-bins-in-drawer.jpg" width="131" height="210" alt="Wiha driver bins stacked with other Gridfinity bins in a drawer"></a> |
+
+The Wiha drivers sit slightly too high to stack the loaded bins without some
+interference. If stacking is desired, lower the driver pockets by about **1 mm**
+in the editable project before exporting a revised print model.
 
 We'd love to see what you make with Pocketry! If you share a design on MakerWorld,
 Printables, or elsewhere, please give Pocketry a shout-out and link to
@@ -216,7 +224,7 @@ The detailed direct-source review is available in
 
 ## Contributors
 
-Pocketry is developed and maintained by Will Cobb at Sugarcreek Research, LLC.
+Pocketry is developed and maintained by Sugarcreek Research, LLC.
 [OpenAI Codex](https://openai.com/codex/) is an AI contributor to the project,
 assisting with implementation, testing, documentation, and code review. This
 acknowledgment includes work not individually credited in the commit history.

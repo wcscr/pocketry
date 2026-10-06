@@ -5644,11 +5644,11 @@
     },
     {
       "id": "pocketry-sample-wiha-drivers",
-      "name": "Wiha drivers",
+      "name": "Wiha 150 mm drivers",
       "updatedAt": "2026-09-26T12:19:51.817Z",
       "doc": {
         "schemaVersion": 20,
-        "name": "Wiha drivers",
+        "name": "Wiha 150 mm drivers",
         "keepBinSize": false,
         "shapes": [
           {
@@ -6932,6 +6932,1621 @@
           }
         ],
         "fingerHoles": []
+      }
+    },
+    {
+      "id": "pocketry-sample-wiha-40mm-drivers",
+      "name": "Wiha 40 mm drivers",
+      "updatedAt": "2026-10-05T15:21:33.942Z",
+      "doc": {
+        "schemaVersion": 31,
+        "name": "Wiha 40 mm drivers",
+        "keepBinSize": true,
+        "shapes": [
+          {
+            "id": "wiha-40mm-calibrated",
+            "name": "Wiha 260 1.0 x 40",
+            "outlineMm": [
+              {
+                "outer": [
+                  {
+                    "x": -3.3458,
+                    "y": 60.4465
+                  },
+                  {
+                    "x": -4.9635,
+                    "y": 59.7501
+                  },
+                  {
+                    "x": -5.3941,
+                    "y": 58.5561
+                  },
+                  {
+                    "x": -6.3455,
+                    "y": 52.885
+                  },
+                  {
+                    "x": -5.4847,
+                    "y": 20.6491
+                  },
+                  {
+                    "x": -4.6005,
+                    "y": 14.978
+                  },
+                  {
+                    "x": -4.2478,
+                    "y": 10.6002
+                  },
+                  {
+                    "x": -3.5575,
+                    "y": -13.7757
+                  },
+                  {
+                    "x": -3.1741,
+                    "y": -18.8499
+                  },
+                  {
+                    "x": -3.1741,
+                    "y": -19.2499
+                  },
+                  {
+                    "x": -1,
+                    "y": -19.2499
+                  },
+                  {
+                    "x": -1,
+                    "y": -60.6455
+                  },
+                  {
+                    "x": 1,
+                    "y": -60.6455
+                  },
+                  {
+                    "x": 1,
+                    "y": -19.2499
+                  },
+                  {
+                    "x": 3.1741,
+                    "y": -19.2499
+                  },
+                  {
+                    "x": 3.1741,
+                    "y": -18.8499
+                  },
+                  {
+                    "x": 3.5575,
+                    "y": -13.7757
+                  },
+                  {
+                    "x": 4.2478,
+                    "y": 10.6002
+                  },
+                  {
+                    "x": 4.6005,
+                    "y": 14.978
+                  },
+                  {
+                    "x": 5.4847,
+                    "y": 20.6491
+                  },
+                  {
+                    "x": 6.3455,
+                    "y": 52.885
+                  },
+                  {
+                    "x": 5.3941,
+                    "y": 58.5561
+                  },
+                  {
+                    "x": 4.9635,
+                    "y": 59.7501
+                  },
+                  {
+                    "x": 3.3458,
+                    "y": 60.4465
+                  },
+                  {
+                    "x": 0,
+                    "y": 60.6455
+                  }
+                ],
+                "holes": []
+              }
+            ],
+            "bboxMm": {
+              "minX": -6.3455,
+              "minY": -60.6455,
+              "maxX": 6.3455,
+              "maxY": 60.6455
+            },
+            "pointCount": 25,
+            "sourceMmPerPx": 0.125,
+            "source": "trace",
+            "traceMarginMm": 0
+          }
+        ],
+        "spec": {
+          "gridX": 4,
+          "gridY": 7,
+          "gridPitch": "half",
+          "footprint": {
+            "kind": "rectangle"
+          },
+          "heightUnits": 3,
+          "lip": "standard",
+          "fill": "solid",
+          "fillHeightPercent": 80,
+          "adjustFixedPocketDepths": true,
+          "flatBottom": false,
+          "magnetHoles": false,
+          "magnetCrushRibs": false,
+          "screwHoles": false,
+          "labelTab": null,
+          "textColor": null,
+          "surfaceTexts": [
+            {
+              "id": "f18faec5-9e71-4092-bdc5-ee062504db4d",
+              "text": "Wiha",
+              "position": {
+                "x": -0.33129241838067003,
+                "y": -62.97970864646923
+              },
+              "font": "helvetiker",
+              "sizeMm": 6,
+              "heightMm": 0.8,
+              "rotationDeg": 180
+            }
+          ]
+        },
+        "cutouts": [
+          {
+            "id": "wiha-40mm-pocket-1",
+            "shapeId": "wiha-40mm-calibrated",
+            "designLink": {
+              "id": "wiha-40mm-shared-design",
+              "tilt": true
+            },
+            "name": "40 mm driver 1",
+            "position": {
+              "x": -28.5,
+              "y": 7.726611
+            },
+            "rotationDeg": 0,
+            "mirrored": false,
+            "scaleX": 1,
+            "scaleY": 1,
+            "aspectRatioLocked": true,
+            "depth": {
+              "mode": "mm",
+              "value": 10.25
+            },
+            "split": {
+              "boundary": [
+                {
+                  "x": -20,
+                  "y": -19.7499
+                },
+                {
+                  "x": 20,
+                  "y": -19.7499
+                }
+              ],
+              "depths": [
+                {
+                  "mode": "mm",
+                  "value": 10.25
+                },
+                {
+                  "mode": "mm",
+                  "value": 5.5
+                }
+              ]
+            },
+            "clearanceMm": 1.25,
+            "cornerRoundMm": 0.75,
+            "topFilletMm": 0.75,
+            "bottomFilletMm": 1.8,
+            "fingerHoles": []
+          },
+          {
+            "id": "wiha-40mm-pocket-2",
+            "shapeId": "wiha-40mm-calibrated",
+            "designLink": {
+              "id": "wiha-40mm-shared-design",
+              "tilt": true
+            },
+            "name": "40 mm driver 2",
+            "position": {
+              "x": -9.5,
+              "y": 7.726611
+            },
+            "rotationDeg": 0,
+            "mirrored": false,
+            "scaleX": 1,
+            "scaleY": 1,
+            "aspectRatioLocked": true,
+            "depth": {
+              "mode": "mm",
+              "value": 10.25
+            },
+            "split": {
+              "boundary": [
+                {
+                  "x": -20,
+                  "y": -19.7499
+                },
+                {
+                  "x": 20,
+                  "y": -19.7499
+                }
+              ],
+              "depths": [
+                {
+                  "mode": "mm",
+                  "value": 10.25
+                },
+                {
+                  "mode": "mm",
+                  "value": 5.5
+                }
+              ]
+            },
+            "clearanceMm": 1.25,
+            "cornerRoundMm": 0.75,
+            "topFilletMm": 0.75,
+            "bottomFilletMm": 1.8,
+            "fingerHoles": []
+          },
+          {
+            "id": "wiha-40mm-pocket-3",
+            "shapeId": "wiha-40mm-calibrated",
+            "designLink": {
+              "id": "wiha-40mm-shared-design",
+              "tilt": true
+            },
+            "name": "40 mm driver 3",
+            "position": {
+              "x": 9.5,
+              "y": 7.726611
+            },
+            "rotationDeg": 0,
+            "mirrored": false,
+            "scaleX": 1,
+            "scaleY": 1,
+            "aspectRatioLocked": true,
+            "depth": {
+              "mode": "mm",
+              "value": 10.25
+            },
+            "split": {
+              "boundary": [
+                {
+                  "x": -20,
+                  "y": -19.7499
+                },
+                {
+                  "x": 20,
+                  "y": -19.7499
+                }
+              ],
+              "depths": [
+                {
+                  "mode": "mm",
+                  "value": 10.25
+                },
+                {
+                  "mode": "mm",
+                  "value": 5.5
+                }
+              ]
+            },
+            "clearanceMm": 1.25,
+            "cornerRoundMm": 0.75,
+            "topFilletMm": 0.75,
+            "bottomFilletMm": 1.8,
+            "fingerHoles": []
+          },
+          {
+            "id": "wiha-40mm-pocket-4",
+            "shapeId": "wiha-40mm-calibrated",
+            "designLink": {
+              "id": "wiha-40mm-shared-design",
+              "tilt": true
+            },
+            "name": "40 mm driver 4",
+            "position": {
+              "x": 28.5,
+              "y": 7.726611
+            },
+            "rotationDeg": 0,
+            "mirrored": false,
+            "scaleX": 1,
+            "scaleY": 1,
+            "aspectRatioLocked": true,
+            "depth": {
+              "mode": "mm",
+              "value": 10.25
+            },
+            "split": {
+              "boundary": [
+                {
+                  "x": -20,
+                  "y": -19.7499
+                },
+                {
+                  "x": 20,
+                  "y": -19.7499
+                }
+              ],
+              "depths": [
+                {
+                  "mode": "mm",
+                  "value": 10.25
+                },
+                {
+                  "mode": "mm",
+                  "value": 5.5
+                }
+              ]
+            },
+            "clearanceMm": 1.25,
+            "cornerRoundMm": 0.75,
+            "topFilletMm": 0.75,
+            "bottomFilletMm": 1.8,
+            "fingerHoles": []
+          }
+        ],
+        "fingerHoles": [
+          {
+            "id": "wiha-40mm-access",
+            "name": "Shared screwdriver finger access",
+            "center": {
+              "x": 0,
+              "y": -32.273389
+            },
+            "diameterMm": 23,
+            "depthMm": 9,
+            "topFilletMm": 1,
+            "bottomFilletMm": 0,
+            "cornerRoundMm": 0,
+            "lengthMm": 65.62,
+            "rotationDeg": 0,
+            "slotEnds": "flat",
+            "kind": "flat-ended-scoop"
+          }
+        ],
+        "transformOrigins": {
+          "pockets": [
+            {
+              "cutout": {
+                "id": "wiha-40mm-pocket-1",
+                "shapeId": "wiha-40mm-calibrated",
+                "designLink": {
+                  "id": "wiha-40mm-shared-design",
+                  "tilt": true
+                },
+                "name": "40 mm driver 1",
+                "position": {
+                  "x": -28.5,
+                  "y": 0
+                },
+                "rotationDeg": 0,
+                "mirrored": false,
+                "scaleX": 1,
+                "scaleY": 1,
+                "aspectRatioLocked": true,
+                "depth": {
+                  "mode": "mm",
+                  "value": 10.25
+                },
+                "split": {
+                  "boundary": [
+                    {
+                      "x": -20,
+                      "y": -19.7499
+                    },
+                    {
+                      "x": 20,
+                      "y": -19.7499
+                    }
+                  ],
+                  "depths": [
+                    {
+                      "mode": "mm",
+                      "value": 10.25
+                    },
+                    {
+                      "mode": "mm",
+                      "value": 5.5
+                    }
+                  ]
+                },
+                "clearanceMm": 1.25,
+                "cornerRoundMm": 0.75,
+                "topFilletMm": 0.75,
+                "bottomFilletMm": 2.8,
+                "fingerHoles": []
+              },
+              "spec": {
+                "gridX": 2,
+                "gridY": 4,
+                "gridPitch": "full",
+                "footprint": {
+                  "kind": "rectangle"
+                },
+                "heightUnits": 3,
+                "lip": "standard",
+                "fill": "solid",
+                "fillHeightPercent": 80,
+                "adjustFixedPocketDepths": true,
+                "flatBottom": false,
+                "magnetHoles": false,
+                "magnetCrushRibs": false,
+                "screwHoles": false,
+                "labelTab": null,
+                "textColor": null,
+                "surfaceTexts": []
+              }
+            },
+            {
+              "cutout": {
+                "id": "wiha-40mm-pocket-2",
+                "shapeId": "wiha-40mm-calibrated",
+                "designLink": {
+                  "id": "wiha-40mm-shared-design",
+                  "tilt": true
+                },
+                "name": "40 mm driver 2",
+                "position": {
+                  "x": -9.5,
+                  "y": 0
+                },
+                "rotationDeg": 0,
+                "mirrored": false,
+                "scaleX": 1,
+                "scaleY": 1,
+                "aspectRatioLocked": true,
+                "depth": {
+                  "mode": "mm",
+                  "value": 10.25
+                },
+                "split": {
+                  "boundary": [
+                    {
+                      "x": -20,
+                      "y": -19.7499
+                    },
+                    {
+                      "x": 20,
+                      "y": -19.7499
+                    }
+                  ],
+                  "depths": [
+                    {
+                      "mode": "mm",
+                      "value": 10.25
+                    },
+                    {
+                      "mode": "mm",
+                      "value": 5.5
+                    }
+                  ]
+                },
+                "clearanceMm": 1.25,
+                "cornerRoundMm": 0.75,
+                "topFilletMm": 0.75,
+                "bottomFilletMm": 2.8,
+                "fingerHoles": []
+              },
+              "spec": {
+                "gridX": 2,
+                "gridY": 4,
+                "gridPitch": "full",
+                "footprint": {
+                  "kind": "rectangle"
+                },
+                "heightUnits": 3,
+                "lip": "standard",
+                "fill": "solid",
+                "fillHeightPercent": 80,
+                "adjustFixedPocketDepths": true,
+                "flatBottom": false,
+                "magnetHoles": false,
+                "magnetCrushRibs": false,
+                "screwHoles": false,
+                "labelTab": null,
+                "textColor": null,
+                "surfaceTexts": []
+              }
+            },
+            {
+              "cutout": {
+                "id": "wiha-40mm-pocket-3",
+                "shapeId": "wiha-40mm-calibrated",
+                "designLink": {
+                  "id": "wiha-40mm-shared-design",
+                  "tilt": true
+                },
+                "name": "40 mm driver 3",
+                "position": {
+                  "x": 9.5,
+                  "y": 0
+                },
+                "rotationDeg": 0,
+                "mirrored": false,
+                "scaleX": 1,
+                "scaleY": 1,
+                "aspectRatioLocked": true,
+                "depth": {
+                  "mode": "mm",
+                  "value": 10.25
+                },
+                "split": {
+                  "boundary": [
+                    {
+                      "x": -20,
+                      "y": -19.7499
+                    },
+                    {
+                      "x": 20,
+                      "y": -19.7499
+                    }
+                  ],
+                  "depths": [
+                    {
+                      "mode": "mm",
+                      "value": 10.25
+                    },
+                    {
+                      "mode": "mm",
+                      "value": 5.5
+                    }
+                  ]
+                },
+                "clearanceMm": 1.25,
+                "cornerRoundMm": 0.75,
+                "topFilletMm": 0.75,
+                "bottomFilletMm": 2.8,
+                "fingerHoles": []
+              },
+              "spec": {
+                "gridX": 2,
+                "gridY": 4,
+                "gridPitch": "full",
+                "footprint": {
+                  "kind": "rectangle"
+                },
+                "heightUnits": 3,
+                "lip": "standard",
+                "fill": "solid",
+                "fillHeightPercent": 80,
+                "adjustFixedPocketDepths": true,
+                "flatBottom": false,
+                "magnetHoles": false,
+                "magnetCrushRibs": false,
+                "screwHoles": false,
+                "labelTab": null,
+                "textColor": null,
+                "surfaceTexts": []
+              }
+            },
+            {
+              "cutout": {
+                "id": "wiha-40mm-pocket-4",
+                "shapeId": "wiha-40mm-calibrated",
+                "designLink": {
+                  "id": "wiha-40mm-shared-design",
+                  "tilt": true
+                },
+                "name": "40 mm driver 4",
+                "position": {
+                  "x": 28.5,
+                  "y": 0
+                },
+                "rotationDeg": 0,
+                "mirrored": false,
+                "scaleX": 1,
+                "scaleY": 1,
+                "aspectRatioLocked": true,
+                "depth": {
+                  "mode": "mm",
+                  "value": 10.25
+                },
+                "split": {
+                  "boundary": [
+                    {
+                      "x": -20,
+                      "y": -19.7499
+                    },
+                    {
+                      "x": 20,
+                      "y": -19.7499
+                    }
+                  ],
+                  "depths": [
+                    {
+                      "mode": "mm",
+                      "value": 10.25
+                    },
+                    {
+                      "mode": "mm",
+                      "value": 5.5
+                    }
+                  ]
+                },
+                "clearanceMm": 1.25,
+                "cornerRoundMm": 0.75,
+                "topFilletMm": 0.75,
+                "bottomFilletMm": 2.8,
+                "fingerHoles": []
+              },
+              "spec": {
+                "gridX": 2,
+                "gridY": 4,
+                "gridPitch": "full",
+                "footprint": {
+                  "kind": "rectangle"
+                },
+                "heightUnits": 3,
+                "lip": "standard",
+                "fill": "solid",
+                "fillHeightPercent": 80,
+                "adjustFixedPocketDepths": true,
+                "flatBottom": false,
+                "magnetHoles": false,
+                "magnetCrushRibs": false,
+                "screwHoles": false,
+                "labelTab": null,
+                "textColor": null,
+                "surfaceTexts": []
+              }
+            }
+          ],
+          "fingerHoles": [
+            {
+              "id": "wiha-40mm-access",
+              "name": "Shared screwdriver finger access",
+              "center": {
+                "x": 0,
+                "y": -40
+              },
+              "diameterMm": 23,
+              "depthMm": 9,
+              "topFilletMm": 1,
+              "bottomFilletMm": 0,
+              "cornerRoundMm": 0,
+              "lengthMm": 72,
+              "rotationDeg": 0,
+              "slotEnds": "flat",
+              "kind": "flat-ended-scoop"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "pocketry-sample-wiha-50mm-drivers",
+      "name": "Wiha 50 mm drivers",
+      "updatedAt": "2026-10-05T15:20:23.685Z",
+      "doc": {
+        "schemaVersion": 31,
+        "name": "Wiha 50 mm drivers",
+        "keepBinSize": true,
+        "shapes": [
+          {
+            "id": "wiha-50mm-calibrated",
+            "name": "Wiha 261 PH0 x 50",
+            "outlineMm": [
+              {
+                "outer": [
+                  {
+                    "x": -3.5787,
+                    "y": 73.2253
+                  },
+                  {
+                    "x": -5.2918,
+                    "y": 72.5116
+                  },
+                  {
+                    "x": -5.8082,
+                    "y": 71.0842
+                  },
+                  {
+                    "x": -6.7039,
+                    "y": 65.7317
+                  },
+                  {
+                    "x": -5.8778,
+                    "y": 29.0966
+                  },
+                  {
+                    "x": -4.7411,
+                    "y": 16.8452
+                  },
+                  {
+                    "x": -3.6575,
+                    "y": -18.1247
+                  },
+                  {
+                    "x": -3.3164,
+                    "y": -21.5741
+                  },
+                  {
+                    "x": -3.3164,
+                    "y": -21.9741
+                  },
+                  {
+                    "x": -1.5,
+                    "y": -21.9741
+                  },
+                  {
+                    "x": -1.5,
+                    "y": -73.4631
+                  },
+                  {
+                    "x": 1.5,
+                    "y": -73.4631
+                  },
+                  {
+                    "x": 1.5,
+                    "y": -21.9741
+                  },
+                  {
+                    "x": 3.3164,
+                    "y": -21.9741
+                  },
+                  {
+                    "x": 3.3164,
+                    "y": -21.5741
+                  },
+                  {
+                    "x": 3.6575,
+                    "y": -18.1247
+                  },
+                  {
+                    "x": 4.7411,
+                    "y": 16.8452
+                  },
+                  {
+                    "x": 5.8778,
+                    "y": 29.0966
+                  },
+                  {
+                    "x": 6.7039,
+                    "y": 65.7317
+                  },
+                  {
+                    "x": 5.8082,
+                    "y": 71.0842
+                  },
+                  {
+                    "x": 5.2918,
+                    "y": 72.5116
+                  },
+                  {
+                    "x": 3.5787,
+                    "y": 73.2253
+                  },
+                  {
+                    "x": 0,
+                    "y": 73.4632
+                  }
+                ],
+                "holes": []
+              }
+            ],
+            "bboxMm": {
+              "minX": -6.7039,
+              "minY": -73.4631,
+              "maxX": 6.7039,
+              "maxY": 73.4632
+            },
+            "pointCount": 23,
+            "sourceMmPerPx": 0.125,
+            "source": "trace",
+            "traceMarginMm": 0
+          }
+        ],
+        "spec": {
+          "gridX": 1,
+          "gridY": 4,
+          "gridPitch": "full",
+          "footprint": {
+            "kind": "rectangle"
+          },
+          "heightUnits": 3,
+          "lip": "standard",
+          "fill": "solid",
+          "fillHeightPercent": 80,
+          "adjustFixedPocketDepths": true,
+          "flatBottom": false,
+          "magnetHoles": false,
+          "magnetCrushRibs": false,
+          "screwHoles": false,
+          "labelTab": null,
+          "textColor": null,
+          "surfaceTexts": [
+            {
+              "id": "86951416-eea5-4cd9-a0fa-7f0d96facad4",
+              "text": "Wiha",
+              "position": {
+                "x": 0.24834015385913233,
+                "y": -75.7797018988087
+              },
+              "font": "helvetiker",
+              "sizeMm": 6,
+              "heightMm": 0.8,
+              "rotationDeg": -180
+            }
+          ]
+        },
+        "cutouts": [
+          {
+            "id": "wiha-50mm-pocket-1",
+            "shapeId": "wiha-50mm-calibrated",
+            "designLink": {
+              "id": "wiha-50mm-shared-design",
+              "tilt": true
+            },
+            "name": "50 mm driver 1",
+            "position": {
+              "x": -9.4,
+              "y": 5.988152
+            },
+            "rotationDeg": 0,
+            "mirrored": false,
+            "scaleX": 1,
+            "scaleY": 1,
+            "aspectRatioLocked": true,
+            "depth": {
+              "mode": "mm",
+              "value": 10.25
+            },
+            "split": {
+              "boundary": [
+                {
+                  "x": -20,
+                  "y": -22.4741
+                },
+                {
+                  "x": 20,
+                  "y": -22.4741
+                }
+              ],
+              "depths": [
+                {
+                  "mode": "mm",
+                  "value": 10.25
+                },
+                {
+                  "mode": "mm",
+                  "value": 5.5
+                }
+              ]
+            },
+            "clearanceMm": 1.25,
+            "cornerRoundMm": 0.75,
+            "topFilletMm": 0.75,
+            "bottomFilletMm": 1.8,
+            "fingerHoles": []
+          },
+          {
+            "id": "wiha-50mm-pocket-2",
+            "shapeId": "wiha-50mm-calibrated",
+            "designLink": {
+              "id": "wiha-50mm-shared-design",
+              "tilt": true
+            },
+            "name": "50 mm driver 2",
+            "position": {
+              "x": 9.4,
+              "y": 5.988152
+            },
+            "rotationDeg": 0,
+            "mirrored": false,
+            "scaleX": 1,
+            "scaleY": 1,
+            "aspectRatioLocked": true,
+            "depth": {
+              "mode": "mm",
+              "value": 10.25
+            },
+            "split": {
+              "boundary": [
+                {
+                  "x": -20,
+                  "y": -22.4741
+                },
+                {
+                  "x": 20,
+                  "y": -22.4741
+                }
+              ],
+              "depths": [
+                {
+                  "mode": "mm",
+                  "value": 10.25
+                },
+                {
+                  "mode": "mm",
+                  "value": 5.5
+                }
+              ]
+            },
+            "clearanceMm": 1.25,
+            "cornerRoundMm": 0.75,
+            "topFilletMm": 0.75,
+            "bottomFilletMm": 1.8,
+            "fingerHoles": []
+          }
+        ],
+        "fingerHoles": [
+          {
+            "id": "wiha-50mm-access",
+            "name": "Shared screwdriver finger access",
+            "center": {
+              "x": 0,
+              "y": -41.511848
+            },
+            "diameterMm": 23,
+            "depthMm": 9,
+            "topFilletMm": 1,
+            "bottomFilletMm": 0,
+            "lengthMm": 34,
+            "rotationDeg": 0,
+            "slotEnds": "flat",
+            "kind": "flat-ended-scoop"
+          }
+        ],
+        "transformOrigins": {
+          "pockets": [
+            {
+              "cutout": {
+                "id": "wiha-50mm-pocket-1",
+                "shapeId": "wiha-50mm-calibrated",
+                "designLink": {
+                  "id": "wiha-50mm-shared-design",
+                  "tilt": true
+                },
+                "name": "50 mm driver 1",
+                "position": {
+                  "x": -9.4,
+                  "y": -4
+                },
+                "rotationDeg": 0,
+                "mirrored": false,
+                "scaleX": 1,
+                "scaleY": 1,
+                "aspectRatioLocked": true,
+                "depth": {
+                  "mode": "mm",
+                  "value": 10.25
+                },
+                "split": {
+                  "boundary": [
+                    {
+                      "x": -20,
+                      "y": -22.4741
+                    },
+                    {
+                      "x": 20,
+                      "y": -22.4741
+                    }
+                  ],
+                  "depths": [
+                    {
+                      "mode": "mm",
+                      "value": 10.25
+                    },
+                    {
+                      "mode": "mm",
+                      "value": 5.5
+                    }
+                  ]
+                },
+                "clearanceMm": 1.25,
+                "cornerRoundMm": 0.75,
+                "topFilletMm": 0.75,
+                "bottomFilletMm": 2.8,
+                "fingerHoles": []
+              },
+              "spec": {
+                "gridX": 1,
+                "gridY": 4,
+                "gridPitch": "full",
+                "footprint": {
+                  "kind": "rectangle"
+                },
+                "heightUnits": 3,
+                "lip": "standard",
+                "fill": "solid",
+                "fillHeightPercent": 80,
+                "adjustFixedPocketDepths": true,
+                "flatBottom": false,
+                "magnetHoles": false,
+                "magnetCrushRibs": false,
+                "screwHoles": false,
+                "labelTab": null,
+                "textColor": null,
+                "surfaceTexts": []
+              }
+            },
+            {
+              "cutout": {
+                "id": "wiha-50mm-pocket-2",
+                "shapeId": "wiha-50mm-calibrated",
+                "designLink": {
+                  "id": "wiha-50mm-shared-design",
+                  "tilt": true
+                },
+                "name": "50 mm driver 2",
+                "position": {
+                  "x": 9.4,
+                  "y": -4
+                },
+                "rotationDeg": 0,
+                "mirrored": false,
+                "scaleX": 1,
+                "scaleY": 1,
+                "aspectRatioLocked": true,
+                "depth": {
+                  "mode": "mm",
+                  "value": 10.25
+                },
+                "split": {
+                  "boundary": [
+                    {
+                      "x": -20,
+                      "y": -22.4741
+                    },
+                    {
+                      "x": 20,
+                      "y": -22.4741
+                    }
+                  ],
+                  "depths": [
+                    {
+                      "mode": "mm",
+                      "value": 10.25
+                    },
+                    {
+                      "mode": "mm",
+                      "value": 5.5
+                    }
+                  ]
+                },
+                "clearanceMm": 1.25,
+                "cornerRoundMm": 0.75,
+                "topFilletMm": 0.75,
+                "bottomFilletMm": 2.8,
+                "fingerHoles": []
+              },
+              "spec": {
+                "gridX": 1,
+                "gridY": 4,
+                "gridPitch": "full",
+                "footprint": {
+                  "kind": "rectangle"
+                },
+                "heightUnits": 3,
+                "lip": "standard",
+                "fill": "solid",
+                "fillHeightPercent": 80,
+                "adjustFixedPocketDepths": true,
+                "flatBottom": false,
+                "magnetHoles": false,
+                "magnetCrushRibs": false,
+                "screwHoles": false,
+                "labelTab": null,
+                "textColor": null,
+                "surfaceTexts": []
+              }
+            }
+          ],
+          "fingerHoles": [
+            {
+              "id": "wiha-50mm-access",
+              "name": "Shared screwdriver finger access",
+              "center": {
+                "x": 0,
+                "y": 11
+              },
+              "diameterMm": 24,
+              "depthMm": 10,
+              "topFilletMm": 0,
+              "bottomFilletMm": 0,
+              "lengthMm": 35,
+              "rotationDeg": 0,
+              "kind": "oblong-deep-scoop"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "pocketry-sample-wiha-60mm-drivers",
+      "name": "Wiha 60 mm drivers",
+      "updatedAt": "2026-10-05T15:21:14.797Z",
+      "doc": {
+        "schemaVersion": 32,
+        "shapes": [
+          {
+            "id": "123aba23-d356-4288-ad8d-db26a2fc545a",
+            "name": "Small Wiha",
+            "outlineMm": [
+              {
+                "outer": [
+                  {
+                    "x": -1.783128130244819,
+                    "y": 87.55887152748193
+                  },
+                  {
+                    "x": -2.516854372018429,
+                    "y": 26.91473881872338
+                  },
+                  {
+                    "x": -3.897801490875679,
+                    "y": 25.931000632815255
+                  },
+                  {
+                    "x": -4.875643583768323,
+                    "y": 24.16237806474038
+                  },
+                  {
+                    "x": -6.853533453198992,
+                    "y": -27.334655674690907
+                  },
+                  {
+                    "x": -8.183293097867022,
+                    "y": -34.65560850179713
+                  },
+                  {
+                    "x": -8.31101244607325,
+                    "y": -75.43345713767604
+                  },
+                  {
+                    "x": -7.900676639370744,
+                    "y": -81.0595912276874
+                  },
+                  {
+                    "x": -6.574994392360168,
+                    "y": -86.2984605416265
+                  },
+                  {
+                    "x": -3.3017680879812588,
+                    "y": -87.25456629161127
+                  },
+                  {
+                    "x": -0.06048410000286708,
+                    "y": -87.55887152748187
+                  },
+                  {
+                    "x": 3.573047034286077,
+                    "y": -87.37008278064116
+                  },
+                  {
+                    "x": 6.792387155234849,
+                    "y": -86.02853094994214
+                  },
+                  {
+                    "x": 7.924217010738545,
+                    "y": -81.10215456582412
+                  },
+                  {
+                    "x": 8.31101244607325,
+                    "y": -75.99599134542771
+                  },
+                  {
+                    "x": 7.5967638449080255,
+                    "y": -34.74619126414461
+                  },
+                  {
+                    "x": 6.142452902012252,
+                    "y": -27.45876696597719
+                  },
+                  {
+                    "x": 5.699952587889385,
+                    "y": 23.48162865871791
+                  },
+                  {
+                    "x": 4.901457324333649,
+                    "y": 25.478556161815504
+                  },
+                  {
+                    "x": 3.0791460673073914,
+                    "y": 26.85879985111609
+                  },
+                  {
+                    "x": 4.622008915815826,
+                    "y": 87.4157519363248
+                  }
+                ],
+                "holes": []
+              }
+            ],
+            "bboxMm": {
+              "minX": -8.31101244607325,
+              "minY": -87.55887152748187,
+              "maxX": 8.31101244607325,
+              "maxY": 87.55887152748193
+            },
+            "pointCount": 21,
+            "sourceMmPerPx": 0.48060491525282484,
+            "traceMarginMm": 0
+          },
+          {
+            "id": "ee5ad8c5-4655-47ad-b81f-0c5ee10938e2",
+            "name": "Small Wiha",
+            "outlineMm": [
+              {
+                "outer": [
+                  {
+                    "x": -1.5364909018780986,
+                    "y": 90.48574345822195
+                  },
+                  {
+                    "x": -2.676978075125001,
+                    "y": 27.689985069138288
+                  },
+                  {
+                    "x": -3.808906298112777,
+                    "y": 26.578905080823635
+                  },
+                  {
+                    "x": -4.652259707368578,
+                    "y": 25.665887650071625
+                  },
+                  {
+                    "x": -5.23075394406644,
+                    "y": 23.871485762247133
+                  },
+                  {
+                    "x": -6.495109530269166,
+                    "y": -27.039334050814414
+                  },
+                  {
+                    "x": -7.672012731549493,
+                    "y": -34.29022201516574
+                  },
+                  {
+                    "x": -8.31101244607325,
+                    "y": -75.43345713767604
+                  },
+                  {
+                    "x": -8.293983739858156,
+                    "y": -80.8840589391008
+                  },
+                  {
+                    "x": -7.9934664129363,
+                    "y": -84.95969968207858
+                  },
+                  {
+                    "x": -7.251538495505306,
+                    "y": -88.42774118655409
+                  },
+                  {
+                    "x": 7.415202391795137,
+                    "y": -88.65580012378867
+                  },
+                  {
+                    "x": 8.223744403961915,
+                    "y": -85.1604751844042
+                  },
+                  {
+                    "x": 8.466355635305053,
+                    "y": -80.36255872841747
+                  },
+                  {
+                    "x": 8.31101244607325,
+                    "y": -75.99599134542771
+                  },
+                  {
+                    "x": 7.644443772007096,
+                    "y": -34.499944077378984
+                  },
+                  {
+                    "x": 6.763534567768253,
+                    "y": -27.479520484213744
+                  },
+                  {
+                    "x": 6.043752734273719,
+                    "y": 23.789943212683735
+                  },
+                  {
+                    "x": 5.834845894609978,
+                    "y": 25.23961681962798
+                  },
+                  {
+                    "x": 4.995239942972344,
+                    "y": 26.41106385319632
+                  },
+                  {
+                    "x": 3.5173440531453934,
+                    "y": 27.60438935290947
+                  },
+                  {
+                    "x": 4.385464820778476,
+                    "y": 90.39377043423825
+                  }
+                ],
+                "holes": []
+              }
+            ],
+            "bboxMm": {
+              "minX": -8.31101244607325,
+              "minY": -88.65580012378867,
+              "maxX": 8.466355635305053,
+              "maxY": 90.48574345822195
+            },
+            "pointCount": 22,
+            "sourceMmPerPx": 0.48060491525282484,
+            "traceMarginMm": 0
+          }
+        ],
+        "spec": {
+          "gridX": 1,
+          "gridY": 5,
+          "gridPitch": "full",
+          "footprint": {
+            "kind": "rectangle"
+          },
+          "heightUnits": 3,
+          "lip": "standard",
+          "fill": "solid",
+          "wallThicknessMm": 0.95,
+          "fillHeightPercent": 80,
+          "adjustFixedPocketDepths": true,
+          "flatBottom": false,
+          "magnetHoles": false,
+          "magnetCrushRibs": false,
+          "screwHoles": false,
+          "labelTab": null,
+          "textColor": null,
+          "surfaceTexts": [
+            {
+              "id": "cd1a8f48-40a3-4770-91ed-915cf506ca73",
+              "text": "Wiha",
+              "position": {
+                "x": -0.7554086453205571,
+                "y": 90.57371179007177
+              },
+              "font": "helvetiker",
+              "sizeMm": 7.5,
+              "heightMm": 0.8,
+              "rotationDeg": 0
+            }
+          ]
+        },
+        "cutouts": [
+          {
+            "id": "cutout-123aba23-d356-4288-ad8d-db26a2fc545a-llir68",
+            "shapeId": "ee5ad8c5-4655-47ad-b81f-0c5ee10938e2",
+            "designLink": {
+              "id": "f78adfe6-9eb4-4fab-ba83-51d57547ce33",
+              "tilt": false
+            },
+            "name": "Wiha Driver x60",
+            "position": {
+              "x": -10.2,
+              "y": -11.68720245361331
+            },
+            "rotationDeg": 0.75,
+            "mirrored": false,
+            "scaleX": 0.9750000000000001,
+            "scaleY": 0.9750000000000001,
+            "aspectRatioLocked": true,
+            "depth": {
+              "mode": "mm",
+              "value": 4.739999999999998
+            },
+            "split": {
+              "boundary": [
+                {
+                  "x": -2.676978075125001,
+                  "y": 27.689985069138288
+                },
+                {
+                  "x": 3.519556406502971,
+                  "y": 27.764404299256388
+                }
+              ],
+              "depths": [
+                {
+                  "mode": "mm",
+                  "value": 5.5
+                },
+                {
+                  "mode": "mm",
+                  "value": 10.25
+                }
+              ]
+            },
+            "clearanceMm": 0,
+            "cornerRoundMm": 1,
+            "topFilletMm": 1,
+            "bottomFilletMm": 2.4,
+            "fingerHoles": []
+          },
+          {
+            "id": "3ac23a12-c6b9-4958-b103-1097c3d0e0d2",
+            "shapeId": "ee5ad8c5-4655-47ad-b81f-0c5ee10938e2",
+            "designLink": {
+              "id": "f78adfe6-9eb4-4fab-ba83-51d57547ce33",
+              "tilt": false
+            },
+            "name": "Wiha Driver x60 (copy)",
+            "position": {
+              "x": 8.2,
+              "y": -11.199615478515625
+            },
+            "rotationDeg": 0.75,
+            "mirrored": false,
+            "scaleX": 0.9750000000000001,
+            "scaleY": 0.9750000000000001,
+            "aspectRatioLocked": true,
+            "depth": {
+              "mode": "mm",
+              "value": 4.739999999999998
+            },
+            "split": {
+              "boundary": [
+                {
+                  "x": -2.676978075125001,
+                  "y": 27.689985069138288
+                },
+                {
+                  "x": 3.519556406502971,
+                  "y": 27.764404299256388
+                }
+              ],
+              "depths": [
+                {
+                  "mode": "mm",
+                  "value": 5.5
+                },
+                {
+                  "mode": "mm",
+                  "value": 10.25
+                }
+              ]
+            },
+            "clearanceMm": 0,
+            "cornerRoundMm": 1,
+            "topFilletMm": 1,
+            "bottomFilletMm": 2.4,
+            "fingerHoles": []
+          }
+        ],
+        "fingerHoles": [
+          {
+            "id": "6c048049-f683-4731-b015-3c03631e9f92",
+            "center": {
+              "x": 0.017722129821772903,
+              "y": 45.21695137023923
+            },
+            "diameterMm": 23,
+            "depthMm": 9,
+            "topFilletMm": 1,
+            "bottomFilletMm": 0,
+            "lengthMm": 34,
+            "rotationDeg": 359.91363611093124,
+            "slotEnds": "flat",
+            "kind": "flat-ended-scoop"
+          }
+        ],
+        "name": "Wiha 60 mm drivers",
+        "keepBinSize": false,
+        "transformOrigins": {
+          "pockets": [
+            {
+              "cutout": {
+                "id": "cutout-123aba23-d356-4288-ad8d-db26a2fc545a-llir68",
+                "shapeId": "123aba23-d356-4288-ad8d-db26a2fc545a",
+                "position": {
+                  "x": 0,
+                  "y": -2.842170943040401e-14
+                },
+                "rotationDeg": 0,
+                "mirrored": false,
+                "scaleX": 1,
+                "scaleY": 1,
+                "aspectRatioLocked": true,
+                "depth": {
+                  "mode": "remaining",
+                  "floorThicknessMm": 7
+                },
+                "clearanceMm": 0,
+                "cornerRoundMm": 1,
+                "topFilletMm": 1,
+                "bottomFilletMm": 2.8,
+                "fingerHoles": []
+              },
+              "spec": {
+                "gridX": 1,
+                "gridY": 5,
+                "gridPitch": "full",
+                "footprint": {
+                  "kind": "rectangle"
+                },
+                "heightUnits": 6,
+                "lip": "standard",
+                "fill": "solid",
+                "wallThicknessMm": 0.95,
+                "fillHeightPercent": 100,
+                "adjustFixedPocketDepths": true,
+                "flatBottom": false,
+                "magnetHoles": false,
+                "magnetCrushRibs": false,
+                "screwHoles": false,
+                "labelTab": null,
+                "textColor": null,
+                "surfaceTexts": []
+              }
+            },
+            {
+              "cutout": {
+                "id": "3ac23a12-c6b9-4958-b103-1097c3d0e0d2",
+                "shapeId": "123aba23-d356-4288-ad8d-db26a2fc545a",
+                "name": "Wiha Driver x60 (copy)",
+                "position": {
+                  "x": 1.5862388610839844,
+                  "y": -17.302284240722685
+                },
+                "rotationDeg": 1,
+                "mirrored": false,
+                "scaleX": 1,
+                "scaleY": 1,
+                "aspectRatioLocked": true,
+                "depth": {
+                  "mode": "mm",
+                  "value": 8
+                },
+                "clearanceMm": 0,
+                "cornerRoundMm": 1,
+                "topFilletMm": 1,
+                "bottomFilletMm": 2.8,
+                "fingerHoles": []
+              },
+              "spec": {
+                "gridX": 1,
+                "gridY": 5,
+                "gridPitch": "full",
+                "footprint": {
+                  "kind": "rectangle"
+                },
+                "heightUnits": 6,
+                "lip": "standard",
+                "fill": "solid",
+                "wallThicknessMm": 0.95,
+                "fillHeightPercent": 100,
+                "adjustFixedPocketDepths": true,
+                "flatBottom": false,
+                "magnetHoles": false,
+                "magnetCrushRibs": false,
+                "screwHoles": false,
+                "labelTab": null,
+                "textColor": null,
+                "surfaceTexts": []
+              }
+            }
+          ],
+          "fingerHoles": [
+            {
+              "id": "6c048049-f683-4731-b015-3c03631e9f92",
+              "center": {
+                "x": 0,
+                "y": 0
+              },
+              "diameterMm": 18,
+              "depthMm": 7,
+              "topFilletMm": 1,
+              "bottomFilletMm": 0,
+              "lengthMm": 36,
+              "slotEnds": "rounded",
+              "kind": "oblong-deep-scoop"
+            }
+          ]
+        }
       }
     }
   ]
