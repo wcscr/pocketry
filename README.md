@@ -51,7 +51,7 @@ to import all 16 designs at once.
 | **[Wiha 60 mm drivers](samples/wiha-60mm-drivers/)** | **[Wiha bins stacked in a drawer](samples/README.md#print-photos)** |
 | <a href="samples/wiha-60mm-drivers/"><img src="samples/wiha-60mm-drivers/photos/printed-bin-loaded-current.jpg" width="49" height="210" alt="Two Wiha 60 mm drivers in their printed bin"></a> | <a href="samples/wiha-drivers/photos/stacked-bins-in-drawer.jpg"><img src="samples/wiha-drivers/photos/stacked-bins-in-drawer.jpg" width="131" height="210" alt="Wiha driver bins stacked with other Gridfinity bins in a drawer"></a> |
 | **[Bessey and Gerber combined bin](samples/bessey-gerber/)** | **[All sample projects](samples/README.md)** |
-| <a href="samples/bessey-gerber/"><img src="samples/bessey-gerber/photos/printed-bin-loaded.jpg" width="185" height="210" alt="Original printed bin holding the Bessey Utility Knife and Gerber Multitool"></a> | [Download the complete editable library](samples/pocketry-sample-library.json) |
+| <a href="samples/bessey-gerber/"><img src="samples/bessey-gerber/photos/printed-bin-loaded.jpg" width="186" height="210" alt="Original printed bin holding the Bessey Utility Knife and Gerber Multitool"></a> | [Download the complete editable library](samples/pocketry-sample-library.json) |
 
 The Wiha drivers sit slightly too high to stack the loaded bins without some
 interference. If stacking is desired, lower the driver pockets by about **1 mm**

@@ -780,18 +780,18 @@
           "file": "photos/printed-bin-loaded.jpg",
           "sourceFile": "codex-clipboard-2aad2df8-5795-413f-ac28-a4c96eb76388.jpg",
           "sourceSha256": "cbfd92154d2129ae2a5c09a8d7bfc0f0034e307ff903fdbd5abe1450671567c3",
-          "sha256": "2327e6f198a87fc885c29c6c93e68922e79006b325be908d0947288e31ef3bd6",
-          "processing": "Rotated 23.7 degrees clockwise and cropped around the complete loaded bin; quality-90 progressive JPEG without embedded metadata. Ordinary pixel processing; no generative edits.",
+          "sha256": "200eedff6df2df44ddc8f7a318c264daebaa7013ba032037fbe47b7cfba1423e",
+          "processing": "Rotated 23.7 degrees clockwise and cropped around the complete loaded bin with a small wood border; quality-90 progressive JPEG without embedded metadata. Ordinary pixel processing; no generative edits.",
           "rotationDegreesClockwise": 23.7,
           "cropPixelsAfterRotation": [
-            493,
-            693,
-            752,
-            852
+            473,
+            673,
+            792,
+            892
           ],
           "publishedSizePixels": [
-            752,
-            852
+            792,
+            892
           ]
         }
       ],
