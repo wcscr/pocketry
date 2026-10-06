@@ -8,6 +8,7 @@ describe("CAD construction model and inexpensive preflight",()=>{
     doc.cutouts[0].scaleX=1.3;doc.cutouts[0].scaleY=0.8;doc.cutouts[0].mirrored=true;
     const before=JSON.stringify(doc),model=resolveCadDesign(doc),profile=model.pockets[0].profiles[0];
     expect(profile.kind).toBe("polygon");
+    expect(model.pockets[0]).toMatchObject({scaleX:1.3,scaleY:0.8,mirrored:true});
     if(profile.kind!=="polygon")throw new Error("Expected authored polygon");
     const expected=doc.shapes[0].outlineMm[0].outer.map(p=>({x:-p.x*1.3,y:p.y*0.8}));
     expect(profile.outer).toHaveLength(expected.length);expect(profile.outer).toEqual([...expected].reverse());
