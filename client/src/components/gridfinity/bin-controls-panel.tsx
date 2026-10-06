@@ -219,6 +219,8 @@ export interface BinControlsPanelProps {
   previewIsDraft?: boolean;
   exporting: boolean;
   stepUnavailableReason?: string;
+  stepExportPhase?: string;
+  onCancelStepExport?: () => void;
   onExport: (format: "3mf" | "3mf-multicolor" | "stl" | "step", includeProject: boolean) => void;
   onExportFitCheck: (cutoutId: string, depthMm: number, includeProject: boolean) => void;
   onExportSurfaceFitCheck: (thicknessMm: number, includeProject: boolean, style: SurfaceFitCheckStyle) => void;
@@ -278,6 +280,8 @@ export function BinControlsPanel({
   previewIsDraft = false,
   exporting,
   stepUnavailableReason,
+  stepExportPhase,
+  onCancelStepExport,
   onExport,
   onExportFitCheck,
   onExportSurfaceFitCheck,
@@ -2131,11 +2135,12 @@ export function BinControlsPanel({
           </div>
 
           <div className="space-y-2 rounded-md border p-2.5" data-testid="export-cad-model">
-            <SettingLabel label="Export for CAD (early)" hint="A ZIP with the finished bin STEP, a companion STEP containing the named bin blank and pocket cutter objects, and the original Pocketry project. STEP keeps editable solid geometry; the Pocketry project keeps your design settings." />
+            <SettingLabel label="Export for CAD (experimental)" hint="A ZIP with the finished bin STEP, a companion STEP containing the named bin blank and pocket cutter objects, and the original Pocketry project. STEP keeps editable solid geometry; the Pocketry project keeps your design settings." />
             <p className="text-xs text-muted-foreground">
-              Flat bottoms without stacking rims; upright pockets with zero clearance and rounding.
-              Circles and bin corners remain curved CAD surfaces.
+              Curved CAD solids, named source objects and cutting tools, plus your editable project.
+              This investigation rejects unsupported features; native CAD feature history is not included.
             </p>
+            {stepExportPhase && <div className="space-y-2"><p role="status" aria-live="polite" className="text-xs">{stepExportPhase}</p><Button size="sm" variant="outline" className="min-h-11 w-full" onClick={onCancelStepExport}>Cancel STEP export</Button></div>}
             {stepUnavailableReason && <p className="text-xs text-muted-foreground" data-testid="step-unavailable-reason">{stepUnavailableReason}</p>}
             <Button className="w-full" size="sm" variant="outline"
               disabled={exporting || hasErrors || Boolean(stepUnavailableReason)}

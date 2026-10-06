@@ -4,7 +4,7 @@ import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Route, Router, useLocation } from "wouter";
 import { memoryLocation } from "wouter/memory-location";
-import { strFromU8, unzipSync } from "fflate";
+import { strFromU8, strToU8, zipSync, unzipSync } from "fflate";
 
 import { ExperimentalFeaturesProvider, useExperimentalFeatures, EXPERIMENTAL_FEATURES_KEY } from "@/state/experimental-features";
 import { PanelProvider, usePanelState } from "@/components/layout/panel-context";
@@ -23,6 +23,9 @@ import { resolvePocketSplit } from "@shared/gridfinity/pocket-split";
 import { parseBinSpec } from "@shared/gridfinity/types";
 import { downloadBlob } from "@/lib/download";
 import { useBinGeometry } from "@/lib/gridfinity/use-bin-geometry";
+import { exportStepInBrowser } from "@/lib/cad/client";
+import type { StepExportReport } from "@/lib/cad/package";
+import { WorkerCancelledError } from "@/lib/worker/protocol";
 import { createBasicPocket } from "@/lib/gridfinity/basic-shape";
 import { footprintOuterRingMm, occupiedCellCount } from "@shared/gridfinity/footprint";
 import ryobiReloadFixture from "@shared/gridfinity/fixtures/ryobi-split-reload.pocketry.json";
@@ -34,6 +37,8 @@ import ryobiReloadFixture from "@shared/gridfinity/fixtures/ryobi-split-reload.p
  * renders. The real geometry path is covered headless in
  * lib/gridfinity/bin-worker-handlers.test.ts.
  */
+
+vi.mock("@/lib/cad/client", () => ({ exportStepInBrowser: vi.fn() }));
 
 vi.mock("@/hooks/use-pocket-geometry", () => {
   const outlines = new Map();
@@ -6686,7 +6691,7 @@ it.each([false, true])("offers surface text in the Original Layout toolbar only 
 describe("STEP CAD packages", () => {
   it.each([
     { layout: "standard", mobile: false }, { layout: "workflow", mobile: false }, { layout: "workflow", mobile: true },
-  ])("exports analytic solids and named objects without a mesh build: %j", async ({ layout, mobile }) => {
+  ])("sends a committed project to the CAD worker without a printing mesh build: %j", async ({ layout, mobile }) => {
     const originalUrl = window.location.href;
     window.history.replaceState(null, "", `/bin?layout=${layout}`);
     const pocket = createBasicPocket("circle", { x: 0, y: 0 }, { x: 6, y: 0 }, "cad-circle")!;
@@ -6694,6 +6699,7 @@ describe("STEP CAD packages", () => {
       ...EMPTY_PROJECT, name: "CAD tray", shapes: [pocket.shape], cutouts: [pocket.cutout],
       spec: parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 4, flatBottom: true, lip: "none" }),
     });
+    vi.mocked(exportStepInBrowser).mockImplementation(async project => ({bytes:zipSync({"design.pocketry.json":strToU8(JSON.stringify(project))}),report:{} as StepExportReport}));
     const { container, unmount } = renderPage({ mobile });
     try {
       await flushHydration();
@@ -6711,19 +6717,20 @@ describe("STEP CAD packages", () => {
         const reader = new FileReader(); reader.onload = () => resolve(reader.result as ArrayBuffer); reader.readAsArrayBuffer(blob);
       });
       const files = unzipSync(new Uint8Array(bytes));
-      expect(strFromU8(files["bin.step"])).toContain("MANIFOLD_SOLID_BREP");
-      expect(strFromU8(files["design-objects.step"])).toContain("PRODUCT('cutout-cad-circle','Circle pocket'");
+      expect(exportStepInBrowser).toHaveBeenCalledOnce();
+      expect(vi.mocked(exportStepInBrowser).mock.lastCall?.[1]?.signal).toBeInstanceOf(AbortSignal);
       expect(parseProjectDoc(JSON.parse(strFromU8(files["design.pocketry.json"])))?.cutouts[0]).toEqual(pocket.cutout);
     } finally { unmount(); window.history.replaceState(null, "", originalUrl); }
   });
 
   it("disables unsupported designs with a concrete reason and preserves existing export formats", async () => {
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({...EMPTY_PROJECT,spec:parseBinSpec({...EMPTY_PROJECT.spec,magnetHoles:true})});
     const { container, unmount } = renderPage();
     try {
       await flushHydration(); openSettingsSection(container, "export");
       const button = container.querySelector<HTMLButtonElement>('[data-testid="button-export-step"]')!;
       expect(button.disabled).toBe(true);
-      expect(container.querySelector('[data-testid="step-unavailable-reason"]')?.textContent).toContain("Gridfinity feet");
+      expect(container.querySelector('[data-testid="step-unavailable-reason"]')?.textContent).toContain("Hardware tools");
       React.act(() => button.click());
       expect(downloadBlob).not.toHaveBeenCalled();
       expect(container.querySelector<HTMLButtonElement>('[data-testid="button-export-stl"]')!.disabled).toBe(false);
