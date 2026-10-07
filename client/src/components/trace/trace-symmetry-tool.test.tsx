@@ -4,7 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { OUTER_RING, type Outline } from "@shared/geometry/types";
 import { TraceProvider, useTrace, type TraceStore } from "@/state/trace-store";
-import { rectRing } from "@/lib/geometry/fixtures";
+import { hookedToolRing, rectRing } from "@/lib/geometry/fixtures";
 import { outlineToPathData } from "@/lib/export/svg";
 import { suggestSymmetryAxis } from "@/lib/geometry/symmetry";
 import { transformImagePoint } from "@shared/geometry/image-alignment";
@@ -182,6 +182,44 @@ describe("symmetry preview", () => {
     click("Symmetry & straighten");
     React.act(() => trace.dispatch({ type: "SOURCE_LOADED", imageUrl: "replacement", fileName: "new" }));
     expect(document.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it("lets a branched grip switch from average to either mirror and apply upright with undo", () => {
+    ready();
+    const hooked = { outer: hookedToolRing().map(p => ({ x: 40 + p.y, y: 70 - p.x })), holes: [] };
+    React.act(() => trace.dispatch({ type: "OUTLINE_COMMITTED", outline: [outline[0], hooked] }));
+    const original = trace.outline, history = trace.history;
+    click("Symmetry & straighten");
+    // Place both handles on the barrel centerline, as in the photo workflow.
+    const canvas = document.querySelector<SVGSVGElement>('[data-testid="symmetry-preview"]')!;
+    Object.defineProperty(document.querySelector('[data-testid="symmetry-scene"]')!, "getScreenCTM", { value: () => ({ inverse: () => ({}) }) });
+    Object.defineProperty(canvas, "createSVGPoint", { value: () => ({ x: 0, y: 0,
+      matrixTransform() { return { x: this.x, y: this.y }; } }) });
+    for (const [label, x] of [["First", 40], ["Second", 140]] as const) {
+      const handle = document.querySelector(`[aria-label="${label} axis handle"]`)!;
+      Object.defineProperty(handle, "setPointerCapture", { value: vi.fn() });
+      for (const type of ["pointerdown", "pointermove", "pointerup"]) React.act(() => {
+        const event = new Event(type, { bubbles: true });
+        Object.defineProperties(event, { pointerId: { value: 1 }, button: { value: 0 }, clientX: { value: x }, clientY: { value: 70 } });
+        (type === "pointerdown" ? handle : canvas).dispatchEvent(event);
+      });
+    }
+    expect(button("Apply symmetry").disabled).toBe(true);
+    expect(document.querySelector('[role="status"]')?.textContent).toContain("Choose Use left side or Use right side");
+    click("Use left side");
+    expect(preview()).toBeTruthy(); expect(button("Apply symmetry").disabled).toBe(false);
+    const left = preview();
+    click("Use right side");
+    expect(preview()).toBeTruthy(); expect(preview()).not.toBe(left);
+    expect(button("Apply symmetry").disabled).toBe(false);
+    expect(document.querySelector('[role="status"]')).toBeNull();
+    toggleUpright(); const expected = uprightPreview();
+    click("Apply symmetry & rotation");
+    expect(trace.outline.some(shape => outlineToPathData([shape]) === expected)).toBe(true);
+    expect(trace.history.index).toBe(history.index + 1);
+    expect(mmPerPixel(trace.calibration)).toBeCloseTo(mmPerPixel(calibration)!, 8);
+    React.act(() => trace.undo()); expect(trace.outline).toBe(original);
+    expect(trace.imageAlignment).toBeNull();
   });
 
   it("blocks unsupported holes instead of removing them", () => {

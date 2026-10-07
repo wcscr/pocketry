@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { signedArea } from "@shared/geometry/rings";
 import type { Point, Shape } from "@shared/geometry/types";
 import { outlineBounds, pointInOutline } from "./outline";
-import { rectRing } from "./fixtures";
+import { hookedToolRing, rectRing } from "./fixtures";
+import syringe from "./fixtures/syringe-contour.json";
 import { alignShapeUpright, suggestSymmetryAxis, symmetrizeShape, type SymmetryAxis, type SymmetrySide } from "./symmetry";
 
 const axis: SymmetryAxis = { start: { x: 0, y: 0 }, end: { x: 0, y: 100 } };
@@ -18,6 +19,23 @@ function corrected(side: SymmetrySide): Shape {
 }
 
 describe("contour symmetry", () => {
+  it.each(["left", "right"] as const)("mirrors the reported syringe photo's %s side without filling its grip recess", side => {
+    const result = symmetrizeShape(syringe.shape, syringe.axis, side);
+    expect(result.error).toBeUndefined();
+    expect(signedArea(result.shape!.outer)).toBeGreaterThan(0);
+    const { start, end } = syringe.axis;
+    const length = Math.hypot(end.x - start.x, end.y - start.y);
+    const along = { x: (end.x - start.x) / length, y: (end.y - start.y) / length };
+    const sign = side === "left" ? -1 : 1;
+    const point = (x: number, y: number) => ({ x: start.x + along.x * y + along.y * x, y: start.y + along.y * y - along.x * x });
+    for (let y = 1; y < 470; y += 3) for (let x = 1; x < 100; x += 3) {
+      const expected = pointInOutline([syringe.shape], point(sign * x, y));
+      expect(pointInOutline([result.shape!], point(x, y))).toBe(expected);
+      expect(pointInOutline([result.shape!], point(-x, y))).toBe(expected);
+    }
+    expect(symmetrizeShape(syringe.shape, syringe.axis, "average").error).toContain("Choose Use left side");
+  });
+
   it.each([0, Math.PI / 2, -.6, 2.1])("aligns a tool rotated by %s upright without resizing or losing its profile", angle => {
     const source: Shape = { ...tool, holes: [rectRing(-1, 70, 2, 5)] };
     const rotate = (p: Point): Point => ({
@@ -93,12 +111,73 @@ describe("contour symmetry", () => {
     expect(outlineBounds([result.shape!])).toMatchObject({ minY: 5, maxY: 10, minX: -2, maxX: 2 });
   });
 
+  it.each(["left", "right"] as const)("mirrors a hooked %s boundary without filling its recess", side => {
+    const sign = side === "left" ? -1 : 1;
+    const source: Shape = { outer: hookedToolRing().map(p => ({ x: sign * p.x, y: p.y })), holes: [] };
+    const before = structuredClone(source);
+    const result = symmetrizeShape(source, axis, side);
+    expect(result.error).toBeUndefined();
+    expect(signedArea(result.shape!.outer)).toBeCloseTo(1960, 8);
+    for (const xSign of [-1, 1]) {
+      expect(pointInOutline([result.shape!], { x: xSign * 15, y: 80 })).toBe(false);
+      expect(pointInOutline([result.shape!], { x: xSign * 25, y: 80 })).toBe(true);
+      expect(pointInOutline([result.shape!], { x: xSign * 15, y: 90 })).toBe(true);
+      // Every off-axis point matches the selected half, including its gaps.
+      for (let x = .5; x < 32; x += 2) for (let y = .5; y < 105; y += 2) {
+        expect(pointInOutline([result.shape!], { x: xSign * x, y })).toBe(pointInOutline([source], { x: sign * x, y }));
+      }
+    }
+    expect(result.shape!.outer[0]).not.toEqual(result.shape!.outer.at(-1));
+    expect(source).toEqual(before);
+  });
+
+  it("ignores branching on the discarded side", () => {
+    const result = symmetrizeShape({ outer: hookedToolRing(), holes: [] }, axis, "left");
+    expect(result.error).toBeUndefined();
+    expect(outlineBounds([result.shape!])).toEqual({ minX: -15, maxX: 15, minY: 0, maxY: 100 });
+    expect(signedArea(result.shape!.outer)).toBeCloseTo(1440, 8);
+  });
+
+  it.each([0, .6, Math.PI / 2, 2.1])("preserves a hooked boundary rotated by %s with either winding and ring start", angle => {
+    const rotate = (p: Point): Point => ({ x: 210 + Math.cos(angle) * p.x - Math.sin(angle) * p.y,
+      y: 140 + Math.sin(angle) * p.x + Math.cos(angle) * p.y });
+    const ring = hookedToolRing();
+    for (const reversed of [false, true]) for (let start = 0; start < ring.length; start++) {
+      const shifted = [...ring.slice(start), ...ring.slice(0, start)];
+      if (reversed) shifted.reverse();
+      const result = symmetrizeShape({ outer: shifted.map(rotate), holes: [] },
+        { start: rotate(axis.start), end: rotate(axis.end) }, "right");
+      expect(result.error).toBeUndefined();
+      expect(signedArea(result.shape!.outer)).toBeCloseTo(1960, 7);
+      for (const x of [-15, 15]) expect(pointInOutline([result.shape!], rotate({ x, y: 80 }))).toBe(false);
+    }
+  });
+
+  it("handles an axis through vertices or along an edge without doubling the closing seam", () => {
+    for (const outer of [rectRing(0, 0, 10, 100), [{ x: 0, y: 0 }, { x: 10, y: 50 }, { x: 0, y: 100 }, { x: -5, y: 50 }]]) {
+      const result = symmetrizeShape({ outer, holes: [] }, axis, "right");
+      expect(result.error).toBeUndefined();
+      expect(result.shape!.outer).toHaveLength(outer.length === 4 && outer[1].y === 0 ? 6 : 4);
+      expect(signedArea(result.shape!.outer)).toBeGreaterThan(0);
+    }
+  });
+
+  it("rejects mirrored halves that would connect through empty space or a single point", () => {
+    for (const innerX of [-5, 0]) {
+      const outer = [{ x: -10, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 20 },
+        { x: innerX, y: 20 }, { x: innerX, y: 80 }, { x: 10, y: 80 }, { x: 10, y: 100 }, { x: -10, y: 100 }];
+      expect(symmetrizeShape({ outer, holes: [] }, axis, "right").error).toMatch(/separates into pieces/);
+    }
+    const touch = [{ x: -10, y: 0 }, { x: 10, y: 0 }, { x: 0, y: 50 }, { x: 10, y: 100 }, { x: -10, y: 100 }];
+    expect(symmetrizeShape({ outer: touch, holes: [] }, axis, "right").error).toMatch(/separates into pieces/);
+  });
+
   it("rejects holes and branched sections without modifying the input", () => {
     const before = structuredClone(tool);
     expect(symmetrizeShape({ ...tool, holes: [rectRing(-1, 70, 2, 5)] }, axis, "average").error).toMatch(/holes/);
     const u: Shape = { outer: [{ x: -8, y: 0 }, { x: -4, y: 0 }, { x: -4, y: 80 }, { x: 4, y: 80 },
       { x: 4, y: 0 }, { x: 8, y: 0 }, { x: 8, y: 100 }, { x: -8, y: 100 }], holes: [] };
-    expect(symmetrizeShape(u, axis, "average").error).toMatch(/separate parts/);
+    expect(symmetrizeShape(u, axis, "average").error).toMatch(/Choose Use left side or Use right side/);
     corrected("left");
     expect(tool).toEqual(before);
   });

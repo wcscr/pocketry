@@ -10,6 +10,8 @@ Available under **Outline → Symmetry & straighten**, and in the phone’s
 - Symmetry affects only the selected shape. Apply makes one undoable edit; Cancel discards the preview.
 - Photo alignment survives reloads and re-detection. The original pixels are retained to avoid repeated resampling.
 
-The tool supports straight silhouettes with a continuous cross-section. Holes,
-branched cross-sections, and split mirrored halves are rejected. Shadows can
+Mirroring either side preserves concave grips and recesses, including edges that
+turn back along the centerline. **Average both** requires a continuous width
+profile; choose one side when the outline branches. Holes and split mirrored
+halves are rejected. Shadows can
 bias the suggested axis; the user chooses the centerline and cleaner edge.

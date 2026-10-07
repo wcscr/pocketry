@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fixed side mirroring in Symmetry & straighten for syringe grips and other concave outlines; averaging now explains when to choose a side.
+
 - Made the desktop layout default clearer in App settings, with “Original Single Panel UI” available to switch back; retired preferences now use the screen's default layout.
 - Mobile Select, Move, and Rotate are directly available in both layouts; tool adjustments stay beside or below the canvas, with full properties opened explicitly.
 - Overlapping pockets now combine their cuts with warnings instead of blocking export, including intersections below the surface and between tilted pockets.
