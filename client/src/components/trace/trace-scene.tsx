@@ -21,6 +21,7 @@ import {
 import { iterateRings, sameRingRef } from "@/lib/geometry/outline";
 import { outlineToPathData } from "@/lib/export/svg";
 import type { ImageQuarterTurns } from "@/lib/geometry/image-rotation";
+import type { ImageAlignment } from "@shared/geometry/image-alignment";
 
 /** The viewport transform applied to the whole scene. */
 export interface SceneTransform {
@@ -33,6 +34,7 @@ export interface TraceSceneProps {
   imageUrl: string;
   imageSize: { width: number; height: number };
   imageRotation?: ImageQuarterTurns;
+  imageAlignment?: ImageAlignment | null;
   /** Visible crop only; every image and overlay retains full-photo coordinates. */
   imageCrop?: Rect | null;
   transform: SceneTransform;
@@ -123,6 +125,7 @@ export function TraceScene({
   imageUrl,
   imageSize,
   imageRotation = 0,
+  imageAlignment = null,
   imageCrop = null,
   transform,
   outline,
@@ -193,6 +196,7 @@ export function TraceScene({
           width={imageSize.width}
           height={imageSize.height}
           rotation={imageRotation}
+          alignment={imageAlignment}
         />
 
         {/* The traced material, with holes punched out by the even-odd rule. */}
@@ -323,18 +327,23 @@ export function TraceScene({
  * width and height are exactly the working image size, which *is* the outline's
  * coordinate space.
  */
-const SourceImage = memo(function SourceImage({
+export const SourceImage = memo(function SourceImage({
   url,
   width,
   height,
   rotation,
+  alignment = null,
 }: {
   url: string;
   width: number;
   height: number;
   rotation: ImageQuarterTurns;
+  alignment?: ImageAlignment | null;
 }) {
   if (width <= 0 || height <= 0) return null;
+  if (alignment) return <g transform={`matrix(${alignment.matrix.join(" ")})`} data-testid="trace-image-alignment">
+    <SourceImage url={url} width={alignment.sourceSize.width} height={alignment.sourceSize.height} rotation={rotation} />
+  </g>;
   const turned = rotation % 2 === 1;
   const sourceWidth = turned ? height : width;
   const sourceHeight = turned ? width : height;

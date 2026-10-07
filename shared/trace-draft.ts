@@ -5,6 +5,10 @@ const finite = z.number().finite();
 const outline = outlineSchema.min(0);
 const imageUrl = z.string().max(60_000_000).regex(/^data:image\/[a-z0-9.+-]+;base64,/i);
 const rotation = z.union([z.literal(0), z.literal(1), z.literal(2), z.literal(3)]);
+const imageSize = z.object({ width: finite.positive(), height: finite.positive() });
+const imageAlignment = z.object({ sourceSize: imageSize, size: imageSize,
+  matrix: z.tuple([finite, finite, finite, finite, finite, finite]).refine(m => Math.abs(m[0]*m[3]-m[1]*m[2]) > 1e-12),
+});
 const margin = finite.min(0).max(5).nullable();
 const calibrationFields = {
   startX: finite, startY: finite, endX: finite, endY: finite, lengthMm: finite.positive(),
@@ -20,11 +24,24 @@ const perspective = z.object({
   correspondences: z.object({ source: z.array(vec2Schema), destinationMm: z.array(vec2Schema) })
     .refine((value) => value.source.length === value.destinationMm.length && value.source.length >= 4).optional(),
 });
+const perspectiveCorrection = z.object({
+  source: z.enum(["template", "manual"]), paper, template: template.optional(),
+  paperBounds: z.object({ x: finite.nonnegative(), y: finite.nonnegative(), width: finite.positive(), height: finite.positive() }).optional(),
+  showFullPhoto: z.boolean().optional(), fullPhotoUnavailableReason: z.string().max(500).optional(),
+}).nullable();
+const frameFields = {
+  imageSize, imageAlignment: imageAlignment.nullable().default(null), imageRotation: rotation,
+  calibration: calibration.nullable(), pendingAutoCalibration: calibration.nullable(), pendingPaperCalibration: calibration.nullable(),
+  draftCalibration: z.object(calibrationFields).partial().nullable(),
+  region: z.object({ x: finite, y: finite, width: finite.nonnegative(), height: finite.nonnegative() }).nullable(),
+  pendingPerspective: perspective.nullable(), manualPerspectivePoints: z.array(vec2Schema).max(4), perspectiveCorrection,
+};
 const historyEntry = z.object({
   outline, label: z.string(), margin,
   refinementBase: outline.optional(), baselineMarginPx: finite.optional(),
   tolerancePx: finite.nonnegative().optional(), smoothing: finite.nonnegative().optional(),
   hasManualEdits: z.boolean().optional(),
+  photoFrame: z.object(frameFields).optional(),
 });
 
 /** The current browser-local Trace draft, separate from portable Bin projects.
@@ -38,6 +55,7 @@ export const traceDraftSchema = z.object({
     imageUrl, fileName: z.string(),
     imageSize: z.object({ width: finite.positive(), height: finite.positive() }),
     imageRotation: rotation,
+    imageAlignment: imageAlignment.nullable().default(null),
     outline, rawOutline: outline,
     selection: z.object({ shapeIndex: finite.int().nonnegative(), ringIndex: finite.int().min(-1) }).nullable(),
     history: z.object({ stack: z.array(historyEntry).min(1).max(50), index: finite.int().nonnegative() })
@@ -53,11 +71,7 @@ export const traceDraftSchema = z.object({
     pendingPerspective: perspective.nullable(), manualPerspectivePoints: z.array(vec2Schema).max(4),
     manualPerspectivePaper: paper.nullable().default(null),
     perspectiveOriginalImageUrl: imageUrl.nullable(), perspectiveOriginalImageRotation: rotation.nullable(),
-    perspectiveCorrection: z.object({
-      source: z.enum(["template", "manual"]), paper, template: template.optional(),
-      paperBounds: z.object({ x: finite.nonnegative(), y: finite.nonnegative(), width: finite.positive(), height: finite.positive() }).optional(),
-      showFullPhoto: z.boolean().optional(), fullPhotoUnavailableReason: z.string().max(500).optional(),
-    }).nullable(),
+    perspectiveCorrection,
     region: z.object({ x: finite, y: finite, width: finite.nonnegative(), height: finite.nonnegative() }).nullable(),
     mode: z.enum(["navigate", "remove", "pan", "region", "edit", "calibrate", "measure", "perspective"]),
     // Older drafts used DWG for DXF content with a renamed extension.

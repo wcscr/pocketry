@@ -1,4 +1,6 @@
 import { createRequire } from "node:module";
+import { readFileSync } from "node:fs";
+import { gunzipSync } from "node:zlib";
 
 import { describe, expect, it, beforeAll } from "vitest";
 
@@ -6,6 +8,7 @@ import { outlineArea, outlineBounds, pointInOutline } from "../geometry/outline"
 import { buildOutline, normalizeOutline } from "../geometry/outline";
 import { traceIsoRings } from "../geometry/trace";
 import { labDistanceScore, rgbToLab } from "./background";
+import { refineOutline } from "./pipeline";
 import { buildScoreFieldJS } from "./segment-js";
 import { buildScoreFieldOpenCV, type OpenCV } from "./segment-opencv";
 import type { ImageLike, ScoreField } from "./types";
@@ -204,6 +207,69 @@ describe("buildScoreFieldOpenCV", () => {
 });
 
 describe("OpenCV and JS backends agree", () => {
+  for (const engine of ["opencv", "js"] as const) {
+    const segment = (image: ImageLike) => engine === "opencv"
+      ? buildScoreFieldOpenCV(cv, image)
+      : buildScoreFieldJS(image);
+
+    it.each([false, true])(`${engine} retains a thin shaft and removes speckles (alpha=%s)`, (alpha) => {
+      const image = photo(180, 200, (x, y) =>
+        box(60, 25, 100, 95)(x, y) || box(79, 95, 81, 175)(x, y) ||
+        (x === 130 && y === 145), { alpha });
+      const field = segment(image);
+      expect(field.score[150 * field.width + 80]).toBeGreaterThanOrEqual(field.iso);
+      expect(field.score[145 * field.width + 130]).toBe(0);
+      const outline = outlineOf(field);
+      expect(outline).toHaveLength(1);
+      expect(pointInOutline(outline, { x: 80, y: 150 })).toBe(true);
+      expect(pointInOutline(outline, { x: 86, y: 150 })).toBe(false);
+    });
+
+    it(`${engine} preserves an angled shaft and the space beside it`, () => {
+      const image = photo(200, 200, (x, y) => box(40, 30, 90, 90)(x, y) ||
+        (y >= 85 && y < 155 && x >= y - 10 && x < y - 8));
+      const outline = outlineOf(segment(image));
+      expect(pointInOutline(outline, { x: 120, y: 130 })).toBe(true);
+      expect(pointInOutline(outline, { x: 124, y: 130 })).toBe(false);
+    });
+
+    it(`${engine} leaves separate tools apart when a thin stray line joins them`, () => {
+      // A smaller solid object must not become part of the larger one.
+      const image = photo(180, 140, (x, y) => box(20, 25, 75, 115)(x, y) ||
+        box(115, 55, 130, 75)(x, y) || box(75, 64, 115, 66)(x, y));
+      const outline = outlineOf(segment(image));
+      expect(outline).toHaveLength(2);
+      expect(pointInOutline(outline, { x: 95, y: 65 })).toBe(false);
+      expect(pointInOutline(outline, { x: 122, y: 65 })).toBe(true);
+    });
+
+    it(`${engine} restores a narrow neck with small surviving shaft fragments`, () => {
+      const image = photo(160, 200, (x, y) => box(50, 25, 95, 85)(x, y) ||
+        box(71, 85, 73, 175)(x, y) || box(70, 130, 74, 145)(x, y));
+      const outline = outlineOf(segment(image));
+      expect(outline).toHaveLength(1);
+      expect(pointInOutline(outline, { x: 72, y: 160 })).toBe(true);
+    });
+
+    it.each([
+      { photo: "50", sensitivity: 128, shaft: { x: 88.5, y: 340.5 }, tipY: 370 },
+      { photo: "40", sensitivity: 100, shaft: { x: 82.5, y: 310.5 }, tipY: 325 },
+    ])(`${engine} retains the reflective shaft in the $photo mm photo`, ({ photo, sensitivity, shaft, tipY }) => {
+      const data = new Uint8ClampedArray(gunzipSync(readFileSync(
+        new URL(`./fixtures/wiha-${photo}mm.rgba.gz`, import.meta.url),
+      )));
+      const image = { width: 161, height: 443, data };
+      const options = { sensitivity, useAlpha: "never" as const };
+      const field = engine === "opencv"
+        ? buildScoreFieldOpenCV(cv, image, options)
+        : buildScoreFieldJS(image, options);
+      const outline = refineOutline(outlineOf(field), {}, field);
+      expect(outlineBounds(outline)!.maxY).toBeGreaterThan(tipY);
+      expect(pointInOutline(outline, shaft)).toBe(true);
+      expect(pointInOutline(outline, { x: shaft.x + 8, y: shaft.y })).toBe(false);
+    });
+  }
+
   const cases: Array<[string, ImageLike]> = [
     ["a plain rectangle", photo(160, 160, box(40, 40, 120, 120))],
     ["a concave tool with a hole", photo(200, 180, toolShape)],

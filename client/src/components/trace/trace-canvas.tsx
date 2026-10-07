@@ -802,6 +802,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
           imageUrl={imageUrl}
           imageSize={imageSize}
           imageRotation={imageRotation}
+          imageAlignment={store.imageAlignment}
           imageCrop={imageCrop}
           transform={viewport.transform}
           outline={outline}

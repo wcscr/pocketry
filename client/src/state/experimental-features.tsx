@@ -6,17 +6,16 @@ export const SELECTION_INSPECTOR_KEY = "pocketry:selection-inspector";
 export const EDITOR_LAYOUT_KEY = "pocketry:editor-layout";
 export type EditorLayout = "standard" | "workflow";
 export const EDITOR_LAYOUTS = [
-  { value: "standard", label: "Single panel", description: "Workflow and properties together in one panel." },
-  { value: "workflow", label: "Workflow + properties", description: "Workflow and properties in separate panels on wide screens." },
+  { value: "workflow", label: "Workflow + properties", description: "Default on desktop. Workflow and properties in separate panels." },
+  { value: "standard", label: "Original Single Panel UI", description: "Workflow and properties together in one panel." },
 ] as const;
 const isEditorLayout = (value: string | null): value is EditorLayout => EDITOR_LAYOUTS.some(layout => layout.value === value);
 function readLayout(implicitLayout: EditorLayout): EditorLayout {
   try {
     const value = window.localStorage.getItem(EDITOR_LAYOUT_KEY);
     if (isEditorLayout(value)) return value;
-    // Keep the existing fallback for retired or malformed saved preferences.
-    if (value !== null || window.localStorage.getItem(SELECTION_INSPECTOR_KEY) !== null) return "standard";
   } catch { /* Blocked storage uses the default layout. */ }
+  // Only a supported, explicit choice overrides the default for this screen.
   return implicitLayout;
 }
 

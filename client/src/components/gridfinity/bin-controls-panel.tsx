@@ -2,6 +2,8 @@ import { arbitrarySizePatch, gridSizeFromArbitrary } from "@shared/gridfinity/bi
 import { EditableObjectName, ObjectActions } from "./object-list-controls";
 import { hasRigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { pocketDepthChangePatch } from "@shared/gridfinity/pocket-depth-change";
+import { MaterialColorSwatch } from "./material-color-swatch";
+import { DEFAULT_BIN_MATERIALS } from "@shared/gridfinity/materials";
 import { createPortal } from "react-dom";
 import { useSelectionInspector } from "./selection-inspector-context";
 import { useExperimentalFeatures } from "@/state/experimental-features";
@@ -171,37 +173,6 @@ const maxGridUi = (pitch: GridPitch): number =>
 
 const formatUnitCount = (value: number): string =>
   Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/0$/, "");
-
-function MaterialColorSwatch({
-  id,
-  label,
-  value,
-  disabled = false,
-  onChange,
-}: {
-  id: string;
-  label: string;
-  value: string;
-  disabled?: boolean;
-  onChange: (color: string) => void;
-}): JSX.Element {
-  return (
-    <input
-      id={id}
-      type="color"
-      value={value}
-      disabled={disabled}
-      onChange={(event) => onChange(event.target.value)}
-      className={cn(
-        "h-7 w-10 shrink-0 cursor-pointer rounded-md border bg-background p-0.5",
-        disabled && "cursor-not-allowed opacity-40",
-      )}
-      aria-label={`${label} color`}
-      title={`Choose ${label.toLowerCase()} color`}
-      data-testid={id}
-    />
-  );
-}
 
 export interface BinControlsPanelProps {
   issues: readonly ValidationIssue[];
@@ -443,6 +414,16 @@ export function BinControlsPanel({
   const hasSelectedRimColor = colorStackingRim;
   const edgeBandColor = colorStackingRim ? stackingRimColor : binColor;
   const rimColorLabel = spec.lip === "standard" ? "Stacking rim top" : "Top border";
+  const materialColors = [
+    { id: "input-bin-color", label: "Bin body", color: binColor },
+    { id: "input-pocket-floor-color", label: floorColorLabel, color: pocketFloorColor },
+    { id: "input-stacking-rim-color", label: rimColorLabel, color: stackingRimColor },
+    ...(experimentalEnabled ? [{ id: "input-text-color", label: "Text", color: spec.textColor ?? edgeBandColor }] : []),
+  ];
+  const hasMaterialEdits = Object.entries({
+    binColor, pocketFloorColor, stackingRimColor, colorPocketFloors, colorStackingRim,
+    pocketFloorThicknessMm, stackingRimThicknessMm, borderWidthMm,
+  }).some(([key, value]) => value !== DEFAULT_BIN_MATERIALS[key as keyof typeof DEFAULT_BIN_MATERIALS]);
   const hasSelectedMulticolor =
     hasSelectedFloorColor || hasSelectedRimColor || spec.surfaceTexts.length > 0;
   const activeColorCount =
@@ -1400,7 +1381,7 @@ export function BinControlsPanel({
             saveStatus={saveStatus}
             activeProjectId={activeProjectId}
             hasDraftWork={!!currentProjectName || keepBinSize || shapes.length > 0 || cutouts.length > 0
-              || fingerHoles.length > 0 || history.stack.length > 1
+              || fingerHoles.length > 0 || history.stack.length > 1 || hasMaterialEdits
               || JSON.stringify(spec) !== JSON.stringify(INITIAL_BIN_SPEC)}
             currentProjectName={currentProjectName}
             projects={projects}
@@ -1896,6 +1877,7 @@ export function BinControlsPanel({
             </div>
             <MaterialColorSwatch
               id="input-bin-color"
+              sources={materialColors}
               label="Bin body"
               value={binColor}
               onChange={onBinColorChange}
@@ -1904,7 +1886,7 @@ export function BinControlsPanel({
           {experimentalEnabled && <div className="space-y-2 rounded-md border bg-background/60 px-2.5 py-2" data-testid="view-color-row-text">
             <div className="flex items-center justify-between gap-3">
               <SettingLabel label="Text color" htmlFor="input-text-color" hint="Applies to all surface text in the preview and multi-color 3MF. By default, text matches the edge band." />
-              <MaterialColorSwatch id="input-text-color" label="Text" value={spec.textColor ?? edgeBandColor}
+              <MaterialColorSwatch id="input-text-color" sources={materialColors} label="Text" value={spec.textColor ?? edgeBandColor}
                 onChange={textColor => dispatch({ type: "PATCH_SPEC", patch: { textColor }, historyLabel: "Change text color" })} />
             </div>
             {spec.textColor !== null && <Button variant="link" size="sm" className="h-auto p-0 text-xs"
@@ -1923,6 +1905,7 @@ export function BinControlsPanel({
               <div className="flex shrink-0 items-center gap-2">
                 <MaterialColorSwatch
                   id="input-pocket-floor-color"
+                  sources={materialColors}
                   label={floorColorLabel}
                   value={pocketFloorColor}
                   disabled={!colorPocketFloors}
@@ -1976,6 +1959,7 @@ export function BinControlsPanel({
               <div className="flex shrink-0 items-center gap-2">
                 <MaterialColorSwatch
                   id="input-stacking-rim-color"
+                  sources={materialColors}
                   label={rimColorLabel}
                   value={stackingRimColor}
                   disabled={!colorStackingRim}

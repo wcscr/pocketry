@@ -14,6 +14,7 @@ import {
   type DepthSpec,
 } from "./cutout";
 import { binSpecSchema, type BinSpec } from "./types";
+import { binMaterialsSchema } from "./materials";
 import { designLinkErrors } from "./design-links";
 import { transformOriginsSchema } from "./transform-origins";
 import { binHistorySchema } from "./history";
@@ -65,13 +66,15 @@ export { serializeProjectDoc } from "./project-font-sources";
  * Version 33 adds optional pocket insertion clearance; older pockets stay finite.
  * Version 34 retains unclipped source depth for rigid minimum-floor pockets.
  * Version 35 retains finite through-pocket objects during rigid movement.
- * Version 36 adds ULTIM8 peg bottoms; older projects keep their base.
+ * Version 36 was used by two branches: ULTIM8 peg bottoms and saved project
+ * colors/material regions. Both fields are optional, so either variant migrates.
  * Version 37 previewed optional peg density.
  * Version 38 restores every-hole pegs and repairs unraised surface-through pockets.
  * Version 39 adds pegs-up flat backing, sparse pegs and arbitrary millimetre sizes.
+ * Version 40 combines ULTIM8 sizes and bottoms with saved project colors.
  */
 
-export const PROJECT_SCHEMA_VERSION = 39 as const;
+export const PROJECT_SCHEMA_VERSION = 40 as const;
 
 const projectFields = {
   shapes: z.array(tracedShapeSchema),
@@ -137,6 +140,8 @@ const version25ProjectSchema = version24ProjectSchema.extend({ schemaVersion: z.
 /** History and the visible design must describe one consistent saved snapshot. */
 export const projectDocSchema = version16ProjectSchema.extend({
   schemaVersion: z.literal(PROJECT_SCHEMA_VERSION),
+  /** Absent in older designs; the editor applies DEFAULT_BIN_MATERIALS. */
+  materials: binMaterialsSchema.optional(),
   transformOrigins: transformOriginsSchema.optional(),
   history: binHistorySchema.optional(),
 }).superRefine((project, ctx) => {
@@ -336,7 +341,7 @@ export function parseProjectDoc(input: unknown): ProjectDoc | null {
     input = expandProjectFontSources(input);
   }
   if (input && typeof input === "object" && !Array.isArray(input)
-      && [26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38].includes((input as Record<string, unknown>).schemaVersion as number)) {
+      && [26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39].includes((input as Record<string, unknown>).schemaVersion as number)) {
     // Strict current schemas still reject unsupported data from version-27 prototypes.
     const legacy = input as Record<string, unknown>;
     const cleaned = legacy.schemaVersion === 37 ? removePreviewPegDensity(legacy) : legacy;

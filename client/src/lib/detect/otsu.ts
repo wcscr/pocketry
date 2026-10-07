@@ -87,7 +87,8 @@ export function otsuFromHistogram(bins: Uint32Array): number {
 /**
  * Applies the user's sensitivity bias to an automatic threshold.
  *
- * The UI slider is 0-255 with 128 meaning "trust Otsu". Scaling rather than
+ * The stored bias is 0-255 with 128 meaning "trust Otsu". The UI reverses this
+ * direction so higher sensitivity includes more foreground. Scaling rather than
  * offsetting keeps the control's feel consistent across images whose Otsu
  * levels differ widely — an offset of 20 is drastic on a level of 30 and
  * negligible on a level of 200.

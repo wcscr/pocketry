@@ -536,7 +536,7 @@ export function BinViewport({
           <Ruler className="h-4 w-4" />
         </Button>
         {(inspector || toolbar) && <SelectionToolButtons count={selectedObjects.length + (surfaceTextEditor ? 1 : 0)} inactive={rulerActive} onActivate={() => setRulerActive(false)} />}
-        {pocketEditor && !inspector && <Button variant="ghost" size="icon"
+        {pocketEditor && !inspector && !isMobile && <Button variant="ghost" size="icon"
           className={cn("h-9 w-9 rounded-none border-t [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11", objectControlsOpen && !rulerActive && "bg-accent text-accent-foreground")}
           aria-label="Object controls" title="Move, rotate and arrange objects" aria-expanded={objectControlsOpen && !rulerActive}
           onClick={() => { setObjectControlsOpen(open => !open || rulerActive); setRulerActive(false); }}><Move3D className="h-4 w-4" /></Button>}
@@ -559,7 +559,7 @@ export function BinViewport({
         mode={transformMode} modeRequest={modeRequest} setMode={mode => { setRulerActive(false); setTransformMode(mode); }} snap={snapTransform} setSnap={setSnapTransform}
         pivot={pivot} setPivot={setPivot} limited={transformLimited} onClose={() => { setObjectControlsOpen(false); toolbar?.setTool("properties"); }} />}
 
-      {surfaceTextEditor && objectControlsOpen && !inspector && !rulerActive && <div className="property-surface property-floating absolute left-3 top-16 z-20 w-64 rounded-xl border bg-background p-3 text-xs shadow-lg md:top-12" data-property-tone="cyan" data-testid="text-3d-controls">
+      {surfaceTextEditor && objectControlsOpen && !inspector && !isMobile && !rulerActive && <div className="property-surface property-floating absolute left-3 top-16 z-20 w-64 rounded-xl border bg-background p-3 text-xs shadow-lg md:top-12" data-property-tone="cyan" data-testid="text-3d-controls">
         <div className="flex items-center justify-between"><span className="font-medium">Object controls</span><Button size="icon" variant="ghost" className="h-8 w-8" aria-label="Close object controls" onClick={() => setObjectControlsOpen(false)}><X className="h-4 w-4" /></Button></div>
         <div className="flex gap-2">{(["translate", "rotate"] as const).map(mode => <Button key={mode} size="sm" variant={(surfaceTextEditor.tool ?? transformMode) === mode ? "secondary" : "ghost"} aria-pressed={(surfaceTextEditor.tool ?? transformMode) === mode} onClick={() => { setTransformMode(mode); surfaceTextEditor.onToolChange?.(mode); }}>{mode === "translate" ? "Move" : "Rotate"}</Button>)}
           <Button size="sm" variant={(surfaceTextEditor.snap ?? snapTransform) ? "secondary" : "ghost"} aria-pressed={surfaceTextEditor.snap ?? snapTransform} onClick={() => { setSnapTransform(value => !value); surfaceTextEditor.onSnapChange?.(!surfaceTextEditor.snap); }}>Snap</Button></div>

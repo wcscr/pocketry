@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useTrace } from "@/state/trace-store";
 import { LabelledSlider } from "./labelled-slider";
+import { TraceSymmetryTool } from "./trace-symmetry-tool";
 
 export interface DetectionSettings {
   sensitivity: number;
@@ -54,17 +55,19 @@ export function TraceDetectionControls({ onReprocess, compact = false }: {
     </div>}
     <div className={compact ? "grid grid-cols-2 gap-4" : "space-y-3"} data-testid={compact ? "mobile-trace-tuning" : "trace-tuning"}>
       <LabelledSlider id={compact ? "mobile-sensitivity" : "sensitivity"} label="Sensitivity"
-        value={draftSensitivity ?? sensitivity} min={0} max={255} step={1}
-        format={(value) => value === 128 ? "auto" : `${value > 128 ? "+" : ""}${value - 128}`}
-        disabled={processing} onChange={setDraftSensitivity}
-        onCommit={(value) => request({ sensitivity: value, includeInteriorHoles })}
+        // Stored values are threshold bias; invert only the control so existing traces retain their settings.
+        value={128 - (draftSensitivity ?? sensitivity)} min={-127} max={128} step={1}
+        format={(value) => value === 0 ? "auto" : `${value > 0 ? "+" : ""}${value}`}
+        disabled={processing} onChange={(value) => setDraftSensitivity(128 - value)}
+        onCommit={(value) => request({ sensitivity: 128 - value, includeInteriorHoles })}
         touchTarget={compact}
-        hint={compact ? undefined : "Lower includes more of the image. Updates when you release the slider; asks before replacing manual edits."} />
+        hint={compact ? undefined : "Higher includes more of the image. Updates when you release the slider; asks before replacing manual edits."} />
       <LabelledSlider id={compact ? "mobile-detail" : "detail"} label="Simplification"
         value={tolerancePx} min={0.1} max={8} step={0.1} format={(value) => `${value.toFixed(1)} px`}
         disabled={processing} onChange={(value) => dispatch({ type: "SET_TOLERANCE", tolerancePx: value })}
         touchTarget={compact} hint={compact ? undefined : "Higher values use fewer points and may omit small features. Your edits are preserved."} />
     </div>
+    {trace.outline.length > 0 && <TraceSymmetryTool />}
     <Dialog open={pendingDetection !== null} onOpenChange={(open) => { if (!open) cancel(); }}>
       <DialogContent>
         <DialogHeader><DialogTitle>Re-detect from the photo?</DialogTitle>

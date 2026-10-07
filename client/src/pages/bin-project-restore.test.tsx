@@ -6,10 +6,11 @@ import { PanelProvider } from "@/components/layout/panel-context";
 import { ShapeLibraryProvider } from "@/state/shape-library";
 import { recordTransformOrigins } from "@shared/gridfinity/transform-origins";
 import { parseProjectDoc } from "@shared/gridfinity/project";
+import { DEFAULT_BIN_MATERIALS, type BinMaterials } from "@shared/gridfinity/materials";
 import fixture from "@shared/gridfinity/fixtures/ryobi-split-reload.pocketry.json";
 import {
   exportProjectLibrary, loadProjectDoc, loadProjectLibrary,
-  saveProjectToLibrary, startNewProject,
+  saveProjectToLibrary, startNewProject, openProjectFromLibrary,
 } from "@/lib/project/persist";
 import BinDesignerPage from "./bin-designer";
 
@@ -23,7 +24,12 @@ vi.mock("idb-keyval", () => ({
     for (const [key, value] of entries) memory.set(String(key), structuredClone(value));
   }),
 }));
-vi.mock("@/components/gridfinity/bin-viewport", () => ({ BinViewport: () => <div /> }));
+vi.mock("@/components/gridfinity/bin-viewport", () => ({
+  BinViewport: ({ binColor, pocketFloorColor, stackingRimColor, textColor }: {
+    binColor: string; pocketFloorColor: string; stackingRimColor: string; textColor: string;
+  }) => <div data-testid="color-preview" data-body={binColor} data-floor={pocketFloorColor}
+    data-rim={stackingRimColor} data-text={textColor} />,
+}));
 vi.mock("@/lib/gridfinity/use-bin-geometry", () => ({
   useBinGeometry: () => ({
     geometry: null, stats: null, builtSpec: null, cutoutReports: [],
@@ -68,7 +74,7 @@ async function seedDetachedProject() {
   const other = await saveProjectToLibrary({ ...original, keepBinSize: false }, "Other project", null);
   const initial = { spec: original.spec, cutouts: original.cutouts, fingerHoles: original.fingerHoles };
   const edited = { ...initial, spec: { ...original.spec, heightUnits: original.spec.heightUnits + 1 } };
-  const working = { ...original, ...edited, keepBinSize: true, history: {
+  const working = { ...original, ...edited, materials: DEFAULT_BIN_MATERIALS, keepBinSize: true, history: {
     stack: [{ doc: initial, label: "Project opened" }, { doc: edited, label: "Change bin height" }], index: 1,
   } };
   await startNewProject(working);
@@ -76,6 +82,66 @@ async function seedDetachedProject() {
 }
 
 describe("named project recovery through the Bin workspace", () => {
+  it("saves color edits before switching and restores each complete appearance on reopen and reload", async () => {
+    const original = parseProjectDoc(fixture)!;
+    const first: BinMaterials = { ...DEFAULT_BIN_MATERIALS,
+      binColor: "#123456", pocketFloorColor: "#abcdef", stackingRimColor: "#654321",
+      pocketFloorThicknessMm: 1.2, stackingRimThicknessMm: 2.5, borderWidthMm: 3,
+    };
+    const second: BinMaterials = { ...DEFAULT_BIN_MATERIALS,
+      binColor: "#aabbcc", pocketFloorColor: "#556677", stackingRimColor: "#8899aa",
+      colorPocketFloors: false, colorStackingRim: false,
+    };
+    const a = await saveProjectToLibrary({ ...original, materials: first }, "A", null);
+    const b = await saveProjectToLibrary({ ...original, materials: second }, "B", null);
+    const legacy = await saveProjectToLibrary(original, "Legacy", null);
+    await openProjectFromLibrary(a.activeProjectId!);
+    let page = await mountPage();
+    const checkColors = (materials: BinMaterials) => {
+      const preview = page.container.querySelector('[data-testid="color-preview"]')!;
+      expect(preview.getAttribute("data-body")).toBe(materials.binColor);
+      expect(preview.getAttribute("data-floor")).toBe(materials.pocketFloorColor);
+      expect(preview.getAttribute("data-rim")).toBe(materials.stackingRimColor);
+      expect(preview.getAttribute("data-text")).toBe(materials.colorStackingRim ? materials.stackingRimColor : materials.binColor);
+    };
+    const open = async (id: string) => {
+      await React.act(async () => page.container.querySelector<HTMLButtonElement>('[data-testid="bin-settings-jump-project"]')!.click());
+      await React.act(async () => page.container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
+      await React.act(async () => document.querySelector<HTMLButtonElement>(`[data-testid="button-open-project-${id}"]`)!.click());
+    };
+    try {
+      checkColors(first);
+      await React.act(async () => page.container.querySelector<HTMLButtonElement>('[data-testid="bin-settings-jump-materials-&-colors"]')!.click());
+      expect(page.container.querySelector<HTMLInputElement>('[data-testid="input-pocket-floor-thickness"]')!.value).toBe("1.2");
+      expect(page.container.querySelector<HTMLInputElement>('[data-testid="input-stacking-rim-thickness"]')!.value).toBe("2.5");
+      React.act(() => {
+        const input = page.container.querySelector<HTMLInputElement>('[data-testid="input-bin-color"]')!;
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "#112233");
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      const edited = { ...first, binColor: "#112233" };
+      // Switch without waiting for the debounce; the outgoing save must own A.
+      await open(b.activeProjectId!);
+      checkColors(second);
+      expect((await exportProjectLibrary()).projects.find(p => p.id === a.activeProjectId)!.doc.materials).toEqual(edited);
+      for (const [id, materials] of [
+        [a.activeProjectId!, edited], [legacy.activeProjectId!, DEFAULT_BIN_MATERIALS],
+        [b.activeProjectId!, second], [a.activeProjectId!, edited],
+      ] as const) {
+        await open(id);
+        checkColors(materials);
+      }
+      await page.unmount();
+      page = await mountPage();
+      checkColors(edited);
+      expect((await loadProjectDoc())!.materials).toEqual(edited);
+      await open(b.activeProjectId!);
+      await React.act(async () => page.container.querySelector<HTMLButtonElement>('[data-testid="bin-settings-jump-materials-&-colors"]')!.click());
+      expect(page.container.querySelector<HTMLInputElement>('[data-testid="input-pocket-floor-color"]')!.disabled).toBe(true);
+      expect(page.container.querySelector<HTMLInputElement>('[data-testid="input-stacking-rim-color"]')!.disabled).toBe(true);
+    } finally { await page.unmount(); }
+  });
+
   it("recovers newer Ryobi edits, survives a reload, and switches projects without discarding a draft", async () => {
     const { original, originalId, otherId, working } = await seedDetachedProject();
     let page = await mountPage();

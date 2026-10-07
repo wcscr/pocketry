@@ -2104,7 +2104,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
           <Ruler className="h-4 w-4" />
         </Button>
         {(inspector || toolbar) && <SelectionToolButtons count={selection.length} inactive={rulerActive} panning={panActive} onActivate={() => { setPanActive(false); setRulerActive(false); dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" }); }} />}
-        {!inspector && <Button variant="ghost" size="icon"
+        {!inspector && !isMobile && <Button variant="ghost" size="icon"
           className={cn("h-11 w-11 rounded-none border-t md:h-9 md:w-9 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11", objectControlsOpen && !rulerActive && !panActive && "bg-accent text-accent-foreground")}
           aria-label="Object controls" title="Move, rotate and arrange objects" disabled={panActive} aria-expanded={objectControlsOpen && !rulerActive && !panActive}
           onClick={() => { setObjectControlsOpen(open => !open || rulerActive); setRulerActive(false); dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" }); }}><Move3D className="h-4 w-4" /></Button>}
@@ -2184,7 +2184,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
           onPreviewObjects: (edits, historyLabel) => dispatch({ type: "UPDATE_OBJECTS", edits, historyLabel, transient: true }) }}
         objects={arrangementObjects} selected={selectedObjects} displayed={selectedObjects} mode={objectMode} modeRequest={modeRequest} setMode={setObjectMode}
         snap={objectSnap} setSnap={setObjectSnap} pivot={objectPivot} setPivot={setObjectPivot} limited={false} onClose={() => { setObjectControlsOpen(false); toolbar?.setTool("properties"); }} />}
-      {showObjectControls && selectedSurfaceTextId && experimentalEnabled && !inspector && <div className="property-surface property-floating absolute left-3 top-16 z-30 max-h-[calc(100%-5rem)] w-64 max-w-[calc(100%-5rem)] overflow-y-auto rounded-xl border bg-background p-2">
+      {showObjectControls && selectedSurfaceTextId && experimentalEnabled && !inspector && !isMobile && <div className="property-surface property-floating absolute left-3 top-16 z-30 max-h-[calc(100%-5rem)] w-64 max-w-[calc(100%-5rem)] overflow-y-auto rounded-xl border bg-background p-2">
         <Button variant="ghost" className="min-h-11 w-full" onClick={() => { setObjectControlsOpen(false); toolbar?.setTool("properties"); }}>Done</Button>
         <SurfaceTextTransformControls />
       </div>}

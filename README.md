@@ -30,10 +30,10 @@ Check dimensions against the real items and print a fit test before the final bi
 Browse the [sample projects](samples/README.md) for editable JSONs, 3MF print
 models, and photos of finished bins. The collection includes a Wolfbox MF70 Airduster Kit,
 DeWalt right-angle tools, a Ryobi cutter, caliper storage, a stapler, wire
-strippers, a Klein voltage tester, a Citadel mouldline remover, Wiha drivers with 40, 50, 60, and 150 mm blades, and a mini socket set.
+strippers, a Klein voltage tester, a Citadel mouldline remover, Wiha drivers with 40, 50, 60, and 150 mm blades, a mini socket set, and individual and combined Bessey Utility Knife and Gerber Multitool bins.
 
 [Download the complete sample library](samples/pocketry-sample-library.json)
-to import all 13 designs at once.
+to import all 16 designs at once.
 
 | **[Wolfbox MF70 Airduster Kit](samples/wolfbox-mf70-airduster-kit/)** | **[DeWalt right-angle tools](samples/dewalt-right-angle-tools/)** |
 | :---: | :---: |
@@ -50,6 +50,8 @@ to import all 13 designs at once.
 | <a href="samples/wiha-40mm-drivers/"><img src="samples/wiha-40mm-drivers/photos/printed-bin-loaded.jpg" width="124" height="210" alt="Four Wiha 40 mm drivers in their printed bin"></a> | <a href="samples/wiha-50mm-drivers/"><img src="samples/wiha-50mm-drivers/photos/printed-bin-loaded.jpg" width="60" height="210" alt="Two Wiha 50 mm drivers in their printed bin"></a> |
 | **[Wiha 60 mm drivers](samples/wiha-60mm-drivers/)** | **[Wiha bins stacked in a drawer](samples/README.md#print-photos)** |
 | <a href="samples/wiha-60mm-drivers/"><img src="samples/wiha-60mm-drivers/photos/printed-bin-loaded-current.jpg" width="49" height="210" alt="Two Wiha 60 mm drivers in their printed bin"></a> | <a href="samples/wiha-drivers/photos/stacked-bins-in-drawer.jpg"><img src="samples/wiha-drivers/photos/stacked-bins-in-drawer.jpg" width="131" height="210" alt="Wiha driver bins stacked with other Gridfinity bins in a drawer"></a> |
+| **[Bessey and Gerber combined bin](samples/bessey-gerber/)** | **[All sample projects](samples/README.md)** |
+| <a href="samples/bessey-gerber/"><img src="samples/bessey-gerber/photos/printed-bin-loaded.jpg" width="186" height="210" alt="Original printed bin holding the Bessey Utility Knife and Gerber Multitool"></a> | [Download the complete editable library](samples/pocketry-sample-library.json) |
 
 The Wiha drivers sit slightly too high to stack the loaded bins without some
 interference. If stacking is desired, lower the driver pockets by about **1 mm**
@@ -87,12 +89,16 @@ and add finger access for lifting them out.
 
 Multi-selection, Move, Rotate, alignment, and distribution are standard in both
 layouts. **Add** stays first in the canvas toolbar; narrower spaces put additional
-tools under **Tools**. Phones offer **Workflow**, **Adjust**, and **Export**.
+tools under **Tools**. Phones keep **Select**, **Move**, and **Rotate** directly
+available, with tool adjustments below or beside the canvas in both layouts.
+**Done** returns to selection; **All properties** explicitly opens the full editor.
+Phones also offer **Workflow**, **Adjust**, and **Export**.
 Selection updates the summary without opening Adjust; **All properties** opens
 the complete editor. New sessions without a saved layout use Workflow + properties
-at 1100 × 600 px or larger, and Single panel on smaller screens. Resizing adapts
-the workspace while retaining that session's choice. Choose **Single panel** or
-**Workflow + properties** in **App settings**.
+at 1100 × 600 px or larger, and a single panel on smaller screens. Resizing adapts
+the workspace while retaining that session's choice. Switch back to
+**Original Single Panel UI** under **App settings → Editor layout** at any time.
+Explicit layout choices are remembered across navigation and refreshes.
 
 Turn on **App settings → Enable experimental features**, then use
 **Surface text → Add text** for raised labels on the flat interior surface

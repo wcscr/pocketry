@@ -5,22 +5,25 @@
 - Added arbitrary rectangular bin sizes in millimetres, including height, for flat bottoms and ULTIM8 pegs.
 - Added ULTIM8 jig peg bottoms for eufyMake E1, with adjustable peg fit and length, sloped roots, short bridges, or a slimmer flat backing exported with pegs up; the flat backing offers corner-only and spaced pegs, and saved project/undo support. Through pockets omit fully or partially overlapped pegs.
 - Surface pockets set to Through open the full bin bottom, including peg roots, when overlapping finger access.
-- Pocket intersections in 3D are warnings and allow export of combined shapes, including upright, submerged, and tilted pockets.
 - Failed 3D updates clear obsolete bin meshes so they cannot appear beside the current pocket outline as misplaced duplicates.
-- Corrected photo-outline detection so OpenCV and the JavaScript fallback use the same lightness scale and mask-cleanup rules.
-- Added Wiha stacking fit notes recommending lowering the driver pockets about 1 mm to avoid interference.
+- Made the desktop layout default clearer in App settings, with “Original Single Panel UI” available to switch back; retired preferences now use the screen's default layout.
+- Mobile Select, Move, and Rotate are directly available in both layouts; tool adjustments stay beside or below the canvas, with full properties opened explicitly.
+- Overlapping pockets now combine their cuts with warnings instead of blocking export, including intersections below the surface and between tilted pockets.
 
-- Added Wiha 40, 50, and 60 mm examples with final editable designs, labeled 3MFs, and print photos; labeled the existing Wiha example 150 mm and expanded the sample library to 13 projects.
+- Projects now save and restore their own colors and material settings. Use the copy menu beside a color to reuse the exact body, floor, rim/border, or text color on another feature.
 
-- New desktop sessions use Workflow + properties; saved choices and compact phone defaults are preserved.
-- Consistent toolbars, compact phone adjustments, and tablet panels that preserve canvas space through landscape and keyboard changes.
-- Live numeric previews with complete Escape rollback and clearer invalid-value handling; cancelled touch gestures restore the complete edit.
-- Standard multi-selection and arrangement; matching text Move/Rotate controls in Layout and 3D.
-- Persistent experimental opt-in, protected linked designs, and easier draft saving to Library.
-- Larger touch handles, exact pocket dimensions, and fit-test exports in the mobile export panel.
-- Responsive 3D Move/Rotate gestures use lightweight outlines; exact selection geometry and crease edges build in a shared worker.
-- Top-edge rounding follows the pocket opening at the bin surface when pockets are raised or tilted.
-- Tilted-pocket insertion controls appear at the top of properties and default on when tilting. Both directions now clear a continuous path to the surface even for fully submerged objects. Follow the tilted axis or use vertical walls around the full top-down outline while preserving the rotated object’s underside. Keep floor thickness remains available after 3D edits and clips only the cut; raising the pocket restores the original profile. Through preserves the finite original object during Z moves and stops it at the bin underside. Selection outlines stay lightweight while rounding remains visible in the bin.
+- Grouped the individual Bessey and Gerber bin downloads under their combined example and cropped and straightened its print photo.
+
+- Added individual and combined Bessey Utility Knife and Gerber Multitool samples with editable projects, 3MFs, layout previews, a print photo, and the Bessey affiliate link; expanded the sample library to 16 designs.
+
+- Upright alignment rotates the photo with its contours; symmetry previews support zoom and pan.
+
+## 1.4.0 — 2026-10-06
+
+- Improved photo tracing for thin reflective tools, with symmetry, upright alignment, and clearer sensitivity controls.
+- Faster 3D editing and corrected tilted-pocket openings, floor limits, and edge rounding.
+- Refined desktop, tablet, and phone controls, selection, undo, and saving.
+- Added Wiha driver examples, stacking notes, and a header feedback menu.
 
 ## 1.3.0 — 2026-10-04
 

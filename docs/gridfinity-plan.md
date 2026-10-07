@@ -558,6 +558,12 @@ at the rim), `cutout-overlap`, a thin-material warning below `d_div = 1.2`, `too
 photo is the single most likely way a user wastes six hours of print time. Errors block
 export; warnings do not.
 
+Pocket-to-pocket overlaps are warnings, including overlaps caused by clearance or
+top-edge rounding and exact 3D intersections between tilted or submerged pockets.
+Their cuts combine in the printable bin, while each pocket remains independently
+editable. Merging several pockets into one editable pocket object is future work.
+Other validation errors continue to block export.
+
 ## Persistence: none server-side in v1
 
 `server/storage.ts` has only `MemStorage` (a `Map`, wiped on restart), there is no Drizzle

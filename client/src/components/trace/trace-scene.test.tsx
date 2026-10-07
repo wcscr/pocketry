@@ -6,6 +6,8 @@ import { describe, expect, it, vi } from "vitest";
 import type { Calibration, DraftCalibration } from "@shared/geometry/scale";
 import type { Point } from "@shared/geometry/types";
 
+import { rotateImageAlignment, type ImageAlignment } from "@shared/geometry/image-alignment";
+
 import { TraceScene } from "./trace-scene";
 
 const calibration: Calibration = {
@@ -25,6 +27,7 @@ function renderRuler({
   perspectiveEditable = false,
   perspectivePreview = null,
   imageRotation = 0,
+  imageAlignment = null,
   measurement = null,
   measurementPreview = null,
   measurementMmPerPx = null,
@@ -37,6 +40,7 @@ function renderRuler({
   perspectiveEditable?: boolean;
   perspectivePreview?: Point | null;
   imageRotation?: 0 | 1 | 2 | 3;
+  imageAlignment?: ImageAlignment | null;
   measurement?: { start: Point; end: Point | null } | null;
   measurementPreview?: Point | null;
   measurementMmPerPx?: number | null;
@@ -46,6 +50,7 @@ function renderRuler({
       imageUrl="data:image/png;base64,AA=="
       imageSize={{ width: 200, height: 100 }}
       imageRotation={imageRotation}
+      imageAlignment={imageAlignment}
       transform={{ scale: 1, translateX: 0, translateY: 0 }}
       outline={[]}
       selection={null}
@@ -78,6 +83,15 @@ describe("TraceScene ruler overlay", () => {
 
     const counterclockwise = renderRuler({ imageRotation: 3 });
     expect(counterclockwise).toContain('transform="translate(0 100) rotate(-90)"');
+  });
+
+  it("composes upright photo alignment after the existing quarter-turn", () => {
+    const { alignment } = rotateImageAlignment({ width: 200, height: 100 }, .6);
+    const markup = renderRuler({ imageRotation: 1, imageAlignment: alignment });
+    expect(markup).toContain(`transform="matrix(${alignment.matrix.join(" ")})"`);
+    expect(markup).toContain('transform="translate(200 0) rotate(90)"');
+    expect(markup).toContain('width="100"'); expect(markup).toContain('height="200"');
+    expect(count(markup, 'data-testid="trace-source-image"')).toBe(1);
   });
 
   it("renders completed endpoints as persistent X markers with a length label", () => {
