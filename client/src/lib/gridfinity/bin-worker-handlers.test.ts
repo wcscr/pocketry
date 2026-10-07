@@ -6,6 +6,7 @@ import { writeBinarySTL } from "@/lib/export/stl-writer";
 import { writeThreeMf } from "@/lib/mesh/threemf";
 import { binTotalHeightMm } from "@shared/gridfinity/standard";
 import { parseBinSpec } from "@shared/gridfinity/types";
+import { validateLayout } from "@shared/gridfinity/validate";
 import { loadManifold } from "@/lib/manifold/runtime";
 import type { HandlerContext } from "@/lib/worker/host";
 import type { TransferableResult } from "@/lib/worker/host";
@@ -355,7 +356,7 @@ it("exports the eight-slot CW313 rack without coincident material boundary faces
   expect(result.value.validationIssues).toEqual([]);
 });
 
-it("revalidates hidden tilted-shaft collisions on export and accepts a corrected layout", async () => {
+it("warns about hidden tilted-shaft intersections and exports their combined geometry", async () => {
   const basic = createBasicPocket("rectangle", { x: -3, y: -16 }, { x: 3, y: 16 }, "tilted")!;
   const cutouts = [-12, 12].map((x, index) => parseCutoutPlacement({
     ...basic.cutout, id: `tilted-${index}`, position: { x, y: 0 },
@@ -365,12 +366,48 @@ it("revalidates hidden tilted-shaft collisions on export and accepts a corrected
     layout: { shapes: [basic.shape], cutouts, fingerHoles: [] }, quality: { circularSegments: 16 } };
   const handler = getHandler();
   const preview = await handler(request, context());
-  expect(preview.value.validationIssues?.some(issue => issue.code === "tilted-pocket-overlap")).toBe(true);
-  await expect(handler({ ...request, exportTopology: true }, context())).rejects.toThrow(/intersect in 3D/);
+  expect(preview.value.validationIssues?.find(issue => issue.code === "tilted-pocket-overlap")?.severity).toBe("warning");
+  const combined = (await handler({ ...request, exportTopology: true }, context())).value;
+  expect(combined.validationIssues?.find(issue => issue.code === "tilted-pocket-overlap")?.severity).toBe("warning");
+  expect(nonManifoldEdgeCount(combined.mesh)).toBe(0);
+  expect(writeBinarySTL(combined.mesh).byteLength).toBe(84 + combined.mesh.indices.length / 3 * 50);
   const corrected = await handler({ ...request, exportTopology: true,
     layout: { ...request.layout!, cutouts: cutouts.map(c => ({ ...c, tilt: { xDeg: 0, yDeg: 45 } })) } }, context());
   expect(corrected.value.validationIssues).toEqual([]);
   expect(nonManifoldEdgeCount(corrected.value.mesh)).toBe(0);
+});
+
+it.each([
+  { name: "surface", elevationMm: undefined, sourceDepthMm: undefined, tiltDeg: 0, issueCode: "cutout-overlap" },
+  { name: "upright finite", elevationMm: 0, sourceDepthMm: 12, tiltDeg: 0, issueCode: "tilted-pocket-overlap" },
+  { name: "submerged", elevationMm: 0, sourceDepthMm: 2, tiltDeg: 0, issueCode: "tilted-pocket-overlap" },
+  { name: "tilted", elevationMm: 0, sourceDepthMm: 12, tiltDeg: 10, issueCode: "tilted-pocket-overlap" },
+])("exports overlapping $name pockets to STL and 3MF on ordinary bin bottoms", async ({ elevationMm, sourceDepthMm, tiltDeg, issueCode }) => {
+  const rectangle = createBasicPocket("rectangle", { x: -15, y: -5 }, { x: 15, y: 5 }, "rectangle")!;
+  const circle = createBasicPocket("circle", { x: 10, y: 0 }, { x: 18, y: 0 }, "circle")!;
+  const cutouts = [rectangle.cutout, circle.cutout].map((cutout, index) => parseCutoutPlacement({
+    ...cutout, elevationMm, depth: { mode: "through", sourceDepthMm },
+    tilt: { xDeg: index === 0 ? 0 : tiltDeg, yDeg: 0 },
+  }));
+  for (const flatBottom of [false, true]) {
+    const request: BuildBinRequest = {
+      spec: { gridX: 3, gridY: 3, heightUnits: 4, lip: "none", flatBottom },
+      quality: EXPORT_QUALITY, exportTopology: true,
+      layout: { shapes: [rectangle.shape, circle.shape], cutouts, fingerHoles: [] },
+    };
+    const original = structuredClone(request);
+    const result = (await getHandler()(request, context())).value;
+    const issues = [...validateLayout(parseBinSpec(request.spec), cutouts,
+      new Map([[rectangle.shape.id, rectangle.shape], [circle.shape.id, circle.shape]])), ...(result.validationIssues ?? [])];
+    expect(issues.filter(issue => issue.severity === "error")).toEqual([]);
+    expect(issues.find(issue => issue.code === issueCode)?.severity).toBe("warning");
+    expect(nonManifoldEdgeCount(result.mesh)).toBe(0);
+    expect(printableMeshVolume(result.mesh)).toBeGreaterThan(0);
+    expect(writeBinarySTL(result.mesh).byteLength).toBe(84 + result.mesh.indices.length / 3 * 50);
+    const model = strFromU8(unzipSync(writeThreeMf([{ name: "Combined pockets", mesh: result.mesh }]))["3D/3dmodel.model"]);
+    expect(model.match(/<triangle /g)?.length).toBe(result.mesh.indices.length / 3);
+    expect(request).toEqual(original);
+  }
 });
 
 describe("bin worker handlers", () => {

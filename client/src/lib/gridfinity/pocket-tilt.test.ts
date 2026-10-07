@@ -91,7 +91,7 @@ describe("tilted pockets", () => {
     const right = { ...pocket, id: "right", position: { x: 12, y: 0 } };
     expect(validateLayout(spec, [left, right], shapes).some(i => i.code === "cutout-overlap")).toBe(false);
     const built = buildBinWithCutouts(kernel, spec, { shapesById: shapes, cutouts: [left, right], fingerHoles: [] }, EXPORT_QUALITY);
-    expect(built.validationIssues.some(i => i.code === "tilted-pocket-overlap")).toBe(true);
+    expect(built.validationIssues.find(i => i.code === "tilted-pocket-overlap")?.severity).toBe("warning");
     const wall = buildBinWithCutouts(kernel, spec, { shapesById: shapes, cutouts: [{ ...pocket, position: { x: -65, y: 0 } }], fingerHoles: [] }, EXPORT_QUALITY);
     expect(wall.validationIssues.some(i => i.code === "tilted-pocket-wall")).toBe(true);
   });
