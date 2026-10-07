@@ -19,7 +19,7 @@ The irregular F3D archive preserves its edited volume exactly. Fusion's reported
 
 The irregular/text fixtures now pass both source/tool reconstructions and cutter movement. Their baseline reconstruction preserves four solids; moving the actual circle cutter 3 mm along X retains its finite source unchanged and adds about 283.724609 mm³ to the rebuilt bin because it changes the overlap with finger access. New cut/move features reopen with healthy Fusion status. The local edited irregular F3D archives from both approaches were also opened through Fusion’s UI and visually inspected.
 
-FreeCAD testing, physical prints, broader feature coverage, and backend selection remain separate gates. Neither approach became the production default.
+The FreeCAD native API corpus now passes; its normal import-dialog crashes remain a separate failed workflow check. See [freecad-step-acceptance.md](freecad-step-acceptance.md). Physical prints, broader feature coverage, and backend selection remain separate gates. Neither approach became the production default.
 
 Both branches pass local Node 22 checks, 165 test files / 2778 tests, build, and whitespace validation. No GitHub CI, PR, push, merge, or deployment was performed.
 

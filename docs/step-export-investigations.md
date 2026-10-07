@@ -4,9 +4,12 @@ Updated: 2026-10-07. **Recommendation: select A, dedicated STEP, for the next
 production milestones.** Both working investigations generate true CAD solids
 from authored design data. B also drives actual preview, STL, and multi-color
 3MF through CAD tessellation. Neither branch is a production default, and the
-agreed full capability is not complete. Remaining native CAD checks, physical prints, broader adversarial coverage,
-and the unsupported features below remain gates. Fusion editing has now been
-verified for all six fixtures in each approach; see `fusion-step-acceptance.md`.
+agreed full capability is not complete. FreeCAD import-dialog stability, physical prints, broader adversarial coverage,
+and the unsupported features below remain gates. Fusion editing and FreeCAD
+native API editing pass all six fixtures in each approach; see
+[fusion-step-acceptance.md](fusion-step-acceptance.md) and
+[freecad-step-acceptance.md](freecad-step-acceptance.md). FreeCAD's normal import
+dialog crashes remain an explicit failed workflow check.
 
 ## Isolated implementation
 
@@ -108,7 +111,7 @@ splitting/direct-face conversion, rather than general shape repair.
 | Application / gate | Result |
 | --- | --- |
 | Independent OCCT reader | All six fixtures in both approaches pass import, editing, reconstruction, and re-export/reopen checks described above. |
-| FreeCAD | Not installed in the inspected application locations. Native import/edit/save checks remain pending. |
+| FreeCAD 1.1.4 / OCCT 7.8.1 | All six fixtures per approach pass native GUI API import, measurements, added hole, named-tool reconstruction/movement, fresh FCStd disk reopening and STEP reopening. All 32 native STEP comparisons independently pass. Normal File → Open import-dialog acceptance crashes with both irregular bin files and a FreeCAD-authored simple-box control on macOS 26.6.2 and remains unpassed; see `freecad-step-acceptance.md`. |
 | Fusion 2705.1.15 | All six fixtures per approach pass native import, measurement, added hole, source/tool reconstruction, named-cutter movement where applicable, and F3D/STEP reopening. Both irregular/text fixtures also pass tool reconstruction and movement; their edited F3D archives were visually reviewed. Independent OCCT validates all 32 edited/baseline/moved STEP comparisons with no residual extra/missing solids. See `fusion-step-acceptance.md` for volume-estimate limitations and the product-name identity fix. |
 | PrusaSlicer 2.9.6 | B's standard-feet and tilted STL fixtures produce representative G-code with generic 0.4 mm / 0.2 mm / 15% settings. This is not printer-specific or physical qualification. |
 | PrusaSlicer color 3MF | Reads four closed named meshes, but CLI slicing treats raised material volumes as separate objects; warnings, path conflicts and a failed assembled attempt remain unresolved. Do not count this as a passing multi-color slice. |
@@ -261,9 +264,12 @@ requires its own source-availability and provenance readback.
    curved mouth rounding, portable-font and linked-object acceptance, and full
    STEP material/color mapping. B additionally needs its CAD fit-check paths,
    broader printing parity, assembled material slicing and physical prints.
-4. Perform the pending FreeCAD import/measure/edit/move-cutter/save/reopen checks
-   with its native version recorded (the six-fixture Fusion corpus passes); test actual phones/tablets, cold network
-   loading, memory termination/retry and process-memory evidence.
+4. Resolve the FreeCAD 1.1.4 normal import-dialog crashes observed with both
+   irregular STEP files and a FreeCAD-authored box on macOS 26.6.2, then rerun
+   that desktop workflow. The
+   six-fixture Fusion and FreeCAD native API edit/reconstruction/reopen corpora
+   pass. Test actual phones/tablets, cold network loading, memory
+   termination/retry and process-memory evidence.
 5. Pass the complete release corpus and local gates, update supported-feature
    documentation, and only then replace the early exporter and propose the
    selected production default. Publication, merge and deployment remain

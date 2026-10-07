@@ -1,0 +1,332 @@
+"""Native FreeCAD STEP acceptance. Run with adjacent config.json.
+
+All file I/O is local; global preferences and pre-existing documents are preserved.
+"""
+from __future__ import annotations
+import hashlib
+import json
+import math
+import platform
+import time
+import traceback
+from pathlib import Path
+from typing import Any
+import FreeCAD as App
+import Part
+import Import
+
+# Native extension objects have no bundled typing stubs. Any is restricted to
+# this development harness and its heterogeneous evidence dictionaries.
+Native = Any
+Record = dict[str, Any]
+DIMENSIONS = {
+    "standard-solid": (41.5, 41.5, 24.551471862576),
+    "standard-hollow": (83.5, 41.5, 24.551471862576),
+    "mixed": (125.5, 83.5, 31.551471862576),
+    "concave": (125.5, 83.5, 28),
+    "tilted": (125.5, 125.5, 35),
+    "irregular": (83.5, 83.5, 31.551471862576),
+}
+
+
+def require(condition: bool, message: str) -> None:
+    if not condition:
+        raise RuntimeError(message)
+
+
+def shape_record(shape: Native) -> Record:
+    require(not shape.isNull() and shape.isValid(), "Invalid or empty native B-rep")
+    require(bool(shape.Solids), "No CAD solids")
+    require(all(s.isClosed() and s.Volume > 0 for s in shape.Solids), "Open/empty solid")
+    box = shape.optimalBoundingBox(False, False)
+    return {"valid": True, "solidCount": len(shape.Solids), "volumeMm3": shape.Volume,
+            "minMm": [box.XMin, box.YMin, box.ZMin],
+            "maxMm": [box.XMax, box.YMax, box.ZMax],
+            "faces": len(shape.Faces), "edges": len(shape.Edges)}
+
+
+def features(document: Native) -> list[Native]:
+    return [o for o in document.Objects if o.isDerivedFrom("Part::Feature") and not o.Shape.isNull()]
+
+
+def inspect(objects: list[Native]) -> list[Record]:
+    return [{"name": o.Name, "label": o.Label, "type": o.TypeId,
+             "state": list(o.State), **shape_record(o.Shape)} for o in objects]
+
+
+def compound(objects: list[Native]) -> Native:
+    return Part.makeCompound([o.Shape for o in objects])
+
+
+def curves(objects: list[Native]) -> Record:
+    circles: set[float] = set()
+    ellipses: set[tuple[float, float]] = set()
+    surfaces: set[str] = set()
+    for obj in objects:
+        for edge in obj.Shape.Edges:
+            curve = edge.Curve
+            if isinstance(curve, Part.Circle):
+                circles.add(round(curve.Radius, 8))
+            elif isinstance(curve, Part.Ellipse):
+                ellipses.add((round(curve.MajorRadius, 8), round(curve.MinorRadius, 8)))
+        surfaces.update(type(face.Surface).__name__ for face in obj.Shape.Faces)
+    return {"circleRadiiMm": sorted(circles), "ellipseRadiiMm": sorted(ellipses),
+            "surfaceTypes": sorted(surfaces)}
+
+
+def equivalent(left: Native, right: Native) -> Record:
+    extra, missing = left.cut(right), right.cut(left)
+    require(extra.isValid() and missing.isValid(), "Invalid comparison Boolean")
+    require(not extra.Solids and not missing.Solids, "Extra/missing solid material")
+    return {"extraSolids": 0, "missingSolids": 0,
+            "volumeEstimateDifferenceMm3": left.Volume - right.Volume}
+
+
+def healthy(document: Native, objects: list[Native]) -> list[Record]:
+    document.recompute()
+    result = []
+    for obj in objects:
+        require(not any("invalid" in str(s).lower() or "error" in str(s).lower() for s in obj.State),
+                "Native feature error: " + obj.Label + " " + str(obj.State))
+        shape_record(obj.Shape)
+        containers = [parent for parent in obj.InList if parent.TypeId == "App::Part"]
+        if obj.TypeId == "Part::Cut":
+            require(len(containers) == 1 and all(containers[0] in child.InList for child in [obj.Base, obj.Tool]),
+                    "Native Boolean dependency outside its part container: " + obj.Label)
+        result.append({"name": obj.Name, "label": obj.Label, "type": obj.TypeId, "state": list(obj.State),
+                       "partContainers": [parent.Label for parent in containers]})
+    return result
+
+
+def add_feature(document: Native, feature_type: str, name: str, reference: Native) -> Native:
+    # Imported XCAF bodies reside in App::Part containers. Native Boolean
+    # features and tools must share that scope, including after disk reopening.
+    containers = [parent for parent in reference.InList if parent.TypeId == "App::Part"]
+    require(len(containers) == 1, "Ambiguous native part container: " + reference.Label)
+    feature = document.addObject(feature_type, name)
+    containers[0].addObject(feature)
+    return feature
+
+
+def insert(path: Path, label: str, owned: list[str]) -> Native:
+    document = App.newDocument("PocketryAcceptance")
+    owned.append(document.Name)
+    document.Label = label
+    Import.insert(str(path), document.Name)
+    document.recompute()
+    require(bool(features(document)), "No native imported objects: " + str(path))
+    return document
+
+
+def reopen(path: Path, owned: list[str]) -> Native:
+    document = App.openDocument(str(path))
+    owned.append(document.Name)
+    document.recompute()
+    return document
+
+
+def export(objects: list[Native], path: Path) -> None:
+    Import.export(objects, str(path))
+    require(path.exists() and path.stat().st_size > 100, "No STEP export: " + str(path))
+    require(not any(word in path.read_text() for word in ["FACETED_BREP", "TESSELLATED_", "TRIANGULATED_"]),
+            "Unexpected mesh STEP representation")
+
+
+def visible_model(document: Native, objects: list[Native], image_path: Path) -> None:
+    if not App.GuiUp:
+        return
+    import FreeCADGui as Gui
+    selected = {obj.Name for obj in objects}
+    for obj in features(document):
+        # FreeCAD expands a disconnected text compound into an App::Part with
+        # one Part::Feature per letter. Display its native children together.
+        obj.ViewObject.Visibility = obj.Name in selected or any(
+            ancestor.TypeId == "App::Part" and ancestor.Name in selected
+            for ancestor in obj.InListRecursive)
+    App.setActiveDocument(document.Name)
+    view = Gui.activeDocument().activeView()
+    view.viewAxonometric()
+    view.fitAll()
+    view.saveImage(str(image_path), 1280, 960, "White")
+
+
+def named_objects(document: Native, manifest: Record) -> dict[str, Native | None]:
+    imported = [o for o in document.Objects
+                if (o.isDerivedFrom("Part::Feature") or o.TypeId == "App::Part")
+                and hasattr(o, "Shape") and not o.Shape.isNull()]
+    mapped = {}
+    for obj in manifest["objects"]:
+        matches = [o for o in imported if "[" + obj["id"] + "]" in o.Label]
+        # An assembly compound may have the identity on both its container and
+        # each child. Retain the topmost matching native object without merging
+        # or altering any imported geometry.
+        matches = [o for o in matches if not any(parent in matches for parent in o.InListRecursive)]
+        require(len(matches) == (1 if obj["status"] == "active" else 0), "Object identity: " + obj["id"])
+        mapped[obj["id"]] = matches[0] if matches else None
+        if matches:
+            actual = shape_record(matches[0].Shape)
+            require(actual["solidCount"] == obj["solidCount"], "Source solid count: " + obj["id"])
+            for key, bound_key in [("minMm", "min"), ("maxMm", "max")]:
+                expected = [obj["boundsMm"][bound_key][axis] for axis in ["x", "y", "z"]]
+                require(all(math.isclose(a, b, abs_tol=0.0001) for a, b in zip(actual[key], expected)),
+                        "Source placement: " + obj["id"])
+    return mapped
+
+
+def case(approach: str, fixture: str, source: Path, destination: Path) -> Record:
+    owned: list[str] = []
+    result: Record = {"approach": approach, "fixture": fixture, "status": "running"}
+    try:
+        destination.mkdir(parents=True, exist_ok=True)
+        manifest = json.loads((source / "objects.json").read_text())
+        source_report = json.loads((source / "export-report.json").read_text())
+        result["snapshotSha256"] = manifest["snapshotSha256"]
+        result["inputSha256"] = {f: hashlib.sha256((source / f).read_bytes()).hexdigest()
+                                 for f in ["bin.step", "design-objects.step", "objects.json"]}
+        document = insert(source / "bin.step", approach + " — " + fixture + " — edited bin", owned)
+        imported = features(document)
+        original = compound(imported)
+        result["binImport"] = inspect(imported)
+        require(len(original.Solids) == source_report["solidCounts"]["bin"], "Finished solid count")
+        box = original.optimalBoundingBox(False, False)
+        dimensions = [box.XLength, box.YLength, box.ZLength]
+        require(all(math.isclose(a, b, abs_tol=0.0001) for a, b in zip(dimensions, DIMENSIONS[fixture])), "Bin dimensions")
+        result["dimensionsMm"] = dimensions
+        result["binCurves"] = curves(imported)
+        require(3.75 in result["binCurves"]["circleRadiiMm"], "Lost analytic bin corner")
+        main = max(imported, key=lambda o: o.Shape.Volume)
+        texts = [o for o in imported if o != main]
+        x, y = (-15, -15) if fixture == "irregular" else (0, 0)
+        tool = add_feature(document, "Part::Cylinder", "NewHoleTool", main)
+        tool.Label = "Native 4 mm hole tool"
+        tool.Radius, tool.Height = 2, 100
+        placement = tool.Placement
+        placement.Base = App.Vector(x, y, -2)
+        tool.Placement = placement
+        edited = add_feature(document, "Part::Cut", "NativeHoleEdit", main)
+        edited.Label = "FreeCAD native hole edit [bin]"
+        edited.Base, edited.Tool = main, tool
+        result["holeFeatures"] = healthy(document, [tool, edited])
+        edited_objects = [edited, *texts]
+        edited_shape = compound(edited_objects)
+        result["holeEdit"] = {"beforeMm3": original.Volume, "afterMm3": edited_shape.Volume,
+                              "removedMm3": original.Volume - edited_shape.Volume,
+                              "feature": edited.Name, "radiusMm": float(tool.Radius)}
+        require(result["holeEdit"]["removedMm3"] > 0.01, "New hole did not remove material")
+        expected = original.cut(Part.makeCylinder(2, 100, App.Vector(x, y, -2)))
+        result["holeGeometry"] = equivalent(edited_shape, expected)
+        export(edited_objects, destination / "bin-edited.step")
+        visible_model(document, edited_objects, destination / "bin-edited.png")
+        document.saveAs(str(destination / "bin-edited.FCStd"))
+        # openDocument reuses an already-open file. Close the saved document
+        # before reopening, and retain only shape values and stable names.
+        saved_names = [o.Name for o in edited_objects]
+        tool_name, edited_name, main_name = tool.Name, edited.Name, main.Name
+        App.closeDocument(document.Name)
+        saved = reopen(destination / "bin-edited.FCStd", owned)
+        result["binArchiveLoadedFromDisk"] = True
+        saved_objects = [saved.getObject(name) for name in saved_names]
+        result["binArchiveReopen"] = inspect(saved_objects)
+        result["binArchiveGeometry"] = equivalent(compound(saved_objects), edited_shape)
+        result["binArchiveFeatures"] = healthy(saved, [saved.getObject(tool_name), saved.getObject(edited_name)])
+        require(saved.getObject(edited_name).Tool.Name == tool_name and saved.getObject(edited_name).Base.Name == main_name,
+                "Lost editable native feature links")
+        step_doc = insert(destination / "bin-edited.step", "Native STEP reopen", owned)
+        result["binStepReopen"] = inspect(features(step_doc))
+        result["binStepGeometry"] = equivalent(compound(features(step_doc)), expected)
+        tools_doc = insert(source / "design-objects.step", approach + " — " + fixture + " — tools", owned)
+        result["objectsImport"] = inspect(features(tools_doc))
+        require(sum(len(o.Shape.Solids) for o in features(tools_doc)) == source_report["solidCounts"]["designObjects"], "Tool solid count")
+        mapped = named_objects(tools_doc, manifest)
+        result["objectCurves"] = {ident: curves([obj]) for ident, obj in mapped.items() if obj is not None}
+        if fixture in ["mixed", "irregular"]:
+            require(any(6.0 in c["circleRadiiMm"] for c in result["objectCurves"].values()), "Circle radius")
+        if fixture == "concave":
+            require(any((9.8, 4.9) in c["ellipseRadiiMm"] for c in result["objectCurves"].values()), "Ellipse axes")
+        by_id = {o["id"]: o for o in manifest["objects"]}
+        current = mapped["bin-blank"]
+        reconstruction_features, text_objects = [], []
+        for ident in manifest["reconstructionOrder"][1:]:
+            metadata = by_id[ident]
+            if metadata["status"] != "active":
+                continue
+            if metadata["role"] == "text-body":
+                text_objects.append(mapped[ident])
+                continue
+            operation = add_feature(tools_doc, "Part::Cut", "ReconstructionCut", current)
+            operation.Label = "Cut with " + ident
+            operation.Base, operation.Tool = current, mapped[ident]
+            current = operation
+            reconstruction_features.append(operation)
+        healthy(tools_doc, [current, *reconstruction_features])
+        reconstructed_objects = [current, *text_objects]
+        reconstructed = compound(reconstructed_objects)
+        result["baselineReconstruction"] = {**shape_record(reconstructed), **equivalent(reconstructed, original)}
+        export(reconstructed_objects, destination / "reconstructed-original.step")
+        active = [o for o in manifest["objects"] if o["role"] == "pocket-cutter" and o["status"] == "active"]
+        result["cutterMove"] = None
+        if active:
+            metadata = active[0]
+            cutter = mapped[metadata["id"]]
+            finite_source = mapped["source:" + metadata["sourceId"]]
+            source_before, before = inspect([finite_source])[0], inspect([cutter])[0]
+            placement = cutter.Placement
+            placement.Base = placement.Base + App.Vector(3, 0, 0)
+            cutter.Placement = placement
+            healthy(tools_doc, [cutter, *reconstruction_features])
+            after = inspect([cutter])[0]
+            require(math.isclose(after["minMm"][0] - before["minMm"][0], 3, abs_tol=0.0001), "Cutter displacement")
+            unchanged = inspect([finite_source])[0] == source_before
+            require(unchanged, "Finite source changed when moving derived cutter")
+            result["cutterMove"] = {"id": metadata["id"], "deltaMm": [3, 0, 0],
+                                    "before": before, "after": after, "sourceUnchanged": unchanged}
+            result["movedReconstruction"] = shape_record(compound(reconstructed_objects))
+            export(reconstructed_objects, destination / "reconstructed-moved.step")
+            moved_step = insert(destination / "reconstructed-moved.step", "Moved reconstruction reopen", owned)
+            result["movedStepGeometry"] = equivalent(compound(features(moved_step)), compound(reconstructed_objects))
+        visible_model(tools_doc, reconstructed_objects, destination / "reconstructed.png")
+        tools_doc.saveAs(str(destination / "design-objects-edited.FCStd"))
+        reconstruction_names = [o.Name for o in reconstruction_features]
+        model_names = [o.Name for o in reconstructed_objects]
+        model_before_close = compound(reconstructed_objects)
+        object_labels = {obj.Name: obj.Label for obj in mapped.values() if obj is not None}
+        App.closeDocument(tools_doc.Name)
+        saved_tools = reopen(destination / "design-objects-edited.FCStd", owned)
+        result["objectsArchiveLoadedFromDisk"] = True
+        result["objectsArchiveFeatures"] = healthy(saved_tools, [saved_tools.getObject(name) for name in reconstruction_names])
+        result["objectsArchiveGeometry"] = equivalent(compound([saved_tools.getObject(name) for name in model_names]), model_before_close)
+        for name, label in object_labels.items():
+            require(saved_tools.getObject(name).Label == label, "Lost stable/Unicode source label")
+        result["status"] = "passed"
+    except Exception:
+        result["status"] = "failed"
+        result["error"] = traceback.format_exc()
+    finally:
+        for name in reversed(owned):
+            if name in App.listDocuments():
+                App.closeDocument(name)
+    return result
+
+
+def run() -> None:
+    root = Path(__file__).resolve().parent
+    config = json.loads((root / "config.json").read_text())
+    output = Path(config["outputRoot"])
+    output.mkdir(parents=True, exist_ok=True)
+    report: Record = {"status": "running", "freecadVersion": App.Version(),
+                      "occtVersion": Part.OCC_VERSION, "pythonVersion": platform.python_version(),
+                      "gui": bool(App.GuiUp), "started": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "cases": []}
+    target = output / "freecad-edit-report.json"
+    for approach in config["approaches"]:
+        for fixture in config["fixtures"]:
+            record = case(approach, fixture, Path(config["fixturesRoot"]) / approach / fixture, output / approach / fixture)
+            report["cases"].append(record)
+            target.write_text(json.dumps(report, indent=2) + "\n")
+            App.Console.PrintMessage(approach + " / " + fixture + ": " + record["status"] + "\n")
+    report["status"] = "passed" if all(c["status"] == "passed" for c in report["cases"]) else "failed"
+    report["finished"] = time.strftime("%Y-%m-%dT%H:%M:%S%z")
+    target.write_text(json.dumps(report, indent=2) + "\n")
+    App.Console.PrintMessage("Pocketry native FreeCAD tests: " + report["status"] + "\n" + str(target) + "\n")
+
+
+run()

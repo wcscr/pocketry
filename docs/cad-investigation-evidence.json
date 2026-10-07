@@ -1105,8 +1105,8 @@
     }
   },
   "nativeApplications": {
-    "FreeCAD": "not installed; native acceptance pending",
-    "Fusion": "launcher 2705.1.15; native inspection timed out; native acceptance pending",
+    "FreeCAD": "1.1.4 / OCCT 7.8.1: twelve GUI API editing cases and 32 independent STEP comparisons pass; normal import dialogs crash with both irregular files and a FreeCAD-authored simple-box control on macOS 26.6.2. See freecad-step-evidence.json.",
+    "Fusion": "2705.1.15: twelve native editing cases and 32 independent STEP comparisons pass. See fusion-step-evidence.json.",
     "PrusaSlicer": "2.9.6: standard and tilted STL slices produced; color assembly slice unresolved",
     "BambuStudio": "02.08.02.61: four-part assembly import/save verified; no completed color slice"
   },

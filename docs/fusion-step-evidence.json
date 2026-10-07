@@ -4,7 +4,7 @@
   "method": "Native Fusion supported Python API; local imports and local F3D/STEP exports",
   "fullEditingPasses": 12,
   "nativeCases": 12,
-  "remainingGate": "FreeCAD checks, wider feature coverage, mobile/printing qualification, and human backend selection remain separate gates.",
+  "remainingGate": "FreeCAD native API editing passes; normal FreeCAD import-dialog crashes remain unresolved, including a FreeCAD-authored simple-box control. Wider feature coverage, mobile/printing qualification, and human backend selection remain separate gates.",
   "namingFix": "Stable IDs now occur on STEP product definitions as well as assembly instances. Fusion discards the instance names.",
   "cases": [
     {
