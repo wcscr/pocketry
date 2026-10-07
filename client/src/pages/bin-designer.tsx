@@ -1,4 +1,5 @@
 import { surfaceTextZ } from "@/lib/gridfinity/surface-text";
+import { DEFAULT_BIN_MATERIALS, type BinMaterials } from "@shared/gridfinity/materials";
 import { hasRigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { SelectionLinkControls } from "@/components/gridfinity/linked-design-controls";
 import { retainTransformOrigins } from "@shared/gridfinity/transform-origins";
@@ -39,9 +40,6 @@ import {
 import {
   binDimensionsMm,
   EXPORT_QUALITY,
-  MULTICOLOR_FLOOR_THICKNESS_MM,
-  MULTICOLOR_RIM_THICKNESS_MM,
-  MULTICOLOR_BORDER_WIDTH_MM,
   PREVIEW_QUALITY,
 } from "@/lib/gridfinity/bin";
 import { useBinGeometry } from "@/lib/gridfinity/use-bin-geometry";
@@ -57,11 +55,6 @@ import {
 import { generateLayoutDXF, generateLayoutSVG } from "@/lib/export/layout";
 import { writeBinarySTL } from "@/lib/export/stl-writer";
 import { writeThreeMf, type ThreeMfObject } from "@/lib/mesh/threemf";
-import {
-  BIN_BODY_COLOR,
-  POCKET_FLOOR_COLOR,
-  STACKING_RIM_COLOR,
-} from "@/lib/gridfinity/pocket-floor-mesh";
 import {
   createDebouncedProjectSaver,
   deleteProjectFromLibrary,
@@ -181,21 +174,11 @@ function BinDesignerWorkspace(): JSX.Element {
   const [exporting, setExporting] = useState(false);
   const [section, setSection] = useState<BuildBinSection | null>(null);
   const [hideInspectionPocketOutline, setHideInspectionPocketOutline] = useState(false);
-  const [colorPocketFloors, setColorPocketFloors] = useState(true);
-  const [binColor, setBinColor] = useState<string>(BIN_BODY_COLOR);
-  const [pocketFloorColor, setPocketFloorColor] =
-    useState<string>(POCKET_FLOOR_COLOR);
-  const [pocketFloorThicknessMm, setPocketFloorThicknessMm] = useState(
-    MULTICOLOR_FLOOR_THICKNESS_MM,
-  );
-  const [colorStackingRim, setColorStackingRim] = useState(true);
-  const [stackingRimColor, setStackingRimColor] =
-    useState<string>(STACKING_RIM_COLOR);
+  const [materials, setMaterials] = useState<BinMaterials>(DEFAULT_BIN_MATERIALS);
+  const { binColor, pocketFloorColor, stackingRimColor, colorPocketFloors,
+    colorStackingRim, pocketFloorThicknessMm, stackingRimThicknessMm, borderWidthMm } = materials;
+  const patchMaterials = (patch: Partial<BinMaterials>) => setMaterials(current => ({ ...current, ...patch }));
   const edgeBandColor = colorStackingRim ? stackingRimColor : binColor;
-  const [stackingRimThicknessMm, setStackingRimThicknessMm] = useState(
-    MULTICOLOR_RIM_THICKNESS_MM,
-  );
-  const [borderWidthMm, setBorderWidthMm] = useState(MULTICOLOR_BORDER_WIDTH_MM);
   const [projectLibrary, setProjectLibrary] = useState(EMPTY_PROJECT_LIBRARY);
   const [projectLibraryReady, setProjectLibraryReady] = useState(false);
   const [projectRestoreFailed, setProjectRestoreFailed] = useState(false);
@@ -262,6 +245,7 @@ function BinDesignerWorkspace(): JSX.Element {
       if (doc) {
         setDraftName(doc.name ?? null);
         setKeepBinSize(doc.keepBinSize ?? false);
+        setMaterials(doc.materials ?? DEFAULT_BIN_MATERIALS);
         library.mergeShapes(doc.shapes);
         dispatch({
           type: "HYDRATE",
@@ -298,12 +282,13 @@ function BinDesignerWorkspace(): JSX.Element {
       schemaVersion: PROJECT_SCHEMA_VERSION,
       ...(currentProjectName ? { name: currentProjectName } : {}),
       keepBinSize,
+      materials,
       shapes: library.shapes,
       ...committedDoc,
       history: bin.history,
       transformOrigins: retainTransformOrigins(bin.transformOrigins, bin.history.stack.map(e => e.doc)),
     }),
-    [library.shapes, committedDoc, bin.history, bin.transformOrigins, currentProjectName, keepBinSize],
+    [library.shapes, committedDoc, bin.history, bin.transformOrigins, currentProjectName, keepBinSize, materials],
   );
   useEffect(() => {
     if (!bin.hydrated || projectBusy || projectRestoreFailed) return;
@@ -606,6 +591,7 @@ function BinDesignerWorkspace(): JSX.Element {
         const { doc } = opened;
         setDraftName(null);
         setKeepBinSize(doc.keepBinSize ?? false);
+        setMaterials(doc.materials ?? DEFAULT_BIN_MATERIALS);
         library.replaceShapes(doc.shapes);
         dispatch({
           type: "HYDRATE",
@@ -651,6 +637,7 @@ function BinDesignerWorkspace(): JSX.Element {
       const saved = await startNewProject(doc);
       setDraftName(null);
       setKeepBinSize(false);
+      setMaterials(DEFAULT_BIN_MATERIALS);
       library.replaceShapes([]);
       dispatch({
         type: "HYDRATE",
@@ -756,6 +743,7 @@ function BinDesignerWorkspace(): JSX.Element {
       const opened = await openProjectFromLibrary(projectId);
       setDraftName(opened.project.name);
       setKeepBinSize(opened.doc.keepBinSize ?? false);
+      setMaterials(opened.doc.materials ?? DEFAULT_BIN_MATERIALS);
       library.replaceShapes(opened.doc.shapes);
       dispatch({
         type: "HYDRATE",
@@ -1155,21 +1143,21 @@ function BinDesignerWorkspace(): JSX.Element {
           section={section}
           onSectionChange={setSection}
           colorPocketFloors={colorPocketFloors}
-          onColorPocketFloorsChange={setColorPocketFloors}
+          onColorPocketFloorsChange={colorPocketFloors => patchMaterials({ colorPocketFloors })}
           binColor={binColor}
-          onBinColorChange={setBinColor}
+          onBinColorChange={binColor => patchMaterials({ binColor })}
           pocketFloorColor={pocketFloorColor}
-          onPocketFloorColorChange={setPocketFloorColor}
+          onPocketFloorColorChange={pocketFloorColor => patchMaterials({ pocketFloorColor })}
           pocketFloorThicknessMm={pocketFloorThicknessMm}
-          onPocketFloorThicknessChange={setPocketFloorThicknessMm}
+          onPocketFloorThicknessChange={pocketFloorThicknessMm => patchMaterials({ pocketFloorThicknessMm })}
           colorStackingRim={colorStackingRim}
-          onColorStackingRimChange={setColorStackingRim}
+          onColorStackingRimChange={colorStackingRim => patchMaterials({ colorStackingRim })}
           stackingRimColor={stackingRimColor}
-          onStackingRimColorChange={setStackingRimColor}
+          onStackingRimColorChange={stackingRimColor => patchMaterials({ stackingRimColor })}
           stackingRimThicknessMm={stackingRimThicknessMm}
-          onStackingRimThicknessChange={setStackingRimThicknessMm}
+          onStackingRimThicknessChange={stackingRimThicknessMm => patchMaterials({ stackingRimThicknessMm })}
           borderWidthMm={borderWidthMm}
-          onBorderWidthChange={setBorderWidthMm}
+          onBorderWidthChange={borderWidthMm => patchMaterials({ borderWidthMm })}
         />
       }
       canvas={

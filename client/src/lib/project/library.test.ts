@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { set, setMany } from "idb-keyval";
 import { PROJECT_SCHEMA_VERSION, parseProjectDoc } from "@shared/gridfinity/project";
 import { type LibraryBackup } from "@shared/gridfinity/library";
+import { DEFAULT_BIN_MATERIALS } from "@shared/gridfinity/materials";
 import airdusterV9 from "@shared/gridfinity/fixtures/airduster-v9.pocketry.json";
 import ryobiReloadFixture from "@shared/gridfinity/fixtures/ryobi-split-reload.pocketry.json";
 import {
@@ -29,6 +30,25 @@ const backup = (docs: Record<string, unknown>[] = [DOC]): LibraryBackup => ({
 beforeEach(() => { memory.clear(); vi.clearAllMocks(); });
 
 describe("library JSON transfer", () => {
+  it("keeps independent colors through library backup, import, switches and reload", async () => {
+    const first = { ...DOC, materials: { ...DEFAULT_BIN_MATERIALS,
+      binColor: "#123456", pocketFloorColor: "#abcdef", stackingRimColor: "#654321",
+      colorPocketFloors: false, borderWidthMm: 4,
+    } };
+    const second = { ...DOC, materials: { ...DEFAULT_BIN_MATERIALS, binColor: "#aabbcc" } };
+    const a = await saveProjectToLibrary(first, "A", null);
+    const b = await saveProjectToLibrary(second, "B", null);
+    const exported = JSON.parse(JSON.stringify(await exportProjectLibrary()));
+    memory.clear();
+    await importProjectLibrary(exported);
+    for (const [id, materials] of [
+      [a.activeProjectId!, first.materials], [b.activeProjectId!, second.materials],
+      [a.activeProjectId!, first.materials],
+    ] as const) {
+      expect((await openProjectFromLibrary(id)).doc.materials).toEqual(materials);
+      expect((await loadProjectDoc())!.materials).toEqual(materials);
+    }
+  });
   it("preserves the Ryobi split through repeated project switches, reloads and library exports", async () => {
     const cutter = parseProjectDoc(ryobiReloadFixture)!;
     const imported = await importProjectLibrary(backup([cutter, DOC]));

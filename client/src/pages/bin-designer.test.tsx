@@ -18,6 +18,7 @@ import type { PocketEditor } from "@/components/gridfinity/pocket-transform-scen
 import * as ShapeLibraryModule from "@/state/shape-library";
 import { ShapeLibraryProvider } from "@/state/shape-library";
 import { PROJECT_SCHEMA_VERSION, parseProjectDoc, type ProjectDoc } from "@shared/gridfinity/project";
+import { DEFAULT_BIN_MATERIALS } from "@shared/gridfinity/materials";
 import { fingerHoleSchema, resolvePocketDepth, resolvePlacedPocketDepth, parseCutoutPlacement, type TracedShape } from "@shared/gridfinity/cutout";
 import { resolvePocketSplit } from "@shared/gridfinity/pocket-split";
 import { parseBinSpec } from "@shared/gridfinity/types";
@@ -2276,7 +2277,7 @@ describe("BinDesignerPage", () => {
         reader.readAsText(backup);
       });
       expect(parseProjectDoc(JSON.parse(json))).toEqual({
-        ...project, name: "Layout 2", keepBinSize: false,
+        ...project, name: "Layout 2", keepBinSize: false, materials: DEFAULT_BIN_MATERIALS,
         transformOrigins: { pockets: project.cutouts.map(cutout => ({ cutout, spec: project.spec })), fingerHoles: project.fingerHoles },
         history: { index: 0, stack: [{ label: "Project opened", doc: {
           spec: project.spec, cutouts: project.cutouts, fingerHoles: project.fingerHoles,
@@ -3549,6 +3550,81 @@ describe("BinDesignerPage", () => {
     expect(document.querySelector('[data-testid="export-floor-color-warning"]')!.textContent).toContain("Floor color may show on the underside");
     expect(document.querySelector<HTMLButtonElement>('[data-testid="button-export-multicolor-3mf"]')!.disabled).toBe(false);
     unmount();
+  });
+
+  it.each(["standard", "workflow"])("copies exact colors between every feature in the %s layout", async layout => {
+    const originalUrl = window.location.href;
+    window.history.replaceState(null, "", `/bin?layout=${layout}`);
+    const { container, unmount } = renderPage();
+    const features = [
+      { id: "bin", label: "Bin body", color: "#123456" },
+      { id: "pocket-floor", label: "Pocket floors", color: "#abcdef" },
+      { id: "stacking-rim", label: "Stacking rim top", color: "#654321" },
+      { id: "text", label: "Text", color: "#fedcba" },
+    ];
+    const input = (id: string) => container.querySelector<HTMLInputElement>(`#input-${id}-color`)!;
+    const setColor = (id: string, color: string) => React.act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input(id), color);
+      input(id).dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    try {
+      await flushHydration();
+      openSettingsSection(container, "materials");
+      for (const target of features) for (const source of features.filter(source => source.id !== target.id)) {
+        features.forEach(feature => setColor(feature.id, feature.color));
+        await React.act(async () => container.querySelector(`[data-testid="input-${target.id}-color-copy-from"]`)!
+          .dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+        const items = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')];
+        expect(items).toHaveLength(3);
+        const item = items.find(item => item.textContent!.startsWith(source.label))!;
+        expect(item.textContent).toContain(source.color.toUpperCase());
+        await React.act(async () => item.click());
+        expect(input(target.id).value).toBe(source.color);
+        setColor(source.id, "#001122");
+        expect(input(target.id).value).toBe(source.color);
+      }
+      React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Color pocket floors"]')!.click());
+      expect(container.querySelector<HTMLButtonElement>('[data-testid="input-pocket-floor-color-copy-from"]')!.disabled).toBe(true);
+    } finally {
+      unmount();
+      window.history.replaceState(null, "", originalUrl);
+    }
+  });
+
+  it("exports restored material colors and depths in the 3MF and attached project backup", async () => {
+    const materials = { ...DEFAULT_BIN_MATERIALS, binColor: "#123456",
+      pocketFloorColor: "#abcdef", stackingRimColor: "#654321",
+      pocketFloorThicknessMm: 1.2, stackingRimThicknessMm: 2.5, borderWidthMm: 3 };
+    const doc = { ...EMPTY_PROJECT, spec: { ...EMPTY_PROJECT.spec, fill: "none" as const, lip: "none" as const }, materials };
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(doc);
+    const mesh = { positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]), indices: new Uint32Array([0, 1, 2]), normals: null };
+    binGeometryMock.hasPocketFloor = true;
+    binGeometryMock.buildOnce.mockResolvedValue({ mesh, materialMeshes: { body: mesh, pocketFloors: mesh, stackingRim: mesh } });
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      openSettingsSection(container, "export");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-export-3mf"]')!.click());
+      React.act(() => document.querySelector<HTMLButtonElement>('[data-testid="checkbox-export-project"]')!.click());
+      await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-export-multicolor-3mf"]')!.click());
+      expect(binGeometryMock.buildOnce).toHaveBeenLastCalledWith(expect.any(Object), {
+        pocketFloorMaterialThicknessMm: 1.2, stackingRimMaterialThicknessMm: 2.5, borderWidthMm: 3,
+      });
+      const [backup, model] = vi.mocked(downloadBlob).mock.calls;
+      const json = await new Promise<string>(resolve => {
+        const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.readAsText(backup[0]);
+      });
+      expect(parseProjectDoc(JSON.parse(json))!.materials).toEqual(materials);
+      const buffer = await new Promise<ArrayBuffer>(resolve => {
+        const reader = new FileReader(); reader.onload = () => resolve(reader.result as ArrayBuffer); reader.readAsArrayBuffer(model[0]);
+      });
+      const xml = strFromU8(unzipSync(new Uint8Array(buffer))["3D/3dmodel.model"]);
+      for (const color of ["#123456FF", "#ABCDEFFF", "#654321FF"]) expect(xml).toContain(`color="${color}"`);
+      openSettingsSection(container, "project");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-new-project"]')!.click());
+      await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-confirm-new-project"]')!.click());
+      expect(container.querySelector('[data-testid="bin-viewport-stub"]')!.getAttribute("data-bin-color")).toBe(DEFAULT_BIN_MATERIALS.binColor);
+    } finally { unmount(); }
   });
 
   it("shows compact color swatches and configurable downward material depths", () => {
