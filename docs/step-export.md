@@ -83,8 +83,11 @@ python scripts/verify-cad-investigation.py outputs/cad-investigation
 The independent reader checks solids, dimensions, circle/ellipse radii, names,
 placements, reconstruction, further editing and STEP reopening, plus printable
 mesh topology and 3MF part names. This is separate evidence from native CAD
-application checks, slicer qualification, and physical prints. Those remaining
-gates are recorded in the comparison.
+application checks, slicer qualification, and physical prints. The six-fixture
+[Fusion editing corpus](fusion-step-acceptance.md) and
+[FreeCAD native API corpus](freecad-step-acceptance.md) pass. FreeCAD's normal
+import-dialog crashes remain unresolved. Remaining gates are recorded in the
+comparison.
 
 The original handwritten serializer and its fixtures remain as regression
 references. The investigation UI uses the worker/XCAF implementation. Removal

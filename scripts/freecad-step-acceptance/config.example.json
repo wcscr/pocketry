@@ -1,0 +1,16 @@
+{
+  "fixturesRoot": "/absolute/path/to/freecad-step-acceptance/inputs",
+  "outputRoot": "/absolute/path/to/freecad-step-acceptance/results",
+  "approaches": [
+    "dedicated",
+    "unified"
+  ],
+  "fixtures": [
+    "standard-solid",
+    "standard-hollow",
+    "mixed",
+    "concave",
+    "tilted",
+    "irregular"
+  ]
+}
