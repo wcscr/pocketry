@@ -52,9 +52,9 @@ export function suggestSymmetryAxis(ring: Ring): SymmetryAxis {
 }
 
 /**
- * Rebuild a straight tool from its width profile about the chosen axis.
- * Every vertex's longitudinal position is retained, including shoulder steps.
- * Multiple cross-section spans and holes are rejected rather than filled in.
+ * Mirror the chosen boundary about the axis, preserving concave grips and tips.
+ * Averaging uses a width profile and requires one continuous cross-section.
+ * Holes and disconnected mirrored halves are rejected rather than filled in.
  * This uses the existing polygon only; no image detection or raster sampling.
  */
 export function symmetrizeShape(shape: Shape, axis: SymmetryAxis, side: SymmetrySide): SymmetryResult {
@@ -71,6 +71,11 @@ export function symmetrizeShape(shape: Shape, axis: SymmetryAxis, side: Symmetry
     x: (p.x - axis.start.x) * right.x + (p.y - axis.start.y) * right.y,
     y: (p.x - axis.start.x) * direction.x + (p.y - axis.start.y) * direction.y,
   }));
+  const toPhoto = (x: number, y: number): Point => ({
+    x: axis.start.x + right.x * x + direction.x * y,
+    y: axis.start.y + right.y * x + direction.y * y,
+  });
+  if (side !== "average") return mirrorSide(local, side, toPhoto);
   const levels = [...new Set(local.map(p => p.y))].sort((a, b) => a - b);
   const profile: Point[] = [];
   const epsilon = 1e-7;
@@ -84,10 +89,10 @@ export function symmetrizeShape(shape: Shape, axis: SymmetryAxis, side: Symmetry
     const mid = (y0 + y1) / 2;
     const crossing = edges.filter(({ a, b }) => (a.y > mid) !== (b.y > mid))
       .sort((a, b) => xAt(a, mid) - xAt(b, mid));
-    if (crossing.length !== 2) return { error: "This axis crosses separate parts of the outline. Adjust it, or use a straight tool profile." };
+    if (crossing.length !== 2) return { error: "Average both needs a continuous width profile. Choose Use left side or Use right side to preserve grips and recesses." };
     const width = (y: number) => {
       const left = xAt(crossing[0], y), right = xAt(crossing[1], y);
-      return side === "left" ? -left : side === "right" ? right : (right - left) / 2;
+      return (right - left) / 2;
     };
     const w0 = width(y0), w1 = width(y1);
     profile.push({ x: Math.max(0, w0), y: y0 });
@@ -103,14 +108,49 @@ export function symmetrizeShape(shape: Shape, axis: SymmetryAxis, side: Symmetry
   if (trimmed.slice(1, -1).some(p => p.x <= epsilon)) {
     return { error: "The chosen side separates into pieces. Move the axis through the tool." };
   }
-  const toPhoto = (x: number, y: number): Point => ({
-    x: axis.start.x + right.x * x + direction.x * y,
-    y: axis.start.y + right.y * x + direction.y * y,
-  });
   const ring = [
     ...trimmed.map(p => toPhoto(-p.x, p.y)),
     ...[...trimmed].reverse().map(p => toPhoto(p.x, p.y)),
   ];
   const result = normalizeOutline([{ outer: ensureOrientation(ring, 1), holes: [] }])[0];
+  return result ? { shape: result } : { error: "The selected side has no usable area." };
+}
+
+/**
+ * Extract the chosen side's boundary in contour order, then reflect it back.
+ * Unlike a width envelope, this retains edges that turn back along the axis.
+ * One off-axis chain with two distinct axis contacts gives one simple ring;
+ * multiple chains would join across empty space or pinch at an axis contact.
+ */
+function mirrorSide(local: Ring, side: "left" | "right", toPhoto: (x: number, y: number) => Point): SymmetryResult {
+  const epsilon = 1e-7;
+  const sign = side === "left" ? -1 : 1;
+  // Snap numerical noise at the axis before splitting its edge crossings.
+  const points = local.map(p => ({ x: Math.abs(p.x) < epsilon ? 0 : p.x * sign, y: p.y }));
+  const split: Point[] = [];
+  for (let i = 0; i < points.length; i++) {
+    const a = points[i], b = points[(i + 1) % points.length];
+    split.push(a);
+    if (a.x * b.x < 0) split.push({ x: 0, y: a.y + (b.y - a.y) * a.x / (a.x - b.x) });
+  }
+  const start = split.findIndex((p, i) => p.x > 0 && split[(i + split.length - 1) % split.length].x <= 0);
+  if (start < 0) return { error: "Move the axis through the tool, or choose the other side." };
+  const chain = [split[(start + split.length - 1) % split.length]];
+  let count = 0;
+  while (count < split.length && split[(start + count) % split.length].x > 0) {
+    chain.push(split[(start + count) % split.length]);
+    count++;
+  }
+  chain.push(split[(start + count) % split.length]);
+  const remaining = Array.from({ length: split.length - count }, (_, i) => split[(start + count + i) % split.length]);
+  if (remaining.some(p => p.x > 0) || chain[0].x !== 0 || chain.at(-1)!.x !== 0 ||
+      Math.abs(chain[0].y - chain.at(-1)!.y) < epsilon) {
+    return { error: "The chosen side separates into pieces. Move the axis through the tool." };
+  }
+  const ring = [
+    ...chain.map(p => toPhoto(sign * p.x, p.y)),
+    ...chain.slice(1, -1).reverse().map(p => toPhoto(-sign * p.x, p.y)),
+  ];
+  const result = normalizeOutline([{ outer: ring, holes: [] }])[0];
   return result ? { shape: result } : { error: "The selected side has no usable area." };
 }
