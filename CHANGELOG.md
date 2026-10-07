@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Experimental CAD investigations: curved STEP solids, named source objects and cutters, complete project packages, progress and cancellation. Production backend selection and remaining feature gates are pending.
+- Experimental CAD investigations: curved STEP solids, named source objects and cutters, complete project packages, progress and cancellation. Stable object IDs survive Fusion import through geometry-associated names. Production backend selection and remaining feature gates are pending.
 
 - Added Wiha stacking fit notes recommending lowering the driver pockets about 1 mm to avoid interference.
 

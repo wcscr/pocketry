@@ -1,0 +1,857 @@
+{
+  "fusionVersion": "2705.1.15",
+  "nativeRun": "2026-10-06T21:03:59-0400",
+  "method": "Native Fusion supported Python API; local imports and local F3D/STEP exports",
+  "fullEditingPasses": 10,
+  "nativeCases": 12,
+  "remainingGate": "Mac locked again before irregular source/tool tests could be resumed.",
+  "namingFix": "Stable IDs now occur on STEP product definitions as well as assembly instances. Fusion discards the instance names.",
+  "cases": [
+    {
+      "approach": "dedicated",
+      "fixture": "standard-solid",
+      "status": "passed",
+      "snapshotSha256": "d691ec82f2cac57ccbaa299a59c92b215b33cd90c95b4d2af4bd19996adc9452",
+      "inputSha256": {
+        "bin.step": "260de822931000c078a9cbf3c71127b33bf0b7a92e7b23def46c8f49431ad295",
+        "design-objects.step": "9a5b16bb6b041d5557b02a879b287f0c705510d6548d1dffedf59fc73237d90f",
+        "objects.json": "b86032e06cbc88865d9612d6918eb1b25ca5d821017f70921c8c0d7d7df5f567"
+      },
+      "dimensionsMm": [
+        41.5,
+        41.5,
+        24.551471862576
+      ],
+      "binCurves": {
+        "circleRadiiMm": [],
+        "arcRadiiMm": [
+          0.6,
+          0.8,
+          1.15,
+          1.6,
+          1.85,
+          2.72573593,
+          3.75
+        ],
+        "cylinderRadiiMm": [
+          0.6,
+          1.15,
+          1.6,
+          1.85,
+          3.75
+        ],
+        "ellipseRadiiMm": [],
+        "surfaceTypes": [
+          "adsk::core::Cone",
+          "adsk::core::Cylinder",
+          "adsk::core::Plane",
+          "adsk::core::Torus"
+        ]
+      },
+      "holeEdit": {
+        "feature": "Pocketry Fusion edit — through hole",
+        "beforeMm3": 34051.05254777329,
+        "afterMm3": 33802.238409608966,
+        "removedMm3": 248.81413816432178
+      },
+      "baselineReconstruction": {
+        "volumeMm3": 34051.05254777329,
+        "bodyCount": 1,
+        "toolCount": 0,
+        "differenceFromOriginalMm3": 0.0
+      },
+      "cutterMoved": null,
+      "sourceUnchanged": null,
+      "remaining": null
+    },
+    {
+      "approach": "dedicated",
+      "fixture": "standard-hollow",
+      "status": "passed",
+      "snapshotSha256": "0cff4beaac65112b4413a9e5a9d9dfc632792ef1a40f20f767a924ab226e331e",
+      "inputSha256": {
+        "bin.step": "4e635f4c2d105fa445752e1d68f7047e17f4080024e5539919d20c92de6dbbef",
+        "design-objects.step": "b8e23d1df8dac25281eb96fd2b1f8cc46a3f6edb1befa3dfdb63dae73c7275d5",
+        "objects.json": "63798d778dc2db3b1abdfa153b329354ce54395e5cc649dfe3e7b01b5a853701"
+      },
+      "dimensionsMm": [
+        83.5,
+        41.5,
+        24.551471862576
+      ],
+      "binCurves": {
+        "circleRadiiMm": [],
+        "arcRadiiMm": [
+          0.6,
+          0.8,
+          1.15,
+          1.6,
+          1.85,
+          2.72573593,
+          3.75
+        ],
+        "cylinderRadiiMm": [
+          0.6,
+          1.15,
+          1.6,
+          1.85,
+          3.75
+        ],
+        "ellipseRadiiMm": [],
+        "surfaceTypes": [
+          "adsk::core::Cone",
+          "adsk::core::Cylinder",
+          "adsk::core::Plane",
+          "adsk::core::Torus"
+        ]
+      },
+      "holeEdit": {
+        "feature": "Pocketry Fusion edit — through hole",
+        "beforeMm3": 27047.49771863156,
+        "afterMm3": 27011.448636767775,
+        "removedMm3": 36.04908186378452
+      },
+      "baselineReconstruction": {
+        "volumeMm3": 27047.49771863156,
+        "bodyCount": 1,
+        "toolCount": 0,
+        "differenceFromOriginalMm3": 0.0
+      },
+      "cutterMoved": null,
+      "sourceUnchanged": null,
+      "remaining": null
+    },
+    {
+      "approach": "dedicated",
+      "fixture": "mixed",
+      "status": "passed",
+      "snapshotSha256": "109325246c4631f3a4e03657f98fa690b2d8473a16989354e40e6ae2836a46d2",
+      "inputSha256": {
+        "bin.step": "f984c9e9b25ec262f1d050eeb04fad5743539938fe1ed677d9cf9824e8e5257d",
+        "design-objects.step": "7b0fd477b3e4cdf18a406c222cf4fdb6bed6905ed41991abafc061e7c9a98c03",
+        "objects.json": "ac7721c926b3111996975c98f112fe5c766d7e5ac209ff7d08e2ac0002434331"
+      },
+      "dimensionsMm": [
+        125.5,
+        83.5,
+        31.551471862576005
+      ],
+      "binCurves": {
+        "circleRadiiMm": [
+          6.0
+        ],
+        "arcRadiiMm": [
+          0.2,
+          0.6,
+          0.8,
+          1.0,
+          1.15,
+          1.6,
+          1.8,
+          1.85,
+          2.72573593,
+          3.75,
+          6.0
+        ],
+        "cylinderRadiiMm": [
+          0.6,
+          0.8,
+          1.0,
+          1.15,
+          1.6,
+          1.85,
+          3.75,
+          6.0
+        ],
+        "ellipseRadiiMm": [],
+        "surfaceTypes": [
+          "adsk::core::Cone",
+          "adsk::core::Cylinder",
+          "adsk::core::NurbsSurface",
+          "adsk::core::Plane",
+          "adsk::core::Torus"
+        ]
+      },
+      "holeEdit": {
+        "feature": "Pocketry Fusion edit — through hole",
+        "beforeMm3": 269667.01029212587,
+        "afterMm3": 269382.14707209775,
+        "removedMm3": 284.8632200281136
+      },
+      "baselineReconstruction": {
+        "volumeMm3": 269667.01041328354,
+        "bodyCount": 1,
+        "toolCount": 2,
+        "differenceFromOriginalMm3": 0.00012115767458453774
+      },
+      "cutterMoved": "cutter:cutout-rectangle",
+      "sourceUnchanged": true,
+      "remaining": null
+    },
+    {
+      "approach": "dedicated",
+      "fixture": "concave",
+      "status": "passed",
+      "snapshotSha256": "2b3622688788830b3e337c4184b20dd7a88a312285540aeb11ef7782fd74c5c9",
+      "inputSha256": {
+        "bin.step": "0571f0229c8b9a75f6487378f6e7052aa991268cf5e5cd46582846f71acd7cf5",
+        "design-objects.step": "be8dfc4bb074c21618609e1643fcb0f1bf05a3d9ce87f3fadb82233cf67e57a8",
+        "objects.json": "22a38cff9aba09b5eb14399213ae5a77c7f5ad693d25512f31da2f6038a92ed8"
+      },
+      "dimensionsMm": [
+        125.5,
+        83.5,
+        28.000000000000004
+      ],
+      "binCurves": {
+        "circleRadiiMm": [],
+        "arcRadiiMm": [
+          0.3,
+          0.4,
+          0.5,
+          0.7,
+          1.2,
+          3.75
+        ],
+        "cylinderRadiiMm": [
+          0.4,
+          0.5,
+          0.7,
+          3.75
+        ],
+        "ellipseRadiiMm": [
+          [
+            9.8,
+            4.9
+          ]
+        ],
+        "surfaceTypes": [
+          "adsk::core::Cylinder",
+          "adsk::core::NurbsSurface",
+          "adsk::core::Plane",
+          "adsk::core::Torus"
+        ]
+      },
+      "holeEdit": {
+        "feature": "Pocketry Fusion edit — through hole",
+        "beforeMm3": 288532.5469781385,
+        "afterMm3": 288205.16928815265,
+        "removedMm3": 327.37768998584943
+      },
+      "baselineReconstruction": {
+        "volumeMm3": 288531.7901475544,
+        "bodyCount": 1,
+        "toolCount": 2,
+        "differenceFromOriginalMm3": -0.7568305840832181
+      },
+      "cutterMoved": "cutter:concave",
+      "sourceUnchanged": true,
+      "remaining": null
+    },
+    {
+      "approach": "dedicated",
+      "fixture": "tilted",
+      "status": "passed",
+      "snapshotSha256": "533b239ec8a150ce1dbb48bf59ca2ce81804b304c987f223243eb0e3a67bde81",
+      "inputSha256": {
+        "bin.step": "0dee7c722491abfd3058614fdfe332e8971cc24fca1700310be3838f5dafa153",
+        "design-objects.step": "355c5a0ceed1f42246ea0105df0c2d0fc48cee399891f4a0a66741c1f80ebae0",
+        "objects.json": "67e0497a5b2772dc9425695db628d414cefddd3c493f772f332b13d524daeac2"
+      },
+      "dimensionsMm": [
+        125.5,
+        125.5,
+        35.0
+      ],
+      "binCurves": {
+        "circleRadiiMm": [],
+        "arcRadiiMm": [
+          0.1,
+          0.6,
+          0.7,
+          3.75
+        ],
+        "cylinderRadiiMm": [
+          0.6,
+          0.7,
+          3.75
+        ],
+        "ellipseRadiiMm": [],
+        "surfaceTypes": [
+          "adsk::core::Cylinder",
+          "adsk::core::NurbsSurface",
+          "adsk::core::Plane"
+        ]
+      },
+      "holeEdit": {
+        "feature": "Pocketry Fusion edit — through hole",
+        "beforeMm3": 545048.1646501425,
+        "afterMm3": 544925.1153044697,
+        "removedMm3": 123.04934567282908
+      },
+      "baselineReconstruction": {
+        "volumeMm3": 545048.1646501437,
+        "bodyCount": 1,
+        "toolCount": 1,
+        "differenceFromOriginalMm3": 1.1641532182693481e-09
+      },
+      "cutterMoved": "cutter:cutout-split",
+      "sourceUnchanged": true,
+      "remaining": null
+    },
+    {
+      "approach": "dedicated",
+      "fixture": "irregular",
+      "status": "failed",
+      "snapshotSha256": "8e9d17594139db82397a21a60ecf122374eb8cf4e92f4b30808a52221ab68314",
+      "inputSha256": {
+        "bin.step": "99d5638f9f6c27cfc31029425f57efb5d44fdfdb941cdc6bc64788dec6af63c2",
+        "design-objects.step": "ec25cfebdb127559355facf9734fd31fd3e951fbffd432c4fb41743c80b1ca06",
+        "objects.json": "8175c7ba2022258b7c2a858cc02d8241b21d87ebe642902786b889db2c3c64c1"
+      },
+      "dimensionsMm": [
+        83.5,
+        83.5,
+        31.551471862576005
+      ],
+      "binCurves": {
+        "circleRadiiMm": [
+          4.5,
+          5.0
+        ],
+        "arcRadiiMm": [
+          0.6,
+          1.15,
+          1.85,
+          2.72573593,
+          3.75,
+          4.77426407,
+          5.0,
+          5.65,
+          6.0,
+          6.35
+        ],
+        "cylinderRadiiMm": [
+          0.6,
+          1.15,
+          1.85,
+          3.75,
+          5.0,
+          5.65,
+          6.0,
+          6.35
+        ],
+        "ellipseRadiiMm": [],
+        "surfaceTypes": [
+          "adsk::core::Cone",
+          "adsk::core::Cylinder",
+          "adsk::core::NurbsSurface",
+          "adsk::core::Plane",
+          "adsk::core::Torus"
+        ]
+      },
+      "holeEdit": {
+        "feature": "Pocketry Fusion edit — through hole",
+        "beforeMm3": 139914.74609417838,
+        "afterMm3": 139582.43916374687,
+        "removedMm3": 332.30693043151405
+      },
+      "baselineReconstruction": null,
+      "cutterMoved": null,
+      "sourceUnchanged": null,
+      "remaining": "Source/tool reconstruction and cutter move pending; archive preserves hole, independent edited STEP Boolean comparison recognizes no missing/extra material."
+    },
+    {
+      "approach": "unified",
+      "fixture": "standard-solid",
+      "status": "passed",
+      "snapshotSha256": "d691ec82f2cac57ccbaa299a59c92b215b33cd90c95b4d2af4bd19996adc9452",
+      "inputSha256": {
+        "bin.step": "ebd186a6d37ceab280529bed93307a7351ed307bb1e26c0e566dac74520c6bbd",
+        "design-objects.step": "d1593c78e3afb728ace560c7aa7940b0ecf74bb8cf95e882778f13ae50fd72da",
+        "objects.json": "b86032e06cbc88865d9612d6918eb1b25ca5d821017f70921c8c0d7d7df5f567"
+      },
+      "dimensionsMm": [
+        41.5,
+        41.5,
+        24.551471862576
+      ],
+      "binCurves": {
+        "circleRadiiMm": [],
+        "arcRadiiMm": [
+          0.6,
+          0.8,
+          1.15,
+          1.6,
+          1.85,
+          2.72573593,
+          3.75
+        ],
+        "cylinderRadiiMm": [
+          0.6,
+          1.15,
+          1.6,
+          1.85,
+          3.75
+        ],
+        "ellipseRadiiMm": [],
+        "surfaceTypes": [
+          "adsk::core::Cone",
+          "adsk::core::Cylinder",
+          "adsk::core::Plane",
+          "adsk::core::Torus"
+        ]
+      },
+      "holeEdit": {
+        "feature": "Pocketry Fusion edit — through hole",
+        "beforeMm3": 34051.05254777329,
+        "afterMm3": 33802.238409608966,
+        "removedMm3": 248.81413816432178
+      },
+      "baselineReconstruction": {
+        "volumeMm3": 34051.05254777329,
+        "bodyCount": 1,
+        "toolCount": 0,
+        "differenceFromOriginalMm3": 0.0
+      },
+      "cutterMoved": null,
+      "sourceUnchanged": null,
+      "remaining": null
+    },
+    {
+      "approach": "unified",
+      "fixture": "standard-hollow",
+      "status": "passed",
+      "snapshotSha256": "0cff4beaac65112b4413a9e5a9d9dfc632792ef1a40f20f767a924ab226e331e",
+      "inputSha256": {
+        "bin.step": "e065684fba54858701cf344a4a09ec7e63902e76b8c62879ee9722c309241ba2",
+        "design-objects.step": "a9b8f4e00335d70a4df8c2090c85f10e4003d532247e5485d300cc815eec3d32",
+        "objects.json": "63798d778dc2db3b1abdfa153b329354ce54395e5cc649dfe3e7b01b5a853701"
+      },
+      "dimensionsMm": [
+        83.5,
+        41.5,
+        24.551471862576
+      ],
+      "binCurves": {
+        "circleRadiiMm": [],
+        "arcRadiiMm": [
+          0.6,
+          0.8,
+          1.15,
+          1.6,
+          1.85,
+          2.72573593,
+          3.75
+        ],
+        "cylinderRadiiMm": [
+          0.6,
+          1.15,
+          1.6,
+          1.85,
+          3.75
+        ],
+        "ellipseRadiiMm": [],
+        "surfaceTypes": [
+          "adsk::core::Cone",
+          "adsk::core::Cylinder",
+          "adsk::core::Plane",
+          "adsk::core::Torus"
+        ]
+      },
+      "holeEdit": {
+        "feature": "Pocketry Fusion edit — through hole",
+        "beforeMm3": 27047.49771863156,
+        "afterMm3": 27011.448636767775,
+        "removedMm3": 36.04908186378452
+      },
+      "baselineReconstruction": {
+        "volumeMm3": 27047.49771863156,
+        "bodyCount": 1,
+        "toolCount": 0,
+        "differenceFromOriginalMm3": 0.0
+      },
+      "cutterMoved": null,
+      "sourceUnchanged": null,
+      "remaining": null
+    },
+    {
+      "approach": "unified",
+      "fixture": "mixed",
+      "status": "passed",
+      "snapshotSha256": "109325246c4631f3a4e03657f98fa690b2d8473a16989354e40e6ae2836a46d2",
+      "inputSha256": {
+        "bin.step": "85565e51a0b449dac3a34c0e0497abc18adb17494a99a421d281d7623ee04c4f",
+        "design-objects.step": "cb742906427ad728398514544c78ab255b9f257a8d36b070e2f08ff519b8840c",
+        "objects.json": "ac7721c926b3111996975c98f112fe5c766d7e5ac209ff7d08e2ac0002434331"
+      },
+      "dimensionsMm": [
+        125.5,
+        83.5,
+        31.551471862576005
+      ],
+      "binCurves": {
+        "circleRadiiMm": [
+          6.0
+        ],
+        "arcRadiiMm": [
+          0.2,
+          0.6,
+          0.8,
+          1.0,
+          1.15,
+          1.6,
+          1.8,
+          1.85,
+          2.72573593,
+          3.75,
+          6.0
+        ],
+        "cylinderRadiiMm": [
+          0.6,
+          0.8,
+          1.0,
+          1.15,
+          1.6,
+          1.85,
+          3.75,
+          6.0
+        ],
+        "ellipseRadiiMm": [],
+        "surfaceTypes": [
+          "adsk::core::Cone",
+          "adsk::core::Cylinder",
+          "adsk::core::NurbsSurface",
+          "adsk::core::Plane",
+          "adsk::core::Torus"
+        ]
+      },
+      "holeEdit": {
+        "feature": "Pocketry Fusion edit — through hole",
+        "beforeMm3": 269667.01029212587,
+        "afterMm3": 269382.14707209775,
+        "removedMm3": 284.8632200281136
+      },
+      "baselineReconstruction": {
+        "volumeMm3": 269667.01041328354,
+        "bodyCount": 1,
+        "toolCount": 2,
+        "differenceFromOriginalMm3": 0.00012115767458453774
+      },
+      "cutterMoved": "cutter:cutout-rectangle",
+      "sourceUnchanged": true,
+      "remaining": null
+    },
+    {
+      "approach": "unified",
+      "fixture": "concave",
+      "status": "passed",
+      "snapshotSha256": "2b3622688788830b3e337c4184b20dd7a88a312285540aeb11ef7782fd74c5c9",
+      "inputSha256": {
+        "bin.step": "60d04a9c5d7544b91bc03b18d1a3105a8a668dae0d05e61c6a1498370da83509",
+        "design-objects.step": "f97f04c8877e147878c6ec09bfe63d4fae75abb14466420cdd1a108766e1c7ea",
+        "objects.json": "22a38cff9aba09b5eb14399213ae5a77c7f5ad693d25512f31da2f6038a92ed8"
+      },
+      "dimensionsMm": [
+        125.5,
+        83.5,
+        28.000000000000004
+      ],
+      "binCurves": {
+        "circleRadiiMm": [],
+        "arcRadiiMm": [
+          0.3,
+          0.4,
+          0.5,
+          0.7,
+          1.2,
+          3.75
+        ],
+        "cylinderRadiiMm": [
+          0.4,
+          0.5,
+          0.7,
+          3.75
+        ],
+        "ellipseRadiiMm": [
+          [
+            9.8,
+            4.9
+          ]
+        ],
+        "surfaceTypes": [
+          "adsk::core::Cylinder",
+          "adsk::core::NurbsSurface",
+          "adsk::core::Plane",
+          "adsk::core::Torus"
+        ]
+      },
+      "holeEdit": {
+        "feature": "Pocketry Fusion edit — through hole",
+        "beforeMm3": 288532.5469781385,
+        "afterMm3": 288205.16928815265,
+        "removedMm3": 327.37768998584943
+      },
+      "baselineReconstruction": {
+        "volumeMm3": 288531.7901475544,
+        "bodyCount": 1,
+        "toolCount": 2,
+        "differenceFromOriginalMm3": -0.7568305840832181
+      },
+      "cutterMoved": "cutter:concave",
+      "sourceUnchanged": true,
+      "remaining": null
+    },
+    {
+      "approach": "unified",
+      "fixture": "tilted",
+      "status": "passed",
+      "snapshotSha256": "533b239ec8a150ce1dbb48bf59ca2ce81804b304c987f223243eb0e3a67bde81",
+      "inputSha256": {
+        "bin.step": "13c8cbb005990b6ac063bb2607b6a10ae16ea29bcb1e843b583c9422cc443957",
+        "design-objects.step": "723e846354a86c4df2cfce4c104a3193110b350c4fdec05f36ea21fb4a563289",
+        "objects.json": "67e0497a5b2772dc9425695db628d414cefddd3c493f772f332b13d524daeac2"
+      },
+      "dimensionsMm": [
+        125.5,
+        125.5,
+        35.0
+      ],
+      "binCurves": {
+        "circleRadiiMm": [],
+        "arcRadiiMm": [
+          0.1,
+          0.6,
+          0.7,
+          3.75
+        ],
+        "cylinderRadiiMm": [
+          0.6,
+          0.7,
+          3.75
+        ],
+        "ellipseRadiiMm": [],
+        "surfaceTypes": [
+          "adsk::core::Cylinder",
+          "adsk::core::NurbsSurface",
+          "adsk::core::Plane"
+        ]
+      },
+      "holeEdit": {
+        "feature": "Pocketry Fusion edit — through hole",
+        "beforeMm3": 545048.1646501425,
+        "afterMm3": 544925.1153044697,
+        "removedMm3": 123.04934567282908
+      },
+      "baselineReconstruction": {
+        "volumeMm3": 545048.1646501437,
+        "bodyCount": 1,
+        "toolCount": 1,
+        "differenceFromOriginalMm3": 1.1641532182693481e-09
+      },
+      "cutterMoved": "cutter:cutout-split",
+      "sourceUnchanged": true,
+      "remaining": null
+    },
+    {
+      "approach": "unified",
+      "fixture": "irregular",
+      "status": "failed",
+      "snapshotSha256": "8e9d17594139db82397a21a60ecf122374eb8cf4e92f4b30808a52221ab68314",
+      "inputSha256": {
+        "bin.step": "809d7ef8234ae09bfaa501fe310d55589a0b8b3671dd5a6a87f111156a86a12d",
+        "design-objects.step": "d597f06c3c8be06a8baa8aea370423cbffb0a2ea9e22be2fcd2b620984850595",
+        "objects.json": "8175c7ba2022258b7c2a858cc02d8241b21d87ebe642902786b889db2c3c64c1"
+      },
+      "dimensionsMm": [
+        83.5,
+        83.5,
+        31.551471862576005
+      ],
+      "binCurves": {
+        "circleRadiiMm": [
+          4.5,
+          5.0
+        ],
+        "arcRadiiMm": [
+          0.6,
+          1.15,
+          1.85,
+          2.72573593,
+          3.75,
+          4.77426407,
+          5.0,
+          5.65,
+          6.0,
+          6.35
+        ],
+        "cylinderRadiiMm": [
+          0.6,
+          1.15,
+          1.85,
+          3.75,
+          5.0,
+          5.65,
+          6.0,
+          6.35
+        ],
+        "ellipseRadiiMm": [],
+        "surfaceTypes": [
+          "adsk::core::Cone",
+          "adsk::core::Cylinder",
+          "adsk::core::NurbsSurface",
+          "adsk::core::Plane",
+          "adsk::core::Torus"
+        ]
+      },
+      "holeEdit": {
+        "feature": "Pocketry Fusion edit — through hole",
+        "beforeMm3": 139914.74609417838,
+        "afterMm3": 139582.43916374687,
+        "removedMm3": 332.30693043151405
+      },
+      "baselineReconstruction": null,
+      "cutterMoved": null,
+      "sourceUnchanged": null,
+      "remaining": "Source/tool reconstruction and cutter move pending; archive preserves hole, independent edited STEP Boolean comparison recognizes no missing/extra material."
+    }
+  ],
+  "independentEditedStep": [
+    {
+      "approach": "dedicated",
+      "fixture": "standard-solid",
+      "expectedVolumeMm3": 33802.23840960918,
+      "fusionStepVolumeMm3": 33802.23840960819,
+      "volumeDifferenceMm3": -9.89530235528946e-10,
+      "unexpectedMaterialMm3": 0.0,
+      "missingMaterialMm3": 0.0
+    },
+    {
+      "approach": "dedicated",
+      "fixture": "standard-hollow",
+      "expectedVolumeMm3": 27011.447797202643,
+      "fusionStepVolumeMm3": 27011.447803268064,
+      "volumeDifferenceMm3": 6.065420166123658e-06,
+      "unexpectedMaterialMm3": 0.0,
+      "missingMaterialMm3": 0.0
+    },
+    {
+      "approach": "dedicated",
+      "fixture": "mixed",
+      "expectedVolumeMm3": 269382.1470749993,
+      "fusionStepVolumeMm3": 269382.1747659491,
+      "volumeDifferenceMm3": 0.027690949791576713,
+      "unexpectedMaterialMm3": 0.0,
+      "missingMaterialMm3": 0.0
+    },
+    {
+      "approach": "dedicated",
+      "fixture": "concave",
+      "expectedVolumeMm3": 288205.16739291896,
+      "fusionStepVolumeMm3": 288199.1012866102,
+      "volumeDifferenceMm3": -6.066106308775488,
+      "unexpectedMaterialMm3": 0.0,
+      "missingMaterialMm3": 0.0
+    },
+    {
+      "approach": "dedicated",
+      "fixture": "tilted",
+      "expectedVolumeMm3": 544925.1405478984,
+      "fusionStepVolumeMm3": 544925.1315247637,
+      "volumeDifferenceMm3": -0.009023134713061154,
+      "unexpectedMaterialMm3": 0.0,
+      "missingMaterialMm3": 0.0
+    },
+    {
+      "approach": "dedicated",
+      "fixture": "irregular",
+      "expectedVolumeMm3": 139606.30427954384,
+      "fusionStepVolumeMm3": 139606.30391188595,
+      "volumeDifferenceMm3": -0.00036765789263881743,
+      "unexpectedMaterialMm3": 0.0,
+      "missingMaterialMm3": 0.0
+    },
+    {
+      "approach": "unified",
+      "fixture": "standard-solid",
+      "expectedVolumeMm3": 33802.23840960918,
+      "fusionStepVolumeMm3": 33802.23840960819,
+      "volumeDifferenceMm3": -9.89530235528946e-10,
+      "unexpectedMaterialMm3": 0.0,
+      "missingMaterialMm3": 0.0
+    },
+    {
+      "approach": "unified",
+      "fixture": "standard-hollow",
+      "expectedVolumeMm3": 27011.447797202643,
+      "fusionStepVolumeMm3": 27011.447803268064,
+      "volumeDifferenceMm3": 6.065420166123658e-06,
+      "unexpectedMaterialMm3": 0.0,
+      "missingMaterialMm3": 0.0
+    },
+    {
+      "approach": "unified",
+      "fixture": "mixed",
+      "expectedVolumeMm3": 269382.1470749993,
+      "fusionStepVolumeMm3": 269382.1747659491,
+      "volumeDifferenceMm3": 0.027690949791576713,
+      "unexpectedMaterialMm3": 0.0,
+      "missingMaterialMm3": 0.0
+    },
+    {
+      "approach": "unified",
+      "fixture": "concave",
+      "expectedVolumeMm3": 288205.16739291896,
+      "fusionStepVolumeMm3": 288199.1012866102,
+      "volumeDifferenceMm3": -6.066106308775488,
+      "unexpectedMaterialMm3": 0.0,
+      "missingMaterialMm3": 0.0
+    },
+    {
+      "approach": "unified",
+      "fixture": "tilted",
+      "expectedVolumeMm3": 544925.1405478984,
+      "fusionStepVolumeMm3": 544925.1315247637,
+      "volumeDifferenceMm3": -0.009023134713061154,
+      "unexpectedMaterialMm3": 0.0,
+      "missingMaterialMm3": 0.0
+    },
+    {
+      "approach": "unified",
+      "fixture": "irregular",
+      "expectedVolumeMm3": 139606.30427954384,
+      "fusionStepVolumeMm3": 139606.30391188595,
+      "volumeDifferenceMm3": -0.00036765789263881743,
+      "unexpectedMaterialMm3": 0.0,
+      "missingMaterialMm3": 0.0
+    }
+  ],
+  "localGates": {
+    "A": {
+      "check": 0,
+      "test": 0,
+      "build": 0,
+      "diff": 0,
+      "tests": 2778,
+      "files": 165
+    },
+    "B": [
+      {
+        "phase": "check",
+        "exit": 0
+      },
+      {
+        "phase": "test",
+        "exit": 0
+      },
+      {
+        "phase": "build",
+        "exit": 0
+      },
+      {
+        "phase": "diff",
+        "exit": 0
+      }
+    ]
+  }
+}

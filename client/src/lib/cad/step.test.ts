@@ -17,6 +17,10 @@ describe("XCAF STEP assembly", () => {
       expect(text).toContain("CYLINDRICAL_SURFACE");
       expect(text.match(/MANIFOLD_SOLID_BREP\(/g)).toHaveLength(2);
       expect(text).toContain("NEXT_ASSEMBLY_USAGE_OCCURRENCE");
+      // Importers such as Fusion use PRODUCT names rather than occurrence names.
+      const products = text.match(/#\d+\s*=\s*PRODUCT\([\s\S]*?\);/g) ?? [];
+      expect(products.filter(product=>product.includes("[first]"))).toHaveLength(1);
+      expect(products.filter(product=>product.includes("[second]"))).toHaveLength(1);
       expect(text).toContain("COLOUR_RGB");
       expect(text).toContain(".MILLI.,.METRE.");
       expect(text).toContain("Cl");

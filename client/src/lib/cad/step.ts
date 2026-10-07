@@ -17,10 +17,13 @@ export function writeCadStep(c: CadContext, bodies: readonly NamedCadBody[], ass
   const name = (label: TDF_Label, value: string) => c.own(oc.TDataStd_Name.Set(label,c.own(new oc.TCollection_ExtendedString(value,true))));
   const assembly = c.own(shapes.NewShape()); name(assembly,assemblyName);
   for (const body of bodies) {
-    // NewShape/SetShape preserve distinct identity even when two names repeat.
-    const definition = c.own(shapes.NewShape()); shapes.SetShape(definition,body.shape); name(definition,body.name);
+    // Fusion imports product-definition names, discarding assembly-instance names.
+    // Put the same stable identity on both labels so duplicate source names remain
+    // distinguishable without a CAD application's generated duplicate-name suffix.
+    const stableName = `${body.name} [${body.id}]`;
+    const definition = c.own(shapes.NewShape()); shapes.SetShape(definition,body.shape); name(definition,stableName);
     const instance = c.own(shapes.AddComponent(assembly,definition,c.own(new oc.TopLoc_Location())));
-    name(instance,`${body.name} [${body.id}]`);
+    name(instance,stableName);
     if (body.color && /^#[0-9a-f]{6}$/i.test(body.color)) {
       const rgb = [1,3,5].map(i=>parseInt(body.color!.slice(i,i+2),16)/255);
       const color = c.own(new oc.Quantity_ColorRGBA(rgb[0],rgb[1],rgb[2],1));
