@@ -733,8 +733,8 @@ function validatePair(a: PlacedCutout, b: PlacedCutout): ValidationIssue | null 
   if (overlapping) {
     return {
       code: "cutout-overlap",
-      severity: "error",
-      message: `“${a.label}” and “${b.label}” overlap.`,
+      severity: "warning",
+      message: `“${a.label}” and “${b.label}” overlap. Their cuts will be combined.`,
       cutoutIds: [a.cutout.id, b.cutout.id],
     };
   }
@@ -755,7 +755,7 @@ function validatePair(a: PlacedCutout, b: PlacedCutout): ValidationIssue | null 
   if (separation < edgeAllowance) {
     return {
       code: "cutout-overlap",
-      severity: "error",
+      severity: "warning",
       message: `“${a.label}” and “${b.label}” merge once their clearances and top-edge rounds are added.`,
       cutoutIds: [a.cutout.id, b.cutout.id],
     };
