@@ -1,10 +1,10 @@
 {
   "fusionVersion": "2705.1.15",
-  "nativeRun": "2026-10-06T21:03:59-0400",
+  "nativeRun": "2026-10-07T12:44:56-0400",
   "method": "Native Fusion supported Python API; local imports and local F3D/STEP exports",
-  "fullEditingPasses": 10,
+  "fullEditingPasses": 12,
   "nativeCases": 12,
-  "remainingGate": "Mac locked again before irregular source/tool tests could be resumed.",
+  "remainingGate": "FreeCAD checks, wider feature coverage, mobile/printing qualification, and human backend selection remain separate gates.",
   "namingFix": "Stable IDs now occur on STEP product definitions as well as assembly instances. Fusion discards the instance names.",
   "cases": [
     {
@@ -49,7 +49,7 @@
         ]
       },
       "holeEdit": {
-        "feature": "Pocketry Fusion edit — through hole",
+        "feature": "Pocketry Fusion edit \u2014 through hole",
         "beforeMm3": 34051.05254777329,
         "afterMm3": 33802.238409608966,
         "removedMm3": 248.81413816432178
@@ -60,9 +60,18 @@
         "toolCount": 0,
         "differenceFromOriginalMm3": 0.0
       },
+      "movedReconstruction": null,
+      "stepReopenVolumeEstimateDifferenceMm3": 0.0,
+      "warnings": null,
       "cutterMoved": null,
       "sourceUnchanged": null,
-      "remaining": null
+      "archiveFeaturesHealthy": true,
+      "outputSha256": {
+        "bin-edited.f3d": "fe98eb163966f3a1ef5e89c6da284296461f1902146935ccf8f4ca084cd1647e",
+        "bin-edited.step": "29e1d557337a305a52e8f34324dcdcc320be759c2f388e7665523360609cbeda",
+        "design-objects-edited.f3d": "39124dcd961b6cf881f4cf4e206551c8c96406d6951f4a2c9e611f2e415b45b9",
+        "reconstructed-original.step": "ee33881419e6f542af354f614eba0c8ed85754d1c9c97cfbd469313f15a4d24e"
+      }
     },
     {
       "approach": "dedicated",
@@ -106,7 +115,7 @@
         ]
       },
       "holeEdit": {
-        "feature": "Pocketry Fusion edit — through hole",
+        "feature": "Pocketry Fusion edit \u2014 through hole",
         "beforeMm3": 27047.49771863156,
         "afterMm3": 27011.448636767775,
         "removedMm3": 36.04908186378452
@@ -117,9 +126,18 @@
         "toolCount": 0,
         "differenceFromOriginalMm3": 0.0
       },
+      "movedReconstruction": null,
+      "stepReopenVolumeEstimateDifferenceMm3": 0.00013931393186794594,
+      "warnings": null,
       "cutterMoved": null,
       "sourceUnchanged": null,
-      "remaining": null
+      "archiveFeaturesHealthy": true,
+      "outputSha256": {
+        "bin-edited.f3d": "f0d82a90a7175d880623fffe96776005089af64de58a466368e577f412543814",
+        "bin-edited.step": "fc8cc93ce04f067e86910f847da04837e05518a34da091524b6a6370b4651f47",
+        "design-objects-edited.f3d": "70e9a2e25a763d12d6a2f9d6ab351150d1d04f0597573508a3c139c818cca664",
+        "reconstructed-original.step": "12210a0433b40adf766027d7f50629b5a549383511b9e0feac94886c8e98e7e3"
+      }
     },
     {
       "approach": "dedicated",
@@ -173,7 +191,7 @@
         ]
       },
       "holeEdit": {
-        "feature": "Pocketry Fusion edit — through hole",
+        "feature": "Pocketry Fusion edit \u2014 through hole",
         "beforeMm3": 269667.01029212587,
         "afterMm3": 269382.14707209775,
         "removedMm3": 284.8632200281136
@@ -184,9 +202,23 @@
         "toolCount": 2,
         "differenceFromOriginalMm3": 0.00012115767458453774
       },
+      "movedReconstruction": {
+        "volumeMm3": 269667.0104132838,
+        "bodyCount": 1,
+        "toolCount": 2
+      },
+      "stepReopenVolumeEstimateDifferenceMm3": -5.289912223815918e-07,
+      "warnings": null,
       "cutterMoved": "cutter:cutout-rectangle",
       "sourceUnchanged": true,
-      "remaining": null
+      "archiveFeaturesHealthy": true,
+      "outputSha256": {
+        "bin-edited.f3d": "6486b61b2bf00a3ae1156595e32422ad479f669fd10581fa1c6867dffcf3dec5",
+        "bin-edited.step": "a3731d912ccb0ee6f93f69a99e6c1df787de60b6edb604ea8027fdcc01b9e427",
+        "design-objects-edited.f3d": "fb7d7b7fab56b620b815dfd6740fadf8b8a6580f56beea0dac88f3ca5195cc18",
+        "reconstructed-moved.step": "0744be2da2c9fd9725382051da47138a6f525c8669a8f3e2941863c1060fbdb8",
+        "reconstructed-original.step": "123c07d40c9b15fceb80e3a1739dc2a9e19f115cf4077cc173dc129e0295715e"
+      }
     },
     {
       "approach": "dedicated",
@@ -233,7 +265,7 @@
         ]
       },
       "holeEdit": {
-        "feature": "Pocketry Fusion edit — through hole",
+        "feature": "Pocketry Fusion edit \u2014 through hole",
         "beforeMm3": 288532.5469781385,
         "afterMm3": 288205.16928815265,
         "removedMm3": 327.37768998584943
@@ -244,9 +276,23 @@
         "toolCount": 2,
         "differenceFromOriginalMm3": -0.7568305840832181
       },
+      "movedReconstruction": {
+        "volumeMm3": 288795.8598971718,
+        "bodyCount": 1,
+        "toolCount": 2
+      },
+      "stepReopenVolumeEstimateDifferenceMm3": -8.974864613264799e-06,
+      "warnings": null,
       "cutterMoved": "cutter:concave",
       "sourceUnchanged": true,
-      "remaining": null
+      "archiveFeaturesHealthy": true,
+      "outputSha256": {
+        "bin-edited.f3d": "9d4e45fedb221470ac12c186fab6a232b020b4fcab525d6e5266c9e724eb69e8",
+        "bin-edited.step": "cfa1e3128d1c86120d0b22b28a2cd7f14d76497dfe69ed4132deebc62b623c1f",
+        "design-objects-edited.f3d": "d37b8318cb15cce83a1cdd9c92d10a2b1263743686ece806c2d9213cebc9b01a",
+        "reconstructed-moved.step": "0618a00abe9bc9fffa1cbc6a359cdbaea6cb4cd5124ebab353ccc3c874b58b65",
+        "reconstructed-original.step": "556c6bde857858a7fafd6420ca86ccadfbe5f2856a2dbf91f19c59d24e663959"
+      }
     },
     {
       "approach": "dedicated",
@@ -284,7 +330,7 @@
         ]
       },
       "holeEdit": {
-        "feature": "Pocketry Fusion edit — through hole",
+        "feature": "Pocketry Fusion edit \u2014 through hole",
         "beforeMm3": 545048.1646501425,
         "afterMm3": 544925.1153044697,
         "removedMm3": 123.04934567282908
@@ -295,14 +341,28 @@
         "toolCount": 1,
         "differenceFromOriginalMm3": 1.1641532182693481e-09
       },
+      "movedReconstruction": {
+        "volumeMm3": 545048.1646501436,
+        "bodyCount": 1,
+        "toolCount": 1
+      },
+      "stepReopenVolumeEstimateDifferenceMm3": 2.0665349438786507e-05,
+      "warnings": null,
       "cutterMoved": "cutter:cutout-split",
       "sourceUnchanged": true,
-      "remaining": null
+      "archiveFeaturesHealthy": true,
+      "outputSha256": {
+        "bin-edited.f3d": "240a3559ef2191e71eef9ad5964df5f9901486b211860e31abc0d183c4a01029",
+        "bin-edited.step": "aa45204ca95a094219c5b334e9e50bc8477700645d772886db75f6d347867875",
+        "design-objects-edited.f3d": "ae0577350cb8ce4d8616fbbb01d425d36035cfe917e62c6fd71dcf60087a48ab",
+        "reconstructed-moved.step": "e0d0a2d670143181a10da4bae8ffcb4688c310d012757f1477752ea5fa48553f",
+        "reconstructed-original.step": "2f6f0aad56b72cd08f07392d30494e6e11e9fda3fd7a8bcf9aa7db77c78cd961"
+      }
     },
     {
       "approach": "dedicated",
       "fixture": "irregular",
-      "status": "failed",
+      "status": "passed",
       "snapshotSha256": "8e9d17594139db82397a21a60ecf122374eb8cf4e92f4b30808a52221ab68314",
       "inputSha256": {
         "bin.step": "99d5638f9f6c27cfc31029425f57efb5d44fdfdb941cdc6bc64788dec6af63c2",
@@ -351,15 +411,36 @@
         ]
       },
       "holeEdit": {
-        "feature": "Pocketry Fusion edit — through hole",
+        "feature": "Pocketry Fusion edit \u2014 through hole",
         "beforeMm3": 139914.74609417838,
         "afterMm3": 139582.43916374687,
         "removedMm3": 332.30693043151405
       },
-      "baselineReconstruction": null,
-      "cutterMoved": null,
-      "sourceUnchanged": null,
-      "remaining": "Source/tool reconstruction and cutter move pending; archive preserves hole, independent edited STEP Boolean comparison recognizes no missing/extra material."
+      "baselineReconstruction": {
+        "volumeMm3": 139938.24231983532,
+        "bodyCount": 4,
+        "toolCount": 2,
+        "differenceFromOriginalMm3": -5.791662260890007e-09
+      },
+      "movedReconstruction": {
+        "volumeMm3": 140221.96692846468,
+        "bodyCount": 4,
+        "toolCount": 2
+      },
+      "stepReopenVolumeEstimateDifferenceMm3": 0.21924314316129312,
+      "warnings": [
+        "Fusion's numerical volume estimate differs after STEP reimport. Independent boundary comparison is required; do not infer geometry equivalence from this estimate."
+      ],
+      "cutterMoved": "cutter:cutout-irregular-circle",
+      "sourceUnchanged": true,
+      "archiveFeaturesHealthy": true,
+      "outputSha256": {
+        "bin-edited.f3d": "498518938983bdbfb05f005620770886e88ad4cf7f834ab1d38e138f1cc0f438",
+        "bin-edited.step": "edd522b825d87d54b3273f1a58e424c09e922a5df90f3552b446499dd02c59a9",
+        "design-objects-edited.f3d": "a3e39fe0ca811d71296cc2ed7d05ba79cf17af8398c7b88c8a9553c16dafa978",
+        "reconstructed-moved.step": "3f0630d1c2f8def52ddbac9a43632368a8715891aadd65b2bdac2225a32545e3",
+        "reconstructed-original.step": "28038b7d1536b0d8b9f116ff7d9945b2177f6c6ffe50e2ab9f2e7325f9b5d5a9"
+      }
     },
     {
       "approach": "unified",
@@ -403,7 +484,7 @@
         ]
       },
       "holeEdit": {
-        "feature": "Pocketry Fusion edit — through hole",
+        "feature": "Pocketry Fusion edit \u2014 through hole",
         "beforeMm3": 34051.05254777329,
         "afterMm3": 33802.238409608966,
         "removedMm3": 248.81413816432178
@@ -414,9 +495,18 @@
         "toolCount": 0,
         "differenceFromOriginalMm3": 0.0
       },
+      "movedReconstruction": null,
+      "stepReopenVolumeEstimateDifferenceMm3": 0.0,
+      "warnings": null,
       "cutterMoved": null,
       "sourceUnchanged": null,
-      "remaining": null
+      "archiveFeaturesHealthy": true,
+      "outputSha256": {
+        "bin-edited.f3d": "454af73f791f1f081528235e3779ee8ca4672f5943dbb2ed6c70e4814607341b",
+        "bin-edited.step": "0ea6dc3a396535609b7ce3040d07c610f79360e777a5771f5d7507aa7f2d1524",
+        "design-objects-edited.f3d": "974163bdb624e7d0d8cb4d462151bdb9fb30397047bdfa664c2d7bbcc744f049",
+        "reconstructed-original.step": "f792a145919199cd9def059d90f16a424d0c165ba46243ed3ab1e9267b3d87cb"
+      }
     },
     {
       "approach": "unified",
@@ -460,7 +550,7 @@
         ]
       },
       "holeEdit": {
-        "feature": "Pocketry Fusion edit — through hole",
+        "feature": "Pocketry Fusion edit \u2014 through hole",
         "beforeMm3": 27047.49771863156,
         "afterMm3": 27011.448636767775,
         "removedMm3": 36.04908186378452
@@ -471,9 +561,18 @@
         "toolCount": 0,
         "differenceFromOriginalMm3": 0.0
       },
+      "movedReconstruction": null,
+      "stepReopenVolumeEstimateDifferenceMm3": 0.00013931393186794594,
+      "warnings": null,
       "cutterMoved": null,
       "sourceUnchanged": null,
-      "remaining": null
+      "archiveFeaturesHealthy": true,
+      "outputSha256": {
+        "bin-edited.f3d": "faf4f6a4ab416c1d22142707a874962bc2cb955412e47b991439c51f1274cf30",
+        "bin-edited.step": "6968c2dae5e73b319dc83cba5199051e739b2c4db4d3b768aa08e4de4063e505",
+        "design-objects-edited.f3d": "e1aed0b6ff2647a124b1652e964f9ea043a3aba478106a9721bb70c4cf51fcc6",
+        "reconstructed-original.step": "cd387456ec0ca75d07cc4d04868ba68a50789e4d76129b9d9596cf08336e4979"
+      }
     },
     {
       "approach": "unified",
@@ -527,7 +626,7 @@
         ]
       },
       "holeEdit": {
-        "feature": "Pocketry Fusion edit — through hole",
+        "feature": "Pocketry Fusion edit \u2014 through hole",
         "beforeMm3": 269667.01029212587,
         "afterMm3": 269382.14707209775,
         "removedMm3": 284.8632200281136
@@ -538,9 +637,23 @@
         "toolCount": 2,
         "differenceFromOriginalMm3": 0.00012115767458453774
       },
+      "movedReconstruction": {
+        "volumeMm3": 269667.0104132838,
+        "bodyCount": 1,
+        "toolCount": 2
+      },
+      "stepReopenVolumeEstimateDifferenceMm3": -5.289912223815918e-07,
+      "warnings": null,
       "cutterMoved": "cutter:cutout-rectangle",
       "sourceUnchanged": true,
-      "remaining": null
+      "archiveFeaturesHealthy": true,
+      "outputSha256": {
+        "bin-edited.f3d": "5837167ac65042278589e247e3cb5bbd9d8b64f8be1be245a463de191a122da8",
+        "bin-edited.step": "a6be330ede8b9f3f7422269386699c15fbd46206db743b70cc50853d04fd70d6",
+        "design-objects-edited.f3d": "346839acf7dbaf2b8eec2ca4f73677faa556dad9977ad6ce0eb933544bd68d10",
+        "reconstructed-moved.step": "eb416bc8ad0994f5a68301d5ded6f260d40e931a5f2325fb9b73e17b5d6c9a04",
+        "reconstructed-original.step": "7bf0368d09310d3b5a115fa1e46f245814d6f51561adad00b72538179ae0f98a"
+      }
     },
     {
       "approach": "unified",
@@ -587,7 +700,7 @@
         ]
       },
       "holeEdit": {
-        "feature": "Pocketry Fusion edit — through hole",
+        "feature": "Pocketry Fusion edit \u2014 through hole",
         "beforeMm3": 288532.5469781385,
         "afterMm3": 288205.16928815265,
         "removedMm3": 327.37768998584943
@@ -598,9 +711,23 @@
         "toolCount": 2,
         "differenceFromOriginalMm3": -0.7568305840832181
       },
+      "movedReconstruction": {
+        "volumeMm3": 288795.8598971718,
+        "bodyCount": 1,
+        "toolCount": 2
+      },
+      "stepReopenVolumeEstimateDifferenceMm3": -8.974864613264799e-06,
+      "warnings": null,
       "cutterMoved": "cutter:concave",
       "sourceUnchanged": true,
-      "remaining": null
+      "archiveFeaturesHealthy": true,
+      "outputSha256": {
+        "bin-edited.f3d": "b68ba1f47faa83b46e4acbcaf2e915e5b3ce0495c635f21d95dcdeb4df33b6bd",
+        "bin-edited.step": "ac252adc97830751b85b48a77f01ab126f648346d688bc83fdf778f4af97507f",
+        "design-objects-edited.f3d": "22ed077fc870c70574039d808403262204e0271df960a549887c908de91fd784",
+        "reconstructed-moved.step": "ff7b0e9fe2ad09b1629244307af53ed9cfe86f400a2b63ba668efcb8d9a9890f",
+        "reconstructed-original.step": "257b56f29407db2dab26157a28619d0540c71dec89880e42f0ab598272c2db3e"
+      }
     },
     {
       "approach": "unified",
@@ -638,7 +765,7 @@
         ]
       },
       "holeEdit": {
-        "feature": "Pocketry Fusion edit — through hole",
+        "feature": "Pocketry Fusion edit \u2014 through hole",
         "beforeMm3": 545048.1646501425,
         "afterMm3": 544925.1153044697,
         "removedMm3": 123.04934567282908
@@ -649,14 +776,28 @@
         "toolCount": 1,
         "differenceFromOriginalMm3": 1.1641532182693481e-09
       },
+      "movedReconstruction": {
+        "volumeMm3": 545048.1646501436,
+        "bodyCount": 1,
+        "toolCount": 1
+      },
+      "stepReopenVolumeEstimateDifferenceMm3": 2.0665349438786507e-05,
+      "warnings": null,
       "cutterMoved": "cutter:cutout-split",
       "sourceUnchanged": true,
-      "remaining": null
+      "archiveFeaturesHealthy": true,
+      "outputSha256": {
+        "bin-edited.f3d": "8f03a8a1b5fbeb8f86fe4dedf9790923a5fe2106116babde48c16c93423d74a1",
+        "bin-edited.step": "fe88fc05b3cf6a98b8ccf037e9766f0a70e824e0ff2fe8a9c70dae13d50e2691",
+        "design-objects-edited.f3d": "059caa22b600a36479ab3a42d817c0e39b9e5798aac0c4536c97247e709caff8",
+        "reconstructed-moved.step": "9876c978e3eb1ea64f95d5db7d7bb0c3153f45faa2d0e8ee9a55171ff722f036",
+        "reconstructed-original.step": "6fb098a8dc531387fbddb7d5249351ec3f2e4859440361218b5e320504d7dc0a"
+      }
     },
     {
       "approach": "unified",
       "fixture": "irregular",
-      "status": "failed",
+      "status": "passed",
       "snapshotSha256": "8e9d17594139db82397a21a60ecf122374eb8cf4e92f4b30808a52221ab68314",
       "inputSha256": {
         "bin.step": "809d7ef8234ae09bfaa501fe310d55589a0b8b3671dd5a6a87f111156a86a12d",
@@ -705,15 +846,36 @@
         ]
       },
       "holeEdit": {
-        "feature": "Pocketry Fusion edit — through hole",
+        "feature": "Pocketry Fusion edit \u2014 through hole",
         "beforeMm3": 139914.74609417838,
         "afterMm3": 139582.43916374687,
         "removedMm3": 332.30693043151405
       },
-      "baselineReconstruction": null,
-      "cutterMoved": null,
-      "sourceUnchanged": null,
-      "remaining": "Source/tool reconstruction and cutter move pending; archive preserves hole, independent edited STEP Boolean comparison recognizes no missing/extra material."
+      "baselineReconstruction": {
+        "volumeMm3": 139938.24231983532,
+        "bodyCount": 4,
+        "toolCount": 2,
+        "differenceFromOriginalMm3": -5.791662260890007e-09
+      },
+      "movedReconstruction": {
+        "volumeMm3": 140221.96692846468,
+        "bodyCount": 4,
+        "toolCount": 2
+      },
+      "stepReopenVolumeEstimateDifferenceMm3": 0.21924314316129312,
+      "warnings": [
+        "Fusion's numerical volume estimate differs after STEP reimport. Independent boundary comparison is required; do not infer geometry equivalence from this estimate."
+      ],
+      "cutterMoved": "cutter:cutout-irregular-circle",
+      "sourceUnchanged": true,
+      "archiveFeaturesHealthy": true,
+      "outputSha256": {
+        "bin-edited.f3d": "8130f7008535b62e265d9bd01b72c0b6037f44219352d44da0ef06868a10dcdf",
+        "bin-edited.step": "7c585c420a6e6ed26f1fd27d9cc571b044641d9efbf1ca9a300412d7923fc1cb",
+        "design-objects-edited.f3d": "6586347891cd943377283f073e7cf2fd7192bc1ce85f5e61f18a6139f0b59e0b",
+        "reconstructed-moved.step": "058543a3ddc7f61cbde96c2310859b11ca48bb6f43aa8bd64a9a6cf29f87b640",
+        "reconstructed-original.step": "28758b7e09181b2be40ab6617f93d950c755a8106ef7b4905c3647763ee2516d"
+      }
     }
   ],
   "independentEditedStep": [
@@ -724,7 +886,18 @@
       "fusionStepVolumeMm3": 33802.23840960819,
       "volumeDifferenceMm3": -9.89530235528946e-10,
       "unexpectedMaterialMm3": 0.0,
-      "missingMaterialMm3": 0.0
+      "missingMaterialMm3": 0.0,
+      "unexpectedSolids": 0,
+      "missingSolids": 0,
+      "baselineReconstruction": {
+        "expectedVolumeMm3": 34051.05254777352,
+        "fusionStepVolumeMm3": 34051.052547772524,
+        "volumeDifferenceMm3": -9.968061931431293e-10,
+        "unexpectedMaterialMm3": 0.0,
+        "missingMaterialMm3": 0.0,
+        "unexpectedSolids": 0,
+        "missingSolids": 0
+      }
     },
     {
       "approach": "dedicated",
@@ -733,7 +906,18 @@
       "fusionStepVolumeMm3": 27011.447803268064,
       "volumeDifferenceMm3": 6.065420166123658e-06,
       "unexpectedMaterialMm3": 0.0,
-      "missingMaterialMm3": 0.0
+      "missingMaterialMm3": 0.0,
+      "unexpectedSolids": 0,
+      "missingSolids": 0,
+      "baselineReconstruction": {
+        "expectedVolumeMm3": 27047.496879065755,
+        "fusionStepVolumeMm3": 27047.496882353185,
+        "volumeDifferenceMm3": 3.2874304451979697e-06,
+        "unexpectedMaterialMm3": 0.0,
+        "missingMaterialMm3": 0.0,
+        "unexpectedSolids": 0,
+        "missingSolids": 0
+      }
     },
     {
       "approach": "dedicated",
@@ -742,7 +926,27 @@
       "fusionStepVolumeMm3": 269382.1747659491,
       "volumeDifferenceMm3": 0.027690949791576713,
       "unexpectedMaterialMm3": 0.0,
-      "missingMaterialMm3": 0.0
+      "missingMaterialMm3": 0.0,
+      "unexpectedSolids": 0,
+      "missingSolids": 0,
+      "baselineReconstruction": {
+        "expectedVolumeMm3": 269667.0102950138,
+        "fusionStepVolumeMm3": 269667.0025876996,
+        "volumeDifferenceMm3": -0.007707314158324152,
+        "unexpectedMaterialMm3": 0.0,
+        "missingMaterialMm3": 0.0,
+        "unexpectedSolids": 0,
+        "missingSolids": 0
+      },
+      "movedReconstruction": {
+        "expectedVolumeMm3": 269667.0102962405,
+        "fusionStepVolumeMm3": 269667.00306869956,
+        "volumeDifferenceMm3": -0.007227540947496891,
+        "unexpectedMaterialMm3": 0.0,
+        "missingMaterialMm3": 0.0,
+        "unexpectedSolids": 0,
+        "missingSolids": 0
+      }
     },
     {
       "approach": "dedicated",
@@ -751,7 +955,27 @@
       "fusionStepVolumeMm3": 288199.1012866102,
       "volumeDifferenceMm3": -6.066106308775488,
       "unexpectedMaterialMm3": 0.0,
-      "missingMaterialMm3": 0.0
+      "missingMaterialMm3": 0.0,
+      "unexpectedSolids": 0,
+      "missingSolids": 0,
+      "baselineReconstruction": {
+        "expectedVolumeMm3": 288532.54892513674,
+        "fusionStepVolumeMm3": 288528.70693554485,
+        "volumeDifferenceMm3": -3.841989591892343,
+        "unexpectedMaterialMm3": 0.0,
+        "missingMaterialMm3": 0.0,
+        "unexpectedSolids": 0,
+        "missingSolids": 0
+      },
+      "movedReconstruction": {
+        "expectedVolumeMm3": 288796.60085434595,
+        "fusionStepVolumeMm3": 288792.4713133294,
+        "volumeDifferenceMm3": -4.1295410165330395,
+        "unexpectedMaterialMm3": 0.0,
+        "missingMaterialMm3": 0.0,
+        "unexpectedSolids": 0,
+        "missingSolids": 0
+      }
     },
     {
       "approach": "dedicated",
@@ -760,7 +984,27 @@
       "fusionStepVolumeMm3": 544925.1315247637,
       "volumeDifferenceMm3": -0.009023134713061154,
       "unexpectedMaterialMm3": 0.0,
-      "missingMaterialMm3": 0.0
+      "missingMaterialMm3": 0.0,
+      "unexpectedSolids": 0,
+      "missingSolids": 0,
+      "baselineReconstruction": {
+        "expectedVolumeMm3": 545048.1646486622,
+        "fusionStepVolumeMm3": 545048.1646489621,
+        "volumeDifferenceMm3": 2.998858690261841e-07,
+        "unexpectedMaterialMm3": 0.0,
+        "missingMaterialMm3": 0.0,
+        "unexpectedSolids": 0,
+        "missingSolids": 0
+      },
+      "movedReconstruction": {
+        "expectedVolumeMm3": 545048.1646486849,
+        "fusionStepVolumeMm3": 545048.164648977,
+        "volumeDifferenceMm3": 2.9208604246377945e-07,
+        "unexpectedMaterialMm3": 0.0,
+        "missingMaterialMm3": 0.0,
+        "unexpectedSolids": 0,
+        "missingSolids": 0
+      }
     },
     {
       "approach": "dedicated",
@@ -769,7 +1013,27 @@
       "fusionStepVolumeMm3": 139606.30391188595,
       "volumeDifferenceMm3": -0.00036765789263881743,
       "unexpectedMaterialMm3": 0.0,
-      "missingMaterialMm3": 0.0
+      "missingMaterialMm3": 0.0,
+      "unexpectedSolids": 0,
+      "missingSolids": 0,
+      "baselineReconstruction": {
+        "expectedVolumeMm3": 139938.2423197788,
+        "fusionStepVolumeMm3": 139938.24231953753,
+        "volumeDifferenceMm3": -2.412707544863224e-07,
+        "unexpectedMaterialMm3": 0.0,
+        "missingMaterialMm3": 0.0,
+        "unexpectedSolids": 0,
+        "missingSolids": 0
+      },
+      "movedReconstruction": {
+        "expectedVolumeMm3": 140221.96692840944,
+        "fusionStepVolumeMm3": 140221.9669281669,
+        "volumeDifferenceMm3": -2.425513230264187e-07,
+        "unexpectedMaterialMm3": 0.0,
+        "missingMaterialMm3": 0.0,
+        "unexpectedSolids": 0,
+        "missingSolids": 0
+      }
     },
     {
       "approach": "unified",
@@ -778,7 +1042,18 @@
       "fusionStepVolumeMm3": 33802.23840960819,
       "volumeDifferenceMm3": -9.89530235528946e-10,
       "unexpectedMaterialMm3": 0.0,
-      "missingMaterialMm3": 0.0
+      "missingMaterialMm3": 0.0,
+      "unexpectedSolids": 0,
+      "missingSolids": 0,
+      "baselineReconstruction": {
+        "expectedVolumeMm3": 34051.05254777352,
+        "fusionStepVolumeMm3": 34051.052547772524,
+        "volumeDifferenceMm3": -9.968061931431293e-10,
+        "unexpectedMaterialMm3": 0.0,
+        "missingMaterialMm3": 0.0,
+        "unexpectedSolids": 0,
+        "missingSolids": 0
+      }
     },
     {
       "approach": "unified",
@@ -787,7 +1062,18 @@
       "fusionStepVolumeMm3": 27011.447803268064,
       "volumeDifferenceMm3": 6.065420166123658e-06,
       "unexpectedMaterialMm3": 0.0,
-      "missingMaterialMm3": 0.0
+      "missingMaterialMm3": 0.0,
+      "unexpectedSolids": 0,
+      "missingSolids": 0,
+      "baselineReconstruction": {
+        "expectedVolumeMm3": 27047.496879065755,
+        "fusionStepVolumeMm3": 27047.496882353185,
+        "volumeDifferenceMm3": 3.2874304451979697e-06,
+        "unexpectedMaterialMm3": 0.0,
+        "missingMaterialMm3": 0.0,
+        "unexpectedSolids": 0,
+        "missingSolids": 0
+      }
     },
     {
       "approach": "unified",
@@ -796,7 +1082,27 @@
       "fusionStepVolumeMm3": 269382.1747659491,
       "volumeDifferenceMm3": 0.027690949791576713,
       "unexpectedMaterialMm3": 0.0,
-      "missingMaterialMm3": 0.0
+      "missingMaterialMm3": 0.0,
+      "unexpectedSolids": 0,
+      "missingSolids": 0,
+      "baselineReconstruction": {
+        "expectedVolumeMm3": 269667.0102950138,
+        "fusionStepVolumeMm3": 269667.0025876996,
+        "volumeDifferenceMm3": -0.007707314158324152,
+        "unexpectedMaterialMm3": 0.0,
+        "missingMaterialMm3": 0.0,
+        "unexpectedSolids": 0,
+        "missingSolids": 0
+      },
+      "movedReconstruction": {
+        "expectedVolumeMm3": 269667.0102962405,
+        "fusionStepVolumeMm3": 269667.00306869956,
+        "volumeDifferenceMm3": -0.007227540947496891,
+        "unexpectedMaterialMm3": 0.0,
+        "missingMaterialMm3": 0.0,
+        "unexpectedSolids": 0,
+        "missingSolids": 0
+      }
     },
     {
       "approach": "unified",
@@ -805,7 +1111,27 @@
       "fusionStepVolumeMm3": 288199.1012866102,
       "volumeDifferenceMm3": -6.066106308775488,
       "unexpectedMaterialMm3": 0.0,
-      "missingMaterialMm3": 0.0
+      "missingMaterialMm3": 0.0,
+      "unexpectedSolids": 0,
+      "missingSolids": 0,
+      "baselineReconstruction": {
+        "expectedVolumeMm3": 288532.54892513674,
+        "fusionStepVolumeMm3": 288528.70693554485,
+        "volumeDifferenceMm3": -3.841989591892343,
+        "unexpectedMaterialMm3": 0.0,
+        "missingMaterialMm3": 0.0,
+        "unexpectedSolids": 0,
+        "missingSolids": 0
+      },
+      "movedReconstruction": {
+        "expectedVolumeMm3": 288796.60085434595,
+        "fusionStepVolumeMm3": 288792.4713133294,
+        "volumeDifferenceMm3": -4.1295410165330395,
+        "unexpectedMaterialMm3": 0.0,
+        "missingMaterialMm3": 0.0,
+        "unexpectedSolids": 0,
+        "missingSolids": 0
+      }
     },
     {
       "approach": "unified",
@@ -814,7 +1140,27 @@
       "fusionStepVolumeMm3": 544925.1315247637,
       "volumeDifferenceMm3": -0.009023134713061154,
       "unexpectedMaterialMm3": 0.0,
-      "missingMaterialMm3": 0.0
+      "missingMaterialMm3": 0.0,
+      "unexpectedSolids": 0,
+      "missingSolids": 0,
+      "baselineReconstruction": {
+        "expectedVolumeMm3": 545048.1646486622,
+        "fusionStepVolumeMm3": 545048.1646489621,
+        "volumeDifferenceMm3": 2.998858690261841e-07,
+        "unexpectedMaterialMm3": 0.0,
+        "missingMaterialMm3": 0.0,
+        "unexpectedSolids": 0,
+        "missingSolids": 0
+      },
+      "movedReconstruction": {
+        "expectedVolumeMm3": 545048.1646486849,
+        "fusionStepVolumeMm3": 545048.164648977,
+        "volumeDifferenceMm3": 2.9208604246377945e-07,
+        "unexpectedMaterialMm3": 0.0,
+        "missingMaterialMm3": 0.0,
+        "unexpectedSolids": 0,
+        "missingSolids": 0
+      }
     },
     {
       "approach": "unified",
@@ -823,35 +1169,71 @@
       "fusionStepVolumeMm3": 139606.30391188595,
       "volumeDifferenceMm3": -0.00036765789263881743,
       "unexpectedMaterialMm3": 0.0,
-      "missingMaterialMm3": 0.0
+      "missingMaterialMm3": 0.0,
+      "unexpectedSolids": 0,
+      "missingSolids": 0,
+      "baselineReconstruction": {
+        "expectedVolumeMm3": 139938.2423197788,
+        "fusionStepVolumeMm3": 139938.24231953753,
+        "volumeDifferenceMm3": -2.412707544863224e-07,
+        "unexpectedMaterialMm3": 0.0,
+        "missingMaterialMm3": 0.0,
+        "unexpectedSolids": 0,
+        "missingSolids": 0
+      },
+      "movedReconstruction": {
+        "expectedVolumeMm3": 140221.96692840944,
+        "fusionStepVolumeMm3": 140221.9669281669,
+        "volumeDifferenceMm3": -2.425513230264187e-07,
+        "unexpectedMaterialMm3": 0.0,
+        "missingMaterialMm3": 0.0,
+        "unexpectedSolids": 0,
+        "missingSolids": 0
+      }
     }
   ],
   "localGates": {
     "A": {
+      "date": "2026-10-07",
+      "node": "22.23.3",
+      "execution": "sequential",
       "check": 0,
       "test": 0,
       "build": 0,
       "diff": 0,
       "tests": 2778,
-      "files": 165
+      "files": 165,
+      "logs": "/private/tmp/pocketry-fusion-serial-step-cad-export-<phase>.log"
     },
-    "B": [
-      {
-        "phase": "check",
-        "exit": 0
-      },
-      {
-        "phase": "test",
-        "exit": 0
-      },
-      {
-        "phase": "build",
-        "exit": 0
-      },
-      {
-        "phase": "diff",
-        "exit": 0
-      }
+    "B": {
+      "date": "2026-10-07",
+      "node": "22.23.3",
+      "execution": "sequential",
+      "check": 0,
+      "test": 0,
+      "build": 0,
+      "diff": 0,
+      "tests": 2778,
+      "files": 165,
+      "logs": "/private/tmp/pocketry-fusion-serial-cad-unified-geometry-<phase>.log"
+    }
+  },
+  "nativeRunFinished": "2026-10-07T12:45:20-0400",
+  "nativeReport": "results/fusion-edit-report.json",
+  "visualReview": {
+    "method": "Fusion native UI Open from my computer; both local irregular bin-edited.f3d archives viewed with body and text components and feature timeline",
+    "approaches": [
+      "dedicated",
+      "unified"
+    ],
+    "date": "2026-10-07"
+  },
+  "independentReader": "cadquery-ocp 7.8.1.1.post1 / OCCT 7.8; valid closed solids, no mesh representations, verified input hashes, 32 edit/reconstruction comparisons with empty symmetric solid differences",
+  "initialConcurrentVerification": {
+    "result": "Three existing geometry tests exceeded their 5000 ms limits in each branch while both suites and the CAD comparison ran together. Sequential full reruns passed with unchanged code and time limits.",
+    "logs": [
+      "/private/tmp/pocketry-fusion-final-a-test.log",
+      "/private/tmp/pocketry-fusion-final-b-test.log"
     ]
   }
 }

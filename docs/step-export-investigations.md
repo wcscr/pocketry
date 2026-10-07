@@ -1,12 +1,12 @@
 # STEP export investigations — review gate
 
-Date: 2026-10-06. **Recommendation: select A, dedicated STEP, for the next
+Updated: 2026-10-07. **Recommendation: select A, dedicated STEP, for the next
 production milestones.** Both working investigations generate true CAD solids
 from authored design data. B also drives actual preview, STL, and multi-color
 3MF through CAD tessellation. Neither branch is a production default, and the
 agreed full capability is not complete. Remaining native CAD checks, physical prints, broader adversarial coverage,
 and the unsupported features below remain gates. Fusion editing has now been
-verified for five fixtures in each approach; see `fusion-step-acceptance.md`.
+verified for all six fixtures in each approach; see `fusion-step-acceptance.md`.
 
 ## Isolated implementation
 
@@ -109,7 +109,7 @@ splitting/direct-face conversion, rather than general shape repair.
 | --- | --- |
 | Independent OCCT reader | All six fixtures in both approaches pass import, editing, reconstruction, and re-export/reopen checks described above. |
 | FreeCAD | Not installed in the inspected application locations. Native import/edit/save checks remain pending. |
-| Fusion 2705.1.15 | Five fixtures per approach pass native import, measurement, added hole, source/tool reconstruction, named-cutter movement where applicable, and F3D/STEP reopening. Irregular import/hole/archive checks pass; its source/tool checks await an unlocked Mac. See `fusion-step-acceptance.md` for volume-estimate limitations and the product-name identity fix. |
+| Fusion 2705.1.15 | All six fixtures per approach pass native import, measurement, added hole, source/tool reconstruction, named-cutter movement where applicable, and F3D/STEP reopening. Both irregular/text fixtures also pass tool reconstruction and movement; their edited F3D archives were visually reviewed. Independent OCCT validates all 32 edited/baseline/moved STEP comparisons with no residual extra/missing solids. See `fusion-step-acceptance.md` for volume-estimate limitations and the product-name identity fix. |
 | PrusaSlicer 2.9.6 | B's standard-feet and tilted STL fixtures produce representative G-code with generic 0.4 mm / 0.2 mm / 15% settings. This is not printer-specific or physical qualification. |
 | PrusaSlicer color 3MF | Reads four closed named meshes, but CLI slicing treats raised material volumes as separate objects; warnings, path conflicts and a failed assembled attempt remain unresolved. Do not count this as a passing multi-color slice. |
 | Bambu Studio 02.08.02.61 | Local CLI import reports an 83.5 × 83.5 × 31.551472 mm manifold model. Save/reopen evidence preserves one assembly with four parts, their relative placement, names and extruder assignments 1–4. No completed multi-color slice was produced by the attempted CLI invocation. |
@@ -261,8 +261,8 @@ requires its own source-availability and provenance readback.
    curved mouth rounding, portable-font and linked-object acceptance, and full
    STEP material/color mapping. B additionally needs its CAD fit-check paths,
    broader printing parity, assembled material slicing and physical prints.
-4. Perform the FreeCAD/Fusion import/measure/edit/move-cutter/save/reopen checks
-   with recorded native versions; test actual phones/tablets, cold network
+4. Perform the pending FreeCAD import/measure/edit/move-cutter/save/reopen checks
+   with its native version recorded (the six-fixture Fusion corpus passes); test actual phones/tablets, cold network
    loading, memory termination/retry and process-memory evidence.
 5. Pass the complete release corpus and local gates, update supported-feature
    documentation, and only then replace the early exporter and propose the
