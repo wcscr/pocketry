@@ -1,9 +1,6 @@
 import type { MeshData } from "@/lib/mesh/mesh-data";
 
-export const BIN_BODY_COLOR = "#bfbfbf" as const;
-export const POCKET_FLOOR_COLOR = "#000000" as const;
-/** The rim starts linked visually to the pocket floor, but can be changed in Materials. */
-export const STACKING_RIM_COLOR = POCKET_FLOOR_COLOR;
+export { BIN_BODY_COLOR, POCKET_FLOOR_COLOR, STACKING_RIM_COLOR } from "@shared/gridfinity/materials";
 
 /** Manifold coordinates are millimetres and normally agree to float epsilon. */
 const FLOOR_Z_TOLERANCE_MM = 0.001;

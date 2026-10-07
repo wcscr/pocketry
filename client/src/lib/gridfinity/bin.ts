@@ -20,8 +20,6 @@ import {
   binHeightMm,
   binTotalHeightMm,
   D_WALL,
-  STACKING_LIP_HEIGHT_ACTUAL,
-  STACKING_LIP_SUPPORT_HEIGHT_MM,
 } from "@shared/gridfinity/standard";
 import type { BinSpec } from "@shared/gridfinity/types";
 import { infillHeightMm } from "@shared/gridfinity/fill";
@@ -91,19 +89,13 @@ export const EXPORT_QUALITY: BuildQuality = {
   filletProfileStepMm: 0.1,
 };
 
-/** Default: three nominal 0.2 mm layers below each pocket-floor surface. */
-export const MULTICOLOR_FLOOR_THICKNESS_MM = 0.6;
-/** Default material depth down from the stacking-lip summit or flush wall top. */
-export const MULTICOLOR_RIM_THICKNESS_MM = 1.25;
-/** Default inward border width matches the plain wall thickness. */
-export const MULTICOLOR_BORDER_WIDTH_MM = D_WALL;
-export const MULTICOLOR_BORDER_MAX_WIDTH_MM = 20;
-export const MULTICOLOR_MIN_THICKNESS_MM = 0.2;
-export const MULTICOLOR_FLOOR_MAX_THICKNESS_MM = 3;
-/** Rim/border depth limit: full modeled lip depth, rounded down to 0.01 mm. */
-export const MULTICOLOR_RIM_MAX_THICKNESS_MM = Math.floor(
-  (STACKING_LIP_HEIGHT_ACTUAL + STACKING_LIP_SUPPORT_HEIGHT_MM) * 100,
-) / 100;
+import { MULTICOLOR_BORDER_WIDTH_MM } from "@shared/gridfinity/materials";
+export {
+  MULTICOLOR_FLOOR_THICKNESS_MM, MULTICOLOR_RIM_THICKNESS_MM,
+  MULTICOLOR_BORDER_WIDTH_MM, MULTICOLOR_BORDER_MAX_WIDTH_MM,
+  MULTICOLOR_MIN_THICKNESS_MM, MULTICOLOR_FLOOR_MAX_THICKNESS_MM,
+  MULTICOLOR_RIM_MAX_THICKNESS_MM,
+} from "@shared/gridfinity/materials";
 
 export interface BinParts {
   /** Sockets plus bridge, or a flat slab, z ∈ [0, 7]. */

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Projects now save and restore their own colors and material settings. Use the copy menu beside a color to reuse the exact body, floor, rim/border, or text color on another feature.
+
 - Grouped the individual Bessey and Gerber bin downloads under their combined example and cropped and straightened its print photo.
 
 - Added individual and combined Bessey Utility Knife and Gerber Multitool samples with editable projects, 3MFs, layout previews, a print photo, and the Bessey affiliate link; expanded the sample library to 16 designs.
