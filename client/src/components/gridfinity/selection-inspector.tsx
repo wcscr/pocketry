@@ -14,9 +14,13 @@ import { sameObject, objectRef, type EditableObject } from "@/lib/gridfinity/obj
 import { commonSelectionValue, selectionPropertyEdits, type SelectionProperty } from "@/lib/gridfinity/selection-properties";
 import { SelectionInspectorContext, useSelectionInspector, type InspectorTool } from "./selection-inspector-context";
 import { ObjectToolbarContext } from "./object-toolbar-context";
+import { MobileObjectToolsContext } from "./mobile-object-tools-context";
+import { useIsMobile } from "@/hooks/use-mobile";
 
-/** Opt-in prototype reuses the actual editor, geometry, persistence and history. */
+/** Both layouts reuse the editor, geometry, persistence and history. */
 export function BinEditingWorkspace({ enabled, ...props }: WorkspaceLayoutProps & { enabled: boolean }): JSX.Element {
+  const isMobile = useIsMobile();
+  const [mobileControls, setMobileControls] = useState<HTMLDivElement | null>(null);
   const [activeSection, setActiveSection] = useState<string | null>("bin-settings-size");
   const [properties, setProperties] = useState<HTMLDivElement | null>(null);
   const [transforms, setTransforms] = useState<HTMLDivElement | null>(null);
@@ -28,7 +32,7 @@ export function BinEditingWorkspace({ enabled, ...props }: WorkspaceLayoutProps 
   useEffect(() => { if (!experimentalEnabled) updateTool(current => current === "links" ? "properties" : current); }, [experimentalEnabled]);
   const [openRequest, setOpenRequest] = useState(0);
   const openInspector = useCallback(() => setOpenRequest(n => n + 1), []);
-  const setTool = useCallback((next: InspectorTool) => { setActiveSection(null); updateTool(next); if (next !== "properties") openInspector(); }, [openInspector]);
+  const setTool = useCallback((next: InspectorTool) => { setActiveSection(null); updateTool(next); if (!isMobile && next !== "properties") openInspector(); }, [isMobile, openInspector]);
   const keepList = useRef(false);
   const keepObjectsOpen = useCallback(() => { keepList.current = true; setActiveSection(null); updateTool("properties"); }, []);
   const { selection, selectedSurfaceTextId, editorMode, viewMode } = useBin();
@@ -40,21 +44,22 @@ export function BinEditingWorkspace({ enabled, ...props }: WorkspaceLayoutProps 
     if (!BIN_OBJECT_SECTIONS.has(id)) openInspector();
   }, [openInspector]);
   const selectionKey = JSON.stringify(selection);
-  useEffect(() => { if (enabled && (selection.length || textSelection)) { setActiveSection(null); if (window.innerWidth >= 768 && !keepList.current) openInspector(); } keepList.current = false; }, [enabled, selectionKey, textSelection, openInspector]);
+  useEffect(() => { if (enabled && (selection.length || textSelection)) { setActiveSection(null); if (!isMobile && !keepList.current) openInspector(); } keepList.current = false; }, [enabled, isMobile, selectionKey, textSelection, openInspector]);
   useEffect(() => { if (!selection.length && !textSelection || selection.length < 2 && (tool === "arrange" || tool === "links")) updateTool("properties"); }, [selection.length, textSelection, viewMode, tool]);
   useEffect(() => { if (props.inspectorRequest) setActiveSection(null); }, [props.inspectorRequest]);
   const targets = useMemo(() => ({ activeSection, properties, transforms, settings, projectHeader, toolbar, showSection, tool, setTool, openInspector, keepObjectsOpen }),
     [activeSection, properties, transforms, settings, projectHeader, toolbar, showSection, tool, setTool, openInspector, keepObjectsOpen]);
-  if (!enabled) return <ObjectToolbarContext.Provider value={{ toolbar, tool, setTool }}><WorkspaceLayout {...props}
-    inspectorToolbar={<div ref={setToolbar} className="flex w-full min-w-0 items-center gap-1" />} /></ObjectToolbarContext.Provider>;
-  return <SelectionInspectorContext.Provider value={targets}>
+  return <MobileObjectToolsContext.Provider value={isMobile ? { tool, setTool, controls: mobileControls, setControls: setMobileControls } : null}>
+    {!enabled ? <ObjectToolbarContext.Provider value={{ toolbar, tool, setTool }}><WorkspaceLayout {...props}
+      inspectorToolbar={<div ref={setToolbar} className="flex w-full min-w-0 items-center gap-1" />} /></ObjectToolbarContext.Provider> : <SelectionInspectorContext.Provider value={targets}>
     <WorkspaceLayout {...props} autoSaveId={`${props.autoSaveId}:inspector`} inspectorPanelTitle="Workflow"
       inspectorRequest={(props.inspectorRequest ?? 0) + openRequest}
       canvasEditingMode={editorMode}
       inspectorHeader={<div ref={setProjectHeader} />}
       inspectorToolbar={<div ref={setToolbar} className="flex w-full min-w-0 items-center gap-1" />}
       inspector={<SelectionInspector propertiesRef={setProperties} transformsRef={setTransforms} settingsRef={setSettings} />} />
-  </SelectionInspectorContext.Provider>;
+    </SelectionInspectorContext.Provider>}
+  </MobileObjectToolsContext.Provider>;
 }
 
 function BatchField({ objects, all, kind, property, label }: {

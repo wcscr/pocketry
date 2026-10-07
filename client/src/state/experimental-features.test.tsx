@@ -124,22 +124,22 @@ it("detects experimental projects without changing the preference or data", () =
   expect(linked).toEqual(before);
 });
 
-it("defaults to Single panel on narrow screens and offers only the two supported layouts", () => {
+it("defaults to Original Single Panel UI on narrow screens and offers only the two supported layouts", () => {
   mount();
   expect(state.editorLayout).toBe("standard");
   expect(state.inspectorEnabled).toBe(false);
   React.act(() => state.setSettingsOpen(true));
   const choices = document.querySelectorAll<HTMLInputElement>('input[name="editor-layout"]');
-  expect([...choices].map(choice => choice.value)).toEqual(["standard", "workflow"]);
-  expect(choices[0].checked).toBe(true);
+  expect([...choices].map(choice => choice.value)).toEqual(["workflow", "standard"]);
+  expect(choices[1].checked).toBe(true);
   expect(document.querySelector('[role="dialog"]')!.textContent).not.toContain("Objects left");
   expect(document.querySelector('#experimental-layout-recommendation')).toBeNull();
   const toggle = document.querySelector<HTMLButtonElement>('#experimental-features')!;
   React.act(() => toggle.click());
   expect(document.querySelector('#experimental-layout-recommendation')!.textContent).toContain("we recommend Workflow + properties");
   expect(state.editorLayout).toBe("standard");
-  expect(choices[0].checked).toBe(true);
-  React.act(() => choices[1].click());
+  expect(choices[1].checked).toBe(true);
+  React.act(() => choices[0].click());
   expect(state.editorLayout).toBe("workflow");
   React.act(() => toggle.click());
   expect(document.querySelector('#experimental-layout-recommendation')).toBeNull();
@@ -154,13 +154,13 @@ it("defaults to Single panel on narrow screens and offers only the two supported
   expect(window.location.hash).toBe("#test");
 });
 
-it.each([null, "objects", "invalid"])("falls back to Single panel for retired or invalid saved layout %s", saved => {
+it.each([null, "objects", "invalid"])("uses the desktop default for retired or invalid saved layout %s", saved => {
   vi.stubGlobal("innerWidth", 1440);
   localStorage.setItem(SELECTION_INSPECTOR_KEY, "true");
   if (saved) localStorage.setItem(EDITOR_LAYOUT_KEY, saved);
   mount();
-  expect(state.editorLayout).toBe("standard");
-  expect(state.inspectorEnabled).toBe(false);
+  expect(state.editorLayout).toBe("workflow");
+  expect(state.inspectorEnabled).toBe(true);
   React.act(() => state.setEditorLayout("workflow"));
   expect(localStorage.getItem(SELECTION_INSPECTOR_KEY)).toBeNull();
   cleanup.pop()!(); mount();
@@ -187,7 +187,7 @@ it("prefers an explicit supported layout over the retired inspector flag", () =>
   expect(window.location.search).toBe("");
 });
 
-it("restores workflow from a link and falls back when another tab stores the retired layout", () => {
+it("restores workflow from a link and uses the screen default when another tab stores the retired layout", () => {
   window.history.replaceState(null, "", "/bin?layout=workflow");
   mount();
   expect(state.editorLayout).toBe("workflow");
@@ -198,6 +198,33 @@ it("restores workflow from a link and falls back when another tab stores the ret
   React.act(() => window.dispatchEvent(new StorageEvent("storage", { key: EDITOR_LAYOUT_KEY })));
   expect(state.editorLayout).toBe("standard");
   expect(state.inspectorEnabled).toBe(false);
+});
+
+it("lets desktop users switch back to Original Single Panel UI in Settings and remembers it", () => {
+  vi.stubGlobal("innerWidth", 1440);
+  mount();
+  expect(state.editorLayout).toBe("workflow");
+  expect(state.enabled).toBe(false);
+  React.act(() => state.setSettingsOpen(true));
+  const choices = [...document.querySelectorAll<HTMLInputElement>('input[name="editor-layout"]')];
+  expect(choices[0].checked).toBe(true);
+  expect(choices[0].closest("label")!.textContent).toContain("Default on desktop");
+  const original = choices.find(choice => choice.closest("label")!.textContent?.includes("Original Single Panel UI"))!;
+  React.act(() => original.click());
+  expect(state.editorLayout).toBe("standard");
+  expect(localStorage.getItem(EDITOR_LAYOUT_KEY)).toBe("standard");
+  expect(state.enabled).toBe(false);
+  for (const route of ["/bin", "/", "/about", "/bin"]) {
+    React.act(() => window.history.pushState(null, "", route));
+    expect(state.editorLayout).toBe("standard");
+  }
+  cleanup.pop()!(); mount();
+  expect(state.editorLayout).toBe("standard");
+  React.act(() => state.setSettingsOpen(true));
+  React.act(() => document.querySelector<HTMLInputElement>('input[name="editor-layout"][value="workflow"]')!.click());
+  cleanup.pop()!(); mount();
+  expect(state.editorLayout).toBe("workflow");
+  expect(state.enabled).toBe(false);
 });
 
 it.each([

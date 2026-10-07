@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Made the desktop layout default clearer in App settings, with “Original Single Panel UI” available to switch back; retired preferences now use the screen's default layout.
+- Mobile Select, Move, and Rotate are directly available in both layouts; tool adjustments stay beside or below the canvas, with full properties opened explicitly.
+
 - Projects now save and restore their own colors and material settings. Use the copy menu beside a color to reuse the exact body, floor, rim/border, or text color on another feature.
 
 - Grouped the individual Bessey and Gerber bin downloads under their combined example and cropped and straightened its print photo.

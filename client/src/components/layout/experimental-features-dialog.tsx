@@ -9,7 +9,7 @@ export function ExperimentalFeaturesDialog(): JSX.Element {
     <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-md">
       <DialogHeader>
         <DialogTitle>App settings</DialogTitle>
-        <DialogDescription>Choose which tools appear in Pocketry.</DialogDescription>
+        <DialogDescription>Choose your editor layout and optional tools.</DialogDescription>
       </DialogHeader>
       <fieldset className="space-y-2">
         <legend className="mb-2 text-sm font-semibold">Editor layout</legend>
@@ -17,7 +17,7 @@ export function ExperimentalFeaturesDialog(): JSX.Element {
           <input type="radio" name="editor-layout" value={layout.value} checked={editorLayout === layout.value} onChange={() => setEditorLayout(layout.value)} className="mt-1 h-4 w-4 shrink-0 accent-primary" />
           <span><span className="block text-sm font-medium">{layout.label}</span><span className="mt-1 block text-xs text-muted-foreground">{layout.description}</span></span>
         </label>)}
-        <p className="text-xs text-muted-foreground">Applies to the bin editor and photo tracing. Phones keep compact tracing controls. Saved for this browser across page changes and refreshes.</p>
+        <p className="text-xs text-muted-foreground">Applies to the bin editor and photo tracing. Smaller windows start with a single panel; phones keep compact tracing controls. Your choice is saved for this browser across page changes and refreshes.</p>
       </fieldset>
       <div className="rounded-lg border p-4">
         <div className="flex min-h-11 items-center justify-between gap-4">

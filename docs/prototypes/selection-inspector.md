@@ -13,9 +13,9 @@ npm exec -- vite --host 127.0.0.1 --port 5187 --strictPort
 ```
 
 Open `http://127.0.0.1:5187/bin?layout=workflow`, or choose a layout under
-**App settings → Bin editor layout**:
+**App settings → Editor layout**:
 
-- **Single panel** (`?layout=standard`): the original combined panel,
+- **Original Single Panel UI** (`?layout=standard`): the original combined panel,
   with Hide controls at its top right and a narrow, full-height restore strip
   beside the canvas.
 - **Workflow + properties** (`?layout=workflow`): every workflow section
@@ -27,13 +27,13 @@ Open `http://127.0.0.1:5187/bin?layout=workflow`, or choose a layout under
   Section headings and their status badges share one compact row.
 
 Without a saved choice, initial windows at least 1100 px wide and 600 px tall
-use Workflow + properties; smaller windows use Single panel. This implicit
+use Workflow + properties; smaller windows use Original Single Panel UI. This implicit
 choice stays stable during the session and is not saved as a preference.
 Explicit layout choices are saved for this browser and survive Trace,
 Bin, Library, About, and page refreshes. The preview link sets the preference once
 and removes its flag, preserving other query parameters and the URL fragment.
 Retired `?layout=objects` and `?inspector=1|0` links return to Single panel.
-Saved object-tree and legacy inspector preferences also fall back to Single panel.
+Retired or invalid saved preferences use the default for the initial window size.
 With browser storage blocked, the preference lasts until the tab reloads. The
 layout choice is independent of experimental tools. Multi-selection, Move,
 Rotate, alignment, and distribution are standard in both layouts. Link creation
@@ -90,7 +90,11 @@ This is synthetic test data; importing uses the normal browser-local project flo
   updates both sections of split pockets. Boundary shapes remain unchanged.
 - **Add** stays first in the placement toolbar. Wide toolbars show Select, Move,
   Rotate, Arrange, and eligible Link controls. Narrow toolbars show Add, Select,
-  and a labeled Tools menu with the active tool's name. Availability follows the
+  and a labeled Tools menu with the active tool's name. Phones show Select, Move,
+  and Rotate directly, with Arrange and Link in the overflow menu. Tool controls
+  stay in the mobile adjustment dock in both layouts; activating a tool does not
+  open the full properties panel or cover the canvas. Done returns to selection,
+  and All properties opens the full editor explicitly. Availability follows the
   selected object and supported operations. Text moves in X/Y and rotates around
   Z in Layout and 3D, with snapping and undo; text selection stays exclusive.
   Arrange and Link apply to pockets and finger access. **Cancel** abandons an

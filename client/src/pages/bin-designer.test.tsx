@@ -6202,14 +6202,14 @@ it.each([false, true])("prototype toolbar opens scoped link/unlink controls with
     choose('Tool 2'); choose('Tool access');
     expect(disabled('Arrange selected objects')).toBe(false);
     if (mobile) React.act(()=>document.querySelector('[role="menu"]')!.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})));
-    click('Collapse properties panel');
+    if (!mobile) click('Collapse properties panel');
     click('Link and unlink selected objects');
     const inspector = container.querySelector('[data-testid="selection-inspector"]')!;
     const header = () => inspector.querySelector('[data-testid="inspector-active-tool"] span')!.textContent;
-    const controls = () => inspector.querySelector('[data-testid="inspector-transforms"]')!;
+    const controls = () => mobile ? container.querySelector('[data-testid="mobile-object-tool-controls"]')! : inspector.querySelector('[data-testid="inspector-transforms"]')!;
     const action = (text: string) => React.act(() => [...controls().querySelectorAll<HTMLButtonElement>('button')].find(b => b.textContent === text)!.click());
     const doc = () => ({ cutouts: vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts, fingers: vi.mocked(useBinGeometry).mock.lastCall![2]!.fingerHoles });
-    expect(inspector.closest('[hidden]')).toBeNull();
+    expect(inspector.closest('[hidden]') !== null).toBe(mobile);
     expect(header()).toBe('Linked designs');
     if (!mobile) expect(button('Link and unlink selected objects')!.getAttribute('aria-pressed')).toBe('true');
     expect(controls().querySelector('[aria-label="Move X by"]')).toBeNull();
@@ -6237,8 +6237,86 @@ it.each([false, true])("prototype toolbar opens scoped link/unlink controls with
     choose('Tool access'); choose('Tool 2');
     expect(disabled('Link and unlink selected objects')).toBe(true);
     expect(inspector.querySelector('[data-testid="inspector-active-tool"]')).toBeNull();
-    expect(container.querySelector('#pocket-properties')!.closest('[hidden]')).toBeNull();
+    expect(container.querySelector('#pocket-properties')!.closest('[hidden]') !== null).toBe(mobile);
   } finally { unmount(); window.history.replaceState(null, '', originalUrl); }
+});
+
+it.each([
+  { layout: "standard", width: 390 }, { layout: "workflow", width: 390 },
+  { layout: "standard", width: 844 }, { layout: "workflow", width: 844 },
+])("phone Move and Rotate stay docked outside the canvas in $layout layout at $width px", async ({ layout, width }) => {
+  window.history.replaceState(null, "", `/bin?layout=${layout}`);
+  const shape = rectangularShape("docked-tool", "Tool");
+  const cutout = parseCutoutPlacement({ id: "docked-pocket", name: "Tool", shapeId: shape.id, position: { x: 0, y: 0 }, depth: { mode: "mm", value: 10 } });
+  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape], cutouts: [cutout] });
+  const { container, unmount } = renderPage({ mobile: true, experimental: false });
+  try {
+    React.act(() => { window.innerWidth = width; window.dispatchEvent(new Event("resize")); });
+    await flushHydration();
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
+    selectPocket(container, cutout.id);
+    const canvas = container.querySelector('[data-testid="layout-canvas"]')!;
+    const panel = container.querySelector<HTMLElement>(layout === "workflow" ? "#objects-panel" : '[data-testid="mobile-properties-panel"]')!;
+    expect(panel.hidden).toBe(true);
+    const toolbar = container.querySelector('[aria-label="Editing tools"]')!;
+    const dock = () => container.querySelector('[data-testid="mobile-object-tool-controls"]')!;
+    const doc = () => vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0];
+    for (const [tool, axis, value] of [["Move", "X", "5"], ["Rotate", "Z", "30"]]) {
+      React.act(() => toolbar.querySelector<HTMLButtonElement>(`[aria-label="${tool} selected objects"]`)!.click());
+      expect(panel.hidden).toBe(true);
+      expect(dock().closest('[data-testid="mobile-workspace-actions"]')).not.toBeNull();
+      expect(canvas.contains(dock())).toBe(false);
+      expect(dock().querySelector('[data-testid="pocket-3d-controls"]')!.classList.contains("absolute")).toBe(false);
+      expect(document.querySelector('[role="dialog"]')).toBeNull();
+      const input = dock().querySelector<HTMLInputElement>(`[aria-label="${tool} ${axis} by"]`)!;
+      React.act(() => {
+        input.focus();
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      React.act(() => input.blur());
+      expect(tool === "Move" ? doc().position.x : doc().rotationDeg).toBeCloseTo(Number(value), 8);
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+      expect(tool === "Move" ? doc().position.x : doc().rotationDeg).toBe(0);
+      expect(container.querySelector('[data-testid="layout-canvas"]')).toBe(canvas);
+    }
+    React.act(() => [...container.querySelectorAll<HTMLButtonElement>(".mobile-adjustment-tray button")].find(button => button.textContent === "Done")!.click());
+    expect(dock()).toBeNull();
+    expect(panel.hidden).toBe(true);
+    React.act(() => toolbar.querySelector<HTMLButtonElement>('[aria-label="Move selected objects"]')!.click());
+    React.act(() => [...container.querySelectorAll<HTMLButtonElement>(".mobile-adjustment-tray button")].find(button => button.textContent === "All properties")!.click());
+    expect(panel.hidden).toBe(false);
+    expect(container.querySelector('[data-testid="layout-canvas"]')).toBe(canvas);
+  } finally { unmount(); }
+});
+
+it.each(["standard", "workflow"])("phone text transforms use the dock in %s layout and respect opt-out", async layout => {
+  window.history.replaceState(null, "", `/bin?layout=${layout}`);
+  const spec = parseBinSpec({ ...EMPTY_PROJECT.spec, surfaceTexts: [{ id: "docked-label", text: "Metric", position: { x: 0, y: 0 } }] });
+  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, spec });
+  const { container, unmount } = renderPage({ mobile: true, experimental: true });
+  try {
+    await flushHydration();
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-select-text-3d-docked-label"]')!.click());
+    const panel = container.querySelector<HTMLElement>(layout === "workflow" ? "#objects-panel" : '[data-testid="mobile-properties-panel"]')!;
+    React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Move selected objects"]')!.click());
+    const dock = container.querySelector('[data-testid="mobile-workspace-actions"]')!;
+    const input = dock.querySelector<HTMLInputElement>('[aria-label="Move text X"]')!;
+    expect(input).not.toBeNull();
+    expect(panel.hidden).toBe(true);
+    React.act(() => {
+      input.focus();
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "5");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    React.act(() => input.blur());
+    expect(vi.mocked(useBinGeometry).mock.lastCall![0].surfaceTexts[0].position.x).toBe(5);
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+    expect(vi.mocked(useBinGeometry).mock.lastCall![0].surfaceTexts[0].position.x).toBe(0);
+    React.act(() => experimentalSettings.setEnabled(false));
+    expect(dock.querySelector('[data-testid="text-transform-controls"]')).toBeNull();
+    expect(panel.hidden).toBe(true);
+  } finally { unmount(); }
 });
 
 it("phone panes require explicit opening and keep canvas and selection through every adjustment", async () => {

@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { useExperimentalFeatures } from "@/state/experimental-features";
 import { useSelectionInspector } from "./selection-inspector-context";
 import { useObjectToolbar } from "./object-toolbar-context";
+import { useMobileObjectTools } from "./mobile-object-tools-context";
 import { useEffect, useRef, useState } from "react";
 import { objectTransformOffsets, setObjectTransformOffsets } from "@/lib/gridfinity/object-transform-offsets";
 import { CheckSquare2, ChevronDown, X, Link2, Magnet, Move3D, Rotate3D, AlignHorizontalJustifyCenter, AlignHorizontalJustifyStart, AlignHorizontalJustifyEnd, AlignVerticalJustifyStart, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd, AlignHorizontalDistributeCenter, AlignVerticalDistributeCenter, AlignHorizontalSpaceAround, AlignVerticalSpaceAround } from "lucide-react";
@@ -35,6 +36,7 @@ export function ObjectTransformPanel({ editor, objects, selected, displayed, mod
 }): JSX.Element {
   const inspector = useSelectionInspector();
   const toolbar = useObjectToolbar();
+  const mobile = useMobileObjectTools();
   const { enabled: experimentalEnabled } = useExperimentalFeatures();
   const showLinks = experimentalEnabled && editor.linkControls && !inspector;
   const [legacyArranging, setArranging] = useState(false);
@@ -74,14 +76,14 @@ export function ObjectTransformPanel({ editor, objects, selected, displayed, mod
   const single = displayed.length === 1 ? displayed[0] : null;
   const tone = selected.length && selected.every(o => o.kind === "pocket") ? "violet"
     : selected.length && selected.every(o => o.kind === "finger") ? "cyan" : "slate";
-  const content = <div data-property-tone={tone} className={inspector ? "text-xs" : "property-surface property-floating absolute left-3 top-16 z-20 max-h-[calc(100%-5rem)] w-64 max-w-[calc(100%-5rem)] overflow-y-auto rounded-xl border text-xs shadow-lg md:top-12"} data-testid="pocket-3d-controls">
+  const content = <div data-property-tone={tone} className={inspector || mobile ? "text-xs" : "property-surface property-floating absolute left-3 top-16 z-20 max-h-[calc(100%-5rem)] w-64 max-w-[calc(100%-5rem)] overflow-y-auto rounded-xl border text-xs shadow-lg md:top-12"} data-testid="pocket-3d-controls">
     {disabled && <p role="status" className="border-b px-3 py-2 text-xs text-muted-foreground">Pan is active. Turn off Pan to edit transforms.</p>}
     <fieldset disabled={disabled} className="min-w-0 disabled:opacity-50">
-    {!inspector && <div className="property-heading flex items-center justify-between border-b px-3 py-1">
+    {!inspector && !mobile && <div className="property-heading flex items-center justify-between border-b px-3 py-1">
       <span className="font-medium">Object controls</span>
       <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Close object controls" title="Close object controls" onClick={onClose}><X className="h-4 w-4" /></Button>
     </div>}
-    {!inspector && <details className="group border-b" open={selected.length === 0 || undefined}>
+    {!inspector && !mobile && <details className="group border-b" open={selected.length === 0 || undefined}>
       <summary className="flex min-h-10 cursor-pointer list-none items-center gap-2 px-3 py-2 font-medium">
         <CheckSquare2 className="h-4 w-4 text-primary" />
         <span className="flex-1">{selected.length ? `${selected.length} object${selected.length === 1 ? "" : "s"} selected` : "Select objects"}</span>
@@ -102,8 +104,8 @@ export function ObjectTransformPanel({ editor, objects, selected, displayed, mod
         {<p className="px-2 pt-1 text-[10px] text-muted-foreground">Shift / ⌘ / Ctrl + click to add or remove.</p>}
       </div>
     </details>}
-    <div className="space-y-3 p-3">
-      {!inspector && <div className={cn("grid gap-1 rounded-lg bg-muted p-1", showLinks ? "grid-cols-4" : "grid-cols-3")} role="group" aria-label="Object tools">
+    <div className={mobile ? "space-y-2 p-1" : "space-y-3 p-3"}>
+      {!inspector && !mobile && <div className={cn("grid gap-1 rounded-lg bg-muted p-1", showLinks ? "grid-cols-4" : "grid-cols-3")} role="group" aria-label="Object tools">
         {(["translate", "rotate", "arrange"] as const).map(tool => <button key={tool} type="button"
           className={cn("flex min-h-9 flex-col items-center justify-center gap-1 rounded-md px-1 py-1.5 text-[10px] font-medium transition-colors", (!linking && (tool === "arrange" ? arranging : !arranging && mode === tool)) ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}
           aria-label={tool === "translate" ? "Move pocket (W)" : tool === "rotate" ? "Rotate pocket (E)" : "Align and distribute objects"}
@@ -148,7 +150,7 @@ export function ObjectTransformPanel({ editor, objects, selected, displayed, mod
           <Button variant="ghost" size="icon" className={cn("h-8 w-8", snap && "bg-primary/10 text-primary")} aria-label="Snap: 1 mm moves and 5 degree rotations" aria-pressed={snap}
             title={`Snap ${snap ? "on" : "off"}: 1 mm moves / 5° rotations`} onClick={() => setSnap(!snap)}><Magnet className="h-4 w-4" /></Button>
         </div>
-        <p className="text-[10px] text-muted-foreground">From as drawn · Set an axis to 0 to restore it.</p>
+        {!mobile && <p className="text-[10px] text-muted-foreground">From as drawn · Set an axis to 0 to restore it.</p>}
         <div className="space-y-2">
           <div className="grid grid-cols-3 gap-2">{["X", "Y", "Z"].map((a, i) => <label key={a} className="space-y-1">
             <span className={cn("font-semibold", i === 0 ? "text-red-500" : i === 1 ? "text-emerald-600 dark:text-emerald-400" : "text-blue-500")}>{a}</span>
@@ -164,7 +166,7 @@ export function ObjectTransformPanel({ editor, objects, selected, displayed, mod
             <option value="individual">Each object’s center</option><option value="selection">Selection center</option>
           </select>}
         </div>
-        {single?.kind === "pocket" && <div className="space-y-1 text-[10px] tabular-nums text-muted-foreground">
+        {!mobile && single?.kind === "pocket" && <div className="space-y-1 text-[10px] tabular-nums text-muted-foreground">
           <p data-testid="pocket-3d-transform-readout">{mode === "translate" ? `X ${single.cutout.position.x.toFixed(2)} · Y ${single.cutout.position.y.toFixed(2)} mm`
             : `X ${((single.cutout.profileBottom ? single.cutout.profileRotation : single.cutout.tilt)?.xDeg ?? 0).toFixed(1)}° · Y ${((single.cutout.profileBottom ? single.cutout.profileRotation : single.cutout.tilt)?.yDeg ?? 0).toFixed(1)}° · Z ${single.cutout.rotationDeg.toFixed(1)}°`}</p>
           <p data-testid="pocket-3d-depth-readout">{hasRigidPocket(single.cutout)
@@ -177,11 +179,12 @@ export function ObjectTransformPanel({ editor, objects, selected, displayed, mod
             ? [resetPocketPlane(o.cutout, o.shape, editor.spec)] : []), fingerHoles: [] }), "Reset pockets to X–Y plane")}>
           Reset to X–Y plane
         </Button>}
-        <p className="text-[10px] leading-relaxed text-muted-foreground">{mixed && mode === "rotate" ? "Thumb access stays upright. Select only pockets to rotate around X or Y." : mode === "translate" ? "Z raises or lowers the pocket. Its depth and dimensions stay unchanged." : "Drag a colored ring or enter an angle. Reset to X–Y plane clears X/Y rotation and keeps Z rotation and elevation."}</p>
+        {(!mobile || mixed && mode === "rotate") && <p className="text-[10px] leading-relaxed text-muted-foreground">{mixed && mode === "rotate" ? "Thumb access stays upright. Select only pockets to rotate around X or Y." : mode === "translate" ? "Z raises or lowers the pocket. Its depth and dimensions stay unchanged." : "Drag a colored ring or enter an angle. Reset to X–Y plane clears X/Y rotation and keeps Z rotation and elevation."}</p>}
       </>}
       {!linking && (limited || error) && <p role="status" className="text-[11px] text-destructive">{error ?? "Cannot transform every affected copy. Keep floors within the bin; edit one linked copy if the group needs different design changes."}</p>}
     </div>
     </fieldset>
   </div>;
+  if (mobile) return mobile.controls ? createPortal(content, mobile.controls) : <></>;
   return inspector ? inspector.transforms ? createPortal(content, inspector.transforms) : <></> : content;
 }
