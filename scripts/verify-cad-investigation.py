@@ -98,7 +98,7 @@ for directory in sorted(path for path in root.iterdir() if path.is_dir()):
     for item in objects["objects"]:
         key=item["stepInstanceName"]
         if item["status"]=="inactive":assert key not in assembly;continue
-        actual=assembly[key];assert actual["name"]==item["name"]
+        actual=assembly[key];assert actual["name"]==item["stepInstanceName"]
         assert math.isclose(volume(actual["shape"]),item["volumeMm3"],rel_tol=1e-9,abs_tol=1e-5),(key,volume(actual["shape"]),item["volumeMm3"])
         box=Bnd_Box();BRepBndLib.AddOptimal_s(actual["shape"],box,False,False);coords=box.Get()
         expected=[*item["boundsMm"]["min"].values(),*item["boundsMm"]["max"].values()]

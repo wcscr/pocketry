@@ -1,0 +1,11 @@
+{
+  "autodeskProduct": "Fusion",
+  "type": "script",
+  "id": "02c59726-a7e7-4b7c-95a0-a5f530ce9ba4",
+  "author": "Will Cobb",
+  "description": {"": "Locally import, measure, edit, reconstruct and reopen both Pocketry STEP investigations."},
+  "version": "1.0.0",
+  "runOnStartup": false,
+  "supportedOS": "windows|mac",
+  "editEnabled": true
+}
