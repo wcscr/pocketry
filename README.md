@@ -89,12 +89,16 @@ and add finger access for lifting them out.
 
 Multi-selection, Move, Rotate, alignment, and distribution are standard in both
 layouts. **Add** stays first in the canvas toolbar; narrower spaces put additional
-tools under **Tools**. Phones offer **Workflow**, **Adjust**, and **Export**.
+tools under **Tools**. Phones keep **Select**, **Move**, and **Rotate** directly
+available, with tool adjustments below or beside the canvas in both layouts.
+**Done** returns to selection; **All properties** explicitly opens the full editor.
+Phones also offer **Workflow**, **Adjust**, and **Export**.
 Selection updates the summary without opening Adjust; **All properties** opens
 the complete editor. New sessions without a saved layout use Workflow + properties
-at 1100 × 600 px or larger, and Single panel on smaller screens. Resizing adapts
-the workspace while retaining that session's choice. Choose **Single panel** or
-**Workflow + properties** in **App settings**.
+at 1100 × 600 px or larger, and a single panel on smaller screens. Resizing adapts
+the workspace while retaining that session's choice. Switch back to
+**Original Single Panel UI** under **App settings → Editor layout** at any time.
+Explicit layout choices are remembered across navigation and refreshes.
 
 Turn on **App settings → Enable experimental features**, then use
 **Surface text → Add text** for raised labels on the flat interior surface

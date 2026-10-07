@@ -94,7 +94,7 @@ describe("new features welcome", () => {
     await close("Open App settings");
     expect(values.get(KEY)).toBe("dismissed");
     expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(1);
-    expect(dialog()?.textContent).toContain("Choose which tools appear in Pocketry.");
+    expect(dialog()?.textContent).toContain("Choose your editor layout and optional tools.");
     expect(dialog()?.contains(document.activeElement)).toBe(true);
     const toggle = document.querySelector<HTMLButtonElement>('#experimental-features')!;
     const workflow = document.querySelector<HTMLInputElement>('input[name="editor-layout"][value="workflow"]')!;
