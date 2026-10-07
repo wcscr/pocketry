@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Overlapping pockets now combine their cuts with warnings instead of blocking export, including intersections below the surface and between tilted pockets.
+
 - Projects now save and restore their own colors and material settings. Use the copy menu beside a color to reuse the exact body, floor, rim/border, or text color on another feature.
 
 - Grouped the individual Bessey and Gerber bin downloads under their combined example and cropped and straightened its print photo.
