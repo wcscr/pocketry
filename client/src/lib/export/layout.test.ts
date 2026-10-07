@@ -170,3 +170,11 @@ it.each(["flat-ended-scoop", "flat-ended-straight"] as const)("exports %s as a r
   expect(Math.min(...ring.map(p => p.y))).toBeCloseTo(-28, 8);
   expect(Math.max(...ring.map(p => p.y))).toBeCloseTo(12, 8);
 });
+
+it("exports the exact arbitrary footprint to SVG without subtracting a grid gap", async () => {
+  const spec = parseBinSpec({ gridX: 1, gridY: 1, heightUnits: 1, lip: "none", flatBottom: true, arbitrarySizeMm: { width: 171.2, length: 29.7 } });
+  const svg = await generateLayoutSVG(spec, [], new Map());
+  expect(svg).toContain('width="171.2mm"'); expect(svg).toContain('height="29.7mm"');
+  const outer = layoutRingsMm(spec, [], new Map())[0];
+  expect(Math.max(...outer.map(p => p.x)) - Math.min(...outer.map(p => p.x))).toBeCloseTo(171.2, 8);
+});

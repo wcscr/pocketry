@@ -1,3 +1,4 @@
+import { binWidthMm, binLengthMm } from "@shared/gridfinity/bin-size";
 // Type-only import: the kernel is injected (see `Kernel` in ../manifold/runtime).
 import type { CrossSection, Manifold } from "manifold-3d";
 
@@ -5,7 +6,6 @@ import type { BinFootprint } from "@shared/gridfinity/footprint";
 import {
   BASE_HEIGHT,
   BASE_TOP_RADIUS,
-  binFootprintMm,
   binWallHeightMm,
   binWallThicknessMm,
   D_WALL,
@@ -36,6 +36,7 @@ export interface WallSpec {
   gridX: number;
   gridY: number;
   gridPitch?: GridPitch;
+  arbitrarySizeMm?: { width: number; length: number } | null;
   footprint?: BinFootprint;
   heightUnits: number;
   fill?: "none" | "solid";
@@ -90,19 +91,19 @@ export function buildWallSection(
     return arena.track(outer.subtract(inner));
   }
 
-  const binWidthMm = binFootprintMm(spec.gridX, spec.gridPitch);
-  const lengthMm = binFootprintMm(spec.gridY, spec.gridPitch);
-  const outer = roundedRectPolygon(binWidthMm, lengthMm, BASE_TOP_RADIUS, circularSegments);
+  const widthMmOuter = binWidthMm(spec);
+  const lengthMm = binLengthMm(spec);
+  const outer = roundedRectPolygon(widthMmOuter, lengthMm, BASE_TOP_RADIUS, circularSegments);
   // A wide border can consume a narrow footprint; never create a negative-size hole.
-  if (2 * widthMm >= Math.min(binWidthMm, lengthMm)) {
+  if (2 * widthMm >= Math.min(widthMmOuter, lengthMm)) {
     return arena.track(new CrossSection([outer]));
   }
   // Winding is the hole marker: reversing the inner contour makes it negative
   // under manifold's Positive fill rule, so one CrossSection carries both.
   const inner = roundedRectPolygon(
-    binWidthMm - 2 * widthMm,
+    widthMmOuter - 2 * widthMm,
     lengthMm - 2 * widthMm,
-    Math.min(BASE_TOP_RADIUS, (binWidthMm - 2 * widthMm) / 2, (lengthMm - 2 * widthMm) / 2),
+    Math.min(BASE_TOP_RADIUS, (widthMmOuter - 2 * widthMm) / 2, (lengthMm - 2 * widthMm) / 2),
     circularSegments,
   ).reverse();
 
@@ -138,8 +139,8 @@ export function buildStackingLip(
       profileStepMm,
     );
   }
-  const widthMm = binFootprintMm(spec.gridX, spec.gridPitch);
-  const lengthMm = binFootprintMm(spec.gridY, spec.gridPitch);
+  const widthMm = binWidthMm(spec);
+  const lengthMm = binLengthMm(spec);
   const swept = sweepRounded(
     kernel,
     profile,

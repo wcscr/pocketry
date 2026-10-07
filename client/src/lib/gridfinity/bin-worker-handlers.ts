@@ -1,3 +1,4 @@
+import { pegBottomExtensionMm } from "@shared/gridfinity/peg-bottom";
 import { hasRigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { validateLayout } from "@shared/gridfinity/validate";
 import { hasPocketTilt } from "@shared/gridfinity/pocket-orientation";
@@ -202,21 +203,37 @@ export function createBinWorkerHandlers(
           displayedMaterialParts = { body, pocketFloors, stackingRim };
         }
       }
-      const mesh = extractMeshData(kernel, displayed, {
+      // Preserve installed coordinates in preview. Pegs-up exports flip the whole
+      // assembly onto its highest face (including raised labels); other peg bases
+      // lift tips to z=0. Every colour/text part uses exactly the same transform.
+      const pegsUp = payload.exportTopology && spec.pegBottom?.underside === "flat";
+      const exportLiftMm = payload.exportTopology ? (pegsUp ? solid.boundingBox().max[2] : pegBottomExtensionMm(spec)) : 0;
+      const extractOutputMesh = (part: BinMaterialParts["body"], options: { normals: boolean }) => {
+        const oriented = pegsUp ? arena.track(part.rotate([180, 0, 0])) : part;
+        const data = extractMeshData(kernel, exportLiftMm ? arena.track(oriented.translate([0, 0, exportLiftMm])) : oriented, options);
+        // Printable cleanup uses Float32 vertices; fractional bridge heights
+        // can leave a sub-micron offset after lifting. Keep bed contacts at zero.
+        if (exportLiftMm) {
+          for (let i = 2; i < data.positions.length; i += 3) {
+            if (Math.abs(data.positions[i]) < 1e-5) data.positions[i] = 0;
+          }
+        }
+        return data;
+      };
+      const mesh = extractOutputMesh(displayed, {
         // The preview displays the material body when a partition exists.
         // Keep the aggregate topology/stats without shading an unused mesh.
         normals: includePreviewNormals && materialParts === null && textParts.length === 0,
       });
       const materialMeshes = displayedMaterialParts
         ? {
-            body: extractMeshData(kernel, displayedMaterialParts.body, {
+            body: extractOutputMesh(displayedMaterialParts.body, {
               normals: includePreviewNormals,
             }),
             ...(displayedMaterialParts.pocketFloors &&
             !displayedMaterialParts.pocketFloors.isEmpty()
               ? {
-                  pocketFloors: extractMeshData(
-                    kernel,
+                  pocketFloors: extractOutputMesh(
                     displayedMaterialParts.pocketFloors,
                     { normals: includePreviewNormals },
                   ),
@@ -225,8 +242,7 @@ export function createBinWorkerHandlers(
             ...(displayedMaterialParts.stackingRim &&
             !displayedMaterialParts.stackingRim.isEmpty()
               ? {
-                  stackingRim: extractMeshData(
-                    kernel,
+                  stackingRim: extractOutputMesh(
                     displayedMaterialParts.stackingRim,
                     { normals: includePreviewNormals },
                   ),
@@ -240,15 +256,15 @@ export function createBinWorkerHandlers(
         mesh,
         ...(textParts.length ? {
           ...(payload.exportTopology || !materialMeshes ? {
-            bodyMesh: extractMeshData(kernel, payload.exportTopology
+            bodyMesh: extractOutputMesh(payload.exportTopology
               ? preparePrintableSolid(kernel, binSolid) : displayedPart(binSolid), { normals: includePreviewNormals }),
           } : {}),
           textMeshes: textParts.map(part => ({
-            label: part.label, z: part.z,
+            label: part.label, z: pegsUp ? exportLiftMm - part.z : part.z + exportLiftMm,
             // Rotated font contours can leave nearly coincident vertices that
             // crash Manifold's normal calculation. Use the same sub-micron
             // cleanup as printable text before shading a preview, too.
-            mesh: extractMeshData(kernel, preparePrintableSolid(kernel,
+            mesh: extractOutputMesh(preparePrintableSolid(kernel,
               payload.exportTopology ? part.solid : displayedPart(part.solid)), { normals: includePreviewNormals }),
           })),
         } : {}),

@@ -1,3 +1,4 @@
+import { pegBottomExtensionMm } from "@shared/gridfinity/peg-bottom";
 import { surfaceTextZ } from "@/lib/gridfinity/surface-text";
 import { DEFAULT_BIN_MATERIALS, type BinMaterials } from "@shared/gridfinity/materials";
 import { hasRigidPocket } from "@shared/gridfinity/rigid-pocket";
@@ -323,7 +324,7 @@ function BinDesignerWorkspace(): JSX.Element {
 
     const shapesById = new Map(library.shapes.map((shape) => [shape.id, shape]));
     const result =
-      cutouts.length === 0 && !keepBinSize
+      cutouts.length === 0 && !keepBinSize && !spec.arbitrarySizeMm
         ? autoPlaceFresh(newShapes, spec.lip, spec.gridPitch)
         : autoPlaceIncremental(newShapes, {
             spec,
@@ -452,8 +453,9 @@ function BinDesignerWorkspace(): JSX.Element {
       widthMm: builtDimensions.widthMm,
       lengthMm: builtDimensions.lengthMm,
       heightMm: builtDimensions.totalHeightMm,
+      bottomZMm: -pegBottomExtensionMm(builtSpec ?? committedSpec),
     };
-  }, [builtDimensions]);
+  }, [builtDimensions, builtSpec, committedSpec]);
 
   // Surface collapsed cutouts once per occurrence, not once per rebuild.
   const emptiedSeenRef = useRef<Set<string>>(new Set());
@@ -481,8 +483,8 @@ function BinDesignerWorkspace(): JSX.Element {
       spec.lip,
       spec.gridPitch,
       fingerHoles,
-      undefined,
-      keepBinSize ? spec : undefined,
+      spec,
+      (keepBinSize || spec.arbitrarySizeMm) ? spec : undefined,
     );
     if (!result) return;
     dispatch({

@@ -13,6 +13,7 @@ export function exportFilePart(value: string): string {
 }
 
 export function binSizeLabel(spec: BinSpec): string {
+  if (spec.arbitrarySizeMm) return `${spec.arbitrarySizeMm.width}x${spec.arbitrarySizeMm.length}x${Number((spec.heightUnits * 7).toFixed(6))}mm`;
   return `${spec.gridX}x${spec.gridY}x${spec.heightUnits}${
     spec.gridPitch === "full" ? "" : `-${spec.gridPitch}`
   }${spec.footprint.kind === "custom" ? `-custom-${spec.footprint.cells.length}cell` : ""}`;

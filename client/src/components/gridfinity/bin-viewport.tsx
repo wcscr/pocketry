@@ -254,7 +254,7 @@ function CameraFit({ size }: { size: FitSize }): null {
   } | null;
 
   useEffect(() => {
-    const target = new Vector3(0, 0, size.heightMm / 2);
+    const target = new Vector3(0, 0, size.heightMm / 2 + (size.bottomZMm ?? 0));
     const previousTarget = controls?.target ?? target;
     const direction = camera.position.clone().sub(previousTarget);
     if (direction.lengthSq() < 1) direction.set(150, -170, 109);
@@ -270,7 +270,7 @@ function CameraFit({ size }: { size: FitSize }): null {
     }
     // Refit on dimension changes (and once controls attach) — never on
     // orbit, which lives inside controls.
-  }, [size.widthMm, size.lengthMm, size.heightMm, camera, controls]);
+  }, [size.widthMm, size.lengthMm, size.heightMm, size.bottomZMm, camera, controls]);
 
   return null;
 }
@@ -485,6 +485,7 @@ export function BinViewport({
             THREE.Color rejects #rgba shorthand.) */}
           <gridHelper
             key={groundSpanMm}
+            position={[0, 0, fitSize.bottomZMm ?? 0]}
             args={[groundSpanMm, groundSpanMm / 42, "#9a9a9a", "#d4d4d4"]}
             rotation={[Math.PI / 2, 0, 0]}
           />

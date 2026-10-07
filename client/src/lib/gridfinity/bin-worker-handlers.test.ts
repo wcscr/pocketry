@@ -4,6 +4,8 @@ import { strFromU8, unzipSync } from "fflate";
 import { fingerHoleSchema, parseCutoutPlacement, resolvePocketDepth } from "@shared/gridfinity/cutout";
 import { writeBinarySTL } from "@/lib/export/stl-writer";
 import { writeThreeMf } from "@/lib/mesh/threemf";
+import { pocketDepthChangePatch } from "@shared/gridfinity/pocket-depth-change";
+import { pegBottomExtensionMm } from "@shared/gridfinity/peg-bottom";
 import { binTotalHeightMm } from "@shared/gridfinity/standard";
 import { parseBinSpec } from "@shared/gridfinity/types";
 import { validateLayout } from "@shared/gridfinity/validate";
@@ -1132,4 +1134,163 @@ it("exports a Z-translated upright pocket and rejects its floor below the bin", 
   expect(built.value.mesh.indices.length).toBeGreaterThan(0);
   expect(nonManifoldEdgeCount(built.value.mesh)).toBe(0);
   await expect(handler({ ...request, layout: { ...request.layout!, cutouts: [{ ...cutout, zOffsetMm: -20 }] } }, context())).rejects.toThrow(/deeper than the bin/);
+});
+
+
+it.each(["sloped", "bridged"] as const)("exports a %s peg bin as closed STL and multipart 3MF without dropping the pegs", async underside => {
+  const spec = parseBinSpec({ gridX: 1, gridY: 1, heightUnits: 2, lip: "none", pegBottom: { diameterMm: 4.8, lengthMm: 4, underside },
+    surfaceTexts: [{ id: "peg-text", text: "A", position: { x: 0, y: 0 } }] });
+  const result = (await getHandler()({ spec,
+    quality: EXPORT_QUALITY, exportTopology: true, pocketFloorMaterialThicknessMm: 0.6, stackingRimMaterialThicknessMm: 0.6 }, context())).value;
+  expect(nonManifoldEdgeCount(result.mesh)).toBe(0);
+  expect(printableMeshVolume(result.mesh)).toBeCloseTo(result.stats.volumeMm3, 1);
+  expect(Math.min(...result.mesh.positions.filter((_, index) => index % 3 === 2))).toBe(0);
+  const stl = new DataView(writeBinarySTL(result.mesh));
+  expect(stl.getUint32(80, true)).toBe(result.mesh.indices.length / 3);
+  const parts = result.materialMeshes!;
+  expect(parts.body).toBeTruthy();
+  const text = result.textMeshes![0];
+  const lift = pegBottomExtensionMm(spec);
+  const zs = (mesh: typeof text.mesh) => mesh.positions.filter((_, index) => index % 3 === 2);
+  expect(text.z).toBeCloseTo(14 + lift);
+  expect(Math.min(...zs(text.mesh))).toBeCloseTo(14 + lift);
+  expect(Math.max(...zs(result.bodyMesh!))).toBeCloseTo(14 + lift);
+  expect(Math.max(...zs(parts.stackingRim!))).toBeCloseTo(14 + lift);
+  const model = strFromU8(unzipSync(writeThreeMf([
+    { name: "Bin body", mesh: parts.body, material: { name: "Body", displayColor: "#202020" } },
+    { name: "Top border", mesh: parts.stackingRim!, material: { name: "Border", displayColor: "#ff6600" } },
+    { name: "Text", mesh: text.mesh, material: { name: "Text", displayColor: "#ffffff" } },
+  ], { assemble: true }))["3D/3dmodel.model"]);
+  expect(model).toContain('z="0"');
+  expect(model).not.toMatch(/z="-/);
+  expect(model).toContain('name="Top border"');
+});
+
+
+it.each(["sloped", "bridged"] as const)("exports a %s peg bin with the entire partially overlapped peg omitted", async underside => {
+  const spec = parseBinSpec({ gridX: 1, gridY: 1, heightUnits: 2, lip: "none",
+    pegBottom: { diameterMm: 4.8, lengthMm: 4, underside } });
+  const pocket = createBasicPocket("rectangle", { x: 1.8, y: -1 }, { x: 4, y: 1 }, "partial-peg")!;
+  pocket.cutout.depth = { mode: "through" };
+  const result = (await getHandler()({ spec, quality: EXPORT_QUALITY, exportTopology: true,
+    pocketFloorMaterialThicknessMm: 0.6, stackingRimMaterialThicknessMm: 0.6,
+    layout: { shapes: [pocket.shape], cutouts: [pocket.cutout], fingerHoles: [] },
+  }, context())).value;
+  expect(nonManifoldEdgeCount(result.mesh)).toBe(0);
+  expect(printableMeshVolume(result.mesh)).toBeCloseTo(result.stats.volumeMm3, 1);
+  const allMeshes = [result.mesh, ...Object.values(result.materialMeshes!)];
+  for (const mesh of allMeshes) {
+    for (let i = 0; i < mesh.positions.length; i += 3) {
+      const [x, y, z] = mesh.positions.subarray(i, i + 3);
+      if (z < 3.9) expect(Math.hypot(x, y)).toBeGreaterThan(2.5);
+    }
+  }
+  const stl = new DataView(writeBinarySTL(result.mesh));
+  expect(stl.getUint32(80, true)).toBe(result.mesh.indices.length / 3);
+  const model = strFromU8(unzipSync(writeThreeMf(Object.entries(result.materialMeshes!).map(([name, mesh]) => ({ name, mesh })),
+    { assemble: true }))["3D/3dmodel.model"]);
+  expect(model).toContain('z="0"');
+  expect(model).not.toMatch(/z="-/);
+});
+
+
+it("exports a surface Through rectangle inside a finger groove without a floor or shifted opening", async () => {
+  const spec = parseBinSpec({ gridX: 3, gridY: 1, heightUnits: 3, lip: "none", pegBottom: {} });
+  const pocket = createBasicPocket("rectangle", { x: 27, y: -2 }, { x: 33, y: 2 }, "through-groove")!;
+  pocket.cutout.depth = { mode: "remaining", floorThicknessMm: 2 };
+  const cutout = { ...pocket.cutout, ...pocketDepthChangePatch(spec, pocket.shape, pocket.cutout, { mode: "through" }) };
+  const finger = fingerHoleSchema.parse({ id: "groove", kind: "oblong-deep-scoop", center: { x: 0, y: 0 }, lengthMm: 100, diameterMm: 18, depthMm: 12 });
+  const request = { spec, quality: EXPORT_QUALITY, exportTopology: true, pocketFloorMaterialThicknessMm: 0.6, stackingRimMaterialThicknessMm: 0.6,
+    layout: { shapes: [pocket.shape], cutouts: [cutout], fingerHoles: [finger] } };
+  const result = (await getHandler()(request, context())).value;
+  expect(result.validationIssues?.filter(issue => issue.severity === "error")).toEqual([]);
+  // A vertical ray through the layout's rectangle centre meets no printable surface.
+  const hits = (mesh: BuildBinResult["mesh"], x: number, y: number) => {
+    const zs: number[] = [];
+    for (let i = 0; i < mesh.indices.length; i += 3) {
+      const [a, b, c] = Array.from(mesh.indices.subarray(i, i + 3), n => mesh.positions.subarray(n * 3, n * 3 + 3));
+      const denominator = (b[1] - c[1]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[1] - c[1]);
+      if (Math.abs(denominator) < 1e-8) continue;
+      const u = ((b[1] - c[1]) * (x - c[0]) + (c[0] - b[0]) * (y - c[1])) / denominator;
+      const v = ((c[1] - a[1]) * (x - c[0]) + (a[0] - c[0]) * (y - c[1])) / denominator;
+      if (u >= -1e-6 && v >= -1e-6 && u + v <= 1 + 1e-6) zs.push(u * a[2] + v * b[2] + (1 - u - v) * c[2]);
+    }
+    return zs;
+  };
+  expect(hits(result.mesh, 30, 0)).toEqual([]);
+  expect(hits(result.mesh, -30, 0).length).toBeGreaterThan(0);
+  const volume = printableMeshVolume(result.mesh);
+  expect(volume).toBeGreaterThan(0);
+  expect(Object.values(result.materialMeshes!).reduce((sum, mesh) => sum + printableMeshVolume(mesh), 0)).toBeCloseTo(volume, 1);
+  expect(writeBinarySTL(result.mesh).byteLength).toBe(84 + result.mesh.indices.length / 3 * 50);
+  const parts = Object.entries(result.materialMeshes!).map(([name, mesh]) => ({ name, mesh }));
+  const model = strFromU8(unzipSync(writeThreeMf(parts))["3D/3dmodel.model"]);
+  expect(model.match(/<triangle /g)?.length).toBe(parts.reduce((sum, part) => sum + part.mesh.indices.length / 3, 0));
+});
+
+it("exports overlapping upright finite Through pockets as one surface opening", async () => {
+  const rectangle = createBasicPocket("rectangle", { x: 16.875925, y: -2.82763855 }, { x: 67.124075, y: 2.87236145 }, "rect")!;
+  const circle = createBasicPocket("circle", { x: 52.408386, y: 0.03009 }, { x: 56.708386, y: 0.03009 }, "circle")!;
+  const cutouts = [
+    { ...rectangle.cutout, elevationMm: 0, depth: { mode: "through" as const, sourceDepthMm: 14 }, insertionMode: "axis" as const },
+    { ...circle.cutout, elevationMm: 0, depth: { mode: "through" as const, sourceDepthMm: 12 } },
+  ];
+  const request: BuildBinRequest = { spec: { gridX: 16, gridY: 3, gridPitch: "quarter", heightUnits: 1, lip: "none", pegBottom: { lengthMm: 3.5 } },
+    quality: EXPORT_QUALITY, exportTopology: true, pocketFloorMaterialThicknessMm: 0.6, stackingRimMaterialThicknessMm: 0.6,
+    layout: { shapes: [rectangle.shape, circle.shape], cutouts,
+      fingerHoles: [fingerHoleSchema.parse({ id: "groove", kind: "oblong-deep-scoop", center: { x: 0, y: 0 }, diameterMm: 11.4,
+        lengthMm: 152.4, depthMm: 4, topFilletMm: 1, bottomFilletMm: 0 })] } };
+  const result = (await getHandler()(request, context())).value;
+  expect(result.validationIssues?.filter(issue => issue.severity === "error")).toEqual([]);
+  expect(printableMeshVolume(result.mesh)).toBeGreaterThan(0);
+  expect(writeBinarySTL(result.mesh).byteLength).toBe(84 + result.mesh.indices.length / 3 * 50);
+  const parts = Object.entries(result.materialMeshes!).map(([name, mesh]) => ({ name, mesh }));
+  const model = strFromU8(unzipSync(writeThreeMf(parts))["3D/3dmodel.model"]);
+  expect(model.match(/<triangle /g)?.length).toBe(parts.reduce((sum, part) => sum + part.mesh.indices.length / 3, 0));
+  expect(result.validationIssues?.find(issue => issue.code === "tilted-pocket-overlap")?.severity).toBe("warning");
+  const surfaceCutouts = cutouts.map(c => ({ ...c, elevationMm: undefined, insertionMode: undefined, depth: { mode: "through" as const } }));
+  const surface = (await getHandler()({ ...request, layout: { ...request.layout!, cutouts: surfaceCutouts } }, context())).value;
+  expect(surface.validationIssues?.filter(issue => issue.severity === "error")).toEqual([]);
+  expect(printableMeshVolume(surface.mesh)).toBeGreaterThan(0);
+  // Submerged and tilted intersections are also permitted and reported.
+  for (const pockets of [cutouts.map(c => ({ ...c, depth: { mode: "through" as const, sourceDepthMm: 2 } })),
+    [cutouts[0], { ...cutouts[1], tilt: { xDeg: 1, yDeg: 0 } }]]) {
+    const combined = (await getHandler()({ ...request, layout: { ...request.layout!, cutouts: pockets } }, context())).value;
+    expect(combined.validationIssues?.find(issue => issue.code === "tilted-pocket-overlap")?.severity).toBe("warning");
+    expect(nonManifoldEdgeCount(combined.mesh)).toBe(0);
+  }
+}, 15_000);
+
+it("flips every coloured export part together for pegs-up printing while preserving editing coordinates", async () => {
+  const spec = parseBinSpec({ gridX: 16, gridY: 3, gridPitch: "quarter", heightUnits: 1, lip: "none", pegBottom: { underside: "flat", density: "corners", lengthMm: 3.5 } });
+  const pocket = createBasicPocket("rectangle", { x: -10, y: -4 }, { x: 10, y: 4 }, "export-test")!;
+  const cutout = { ...pocket.cutout, position: { x: 42, y: 3 }, depth: { mode: "mm" as const, value: 4 }, topFilletMm: 0 };
+  const request = { spec, quality: EXPORT_QUALITY, layout: { shapes: [pocket.shape], cutouts: [cutout], fingerHoles: [] }, pocketFloorMaterialThicknessMm: 0.6, stackingRimMaterialThicknessMm: 0.6, borderWidthMm: 1.2 };
+  const handler = getHandler();
+  const preview = (await handler({ ...request, exportTopology: false }, context())).value;
+  const exported = (await handler({ ...request, exportTopology: true }, context())).value;
+  const zs = (mesh: BuildBinResult["mesh"]) => Array.from(mesh.positions).filter((_, i) => i % 3 === 2);
+  expect(Math.min(...zs(preview.mesh))).toBeCloseTo(-3.5, 5);
+  expect(Math.min(...zs(exported.mesh))).toBe(0); expect(Math.max(...zs(exported.mesh))).toBeCloseTo(10.5, 5);
+  expect(nonManifoldEdgeCount(exported.mesh)).toBe(0);
+  expect(exported.materialMeshes).toBeDefined();
+  for (const [name, part] of Object.entries(exported.materialMeshes!)) {
+    expect(nonManifoldEdgeCount(part), name).toBe(0);
+    expect(Math.min(...zs(part))).toBeGreaterThanOrEqual(0);
+    expect(Math.max(...zs(part))).toBeLessThanOrEqual(10.5);
+  }
+  expect(validateLayout(spec, [cutout], new Map([[pocket.shape.id, pocket.shape]])).some(i => i.code === "pegs-up-pocket-roof" && i.severity === "warning")).toBe(true);
+});
+
+it("keeps floor and border colour volumes inside a thin arbitrary body", async () => {
+  const spec = parseBinSpec({ gridX: 1, gridY: 1, arbitrarySizeMm: { width: 23.7, length: 17.8 }, heightUnits: 2.4 / 7, lip: "none", fill: "none", flatBottom: true });
+  const result = (await getHandler()({ spec, quality: EXPORT_QUALITY, exportTopology: true, pocketFloorMaterialThicknessMm: 0.6, stackingRimMaterialThicknessMm: 0.6, borderWidthMm: 1.2 }, context())).value;
+  expect(result.materialMeshes!.pocketFloors).toBeDefined();
+  const floorTop = Math.max(...Array.from(result.materialMeshes!.pocketFloors!.positions).filter((_, i) => i % 3 === 2));
+  expect(floorTop).toBeCloseTo(2.4, 5);
+  for (const part of Object.values(result.materialMeshes!)) {
+    expect(nonManifoldEdgeCount(part)).toBe(0);
+    const zs = Array.from(part.positions).filter((_, i) => i % 3 === 2);
+    expect(Math.min(...zs)).toBeGreaterThanOrEqual(0); expect(Math.max(...zs)).toBeLessThanOrEqual(2.4 + 1e-6);
+  }
 });

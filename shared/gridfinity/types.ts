@@ -58,10 +58,12 @@ export const binSpecSchema = z
     gridY: z.number().int().min(1).max(maxGridCells("quarter")),
     /** Standard 42 mm cells, or equal half/quarter-pitch subdivisions. */
     gridPitch: z.enum(["full", "half", "quarter"]).default("full"),
+    /** Exact outer rectangle dimensions; null uses the retained Gridfinity grid. */
+    arbitrarySizeMm: z.object({ width: z.number().min(10).max(671.5), length: z.number().min(10).max(671.5) }).strict().nullable().default(null),
     /** Rectangular legacy footprint or a canonical connected cell mask. */
     footprint: footprintSchema.default({ kind: "rectangle" }),
-    /** Height in 7 mm units, including the base, excluding the stacking lip. */
-    heightUnits: z.number().min(1).max(MAX_HEIGHT_UNITS).multipleOf(0.5),
+    /** Body height divided by 7 mm; grid bins use 0.5u increments, arbitrary bins use exact mm. */
+    heightUnits: z.number().min(2 / 7).max(MAX_HEIGHT_UNITS),
     /** Stacking lip on the rim. `none` gives a flush top. */
     lip: z.enum(["standard", "none"]).default("standard"),
     /**
@@ -78,6 +80,13 @@ export const binSpecSchema = z
     adjustFixedPocketDepths: z.boolean().default(true),
     /** Smooth underside without Gridfinity sockets; preserves outer size and pocket heights. */
     flatBottom: z.boolean().default(false),
+    /** Integral ULTIM8 pegs with upright roots/web or a flat backing printed pegs up. */
+    pegBottom: z.object({
+      diameterMm: z.number().min(4).max(5).default(4.8),
+      lengthMm: z.number().min(2).max(5).default(4),
+      underside: z.enum(["sloped", "bridged", "flat"]).default("sloped"),
+      density: z.union([z.literal("corners"), z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)]).default(1),
+    }).strict().nullable().default(null),
     /** ⌀6.5 × 2.4 mm magnet pockets, four per cell, opening downward. */
     magnetHoles: z.boolean().default(false),
     /**
@@ -113,6 +122,22 @@ export const binSpecSchema = z
     surfaceTexts: surfaceTexts.map(({ color: _legacyColor, ...label }) => label),
   }))
   .superRefine((spec, context) => {
+    if (!spec.arbitrarySizeMm && (spec.heightUnits < 1 || Math.abs(spec.heightUnits * 2 - Math.round(spec.heightUnits * 2)) > 1e-7)) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ["heightUnits"], message: "Gridfinity heights use 0.5u increments." });
+    }
+    if (spec.arbitrarySizeMm && (!(spec.flatBottom || spec.pegBottom) || spec.footprint.kind !== "rectangle")) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ["arbitrarySizeMm"], message: "Arbitrary sizes require a rectangular footprint and a flat bottom or ULTIM8 pegs." });
+    }
+    if (spec.pegBottom && spec.pegBottom.underside !== "flat" && spec.pegBottom.density !== 1) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ["pegBottom", "density"], message: "Sparse pegs require the flat backing, printed with pegs up." });
+    }
+    if (spec.heightUnits < 1 && spec.lip === "standard") {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ["lip"], message: "Bodies below 7 mm require the stacking lip to be off." });
+    }
+    if (spec.flatBottom && spec.pegBottom) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ["pegBottom"],
+        message: "Choose either a flat bottom or an ULTIM8 peg bottom." });
+    }
     const maximum = maxGridCells(spec.gridPitch);
     for (const axis of ["gridX", "gridY"] as const) {
       if (spec[axis] > maximum) {
