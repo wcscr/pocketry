@@ -71,9 +71,14 @@ To change layouts, open **App settings → Editor layout** and choose
 **Workflow + properties** or **Original Single Panel UI**. Your choice is remembered.
 
 In **Bin** on a phone, use **Workflow** to find a section, **Adjust** for quick
-changes, and **All properties** for the full editor. **Select**, **Move**, and
-**Rotate** stay beside the canvas; their adjustments appear below or beside it.
-**Done** returns to selection. **Export** opens the export controls.
+changes, and **All properties** for the full editor. One icon row holds **Add**,
+**Select**, **Move**, **Rotate**, **Undo**, the ruler, and **Tools**. Redo,
+navigation, and edit history are under **Tools**; its menus scroll on short screens.
+Move and Rotate keep the canvas clear, with larger draggable axis labels.
+**Adjust** opens exact X/Y/Z values or rotation angles below or beside the canvas;
+**Done** hides those values while keeping the tool active. Canvas pinches zoom
+the design; adding a second finger cancels any unfinished handle edit.
+Edit history has a back arrow to return to the tools. **Export** opens the export controls.
 App settings and Help are in **More options**.
 
 ### 1. Trace the tools

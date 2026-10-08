@@ -1,10 +1,11 @@
 import { TransformControls } from "@react-three/drei";
 import { useThree } from "@react-three/fiber";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ElementRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, type ElementRef } from "react";
 import { Object3D } from "three";
 import { normalizeSurfaceTextRotation, type SurfaceText } from "@shared/gridfinity/surface-text";
-import { styleTransformGizmo } from "@/lib/gridfinity/transform-gizmo-style";
+import { styleTransformGizmo, transformGizmoSize } from "@/lib/gridfinity/transform-gizmo-style";
 import type { PocketTransformMode } from "@/lib/gridfinity/pocket-transform";
+import { useTransformTouchGuard } from "@/hooks/use-transform-touch-guard";
 
 export interface SurfaceTextEditor {
   label: SurfaceText;
@@ -18,22 +19,22 @@ export interface SurfaceTextEditor {
 
 /** Raised labels stay on their surface: XY movement and Z rotation only.
  * A gesture previews locally and becomes one undo entry on release. */
-export function SurfaceTextTransformScene({ editor, mode, snap, onPreview }: {
+export function SurfaceTextTransformScene({ editor, mode, snap, onPreview, touchTargets = false, viewportHeight = 650 }: {
   editor: SurfaceTextEditor; mode: PocketTransformMode; snap: boolean;
   onPreview: (label: SurfaceText | null) => void;
+  touchTargets?: boolean; viewportHeight?: number;
 }): JSX.Element {
   const { label, z, onCommit } = editor;
   const object = useMemo(() => new Object3D(), []);
   const controls = useRef<ElementRef<typeof TransformControls> | null>(null);
   const restoreHandles = useRef<() => void>(() => {});
-  const [epoch, setEpoch] = useState(0);
   const attachControls = useCallback((next: ElementRef<typeof TransformControls> | null) => {
     if (controls.current === next) return;
     restoreHandles.current();
     controls.current?.dispose();
     controls.current = next;
-    restoreHandles.current = next ? styleTransformGizmo(next) : () => {};
-  }, []);
+    restoreHandles.current = next ? styleTransformGizmo(next, touchTargets) : () => {};
+  }, [touchTargets]);
   const orbit = useThree(state => state.controls) as unknown as { enabled: boolean } | null;
   const gesture = useRef<{ original: SurfaceText; preview: SurfaceText | null } | null>(null);
   const callbacks = useRef({ onPreview, onCommit });
@@ -49,12 +50,13 @@ export function SurfaceTextTransformScene({ editor, mode, snap, onPreview }: {
     gesture.current = null;
     if (original) {
       controls.current?.reset();
-      setEpoch(value => value + 1);
+      if (controls.current) Object.assign(controls.current, { dragging: false, axis: null });
       place(original);
       if (orbit) orbit.enabled = true;
     }
     callbacks.current.onPreview(null);
   }, [place, orbit]);
+  useTransformTouchGuard(controls, cancel, touchTargets);
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
       if (event.key === "Escape" && gesture.current) {
@@ -96,7 +98,7 @@ export function SurfaceTextTransformScene({ editor, mode, snap, onPreview }: {
   };
   return <>
     <primitive object={object} />
-    <TransformControls key={epoch} ref={attachControls} object={object} mode={mode} space="world" size={0.95}
+    <TransformControls key={String(touchTargets)} ref={attachControls} object={object} mode={mode} space="world" size={transformGizmoSize(viewportHeight, touchTargets)}
       showX={mode === "translate"} showY={mode === "translate"} showZ={mode === "rotate"}
       translationSnap={snap ? 1 : null} rotationSnap={snap ? Math.PI / 36 : null}
       onMouseDown={() => { gesture.current = { original: label, preview: null }; callbacks.current.onPreview(label); }}

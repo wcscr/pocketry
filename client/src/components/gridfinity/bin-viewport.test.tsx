@@ -4,12 +4,18 @@ import { createRoot } from "react-dom/client";
 import { afterEach, expect, it, vi } from "vitest";
 const experimental = vi.hoisted(() => ({ enabled: true }));
 vi.mock("@/state/experimental-features", () => ({ useExperimentalFeatures: () => experimental }));
-import { BufferGeometry } from "three";
+import { BufferGeometry, Object3D, PerspectiveCamera } from "three";
+import { OrbitControls as OrbitController, TransformControls as TransformController } from "three-stdlib";
 import { surfaceTextSchema } from "@shared/gridfinity/surface-text";
+import { OrbitControls, type OrbitControlsProps } from "@react-three/drei";
 
-const canvasFailure = vi.hoisted(() => ({ active: false }));
+const canvasFailure = vi.hoisted(() => ({ active: false, children: null as React.ReactNode }));
 vi.mock("@react-three/fiber", () => ({
-  Canvas: () => { if (canvasFailure.active) throw new Error("WebGL context lost"); return <div data-testid="canvas-stub" />; },
+  Canvas: ({ children }: { children: React.ReactNode }) => {
+    if (canvasFailure.active) throw new Error("WebGL context lost");
+    canvasFailure.children = children;
+    return <div data-testid="canvas-stub" />;
+  },
   useThree: vi.fn(),
 }));
 
@@ -95,6 +101,88 @@ it("delays transient busy UI and uses a stage label without restarting percentag
   expect(status?.getAttribute("role")).toBe("status");
   expect(status?.textContent).toContain("Updating preview…");
   expect(status?.textContent).not.toContain("%");
+});
+
+it("keeps canvas pinch ownership and camera zoom working after a transform pointer release", () => {
+  const container = renderViewport(false, 1);
+  const canvas = document.createElement('canvas');
+  container.querySelector('[data-testid="canvas-stub"]')!.append(canvas);
+  Object.defineProperties(canvas, { clientWidth: { value: 390 }, clientHeight: { value: 600 }, releasePointerCapture: { value: vi.fn() } });
+  canvas.getBoundingClientRect = () => new DOMRect(0, 0, 390, 600);
+  const camera = new PerspectiveCamera(40, 390 / 600, 0.1, 100);
+  camera.position.set(5, 7, 9); camera.lookAt(0, 0, 0); camera.updateMatrixWorld();
+  const orbit = new OrbitController(camera, canvas), transform = new TransformController(camera, canvas);
+  const object = new Object3D(), scene = new Object3D();
+  scene.add(object, transform); transform.attach(object); scene.updateMatrixWorld(true);
+  const pointer = (type: string, id: number, x: number) => {
+    const event = new MouseEvent(type, { bubbles: true, clientX: x, clientY: 550, button: type === 'pointermove' ? -1 : 0 });
+    Object.defineProperties(event, { pointerId: { value: id }, pointerType: { value: 'touch' } });
+    canvas.dispatchEvent(event);
+  };
+  try {
+    pointer('pointerdown', 1, 100); pointer('pointerup', 1, 100);
+    expect(canvas.style.touchAction).toBe(''); // Installed TransformControls clears this.
+    expect(canvas.closest('[data-testid="bin-viewport"]')?.classList.contains('touch-none')).toBe(true);
+    const distance = camera.position.distanceTo(orbit.target);
+    pointer('pointerdown', 2, 100); pointer('pointerdown', 3, 200);
+    pointer('pointermove', 3, 260);
+    expect(camera.position.distanceTo(orbit.target)).toBeLessThan(distance);
+    pointer('pointerup', 2, 100); pointer('pointerup', 3, 260);
+    expect(object.position.toArray()).toEqual([0, 0, 0]);
+    expect(container.classList.contains('touch-none')).toBe(false);
+  } finally { transform.dispose(); orbit.dispose(); }
+});
+
+it.each(["mouse", "pen", "touch"])("switches %s drags from orbit to pan and back", pointerType => {
+  vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
+  const container = renderViewport(false, 1);
+  const canvas = document.createElement("canvas");
+  container.querySelector('[data-testid="canvas-stub"]')!.append(canvas);
+  Object.defineProperties(canvas, {
+    clientWidth: { value: 390 }, clientHeight: { value: 600 }, releasePointerCapture: { value: vi.fn() },
+  });
+  const camera = new PerspectiveCamera(40, 390 / 600, 0.1, 100);
+  camera.up.set(0, 0, 1);
+  camera.position.set(5, -7, 9);
+  camera.lookAt(0, 0, 0);
+  camera.updateMatrixWorld();
+  const orbit = new OrbitController(camera, canvas);
+  const syncControls = () => {
+    // Use the viewport's actual props so the UI switch must configure the controller.
+    const element = React.Children.toArray(canvasFailure.children).find(child =>
+      React.isValidElement(child) && child.type === OrbitControls) as React.ReactElement<OrbitControlsProps>;
+    const { mouseButtons, touches, enableDamping, dampingFactor } = element.props;
+    if (mouseButtons) orbit.mouseButtons = mouseButtons;
+    if (touches) orbit.touches = touches;
+    orbit.enableDamping = enableDamping ?? true;
+    orbit.dampingFactor = dampingFactor ?? 0.05;
+  };
+  const pointer = (type: string, x: number, y: number) => {
+    const event = new MouseEvent(type, { bubbles: true, clientX: x, clientY: y, button: type === "pointermove" ? -1 : 0 });
+    Object.defineProperties(event, { pointerId: { value: 1 }, pointerType: { value: pointerType } });
+    canvas.dispatchEvent(event);
+  };
+  try {
+    for (const panning of [false, true, false]) {
+      syncControls();
+      const position = camera.position.clone(), target = orbit.target.clone(), orientation = camera.quaternion.clone();
+      pointer("pointerdown", 100, 300);
+      pointer("pointermove", 140, 320);
+      pointer("pointerup", 140, 320);
+      for (let frame = 0; frame < 180; frame++) orbit.update();
+      camera.updateMatrixWorld();
+      if (panning) {
+        expect(orbit.target.distanceTo(target)).toBeGreaterThan(0.1);
+        expect(camera.quaternion.angleTo(orientation)).toBeLessThan(1e-6);
+        expect(camera.position.clone().sub(position).distanceTo(orbit.target.clone().sub(target))).toBeLessThan(1e-6);
+      } else {
+        expect(orbit.target.distanceTo(target)).toBeLessThan(1e-6);
+        expect(camera.quaternion.angleTo(orientation)).toBeGreaterThan(0.05);
+      }
+      const action = panning ? "Switch to orbit" : "Switch to pan";
+      React.act(() => container.querySelector<HTMLButtonElement>(`[aria-label="${action}"]`)!.click());
+    }
+  } finally { orbit.dispose(); }
 });
 
 it("offers working placement and retry actions when a text preview fails", () => {

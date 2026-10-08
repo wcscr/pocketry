@@ -2,7 +2,7 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { BufferGeometry, Line, LineBasicMaterial, Mesh, MeshBasicMaterial, Object3D, OctahedronGeometry, OrthographicCamera, PerspectiveCamera, Sprite, Vector3 } from "three";
 import { TransformControls } from "three-stdlib";
-import { styleTransformGizmo } from "./transform-gizmo-style";
+import { styleTransformGizmo, transformGizmoSize } from "./transform-gizmo-style";
 
 const cleanups: (() => void)[] = [];
 afterEach(() => { cleanups.splice(0).forEach(cleanup => cleanup()); vi.restoreAllMocks(); });
@@ -42,18 +42,20 @@ it("places readable labels beyond move arrows and releases their textures", () =
 });
 
 /** Exercise the installed controller's real pointer/raycast path without WebGL. */
-function mountGizmo(mode: "translate" | "rotate" = "translate", flipped = false, orthographic = false) {
+function mountGizmo(mode: "translate" | "rotate" = "translate", flipped = false, orthographic = false, touchViewport?: { width: number; height: number }) {
   vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
     beginPath: vi.fn(), arc: vi.fn(), fill: vi.fn(), stroke: vi.fn(), fillText: vi.fn(),
   } as unknown as CanvasRenderingContext2D);
   const canvas = document.createElement("canvas"); document.body.append(canvas);
-  vi.spyOn(canvas, "getBoundingClientRect").mockReturnValue(new DOMRect(0, 0, 800, 600));
-  const camera = orthographic ? new OrthographicCamera(-8, 8, 6, -6, 0.1, 100) : new PerspectiveCamera(45, 4 / 3, 0.1, 100);
+  const { width, height } = touchViewport ?? { width: 800, height: 600 };
+  vi.spyOn(canvas, "getBoundingClientRect").mockReturnValue(new DOMRect(0, 0, width, height));
+  const camera = orthographic ? new OrthographicCamera(-6 * width / height, 6 * width / height, 6, -6, 0.1, 100) : new PerspectiveCamera(45, width / height, 0.1, 100);
   camera.up.set(0, 0, 1); camera.position.set(flipped ? -5 : 5, flipped ? -7 : 7, 9); camera.lookAt(0, 0, 0);
   camera.updateMatrixWorld();
   const root = new Object3D(), object = new Object3D(), control = new TransformControls(camera, canvas);
   root.add(object, control); control.attach(object); control.setSpace("world"); control.setMode(mode);
-  const restoreStyle = styleTransformGizmo(control);
+  if (touchViewport) control.setSize(transformGizmoSize(height, true));
+  const restoreStyle = styleTransformGizmo(control, !!touchViewport);
   let restored = false;
   const restore = () => { if (!restored) { restoreStyle(); restored = true; } };
   root.updateMatrixWorld(true);
@@ -67,7 +69,7 @@ function mountGizmo(mode: "translate" | "rotate" = "translate", flipped = false,
   };
   const screen = (point: Vector3) => {
     const projected = point.clone().project(camera);
-    return { x: (projected.x + 1) * 400, y: (1 - projected.y) * 300 };
+    return { x: (projected.x + 1) * width / 2, y: (1 - projected.y) * height / 2 };
   };
   const pointer = (type: "pointerdown" | "pointermove" | "pointerup", point: { x: number; y: number }, pointerType = "mouse") => {
     const event = new MouseEvent(type, { clientX: point.x, clientY: point.y, button: type === "pointermove" ? -1 : 0, bubbles: true });
@@ -81,7 +83,7 @@ function mountGizmo(mode: "translate" | "rotate" = "translate", flipped = false,
     Object.defineProperty(event, "pointerType", { value: "mouse" });
     canvas.dispatchEvent(event); root.updateMatrixWorld(true);
   };
-  return { object, control, root, label, screen, pointer, hover, events, restore };
+  return { object, control, camera, root, label, screen, pointer, hover, events, restore };
 }
 
 it.each(["X", "Y", "Z"] as const)("starts an axis-constrained drag from the %s label, including flipped handles", axis => {
@@ -130,8 +132,8 @@ it.each(["X", "Y", "Z"] as const)("starts rotation from the edge of the %s label
   for (const other of ["x", "y", "z"] as const) if (other !== component) expect(ui.object.quaternion[other]).toBeCloseTo(0);
 });
 
-it("does not pick disabled axes and releases the additional hit targets on cleanup", () => {
-  const ui = mountGizmo();
+it.each([false, true])("does not pick disabled axes and releases additional hit targets (touch: %s)", touch => {
+  const ui = mountGizmo("translate", false, false, touch ? { width: 390, height: 600 } : undefined);
   const start = ui.screen(ui.label("X").getWorldPosition(new Vector3()));
   Object.assign(ui.control, { showX: false }); ui.root.updateMatrixWorld(true);
   ui.pointer("pointerdown", start); ui.pointer("pointermove", { x: start.x + 30, y: start.y }); ui.pointer("pointerup", start);
@@ -141,7 +143,51 @@ it("does not pick disabled axes and releases the additional hit targets on clean
   ui.control.traverse(child => { if (child instanceof Mesh && child.geometry.type === "SphereGeometry") targets.push(child); });
   expect(targets).toHaveLength(9);
   const disposals = targets.map(target => vi.spyOn(target.geometry, "dispose"));
+  const groups = [...new Set(targets.map(target => target.parent!))];
   ui.restore();
+  for (const group of groups) expect(group.raycast).toBe(Object3D.prototype.raycast);
   expect(targets.every(target => target.parent === null)).toBe(true);
   disposals.forEach(dispose => expect(dispose).toHaveBeenCalledOnce());
+});
+
+it.each([85, 95])("chooses the Z badge over an overlapping X target at a shallow %s-degree view", azimuth => {
+  const ui = mountGizmo("rotate", false, false, { width: 390, height: 600 });
+  const elevation = 15 * Math.PI / 180, angle = azimuth * Math.PI / 180;
+  ui.camera.position.set(12 * Math.cos(elevation) * Math.cos(angle), 12 * Math.cos(elevation) * Math.sin(angle), 12 * Math.sin(elevation));
+  ui.camera.lookAt(0, 0, 0); ui.camera.updateMatrixWorld(); ui.root.updateMatrixWorld(true);
+  const center = ui.screen(ui.label("Z").getWorldPosition(new Vector3()));
+  const start = { x: center.x, y: center.y - 10 }, end = { x: center.x + 20, y: center.y + 10 };
+  ui.pointer("pointerdown", start, "touch");
+  ui.pointer("pointermove", end, "touch");
+  ui.pointer("pointerup", end, "touch");
+  expect(ui.events("mouseDown")).toHaveLength(1);
+  expect(Math.abs(ui.object.quaternion.z)).toBeGreaterThan(0.01);
+  expect(ui.object.quaternion.x).toBeCloseTo(0);
+  expect(ui.object.quaternion.y).toBeCloseTo(0);
+});
+
+it.each(["translate", "rotate"] as const)("keeps finger-sized %s targets in portrait, landscape and a shortened canvas", mode => {
+  for (const viewport of [{ width: 390, height: 600 }, { width: 844, height: 240 }, { width: 390, height: 360 }]) {
+    for (const orthographic of [false, true]) for (const flipped of [false, true]) {
+      const ui = mountGizmo(mode, flipped, orthographic, viewport);
+      for (const axis of ["X", "Y", "Z"]) {
+        const center = ui.screen(ui.label(axis).getWorldPosition(new Vector3()));
+        // A finger can land 22 CSS pixels from the letter in any direction.
+        for (const [dx, dy] of [[-22, 0], [22, 0], [0, -22], [0, 22]]) {
+          const point = { x: center.x + dx, y: center.y + dy };
+          const downEvents = ui.events("mouseDown").length;
+          ui.pointer("pointerdown", point, "touch");
+          expect(ui.events("mouseDown").length, `${axis} at ${viewport.width}×${viewport.height} (${dx},${dy})`).toBe(downEvents + 1);
+          ui.pointer("pointermove", { x: point.x + 12, y: point.y + 12 }, "touch");
+          ui.pointer("pointerup", point, "touch");
+          const result = mode === "translate" ? ui.object.position : ui.object.quaternion;
+          const component = axis.toLowerCase() as "x" | "y" | "z";
+          expect(Math.abs(result[component])).toBeGreaterThan(0.0001);
+          for (const other of ["x", "y", "z"] as const) if (other !== component) expect(result[other]).toBeCloseTo(0);
+          ui.object.position.set(0, 0, 0); ui.object.quaternion.identity(); ui.root.updateMatrixWorld(true);
+        }
+      }
+      expect(ui.object.position.toArray()).toEqual([0, 0, 0]);
+    }
+  }
 });

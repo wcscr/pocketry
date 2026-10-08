@@ -90,11 +90,23 @@ This is synthetic test data; importing uses the normal browser-local project flo
   updates both sections of split pockets. Boundary shapes remain unchanged.
 - **Add** stays first in the placement toolbar. Wide toolbars show Select, Move,
   Rotate, Arrange, and eligible Link controls. Narrow toolbars show Add, Select,
-  and a labeled Tools menu with the active tool's name. Phones show Select, Move,
-  and Rotate directly, with Arrange and Link in the overflow menu. Tool controls
-  stay in the mobile adjustment dock in both layouts; activating a tool does not
-  open the full properties panel or cover the canvas. Done returns to selection,
-  and All properties opens the full editor explicitly. Availability follows the
+  and a labeled Tools menu with the active tool's name. Phones combine Add,
+  Select, Move, Rotate, Undo, ruler, and Tools in one icon row. The overflow menu
+  holds redo, history, navigation, Arrange, and Link. Move and Rotate leave the
+  canvas clear; Adjust explicitly opens numeric values in the mobile dock.
+  Done closes the values without changing tools, and All properties opens the
+  full editor explicitly. Touch axis labels have padded picking targets and
+  retain their screen size as canvas height changes. The 3D viewport keeps
+  touch-action disabled on its stable parent so a handle release cannot turn
+  the next canvas pinch into page zoom. A second finger cancels any active handle
+  edit and hands the gesture to camera navigation until all fingers are lifted.
+  Overlapping touch targets use padded screen-space discs and prefer the nearest
+  axis badge without relying on triangulated hit meshes. Mobile history replaces
+  the Tools menu contents with a scrollable list and back arrow. Both menu pages
+  stay within the available screen height and scroll in landscape.
+  **Switch to pan/orbit** applies to finger,
+  mouse, and pen drags; two-finger pan/zoom remains available in either mode.
+  Availability follows the
   selected object and supported operations. Text moves in X/Y and rotates around
   Z in Layout and 3D, with snapping and undo; text selection stays exclusive.
   Arrange and Link apply to pockets and finger access. **Cancel** abandons an
