@@ -113,8 +113,25 @@ closing the page. This recovery copy is local to the browser; replacing the phot
 or choosing **Start over** replaces or clears it. Export a project backup for a
 portable copy of a calibrated outline and its bin settings.
 
-Choose **Add to bin** and name the tool. Use **Add and trace another photo** for
-the accessories, then **Add and arrange** when the traces are ready. For a
+Choose **New trace** in the Photo step (or **Start over** in the phone menu) to
+begin again. Confirming clears the current trace and its edit history; pockets
+already added to Bin remain. Photo selection accepts one PNG, JPG, or WebP up to
+10 MB. Rejected or unreadable photos show a persistent message and leave the
+current trace intact. If no outline is found, increase **Sensitivity** or redraw
+the region around the whole tool.
+
+Choose **Add to bin**, name each tool, and choose its depth before continuing.
+For **Fixed depth**, enter **Pocket depth (mm)**: how far the tool should sit below
+the bin surface, leaving enough exposed to lift it out. Depth starts blank so it
+is always your choice. **To Floor** extends the pocket to the destination bin’s
+default floor: 7 mm above the underside for Gridfinity or 2 mm for a flat-bottom bin.
+For a jig supported by the work surface, explicitly choose **Through — no pocket
+floor** instead. Grouped outlines share one depth. Choices survive the handoff
+and reload, and become ordinary editable pocket depths. Bin height stays
+unchanged; a depth that exceeds it blocks 3D export until corrected.
+
+Use **Add and trace another photo** for the accessories, then **Add and arrange**
+when the traces are ready. For a
 standalone outline, **Export Outline** offers SVG, DXF, and STL. Confirm the scale
 before exporting files for printing or cutting.
 

@@ -32,6 +32,8 @@ import {
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { outlineBounds } from "@/lib/geometry/outline";
 import { FileUpload } from "@/components/ui/file-upload";
+import { tracePhotoError } from "@/lib/trace-photo";
+import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { autoCalibrate } from "@/lib/calibrate/auto-calibrate";
 import {
@@ -61,8 +63,6 @@ import { hasPendingManualCalibration, useTrace } from "@/state/trace-store";
 export default function TracePage(): JSX.Element {
   return <TraceWorkspace />;
 }
-
-const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
 /** Change image coordinates only; the physical reference length is unchanged. */
 function resizeCalibration(calibration: Calibration, x: number, y: number): Calibration {
@@ -117,6 +117,7 @@ function TraceWorkspace(): JSX.Element {
   const photoInputRef = useRef<HTMLInputElement>(null);
   const detectionRequest = useRef(0);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [perspectiveReplacement, setPerspectiveReplacement] = useState<{
     proposal: PerspectiveProposal; template: TemplateVariant; scale: boolean | Calibration; sourceRevision: number;
@@ -141,6 +142,7 @@ function TraceWorkspace(): JSX.Element {
     detectionRequest.current += 1;
     activeImageUrlRef.current = null;
     setUploadOpen(false);
+    setPhotoError(null);
     setPhotoReplacement(null);
     setPerspectiveReplacement(null);
     setPanelOpen(false);
@@ -528,13 +530,23 @@ function TraceWorkspace(): JSX.Element {
     dispatch({ type: "SOURCE_READY", imageSize: photo.imageSize });
   };
 
+  const handleFileRejected = (message: string) => {
+    fileSelectionRevisionRef.current += 1;
+    setPhotoReplacement(null);
+    setUploadOpen(false);
+    setPhotoError(message);
+    showCanvas();
+  };
+
   const handleFileSelected = async (file: File) => {
     const selectionRevision = ++fileSelectionRevisionRef.current;
     setPhotoReplacement(null);
-    if (file.size > MAX_FILE_BYTES) {
-      toast({ title: "File too large", description: "Please choose an image under 10MB.", variant: "destructive" });
+    const validationError = tracePhotoError(file);
+    if (validationError) {
+      handleFileRejected(validationError);
       return;
     }
+    setPhotoError(null);
     setUploadOpen(false);
     // Opening an invalid file must not suppress recovery or erase its stored
     // copy. Wait for recovery, then compare a decoded candidate to that draft.
@@ -552,9 +564,10 @@ function TraceWorkspace(): JSX.Element {
       if (current.imageUrl && (current.calibration || current.draftCalibration || current.region || current.outline.length > 0 || current.history.stack.length > 1)) {
         setPhotoReplacement(photo);
       } else replacePhoto(photo);
-    } catch (error) {
+    } catch {
       if (selectionRevision !== fileSelectionRevisionRef.current || sourceRevision !== latestStore.current.sourceRevision) return;
-      toast({ title: "Could not open that image", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
+      setPhotoError("Could not open that photo. It may be damaged or use an unsupported format. Save it as PNG, JPG, or WebP and try again. Your current trace is unchanged.");
+      showCanvas();
     }
   };
 
@@ -643,7 +656,8 @@ function TraceWorkspace(): JSX.Element {
     : `Outline size: ${exportDimensions} mm (width × height)${store.exportFormat === "stl" ? `; extrusion ${formatDimension(store.extrusionHeight)} mm` : ""}. Scale: ${scaleSource}. Verify a known tool dimension before printing.`;
 
   const dropzone = (
-    <FileUpload onFileSelected={handleFileSelected} className="flex min-h-64 w-full flex-1 flex-col items-center justify-center" />
+    <FileUpload onFileSelected={handleFileSelected} onFileRejected={handleFileRejected}
+      className="flex min-h-64 w-full flex-1 flex-col items-center justify-center" />
   );
 
   return (
@@ -711,6 +725,7 @@ function TraceWorkspace(): JSX.Element {
             settingsSectionRequest={settingsSectionRequest}
             onCanvasInteraction={showCanvas}
             onReplaceImage={() => photoInputRef.current?.click()}
+            onStartOver={startOver}
             onRotateImage={handleRotateImage}
             onExport={requestExport}
             onReprocess={(settings) => void runDetection(settings)}
@@ -722,6 +737,11 @@ function TraceWorkspace(): JSX.Element {
         }
         canvas={
           <div className="flex h-full min-h-0 flex-col">
+            {photoError && <div role="alert" data-testid="trace-photo-error"
+              className={`flex shrink-0 items-start gap-2 bg-destructive/10 px-3 py-2 text-sm ${isMobile ? "order-last border-t" : "border-b"}`}>
+              <p className="min-w-0 flex-1">{photoError}</p>
+              <Button variant="ghost" size="sm" onClick={() => setPhotoError(null)}>Dismiss</Button>
+            </div>}
             {store.imageUrl && store.draftSaveStatus === "error" && <p role="status" data-testid="trace-save-error" className="shrink-0 border-b bg-destructive/10 px-3 py-2 text-sm text-destructive">
               Couldn’t save the trace draft. Keep this page open; your latest edits may not survive a refresh.
             </p>}
@@ -733,7 +753,7 @@ function TraceWorkspace(): JSX.Element {
                       <h2 className="text-lg font-medium">Trace a tool from a photo</h2>
                       <p className="text-sm text-muted-foreground">
                         Photograph the tool on a calibration sheet <strong className="font-semibold italic">or</strong>{" "}
-                        a plain, contrasting background. Keep the whole tool in frame.
+                        a plain, contrasting background with a known distance to set the scale. Keep the whole tool in frame.
                       </p>
                       <CalibrationDownloads />
                       {(store.draftSaveStatus === "loading" || store.draftSaveStatus === "error") && <p role="status" className={`text-sm ${store.draftSaveStatus === "error" ? "text-destructive" : "text-muted-foreground"}`}>

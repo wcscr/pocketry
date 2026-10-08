@@ -67,6 +67,28 @@ function mountLibrary(): { library: () => ShapeLibrary; act: (fn: () => void) =>
 }
 
 describe("shape library", () => {
+  it("recovers each chosen depth without adding placement metadata to reusable shapes", () => {
+    const first = mountLibrary();
+    first.act(() => {
+      first.library().addShape(makeShape("shallow"), { mode: "mm", value: 7.5 });
+      first.library().addShape(makeShape("jig"), { mode: "through" });
+      first.library().addShape(makeShape("floor"), { mode: "to-floor" });
+    });
+    first.act(() => first.library().consumePending());
+    const reloaded = mountLibrary();
+    expect(reloaded.library().pendingDepths).toEqual({ shallow: { mode: "mm", value: 7.5 }, jig: { mode: "through" }, floor: { mode: "to-floor" } });
+    expect(reloaded.library().shapes).toEqual([makeShape("shallow"), makeShape("jig"), makeShape("floor")]);
+    reloaded.act(() => reloaded.library().removeShape("shallow"));
+    expect(mountLibrary().library().pendingDepths).toEqual({ jig: { mode: "through" }, floor: { mode: "to-floor" } });
+  });
+
+  it("still restores the older shape-only session queue", () => {
+    sessionStorage.setItem("pocketry:queued-tools", JSON.stringify([makeShape("legacy")]));
+    const restored = mountLibrary().library();
+    expect(restored.shapes).toEqual([makeShape("legacy")]);
+    expect(restored.pendingDepths).toEqual({});
+  });
+
   it("recovers queued geometry after reload and keeps it until placement is durable", () => {
     const first = mountLibrary();
     const shape = { ...makeShape("hand-edited"), traceMarginMm: 0.5 };

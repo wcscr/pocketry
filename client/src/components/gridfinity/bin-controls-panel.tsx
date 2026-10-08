@@ -174,6 +174,7 @@ const formatUnitCount = (value: number): string =>
 
 export interface BinControlsPanelProps {
   issues: readonly ValidationIssue[];
+  onRevealIssue: (issue: ValidationIssue) => void;
   /** A fresh request reveals settings after the controls drawer mounts. */
   settingsSectionRequest?: { id: string; focusId?: string };
   exportOnly?: boolean;
@@ -239,6 +240,7 @@ export interface BinControlsPanelProps {
  */
 export function BinControlsPanel({
   issues,
+  onRevealIssue,
   settingsSectionRequest,
   exportOnly = false,
   stats,
@@ -1436,7 +1438,7 @@ export function BinControlsPanel({
                 });
               }}
             >
-              <SelectTrigger className="h-8 flex-1" data-testid="select-grid-pitch">
+              <SelectTrigger id="bin-grid-pitch" aria-label="Grid pitch" className="h-8 flex-1" data-testid="select-grid-pitch">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -1587,6 +1589,7 @@ export function BinControlsPanel({
           />
           <FeatureSwitch
             label="Solid fill"
+            id="bin-solid-fill"
             description="Material for pockets — required for cutouts"
             checked={spec.fill === "solid"}
             onChange={(on) => patchSpec({ fill: on ? "solid" : "none" })}
@@ -1684,7 +1687,7 @@ export function BinControlsPanel({
                   })
                 }
               >
-                <SelectTrigger className="h-8 flex-1" data-testid="select-label-tab">
+                <SelectTrigger id="bin-label-tab" aria-label="Label tab" className="h-8 flex-1" data-testid="select-label-tab">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -1712,7 +1715,7 @@ export function BinControlsPanel({
                       })
                     }
                   >
-                    <SelectTrigger className="h-8 flex-1">
+                    <SelectTrigger aria-label="Label tab wall" className="h-8 flex-1">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -2076,6 +2079,19 @@ export function BinControlsPanel({
               </p>
             </div>
           ) : null}
+
+          {hasErrors && <div role="alert" className="space-y-2 rounded-md border border-destructive/50 bg-destructive/5 p-3 text-sm" data-testid="export-blocked-reasons">
+            <p className="font-medium">{issues.filter(issue => issue.severity === "error").length} {issues.filter(issue => issue.severity === "error").length === 1 ? "problem blocks" : "problems block"} 3D export</p>
+            <p>Fix these problems before exporting the bin or a fit test.</p>
+            <ul className="space-y-2">
+              {issues.filter(issue => issue.severity === "error").map((issue, index) => <li key={`${issue.code}-${index}`}>
+                <button type="button" className="min-h-11 w-full rounded border bg-background px-3 py-2 text-left text-xs leading-relaxed hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  data-export-issue={issue.code} onClick={() => onRevealIssue(issue)}>
+                  {issue.message}<span className="mt-1 block font-medium underline">Show settings to fix this</span>
+                </button>
+              </li>)}
+            </ul>
+          </div>}
 
           <div
             className="space-y-2 rounded-md border border-emerald-500/30 bg-emerald-500/5 p-2.5"
@@ -3038,12 +3054,14 @@ function SettingLabel({ label, hint, htmlFor, className }: {
 }
 
 function FeatureSwitch({
+  id,
   label,
   description,
   checked,
   disabled = false,
   onChange,
 }: {
+  id?: string;
   label: string;
   description: string;
   checked: boolean;
@@ -3057,6 +3075,7 @@ function FeatureSwitch({
         {disabled && description && <p className="text-[11px] text-muted-foreground">{description}</p>}
       </div>
       <Switch
+        id={id}
         checked={checked}
         disabled={disabled}
         onCheckedChange={onChange}

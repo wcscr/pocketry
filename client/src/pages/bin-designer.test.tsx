@@ -383,6 +383,72 @@ function selectPocket(container: HTMLElement, id: string): void {
 }
 
 describe("BinDesignerPage", () => {
+  it.each([
+    { fixed: false, flatBottom: false }, { fixed: true, flatBottom: false },
+    { fixed: false, flatBottom: true }, { fixed: true, flatBottom: true },
+  ])("places queued tools at chosen depths and preserves them in history and export: %o", async ({ fixed, flatBottom }) => {
+    sessionStorage.setItem("pocketry:queued-tools", JSON.stringify([
+      { ...rectangularShape("shallow", "Shallow tool"), pendingDepth: { mode: "mm", value: 7.5 } },
+      { ...rectangularShape("through", "Through jig"), pendingDepth: { mode: "through" } },
+      { ...rectangularShape("floor", "To Floor tool"), pendingDepth: { mode: "to-floor" } },
+    ]));
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, keepBinSize: fixed,
+      spec: parseBinSpec({ ...EMPTY_PROJECT.spec, fill: "solid", flatBottom }) });
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      const layout = () => vi.mocked(useBinGeometry).mock.lastCall![2]!;
+      const depths = () => Object.fromEntries(layout().cutouts.map(pocket => [pocket.shapeId, pocket.depth]));
+      const expected = { shallow: { mode: "mm", value: 7.5 }, through: { mode: "through" },
+        floor: { mode: "remaining", floorThicknessMm: flatBottom ? 2 : 7 } };
+      expect(depths()).toEqual(expected);
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0].heightUnits).toBe(6);
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+      expect(layout().cutouts).toHaveLength(0);
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+      expect(depths()).toEqual(expected);
+      openSettingsSection(container, "project");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-export-project"]')!.click());
+      const [blob] = vi.mocked(downloadBlob).mock.lastCall!;
+      const json = await new Promise<string>(resolve => {
+        const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.readAsText(blob);
+      });
+      const saved = parseProjectDoc(JSON.parse(json))!;
+      expect(saved).not.toBeNull();
+      expect(Object.fromEntries(saved.cutouts.map(pocket => [pocket.shapeId, pocket.depth]))).toEqual(expected);
+      expect(saved.history!.stack[saved.history!.index].doc.cutouts).toEqual(saved.cutouts);
+      expect(saved.shapes.every(shape => !("pendingDepth" in shape))).toBe(true);
+    } finally { unmount(); }
+  });
+
+  it.each([
+    { layout: "standard", mobile: false }, { layout: "workflow", mobile: false },
+    { layout: "standard", mobile: true }, { layout: "workflow", mobile: true },
+  ])("explains blocked export and opens Solid fill to fix it: %o", async ({ layout, mobile }) => {
+    const originalUrl = window.location.href;
+    window.history.replaceState(null, "", `/bin?layout=${layout}`);
+    const shape = rectangularShape("tool", "Wrench");
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape],
+      spec: parseBinSpec({ ...EMPTY_PROJECT.spec, fill: "none" }),
+      cutouts: [parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 0, y: 0 }, depth: { mode: "mm", value: 5 } })] });
+    const { container, unmount } = renderPage({ mobile });
+    try {
+      await flushHydration();
+      openSettingsSection(container, "export");
+      expect(container.querySelector('[data-testid="export-blocked-reasons"]')?.textContent).toContain("3D export");
+      expect(container.querySelector<HTMLButtonElement>('[data-testid="button-export-3mf"]')!.disabled).toBe(true);
+      await React.act(async () => container.querySelector<HTMLButtonElement>('[data-export-issue="cutouts-require-solid-fill"]')!.click());
+      await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 60)); });
+      const solidFill = container.querySelector<HTMLButtonElement>('#bin-solid-fill')!;
+      expect(solidFill.closest('[hidden], [inert]')).toBeNull();
+      expect(document.activeElement).toBe(solidFill);
+      React.act(() => solidFill.click());
+      openSettingsSection(container, "export");
+      expect(container.querySelector('[data-testid="export-blocked-reasons"]')).toBeNull();
+      expect(container.querySelector<HTMLButtonElement>('[data-testid="button-export-3mf"]')!.disabled).toBe(false);
+    } finally { unmount(); window.history.replaceState(null, "", originalUrl); }
+  });
+
   it.each([false, true])("shows save failure and downloads a backup outside the controls (mobile=%s)", async mobile => {
     vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(EMPTY_PROJECT);
     const { container, unmount } = renderPage({ mobile });
@@ -3602,7 +3668,8 @@ describe("BinDesignerPage", () => {
     expect(container.querySelector('[data-testid="pocket-properties-heading"]')!.textContent).toContain('Wrench');
     openSettingsSection(container, 'export');
     expect(container.querySelector<HTMLButtonElement>('[data-testid="button-export-stl"]')!.disabled).toBe(true);
-    expect(container.querySelector('#bin-settings-export [data-issue-code]')).toBeNull();
+    expect(container.querySelector('[data-testid="export-blocked-reasons"]')?.textContent).toContain("3D export");
+    expect(container.querySelector('[data-export-issue="out-of-bounds"]')).not.toBeNull();
     unmount();
   });
 
@@ -3674,7 +3741,8 @@ describe("BinDesignerPage", () => {
     expect(issue.textContent).toContain("Air Duster");
     expect(issue.textContent).toContain("Floor color may show on the underside");
     React.act(() => issue.click());
-    expect(container.querySelector('[data-testid="pocket-properties-heading"]')!.textContent).toContain("Air Duster");
+    expect(container.querySelector('#bin-settings-materials')).not.toBeNull();
+    expect(issue.textContent).toContain("Edit floor color thickness");
     expect(issue.closest('[data-testid="bin-canvas"]')).not.toBeNull();
     expect(container.querySelectorAll(issueSelector)).toHaveLength(1);
     expect(container.querySelector('[data-testid="selected-object-issues"]')).toBeNull();
@@ -3683,6 +3751,8 @@ describe("BinDesignerPage", () => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
       input.dispatchEvent(new Event("input", { bubbles: true }));
     });
+    openSettingsSection(container, "tool-cutouts");
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-select-pocket"]')!.click());
     const depthInput = container.querySelector<HTMLInputElement>('[aria-label="Pocket cut depth in millimetres"]')!;
     setNumber(depthInput, "38.8");
     expect(container.querySelector(issueSelector)).toBeNull();
