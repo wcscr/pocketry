@@ -507,9 +507,9 @@ function validateAgainstBin(spec: BinSpec, p: PlacedCutout): ValidationIssue[] {
     const label = cutout.split ? `${p.label} · Section ${index === 0 ? "A" : "B"}` : p.label;
     const region = split?.regions?.[index] ?? p.shape.outlineMm;
     const pocket = resolvePlacedPocketDepth(spec, depth, { outlineMm: region }, cutout);
-    if (pocket.highestFloorZ !== null && pocket.highestFloorZ >= pocket.infillTopZ) issues.push({
+    if (pocket.axialDepthMm !== null && pocket.axialDepthMm <= 0) issues.push({
       code: "too-shallow", severity: "error", cutoutIds: [cutout.id],
-      message: `“${label}”: Increase depth, lower Z, or reduce tilt so the whole floor is below the opening.`,
+      message: `“${label}”: Increase depth or lower the floor to give the pocket a positive extrusion depth.`,
     });
     if (pocket.floorZ !== null) {
       if (pocket.floorZ < 0) {
@@ -520,11 +520,14 @@ function validateAgainstBin(spec: BinSpec, p: PlacedCutout): ValidationIssue[] {
           message: `“${label}” is deeper than the bin itself.`,
         });
       } else if (pocket.depthMm !== null && pocket.depthMm <= 0) {
+        const raisedSource = pocket.axialDepthMm !== null && pocket.axialDepthMm > 0;
         issues.push({
           code: "too-shallow",
-          severity: "error",
+          severity: raisedSource ? "warning" : "error",
           cutoutIds: [cutout.id],
-          message: `“${label}” has no depth — its floor sits at or above the fill surface.`,
+          message: raisedSource
+            ? `“${label}”: The pocket is above the fill surface; no pocket remains in the fill.`
+            : `“${label}” has no depth — its floor sits at or above the fill surface.`,
         });
       } else {
         if (pocket.floorZ < MIN_FLOOR_MM) {

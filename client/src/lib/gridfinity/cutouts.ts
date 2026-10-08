@@ -478,8 +478,8 @@ function buildOrientedCutout(
   const depths = cutout.split?.depths ?? [cutout.depth];
   const resolved = depths.map((depth, i) => resolvePlacedPocketDepth(spec, depth,
     { outlineMm: split?.regions?.[i] ?? shape.outlineMm }, cutout));
-  if (resolved.some(p => p.axialDepthMm !== null && (p.axialDepthMm <= 0 || (p.highestFloorZ ?? 0) >= p.infillTopZ))) {
-    throw new Error("Increase pocket depth, lower Z, or reduce tilt: the whole pocket floor must sit below the opening.");
+  if (resolved.some(p => p.axialDepthMm !== null && p.axialDepthMm <= 0)) {
+    throw new Error("Increase pocket depth or lower the floor: the extrusion depth must be positive.");
   }
   const real = resolved[0];
   const extent = Math.max(Math.abs(shape.bboxMm.minX), Math.abs(shape.bboxMm.maxX)) * cutout.scaleX
@@ -510,8 +510,15 @@ function buildOrientedCutout(
   if (cutout.topFilletMm > 0 && cutters.length > 0) {
     const union = arena.track(kernel.Manifold.union(cutters));
     const mouth = arena.track(union.slice(real.infillTopZ));
-    const verticalDepth = Math.min(...resolved.map(p => p.highestFloorZ === null ? Infinity : p.infillTopZ - p.highestFloorZ));
-    const radius = Math.min(cutout.topFilletMm, verticalDepth / 2);
+    // Preserve the rounding limit of contained seats. A seat crossing the fill
+    // instead uses its submerged depth; an entirely raised split section cannot
+    // suppress the rounding of the remaining opening.
+    const activeSeats = resolved.filter(p => p.floorZ === null || p.floorZ < p.infillTopZ);
+    const verticalDepth = Math.min(...activeSeats.map(p => p.highestFloorZ === null ? Infinity
+      : p.infillTopZ - (p.highestFloorZ < p.infillTopZ ? p.highestFloorZ : p.floorZ!)));
+    const crossingSeat = activeSeats.some(p => p.highestFloorZ !== null && p.highestFloorZ >= p.infillTopZ);
+    const axialDepth = crossingSeat ? Math.min(...activeSeats.map(p => p.axialDepthMm ?? Infinity)) : Infinity;
+    const radius = Math.min(cutout.topFilletMm, Math.max(0, verticalDepth) / 2, axialDepth / 2);
     if (radius > 0 && !mouth.isEmpty()) {
       const flare = topEdgeFilletCutter(kernel, mouth, { radiusMm: radius,
         profileStepMm: quality.filletProfileStepMm ?? FILLET_PROFILE_STEP_MM,
@@ -732,7 +739,6 @@ export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: Cut
   // through the surface, while an object wholly above the bin leaves no cut.
   let cutter = buildObjectCavity(kernel, source, pose, cutout.insertionMode ? Infinity : top, anchor);
   const projectedSource = cutter && cutout.insertionMode === "vertical" ? arena.track(arena.track(cutter.project()).simplify(0.0001)) : null;
-  const validationIssues: ValidationIssue[] = [];
   const clearAndLimit = (posed: Manifold, depth: DepthSpec): Manifold => {
     let result = posed;
     if (cutout.insertionMode) {
@@ -744,6 +750,8 @@ export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: Cut
     // Apply the floor constraint to the generated cavity, never the source.
     // Rebuilding after raising the object therefore restores its whole profile.
     if (depth.mode === "remaining") result = arena.track(result.trimByPlane([0,0,1],depth.floorThicknessMm));
+    // The source and its tilted seat may extend above the fill surface. Only
+    // their intersection with the bin is cut; a partial opening is valid.
     if (Number.isFinite(top)) result = arena.track(result.trimByPlane([0,0,-1],-top));
     return result;
   };
@@ -780,13 +788,6 @@ export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: Cut
       cutter = arena.track(cutter.add(arena.track(flare.translate([0, 0, realTop - radius]))));
     }
   }
-  if (cutter && projectedSource && !cutter.isEmpty() && cutter.boundingBox().min[2] < realTop) {
-    const mouth = arena.track(cutter.slice(realTop-1e-7));
-    if (arena.track(projectedSource.subtract(mouth)).area() > 0.01) {
-      validationIssues.push({code:"vertical-seat-above-surface",severity:"error",cutoutIds:[cutout.id],
-        message:`“${pocketName(cutout,shape)}”: The tilted floor reaches the bin surface, preventing a full vertical opening. Increase the bin height, lower the pocket, or reduce its tilt.`});
-    }
-  }
   const floorInserts: Manifold[] = [], floorRegions: Manifold[] = [];
   const distance = Math.min(options.floorInsertThicknessMm ?? 0, Math.max(0, seatedCutter?.boundingBox().min[2] ?? pose.elevationMm));
   if (cutter && seatedCutter && distance > 0 && (cutout.insertionMode || depthSpecs.some(d => d.mode !== "mm"))) {
@@ -813,7 +814,7 @@ export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: Cut
     if (region) floorRegions.push(region);
   }
   return { cutters: cutter ? [cutter] : [], floorInserts, floorRegions,
-    validationIssues, reports: [{ id: cutout.id, emptied: source.isEmpty() }] };
+    validationIssues: [], reports: [{ id: cutout.id, emptied: source.isEmpty() }] };
 }
 
 /** Preserve placement identity for exact 3D validation, including split cutters. */

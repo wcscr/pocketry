@@ -249,6 +249,29 @@ describe("validateLayout", () => {
     ).toContain("too-shallow");
   });
 
+  it("allows a legacy tilted floor to cross the fill while preserving depth and floor checks", () => {
+    const shape = makeShape("partial", 20, 24);
+    const bin = spec({ gridX: 3, gridY: 3, heightUnits: 4, lip: "none" });
+    const pocket = makeCutout("partial", shape.id, 0, 0, {
+      tilt: { xDeg: 20, yDeg: 25 }, depth: { mode: "mm", value: 6 },
+      cornerRoundMm: 0, bottomFilletMm: 0, topFilletMm: 0,
+    });
+    expect(pocket.elevationMm).toBeUndefined();
+    expect(codes(bin, [pocket], [shape])).toEqual([]);
+    expect(codes(bin, [{ ...pocket, depth: { mode: "remaining", floorThicknessMm: 25 } }], [shape]))
+      .toContain("too-shallow");
+    expect(codes(bin, [{ ...pocket, depth: { mode: "mm", value: 40 } }], [shape]))
+      .toContain("too-deep");
+    expect(codes(bin, [{ ...pocket, tilt: { xDeg: 90, yDeg: 0 } }], [shape]))
+      .toContain("invalid-pocket-tilt");
+    for (const tilt of [pocket.tilt, undefined]) {
+      const raised = { ...pocket, tilt, zOffsetMm: 100 };
+      const issues = validateLayout(bin, [raised], new Map([[shape.id, shape]]));
+      expect(issues.filter(issue => issue.severity === "error")).toEqual([]);
+      expect(issues).toContainEqual(expect.objectContaining({ code: "too-shallow", severity: "warning" }));
+    }
+  });
+
   it("warns on a paper-thin floor", () => {
     expect(
       codes(

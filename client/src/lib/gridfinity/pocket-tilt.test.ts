@@ -12,6 +12,8 @@ import { buildRigidPocket, buildCutoutCutters } from "./cutouts";
 import { buildBinWithCutouts, EXPORT_QUALITY } from "./bin";
 import { buildSurfaceFitCheckSolid } from "./fit-check";
 import { fitRectangularBinToPlacements, autoArrangeLayout } from "./autoplace";
+import { extractMeshData, extractPrintableMeshData } from "@/lib/mesh/mesh-data";
+import { expectPartitionOccupancy, expectPrintableTopology, expectSameGeometry, signedMeshVolume } from "@/lib/mesh/mesh-contract.test-helpers";
 
 const shape: TracedShape = { id: "rectangle", name: "Board slot", source: "basic-shape", sourceMmPerPx: null, pointCount: 4,
   bboxMm: { minX: -3, maxX: 3, minY: -16, maxY: 16 },
@@ -25,6 +27,60 @@ beforeAll(async () => { arena = new Arena(); kernel = createKernel(await loadMan
 afterAll(() => arena.dispose());
 
 describe("tilted pockets", () => {
+  it.each([
+    { rounded: false, split: false, fillHeightPercent: 100 },
+    { rounded: true, split: false, fillHeightPercent: 100 },
+    { rounded: true, split: true, fillHeightPercent: 70 },
+    { rounded: true, split: true, fillHeightPercent: 100, raisedSection: true },
+  ])("preserves partial legacy openings and their colored export geometry: %j", ({ rounded, split, fillHeightPercent, raisedSection = false }) => {
+    const legacy = parseCutoutPlacement({ ...pocket, tilt: { xDeg: 30, yDeg: 0 }, depth: { mode: "mm", value: 6 },
+      zOffsetMm: raisedSection ? 2 : undefined,
+      topFilletMm: rounded ? 1 : 0, bottomFilletMm: rounded ? 0.5 : 0,
+      split: split ? { boundary: [{ x: -3, y: raisedSection ? 8 : 0 }, { x: 3, y: raisedSection ? 8 : 0 }],
+        depths: [{ mode: "mm", value: raisedSection ? 4 : 6 }, { mode: "mm", value: raisedSection ? 6 : 10 }] } : undefined });
+    const bin = { ...spec, heightUnits: 4, fillHeightPercent };
+    const resolved = resolvePlacedPocketDepth(bin, legacy.depth, shape, legacy);
+    expect(resolved.floorZ).toBeLessThan(resolved.infillTopZ);
+    expect(resolved.highestFloorZ).toBeGreaterThan(resolved.infillTopZ);
+    expect(validateLayout(bin, [legacy], shapes).filter(issue => issue.severity === "error")).toEqual([]);
+    const layout = { shapesById: shapes, cutouts: [legacy], fingerHoles: [] };
+    const built = buildBinWithCutouts(kernel, bin, layout, EXPORT_QUALITY, { floorInsertThicknessMm: 0.6 });
+    const unrounded = buildBinWithCutouts(kernel, bin, { ...layout, cutouts: [{ ...legacy, topFilletMm: 0 }] }, EXPORT_QUALITY);
+    expect(built.validationIssues).toEqual([]);
+    if (rounded) expect(unrounded.solid.volume() - built.solid.volume()).toBeGreaterThan(0.01);
+    const reference = extractMeshData(kernel, built.solid);
+    const mesh = extractPrintableMeshData(kernel, built.solid);
+    expectPrintableTopology(mesh);
+    expectSameGeometry(reference, mesh, "legacy partial opening");
+    const parts = [built.materialParts!.body, built.materialParts!.pocketFloors!]
+      .map(part => extractPrintableMeshData(kernel, part));
+    parts.forEach(part => expectPrintableTopology(part));
+    expect(Math.abs(parts.reduce((sum, part) => sum + signedMeshVolume(part), 0) - built.solid.volume())).toBeLessThan(0.05);
+    expectPartitionOccupancy(reference, parts);
+  }, 30_000);
+
+  it("retains the existing top round of a contained shallow legacy seat lowered in Z", () => {
+    const lowered = parseCutoutPlacement({ ...pocket, tilt: { xDeg: 30, yDeg: 0 },
+      depth: { mode: "mm", value: 6 }, zOffsetMm: -15, topFilletMm: 5 });
+    const resolved = resolvePlacedPocketDepth(spec, lowered.depth, shape, lowered);
+    expect(resolved.infillTopZ - resolved.highestFloorZ!).toBeGreaterThan(10);
+    const build = (topFilletMm: number) => buildBinWithCutouts(kernel, spec,
+      { shapesById: shapes, cutouts: [{ ...lowered, topFilletMm }], fingerHoles: [] }, EXPORT_QUALITY).solid;
+    // Legacy shafts clear to the fill even when their authored extrusion is
+    // shallow. Preserve the 5 mm round; a source-depth/2 cap would shrink it to 3.
+    expect(build(3).volume() - build(5).volume()).toBeGreaterThan(1);
+  });
+
+  it.each([undefined, { xDeg: 30, yDeg: 0 }])("leaves the bin unchanged for a legacy source raised above the fill at %j", tilt => {
+    const raised = parseCutoutPlacement({ ...pocket, tilt, depth: { mode: "mm", value: 6 }, zOffsetMm: 100, topFilletMm: 2 });
+    const empty = buildBinWithCutouts(kernel, spec, null, EXPORT_QUALITY).solid;
+    const built = buildBinWithCutouts(kernel, spec, { shapesById: shapes, cutouts: [raised], fingerHoles: [] },
+      EXPORT_QUALITY, { floorInsertThicknessMm: 0.6 });
+    expect(built.solid.volume()).toBeCloseTo(empty.volume(), 6);
+    expect(built.materialParts).toBeNull();
+    expectSameGeometry(extractMeshData(kernel, empty), extractPrintableMeshData(kernel, built.solid), "raised legacy source");
+  });
+
   it("keeps the actual tilted seat solid stationary after a fill-height edit", () => {
     const next = { ...spec, fillHeightPercent: 75 };
     const adjusted = adjustPocketsForFillHeight([pocket], spec, next).cutouts!;

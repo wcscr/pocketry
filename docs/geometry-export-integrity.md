@@ -62,8 +62,8 @@ neither establishes physical fit or printing performance. The reported support
 warnings on the user's other designs remain unconfirmed until those exact
 artifacts are compared.
 
-PR #146 must remove its conditional solid cleanup when it is rebased onto this
-fix. Retaining that cleanup would reintroduce the precision feedback loop.
+PR #146 uses this shared export boundary for partial openings. Its former
+conditional solid cleanup has been removed; it must not be reintroduced.
 
 ## Local qualification (2026-10-08)
 

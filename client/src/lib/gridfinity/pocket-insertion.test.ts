@@ -280,10 +280,31 @@ it("isolates an invalid axial pocket in preview while retaining the other cavity
   expect(built.solid.volume()).toBeCloseTo(reference.solid.volume(), 5);
 });
 
-it("reports a tilted seat above the surface instead of adding deep projection trenches", () => {
+it.each([PREVIEW_QUALITY, EXPORT_QUALITY])("allows a tilted seat above the surface without deep projection trenches at quality=%j", quality => {
   const p = {...pocket,elevationMm:12,tilt:{xDeg:20,yDeg:25},insertionMode:"vertical" as const};
-  const built = buildBinWithCutouts(kernel,spec,{shapesById:map,cutouts:[p],fingerHoles:[]},EXPORT_QUALITY);
-  expect(built.validationIssues).toContainEqual(expect.objectContaining({code:"vertical-seat-above-surface",severity:"error",cutoutIds:[p.id]}));
+  const built = buildBinWithCutouts(kernel,spec,{shapesById:map,cutouts:[p],fingerHoles:[]},quality);
+  expect(built.validationIssues).toEqual([]);
+  const source = buildRigidPocket(kernel,shape,{...p,insertionMode:undefined},spec,quality).cutters[0];
+  const vertical = buildCutoutCutters(kernel,map,[p],spec,quality).cutters[0];
+  const top = resolvePocketDepth(spec,p.depth).infillTopZ;
+  const bounds = source.boundingBox();
+  let submerged = 0, above = 0;
+  for (let ix=0;ix<9;ix++) for (let iy=0;iy<9;iy++) {
+    const x = bounds.min[0]+(ix+0.37)/9*(bounds.max[0]-bounds.min[0]);
+    const y = bounds.min[1]+(iy+0.43)/9*(bounds.max[1]-bounds.min[1]);
+    const expected = undersideAt(source,x,y), actual = undersideAt(vertical,x,y);
+    if (expected === undefined) continue;
+    if (expected < top-0.01) {
+      expect(actual).toBeDefined();
+      expect(Math.abs(actual!-expected)).toBeLessThan(0.01);
+      submerged++;
+    } else if (expected > top+0.01) {
+      expect(actual === undefined || actual > top).toBe(true);
+      above++;
+    }
+  }
+  expect(submerged).toBeGreaterThan(10);
+  expect(above).toBeGreaterThan(10);
 });
 
 it.each([undefined,"axis","vertical"] as const)("clips only the requested minimum floor and restores the source when raised: %s", insertionMode => {

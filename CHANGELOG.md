@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Tilted pocket cutouts can extend above the fill surface without an error or blocked export; the opening follows the cutout’s intersection with the bin.
+
 - Preserve native bin geometry and color partitions during STL and 3MF export; repair Float32 topology without rebuilding rounded solids.
 
 - The active bin project and local save status stay visible in Trace and Bin, including on phones. Backups are available above the workspace, and Add to bin names its destination and explains that each addition creates a new pocket.
