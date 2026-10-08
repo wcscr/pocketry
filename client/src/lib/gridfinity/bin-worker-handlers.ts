@@ -13,7 +13,7 @@ import { parseBinSpec } from "@shared/gridfinity/types";
 
 import { Arena } from "@/lib/manifold/arena";
 import { createKernel } from "@/lib/manifold/runtime";
-import { extractMeshData, preparePrintableSolid } from "@/lib/mesh/mesh-data";
+import { extractMeshData, extractPrintableMeshData } from "@/lib/mesh/mesh-data";
 import { objectEdges } from "@/lib/mesh/object-edges";
 import type { HandlerContext, HandlerMap } from "@/lib/worker/host";
 import { WorkerCancelledError } from "@/lib/worker/protocol";
@@ -166,11 +166,11 @@ export function createBinWorkerHandlers(
         Number.isFinite(payload.section.offsetMm)
           ? payload.section
           : null;
-      let displayed = section ? applySectionCut(kernel, solid, section) : solid;
+      const displayed = section ? applySectionCut(kernel, solid, section) : solid;
       const includePreviewNormals = payload.exportTopology !== true;
       const displayedPart = (part: BinMaterialParts["body"]) =>
         section ? applySectionCut(kernel, part, section) : part;
-      let displayedMaterialParts = materialParts
+      const displayedMaterialParts = materialParts
         ? {
             body: displayedPart(materialParts.body),
             pocketFloors: materialParts.pocketFloors
@@ -181,55 +181,30 @@ export function createBinWorkerHandlers(
               : null,
           }
         : null;
-      if (payload.exportTopology) {
-        displayed = preparePrintableSolid(kernel, displayed);
-        if (displayedMaterialParts) {
-          const floorRegions = materialParts!.floorRegions.map(part => preparePrintableSolid(kernel, part));
-          const pocketFloors = displayedMaterialParts.pocketFloors
-            ? preparePrintableSolid(kernel, displayedMaterialParts.pocketFloors) : null;
-          const stackingRim = displayedMaterialParts.stackingRim
-            ? preparePrintableSolid(kernel, displayedMaterialParts.stackingRim) : null;
-          // Subtract full insert regions in export precision. Re-subtracting an
-          // already clipped accent repeats the pocket boundary and can create
-          // coincident faces, especially around an enclosed profile cavity.
-          const bodyCutters = [...floorRegions, ...(stackingRim ? [stackingRim] : [])];
-          const printableBody = textParts.length
-            ? preparePrintableSolid(kernel, displayedPart(binSolid))
-            : displayed;
-          const body = bodyCutters.length > 0
-            ? preparePrintableSolid(kernel, arena.track(kernel.Manifold.difference([printableBody, ...bodyCutters])))
-            : printableBody;
-          displayedMaterialParts = { body, pocketFloors, stackingRim };
-        }
-      }
-      const mesh = extractMeshData(kernel, displayed, {
+      // Partition the native solid once. Rounded export meshes must never
+      // become CSG inputs, including cutters for another material region.
+      const extractPart = (part: BinMaterialParts["body"], normals = includePreviewNormals) =>
+        payload.exportTopology
+          ? extractPrintableMeshData(kernel, part)
+          : extractMeshData(kernel, part, { normals });
+      const mesh = extractPart(displayed,
         // The preview displays the material body when a partition exists.
         // Keep the aggregate topology/stats without shading an unused mesh.
-        normals: includePreviewNormals && materialParts === null && textParts.length === 0,
-      });
+        includePreviewNormals && materialParts === null && textParts.length === 0,
+      );
       const materialMeshes = displayedMaterialParts
         ? {
-            body: extractMeshData(kernel, displayedMaterialParts.body, {
-              normals: includePreviewNormals,
-            }),
+            body: extractPart(displayedMaterialParts.body),
             ...(displayedMaterialParts.pocketFloors &&
             !displayedMaterialParts.pocketFloors.isEmpty()
               ? {
-                  pocketFloors: extractMeshData(
-                    kernel,
-                    displayedMaterialParts.pocketFloors,
-                    { normals: includePreviewNormals },
-                  ),
+                  pocketFloors: extractPart(displayedMaterialParts.pocketFloors),
                 }
               : {}),
             ...(displayedMaterialParts.stackingRim &&
             !displayedMaterialParts.stackingRim.isEmpty()
               ? {
-                  stackingRim: extractMeshData(
-                    kernel,
-                    displayedMaterialParts.stackingRim,
-                    { normals: includePreviewNormals },
-                  ),
+                  stackingRim: extractPart(displayedMaterialParts.stackingRim),
                 }
               : {}),
           }
@@ -240,16 +215,14 @@ export function createBinWorkerHandlers(
         mesh,
         ...(textParts.length ? {
           ...(payload.exportTopology || !materialMeshes ? {
-            bodyMesh: extractMeshData(kernel, payload.exportTopology
-              ? preparePrintableSolid(kernel, binSolid) : displayedPart(binSolid), { normals: includePreviewNormals }),
+            bodyMesh: extractPart(payload.exportTopology ? binSolid : displayedPart(binSolid)),
           } : {}),
           textMeshes: textParts.map(part => ({
             label: part.label, z: part.z,
-            // Rotated font contours can leave nearly coincident vertices that
-            // crash Manifold's normal calculation. Use the same sub-micron
-            // cleanup as printable text before shading a preview, too.
-            mesh: extractMeshData(kernel, preparePrintableSolid(kernel,
-              payload.exportTopology ? part.solid : displayedPart(part.solid)), { normals: includePreviewNormals }),
+            // Flat shading avoids normal-generation failures on nearly
+            // coincident font contours without rebuilding the rounded solid.
+            mesh: extractPrintableMeshData(kernel,
+              payload.exportTopology ? part.solid : displayedPart(part.solid)),
           })),
         } : {}),
         materialMeshes,
@@ -328,7 +301,7 @@ export function createBinWorkerHandlers(
       if (context.signal.aborted) throw new WorkerCancelledError();
 
       const volumeMm3 = solid.volume();
-      const mesh = extractMeshData(kernel, solid, { normals: true });
+      const mesh = extractPrintableMeshData(kernel, solid);
       context.progress(0.9);
       const value: BuildFitCheckResult = {
         mesh,
@@ -384,7 +357,7 @@ export function createBinWorkerHandlers(
       if (context.signal.aborted) throw new WorkerCancelledError();
 
       const volumeMm3 = solid.volume();
-      const mesh = extractMeshData(kernel, solid, { normals: true });
+      const mesh = extractPrintableMeshData(kernel, solid);
       context.progress(0.9);
       const value: BuildSurfaceFitCheckResult = {
         mesh,

@@ -73,13 +73,14 @@ function context(overrides: Partial<HandlerContext> = {}): HandlerContext {
   };
 }
 
-function nonManifoldEdgeCount(mesh: BuildBinResult["mesh"], weldPositions = false): number {
-  // Render normals duplicate vertices along sharp edges. STL uses positions,
-  // so join those copies when checking a mesh extracted with normals enabled.
+function nonManifoldEdgeCount(mesh: BuildBinResult["mesh"]): number {
+  // Only preview normal properties split physical vertices. Printable 3MF
+  // topology must retain distinct vertex identities at touching components.
+  const weldPositions = mesh.normals !== null;
   const vertexKey = (index: number) => weldPositions
     ? mesh.positions.subarray(index * 3, index * 3 + 3).join(",")
     : String(index);
-  const edgeCounts = new Map<string, number>();
+  const edgeCounts = new Map<string, { count: number; direction: number }>();
   for (let offset = 0; offset < mesh.indices.length; offset += 3) {
     const triangle = mesh.indices.subarray(offset, offset + 3);
     for (const [a, b] of [
@@ -90,10 +91,13 @@ function nonManifoldEdgeCount(mesh: BuildBinResult["mesh"], weldPositions = fals
       const start = vertexKey(a);
       const end = vertexKey(b);
       const key = start < end ? `${start}:${end}` : `${end}:${start}`;
-      edgeCounts.set(key, (edgeCounts.get(key) ?? 0) + 1);
+      const edge = edgeCounts.get(key) ?? { count: 0, direction: 0 };
+      edge.count++;
+      edge.direction += start < end ? 1 : -1;
+      edgeCounts.set(key, edge);
     }
   }
-  return [...edgeCounts.values()].filter((count) => count !== 2).length;
+  return [...edgeCounts.values()].filter(edge => edge.count !== 2 || edge.direction !== 0).length;
 }
 
 function printableMeshVolume(mesh: BuildBinResult["mesh"]): number {
@@ -105,7 +109,7 @@ function printableMeshVolume(mesh: BuildBinResult["mesh"]): number {
     expect(Math.hypot(...cross), `triangle ${JSON.stringify([Array.from(a),Array.from(b),Array.from(c)])}`).toBeGreaterThan(0);
     total += (a[0] * cross[0] + a[1] * cross[1] + a[2] * cross[2]) / 6;
   }
-  expect(nonManifoldEdgeCount(mesh, true)).toBe(0);
+  expect(nonManifoldEdgeCount(mesh)).toBe(0);
   return total;
 }
 
@@ -497,7 +501,7 @@ describe("bin worker handlers", () => {
     expect(result.cutoutReports.every(report => !report.emptied)).toBe(true);
     const floors = result.materialMeshes!.pocketFloors!;
     expect(floors.indices.length).toBeGreaterThan(0);
-    expect(nonManifoldEdgeCount(floors, true)).toBe(0);
+    expect(nonManifoldEdgeCount(floors)).toBe(0);
     const floorZ = resolvePocketDepth(spec, cutouts[0].depth).floorZ!;
     const zs = Array.from(floors.positions).filter((_, i) => i % 3 === 2);
     expect(Math.max(...zs)).toBeCloseTo(floorZ, 5);
@@ -1115,7 +1119,7 @@ describe("complete surface fit test worker handler", () => {
     const outline = await getSurfaceFitCheckHandler()({ ...request("standard"), style: "outline" }, context());
     expect(outline.value.stats.volumeMm3).toBeLessThan(full.value.stats.volumeMm3);
     expect(outline.value.stats.volumeMm3).toBeGreaterThan(0);
-    expect(nonManifoldEdgeCount(outline.value.mesh, true)).toBe(0);
+    expect(nonManifoldEdgeCount(outline.value.mesh)).toBe(0);
     const zs = Array.from(outline.value.mesh.positions).filter((_, i) => i % 3 === 2);
     expect(Math.min(...zs)).toBeCloseTo(0);
     expect(Math.max(...zs)).toBeCloseTo(1.2);
