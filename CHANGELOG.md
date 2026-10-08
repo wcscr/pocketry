@@ -3,6 +3,12 @@
 ## Unreleased
 
 - Added optional connected library folders in supported browsers, with automatic filesystem saves, retained recovery revisions, permission renewal, and explicit recovery of concurrent edits. Unreadable projects stay visible and exportable.
+
+- Trace offers a confirmed New trace action on desktop, explains empty detection results, and shows persistent photo-selection errors. File selection states supported formats, the 10 MB limit, and that photos stay on your device.
+
+- Adding traced tools now requires an explicit Fixed depth, To Floor, or Through choice for each tool. To Floor respects the destination bin’s base style. Depth choices survive queued-tool recovery without changing bin height automatically.
+- Export shows blocking problems beside its controls, with links to the relevant settings. Bin warnings now open the appropriate controls for solid fill, label tabs, grid pitch, and floor colors.
+
 - New project offers to save an unnamed draft before starting over. Newer-version and unreadable library entries stay visible and included in backups, with unsupported editing actions disabled.
 
 - Project saves reject stale edits from another tab. Storage failures stay visible above the Bin canvas with a backup download action, and library read errors no longer appear as an empty library.

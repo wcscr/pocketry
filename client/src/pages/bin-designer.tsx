@@ -10,11 +10,12 @@ import { useExperimentalFeatures } from "@/state/experimental-features";
 import { ToastAction } from "@/components/ui/toast";
 import { usePocketGeometry } from "@/hooks/use-pocket-geometry";
 import { Box, History, Redo2, Undo2 } from "lucide-react";
-import { pocketDepths, pocketName, resolvePocketDepth } from "@shared/gridfinity/cutout";
+import { defaultPocketFloorThicknessMm, pocketDepths, pocketName, resolvePocketDepth } from "@shared/gridfinity/cutout";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { CanvasWarnings } from "@/components/gridfinity/canvas-warnings";
 import { validateBinSpec, validateLayout, validatePocketFloorMaterials, type ValidationIssue } from "@shared/gridfinity/validate";
+import { issueSettingsTarget } from "@/lib/gridfinity/issue-settings";
 import { MobileBinActions } from "@/components/gridfinity/mobile-bin-actions";
 import { BinControlsPanel } from "@/components/gridfinity/bin-controls-panel";
 import { BinViewport, type MaterialColorTarget } from "@/components/gridfinity/bin-viewport";
@@ -204,6 +205,12 @@ function BinDesignerWorkspace(): JSX.Element {
   }, [spec, cutouts, fingerHoles, library.shapes, colorPocketFloors, pocketFloorThicknessMm]);
   const revealIssue = (issue: ValidationIssue) => {
     dispatch({ type: "SET_VIEW_MODE", viewMode: "2d" });
+    const settings = issueSettingsTarget(issue.code);
+    if (settings) {
+      setPanelOpen(true);
+      setSettingsSectionRequest(settings);
+      return;
+    }
     if (issue.cutoutIds?.length) {
       const next = issue.cutoutIds.find((id) => id !== bin.selectedCutoutId) ?? issue.cutoutIds[0];
       dispatch({ type: "SELECT_CUTOUT", id: next });
@@ -372,7 +379,12 @@ function BinDesignerWorkspace(): JSX.Element {
     const gridY = keepBinSize ? spec.gridY : Math.max(result.gridY, cutouts.length > 0 ? spec.gridY : 0);
     dispatch({
       type: "ADD_PLACED",
-      cutouts: result.cutouts,
+      cutouts: result.cutouts.map(cutout => {
+        const chosen = library.pendingDepths[cutout.shapeId];
+        return { ...cutout, depth: chosen?.mode === "to-floor"
+          ? { mode: "remaining" as const, floorThicknessMm: defaultPocketFloorThicknessMm(spec) }
+          : chosen ?? cutout.depth };
+      }),
       gridX,
       gridY,
       // Automatic placement chooses the smallest rectangular Gridfinity bin.
@@ -1183,6 +1195,7 @@ function BinDesignerWorkspace(): JSX.Element {
           exportOnly={isMobile && settingsSectionRequest?.id === "bin-settings-export"}
           issues={issues}
           settingsSectionRequest={settingsSectionRequest}
+          onRevealIssue={revealIssue}
           pocketEditorRequest={pocketEditorRequest}
           saveStatus={saveStatus}
           projectLibraryError={projectLibraryError}

@@ -132,7 +132,7 @@ describe("Mobile trace progression", () => {
   it("confirms Start over and keeps the trace untouched when cancelled", () => {
     readyOutline();
     const outline = trace.outline;
-    const dialogButton = (text: string) => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(button => button.textContent === text)!;
+    const dialogButton = (text: string) => [...document.querySelectorAll<HTMLButtonElement>('[role="alertdialog"] button')].find(button => button.textContent === text)!;
     React.act(() => button("Start over").click());
     expect(startOver).not.toHaveBeenCalled();
     React.act(() => dialogButton("Keep working").click());

@@ -2,6 +2,7 @@ import { AlertTriangle, ChevronDown, CircleAlert } from "lucide-react";
 import { useState } from "react";
 
 import { cn } from "@/lib/utils";
+import { issueSettingsTarget } from "@/lib/gridfinity/issue-settings";
 import type { ValidationIssue } from "@shared/gridfinity/validate";
 
 /** Persistent model feedback shared by Layout and 3D, separate from property fields. */
@@ -70,7 +71,7 @@ export function CanvasWarnings({ issues, selectedCutoutId, selectedFingerHoleId,
               >
                 <span className="block">{issue.message}</span>
                 <span className="mt-1 block font-medium underline underline-offset-2">
-                  {issue.cutoutIds?.length ? issue.cutoutIds.length > 1 ? "Show pockets · click to switch" : "Edit pocket" : issue.fingerHoleIds?.length ? "Edit finger access" : "Open bin settings"}
+                  {issueSettingsTarget(issue.code)?.label ?? (issue.cutoutIds?.length ? issue.cutoutIds.length > 1 ? "Show pockets · click to switch" : "Edit pocket" : issue.fingerHoleIds?.length ? "Edit finger access" : "Open bin settings")}
                 </span>
               </button>
             );
