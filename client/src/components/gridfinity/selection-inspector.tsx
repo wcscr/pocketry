@@ -51,12 +51,12 @@ export function BinEditingWorkspace({ enabled, ...props }: WorkspaceLayoutProps 
     [activeSection, properties, transforms, settings, projectHeader, toolbar, showSection, tool, setTool, openInspector, keepObjectsOpen]);
   return <MobileObjectToolsContext.Provider value={isMobile ? { tool, setTool, controls: mobileControls, setControls: setMobileControls } : null}>
     {!enabled ? <ObjectToolbarContext.Provider value={{ toolbar, tool, setTool }}><WorkspaceLayout {...props}
-      inspectorToolbar={<div ref={setToolbar} className="flex w-full min-w-0 items-center gap-1" />} /></ObjectToolbarContext.Provider> : <SelectionInspectorContext.Provider value={targets}>
+      inspectorToolbar={<div ref={setToolbar} className={isMobile ? "flex w-full min-w-0 items-center justify-between" : "flex w-full min-w-0 items-center gap-1"} />} /></ObjectToolbarContext.Provider> : <SelectionInspectorContext.Provider value={targets}>
     <WorkspaceLayout {...props} autoSaveId={`${props.autoSaveId}:inspector`} inspectorPanelTitle="Workflow"
       inspectorRequest={(props.inspectorRequest ?? 0) + openRequest}
       canvasEditingMode={editorMode}
       inspectorHeader={<div ref={setProjectHeader} />}
-      inspectorToolbar={<div ref={setToolbar} className="flex w-full min-w-0 items-center gap-1" />}
+      inspectorToolbar={<div ref={setToolbar} className={isMobile ? "flex w-full min-w-0 items-center justify-between" : "flex w-full min-w-0 items-center gap-1"} />}
       inspector={<SelectionInspector propertiesRef={setProperties} transformsRef={setTransforms} settingsRef={setSettings} />} />
     </SelectionInspectorContext.Provider>}
   </MobileObjectToolsContext.Provider>;

@@ -263,6 +263,54 @@ async function clickSection(id: string): Promise<void> {
 }
 
 describe("TraceControlsPanel guided workflow", () => {
+  it("requires confirmation to clear scale and preserves contours and history", async () => {
+    await prepareOutline();
+    await clickSection("scale");
+    const before = trace;
+    const clear = () => [...host.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "Clear scale")!;
+    const confirm = (label: string) => [...document.querySelectorAll<HTMLButtonElement>('[role="alertdialog"] button')].find(button => button.textContent === label)!;
+    await React.act(async () => clear().click());
+    expect(trace.calibration).toBe(before.calibration);
+    await React.act(async () => confirm("Keep working").click());
+    expect(trace.calibration).toBe(before.calibration);
+    await React.act(async () => clear().click());
+    await React.act(async () => confirm("Clear scale").click());
+    expect(trace.calibration).toBeNull();
+    expect(trace.outline).toBe(before.outline);
+    expect(trace.region).toBe(before.region);
+    expect(trace.history).toBe(before.history);
+  });
+
+  it("dismisses a pending clear when a different photo replaces the source", async () => {
+    await prepareOutline();
+    await clickSection("crop");
+    await click("button-clear-region");
+    expect(document.querySelector('[role="alertdialog"]')).not.toBeNull();
+    await React.act(async () => {
+      trace.dispatch({ type: "SOURCE_LOADED", imageUrl: "new-photo", fileName: "new" });
+      trace.dispatch({ type: "SOURCE_READY", imageSize: { width: 800, height: 600 } });
+      trace.dispatch({ type: "SET_CALIBRATION", calibration: CALIBRATION });
+    });
+    expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+    expect(trace.calibration).toEqual(CALIBRATION);
+  });
+
+  it("blocks export and handoff during a replacement ruler until cancellation or confirmation", async () => {
+    await prepareOutline();
+    const before = trace.calibration;
+    await clickSection("scale");
+    await click("button-set-scale");
+    const button = (text: string) => [...host.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent?.trim() === text)!;
+    expect(trace.calibration).toBe(before);
+    expect(button("Add to bin").disabled).toBe(true);
+    expect(button("Save SVG").disabled).toBe(true);
+    expect(host.textContent).toContain("Your current scale is kept until you confirm the new ruler.");
+    await React.act(async () => button("Cancel ruler").click());
+    expect(trace.calibration).toBe(before);
+    expect(button("Add to bin").disabled).toBe(false);
+    expect(button("Save SVG").disabled).toBe(false);
+  });
+
   it("opens measurement-aid downloads from the hint and keeps them open after hover ends", async () => {
     await click("load-source");
     await click("detect-auto-scale");
@@ -730,6 +778,14 @@ describe("TraceControlsPanel guided workflow", () => {
     expect(clearRegion?.parentElement?.className).toContain("grid-cols-2");
 
     await click("button-clear-region");
+    expect(trace.region).not.toBeNull();
+    expect(document.querySelector('[role="alertdialog"]')?.textContent).toContain("Clear region and outline?");
+    await React.act(async () => [...document.querySelectorAll<HTMLButtonElement>('[role="alertdialog"] button')]
+      .find(button => button.textContent === "Keep working")!.click());
+    expect(trace.region).not.toBeNull();
+    await click("button-clear-region");
+    await React.act(async () => [...document.querySelectorAll<HTMLButtonElement>('[role="alertdialog"] button')]
+      .find(button => button.textContent === "Clear region and outline")!.click());
     expect(section("crop")?.dataset.state).toBe("open");
     expect(sectionTrigger("detect")?.disabled).toBe(true);
     expect(host.textContent).toContain(

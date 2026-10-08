@@ -26,6 +26,26 @@ const calibrated = () => {
 beforeEach(() => { storage.clear(); vi.clearAllMocks(); });
 
 describe("browser-local Trace recovery", () => {
+  it.each([false, true])("recovers a replacement ruler without losing accepted scale (complete: %s)", async complete => {
+    const before = calibrated();
+    let pending = traceReducer(before, { type: "SET_MODE", mode: "calibrate" });
+    pending = traceReducer(pending, { type: "SET_DRAFT_CALIBRATION", draftCalibration: complete
+      ? { startX: 20, startY: 30, endX: 120, endY: 30 } : { startX: 20, startY: 30 } });
+    if (complete) pending = traceReducer(pending, { type: "SET_MODE", mode: "pan" });
+    pending = traceReducer(pending, { type: "SET_RULER_LENGTH_INPUT", value: "75" });
+    await saveTraceDraft(traceDraftSnapshot(pending));
+    const restored = traceReducer(initialTraceState, { type: "TRACE_DRAFT_RESTORED", draft: (await loadTraceDraft())! });
+    expect(restored.calibration).toEqual(before.calibration);
+    expect(restored.draftCalibration).toEqual(pending.draftCalibration);
+    expect(restored.rulerLengthInput).toBe("75");
+    const cancelled = traceReducer(restored, { type: "CANCEL_MANUAL_CALIBRATION" });
+    expect(cancelled.calibration).toEqual(before.calibration);
+    expect(cancelled.draftCalibration).toBeNull();
+    expect(cancelled.rulerLengthInput).toBe("182");
+    expect(cancelled.outline).toEqual(before.outline);
+    expect(cancelled.history).toEqual(before.history);
+  });
+
   it("persists aligned photos and restores their matching contours, crop, and scale with Undo", async () => {
     const before = { ...calibrated(), processing: false, region: { x: 10, y: 20, width: 40, height: 60 } };
     const aligned = traceReducer(before, { type: "ALIGN_UPRIGHT", outline: before.outline, expectedOutline: before.outline, radians: .5 });

@@ -3,6 +3,14 @@
 ## Unreleased
 
 - Added optional connected library folders in supported browsers, with automatic filesystem saves, retained recovery revisions, permission renewal, and explicit recovery of concurrent edits. Unreadable projects stay visible and exportable.
+- New project offers to save an unnamed draft before starting over. Newer-version and unreadable library entries stay visible and included in backups, with unsupported editing actions disabled.
+
+- Project saves reject stale edits from another tab. Storage failures stay visible above the Bin canvas with a backup download action, and library read errors no longer appear as an empty library.
+
+- Trace Select no longer changes contours. Undo and Redo work after toolbar clicks; replacing a ruler keeps the accepted scale until confirmation, and region resets or redraws warn before discarding edits.
+- Enlarged mobile move/rotate handles, kept numeric adjustments behind Adjust, and combined editing/history/ruler tools into one icon row with scrollable menus on short screens.
+- Canvas pinches zoom the design even when starting on a handle; adding a second finger cancels the unfinished edit, and overlapping touch handles select the nearest axis label.
+- Fixed Switch to pan still orbiting with mouse and pen drags in the 3D preview.
 
 - Added About Gridfinity with credit and links to creator Zack Freedman. Documented standalone flat-bottomed bins, laser/UV positioning jigs, and when Through pockets can save filament.
 

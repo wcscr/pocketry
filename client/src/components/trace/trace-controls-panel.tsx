@@ -64,7 +64,7 @@ import { cn } from "@/lib/utils";
 import { HelpHint } from "@/components/ui/help-hint";
 import { useToast } from "@/hooks/use-toast";
 import { useShapeLibrary } from "@/state/shape-library";
-import { useTrace, type ExportFormat } from "@/state/trace-store";
+import { hasPendingManualCalibration, useTrace, type ExportFormat } from "@/state/trace-store";
 
 import { CalibrationDownloads } from "./calibration-downloads";
 import { AutoCalibrationOptions } from "./auto-calibration-options";
@@ -158,14 +158,14 @@ export function TraceControlsPanel({
   );
   const hasImage = imageSize.width > 0;
   const hasOutline = outline.length > 0;
-  const reviewingScale = pendingAutoCalibration !== null;
+  const replacingRuler = hasPendingManualCalibration(store);
+  const reviewingScale = pendingAutoCalibration !== null || replacingRuler;
   const usingReferenceStrip =
     pendingCalibrationSource === "strip" || calibrationSource === "strip";
   const hasDetectionRegion = Boolean(
     region && region.width > 5 && region.height > 5,
   );
-  const manualRulerPending =
-    calibration === null && hasCalibrationEndpoints(draftCalibration);
+  const manualRulerPending = hasCalibrationEndpoints(draftCalibration);
   const traceSettingsSections = TRACE_SETTINGS_SECTION_DETAILS.map((item) => {
     if (item.id === "trace-settings-source") return item;
     if (item.id === "trace-settings-scale") {
@@ -426,6 +426,7 @@ export function TraceControlsPanel({
       : null;
 
   const [handoffOpen, setHandoffOpen] = useState(false);
+  const [clearRequest, setClearRequest] = useState<{ kind: "region" | "scale"; sourceRevision: number } | null>(null);
   const openHandoff = () => setHandoffOpen(true);
   const handleClearRegion = () => {
     dispatch({ type: "SET_MODE", mode: "region" });
@@ -437,12 +438,12 @@ export function TraceControlsPanel({
   };
 
   const handleSetScale = () => {
-    const nextMode = store.mode === "calibrate" ? "pan" : "calibrate";
-    dispatch({
-      type: "SET_MODE",
-      mode: nextMode,
-    });
-    if (nextMode === "calibrate") onCanvasInteraction?.();
+    if (store.mode === "calibrate") {
+      dispatch({ type: "CANCEL_MANUAL_CALIBRATION" });
+      return;
+    }
+    dispatch({ type: "SET_MODE", mode: "calibrate" });
+    onCanvasInteraction?.();
   };
 
   const manualScaleAction = (
@@ -468,7 +469,7 @@ export function TraceControlsPanel({
           ? "Redraw ruler"
           : pendingAutoCalibration
             ? "Set manually instead"
-            : "Set scale"}
+            : calibration ? "Replace scale" : "Set scale"}
     </Button>
   );
 
@@ -574,6 +575,12 @@ export function TraceControlsPanel({
           {!pendingAutoCalibration && (
             <div className="space-y-3" data-testid="manual-scale-placement">
               {manualScaleAction}
+              {replacingRuler && <div className="space-y-1">
+                {calibration && <p className="text-xs text-muted-foreground">Your current scale is kept until you confirm the new ruler.</p>}
+                <Button variant="outline" size="sm" className="w-full" onClick={() => dispatch({ type: "CANCEL_MANUAL_CALIBRATION" })}>
+                  Cancel ruler
+                </Button>
+              </div>}
 
               {store.mode === "calibrate" ? (
                 <div
@@ -596,7 +603,7 @@ export function TraceControlsPanel({
             </div>
           )}
 
-          {!pendingAutoCalibration && (!calibration || calibrationSource === "manual") && (
+          {!pendingAutoCalibration && (!calibration || calibrationSource === "manual" || replacingRuler) && (
             <div
               className={cn(
                 "space-y-1.5 rounded-md",
@@ -648,7 +655,7 @@ export function TraceControlsPanel({
               variant="ghost"
               size="sm"
               className="w-full"
-              onClick={() => dispatch({ type: "SET_CALIBRATION", calibration: null })}
+              onClick={() => setClearRequest({ kind: "scale", sourceRevision })}
             >
               Clear scale
             </Button>
@@ -839,7 +846,7 @@ export function TraceControlsPanel({
               size="sm"
               disabled={region === null}
               data-testid="button-clear-region"
-              onClick={handleClearRegion}
+              onClick={() => setClearRequest({ kind: "region", sourceRevision })}
             >
               Clear region
             </Button>
@@ -876,7 +883,7 @@ export function TraceControlsPanel({
             <div className="flex items-center gap-1">
               <p className="text-xs font-semibold">Detected Contours</p>
               <HelpHint label="contour editing">
-                Choose Edit contours. Drag a point to move it; click an edge to add one. On a phone, use Move, Add, or Remove and pinch to zoom.
+                Choose Edit contours. Drag a point to move it; click an edge to add one. On a phone, tap a point to show Delete point and pinch to zoom. Select only changes the selection.
                 Simplification adjusts your edited contour. Sensitivity and interior holes re-detect from the photo and ask before replacing manual edits. Undo restores your contour.
               </HelpHint>
             </div>
@@ -994,6 +1001,26 @@ export function TraceControlsPanel({
               onClick={() => { setRestoreSourceRevision(null); dispatch({ type: "RESTORE_PERSPECTIVE_SOURCE" }); }}>
               Restore and clear trace
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={clearRequest !== null && clearRequest.sourceRevision === sourceRevision} onOpenChange={open => { if (!open) setClearRequest(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{clearRequest?.kind === "region" ? "Clear region and outline?" : "Clear the accepted scale?"}</AlertDialogTitle>
+            <AlertDialogDescription>{clearRequest?.kind === "region"
+              ? "This removes the detection region, outline, and contour edit history. You cannot undo this reset. The photo and accepted scale stay in place."
+              : "You will need to set the scale again before adding pockets to Bin or exporting in millimeters. The photo, region, and outline stay in place."}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep working</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => {
+              if (clearRequest?.sourceRevision !== sourceRevision) return;
+              if (clearRequest.kind === "region") handleClearRegion();
+              else dispatch({ type: "SET_CALIBRATION", calibration: null });
+              setClearRequest(null);
+            }}>{clearRequest?.kind === "region" ? "Clear region and outline" : "Clear scale"}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

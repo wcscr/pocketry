@@ -147,8 +147,10 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
             using the workspace menu at the top. In Bin, use <strong>Workflow</strong>{" "}
             to find a section, <strong>Adjust</strong> for quick changes, or
             <strong> All properties</strong> for the full editor. Move and Rotate
-            adjustments stay below or beside the canvas; <strong>Done</strong>{" "}
-            returns to selection. App settings and Help are in <strong>More options</strong>.
+            keep the canvas clear; <strong>Adjust</strong> opens their exact values
+            below or beside it. <strong>Done</strong> hides those values while
+            keeping the tool active. Redo, navigation, and history are under
+            <strong> Tools</strong>. App settings and Help are in <strong>More options</strong>.
           </p>
           <p>
             <strong>Optional tools:</strong> surface text, adjustable empty-bin

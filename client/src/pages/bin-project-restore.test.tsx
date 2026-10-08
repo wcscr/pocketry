@@ -1,3 +1,4 @@
+import "@/lib/project/mock-storage";
 import * as React from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -40,8 +41,8 @@ vi.mock("@/lib/gridfinity/use-bin-geometry", () => ({
 const { toast } = vi.hoisted(() => ({ toast: vi.fn() }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }) }));
 
-beforeEach(() => {
-  memory.clear();
+beforeEach(async () => {
+  memory.clear(); await loadProjectDoc();
   vi.clearAllMocks();
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });

@@ -71,9 +71,14 @@ To change layouts, open **App settings → Editor layout** and choose
 **Workflow + properties** or **Original Single Panel UI**. Your choice is remembered.
 
 In **Bin** on a phone, use **Workflow** to find a section, **Adjust** for quick
-changes, and **All properties** for the full editor. **Select**, **Move**, and
-**Rotate** stay beside the canvas; their adjustments appear below or beside it.
-**Done** returns to selection. **Export** opens the export controls.
+changes, and **All properties** for the full editor. One icon row holds **Add**,
+**Select**, **Move**, **Rotate**, **Undo**, the ruler, and **Tools**. Redo,
+navigation, and edit history are under **Tools**; its menus scroll on short screens.
+Move and Rotate keep the canvas clear, with larger draggable axis labels.
+**Adjust** opens exact X/Y/Z values or rotation angles below or beside the canvas;
+**Done** hides those values while keeping the tool active. Canvas pinches zoom
+the design; adding a second finger cancels any unfinished handle edit.
+Edit history has a back arrow to return to the tools. **Export** opens the export controls.
 App settings and Help are in **More options**.
 
 ### 1. Trace the tools
@@ -98,6 +103,20 @@ adjust **Sensitivity** to refine detection and **Simplification** to control the
 number of points. Use **Edit contours** to correct individual points, or
 **Symmetry & straighten** when the tool needs a symmetric outline or upright alignment.
 **Margin** optionally adds clearance around the traced tool.
+
+**Select** only selects contours. Choose **Edit contours** to move points or add
+one near an edge; clicking empty space clears the selection. Ctrl/Cmd+Z and
+Ctrl/Cmd+Shift+Z undo and redo contour edits, including after toolbar clicks.
+Replacing a ruler keeps the accepted scale until you confirm the new one;
+**Cancel ruler** restores it. Clearing the region or redrawing it over manual
+edits asks before replacing your work. Clearing the region also clears contour
+history and cannot be undone.
+
+The current Trace draft is saved in this browser, including its photo, scale,
+edited contours, and undo history. Wait for **Trace draft saved in this browser** before
+closing the page. This recovery copy is local to the browser; replacing the photo
+or choosing **Start over** replaces or clears it. Export a project backup for a
+portable copy of a calibrated outline and its bin settings.
 
 Choose **Add to bin** and name the tool. Use **Add and trace another photo** for
 the accessories, then **Add and arrange** when the traces are ready. For a
@@ -136,6 +155,27 @@ Select a pocket on the canvas or in **Pockets**, then edit **Depth**,
 properties. Select several objects with their checkboxes or Shift/Ctrl/⌘-click
 to move or arrange them together. Additional toolbar actions appear under
 **Tools** when space is limited.
+
+Numeric fields preview valid changes immediately. Enter or leaving the field
+commits once; Escape restores the whole edit, including dependent geometry.
+Invalid Enter keeps focus; invalid blur discards the edit. Batch fields still use
+**Apply**. Autosave and export use committed changes. An unnamed draft is separate
+from named Library storage; choose **Save this draft to Library** to name it.
+
+Bin projects are also saved only in this browser. If another tab changes the
+saved projects, a stale tab stops saving and shows a notice above the canvas.
+Use **Download backup** to keep that tab's edits, then reload to use the latest
+saved work. Storage errors keep the same backup action visible even when the
+controls are closed. A failed library read is shown as an error, not an empty
+library.
+
+**New project** offers to save an unnamed draft with a name before starting over.
+Saving the draft and starting the empty project succeed together; a storage or
+name-conflict error keeps your draft open. Discarding the draft is a separate,
+explicit choice. Named projects save their latest changes before starting new.
+Projects saved by a newer version, or ones this version cannot read, remain
+visible in the library and included in **Export library** backups. Their Open,
+Rename, and Copy actions stay disabled to preserve the saved document.
 
 ![The four Wolfbox kit pockets and two lifting scoops in Layout, with the 4 by 4 cell and 6.5u bin settings visible](docs/images/bin-layout.jpg)
 

@@ -1,3 +1,4 @@
+import "@/lib/project/mock-storage";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { parseProjectDoc, serializeProjectDoc, PROJECT_SCHEMA_VERSION } from "@shared/gridfinity/project";
 import fixture from "@shared/gridfinity/fixtures/airduster-v9.pocketry.json";
@@ -87,7 +88,7 @@ describe("folder-backed project persistence", () => {
     await folder.write([project, { ...project, id: "future", name: "Future", doc: { schemaVersion: 999, valuable: [1, 2, 3] } }]);
     const snapshot = await p.connectLibraryFolder(root, true, DOC);
     expect(snapshot.projects.map(p => p.name)).toEqual(["Tools", "Future", "Tools (imported)"]);
-    expect(snapshot.projects[1].unavailable).toBe(true);
+    expect(snapshot.projects[1].unavailable).toBe("newer-version");
     expect((await p.exportProjectLibrary()).projects[1].doc).toEqual({ schemaVersion: 999, valuable: [1, 2, 3] });
   });
 
