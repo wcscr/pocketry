@@ -84,6 +84,35 @@ describe("Mobile trace progression", () => {
     expect(openSettings).not.toHaveBeenCalled();
   });
 
+  it("cancels or confirms a replacement ruler without offering the old scale as the new one", () => {
+    readyOutline();
+    const before = trace;
+    React.act(() => trace.dispatch({ type: "SET_MODE", mode: "calibrate" }));
+    expect(button("Cancel ruler")).toBeDefined();
+    expect(host.textContent).not.toContain("Use this scale");
+    expect(host.textContent).not.toContain("Add to bin");
+    const completeRuler = () => React.act(() => {
+      trace.dispatch({ type: "SET_DRAFT_CALIBRATION", draftCalibration: { startX: 10, startY: 20, endX: 70, endY: 20 } });
+      trace.dispatch({ type: "SET_MODE", mode: "pan" });
+      trace.dispatch({ type: "SET_RULER_LENGTH_INPUT", value: "75" });
+    });
+    completeRuler();
+    expect(trace.calibration).toBe(before.calibration);
+    expect(button("Confirm scale").disabled).toBe(false);
+    React.act(() => button("Cancel ruler").click());
+    expect(trace.calibration).toBe(before.calibration);
+    expect(trace.draftCalibration).toBeNull();
+    expect(trace.outline).toBe(before.outline);
+    expect(trace.history).toBe(before.history);
+    expect(button("Add to bin")).toBeDefined();
+    React.act(() => trace.dispatch({ type: "SET_MODE", mode: "calibrate" }));
+    completeRuler();
+    React.act(() => button("Confirm scale").click());
+    expect(trace.calibration).toEqual({ startX: 10, startY: 20, endX: 70, endY: 20, lengthMm: 75 });
+    expect(trace.draftCalibration).toBeNull();
+    expect(trace.outline).toBe(before.outline);
+  });
+
   it.each([false, true])("keeps completed corners available for review (existing scale: %s)", existingScale => {
     load();
     if (existingScale) React.act(() => trace.dispatch({ type: "SET_CALIBRATION", calibration }));

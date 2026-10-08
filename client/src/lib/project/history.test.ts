@@ -1,3 +1,4 @@
+import "@/lib/project/mock-storage";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { set, setMany } from "idb-keyval";
 import { parseProjectDoc } from "@shared/gridfinity/project";
@@ -27,7 +28,7 @@ const saved = { ...project, history: { stack: [
 ], index: 1 } };
 const undone = { ...saved, ...baseline, history: { ...saved.history, index: 0 } };
 
-beforeEach(() => { memory.clear(); vi.clearAllMocks(); });
+beforeEach(async () => { memory.clear(); await loadProjectDoc(); vi.clearAllMocks(); });
 afterEach(() => { vi.useRealTimers(); });
 
 describe("saved undo/redo history", () => {
@@ -57,7 +58,7 @@ describe("saved undo/redo history", () => {
     await saveProjectToLibrary(imported, "A", null);
     await saveProjectToLibrary(saved, "B", null);
     const backup = JSON.parse(JSON.stringify(await exportProjectLibrary()));
-    memory.clear();
+    memory.clear(); await loadProjectDoc();
     const result = await importProjectLibrary(backup);
     const [a, b] = result.library.projects;
     expect((await openProjectFromLibrary(a.id)).doc.history).toEqual(undone.history);
@@ -86,7 +87,7 @@ describe("saved undo/redo history", () => {
     saver(undone, a.activeProjectId);
     await openProjectFromLibrary(b.activeProjectId!);
     await vi.advanceTimersByTimeAsync(600);
-    expect(onSaved).toHaveBeenLastCalledWith(false);
+    expect(onSaved).toHaveBeenLastCalledWith(false, expect.objectContaining({ name: "ProjectStorageConflictError" }));
     expect((await loadProjectDoc())!.name).toBe("B");
     expect((await loadProjectDoc())!.history).toBeUndefined();
     expect((await openProjectFromLibrary(a.activeProjectId!)).doc.history).toEqual(saved.history);
@@ -99,7 +100,7 @@ describe("saved undo/redo history", () => {
     const saver = createDebouncedProjectSaver(500, onSaved);
     saver(undone, a.activeProjectId);
     expect(await saver.flush()).toBe(false);
-    expect(onSaved).toHaveBeenLastCalledWith(false);
+    expect(onSaved).toHaveBeenLastCalledWith(false, expect.objectContaining({ message: "Quota exceeded" }));
     expect((await loadProjectDoc())!.history).toEqual(saved.history);
     expect(undone.history.index).toBe(0);
   });
@@ -107,11 +108,11 @@ describe("saved undo/redo history", () => {
   it("preserves a malformed working copy and rejects malformed backups without writes", async () => {
     const invalid = { ...saved, history: { ...saved.history, index: 99 } };
     memory.set("tooltrace:project:v1", invalid);
-    expect(await loadProjectDoc()).toBeNull();
+    await expect(loadProjectDoc()).rejects.toThrow("kept intact");
     expect(await saveProjectDoc(saved)).toBe(false);
     expect(memory.get("tooltrace:project:v1")).toEqual(invalid);
     expect(set).not.toHaveBeenCalled();
-    memory.clear();
+    memory.clear(); await loadProjectDoc();
     await saveProjectToLibrary(saved, "A", null);
     const backup = await exportProjectLibrary();
     backup.projects[0].doc = invalid;

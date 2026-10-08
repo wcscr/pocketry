@@ -11,7 +11,7 @@ import { loadTraceDraft, saveTraceDraft, traceDraftSnapshot } from "@/lib/trace-
 import type { TraceDraft } from "@shared/trace-draft";
 import { generateSTL } from "@/lib/export/stl";
 import { parseProjectDoc } from "@shared/gridfinity/project";
-import type { Outline } from "@shared/geometry/types";
+import type { Outline, Rect } from "@shared/geometry/types";
 import { autoCalibrate, type AutoCalibrationResult } from "@/lib/calibrate/auto-calibrate";
 import type { DetectionFrame } from "@/components/trace/use-image-source";
 
@@ -101,15 +101,23 @@ vi.mock("@/components/trace/trace-canvas", () => ({
     onReprocess,
   }: {
     emptyState?: React.ReactNode;
-    onReprocess: () => void;
-  }) => (
+    onReprocess: (region?: Rect) => void;
+  }) => {
+    const { dispatch } = useTrace();
+    return (
     <>
       {emptyState}
-      <button data-testid="run-detection" onClick={onReprocess}>
+      <button data-testid="run-detection" onClick={() => onReprocess()}>
         Run detection
       </button>
+      <button data-testid="commit-new-region" onClick={() => {
+        const region = { x: 80, y: 90, width: 200, height: 100 };
+        dispatch({ type: "SET_REGION", region });
+        onReprocess(region);
+      }}>Commit new region</button>
     </>
-  ),
+    );
+  },
 }));
 
 vi.mock("@/components/trace/use-image-source", () => {
@@ -460,6 +468,22 @@ describe("Trace detection workflow", () => {
     expect(downloadBlob).not.toHaveBeenCalled();
   });
 
+  it.each([false, true])("blocks a pending replacement ruler when export is already open: %s", async alreadyOpen => {
+    let current!: ReturnType<typeof useTrace>;
+    function Probe(): null { current = useTrace(); return null; }
+    await React.act(async () => root.render(<PanelProvider><TraceProvider><Probe /><SeedExportOutline format="stl" /><TracePage /></TraceProvider></PanelProvider>));
+    if (alreadyOpen) React.act(() => host.querySelector<HTMLButtonElement>('[data-testid="export-trace"]')!.click());
+    React.act(() => current.dispatch({ type: "SET_MODE", mode: "calibrate" }));
+    expect(current.calibration).not.toBeNull();
+    if (alreadyOpen) await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-confirm-export"]')!.click());
+    else {
+      React.act(() => host.querySelector<HTMLButtonElement>('[data-testid="export-trace"]')!.click());
+      expect(document.querySelector('[data-testid="button-confirm-export"]')).toBeNull();
+    }
+    expect(generateSTL).not.toHaveBeenCalled();
+    expect(downloadBlob).not.toHaveBeenCalled();
+  });
+
   it("keeps the edited trace and mode when scale first appears with existing geometry", async () => {
     let current!: ReturnType<typeof useTrace>;
     function Probe(): null { current = useTrace(); return null; }
@@ -646,6 +670,14 @@ describe("Trace detection workflow", () => {
     expect(host.querySelector('[data-testid="source-state"]')?.textContent).toBe(
       "data:image/png;base64,replacement|800x600",
     );
+  });
+
+  it("detects in the newly committed region instead of a stale region from the previous render", async () => {
+    await React.act(async () => root.render(<PanelProvider><TraceProvider><WorkflowController /><TracePage /></TraceProvider></PanelProvider>));
+    React.act(() => host.querySelector<HTMLButtonElement>('[data-testid="set-region"]')!.click());
+    await React.act(async () => host.querySelector<HTMLButtonElement>('[data-testid="commit-new-region"]')!.click());
+    expect(getImageDataMock).toHaveBeenCalledExactlyOnceWith({ x: 80, y: 90, width: 200, height: 100 });
+    expect(processImageMock).toHaveBeenCalledOnce();
   });
 
   it("waits for a detection region instead of tracing immediately on image load", async () => {

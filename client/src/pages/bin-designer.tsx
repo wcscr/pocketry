@@ -184,6 +184,8 @@ function BinDesignerWorkspace(): JSX.Element {
   const [projectRestoreFailed, setProjectRestoreFailed] = useState(false);
   const [projectBusy, setProjectBusy] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"saving" | "saved" | "error">("saving");
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [projectLibraryError, setProjectLibraryError] = useState<string | null>(null);
   const [draftName, setDraftName] = useState<string | null>(null);
   const [keepBinSize, setKeepBinSize] = useState(false);
 
@@ -226,10 +228,17 @@ function BinDesignerWorkspace(): JSX.Element {
         saved = await loadProjectLibrary(doc);
       } catch (cause) {
         if (cancelled) return;
-        saved = await loadProjectLibrary();
+        saved = await loadProjectLibrary().catch(error => {
+          if (!cancelled) setProjectLibraryError(error instanceof Error ? error.message : "The browser library could not be read.");
+          return EMPTY_PROJECT_LIBRARY;
+        });
+        // A failed restore must never bind this older in-memory document to
+        // another tab's current autosave target.
+        saved = { ...saved, activeProjectId: null };
         if (cancelled) return;
         setProjectRestoreFailed(true);
         setSaveStatus("error");
+        setSaveError(cause instanceof Error ? cause.message : "The saved project could not be recovered. Keep this page open and download a backup.");
         toast({ title: "Could not restore project to library",
           description: `${cause instanceof Error ? cause.message : String(cause)} Your current design is still open. Export it or save it with a new name to keep your work.`,
           variant: "destructive" });
@@ -258,6 +267,20 @@ function BinDesignerWorkspace(): JSX.Element {
       } else {
         dispatch({ type: "MARK_HYDRATED" });
       }
+    }).catch(async cause => {
+      if (cancelled) return;
+      setProjectRestoreFailed(true);
+      setSaveStatus("error");
+      setSaveError(cause instanceof Error ? cause.message : "The saved project could not be read. Reload to retry; stored work has been kept intact.");
+      // Keep the saved library available for backup even when the working copy
+      // cannot be opened. Never hydrate or autosave the empty fallback design.
+      try {
+        const saved = await loadProjectLibrary();
+        if (!cancelled) setProjectLibrary({ ...saved, activeProjectId: null });
+      } catch (error) {
+        if (!cancelled) setProjectLibraryError(error instanceof Error ? error.message : "The browser library could not be read.");
+      }
+      if (!cancelled) setProjectLibraryReady(true);
     });
     return () => {
       cancelled = true;
@@ -276,7 +299,12 @@ function BinDesignerWorkspace(): JSX.Element {
 
   // Autosave everything the doc covers, debounced; suppressed until
   // hydration so the empty default never overwrites a real project.
-  const saveProject = useMemo(() => createDebouncedProjectSaver(500, (success) => setSaveStatus(success ? "saved" : "error")), []);
+  const saveProject = useMemo(() => createDebouncedProjectSaver(500, (success, error) => {
+    setSaveStatus(success ? "saved" : "error");
+    setSaveError(success ? null : error?.name === "QuotaExceededError"
+      ? "Browser storage is full. Keep this page open and download a backup of your edits."
+      : error?.message ?? "Could not save in this browser. Keep this page open and download a backup of your edits.");
+  }), []);
   const currentProjectDoc = useMemo<ProjectDoc>(
     () => ({
       schemaVersion: PROJECT_SCHEMA_VERSION,
@@ -532,7 +560,7 @@ function BinDesignerWorkspace(): JSX.Element {
   const handleExportLibrary = useCallback(async () => {
     setProjectBusy(true);
     try {
-      const backup = await exportProjectLibrary(currentProjectDoc);
+      const backup = await exportProjectLibrary(bin.hydrated ? currentProjectDoc : undefined);
       downloadBlob(
         new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" }),
         `pocketry-library-${new Date().toISOString().replace(/[:.]/g, "-")}.json`,
@@ -543,7 +571,7 @@ function BinDesignerWorkspace(): JSX.Element {
     } finally {
       setProjectBusy(false);
     }
-  }, [currentProjectDoc, toast]);
+  }, [currentProjectDoc, bin.hydrated, toast]);
 
   const handleImportLibrary = useCallback(async (file: File, mode: LibraryImportMode): Promise<boolean> => {
     setProjectBusy(true);
@@ -579,6 +607,7 @@ function BinDesignerWorkspace(): JSX.Element {
     if (!projectLibrary.activeProjectId) return;
     const saved = await saveProjectDoc(currentProjectDoc, projectLibrary.activeProjectId);
     setSaveStatus(saved ? "saved" : "error");
+    if (!saved) setSaveError("Your current changes could not be saved. Keep this page open and download a backup before switching projects.");
     if (!saved) throw new Error("Your current changes could not be saved. The current project has been kept open.");
   }, [saveProject, currentProjectDoc, projectLibrary.activeProjectId]);
 
@@ -623,7 +652,7 @@ function BinDesignerWorkspace(): JSX.Element {
     [library, dispatch, saveBeforeReplacingProject, toast],
   );
 
-  const handleNewProject = useCallback(async () => {
+  const handleNewProject = useCallback(async (saveDraftName?: string): Promise<boolean> => {
     const doc: ProjectDoc = {
       schemaVersion: PROJECT_SCHEMA_VERSION,
       shapes: [],
@@ -634,7 +663,8 @@ function BinDesignerWorkspace(): JSX.Element {
     setProjectBusy(true);
     try {
       await saveBeforeReplacingProject();
-      const saved = await startNewProject(doc);
+      const saved = saveDraftName === undefined ? await startNewProject(doc)
+        : await startNewProject(doc, { doc: currentProjectDoc, name: saveDraftName });
       setDraftName(null);
       setKeepBinSize(false);
       setMaterials(DEFAULT_BIN_MATERIALS);
@@ -652,18 +682,20 @@ function BinDesignerWorkspace(): JSX.Element {
       setProjectRestoreFailed(false);
       toast({
         title: "New project ready",
-        description: "Ready for a new design.",
+        description: saveDraftName === undefined ? "Ready for a new design." : `Your draft was saved as “${saveDraftName.trim()}” in this browser’s library.`,
       });
+      return true;
     } catch (cause) {
       toast({
         title: "Could not start project",
         description: cause instanceof Error ? cause.message : String(cause),
         variant: "destructive",
       });
+      return false;
     } finally {
       setProjectBusy(false);
     }
-  }, [library, dispatch, saveBeforeReplacingProject, toast]);
+  }, [library, dispatch, saveBeforeReplacingProject, currentProjectDoc, toast]);
 
   const handleSaveProject = useCallback(async (name: string): Promise<boolean> => {
     setProjectBusy(true);
@@ -800,7 +832,11 @@ function BinDesignerWorkspace(): JSX.Element {
   );
 
   const handleRefreshProjects = useCallback(() => {
-    void loadProjectLibrary().then(setProjectLibrary);
+    void loadProjectLibrary().then(saved => {
+      // Listing saved entries must not switch this tab's open document.
+      setProjectLibrary(current => ({ ...saved, activeProjectId: current.activeProjectId }));
+      setProjectLibraryError(null);
+    }).catch(cause => setProjectLibraryError(cause instanceof Error ? cause.message : "The browser library could not be read. Try again."));
   }, []);
 
   // Cmd/Ctrl+Z undoes, Shift+Cmd/Ctrl+Z (or Ctrl+Y) redoes — guarded against
@@ -1106,6 +1142,7 @@ function BinDesignerWorkspace(): JSX.Element {
           settingsSectionRequest={settingsSectionRequest}
           pocketEditorRequest={pocketEditorRequest}
           saveStatus={saveStatus}
+          projectLibraryError={projectLibraryError}
           keepBinSize={keepBinSize}
           onKeepBinSizeChange={setKeepBinSize}
           stats={stats}
@@ -1139,7 +1176,7 @@ function BinDesignerWorkspace(): JSX.Element {
           onRefreshProjects={handleRefreshProjects}
           onExportLibrary={() => void handleExportLibrary()}
           onImportLibrary={handleImportLibrary}
-          onNewProject={() => void handleNewProject()}
+          onNewProject={handleNewProject}
           section={section}
           onSectionChange={setSection}
           colorPocketFloors={colorPocketFloors}
@@ -1161,7 +1198,12 @@ function BinDesignerWorkspace(): JSX.Element {
         />
       }
       canvas={
-        <div className="absolute inset-0" data-testid="bin-canvas">
+        <div className="absolute inset-0 flex flex-col" data-testid="bin-canvas">
+          {saveError && <div role="alert" data-testid="bin-save-error" className="z-40 flex shrink-0 flex-wrap items-center gap-2 border-b border-destructive/40 bg-background px-3 py-2 text-sm text-destructive">
+            <p className="min-w-0 flex-1">{saveError}</p>
+            {bin.hydrated && <Button variant="outline" className="min-h-11 shrink-0" onClick={handleExportProject}>Download backup</Button>}
+          </div>}
+          <div className="relative min-h-0 flex-1">
           <CanvasWarnings
             issues={issues}
             selectedCutoutId={bin.selectedCutoutId}
@@ -1289,6 +1331,7 @@ function BinDesignerWorkspace(): JSX.Element {
               <Redo2 className="h-3.5 w-3.5" />
             </Button>
           </div>}
+          </div>
         </div>
       }
     />

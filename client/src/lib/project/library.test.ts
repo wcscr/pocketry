@@ -1,3 +1,4 @@
+import "@/lib/project/mock-storage";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { set, setMany } from "idb-keyval";
 import { PROJECT_SCHEMA_VERSION, parseProjectDoc } from "@shared/gridfinity/project";
@@ -27,7 +28,7 @@ const backup = (docs: Record<string, unknown>[] = [DOC]): LibraryBackup => ({
   })),
 });
 
-beforeEach(() => { memory.clear(); vi.clearAllMocks(); });
+beforeEach(async () => { memory.clear(); await loadProjectDoc(); vi.clearAllMocks(); });
 
 describe("library JSON transfer", () => {
   it("keeps independent colors through library backup, import, switches and reload", async () => {
@@ -39,7 +40,7 @@ describe("library JSON transfer", () => {
     const a = await saveProjectToLibrary(first, "A", null);
     const b = await saveProjectToLibrary(second, "B", null);
     const exported = JSON.parse(JSON.stringify(await exportProjectLibrary()));
-    memory.clear();
+    memory.clear(); await loadProjectDoc();
     await importProjectLibrary(exported);
     for (const [id, materials] of [
       [a.activeProjectId!, first.materials], [b.activeProjectId!, second.materials],
@@ -62,7 +63,7 @@ describe("library JSON transfer", () => {
       expect((await loadProjectDoc())!.cutouts).toEqual(cutter.cutouts);
     }
     const exported = JSON.parse(JSON.stringify(await exportProjectLibrary()));
-    memory.clear();
+    memory.clear(); await loadProjectDoc();
     await importProjectLibrary(exported);
     const restored = await openProjectFromLibrary(cutterEntry.id);
     expect(restored.doc.cutouts).toEqual(cutter.cutouts);
@@ -73,7 +74,7 @@ describe("library JSON transfer", () => {
     await saveProjectToLibrary(DOC, "Tools", null);
     await saveProjectToLibrary({ ...DOC, keepBinSize: true }, "Fixed tools", null);
     const exported = JSON.parse(JSON.stringify(await exportProjectLibrary()));
-    memory.clear();
+    memory.clear(); await loadProjectDoc();
     const result = await importProjectLibrary(exported);
     expect(result).toMatchObject({ imported: 2, upgraded: 0, renamed: 0 });
     expect(result.library.activeProjectId).toBeNull();
@@ -89,7 +90,7 @@ describe("library JSON transfer", () => {
     const exported = await exportProjectLibrary(updated);
     expect(exported.projects[0]).toMatchObject({ id: library.activeProjectId, doc: { ...updated, name: "Tools" } });
     expect((await loadProjectDoc())!.keepBinSize).toBeUndefined();
-    memory.clear();
+    memory.clear(); await loadProjectDoc();
     await saveProjectDoc(updated);
     expect((await exportProjectLibrary(updated)).projects).toEqual([]);
   });
@@ -167,6 +168,7 @@ describe("library JSON transfer", () => {
   it("preserves unreadable stored designs in exports and on merge", async () => {
     const future = { schemaVersion: 999, important: [1, 2, 3] };
     memory.set(LIBRARY_KEY, { schemaVersion: 1, activeProjectId: null, projects: backup([future]).projects });
+    await loadProjectDoc();
     expect((await exportProjectLibrary()).projects[0].doc).toEqual(future);
     await importProjectLibrary(backup());
     expect((await exportProjectLibrary()).projects[0].doc).toEqual(future);
@@ -244,6 +246,7 @@ describe("library JSON transfer", () => {
   it("does not replace a library when its current working copy is unreadable", async () => {
     await saveProjectToLibrary(DOC, "Existing", null);
     memory.set("tooltrace:project:v1", { schemaVersion: 999 });
+    await expect(loadProjectDoc()).rejects.toThrow("kept intact");
     const before = structuredClone([...memory]);
     await expect(importProjectLibrary(backup(), "replace")).rejects.toThrow("current design is unreadable");
     expect([...memory]).toEqual(before);

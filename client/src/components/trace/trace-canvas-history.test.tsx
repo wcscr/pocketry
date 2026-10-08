@@ -231,7 +231,7 @@ afterEach(() => {
 });
 
 describe("TraceCanvas edit history", () => {
-  it.each(["click", "tiny", "cancel", "escape", "commit"])("preserves edited geometry through region %s", async gesture => {
+  it.each(["click", "tiny", "cancel", "escape", "commit", "decline"])("preserves edited geometry through region %s", async gesture => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     vi.stubGlobal("ResizeObserver", NoopResizeObserver);
     vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
@@ -254,8 +254,17 @@ describe("TraceCanvas edit history", () => {
       pointer(gesture === "cancel" ? "pointercancel" : "pointerup", 70, 70);
       expect(trace!.outline).toBe(before.outline);
       expect(trace!.history).toBe(before.history);
+      expect(trace!.region).toEqual(before.region);
+      expect(reprocess).not.toHaveBeenCalled();
+      if (gesture === "commit" || gesture === "decline") {
+        const dialog = document.querySelector('[role="alertdialog"]')!;
+        expect(dialog.textContent).toContain("Re-detect in a new region?");
+        const action = [...dialog.querySelectorAll('button')].find(button => button.textContent === (gesture === "commit" ? "Replace manual edits" : "Keep my edits"))!;
+        await React.act(async () => action.click());
+      }
       expect(trace!.region).toEqual(gesture === "commit" ? { x: 20, y: 20, width: 50, height: 50 } : before.region);
       expect(reprocess).toHaveBeenCalledTimes(gesture === "commit" ? 1 : 0);
+      if (gesture === "commit") expect(reprocess).toHaveBeenLastCalledWith({ x: 20, y: 20, width: 50, height: 50 });
       React.act(() => trace.undo());
       expect(trace!.outline).toEqual(detected);
     } finally { React.act(() => root.unmount()); restore(); }
@@ -326,7 +335,7 @@ describe("TraceCanvas edit history", () => {
     } finally { React.act(() => root.unmount()); }
   });
 
-  it("leaves undo and zoom to dialogs, focused controls, and earlier handlers", async () => {
+  it("allows button-focused Undo and Redo while leaving zoom, dialogs and earlier handlers alone", async () => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     vi.stubGlobal("ResizeObserver", NoopResizeObserver);
     vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
@@ -355,7 +364,10 @@ describe("TraceCanvas edit history", () => {
       dialog.remove();
 
       const button = host.querySelector('[aria-label="Set scale"]')!;
-      expect(key(button, "z", true).defaultPrevented).toBe(false);
+      expect(key(button, "z", true).defaultPrevented).toBe(true);
+      expect(outlinePath()).not.toBe(editedPath);
+      expect(key(button, "y", true).defaultPrevented).toBe(true);
+      expect(outlinePath()).toBe(editedPath);
       expect(key(button, "1").defaultPrevented).toBe(false);
       key(window, "z", true, true);
       expect(outlinePath()).toBe(editedPath);
@@ -605,7 +617,7 @@ describe("TraceCanvas edit history", () => {
       );
       expect(
         host.querySelector('[data-testid="scale-committed"]')?.textContent,
-      ).toBe("pending");
+      ).toBe("committed");
       expect(host.querySelector('[data-testid="scale-draft"]')?.textContent).toBe(
         JSON.stringify({ startX: 20, startY: 30, endX: 75, endY: 85 }),
       );
@@ -1010,7 +1022,44 @@ describe("TraceCanvas edit history", () => {
 });
 
 describe("desktop point focus", () => {
-  it.each(["edit", "pan"] as const)("focuses and deletes points in %s without changing mouse edit gestures", async mode => {
+  it("selects and deselects without changing geometry in Select", async () => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    vi.stubGlobal("innerWidth", 1440);
+    vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+    vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
+    const restore = installIdentitySvgCoordinates();
+    const host = document.createElement("div"); document.body.append(host);
+    const root = createRoot(host);
+    let trace: TraceStore;
+    function Probe(): null { trace = useTrace(); return null; }
+    try {
+      await React.act(async () => root.render(<TraceProvider><SeedTrace /><Probe /><TooltipProvider><TraceCanvas onReprocess={() => {}} /></TooltipProvider></TraceProvider>));
+      React.act(() => trace!.dispatch({ type: "SET_MODE", mode: "pan" }));
+      const before = trace!;
+      const svg = host.querySelector("svg")!;
+      Object.defineProperty(svg, "setPointerCapture", { value: () => {} });
+      const pointer = (type: string, x: number, y: number) => React.act(() => svg.dispatchEvent(new MouseEvent(type, { bubbles: true, button: 0, clientX: x, clientY: y })));
+      for (const [x, y] of [[10, 10], [50, 10]]) {
+        pointer("pointerdown", x, y); pointer("pointerup", x, y);
+        expect(trace!.selection).toEqual({ shapeIndex: 0, ringIndex: -1 });
+        expect(host.querySelector("[data-vertex]")).toBeNull();
+        expect(host.querySelector('[aria-label="Contour editing tools"]')).toBeNull();
+      }
+      pointer("pointerdown", 10, 10); pointer("pointermove", 35, 35); pointer("pointerup", 35, 35);
+      const menu = new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 10, clientY: 10 });
+      React.act(() => svg.dispatchEvent(menu));
+      expect(menu.defaultPrevented).toBe(false);
+      pointer("pointerdown", 200, 200); pointer("pointerup", 200, 200);
+      expect(trace!.selection).toBeNull();
+      pointer("pointerdown", 50, 10); pointer("pointerup", 50, 10);
+      React.act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+      expect(trace!.selection).toBeNull();
+      expect(trace!.outline).toBe(before.outline);
+      expect(trace!.history).toBe(before.history);
+    } finally { React.act(() => root.unmount()); restore(); }
+  });
+
+  it("focuses and deletes points in Edit contours", async () => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     vi.stubGlobal("innerWidth", 1440);
     vi.stubGlobal("ResizeObserver", NoopResizeObserver);
@@ -1023,7 +1072,6 @@ describe("desktop point focus", () => {
     try {
       await React.act(async () => root.render(<TraceProvider><SeedTrace /><Probe /><TooltipProvider><TraceCanvas onReprocess={() => {}} /></TooltipProvider></TraceProvider>));
       React.act(() => trace!.dispatch({ type: "SET_MODE", mode: "edit" }));
-      React.act(() => trace!.dispatch({ type: "SET_MODE", mode }));
       const svg = host.querySelector('svg')!;
       Object.defineProperty(svg, 'setPointerCapture', { value: () => {} });
       const pointer = (type: string, x: number, y: number) => React.act(() => {
@@ -1042,6 +1090,12 @@ describe("desktop point focus", () => {
       expect(host.querySelector('[data-vertex="0"]')!.getAttribute('data-point-selected')).toBe('true');
       expect(trace!.history.index).toBe(historyIndex);
       expect(trace!.outline).toEqual(edited);
+      pointer('pointerdown', 200, 200); pointer('pointerup', 200, 200);
+      expect(trace!.selection).toBeNull();
+      expect(trace!.outline).toEqual(edited);
+      expect(trace!.history.index).toBe(historyIndex);
+      React.act(() => trace!.dispatch({ type: "SELECT_RING", selection: { shapeIndex: 0, ringIndex: -1 } }));
+      pointer('pointerdown', 10, 10); pointer('pointerup', 10, 10);
       React.act(() => remove()!.click());
       expect(trace!.outline[0].outer).toHaveLength(4);
       expect(remove()).toBeUndefined();
@@ -1064,6 +1118,13 @@ describe("desktop point focus", () => {
       expect(trace!.outline).toEqual(edited);
       expect(trace!.history).toBe(beforeCancel);
       expect(remove()).toBeUndefined();
+      React.act(() => trace!.dispatch({ type: "SELECT_RING", selection: { shapeIndex: 0, ringIndex: -1 } }));
+      pointer('pointerdown', 10, 10); pointer('pointermove', 30, 30);
+      React.act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+      pointer('pointerup', 30, 30);
+      expect(trace!.outline).toEqual(edited);
+      expect(trace!.history).toBe(beforeCancel);
+      expect(trace!.selection).toBeNull();
       React.act(() => trace!.dispatch({ type: "SELECT_RING", selection: { shapeIndex: 0, ringIndex: -1 } }));
       pointer('pointerdown', 10, 10); pointer('pointerup', 10, 10);
       React.act(() => remove()!.click());

@@ -1,3 +1,4 @@
+import "@/lib/project/mock-storage";
 import { createRequire } from "node:module";
 import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -17,7 +18,7 @@ vi.mock("idb-keyval", () => ({
     for (const [key, value] of entries) memory.set(String(key), structuredClone(value));
   }),
 }));
-beforeEach(() => memory.clear());
+beforeEach(async () => { memory.clear(); await loadProjectDoc(); });
 const bytes = readFileSync(createRequire(import.meta.url).resolve("three/examples/fonts/ttf/kenpixel.ttf"));
 async function document(): Promise<ProjectDoc> {
   const font = await importLocalFont(new Blob([new Uint8Array(bytes)]), "Kenpixel", "A");
@@ -55,7 +56,7 @@ describe("portable deduplicated font sources", () => {
     expect(await loadProjectDoc()).toEqual(named);
     const backup = JSON.stringify(await exportProjectLibrary(named));
     expect(backup.match(/"data":/g)).toHaveLength(1);
-    memory.clear();
+    memory.clear(); await loadProjectDoc();
     const imported = await importProjectLibrary(JSON.parse(backup));
     const opened = await openProjectFromLibrary(imported.library.projects[0].id);
     expect(opened.doc).toEqual(named);

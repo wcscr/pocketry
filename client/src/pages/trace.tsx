@@ -55,7 +55,7 @@ import { generateSTL } from "@/lib/export/stl";
 import { generateOutlineSVG } from "@/lib/export/svg";
 import type { ImageRotationDirection } from "@/lib/geometry/image-rotation";
 import { processImage } from "@/lib/image-processor";
-import { useTrace } from "@/state/trace-store";
+import { hasPendingManualCalibration, useTrace } from "@/state/trace-store";
 
 /** The tracing workspace. */
 export default function TracePage(): JSX.Element {
@@ -183,15 +183,16 @@ function TraceWorkspace(): JSX.Element {
   const runDetection = useCallback(async (settings?: {
     sensitivity: number;
     includeInteriorHoles: boolean;
-  }) => {
+  }, requestedRegion?: Rect) => {
     if (source.status !== "ready") return;
 
     // Tool detection is deliberately gated on an explicit region. Image load
     // may auto-detect scale markers, but it must never trace the calibration
     // sheet, its labels, or the surrounding table as candidate tool geometry.
+    const candidateRegion = requestedRegion ?? store.region;
     const region: Rect | null =
-      store.region && store.region.width > 5 && store.region.height > 5
-        ? store.region
+      candidateRegion && candidateRegion.width > 5 && candidateRegion.height > 5
+        ? candidateRegion
         : null;
     if (!region) return;
 
@@ -570,6 +571,10 @@ function TraceWorkspace(): JSX.Element {
   );
 
   const handleExport = async (includeProject: boolean) => {
+    if (hasPendingManualCalibration(store) || store.pendingAutoCalibration) {
+      openSettings("trace-settings-scale");
+      return;
+    }
     const { outline, imageSize, exportFormat, extrusionHeight, fileName, calibration, margin } = store;
     if (outline.length === 0) {
       toast({ title: "Nothing to export", description: "Trace an image first.", variant: "destructive" });
@@ -616,6 +621,10 @@ function TraceWorkspace(): JSX.Element {
   };
 
   const requestExport = () => {
+    if (hasPendingManualCalibration(store) || store.pendingAutoCalibration) {
+      openSettings("trace-settings-scale");
+      return;
+    }
     if (mmPerPixel(store.calibration) === null && store.exportFormat !== "svg") {
       openSettings("trace-settings-scale");
       toast({ title: "Set scale before exporting", description: "STL and DXF need a physical scale. Set scale, or choose SVG to save image pixels.", variant: "destructive" });
@@ -718,7 +727,7 @@ function TraceWorkspace(): JSX.Element {
             </p>}
             <div className="relative min-h-0 flex-1">
                 <TraceCanvas
-                  onReprocess={() => void runDetection()}
+                  onReprocess={(region) => void runDetection(undefined, region)}
                   emptyState={
                     <div className="flex h-full min-h-[24rem] w-full flex-col gap-3 text-center">
                       <h2 className="text-lg font-medium">Trace a tool from a photo</h2>

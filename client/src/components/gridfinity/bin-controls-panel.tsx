@@ -197,6 +197,7 @@ export interface BinControlsPanelProps {
   onExportProject: () => void;
   onImportProject: (doc: ProjectDoc) => Promise<boolean>;
   projectLibraryReady: boolean;
+  projectLibraryError?: string | null;
   projectBusy: boolean;
   activeProjectId: string | null;
   currentProjectName: string | null;
@@ -209,7 +210,7 @@ export interface BinControlsPanelProps {
   onRefreshProjects: () => void;
   onExportLibrary: () => void;
   onImportLibrary: (file: File, mode: LibraryImportMode) => Promise<boolean>;
-  onNewProject: () => void;
+  onNewProject: (saveDraftName?: string) => Promise<boolean>;
   section: BuildBinSection | null;
   onSectionChange: (section: BuildBinSection | null) => void;
   colorPocketFloors: boolean;
@@ -255,6 +256,7 @@ export function BinControlsPanel({
   onExportProject,
   onImportProject,
   projectLibraryReady,
+  projectLibraryError,
   projectBusy,
   activeProjectId,
   currentProjectName,
@@ -1383,6 +1385,7 @@ export function BinControlsPanel({
             setSaveOpen={setProjectNameOpen}
             hydrated={hydrated}
             libraryReady={projectLibraryReady}
+            libraryError={projectLibraryError}
             busy={projectBusy}
             saveStatus={saveStatus}
             activeProjectId={activeProjectId}
@@ -2309,6 +2312,7 @@ interface ProjectControlsProps {
   saveStatus?: "saving" | "saved" | "error";
   hydrated: boolean;
   libraryReady: boolean;
+  libraryError?: string | null;
   busy: boolean;
   activeProjectId: string | null;
   hasDraftWork: boolean;
@@ -2322,7 +2326,7 @@ interface ProjectControlsProps {
   onRefreshProjects: () => void;
   onExportLibrary: () => void;
   onImportLibrary: (file: File, mode: LibraryImportMode) => Promise<boolean>;
-  onNewProject: () => void;
+  onNewProject: (saveDraftName?: string) => Promise<boolean>;
   onExportProject: () => void;
   onImportProject: (doc: ProjectDoc) => Promise<boolean>;
 }
@@ -2338,6 +2342,7 @@ function ProjectControls({
   setSaveOpen,
   hydrated,
   libraryReady,
+  libraryError,
   busy,
   activeProjectId,
   hasDraftWork,
@@ -2360,9 +2365,20 @@ function ProjectControls({
   const [renameProjectId, setRenameProjectId] = useState<string | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [removeProject, setRemoveProject] = useState<ProjectLibraryItem | null>(null);
+  const [newProjectOpen, setNewProjectOpen] = useState(false);
+  const [newProjectName, setNewProjectName] = useState("");
+  const [newProjectError, setNewProjectError] = useState(false);
+  const unsavedDraft = !activeProjectId && hasDraftWork;
+  const createNewProject = async (saveDraftName?: string) => {
+    if (busy) return;
+    projectFileReadRevision.current += 1;
+    setNewProjectError(false);
+    if (await onNewProject(saveDraftName)) setNewProjectOpen(false);
+    else setNewProjectError(true);
+  };
   const returnToLibrary = useRef(false);
   const { settingsOpen } = useExperimentalFeatures();
-  useEffect(() => { if (settingsOpen) { setLibraryOpen(false); setSaveOpen(false); setRenameProjectId(null); setRemoveProject(null); } }, [settingsOpen, setSaveOpen]);
+  useEffect(() => { if (settingsOpen) { setLibraryOpen(false); setSaveOpen(false); setRenameProjectId(null); setRemoveProject(null); setNewProjectOpen(false); } }, [settingsOpen, setSaveOpen]);
   useEffect(() => { if (activeProjectId) setSelectedProjectId(activeProjectId); }, [activeProjectId]);
   const saveDraftFromLibrary = () => { returnToLibrary.current = true; setLibraryOpen(false); setSaveOpen(true); };
   const returnAfterNaming = () => {
@@ -2376,12 +2392,12 @@ function ProjectControls({
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const { libraryRequested, setLibraryRequested } = usePanelState();
   useEffect(() => {
-    if (!libraryRequested || !ready || busy) return;
+    if (!libraryRequested || !libraryReady || busy) return;
     setLibraryOpen(true);
     setSelectedProjectId(activeProjectId);
     setLibraryRequested(false);
     onRefreshProjects();
-  }, [libraryRequested, ready, busy, activeProjectId, setLibraryRequested, onRefreshProjects]);
+  }, [libraryRequested, libraryReady, busy, activeProjectId, setLibraryRequested, onRefreshProjects]);
   const [projectName, setProjectName] = useState("");
   useEffect(() => {
     if (saveOpen) setProjectName(currentProjectName ?? "");
@@ -2396,7 +2412,7 @@ function ProjectControls({
   useEffect(() => { projectFileReadRevision.current += 1; }, [activeProjectId]);
 
   const openProject = async (target: ProjectOpenTarget, discardDraft = false, source?: HTMLElement | null) => {
-    if (busy || (target.kind === "library" && target.project.id === activeProjectId)) return;
+    if (!ready || busy || (target.kind === "library" && (target.project.id === activeProjectId || target.project.unavailable))) return;
     // A later library-open choice supersedes any file still being validated.
     if (target.kind === "library") projectFileReadRevision.current += 1;
     if (!activeProjectId && hasDraftWork && !discardDraft) {
@@ -2516,7 +2532,7 @@ function ProjectControls({
         <Button
           variant="outline"
           size="sm"
-          disabled={!ready || busy}
+          disabled={!libraryReady || busy}
           data-testid="button-manage-library"
           className={cn(projectActionClass, "w-full")}
         >
@@ -2548,8 +2564,8 @@ function ProjectControls({
         <DialogHeader data-testid="library-manager-header" className="relative shrink-0 pr-10 bg-background before:pointer-events-none before:absolute before:-inset-x-4 before:-top-4 before:h-4 before:bg-background [@media(max-height:500px)]:sticky [@media(max-height:500px)]:top-0 [@media(max-height:500px)]:z-10">
           <DialogTitle>Manage browser library</DialogTitle>
           <DialogDescription>
-            {projects.length} saved project{projects.length === 1 ? "" : "s"} in this browser.
-            Open a project here, or import and export the entire library below.
+            {libraryError ? "The browser library could not be refreshed." : `${projects.length} saved project${projects.length === 1 ? "" : "s"} in this browser.`}
+            {" "}Open a project here, or import and export the entire library below.
           </DialogDescription>
           <DialogClose asChild>
             <Button variant="ghost" size="icon" className="absolute -right-2 -top-2 !mt-0 h-11 w-11" aria-label="Close">
@@ -2563,7 +2579,12 @@ function ProjectControls({
           data-testid="manage-library-scroll"
         >
         <div className="space-y-2 pr-4" data-testid="managed-project-list">
-          {projects.length === 0 ? (
+          {libraryError ? (
+            <div className="rounded-md border border-destructive/40 p-3 text-sm" role="alert">
+              <p>{libraryError}</p>
+              <Button variant="outline" className="mt-2 min-h-11" onClick={onRefreshProjects}>Try again</Button>
+            </div>
+          ) : projects.length === 0 ? (
             <div className="rounded-md border border-dashed p-5 text-center text-sm text-muted-foreground">
               <p>No named projects yet.</p>
               <Button className="mt-3 min-h-11 h-auto w-full whitespace-normal" data-testid="button-save-draft-library" disabled={!ready || busy} onClick={saveDraftFromLibrary}>Save this draft to Library</Button>
@@ -2611,10 +2632,16 @@ function ProjectControls({
                       <p className="min-w-0 truncate text-sm font-medium" title={project.name}>
                         {project.name}
                       </p>
-                      <Button variant="ghost" size="icon" className="h-11 w-11 shrink-0" aria-label={`Rename ${project.name}`} data-testid={`button-rename-project-${project.id}`} disabled={busy}
+                      <Button variant="ghost" size="icon" className="h-11 w-11 shrink-0" aria-label={`Rename ${project.name}`} data-testid={`button-rename-project-${project.id}`} disabled={!ready || busy || !!project.unavailable}
                         onClick={() => { returnToLibrary.current = true; setProjectName(project.name); setLibraryOpen(false); setRenameProjectId(project.id); }}><Pencil className="h-4 w-4" /></Button>
                     </div>
                     {active && <p className="text-xs text-muted-foreground">Current project</p>}
+                    {project.unavailable && <p className="mt-1 text-xs text-muted-foreground">
+                      {project.unavailable === "newer-version"
+                        ? "Saved by a newer Pocketry version. Reload Pocketry to update."
+                        : "This project could not be read by this version of Pocketry."}
+                      {" "}Kept intact and included in library backups.
+                    </p>}
                     <p className="text-[11px] text-muted-foreground">
                       Updated {formatProjectTime(project.updatedAt)}
                     </p>
@@ -2624,19 +2651,19 @@ function ProjectControls({
                     size="sm"
                     variant={active ? "secondary" : "outline"}
                     className="min-h-11 gap-1.5 px-2 text-xs"
-                    disabled={busy || active}
+                    disabled={!ready || busy || active || !!project.unavailable}
                     onClick={() => void openLibraryProject()}
-                    aria-label={active ? `${project.name} is currently open` : `Open ${project.name}`}
+                    aria-label={project.unavailable ? `${project.name} cannot be opened in this version` : active ? `${project.name} is currently open` : `Open ${project.name}`}
                     data-testid={`button-open-project-${project.id}`}
                   >
-                    {!active && <FolderOpen className="h-4 w-4" />}
-                    {active ? "Current" : "Open"}
+                    {!active && !project.unavailable && <FolderOpen className="h-4 w-4" />}
+                    {project.unavailable ? "Unavailable" : active ? "Current" : "Open"}
                   </Button>
                   <Button
                     size="sm"
                     variant="outline"
                     className="min-h-11 gap-1.5 px-2 text-xs"
-                    disabled={busy}
+                    disabled={!ready || busy || !!project.unavailable}
                     aria-label={`Duplicate ${project.name}`}
                     title="Duplicate project"
                     data-testid={`button-duplicate-project-${project.id}`}
@@ -2647,7 +2674,7 @@ function ProjectControls({
                   >
                     <Copy className="h-4 w-4" />Copy
                   </Button>
-                  <Button size="sm" variant="ghost" className="min-h-11 gap-1.5 px-2 text-xs text-destructive" disabled={busy || active}
+                  <Button size="sm" variant="ghost" className="min-h-11 gap-1.5 px-2 text-xs text-destructive" disabled={!ready || busy || active}
                     aria-label={`Remove ${project.name} from library`} data-testid={`button-remove-project-${project.id}`} onClick={() => setRemoveProject(project)}><Trash2 className="h-4 w-4" />Remove</Button>
                   </div>
                 </div>
@@ -2661,7 +2688,7 @@ function ProjectControls({
             <SettingLabel label="Entire library" hint="Exports every named project saved in this browser as one JSON file. Unnamed drafts are not included. Import lets you merge with this library or replace it. Your current design stays open; duplicate names receive an imported suffix when merging." />
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <Button size="sm" variant="outline" className={projectActionClass} disabled={!ready || busy}
+            <Button size="sm" variant="outline" className={projectActionClass} disabled={!libraryReady || busy}
               onClick={onExportLibrary} data-testid="button-export-library">
               <Download className="h-3.5 w-3.5 shrink-0" />Export library
             </Button>
@@ -2711,7 +2738,11 @@ function ProjectControls({
         {saveStatus === "error" && <p className="text-[11px] text-destructive" role="status">Autosave is unavailable. Export this project to keep your work.</p>}
       </div>
       <div className="grid grid-cols-3 gap-2" role="group" aria-label="Project actions">
-        <AlertDialog>
+        <AlertDialog open={newProjectOpen} onOpenChange={open => {
+          if (busy) return;
+          setNewProjectOpen(open);
+          if (open) { setNewProjectName(currentProjectName ?? ""); setNewProjectError(false); }
+        }}>
           <AlertDialogTrigger asChild>
             <Button
               variant="outline"
@@ -2724,25 +2755,44 @@ function ProjectControls({
               New project
             </Button>
           </AlertDialogTrigger>
-          <AlertDialogContent>
+          <AlertDialogContent className="max-h-[85dvh] overflow-y-auto" onOpenAutoFocus={event => {
+            if (unsavedDraft) { event.preventDefault(); document.getElementById("new-project-draft-name")?.focus(); }
+          }}>
+            <form className="contents" onSubmit={event => {
+              event.preventDefault();
+              if (!unsavedDraft || newProjectName.trim()) void createNewProject(unsavedDraft ? newProjectName : undefined);
+            }}>
             <AlertDialogHeader>
-              <AlertDialogTitle>Start a new project?</AlertDialogTitle>
+              <AlertDialogTitle>{unsavedDraft ? "Save this draft before starting over?" : "Start a new project?"}</AlertDialogTitle>
               <AlertDialogDescription>
-                Saves the latest changes to your named project, then starts with
-                empty shapes, pockets, and bin settings. An unnamed draft will be
-                replaced.
+                {unsavedDraft
+                  ? "This draft has work that is not saved in your library. Save it with a name before starting an empty project, or explicitly discard it."
+                  : activeProjectId
+                    ? `Saves the latest changes to “${currentProjectName}” in this browser’s library, then starts an empty project.`
+                    : "Your current project is empty. Start again with the default bin settings."}
               </AlertDialogDescription>
             </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Keep current project</AlertDialogCancel>
+            {unsavedDraft && <div className="space-y-2">
+              <Label htmlFor="new-project-draft-name">Save draft as</Label>
+              <Input id="new-project-draft-name" data-testid="input-new-project-draft-name" value={newProjectName}
+                onChange={event => setNewProjectName(event.target.value)} maxLength={80} placeholder="Socket wrench tray" disabled={busy} />
+            </div>}
+            {newProjectError && <p role="alert" className="text-sm text-destructive">Could not start a new project. Your current work is still open. Try again or download a backup.</p>}
+            <AlertDialogFooter className="flex-wrap gap-2 sm:space-x-0">
+              <AlertDialogCancel type="button" disabled={busy}>Keep current project</AlertDialogCancel>
               <AlertDialogAction
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                onClick={() => { projectFileReadRevision.current += 1; onNewProject(); }}
+                type="button" disabled={busy}
+                className={unsavedDraft ? "border border-input bg-background text-destructive hover:bg-accent" : undefined}
+                onClick={event => { event.preventDefault(); void createNewProject(); }}
                 data-testid="button-confirm-new-project"
               >
-                Start new project
+                {unsavedDraft ? "Discard draft and start new" : busy ? "Starting…" : "Start new project"}
               </AlertDialogAction>
+              {unsavedDraft && <Button type="submit" disabled={busy || !newProjectName.trim()} data-testid="button-save-draft-start-new">
+                {busy ? "Saving…" : "Save and start new"}
+              </Button>}
             </AlertDialogFooter>
+            </form>
           </AlertDialogContent>
         </AlertDialog>
         <Button
