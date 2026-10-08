@@ -1304,7 +1304,7 @@ function BinDesignerWorkspace(): JSX.Element {
               </Button>
             </div>
           )}
-          <div data-testid="bin-history-toolbar" className="absolute right-3 top-3 z-30 flex overflow-hidden rounded-md border bg-background/90 shadow-sm backdrop-blur">
+          {!isMobile && <div data-testid="bin-history-toolbar" className="absolute right-3 top-3 z-30 flex overflow-hidden rounded-md border bg-background/90 shadow-sm backdrop-blur">
             <Button
               variant="ghost"
               size="sm"
@@ -1353,7 +1353,7 @@ function BinDesignerWorkspace(): JSX.Element {
             >
               <Redo2 className="h-3.5 w-3.5" />
             </Button>
-          </div>
+          </div>}
           </div>
         </div>
       }

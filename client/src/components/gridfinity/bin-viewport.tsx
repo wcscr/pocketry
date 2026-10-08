@@ -9,7 +9,7 @@ import { Canvas, useThree, type ThreeEvent } from "@react-three/fiber";
 import { Hand, LoaderCircle, Move3D, Rotate3d, Ruler, X } from "lucide-react";
 import { Component, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { BufferGeometry, PerspectiveCamera } from "three";
-import { Quaternion, TOUCH, Vector3, Vector4 } from "three";
+import { MOUSE, Quaternion, TOUCH, Vector3, Vector4 } from "three";
 
 import type { Outline, Point } from "@shared/geometry/types";
 import type { SurfaceText } from "@shared/gridfinity/surface-text";
@@ -315,7 +315,7 @@ export function BinViewport({
   const isMobile = useIsMobile();
   const hasTouchInput = useHasTouchInput();
   const touchControls = isMobile || hasTouchInput;
-  const [panTouch, setPanTouch] = useState(false);
+  const [panActive, setPanActive] = useState(false);
   const [rulerFeedback, setRulerFeedback] = useState<{ screen: Point; snapped: boolean } | null>(null);
   const laidOut = containerSize.width > 0 && containerSize.height > 0;
   const [rulerActive, setRulerActive] = useState(false);
@@ -414,8 +414,37 @@ export function BinViewport({
   const groundSpanMm =
     Math.ceil(Math.max(fitSize.widthMm, fitSize.lengthMm, 336) / 42) * 42 + 84;
 
+  const rulerButton = (
+    <Button
+      variant="ghost"
+      size="icon"
+      className={cn(
+        isMobile ? "h-11 w-11 shrink-0" : "h-9 w-9 rounded-none [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11",
+        rulerActive && "bg-accent text-accent-foreground",
+      )}
+      disabled={measurementOutlines.length === 0}
+      aria-label={rulerActive ? "Stop measuring" : "Measure between contours"}
+      aria-pressed={rulerActive}
+      title={
+        measurementOutlines.length === 0
+          ? "Add a tool cutout before measuring"
+          : "Ruler: measure contours or split lines on the top plane"
+      }
+      onClick={() => {
+        const next = !rulerActive;
+        setRulerActive(next);
+        setMeasurementPoints([]);
+      }}
+      data-testid="button-3d-ruler"
+    >
+      <Ruler className="h-4 w-4" />
+    </Button>
+  );
+
   return (
-    <div ref={containerRef} className="absolute inset-0" data-testid="bin-viewport">
+    // TransformControls clears the canvas's inline touch-action on release.
+    // The stable parent must keep later pinches in OrbitControls, not page zoom.
+    <div ref={containerRef} className="absolute inset-0 touch-none" data-testid="bin-viewport">
       {laidOut ? (
         <PreviewBoundary>
         <Canvas
@@ -465,10 +494,11 @@ export function BinViewport({
           .map(object => <ObjectTransformWire key={objectKey(objectRef(object))} object={object} spec={pocketEditor.spec} />)}
         {selectedObjects.length > 0 && pocketEditor && (inspector ? (inspector.tool === "translate" || inspector.tool === "rotate") : objectControlsOpen) && !rulerActive && <SelectionTransformScene
           key={`${selectionKey}-${transformMode}`} objects={selectedObjects} allObjects={objects} spec={pocketEditor.spec} mode={transformMode} snap={snapTransform} pivot={pivot}
+          touchTargets={touchControls} viewportHeight={containerSize.height}
           onPreview={setDragPreview} onLimit={setTransformLimited}
           onCommit={edits => commitEditorObjects(pocketEditor, edits, `${transformMode === "translate" ? "Move" : "Rotate"} ${selectedObjects.length} objects in 3D`, transformMode)} />}
         {surfaceTextEditor && (inspector ? inspector.tool === "translate" || inspector.tool === "rotate" : objectControlsOpen) && !rulerActive &&
-          <SurfaceTextTransformScene key={`${surfaceTextEditor.label.id}-${surfaceTextEditor.tool ?? transformMode}`} editor={surfaceTextEditor} mode={surfaceTextEditor.tool ?? transformMode} snap={surfaceTextEditor.snap ?? snapTransform} onPreview={setTextPreview} />}
+          <SurfaceTextTransformScene key={`${surfaceTextEditor.label.id}-${surfaceTextEditor.tool ?? transformMode}`} editor={surfaceTextEditor} mode={surfaceTextEditor.tool ?? transformMode} snap={surfaceTextEditor.snap ?? snapTransform} onPreview={setTextPreview} touchTargets={touchControls} viewportHeight={containerSize.height} />}
         <PlanarRulerScene
           active={rulerActive}
           outlines={measurementOutlines}
@@ -492,7 +522,9 @@ export function BinViewport({
             makeDefault
             target={[0, 0, 21]}
             enabled={!rulerActive}
-            touches={{ ONE: panTouch ? TOUCH.PAN : TOUCH.ROTATE, TWO: TOUCH.DOLLY_PAN }}
+            // Pen and mouse drags must follow the same mode as finger drags.
+            mouseButtons={{ LEFT: panActive ? MOUSE.PAN : MOUSE.ROTATE, MIDDLE: MOUSE.DOLLY, RIGHT: MOUSE.PAN }}
+            touches={{ ONE: panActive ? TOUCH.PAN : TOUCH.ROTATE, TWO: TOUCH.DOLLY_PAN }}
             enableDamping
             dampingFactor={0.12}
           />
@@ -501,40 +533,16 @@ export function BinViewport({
         </PreviewBoundary>
       ) : null}
 
-      <div
+      {(!isMobile || !inspector && !toolbar) && <div
         className={cn("absolute right-3 z-30 flex flex-col overflow-hidden rounded-md border bg-background/90 shadow-sm backdrop-blur", touchControls ? "top-16" : "top-12")}
         data-testid="bin-3d-tool-toolbar"
       >
         {touchControls && <Button variant="ghost" size="icon" className="h-11 w-11 rounded-none border-b"
-          aria-label={panTouch ? "Switch to orbit" : "Switch to pan"} aria-pressed={panTouch}
-          disabled={rulerActive} onClick={() => setPanTouch(value => !value)}>
-          {panTouch ? <Hand className="h-5 w-5" /> : <Rotate3d className="h-5 w-5" />}
+          aria-label={panActive ? "Switch to orbit" : "Switch to pan"} aria-pressed={panActive}
+          disabled={rulerActive} onClick={() => setPanActive(value => !value)}>
+          {panActive ? <Hand className="h-5 w-5" /> : <Rotate3d className="h-5 w-5" />}
         </Button>}
-        <Button
-          variant="ghost"
-          size="icon"
-          className={cn(
-            "h-9 w-9 rounded-none [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11",
-            rulerActive && "bg-accent text-accent-foreground",
-          )}
-          disabled={measurementOutlines.length === 0}
-          aria-label={rulerActive ? "Stop measuring" : "Measure between contours"}
-          aria-pressed={rulerActive}
-          title={
-            measurementOutlines.length === 0
-              ? "Add a tool cutout before measuring"
-              : "Ruler: measure contours or split lines on the top plane"
-          }
-          onClick={() => {
-            const next = !rulerActive;
-            setRulerActive(next);
-            setMeasurementPoints([]);
-          }}
-          data-testid="button-3d-ruler"
-        >
-          <Ruler className="h-4 w-4" />
-        </Button>
-        {(inspector || toolbar) && <SelectionToolButtons count={selectedObjects.length + (surfaceTextEditor ? 1 : 0)} inactive={rulerActive} onActivate={() => setRulerActive(false)} />}
+        {rulerButton}
         {pocketEditor && !inspector && !isMobile && <Button variant="ghost" size="icon"
           className={cn("h-9 w-9 rounded-none border-t [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11", objectControlsOpen && !rulerActive && "bg-accent text-accent-foreground")}
           aria-label="Object controls" title="Move, rotate and arrange objects" aria-expanded={objectControlsOpen && !rulerActive}
@@ -552,7 +560,12 @@ export function BinViewport({
             <X className="h-4 w-4" />
           </Button>
         ) : null}
-      </div>
+      </div>}
+      {(inspector || toolbar) && <SelectionToolButtons count={selectedObjects.length + (surfaceTextEditor ? 1 : 0)} inactive={rulerActive} onActivate={() => setRulerActive(false)} ruler={rulerButton}
+        navigation={[
+          { label: panActive ? "Switch to orbit" : "Switch to pan", disabled: rulerActive, onSelect: () => setPanActive(value => !value) },
+          ...(measurementPoints.length ? [{ label: "Clear measurement", testId: "button-clear-3d-measurement", onSelect: () => setMeasurementPoints([]) }] : []),
+        ]} />}
 
       {pocketEditor && !surfaceTextEditor && (objectControlsOpen || !!inspector && selectedObjects.length > 0) && !rulerActive && <ObjectTransformPanel editor={pocketEditor} objects={objects} selected={selectedObjects} displayed={displayedObjects}
         mode={transformMode} modeRequest={modeRequest} setMode={mode => { setRulerActive(false); setTransformMode(mode); }} snap={snapTransform} setSnap={setSnapTransform}
@@ -567,7 +580,7 @@ export function BinViewport({
       {rulerActive && rulerFeedback && <div aria-hidden className={cn("pointer-events-none absolute z-30 h-7 w-7 -translate-x-1/2 -translate-y-1/2 rounded-full border-2", rulerFeedback.snapped ? "border-fuchsia-600" : "border-destructive")}
         style={{ left: rulerFeedback.screen.x, top: rulerFeedback.screen.y }} />}
       {touchControls && !rulerActive && <p className="pointer-events-none absolute bottom-14 left-3 rounded bg-background/90 px-2 py-1 text-xs">
-        {panTouch ? "Drag to pan" : "Drag to orbit"} · Pinch to zoom
+        {panActive ? "Drag to pan" : "Drag to orbit"} · Pinch to zoom
       </p>}
       {rulerActive ? (
         <div
