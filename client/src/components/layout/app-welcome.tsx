@@ -69,6 +69,7 @@ export function AppWelcome(): JSX.Element {
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3 text-sm">
+          <p><strong>Keep your work:</strong> Projects are saved only in this browser. Use Backups above the workspace to download a copy before clearing browser data or moving to another device.</p>
           <p><strong>Layouts:</strong> “Workflow + properties” is the desktop default for photo tracing and bin design. Switch back to “Original Single Panel UI” in App settings. Phones keep compact adjustments.</p>
           <p><strong>Object tools:</strong> Move, rotate, select multiple objects, align, and distribute in either layout.</p>
           <p><strong>Experimental features:</strong> Opt in to adjustable walls for empty bins, surface text, system fonts, and linked designs.</p>

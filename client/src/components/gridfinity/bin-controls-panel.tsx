@@ -2594,6 +2594,7 @@ function ProjectControls({
           className="min-h-0 [&_[data-radix-scroll-area-viewport]]:max-h-[min(20rem,calc(85dvh_-_15rem))] [@media(max-height:500px)]:shrink-0 [@media(max-height:500px)]:[&_[data-radix-scroll-area-viewport]]:max-h-none [&_[data-orientation=vertical]]:bg-muted/50 [&_[data-orientation=vertical]>div]:bg-muted-foreground/50"
           data-testid="manage-library-scroll"
         >
+        <p className="mb-3 text-xs text-muted-foreground">Saved only in this browser. Export library to keep a portable backup of named projects. Unnamed drafts need a separate project backup.</p>
         <div className="space-y-2 pr-4" data-testid="managed-project-list">
           {libraryError ? (
             <div className="rounded-md border border-destructive/40 p-3 text-sm" role="alert">

@@ -47,6 +47,8 @@ import { useBinGeometry } from "@/lib/gridfinity/use-bin-geometry";
 import { placedPocketSplitBoundaries } from "@/lib/gridfinity/layout-measure";
 import type { BuildBinSection } from "@/lib/gridfinity/worker-api";
 import { downloadBlob } from "@/lib/download";
+import { useProjectActivityActions } from "@/state/project-activity";
+import { projectDestinationKey } from "@/lib/project/destination";
 import {
   binSizeLabel,
   downloadModelWithProject,
@@ -104,6 +106,8 @@ export default function BinDesignerPage(): JSX.Element {
 }
 
 function BinDesignerWorkspace(): JSX.Element {
+  const projectActivity = useProjectActivityActions();
+  const [activityVisit, setActivityVisit] = useState(() => Symbol("Bin visit"));
   const { inspectorEnabled: inspectorPrototype, enabled: experimentalEnabled, setEnabled: setExperimentalEnabled, setSettingsOpen } = useExperimentalFeatures();
   const { panelOpen, setPanelOpen, libraryRequested } = usePanelState();
   const [quickAdjustOpen, setQuickAdjustOpen] = useState(false);
@@ -189,6 +193,7 @@ function BinDesignerWorkspace(): JSX.Element {
   const [projectLibraryError, setProjectLibraryError] = useState<string | null>(null);
   const [draftName, setDraftName] = useState<string | null>(null);
   const [keepBinSize, setKeepBinSize] = useState(false);
+  const [restoredDestination, setRestoredDestination] = useState<string | null>(null);
 
   // One validation result drives both the canvas feedback and export gates,
   // including when the controls are collapsed or the mobile drawer is closed.
@@ -253,6 +258,7 @@ function BinDesignerWorkspace(): JSX.Element {
       if (cancelled) return;
       setProjectLibrary(saved);
       setProjectLibraryReady(true);
+      setRestoredDestination(projectDestinationKey(doc, saved.activeProjectId));
       const restoredName = saved.projects.find((project) => project.id === saved.activeProjectId)?.name;
       if (doc?.name && restoredName && restoredName !== doc.name) {
         toast({ title: "Project recovered",
@@ -307,29 +313,40 @@ function BinDesignerWorkspace(): JSX.Element {
   // Autosave everything the doc covers, debounced; suppressed until
   // hydration so the empty default never overwrites a real project.
   const saveProject = useMemo(() => createDebouncedProjectSaver(500, (success, error) => {
-    setSaveStatus(success ? "saved" : "error");
-    setSaveError(success ? null : error?.name === "QuotaExceededError"
+    const message = success ? null : error?.name === "QuotaExceededError"
       ? "Browser storage is full. Keep this page open and download a backup of your edits."
-      : error?.message ?? "Could not save in this browser. Keep this page open and download a backup of your edits.");
-  }), []);
+      : error?.message ?? "Could not save in this browser. Keep this page open and download a backup of your edits.";
+    projectActivity?.saved(success, message ? new Error(message) : undefined, activityVisit);
+    setSaveStatus(success ? "saved" : "error");
+    setSaveError(message);
+  }), [projectActivity, activityVisit]);
   const currentProjectDoc = useMemo<ProjectDoc>(
     () => ({
       schemaVersion: PROJECT_SCHEMA_VERSION,
       ...(currentProjectName ? { name: currentProjectName } : {}),
       keepBinSize,
       materials,
-      shapes: library.shapes,
+      // A rejected arrival remains in the queue, outside the current project.
+      shapes: library.shapes.filter(shape => !library.pendingIds.includes(shape.id)
+        || bin.history.stack.some(entry => entry.doc.cutouts.some(cutout => cutout.shapeId === shape.id))),
       ...committedDoc,
       history: bin.history,
       transformOrigins: retainTransformOrigins(bin.transformOrigins, bin.history.stack.map(e => e.doc)),
     }),
-    [library.shapes, committedDoc, bin.history, bin.transformOrigins, currentProjectName, keepBinSize, materials],
+    [library.shapes, library.pendingIds, committedDoc, bin.history, bin.transformOrigins, currentProjectName, keepBinSize, materials],
   );
+  const destinationKey = useMemo(() => projectDestinationKey(currentProjectDoc, projectLibrary.activeProjectId), [currentProjectDoc, projectLibrary.activeProjectId]);
   useEffect(() => {
     if (!bin.hydrated || projectBusy || projectRestoreFailed) return;
     setSaveStatus("saving");
     saveProject(currentProjectDoc, projectLibrary.activeProjectId);
   }, [bin.hydrated, currentProjectDoc, saveProject, projectLibrary.activeProjectId, projectBusy, projectRestoreFailed]);
+
+  useEffect(() => {
+    projectActivity?.publish({ name: currentProjectName, activeProjectId: projectLibrary.activeProjectId,
+      status: projectRestoreFailed ? "error" : !bin.hydrated ? "loading" : projectBusy ? "saving" : saveStatus,
+      error: saveError, hasDocument: bin.hydrated, destinationKey }, bin.hydrated ? currentProjectDoc : null, activityVisit);
+  }, [projectActivity, currentProjectName, projectLibrary.activeProjectId, projectRestoreFailed, bin.hydrated, projectBusy, saveStatus, saveError, currentProjectDoc, activityVisit, destinationKey]);
 
   useEffect(() => {
     const flush = () => { void saveProject.flush(); };
@@ -345,12 +362,16 @@ function BinDesignerWorkspace(): JSX.Element {
 
   // Exports and autosaves use the same committed design/history snapshot.
   const exportProjectDoc = currentProjectDoc;
+  const pendingDestinationChanged = library.pendingIds.some(id => {
+    const target = library.pendingDestinations[id];
+    return target && target.key !== restoredDestination;
+  });
 
   // Consume shapes freshly arrived from the trace workspace: auto-place them
   // (incrementally when the bin already has arranged pockets) and make sure
   // the bin is solid — pockets need material.
   useEffect(() => {
-    if (!bin.hydrated) return;
+    if (!bin.hydrated || projectRestoreFailed || projectBusy || pendingDestinationChanged) return;
     const pendingIds = library.consumePending();
     if (pendingIds.length === 0) return;
     const newShapes = library.shapes.filter((shape) => pendingIds.includes(shape.id) && !cutouts.some((cutout) => cutout.shapeId === shape.id));
@@ -401,7 +422,7 @@ function BinDesignerWorkspace(): JSX.Element {
     }
     // Pending arrivals and hydration are the triggers; the rest reads fresh.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [library.pendingIds, bin.hydrated]);
+  }, [library.pendingIds, library.pendingDestinations, bin.hydrated, projectRestoreFailed, projectBusy, pendingDestinationChanged]);
 
   // Only the shapes the layout references ride along to the worker.
   const layout = useMemo(() => {
@@ -630,10 +651,14 @@ function BinDesignerWorkspace(): JSX.Element {
         await saveBeforeReplacingProject();
         const opened = await importProjectToLibrary(input);
         const { doc } = opened;
+        setActivityVisit(Symbol("Imported project"));
+        setSaveStatus("saved");
+        setSaveError(null);
         setDraftName(null);
         setKeepBinSize(doc.keepBinSize ?? false);
         setMaterials(doc.materials ?? DEFAULT_BIN_MATERIALS);
-        library.replaceShapes(doc.shapes);
+        library.replaceShapes(doc.shapes, true);
+        setRestoredDestination(projectDestinationKey(doc, opened.library.activeProjectId));
         dispatch({
           type: "HYDRATE",
           spec: doc.spec,
@@ -677,10 +702,14 @@ function BinDesignerWorkspace(): JSX.Element {
       await saveBeforeReplacingProject();
       const saved = saveDraftName === undefined ? await startNewProject(doc)
         : await startNewProject(doc, { doc: currentProjectDoc, name: saveDraftName });
+      setActivityVisit(Symbol("New project"));
+      setSaveStatus("saved");
+      setSaveError(null);
       setDraftName(null);
       setKeepBinSize(false);
       setMaterials(DEFAULT_BIN_MATERIALS);
-      library.replaceShapes([]);
+      library.replaceShapes([], true);
+      setRestoredDestination(projectDestinationKey(doc, saved.activeProjectId));
       dispatch({
         type: "HYDRATE",
         spec: doc.spec,
@@ -719,6 +748,7 @@ function BinDesignerWorkspace(): JSX.Element {
         projectLibrary.activeProjectId,
       );
       setProjectLibrary(saved);
+      setRestoredDestination(projectDestinationKey(currentProjectDoc, saved.activeProjectId));
       setProjectRestoreFailed(false);
       toast({
         title: "Project saved",
@@ -785,10 +815,14 @@ function BinDesignerWorkspace(): JSX.Element {
     try {
       await saveBeforeReplacingProject();
       const opened = await openProjectFromLibrary(projectId);
+      setActivityVisit(Symbol("Opened project"));
+      setSaveStatus("saved");
+      setSaveError(null);
       setDraftName(opened.project.name);
       setKeepBinSize(opened.doc.keepBinSize ?? false);
       setMaterials(opened.doc.materials ?? DEFAULT_BIN_MATERIALS);
-      library.replaceShapes(opened.doc.shapes);
+      library.replaceShapes(opened.doc.shapes, true);
+      setRestoredDestination(projectDestinationKey(opened.doc, opened.library.activeProjectId));
       dispatch({
         type: "HYDRATE",
         spec: opened.doc.spec,
@@ -1212,6 +1246,13 @@ function BinDesignerWorkspace(): JSX.Element {
       }
       canvas={
         <div className="absolute inset-0 flex flex-col" data-testid="bin-canvas">
+          {bin.hydrated && pendingDestinationChanged && <div role="alert" className="z-40 flex shrink-0 flex-col items-stretch gap-2 border-b bg-background px-3 py-2 text-sm sm:flex-row sm:items-center" data-testid="queued-destination-changed">
+            <p className="min-w-0 flex-1">Tools are waiting for {Array.from(new Set(library.pendingIds.map(id => library.pendingDestinations[id]?.name ?? "the previous project"))).join(", ")}. The destination has changed. Open that project, or choose to add them here.</p>
+            <Button variant="outline" size="sm" className="h-auto min-h-11 whitespace-normal" disabled={projectBusy || projectRestoreFailed} onClick={() => {
+              setRestoredDestination(destinationKey);
+              library.retargetPending({ key: destinationKey, name: currentProjectName ?? "Untitled project" });
+            }}>Add waiting tools to {currentProjectName ?? "this unnamed bin"}</Button>
+          </div>}
           {saveError && <div role="alert" data-testid="bin-save-error" className="z-40 flex shrink-0 flex-wrap items-center gap-2 border-b border-destructive/40 bg-background px-3 py-2 text-sm text-destructive">
             <p className="min-w-0 flex-1">{saveError}</p>
             {bin.hydrated && <Button variant="outline" className="min-h-11 shrink-0" onClick={handleExportProject}>Download backup</Button>}
