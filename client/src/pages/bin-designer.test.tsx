@@ -9,6 +9,8 @@ import { strFromU8, unzipSync } from "fflate";
 import { ExperimentalFeaturesProvider, useExperimentalFeatures, EXPERIMENTAL_FEATURES_KEY } from "@/state/experimental-features";
 import { PanelProvider, usePanelState } from "@/components/layout/panel-context";
 import { AppHeader } from "@/components/layout/app-header";
+import { ProjectStatusBar } from "@/components/layout/project-status-bar";
+import { ProjectActivityProvider } from "@/state/project-activity";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { WORKSPACES } from "@/components/layout/workspaces";
 import type { MaterialColorTarget } from "@/components/gridfinity/bin-viewport";
@@ -167,6 +169,7 @@ vi.mock("@/lib/gridfinity/use-bin-geometry", () => ({
 const projectSaveMock = vi.hoisted(() => ({ onSaved: undefined as ((success: boolean, error?: Error) => void) | undefined }));
 vi.mock("@/lib/project/persist", () => ({
   loadProjectDoc: vi.fn(async () => null),
+  readProjectOverview: vi.fn(async () => ({ doc: null, activeProjectId: null })),
   loadProjectLibrary: vi.fn(async () => ({ activeProjectId: null, projects: [] })),
   saveProjectDoc: vi.fn(async () => true),
   saveProjectToLibrary: vi.fn(),
@@ -469,6 +472,24 @@ describe("BinDesignerPage", () => {
       React.act(() => projectSaveMock.onSaved?.(true));
       expect(container.querySelector('[data-testid="bin-save-error"]')).toBeNull();
     } finally { unmount(); }
+  });
+
+  it("keeps project identity and a failed save visible after leaving Bin", async () => {
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, name: "Socket tray" });
+    const route = memoryLocation({ path: "/bin" });
+    const { container } = render(<Router hook={route.hook}><PanelProvider><ProjectActivityProvider>
+      <ProjectStatusBar /><Route path="/bin"><ShapeLibraryProvider><BinDesignerPage /></ShapeLibraryProvider></Route>
+    </ProjectActivityProvider></PanelProvider></Router>);
+    await flushHydration();
+    expect(container.querySelector('[data-testid="global-project-status"]')!.textContent).toContain("Socket tray");
+    const completion = projectSaveMock.onSaved;
+    React.act(() => route.navigate("/"));
+    React.act(() => completion?.(false, new Error("Could not save the last edit")));
+    expect(container.querySelector('[data-testid="global-project-status"]')!.textContent).toContain("Project storage needs attention");
+    React.act(() => [...container.querySelectorAll("button")].find(button => button.textContent === "Backups")!.click());
+    expect(document.body.textContent).toContain("Could not save the last edit");
+    React.act(() => [...document.querySelectorAll("button")].find(button => button.textContent === "Download current project backup")!.click());
+    expect(downloadBlob).toHaveBeenCalledOnce();
   });
 
   it("reports a failed project restore without writing an empty replacement", async () => {

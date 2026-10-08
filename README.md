@@ -121,6 +121,9 @@ current trace intact. If no outline is found, increase **Sensitivity** or redraw
 the region around the whole tool.
 
 Choose **Add to bin**, name each tool, and choose its depth before continuing.
+The dialog names the current destination project. Each addition creates a new
+pocket; later edits to the trace do not update existing pockets. To use another
+project, open it in Bin first, then return to Trace.
 For **Fixed depth**, enter **Pocket depth (mm)**: how far the tool should sit below
 the bin surface, leaving enough exposed to lift it out. Depth starts blank so it
 is always your choice. **To Floor** extends the pocket to the destination bin’s
@@ -129,6 +132,14 @@ For a jig supported by the work surface, explicitly choose **Through — no pock
 floor** instead. Grouped outlines share one depth. Choices survive the handoff
 and reload, and become ordinary editable pocket depths. Bin height stays
 unchanged; a depth that exceeds it blocks 3D export until corrected.
+
+The status bar above either workspace shows the active bin project and its local
+save state, even with the controls closed. Select the project name to manage the
+browser library, or **Backups** to download the current project. Projects are
+stored only in this browser and do not sync between devices. Back up after
+important changes and before clearing browser data. Library backups contain named
+projects; an unnamed draft needs its own project backup. Project backups preserve
+bin geometry and edit history, but do not include the original Trace photo.
 
 Use **Add and trace another photo** for the accessories, then **Add and arrange**
 when the traces are ready. For a

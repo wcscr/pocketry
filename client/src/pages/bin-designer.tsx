@@ -47,6 +47,7 @@ import { useBinGeometry } from "@/lib/gridfinity/use-bin-geometry";
 import { placedPocketSplitBoundaries } from "@/lib/gridfinity/layout-measure";
 import type { BuildBinSection } from "@/lib/gridfinity/worker-api";
 import { downloadBlob } from "@/lib/download";
+import { useProjectActivityActions } from "@/state/project-activity";
 import {
   binSizeLabel,
   downloadModelWithProject,
@@ -104,6 +105,7 @@ export default function BinDesignerPage(): JSX.Element {
 }
 
 function BinDesignerWorkspace(): JSX.Element {
+  const projectActivity = useProjectActivityActions();
   const { inspectorEnabled: inspectorPrototype, enabled: experimentalEnabled, setEnabled: setExperimentalEnabled, setSettingsOpen } = useExperimentalFeatures();
   const { panelOpen, setPanelOpen, libraryRequested } = usePanelState();
   const [quickAdjustOpen, setQuickAdjustOpen] = useState(false);
@@ -307,11 +309,13 @@ function BinDesignerWorkspace(): JSX.Element {
   // Autosave everything the doc covers, debounced; suppressed until
   // hydration so the empty default never overwrites a real project.
   const saveProject = useMemo(() => createDebouncedProjectSaver(500, (success, error) => {
-    setSaveStatus(success ? "saved" : "error");
-    setSaveError(success ? null : error?.name === "QuotaExceededError"
+    const message = success ? null : error?.name === "QuotaExceededError"
       ? "Browser storage is full. Keep this page open and download a backup of your edits."
-      : error?.message ?? "Could not save in this browser. Keep this page open and download a backup of your edits.");
-  }), []);
+      : error?.message ?? "Could not save in this browser. Keep this page open and download a backup of your edits.";
+    projectActivity?.saved(success, message ? new Error(message) : undefined);
+    setSaveStatus(success ? "saved" : "error");
+    setSaveError(message);
+  }), [projectActivity]);
   const currentProjectDoc = useMemo<ProjectDoc>(
     () => ({
       schemaVersion: PROJECT_SCHEMA_VERSION,
@@ -330,6 +334,12 @@ function BinDesignerWorkspace(): JSX.Element {
     setSaveStatus("saving");
     saveProject(currentProjectDoc, projectLibrary.activeProjectId);
   }, [bin.hydrated, currentProjectDoc, saveProject, projectLibrary.activeProjectId, projectBusy, projectRestoreFailed]);
+
+  useEffect(() => {
+    projectActivity?.publish({ name: currentProjectName, activeProjectId: projectLibrary.activeProjectId,
+      status: projectRestoreFailed ? "error" : !bin.hydrated ? "loading" : projectBusy ? "saving" : saveStatus,
+      error: saveError, hasDocument: bin.hydrated }, bin.hydrated ? currentProjectDoc : null);
+  }, [projectActivity, currentProjectName, projectLibrary.activeProjectId, projectRestoreFailed, bin.hydrated, projectBusy, saveStatus, saveError, currentProjectDoc]);
 
   useEffect(() => {
     const flush = () => { void saveProject.flush(); };

@@ -187,6 +187,18 @@ export async function loadProjectDoc(): Promise<ProjectDoc | null> {
   return doc;
 }
 
+/** Read the header/destination without taking ownership of the autosave snapshot.
+ * Only the Bin workspace may restore, recover, or establish a write baseline. */
+export async function readProjectOverview(): Promise<{ doc: ProjectDoc | null; activeProjectId: string | null }> {
+  await libraryMutationQueue;
+  const snapshot = await readProjectStorage();
+  const doc = snapshot.current == null ? null : parseProjectDoc(snapshot.current);
+  if (snapshot.current != null && !doc) throw new Error("The saved project could not be opened. It may need a newer Pocketry version. Stored work has been kept intact.");
+  const library = readStoredLibrary(snapshot.library);
+  const active = library.projects.find(project => project.id === library.activeProjectId);
+  return { doc: doc && active ? { ...doc, name: active.name } : doc, activeProjectId: library.activeProjectId };
+}
+
 /** Normalize only defaults that hydration adds without an edit. A single
  * history baseline has no undo/redo steps; longer histories must match in full.
  */

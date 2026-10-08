@@ -289,7 +289,8 @@ describe("App", () => {
       "Photograph the tool on a calibration sheet or a plain, contrasting background",
     );
     expect(container.textContent).toContain("Choose a photo");
-    expect(container.textContent).not.toContain("Untitled");
+    expect(container.querySelector('[data-testid="global-project-status"]')?.textContent).toContain("Untitled project");
+    expect(container.querySelector('#trace-settings-source')?.textContent).not.toContain("Untitled");
     expect(container.textContent).not.toContain("0 × 0 px");
     expect(
       container.querySelector('[data-testid="button-source-image"]'),
