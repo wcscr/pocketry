@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Added About Gridfinity with credit and links to creator Zack Freedman. Clarified standalone flat-bottomed bin support and its Construction setting in the README, Help, and About page.
+
+- Updated the README and How to use Pocketry for the default UI, with fresh Wolfbox tracing, layout, and ruler screenshots. Shortened the sample gallery to two thumbnails, noted that the examples have been physically printed, and kept fit notes on individual project pages.
+
 - Made the desktop layout default clearer in App settings, with “Original Single Panel UI” available to switch back; retired preferences now use the screen's default layout.
 - Mobile Select, Move, and Rotate are directly available in both layouts; tool adjustments stay beside or below the canvas, with full properties opened explicitly.
 - Overlapping pockets now combine their cuts with warnings instead of blocking export, including intersections below the surface and between tilted pockets.
