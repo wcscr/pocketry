@@ -83,7 +83,7 @@ describe("portable local fonts", () => {
     expect([...edges.values()].every(count => count === 2)).toBe(true);
   });
 
-  it("previews rotated system-font text with finite unit normals and printable precision", async () => {
+  it("previews rotated system-font text at printable precision without a kernel rebuild", async () => {
     const font = await load();
     const label = surfaceTextSchema.parse({ id: "rotated", text: "B8 O", font,
       position: { x: 9.952584160212634, y: -20 }, rotationDeg: -109.0332674564529 });
@@ -93,10 +93,7 @@ describe("portable local fonts", () => {
     ) => Promise<TransferableResult<BuildBinResult>>;
     const result = await handler({ spec, quality: EXPORT_QUALITY }, { signal: new AbortController().signal, progress: () => {} });
     const mesh = result.value.textMeshes![0].mesh;
-    expect(mesh.normals!.length).toBe(mesh.positions.length);
-    for (let i = 0; i < mesh.normals!.length; i += 3) {
-      expect(Math.hypot(mesh.normals![i], mesh.normals![i + 1], mesh.normals![i + 2])).toBeCloseTo(1, 4);
-    }
+    expect(mesh.normals).toBeNull();
     expect([...mesh.positions].every(Number.isFinite)).toBe(true);
     expect(result.value.textMeshes![0].label).toEqual(label);
   });

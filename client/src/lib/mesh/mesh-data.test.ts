@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { Arena } from "@/lib/manifold/arena";
 import { createKernel, loadManifold, type Kernel } from "@/lib/manifold/runtime";
 
-import { extractMeshData } from "./mesh-data";
+import { extractMeshData, extractPrintableMeshData } from "./mesh-data";
 
 let arena: Arena;
 let kernel: Kernel;
@@ -104,5 +104,36 @@ describe("extractMeshData", () => {
         (positions[v + 2] / radius) * normals[v + 2];
       expect(dot).toBeGreaterThan(0.99);
     }
+  });
+});
+
+describe("extractPrintableMeshData", () => {
+  it("uses explicit kernel identities to remove render seams from printable topology", () => {
+    const cube = arena.track(kernel.Manifold.cube([2, 3, 4]));
+    const shaded = arena.track(cube.calculateNormals(0, 60));
+    const mesh = extractPrintableMeshData(kernel, shaded);
+    expect(mesh.normals).toBeNull();
+    expect(mesh.positions).toHaveLength(8 * 3);
+    expect(mesh.indices).toHaveLength(12 * 3);
+    const directed = new Set<string>();
+    for (let face = 0; face < mesh.indices.length; face += 3) {
+      for (let corner = 0; corner < 3; corner++) {
+        const a = mesh.indices[face + corner], b = mesh.indices[face + (corner + 1) % 3];
+        expect(directed.has(`${a}:${b}`)).toBe(false);
+        directed.add(`${a}:${b}`);
+      }
+    }
+    for (const key of directed) expect(directed.has(key.split(":").reverse().join(":"))).toBe(true);
+    const before = mesh.positions.slice();
+    const transferred = structuredClone(mesh, { transfer: [mesh.positions.buffer, mesh.indices.buffer] });
+    expect(transferred.positions).toEqual(before);
+  });
+
+  it("returns a valid empty printable mesh", () => {
+    const cube = arena.track(kernel.Manifold.cube([2, 3, 4]));
+    const mesh = extractPrintableMeshData(kernel, arena.track(cube.subtract(cube)));
+    expect(mesh.positions).toHaveLength(0);
+    expect(mesh.indices).toHaveLength(0);
+    expect(mesh.normals).toBeNull();
   });
 });

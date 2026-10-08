@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Preserve native bin geometry and color partitions during STL and 3MF export; repair Float32 topology without rebuilding rounded solids.
+
 - The active bin project and local save status stay visible in Trace and Bin, including on phones. Backups are available above the workspace, and Add to bin names its destination and explains that each addition creates a new pocket.
 - Failed edits retain a separate recovery download when reopening Bin. Queued tools wait for their intended project when another tab changes the destination, with an explicit option to add them to the current bin.
 

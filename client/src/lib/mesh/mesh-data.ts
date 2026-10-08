@@ -2,6 +2,7 @@
 import type { Manifold } from "manifold-3d";
 
 import type { Kernel } from "@/lib/manifold/runtime";
+import { preparePrintableMesh } from "./printable-mesh";
 
 /**
  * Extraction of renderable/exportable mesh data from a manifold solid — the
@@ -35,19 +36,24 @@ export interface MeshDataOptions {
   sharpAngleDeg?: number;
 }
 
-/** Rebuild in the precision used by STL/3MF before extracting printable faces.
- * CSG can leave distinct double-precision vertices at identical Float32
- * positions. The resulting zero-area faces survive ordinary index-only
- * topology checks. A 0.1 micrometre simplification removes those seams while
- * preserving dimensions far below the application's modelling resolution. */
-export function preparePrintableSolid(kernel: Kernel, solid: Manifold): Manifold {
-  if (solid.isEmpty()) return solid;
-  const floatMesh = solid.getMesh();
-  floatMesh.merge();
-  const rebuilt = kernel.arena.track(new kernel.Manifold(floatMesh));
-  const printable = kernel.arena.track(rebuilt.simplify(0.0001));
-  if (printable.status() !== "NoError") throw new Error("Could not prepare printable mesh topology.");
-  return printable;
+/**
+ * The one-way boundary from native solids to printable Float32 geometry.
+ * Keep all CSG and material partitioning in the kernel before this call:
+ * rebuilding a rounded mesh in Manifold can change its occupied volume.
+ * Only explicit kernel merge pairs identify property seams; coincident
+ * coordinates alone do not make two vertices topologically identical.
+ */
+export function extractPrintableMeshData(_kernel: Kernel, solid: Manifold): MeshData {
+  const mesh = solid.getMesh();
+  return {
+    ...preparePrintableMesh({
+      positions: copyChannel(mesh, 0, 3),
+      indices: new Uint32Array(mesh.triVerts),
+      mergeFromVert: mesh.mergeFromVert,
+      mergeToVert: mesh.mergeToVert,
+    }),
+    normals: null,
+  };
 }
 
 /**
