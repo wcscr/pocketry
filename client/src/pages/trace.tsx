@@ -4,7 +4,8 @@ import { mmPerPixel, type Calibration } from "@shared/geometry/scale";
 import type { Rect } from "@shared/geometry/types";
 
 import { usePanelState } from "@/components/layout/panel-context";
-import { WorkspaceLayout } from "@/components/layout/workspace-layout";
+import { TraceEditingWorkspace } from "@/components/trace/trace-editing-workspace";
+import { useExperimentalFeatures } from "@/state/experimental-features";
 import { TraceHandoffDialog } from "@/components/trace/trace-handoff-dialog";
 import { MobileTraceActions } from "@/components/trace/mobile-trace-actions";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -14,24 +15,25 @@ import { referenceStripFromRulerLength } from "@/lib/calibrate/reference-strip";
 import { TraceControlsPanel } from "@/components/trace/trace-controls-panel";
 import { ExportConfirmationDialog } from "@/components/gridfinity/export-confirmation-dialog";
 import {
+  AID_RETRY_CANVAS_MAX,
   decodeImageFile,
   fitWithin,
   IMAGE_CANVAS_MAX,
   useImageSource,
 } from "@/components/trace/use-image-source";
 import { useOutlineRefinement } from "@/components/trace/use-outline-refinement";
-import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { outlineBounds } from "@/lib/geometry/outline";
 import { FileUpload } from "@/components/ui/file-upload";
+import { tracePhotoError } from "@/lib/trace-photo";
+import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { autoCalibrate } from "@/lib/calibrate/auto-calibrate";
 import {
@@ -55,14 +57,12 @@ import { generateSTL } from "@/lib/export/stl";
 import { generateOutlineSVG } from "@/lib/export/svg";
 import type { ImageRotationDirection } from "@/lib/geometry/image-rotation";
 import { processImage } from "@/lib/image-processor";
-import { useTrace } from "@/state/trace-store";
+import { hasPendingManualCalibration, useTrace } from "@/state/trace-store";
 
 /** The tracing workspace. */
 export default function TracePage(): JSX.Element {
   return <TraceWorkspace />;
 }
-
-const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
 /** Change image coordinates only; the physical reference length is unchanged. */
 function resizeCalibration(calibration: Calibration, x: number, y: number): Calibration {
@@ -95,6 +95,8 @@ function TraceWorkspace(): JSX.Element {
   const { toast } = useToast();
   const { panelOpen, setPanelOpen } = usePanelState();
   const isMobile = useIsMobile();
+  const { inspectorEnabled } = useExperimentalFeatures();
+  const workflowLayout = inspectorEnabled && !isMobile;
   const [handoffOpen, setHandoffOpen] = useState(false);
   const [settingsSectionRequest, setSettingsSectionRequest] = useState<{ id: string }>();
   const openSettings = (id: string) => {
@@ -115,7 +117,7 @@ function TraceWorkspace(): JSX.Element {
   const photoInputRef = useRef<HTMLInputElement>(null);
   const detectionRequest = useRef(0);
   const [uploadOpen, setUploadOpen] = useState(false);
-  const [dwgDialogOpen, setDwgDialogOpen] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [perspectiveReplacement, setPerspectiveReplacement] = useState<{
     proposal: PerspectiveProposal; template: TemplateVariant; scale: boolean | Calibration; sourceRevision: number;
@@ -140,6 +142,7 @@ function TraceWorkspace(): JSX.Element {
     detectionRequest.current += 1;
     activeImageUrlRef.current = null;
     setUploadOpen(false);
+    setPhotoError(null);
     setPhotoReplacement(null);
     setPerspectiveReplacement(null);
     setPanelOpen(false);
@@ -154,6 +157,7 @@ function TraceWorkspace(): JSX.Element {
     store.fileName,
     workingImageMax,
     store.imageRotation,
+    store.imageAlignment,
   );
   useOutlineRefinement();
 
@@ -181,15 +185,16 @@ function TraceWorkspace(): JSX.Element {
   const runDetection = useCallback(async (settings?: {
     sensitivity: number;
     includeInteriorHoles: boolean;
-  }) => {
+  }, requestedRegion?: Rect) => {
     if (source.status !== "ready") return;
 
     // Tool detection is deliberately gated on an explicit region. Image load
     // may auto-detect scale markers, but it must never trace the calibration
     // sheet, its labels, or the surrounding table as candidate tool geometry.
+    const candidateRegion = requestedRegion ?? store.region;
     const region: Rect | null =
-      store.region && store.region.width > 5 && store.region.height > 5
-        ? store.region
+      candidateRegion && candidateRegion.width > 5 && candidateRegion.height > 5
+        ? candidateRegion
         : null;
     if (!region) return;
 
@@ -269,12 +274,38 @@ function TraceWorkspace(): JSX.Element {
       // Detection reads a higher-resolution frame than the working canvas —
       // small markers blur out at 800×600 — and the found geometry is mapped
       // back into working space, the coordinate space of the calibration.
-      const frame = getDetectionFrame();
-      if (!frame) return;
+      const initialFrame = getDetectionFrame();
+      if (!initialFrame) return;
+      let frame = initialFrame;
 
       dispatch({ type: "SET_PROCESSING", processing: true });
       try {
-        const result = await autoCalibrate(frame.imageData);
+        const initialResult = await autoCalibrate(frame.imageData);
+        if (activeImageUrlRef.current !== frame.sourceImageUrl) return;
+        let result = initialResult;
+        if (
+          result.kind === "invalid-strip" ||
+          (result.kind === "calibrated" && result.stripFallbackReason)
+        ) {
+          try {
+            // Re-read original pixels: enlarging the failed raster cannot add detail.
+            const retryFrame = getDetectionFrame(AID_RETRY_CANVAS_MAX);
+            if (
+              retryFrame?.sourceImageUrl === frame.sourceImageUrl &&
+              (retryFrame.imageData.width > frame.imageData.width || retryFrame.imageData.height > frame.imageData.height)
+            ) {
+              const retryResult = await autoCalibrate(retryFrame.imageData);
+              // Keep a usable initial paper result if the aid still fails validation.
+              if (retryResult.kind === "calibrated-strip") {
+                frame = retryFrame;
+                result = retryResult;
+              }
+            }
+          } catch {
+            // A failed optional larger allocation/detection must not discard the
+            // normal pass's usable paper reference or its original failure notice.
+          }
+        }
         // OpenCV work cannot be cancelled once running. Bind its result to the
         // pixels it actually read so an old sheet can never paint overlays or
         // toasts over a replacement image.
@@ -293,7 +324,11 @@ function TraceWorkspace(): JSX.Element {
           case "calibrated-strip":
           case "calibrated": {
             const strip = result.kind === "calibrated-strip";
-            const sheet = result.kind === "calibrated" ? result : result.sheet;
+            const sheet = result.kind === "calibrated" ? result
+              : result.sheet ?? (initialResult.kind === "calibrated" ? initialResult : undefined);
+            // A retry may recover the aid without rediscovering a previously valid
+            // sheet. Map each reference from the frame that actually detected it.
+            const sheetFrame = result.kind === "calibrated-strip" && !result.sheet ? initialFrame : frame;
             const perspective = sheet?.perspectiveProposal ?? null;
             const calibration = resizeCalibration(result.calibration, frame.toWorking.x, frame.toWorking.y);
             dispatch({
@@ -301,14 +336,14 @@ function TraceWorkspace(): JSX.Element {
               sourceImageUrl: frame.sourceImageUrl,
               calibration,
               source: strip ? "strip" : "sheet",
-              requiresPerspectiveCorrection: strip && result.requiresPerspectiveCorrection,
+              requiresPerspectiveCorrection: result.kind === "calibrated-strip" && result.requiresPerspectiveCorrection,
               paperCalibration: strip && sheet
-                ? resizeCalibration(sheet.calibration, frame.toWorking.x, frame.toWorking.y) : null,
+                ? resizeCalibration(sheet.calibration, sheetFrame.toWorking.x, sheetFrame.toWorking.y) : null,
               perspective: perspective
                 ? scalePerspectiveProposal(
                     perspective,
-                    frame.toWorking.x,
-                    frame.toWorking.y,
+                    sheetFrame.toWorking.x,
+                    sheetFrame.toWorking.y,
                   )
                 : null,
             });
@@ -433,6 +468,8 @@ function TraceWorkspace(): JSX.Element {
           sourceImageUrl: frame.sourceImageUrl,
           imageUrl,
           imageSize: { width: corrected.width, height: corrected.height },
+          paperBounds: corrected.paperBounds,
+          fullPhotoUnavailableReason: corrected.fullPhotoUnavailableReason,
           calibration: usePaperScale === false ? null : corrected.calibration,
           calibrationSource: typeof usePaperScale === "object" ? "strip" : "sheet",
           source: proposal.source,
@@ -493,13 +530,23 @@ function TraceWorkspace(): JSX.Element {
     dispatch({ type: "SOURCE_READY", imageSize: photo.imageSize });
   };
 
+  const handleFileRejected = (message: string) => {
+    fileSelectionRevisionRef.current += 1;
+    setPhotoReplacement(null);
+    setUploadOpen(false);
+    setPhotoError(message);
+    showCanvas();
+  };
+
   const handleFileSelected = async (file: File) => {
     const selectionRevision = ++fileSelectionRevisionRef.current;
     setPhotoReplacement(null);
-    if (file.size > MAX_FILE_BYTES) {
-      toast({ title: "File too large", description: "Please choose an image under 10MB.", variant: "destructive" });
+    const validationError = tracePhotoError(file);
+    if (validationError) {
+      handleFileRejected(validationError);
       return;
     }
+    setPhotoError(null);
     setUploadOpen(false);
     // Opening an invalid file must not suppress recovery or erase its stored
     // copy. Wait for recovery, then compare a decoded candidate to that draft.
@@ -517,9 +564,10 @@ function TraceWorkspace(): JSX.Element {
       if (current.imageUrl && (current.calibration || current.draftCalibration || current.region || current.outline.length > 0 || current.history.stack.length > 1)) {
         setPhotoReplacement(photo);
       } else replacePhoto(photo);
-    } catch (error) {
+    } catch {
       if (selectionRevision !== fileSelectionRevisionRef.current || sourceRevision !== latestStore.current.sourceRevision) return;
-      toast({ title: "Could not open that image", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
+      setPhotoError("Could not open that photo. It may be damaged or use an unsupported format. Save it as PNG, JPG, or WebP and try again. Your current trace is unchanged.");
+      showCanvas();
     }
   };
 
@@ -536,13 +584,17 @@ function TraceWorkspace(): JSX.Element {
   );
 
   const handleExport = async (includeProject: boolean) => {
+    if (hasPendingManualCalibration(store) || store.pendingAutoCalibration) {
+      openSettings("trace-settings-scale");
+      return;
+    }
     const { outline, imageSize, exportFormat, extrusionHeight, fileName, calibration, margin } = store;
     if (outline.length === 0) {
       toast({ title: "Nothing to export", description: "Trace an image first.", variant: "destructive" });
       return;
     }
     if (mmPerPixel(calibration) === null && exportFormat !== "svg") {
-      toast({ title: "Set scale before exporting", description: "STL, DXF and DWG need a physical scale. Set scale, or choose SVG to save image pixels.", variant: "destructive" });
+      toast({ title: "Set scale before exporting", description: "STL and DXF need a physical scale. Set scale, or choose SVG to save image pixels.", variant: "destructive" });
       openSettings("trace-settings-scale");
       return;
     }
@@ -563,7 +615,7 @@ function TraceWorkspace(): JSX.Element {
           mmPerPx: scale.mmPerPx,
           calibration,
         })], { type: "image/svg+xml" });
-      } else if (exportFormat === "dxf" || exportFormat === "dwg") {
+      } else if (exportFormat === "dxf") {
         model = new Blob([generateDXF(outline, scale)], { type: "application/dxf" });
       } else {
         const stl = await generateSTL(outline, { heightMm: extrusionHeight, scale });
@@ -571,13 +623,6 @@ function TraceWorkspace(): JSX.Element {
       }
       if (backup) downloadBlob(backup, `${stem}.pocketry.json`);
       downloadBlob(model, `${stem}.${exportFormat}`);
-      if (exportFormat === "dwg") {
-        toast({
-          title: "DWG compatibility file",
-          description: "A DXF file was saved with a .dwg name; CAD software will open it.",
-          duration: 5000,
-        });
-      }
       toast({ title: "Saved", description: `Exported as ${exportFormat.toUpperCase()}${includeProject ? " with an editable outline project" : ""}.` });
     } catch (error) {
       toast({
@@ -588,19 +633,14 @@ function TraceWorkspace(): JSX.Element {
     }
   };
 
-  // Selecting DWG explains the substitution once, when it is chosen.
-  const previousFormat = useRef(store.exportFormat);
-  useEffect(() => {
-    if (store.exportFormat === "dwg" && previousFormat.current !== "dwg") {
-      setDwgDialogOpen(true);
-    }
-    previousFormat.current = store.exportFormat;
-  }, [store.exportFormat]);
-
   const requestExport = () => {
+    if (hasPendingManualCalibration(store) || store.pendingAutoCalibration) {
+      openSettings("trace-settings-scale");
+      return;
+    }
     if (mmPerPixel(store.calibration) === null && store.exportFormat !== "svg") {
       openSettings("trace-settings-scale");
-      toast({ title: "Set scale before exporting", description: "STL, DXF and DWG need a physical scale. Set scale, or choose SVG to save image pixels.", variant: "destructive" });
+      toast({ title: "Set scale before exporting", description: "STL and DXF need a physical scale. Set scale, or choose SVG to save image pixels.", variant: "destructive" });
       return;
     }
     setExportDialogOpen(true);
@@ -616,7 +656,8 @@ function TraceWorkspace(): JSX.Element {
     : `Outline size: ${exportDimensions} mm (width × height)${store.exportFormat === "stl" ? `; extrusion ${formatDimension(store.extrusionHeight)} mm` : ""}. Scale: ${scaleSource}. Verify a known tool dimension before printing.`;
 
   const dropzone = (
-    <FileUpload onFileSelected={handleFileSelected} className="flex min-h-64 w-full flex-1 flex-col items-center justify-center" />
+    <FileUpload onFileSelected={handleFileSelected} onFileRejected={handleFileRejected}
+      className="flex min-h-64 w-full flex-1 flex-col items-center justify-center" />
   );
 
   return (
@@ -662,7 +703,8 @@ function TraceWorkspace(): JSX.Element {
         onChange={(event) => { const file = event.target.files?.[0]; if (file) void handleFileSelected(file); event.target.value = ""; }} />
       {handoffOpen && <TraceHandoffDialog onClose={() => setHandoffOpen(false)}
         onChoosePhoto={() => photoInputRef.current?.click()} onCanvasInteraction={showCanvas} />}
-      <WorkspaceLayout
+      <TraceEditingWorkspace
+        enabled={workflowLayout}
         autoSaveId="tooltrace:trace"
         panelOpen={panelOpen}
         onPanelOpenChange={setPanelOpen}
@@ -679,10 +721,11 @@ function TraceWorkspace(): JSX.Element {
         />}
         panel={
           <TraceControlsPanel
-            active={panelOpen}
+            active={workflowLayout || panelOpen}
             settingsSectionRequest={settingsSectionRequest}
             onCanvasInteraction={showCanvas}
             onReplaceImage={() => photoInputRef.current?.click()}
+            onStartOver={startOver}
             onRotateImage={handleRotateImage}
             onExport={requestExport}
             onReprocess={(settings) => void runDetection(settings)}
@@ -694,18 +737,23 @@ function TraceWorkspace(): JSX.Element {
         }
         canvas={
           <div className="flex h-full min-h-0 flex-col">
+            {photoError && <div role="alert" data-testid="trace-photo-error"
+              className={`flex shrink-0 items-start gap-2 bg-destructive/10 px-3 py-2 text-sm ${isMobile ? "order-last border-t" : "border-b"}`}>
+              <p className="min-w-0 flex-1">{photoError}</p>
+              <Button variant="ghost" size="sm" onClick={() => setPhotoError(null)}>Dismiss</Button>
+            </div>}
             {store.imageUrl && store.draftSaveStatus === "error" && <p role="status" data-testid="trace-save-error" className="shrink-0 border-b bg-destructive/10 px-3 py-2 text-sm text-destructive">
               Couldn’t save the trace draft. Keep this page open; your latest edits may not survive a refresh.
             </p>}
             <div className="relative min-h-0 flex-1">
                 <TraceCanvas
-                  onReprocess={() => void runDetection()}
+                  onReprocess={(region) => void runDetection(undefined, region)}
                   emptyState={
                     <div className="flex h-full min-h-[24rem] w-full flex-col gap-3 text-center">
                       <h2 className="text-lg font-medium">Trace a tool from a photo</h2>
                       <p className="text-sm text-muted-foreground">
                         Photograph the tool on a calibration sheet <strong className="font-semibold italic">or</strong>{" "}
-                        a plain, contrasting background. Keep the whole tool in frame.
+                        a plain, contrasting background with a known distance to set the scale. Keep the whole tool in frame.
                       </p>
                       <CalibrationDownloads />
                       {(store.draftSaveStatus === "loading" || store.draftSaveStatus === "error") && <p role="status" className={`text-sm ${store.draftSaveStatus === "error" ? "text-destructive" : "text-muted-foreground"}`}>
@@ -723,34 +771,12 @@ function TraceWorkspace(): JSX.Element {
       <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Choose Source Image</DialogTitle>
+            <DialogTitle>Choose source image</DialogTitle>
             <DialogDescription>
               Loading a new image clears the current outline, region and scale.
             </DialogDescription>
           </DialogHeader>
           {dropzone}
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={dwgDialogOpen} onOpenChange={setDwgDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>About DWG export</DialogTitle>
-            <DialogDescription>
-              DWG is a proprietary binary format that browsers cannot write.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3 text-sm text-muted-foreground">
-            <p>
-              Choosing DWG saves a DXF file with a <code>.dwg</code> extension.
-              AutoCAD, Fusion 360, FreeCAD and most CAM tools open it without
-              complaint, and can re-save it as true DWG.
-            </p>
-            <p>Choose DXF instead wherever your software accepts it.</p>
-          </div>
-          <DialogFooter>
-            <Button onClick={() => setDwgDialogOpen(false)}>Got it</Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>

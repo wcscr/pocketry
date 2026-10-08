@@ -207,12 +207,12 @@ describe("parseProjectDoc", () => {
     expect(parseProjectDoc({ ...VALID, schemaVersion: 19.5 })).toBeNull();
   });
 
-  it("defaults new shared walls to 1.2 mm and round-trips custom thickness", () => {
-    expect(VALID.spec.wallThicknessMm).toBe(1.2);
-    const thick = { ...VALID, spec: { ...VALID.spec, magneticLid: true, magneticLidStyle: "overlap", wallThicknessMm: 4 } };
-    expect(parseProjectDoc(JSON.parse(JSON.stringify(thick)))?.spec.wallThicknessMm).toBe(4);
+  it("keeps main wall defaults and round-trips custom lid thickness", () => {
+    expect(VALID.spec.wallThicknessMm).toBe(0.95);
+    const thick = { ...VALID, spec: { ...VALID.spec, magneticLid: true, magneticLidStyle: "overlap", lidSharedWallThicknessMm: 4 } };
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(thick)))?.spec.lidSharedWallThicknessMm).toBe(4);
     for (const wallThicknessMm of [0.6, 4.2, Infinity, NaN]) {
-      expect(parseProjectDoc({ ...thick, spec: { ...thick.spec, wallThicknessMm } })).toBeNull();
+      expect(parseProjectDoc({ ...thick, spec: { ...thick.spec, lidSharedWallThicknessMm: wallThicknessMm } })).toBeNull();
     }
   });
 
@@ -229,6 +229,125 @@ describe("parseProjectDoc", () => {
     const enabled = parseProjectDoc({ ...migrated, history: undefined, spec: { ...migrated!.spec, magneticLid: true } });
     expect(enabled?.spec.magneticLid).toBe(true);
     expect(parseProjectDoc(JSON.parse(JSON.stringify(enabled)))).toEqual(enabled);
+  });
+
+  it("migrates v31 wall thickness through the design, history, and transform references", () => {
+    const { wallThicknessMm: _removed, ...spec } = VALID.spec;
+    const cutouts = [parseProjectDoc(VALID)!.cutouts[0]];
+    const doc = { spec: { ...spec, fill: "none" }, cutouts, fingerHoles: [] };
+    const legacy = { ...VALID, ...doc, schemaVersion: 31,
+      history: { stack: [{ doc, label: "Opened" }], index: 0 },
+      transformOrigins: { pockets: [{ cutout: cutouts[0], spec }], fingerHoles: [] } };
+    const original = JSON.stringify(legacy);
+    const migrated = parseProjectDoc(legacy)!;
+    expect(migrated.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
+    expect(migrated.spec.wallThicknessMm).toBe(0.95);
+    expect(migrated.history!.stack[0].doc.spec.wallThicknessMm).toBe(0.95);
+    expect(migrated.transformOrigins!.pockets[0].spec.wallThicknessMm).toBe(0.95);
+    expect(JSON.stringify(legacy)).toBe(original);
+    const thick = { ...migrated.spec, wallThicknessMm: 2.4 };
+    const saved = { ...migrated, spec: thick, history: { index: 1, stack: [
+      migrated.history!.stack[0],
+      { doc: { ...migrated.history!.stack[0].doc, spec: thick }, label: "Change wall thickness" },
+    ] } };
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(saved)))).toEqual(saved);
+  });
+  it("migrates released v25 fill-depth references and settings without changing history", () => {
+    const original = parseProjectDoc(VALID)!;
+    const spec = { ...original.spec, fillHeightPercent: 75, adjustFixedPocketDepths: false };
+    const cutouts = [{ ...original.cutouts[0], depth: { mode: "mm" as const, value: 20 },
+      fillHeightReference: { topZ: 40.8, position: { x: 0, y: 0 }, depth: { mode: "mm" as const, value: 20 } } }];
+    const doc = { spec, cutouts, fingerHoles: [] };
+    const legacy = { ...original, ...doc, schemaVersion: 25,
+      history: { stack: [{ doc, label: "Restore original pocket depths" }], index: 0 },
+      transformOrigins: { pockets: [{ cutout: cutouts[0], spec }], fingerHoles: [] } };
+    const migrated = parseProjectDoc(JSON.parse(JSON.stringify(legacy)))!;
+    expect(migrated).toEqual({ ...legacy, schemaVersion: PROJECT_SCHEMA_VERSION });
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(migrated)))).toEqual(migrated);
+  });
+
+  it("migrates v24 without changing ordinary pockets or as-drawn references", () => {
+    const source = parseProjectDoc(VALID)!;
+    const legacy = { ...source, schemaVersion: 24, transformOrigins: { pockets: [{ cutout: source.cutouts[0], spec: source.spec }], fingerHoles: [] } };
+    const migrated = parseProjectDoc(legacy)!;
+    expect(migrated.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
+    expect(migrated.cutouts).toEqual(source.cutouts);
+    expect(migrated.transformOrigins).toEqual(legacy.transformOrigins);
+    expect(migrated.cutouts[0].profileBottom).toBeUndefined();
+  });
+  it("converts prototype profiles in every history snapshot and rejects malformed prototypes", () => {
+    const source = parseProjectDoc(VALID)!;
+    const before = { spec: source.spec, cutouts: source.cutouts, fingerHoles: [] };
+    const after = { ...before, cutouts: [{ ...source.cutouts[0], tilt: { xDeg: 30, yDeg: 0 },
+      profileBottom: { edge: "right" as const, widthMm: 8, elevationMm: 45 } }] };
+    const project = { ...source, ...after, history: { stack: [{ doc: before, label: "Before" }, { doc: after, label: "Profile bottom" }], index: 1 } };
+    const migrated = parseProjectDoc(JSON.parse(JSON.stringify(project)))!;
+    expect(migrated.cutouts[0]).toMatchObject({depth:{mode:"mm",value:8},elevationMm:45,tilt:{xDeg:0,yDeg:90}});
+    expect(migrated.history?.stack[0].doc).toEqual(before);
+    expect(migrated.history?.stack[1].doc.cutouts).toEqual(migrated.cutouts);
+    expect(JSON.stringify(parseProjectDoc(JSON.parse(JSON.stringify(migrated))))).toBe(JSON.stringify(migrated));
+    const bad = structuredClone(project);
+    bad.history.stack[1].doc.cutouts[0].profileBottom!.widthMm = -1;
+    expect(parseProjectDoc(bad)).toBeNull();
+  });
+  it("migrates version 24 projects and history without changing existing pocket geometry", () => {
+    const { adjustFixedPocketDepths: _removed, ...spec } = VALID.spec;
+    const cutouts = [parseProjectDoc(VALID)!.cutouts[0]];
+    const doc = { spec, cutouts, fingerHoles: [] };
+    const legacy = { ...VALID, ...doc, schemaVersion: 24,
+      transformOrigins: { pockets: [{ cutout: cutouts[0], spec }], fingerHoles: [] },
+      history: { stack: [{ doc, label: "Start" }], index: 0 } };
+    const migrated = parseProjectDoc(legacy)!;
+    expect(migrated).not.toBeNull();
+    expect(migrated.spec.adjustFixedPocketDepths).toBe(true);
+    expect(migrated.history!.stack[0].doc.spec.adjustFixedPocketDepths).toBe(true);
+    expect(migrated.cutouts).toEqual(cutouts);
+    expect(migrated.transformOrigins!.pockets[0].cutout).toEqual(cutouts[0]);
+    expect(migrated.cutouts[0].fillHeightReference).toBeUndefined();
+  });
+
+  it("migrates legacy fill heights in the current design and every undo/redo snapshot", () => {
+    const { fillHeightPercent: _removed, ...spec } = VALID.spec;
+    const doc = { spec, cutouts: [], fingerHoles: [] };
+    const legacy = { ...VALID, ...doc, schemaVersion: 19, history: {
+      stack: [
+        { doc, label: "Start" },
+        { doc: { ...doc, spec: { ...spec, gridX: 3 } }, label: "Change width" },
+      ], index: 0,
+    } };
+    const original = JSON.stringify(legacy);
+    const migrated = parseProjectDoc(legacy)!;
+    expect(migrated.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
+    expect(migrated.spec.fillHeightPercent).toBe(100);
+    expect(migrated.history!.stack.map(entry => entry.doc.spec.fillHeightPercent)).toEqual([100, 100]);
+    expect(migrated.history!.index).toBe(0);
+    expect(JSON.stringify(legacy)).toBe(original);
+    expect(JSON.stringify(parseProjectDoc(JSON.parse(JSON.stringify(migrated))))).toBe(JSON.stringify(migrated));
+  });
+
+  it("round-trips a long access groove and its undo history without changing existing geometry", () => {
+    const fingerHole = { id: "long", kind: "oblong-deep-scoop", center: { x: 0, y: 0 },
+      diameterMm: 23, depthMm: 10, lengthMm: 193, topFilletMm: 0.6 };
+    const doc = { spec: { ...VALID.spec, gridX: 5, gridY: 5 }, cutouts: VALID.cutouts, fingerHoles: [fingerHole] };
+    const project = parseProjectDoc({ ...VALID, ...doc, history: {
+      stack: [
+        { doc: { ...doc, fingerHoles: [{ ...fingerHole, lengthMm: 160 }] }, label: "Start" },
+        { doc, label: "Change length" },
+      ], index: 1,
+    } });
+    expect(project).not.toBeNull();
+    expect(project?.fingerHoles[0]).toMatchObject(fingerHole);
+    expect(project?.history?.stack[0].doc.fingerHoles[0].lengthMm).toBe(160);
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(project)))).toEqual(project);
+  });
+
+  it("round-trips custom fill height and saved history", () => {
+    const doc = { spec: { ...VALID.spec, fillHeightPercent: 37.5 }, cutouts: [], fingerHoles: [] };
+    const project = parseProjectDoc({ ...VALID, ...doc, history: {
+      stack: [{ doc: { ...doc, spec: VALID.spec }, label: "Start" }, { doc, label: "Change fill height" }], index: 1,
+    } });
+    expect(project?.spec.fillHeightPercent).toBe(37.5);
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(project)))).toEqual(project);
   });
 
   it("preserves independent pocket names alongside unnamed legacy placements", () => {
@@ -269,7 +388,7 @@ describe("parseProjectDoc", () => {
     const original = JSON.stringify(airdusterV9);
     const doc = parseProjectDoc(airdusterV9);
     const { liteBase: _removed, ...spec } = airdusterV9.spec;
-    expect(doc).toEqual({ ...airdusterV9, spec: { ...spec, flatBottom: false, magneticLid: false, magneticLidStyle: "inset", magneticLidTop: "flat", lidGripRecess: false, lidMagnetHoles: true, lidMagnetCrushRibs: false, lidFit: "lift-off", lidInterface: "ribs", lidRibSpacingMm: 24, lidFitAdjustmentMm: 0, wallThicknessMm: 0.95, magnetDiameterMm: 6, magnetThicknessMm: 2 }, schemaVersion: PROJECT_SCHEMA_VERSION });
+    expect(doc).toEqual({ ...airdusterV9, spec: { ...spec, flatBottom: false, fillHeightPercent: 100, adjustFixedPocketDepths: true, surfaceTexts: [], textColor: null, wallThicknessMm: 0.95, magneticLid: false, magneticLidStyle: "inset", magneticLidTop: "flat", lidGripRecess: false, lidMagnetHoles: true, lidMagnetCrushRibs: false, lidFit: "lift-off", lidInterface: "ribs", lidRibSpacingMm: 24, lidFitAdjustmentMm: 0, lidSharedWallThicknessMm: 1.2, magnetDiameterMm: 6, magnetThicknessMm: 2 }, schemaVersion: PROJECT_SCHEMA_VERSION });
     expect(doc!.shapes).toHaveLength(7);
     expect(doc!.cutouts).toHaveLength(4);
     expect(doc!.fingerHoles).toHaveLength(2);
@@ -680,4 +799,129 @@ it("defaults older lid fits and preserves tuning through project and history rou
     expect(parseProjectDoc({ ...old, spec: { ...old.spec, lidFitAdjustmentMm } })).toBeNull();
   }
   expect(parseProjectDoc({ ...old, spec: { ...old.spec, lidFit: "unknown" } })).toBeNull();
+});
+
+it.each([
+  { version: 20, fill: 55, tilt: undefined, offset: undefined },
+  { version: 20, fill: undefined, tilt: { xDeg: 12, yDeg: 30 }, offset: undefined },
+  { version: 21, fill: undefined, tilt: { xDeg: 12, yDeg: 30 }, offset: 2 },
+])("migrates both version-20 branches and v21 without losing history: %j", ({ version, fill, tilt, offset }) => {
+  const { fillHeightPercent: _fill, ...oldSpec } = VALID.spec;
+  const spec = fill === undefined ? oldSpec : { ...oldSpec, fillHeightPercent: fill };
+  const cutouts = [{ ...VALID.cutouts[0], ...(tilt ? { tilt } : {}), ...(offset === undefined ? {} : { zOffsetMm: offset }) }];
+  const doc = { spec, cutouts, fingerHoles: [] };
+  const input = { ...VALID, ...doc, schemaVersion: version, history: {
+    stack: [{ doc, label: "Start" }, { doc: { ...doc, cutouts: [{ ...cutouts[0], position: { x: 10, y: 5 } }] }, label: "Move" }], index: 0,
+  } };
+  const serialized = JSON.stringify(input), migrated = parseProjectDoc(input)!;
+  expect(migrated).not.toBeNull();
+  expect(migrated.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
+  expect(migrated.spec.fillHeightPercent).toBe(fill ?? 100);
+  for (const entry of migrated.history!.stack) {
+    expect(entry.doc.spec.fillHeightPercent).toBe(fill ?? 100);
+    expect(entry.doc.cutouts[0].tilt).toEqual(tilt);
+    expect(entry.doc.cutouts[0].zOffsetMm).toBe(offset);
+  }
+  expect(JSON.stringify(input)).toBe(serialized);
+  expect(JSON.stringify(parseProjectDoc(JSON.parse(JSON.stringify(migrated))))).toBe(JSON.stringify(migrated));
+});
+
+
+it("round-trips as-drawn references and migrates version 23 without changing geometry", () => {
+  const doc = parseProjectDoc(VALID)!;
+  const transformOrigins = { pockets: [{ cutout: doc.cutouts[0], spec: doc.spec }], fingerHoles: [] };
+  const saved = { ...doc, transformOrigins, cutouts: [{ ...doc.cutouts[0], position: { x: 10, y: 4 } }] };
+  expect(parseProjectDoc(JSON.parse(JSON.stringify(saved)))).toEqual(saved);
+  expect(parseProjectDoc({ ...doc, schemaVersion: 23 })).toEqual(doc);
+  expect(parseProjectDoc({ ...saved, transformOrigins: { ...transformOrigins, pockets: [{ cutout: { ...doc.cutouts[0], rotationDeg: Infinity }, spec: doc.spec }] } })).toBeNull();
+});
+
+it("retains unclipped rigid source depths with floor limits through save, history, and creation references", () => {
+  const previous = parseProjectDoc({...VALID,schemaVersion:33})!;
+  expect(previous).not.toBeNull();
+  const cutout = {...previous.cutouts[0],elevationMm:3,insertionMode:"vertical",tilt:{xDeg:20,yDeg:25},
+    depth:{mode:"remaining",floorThicknessMm:9,sourceDepthMm:16}};
+  const doc = {...previous,cutouts:[cutout],history:{index:0,stack:[{label:"Lower pocket",doc:{spec:previous.spec,cutouts:[cutout],fingerHoles:[]}}]},
+    transformOrigins:{pockets:[{cutout,spec:previous.spec}],fingerHoles:[]}};
+  const parsed = parseProjectDoc(JSON.parse(JSON.stringify(doc)))!;
+  expect(parsed).not.toBeNull();
+  expect(parsed.cutouts[0].depth).toEqual(cutout.depth);
+  expect(parsed.history!.stack[0].doc.cutouts[0].depth).toEqual(cutout.depth);
+  expect(parsed.transformOrigins!.pockets[0].cutout.depth).toEqual(cutout.depth);
+  expect(parseProjectDoc({...doc,cutouts:[{...cutout,depth:{...cutout.depth,sourceDepthMm:-1}}]})).toBeNull();
+});
+
+it("recovers a through object's original depth from ordered history and preserves moves and Undo", () => {
+  const base = parseProjectDoc(VALID)!;
+  const finite = {...base.cutouts[0],elevationMm:12,depth:{mode:"mm" as const,value:16},tilt:{xDeg:20,yDeg:25}};
+  const through = {...finite,depth:{mode:"through" as const},elevationMm:50};
+  const later = {...finite,depth:{mode:"mm" as const,value:24}};
+  const snapshot = (cutout: typeof through | typeof finite) => ({spec:base.spec,cutouts:[cutout],fingerHoles:[]});
+  const input = {...base,...snapshot(through),schemaVersion:34,
+    history:{index:1,stack:[{label:"Original",doc:snapshot(finite)},{label:"Through and raise",doc:snapshot(through)},
+      {label:"Later resize",doc:snapshot(later)}]},
+    transformOrigins:{pockets:[{cutout:finite,spec:base.spec}],fingerHoles:[]}};
+  const saved = JSON.stringify(input);
+  const migrated = parseProjectDoc(JSON.parse(saved))!;
+  expect(migrated.cutouts[0]).toMatchObject({elevationMm:50,depth:{mode:"through",sourceDepthMm:16}});
+  expect(migrated.history!.stack[1].doc.cutouts).toEqual(migrated.cutouts);
+  expect(migrated.history!.stack[0].doc.cutouts[0].depth).toEqual(finite.depth);
+  expect(migrated.history!.stack[2].doc.cutouts[0].depth).toEqual(later.depth);
+  expect(parseProjectDoc(JSON.parse(JSON.stringify(migrated)))).toEqual(migrated);
+  expect(JSON.stringify(input)).toBe(saved);
+  expect(parseProjectDoc({...migrated,history:undefined,cutouts:[{...migrated.cutouts[0],elevationMm:-0.01}]})).toBeNull();
+});
+
+it("recovers retained creation depths without history and freezes a legacy through default once", () => {
+  const base = parseProjectDoc(VALID)!;
+  const original = {...base.cutouts[0],elevationMm:7,depth:{mode:"mm" as const,value:16}};
+  const through = {...original,depth:{mode:"through" as const}};
+  const recovered = parseProjectDoc({...base,schemaVersion:34,cutouts:[through],
+    transformOrigins:{pockets:[{cutout:original,spec:base.spec}],fingerHoles:[]}})!;
+  expect(recovered.cutouts[0].depth).toEqual({mode:"through",sourceDepthMm:16});
+  const migrated = parseProjectDoc({...base,schemaVersion:34,cutouts:[through]})!;
+  const sourceDepth = migrated.cutouts[0].depth;
+  expect(sourceDepth).toHaveProperty("sourceDepthMm");
+  expect(parseProjectDoc({...migrated,spec:{...base.spec,heightUnits:8}})!.cutouts[0].depth).toEqual(sourceDepth);
+});
+
+it("keeps migrated linked through designs consistent even when creation depths differed", () => {
+  const base = parseProjectDoc(VALID)!;
+  const first = {...base.cutouts[0],elevationMm:7,depth:{mode:"through" as const},designLink:{id:"linked",tilt:false}};
+  const second = {...first,id:"copy",elevationMm:12,position:{x:20,y:0}};
+  const migrated = parseProjectDoc({...base,schemaVersion:34,cutouts:[first,second],
+    transformOrigins:{pockets:[{cutout:{...first,designLink:undefined,depth:{mode:"mm",value:16}},spec:base.spec},
+      {cutout:{...second,designLink:undefined,depth:{mode:"mm",value:24}},spec:base.spec}],fingerHoles:[]}})!;
+  expect(migrated).not.toBeNull();
+  expect(migrated.cutouts[0].depth).toEqual({mode:"through",sourceDepthMm:16});
+  expect(migrated.cutouts[1].depth).toEqual(migrated.cutouts[0].depth);
+});
+
+
+it.each([18, 19, 20, 21, 22, 23, 24, 25, 26, 27])("preserves actual lid-preview v%s wall dimensions and disabled history", schemaVersion => {
+  const spec = { gridX: 2, gridY: 2, heightUnits: 6, magneticLid: true,
+    magneticLidStyle: "overlap", magneticLidTop: "flat", wallThicknessMm: 4,
+    lidMagnetHoles: false, lidFit: "friction", lidInterface: "angled-fins" };
+  const before = { spec: { ...spec, magneticLid: false }, cutouts: [], fingerHoles: [] };
+  const after = { spec, cutouts: [], fingerHoles: [] };
+  const input = { schemaVersion, shapes: [], ...after,
+    history: { index: 1, stack: [{ label: "Before", doc: before }, { label: "Lid", doc: after }] } };
+  const original = JSON.stringify(input);
+  const result = parseProjectDoc(input)!;
+  expect(result).not.toBeNull();
+  expect(result.spec).toMatchObject({ magneticLid: true, lidSharedWallThicknessMm: 4, lidInterface: "angled-fins" });
+  expect(result.history!.stack.map(entry => entry.doc.spec.lidSharedWallThicknessMm)).toEqual([4, 4]);
+  expect(result.history!.stack[0].doc.spec.magneticLid).toBe(false);
+  expect(parseProjectDoc(JSON.parse(JSON.stringify(result)))).toEqual(result);
+  expect(JSON.stringify(input)).toBe(original);
+});
+
+it("preserves main v36 wall and color preferences independently from lid fit", () => {
+  const spec = { gridX: 2, gridY: 2, heightUnits: 6, fill: "none", wallThicknessMm: 2.4 };
+  const main = { schemaVersion: 36, shapes: [], spec, cutouts: [], fingerHoles: [] };
+  const result = parseProjectDoc(main)!;
+  expect(result.spec).toMatchObject({ magneticLid: false, wallThicknessMm: 2.4, lidSharedWallThicknessMm: 1.2 });
+  const lid = { ...result, spec: { ...result.spec, magneticLid: true, lidSharedWallThicknessMm: 4 } };
+  expect(parseProjectDoc(JSON.parse(JSON.stringify(lid)))!.spec).toEqual(lid.spec);
+  expect(parseProjectDoc({ ...lid, spec: { ...lid.spec, magneticLid: false } })!.spec.wallThicknessMm).toBe(2.4);
 });

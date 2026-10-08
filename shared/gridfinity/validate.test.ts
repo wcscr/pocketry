@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { parseBinSpec, binSpecSchema, type BinSpecInput } from "./types";
-import { validateBinSpec } from "./validate";
+import { validateBinSpec, labelTabStripMm } from "./validate";
 import { binFootprintMm } from "./standard";
 
 function spec(partial: Partial<BinSpecInput> = {}) {
@@ -14,6 +14,8 @@ describe("binSpecSchema", () => {
     expect(parsed.lip).toBe("standard");
     // Solid by default: this tool's bins exist to have pockets cut into them.
     expect(parsed.fill).toBe("solid");
+    expect(parsed.fillHeightPercent).toBe(100);
+    expect(parsed.wallThicknessMm).toBe(0.95);
     expect(parsed.gridPitch).toBe("full");
   });
 
@@ -21,6 +23,24 @@ describe("binSpecSchema", () => {
     expect(spec({ gridPitch: "half" }).gridPitch).toBe("half");
     expect(spec({ gridPitch: "quarter" }).gridPitch).toBe("quarter");
     expect(() => spec({ gridPitch: "eighth" as never })).toThrow();
+  });
+
+  it("accepts thicker hollow walls and rejects unsupported values", () => {
+    for (const wallThicknessMm of [0.95, 1.2, 2, 3]) {
+      expect(spec({ fill: "none", wallThicknessMm }).wallThicknessMm).toBe(wallThicknessMm);
+    }
+    for (const wallThicknessMm of [0, 0.94, 3.01, NaN, Infinity, "2", null]) {
+      expect(() => spec({ wallThicknessMm: wallThicknessMm as number })).toThrow();
+    }
+  });
+
+  it("accepts custom fill percentages and rejects invalid heights", () => {
+    for (const fillHeightPercent of [1, 25, 37.5, 50, 75, 100]) {
+      expect(spec({ fillHeightPercent }).fillHeightPercent).toBe(fillHeightPercent);
+    }
+    for (const fillHeightPercent of [0, -1, 101, NaN, Infinity, "50", null]) {
+      expect(() => spec({ fillHeightPercent: fillHeightPercent as number })).toThrow();
+    }
   });
 
   it.each([
@@ -152,4 +172,10 @@ describe("fractional grid spec rule (G5)", () => {
       validateBinSpec(spec({ gridPitch: "quarter" })).issues.map((issue) => issue.code),
     ).not.toContain("fractional-grid-holes");
   });
+});
+
+
+it("keeps the label-tab keepout aligned with main's unchanged mating rim", () => {
+  const plain = spec({ fill: "none", labelTab: { wall: "north", width: "full" } });
+  expect(labelTabStripMm({ ...plain, wallThicknessMm: 3 })).toEqual(labelTabStripMm(plain));
 });

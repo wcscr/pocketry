@@ -12,18 +12,10 @@ import { describeScale, toModelSpace, type ExportScale } from "./scale";
  * the STL writer makes, which is what stops the two formats disagreeing about
  * handedness.
  *
- * Three fixes over the legacy writer:
- *
- * - It emitted old-style `POLYLINE`/`VERTEX`/`SEQEND` with no `AcDbEntity` /
- *   `AcDbPolyline` subclass markers. Strict AC1027 readers reject that, and it
- *   cannot express a hole at all. Every ring is now its own `LWPOLYLINE`.
- * - `$DIMSCALE` was written as a `9`-coded name followed by `70` and `40`
- *   codes, which is malformed — `$DIMSCALE` is a single `40` real. It is gone
- *   entirely rather than repaired: the scale is baked into the coordinates, so
- *   a drawing-scale variable on top of that would double-apply.
- * - The legacy file ended with an empty `OBJECTS` section, which is invalid —
- *   an `OBJECTS` section must at least contain the root dictionary. A minimal
- *   `HEADER` + `ENTITIES` file is the well-trodden interchange shape.
+ * Emit a complete drawing scaffold, including symbol tables, model/paper-space
+ * blocks and the root dictionary. An ENTITIES-only interchange file is suitable
+ * for R12, but declaring AC1027 with that structure can import empty in Fusion.
+ * See docs/dxf-compatibility.md for the reproduction and format references.
  */
 
 /** Millimetres. Written unconditionally; see {@link unitsComment}. */
@@ -42,11 +34,22 @@ const COORDINATE_DECIMALS = 6;
  * Every layer is `0`.
  *
  * A hole must sit on the same layer as its shell, or a CAM tool's
- * layer-based selection cuts the pocket without its islands. Layer `0` always
- * exists, so no `TABLES` section is needed to define it — the alternative,
- * per-shape layers, would require one and buys nothing here.
+ * layer-based selection cuts the pocket without its islands. Define layer `0`
+ * explicitly in TABLES so readers can discover it before importing entities.
  */
 const LAYER = "0";
+
+type WritePair = (code: number, value: string | number) => void;
+
+/** Drawing records live below FIRST_HANDLE; geometry gets the remaining range. */
+const HANDLES = {
+  ltypeTable: "1", byBlock: "2", byLayer: "3", continuous: "4",
+  layerTable: "5", layer: "6", styleTable: "7", style: "8",
+  appidTable: "9", acad: "A", dimstyleTable: "B", dimstyle: "C",
+  blockTable: "D", model: "E", paper: "F",
+  modelBegin: "10", modelEnd: "11", paperBegin: "12", paperEnd: "13",
+  root: "14", groups: "15", vportTable: "16", viewTable: "17", ucsTable: "18",
+} as const;
 
 /** A DXF drawing containing one closed `LWPOLYLINE` per ring. */
 export function generateDXF(outline: Outline, scale: ExportScale): string {
@@ -89,10 +92,17 @@ export function dxfFromModelRings(rings: readonly Ring[], comment: string): stri
   pair(0, "ENDSEC");
 
   pair(0, "SECTION");
+  pair(2, "CLASSES");
+  pair(0, "ENDSEC");
+  writeTables(pair);
+  writeBlocks(pair);
+
+  pair(0, "SECTION");
   pair(2, "ENTITIES");
   rings.forEach((ring, index) => {
     pair(0, "LWPOLYLINE");
     pair(5, handleHex(FIRST_HANDLE + index));
+    pair(330, HANDLES.model);
     pair(100, "AcDbEntity");
     pair(8, LAYER);
     pair(100, "AcDbPolyline");
@@ -107,8 +117,147 @@ export function dxfFromModelRings(rings: readonly Ring[], comment: string): stri
   });
   pair(0, "ENDSEC");
 
+  writeObjects(pair);
   pair(0, "EOF");
   return `${lines.join("\n")}\n`;
+}
+
+/** Standard symbol tables required by the modern DXF drawing structure. */
+function writeTables(pair: WritePair): void {
+  const table = (name: string, handle: string, count: number): void => {
+    pair(0, "TABLE");
+    pair(2, name);
+    pair(5, handle);
+    pair(330, "0");
+    pair(100, "AcDbSymbolTable");
+    pair(70, count);
+    if (name === "DIMSTYLE") pair(100, "AcDbDimStyleTable");
+  };
+  const record = (
+    type: string, handle: string, owner: string, subclass: string, name: string,
+  ): void => {
+    pair(0, type);
+    // DIMSTYLE is the one symbol record whose handle uses group 105.
+    pair(type === "DIMSTYLE" ? 105 : 5, handle);
+    pair(330, owner);
+    pair(100, "AcDbSymbolTableRecord");
+    pair(100, subclass);
+    pair(2, name);
+    pair(70, 0);
+  };
+
+  pair(0, "SECTION");
+  pair(2, "TABLES");
+  table("VPORT", HANDLES.vportTable, 0);
+  pair(0, "ENDTAB");
+
+  table("LTYPE", HANDLES.ltypeTable, 3);
+  for (const [name, handle] of [
+    ["ByBlock", HANDLES.byBlock],
+    ["ByLayer", HANDLES.byLayer],
+    ["CONTINUOUS", HANDLES.continuous],
+  ]) {
+    record("LTYPE", handle, HANDLES.ltypeTable, "AcDbLinetypeTableRecord", name);
+    pair(3, "");
+    pair(72, 65);
+    pair(73, 0);
+    pair(40, 0);
+  }
+  pair(0, "ENDTAB");
+
+  table("LAYER", HANDLES.layerTable, 1);
+  record("LAYER", HANDLES.layer, HANDLES.layerTable, "AcDbLayerTableRecord", LAYER);
+  pair(62, 7);
+  pair(6, "CONTINUOUS");
+  pair(370, -3); // Default lineweight.
+  // Fusion rejects a modern layer record without group 390. A null handle
+  // explicitly means this outline layer has no named plot-style object.
+  pair(390, "0");
+  pair(0, "ENDTAB");
+
+  table("STYLE", HANDLES.styleTable, 1);
+  record("STYLE", HANDLES.style, HANDLES.styleTable, "AcDbTextStyleTableRecord", "Standard");
+  pair(40, 0);
+  pair(41, 1);
+  pair(50, 0);
+  pair(71, 0);
+  pair(42, 2.5);
+  pair(3, "txt");
+  pair(4, "");
+  pair(0, "ENDTAB");
+
+  table("VIEW", HANDLES.viewTable, 0);
+  pair(0, "ENDTAB");
+  table("UCS", HANDLES.ucsTable, 0);
+  pair(0, "ENDTAB");
+
+  table("APPID", HANDLES.appidTable, 1);
+  record("APPID", HANDLES.acad, HANDLES.appidTable, "AcDbRegAppTableRecord", "ACAD");
+  pair(0, "ENDTAB");
+
+  table("DIMSTYLE", HANDLES.dimstyleTable, 1);
+  record("DIMSTYLE", HANDLES.dimstyle, HANDLES.dimstyleTable, "AcDbDimStyleTableRecord", "Standard");
+  pair(340, HANDLES.style);
+  pair(0, "ENDTAB");
+
+  table("BLOCK_RECORD", HANDLES.blockTable, 2);
+  for (const [name, handle] of [["*Model_Space", HANDLES.model], ["*Paper_Space", HANDLES.paper]]) {
+    record("BLOCK_RECORD", handle, HANDLES.blockTable, "AcDbBlockTableRecord", name);
+    pair(280, 1);
+    pair(281, 0);
+  }
+  pair(0, "ENDTAB");
+  pair(0, "ENDSEC");
+}
+
+/** Space definitions are empty: the model geometry belongs in ENTITIES. */
+function writeBlocks(pair: WritePair): void {
+  pair(0, "SECTION");
+  pair(2, "BLOCKS");
+  for (const [name, owner, begin, end] of [
+    ["*Model_Space", HANDLES.model, HANDLES.modelBegin, HANDLES.modelEnd],
+    ["*Paper_Space", HANDLES.paper, HANDLES.paperBegin, HANDLES.paperEnd],
+  ]) {
+    pair(0, "BLOCK");
+    pair(5, begin);
+    pair(330, owner);
+    pair(100, "AcDbEntity");
+    pair(8, LAYER);
+    pair(100, "AcDbBlockBegin");
+    pair(2, name);
+    pair(70, 0);
+    pair(10, 0);
+    pair(20, 0);
+    pair(30, 0);
+    pair(3, name);
+    pair(1, "");
+    pair(0, "ENDBLK");
+    pair(5, end);
+    pair(330, owner);
+    pair(100, "AcDbEntity");
+    pair(8, LAYER);
+    pair(100, "AcDbBlockEnd");
+  }
+  pair(0, "ENDSEC");
+}
+
+/** Root named-object dictionary and its (empty) ACAD_GROUP dictionary. */
+function writeObjects(pair: WritePair): void {
+  pair(0, "SECTION");
+  pair(2, "OBJECTS");
+  pair(0, "DICTIONARY");
+  pair(5, HANDLES.root);
+  pair(330, "0");
+  pair(100, "AcDbDictionary");
+  pair(281, 1);
+  pair(3, "ACAD_GROUP");
+  pair(350, HANDLES.groups);
+  pair(0, "DICTIONARY");
+  pair(5, HANDLES.groups);
+  pair(330, HANDLES.root);
+  pair(100, "AcDbDictionary");
+  pair(281, 1);
+  pair(0, "ENDSEC");
 }
 
 /**

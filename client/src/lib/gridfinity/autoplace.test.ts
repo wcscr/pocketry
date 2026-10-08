@@ -44,7 +44,7 @@ describe("placementInsetMm", () => {
 });
 
 it("grows automatic layouts to clear both walls of a thick overlapping rim", () => {
-  const walls = parseBinSpec({ gridX: 1, gridY: 1, heightUnits: 4, wallThicknessMm: 4,
+  const walls = parseBinSpec({ gridX: 1, gridY: 1, heightUnits: 4, lidSharedWallThicknessMm: 4,
     magneticLid: true, magneticLidStyle: "overlap", lidMagnetHoles: false });
   const shape = rectShape("wide", 28, 12);
   const byId = new Map([[shape.id, shape]]);
@@ -54,7 +54,7 @@ it("grows automatic layouts to clear both walls of a thick overlapping rim", () 
   const fitted = fitRectangularBinToPlacements(result.cutouts, byId, walls);
   expect(fitted).toMatchObject({ gridX: 2, gridY: 1 });
   expect(validateLayout({ ...walls, gridX: 2 }, fitted.cutouts, byId).filter(issue => issue.severity === "error")).toEqual([]);
-  const fixed = autoPlaceIncremental([shape], { walls, lip: "standard", gridX: 1, gridY: 1,
+  const fixed = autoPlaceIncremental([shape], { spec: walls, lip: "standard", gridX: 1, gridY: 1,
     keepBinSize: true, existing: [], shapesById: byId });
   expect(fixed.overflow).toBe(true);
 });

@@ -9,7 +9,17 @@ import {
   type ReactNode,
 } from "react";
 
-import { tracedShapeSchema, type TracedShape } from "@shared/gridfinity/cutout";
+import { z } from "zod";
+import { depthSpecSchema, tracedShapeSchema, type TracedShape } from "@shared/gridfinity/cutout";
+
+// Placement choices travel with the session queue, not with reusable geometry
+// or the saved project schema. Older queued shapes have no pendingDepth.
+// Resolve To Floor only after the destination bin has loaded its base style.
+const pendingDepthSchema = z.union([depthSpecSchema, z.object({ mode: z.literal("to-floor") }).strict()]);
+export type PendingPocketDepth = z.infer<typeof pendingDepthSchema>;
+const destinationSchema = z.object({ key: z.string(), name: z.string() }).strict();
+export type PendingDestination = z.infer<typeof destinationSchema>;
+const queuedToolSchema = tracedShapeSchema.extend({ pendingDepth: pendingDepthSchema.optional(), pendingDestination: destinationSchema.optional() });
 
 /**
  * The app-level shape library: traced shapes on their way to (or living in)
@@ -29,14 +39,17 @@ import { tracedShapeSchema, type TracedShape } from "@shared/gridfinity/cutout";
 interface ShapeLibraryState {
   shapes: TracedShape[];
   pendingIds: string[];
+  pendingDepths: Record<string, PendingPocketDepth>;
+  pendingDestinations: Record<string, PendingDestination>;
 }
 
 type ShapeLibraryAction =
-  | { type: "ADD_SHAPE"; shape: TracedShape }
+  | { type: "ADD_SHAPE"; shape: TracedShape; depth?: PendingPocketDepth; destination?: PendingDestination }
   | { type: "STORE_SHAPE"; shape: TracedShape }
   | { type: "REMOVE_SHAPE"; id: string }
   | { type: "CONSUME_PENDING" }
-  | { type: "REPLACE_SHAPES"; shapes: TracedShape[] }
+  | { type: "REPLACE_SHAPES"; shapes: TracedShape[]; preservePending?: boolean }
+  | { type: "RETARGET_PENDING"; destination: PendingDestination }
   | { type: "MERGE_SHAPES"; shapes: TracedShape[] };
 
 function reducer(state: ShapeLibraryState, action: ShapeLibraryAction): ShapeLibraryState {
@@ -45,6 +58,8 @@ function reducer(state: ShapeLibraryState, action: ShapeLibraryAction): ShapeLib
       return {
         shapes: [...state.shapes.filter((s) => s.id !== action.shape.id), action.shape],
         pendingIds: [...state.pendingIds, action.shape.id],
+        pendingDepths: { ...state.pendingDepths, ...(action.depth ? { [action.shape.id]: action.depth } : {}) },
+        pendingDestinations: { ...state.pendingDestinations, ...(action.destination ? { [action.shape.id]: action.destination } : {}) },
       };
     case "STORE_SHAPE":
       // An in-place editor revision already belongs to an existing pocket.
@@ -57,13 +72,21 @@ function reducer(state: ShapeLibraryState, action: ShapeLibraryAction): ShapeLib
       return {
         shapes: state.shapes.filter((s) => s.id !== action.id),
         pendingIds: state.pendingIds.filter((id) => id !== action.id),
+        pendingDepths: Object.fromEntries(Object.entries(state.pendingDepths).filter(([id]) => id !== action.id)),
+        pendingDestinations: Object.fromEntries(Object.entries(state.pendingDestinations).filter(([id]) => id !== action.id)),
       };
     case "CONSUME_PENDING":
-      return state.pendingIds.length === 0 ? state : { ...state, pendingIds: [] };
+      return state.pendingIds.length === 0 ? state : { ...state, pendingIds: [], pendingDepths: {}, pendingDestinations: {} };
+    case "RETARGET_PENDING":
+      return { ...state, pendingDestinations: Object.fromEntries(state.pendingIds.map(id => [id, action.destination])) };
     case "REPLACE_SHAPES":
       // Import path: replaces the collection without marking anything
       // pending — restored shapes already have placements.
-      return { shapes: action.shapes, pendingIds: [] };
+      if (action.preservePending) return { ...state, shapes: [
+        ...action.shapes.filter(shape => !state.pendingIds.includes(shape.id)),
+        ...state.shapes.filter(shape => state.pendingIds.includes(shape.id)),
+      ] };
+      return { shapes: action.shapes, pendingIds: [], pendingDepths: {}, pendingDestinations: {} };
     case "MERGE_SHAPES": {
       // Hydration path: restored shapes join the collection *behind* any
       // shapes already present (a pending arrival from the trace workspace
@@ -78,13 +101,16 @@ function reducer(state: ShapeLibraryState, action: ShapeLibraryAction): ShapeLib
 export interface ShapeLibrary {
   shapes: TracedShape[];
   pendingIds: string[];
-  addShape(shape: TracedShape): void;
+  pendingDepths: Readonly<Record<string, PendingPocketDepth>>;
+  pendingDestinations: Readonly<Record<string, PendingDestination>>;
+  addShape(shape: TracedShape, depth?: PendingPocketDepth, destination?: PendingDestination): void;
   /** Stores an editor revision without marking it for bin auto-placement. */
   storeShape(shape: TracedShape): void;
   removeShape(id: string): void;
   /** Returns the pending ids and clears the flag, atomically enough for UI. */
   consumePending(): string[];
-  replaceShapes(shapes: TracedShape[]): void;
+  replaceShapes(shapes: TracedShape[], preservePending?: boolean): void;
+  retargetPending(destination: PendingDestination): void;
   /** Hydration merge: restored shapes join without disturbing pending marks. */
   mergeShapes(shapes: TracedShape[]): void;
 }
@@ -92,15 +118,22 @@ export interface ShapeLibrary {
 const ShapeLibraryContext = createContext<ShapeLibrary | null>(null);
 
 export function ShapeLibraryProvider({ children }: { children: ReactNode }): JSX.Element {
-  const [state, dispatch] = useReducer(reducer, { shapes: [], pendingIds: [] }, (initial) => {
+  const [state, dispatch] = useReducer(reducer, { shapes: [], pendingIds: [], pendingDepths: {}, pendingDestinations: {} }, (initial) => {
     try {
-      const parsed = tracedShapeSchema.array().safeParse(JSON.parse(sessionStorage.getItem("pocketry:queued-tools") ?? "[]"));
-      return parsed.success ? { shapes: parsed.data, pendingIds: parsed.data.map((shape) => shape.id) } : initial;
+      const parsed = queuedToolSchema.array().safeParse(JSON.parse(sessionStorage.getItem("pocketry:queued-tools") ?? "[]"));
+      return parsed.success ? {
+        shapes: parsed.data.map(({ pendingDepth, pendingDestination, ...shape }) => shape),
+        pendingIds: parsed.data.map((shape) => shape.id),
+        pendingDepths: Object.fromEntries(parsed.data.flatMap(shape => shape.pendingDepth ? [[shape.id, shape.pendingDepth]] : [])),
+        pendingDestinations: Object.fromEntries(parsed.data.flatMap(shape => shape.pendingDestination ? [[shape.id, shape.pendingDestination]] : [])),
+      } : initial;
     } catch { return initial; }
   });
   useEffect(() => {
     if (state.pendingIds.length === 0) return;
-    try { sessionStorage.setItem("pocketry:queued-tools", JSON.stringify(state.shapes.filter((shape) => state.pendingIds.includes(shape.id)))); }
+    try { sessionStorage.setItem("pocketry:queued-tools", JSON.stringify(state.shapes
+      .filter((shape) => state.pendingIds.includes(shape.id))
+      .map(shape => ({ ...shape, pendingDepth: state.pendingDepths[shape.id], pendingDestination: state.pendingDestinations[shape.id] })))); }
     catch { /* The in-memory queue remains usable when browser storage is unavailable. */ }
   }, [state]);
 
@@ -109,8 +142,8 @@ export function ShapeLibraryProvider({ children }: { children: ReactNode }): JSX
   const stateRef = useRef(state);
   stateRef.current = state;
 
-  const addShape = useCallback((shape: TracedShape) => {
-    dispatch({ type: "ADD_SHAPE", shape });
+  const addShape = useCallback((shape: TracedShape, depth?: PendingPocketDepth, destination?: PendingDestination) => {
+    dispatch({ type: "ADD_SHAPE", shape, depth, destination });
   }, []);
   const storeShape = useCallback((shape: TracedShape) => {
     dispatch({ type: "STORE_SHAPE", shape });
@@ -118,7 +151,7 @@ export function ShapeLibraryProvider({ children }: { children: ReactNode }): JSX
   const removeShape = useCallback((id: string) => {
     // Removing the last queued shape must not revive it on the next reload.
     try {
-      const queued = tracedShapeSchema.array().safeParse(
+      const queued = queuedToolSchema.array().safeParse(
         JSON.parse(sessionStorage.getItem("pocketry:queued-tools") ?? "[]"),
       );
       if (queued.success) {
@@ -131,14 +164,15 @@ export function ShapeLibraryProvider({ children }: { children: ReactNode }): JSX
   }, []);
   const consumePending = useCallback((): string[] => {
     const pending = stateRef.current.pendingIds;
-    stateRef.current = { ...stateRef.current, pendingIds: [] };
+    stateRef.current = { ...stateRef.current, pendingIds: [], pendingDepths: {}, pendingDestinations: {} };
     if (pending.length > 0) dispatch({ type: "CONSUME_PENDING" });
     return pending;
   }, []);
-  const replaceShapes = useCallback((shapes: TracedShape[]) => {
-    try { sessionStorage.removeItem("pocketry:queued-tools"); } catch { /* Optional session recovery. */ }
-    dispatch({ type: "REPLACE_SHAPES", shapes });
+  const replaceShapes = useCallback((shapes: TracedShape[], preservePending = false) => {
+    if (!preservePending) try { sessionStorage.removeItem("pocketry:queued-tools"); } catch { /* Optional session recovery. */ }
+    dispatch({ type: "REPLACE_SHAPES", shapes, preservePending });
   }, []);
+  const retargetPending = useCallback((destination: PendingDestination) => dispatch({ type: "RETARGET_PENDING", destination }), []);
   const mergeShapes = useCallback((shapes: TracedShape[]) => {
     dispatch({ type: "MERGE_SHAPES", shapes });
   }, []);
@@ -147,11 +181,14 @@ export function ShapeLibraryProvider({ children }: { children: ReactNode }): JSX
     () => ({
       shapes: state.shapes,
       pendingIds: state.pendingIds,
+      pendingDepths: state.pendingDepths,
+      pendingDestinations: state.pendingDestinations,
       addShape,
       storeShape,
       removeShape,
       consumePending,
       replaceShapes,
+      retargetPending,
       mergeShapes,
     }),
     [
@@ -161,6 +198,7 @@ export function ShapeLibraryProvider({ children }: { children: ReactNode }): JSX
       removeShape,
       consumePending,
       replaceShapes,
+      retargetPending,
       mergeShapes,
     ],
   );

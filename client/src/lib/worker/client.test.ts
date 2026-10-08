@@ -8,29 +8,18 @@ import { WorkerCancelledError, type MessageEndpoint } from "./protocol";
  * A pair of endpoints that deliver to each other asynchronously, standing in
  * for a real `Worker` so the RPC can be exercised without a thread.
  */
-function createChannel(): { client: MessageEndpoint; worker: MessageEndpoint } {
-  const listeners = { client: new Set<Function>(), worker: new Set<Function>() };
-
-  const make = (self: "client" | "worker", peer: "client" | "worker") => ({
+function createChannel(): { client: MessageEndpoint; worker: MessageEndpoint; failClient: (type: string) => void } {
+  const targets = { client: new EventTarget(), worker: new EventTarget() };
+  const make = (self: "client" | "worker", peer: "client" | "worker"): MessageEndpoint => ({
     postMessage(message: unknown) {
-      // Structured clone mirrors the real boundary and catches accidental
-      // attempts to send functions or class instances across it.
       const data = structuredClone(message);
-      queueMicrotask(() => {
-        for (const listener of [...listeners[peer]]) {
-          listener({ data } as MessageEvent);
-        }
-      });
+      queueMicrotask(() => targets[peer].dispatchEvent(new MessageEvent("message", { data })));
     },
-    addEventListener(_type: "message", listener: (event: MessageEvent) => void) {
-      listeners[self].add(listener);
-    },
-    removeEventListener(_type: "message", listener: (event: MessageEvent) => void) {
-      listeners[self].delete(listener);
-    },
+    addEventListener(type, listener) { targets[self].addEventListener(type, listener); },
+    removeEventListener(type, listener) { targets[self].removeEventListener(type, listener); },
   });
-
-  return { client: make("client", "worker"), worker: make("worker", "client") };
+  return { client: make("client", "worker"), worker: make("worker", "client"),
+    failClient: type => { targets.client.dispatchEvent(new Event(type)); } };
 }
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -179,6 +168,43 @@ describe("worker RPC", () => {
 
     await expect(call).rejects.toBeInstanceOf(WorkerCancelledError);
     await expect(client.call("slow")).rejects.toThrow(/disposed/);
+  });
+
+  it.each(["error", "messageerror"])("rejects all jobs on %s and lazily replaces the failed endpoint", async type => {
+    const failed = createChannel();
+    const recovered = createChannel();
+    const terminate = vi.fn();
+    failed.client.terminate = terminate;
+    serveWorker({ echo: (p: never) => p }, recovered.worker);
+    const spawn = vi.fn().mockReturnValueOnce(failed.client).mockReturnValue(recovered.client);
+    const client = createWorkerClient(spawn);
+    const calls = Promise.allSettled([
+      client.call("slow", 1, { channel: "preview" }),
+      client.call("slow", 2, { channel: "export" }),
+    ]);
+    failed.failClient(type);
+    expect((await calls).map(result => result.status)).toEqual(["rejected", "rejected"]);
+    expect(terminate).toHaveBeenCalledOnce();
+    expect(spawn).toHaveBeenCalledTimes(1);
+    await expect(client.call("echo", "recovered")).resolves.toBe("recovered");
+    expect(spawn).toHaveBeenCalledTimes(2);
+    // A late failure from the detached endpoint cannot kill the replacement.
+    failed.failClient(type);
+    await expect(client.call("echo", "still ready")).resolves.toBe("still ready");
+    client.dispose();
+  });
+
+  it("settles a synchronous post failure without stranding the channel", async () => {
+    const channel = createChannel();
+    serveWorker({ echo: (p: never) => p }, channel.worker);
+    const originalPost = channel.client.postMessage;
+    channel.client.postMessage = vi.fn().mockImplementationOnce(() => { throw new Error("Cannot clone"); })
+      .mockImplementation(originalPost);
+    const client = createWorkerClient(() => channel.client);
+    await expect(client.call("echo", 1, { channel: "preview" })).rejects.toThrow("Cannot clone");
+    await expect(client.call("echo", 2, { channel: "preview" })).resolves.toBe(2);
+    expect(vi.mocked(channel.client.postMessage).mock.calls).toHaveLength(2);
+    client.dispose();
   });
 
   it("spawns the worker lazily, once", () => {

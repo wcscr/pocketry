@@ -21,7 +21,7 @@ import { binDimensionsMm, buildBin, EXPORT_QUALITY } from "../client/src/lib/gri
 import { writeBinarySTL } from "../client/src/lib/export/stl-writer";
 import { Arena } from "../client/src/lib/manifold/arena";
 import type { Kernel } from "../client/src/lib/manifold/runtime";
-import { extractMeshData } from "../client/src/lib/mesh/mesh-data";
+import { extractMeshData, preparePrintableSolid } from "../client/src/lib/mesh/mesh-data";
 import { writeThreeMf } from "../client/src/lib/mesh/threemf";
 import { parseBinSpec, type BinSpecInput } from "../shared/gridfinity/types";
 import { validateBinSpec } from "../shared/gridfinity/validate";
@@ -146,7 +146,7 @@ async function main(): Promise<void> {
 
     const started = performance.now();
     const { solid } = buildBin(kernel, spec, EXPORT_QUALITY);
-    const mesh = extractMeshData(kernel, solid);
+    const mesh = extractMeshData(kernel, preparePrintableSolid(kernel, solid));
     const builtMs = performance.now() - started;
 
     const volumeCm3 = solid.volume() / 1000;
@@ -171,7 +171,7 @@ async function main(): Promise<void> {
     writeFileSync(`${baseName}.stl`, Buffer.from(stl));
     if (spec.magneticLid) {
       const lid = magneticLidForPrint(kernel, buildMagneticLid(kernel, spec, EXPORT_QUALITY.circularSegments), spec);
-      const lidMesh = extractMeshData(kernel, lid);
+      const lidMesh = extractMeshData(kernel, preparePrintableSolid(kernel, lid));
       writeFileSync(`${baseName}-lid.stl`, Buffer.from(writeBinarySTL(lidMesh, "Pocketry magnetic lid")));
       writeFileSync(`${baseName}-lid.3mf`, writeThreeMf([{ name: "Magnetic lid", mesh: lidMesh }]));
       writeFileSync(`${baseName}.pocketry.json`, JSON.stringify({ schemaVersion: PROJECT_SCHEMA_VERSION, name: "Magnetic lid fit sample", spec, shapes: [], cutouts: [], fingerHoles: [] }, null, 2));

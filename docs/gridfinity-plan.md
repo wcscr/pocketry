@@ -1,5 +1,78 @@
 # Gridfinity bin generator — design and roadmap
 
+## Bin height and rounded stacking lip
+
+Pocketry uses **Gridfinity Rebuilt's rounded stacking lip**, with a **0.6 mm
+fillet radius** at the top edge. This rounding is inherited from Rebuilt.
+See the [pinned upstream bin-height notes](https://github.com/kennetek/gridfinity-rebuilt-openscad/blob/910e22d8607fd7f5f51ad5e5cbc5287a76810bfd/gridfinity-rebuilt-bins.scad#L8-L18)
+and the [port provenance](../client/src/lib/gridfinity/UPSTREAM.md).
+
+Heights are measured from the **bottom of the bin's feet**, excluding any
+baseplate. Each height unit is 7 mm and already includes the base:
+
+- Without a stacking lip: `7 × heightUnits` mm.
+- With Pocketry's standard rounded lip: `7 × heightUnits + 3.5515` mm
+  (rounded to four decimal places).
+- The theoretical sharp lip reaches `7 × heightUnits + 4.4` mm. The 0.6 mm
+  fillet lowers its peak to `4.4 − 0.6 × √2 ≈ 3.5515` mm above the nominal top.
+
+| Height units | Without lip | Pocketry rounded lip | Theoretical sharp lip |
+| --- | ---: | ---: | ---: |
+| 3u | 21 mm | 24.55 mm | 25.40 mm |
+| 6u | 42 mm | 45.55 mm | 46.40 mm |
+
+The rounding preserves the stacking contact surfaces; Rebuilt documents that
+it does not change the stacking height. A different lip-tip treatment can
+therefore change overall bin height without changing where the next bin seats.
+These are model dimensions; printed measurements also depend on slicing and
+printing. A measured height difference alone does not establish a stacking-fit
+problem or identify another generator's lip geometry.
+
+## Current behavior and implementation status
+
+**Construction → Wall thickness** appears when **Enable experimental features**
+is on in Settings and **Solid fill** is off. The
+0.95–3.00 mm setting defaults to Rebuilt's 0.95 mm wall and grows the main walls
+inward, reducing cavity space while preserving outside dimensions and base
+geometry. With a stacking lip, extra wall material stops 1.2 mm below the nominal
+top, preserving the original mating region. Without a lip, the thicker wall
+reaches the top. A 1u bin has no straight wall above the base to thicken.
+The setting applies to rectangular and custom footprints, including flat bottoms;
+preview, STL/3MF, and hollow-floor colors use it. Turning solid fill on retains
+the preference but uses the original solid-bin geometry, including at partial
+fill heights. Schema v32 defaults older designs and undo history to 0.95 mm.
+Turning experimental features off hides the control without changing the saved
+thickness or geometry. Loading a project with a custom thickness, including in
+undo/redo history, enables experimental features with the usual notification.
+
+The help button beside **Outer size** explains height units and the inherited
+rounded lip. With the lip off, it explains the flush height instead. The detailed
+explanation stays inside the hint in both editor layouts.
+
+**Construction → Fill height** adjusts solid fill from 1–100%, with slider marks at
+25%, 50%, 75%, and 100%. The slider snaps within three percentage points of those
+marks on release; keyboard steps and typed percentages remain exact. The percentage
+scales the available fill height above the fixed base, leaving the outer walls and
+stacking lip at full height. **Adjust fixed pocket depths**, directly below Fill
+height in Construction, is enabled by default. When checked,
+changing fill height resizes existing fixed depths to keep their floors in place;
+tilted pockets also move their openings along the same shaft. Unchecking restores
+the original fixed depths at the current fill height; rechecking reapplies the
+adjustment. Further fill edits while unchecked retain the original depths. Each
+toggle is undoable. Schema v25 saves the checkbox and original-depth references,
+so toggling still works after reopening a project or reaching the undo limit.
+Later pocket translations and names are retained; explicit depth, split or
+orientation edits establish a new reference for that pocket and its linked copies.
+Older projects keep their geometry and start with the checkbox enabled.
+Edits that would make a fixed depth zero or negative are rejected with guidance.
+Linked copies requiring different axial adjustments must share tilt, be unlinked,
+or use the unchecked behavior. Finger access follows the lowered surface;
+remaining-floor pockets keep their absolute floor height. Existing depth validation
+blocks other pockets that no longer fit. Preview, STL, 3MF and floor
+colors use the same surface. Schema v20 saves the percentage and undo/redo history;
+older projects and history snapshots default to 100%. Toggling solid fill off
+retains the percentage for the next time it is enabled.
+
 The interface consistently calls grip openings **finger access**, including
 controls, default names, layout guidance, validation, and edit history. Older
 history labels use the current wording when displayed; saved geometry, custom
@@ -22,7 +95,7 @@ Pocket-list selection, rename, duplicate, and remove targets grow to at least
 STL and 3MF confirmations show outer width × length × height in millimetres,
 including the stacking lip when enabled.
 
-Basic-shape pockets are available from **Layout → Add pocket** and the **Pockets**
+Basic-shape pockets are available from **Layout → Add simple pocket** and the **Pockets**
 panel. Draw a rectangle or square between opposite corners, or a circle from its
 centre to its edge. A live outline shows dimensions; release adds one ordinary
 pocket, and Escape/Cancel or a cancelled/tiny gesture leaves the project unchanged.
@@ -74,7 +147,7 @@ download and open actions appear side by side. Bin model, fit-template, and
 DXF/SVG layout exports offer an unchecked **Also download editable project**
 checkbox; canceling does not build or download files. When requested, the JSON
 and exported geometry come from the same snapshot and share a filename stem.
-Trace SVG, DXF, DWG-compatibility, and STL exports offer the same choice. Their
+Trace SVG, DXF, and STL exports offer the same choice. Their
 optional JSON reopens the current calibrated outline as an editable pocket in a
 new Bin project, preserving its contour, physical scale, and trace margin. This
 option requires calibration; exporting an outline alone remains available without it.
@@ -149,9 +222,22 @@ and per-pocket duplicate. The Project
 section is pinned to the top of the Bin controls: a draft resumes automatically,
 The save icon gives it a library name; double-clicking either current-project
 title opens the same name dialog for new drafts and saved projects.
-Manage presents the browser-local named projects,
-and New detaches a clean draft without deleting saved projects. Opening another
-design, opening a project file, and New Project all save the outgoing named
+Manage presents the browser-local named projects. **Library** beside Trace and
+Bin opens the same manager in the Bin workspace; it is also available in the
+mobile workspace menu. New detaches a clean draft without deleting saved projects. A subsequent
+workspace visit restores a detached named working copy's library identity only
+when its document matches exactly one same-name saved entry after normalizing
+migrations and hydration defaults. When a same-name library entry differs (for
+example, the resumed copy has newer edits or undo history), restore the complete
+working copy as a separate “(recovered)” library project. Preserve the earlier
+entry, persist the recovered identity atomically, and explain the new name.
+Unnamed drafts and named drafts without a same-name library entry retain discard
+confirmation. A recovery write failure keeps both versions intact, shows the save
+error, and pauses autosave until the user saves or opens a project successfully.
+Working-copy and
+library updates for save, rename, open, new, and named autosave commit atomically,
+so a failed write cannot leave the restored document attached to the wrong entry.
+Opening another design, opening a project file, and New Project all save the outgoing named
 design's latest edits before changing the autosave target. A failed save keeps
 the current design open. Library import/export also lives in Manage; the main
 Project section places New project, Open project, and Export project in one
@@ -281,14 +367,23 @@ groups controlled from Materials), magnet/screw holes ported from
 Refined remains deferred), and
 3MF/STL export from the page at export quality. The 3MF flow asks whether to
 export one material or a slicer-ready multi-color assembly. Selected blind
-pocket floors and the stacking-rim crest become configurable, separate,
+pocket floors and the stacking-rim crest (or a flush top border without a lip) become configurable, separate,
 non-overlapping material volumes alongside the configurable bin body. Their
 default display/material color is pure black, while the body retains its
 orange default. Their
 depths are independently selectable from 0.2–3.0 mm for pocket floors and
 0.2–7.35 mm for the stacking rim (0.6 mm pocket-floor and 1.25 mm rim
 defaults). The rim limit is the full
-modeled lip depth and does not extend into the bin wall. Both accents are cut
+modeled lip depth and does not extend into the bin wall when a lip is enabled.
+With Solid fill off, the pocket-floor color and thickness apply to the hollow
+bin's interior floor, labeled **Bin floor** in Materials & Colors and exports.
+This layer extends down from the base top without changing the floor height,
+coloring the walls, or closing base holes. It works with or without a stacking lip.
+Without a lip, Materials & Colors offers **Top border** with independent color
+width (0.2–20 mm inward, default 0.95 mm) and depth settings. Wider borders extend
+into the filled top or label shelf; hollow bins color only existing wall material.
+The band follows the perimeter, including custom bins, and also supports 1u bins,
+with the requested depth clipped to existing bin material. Both accents are cut
 downward from the original surfaces, never added above them; STL warns before
 dropping those color assignments. Pocket controls, Materials, and export show a
 nonblocking warning when a pocket's colored floor layer reaches the underside
@@ -388,7 +483,9 @@ Constants to port into `shared/gridfinity/standard.ts` (verified against upstrea
 - base top 41.5 mm, base gap 0.5 mm, `BASE_TOP_RADIUS 3.75`, `BASE_BOTTOM_RADIUS 0.8`,
   `BASE_BRIDGE_HEIGHT 2.25`
 - `STACKING_LIP_LINE = [[0,0],[0.7,0.7],[0.7,2.5],[2.6,4.4]]` — lip intrudes 2.6 mm, is
-  4.4 mm tall, support height 3.8 mm
+  4.4 mm tall before rounding, and has a 3.8 mm support below the nominal top.
+  The inherited 0.6 mm top fillet leaves an actual lip height of
+  `4.4 − 0.6 × √2 ≈ 3.5515` mm above the nominal top.
 - `d_wall 0.95`, `r_f2 2.8`, `d_div 1.2`
 - magnet ⌀6.5 × 2.4 deep (refined 5.86), screw r 1.5, `LAYER_HEIGHT 0.2`
 
@@ -414,6 +511,20 @@ debugging. This rule is already established by `client/src/lib/geometry/offset.t
 follow that file's shape.
 
 ## Cutout model
+
+Rigid pocket editing uses a source solid plus one XYZ rotation and elevation.
+`buildObjectCavity` poses the source for subtraction; `resolvedObjectGeometry`
+derives the preview mesh, projected selection outline and fill-surface opening
+from that same solid. These helpers also accept an arbitrary Manifold solid,
+without requiring an extruded profile or a convex decomposition.
+
+The 3D source preview draws a faint surface and batches its exterior creases;
+coplanar mesh triangles and internal helper-cell boundaries are hidden. Immediate
+drag previews use boundary rings with sparse connecting edges. Convex cells remain
+only as synchronous conservative footprint/section helpers; they are not the
+object definition or a format future model imports must produce. Derived preview
+data is detached from the kernel and cached per immutable placement, shape and
+bin specification; no arena-owned handles survive a build.
 
 ```ts
 interface CutoutPlacement {
@@ -446,6 +557,12 @@ at the rim), `cutout-overlap`, a thin-material warning below `d_div = 1.2`, `too
 `floor-too-thin`, and **`uncalibrated-scale`** — shipping a bin sized from an uncalibrated
 photo is the single most likely way a user wastes six hours of print time. Errors block
 export; warnings do not.
+
+Pocket-to-pocket overlaps are warnings, including overlaps caused by clearance or
+top-edge rounding and exact 3D intersections between tilted or submerged pockets.
+Their cuts combine in the printable bin, while each pocket remains independently
+editable. Merging several pockets into one editable pocket object is future work.
+Other validation errors continue to block export.
 
 ## Persistence: none server-side in v1
 
@@ -513,9 +630,29 @@ manifolds — at N=1000 that is catastrophic. Therefore:
   with a quality-dependent angular minimum).
 - Preview/export quality presets (~5× triangle difference). Note these are **global** on
   the manifold toplevel, so they are only safe because the worker is single-threaded.
-- **Structural-hash memoization split by stage** inside the worker, so the shell is reused
-  and only the final subtract re-runs on a drag.
-- Debounce 120 ms, supersede with `ExecutionContext.cancel()`, transferables for mesh data.
+- **Deferred: structural-hash memoization split by stage.** Current builds do not cache
+  solids across requests; persistent WASM handles need explicit ownership and eviction.
+- Progressive preview: omit pocket top/bottom rounding during interaction, then
+  refine after 300 ms of idle input and completion of the draft. Keep outline
+  resolution, split depths, and material colors. Label drafts and withhold their
+  approximate statistics; saved settings and export quality remain unchanged.
+- Batch initial live input for 32 ms without restarting the deadline on every
+  event, then retain only the latest pending preview behind each physical job.
+  Two lazy workers separate interactive previews from detailed previews/exports.
+  New edits invalidate old UI callbacks, but let the running RPC finish because
+  cancellation cannot interrupt synchronous WASM. Exports and autosaves retain
+  committed requests while the preview follows transient gestures.
+- Compute normals only for meshes used by the preview. When material parts supply the
+  displayed body, retain the aggregate topology/statistics without calculating its
+  unused normals. Single-mesh fallback previews still receive normals; export topology
+  is unchanged. Empty section meshes return empty buffers without normal-channel errors.
+- Transfer mesh buffers rather than copy them. Worker `error`/`messageerror` rejects all
+  affected jobs and releases the endpoint; a later request can spawn a fresh worker.
+  Failed exports surface an error rather than being silently retried.
+
+The Wiha split-depth/fillet investigation is documented in
+[`preview-performance.md`](preview-performance.md), including the benchmark limits
+and lifecycle regression coverage.
 
 ## Libraries
 
@@ -583,3 +720,14 @@ version bump or quality change; store *golden invariants* instead —
    with its own blast radius — do not let it become implicit.
 6. **Dimensional correctness is only verifiable by printing.** Budget the G1 and G3 print
    gates as real schedule.
+
+### Preview interaction follow-up (2026-09-23)
+
+Addressed progressive-preview UX regressions: continuous gestures now publish
+intermediate meshes within guarded gesture boundaries; inexpensive rounded bins
+build directly with adaptive cost feedback; fillet-only edits retain a coarser
+rounded preview; section-only edits preserve full rounding. Previous exact model
+statistics remain labeled as updating, and brief builds no longer flash a
+percentage indicator. Full detail and export mesh comparisons across 14 designs
+remain identical to the baseline. See `preview-performance.md` for evidence and
+remaining complex-fillet/section latency limitations.

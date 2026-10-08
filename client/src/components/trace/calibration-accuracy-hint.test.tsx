@@ -97,11 +97,11 @@ describe("calibration accuracy guidance", () => {
     await React.act(async () => hint()!.querySelector<HTMLButtonElement>("button")!.click());
     expect(hint()).toBeNull();
     const downloads = document.querySelector<HTMLDivElement>('[role="dialog"]')!;
-    expect(downloads.textContent).toContain("Calibration templates");
+    expect(downloads.textContent).toContain("Calibration aids");
     React.act(() => pointer(trigger(), "pointerout"));
     await advance(500);
     expect(downloads.isConnected).toBe(true);
-    expect(document.querySelector('[role="dialog"]')?.textContent).toContain("3D printable measurement aids");
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain("3D printable aids");
     await React.act(async () => Array.from(downloads.querySelectorAll("button")).find((button) => button.textContent === "Close")!.click());
     await advance(50);
     expect(document.querySelector('[role="dialog"]')).toBeNull();

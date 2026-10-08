@@ -66,7 +66,7 @@ function spec(partial: Record<string, unknown> = {}) {
 }
 
 /** Annulus area of the plain wall at the given footprint. */
-function wallRingAreaMm2(widthMm: number, lengthMm: number, thicknessMm = 1.2): number {
+function wallRingAreaMm2(widthMm: number, lengthMm: number, thicknessMm = 0.95): number {
   return (
     roundedRectPolygonArea(widthMm, lengthMm, 3.75, SEGMENTS) -
     roundedRectPolygonArea(widthMm - 2 * thicknessMm, lengthMm - 2 * thicknessMm, 3.75, SEGMENTS)
@@ -89,10 +89,10 @@ describe("buildWallRing", () => {
     expect(box.max[1]).toBeCloseTo(62.75, 9);
   });
 
-  it.each([0.8, 0.95, 1.2, 2, 4])("preserves footprint and base while changing wall thickness to %s mm", wallThicknessMm => {
-    const s = spec({ wallThicknessMm });
+  it.each([0.8, 0.95, 1.2, 2, 4])("preserves footprint and base while changing lid wall thickness to %s mm", lidSharedWallThicknessMm => {
+    const s = spec({ magneticLid: true, lidSharedWallThicknessMm });
     const ring = buildWallRing(kernel, s, SEGMENTS)!;
-    const expected = wallRingAreaMm2(83.5, 125.5, wallThicknessMm) * 35;
+    const expected = wallRingAreaMm2(83.5, 125.5, lidSharedWallThicknessMm) * 35;
     expect(Math.abs(ring.volume() - expected) / expected).toBeLessThan(1e-6);
     const base = buildBinParts(kernel, s, QUALITY).base;
     const originalBase = buildBinParts(kernel, spec({ wallThicknessMm: 0.95 }), QUALITY).base;
@@ -101,7 +101,7 @@ describe("buildWallRing", () => {
   });
 
   it.each(["rectangle", "custom"] as const)("builds a 4 mm wall at quarter pitch with a %s footprint", kind => {
-    const s = spec({ gridX: 2, gridY: 2, gridPitch: "quarter", wallThicknessMm: 4,
+    const s = spec({ gridX: 2, gridY: 2, gridPitch: "quarter", magneticLid: true, lidMagnetHoles: false, lidSharedWallThicknessMm: 4,
       footprint: kind === "rectangle" ? { kind } : { kind, cells: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }] } });
     const body = buildBin(kernel, s, PREVIEW_QUALITY).solid;
     expect(body.status()).toBe("NoError");
@@ -153,6 +153,60 @@ describe("buildStackingLip", () => {
     expect(box.max[0]).toBeCloseTo(41.75, 9);
     expect(box.min[0]).toBeCloseTo(-41.75, 9);
     expect(box.max[1]).toBeCloseTo(62.75, 9);
+  });
+});
+
+describe("hollow wall thickness", () => {
+  it.each([
+    { lip: "standard" },
+    { lip: "none" },
+    { lip: "standard", flatBottom: true, labelTab: { wall: "north", width: "full" } },
+    { gridX: 1, gridY: 1, gridPitch: "quarter", lip: "none" },
+    { gridX: 1, gridY: 1, gridPitch: "quarter", heightUnits: 1.5, lip: "standard" },
+    { gridX: 2, gridY: 2, gridPitch: "quarter", lip: "standard",
+      footprint: { kind: "custom", cells: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }] } },
+  ])("thickens inward while preserving the base and mating region: %o", settings => {
+    const thinSpec = spec(settings);
+    const thin = buildBin(kernel, thinSpec, QUALITY).solid;
+    const thick = buildBin(kernel, { ...thinSpec, wallThicknessMm: 3 }, QUALITY).solid;
+    expect(thick.status()).toBe("NoError");
+    expect(thick.decompose()).toHaveLength(1);
+    expect(thick.boundingBox()).toEqual(thin.boundingBox());
+    expect(thick.volume()).toBeGreaterThan(thin.volume());
+    expect(arena.track(thin.subtract(thick)).volume()).toBeLessThan(1e-8);
+    expect(arena.track(thick.slice(0.2)).area()).toBeCloseTo(arena.track(thin.slice(0.2)).area(), 8);
+    if (thinSpec.lip === "standard") {
+      const topRegion = arena.track(thick.trimByPlane([0, 0, 1], thinSpec.heightUnits * 7 - 1));
+      const originalTop = arena.track(thin.trimByPlane([0, 0, 1], thinSpec.heightUnits * 7 - 1));
+      expect(topRegion.volume()).toBeCloseTo(originalTop.volume(), 8);
+    }
+  });
+
+  it("places material up to the requested 3 mm wall and leaves the cavity open", () => {
+    const thick = buildBin(kernel, spec({ wallThicknessMm: 3, lip: "none" }), QUALITY).solid;
+    const probeAt = (inset: number) => arena.track(
+      arena.track(kernel.Manifold.cube([0.02, 0.02, 0.02], true)).translate([41.75 - inset, 0, 20]),
+    );
+    expect(arena.track(thick.intersect(probeAt(2.99))).volume()).toBeCloseTo(0.02 ** 3, 10);
+    expect(arena.track(thick.intersect(probeAt(3.02))).volume()).toBeLessThan(1e-10);
+  });
+
+  it.each([25, 100])("retains solid-fill geometry at %s percent regardless of the hollow preference", fillHeightPercent => {
+    const solidSpec = spec({ fill: "solid", fillHeightPercent });
+    const before = buildBin(kernel, solidSpec, QUALITY).solid;
+    const after = buildBin(kernel, { ...solidSpec, wallThicknessMm: 3 }, QUALITY).solid;
+    expect(after.volume()).toBeCloseTo(before.volume(), 8);
+    expect(arena.track(after.subtract(before)).volume()).toBeLessThan(1e-8);
+  });
+
+  it.each([1.2, 2, 3])("preserves standard stacking clearance at %s mm", wallThicknessMm => {
+    const lower = buildBin(kernel, spec({ gridX: 1, gridY: 1, heightUnits: 2, wallThicknessMm }), QUALITY).solid;
+    const base = baseCellSolid(kernel, SEGMENTS);
+    for (const dz of [0, -0.25]) {
+      const upper = arena.track(base.translate([0, 0, 14 + dz]));
+      expect(arena.track(lower.intersect(upper)).volume()).toBeLessThan(1e-8);
+    }
+    expect(arena.track(lower.intersect(arena.track(base.translate([0, 0, 13.5])))).volume()).toBeGreaterThan(1e-3);
   });
 });
 
@@ -302,6 +356,23 @@ describe("buildBin", () => {
     const expected = empty.solid.volume() + filled.parts.infill!.volume() - overlap.volume();
     expect(Math.abs(filled.solid.volume() - expected) / expected).toBeLessThan(1e-6);
     expect(filled.solid.genus()).toBe(0);
+  });
+
+  it.each([1, 25, 37.5, 50, 75, 100])("builds %s percent fill while preserving the base, walls and lip", (fillHeightPercent) => {
+    for (const lip of ["standard", "none"] as const) {
+      const full = buildBin(kernel, spec({ fill: "solid", lip }), QUALITY);
+      const partial = buildBin(kernel, spec({ fill: "solid", lip, fillHeightPercent }), QUALITY);
+      const height = (lip === "standard" ? 33.8 : 35) * fillHeightPercent / 100;
+      expect(partial.parts.infill!.boundingBox().min[2]).toBeCloseTo(7, 8);
+      expect(partial.parts.infill!.boundingBox().max[2]).toBeCloseTo(7 + height, 8);
+      expect(partial.parts.infill!.volume() / full.parts.infill!.volume()).toBeCloseTo(fillHeightPercent / 100, 8);
+      expect(partial.parts.base.volume()).toBe(full.parts.base.volume());
+      expect(partial.parts.wall!.volume()).toBe(full.parts.wall!.volume());
+      expect(partial.parts.lip?.volume()).toBe(full.parts.lip?.volume());
+      expect(partial.solid.boundingBox()).toEqual(full.solid.boundingBox());
+      expect(partial.solid.status()).toBe("NoError");
+      expect(partial.solid.genus()).toBe(0);
+    }
   });
 
   it("1u bin: no wall, clamped lip, still watertight", () => {

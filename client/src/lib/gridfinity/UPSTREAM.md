@@ -33,10 +33,21 @@ permissive).
 
 ## Deliberate deviations
 
+The **0.6 mm top-lip fillet itself is inherited from Rebuilt**; only its
+calculation differs as described below. It gives a total bin height of
+`7 × heightUnits + 3.5515` mm (approximately), measured from the bottom of the
+feet. See [bin height and rounded stacking lip](../../../../docs/gridfinity-plan.md#bin-height-and-rounded-stacking-lip)
+for the height conventions, examples, and upstream explanation of stacking fit.
+
 - **`TOLLERANCE` (0.02 mm) nudges are dropped.** Upstream shaves the lip
   support's outer vertex and the infill footprint to avoid coincident-face
   artifacts in OpenSCAD preview. manifold's booleans handle coincident faces
   exactly, and the fused solid is identical without the nudges.
+- **Hollow wall thickness is adjustable.** Rebuilt's `d_wall = 0.95` remains
+  the default. Pocketry can add material inward up to a 3 mm main wall, stopping
+  below the lip's inner support face to preserve the mating region. Solid-fill
+  bins retain the original wall geometry. Saved projects retain the hollow-wall
+  preference independently of the fill mode.
 - **The lip's top fillet is computed in closed form.** Upstream runs a general
   tangent-tangent-radius routine (`radius_line_edge`); this corner is exactly
   a 45° edge meeting a vertical edge, so the centre is `(2.6 − r,

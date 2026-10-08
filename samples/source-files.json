@@ -1,6 +1,5 @@
 {
   "description": "Contributor-supplied sample designs and original print exports. See each sample README for availability.",
-  "projectCleanup": "Descriptive project, pocket, shape, and finger-access names; unused shapes and undo history omitted. Editable distances and angles rounded to tenths; scale ratios retain tenths of a percent. Traced outline coordinates retain full precision. Original 3MF models are unchanged.",
   "samples": [
     {
       "directory": "wolfbox-mf70-airduster-kit",
@@ -12,8 +11,7 @@
       "project": {
         "file": "wolfbox-mf70-airduster-kit.pocketry.json",
         "sha256": "e1fc4c5f842009b376987ae9b88140aff050f25b59fb41e5944ec13be8eeb073",
-        "sourceFile": "Airduster-Tutorial-bin-4x4x6.5-2026-09-15_11-44-08-375.pocketry.json",
-        "matchEvidence": "Source project content matches the JSON downloaded alongside the selected 3MF export. Published settings are rounded to tenths as requested."
+        "sourceFile": "Airduster-Tutorial-bin-4x4x6.5-2026-09-15_11-44-08-375.pocketry.json"
       },
       "photos": [
         {
@@ -54,9 +52,7 @@
       "project": {
         "file": "dewalt-right-angle-tools.pocketry.json",
         "sha256": "f65490caed63354b04682111cceb94e03d392dd59a38262b6efb3fd08927b702",
-        "sourceFile": "Dewalt-90-degree-adapters-bin-3x5x5.5-2026-09-07_13-20-04-866.pocketry.json",
-        "recovery": "The print floor elevations establish pocket depths of 31 mm for the long adapter, 31 mm for the handle, and 25 mm for the short adapter.",
-        "matchEvidence": "After depth recovery, the current generator differs from the printed mesh by approximately 31.522 mm3 (0.0053 percent of model volume), before rounding settings to tenths. Outline geometry and placement are retained from the source project."
+        "sourceFile": "Dewalt-90-degree-adapters-bin-3x5x5.5-2026-09-07_13-20-04-866.pocketry.json"
       },
       "photos": [
         {
@@ -84,9 +80,7 @@
       "project": {
         "file": "ryobi-cutter.pocketry.json",
         "sha256": "a9742f58ea0c998fd06d9e6c949fbf4b6dce6103b1f4e8a5ca208afe7739521a",
-        "sourceFile": "Ryobi-Cutter-recovered.pocketry.json",
-        "recovery": "Recovered tool outline, split depths, and finger slot; height restored to 9u and Gridfinity base restored from the printed 3MF.",
-        "matchEvidence": "Symmetric mesh volume difference 0.0574 mm3 across a 948849 mm3 solid, consistent with floating-point mesh precision, before user-requested rounding of settings to tenths."
+        "sourceFile": "Ryobi-Cutter-recovered.pocketry.json"
       },
       "photos": [
         {
@@ -127,9 +121,7 @@
       "project": {
         "file": "caliper-storage.pocketry.json",
         "sha256": "e5a570a11eb324577d68ff649362e28e80d1e1565fdccbf456ed4076f7fbbd4f",
-        "sourceFile": "Digital-Calipers-bin-6x3x3-2026-09-19_13-14-09-294.pocketry.json",
-        "recovery": "Reconstructed from the newest printed 6x3x3.5u 3MF: retained the caliper outline, restored 17 mm caliper and battery pocket depths, 12 mm measurement-strip depths, accessory dimensions and positions, and the enlarged/repositioned caliper and measurement-strip finger openings. Pockets, shapes, and access openings have descriptive names. Rectangular accessories use explicit dimensions with unit scale.",
-        "matchEvidence": "Before rounding, symmetric mesh volume difference was 1.0141 mm3 (0.0002 percent of the 560503 mm3 printed solid). After rounding editable settings to tenths, including measurement-strip slot widths from 3.75 to 3.8 mm, the difference is 543.079 mm3 (0.0969 percent). Original 3MF unchanged."
+        "sourceFile": "Digital-Calipers-bin-6x3x3-2026-09-19_13-14-09-294.pocketry.json"
       },
       "photos": [
         {
@@ -172,8 +164,7 @@
         "sha256": "edcf8ccdeb33c35eccb88f4ff163c3b194a5aa81c1848b1b48365be3bd4fa735",
         "sourceFile": "pocketry-library-2026-09-21T14-21-47-136Z.json",
         "sourceProject": "Stapler (copy)",
-        "sourceHistoryIndex": 40,
-        "matchEvidence": "Saved 5x2x7u history snapshot; symmetric mesh volume difference 0.0225 mm3, consistent with floating-point precision, before user-requested rounding of settings to tenths."
+        "sourceHistoryIndex": 40
       },
       "photos": [
         {
@@ -214,8 +205,7 @@
       "project": {
         "file": "wire-strippers.pocketry.json",
         "sha256": "47e59355b684a56bda4d6812f26965bc8d07c5a5716783272822bcc202fccbd4",
-        "sourceFile": "WireStipper_Astra_Finetuned-bin-6x2x3.5-multicolor-2026-09-07_08-29-07-921.pocketry.json",
-        "matchEvidence": "Source project content matches the JSON downloaded alongside the selected 3MF export. Published settings are rounded to tenths as requested."
+        "sourceFile": "WireStipper_Astra_Finetuned-bin-6x2x3.5-multicolor-2026-09-07_08-29-07-921.pocketry.json"
       },
       "photos": [
         {
@@ -257,8 +247,7 @@
         "file": "klein-voltage-tester.pocketry.json",
         "sha256": "aa72cdc0e9e79d089df34374ed15abc353069d1a026befa854fbb1a36f0ca3ac",
         "sourceFile": "pocketry-library-2026-09-21T14-21-47-136Z.json",
-        "sourceProject": "Klein Voltage Meter (imported)",
-        "matchEvidence": "Matching 1x4x4u tool layout. Original 3MF filename retained the previous DeWalt project name. Current generator differs by approximately 8.617 mm3 (0.0073 percent of model volume), before user-requested rounding of settings to tenths."
+        "sourceProject": "Klein Voltage Meter (imported)"
       },
       "photos": [
         {
@@ -300,8 +289,7 @@
         "file": "mouldline-remover.pocketry.json",
         "sha256": "e7b1064e6bf67b0af067f77aa6ad7b68e66d7081f1cb049fecbd9b4d1f2a3834",
         "sourceFile": "pocketry-library-2026-09-21T14-21-47-136Z.json",
-        "sourceProject": "Citadel Mouldline Remover",
-        "matchEvidence": "The saved 1x4x3.5u project matches the newest 3MF: symmetric volume difference is approximately 0.0052 mm3 before rounding (floating-point tolerance). Settings rounded to tenths produce approximately 37.183 mm3 difference, 0.0284 percent of the model volume. Unused shapes reduced from 418 to the one referenced tool outline; undo history removed. Original 3MF bytes are unchanged."
+        "sourceProject": "Citadel Mouldline Remover"
       },
       "photos": [
         {
@@ -331,12 +319,538 @@
           "sha256": "3494ec8869002d754c5de30572999f166a52a4b7de121a597dd85b1f6ad85e08"
         }
       ]
+    },
+    {
+      "directory": "wiha-drivers",
+      "model": {
+        "file": "wiha-drivers.3mf",
+        "sourceFile": "Wiha-Drivers-2-Styles---Long-bin-3x7x3.5-multicolor-2026-09-23_10-10-40-482.3mf",
+        "sha256": "7f3d320ba9b69fed8acea762ea3be8a8b5651e3b26c82109d510585fdff40370"
+      },
+      "project": {
+        "file": "wiha-drivers.pocketry.json",
+        "sourceFile": "New SCHEMA - Wiha-Drivers-2-Styles---Long-bin-3x7x3-2026-09-23_07-04-44-915.pocketry.json",
+        "sourceSha256": "690d1e20cfed6ab8ec95661ee21ed25adc20b212ba0f27bda67932ea9cfbcdbb",
+        "sha256": "4b3f5f027d38e7821da5c622b04b628aebffe3603457fc34c768a5e717edd417",
+        "processing": "Project name labeled by 150 mm blade length; design geometry unchanged."
+      },
+      "photos": [
+        {
+          "file": "photos/printed-bin-loaded.jpg",
+          "sourceFile": "20260923_101521.jpg",
+          "sourceSha256": "a8d94419e8f9bf205d46134ecd394ef589fec8bf7777b6d350cc418cdc4b21a8",
+          "cropPixelsAfterOrientation": [
+            650,
+            150,
+            2425,
+            3925
+          ],
+          "rotationAfterCropDegreesCounterclockwise": 0,
+          "processing": "EXIF orientation applied to pixels; cropped; resized to 564 by 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "f59205efb40026d9c2dda098336f9c16b9ce6dcf21f47e5fc0483e5e0d8356d2"
+        },
+        {
+          "file": "photos/printed-bin-pocket.jpg",
+          "sourceFile": "20260923_101541.jpg",
+          "sourceSha256": "ea2183578ae3488191195b6a3dcc3a498b6733b17117252ff7d886f2540913d8",
+          "cropPixelsAfterOrientation": [
+            260,
+            140,
+            2880,
+            3900
+          ],
+          "rotationAfterCropDegreesCounterclockwise": 0,
+          "processing": "EXIF orientation applied to pixels; cropped; resized to 836 by 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "4bec60ff4cb62da377357596a122b59efe841e1b1e39982ec2600a422fa58788"
+        },
+        {
+          "file": "photos/stacked-bins-in-drawer.jpg",
+          "sourceFile": "20261006_095708.jpg",
+          "sourceSha256": "6166f284f78974e69ea75528a6e2657b05020af4cb61e993ddbc39a888b0f1a7",
+          "rotationAfterOrientationDegreesCounterclockwise": -0.5,
+          "cropPixelsAfterRotation": [
+            25,
+            20,
+            2480,
+            3970
+          ],
+          "publishedSizePixels": [
+            746,
+            1200
+          ],
+          "processing": "EXIF orientation applied to pixels; straightened by 0.5 degrees; cropped to the loaded bins in the drawer; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "7b7bcdba56ae306e519e7c5d94836ae67756ee1a5f606f3805867cd2990af558"
+        }
+      ]
+    },
+    {
+      "directory": "mini-socket-set",
+      "model": {
+        "file": "mini-socket-set.3mf",
+        "sourceFile": "Mini-Socket-Set-bin-4x3x2.5-multicolor-2026-09-27_16-36-14-465.3mf",
+        "sha256": "b8160e21643b81c5537c5ca4944fa0e8c392094d025c3affa5197ce3180f56f3"
+      },
+      "project": {
+        "file": "mini-socket-set.pocketry.json",
+        "sourceFile": "Mini-Socket-Set-bin-4x3x2.5-2026-09-27_16-36-24-232.pocketry.json",
+        "sourceSha256": "c2982600311bea921f64fcaf96342f4eee4720d3eaa9f80bad4f46258d7e2cbd",
+        "sha256": "4d2c9feb2b3952ccc46d7c6e31350ddbd7e89983332147c44b700b1d2d8a59fa"
+      },
+      "photos": [
+        {
+          "file": "photos/printed-bin-loaded-portrait.jpg",
+          "sourceFile": "20260928_092645.jpg",
+          "sourceSha256": "853e911a4612875dc5f9bd17109a0951667e62d8848c93eb0e03eced10901bcd",
+          "processing": "EXIF orientation applied to pixels; perspective straightened using the bin edges; cropped around the bin and tools; rotated to portrait with the socket row at the bottom; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "fde4a532a0ef567113a06745ef4ae88bd66d026b75fe97a970c3142dfb0cd639",
+          "perspectiveSourceCornersAfterOrientation": [
+            [
+              1079.007,
+              1452.366
+            ],
+            [
+              2334.683,
+              1341.946
+            ],
+            [
+              2396.736,
+              2310.657
+            ],
+            [
+              1123.142,
+              2374.209
+            ]
+          ],
+          "perspectiveTargetBinSizePixels": [
+            1800,
+            1349
+          ],
+          "perspectiveMarginsPixels": {
+            "left": 55,
+            "top": 55,
+            "right": 55,
+            "bottom": 55
+          },
+          "rotationAfterPerspectiveDegreesCounterclockwise": 270,
+          "publishedSizePixels": [
+            917,
+            1200
+          ]
+        },
+        {
+          "file": "photos/printed-bin-pocket-portrait.jpg",
+          "sourceFile": "20260928_092705.jpg",
+          "sourceSha256": "1596e0d18b77b4d6b5af9de6267e2d5afdba4daab144736547677208ca745028",
+          "processing": "EXIF orientation applied to pixels; perspective straightened using the bin edges; cropped around the bin and tools; rotated to portrait with the socket row at the bottom; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "f40538439113e228c6eaa943341da1c7b9ec55ab9714aa2ea72c18e296e80808",
+          "perspectiveSourceCornersAfterOrientation": [
+            [
+              1045.12,
+              1546.362
+            ],
+            [
+              2298.53,
+              1472.207
+            ],
+            [
+              2337.196,
+              2442.563
+            ],
+            [
+              1065.899,
+              2469.594
+            ]
+          ],
+          "perspectiveTargetBinSizePixels": [
+            1800,
+            1349
+          ],
+          "perspectiveMarginsPixels": {
+            "left": 55,
+            "top": 450,
+            "right": 55,
+            "bottom": 55
+          },
+          "rotationAfterPerspectiveDegreesCounterclockwise": 270,
+          "publishedSizePixels": [
+            1165,
+            1200
+          ]
+        },
+        {
+          "file": "photos/printed-bin-empty-portrait.jpg",
+          "sourceFile": "20260928_092729.jpg",
+          "sourceSha256": "0ce63d49fbe30cb178bc0c378b95a9222b2dd49d796ab1af3b668819ad580681",
+          "processing": "EXIF orientation applied to pixels; perspective straightened using the bin edges; cropped around the bin and tools; rotated to portrait with the socket row at the bottom; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "361428851210baae5433a882e9b4d7def51cb2615bc99d77ea92f3c68abd38ea",
+          "perspectiveSourceCornersAfterOrientation": [
+            [
+              1018.579,
+              1457.363
+            ],
+            [
+              2264.737,
+              1389.135
+            ],
+            [
+              2293.979,
+              2352.122
+            ],
+            [
+              1034.357,
+              2374.881
+            ]
+          ],
+          "perspectiveTargetBinSizePixels": [
+            1800,
+            1349
+          ],
+          "perspectiveMarginsPixels": {
+            "left": 55,
+            "top": 55,
+            "right": 55,
+            "bottom": 55
+          },
+          "rotationAfterPerspectiveDegreesCounterclockwise": 270,
+          "publishedSizePixels": [
+            917,
+            1200
+          ]
+        }
+      ]
+    },
+    {
+      "directory": "wiha-40mm-drivers",
+      "model": {
+        "file": "wiha-40mm-drivers.3mf",
+        "sourceFile": "Wiha-40-mm---4-linked-pockets---same-direction---2u-bin-4x7x3-half-multicolor-2026-10-05_09-57-59-729.3mf",
+        "sha256": "4e97362ec55974d3fd4bf31c83d52766e6e26a7c978e8e7eb96805145cf0ca9b"
+      },
+      "project": {
+        "file": "wiha-40mm-drivers.pocketry.json",
+        "sourceFile": "Wiha-40-mm---4-linked-pockets---same-direction---2u-bin-4x7x3-half-multicolor-2026-10-05_09-57-59-729.pocketry.json",
+        "sha256": "980d74628713890bda76116947a2e19809dca6acaedc423f3c46103de8b35fad",
+        "processing": "Named final design snapshot; retained shapes referenced by placed pockets or transform origins; omitted editing history."
+      },
+      "photos": [
+        {
+          "file": "photos/printed-bin-loaded.jpg",
+          "sourceFile": "20261006_094756.jpg",
+          "sourceSha256": "a0209d73eb6d425967c6074402af875716803fe3bde7951a7e88875dd5538d92",
+          "perspectiveSourceCornersAfterOrientation": [
+            [
+              888.1578947368422,
+              2482.4561403508774
+            ],
+            [
+              2416.666666666667,
+              2212.719298245614
+            ],
+            [
+              2605.263157894737,
+              3109.6491228070176
+            ],
+            [
+              1039.4736842105265,
+              3383.7719298245615
+            ]
+          ],
+          "perspectiveTargetBinSizePixels": [
+            1000,
+            570
+          ],
+          "perspectiveMarginPixels": 28,
+          "rotationAfterPerspectiveDegreesCounterclockwise": -90,
+          "publishedSizePixels": [
+            626,
+            1056
+          ],
+          "processing": "EXIF orientation applied to pixels; perspective straightened using bin edges; cropped around the loaded bin; rotated for upright lettering; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "bb9b2abb1c8cbb64290ec9bb67a200e6e61e50e2e435bb11799b4f6d9534a8aa"
+        }
+      ]
+    },
+    {
+      "directory": "wiha-50mm-drivers",
+      "model": {
+        "file": "wiha-50mm-drivers.3mf",
+        "sourceFile": "Wiha-50-mm---2-pockets---same-direction---smooth-linked-bin-1x4x3-multicolor-2026-10-05_09-57-18-323.3mf",
+        "sha256": "1c55139b3a22bc464d3867c399582d8f5909ed4341ec9b34f85d60389667003e"
+      },
+      "project": {
+        "file": "wiha-50mm-drivers.pocketry.json",
+        "sourceFile": "Wiha-50-mm---2-pockets---same-direction---smooth-linked-bin-1x4x3-multicolor-2026-10-05_09-57-18-323.pocketry.json",
+        "sha256": "bb85eede0a5358b910fb99759689954b05c581e153e3ca2bb45dc45abdecf869",
+        "processing": "Named final design snapshot; retained shapes referenced by placed pockets or transform origins; omitted editing history."
+      },
+      "photos": [
+        {
+          "file": "photos/printed-bin-loaded.jpg",
+          "sourceFile": "20261006_094756.jpg",
+          "sourceSha256": "a0209d73eb6d425967c6074402af875716803fe3bde7951a7e88875dd5538d92",
+          "perspectiveSourceCornersAfterOrientation": [
+            [
+              686.4035087719299,
+              2085.5263157894738
+            ],
+            [
+              2449.561403508772,
+              1769.7368421052633
+            ],
+            [
+              2537.280701754386,
+              2195.1754385964914
+            ],
+            [
+              747.8070175438597,
+              2508.7719298245615
+            ]
+          ],
+          "perspectiveTargetBinSizePixels": [
+            1000,
+            248
+          ],
+          "perspectiveMarginPixels": 28,
+          "rotationAfterPerspectiveDegreesCounterclockwise": -90,
+          "publishedSizePixels": [
+            304,
+            1056
+          ],
+          "processing": "EXIF orientation applied to pixels; perspective straightened using bin edges; cropped around the loaded bin; rotated for upright lettering; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "92e19c277c611b215c5d353e19ab05755638c5e102838059e9ae50f67862bb8f"
+        }
+      ]
+    },
+    {
+      "directory": "wiha-60mm-drivers",
+      "model": {
+        "file": "wiha-60mm-drivers.3mf",
+        "sourceFile": "Small-Wiha---x60-bin-1x5x3-multicolor-2026-10-03_09-00-08-967.3mf",
+        "sha256": "74b2156300f4827291ff5d75683e06317e7347516d14f34682a9337433590de9"
+      },
+      "project": {
+        "file": "wiha-60mm-drivers.pocketry.json",
+        "sourceFile": "pocketry-library-2026-10-05T15-21-34-033Z.json",
+        "sha256": "3698bd540981a105bcfcc1004558cac31d90b5b5059a66a43ffdb4b4f0aa00d9",
+        "processing": "Named final design snapshot; retained shapes referenced by placed pockets or transform origins; omitted editing history.",
+        "sourceProjectId": "58291064-8aca-48c1-8fb4-aff2b51cae03",
+        "sourceProjectName": "Wiha 60 mm - 2 pockets"
+      },
+      "photos": [
+        {
+          "file": "photos/printed-bin-loaded.jpg",
+          "sourceFile": "codex-clipboard-aae5d3a8-f5ae-41ea-86ce-0e2861aa6e5f.jpg",
+          "sourceSha256": "ce275752a595ce25c12deb8e88e28292258bfde5094c3b55439ef5ebb9828e20",
+          "perspectiveSourceCornersAfterOrientation": [
+            [
+              171,
+              393
+            ],
+            [
+              437,
+              390
+            ],
+            [
+              458,
+              1723
+            ],
+            [
+              193,
+              1728
+            ]
+          ],
+          "perspectiveTargetBinSizePixels": [
+            265,
+            1338
+          ],
+          "perspectiveMarginsPixels": {
+            "left": 40,
+            "top": 40,
+            "right": 40,
+            "bottom": 40
+          },
+          "publishedSizePixels": [
+            292,
+            1200
+          ],
+          "processing": "Perspective straightened using the bin edges; cropped around the bin and tools; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "bb8a37a5f9c8fa5c62ca8621a533bbab278cfb598631f98d2b12a837e2f045b5"
+        },
+        {
+          "file": "photos/printed-bin-pocket.jpg",
+          "sourceFile": "codex-clipboard-0950e24d-b55b-4edf-aac2-c21fabed2a5c.jpg",
+          "sourceSha256": "f0d1351ec370bfd1906310c90e5f1570572290af5888cbee57977242c125731b",
+          "perspectiveSourceCornersAfterOrientation": [
+            [
+              365,
+              394
+            ],
+            [
+              629,
+              394
+            ],
+            [
+              629,
+              1722
+            ],
+            [
+              366,
+              1722
+            ]
+          ],
+          "perspectiveTargetBinSizePixels": [
+            265,
+            1338
+          ],
+          "perspectiveMarginsPixels": {
+            "left": 270,
+            "top": 40,
+            "right": 40,
+            "bottom": 40
+          },
+          "publishedSizePixels": [
+            487,
+            1200
+          ],
+          "processing": "Perspective straightened using the bin edges; cropped around the bin and tools; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "3cacab62d878c87f4ac358ab20947745570fc351215c2b7ef924f2c5dffff0e6"
+        },
+        {
+          "file": "photos/printed-bin-loaded-current.jpg",
+          "sourceFile": "20261006_094756.jpg",
+          "sourceSha256": "a0209d73eb6d425967c6074402af875716803fe3bde7951a7e88875dd5538d92",
+          "perspectiveSourceCornersAfterOrientation": [
+            [
+              326.75438596491233,
+              1684.2105263157896
+            ],
+            [
+              2559.2105263157896,
+              1291.6666666666667
+            ],
+            [
+              2635.964912280702,
+              1730.2631578947369
+            ],
+            [
+              388.15789473684214,
+              2111.842105263158
+            ]
+          ],
+          "perspectiveTargetBinSizePixels": [
+            1200,
+            238
+          ],
+          "perspectiveMarginPixels": 28,
+          "rotationAfterPerspectiveDegreesCounterclockwise": -90,
+          "publishedSizePixels": [
+            281,
+            1200
+          ],
+          "processing": "EXIF orientation applied to pixels; perspective straightened using bin edges; cropped around the loaded bin; rotated for upright lettering; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "9740695c69a5be566ef9ca9efbcedd3f590f8b0d9ba909c41ffbb572460056e9"
+        }
+      ]
+    },
+    {
+      "directory": "bessey-gerber",
+      "model": {
+        "file": "bessey-gerber.3mf",
+        "sourceFile": "bessey-gerber.pocketry.json",
+        "sha256": "7b0fdd7e7c1eb2dfac40921900c7df033cf62fb0bcf3919df72eef053d0961de",
+        "processing": "Exported with Pocketry 1.3.0 geometry at export quality; separate body, pocket-floor, and rim material parts."
+      },
+      "project": {
+        "file": "bessey-gerber.pocketry.json",
+        "sourceFile": "Gerber-and-Bessy-bin-7x6x4.5-half-multicolor-2026-09-28_10-52-35-481.pocketry.json",
+        "sourceSha256": "772d5f5559994705d6a288f2c9e3c55327004493c17483ba5856feb345e6e504",
+        "sha256": "93b067a1e1cb1fa8d50f21683d92317506fca5f2c4061813ff35c8b117504360",
+        "processing": "Final combined design snapshot with normalized product names."
+      },
+      "previews": [
+        {
+          "file": "layout.svg",
+          "sourceFile": "bessey-gerber.pocketry.json",
+          "sha256": "41fe1c47ebc8424a92a498594b0319433f78bdbdf8724bbe116fd666f43335a4",
+          "processing": "Vector layout illustration from the placed pocket outlines and finger-access dimensions."
+        }
+      ],
+      "photos": [
+        {
+          "file": "photos/printed-bin-loaded.jpg",
+          "sourceFile": "codex-clipboard-2aad2df8-5795-413f-ac28-a4c96eb76388.jpg",
+          "sourceSha256": "cbfd92154d2129ae2a5c09a8d7bfc0f0034e307ff903fdbd5abe1450671567c3",
+          "sha256": "200eedff6df2df44ddc8f7a318c264daebaa7013ba032037fbe47b7cfba1423e",
+          "processing": "Rotated 23.7 degrees clockwise and cropped around the complete loaded bin with a small wood border; quality-90 progressive JPEG without embedded metadata. Ordinary pixel processing; no generative edits.",
+          "rotationDegreesClockwise": 23.7,
+          "cropPixelsAfterRotation": [
+            473,
+            673,
+            792,
+            892
+          ],
+          "publishedSizePixels": [
+            792,
+            892
+          ]
+        }
+      ],
+      "variants": [
+        {
+          "name": "Bessey Utility Knife",
+          "model": {
+            "file": "bessey-utility-knife.3mf",
+            "sourceFile": "bessey-utility-knife.pocketry.json",
+            "sha256": "d61106d3bf2246933ac9d42cb14428805f3eaac4bdcdf2345cc3c7174dae35cc",
+            "processing": "Exported with Pocketry 1.3.0 geometry at export quality; separate body, pocket-floor, and rim material parts."
+          },
+          "project": {
+            "file": "bessey-utility-knife.pocketry.json",
+            "sourceFile": "Gerber-and-Bessy-bin-7x6x4.5-half-multicolor-2026-09-28_10-52-35-481.pocketry.json",
+            "sourceSha256": "772d5f5559994705d6a288f2c9e3c55327004493c17483ba5856feb345e6e504",
+            "sha256": "3d91e5d9fcc5bfb4cfe7a0bd5639bee15bf2c5497c94d29a1c015da6f3b9ffed",
+            "processing": "Single-tool layout derived from the supplied combined design; tool outline, scale, pocket depth, and edge rounding retained; centered pocket and transverse finger access."
+          },
+          "previews": [
+            {
+              "file": "bessey-utility-knife-layout.svg",
+              "sourceFile": "bessey-utility-knife.pocketry.json",
+              "sha256": "163076f6bb72d697e3269200102f294909535a3cfbea67d33020a9b436b8957d",
+              "processing": "Vector layout illustration from the placed pocket outlines and finger-access dimensions."
+            }
+          ]
+        },
+        {
+          "name": "Gerber Multitool",
+          "model": {
+            "file": "gerber-multitool.3mf",
+            "sourceFile": "gerber-multitool.pocketry.json",
+            "sha256": "4eb3b5b349e5aaafeaa7f8979d12c7b68a9991e666a47cc6ad9d0c48fed7e557",
+            "processing": "Exported with Pocketry 1.3.0 geometry at export quality; separate body, pocket-floor, and rim material parts."
+          },
+          "project": {
+            "file": "gerber-multitool.pocketry.json",
+            "sourceFile": "Gerber-and-Bessy-bin-7x6x4.5-half-multicolor-2026-09-28_10-52-35-481.pocketry.json",
+            "sourceSha256": "772d5f5559994705d6a288f2c9e3c55327004493c17483ba5856feb345e6e504",
+            "sha256": "4bbfa3f77c4adfbd149df44563c235293698fabc838c8ec589b72d2b9533270b",
+            "processing": "Single-tool layout derived from the supplied combined design; tool outline, scale, pocket depth, and edge rounding retained; centered pocket and transverse finger access."
+          },
+          "previews": [
+            {
+              "file": "gerber-multitool-layout.svg",
+              "sourceFile": "gerber-multitool.pocketry.json",
+              "sha256": "7dea6666adda19101efd1760d6961d2862b335c47cef50782cbcd9b0232e6f1a",
+              "processing": "Vector layout illustration from the placed pocket outlines and finger-access dimensions."
+            }
+          ]
+        }
+      ]
     }
   ],
   "library": {
     "file": "pocketry-sample-library.json",
-    "projectCount": 8,
-    "description": "All eight finalized sample project JSONs, included verbatim in Pocketry library-backup format.",
-    "sha256": "8f507cedd47759d9964fd259d2e9e73727e9953fc327bee7223a2e62cad7c9f6"
+    "projectCount": 10,
+    "description": "All ten sample project JSONs, included verbatim in Pocketry library-backup format.",
+    "sha256": "22e35df52a788e8bc37c5efc71467b23bf664e9e65227efaf2c8f3ac98f3b8d3"
   }
 }

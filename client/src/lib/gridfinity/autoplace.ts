@@ -3,6 +3,7 @@ import {
   DEFAULT_TOP_EDGE_FILLET_MM,
   fingerHoleFootprintRing,
   placementFootprint,
+  pocketOccupiedOutline,
   pocketLayoutAllowanceMm,
   type CutoutPlacement,
   type FingerHole,
@@ -12,6 +13,7 @@ import {
   binFootprintMm,
   D_DIV,
   binWallThicknessMm,
+  D_WALL,
   STACKING_LIP_DEPTH,
   type GridPitch,
 } from "@shared/gridfinity/standard";
@@ -49,10 +51,10 @@ const ITEM_GAP_MM = D_DIV + 0.01;
  * the stacking lip's intrusion when present, and 1 mm of slack so a freshly
  * placed shape starts clear of the lip-collision warning band.
  */
-type PlacementWalls = Pick<BinSpec, "wallThicknessMm" | "lidWallThicknessMm" | "magneticLid" | "magneticLidStyle">;
+type PlacementWalls = Pick<BinSpec, "wallThicknessMm" | "lidSharedWallThicknessMm" | "lidWallThicknessMm" | "magneticLid" | "magneticLidStyle">;
 
 export function placementInsetMm(lip: BinSpec["lip"], clearanceMm = 0, spec?: PlacementWalls): number {
-  const wall = binWallThicknessMm(spec ?? {});
+  const wall = spec?.magneticLid ? binWallThicknessMm(spec) : D_WALL;
   const rim = spec && hasOverlappingLid(spec)
     ? overlapLidRimInsetMm(spec) + overlapRimWallMm(spec)
     : lip === "standard" ? STACKING_LIP_DEPTH : wall;
@@ -253,6 +255,7 @@ function existingBounds(
   cutouts: readonly CutoutPlacement[],
   shapesById: ReadonlyMap<string, TracedShape>,
   fingerHoles: readonly FingerHole[] = [],
+  spec: BinSpec = parseBinSpec({ gridX: 1, gridY: 1, heightUnits: 6 }),
 ): Bounds | null {
   let bounds: Bounds | null = null;
   const includePoint = (point: Point, allowanceMm: number) => {
@@ -274,7 +277,7 @@ function existingBounds(
   for (const cutout of cutouts) {
     const shape = shapesById.get(cutout.shapeId);
     if (!shape) continue;
-    const footprint = placementFootprint(shape, cutout);
+    const footprint = { outline: pocketOccupiedOutline(shape, cutout, spec) };
     const outlineAllowance = pocketLayoutAllowanceMm(cutout);
     for (const part of footprint.outline) {
       for (const point of part.outer) includePoint(point, outlineAllowance);
@@ -294,7 +297,7 @@ function existingBounds(
 }
 
 export interface AutoPlaceIncrementalOptions {
-  walls?: PlacementWalls;
+  spec?: BinSpec;
   keepBinSize?: boolean;
   lip: BinSpec["lip"];
   gridPitch?: GridPitch;
@@ -314,17 +317,17 @@ export function autoPlaceIncremental(
   shapes: readonly TracedShape[],
   options: AutoPlaceIncrementalOptions,
 ): AutoPlaceResult {
-  const occupied = existingBounds(options.existing, options.shapesById);
+  const occupied = existingBounds(options.existing, options.shapesById, [], options.spec);
   if (!occupied) {
     if (options.keepBinSize) {
-      const interior = interiorMm(options, placementInsetMm(options.lip, 0, options.walls), options.gridPitch);
+      const interior = interiorMm(options, placementInsetMm(options.lip, 0, options.spec), options.gridPitch);
       const block = shelfPack(shapeTargets(shapes), interior.widthMm);
       const byId = new Map(shapes.map((shape) => [shape.id, shape]));
       return { cutouts: block.items.map((item) => toPlacement(item, byId, 0, 0)),
         gridX: options.gridX, gridY: options.gridY,
         overflow: block.widthMm > interior.widthMm || block.heightMm > interior.heightMm };
     }
-    const fresh = autoPlaceFresh(shapes, options.lip, options.gridPitch, options.walls);
+    const fresh = autoPlaceFresh(shapes, options.lip, options.gridPitch, options.spec);
     return {
       ...fresh,
       gridX: Math.max(fresh.gridX, options.gridX),
@@ -340,7 +343,7 @@ export function autoPlaceIncremental(
     };
   }
 
-  const inset = placementInsetMm(options.lip, 0, options.walls);
+  const inset = placementInsetMm(options.lip, 0, options.spec);
   const byId = new Map(shapes.map((shape) => [shape.id, shape]));
   const targets = shapeTargets(shapes);
 
@@ -405,14 +408,14 @@ export function fitLayoutToPlacements(
   lip: BinSpec["lip"],
   gridPitch: GridPitch = "full",
   fingerHoles: readonly FingerHole[] = [],
-  walls?: PlacementWalls,
+  spec: BinSpec = parseBinSpec({ gridX: 1, gridY: 1, heightUnits: 6, lip, gridPitch }),
 ): {
   cutouts: CutoutPlacement[];
   fingerHoles: FingerHole[];
   gridX: number;
   gridY: number;
 } {
-  const bounds = existingBounds(cutouts, shapesById, fingerHoles);
+  const bounds = existingBounds(cutouts, shapesById, fingerHoles, spec);
   if (!bounds) {
     return {
       cutouts: [...cutouts],
@@ -423,7 +426,7 @@ export function fitLayoutToPlacements(
   }
 
   // Cutter bounds already include each pocket's clearance and top round.
-  const inset = placementInsetMm(lip, 0, walls);
+  const inset = placementInsetMm(lip, 0, spec);
   const centreX = (bounds.minX + bounds.maxX) / 2;
   const centreY = (bounds.minY + bounds.maxY) / 2;
   const halfWNeeded = (bounds.maxX - bounds.minX) / 2 + inset;
@@ -477,12 +480,13 @@ interface ArrangeItem {
 function arrangeItem(
   cutout: CutoutPlacement,
   shape: TracedShape,
+  spec: BinSpec,
 ): ArrangeItem {
-  const local = placementFootprint(shape, {
+  const local = { outline: pocketOccupiedOutline(shape, {
     ...cutout,
     position: { x: 0, y: 0 },
     rotationDeg: 0,
-  });
+  }, spec), features: [] as Point[][] };
   const points: Point[] = [];
   for (const s of local.outline) {
     points.push(...s.outer);
@@ -529,7 +533,7 @@ export function trimFootprintToPlacements(
   fingerHoles: readonly FingerHole[] = [],
 ): BinFootprint {
   let cells = rectangleCells(spec.gridX, spec.gridY);
-  const bounds = existingBounds(cutouts, shapesById, fingerHoles);
+  const bounds = existingBounds(cutouts, shapesById, fingerHoles, spec);
   const centre = bounds
     ? { x: (bounds.minX + bounds.maxX) / 2, y: (bounds.minY + bounds.maxY) / 2 }
     : { x: 0, y: 0 };
@@ -651,7 +655,7 @@ export function autoArrangeLayout(
   for (const cutout of cutouts) {
     const shape = shapesById.get(cutout.shapeId);
     if (!shape) return null; // dangling reference: let validation surface it
-    items.push(arrangeItem(cutout, shape));
+    items.push(arrangeItem(cutout, shape, baseSpec ?? parseBinSpec({ gridX: 1, gridY: 1, heightUnits: 6, lip, gridPitch })));
   }
   if (items.length === 0) return null;
 

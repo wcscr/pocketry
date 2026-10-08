@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { DEFAULT_LID_RIB_SPACING_MM, MIN_LID_RIB_SPACING_MM, MAX_LID_RIB_SPACING_MM } from "./lid-contact-ribs";
+import { surfaceTextSchema, textColorSchema } from "./surface-text";
 
 import {
   footprintTopologyError,
@@ -8,7 +9,7 @@ import {
   type GridCell,
 } from "./footprint";
 import { DEFAULT_MAGNET_DIAMETER_MM, DEFAULT_MAGNET_THICKNESS_MM } from "./magnets";
-import { GRID_PITCH_DIVISOR, type GridPitch } from "./standard";
+import { D_WALL, GRID_PITCH_DIVISOR, MAX_HOLLOW_WALL_THICKNESS_MM, type GridPitch } from "./standard";
 
 /**
  * The Gridfinity bin specification — what the user asks for, not how it is
@@ -48,6 +49,11 @@ const boundaryEdgeSchema = z.object({
 
 export const binSpecSchema = z
   .object({
+    /** Editable raised labels on the interior's horizontal surface. */
+    surfaceTexts: z.array(surfaceTextSchema.extend({ color: textColorSchema.optional() })).max(32).default([])
+      .refine(labels => new Set(labels.map(label => label.id)).size === labels.length, "Text ids must be unique."),
+    /** One saved color for all labels; null inherits the displayed edge-band color. */
+    textColor: textColorSchema.nullable().optional(),
     /** Number of selected-pitch grid cells along x. */
     gridX: z.number().int().min(1).max(maxGridCells("quarter")),
     /** Number of selected-pitch grid cells along y. */
@@ -61,11 +67,15 @@ export const binSpecSchema = z
     /** Stacking lip on the rim. `none` gives a flush top. */
     lip: z.enum(["standard", "none"]).default("standard"),
     /**
-     * Interior fill. `solid` fills to the lip support line, ready for
+     * Interior fill. `solid` fills to the selected height, ready for
      * cutouts to be subtracted — the Pocketry pocket workflow, hence the
      * default. `none` is the classic hollow storage bin.
      */
     fill: z.enum(["none", "solid"]).default("solid"),
+    /** Percentage of available fill height above the fixed base; retained while hollow. */
+    fillHeightPercent: z.number().min(1).max(100).default(100),
+    /** Resize existing fixed depths with fill edits; unchecking restores their baseline. */
+    adjustFixedPocketDepths: z.boolean().default(true),
     /** Smooth underside without Gridfinity sockets; preserves outer size and pocket heights. */
     flatBottom: z.boolean().default(false),
     /** Matching removable lid and four upper magnet recesses; independent of base holes. */
@@ -76,8 +86,10 @@ export const binSpecSchema = z
     magneticLidTop: z.enum(["flat", "stacking"]).default("flat"),
     /** Two shallow finger recesses below the lid joint, leaving its footprint unchanged. */
     lidGripRecess: z.boolean().default(false),
-    /** Thickness of each bin wall, overlapping rim, and overlapping lid skirt. */
-    wallThicknessMm: z.number().min(0.8).max(4).default(1.2),
+    /** Ordinary hollow-bin walls retain main's dimensions when the lid is turned off. */
+    wallThicknessMm: z.number().min(D_WALL).max(MAX_HOLLOW_WALL_THICKNESS_MM).default(D_WALL),
+    /** Shared bin wall, rim and skirt thickness while a lid is enabled. */
+    lidSharedWallThicknessMm: z.number().min(0.8).max(4).default(1.2),
     /** Legacy paired geometry; cleared when the shared wall control is edited. */
     lidWallThicknessMm: z.number().min(0.8).max(2).optional(),
     /** Paired closure recesses in the lid and bin rim, independent of underside magnets. */
@@ -122,6 +134,12 @@ export const binSpecSchema = z
       .default(null),
   })
   .strict()
+  .transform(({ surfaceTexts, textColor, ...spec }) => ({
+    ...spec,
+    // Unreleased per-label color projects migrate to their first chosen color.
+    textColor: textColor !== undefined ? textColor : surfaceTexts.find(label => label.color !== undefined)?.color ?? null,
+    surfaceTexts: surfaceTexts.map(({ color: _legacyColor, ...label }) => label),
+  }))
   .superRefine((spec, context) => {
     const maximum = maxGridCells(spec.gridPitch);
     for (const axis of ["gridX", "gridY"] as const) {

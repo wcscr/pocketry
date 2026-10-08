@@ -1,5 +1,5 @@
 // Type-only import: the kernel is injected (see `Kernel` in ../manifold/runtime).
-import type { Manifold } from "manifold-3d";
+import type { CrossSection, Manifold } from "manifold-3d";
 
 import type { BinFootprint } from "@shared/gridfinity/footprint";
 import {
@@ -8,6 +8,8 @@ import {
   binFootprintMm,
   binWallHeightMm,
   binWallThicknessMm,
+  D_WALL,
+  STACKING_LIP_SUPPORT_HEIGHT,
   type GridPitch,
 } from "@shared/gridfinity/standard";
 
@@ -36,48 +38,81 @@ export interface WallSpec {
   gridPitch?: GridPitch;
   footprint?: BinFootprint;
   heightUnits: number;
+  fill?: "none" | "solid";
+  lip?: "standard" | "none";
   wallThicknessMm?: number;
+  magneticLid?: boolean;
+  lidSharedWallThicknessMm?: number;
 }
 
 /**
  * The plain wall ring from the top of the base to the bin's nominal top:
- * a rounded-rect annulus at the selected wall thickness, extruded
- * `heightUnits·7 − 7`. Returns `null` for a 1u bin, whose wall height is zero.
+ * Uses the requested hollow-wall thickness. Extra material stops below the
+ * lip's inner support face so the original mating region stays unchanged.
+ * Returns `null` for a 1u bin, whose wall height is zero.
  */
 export function buildWallRing(
   kernel: Kernel,
   spec: WallSpec,
   circularSegments: number,
 ): Manifold | null {
-  const { CrossSection, arena } = kernel;
+  const { arena } = kernel;
   const wallHeightMm = binWallHeightMm(spec.heightUnits);
   if (wallHeightMm <= 0) return null;
 
+  const widthMm = binWallThicknessMm(spec);
+  if (spec.magneticLid) {
+    return arena.track(arena.track(buildWallSection(kernel, spec, circularSegments, widthMm)
+      .extrude(wallHeightMm)).translate([0, 0, BASE_HEIGHT]));
+  }
+  const annulus = buildWallSection(kernel, spec, circularSegments, D_WALL);
+  const originalWall = arena.track(annulus.extrude(wallHeightMm));
+  let wall = originalWall;
+  const thickHeightMm = spec.lip === "none" ? wallHeightMm
+    : Math.max(0, wallHeightMm - STACKING_LIP_SUPPORT_HEIGHT);
+  if (widthMm > D_WALL && thickHeightMm > 0) {
+    const thickSection = buildWallSection(kernel, spec, circularSegments, widthMm);
+    wall = arena.track(originalWall.add(arena.track(thickSection.extrude(thickHeightMm))));
+  }
+  return arena.track(wall.translate([0, 0, BASE_HEIGHT]));
+}
+
+/** Wall footprint or a wider/narrower inward border for a bin without a lip. */
+export function buildWallSection(
+  kernel: Kernel,
+  spec: WallSpec,
+  circularSegments: number,
+  widthMm = binWallThicknessMm(spec),
+): CrossSection {
+  const { CrossSection, arena } = kernel;
+  if (!Number.isFinite(widthMm) || widthMm <= 0) {
+    throw new Error("buildWallSection: border width must be positive and finite");
+  }
   if (spec.footprint?.kind === "custom") {
     const outer = footprintOuterSection(kernel, spec, circularSegments);
-    const inner = footprintInteriorSection(kernel, spec, circularSegments);
-    const annulus = arena.track(outer.subtract(inner));
-    return arena.track(
-      arena.track(annulus.extrude(wallHeightMm)).translate([0, 0, BASE_HEIGHT]),
-    );
+    const wallInterior = footprintInteriorSection(kernel, { ...spec, magneticLid: false }, circularSegments);
+    const inner = widthMm === D_WALL ? wallInterior
+      : arena.track(wallInterior.offset(D_WALL - widthMm, "Round", 2, circularSegments));
+    return arena.track(outer.subtract(inner));
   }
 
-  const widthMm = binFootprintMm(spec.gridX, spec.gridPitch);
+  const binWidthMm = binFootprintMm(spec.gridX, spec.gridPitch);
   const lengthMm = binFootprintMm(spec.gridY, spec.gridPitch);
-  const outer = roundedRectPolygon(widthMm, lengthMm, BASE_TOP_RADIUS, circularSegments);
+  const outer = roundedRectPolygon(binWidthMm, lengthMm, BASE_TOP_RADIUS, circularSegments);
+  // A wide border can consume a narrow footprint; never create a negative-size hole.
+  if (2 * widthMm >= Math.min(binWidthMm, lengthMm)) {
+    return arena.track(new CrossSection([outer]));
+  }
   // Winding is the hole marker: reversing the inner contour makes it negative
   // under manifold's Positive fill rule, so one CrossSection carries both.
   const inner = roundedRectPolygon(
-    widthMm - 2 * binWallThicknessMm(spec),
-    lengthMm - 2 * binWallThicknessMm(spec),
-    Math.min(BASE_TOP_RADIUS, (Math.min(widthMm, lengthMm) - 2 * binWallThicknessMm(spec)) / 2),
+    binWidthMm - 2 * widthMm,
+    lengthMm - 2 * widthMm,
+    Math.min(BASE_TOP_RADIUS, (binWidthMm - 2 * widthMm) / 2, (lengthMm - 2 * widthMm) / 2),
     circularSegments,
   ).reverse();
 
-  const annulus = arena.track(new CrossSection([outer, inner]));
-  return arena.track(
-    arena.track(annulus.extrude(wallHeightMm)).translate([0, 0, BASE_HEIGHT]),
-  );
+  return arena.track(new CrossSection([outer, inner]));
 }
 
 /**

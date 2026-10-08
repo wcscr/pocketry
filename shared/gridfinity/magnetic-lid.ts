@@ -36,7 +36,7 @@ export function lidContactPreloadMm(spec: Pick<BinSpec, "magneticLidStyle" | "li
 }
 
 type InterfaceSpec = Partial<Pick<BinSpec, "magneticLid" | "lidMagnetHoles" | "lidFit" | "lidInterface">>;
-type WallSpec = Pick<BinSpec, "wallThicknessMm" | "lidWallThicknessMm"> & InterfaceSpec;
+type WallSpec = Pick<BinSpec, "lidSharedWallThicknessMm" | "lidWallThicknessMm"> & InterfaceSpec;
 /** Room for a spring, its travel gap, and a protective backing wall. */
 export const COMPLIANT_LID_BAND_MM = 3.4;
 

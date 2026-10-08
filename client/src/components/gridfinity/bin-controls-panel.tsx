@@ -1,5 +1,15 @@
 import { hasBaseMagnets, hasMagnets, baseMagnetShiftMm, magnetHoleRadiusMm, magnetHoleDepthMm } from "@shared/gridfinity/magnets";
 import { lidContactRibPositions, MIN_LID_RIB_SPACING_MM, MAX_LID_RIB_SPACING_MM } from "@shared/gridfinity/lid-contact-ribs";
+import { hasStackingLip } from "@shared/gridfinity/standard";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { EditableObjectName, ObjectActions } from "./object-list-controls";
+import { MaterialColorSwatch } from "./material-color-swatch";
+import { DEFAULT_BIN_MATERIALS } from "@shared/gridfinity/materials";
+import { hasRigidPocket, rigidPocket } from "@shared/gridfinity/rigid-pocket";
+import { createPortal } from "react-dom";
+import { useSelectionInspector } from "./selection-inspector-context";
+import { useExperimentalFeatures } from "@/state/experimental-features";
+import { hasPocketTilt } from "@shared/gridfinity/pocket-orientation";
 import {
   Box,
   ChevronDown,
@@ -12,6 +22,7 @@ import {
   FolderOpen,
   LayoutGrid,
   LibraryBig,
+  Link2,
   LoaderCircle,
   Magnet,
   MousePointerClick,
@@ -29,14 +40,24 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useDelayedBusy } from "@/hooks/use-delayed-busy";
 import { useLocation } from "wouter";
+import { LinkedDesignControls } from "./linked-design-controls";
 import { AddPocketMenu } from "./add-pocket-menu";
+import { AddFingerAccessButton } from "./add-finger-access-button";
+import { BIN_WORKFLOW_SECTIONS as BIN_SETTINGS_SECTIONS } from "./bin-workflow";
+import { PropertySurface } from "@/components/layout/property-surface";
+import { InspectorPanelSections } from "./inspector-panel-sections";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { usePanelState } from "@/components/layout/panel-context";
+import { FillHeightControl } from "./fill-height-control";
+import { SurfaceTextControls, SurfaceTextProperties } from "./surface-text-controls";
+import { Type } from "lucide-react";
 
 import {
   DEFAULT_OBLONG_DEEP_SCOOP_LENGTH_MM,
   DEFAULT_TOP_EDGE_FILLET_MM,
   defaultPocketFloorThicknessMm,
-  defaultFingerAccessDepthMm,
   isElongatedFingerHole,
   effectiveFingerHoleDepthMm,
   effectiveFingerHoleTopFilletMm,
@@ -49,17 +70,23 @@ import {
   hasFlatFingerHoleEnds,
   fingerAccessOptionsPatch,
   fingerHoleSizeLimits,
+  resolvePlacedPocketDepth,
   resolvePocketDepth,
   pocketDepths,
   pocketName,
   type DepthSpec,
   type TracedShape,
 } from "@shared/gridfinity/cutout";
+import { resolvePocketSplit } from "@shared/gridfinity/pocket-split";
 import {
-  hasStackingLip,
   binFootprintMm,
+  D_WALL,
   GRID_PITCH_DIVISOR,
+  HEIGHT_UNIT_MM,
+  MAX_HOLLOW_WALL_THICKNESS_MM,
   resizeGridToStandardCellSpan,
+  STACKING_LIP_FILLET_RADIUS,
+  STACKING_LIP_HEIGHT,
   STACKING_LIP_HEIGHT_ACTUAL,
   standardCellSpan,
   type GridPitch,
@@ -68,7 +95,6 @@ import { MAX_GRID, maxGridCells, type BinSpecInput } from "@shared/gridfinity/ty
 import type { ValidationIssue } from "@shared/gridfinity/validate";
 
 import {
-  PanelBody,
   PanelSectionFilterContext,
   PanelSection,
   PanelSettingsIndex,
@@ -85,8 +111,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DraftNumberInput } from "@/components/ui/draft-number-input";
 import {
   Dialog,
@@ -101,6 +127,8 @@ import {
 import { HelpHint } from "@/components/ui/help-hint";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import type { LibraryImportMode } from "@shared/gridfinity/library";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
@@ -117,6 +145,7 @@ import {
   MULTICOLOR_FLOOR_MAX_THICKNESS_MM,
   MULTICOLOR_MIN_THICKNESS_MM,
   MULTICOLOR_RIM_MAX_THICKNESS_MM,
+  MULTICOLOR_BORDER_MAX_WIDTH_MM,
 } from "@/lib/gridfinity/bin";
 import {
   SURFACE_FIT_CHECK_DEFAULT_THICKNESS_MM,
@@ -132,7 +161,7 @@ import { SURFACE_FIT_CHECK_OUTLINE_WIDTH_MM, surfaceFitCheckStyleSchema, type Su
 import { cn } from "@/lib/utils";
 import { PocketSplitControls } from "./pocket-split-controls";
 import { changeBinGridPitchPreservingSize } from "@shared/gridfinity/grid-pitch";
-import { PocketDepthSummary, PocketMeasurements, PocketSizeInputs, PositionInputs } from "./pocket-measurements";
+import { PocketDepthSummary, PocketInsertionControls, PocketMeasurements, PocketSizeInputs, PositionInputs } from "./pocket-measurements";
 import { ExportConfirmationDialog, ProjectBackupOption } from "./export-confirmation-dialog";
 import { FingerAccessShapeControls } from "./finger-access-shape-controls";
 import { INITIAL_BIN_SPEC, useBin } from "@/state/bin-store";
@@ -147,87 +176,11 @@ const maxGridUi = (pitch: GridPitch): number =>
 const formatUnitCount = (value: number): string =>
   Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/0$/, "");
 
-function MaterialColorSwatch({
-  id,
-  label,
-  value,
-  disabled = false,
-  onChange,
-}: {
-  id: string;
-  label: string;
-  value: string;
-  disabled?: boolean;
-  onChange: (color: string) => void;
-}): JSX.Element {
-  return (
-    <input
-      id={id}
-      type="color"
-      value={value}
-      disabled={disabled}
-      onChange={(event) => onChange(event.target.value)}
-      className={cn(
-        "h-7 w-10 shrink-0 cursor-pointer rounded-md border bg-background p-0.5",
-        disabled && "cursor-not-allowed opacity-40",
-      )}
-      aria-label={`${label} color`}
-      title={`Choose ${label.toLowerCase()} color`}
-      data-testid={id}
-    />
-  );
-}
-
-function EditableObjectName({ name, kind, onRename, onDone }: {
-  name: string;
-  kind: "shape" | "finger-hole";
-  onRename: (name: string) => void;
-  onDone: () => void;
-}): JSX.Element {
-  const [draft, setDraft] = useState(name);
-  const commit = () => {
-    const trimmedName = draft.trim();
-    if (trimmedName.length > 0 && trimmedName !== name) onRename(trimmedName);
-    onDone();
-  };
-  return (
-    <Input
-      autoFocus
-      value={draft}
-      onChange={(event) => setDraft(event.target.value)}
-      onFocus={(event) => event.currentTarget.select()}
-      onBlur={commit}
-      onKeyDown={(event) => {
-        if (event.key === "Enter") event.currentTarget.blur();
-        if (event.key === "Escape") {
-          event.preventDefault();
-          event.stopPropagation();
-          onDone();
-        }
-      }}
-      className={cn("min-w-0 flex-1 text-xs font-medium", kind === "finger-hole" ? "h-11" : "h-8")}
-      aria-label={kind === "shape" ? "Pocket name" : "Finger access name"}
-      data-testid={`input-${kind}-name`}
-    />
-  );
-}
-
-const BIN_SETTINGS_SECTIONS = [
-  { id: "bin-settings-project", label: "Project", tone: "slate" },
-  { id: "bin-settings-size", label: "Size", tone: "blue" },
-  { id: "bin-settings-construction", label: "Construction", tone: "rose" },
-  { id: "bin-settings-pockets", label: "Pockets", tone: "violet" },
-  { id: "bin-settings-finger-holes", label: "Finger access", tone: "cyan" },
-  { id: "bin-settings-materials", label: "Materials & Colors", tone: "amber" },
-  { id: "bin-settings-view", label: "Cross-section View", tone: "amber" },
-  { id: "bin-settings-fit", label: "Check fit", tone: "emerald" },
-  { id: "bin-settings-export", label: "Export", tone: "emerald" },
-] as const;
-
 export interface BinControlsPanelProps {
   issues: readonly ValidationIssue[];
+  onRevealIssue: (issue: ValidationIssue) => void;
   /** A fresh request reveals settings after the controls drawer mounts. */
-  settingsSectionRequest?: { id: string };
+  settingsSectionRequest?: { id: string; focusId?: string };
   exportOnly?: boolean;
   /** Changes when the canvas explicitly requests the selected pocket editor. */
   pocketEditorRequest?: number;
@@ -235,7 +188,11 @@ export interface BinControlsPanelProps {
   onKeepBinSizeChange?: (fixed: boolean) => void;
   saveStatus?: "saving" | "saved" | "error";
   stats: BuildBinStats | null;
+  statsAreStale?: boolean;
+  geometryError?: string | null;
+  onPositionText: () => void;
   building: boolean;
+  previewIsDraft?: boolean;
   exporting: boolean;
   onExport: (format: "3mf" | "3mf-multicolor" | "stl", includeProject: boolean) => void;
   onExportLid?: (format: "3mf" | "stl", includeProject: boolean) => void;
@@ -246,6 +203,7 @@ export interface BinControlsPanelProps {
   onExportProject: () => void;
   onImportProject: (doc: ProjectDoc) => Promise<boolean>;
   projectLibraryReady: boolean;
+  projectLibraryError?: string | null;
   projectBusy: boolean;
   activeProjectId: string | null;
   currentProjectName: string | null;
@@ -257,8 +215,8 @@ export interface BinControlsPanelProps {
   onDeleteProject: (projectId: string) => Promise<boolean>;
   onRefreshProjects: () => void;
   onExportLibrary: () => void;
-  onImportLibrary: (file: File) => void;
-  onNewProject: () => void;
+  onImportLibrary: (file: File, mode: LibraryImportMode) => Promise<boolean>;
+  onNewProject: (saveDraftName?: string) => Promise<boolean>;
   section: BuildBinSection | null;
   onSectionChange: (section: BuildBinSection | null) => void;
   colorPocketFloors: boolean;
@@ -271,12 +229,14 @@ export interface BinControlsPanelProps {
   onPocketFloorThicknessChange: (thicknessMm: number) => void;
   colorStackingRim: boolean;
   onColorStackingRimChange: (enabled: boolean) => void;
+  stackingRimColor: string;
   lidColor: string;
   onLidColorChange: (color: string) => void;
-  stackingRimColor: string;
   onStackingRimColorChange: (color: string) => void;
   stackingRimThicknessMm: number;
   onStackingRimThicknessChange: (thicknessMm: number) => void;
+  borderWidthMm: number;
+  onBorderWidthChange: (widthMm: number) => void;
 }
 
 /**
@@ -287,10 +247,15 @@ export interface BinControlsPanelProps {
  */
 export function BinControlsPanel({
   issues,
+  onRevealIssue,
   settingsSectionRequest,
   exportOnly = false,
   stats,
+  statsAreStale = false,
+  geometryError,
+  onPositionText,
   building,
+  previewIsDraft = false,
   exporting,
   onExport,
   onExportLid,
@@ -301,6 +266,7 @@ export function BinControlsPanel({
   onExportProject,
   onImportProject,
   projectLibraryReady,
+  projectLibraryError,
   projectBusy,
   activeProjectId,
   currentProjectName,
@@ -326,37 +292,76 @@ export function BinControlsPanel({
   onPocketFloorThicknessChange,
   colorStackingRim,
   onColorStackingRimChange,
+  stackingRimColor,
   lidColor,
   onLidColorChange,
-  stackingRimColor,
   onStackingRimColorChange,
   stackingRimThicknessMm,
   onStackingRimThicknessChange,
+  borderWidthMm,
+  onBorderWidthChange,
   pocketEditorRequest = 0,
   keepBinSize = false,
   onKeepBinSizeChange,
   saveStatus = "saved",
 }: BinControlsPanelProps): JSX.Element {
+  const showPreviewBusy = useDelayedBusy(building);
+  const inspector = useSelectionInspector();
+  const { enabled: experimentalEnabled, setEnabled: setExperimentalEnabled, setSettingsOpen } = useExperimentalFeatures();
+  const visibleSettingsSections = BIN_SETTINGS_SECTIONS.filter(section => experimentalEnabled || section.id !== "bin-settings-text");
+  useEffect(() => {
+    if (!experimentalEnabled && inspector?.activeSection === "bin-settings-text") inspector.showSection("bin-settings-size");
+  }, [experimentalEnabled, inspector?.activeSection, inspector?.showSection]);
   const {
     spec,
+    adjustFixedPocketDepths,
+    editError,
     cutouts,
     fingerHoles,
+    selection,
     selectedCutoutId,
+    selectedSurfaceTextId,
     selectedPocketSection,
     selectedFingerHoleId,
     pendingRemovalId,
     editorMode,
+    viewMode,
     hydrated,
     history,
     dispatch,
   } = useBin();
+  // Pocket inspection belongs to the selected pocket. General Check fit
+  // cross-sections remain independent of object selection and navigation.
+  const inspectedPocketId = useRef<string | null>(null);
+  const stopPocketInspection = () => {
+    if (!inspectedPocketId.current) return;
+    inspectedPocketId.current = null;
+    onSectionChange(null);
+  };
+  const inspectPocket = (next: BuildBinSection | null) => {
+    inspectedPocketId.current = next ? selectedCutoutId : null;
+    onSectionChange(next);
+  };
+  const changeBinSection = (next: BuildBinSection | null) => {
+    inspectedPocketId.current = null;
+    onSectionChange(next);
+  };
+  useEffect(() => {
+    if (!section) inspectedPocketId.current = null;
+    if (inspectedPocketId.current && (selectedCutoutId !== inspectedPocketId.current || selection.length !== 1
+        || viewMode !== "3d" || editorMode !== "placement" || inspector?.activeSection
+        || inspector && inspector.tool !== "properties")) stopPocketInspection();
+  }, [section, selectedCutoutId, selection.length, viewMode, editorMode, inspector?.activeSection, inspector?.tool, onSectionChange]);
   const [, navigate] = useLocation();
   const { shapes } = useShapeLibrary();
   const [renamingFingerId, setRenamingFingerId] = useState<string | null>(null);
   const [renamingPocketId, setRenamingPocketId] = useState<string | null>(null);
   const [lidSettingsOpen, setLidSettingsOpen] = useState(true);
+  const selectingPocketFromList = useRef(false);
   useEffect(() => {
-    if (!selectedCutoutId || renamingPocketId === selectedCutoutId) return;
+    const keepListPosition = selectingPocketFromList.current;
+    selectingPocketFromList.current = false;
+    if (keepListPosition || inspector || !selectedCutoutId || renamingPocketId === selectedCutoutId) return;
     // Selection brings the fixed Pockets section into view. Re-selecting the
     // same canvas pocket increments the request so it is reachable from any section.
     revealPanelSection("bin-settings-pockets", BIN_SETTINGS_SECTIONS, "pocket-properties");
@@ -372,17 +377,32 @@ export function BinControlsPanel({
   const lengthCellSpan = standardCellSpan(spec.gridY, spec.gridPitch);
   const hasFloorMaterialWarning = issues.some((issue) => issue.code === "floor-color-on-underside");
   useEffect(() => {
-    if (settingsSectionRequest) revealPanelSection(settingsSectionRequest.id, BIN_SETTINGS_SECTIONS);
-    // The lid printability warning must reveal its controls even after collapse.
-    if (settingsSectionRequest?.id === "bin-settings-construction") setLidSettingsOpen(true);
-  }, [settingsSectionRequest]);
+    if (!settingsSectionRequest) return;
+    stopPocketInspection();
+    const { id, focusId } = settingsSectionRequest;
+    if (id === "bin-settings-construction") setLidSettingsOpen(true);
+    if (id === "bin-settings-text" && !experimentalEnabled) return;
+    if (id === "bin-settings-text" && selectedSurfaceTextId && !focusId) inspector?.setTool("properties");
+    else inspector?.showSection(id);
+    if (!inspector) revealPanelSection(id, BIN_SETTINGS_SECTIONS, focusId);
+    if (!inspector && !focusId) return;
+    // Wait for the section and mobile drawer to mount before moving keyboard focus.
+    let frame = 0;
+    frame = window.requestAnimationFrame(() => {
+      frame = window.requestAnimationFrame(() => {
+        if (inspector) revealPanelSection(id, id === "bin-settings-text" ? [{ id }] : BIN_SETTINGS_SECTIONS, focusId);
+        if (focusId) document.getElementById(focusId)?.focus({ preventScroll: true });
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [settingsSectionRequest, experimentalEnabled]);
   const hasErrors = issues.some((issue) => issue.severity === "error");
   const enabledFeatureCount = [
-    hasStackingLip(spec),
+    spec.lip === "standard",
     spec.fill === "solid",
     spec.flatBottom,
-    spec.magneticLid,
     !spec.flatBottom && spec.magnetHoles,
+    spec.magneticLid,
     !spec.flatBottom && spec.screwHoles,
     spec.labelTab !== null,
   ].filter(Boolean).length;
@@ -404,13 +424,28 @@ export function BinControlsPanel({
   const hasBlindPocket = cutouts.some(
     (cutout) => pocketDepths(cutout).some(depth => depth.mode !== "through"),
   );
-  const hasSelectedFloorColor = colorPocketFloors && hasBlindPocket;
-  const hasTopColor = spec.magneticLid || hasStackingLip(spec);
-  const hasSelectedRimColor = colorStackingRim && hasTopColor && (!spec.magneticLid || lidColor !== binColor);
+  const hasSelectedFloorColor = colorPocketFloors && (spec.fill === "none" || hasBlindPocket);
+  const floorColorLabel = spec.fill === "none" ? "Bin floor" : "Pocket floors";
+  const hasSelectedRimColor = colorStackingRim && !spec.magneticLid;
+  const edgeBandColor = colorStackingRim ? stackingRimColor : binColor;
+  const rimColorLabel = spec.magneticLid ? "Lid" : spec.lip === "standard" ? "Stacking rim top" : "Top border";
+  const materialColors = [
+    { id: "input-bin-color", label: "Bin body", color: binColor },
+    { id: "input-pocket-floor-color", label: floorColorLabel, color: pocketFloorColor },
+    { id: "input-stacking-rim-color", label: rimColorLabel, color: spec.magneticLid ? lidColor : stackingRimColor },
+    ...(experimentalEnabled ? [{ id: "input-text-color", label: "Text", color: spec.textColor ?? edgeBandColor }] : []),
+  ];
+  const hasMaterialEdits = Object.entries({
+    binColor, pocketFloorColor, stackingRimColor, colorPocketFloors, colorStackingRim,
+    pocketFloorThicknessMm, stackingRimThicknessMm, borderWidthMm,
+    lidColor: lidColor === binColor ? null : lidColor,
+  }).some(([key, value]) => value !== DEFAULT_BIN_MATERIALS[key as keyof typeof DEFAULT_BIN_MATERIALS]);
   const hasSelectedMulticolor =
-    hasSelectedFloorColor || (hasSelectedRimColor && !spec.magneticLid);
+    hasSelectedFloorColor || hasSelectedRimColor || spec.surfaceTexts.length > 0;
   const activeColorCount =
-    1 + Number(hasSelectedFloorColor) + Number(hasSelectedRimColor);
+    new Set([binColor, ...(hasSelectedFloorColor ? [pocketFloorColor] : []),
+      ...(hasSelectedRimColor ? [stackingRimColor] : []), ...(spec.surfaceTexts.length ? [spec.textColor ?? edgeBandColor] : [])]
+      .map(color => color.toLowerCase())).size;
 
   const patchSpec = (
     patch: Partial<BinSpecInput>,
@@ -447,20 +482,31 @@ export function BinControlsPanel({
   const selectedFingerHole =
     fingerHoles.find((hole) => hole.id === selectedFingerHoleId) ?? null;
   const fingerSizeLimits = selectedFingerHole ? fingerHoleSizeLimits(selectedFingerHole, spec) : null;
-  const depthCutout = selectedCutout && selectedCutout.split
+  const depthCutout = selectedCutout && selectedCutout.split && !selectedCutout.profileBottom
     ? { ...selectedCutout, depth: selectedCutout.split.depths[selectedPocketSection] }
     : selectedCutout;
   const updatePocketDepth = (depth: DepthSpec, transient = false) => {
     if (!selectedCutout) return;
-    const depths = selectedCutout.split ? [...selectedCutout.split.depths] as [DepthSpec, DepthSpec] : null;
+    const source = depth.mode === "through" && selectedShape ? rigidPocket(selectedCutout,selectedShape,spec) : selectedCutout;
+    if ((depth.mode === "through" || (depth.mode === "remaining" && hasRigidPocket(source))) && depthShape && depthCutout) {
+      const originalDepth = resolvePlacedPocketDepth(spec, depthCutout.depth, depthShape, depthCutout).axialDepthMm;
+      depth = { ...depth, sourceDepthMm: Math.max(0.1, originalDepth ?? resolvePocketDepth(spec,depth).infillTopZ) };
+    }
+    const depths = source.split ? [...source.split.depths] as [DepthSpec, DepthSpec] : null;
     if (depths) depths[selectedPocketSection] = depth;
     dispatch({ type: "UPDATE_CUTOUT", id: selectedCutout.id,
-      patch: selectedCutout.split && depths ? { split: { ...selectedCutout.split, depths } } : { depth },
+      patch: { elevationMm:source.elevationMm, zOffsetMm:source.zOffsetMm,
+        ...(source.split && depths ? { split: { ...source.split, depths } } : { depth }) },
       transient, historyLabel: selectedCutout.split ? "Change section depth" : "Change pocket depth" });
   };
   const selectedShape = selectedCutout
     ? (shapesById.get(selectedCutout.shapeId) ?? null)
     : null;
+  const depthShape = useMemo(() => {
+    if (!selectedShape || !selectedCutout?.split || selectedCutout.profileBottom) return selectedShape;
+    const split = resolvePocketSplit(selectedShape.outlineMm, selectedCutout.split.boundary);
+    return split.regions ? { ...selectedShape, outlineMm: split.regions[selectedPocketSection] } : selectedShape;
+  }, [selectedShape, selectedCutout?.split, selectedCutout?.profileBottom, selectedPocketSection]);
 
   const setPocketScale = (axis: "x" | "y", percent: number) => {
     if (!selectedCutout) return;
@@ -521,521 +567,161 @@ export function BinControlsPanel({
     });
   };
 
-  return (
-    <PanelSectionFilterContext.Provider value={exportOnly ? "bin-settings-export" : null}>
-    <div className="flex h-full flex-col">
-      <div className={exportOnly ? "hidden" : "shrink-0 border-b px-3 py-2"} data-testid="project-status">
-        <p className="cursor-text truncate text-sm font-medium" data-testid="project-status-title"
-          title={`${currentProjectName ?? "Untitled project"} — double-click to rename`}
-          onDoubleClick={() => {
-            if (!hydrated || !projectLibraryReady || projectBusy) return;
-            revealPanelSection("bin-settings-project", BIN_SETTINGS_SECTIONS);
-            setProjectNameOpen(true);
-          }}>{currentProjectName ?? "Untitled project"}</p>
-        <p className="text-[11px] text-muted-foreground" role="status">{!hydrated ? "Opening project…" : projectBusy ? "Working…" : saveStatus === "saving" ? activeProjectId ? "Saving to browser library…" : "Draft — saving locally…" : saveStatus === "error" ? "Could not save. Export this project to keep your work." : activeProjectId ? "Saved to browser library" : "Draft — autosaved locally"}</p>
-      </div>
-      {/* On short screens the section headers remain reachable by scrolling;
-          reserve the limited height for editable fields instead of shortcuts. */}
-      <div className={exportOnly ? "hidden" : "shrink-0 [@media(max-height:500px)]:hidden"}>
-        <PanelSettingsIndex
-          ariaLabel="Find bin settings"
-          testIdPrefix="bin"
-          items={BIN_SETTINGS_SECTIONS}
-        />
-      </div>
-      <PanelBody className="flex-1">
-        <PanelSection
-          id="bin-settings-project"
-          title="Project"
-          icon={FolderOpen}
-          tone="slate"
-          summary={projectBusy ? "Working…" : activeProjectId ? "Library" : "Draft"}
-          defaultOpen={false}
-          className="scroll-mt-16"
-        >
-          <ProjectControls
-            saveOpen={projectNameOpen}
-            setSaveOpen={setProjectNameOpen}
-            hydrated={hydrated}
-            libraryReady={projectLibraryReady}
-            busy={projectBusy}
-            saveStatus={saveStatus}
-            activeProjectId={activeProjectId}
-            hasDraftWork={!!currentProjectName || keepBinSize || shapes.length > 0 || cutouts.length > 0
-              || fingerHoles.length > 0 || history.stack.length > 1
-              || JSON.stringify(spec) !== JSON.stringify(INITIAL_BIN_SPEC)}
-            currentProjectName={currentProjectName}
-            projects={projects}
-            onSaveProject={onSaveProject}
-            onRenameProject={onRenameProject}
-            onDuplicateProject={onDuplicateProject}
-            onOpenProject={onOpenProject}
-            onDeleteProject={onDeleteProject}
-            onRefreshProjects={onRefreshProjects}
-            onExportLibrary={onExportLibrary}
-            onImportLibrary={onImportLibrary}
-            onNewProject={onNewProject}
-            onExportProject={onExportProject}
-            onImportProject={onImportProject}
-          />
-        </PanelSection>
-
-        <PanelSection
-          id="bin-settings-size"
-          title="Bin size"
-          icon={Scaling}
-          tone="blue"
-          summary={`${formatUnitCount(widthCellSpan)} × ${formatUnitCount(lengthCellSpan)} × ${formatUnitCount(spec.heightUnits)}u`}
-          className="scroll-mt-16"
-        >
-          <div className="flex items-center gap-2">
-            <SettingLabel label="Grid pitch" hint="Pitch changes preserve the outer size and custom shape. A coarser pitch is available only when existing cells combine into whole cells." className="shrink-0" />
-            <Select
-              value={spec.gridPitch}
-              onValueChange={(value) => {
-                const gridPitch = value as GridPitch;
-                const resized = changeBinGridPitchPreservingSize(spec, gridPitch);
-                if (!resized || resized.gridX > maxGridCells(gridPitch) || resized.gridY > maxGridCells(gridPitch)) return;
-                patchSpec({
-                  ...resized,
-                  ...(gridPitch === "full"
-                    ? {}
-                    : {
-                        magnetHoles: false,
-                        magnetCrushRibs: false,
-                        screwHoles: false,
-                      }),
-                });
-              }}
-            >
-              <SelectTrigger className="h-8 flex-1" data-testid="select-grid-pitch">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {(["full", "half", "quarter"] as const).map((pitch) => {
-                  const resized = changeBinGridPitchPreservingSize(spec, pitch);
-                  const available = resized && resized.gridX <= maxGridCells(pitch) && resized.gridY <= maxGridCells(pitch);
-                  return <SelectItem key={pitch} value={pitch} disabled={!available}>{pitch === "full" ? "Full · 42 mm" : pitch === "half" ? "Half · 21 mm" : "Quarter · 10.5 mm"}{!available ? " (would change shape)" : ""}</SelectItem>;
-                })}
-              </SelectContent>
-            </Select>
-          </div>
-          <FeatureSwitch label="Keep bin size fixed" description="Adding tools keeps these dimensions. Tools that do not fit stay visible for adjustment." checked={keepBinSize} onChange={(fixed) => onKeepBinSizeChange?.(fixed)} />
-          {spec.footprint.kind === "rectangle" ? (
-            <>
-              <CellSlider
-                label="Width"
-                cells={spec.gridX}
-                pitch={spec.gridPitch}
-                onChange={(span, transient) =>
-                  setRectangularCellSpan("x", span, transient)
-                }
-              />
-              <CellSlider
-                label="Length"
-                cells={spec.gridY}
-                pitch={spec.gridPitch}
-                onChange={(span, transient) =>
-                  setRectangularCellSpan("y", span, transient)
-                }
-              />
-            </>
-          ) : (
-            <div className="rounded-md border bg-muted/30 px-2.5 py-2 text-xs text-muted-foreground">
-              Custom footprint. Add or remove cells in the Layout view,
-              or reset to a rectangle to use the size sliders.
-            </div>
-          )}
-          <div className="space-y-1.5">
-            <Label className="text-xs">Height</Label>
-            <div className="flex items-center gap-2">
-              <Slider
-                className="min-w-12 flex-1"
-                value={[spec.heightUnits]}
-                onValueChange={([heightUnits]) =>
-                  patchSpec({ heightUnits }, true)
-                }
-                onValueCommit={([heightUnits]) => patchSpec({ heightUnits })}
-                min={1}
-                max={MAX_HEIGHT_UNITS_UI}
-                step={0.5}
-                aria-label="Height in 0.5u increments"
-              />
-              <span className="flex shrink-0 items-center gap-1 whitespace-nowrap text-xs tabular-nums text-muted-foreground">
-                <DraftNumberInput className="h-8 w-20" aria-label="Bin height in units" value={spec.heightUnits} min={1} max={MAX_HEIGHT_UNITS_UI} step={0.5} normalize={(value) => Math.round(value * 2) / 2} onValueChange={(heightUnits) => patchSpec({ heightUnits }, true)} onValueCommit={(heightUnits) => patchSpec({ heightUnits })} /> units
-              </span>
-            </div>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Outer size {dims.widthMm.toFixed(1)} × {dims.lengthMm.toFixed(1)} ×{" "}
-            {dims.totalHeightMm.toFixed(1)} mm
-            {hasStackingLip(spec)
-              ? ` (rim + ${STACKING_LIP_HEIGHT_ACTUAL.toFixed(1)} mm lip)`
-              : ""}
-          </p>
-          {building && (
-            <div
-              className="flex items-center gap-1.5 rounded-md border border-blue-500/25 bg-blue-500/10 px-2.5 py-1.5 text-xs font-medium text-blue-800 dark:text-blue-100"
-              role="status"
-              aria-live="polite"
-              data-testid="bin-size-preview-status"
-            >
-              <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-              Updating 3D preview…
-            </div>
-          )}
-          {(cutouts.length > 0 || fingerHoles.length > 0) && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full"
-              data-testid="button-fit-bin"
-              onClick={() => fitLayout(cutouts)}
-            >
-              Fit bin to contents
-            </Button>
-          )}
-          <Button
-            variant={editorMode === "footprint" ? "default" : "outline"}
-            size="sm"
-            className="w-full"
-            data-testid="button-edit-footprint"
-            onClick={() => {
-              const editing = editorMode === "footprint";
-              dispatch({ type: "SET_EDITOR_MODE", editorMode: editing ? "placement" : "footprint" });
-              if (!editing) dispatch({ type: "SET_VIEW_MODE", viewMode: "2d" });
-            }}
+  const fitTestControls = (
+          <div
+            className="space-y-3 rounded-lg border border-indigo-500/25 bg-indigo-500/5 p-3"
+            data-testid="export-preview-layout"
           >
-            <LayoutGrid className="mr-1.5 h-3.5 w-3.5" />
-            {editorMode === "footprint" ? "Finish footprint editing" : "Edit footprint"}
-          </Button>
-          {spec.footprint.kind === "custom" && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-full"
-              data-testid="button-reset-footprint"
-              onClick={() => patchSpec({ footprint: { kind: "rectangle" } })}
-            >
-              Reset to rectangle
-            </Button>
-          )}
-        </PanelSection>
-
-        <PanelSection
-          id="bin-settings-construction"
-          title="Construction"
-          icon={Magnet}
-          tone="rose"
-          summary={spec.flatBottom ? "Flat bottom" : `${enabledFeatureCount} on`}
-          defaultOpen={false}
-          className="scroll-mt-16"
-        >
-          <MmSlider
-            label="Wall thickness" value={spec.wallThicknessMm} min={0.8} max={4} step={0.05}
-            hint={spec.magneticLid && spec.magneticLidStyle === "overlap"
-              ? spec.lidWallThicknessMm !== undefined
-                ? "Saved wall sizes preserved. Adjust to link the bin, inner rim, and lid skirt; reprint both parts."
-                : `Minimum for each wall: bin, inner rim, and lid skirt. ${(2 * spec.wallThicknessMm + 0.3).toFixed(1)} mm total across the overlap, including clearance. Reprint both parts after changing.`
-              : "Thicker walls are sturdier and leave less interior space."}
-            onChange={(wallThicknessMm, transient) => patchSpec({ wallThicknessMm, lidWallThicknessMm: undefined }, transient)}
-          />
-          <FeatureSwitch
-            label="Stacking lip"
-            description={spec.magneticLid ? spec.magneticLidStyle === "overlap" ? "Replaced by the inset lid rim" : "Locates the inset lid" : spec.flatBottom ? "Receives a Gridfinity bin on top" : "Lets another bin stack on top"}
-            checked={hasStackingLip(spec)}
-            disabled={spec.magneticLid}
-            onChange={(on) => patchSpec({ lip: on ? "standard" : "none" })}
-          />
-          <FeatureSwitch
-            label="Solid fill"
-            description="Material for pockets — required for cutouts"
-            checked={spec.fill === "solid"}
-            onChange={(on) => patchSpec({ fill: on ? "solid" : "none" })}
-          />
-          <Collapsible
-            open={lidSettingsOpen} onOpenChange={setLidSettingsOpen}
-            className={spec.magneticLid ? "space-y-3 rounded-md border border-rose-500/30 bg-rose-500/[0.025] p-2.5" : undefined}
-            role="group" aria-label="Lid settings" data-testid="lid-settings"
-          >
-            <div className="flex items-center gap-2">
-              {spec.magneticLid ? <CollapsibleTrigger
-                className="group flex min-h-8 min-w-0 flex-1 items-center gap-2 rounded text-left text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring [@media(pointer:coarse)]:min-h-11"
-                aria-label="Lid settings" data-testid="button-toggle-lid-settings"
-              >
-                <span className="flex-1">Lid</span>
-                <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
-              </CollapsibleTrigger> : <span className="flex-1 text-xs">Lid</span>}
-              <HelpHint label="lid">Matching removable lid with optional magnet closure</HelpHint>
-              <Switch checked={spec.magneticLid} aria-label="Lid"
-                onCheckedChange={(magneticLid) => {
-                  if (magneticLid) setLidSettingsOpen(true);
-                  patchSpec({ magneticLid, ...(magneticLid ? { lip: "standard" } : {}) });
-                }} />
+            <div>
+              <SettingLabel label="Prepare fit test templates" hint="Print a thin template and try the actual tools before printing the full bin. Choose the full pocket-layout surface or 5 mm wide bands around tool openings. Tool outlines omit the bin perimeter and separate finger access features; widely spaced tools print as separate pieces. Thickness sets the printed height. Surface templates omit the base, walls, label tab, and stacking lip, so they do not test pocket depth or baseplate fit." />
             </div>
-            <CollapsibleContent className="space-y-3">
-              {spec.magneticLid && (
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Lid style</Label>
-                  <div className="grid grid-cols-2 gap-1" role="group" aria-label="Lid style">
-                    {(["overlap", "inset"] as const).map(style => (
-                      <Button key={style} size="sm" className="h-auto min-h-9 min-w-0 whitespace-normal px-2 text-xs" variant={spec.magneticLidStyle === style ? "secondary" : "outline"}
-                        aria-pressed={spec.magneticLidStyle === style} data-testid={`button-lid-style-${style}`}
-                        onClick={() => patchSpec({ magneticLidStyle: style, ...(style === "inset" ? { lip: "standard" } : {}),
-                          ...(style === "overlap" && spec.lidInterface === "spring-latch" ? { lidInterface: "ribs" } : {}) })}>
-                        {style === "overlap" ? "Overlapping edge" : "Inset"}
-                      </Button>
-                    ))}
-                  </div>
-                  <Label className="text-xs">Lid top</Label>
-                  <div className="grid grid-cols-2 gap-1" role="group" aria-label="Lid top">
-                    {(["flat", "stacking"] as const).map(top => (
-                      <Button key={top} size="sm" className="h-auto min-h-9 min-w-0 whitespace-normal px-2 text-xs"
-                        variant={spec.magneticLidTop === top ? "secondary" : "outline"}
-                        aria-pressed={spec.magneticLidTop === top} data-testid={`button-lid-top-${top}`}
-                        onClick={() => patchSpec({ magneticLidTop: top })}>
-                        {top === "flat" ? "Flat" : "Stacking top"}
-                      </Button>
-                    ))}
-                  </div>
-                  {spec.magneticLidTop === "stacking" && <p className="text-xs text-muted-foreground">
-                    Holds a Gridfinity bin on the lid. Exported top up with a filled center. Inspect bridges across the rim channel, interface gaps, and magnet clearances when slicing.
-                    {spec.fill === "solid" && spec.magneticLidStyle === "overlap" && " Re-export solid bins to leave room below this lid."}
-                  </p>}
-                  <p className="text-xs text-muted-foreground">
-                    {spec.magneticLidStyle === "overlap"
-                      ? "Wraps around an inset rim. Replaces the stacking lip."
-                      : "Seats inside the stacking lip, with a full-width raised cap to grip."}
-                  </p>
-                </div>
-              )}
-              {spec.magneticLid && !spec.lidMagnetHoles && (
-                <div className="space-y-2" data-testid="lid-fit-controls">
-                  <Label className="text-xs">Lid fit</Label>
-                  <div className="grid grid-cols-2 gap-1" role="group" aria-label="Lid fit">
-                    {(["lift-off", "friction"] as const).map(fit => (
-                      <Button key={fit} size="sm" className="h-auto min-h-9 min-w-0 whitespace-normal px-2 text-xs"
-                        variant={spec.lidFit === fit ? "secondary" : "outline"}
-                        aria-pressed={spec.lidFit === fit} data-testid={`button-lid-fit-${fit}`}
-                        onClick={() => patchSpec({ lidFit: fit })}>
-                        {fit === "lift-off" ? "Easy lift-off" : "Compliant fit"}
-                      </Button>
-                    ))}
-                  </div>
-                  {spec.lidFit === "friction" ? <>
-                    <Label className="text-xs">Interface</Label>
-                    <Select value={spec.lidInterface} onValueChange={value => patchSpec({ lidInterface: value as BinSpecInput["lidInterface"] })}>
-                      <SelectTrigger className="h-8" aria-label="Lid interface" data-testid="select-lid-interface"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="ribs">Contact ribs</SelectItem>
-                        <SelectItem value="side-springs" disabled>Side springs</SelectItem>
-                        <SelectItem value="angled-fins">Angled fins</SelectItem>
-                        {spec.magneticLidStyle === "inset" && <SelectItem value="spring-latch" disabled>Spring latch</SelectItem>}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground" data-testid="lid-interface-unavailable">
-                      Side springs and Spring latch are disabled pending redesign after fit testing.
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {{ ribs: "Small ribs on a thin rim grip the bin.",
-                        "side-springs": "This saved design uses Side springs. Choose Contact ribs or Angled fins for new prints.",
-                        "angled-fins": "Angled fingers run across each straight edge beneath a solid top. Keep their release gaps clear when slicing.",
-                        "spring-latch": "This saved design uses Spring latch. Choose Contact ribs or Angled fins for new prints." }[spec.lidInterface]}
-                      {spec.lidInterface === "angled-fins" ? " Export a matching bin and lid; test the fit before making a larger case." : spec.lidInterface === "ribs" ? " Tune after a test print." : ""}
-                    </p>
-                    {spec.lidInterface === "ribs" && <div data-testid="lid-rib-spacing-controls">
-                      <MmSlider label="Rib spacing" value={spec.lidRibSpacingMm}
-                        min={MIN_LID_RIB_SPACING_MM} max={MAX_LID_RIB_SPACING_MM} step={1}
-                        hint="Closer spacing adds ribs and increases hold. Start with lighter grip for closely spaced overlapping ribs."
-                        onChange={(lidRibSpacingMm, transient) => patchSpec({ lidRibSpacingMm }, transient)} />
-                      <p className="text-xs text-muted-foreground" data-testid="lid-rib-count">
-                        Per edge: {lidContactRibPositions(spec, "x").length} along width · {lidContactRibPositions(spec, "y").length} along length
-                      </p>
-                    </div>}
-                  </> : <p className="text-xs text-muted-foreground">Small locating clearance for easy removal.</p>}
-                  <Label className="text-xs">{spec.lidFit === "friction" ? "Grip" : "Fit adjustment"}</Label>
-                  <Slider centerOrigin value={[Math.round(spec.lidFitAdjustmentMm / 0.05)]} min={-2} max={2} step={1}
-                    aria-label="Lid fit adjustment"
-                    aria-valuetext={spec.lidFitAdjustmentMm === 0 ? "Default" : `${Math.abs(spec.lidFitAdjustmentMm).toFixed(2)} mm ${spec.lidFit === "friction" ? (spec.lidFitAdjustmentMm > 0 ? "firmer" : "lighter") : (spec.lidFitAdjustmentMm > 0 ? "tighter" : "looser")}`}
-                    onValueChange={([step]) => patchSpec({ lidFitAdjustmentMm: Number((step * 0.05).toFixed(2)) }, true)}
-                    onValueCommit={([step]) => patchSpec({ lidFitAdjustmentMm: Number((step * 0.05).toFixed(2)) })} />
-                  <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>{spec.lidFit === "friction" ? "Lighter" : "Looser"}</span>
-                    <span>{spec.lidFit === "friction" ? "Firmer" : "Tighter"}</span>
-                  </div>
-                </div>
-              )}
-              {spec.magneticLid && <>
-                <FeatureSwitch label="Grip recess" description="Two finger recesses below the lid edge for easier lifting"
-                  checked={spec.lidGripRecess} onChange={lidGripRecess => patchSpec({ lidGripRecess })} />
-                <FeatureSwitch label="Lid magnet holes" description="Four matching pairs in the lid and bin rim; same magnet size as the underside"
-                  checked={spec.lidMagnetHoles} onChange={lidMagnetHoles => patchSpec({ lidMagnetHoles })} />
-                {spec.lidMagnetHoles && <FeatureSwitch label="Lid crush ribs" description="Press-fit closure magnets, no glue"
-                  checked={spec.lidMagnetCrushRibs} onChange={lidMagnetCrushRibs => patchSpec({ lidMagnetCrushRibs })} />}
-              </>}
-              {spec.magneticLid && spec.lidMagnetHoles && <p className="text-xs text-muted-foreground" data-testid="magnetic-lid-details">
-                Four pairs · ⌀{Number((2 * magnetHoleRadiusMm(spec)).toFixed(2))} × {Number(magnetHoleDepthMm(spec).toFixed(2))} mm recesses, same as the base.
-                {spec.lidMagnetCrushRibs ? " Press-fit" : " Glue"} magnets with attracting faces paired.
-                Keep pockets clear of the corners. Save the lid separately under Export.
-                Check fit with a small print first.
-              </p>}
-            </CollapsibleContent>
-          </Collapsible>
-          {!spec.flatBottom && (
-            <>
-              <FeatureSwitch
-                label={spec.magneticLid ? "Base magnet holes" : "Magnet holes"}
-                description={
-                  spec.gridPitch === "full"
-                    ? `⌀${Number((2 * magnetHoleRadiusMm(spec)).toFixed(2))} × ${Number(magnetHoleDepthMm(spec).toFixed(2))} mm, four per cell`
-                    : "Available on the full 42 mm pitch"
-                }
-                checked={spec.magnetHoles}
-                disabled={spec.gridPitch !== "full"}
-                onChange={(magnetHoles) => patchSpec({ magnetHoles })}
-              />
-              {spec.magnetHoles && (
-                <FeatureSwitch
-                  label={spec.magneticLid ? "Base crush ribs" : "Crush ribs"}
-                  description="Press-fit magnets, no glue"
-                  checked={spec.magnetCrushRibs}
-                  onChange={(magnetCrushRibs) => patchSpec({ magnetCrushRibs })}
-                />
-              )}
-              <FeatureSwitch
-                label="Screw holes"
-                description={
-                  spec.gridPitch === "full"
-                    ? "⌀3 mm M3, through the base"
-                    : "Available on the full 42 mm pitch"
-                }
-                checked={spec.screwHoles}
-                disabled={spec.gridPitch !== "full"}
-                onChange={(screwHoles) => patchSpec({ screwHoles })}
-              />
-            </>
-          )}
 
-          {hasMagnets(spec) && <div className="space-y-2 rounded-md border p-2.5" role="group" aria-label="Magnet size">
-            <Label className="text-xs">Magnet size</Label>
-            <p className="text-xs text-muted-foreground">One size for all magnets. Enter the magnet's actual dimensions.</p>
-            <MmSlider label="Magnet diameter" value={spec.magnetDiameterMm} min={3} max={12} step={0.1}
-              hint="The hole adds 0.5 mm diameter clearance. Crush ribs grip 0.1 mm inside the magnet diameter."
-              onChange={(magnetDiameterMm, transient) => patchSpec({ magnetDiameterMm }, transient)} />
-            {hasBaseMagnets(spec) && baseMagnetShiftMm(spec) > 0 && <p className="text-xs text-muted-foreground" data-testid="base-magnet-shift-note">
-              Base magnets move inward to fit. Their centers differ from the standard baseplate pattern; screw holes stay in place.
-            </p>}
-            <MmSlider label="Magnet thickness" value={spec.magnetThicknessMm} min={1} max={5} step={0.1}
-              hint="The recess adds 0.4 mm depth. Thicker magnets can increase lid thickness."
-              onChange={(magnetThicknessMm, transient) => patchSpec({ magnetThicknessMm }, transient)} />
-          </div>}
-
-          <FeatureSwitch
-            label="Flat bottom"
-            description="Smooth underside; no Gridfinity base."
-            checked={spec.flatBottom}
-            onChange={(flatBottom) => patchSpec({ flatBottom })}
-          />
-
-          <div className="space-y-2 border-t pt-3">
-            <div className="flex items-center gap-2">
-              <SettingLabel label="Label tab" hint="A sloped shelf under the rim for labelling the bin." className="shrink-0" />
-              <Select
-                value={spec.labelTab?.width ?? "none"}
-                onValueChange={(width) =>
-                  patchSpec({
-                    labelTab:
-                      width === "none"
-                        ? null
-                        : {
-                            wall: spec.labelTab?.wall ?? "north",
-                            width: width as "full" | "center" | "left" | "right",
-                          },
-                  })
-                }
+            {(cutouts.length > 0 || fingerHoles.length > 0) && (
+              <div
+                className="space-y-2"
+                data-testid="surface-fit-test-export"
               >
-                <SelectTrigger className="h-8 flex-1" data-testid="select-label-tab">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
-                  <SelectItem value="full">Full width</SelectItem>
-                  <SelectItem value="center">Center · 42 mm</SelectItem>
-                  <SelectItem value="left">Left · 42 mm</SelectItem>
-                  <SelectItem value="right">Right · 42 mm</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {spec.labelTab && (
-              <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <Label className="w-16 shrink-0 text-xs">On wall</Label>
-                  <Select
-                    value={spec.labelTab.wall}
-                    onValueChange={(wall) =>
-                      patchSpec({
-                        labelTab: {
-                          ...spec.labelTab!,
-                          wall: wall as "north" | "south" | "east" | "west",
-                          edge: null,
-                        },
-                      })
-                    }
-                  >
-                    <SelectTrigger className="h-8 flex-1">
+                  <Label className="w-20 shrink-0 text-xs">Shape</Label>
+                  <Select value={surfaceFitCheckStyle} onValueChange={value => setSurfaceFitCheckStyle(surfaceFitCheckStyleSchema.parse(value))}>
+                    <SelectTrigger className="h-8" aria-label="Surface fit test shape" data-testid="select-surface-fit-test-style">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="north">Back</SelectItem>
-                      <SelectItem value="south">Front</SelectItem>
-                      <SelectItem value="east">Right</SelectItem>
-                      <SelectItem value="west">Left</SelectItem>
+                      <SelectItem value="full">Full surface</SelectItem>
+                      <SelectItem value="outline" disabled={cutouts.length === 0}>Tool outlines · {SURFACE_FIT_CHECK_OUTLINE_WIDTH_MM} mm</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="flex items-center gap-2">
+                  <Label className="w-20 shrink-0 text-xs">Thickness</Label>
+                  <DraftNumberInput
+                    className="h-8"
+                    value={surfaceFitCheckThicknessMm}
+                    min={SURFACE_FIT_CHECK_MIN_THICKNESS_MM}
+                    max={SURFACE_FIT_CHECK_MAX_THICKNESS_MM}
+                    step={0.2}
+                    normalize={(value) =>
+                      Math.min(
+                        SURFACE_FIT_CHECK_MAX_THICKNESS_MM,
+                        Math.max(SURFACE_FIT_CHECK_MIN_THICKNESS_MM, value),
+                      )
+                    }
+                    onValueChange={setSurfaceFitCheckThicknessMm}
+                    aria-label="Surface fit test thickness in millimetres"
+                    data-testid="input-surface-fit-test-thickness"
+                  />
+                  <span className="text-xs text-muted-foreground">mm</span>
+                </div>
                 <Button
-                  variant={editorMode === "label-edge" ? "default" : "outline"}
+                  variant="outline"
                   size="sm"
                   className="w-full"
-                  data-testid="button-choose-label-edge"
-                  onClick={() => {
-                    const editing = editorMode === "label-edge";
-                    dispatch({ type: "SET_EDITOR_MODE", editorMode: editing ? "placement" : "label-edge" });
-                    if (!editing) dispatch({ type: "SET_VIEW_MODE", viewMode: "2d" });
-                  }}
+                  disabled={exporting || hasErrors || (surfaceFitCheckStyle === "outline" && cutouts.length === 0)}
+                  onClick={() =>
+                    setPendingExport({
+                      title: "Save surface fit test STL?",
+                      description: surfaceFitCheckStyle === "outline"
+                        ? `Download ${SURFACE_FIT_CHECK_OUTLINE_WIDTH_MM} mm wide tool outlines, ${surfaceFitCheckThicknessMm} mm thick.`
+                        : `Download the complete pocket layout as a ${surfaceFitCheckThicknessMm} mm thin plate.`,
+                      confirmLabel: "Download STL",
+                      onConfirm: (includeProject) => onExportSurfaceFitCheck(surfaceFitCheckThicknessMm, includeProject, surfaceFitCheckStyle),
+                    })
+                  }
+                  data-testid="button-export-surface-fit-test"
                 >
-                  <MousePointerClick className="mr-1.5 h-3.5 w-3.5" />
-                  {editorMode === "label-edge" ? "Cancel edge selection" : "Choose any edge"}
+                  <Download className="h-4 w-4" />
+                  {exporting ? "Building…" : "Save surface fit test STL"}
+                </Button>
+              </div>
+            )}
+
+            {selectedCutout && selectedShape ? (
+              <div className="space-y-2 border-t pt-2.5">
+                <div>
+                  <SettingLabel label="Tool fit template" hint={selectedCutout.profileBottom
+                    ? "The source silhouette, including its Trace margin and profile scale. Use a surface fit test to check the straight slot width."
+                    : "A filled tool outline without the bin or finger access features. Includes its Trace margin, signed pocket clearance, and outline corner rounding."} />
+                  <p className="truncate text-xs font-medium" title={pocketName(selectedCutout, selectedShape)}>{pocketName(selectedCutout, selectedShape)}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Label className="w-20 shrink-0 text-xs">Thickness</Label>
+                  <DraftNumberInput
+                    className="h-8"
+                    value={fitCheckDepthMm}
+                    min={0.5}
+                    max={30}
+                    step={0.5}
+                    normalize={(value) => Math.min(30, Math.max(0.5, value))}
+                    onValueChange={setFitCheckDepthMm}
+                    aria-label="Fit template thickness in millimetres"
+                    data-testid="input-fit-check-depth"
+                  />
+                  <span className="text-xs text-muted-foreground">mm</span>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  disabled={exporting}
+                  onClick={() => setPendingExport({
+                    title: "Save fit template STL?",
+                    description: selectedCutout.profileBottom
+                      ? `Download the source profile of “${pocketName(selectedCutout, selectedShape)}” at ${fitCheckDepthMm} mm thick. Use a surface fit test to check the slot width.`
+                      : `Download the filled outline of “${pocketName(selectedCutout, selectedShape)}” at ${fitCheckDepthMm} mm thick.`,
+                    confirmLabel: "Download STL",
+                    onConfirm: (includeProject) => onExportFitCheck(selectedCutout.id, fitCheckDepthMm, includeProject),
+                  })}
+                  data-testid="button-export-fit-check"
+                >
+                  <Download className="h-4 w-4" />
+                  {exporting ? "Building…" : "Save fit template STL"}
+                </Button>
+              </div>
+            ) : cutouts.length > 0 ? (
+              <p className="border-t pt-2.5 text-[11px] text-muted-foreground">
+                Select a tool cutout to export a fit template.
+              </p>
+            ) : (
+              <div
+                className="space-y-2 border-t pt-2.5"
+                data-testid="export-preview-empty"
+              >
+                <p className="text-[11px] text-muted-foreground">
+                  Add a tool cutout to enable fit templates.
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => navigate("/")}
+                  data-testid="button-go-to-trace"
+                >
+                  Go to Trace
                 </Button>
               </div>
             )}
           </div>
-        </PanelSection>
+  );
 
-        {/* Keyed on emptiness: defaultOpen is uncontrolled, and the section
-            should reveal itself the moment the first pocket arrives. */}
-        <PanelSection
-          key={cutouts.length > 0 ? "pockets" : "pockets-empty"}
-          id="bin-settings-pockets"
-          title="Pockets"
-          icon={Scissors}
-          tone="violet"
-          summary={`${cutouts.length} pocket${cutouts.length === 1 ? "" : "s"}`}
-          defaultOpen={cutouts.length > 0}
-          className="scroll-mt-16"
-        >
-          <div className="mb-2"><AddPocketMenu /></div>
-          {cutouts.length > 0 && (
+  const pocketList = cutouts.length > 0 && (
             <div className="space-y-1" aria-label="Choose a pocket to edit">
               {cutouts.map((cutout) => {
                 const shape = shapesById.get(cutout.shapeId);
                 const name = pocketName(cutout, shape);
-                const isSelected = cutout.id === selectedCutoutId;
+                const isSelected = selection.some(ref => ref.kind === "pocket" && ref.id === cutout.id);
+                const startRenaming = () => {
+                  if (!shape) return;
+                  if (!inspector) dispatch({ type: "SELECT_CUTOUT", id: cutout.id });
+                  setRenamingPocketId(cutout.id);
+                };
                 return (
                   <div key={cutout.id} data-testid={`cutout-row-${cutout.id}`} className={cn(
                     "flex items-center rounded-md border text-xs",
                     isSelected ? "border-violet-500/50 bg-violet-500/10" : "border-transparent hover:bg-accent",
                   )}>
+                    {<label className="ml-1 flex h-8 w-6 shrink-0 cursor-pointer items-center justify-center [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11"><input type="checkbox" className="h-4 w-4 accent-primary" aria-label={`Include ${name} in selection`} checked={isSelected}
+                      onChange={() => { inspector?.keepObjectsOpen(); dispatch({ type: "SELECT_CUTOUT", id: cutout.id, additive: true }); }} /></label>}
                     {renamingPocketId === cutout.id && shape ? (
                       <EditableObjectName key={cutout.id} name={name} kind="shape" onRename={(name) => dispatch({ type: "UPDATE_CUTOUT", id: cutout.id, patch: { name }, historyLabel: "Rename pocket" })} onDone={() => setRenamingPocketId(null)} />
                     ) : (
@@ -1046,127 +732,87 @@ export function BinControlsPanel({
                       aria-pressed={isSelected}
                       aria-controls="pocket-properties"
                       data-testid={`button-select-${cutout.id}`}
-                      onClick={() => {
-                        dispatch({ type: "SELECT_CUTOUT", id: cutout.id });
-                        if (isSelected) revealPanelSection("bin-settings-pockets", BIN_SETTINGS_SECTIONS, "pocket-properties");
+                      title="Double-click to rename"
+                      onDoubleClick={startRenaming}
+                      onClick={event => {
+                        // Keep the name under the pointer for a possible second click.
+                        selectingPocketFromList.current = selectedCutoutId !== cutout.id;
+                        dispatch({ type: "SELECT_CUTOUT", id: cutout.id, additive: (event.shiftKey || event.metaKey || event.ctrlKey) });
+                        if (event.shiftKey || event.metaKey || event.ctrlKey) inspector?.keepObjectsOpen();
+                        else inspector?.setTool("properties");
                       }}
                     >
                       <span className={cn("min-w-0 flex-1 truncate", isSelected && "font-medium text-violet-700 dark:text-violet-300")}>{name}</span>
+                      {cutout.designLink && <Link2 className="h-3 w-3 shrink-0" aria-label="Linked design" />}
                     </button>
                     )}
-                    <button type="button" className="flex h-8 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11" aria-label={`Rename ${name}`} disabled={!shape} data-testid={`button-rename-${cutout.id}`} onClick={() => {
-                      dispatch({ type: "SELECT_CUTOUT", id: cutout.id });
-                      setRenamingPocketId(cutout.id);
-                    }}>
+                    <ObjectActions name={name}>
+                    <button type="button" className="flex h-8 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11" aria-label={`Rename ${name}`} disabled={!shape} data-testid={`button-rename-${cutout.id}`} onClick={startRenaming}>
                       <Pencil className="h-3.5 w-3.5" />
                     </button>
-                    <button type="button" className="flex h-8 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11" aria-label={`Duplicate ${name}`} data-testid={`button-duplicate-${cutout.id}`} onClick={() => dispatch({ type: "DUPLICATE_CUTOUT", id: cutout.id, newId: crypto.randomUUID() })}>
+                    <button type="button" className="flex h-8 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11" aria-label={`Duplicate ${name}`} data-testid={`button-duplicate-${cutout.id}`} onClick={() => dispatch({ type: "DUPLICATE_CUTOUT", id: cutout.id, newId: crypto.randomUUID(), labels: new Map(cutouts.map(c => [c.id, pocketName(c, shapesById.get(c.shapeId))])) })}>
                       <Copy className="h-3.5 w-3.5" />
                     </button>
                     <button type="button" className="flex h-8 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11" aria-label={`Remove ${name}`} data-testid={`button-remove-${cutout.id}`} onClick={() => dispatch({ type: "REQUEST_REMOVE_CUTOUT", id: cutout.id })}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
+                    </ObjectActions>
                   </div>
                 );
               })}
             </div>
-          )}
-          {!selectedCutout && (
-            <p className="rounded-md border border-dashed px-3 py-4 text-xs text-muted-foreground" id="pocket-properties" data-testid="pocket-selection-help">
-              {cutouts.length === 0
-                ? "Choose Add pocket to draw a basic shape, or trace a tool and press “Add to bin”."
-                : "Select a pocket on the canvas or in the list above. Its properties appear here."}
-            </p>
-          )}
-          {selectedCutout && selectedShape && (
-            <div className="space-y-3 rounded-md border border-violet-500/30 bg-violet-500/[0.025] p-2.5" id="pocket-properties" role="region" aria-label="Selected pocket properties">
-              <div className="flex min-w-0 items-center gap-2 border-b border-violet-500/20 pb-2" data-testid="pocket-properties-heading">
-                <h3 className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-violet-700 dark:text-violet-300">Pocket properties</h3>
-                <span className="min-w-0 truncate text-xs font-medium" title={pocketName(selectedCutout, selectedShape)}>{pocketName(selectedCutout, selectedShape)}</span>
-                <Button
-                  variant={editorMode === "contour" ? "default" : "outline"}
-                  size="sm"
-                  className="ml-auto h-7 shrink-0 gap-1 px-1.5 text-[10px]"
-                  aria-label={editorMode === "contour" ? "Finish contour editing" : "Edit contour"}
-                  aria-pressed={editorMode === "contour"}
-                  data-testid="button-edit-contour"
-                  onClick={() => {
-                    const editing = editorMode === "contour";
-                    dispatch({
-                      type: "SET_EDITOR_MODE",
-                      editorMode: editing ? "placement" : "contour",
-                    });
-                    if (!editing) {
-                      dispatch({ type: "SET_VIEW_MODE", viewMode: "2d" });
-                    }
-                  }}
-                >
-                  <Spline className="h-3 w-3" />
-                  {editorMode === "contour" ? "Done" : "Edit contour"}
-                </Button>
+          );
+  const fingerList = fingerHoles.length > 0 && (
+              <div className="space-y-1" aria-label="Choose finger access to edit">
+                {fingerHoles.map((hole, index) => {
+                  const isSelected = selection.some(ref => ref.kind === "finger" && ref.id === hole.id);
+                  const name = hole.name ?? `Finger access ${index + 1}`;
+                  const startRenaming = () => {
+                    if (!inspector) dispatch({ type: "SELECT_FINGER_HOLE", id: hole.id });
+                    setRenamingFingerId(hole.id);
+                  };
+                  return (
+                    <div key={hole.id} data-testid={`finger-hole-row-${hole.id}`} className={cn(
+                      "flex items-center rounded-md border text-xs",
+                      isSelected ? "border-cyan-500/50 bg-cyan-500/10" : "border-transparent hover:bg-accent",
+                    )}>
+                      {<label className="ml-1 flex h-8 w-6 shrink-0 cursor-pointer items-center justify-center [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11"><input type="checkbox" className="h-4 w-4 accent-primary" aria-label={`Include ${name} in selection`} checked={isSelected}
+                        onChange={() => { inspector?.keepObjectsOpen(); dispatch({ type: "SELECT_FINGER_HOLE", id: hole.id, additive: true }); }} /></label>}
+                      {renamingFingerId === hole.id ? (
+                        <EditableObjectName key={hole.id} name={name} kind="finger-hole"
+                          onRename={(name) => dispatch({ type: "UPDATE_FINGER_HOLE", id: hole.id, patch: { name }, historyLabel: "Rename finger access" })}
+                          onDone={() => setRenamingFingerId(null)} />
+                      ) : (
+                        <button type="button"
+                          className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded px-2 py-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          aria-label={`${name} — edit finger access properties`} aria-pressed={isSelected} aria-controls="finger-access-properties"
+                          data-testid={`button-select-finger-hole-${hole.id}`}
+                          title="Double-click to rename"
+                          onDoubleClick={startRenaming}
+                          onClick={event => { dispatch({ type: "SELECT_FINGER_HOLE", id: hole.id, additive: (event.shiftKey || event.metaKey || event.ctrlKey) }); if (event.shiftKey || event.metaKey || event.ctrlKey) inspector?.keepObjectsOpen(); else inspector?.setTool("properties"); }}>
+                          <span className={cn("min-w-0 flex-1 truncate", isSelected && "font-medium text-cyan-700 dark:text-cyan-300")}>{name}</span>
+                          {hole.designLink && <Link2 className="h-3 w-3 shrink-0" aria-label="Linked design" />}
+                        </button>
+                      )}
+                      <ObjectActions name={name}>
+                      <button type="button" className="flex h-11 w-11 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        aria-label={`Rename ${name}`} data-testid={`button-rename-finger-hole-${hole.id}`}
+                        title={`Rename ${name}`}
+                        onClick={startRenaming}>
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <button type="button" className="flex h-11 w-11 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        title={`Remove ${name}`}
+                        aria-label={`Remove ${name}`} onClick={() => dispatch({ type: "REMOVE_FINGER_HOLE", id: hole.id })}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                      </ObjectActions>
+                    </div>
+                  );
+                })}
               </div>
-              <section className="space-y-2" aria-label="Pocket depth" key={`${selectedCutout.id}-${selectedPocketSection}-${!!selectedCutout.split}`}>
-                <div className="flex items-center gap-1">
-                  <h4 className="text-sm font-semibold">Depth</h4>
-                  {spec.flatBottom && depthCutout!.depth.mode === "remaining" && <HelpHint label="remaining floor thickness">Measured from the flat underside. A 2 mm floor lets pockets extend into the former base area.</HelpHint>}
-                </div>
-                <PocketSplitControls cutout={selectedCutout} />
-                <div className="flex items-center gap-2">
-                  <Select
-                    value={depthCutout!.depth.mode}
-                    onValueChange={(mode) => {
-                      const resolved = resolvePocketDepth(spec, depthCutout!.depth);
-                      const depth =
-                        mode === "through"
-                          ? ({ mode: "through" } as const)
-                          : mode === "mm"
-                            ? ({ mode: "mm", value: Math.max(0.1, resolved.depthMm ?? resolved.infillTopZ - defaultPocketFloorThicknessMm(spec)) } as const)
-                            : ({ mode: "remaining", floorThicknessMm: spec.flatBottom ? defaultPocketFloorThicknessMm(spec) : Math.max(0, resolved.floorZ ?? defaultPocketFloorThicknessMm(spec)) } as const);
-                      updatePocketDepth(depth);
-                    }}
-                  >
-                    <SelectTrigger className="h-9 flex-1" aria-label="Pocket depth mode">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="remaining">Keep floor thickness</SelectItem>
-                      <SelectItem value="mm">Fixed depth</SelectItem>
-                      <SelectItem value="through">Through</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {depthCutout!.depth.mode === "mm" && (
-                    <DraftNumberInput
-                      className="h-9 w-20 text-base font-semibold"
-                      aria-label="Pocket cut depth in millimetres"
-                      value={depthCutout!.depth.value}
-                      min={1}
-                      step={1}
-                      onValueChange={(value) =>
-                        updatePocketDepth({ mode: "mm", value })
-                      }
-                    />
-                  )}
-                </div>
-
-                {depthCutout!.depth.mode === "remaining" && <MmSlider label="Remaining floor thickness" value={depthCutout!.depth.floorThicknessMm} min={0} max={Math.max(7, spec.heightUnits * 7)} step={0.5}
-                  onChange={(floorThicknessMm, transient) => updatePocketDepth({ mode: "remaining", floorThicknessMm }, transient)} />}
-
-                <PocketDepthSummary cutout={depthCutout!} shape={selectedShape} section={section} inspect={onSectionChange} />
-              </section>
-              <details className="group/size border-t pt-1 text-xs" aria-label="Pocket size and scale" data-testid="pocket-size-settings">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-2 py-2 font-medium [&::-webkit-details-marker]:hidden">
-                  Size &amp; scale
-                  <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/size:rotate-180" />
-                </summary>
-                <div className="pb-2" key={selectedCutout.id}><PocketSizeInputs cutout={selectedCutout} shape={selectedShape} setScale={setPocketScale} /></div>
-              </details>
-
-              <details className="group/more border-t pt-1 text-xs" data-testid="pocket-edge-settings">
-                <summary className="flex cursor-pointer list-none items-center justify-between py-1.5 font-medium [&::-webkit-details-marker]:hidden">
-                  <span className="flex items-center gap-1">Edges &amp; corners <HelpHint label="edges and corners">Soften sharp corners and edges. Values are rounding radii in millimetres; 0 keeps an edge sharp.</HelpHint></span>
-                  <ChevronDown className="h-3.5 w-3.5 transition-transform group-open/more:rotate-180" />
-                </summary>
-                <div className="space-y-3 pt-2" key={selectedCutout.id}>
+            );
+  const pocketTopRounding = selectedCutout && (
                   <MmSlider
                     label="Top edge rounding"
                     value={selectedCutout.topFilletMm}
@@ -1185,6 +831,152 @@ export function BinControlsPanel({
                     hintAsTooltip
                     hint="Rounds the pocket wall into the top surface of the bin."
                   />
+  );
+  const pocketClearance = selectedCutout && selectedShape && (
+              <details className="group/clearance border-t pt-1 text-xs" data-testid="pocket-clearance-settings">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-2 py-2 font-medium [&::-webkit-details-marker]:hidden">
+                  <span className="flex items-center gap-1">Extra pocket clearance
+                    <HelpHint label="extra pocket clearance">
+                      Adjusts each edge after scaling. Negative values shrink the pocket; positive values enlarge it. Zero keeps the original outline size. Narrow features can disappear when shrunk.
+                      <span className="mt-1 block">{selectedShape.source === "basic-shape"
+                        ? `Drawn in millimetres. Extra allowance: ${selectedCutout.clearanceMm.toFixed(2)} mm per edge.`
+                        : selectedShape.traceMarginMm === undefined
+                        ? `Original trace margin unknown (older project). Extra allowance: ${selectedCutout.clearanceMm.toFixed(2)} mm per edge.`
+                        : `Trace margin: ${selectedShape.traceMarginMm.toFixed(2)} mm per edge before scaling. Nominal total allowance X/Y: ${(selectedShape.traceMarginMm * selectedCutout.scaleX + selectedCutout.clearanceMm).toFixed(2)} / ${(selectedShape.traceMarginMm * selectedCutout.scaleY + selectedCutout.clearanceMm).toFixed(2)} mm per edge.`}</span>
+                    </HelpHint>
+                  </span>
+                  <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/clearance:rotate-180" />
+                </summary>
+                <div className="space-y-2 pb-2" key={selectedCutout.id}>
+                  <MmSlider
+                    label="Extra pocket clearance"
+                    value={selectedCutout.clearanceMm}
+                    centered
+                    inline
+                    min={-2}
+                    max={2}
+                    step={0.1}
+                    onChange={(clearanceMm, transient) =>
+                      dispatch({
+                        type: "UPDATE_CUTOUT",
+                        id: selectedCutout.id,
+                        patch: { clearanceMm },
+                        historyLabel: "Change pocket clearance",
+                        transient,
+                      })
+                    }
+                  />
+                </div>
+              </details>
+  );
+  const pocketProperties = selectedCutout && selectedShape && (
+            <PropertySurface tone="violet" id="pocket-properties" role="region" aria-label="Selected pocket properties">
+              <div className="property-heading -mx-3 -mt-3 flex min-w-0 flex-wrap items-center gap-2 rounded-t-lg border-b px-3 py-2" data-testid="pocket-properties-heading">
+                <h3 className="text-xs font-semibold">Pocket properties</h3>
+                <span className={inspector ? "sr-only" : "min-w-0 flex-1 truncate text-xs"} title={pocketName(selectedCutout, selectedShape)}>{pocketName(selectedCutout, selectedShape)}</span>
+                <Button
+                  variant={editorMode === "contour" ? "default" : "outline"}
+                  size="sm"
+                  className="ml-auto shrink-0"
+                  aria-label={editorMode === "contour" ? "Finish contour editing" : "Edit contour"}
+                  aria-pressed={editorMode === "contour"}
+                  data-testid="button-edit-contour"
+                  disabled={hasPocketTilt(selectedCutout)}
+                  title={hasPocketTilt(selectedCutout) ? "Reset to X–Y plane before editing the contour." : undefined}
+                  onClick={() => {
+                    const editing = editorMode === "contour";
+                    dispatch({
+                      type: "SET_EDITOR_MODE",
+                      editorMode: editing ? "placement" : "contour",
+                    });
+                    if (!editing) {
+                      dispatch({ type: "SET_VIEW_MODE", viewMode: "2d" });
+                    }
+                  }}
+                >
+                  <Spline className="h-3 w-3" />
+                  {editorMode === "contour" ? "Done" : "Edit contour"}
+                </Button>
+              </div>
+
+
+              <PocketInsertionControls cutout={selectedCutout} shape={selectedShape} />
+              {!inspector && <LinkedDesignControls kind="pocket" activeId={selectedCutout.id} labels={new Map(cutouts.map(c => [c.id, pocketName(c, shapesById.get(c.shapeId))]))} />}
+              <PocketDepthSummary cutout={depthCutout!} shape={depthShape!} section={section} inspect={inspectPocket}>
+                {selectedCutout.split && <div className="flex gap-1 pb-2" role="group" aria-label="Section to edit">
+                  {([0, 1] as const).map(index => <Button key={index} type="button" size="sm"
+                    className="flex-1" variant={selectedPocketSection === index ? "secondary" : "outline"}
+                    aria-pressed={selectedPocketSection === index}
+                    onClick={() => dispatch({ type: "SELECT_CUTOUT", id: selectedCutout.id, section: index })}>
+                    Section {index === 0 ? "A" : "B"}
+                  </Button>)}
+                </div>}
+                <section className="space-y-2 pb-2" aria-label="Pocket depth" key={`${selectedCutout.id}-${selectedPocketSection}-${!!selectedCutout.split}`}>
+                  <div className="flex items-center gap-2">
+                    <Select
+                      value={depthCutout!.depth.mode}
+                      onValueChange={(mode) => {
+                        const resolved = resolvePlacedPocketDepth(spec, depthCutout!.depth, depthShape!, depthCutout!);
+                        const depth =
+                          mode === "through"
+                            ? ({ mode: "through" } as const)
+                            : mode === "mm"
+                              ? ({ mode: "mm", value: Math.max(0.1, resolved.axialDepthMm ?? resolved.infillTopZ - defaultPocketFloorThicknessMm(spec)) } as const)
+                              : ({ mode: "remaining", floorThicknessMm: spec.flatBottom ? defaultPocketFloorThicknessMm(spec) : Math.max(0, resolved.floorZ ?? defaultPocketFloorThicknessMm(spec)) } as const);
+                        updatePocketDepth(depth);
+                      }}
+                    >
+                      <SelectTrigger className="h-9 flex-1" aria-label="Pocket depth mode">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="remaining">Keep floor thickness</SelectItem>
+                        <SelectItem value="mm">Fixed depth</SelectItem>
+                        <SelectItem value="through">Through</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {spec.flatBottom && depthCutout!.depth.mode === "remaining" && <HelpHint label="remaining floor thickness">Measured from the flat underside. A 2 mm floor lets pockets extend into the former base area.</HelpHint>}
+                    {depthCutout!.depth.mode === "mm" && (
+                      <DraftNumberInput
+                        className="h-9 w-20 text-base font-semibold"
+                        aria-label="Pocket cut depth in millimetres"
+                        value={depthCutout!.depth.value}
+                        displayPrecision={3}
+                        min={1}
+                        step={1}
+                        onValueChange={(value) => {
+                          // Blurring the field also commits; avoid a duplicate undo step.
+                          if (depthCutout!.depth.mode !== "mm" || depthCutout!.depth.value !== value) {
+                            updatePocketDepth({ mode: "mm", value });
+                          }
+                        }}
+                      />
+                    )}
+                  </div>
+
+                  {depthCutout!.depth.mode === "remaining" && <MmSlider label="Remaining floor thickness" value={depthCutout!.depth.floorThicknessMm} min={0} max={Math.max(7, spec.heightUnits * 7)} step={0.5}
+                    onChange={(floorThicknessMm, transient) => updatePocketDepth({ mode: "remaining", floorThicknessMm }, transient)} />}
+                  {hasRigidPocket(selectedCutout) && depthCutout!.depth.mode === "remaining" && <p className="text-[11px] text-muted-foreground">The floor limit clips only the cut. Raising the pocket restores its original profile.</p>}
+                  {hasRigidPocket(selectedCutout) && depthCutout!.depth.mode === "through" && <p className="text-[11px] text-muted-foreground">Preserves the original shape. Z movement stops when the lowest point reaches the bin underside; raising it restores material.</p>}
+                  {selectedCutout.split && <p className="text-[11px] text-muted-foreground">Depth applies to the selected section. Size and edges apply to the whole pocket.</p>}
+                </section>
+              </PocketDepthSummary>
+              {!selectedCutout.profileBottom && <PocketSplitControls cutout={selectedCutout} />}
+              <details className="group/size border-t pt-1 text-xs" aria-label="Pocket size and scale" data-testid="pocket-size-settings">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-2 py-2 font-medium [&::-webkit-details-marker]:hidden">
+                  Size &amp; scale
+                  <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/size:rotate-180" />
+                </summary>
+                <div className="pb-2" key={selectedCutout.id}><PocketSizeInputs cutout={selectedCutout} shape={selectedShape} setScale={setPocketScale} /></div>
+              </details>
+
+              {!selectedCutout.profileBottom && <details className="group/more border-t pt-1 text-xs" data-testid="pocket-edge-settings">
+                <summary className="flex cursor-pointer list-none items-center justify-between py-1.5 font-medium [&::-webkit-details-marker]:hidden">
+                  <span className="flex items-center gap-1">Edges &amp; corners <HelpHint label="edges and corners">Soften sharp corners and edges. Values are rounding radii in millimetres; 0 keeps an edge sharp.</HelpHint></span>
+                  <ChevronDown className="h-3.5 w-3.5 transition-transform group-open/more:rotate-180" />
+                </summary>
+                <div className="space-y-3 pt-2" key={selectedCutout.id}>
+                  {pocketTopRounding}
                   <MmSlider
                     label="Bottom edge fillet"
                     value={selectedCutout.bottomFilletMm}
@@ -1223,42 +1015,7 @@ export function BinControlsPanel({
                   />
 
                 </div>
-              </details>
-              <details className="group/clearance border-t pt-1 text-xs" data-testid="pocket-clearance-settings">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-2 py-2 font-medium [&::-webkit-details-marker]:hidden">
-                  <span className="flex items-center gap-1">Extra pocket clearance
-                    <HelpHint label="extra pocket clearance">
-                      Adjusts each edge after scaling. Negative values shrink the pocket; positive values enlarge it. Zero keeps the original outline size. Narrow features can disappear when shrunk.
-                      <span className="mt-1 block">{selectedShape.source === "basic-shape"
-                        ? `Drawn in millimetres. Extra allowance: ${selectedCutout.clearanceMm.toFixed(2)} mm per edge.`
-                        : selectedShape.traceMarginMm === undefined
-                        ? `Original trace margin unknown (older project). Extra allowance: ${selectedCutout.clearanceMm.toFixed(2)} mm per edge.`
-                        : `Trace margin: ${selectedShape.traceMarginMm.toFixed(2)} mm per edge before scaling. Nominal total allowance X/Y: ${(selectedShape.traceMarginMm * selectedCutout.scaleX + selectedCutout.clearanceMm).toFixed(2)} / ${(selectedShape.traceMarginMm * selectedCutout.scaleY + selectedCutout.clearanceMm).toFixed(2)} mm per edge.`}</span>
-                    </HelpHint>
-                  </span>
-                  <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/clearance:rotate-180" />
-                </summary>
-                <div className="space-y-2 pb-2" key={selectedCutout.id}>
-                  <MmSlider
-                    label="Extra pocket clearance"
-                    value={selectedCutout.clearanceMm}
-                    centered
-                    inline
-                    min={-2}
-                    max={2}
-                    step={0.1}
-                    onChange={(clearanceMm, transient) =>
-                      dispatch({
-                        type: "UPDATE_CUTOUT",
-                        id: selectedCutout.id,
-                        patch: { clearanceMm },
-                        historyLabel: "Change pocket clearance",
-                        transient,
-                      })
-                    }
-                  />
-                </div>
-              </details>
+              </details>}
 
               <PocketMeasurements cutout={selectedCutout} shape={selectedShape}>
                 <div className="flex items-center gap-2">
@@ -1266,7 +1023,8 @@ export function BinControlsPanel({
                   <DraftNumberInput
                     className="h-8"
                     aria-label="Pocket rotation in degrees"
-                    value={Math.round(selectedCutout.rotationDeg * 10) / 10}
+                    value={selectedCutout.rotationDeg}
+                    displayPrecision={1}
                     step={15}
                     normalize={(value) => ((value % 360) + 360) % 360}
                     onValueChange={(rotationDeg) =>
@@ -1302,103 +1060,19 @@ export function BinControlsPanel({
                 </p>
               )}
 
-            </div>
-          )}
-
-          <div className="flex flex-wrap gap-2 border-t pt-3">
-            <Button variant="outline" size="sm" onClick={onAutoArrange} disabled={cutouts.length === 0} data-testid="button-auto-arrange">
-              <LayoutGrid className="mr-1.5 h-3.5 w-3.5" />Auto-arrange
-            </Button>
-          </div>
-
-        </PanelSection>
-
-        <PanelSection
-          key={fingerHoles.length > 0 ? "finger-holes" : "finger-holes-empty"}
-          id="bin-settings-finger-holes"
-          title="Finger access"
-          icon={CircleDot}
-          tone="cyan"
-          summary={`${fingerHoles.length} feature${fingerHoles.length === 1 ? "" : "s"}`}
-          defaultOpen={fingerHoles.length > 0}
-          className="scroll-mt-16"
-        >
-          <div className="space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <SettingLabel label="Openings" hint="Allow room beside the tool at the depth where you will grip it. Wider slots can accommodate more fingers or gloves. Check the fit with the actual tool and hand before printing the full bin." />
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-11 shrink-0 px-2 text-xs"
-                data-testid="button-add-finger-hole"
-                onClick={() =>
-                  dispatch({
-                    type: "ADD_FINGER_HOLE",
-                    hole: {
-                      id: crypto.randomUUID(),
-                      center: { x: 0, y: 0 },
-                      diameterMm: 18,
-                      kind: "oblong-deep-scoop",
-                      slotEnds: "rounded",
-                      lengthMm: DEFAULT_OBLONG_DEEP_SCOOP_LENGTH_MM,
-                      depthMm: defaultFingerAccessDepthMm(spec, cutouts),
-                      topFilletMm: DEFAULT_TOP_EDGE_FILLET_MM,
-                      bottomFilletMm: 0,
-                    },
-                  })
-                }
-              >
-                <Plus className="mr-1 h-3 w-3" />
-                Add
-              </Button>
-            </div>
-
-            {fingerHoles.length > 0 && (
-              <div className="space-y-1" aria-label="Choose finger access to edit">
-                {fingerHoles.map((hole, index) => {
-                  const isSelected = hole.id === selectedFingerHoleId;
-                  const name = hole.name ?? `Finger access ${index + 1}`;
-                  return (
-                    <div key={hole.id} data-testid={`finger-hole-row-${hole.id}`} className={cn(
-                      "flex items-center rounded-md border text-xs",
-                      isSelected ? "border-cyan-500/50 bg-cyan-500/10" : "border-transparent hover:bg-accent",
-                    )}>
-                      {renamingFingerId === hole.id ? (
-                        <EditableObjectName key={hole.id} name={name} kind="finger-hole"
-                          onRename={(name) => dispatch({ type: "UPDATE_FINGER_HOLE", id: hole.id, patch: { name }, historyLabel: "Rename finger access" })}
-                          onDone={() => setRenamingFingerId(null)} />
-                      ) : (
-                        <button type="button"
-                          className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded px-2 py-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                          aria-label={`${name} — edit finger access properties`} aria-pressed={isSelected} aria-controls="finger-access-properties"
-                          data-testid={`button-select-finger-hole-${hole.id}`}
-                          onClick={() => dispatch({ type: "SELECT_FINGER_HOLE", id: hole.id })}>
-                          <span className={cn("min-w-0 flex-1 truncate", isSelected && "font-medium text-cyan-700 dark:text-cyan-300")}>{name}</span>
-                        </button>
-                      )}
-                      <button type="button" className="flex h-11 w-11 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        aria-label={`Rename ${name}`} data-testid={`button-rename-finger-hole-${hole.id}`}
-                        title={`Rename ${name}`}
-                        onClick={() => { dispatch({ type: "SELECT_FINGER_HOLE", id: hole.id }); setRenamingFingerId(hole.id); }}>
-                        <Pencil className="h-3.5 w-3.5" />
-                      </button>
-                      <button type="button" className="flex h-11 w-11 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        title={`Remove ${name}`}
-                        aria-label={`Remove ${name}`} onClick={() => dispatch({ type: "REMOVE_FINGER_HOLE", id: hole.id })}>
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {selectedFingerHole && fingerSizeLimits && (
-              <div className="space-y-3 rounded-md border border-cyan-500/30 bg-cyan-500/[0.025] p-2.5 [&_input]:min-h-11 [&_[data-mm-slider-track]]:min-h-11 [&_[role=slider]]:relative [&_[role=slider]]:before:absolute [&_[role=slider]]:before:-inset-3 [&_summary]:min-h-11" id="finger-access-properties" role="region" aria-label="Selected finger access properties">
-                <div className="flex min-w-0 flex-wrap items-center gap-2 border-b border-cyan-500/20 pb-2" data-testid="finger-access-properties-heading">
-                  <h3 className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-cyan-700 dark:text-cyan-300">Finger access properties</h3>
-                  <span className="min-w-[5rem] flex-1 truncate text-xs font-medium">{selectedFingerHole.name ?? `Finger access ${fingerHoles.indexOf(selectedFingerHole) + 1}`}</span>
+              {inspector && <AdvancedLinks><LinkedDesignControls kind="pocket" activeId={selectedCutout.id} labels={new Map(cutouts.map(c => [c.id, pocketName(c, shapesById.get(c.shapeId))]))} /></AdvancedLinks>}
+              {!selectedCutout.profileBottom && pocketClearance}
+            </PropertySurface>
+          );
+  const fingerProperties = selectedFingerHole && fingerSizeLimits && (
+              <PropertySurface tone="cyan" id="finger-access-properties" role="region" aria-label="Selected finger access properties">
+                <div className="property-heading -mx-3 -mt-3 flex min-w-0 flex-wrap items-center gap-2 rounded-t-lg border-b px-3 py-2" data-testid="finger-access-properties-heading">
+                  <h3 className="text-xs font-semibold">Finger access properties</h3>
+                  <span className={inspector ? "sr-only" : "min-w-0 flex-1 truncate text-xs"}>{selectedFingerHole.name ?? `Finger access ${fingerHoles.indexOf(selectedFingerHole) + 1}`}</span>
                 </div>
+              {!inspector && <LinkedDesignControls kind="finger" activeId={selectedFingerHole.id} labels={new Map(fingerHoles.map((h, i) => [h.id, h.name ?? `Finger access ${i + 1}`]))} />}
+
+
                 <FingerAccessShapeControls
                   hole={selectedFingerHole}
                   onChange={(change) => {
@@ -1437,7 +1111,7 @@ export function BinControlsPanel({
                   />
 
                 </section>
-                <details className="group/size border-t pt-1 text-xs" data-testid="finger-size-settings">
+                <details open={!!inspector || undefined} className="group/size border-t pt-1 text-xs" data-testid="finger-size-settings">
                   <summary className="flex cursor-pointer list-none items-center justify-between gap-2 py-2 font-medium [&::-webkit-details-marker]:hidden">
                     Size
                     <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/size:rotate-180" />
@@ -1659,10 +1333,630 @@ export function BinControlsPanel({
                 <PositionInputs position={selectedFingerHole.center} onChange={(center, transient) => dispatch({ type: "UPDATE_FINGER_HOLE", id: selectedFingerHole.id, patch: { center }, transient, historyLabel: "Position finger access" })} />
                   </div>
                 </details>
+                {inspector && <AdvancedLinks><LinkedDesignControls kind="finger" activeId={selectedFingerHole.id} labels={new Map(fingerHoles.map((h, i) => [h.id, h.name ?? `Finger access ${i + 1}`]))} /></AdvancedLinks>}
+            </PropertySurface>
+            );
+
+  const openProjectName = () => {
+    if (!hydrated || !projectLibraryReady || projectBusy) return;
+    if (inspector) inspector.showSection("bin-settings-project");
+    else revealPanelSection("bin-settings-project", BIN_SETTINGS_SECTIONS);
+    setProjectNameOpen(true);
+  };
+
+  const projectStatus = (
+      <div className={!inspector && exportOnly ? "hidden" : cn("min-w-0 px-3 py-2", !inspector && "shrink-0 border-b", inspector && "flex-1")} data-testid="project-status">
+        <div className="flex min-w-0 items-center gap-1">
+          <p className="cursor-text truncate text-sm font-medium" data-testid="project-status-title"
+            title={`${currentProjectName ?? "Untitled project"} — double-click to rename`}
+            onDoubleClick={openProjectName}>{currentProjectName ?? "Untitled project"}</p>
+          <Button type="button" variant="ghost" size="icon"
+            className="h-8 w-8 shrink-0 text-muted-foreground [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11"
+            aria-label="Edit project name" title="Edit project name"
+            data-testid="button-edit-project-name"
+            disabled={!hydrated || !projectLibraryReady || projectBusy}
+            onClick={openProjectName}>
+            <Pencil aria-hidden="true" />
+          </Button>
+        </div>
+        <p className="text-[11px] text-muted-foreground" role="status">{!hydrated ? "Opening project…" : projectBusy ? "Working…" : saveStatus === "saving" ? activeProjectId ? "Saving to browser library…" : "Draft — saving locally…" : saveStatus === "error" ? "Could not save. Export this project to keep your work." : activeProjectId ? "Saved to Library in this browser" : "Draft autosaved in this browser · not in Library"}</p>
+      </div>
+  );
+
+  return (
+    <PanelSectionFilterContext.Provider value={!inspector && exportOnly ? "bin-settings-export" : null}>
+    <div className="flex h-full flex-col">
+      {!experimentalEnabled && (spec.magneticLid || spec.wallThicknessMm !== D_WALL || spec.surfaceTexts.length > 0 || cutouts.some(c => c.designLink) || fingerHoles.some(h => h.designLink)) && <div className="shrink-0 border-b bg-amber-50/60 px-3 py-2 text-xs dark:bg-amber-950/20" data-testid="experimental-design-notice">
+        <p>Saved experimental features: {[
+          spec.magneticLid && "lid", spec.wallThicknessMm !== D_WALL && "wall thickness", spec.surfaceTexts.length > 0 && "surface text",
+          (cutouts.some(c => c.designLink) || fingerHoles.some(h => h.designLink)) && "linked designs",
+        ].filter(Boolean).join(", ")}. Preserved in previews and exports.</p>
+        <Button size="sm" variant="link" className="min-h-11 whitespace-normal px-0 text-xs" onClick={() => setExperimentalEnabled(true)}>Enable experimental tools</Button>
+      </div>}
+      {inspector ? <div className="shrink-0 border-b px-3 py-3">
+        <h2 className="text-xs font-semibold">Design workflow</h2>
+      </div> : projectStatus}
+      {/* On short screens the section headers remain reachable by scrolling;
+          reserve the limited height for editable fields instead of shortcuts. */}
+      {!inspector && <div className={exportOnly ? "hidden" : "shrink-0 [@media(max-height:500px)]:hidden"}>
+        <PanelSettingsIndex
+          ariaLabel="Find bin settings"
+          testIdPrefix="bin"
+          items={visibleSettingsSections}
+          onNavigate={id => { stopPocketInspection(); revealPanelSection(id, BIN_SETTINGS_SECTIONS); }}
+        />
+      </div>}
+      <InspectorPanelSections>
+        <PanelSection
+          id="bin-settings-project"
+          title="Project"
+          icon={FolderOpen}
+          tone="slate"
+          summary={projectBusy ? "Working…" : activeProjectId ? "Library" : "Draft"}
+          defaultOpen={!!inspector}
+          className="scroll-mt-16"
+        >
+          <ProjectControls
+            saveOpen={projectNameOpen}
+            setSaveOpen={setProjectNameOpen}
+            hydrated={hydrated}
+            libraryReady={projectLibraryReady}
+            libraryError={projectLibraryError}
+            busy={projectBusy}
+            saveStatus={saveStatus}
+            activeProjectId={activeProjectId}
+            hasDraftWork={!!currentProjectName || keepBinSize || shapes.length > 0 || cutouts.length > 0
+              || fingerHoles.length > 0 || history.stack.length > 1 || hasMaterialEdits
+              || JSON.stringify(spec) !== JSON.stringify(INITIAL_BIN_SPEC)}
+            currentProjectName={currentProjectName}
+            projects={projects}
+            onSaveProject={onSaveProject}
+            onRenameProject={onRenameProject}
+            onDuplicateProject={onDuplicateProject}
+            onOpenProject={onOpenProject}
+            onDeleteProject={onDeleteProject}
+            onRefreshProjects={onRefreshProjects}
+            onExportLibrary={onExportLibrary}
+            onImportLibrary={onImportLibrary}
+            onNewProject={onNewProject}
+            onExportProject={onExportProject}
+            onImportProject={onImportProject}
+          />
+        </PanelSection>
+
+        <PanelSection
+          id="bin-settings-size"
+          title="Bin size"
+          icon={Scaling}
+          tone="blue"
+          summary={`${formatUnitCount(widthCellSpan)} × ${formatUnitCount(lengthCellSpan)} × ${formatUnitCount(spec.heightUnits)}u`}
+          className="scroll-mt-16"
+        >
+          <div className="flex items-center gap-2">
+            <SettingLabel label="Grid pitch" hint="Pitch changes preserve the outer size and custom shape. A coarser pitch is available only when existing cells combine into whole cells." className="shrink-0" />
+            <Select
+              value={spec.gridPitch}
+              onValueChange={(value) => {
+                const gridPitch = value as GridPitch;
+                const resized = changeBinGridPitchPreservingSize(spec, gridPitch);
+                if (!resized || resized.gridX > maxGridCells(gridPitch) || resized.gridY > maxGridCells(gridPitch)) return;
+                patchSpec({
+                  ...resized,
+                  ...(gridPitch === "full"
+                    ? {}
+                    : {
+                        magnetHoles: false,
+                        magnetCrushRibs: false,
+                        screwHoles: false,
+                      }),
+                });
+              }}
+            >
+              <SelectTrigger id="bin-grid-pitch" aria-label="Grid pitch" className="h-8 flex-1" data-testid="select-grid-pitch">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(["full", "half", "quarter"] as const).map((pitch) => {
+                  const resized = changeBinGridPitchPreservingSize(spec, pitch);
+                  const available = resized && resized.gridX <= maxGridCells(pitch) && resized.gridY <= maxGridCells(pitch);
+                  return <SelectItem key={pitch} value={pitch} disabled={!available}>{pitch === "full" ? "Full · 42 mm" : pitch === "half" ? "Half · 21 mm" : "Quarter · 10.5 mm"}{!available ? " (would change shape)" : ""}</SelectItem>;
+                })}
+              </SelectContent>
+            </Select>
+          </div>
+          <FeatureSwitch label="Keep bin size fixed" description="Adding tools keeps these dimensions. Tools that do not fit stay visible for adjustment." checked={keepBinSize} onChange={(fixed) => onKeepBinSizeChange?.(fixed)} />
+          {spec.footprint.kind === "rectangle" ? (
+            <>
+              <CellSlider
+                label="Width"
+                cells={spec.gridX}
+                pitch={spec.gridPitch}
+                onChange={(span, transient) =>
+                  setRectangularCellSpan("x", span, transient)
+                }
+              />
+              <CellSlider
+                label="Length"
+                cells={spec.gridY}
+                pitch={spec.gridPitch}
+                onChange={(span, transient) =>
+                  setRectangularCellSpan("y", span, transient)
+                }
+              />
+            </>
+          ) : (
+            <div className="rounded-md border bg-muted/30 px-2.5 py-2 text-xs text-muted-foreground">
+              Custom footprint. Add or remove cells in the Layout view,
+              or reset to a rectangle to use the size sliders.
+            </div>
+          )}
+          <div className="space-y-1.5">
+            <Label className="text-xs">Height</Label>
+            <div className="flex items-center gap-2">
+              <Slider
+                className="min-w-12 flex-1"
+                value={[spec.heightUnits]}
+                onValueChange={([heightUnits]) =>
+                  patchSpec({ heightUnits }, true)
+                }
+                onValueCommit={([heightUnits]) => patchSpec({ heightUnits })}
+                min={1}
+                max={MAX_HEIGHT_UNITS_UI}
+                step={0.5}
+                aria-label="Height in 0.5u increments"
+              />
+              <span className="flex shrink-0 items-center gap-1 whitespace-nowrap text-xs tabular-nums text-muted-foreground">
+                <DraftNumberInput className="h-8 w-20" aria-label="Bin height in units" value={spec.heightUnits} min={1} max={MAX_HEIGHT_UNITS_UI} step={0.5} normalize={(value) => Math.round(value * 2) / 2} onValueChange={(heightUnits) => patchSpec({ heightUnits }, true)} onValueCommit={(heightUnits) => patchSpec({ heightUnits })} /> units
+              </span>
+            </div>
+          </div>
+          <div className="flex items-start gap-1">
+            <p className="text-xs text-muted-foreground">
+              Outer size {dims.widthMm.toFixed(1)} × {dims.lengthMm.toFixed(1)} ×{" "}
+              {dims.totalHeightMm.toFixed(1)} mm
+              {spec.lip === "standard"
+                ? ` (rim + ${STACKING_LIP_HEIGHT_ACTUAL.toFixed(1)} mm lip)`
+                : ""}
+            </p>
+            <HelpHint label="bin dimensions">
+              <p>
+                Outer size is width × length × total height, measured from the
+                bottom of the base, excluding any baseplate. Each height unit is{" "}
+                {HEIGHT_UNIT_MM} mm, including the base.
+              </p>
+              <p className="mt-2">
+                {spec.lip === "standard" ? <>
+                  Pocketry uses Gridfinity Rebuilt’s {STACKING_LIP_FILLET_RADIUS} mm
+                  lip rounding. The displayed height includes this lip, which adds
+                  approximately {STACKING_LIP_HEIGHT_ACTUAL.toFixed(2)} mm above the{" "}
+                  {HEIGHT_UNIT_MM} × units height ({STACKING_LIP_HEIGHT} mm before
+                  rounding). Rounding preserves the stacking contact surfaces.
+                </> : <>
+                  The stacking lip is off, so total height is {HEIGHT_UNIT_MM} × height units.
+                </>}
+              </p>
+            </HelpHint>
+          </div>
+          {showPreviewBusy && (
+            <div
+              className="flex items-center gap-1.5 rounded-md border border-blue-500/25 bg-blue-500/10 px-2.5 py-1.5 text-xs font-medium text-blue-800 dark:text-blue-100"
+              role="status"
+              aria-live="polite"
+              data-testid="bin-size-preview-status"
+            >
+              <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+              Updating 3D preview…
+            </div>
+          )}
+          {(cutouts.length > 0 || fingerHoles.length > 0) && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full"
+              data-testid="button-fit-bin"
+              onClick={() => fitLayout(cutouts)}
+            >
+              Fit bin to contents
+            </Button>
+          )}
+          <Button
+            variant={editorMode === "footprint" ? "default" : "outline"}
+            size="sm"
+            className="w-full"
+            data-testid="button-edit-footprint"
+            onClick={() => {
+              const editing = editorMode === "footprint";
+              dispatch({ type: "SET_EDITOR_MODE", editorMode: editing ? "placement" : "footprint" });
+              if (!editing) dispatch({ type: "SET_VIEW_MODE", viewMode: "2d" });
+            }}
+          >
+            <LayoutGrid className="h-4 w-4" />
+            {editorMode === "footprint" ? "Finish footprint editing" : "Edit footprint"}
+          </Button>
+          {spec.footprint.kind === "custom" && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full"
+              data-testid="button-reset-footprint"
+              onClick={() => patchSpec({ footprint: { kind: "rectangle" } })}
+            >
+              Reset to rectangle
+            </Button>
+          )}
+        </PanelSection>
+
+        <PanelSection
+          id="bin-settings-construction"
+          title="Construction"
+          icon={Magnet}
+          tone="rose"
+          summary={spec.flatBottom ? "Flat bottom" : `${enabledFeatureCount} on`}
+          defaultOpen={false}
+          className="scroll-mt-16"
+        >
+          <FeatureSwitch
+            label="Stacking lip"
+            description={spec.magneticLid ? spec.magneticLidStyle === "overlap" ? "Replaced by the inset lid rim" : "Locates the inset lid" : spec.flatBottom ? "Receives a Gridfinity bin on top" : "Lets another bin stack on top"}
+            checked={hasStackingLip(spec)}
+            disabled={spec.magneticLid}
+            onChange={(on) => patchSpec({ lip: on ? "standard" : "none" })}
+          />
+          <FeatureSwitch
+            label="Solid fill"
+            id="bin-solid-fill"
+            description="Material for pockets — required for cutouts"
+            checked={spec.fill === "solid"}
+            onChange={(on) => patchSpec({ fill: on ? "solid" : "none" })}
+          />
+          {experimentalEnabled && (spec.magneticLid || spec.fill === "none") && (
+            <MmSlider
+              label="Wall thickness"
+              value={spec.magneticLid ? spec.lidSharedWallThicknessMm : spec.wallThicknessMm}
+              min={spec.magneticLid ? 0.8 : D_WALL}
+              max={spec.magneticLid ? 4 : MAX_HOLLOW_WALL_THICKNESS_MM}
+              step={0.05}
+              hint={spec.magneticLid ? "Shared by the bin wall and lid rim. Changing this requires reprinting both parts." : `Default: ${D_WALL} mm. Thicker walls grow inward, reducing storage space. Outside dimensions and stacking fit stay the same. Applies to hollow walls below the stacking lip; retained when solid fill is on.`}
+              onChange={(wallThicknessMm, transient) => patchSpec(spec.magneticLid ? { lidSharedWallThicknessMm: wallThicknessMm, lidWallThicknessMm: undefined } : { wallThicknessMm }, transient)}
+            />
+          )}
+          {spec.fill === "solid" && (
+            <div className="space-y-2">
+              <FillHeightControl
+                value={spec.fillHeightPercent}
+                onChange={(fillHeightPercent, transient) => patchSpec({ fillHeightPercent }, transient)}
+              />
+              <div className="flex items-start gap-2">
+                <Checkbox
+                  id="adjust-fixed-pocket-depths"
+                  checked={adjustFixedPocketDepths}
+                  onCheckedChange={(checked) => dispatch({ type: "SET_ADJUST_FIXED_POCKET_DEPTHS", enabled: checked === true })}
+                  aria-describedby="adjust-fixed-pocket-depths-help"
+                />
+                <div className="space-y-1">
+                  <Label htmlFor="adjust-fixed-pocket-depths" className="text-xs">Adjust fixed pocket depths</Label>
+                  <p id="adjust-fixed-pocket-depths-help" className="text-[11px] text-muted-foreground">
+                    Keep pocket floors in place. Uncheck to restore original depths.
+                  </p>
+                </div>
+              </div>
+              {editError && <p role="alert" className="text-xs text-destructive">{editError}</p>}
+            </div>
+          )}
+          {experimentalEnabled && <Collapsible
+            open={lidSettingsOpen} onOpenChange={setLidSettingsOpen}
+            className={spec.magneticLid ? "space-y-3 rounded-md border border-rose-500/30 bg-rose-500/[0.025] p-2.5" : undefined}
+            role="group" aria-label="Lid settings" data-testid="lid-settings"
+          >
+            <div className="flex items-center gap-2">
+              {spec.magneticLid ? <CollapsibleTrigger
+                className="group flex min-h-8 min-w-0 flex-1 items-center gap-2 rounded text-left text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring [@media(pointer:coarse)]:min-h-11"
+                aria-label="Lid settings" data-testid="button-toggle-lid-settings"
+              >
+                <span className="flex-1">Lid</span>
+                <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+              </CollapsibleTrigger> : <span className="flex-1 text-xs">Lid</span>}
+              <HelpHint label="lid">Matching removable lid with optional magnet closure</HelpHint>
+              <Switch checked={spec.magneticLid} aria-label="Lid"
+                onCheckedChange={(magneticLid) => {
+                  if (magneticLid) setLidSettingsOpen(true);
+                  patchSpec({ magneticLid, ...(magneticLid ? { lip: "standard" } : {}) });
+                }} />
+            </div>
+            <CollapsibleContent className="space-y-3">
+              {spec.magneticLid && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Lid style</Label>
+                  <div className="grid grid-cols-2 gap-1" role="group" aria-label="Lid style">
+                    {(["overlap", "inset"] as const).map(style => (
+                      <Button key={style} size="sm" className="h-auto min-h-9 min-w-0 whitespace-normal px-2 text-xs" variant={spec.magneticLidStyle === style ? "secondary" : "outline"}
+                        aria-pressed={spec.magneticLidStyle === style} data-testid={`button-lid-style-${style}`}
+                        onClick={() => patchSpec({ magneticLidStyle: style, ...(style === "inset" ? { lip: "standard" } : {}),
+                          ...(style === "overlap" && spec.lidInterface === "spring-latch" ? { lidInterface: "ribs" } : {}) })}>
+                        {style === "overlap" ? "Overlapping edge" : "Inset"}
+                      </Button>
+                    ))}
+                  </div>
+                  <Label className="text-xs">Lid top</Label>
+                  <div className="grid grid-cols-2 gap-1" role="group" aria-label="Lid top">
+                    {(["flat", "stacking"] as const).map(top => (
+                      <Button key={top} size="sm" className="h-auto min-h-9 min-w-0 whitespace-normal px-2 text-xs"
+                        variant={spec.magneticLidTop === top ? "secondary" : "outline"}
+                        aria-pressed={spec.magneticLidTop === top} data-testid={`button-lid-top-${top}`}
+                        onClick={() => patchSpec({ magneticLidTop: top })}>
+                        {top === "flat" ? "Flat" : "Stacking top"}
+                      </Button>
+                    ))}
+                  </div>
+                  {spec.magneticLidTop === "stacking" && <p className="text-xs text-muted-foreground">
+                    Holds a Gridfinity bin on the lid. Exported top up with a filled center. Inspect bridges across the rim channel, interface gaps, and magnet clearances when slicing.
+                    {spec.fill === "solid" && spec.magneticLidStyle === "overlap" && " Re-export solid bins to leave room below this lid."}
+                  </p>}
+                  <p className="text-xs text-muted-foreground">
+                    {spec.magneticLidStyle === "overlap"
+                      ? "Wraps around an inset rim. Replaces the stacking lip."
+                      : "Seats inside the stacking lip, with a full-width raised cap to grip."}
+                  </p>
+                </div>
+              )}
+              {spec.magneticLid && !spec.lidMagnetHoles && (
+                <div className="space-y-2" data-testid="lid-fit-controls">
+                  <Label className="text-xs">Lid fit</Label>
+                  <div className="grid grid-cols-2 gap-1" role="group" aria-label="Lid fit">
+                    {(["lift-off", "friction"] as const).map(fit => (
+                      <Button key={fit} size="sm" className="h-auto min-h-9 min-w-0 whitespace-normal px-2 text-xs"
+                        variant={spec.lidFit === fit ? "secondary" : "outline"}
+                        aria-pressed={spec.lidFit === fit} data-testid={`button-lid-fit-${fit}`}
+                        onClick={() => patchSpec({ lidFit: fit })}>
+                        {fit === "lift-off" ? "Easy lift-off" : "Compliant fit"}
+                      </Button>
+                    ))}
+                  </div>
+                  {spec.lidFit === "friction" ? <>
+                    <Label className="text-xs">Interface</Label>
+                    <Select value={spec.lidInterface} onValueChange={value => patchSpec({ lidInterface: value as BinSpecInput["lidInterface"] })}>
+                      <SelectTrigger className="h-8" aria-label="Lid interface" data-testid="select-lid-interface"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ribs">Contact ribs</SelectItem>
+                        <SelectItem value="side-springs" disabled>Side springs</SelectItem>
+                        <SelectItem value="angled-fins">Angled fins</SelectItem>
+                        {spec.magneticLidStyle === "inset" && <SelectItem value="spring-latch" disabled>Spring latch</SelectItem>}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground" data-testid="lid-interface-unavailable">
+                      Side springs and Spring latch are disabled pending redesign after fit testing.
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {{ ribs: "Small ribs on a thin rim grip the bin.",
+                        "side-springs": "This saved design uses Side springs. Choose Contact ribs or Angled fins for new prints.",
+                        "angled-fins": "Angled fingers run across each straight edge beneath a solid top. Keep their release gaps clear when slicing.",
+                        "spring-latch": "This saved design uses Spring latch. Choose Contact ribs or Angled fins for new prints." }[spec.lidInterface]}
+                      {spec.lidInterface === "angled-fins" ? " Export a matching bin and lid; test the fit before making a larger case." : spec.lidInterface === "ribs" ? " Tune after a test print." : ""}
+                    </p>
+                    {spec.lidInterface === "ribs" && <div data-testid="lid-rib-spacing-controls">
+                      <MmSlider label="Rib spacing" value={spec.lidRibSpacingMm}
+                        min={MIN_LID_RIB_SPACING_MM} max={MAX_LID_RIB_SPACING_MM} step={1}
+                        hint="Closer spacing adds ribs and increases hold. Start with lighter grip for closely spaced overlapping ribs."
+                        onChange={(lidRibSpacingMm, transient) => patchSpec({ lidRibSpacingMm }, transient)} />
+                      <p className="text-xs text-muted-foreground" data-testid="lid-rib-count">
+                        Per edge: {lidContactRibPositions(spec, "x").length} along width · {lidContactRibPositions(spec, "y").length} along length
+                      </p>
+                    </div>}
+                  </> : <p className="text-xs text-muted-foreground">Small locating clearance for easy removal.</p>}
+                  <Label className="text-xs">{spec.lidFit === "friction" ? "Grip" : "Fit adjustment"}</Label>
+                  <Slider centerOrigin value={[Math.round(spec.lidFitAdjustmentMm / 0.05)]} min={-2} max={2} step={1}
+                    aria-label="Lid fit adjustment"
+                    aria-valuetext={spec.lidFitAdjustmentMm === 0 ? "Default" : `${Math.abs(spec.lidFitAdjustmentMm).toFixed(2)} mm ${spec.lidFit === "friction" ? (spec.lidFitAdjustmentMm > 0 ? "firmer" : "lighter") : (spec.lidFitAdjustmentMm > 0 ? "tighter" : "looser")}`}
+                    onValueChange={([step]) => patchSpec({ lidFitAdjustmentMm: Number((step * 0.05).toFixed(2)) }, true)}
+                    onValueCommit={([step]) => patchSpec({ lidFitAdjustmentMm: Number((step * 0.05).toFixed(2)) })} />
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>{spec.lidFit === "friction" ? "Lighter" : "Looser"}</span>
+                    <span>{spec.lidFit === "friction" ? "Firmer" : "Tighter"}</span>
+                  </div>
+                </div>
+              )}
+              {spec.magneticLid && <>
+                <FeatureSwitch label="Grip recess" description="Two finger recesses below the lid edge for easier lifting"
+                  checked={spec.lidGripRecess} onChange={lidGripRecess => patchSpec({ lidGripRecess })} />
+                <FeatureSwitch label="Lid magnet holes" description="Four matching pairs in the lid and bin rim; same magnet size as the underside"
+                  checked={spec.lidMagnetHoles} onChange={lidMagnetHoles => patchSpec({ lidMagnetHoles })} />
+                {spec.lidMagnetHoles && <FeatureSwitch label="Lid crush ribs" description="Press-fit closure magnets, no glue"
+                  checked={spec.lidMagnetCrushRibs} onChange={lidMagnetCrushRibs => patchSpec({ lidMagnetCrushRibs })} />}
+              </>}
+              {spec.magneticLid && spec.lidMagnetHoles && <p className="text-xs text-muted-foreground" data-testid="magnetic-lid-details">
+                Four pairs · ⌀{Number((2 * magnetHoleRadiusMm(spec)).toFixed(2))} × {Number(magnetHoleDepthMm(spec).toFixed(2))} mm recesses, same as the base.
+                {spec.lidMagnetCrushRibs ? " Press-fit" : " Glue"} magnets with attracting faces paired.
+                Keep pockets clear of the corners. Save the lid separately under Export.
+                Check fit with a small print first.
+              </p>}
+            </CollapsibleContent>
+          </Collapsible>}
+          {!spec.flatBottom && (
+            <>
+              <FeatureSwitch
+                label={spec.magneticLid ? "Base magnet holes" : "Magnet holes"}
+                description={
+                  spec.gridPitch === "full"
+                    ? `⌀${Number((2 * magnetHoleRadiusMm(spec)).toFixed(2))} × ${Number(magnetHoleDepthMm(spec).toFixed(2))} mm, four per cell`
+                    : "Available on the full 42 mm pitch"
+                }
+                checked={spec.magnetHoles}
+                disabled={spec.gridPitch !== "full"}
+                onChange={(magnetHoles) => patchSpec({ magnetHoles })}
+              />
+              {spec.magnetHoles && (
+                <FeatureSwitch
+                  label={spec.magneticLid ? "Base crush ribs" : "Crush ribs"}
+                  description="Press-fit magnets, no glue"
+                  checked={spec.magnetCrushRibs}
+                  onChange={(magnetCrushRibs) => patchSpec({ magnetCrushRibs })}
+                />
+              )}
+              <FeatureSwitch
+                label="Screw holes"
+                description={
+                  spec.gridPitch === "full"
+                    ? "⌀3 mm M3, through the base"
+                    : "Available on the full 42 mm pitch"
+                }
+                checked={spec.screwHoles}
+                disabled={spec.gridPitch !== "full"}
+                onChange={(screwHoles) => patchSpec({ screwHoles })}
+              />
+            </>
+          )}
+
+          {experimentalEnabled && hasMagnets(spec) && <div className="space-y-2 rounded-md border p-2.5" role="group" aria-label="Magnet size">
+            <Label className="text-xs">Magnet size</Label>
+            <p className="text-xs text-muted-foreground">One size for all magnets. Enter the magnet's actual dimensions.</p>
+            <MmSlider label="Magnet diameter" value={spec.magnetDiameterMm} min={3} max={12} step={0.1}
+              hint="The hole adds 0.5 mm diameter clearance. Crush ribs grip 0.1 mm inside the magnet diameter."
+              onChange={(magnetDiameterMm, transient) => patchSpec({ magnetDiameterMm }, transient)} />
+            {hasBaseMagnets(spec) && baseMagnetShiftMm(spec) > 0 && <p className="text-xs text-muted-foreground" data-testid="base-magnet-shift-note">
+              Base magnets move inward to fit. Their centers differ from the standard baseplate pattern; screw holes stay in place.
+            </p>}
+            <MmSlider label="Magnet thickness" value={spec.magnetThicknessMm} min={1} max={5} step={0.1}
+              hint="The recess adds 0.4 mm depth. Thicker magnets can increase lid thickness."
+              onChange={(magnetThicknessMm, transient) => patchSpec({ magnetThicknessMm }, transient)} />
+          </div>}
+
+          <FeatureSwitch
+            label="Flat bottom"
+            description="Smooth underside; no Gridfinity base."
+            checked={spec.flatBottom}
+            onChange={(flatBottom) => patchSpec({ flatBottom })}
+          />
+
+          <div className="space-y-2 border-t pt-3">
+            <div className="flex items-center gap-2">
+              <SettingLabel label="Label tab" hint="A sloped shelf under the rim for labelling the bin." className="shrink-0" />
+              <Select
+                value={spec.labelTab?.width ?? "none"}
+                onValueChange={(width) =>
+                  patchSpec({
+                    labelTab:
+                      width === "none"
+                        ? null
+                        : {
+                            wall: spec.labelTab?.wall ?? "north",
+                            width: width as "full" | "center" | "left" | "right",
+                          },
+                  })
+                }
+              >
+                <SelectTrigger id="bin-label-tab" aria-label="Label tab" className="h-8 flex-1" data-testid="select-label-tab">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  <SelectItem value="full">Full width</SelectItem>
+                  <SelectItem value="center">Center · 42 mm</SelectItem>
+                  <SelectItem value="left">Left · 42 mm</SelectItem>
+                  <SelectItem value="right">Right · 42 mm</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {spec.labelTab && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Label className="w-16 shrink-0 text-xs">On wall</Label>
+                  <Select
+                    value={spec.labelTab.wall}
+                    onValueChange={(wall) =>
+                      patchSpec({
+                        labelTab: {
+                          ...spec.labelTab!,
+                          wall: wall as "north" | "south" | "east" | "west",
+                          edge: null,
+                        },
+                      })
+                    }
+                  >
+                    <SelectTrigger aria-label="Label tab wall" className="h-8 flex-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="north">Back</SelectItem>
+                      <SelectItem value="south">Front</SelectItem>
+                      <SelectItem value="east">Right</SelectItem>
+                      <SelectItem value="west">Left</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button
+                  variant={editorMode === "label-edge" ? "default" : "outline"}
+                  size="sm"
+                  className="w-full"
+                  data-testid="button-choose-label-edge"
+                  onClick={() => {
+                    const editing = editorMode === "label-edge";
+                    dispatch({ type: "SET_EDITOR_MODE", editorMode: editing ? "placement" : "label-edge" });
+                    if (!editing) dispatch({ type: "SET_VIEW_MODE", viewMode: "2d" });
+                  }}
+                >
+                  <MousePointerClick className="h-4 w-4" />
+                  {editorMode === "label-edge" ? "Cancel edge selection" : "Choose any edge"}
+                </Button>
               </div>
             )}
           </div>
         </PanelSection>
+
+        {/* Keyed on emptiness: defaultOpen is uncontrolled, and the section
+            should reveal itself the moment the first pocket arrives. */}
+        <PanelSection
+          key={cutouts.length > 0 ? "pockets" : "pockets-empty"}
+          id="bin-settings-pockets"
+          title="Pockets"
+          icon={Scissors}
+          tone="violet"
+          summary={`${cutouts.length} pocket${cutouts.length === 1 ? "" : "s"}`}
+          defaultOpen={!!inspector || cutouts.length > 0}
+          className="scroll-mt-16"
+        >
+          {pocketList}
+          <div className="grid grid-cols-2 gap-1">
+            <AddPocketMenu className="min-w-0 gap-1 px-1.5" />
+            <Button variant="outline" size="sm" className="min-w-0 gap-1 px-1.5" onClick={onAutoArrange} disabled={cutouts.length === 0} data-testid="button-auto-arrange">
+              <LayoutGrid className="h-4 w-4" />Auto-arrange
+            </Button>
+          </div>
+          {!inspector && !selectedCutout && (
+            <p className="rounded-md border border-dashed px-3 py-4 text-xs text-muted-foreground" id="pocket-properties" data-testid="pocket-selection-help">
+              {cutouts.length === 0
+                ? "Choose Add pocket to draw a basic shape, or trace a tool and press “Add to bin”."
+                : "Select a pocket on the canvas or in the list above. Its properties appear here."}
+            </p>
+          )}
+          {!inspector && pocketProperties}
+
+        </PanelSection>
+
+        <PanelSection
+          key={fingerHoles.length > 0 ? "finger-holes" : "finger-holes-empty"}
+          id="bin-settings-finger-holes"
+          title="Finger access"
+          hint="Allow room beside the tool at the depth where you will grip it. Wider slots can accommodate more fingers or gloves. Check the fit with the actual tool and hand before printing the full bin."
+          icon={CircleDot}
+          tone="cyan"
+          summary={<span>{fingerHoles.length}<span className="sr-only"> feature{fingerHoles.length === 1 ? "" : "s"}</span></span>}
+          defaultOpen={!!inspector || fingerHoles.length > 0}
+          className="scroll-mt-16"
+        >
+          <div className="space-y-3">
+            {fingerList}
+            <AddFingerAccessButton className="w-full" />
+
+            {!inspector && fingerProperties}
+          </div>
+        </PanelSection>
+
+        {experimentalEnabled && <PanelSection key={spec.surfaceTexts.length ? "text" : "text-empty"} id="bin-settings-text" title="Surface text" icon={Type} tone="cyan"
+          hint="Add raised text to the flat interior surface. Drag it in Layout, clear of pockets and openings. Double-click a label to edit its wording. You can position text even when the 3D preview cannot build."
+          summary={`${spec.surfaceTexts.length} label${spec.surfaceTexts.length === 1 ? "" : "s"}`} defaultOpen={spec.surfaceTexts.length > 0} className="scroll-mt-16">
+          <SurfaceTextControls onPositionText={onPositionText} />
+          {geometryError && spec.surfaceTexts.length > 0 && <p role="alert" className="text-xs text-destructive">{geometryError}</p>}
+        </PanelSection>}
 
         <PanelSection
           id="bin-settings-materials"
@@ -1682,23 +1976,36 @@ export function BinControlsPanel({
             </div>
             <MaterialColorSwatch
               id="input-bin-color"
+              sources={materialColors}
               label="Bin body"
               value={binColor}
               onChange={onBinColorChange}
             />
           </div>
+          {experimentalEnabled && <div className="space-y-2 rounded-md border bg-background/60 px-2.5 py-2" data-testid="view-color-row-text">
+            <div className="flex items-center justify-between gap-3">
+              <SettingLabel label="Text color" htmlFor="input-text-color" hint="Applies to all surface text in the preview and multi-color 3MF. By default, text matches the edge band." />
+              <MaterialColorSwatch id="input-text-color" sources={materialColors} label="Text" value={spec.textColor ?? edgeBandColor}
+                onChange={textColor => dispatch({ type: "PATCH_SPEC", patch: { textColor }, historyLabel: "Change text color" })} />
+            </div>
+            {spec.textColor !== null && <Button variant="link" size="sm" className="h-auto p-0 text-xs"
+              onClick={() => dispatch({ type: "PATCH_SPEC", patch: { textColor: null }, historyLabel: "Match text to edge band" })}>Use edge-band color</Button>}
+          </div>}
           <div
             className="space-y-2 rounded-md border bg-background/60 px-2.5 py-2"
             data-testid="view-color-row-floor"
           >
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <SettingLabel label="Pocket floors" hint="Separate material below blind-pocket surfaces." />
+                <SettingLabel label={floorColorLabel} hint={spec.fill === "none"
+                  ? "Uses the pocket-floor color and thickness for the interior floor of a hollow bin."
+                  : "Separate material below blind-pocket surfaces."} />
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <MaterialColorSwatch
                   id="input-pocket-floor-color"
-                  label="Pocket floors"
+                  sources={materialColors}
+                  label={floorColorLabel}
                   value={pocketFloorColor}
                   disabled={!colorPocketFloors}
                   onChange={onPocketFloorColorChange}
@@ -1706,7 +2013,7 @@ export function BinControlsPanel({
                 <Switch
                   checked={colorPocketFloors}
                   onCheckedChange={onColorPocketFloorsChange}
-                  aria-label="Color pocket floors"
+                  aria-label={`Color ${floorColorLabel.toLowerCase()}`}
                 />
               </div>
             </div>
@@ -1730,7 +2037,7 @@ export function BinControlsPanel({
                     )
                   }
                   onValueChange={onPocketFloorThicknessChange}
-                  aria-label="Pocket floor color thickness in millimetres"
+                  aria-label={spec.fill === "none" ? "Bin floor color thickness in millimetres" : "Pocket floor color thickness in millimetres"}
                   data-testid="input-pocket-floor-thickness"
                 />
                 <span className="text-[11px] text-muted-foreground">mm down</span>
@@ -1744,27 +2051,28 @@ export function BinControlsPanel({
           >
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <SettingLabel label={spec.magneticLid ? "Lid" : "Stacking rim top"} hint={spec.magneticLid ? "Follows the bin color until you choose a separate lid color. Also used in lid 3MF exports." : "Separate material below the original rim surface."} />
-                {!hasTopColor && <p className="text-[11px] text-muted-foreground">Turn on the stacking lip to enable this material.</p>}
+                <SettingLabel label={rimColorLabel} hint={spec.magneticLid ? "Follows the bin color until you choose a separate lid color. Also used in lid 3MF exports." : spec.lip === "standard"
+                  ? "Separate material below the original rim surface."
+                  : "Color a band around the top perimeter without adding a stacking lip or changing the bin's height."} />
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <MaterialColorSwatch
                   id="input-stacking-rim-color"
-                  label={spec.magneticLid ? "Lid" : "Stacking rim top"}
+                  sources={materialColors}
+                  label={rimColorLabel}
                   value={spec.magneticLid ? lidColor : stackingRimColor}
-                  disabled={!colorStackingRim || !hasTopColor}
+                  disabled={!colorStackingRim}
                   onChange={spec.magneticLid ? onLidColorChange : onStackingRimColorChange}
                 />
                 <Switch
-                  checked={colorStackingRim && hasTopColor}
-                  disabled={!hasTopColor}
+                  checked={colorStackingRim}
                   onCheckedChange={onColorStackingRimChange}
-                  aria-label={spec.magneticLid ? "Color lid" : "Color stacking rim top"}
+                  aria-label={`Color ${rimColorLabel.toLowerCase()}`}
                 />
               </div>
             </div>
             {!spec.magneticLid && <div className="flex items-center justify-between gap-3">
-              <SettingLabel label="Color thickness" htmlFor="input-stacking-rim-thickness" hint="Accent thickness replaces existing material downward from the original surface; it never adds height to the bin." />
+              <SettingLabel label={spec.lip === "standard" ? "Color thickness" : "Color depth"} htmlFor="input-stacking-rim-thickness" hint="Accent thickness replaces existing material downward from the original surface; it never adds height to the bin." />
               <div className="flex items-center gap-1.5">
                 <DraftNumberInput
                   id="input-stacking-rim-thickness"
@@ -1773,7 +2081,7 @@ export function BinControlsPanel({
                   min={MULTICOLOR_MIN_THICKNESS_MM}
                   max={MULTICOLOR_RIM_MAX_THICKNESS_MM}
                   step={0.05}
-                  disabled={!colorStackingRim || !hasTopColor}
+                  disabled={!colorStackingRim}
                   normalize={(value) =>
                     Number(
                       Math.min(
@@ -1783,240 +2091,97 @@ export function BinControlsPanel({
                     )
                   }
                   onValueChange={onStackingRimThicknessChange}
-                  aria-label="Stacking rim color thickness in millimetres"
+                  aria-label={spec.lip === "standard" ? "Stacking rim color thickness in millimetres" : "Top border color depth in millimetres"}
                   data-testid="input-stacking-rim-thickness"
                 />
                 <span className="text-[11px] text-muted-foreground">mm down</span>
               </div>
             </div>}
+            {!spec.magneticLid && spec.lip === "none" && <div className="flex items-center justify-between gap-3">
+              <SettingLabel label="Color width" htmlFor="input-border-width" hint="Width inward from the outer edge. Colors existing material only; hollow bins are limited to their walls." />
+              <div className="flex items-center gap-1.5">
+                <DraftNumberInput
+                  id="input-border-width"
+                  className="h-7 w-20 text-right text-xs"
+                  value={borderWidthMm}
+                  min={MULTICOLOR_MIN_THICKNESS_MM}
+                  max={MULTICOLOR_BORDER_MAX_WIDTH_MM}
+                  step={0.05}
+                  disabled={!colorStackingRim}
+                  normalize={value => Number(Math.min(MULTICOLOR_BORDER_MAX_WIDTH_MM,
+                    Math.max(MULTICOLOR_MIN_THICKNESS_MM, value)).toFixed(2))}
+                  onValueChange={onBorderWidthChange}
+                  aria-label="Top border color width in millimetres"
+                  data-testid="input-border-width"
+                />
+                <span className="text-[11px] text-muted-foreground">mm in</span>
+              </div>
+            </div>}
           </div>
         </PanelSection>
-        <PanelSection id="bin-settings-view" title="Cross-section View" icon={Eye} tone="amber" defaultOpen={section !== null} summary={section ? "Cut open" : "Whole bin"}>
-          <FeatureSwitch
-            label="Cut the preview open"
-            description="Slice the 3D view to inspect pockets. These controls only change the preview; exports always contain the complete bin."
-            checked={section !== null}
-            onChange={(on) =>
-              onSectionChange(on ? { axis: "x", offsetMm: 0 } : null)
-            }
-          />
-          {section && (
-            <>
-              <div className="flex items-center gap-2">
-                <Label className="w-16 shrink-0 text-xs">Axis</Label>
-                <Select
-                  value={section.axis}
-                  onValueChange={(axis) =>
-                    onSectionChange({ ...section, axis: axis as "x" | "y" })
-                  }
-                >
-                  <SelectTrigger className="h-8 flex-1">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="x">Across width (X)</SelectItem>
-                    <SelectItem value="y">Across length (Y)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <MmSlider
-                label="Position"
-                value={section.offsetMm}
-                min={
-                  -binFootprintMm(
-                    section.axis === "x" ? spec.gridX : spec.gridY,
-                    spec.gridPitch,
-                  ) / 2
-                }
-                max={
-                  binFootprintMm(
-                    section.axis === "x" ? spec.gridX : spec.gridY,
-                    spec.gridPitch,
-                  ) / 2
-                }
-                step={0.5}
-                onChange={(offsetMm) => onSectionChange({ ...section, offsetMm })}
+        <PanelSection id="bin-settings-fit" title="Check fit" icon={ClipboardCheck} tone="indigo" defaultOpen={!!inspector || section !== null} summary={section ? "Cut open" : "Inspect & test"}>
+          <details className="group/section rounded-lg border px-3" data-testid="cross-section-settings">
+            <summary className="flex cursor-pointer items-center justify-between gap-2 py-2 text-xs font-semibold">
+              <span className="flex items-center gap-2"><Eye className="h-4 w-4 shrink-0" /><span>Inspect inside<span className="block text-[10px] font-normal text-muted-foreground">Cross-section view · {section ? "Cut open" : "Whole bin"}</span></span></span>
+              <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/section:rotate-180" />
+            </summary>
+            <div className="space-y-3 border-t pb-3 pt-2">
+              <FeatureSwitch
+                label="Cut the preview open"
+                description="Slice the 3D view to inspect pockets. These controls only change the preview; exports always contain the complete bin."
+                checked={section !== null}
+                onChange={(on) => {
+                  changeBinSection(on ? { axis: "x", offsetMm: 0 } : null);
+                  if (on) dispatch({ type: "SET_VIEW_MODE", viewMode: "3d" });
+                }}
               />
-            </>
-          )}
-        </PanelSection>
-
-        <PanelSection id="bin-settings-fit" title="Check fit" icon={ClipboardCheck} tone="emerald" defaultOpen={false} summary="Thin templates">
-          <div
-            className="space-y-3 rounded-md border border-violet-500/25 bg-violet-500/5 p-2.5"
-            data-testid="export-preview-layout"
-          >
-            <div>
-              <SettingLabel label="Fit templates and layout" hint="Print a thin template and try the actual tools before printing the full bin. These lightweight outputs check fit or plan a shadow board; they are not the final bin model." />
-            </div>
-
-            {(cutouts.length > 0 || fingerHoles.length > 0) && (
-              <div
-                className="space-y-2 border-t pt-2.5"
-                data-testid="surface-fit-test-export"
-              >
-                <div>
-                  <SettingLabel label="Surface fit test" hint="Export the full pocket-layout surface or 5 mm wide bands around the tool openings only. Tool outlines omit the bin perimeter and separate finger access features. Widely spaced tools print as separate pieces. Thickness sets the printed height. Omits the base, wall height, label tab, and stacking lip; it does not test cut depth or baseplate fit." />
-                </div>
-                <div className="flex items-center gap-2">
-                  <Label className="w-20 shrink-0 text-xs">Shape</Label>
-                  <Select value={surfaceFitCheckStyle} onValueChange={value => setSurfaceFitCheckStyle(surfaceFitCheckStyleSchema.parse(value))}>
-                    <SelectTrigger className="h-8" aria-label="Surface fit test shape" data-testid="select-surface-fit-test-style">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="full">Full surface</SelectItem>
-                      <SelectItem value="outline" disabled={cutouts.length === 0}>Tool outlines · {SURFACE_FIT_CHECK_OUTLINE_WIDTH_MM} mm</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Label className="w-20 shrink-0 text-xs">Thickness</Label>
-                  <DraftNumberInput
-                    className="h-8"
-                    value={surfaceFitCheckThicknessMm}
-                    min={SURFACE_FIT_CHECK_MIN_THICKNESS_MM}
-                    max={SURFACE_FIT_CHECK_MAX_THICKNESS_MM}
-                    step={0.2}
-                    normalize={(value) =>
-                      Math.min(
-                        SURFACE_FIT_CHECK_MAX_THICKNESS_MM,
-                        Math.max(SURFACE_FIT_CHECK_MIN_THICKNESS_MM, value),
-                      )
+              {section && (
+                <>
+                  <div className="flex items-center gap-2">
+                    <Label className="w-16 shrink-0 text-xs">Axis</Label>
+                    <Select
+                      value={section.axis}
+                      onValueChange={(axis) =>
+                        changeBinSection({ ...section, axis: axis as "x" | "y" })
+                      }
+                    >
+                      <SelectTrigger className="h-8 flex-1" aria-label="Cross-section axis">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="x">Across width (X)</SelectItem>
+                        <SelectItem value="y">Across length (Y)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <MmSlider
+                    label="Position"
+                    value={section.offsetMm}
+                    min={
+                      -binFootprintMm(
+                        section.axis === "x" ? spec.gridX : spec.gridY,
+                        spec.gridPitch,
+                      ) / 2
                     }
-                    onValueChange={setSurfaceFitCheckThicknessMm}
-                    aria-label="Surface fit test thickness in millimetres"
-                    data-testid="input-surface-fit-test-thickness"
-                  />
-                  <span className="text-xs text-muted-foreground">mm</span>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full"
-                  disabled={exporting || hasErrors || (surfaceFitCheckStyle === "outline" && cutouts.length === 0)}
-                  onClick={() =>
-                    setPendingExport({
-                      title: "Save surface fit test STL?",
-                      description: surfaceFitCheckStyle === "outline"
-                        ? `Download ${SURFACE_FIT_CHECK_OUTLINE_WIDTH_MM} mm wide tool outlines, ${surfaceFitCheckThicknessMm} mm thick.`
-                        : `Download the complete pocket layout as a ${surfaceFitCheckThicknessMm} mm thin plate.`,
-                      confirmLabel: "Download STL",
-                      onConfirm: (includeProject) => onExportSurfaceFitCheck(surfaceFitCheckThicknessMm, includeProject, surfaceFitCheckStyle),
-                    })
-                  }
-                  data-testid="button-export-surface-fit-test"
-                >
-                  <Download className="mr-1.5 h-3.5 w-3.5" />
-                  {exporting ? "Building…" : "Save surface fit test STL"}
-                </Button>
-              </div>
-            )}
-
-            {selectedCutout && selectedShape ? (
-              <div className="space-y-2 border-t pt-2.5">
-                <div>
-                  <SettingLabel label="Tool fit template" hint="A filled tool outline without the bin or finger access features. Includes its Trace margin, signed pocket clearance, and outline corner rounding." />
-                  <p className="truncate text-xs font-medium" title={pocketName(selectedCutout, selectedShape)}>{pocketName(selectedCutout, selectedShape)}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Label className="w-20 shrink-0 text-xs">Thickness</Label>
-                  <DraftNumberInput
-                    className="h-8"
-                    value={fitCheckDepthMm}
-                    min={0.5}
-                    max={30}
+                    max={
+                      binFootprintMm(
+                        section.axis === "x" ? spec.gridX : spec.gridY,
+                        spec.gridPitch,
+                      ) / 2
+                    }
                     step={0.5}
-                    normalize={(value) => Math.min(30, Math.max(0.5, value))}
-                    onValueChange={setFitCheckDepthMm}
-                    aria-label="Fit template thickness in millimetres"
-                    data-testid="input-fit-check-depth"
+                    onChange={(offsetMm) => changeBinSection({ ...section, offsetMm })}
                   />
-                  <span className="text-xs text-muted-foreground">mm</span>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full"
-                  disabled={exporting}
-                  onClick={() => setPendingExport({
-                    title: "Save fit template STL?",
-                    description: `Download the filled outline of “${pocketName(selectedCutout, selectedShape)}” at ${fitCheckDepthMm} mm thick.`,
-                    confirmLabel: "Download STL",
-                    onConfirm: (includeProject) => onExportFitCheck(selectedCutout.id, fitCheckDepthMm, includeProject),
-                  })}
-                  data-testid="button-export-fit-check"
-                >
-                  <Download className="mr-1.5 h-3.5 w-3.5" />
-                  {exporting ? "Building…" : "Save fit template STL"}
-                </Button>
-              </div>
-            ) : cutouts.length > 0 ? (
-              <p className="border-t pt-2.5 text-[11px] text-muted-foreground">
-                Select a tool cutout to export a fit template.
-              </p>
-            ) : (
-              <div
-                className="space-y-2 border-t pt-2.5"
-                data-testid="export-preview-empty"
-              >
-                <p className="text-[11px] text-muted-foreground">
-                  Add a tool cutout to enable fit templates and shadow-board
-                  DXF/SVG files.
-                </p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full"
-                  onClick={() => navigate("/")}
-                  data-testid="button-go-to-trace"
-                >
-                  Go to Trace
-                </Button>
-              </div>
-            )}
-
-            {cutouts.length > 0 && (
-              <div className="space-y-1.5 border-t pt-2.5">
-                <SettingLabel label="Shadow-board layout (top view)" hint="Bin footprint and pocket silhouettes in millimetres, for CNC or laser shadow boards." />
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1"
-                    onClick={() => setPendingExport({
-                      title: "Save layout DXF?",
-                      description: "Download the bin footprint and pocket outlines in millimetres.",
-                      confirmLabel: "Download DXF",
-                      onConfirm: (includeProject) => onExportLayout("dxf", includeProject),
-                    })}
-                    data-testid="button-layout-dxf"
-                  >
-                    Layout DXF
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1"
-                    onClick={() => setPendingExport({
-                      title: "Save layout SVG?",
-                      description: "Download the bin footprint and pocket outlines in millimetres.",
-                      confirmLabel: "Download SVG",
-                      onConfirm: (includeProject) => onExportLayout("svg", includeProject),
-                    })}
-                    data-testid="button-layout-svg"
-                  >
-                    Layout SVG
-                  </Button>
-                </div>
-              </div>
-            )}
-          </div>
+                </>
+              )}
+            </div>
+          </details>
+          {fitTestControls}
         </PanelSection>
 
         <PanelSection
           id="bin-settings-export"
-          title="Export printable bin"
+          title="Export"
           icon={Download}
           tone="emerald"
           summary={
@@ -2024,17 +2189,19 @@ export function BinControlsPanel({
               ? "Needs attention"
               : issues.length > 0
                 ? `${issues.length} ${issues.length === 1 ? "warning" : "warnings"}`
-              : building
+              : showPreviewBusy
                 ? stats
                   ? "Updating"
                   : "Building"
+                : !building && statsAreStale
+                  ? "Preview unavailable"
                 : cutouts.length === 0 && fingerHoles.length === 0
                   ? "No cutouts"
                 : stats
                   ? "Ready"
                   : "No preview"
           }
-          defaultOpen={hasErrors}
+          defaultOpen={!!inspector || hasErrors}
           className="scroll-mt-16"
         >
           <div className="space-y-1">
@@ -2045,14 +2212,17 @@ export function BinControlsPanel({
                   {stats.triangles.toLocaleString()} triangles ·{" "}
                   {(stats.volumeMm3 / 1000).toFixed(1)} cm³ model volume
                 </p>
+                {statsAreStale ? <p>{building ? "Previous model · updating…" : "Previous model · preview unavailable"}</p> : null}
               </div>
             ) : (
               <p className="text-xs text-muted-foreground">
-                {building ? "Building preview…" : "No preview yet."}
+                {previewIsDraft
+                  ? building ? "Simplified preview. Model volume will appear when details are ready." : "Simplified preview. Detailed model statistics are unavailable."
+                  : building ? "Building preview…" : "No preview yet."}
               </p>
             )}
           </div>
-          {spec.fill === "solid" && cutouts.length === 0 && fingerHoles.length === 0 ? (
+          {cutouts.length === 0 && fingerHoles.length === 0 ? (
             <div
               className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs text-amber-900 dark:text-amber-100"
               role="status"
@@ -2067,12 +2237,25 @@ export function BinControlsPanel({
             </div>
           ) : null}
 
+          {hasErrors && <div role="alert" className="space-y-2 rounded-md border border-destructive/50 bg-destructive/5 p-3 text-sm" data-testid="export-blocked-reasons">
+            <p className="font-medium">{issues.filter(issue => issue.severity === "error").length} {issues.filter(issue => issue.severity === "error").length === 1 ? "problem blocks" : "problems block"} 3D export</p>
+            <p>Fix these problems before exporting the bin or a fit test.</p>
+            <ul className="space-y-2">
+              {issues.filter(issue => issue.severity === "error").map((issue, index) => <li key={`${issue.code}-${index}`}>
+                <button type="button" className="min-h-11 w-full rounded border bg-background px-3 py-2 text-left text-xs leading-relaxed hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  data-export-issue={issue.code} onClick={() => onRevealIssue(issue)}>
+                  {issue.message}<span className="mt-1 block font-medium underline">Show settings to fix this</span>
+                </button>
+              </li>)}
+            </ul>
+          </div>}
+
           <div
             className="space-y-2 rounded-md border border-emerald-500/30 bg-emerald-500/5 p-2.5"
             data-testid="export-final-model"
           >
             <div>
-              <SettingLabel label="Export printable bin" hint="Export the complete bin at print quality. Use 3MF to preserve optional material colors. Select the editable-project checkbox in the export dialog to also save a project JSON with your tools and settings." />
+              <SettingLabel label="Export bin design" hint="Export the complete bin at print quality. Use 3MF to preserve optional material colors. Select the editable-project checkbox in the export dialog to also save a project JSON with your tools and settings." />
             </div>
             <div className="flex gap-2">
               <Button
@@ -2082,7 +2265,7 @@ export function BinControlsPanel({
                 onClick={() => { setIncludeThreeMfProject(false); setThreeMfDialogOpen(true); }}
                 data-testid="button-export-3mf"
               >
-                <Box className="mr-1.5 h-4 w-4" />
+                <Box className="h-4 w-4" />
                 {exporting ? "Exporting…" : "Save 3MF"}
               </Button>
               <Button
@@ -2092,8 +2275,8 @@ export function BinControlsPanel({
                 disabled={exporting || hasErrors}
                 onClick={() => setPendingExport({
                   title: hasSelectedMulticolor ? "STL will not include your colors" : "Save bin STL?",
-                  description: exportDimensions + " " + (hasSelectedMulticolor
-                    ? "STL stores geometry only. Use multi-color 3MF to preserve the selected pocket-floor and rim-top materials."
+                  description: exportDimensions + (spec.surfaceTexts.length ? " STL joins text to the bin; use 3MF to keep labels as separate parts. " : " ") + (hasSelectedMulticolor
+                    ? "STL stores geometry only. Use multi-color 3MF to preserve your selected material colors."
                     : "Download the complete bin at print quality."),
                   confirmLabel: hasSelectedMulticolor ? "Export STL without colors" : "Download STL",
                   onConfirm: (includeProject) => onExport("stl", includeProject),
@@ -2126,8 +2309,47 @@ export function BinControlsPanel({
               </div>
             </div>
           )}
+
+
+          {exportOnly && fitTestControls}
+
+          {cutouts.length > 0 && (
+            <div className="space-y-2 rounded-md border border-emerald-500/30 bg-emerald-500/5 p-2.5">
+              <SettingLabel label="Export shadow-board layout (top view)" hint="Bin footprint and pocket silhouettes in millimetres, for CNC or laser shadow boards." />
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => setPendingExport({
+                    title: "Save layout DXF?",
+                    description: "Download the bin footprint and pocket outlines in millimetres.",
+                    confirmLabel: "Download DXF",
+                    onConfirm: (includeProject) => onExportLayout("dxf", includeProject),
+                  })}
+                  data-testid="button-layout-dxf"
+                >
+                  Save DXF
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => setPendingExport({
+                    title: "Save layout SVG?",
+                    description: "Download the bin footprint and pocket outlines in millimetres.",
+                    confirmLabel: "Download SVG",
+                    onConfirm: (includeProject) => onExportLayout("svg", includeProject),
+                  })}
+                  data-testid="button-layout-svg"
+                >
+                  Save SVG
+                </Button>
+              </div>
+            </div>
+          )}
         </PanelSection>
-      </PanelBody>
+      </InspectorPanelSections>
 
       <AlertDialog
         open={pendingRemoval !== null}
@@ -2208,11 +2430,11 @@ export function BinControlsPanel({
               }}
               data-testid="button-export-single-color-3mf"
             >
-              <Box className="mr-2 mt-0.5 h-4 w-4 shrink-0" />
+              <Box className="mt-0.5 h-4 w-4 shrink-0" />
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-medium">Single-color 3MF</span>
                 <span className="block text-[11px] font-normal text-muted-foreground">
-                  One body using the selected bin color.
+                  {spec.surfaceTexts.length ? "Bin and separate text parts using the selected bin color." : "One body using the selected bin color."}
                 </span>
               </span>
             </Button>
@@ -2225,22 +2447,23 @@ export function BinControlsPanel({
               }}
               data-testid="button-export-multicolor-3mf"
             >
-              <Palette className="mr-2 mt-0.5 h-4 w-4 shrink-0" />
+              <Palette className="mt-0.5 h-4 w-4 shrink-0" />
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-medium">Multi-color 3MF</span>
                 <span className="block text-[11px] font-normal opacity-80">
                   {hasSelectedMulticolor
                     ? `Separate ${[
                         hasSelectedFloorColor
-                          ? `pocket floors (${pocketFloorThicknessMm} mm down)`
+                          ? `${floorColorLabel.toLowerCase()} (${pocketFloorThicknessMm} mm down)`
                           : null,
                         hasSelectedRimColor
-                          ? `rim top (${stackingRimThicknessMm} mm down)`
+                          ? `${spec.lip === "standard" ? "rim top" : "top border"} (${spec.lip === "none" ? `${borderWidthMm} mm wide, ` : ""}${stackingRimThicknessMm} mm down)`
                           : null,
+                        spec.surfaceTexts.length ? "colored text parts" : null,
                       ]
                         .filter(Boolean)
                         .join(" and ")} for slicer assignment.`
-                    : "Enable a floor or rim-top color in Materials & Colors first."}
+                    : "Add surface text, or enable a floor, rim, or border color in Materials & Colors first."}
                 </span>
               </span>
             </Button>
@@ -2265,6 +2488,16 @@ export function BinControlsPanel({
       )}
 
     </div>
+      {inspector?.projectHeader && createPortal(<div className="flex flex-wrap items-center gap-1 pr-2" data-testid="editor-project-header">
+        {projectStatus}
+        <div className="flex shrink-0 items-center gap-1 max-[500px]:w-full max-[500px]:justify-end max-[500px]:border-t max-[500px]:py-1">
+          <Button size="sm" variant="ghost" className="gap-1.5" onClick={() => inspector.showSection("bin-settings-project")}><FolderOpen className="h-4 w-4" />Project</Button>
+          <Button size="sm" variant="ghost" className="gap-1.5" onClick={() => inspector.showSection("bin-settings-fit")}><ClipboardCheck className="h-4 w-4" />Check fit</Button>
+          <Button size="sm" className="gap-1.5" onClick={() => inspector.showSection("bin-settings-export")}><Download className="h-4 w-4" />Export</Button>
+        </div>
+      </div>, inspector.projectHeader)}
+      {experimentalEnabled && inspector?.properties && createPortal(<SurfaceTextProperties />, inspector.properties)}
+      {inspector?.properties && selection.length === 1 && createPortal(<>{pocketProperties}{fingerProperties}</>, inspector.properties)}
     </PanelSectionFilterContext.Provider>
   );
 }
@@ -2275,6 +2508,7 @@ interface ProjectControlsProps {
   saveStatus?: "saving" | "saved" | "error";
   hydrated: boolean;
   libraryReady: boolean;
+  libraryError?: string | null;
   busy: boolean;
   activeProjectId: string | null;
   hasDraftWork: boolean;
@@ -2287,8 +2521,8 @@ interface ProjectControlsProps {
   onDeleteProject: (projectId: string) => Promise<boolean>;
   onRefreshProjects: () => void;
   onExportLibrary: () => void;
-  onImportLibrary: (file: File) => void;
-  onNewProject: () => void;
+  onImportLibrary: (file: File, mode: LibraryImportMode) => Promise<boolean>;
+  onNewProject: (saveDraftName?: string) => Promise<boolean>;
   onExportProject: () => void;
   onImportProject: (doc: ProjectDoc) => Promise<boolean>;
 }
@@ -2304,6 +2538,7 @@ function ProjectControls({
   setSaveOpen,
   hydrated,
   libraryReady,
+  libraryError,
   busy,
   activeProjectId,
   hasDraftWork,
@@ -2325,9 +2560,40 @@ function ProjectControls({
   const ready = hydrated && libraryReady;
   const [renameProjectId, setRenameProjectId] = useState<string | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
+  const [removeProject, setRemoveProject] = useState<ProjectLibraryItem | null>(null);
+  const [newProjectOpen, setNewProjectOpen] = useState(false);
+  const [newProjectName, setNewProjectName] = useState("");
+  const [newProjectError, setNewProjectError] = useState(false);
+  const unsavedDraft = !activeProjectId && hasDraftWork;
+  const createNewProject = async (saveDraftName?: string) => {
+    if (busy) return;
+    projectFileReadRevision.current += 1;
+    setNewProjectError(false);
+    if (await onNewProject(saveDraftName)) setNewProjectOpen(false);
+    else setNewProjectError(true);
+  };
+  const returnToLibrary = useRef(false);
+  const { settingsOpen } = useExperimentalFeatures();
+  useEffect(() => { if (settingsOpen) { setLibraryOpen(false); setSaveOpen(false); setRenameProjectId(null); setRemoveProject(null); setNewProjectOpen(false); } }, [settingsOpen, setSaveOpen]);
+  useEffect(() => { if (activeProjectId) setSelectedProjectId(activeProjectId); }, [activeProjectId]);
+  const saveDraftFromLibrary = () => { returnToLibrary.current = true; setLibraryOpen(false); setSaveOpen(true); };
+  const returnAfterNaming = () => {
+    if (returnToLibrary.current) { returnToLibrary.current = false; setLibraryOpen(true); }
+  };
+
+  const [pendingLibraryFile, setPendingLibraryFile] = useState<File | null>(null);
+  const [libraryImportMode, setLibraryImportMode] = useState<LibraryImportMode>("merge");
   const [pendingOpenProject, setPendingOpenProject] = useState<ProjectOpenTarget | null>(null);
   const { toast } = useToast();
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const { libraryRequested, setLibraryRequested } = usePanelState();
+  useEffect(() => {
+    if (!libraryRequested || !libraryReady || busy) return;
+    setLibraryOpen(true);
+    setSelectedProjectId(activeProjectId);
+    setLibraryRequested(false);
+    onRefreshProjects();
+  }, [libraryRequested, libraryReady, busy, activeProjectId, setLibraryRequested, onRefreshProjects]);
   const [projectName, setProjectName] = useState("");
   useEffect(() => {
     if (saveOpen) setProjectName(currentProjectName ?? "");
@@ -2342,7 +2608,7 @@ function ProjectControls({
   useEffect(() => { projectFileReadRevision.current += 1; }, [activeProjectId]);
 
   const openProject = async (target: ProjectOpenTarget, discardDraft = false, source?: HTMLElement | null) => {
-    if (busy || (target.kind === "library" && target.project.id === activeProjectId)) return;
+    if (!ready || busy || (target.kind === "library" && (target.project.id === activeProjectId || target.project.unavailable))) return;
     // A later library-open choice supersedes any file still being validated.
     if (target.kind === "library") projectFileReadRevision.current += 1;
     if (!activeProjectId && hasDraftWork && !discardDraft) {
@@ -2395,23 +2661,24 @@ function ProjectControls({
       if (project) setRenameProjectId(open ? project.id : null);
       else setSaveOpen(open);
       if (open) setProjectName(project?.name ?? currentProjectName ?? "");
+      else returnAfterNaming();
     };
     return (
       <Dialog open={project ? renameProjectId === project.id : saveOpen} onOpenChange={setOpen}>
-        <DialogTrigger asChild>
+        {!project && <DialogTrigger asChild>
           <Button
             variant={renaming ? "ghost" : "outline"}
             size="icon"
             className="h-8 w-8 shrink-0 text-muted-foreground [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11"
-            aria-label={project ? `Rename ${project.name}` : renaming ? "Rename project" : "Save to library"}
+            aria-label={renaming ? "Rename project" : "Save to library"}
             title={renaming ? "Rename project" : "Save to library"}
             disabled={!ready || busy}
-            data-testid={project ? `button-rename-project-${project.id}` : "button-save-library"}
+            data-testid="button-save-library"
           >
             {renaming ? <Pencil className="h-3.5 w-3.5 shrink-0" /> : <Save className="h-3.5 w-3.5 shrink-0" />}
           </Button>
-        </DialogTrigger>
-        <DialogContent className="grid-cols-1">
+        </DialogTrigger>}
+        <DialogContent className="grid-cols-1" onCloseAutoFocus={event => { if (libraryOpen || returnToLibrary.current) event.preventDefault(); }}>
           <form className="contents" onSubmit={async (event) => {
             event.preventDefault();
             if (busy) return;
@@ -2450,7 +2717,7 @@ function ProjectControls({
 
   const renderLibraryDialog = (): JSX.Element => (
     <Dialog
-      open={libraryOpen}
+      open={libraryOpen && !saveOpen && !renameProjectId && !removeProject && !pendingLibraryFile && !pendingOpenProject && !settingsOpen}
       onOpenChange={(open) => {
         setLibraryOpen(open);
         if (open) setSelectedProjectId(activeProjectId);
@@ -2459,20 +2726,19 @@ function ProjectControls({
     >
       <DialogTrigger asChild>
         <Button
-          variant="ghost"
+          variant="outline"
           size="sm"
-          disabled={!ready || busy}
+          disabled={!libraryReady || busy}
           data-testid="button-manage-library"
-          className="h-8 gap-1 px-2 text-xs text-muted-foreground [@media(pointer:coarse)]:min-h-11"
-          aria-label="Manage library"
-          title="Manage browser library"
+          className={cn(projectActionClass, "w-full")}
         >
           <LibraryBig className="h-3.5 w-3.5 shrink-0" />
-          Manage
+          Manage Browser Library
         </Button>
       </DialogTrigger>
       <DialogContent
         ref={libraryDialogRef}
+        onCloseAutoFocus={event => { if (saveOpen || renameProjectId || removeProject || pendingLibraryFile || pendingOpenProject || settingsOpen) event.preventDefault(); }}
         className="flex max-h-[85dvh] flex-col overflow-hidden p-4 sm:p-6 [&>button]:hidden [@media(max-height:500px)]:max-h-[calc(100dvh_-_2rem)] [@media(max-height:500px)]:overflow-y-auto [@media(max-height:500px)]:scroll-pt-[var(--library-header-height)]"
         onOpenAutoFocus={(event) => {
           event.preventDefault();
@@ -2484,7 +2750,8 @@ function ProjectControls({
             '[data-testid="managed-project-list"] [data-project-id]',
           ) ?? [])];
           // Compare the data value rather than interpolating a saved ID into CSS.
-          const target = rows.find((row) => row.dataset.projectId === activeProjectId) ?? rows[0]
+          const target = rows.find((row) => row.dataset.projectId === (selectedProjectId ?? activeProjectId)) ?? rows[0]
+            ?? libraryDialogRef.current?.querySelector<HTMLElement>('[data-testid="button-save-draft-library"]')
             ?? libraryDialogRef.current?.querySelector<HTMLElement>('[data-testid="button-export-library"]');
           target?.focus({ preventScroll: true });
           target?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
@@ -2493,8 +2760,8 @@ function ProjectControls({
         <DialogHeader data-testid="library-manager-header" className="relative shrink-0 pr-10 bg-background before:pointer-events-none before:absolute before:-inset-x-4 before:-top-4 before:h-4 before:bg-background [@media(max-height:500px)]:sticky [@media(max-height:500px)]:top-0 [@media(max-height:500px)]:z-10">
           <DialogTitle>Manage browser library</DialogTitle>
           <DialogDescription>
-            {projects.length} saved project{projects.length === 1 ? "" : "s"} in this browser.
-            Open a project here, or import and export the entire library below.
+            {libraryError ? "The browser library could not be refreshed." : `${projects.length} saved project${projects.length === 1 ? "" : "s"} in this browser.`}
+            {" "}Open a project here, or import and export the entire library below.
           </DialogDescription>
           <DialogClose asChild>
             <Button variant="ghost" size="icon" className="absolute -right-2 -top-2 !mt-0 h-11 w-11" aria-label="Close">
@@ -2507,10 +2774,17 @@ function ProjectControls({
           className="min-h-0 [&_[data-radix-scroll-area-viewport]]:max-h-[min(20rem,calc(85dvh_-_15rem))] [@media(max-height:500px)]:shrink-0 [@media(max-height:500px)]:[&_[data-radix-scroll-area-viewport]]:max-h-none [&_[data-orientation=vertical]]:bg-muted/50 [&_[data-orientation=vertical]>div]:bg-muted-foreground/50"
           data-testid="manage-library-scroll"
         >
+        <p className="mb-3 text-xs text-muted-foreground">Saved only in this browser. Export library to keep a portable backup of named projects. Unnamed drafts need a separate project backup.</p>
         <div className="space-y-2 pr-4" data-testid="managed-project-list">
-          {projects.length === 0 ? (
+          {libraryError ? (
+            <div className="rounded-md border border-destructive/40 p-3 text-sm" role="alert">
+              <p>{libraryError}</p>
+              <Button variant="outline" className="mt-2 min-h-11" onClick={onRefreshProjects}>Try again</Button>
+            </div>
+          ) : projects.length === 0 ? (
             <div className="rounded-md border border-dashed p-5 text-center text-sm text-muted-foreground">
-              No named projects yet. Save the current draft to add one.
+              <p>No named projects yet.</p>
+              <Button className="mt-3 min-h-11 h-auto w-full whitespace-normal" data-testid="button-save-draft-library" disabled={!ready || busy} onClick={saveDraftFromLibrary}>Save this draft to Library</Button>
             </div>
           ) : (
             projects.map((project) => {
@@ -2555,9 +2829,16 @@ function ProjectControls({
                       <p className="min-w-0 truncate text-sm font-medium" title={project.name}>
                         {project.name}
                       </p>
-                      {renderNameDialog(project)}
+                      <Button variant="ghost" size="icon" className="h-11 w-11 shrink-0" aria-label={`Rename ${project.name}`} data-testid={`button-rename-project-${project.id}`} disabled={!ready || busy || !!project.unavailable}
+                        onClick={() => { returnToLibrary.current = true; setProjectName(project.name); setLibraryOpen(false); setRenameProjectId(project.id); }}><Pencil className="h-4 w-4" /></Button>
                     </div>
                     {active && <p className="text-xs text-muted-foreground">Current project</p>}
+                    {project.unavailable && <p className="mt-1 text-xs text-muted-foreground">
+                      {project.unavailable === "newer-version"
+                        ? "Saved by a newer Pocketry version. Reload Pocketry to update."
+                        : "This project could not be read by this version of Pocketry."}
+                      {" "}Kept intact and included in library backups.
+                    </p>}
                     <p className="text-[11px] text-muted-foreground">
                       Updated {formatProjectTime(project.updatedAt)}
                     </p>
@@ -2567,19 +2848,19 @@ function ProjectControls({
                     size="sm"
                     variant={active ? "secondary" : "outline"}
                     className="min-h-11 gap-1.5 px-2 text-xs"
-                    disabled={busy || active}
+                    disabled={!ready || busy || active || !!project.unavailable}
                     onClick={() => void openLibraryProject()}
-                    aria-label={active ? `${project.name} is currently open` : `Open ${project.name}`}
+                    aria-label={project.unavailable ? `${project.name} cannot be opened in this version` : active ? `${project.name} is currently open` : `Open ${project.name}`}
                     data-testid={`button-open-project-${project.id}`}
                   >
-                    {!active && <FolderOpen className="h-4 w-4" />}
-                    {active ? "Current" : "Open"}
+                    {!active && !project.unavailable && <FolderOpen className="h-4 w-4" />}
+                    {project.unavailable ? "Unavailable" : active ? "Current" : "Open"}
                   </Button>
                   <Button
                     size="sm"
                     variant="outline"
                     className="min-h-11 gap-1.5 px-2 text-xs"
-                    disabled={busy}
+                    disabled={!ready || busy || !!project.unavailable}
                     aria-label={`Duplicate ${project.name}`}
                     title="Duplicate project"
                     data-testid={`button-duplicate-project-${project.id}`}
@@ -2590,40 +2871,8 @@ function ProjectControls({
                   >
                     <Copy className="h-4 w-4" />Copy
                   </Button>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="min-h-11 shrink-0 gap-1.5 px-2 text-xs text-destructive hover:text-destructive"
-                        disabled={busy || active}
-                        aria-label={`Remove ${project.name} from library`}
-                        data-testid={`button-remove-project-${project.id}`}
-                      >
-                        <Trash2 className="h-4 w-4 shrink-0" />Remove
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent className="grid-cols-1">
-                      <AlertDialogHeader className="min-w-0 [overflow-wrap:anywhere]">
-                        <AlertDialogTitle>Remove “{project.name}” from library?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This removes the saved copy from this browser. Your current project
-                          will not change. Exported backup files are not affected.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Keep project</AlertDialogCancel>
-                        <AlertDialogAction
-                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                          disabled={busy || active}
-                          onClick={() => void onDeleteProject(project.id)}
-                          data-testid="button-confirm-remove-project"
-                        >
-                          Remove from library
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+                  <Button size="sm" variant="ghost" className="min-h-11 gap-1.5 px-2 text-xs text-destructive" disabled={!ready || busy || active}
+                    aria-label={`Remove ${project.name} from library`} data-testid={`button-remove-project-${project.id}`} onClick={() => setRemoveProject(project)}><Trash2 className="h-4 w-4" />Remove</Button>
                   </div>
                 </div>
               );
@@ -2633,10 +2882,10 @@ function ProjectControls({
         </ScrollArea>
         <div className="shrink-0 space-y-1.5 border-t pt-3" data-testid="library-file-backup">
           <div className="flex items-center justify-between gap-2">
-            <SettingLabel label="Entire library" hint="Exports every named project saved in this browser as one JSON file. Unnamed drafts are not included. Import adds projects without replacing your current design or existing library; duplicate names receive an imported suffix." />
+            <SettingLabel label="Entire library" hint="Exports every named project saved in this browser as one JSON file. Unnamed drafts are not included. Import lets you merge with this library or replace it. Your current design stays open; duplicate names receive an imported suffix when merging." />
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <Button size="sm" variant="outline" className={projectActionClass} disabled={!ready || busy}
+            <Button size="sm" variant="outline" className={projectActionClass} disabled={!libraryReady || busy}
               onClick={onExportLibrary} data-testid="button-export-library">
               <Download className="h-3.5 w-3.5 shrink-0" />Export library
             </Button>
@@ -2651,7 +2900,7 @@ function ProjectControls({
           onChange={(event) => {
             const file = event.currentTarget.files?.[0];
             event.currentTarget.value = "";
-            if (file) onImportLibrary(file);
+            if (file && !busy) { setLibraryImportMode("merge"); setPendingLibraryFile(file); }
           }} />
       </DialogContent>
     </Dialog>
@@ -2664,13 +2913,6 @@ function ProjectControls({
         className="space-y-2"
         data-testid="project-autosave-status"
       >
-        <div className="flex min-h-8 items-center gap-1">
-          <h3 className="text-sm font-semibold">Browser Library</h3>
-          {ready && <HelpHint label="project autosave">{activeProjectId
-            ? "Saved automatically in this browser’s Project Library."
-            : "This draft resumes automatically; save it to the library to name it."}</HelpHint>}
-          <div className="ml-auto">{renderLibraryDialog()}</div>
-        </div>
         <div
           className="flex min-h-8 items-center gap-1.5"
           data-testid="current-project-name-row"
@@ -2693,7 +2935,11 @@ function ProjectControls({
         {saveStatus === "error" && <p className="text-[11px] text-destructive" role="status">Autosave is unavailable. Export this project to keep your work.</p>}
       </div>
       <div className="grid grid-cols-3 gap-2" role="group" aria-label="Project actions">
-        <AlertDialog>
+        <AlertDialog open={newProjectOpen} onOpenChange={open => {
+          if (busy) return;
+          setNewProjectOpen(open);
+          if (open) { setNewProjectName(currentProjectName ?? ""); setNewProjectError(false); }
+        }}>
           <AlertDialogTrigger asChild>
             <Button
               variant="outline"
@@ -2706,25 +2952,44 @@ function ProjectControls({
               New project
             </Button>
           </AlertDialogTrigger>
-          <AlertDialogContent>
+          <AlertDialogContent className="max-h-[85dvh] overflow-y-auto" onOpenAutoFocus={event => {
+            if (unsavedDraft) { event.preventDefault(); document.getElementById("new-project-draft-name")?.focus(); }
+          }}>
+            <form className="contents" onSubmit={event => {
+              event.preventDefault();
+              if (!unsavedDraft || newProjectName.trim()) void createNewProject(unsavedDraft ? newProjectName : undefined);
+            }}>
             <AlertDialogHeader>
-              <AlertDialogTitle>Start a new project?</AlertDialogTitle>
+              <AlertDialogTitle>{unsavedDraft ? "Save this draft before starting over?" : "Start a new project?"}</AlertDialogTitle>
               <AlertDialogDescription>
-                Saves the latest changes to your named project, then starts with
-                empty shapes, pockets, and bin settings. An unnamed draft will be
-                replaced.
+                {unsavedDraft
+                  ? "This draft has work that is not saved in your library. Save it with a name before starting an empty project, or explicitly discard it."
+                  : activeProjectId
+                    ? `Saves the latest changes to “${currentProjectName}” in this browser’s library, then starts an empty project.`
+                    : "Your current project is empty. Start again with the default bin settings."}
               </AlertDialogDescription>
             </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Keep current project</AlertDialogCancel>
+            {unsavedDraft && <div className="space-y-2">
+              <Label htmlFor="new-project-draft-name">Save draft as</Label>
+              <Input id="new-project-draft-name" data-testid="input-new-project-draft-name" value={newProjectName}
+                onChange={event => setNewProjectName(event.target.value)} maxLength={80} placeholder="Socket wrench tray" disabled={busy} />
+            </div>}
+            {newProjectError && <p role="alert" className="text-sm text-destructive">Could not start a new project. Your current work is still open. Try again or download a backup.</p>}
+            <AlertDialogFooter className="flex-wrap gap-2 sm:space-x-0">
+              <AlertDialogCancel type="button" disabled={busy}>Keep current project</AlertDialogCancel>
               <AlertDialogAction
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                onClick={() => { projectFileReadRevision.current += 1; onNewProject(); }}
+                type="button" disabled={busy}
+                className={unsavedDraft ? "border border-input bg-background text-destructive hover:bg-accent" : undefined}
+                onClick={event => { event.preventDefault(); void createNewProject(); }}
                 data-testid="button-confirm-new-project"
               >
-                Start new project
+                {unsavedDraft ? "Discard draft and start new" : busy ? "Starting…" : "Start new project"}
               </AlertDialogAction>
+              {unsavedDraft && <Button type="submit" disabled={busy || !newProjectName.trim()} data-testid="button-save-draft-start-new">
+                {busy ? "Saving…" : "Save and start new"}
+              </Button>}
             </AlertDialogFooter>
+            </form>
           </AlertDialogContent>
         </AlertDialog>
         <Button
@@ -2751,7 +3016,59 @@ function ProjectControls({
           <Download className="h-3.5 w-3.5 shrink-0" />Export project
         </Button>
       </div>
+      {!activeProjectId && <Button variant="outline" className="min-h-11 h-auto w-full whitespace-normal" disabled={!ready || busy} onClick={() => setSaveOpen(true)}>Save this draft to Library</Button>}
+      {renderLibraryDialog()}
+      {renameProjectId && projects.find(project => project.id === renameProjectId) && renderNameDialog(projects.find(project => project.id === renameProjectId))}
+      <AlertDialog open={!!removeProject} onOpenChange={open => { if (!open) setRemoveProject(null); }}>
+        <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Remove “{removeProject?.name}” from library?</AlertDialogTitle>
+          <AlertDialogDescription>This removes the saved copy from this browser. Your current project and exported backups will not change.</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter><AlertDialogCancel>Keep project</AlertDialogCancel><AlertDialogAction data-testid="button-confirm-remove-project" disabled={busy}
+            onClick={async event => { event.preventDefault(); if (removeProject && await onDeleteProject(removeProject.id)) setRemoveProject(null); }}>Remove from library</AlertDialogAction></AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       </section>
+
+      <Dialog open={pendingLibraryFile !== null} onOpenChange={(open) => { if (!open && !busy) setPendingLibraryFile(null); }}>
+        <DialogContent className="max-h-[85dvh] overflow-y-auto" onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          libraryDialogRef.current?.querySelector<HTMLButtonElement>('[data-testid="button-import-library"]')?.focus();
+        }}>
+          <DialogHeader>
+            <DialogTitle>Import library</DialogTitle>
+            <DialogDescription className="break-words">Choose how to import {pendingLibraryFile?.name}.</DialogDescription>
+          </DialogHeader>
+          <RadioGroup aria-label="Library import mode" value={libraryImportMode} disabled={busy}
+            onValueChange={(value) => setLibraryImportMode(value === "replace" ? "replace" : "merge")}>
+            <label className="flex cursor-pointer items-start gap-3 rounded-md border p-3">
+              <RadioGroupItem value="merge" id="library-import-merge" aria-label="Merge with current library" className="mt-0.5 shrink-0" aria-describedby="library-import-merge-description" />
+              <span className="min-w-0">
+                <span className="block text-sm font-medium">Merge with current library</span>
+                <span id="library-import-merge-description" className="mt-1 block text-xs text-muted-foreground">Keep existing projects and add the imported ones. Conflicting names get an imported suffix.</span>
+              </span>
+            </label>
+            <label className="flex cursor-pointer items-start gap-3 rounded-md border p-3">
+              <RadioGroupItem value="replace" id="library-import-replace" aria-label="Replace current library" className="mt-0.5 shrink-0" aria-describedby="library-import-replace-description" />
+              <span className="min-w-0">
+                <span className="block text-sm font-medium">Replace current library</span>
+                <span id="library-import-replace-description" className="mt-1 block text-xs text-muted-foreground">Start fresh with only the imported projects. Removes the saved library from this browser.</span>
+              </span>
+            </label>
+          </RadioGroup>
+          <p className="text-sm text-muted-foreground">
+            {libraryImportMode === "replace"
+              ? "Your current design stays open as an unnamed draft. Export your library first if you want to keep its saved projects."
+              : "Your current design stays open."}
+          </p>
+          <DialogFooter>
+            <Button variant="outline" disabled={busy} onClick={() => setPendingLibraryFile(null)}>Cancel</Button>
+            <Button variant={libraryImportMode === "replace" ? "destructive" : "default"} disabled={busy || !pendingLibraryFile}
+              data-testid="button-confirm-import-library" onClick={async () => {
+                if (!pendingLibraryFile || busy) return;
+                if (await onImportLibrary(pendingLibraryFile, libraryImportMode)) setPendingLibraryFile(null);
+              }}>{busy ? "Importing…" : libraryImportMode === "replace" ? "Replace library" : "Merge library"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={pendingOpenProject !== null} onOpenChange={(open) => {
         if (!open && !busy) setPendingOpenProject(null);
@@ -2918,12 +3235,14 @@ function SettingLabel({ label, hint, htmlFor, className }: {
 }
 
 function FeatureSwitch({
+  id,
   label,
   description,
   checked,
   disabled = false,
   onChange,
 }: {
+  id?: string;
   label: string;
   description: string;
   checked: boolean;
@@ -2937,6 +3256,7 @@ function FeatureSwitch({
         {disabled && description && <p className="text-[11px] text-muted-foreground">{description}</p>}
       </div>
       <Switch
+        id={id}
         checked={checked}
         disabled={disabled}
         onCheckedChange={onChange}
@@ -2944,4 +3264,9 @@ function FeatureSwitch({
       />
     </div>
   );
+}
+
+function AdvancedLinks({ children }: { children: ReactNode }): JSX.Element {
+  const inspector = useSelectionInspector();
+  return inspector ? <details className="group/links border-t pt-1 text-xs"><summary className="flex cursor-pointer items-center justify-between gap-2 py-2 font-medium">Linked copies<ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/links:rotate-180" /></summary>{children}</details> : <>{children}</>;
 }

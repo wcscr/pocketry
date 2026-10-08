@@ -2,13 +2,44 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  AID_RETRY_CANVAS_MAX,
   DETECTION_CANVAS_MAX,
   decodeImageFile,
   detectionGeometry,
   drawImageWithRotation,
+  drawAlignedImage,
   fitWithin,
   IMAGE_CANVAS_MAX,
 } from "./use-image-source";
+import { rotateImageAlignment } from "@shared/geometry/image-alignment";
+
+it("uses the same photo matrix for working pixels and high-resolution re-detection", () => {
+  const { alignment } = rotateImageAlignment({ width: 400, height: 600 }, .6);
+  const context = { save: vi.fn(), restore: vi.fn(), scale: vi.fn(), transform: vi.fn(),
+    translate: vi.fn(), rotate: vi.fn(), drawImage: vi.fn() };
+  const image = {} as CanvasImageSource;
+  for (const scale of [1, 2]) {
+    drawAlignedImage(context as unknown as CanvasRenderingContext2D, image,
+      { width: alignment.size.width * scale, height: alignment.size.height * scale }, 1, alignment);
+    expect(context.scale).toHaveBeenLastCalledWith(scale, scale);
+    expect(context.transform).toHaveBeenLastCalledWith(...alignment.matrix);
+    expect(context.drawImage).toHaveBeenLastCalledWith(image, 0, 0, 600, 400);
+    expect(context.rotate).toHaveBeenLastCalledWith(Math.PI / 2);
+  }
+});
+
+it("keeps rotation padding opaque for photos and transparent for cut-out PNGs", () => {
+  const { alignment } = rotateImageAlignment({ width: 400, height: 600 }, .6);
+  const context = { save: vi.fn(), restore: vi.fn(), scale: vi.fn(), transform: vi.fn(),
+    drawImage: vi.fn(), fillRect: vi.fn(), fillStyle: "" };
+  const image = {} as CanvasImageSource;
+  drawAlignedImage(context as unknown as CanvasRenderingContext2D, image, alignment.size, 0, alignment, false);
+  expect(context.fillStyle).toBe("#fff");
+  expect(context.fillRect).toHaveBeenCalledWith(0, 0, alignment.size.width, alignment.size.height);
+  context.fillRect.mockClear();
+  drawAlignedImage(context as unknown as CanvasRenderingContext2D, image, alignment.size, 0, alignment, true);
+  expect(context.fillRect).not.toHaveBeenCalled();
+});
 
 describe("decodeImageFile", () => {
   it("validates a file and reports its natural dimensions before replacement", async () => {
@@ -92,6 +123,21 @@ describe("fitWithin", () => {
 });
 
 describe("detectionGeometry", () => {
+  it("reads more original detail for an aid retry without changing working coordinates", () => {
+    const natural = { width: 3000, height: 4000 };
+    const normal = detectionGeometry(natural);
+    const retry = detectionGeometry(natural, IMAGE_CANVAS_MAX, AID_RETRY_CANVAS_MAX);
+    expect(normal.detect).toEqual({ width: 1200, height: 1600 });
+    expect(retry.detect).toEqual({ width: 1800, height: 2400 });
+    expect(retry.toWorking).toEqual({ x: 0.25, y: 0.25 });
+    expect(retry.detect.width * retry.toWorking.x).toBe(normal.detect.width * normal.toWorking.x);
+    expect(retry.detect.height * retry.toWorking.y).toBe(normal.detect.height * normal.toWorking.y);
+  });
+
+  it("does not invent more resolution when the original fits the normal cap", () => {
+    const natural = { width: 900, height: 1200 };
+    expect(detectionGeometry(natural, IMAGE_CANVAS_MAX, AID_RETRY_CANVAS_MAX)).toEqual(detectionGeometry(natural));
+  });
   it("reads a large photo at the detection cap, mapping back to working space", () => {
     const { detect, toWorking } = detectionGeometry({ width: 4000, height: 3000 });
     expect(detect.width).toBeLessThanOrEqual(DETECTION_CANVAS_MAX.width);

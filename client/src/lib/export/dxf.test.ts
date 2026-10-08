@@ -107,7 +107,7 @@ describe("generateDXF — header", () => {
     expect(insunits).toEqual({ code: 70, value: "4" });
   });
 
-  it("declares the AC1027 version the subclass markers imply", () => {
+  it("declares AutoCAD 2013 without changing the existing export version", () => {
     const pairs = parsePairs(generateDXF(annulus(), calibrated));
     expect(headerVariable(pairs, "$ACADVER")).toEqual({ code: 1, value: "AC1027" });
   });
@@ -197,11 +197,6 @@ describe("generateDXF — entities", () => {
     expect(dxf.endsWith("  0\nEOF\n")).toBe(true);
   });
 
-  it("writes no empty OBJECTS section", () => {
-    // An OBJECTS section must contain at least the root dictionary; the legacy
-    // writer emitted an empty one.
-    expect(generateDXF(annulus(), uncalibrated)).not.toContain("OBJECTS");
-  });
 });
 
 describe("generateDXF — coordinates", () => {
@@ -254,5 +249,116 @@ describe("generateDXF — coordinates", () => {
     const solidPoint: Point = { x: 20, y: 200 - 50 };
     expect(pointInRing(entity.ring, bayCentre)).toBe(false);
     expect(pointInRing(entity.ring, solidPoint)).toBe(true);
+  });
+});
+
+/** Split actual sections/records, so handles in HEADER are not drawing objects. */
+function section(pairs: DxfPair[], name: string): DxfPair[] {
+  const start = pairs.findIndex((pair, index) =>
+    pair.code === 0 && pair.value === "SECTION" &&
+    pairs[index + 1]?.code === 2 && pairs[index + 1].value === name,
+  );
+  expect(start, `Missing ${name} section`).toBeGreaterThanOrEqual(0);
+  const end = pairs.findIndex((pair, index) => index > start && pair.code === 0 && pair.value === "ENDSEC");
+  expect(end).toBeGreaterThan(start);
+  return pairs.slice(start + 2, end);
+}
+
+function records(pairs: DxfPair[]): DxfPair[][] {
+  const result: DxfPair[][] = [];
+  for (const pair of pairs) {
+    if (pair.code === 0) result.push([]);
+    result[result.length - 1]?.push(pair);
+  }
+  return result;
+}
+
+function value(record: DxfPair[], code: number): string | undefined {
+  return record.find((pair) => pair.code === code)?.value;
+}
+
+// A complete document with the same geometry imports in Fusion where the old
+// HEADER + ENTITIES output silently produces no sketch. Keep the document
+// structure and cross-references covered, including exports with no geometry.
+describe.each<{ name: string; outline: Outline }>([
+  { name: "with rings", outline: annulus() },
+  { name: "empty", outline: [] },
+])("DXF document $name", ({ outline }) => {
+  const pairs = parsePairs(generateDXF(outline, calibrated));
+  const tables = records(section(pairs, "TABLES"));
+  const blocks = records(section(pairs, "BLOCKS"));
+  const entities = records(section(pairs, "ENTITIES"));
+  const objects = records(section(pairs, "OBJECTS"));
+  const drawingRecords = [...tables, ...blocks, ...entities, ...objects];
+
+  it("includes the modern DXF sections in order", () => {
+    const names = pairs.flatMap((pair, i) => pair.code === 0 && pair.value === "SECTION" ? [pairs[i + 1].value] : []);
+    expect(names).toEqual(["HEADER", "CLASSES", "TABLES", "BLOCKS", "ENTITIES", "OBJECTS"]);
+    expect(pairs.at(-1)).toEqual({ code: 0, value: "EOF" });
+  });
+
+  it("declares the standard tables and their symbol records", () => {
+    const definitions: Record<string, string[]> = {
+      VPORT: [], LTYPE: ["ByBlock", "ByLayer", "CONTINUOUS"], LAYER: ["0"],
+      STYLE: ["Standard"], VIEW: [], UCS: [], APPID: ["ACAD"],
+      DIMSTYLE: ["Standard"], BLOCK_RECORD: ["*Model_Space", "*Paper_Space"],
+    };
+    expect(tables.filter((r) => value(r, 0) === "TABLE").map((r) => value(r, 2)))
+      .toEqual(Object.keys(definitions));
+    for (const [type, names] of Object.entries(definitions)) {
+      const table = tables.find((r) => value(r, 0) === "TABLE" && value(r, 2) === type)!;
+      const entries = tables.filter((r) => value(r, 0) === type);
+      expect(value(table, 70)).toBe(String(entries.length));
+      expect(entries.map((r) => value(r, 2))).toEqual(names);
+      for (const entry of entries) expect(value(entry, 330)).toBe(value(table, 5));
+    }
+  });
+
+  it("includes the explicit layer plot-style handle required by Fusion", () => {
+    const layer = tables.find((r) => value(r, 0) === "LAYER")!;
+    expect(value(layer, 62)).toBe("7");
+    expect(value(layer, 6)).toBe("CONTINUOUS");
+    expect(value(layer, 370)).toBe("-3");
+    // Removing this field makes Fusion's DxfTranslator reject the drawing.
+    expect(value(layer, 390)).toBe("0");
+  });
+
+  it("gives every object a unique handle and resolves every reference", () => {
+    const handles = drawingRecords.flatMap((r) => r.filter((p) => p.code === 5 || p.code === 105).map((p) => p.value));
+    expect(new Set(handles).size).toBe(handles.length);
+    const seed = Number.parseInt(headerVariable(pairs, "$HANDSEED")!.value, 16);
+    for (const handle of handles) expect(Number.parseInt(handle, 16)).toBeLessThan(seed);
+    for (const record of drawingRecords) {
+      for (const pair of record.filter((p) => [330, 340, 350, 390].includes(p.code) && p.value !== "0")) {
+        expect(handles).toContain(pair.value);
+      }
+    }
+  });
+
+  it("defines model and paper spaces and assigns all geometry to model space", () => {
+    const spaces = tables.filter((r) => value(r, 0) === "BLOCK_RECORD");
+    expect(spaces).toHaveLength(2);
+    for (const space of spaces) {
+      const owned = blocks.filter((r) => value(r, 330) === value(space, 5));
+      expect(owned.map((r) => value(r, 0))).toEqual(["BLOCK", "ENDBLK"]);
+      expect(value(owned[0], 2)).toBe(value(space, 2));
+      expect([10, 20, 30].map((code) => value(owned[0], code))).toEqual(["0", "0", "0"]);
+    }
+    const model = spaces.find((r) => value(r, 2) === "*Model_Space")!;
+    const layer = tables.find((r) => value(r, 0) === "LAYER")!;
+    expect(entities).toHaveLength(outline.length === 0 ? 0 : 2);
+    for (const entity of entities) {
+      expect(value(entity, 330)).toBe(value(model, 5));
+      expect(value(entity, 8)).toBe(value(layer, 2));
+    }
+  });
+
+  it("provides a root dictionary with an owned ACAD_GROUP dictionary", () => {
+    expect(objects.map((r) => value(r, 0))).toEqual(["DICTIONARY", "DICTIONARY"]);
+    const [root, group] = objects;
+    expect(value(root, 330)).toBe("0");
+    expect(value(root, 3)).toBe("ACAD_GROUP");
+    expect(value(root, 350)).toBe(value(group, 5));
+    expect(value(group, 330)).toBe(value(root, 5));
   });
 });

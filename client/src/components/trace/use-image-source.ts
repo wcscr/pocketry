@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { Rect } from "@shared/geometry/types";
+import type { ImageAlignment } from "@shared/geometry/image-alignment";
+import { hasUsefulAlpha } from "@/lib/detect/background";
 
 import {
   fitImageWithin,
@@ -55,6 +57,9 @@ export type ImageSource =
  * detection accuracy — never the coordinate space of outlines or exports.
  */
 export const DETECTION_CANVAS_MAX: Size = { width: 1600, height: 1600 };
+
+/** One bounded retry for aid markers degraded by the normal detection downscale. */
+export const AID_RETRY_CANVAS_MAX: Size = { width: 2400, height: 2400 };
 
 export interface DetectionFrame {
   imageData: ImageData;
@@ -130,10 +135,10 @@ export interface UseImageSourceResult {
    */
   getImageData(region?: Rect | null): ImageData | null;
   /**
-   * The full frame at detection resolution ({@link DETECTION_CANVAS_MAX}),
+   * The full frame at the requested cap (normally {@link DETECTION_CANVAS_MAX}),
    * or `null` until the image is ready.
    */
-  getDetectionFrame(): DetectionFrame | null;
+  getDetectionFrame(detectMax?: Size): DetectionFrame | null;
 }
 
 /** Fits `natural` inside `max` without changing its aspect ratio. */
@@ -171,11 +176,27 @@ export function drawImageWithRotation(
   context.restore();
 }
 
+/** Re-rasterize from original pixels in the same frame used by the SVG photo. */
+export function drawAlignedImage(context: CanvasRenderingContext2D, image: CanvasImageSource,
+  target: Size, rotation: ImageQuarterTurns, alignment: ImageAlignment | null, transparent = true): void {
+  if (!alignment) { drawImageWithRotation(context, image, target, rotation); return; }
+  context.save();
+  if (!transparent) {
+    context.fillStyle = "#fff";
+    context.fillRect(0, 0, target.width, target.height);
+  }
+  context.scale(target.width / alignment.size.width, target.height / alignment.size.height);
+  context.transform(...alignment.matrix);
+  drawImageWithRotation(context, image, alignment.sourceSize, rotation);
+  context.restore();
+}
+
 export function useImageSource(
   url: string | null,
   fileName = "",
   max: Size = IMAGE_CANVAS_MAX,
   rotation: ImageQuarterTurns = 0,
+  alignment: ImageAlignment | null = null,
 ): UseImageSourceResult {
   const [source, setSource] = useState<ImageSource>({ status: "empty" });
   // Created imperatively: it is a pixel buffer, not part of the view.
@@ -183,6 +204,7 @@ export function useImageSource(
   // The decoded element outlives its load handler so detection can re-raster
   // the photo at a higher resolution than the working canvas.
   const imageRef = useRef<HTMLImageElement | null>(null);
+  const transparentRef = useRef(true);
 
   useEffect(() => {
     // A render can briefly still expose the previous ready state before this
@@ -206,7 +228,7 @@ export function useImageSource(
       if (cancelled) return;
 
       const naturalSize = { width: image.width, height: image.height };
-      const size = fitWithin(rotatedImageDimensions(naturalSize, rotation), max);
+      const size = alignment?.size ?? fitWithin(rotatedImageDimensions(naturalSize, rotation), max);
 
       const canvas = canvasRef.current ?? document.createElement("canvas");
       canvasRef.current = canvas;
@@ -224,7 +246,17 @@ export function useImageSource(
         return;
       }
 
-      drawImageWithRotation(ctx, image, size, rotation);
+      if (alignment) {
+        // Rotation padding must not look like a new alpha-mask silhouette.
+        // Inspect the unrotated source so cut-out PNGs still retain transparency.
+        canvas.width = alignment.sourceSize.width;
+        canvas.height = alignment.sourceSize.height;
+        drawImageWithRotation(ctx, image, alignment.sourceSize, rotation);
+        transparentRef.current = hasUsefulAlpha(ctx.getImageData(0, 0, canvas.width, canvas.height).data, canvas.width, canvas.height);
+        canvas.width = size.width;
+        canvas.height = size.height;
+      }
+      drawAlignedImage(ctx, image, size, rotation, alignment, transparentRef.current);
       imageRef.current = image;
       setSource({ status: "ready", url, fileName, size, naturalSize });
     };
@@ -245,7 +277,7 @@ export function useImageSource(
     return () => {
       cancelled = true;
     };
-  }, [url, fileName, max, rotation]);
+  }, [url, fileName, max, rotation, alignment]);
 
   const getImageData = useCallback(
     (region?: Rect | null): ImageData | null => {
@@ -271,7 +303,7 @@ export function useImageSource(
     [source],
   );
 
-  const getDetectionFrame = useCallback((): DetectionFrame | null => {
+  const getDetectionFrame = useCallback((detectMax: Size = DETECTION_CANVAS_MAX): DetectionFrame | null => {
     const image = imageRef.current;
     if (!image || source.status !== "ready") return null;
 
@@ -279,20 +311,24 @@ export function useImageSource(
       source.naturalSize,
       rotation,
     );
-    const { detect, toWorking } = detectionGeometry(orientedNaturalSize, max);
+    const ratio = alignment ? Math.min(orientedNaturalSize.width / alignment.sourceSize.width,
+      orientedNaturalSize.height / alignment.sourceSize.height) : 1;
+    const detect = alignment ? fitWithin({ width: alignment.size.width * ratio, height: alignment.size.height * ratio }, detectMax)
+      : detectionGeometry(orientedNaturalSize, max, detectMax).detect;
+    const toWorking = { x: source.size.width / detect.width, y: source.size.height / detect.height };
     const canvas = document.createElement("canvas");
     canvas.width = detect.width;
     canvas.height = detect.height;
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
     if (!ctx) return null;
 
-    drawImageWithRotation(ctx, image, detect, rotation);
+    drawAlignedImage(ctx, image, detect, rotation, alignment, transparentRef.current);
     return {
       imageData: ctx.getImageData(0, 0, detect.width, detect.height),
       toWorking,
       sourceImageUrl: source.url,
     };
-  }, [source, max, rotation]);
+  }, [source, max, rotation, alignment]);
 
   return { source, getImageData, getDetectionFrame };
 }

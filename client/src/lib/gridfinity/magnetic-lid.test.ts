@@ -19,12 +19,12 @@ const spec = (patch: Record<string, unknown> = {}) => parseBinSpec({ gridX: 2, g
 
 describe("magnetic lids", () => {
   for (const quality of [PREVIEW_QUALITY, EXPORT_QUALITY]) {
-    it.each([0.8, 1.2, 2, 4])(`rounds thick overlap corners with full walls and mating clearance (${quality.circularSegments}, %s mm)`, wallThicknessMm => {
+    it.each([0.8, 1.2, 2, 4])(`rounds thick overlap corners with full walls and mating clearance (${quality.circularSegments}, %s mm)`, lidSharedWallThicknessMm => {
       for (const lidMagnetHoles of [false, true]) {
-        const s = spec({ gridX: 1, gridY: 1, heightUnits: 2, magneticLidStyle: "overlap", wallThicknessMm, lidMagnetHoles });
+        const s = spec({ gridX: 1, gridY: 1, heightUnits: 2, magneticLidStyle: "overlap", lidSharedWallThicknessMm, lidMagnetHoles });
         const body = buildBin(kernel, s, quality).solid;
         const lid = buildMagneticLid(kernel, s, quality.circularSegments);
-        const inset = wallThicknessMm + 0.3;
+        const inset = lidSharedWallThicknessMm + 0.3;
         // Check the whole perimeter, including the chamfer where remnants of
         // the original wall used to leave raised corner slivers.
         for (const chamfer of [0, 0.2, 0.35]) {
@@ -42,12 +42,12 @@ describe("magnetic lids", () => {
         expect(arena.track(skirt.intersect(arena.track(outside.offset(0.14)))).area()).toBeLessThan(1e-6);
         expect(arena.track(skirt.intersect(arena.track(outside.offset(0.16)))).area()).toBeGreaterThan(0.1);
         if (!lidMagnetHoles) {
-          const innerSize = 41.5 - 2 * (inset + wallThicknessMm);
+          const innerSize = 41.5 - 2 * (inset + lidSharedWallThicknessMm);
           expect(arena.track(outside.subtract(rim)).area()).toBeCloseTo(
             roundedRectPolygonArea(innerSize, innerSize, BASE_TOP_RADIUS, quality.circularSegments), 5);
           for (const wall of [rim, skirt]) {
             const envelope = arena.track(wall.hull());
-            const minimumWall = arena.track(envelope.subtract(arena.track(envelope.offset(-wallThicknessMm + 0.01))));
+            const minimumWall = arena.track(envelope.subtract(arena.track(envelope.offset(-lidSharedWallThicknessMm + 0.01))));
             expect(arena.track(minimumWall.subtract(wall)).area()).toBeLessThan(1e-6);
           }
         }
@@ -56,7 +56,7 @@ describe("magnetic lids", () => {
   }
 
   it("retains material around small magnet bores beside the rounded overlap corners", () => {
-    const s = spec({ gridX: 1, gridY: 1, heightUnits: 2, magneticLidStyle: "overlap", wallThicknessMm: 4,
+    const s = spec({ gridX: 1, gridY: 1, heightUnits: 2, magneticLidStyle: "overlap", lidSharedWallThicknessMm: 4,
       magnetDiameterMm: 4, lidMagnetCrushRibs: false });
     const body = buildBin(kernel, s, EXPORT_QUALITY).solid;
     const outer = arena.track(arena.track(body.slice(13)).hull());
@@ -68,7 +68,7 @@ describe("magnetic lids", () => {
   });
 
   it("protects rounded rim corners from finger holes and pockets in layout and export", () => {
-    const s = spec({ gridX: 2, gridY: 2, magneticLidStyle: "overlap", wallThicknessMm: 4,
+    const s = spec({ gridX: 2, gridY: 2, magneticLidStyle: "overlap", lidSharedWallThicknessMm: 4,
       lidMagnetHoles: false, fill: "solid" });
     const hole = fingerHoleSchema.parse({ id: "corner", center: { x: 30.35, y: 30.35 }, diameterMm: 6,
       depthMm: 8, topFilletMm: 0 });
@@ -125,7 +125,7 @@ describe("magnetic lids", () => {
     }
   }
 
-  it.each((["overlap", "inset"] as const).flatMap(magneticLidStyle => [1.2, 4].map(wallThicknessMm => ({ magneticLidStyle, wallThicknessMm }))))("uses the base bore dimensions and closed floors ($magneticLidStyle, $wallThicknessMm mm walls)", patch => {
+  it.each((["overlap", "inset"] as const).flatMap(magneticLidStyle => [1.2, 4].map(lidSharedWallThicknessMm => ({ magneticLidStyle, lidSharedWallThicknessMm }))))("uses the base bore dimensions and closed floors ($magneticLidStyle, $lidSharedWallThicknessMm mm walls)", patch => {
     const s = spec(patch);
     const body = buildBin(kernel, s, EXPORT_QUALITY).solid;
     const lid = buildMagneticLid(kernel, s, 64);
@@ -238,30 +238,30 @@ it.each(["overlap", "inset"] as const)("has a uniform edge through each side mid
 });
 
 for (const quality of [PREVIEW_QUALITY, EXPORT_QUALITY]) {
-  it.each([0.8, 1.2, 2, 4])(`changes overlapping wall thickness with a matching rim and fixed footprint (${quality.circularSegments}, %s mm)`, wallThicknessMm => {
+  it.each([0.8, 1.2, 2, 4])(`changes overlapping wall thickness with a matching rim and fixed footprint (${quality.circularSegments}, %s mm)`, lidSharedWallThicknessMm => {
     for (const magneticLidTop of ["flat", "stacking"] as const) {
       for (const closure of [{ lidMagnetHoles: true }, { lidMagnetHoles: false }, { lidMagnetHoles: false, lidFit: "friction" }] as const) {
-        const s = spec({ gridX: 1, gridY: 1, heightUnits: 2, magneticLidStyle: "overlap", magneticLidTop, wallThicknessMm, ...closure });
+        const s = spec({ gridX: 1, gridY: 1, heightUnits: 2, magneticLidStyle: "overlap", magneticLidTop, lidSharedWallThicknessMm, ...closure });
         const body = buildBin(kernel, s, quality).solid;
         const lid = buildMagneticLid(kernel, s, quality.circularSegments);
         expect(body.status()).toBe("NoError");
         expect(lid.status()).toBe("NoError");
         expect(lid.boundingBox().max[0] - lid.boundingBox().min[0]).toBeCloseTo(41.5, 6);
         const wallProbe = arena.track(arena.track(kernel.Manifold.cube([1, 20, 0.1], true)).translate([0, 20, -0.5]));
-        const outerProbe = arena.track(arena.track(kernel.Manifold.cube([1, wallThicknessMm + 0.5, 0.1]))
-          .translate([-0.5, 20.5 - wallThicknessMm, -0.55]));
+        const outerProbe = arena.track(arena.track(kernel.Manifold.cube([1, lidSharedWallThicknessMm + 0.5, 0.1]))
+          .translate([-0.5, 20.5 - lidSharedWallThicknessMm, -0.55]));
         const wall = arena.track(lid.intersect(outerProbe)).boundingBox();
         const locatingOffset = s.lidFit === "friction" && !s.lidMagnetHoles ? 0 : 0.15;
-        expect(wall.max[1] - wall.min[1]).toBeCloseTo(wallThicknessMm + locatingOffset, 6);
+        expect(wall.max[1] - wall.min[1]).toBeCloseTo(lidSharedWallThicknessMm + locatingOffset, 6);
         const rim = arena.track(body.slice(13));
-        expect(Math.max(...rim.toPolygons().flat().map(point => point[0]))).toBeCloseTo(20.75 - wallThicknessMm - 0.3, 6);
+        expect(Math.max(...rim.toPolygons().flat().map(point => point[0]))).toBeCloseTo(20.75 - lidSharedWallThicknessMm - 0.3, 6);
         const rimProbe = arena.track(wallProbe.translate([0, 0, 13.5]));
         const rimWall = arena.track(body.intersect(rimProbe)).boundingBox();
-        expect(rimWall.max[1] - rimWall.min[1]).toBeCloseTo(wallThicknessMm, 6);
+        expect(rimWall.max[1] - rimWall.min[1]).toBeCloseTo(lidSharedWallThicknessMm, 6);
         const plain = buildBin(kernel, { ...s, magneticLid: false, lip: "none" }, quality).solid;
         const bodyProbe = arena.track(wallProbe.translate([0, 0, 10.5]));
         const plainWall = arena.track(plain.intersect(bodyProbe)).boundingBox();
-        expect(plainWall.max[1] - plainWall.min[1]).toBeCloseTo(wallThicknessMm, 6);
+        expect(plainWall.max[1] - plainWall.min[1]).toBeCloseTo(s.wallThicknessMm, 6);
         const contact = arena.track(body.intersect(arena.track(lid.translate([0, 0, 14]))));
         if (s.lidFit === "friction" && !s.lidMagnetHoles) {
           expect(contact.volume()).toBeGreaterThan(0.01);
@@ -281,7 +281,7 @@ for (const quality of [PREVIEW_QUALITY, EXPORT_QUALITY]) {
     { label: "26", magneticLidTop: "flat", lidMagnetHoles: true, lidMagnetCrushRibs: false },
     { label: "27", magneticLidTop: "flat", lidMagnetHoles: true, lidMagnetCrushRibs: true },
   ] as const)(`keeps inset lid $label close to the existing shared base rim (${quality.circularSegments})`, patch => {
-    const baseSpec = spec({ gridX: 1, gridY: 1, heightUnits: 2, wallThicknessMm: 0.95, magneticLidStyle: "inset", lidMagnetHoles: true, lidMagnetCrushRibs: true });
+    const baseSpec = spec({ gridX: 1, gridY: 1, heightUnits: 2, lidSharedWallThicknessMm: 0.95, magneticLidStyle: "inset", lidMagnetHoles: true, lidMagnetCrushRibs: true });
     const body = buildBin(kernel, baseSpec, quality).solid;
     const s = { ...baseSpec, ...patch };
     const lid = buildMagneticLid(kernel, s, quality.circularSegments);
@@ -383,10 +383,10 @@ it("keeps legacy overlap wall preferences out of inset geometry", () => {
 });
 
 it("reserves the thicker overlapping rim against finger-access cuts", () => {
-  const s = spec({ magneticLidStyle: "overlap", lidMagnetHoles: false, wallThicknessMm: 0.8, fill: "solid" });
+  const s = spec({ magneticLidStyle: "overlap", lidMagnetHoles: false, lidSharedWallThicknessMm: 0.8, fill: "solid" });
   const hole = fingerHoleSchema.parse({ id: "rim", center: { x: 35.9, y: 0 }, diameterMm: 6, depthMm: 8, topFilletMm: 0 });
   expect(validateLayout(s, [], new Map(), [hole]).some(issue => issue.code === "lid-rim-collision")).toBe(false);
-  const thick = { ...s, wallThicknessMm: 2 };
+  const thick = { ...s, lidSharedWallThicknessMm: 2 };
   expect(validateLayout(thick, [], new Map(), [hole]).some(issue => issue.code === "lid-rim-collision")).toBe(true);
   expect(() => buildBinWithCutouts(kernel, thick, { shapesById: new Map(), cutouts: [], fingerHoles: [hole] }, PREVIEW_QUALITY)).toThrow(/inset lid rim/);
 });
@@ -415,7 +415,7 @@ for (const quality of [PREVIEW_QUALITY, EXPORT_QUALITY]) {
     `keeps custom magnet bores paired and closed ($magneticLidStyle, $magneticLidTop, ${quality.circularSegments})`, style => {
       for (const [magnetDiameterMm, magnetThicknessMm] of [[3, 1], [7, 3], [12, 5]]) {
         for (const lidMagnetCrushRibs of [false, true]) {
-          const s = spec({ ...style, gridX: 2, gridY: 2, heightUnits: 2, wallThicknessMm: 4,
+          const s = spec({ ...style, gridX: 2, gridY: 2, heightUnits: 2, lidSharedWallThicknessMm: 4,
             magnetDiameterMm, magnetThicknessMm, lidMagnetCrushRibs,
             magnetHoles: true, magnetCrushRibs: !lidMagnetCrushRibs });
           const body = buildBin(kernel, s, quality).solid;

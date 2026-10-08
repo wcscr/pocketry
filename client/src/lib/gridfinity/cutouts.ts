@@ -1,5 +1,11 @@
 // Type-only import: the kernel is injected (see `Kernel` in ../manifold/runtime).
 import type { Manifold } from "manifold-3d";
+import { hasPocketTilt, pocketAxis } from "@shared/gridfinity/pocket-orientation";
+import { hasRigidPocket, pocketRotation, rigidPocket } from "@shared/gridfinity/rigid-pocket";
+import { pocketInsertionAxis, pocketInsertionError } from "@shared/gridfinity/pocket-insertion";
+import { rotateObjectVector } from "@shared/gridfinity/object-pose";
+import { buildObjectCavity } from "./object-cavity";
+import { directionalInsertionCutter } from "./insertion-sweep";
 
 import {
   effectiveDeepScoopDepthMm,
@@ -16,10 +22,11 @@ import {
   isElongatedFingerHole,
   hasFlatFingerHoleBottom,
   resolvePocketDepth,
+  resolvePlacedPocketDepth,
   pocketName,
   transformOutlinePlacement,
   transformPointPlacement,
-  type CutoutPlacement,
+  type CutoutPlacement, type DepthSpec,
   type FingerHole,
   type ResolvedPocket,
   type TracedShape,
@@ -27,6 +34,7 @@ import {
 import { LAYER_HEIGHT } from "@shared/gridfinity/standard";
 import { resolvePocketSplit } from "@shared/gridfinity/pocket-split";
 import type { BinSpec } from "@shared/gridfinity/types";
+import type { ValidationIssue } from "@shared/gridfinity/validate";
 import type { Outline, Ring } from "@shared/geometry/types";
 
 import { toCrossSection } from "@/lib/geometry/offset";
@@ -34,6 +42,7 @@ import { simplifyRing } from "@/lib/geometry/simplify";
 import type { Kernel } from "@/lib/manifold/runtime";
 
 import type { BuildQuality } from "./bin";
+import { buildProfileBottomCutout } from "./profile-bottom";
 import { buildRoundedFingerAccessCutter } from "./finger-access-rounding";
 import {
   bottomFilletCutter,
@@ -120,12 +129,18 @@ export interface CutoutCutters {
   cutters: Manifold[];
   /** Optional printable material immediately below each blind pocket floor. */
   floorInserts: Manifold[];
+  /** Full subtraction regions for stable body partitioning; defaults to the bands. */
+  floorRegions?: Manifold[];
   reports: CutoutBuildReport[];
+  validationIssues?: ValidationIssue[];
+  cutterGroups?: { id: string; cutters: Manifold[] }[];
 }
 
 export interface CutoutBuildOptions {
   /** Builds this much solid material below each flat blind-pocket floor. */
   floorInsertThicknessMm?: number;
+  /** Internal axial frame: extend the shaft enough to clear the real bin. */
+  axialHeadroomMm?: number;
 }
 
 const BIN_LOCAL_PLACEMENT = {
@@ -448,8 +463,67 @@ export function buildFingerHoleCutters(
   return cutters;
 }
 
+/** Build the complete shaft in its own frame, including split seats and color
+ * bands, then rotate it. Headroom is measured along the axis so the far side
+ * of the opening always clears the actual rim. */
+function buildOrientedCutout(
+  kernel: Kernel, shape: TracedShape, cutout: CutoutPlacement, spec: BinSpec,
+  quality: BuildQuality, options: CutoutBuildOptions,
+): CutoutCutters {
+  const { arena } = kernel;
+  const axis = pocketAxis(cutout);
+  if (axis.z < 0.01) throw new Error("Reduce the combined pocket tilt so its axis can exit through the top.");
+  const split = cutout.split ? resolvePocketSplit(shape.outlineMm, cutout.split.boundary) : null;
+  if (split?.error) throw new Error(split.error);
+  const depths = cutout.split?.depths ?? [cutout.depth];
+  const resolved = depths.map((depth, i) => resolvePlacedPocketDepth(spec, depth,
+    { outlineMm: split?.regions?.[i] ?? shape.outlineMm }, cutout));
+  if (resolved.some(p => p.axialDepthMm !== null && (p.axialDepthMm <= 0 || (p.highestFloorZ ?? 0) >= p.infillTopZ))) {
+    throw new Error("Increase pocket depth, lower Z, or reduce tilt: the whole pocket floor must sit below the opening.");
+  }
+  const real = resolved[0];
+  const extent = Math.max(Math.abs(shape.bboxMm.minX), Math.abs(shape.bboxMm.maxX)) * cutout.scaleX
+    + Math.max(Math.abs(shape.bboxMm.minY), Math.abs(shape.bboxMm.maxY)) * cutout.scaleY
+    + Math.abs(cutout.clearanceMm) + cutout.topFilletMm + 2;
+  const anchorZ = real.infillTopZ + (cutout.zOffsetMm ?? 0);
+  const headroom = Math.max(0, (real.cutterTopZ - anchorZ + extent) / axis.z) + 2;
+  const maxDepth = Math.max(anchorZ / axis.z + extent / axis.z, ...resolved.map(p => p.axialDepthMm ?? 0));
+  // A positive virtual floor lets the ordinary builder construct full color
+  // bands. Only the local frame changes; the real bin is never resized.
+  const localSpec = { ...spec, heightUnits: Math.ceil((maxDepth + 20) / 7) };
+  const localTop = resolvePocketDepth(localSpec, { mode: "through" }).infillTopZ;
+  const axialDepths = resolved.map(p => p.axialDepthMm === null
+    ? { mode: "through" as const } : { mode: "mm" as const, value: p.axialDepthMm });
+  const localCutout: CutoutPlacement = { ...cutout, tilt: undefined, zOffsetMm: undefined, rotationDeg: 0,
+    position: { x: 0, y: 0 }, topFilletMm: 0, depth: axialDepths[0],
+    split: cutout.split ? { ...cutout.split, depths: [axialDepths[0], axialDepths[1]] } : undefined };
+  const built = buildCutoutCutters(kernel, new Map([[shape.id, shape]]), [localCutout], localSpec, quality,
+    { ...options, axialHeadroomMm: headroom });
+  const place = (solid: Manifold): Manifold => {
+    let result = arena.track(solid.translate([0, 0, -localTop]));
+    result = arena.track(result.rotate([cutout.tilt?.xDeg ?? 0, 0, 0]));
+    result = arena.track(result.rotate([0, cutout.tilt?.yDeg ?? 0, 0]));
+    result = arena.track(result.rotate([0, 0, cutout.rotationDeg]));
+    return arena.track(result.translate([cutout.position.x, cutout.position.y, anchorZ]));
+  };
+  const cutters = built.cutters.map(place);
+  if (cutout.topFilletMm > 0 && cutters.length > 0) {
+    const union = arena.track(kernel.Manifold.union(cutters));
+    const mouth = arena.track(union.slice(real.infillTopZ));
+    const verticalDepth = Math.min(...resolved.map(p => p.highestFloorZ === null ? Infinity : p.infillTopZ - p.highestFloorZ));
+    const radius = Math.min(cutout.topFilletMm, verticalDepth / 2);
+    if (radius > 0 && !mouth.isEmpty()) {
+      const flare = topEdgeFilletCutter(kernel, mouth, { radiusMm: radius,
+        profileStepMm: quality.filletProfileStepMm ?? FILLET_PROFILE_STEP_MM,
+        circularSegments: quality.circularSegments });
+      cutters.push(arena.track(flare.translate([0, 0, real.infillTopZ - radius])));
+    }
+  }
+  return { cutters, floorInserts: built.floorInserts.map(place), reports: built.reports };
+}
+
 /** Builds one cutter per cutout, skipping (and reporting) collapsed ones. */
-export function buildCutoutCutters(
+function buildCutoutCuttersInternal(
   kernel: Kernel,
   shapesById: ReadonlyMap<string, TracedShape>,
   cutouts: readonly CutoutPlacement[],
@@ -471,6 +545,14 @@ export function buildCutoutCutters(
     if (!shape) {
       // Validation owns the user-facing error; the builder just skips.
       reports.push({ id: cutout.id, emptied: true });
+      continue;
+    }
+
+    if (hasPocketTilt(cutout) || (cutout.zOffsetMm ?? 0) !== 0) {
+      const tilted = buildOrientedCutout(kernel, shape, cutout, spec, quality, options);
+      cutters.push(...tilted.cutters);
+      floorInserts.push(...tilted.floorInserts);
+      reports.push(...tilted.reports);
       continue;
     }
 
@@ -548,6 +630,7 @@ export function buildCutoutCutters(
     reports.push({ id: cutout.id, emptied: false });
 
     const pocket = resolvePocketDepth(spec, cutout.depth);
+    if (options.axialHeadroomMm !== undefined) pocket.cutterTopZ = pocket.infillTopZ + options.axialHeadroomMm;
     let cutter: Manifold;
     if (pocket.floorZ === null) {
       // Through cut: from below the bin to above the lip.
@@ -617,4 +700,128 @@ export function buildCutoutCutters(
   }
 
   return { cutters, floorInserts, reports };
+}
+
+/** Generate in the outline's own frame, then apply one reusable rigid pose.
+ * Optional clearance sweeps the finite object upward in the selected direction.
+ * Top-edge rounding belongs to the bin surface intersection, not that cap. */
+export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: CutoutPlacement,
+  spec: BinSpec, quality: BuildQuality, options: CutoutBuildOptions = {}, top = Infinity,
+): CutoutCutters {
+  const { arena, Manifold } = kernel;
+  // Keep the rest of the preview editable while an axial path is horizontal.
+  // Shared validation reports the error and exports reject it before building.
+  if (pocketInsertionError(cutout)) return { cutters: [], floorInserts: [], floorRegions: [],
+    reports: [{ id: cutout.id, emptied: false }] };
+  const realTop = resolvePocketDepth(spec, cutout.depth).infillTopZ;
+  const depthSpecs = cutout.split?.depths ?? [cutout.depth];
+  const dimensions = depthSpecs.map(d => d.mode === "mm" ? d.value
+    : d.sourceDepthMm ?? (d.mode === "remaining" ? realTop-d.floorThicknessMm : realTop));
+  const localSpec = { ...spec, lip: "none" as const, fillHeightPercent: 100,
+    heightUnits: Math.ceil((Math.max(...dimensions)+20)/7) };
+  const localTop = resolvePocketDepth(localSpec,cutout.depth).infillTopZ;
+  const depths = dimensions.map(value => ({mode:"mm" as const,value}));
+  const local = {...cutout,position:{x:0,y:0},rotationDeg:0,tilt:undefined,
+    elevationMm:undefined,zOffsetMm:undefined,insertionMode:undefined,depth:depths[0],topFilletMm:0,
+    split:cutout.split ? {...cutout.split,depths:[depths[0],depths[1]] as [typeof depths[number],typeof depths[number]]} : undefined};
+  const built = buildCutoutCuttersInternal(kernel,new Map([[shape.id,shape]]),[local],localSpec,quality,{axialHeadroomMm:0});
+  const source = arena.track(Manifold.union(built.cutters.map(s => arena.track(s.translate([0,0,-localTop])))));
+  const anchor = source;
+  const pose = { rotation: pocketRotation(cutout), position: cutout.position, elevationMm: cutout.elevationMm ?? 0 };
+  // Sweep the complete source before clipping; a submerged cap must still open
+  // through the surface, while an object wholly above the bin leaves no cut.
+  let cutter = buildObjectCavity(kernel, source, pose, cutout.insertionMode ? Infinity : top, anchor);
+  const projectedSource = cutter && cutout.insertionMode === "vertical" ? arena.track(arena.track(cutter.project()).simplify(0.0001)) : null;
+  const validationIssues: ValidationIssue[] = [];
+  const clearAndLimit = (posed: Manifold, depth: DepthSpec): Manifold => {
+    let result = posed;
+    if (cutout.insertionMode) {
+      if (!result.isEmpty()) {
+        const ceiling = Math.max(realTop, result.boundingBox().max[2], Number.isFinite(top) ? top : realTop) + 1;
+        result = directionalInsertionCutter(kernel, result, ceiling, pocketInsertionAxis(cutout));
+      }
+    }
+    // Apply the floor constraint to the generated cavity, never the source.
+    // Rebuilding after raising the object therefore restores its whole profile.
+    if (depth.mode === "remaining") result = arena.track(result.trimByPlane([0,0,1],depth.floorThicknessMm));
+    if (Number.isFinite(top)) result = arena.track(result.trimByPlane([0,0,-1],-top));
+    return result;
+  };
+  if (cutter && cutout.split && depthSpecs.some(d => d.mode === "remaining")) {
+    const local = {...cutout,position:{x:0,y:0},rotationDeg:0};
+    const [a,b] = cutout.split.boundary.map(p => transformPointPlacement(p,local));
+    const length = Math.hypot(b.x-a.x,b.y-a.y);
+    const pieces = depthSpecs.flatMap((depth,i) => {
+      const sign = (cutout.mirrored ? -1 : 1)*(i === 0 ? 1 : -1);
+      const nx = -(b.y-a.y)/length*sign, ny = (b.x-a.x)/length*sign;
+      const part = arena.track(source.trimByPlane([nx,ny,0],nx*a.x+ny*a.y));
+      const posed = buildObjectCavity(kernel,part,pose,Infinity,anchor);
+      return posed ? [clearAndLimit(posed,depth)] : [];
+    });
+    cutter = arena.track(Manifold.union(pieces));
+  } else if (cutter) {
+    cutter = clearAndLimit(cutter,cutout.depth);
+  }
+  // A source raised entirely clear of the bin leaves no cavity or floor-color
+  // region. Empty-solid bounds cannot be used to construct a material column.
+  if (cutter?.isEmpty()) cutter = null;
+  const seatedCutter = cutter;
+  if (cutter && cutout.topFilletMm > 0 && cutter.boundingBox().max[2] >= realTop - 1e-8) {
+    // Slice after posing and joining the split seats. Only the opening that
+    // actually reaches the fill gets a rim; submerged caps stay finite. Keep
+    // clearance, corner/bottom rounding and the deeper seats in the source.
+    const mouth = arena.track(cutter.slice(realTop - 1e-7));
+    const radius = Math.min(cutout.topFilletMm, ...dimensions.map(d => d / 2),
+      Math.max(0, realTop - cutter.boundingBox().min[2]) / 2);
+    if (radius > 0 && !mouth.isEmpty()) {
+      const flare = topEdgeFilletCutter(kernel, mouth, { radiusMm: radius,
+        profileStepMm: quality.filletProfileStepMm ?? FILLET_PROFILE_STEP_MM,
+        circularSegments: quality.circularSegments });
+      cutter = arena.track(cutter.add(arena.track(flare.translate([0, 0, realTop - radius]))));
+    }
+  }
+  if (cutter && projectedSource && !cutter.isEmpty() && cutter.boundingBox().min[2] < realTop) {
+    const mouth = arena.track(cutter.slice(realTop-1e-7));
+    if (arena.track(projectedSource.subtract(mouth)).area() > 0.01) {
+      validationIssues.push({code:"vertical-seat-above-surface",severity:"error",cutoutIds:[cutout.id],
+        message:`“${pocketName(cutout,shape)}”: The tilted floor reaches the bin surface, preventing a full vertical opening. Increase the bin height, lower the pocket, or reduce its tilt.`});
+    }
+  }
+  const floorInserts: Manifold[] = [], floorRegions: Manifold[] = [];
+  const distance = Math.min(options.floorInsertThicknessMm ?? 0, Math.max(0, seatedCutter?.boundingBox().min[2] ?? pose.elevationMm));
+  if (cutter && seatedCutter && distance > 0 && (cutout.insertionMode || depthSpecs.some(d => d.mode !== "mm"))) {
+    // Color the actual rotated underside beneath the cleared insertion path.
+    // Inset the color at the wall fillet, as for ordinary pocket floors, so
+    // independently exported materials do not share a vertical wall seam.
+    let region = arena.track(seatedCutter.translate([0,0,-distance]));
+    if (cutout.bottomFilletMm > 0) {
+      const projection = projectedSource ?? arena.track(seatedCutter.project());
+      const floorOutline = arena.track(projection.offset(-cutout.bottomFilletMm,"Round",2,quality.circularSegments));
+      const bounds = region.boundingBox();
+      const floorColumn = arena.track(arena.track(floorOutline.extrude(bounds.max[2]-bounds.min[2]+2)).translate([0,0,bounds.min[2]-1]));
+      region = arena.track(region.intersect(floorColumn));
+    }
+    floorInserts.push(region);
+    floorRegions.push(region);
+  } else if (cutter && distance > 0) {
+    const axes = [{x:1,y:0,z:0},{x:0,y:1,z:0},{x:0,y:0,z:1}].map(v => rotateObjectVector(v, pose.rotation));
+    const below = arena.track(source.translate(axes.map(v => -distance * v.z) as [number,number,number]));
+    const band = arena.track(below.subtract(source));
+    const insert = buildObjectCavity(kernel, band, pose, top, anchor);
+    const region = buildObjectCavity(kernel, below, pose, top, anchor);
+    if (insert) floorInserts.push(insert);
+    if (region) floorRegions.push(region);
+  }
+  return { cutters: cutter ? [cutter] : [], floorInserts, floorRegions,
+    validationIssues, reports: [{ id: cutout.id, emptied: source.isEmpty() }] };
+}
+
+/** Preserve placement identity for exact 3D validation, including split cutters. */
+export function buildCutoutCutters(kernel: Kernel, shapesById: ReadonlyMap<string, TracedShape>, cutouts: readonly CutoutPlacement[], spec: BinSpec, quality: BuildQuality, options: CutoutBuildOptions = {}): CutoutCutters {
+  const groups: { id: string; built: CutoutCutters }[] = cutouts.map(cutout => ({ id: cutout.id, built: cutout.profileBottom && shapesById.has(cutout.shapeId)
+    ? buildProfileBottomCutout(kernel, shapesById.get(cutout.shapeId)!, cutout, spec, options.floorInsertThicknessMm)
+    : (hasRigidPocket(cutout) || cutout.insertionMode) && shapesById.has(cutout.shapeId)
+      ? buildRigidPocket(kernel, shapesById.get(cutout.shapeId)!, rigidPocket(cutout, shapesById.get(cutout.shapeId)!, spec), spec, quality, options, resolvePocketDepth(spec, cutout.depth).cutterTopZ)
+    : buildCutoutCuttersInternal(kernel, shapesById, [cutout], spec, quality, options) }));
+  return { cutters: groups.flatMap(g => g.built.cutters), floorInserts: groups.flatMap(g => g.built.floorInserts), floorRegions: groups.flatMap(g => g.built.floorRegions ?? g.built.floorInserts), reports: groups.flatMap(g => g.built.reports), validationIssues: groups.flatMap(g => g.built.validationIssues ?? []), cutterGroups: groups.map(g => ({ id: g.id, cutters: g.built.cutters })) };
 }

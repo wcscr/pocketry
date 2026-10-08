@@ -26,6 +26,10 @@ let container: HTMLDivElement;
 let root: Root;
 
 beforeEach(() => {
+  localStorage.setItem("pocketry:welcome:1.1.1", "dismissed");
+  localStorage.removeItem("pocketry:experimental-features");
+  localStorage.removeItem("pocketry:selection-inspector");
+  localStorage.removeItem("pocketry:editor-layout");
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.stubGlobal("ResizeObserver", NoopResizeObserver);
   window.history.replaceState(null, "", "/");
@@ -51,6 +55,10 @@ afterEach(() => {
   container.remove();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  localStorage.removeItem("pocketry:experimental-features");
+  localStorage.removeItem("pocketry:selection-inspector");
+  localStorage.removeItem("pocketry:editor-layout");
+  localStorage.removeItem("pocketry:welcome:1.1.1");
 });
 
 function renderApp(): void {
@@ -80,21 +88,80 @@ function openTraceSettings(section: "detect" | "scale" | "output"): void {
 }
 
 describe("App", () => {
+  it("keeps right-side properties through Trace, Bin, Library and a fresh app mount", async () => {
+    window.history.replaceState(null, "", "/bin?layout=workflow");
+    renderApp();
+    const inspector = () => container.querySelector('[aria-label="Selection inspector"]');
+    expect(inspector()).not.toBeNull();
+    clickWorkspace("Trace");
+    expect(inspector()).toBeNull();
+    expect(container.querySelector('[aria-label="Trace properties"]')).not.toBeNull();
+    expect(container.querySelector('[aria-label="Photo tracing workflow"]')).not.toBeNull();
+    clickWorkspace("Bin");
+    expect(inspector()).not.toBeNull();
+    const library = [...container.querySelectorAll<HTMLAnchorElement>("nav a")].find(link => link.textContent?.trim() === "Library")!;
+    await act(async () => library.click());
+    expect(inspector()).not.toBeNull();
+    expect(window.location.search).toBe("");
+    act(() => root.unmount());
+    root = createRoot(container);
+    renderApp();
+    expect(inspector()).not.toBeNull();
+  });
+
+  it.each(["desktop", "mobile"])("opens experimental settings from the %s header", async mode => {
+    renderApp();
+    if (mode === "desktop") act(() => container.querySelector<HTMLButtonElement>('[aria-label="App settings"]')!.click());
+    else {
+      act(() => container.querySelector<HTMLButtonElement>('[aria-label="More options"]')!
+        .dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+      await act(async () => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(item => item.textContent === "App settings")!.click());
+    }
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Enable experimental features");
+    const toggle = document.querySelector<HTMLButtonElement>('#experimental-features')!;
+    expect(toggle.getAttribute("aria-checked")).toBe("false");
+    act(() => toggle.click());
+    expect(localStorage.getItem("pocketry:experimental-features")).toBe("true");
+  });
+  it.each(["desktop", "mobile"])("offers email and GitHub feedback from the %s header", mode => {
+    const matchMedia = window.matchMedia;
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      ...matchMedia(query),
+      matches: mode === "mobile" && query.includes("max-width"),
+    }));
+    renderApp();
+    expect(document.querySelector('a[href="mailto:feedback@pocketry.xyz"]')).toBeNull();
+    const trigger = container.querySelector<HTMLButtonElement>(
+      mode === "desktop"
+        ? '[aria-label="Report an Issue / Provide Feedback"]'
+        : '[aria-label="More options"]',
+    );
+    expect(trigger).not.toBeNull();
+    expect(trigger!.closest("header")).not.toBeNull();
+    expect(trigger!.parentElement?.classList.contains("hidden")).toBe(false);
+    act(() => trigger!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+    const menu = document.querySelector('[role="menu"]');
+    const email = menu?.querySelector<HTMLAnchorElement>('a[href="mailto:feedback@pocketry.xyz"]');
+    expect(email?.textContent).toContain("Email feedback@pocketry.xyz");
+    const github = menu?.querySelector<HTMLAnchorElement>('a[href="https://github.com/wcscr/pocketry/issues/new"]');
+    expect(github?.textContent).toContain("Open a GitHub issue");
+    expect(github?.target).toBe("_blank");
+    expect(github?.rel).toBe("noopener noreferrer");
+    act(() => menu!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+    expect(document.querySelector('[role="menu"]')).toBeNull();
+  });
+
   it("mounts without throwing", () => {
     expect(() => renderApp()).not.toThrow();
   });
 
   it("renders the shell chrome", () => {
     renderApp();
-    expect(container.textContent).toContain("ToolTrace");
+    expect(container.textContent).not.toContain("ToolTrace");
     expect(container.textContent).toContain("Pocketry");
-    const legacyWordmark = [...container.querySelectorAll("span")].find(
-      (element) => element.textContent === "ToolTrace",
-    );
     const pocketryWordmark = [...container.querySelectorAll("span")].find(
       (element) => element.textContent === "Pocketry",
     );
-    expect(legacyWordmark?.className).toContain("line-through");
     expect(pocketryWordmark?.style.fontFamily).toContain("Rockwell");
     expect(container.textContent).toContain("Trace");
     expect(
@@ -105,12 +172,8 @@ describe("App", () => {
       [...container.querySelectorAll("nav a")].map((link) =>
         link.textContent?.trim(),
       ),
-    ).toEqual(["Trace", "Bin"]);
-    expect(
-      container
-        .querySelector<HTMLAnchorElement>('[aria-label="Pocketry on GitHub"]')
-        ?.getAttribute("href"),
-    ).toBe("https://github.com/wcscr/pocketry");
+    ).toEqual(["Trace", "Bin", "Library"]);
+    expect(container.querySelector('header a[href="https://github.com/wcscr/pocketry"]')).toBeNull();
   });
 
   it("links to a scrollable About page with legal notices and related tools", () => {
@@ -128,6 +191,16 @@ describe("App", () => {
 
     expect(window.location.pathname).toBe("/about");
     expect(container.textContent).toContain("About Pocketry");
+    expect(container.querySelector('main a[href="https://github.com/wcscr/pocketry"]')?.textContent).toContain("View source on GitHub");
+    expect(container.textContent).toContain(
+      "Pocketry began in March 2025 as ToolTrace SVG Generator and was renamed in August 2026.",
+    );
+    const originalAnnouncement = container.querySelector<HTMLAnchorElement>(
+      'a[href="https://www.reddit.com/r/gridfinity/comments/1j801r8/tooltrace_svg_generator/"]',
+    );
+    expect(originalAnnouncement?.textContent).toBe("ToolTrace SVG Generator");
+    expect(originalAnnouncement?.target).toBe("_blank");
+    expect(originalAnnouncement?.rel).toContain("noreferrer");
     expect(container.textContent).toContain("AGPL-3.0-only");
     const openSourceStatement = container.querySelector<HTMLAnchorElement>(
       'a[aria-label="Pocketry is fully open source under AGPL-3.0-only"]',
@@ -216,7 +289,8 @@ describe("App", () => {
       "Photograph the tool on a calibration sheet or a plain, contrasting background",
     );
     expect(container.textContent).toContain("Choose a photo");
-    expect(container.textContent).not.toContain("Untitled");
+    expect(container.querySelector('[data-testid="global-project-status"]')?.textContent).toContain("Untitled project");
+    expect(container.querySelector('#trace-settings-source')?.textContent).not.toContain("Untitled");
     expect(container.textContent).not.toContain("0 × 0 px");
     expect(
       container.querySelector('[data-testid="button-source-image"]'),
@@ -230,15 +304,17 @@ describe("App", () => {
       container.querySelector<HTMLButtonElement>('[aria-label="Help"]')!.click();
     });
     const help = document.querySelector<HTMLElement>('[role="dialog"]');
-    expect(help?.querySelectorAll("ol > li")).toHaveLength(5);
+    expect(help?.querySelectorAll("ol > li")).toHaveLength(7);
+    expect(help?.textContent).toContain("Workflow + properties");
     expect(help?.textContent).toContain("Confirm scale");
     expect(help?.textContent).toContain("Add to bin");
-    expect(help?.textContent).toContain("Surface fit test");
+    expect(help?.textContent).toContain("Save surface fit test STL");
     expect(help?.textContent).toContain("Save 3MF");
-    expect(help?.textContent).toContain("Download printable calibration templates");
+    expect(help?.textContent).toContain("Download calibration aids");
     expect(help?.querySelector('[aria-label="Download a measurement aid as 3MF"]')).toBeNull();
-    expect(help?.textContent).toContain("More options → All settings");
-    expect(help?.textContent).toContain("Save to library");
+    expect(help?.textContent).toContain("All properties");
+    expect(help?.textContent).not.toContain("All settings");
+    expect(help?.textContent).toContain("Save this draft to Library");
     expect(help?.textContent).toContain("Open project");
   });
 
@@ -257,6 +333,8 @@ describe("App", () => {
     // toggle a user who collapses it has no way back on the next visit.
     const toggle = container.querySelector('[aria-label="Hide controls"]');
     expect(toggle).not.toBeNull();
+    expect(toggle!.closest('[data-testid="desktop-workspace-controls"]')).not.toBeNull();
+    expect(toggle!.closest("header")).toBeNull();
   });
 
   it("renders the controls panel sections", () => {
@@ -267,7 +345,8 @@ describe("App", () => {
       "Outline",
       "Scale",
       "Region",
-      "Export outline",
+      "Margin",
+      "Export Outline",
     ]) {
       expect(text).toContain(section);
     }
@@ -285,6 +364,7 @@ describe("App", () => {
       ["trace-settings-scale", "amber", "closed"],
       ["trace-settings-detect", "blue", "closed"],
       ["trace-settings-crop", "rose", "closed"],
+      ["trace-settings-margin", "violet", "closed"],
       ["trace-settings-output", "emerald", "closed"],
     ] as const) {
       const section = container.querySelector<HTMLElement>(`#${id}`);
@@ -304,7 +384,7 @@ describe("App", () => {
       "trace-settings-detect",
     ]);
 
-    for (const section of ["scale", "crop", "detect", "output"]) {
+    for (const section of ["scale", "crop", "detect", "margin", "output"]) {
       const jump = container.querySelector<HTMLButtonElement>(
         `[aria-controls="trace-settings-${section}"]`,
       );

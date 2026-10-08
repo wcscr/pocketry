@@ -13,7 +13,7 @@ let arena: Arena, kernel: Kernel;
 beforeEach(async () => { arena = new Arena(); kernel = createKernel(await loadManifold(), arena); });
 afterEach(() => arena.dispose());
 const spec = (patch: Partial<BinSpec> = {}) => parseBinSpec({ gridX: 1, gridY: 1, heightUnits: 2,
-  magneticLid: true, wallThicknessMm: 2, fill: "none", lidMagnetHoles: false, ...patch });
+  magneticLid: true, lidSharedWallThicknessMm: 2, fill: "none", lidMagnetHoles: false, ...patch });
 
 for (const quality of [PREVIEW_QUALITY, EXPORT_QUALITY]) {
   it.each((["inset", "overlap"] as const).flatMap(magneticLidStyle =>
@@ -41,10 +41,10 @@ for (const quality of [PREVIEW_QUALITY, EXPORT_QUALITY]) {
 
   // Give each expensive pair its own arena and timeout budget on shared CI runners.
   it.each((["inset", "overlap"] as const).flatMap(magneticLidStyle =>
-    [1, 2].flatMap(gridX => [0.8, 4].flatMap(wallThicknessMm =>
-      [false, true].map(lidMagnetHoles => ({ magneticLidStyle, gridX, wallThicknessMm, lidMagnetHoles }))))
-  ))(`adds finger access while retaining the wall and mating contacts ($magneticLidStyle, $gridX cells, $wallThicknessMm mm, magnets $lidMagnetHoles, ${quality.circularSegments})`, ({ magneticLidStyle, gridX, wallThicknessMm, lidMagnetHoles }) => {
-    const s = spec({ gridX, magneticLidStyle, wallThicknessMm, lidMagnetHoles, lidFit: "friction" });
+    [1, 2].flatMap(gridX => [0.8, 4].flatMap(lidSharedWallThicknessMm =>
+      [false, true].map(lidMagnetHoles => ({ magneticLidStyle, gridX, lidSharedWallThicknessMm, lidMagnetHoles }))))
+  ))(`adds finger access while retaining the wall and mating contacts ($magneticLidStyle, $gridX cells, $lidSharedWallThicknessMm mm, magnets $lidMagnetHoles, ${quality.circularSegments})`, ({ magneticLidStyle, gridX, lidSharedWallThicknessMm, lidMagnetHoles }) => {
+    const s = spec({ gridX, magneticLidStyle, lidSharedWallThicknessMm, lidMagnetHoles, lidFit: "friction" });
     const original = buildBin(kernel, s, quality).solid;
     const withRecess = { ...s, lidGripRecess: true };
     const body = buildBin(kernel, withRecess, quality).solid;
@@ -61,7 +61,7 @@ for (const quality of [PREVIEW_QUALITY, EXPORT_QUALITY]) {
     expect(arena.track(removed.subtract(accessBand)).volume()).toBeLessThan(1e-6);
     // The original selected wall thickness remains underneath each scoop.
     const probeZ = magneticLidStyle === "inset" ? 16.7 : 8.7;
-    const probeY = 20.75 - (magneticLidStyle === "inset" ? 1.5 : overlapLidRimInsetMm(s) + wallThicknessMm / 2);
+    const probeY = 20.75 - (magneticLidStyle === "inset" ? 1.5 : overlapLidRimInsetMm(s) + lidSharedWallThicknessMm / 2);
     const probe = arena.track(arena.track(kernel.Manifold.cube([1, 0.1, 0.1], true)).translate([0, probeY, probeZ]));
     expect(arena.track(body.intersect(probe)).volume()).toBeCloseTo(0.01, 6);
     const lid = buildMagneticLid(kernel, s, quality.circularSegments);
@@ -89,11 +89,11 @@ it.each(["inset", "overlap"] as const)("uses 0.15 mm actual locating clearance f
 });
 
 it.each((["ribs", "angled-fins"] as const).flatMap(lidInterface =>
-  [0.8, 2, 4].flatMap(wallThicknessMm => [false, true].map(lidMagnetHoles =>
-    ({ lidInterface, wallThicknessMm, lidMagnetHoles })))
-))("supports the overlapping stacking cap while retaining a short rim channel ($lidInterface, $wallThicknessMm mm, magnets $lidMagnetHoles)", ({ lidInterface, wallThicknessMm, lidMagnetHoles }) => {
+  [0.8, 2, 4].flatMap(lidSharedWallThicknessMm => [false, true].map(lidMagnetHoles =>
+    ({ lidInterface, lidSharedWallThicknessMm, lidMagnetHoles })))
+))("supports the overlapping stacking cap while retaining a short rim channel ($lidInterface, $lidSharedWallThicknessMm mm, magnets $lidMagnetHoles)", ({ lidInterface, lidSharedWallThicknessMm, lidMagnetHoles }) => {
   const s = spec({ gridX: 2, gridY: 2, fill: "solid", magneticLidStyle: "overlap", magneticLidTop: "stacking",
-    lidFit: "friction", lidInterface, lidMagnetHoles, wallThicknessMm });
+    lidFit: "friction", lidInterface, lidMagnetHoles, lidSharedWallThicknessMm });
   const body = buildBin(kernel, s, EXPORT_QUALITY).solid;
   const lid = buildMagneticLid(kernel, s, 64);
   const printed = magneticLidForPrint(kernel, lid, s);
@@ -134,9 +134,9 @@ for (const quality of [PREVIEW_QUALITY, EXPORT_QUALITY]) {
     { lidFit: "friction" as const, lidInterface: "ribs" as const },
     { lidFit: "friction" as const, lidInterface: "angled-fins" as const },
   ])(`keeps nonmagnetic stacking centers filled through every rounded corner ($lidFit, $lidInterface, ${quality.circularSegments})`, closure => {
-    for (const wallThicknessMm of [0.8, 2, 4]) for (const magnetHoles of [false, true]) {
+    for (const lidSharedWallThicknessMm of [0.8, 2, 4]) for (const magnetHoles of [false, true]) {
       const s = spec({ ...closure, magneticLidStyle: "overlap", magneticLidTop: "stacking",
-        wallThicknessMm, magnetHoles });
+        lidSharedWallThicknessMm, magnetHoles });
       const lid = buildMagneticLid(kernel, s, quality.circularSegments);
       const printed = magneticLidForPrint(kernel, lid, s);
       const section = arena.track(printed.slice(0.4));

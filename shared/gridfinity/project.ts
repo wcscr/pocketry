@@ -6,12 +6,22 @@ import {
   elongatedFingerHoleEndpoints,
   isElongatedFingerHole,
   resolvePocketDepth,
+  resolvePlacedPocketDepth,
   tracedShapeSchema,
   transformPointPlacement,
   type FingerHole,
+  type CutoutPlacement,
+  type DepthSpec,
 } from "./cutout";
 import { binSpecSchema, type BinSpec } from "./types";
+import { binMaterialsSchema } from "./materials";
+import { designLinkErrors } from "./design-links";
+import { transformOriginsSchema } from "./transform-origins";
 import { binHistorySchema } from "./history";
+import { migrateProfilePocket } from "./rigid-pocket";
+import { resolvePocketSplit } from "./pocket-split";
+import { expandProjectFontSources } from "./project-font-sources";
+export { serializeProjectDoc } from "./project-font-sources";
 
 /**
  * The persisted unit of user data: the shape library plus the bin being
@@ -34,22 +44,31 @@ import { binHistorySchema } from "./history";
  * Version 15 adds optional corner rounding for flat-ended slots (absent is sharp).
  * Version 16 adds an optional boundary and two depths inside one tool pocket.
  * Version 17 preserves committed undo/redo history and its current position.
- * On main, versions 18 and 19 added basic-shape pockets and independent pocket names.
- * The lid preview branch developed the following versions in parallel.
- * Version 18 adds magnetic lids, defaulting off in designs and history entries.
- * Version 19 adds lid styles, stacking tops, independent closure magnets, and tunable fit.
- * Older lids remain inset with a flat top and plain closure recesses.
- * Version 20 adds overlapping lid wall thickness.
- * Version 21 links bin, rim and skirt thickness, preserving older paired dimensions.
- * Version 22 adds shared magnet diameter and thickness; older holes retain their dimensions.
- * Version 23 adds compliant lid interfaces, preserving existing contact ribs.
- * Version 24 adds contact-rib spacing, retaining the original 24 mm target.
- * Version 25 adds optional lid grip recesses, defaulting off in designs and history.
- * Version 26 migrates disabled spring interfaces to contact ribs, including undo/redo.
- * Version 27 unifies both formats, preserving pockets, lids, and undo/redo history.
+ * Version 18 identifies basic-shape pockets authored directly in millimetres.
+ * Version 19 adds independent pocket names to placements and their history.
+ * Version 20 was used by two branches: solid-fill height percentages on main,
+ * and optional X/Y pocket tilt on the feature branch. Both fields are optional
+ * on input, so either variant migrates without discarding data.
+ * Version 21 adds vertical pocket translation for the 3D editor.
+ * Version 22 unifies adjustable fill height, tilt and legacy vertical offsets.
+ * Version 23 adds explicit linked pocket and thumb-access designs.
+ * Version 24 preserves as-drawn transform references independently of undo history.
+ * Version 25 retains original pocket depths and the reversible fill-adjustment setting.
+ * Unreleased side-profile prototypes also used version 25 and migrate by their fields.
+ * Version 26 gives generated pockets a finite solid and unrestricted rigid placement.
+ * Version 28 adds editable surface labels. Version 27 is reserved for imported models.
+ * Version 29 adds independent surface-text object names.
+ * Version 30 preserves user-selected font outlines for portable surface text.
+ * Version 31 stores font sources once per project, shared by labels and history.
+ * Version 32 adds hollow-wall thickness, defaulting older bins to 0.95 mm.
+ * Version 33 adds optional pocket insertion clearance; older pockets stay finite.
+ * Version 34 retains unclipped source depth for rigid minimum-floor pockets.
+ * Version 35 retains finite through-pocket objects during rigid movement.
+ * Version 36 saves each project's colors and material-region settings.
+ * Version 37 combines main and lid-preview formats (v18-v27), preserving lid settings and history.
  */
 
-export const PROJECT_SCHEMA_VERSION = 27 as const;
+export const PROJECT_SCHEMA_VERSION = 37 as const;
 
 const projectFields = {
   shapes: z.array(tracedShapeSchema),
@@ -98,11 +117,29 @@ const version18ProjectSchema = version17ProjectSchema.extend({
   schemaVersion: z.literal(18),
 });
 
+const version19ProjectSchema = version17ProjectSchema.extend({ schemaVersion: z.literal(19) });
+
+const version20ProjectSchema = version17ProjectSchema.extend({ schemaVersion: z.literal(20) });
+
+const version21ProjectSchema = version17ProjectSchema.extend({ schemaVersion: z.literal(21) });
+
+const version22ProjectSchema = version17ProjectSchema.extend({ schemaVersion: z.literal(22) });
+
+const version23ProjectSchema = version17ProjectSchema.extend({ schemaVersion: z.literal(23) });
+const version24ProjectSchema = version23ProjectSchema.extend({
+  schemaVersion: z.literal(24), transformOrigins: transformOriginsSchema.optional(),
+});
+const version25ProjectSchema = version24ProjectSchema.extend({ schemaVersion: z.literal(25) });
+
 /** History and the visible design must describe one consistent saved snapshot. */
 export const projectDocSchema = version16ProjectSchema.extend({
   schemaVersion: z.literal(PROJECT_SCHEMA_VERSION),
+  /** Absent in older designs; the editor applies DEFAULT_BIN_MATERIALS. */
+  materials: binMaterialsSchema.optional(),
+  transformOrigins: transformOriginsSchema.optional(),
   history: binHistorySchema.optional(),
 }).superRefine((project, ctx) => {
+  for (const message of designLinkErrors(project)) ctx.addIssue({ code: z.ZodIssueCode.custom, message });
   if (!project.history) return;
   const current = project.history.stack[project.history.index]?.doc;
   const material = { spec: project.spec, cutouts: project.cutouts, fingerHoles: project.fingerHoles };
@@ -141,6 +178,48 @@ const legacyProjectSchemas = [1, 2, 3, 4, 5, 6].map((schemaVersion) =>
 export type ProjectDoc = z.infer<typeof projectDocSchema>;
 
 type LegacyProjectDoc = z.infer<(typeof legacyProjectSchemas)[number]>;
+
+/** Recover the last finite depth before Through discarded it. History is walked
+ * in order, so later edits cannot resize an earlier object or its Undo state. */
+function retainThroughSources(doc: ProjectDoc): ProjectDoc {
+  const needsSource = (p: CutoutPlacement) => p.elevationMm !== undefined
+    && (p.split?.depths ?? [p.depth]).some(d => d.mode === "through" && d.sourceDepthMm === undefined);
+  if (!doc.cutouts.some(needsSource) && !doc.history?.stack.some(e=>e.doc.cutouts.some(needsSource))
+    && !doc.transformOrigins?.pockets.some(o=>needsSource(o.cutout))) return doc;
+  const known = new Map<string,number>();
+  const shapes = new Map(doc.shapes.map(s=>[s.id,s]));
+  const retain = (p: CutoutPlacement, spec: BinSpec, linked = new Map<string,number>()): CutoutPlacement => {
+    const shape = shapes.get(p.shapeId);
+    const regions = shape && p.split ? resolvePocketSplit(shape.outlineMm,p.split.boundary).regions : null;
+    const depths = (p.split?.depths ?? [p.depth]).map((d,i): DepthSpec => {
+      const key = `${p.id}:${i}`;
+      const group = p.designLink ? `${p.designLink.id}:${i}` : key;
+      if (d.mode === "through" && d.sourceDepthMm === undefined) {
+        if (p.elevationMm === undefined) return d;
+        const sourceDepthMm = linked.get(group) ?? known.get(key) ?? Math.max(0.1,resolvePocketDepth(spec,d).infillTopZ);
+        known.set(key,sourceDepthMm);
+        linked.set(group,sourceDepthMm);
+        return {...d,sourceDepthMm};
+      }
+      const depth = d.mode === "mm" ? d.value : d.sourceDepthMm
+        ?? (shape ? resolvePlacedPocketDepth(spec,d,{outlineMm:regions?.[i] ?? shape.outlineMm},p).axialDepthMm : resolvePocketDepth(spec,d).depthMm);
+      if (depth !== null && depth !== undefined) known.set(key,Math.max(0.1,depth));
+      return d;
+    });
+    return {...p,depth:p.split ? p.depth : depths[0],
+      split:p.split ? {...p.split,depths:[depths[0],depths[1]]} : undefined};
+  };
+  const transformOrigins = doc.transformOrigins ? {...doc.transformOrigins,
+    pockets:doc.transformOrigins.pockets.map(o=>({...o,cutout:retain(o.cutout,o.spec)}))} : undefined;
+  const retainAll = (cutouts: CutoutPlacement[], spec: BinSpec) => {
+    const linked = new Map<string,number>();
+    return cutouts.map(p=>retain(p,spec,linked));
+  };
+  const history = doc.history ? {...doc.history,stack:doc.history.stack.map(entry=>({...entry,
+    doc:{...entry.doc,cutouts:retainAll(entry.doc.cutouts,entry.doc.spec)}}))} : undefined;
+  const cutouts = history ? history.stack[history.index].doc.cutouts : retainAll(doc.cutouts,doc.spec);
+  return projectDocSchema.parse({...doc,cutouts,history,transformOrigins});
+}
 
 /** Keeps migrated ids unique now that formerly per-pocket arrays share one list. */
 function uniqueFingerHoleId(id: string, used: Set<string>): string {
@@ -207,6 +286,10 @@ export function parseProjectDoc(input: unknown): ProjectDoc | null {
   return {
     ...doc,
     spec: migrateInterface(doc.spec),
+    ...(doc.transformOrigins ? { transformOrigins: {
+      ...doc.transformOrigins,
+      pockets: doc.transformOrigins.pockets.map(origin => ({ ...origin, spec: migrateInterface(origin.spec) })),
+    } } : {}),
     ...(doc.history ? { history: {
       ...doc.history,
       stack: doc.history.stack.map(entry => ({
@@ -218,35 +301,55 @@ export function parseProjectDoc(input: unknown): ProjectDoc | null {
 
 /** Upgrade the format and validate the original snapshots before normalizing interfaces. */
 function parseVersionedProject(input: unknown): ProjectDoc | null {
-  if (input && typeof input === "object" && !Array.isArray(input) &&
-      "schemaVersion" in input && typeof input.schemaVersion === "number" &&
-      Number.isInteger(input.schemaVersion) && input.schemaVersion >= 1 && input.schemaVersion <= 20) {
-    const version = input.schemaVersion;
-    const preserveWall = (value: unknown): unknown => {
-      if (!value || typeof value !== "object" || Array.isArray(value)) return value;
-      const spec = value as Record<string, unknown>;
-      return { ...spec, wallThicknessMm: spec.wallThicknessMm === undefined ? 0.95 : spec.wallThicknessMm,
-        ...(version <= 19 && spec.magneticLidStyle === "overlap" && spec.lidWallThicknessMm === undefined
-          ? { lidWallThicknessMm: 0.8 } : {}),
-      };
-    };
+  if (input && typeof input === "object" && !Array.isArray(input)) {
     const doc = input as Record<string, unknown>;
-    const history = doc.history;
-    input = { ...doc, spec: preserveWall(doc.spec),
-      ...(history && typeof history === "object" && !Array.isArray(history) && "stack" in history && Array.isArray(history.stack)
-        ? { history: { ...history, stack: history.stack.map(entry => {
-          if (!entry || typeof entry !== "object" || !entry.doc || typeof entry.doc !== "object") return entry;
-          return { ...entry, doc: { ...entry.doc, spec: preserveWall(entry.doc.spec) } };
-        }) } } : {}),
-      ...(version >= 17 ? { schemaVersion: PROJECT_SCHEMA_VERSION } : {}),
-    };
+    const version = doc.schemaVersion;
+    if (typeof version === "number" && Number.isInteger(version) && version >= 1 && version <= 27) {
+      const preserveWall = (value: unknown): unknown => {
+        if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+        const spec = value as Record<string, unknown>;
+        if (!("magneticLid" in spec)) return value;
+        // Preview versions used wallThicknessMm for the lid pair as well as the body.
+        // Keep those printed dimensions separately from main's hollow-wall preference.
+        const lidWall = spec.lidSharedWallThicknessMm === undefined
+          ? spec.wallThicknessMm === undefined ? (version <= 20 ? 0.95 : 1.2) : spec.wallThicknessMm
+          : spec.lidSharedWallThicknessMm;
+        return { ...spec, lidSharedWallThicknessMm: lidWall,
+          wallThicknessMm: typeof spec.wallThicknessMm === "number" && Number.isFinite(spec.wallThicknessMm)
+            ? Math.min(3, Math.max(0.95, spec.wallThicknessMm)) : spec.wallThicknessMm === undefined ? 0.95 : spec.wallThicknessMm,
+          ...(version <= 19 && spec.magneticLidStyle === "overlap" && spec.lidWallThicknessMm === undefined
+            ? { lidWallThicknessMm: 0.8 } : {}),
+        };
+      };
+      const history = doc.history;
+      input = { ...doc, spec: preserveWall(doc.spec),
+        ...(history && typeof history === "object" && !Array.isArray(history) && "stack" in history && Array.isArray(history.stack)
+          ? { history: { ...history, stack: history.stack.map(entry => {
+            if (!entry || typeof entry !== "object" || !entry.doc || typeof entry.doc !== "object") return entry;
+            return { ...entry, doc: { ...entry.doc, spec: preserveWall(entry.doc.spec) } };
+          }) } } : {}),
+      };
+    }
   }
-  if (input && typeof input === "object" && !Array.isArray(input) &&
-      "schemaVersion" in input && (input.schemaVersion === 21 || input.schemaVersion === 22 || input.schemaVersion === 23 || input.schemaVersion === 24 || input.schemaVersion === 25 || input.schemaVersion === 26)) {
-    input = { ...input, schemaVersion: PROJECT_SCHEMA_VERSION };
+  if (input && typeof input === "object" && "schemaVersion" in input && input.schemaVersion === PROJECT_SCHEMA_VERSION) {
+    input = expandProjectFontSources(input);
+  }
+  if (input && typeof input === "object" && !Array.isArray(input)
+      && [26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36].includes((input as Record<string, unknown>).schemaVersion as number)) {
+    // Strict current schemas still reject unsupported data from version-27 prototypes.
+    return parseProjectDoc({ ...input, schemaVersion: PROJECT_SCHEMA_VERSION });
   }
   const result = projectDocSchema.safeParse(input);
-  if (result.success) return result.data;
+  if (result.success) {
+    const doc = retainThroughSources(result.data);
+    if (!doc.cutouts.some(c => c.profileBottom) && !doc.history?.stack.some(e => e.doc.cutouts.some(c => c.profileBottom))
+        && !doc.transformOrigins?.pockets.some(o => o.cutout.profileBottom)) return doc;
+    return projectDocSchema.parse({ ...doc, cutouts: doc.cutouts.map(migrateProfilePocket),
+      history: doc.history ? { ...doc.history, stack: doc.history.stack.map(entry => ({ ...entry,
+        doc: { ...entry.doc, cutouts: entry.doc.cutouts.map(migrateProfilePocket) } })) } : undefined,
+      transformOrigins: doc.transformOrigins ? { ...doc.transformOrigins,
+        pockets: doc.transformOrigins.pockets.map(origin => ({ ...origin, cutout: migrateProfilePocket(origin.cutout) })) } : undefined });
+  }
   // Only legacy documents may contain the removed flag. Keep malformed values
   // and unknown fields invalid, and never mutate the stored source document.
   if (input && typeof input === "object" && !Array.isArray(input)) {
@@ -257,6 +360,48 @@ function parseVersionedProject(input: unknown): ProjectDoc | null {
       if (liteBase !== undefined && typeof liteBase !== "boolean") return null;
       input = { ...doc, spec };
     }
+  }
+  const version25 = version25ProjectSchema.safeParse(input);
+  if (version25.success) {
+    const doc = version25.data;
+    const migrated = projectDocSchema.safeParse({ ...doc, schemaVersion: PROJECT_SCHEMA_VERSION,
+      cutouts: doc.cutouts.map(migrateProfilePocket),
+      history: doc.history ? { ...doc.history, stack: doc.history.stack.map(entry => ({ ...entry,
+        doc: { ...entry.doc, cutouts: entry.doc.cutouts.map(migrateProfilePocket) } })) } : undefined,
+      transformOrigins: doc.transformOrigins ? { ...doc.transformOrigins,
+        pockets: doc.transformOrigins.pockets.map(origin => ({ ...origin, cutout: migrateProfilePocket(origin.cutout) })) } : undefined,
+    });
+    return migrated.success ? migrated.data : null;
+  }
+  const version24 = version24ProjectSchema.safeParse(input);
+  if (version24.success) {
+    const migrated = projectDocSchema.safeParse({ ...version24.data, schemaVersion: PROJECT_SCHEMA_VERSION });
+    return migrated.success ? migrated.data : null;
+  }
+  const version23 = version23ProjectSchema.safeParse(input);
+  if (version23.success) {
+    const migrated = projectDocSchema.safeParse({ ...version23.data, schemaVersion: PROJECT_SCHEMA_VERSION });
+    return migrated.success ? migrated.data : null;
+  }
+  const version22 = version22ProjectSchema.safeParse(input);
+  if (version22.success) {
+    const migrated = projectDocSchema.safeParse({ ...version22.data, schemaVersion: PROJECT_SCHEMA_VERSION });
+    return migrated.success ? migrated.data : null;
+  }
+  const version21 = version21ProjectSchema.safeParse(input);
+  if (version21.success) {
+    const migrated = projectDocSchema.safeParse({ ...version21.data, schemaVersion: PROJECT_SCHEMA_VERSION });
+    return migrated.success ? migrated.data : null;
+  }
+  const version20 = version20ProjectSchema.safeParse(input);
+  if (version20.success) {
+    const migrated = projectDocSchema.safeParse({ ...version20.data, schemaVersion: PROJECT_SCHEMA_VERSION });
+    return migrated.success ? migrated.data : null;
+  }
+  const version19 = version19ProjectSchema.safeParse(input);
+  if (version19.success) {
+    const migrated = projectDocSchema.safeParse({ ...version19.data, schemaVersion: PROJECT_SCHEMA_VERSION });
+    return migrated.success ? migrated.data : null;
   }
   const version18 = version18ProjectSchema.safeParse(input);
   if (version18.success) {

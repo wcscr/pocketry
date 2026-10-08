@@ -46,12 +46,12 @@ export type WorkerMessage =
 export interface MessageEndpoint {
   postMessage(message: unknown, transfer?: Transferable[]): void;
   addEventListener(
-    type: "message",
-    listener: (event: MessageEvent) => void,
+    type: "message" | "error" | "messageerror",
+    listener: (event: Event) => void,
   ): void;
   removeEventListener(
-    type: "message",
-    listener: (event: MessageEvent) => void,
+    type: "message" | "error" | "messageerror",
+    listener: (event: Event) => void,
   ): void;
   terminate?(): void;
 }

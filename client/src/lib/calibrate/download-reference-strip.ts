@@ -1,10 +1,17 @@
 import { downloadBlob } from "@/lib/download";
 import { referenceStripPdf } from "./reference-strip-pdf";
+import { measurementAidsPdf } from "./measurement-aids-pdf";
 import type { TemplatePaper } from "./template";
 import type { MeasurementAidLength } from "./reference-strip";
 
 export function downloadReferenceStripPdf(paper: TemplatePaper): void {
   downloadBlob(new Blob([referenceStripPdf(paper)], { type: "application/pdf" }), `pocketry-reference-strip-v1-${paper}.pdf`);
+}
+
+/** Paper uses the same size-specific artwork as the corresponding 3MF aid. */
+export function downloadMeasurementAidsPdf(paper: TemplatePaper): void {
+  downloadBlob(new Blob([measurementAidsPdf(paper)], { type: "application/pdf" }),
+    `pocketry-measurement-aids-v2-${paper}.pdf`);
 }
 
 /** Load the geometry runtime only when the user asks for a 3D print. */

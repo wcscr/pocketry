@@ -5,7 +5,9 @@ import { Route, Switch } from "wouter";
 import { HelpDialog } from "@/components/help/help-dialog";
 import { AppHeader } from "@/components/layout/app-header";
 import { AppShell } from "@/components/layout/app-shell";
-import { MobileDevelopmentWelcome } from "@/components/layout/mobile-development-welcome";
+import { AppWelcome } from "@/components/layout/app-welcome";
+import { ExperimentalFeaturesDialog } from "@/components/layout/experimental-features-dialog";
+import { ExperimentalFeaturesProvider } from "@/state/experimental-features";
 import { WORKSPACES } from "@/components/layout/workspaces";
 import { PanelProvider, usePanelState } from "@/components/layout/panel-context";
 import { Toaster } from "@/components/ui/toaster";
@@ -14,6 +16,8 @@ import About from "@/pages/about";
 import NotFound from "@/pages/not-found";
 import { ShapeLibraryProvider } from "@/state/shape-library";
 import { TraceProvider } from "@/state/trace-store";
+import { ProjectActivityProvider } from "@/state/project-activity";
+import { ProjectStatusBar } from "@/components/layout/project-status-bar";
 
 import { queryClient } from "./lib/queryClient";
 
@@ -48,6 +52,7 @@ function Shell() {
   return (
     <>
       <AppShell
+        status={<ProjectStatusBar />}
         header={
           <AppHeader
             panelOpen={panelOpen}
@@ -60,7 +65,8 @@ function Shell() {
         <Router />
       </AppShell>
       <HelpDialog open={helpOpen} onOpenChange={setHelpOpen} />
-      <MobileDevelopmentWelcome />
+      <ExperimentalFeaturesDialog />
+      <AppWelcome />
     </>
   );
 }
@@ -70,7 +76,9 @@ function App() {
     <QueryClientProvider client={queryClient}>
       {/* Needed once, for the icon-only buttons in the header and toolbars. */}
       <TooltipProvider delayDuration={300}>
+        <ExperimentalFeaturesProvider>
         <PanelProvider>
+          <ProjectActivityProvider>
           {/* Above the router: traced shapes must survive the Trace → Bin
               navigation, which unmounts both workspaces' own stores. */}
           <ShapeLibraryProvider>
@@ -82,7 +90,9 @@ function App() {
               <Shell />
             </TraceProvider>
           </ShapeLibraryProvider>
+          </ProjectActivityProvider>
         </PanelProvider>
+        </ExperimentalFeaturesProvider>
       </TooltipProvider>
       <Toaster />
     </QueryClientProvider>

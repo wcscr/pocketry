@@ -1,3 +1,6 @@
+import { validateLayout, type ValidationIssue } from "@shared/gridfinity/validate";
+import { buildSurfaceTexts } from "./surface-text";
+import { validateTiltedSolids } from "./validate-tilted-solids";
 // Type-only import: the kernel is injected (see `Kernel` in ../manifold/runtime).
 import type { Manifold } from "manifold-3d";
 
@@ -12,18 +15,16 @@ import {
 } from "@shared/gridfinity/cutout";
 import {
   hasStackingLip,
-  infillTopAllowanceMm,
   BASE_HEIGHT,
   BASE_TOP_RADIUS,
   binFootprintMm,
   binHeightMm,
   binTotalHeightMm,
-  binWallHeightMm,
-  STACKING_LIP_HEIGHT_ACTUAL,
-  STACKING_LIP_SUPPORT_HEIGHT,
-  STACKING_LIP_SUPPORT_HEIGHT_MM,
+  D_WALL,
 } from "@shared/gridfinity/standard";
 import type { BinSpec } from "@shared/gridfinity/types";
+import { infillHeightMm } from "@shared/gridfinity/fill";
+export { infillHeightMm } from "@shared/gridfinity/fill";
 
 import type { Kernel } from "@/lib/manifold/runtime";
 
@@ -37,7 +38,7 @@ import { holeOptionsFromSpec } from "./holes";
 import { buildLabelTab } from "./label-tab";
 import { roundedRectPolygon } from "./profiles";
 import { footprintOuterSection } from "./footprint-section";
-import { buildStackingLip, buildWallRing } from "./wall";
+import { buildStackingLip, buildWallRing, buildWallSection } from "./wall";
 import { hasOverlappingLid } from "@shared/gridfinity/magnetic-lid";
 import { addLidRetention, buildLidSupports, buildInsetLidRim } from "./magnetic-lid";
 import { hasSpringLatch } from "@shared/gridfinity/magnetic-lid";
@@ -93,16 +94,13 @@ export const EXPORT_QUALITY: BuildQuality = {
   filletProfileStepMm: 0.1,
 };
 
-/** Default: three nominal 0.2 mm layers below each pocket-floor surface. */
-export const MULTICOLOR_FLOOR_THICKNESS_MM = 0.6;
-/** Default material depth down from the stacking-lip summit. */
-export const MULTICOLOR_RIM_THICKNESS_MM = 1.25;
-export const MULTICOLOR_MIN_THICKNESS_MM = 0.2;
-export const MULTICOLOR_FLOOR_MAX_THICKNESS_MM = 3;
-/** Full modeled lip depth, rounded down to a practical 0.01 mm UI increment. */
-export const MULTICOLOR_RIM_MAX_THICKNESS_MM = Math.floor(
-  (STACKING_LIP_HEIGHT_ACTUAL + STACKING_LIP_SUPPORT_HEIGHT_MM) * 100,
-) / 100;
+import { MULTICOLOR_BORDER_WIDTH_MM } from "@shared/gridfinity/materials";
+export {
+  MULTICOLOR_FLOOR_THICKNESS_MM, MULTICOLOR_RIM_THICKNESS_MM,
+  MULTICOLOR_BORDER_WIDTH_MM, MULTICOLOR_BORDER_MAX_WIDTH_MM,
+  MULTICOLOR_MIN_THICKNESS_MM, MULTICOLOR_FLOOR_MAX_THICKNESS_MM,
+  MULTICOLOR_RIM_MAX_THICKNESS_MM,
+} from "@shared/gridfinity/materials";
 
 export interface BinParts {
   /** Sockets plus bridge, or a flat slab, z ∈ [0, 7]. */
@@ -113,12 +111,6 @@ export interface BinParts {
   lip: Manifold | null;
   /** Solid interior fill. `null` unless `spec.fill` is "solid" with room. */
   infill: Manifold | null;
-}
-
-/** The infill's height: wall minus the lip's inner support, clamped at 0. */
-export function infillHeightMm(spec: BinSpec): number {
-  const lipAllowance = infillTopAllowanceMm(spec);
-  return Math.max(binWallHeightMm(spec.heightUnits) - lipAllowance, 0);
 }
 
 /** Outer dimensions of the bin a spec describes, without building it. */
@@ -197,19 +189,23 @@ export interface BinLayout {
 }
 
 export interface BinMaterialParts {
+  /** Unclipped regions to subtract, avoiding coincident intermediate faces. */
+  floorRegions: Manifold[];
   /** Main bin with every requested contrasting volume removed. */
   body: Manifold;
-  /** Thin printable volumes directly below the exposed pocket floors. */
+  /** Thin printable volumes below pocket floors or the interior floor of a hollow bin. */
   pocketFloors: Manifold | null;
-  /** Thin printable crest cut from the top of the stacking lip. */
+  /** Printable lip crest or flush wall border; keeps the existing material key. */
   stackingRim: Manifold | null;
 }
 
 export interface BuildBinWithCutoutsOptions {
-  /** Enables a non-overlapping printable pocket-floor material volume. */
+  /** Enables a printable color layer below pocket floors or a hollow bin's floor. */
   floorInsertThicknessMm?: number;
-  /** Enables a non-overlapping printable stacking-rim crest volume. */
+  /** Enables a non-overlapping printable lip crest or flush perimeter border. */
   rimInsertThicknessMm?: number;
+  /** Inward color width for bins without a stacking lip; never adds material. */
+  borderWidthMm?: number;
 }
 
 /**
@@ -228,13 +224,18 @@ export function buildBinWithCutouts(
   parts: BinParts;
   solid: Manifold;
   materialParts: BinMaterialParts | null;
+  /** Original bin and individual labels for multipart 3MF exports. */
+  bodySolid: Manifold;
+  textParts: ReturnType<typeof buildSurfaceTexts>;
   cutoutReports: CutoutBuildReport[];
+  validationIssues: ValidationIssue[];
 } {
   const { Manifold, arena } = kernel;
   const base = buildBin(kernel, spec, quality);
   let solid = base.solid;
-  let floorInserts: Manifold[] = [];
+  let floorInserts: Manifold[] = [], floorRegions: Manifold[] = [];
   let reports: CutoutBuildReport[] = [];
+  let validationIssues: ValidationIssue[] = [];
   if (layout && (layout.cutouts.length > 0 || layout.fingerHoles.length > 0)) {
     const builtCutouts = buildCutoutCutters(
       kernel,
@@ -244,7 +245,14 @@ export function buildBinWithCutouts(
       quality,
       { floorInsertThicknessMm: options.floorInsertThicknessMm },
     );
+    validationIssues = [
+      ...(builtCutouts.validationIssues ?? []),
+      ...validateLayout(spec, layout.cutouts, layout.shapesById, layout.fingerHoles)
+        .filter(issue => issue.code === "invalid-pocket-insertion"),
+      ...validateTiltedSolids(kernel, spec, layout.cutouts, layout.shapesById, builtCutouts.cutterGroups ?? [], base.parts.wall, base.parts.lip),
+    ];
     floorInserts = builtCutouts.floorInserts;
+    floorRegions = builtCutouts.floorRegions ?? floorInserts;
     reports = builtCutouts.reports;
     const allCutters = [
       ...builtCutouts.cutters,
@@ -274,6 +282,26 @@ export function buildBinWithCutouts(
     throw new Error(`buildBinWithCutouts: manifold reported ${status}`);
   }
 
+  if (
+    spec.fill === "none" &&
+    options.floorInsertThicknessMm !== undefined &&
+    Number.isFinite(options.floorInsertThicknessMm) &&
+    options.floorInsertThicknessMm > 0
+  ) {
+    // The hollow floor is the exposed base top. Match the actual wall's inner
+    // corners and custom footprint, then clip against the finished solid below
+    // so screw holes, base recesses, and layout cuts remain open.
+    const outer = footprintOuterSection(kernel, spec, quality.circularSegments);
+    const wall = buildWallSection(kernel, spec, quality.circularSegments);
+    const interior = arena.track(outer.subtract(wall));
+    const floorRegion = arena.track(
+      arena.track(interior.extrude(options.floorInsertThicknessMm))
+        .translate([0, 0, BASE_HEIGHT - options.floorInsertThicknessMm]),
+    );
+    floorInserts = [...floorInserts, floorRegion];
+    floorRegions = [...floorRegions, floorRegion];
+  }
+
   let materialParts: BinMaterialParts | null = null;
   let pocketFloors: Manifold | null = null;
   if (floorInserts.length > 0) {
@@ -287,18 +315,23 @@ export function buildBinWithCutouts(
 
   let stackingRim: Manifold | null = null;
   if (
-    !spec.magneticLid && base.parts.lip &&
+    !spec.magneticLid &&
     options.rimInsertThicknessMm !== undefined &&
     Number.isFinite(options.rimInsertThicknessMm) &&
     options.rimInsertThicknessMm > 0
   ) {
-    const topZ = binTotalHeightMm(spec.heightUnits, true);
-    const requestedRim = arena.track(
-      base.parts.lip.trimByPlane(
-        [0, 0, 1],
-        topZ - options.rimInsertThicknessMm,
-      ),
-    );
+    const topZ = binTotalHeightMm(spec.heightUnits, spec.lip === "standard");
+    // Without a lip, extend the color inward from the outer perimeter.
+    // Extending the mask below the wall also supports 1u bins;
+    // intersecting the finished solid preserves base profiles and all cutouts.
+    const requestedRim = base.parts.lip
+      ? arena.track(base.parts.lip.trimByPlane([0, 0, 1], topZ - options.rimInsertThicknessMm))
+      : arena.track(
+          arena.track(buildWallSection(kernel, spec, quality.circularSegments,
+            options.borderWidthMm ?? MULTICOLOR_BORDER_WIDTH_MM)
+            .extrude(options.rimInsertThicknessMm))
+            .translate([0, 0, topZ - options.rimInsertThicknessMm]),
+        );
     let clippedRim = arena.track(requestedRim.intersect(solid));
     if (pocketFloors) {
       clippedRim = arena.track(clippedRim.subtract(pocketFloors));
@@ -310,19 +343,21 @@ export function buildBinWithCutouts(
     (part): part is Manifold => part !== null,
   );
   if (accents.length > 0) {
-    const accent =
-      accents.length === 1 ? accents[0] : arena.track(Manifold.union(accents));
-    const body = arena.track(solid.subtract(accent));
+    const bodyCutters = [...floorRegions, ...(stackingRim ? [stackingRim] : [])];
+    const body = arena.track(Manifold.difference([solid, ...bodyCutters]));
     if (
       body.status() !== "NoError" ||
       accents.some((part) => part.status() !== "NoError")
     ) {
       throw new Error("buildBinWithCutouts: multi-color material split failed");
     }
-    materialParts = { body, pocketFloors, stackingRim };
+    materialParts = { body, pocketFloors, stackingRim, floorRegions };
   }
 
-  return { parts: base.parts, solid, materialParts, cutoutReports: reports };
+  const bodySolid = solid;
+  const textParts = spec.surfaceTexts.length ? buildSurfaceTexts(kernel, spec, bodySolid) : [];
+  if (textParts.length) solid = arena.track(Manifold.union([bodySolid, ...textParts.map(part => part.solid)]));
+  return { parts: base.parts, solid, bodySolid, textParts, materialParts, cutoutReports: reports, validationIssues };
 }
 
 /**

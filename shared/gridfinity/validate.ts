@@ -1,3 +1,6 @@
+import { hasPocketTilt, pocketAxis } from "./pocket-orientation";
+import { hasRigidPocket } from "./rigid-pocket";
+import { pocketInsertionError } from "./pocket-insertion";
 import {
   distanceToSegment,
   ringBounds,
@@ -14,9 +17,12 @@ import {
 } from "./footprint";
 import {
   effectiveFingerHoleDepthMm,
+  defaultPocketFloorThicknessMm,
   fingerHoleFootprintRing,
   placementFootprint,
   pocketName,
+  resolvePlacedPocketDepth,
+  pocketOccupiedOutline,
   pocketLayoutAllowanceMm,
   resolvePocketDepth,
   pocketDepths,
@@ -29,14 +35,13 @@ import {
   BASE_HEIGHT,
   BASE_PROFILE_HEIGHT,
   hasStackingLip,
-  infillTopAllowanceMm,
   binHeightMm,
   binWallHeightMm,
   D_DIV,
   binWallThicknessMm,
+  D_WALL,
   gridPitchMm,
   STACKING_LIP_DEPTH,
-  STACKING_LIP_SUPPORT_HEIGHT,
   STACKING_LIP_SUPPORT_HEIGHT_MM,
   TAB_DEPTH_MM,
   TAB_HEIGHT_MM,
@@ -44,6 +49,7 @@ import {
   binFootprintMm,
 } from "./standard";
 import type { BinSpec } from "./types";
+import { infillHeightMm } from "./fill";
 import { resolvePocketSplit } from "./pocket-split";
 import { hasBaseMagnets, baseMagnetSizeError } from "./magnets";
 import { hasOverlappingLid, overlapRimInteriorClearanceMm, lidPadExtentMm, magneticLidError } from "./magnetic-lid";
@@ -102,7 +108,7 @@ export function validatePocketFloorMaterials(
   for (const cutout of cutouts) {
     const shape = shapesById.get(cutout.shapeId);
     for (const depth of pocketDepths(cutout)) {
-      const { floorZ, depthMm } = resolvePocketDepth(spec, depth);
+      const { floorZ, depthMm } = shape ? resolvePlacedPocketDepth(spec, depth, shape, cutout) : resolvePocketDepth(spec, depth);
       // Invalid and through pockets have no printable floor-color volume.
       if (!shape || floorZ === null || floorZ <= 0 || depthMm === null || depthMm <= 0) continue;
       const thicknessMm = Math.min(floorColorThicknessMm, floorZ);
@@ -152,8 +158,7 @@ export function validateBinSpec(spec: BinSpec): ValidationResult {
   }
 
   if (spec.fill === "solid") {
-    const lipAllowance = infillTopAllowanceMm(spec);
-    const fillHeight = wallHeight - lipAllowance;
+    const fillHeight = infillHeightMm(spec);
     if (fillHeight <= 0) {
       issues.push({
         code: "no-infill-space",
@@ -228,7 +233,8 @@ export function labelTabStripMm(spec: BinSpec): Bounds | null {
   const run = resolveBoundaryRun(spec, edge);
   if (!run) return null;
   const horizontal = edge.side === "north" || edge.side === "south";
-  const chord = run.lengthMm - 2 * binWallThicknessMm(spec);
+  const thicknessMm = spec.magneticLid ? binWallThicknessMm(spec) : D_WALL;
+  const chord = run.lengthMm - 2 * thicknessMm;
   const length = tab.width === "full" ? chord : Math.min(TAB_WIDTH_NOMINAL_MM, chord);
   const alongStart =
     tab.width === "left"
@@ -241,10 +247,10 @@ export function labelTabStripMm(spec: BinSpec): Bounds | null {
     x: (run.start.x + run.end.x) / 2,
     y: (run.start.y + run.end.y) / 2,
   };
-  if (edge.side === "north") midpoint.y -= binWallThicknessMm(spec);
-  else if (edge.side === "south") midpoint.y += binWallThicknessMm(spec);
-  else if (edge.side === "east") midpoint.x -= binWallThicknessMm(spec);
-  else midpoint.x += binWallThicknessMm(spec);
+  if (edge.side === "north") midpoint.y -= thicknessMm;
+  else if (edge.side === "south") midpoint.y += thicknessMm;
+  else if (edge.side === "east") midpoint.x -= thicknessMm;
+  else midpoint.x += thicknessMm;
   const localCorners: Point[] = [
     { x: alongStart, y: 0 },
     { x: alongEnd, y: 0 },
@@ -335,7 +341,19 @@ export function validateLayout(
       });
     }
 
-    const { outline, features } = placementFootprint(shape, cutout);
+    const insertionError = pocketInsertionError(cutout);
+    if (insertionError) {
+      issues.push({ code: "invalid-pocket-insertion", severity: "error", cutoutIds: [cutout.id],
+        message: `“${pocketName(cutout, shape)}”: ${insertionError}` });
+      continue;
+    }
+    if (!hasRigidPocket(cutout) && hasPocketTilt(cutout) && pocketAxis(cutout).z < 0.01) {
+      issues.push({ code: "invalid-pocket-tilt", severity: "error", cutoutIds: [cutout.id], message: `“${pocketName(cutout, shape)}”: Reduce the combined tilt so the pocket can exit through the top.` });
+      continue;
+    }
+    const { outline, features } = hasRigidPocket(cutout) && cutout.insertionMode === "vertical"
+      ? { outline: pocketOccupiedOutline(shape,cutout,spec), features: [] }
+      : placementFootprint(shape, cutout);
     const rings: Ring[] = [];
     let bounds: Bounds | null = null;
     const addBounds = (b: Bounds | null) => {
@@ -366,6 +384,14 @@ export function validateLayout(
     if (touchesLidSupport(spec, p.outline, pocketLayoutAllowanceMm(p.cutout))) {
       issues.push({ code: "lid-support-collision", severity: "error", cutoutIds: [p.cutout.id],
         message: `“${p.label}” reaches a lid magnet support. Move it away from the corners or turn off Magnetic lid.` });
+    }
+    if (hasPocketTilt(p.cutout)) {
+      const occupied = pocketOccupiedOutline(p.shape, p.cutout, spec);
+      const allowance = pocketLayoutAllowanceMm(p.cutout);
+      if (occupied.some(s => s.outer.some(point => signedDistanceToInterior(point, spec) < allowance))) {
+        issues.push({ code: "tilted-pocket-envelope", severity: "warning", cutoutIds: [p.cutout.id],
+          message: `“${p.label}”: The tilted shaft approaches a wall below the opening. Check the 3D preview; export checks the actual cavity.` });
+      }
     }
   }
   for (let i = 0; i < placed.length; i++) {
@@ -423,7 +449,7 @@ function validateAgainstBin(spec: BinSpec, p: PlacedCutout): ValidationIssue[] {
   if (outside) {
     issues.push({
       code: "out-of-bounds",
-      severity: "error",
+      severity: hasRigidPocket(cutout) ? "warning" : "error",
       cutoutIds: [cutout.id],
       message: `“${label}” extends past the bin's footprint.`,
     });
@@ -459,14 +485,14 @@ function validateAgainstBin(spec: BinSpec, p: PlacedCutout): ValidationIssue[] {
   if (wallMargin < 0) {
     issues.push({
       code: "wall-breach",
-      severity: "error",
+      severity: hasRigidPocket(cutout) ? "warning" : "error",
       cutoutIds: [cutout.id],
       message: `“${label}” cuts into the bin wall once its ${outlineAllowance} mm combined clearance and top-edge round are added.`,
     });
   } else if (rimMargin < 0) {
     issues.push({ code: "lid-rim-collision", severity: "error", cutoutIds: [cutout.id],
       message: `“${label}” cuts into the inset lid rim. Move it farther from the edge.` });
-  } else if (hasStackingLip(spec) && wallMargin < Math.max(0, STACKING_LIP_DEPTH - binWallThicknessMm(spec))) {
+  } else if (hasStackingLip(spec) && wallMargin < Math.max(0, STACKING_LIP_DEPTH - (spec.magneticLid ? binWallThicknessMm(spec) : D_WALL))) {
     issues.push({
       code: "lip-collision",
       severity: "warning",
@@ -482,6 +508,25 @@ function validateAgainstBin(spec: BinSpec, p: PlacedCutout): ValidationIssue[] {
     });
   }
 
+  if (cutout.profileBottom || hasRigidPocket(cutout)) {
+    const minimum = defaultPocketFloorThicknessMm(spec);
+    const sourceElevation = cutout.profileBottom?.elevationMm ?? cutout.elevationMm!;
+    const depths = pocketDepths(cutout);
+    // A minimum-floor cut can safely retain a source below the protected base.
+    const elevation = Math.min(...depths.map(d => d.mode === "remaining"
+      ? Math.max(sourceElevation, d.floorThicknessMm) : sourceElevation));
+    const through = depths.some(d => d.mode === "through");
+    if (!through && elevation < minimum) issues.push({
+      code: "too-deep", severity: "error", cutoutIds: [cutout.id],
+      message: `“${label}”: Raise the pocket to leave at least ${minimum} mm above the bin underside.`,
+    });
+    const top = resolvePocketDepth(spec, { mode: "through" }).infillTopZ;
+    if (!through && elevation >= top) issues.push({
+      code: "too-shallow", severity: "warning", cutoutIds: [cutout.id],
+      message: `“${label}”: The pocket is above the fill surface; no pocket remains in the fill.`,
+    });
+    return issues;
+  }
   const split = cutout.split ? resolvePocketSplit(p.shape.outlineMm, cutout.split.boundary) : null;
   if (split?.error) issues.push({
     code: "invalid-pocket-split", severity: "error", cutoutIds: [cutout.id],
@@ -489,7 +534,12 @@ function validateAgainstBin(spec: BinSpec, p: PlacedCutout): ValidationIssue[] {
   });
   for (const [index, depth] of pocketDepths(cutout).entries()) {
     const label = cutout.split ? `${p.label} · Section ${index === 0 ? "A" : "B"}` : p.label;
-    const pocket = resolvePocketDepth(spec, depth);
+    const region = split?.regions?.[index] ?? p.shape.outlineMm;
+    const pocket = resolvePlacedPocketDepth(spec, depth, { outlineMm: region }, cutout);
+    if (pocket.highestFloorZ !== null && pocket.highestFloorZ >= pocket.infillTopZ) issues.push({
+      code: "too-shallow", severity: "error", cutoutIds: [cutout.id],
+      message: `“${label}”: Increase depth, lower Z, or reduce tilt so the whole floor is below the opening.`,
+    });
     if (pocket.floorZ !== null) {
       if (pocket.floorZ < 0) {
         issues.push({
@@ -596,7 +646,7 @@ function validateFingerHoleAgainstBin(
   } else if (rimMargin < 0) {
     issues.push({ code: "lid-rim-collision", severity: "error", fingerHoleIds: [hole.id],
       message: `${label} cuts into the inset lid rim. Move it farther from the edge.` });
-  } else if (hasStackingLip(spec) && wallMargin < Math.max(0, STACKING_LIP_DEPTH - binWallThicknessMm(spec))) {
+  } else if (hasStackingLip(spec) && wallMargin < Math.max(0, STACKING_LIP_DEPTH - (spec.magneticLid ? binWallThicknessMm(spec) : D_WALL))) {
     issues.push({
       code: "finger-hole-lip-collision",
       severity: "warning",
@@ -695,6 +745,9 @@ function segmentsIntersect(a1: Point, a2: Point, b1: Point, b2: Point): boolean 
 }
 
 function validatePair(a: PlacedCutout, b: PlacedCutout): ValidationIssue | null {
+  // Projected solids can overlap while occupying different heights. The worker
+  // checks their actual intersection, including buried and raised objects.
+  if (hasRigidPocket(a.cutout) || hasRigidPocket(b.cutout)) return null;
   const edgeAllowance =
     pocketLayoutAllowanceMm(a.cutout) + pocketLayoutAllowanceMm(b.cutout);
   const warnGap = edgeAllowance + D_DIV;
@@ -738,8 +791,8 @@ function validatePair(a: PlacedCutout, b: PlacedCutout): ValidationIssue | null 
   if (overlapping) {
     return {
       code: "cutout-overlap",
-      severity: "error",
-      message: `“${a.label}” and “${b.label}” overlap.`,
+      severity: "warning",
+      message: `“${a.label}” and “${b.label}” overlap. Their cuts will be combined.`,
       cutoutIds: [a.cutout.id, b.cutout.id],
     };
   }
@@ -760,7 +813,7 @@ function validatePair(a: PlacedCutout, b: PlacedCutout): ValidationIssue | null 
   if (separation < edgeAllowance) {
     return {
       code: "cutout-overlap",
-      severity: "error",
+      severity: "warning",
       message: `“${a.label}” and “${b.label}” merge once their clearances and top-edge rounds are added.`,
       cutoutIds: [a.cutout.id, b.cutout.id],
     };

@@ -7,11 +7,13 @@ import {
   type FingerHole,
   type TracedShape,
 } from "@shared/gridfinity/cutout";
+import { adjustPocketsForFillHeight } from "@shared/gridfinity/fill-height-edit";
 import { parseBinSpec } from "@shared/gridfinity/types";
 import {
   binTotalHeightMm,
   binFootprintMm,
   BASE_PROFILE_HEIGHT,
+  BASE_HEIGHT,
   STACKING_LIP_HEIGHT_ACTUAL,
   STACKING_LIP_SUPPORT_HEIGHT_MM,
 } from "@shared/gridfinity/standard";
@@ -110,6 +112,51 @@ function cutout(
 const SPEC = parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6, fill: "solid" });
 
 describe("buildBinWithCutouts", () => {
+  it.each([PREVIEW_QUALITY, EXPORT_QUALITY])("keeps adjusted pocket floors and color bands at the original height at $circularSegments segments", quality => {
+    const shape = rectShape("adjusted", 20, 20);
+    const original = cutout("p", shape.id, { depth: { mode: "mm", value: 20 } });
+    const spec = { ...SPEC, fillHeightPercent: 75 };
+    const adjusted = adjustPocketsForFillHeight([original], SPEC, spec).cutouts!;
+    const full = buildBin(kernel, spec, quality);
+    const built = buildBinWithCutouts(kernel, spec, layoutFor([shape], adjusted), quality, { floorInsertThicknessMm: 0.6 });
+    expect(built.solid.status()).toBe("NoError");
+    expect(full.solid.volume() - built.solid.volume()).toBeCloseTo(20 * 20 * 11.55, 4);
+    const floor = built.materialParts!.pocketFloors!;
+    expect(floor.boundingBox().max[2]).toBeCloseTo(20.8, 6);
+    expect(floor.boundingBox().min[2]).toBeCloseTo(20.2, 6);
+  });
+
+  it.each([PREVIEW_QUALITY, EXPORT_QUALITY])("cuts pockets and floor colors from a lowered fill surface at $circularSegments segments", (quality) => {
+    const spec = parseBinSpec({ ...SPEC, fillHeightPercent: 50 });
+    const shape = rectShape("lowered", 20, 20);
+    const pocket = cutout("p", shape.id, { depth: { mode: "mm", value: 5 } });
+    const full = buildBin(kernel, spec, quality);
+    const built = buildBinWithCutouts(kernel, spec, layoutFor([shape], [pocket]), quality, {
+      floorInsertThicknessMm: 0.6, rimInsertThicknessMm: 1.25,
+    });
+    expect(built.solid.status()).toBe("NoError");
+    expect(built.solid.genus()).toBe(0);
+    // The 20 by 20 mm pocket cuts exactly 5 mm from the 23.9 mm fill surface.
+    expect(full.solid.volume() - built.solid.volume()).toBeCloseTo(20 * 20 * 5, 4);
+    const floor = built.materialParts!.pocketFloors!;
+    expect(floor.boundingBox().max[2]).toBeCloseTo(18.9, 6);
+    expect(floor.boundingBox().min[2]).toBeCloseTo(18.3, 6);
+    const { body, stackingRim } = built.materialParts!;
+    expect(body.volume() + floor.volume() + stackingRim!.volume()).toBeCloseTo(built.solid.volume(), 4);
+    expect(arena.track(body.intersect(floor)).volume()).toBeCloseTo(0, 6);
+    expect(stackingRim!.boundingBox().max[2]).toBeCloseTo(full.solid.boundingBox().max[2], 6);
+  });
+
+  it("lowers independent finger access with partial fill", () => {
+    const spec = parseBinSpec({ ...SPEC, fillHeightPercent: 25 });
+    const hole = fingerHoleSchema.parse({ id: "lowered", kind: "straight", center: { x: 0, y: 0 }, diameterMm: 12, depthMm: 3 });
+    const cutter = buildFingerHoleCutters(kernel, [hole], spec, QUALITY)[0];
+    expect(cutter.boundingBox().min[2]).toBeCloseTo(7 + 33.8 * 0.25 - 3, 6);
+    const built = buildBinWithCutouts(kernel, spec, layoutFor([], [], [hole]), QUALITY);
+    expect(built.solid.status()).toBe("NoError");
+    expect(built.solid.genus()).toBe(0);
+  });
+
   it.each(["straight", "deep-scoop"] as const)("bounds large %s mouth faceting in preview and export meshes", (kind) => {
     const spec = parseBinSpec({ gridX: 4, gridY: 4, heightUnits: 6 });
     for (const quality of [PREVIEW_QUALITY, EXPORT_QUALITY]) {
@@ -258,6 +305,60 @@ describe("buildBinWithCutouts", () => {
     else expect(exposedArea).toBe(0);
   });
 
+  it.each([
+    { lip: "none" },
+    { lip: "standard" },
+    { lip: "none", flatBottom: true },
+    { lip: "none", heightUnits: 1 },
+    { lip: "standard", heightUnits: 1 },
+    { lip: "none", gridPitch: "half" },
+    { lip: "none", gridPitch: "quarter" },
+    { lip: "standard", magnetHoles: true, screwHoles: true },
+    { lip: "none", labelTab: { wall: "north" } },
+    { lip: "none", footprint: {
+      kind: "custom", cells: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }],
+    } },
+  ])("colors a hollow bin's floor without changing its geometry: %o", settings => {
+    const spec = parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6, fill: "none", wallThicknessMm: 3, ...settings });
+    const plain = buildBin(kernel, spec, QUALITY);
+    const built = buildBinWithCutouts(kernel, spec, null, QUALITY, {
+      floorInsertThicknessMm: 0.6, rimInsertThicknessMm: 1.25, borderWidthMm: 4,
+    });
+    const { body, pocketFloors: floor, stackingRim: rim } = built.materialParts!;
+    expect(floor).not.toBeNull();
+    expect(floor!.volume()).toBeGreaterThan(0);
+    expect(floor!.boundingBox().min[2]).toBeCloseTo(BASE_HEIGHT - 0.6, 6);
+    expect(floor!.boundingBox().max[2]).toBeCloseTo(BASE_HEIGHT, 6);
+    expect(floor!.boundingBox().min[0]).toBeGreaterThan(plain.solid.boundingBox().min[0]);
+    expect(floor!.boundingBox().max[0]).toBeLessThan(plain.solid.boundingBox().max[0]);
+    expect(arena.track(floor!.subtract(plain.solid)).volume()).toBeLessThan(1e-7);
+    const parts = [body, floor!, rim!];
+    for (let i = 0; i < parts.length; i++) {
+      expect(parts[i].status()).toBe("NoError");
+      for (let j = i + 1; j < parts.length; j++) {
+        expect(arena.track(parts[i].intersect(parts[j])).volume()).toBeLessThan(1e-7);
+      }
+    }
+    const reunited = arena.track(kernel.Manifold.union(parts));
+    expect(reunited.volume()).toBeCloseTo(plain.solid.volume(), 5);
+    expect(reunited.boundingBox()).toEqual(plain.solid.boundingBox());
+  });
+
+  it("uses the selected hollow-floor depth and clips deeper color around base holes", () => {
+    const spec = parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6, fill: "none", screwHoles: true });
+    let previousVolume = 0;
+    for (const floorInsertThicknessMm of [0.2, 0.6, 3]) {
+      const built = buildBinWithCutouts(kernel, spec, null, QUALITY, { floorInsertThicknessMm });
+      const { body, pocketFloors: floor } = built.materialParts!;
+      expect(floor!.boundingBox().min[2]).toBeCloseTo(BASE_HEIGHT - floorInsertThicknessMm, 6);
+      expect(floor!.volume()).toBeGreaterThan(previousVolume);
+      previousVolume = floor!.volume();
+      expect(arena.track(floor!.subtract(built.solid)).volume()).toBeLessThan(1e-7);
+      expect(body.volume() + floor!.volume()).toBeCloseTo(built.solid.volume(), 5);
+    }
+    expect(buildBinWithCutouts(kernel, spec, null, QUALITY).materialParts).toBeNull();
+  });
+
   it("splits the stacking-rim crest into a printable 0.6 mm material volume", () => {
     const built = buildBinWithCutouts(kernel, SPEC, null, QUALITY, {
       rimInsertThicknessMm: 0.6,
@@ -294,6 +395,126 @@ describe("buildBinWithCutouts", () => {
     expect(overlap.volume()).toBeLessThan(1e-7);
     const reunited = arena.track(body.add(stackingRim!));
     expect(reunited.volume()).toBeCloseTo(built.solid.volume(), 5);
+  });
+
+  it.each([
+    { fill: "solid", heightUnits: 6 },
+    { fill: "none", heightUnits: 6 },
+    { fill: "solid", heightUnits: 1 },
+    { fill: "none", heightUnits: 1.5 },
+    { fill: "solid", heightUnits: 1, flatBottom: true },
+    { fill: "solid", heightUnits: 6, fillHeightPercent: 50 },
+    { fill: "solid", heightUnits: 6, labelTab: { wall: "north" } },
+    { fill: "solid", heightUnits: 6, gridPitch: "half" },
+    { fill: "solid", heightUnits: 6, gridPitch: "quarter" },
+    { fill: "solid", heightUnits: 6, footprint: {
+      kind: "custom", cells: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }],
+    } },
+  ])("splits a flush perimeter border without changing the bin: %o", settings => {
+    const spec = parseBinSpec({ gridX: 2, gridY: 2, lip: "none", ...settings });
+    const plain = buildBin(kernel, spec, QUALITY);
+    const built = buildBinWithCutouts(kernel, spec, null, QUALITY, { rimInsertThicknessMm: 1.25 });
+    const { body, stackingRim: border } = built.materialParts!;
+    const topZ = binTotalHeightMm(spec.heightUnits, false);
+    expect(built.parts.lip).toBeNull();
+    expect(border!.status()).toBe("NoError");
+    expect(border!.volume()).toBeGreaterThan(0);
+    expect(border!.boundingBox().min[2]).toBeCloseTo(topZ - 1.25, 6);
+    expect(border!.boundingBox().max[2]).toBeCloseTo(topZ, 6);
+    expect(arena.track(body.intersect(border!)).volume()).toBeLessThan(1e-7);
+    const reunited = arena.track(body.add(border!));
+    expect(reunited.volume()).toBeCloseTo(plain.solid.volume(), 5);
+    expect(reunited.boundingBox()).toEqual(plain.solid.boundingBox());
+    const centreXY = spec.footprint.kind === "custom" ? -21 : 0;
+    const centre = arena.track(arena.track(kernel.Manifold.cube([2, 2, 2], true)).translate([centreXY, centreXY, topZ - 1]));
+    expect(arena.track(border!.intersect(centre)).volume()).toBeLessThan(1e-7);
+    if (spec.labelTab) {
+      const shelf = arena.track(arena.track(kernel.Manifold.cube([2, 2, 2], true))
+        .translate([0, binFootprintMm(spec.gridY) / 2 - 5, topZ - 1]));
+      expect(arena.track(plain.solid.intersect(shelf)).volume()).toBeGreaterThan(0);
+      expect(arena.track(border!.intersect(shelf)).volume()).toBeLessThan(1e-7);
+    }
+  });
+
+  it.each(["rectangle", "custom"] as const)("changes border width independently of depth on a %s bin", kind => {
+    const spec = parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6, lip: "none",
+      footprint: kind === "rectangle" ? { kind } : {
+        kind, cells: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }],
+      },
+    });
+    let previousVolume = 0;
+    for (const borderWidthMm of [0.2, 0.95, 4, 20]) {
+      const built = buildBinWithCutouts(kernel, spec, null, QUALITY, { rimInsertThicknessMm: 1.25, borderWidthMm });
+      const { body, stackingRim: border } = built.materialParts!;
+      expect(border!.volume()).toBeGreaterThan(previousVolume);
+      previousVolume = border!.volume();
+      expect(border!.boundingBox().min[2]).toBeCloseTo(42 - 1.25, 6);
+      expect(border!.boundingBox().max[2]).toBeCloseTo(42, 6);
+      expect(arena.track(body.intersect(border!)).volume()).toBeLessThan(1e-7);
+      const reunited = arena.track(body.add(border!));
+      expect(reunited.volume()).toBeCloseTo(built.solid.volume(), 5);
+      // Probe a straight edge: width is measured inward from the outer face.
+      for (const [distance, colored] of [[borderWidthMm - 0.1, true], [borderWidthMm + 0.1, false]] as const) {
+        const probe = arena.track(arena.track(kernel.Manifold.cube([0.05, 0.05, 0.05], true))
+          .translate([-41.75 + distance, kind === "rectangle" ? 0 : -21, 41.5]));
+        const coloredVolume = arena.track(border!.intersect(probe)).volume();
+        if (colored) expect(coloredVolume).toBeGreaterThan(0.0001);
+        else expect(coloredVolume).toBeLessThan(1e-7);
+      }
+    }
+  });
+
+  it("clips wide borders to hollow walls and small footprints", () => {
+    for (const spec of [
+      parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6, lip: "none", fill: "none" }),
+      parseBinSpec({ gridX: 1, gridY: 1, gridPitch: "quarter", heightUnits: 1, lip: "none", flatBottom: true }),
+    ]) {
+      const built = buildBinWithCutouts(kernel, spec, null, QUALITY, { rimInsertThicknessMm: 1.25, borderWidthMm: 20 });
+      const { body, stackingRim: border } = built.materialParts!;
+      expect(body.status()).toBe("NoError");
+      expect(border!.status()).toBe("NoError");
+      expect(arena.track(border!.subtract(built.solid)).volume()).toBeLessThan(1e-7);
+      expect(body.volume() + border!.volume()).toBeCloseTo(built.solid.volume(), 5);
+    }
+  });
+
+  it("ignores border width on bins with a stacking lip", () => {
+    const standard = buildBinWithCutouts(kernel, SPEC, null, QUALITY, { rimInsertThicknessMm: 1.25 });
+    const wide = buildBinWithCutouts(kernel, SPEC, null, QUALITY, { rimInsertThicknessMm: 1.25, borderWidthMm: 20 });
+    expect(wide.materialParts!.stackingRim!.volume()).toBeCloseTo(standard.materialParts!.stackingRim!.volume(), 7);
+  });
+
+  it("clips a deep border to a short bin's existing base material", () => {
+    const spec = parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 1, lip: "none" });
+    const built = buildBinWithCutouts(kernel, spec, null, QUALITY, { rimInsertThicknessMm: 7.35 });
+    const { body, stackingRim: border } = built.materialParts!;
+    expect(border!.boundingBox().min[2]).toBeGreaterThanOrEqual(0);
+    expect(arena.track(border!.subtract(built.solid)).volume()).toBeLessThan(1e-7);
+    expect(body.volume() + border!.volume()).toBeCloseTo(built.solid.volume(), 5);
+  });
+
+  it("clips a flush border around pockets and finger access without overlapping floor color", () => {
+    const spec = parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6, lip: "none" });
+    const shape = rectShape("edge-tool", 20, 12);
+    const layout = layoutFor([shape], [cutout("edge-pocket", shape.id, {
+      position: { x: 37, y: 0 }, depth: { mode: "mm", value: 2 },
+    })], [fingerHoleSchema.parse({ id: "edge-access", kind: "straight", center: { x: 0, y: 41 } })]);
+    const plain = buildBinWithCutouts(kernel, spec, layout, QUALITY);
+    const built = buildBinWithCutouts(kernel, spec, layout, QUALITY, {
+      rimInsertThicknessMm: 5, floorInsertThicknessMm: 0.6, borderWidthMm: 4,
+    });
+    const parts = built.materialParts!;
+    const accents = [parts.body, parts.pocketFloors!, parts.stackingRim!];
+    for (let i = 0; i < accents.length; i++) {
+      expect(accents[i].status()).toBe("NoError");
+      for (let j = i + 1; j < accents.length; j++) {
+        expect(arena.track(accents[i].intersect(accents[j])).volume()).toBeLessThan(1e-7);
+      }
+    }
+    const reunited = arena.track(kernel.Manifold.union(accents));
+    expect(reunited.volume()).toBeCloseTo(plain.solid.volume(), 5);
+    const uncut = buildBinWithCutouts(kernel, spec, null, QUALITY, { rimInsertThicknessMm: 5, borderWidthMm: 4 });
+    expect(parts.stackingRim!.volume()).toBeLessThan(uncut.materialParts!.stackingRim!.volume());
   });
 
   it("keeps a 5 mm rim accent out of the bin's interior top surface", () => {
@@ -1058,6 +1279,30 @@ it("cuts flat-bottom pockets below the former feet while retaining a solid 2 mm 
   }
 });
 
+
+describe.each(["oblong-deep-scoop", "flat-ended-scoop", "oblong-straight", "flat-ended-straight"] as const)("long %s groove", (kind) => {
+  it.each([0, 37, 90])("generates the full 193 mm cutter at %s degrees", (rotationDeg) => {
+    const spec = parseBinSpec({ gridX: 5, gridY: 5, heightUnits: 3 });
+    const hole = fingerHoleSchema.parse({ id: "long", kind, center: { x: 0, y: 0 },
+      diameterMm: 23, lengthMm: 193, depthMm: 10, rotationDeg });
+    for (const topFilletMm of [0, 0.6]) {
+      const cutter = buildFingerHoleCutters(kernel, [{ ...hole, topFilletMm }], spec, EXPORT_QUALITY)[0];
+      const bounds = arena.track(cutter.rotate([0, 0, -rotationDeg])).boundingBox();
+      expect(cutter.status()).toBe("NoError");
+      if (topFilletMm === 0) {
+        expect(bounds.min[0]).toBeCloseTo(-96.5, 5);
+        expect(bounds.max[0]).toBeCloseTo(96.5, 5);
+      } else {
+        // A shallow curved bottom meets the rim tangentially before a full-radius flare.
+        expect(bounds.min[0]).toBeLessThan(-96.5);
+        expect(bounds.max[0]).toBeGreaterThan(96.5);
+        expect(bounds.min[0]).toBeGreaterThanOrEqual(-97.1 - 1e-6);
+        expect(bounds.max[0]).toBeLessThanOrEqual(97.1 + 1e-6);
+      }
+      expect(bounds.min[2]).toBeCloseTo(resolvePocketDepth(spec, { mode: "mm", value: 10 }).infillTopZ - 10, 5);
+    }
+  });
+});
 
 describe("flat-ended cylindrical scoop solids", () => {
   it.each([0, 37, 90])("cuts the expected cylindrical volume at %s degrees", (rotationDeg) => {

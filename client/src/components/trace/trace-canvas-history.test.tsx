@@ -6,10 +6,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Outline } from "@shared/geometry/types";
 import { mmPerPixel } from "@shared/geometry/scale";
 
-import { TraceProvider, useTrace } from "@/state/trace-store";
+import { TraceProvider, useTrace, type TraceStore } from "@/state/trace-store";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 import { TraceCanvas } from "./trace-canvas";
+import { TracePhotoBoundsControl } from "./trace-photo-bounds-control";
 
 class NoopResizeObserver implements ResizeObserver {
   observe() {}
@@ -230,7 +231,111 @@ afterEach(() => {
 });
 
 describe("TraceCanvas edit history", () => {
-  it("leaves undo and zoom to dialogs, focused controls, and earlier handlers", async () => {
+  it.each(["click", "tiny", "cancel", "escape", "commit", "decline"])("preserves edited geometry through region %s", async gesture => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+    vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
+    const restore = installIdentitySvgCoordinates();
+    const host = document.createElement("div"); document.body.append(host);
+    const root = createRoot(host);
+    let trace: TraceStore;
+    function Probe() { trace = useTrace(); return null; }
+    const reprocess = vi.fn();
+    try {
+      await React.act(async () => root.render(<TraceProvider><SeedTrace /><Probe /><TooltipProvider><TraceCanvas onReprocess={reprocess} /></TooltipProvider></TraceProvider>));
+      const before = trace!;
+      const svg = host.querySelector("svg")!;
+      Object.defineProperty(svg, "setPointerCapture", { value: () => {} });
+      const pointer = (type: string, x: number, y: number) => React.act(() => svg.dispatchEvent(new MouseEvent(type, { bubbles: true, button: 0, clientX: x, clientY: y })));
+      React.act(() => trace.dispatch({ type: "SET_MODE", mode: "region" }));
+      pointer("pointerdown", 20, 20);
+      if (gesture !== "click") pointer("pointermove", gesture === "tiny" ? 22 : 70, 70);
+      if (gesture === "escape") React.act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+      pointer(gesture === "cancel" ? "pointercancel" : "pointerup", 70, 70);
+      expect(trace!.outline).toBe(before.outline);
+      expect(trace!.history).toBe(before.history);
+      expect(trace!.region).toEqual(before.region);
+      expect(reprocess).not.toHaveBeenCalled();
+      if (gesture === "commit" || gesture === "decline") {
+        const dialog = document.querySelector('[role="alertdialog"]')!;
+        expect(dialog.textContent).toContain("Re-detect in a new region?");
+        const action = [...dialog.querySelectorAll('button')].find(button => button.textContent === (gesture === "commit" ? "Replace manual edits" : "Keep my edits"))!;
+        await React.act(async () => action.click());
+      }
+      expect(trace!.region).toEqual(gesture === "commit" ? { x: 20, y: 20, width: 50, height: 50 } : before.region);
+      expect(reprocess).toHaveBeenCalledTimes(gesture === "commit" ? 1 : 0);
+      if (gesture === "commit") expect(reprocess).toHaveBeenLastCalledWith({ x: 20, y: 20, width: 50, height: 50 });
+      React.act(() => trace.undo());
+      expect(trace!.outline).toEqual(detected);
+    } finally { React.act(() => root.unmount()); restore(); }
+  });
+
+  it.each([false, true])("blocks region drawing until scale is accepted (pending: %s)", async pending => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+    vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
+    const restore = installIdentitySvgCoordinates();
+    const host = document.createElement("div"); document.body.append(host);
+    const root = createRoot(host);
+    let trace: TraceStore;
+    function Probe() { trace = useTrace(); return null; }
+    try {
+      await React.act(async () => root.render(<TraceProvider><Probe /><TooltipProvider><TraceCanvas onReprocess={() => {}} /></TooltipProvider></TraceProvider>));
+      React.act(() => {
+        trace.dispatch({ type: "SOURCE_LOADED", imageUrl: "photo", fileName: "tool" });
+        trace.dispatch({ type: "SOURCE_READY", imageSize: { width: 100, height: 100 } });
+        if (pending) trace.dispatch({ type: "AUTO_CALIBRATION_DETECTED", sourceImageUrl: "photo", calibration: { startX: 0, startY: 0, endX: 100, endY: 0, lengthMm: 50 } });
+        trace.dispatch({ type: "SET_MODE", mode: "region" });
+      });
+      const regionButton = host.querySelector<HTMLButtonElement>('[aria-label="Region"]')!;
+      expect(regionButton.disabled).toBe(true);
+      const svg = host.querySelector("svg")!;
+      Object.defineProperty(svg, "setPointerCapture", { value: () => {} });
+      React.act(() => svg.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, button: 0, clientX: 20, clientY: 20 })));
+      expect(trace!.region).toBeNull();
+    } finally { React.act(() => root.unmount()); restore(); }
+  });
+
+  it("clips to the paper by default and reveals the same corrected image when toggled", async () => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+    vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const root = createRoot(host);
+    let trace: TraceStore;
+    function Probe() { trace = useTrace(); return <TracePhotoBoundsControl />; }
+    try {
+      await React.act(async () => root.render(<TraceProvider><Probe /><TooltipProvider><TraceCanvas onReprocess={() => {}} /></TooltipProvider></TraceProvider>));
+      await React.act(async () => {
+        trace.dispatch({ type: "SOURCE_LOADED", imageUrl: "original", fileName: "large-tool" });
+        trace.dispatch({ type: "SOURCE_READY", imageSize: { width: 1000, height: 800 } });
+        trace.dispatch({ type: "PERSPECTIVE_APPLIED", sourceImageUrl: "original", imageUrl: "corrected",
+          imageSize: { width: 1000, height: 800 }, paper: "a4", source: "template",
+          calibration: { startX: 200, startY: 100, endX: 410, endY: 100, lengthMm: 210 },
+          paperBounds: { x: 200, y: 100, width: 210, height: 297 } });
+      });
+      const crop = () => host.querySelector('[data-testid="trace-paper-crop"]');
+      expect(crop()?.getAttribute("x")).toBe("200");
+      expect(crop()?.getAttribute("width")).toBe("210");
+      const sourceImage = host.querySelector('[data-testid="trace-source-image"]');
+      const scale = trace!.calibration;
+      const toggle = host.querySelector<HTMLButtonElement>('[role="switch"]')!;
+      await React.act(async () => toggle.click());
+      expect(crop()).toBeNull();
+      expect(host.querySelector('[data-testid="trace-source-image"]')).toBe(sourceImage);
+      expect(trace!.calibration).toBe(scale);
+      await React.act(async () => toggle.click());
+      expect(crop()?.getAttribute("width")).toBe("210");
+      await React.act(async () => trace.dispatch({ type: "ROTATE_SOURCE", direction: "clockwise",
+        naturalSize: { width: 1000, height: 800 }, maxSize: { width: 1200, height: 1200 } }));
+      expect(crop()?.getAttribute("width")).toBe("297");
+      expect(crop()?.getAttribute("height")).toBe("210");
+      expect(trace!.perspectiveCorrection?.showFullPhoto).toBe(false);
+    } finally { React.act(() => root.unmount()); }
+  });
+
+  it("allows button-focused Undo and Redo while leaving zoom, dialogs and earlier handlers alone", async () => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     vi.stubGlobal("ResizeObserver", NoopResizeObserver);
     vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
@@ -259,7 +364,10 @@ describe("TraceCanvas edit history", () => {
       dialog.remove();
 
       const button = host.querySelector('[aria-label="Set scale"]')!;
-      expect(key(button, "z", true).defaultPrevented).toBe(false);
+      expect(key(button, "z", true).defaultPrevented).toBe(true);
+      expect(outlinePath()).not.toBe(editedPath);
+      expect(key(button, "y", true).defaultPrevented).toBe(true);
+      expect(outlinePath()).toBe(editedPath);
       expect(key(button, "1").defaultPrevented).toBe(false);
       key(window, "z", true, true);
       expect(outlinePath()).toBe(editedPath);
@@ -509,7 +617,7 @@ describe("TraceCanvas edit history", () => {
       );
       expect(
         host.querySelector('[data-testid="scale-committed"]')?.textContent,
-      ).toBe("pending");
+      ).toBe("committed");
       expect(host.querySelector('[data-testid="scale-draft"]')?.textContent).toBe(
         JSON.stringify({ startX: 20, startY: 30, endX: 75, endY: 85 }),
       );
@@ -914,7 +1022,44 @@ describe("TraceCanvas edit history", () => {
 });
 
 describe("desktop point focus", () => {
-  it.each(["edit", "pan"] as const)("focuses and deletes points in %s without changing mouse edit gestures", async mode => {
+  it("selects and deselects without changing geometry in Select", async () => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    vi.stubGlobal("innerWidth", 1440);
+    vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+    vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
+    const restore = installIdentitySvgCoordinates();
+    const host = document.createElement("div"); document.body.append(host);
+    const root = createRoot(host);
+    let trace: TraceStore;
+    function Probe(): null { trace = useTrace(); return null; }
+    try {
+      await React.act(async () => root.render(<TraceProvider><SeedTrace /><Probe /><TooltipProvider><TraceCanvas onReprocess={() => {}} /></TooltipProvider></TraceProvider>));
+      React.act(() => trace!.dispatch({ type: "SET_MODE", mode: "pan" }));
+      const before = trace!;
+      const svg = host.querySelector("svg")!;
+      Object.defineProperty(svg, "setPointerCapture", { value: () => {} });
+      const pointer = (type: string, x: number, y: number) => React.act(() => svg.dispatchEvent(new MouseEvent(type, { bubbles: true, button: 0, clientX: x, clientY: y })));
+      for (const [x, y] of [[10, 10], [50, 10]]) {
+        pointer("pointerdown", x, y); pointer("pointerup", x, y);
+        expect(trace!.selection).toEqual({ shapeIndex: 0, ringIndex: -1 });
+        expect(host.querySelector("[data-vertex]")).toBeNull();
+        expect(host.querySelector('[aria-label="Contour editing tools"]')).toBeNull();
+      }
+      pointer("pointerdown", 10, 10); pointer("pointermove", 35, 35); pointer("pointerup", 35, 35);
+      const menu = new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 10, clientY: 10 });
+      React.act(() => svg.dispatchEvent(menu));
+      expect(menu.defaultPrevented).toBe(false);
+      pointer("pointerdown", 200, 200); pointer("pointerup", 200, 200);
+      expect(trace!.selection).toBeNull();
+      pointer("pointerdown", 50, 10); pointer("pointerup", 50, 10);
+      React.act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+      expect(trace!.selection).toBeNull();
+      expect(trace!.outline).toBe(before.outline);
+      expect(trace!.history).toBe(before.history);
+    } finally { React.act(() => root.unmount()); restore(); }
+  });
+
+  it("focuses and deletes points in Edit contours", async () => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     vi.stubGlobal("innerWidth", 1440);
     vi.stubGlobal("ResizeObserver", NoopResizeObserver);
@@ -927,7 +1072,6 @@ describe("desktop point focus", () => {
     try {
       await React.act(async () => root.render(<TraceProvider><SeedTrace /><Probe /><TooltipProvider><TraceCanvas onReprocess={() => {}} /></TooltipProvider></TraceProvider>));
       React.act(() => trace!.dispatch({ type: "SET_MODE", mode: "edit" }));
-      React.act(() => trace!.dispatch({ type: "SET_MODE", mode }));
       const svg = host.querySelector('svg')!;
       Object.defineProperty(svg, 'setPointerCapture', { value: () => {} });
       const pointer = (type: string, x: number, y: number) => React.act(() => {
@@ -946,6 +1090,12 @@ describe("desktop point focus", () => {
       expect(host.querySelector('[data-vertex="0"]')!.getAttribute('data-point-selected')).toBe('true');
       expect(trace!.history.index).toBe(historyIndex);
       expect(trace!.outline).toEqual(edited);
+      pointer('pointerdown', 200, 200); pointer('pointerup', 200, 200);
+      expect(trace!.selection).toBeNull();
+      expect(trace!.outline).toEqual(edited);
+      expect(trace!.history.index).toBe(historyIndex);
+      React.act(() => trace!.dispatch({ type: "SELECT_RING", selection: { shapeIndex: 0, ringIndex: -1 } }));
+      pointer('pointerdown', 10, 10); pointer('pointerup', 10, 10);
       React.act(() => remove()!.click());
       expect(trace!.outline[0].outer).toHaveLength(4);
       expect(remove()).toBeUndefined();
@@ -962,7 +1112,19 @@ describe("desktop point focus", () => {
       expect(host.querySelector('[data-point-selected]')).not.toBeNull();
       React.act(() => trace!.undo());
       expect(trace!.outline).toEqual(edited);
+      React.act(() => trace!.dispatch({ type: "SELECT_RING", selection: { shapeIndex: 0, ringIndex: -1 } }));
+      const beforeCancel = trace!.history;
+      pointer('pointerdown', 10, 10); pointer('pointermove', 30, 30); pointer('pointercancel', 30, 30);
+      expect(trace!.outline).toEqual(edited);
+      expect(trace!.history).toBe(beforeCancel);
       expect(remove()).toBeUndefined();
+      React.act(() => trace!.dispatch({ type: "SELECT_RING", selection: { shapeIndex: 0, ringIndex: -1 } }));
+      pointer('pointerdown', 10, 10); pointer('pointermove', 30, 30);
+      React.act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+      pointer('pointerup', 30, 30);
+      expect(trace!.outline).toEqual(edited);
+      expect(trace!.history).toBe(beforeCancel);
+      expect(trace!.selection).toBeNull();
       React.act(() => trace!.dispatch({ type: "SELECT_RING", selection: { shapeIndex: 0, ringIndex: -1 } }));
       pointer('pointerdown', 10, 10); pointer('pointerup', 10, 10);
       React.act(() => remove()!.click());

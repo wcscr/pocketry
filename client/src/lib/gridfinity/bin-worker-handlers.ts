@@ -1,15 +1,20 @@
+import { hasRigidPocket } from "@shared/gridfinity/rigid-pocket";
+import { validateLayout } from "@shared/gridfinity/validate";
+import { hasPocketTilt } from "@shared/gridfinity/pocket-orientation";
 import type { ManifoldToplevel } from "manifold-3d";
 
 import {
   cutoutPlacementSchema,
   fingerHoleSchema,
   tracedShapeSchema,
+  resolvePocketDepth,
 } from "@shared/gridfinity/cutout";
 import { parseBinSpec } from "@shared/gridfinity/types";
 
 import { Arena } from "@/lib/manifold/arena";
 import { createKernel } from "@/lib/manifold/runtime";
-import { extractMeshData } from "@/lib/mesh/mesh-data";
+import { extractMeshData, preparePrintableSolid } from "@/lib/mesh/mesh-data";
+import { objectEdges } from "@/lib/mesh/object-edges";
 import type { HandlerContext, HandlerMap } from "@/lib/worker/host";
 import { WorkerCancelledError } from "@/lib/worker/protocol";
 
@@ -19,15 +24,21 @@ import {
   MULTICOLOR_FLOOR_MAX_THICKNESS_MM,
   MULTICOLOR_MIN_THICKNESS_MM,
   MULTICOLOR_RIM_MAX_THICKNESS_MM,
+  MULTICOLOR_BORDER_MAX_WIDTH_MM,
   type BinMaterialParts,
   type BinLayout,
 } from "./bin";
 import { buildFitCheckSolid, buildSurfaceFitCheckSolid } from "./fit-check";
 import { buildMagneticLid, magneticLidForPrint } from "./magnetic-lid";
+import { resolvedPocketGeometry } from "./pocket-geometry";
+import { resolvedProfileFootprint } from "./profile-bottom";
 import {
   BUILD_BIN_METHOD,
   BUILD_FIT_CHECK_METHOD,
   BUILD_SURFACE_FIT_CHECK_METHOD,
+  RESOLVE_POCKET_GEOMETRY_METHOD,
+  type ResolvePocketGeometryRequest,
+  type PocketGeometry,
   type BuildBinRequest,
   type BuildBinResult,
   type BuildFitCheckRequest,
@@ -83,6 +94,11 @@ export function createBinWorkerHandlers(
       "Stacking-rim material thickness",
       MULTICOLOR_RIM_MAX_THICKNESS_MM,
     );
+    const borderWidthMm = parseMaterialThickness(
+      payload.borderWidthMm,
+      "Top-border color width",
+      MULTICOLOR_BORDER_MAX_WIDTH_MM,
+    );
     // Re-validate the layout at the boundary, exactly like the spec.
     let layout: BinLayout | null = null;
     if (
@@ -101,6 +117,15 @@ export function createBinWorkerHandlers(
           fingerHoleSchema.parse(hole),
         ),
       };
+      // Only the preview approximation drops rounding. Validate the authored
+      // settings first, and never alter export requests or the saved layout.
+      if (payload.previewDraft === true && payload.exportTopology !== true) {
+        layout.cutouts = layout.cutouts.map((cutout) => ({
+          ...cutout,
+          topFilletMm: 0,
+          bottomFilletMm: 0,
+        }));
+      }
     }
     context.progress(0.05);
 
@@ -111,16 +136,26 @@ export function createBinWorkerHandlers(
     try {
       const kernel = createKernel(wasm, arena);
       const started = performance.now();
-      const { solid, materialParts, cutoutReports } = buildBinWithCutouts(
+      if (payload.exportTopology && layout?.cutouts.some(c => c.profileBottom || hasRigidPocket(c) || hasPocketTilt(c) || (c.zOffsetMm ?? 0) !== 0)) {
+        const errors = validateLayout(spec, layout.cutouts, layout.shapesById, layout.fingerHoles).filter(issue => issue.severity === "error");
+        if (errors.length) throw new Error(errors.map(issue => issue.message).join("\n"));
+      }
+      const { solid, bodySolid: binSolid, textParts, materialParts, cutoutReports, validationIssues } = buildBinWithCutouts(
         kernel,
         spec,
         layout,
-        payload.quality,
+        payload.previewDraft === "rounded" && payload.exportTopology !== true
+          ? { ...payload.quality, circularSegments: 16, filletProfileStepMm: Math.max(2, payload.quality.filletProfileStepMm ?? 0.5) }
+          : payload.quality,
         {
           floorInsertThicknessMm: floorMaterialThicknessMm,
           rimInsertThicknessMm: rimMaterialThicknessMm,
+          borderWidthMm,
         },
       );
+      if (payload.exportTopology && validationIssues.some(issue => issue.severity === "error")) {
+        throw new Error(validationIssues.filter(issue => issue.severity === "error").map(issue => issue.message).join("\n"));
+      }
       context.progress(0.7);
       if (context.signal.aborted) throw new WorkerCancelledError();
 
@@ -132,15 +167,11 @@ export function createBinWorkerHandlers(
         Number.isFinite(payload.section.offsetMm)
           ? payload.section
           : null;
-      const displayed = section ? applySectionCut(kernel, solid, section) : solid;
+      let displayed = section ? applySectionCut(kernel, solid, section) : solid;
       const includePreviewNormals = payload.exportTopology !== true;
-
-      const mesh = extractMeshData(kernel, displayed, {
-        normals: includePreviewNormals,
-      });
       const displayedPart = (part: BinMaterialParts["body"]) =>
         section ? applySectionCut(kernel, part, section) : part;
-      const displayedMaterialParts = materialParts
+      let displayedMaterialParts = materialParts
         ? {
             body: displayedPart(materialParts.body),
             pocketFloors: materialParts.pocketFloors
@@ -151,6 +182,32 @@ export function createBinWorkerHandlers(
               : null,
           }
         : null;
+      if (payload.exportTopology) {
+        displayed = preparePrintableSolid(kernel, displayed);
+        if (displayedMaterialParts) {
+          const floorRegions = materialParts!.floorRegions.map(part => preparePrintableSolid(kernel, part));
+          const pocketFloors = displayedMaterialParts.pocketFloors
+            ? preparePrintableSolid(kernel, displayedMaterialParts.pocketFloors) : null;
+          const stackingRim = displayedMaterialParts.stackingRim
+            ? preparePrintableSolid(kernel, displayedMaterialParts.stackingRim) : null;
+          // Subtract full insert regions in export precision. Re-subtracting an
+          // already clipped accent repeats the pocket boundary and can create
+          // coincident faces, especially around an enclosed profile cavity.
+          const bodyCutters = [...floorRegions, ...(stackingRim ? [stackingRim] : [])];
+          const printableBody = textParts.length
+            ? preparePrintableSolid(kernel, displayedPart(binSolid))
+            : displayed;
+          const body = bodyCutters.length > 0
+            ? preparePrintableSolid(kernel, arena.track(kernel.Manifold.difference([printableBody, ...bodyCutters])))
+            : printableBody;
+          displayedMaterialParts = { body, pocketFloors, stackingRim };
+        }
+      }
+      const mesh = extractMeshData(kernel, displayed, {
+        // The preview displays the material body when a partition exists.
+        // Keep the aggregate topology/stats without shading an unused mesh.
+        normals: includePreviewNormals && materialParts === null && textParts.length === 0,
+      });
       const materialMeshes = displayedMaterialParts
         ? {
             body: extractMeshData(kernel, displayedMaterialParts.body, {
@@ -180,11 +237,30 @@ export function createBinWorkerHandlers(
         : undefined;
       context.progress(0.9);
 
+      const printedLid = spec.magneticLid
+        ? magneticLidForPrint(kernel, buildMagneticLid(kernel, spec, payload.quality.circularSegments), spec)
+        : null;
       const value: BuildBinResult = {
         mesh,
-        ...(spec.magneticLid ? { lidMesh: extractMeshData(kernel,
-          magneticLidForPrint(kernel, buildMagneticLid(kernel, spec, payload.quality.circularSegments), spec),
-          { normals: includePreviewNormals }) } : {}),
+        ...(printedLid ? {
+          lidMesh: extractMeshData(kernel,
+            payload.exportTopology ? preparePrintableSolid(kernel, printedLid) : printedLid,
+            { normals: includePreviewNormals }),
+        } : {}),
+        ...(textParts.length ? {
+          ...(payload.exportTopology || !materialMeshes ? {
+            bodyMesh: extractMeshData(kernel, payload.exportTopology
+              ? preparePrintableSolid(kernel, binSolid) : displayedPart(binSolid), { normals: includePreviewNormals }),
+          } : {}),
+          textMeshes: textParts.map(part => ({
+            label: part.label, z: part.z,
+            // Rotated font contours can leave nearly coincident vertices that
+            // crash Manifold's normal calculation. Use the same sub-micron
+            // cleanup as printable text before shading a preview, too.
+            mesh: extractMeshData(kernel, preparePrintableSolid(kernel,
+              payload.exportTopology ? part.solid : displayedPart(part.solid)), { normals: includePreviewNormals }),
+          })),
+        } : {}),
         materialMeshes,
         stats: {
           triangles: mesh.indices.length / 3,
@@ -192,11 +268,14 @@ export function createBinWorkerHandlers(
           buildMs: performance.now() - started,
         },
         cutoutReports,
+        validationIssues,
       };
       const transfer: Transferable[] = [mesh.positions.buffer, mesh.indices.buffer];
-      if (value.lidMesh) {
-        transfer.push(value.lidMesh.positions.buffer, value.lidMesh.indices.buffer);
-        if (value.lidMesh.normals) transfer.push(value.lidMesh.normals.buffer);
+      for (const extra of [value.lidMesh, value.bodyMesh, ...(value.textMeshes?.map(part => part.mesh) ?? [])]) {
+        if (extra) {
+          transfer.push(extra.positions.buffer, extra.indices.buffer);
+          if (extra.normals) transfer.push(extra.normals.buffer);
+        }
       }
       if (mesh.normals) transfer.push(mesh.normals.buffer);
       if (materialMeshes) {
@@ -332,9 +411,35 @@ export function createBinWorkerHandlers(
     }
   };
 
+  const resolvePocketGeometryHandler = async (payload: ResolvePocketGeometryRequest, context: HandlerContext) => {
+    const spec = parseBinSpec(payload.spec);
+    const pockets = payload.pockets.map(pocket => ({ shape: tracedShapeSchema.parse(pocket.shape), cutout: cutoutPlacementSchema.parse(pocket.cutout) }));
+    const wasm = await loadRuntime();
+    if (context.signal.aborted) throw new WorkerCancelledError();
+    const arena = new Arena();
+    try {
+      const kernel = createKernel(wasm, arena);
+      const value: PocketGeometry[] = pockets.map(({ shape, cutout }) => {
+        if (context.signal.aborted) throw new WorkerCancelledError();
+        if (hasRigidPocket(cutout)) {
+          const geometry = resolvedPocketGeometry(kernel, shape, cutout, spec);
+          return { ...geometry, edges: objectEdges(geometry.mesh) };
+        }
+        return { full: resolvedProfileFootprint(kernel, shape.outlineMm, cutout),
+          opening: resolvedProfileFootprint(kernel, shape.outlineMm, cutout, resolvePocketDepth(spec, cutout.depth).infillTopZ) };
+      });
+      const transfer: Transferable[] = value.flatMap(part => part.mesh
+        ? [part.mesh.positions.buffer, part.mesh.indices.buffer, ...(part.mesh.normals ? [part.mesh.normals.buffer] : [])] : []);
+      return { value, transfer };
+    } finally {
+      arena.dispose();
+    }
+  };
+
   return {
     [BUILD_BIN_METHOD]: buildBinHandler,
     [BUILD_FIT_CHECK_METHOD]: buildFitCheckHandler,
     [BUILD_SURFACE_FIT_CHECK_METHOD]: buildSurfaceFitCheckHandler,
+    [RESOLVE_POCKET_GEOMETRY_METHOD]: resolvePocketGeometryHandler,
   } satisfies HandlerMap;
 }

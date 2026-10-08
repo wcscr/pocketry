@@ -162,6 +162,7 @@ function Harness(): JSX.Element {
       <TraceControlsPanel
         active={active}
         onReplaceImage={() => {}}
+        onStartOver={() => dispatch({ type: "SOURCE_CLEARED" })}
         onRotateImage={rotateImage}
         onExport={() => {}}
         onReprocess={reprocess}
@@ -263,6 +264,54 @@ async function clickSection(id: string): Promise<void> {
 }
 
 describe("TraceControlsPanel guided workflow", () => {
+  it("requires confirmation to clear scale and preserves contours and history", async () => {
+    await prepareOutline();
+    await clickSection("scale");
+    const before = trace;
+    const clear = () => [...host.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "Clear scale")!;
+    const confirm = (label: string) => [...document.querySelectorAll<HTMLButtonElement>('[role="alertdialog"] button')].find(button => button.textContent === label)!;
+    await React.act(async () => clear().click());
+    expect(trace.calibration).toBe(before.calibration);
+    await React.act(async () => confirm("Keep working").click());
+    expect(trace.calibration).toBe(before.calibration);
+    await React.act(async () => clear().click());
+    await React.act(async () => confirm("Clear scale").click());
+    expect(trace.calibration).toBeNull();
+    expect(trace.outline).toBe(before.outline);
+    expect(trace.region).toBe(before.region);
+    expect(trace.history).toBe(before.history);
+  });
+
+  it("dismisses a pending clear when a different photo replaces the source", async () => {
+    await prepareOutline();
+    await clickSection("crop");
+    await click("button-clear-region");
+    expect(document.querySelector('[role="alertdialog"]')).not.toBeNull();
+    await React.act(async () => {
+      trace.dispatch({ type: "SOURCE_LOADED", imageUrl: "new-photo", fileName: "new" });
+      trace.dispatch({ type: "SOURCE_READY", imageSize: { width: 800, height: 600 } });
+      trace.dispatch({ type: "SET_CALIBRATION", calibration: CALIBRATION });
+    });
+    expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+    expect(trace.calibration).toEqual(CALIBRATION);
+  });
+
+  it("blocks export and handoff during a replacement ruler until cancellation or confirmation", async () => {
+    await prepareOutline();
+    const before = trace.calibration;
+    await clickSection("scale");
+    await click("button-set-scale");
+    const button = (text: string) => [...host.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent?.trim() === text)!;
+    expect(trace.calibration).toBe(before);
+    expect(button("Add to bin").disabled).toBe(true);
+    expect(button("Save SVG").disabled).toBe(true);
+    expect(host.textContent).toContain("Your current scale is kept until you confirm the new ruler.");
+    await React.act(async () => button("Cancel ruler").click());
+    expect(trace.calibration).toBe(before);
+    expect(button("Add to bin").disabled).toBe(false);
+    expect(button("Save SVG").disabled).toBe(false);
+  });
+
   it("opens measurement-aid downloads from the hint and keeps them open after hover ends", async () => {
     await click("load-source");
     await click("detect-auto-scale");
@@ -276,7 +325,7 @@ describe("TraceControlsPanel guided workflow", () => {
     expect(link).toBeDefined();
     await React.act(async () => link.click());
     const dialog = document.querySelector('[role="dialog"]');
-    expect(dialog?.textContent).toContain("3D printable measurement aids");
+    expect(dialog?.textContent).toContain("3D printable aids");
     expect(dialog?.textContent).toContain("Two-colour 3MF");
     expect(dialog?.textContent).not.toContain("STL");
     await React.act(async () => {
@@ -358,16 +407,17 @@ describe("TraceControlsPanel guided workflow", () => {
       "trace-settings-scale",
       "trace-settings-crop",
       "trace-settings-detect",
+      "trace-settings-margin",
       "trace-settings-output",
     ]);
 
-    for (const id of ["source", "detect", "crop", "output"]) {
+    for (const id of ["source", "detect", "crop", "margin", "output"]) {
       expect(section(id)?.dataset.state).toBe("closed");
     }
     expect(section("scale")?.dataset.state).toBe("open");
     expect(section("source")?.textContent).toContain("new-source");
     expect(sectionTrigger("scale")?.disabled).toBe(false);
-    for (const id of ["crop", "detect", "output"]) {
+    for (const id of ["crop", "detect", "margin", "output"]) {
       expect(sectionTrigger(id)?.disabled).toBe(true);
     }
     expect(document.activeElement).toBe(sectionTrigger("scale"));
@@ -390,7 +440,7 @@ describe("TraceControlsPanel guided workflow", () => {
       host.querySelector('[data-testid="manual-scale-guidance"]')?.textContent,
     ).toContain("Zoom in first for more precise placement");
 
-    expect(host.textContent).toContain("Download printable calibration templates");
+    expect(host.textContent).toContain("Download calibration aids");
     expect(host.textContent).not.toContain("Paper sheets and");
     expect(host.querySelector('[aria-label="Download a measurement aid as 3MF"]')).toBeNull();
 
@@ -556,7 +606,7 @@ describe("TraceControlsPanel guided workflow", () => {
 
     await click("button-set-scale");
     await React.act(async () => {
-      [...host.querySelectorAll("button")].find((button) => button.textContent === "Download printable calibration templates")!.click();
+      [...host.querySelectorAll("button")].find((button) => button.textContent === "Download calibration aids")!.click();
     });
     await React.act(async () => {
       document.querySelector<HTMLButtonElement>('[data-testid="button-template-letter-experimental"]')!.click();
@@ -679,17 +729,13 @@ describe("TraceControlsPanel guided workflow", () => {
     const emptyClearRegion = host.querySelector<HTMLButtonElement>(
       '[data-testid="button-clear-region"]',
     );
-    expect(setRegion?.textContent).toContain("Set Region");
+    expect(setRegion?.textContent).toContain("Set region");
     expect(setRegion?.getAttribute("aria-pressed")).toBe("true");
     expect(
       host.querySelector('[data-testid="detection-region-guidance"]')
         ?.textContent,
-    ).toContain("Click and drag on the image");
-    expect(
-      host.querySelector('[data-testid="detection-region-guidance"]')
-        ?.textContent,
-    ).toContain("entire tool");
-    expect(emptyClearRegion?.textContent).toContain("Clear Region");
+    ).toContain("Click and drag around the tool.");
+    expect(emptyClearRegion?.textContent).toContain("Clear region");
     expect(emptyClearRegion?.disabled).toBe(true);
     expect(emptyClearRegion?.parentElement?.className).toContain("grid-cols-2");
     await click("button-set-region");
@@ -702,22 +748,21 @@ describe("TraceControlsPanel guided workflow", () => {
     expect(sectionTrigger("detect")?.className).toContain(
       "animate-[pulse_1s_ease-in-out_3]",
     );
-    expect(
-      host.querySelector('[data-testid="detection-tuning-guidance"]')
-        ?.textContent,
-    ).toContain("Reflections are usually not holes");
-    expect(host.querySelector('[data-testid="contour-editing-guidance"]')?.textContent).toContain("Simplification adjusts your edited contour");
+    expect(host.textContent).not.toContain("Reflections are usually not holes");
+    expect(host.querySelector('[aria-label="About interior holes"]')).not.toBeNull();
+    await React.act(async () => host.querySelector<HTMLButtonElement>('[aria-label="About contour editing"]')!.click());
+    expect(document.querySelector('[role="tooltip"]')?.textContent).toContain("Simplification adjusts your edited contour");
+    React.act(() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
     expect(section("detect")?.querySelector("#smoothing")).toBeNull();
     expect(section("detect")?.textContent).not.toContain("Smoothing");
     expect(host.querySelector('#include-interior-holes')?.getAttribute("aria-checked")).toBe("false");
-    expect(host.textContent).toContain("No contours yet");
+    expect(host.textContent).toContain("No outline found. Increase Sensitivity or redraw the region around the whole tool.");
     expect(
       section("detect")?.querySelector("[data-testid='detection-contours']"),
     ).not.toBeNull();
     expect(section("contours")).toBeNull();
-    expect(
-      section("detect")?.querySelector<HTMLButtonElement>("#margin")?.textContent,
-    ).toContain("0.0 mm");
+    expect(section("detect")?.querySelector("#margin")).toBeNull();
+    expect(sectionTrigger("margin")?.disabled).toBe(true);
     expect(section("detect")?.textContent).not.toContain(
       "Bin clearance is added on top",
     );
@@ -729,15 +774,23 @@ describe("TraceControlsPanel guided workflow", () => {
     const clearRegion = host.querySelector<HTMLButtonElement>(
       '[data-testid="button-clear-region"]',
     );
-    expect(clearRegion?.textContent).toContain("Clear Region");
+    expect(clearRegion?.textContent).toContain("Clear region");
     expect(clearRegion?.disabled).toBe(false);
     expect(clearRegion?.parentElement?.className).toContain("grid-cols-2");
 
     await click("button-clear-region");
+    expect(trace.region).not.toBeNull();
+    expect(document.querySelector('[role="alertdialog"]')?.textContent).toContain("Clear region and outline?");
+    await React.act(async () => [...document.querySelectorAll<HTMLButtonElement>('[role="alertdialog"] button')]
+      .find(button => button.textContent === "Keep working")!.click());
+    expect(trace.region).not.toBeNull();
+    await click("button-clear-region");
+    await React.act(async () => [...document.querySelectorAll<HTMLButtonElement>('[role="alertdialog"] button')]
+      .find(button => button.textContent === "Clear region and outline")!.click());
     expect(section("crop")?.dataset.state).toBe("open");
     expect(sectionTrigger("detect")?.disabled).toBe(true);
     expect(host.textContent).toContain(
-      "Click and drag on the image",
+      "Click and drag around the tool.",
     );
   });
 
@@ -839,8 +892,8 @@ describe("automatic sensitivity detection", () => {
   it("re-detects with the released value without a button or confirmation for automatic history", async () => {
     await prepareOutline();
     await stepSensitivity();
-    expect(reprocess).toHaveBeenLastCalledWith({ sensitivity: 129, includeInteriorHoles: false });
-    expect(trace.sensitivity).toBe(129);
+    expect(reprocess).toHaveBeenLastCalledWith({ sensitivity: 127, includeInteriorHoles: false });
+    expect(trace.sensitivity).toBe(127);
     expect(document.querySelector('[role="dialog"]')).toBeNull();
     expect([...host.querySelectorAll("button")].some((button) => button.textContent === "Re-detect outline")).toBe(false);
     await React.act(async () => {
@@ -848,7 +901,7 @@ describe("automatic sensitivity detection", () => {
       trace.dispatch({ type: "MARGIN_COMMITTED", outline: [...detectedOutline], margin: 1 });
     });
     await stepSensitivity();
-    expect(reprocess).toHaveBeenLastCalledWith({ sensitivity: 130, includeInteriorHoles: false });
+    expect(reprocess).toHaveBeenLastCalledWith({ sensitivity: 126, includeInteriorHoles: false });
     expect(document.querySelector('[role="dialog"]')).toBeNull();
   });
 
@@ -867,8 +920,8 @@ describe("automatic sensitivity detection", () => {
     expect(trace.sensitivity).toBe(128);
     await stepSensitivity();
     await chooseConfirmation("Replace manual edits");
-    expect(reprocess).toHaveBeenCalledExactlyOnceWith({ sensitivity: 129, includeInteriorHoles: false });
-    expect(trace.sensitivity).toBe(129);
+    expect(reprocess).toHaveBeenCalledExactlyOnceWith({ sensitivity: 127, includeInteriorHoles: false });
+    expect(trace.sensitivity).toBe(127);
   });
 
   it("does not ask after all manual vertex edits have been undone", async () => {
@@ -900,7 +953,7 @@ it("blocks physical Save after Clear scale while keeping pixel SVG reachable", a
   const save = (name: string) => Array.from(host.querySelectorAll("button")).find(button => button.textContent?.trim() === name)!;
   expect(save("Save STL").disabled).toBe(true);
   expect(sectionTrigger("output")?.disabled).toBe(false);
-  expect(host.textContent).toContain("Set scale for STL, DXF or DWG");
+  expect(host.textContent).toContain("Set scale for STL or DXF");
   await React.act(async () => trace.dispatch({ type: "SET_EXPORT_FORMAT", exportFormat: "svg" }));
   expect(save("Save SVG (pixels)").disabled).toBe(false);
 });

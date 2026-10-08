@@ -76,6 +76,16 @@ function codes(
 // 2×2 bin: footprint 83.5, interior half-width 40.8.
 
 describe("validateLayout", () => {
+  it("revalidates fixed depths and remaining floors against the lowered surface", () => {
+    const shape = makeShape("s", 20, 20);
+    const fixed = makeCutout("p", "s", 0, 0, { depth: { mode: "mm", value: 20 } });
+    const remaining = makeCutout("r", "s", 0, 0, { depth: { mode: "remaining", floorThicknessMm: 20 } });
+    expect(codes(spec(), [fixed], [shape])).not.toContain("too-deep");
+    expect(codes(spec({ fillHeightPercent: 25 }), [fixed], [shape])).toContain("too-deep");
+    expect(codes(spec(), [remaining], [shape])).not.toContain("too-shallow");
+    expect(codes(spec({ fillHeightPercent: 25 }), [remaining], [shape])).toContain("too-shallow");
+  });
+
   it("identifies a renamed copy in warnings while preserving its source name", () => {
     const shape = makeShape("Shared source", 20, 20);
     const original = makeCutout("original", shape.id, 0, 0);
@@ -177,47 +187,18 @@ describe("validateLayout", () => {
     expect(result).toEqual(["thin-material"]);
   });
 
-  it("errors when two cutouts overlap outright", () => {
-    expect(
-      codes(
-        spec(),
-        [makeCutout("a", "s1", 0, 0), makeCutout("b", "s1", 10, 0)],
-        [makeShape("s1", 20, 20)],
-      ),
-    ).toContain("cutout-overlap");
-  });
-
-  it("errors when pockets merge within combined clearances", () => {
-    // Separation 0.5 < 0.4 + 0.4.
-    expect(
-      codes(
-        spec(),
-        [
-          makeCutout("a", "s1", -10.25, 0, { clearanceMm: 0.4 }),
-          makeCutout("b", "s1", 10.25, 0, { clearanceMm: 0.4 }),
-        ],
-        [makeShape("s1", 20, 20)],
-      ),
-    ).toContain("cutout-overlap");
-  });
-
-  it("errors when top-edge rounds merge at the surface", () => {
-    expect(
-      codes(
-        spec(),
-        [
-          makeCutout("a", "s1", -10.75, 0, {
-            clearanceMm: 0,
-            topFilletMm: 1,
-          }),
-          makeCutout("b", "s1", 10.75, 0, {
-            clearanceMm: 0,
-            topFilletMm: 1,
-          }),
-        ],
-        [makeShape("s1", 20, 20)],
-      ),
-    ).toContain("cutout-overlap");
+  it.each([
+    { name: "outright overlap", x: 5, clearanceMm: 0, topFilletMm: 0 },
+    { name: "combined clearances", x: 10.25, clearanceMm: 0.4, topFilletMm: 0 },
+    { name: "top-edge rounds", x: 10.75, clearanceMm: 0, topFilletMm: 1 },
+  ])("warns without blocking export when pockets merge from $name", ({ x, clearanceMm, topFilletMm }) => {
+    const shape = makeShape("s1", 20, 20);
+    const issues = validateLayout(spec(), [
+      makeCutout("a", shape.id, -x, 0, { clearanceMm, topFilletMm }),
+      makeCutout("b", shape.id, x, 0, { clearanceMm, topFilletMm }),
+    ], new Map([[shape.id, shape]]));
+    expect(issues.find(issue => issue.code === "cutout-overlap")?.severity).toBe("warning");
+    expect(issues.filter(issue => issue.severity === "error")).toEqual([]);
   });
 
   it("warns about a thin divider between pockets", () => {

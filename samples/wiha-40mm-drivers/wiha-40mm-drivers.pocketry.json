@@ -1,0 +1,685 @@
+{
+  "schemaVersion": 31,
+  "name": "Wiha 40 mm drivers",
+  "keepBinSize": true,
+  "shapes": [
+    {
+      "id": "wiha-40mm-calibrated",
+      "name": "Wiha 260 1.0 x 40",
+      "outlineMm": [
+        {
+          "outer": [
+            {
+              "x": -3.3458,
+              "y": 60.4465
+            },
+            {
+              "x": -4.9635,
+              "y": 59.7501
+            },
+            {
+              "x": -5.3941,
+              "y": 58.5561
+            },
+            {
+              "x": -6.3455,
+              "y": 52.885
+            },
+            {
+              "x": -5.4847,
+              "y": 20.6491
+            },
+            {
+              "x": -4.6005,
+              "y": 14.978
+            },
+            {
+              "x": -4.2478,
+              "y": 10.6002
+            },
+            {
+              "x": -3.5575,
+              "y": -13.7757
+            },
+            {
+              "x": -3.1741,
+              "y": -18.8499
+            },
+            {
+              "x": -3.1741,
+              "y": -19.2499
+            },
+            {
+              "x": -1,
+              "y": -19.2499
+            },
+            {
+              "x": -1,
+              "y": -60.6455
+            },
+            {
+              "x": 1,
+              "y": -60.6455
+            },
+            {
+              "x": 1,
+              "y": -19.2499
+            },
+            {
+              "x": 3.1741,
+              "y": -19.2499
+            },
+            {
+              "x": 3.1741,
+              "y": -18.8499
+            },
+            {
+              "x": 3.5575,
+              "y": -13.7757
+            },
+            {
+              "x": 4.2478,
+              "y": 10.6002
+            },
+            {
+              "x": 4.6005,
+              "y": 14.978
+            },
+            {
+              "x": 5.4847,
+              "y": 20.6491
+            },
+            {
+              "x": 6.3455,
+              "y": 52.885
+            },
+            {
+              "x": 5.3941,
+              "y": 58.5561
+            },
+            {
+              "x": 4.9635,
+              "y": 59.7501
+            },
+            {
+              "x": 3.3458,
+              "y": 60.4465
+            },
+            {
+              "x": 0,
+              "y": 60.6455
+            }
+          ],
+          "holes": []
+        }
+      ],
+      "bboxMm": {
+        "minX": -6.3455,
+        "minY": -60.6455,
+        "maxX": 6.3455,
+        "maxY": 60.6455
+      },
+      "pointCount": 25,
+      "sourceMmPerPx": 0.125,
+      "source": "trace",
+      "traceMarginMm": 0
+    }
+  ],
+  "spec": {
+    "gridX": 4,
+    "gridY": 7,
+    "gridPitch": "half",
+    "footprint": {
+      "kind": "rectangle"
+    },
+    "heightUnits": 3,
+    "lip": "standard",
+    "fill": "solid",
+    "fillHeightPercent": 80,
+    "adjustFixedPocketDepths": true,
+    "flatBottom": false,
+    "magnetHoles": false,
+    "magnetCrushRibs": false,
+    "screwHoles": false,
+    "labelTab": null,
+    "textColor": null,
+    "surfaceTexts": [
+      {
+        "id": "f18faec5-9e71-4092-bdc5-ee062504db4d",
+        "text": "Wiha",
+        "position": {
+          "x": -0.33129241838067003,
+          "y": -62.97970864646923
+        },
+        "font": "helvetiker",
+        "sizeMm": 6,
+        "heightMm": 0.8,
+        "rotationDeg": 180
+      }
+    ]
+  },
+  "cutouts": [
+    {
+      "id": "wiha-40mm-pocket-1",
+      "shapeId": "wiha-40mm-calibrated",
+      "designLink": {
+        "id": "wiha-40mm-shared-design",
+        "tilt": true
+      },
+      "name": "40 mm driver 1",
+      "position": {
+        "x": -28.5,
+        "y": 7.726611
+      },
+      "rotationDeg": 0,
+      "mirrored": false,
+      "scaleX": 1,
+      "scaleY": 1,
+      "aspectRatioLocked": true,
+      "depth": {
+        "mode": "mm",
+        "value": 10.25
+      },
+      "split": {
+        "boundary": [
+          {
+            "x": -20,
+            "y": -19.7499
+          },
+          {
+            "x": 20,
+            "y": -19.7499
+          }
+        ],
+        "depths": [
+          {
+            "mode": "mm",
+            "value": 10.25
+          },
+          {
+            "mode": "mm",
+            "value": 5.5
+          }
+        ]
+      },
+      "clearanceMm": 1.25,
+      "cornerRoundMm": 0.75,
+      "topFilletMm": 0.75,
+      "bottomFilletMm": 1.8,
+      "fingerHoles": []
+    },
+    {
+      "id": "wiha-40mm-pocket-2",
+      "shapeId": "wiha-40mm-calibrated",
+      "designLink": {
+        "id": "wiha-40mm-shared-design",
+        "tilt": true
+      },
+      "name": "40 mm driver 2",
+      "position": {
+        "x": -9.5,
+        "y": 7.726611
+      },
+      "rotationDeg": 0,
+      "mirrored": false,
+      "scaleX": 1,
+      "scaleY": 1,
+      "aspectRatioLocked": true,
+      "depth": {
+        "mode": "mm",
+        "value": 10.25
+      },
+      "split": {
+        "boundary": [
+          {
+            "x": -20,
+            "y": -19.7499
+          },
+          {
+            "x": 20,
+            "y": -19.7499
+          }
+        ],
+        "depths": [
+          {
+            "mode": "mm",
+            "value": 10.25
+          },
+          {
+            "mode": "mm",
+            "value": 5.5
+          }
+        ]
+      },
+      "clearanceMm": 1.25,
+      "cornerRoundMm": 0.75,
+      "topFilletMm": 0.75,
+      "bottomFilletMm": 1.8,
+      "fingerHoles": []
+    },
+    {
+      "id": "wiha-40mm-pocket-3",
+      "shapeId": "wiha-40mm-calibrated",
+      "designLink": {
+        "id": "wiha-40mm-shared-design",
+        "tilt": true
+      },
+      "name": "40 mm driver 3",
+      "position": {
+        "x": 9.5,
+        "y": 7.726611
+      },
+      "rotationDeg": 0,
+      "mirrored": false,
+      "scaleX": 1,
+      "scaleY": 1,
+      "aspectRatioLocked": true,
+      "depth": {
+        "mode": "mm",
+        "value": 10.25
+      },
+      "split": {
+        "boundary": [
+          {
+            "x": -20,
+            "y": -19.7499
+          },
+          {
+            "x": 20,
+            "y": -19.7499
+          }
+        ],
+        "depths": [
+          {
+            "mode": "mm",
+            "value": 10.25
+          },
+          {
+            "mode": "mm",
+            "value": 5.5
+          }
+        ]
+      },
+      "clearanceMm": 1.25,
+      "cornerRoundMm": 0.75,
+      "topFilletMm": 0.75,
+      "bottomFilletMm": 1.8,
+      "fingerHoles": []
+    },
+    {
+      "id": "wiha-40mm-pocket-4",
+      "shapeId": "wiha-40mm-calibrated",
+      "designLink": {
+        "id": "wiha-40mm-shared-design",
+        "tilt": true
+      },
+      "name": "40 mm driver 4",
+      "position": {
+        "x": 28.5,
+        "y": 7.726611
+      },
+      "rotationDeg": 0,
+      "mirrored": false,
+      "scaleX": 1,
+      "scaleY": 1,
+      "aspectRatioLocked": true,
+      "depth": {
+        "mode": "mm",
+        "value": 10.25
+      },
+      "split": {
+        "boundary": [
+          {
+            "x": -20,
+            "y": -19.7499
+          },
+          {
+            "x": 20,
+            "y": -19.7499
+          }
+        ],
+        "depths": [
+          {
+            "mode": "mm",
+            "value": 10.25
+          },
+          {
+            "mode": "mm",
+            "value": 5.5
+          }
+        ]
+      },
+      "clearanceMm": 1.25,
+      "cornerRoundMm": 0.75,
+      "topFilletMm": 0.75,
+      "bottomFilletMm": 1.8,
+      "fingerHoles": []
+    }
+  ],
+  "fingerHoles": [
+    {
+      "id": "wiha-40mm-access",
+      "name": "Shared screwdriver finger access",
+      "center": {
+        "x": 0,
+        "y": -32.273389
+      },
+      "diameterMm": 23,
+      "depthMm": 9,
+      "topFilletMm": 1,
+      "bottomFilletMm": 0,
+      "cornerRoundMm": 0,
+      "lengthMm": 65.62,
+      "rotationDeg": 0,
+      "slotEnds": "flat",
+      "kind": "flat-ended-scoop"
+    }
+  ],
+  "transformOrigins": {
+    "pockets": [
+      {
+        "cutout": {
+          "id": "wiha-40mm-pocket-1",
+          "shapeId": "wiha-40mm-calibrated",
+          "designLink": {
+            "id": "wiha-40mm-shared-design",
+            "tilt": true
+          },
+          "name": "40 mm driver 1",
+          "position": {
+            "x": -28.5,
+            "y": 0
+          },
+          "rotationDeg": 0,
+          "mirrored": false,
+          "scaleX": 1,
+          "scaleY": 1,
+          "aspectRatioLocked": true,
+          "depth": {
+            "mode": "mm",
+            "value": 10.25
+          },
+          "split": {
+            "boundary": [
+              {
+                "x": -20,
+                "y": -19.7499
+              },
+              {
+                "x": 20,
+                "y": -19.7499
+              }
+            ],
+            "depths": [
+              {
+                "mode": "mm",
+                "value": 10.25
+              },
+              {
+                "mode": "mm",
+                "value": 5.5
+              }
+            ]
+          },
+          "clearanceMm": 1.25,
+          "cornerRoundMm": 0.75,
+          "topFilletMm": 0.75,
+          "bottomFilletMm": 2.8,
+          "fingerHoles": []
+        },
+        "spec": {
+          "gridX": 2,
+          "gridY": 4,
+          "gridPitch": "full",
+          "footprint": {
+            "kind": "rectangle"
+          },
+          "heightUnits": 3,
+          "lip": "standard",
+          "fill": "solid",
+          "fillHeightPercent": 80,
+          "adjustFixedPocketDepths": true,
+          "flatBottom": false,
+          "magnetHoles": false,
+          "magnetCrushRibs": false,
+          "screwHoles": false,
+          "labelTab": null,
+          "textColor": null,
+          "surfaceTexts": []
+        }
+      },
+      {
+        "cutout": {
+          "id": "wiha-40mm-pocket-2",
+          "shapeId": "wiha-40mm-calibrated",
+          "designLink": {
+            "id": "wiha-40mm-shared-design",
+            "tilt": true
+          },
+          "name": "40 mm driver 2",
+          "position": {
+            "x": -9.5,
+            "y": 0
+          },
+          "rotationDeg": 0,
+          "mirrored": false,
+          "scaleX": 1,
+          "scaleY": 1,
+          "aspectRatioLocked": true,
+          "depth": {
+            "mode": "mm",
+            "value": 10.25
+          },
+          "split": {
+            "boundary": [
+              {
+                "x": -20,
+                "y": -19.7499
+              },
+              {
+                "x": 20,
+                "y": -19.7499
+              }
+            ],
+            "depths": [
+              {
+                "mode": "mm",
+                "value": 10.25
+              },
+              {
+                "mode": "mm",
+                "value": 5.5
+              }
+            ]
+          },
+          "clearanceMm": 1.25,
+          "cornerRoundMm": 0.75,
+          "topFilletMm": 0.75,
+          "bottomFilletMm": 2.8,
+          "fingerHoles": []
+        },
+        "spec": {
+          "gridX": 2,
+          "gridY": 4,
+          "gridPitch": "full",
+          "footprint": {
+            "kind": "rectangle"
+          },
+          "heightUnits": 3,
+          "lip": "standard",
+          "fill": "solid",
+          "fillHeightPercent": 80,
+          "adjustFixedPocketDepths": true,
+          "flatBottom": false,
+          "magnetHoles": false,
+          "magnetCrushRibs": false,
+          "screwHoles": false,
+          "labelTab": null,
+          "textColor": null,
+          "surfaceTexts": []
+        }
+      },
+      {
+        "cutout": {
+          "id": "wiha-40mm-pocket-3",
+          "shapeId": "wiha-40mm-calibrated",
+          "designLink": {
+            "id": "wiha-40mm-shared-design",
+            "tilt": true
+          },
+          "name": "40 mm driver 3",
+          "position": {
+            "x": 9.5,
+            "y": 0
+          },
+          "rotationDeg": 0,
+          "mirrored": false,
+          "scaleX": 1,
+          "scaleY": 1,
+          "aspectRatioLocked": true,
+          "depth": {
+            "mode": "mm",
+            "value": 10.25
+          },
+          "split": {
+            "boundary": [
+              {
+                "x": -20,
+                "y": -19.7499
+              },
+              {
+                "x": 20,
+                "y": -19.7499
+              }
+            ],
+            "depths": [
+              {
+                "mode": "mm",
+                "value": 10.25
+              },
+              {
+                "mode": "mm",
+                "value": 5.5
+              }
+            ]
+          },
+          "clearanceMm": 1.25,
+          "cornerRoundMm": 0.75,
+          "topFilletMm": 0.75,
+          "bottomFilletMm": 2.8,
+          "fingerHoles": []
+        },
+        "spec": {
+          "gridX": 2,
+          "gridY": 4,
+          "gridPitch": "full",
+          "footprint": {
+            "kind": "rectangle"
+          },
+          "heightUnits": 3,
+          "lip": "standard",
+          "fill": "solid",
+          "fillHeightPercent": 80,
+          "adjustFixedPocketDepths": true,
+          "flatBottom": false,
+          "magnetHoles": false,
+          "magnetCrushRibs": false,
+          "screwHoles": false,
+          "labelTab": null,
+          "textColor": null,
+          "surfaceTexts": []
+        }
+      },
+      {
+        "cutout": {
+          "id": "wiha-40mm-pocket-4",
+          "shapeId": "wiha-40mm-calibrated",
+          "designLink": {
+            "id": "wiha-40mm-shared-design",
+            "tilt": true
+          },
+          "name": "40 mm driver 4",
+          "position": {
+            "x": 28.5,
+            "y": 0
+          },
+          "rotationDeg": 0,
+          "mirrored": false,
+          "scaleX": 1,
+          "scaleY": 1,
+          "aspectRatioLocked": true,
+          "depth": {
+            "mode": "mm",
+            "value": 10.25
+          },
+          "split": {
+            "boundary": [
+              {
+                "x": -20,
+                "y": -19.7499
+              },
+              {
+                "x": 20,
+                "y": -19.7499
+              }
+            ],
+            "depths": [
+              {
+                "mode": "mm",
+                "value": 10.25
+              },
+              {
+                "mode": "mm",
+                "value": 5.5
+              }
+            ]
+          },
+          "clearanceMm": 1.25,
+          "cornerRoundMm": 0.75,
+          "topFilletMm": 0.75,
+          "bottomFilletMm": 2.8,
+          "fingerHoles": []
+        },
+        "spec": {
+          "gridX": 2,
+          "gridY": 4,
+          "gridPitch": "full",
+          "footprint": {
+            "kind": "rectangle"
+          },
+          "heightUnits": 3,
+          "lip": "standard",
+          "fill": "solid",
+          "fillHeightPercent": 80,
+          "adjustFixedPocketDepths": true,
+          "flatBottom": false,
+          "magnetHoles": false,
+          "magnetCrushRibs": false,
+          "screwHoles": false,
+          "labelTab": null,
+          "textColor": null,
+          "surfaceTexts": []
+        }
+      }
+    ],
+    "fingerHoles": [
+      {
+        "id": "wiha-40mm-access",
+        "name": "Shared screwdriver finger access",
+        "center": {
+          "x": 0,
+          "y": -40
+        },
+        "diameterMm": 23,
+        "depthMm": 9,
+        "topFilletMm": 1,
+        "bottomFilletMm": 0,
+        "cornerRoundMm": 0,
+        "lengthMm": 72,
+        "rotationDeg": 0,
+        "slotEnds": "flat",
+        "kind": "flat-ended-scoop"
+      }
+    ]
+  }
+}

@@ -11,7 +11,10 @@ import { loadTraceDraft, saveTraceDraft, traceDraftSnapshot } from "@/lib/trace-
 import type { TraceDraft } from "@shared/trace-draft";
 import { generateSTL } from "@/lib/export/stl";
 import { parseProjectDoc } from "@shared/gridfinity/project";
-import type { Outline } from "@shared/geometry/types";
+import type { Outline, Rect } from "@shared/geometry/types";
+import { autoCalibrate, type AutoCalibrationResult } from "@/lib/calibrate/auto-calibrate";
+import type { DetectionFrame } from "@/components/trace/use-image-source";
+import { TRACE_PHOTO_MAX_BYTES } from "@/lib/trace-photo";
 
 import TracePage from "./trace";
 
@@ -77,10 +80,11 @@ vi.mock("@/lib/trace-draft", async (original) => ({
 
 vi.mock("@/lib/download", () => ({ downloadBlob: vi.fn() }));
 vi.mock("@/lib/export/stl", () => ({ generateSTL: vi.fn() }));
+vi.mock("@/lib/calibrate/auto-calibrate", () => ({ autoCalibrate: vi.fn() }));
 
 const exportOutline: Outline = [{ outer: [{ x: 10, y: 20 }, { x: 70, y: 20 }, { x: 70, y: 60 }, { x: 10, y: 60 }], holes: [] }];
 
-function SeedExportOutline({ format, calibrated = true }: { format: "svg" | "dxf" | "dwg" | "stl"; calibrated?: boolean }): null {
+function SeedExportOutline({ format, calibrated = true }: { format: "svg" | "dxf" | "stl"; calibrated?: boolean }): null {
   const { dispatch } = useTrace();
   React.useEffect(() => {
     dispatch({ type: "SOURCE_LOADED", imageUrl: "data:image/png;base64,source", fileName: "Test tool" });
@@ -98,15 +102,23 @@ vi.mock("@/components/trace/trace-canvas", () => ({
     onReprocess,
   }: {
     emptyState?: React.ReactNode;
-    onReprocess: () => void;
-  }) => (
+    onReprocess: (region?: Rect) => void;
+  }) => {
+    const { dispatch } = useTrace();
+    return (
     <>
       {emptyState}
-      <button data-testid="run-detection" onClick={onReprocess}>
+      <button data-testid="run-detection" onClick={() => onReprocess()}>
         Run detection
       </button>
+      <button data-testid="commit-new-region" onClick={() => {
+        const region = { x: 80, y: 90, width: 200, height: 100 };
+        dispatch({ type: "SET_REGION", region });
+        onReprocess(region);
+      }}>Commit new region</button>
     </>
-  ),
+    );
+  },
 }));
 
 vi.mock("@/components/trace/use-image-source", () => {
@@ -132,6 +144,7 @@ vi.mock("@/components/trace/use-image-source", () => {
     decodeImageFile: decodeImageFileMock,
     fitWithin: () => ({ width: 800, height: 600 }),
     IMAGE_CANVAS_MAX: { width: 800, height: 600 },
+    AID_RETRY_CANVAS_MAX: { width: 2400, height: 2400 },
     useImageSource: (url: string | null) => {
       if (!url) return empty;
       if (!readySources.has(url)) readySources.set(url, { ...ready, source: { ...ready.source, url } });
@@ -209,6 +222,7 @@ describe("Trace detection workflow", () => {
     vi.mocked(loadTraceDraft).mockResolvedValue(null);
     vi.mocked(saveTraceDraft).mockResolvedValue();
     getDetectionFrameMock.mockReturnValue(null);
+    vi.mocked(autoCalibrate).mockReset().mockResolvedValue({ kind: "no-markers" });
     getImageDataMock.mockReturnValue({
       width: 300,
       height: 200,
@@ -224,6 +238,89 @@ describe("Trace detection workflow", () => {
     host = document.createElement("div");
     document.body.appendChild(host);
     root = createRoot(host);
+  });
+
+  const detectionFrame = (retry = false): DetectionFrame => ({
+    // Detection is mocked here; the photographic fixture covers the pixel data.
+    imageData: { width: retry ? 1800 : 1200, height: retry ? 2400 : 1600, data: new Uint8ClampedArray(0), colorSpace: "srgb" } as ImageData,
+    sourceImageUrl: "data:image/png;base64,source",
+    toWorking: { x: retry ? 0.25 : 0.375, y: retry ? 0.25 : 0.375 },
+  });
+  const detectedSheet = (factor = 1): Extract<AutoCalibrationResult, { kind: "calibrated" }> => ({
+    kind: "calibrated", paper: "letter", template: "letter-experimental", stripFallbackReason: "invalid-geometry",
+    calibration: { startX: 100 * factor, startY: 200 * factor, endX: 1100 * factor, endY: 200 * factor, lengthMm: 167.9 },
+    solution: { mmPerPx: 0.1679 / factor, markerIds: [12, 13, 14, 15], pairCount: 6, maxDeviation: 0.01,
+      ruler: { a: { x: 100 * factor, y: 200 * factor }, b: { x: 1100 * factor, y: 200 * factor }, lengthMm: 167.9 } },
+    perspectiveProposal: { source: "template", paper: "letter", template: "letter-experimental",
+      points: [{ x: 100 * factor, y: 200 * factor }, { x: 1100 * factor, y: 200 * factor }, { x: 1100 * factor, y: 1400 * factor }, { x: 100 * factor, y: 1400 * factor }] },
+    templateReprojectionErrorMm: 0.2,
+  });
+  const detectedAid = (): Extract<AutoCalibrationResult, { kind: "calibrated-strip" }> => ({
+    kind: "calibrated-strip",
+    calibration: { startX: 300, startY: 600, endX: 510, endY: 600, lengthMm: 35 },
+    solution: { mmPerPx: 1 / 6, markerIds: [22, 23], pairCount: 1, maxDeviation: 0.04,
+      ruler: { a: { x: 300, y: 600 }, b: { x: 510, y: 600 }, lengthMm: 35 } },
+  });
+
+  it.each([true, false])("retries a rejected aid and maps both references from their detection frames (retry finds paper=%s)", async (withPaper) => {
+    const first = detectionFrame(), retry = detectionFrame(true);
+    getDetectionFrameMock.mockImplementation((cap) => cap ? retry : first);
+    vi.mocked(autoCalibrate).mockResolvedValueOnce(detectedSheet()).mockResolvedValueOnce({
+      ...detectedAid(), ...(withPaper ? { sheet: detectedSheet(1.5) } : {}),
+    });
+    let current!: ReturnType<typeof useTrace>;
+    function Probe(): null { current = useTrace(); return null; }
+    await React.act(async () => root.render(<PanelProvider><TraceProvider><WorkflowController /><Probe /><TracePage /></TraceProvider></PanelProvider>));
+    expect(autoCalibrate).toHaveBeenCalledTimes(2);
+    expect(autoCalibrate).toHaveBeenNthCalledWith(2, retry.imageData);
+    expect(getDetectionFrameMock).toHaveBeenCalledWith({ width: 2400, height: 2400 });
+    expect(current.pendingCalibrationSource).toBe("strip");
+    expect(current.pendingAutoCalibration).toEqual({ startX: 75, startY: 150, endX: 127.5, endY: 150, lengthMm: 35 });
+    expect(current.pendingPaperCalibration).toEqual({ startX: 37.5, startY: 75, endX: 412.5, endY: 75, lengthMm: 167.9 });
+    expect(current.pendingPerspective?.points[0]).toEqual({ x: 37.5, y: 75 });
+    expect(current.calibration).toBeNull();
+  });
+
+  it.each(["rejected", "error"])("keeps the initial paper fallback when the higher-resolution aid fails (%s)", async (failure) => {
+    const first = detectionFrame(), retry = detectionFrame(true);
+    getDetectionFrameMock.mockImplementation((cap) => cap ? retry : first);
+    vi.mocked(autoCalibrate).mockResolvedValueOnce(detectedSheet());
+    if (failure === "error") vi.mocked(autoCalibrate).mockRejectedValueOnce(new Error("Could not allocate detection image"));
+    else vi.mocked(autoCalibrate).mockResolvedValueOnce({ kind: "invalid-strip", reason: "invalid-geometry" });
+    let current!: ReturnType<typeof useTrace>;
+    function Probe(): null { current = useTrace(); return null; }
+    await React.act(async () => root.render(<PanelProvider><TraceProvider><WorkflowController /><Probe /><TracePage /></TraceProvider></PanelProvider>));
+    expect(autoCalibrate).toHaveBeenCalledTimes(2);
+    expect(current.pendingCalibrationSource).toBe("sheet");
+    expect(current.pendingAutoCalibration).toEqual({ startX: 37.5, startY: 75, endX: 412.5, endY: 75, lengthMm: 167.9 });
+  });
+
+  it.each(["valid-aid", "paper-only", "no-markers", "native-size"])("avoids a second detector pass for %s", async (scenario) => {
+    const first = detectionFrame();
+    getDetectionFrameMock.mockReturnValue(first);
+    const paper = detectedSheet(); delete paper.stripFallbackReason;
+    vi.mocked(autoCalibrate).mockResolvedValueOnce(scenario === "valid-aid" ? detectedAid()
+      : scenario === "paper-only" ? paper : scenario === "native-size" ? detectedSheet() : { kind: "no-markers" });
+    await React.act(async () => root.render(<PanelProvider><TraceProvider><WorkflowController /><TracePage /></TraceProvider></PanelProvider>));
+    expect(autoCalibrate).toHaveBeenCalledTimes(1);
+    expect(getDetectionFrameMock).toHaveBeenCalledTimes(scenario === "native-size" ? 2 : 1);
+  });
+
+  it("discards a retry that finishes after the photo is replaced", async () => {
+    const first = detectionFrame(), retry = detectionFrame(true);
+    getDetectionFrameMock.mockImplementation((cap) => cap ? retry : first);
+    let finish!: (result: AutoCalibrationResult) => void;
+    vi.mocked(autoCalibrate).mockResolvedValueOnce(detectedSheet()).mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
+    let current!: ReturnType<typeof useTrace>;
+    function Probe(): null { current = useTrace(); return null; }
+    await React.act(async () => root.render(<PanelProvider><TraceProvider><WorkflowController /><Probe /><TracePage /></TraceProvider></PanelProvider>));
+    expect(autoCalibrate).toHaveBeenCalledTimes(2);
+    getDetectionFrameMock.mockReturnValue(null);
+    await React.act(async () => current.dispatch({ type: "SOURCE_LOADED", imageUrl: "data:image/png;base64,replacement", fileName: "replacement" }));
+    await React.act(async () => finish(detectedAid()));
+    expect(current.imageUrl).toBe("data:image/png;base64,replacement");
+    expect(current.pendingAutoCalibration).toBeNull();
+    expect(current.pendingCalibrationSource).toBeNull();
   });
 
   it("advances an accepted mobile scale to region drawing while the controls are unmounted", async () => {
@@ -268,7 +365,7 @@ describe("Trace detection workflow", () => {
     if (success) {
       expect(current.mode).toBe("calibrate");
       expect(current.imageUrl).toBe("data:image/png;base64,corrected");
-      expect(host.textContent).toContain("Tap two points a known distance apart");
+      expect(host.querySelector('[aria-label="Show current hint"]')).not.toBeNull();
       expect(host.querySelector('[data-testid="perspective-only"]')).toBeNull();
     } else {
       expect(current.imageUrl).toBe("data:image/png;base64,source");
@@ -292,7 +389,7 @@ describe("Trace detection workflow", () => {
     await React.act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
     expect(current!.processing).toBe(true);
     await React.act(async () => [...host.querySelectorAll('button')].find(button => button.textContent === "Start over")!.click());
-    await React.act(async () => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(button => button.textContent === "Clear trace and start over")!.click());
+    await React.act(async () => [...document.querySelectorAll<HTMLButtonElement>('[role="alertdialog"] button')].find(button => button.textContent === "Clear trace and start over")!.click());
     expect(current!.imageUrl).toBeNull();
     await React.act(async () => {
       finishDetection({ outline: exportOutline, rawOutline: exportOutline, svg: "<svg/>" });
@@ -312,12 +409,10 @@ describe("Trace detection workflow", () => {
     Object.defineProperty(window, "innerWidth", { value: 1024, configurable: true, writable: true });
   });
 
-  it.each((["svg", "dxf", "dwg", "stl"] as const).flatMap((format) => [false, true].map((includeProject) => ({ format, includeProject }))))(
+  it.each((["svg", "dxf", "stl"] as const).flatMap((format) => [false, true].map((includeProject) => ({ format, includeProject }))))(
     "exports Trace $format with JSON only when requested ($includeProject)",
     async ({ format, includeProject }) => {
       await React.act(async () => root.render(<PanelProvider><TraceProvider><SeedExportOutline format={format} /><TracePage /></TraceProvider></PanelProvider>));
-      // The existing DWG explanation is separate from the export request.
-      if (format === "dwg") React.act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find((button) => button.textContent === "Close")!.click());
       React.act(() => host.querySelector<HTMLButtonElement>('[data-testid="export-trace"]')!.click());
       const checkbox = document.querySelector<HTMLButtonElement>('[data-testid="checkbox-export-project"]')!;
       expect(checkbox.getAttribute("aria-checked")).toBe("false");
@@ -355,9 +450,8 @@ describe("Trace detection workflow", () => {
     expect(vi.mocked(downloadBlob).mock.calls[0][1]).toMatch(/\.svg$/);
   });
 
-  it.each(["stl", "dxf", "dwg"] as const)("blocks uncalibrated %s even when a caller bypasses the disabled UI", async (format) => {
+  it.each(["stl", "dxf"] as const)("blocks uncalibrated %s even when a caller bypasses the disabled UI", async (format) => {
     await React.act(async () => root.render(<PanelProvider><TraceProvider><SeedExportOutline format={format} calibrated={false} /><TracePage /></TraceProvider></PanelProvider>));
-    if (format === "dwg") React.act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(button => button.textContent === "Got it")!.click());
     React.act(() => host.querySelector<HTMLButtonElement>('[data-testid="export-trace"]')!.click());
     expect(document.querySelector('[data-testid="button-confirm-export"]')).toBeNull();
     expect(generateSTL).not.toHaveBeenCalled();
@@ -371,6 +465,22 @@ describe("Trace detection workflow", () => {
     React.act(() => host.querySelector<HTMLButtonElement>('[data-testid="export-trace"]')!.click());
     React.act(() => current.dispatch({ type: "SET_CALIBRATION", calibration: null }));
     await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-confirm-export"]')!.click());
+    expect(generateSTL).not.toHaveBeenCalled();
+    expect(downloadBlob).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])("blocks a pending replacement ruler when export is already open: %s", async alreadyOpen => {
+    let current!: ReturnType<typeof useTrace>;
+    function Probe(): null { current = useTrace(); return null; }
+    await React.act(async () => root.render(<PanelProvider><TraceProvider><Probe /><SeedExportOutline format="stl" /><TracePage /></TraceProvider></PanelProvider>));
+    if (alreadyOpen) React.act(() => host.querySelector<HTMLButtonElement>('[data-testid="export-trace"]')!.click());
+    React.act(() => current.dispatch({ type: "SET_MODE", mode: "calibrate" }));
+    expect(current.calibration).not.toBeNull();
+    if (alreadyOpen) await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-confirm-export"]')!.click());
+    else {
+      React.act(() => host.querySelector<HTMLButtonElement>('[data-testid="export-trace"]')!.click());
+      expect(document.querySelector('[data-testid="button-confirm-export"]')).toBeNull();
+    }
     expect(generateSTL).not.toHaveBeenCalled();
     expect(downloadBlob).not.toHaveBeenCalled();
   });
@@ -428,10 +538,35 @@ describe("Trace detection workflow", () => {
     expect(current.history.stack).toHaveLength(1);
   });
 
-  it("leaves edited work untouched when a replacement cannot be decoded", async () => {
+  it.each(["unsupported", "oversized"])("rejects a %s replacement before decoding and preserves the trace", async kind => {
     let current!: ReturnType<typeof useTrace>;
     function Probe(): null { current = useTrace(); return null; }
     await React.act(async () => root.render(<PanelProvider><TraceProvider><Probe /><SeedExportOutline format="svg" /><TracePage /></TraceProvider></PanelProvider>));
+    const before = { imageUrl: current.imageUrl, outline: current.outline, history: current.history, calibration: current.calibration };
+    const file = kind === "unsupported" ? new File(["text"], "notes.txt", { type: "text/plain" }) : new File(["photo"], "large.png", { type: "image/png" });
+    if (kind === "oversized") Object.defineProperty(file, "size", { value: TRACE_PHOTO_MAX_BYTES + 1 });
+    const input = host.querySelector<HTMLInputElement>('input[aria-label="Choose another photo"]')!;
+    Object.defineProperty(input, "files", { configurable: true, value: [file] });
+    await React.act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
+    expect(decodeImageFileMock).not.toHaveBeenCalled();
+    expect(current).toMatchObject(before);
+    expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+    expect(host.querySelector('[data-testid="trace-photo-error"]')?.textContent).toContain(kind === "unsupported" ? "Choose a PNG, JPG, or WebP photo" : "Choose a photo up to 10 MB");
+    decodeImageFileMock.mockResolvedValueOnce({ imageUrl: "replacement", naturalSize: { width: 800, height: 600 } });
+    Object.defineProperty(input, "files", { configurable: true, value: [new File(["photo"], "valid.webp", { type: "image/webp" })] });
+    await React.act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
+    expect(host.querySelector('[data-testid="trace-photo-error"]')).toBeNull();
+    expect(document.querySelector('[role="alertdialog"]')?.textContent).toContain("Replace this photo");
+    expect(current).toMatchObject(before);
+  });
+
+  it.each([false, true])("shows a photo decode error without changing edited work (mobile=%s)", async mobile => {
+    vi.stubGlobal("matchMedia", () => ({ matches: mobile, addEventListener: () => {}, removeEventListener: () => {} }));
+    let current!: ReturnType<typeof useTrace>;
+    let panel!: ReturnType<typeof usePanelState>;
+    function Probe(): null { current = useTrace(); panel = usePanelState(); return null; }
+    await React.act(async () => root.render(<PanelProvider><TraceProvider><Probe /><SeedExportOutline format="svg" /><TracePage /></TraceProvider></PanelProvider>));
+    React.act(() => panel.setPanelOpen(true));
     const before = { outline: current.outline, history: current.history, calibration: current.calibration };
     decodeImageFileMock.mockRejectedValueOnce(new Error("Unsupported image"));
     const input = host.querySelector<HTMLInputElement>('input[type="file"]')!;
@@ -441,6 +576,11 @@ describe("Trace detection workflow", () => {
     expect(current.outline).toBe(before.outline);
     expect(current.history).toBe(before.history);
     expect(current.calibration).toBe(before.calibration);
+    expect(panel.panelOpen).toBe(!mobile);
+    expect(host.querySelector('[data-testid="trace-photo-error"]')?.textContent).toContain("Save it as PNG, JPG, or WebP and try again");
+    expect(host.querySelector('[data-testid="trace-photo-error"]')?.textContent).not.toContain("Unsupported image");
+    React.act(() => host.querySelector<HTMLButtonElement>('[data-testid="trace-photo-error"] button')!.click());
+    expect(host.querySelector('[data-testid="trace-photo-error"]')).toBeNull();
   });
 
   it.each([true, false])("waits for recovery before reviewing a chosen photo (valid=%s)", async (valid) => {
@@ -502,7 +642,7 @@ describe("Trace detection workflow", () => {
     expect(host.textContent).not.toContain("Paper sheets and");
     expect(host.querySelector('[aria-label="Download a measurement aid as 3MF"]')).toBeNull();
     expect(host.textContent).not.toContain("A4 PDF");
-    expect([...host.querySelectorAll("button")].filter((button) => button.textContent === "Download printable calibration templates")).toHaveLength(1);
+    expect([...host.querySelectorAll("button")].filter((button) => button.textContent === "Download calibration aids")).toHaveLength(1);
   });
 
   it("keeps the current photo visible until its replacement is decoded", async () => {
@@ -561,6 +701,14 @@ describe("Trace detection workflow", () => {
     expect(host.querySelector('[data-testid="source-state"]')?.textContent).toBe(
       "data:image/png;base64,replacement|800x600",
     );
+  });
+
+  it("detects in the newly committed region instead of a stale region from the previous render", async () => {
+    await React.act(async () => root.render(<PanelProvider><TraceProvider><WorkflowController /><TracePage /></TraceProvider></PanelProvider>));
+    React.act(() => host.querySelector<HTMLButtonElement>('[data-testid="set-region"]')!.click());
+    await React.act(async () => host.querySelector<HTMLButtonElement>('[data-testid="commit-new-region"]')!.click());
+    expect(getImageDataMock).toHaveBeenCalledExactlyOnceWith({ x: 80, y: 90, width: 200, height: 100 });
+    expect(processImageMock).toHaveBeenCalledOnce();
   });
 
   it("waits for a detection region instead of tracing immediately on image load", async () => {

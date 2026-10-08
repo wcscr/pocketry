@@ -1,4 +1,4 @@
-import type { ProjectDoc } from "@shared/gridfinity/project";
+import { serializeProjectDoc, type ProjectDoc } from "@shared/gridfinity/project";
 import type { BinSpec } from "@shared/gridfinity/types";
 
 import { downloadBlob } from "@/lib/download";
@@ -42,7 +42,7 @@ export function prepareProjectExport(
   ].filter(Boolean).join("-");
   return {
     baseName,
-    backup: new Blob([JSON.stringify({ ...doc, ...(projectName?.trim() ? { name: projectName.trim().slice(0, 80) } : {}) }, null, 2)], { type: "application/json" }),
+    backup: new Blob([JSON.stringify(serializeProjectDoc({ ...doc, ...(projectName?.trim() ? { name: projectName.trim().slice(0, 80) } : {}) }), null, 2)], { type: "application/json" }),
   };
 }
 

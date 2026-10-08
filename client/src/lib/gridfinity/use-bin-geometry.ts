@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ValidationIssue } from "@shared/gridfinity/validate";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import type { BufferGeometry } from "three";
 
@@ -8,6 +9,7 @@ import type {
   TracedShape,
 } from "@shared/gridfinity/cutout";
 import type { BinSpec } from "@shared/gridfinity/types";
+import type { SurfaceText } from "@shared/gridfinity/surface-text";
 import type { SurfaceFitCheckStyle } from "@shared/gridfinity/fit-check";
 import { lidCapTopMm, lidBottomMm } from "@shared/gridfinity/magnetic-lid";
 
@@ -18,8 +20,10 @@ import { WorkerCancelledError } from "@/lib/worker/protocol";
 import {
   MULTICOLOR_FLOOR_THICKNESS_MM,
   MULTICOLOR_RIM_THICKNESS_MM,
+  MULTICOLOR_BORDER_WIDTH_MM,
   type BuildQuality,
 } from "./bin";
+import { needsProgressivePreview } from "./preview-policy";
 import type { CutoutBuildReport } from "./cutouts";
 import {
   BUILD_BIN_METHOD,
@@ -41,35 +45,50 @@ export interface BinGeometryLayout {
   fingerHoles: FingerHole[];
 }
 
-/**
- * Debounce before a build is dispatched. Slider drags emit a burst of spec
- * changes; the worker's supersede channel already cancels stale requests, and
- * the debounce keeps most of them from ever being sent (plan: "Performance").
- */
-const DEBOUNCE_MS = 120;
+/** Batch the first input; subsequent edits cannot postpone this deadline. */
+const PREVIEW_THROTTLE_MS = 32;
+/** Start expensive rounding only after input has settled and the draft finished. */
+const REFINEMENT_IDLE_MS = 300;
+
+type PreviewQueue = {
+  running: boolean;
+  pending: (() => Promise<void>) | null;
+  timer: ReturnType<typeof setTimeout> | undefined;
+};
+const newPreviewQueue = (): PreviewQueue => ({ running: false, pending: null, timer: undefined });
 
 export interface BinGeometryState {
   /** Separate lid in closed orientation, at local z=0. */
   lidGeometry: BufferGeometry | null;
   /** Latest built preview. Owned by the hook: disposed when replaced. */
   geometry: BufferGeometry | null;
-  /** Exact pocket-floor material volume for the latest preview. */
+  /** Pocket-floor material volume for the latest preview tier. */
   pocketFloorGeometry: BufferGeometry | null;
-  /** Exact stacking-rim material volume for the latest preview. */
+  /** Stacking-rim material volume for the latest preview tier. */
   stackingRimGeometry: BufferGeometry | null;
-  /** True when the preview contains a pocket-floor material volume. */
+  /** Independent label meshes, owned and disposed by this hook. */
+  textGeometries: { label: SurfaceText; geometry: BufferGeometry }[];
+  /** True when the preview contains a pocket-floor or hollow-bin floor color volume. */
   hasPocketFloor: boolean;
-  /** True when the preview contains a stacking-rim material volume. */
+  /** True when the preview contains a rim or flush border material volume. */
   hasStackingRim: boolean;
   /** Spec that produced `geometry`; remains stable while a replacement builds. */
   builtSpec: BinSpec | null;
+  /** Last detailed statistics; check statsAreStale before treating them as current. */
   stats: BuildBinStats | null;
+  statsAreStale: boolean;
   /** Per-cutout build reports from the latest preview (emptied sections). */
   cutoutReports: CutoutBuildReport[];
+  /** Solid warnings belong to the current detailed model, never a draft. */
+  validationIssues: ValidationIssue[];
+  /** The displayed geometry is simplified, even if refinement failed. */
+  previewIsDraft: boolean;
   building: boolean;
   /** 0..1 as reported by the worker while building. */
   progress: number;
   error: string | null;
+  /** Retry the current preview without creating a design/history edit. */
+  retryPreview: () => void;
   /**
    * One-off build at a different quality — the export path. Runs on its own
    * supersede channel so it never cancels the live preview.
@@ -79,6 +98,7 @@ export interface BinGeometryState {
     options?: {
       pocketFloorMaterialThicknessMm?: number;
       stackingRimMaterialThicknessMm?: number;
+      borderWidthMm?: number;
     },
   ) => Promise<BuildBinResult>;
   /** Builds a standalone filled outline for an inexpensive print-fit check. */
@@ -98,8 +118,8 @@ export interface BinGeometryState {
 
 /**
  * Live bin geometry over the worker pipeline: spec in, `BufferGeometry` out,
- * with debounce, supersede-on-newer, cooperative cancel, and progress — the
- * G2 milestone contract ("reacting to sliders without jank").
+ * with an interactive worker and a separate detail/export worker. Each preview
+ * lane retains one physical RPC and one replaceable pending request.
  */
 export function useBinGeometry(
   spec: BinSpec,
@@ -111,14 +131,33 @@ export function useBinGeometry(
   previewMaterials: {
     pocketFloorThicknessMm?: number;
     stackingRimThicknessMm?: number;
+    borderWidthMm?: number;
   } = {},
+  /** Live gesture values for preview only; exports still use the committed arguments above. */
+  livePreview?: {
+    spec: BinSpec;
+    layout: BinGeometryLayout;
+    /** Stable only during one transient gesture; omit for commits/project changes. */
+    gesture?: object;
+  },
 ): BinGeometryState {
+  const previewSpec = livePreview?.spec ?? spec;
+  const previewLayout = livePreview?.layout ?? layout;
   const clientRef = useRef<WorkerClient | null>(null);
+  const interactiveClientRef = useRef<WorkerClient | null>(null);
+  const previewQueueRef = useRef<PreviewQueue>(newPreviewQueue());
+  const refinementQueueRef = useRef<PreviewQueue>(newPreviewQueue());
+  const inputRef = useRef({ key: "", gesture: undefined as object | undefined, epoch: 0 });
+  const sequenceRef = useRef(0);
+  const displayedSequenceRef = useRef(0);
+  const previousKeysRef = useRef<{ model: string; unrounded: string } | null>(null);
+  const detailedCostsRef = useRef(new Map<string, number>());
   const geometryRef = useRef<BufferGeometry | null>(null);
   const lidGeometryRef = useRef<BufferGeometry | null>(null);
   const [lidGeometry, setLidGeometry] = useState<BufferGeometry | null>(null);
   const pocketFloorGeometryRef = useRef<BufferGeometry | null>(null);
   const stackingRimGeometryRef = useRef<BufferGeometry | null>(null);
+  const textGeometryRef = useRef<BufferGeometry[]>([]);
 
   const [geometry, setGeometry] = useState<BufferGeometry | null>(null);
   const [pocketFloorGeometry, setPocketFloorGeometry] =
@@ -126,146 +165,289 @@ export function useBinGeometry(
   const [stackingRimGeometry, setStackingRimGeometry] =
     useState<BufferGeometry | null>(null);
   const [hasPocketFloor, setHasPocketFloor] = useState(false);
+  const [textGeometries, setTextGeometries] = useState<BinGeometryState["textGeometries"]>([]);
   const [hasStackingRim, setHasStackingRim] = useState(false);
   const [builtSpec, setBuiltSpec] = useState<BinSpec | null>(null);
   const [stats, setStats] = useState<BuildBinStats | null>(null);
+  const [statsAreStale, setStatsAreStale] = useState(false);
   const [cutoutReports, setCutoutReports] = useState<CutoutBuildReport[]>([]);
+  const [validationIssues, setValidationIssues] = useState<ValidationIssue[]>([]);
+  const [previewIsDraft, setPreviewIsDraft] = useState(false);
   const [building, setBuilding] = useState(true);
   const [progress, setProgress] = useState(0);
+  const [retryVersion, setRetryVersion] = useState(0);
+  const retryPreview = useCallback(() => { previousKeysRef.current = null; setRetryVersion(v => v + 1); }, []);
   const [error, setError] = useState<string | null>(null);
 
   const ensureClient = useCallback((): WorkerClient => {
     clientRef.current ??= createWorkerClient(
       () =>
         new Worker(new URL("./bin.worker.ts", import.meta.url), {
-          type: "module",
+          type: "module", name: "pocketry-detail",
         }),
     );
     return clientRef.current;
   }, []);
 
+  // At most two lazy workers. Detailed previews share the export worker;
+  // interactive requests never wait behind either detailed builds or exports.
+  const ensureInteractiveClient = useCallback((): WorkerClient => {
+    interactiveClientRef.current ??= createWorkerClient(
+      () => new Worker(new URL("./bin.worker.ts", import.meta.url), { type: "module", name: "pocketry-interactive" }),
+    );
+    return interactiveClientRef.current;
+  }, []);
+
   // Plain-data value key so the effect ignores object identity churn.
   // Shape geometry is deliberately excluded: shapes are immutable by id in
   // the library, so id + pointCount fingerprints them.
-  const requestKey = useMemo(
+  const modelInputs = useMemo(
     () =>
-      JSON.stringify({
-        spec,
+      ({
+        spec: previewSpec,
         segments: quality.circularSegments,
         fingerHoleChordTolerance: quality.fingerHoleChordToleranceMm,
         budget: quality.cutoutVertexBudget,
         filletStep: quality.filletProfileStepMm,
-        cutouts: layout?.cutouts ?? [],
-        fingerHoles: layout?.fingerHoles ?? [],
-        shapeKeys: layout?.shapes.map((shape) => `${shape.id}:${shape.pointCount}`) ?? [],
-        section: section ?? null,
+        cutouts: previewLayout?.cutouts ?? [],
+        fingerHoles: previewLayout?.fingerHoles ?? [],
+        shapeKeys: previewLayout?.shapes.map((shape) => `${shape.id}:${shape.pointCount}`) ?? [],
         pocketFloorThicknessMm:
           previewMaterials.pocketFloorThicknessMm ??
           MULTICOLOR_FLOOR_THICKNESS_MM,
         stackingRimThicknessMm:
           previewMaterials.stackingRimThicknessMm ??
           MULTICOLOR_RIM_THICKNESS_MM,
+        borderWidthMm: previewMaterials.borderWidthMm ?? MULTICOLOR_BORDER_WIDTH_MM,
       }),
     [
-      spec,
+      previewSpec,
       quality.circularSegments,
       quality.fingerHoleChordToleranceMm,
       quality.cutoutVertexBudget,
       quality.filletProfileStepMm,
-      layout,
-      section,
+      previewLayout,
       previewMaterials.pocketFloorThicknessMm,
       previewMaterials.stackingRimThicknessMm,
+      previewMaterials.borderWidthMm,
     ],
   );
 
+  const modelKey = useMemo(() => JSON.stringify(modelInputs), [modelInputs]);
+  const requestKey = JSON.stringify([modelKey, section ?? null]);
+  const gesture = livePreview?.gesture;
+  // Layout effects invalidate the publication boundary before worker replies.
+  // Returning to the same history entry starts a new epoch, so an old gesture
+  // can never revive after undo, project replacement, or a completed gesture.
+  useLayoutEffect(() => {
+    const previous = inputRef.current;
+    inputRef.current = { key: requestKey, gesture,
+      epoch: previous.epoch + (previous.gesture !== gesture ? 1 : 0) };
+  }, [requestKey, gesture]);
+
   useEffect(() => {
     let stale = false;
+    let interactiveSettled = false;
+    let idleReady = false;
+    let refinementRequested = false;
+    let detailedPublished = false;
+    // Capture queue ownership for this worker lifetime, including StrictMode.
+    const interactiveQueue = previewQueueRef.current;
+    const refinementQueue = refinementQueueRef.current;
+    const sequence = ++sequenceRef.current;
+    const epoch = inputRef.current.epoch;
+    const unroundedKey = JSON.stringify({ ...modelInputs,
+      cutouts: previewLayout?.cutouts.map(c => ({ ...c, topFilletMm: 0, bottomFilletMm: 0 })) ?? [] });
+    const previous = previousKeysRef.current;
+    const sectionOnly = previous?.model === modelKey;
+    const roundingOnly = previous?.unrounded === unroundedKey && previous.model !== modelKey;
+    previousKeysRef.current = { model: modelKey, unrounded: unroundedKey };
+    // Cost is reused for positional edits, but not across changed dimensions,
+    // depth/rounding settings, materials, quality, or shape identities.
+    const costKey = JSON.stringify({ ...modelInputs,
+      cutouts: previewLayout?.cutouts.map(c => ({ ...c, position: undefined, rotationDeg: undefined })) ?? [] });
+    const needsRefinement = !sectionOnly && needsProgressivePreview(
+      previewSpec, previewLayout, quality, detailedCostsRef.current.get(costKey),
+    );
     setBuilding(true);
     setProgress(0);
+    setError(null);
+    setStatsAreStale(true);
+    setCutoutReports([]);
+    setValidationIssues([]);
 
-    const timer = setTimeout(() => {
-      const request: BuildBinRequest = {
-        spec,
-        quality,
-        layout:
-          layout && (layout.cutouts.length > 0 || layout.fingerHoles.length > 0)
-            ? {
-                shapes: layout.shapes,
-                cutouts: layout.cutouts,
-                fingerHoles: layout.fingerHoles,
-              }
-            : undefined,
-        section: section ?? undefined,
-        pocketFloorMaterialThicknessMm:
-          previewMaterials.pocketFloorThicknessMm ??
-          MULTICOLOR_FLOOR_THICKNESS_MM,
-        stackingRimMaterialThicknessMm:
-          previewMaterials.stackingRimThicknessMm ??
-          MULTICOLOR_RIM_THICKNESS_MM,
-      };
-      ensureClient()
-        .call<BuildBinResult>(BUILD_BIN_METHOD, request, {
+    const request: BuildBinRequest = {
+      spec: previewSpec,
+      quality,
+      layout:
+        previewLayout && (previewLayout.cutouts.length > 0 || previewLayout.fingerHoles.length > 0)
+          ? { shapes: previewLayout.shapes, cutouts: previewLayout.cutouts, fingerHoles: previewLayout.fingerHoles }
+          : undefined,
+      section: section ?? undefined,
+      pocketFloorMaterialThicknessMm:
+        previewMaterials.pocketFloorThicknessMm ?? MULTICOLOR_FLOOR_THICKNESS_MM,
+      stackingRimMaterialThicknessMm:
+        previewMaterials.stackingRimThicknessMm ?? MULTICOLOR_RIM_THICKNESS_MM,
+      borderWidthMm: previewMaterials.borderWidthMm ?? MULTICOLOR_BORDER_WIDTH_MM,
+    };
+
+    const publish = (result: BuildBinResult, draft: boolean, interactive = false) => {
+      const current = inputRef.current;
+      const obsolete = stale || current.key !== requestKey;
+      const intermediate = obsolete && interactive && gesture !== undefined &&
+        current.gesture === gesture && current.epoch === epoch;
+      if ((obsolete && !intermediate) || sequence < displayedSequenceRef.current || (draft && detailedPublished)) return;
+      displayedSequenceRef.current = sequence;
+      const next = toBufferGeometry(result.materialMeshes?.body ?? result.bodyMesh ?? result.mesh);
+      const nextPocketFloor = result.materialMeshes?.pocketFloors
+        ? toBufferGeometry(result.materialMeshes.pocketFloors) : null;
+      const nextStackingRim = result.materialMeshes?.stackingRim
+        ? toBufferGeometry(result.materialMeshes.stackingRim) : null;
+      const nextLid = result.lidMesh ? toBufferGeometry(result.lidMesh) : null;
+      if (nextLid) {
+        if (previewSpec.magneticLidTop === "stacking") nextLid.translate(0, 0, lidBottomMm(previewSpec));
+        else nextLid.rotateX(Math.PI).translate(0, 0, lidCapTopMm(previewSpec));
+      }
+      lidGeometryRef.current?.dispose();
+      lidGeometryRef.current = nextLid;
+      setLidGeometry(nextLid);
+      const nextTexts = (result.textMeshes ?? []).map(part => ({ label: part.label, geometry: toBufferGeometry(part.mesh) }));
+      geometryRef.current?.dispose();
+      pocketFloorGeometryRef.current?.dispose();
+      stackingRimGeometryRef.current?.dispose();
+      textGeometryRef.current.forEach(part => part.dispose());
+      textGeometryRef.current = nextTexts.map(part => part.geometry);
+      geometryRef.current = next;
+      pocketFloorGeometryRef.current = nextPocketFloor;
+      stackingRimGeometryRef.current = nextStackingRim;
+      setGeometry(next);
+      setPocketFloorGeometry(nextPocketFloor);
+      setStackingRimGeometry(nextStackingRim);
+      setTextGeometries(nextTexts);
+      setHasPocketFloor(nextPocketFloor !== null);
+      setHasStackingRim(nextStackingRim !== null);
+      setBuiltSpec(previewSpec);
+      setPreviewIsDraft(draft);
+      // Approximate volumes and collapse reports must not masquerade as the
+      // final model. Keep exports independent of displayed preview geometry.
+      if (!draft && !intermediate) {
+        setStats(result.stats);
+        setStatsAreStale(false);
+        setCutoutReports(result.cutoutReports ?? []);
+        setValidationIssues(result.validationIssues ?? []);
+      }
+      if (!intermediate) {
+        setError(null);
+        setBuilding(draft);
+        setProgress(draft ? 0 : 1);
+      }
+      if (!draft) detailedPublished = true;
+    };
+
+    const rememberCost = (result: BuildBinResult) => {
+      if (section) return;
+      const costs = detailedCostsRef.current;
+      if (costs.size >= 16 && !costs.has(costKey)) costs.delete(costs.keys().next().value!);
+      costs.set(costKey, result.stats.buildMs);
+    };
+    const enqueue = (queue: PreviewQueue, job: () => Promise<void>) => {
+      if (queue.running) queue.pending = job;
+      else void job();
+    };
+    const drain = (queue: PreviewQueue) => {
+      queue.running = false;
+      const next = queue.pending;
+      queue.pending = null;
+      if (next) void next();
+    };
+    const refine = async () => {
+      refinementQueue.running = true;
+      try {
+        const result = await ensureClient().call<BuildBinResult>(BUILD_BIN_METHOD, request, {
           channel: "preview",
-          onProgress: (value) => {
-            if (!stale) setProgress(value);
+          onProgress: (value) => { if (!stale) setProgress(value); },
+        });
+        rememberCost(result);
+        publish(result, false);
+      } catch (cause: unknown) {
+        if (stale || cause instanceof WorkerCancelledError) return;
+        setError(`Detailed preview failed: ${cause instanceof Error ? cause.message : String(cause)}`);
+        setBuilding(false);
+      } finally {
+        drain(refinementQueue);
+      }
+    };
+    const maybeRefine = () => {
+      if (stale || !needsRefinement || !interactiveSettled || !idleReady || refinementRequested) return;
+      refinementRequested = true;
+      enqueue(refinementQueue, refine);
+    };
+    const buildInteractive = async () => {
+      interactiveQueue.running = true;
+      try {
+        const result = await ensureInteractiveClient().call<BuildBinResult>(
+          BUILD_BIN_METHOD,
+          needsRefinement ? { ...request, previewDraft: roundingOnly ? "rounded" : true } : request,
+          {
+            channel: "preview",
+            onProgress: (value) => { if (!stale) setProgress(value); },
           },
-        })
-        .then((result) => {
-          if (stale) return;
-          const next = toBufferGeometry(
-            result.materialMeshes?.body ?? result.mesh,
-          );
-          const nextPocketFloor = result.materialMeshes?.pocketFloors
-            ? toBufferGeometry(result.materialMeshes.pocketFloors)
-            : null;
-          const nextStackingRim = result.materialMeshes?.stackingRim
-            ? toBufferGeometry(result.materialMeshes.stackingRim)
-            : null;
-          const nextLid = result.lidMesh ? toBufferGeometry(result.lidMesh) : null;
-          if (nextLid) {
-            if (spec.magneticLidTop === "stacking") nextLid.translate(0, 0, lidBottomMm(spec));
-            else nextLid.rotateX(Math.PI).translate(0, 0, lidCapTopMm(spec));
-          }
-          lidGeometryRef.current?.dispose();
-          lidGeometryRef.current = nextLid;
-          setLidGeometry(nextLid);
-          geometryRef.current?.dispose();
-          pocketFloorGeometryRef.current?.dispose();
-          stackingRimGeometryRef.current?.dispose();
-          geometryRef.current = next;
-          pocketFloorGeometryRef.current = nextPocketFloor;
-          stackingRimGeometryRef.current = nextStackingRim;
-          setGeometry(next);
-          setPocketFloorGeometry(nextPocketFloor);
-          setStackingRimGeometry(nextStackingRim);
-          setHasPocketFloor(nextPocketFloor !== null);
-          setHasStackingRim(nextStackingRim !== null);
-          setBuiltSpec(spec);
-          setStats(result.stats);
-          setCutoutReports(result.cutoutReports ?? []);
-          setError(null);
-          setBuilding(false);
-          setProgress(1);
-        })
-        .catch((cause: unknown) => {
-          if (stale || cause instanceof WorkerCancelledError) return;
+        );
+        if (!needsRefinement) rememberCost(result);
+        publish(result, needsRefinement, true);
+      } catch (cause: unknown) {
+        if (stale || cause instanceof WorkerCancelledError) return;
+        // A draft is optional. If it fails, try the authored detailed geometry
+        // before reporting an error; a failed simple build has no fallback.
+        if (!needsRefinement) {
           setError(cause instanceof Error ? cause.message : String(cause));
           setBuilding(false);
-        });
-    }, DEBOUNCE_MS);
+        }
+      } finally {
+        interactiveSettled = true;
+        drain(interactiveQueue);
+        maybeRefine();
+      }
+    };
+    // Throttle, rather than restart a debounce on every pointer event: a
+    // continuous 60/120 Hz drag must still produce drafts. Once a job is in
+    // flight, its completion immediately drains the newest pending edit.
+    interactiveQueue.pending = buildInteractive;
+    if (!interactiveQueue.running && interactiveQueue.timer === undefined) {
+      interactiveQueue.timer = setTimeout(() => {
+        interactiveQueue.timer = undefined;
+        const next = interactiveQueue.pending;
+        interactiveQueue.pending = null;
+        if (next) void next();
+      }, PREVIEW_THROTTLE_MS);
+    }
+    const idleTimer = needsRefinement ? setTimeout(() => {
+      idleReady = true;
+      maybeRefine();
+    }, REFINEMENT_IDLE_MS) : undefined;
 
     return () => {
       stale = true;
-      clearTimeout(timer);
+      clearTimeout(idleTimer);
+      if (interactiveQueue.pending === buildInteractive) interactiveQueue.pending = null;
+      if (refinementQueue.pending === refine) refinementQueue.pending = null;
     };
     // requestKey encodes spec + quality + layout by value.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [requestKey, ensureClient]);
+  }, [requestKey, retryVersion, ensureClient, ensureInteractiveClient]);
 
   // Tear the worker down with the workspace.
   useEffect(
     () => () => {
+      inputRef.current = { key: "", gesture: undefined, epoch: inputRef.current.epoch + 1 };
+      previousKeysRef.current = null;
+      previewQueueRef.current.pending = null;
+      clearTimeout(previewQueueRef.current.timer);
+      previewQueueRef.current = newPreviewQueue();
+      refinementQueueRef.current.pending = null;
+      refinementQueueRef.current = newPreviewQueue();
+      interactiveClientRef.current?.dispose();
+      interactiveClientRef.current = null;
       clientRef.current?.dispose();
       clientRef.current = null;
       geometryRef.current?.dispose();
@@ -276,6 +458,8 @@ export function useBinGeometry(
       pocketFloorGeometryRef.current = null;
       stackingRimGeometryRef.current?.dispose();
       stackingRimGeometryRef.current = null;
+      textGeometryRef.current.forEach(part => part.dispose());
+      textGeometryRef.current = [];
     },
     [],
   );
@@ -286,6 +470,7 @@ export function useBinGeometry(
       options: {
         pocketFloorMaterialThicknessMm?: number;
         stackingRimMaterialThicknessMm?: number;
+        borderWidthMm?: number;
       } = {},
     ): Promise<BuildBinResult> => {
       const request: BuildBinRequest = {
@@ -304,13 +489,14 @@ export function useBinGeometry(
           options.pocketFloorMaterialThicknessMm,
         stackingRimMaterialThicknessMm:
           options.stackingRimMaterialThicknessMm,
+        borderWidthMm: options.borderWidthMm,
       };
       return ensureClient().call<BuildBinResult>(BUILD_BIN_METHOD, request, {
         channel: "export",
       });
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [requestKey, ensureClient],
+    [requestKey, ensureClient, spec, layout],
   );
 
   const buildFitCheck = useCallback(
@@ -364,24 +550,29 @@ export function useBinGeometry(
         { channel: "surface-fit-check-export" },
       );
     },
-    // requestKey encodes the current spec and layout by value.
+    // A commit can change export inputs without changing the live preview key.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [requestKey, ensureClient],
+    [requestKey, ensureClient, spec, layout],
   );
 
   return {
     lidGeometry,
     geometry,
+    textGeometries,
     pocketFloorGeometry,
     stackingRimGeometry,
     hasPocketFloor,
     hasStackingRim,
     builtSpec,
     stats,
+    statsAreStale,
     cutoutReports,
+    validationIssues,
+    previewIsDraft,
     building,
     progress,
     error,
+    retryPreview,
     buildOnce,
     buildFitCheck,
     buildSurfaceFitCheck,

@@ -35,6 +35,21 @@ export interface MeshDataOptions {
   sharpAngleDeg?: number;
 }
 
+/** Rebuild in the precision used by STL/3MF before extracting printable faces.
+ * CSG can leave distinct double-precision vertices at identical Float32
+ * positions. The resulting zero-area faces survive ordinary index-only
+ * topology checks. A 0.1 micrometre simplification removes those seams while
+ * preserving dimensions far below the application's modelling resolution. */
+export function preparePrintableSolid(kernel: Kernel, solid: Manifold): Manifold {
+  if (solid.isEmpty()) return solid;
+  const floatMesh = solid.getMesh();
+  floatMesh.merge();
+  const rebuilt = kernel.arena.track(new kernel.Manifold(floatMesh));
+  const printable = kernel.arena.track(rebuilt.simplify(0.0001));
+  if (printable.status() !== "NoError") throw new Error("Could not prepare printable mesh topology.");
+  return printable;
+}
+
 /**
  * Copies a solid's mesh out of the WASM heap.
  *
@@ -54,6 +69,16 @@ export function extractMeshData(
   // spreading its lighting along long CSG triangles. Keep that join creased
   // while smoothing the much smaller angles between rounded-profile facets.
   const sharpAngleDeg = options.sharpAngleDeg ?? 40;
+
+  // A section plane can remove the entire solid. Manifold does not attach
+  // normal properties to an empty mesh; return a valid empty view explicitly.
+  if (solid.isEmpty()) {
+    return {
+      positions: new Float32Array(),
+      normals: wantNormals ? new Float32Array() : null,
+      indices: new Uint32Array(),
+    };
+  }
 
   if (!wantNormals) {
     const mesh = solid.getMesh();

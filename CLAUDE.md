@@ -7,7 +7,7 @@ This file is the single source of truth for all agents and tools working in this
 Pocketry is a web application that converts raster images (PNG, JPG) into editable
 vector outlines and printable Gridfinity tool bins. Users upload images, detect the
 tool's silhouette (including concave regions and interior holes), calibrate it to real
-dimensions, refine the rings, and export SVG, DXF, DWG-compatibility, or STL files.
+dimensions, refine the rings, and export SVG, DXF, or STL files.
 Calibrated traces can also be handed to the bin designer, arranged as pockets, and
 exported as 3MF or STL; top-down bin layouts export as SVG or DXF for shadow boards and
 CNC work.
@@ -88,6 +88,16 @@ disagreed about Y, which shipped mirrored STLs.
 
 - Author: Will Cobb <will.cobb@sugarcreekresearch.com>
 - Never add Co-Authored-By lines
+- Keep commit messages, PR titles/descriptions, and review comments brief and
+  concise. Include only the change, its purpose, and essential validation.
+
+## Versions & Changelog
+
+- About reads `package.json`; keep `package-lock.json` in sync when bumping it.
+- Add notable user-visible changes to **Unreleased** in `CHANGELOG.md`. Keep
+  entries to a few short bullets; omit internal-only refactors.
+- On release, use major/minor/patch versioning and a dated changelog section,
+  newest first. Application and saved-project schema versions are independent.
 
 ## Runtime & Dependencies
 
@@ -126,6 +136,17 @@ npm run db:push      # Push Drizzle schema to the database (needs DATABASE_URL)
 
 **`npm run check && npm test` is the required gate for every change.**
 
+### Local-only verification
+
+- Run type checks, tests, and production builds locally. GitHub Actions credits
+  are exhausted; do not run CI on GitHub for routine updates, pushes, or PRs.
+- Do not enable, dispatch, or rerun GitHub CI unless the user explicitly
+  authorizes that hosted run. Do not add automatic push or pull-request triggers.
+- The repository's CI workflow is disabled in GitHub. Keep it disabled unless
+  the user explicitly changes this policy.
+- Include the local verification commands and results in the PR or completion
+  report. Missing hosted checks are expected and are not a reason to start CI.
+
 Vitest config lives in its own `vitest.config.ts` that `mergeConfig`s `vite.config.ts` —
 never add a `test` key to `vite.config.ts`, because `server/vite.ts` imports that file
 into the bundled Node server. Two projects are configured: `geometry` (node env, covers
@@ -140,6 +161,7 @@ No linter is configured yet (prefer ESLint when one lands).
 - Path aliases per `tsconfig.json` (`@/...` for client src, `@shared/...` for shared).
 - Shared validation lives in `shared/schema.ts` as Zod schemas derived from Drizzle tables (`drizzle-zod`); never duplicate validation logic client- or server-side.
 - Storage access goes through the `IStorage` interface in `server/storage.ts` — do not reach around it to Drizzle directly from routes.
+- UI additions should maintain a consistent style, interaction design, and layout with existing controls. Reuse established patterns for similar tasks (including compact label/input rows, object lists, selection, renaming, property panels, toolbars, and hover hints) before introducing a new pattern.
 - UI: compose shadcn/ui components from `client/src/components/ui`; TailwindCSS for styling, with the shadcn design tokens defined as CSS variables at the top of `client/src/index.css`; `lucide-react` for icons.
 - Keep build tooling platform-independent. The app builds and runs anywhere with plain Node; do not add hosted-IDE-specific build plugins or theme configuration.
 - Server state via TanStack Query; local state via React hooks; routing via wouter.

@@ -360,9 +360,9 @@ describe("compliant interfaces", () => {
   }
 
   it.each(interfaces.flatMap(lidInterface => [
-      { gridX: 2, gridY: 3, wallThicknessMm: 4 },
-      { gridPitch: "half" as const, gridX: 2, gridY: 3, wallThicknessMm: 1.2 },
-      { gridPitch: "quarter" as const, gridX: 4, gridY: 4, wallThicknessMm: 1.2 },
+      { gridX: 2, gridY: 3, lidSharedWallThicknessMm: 4 },
+      { gridPitch: "half" as const, gridX: 2, gridY: 3, lidSharedWallThicknessMm: 1.2 },
+      { gridPitch: "quarter" as const, gridX: 4, gridY: 4, lidSharedWallThicknessMm: 1.2 },
     ].flatMap(patch => styles(lidInterface).map(magneticLidStyle => ({ lidInterface, magneticLidStyle, patch })))))
     ("scales $lidInterface / $magneticLidStyle with $patch without loose pieces", ({ lidInterface, magneticLidStyle, patch }) => {
       const s = spec({ ...patch, magneticLidStyle, lidInterface, lidFitAdjustmentMm: -0.1 });

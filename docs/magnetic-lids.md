@@ -1,7 +1,7 @@
 # Lids
 
 Implements [feature request #29](https://github.com/wcscr/pocketry/issues/29).
-Enable **Construction → Lid**, choose **Overlapping edge** or **Inset**, and
+Enable **App settings → Enable experimental features**, then **Construction → Lid**, choose **Overlapping edge** or **Inset**, and
 choose a **Flat** or **Stacking top**. Magnets are optional. With **Lid magnet
 holes** off, choose **Easy lift-off** or **Compliant fit** and use the single
 **Lighter / Firmer** grip adjustment (or **Looser / Tighter** clearance for easy lift-off).
@@ -20,8 +20,7 @@ thickness and magnet size remain outside this group because they also affect the
 The preview retains the compact **Lid: Raised / Closed / Hidden** controls.
 With a lid enabled, Materials offers a **Lid** color instead of a colored band
 at the bin rim. The lid follows the bin's base color until a separate color is
-chosen; that selection is also used in its 3MF export. As with the existing
-material colors, these are view settings rather than saved project geometry.
+chosen; that selection is also used in its 3MF export. Colors are saved with the project, separately from geometry history.
 
 ## Physical fit testing status
 
@@ -81,7 +80,7 @@ hard to remove. No claim of a calibrated holding force is made.
 
 The Interface selector disables the two spring options on desktop and mobile.
 Loading or importing a design migrates Side springs and Spring latch to Contact
-ribs, including every saved undo/redo step. Schema version 26 preserves all other
+ribs, including every saved undo/redo step. Schema version 37 preserves all other
 settings and history positions; Angled fins remains unchanged. Disabled interfaces
 cannot return through Undo. The prototype geometry and its digital tests remain
 available internally for the upcoming redesign. The spring descriptions below
@@ -377,3 +376,11 @@ and no support extrusion; each part has first-layer extrusion. The center is
 supported from the bed, but bridges remain over channels, release gaps and
 sparse infill. A clean slice is not proof that those bridges will print cleanly.
 No print was started.
+
+## Project compatibility
+
+The current format accepts main projects through version 36 and lid-preview projects
+from versions 18–27. Printed lid wall dimensions, fit settings, and undo/redo history
+are retained. Turning experimental features off hides lid editing controls while
+existing lids remain visible and exportable. Failed spring interfaces still load as
+Contact ribs.

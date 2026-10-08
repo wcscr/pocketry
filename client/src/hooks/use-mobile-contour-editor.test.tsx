@@ -124,6 +124,19 @@ describe("mobile contour gestures", () => {
     pointer("down", 40, 40); pointer("move", 60, 60); pointer("end", 60, 60);
     expect(commit).toHaveBeenCalledTimes(1);
   });
+  it("inserts through touch-release jitter but starts navigation past the threshold", () => {
+    render(); pointer("down", 100, 40); pointer("move", 110, 40); pointer("end", 110, 40);
+    expect(commit).toHaveBeenCalledTimes(1);
+    expect(displayed[0].outer[1]).toEqual({ x: 100, y: 40 });
+    pointer("down", 160, 100); pointer("move", 175, 100); pointer("end", 175, 100);
+    expect(commit).toHaveBeenCalledTimes(1);
+  });
+  it("rolls back an in-progress touch edit on rotation without adding history", () => {
+    render(); pointer("down", 40, 40); pointer("move", 70, 60);
+    React.act(() => window.dispatchEvent(new Event("resize")));
+    pointer("end", 70, 60);
+    expect(displayed).toEqual(original); expect(commit).not.toHaveBeenCalled();
+  });
   it("cancels a point drag without a history entry", () => {
     render(); pointer("down", 40, 40); pointer("move", 80, 80); pointer("end", 80, 80, 1, true);
     expect(displayed).toEqual(original); expect(commit).not.toHaveBeenCalled();

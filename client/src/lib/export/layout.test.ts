@@ -43,7 +43,7 @@ function cutout(extra: Record<string, unknown> = {}) {
 }
 
 describe("layoutRingsMm", () => {
-  it.each([150, 671.5])("exports a diameter %s round opening with chord error below 0.01 mm", (diameterMm) => {
+  it.each([150, 671.5])("exports a diameter %s round opening with chord error below 0.01 mm", async (diameterMm) => {
     const hole = fingerHoleSchema.parse({ id: "large", center: { x: 0, y: 0 }, diameterMm });
     const ring = layoutRingsMm(SPEC, [], BY_ID, [hole])[1];
     expect(ring.length).toBeGreaterThan(64);
@@ -52,8 +52,8 @@ describe("layoutRingsMm", () => {
       expect(diameterMm / 2 - Math.hypot((ring[i].x + next.x) / 2, (ring[i].y + next.y) / 2))
         .toBeLessThanOrEqual(0.01 + 1e-9);
     }
-    const svg = generateLayoutSVG(SPEC, [], BY_ID, [hole]);
-    const dxf = generateLayoutDXF(SPEC, [], BY_ID, [hole]);
+    const svg = await generateLayoutSVG(SPEC, [], BY_ID, [hole]);
+    const dxf = await generateLayoutDXF(SPEC, [], BY_ID, [hole]);
     expect(svg.match(/ L /g)!.length).toBeGreaterThan(ring.length);
     expect(dxf).toContain(`90\n${ring.length}\n`);
   });
@@ -127,10 +127,16 @@ describe("layoutRingsMm", () => {
 });
 
 describe("generateLayoutDXF", () => {
-  it("writes one closed LWPOLYLINE per ring in millimetres", () => {
-    const dxf = generateLayoutDXF(SPEC, [cutout()], BY_ID);
+  it("writes one closed LWPOLYLINE per ring in millimetres", async () => {
+    const dxf = await generateLayoutDXF(SPEC, [cutout()], BY_ID);
     expect(dxf.match(/LWPOLYLINE/g)).toHaveLength(2);
     expect(dxf).toContain("millimetres, bin top view");
+    // Layout exports need the same complete document as Trace for CAD imports.
+    for (const name of ["TABLES", "BLOCKS", "OBJECTS"]) {
+      expect(dxf).toContain(`  0\nSECTION\n  2\n${name}\n`);
+    }
+    expect(dxf).toContain("*Model_Space");
+    expect(dxf).toContain("ACAD_GROUP");
     // A pocket vertex in bin-frame mm survives untransformed: x = 5+15 = 20.
     expect(dxf).toContain("20.000000");
     expect(dxf.endsWith("EOF\n")).toBe(true);
@@ -138,8 +144,8 @@ describe("generateLayoutDXF", () => {
 });
 
 describe("generateLayoutSVG", () => {
-  it("is sized in real millimetres with the y-flip applied once", () => {
-    const svg = generateLayoutSVG(SPEC, [cutout()], BY_ID);
+  it("is sized in real millimetres with the y-flip applied once", async () => {
+    const svg = await generateLayoutSVG(SPEC, [cutout()], BY_ID);
     expect(svg).toContain(`width="${binFootprintMm(2)}mm"`);
     expect(svg).toContain(`height="${binFootprintMm(3)}mm"`);
     expect(svg.match(/<path /g)).toHaveLength(2);

@@ -7,13 +7,14 @@ import { MobileCanvasOverlay } from "@/components/layout/mobile-canvas-overlay";
 import { MobileAdjustmentTray } from "@/components/layout/mobile-adjustment-tray";
 import { useTraceRestartAction } from "@/components/layout/panel-context";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { TraceRestartDialog } from "./trace-restart-dialog";
 import type { PerspectiveProposal } from "@/lib/calibrate/perspective";
 import type { TemplateVariant } from "@/lib/calibrate/template";
-import { useTrace } from "@/state/trace-store";
+import { hasPendingManualCalibration, useTrace } from "@/state/trace-store";
 import { AutoCalibrationOptions } from "./auto-calibration-options";
 import { TraceDetectionControls, type DetectionSettings } from "./trace-detection-controls";
-import { RulerLengthInput } from "./ruler-length-input";
+import { TracePhotoBoundsControl } from "./trace-photo-bounds-control";
+import { RulerLengthInput, useRulerConfirmation } from "./ruler-length-input";
 
 export interface MobileTraceActionsProps {
   onChoosePhoto: () => void;
@@ -31,6 +32,7 @@ const STEPS: TraceStep[] = ["photo", "scale", "region", "outline"];
 /** Keep step navigation, guidance, and common adjustments beside the mobile canvas. */
 export function MobileTraceActions({ onChoosePhoto, onAddToBin, onStartOver, onOpenSettings, onApplyPerspective, onDetectMarkers, onReprocess }: MobileTraceActionsProps): JSX.Element {
   const trace = useTrace();
+  const manualScale = useRulerConfirmation();
   const { dispatch, pendingAutoCalibration, pendingPerspective, calibration, draftCalibration, processing } = trace;
   const [reviewStep, setReviewStep] = useState<"photo" | "scale" | null>(null);
   const [restartOpen, setRestartOpen] = useState(false);
@@ -39,17 +41,20 @@ export function MobileTraceActions({ onChoosePhoto, onAddToBin, onStartOver, onO
   useTraceRestartAction(trace.imageUrl ? requestRestart : null);
   useEffect(() => { setReviewStep(null); setRestartOpen(false); }, [trace.sourceRevision]);
   useEffect(() => { if (trace.mode !== "pan" || pendingAutoCalibration) setReviewStep(null); }, [trace.mode, pendingAutoCalibration]);
-  const manualPending = !calibration && hasCalibrationEndpoints(draftCalibration);
+  const reviewingCorners = trace.mode === "perspective" || trace.manualPerspectivePoints.length === 4;
+  const replacingRuler = hasPendingManualCalibration(trace);
+  const manualPending = hasCalibrationEndpoints(draftCalibration);
   const hasRegion = Boolean(trace.region && trace.region.width > 5 && trace.region.height > 5);
-  const step: TraceStep = pendingAutoCalibration ? "scale" : reviewStep ?? (!calibration || trace.mode === "calibrate" || trace.mode === "perspective"
+  const step: TraceStep = pendingAutoCalibration ? "scale" : reviewStep ?? (!calibration || replacingRuler || reviewingCorners
     ? "scale" : trace.mode === "region" || (!hasRegion && !trace.outline.length) ? "region" : "outline");
   useEffect(() => setAdjustOpen(false), [step, trace.sourceRevision]);
   const previousStep = STEPS[Math.max(0, STEPS.indexOf(step) - 1)];
   const actionClass = "min-h-11 flex-1 whitespace-normal leading-tight";
-  const continueToRegion = () => { setReviewStep(null); dispatch({ type: "SET_MODE", mode: "region" }); };
+  const continueToRegion = () => { setReviewStep(null); dispatch({ type: "CANCEL_MANUAL_CALIBRATION" }); dispatch({ type: "SET_MODE", mode: "region" }); };
   const redrawScale = () => { setReviewStep(null); dispatch({ type: "SET_MODE", mode: "calibrate" }); };
   const back = () => {
     if (pendingAutoCalibration) dispatch({ type: "DISMISS_AUTO_CALIBRATION" });
+    if (replacingRuler) dispatch({ type: "CANCEL_MANUAL_CALIBRATION" });
     if (step === "outline") dispatch({ type: "SET_MODE", mode: "region" });
     else {
       setReviewStep(step === "region" ? "scale" : "photo");
@@ -65,11 +70,12 @@ export function MobileTraceActions({ onChoosePhoto, onAddToBin, onStartOver, onO
   let guidance = "Set the photo's real size to continue.";
   if (step === "photo") guidance = "Keep this photo or choose a different one.";
   else if (processing) guidance = "Analyzing photo…";
-  else if (step === "scale" && calibration) guidance = "Scale is set. Keep it or redraw the ruler.";
+  else if (reviewingCorners) guidance = trace.manualPerspectivePoints.length === 4
+    ? "Review the four page corners and apply the correction." : `Tap the page corners clockwise (${trace.manualPerspectivePoints.length}/4).`;
+  else if (step === "scale" && calibration && !replacingRuler) guidance = "Scale is set. Keep it or redraw the ruler.";
   else if (pendingAutoCalibration) guidance = "Scale detected. Check the ruler on the photo.";
   else if (manualPending) guidance = "Enter the real distance between the ruler points.";
   else if (trace.mode === "calibrate") guidance = "Tap two points a known distance apart.";
-  else if (trace.mode === "perspective") guidance = `Tap the page corners clockwise (${trace.manualPerspectivePoints.length}/4).`;
   else if (trace.mode === "region") guidance = hasRegion
     ? "Keep this region or drag a new box around the tool." : "Drag a box around the whole tool to detect its outline.";
   else if (trace.mode === "navigate") guidance = "Drag to pan. Pinch or use + / − to zoom.";
@@ -85,17 +91,23 @@ export function MobileTraceActions({ onChoosePhoto, onAddToBin, onStartOver, onO
     <span className="sr-only" data-testid="trace-current-step">{STEPS.indexOf(step) + 1} / 4 · {step}</span>
     <MobileCanvasOverlay>
       <WorkflowHint className="absolute left-2 right-2 top-16"
-        hintKey={`${trace.sourceRevision}:${step}:${trace.mode === "edit" || trace.mode === "remove" ? "edit" : trace.mode === "navigate" ? "pan" : step}`}>
+        hintKey={`${trace.sourceRevision}:${step}`}>
         {guidance}
       </WorkflowHint>
     </MobileCanvasOverlay>
     {hasTuning && adjustOpen && <MobileAdjustmentTray title="Adjust outline" onClose={() => setAdjustOpen(false)} onMore={() => openFullSettings("trace-settings-detect")}>
       <TraceDetectionControls compact onReprocess={onReprocess} />
-      <Button variant="ghost" className="mt-1 h-11 w-full" onClick={() => openFullSettings("trace-settings-output")}>Export outline</Button>
+      <div className="mt-1 grid grid-cols-2 gap-1">
+        <Button variant="ghost" className="h-11" onClick={() => openFullSettings("trace-settings-margin")}>Margin</Button>
+        <Button variant="ghost" className="h-11" onClick={() => openFullSettings("trace-settings-output")}>Export Outline</Button>
+      </div>
     </MobileAdjustmentTray>}
+    {step === "region" && <div className="mb-2"><TracePhotoBoundsControl /></div>}
+    {step === "scale" && replacingRuler && <Button variant="outline" className="mb-2 min-h-11 w-full"
+      onClick={() => dispatch({ type: "CANCEL_MANUAL_CALIBRATION" })}>Cancel ruler</Button>}
     {step === "scale" && manualPending && !pendingAutoCalibration && !processing && <div className="mb-2 space-y-1" data-mobile-expanded="true">
       <label className="text-xs" htmlFor="mobile-ruler-length">Reference length (mm)</label>
-      <RulerLengthInput id="mobile-ruler-length" />
+      <RulerLengthInput id="mobile-ruler-length" showConfirm={false} onConfirmed={continueToRegion} />
     </div>}
     {step === "scale" && pendingAutoCalibration && <div className="mb-2 max-h-[35dvh] overflow-y-auto" data-mobile-expanded="true">
       <AutoCalibrationOptions onSetManually={redrawScale} onApplyPerspective={onApplyPerspective} onDetectMarkers={onDetectMarkers} />
@@ -107,31 +119,32 @@ export function MobileTraceActions({ onChoosePhoto, onAddToBin, onStartOver, onO
       {step === "photo" ? <>
         <Button variant="outline" className={actionClass} onClick={onChoosePhoto}>Change photo</Button>
         <Button className={actionClass} onClick={() => setReviewStep("scale")}>Use this photo</Button>
-      </> : step === "scale" && calibration && !pendingAutoCalibration ? <>
+      </> : step === "scale" && manualPending && !pendingAutoCalibration && !processing && !reviewingCorners ? <>
+        <Button variant="outline" className={actionClass} onClick={redrawScale}>Redraw scale</Button>
+        <Button className={actionClass} disabled={!manualScale.canConfirm} onClick={() => {
+          if (manualScale.confirm()) {
+            if (document.activeElement instanceof HTMLInputElement) document.activeElement.blur();
+            continueToRegion();
+          }
+        }}>Confirm scale</Button>
+      </> : step === "scale" && calibration && !replacingRuler && !pendingAutoCalibration && !reviewingCorners ? <>
         <Button variant="outline" className={actionClass} onClick={redrawScale}>Redraw scale</Button>
         <Button className={actionClass} onClick={continueToRegion}>Use this scale</Button>
       </> : <>
         <Button variant="outline" className="min-h-11 gap-1.5 px-3" aria-expanded={hasTuning ? adjustOpen : undefined} onClick={() => {
           if (hasTuning) setAdjustOpen(open => !open);
-          else openFullSettings(!calibration ? "trace-settings-scale" : "trace-settings-detect");
+          else openFullSettings(step === "scale" ? "trace-settings-scale"
+            : step === "region" ? "trace-settings-crop" : "trace-settings-detect");
         }}><SlidersHorizontal className="h-4 w-4" aria-hidden />Adjust</Button>
-        {!processing && !pendingAutoCalibration && !calibration && !manualPending ? <Button className={actionClass} onClick={() => {
-          if (trace.mode === "perspective") openFullSettings("trace-settings-scale"); else redrawScale();
-        }}>{trace.mode === "perspective" ? "Review corners" : "Set scale"}</Button>
+        {!processing && !pendingAutoCalibration && (reviewingCorners || ((!calibration || replacingRuler) && !manualPending)) ? <Button className={actionClass} onClick={() => {
+          if (reviewingCorners) openFullSettings("trace-settings-scale"); else redrawScale();
+        }}>{reviewingCorners ? "Review corners" : "Set scale"}</Button>
         : !processing && !pendingAutoCalibration && step === "region" && hasRegion ? <Button className={actionClass} onClick={() => dispatch({ type: "SET_MODE", mode: trace.outline.length ? "edit" : "pan" })}>Keep this region</Button>
         : !processing && !pendingAutoCalibration && step === "outline" && trace.outline.length > 0 ? <Button className={actionClass} onClick={onAddToBin}>Add to bin</Button>
-        : !processing && !pendingAutoCalibration && calibration && trace.mode !== "region" ? <Button className={actionClass} onClick={continueToRegion}>Draw tool region</Button>
+        : !processing && !pendingAutoCalibration && calibration && !replacingRuler && trace.mode !== "region" ? <Button className={actionClass} onClick={continueToRegion}>Draw tool region</Button>
         : <span className="flex min-w-0 flex-1 items-center justify-end text-xs text-muted-foreground">{processing ? "Analyzing…" : step === "region" ? "Draw tool region" : "Review scale"}</span>}
       </>}
     </div>
-    <Dialog open={restartOpen} onOpenChange={setRestartOpen}>
-      <DialogContent>
-        <DialogHeader><DialogTitle>Start a new trace?</DialogTitle>
-          <DialogDescription>This clears the current photo, scale, region, and contour edits. Pockets already added to Bin stay there.</DialogDescription>
-        </DialogHeader>
-        <Button variant="destructive" onClick={() => { setRestartOpen(false); onStartOver(); }}>Clear trace and start over</Button>
-        <Button variant="outline" onClick={() => setRestartOpen(false)}>Keep working</Button>
-      </DialogContent>
-    </Dialog>
+    <TraceRestartDialog open={restartOpen} onOpenChange={setRestartOpen} onConfirm={onStartOver} />
   </div>;
 }

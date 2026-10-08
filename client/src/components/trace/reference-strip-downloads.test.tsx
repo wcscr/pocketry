@@ -25,7 +25,7 @@ describe("measurement-aid downloads", () => {
   it("downloads only the selected 50/100/200 mm aid as a two-colour 3MF", async () => {
     expect(button("3MF · two colours")).toBeUndefined();
     for (const length of [50, 100, 200]) {
-      await React.act(async () => button(`${length} mm`).click());
+      await React.act(async () => button(`${length} mm 3MF`).click());
 
       expect(downloadMeasurementAid).toHaveBeenLastCalledWith(length);
     }
@@ -37,8 +37,8 @@ describe("measurement-aid downloads", () => {
 
   it("reports a failed mesh build and permits another download", async () => {
     vi.mocked(downloadMeasurementAid).mockRejectedValueOnce(new Error("Mesh build failed"));
-    await React.act(async () => button("100 mm").click());
+    await React.act(async () => button("100 mm 3MF").click());
     expect(toast).toHaveBeenCalledWith(expect.objectContaining({ description: "Mesh build failed", variant: "destructive" }));
-    expect(button("100 mm").disabled).toBe(false);
+    expect(button("100 mm 3MF").disabled).toBe(false);
   });
 });

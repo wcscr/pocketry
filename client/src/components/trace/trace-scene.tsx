@@ -1,5 +1,6 @@
 import {
   memo,
+  useId,
   useEffect,
   useMemo,
   useRef,
@@ -20,6 +21,7 @@ import {
 import { iterateRings, sameRingRef } from "@/lib/geometry/outline";
 import { outlineToPathData } from "@/lib/export/svg";
 import type { ImageQuarterTurns } from "@/lib/geometry/image-rotation";
+import type { ImageAlignment } from "@shared/geometry/image-alignment";
 
 /** The viewport transform applied to the whole scene. */
 export interface SceneTransform {
@@ -32,6 +34,9 @@ export interface TraceSceneProps {
   imageUrl: string;
   imageSize: { width: number; height: number };
   imageRotation?: ImageQuarterTurns;
+  imageAlignment?: ImageAlignment | null;
+  /** Visible crop only; every image and overlay retains full-photo coordinates. */
+  imageCrop?: Rect | null;
   transform: SceneTransform;
   outline: Outline;
   selection: RingRef | null;
@@ -67,6 +72,8 @@ export interface TraceSceneProps {
   hoveredVertexIndex?: number | null;
   selectedVertexIndex?: number | null;
   compactHandles?: boolean;
+  /** Selection can highlight a contour without offering point editing. */
+  showVertices?: boolean;
   /** Handles for the interaction layer above. */
   onPointerDown?: (event: ReactPointerEvent<SVGSVGElement>) => void;
   onPointerMove?: (event: ReactPointerEvent<SVGSVGElement>) => void;
@@ -120,6 +127,8 @@ export function TraceScene({
   imageUrl,
   imageSize,
   imageRotation = 0,
+  imageAlignment = null,
+  imageCrop = null,
   transform,
   outline,
   selection,
@@ -140,6 +149,7 @@ export function TraceScene({
   hoveredVertexIndex = null,
   selectedVertexIndex = null,
   compactHandles = false,
+  showVertices = true,
   onPointerDown,
   onPointerMove,
   onPointerUp,
@@ -151,6 +161,7 @@ export function TraceScene({
   sceneId,
   cursor,
 }: TraceSceneProps): JSX.Element {
+  const cropId = useId();
   const { scale, translateX, translateY } = transform;
   const inv = scale > 0 ? 1 / scale : 1;
 
@@ -174,7 +185,11 @@ export function TraceScene({
       onPointerLeave={onPointerLeave}
       onContextMenu={onContextMenu}
     >
+      {imageCrop && <defs><clipPath id={cropId} clipPathUnits="userSpaceOnUse">
+        <rect {...imageCrop} data-testid="trace-paper-crop" />
+      </clipPath></defs>}
       <g
+        clipPath={imageCrop ? `url(#${cropId})` : undefined}
         ref={sceneRef}
         id={sceneId}
         transform={`translate(${translateX} ${translateY}) scale(${scale})`}
@@ -184,6 +199,7 @@ export function TraceScene({
           width={imageSize.width}
           height={imageSize.height}
           rotation={imageRotation}
+          alignment={imageAlignment}
         />
 
         {/* The traced material, with holes punched out by the even-odd rule. */}
@@ -241,7 +257,7 @@ export function TraceScene({
           can carry thousands of points per ring; rendering a handle for every
           one of them is unusable and janks the whole canvas.
         */}
-        {selectedRing?.map((point, index) => {
+        {showVertices && selectedRing?.map((point, index) => {
           const hovered = index === hoveredVertexIndex;
           const selected = index === selectedVertexIndex;
           return (
@@ -314,18 +330,23 @@ export function TraceScene({
  * width and height are exactly the working image size, which *is* the outline's
  * coordinate space.
  */
-const SourceImage = memo(function SourceImage({
+export const SourceImage = memo(function SourceImage({
   url,
   width,
   height,
   rotation,
+  alignment = null,
 }: {
   url: string;
   width: number;
   height: number;
   rotation: ImageQuarterTurns;
+  alignment?: ImageAlignment | null;
 }) {
   if (width <= 0 || height <= 0) return null;
+  if (alignment) return <g transform={`matrix(${alignment.matrix.join(" ")})`} data-testid="trace-image-alignment">
+    <SourceImage url={url} width={alignment.sourceSize.width} height={alignment.sourceSize.height} rotation={rotation} />
+  </g>;
   const turned = rotation % 2 === 1;
   const sourceWidth = turned ? height : width;
   const sourceHeight = turned ? width : height;

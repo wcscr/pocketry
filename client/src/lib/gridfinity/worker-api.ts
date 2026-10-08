@@ -1,3 +1,4 @@
+import type { ValidationIssue } from "@shared/gridfinity/validate";
 import type {
   CutoutPlacementInput,
   FingerHole,
@@ -7,6 +8,8 @@ import type { BinSpecInput } from "@shared/gridfinity/types";
 import type { SurfaceFitCheckStyle } from "@shared/gridfinity/fit-check";
 
 import type { MeshData } from "@/lib/mesh/mesh-data";
+import type { Outline } from "@shared/geometry/types";
+import type { SurfaceText } from "@shared/gridfinity/surface-text";
 
 import type { BuildQuality } from "./bin";
 import type { CutoutBuildReport } from "./cutouts";
@@ -21,6 +24,20 @@ import type { CutoutBuildReport } from "./cutouts";
 export const BUILD_BIN_METHOD = "buildBin";
 export const BUILD_FIT_CHECK_METHOD = "buildFitCheck";
 export const BUILD_SURFACE_FIT_CHECK_METHOD = "buildSurfaceFitCheck";
+export const RESOLVE_POCKET_GEOMETRY_METHOD = "resolvePocketGeometry";
+
+/** Detached selection geometry; crease extraction also stays off the UI thread. */
+export interface PocketGeometry {
+  full: Outline;
+  opening: Outline;
+  mesh?: MeshData;
+  edges?: [number, number, number][];
+}
+
+export interface ResolvePocketGeometryRequest {
+  spec: BinSpecInput;
+  pockets: { shape: TracedShape; cutout: CutoutPlacementInput }[];
+}
 export const SURFACE_FIT_CHECK_MIN_THICKNESS_MM = 0.4;
 export const SURFACE_FIT_CHECK_MAX_THICKNESS_MM = 3;
 export const SURFACE_FIT_CHECK_DEFAULT_THICKNESS_MM = 0.8;
@@ -53,10 +70,14 @@ export interface BuildBinRequest {
   section?: BuildBinSection;
   /** Return topology-preserving meshes without preview-only vertex normals. */
   exportTopology?: boolean;
-  /** Split this depth below each printable pocket floor. */
+  /** Fast preview: true omits pocket rounding; rounded keeps coarser fillets. Ignored for exports. */
+  previewDraft?: boolean | "rounded";
+  /** Split this depth below pocket floors or the interior floor of a hollow bin. */
   pocketFloorMaterialThicknessMm?: number;
-  /** Split this depth down from the stacking-rim summit. */
+  /** Split this depth down from the lip summit or flush perimeter wall top. */
   stackingRimMaterialThicknessMm?: number;
+  /** Inward width of the flush top border. Ignored when the bin has a lip. */
+  borderWidthMm?: number;
 }
 
 export interface BuildBinStats {
@@ -66,10 +87,15 @@ export interface BuildBinStats {
 }
 
 export interface BuildBinResult {
+  /** Bin without text for multipart 3MF or preview without color partitions. */
+  bodyMesh?: MeshData;
+  /** One independent mesh and identifying label per text part. */
+  textMeshes?: { label: SurfaceText; z: number; mesh: MeshData }[];
+  /** Complete topology; preview normals are omitted when materialMeshes supplies the view. */
   mesh: MeshData;
   /** Separate lid, already face-down on z=0 for printing; never section-cut. */
   lidMesh?: MeshData;
-  /** Non-overlapping material meshes whose union is `mesh`. */
+  /** Non-overlapping bin material meshes; text always remains separate. */
   materialMeshes?: {
     body: MeshData;
     pocketFloors?: MeshData;
@@ -78,6 +104,7 @@ export interface BuildBinResult {
   stats: BuildBinStats;
   /** One entry per requested cutout; `emptied` flags collapsed sections. */
   cutoutReports: CutoutBuildReport[];
+  validationIssues?: ValidationIssue[];
 }
 
 export interface BuildFitCheckRequest {

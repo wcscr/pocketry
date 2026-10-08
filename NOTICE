@@ -11,6 +11,66 @@ adapts. Transitive dependencies are not enumerated here; their notices remain
 with their packages. Exact npm versions are recorded in package-lock.json.
 
 ================================================================================
+Droid Sans and Droid Sans Mono — Apache License 2.0
+================================================================================
+
+Surface text uses unmodified regular and bold Droid Sans, and
+regular Droid Sans Mono outlines bundled with the existing Three.js dependency
+at examples/fonts/droid/.
+Copyright (C) 2008 The Android Open Source Project.
+Digitized data copyright © 2006, Google Corporation.
+Source: https://github.com/mrdoob/three.js/tree/r180/examples/fonts/droid
+The fonts are distributed under Apache-2.0; their full license and upstream notice
+are reproduced in client/public/licenses/droid-fonts.txt, served at
+/licenses/droid-fonts.txt in the built application. No font-rendering or geometry
+code from slicer projects is incorporated.
+
+License review: Three.js r180's font-specific README and NOTICE explicitly
+distribute this directory under Apache-2.0. The JSON metadata retains an older
+Ascender commercial-license description; it is not the basis of our license
+selection. Google Fonts also confirmed Apache-2.0 licensing for its Droid
+families: https://github.com/google/fonts/issues/26#issuecomment-101670220
+The upstream JSON files, including their copyright metadata, remain intact;
+Pocketry ships the directory's Apache license and notices alongside the bundle.
+
+================================================================================
+Helvetiker — MgOpen font license
+================================================================================
+
+Surface text uses the unmodified regular and bold Helvetiker
+typeface JSON files bundled with Three.js at examples/fonts/.
+Copyright (c) 2004 by MAGENTA Ltd. All Rights Reserved.
+Source: https://github.com/mrdoob/three.js/tree/r180/examples/fonts
+The full upstream license is reproduced in client/public/licenses/mgopen-fonts.txt,
+served at /licenses/mgopen-fonts.txt. These fonts retain their upstream license.
+
+Compatibility review: the MgOpen license permits redistribution and sale as part
+of a larger software package with its copyright and permission notice. It does
+not permit selling the fonts by themselves, and modified fonts cannot use the
+MgOpen name without the stated upstream acceptance. Pocketry retains the
+upstream Helvetiker names and glyph data, distributes the notice,
+and keeps these assets under their own license rather than relicensing them as
+Pocketry code.
+
+================================================================================
+opentype.js 1.3.4 and bundled helpers — MIT License
+================================================================================
+
+System-font import uses the unmodified opentype.module.js parser distributed
+with Three.js r180. The parser is loaded on demand; no additional system fonts
+are distributed with Pocketry.
+Source: https://github.com/mrdoob/three.js/blob/r180/examples/jsm/libs/opentype.module.js
+Upstream: https://github.com/opentypejs/opentype.js/tree/1.3.4
+The bundled parser includes tiny-inflate by Devon Govett and the
+String.prototype.codePointAt v0.2.0 polyfill by Mathias Bynens.
+Their MIT copyright and permission notices are reproduced in
+client/public/licenses/opentype.txt, served at /licenses/opentype.txt.
+These permissive code licenses are compatible with distribution alongside
+Pocketry's AGPL-3.0-only code and do not change any font's own license.
+Tests read Three.js's existing Kenpixel TTF fixture (Kenney, CC0-1.0);
+that test font is not shipped in Pocketry's app bundle.
+
+================================================================================
 Pocketry P-bin icon — project-owned artwork
 ================================================================================
 
@@ -39,11 +99,21 @@ respective ownership.
 README screenshots — project-owned documentation
 ================================================================================
 
-`docs/images/trace-outline.jpg`, `docs/images/bin-layout.jpg`, and
-`docs/images/ruler-check.jpg` are unmodified copies of existing project
-screenshots, captured from Pocketry's Trace and Bin workspaces using the
-project's air-duster example photographs. These documentation images are
-distributed under Pocketry's AGPL-3.0-only licence.
+`docs/images/trace-outline.jpg` was captured on 2026-10-08 from Pocketry's
+current default Workflow + properties layout in headless Chrome at 1600 x 1000.
+It demonstrates a fresh trace of the project's original air-duster photograph.
+
+`docs/images/bin-layout.jpg` and `docs/images/ruler-check.jpg` were captured in
+the same UI after importing the exact contributor-supplied printed-bin project:
+`samples/wolfbox-mf70-airduster-kit/wolfbox-mf70-airduster-kit.pocketry.json`.
+Source SHA-256: e1fc4c5f842009b376987ae9b88140aff050f25b59fb41e5944ec13be8eeb073.
+A project exported back from the browser retained every original shape, pocket,
+finger-access setting, and bin-spec field; only current-schema defaults were
+added on import. No geometry was edited for these two screenshots.
+
+These are direct browser screenshots without generative image editing,
+distributed under Pocketry's AGPL-3.0-only licence. The existing fit-check
+slicer screenshot and printed-bin photographs are reused unchanged.
 
 ================================================================================
 Printed-bin photographs — contributor-supplied documentation
@@ -64,13 +134,33 @@ Sample projects and print photographs — contributor-supplied assets
 
 The editable project JSONs, 3MF print models, and photographs under `samples/`
 were supplied by Will Cobb for this repository. `samples/source-files.json`
-records their source files and published hashes. The 3MF files are unmodified
-copies of the supplied print exports.
+records their source files and published hashes. Most 3MF files are unmodified
+copies of the supplied print exports. The Bessey and Gerber models are Pocketry
+exports of the included designs.
 
 The photographs in the sample directories' `photos/` folders are copies of the supplied
-originals, cropped, rotated, and resized with ordinary pixel-processing tools. Embedded
-metadata was removed. No generative image editing was used for these sample
-photographs; the supplied originals remain unchanged.
+originals, cropped, straightened where needed, rotated, and resized with ordinary
+pixel-processing tools. Embedded metadata was removed. No generative image
+editing was used for these sample photographs; the supplied originals remain
+unchanged.
+
+The Wiha collection includes 40, 50, 60, and 150 mm blade-length examples and
+an additional photograph showing the bins stacked in a drawer. The three new
+editable examples are final design snapshots; the 60 mm project was recovered
+from the contributor's supplied library backup. Individual JSONs and the
+combined sample library contain the same design snapshots.
+
+The Bessey and Gerber samples use the contributor-supplied tool traces and
+combined design. The individual bins rearrange one tool pocket with transverse
+finger access. Their 3MFs and the combined-bin 3MF were exported with Pocketry.
+The individual projects and print models are grouped with the combined design
+on one example page. The combined-bin photograph was rotated and cropped
+with ordinary pixel-processing tools, with embedded metadata removed.
+The SVGs are Pocketry layout illustrations.
+
+The mini socket set sample includes the supplied project, print export, and
+three photographs. Its design reuses the pre-cut shadowbox that came with
+the toolset.
 
 These sample assets are distributed under Pocketry's AGPL-3.0-only licence.
 Product names and marks retain their respective ownership.

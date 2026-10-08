@@ -4,6 +4,7 @@ import {
   BASE_GAP_MM,
   BASE_TOP_RADIUS,
   binWallThicknessMm,
+  D_WALL,
   gridPitchMm,
   type GridPitch,
 } from "./standard";
@@ -30,7 +31,8 @@ export interface FootprintSpec {
   gridX: number;
   gridY: number;
   gridPitch?: GridPitch;
-  wallThicknessMm?: number;
+  magneticLid?: boolean;
+  lidSharedWallThicknessMm?: number;
   footprint?: BinFootprint;
 }
 
@@ -322,11 +324,12 @@ export function footprintOuterRingMm(spec: FootprintSpec, circularSegments = 64)
 
 /** Rounded cavity boundary after the wall inset. */
 export function footprintInteriorRingMm(spec: FootprintSpec, circularSegments = 64): Ring {
+  const thicknessMm = spec.magneticLid ? binWallThicknessMm(spec) : D_WALL;
   return roundedOffsetRing(
     spec,
-    BASE_GAP_MM / 2 + binWallThicknessMm(spec),
-    Math.max(0, BASE_TOP_RADIUS - binWallThicknessMm(spec)),
-    BASE_TOP_RADIUS + binWallThicknessMm(spec),
+    BASE_GAP_MM / 2 + thicknessMm,
+    Math.max(0, BASE_TOP_RADIUS - thicknessMm),
+    BASE_TOP_RADIUS + thicknessMm,
     circularSegments,
   );
 }

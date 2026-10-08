@@ -210,9 +210,13 @@ export const STACKING_LIP_SUPPORT_HEIGHT_MM = 3.8; // SUPPORT_HEIGHT + DEPTH
 /** Minimum wall thickness of a bin. */
 export const D_WALL = 0.95;
 
-/** Legacy callers retain 0.95 mm; new parsed designs default to 1.2 mm. */
-export function binWallThicknessMm(spec: { wallThicknessMm?: number }): number {
-  return spec.wallThicknessMm ?? D_WALL;
+/** Maximum hollow-bin wall thickness; leaves a cavity even at quarter pitch. */
+export const MAX_HOLLOW_WALL_THICKNESS_MM = 3;
+
+/** Lid rims use the shared thickness even with solid fill; ordinary solid bins retain their walls. */
+export function binWallThicknessMm(spec: { fill?: "none" | "solid"; wallThicknessMm?: number; magneticLid?: boolean; lidSharedWallThicknessMm?: number }): number {
+  return spec.magneticLid ? spec.lidSharedWallThicknessMm ?? 1.2
+    : spec.fill === "none" ? spec.wallThicknessMm ?? D_WALL : D_WALL;
 }
 
 /** Interior fillet radius (`BASE_TOP_RADIUS − D_WALL`). */
