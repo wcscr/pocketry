@@ -81,6 +81,37 @@ it("returns keyboard focus to Backups when its dialog closes", async () => {
   await vi.waitFor(() => expect(document.activeElement).toBe(button("Backups")));
 });
 
+it("retains an old visit's late failure without changing the new project's status", async () => {
+  await render();
+  const oldVisit = Symbol("old"), newVisit = Symbol("new");
+  React.act(() => actions.publish({ name: "Old tray", activeProjectId: "old", status: "saving", error: null, hasDocument: true }, { ...DOC, name: "Old tray", spec: { ...DOC.spec, gridX: 5 } }, oldVisit));
+  React.act(() => actions.publish({ name: "New tray", activeProjectId: "new", status: "saved", error: null, hasDocument: true }, { ...DOC, name: "New tray" }, newVisit));
+  React.act(() => actions.saved(false, new Error("Storage is full"), oldVisit));
+  expect(host.textContent).toContain("Bin project: New tray");
+  expect(host.textContent).toContain("Saved in this browser");
+  expect(host.textContent).toContain("Unsaved edits available in Backups");
+  React.act(() => actions.saved(true, undefined, newVisit));
+  React.act(() => button("Backups").click());
+  React.act(() => button("Download unsaved edits: Old tray").click());
+  const [blob] = vi.mocked(downloadBlob).mock.lastCall!;
+  const json = await new Promise<string>(resolve => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.readAsText(blob); });
+  expect(JSON.parse(json).spec.gridX).toBe(5);
+});
+
+it("does not let an old visit's successful flush clear a new save error", async () => {
+  await render();
+  const oldVisit = Symbol("old"), newVisit = Symbol("new");
+  React.act(() => actions.publish({ name: "Old tray", activeProjectId: "old", status: "saving", error: null, hasDocument: true }, DOC, oldVisit));
+  React.act(() => actions.publish({ name: "New tray", activeProjectId: "new", status: "error", error: "New save failed", hasDocument: true }, { ...DOC, name: "New tray" }, newVisit));
+  React.act(() => actions.saved(true, undefined, oldVisit));
+  expect(host.textContent).toContain("Project storage needs attention");
+  React.act(() => button("Backups").click());
+  expect(document.body.textContent).toContain("New save failed");
+  expect(button("Download unsaved edits: New tray")).toBeTruthy();
+  React.act(() => actions.saved(true, undefined, newVisit));
+  expect(document.querySelector('[aria-label="Unsaved edit recovery"]')).toBeNull();
+});
+
 it.each(["empty", "unreadable"])("does not offer a fabricated project backup for %s storage", async kind => {
   if (kind === "empty") vi.mocked(readProjectOverview).mockResolvedValue({ doc: null, activeProjectId: null });
   else vi.mocked(readProjectOverview).mockRejectedValue(new Error("Saved by a newer Pocketry version"));

@@ -11,6 +11,8 @@ import { PanelProvider, usePanelState } from "@/components/layout/panel-context"
 import { AppHeader } from "@/components/layout/app-header";
 import { ProjectStatusBar } from "@/components/layout/project-status-bar";
 import { ProjectActivityProvider } from "@/state/project-activity";
+import { TraceHandoffDialog } from "@/components/trace/trace-handoff-dialog";
+import * as TraceStoreReview from "@/state/trace-store";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { WORKSPACES } from "@/components/layout/workspaces";
 import type { MaterialColorTarget } from "@/components/gridfinity/bin-viewport";
@@ -25,6 +27,7 @@ import { fingerHoleSchema, resolvePocketDepth, resolvePlacedPocketDepth, parseCu
 import { resolvePocketSplit } from "@shared/gridfinity/pocket-split";
 import { parseBinSpec } from "@shared/gridfinity/types";
 import { downloadBlob } from "@/lib/download";
+import { projectDestinationKey } from "@/lib/project/destination";
 import { useBinGeometry } from "@/lib/gridfinity/use-bin-geometry";
 import { createBasicPocket } from "@/lib/gridfinity/basic-shape";
 import { footprintOuterRingMm, occupiedCellCount } from "@shared/gridfinity/footprint";
@@ -403,6 +406,125 @@ function selectPocket(container: HTMLElement, id: string): void {
 }
 
 describe("BinDesignerPage", () => {
+  it.each(["accept", "open intended project"])("retains traced tools after a destination change until %s", async resolution => {
+    const first = { ...EMPTY_PROJECT, name: "Project A" };
+    const second = { ...EMPTY_PROJECT, name: "Project B" };
+    vi.mocked(ProjectPersistence.readProjectOverview).mockResolvedValue({ doc: first, activeProjectId: "a" });
+    // Another tab switches the durable current project after Trace read A.
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(second);
+    const projects = [{ id: "a", name: "Project A", updatedAt: "2026-10-08T12:00:00Z" }, { id: "b", name: "Project B", updatedAt: "2026-10-08T12:00:00Z" }];
+    vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId: "b", projects });
+    vi.mocked(ProjectPersistence.openProjectFromLibrary).mockResolvedValue({ doc: first, project: projects[0], library: { activeProjectId: "a", projects } });
+    const trace = vi.spyOn(TraceStoreReview, "useTrace").mockReturnValue({ ...TraceStoreReview.initialTraceState,
+      dispatch: vi.fn(), canUndo: false, canRedo: false, undo: vi.fn(), redo: vi.fn(), draftSaveStatus: "saved",
+      fileName: "Test tool", imageSize: { width: 100, height: 100 },
+      calibration: { startX: 0, startY: 0, endX: 100, endY: 0, lengthMm: 50 },
+      outline: [{ outer: [{ x: 10, y: 10 }, { x: 50, y: 10 }, { x: 50, y: 30 }, { x: 10, y: 30 }], holes: [] }] });
+    const route = memoryLocation({ path: "/" });
+    const { container, unmount } = render(<Router hook={route.hook}><PanelProvider><ProjectActivityProvider><ShapeLibraryProvider>
+      <ProjectStatusBar /><Route path="/"><TraceHandoffDialog onClose={() => {}} onChoosePhoto={() => {}} /></Route><Route path="/bin"><BinDesignerPage /></Route>
+    </ShapeLibraryProvider></ProjectActivityProvider></PanelProvider></Router>);
+    try {
+      await flushHydration();
+      expect(document.body.textContent).toContain("Destination: Project A");
+      React.act(() => document.getElementById("tool-to-floor-0")!.click());
+      React.act(() => [...document.querySelectorAll("button")].find(button => button.textContent === "Add and arrange")!.click());
+      await flushHydration();
+      expect(container.querySelector('[data-testid="global-project-status"]')!.textContent).toContain("Project B");
+      // A wrong destination must be rejected, not modified and autosaved.
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toHaveLength(0);
+      expect(container.querySelector('[data-testid="queued-destination-changed"]')?.textContent).toContain("Project A");
+      const queued = JSON.parse(sessionStorage.getItem("pocketry:queued-tools")!);
+      expect(queued).toHaveLength(1);
+      expect(queued[0].pendingDestination).toEqual({ key: "project:a", name: "Project A" });
+      React.act(() => [...document.querySelectorAll("button")].find(button => button.textContent === "Backups")!.click());
+      React.act(() => [...document.querySelectorAll("button")].find(button => button.textContent === "Download current project backup")!.click());
+      const [blob] = vi.mocked(downloadBlob).mock.lastCall!;
+      const json = await new Promise<string>(resolve => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.readAsText(blob); });
+      expect(JSON.parse(json).shapes).toHaveLength(0);
+      React.act(() => [...document.querySelectorAll("button")].find(button => button.textContent === "Close")!.click());
+      if (resolution === "accept") {
+        React.act(() => [...document.querySelectorAll("button")].find(button => button.textContent === "Add waiting tools to Project B")!.click());
+      } else {
+        React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Manage project: Project B"]')!.click());
+        await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-open-project-a"]')!.click());
+        expect(container.querySelector('[data-testid="global-project-status"]')!.textContent).toContain("Project A");
+      }
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toHaveLength(1);
+      expect(container.querySelector('[data-testid="queued-destination-changed"]')).toBeNull();
+    } finally { unmount(); trace.mockRestore(); }
+  });
+
+  it("keeps a changed unnamed draft's queue through reload and places it only in the matching draft", async () => {
+    const edited = { ...EMPTY_PROJECT, spec: { ...EMPTY_PROJECT.spec, gridX: 5 } };
+    sessionStorage.setItem("pocketry:queued-tools", JSON.stringify([{ ...rectangularShape("draft-tool", "Draft tool"), pendingDepth: { mode: "mm", value: 8 }, pendingDestination: { key: projectDestinationKey(EMPTY_PROJECT, null), name: "Untitled project" } }]));
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(edited);
+    const first = renderPage();
+    await flushHydration();
+    expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toHaveLength(0);
+    expect(first.container.querySelector('[data-testid="queued-destination-changed"]')).not.toBeNull();
+    first.unmount();
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(EMPTY_PROJECT);
+    const reopened = renderPage();
+    await flushHydration();
+    expect(reopened.container.querySelector('[data-testid="queued-destination-changed"]')).toBeNull();
+    expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toHaveLength(1);
+  });
+
+  it("keeps geometry needed by undo history when the same tool is waiting for another destination", async () => {
+    const shape = rectangularShape("historic-tool", "Historic tool");
+    const pocket = parseCutoutPlacement({ id: "historic-pocket", shapeId: shape.id, position: { x: 0, y: 0 } });
+    const stored: ProjectDoc = { ...EMPTY_PROJECT, shapes: [shape], history: { index: 1, stack: [
+      { label: "Add tool", doc: { spec: EMPTY_PROJECT.spec, cutouts: [pocket], fingerHoles: [] } },
+      { label: "Remove tool", doc: { spec: EMPTY_PROJECT.spec, cutouts: [], fingerHoles: [] } },
+    ] } };
+    sessionStorage.setItem("pocketry:queued-tools", JSON.stringify([{ ...shape, pendingDestination: { key: "project:other", name: "Other project" } }]));
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(stored);
+    render(<PanelProvider><ProjectActivityProvider><ShapeLibraryProvider><ProjectStatusBar /><BinDesignerPage /></ShapeLibraryProvider></ProjectActivityProvider></PanelProvider>);
+    await flushHydration();
+    const button = (text: string) => [...document.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === text)!;
+    React.act(() => button("Backups").click());
+    React.act(() => button("Download current project backup").click());
+    const [blob] = vi.mocked(downloadBlob).mock.lastCall!;
+    const json = await new Promise<string>(resolve => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.readAsText(blob); });
+    const exported = parseProjectDoc(JSON.parse(json))!;
+    expect(exported.shapes.map(shape => shape.id)).toEqual([shape.id]);
+    expect(exported.cutouts).toHaveLength(0);
+    expect(exported.history!.stack[0].doc.cutouts).toHaveLength(1);
+  });
+
+  it("retains failed edits separately when Manage projects reopens Bin", async () => {
+    const stored = { ...EMPTY_PROJECT, name: "Socket tray" };
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(stored);
+    vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId: "socket", projects: [{ id: "socket", name: "Socket tray", updatedAt: "2026-10-08T12:00:00Z" }] });
+    const route = memoryLocation({ path: "/bin" });
+    const { container, unmount } = render(<Router hook={route.hook}><PanelProvider><ProjectActivityProvider><ShapeLibraryProvider>
+      <ProjectStatusBar /><Route path="/bin"><BinDesignerPage /></Route>
+    </ShapeLibraryProvider></ProjectActivityProvider></PanelProvider></Router>);
+    const button = (text: string) => [...document.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === text)!;
+    const backupWidth = async () => {
+      React.act(() => button("Backups").click());
+      React.act(() => button("Download unsaved edits: Socket tray").click());
+      const [blob] = vi.mocked(downloadBlob).mock.lastCall!;
+      const json = await new Promise<string>(resolve => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.readAsText(blob); });
+      React.act(() => button("Close").click());
+      return JSON.parse(json).spec.gridX;
+    };
+    try {
+      await flushHydration();
+      const input = container.querySelector<HTMLInputElement>('[aria-label="Width in standard cells"]')!;
+      React.act(() => { input.focus(); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "5"); input.dispatchEvent(new Event("input", { bubbles: true })); });
+      React.act(() => input.blur());
+      React.act(() => projectSaveMock.onSaved?.(false, new Error("Storage is full")));
+      React.act(() => route.navigate("/"));
+      expect(await backupWidth()).toBe(5);
+      React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Manage project: Socket tray"]')!.click());
+      await flushHydration();
+      React.act(() => button("Close").click());
+      React.act(() => projectSaveMock.onSaved?.(true));
+      expect(await backupWidth()).toBe(5);
+    } finally { unmount(); }
+  });
   it.each([
     { fixed: false, flatBottom: false }, { fixed: true, flatBottom: false },
     { fixed: false, flatBottom: true }, { fixed: true, flatBottom: true },

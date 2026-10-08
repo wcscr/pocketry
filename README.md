@@ -145,6 +145,12 @@ stored only in this browser and do not sync between devices. Back up after
 important changes and before clearing browser data. Library backups contain named
 projects; an unnamed draft needs its own project backup. Project backups preserve
 bin geometry and edit history, but do not include the original Trace photo.
+If saving fails, **Backups** retains a separate **Download unsaved edits** copy
+even after reopening Bin or switching projects. Download it before closing or
+reloading the tab, then import it in Bin to recover those edits.
+Traced tools keep their chosen destination through navigation and reload. If the
+destination changes, they wait outside the current project until you open the
+intended project or explicitly choose **Add waiting tools** to the current bin.
 
 Use **Add and trace another photo** for the accessories, then **Add and arrange**
 when the traces are ready. For a

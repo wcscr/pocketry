@@ -40,7 +40,7 @@ it("requires an explicit depth, then hands off the chosen millimetres", () => {
   expect((document.getElementById("tool-depth-0") as HTMLInputElement).value).toBe("");
   depth(0, "7,5");
   React.act(() => button("Add and arrange").click());
-  expect(mocks.addShape).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ name: "Wrench", sourceMmPerPx: 0.5 }), { mode: "mm", value: 7.5 });
+  expect(mocks.addShape).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ name: "Wrench", sourceMmPerPx: 0.5 }), { mode: "mm", value: 7.5 }, undefined);
   expect(mocks.navigate).toHaveBeenCalledWith("/bin");
 });
 
@@ -69,7 +69,7 @@ it("allows an explicit through choice and requires depth again when fixed depth 
   expect(button("Add and arrange").disabled).toBe(true);
   React.act(() => document.getElementById("tool-through-0")!.click());
   React.act(() => button("Add and trace another photo").click());
-  expect(mocks.addShape).toHaveBeenCalledExactlyOnceWith(expect.any(Object), { mode: "through" });
+  expect(mocks.addShape).toHaveBeenCalledExactlyOnceWith(expect.any(Object), { mode: "through" }, undefined);
   expect(mocks.choosePhoto).toHaveBeenCalledOnce();
   expect(mocks.navigate).not.toHaveBeenCalled();
 });
@@ -90,7 +90,7 @@ it("hands off To Floor without a numeric depth, and preserves fixed input across
   expect(button("Add and arrange").disabled).toBe(false);
   React.act(() => document.getElementById("tool-to-floor-0")!.click());
   React.act(() => button("Add and arrange").click());
-  expect(mocks.addShape).toHaveBeenCalledExactlyOnceWith(expect.any(Object), { mode: "to-floor" });
+  expect(mocks.addShape).toHaveBeenCalledExactlyOnceWith(expect.any(Object), { mode: "to-floor" }, undefined);
 });
 
 it("keeps independent floor and through choices when separate pockets are regrouped", () => {

@@ -44,7 +44,8 @@ export function TraceHandoffDialog({ onClose, onChoosePhoto, onCanvasInteraction
       const shape = normalizeTracedShape(part, scale, toolNames[index]?.trim() || `Tool ${index + 1}`);
       const mode = depthModes[index];
       if (shape) library.addShape({ ...shape, traceMarginMm: margin ?? 0 },
-        mode === "mm" ? { mode, value: depthValues[index] } : { mode });
+        mode === "mm" ? { mode, value: depthValues[index] } : { mode },
+        destination ? { key: destination.destinationKey ?? `project:${destination.activeProjectId}`, name: destination.name ?? "Untitled project" } : undefined);
     }
     onClose();
     onCanvasInteraction?.();
