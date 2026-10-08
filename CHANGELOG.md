@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added optional connected library folders in supported browsers, with automatic filesystem saves, retained recovery revisions, permission renewal, and explicit recovery of concurrent edits. Unreadable projects stay visible and exportable.
+
 - Added About Gridfinity with credit and links to creator Zack Freedman. Documented standalone flat-bottomed bins, laser/UV positioning jigs, and when Through pockets can save filament.
 
 - Updated the README and How to use Pocketry for the default UI, with fresh Wolfbox tracing, layout, and ruler screenshots. Shortened the sample gallery to two thumbnails, noted that the examples have been physically printed, and kept fit notes on individual project pages.

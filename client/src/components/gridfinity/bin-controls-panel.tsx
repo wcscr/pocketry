@@ -1,4 +1,5 @@
 import { EditableObjectName, ObjectActions } from "./object-list-controls";
+import { useLibraryFolderStatus } from "./library-folder-controls";
 import { MaterialColorSwatch } from "./material-color-swatch";
 import { DEFAULT_BIN_MATERIALS } from "@shared/gridfinity/materials";
 import { hasRigidPocket, rigidPocket } from "@shared/gridfinity/rigid-pocket";
@@ -173,6 +174,8 @@ const formatUnitCount = (value: number): string =>
   Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/0$/, "");
 
 export interface BinControlsPanelProps {
+  libraryFolderControls?: ReactNode;
+  libraryError?: string | null;
   issues: readonly ValidationIssue[];
   /** A fresh request reveals settings after the controls drawer mounts. */
   settingsSectionRequest?: { id: string; focusId?: string };
@@ -237,6 +240,8 @@ export interface BinControlsPanelProps {
  * hook.
  */
 export function BinControlsPanel({
+  libraryFolderControls,
+  libraryError,
   issues,
   settingsSectionRequest,
   exportOnly = false,
@@ -291,6 +296,8 @@ export function BinControlsPanel({
   onKeepBinSizeChange,
   saveStatus = "saved",
 }: BinControlsPanelProps): JSX.Element {
+  const folderStatus = useLibraryFolderStatus();
+  const folderProblem = ["permission-required", "conflict", "error"].includes(folderStatus.state);
   const showPreviewBusy = useDelayedBusy(building);
   const inspector = useSelectionInspector();
   const { enabled: experimentalEnabled, setEnabled: setExperimentalEnabled, setSettingsOpen } = useExperimentalFeatures();
@@ -1341,7 +1348,7 @@ export function BinControlsPanel({
             <Pencil aria-hidden="true" />
           </Button>
         </div>
-        <p className="text-[11px] text-muted-foreground" role="status">{!hydrated ? "Opening project…" : projectBusy ? "Working…" : saveStatus === "saving" ? activeProjectId ? "Saving to browser library…" : "Draft — saving locally…" : saveStatus === "error" ? "Could not save. Export this project to keep your work." : activeProjectId ? "Saved to Library in this browser" : "Draft autosaved in this browser · not in Library"}</p>
+        <p className="text-[11px] text-muted-foreground" role="status">{!hydrated ? "Opening project…" : projectBusy ? "Working…" : folderProblem ? folderStatus.message : saveStatus === "saving" ? activeProjectId ? folderStatus.folderName ? "Saving to library folder…" : "Saving to browser library…" : "Draft — saving locally…" : saveStatus === "error" ? "Could not save. Export this project to keep your work." : activeProjectId ? folderStatus.folderName ? `Saved to folder: ${folderStatus.folderName}` : "Saved to Library in this browser" : "Draft autosaved in this browser · not in Library"}</p>
       </div>
   );
 
@@ -1379,6 +1386,8 @@ export function BinControlsPanel({
           className="scroll-mt-16"
         >
           <ProjectControls
+            libraryFolderControls={libraryFolderControls}
+            libraryError={libraryError}
             saveOpen={projectNameOpen}
             setSaveOpen={setProjectNameOpen}
             hydrated={hydrated}
@@ -2304,6 +2313,8 @@ export function BinControlsPanel({
 }
 
 interface ProjectControlsProps {
+  libraryFolderControls?: ReactNode;
+  libraryError?: string | null;
   saveOpen: boolean;
   setSaveOpen: (open: boolean) => void;
   saveStatus?: "saving" | "saved" | "error";
@@ -2334,6 +2345,8 @@ type ProjectOpenTarget =
 const projectActionClass = "h-auto min-h-11 min-w-0 gap-1.5 whitespace-normal px-2 py-2 text-xs";
 
 function ProjectControls({
+  libraryFolderControls,
+  libraryError,
   saveOpen,
   setSaveOpen,
   hydrated,
@@ -2356,6 +2369,8 @@ function ProjectControls({
   onImportProject,
   saveStatus = "saved",
 }: ProjectControlsProps): JSX.Element {
+  const folderStatus = useLibraryFolderStatus();
+  const connectedFolder = folderStatus.folderName;
   const ready = hydrated && libraryReady;
   const [renameProjectId, setRenameProjectId] = useState<string | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
@@ -2396,7 +2411,7 @@ function ProjectControls({
   useEffect(() => { projectFileReadRevision.current += 1; }, [activeProjectId]);
 
   const openProject = async (target: ProjectOpenTarget, discardDraft = false, source?: HTMLElement | null) => {
-    if (busy || (target.kind === "library" && target.project.id === activeProjectId)) return;
+    if (busy || (target.kind === "library" && (target.project.id === activeProjectId || target.project.unavailable))) return;
     // A later library-open choice supersedes any file still being validated.
     if (target.kind === "library") projectFileReadRevision.current += 1;
     if (!activeProjectId && hasDraftWork && !discardDraft) {
@@ -2476,7 +2491,7 @@ function ProjectControls({
             <DialogHeader className="min-w-0 [overflow-wrap:anywhere]">
               <DialogTitle>{renaming ? "Rename project" : "Save project to library"}</DialogTitle>
               <DialogDescription>
-                {project ? `Change the name of “${project.name}”.` : "Named projects stay in this browser’s Pocketry library and update automatically as you work."}
+                {project ? `Change the name of “${project.name}”.` : connectedFolder ? `Named projects save to ${connectedFolder} and update automatically as you work.` : "Named projects stay in this browser’s Pocketry library and update automatically as you work."}
               </DialogDescription>
             </DialogHeader>
             <div className="min-w-0 space-y-2">
@@ -2521,7 +2536,7 @@ function ProjectControls({
           className={cn(projectActionClass, "w-full")}
         >
           <LibraryBig className="h-3.5 w-3.5 shrink-0" />
-          Manage Browser Library
+          {connectedFolder ? "Manage Folder Library" : "Manage Browser Library"}
         </Button>
       </DialogTrigger>
       <DialogContent
@@ -2546,9 +2561,9 @@ function ProjectControls({
         }}
       >
         <DialogHeader data-testid="library-manager-header" className="relative shrink-0 pr-10 bg-background before:pointer-events-none before:absolute before:-inset-x-4 before:-top-4 before:h-4 before:bg-background [@media(max-height:500px)]:sticky [@media(max-height:500px)]:top-0 [@media(max-height:500px)]:z-10">
-          <DialogTitle>Manage browser library</DialogTitle>
+          <DialogTitle>{connectedFolder ? "Manage folder library" : "Manage browser library"}</DialogTitle>
           <DialogDescription>
-            {projects.length} saved project{projects.length === 1 ? "" : "s"} in this browser.
+            {libraryError ? "The library could not be fully read." : `${projects.length} saved project${projects.length === 1 ? "" : "s"} ${connectedFolder ? `in ${connectedFolder}` : "in this browser"}.`}
             Open a project here, or import and export the entire library below.
           </DialogDescription>
           <DialogClose asChild>
@@ -2563,7 +2578,10 @@ function ProjectControls({
           data-testid="manage-library-scroll"
         >
         <div className="space-y-2 pr-4" data-testid="managed-project-list">
+          {libraryFolderControls}
+          {libraryError && <p role="alert" className="text-sm text-destructive">{libraryError}</p>}
           {projects.length === 0 ? (
+            libraryError ? null :
             <div className="rounded-md border border-dashed p-5 text-center text-sm text-muted-foreground">
               <p>No named projects yet.</p>
               <Button className="mt-3 min-h-11 h-auto w-full whitespace-normal" data-testid="button-save-draft-library" disabled={!ready || busy} onClick={saveDraftFromLibrary}>Save this draft to Library</Button>
@@ -2615,6 +2633,7 @@ function ProjectControls({
                         onClick={() => { returnToLibrary.current = true; setProjectName(project.name); setLibraryOpen(false); setRenameProjectId(project.id); }}><Pencil className="h-4 w-4" /></Button>
                     </div>
                     {active && <p className="text-xs text-muted-foreground">Current project</p>}
+                    {project.unavailable && <p className="text-xs text-destructive">Unreadable or newer project. Its data is retained in library exports.</p>}
                     <p className="text-[11px] text-muted-foreground">
                       Updated {formatProjectTime(project.updatedAt)}
                     </p>
@@ -2624,7 +2643,7 @@ function ProjectControls({
                     size="sm"
                     variant={active ? "secondary" : "outline"}
                     className="min-h-11 gap-1.5 px-2 text-xs"
-                    disabled={busy || active}
+                    disabled={busy || active || project.unavailable}
                     onClick={() => void openLibraryProject()}
                     aria-label={active ? `${project.name} is currently open` : `Open ${project.name}`}
                     data-testid={`button-open-project-${project.id}`}
@@ -2658,7 +2677,7 @@ function ProjectControls({
         </ScrollArea>
         <div className="shrink-0 space-y-1.5 border-t pt-3" data-testid="library-file-backup">
           <div className="flex items-center justify-between gap-2">
-            <SettingLabel label="Entire library" hint="Exports every named project saved in this browser as one JSON file. Unnamed drafts are not included. Import lets you merge with this library or replace it. Your current design stays open; duplicate names receive an imported suffix when merging." />
+            <SettingLabel label="Entire library" hint="Exports every named project in the current library as one JSON file, including unreadable entries. Unnamed drafts are not included. Import lets you merge with this library or replace it. Your current design stays open; duplicate names receive an imported suffix when merging." />
           </div>
           <div className="grid grid-cols-2 gap-2">
             <Button size="sm" variant="outline" className={projectActionClass} disabled={!ready || busy}
@@ -2684,7 +2703,7 @@ function ProjectControls({
 
   return (
     <>
-      <section aria-label="Browser library" className="space-y-2">
+      <section aria-label={connectedFolder ? "Folder library" : "Browser library"} className="space-y-2">
       <div
         className="space-y-2"
         data-testid="project-autosave-status"

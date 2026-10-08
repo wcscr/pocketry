@@ -541,7 +541,9 @@ describe("named project library", () => {
       ],
     });
 
-    expect((await loadProjectLibrary()).projects).toEqual([]);
+    expect((await loadProjectLibrary()).projects).toEqual([{
+      id: "future-project", name: "Future project", updatedAt: "2026-09-04T18:30:17.089Z", unavailable: true,
+    }]);
     await saveProjectToLibrary(DOC, "Current project", null);
     const stored = memory.get("tooltrace:project-library:v1") as {
       projects: Array<{ id: string; doc: unknown }>;
@@ -570,17 +572,14 @@ describe("named project library", () => {
     expect((await loadProjectLibrary()).projects).toHaveLength(1);
   });
 
-  it("ignores corrupt library data", async () => {
+  it("reports corrupt library data instead of presenting an empty library", async () => {
     memory.set("tooltrace:project-library:v1", {
       schemaVersion: 1,
       activeProjectId: "missing",
       projects: [{ id: "broken" }],
     });
 
-    expect(await loadProjectLibrary()).toEqual({
-      activeProjectId: null,
-      projects: [],
-    });
+    await expect(loadProjectLibrary()).rejects.toThrow("kept intact");
   });
 
   it("keeps named v4 projects while removing their legacy lite base choice", async () => {

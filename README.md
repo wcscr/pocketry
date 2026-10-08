@@ -180,10 +180,30 @@ are also available for shadow boards and CNC work.
 ### Save an editable copy
 
 In **Project**, choose **Save this draft to Library** to name an unnamed draft.
-Named projects save changes in this browser; reopen them from **Library**.
+Named projects save changes in this browser by default; reopen them from **Library**.
 **Export project** downloads an editable `.pocketry.json` backup, including the
 project's colors. **Open project** restores a downloaded design to the browser
 library. A printable STL or 3MF is separate from this editable project.
+
+In desktop Chrome or Edge, **Library → Connect library folder** makes a folder
+on your computer the working library. You can copy existing browser projects
+while retaining the originals. Named projects then save automatically into the
+folder's `pocketry-library` subdirectory. Wait for **Saved to folder** before
+closing the page. Unnamed drafts and the Trace recovery copy still use browser
+storage.
+
+Connect the same folder in another supported browser, or reconnect it after
+clearing site data. Each browser must receive permission. If access expires,
+choose **Reconnect folder**. If another session changed the library, **Keep both
+versions** preserves the folder versions and your open design, then leaves the
+open design as a draft; open the desired library version to continue editing.
+You can always export the current project when folder saving fails. Firefox,
+Safari, and browsers without folder access retain the browser library and
+portable export/import controls.
+
+Folder saves retain complete earlier revisions for recovery and currently grow
+with each changed library save; automatic pruning is not implemented. Do not
+delete individual revision files. See [folder format and recovery](docs/library-folder.md).
 
 The current Trace draft also saves locally, including its photo, scale, contours,
 and undo history. Wait for **Trace draft saved in this browser** before closing
@@ -199,7 +219,9 @@ existing experimental geometry stays visible and exportable.
 ## Privacy
 
 The static application processes images and generates models locally in the
-browser. Projects are stored in the browser using IndexedDB. The hosted version
+browser. Projects are stored in the browser using IndexedDB, or in a folder you
+explicitly connect. Folder handles and crash-recovery drafts use IndexedDB;
+completed folder saves remain ordinary files outside browser storage. The hosted version
 does not require uploading tool photographs to Pocketry's server.
 
 ## Run locally

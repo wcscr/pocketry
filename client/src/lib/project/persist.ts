@@ -1,5 +1,9 @@
 import { get, set as setRaw, setMany as setManyRaw } from "idb-keyval";
 import {
+  FolderLibrary, FolderPermissionError, reportFolderError, reportFolderStatus,
+  type LibraryDirectoryHandle,
+} from "./folder-library";
+import {
   libraryBackupSchema,
   projectLibrarySchema,
   PROJECT_LIBRARY_VERSION,
@@ -30,6 +34,33 @@ import {
 // browser-local projects or silently starts users from an empty library.
 const CURRENT_PROJECT_KEY = "tooltrace:project:v1";
 const PROJECT_LIBRARY_KEY = "tooltrace:project-library:v1";
+const FOLDER_CONNECTION_KEY = "pocketry:library-folder:v1";
+const FOLDER_PROJECT_KEY = "pocketry:folder-working-copy:v1";
+interface FolderConnection {
+  root: LibraryDirectoryHandle;
+  heads: string[];
+  activeProjectId: string | null;
+}
+let connection: FolderConnection | null = null;
+let folder: FolderLibrary | null = null;
+let folderRestore: Promise<void> | null = null;
+
+async function ensureFolder(): Promise<void> {
+  if (!folderRestore) folderRestore = (async () => {
+    connection = await get<FolderConnection>(FOLDER_CONNECTION_KEY) ?? null;
+    if (!connection) return;
+    try {
+      folder = await FolderLibrary.open(connection.root, false, connection.heads);
+      await folder.assertCurrent();
+      reportFolderStatus({ folderName: connection.root.name, state: "saved" });
+    } catch (cause) { reportFolderError(cause, connection.root.name); throw cause; }
+  })();
+  return folderRestore;
+}
+
+async function readCurrent(): Promise<unknown> {
+  return get(connection ? FOLDER_PROJECT_KEY : CURRENT_PROJECT_KEY);
+}
 /** Compact every durable write, including library operations and working-copy
  * recovery. Unknown future-version library documents stay byte-for-byte data. */
 function compactDocument(value: unknown): unknown {
@@ -44,13 +75,36 @@ function compactStoredValue(key: string, value: unknown): unknown {
   }
   return value;
 }
-const set = (key: string, value: unknown) => setRaw(key, compactStoredValue(key, value));
-const setMany = (entries: [string, unknown][]) => setManyRaw(entries.map(([key, value]) => [key, compactStoredValue(key, value)]));
+const set = (key: string, value: unknown) => connection
+  ? setMany([[key, value]]) : setRaw(key, compactStoredValue(key, value));
+const setMany = async (entries: [string, unknown][]) => {
+  if (!connection) return setManyRaw(entries.map(([key, value]) => [key, compactStoredValue(key, value)]));
+  const currentConnection = connection;
+  try {
+    if (!folder) throw new FolderPermissionError();
+    const library = entries.find(([key]) => key === PROJECT_LIBRARY_KEY)?.[1] as StoredProjectLibrary | undefined;
+    if (library) {
+      reportFolderStatus({ folderName: currentConnection.root.name, state: "saving" });
+      await folder.write((compactStoredValue(PROJECT_LIBRARY_KEY, library) as StoredProjectLibrary).projects);
+    }
+    const nextConnection = { ...currentConnection, heads: [...folder.heads],
+      activeProjectId: library ? library.activeProjectId : currentConnection.activeProjectId };
+    await setManyRaw([
+      ...entries.filter(([key]) => key !== PROJECT_LIBRARY_KEY).map(([key, value]): [string, unknown] =>
+        [key === CURRENT_PROJECT_KEY ? FOLDER_PROJECT_KEY : key, compactStoredValue(key, value)]),
+      [FOLDER_CONNECTION_KEY, nextConnection],
+    ]);
+    connection = nextConnection;
+    reportFolderStatus({ folderName: connection.root.name, state: "saved" });
+  } catch (cause) { reportFolderError(cause, currentConnection.root.name); throw cause; }
+};
 
 export interface ProjectLibraryItem {
   id: string;
   name: string;
   updatedAt: string;
+  /** Retain unreadable entries visibly; exports still include their raw data. */
+  unavailable?: boolean;
 }
 
 export interface ProjectLibrarySnapshot {
@@ -112,6 +166,15 @@ function parseStoredLibrary(input: unknown): StoredProjectLibrary {
 }
 
 async function readStoredLibrary(): Promise<StoredProjectLibrary> {
+  await ensureFolder();
+  if (connection) {
+    try {
+      if (!folder) throw new FolderPermissionError();
+      await folder.assertCurrent();
+      return parseStoredLibrary({ schemaVersion: PROJECT_LIBRARY_VERSION,
+        activeProjectId: connection.activeProjectId, projects: folder.projects });
+    } catch (cause) { reportFolderError(cause, connection.root.name); throw cause; }
+  }
   const raw: unknown = await get(PROJECT_LIBRARY_KEY);
   if (raw != null && !projectLibrarySchema.safeParse(raw).success) {
     throw new Error("The saved library is unreadable. It has been kept intact; download your current work before recovering it.");
@@ -123,15 +186,19 @@ function toSnapshot(library: StoredProjectLibrary): ProjectLibrarySnapshot {
   return {
     activeProjectId: library.activeProjectId,
     projects: library.projects
-      .filter((project) => parseProjectDoc(project.doc) !== null)
-      .map(({ id, name, updatedAt }) => ({ id, name, updatedAt })),
+      .map(({ id, name, updatedAt, doc }) => ({ id, name, updatedAt,
+        ...(parseProjectDoc(doc) === null ? { unavailable: true } : {}) })),
   };
 }
 
 function mutateLibrary<T>(
   mutation: (library: StoredProjectLibrary) => Promise<T>,
+  onFailure?: () => Promise<void>,
 ): Promise<T> {
-  const result = libraryMutationQueue.then(async () => mutation(await readStoredLibrary()));
+  const result = libraryMutationQueue.then(async () => {
+    try { return await mutation(await readStoredLibrary()); }
+    catch (cause) { await onFailure?.(); throw cause; }
+  });
   libraryMutationQueue = result.then(
     () => undefined,
     () => undefined,
@@ -139,10 +206,130 @@ function mutateLibrary<T>(
   return result;
 }
 
+/** Location changes share the persistence queue with autosaves. */
+function changeLocation<T>(operation: () => Promise<T>): Promise<T> {
+  const result = libraryMutationQueue.then(operation);
+  libraryMutationQueue = result.then(() => undefined, () => undefined);
+  return result;
+}
+
+/** Available after a read failure; callers must keep the error visible. */
+export function folderRecoverySnapshot(): ProjectLibrarySnapshot {
+  return toSnapshot({ schemaVersion: PROJECT_LIBRARY_VERSION,
+    activeProjectId: connection?.activeProjectId ?? null, projects: folder?.projects ?? [] });
+}
+
+/** Raw recovery download for a browser envelope that cannot be parsed. */
+export async function exportBrowserLibraryRecovery(): Promise<unknown> {
+  return { format: "pocketry-browser-recovery", library: await get(PROJECT_LIBRARY_KEY),
+    workingCopy: await get(CURRENT_PROJECT_KEY) };
+}
+
+function copyBrowserProjects(existing: StoredProject[], source: StoredProject[]): StoredProject[] {
+  const projects = [...existing];
+  for (const project of source) {
+    if (projects.some(saved => saved.id === project.id && saved.name === project.name &&
+      JSON.stringify(compactDocument(saved.doc)) === JSON.stringify(compactDocument(project.doc)))) continue;
+    const name = availableProjectName(project.name, projects, "imported");
+    const id = projects.some(saved => saved.id === project.id) ? makeProjectId() : project.id;
+    projects.push({ ...project, id, name,
+      // Future documents remain verbatim and visibly unavailable.
+      doc: parseProjectDoc(project.doc) ? { ...project.doc, name } : project.doc });
+  }
+  return projects;
+}
+
+export function connectLibraryFolder(root: LibraryDirectoryHandle, copyBrowser: boolean, currentDoc: ProjectDoc): Promise<ProjectLibrarySnapshot> {
+  return changeLocation(async () => {
+    const target = await FolderLibrary.open(root, true);
+    // Keep the outgoing editor as a draft. Opening a folder never attaches a
+    // same-name or same-ID browser working copy to a different saved project.
+    const draft = { ...currentDoc };
+    delete draft.name;
+    const next: FolderConnection = { root, heads: [...target.heads], activeProjectId: null };
+    await setManyRaw([[FOLDER_CONNECTION_KEY, next], [FOLDER_PROJECT_KEY, serializeProjectDoc(draft)]]);
+    connection = next;
+    folder = target;
+    folderRestore = Promise.resolve();
+    try {
+      await target.assertCurrent();
+      if (copyBrowser) {
+        const raw: unknown = await get(PROJECT_LIBRARY_KEY);
+        if (raw != null && !projectLibrarySchema.safeParse(raw).success) throw new Error("The browser library is unreadable and has been kept intact.");
+        const projects = copyBrowserProjects(target.projects, parseStoredLibrary(raw).projects);
+        await set(PROJECT_LIBRARY_KEY, { ...EMPTY_LIBRARY, projects });
+      } else {
+        // Establish an empty library as a real on-disk revision too.
+        await set(PROJECT_LIBRARY_KEY, { ...EMPTY_LIBRARY, projects: target.projects });
+      }
+      return folderRecoverySnapshot();
+    } catch (cause) { reportFolderError(cause, root.name); throw cause; }
+  });
+}
+
+/** Permission prompts must begin within the user's gesture, outside the queue. */
+export async function reconnectLibraryFolder(): Promise<ProjectLibrarySnapshot> {
+  if (!connection) throw new Error("Choose the library folder again.");
+  const root = connection.root;
+  const permission = await root.requestPermission({ mode: "readwrite" });
+  if (permission !== "granted") {
+    const cause = new FolderPermissionError();
+    reportFolderError(cause, root.name);
+    throw cause;
+  }
+  return changeLocation(async () => {
+    try {
+      folder = await FolderLibrary.open(root, false, connection!.heads);
+      folderRestore = Promise.resolve();
+      await folder.assertCurrent();
+      reportFolderStatus({ folderName: root.name, state: "saved" });
+      return folderRecoverySnapshot();
+    } catch (cause) { reportFolderError(cause, root.name); throw cause; }
+  });
+}
+
+export function resolveLibraryFolderConflict(currentDoc: ProjectDoc): Promise<ProjectLibrarySnapshot> {
+  return changeLocation(async () => {
+    if (!connection) throw new Error("Reconnect the folder first.");
+    try {
+      folder ??= await FolderLibrary.open(connection.root, false);
+      const name = currentDoc.name ?? "Recovered project";
+      await folder.keepBoth({ id: connection.activeProjectId ?? makeProjectId(), name,
+        updatedAt: new Date().toISOString(), doc: serializeProjectDoc({ ...currentDoc, name }) });
+      folderRestore = Promise.resolve();
+      // Detach the open editor so it cannot overwrite whichever branch kept
+      // the original ID. The user can open either retained version explicitly.
+      const draft = { ...currentDoc };
+      delete draft.name;
+      await setMany([[PROJECT_LIBRARY_KEY, { ...EMPTY_LIBRARY, projects: folder.projects }], [CURRENT_PROJECT_KEY, draft]]);
+      return folderRecoverySnapshot();
+    } catch (cause) { reportFolderError(cause, connection.root.name); throw cause; }
+  });
+}
+
+/** Disconnect never deletes folder files or the original browser library. */
+export function disconnectLibraryFolder(currentDoc: ProjectDoc): Promise<ProjectLibrarySnapshot> {
+  return changeLocation(async () => {
+    const raw: unknown = await get(PROJECT_LIBRARY_KEY);
+    if (raw != null && !projectLibrarySchema.safeParse(raw).success) throw new Error("The browser library is unreadable and has been kept intact.");
+    const library = { ...parseStoredLibrary(raw), activeProjectId: null };
+    const draft = { ...currentDoc };
+    delete draft.name;
+    await setManyRaw([[FOLDER_CONNECTION_KEY, null], [CURRENT_PROJECT_KEY, serializeProjectDoc(draft)],
+      [PROJECT_LIBRARY_KEY, compactStoredValue(PROJECT_LIBRARY_KEY, library)]]);
+    connection = null;
+    folder = null;
+    folderRestore = Promise.resolve();
+    reportFolderStatus({ folderName: null, state: "browser" });
+    return toSnapshot(library);
+  });
+}
+
 export async function loadProjectDoc(): Promise<ProjectDoc | null> {
   await libraryMutationQueue;
   try {
-    return parseProjectDoc(await get(CURRENT_PROJECT_KEY));
+    await ensureFolder().catch(() => undefined);
+    return parseProjectDoc(await readCurrent());
   } catch {
     return null;
   }
@@ -162,14 +349,13 @@ function restoredDocumentKey(doc: ProjectDoc): string {
  * so the UI can keep the document open and pause autosave until it is saved.
  */
 export async function loadProjectLibrary(restoredDoc?: ProjectDoc | null): Promise<ProjectLibrarySnapshot> {
-  try {
     return await mutateLibrary(async (library) => {
-      if (!library.activeProjectId && restoredDoc?.name) {
+      if (!connection && !library.activeProjectId && restoredDoc?.name) {
         const doc = parseProjectDoc(restoredDoc);
         if (!doc?.name) return toSnapshot(library);
         const sourceName = doc.name;
         const key = restoredDocumentKey(doc);
-        const current = parseProjectDoc(await get(CURRENT_PROJECT_KEY));
+        const current = parseProjectDoc(await readCurrent());
         // A newer workspace may already have replaced the document while this
         // restore waited for queued writes. Never attach that newer draft.
         if (!current || restoredDocumentKey(current) !== key) return toSnapshot(library);
@@ -200,11 +386,6 @@ export async function loadProjectLibrary(restoredDoc?: ProjectDoc | null): Promi
       }
       return toSnapshot(library);
     });
-  }
-  catch (cause) {
-    if (restoredDoc) throw cause;
-    return toSnapshot(EMPTY_LIBRARY);
-  }
 }
 
 /** Include pending edits to the active named project without waiting for autosave.
@@ -292,7 +473,7 @@ export async function importProjectLibrary(input: unknown, mode: LibraryImportMo
     }
     const next = { ...library, activeProjectId: mode === "replace" ? null : library.activeProjectId, projects };
     if (mode === "replace") {
-      const raw: unknown = currentDoc ?? await get(CURRENT_PROJECT_KEY);
+      const raw: unknown = currentDoc ?? await readCurrent();
       const workingCopy = raw == null ? null : parseProjectDoc(raw);
       if (raw != null && !workingCopy) throw new Error("The current design is unreadable. The library has been kept intact.");
       if (workingCopy) {
@@ -321,7 +502,7 @@ export async function saveProjectDoc(
         throw new Error("The autosave belongs to a different project.");
       }
       if (!parseProjectDoc(doc)) throw new Error("The project history is inconsistent.");
-      const previous: unknown = await get(CURRENT_PROJECT_KEY);
+      const previous: unknown = await readCurrent();
       if (previous != null && parseProjectDoc(previous) === null) {
         throw new Error("The existing working copy is unreadable and has been preserved.");
       }
@@ -340,6 +521,16 @@ export async function saveProjectDoc(
         updatedAt: new Date().toISOString(),
       };
       await setMany([[CURRENT_PROJECT_KEY, doc], [PROJECT_LIBRARY_KEY, { ...library, projects }]]);
+    }, async () => {
+      // Recovery writes remain inside the mutation queue and carry the same
+      // identity guard as autosave. An outgoing failed save must never replace
+      // the next project's recovery document or an unreadable working copy.
+      if (!connection || (expectedProjectId !== undefined && expectedProjectId !== connection.activeProjectId) || !parseProjectDoc(doc)) return;
+      try {
+        const previous = await readCurrent();
+        if (previous != null && !parseProjectDoc(previous)) return;
+        await setRaw(FOLDER_PROJECT_KEY, serializeProjectDoc(doc));
+      } catch { /* The current in-memory document can still be exported. */ }
     });
     // Clear only queued shapes whose placements have reached durable storage.
     try {

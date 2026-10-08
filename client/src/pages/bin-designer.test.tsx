@@ -166,6 +166,12 @@ vi.mock("@/lib/gridfinity/use-bin-geometry", () => ({
 // still resolves asynchronously, hence the `flushHydration` below.
 const projectSaveMock = vi.hoisted(() => ({ onSaved: undefined as ((success: boolean) => void) | undefined }));
 vi.mock("@/lib/project/persist", () => ({
+  folderRecoverySnapshot: vi.fn(() => ({ activeProjectId: null, projects: [] })),
+  exportBrowserLibraryRecovery: vi.fn(),
+  connectLibraryFolder: vi.fn(),
+  reconnectLibraryFolder: vi.fn(),
+  disconnectLibraryFolder: vi.fn(),
+  resolveLibraryFolderConflict: vi.fn(),
   loadProjectDoc: vi.fn(async () => null),
   loadProjectLibrary: vi.fn(async () => ({ activeProjectId: null, projects: [] })),
   saveProjectDoc: vi.fn(async () => true),
@@ -6387,6 +6393,40 @@ it.each(['cancel','save','failure'])("empty Library draft naming has one modal a
       } else expect(ProjectPersistence.saveProjectToLibrary).not.toHaveBeenCalled();
     }
   } finally {unmount();}
+});
+
+it("does not describe a failed library read as an empty library and offers a raw recovery export", async () => {
+  vi.mocked(ProjectPersistence.loadProjectLibrary).mockRejectedValue(new Error("The saved library is unreadable. It has been kept intact."));
+  const { container, unmount } = renderPage();
+  try {
+    await flushHydration();
+    openSettingsSection(container, "project");
+    await React.act(async () => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
+    const dialog = document.querySelector('[role="dialog"]')!;
+    expect(dialog.textContent).toContain("The library could not be fully read");
+    expect(dialog.textContent).not.toContain("No named projects yet");
+    expect(dialog.textContent).toContain("Export recovery data");
+    expect(ProjectPersistence.saveProjectDoc).not.toHaveBeenCalled();
+  } finally { unmount(); }
+});
+
+it("invokes the native folder picker from the click and keeps the editor open when connecting", async () => {
+  const handle = { name: "Test folder" };
+  const picker = vi.fn(async () => handle);
+  Object.defineProperty(window, "showDirectoryPicker", { configurable: true, value: picker });
+  vi.mocked(ProjectPersistence.connectLibraryFolder).mockResolvedValue({ activeProjectId: null, projects: [] });
+  const { container, unmount } = renderPage();
+  try {
+    await flushHydration();
+    openSettingsSection(container, "project");
+    await React.act(async () => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
+    const before = structuredClone(vi.mocked(useBinGeometry).mock.lastCall![0]);
+    await React.act(async () => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(button => button.textContent === "Connect library folder")!.click());
+    expect(picker).toHaveBeenCalledWith({ id: "pocketry-library", mode: "readwrite" });
+    expect(picker.mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(ProjectPersistence.saveProjectDoc).mock.invocationCallOrder[0]);
+    expect(ProjectPersistence.connectLibraryFolder).toHaveBeenCalledWith(handle, true, expect.objectContaining({ schemaVersion: PROJECT_SCHEMA_VERSION }));
+    expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toEqual(before);
+  } finally { unmount(); Reflect.deleteProperty(window, "showDirectoryPicker"); }
 });
 
 it("prototype renames from the object menu without losing inline focus or changing selection", async () => {
