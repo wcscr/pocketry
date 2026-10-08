@@ -19,6 +19,7 @@ Pocketry's public deployment is [https://pocketry.xyz](https://pocketry.xyz).
 - Trace and refine outlines from PNG or JPEG photos.
 - Calibrate dimensions and correct perspective with printable reference sheets.
 - Design Gridfinity or standalone flat-bottomed bins with custom pockets, finger access, and colors.
+- Create 3D-printable positioning jigs for laser engraving and UV printing, including eufyMake setups.
 - Preview in 3D and export fit checks, STL, or 3MF models.
 - Export SVG or DXF files for shadow boards and CNC work.
 - Save projects locally, undo changes, and export editable backups.
@@ -117,6 +118,13 @@ For a standalone bin with a smooth underside, turn on
 **Construction → Flat bottom**. This removes the Gridfinity base. **Stacking lip**
 is a separate option in the same section; turn it off if you do not need the rim.
 The tracing, pocket editing, and export workflow stays the same for either base.
+
+Use custom pockets to hold parts in repeatable positions during engraving or
+printing. For flat-bottomed positioning jigs, consider **Through** under a
+pocket's **Depth** settings to save filament. The parts rest directly on the
+work surface while the pocket walls hold them in position. Keep a pocket floor
+when the jig needs to support the parts, set their height, or carry them between
+work areas.
 
 Switch to **Layout** for a top-down view. Drag pockets into place, or select one
 and use **Move** or **Rotate**. Use **Add** for extra pockets, or

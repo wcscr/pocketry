@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Added About Gridfinity with credit and links to creator Zack Freedman. Clarified standalone flat-bottomed bin support and its Construction setting in the README, Help, and About page.
+- Added About Gridfinity with credit and links to creator Zack Freedman. Documented standalone flat-bottomed bins, laser/UV positioning jigs, and when Through pockets can save filament.
 
 - Updated the README and How to use Pocketry for the default UI, with fresh Wolfbox tracing, layout, and ruler screenshots. Shortened the sample gallery to two thumbnails, noted that the examples have been physically printed, and kept fit notes on individual project pages.
 

@@ -246,7 +246,9 @@ export default function About(): JSX.Element {
             Pocketry also supports standalone flat-bottomed bins for use directly
             in a drawer or on a worktop, with no Gridfinity baseplate needed.
             Turn on <strong>Bin → Construction → Flat bottom</strong> for a smooth
-            underside without a Gridfinity base.
+            underside without a Gridfinity base. These designs can also serve as
+            3D-printable positioning jigs for laser engraving and UV printing,
+            including eufyMake setups.
           </p>
           <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
             Watch Zack&apos;s{" "}

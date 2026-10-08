@@ -80,6 +80,15 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
               <strong> Construction → Flat bottom</strong>. This makes a smooth
               underside without a Gridfinity base. <strong>Stacking lip</strong>{" "}
               is a separate option; turn it off if you do not need the rim.
+              Custom pockets can hold parts in repeatable positions for laser
+              engraving or UV printing, including eufyMake setups.
+            </p>
+            <p className="mt-1 text-muted-foreground">
+              For flat-bottomed positioning jigs, consider <strong>Through</strong>{" "}
+              under a pocket’s <strong>Depth</strong> settings to save filament.
+              The parts rest directly on the work surface while the pocket walls
+              hold them in position. Keep a pocket floor when the jig needs to
+              support the parts, set their height, or carry them between work areas.
             </p>
             <p className="mt-1 text-muted-foreground">
               Select a pocket on the canvas or in <strong>Pockets</strong> to edit
