@@ -131,6 +131,8 @@ export interface CutoutCutters {
   floorInserts: Manifold[];
   /** Full subtraction regions for stable body partitioning; defaults to the bands. */
   floorRegions?: Manifold[];
+  /** A vertical seat crosses the fill surface, requiring floor-band seam cleanup. */
+  hasPartialOpening?: boolean;
   reports: CutoutBuildReport[];
   validationIssues?: ValidationIssue[];
   cutterGroups?: { id: string; cutters: Manifold[] }[];
@@ -732,7 +734,6 @@ export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: Cut
   // through the surface, while an object wholly above the bin leaves no cut.
   let cutter = buildObjectCavity(kernel, source, pose, cutout.insertionMode ? Infinity : top, anchor);
   const projectedSource = cutter && cutout.insertionMode === "vertical" ? arena.track(arena.track(cutter.project()).simplify(0.0001)) : null;
-  const validationIssues: ValidationIssue[] = [];
   const clearAndLimit = (posed: Manifold, depth: DepthSpec): Manifold => {
     let result = posed;
     if (cutout.insertionMode) {
@@ -744,6 +745,8 @@ export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: Cut
     // Apply the floor constraint to the generated cavity, never the source.
     // Rebuilding after raising the object therefore restores its whole profile.
     if (depth.mode === "remaining") result = arena.track(result.trimByPlane([0,0,1],depth.floorThicknessMm));
+    // The source and its tilted seat may extend above the fill surface. Only
+    // their intersection with the bin is cut; a partial opening is valid.
     if (Number.isFinite(top)) result = arena.track(result.trimByPlane([0,0,-1],-top));
     return result;
   };
@@ -765,6 +768,8 @@ export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: Cut
   // A source raised entirely clear of the bin leaves no cavity or floor-color
   // region. Empty-solid bounds cannot be used to construct a material column.
   if (cutter?.isEmpty()) cutter = null;
+  const hasPartialOpening = Boolean(cutter && projectedSource && cutter.boundingBox().min[2] < realTop
+    && arena.track(projectedSource.subtract(arena.track(cutter.slice(realTop - 1e-7)))).area() > 0.01);
   const seatedCutter = cutter;
   if (cutter && cutout.topFilletMm > 0 && cutter.boundingBox().max[2] >= realTop - 1e-8) {
     // Slice after posing and joining the split seats. Only the opening that
@@ -780,13 +785,6 @@ export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: Cut
       cutter = arena.track(cutter.add(arena.track(flare.translate([0, 0, realTop - radius]))));
     }
   }
-  if (cutter && projectedSource && !cutter.isEmpty() && cutter.boundingBox().min[2] < realTop) {
-    const mouth = arena.track(cutter.slice(realTop-1e-7));
-    if (arena.track(projectedSource.subtract(mouth)).area() > 0.01) {
-      validationIssues.push({code:"vertical-seat-above-surface",severity:"error",cutoutIds:[cutout.id],
-        message:`“${pocketName(cutout,shape)}”: The tilted floor reaches the bin surface, preventing a full vertical opening. Increase the bin height, lower the pocket, or reduce its tilt.`});
-    }
-  }
   const floorInserts: Manifold[] = [], floorRegions: Manifold[] = [];
   const distance = Math.min(options.floorInsertThicknessMm ?? 0, Math.max(0, seatedCutter?.boundingBox().min[2] ?? pose.elevationMm));
   if (cutter && seatedCutter && distance > 0 && (cutout.insertionMode || depthSpecs.some(d => d.mode !== "mm"))) {
@@ -794,6 +792,9 @@ export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: Cut
     // Inset the color at the wall fillet, as for ordinary pocket floors, so
     // independently exported materials do not share a vertical wall seam.
     let region = arena.track(seatedCutter.translate([0,0,-distance]));
+    // Clean a partial opening's color mask independently of the cavity.
+    // Cleaning the cavity first can corrupt the thin band at the surface.
+    if (hasPartialOpening) region = arena.track(arena.track(region.asOriginal()).simplify(0.0001));
     if (cutout.bottomFilletMm > 0) {
       const projection = projectedSource ?? arena.track(seatedCutter.project());
       const floorOutline = arena.track(projection.offset(-cutout.bottomFilletMm,"Round",2,quality.circularSegments));
@@ -801,7 +802,9 @@ export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: Cut
       const floorColumn = arena.track(arena.track(floorOutline.extrude(bounds.max[2]-bounds.min[2]+2)).translate([0,0,bounds.min[2]-1]));
       region = arena.track(region.intersect(floorColumn));
     }
-    floorInserts.push(region);
+    // Form the thin band before clipping it against the bin, avoiding a second
+    // intersection with coincident cavity walls at the fill surface.
+    floorInserts.push(hasPartialOpening ? arena.track(region.subtract(cutter)) : region);
     floorRegions.push(region);
   } else if (cutter && distance > 0) {
     const axes = [{x:1,y:0,z:0},{x:0,y:1,z:0},{x:0,y:0,z:1}].map(v => rotateObjectVector(v, pose.rotation));
@@ -813,7 +816,7 @@ export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: Cut
     if (region) floorRegions.push(region);
   }
   return { cutters: cutter ? [cutter] : [], floorInserts, floorRegions,
-    validationIssues, reports: [{ id: cutout.id, emptied: source.isEmpty() }] };
+    hasPartialOpening, validationIssues: [], reports: [{ id: cutout.id, emptied: source.isEmpty() }] };
 }
 
 /** Preserve placement identity for exact 3D validation, including split cutters. */
@@ -823,5 +826,5 @@ export function buildCutoutCutters(kernel: Kernel, shapesById: ReadonlyMap<strin
     : (hasRigidPocket(cutout) || cutout.insertionMode) && shapesById.has(cutout.shapeId)
       ? buildRigidPocket(kernel, shapesById.get(cutout.shapeId)!, rigidPocket(cutout, shapesById.get(cutout.shapeId)!, spec), spec, quality, options, resolvePocketDepth(spec, cutout.depth).cutterTopZ)
     : buildCutoutCuttersInternal(kernel, shapesById, [cutout], spec, quality, options) }));
-  return { cutters: groups.flatMap(g => g.built.cutters), floorInserts: groups.flatMap(g => g.built.floorInserts), floorRegions: groups.flatMap(g => g.built.floorRegions ?? g.built.floorInserts), reports: groups.flatMap(g => g.built.reports), validationIssues: groups.flatMap(g => g.built.validationIssues ?? []), cutterGroups: groups.map(g => ({ id: g.id, cutters: g.built.cutters })) };
+  return { cutters: groups.flatMap(g => g.built.cutters), floorInserts: groups.flatMap(g => g.built.floorInserts), floorRegions: groups.flatMap(g => g.built.floorRegions ?? g.built.floorInserts), hasPartialOpening: groups.some(g => g.built.hasPartialOpening), reports: groups.flatMap(g => g.built.reports), validationIssues: groups.flatMap(g => g.built.validationIssues ?? []), cutterGroups: groups.map(g => ({ id: g.id, cutters: g.built.cutters })) };
 }

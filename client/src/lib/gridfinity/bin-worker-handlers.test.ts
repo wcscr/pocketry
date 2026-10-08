@@ -8,6 +8,7 @@ import { binTotalHeightMm } from "@shared/gridfinity/standard";
 import { parseBinSpec } from "@shared/gridfinity/types";
 import { validateLayout } from "@shared/gridfinity/validate";
 import { loadManifold } from "@/lib/manifold/runtime";
+import { Arena } from "@/lib/manifold/arena";
 import type { HandlerContext } from "@/lib/worker/host";
 import type { TransferableResult } from "@/lib/worker/host";
 import { WorkerCancelledError } from "@/lib/worker/protocol";
@@ -96,16 +97,16 @@ function nonManifoldEdgeCount(mesh: BuildBinResult["mesh"], weldPositions = fals
   return [...edgeCounts.values()].filter((count) => count !== 2).length;
 }
 
-function printableMeshVolume(mesh: BuildBinResult["mesh"]): number {
+function printableMeshVolume(mesh: BuildBinResult["mesh"], label = "mesh"): number {
   let total = 0;
   for (let i = 0; i < mesh.indices.length; i += 3) {
     const [a, b, c] = Array.from(mesh.indices.subarray(i, i + 3), n => mesh.positions.subarray(n * 3, n * 3 + 3));
     const u = Array.from(b, (v, j) => v - a[j]), v = Array.from(c, (n, j) => n - a[j]);
     const cross = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
-    expect(Math.hypot(...cross), `triangle ${JSON.stringify([Array.from(a),Array.from(b),Array.from(c)])}`).toBeGreaterThan(0);
+    expect(Math.hypot(...cross), `${label} triangle ${JSON.stringify([Array.from(a),Array.from(b),Array.from(c)])}`).toBeGreaterThan(0);
     total += (a[0] * cross[0] + a[1] * cross[1] + a[2] * cross[2]) / 6;
   }
-  expect(nonManifoldEdgeCount(mesh, true)).toBe(0);
+  expect(nonManifoldEdgeCount(mesh, true), label).toBe(0);
   return total;
 }
 
@@ -236,12 +237,97 @@ it.each(["axis","vertical"] as const)("exports a floor-clipped %s pocket with cl
   expect(p.depth).toEqual({mode:"remaining",floorThicknessMm:9,sourceDepthMm:16});
 });
 
-it("blocks a vertical export when the tilted floor prevents a full opening", async () => {
-  const {shape,cutout}=createBasicPocket("rectangle",{x:-10,y:-12},{x:10,y:12},"high-seat")!;
-  const p=parseCutoutPlacement({...cutout,elevationMm:12,tilt:{xDeg:20,yDeg:25},depth:{mode:"mm",value:16},insertionMode:"vertical"});
-  await expect(getHandler()({spec:{gridX:3,gridY:3,heightUnits:3,fill:"solid",lip:"none"},
-    quality:EXPORT_QUALITY,exportTopology:true,layout:{shapes:[shape],cutouts:[p],fingerHoles:[]}},context()))
-    .rejects.toThrow("preventing a full vertical opening");
+it.each([
+  { lip: "none", fillHeightPercent: 100, rounded: false, split: false },
+  { lip: "standard", fillHeightPercent: 100, rounded: true, split: false },
+  { lip: "none", fillHeightPercent: 70, rounded: true, split: false },
+  { lip: "none", fillHeightPercent: 100, rounded: true, split: true },
+] as const)("previews and exports a tilted floor crossing the fill surface: %j", async ({ lip, fillHeightPercent, rounded, split }) => {
+  const { shape, cutout } = createBasicPocket("rectangle", { x: -10, y: -12 }, { x: 10, y: 12 }, "high-seat")!;
+  const p = parseCutoutPlacement({ ...cutout, elevationMm: 12, tilt: { xDeg: 20, yDeg: 25 },
+    depth: { mode: "mm", value: 16 }, insertionMode: "vertical",
+    topFilletMm: rounded ? 2 : 0, bottomFilletMm: rounded ? 1 : 0,
+    split: split ? { boundary: [{ x: 0, y: -12 }, { x: 0, y: 12 }],
+      depths: [{ mode: "mm", value: 16 }, { mode: "remaining", floorThicknessMm: 9, sourceDepthMm: 12 }] } : undefined });
+  const request: BuildBinRequest = {
+    spec: { gridX: 3, gridY: 3, heightUnits: 3, fill: "solid", lip, fillHeightPercent },
+    quality: EXPORT_QUALITY, pocketFloorMaterialThicknessMm: 0.6,
+    stackingRimMaterialThicknessMm: 1.25, borderWidthMm: 2,
+    layout: { shapes: [shape], cutouts: [p], fingerHoles: [] },
+  };
+  const preview = (await getHandler()(request, context())).value;
+  const result = (await getHandler()({ ...request, exportTopology: true }, context())).value;
+  const uncut = (await getHandler()({ ...request, exportTopology: true,
+    layout: { shapes: [], cutouts: [], fingerHoles: [] } }, context())).value;
+  expect(preview.validationIssues).toEqual([]);
+  expect(result.validationIssues).toEqual([]);
+  const whole = printableMeshVolume(result.mesh);
+  expect(whole).toBeGreaterThan(0);
+  expect(printableMeshVolume(uncut.mesh) - whole).toBeGreaterThan(100);
+  expect(preview.stats.volumeMm3).toBeCloseTo(whole, 1);
+  const parts = Object.entries(result.materialMeshes!).map(([name, mesh]) => ({ name, mesh }));
+  expect(result.materialMeshes?.pocketFloors).toBeDefined();
+  expect(Math.abs(parts.reduce((sum, part) => sum + printableMeshVolume(part.mesh, part.name), 0) - whole)).toBeLessThan(0.1);
+  expect(writeBinarySTL(result.mesh).byteLength).toBe(84 + result.mesh.indices.length / 3 * 50);
+  const model = strFromU8(unzipSync(writeThreeMf(parts))["3D/3dmodel.model"]);
+  expect(model.match(/<triangle /g)?.length).toBe(parts.reduce((sum, part) => sum + part.mesh.indices.length / 3, 0));
+}, 30_000);
+
+it.each([
+  { xDeg: 0, yDeg: 89.9, rotationDeg: 53, split: false },
+  { xDeg: 89.9, yDeg: 0, rotationDeg: 53, split: false },
+  { xDeg: 20, yDeg: 25, rotationDeg: 53, split: false },
+  { xDeg: 135, yDeg: 20, rotationDeg: 53, split: false },
+  { xDeg: 20, yDeg: 25, rotationDeg: 37, split: true },
+  { xDeg: 20, yDeg: 25, rotationDeg: 53, split: false, heightUnits: 8, elevationMm: 50, mixed: true },
+])("preserves the bin geometry in colored partial-opening exports: %j", async ({ xDeg, yDeg, rotationDeg, split, heightUnits = 3, elevationMm = 12, mixed = false }) => {
+  const { shape, cutout } = createBasicPocket("rectangle", { x: -10, y: -12 }, { x: 10, y: 12 }, "color-partition")!;
+  const p = parseCutoutPlacement({ ...cutout, elevationMm, position: { x: mixed ? -25 : 0, y: 0 }, tilt: { xDeg, yDeg }, rotationDeg, mirrored: true,
+    depth: { mode: "mm", value: 16 }, insertionMode: "vertical",
+    split: split ? { boundary: [{ x: 0, y: -12 }, { x: 0, y: 12 }],
+      depths: [{ mode: "mm", value: 16 }, { mode: "remaining", floorThicknessMm: 10, sourceDepthMm: 12 }] } : undefined });
+  const result = (await getHandler()({
+    spec: { gridX: 3, gridY: 3, heightUnits, fill: "solid", lip: "none" },
+    quality: EXPORT_QUALITY, exportTopology: true, pocketFloorMaterialThicknessMm: 0.6,
+    stackingRimMaterialThicknessMm: 1.25, borderWidthMm: 2,
+    layout: { shapes: [shape], cutouts: mixed ? [p, parseCutoutPlacement({ ...p, id: "full-opening", elevationMm: 7,
+      position: { x: 25, y: 0 }, tilt: { xDeg: 0, yDeg: 89.9 } })] : [p], fingerHoles: [] },
+  }, context())).value;
+  expect(result.validationIssues).toEqual([]);
+  const wholeVolume = printableMeshVolume(result.mesh);
+  const parts = Object.entries(result.materialMeshes!).map(([name, mesh]) => ({ name, mesh }));
+  expect(Math.abs(parts.reduce((sum, part) => sum + printableMeshVolume(part.mesh, part.name), 0) - wholeVolume)).toBeLessThan(0.1);
+
+  // Read the serialized 3MF back, then compare actual solids: volume sums alone
+  // can hide a missing region balanced by an overlap elsewhere.
+  const xml = strFromU8(unzipSync(writeThreeMf(parts))["3D/3dmodel.model"]);
+  const meshes = [...xml.matchAll(/<mesh>([\s\S]*?)<\/mesh>/g)].map(([_, mesh]) => ({
+    positions: new Float32Array([...mesh.matchAll(/<vertex x="([^"]+)" y="([^"]+)" z="([^"]+)"/g)]
+      .flatMap(([, x, y, z]) => [Number(x), Number(y), Number(z)])),
+    indices: new Uint32Array([...mesh.matchAll(/<triangle v1="(\d+)" v2="(\d+)" v3="(\d+)"/g)]
+      .flatMap(([, a, b, c]) => [Number(a), Number(b), Number(c)])),
+    normals: null,
+  }));
+  expect(meshes).toHaveLength(parts.length);
+  const wasm = await loadManifold(), arena = new Arena();
+  try {
+    const rebuild = (mesh: BuildBinResult["mesh"]) => arena.track(new wasm.Manifold(new wasm.Mesh({
+      numProp: 3, vertProperties: mesh.positions, triVerts: mesh.indices,
+    })));
+    const whole = rebuild(result.mesh), colors = meshes.map(rebuild);
+    for (const [i, mesh] of meshes.entries()) {
+      printableMeshVolume(mesh, parts[i].name);
+      expect(colors[i].status()).toBe("NoError");
+      for (const other of colors.slice(i + 1)) {
+        expect(Math.abs(arena.track(colors[i].intersect(other)).volume())).toBeLessThan(0.01);
+      }
+    }
+    const union = arena.track(wasm.Manifold.union(colors));
+    expect(Math.abs(arena.track(whole.subtract(union)).volume()), "missing material").toBeLessThan(0.01);
+    expect(Math.abs(arena.track(union.subtract(whole)).volume()), "extra material").toBeLessThan(0.01);
+  } finally {
+    arena.dispose();
+  }
 });
 
 it.each(["standard", "none"] as const)("exports thick hollow walls with floor and rim colors, %s lip", async lip => {

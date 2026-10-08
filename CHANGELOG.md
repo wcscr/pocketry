@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Tilted pocket cutouts can extend above the fill surface without an error or blocked export; the opening follows the cutout's intersection with the bin. Fixed missing or extra material in colored exports of these pockets, including steep tilts and mirrored split depths.
+
 - Trace offers a confirmed New trace action on desktop, explains empty detection results, and shows persistent photo-selection errors. File selection states supported formats, the 10 MB limit, and that photos stay on your device.
 
 - Adding traced tools now requires an explicit Fixed depth, To Floor, or Through choice for each tool. To Floor respects the destination bin’s base style. Depth choices survive queued-tool recovery without changing bin height automatically.

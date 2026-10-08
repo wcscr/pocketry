@@ -69,10 +69,17 @@ or their creation reference. If neither contains a finite depth, the current fil
 height supplies a finite default, frozen on migration. Linked copies, split seats,
 Undo and later bin resizing retain that recovered depth.
 
-If the rotated underside itself reaches the bin surface and prevents a complete
-opening, the preview explains how to correct the height or tilt and export is
-blocked. A taller bin is required for some placements previously made to appear
-valid by flattening the seat.
+The source and its rotated underside may extend above the fill surface. The
+opening follows the cavity's intersection with the bin, even when only part of
+the object's footprint reaches the surface. This is valid in both the preview
+and export; the seat keeps its authored slope. Wall, stacking-rim and minimum-floor
+checks still apply.
+
+At partial openings, floor colors use a separately cleaned, translated mask
+without simplifying the pocket cutter. The cavity is removed from that mask
+before clipping the color band to the bin. Export collapses the band's coplanar
+seams before Float32 conversion so thin surface intersections retain their
+geometry. Fully contained pockets keep their existing color construction.
 
 Full exact geometry remains in workers. Selection and Move/Rotate outlines use
 lightweight source wires without rounded mesh edges; rounding remains visible in
@@ -86,7 +93,11 @@ actual rotated source at preview and export quality, including compound tilt,
 mirroring, holes, split seats, horizontal and inverted poses. They also check
 continuous translated-object clearance in both directions, fully submerged
 compound and inverted objects, full projections and finite disabled cavities.
-Worker regressions verify closed colored STL/3MF exports for submerged pockets.
+Worker regressions verify closed colored STL/3MF exports for submerged pockets
+and seats crossing the fill surface, including rounded edges, stacking lips,
+lowered fill and split depths. Steep, compound, inverted and mirrored split
+regressions read the serialized 3MF back into solids and check for overlaps,
+missing material and extra material against the whole-bin mesh.
 Minimum-floor regressions lower, raise and lower the same pocket while
 checking source preservation, independent split limits and save/history/reference
 round trips. Worker tests check closed, nondegenerate STL/3MF meshes and floor-color

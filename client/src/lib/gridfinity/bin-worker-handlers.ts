@@ -185,8 +185,16 @@ export function createBinWorkerHandlers(
         displayed = preparePrintableSolid(kernel, displayed);
         if (displayedMaterialParts) {
           const floorRegions = materialParts!.floorRegions.map(part => preparePrintableSolid(kernel, part));
-          const pocketFloors = displayedMaterialParts.pocketFloors
-            ? preparePrintableSolid(kernel, displayedMaterialParts.pocketFloors) : null;
+          let pocketFloors = displayedMaterialParts.pocketFloors;
+          if (pocketFloors && materialParts!.hasPartialOpening) {
+            // Remove tiny facets before merging coplanar faces, then collapse
+            // the merged seams. Both steps precede Float32 rounding: rebuilding
+            // a rounded thin band first can add or lose wedges at the surface.
+            const simplified = arena.track(pocketFloors.simplify(0.0001));
+            const unified = arena.track(simplified.asOriginal());
+            pocketFloors = arena.track(unified.simplify(0.0001));
+          }
+          if (pocketFloors) pocketFloors = preparePrintableSolid(kernel, pocketFloors);
           const stackingRim = displayedMaterialParts.stackingRim
             ? preparePrintableSolid(kernel, displayedMaterialParts.stackingRim) : null;
           // Subtract full insert regions in export precision. Re-subtracting an
@@ -196,8 +204,12 @@ export function createBinWorkerHandlers(
           const printableBody = textParts.length
             ? preparePrintableSolid(kernel, displayedPart(binSolid))
             : displayed;
+          // Merge coplanar partition seams before Float32 conversion; a sloped
+          // floor meeting the fill can otherwise leave duplicate body edges.
           const body = bodyCutters.length > 0
-            ? preparePrintableSolid(kernel, arena.track(kernel.Manifold.difference([printableBody, ...bodyCutters])))
+            ? preparePrintableSolid(kernel, arena.track(
+                arena.track(kernel.Manifold.difference([printableBody, ...bodyCutters])).asOriginal(),
+              ))
             : printableBody;
           displayedMaterialParts = { body, pocketFloors, stackingRim };
         }
