@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- New project offers to save an unnamed draft before starting over. Newer-version and unreadable library entries stay visible and included in backups, with unsupported editing actions disabled.
+
 - Project saves reject stale edits from another tab. Storage failures stay visible above the Bin canvas with a backup download action, and library read errors no longer appear as an empty library.
 
 - Trace Select no longer changes contours. Undo and Redo work after toolbar clicks; replacing a ruler keeps the accepted scale until confirmation, and region resets or redraws warn before discarding edits.

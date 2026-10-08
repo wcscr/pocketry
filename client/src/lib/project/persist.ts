@@ -15,6 +15,7 @@ import {
 
 import {
   parseProjectDoc,
+  PROJECT_SCHEMA_VERSION,
   projectDocSchema,
   serializeProjectDoc,
   type ProjectDoc,
@@ -69,6 +70,8 @@ export interface ProjectLibraryItem {
   id: string;
   name: string;
   updatedAt: string;
+  /** Keep unsupported documents visible and backed up without editing them. */
+  unavailable?: "newer-version" | "unreadable";
 }
 
 export interface ProjectLibrarySnapshot {
@@ -139,9 +142,15 @@ function readStoredLibrary(raw: unknown): StoredProjectLibrary {
 function toSnapshot(library: StoredProjectLibrary): ProjectLibrarySnapshot {
   return {
     activeProjectId: library.activeProjectId,
-    projects: library.projects
-      .filter((project) => parseProjectDoc(project.doc) !== null)
-      .map(({ id, name, updatedAt }) => ({ id, name, updatedAt })),
+    projects: library.projects.map(({ id, name, updatedAt, doc }) => ({
+      id,
+      name,
+      updatedAt,
+      ...(parseProjectDoc(doc) ? {} : {
+        unavailable: typeof doc.schemaVersion === "number" && doc.schemaVersion > PROJECT_SCHEMA_VERSION
+          ? "newer-version" as const : "unreadable" as const,
+      }),
+    })),
   };
 }
 
@@ -531,10 +540,24 @@ export async function deleteProjectFromLibrary(
   });
 }
 
-/** Replaces the working copy and detaches it from any named library project. */
-export async function startNewProject(doc: ProjectDoc): Promise<ProjectLibrarySnapshot> {
+/** Replaces the working copy. Optionally save an unnamed draft to the library
+ * in the same transaction: failure must leave the draft open and intact. */
+export async function startNewProject(doc: ProjectDoc, saveDraft?: { doc: ProjectDoc; name: string }): Promise<ProjectLibrarySnapshot> {
   return mutateLibrary(async (library, tx) => {
-    const next = { ...library, activeProjectId: null };
+    const projects = [...library.projects];
+    if (saveDraft) {
+      if (library.activeProjectId) throw new Error("The current project changed. Keep it open and try again.");
+      const name = cleanProjectName(saveDraft.name);
+      if (projects.some(project => project.name.localeCompare(name, undefined, { sensitivity: "accent" }) === 0)) {
+        throw new ProjectNameConflictError(name);
+      }
+      const draft = parseProjectDoc(saveDraft.doc);
+      if (!draft) throw new Error("The draft could not be saved. Keep it open and download a backup.");
+      let id = makeProjectId();
+      while (projects.some(project => project.id === id)) id = makeProjectId();
+      projects.push({ id, name, updatedAt: new Date().toISOString(), doc: { ...draft, name } });
+    }
+    const next = { ...library, activeProjectId: null, projects };
     tx.setMany([[CURRENT_PROJECT_KEY, doc], [PROJECT_LIBRARY_KEY, next]]);
     return toSnapshot(next);
   });

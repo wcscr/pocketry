@@ -142,6 +142,14 @@ saved work. Storage errors keep the same backup action visible even when the
 controls are closed. A failed library read is shown as an error, not an empty
 library.
 
+**New project** offers to save an unnamed draft with a name before starting over.
+Saving the draft and starting the empty project succeed together; a storage or
+name-conflict error keeps your draft open. Discarding the draft is a separate,
+explicit choice. Named projects save their latest changes before starting new.
+Projects saved by a newer version, or ones this version cannot read, remain
+visible in the library and included in **Export library** backups. Their Open,
+Rename, and Copy actions stay disabled to preserve the saved document.
+
 ![Top-down Bin layout with pockets for the air duster, adapters, angled nozzle, and USB cable, plus finger access](docs/images/bin-layout.jpg)
 
 ### 3. Check tool shapes and sizes

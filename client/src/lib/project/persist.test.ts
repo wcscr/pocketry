@@ -58,6 +58,55 @@ afterEach(() => {
 });
 
 describe("current project persistence", () => {
+  it("saves an unnamed draft and starts an empty project atomically, preserving history and materials", async () => {
+    const initial = { spec: DOC.spec, cutouts: [], fingerHoles: [] };
+    const edited = { spec: WIDE_DOC.spec, cutouts: [], fingerHoles: [] };
+    const draft = { ...WIDE_DOC, materials: { ...DEFAULT_BIN_MATERIALS, binColor: "#123456" },
+      history: { stack: [{ doc: initial, label: "Start" }, { doc: edited, label: "Resize" }], index: 1 } };
+    await startNewProject(draft);
+    vi.mocked(setMany).mockClear();
+    const library = await startNewProject(DOC, { doc: draft, name: "  Saved draft  " });
+    expect(setMany).toHaveBeenCalledOnce();
+    expect(library.activeProjectId).toBeNull();
+    expect(await loadProjectDoc()).toEqual(DOC);
+    expect((await openProjectFromLibrary(library.projects[0].id)).doc).toEqual({ ...draft, name: "Saved draft" });
+  });
+
+  it("keeps the draft and library intact when save-and-new fails, then retries without duplicates", async () => {
+    await startNewProject(WIDE_DOC);
+    const before = structuredClone([...memory]);
+    vi.mocked(setMany).mockRejectedValueOnce(new Error("Storage is full"));
+    await expect(startNewProject(DOC, { doc: WIDE_DOC, name: "Draft" })).rejects.toThrow("Storage is full");
+    expect([...memory]).toEqual(before);
+    const saved = await startNewProject(DOC, { doc: WIDE_DOC, name: "Draft" });
+    expect(saved.projects).toHaveLength(1);
+  });
+
+  it("never overwrites a same-name library entry when saving a draft before starting new", async () => {
+    await saveProjectToLibrary(DOC, "Tools", null);
+    await startNewProject(WIDE_DOC);
+    const before = structuredClone([...memory]);
+    await expect(startNewProject(DOC, { doc: WIDE_DOC, name: "tools" })).rejects.toThrow("already exists");
+    expect([...memory]).toEqual(before);
+  });
+
+  it("shows unsupported library entries without changing or opening them", async () => {
+    const entries = [
+      { id: "future", name: "Future", updatedAt: "2026-10-08T00:00:00Z", doc: { schemaVersion: 999, valuable: [1, 2] } },
+      { id: "broken", name: "Unreadable", updatedAt: "2026-10-08T00:00:00Z", doc: { schemaVersion: PROJECT_SCHEMA_VERSION } },
+    ];
+    memory.set("tooltrace:project-library:v1", { schemaVersion: 1, activeProjectId: "future", projects: entries });
+    await loadProjectDoc();
+    const before = structuredClone([...memory]);
+    expect(await loadProjectLibrary()).toEqual({ activeProjectId: null, projects: [
+      { id: "future", name: "Future", updatedAt: entries[0].updatedAt, unavailable: "newer-version" },
+      { id: "broken", name: "Unreadable", updatedAt: entries[1].updatedAt, unavailable: "unreadable" },
+    ] });
+    await expect(openProjectFromLibrary("future")).rejects.toThrow("unsupported");
+    await expect(openProjectFromLibrary("broken")).rejects.toThrow("unsupported");
+    expect([...memory]).toEqual(before);
+  });
+
   it.each([false, true])("rejects a stale tab's autosave and project actions (named: %s)", async named => {
     const saved = named ? await saveProjectToLibrary(DOC, "Tools", null) : await startNewProject(DOC);
     vi.resetModules();
@@ -640,7 +689,8 @@ describe("named project library", () => {
       ],
     });
 
-    expect((await loadProjectLibrary()).projects).toEqual([]);
+    expect((await loadProjectLibrary()).projects).toEqual([{ id: "future-project", name: "Future project",
+      updatedAt: "2026-09-04T18:30:17.089Z", unavailable: "newer-version" }]);
     await loadProjectDoc();
     await saveProjectToLibrary(DOC, "Current project", null);
     const stored = memory.get("tooltrace:project-library:v1") as {

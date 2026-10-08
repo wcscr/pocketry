@@ -267,11 +267,20 @@ function BinDesignerWorkspace(): JSX.Element {
       } else {
         dispatch({ type: "MARK_HYDRATED" });
       }
-    }).catch(cause => {
+    }).catch(async cause => {
       if (cancelled) return;
       setProjectRestoreFailed(true);
       setSaveStatus("error");
       setSaveError(cause instanceof Error ? cause.message : "The saved project could not be read. Reload to retry; stored work has been kept intact.");
+      // Keep the saved library available for backup even when the working copy
+      // cannot be opened. Never hydrate or autosave the empty fallback design.
+      try {
+        const saved = await loadProjectLibrary();
+        if (!cancelled) setProjectLibrary({ ...saved, activeProjectId: null });
+      } catch (error) {
+        if (!cancelled) setProjectLibraryError(error instanceof Error ? error.message : "The browser library could not be read.");
+      }
+      if (!cancelled) setProjectLibraryReady(true);
     });
     return () => {
       cancelled = true;
@@ -551,7 +560,7 @@ function BinDesignerWorkspace(): JSX.Element {
   const handleExportLibrary = useCallback(async () => {
     setProjectBusy(true);
     try {
-      const backup = await exportProjectLibrary(currentProjectDoc);
+      const backup = await exportProjectLibrary(bin.hydrated ? currentProjectDoc : undefined);
       downloadBlob(
         new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" }),
         `pocketry-library-${new Date().toISOString().replace(/[:.]/g, "-")}.json`,
@@ -562,7 +571,7 @@ function BinDesignerWorkspace(): JSX.Element {
     } finally {
       setProjectBusy(false);
     }
-  }, [currentProjectDoc, toast]);
+  }, [currentProjectDoc, bin.hydrated, toast]);
 
   const handleImportLibrary = useCallback(async (file: File, mode: LibraryImportMode): Promise<boolean> => {
     setProjectBusy(true);
@@ -643,7 +652,7 @@ function BinDesignerWorkspace(): JSX.Element {
     [library, dispatch, saveBeforeReplacingProject, toast],
   );
 
-  const handleNewProject = useCallback(async () => {
+  const handleNewProject = useCallback(async (saveDraftName?: string): Promise<boolean> => {
     const doc: ProjectDoc = {
       schemaVersion: PROJECT_SCHEMA_VERSION,
       shapes: [],
@@ -654,7 +663,8 @@ function BinDesignerWorkspace(): JSX.Element {
     setProjectBusy(true);
     try {
       await saveBeforeReplacingProject();
-      const saved = await startNewProject(doc);
+      const saved = saveDraftName === undefined ? await startNewProject(doc)
+        : await startNewProject(doc, { doc: currentProjectDoc, name: saveDraftName });
       setDraftName(null);
       setKeepBinSize(false);
       setMaterials(DEFAULT_BIN_MATERIALS);
@@ -672,18 +682,20 @@ function BinDesignerWorkspace(): JSX.Element {
       setProjectRestoreFailed(false);
       toast({
         title: "New project ready",
-        description: "Ready for a new design.",
+        description: saveDraftName === undefined ? "Ready for a new design." : `Your draft was saved as “${saveDraftName.trim()}” in this browser’s library.`,
       });
+      return true;
     } catch (cause) {
       toast({
         title: "Could not start project",
         description: cause instanceof Error ? cause.message : String(cause),
         variant: "destructive",
       });
+      return false;
     } finally {
       setProjectBusy(false);
     }
-  }, [library, dispatch, saveBeforeReplacingProject, toast]);
+  }, [library, dispatch, saveBeforeReplacingProject, currentProjectDoc, toast]);
 
   const handleSaveProject = useCallback(async (name: string): Promise<boolean> => {
     setProjectBusy(true);
@@ -1164,7 +1176,7 @@ function BinDesignerWorkspace(): JSX.Element {
           onRefreshProjects={handleRefreshProjects}
           onExportLibrary={() => void handleExportLibrary()}
           onImportLibrary={handleImportLibrary}
-          onNewProject={() => void handleNewProject()}
+          onNewProject={handleNewProject}
           section={section}
           onSectionChange={setSection}
           colorPocketFloors={colorPocketFloors}

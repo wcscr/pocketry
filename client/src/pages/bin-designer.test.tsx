@@ -413,7 +413,92 @@ describe("BinDesignerPage", () => {
       expect(container.querySelector('[data-testid="bin-save-error"]')?.textContent).toContain("kept intact");
       expect(container.querySelector('[data-testid="bin-save-error"] button')).toBeNull();
       expect(ProjectPersistence.saveProjectDoc).not.toHaveBeenCalled();
-      expect(ProjectPersistence.loadProjectLibrary).not.toHaveBeenCalled();
+      expect(ProjectPersistence.loadProjectLibrary).toHaveBeenCalledWith();
+      openSettingsSection(container, "project");
+      expect(container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.disabled).toBe(false);
+      expect(container.querySelector<HTMLButtonElement>('[data-testid="button-new-project"]')!.disabled).toBe(true);
+    } finally { unmount(); }
+  });
+
+  it.each([
+    { layout: "standard", mobile: false }, { layout: "workflow", mobile: false },
+    { layout: "standard", mobile: true }, { layout: "workflow", mobile: true },
+  ])("offers saving a draft before starting new and retains it on failure: %o", async ({ layout, mobile }) => {
+    const originalUrl = window.location.href;
+    window.history.replaceState(null, "", `/bin?layout=${layout}`);
+    const draft = { ...EMPTY_PROJECT, spec: parseBinSpec({ ...EMPTY_PROJECT.spec, gridX: 3 }),
+      materials: { ...DEFAULT_BIN_MATERIALS, binColor: "#123456" } };
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(draft);
+    vi.mocked(ProjectPersistence.startNewProject).mockRejectedValueOnce(new Error("Storage is full"));
+    const { container, unmount } = renderPage({ mobile });
+    try {
+      await flushHydration();
+      openSettingsSection(container, "project");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-new-project"]')!.click());
+      const dialog = document.querySelector('[role="alertdialog"]')!;
+      expect(dialog.textContent).toContain("Save this draft before starting over?");
+      expect(dialog.textContent).toContain("Discard draft and start new");
+      const input = dialog.querySelector<HTMLInputElement>('[data-testid="input-new-project-draft-name"]')!;
+      const save = dialog.querySelector<HTMLButtonElement>('[data-testid="button-save-draft-start-new"]')!;
+      expect(save.disabled).toBe(true);
+      React.act(() => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "My draft");
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      await React.act(async () => save.click());
+      expect(dialog.querySelector('[role="alert"]')?.textContent).toContain("Your current work is still open");
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0].gridX).toBe(3);
+      expect(ProjectPersistence.startNewProject).toHaveBeenCalledWith(expect.objectContaining({ shapes: [] }), {
+        name: "My draft", doc: expect.objectContaining({ spec: draft.spec, materials: draft.materials }),
+      });
+      await React.act(async () => save.click());
+      expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0].gridX).toBe(2);
+    } finally { unmount(); window.history.replaceState(null, "", originalUrl); }
+  });
+
+  it("keeps newer and unreadable library entries visible, blocks editing, and retains backup access", async () => {
+    const projects: ProjectPersistence.ProjectLibraryItem[] = [
+      { id: "future", name: "Future tray", updatedAt: "2026-10-08T00:00:00Z", unavailable: "newer-version" },
+      { id: "broken", name: "Unreadable tray", updatedAt: "2026-10-08T00:00:00Z", unavailable: "unreadable" },
+    ];
+    vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId: null, projects });
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      openSettingsSection(container, "project");
+      await React.act(async () => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
+      const dialog = document.querySelector('[role="dialog"]')!;
+      expect(dialog.textContent).toContain("2 saved projects");
+      expect(dialog.textContent).toContain("Saved by a newer Pocketry version");
+      expect(dialog.textContent).toContain("could not be read by this version");
+      for (const project of projects) {
+        for (const action of ["open", "rename", "duplicate"]) {
+          expect(dialog.querySelector<HTMLButtonElement>(`[data-testid="button-${action}-project-${project.id}"]`)!.disabled).toBe(true);
+        }
+        const row = dialog.querySelector(`[data-testid="library-project-${project.id}"]`)!;
+        await React.act(async () => {
+          row.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+          row.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+        });
+      }
+      expect(ProjectPersistence.openProjectFromLibrary).not.toHaveBeenCalled();
+      expect(dialog.querySelector<HTMLButtonElement>('[data-testid="button-export-library"]')!.disabled).toBe(false);
+    } finally { unmount(); }
+  });
+
+  it("exports the intact library without an empty fallback after the working copy cannot be restored", async () => {
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockRejectedValue(new Error("Saved by a newer version"));
+    vi.mocked(ProjectPersistence.exportProjectLibrary).mockResolvedValue({ format: "pocketry-library", schemaVersion: 1, projects: [] });
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      openSettingsSection(container, "project");
+      await React.act(async () => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
+      await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-export-library"]')!.click());
+      expect(ProjectPersistence.exportProjectLibrary).toHaveBeenCalledExactlyOnceWith(undefined);
+      expect(downloadBlob).toHaveBeenCalledOnce();
+      expect(ProjectPersistence.saveProjectDoc).not.toHaveBeenCalled();
     } finally { unmount(); }
   });
 
@@ -1287,7 +1372,9 @@ describe("BinDesignerPage", () => {
       openSettingsSection(container, "project");
       const replace = async () => {
         if (action === "new") {
-          React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-new-project"]')!.click());
+          if (!document.querySelector('[role="alertdialog"]')) {
+            React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-new-project"]')!.click());
+          }
           await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-confirm-new-project"]')!.click());
         } else {
           const input = container.querySelector<HTMLInputElement>('input[type="file"][accept*=".pocketry.json"]')!;
@@ -1303,6 +1390,7 @@ describe("BinDesignerPage", () => {
       expect(replaceProject).not.toHaveBeenCalled();
       await React.act(async () => finishSave(false));
       expect(replaceProject).not.toHaveBeenCalled();
+      if (action === "new") expect(document.querySelector('[role="alertdialog"] [role="alert"]')?.textContent).toContain("Your current work is still open");
       expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toEqual(edited);
       await replace();
       expect(replaceProject).not.toHaveBeenCalled();
