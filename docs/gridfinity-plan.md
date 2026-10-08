@@ -240,7 +240,7 @@ so a failed write cannot leave the restored document attached to the wrong entry
 Opening another design, opening a project file, and New Project all save the outgoing named
 design's latest edits before changing the autosave target. A failed save keeps
 the current design open. Library import/export also lives in Manage; the main
-Project section places New project, Open project, and Export project in one
+Project section places New project, Import Project, and Export project in one
 compact action row without a separate backup section. Both library opens
 (Open, Enter, and double-click) and opening a project file share a confirmation
 before replacing a nonempty unnamed draft, with Keep working as the safe choice.

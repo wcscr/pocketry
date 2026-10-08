@@ -158,6 +158,13 @@ on one example page. The combined-bin photograph was rotated and cropped
 with ordinary pixel-processing tools, with embedded metadata removed.
 The SVGs are Pocketry layout illustrations.
 
+Editable text in the Wiha 150 mm, DeWalt, wire-stripper, mouldline-remover,
+Ryobi, and combined Bessey/Gerber projects was reconstructed from the supplied
+print photographs using the bundled fonts, with approximate sizing, placement,
+and colors. The Bessey spelling was corrected. These project updates leave
+the tool pockets and supplied 3MFs unchanged; the manifest records each photo
+reference and updated project hash.
+
 The mini socket set sample includes the supplied project, print export, and
 three photographs. Its design reuses the pre-cut shadowbox that came with
 the toolset.

@@ -7,7 +7,6 @@ import { D_WALL } from "@shared/gridfinity/standard";
 export function projectUsesExperimentalFeatures(project: ProjectDoc): boolean {
   return [project, ...(project.history?.stack.map(entry => entry.doc) ?? [])].some(doc =>
     doc.spec.wallThicknessMm !== D_WALL ||
-    doc.spec.surfaceTexts.length > 0 ||
     doc.cutouts.some(cutout => cutout.designLink || (!hasRigidPocket(cutout) && (hasPocketTilt(cutout) || (cutout.zOffsetMm ?? 0) !== 0))) ||
     doc.fingerHoles.some(hole => hole.designLink),
   );

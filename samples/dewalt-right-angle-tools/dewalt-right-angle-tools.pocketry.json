@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 19,
+  "schemaVersion": 36,
   "shapes": [
     {
       "id": "956523ba-b502-49df-9a2f-f0a8466cd09c",
@@ -864,16 +864,35 @@
     "heightUnits": 5.5,
     "lip": "standard",
     "fill": "solid",
+    "wallThicknessMm": 0.95,
+    "fillHeightPercent": 100,
+    "adjustFixedPocketDepths": true,
     "flatBottom": false,
     "magnetHoles": false,
     "magnetCrushRibs": false,
     "screwHoles": false,
-    "labelTab": null
+    "labelTab": null,
+    "textColor": "#000000",
+    "surfaceTexts": [
+      {
+        "id": "sample-dewalt-right-angle-tools-text-1",
+        "text": "Dewalt Right Angle Adapters",
+        "position": {
+          "x": 0,
+          "y": 91
+        },
+        "font": "sans-bold",
+        "sizeMm": 5.25,
+        "heightMm": 0.8,
+        "rotationDeg": 0
+      }
+    ]
   },
   "cutouts": [
     {
       "id": "cutout-956523ba-b502-49df-9a2f-f0a8466cd09c-s9dwym",
       "shapeId": "956523ba-b502-49df-9a2f-f0a8466cd09c",
+      "name": "Long right-angle adapter",
       "position": {
         "x": -22.7,
         "y": -8.3
@@ -891,12 +910,12 @@
       "cornerRoundMm": 1,
       "topFilletMm": 1,
       "bottomFilletMm": 2.8,
-      "fingerHoles": [],
-      "name": "Long right-angle adapter"
+      "fingerHoles": []
     },
     {
       "id": "cutout-208dd28b-cf8f-4577-9190-2d1307bade2c-3otld6",
       "shapeId": "98bbf9e4-b434-4d21-a8cf-0dfffe48f385",
+      "name": "Adapter handle",
       "position": {
         "x": 30.5,
         "y": -15.6
@@ -914,12 +933,12 @@
       "cornerRoundMm": 1,
       "topFilletMm": 1,
       "bottomFilletMm": 2.8,
-      "fingerHoles": [],
-      "name": "Adapter handle"
+      "fingerHoles": []
     },
     {
       "id": "cutout-00167d86-c9eb-40df-8ac5-3e65b0d40708-wu3qyh",
       "shapeId": "00167d86-c9eb-40df-8ac5-3e65b0d40708",
+      "name": "Short right-angle adapter",
       "position": {
         "x": 6.1,
         "y": -7.8
@@ -937,13 +956,13 @@
       "cornerRoundMm": 1,
       "topFilletMm": 1,
       "bottomFilletMm": 2.8,
-      "fingerHoles": [],
-      "name": "Short right-angle adapter"
+      "fingerHoles": []
     }
   ],
   "fingerHoles": [
     {
       "id": "abaada13-19b1-4859-97a5-7e1c3ac97c74",
+      "name": "Adapters and handle access",
       "center": {
         "x": 0,
         "y": -2.9
@@ -954,8 +973,7 @@
       "bottomFilletMm": 0,
       "lengthMm": 118,
       "rotationDeg": 359.5,
-      "kind": "oblong-deep-scoop",
-      "name": "Adapters and handle access"
+      "kind": "oblong-deep-scoop"
     }
   ],
   "name": "DeWalt Right-Angle Tools",

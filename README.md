@@ -256,7 +256,7 @@ are also available for shadow boards and CNC work.
 In **Project**, choose **Save this draft to Library** to name an unnamed draft.
 Named projects save changes in this browser; reopen them from **Library**.
 **Export project** downloads an editable `.pocketry.json` backup, including the
-project's colors. **Open project** restores a downloaded design to the browser
+project's colors. **Import Project** restores a downloaded design to the browser
 library. A printable STL or 3MF is separate from this editable project.
 
 The current Trace draft also saves locally, including its photo, scale, contours,
@@ -265,8 +265,10 @@ the page. Replacing the photo or choosing **Start over** replaces or clears that
 recovery copy. Keep exported project backups for designs you want to move to
 another browser or device.
 
-Optional tools such as surface text, adjustable empty-bin walls, and linked
-designs are under **App settings → Enable experimental features**. The basic
+Use **Add → Surface text** to add editable labels with built-in or supported
+system fonts. Text editing is available by default.
+
+Optional tools such as adjustable empty-bin walls and linked designs are under **App settings → Enable experimental features**. The basic
 workflow above does not require them. Opening a project keeps your preference;
 existing experimental geometry stays visible and exportable.
 

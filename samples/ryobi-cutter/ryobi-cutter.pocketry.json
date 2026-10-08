@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 19,
+  "schemaVersion": 36,
   "shapes": [
     {
       "id": "ryobi-recovered-3mf",
@@ -1133,16 +1133,35 @@
     "heightUnits": 9,
     "lip": "standard",
     "fill": "solid",
+    "wallThicknessMm": 0.95,
+    "fillHeightPercent": 100,
+    "adjustFixedPocketDepths": true,
     "flatBottom": false,
     "magnetHoles": false,
     "magnetCrushRibs": false,
     "screwHoles": false,
-    "labelTab": null
+    "labelTab": null,
+    "textColor": "#e8783d",
+    "surfaceTexts": [
+      {
+        "id": "sample-ryobi-cutter-text-1",
+        "text": "Ryobi Cutter",
+        "position": {
+          "x": 66,
+          "y": -9
+        },
+        "font": "helvetiker",
+        "sizeMm": 9.25,
+        "heightMm": 0.8,
+        "rotationDeg": 0
+      }
+    ]
   },
   "cutouts": [
     {
       "id": "ryobi-recovered-pocket",
       "shapeId": "ryobi-recovered-3mf",
+      "name": "Ryobi cutter",
       "position": {
         "x": 0,
         "y": 0
@@ -1182,8 +1201,7 @@
       "cornerRoundMm": 0,
       "topFilletMm": 1,
       "bottomFilletMm": 2.8,
-      "fingerHoles": [],
-      "name": "Ryobi cutter"
+      "fingerHoles": []
     }
   ],
   "fingerHoles": [

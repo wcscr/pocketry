@@ -310,12 +310,12 @@ describe("App", () => {
     expect(help?.textContent).toContain("Add to bin");
     expect(help?.textContent).toContain("Save surface fit test STL");
     expect(help?.textContent).toContain("Save 3MF");
-    expect(help?.textContent).toContain("Download calibration aids");
+    expect(help?.textContent).toContain("Download optional calibration aids");
     expect(help?.querySelector('[aria-label="Download a measurement aid as 3MF"]')).toBeNull();
     expect(help?.textContent).toContain("All properties");
     expect(help?.textContent).not.toContain("All settings");
     expect(help?.textContent).toContain("Save this draft to Library");
-    expect(help?.textContent).toContain("Open project");
+    expect(help?.textContent).toContain("Import Project");
   });
 
   it("fills the viewport instead of a fixed-width column", () => {

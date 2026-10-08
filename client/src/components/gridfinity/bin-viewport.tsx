@@ -80,7 +80,7 @@ export interface BinViewportProps {
   textColor?: string;
   surfaceTextEditor?: SurfaceTextEditor;
   selectedSurfaceTextId?: string | null;
-  /** Present only while experimental text editing is enabled. */
+  /** Present while a surface text label is selected. */
   onSelectSurfaceText?: (id: string) => void;
   /** The preview includes a contrasting pocket-floor material volume. */
   hasPocketFloor?: boolean;

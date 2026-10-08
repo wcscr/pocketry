@@ -36,7 +36,7 @@ export function BinEditingWorkspace({ enabled, ...props }: WorkspaceLayoutProps 
   const keepList = useRef(false);
   const keepObjectsOpen = useCallback(() => { keepList.current = true; setActiveSection(null); updateTool("properties"); }, []);
   const { selection, selectedSurfaceTextId, editorMode, viewMode } = useBin();
-  const textSelection = experimentalEnabled ? selectedSurfaceTextId : null;
+  const textSelection = selectedSurfaceTextId;
   const showSection = useCallback((id: string) => {
     setActiveSection(id); updateTool("properties");
     // Object navigation keeps the list available, including in the phone drawer.
@@ -96,8 +96,7 @@ export function SelectionInspector({ propertiesRef, transformsRef, settingsRef }
   settingsRef: (node: HTMLDivElement | null) => void;
 }): JSX.Element {
   const bin = useBin();
-  const { enabled: experimentalEnabled } = useExperimentalFeatures();
-  const selectedText = experimentalEnabled ? bin.spec.surfaceTexts.find(label => label.id === bin.selectedSurfaceTextId) : undefined;
+  const selectedText = bin.spec.surfaceTexts.find(label => label.id === bin.selectedSurfaceTextId);
   const inspector = useSelectionInspector();
   const { shapes } = useShapeLibrary();
   const objects: EditableObject[] = [...bin.cutouts.flatMap(cutout => {

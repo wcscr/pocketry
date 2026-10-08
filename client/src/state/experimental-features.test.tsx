@@ -84,7 +84,8 @@ it("defaults off, persists an explicit choice and restores it after remount", ()
   mount(); expect(state.enabled).toBe(false);
   React.act(() => state.setSettingsOpen(true));
   const toggle = document.querySelector<HTMLButtonElement>('#experimental-features')!;
-  expect(document.querySelector('#experimental-features-description')!.textContent).toContain("surface text");
+  expect(document.querySelector('#experimental-features-description')!.textContent).not.toMatch(/surface text|system fonts/);
+  expect(document.querySelector('#experimental-features-description')!.textContent).toContain("linked designs");
   expect(toggle.getAttribute("aria-checked")).toBe("false");
   React.act(() => toggle.click());
   expect(state.enabled).toBe(true); expect(localStorage.getItem(EXPERIMENTAL_FEATURES_KEY)).toBe("true");

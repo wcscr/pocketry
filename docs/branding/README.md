@@ -13,7 +13,7 @@ geometry pipeline.
   for a circular profile crop. Use this for the Pocketry X account.
 - `pocketry-icon-transparent.png`: 2048 × 2048 transparent master.
 - `pocketry-icon.pocketry.json`: editable source; open it using **Bin →
-  Project → Open project**.
+  Project → Import Project**.
 - `render-settings.json`: material colors, camera, and capture settings.
 - `../../client/public/pocketry-icon.png`: 512 × 512 transparent browser icon.
 - `../../client/public/favicon.ico`: transparent 16, 32, 48, 64, and 256 px

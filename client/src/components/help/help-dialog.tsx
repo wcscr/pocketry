@@ -131,7 +131,7 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
               to name a new design. Named projects save changes in this browser;
               reopen them from <strong>Library</strong>. <strong>Export project</strong>{" "}
               downloads an editable backup with your project colors;
-              <strong> Open project</strong> restores it to this browser’s library.
+              <strong> Import Project</strong> restores it to this browser’s library.
               Keep backups to move designs between browsers or devices.
             </p>
           </li>
@@ -149,8 +149,13 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
             <strong> Tools</strong>. App settings and Help are in <strong>More options</strong>.
           </p>
           <p>
-            <strong>Optional tools:</strong> surface text, adjustable empty-bin
-            walls, and linked designs require <strong>App settings → Enable
+            <strong>Surface text:</strong> use <strong>Add → Surface text</strong> to
+            create labels with built-in or supported system fonts. Text editing is
+            available by default.
+          </p>
+          <p>
+            <strong>Optional tools:</strong> adjustable empty-bin walls and linked
+            designs require <strong>App settings → Enable
             experimental features</strong>. The steps above work without them.
             Opening a project keeps your preference; existing experimental
             geometry stays visible and exportable.

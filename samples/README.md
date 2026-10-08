@@ -7,7 +7,9 @@ open in your slicer.
 
 [Open Pocketry](https://pocketry.xyz) · [Back to the project](../README.md)
 
-**[Download all 16 projects as one library](pocketry-sample-library.json).**
+In Pocketry, choose **Open sample projects** on Welcome or **Open sample projects or library** in Trace. In **Library**, choose **Sample Library** to open one editable sample or add all 16 projects alongside your existing library. Save or export existing work when prompted.
+
+**[Download all 16 projects as one library](pocketry-sample-library.json)** for a portable copy.
 Open the file on GitHub and choose **Download raw file**, then in Pocketry use
 **Library → Import library**. Keep **Merge with current library** selected to
 add the designs alongside your existing projects, then select a design to open it.
@@ -29,13 +31,18 @@ add the designs alongside your existing projects, then select a design to open i
 | [Klein voltage tester](klein-voltage-tester/) | <a href="klein-voltage-tester/photos/printed-bin-loaded.jpg"><img src="klein-voltage-tester/photos/printed-bin-loaded.jpg" width="150" height="46" alt="Finished klein voltage tester bin"></a> | [JSON](klein-voltage-tester/klein-voltage-tester.pocketry.json)<br>[3MF](klein-voltage-tester/klein-voltage-tester.3mf) | Compact single-tool bin |
 | [Citadel mouldline remover](mouldline-remover/) | <a href="mouldline-remover/photos/printed-bin-loaded.jpg"><img src="mouldline-remover/photos/printed-bin-loaded.jpg" width="32" height="100" alt="Finished Citadel mouldline remover bin"></a> | [JSON](mouldline-remover/mouldline-remover.pocketry.json)<br>[3MF](mouldline-remover/mouldline-remover.3mf) | Fitted tool pocket and rounded finger access |
 
+The Wiha 150 mm, DeWalt, wire-stripper, mouldline-remover, Ryobi, and combined
+Bessey/Gerber projects include editable labels reconstructed from their print
+photos. The Bessey spelling is corrected. The supplied 3MFs are unchanged;
+export the updated projects to print these labels.
+
 Check each project page for its dimensions, fit and stacking notes, and any
 recommended changes before printing.
 
 ## Using a sample
 
 1. Download a `.pocketry.json` file. On GitHub, open the file and choose **Download raw file**.
-2. Open [Pocketry](https://pocketry.xyz), switch to **Bin**, and choose **Project → Open project**.
+2. Open [Pocketry](https://pocketry.xyz), switch to **Bin**, and choose **Project → Import Project**.
 3. Select the downloaded JSON to inspect or edit the bin, pockets, depths, and finger access.
 4. To print the supplied model, download its `.3mf` and open it in your slicer at **100% scale**. Choose filament and print settings, check the layer preview, and print a fit check if adapting it to your tools.
 

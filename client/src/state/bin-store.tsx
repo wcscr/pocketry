@@ -398,13 +398,12 @@ export function binReducer(state: BinState, action: BinAction): BinState {
   const restoring = ["HYDRATE", "UNDO", "REDO", "JUMP_TO_HISTORY"].includes(action.type);
   if (!action.fieldEditToken) state = finishFieldEdit(state, restoring);
   else state = { ...state, ...getCommittedBinDoc(state) };
-  if (!state.experimentalEditing && ["LINK_DESIGNS", "UNLINK_DESIGNS", "SET_LINKED_TILT", "DUPLICATE_LINKED", "COMMIT_SURFACE_TEXT_WORDING"].includes(action.type)) {
-    return { ...state, editError: "Enable experimental tools to edit this shared design or surface text. Your change was not applied." };
+  if (!state.experimentalEditing && ["LINK_DESIGNS", "UNLINK_DESIGNS", "SET_LINKED_TILT", "DUPLICATE_LINKED"].includes(action.type)) {
+    return { ...state, editError: "Enable experimental tools to edit this shared design. Your change was not applied." };
   }
   let next = reduceBin(state, action);
-  if (!state.experimentalEditing && !restoring && (JSON.stringify(next.spec.surfaceTexts) !== JSON.stringify(state.spec.surfaceTexts)
-    || next.spec.wallThicknessMm !== state.spec.wallThicknessMm)) {
-    return { ...state, editError: "Enable experimental tools to edit surface text or wall thickness. Your change was not applied." };
+  if (!state.experimentalEditing && !restoring && next.spec.wallThicknessMm !== state.spec.wallThicknessMm) {
+    return { ...state, editError: "Enable experimental tools to edit wall thickness. Your change was not applied." };
   }
   if (!state.experimentalEditing && !restoring && changesLinkedDesign(state, next)) {
     return { ...state, editError: "Enable experimental tools to change a linked design. This change affects linked copies and was not applied." };

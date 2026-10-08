@@ -1953,7 +1953,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
 
           {/* Labels must remain visible and receive pointer events above the
               pockets/openings they may overlap while being positioned. */}
-          <SurfaceTextLayer inverseScale={inv} onSelect={onSelectSurfaceText} edgeBandColor={edgeBandColor} interactive={experimentalEnabled && editorMode === "placement" && !rulerActive && !panActive && !viewport.isSpaceHeld} />
+          <SurfaceTextLayer inverseScale={inv} onSelect={onSelectSurfaceText} edgeBandColor={edgeBandColor} interactive={editorMode === "placement" && !rulerActive && !panActive && !viewport.isSpaceHeld} />
 
           {editorMode === "contour" &&
             selected &&
@@ -2194,7 +2194,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
           onPreviewObjects: (edits, historyLabel) => dispatch({ type: "UPDATE_OBJECTS", edits, historyLabel, transient: true }) }}
         objects={arrangementObjects} selected={selectedObjects} displayed={selectedObjects} mode={objectMode} modeRequest={modeRequest} setMode={setObjectMode}
         snap={objectSnap} setSnap={setObjectSnap} pivot={objectPivot} setPivot={setObjectPivot} limited={false} onClose={() => { setObjectControlsOpen(false); toolbar?.setTool("properties"); }} />}
-      {showObjectControls && selectedSurfaceTextId && experimentalEnabled && !inspector && !isMobile && <div className="property-surface property-floating absolute left-3 top-16 z-30 max-h-[calc(100%-5rem)] w-64 max-w-[calc(100%-5rem)] overflow-y-auto rounded-xl border bg-background p-2">
+      {showObjectControls && selectedSurfaceTextId && !inspector && !isMobile && <div className="property-surface property-floating absolute left-3 top-16 z-30 max-h-[calc(100%-5rem)] w-64 max-w-[calc(100%-5rem)] overflow-y-auto rounded-xl border bg-background p-2">
         <Button variant="ghost" className="min-h-11 w-full" onClick={() => { setObjectControlsOpen(false); toolbar?.setTool("properties"); }}>Done</Button>
         <SurfaceTextTransformControls />
       </div>}
@@ -2231,7 +2231,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
             : selectedCutoutId
               ? selected && (hasProfileRotation(selected.cutout) || hasPocketTilt(selected.cutout)) ? "Pocket · drag to move · round handle rotates · edit dimensions in Depth and Size & scale"
                 : isMobile ? "Drag the pocket to move. Drag corners to resize or the round handle to rotate." : "Pocket · drag edges/corners to resize · Option resizes from center · round handle rotates"
-              : spec.surfaceTexts.length > 0 ? experimentalEnabled ? "Drag text to move · Drag the round handle to rotate · Double-click to edit wording" : "Enable experimental features in Settings to edit surface text"
+              : spec.surfaceTexts.length > 0 ? "Drag text to move · Drag the round handle to rotate · Double-click to edit wording"
               : isMobile ? "Tap a pocket to select it. Use the hand to pan and pinch to zoom." : "Click a pocket or finger access to select · Shift-drag pans · Ctrl-scroll zooms"}
       </WorkflowHint>
       )}

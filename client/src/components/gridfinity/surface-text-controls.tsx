@@ -78,7 +78,7 @@ export function SurfaceTextProperties(): JSX.Element | null {
 export function SurfaceTextTransformControls({ mode }: { mode?: "translate" | "rotate" }): JSX.Element | null {
   const bin = useBin();
   const selected = bin.spec.surfaceTexts.find(label => label.id === bin.selectedSurfaceTextId);
-  if (!selected || !bin.experimentalEditing) return null;
+  if (!selected) return null;
   const tool = mode ?? bin.textTool;
   const update = (patch: Partial<SurfaceText>, transient: boolean) => bin.dispatch({ type: "PATCH_SPEC",
     patch: { surfaceTexts: bin.spec.surfaceTexts.map(label => label.id === selected.id ? { ...label, ...patch } : label) },

@@ -34,7 +34,7 @@ include a photo with the tool removed so you can see the pockets.
 [Browse the sample projects](https://github.com/wcscr/pocketry/tree/main/samples) ·
 [Source code](https://github.com/wcscr/pocketry)
 
-To try a project, download its `.pocketry.json`, open **Bin → Open project** in
+To try a project, download its `.pocketry.json`, open **Bin → Import Project** in
 Pocketry, and select the file. The 3MFs can go straight into your slicer. Check
 the dimensions and print a fit check before committing to a full bin for your
 own tools. You can also download `pocketry-sample-library.json` to add all eight

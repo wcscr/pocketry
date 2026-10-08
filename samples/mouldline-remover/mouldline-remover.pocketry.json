@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 19,
+  "schemaVersion": 36,
   "shapes": [
     {
       "id": "5061c843-8c0c-4f3a-9356-f6094c197164",
@@ -136,16 +136,47 @@
     "heightUnits": 3.5,
     "lip": "standard",
     "fill": "solid",
+    "wallThicknessMm": 0.95,
+    "fillHeightPercent": 100,
+    "adjustFixedPocketDepths": true,
     "flatBottom": false,
     "magnetHoles": false,
     "magnetCrushRibs": false,
     "screwHoles": false,
-    "labelTab": null
+    "labelTab": null,
+    "textColor": "#e8783d",
+    "surfaceTexts": [
+      {
+        "id": "sample-mouldline-remover-text-1",
+        "text": "Mouldline",
+        "position": {
+          "x": 0,
+          "y": 75
+        },
+        "font": "helvetiker",
+        "sizeMm": 5.75,
+        "heightMm": 0.8,
+        "rotationDeg": 0
+      },
+      {
+        "id": "sample-mouldline-remover-text-2",
+        "text": "Remover",
+        "position": {
+          "x": 0,
+          "y": 67
+        },
+        "font": "helvetiker",
+        "sizeMm": 5.75,
+        "heightMm": 0.8,
+        "rotationDeg": 0
+      }
+    ]
   },
   "cutouts": [
     {
       "id": "cutout-5061c843-8c0c-4f3a-9356-f6094c197164-ysixs9",
       "shapeId": "5061c843-8c0c-4f3a-9356-f6094c197164",
+      "name": "Citadel mouldline remover",
       "position": {
         "x": 0,
         "y": -8.1
@@ -163,13 +194,13 @@
       "cornerRoundMm": 1,
       "topFilletMm": 1.8,
       "bottomFilletMm": 1,
-      "fingerHoles": [],
-      "name": "Citadel mouldline remover"
+      "fingerHoles": []
     }
   ],
   "fingerHoles": [
     {
       "id": "64528d59-2762-44b7-9a1e-e04598757008",
+      "name": "Mouldline remover grip access",
       "center": {
         "x": -0.1,
         "y": 10
@@ -181,8 +212,7 @@
       "lengthMm": 31.5,
       "rotationDeg": 359.5,
       "slotEnds": "rounded",
-      "kind": "oblong-deep-scoop",
-      "name": "Mouldline remover grip access"
+      "kind": "oblong-deep-scoop"
     }
   ],
   "name": "Citadel Mouldline Remover",

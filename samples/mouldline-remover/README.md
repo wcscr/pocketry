@@ -11,6 +11,9 @@ A fitted 17.5 mm-deep tool pocket with a rounded finger-access scoop beside the 
 
 ## Printed bin
 
+The editable project includes raised lettering approximating the printed photo.
+The supplied 3MF is unchanged; export the updated project for a model with these labels.
+
 <a href="photos/printed-bin-loaded.jpg"><img src="photos/printed-bin-loaded.jpg" width="153" alt="Citadel mouldline remover in its printed bin"></a>
 
 <a href="photos/printed-bin-pocket.jpg"><img src="photos/printed-bin-pocket.jpg" width="258" alt="Citadel mouldline remover beside its printed bin, showing the fitted pocket and finger access"></a>

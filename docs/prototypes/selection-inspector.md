@@ -44,7 +44,7 @@ history entry produce an opt-in notice. Independent placement, naming, deletion,
 and independent duplication remain available while opted out. Rejected shared
 edits leave the document and history unchanged and are not replayed after opt-in.
 
-Open `selection-inspector-demo.pocketry.json` through **Project → Open project**. It contains four pockets and two finger accesses.
+Open `selection-inspector-demo.pocketry.json` through **Project → Import Project**. It contains four pockets and two finger accesses.
 This is synthetic test data; importing uses the normal browser-local project flow.
 
 ## Interaction

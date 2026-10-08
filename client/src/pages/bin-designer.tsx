@@ -108,18 +108,17 @@ export default function BinDesignerPage(): JSX.Element {
 function BinDesignerWorkspace(): JSX.Element {
   const projectActivity = useProjectActivityActions();
   const [activityVisit, setActivityVisit] = useState(() => Symbol("Bin visit"));
-  const { inspectorEnabled: inspectorPrototype, enabled: experimentalEnabled, setEnabled: setExperimentalEnabled, setSettingsOpen } = useExperimentalFeatures();
-  const { panelOpen, setPanelOpen, libraryRequested } = usePanelState();
+  const { inspectorEnabled: inspectorPrototype, setEnabled: setExperimentalEnabled } = useExperimentalFeatures();
+  const { panelOpen, setPanelOpen, libraryRequested, sampleLibraryRequested } = usePanelState();
   const [quickAdjustOpen, setQuickAdjustOpen] = useState(false);
   const [pocketEditorRequest, setPocketEditorRequest] = useState(0);
   const [settingsSectionRequest, setSettingsSectionRequest] = useState<{ id: string; focusId?: string }>();
   useEffect(() => {
-    if (!libraryRequested) return;
+    if (!libraryRequested && !sampleLibraryRequested) return;
     setSettingsSectionRequest({ id: "bin-settings-project" });
     setPanelOpen(true);
-  }, [libraryRequested, setPanelOpen]);
+  }, [libraryRequested, sampleLibraryRequested, setPanelOpen]);
   const editMaterialColor = (target: MaterialColorTarget) => {
-    if (target === "text" && !experimentalEnabled) { setSettingsOpen(true); return; }
     setSettingsSectionRequest({ id: "bin-settings-materials", focusId: `input-${target}-color` });
     setPanelOpen(true);
   };
@@ -140,7 +139,6 @@ function BinDesignerWorkspace(): JSX.Element {
   const isMobile = useIsMobile();
   const [textPositionRequest, setTextPositionRequest] = useState(0);
   const editSurfaceText = (id: string, inline = false) => {
-    if (!experimentalEnabled) return;
     dispatch({ type: "SELECT_SURFACE_TEXT", id });
     if (!isMobile && inspectorPrototype) setPocketEditorRequest(request => request + 1);
     if (!isMobile || panelOpen) setSettingsSectionRequest({ id: "bin-settings-text" });
@@ -891,7 +889,7 @@ function BinDesignerWorkspace(): JSX.Element {
     const onKeyDown = (event: KeyboardEvent) => {
       if (viewMode === "3d" && canHandleCanvasShortcut(event)
         && !event.ctrlKey && !event.metaKey && !event.altKey && (event.key === "Delete" || event.key === "Backspace")) {
-        if (experimentalEnabled && bin.selectedSurfaceTextId) {
+        if (bin.selectedSurfaceTextId) {
           event.preventDefault();
           dispatch({ type: "PATCH_SPEC", patch: { surfaceTexts: spec.surfaceTexts.filter(label => label.id !== bin.selectedSurfaceTextId) }, historyLabel: "Remove surface text" });
           return;
@@ -917,7 +915,7 @@ function BinDesignerWorkspace(): JSX.Element {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [dispatch, experimentalEnabled, inspectorPrototype, viewMode, bin.selection, bin.selectedSurfaceTextId, bin.editorMode, spec.surfaceTexts]);
+  }, [dispatch, inspectorPrototype, viewMode, bin.selection, bin.selectedSurfaceTextId, bin.editorMode, spec.surfaceTexts]);
 
   const handleExport = useCallback(
     async (format: "3mf" | "3mf-multicolor" | "stl", includeProject: boolean) => {
@@ -1278,9 +1276,9 @@ function BinDesignerWorkspace(): JSX.Element {
               pocketFloorGeometry={pocketFloorGeometry}
               stackingRimGeometry={stackingRimGeometry}
               textGeometries={textGeometries}
-              selectedSurfaceTextId={experimentalEnabled ? bin.selectedSurfaceTextId : null}
-              onSelectSurfaceText={experimentalEnabled ? editSurfaceText : undefined}
-              surfaceTextEditor={experimentalEnabled && bin.selectedSurfaceTextId && spec.surfaceTexts.some(label => label.id === bin.selectedSurfaceTextId) ? {
+              selectedSurfaceTextId={bin.selectedSurfaceTextId}
+              onSelectSurfaceText={editSurfaceText}
+              surfaceTextEditor={bin.selectedSurfaceTextId && spec.surfaceTexts.some(label => label.id === bin.selectedSurfaceTextId) ? {
                 tool: bin.textTool, snap: bin.textSnap,
                 onToolChange: tool => dispatch({ type: "SET_TEXT_TOOL", tool }),
                 onSnapChange: snap => dispatch({ type: "SET_TEXT_SNAP", snap }),
@@ -1302,7 +1300,7 @@ function BinDesignerWorkspace(): JSX.Element {
               progress={progress}
               error={error}
               onRetryPreview={retryPreview}
-              onPositionText={experimentalEnabled && spec.surfaceTexts.length > 0 ? positionText : undefined}
+              onPositionText={spec.surfaceTexts.length > 0 ? positionText : undefined}
               fitSize={fitSize}
               measurementOutlines={measurementOutlines}
               measurementSplitBoundaries={measurementSplitBoundaries}
