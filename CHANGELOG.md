@@ -7,6 +7,9 @@
 - Project saves reject stale edits from another tab. Storage failures stay visible above the Bin canvas with a backup download action, and library read errors no longer appear as an empty library.
 
 - Trace Select no longer changes contours. Undo and Redo work after toolbar clicks; replacing a ruler keeps the accepted scale until confirmation, and region resets or redraws warn before discarding edits.
+- Added About Gridfinity with credit and links to creator Zack Freedman. Documented standalone flat-bottomed bins, laser/UV positioning jigs, and when Through pockets can save filament.
+
+- Updated the README and How to use Pocketry for the default UI, with fresh Wolfbox tracing, layout, and ruler screenshots. Shortened the sample gallery to two thumbnails, noted that the examples have been physically printed, and kept fit notes on individual project pages.
 
 - Made the desktop layout default clearer in App settings, with “Original Single Panel UI” available to switch back; retired preferences now use the screen's default layout.
 - Mobile Select, Move, and Rotate are directly available in both layouts; tool adjustments stay beside or below the canvas, with full properties opened explicitly.

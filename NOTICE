@@ -99,11 +99,21 @@ respective ownership.
 README screenshots — project-owned documentation
 ================================================================================
 
-`docs/images/trace-outline.jpg`, `docs/images/bin-layout.jpg`, and
-`docs/images/ruler-check.jpg` are unmodified copies of existing project
-screenshots, captured from Pocketry's Trace and Bin workspaces using the
-project's air-duster example photographs. These documentation images are
-distributed under Pocketry's AGPL-3.0-only licence.
+`docs/images/trace-outline.jpg` was captured on 2026-10-08 from Pocketry's
+current default Workflow + properties layout in headless Chrome at 1600 x 1000.
+It demonstrates a fresh trace of the project's original air-duster photograph.
+
+`docs/images/bin-layout.jpg` and `docs/images/ruler-check.jpg` were captured in
+the same UI after importing the exact contributor-supplied printed-bin project:
+`samples/wolfbox-mf70-airduster-kit/wolfbox-mf70-airduster-kit.pocketry.json`.
+Source SHA-256: e1fc4c5f842009b376987ae9b88140aff050f25b59fb41e5944ec13be8eeb073.
+A project exported back from the browser retained every original shape, pocket,
+finger-access setting, and bin-spec field; only current-schema defaults were
+added on import. No geometry was edited for these two screenshots.
+
+These are direct browser screenshots without generative image editing,
+distributed under Pocketry's AGPL-3.0-only licence. The existing fit-check
+slicer screenshot and printed-bin photographs are reused unchanged.
 
 ================================================================================
 Printed-bin photographs — contributor-supplied documentation

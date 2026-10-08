@@ -181,8 +181,9 @@ export default function About(): JSX.Element {
             </a>
             <p className="max-w-3xl text-base leading-7 text-muted-foreground">
               Pocketry turns tool photos into editable outlines, fit-check files,
-              shadow-board layouts, and printable Gridfinity bins. Image processing,
-              project storage, and model generation run locally in your browser.
+              shadow-board layouts, and printable bins with Gridfinity or flat
+              bottoms. Image processing, project storage, and model generation
+              run locally in your browser.
             </p>
             <p className="max-w-3xl text-base leading-7 text-muted-foreground">
               Pocketry began in March 2025 as{" "}
@@ -218,6 +219,58 @@ export default function About(): JSX.Element {
               </a>
             </Button>
           </div>
+        </section>
+
+        <section className="space-y-3" aria-labelledby="about-gridfinity-heading">
+          <h2
+            id="about-gridfinity-heading"
+            className="text-2xl font-semibold tracking-tight"
+          >
+            About Gridfinity
+          </h2>
+          <p className="max-w-3xl text-base leading-7 text-muted-foreground">
+            Gridfinity is a modular, 3D-printable storage system created by{" "}
+            <a
+              href="https://www.youtube.com/c/ZackFreedman"
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-sm underline underline-offset-4 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              Zack Freedman
+            </a>
+            . Its bins and holders fit a shared baseplate grid, so you can
+            rearrange and expand your storage as your collection grows. Pocketry
+            builds on that system by turning tool photos into custom Gridfinity bins.
+          </p>
+          <p className="max-w-3xl text-base leading-7 text-muted-foreground">
+            Pocketry also supports standalone flat-bottomed bins for use directly
+            in a drawer or on a worktop, with no Gridfinity baseplate needed.
+            Turn on <strong>Bin → Construction → Flat bottom</strong> for a smooth
+            underside without a Gridfinity base. These designs can also serve as
+            3D-printable positioning jigs for laser engraving and UV printing,
+            including eufyMake setups.
+          </p>
+          <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
+            Watch Zack&apos;s{" "}
+            <a
+              href="https://www.youtube.com/watch?v=ra_9zU-mnl8"
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-sm underline underline-offset-4 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              original Gridfinity introduction
+            </a>{" "}
+            and browse{" "}
+            <a
+              href="https://thangs.com/designer/ZackFreedman"
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-sm underline underline-offset-4 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              his original designs on Thangs
+            </a>
+            .
+          </p>
         </section>
 
         <section className="grid gap-4 md:grid-cols-2">
