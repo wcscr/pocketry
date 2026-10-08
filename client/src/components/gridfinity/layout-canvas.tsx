@@ -1658,6 +1658,42 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
     return { handles, actualHandles, cursors, center, top, rotate };
   }, [selected, spec, inv, touchControls]);
 
+  const rulerButton = (
+    <Button
+      variant="ghost"
+      size="icon"
+      className={cn(
+        isMobile ? "h-11 w-11 shrink-0" : "h-11 w-11 md:h-9 md:w-9 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11 rounded-none",
+        rulerActive && "bg-accent text-accent-foreground",
+      )}
+      aria-label={
+        hasPlacedCutouts
+          ? rulerActive
+            ? "Stop measuring"
+            : "Measure between contours"
+          : "Add a tool cutout before measuring"
+      }
+      aria-pressed={rulerActive}
+      title={
+        hasPlacedCutouts
+          ? "Ruler: measure between points on contours or split lines"
+          : "Add a tool cutout before measuring"
+      }
+      disabled={panActive || !hasPlacedCutouts}
+      onClick={() => {
+        const next = !rulerActive;
+        setRulerActive(next);
+        setMeasurementPoints([]);
+        if (next && editorMode !== "placement") {
+          dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" });
+        }
+      }}
+      data-testid="button-layout-ruler"
+    >
+      <Ruler className="h-4 w-4" />
+    </Button>
+  );
+
   return (
     <>
       <svg
@@ -2060,7 +2096,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
         <AddPocketMenu label="Add" includeFingerAccess />
       </div>}
 
-      <div
+      {(!isMobile || !inspector && !toolbar) && <div
         className="absolute right-3 top-16 md:top-12 [@media(pointer:coarse)]:top-16 z-30 flex max-h-[calc(100%-5rem)] flex-col overflow-y-auto rounded-md md:max-h-[calc(100%-4rem)] [@media(pointer:coarse)]:max-h-[calc(100%-5rem)] [&>button]:shrink-0 border bg-background/90 shadow-sm backdrop-blur"
         data-testid="layout-tool-toolbar"
       >
@@ -2068,40 +2104,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
           onClick={() => { setPanActive(active => !active); setRulerActive(false); }}><Hand className="h-4 w-4" /></Button>
         <Button variant="ghost" size="icon" className="h-11 w-11 rounded-none border-b md:h-9 md:w-9 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11" aria-label="Fit layout to screen"
           onClick={viewport.fit}><Maximize2 className="h-4 w-4" /></Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className={cn(
-            "h-11 w-11 md:h-9 md:w-9 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11 rounded-none",
-            rulerActive && "bg-accent text-accent-foreground",
-          )}
-          aria-label={
-            hasPlacedCutouts
-              ? rulerActive
-                ? "Stop measuring"
-                : "Measure between contours"
-              : "Add a tool cutout before measuring"
-          }
-          aria-pressed={rulerActive}
-          title={
-            hasPlacedCutouts
-              ? "Ruler: measure between points on contours or split lines"
-              : "Add a tool cutout before measuring"
-          }
-          disabled={panActive || !hasPlacedCutouts}
-          onClick={() => {
-            const next = !rulerActive;
-            setRulerActive(next);
-            setMeasurementPoints([]);
-            if (next && editorMode !== "placement") {
-              dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" });
-            }
-          }}
-          data-testid="button-layout-ruler"
-        >
-          <Ruler className="h-4 w-4" />
-        </Button>
-        {(inspector || toolbar) && <SelectionToolButtons count={selection.length} inactive={rulerActive} panning={panActive} onActivate={() => { setPanActive(false); setRulerActive(false); dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" }); }} />}
+        {rulerButton}
         {!inspector && !isMobile && <Button variant="ghost" size="icon"
           className={cn("h-11 w-11 rounded-none border-t md:h-9 md:w-9 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11", objectControlsOpen && !rulerActive && !panActive && "bg-accent text-accent-foreground")}
           aria-label="Object controls" title="Move, rotate and arrange objects" disabled={panActive} aria-expanded={objectControlsOpen && !rulerActive && !panActive}
@@ -2138,7 +2141,16 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
             <X className="h-4 w-4" />
           </Button>
         ) : null}
-      </div>
+      </div>}
+      {(inspector || toolbar) && <SelectionToolButtons count={selection.length} inactive={rulerActive} panning={panActive} onActivate={() => { setPanActive(false); setRulerActive(false); dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" }); }} ruler={rulerButton}
+        navigation={[
+          { label: panActive ? "Stop panning" : "Pan layout", onSelect: () => { setPanActive(active => !active); setRulerActive(false); } },
+          { label: "Fit layout to screen", onSelect: viewport.fit },
+          ...(selected && (editorMode === "placement" || editorMode === "contour") ? [{ label: editorMode === "contour" ? "Finish contour editing" : "Edit contour", testId: "button-layout-edit-contour",
+            disabled: panActive || !!selected.cutout.profileBottom || hasPocketTilt(selected.cutout),
+            onSelect: () => { setRulerActive(false); setMeasurementPoints([]); dispatch({ type: "SET_EDITOR_MODE", editorMode: editorMode === "contour" ? "placement" : "contour" }); } }] : []),
+          ...(measurementPoints.length ? [{ label: "Clear measurement", testId: "button-clear-layout-measurement", onSelect: () => setMeasurementPoints([]) }] : []),
+        ]} />}
 
       {basicPocket.kind && <div className="absolute left-3 right-14 top-16 md:top-12 [@media(pointer:coarse)]:top-16 [@media(pointer:coarse)]:right-16 z-20 flex items-center gap-2 rounded border bg-background/95 px-3 py-2 text-xs shadow-sm">
         <p className="flex-1" role="status">{basicPocket.draft

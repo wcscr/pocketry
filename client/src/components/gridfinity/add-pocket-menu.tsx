@@ -12,8 +12,8 @@ import { useExperimentalFeatures } from "@/state/experimental-features";
 import { useAddFingerAccess } from "./use-add-finger-access";
 
 /** Pocket picker with optional object actions for the compact toolbar. */
-export function AddPocketMenu({ label = "Add pocket", className, onStart, testId = "button-add-pocket", includeFingerAccess = false }: {
-  label?: string; className?: string; onStart?: () => void; testId?: string; includeFingerAccess?: boolean;
+export function AddPocketMenu({ label = "Add pocket", className, onStart, testId = "button-add-pocket", includeFingerAccess = false, iconOnly = false }: {
+  label?: string; className?: string; onStart?: () => void; testId?: string; includeFingerAccess?: boolean; iconOnly?: boolean;
 }): JSX.Element {
   const { spec, dispatch } = useBin();
   const { enabled: experimentalEnabled } = useExperimentalFeatures();
@@ -31,8 +31,8 @@ export function AddPocketMenu({ label = "Add pocket", className, onStart, testId
   };
   return <><DropdownMenu>
     <DropdownMenuTrigger asChild>
-      <AddObjectButton className={className} data-testid={testId}>
-        {label}{includeFingerAccess && <ChevronDown className="h-4 w-4" aria-hidden />}
+      <AddObjectButton className={className} data-testid={testId} title={label}>
+        <span className={iconOnly ? "sr-only" : undefined}>{label}</span>{includeFingerAccess && !iconOnly && <ChevronDown className="h-4 w-4" aria-hidden />}
       </AddObjectButton>
     </DropdownMenuTrigger>
     <DropdownMenuContent align="start">
