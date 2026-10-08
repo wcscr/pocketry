@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Library rows are more compact, with name search, an action menu per design, and collapsible storage settings.
+
+- Added optional connected library folders in supported browsers, with automatic filesystem saves, retained recovery revisions, permission renewal, and explicit recovery of concurrent edits. Unreadable projects stay visible and exportable.
+
 - Trace offers a confirmed New trace action on desktop, explains empty detection results, and shows persistent photo-selection errors. File selection states supported formats, the 10 MB limit, and that photos stay on your device.
 
 - Adding traced tools now requires an explicit Fixed depth, To Floor, or Through choice for each tool. To Floor respects the destination bin’s base style. Depth choices survive queued-tool recovery without changing bin height automatically.

@@ -1,4 +1,7 @@
 import { surfaceTextZ } from "@/lib/gridfinity/surface-text";
+import { LibraryFolderControls, useLibraryFolderStatus } from "@/components/gridfinity/library-folder-controls";
+import { getFolderStatus, pickLibraryFolder } from "@/lib/project/folder-library";
+import { connectLibraryFolder, disconnectLibraryFolder, exportBrowserLibraryRecovery, folderRecoverySnapshot, reconnectLibraryFolder, resolveLibraryFolderConflict } from "@/lib/project/persist";
 import { DEFAULT_BIN_MATERIALS, type BinMaterials } from "@shared/gridfinity/materials";
 import { hasRigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { SelectionLinkControls } from "@/components/gridfinity/linked-design-controls";
@@ -235,15 +238,15 @@ function BinDesignerWorkspace(): JSX.Element {
         saved = await loadProjectLibrary(doc);
       } catch (cause) {
         if (cancelled) return;
+        // Keep readable originals visible while pausing the stale editor.
         saved = await loadProjectLibrary().catch(error => {
-          if (!cancelled) setProjectLibraryError(error instanceof Error ? error.message : "The browser library could not be read.");
-          return EMPTY_PROJECT_LIBRARY;
+          if (!cancelled) setProjectLibraryError(error instanceof Error ? error.message : "The library could not be read.");
+          return folderRecoverySnapshot();
         });
-        // A failed restore must never bind this older in-memory document to
-        // another tab's current autosave target.
         saved = { ...saved, activeProjectId: null };
         if (cancelled) return;
         setProjectRestoreFailed(true);
+        setProjectLibraryError(cause instanceof Error ? cause.message : String(cause));
         setSaveStatus("error");
         setSaveError(cause instanceof Error ? cause.message : "The saved project could not be recovered. Keep this page open and download a backup.");
         toast({ title: "Could not restore project to library",
@@ -303,6 +306,7 @@ function BinDesignerWorkspace(): JSX.Element {
       )?.name ?? draftName,
     [projectLibrary, draftName],
   );
+  const folderStatus = useLibraryFolderStatus();
 
   // Autosave everything the doc covers, debounced; suppressed until
   // hydration so the empty default never overwrites a real project.
@@ -722,7 +726,7 @@ function BinDesignerWorkspace(): JSX.Element {
       setProjectRestoreFailed(false);
       toast({
         title: "Project saved",
-        description: "It will keep updating automatically in this browser’s library.",
+        description: folderStatus.folderName ? `It will keep updating automatically in ${folderStatus.folderName}.` : "It will keep updating automatically in this browser’s library.",
       });
       return true;
     } catch (cause) {
@@ -735,7 +739,7 @@ function BinDesignerWorkspace(): JSX.Element {
     } finally {
       setProjectBusy(false);
     }
-  }, [currentProjectDoc, projectLibrary.activeProjectId, saveProject, toast]);
+  }, [currentProjectDoc, projectLibrary.activeProjectId, saveProject, toast, folderStatus.folderName]);
 
   const handleDuplicateProject = useCallback(async (projectId: string): Promise<string | null> => {
     setProjectBusy(true);
@@ -850,6 +854,45 @@ function BinDesignerWorkspace(): JSX.Element {
       setProjectLibraryError(null);
     }).catch(cause => setProjectLibraryError(cause instanceof Error ? cause.message : "The browser library could not be read. Try again."));
   }, []);
+
+  const handleFolderAction = async (action: "connect" | "reconnect" | "resolve" | "disconnect", copyBrowser = false) => {
+    setProjectBusy(true);
+    saveProject.cancel();
+    try {
+      let saved: ProjectLibrarySnapshot;
+      // Native pickers/permission prompts run before any other async work so
+      // the original click gesture still authorizes the browser prompt.
+      if (action === "connect") {
+        const root = await pickLibraryFolder();
+        if (!await saveProjectDoc(currentProjectDoc, projectLibrary.activeProjectId)) throw new Error("Could not save the current project before connecting. Export it to keep your work.");
+        saved = await connectLibraryFolder(root, copyBrowser, currentProjectDoc);
+      } else if (action === "reconnect") saved = await reconnectLibraryFolder();
+      else if (action === "resolve") saved = await resolveLibraryFolderConflict(currentProjectDoc);
+      else saved = await disconnectLibraryFolder(currentProjectDoc);
+      setProjectLibrary(saved);
+      setProjectLibraryError(null);
+      if (action !== "reconnect") setDraftName(null);
+      setProjectRestoreFailed(false);
+      setSaveError(null);
+      setSaveStatus(action === "reconnect" ? "saving" : "saved");
+    } catch (cause) {
+      if (cause instanceof Error && cause.name === "AbortError") return;
+      setSaveStatus("error");
+      if (getFolderStatus().folderName) {
+        setProjectRestoreFailed(true);
+        setProjectLibraryError(cause instanceof Error ? cause.message : String(cause));
+        setProjectLibrary(folderRecoverySnapshot());
+      }
+      toast({ title: "Library folder needs attention", description: cause instanceof Error ? cause.message : String(cause), variant: "destructive" });
+    } finally { setProjectBusy(false); }
+  };
+
+  useEffect(() => {
+    if (!folderStatus.folderName) return;
+    const refresh = () => { void loadProjectLibrary().then(saved => setProjectLibrary(current => ({ ...saved, activeProjectId: current.activeProjectId }))).catch(() => setSaveStatus("error")); };
+    window.addEventListener("focus", refresh);
+    return () => window.removeEventListener("focus", refresh);
+  }, [folderStatus.folderName]);
 
   // Cmd/Ctrl+Z undoes, Shift+Cmd/Ctrl+Z (or Ctrl+Y) redoes — guarded against
   // text inputs so the shortcuts don't eat form editing.
@@ -1177,6 +1220,16 @@ function BinDesignerWorkspace(): JSX.Element {
           onExportProject={handleExportProject}
           onImportProject={handleImportProject}
           projectLibraryReady={projectLibraryReady}
+          libraryFolderControls={<><LibraryFolderControls busy={projectBusy}
+            onConnect={copy => void handleFolderAction("connect", copy)}
+            onReconnect={() => void handleFolderAction("reconnect")}
+            onKeepBoth={() => void handleFolderAction("resolve")}
+            onDisconnect={() => void handleFolderAction("disconnect")}
+            onExportProject={handleExportProject} />
+            {projectLibraryError && !folderStatus.folderName && <Button variant="outline" size="sm" onClick={() => {
+              void exportBrowserLibraryRecovery().then(raw => downloadBlob(new Blob([JSON.stringify(raw, null, 2)], { type: "application/json" }), "pocketry-browser-recovery.json"))
+                .catch(cause => toast({ title: "Could not export recovery data", description: String(cause), variant: "destructive" }));
+            }}>Export recovery data</Button>}</>}
           projectBusy={projectBusy}
           activeProjectId={projectLibrary.activeProjectId}
           currentProjectName={currentProjectName}

@@ -30,3 +30,17 @@ export const libraryBackupSchema = z.object({
 export type StoredProject = z.infer<typeof storedProjectSchema>;
 export type StoredProjectLibrary = z.infer<typeof projectLibrarySchema>;
 export type LibraryBackup = z.infer<typeof libraryBackupSchema>;
+
+/** Immutable folder revisions form a DAG; concurrent heads require recovery. */
+export const folderRevisionSchema = z.object({
+  format: z.literal("pocketry-folder-revision"),
+  schemaVersion: z.literal(1),
+  id: z.string().uuid(),
+  parents: z.array(z.string().uuid()),
+  projects: z.array(storedProjectSchema).refine(
+    projects => new Set(projects.map(project => project.id)).size === projects.length,
+    "Duplicate project identities",
+  ),
+}).strict();
+
+export type FolderRevision = z.infer<typeof folderRevisionSchema>;
