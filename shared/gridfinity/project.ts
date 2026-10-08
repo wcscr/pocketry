@@ -65,9 +65,10 @@ export { serializeProjectDoc } from "./project-font-sources";
  * Version 34 retains unclipped source depth for rigid minimum-floor pockets.
  * Version 35 retains finite through-pocket objects during rigid movement.
  * Version 36 saves each project's colors and material-region settings.
+ * Version 37 combines main and lid-preview formats (v18-v27), preserving lid settings and history.
  */
 
-export const PROJECT_SCHEMA_VERSION = 36 as const;
+export const PROJECT_SCHEMA_VERSION = 37 as const;
 
 const projectFields = {
   shapes: z.array(tracedShapeSchema),
@@ -274,11 +275,67 @@ function migrateLegacyProject(doc: LegacyProjectDoc): ProjectDoc {
  * an empty designer beats crashing the workspace.
  */
 export function parseProjectDoc(input: unknown): ProjectDoc | null {
+  // Validate first: migrating both snapshots must not conceal an inconsistent
+  // saved design/history pair or turn an unknown interface into valid data.
+  const doc = parseVersionedProject(input);
+  if (!doc) return null;
+  const migrateInterface = (spec: BinSpec): BinSpec =>
+    spec.lidInterface === "side-springs" || spec.lidInterface === "spring-latch"
+      ? { ...spec, lidInterface: "ribs" }
+      : spec;
+  return {
+    ...doc,
+    spec: migrateInterface(doc.spec),
+    ...(doc.transformOrigins ? { transformOrigins: {
+      ...doc.transformOrigins,
+      pockets: doc.transformOrigins.pockets.map(origin => ({ ...origin, spec: migrateInterface(origin.spec) })),
+    } } : {}),
+    ...(doc.history ? { history: {
+      ...doc.history,
+      stack: doc.history.stack.map(entry => ({
+        ...entry, doc: { ...entry.doc, spec: migrateInterface(entry.doc.spec) },
+      })),
+    } } : {}),
+  };
+}
+
+/** Upgrade the format and validate the original snapshots before normalizing interfaces. */
+function parseVersionedProject(input: unknown): ProjectDoc | null {
+  if (input && typeof input === "object" && !Array.isArray(input)) {
+    const doc = input as Record<string, unknown>;
+    const version = doc.schemaVersion;
+    if (typeof version === "number" && Number.isInteger(version) && version >= 1 && version <= 27) {
+      const preserveWall = (value: unknown): unknown => {
+        if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+        const spec = value as Record<string, unknown>;
+        if (!("magneticLid" in spec)) return value;
+        // Preview versions used wallThicknessMm for the lid pair as well as the body.
+        // Keep those printed dimensions separately from main's hollow-wall preference.
+        const lidWall = spec.lidSharedWallThicknessMm === undefined
+          ? spec.wallThicknessMm === undefined ? (version <= 20 ? 0.95 : 1.2) : spec.wallThicknessMm
+          : spec.lidSharedWallThicknessMm;
+        return { ...spec, lidSharedWallThicknessMm: lidWall,
+          wallThicknessMm: typeof spec.wallThicknessMm === "number" && Number.isFinite(spec.wallThicknessMm)
+            ? Math.min(3, Math.max(0.95, spec.wallThicknessMm)) : spec.wallThicknessMm === undefined ? 0.95 : spec.wallThicknessMm,
+          ...(version <= 19 && spec.magneticLidStyle === "overlap" && spec.lidWallThicknessMm === undefined
+            ? { lidWallThicknessMm: 0.8 } : {}),
+        };
+      };
+      const history = doc.history;
+      input = { ...doc, spec: preserveWall(doc.spec),
+        ...(history && typeof history === "object" && !Array.isArray(history) && "stack" in history && Array.isArray(history.stack)
+          ? { history: { ...history, stack: history.stack.map(entry => {
+            if (!entry || typeof entry !== "object" || !entry.doc || typeof entry.doc !== "object") return entry;
+            return { ...entry, doc: { ...entry.doc, spec: preserveWall(entry.doc.spec) } };
+          }) } } : {}),
+      };
+    }
+  }
   if (input && typeof input === "object" && "schemaVersion" in input && input.schemaVersion === PROJECT_SCHEMA_VERSION) {
     input = expandProjectFontSources(input);
   }
   if (input && typeof input === "object" && !Array.isArray(input)
-      && [26, 27, 28, 29, 30, 31, 32, 33, 34, 35].includes((input as Record<string, unknown>).schemaVersion as number)) {
+      && [26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36].includes((input as Record<string, unknown>).schemaVersion as number)) {
     // Strict current schemas still reject unsupported data from version-27 prototypes.
     return parseProjectDoc({ ...input, schemaVersion: PROJECT_SCHEMA_VERSION });
   }

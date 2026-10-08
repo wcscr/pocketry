@@ -25,7 +25,7 @@ export function ExperimentalFeaturesDialog(): JSX.Element {
           <Switch id="experimental-features" checked={enabled} onCheckedChange={setEnabled} aria-describedby="experimental-features-description" />
         </div>
         <p id="experimental-features-description" className="mt-2 text-sm text-muted-foreground">
-          Try adjustable walls for empty bins, surface text, system fonts, and linked designs. These tools are still being refined.
+          Try removable lids, adjustable walls for empty bins, surface text, system fonts, and linked designs. These tools are still being refined.
         </p>
         {enabled && <p id="experimental-layout-recommendation" className="mt-3 rounded-md bg-primary/5 p-3 text-sm">
           For experimental tools, we recommend <strong>Workflow + properties</strong> for its dedicated toolbar and properties panel.

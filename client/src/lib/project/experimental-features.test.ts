@@ -61,3 +61,14 @@ it.each([0, 2])("detects linked thumb access only in undo/redo history at index 
     ],
   } })).toBe(true);
 });
+
+
+it("detects lids in the design and history without treating dormant fit preferences as active", () => {
+  const spec = { ...ordinary.spec, magneticLid: true };
+  expect(projectUsesExperimentalFeatures({ ...ordinary, spec })).toBe(true);
+  expect(projectUsesExperimentalFeatures({ ...ordinary, history: { index: 1, stack: [
+    { label: "Lid", doc: { spec, cutouts: ordinary.cutouts, fingerHoles: [] } },
+    { label: "Removed", doc: { spec: ordinary.spec, cutouts: ordinary.cutouts, fingerHoles: [] } },
+  ] } })).toBe(true);
+  expect(projectUsesExperimentalFeatures({ ...ordinary, spec: { ...ordinary.spec, lidSharedWallThicknessMm: 4 } })).toBe(false);
+});

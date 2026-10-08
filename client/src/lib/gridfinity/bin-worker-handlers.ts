@@ -29,6 +29,7 @@ import {
   type BinLayout,
 } from "./bin";
 import { buildFitCheckSolid, buildSurfaceFitCheckSolid } from "./fit-check";
+import { buildMagneticLid, magneticLidForPrint } from "./magnetic-lid";
 import { resolvedPocketGeometry } from "./pocket-geometry";
 import { resolvedProfileFootprint } from "./profile-bottom";
 import {
@@ -236,8 +237,16 @@ export function createBinWorkerHandlers(
         : undefined;
       context.progress(0.9);
 
+      const printedLid = spec.magneticLid
+        ? magneticLidForPrint(kernel, buildMagneticLid(kernel, spec, payload.quality.circularSegments), spec)
+        : null;
       const value: BuildBinResult = {
         mesh,
+        ...(printedLid ? {
+          lidMesh: extractMeshData(kernel,
+            payload.exportTopology ? preparePrintableSolid(kernel, printedLid) : printedLid,
+            { normals: includePreviewNormals }),
+        } : {}),
         ...(textParts.length ? {
           ...(payload.exportTopology || !materialMeshes ? {
             bodyMesh: extractMeshData(kernel, payload.exportTopology
@@ -262,7 +271,7 @@ export function createBinWorkerHandlers(
         validationIssues,
       };
       const transfer: Transferable[] = [mesh.positions.buffer, mesh.indices.buffer];
-      for (const extra of [value.bodyMesh, ...(value.textMeshes?.map(part => part.mesh) ?? [])]) {
+      for (const extra of [value.lidMesh, value.bodyMesh, ...(value.textMeshes?.map(part => part.mesh) ?? [])]) {
         if (extra) {
           transfer.push(extra.positions.buffer, extra.indices.buffer);
           if (extra.normals) transfer.push(extra.normals.buffer);

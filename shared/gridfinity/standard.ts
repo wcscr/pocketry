@@ -213,9 +213,10 @@ export const D_WALL = 0.95;
 /** Maximum hollow-bin wall thickness; leaves a cavity even at quarter pitch. */
 export const MAX_HOLLOW_WALL_THICKNESS_MM = 3;
 
-/** Hollow-wall preference is retained, but has no effect on solid-fill bins. */
-export function binWallThicknessMm(spec: { fill?: "none" | "solid"; wallThicknessMm?: number }): number {
-  return spec.fill === "none" ? spec.wallThicknessMm ?? D_WALL : D_WALL;
+/** Lid rims use the shared thickness even with solid fill; ordinary solid bins retain their walls. */
+export function binWallThicknessMm(spec: { fill?: "none" | "solid"; wallThicknessMm?: number; magneticLid?: boolean; lidSharedWallThicknessMm?: number }): number {
+  return spec.magneticLid ? spec.lidSharedWallThicknessMm ?? 1.2
+    : spec.fill === "none" ? spec.wallThicknessMm ?? D_WALL : D_WALL;
 }
 
 /** Interior fillet radius (`BASE_TOP_RADIUS − D_WALL`). */
@@ -331,3 +332,26 @@ export function binTotalHeightMm(heightUnits: number, lip: boolean): number {
 export const UPSTREAM_REPO =
   "https://github.com/kennetek/gridfinity-rebuilt-openscad";
 export const UPSTREAM_SHA = "910e22d8607fd7f5f51ad5e5cbc5287a76810bfd";
+
+/** Saved stacking preference is restored when an overlapping lid is disabled. */
+export function hasStackingLip(spec: { lip: "standard" | "none"; magneticLid?: boolean; magneticLidStyle?: "overlap" | "inset" }): boolean {
+  return spec.lip === "standard" && !(spec.magneticLid && spec.magneticLidStyle === "overlap");
+}
+
+/** Pocketry's overlapping lid depth, including its 0.2 mm shoulder clearance. */
+export const LID_OVERLAP_DEPTH_MM = 5;
+
+/** Keep the solid fill and pocket surface below the lid's actual underside. */
+export function infillTopAllowanceMm(spec: {
+  lip: "standard" | "none"; magneticLid?: boolean; magneticLidStyle?: "overlap" | "inset";
+  magneticLidTop?: "flat" | "stacking";
+  lidMagnetHoles?: boolean; lidFit?: "lift-off" | "friction";
+  lidInterface?: "ribs" | "side-springs" | "angled-fins" | "spring-latch";
+}): number {
+  // Stacking lids and retained side-spring prototypes have a filled center
+  // at the overlap shoulder; solid bins must leave space beneath that core.
+  if (spec.magneticLid && spec.magneticLidStyle === "overlap"
+      && (spec.magneticLidTop === "stacking" || (spec.lidMagnetHoles === false
+        && spec.lidFit === "friction" && spec.lidInterface === "side-springs"))) return LID_OVERLAP_DEPTH_MM;
+  return spec.magneticLid || spec.lip === "standard" ? STACKING_LIP_SUPPORT_HEIGHT : 0;
+}

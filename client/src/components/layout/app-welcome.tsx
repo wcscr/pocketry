@@ -72,7 +72,7 @@ export function AppWelcome(): JSX.Element {
           <p><strong>Keep your work:</strong> Projects are saved only in this browser. Use Backups above the workspace to download a copy before clearing browser data or moving to another device.</p>
           <p><strong>Layouts:</strong> “Workflow + properties” is the desktop default for photo tracing and bin design. Switch back to “Original Single Panel UI” in App settings. Phones keep compact adjustments.</p>
           <p><strong>Object tools:</strong> Move, rotate, select multiple objects, align, and distribute in either layout.</p>
-          <p><strong>Experimental features:</strong> Opt in to adjustable walls for empty bins, surface text, system fonts, and linked designs.</p>
+          <p><strong>Experimental features:</strong> Opt in to adjustable walls for empty bins, removable lids, surface text, system fonts, and linked designs.</p>
           {isMobile && <p className="border-t pt-3 text-xs text-muted-foreground">
             The mobile interface is still being refined.{" "}
             <a className="rounded text-primary underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"

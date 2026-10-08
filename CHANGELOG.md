@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added experimental removable lids with inset or overlapping edges, adjustable fit, optional magnets, and separate STL/3MF exports. Lid settings and colors survive project saves; spring mechanisms remain disabled pending redesign.
+
 - The active bin project and local save status stay visible in Trace and Bin, including on phones. Backups are available above the workspace, and Add to bin names its destination and explains that each addition creates a new pocket.
 - Failed edits retain a separate recovery download when reopening Bin. Queued tools wait for their intended project when another tab changes the destination, with an explicit option to add them to the current bin.
 

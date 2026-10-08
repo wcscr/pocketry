@@ -93,6 +93,8 @@ export interface BuildBinResult {
   textMeshes?: { label: SurfaceText; z: number; mesh: MeshData }[];
   /** Complete topology; preview normals are omitted when materialMeshes supplies the view. */
   mesh: MeshData;
+  /** Separate lid, already face-down on z=0 for printing; never section-cut. */
+  lidMesh?: MeshData;
   /** Non-overlapping bin material meshes; text always remains separate. */
   materialMeshes?: {
     body: MeshData;

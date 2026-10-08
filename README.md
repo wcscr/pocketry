@@ -20,6 +20,8 @@ Pocketry's public deployment is [https://pocketry.xyz](https://pocketry.xyz).
 - Calibrate dimensions and correct perspective with printable reference sheets.
 - Design Gridfinity or standalone flat-bottomed bins with custom pockets, finger access, and colors.
 - Create 3D-printable positioning jigs for laser engraving and UV printing, including eufyMake setups.
+- Add experimental [overlapping or inset lids](docs/magnetic-lids.md), with optional magnets,
+  compliant ribs, and flat or stacking tops.
 - Preview in 3D and export fit checks, STL, or 3MF models.
 - Export SVG or DXF files for shadow boards and CNC work.
 - Save projects locally, undo changes, and export editable backups.

@@ -41,6 +41,8 @@ export interface WallSpec {
   fill?: "none" | "solid";
   lip?: "standard" | "none";
   wallThicknessMm?: number;
+  magneticLid?: boolean;
+  lidSharedWallThicknessMm?: number;
 }
 
 /**
@@ -59,6 +61,10 @@ export function buildWallRing(
   if (wallHeightMm <= 0) return null;
 
   const widthMm = binWallThicknessMm(spec);
+  if (spec.magneticLid) {
+    return arena.track(arena.track(buildWallSection(kernel, spec, circularSegments, widthMm)
+      .extrude(wallHeightMm)).translate([0, 0, BASE_HEIGHT]));
+  }
   const annulus = buildWallSection(kernel, spec, circularSegments, D_WALL);
   const originalWall = arena.track(annulus.extrude(wallHeightMm));
   let wall = originalWall;
@@ -84,7 +90,7 @@ export function buildWallSection(
   }
   if (spec.footprint?.kind === "custom") {
     const outer = footprintOuterSection(kernel, spec, circularSegments);
-    const wallInterior = footprintInteriorSection(kernel, spec, circularSegments);
+    const wallInterior = footprintInteriorSection(kernel, { ...spec, magneticLid: false }, circularSegments);
     const inner = widthMm === D_WALL ? wallInterior
       : arena.track(wallInterior.offset(D_WALL - widthMm, "Round", 2, circularSegments));
     return arena.track(outer.subtract(inner));

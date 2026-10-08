@@ -21,6 +21,8 @@ const colorSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/);
 /** Project appearance is separate from the geometry and its edit history. */
 export const binMaterialsSchema = z.object({
   binColor: colorSchema,
+  /** Null follows the bin color; an override belongs to this project. */
+  lidColor: colorSchema.nullable().default(null),
   pocketFloorColor: colorSchema,
   stackingRimColor: colorSchema,
   colorPocketFloors: z.boolean(),
@@ -35,6 +37,7 @@ export type BinMaterials = z.infer<typeof binMaterialsSchema>;
 /** Also used for old projects that predate saved appearance. */
 export const DEFAULT_BIN_MATERIALS: Readonly<BinMaterials> = Object.freeze({
   binColor: BIN_BODY_COLOR,
+  lidColor: null,
   pocketFloorColor: POCKET_FLOOR_COLOR,
   stackingRimColor: STACKING_RIM_COLOR,
   colorPocketFloors: true,

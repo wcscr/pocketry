@@ -11,6 +11,7 @@ import type {
 import type { BinSpec } from "@shared/gridfinity/types";
 import type { SurfaceText } from "@shared/gridfinity/surface-text";
 import type { SurfaceFitCheckStyle } from "@shared/gridfinity/fit-check";
+import { lidCapTopMm, lidBottomMm } from "@shared/gridfinity/magnetic-lid";
 
 import { toBufferGeometry } from "@/lib/mesh/to-buffer-geometry";
 import { createWorkerClient, type WorkerClient } from "@/lib/worker/client";
@@ -57,6 +58,8 @@ type PreviewQueue = {
 const newPreviewQueue = (): PreviewQueue => ({ running: false, pending: null, timer: undefined });
 
 export interface BinGeometryState {
+  /** Separate lid in closed orientation, at local z=0. */
+  lidGeometry: BufferGeometry | null;
   /** Latest built preview. Owned by the hook: disposed when replaced. */
   geometry: BufferGeometry | null;
   /** Pocket-floor material volume for the latest preview tier. */
@@ -150,6 +153,8 @@ export function useBinGeometry(
   const previousKeysRef = useRef<{ model: string; unrounded: string } | null>(null);
   const detailedCostsRef = useRef(new Map<string, number>());
   const geometryRef = useRef<BufferGeometry | null>(null);
+  const lidGeometryRef = useRef<BufferGeometry | null>(null);
+  const [lidGeometry, setLidGeometry] = useState<BufferGeometry | null>(null);
   const pocketFloorGeometryRef = useRef<BufferGeometry | null>(null);
   const stackingRimGeometryRef = useRef<BufferGeometry | null>(null);
   const textGeometryRef = useRef<BufferGeometry[]>([]);
@@ -298,6 +303,14 @@ export function useBinGeometry(
         ? toBufferGeometry(result.materialMeshes.pocketFloors) : null;
       const nextStackingRim = result.materialMeshes?.stackingRim
         ? toBufferGeometry(result.materialMeshes.stackingRim) : null;
+      const nextLid = result.lidMesh ? toBufferGeometry(result.lidMesh) : null;
+      if (nextLid) {
+        if (previewSpec.magneticLidTop === "stacking") nextLid.translate(0, 0, lidBottomMm(previewSpec));
+        else nextLid.rotateX(Math.PI).translate(0, 0, lidCapTopMm(previewSpec));
+      }
+      lidGeometryRef.current?.dispose();
+      lidGeometryRef.current = nextLid;
+      setLidGeometry(nextLid);
       const nextTexts = (result.textMeshes ?? []).map(part => ({ label: part.label, geometry: toBufferGeometry(part.mesh) }));
       geometryRef.current?.dispose();
       pocketFloorGeometryRef.current?.dispose();
@@ -439,6 +452,8 @@ export function useBinGeometry(
       clientRef.current = null;
       geometryRef.current?.dispose();
       geometryRef.current = null;
+      lidGeometryRef.current?.dispose();
+      lidGeometryRef.current = null;
       pocketFloorGeometryRef.current?.dispose();
       pocketFloorGeometryRef.current = null;
       stackingRimGeometryRef.current?.dispose();
@@ -541,6 +556,7 @@ export function useBinGeometry(
   );
 
   return {
+    lidGeometry,
     geometry,
     textGeometries,
     pocketFloorGeometry,

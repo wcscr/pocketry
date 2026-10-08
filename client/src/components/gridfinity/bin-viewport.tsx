@@ -12,6 +12,7 @@ import type { BufferGeometry, PerspectiveCamera } from "three";
 import { MOUSE, Quaternion, TOUCH, Vector3, Vector4 } from "three";
 
 import type { Outline, Point } from "@shared/geometry/types";
+import { LID_PREVIEW_LIFT_MM } from "@shared/gridfinity/magnetic-lid";
 import type { SurfaceText } from "@shared/gridfinity/surface-text";
 
 import { Button } from "@/components/ui/button";
@@ -63,11 +64,15 @@ class PreviewBoundary extends Component<{ children: ReactNode }, { failed: boole
  * Conventions: the geometry arrives in the bin frame (millimetres, z-up,
  * XY-centred, grounded at z = 0), so the camera's `up` is +z and the ground
  * grid is rotated into the XY plane with 42 mm divisions matching the
- * Gridfinity pitch. Normals come precomputed from manifold with 60° creases —
+ * Gridfinity pitch. Normals come precomputed from manifold with 40° creases —
  * the material must never trigger a recompute (see `toBufferGeometry`).
  */
 export interface BinViewportProps {
   geometry: BufferGeometry | null;
+  lidGeometry?: BufferGeometry | null;
+  lidColor?: string;
+  lidBaseZMm?: number;
+  /** Exact printable pocket-floor material volume. */
   pocketEditor?: PocketEditor;
   /** Hide source outlines during inspection while keeping pocket selection active. */
   showPocketOutlines?: boolean;
@@ -277,6 +282,9 @@ function CameraFit({ size }: { size: FitSize }): null {
 
 export function BinViewport({
   geometry,
+  lidGeometry = null,
+  lidColor,
+  lidBaseZMm = 0,
   pocketEditor,
   showPocketOutlines = true,
   pocketFloorGeometry = null,
@@ -319,6 +327,11 @@ export function BinViewport({
   const [rulerFeedback, setRulerFeedback] = useState<{ screen: Point; snapped: boolean } | null>(null);
   const laidOut = containerSize.width > 0 && containerSize.height > 0;
   const [rulerActive, setRulerActive] = useState(false);
+  const [lidView, setLidView] = useState<"raised" | "closed" | "hidden">("raised");
+  const lidZ = lidBaseZMm + (lidView === "raised" ? LID_PREVIEW_LIFT_MM : 0);
+  const displayFitSize = useMemo(() => ({ ...fitSize,
+    heightMm: lidGeometry && lidView !== "hidden" ? Math.max(fitSize.heightMm, lidZ + (lidGeometry.boundingBox?.max.z ?? 0)) : fitSize.heightMm,
+  }), [fitSize, lidGeometry, lidView, lidZ]);
   const inspector = useSelectionInspector();
   const toolbar = useObjectToolbar();
   const { enabled: experimentalEnabled } = useExperimentalFeatures();
@@ -453,6 +466,11 @@ export function BinViewport({
         <ambientLight intensity={0.45} />
         <directionalLight position={[90, -70, 160]} intensity={1.1} />
         <directionalLight position={[-70, 90, 50]} intensity={0.35} />
+        {lidGeometry && lidView !== "hidden" && (
+          <mesh geometry={lidGeometry} position={[0, 0, lidZ]} name="magnetic-lid">
+            <meshStandardMaterial color={lidColor ?? binColor} roughness={0.55} metalness={0.05} />
+          </mesh>
+        )}
         {geometry ? (
           <mesh geometry={geometry}>
             <meshStandardMaterial color={binColor} roughness={0.55} metalness={0.05} />
@@ -528,10 +546,23 @@ export function BinViewport({
             enableDamping
             dampingFactor={0.12}
           />
-          <CameraFit size={fitSize} />
+          <CameraFit size={displayFitSize} />
         </Canvas>
         </PreviewBoundary>
       ) : null}
+
+      {lidGeometry && (
+        <div className="absolute bottom-3 left-3 z-30 flex items-center gap-1 rounded-md border bg-background/95 p-1 shadow-sm" aria-label="Lid preview">
+          <span className="px-1 text-xs text-muted-foreground">Lid</span>
+          {(["raised", "closed", "hidden"] as const).map(mode => (
+            <Button key={mode} size="sm" variant={lidView === mode ? "secondary" : "ghost"}
+              className="h-7 px-2 text-xs" aria-pressed={lidView === mode}
+              onClick={() => setLidView(mode)} data-testid={`button-lid-${mode}`}>
+              {mode === "raised" ? "Raised" : mode === "closed" ? "Closed" : "Hidden"}
+            </Button>
+          ))}
+        </div>
+      )}
 
       {(!isMobile || !inspector && !toolbar) && <div
         className={cn("absolute right-3 z-30 flex flex-col overflow-hidden rounded-md border bg-background/90 shadow-sm backdrop-blur", touchControls ? "top-16" : "top-12")}
@@ -604,7 +635,7 @@ export function BinViewport({
       {(hasPocketFloor && showPocketFloorColor) ||
       (hasStackingRim && showStackingRimColor) || textGeometries.length > 0 ? (
         <div
-          className="absolute bottom-3 left-3 flex max-h-24 max-w-[calc(100%-1.5rem)] flex-wrap items-center gap-2 overflow-auto rounded-xl border bg-background/90 px-2.5 py-1 text-xs font-medium text-foreground shadow-sm backdrop-blur"
+          className={cn(lidGeometry ? "bottom-14" : "bottom-3", "absolute left-3 flex max-h-24 max-w-[calc(100%-1.5rem)] flex-wrap items-center gap-2 overflow-auto rounded-xl border bg-background/90 px-2.5 py-1 text-xs font-medium text-foreground shadow-sm backdrop-blur")}
           data-testid="material-color-legend"
         >
           <button

@@ -69,6 +69,21 @@ describe("bin preview worker lifecycle", () => {
     React.act(() => root.unmount()); host.remove(); vi.useRealTimers(); vi.unstubAllGlobals();
   });
 
+  it("publishes and disposes lid geometry with the current preview", async () => {
+    const withLid = { ...spec(3), magneticLid: true, magneticLidStyle: "inset" as const };
+    await React.act(async () => root.render(<Probe args={[withLid, PREVIEW_QUALITY]} />));
+    await tick();
+    const result = resultFor(1);
+    await reply(() => worker().finish(0, { ...result, lidMesh: result.mesh }));
+    expect(state!.lidGeometry).not.toBeNull();
+    const dispose = vi.spyOn(state!.lidGeometry!, "dispose");
+    await React.act(async () => root.render(<Probe args={[{ ...withLid, magneticLid: false }, PREVIEW_QUALITY]} />));
+    await tick();
+    await reply(() => worker().finish(1, resultFor(2)));
+    expect(dispose).toHaveBeenCalledOnce();
+    expect(state!.lidGeometry).toBeNull();
+  });
+
   it("batches initial edits and keeps only the newest pending preview without cancellation", async () => {
     await render(2); await tick(16); await render(3); await tick();
     expect(worker().calls).toHaveLength(1);

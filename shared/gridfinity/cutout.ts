@@ -16,8 +16,11 @@ import {
   BASE_HEIGHT,
   binFootprintMm,
   binTotalHeightMm,
+  binWallThicknessMm,
   D_WALL,
+  BASE_TOP_RADIUS,
   R_F2,
+  hasStackingLip,
 } from "./standard";
 import {
   footprintInteriorRingMm,
@@ -1127,7 +1130,7 @@ export function resolvePocketDepth(
   depth: DepthSpec,
 ): ResolvedPocket {
   const infillTopZ = resolveInfillTopZ(spec);
-  const cutterTopZ = binTotalHeightMm(spec.heightUnits, spec.lip === "standard") + 1;
+  const cutterTopZ = binTotalHeightMm(spec.heightUnits, hasStackingLip(spec)) + 1;
 
   let floorZ: number | null;
   switch (depth.mode) {
@@ -1176,19 +1179,20 @@ export function defaultFingerAccessDepthMm(
 export interface BinInterior {
   widthMm: number;
   lengthMm: number;
-  /** Corner radius of the interior boundary (R_F2). */
+  /** Corner radius of the interior boundary after the wall inset. */
   cornerRadiusMm: number;
 }
 
 type GridFootprintSpec = Pick<BinSpec, "gridX" | "gridY"> &
-  Partial<Pick<BinSpec, "gridPitch">> & { footprint?: BinFootprint };
+  Partial<Pick<BinSpec, "gridPitch" | "wallThicknessMm" | "fill" | "magneticLid" | "lidSharedWallThicknessMm">> & { footprint?: BinFootprint };
 
 /** The cavity footprint the pockets must stay inside. */
 export function binInteriorMm(spec: GridFootprintSpec): BinInterior {
+  const thicknessMm = spec.magneticLid ? binWallThicknessMm(spec) : D_WALL;
   return {
-    widthMm: binFootprintMm(spec.gridX, spec.gridPitch) - 2 * D_WALL,
-    lengthMm: binFootprintMm(spec.gridY, spec.gridPitch) - 2 * D_WALL,
-    cornerRadiusMm: R_F2,
+    widthMm: binFootprintMm(spec.gridX, spec.gridPitch) - 2 * thicknessMm,
+    lengthMm: binFootprintMm(spec.gridY, spec.gridPitch) - 2 * thicknessMm,
+    cornerRadiusMm: Math.max(0, BASE_TOP_RADIUS - thicknessMm),
   };
 }
 

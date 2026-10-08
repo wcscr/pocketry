@@ -184,6 +184,7 @@ function BinDesignerWorkspace(): JSX.Element {
     colorStackingRim, pocketFloorThicknessMm, stackingRimThicknessMm, borderWidthMm } = materials;
   const patchMaterials = (patch: Partial<BinMaterials>) => setMaterials(current => ({ ...current, ...patch }));
   const edgeBandColor = colorStackingRim ? stackingRimColor : binColor;
+  const lidColor = materials.lidColor ?? binColor;
   const [projectLibrary, setProjectLibrary] = useState(EMPTY_PROJECT_LIBRARY);
   const [projectLibraryReady, setProjectLibraryReady] = useState(false);
   const [projectRestoreFailed, setProjectRestoreFailed] = useState(false);
@@ -206,6 +207,11 @@ function BinDesignerWorkspace(): JSX.Element {
     ];
   }, [spec, cutouts, fingerHoles, library.shapes, colorPocketFloors, pocketFloorThicknessMm]);
   const revealIssue = (issue: ValidationIssue) => {
+    if (issue.code === "overlap-stacking-filled-lid") {
+      setPanelOpen(true);
+      setSettingsSectionRequest({ id: "bin-settings-construction" });
+      return;
+    }
     dispatch({ type: "SET_VIEW_MODE", viewMode: "2d" });
     const settings = issueSettingsTarget(issue.code);
     if (settings) {
@@ -380,7 +386,7 @@ function BinDesignerWorkspace(): JSX.Element {
     const shapesById = new Map(library.shapes.map((shape) => [shape.id, shape]));
     const result =
       cutouts.length === 0 && !keepBinSize
-        ? autoPlaceFresh(newShapes, spec.lip, spec.gridPitch)
+        ? autoPlaceFresh(newShapes, spec.lip, spec.gridPitch, spec)
         : autoPlaceIncremental(newShapes, {
             spec,
             lip: spec.lip,
@@ -465,6 +471,7 @@ function BinDesignerWorkspace(): JSX.Element {
 
   const {
     geometry,
+    lidGeometry,
     textGeometries,
     pocketFloorGeometry,
     stackingRimGeometry,
@@ -936,7 +943,7 @@ function BinDesignerWorkspace(): JSX.Element {
           (exportProjectDoc.spec.fill === "none" ||
             exportProjectDoc.cutouts.some((cutout) => pocketDepths(cutout).some(depth => depth.mode !== "through")));
         const includeStackingRim =
-          multicolor && colorStackingRim;
+          multicolor && colorStackingRim && !exportProjectDoc.spec.magneticLid;
         const result = await buildOnce(EXPORT_QUALITY, {
           pocketFloorMaterialThicknessMm: includePocketFloors
             ? pocketFloorThicknessMm
@@ -1072,6 +1079,23 @@ function BinDesignerWorkspace(): JSX.Element {
     ],
   );
 
+  const handleExportLid = useCallback(async (format: "3mf" | "stl", includeProject: boolean) => {
+    setExporting(true);
+    try {
+      const project = prepareProjectExport(exportProjectDoc, currentProjectName, "lid");
+      const result = await buildOnce(EXPORT_QUALITY);
+      if (!result.lidMesh) throw new Error("Enable Lid before exporting a lid.");
+      const name = `Pocketry lid ${binSizeLabel(exportProjectDoc.spec)}`;
+      const bytes = format === "3mf"
+        ? writeThreeMf([{ name, mesh: result.lidMesh, material: { name: "Lid", displayColor: (colorStackingRim ? lidColor : binColor) as `#${string}` } }], { title: name })
+        : writeBinarySTL(result.lidMesh, name);
+      downloadModelWithProject(new Blob([bytes], { type: format === "3mf" ? "model/3mf" : "application/octet-stream" }), format, project, includeProject);
+      toast({ title: "Saved", description: exportProjectDoc.spec.magneticLidTop === "stacking" ? "Exported with the stacking top facing up. Inspect bridges across the rim channel and interface gaps." : "Exported the lid with its flat face on the print bed and magnet recesses facing up." });
+    } catch (cause) {
+      if (!(cause instanceof WorkerCancelledError)) toast({ title: "Lid export failed", description: cause instanceof Error ? cause.message : String(cause), variant: "destructive" });
+    } finally { setExporting(false); }
+  }, [buildOnce, exportProjectDoc, currentProjectName, binColor, lidColor, colorStackingRim, toast]);
+
   const handleExportFitCheck = useCallback(
     async (cutoutId: string, depthMm: number, includeProject: boolean) => {
       const cutout = exportProjectDoc.cutouts.find((candidate) => candidate.id === cutoutId);
@@ -1199,6 +1223,7 @@ function BinDesignerWorkspace(): JSX.Element {
           building={building}
           previewIsDraft={previewIsDraft}
           exporting={exporting}
+          onExportLid={handleExportLid}
           onExport={(format, includeProject) => void handleExport(format, includeProject)}
           onExportFitCheck={(cutoutId, depthMm, includeProject) =>
             void handleExportFitCheck(cutoutId, depthMm, includeProject)
@@ -1236,6 +1261,8 @@ function BinDesignerWorkspace(): JSX.Element {
           onPocketFloorThicknessChange={pocketFloorThicknessMm => patchMaterials({ pocketFloorThicknessMm })}
           colorStackingRim={colorStackingRim}
           onColorStackingRimChange={colorStackingRim => patchMaterials({ colorStackingRim })}
+          lidColor={lidColor}
+          onLidColorChange={lidColor => patchMaterials({ lidColor })}
           stackingRimColor={stackingRimColor}
           onStackingRimColorChange={stackingRimColor => patchMaterials({ stackingRimColor })}
           stackingRimThicknessMm={stackingRimThicknessMm}
@@ -1266,6 +1293,9 @@ function BinDesignerWorkspace(): JSX.Element {
           />
           {viewMode === "3d" ? (
             <BinViewport
+              lidGeometry={lidGeometry}
+              lidColor={colorStackingRim ? lidColor : binColor}
+              lidBaseZMm={builtDimensions.heightToRimMm}
               geometry={geometry}
               showPocketOutlines={!section || !hideInspectionPocketOutline}
               pocketEditor={{ spec, transformOrigins: bin.transformOrigins, originShapes: library.shapes, linkControls: <SelectionLinkControls />, pockets: editablePockets, pocketGeometry: profileOutlines, selectedId: bin.selectedCutoutId, fingerHoles, selection: bin.selection,
@@ -1295,7 +1325,7 @@ function BinDesignerWorkspace(): JSX.Element {
               floorColorLabel={(builtSpec ?? committedSpec).fill === "none" ? "Bin floor" : "Pocket floor"}
               stackingRimColor={stackingRimColor}
               showPocketFloorColor={colorPocketFloors}
-              showStackingRimColor={colorStackingRim}
+              showStackingRimColor={colorStackingRim && !committedSpec.magneticLid}
               onEditColor={editMaterialColor}
               building={building}
               previewIsDraft={previewIsDraft}

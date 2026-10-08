@@ -59,6 +59,22 @@ afterEach(() => {
 });
 
 describe("current project persistence", () => {
+  it.each(["side-springs", "spring-latch"] as const)("migrates a stored %s draft and persists contact ribs on save", async lidInterface => {
+    const spec = { ...DOC.spec, magneticLid: true, lidMagnetHoles: false, lidFit: "friction" as const, lidInterface };
+    const previous = { ...DOC, schemaVersion: 25, spec, history: { index: 0, stack: [
+      { label: "Saved", doc: { spec, cutouts: [], fingerHoles: [] } },
+    ] } };
+    memory.set("tooltrace:project:v1", previous);
+    const migrated = (await loadProjectDoc())!;
+    expect(migrated.spec.lidInterface).toBe("ribs");
+    expect(migrated.history!.stack[0].doc.spec.lidInterface).toBe("ribs");
+    expect(previous.spec.lidInterface).toBe(lidInterface);
+    const edited = { ...migrated, name: "Retested lid" };
+    expect(await saveProjectDoc(edited)).toBe(true);
+    expect(await loadProjectDoc()).toEqual(edited);
+    expect(memory.get("tooltrace:project:v1")).toEqual(edited);
+  });
+
   it("reads the project overview without accepting another tab's write as our baseline", async () => {
     const library = await saveProjectToLibrary({ ...DOC, name: "Original" }, "Original", null);
     const external = { ...DOC, name: "External", spec: { ...DOC.spec, gridX: 7 } };
@@ -375,11 +391,11 @@ describe("current project persistence", () => {
     memory.set("tooltrace:project:v1", structuredClone(airdusterV9));
     const migrated = (await loadProjectDoc())!;
     const { liteBase: _removed, ...spec } = airdusterV9.spec;
-    expect(migrated).toEqual({ ...airdusterV9, spec: { ...spec, flatBottom: false, fillHeightPercent: 100, adjustFixedPocketDepths: true, surfaceTexts: [], textColor: null, wallThicknessMm: 0.95 }, schemaVersion: PROJECT_SCHEMA_VERSION });
+    expect(migrated).toEqual({ ...airdusterV9, spec: { ...spec, flatBottom: false, magneticLid: false, magneticLidStyle: "inset", magneticLidTop: "flat", lidGripRecess: false, lidMagnetHoles: true, lidMagnetCrushRibs: false, lidFit: "lift-off", lidInterface: "ribs", lidRibSpacingMm: 24, lidFitAdjustmentMm: 0, lidSharedWallThicknessMm: 1.2, magnetDiameterMm: 6, magnetThicknessMm: 2, fillHeightPercent: 100, adjustFixedPocketDepths: true, surfaceTexts: [], textColor: null, wallThicknessMm: 0.95 }, schemaVersion: PROJECT_SCHEMA_VERSION });
     await saveProjectToLibrary(migrated, "New Airduster Layout", null);
     const reloaded = (await loadProjectDoc())!;
     const exported = JSON.parse(await prepareProjectExport(reloaded, reloaded.name!).backup.text());
-    expect(exported).toEqual({ ...airdusterV9, spec: { ...spec, flatBottom: false, fillHeightPercent: 100, adjustFixedPocketDepths: true, surfaceTexts: [], textColor: null, wallThicknessMm: 0.95 }, schemaVersion: PROJECT_SCHEMA_VERSION, name: "New Airduster Layout" });
+    expect(exported).toEqual({ ...airdusterV9, spec: { ...spec, flatBottom: false, magneticLid: false, magneticLidStyle: "inset", magneticLidTop: "flat", lidGripRecess: false, lidMagnetHoles: true, lidMagnetCrushRibs: false, lidFit: "lift-off", lidInterface: "ribs", lidRibSpacingMm: 24, lidFitAdjustmentMm: 0, lidSharedWallThicknessMm: 1.2, magnetDiameterMm: 6, magnetThicknessMm: 2, fillHeightPercent: 100, adjustFixedPocketDepths: true, surfaceTexts: [], textColor: null, wallThicknessMm: 0.95 }, schemaVersion: PROJECT_SCHEMA_VERSION, name: "New Airduster Layout" });
   });
   it("never overwrites an unsupported working copy during autosave", async () => {
     const future = { schemaVersion: 999, valuable: { outlines: [1, 2, 3] } };

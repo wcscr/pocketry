@@ -28,6 +28,7 @@ vi.mock("@/hooks/use-element-size", () => ({
   useElementSize: () => [vi.fn(), { width: 800, height: 600 }],
 }));
 
+import { BoxGeometry } from "three";
 import { parseCutoutPlacement } from "@shared/gridfinity/cutout";
 import { parseBinSpec } from "@shared/gridfinity/types";
 import { createBasicPocket } from "@/lib/gridfinity/basic-shape";
@@ -56,6 +57,7 @@ function renderViewport(
   floorColorLabel: "Pocket floor" | "Bin floor" = "Pocket floor",
   textGeometries: BinViewportProps["textGeometries"] = [],
   recovery: Pick<BinViewportProps, "error" | "onPositionText" | "onRetryPreview"> = { error: null },
+  lidGeometry: BoxGeometry | null = null,
 ): HTMLElement {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   const container = document.createElement("div");
@@ -65,6 +67,7 @@ function renderViewport(
     root.render(
       <BinViewport
         geometry={null}
+        lidGeometry={lidGeometry}
         textGeometries={textGeometries}
         textColor="#ff6600"
         pocketEditor={pocketEditor}
@@ -293,6 +296,19 @@ it("offers a top-plane ruler in 3D and recommends Layout for precision", () => {
   );
 });
 
+
+it("keeps the compact raised, closed, and hidden lid controls", () => {
+  const lid = new BoxGeometry(40, 40, 7);
+  lid.computeBoundingBox();
+  const container = renderViewport(false, 1, false, false, [], undefined, false, undefined, "Pocket floor", [], { error: null }, lid);
+  for (const mode of ["closed", "hidden", "raised"]) {
+    const button = container.querySelector<HTMLButtonElement>(`[data-testid="button-lid-${mode}"]`)!;
+    React.act(() => button.click());
+    expect(button.getAttribute("aria-pressed")).toBe("true");
+  }
+  expect(container.querySelector('[aria-label="Show parts"]')).toBeNull();
+  lid.dispose();
+});
 
 it("switches CAD modes without stealing field input and suspends them for the ruler", () => {
   const basic = createBasicPocket("rectangle", { x: -5, y: -8 }, { x: 5, y: 8 }, "slot")!;

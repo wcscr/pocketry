@@ -1,3 +1,5 @@
+import { lidPadExtentMm, lidMagnetCenters, magneticLidError } from "@shared/gridfinity/magnetic-lid";
+import { magnetHoleRadiusMm } from "@shared/gridfinity/magnets";
 import { hasRigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { SelectionToolButtons } from "./selection-tool-buttons";
 import { SurfaceTextLayer } from "./surface-text-layer";
@@ -422,7 +424,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
   );
   const boundaryCutouts = useMemo(
     () => new Set(layoutIssues
-      .filter((issue) => ["out-of-bounds", "wall-breach", "lip-collision"].includes(issue.code))
+      .filter((issue) => ["out-of-bounds", "wall-breach", "lip-collision", "lid-rim-collision"].includes(issue.code))
       .flatMap((issue) => issue.cutoutIds ?? [])),
     [layoutIssues],
   );
@@ -1730,6 +1732,23 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
             vectorEffect="non-scaling-stroke"
           />
           {/* 42 mm cell boundaries. */}
+          {spec.magneticLid && spec.lidMagnetHoles && !magneticLidError(spec) && (
+            <g pointerEvents="none" data-testid="lid-support-regions">
+              <defs><clipPath id="lid-support-outline"><path d={ringToCanvasPath(outerFootprint, spec)} /></clipPath></defs>
+              <g clipPath="url(#lid-support-outline)">
+                {[0, widthMm - lidPadExtentMm(spec)].flatMap(x => [0, lengthMm - lidPadExtentMm(spec)].map(y => (
+                  <rect key={`${x}-${y}`} x={x} y={y} width={lidPadExtentMm(spec)} height={lidPadExtentMm(spec)}
+                    className="fill-amber-500/15 stroke-amber-600/60" strokeWidth={1} vectorEffect="non-scaling-stroke">
+                    <title>Lid magnet support — keep pockets clear</title>
+                  </rect>
+                )))}
+              </g>
+              {lidMagnetCenters(spec).map((point, index) => {
+                const p = binToCanvas(point, spec);
+                return <circle key={index} cx={p.x} cy={p.y} r={magnetHoleRadiusMm(spec)} fill="none" className="stroke-amber-600" strokeWidth={1} vectorEffect="non-scaling-stroke" />;
+              })}
+            </g>
+          )}
           {gridLines.map((line, index) => (
             <line
               key={index}

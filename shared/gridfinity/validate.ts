@@ -34,9 +34,11 @@ import {
 import {
   BASE_HEIGHT,
   BASE_PROFILE_HEIGHT,
+  hasStackingLip,
   binHeightMm,
   binWallHeightMm,
   D_DIV,
+  binWallThicknessMm,
   D_WALL,
   gridPitchMm,
   STACKING_LIP_DEPTH,
@@ -49,6 +51,8 @@ import {
 import type { BinSpec } from "./types";
 import { infillHeightMm } from "./fill";
 import { resolvePocketSplit } from "./pocket-split";
+import { hasBaseMagnets, baseMagnetSizeError } from "./magnets";
+import { hasOverlappingLid, overlapRimInteriorClearanceMm, lidPadExtentMm, magneticLidError } from "./magnetic-lid";
 
 /**
  * Pure validation of a bin specification — no WASM, cheap enough to run on
@@ -129,9 +133,20 @@ const FOOTPRINT_WARN_MM = 260;
 
 export function validateBinSpec(spec: BinSpec): ValidationResult {
   const issues: ValidationIssue[] = [];
+  const sizeError = hasBaseMagnets(spec) ? baseMagnetSizeError(spec) : null;
+  if (sizeError) issues.push({ code: "magnet-size-unavailable", severity: "error", message: sizeError });
+  const lidError = magneticLidError(spec);
+  if (lidError) issues.push({ code: "magnetic-lid-unavailable", severity: "error", message: lidError });
+  if (hasOverlappingLid(spec) && spec.magneticLidTop === "stacking") {
+    issues.push({
+      code: "overlap-stacking-filled-lid",
+      severity: "warning",
+      message: "Overlapping lids with stacking tops currently require a filled lid for printability. The underside is filled automatically, using more material and interior space.",
+    });
+  }
   const wallHeight = binWallHeightMm(spec.heightUnits);
 
-  if (spec.lip === "standard" && wallHeight < STACKING_LIP_SUPPORT_HEIGHT_MM) {
+  if (hasStackingLip(spec) && wallHeight < STACKING_LIP_SUPPORT_HEIGHT_MM) {
     issues.push({
       code: "lip-support-clipped",
       severity: "warning",
@@ -218,7 +233,8 @@ export function labelTabStripMm(spec: BinSpec): Bounds | null {
   const run = resolveBoundaryRun(spec, edge);
   if (!run) return null;
   const horizontal = edge.side === "north" || edge.side === "south";
-  const chord = run.lengthMm - 2 * D_WALL;
+  const thicknessMm = spec.magneticLid ? binWallThicknessMm(spec) : D_WALL;
+  const chord = run.lengthMm - 2 * thicknessMm;
   const length = tab.width === "full" ? chord : Math.min(TAB_WIDTH_NOMINAL_MM, chord);
   const alongStart =
     tab.width === "left"
@@ -231,10 +247,10 @@ export function labelTabStripMm(spec: BinSpec): Bounds | null {
     x: (run.start.x + run.end.x) / 2,
     y: (run.start.y + run.end.y) / 2,
   };
-  if (edge.side === "north") midpoint.y -= D_WALL;
-  else if (edge.side === "south") midpoint.y += D_WALL;
-  else if (edge.side === "east") midpoint.x -= D_WALL;
-  else midpoint.x += D_WALL;
+  if (edge.side === "north") midpoint.y -= thicknessMm;
+  else if (edge.side === "south") midpoint.y += thicknessMm;
+  else if (edge.side === "east") midpoint.x -= thicknessMm;
+  else midpoint.x += thicknessMm;
   const localCorners: Point[] = [
     { x: alongStart, y: 0 },
     { x: alongEnd, y: 0 },
@@ -258,9 +274,6 @@ export function labelTabStripMm(spec: BinSpec): Bounds | null {
 // ---------------------------------------------------------------------------
 // Layout validation (cutouts)
 // ---------------------------------------------------------------------------
-
-/** How far the stacking lip's tip protrudes past the interior boundary. */
-const LIP_INTRUSION_MM = STACKING_LIP_DEPTH - D_WALL; // 1.65
 
 /** Six slicer layers at 0.2 mm — below this a pocket floor flexes. */
 const MIN_FLOOR_MM = 1.2;
@@ -368,6 +381,10 @@ export function validateLayout(
 
   for (const p of placed) {
     issues.push(...validateAgainstBin(spec, p));
+    if (touchesLidSupport(spec, p.outline, pocketLayoutAllowanceMm(p.cutout))) {
+      issues.push({ code: "lid-support-collision", severity: "error", cutoutIds: [p.cutout.id],
+        message: `“${p.label}” reaches a lid magnet support. Move it away from the corners or turn off Magnetic lid.` });
+    }
     if (hasPocketTilt(p.cutout)) {
       const occupied = pocketOccupiedOutline(p.shape, p.cutout, spec);
       const allowance = pocketLayoutAllowanceMm(p.cutout);
@@ -386,6 +403,11 @@ export function validateLayout(
 
   for (const [index, hole] of fingerHoles.entries()) {
     issues.push(...validateFingerHoleAgainstBin(spec, hole, index));
+    const ring = fingerHoleFootprintRing(hole, { position: { x: 0, y: 0 }, rotationDeg: 0, mirrored: false });
+    if (touchesLidSupport(spec, [{ outer: ring, holes: [] }], hole.topFilletMm)) {
+      issues.push({ code: "lid-support-collision", severity: "error", fingerHoleIds: [hole.id],
+        message: `Finger hole ${index + 1} reaches a lid magnet support. Move it away from the corners or turn off Magnetic lid.` });
+    }
   }
 
   // A pocket mouth under the label tab: legal geometry, but the tab shadows
@@ -455,6 +477,10 @@ function validateAgainstBin(spec: BinSpec, p: PlacedCutout): ValidationIssue[] {
   }
   const outlineAllowance = pocketLayoutAllowanceMm(cutout);
   const wallMargin = Math.min(minDistOutline - outlineAllowance, minDistFeature);
+  const rimMargin = hasOverlappingLid(spec) ? Math.min(
+    ...p.outline.flatMap(shape => shape.outer.map(point => overlapRimInteriorClearanceMm(point, spec) - outlineAllowance)),
+    ...p.features.flatMap(ring => ring.map(point => overlapRimInteriorClearanceMm(point, spec))),
+  ) : Infinity;
 
   if (wallMargin < 0) {
     issues.push({
@@ -463,7 +489,10 @@ function validateAgainstBin(spec: BinSpec, p: PlacedCutout): ValidationIssue[] {
       cutoutIds: [cutout.id],
       message: `“${label}” cuts into the bin wall once its ${outlineAllowance} mm combined clearance and top-edge round are added.`,
     });
-  } else if (spec.lip === "standard" && wallMargin < LIP_INTRUSION_MM) {
+  } else if (rimMargin < 0) {
+    issues.push({ code: "lid-rim-collision", severity: "error", cutoutIds: [cutout.id],
+      message: `“${label}” cuts into the inset lid rim. Move it farther from the edge.` });
+  } else if (hasStackingLip(spec) && wallMargin < Math.max(0, STACKING_LIP_DEPTH - (spec.magneticLid ? binWallThicknessMm(spec) : D_WALL))) {
     issues.push({
       code: "lip-collision",
       severity: "warning",
@@ -604,6 +633,9 @@ function validateFingerHoleAgainstBin(
       ? ringSignedClearance(ring, interiorBoundary)
       : Math.min(...ring.map((point) => signedDistanceToInterior(point, spec)))) -
     topAllowanceMm;
+  const rimMargin = hasOverlappingLid(spec)
+    ? Math.min(...ring.map(point => overlapRimInteriorClearanceMm(point, spec))) - topAllowanceMm
+    : Infinity;
   if (wallMargin < 0) {
     issues.push({
       code: "finger-hole-wall-breach",
@@ -611,7 +643,10 @@ function validateFingerHoleAgainstBin(
       fingerHoleIds: [hole.id],
       message: `${label} cuts into the bin wall.`,
     });
-  } else if (spec.lip === "standard" && wallMargin < LIP_INTRUSION_MM) {
+  } else if (rimMargin < 0) {
+    issues.push({ code: "lid-rim-collision", severity: "error", fingerHoleIds: [hole.id],
+      message: `${label} cuts into the inset lid rim. Move it farther from the edge.` });
+  } else if (hasStackingLip(spec) && wallMargin < Math.max(0, STACKING_LIP_DEPTH - (spec.magneticLid ? binWallThicknessMm(spec) : D_WALL))) {
     issues.push({
       code: "finger-hole-lip-collision",
       severity: "warning",
@@ -646,6 +681,29 @@ function validateFingerHoleAgainstBin(
     });
   }
   return issues;
+}
+
+/** Conservative plan clearance for the full pad; the worker also checks the actual 3D cutters. */
+function touchesLidSupport(spec: BinSpec, outline: Outline, allowance: number): boolean {
+  if (!spec.magneticLid || !spec.lidMagnetHoles || magneticLidError(spec)) return false;
+  const halfW = binFootprintMm(spec.gridX, spec.gridPitch) / 2;
+  const halfL = binFootprintMm(spec.gridY, spec.gridPitch) / 2;
+  for (const sx of [-1, 1]) for (const sy of [-1, 1]) {
+    const x = sx * halfW;
+    const y = sy * halfL;
+    const pad: Ring = [{ x, y }, { x: x - sx * lidPadExtentMm(spec), y },
+      { x: x - sx * lidPadExtentMm(spec), y: y - sy * lidPadExtentMm(spec) },
+      { x, y: y - sy * lidPadExtentMm(spec) }];
+    for (const shape of outline) {
+      if (shape.holes.some(hole => ringInsideBoundary(pad, hole) && ringSeparation(pad, hole) > Math.max(0, allowance))) continue;
+      if (shape.outer.some(point => pointInRing(pad, point)) || pad.some(point => pointInRing(shape.outer, point))) return true;
+      for (let i = 0; i < shape.outer.length; i++) for (let j = 0; j < pad.length; j++) {
+        if (segmentsIntersect(shape.outer[i], shape.outer[(i + 1) % shape.outer.length], pad[j], pad[(j + 1) % pad.length])) return true;
+      }
+      if (Math.min(ringSeparation(shape.outer, pad), ringSeparation(pad, shape.outer)) <= Math.max(0, allowance)) return true;
+    }
+  }
+  return false;
 }
 
 function ringInsideBoundary(ring: Ring, boundary: Ring): boolean {
