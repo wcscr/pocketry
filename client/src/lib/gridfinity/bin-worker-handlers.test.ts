@@ -7,8 +7,10 @@ import { writeThreeMf } from "@/lib/mesh/threemf";
 import { binTotalHeightMm } from "@shared/gridfinity/standard";
 import { parseBinSpec } from "@shared/gridfinity/types";
 import { validateLayout } from "@shared/gridfinity/validate";
-import { loadManifold } from "@/lib/manifold/runtime";
+import { createKernel, loadManifold } from "@/lib/manifold/runtime";
 import { Arena } from "@/lib/manifold/arena";
+import { extractMeshData } from "@/lib/mesh/mesh-data";
+import { expectPartitionOccupancy, expectPrintableTopology, expectSameGeometry } from "@/lib/mesh/mesh-contract.test-helpers";
 import type { HandlerContext } from "@/lib/worker/host";
 import type { TransferableResult } from "@/lib/worker/host";
 import { WorkerCancelledError } from "@/lib/worker/protocol";
@@ -16,7 +18,7 @@ import { WorkerCancelledError } from "@/lib/worker/protocol";
 import { createBinWorkerHandlers } from "./bin-worker-handlers";
 import { partitionPocketFloorTriangles } from "./pocket-floor-mesh";
 import { createBasicPocket } from "./basic-shape";
-import { EXPORT_QUALITY } from "./bin";
+import { buildBinWithCutouts, EXPORT_QUALITY } from "./bin";
 import {
   BUILD_BIN_METHOD,
   BUILD_FIT_CHECK_METHOD,
@@ -74,13 +76,14 @@ function context(overrides: Partial<HandlerContext> = {}): HandlerContext {
   };
 }
 
-function nonManifoldEdgeCount(mesh: BuildBinResult["mesh"], weldPositions = false): number {
-  // Render normals duplicate vertices along sharp edges. STL uses positions,
-  // so join those copies when checking a mesh extracted with normals enabled.
+function nonManifoldEdgeCount(mesh: BuildBinResult["mesh"]): number {
+  // Only preview normal properties split physical vertices. Printable 3MF
+  // topology must retain distinct vertex identities at touching components.
+  const weldPositions = mesh.normals !== null;
   const vertexKey = (index: number) => weldPositions
     ? mesh.positions.subarray(index * 3, index * 3 + 3).join(",")
     : String(index);
-  const edgeCounts = new Map<string, number>();
+  const edgeCounts = new Map<string, { count: number; direction: number }>();
   for (let offset = 0; offset < mesh.indices.length; offset += 3) {
     const triangle = mesh.indices.subarray(offset, offset + 3);
     for (const [a, b] of [
@@ -91,10 +94,13 @@ function nonManifoldEdgeCount(mesh: BuildBinResult["mesh"], weldPositions = fals
       const start = vertexKey(a);
       const end = vertexKey(b);
       const key = start < end ? `${start}:${end}` : `${end}:${start}`;
-      edgeCounts.set(key, (edgeCounts.get(key) ?? 0) + 1);
+      const edge = edgeCounts.get(key) ?? { count: 0, direction: 0 };
+      edge.count++;
+      edge.direction += start < end ? 1 : -1;
+      edgeCounts.set(key, edge);
     }
   }
-  return [...edgeCounts.values()].filter((count) => count !== 2).length;
+  return [...edgeCounts.values()].filter(edge => edge.count !== 2 || edge.direction !== 0).length;
 }
 
 function printableMeshVolume(mesh: BuildBinResult["mesh"], label = "mesh"): number {
@@ -106,7 +112,7 @@ function printableMeshVolume(mesh: BuildBinResult["mesh"], label = "mesh"): numb
     expect(Math.hypot(...cross), `${label} triangle ${JSON.stringify([Array.from(a),Array.from(b),Array.from(c)])}`).toBeGreaterThan(0);
     total += (a[0] * cross[0] + a[1] * cross[1] + a[2] * cross[2]) / 6;
   }
-  expect(nonManifoldEdgeCount(mesh, true), label).toBe(0);
+  expect(nonManifoldEdgeCount(mesh), label).toBe(0);
   return total;
 }
 
@@ -286,45 +292,44 @@ it.each([
     depth: { mode: "mm", value: 16 }, insertionMode: "vertical",
     split: split ? { boundary: [{ x: 0, y: -12 }, { x: 0, y: 12 }],
       depths: [{ mode: "mm", value: 16 }, { mode: "remaining", floorThicknessMm: 10, sourceDepthMm: 12 }] } : undefined });
-  const result = (await getHandler()({
+  const request: BuildBinRequest = {
     spec: { gridX: 3, gridY: 3, heightUnits, fill: "solid", lip: "none" },
     quality: EXPORT_QUALITY, exportTopology: true, pocketFloorMaterialThicknessMm: 0.6,
     stackingRimMaterialThicknessMm: 1.25, borderWidthMm: 2,
     layout: { shapes: [shape], cutouts: mixed ? [p, parseCutoutPlacement({ ...p, id: "full-opening", elevationMm: 7,
       position: { x: 25, y: 0 }, tilt: { xDeg: 0, yDeg: 89.9 } })] : [p], fingerHoles: [] },
-  }, context())).value;
+  };
+  const result = (await getHandler()(request, context())).value;
   expect(result.validationIssues).toEqual([]);
   const wholeVolume = printableMeshVolume(result.mesh);
   const parts = Object.entries(result.materialMeshes!).map(([name, mesh]) => ({ name, mesh }));
   expect(Math.abs(parts.reduce((sum, part) => sum + printableMeshVolume(part.mesh, part.name), 0) - wholeVolume)).toBeLessThan(0.1);
 
-  // Read the serialized 3MF back, then compare actual solids: volume sums alone
-  // can hide a missing region balanced by an overlap elsewhere.
+  // Check serialized coordinates before Float32 can hide another rounding step.
+  // Compare independent mesh occupancy instead of rebuilding rounded solids.
   const xml = strFromU8(unzipSync(writeThreeMf(parts))["3D/3dmodel.model"]);
-  const meshes = [...xml.matchAll(/<mesh>([\s\S]*?)<\/mesh>/g)].map(([_, mesh]) => ({
-    positions: new Float32Array([...mesh.matchAll(/<vertex x="([^"]+)" y="([^"]+)" z="([^"]+)"/g)]
-      .flatMap(([, x, y, z]) => [Number(x), Number(y), Number(z)])),
-    indices: new Uint32Array([...mesh.matchAll(/<triangle v1="(\d+)" v2="(\d+)" v3="(\d+)"/g)]
-      .flatMap(([, a, b, c]) => [Number(a), Number(b), Number(c)])),
-    normals: null,
-  }));
+  const meshes = [...xml.matchAll(/<mesh>([\s\S]*?)<\/mesh>/g)].map(([, mesh], i) => {
+    const coordinates = [...mesh.matchAll(/<vertex x="([^"]+)" y="([^"]+)" z="([^"]+)"/g)]
+      .flatMap(([, x, y, z]) => [Number(x), Number(y), Number(z)]);
+    expect(coordinates).toEqual(Array.from(parts[i].mesh.positions));
+    return {
+      positions: new Float32Array(coordinates),
+      indices: new Uint32Array([...mesh.matchAll(/<triangle v1="(\d+)" v2="(\d+)" v3="(\d+)"/g)]
+        .flatMap(([, a, b, c]) => [Number(a), Number(b), Number(c)])),
+      normals: null,
+    };
+  });
   expect(meshes).toHaveLength(parts.length);
-  const wasm = await loadManifold(), arena = new Arena();
+  const wasm = await loadManifold(), arena = new Arena(), kernel = createKernel(wasm, arena);
   try {
-    const rebuild = (mesh: BuildBinResult["mesh"]) => arena.track(new wasm.Manifold(new wasm.Mesh({
-      numProp: 3, vertProperties: mesh.positions, triVerts: mesh.indices,
-    })));
-    const whole = rebuild(result.mesh), colors = meshes.map(rebuild);
-    for (const [i, mesh] of meshes.entries()) {
-      printableMeshVolume(mesh, parts[i].name);
-      expect(colors[i].status()).toBe("NoError");
-      for (const other of colors.slice(i + 1)) {
-        expect(Math.abs(arena.track(colors[i].intersect(other)).volume())).toBeLessThan(0.01);
-      }
-    }
-    const union = arena.track(wasm.Manifold.union(colors));
-    expect(Math.abs(arena.track(whole.subtract(union)).volume()), "missing material").toBeLessThan(0.01);
-    expect(Math.abs(arena.track(union.subtract(whole)).volume()), "extra material").toBeLessThan(0.01);
+    const authored = buildBinWithCutouts(kernel, parseBinSpec(request.spec), {
+      shapesById: new Map([[shape.id, shape]]), cutouts: request.layout!.cutouts.map(parseCutoutPlacement), fingerHoles: [],
+    }, EXPORT_QUALITY);
+    const reference = extractMeshData(kernel, authored.solid);
+    expectPrintableTopology(result.mesh, "whole bin");
+    expectSameGeometry(reference, result.mesh, "authored to exported bin");
+    for (const [i, mesh] of meshes.entries()) expectPrintableTopology(mesh, parts[i].name);
+    expectPartitionOccupancy(reference, meshes);
   } finally {
     arena.dispose();
   }
@@ -583,7 +588,7 @@ describe("bin worker handlers", () => {
     expect(result.cutoutReports.every(report => !report.emptied)).toBe(true);
     const floors = result.materialMeshes!.pocketFloors!;
     expect(floors.indices.length).toBeGreaterThan(0);
-    expect(nonManifoldEdgeCount(floors, true)).toBe(0);
+    expect(nonManifoldEdgeCount(floors)).toBe(0);
     const floorZ = resolvePocketDepth(spec, cutouts[0].depth).floorZ!;
     const zs = Array.from(floors.positions).filter((_, i) => i % 3 === 2);
     expect(Math.max(...zs)).toBeCloseTo(floorZ, 5);
@@ -1201,7 +1206,7 @@ describe("complete surface fit test worker handler", () => {
     const outline = await getSurfaceFitCheckHandler()({ ...request("standard"), style: "outline" }, context());
     expect(outline.value.stats.volumeMm3).toBeLessThan(full.value.stats.volumeMm3);
     expect(outline.value.stats.volumeMm3).toBeGreaterThan(0);
-    expect(nonManifoldEdgeCount(outline.value.mesh, true)).toBe(0);
+    expect(nonManifoldEdgeCount(outline.value.mesh)).toBe(0);
     const zs = Array.from(outline.value.mesh.positions).filter((_, i) => i % 3 === 2);
     expect(Math.min(...zs)).toBeCloseTo(0);
     expect(Math.max(...zs)).toBeCloseTo(1.2);

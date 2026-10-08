@@ -151,8 +151,9 @@ describe("surface text", () => {
     expect(Math.min(...coordinates(label, 2))).toBeCloseTo(21);
     expect(Math.max(...coordinates(label, 2))).toBeCloseTo(21.8);
     if (section) expect(Math.max(...coordinates(label, 0))).toBeLessThanOrEqual(0.00001);
-    expect(label.normals).not.toBeNull();
-    expect(transfer).toContain(label.normals!.buffer);
+    expect(label.normals).toBeNull();
+    expect(transfer).toContain(label.positions.buffer);
+    expect(transfer).toContain(label.indices.buffer);
   });
 
   it("exports two named text meshes in one assembly while preserving separate color partitions", async () => {

@@ -16,6 +16,8 @@ import About from "@/pages/about";
 import NotFound from "@/pages/not-found";
 import { ShapeLibraryProvider } from "@/state/shape-library";
 import { TraceProvider } from "@/state/trace-store";
+import { ProjectActivityProvider } from "@/state/project-activity";
+import { ProjectStatusBar } from "@/components/layout/project-status-bar";
 
 import { queryClient } from "./lib/queryClient";
 
@@ -50,6 +52,7 @@ function Shell() {
   return (
     <>
       <AppShell
+        status={<ProjectStatusBar />}
         header={
           <AppHeader
             panelOpen={panelOpen}
@@ -75,6 +78,7 @@ function App() {
       <TooltipProvider delayDuration={300}>
         <ExperimentalFeaturesProvider>
         <PanelProvider>
+          <ProjectActivityProvider>
           {/* Above the router: traced shapes must survive the Trace → Bin
               navigation, which unmounts both workspaces' own stores. */}
           <ShapeLibraryProvider>
@@ -86,6 +90,7 @@ function App() {
               <Shell />
             </TraceProvider>
           </ShapeLibraryProvider>
+          </ProjectActivityProvider>
         </PanelProvider>
         </ExperimentalFeaturesProvider>
       </TooltipProvider>

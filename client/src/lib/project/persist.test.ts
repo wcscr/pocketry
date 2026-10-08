@@ -26,6 +26,7 @@ import {
   duplicateProjectInLibrary,
   importProjectToLibrary,
   loadProjectDoc,
+  readProjectOverview,
   loadProjectLibrary,
   openProjectFromLibrary,
   ProjectNameConflictError,
@@ -58,6 +59,26 @@ afterEach(() => {
 });
 
 describe("current project persistence", () => {
+  it("reads the project overview without accepting another tab's write as our baseline", async () => {
+    const library = await saveProjectToLibrary({ ...DOC, name: "Original" }, "Original", null);
+    const external = { ...DOC, name: "External", spec: { ...DOC.spec, gridX: 7 } };
+    memory.set("tooltrace:project:v1", external);
+    vi.clearAllMocks();
+    const overview = await readProjectOverview();
+    expect(overview.activeProjectId).toBe(library.activeProjectId);
+    expect(overview.doc?.spec.gridX).toBe(7);
+    expect(set).not.toHaveBeenCalled();
+    expect(setMany).not.toHaveBeenCalled();
+    expect(await saveProjectDoc(DOC, library.activeProjectId)).toBe(false);
+    expect(memory.get("tooltrace:project:v1")).toEqual(external);
+  });
+
+  it("keeps unreadable working copies intact when reading the global overview", async () => {
+    const future = { ...DOC, schemaVersion: 999 };
+    memory.set("tooltrace:project:v1", future);
+    await expect(readProjectOverview()).rejects.toThrow("newer Pocketry version");
+    expect(memory.get("tooltrace:project:v1")).toEqual(future);
+  });
   it("saves an unnamed draft and starts an empty project atomically, preserving history and materials", async () => {
     const initial = { spec: DOC.spec, cutouts: [], fingerHoles: [] };
     const edited = { spec: WIDE_DOC.spec, cutouts: [], fingerHoles: [] };

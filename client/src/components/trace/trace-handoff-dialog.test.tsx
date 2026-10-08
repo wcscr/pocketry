@@ -4,7 +4,8 @@ import { beforeEach, afterEach, expect, it, vi } from "vitest";
 import { initialTraceState, type TraceState } from "@/state/trace-store";
 import { TraceHandoffDialog } from "./trace-handoff-dialog";
 
-const mocks = vi.hoisted(() => ({ addShape: vi.fn(), close: vi.fn(), choosePhoto: vi.fn(), navigate: vi.fn() }));
+const mocks = vi.hoisted(() => ({ addShape: vi.fn(), close: vi.fn(), choosePhoto: vi.fn(), navigate: vi.fn(), destination: null as import("@/state/project-activity").ProjectActivity | null }));
+vi.mock("@/state/project-activity", () => ({ useProjectActivity: () => mocks.destination }));
 let trace: TraceState;
 vi.mock("@/state/trace-store", async importOriginal => ({
   ...await importOriginal<typeof import("@/state/trace-store")>(), useTrace: () => trace,
@@ -15,6 +16,7 @@ let root: Root, host: HTMLDivElement;
 beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.clearAllMocks();
+  mocks.destination = null;
   trace = { ...initialTraceState, fileName: "Wrench", imageSize: { width: 100, height: 100 },
     calibration: { startX: 0, startY: 0, endX: 100, endY: 0, lengthMm: 50 },
     outline: [{ outer: [{ x: 10, y: 10 }, { x: 50, y: 10 }, { x: 50, y: 30 }, { x: 10, y: 30 }], holes: [] }] };
@@ -38,8 +40,16 @@ it("requires an explicit depth, then hands off the chosen millimetres", () => {
   expect((document.getElementById("tool-depth-0") as HTMLInputElement).value).toBe("");
   depth(0, "7,5");
   React.act(() => button("Add and arrange").click());
-  expect(mocks.addShape).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ name: "Wrench", sourceMmPerPx: 0.5 }), { mode: "mm", value: 7.5 });
+  expect(mocks.addShape).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ name: "Wrench", sourceMmPerPx: 0.5 }), { mode: "mm", value: 7.5 }, undefined);
   expect(mocks.navigate).toHaveBeenCalledWith("/bin");
+});
+
+it.each(["saved", "loading", "error"] as const)("names the destination and respects its %s state", status => {
+  mocks.destination = { name: "Wrench tray", activeProjectId: "wrenches", status, error: null, hasDocument: true };
+  render(); depth(0, "8");
+  expect(document.body.textContent).toContain("Destination: Wrench tray");
+  expect(document.body.textContent).toContain("Later trace edits do not update pockets already added");
+  expect(button("Add and arrange").disabled).toBe(status !== "saved");
 });
 
 it.each(["", "0", "-2", "0.5", "121", "Infinity", "nope"])("does not hand off an invalid depth: %s", value => {
@@ -59,7 +69,7 @@ it("allows an explicit through choice and requires depth again when fixed depth 
   expect(button("Add and arrange").disabled).toBe(true);
   React.act(() => document.getElementById("tool-through-0")!.click());
   React.act(() => button("Add and trace another photo").click());
-  expect(mocks.addShape).toHaveBeenCalledExactlyOnceWith(expect.any(Object), { mode: "through" });
+  expect(mocks.addShape).toHaveBeenCalledExactlyOnceWith(expect.any(Object), { mode: "through" }, undefined);
   expect(mocks.choosePhoto).toHaveBeenCalledOnce();
   expect(mocks.navigate).not.toHaveBeenCalled();
 });
@@ -80,7 +90,7 @@ it("hands off To Floor without a numeric depth, and preserves fixed input across
   expect(button("Add and arrange").disabled).toBe(false);
   React.act(() => document.getElementById("tool-to-floor-0")!.click());
   React.act(() => button("Add and arrange").click());
-  expect(mocks.addShape).toHaveBeenCalledExactlyOnceWith(expect.any(Object), { mode: "to-floor" });
+  expect(mocks.addShape).toHaveBeenCalledExactlyOnceWith(expect.any(Object), { mode: "to-floor" }, undefined);
 });
 
 it("keeps independent floor and through choices when separate pockets are regrouped", () => {

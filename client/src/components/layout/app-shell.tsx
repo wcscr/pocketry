@@ -4,6 +4,8 @@ import type { ReactNode } from "react";
 export interface AppShellProps {
   /** Contents of the top bar. Omit for a chrome-less shell. */
   header?: ReactNode;
+  /** Persistent project identity and save state, outside workspace drawers. */
+  status?: ReactNode;
   /** Fills every pixel below the header. */
   children: ReactNode;
 }
@@ -16,7 +18,7 @@ export interface AppShellProps {
  * renders (the controls panel, say), so the canvas can assume its box is the
  * viewport minus the header and nothing shifts underneath it.
  */
-export function AppShell({ header, children }: AppShellProps): JSX.Element {
+export function AppShell({ header, status, children }: AppShellProps): JSX.Element {
   const keyboard = useKeyboardViewport();
   return (
     // h-dvh, not h-screen: on mobile browsers `100vh` includes the retracting
@@ -27,6 +29,7 @@ export function AppShell({ header, children }: AppShellProps): JSX.Element {
           {header}
         </header>
       ) : null}
+      {status}
       {/*
         min-h-0 is load-bearing. A flex item defaults to `min-height: auto`,
         which refuses to shrink below its content; the canvas would then push

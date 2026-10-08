@@ -310,12 +310,12 @@ function buildBambuModelSettings(
   return parts.join("");
 }
 
-/** Nine significant digits round-trip every finite Float32 coordinate. */
+/** Preserve the exact stored value when a slicer parses XML as doubles. */
 function coord(value: number): string {
   if (!Number.isFinite(value)) {
     throw new Error(`writeThreeMf: non-finite coordinate ${value}`);
   }
-  const text = Number(value.toPrecision(9)).toString();
+  const text = value.toString();
   return text === "-0" ? "0" : text;
 }
 

@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useKeyboardViewport } from "@/hooks/use-keyboard-viewport";
+import { useProjectActivity } from "@/state/project-activity";
 
 type DepthMode = "mm" | "to-floor" | "through";
 
@@ -21,6 +22,7 @@ export function TraceHandoffDialog({ onClose, onChoosePhoto, onCanvasInteraction
   onCanvasInteraction?: () => void;
 }) {
   const trace = useTrace();
+  const destination = useProjectActivity();
   const { outline, fileName, margin } = trace;
   const library = useShapeLibrary();
   const [, navigate] = useLocation();
@@ -33,7 +35,8 @@ export function TraceHandoffDialog({ onClose, onChoosePhoto, onCanvasInteraction
   const validDepth = (index: number) => depthModes[index] !== "mm" || (Number.isFinite(depthValues[index]) && depthValues[index] >= 1 && depthValues[index] <= 120);
   const chosenDepths = (separateTools ? outline : [outline[0]]).every((_, index) => validDepth(index));
   const scale = exportScale(trace.calibration, trace.imageSize.height);
-  const ready = !!scale.mmPerPx && outline.length > 0 && !trace.pendingAutoCalibration && !hasPendingManualCalibration(trace) && !trace.processing;
+  const destinationReady = !destination || (destination.status !== "loading" && destination.status !== "error");
+  const ready = destinationReady && !!scale.mmPerPx && outline.length > 0 && !trace.pendingAutoCalibration && !hasPendingManualCalibration(trace) && !trace.processing;
   const add = (anotherPhoto: boolean) => {
     if (!ready || !chosenDepths) return;
     const parts = separateTools ? outline.map(part => [part]) : [outline];
@@ -41,7 +44,8 @@ export function TraceHandoffDialog({ onClose, onChoosePhoto, onCanvasInteraction
       const shape = normalizeTracedShape(part, scale, toolNames[index]?.trim() || `Tool ${index + 1}`);
       const mode = depthModes[index];
       if (shape) library.addShape({ ...shape, traceMarginMm: margin ?? 0 },
-        mode === "mm" ? { mode, value: depthValues[index] } : { mode });
+        mode === "mm" ? { mode, value: depthValues[index] } : { mode },
+        destination ? { key: destination.destinationKey ?? `project:${destination.activeProjectId}`, name: destination.name ?? "Untitled project" } : undefined);
     }
     onClose();
     onCanvasInteraction?.();
@@ -53,6 +57,11 @@ export function TraceHandoffDialog({ onClose, onChoosePhoto, onCanvasInteraction
       style={keyboard ? { top: keyboard.top + keyboard.height / 2, maxHeight: Math.max(1, keyboard.height - 32) } : undefined}>
       <DialogHeader><DialogTitle>Name your tools and choose pocket depths</DialogTitle>
       <DialogDescription>Choose a fixed depth, To Floor, or Through for each tool. A photo cannot tell us its thickness. The trace already includes {margin ?? 0} mm of margin per edge.</DialogDescription></DialogHeader>
+      <div className="space-y-1 rounded-md border p-3 text-sm">
+        <p className="break-words font-medium">Destination: {destination?.name ?? "Untitled project"}</p>
+        <p className="text-xs text-muted-foreground">Each addition creates a new pocket. Later trace edits do not update pockets already added. To use another project, open it in Bin before adding.</p>
+        {!destinationReady && <p role="status">{destination?.status === "loading" ? "Reading the destination project…" : "Open Bin to resolve the project storage problem before adding tools."}</p>}
+      </div>
       {outline.length > 1 && <div className="flex items-center justify-between gap-2">
         <Label htmlFor="separate-tools">Separate pockets ({outline.length} objects)</Label>
         <Switch id="separate-tools" checked={separateTools} onCheckedChange={setSeparateTools} />

@@ -2,7 +2,12 @@
 
 ## Unreleased
 
-- Tilted pocket cutouts can extend above the fill surface without an error or blocked export; the opening follows the cutout's intersection with the bin. Fixed missing or extra material in colored exports of these pockets, including steep tilts and mirrored split depths.
+- Tilted pocket cutouts can extend above the fill surface without an error or blocked export; the opening follows the cutout’s intersection with the bin.
+
+- Preserve native bin geometry and color partitions during STL and 3MF export; repair Float32 topology without rebuilding rounded solids.
+
+- The active bin project and local save status stay visible in Trace and Bin, including on phones. Backups are available above the workspace, and Add to bin names its destination and explains that each addition creates a new pocket.
+- Failed edits retain a separate recovery download when reopening Bin. Queued tools wait for their intended project when another tab changes the destination, with an explicit option to add them to the current bin.
 
 - Trace offers a confirmed New trace action on desktop, explains empty detection results, and shows persistent photo-selection errors. File selection states supported formats, the 10 MB limit, and that photos stay on your device.
 

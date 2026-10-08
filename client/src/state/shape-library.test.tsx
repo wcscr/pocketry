@@ -67,6 +67,20 @@ function mountLibrary(): { library: () => ShapeLibrary; act: (fn: () => void) =>
 }
 
 describe("shape library", () => {
+  it("retains destination-bound tools when opening a project and through reload", () => {
+    const first = mountLibrary();
+    const destination = { key: "project:a", name: "Project A" };
+    first.act(() => first.library().addShape(makeShape("queued"), { mode: "to-floor" }, destination));
+    first.act(() => first.library().replaceShapes([makeShape("stored-b")], true));
+    expect(first.library().pendingIds).toEqual(["queued"]);
+    expect(first.library().pendingDestinations).toEqual({ queued: destination });
+    const reloaded = mountLibrary();
+    expect(reloaded.library().pendingDestinations).toEqual({ queued: destination });
+    expect(reloaded.library().shapes).toEqual([makeShape("queued")]);
+    reloaded.act(() => reloaded.library().retargetPending({ key: "project:b", name: "Project B" }));
+    expect(mountLibrary().library().pendingDestinations).toEqual({ queued: { key: "project:b", name: "Project B" } });
+  });
+
   it("recovers each chosen depth without adding placement metadata to reusable shapes", () => {
     const first = mountLibrary();
     first.act(() => {
