@@ -74,6 +74,14 @@ count: higher values use fewer points and can lose small details. Physical Trace
 exports require a confirmed scale and show the resulting dimensions before
 download; an unscaled outline can still be exported as an SVG in pixels.
 
+**Select** only selects contours. Choose **Edit contours** to move points or add
+one near an edge; clicking empty space clears the selection. Ctrl/Cmd+Z and
+Ctrl/Cmd+Shift+Z undo and redo contour edits, including after toolbar clicks.
+Replacing a ruler keeps the accepted scale until you confirm the new one;
+**Cancel ruler** restores it. Clearing the region or redrawing it over manual
+edits asks before replacing your work. Clearing the region also clears contour
+history and cannot be undone.
+
 The current Trace draft is saved in this browser, including its photo, scale,
 edited contours, and undo history. Wait for **Trace draft saved in this browser** before
 closing the page. This recovery copy is local to the browser; replacing the photo
@@ -126,6 +134,13 @@ commits once; Escape restores the whole edit, including dependent geometry.
 Invalid Enter keeps focus; invalid blur discards the edit. Batch fields still use
 **Apply**. Autosave and export use committed changes. An unnamed draft is separate
 from named Library storage; choose **Save this draft to Library** to name it.
+
+Bin projects are also saved only in this browser. If another tab changes the
+saved projects, a stale tab stops saving and shows a notice above the canvas.
+Use **Download backup** to keep that tab's edits, then reload to use the latest
+saved work. Storage errors keep the same backup action visible even when the
+controls are closed. A failed library read is shown as an error, not an empty
+library.
 
 ![Top-down Bin layout with pockets for the air duster, adapters, angled nozzle, and USB cable, plus finger access](docs/images/bin-layout.jpg)
 

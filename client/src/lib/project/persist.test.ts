@@ -1,8 +1,10 @@
+import "@/lib/project/mock-storage";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { set, setMany } from "idb-keyval";
 
 import { PROJECT_SCHEMA_VERSION, type ProjectDoc } from "@shared/gridfinity/project";
 import { parseBinSpec } from "@shared/gridfinity/types";
+import { DEFAULT_BIN_MATERIALS } from "@shared/gridfinity/materials";
 import airdusterV9 from "@shared/gridfinity/fixtures/airduster-v9.pocketry.json";
 import ryobiReloadFixture from "@shared/gridfinity/fixtures/ryobi-split-reload.pocketry.json";
 import { prepareProjectExport } from "./export";
@@ -46,8 +48,8 @@ const WIDE_DOC: ProjectDoc = {
   spec: parseBinSpec({ gridX: 4, gridY: 2, heightUnits: 6 }),
 };
 
-beforeEach(() => {
-  memory.clear();
+beforeEach(async () => {
+  memory.clear(); await loadProjectDoc();
   vi.clearAllMocks();
 });
 
@@ -56,6 +58,95 @@ afterEach(() => {
 });
 
 describe("current project persistence", () => {
+  it.each([false, true])("rejects a stale tab's autosave and project actions (named: %s)", async named => {
+    const saved = named ? await saveProjectToLibrary(DOC, "Tools", null) : await startNewProject(DOC);
+    vi.resetModules();
+    const otherTab = await import("./persist");
+    const otherDoc = (await otherTab.loadProjectDoc())!;
+    const newer = { ...otherDoc, spec: WIDE_DOC.spec };
+    expect(await otherTab.saveProjectDoc(newer, saved.activeProjectId)).toBe(true);
+    const durable = structuredClone([...memory]);
+    const result = await saveProjectDoc({ ...DOC, keepBinSize: true }, saved.activeProjectId);
+    expect(result).toBe(false);
+    // Refreshing the list must not authorize this stale editor to overwrite it.
+    await loadProjectLibrary();
+    await expect(saveProjectToLibrary(DOC, "Old tab", saved.activeProjectId)).rejects.toThrow("another tab");
+    await expect(startNewProject(DOC)).rejects.toThrow("another tab");
+    await expect(importProjectToLibrary(DOC)).rejects.toThrow("another tab");
+    expect([...memory]).toEqual(durable);
+    expect((await otherTab.loadProjectDoc())!.spec.gridX).toBe(4);
+  });
+
+  it("allows exactly one concurrent tab to commit over a shared snapshot", async () => {
+    const saved = await saveProjectToLibrary(DOC, "Tools", null);
+    vi.resetModules();
+    const otherTab = await import("./persist");
+    await otherTab.loadProjectDoc();
+    const outcomes = await Promise.all([
+      saveProjectDoc({ ...DOC, name: "Tools", keepBinSize: true }, saved.activeProjectId),
+      otherTab.saveProjectDoc({ ...WIDE_DOC, name: "Tools" }, saved.activeProjectId),
+    ]);
+    expect(outcomes.filter(Boolean)).toHaveLength(1);
+    const current = await loadProjectDoc();
+    const library = memory.get("tooltrace:project-library:v1") as { projects: { doc: ProjectDoc }[] };
+    expect(current).toEqual(library.projects[0].doc);
+    expect(current).toEqual(outcomes[0] ? { ...DOC, name: "Tools", keepBinSize: true } : { ...WIDE_DOC, name: "Tools" });
+  });
+
+  it("detects writes from older tabs that do not have a revision counter", async () => {
+    await saveProjectToLibrary(DOC, "Tools", null);
+    memory.set("tooltrace:project:v1", { ...WIDE_DOC, name: "Tools" });
+    expect(await saveProjectDoc(DOC)).toBe(false);
+    expect(memory.get("tooltrace:project:v1")).toEqual({ ...WIDE_DOC, name: "Tools" });
+  });
+
+  it("does not update a saved project's timestamp or write storage for an unchanged document", async () => {
+    const saved = await saveProjectToLibrary(DOC, "Tools", null);
+    const opened = await openProjectFromLibrary(saved.activeProjectId!);
+    vi.mocked(setMany).mockClear();
+    expect(await saveProjectDoc(opened.doc, saved.activeProjectId)).toBe(true);
+    expect(setMany).not.toHaveBeenCalled();
+    expect((await loadProjectLibrary()).projects[0].updatedAt).toBe(saved.projects[0].updatedAt);
+  });
+
+  it("does not save a second tab's hydration defaults or reordered document as an edit", async () => {
+    const saved = await saveProjectToLibrary(DOC, "Tools", null);
+    vi.resetModules();
+    const otherTab = await import("./persist");
+    const restored = (await otherTab.loadProjectDoc())!;
+    const { name, ...rest } = restored;
+    const hydrated = { name, keepBinSize: false, materials: DEFAULT_BIN_MATERIALS,
+      transformOrigins: { pockets: [], fingerHoles: [] }, ...rest,
+      history: { stack: [{ doc: { spec: rest.spec, cutouts: rest.cutouts, fingerHoles: rest.fingerHoles }, label: "Project opened" }], index: 0 },
+    };
+    vi.mocked(setMany).mockClear();
+    expect(await otherTab.saveProjectDoc(hydrated, saved.activeProjectId)).toBe(true);
+    expect(setMany).not.toHaveBeenCalled();
+    expect((await otherTab.loadProjectLibrary()).projects[0].updatedAt).toBe(saved.projects[0].updatedAt);
+    expect(await saveProjectDoc({ ...WIDE_DOC, name }, saved.activeProjectId)).toBe(true);
+  });
+
+  it("does not report an older save as completion of newer pending edits", async () => {
+    let release!: () => void;
+    const blocked = new Promise<void>(resolve => { release = resolve; });
+    vi.mocked(set).mockImplementationOnce(async (key, value) => {
+      await blocked;
+      memory.set(String(key), value);
+    });
+    const onSaved = vi.fn();
+    const saver = createDebouncedProjectSaver(500, onSaved);
+    saver(DOC);
+    const first = saver.flush();
+    await vi.waitFor(() => expect(set).toHaveBeenCalledOnce());
+    saver(WIDE_DOC);
+    release();
+    expect(await first).toBe(true);
+    expect(onSaved).not.toHaveBeenCalled();
+    expect(await saver.flush()).toBe(true);
+    expect(onSaved).toHaveBeenCalledExactlyOnceWith(true, undefined);
+    expect((await loadProjectDoc())!.spec.gridX).toBe(4);
+  });
+
   it("recovers a named working copy with newer edits as a saved project without overwriting the older library version", async () => {
     const saved = await saveProjectToLibrary(DOC, "Tools", null);
     const working = { ...WIDE_DOC, name: "Tools", history: {
@@ -117,6 +208,7 @@ describe("current project persistence", () => {
       } } : kind === "edited" ? { ...WIDE_DOC, name: "Tools" }
         : kind === "unnamed" ? DOC : kind === "different name" ? { ...doc, name: "Other" } : doc;
       memory.set("tooltrace:project:v1", working);
+      await loadProjectDoc();
       const originalLibrary = structuredClone(memory.get("tooltrace:project-library:v1")) as { projects: unknown[] };
       const restored = await loadProjectLibrary(working);
       if (kind === "unnamed" || kind === "different name") {
@@ -137,7 +229,8 @@ describe("current project persistence", () => {
   it("does not steal an existing active project when a restored name matches another entry", async () => {
     await saveProjectToLibrary(DOC, "First", null);
     const active = await saveProjectToLibrary(WIDE_DOC, "Second", null);
-    expect(await loadProjectLibrary({ ...DOC, name: "First" })).toEqual(active);
+    await expect(loadProjectLibrary({ ...DOC, name: "First" })).rejects.toThrow("another tab");
+    expect(await loadProjectLibrary()).toEqual(active);
     expect((await loadProjectDoc())!.name).toBe("Second");
   });
 
@@ -145,7 +238,8 @@ describe("current project persistence", () => {
     const saved = await saveProjectToLibrary(DOC, "Tools", null);
     const outgoing = (await loadProjectDoc())!;
     await startNewProject(WIDE_DOC);
-    expect(await loadProjectLibrary(outgoing)).toEqual({ ...saved, activeProjectId: null });
+    await expect(loadProjectLibrary(outgoing)).rejects.toThrow("another tab");
+    expect(await loadProjectLibrary()).toEqual({ ...saved, activeProjectId: null });
     expect(await loadProjectDoc()).toEqual(WIDE_DOC);
   });
 
@@ -173,6 +267,8 @@ describe("current project persistence", () => {
     expect(first.activeProjectId).not.toBeNull();
     expect(second).toEqual(first);
     expect(second.projects).toHaveLength(2);
+    await saveProjectDoc({ ...(await loadProjectDoc())!, spec: DOC.spec }, second.activeProjectId);
+    await expect(loadProjectLibrary(working)).rejects.toThrow("another tab");
   });
 
   it("keeps recovered names unique within the length limit, including case-insensitive collisions", async () => {
@@ -236,10 +332,10 @@ describe("current project persistence", () => {
     expect(loaded!.spec.gridX).toBe(2);
   });
 
-  it("returns null for an empty or corrupt store", async () => {
+  it("distinguishes an empty store from an unreadable saved project", async () => {
     expect(await loadProjectDoc()).toBeNull();
     memory.set("tooltrace:project:v1", { schemaVersion: 99 });
-    expect(await loadProjectDoc()).toBeNull();
+    await expect(loadProjectDoc()).rejects.toThrow("kept intact");
   });
 
   it("debounces saves to the trailing edge and can cancel a pending write", async () => {
@@ -421,6 +517,7 @@ describe("named project library", () => {
   it("rejects copying missing or unsupported projects without changing storage", async () => {
     const future = { id: "future", name: "Future project", updatedAt: "2026-09-12T12:00:00.000Z", doc: { schemaVersion: 999 } };
     memory.set("tooltrace:project-library:v1", { schemaVersion: 1, activeProjectId: null, projects: [future] });
+    await loadProjectDoc();
     const before = structuredClone([...memory]);
     await expect(duplicateProjectInLibrary("missing")).rejects.toThrow("no longer");
     await expect(duplicateProjectInLibrary("future", DOC)).rejects.toThrow("unsupported");
@@ -458,6 +555,7 @@ describe("named project library", () => {
   it("preserves unsupported entries and rejects renaming missing or unsupported projects", async () => {
     const future = { id: "future", name: "Future project", updatedAt: "2026-09-12T12:00:00.000Z", doc: { schemaVersion: 999 } };
     memory.set("tooltrace:project-library:v1", { schemaVersion: 1, activeProjectId: null, projects: [future] });
+    await loadProjectDoc();
     const saved = await saveProjectToLibrary(DOC, "Tools", null);
     await renameProjectInLibrary(saved.activeProjectId!, "Renamed tools");
     const before = structuredClone([...memory]);
@@ -522,6 +620,7 @@ describe("named project library", () => {
         },
       ],
     });
+    await loadProjectDoc();
     const opened = await openProjectFromLibrary("legacy-project");
     expect(opened.doc.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
     expect(opened.doc.spec.gridX).toBe(4);
@@ -542,6 +641,7 @@ describe("named project library", () => {
     });
 
     expect((await loadProjectLibrary()).projects).toEqual([]);
+    await loadProjectDoc();
     await saveProjectToLibrary(DOC, "Current project", null);
     const stored = memory.get("tooltrace:project-library:v1") as {
       projects: Array<{ id: string; doc: unknown }>;
@@ -570,17 +670,14 @@ describe("named project library", () => {
     expect((await loadProjectLibrary()).projects).toHaveLength(1);
   });
 
-  it("ignores corrupt library data", async () => {
+  it("reports corrupt library data without presenting an empty library", async () => {
     memory.set("tooltrace:project-library:v1", {
       schemaVersion: 1,
       activeProjectId: "missing",
       projects: [{ id: "broken" }],
     });
 
-    expect(await loadProjectLibrary()).toEqual({
-      activeProjectId: null,
-      projects: [],
-    });
+    await expect(loadProjectLibrary()).rejects.toThrow("kept intact");
   });
 
   it("keeps named v4 projects while removing their legacy lite base choice", async () => {
@@ -604,6 +701,7 @@ describe("named project library", () => {
     const library = await loadProjectLibrary();
     expect(library.projects).toHaveLength(1);
     expect(library.activeProjectId).toBe("legacy-project");
+    await loadProjectDoc();
     const opened = await openProjectFromLibrary("legacy-project");
     expect(opened.doc.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
     expect(opened.doc.spec).not.toHaveProperty("liteBase");

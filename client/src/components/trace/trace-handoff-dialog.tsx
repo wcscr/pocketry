@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { exportScale } from "@/lib/export/scale";
 import { normalizeTracedShape } from "@/lib/gridfinity/traced-shape";
 import { useShapeLibrary } from "@/state/shape-library";
-import { useTrace } from "@/state/trace-store";
+import { hasPendingManualCalibration, useTrace } from "@/state/trace-store";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -23,7 +23,7 @@ export function TraceHandoffDialog({ onClose, onChoosePhoto, onCanvasInteraction
   const [separateTools, setSeparateTools] = useState(true);
   const [toolNames, setToolNames] = useState(() => outline.map((_, i) => outline.length === 1 ? fileName || "Traced tool" : `Tool ${i + 1}`));
   const scale = exportScale(trace.calibration, trace.imageSize.height);
-  const ready = !!scale.mmPerPx && outline.length > 0 && !trace.pendingAutoCalibration && !trace.processing;
+  const ready = !!scale.mmPerPx && outline.length > 0 && !trace.pendingAutoCalibration && !hasPendingManualCalibration(trace) && !trace.processing;
   const add = (anotherPhoto: boolean) => {
     if (!ready) return;
     const parts = separateTools ? outline.map(part => [part]) : [outline];

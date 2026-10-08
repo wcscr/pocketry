@@ -197,6 +197,7 @@ export interface BinControlsPanelProps {
   onExportProject: () => void;
   onImportProject: (doc: ProjectDoc) => Promise<boolean>;
   projectLibraryReady: boolean;
+  projectLibraryError?: string | null;
   projectBusy: boolean;
   activeProjectId: string | null;
   currentProjectName: string | null;
@@ -255,6 +256,7 @@ export function BinControlsPanel({
   onExportProject,
   onImportProject,
   projectLibraryReady,
+  projectLibraryError,
   projectBusy,
   activeProjectId,
   currentProjectName,
@@ -1383,6 +1385,7 @@ export function BinControlsPanel({
             setSaveOpen={setProjectNameOpen}
             hydrated={hydrated}
             libraryReady={projectLibraryReady}
+            libraryError={projectLibraryError}
             busy={projectBusy}
             saveStatus={saveStatus}
             activeProjectId={activeProjectId}
@@ -2309,6 +2312,7 @@ interface ProjectControlsProps {
   saveStatus?: "saving" | "saved" | "error";
   hydrated: boolean;
   libraryReady: boolean;
+  libraryError?: string | null;
   busy: boolean;
   activeProjectId: string | null;
   hasDraftWork: boolean;
@@ -2338,6 +2342,7 @@ function ProjectControls({
   setSaveOpen,
   hydrated,
   libraryReady,
+  libraryError,
   busy,
   activeProjectId,
   hasDraftWork,
@@ -2548,7 +2553,7 @@ function ProjectControls({
         <DialogHeader data-testid="library-manager-header" className="relative shrink-0 pr-10 bg-background before:pointer-events-none before:absolute before:-inset-x-4 before:-top-4 before:h-4 before:bg-background [@media(max-height:500px)]:sticky [@media(max-height:500px)]:top-0 [@media(max-height:500px)]:z-10">
           <DialogTitle>Manage browser library</DialogTitle>
           <DialogDescription>
-            {projects.length} saved project{projects.length === 1 ? "" : "s"} in this browser.
+            {libraryError ? "The browser library could not be refreshed." : `${projects.length} saved project${projects.length === 1 ? "" : "s"} in this browser.`}
             Open a project here, or import and export the entire library below.
           </DialogDescription>
           <DialogClose asChild>
@@ -2563,7 +2568,12 @@ function ProjectControls({
           data-testid="manage-library-scroll"
         >
         <div className="space-y-2 pr-4" data-testid="managed-project-list">
-          {projects.length === 0 ? (
+          {libraryError ? (
+            <div className="rounded-md border border-destructive/40 p-3 text-sm" role="alert">
+              <p>{libraryError}</p>
+              <Button variant="outline" className="mt-2 min-h-11" onClick={onRefreshProjects}>Try again</Button>
+            </div>
+          ) : projects.length === 0 ? (
             <div className="rounded-md border border-dashed p-5 text-center text-sm text-muted-foreground">
               <p>No named projects yet.</p>
               <Button className="mt-3 min-h-11 h-auto w-full whitespace-normal" data-testid="button-save-draft-library" disabled={!ready || busy} onClick={saveDraftFromLibrary}>Save this draft to Library</Button>

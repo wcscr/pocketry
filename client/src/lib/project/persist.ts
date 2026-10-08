@@ -1,4 +1,7 @@
-import { get, set as setRaw, setMany as setManyRaw } from "idb-keyval";
+import {
+  CURRENT_PROJECT_KEY, PROJECT_LIBRARY_KEY, commitProjectStorage, readProjectStorage,
+  sameProjectStorage, ProjectStorageConflictError, type ProjectStorageSnapshot,
+} from "./storage";
 import {
   libraryBackupSchema,
   projectLibrarySchema,
@@ -12,9 +15,11 @@ import {
 
 import {
   parseProjectDoc,
+  projectDocSchema,
   serializeProjectDoc,
   type ProjectDoc,
 } from "@shared/gridfinity/project";
+import { DEFAULT_BIN_MATERIALS } from "@shared/gridfinity/materials";
 
 /**
  * Project persistence over IndexedDB (`idb-keyval`, Apache-2.0).
@@ -26,10 +31,6 @@ import {
  * workflow without pretending that websites control the OS download folder.
  */
 
-// Legacy namespace retained so the Pocketry rebrand never strands existing
-// browser-local projects or silently starts users from an empty library.
-const CURRENT_PROJECT_KEY = "tooltrace:project:v1";
-const PROJECT_LIBRARY_KEY = "tooltrace:project-library:v1";
 /** Compact every durable write, including library operations and working-copy
  * recovery. Unknown future-version library documents stay byte-for-byte data. */
 function compactDocument(value: unknown): unknown {
@@ -44,8 +45,25 @@ function compactStoredValue(key: string, value: unknown): unknown {
   }
   return value;
 }
-const set = (key: string, value: unknown) => setRaw(key, compactStoredValue(key, value));
-const setMany = (entries: [string, unknown][]) => setManyRaw(entries.map(([key, value]) => [key, compactStoredValue(key, value)]));
+/** Stage all changes before the atomic compare-and-write. */
+class ProjectMutation {
+  readonly entries = new Map<string, unknown>();
+  constructor(readonly snapshot: ProjectStorageSnapshot) {}
+  get current(): unknown { return this.snapshot.current; }
+  set(key: string, value: unknown): void { this.entries.set(key, compactStoredValue(key, value)); }
+  setMany(entries: [string, unknown][]): void { for (const [key, value] of entries) this.set(key, value); }
+  nextSnapshot(): ProjectStorageSnapshot {
+    return {
+      current: this.entries.has(CURRENT_PROJECT_KEY) ? this.entries.get(CURRENT_PROJECT_KEY) : this.snapshot.current,
+      library: this.entries.has(PROJECT_LIBRARY_KEY) ? this.entries.get(PROJECT_LIBRARY_KEY) : this.snapshot.library,
+    };
+  }
+}
+// This tab may write only over the snapshot it restored or last committed.
+let expectedStorage: ProjectStorageSnapshot | undefined;
+// Recovery may rename a restored working copy. Repeated restore effects for
+// that exact copy can reuse its recovered identity without creating duplicates.
+let recoveredWorkingCopy: { originalKey: string; recoveredKey: string } | undefined;
 
 export interface ProjectLibraryItem {
   id: string;
@@ -111,8 +129,7 @@ function parseStoredLibrary(input: unknown): StoredProjectLibrary {
   return { ...result.data, activeProjectId, projects };
 }
 
-async function readStoredLibrary(): Promise<StoredProjectLibrary> {
-  const raw: unknown = await get(PROJECT_LIBRARY_KEY);
+function readStoredLibrary(raw: unknown): StoredProjectLibrary {
   if (raw != null && !projectLibrarySchema.safeParse(raw).success) {
     throw new Error("The saved library is unreadable. It has been kept intact; download your current work before recovering it.");
   }
@@ -129,9 +146,21 @@ function toSnapshot(library: StoredProjectLibrary): ProjectLibrarySnapshot {
 }
 
 function mutateLibrary<T>(
-  mutation: (library: StoredProjectLibrary) => Promise<T>,
+  mutation: (library: StoredProjectLibrary, tx: ProjectMutation) => Promise<T>,
+  readOnly = false,
 ): Promise<T> {
-  const result = libraryMutationQueue.then(async () => mutation(await readStoredLibrary()));
+  const result = libraryMutationQueue.then(async () => {
+    const snapshot = await readProjectStorage();
+    const library = readStoredLibrary(snapshot.library);
+    if (!readOnly && expectedStorage && !sameProjectStorage(expectedStorage, snapshot)) {
+      throw new ProjectStorageConflictError();
+    }
+    const tx = new ProjectMutation(snapshot);
+    const result = await mutation(library, tx);
+    if (tx.entries.size) await commitProjectStorage(snapshot, [...tx.entries]);
+    if (!readOnly) expectedStorage = tx.nextSnapshot();
+    return result;
+  });
   libraryMutationQueue = result.then(
     () => undefined,
     () => undefined,
@@ -141,19 +170,27 @@ function mutateLibrary<T>(
 
 export async function loadProjectDoc(): Promise<ProjectDoc | null> {
   await libraryMutationQueue;
-  try {
-    return parseProjectDoc(await get(CURRENT_PROJECT_KEY));
-  } catch {
-    return null;
-  }
+  const snapshot = await readProjectStorage();
+  expectedStorage = snapshot;
+  if (snapshot.current == null) return null;
+  const doc = parseProjectDoc(snapshot.current);
+  if (!doc) throw new Error("The saved project is unreadable or was saved by a newer Pocketry version. It has been kept intact. Reload with an up-to-date version to recover it.");
+  return doc;
 }
 
 /** Normalize only defaults that hydration adds without an edit. A single
  * history baseline has no undo/redo steps; longer histories must match in full.
  */
 function restoredDocumentKey(doc: ProjectDoc): string {
-  return JSON.stringify(serializeProjectDoc({ ...doc, keepBinSize: doc.keepBinSize ?? false,
-    history: doc.history?.stack.length === 1 ? undefined : doc.history }));
+  // Schema parsing also gives editor-built and restored objects the same key
+  // order; object insertion order must not turn an unchanged restore into an edit.
+  return JSON.stringify(serializeProjectDoc(projectDocSchema.parse({
+    ...doc,
+    keepBinSize: doc.keepBinSize ?? false,
+    materials: doc.materials ?? DEFAULT_BIN_MATERIALS,
+    transformOrigins: doc.transformOrigins ?? { pockets: [], fingerHoles: [] },
+    history: doc.history?.stack.length === 1 ? undefined : doc.history,
+  })));
 }
 
 /** On restore, reconnect an identical named copy. If a same-name saved project
@@ -162,49 +199,53 @@ function restoredDocumentKey(doc: ProjectDoc): string {
  * so the UI can keep the document open and pause autosave until it is saved.
  */
 export async function loadProjectLibrary(restoredDoc?: ProjectDoc | null): Promise<ProjectLibrarySnapshot> {
-  try {
-    return await mutateLibrary(async (library) => {
-      if (!library.activeProjectId && restoredDoc?.name) {
-        const doc = parseProjectDoc(restoredDoc);
-        if (!doc?.name) return toSnapshot(library);
-        const sourceName = doc.name;
-        const key = restoredDocumentKey(doc);
-        const current = parseProjectDoc(await get(CURRENT_PROJECT_KEY));
-        // A newer workspace may already have replaced the document while this
-        // restore waited for queued writes. Never attach that newer draft.
-        if (!current || restoredDocumentKey(current) !== key) return toSnapshot(library);
-        const namedProjects = library.projects.filter((project) =>
-          project.name.localeCompare(sourceName, undefined, { sensitivity: "accent" }) === 0,
-        );
-        const matches = namedProjects.filter((project) => {
-          const saved = parseProjectDoc({ ...project.doc, name: project.name });
-          return saved !== null && restoredDocumentKey(saved) === key;
-        });
-        if (matches.length === 1) {
-          const next = { ...library, activeProjectId: matches[0].id };
-          // Commit the recovered identity before autosave can use it. Keep the
-          // working document (including undo/redo history) untouched.
-          await set(PROJECT_LIBRARY_KEY, next);
-          return toSnapshot(next);
-        }
-        if (namedProjects.length > 0) {
-          const name = availableProjectName(sourceName, library.projects, "recovered");
-          let id = makeProjectId();
-          while (library.projects.some((project) => project.id === id)) id = makeProjectId();
-          const recoveredDoc = { ...doc, name };
-          const recovered = { id, name, doc: recoveredDoc, updatedAt: new Date().toISOString() };
-          const next = { ...library, activeProjectId: id, projects: [...library.projects, recovered] };
-          await setMany([[CURRENT_PROJECT_KEY, recoveredDoc], [PROJECT_LIBRARY_KEY, next]]);
-          return toSnapshot(next);
-        }
+  return mutateLibrary(async (library, tx) => {
+    if (restoredDoc !== undefined) {
+      const current = parseProjectDoc(tx.current);
+      const currentKey = current && restoredDocumentKey(current);
+      const restoredKey = restoredDoc && restoredDocumentKey(restoredDoc);
+      const alreadyRecovered = recoveredWorkingCopy && restoredKey === recoveredWorkingCopy.originalKey &&
+        currentKey === recoveredWorkingCopy.recoveredKey;
+      if ((current === null) !== (restoredDoc === null) ||
+        (currentKey !== restoredKey && !alreadyRecovered)) {
+        throw new ProjectStorageConflictError();
       }
-      return toSnapshot(library);
-    });
-  }
-  catch (cause) {
-    if (restoredDoc) throw cause;
-    return toSnapshot(EMPTY_LIBRARY);
-  }
+    }
+    if (!library.activeProjectId && restoredDoc?.name) {
+      const doc = parseProjectDoc(restoredDoc);
+      if (!doc?.name) return toSnapshot(library);
+      const sourceName = doc.name;
+      const key = restoredDocumentKey(doc);
+      const current = parseProjectDoc(tx.current);
+      if (!current) return toSnapshot(library);
+      const namedProjects = library.projects.filter((project) =>
+        project.name.localeCompare(sourceName, undefined, { sensitivity: "accent" }) === 0,
+      );
+      const matches = namedProjects.filter((project) => {
+        const saved = parseProjectDoc({ ...project.doc, name: project.name });
+        return saved !== null && restoredDocumentKey(saved) === key;
+      });
+      if (matches.length === 1) {
+        const next = { ...library, activeProjectId: matches[0].id };
+        // Commit the recovered identity before autosave can use it. Keep the
+        // working document (including undo/redo history) untouched.
+        tx.set(PROJECT_LIBRARY_KEY, next);
+        return toSnapshot(next);
+      }
+      if (namedProjects.length > 0) {
+        const name = availableProjectName(sourceName, library.projects, "recovered");
+        let id = makeProjectId();
+        while (library.projects.some((project) => project.id === id)) id = makeProjectId();
+        const recoveredDoc = { ...doc, name };
+        recoveredWorkingCopy = { originalKey: key, recoveredKey: restoredDocumentKey(recoveredDoc) };
+        const recovered = { id, name, doc: recoveredDoc, updatedAt: new Date().toISOString() };
+        const next = { ...library, activeProjectId: id, projects: [...library.projects, recovered] };
+        tx.setMany([[CURRENT_PROJECT_KEY, recoveredDoc], [PROJECT_LIBRARY_KEY, next]]);
+        return toSnapshot(next);
+      }
+    }
+    return toSnapshot(library);
+  }, restoredDoc === undefined);
 }
 
 /** Include pending edits to the active named project without waiting for autosave.
@@ -246,7 +287,7 @@ export async function importProjectToLibrary(input: ProjectDoc): Promise<OpenedL
   const doc = parseProjectDoc(input);
   if (!doc) throw new Error("Not a supported Pocketry project file.");
   const sourceName = cleanProjectName(doc.name ?? "Imported project");
-  return mutateLibrary(async (library) => {
+  return mutateLibrary(async (library, tx) => {
     const name = availableProjectName(sourceName, library.projects, "imported");
     let id = makeProjectId();
     while (library.projects.some((project) => project.id === id)) id = makeProjectId();
@@ -255,7 +296,7 @@ export async function importProjectToLibrary(input: ProjectDoc): Promise<OpenedL
     const next = { ...library, activeProjectId: id, projects: [...library.projects, { ...project, doc: namedDoc }] };
     // A failed import must preserve both the outgoing working copy and its
     // autosave target; writing these keys separately can leave them mismatched.
-    await setMany([[CURRENT_PROJECT_KEY, namedDoc], [PROJECT_LIBRARY_KEY, next]]);
+    tx.setMany([[CURRENT_PROJECT_KEY, namedDoc], [PROJECT_LIBRARY_KEY, next]]);
     return { doc: namedDoc, project, library: toSnapshot(next) };
   });
 }
@@ -278,7 +319,7 @@ export async function importProjectLibrary(input: unknown, mode: LibraryImportMo
     if (project.doc.schemaVersion !== doc.schemaVersion) upgraded++;
     return { ...project, name: cleanProjectName(project.name), doc };
   });
-  return mutateLibrary(async (library) => {
+  return mutateLibrary(async (library, tx) => {
     const projects = mode === "replace" ? [] : [...library.projects];
     const ids = new Set(projects.map((project) => project.id));
     let renamed = 0;
@@ -292,54 +333,66 @@ export async function importProjectLibrary(input: unknown, mode: LibraryImportMo
     }
     const next = { ...library, activeProjectId: mode === "replace" ? null : library.activeProjectId, projects };
     if (mode === "replace") {
-      const raw: unknown = currentDoc ?? await get(CURRENT_PROJECT_KEY);
+      const raw: unknown = currentDoc ?? tx.current;
       const workingCopy = raw == null ? null : parseProjectDoc(raw);
       if (raw != null && !workingCopy) throw new Error("The current design is unreadable. The library has been kept intact.");
       if (workingCopy) {
         // Removing its saved name prevents restore from reconnecting this draft
         // to a same-name imported project or adding it back to the fresh library.
         delete workingCopy.name;
-        await setMany([[CURRENT_PROJECT_KEY, workingCopy], [PROJECT_LIBRARY_KEY, next]]);
+        tx.setMany([[CURRENT_PROJECT_KEY, workingCopy], [PROJECT_LIBRARY_KEY, next]]);
       } else {
-        await set(PROJECT_LIBRARY_KEY, next);
+        tx.set(PROJECT_LIBRARY_KEY, next);
       }
-    } else if (importedProjects.length > 0) await set(PROJECT_LIBRARY_KEY, next);
+    } else if (importedProjects.length > 0) tx.set(PROJECT_LIBRARY_KEY, next);
     return { library: toSnapshot(next), imported: importedProjects.length, upgraded, renamed };
   });
 }
 
-/** Best-effort working-copy autosave, also updating the active named project. */
-export async function saveProjectDoc(
+export type ProjectSaveResult = { success: true } | { success: false; error: Error };
+
+/** Preserve the original boolean API for callers that only need success. */
+export async function saveProjectDoc(doc: ProjectDoc, expectedProjectId?: string | null): Promise<boolean> {
+  return (await saveProjectDocResult(doc, expectedProjectId)).success;
+}
+
+/** Autosave with an actionable reason when durable storage rejects the write. */
+export async function saveProjectDocResult(
   doc: ProjectDoc,
   expectedProjectId?: string | null,
-): Promise<boolean> {
+): Promise<ProjectSaveResult> {
   try {
-    await mutateLibrary(async (library) => {
+    await mutateLibrary(async (library, tx) => {
       // A delayed write belongs to the project that scheduled it, even if a
       // different project has since become active. Check inside the queue.
       if (expectedProjectId !== undefined && library.activeProjectId !== expectedProjectId) {
-        throw new Error("The autosave belongs to a different project.");
+        throw new ProjectStorageConflictError();
       }
       if (!parseProjectDoc(doc)) throw new Error("The project history is inconsistent.");
-      const previous: unknown = await get(CURRENT_PROJECT_KEY);
+      const previous: unknown = tx.current;
       if (previous != null && parseProjectDoc(previous) === null) {
         throw new Error("The existing working copy is unreadable and has been preserved.");
       }
+      const previousDoc = parseProjectDoc(previous);
+      const unchanged = previousDoc && restoredDocumentKey(previousDoc) === restoredDocumentKey(doc);
       if (!library.activeProjectId) {
-        await set(CURRENT_PROJECT_KEY, doc);
+        if (unchanged) return;
+        tx.set(CURRENT_PROJECT_KEY, doc);
         return;
       }
       const index = library.projects.findIndex(
         (project) => project.id === library.activeProjectId,
       );
-      if (index < 0) return;
+      if (index < 0) throw new ProjectStorageConflictError();
+      const savedDoc = parseProjectDoc(library.projects[index].doc);
+      if (unchanged && savedDoc && restoredDocumentKey(savedDoc) === restoredDocumentKey(doc)) return;
       const projects = [...library.projects];
       projects[index] = {
         ...projects[index],
         doc,
         updatedAt: new Date().toISOString(),
       };
-      await setMany([[CURRENT_PROJECT_KEY, doc], [PROJECT_LIBRARY_KEY, { ...library, projects }]]);
+      tx.setMany([[CURRENT_PROJECT_KEY, doc], [PROJECT_LIBRARY_KEY, { ...library, projects }]]);
     });
     // Clear only queued shapes whose placements have reached durable storage.
     try {
@@ -353,10 +406,10 @@ export async function saveProjectDoc(
         sessionStorage.setItem("pocketry:queued-tools", JSON.stringify(remaining));
       }
     } catch { /* Session recovery may be unavailable. */ }
-    return true;
-  } catch {
-    // Quota or unavailable storage: the in-memory session stays authoritative.
-    return false;
+    return { success: true };
+  } catch (cause) {
+    // Keep the in-memory edits available for a portable backup.
+    return { success: false, error: cause instanceof Error ? cause : new Error("Browser storage is unavailable.") };
   }
 }
 
@@ -367,7 +420,7 @@ export async function saveProjectToLibrary(
   projectId: string | null,
 ): Promise<ProjectLibrarySnapshot> {
   const cleanName = cleanProjectName(name);
-  return mutateLibrary(async (library) => {
+  return mutateLibrary(async (library, tx) => {
     const conflict = library.projects.some(
       (project) =>
         project.id !== projectId &&
@@ -390,7 +443,7 @@ export async function saveProjectToLibrary(
       activeProjectId: id,
       projects,
     };
-    await setMany([[CURRENT_PROJECT_KEY, namedDoc], [PROJECT_LIBRARY_KEY, next]]);
+    tx.setMany([[CURRENT_PROJECT_KEY, namedDoc], [PROJECT_LIBRARY_KEY, next]]);
     return toSnapshot(next);
   });
 }
@@ -400,7 +453,7 @@ export async function duplicateProjectInLibrary(
   projectId: string,
   currentDoc?: ProjectDoc,
 ): Promise<{ library: ProjectLibrarySnapshot; project: ProjectLibraryItem }> {
-  return mutateLibrary(async (library) => {
+  return mutateLibrary(async (library, tx) => {
     const stored = library.projects.find((project) => project.id === projectId);
     if (!stored) throw new Error("That project is no longer in this browser's library.");
     const doc = parseProjectDoc(library.activeProjectId === projectId && currentDoc ? currentDoc : stored.doc);
@@ -418,7 +471,7 @@ export async function duplicateProjectInLibrary(
     const projects = [...library.projects];
     projects.splice(projects.indexOf(stored) + 1, 0, { ...project, doc: { ...doc, name } });
     const next = { ...library, projects };
-    await set(PROJECT_LIBRARY_KEY, next);
+    tx.set(PROJECT_LIBRARY_KEY, next);
     return { library: toSnapshot(next), project };
   });
 }
@@ -429,7 +482,7 @@ export async function renameProjectInLibrary(
   name: string,
 ): Promise<ProjectLibrarySnapshot> {
   const cleanName = cleanProjectName(name);
-  return mutateLibrary(async (library) => {
+  return mutateLibrary(async (library, tx) => {
     const stored = library.projects.find((project) => project.id === projectId);
     if (!stored) throw new Error("That project is no longer in this browser's library.");
     const doc = parseProjectDoc(stored.doc);
@@ -440,7 +493,7 @@ export async function renameProjectInLibrary(
     }
     const renamed = { ...stored, name: cleanName, doc: { ...doc, name: cleanName }, updatedAt: new Date().toISOString() };
     const next = { ...library, projects: library.projects.map((project) => project.id === projectId ? renamed : project) };
-    await set(PROJECT_LIBRARY_KEY, next);
+    tx.set(PROJECT_LIBRARY_KEY, next);
     return toSnapshot(next);
   });
 }
@@ -448,13 +501,13 @@ export async function renameProjectInLibrary(
 export async function openProjectFromLibrary(
   projectId: string,
 ): Promise<OpenedLibraryProject> {
-  return mutateLibrary(async (library) => {
+  return mutateLibrary(async (library, tx) => {
     const stored = library.projects.find((project) => project.id === projectId);
     if (!stored) throw new Error("That project is no longer in this browser's library.");
     const doc = parseProjectDoc(stored.doc);
     if (!doc) throw new Error("That project was saved by an unsupported Pocketry version.");
     const next = { ...library, activeProjectId: stored.id };
-    await setMany([[CURRENT_PROJECT_KEY, doc], [PROJECT_LIBRARY_KEY, next]]);
+    tx.setMany([[CURRENT_PROJECT_KEY, doc], [PROJECT_LIBRARY_KEY, next]]);
     return {
       doc,
       project: { id: stored.id, name: stored.name, updatedAt: stored.updatedAt },
@@ -466,23 +519,23 @@ export async function openProjectFromLibrary(
 export async function deleteProjectFromLibrary(
   projectId: string,
 ): Promise<ProjectLibrarySnapshot> {
-  return mutateLibrary(async (library) => {
+  return mutateLibrary(async (library, tx) => {
     const next: StoredProjectLibrary = {
       ...library,
       activeProjectId:
         library.activeProjectId === projectId ? null : library.activeProjectId,
       projects: library.projects.filter((project) => project.id !== projectId),
     };
-    await set(PROJECT_LIBRARY_KEY, next);
+    tx.set(PROJECT_LIBRARY_KEY, next);
     return toSnapshot(next);
   });
 }
 
 /** Replaces the working copy and detaches it from any named library project. */
 export async function startNewProject(doc: ProjectDoc): Promise<ProjectLibrarySnapshot> {
-  return mutateLibrary(async (library) => {
+  return mutateLibrary(async (library, tx) => {
     const next = { ...library, activeProjectId: null };
-    await setMany([[CURRENT_PROJECT_KEY, doc], [PROJECT_LIBRARY_KEY, next]]);
+    tx.setMany([[CURRENT_PROJECT_KEY, doc], [PROJECT_LIBRARY_KEY, next]]);
     return toSnapshot(next);
   });
 }
@@ -495,22 +548,25 @@ export interface DebouncedProjectSaver {
 }
 
 /** A trailing-edge saver carrying the identity of the project being edited. */
-export function createDebouncedProjectSaver(delayMs = 500, onSaved?: (success: boolean) => void): DebouncedProjectSaver {
+export function createDebouncedProjectSaver(delayMs = 500, onSaved?: (success: boolean, error?: Error) => void): DebouncedProjectSaver {
+  let generation = 0;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let pending: { doc: ProjectDoc; projectId?: string | null } | null = null;
   let writing: Promise<boolean> = Promise.resolve(true);
-  const cancel = () => {
+  const clearPending = () => {
     if (timer !== null) clearTimeout(timer);
     timer = null;
     pending = null;
   };
+  const cancel = () => { generation++; clearPending(); };
   const flush = (): Promise<boolean> => {
     const next = pending;
-    cancel();
+    const savingGeneration = generation;
+    clearPending();
     if (next) {
-      writing = saveProjectDoc(next.doc, next.projectId).then((success) => {
-        onSaved?.(success);
-        return success;
+      writing = saveProjectDocResult(next.doc, next.projectId).then((result) => {
+        if (generation === savingGeneration) onSaved?.(result.success, result.success ? undefined : result.error);
+        return result.success;
       });
     }
     return writing;

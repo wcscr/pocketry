@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Project saves reject stale edits from another tab. Storage failures stay visible above the Bin canvas with a backup download action, and library read errors no longer appear as an empty library.
+
+- Trace Select no longer changes contours. Undo and Redo work after toolbar clicks; replacing a ruler keeps the accepted scale until confirmation, and region resets or redraws warn before discarding edits.
+
 - Made the desktop layout default clearer in App settings, with “Original Single Panel UI” available to switch back; retired preferences now use the screen's default layout.
 - Mobile Select, Move, and Rotate are directly available in both layouts; tool adjustments stay beside or below the canvas, with full properties opened explicitly.
 - Overlapping pockets now combine their cuts with warnings instead of blocking export, including intersections below the surface and between tilted pockets.

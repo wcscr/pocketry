@@ -164,7 +164,7 @@ vi.mock("@/lib/gridfinity/use-bin-geometry", () => ({
 
 // Deterministic persistence: no stored project, writes are no-ops. Hydration
 // still resolves asynchronously, hence the `flushHydration` below.
-const projectSaveMock = vi.hoisted(() => ({ onSaved: undefined as ((success: boolean) => void) | undefined }));
+const projectSaveMock = vi.hoisted(() => ({ onSaved: undefined as ((success: boolean, error?: Error) => void) | undefined }));
 vi.mock("@/lib/project/persist", () => ({
   loadProjectDoc: vi.fn(async () => null),
   loadProjectLibrary: vi.fn(async () => ({ activeProjectId: null, projects: [] })),
@@ -178,7 +178,7 @@ vi.mock("@/lib/project/persist", () => ({
   importProjectLibrary: vi.fn(),
   importProjectToLibrary: vi.fn(),
   startNewProject: vi.fn(async () => ({ activeProjectId: null, projects: [] })),
-  createDebouncedProjectSaver: (_delay: number, onSaved?: (success: boolean) => void) => {
+  createDebouncedProjectSaver: (_delay: number, onSaved?: (success: boolean, error?: Error) => void) => {
     projectSaveMock.onSaved = onSaved;
     return Object.assign(vi.fn(), { cancel: vi.fn(), flush: vi.fn(async () => true) });
   },
@@ -383,6 +383,71 @@ function selectPocket(container: HTMLElement, id: string): void {
 }
 
 describe("BinDesignerPage", () => {
+  it.each([false, true])("shows save failure and downloads a backup outside the controls (mobile=%s)", async mobile => {
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(EMPTY_PROJECT);
+    const { container, unmount } = renderPage({ mobile });
+    try {
+      await flushHydration();
+      React.act(() => projectSaveMock.onSaved?.(false, new Error("Projects changed in another tab. Download a backup, then reload.")));
+      const banner = container.querySelector('[data-testid="bin-save-error"]')!;
+      expect(banner.getAttribute("role")).toBe("alert");
+      expect(banner.closest('[data-testid="bin-canvas"]')).not.toBeNull();
+      expect(banner.textContent).toContain("another tab");
+      React.act(() => banner.querySelector<HTMLButtonElement>("button")!.click());
+      expect(downloadBlob).toHaveBeenCalledOnce();
+      const [backup, filename] = vi.mocked(downloadBlob).mock.calls[0];
+      expect(filename).toMatch(/\.pocketry\.json$/);
+      const text = await new Promise<string>(resolve => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.readAsText(backup); });
+      expect(JSON.parse(text).spec.gridX).toBe(EMPTY_PROJECT.spec.gridX);
+      expect(container.querySelector('[data-testid="bin-save-error"]')).not.toBeNull();
+      React.act(() => projectSaveMock.onSaved?.(true));
+      expect(container.querySelector('[data-testid="bin-save-error"]')).toBeNull();
+    } finally { unmount(); }
+  });
+
+  it("reports a failed project restore without writing an empty replacement", async () => {
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockRejectedValue(new Error("Saved project is unreadable; it has been kept intact."));
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      expect(container.querySelector('[data-testid="bin-save-error"]')?.textContent).toContain("kept intact");
+      expect(container.querySelector('[data-testid="bin-save-error"] button')).toBeNull();
+      expect(ProjectPersistence.saveProjectDoc).not.toHaveBeenCalled();
+      expect(ProjectPersistence.loadProjectLibrary).not.toHaveBeenCalled();
+    } finally { unmount(); }
+  });
+
+  it("shows a failed library refresh as an error and allows a retry", async () => {
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      vi.mocked(ProjectPersistence.loadProjectLibrary).mockRejectedValueOnce(new Error("Browser storage could not be read."));
+      openSettingsSection(container, "project");
+      await React.act(async () => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
+      const dialog = document.querySelector('[role="dialog"]')!;
+      expect(dialog.textContent).toContain("Browser storage could not be read.");
+      expect(dialog.textContent).not.toContain("No named projects yet.");
+      await React.act(async () => [...dialog.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "Try again")!.click());
+      expect(dialog.textContent).toContain("No named projects yet.");
+    } finally { unmount(); }
+  });
+
+  it("keeps this tab's project identity when refreshing a library changed by another tab", async () => {
+    const projects = ["First", "Second"].map(name => ({ id: name, name, updatedAt: "2026-10-08T00:00:00Z" }));
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, name: "First" });
+    vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId: "First", projects });
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId: "Second", projects });
+      openSettingsSection(container, "project");
+      await React.act(async () => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
+      expect(container.querySelector('[data-testid="button-edit-project-name"]')?.parentElement?.textContent).toContain("First");
+      const dialog = document.querySelector('[role="dialog"]')!;
+      expect(dialog.querySelector('[data-testid="managed-project-list"]')?.textContent).toContain("Second");
+    } finally { unmount(); }
+  });
+
   it.each([
     { layout: "standard", mobile: false }, { layout: "workflow", mobile: false },
     { layout: "standard", mobile: true }, { layout: "workflow", mobile: true },
