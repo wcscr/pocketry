@@ -23,6 +23,7 @@ import { fingerHoleSchema, resolvePocketDepth, resolvePlacedPocketDepth, parseCu
 import { resolvePocketSplit } from "@shared/gridfinity/pocket-split";
 import { parseBinSpec } from "@shared/gridfinity/types";
 import { downloadBlob } from "@/lib/download";
+import { reportFolderStatus } from "@/lib/project/folder-library";
 import { useBinGeometry } from "@/lib/gridfinity/use-bin-geometry";
 import { createBasicPocket } from "@/lib/gridfinity/basic-shape";
 import { footprintOuterRingMm, occupiedCellCount } from "@shared/gridfinity/footprint";
@@ -368,6 +369,14 @@ function openSettingsSection(
   });
 }
 
+async function libraryAction(id: string, action: "rename" | "duplicate" | "remove") {
+  const existing = document.querySelector<HTMLElement>('[role="menu"]');
+  if (existing) await React.act(async () => existing.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+  const trigger = document.querySelector<HTMLButtonElement>(`[data-testid="button-project-actions-${id}"]`)!;
+  await React.act(async () => trigger.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true })));
+  return document.querySelector<HTMLButtonElement>(`[data-testid="button-${action}-project-${id}"]`)!;
+}
+
 function openMobileProperties() {
   const button = (text: string) => [...document.querySelectorAll<HTMLButtonElement>('button')].find(item => item.textContent === text)!;
   if (!document.querySelector('.mobile-adjustment-tray')) React.act(() => button('Adjust').click());
@@ -563,7 +572,9 @@ describe("BinDesignerPage", () => {
       expect(dialog.textContent).toContain("could not be read by this version");
       for (const project of projects) {
         for (const action of ["open", "rename", "duplicate"]) {
-          expect(dialog.querySelector<HTMLButtonElement>(`[data-testid="button-${action}-project-${project.id}"]`)!.disabled).toBe(true);
+          const button = action === "open" ? dialog.querySelector<HTMLButtonElement>(`[data-testid="button-open-project-${project.id}"]`)!
+            : await libraryAction(project.id, action as "rename" | "duplicate");
+          expect(button.disabled).toBe(true);
         }
         const row = dialog.querySelector(`[data-testid="library-project-${project.id}"]`)!;
         await React.act(async () => {
@@ -4493,7 +4504,7 @@ describe("BinDesignerPage", () => {
     expect(picker.textContent).toContain("Manage browser library");
     expect(picker.querySelector('[data-testid="button-export-library"]')).not.toBeNull();
     expect(picker.querySelector('[data-testid="button-import-library"]')).not.toBeNull();
-    expect(picker.querySelector('[data-testid^="button-remove-project-"]')).not.toBeNull();
+    expect(picker.querySelector('[data-testid^="button-project-actions-"]')).not.toBeNull();
     expect(
       (document.querySelector(
         '[data-testid="button-open-project-project-1"]',
@@ -4513,6 +4524,54 @@ describe("BinDesignerPage", () => {
       container.querySelector('[data-testid="project-autosave-status"]')?.textContent,
     ).toContain("Pliers tray");
     unmount();
+  });
+
+  it.each([null, "My designs"])("searches partial names in the library at %s without switching or changing saved projects", async folderName => {
+    reportFolderStatus({ folderName, state: folderName ? "saved" : "browser" });
+    const projects = [
+      { id: "current", name: "Socket tray", updatedAt: "2026-09-12T12:00:00.000Z" },
+      { id: "saved", name: "Mini socket [1]", updatedAt: "2026-09-12T12:00:00.000Z" },
+      { id: "other", name: "Pliers tray", updatedAt: "2026-09-12T12:00:00.000Z" },
+    ];
+    vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId: "current", projects });
+    vi.mocked(ProjectPersistence.openProjectFromLibrary).mockResolvedValue({ doc: EMPTY_PROJECT, project: projects[1], library: { activeProjectId: "saved", projects } });
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      openSettingsSection(container, "project");
+      await React.act(async () => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
+      const input = document.querySelector<HTMLInputElement>('[aria-label="Search designs"]')!;
+      const rows = () => [...document.querySelectorAll('[data-testid="managed-project-list"] > [data-project-id]')].map(row => row.getAttribute("data-project-id"));
+      const search = (value: string) => React.act(() => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      const viewport = document.querySelector<HTMLElement>('[data-testid="manage-library-scroll"] [data-radix-scroll-area-viewport]')!;
+      viewport.scrollTop = 200;
+      search("  SoCkEt  ");
+      expect(rows()).toEqual(["current", "saved"]);
+      expect(viewport.scrollTop).toBe(0);
+      expect(document.querySelector('[aria-label="Matching designs"]')!.textContent).toBe("2 / 3");
+      expect(document.querySelector<HTMLButtonElement>('[data-testid="button-open-project-current"]')!.disabled).toBe(true);
+      search("nothing matches");
+      expect(rows()).toEqual([]);
+      expect(document.querySelector('[data-testid="managed-project-list"]')!.textContent).toContain("No designs match");
+      expect(document.querySelector('[data-testid="button-save-draft-library"]')).toBeNull();
+      React.act(() => document.querySelector<HTMLButtonElement>('[aria-label="Clear search"]')!.click());
+      expect(input.value).toBe("");
+      expect(document.activeElement).toBe(input);
+      expect(rows()).toEqual(["current", "saved", "other"]);
+      search("[1]");
+      expect(rows()).toEqual(["saved"]);
+      expect(ProjectPersistence.openProjectFromLibrary).not.toHaveBeenCalled();
+      expect(ProjectPersistence.deleteProjectFromLibrary).not.toHaveBeenCalled();
+      expect(ProjectPersistence.renameProjectInLibrary).not.toHaveBeenCalled();
+      await React.act(async () => document.querySelector('[data-testid="library-project-saved"]')!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+      expect(ProjectPersistence.openProjectFromLibrary).toHaveBeenCalledExactlyOnceWith("saved");
+      await React.act(async () => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
+      expect(document.querySelector<HTMLInputElement>('[aria-label="Search designs"]')!.value).toBe("");
+      expect(rows()).toEqual(["current", "saved", "other"]);
+    } finally { unmount(); reportFolderStatus({ folderName: null, state: "browser" }); }
   });
 
   it("keeps the manager scrollbar visible while its projects overflow", async () => {
@@ -4644,21 +4703,21 @@ describe("BinDesignerPage", () => {
     expect(document.querySelector('[data-testid="project-list"]')).toBeNull();
     expect(document.querySelector<HTMLButtonElement>('[data-testid="button-open-project-current"]')!.disabled).toBe(true);
     expect(document.querySelector<HTMLButtonElement>('[data-testid="button-open-project-old"]')!.disabled).toBe(false);
-    const current = document.querySelector<HTMLButtonElement>('[data-testid="button-remove-project-current"]')!;
+    const current = await libraryAction("current", "remove");
     expect(current.disabled).toBe(true);
     expect(current.title).toBe("");
     expect(document.querySelector('[aria-label="About removing the current project"]')).toBeNull();
     React.act(() => current.click());
     expect(ProjectPersistence.deleteProjectFromLibrary).not.toHaveBeenCalled();
     expect(document.querySelector('[role="alertdialog"]')).toBeNull();
-    const remove = () => document.querySelector<HTMLButtonElement>('[data-testid="button-remove-project-old"]')!;
-    React.act(() => remove().click());
+    const remove = async () => { const button = await libraryAction("old", "remove"); await React.act(async () => button.click()); };
+    await remove();
     expect(document.querySelector('[role="alertdialog"]')?.textContent).toContain("Old tray");
     expect(document.querySelector('[role="alertdialog"]')?.textContent).toContain("Your current project and exported backups will not change");
     const keep = [...document.querySelectorAll<HTMLButtonElement>('[role="alertdialog"] button')].find(button => button.textContent === "Keep project")!;
     React.act(() => keep.click());
     expect(ProjectPersistence.deleteProjectFromLibrary).not.toHaveBeenCalled();
-    React.act(() => remove().click());
+    await remove();
     await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-confirm-remove-project"]')!.click());
     expect(ProjectPersistence.deleteProjectFromLibrary).toHaveBeenCalledExactlyOnceWith("old");
     expect(document.querySelector('[data-testid="managed-project-list"]')?.textContent).not.toContain("Old tray");
@@ -4694,7 +4753,7 @@ describe("BinDesignerPage", () => {
     expect(container.querySelector('[data-testid="current-project-name-row"] p[title]')?.textContent).toBe("Current tray");
     React.act(() => {
       document.querySelector('[data-testid="library-project-current"]')!.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
-      document.querySelector('[data-testid="button-remove-project-saved"]')!.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      document.querySelector('[data-testid="button-project-actions-saved"]')!.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
     });
     expect(ProjectPersistence.openProjectFromLibrary).not.toHaveBeenCalled();
     await React.act(async () => {
@@ -4726,7 +4785,7 @@ describe("BinDesignerPage", () => {
     const open = () => document.querySelector<HTMLButtonElement>('[data-testid="button-open-project-saved"]')!;
     await React.act(async () => open().click());
     expect(open().disabled).toBe(true);
-    expect(document.querySelector<HTMLButtonElement>('[data-testid="button-remove-project-saved"]')!.disabled).toBe(true);
+    expect(document.querySelector<HTMLButtonElement>('[data-testid="button-project-actions-saved"]')!.disabled).toBe(true);
     React.act(() => document.querySelector('[data-testid="library-project-saved"]')!.dispatchEvent(new MouseEvent("dblclick", { bubbles: true })));
     expect(ProjectPersistence.openProjectFromLibrary).toHaveBeenCalledExactlyOnceWith("saved");
     await React.act(async () => rejectOpen(new Error("Storage unavailable")));
@@ -5037,7 +5096,7 @@ describe("BinDesignerPage", () => {
     const before = vi.mocked(useBinGeometry).mock.lastCall;
     React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
     await flushHydration();
-    const copy = document.querySelector<HTMLButtonElement>(`[data-testid="button-duplicate-project-${id}"]`)!;
+    const copy = await libraryAction(id, "duplicate");
     expect(copy.disabled).toBe(false);
     await React.act(async () => copy.click());
     expect(ProjectPersistence.duplicateProjectInLibrary).toHaveBeenCalledExactlyOnceWith(id, expect.objectContaining({ schemaVersion: PROJECT_SCHEMA_VERSION }));
@@ -5053,7 +5112,7 @@ describe("BinDesignerPage", () => {
     expect(vi.mocked(useBinGeometry).mock.lastCall).toEqual(before);
     expect(ProjectPersistence.openProjectFromLibrary).not.toHaveBeenCalled();
     expect(ProjectPersistence.saveProjectToLibrary).not.toHaveBeenCalled();
-    expect(document.querySelector<HTMLButtonElement>('[data-testid="button-remove-project-current"]')!.disabled).toBe(true);
+    expect((await libraryAction("current", "remove")).disabled).toBe(true);
     unmount();
   });
 
@@ -5067,14 +5126,14 @@ describe("BinDesignerPage", () => {
     await flushHydration();
     React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
     await flushHydration();
-    const copy = document.querySelector<HTMLButtonElement>('[data-testid="button-duplicate-project-saved"]')!;
-    React.act(() => copy.click());
-    expect(copy.disabled).toBe(true);
+    const copy = await libraryAction("saved", "duplicate");
+    await React.act(async () => copy.click());
+    expect(document.querySelector<HTMLButtonElement>('[data-testid="button-project-actions-saved"]')!.disabled).toBe(true);
     const sourceRow = document.querySelector('[data-testid="library-project-saved"]')!;
     expect(document.activeElement).toBe(sourceRow);
-    expect(document.querySelector<HTMLButtonElement>('[data-testid="button-rename-project-saved"]')!.disabled).toBe(true);
+    expect(document.querySelector('[role="menu"]')).toBeNull();
     await React.act(async () => rejectCopy(new Error("Storage unavailable")));
-    expect(copy.disabled).toBe(false);
+    expect(document.querySelector<HTMLButtonElement>('[data-testid="button-project-actions-saved"]')!.disabled).toBe(false);
     expect(document.activeElement).toBe(sourceRow);
     expect(document.querySelectorAll('[data-testid="managed-project-list"] > [role="group"]')).toHaveLength(1);
     expect(container.querySelector('[data-testid="current-project-name-row"] p[title]')?.textContent).toBe("Saved tray");
@@ -5097,10 +5156,9 @@ describe("BinDesignerPage", () => {
     const before = vi.mocked(useBinGeometry).mock.lastCall;
     React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
     await flushHydration();
-    const rename = document.querySelector<HTMLButtonElement>(`[data-testid="button-rename-project-${id}"]`)!;
+    const rename = await libraryAction(id, "rename");
     expect(rename.disabled).toBe(false);
-    expect(rename.parentElement?.getAttribute("data-testid")).toBe(`library-project-name-${id}`);
-    React.act(() => rename.click());
+    await React.act(async () => rename.click());
     const input = document.querySelector<HTMLInputElement>('[data-testid="input-project-name"]')!;
     expect(input.value).toBe(projects.find(project => project.id === id)!.name);
     React.act(() => {
@@ -5117,10 +5175,11 @@ describe("BinDesignerPage", () => {
     }
     expect(document.querySelector('[data-testid="input-project-name"]')).toBeNull();
     expect(document.querySelector(`[data-testid="library-project-${id}"] p`)?.textContent).toBe("Renamed tray");
+    expect(document.activeElement?.getAttribute("data-project-id")).toBe(id);
     expect(container.querySelector('[data-testid="current-project-name-row"] p[title]')?.textContent).toBe(id === "current" ? "Renamed tray" : "Current tray");
     expect(vi.mocked(useBinGeometry).mock.lastCall).toEqual(before);
     expect(ProjectPersistence.openProjectFromLibrary).not.toHaveBeenCalled();
-    expect(document.querySelector<HTMLButtonElement>('[data-testid="button-remove-project-current"]')!.disabled).toBe(true);
+    expect((await libraryAction("current", "remove")).disabled).toBe(true);
     unmount();
   });
 
@@ -5133,7 +5192,8 @@ describe("BinDesignerPage", () => {
     await flushHydration();
     React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
     await flushHydration();
-    React.act(() => document.querySelector<HTMLButtonElement>('[data-testid="button-rename-project-saved"]')!.click());
+    const rename = await libraryAction("saved", "rename");
+    await React.act(async () => rename.click());
     await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-confirm-save-library"]')!.click());
     expect(document.querySelector<HTMLInputElement>('[data-testid="input-project-name"]')!.value).toBe("Saved tray");
     expect(document.querySelector<HTMLButtonElement>('[data-testid="button-confirm-save-library"]')!.disabled).toBe(false);
@@ -5158,9 +5218,9 @@ describe("BinDesignerPage", () => {
     vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId: null, projects: [project] });
     React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
     await flushHydration();
-    const remove = document.querySelector<HTMLButtonElement>('[data-testid="button-remove-project-saved"]')!;
+    const remove = await libraryAction("saved", "remove");
     expect(remove.disabled).toBe(false);
-    React.act(() => remove.click());
+    await React.act(async () => remove.click());
     await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-confirm-remove-project"]')!.click());
     expect(ProjectPersistence.deleteProjectFromLibrary).toHaveBeenCalledExactlyOnceWith("saved");
     expect(document.querySelector('[data-testid="managed-project-list"]')?.textContent).toContain("No named projects yet");
@@ -5176,13 +5236,14 @@ describe("BinDesignerPage", () => {
     await flushHydration();
     React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
     await flushHydration();
-    React.act(() => document.querySelector<HTMLButtonElement>('[data-testid="button-remove-project-saved"]')!.click());
+    const remove = await libraryAction("saved", "remove");
+    await React.act(async () => remove.click());
     await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-confirm-remove-project"]')!.click());
     expect(document.querySelector('[data-testid="managed-project-list"]')).toBeNull();
     expect(document.querySelector('[role="alertdialog"]')).not.toBeNull();
     React.act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="alertdialog"] button')].find(b=>b.textContent==="Keep project")!.click());
     expect(document.querySelector('[data-testid="managed-project-list"]')?.textContent).toContain("Saved tray");
-    expect(document.querySelector<HTMLButtonElement>('[data-testid="button-remove-project-saved"]')!.disabled).toBe(false);
+    expect((await libraryAction("saved", "remove")).disabled).toBe(false);
     expect(ProjectPersistence.openProjectFromLibrary).not.toHaveBeenCalled();
     unmount();
   });
@@ -6707,6 +6768,7 @@ it("invokes the native folder picker from the click and keeps the editor open wh
     openSettingsSection(container, "project");
     await React.act(async () => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
     const before = structuredClone(vi.mocked(useBinGeometry).mock.lastCall![0]);
+    React.act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(button => button.textContent === "Storage: this browser")!.click());
     await React.act(async () => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(button => button.textContent === "Connect library folder")!.click());
     expect(picker).toHaveBeenCalledWith({ id: "pocketry-library", mode: "readwrite" });
     expect(picker.mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(ProjectPersistence.saveProjectDoc).mock.invocationCallOrder[0]);

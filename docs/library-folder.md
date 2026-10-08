@@ -9,6 +9,11 @@ origin-private filesystem is involved. Initial targets are desktop Chrome and
 Edge, with feature detection and the existing browser/import/export workflow
 elsewhere. Each browser/profile must grant its own read/write permission.
 
+The library navigator searches names as you type, ignoring letter case. Each
+compact row shows the name and update date; Open stays visible and the action
+menu contains Rename, Copy, and Remove. Expand Storage to connect or disconnect
+a folder. Permission and conflict recovery details expand automatically.
+
 ## Connection and identity
 
 Pocketry creates a `pocketry-library` subdirectory in the chosen folder. The

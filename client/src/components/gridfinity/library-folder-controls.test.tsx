@@ -20,6 +20,8 @@ function render() {
 it("explains the existing backup workflow when native folder access is unavailable", () => {
   const view = render();
   try {
+    expect(view.host.textContent).not.toContain("You can still save here");
+    React.act(() => view.button("Storage: this browser").click());
     expect(view.host.textContent).toContain("You can still save here and export/import library backups");
     expect(view.button("Connect library folder")).toBeUndefined();
   } finally { view.unmount(); }
@@ -29,6 +31,7 @@ it("offers an explicit choice to copy existing browser projects", () => {
   vi.stubGlobal("showDirectoryPicker", vi.fn());
   const view = render();
   try {
+    React.act(() => view.button("Storage: this browser").click());
     React.act(() => view.button("Connect library folder").click());
     expect(view.props.onConnect).toHaveBeenLastCalledWith(true);
     React.act(() => view.host.querySelector<HTMLButtonElement>('[role="checkbox"]')!.click());

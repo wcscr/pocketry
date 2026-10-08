@@ -2,6 +2,8 @@ import { useState, useSyncExternalStore } from "react";
 import { FolderOpen, Unplug } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ChevronDown } from "lucide-react";
 import { getFolderStatus, subscribeFolderStatus, supportsLibraryFolder } from "@/lib/project/folder-library";
 
 export function useLibraryFolderStatus() {
@@ -21,9 +23,18 @@ export interface LibraryFolderControlsProps {
 export function LibraryFolderControls({ busy, onConnect, onReconnect, onKeepBoth, onDisconnect, onExportProject }: LibraryFolderControlsProps) {
   const status = useLibraryFolderStatus();
   const [copyBrowser, setCopyBrowser] = useState(true);
+  const [expanded, setExpanded] = useState(false);
   const connected = status.folderName !== null;
   const failed = ["permission-required", "conflict", "error"].includes(status.state);
-  return <section aria-label="Library storage" className="shrink-0 space-y-2 rounded-md border p-3 text-xs">
+  return <Collapsible open={expanded || failed} onOpenChange={setExpanded} asChild>
+    <section aria-label="Library storage" className="shrink-0 rounded-md border text-xs">
+    <CollapsibleTrigger asChild>
+      <Button variant="ghost" disabled={failed} className="h-auto min-h-9 w-full justify-between gap-2 px-2 py-2 text-xs [@media(pointer:coarse)]:min-h-11">
+        <span className="truncate">{connected ? `Storage: ${status.folderName}` : "Storage: this browser"}</span>
+        <ChevronDown className={`h-4 w-4 shrink-0 ${expanded || failed ? "rotate-180" : ""}`} />
+      </Button>
+    </CollapsibleTrigger>
+    <CollapsibleContent className="space-y-2 px-3 pb-3">
     <p className="font-medium break-words">{connected ? `Folder: ${status.folderName}/pocketry-library` : "Library storage: this browser"}</p>
     <p role="status" className="text-muted-foreground break-words">
       {status.message ?? (connected ? status.state === "saving" ? "Saving to folder…" : "Folder connected. Completed saves remain on your computer after browser data is cleared."
@@ -46,5 +57,6 @@ export function LibraryFolderControls({ busy, onConnect, onReconnect, onKeepBoth
     </div>}
     {connected && <p className="text-muted-foreground">Named projects autosave here; unnamed drafts stay in this browser. Earlier folder revisions are retained for recovery. Disconnecting keeps your files and returns the open design to a browser draft.</p>}
     {status.state === "conflict" && <p className="text-muted-foreground">Keep both versions retains the folder versions and your open design, then leaves your design open as a draft. Open the version you want to continue editing.</p>}
-  </section>;
+    </CollapsibleContent>
+  </section></Collapsible>;
 }

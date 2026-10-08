@@ -1,4 +1,5 @@
 import { EditableObjectName, ObjectActions } from "./object-list-controls";
+import { LibraryProjectRow } from "./library-project-row";
 import { useLibraryFolderStatus } from "./library-folder-controls";
 import { MaterialColorSwatch } from "./material-color-swatch";
 import { DEFAULT_BIN_MATERIALS } from "@shared/gridfinity/materials";
@@ -30,6 +31,7 @@ import {
   RotateCw,
   Scaling,
   Save,
+  Search,
   Scissors,
   Spline,
   Trash2,
@@ -2390,6 +2392,10 @@ function ProjectControls({
   const ready = hydrated && libraryReady;
   const [renameProjectId, setRenameProjectId] = useState<string | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
+  const [libraryQuery, setLibraryQuery] = useState("");
+  const searchInput = useRef<HTMLInputElement>(null);
+  const normalizedQuery = libraryQuery.trim().toLocaleLowerCase();
+  const matchingProjects = projects.filter(project => project.name.toLocaleLowerCase().includes(normalizedQuery));
   const [removeProject, setRemoveProject] = useState<ProjectLibraryItem | null>(null);
   const [newProjectOpen, setNewProjectOpen] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
@@ -2420,6 +2426,7 @@ function ProjectControls({
   useEffect(() => {
     if (!libraryRequested || !libraryReady || busy) return;
     setLibraryOpen(true);
+    setLibraryQuery("");
     setSelectedProjectId(activeProjectId);
     setLibraryRequested(false);
     onRefreshProjects();
@@ -2432,6 +2439,11 @@ function ProjectControls({
   const importProjectButtonRef = useRef<HTMLButtonElement | null>(null);
   const libraryImportInputRef = useRef<HTMLInputElement | null>(null);
   const libraryDialogRef = useRef<HTMLDivElement | null>(null);
+  const updateLibraryQuery = (query: string) => {
+    setLibraryQuery(query);
+    const viewport = libraryDialogRef.current?.querySelector<HTMLElement>("[data-radix-scroll-area-viewport]");
+    if (viewport) viewport.scrollTop = 0;
+  };
   const openProjectSourceRef = useRef<HTMLElement | null>(null);
   const projectFileReadRevision = useRef(0);
   useEffect(() => () => { projectFileReadRevision.current += 1; }, []);
@@ -2550,7 +2562,7 @@ function ProjectControls({
       open={libraryOpen && !saveOpen && !renameProjectId && !removeProject && !pendingLibraryFile && !pendingOpenProject && !settingsOpen}
       onOpenChange={(open) => {
         setLibraryOpen(open);
-        if (open) setSelectedProjectId(activeProjectId);
+        if (open) { setSelectedProjectId(activeProjectId); setLibraryQuery(""); }
         if (open) onRefreshProjects();
       }}
     >
@@ -2591,7 +2603,6 @@ function ProjectControls({
           <DialogTitle>{connectedFolder ? "Manage folder library" : "Manage browser library"}</DialogTitle>
           <DialogDescription>
             {libraryError ? "The library could not be fully read." : `${projects.length} saved project${projects.length === 1 ? "" : "s"} ${connectedFolder ? `in ${connectedFolder}` : "in this browser"}.`}
-            {" "}Open a project here, or import and export the entire library below.
           </DialogDescription>
           <DialogClose asChild>
             <Button variant="ghost" size="icon" className="absolute -right-2 -top-2 !mt-0 h-11 w-11" aria-label="Close">
@@ -2599,12 +2610,24 @@ function ProjectControls({
             </Button>
           </DialogClose>
         </DialogHeader>
+        <div className="flex shrink-0 items-center gap-2">
+          <div className="relative min-w-0 flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+            <Input ref={searchInput} value={libraryQuery} onChange={event => updateLibraryQuery(event.target.value)}
+              aria-label="Search designs" placeholder="Search by name…" className="pl-9 pr-11" />
+            {libraryQuery && <Button size="icon" variant="ghost" className="absolute right-0 top-0 h-full w-11" aria-label="Clear search"
+              onClick={() => { updateLibraryQuery(""); searchInput.current?.focus(); }}><X className="h-4 w-4" /></Button>}
+          </div>
+          <span role="status" aria-label="Matching designs" className="shrink-0 text-xs tabular-nums text-muted-foreground">
+            {matchingProjects.length} / {projects.length}
+          </span>
+        </div>
         <ScrollArea
           type="auto"
           className="min-h-0 [&_[data-radix-scroll-area-viewport]]:max-h-[min(20rem,calc(85dvh_-_15rem))] [@media(max-height:500px)]:shrink-0 [@media(max-height:500px)]:[&_[data-radix-scroll-area-viewport]]:max-h-none [&_[data-orientation=vertical]]:bg-muted/50 [&_[data-orientation=vertical]>div]:bg-muted-foreground/50"
           data-testid="manage-library-scroll"
         >
-        <div className="space-y-2 pr-4" data-testid="managed-project-list">
+        <div className="space-y-1 pr-3" data-testid="managed-project-list">
           {libraryFolderControls}
           {libraryError ? (
             <div className="rounded-md border border-destructive/40 p-3 text-sm" role="alert">
@@ -2617,96 +2640,13 @@ function ProjectControls({
               <Button className="mt-3 min-h-11 h-auto w-full whitespace-normal" data-testid="button-save-draft-library" disabled={!ready || busy} onClick={saveDraftFromLibrary}>Save this draft to Library</Button>
             </div>
           ) : (
-            projects.map((project) => {
-              const active = project.id === activeProjectId;
-              const openLibraryProject = () => openProject({ kind: "library", project });
-              return (
-                <div
-                  key={project.id}
-                  className={cn(
-                    "flex items-center gap-3 rounded-md border p-3",
-                    "flex-wrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-                    (project.id === selectedProjectId) && "border-primary/50 bg-primary/5",
-                  )}
-                  data-testid={`library-project-${project.id}`}
-                  data-project-id={project.id}
-                  data-selected={project.id === selectedProjectId}
-                  role="group"
-                  aria-label={project.name}
-                  tabIndex={0}
-                  onFocus={(event) => {
-                    if (event.currentTarget.contains(event.target)) setSelectedProjectId(project.id);
-                  }}
-                  onClick={(event) => {
-                    if (!(event.target instanceof Element)) return;
-                    if (!event.currentTarget.contains(event.target)) return;
-                    setSelectedProjectId(project.id);
-                    if (!event.target.closest("button")) event.currentTarget.focus();
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.target !== event.currentTarget || event.key !== "Enter") return;
-                    event.preventDefault();
-                    void openLibraryProject();
-                  }}
-                  onDoubleClick={(event) => {
-                    if (!(event.target instanceof Element)) return;
-                    if (!event.currentTarget.contains(event.target) || event.target.closest("button")) return;
-                    void openLibraryProject();
-                  }}
-                >
-                  <div className="min-w-0 flex-1 basis-40">
-                    <div className="flex min-w-0 items-center gap-1" data-testid={`library-project-name-${project.id}`}>
-                      <p className="min-w-0 truncate text-sm font-medium" title={project.name}>
-                        {project.name}
-                      </p>
-                      <Button variant="ghost" size="icon" className="h-11 w-11 shrink-0" aria-label={`Rename ${project.name}`} data-testid={`button-rename-project-${project.id}`} disabled={!ready || busy || !!project.unavailable}
-                        onClick={() => { returnToLibrary.current = true; setProjectName(project.name); setLibraryOpen(false); setRenameProjectId(project.id); }}><Pencil className="h-4 w-4" /></Button>
-                    </div>
-                    {active && <p className="text-xs text-muted-foreground">Current project</p>}
-                    {project.unavailable && <p className="mt-1 text-xs text-muted-foreground">
-                      {project.unavailable === "newer-version"
-                        ? "Saved by a newer Pocketry version. Reload Pocketry to update."
-                        : "This project could not be read by this version of Pocketry."}
-                      {" "}Kept intact and included in library backups.
-                    </p>}
-                    <p className="text-[11px] text-muted-foreground">
-                      Updated {formatProjectTime(project.updatedAt)}
-                    </p>
-                  </div>
-                  <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-1.5">
-                  <Button
-                    size="sm"
-                    variant={active ? "secondary" : "outline"}
-                    className="min-h-11 gap-1.5 px-2 text-xs"
-                    disabled={!ready || busy || active || !!project.unavailable}
-                    onClick={() => void openLibraryProject()}
-                    aria-label={project.unavailable ? `${project.name} cannot be opened in this version` : active ? `${project.name} is currently open` : `Open ${project.name}`}
-                    data-testid={`button-open-project-${project.id}`}
-                  >
-                    {!active && !project.unavailable && <FolderOpen className="h-4 w-4" />}
-                    {project.unavailable ? "Unavailable" : active ? "Current" : "Open"}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="min-h-11 gap-1.5 px-2 text-xs"
-                    disabled={!ready || busy || !!project.unavailable}
-                    aria-label={`Duplicate ${project.name}`}
-                    title="Duplicate project"
-                    data-testid={`button-duplicate-project-${project.id}`}
-                    onClick={(event) => {
-                      event.currentTarget.closest<HTMLElement>('[role="group"]')?.focus();
-                      void onDuplicateProject(project.id);
-                    }}
-                  >
-                    <Copy className="h-4 w-4" />Copy
-                  </Button>
-                  <Button size="sm" variant="ghost" className="min-h-11 gap-1.5 px-2 text-xs text-destructive" disabled={!ready || busy || active}
-                    aria-label={`Remove ${project.name} from library`} data-testid={`button-remove-project-${project.id}`} onClick={() => setRemoveProject(project)}><Trash2 className="h-4 w-4" />Remove</Button>
-                  </div>
-                </div>
-              );
-            })
+            matchingProjects.length === 0 ? <p className="py-6 text-center text-sm text-muted-foreground">No designs match “{libraryQuery.trim()}”.</p> :
+            matchingProjects.map(project => <LibraryProjectRow key={project.id} project={project}
+              active={project.id === activeProjectId} selected={project.id === selectedProjectId} ready={ready} busy={busy}
+              onSelect={() => setSelectedProjectId(project.id)}
+              onOpen={() => void openProject({ kind: "library", project })}
+              onRename={() => { returnToLibrary.current = true; setProjectName(project.name); setLibraryOpen(false); setRenameProjectId(project.id); }}
+              onDuplicate={() => void onDuplicateProject(project.id)} onRemove={() => setRemoveProject(project)} />)
           )}
         </div>
         </ScrollArea>
@@ -2947,14 +2887,6 @@ function ProjectControls({
   );
 }
 
-function formatProjectTime(updatedAt: string): string {
-  const date = new Date(updatedAt);
-  if (Number.isNaN(date.getTime())) return "recently";
-  return date.toLocaleString(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
-}
 
 function CellSlider({
   label,

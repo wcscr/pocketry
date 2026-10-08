@@ -132,8 +132,9 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
               reopen them from <strong>Library</strong>. <strong>Export project</strong>{" "}
               downloads an editable backup with your project colors;
               <strong> Open project</strong> restores it to this browser’s library.
-              In desktop Chrome or Edge, <strong>Library → Connect library folder</strong>{" "}
-              saves named projects to your computer automatically. Connect the same folder in another supported browser or after clearing browser data.
+              Search Library by part of a name; each row’s <strong>…</strong> menu offers Rename, Copy, and Remove.
+              In desktop Chrome or Edge, expand <strong>Library → Storage</strong> and choose <strong>Connect library folder</strong> to
+              save named projects to your computer automatically. Connect the same folder in another supported browser or after clearing browser data.
               Unnamed drafts stay in this browser. Wait for <strong>Saved to folder</strong> before closing.
               If access expires, reconnect the folder; if edits conflict, keep both versions and open the version you want to continue.
               Other browsers can still export and import backups.

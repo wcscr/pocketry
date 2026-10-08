@@ -238,11 +238,13 @@ are also available for shadow boards and CNC work.
 
 In **Project**, choose **Save this draft to Library** to name an unnamed draft.
 Named projects save changes in this browser by default; reopen them from **Library**.
+Search by any part of a design's name. **Open** stays beside each compact row;
+the **…** menu contains Rename, Copy, and Remove.
 **Export project** downloads an editable `.pocketry.json` backup, including the
 project's colors. **Open project** restores a downloaded design to the browser
 library. A printable STL or 3MF is separate from this editable project.
 
-In desktop Chrome or Edge, **Library → Connect library folder** makes a folder
+In desktop Chrome or Edge, expand **Library → Storage** and choose **Connect library folder** to make a folder
 on your computer the working library. You can copy existing browser projects
 while retaining the originals. Named projects then save automatically into the
 folder's `pocketry-library` subdirectory. Wait for **Saved to folder** before
