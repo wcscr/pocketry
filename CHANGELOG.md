@@ -2,8 +2,8 @@
 
 ## Unreleased
 
-- Added arbitrary rectangular bin sizes in millimetres, including height, for flat bottoms and ULTIM8 pegs.
-- Added ULTIM8 jig peg bottoms for eufyMake E1, with adjustable peg fit and length, sloped roots, short bridges, or a slimmer flat backing exported with pegs up; the flat backing offers corner-only and spaced pegs, and saved project/undo support. Through pockets omit fully or partially overlapped pegs.
+- Added arbitrary rectangular bin sizes in millimetres, including height, for flat bottoms and ULTIM8 pegs; the grid selector marks Arbitrary as non-Gridfinity.
+- Added ULTIM8 jig peg bottoms for eufyMake E1, with adjustable peg fit and length, sloped roots, short bridges, or a slimmer flat backing exported with pegs up; the flat backing offers corner-only and spaced pegs, and saved project/undo support. Through pockets omit fully or partially overlapped pegs. Construction guidance is available from floating help hints.
 - Surface pockets set to Through open the full bin bottom, including peg roots, when overlapping finger access.
 - Failed 3D updates clear obsolete bin meshes so they cannot appear beside the current pocket outline as misplaced duplicates.
 - Made the desktop layout default clearer in App settings, with “Original Single Panel UI” available to switch back; retired preferences now use the screen's default layout.

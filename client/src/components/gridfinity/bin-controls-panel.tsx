@@ -1408,7 +1408,7 @@ export function BinControlsPanel({
           className="scroll-mt-16"
         >
           <div className="flex items-center gap-2">
-            <SettingLabel label="Grid pitch" hint="Grid pitches preserve the outer size. Arbitrary uses millimetres with a flat bottom or ULTIM8 pegs. Returning to a grid requires sizes that fit its pitch and height increments." className="shrink-0" />
+            <SettingLabel label="Grid pitch" hint="Grid pitches preserve the outer size. Arbitrary sizes use millimetres and do not support Gridfinity feet; choose a flat bottom or ULTIM8 pegs. Returning to a grid requires sizes that fit its pitch and height increments." className="shrink-0" />
             <Select
               value={spec.arbitrarySizeMm ? "arbitrary" : spec.gridPitch}
               onValueChange={(value) => {
@@ -1441,7 +1441,7 @@ export function BinControlsPanel({
                   const available = resized && resized.gridX <= maxGridCells(pitch) && resized.gridY <= maxGridCells(pitch);
                   return <SelectItem key={pitch} value={pitch} disabled={!available}>{pitch === "full" ? "Full · 42 mm" : pitch === "half" ? "Half · 21 mm" : "Quarter · 10.5 mm"}{!available ? " (would change shape)" : ""}</SelectItem>;
                 })}
-                <SelectItem value="arbitrary" disabled={spec.footprint.kind !== "rectangle"}>Arbitrary{spec.footprint.kind !== "rectangle" ? " (rectangles only)" : ""}</SelectItem>
+                <SelectItem value="arbitrary" disabled={spec.footprint.kind !== "rectangle"}>Arbitrary · no Gridfinity{spec.footprint.kind !== "rectangle" ? " (rectangles only)" : ""}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -1681,7 +1681,7 @@ export function BinControlsPanel({
 
           <div className="space-y-2 border-t pt-3">
             <div className="flex items-center gap-2">
-              <SettingLabel label="Bottom" htmlFor="select-bin-bottom" hint="Choose Gridfinity feet, a flat underside, or locating pegs for the ULTIM8 jig." />
+              <SettingLabel label="Bottom" htmlFor="select-bin-bottom" hint={<><p>Choose Gridfinity feet, a flat underside, or locating pegs for the ULTIM8 jig.</p>{spec.pegBottom && <p className="mt-2">For Wham Bam ULTIM8 mats on eufyMake E1. The underside adds {pegBottomExtensionMm(spec).toFixed(1)} mm below the bin.</p>}</>} />
               <Select value={spec.pegBottom ? "ultim8" : spec.flatBottom ? "flat" : "gridfinity"}
                 onValueChange={(bottom) => patchSpec({ flatBottom: bottom === "flat", pegBottom: bottom === "ultim8" ? { ...DEFAULT_PEG_BOTTOM } : null })}>
                 <SelectTrigger id="select-bin-bottom" className="h-8 flex-1" aria-label="Bottom" data-testid="select-bin-bottom"><SelectValue /></SelectTrigger>
@@ -1693,9 +1693,8 @@ export function BinControlsPanel({
               </Select>
             </div>
             {spec.pegBottom && <>
-              <p className="text-[11px] text-muted-foreground">For Wham Bam ULTIM8 mats on eufyMake E1. {spec.pegBottom.underside === "flat" ? "Exports print pocket-side down, with pegs up. Check pocket bridges and overhangs in your slicer." : "Print upright with supports off."} The underside adds {pegBottomExtensionMm(spec).toFixed(1)} mm below the bin.</p>
               <div className="flex items-center gap-2">
-                <SettingLabel label="Underside" htmlFor="select-peg-underside" hint="Flat backing removes tall peg roots and exports with the pegs up. Sloped roots and short bridges print with pegs down." />
+                <SettingLabel label="Underside" htmlFor="select-peg-underside" hint={spec.pegBottom.underside === "flat" ? "Flat backing removes tall peg roots and exports pocket-side down, with pegs up. Check pocket bridges and overhangs in your slicer." : spec.pegBottom.underside === "bridged" ? "Short bridges join the flared peg collars. Print upright with pegs down and supports off. Print a small fit check before a full fixture." : "Sloped roots print upright with pegs down and supports off."} />
                 <Select value={spec.pegBottom.underside} onValueChange={(underside: "sloped" | "bridged" | "flat") => patchSpec({ pegBottom: { ...spec.pegBottom!, underside, density: underside === "flat" ? spec.pegBottom!.density : 1 } })}>
                   <SelectTrigger id="select-peg-underside" className="h-8 flex-1" aria-label="Peg underside"><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -1712,7 +1711,6 @@ export function BinControlsPanel({
                   <SelectContent>{PEG_DENSITIES.map(density => <SelectItem key={density} value={String(density)}>{density === "corners" ? "Corners only" : density === 1 ? "Every hole" : `Every ${density} holes`}</SelectItem>)}</SelectContent>
                 </Select>
               </div>}
-              {spec.pegBottom.underside === "bridged" && <p className="text-[11px] text-muted-foreground">Short bridges join the flared peg collars. Print a small fit check before a full fixture.</p>}
               {(["diameterMm", "lengthMm"] as const).map((key) => <div key={key} className="flex items-center justify-between gap-3">
                 <SettingLabel label={key === "diameterMm" ? "Peg diameter" : "Peg length"} htmlFor={`peg-bottom-${key}`}
                   hint={key === "diameterMm" ? "Locating pegs fit the jig’s 5 mm holes. Print a small fit check before a full bin." : "Straight length below the sloped root; tune it to your mat depth."} />

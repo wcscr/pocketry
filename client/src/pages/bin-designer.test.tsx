@@ -2512,6 +2512,11 @@ describe("BinDesignerPage", () => {
       React.act(() => magnet()!.click());
       choose("ULTIM8 jig pegs");
       expect(magnet()).toBeNull();
+      expect(container.textContent).not.toContain("For Wham Bam ULTIM8 mats");
+      await React.act(async () => container.querySelector<HTMLButtonElement>('[aria-label="About bottom"]')!.click());
+      expect(document.querySelector('[role="tooltip"]')!.textContent).toContain("For Wham Bam ULTIM8 mats on eufyMake E1");
+      expect(document.querySelector('[role="tooltip"]')!.textContent).toContain("12.0 mm below the bin");
+      React.act(() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
       expect(vi.mocked(useBinGeometry).mock.lastCall?.[0].pegBottom).toEqual({ diameterMm: 4.8, lengthMm: 4, underside: "sloped", density: 1 });
       const input = () => container.querySelector<HTMLInputElement>('[aria-label="Peg diameter in millimetres"]')!;
       React.act(() => {
@@ -2528,6 +2533,10 @@ describe("BinDesignerPage", () => {
       React.act(() => underside.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true })));
       React.act(() => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(option => option.textContent === "Short bridges")!.click());
       expect(vi.mocked(useBinGeometry).mock.lastCall?.[0].pegBottom?.underside).toBe("bridged");
+      expect(container.textContent).not.toContain("Short bridges join the flared peg collars");
+      await React.act(async () => container.querySelector<HTMLButtonElement>('[aria-label="About underside"]')!.click());
+      expect(document.querySelector('[role="tooltip"]')!.textContent).toContain("Short bridges join the flared peg collars");
+      React.act(() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
       React.act(() => undo.click());
       expect(vi.mocked(useBinGeometry).mock.lastCall?.[0].pegBottom?.underside).toBe("sloped");
       choose("Gridfinity feet");
@@ -2555,13 +2564,21 @@ describe("BinDesignerPage", () => {
     };
     try {
       openSettingsSection(container, "size");
-      choose('[data-testid="select-grid-pitch"]', "Arbitrary");
+      choose('[data-testid="select-grid-pitch"]', "Arbitrary · no Gridfinity");
+      expect(container.querySelector('[data-testid="select-grid-pitch"]')!.textContent).toBe("Arbitrary · no Gridfinity");
       const current = () => vi.mocked(useBinGeometry).mock.lastCall![0];
       expect(current().arbitrarySizeMm).toEqual({ width: 167.5, length: 31 });
+      await React.act(async () => container.querySelector<HTMLButtonElement>('[aria-label="About grid pitch"]')!.click());
+      expect(document.querySelector('[role="tooltip"]')!.textContent).toContain("do not support Gridfinity feet");
+      React.act(() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
       enter("Bin width in millimetres", "171.2"); enter("Bin length in millimetres", "29.7"); enter("Bin height in millimetres", "7.3");
       expect(current().arbitrarySizeMm).toEqual({ width: 171.2, length: 29.7 }); expect(current().heightUnits * 7).toBeCloseTo(7.3);
       expect(container.querySelector<HTMLButtonElement>('[data-testid="button-edit-footprint"]')!.disabled).toBe(true);
       openSettingsSection(container, "construction");
+      expect(container.textContent).not.toContain("exports pocket-side down");
+      await React.act(async () => container.querySelector<HTMLButtonElement>('[aria-label="About underside"]')!.click());
+      expect(document.querySelector('[role="tooltip"]')!.textContent).toContain("exports pocket-side down, with pegs up");
+      React.act(() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
       choose('[aria-label="Peg density"]', "Corners only"); expect(current().pegBottom!.density).toBe("corners");
       React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
       expect(current().pegBottom!.density).toBe(1);
