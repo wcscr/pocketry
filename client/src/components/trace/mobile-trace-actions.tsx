@@ -7,7 +7,7 @@ import { MobileCanvasOverlay } from "@/components/layout/mobile-canvas-overlay";
 import { MobileAdjustmentTray } from "@/components/layout/mobile-adjustment-tray";
 import { useTraceRestartAction } from "@/components/layout/panel-context";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { TraceRestartDialog } from "./trace-restart-dialog";
 import type { PerspectiveProposal } from "@/lib/calibrate/perspective";
 import type { TemplateVariant } from "@/lib/calibrate/template";
 import { hasPendingManualCalibration, useTrace } from "@/state/trace-store";
@@ -145,14 +145,6 @@ export function MobileTraceActions({ onChoosePhoto, onAddToBin, onStartOver, onO
         : <span className="flex min-w-0 flex-1 items-center justify-end text-xs text-muted-foreground">{processing ? "Analyzing…" : step === "region" ? "Draw tool region" : "Review scale"}</span>}
       </>}
     </div>
-    <Dialog open={restartOpen} onOpenChange={setRestartOpen}>
-      <DialogContent>
-        <DialogHeader><DialogTitle>Start a new trace?</DialogTitle>
-          <DialogDescription>This clears the current photo, scale, region, and contour edits. Pockets already added to Bin stay there.</DialogDescription>
-        </DialogHeader>
-        <Button variant="destructive" onClick={() => { setRestartOpen(false); onStartOver(); }}>Clear trace and start over</Button>
-        <Button variant="outline" onClick={() => setRestartOpen(false)}>Keep working</Button>
-      </DialogContent>
-    </Dialog>
+    <TraceRestartDialog open={restartOpen} onOpenChange={setRestartOpen} onConfirm={onStartOver} />
   </div>;
 }

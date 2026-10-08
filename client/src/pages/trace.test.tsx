@@ -14,6 +14,7 @@ import { parseProjectDoc } from "@shared/gridfinity/project";
 import type { Outline, Rect } from "@shared/geometry/types";
 import { autoCalibrate, type AutoCalibrationResult } from "@/lib/calibrate/auto-calibrate";
 import type { DetectionFrame } from "@/components/trace/use-image-source";
+import { TRACE_PHOTO_MAX_BYTES } from "@/lib/trace-photo";
 
 import TracePage from "./trace";
 
@@ -388,7 +389,7 @@ describe("Trace detection workflow", () => {
     await React.act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
     expect(current!.processing).toBe(true);
     await React.act(async () => [...host.querySelectorAll('button')].find(button => button.textContent === "Start over")!.click());
-    await React.act(async () => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(button => button.textContent === "Clear trace and start over")!.click());
+    await React.act(async () => [...document.querySelectorAll<HTMLButtonElement>('[role="alertdialog"] button')].find(button => button.textContent === "Clear trace and start over")!.click());
     expect(current!.imageUrl).toBeNull();
     await React.act(async () => {
       finishDetection({ outline: exportOutline, rawOutline: exportOutline, svg: "<svg/>" });
@@ -537,10 +538,35 @@ describe("Trace detection workflow", () => {
     expect(current.history.stack).toHaveLength(1);
   });
 
-  it("leaves edited work untouched when a replacement cannot be decoded", async () => {
+  it.each(["unsupported", "oversized"])("rejects a %s replacement before decoding and preserves the trace", async kind => {
     let current!: ReturnType<typeof useTrace>;
     function Probe(): null { current = useTrace(); return null; }
     await React.act(async () => root.render(<PanelProvider><TraceProvider><Probe /><SeedExportOutline format="svg" /><TracePage /></TraceProvider></PanelProvider>));
+    const before = { imageUrl: current.imageUrl, outline: current.outline, history: current.history, calibration: current.calibration };
+    const file = kind === "unsupported" ? new File(["text"], "notes.txt", { type: "text/plain" }) : new File(["photo"], "large.png", { type: "image/png" });
+    if (kind === "oversized") Object.defineProperty(file, "size", { value: TRACE_PHOTO_MAX_BYTES + 1 });
+    const input = host.querySelector<HTMLInputElement>('input[aria-label="Choose another photo"]')!;
+    Object.defineProperty(input, "files", { configurable: true, value: [file] });
+    await React.act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
+    expect(decodeImageFileMock).not.toHaveBeenCalled();
+    expect(current).toMatchObject(before);
+    expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+    expect(host.querySelector('[data-testid="trace-photo-error"]')?.textContent).toContain(kind === "unsupported" ? "Choose a PNG, JPG, or WebP photo" : "Choose a photo up to 10 MB");
+    decodeImageFileMock.mockResolvedValueOnce({ imageUrl: "replacement", naturalSize: { width: 800, height: 600 } });
+    Object.defineProperty(input, "files", { configurable: true, value: [new File(["photo"], "valid.webp", { type: "image/webp" })] });
+    await React.act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
+    expect(host.querySelector('[data-testid="trace-photo-error"]')).toBeNull();
+    expect(document.querySelector('[role="alertdialog"]')?.textContent).toContain("Replace this photo");
+    expect(current).toMatchObject(before);
+  });
+
+  it.each([false, true])("shows a photo decode error without changing edited work (mobile=%s)", async mobile => {
+    vi.stubGlobal("matchMedia", () => ({ matches: mobile, addEventListener: () => {}, removeEventListener: () => {} }));
+    let current!: ReturnType<typeof useTrace>;
+    let panel!: ReturnType<typeof usePanelState>;
+    function Probe(): null { current = useTrace(); panel = usePanelState(); return null; }
+    await React.act(async () => root.render(<PanelProvider><TraceProvider><Probe /><SeedExportOutline format="svg" /><TracePage /></TraceProvider></PanelProvider>));
+    React.act(() => panel.setPanelOpen(true));
     const before = { outline: current.outline, history: current.history, calibration: current.calibration };
     decodeImageFileMock.mockRejectedValueOnce(new Error("Unsupported image"));
     const input = host.querySelector<HTMLInputElement>('input[type="file"]')!;
@@ -550,6 +576,11 @@ describe("Trace detection workflow", () => {
     expect(current.outline).toBe(before.outline);
     expect(current.history).toBe(before.history);
     expect(current.calibration).toBe(before.calibration);
+    expect(panel.panelOpen).toBe(!mobile);
+    expect(host.querySelector('[data-testid="trace-photo-error"]')?.textContent).toContain("Save it as PNG, JPG, or WebP and try again");
+    expect(host.querySelector('[data-testid="trace-photo-error"]')?.textContent).not.toContain("Unsupported image");
+    React.act(() => host.querySelector<HTMLButtonElement>('[data-testid="trace-photo-error"] button')!.click());
+    expect(host.querySelector('[data-testid="trace-photo-error"]')).toBeNull();
   });
 
   it.each([true, false])("waits for recovery before reviewing a chosen photo (valid=%s)", async (valid) => {

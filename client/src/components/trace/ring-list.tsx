@@ -19,12 +19,14 @@ import { useTrace } from "@/state/trace-store";
  * it doubles as the readout that tells the user a hole was actually found.
  */
 export function RingList(): JSX.Element {
-  const { outline, selection, calibration, imageSize, dispatch } = useTrace();
+  const { outline, selection, calibration, region, processing, dispatch } = useTrace();
 
   if (outline.length === 0) {
     return (
-      <p className="text-xs text-muted-foreground">
-        No contours yet. Set a detection region to trace the tool.
+      <p role="status" className="text-xs text-muted-foreground">
+        {processing ? "Looking for the tool’s outline…"
+          : region ? "No outline found. Increase Sensitivity or redraw the region around the whole tool."
+          : "No outline yet. Set a detection region around the tool."}
       </p>
     );
   }

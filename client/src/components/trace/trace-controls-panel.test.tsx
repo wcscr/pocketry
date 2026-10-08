@@ -162,6 +162,7 @@ function Harness(): JSX.Element {
       <TraceControlsPanel
         active={active}
         onReplaceImage={() => {}}
+        onStartOver={() => dispatch({ type: "SOURCE_CLEARED" })}
         onRotateImage={rotateImage}
         onExport={() => {}}
         onReprocess={reprocess}
@@ -755,7 +756,7 @@ describe("TraceControlsPanel guided workflow", () => {
     expect(section("detect")?.querySelector("#smoothing")).toBeNull();
     expect(section("detect")?.textContent).not.toContain("Smoothing");
     expect(host.querySelector('#include-interior-holes')?.getAttribute("aria-checked")).toBe("false");
-    expect(host.textContent).toContain("No contours yet");
+    expect(host.textContent).toContain("No outline found. Increase Sensitivity or redraw the region around the whole tool.");
     expect(
       section("detect")?.querySelector("[data-testid='detection-contours']"),
     ).not.toBeNull();

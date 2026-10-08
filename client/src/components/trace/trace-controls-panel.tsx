@@ -74,6 +74,7 @@ import { TracePhotoBoundsControl } from "./trace-photo-bounds-control";
 import { TracePanelSections } from "./trace-panel-sections";
 import { useTraceInspector } from "./trace-inspector-context";
 import { TRACE_WORKFLOW_SECTIONS } from "./trace-workflow";
+import { TraceRestartDialog } from "./trace-restart-dialog";
 
 const RESPONSIVE_PANEL_ACTION =
   "h-auto min-h-9 w-full whitespace-normal break-words px-2 py-2 text-sm leading-tight";
@@ -84,6 +85,7 @@ export interface TraceControlsPanelProps {
   settingsSectionRequest?: { id: string };
   onCanvasInteraction?: () => void;
   onReplaceImage: () => void;
+  onStartOver: () => void;
   onRotateImage: (direction: ImageRotationDirection) => void;
   onExport: () => void;
   onReprocess: (settings?: { sensitivity: number; includeInteriorHoles: boolean }) => void;
@@ -109,6 +111,7 @@ const TRACE_SETTINGS_SECTION_DETAILS = TRACE_WORKFLOW_SECTIONS;
 export function TraceControlsPanel({
   active = true,
   onReplaceImage,
+  onStartOver,
   onRotateImage,
   onExport,
   onReprocess,
@@ -118,6 +121,7 @@ export function TraceControlsPanel({
   onCanvasInteraction: onCanvasInteractionProp,
 }: TraceControlsPanelProps): JSX.Element {
   const store = useTrace();
+  const [restartRevision, setRestartRevision] = useState<number | null>(null);
   const inspector = useTraceInspector();
   const showSection = inspector?.showSection;
   const onCanvasInteraction = () => { inspector?.showCanvas(); onCanvasInteractionProp?.(); };
@@ -538,6 +542,8 @@ export function TraceControlsPanel({
                   Rotate right 90°
                 </Button>
               </div>
+              <Button variant="ghost" size="sm" className="w-full" onClick={() => setRestartRevision(sourceRevision)}
+                data-testid="button-new-trace">New trace</Button>
             </>
           ) : (
             <div className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">
@@ -1025,6 +1031,12 @@ export function TraceControlsPanel({
         </AlertDialogContent>
       </AlertDialog>
 
+      <TraceRestartDialog open={restartRevision !== null && restartRevision === sourceRevision}
+        onOpenChange={open => { if (!open) setRestartRevision(null); }} onConfirm={() => {
+          if (restartRevision !== sourceRevision) return;
+          setRestartRevision(null);
+          onStartOver();
+        }} />
       {handoffOpen && <TraceHandoffDialog onClose={() => setHandoffOpen(false)}
         onChoosePhoto={onReplaceImage} onCanvasInteraction={onCanvasInteraction} />}
       <PanelFooter>
