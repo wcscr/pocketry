@@ -303,15 +303,17 @@ describe("App", () => {
       container.querySelector<HTMLButtonElement>('[aria-label="Help"]')!.click();
     });
     const help = document.querySelector<HTMLElement>('[role="dialog"]');
-    expect(help?.querySelectorAll("ol > li")).toHaveLength(5);
+    expect(help?.querySelectorAll("ol > li")).toHaveLength(7);
+    expect(help?.textContent).toContain("Workflow + properties");
     expect(help?.textContent).toContain("Confirm scale");
     expect(help?.textContent).toContain("Add to bin");
-    expect(help?.textContent).toContain("Surface fit test");
+    expect(help?.textContent).toContain("Save surface fit test STL");
     expect(help?.textContent).toContain("Save 3MF");
     expect(help?.textContent).toContain("Download calibration aids");
     expect(help?.querySelector('[aria-label="Download a measurement aid as 3MF"]')).toBeNull();
-    expect(help?.textContent).toContain("More options → All settings");
-    expect(help?.textContent).toContain("Save to library");
+    expect(help?.textContent).toContain("All properties");
+    expect(help?.textContent).not.toContain("All settings");
+    expect(help?.textContent).toContain("Save this draft to Library");
     expect(help?.textContent).toContain("Open project");
   });
 
