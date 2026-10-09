@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Settings } from "lucide-react";
-import { useExperimentalFeatures } from "@/state/experimental-features";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ArrowRight, Box, Camera, ScanLine } from "lucide-react";
+import { usePanelState } from "./panel-context";
+import { CalibrationDownloads } from "@/components/trace/calibration-downloads";
 
 const DISMISSAL_KEY = "pocketry:welcome:1.1.1";
 let dismissedThisSession = false;
@@ -21,10 +21,8 @@ function wasDismissed(): boolean {
 
 /** One welcome per browser; blocked storage falls back to this page session. */
 export function AppWelcome(): JSX.Element {
-  const isMobile = useIsMobile();
-  const { setSettingsOpen } = useExperimentalFeatures();
-  const openingSettings = useRef(false);
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
+  const { setSampleLibraryRequested } = usePanelState();
   const [dismissed, setDismissed] = useState(wasDismissed);
   const hasOpened = useRef(false);
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -47,48 +45,90 @@ export function AppWelcome(): JSX.Element {
     else if (hasOpened.current && !dismissed) dismiss();
   }, [open, dismissed, dismiss]);
 
+  const start = (path: "/" | "/bin") => {
+    dismiss();
+    if (location !== path) navigate(path);
+  };
+
   return (
     <Dialog open={open} onOpenChange={(next) => { if (!next) dismiss(); }}>
       <DialogContent
-        className="max-h-[calc(100dvh-2rem)] max-w-md overflow-y-auto [&>button:last-child]:h-11 [&>button:last-child]:w-11"
+        className="max-w-2xl gap-0 rounded-lg p-0"
         onOpenAutoFocus={(event) => {
           event.preventDefault();
           returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-          // Keep the introduction visible even when the dialog must scroll.
+          // Start with the introduction rather than jumping to an action.
           headingRef.current?.focus({ preventScroll: true });
         }}
         onCloseAutoFocus={(event) => {
           event.preventDefault();
-          if (!openingSettings.current && returnFocus.current?.isConnected) returnFocus.current.focus({ preventScroll: true });
+          if (returnFocus.current?.isConnected) returnFocus.current.focus({ preventScroll: true });
         }}
       >
-        <DialogHeader>
-          <DialogTitle ref={headingRef} tabIndex={-1}>Welcome to Pocketry</DialogTitle>
-          <DialogDescription>
-            Choose your layout and optional tools in App settings.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-3 text-sm">
-          <p><strong>Keep your work:</strong> Projects are saved only in this browser. Use Backups above the workspace to download a copy before clearing browser data or moving to another device.</p>
-          <p><strong>Layouts:</strong> “Workflow + properties” is the desktop default for photo tracing and bin design. Switch back to “Original Single Panel UI” in App settings. Phones keep compact adjustments.</p>
-          <p><strong>Object tools:</strong> Move, rotate, select multiple objects, align, and distribute in either layout.</p>
-          <p><strong>Experimental features:</strong> Opt in to adjustable walls for empty bins, surface text, system fonts, and linked designs.</p>
-          {isMobile && <p className="border-t pt-3 text-xs text-muted-foreground">
-            The mobile interface is still being refined.{" "}
-            <a className="rounded text-primary underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              href="https://github.com/wcscr/pocketry/issues/new" target="_blank" rel="noopener noreferrer">
-              Share feedback on GitHub<span className="sr-only"> (opens in a new tab)</span>
-            </a>.
-          </p>}
+        <div className="p-3 sm:p-5">
+          <DialogHeader className="space-y-1.5 pr-0">
+            <DialogTitle ref={headingRef} tabIndex={-1} className="pr-9 text-xl leading-6 outline-none sm:text-2xl sm:leading-7">
+              Welcome to Pocketry
+            </DialogTitle>
+            <DialogDescription className="text-[13px] leading-[18px] sm:text-sm sm:leading-5">
+              Design custom Gridfinity or flat-bottom bins, or create templates for laser etching and UV printing.
+            </DialogDescription>
+          </DialogHeader>
+
+          <ol aria-label="From photo to bin" className="my-3 space-y-3 rounded-lg bg-muted/30 p-3 text-[13px] leading-[18px] sm:my-4 sm:p-4 sm:text-sm sm:leading-5">
+            <li className="flex gap-3">
+              <Camera aria-hidden="true" className="hidden h-5 w-5 shrink-0 text-primary sm:block" />
+              <div>
+                <h3 className="inline font-semibold">1. Take a photo.</h3>{" "}
+                <p className="inline text-muted-foreground">
+                  Shoot from above with a scale reference.
+                </p>
+              </div>
+            </li>
+            <li className="flex gap-3">
+              <ScanLine aria-hidden="true" className="hidden h-5 w-5 shrink-0 text-primary sm:block" />
+              <div>
+                <h3 className="inline font-semibold">2. Trace your tool.</h3>{" "}
+                <p className="inline text-muted-foreground">
+                  Set the size and refine the outline.
+                </p>
+                <p className="mt-1 text-muted-foreground">
+                  Or skip this and go to step 3 to create an empty bin or one with basic shapes.
+                </p>
+              </div>
+            </li>
+            <li className="flex gap-3">
+              <Box aria-hidden="true" className="hidden h-5 w-5 shrink-0 text-primary sm:block" />
+              <div>
+                <h3 className="inline font-semibold">3. Make it fit.</h3>{" "}
+                <p className="inline text-muted-foreground">
+                  Arrange, check fit, and export.
+                </p>
+              </div>
+            </li>
+          </ol>
+
+          <div className="grid grid-cols-2 items-center gap-x-3 text-xs [&_button]:min-h-11 [&_button]:text-left">
+            <CalibrationDownloads />
+            <button type="button"
+              className="min-h-11 rounded text-left font-medium text-primary underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={() => { setSampleLibraryRequested(true); start("/bin"); }}>
+              Open sample projects
+            </button>
+          </div>
+          <p className="mt-1 text-xs leading-4 text-muted-foreground">
+            Projects are saved only in this browser. Use <strong>Backups</strong>{" "}
+            to keep a copy.
+          </p>
         </div>
-        <DialogFooter>
-          <Button variant="outline" size="sm" onClick={dismiss}>Continue</Button>
-          <Button size="sm" onClick={() => {
-            openingSettings.current = true;
-            dismiss();
-            setSettingsOpen(true);
-          }}><Settings aria-hidden="true" />Open App settings</Button>
-        </DialogFooter>
+        <div className="grid grid-cols-2 gap-2 border-t bg-muted/20 p-3 sm:px-5">
+          <Button className="min-h-11 px-2 sm:px-4" onClick={() => start("/")}>
+            Start tracing <ArrowRight aria-hidden="true" className="hidden sm:block" />
+          </Button>
+          <Button variant="outline" className="min-h-11 px-2 sm:px-4" onClick={() => start("/bin")}>
+            Design a bin
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );

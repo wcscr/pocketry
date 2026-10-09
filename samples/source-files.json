@@ -51,8 +51,10 @@
       },
       "project": {
         "file": "dewalt-right-angle-tools.pocketry.json",
-        "sha256": "f65490caed63354b04682111cceb94e03d392dd59a38262b6efb3fd08927b702",
-        "sourceFile": "Dewalt-90-degree-adapters-bin-3x5x5.5-2026-09-07_13-20-04-866.pocketry.json"
+        "sha256": "870c2903891ca4d7cb5d1e091b5cdad0daff9aea6c273822c7b44f2b9c2f1097",
+        "sourceFile": "Dewalt-90-degree-adapters-bin-3x5x5.5-2026-09-07_13-20-04-866.pocketry.json",
+        "processing": "Migrated to the current project schema; added editable surface text approximating the printed-photo wording, font, size, position, rotation, and color, with 0.8 mm raised height. Bin and pocket geometry unchanged.",
+        "textReferencePhoto": "photos/printed-bin-loaded.jpg"
       },
       "photos": [
         {
@@ -79,8 +81,10 @@
       },
       "project": {
         "file": "ryobi-cutter.pocketry.json",
-        "sha256": "a9742f58ea0c998fd06d9e6c949fbf4b6dce6103b1f4e8a5ca208afe7739521a",
-        "sourceFile": "Ryobi-Cutter-recovered.pocketry.json"
+        "sha256": "60add2c4964e05a872dc011495c74f5e471324f9e50dcbd484d0d67663728c10",
+        "sourceFile": "Ryobi-Cutter-recovered.pocketry.json",
+        "processing": "Migrated to the current project schema; added editable surface text approximating the printed-photo wording, font, size, position, rotation, and color, with 0.8 mm raised height. Bin and pocket geometry unchanged.",
+        "textReferencePhoto": "photos/printed-bin-pocket.jpg"
       },
       "photos": [
         {
@@ -204,8 +208,10 @@
       },
       "project": {
         "file": "wire-strippers.pocketry.json",
-        "sha256": "47e59355b684a56bda4d6812f26965bc8d07c5a5716783272822bcc202fccbd4",
-        "sourceFile": "WireStipper_Astra_Finetuned-bin-6x2x3.5-multicolor-2026-09-07_08-29-07-921.pocketry.json"
+        "sha256": "9fed1a16fdaaa323a577685dd2959de77ebfc249f3ded051593cc529b15ac254",
+        "sourceFile": "WireStipper_Astra_Finetuned-bin-6x2x3.5-multicolor-2026-09-07_08-29-07-921.pocketry.json",
+        "processing": "Migrated to the current project schema; added editable surface text approximating the printed-photo wording, font, size, position, rotation, and color, with 0.8 mm raised height. Bin and pocket geometry unchanged.",
+        "textReferencePhoto": "photos/printed-bin-pocket.jpg"
       },
       "photos": [
         {
@@ -287,9 +293,11 @@
       },
       "project": {
         "file": "mouldline-remover.pocketry.json",
-        "sha256": "e7b1064e6bf67b0af067f77aa6ad7b68e66d7081f1cb049fecbd9b4d1f2a3834",
+        "sha256": "045af0bc28f20a3e56bc76f6f84f9a5be620bd3c248ecfe9946b3cf8dfda7b15",
         "sourceFile": "pocketry-library-2026-09-21T14-21-47-136Z.json",
-        "sourceProject": "Citadel Mouldline Remover"
+        "sourceProject": "Citadel Mouldline Remover",
+        "processing": "Migrated to the current project schema; added editable surface text approximating the printed-photo wording, font, size, position, rotation, and color, with 0.8 mm raised height. Bin and pocket geometry unchanged.",
+        "textReferencePhoto": "photos/printed-bin-loaded.jpg"
       },
       "photos": [
         {
@@ -331,8 +339,9 @@
         "file": "wiha-drivers.pocketry.json",
         "sourceFile": "New SCHEMA - Wiha-Drivers-2-Styles---Long-bin-3x7x3-2026-09-23_07-04-44-915.pocketry.json",
         "sourceSha256": "690d1e20cfed6ab8ec95661ee21ed25adc20b212ba0f27bda67932ea9cfbcdbb",
-        "sha256": "4b3f5f027d38e7821da5c622b04b628aebffe3603457fc34c768a5e717edd417",
-        "processing": "Project name labeled by 150 mm blade length; design geometry unchanged."
+        "sha256": "ebdf3ba1c817fcbee5c001326d63a8e4d3ca0e7c138f911badeca90e210d4cd3",
+        "processing": "Project name labeled by 150 mm blade length; design geometry unchanged. Migrated to the current project schema; added editable surface text approximating the printed-photo wording, font, size, position, rotation, and color, with 0.8 mm raised height. Bin and pocket geometry unchanged.",
+        "textReferencePhoto": "photos/printed-bin-loaded.jpg"
       },
       "photos": [
         {
@@ -764,8 +773,9 @@
         "file": "bessey-gerber.pocketry.json",
         "sourceFile": "Gerber-and-Bessy-bin-7x6x4.5-half-multicolor-2026-09-28_10-52-35-481.pocketry.json",
         "sourceSha256": "772d5f5559994705d6a288f2c9e3c55327004493c17483ba5856feb345e6e504",
-        "sha256": "93b067a1e1cb1fa8d50f21683d92317506fca5f2c4061813ff35c8b117504360",
-        "processing": "Final combined design snapshot with normalized product names."
+        "sha256": "b94c75f249eb33d22e56b37a9eead03caeb9f4e609d5d46090d1365b8d254433",
+        "processing": "Final combined design snapshot with normalized product names. Migrated to the current project schema; added editable surface text approximating the printed-photo wording, font, size, position, rotation, and color, with 0.8 mm raised height. Bin and pocket geometry unchanged. Corrected the photographed Bessy spelling to Bessey.",
+        "textReferencePhoto": "photos/printed-bin-loaded.jpg"
       },
       "previews": [
         {

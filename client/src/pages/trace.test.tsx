@@ -2,6 +2,8 @@
 import * as React from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { Router, useLocation } from "wouter";
+import { memoryLocation } from "wouter/memory-location";
 
 import { PanelProvider, usePanelState } from "@/components/layout/panel-context";
 import type { TraceControlsPanelProps } from "@/components/trace/trace-controls-panel";
@@ -238,6 +240,23 @@ describe("Trace detection workflow", () => {
     host = document.createElement("div");
     document.body.appendChild(host);
     root = createRoot(host);
+  });
+
+  it("offers the sample browser from the initial Trace screen without importing a project", async () => {
+    const route = memoryLocation({ path: "/" });
+    let requested = false;
+    let location = "/";
+    function SampleRequestProbe() {
+      requested = usePanelState().sampleLibraryRequested;
+      [location] = useLocation();
+      return null;
+    }
+    await React.act(async () => root.render(<Router hook={route.hook}><PanelProvider><TraceProvider><SampleRequestProbe /><TracePage /></TraceProvider></PanelProvider></Router>));
+    const button = [...document.querySelectorAll("button")].find(button => button.textContent === "Open sample projects or library")!;
+    expect(button).toBeDefined();
+    await React.act(async () => button.click());
+    expect(requested).toBe(true);
+    expect(location).toBe("/bin");
   });
 
   const detectionFrame = (retry = false): DetectionFrame => ({
@@ -642,7 +661,7 @@ describe("Trace detection workflow", () => {
     expect(host.textContent).not.toContain("Paper sheets and");
     expect(host.querySelector('[aria-label="Download a measurement aid as 3MF"]')).toBeNull();
     expect(host.textContent).not.toContain("A4 PDF");
-    expect([...host.querySelectorAll("button")].filter((button) => button.textContent === "Download calibration aids")).toHaveLength(1);
+    expect([...host.querySelectorAll("button")].filter((button) => button.textContent === "Download optional calibration aids")).toHaveLength(1);
   });
 
   it("keeps the current photo visible until its replacement is decoded", async () => {

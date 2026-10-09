@@ -2,7 +2,7 @@
 
 Trace can calibrate from a reference resting on a thick object, reducing the
 apparent enlargement caused by measuring a raised edge against paper below it.
-**Download calibration aids** opens a shared dialog from the upload screen, **Scale**,
+**Download optional calibration aids** opens a shared dialog from the upload screen, **Scale**,
 or Help. The **Calibration aids** dialog has separate **Paper printable aids**
 and **3D printable aids** sections. Paper downloads include experimental A4 /
 US Letter corner-marker sheets and one sheet containing all three

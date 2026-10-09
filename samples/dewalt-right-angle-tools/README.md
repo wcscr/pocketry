@@ -16,6 +16,9 @@ bin cannot be stacked on top with the tools in place without modifying the desig
 
 ## Printed bin
 
+The editable project includes raised lettering approximating the printed photo.
+The supplied 3MF is unchanged; export the updated project for a model with these labels.
+
 <a href="photos/printed-bin-loaded.jpg"><img src="photos/printed-bin-loaded.jpg" width="351" alt="Printed bin holding the DeWalt long and short right-angle adapters and handle"></a>
 
 [All samples](../README.md)

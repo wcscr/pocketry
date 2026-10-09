@@ -1,6 +1,5 @@
 import { Fragment, useEffect } from "react";
 import { surfaceTextName } from "@shared/gridfinity/surface-text";
-import { useExperimentalFeatures } from "@/state/experimental-features";
 import { SurfaceTextProperties, SurfaceTextTransformControls } from "./surface-text-controls";
 import { useMobileObjectTools } from "./mobile-object-tools-context";
 import { SlidersHorizontal } from "lucide-react";
@@ -25,8 +24,7 @@ export function MobileBinActions({ open, onOpenChange, onMore, onExport, onWorkf
   const workspace = useMobileWorkspaceActions();
   const inspector = useSelectionInspector();
   const mobileTools = useMobileObjectTools();
-  const { enabled: experimentalEnabled } = useExperimentalFeatures();
-  const text = experimentalEnabled ? bin.spec.surfaceTexts.find(item => item.id === bin.selectedSurfaceTextId) : undefined;
+  const text = bin.spec.surfaceTexts.find(item => item.id === bin.selectedSurfaceTextId);
   const { shapes } = useShapeLibrary();
   const cutout = bin.cutouts.find(item => item.id === bin.selectedCutoutId);
   const finger = bin.fingerHoles.find(item => item.id === bin.selectedFingerHoleId);

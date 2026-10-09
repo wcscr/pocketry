@@ -1,3 +1,6 @@
+import { SampleLibraryDialog } from "@/components/project/sample-library-dialog";
+import { ProjectBackupPrompt } from "@/components/project/project-backup-prompt";
+import type { SampleLibrary } from "@/lib/project/samples";
 import { EditableObjectName, ObjectActions } from "./object-list-controls";
 import { MaterialColorSwatch } from "./material-color-swatch";
 import { DEFAULT_BIN_MATERIALS } from "@shared/gridfinity/materials";
@@ -298,10 +301,6 @@ export function BinControlsPanel({
   const showPreviewBusy = useDelayedBusy(building);
   const inspector = useSelectionInspector();
   const { enabled: experimentalEnabled, setEnabled: setExperimentalEnabled, setSettingsOpen } = useExperimentalFeatures();
-  const visibleSettingsSections = BIN_SETTINGS_SECTIONS.filter(section => experimentalEnabled || section.id !== "bin-settings-text");
-  useEffect(() => {
-    if (!experimentalEnabled && inspector?.activeSection === "bin-settings-text") inspector.showSection("bin-settings-size");
-  }, [experimentalEnabled, inspector?.activeSection, inspector?.showSection]);
   const {
     spec,
     adjustFixedPocketDepths,
@@ -369,7 +368,6 @@ export function BinControlsPanel({
     if (!settingsSectionRequest) return;
     stopPocketInspection();
     const { id, focusId } = settingsSectionRequest;
-    if (id === "bin-settings-text" && !experimentalEnabled) return;
     if (id === "bin-settings-text" && selectedSurfaceTextId && !focusId) inspector?.setTool("properties");
     else inspector?.showSection(id);
     if (!inspector) revealPanelSection(id, BIN_SETTINGS_SECTIONS, focusId);
@@ -383,7 +381,7 @@ export function BinControlsPanel({
       });
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [settingsSectionRequest, experimentalEnabled]);
+  }, [settingsSectionRequest]);
   const hasErrors = issues.some((issue) => issue.severity === "error");
   const enabledFeatureCount = [
     spec.lip === "standard",
@@ -420,7 +418,7 @@ export function BinControlsPanel({
     { id: "input-bin-color", label: "Bin body", color: binColor },
     { id: "input-pocket-floor-color", label: floorColorLabel, color: pocketFloorColor },
     { id: "input-stacking-rim-color", label: rimColorLabel, color: stackingRimColor },
-    ...(experimentalEnabled ? [{ id: "input-text-color", label: "Text", color: spec.textColor ?? edgeBandColor }] : []),
+    { id: "input-text-color", label: "Text", color: spec.textColor ?? edgeBandColor },
   ];
   const hasMaterialEdits = Object.entries({
     binColor, pocketFloorColor, stackingRimColor, colorPocketFloors, colorStackingRim,
@@ -1352,9 +1350,9 @@ export function BinControlsPanel({
   return (
     <PanelSectionFilterContext.Provider value={!inspector && exportOnly ? "bin-settings-export" : null}>
     <div className="flex h-full flex-col">
-      {!experimentalEnabled && (spec.wallThicknessMm !== D_WALL || spec.surfaceTexts.length > 0 || cutouts.some(c => c.designLink) || fingerHoles.some(h => h.designLink)) && <div className="shrink-0 border-b bg-amber-50/60 px-3 py-2 text-xs dark:bg-amber-950/20" data-testid="experimental-design-notice">
+      {!experimentalEnabled && (spec.wallThicknessMm !== D_WALL || cutouts.some(c => c.designLink) || fingerHoles.some(h => h.designLink)) && <div className="shrink-0 border-b bg-amber-50/60 px-3 py-2 text-xs dark:bg-amber-950/20" data-testid="experimental-design-notice">
         <p>Saved experimental features: {[
-          spec.wallThicknessMm !== D_WALL && "wall thickness", spec.surfaceTexts.length > 0 && "surface text",
+          spec.wallThicknessMm !== D_WALL && "wall thickness",
           (cutouts.some(c => c.designLink) || fingerHoles.some(h => h.designLink)) && "linked designs",
         ].filter(Boolean).join(", ")}. Preserved in previews and exports.</p>
         <Button size="sm" variant="link" className="min-h-11 whitespace-normal px-0 text-xs" onClick={() => setExperimentalEnabled(true)}>Enable experimental tools</Button>
@@ -1368,7 +1366,7 @@ export function BinControlsPanel({
         <PanelSettingsIndex
           ariaLabel="Find bin settings"
           testIdPrefix="bin"
-          items={visibleSettingsSections}
+          items={BIN_SETTINGS_SECTIONS}
           onNavigate={id => { stopPocketInspection(); revealPanelSection(id, BIN_SETTINGS_SECTIONS); }}
         />
       </div>}
@@ -1794,12 +1792,12 @@ export function BinControlsPanel({
           </div>
         </PanelSection>
 
-        {experimentalEnabled && <PanelSection key={spec.surfaceTexts.length ? "text" : "text-empty"} id="bin-settings-text" title="Surface text" icon={Type} tone="cyan"
+        <PanelSection key={spec.surfaceTexts.length ? "text" : "text-empty"} id="bin-settings-text" title="Surface text" icon={Type} tone="cyan"
           hint="Add raised text to the flat interior surface. Drag it in Layout, clear of pockets and openings. Double-click a label to edit its wording. You can position text even when the 3D preview cannot build."
           summary={`${spec.surfaceTexts.length} label${spec.surfaceTexts.length === 1 ? "" : "s"}`} defaultOpen={spec.surfaceTexts.length > 0} className="scroll-mt-16">
           <SurfaceTextControls onPositionText={onPositionText} />
           {geometryError && spec.surfaceTexts.length > 0 && <p role="alert" className="text-xs text-destructive">{geometryError}</p>}
-        </PanelSection>}
+        </PanelSection>
 
         <PanelSection
           id="bin-settings-materials"
@@ -1825,7 +1823,7 @@ export function BinControlsPanel({
               onChange={onBinColorChange}
             />
           </div>
-          {experimentalEnabled && <div className="space-y-2 rounded-md border bg-background/60 px-2.5 py-2" data-testid="view-color-row-text">
+          <div className="space-y-2 rounded-md border bg-background/60 px-2.5 py-2" data-testid="view-color-row-text">
             <div className="flex items-center justify-between gap-3">
               <SettingLabel label="Text color" htmlFor="input-text-color" hint="Applies to all surface text in the preview and multi-color 3MF. By default, text matches the edge band." />
               <MaterialColorSwatch id="input-text-color" sources={materialColors} label="Text" value={spec.textColor ?? edgeBandColor}
@@ -1833,7 +1831,7 @@ export function BinControlsPanel({
             </div>
             {spec.textColor !== null && <Button variant="link" size="sm" className="h-auto p-0 text-xs"
               onClick={() => dispatch({ type: "PATCH_SPEC", patch: { textColor: null }, historyLabel: "Match text to edge band" })}>Use edge-band color</Button>}
-          </div>}
+          </div>
           <div
             className="space-y-2 rounded-md border bg-background/60 px-2.5 py-2"
             data-testid="view-color-row-floor"
@@ -2316,7 +2314,7 @@ export function BinControlsPanel({
           <Button size="sm" className="gap-1.5" onClick={() => inspector.showSection("bin-settings-export")}><Download className="h-4 w-4" />Export</Button>
         </div>
       </div>, inspector.projectHeader)}
-      {experimentalEnabled && inspector?.properties && createPortal(<SurfaceTextProperties />, inspector.properties)}
+      {inspector?.properties && createPortal(<SurfaceTextProperties />, inspector.properties)}
       {inspector?.properties && selection.length === 1 && createPortal(<>{pocketProperties}{fingerProperties}</>, inspector.properties)}
     </PanelSectionFilterContext.Provider>
   );
@@ -2380,6 +2378,8 @@ function ProjectControls({
   const ready = hydrated && libraryReady;
   const [renameProjectId, setRenameProjectId] = useState<string | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
+  const [samplesOpen, setSamplesOpen] = useState(false);
+  const [sampleAction, setSampleAction] = useState<{ kind: "project"; doc: ProjectDoc } | { kind: "library"; library: SampleLibrary } | null>(null);
   const [removeProject, setRemoveProject] = useState<ProjectLibraryItem | null>(null);
   const [newProjectOpen, setNewProjectOpen] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
@@ -2394,7 +2394,7 @@ function ProjectControls({
   };
   const returnToLibrary = useRef(false);
   const { settingsOpen } = useExperimentalFeatures();
-  useEffect(() => { if (settingsOpen) { setLibraryOpen(false); setSaveOpen(false); setRenameProjectId(null); setRemoveProject(null); setNewProjectOpen(false); } }, [settingsOpen, setSaveOpen]);
+  useEffect(() => { if (settingsOpen) { setSamplesOpen(false); setSampleAction(null); setLibraryOpen(false); setSaveOpen(false); setRenameProjectId(null); setRemoveProject(null); setNewProjectOpen(false); } }, [settingsOpen, setSaveOpen]);
   useEffect(() => { if (activeProjectId) setSelectedProjectId(activeProjectId); }, [activeProjectId]);
   const saveDraftFromLibrary = () => { returnToLibrary.current = true; setLibraryOpen(false); setSaveOpen(true); };
   const returnAfterNaming = () => {
@@ -2404,9 +2404,10 @@ function ProjectControls({
   const [pendingLibraryFile, setPendingLibraryFile] = useState<File | null>(null);
   const [libraryImportMode, setLibraryImportMode] = useState<LibraryImportMode>("merge");
   const [pendingOpenProject, setPendingOpenProject] = useState<ProjectOpenTarget | null>(null);
+  const keepDraftButtonRef = useRef<HTMLButtonElement>(null);
   const { toast } = useToast();
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
-  const { libraryRequested, setLibraryRequested } = usePanelState();
+  const { libraryRequested, setLibraryRequested, sampleLibraryRequested, setSampleLibraryRequested } = usePanelState();
   useEffect(() => {
     if (!libraryRequested || !libraryReady || busy) return;
     setLibraryOpen(true);
@@ -2414,6 +2415,30 @@ function ProjectControls({
     setLibraryRequested(false);
     onRefreshProjects();
   }, [libraryRequested, libraryReady, busy, activeProjectId, setLibraryRequested, onRefreshProjects]);
+  useEffect(() => {
+    if (!sampleLibraryRequested || !ready || busy) return;
+    setLibraryOpen(false);
+    setSamplesOpen(true);
+    setSampleLibraryRequested(false);
+  }, [sampleLibraryRequested, ready, busy, setSampleLibraryRequested]);
+
+  const completeSampleAction = async (action: NonNullable<typeof sampleAction>) => {
+    if (!ready || busy) return;
+    const opened = action.kind === "project"
+      ? await onImportProject(action.doc)
+      : await onImportLibrary(new File([JSON.stringify(action.library)], "pocketry-sample-library.json", { type: "application/json" }), "merge");
+    if (!opened) return;
+    setSampleAction(null);
+    setSamplesOpen(false);
+    setLibraryOpen(action.kind === "library");
+  };
+  const chooseSampleAction = (action: NonNullable<typeof sampleAction>) => {
+    if (!ready || busy) return;
+    // A sample choice supersedes a project file still being read.
+    projectFileReadRevision.current += 1;
+    if (hasDraftWork || activeProjectId || projects.length) setSampleAction(action);
+    else void completeSampleAction(action);
+  };
   const [projectName, setProjectName] = useState("");
   useEffect(() => {
     if (saveOpen) setProjectName(currentProjectName ?? "");
@@ -2537,7 +2562,7 @@ function ProjectControls({
 
   const renderLibraryDialog = (): JSX.Element => (
     <Dialog
-      open={libraryOpen && !saveOpen && !renameProjectId && !removeProject && !pendingLibraryFile && !pendingOpenProject && !settingsOpen}
+      open={libraryOpen && !samplesOpen && !sampleAction && !saveOpen && !renameProjectId && !removeProject && !pendingLibraryFile && !pendingOpenProject && !settingsOpen}
       onOpenChange={(open) => {
         setLibraryOpen(open);
         if (open) setSelectedProjectId(activeProjectId);
@@ -2558,7 +2583,7 @@ function ProjectControls({
       </DialogTrigger>
       <DialogContent
         ref={libraryDialogRef}
-        onCloseAutoFocus={event => { if (saveOpen || renameProjectId || removeProject || pendingLibraryFile || pendingOpenProject || settingsOpen) event.preventDefault(); }}
+        onCloseAutoFocus={event => { if (samplesOpen || sampleAction || saveOpen || renameProjectId || removeProject || pendingLibraryFile || pendingOpenProject || settingsOpen) event.preventDefault(); }}
         className="flex max-h-[85dvh] flex-col overflow-hidden p-4 sm:p-6 [&>button]:hidden [@media(max-height:500px)]:max-h-[calc(100dvh_-_2rem)] [@media(max-height:500px)]:overflow-y-auto [@media(max-height:500px)]:scroll-pt-[var(--library-header-height)]"
         onOpenAutoFocus={(event) => {
           event.preventDefault();
@@ -2704,7 +2729,7 @@ function ProjectControls({
           <div className="flex items-center justify-between gap-2">
             <SettingLabel label="Entire library" hint="Exports every named project saved in this browser as one JSON file. Unnamed drafts are not included. Import lets you merge with this library or replace it. Your current design stays open; duplicate names receive an imported suffix when merging." />
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             <Button size="sm" variant="outline" className={projectActionClass} disabled={!libraryReady || busy}
               onClick={onExportLibrary} data-testid="button-export-library">
               <Download className="h-3.5 w-3.5 shrink-0" />Export library
@@ -2712,6 +2737,10 @@ function ProjectControls({
             <Button size="sm" variant="outline" className={projectActionClass} disabled={!ready || busy}
               onClick={() => libraryImportInputRef.current?.click()} data-testid="button-import-library">
               <Upload className="h-3.5 w-3.5 shrink-0" />Import library
+            </Button>
+            <Button size="sm" variant="outline" className={projectActionClass} disabled={!ready || busy}
+              data-testid="button-open-sample-library" onClick={() => setSamplesOpen(true)}>
+              <LibraryBig className="h-3.5 w-3.5 shrink-0" />Sample Library
             </Button>
           </div>
         </div>
@@ -2819,10 +2848,10 @@ function ProjectControls({
           disabled={!ready || busy}
           onClick={() => importInputRef.current?.click()}
           ref={importProjectButtonRef}
-          title="Open an editable Pocketry project file"
+          title="Import an editable Pocketry project file"
           data-testid="button-import-project"
         >
-          <FolderOpen className="h-3.5 w-3.5 shrink-0" />Open project
+          <FolderOpen className="h-3.5 w-3.5 shrink-0" />Import Project
         </Button>
         <Button
           variant="outline"
@@ -2838,6 +2867,18 @@ function ProjectControls({
       </div>
       {!activeProjectId && <Button variant="outline" className="min-h-11 h-auto w-full whitespace-normal" disabled={!ready || busy} onClick={() => setSaveOpen(true)}>Save this draft to Library</Button>}
       {renderLibraryDialog()}
+      <SampleLibraryDialog open={samplesOpen && !sampleAction && !settingsOpen} busy={busy}
+        onOpenChange={setSamplesOpen}
+        onOpenSample={project => chooseSampleAction({ kind: "project", doc: project.doc })}
+        onImportAll={library => chooseSampleAction({ kind: "library", library })} />
+      <ProjectBackupPrompt open={sampleAction !== null} busy={busy}
+        targetName={sampleAction?.kind === "project" ? sampleAction.doc.name ?? "Sample project" : "Sample Library"}
+        replacesProject={sampleAction?.kind === "project"}
+        hasProject={hasDraftWork || !!activeProjectId} hasLibrary={projects.length > 0}
+        currentProjectName={currentProjectName}
+        onCancel={() => setSampleAction(null)}
+        onContinue={() => { if (sampleAction) void completeSampleAction(sampleAction); }}
+        onSave={onSaveProject} onExportProject={onExportProject} onExportLibrary={onExportLibrary} />
       {renameProjectId && projects.find(project => project.id === renameProjectId) && renderNameDialog(projects.find(project => project.id === renameProjectId))}
       <AlertDialog open={!!removeProject} onOpenChange={open => { if (!open) setRemoveProject(null); }}>
         <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Remove “{removeProject?.name}” from library?</AlertDialogTitle>
@@ -2879,6 +2920,13 @@ function ProjectControls({
               ? "Your current design stays open as an unnamed draft. Export your library first if you want to keep its saved projects."
               : "Your current design stays open."}
           </p>
+          {(hasDraftWork || activeProjectId || projects.length > 0) && <div className="space-y-2 rounded-md border p-3">
+            <p className="text-sm">Would you like to export a backup before importing?</p>
+            <div className="flex flex-wrap gap-2">
+              {(hasDraftWork || activeProjectId) && <Button variant="outline" disabled={busy} onClick={onExportProject}>Export current project</Button>}
+              {projects.length > 0 && <Button variant="outline" disabled={busy} onClick={onExportLibrary}>Export existing library</Button>}
+            </div>
+          </div>}
           <DialogFooter>
             <Button variant="outline" disabled={busy} onClick={() => setPendingLibraryFile(null)}>Cancel</Button>
             <Button variant={libraryImportMode === "replace" ? "destructive" : "default"} disabled={busy || !pendingLibraryFile}
@@ -2893,7 +2941,10 @@ function ProjectControls({
       <AlertDialog open={pendingOpenProject !== null} onOpenChange={(open) => {
         if (!open && !busy) setPendingOpenProject(null);
       }}>
-        <AlertDialogContent className="grid-cols-1" onCloseAutoFocus={(event) => {
+        <AlertDialogContent className="grid-cols-1" onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          keepDraftButtonRef.current?.focus();
+        }} onCloseAutoFocus={(event) => {
           event.preventDefault();
           if (openProjectSourceRef.current?.isConnected) openProjectSourceRef.current.focus({ preventScroll: true });
         }}>
@@ -2904,8 +2955,12 @@ function ProjectControls({
               {" "}will replace it. Keep working to save or export the draft first.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" className="min-h-11" disabled={busy} onClick={onExportProject}>Export current project</Button>
+            {projects.length > 0 && <Button variant="outline" className="min-h-11" disabled={busy} onClick={onExportLibrary}>Export existing library</Button>}
+          </div>
           <AlertDialogFooter>
-            <AlertDialogCancel className="min-h-11" disabled={busy}>Keep working</AlertDialogCancel>
+            <AlertDialogCancel ref={keepDraftButtonRef} className="min-h-11" disabled={busy}>Keep working</AlertDialogCancel>
             <AlertDialogAction
               disabled={busy}
               className="min-h-11 bg-destructive text-destructive-foreground hover:bg-destructive/90"

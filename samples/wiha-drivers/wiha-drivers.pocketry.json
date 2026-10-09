@@ -1,7 +1,5 @@
 {
-  "schemaVersion": 20,
-  "name": "Wiha 150 mm drivers",
-  "keepBinSize": false,
+  "schemaVersion": 36,
   "shapes": [
     {
       "id": "11ab9d7d-9d59-43bd-8172-37d756c4b8fe",
@@ -942,17 +940,35 @@
     "heightUnits": 3.5,
     "lip": "standard",
     "fill": "solid",
+    "wallThicknessMm": 0.95,
     "fillHeightPercent": 80,
+    "adjustFixedPocketDepths": true,
     "flatBottom": false,
     "magnetHoles": false,
     "magnetCrushRibs": false,
     "screwHoles": false,
-    "labelTab": null
+    "labelTab": null,
+    "textColor": "#e8783d",
+    "surfaceTexts": [
+      {
+        "id": "sample-wiha-drivers-text-1",
+        "text": "Wiha Drivers",
+        "position": {
+          "x": 0,
+          "y": 137
+        },
+        "font": "helvetiker",
+        "sizeMm": 7.5,
+        "heightMm": 0.8,
+        "rotationDeg": 0
+      }
+    ]
   },
   "cutouts": [
     {
       "id": "9e7fe5bf-a67b-45fa-9175-42c159ef853a",
       "shapeId": "11ab9d7d-9d59-43bd-8172-37d756c4b8fe",
+      "name": "Wiha driver 1",
       "position": {
         "x": 47.01493215560915,
         "y": -7.431233991234521
@@ -992,12 +1008,12 @@
       "cornerRoundMm": 1,
       "topFilletMm": 1,
       "bottomFilletMm": 2.8,
-      "fingerHoles": [],
-      "name": "Wiha driver 1"
+      "fingerHoles": []
     },
     {
       "id": "cutout-9d022f8f-3d8b-491a-b0e1-0eed3d24a656-gmxol4",
       "shapeId": "beeb1a28-5d84-4480-aa92-100c7f274043",
+      "name": "Wiha driver 2",
       "position": {
         "x": 21.19483331785485,
         "y": 0.5679281098398832
@@ -1037,12 +1053,12 @@
       "cornerRoundMm": 1,
       "topFilletMm": 1,
       "bottomFilletMm": 2.8,
-      "fingerHoles": [],
-      "name": "Wiha driver 2"
+      "fingerHoles": []
     },
     {
       "id": "76a5b7e1-1325-4d66-8436-9cc834d88c27",
       "shapeId": "de01b40b-64ce-4957-bd18-94fc0bcc20ba",
+      "name": "Wiha driver 3",
       "position": {
         "x": -24.180160522460916,
         "y": 1.9781148774180082
@@ -1082,12 +1098,12 @@
       "cornerRoundMm": 1,
       "topFilletMm": 1,
       "bottomFilletMm": 2.8,
-      "fingerHoles": [],
-      "name": "Wiha driver 3"
+      "fingerHoles": []
     },
     {
       "id": "046dd850-67e6-447b-bce4-16fc24e4c496",
       "shapeId": "11ab9d7d-9d59-43bd-8172-37d756c4b8fe",
+      "name": "Wiha driver 4",
       "position": {
         "x": 1.8198394775390838,
         "y": -7.932071890160117
@@ -1127,12 +1143,12 @@
       "cornerRoundMm": 1,
       "topFilletMm": 1,
       "bottomFilletMm": 2.8,
-      "fingerHoles": [],
-      "name": "Wiha driver 4"
+      "fingerHoles": []
     },
     {
       "id": "42b45a6f-def1-4433-9e47-afe61403fe8c",
       "shapeId": "11ab9d7d-9d59-43bd-8172-37d756c4b8fe",
+      "name": "Wiha driver 5",
       "position": {
         "x": -43.180160522460916,
         "y": -6.932071890160117
@@ -1172,8 +1188,7 @@
       "cornerRoundMm": 1,
       "topFilletMm": 1,
       "bottomFilletMm": 2.8,
-      "fingerHoles": [],
-      "name": "Wiha driver 5"
+      "fingerHoles": []
     }
   ],
   "fingerHoles": [
@@ -1192,5 +1207,7 @@
       "rotationDeg": 0.09855401344935899,
       "kind": "oblong-deep-scoop"
     }
-  ]
+  ],
+  "name": "Wiha 150 mm drivers",
+  "keepBinSize": false
 }

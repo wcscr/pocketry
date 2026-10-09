@@ -1,3 +1,4 @@
+import { useLocation } from "wouter";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { mmPerPixel, type Calibration } from "@shared/geometry/scale";
@@ -93,7 +94,8 @@ function TraceWorkspace(): JSX.Element {
     if (store.draftSaveStatus !== "loading") recoveryWaiters.current.splice(0).forEach(resolve => resolve());
   }, [store.draftSaveStatus]);
   const { toast } = useToast();
-  const { panelOpen, setPanelOpen } = usePanelState();
+  const [, navigate] = useLocation();
+  const { panelOpen, setPanelOpen, setSampleLibraryRequested } = usePanelState();
   const isMobile = useIsMobile();
   const { inspectorEnabled } = useExperimentalFeatures();
   const workflowLayout = inspectorEnabled && !isMobile;
@@ -756,6 +758,10 @@ function TraceWorkspace(): JSX.Element {
                         a plain, contrasting background with a known distance to set the scale. Keep the whole tool in frame.
                       </p>
                       <CalibrationDownloads />
+                      <Button variant="outline" className="min-h-11 self-center" onClick={() => {
+                        setSampleLibraryRequested(true);
+                        navigate("/bin");
+                      }}>Open sample projects or library</Button>
                       {(store.draftSaveStatus === "loading" || store.draftSaveStatus === "error") && <p role="status" className={`text-sm ${store.draftSaveStatus === "error" ? "text-destructive" : "text-muted-foreground"}`}>
                         {store.draftSaveStatus === "loading" ? "Restoring trace draft…" : "Couldn’t restore the saved trace. Choose a photo to start again."}
                       </p>}

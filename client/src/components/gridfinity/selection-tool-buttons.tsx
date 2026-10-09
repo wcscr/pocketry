@@ -47,7 +47,7 @@ export function SelectionToolButtons({ count, onActivate, inactive = false, pann
     return () => observer.disconnect();
   }, [inspector?.toolbar]);
   if (!inspector?.toolbar) return null;
-  const textSelected = enabled && !!selectedSurfaceTextId;
+  const textSelected = !!selectedSurfaceTextId;
   const available = tools.filter(item => item.tool !== "links" || enabled && !textSelected);
   const primary = (item: typeof tools[number]) => !mobile && wide || item.tool === "properties" || !!mobile && (item.tool === "translate" || item.tool === "rotate");
   const disabled = (item: typeof tools[number]) => panning || (textSelected ? item.tool === "arrange" || item.tool === "links" : count < item.minimum);

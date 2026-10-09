@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Surface text and its font, color, placement, and editing controls are now available by default, without experimental opt-in.
+
+- Added editable, photo-matched labels to six sample projects, including corrected Bessey lettering.
+
+- Open sample projects or the full sample library inside Pocketry from Welcome, Trace, or Library. Save/export choices protect existing work before opening or importing samples.
+
+- Replaced the settings-focused welcome with a three-step photo-to-bin guide, workspace shortcuts, calibration downloads, and example projects.
+- Renamed the project-file button to “Import Project” to clarify its action.
+
 - Preserve native bin geometry and color partitions during STL and 3MF export; repair Float32 topology without rebuilding rounded solids.
 
 - The active bin project and local save status stay visible in Trace and Bin, including on phones. Backups are available above the workspace, and Add to bin names its destination and explains that each addition creates a new pocket.

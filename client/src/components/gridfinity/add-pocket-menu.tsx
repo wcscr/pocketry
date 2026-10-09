@@ -8,7 +8,6 @@ import { useBin } from "@/state/bin-store";
 import { usePanelState } from "@/components/layout/panel-context";
 import { useHasTouchInput, useIsMobile } from "@/hooks/use-mobile";
 import { useAddSurfaceText } from "./use-add-surface-text";
-import { useExperimentalFeatures } from "@/state/experimental-features";
 import { useAddFingerAccess } from "./use-add-finger-access";
 
 /** Pocket picker with optional object actions for the compact toolbar. */
@@ -16,7 +15,6 @@ export function AddPocketMenu({ label = "Add pocket", className, onStart, testId
   label?: string; className?: string; onStart?: () => void; testId?: string; includeFingerAccess?: boolean; iconOnly?: boolean;
 }): JSX.Element {
   const { spec, dispatch } = useBin();
-  const { enabled: experimentalEnabled } = useExperimentalFeatures();
   const addSurfaceText = useAddSurfaceText(onStart);
   const { setPanelOpen } = usePanelState();
   const isMobile = useIsMobile();
@@ -49,9 +47,9 @@ export function AddPocketMenu({ label = "Add pocket", className, onStart, testId
         <DropdownMenuItem className="[@media(pointer:coarse)]:min-h-11" onSelect={addFingerAccess}>
           <CircleDot className="mr-2 h-4 w-4" />Finger access
         </DropdownMenuItem>
-        {experimentalEnabled && <DropdownMenuItem className="[@media(pointer:coarse)]:min-h-11" disabled={spec.surfaceTexts.length >= 32} onSelect={addSurfaceText}>
+        <DropdownMenuItem className="[@media(pointer:coarse)]:min-h-11" disabled={spec.surfaceTexts.length >= 32} onSelect={addSurfaceText}>
           <Type className="mr-2 h-4 w-4" />Surface text
-        </DropdownMenuItem>}
+        </DropdownMenuItem>
       </>}
     </DropdownMenuContent>
   </DropdownMenu>
