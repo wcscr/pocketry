@@ -268,7 +268,7 @@ function render(ui: React.ReactElement, { mobile = false, experimental = true } 
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
-  React.act(() => root.render(<ExperimentalFeaturesProvider><ExperimentalProbe>{ui}</ExperimentalProbe></ExperimentalFeaturesProvider>));
+  React.act(() => root.render(<ExperimentalFeaturesProvider><TraceStoreReview.TraceProvider><ExperimentalProbe>{ui}</ExperimentalProbe></TraceStoreReview.TraceProvider></ExperimentalFeaturesProvider>));
 
   let unmounted = false;
   const result = {

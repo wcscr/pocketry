@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useBin } from "@/state/bin-store";
 import { useShapeLibrary } from "@/state/shape-library";
+import { useTrace } from "@/state/trace-store";
+import { usePanelState } from "@/components/layout/panel-context";
 import { useMobileWorkspaceActions } from "@/components/layout/mobile-workspace-actions";
 
 /** One depth decision, shared by the canvas prompt and ordinary pocket properties. */
@@ -81,7 +83,14 @@ export function PocketDepthQuestion({ spec, name, count = 1, onSave, onLater }: 
 export function PendingPocketDepthPrompt({ request, fallback }: { request: number; fallback?: ReactNode }) {
   const { spec, cutouts, selectedCutoutId, dispatch } = useBin();
   const { shapes } = useShapeLibrary();
+  const { dispatch: dispatchTrace } = useTrace();
+  const { setPanelOpen } = usePanelState();
   const [, navigate] = useLocation();
+  const traceAnotherPhoto = () => {
+    dispatchTrace({ type: "SOURCE_CLEARED" });
+    setPanelOpen(false);
+    navigate("/");
+  };
   const [dismissed, setDismissed] = useState<Set<string>>(() => new Set());
   const [finished, setFinished] = useState(false);
   const workspace = useMobileWorkspaceActions();
@@ -100,7 +109,7 @@ export function PendingPocketDepthPrompt({ request, fallback }: { request: numbe
     }}>Set depth</Button>
   </div>{fallback}</>;
   if (!selected) return <>{finished && <div className="flex shrink-0 justify-end border-t bg-background px-3 py-1">
-    <Button variant="ghost" size="sm" onClick={() => navigate("/")}>Trace another photo</Button>
+    <Button variant="ghost" size="sm" onClick={traceAnotherPhoto}>Trace another photo</Button>
   </div>}{fallback}</>;
   const name = pocketName(selected, shapes.find(shape => shape.id === selected.shapeId));
   return <><div className={fallback ? "bg-background p-1" : "max-h-[45dvh] shrink-0 overflow-y-auto border-t bg-background p-3"} data-testid="pending-pocket-depth">
@@ -108,7 +117,7 @@ export function PendingPocketDepthPrompt({ request, fallback }: { request: numbe
       {dismissed.has(selected.id) ? <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
         <span className="min-w-0 flex-1 truncate">{name} · Depth needed</span>
         <Button variant="outline" size="sm" onClick={() => setDismissed(new Set())}>Set depth</Button>
-        <Button variant="ghost" size="sm" onClick={() => navigate("/")}>Trace another photo</Button>
+        <Button variant="ghost" size="sm" onClick={traceAnotherPhoto}>Trace another photo</Button>
       </div> : <PocketDepthQuestion key={selected.id} spec={spec} name={name} count={pending.length}
         onLater={() => { setDismissed(new Set(pending.map(cutout => cutout.id))); setFinished(true); }}
         onSave={(depth, all) => {

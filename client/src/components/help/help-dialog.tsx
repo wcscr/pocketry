@@ -64,7 +64,7 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
               When the outline looks right, choose <strong>Add to bin</strong>{" "}
               to place it immediately. Set the pocket depth beside the bin, or choose <strong>Set later</strong>{" "}
               to arrange it first. Every pocket needs a depth before printable export.
-              Choose <strong>Trace another photo</strong> to return for more tools.
+              Choose <strong>Trace another photo</strong> for a blank canvas and photo drop zone; pockets already added to Bin stay in the project.
             </p>
           </li>
           <li className="pl-1">

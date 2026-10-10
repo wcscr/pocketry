@@ -2,12 +2,16 @@
 import * as React from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { Router, useLocation } from "wouter";
+import { Route, Router, useLocation } from "wouter";
 import { memoryLocation } from "wouter/memory-location";
 
 import { PanelProvider, usePanelState } from "@/components/layout/panel-context";
 import type { TraceControlsPanelProps } from "@/components/trace/trace-controls-panel";
 import { initialTraceState, TraceProvider, useTrace } from "@/state/trace-store";
+import { BinProvider, useBin } from "@/state/bin-store";
+import { PendingPocketDepthPrompt } from "@/components/gridfinity/pocket-depth-question";
+import { parseCutoutPlacement } from "@shared/gridfinity/cutout";
+import { normalizeTracedShape } from "@/lib/gridfinity/traced-shape";
 import { downloadBlob } from "@/lib/download";
 import { loadTraceDraft, saveTraceDraft, traceDraftSnapshot } from "@/lib/trace-draft";
 import type { TraceDraft } from "@shared/trace-draft";
@@ -19,7 +23,7 @@ import type { DetectionFrame } from "@/components/trace/use-image-source";
 import { TRACE_PHOTO_MAX_BYTES } from "@/lib/trace-photo";
 
 import TraceWorkspacePage from "./trace";
-import { ShapeLibraryProvider } from "@/state/shape-library";
+import { ShapeLibraryProvider, useShapeLibrary } from "@/state/shape-library";
 
 function TracePage() { return <ShapeLibraryProvider><TraceWorkspacePage /></ShapeLibraryProvider>; }
 
@@ -109,10 +113,10 @@ vi.mock("@/components/trace/trace-canvas", () => ({
     emptyState?: React.ReactNode;
     onReprocess: (region?: Rect) => void;
   }) => {
-    const { dispatch } = useTrace();
+    const { dispatch, imageUrl } = useTrace();
     return (
     <>
-      {emptyState}
+      {!imageUrl && emptyState}
       <button data-testid="run-detection" onClick={() => onReprocess()}>
         Run detection
       </button>
@@ -421,6 +425,62 @@ describe("Trace detection workflow", () => {
     expect(current!.outline).toEqual([]);
     expect(current!.processing).toBe(false);
   });
+
+  it.each([false, true].flatMap(mobile => ["Done", "Set later"].map(action => ({ mobile, action }))))(
+    "starts another photo at the empty drop zone after $action (mobile=$mobile)", async ({ mobile, action }) => {
+      vi.stubGlobal("matchMedia", () => ({ matches: mobile, addEventListener: () => {}, removeEventListener: () => {} }));
+      Object.defineProperty(window, "innerWidth", { value: mobile ? 390 : 1440, configurable: true, writable: true });
+      const route = memoryLocation({ path: "/bin" });
+      let trace!: ReturnType<typeof useTrace>, bin!: ReturnType<typeof useBin>;
+      let library!: ReturnType<typeof useShapeLibrary>, panel!: ReturnType<typeof usePanelState>;
+      let location = "/bin";
+      function Probe() { trace = useTrace(); bin = useBin(); library = useShapeLibrary(); panel = usePanelState(); [location] = useLocation(); return null; }
+      await React.act(async () => root.render(<Router hook={route.hook}><PanelProvider><ShapeLibraryProvider><TraceProvider persist><BinProvider>
+        <Probe /><SeedExportOutline format="svg" />
+        <Route path="/bin"><PendingPocketDepthPrompt request={0} /></Route>
+        <Route path="/"><TraceWorkspacePage /></Route>
+      </BinProvider></TraceProvider></ShapeLibraryProvider></PanelProvider></Router>));
+      const shape = normalizeTracedShape(exportOutline, { mmPerPx: 0.5, imageHeight: 600 }, "Tool 1")!;
+      React.act(() => {
+        library.storeShape(shape);
+        bin.dispatch({ type: "ADD_PLACED", gridX: 2, gridY: 2,
+          cutouts: [parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 0, y: 0 }, depthPending: true })] });
+        bin.dispatch({ type: "SELECT_CUTOUT", id: "pocket" });
+      });
+      // Ordinary workspace navigation still resumes the existing photo.
+      await React.act(async () => route.navigate("/"));
+      expect(trace.imageUrl).toBe("data:image/png;base64,source");
+      expect(host.querySelector('[role="button"][aria-label="Choose a photo"]')).toBeNull();
+      await React.act(async () => route.navigate("/bin"));
+      const button = (label: string) => [...host.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === label)!;
+      if (action === "Done") React.act(() => button("To bin floor").click());
+      React.act(() => button(action).click());
+      const placed = bin.cutouts, history = bin.history, shapes = library.shapes;
+      React.act(() => panel.setPanelOpen(true));
+      vi.mocked(saveTraceDraft).mockClear();
+      await React.act(async () => button("Trace another photo").click());
+      expect(location).toBe("/");
+      expect(panel.panelOpen).toBe(false);
+      expect(trace.imageUrl).toBeNull();
+      expect(trace.outline).toEqual([]);
+      expect(trace.calibration).toBeNull();
+      expect(trace.region).toBeNull();
+      expect(trace.canUndo).toBe(false);
+      expect(saveTraceDraft).toHaveBeenLastCalledWith(null);
+      expect(host.querySelector('[role="button"][aria-label="Choose a photo"]')?.textContent).toContain("drop a photo here");
+      expect(bin.cutouts).toBe(placed);
+      expect(bin.history).toBe(history);
+      expect(library.shapes).toBe(shapes);
+      // Choosing the next photo starts immediately, without replacing old work.
+      decodeImageFileMock.mockResolvedValueOnce({ imageUrl: "data:image/png;base64,next", naturalSize: { width: 800, height: 600 } });
+      const input = host.querySelector<HTMLInputElement>('[role="button"][aria-label="Choose a photo"] input')!;
+      Object.defineProperty(input, "files", { configurable: true, value: [new File(["next"], "next.png", { type: "image/png" })] });
+      await React.act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
+      expect(trace.imageUrl).toBe("data:image/png;base64,next");
+      expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+      expect(bin.cutouts).toBe(placed);
+    },
+  );
 
   afterEach(() => {
     React.act(() => root.unmount());

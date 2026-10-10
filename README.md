@@ -158,7 +158,9 @@ Traced tools keep their chosen destination through navigation and reload. If the
 destination changes, they wait outside the current project until you open the
 intended project or explicitly choose **Add waiting tools** to the current bin.
 
-After adding a tool, **Trace another photo** returns to Trace for accessories. For a
+After adding a tool, **Trace another photo** clears the previous photo and trace,
+then opens a blank canvas with the photo drop zone. Pockets already added to Bin
+stay in the project. For a
 standalone outline, **Export Outline** offers SVG, DXF, and STL. Confirm the scale
 before exporting files for printing or cutting.
 
