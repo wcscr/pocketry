@@ -12,6 +12,13 @@ const f = fingerHoleSchema.parse({ id: "f", kind: "oblong-deep-scoop", center: {
 const g = { ...f, id: "g", center: { x: 15, y: 0 }, rotationDeg: 90 };
 
 describe("explicit linked designs", () => {
+  it("resolves depth for every linked copy without inventing depth for independent pockets", () => {
+    const pending = { ...before, cutouts: before.cutouts.map(c => ({ ...c, depthPending: true as const })) };
+    const result = applyLinkedEdits(pending, { cutouts: [{ ...pending.cutouts[0], depthPending: undefined, depth: { mode: "mm", value: 8 } }], fingerHoles: [] })!;
+    expect(result.cutouts.slice(0, 2).map(c => c.depthPending)).toEqual([undefined, undefined]);
+    expect(result.cutouts[2].depthPending).toBe(true);
+    expect(designLinkErrors(result)).toEqual([]);
+  });
   it("shares contour revisions and dimensions while retaining each placement and name", () => {
     const result = applyLinkedEdits(before, { cutouts: [{ ...a, shapeId: "revision", scaleX: 1.5, topFilletMm: 2 }], fingerHoles: [] })!;
     expect(result.cutouts.slice(0, 2).map(c => c.shapeId)).toEqual(["revision", "revision"]);

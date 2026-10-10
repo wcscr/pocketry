@@ -1795,7 +1795,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
           {placed.map(({ cutout, shape, outline }) => {
             const severity = severityByCutout.get(cutout.id);
             const isSelected = selection.some(ref => ref.kind === "pocket" && ref.id === cutout.id);
-            const tone =
+            const tone = cutout.depthPending ? "fill-primary/10 stroke-primary" :
               overlappingCutouts.has(cutout.id) && !boundaryCutouts.has(cutout.id)
                 ? "fill-orange-500/25 stroke-orange-600"
                 : severity === "error"
@@ -1817,8 +1817,8 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
                   strokeWidth={(cutout.profileBottom || hasRigidPocket(cutout)) && !profileOutlines.has(cutout.id) ? 0 : isSelected ? 2 : 1.25}
                   vectorEffect="non-scaling-stroke"
                   data-cutout-id={cutout.id}
-                  strokeDasharray={overlappingCutouts.has(cutout.id) ? "5 3" : undefined}
-                ><title>{boundaryCutouts.has(cutout.id) ? "Boundary conflict. " : ""}{overlappingCutouts.has(cutout.id) ? "Overlapping pockets. " : ""}{pocketName(cutout, shapesById.get(cutout.shapeId))}</title></path>
+                  strokeDasharray={cutout.depthPending || overlappingCutouts.has(cutout.id) ? "5 3" : undefined}
+                ><title>{cutout.depthPending ? "Depth needed. " : ""}{boundaryCutouts.has(cutout.id) ? "Boundary conflict. " : ""}{overlappingCutouts.has(cutout.id) ? "Overlapping pockets. " : ""}{pocketName(cutout, shapesById.get(cutout.shapeId))}</title></path>
                 {cutout.split && !cutout.profileBottom && !hasPocketTilt(cutout) && (() => {
                   const split = resolvePocketSplit(shape.outlineMm, cutout.split.boundary);
                   const boundary = (split.boundary ?? cutout.split.boundary).map(p => binToCanvas(transformPointPlacement(p, cutout), spec));
