@@ -54,7 +54,7 @@ import {
   type TemplateVariant,
 } from "@/lib/calibrate/template";
 import { describeScale, exportScale } from "@/lib/export/scale";
-import { TraceHandoffDialog } from "./trace-handoff-dialog";
+import { TraceHandoffOptions, useTraceHandoff } from "./trace-handoff";
 import type { ImageRotationDirection } from "@/lib/geometry/image-rotation";
 import {
   adjustOutlineMargin,
@@ -429,9 +429,9 @@ export function TraceControlsPanel({
         }
       : null;
 
-  const [handoffOpen, setHandoffOpen] = useState(false);
+  const handoff = useTraceHandoff(onCanvasInteraction);
   const [clearRequest, setClearRequest] = useState<{ kind: "region" | "scale"; sourceRevision: number } | null>(null);
-  const openHandoff = () => setHandoffOpen(true);
+
   const handleClearRegion = () => {
     dispatch({ type: "SET_MODE", mode: "region" });
     onCanvasInteraction?.();
@@ -1037,9 +1037,9 @@ export function TraceControlsPanel({
           setRestartRevision(null);
           onStartOver();
         }} />
-      {handoffOpen && <TraceHandoffDialog onClose={() => setHandoffOpen(false)}
-        onChoosePhoto={onReplaceImage} onCanvasInteraction={onCanvasInteraction} />}
+
       <PanelFooter>
+        <div className="mb-2"><TraceHandoffOptions handoff={handoff} /></div>
         {shapeLibrary.pendingIds.length > 0 && <Button variant="secondary" className="mb-2 w-full" onClick={() => navigate("/bin")}>
           Arrange {shapeLibrary.pendingIds.length} queued tool{shapeLibrary.pendingIds.length === 1 ? "" : "s"}
         </Button>}
@@ -1053,8 +1053,8 @@ export function TraceControlsPanel({
               <span className="block w-full">
                 <Button
                   className="w-full"
-                  onClick={openHandoff}
-                  disabled={!hasOutline || !scale.mmPerPx || reviewingScale}
+                  onClick={handoff.addToBin}
+                  disabled={!handoff.ready}
                   data-testid="button-add-to-bin"
                 >
                   <Box className="h-4 w-4" />

@@ -11,7 +11,8 @@ import { PanelProvider, usePanelState } from "@/components/layout/panel-context"
 import { AppHeader } from "@/components/layout/app-header";
 import { ProjectStatusBar } from "@/components/layout/project-status-bar";
 import { ProjectActivityProvider } from "@/state/project-activity";
-import { TraceHandoffDialog } from "@/components/trace/trace-handoff-dialog";
+import { TraceHandoffOptions, useTraceHandoff } from "@/components/trace/trace-handoff";
+function TraceHandoff() { const handoff = useTraceHandoff(); return <><TraceHandoffOptions handoff={handoff} /><button disabled={!handoff.ready} onClick={handoff.addToBin}>Add to bin</button></>; }
 import * as TraceStoreReview from "@/state/trace-store";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { WORKSPACES } from "@/components/layout/workspaces";
@@ -526,13 +527,12 @@ describe("BinDesignerPage", () => {
       outline: [{ outer: [{ x: 10, y: 10 }, { x: 50, y: 10 }, { x: 50, y: 30 }, { x: 10, y: 30 }], holes: [] }] });
     const route = memoryLocation({ path: "/" });
     const { container, unmount } = render(<Router hook={route.hook}><PanelProvider><ProjectActivityProvider><ShapeLibraryProvider>
-      <ProjectStatusBar /><Route path="/"><TraceHandoffDialog onClose={() => {}} onChoosePhoto={() => {}} /></Route><Route path="/bin"><BinDesignerPage /></Route>
+      <ProjectStatusBar /><Route path="/"><TraceHandoff /></Route><Route path="/bin"><BinDesignerPage /></Route>
     </ShapeLibraryProvider></ProjectActivityProvider></PanelProvider></Router>);
     try {
       await flushHydration();
-      expect(document.body.textContent).toContain("Destination: Project A");
-      React.act(() => document.getElementById("tool-to-floor-0")!.click());
-      React.act(() => [...document.querySelectorAll("button")].find(button => button.textContent === "Add and arrange")!.click());
+      expect(document.body.textContent).toContain("Adding to: Project A");
+      React.act(() => [...document.querySelectorAll("button")].find(button => button.textContent === "Add to bin")!.click());
       await flushHydration();
       expect(container.querySelector('[data-testid="global-project-status"]')!.textContent).toContain("Project B");
       // A wrong destination must be rejected, not modified and autosaved.
@@ -629,6 +629,77 @@ describe("BinDesignerPage", () => {
       expect(await backupWidth()).toBe(5);
     } finally { unmount(); }
   });
+  it.each([false, true])("keeps deferred depths through backup, reload, export recovery, and undo (mobile=%s)", async mobile => {
+    sessionStorage.setItem("pocketry:queued-tools", JSON.stringify([
+      { ...rectangularShape("first", "Tool 1"), pendingDepth: { mode: "unset" } },
+      { ...rectangularShape("second", "Tool 2"), pendingDepth: { mode: "unset" } },
+    ]));
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, spec: { ...EMPTY_PROJECT.spec, fill: "solid" } });
+    const first = renderPage({ mobile });
+    const layout = () => vi.mocked(useBinGeometry).mock.lastCall![2]!;
+    const button = (host: ParentNode, label: string) => [...host.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === label)!;
+    await flushHydration();
+    expect(layout().cutouts.every(c => c.depthPending)).toBe(true);
+    const prompt = first.container.querySelector('[data-testid="pending-pocket-depth"]')!;
+    expect(prompt.textContent).toContain("Tool 1");
+    expect(first.container.querySelector('[role="dialog"]')).toBeNull();
+    React.act(() => button(prompt, "Set later").click());
+    expect(prompt.textContent).toContain("Depth needed");
+    expect(layout().cutouts.every(c => c.depthPending)).toBe(true);
+    openSettingsSection(first.container, "project");
+    React.act(() => first.container.querySelector<HTMLButtonElement>('[data-testid="button-export-project"]')!.click());
+    const [blob] = vi.mocked(downloadBlob).mock.lastCall!;
+    const json = await new Promise<string>(resolve => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.readAsText(blob); });
+    const saved = parseProjectDoc(JSON.parse(json))!;
+    expect(saved.cutouts.every(c => c.depthPending)).toBe(true);
+    expect(saved.history!.stack[saved.history!.index].doc.cutouts).toEqual(saved.cutouts);
+    first.unmount(); sessionStorage.clear();
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(saved);
+    const reopened = renderPage({ mobile });
+    try {
+      await flushHydration();
+      expect(layout().cutouts.every(c => c.depthPending)).toBe(true);
+      openSettingsSection(reopened.container, "export");
+      expect(reopened.container.querySelector<HTMLButtonElement>('[data-testid="button-export-3mf"]')!.disabled).toBe(true);
+      React.act(() => reopened.container.querySelector<HTMLButtonElement>('[data-export-issue="pocket-depth-needed"]')!.click());
+      const question = reopened.container.querySelector('[data-testid="pending-pocket-depth"]')!;
+      expect(question.textContent).toContain("How deep should this pocket be?");
+      const input = question.querySelector<HTMLInputElement>('input[inputmode="decimal"]')!;
+      React.act(() => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "8"); input.dispatchEvent(new Event("input", { bubbles: true })); });
+      React.act(() => question.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click());
+      React.act(() => button(question, "Done").click());
+      expect(layout().cutouts.every(c => !c.depthPending && c.depth.mode === "mm" && c.depth.value === 8)).toBe(true);
+      openSettingsSection(reopened.container, "export");
+      expect(reopened.container.querySelector<HTMLButtonElement>('[data-testid="button-export-3mf"]')!.disabled).toBe(false);
+      // The entire batch is one edit and undo restores the unresolved state.
+      React.act(() => reopened.container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+      expect(layout().cutouts.every(c => c.depthPending)).toBe(true);
+    } finally { reopened.unmount(); }
+  });
+
+  it("asks about multiple traced pockets one at a time", async () => {
+    sessionStorage.setItem("pocketry:queued-tools", JSON.stringify([
+      { ...rectangularShape("first", "Tool 1"), pendingDepth: { mode: "unset" } },
+      { ...rectangularShape("second", "Tool 2"), pendingDepth: { mode: "unset" } },
+    ]));
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(EMPTY_PROJECT);
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      const prompt = () => container.querySelector('[data-testid="pending-pocket-depth"]')!;
+      const button = (label: string) => [...prompt().querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === label)!;
+      React.act(() => button("To bin floor").click());
+      React.act(() => button("Done").click());
+      expect(prompt().textContent).toContain("Tool 2");
+      expect(prompt().querySelector<HTMLInputElement>('input[inputmode="decimal"]')!.value).toBe("");
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts.filter(c => c.depthPending)).toHaveLength(1);
+      React.act(() => button("Through — no bottom").click());
+      React.act(() => button("Done").click());
+      expect(prompt()).toBeNull();
+      expect(container.textContent).toContain("Trace another photo");
+    } finally { unmount(); }
+  });
+
   it.each([
     { fixed: false, flatBottom: false }, { fixed: true, flatBottom: false },
     { fixed: false, flatBottom: true }, { fixed: true, flatBottom: true },

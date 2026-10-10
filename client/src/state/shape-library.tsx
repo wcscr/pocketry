@@ -15,7 +15,7 @@ import { depthSpecSchema, tracedShapeSchema, type TracedShape } from "@shared/gr
 // Placement choices travel with the session queue, not with reusable geometry
 // or the saved project schema. Older queued shapes have no pendingDepth.
 // Resolve To Floor only after the destination bin has loaded its base style.
-const pendingDepthSchema = z.union([depthSpecSchema, z.object({ mode: z.literal("to-floor") }).strict()]);
+const pendingDepthSchema = z.union([depthSpecSchema, z.object({ mode: z.literal("to-floor") }).strict(), z.object({ mode: z.literal("unset") }).strict()]);
 export type PendingPocketDepth = z.infer<typeof pendingDepthSchema>;
 const destinationSchema = z.object({ key: z.string(), name: z.string() }).strict();
 export type PendingDestination = z.infer<typeof destinationSchema>;

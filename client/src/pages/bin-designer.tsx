@@ -10,6 +10,7 @@ import { Box, History, Redo2, Undo2 } from "lucide-react";
 import { defaultPocketFloorThicknessMm, pocketDepths, pocketName, resolvePocketDepth } from "@shared/gridfinity/cutout";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { PendingPocketDepthPrompt } from "@/components/gridfinity/pocket-depth-question";
 import { CanvasWarnings } from "@/components/gridfinity/canvas-warnings";
 import { validateBinSpec, validateLayout, validatePocketFloorMaterials, type ValidationIssue } from "@shared/gridfinity/validate";
 import { issueSettingsTarget } from "@/lib/gridfinity/issue-settings";
@@ -111,6 +112,7 @@ function BinDesignerWorkspace(): JSX.Element {
   const { inspectorEnabled: inspectorPrototype, setEnabled: setExperimentalEnabled } = useExperimentalFeatures();
   const { panelOpen, setPanelOpen, libraryRequested, sampleLibraryRequested } = usePanelState();
   const [quickAdjustOpen, setQuickAdjustOpen] = useState(false);
+  const [depthRequest, setDepthRequest] = useState(0);
   const [pocketEditorRequest, setPocketEditorRequest] = useState(0);
   const [settingsSectionRequest, setSettingsSectionRequest] = useState<{ id: string; focusId?: string }>();
   useEffect(() => {
@@ -214,7 +216,10 @@ function BinDesignerWorkspace(): JSX.Element {
     if (issue.cutoutIds?.length) {
       const next = issue.cutoutIds.find((id) => id !== bin.selectedCutoutId) ?? issue.cutoutIds[0];
       dispatch({ type: "SELECT_CUTOUT", id: next });
-      editSelectedPocket();
+      if (issue.code === "pocket-depth-needed") {
+        setPanelOpen(false);
+        setDepthRequest(request => request + 1);
+      } else editSelectedPocket();
     } else {
       setPanelOpen(true);
       if (issue.fingerHoleIds?.length) {
@@ -396,9 +401,9 @@ function BinDesignerWorkspace(): JSX.Element {
       type: "ADD_PLACED",
       cutouts: result.cutouts.map(cutout => {
         const chosen = library.pendingDepths[cutout.shapeId];
-        return { ...cutout, depth: chosen?.mode === "to-floor"
+        return { ...cutout, ...(chosen?.mode === "unset" ? { depthPending: true as const } : {}), depth: chosen?.mode === "to-floor"
           ? { mode: "remaining" as const, floorThicknessMm: defaultPocketFloorThicknessMm(spec) }
-          : chosen ?? cutout.depth };
+          : !chosen || chosen.mode === "unset" ? cutout.depth : chosen };
       }),
       gridX,
       gridY,
@@ -406,6 +411,12 @@ function BinDesignerWorkspace(): JSX.Element {
       // Irregular footprints require the explicit footprint editor.
       footprint: keepBinSize ? spec.footprint : { kind: "rectangle" },
     });
+    const firstPending = result.cutouts.find(cutout => library.pendingDepths[cutout.shapeId]?.mode === "unset");
+    if (firstPending) {
+      dispatch({ type: "SELECT_CUTOUT", id: firstPending.id });
+      dispatch({ type: "SET_VIEW_MODE", viewMode: "2d" });
+      setPanelOpen(false);
+    }
     if (gridX !== spec.gridX || gridY !== spec.gridY) toast({ title: "Bin resized for new tools", description: "Undo restores the previous layout. Turn on Keep bin size fixed to prevent automatic growth." });
     if (spec.fill !== "solid") {
       dispatch({ type: "PATCH_SPEC", patch: { fill: "solid" } });
@@ -1175,10 +1186,10 @@ function BinDesignerWorkspace(): JSX.Element {
       onPanelOpenChange={setPanelOpen}
       panelTitle={isMobile && settingsSectionRequest?.id === "bin-settings-export" ? "Export bin" : "Bin designer"}
       mobileActionsLayout="landscape-side"
-      mobileActions={<MobileBinActions open={quickAdjustOpen} onOpenChange={setQuickAdjustOpen}
+      mobileActions={<PendingPocketDepthPrompt request={depthRequest} fallback={<MobileBinActions open={quickAdjustOpen} onOpenChange={setQuickAdjustOpen}
         onWorkflow={() => { setSettingsSectionRequest(undefined); setPanelOpen(!panelOpen); }}
         onMore={id => { setSettingsSectionRequest({ id }); setPanelOpen(true); }}
-        onExport={() => { setSettingsSectionRequest({ id: "bin-settings-export" }); setPanelOpen(true); }} />}
+        onExport={() => { setSettingsSectionRequest({ id: "bin-settings-export" }); setPanelOpen(true); }} />} />}
       panel={
         <BinControlsPanel
           exportOnly={isMobile && settingsSectionRequest?.id === "bin-settings-export"}
@@ -1257,7 +1268,7 @@ function BinDesignerWorkspace(): JSX.Element {
           </div>}
           <div className="relative min-h-0 flex-1">
           <CanvasWarnings
-            issues={issues}
+            issues={issues.filter(issue => issue.code !== "pocket-depth-needed")}
             selectedCutoutId={bin.selectedCutoutId}
             selectedFingerHoleId={bin.selectedFingerHoleId}
             onRevealIssue={revealIssue}
@@ -1384,6 +1395,7 @@ function BinDesignerWorkspace(): JSX.Element {
             </Button>
           </div>}
           </div>
+          {!isMobile && <PendingPocketDepthPrompt request={depthRequest} />}
         </div>
       }
     />

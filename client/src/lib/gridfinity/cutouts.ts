@@ -818,7 +818,8 @@ export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: Cut
 
 /** Preserve placement identity for exact 3D validation, including split cutters. */
 export function buildCutoutCutters(kernel: Kernel, shapesById: ReadonlyMap<string, TracedShape>, cutouts: readonly CutoutPlacement[], spec: BinSpec, quality: BuildQuality, options: CutoutBuildOptions = {}): CutoutCutters {
-  const groups: { id: string; built: CutoutCutters }[] = cutouts.map(cutout => ({ id: cutout.id, built: cutout.profileBottom && shapesById.has(cutout.shapeId)
+  // An unmeasured trace is an outline only, never a guessed cavity in the preview.
+  const groups: { id: string; built: CutoutCutters }[] = cutouts.filter(cutout => !cutout.depthPending).map(cutout => ({ id: cutout.id, built: cutout.profileBottom && shapesById.has(cutout.shapeId)
     ? buildProfileBottomCutout(kernel, shapesById.get(cutout.shapeId)!, cutout, spec, options.floorInsertThicknessMm)
     : (hasRigidPocket(cutout) || cutout.insertionMode) && shapesById.has(cutout.shapeId)
       ? buildRigidPocket(kernel, shapesById.get(cutout.shapeId)!, rigidPocket(cutout, shapesById.get(cutout.shapeId)!, spec), spec, quality, options, resolvePocketDepth(spec, cutout.depth).cutterTopZ)

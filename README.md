@@ -125,18 +125,24 @@ already added to Bin remain. Photo selection accepts one PNG, JPG, or WebP up to
 current trace intact. If no outline is found, increase **Sensitivity** or redraw
 the region around the whole tool.
 
-Choose **Add to bin**, name each tool, and choose its depth before continuing.
-The dialog names the current destination project. Each addition creates a new
+The current destination is shown beside **Add to bin**. Each addition creates a new
 pocket; later edits to the trace do not update existing pockets. To use another
 project, open it in Bin first, then return to Trace.
-For **Fixed depth**, enter **Pocket depth (mm)**: how far the tool should sit below
-the bin surface, leaving enough exposed to lift it out. Depth starts blank so it
-is always your choice. **To Floor** extends the pocket to the destination bin’s
-default floor: 7 mm above the underside for Gridfinity or 2 mm for a flat-bottom bin.
-For a jig supported by the work surface, explicitly choose **Through — no pocket
-floor** instead. Grouped outlines share one depth. Choices survive the handoff
-and reload, and become ordinary editable pocket depths. Bin height stays
-unchanged; a depth that exceeds it blocks 3D export until corrected.
+**Add to bin** places the outlines immediately and highlights the first pocket.
+Answer **How deep should this pocket be?** beside the bin, then choose **Done**.
+Measure how far the tool should sit below the surface, leaving enough exposed to
+lift it out. For several tools, set depths one at a time or explicitly use the
+same depth for all. Names start at **Tool 1** and can be changed in Bin.
+
+**Set later** keeps the outlines arrangeable with a **Depth needed** marker.
+That state survives project backups, reload, and undo. No cavity is cut until you
+choose its depth, and printable bin export waits until all depths are set.
+Under **Other depth options**, **To bin floor** keeps the destination's default
+floor (7 mm above the underside for Gridfinity, 2 mm for flat-bottom bins).
+**Through — no bottom** is for a tool supported by the surface beneath the bin.
+Depth remains editable in pocket properties. Bin height stays unchanged.
+For disconnected parts of one tool, expand the pocket count beside **Add to bin**
+and choose **Keep these outlines together**.
 
 The status bar above either workspace shows the active bin project and its local
 save state, even with the controls closed. Select the project name to manage the
@@ -152,8 +158,7 @@ Traced tools keep their chosen destination through navigation and reload. If the
 destination changes, they wait outside the current project until you open the
 intended project or explicitly choose **Add waiting tools** to the current bin.
 
-Use **Add and trace another photo** for the accessories, then **Add and arrange**
-when the traces are ready. For a
+After adding a tool, **Trace another photo** returns to Trace for accessories. For a
 standalone outline, **Export Outline** offers SVG, DXF, and STL. Confirm the scale
 before exporting files for printing or cutting.
 

@@ -18,7 +18,10 @@ import { autoCalibrate, type AutoCalibrationResult } from "@/lib/calibrate/auto-
 import type { DetectionFrame } from "@/components/trace/use-image-source";
 import { TRACE_PHOTO_MAX_BYTES } from "@/lib/trace-photo";
 
-import TracePage from "./trace";
+import TraceWorkspacePage from "./trace";
+import { ShapeLibraryProvider } from "@/state/shape-library";
+
+function TracePage() { return <ShapeLibraryProvider><TraceWorkspacePage /></ShapeLibraryProvider>; }
 
 const {
   decodeImageFileMock,

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add traced tools straight to Bin, then choose depth beside the selected pocket. Set it later while arranging; printable export waits for all pocket depths.
+
 - Surface text and its font, color, placement, and editing controls are now available by default, without experimental opt-in.
 
 - Added editable, photo-matched labels to six sample projects, including corrected Bessey lettering.

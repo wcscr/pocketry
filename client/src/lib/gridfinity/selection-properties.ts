@@ -12,7 +12,7 @@ export type SelectionProperty = "depth" | "topFilletMm" | "clearanceMm";
  * to match. Setting a depth is an explicit conversion to fixed cut depth. */
 export function commonSelectionValue(objects: readonly EditableObject[], property: SelectionProperty): number | null {
   const values = objects.flatMap(o => property === "depth"
-    ? o.kind === "pocket" ? pocketDepths(o.cutout).map(d => d.mode === "mm" ? d.value : null) : [effectiveFingerHoleDepthMm(o.hole)]
+    ? o.kind === "pocket" ? pocketDepths(o.cutout).map(d => !o.cutout.depthPending && d.mode === "mm" ? d.value : null) : [effectiveFingerHoleDepthMm(o.hole)]
     : property === "clearanceMm" ? [o.kind === "pocket" ? o.cutout.clearanceMm : null]
     : [o.kind === "pocket" ? o.cutout.topFilletMm : o.hole.topFilletMm]);
   return values.length && values[0] !== null && values.every(v => v === values[0]) ? values[0] : null;
@@ -37,7 +37,7 @@ export function selectionPropertyEdits(objects: readonly EditableObject[], selec
     if (object.kind === "pocket") {
       const depth: DepthSpec = { mode: "mm", value };
       edits.cutouts.push(parseCutoutPlacement({ ...object.cutout, ...(property === "depth"
-        ? { depth, ...(object.cutout.split ? { split: { ...object.cutout.split, depths: [depth, depth] } } : {}) }
+        ? { depth, depthPending: undefined, ...(object.cutout.split ? { split: { ...object.cutout.split, depths: [depth, depth] } } : {}) }
         : { [property]: value }) }));
     } else {
       if (property === "clearanceMm") throw new Error("Clearance applies to pockets only.");

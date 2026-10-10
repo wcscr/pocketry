@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { ChevronLeft, SlidersHorizontal } from "lucide-react";
 
 import { hasCalibrationEndpoints, type Calibration } from "@shared/geometry/scale";
@@ -19,6 +19,8 @@ import { RulerLengthInput, useRulerConfirmation } from "./ruler-length-input";
 export interface MobileTraceActionsProps {
   onChoosePhoto: () => void;
   onAddToBin: () => void;
+  addToBinReady?: boolean;
+  addToBinHint?: ReactNode;
   onStartOver: () => void;
   onOpenSettings: (sectionId: string) => void;
   onApplyPerspective: (proposal: PerspectiveProposal, template: TemplateVariant, scale?: boolean | Calibration) => void;
@@ -30,7 +32,7 @@ type TraceStep = "photo" | "scale" | "region" | "outline";
 const STEPS: TraceStep[] = ["photo", "scale", "region", "outline"];
 
 /** Keep step navigation, guidance, and common adjustments beside the mobile canvas. */
-export function MobileTraceActions({ onChoosePhoto, onAddToBin, onStartOver, onOpenSettings, onApplyPerspective, onDetectMarkers, onReprocess }: MobileTraceActionsProps): JSX.Element {
+export function MobileTraceActions({ onChoosePhoto, onAddToBin, addToBinReady = true, addToBinHint, onStartOver, onOpenSettings, onApplyPerspective, onDetectMarkers, onReprocess }: MobileTraceActionsProps): JSX.Element {
   const trace = useTrace();
   const manualScale = useRulerConfirmation();
   const { dispatch, pendingAutoCalibration, pendingPerspective, calibration, draftCalibration, processing } = trace;
@@ -112,6 +114,7 @@ export function MobileTraceActions({ onChoosePhoto, onAddToBin, onStartOver, onO
     {step === "scale" && pendingAutoCalibration && <div className="mb-2 max-h-[35dvh] overflow-y-auto" data-mobile-expanded="true">
       <AutoCalibrationOptions onSetManually={redrawScale} onApplyPerspective={onApplyPerspective} onDetectMarkers={onDetectMarkers} />
     </div>}
+    {step === "outline" && trace.outline.length > 0 && <div className="mb-1">{addToBinHint}</div>}
     <div className="flex min-h-11 items-stretch gap-2" role="group" aria-label={`Trace actions: ${step}`}>
       <Button variant="ghost" size="icon" className="h-11 w-11 shrink-0" disabled={step === "photo" || processing} aria-label={`Back to ${previousStep}`} onClick={back}>
         <ChevronLeft aria-hidden className="h-4 w-4" /><span className="sr-only">Back</span>
@@ -140,7 +143,7 @@ export function MobileTraceActions({ onChoosePhoto, onAddToBin, onStartOver, onO
           if (reviewingCorners) openFullSettings("trace-settings-scale"); else redrawScale();
         }}>{reviewingCorners ? "Review corners" : "Set scale"}</Button>
         : !processing && !pendingAutoCalibration && step === "region" && hasRegion ? <Button className={actionClass} onClick={() => dispatch({ type: "SET_MODE", mode: trace.outline.length ? "edit" : "pan" })}>Keep this region</Button>
-        : !processing && !pendingAutoCalibration && step === "outline" && trace.outline.length > 0 ? <Button className={actionClass} onClick={onAddToBin}>Add to bin</Button>
+        : !processing && !pendingAutoCalibration && step === "outline" && trace.outline.length > 0 ? <Button className={actionClass} onClick={onAddToBin} disabled={!addToBinReady}>Add to bin</Button>
         : !processing && !pendingAutoCalibration && calibration && !replacingRuler && trace.mode !== "region" ? <Button className={actionClass} onClick={continueToRegion}>Draw tool region</Button>
         : <span className="flex min-w-0 flex-1 items-center justify-end text-xs text-muted-foreground">{processing ? "Analyzing…" : step === "region" ? "Draw tool region" : "Review scale"}</span>}
       </>}

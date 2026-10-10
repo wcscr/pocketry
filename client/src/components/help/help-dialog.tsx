@@ -62,8 +62,9 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
               <strong> Simplification</strong>, or use <strong>Edit contours</strong>{" "}
               to correct points. <strong>Margin</strong> adds optional clearance.
               When the outline looks right, choose <strong>Add to bin</strong>{" "}
-              and name the tool. Choose <strong>Add and trace another photo</strong>{" "}
-              for more tools, then <strong>Add and arrange</strong> when ready.
+              to place it immediately. Set the pocket depth beside the bin, or choose <strong>Set later</strong>{" "}
+              to arrange it first. Every pocket needs a depth before printable export.
+              Choose <strong>Trace another photo</strong> to return for more tools.
             </p>
           </li>
           <li className="pl-1">
