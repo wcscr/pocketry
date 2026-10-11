@@ -102,6 +102,7 @@ export function validatePocketFloorMaterials(
   const recess = hasScrewBores ? "the screw holes" : "the recesses between the base feet";
   const issues: ValidationIssue[] = [];
   for (const cutout of cutouts) {
+    if (cutout.depthPending) continue;
     const shape = shapesById.get(cutout.shapeId);
     for (const depth of pocketDepths(cutout)) {
       const { floorZ, depthMm } = shape ? resolvePlacedPocketDepth(spec, depth, shape, cutout) : resolvePocketDepth(spec, depth);
@@ -414,6 +415,10 @@ export function validateLayout(
 function validateAgainstBin(spec: BinSpec, p: PlacedCutout): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   const { cutout, label } = p;
+  if (cutout.depthPending) return [{
+    code: "pocket-depth-needed", severity: "error", cutoutIds: [cutout.id],
+    message: `“${label}”: Choose a pocket depth before exporting a printable bin.`,
+  }];
 
   const halfW = binFootprintMm(spec.gridX, spec.gridPitch) / 2;
   const halfL = binFootprintMm(spec.gridY, spec.gridPitch) / 2;

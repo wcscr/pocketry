@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ShapeLibraryProvider } from "@/state/shape-library";
 import { TraceProvider, useTrace, type TraceStore } from "@/state/trace-store";
 import { TraceControlsPanel } from "./trace-controls-panel";
+import { useTraceHandoff } from "./trace-handoff";
 import { TraceEditingWorkspace } from "./trace-editing-workspace";
 
 vi.mock("@/lib/image-processor", async importOriginal => ({
@@ -29,9 +30,10 @@ function Canvas(): JSX.Element {
 }
 function Harness({ enabled = true }: { enabled?: boolean }): JSX.Element {
   trace = useTrace();
+  const handoff = useTraceHandoff();
   const [panelOpen, setPanelOpen] = React.useState(true);
   return <TraceEditingWorkspace enabled={enabled} autoSaveId="test-trace" panelOpen={panelOpen} onPanelOpenChange={setPanelOpen}
-    panel={<TraceControlsPanel active onReplaceImage={() => {}} onStartOver={() => trace.dispatch({ type: "SOURCE_CLEARED" })} onRotateImage={() => {}} onExport={exportTrace}
+    panel={<TraceControlsPanel handoff={handoff} active onReplaceImage={() => {}} onStartOver={() => trace.dispatch({ type: "SOURCE_CLEARED" })} onRotateImage={() => {}} onExport={exportTrace}
       onReprocess={reprocess} onDetectMarkers={() => {}} onApplyPerspective={() => {}} />}
     canvas={<Canvas />} />;
 }

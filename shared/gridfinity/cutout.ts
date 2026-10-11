@@ -606,6 +606,8 @@ const cutoutPlacementInputSchema = z
       mode: "remaining",
       floorThicknessMm: BASE_HEIGHT,
     }),
+    /** An arrangeable outline awaiting a user's depth choice; never cut or print it. */
+    depthPending: z.literal(true).optional(),
     split: pocketSplitSchema.optional(),
     profileBottom: profileBottomSchema.optional(),
     /** Free X/Y rotation of a profile object, independent of ordinary pocket tilt. */

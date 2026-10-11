@@ -243,7 +243,7 @@ export function buildBinWithCutouts(
     validationIssues = [
       ...(builtCutouts.validationIssues ?? []),
       ...validateLayout(spec, layout.cutouts, layout.shapesById, layout.fingerHoles)
-        .filter(issue => issue.code === "invalid-pocket-insertion"),
+        .filter(issue => issue.code === "invalid-pocket-insertion" || issue.code === "pocket-depth-needed"),
       ...validateTiltedSolids(kernel, spec, layout.cutouts, layout.shapesById, builtCutouts.cutterGroups ?? [], base.parts.wall, base.parts.lip),
     ];
     floorInserts = builtCutouts.floorInserts;

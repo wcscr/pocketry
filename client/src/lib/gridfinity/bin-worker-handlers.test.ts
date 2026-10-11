@@ -43,6 +43,24 @@ function getHandler(): BuildHandler {
   return createBinWorkerHandlers(loadManifold)[BUILD_BIN_METHOD] as unknown as BuildHandler;
 }
 
+it("keeps pending pockets uncut in preview and rejects printable export until depth is chosen", async () => {
+  const { shape, cutout } = createBasicPocket("rectangle", { x: -10, y: -12 }, { x: 10, y: 12 }, "unmeasured")!;
+  const pending = parseCutoutPlacement({ ...cutout, depthPending: true });
+  const request: BuildBinRequest = { spec: { gridX: 2, gridY: 2, heightUnits: 6, fill: "solid", lip: "none" },
+    quality: EXPORT_QUALITY, layout: { shapes: [shape], cutouts: [pending], fingerHoles: [] } };
+  const preview = (await getHandler()(request, context())).value;
+  const blank = (await getHandler()({ ...request, layout: undefined }, context())).value;
+  expect(preview.mesh.positions).toEqual(blank.mesh.positions);
+  expect(preview.mesh.indices).toEqual(blank.mesh.indices);
+  expect(preview.validationIssues).toContainEqual(expect.objectContaining({ code: "pocket-depth-needed", severity: "error", cutoutIds: [cutout.id] }));
+  await expect(getHandler()({ ...request, exportTopology: true }, context())).rejects.toThrow("Choose a pocket depth");
+  await expect(getSurfaceFitCheckHandler()({ ...request, layout: request.layout!, thicknessMm: 0.8 }, context())).rejects.toThrow("Choose a pocket depth");
+  const resolved = (await getHandler()({ ...request, exportTopology: true, layout: { ...request.layout!, cutouts: [{ ...pending, depthPending: undefined, depth: { mode: "mm", value: 8 } }] } }, context())).value;
+  expect(resolved.validationIssues?.some(issue => issue.code === "pocket-depth-needed")).toBe(false);
+  const printableBlank = (await getHandler()({ ...request, layout: undefined, exportTopology: true }, context())).value;
+  expect(printableMeshVolume(resolved.mesh)).toBeLessThan(printableMeshVolume(printableBlank.mesh));
+});
+
 type FitCheckHandler = (
   payload: BuildFitCheckRequest,
   context: HandlerContext,

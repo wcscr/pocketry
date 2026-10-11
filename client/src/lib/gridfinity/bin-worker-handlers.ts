@@ -135,7 +135,7 @@ export function createBinWorkerHandlers(
     try {
       const kernel = createKernel(wasm, arena);
       const started = performance.now();
-      if (payload.exportTopology && layout?.cutouts.some(c => c.profileBottom || hasRigidPocket(c) || hasPocketTilt(c) || (c.zOffsetMm ?? 0) !== 0)) {
+      if (payload.exportTopology && layout?.cutouts.some(c => c.depthPending || c.profileBottom || hasRigidPocket(c) || hasPocketTilt(c) || (c.zOffsetMm ?? 0) !== 0)) {
         const errors = validateLayout(spec, layout.cutouts, layout.shapesById, layout.fingerHoles).filter(issue => issue.severity === "error");
         if (errors.length) throw new Error(errors.map(issue => issue.message).join("\n"));
       }
@@ -336,6 +336,9 @@ export function createBinWorkerHandlers(
         fingerHoleSchema.parse(hole),
       ),
     };
+    const unfinished = validateLayout(spec, layout.cutouts, layout.shapesById, layout.fingerHoles)
+      .filter(issue => issue.code === "pocket-depth-needed");
+    if (unfinished.length) throw new Error(unfinished.map(issue => issue.message).join("\n"));
     context.progress(0.05);
 
     const wasm = await loadRuntime();

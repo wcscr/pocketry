@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setMany } from "idb-keyval";
 import { PanelProvider } from "@/components/layout/panel-context";
 import { ShapeLibraryProvider } from "@/state/shape-library";
+import { TraceProvider } from "@/state/trace-store";
 import { recordTransformOrigins } from "@shared/gridfinity/transform-origins";
 import { parseProjectDoc } from "@shared/gridfinity/project";
 import { DEFAULT_BIN_MATERIALS, type BinMaterials } from "@shared/gridfinity/materials";
@@ -60,7 +61,7 @@ async function mountPage() {
   document.body.appendChild(container);
   const root = createRoot(container);
   await React.act(async () => root.render(
-    <PanelProvider><ShapeLibraryProvider><BinDesignerPage /></ShapeLibraryProvider></PanelProvider>,
+    <PanelProvider><ShapeLibraryProvider><TraceProvider><BinDesignerPage /></TraceProvider></ShapeLibraryProvider></PanelProvider>,
   ));
   return { container, async unmount() {
     await React.act(async () => root.unmount());

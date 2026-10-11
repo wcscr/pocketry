@@ -35,7 +35,8 @@ export function BinEditingWorkspace({ enabled, ...props }: WorkspaceLayoutProps 
   const setTool = useCallback((next: InspectorTool) => { setActiveSection(null); updateTool(next); if (!isMobile && next !== "properties") openInspector(); }, [isMobile, openInspector]);
   const keepList = useRef(false);
   const keepObjectsOpen = useCallback(() => { keepList.current = true; setActiveSection(null); updateTool("properties"); }, []);
-  const { selection, selectedSurfaceTextId, editorMode, viewMode } = useBin();
+  const { selection, selectedSurfaceTextId, editorMode, viewMode, cutouts } = useBin();
+  const pendingDepth = selection.some(ref => ref.kind === "pocket" && cutouts.some(c => c.id === ref.id && c.depthPending));
   const textSelection = selectedSurfaceTextId;
   const showSection = useCallback((id: string) => {
     setActiveSection(id); updateTool("properties");
@@ -44,7 +45,7 @@ export function BinEditingWorkspace({ enabled, ...props }: WorkspaceLayoutProps 
     if (!BIN_OBJECT_SECTIONS.has(id)) openInspector();
   }, [openInspector]);
   const selectionKey = JSON.stringify(selection);
-  useEffect(() => { if (enabled && (selection.length || textSelection)) { setActiveSection(null); if (!isMobile && !keepList.current) openInspector(); } keepList.current = false; }, [enabled, isMobile, selectionKey, textSelection, openInspector]);
+  useEffect(() => { if (enabled && !pendingDepth && (selection.length || textSelection)) { setActiveSection(null); if (!isMobile && !keepList.current) openInspector(); } keepList.current = false; }, [enabled, isMobile, selectionKey, textSelection, openInspector, pendingDepth]);
   useEffect(() => { if (!selection.length && !textSelection || selection.length < 2 && (tool === "arrange" || tool === "links")) updateTool("properties"); }, [selection.length, textSelection, viewMode, tool]);
   useEffect(() => { if (props.inspectorRequest) setActiveSection(null); }, [props.inspectorRequest]);
   const targets = useMemo(() => ({ activeSection, properties, transforms, settings, projectHeader, toolbar, showSection, tool, setTool, openInspector, keepObjectsOpen }),

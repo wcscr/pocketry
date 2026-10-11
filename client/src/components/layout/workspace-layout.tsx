@@ -1,7 +1,7 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
 import { useWorkspaceViewport } from "@/hooks/use-workspace-viewport";
-import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from "lucide-react";
+import { PanelLeftClose, PanelRightClose } from "lucide-react";
 import type { ImperativePanelHandle } from "react-resizable-panels";
 
 import {
@@ -14,6 +14,7 @@ import { useElementSize } from "@/hooks/use-element-size";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { InspectorWorkspace } from "./inspector-workspace";
 import { MobileCanvasOverlayContext } from "./mobile-canvas-overlay";
+import { CollapsedPanelRail } from "./collapsed-panel-rail";
 
 export interface WorkspaceLayoutProps {
   /** Controls column. Compose it from `PanelSection` / `PanelBody`. */
@@ -256,11 +257,10 @@ function WorkspaceShell({
       {/* relative + overflow-hidden anchors CanvasToolbar and clips anything
           the canvas pans outside its box. */}
       <div className="relative flex h-full w-full overflow-hidden">
+        {!panelOpen && <CollapsedPanelRail label={panelTitle} side={panelSide} controls="workspace-controls"
+          testId="controls-restore-rail" ariaLabel="Show controls" title={`${panelTitle} collapsed — click to expand ([)`}
+          className={panelSide === "right" ? "order-2" : undefined} onExpand={() => onPanelOpenChange(true)} />}
         <div className="relative min-w-0 flex-1 overflow-hidden">{canvas}</div>
-        {!panelOpen && <Button variant="ghost" className={`h-full w-6 shrink-0 items-start rounded-none bg-muted/30 p-0 pt-3.5 text-muted-foreground hover:bg-accent hover:text-foreground ${panelSide === "left" ? "order-first border-r" : "border-l"}`}
-          data-testid="controls-restore-rail" title="Show controls ([)" aria-label="Show controls" aria-controls="workspace-controls" aria-expanded={false} onClick={() => onPanelOpenChange(true)}>
-          {panelSide === "left" ? <PanelLeftOpen className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
-        </Button>}
       </div>
     </ResizablePanel>
   );

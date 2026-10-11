@@ -13,6 +13,14 @@ const pockets: EditableObject[] = [10, 20].map((depth, i) => {
 const finger: EditableObject = { kind: "finger", hole: fingerHoleSchema.parse({ id: "f", center: { x: 0, y: 15 }, diameterMm: 10, depthMm: 8 }) };
 
 describe("selection property edits", () => {
+  it("does not display a placeholder depth and resolves it only on an explicit depth edit", () => {
+    const pending = pockets.map(o => o.kind === "pocket" ? { ...o, cutout: { ...o.cutout, depthPending: true as const } } : o);
+    expect(commonSelectionValue(pending.slice(0, 1), "depth")).toBeNull();
+    const unchanged = selectionPropertyEdits(pending, pending.map(objectRef), "pocket", "clearanceMm", 0.3, spec);
+    expect(unchanged.cutouts.every(c => c.depthPending)).toBe(true);
+    const resolved = selectionPropertyEdits(pending, pending.map(objectRef), "pocket", "depth", 8, spec);
+    expect(resolved.cutouts.every(c => !c.depthPending && c.depth.mode === "mm" && c.depth.value === 8)).toBe(true);
+  });
   it.each(["depth", "topFilletMm", "clearanceMm"] as const)("does not silently edit dormant %s on a profile", property => {
     const source=pockets[0]; if(source.kind!=="pocket") throw new Error("Expected pocket");
     const profile={...source,cutout:{...source.cutout,profileBottom:{edge:"bottom" as const,widthMm:8,elevationMm:12},profileRotation:{xDeg:135,yDeg:45}}};

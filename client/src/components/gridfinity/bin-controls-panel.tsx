@@ -727,6 +727,7 @@ export function BinControlsPanel({
                       }}
                     >
                       <span className={cn("min-w-0 flex-1 truncate", isSelected && "font-medium text-violet-700 dark:text-violet-300")}>{name}</span>
+                      {cutout.depthPending && <span className="text-[10px] text-muted-foreground">Depth needed</span>}
                       {cutout.designLink && <Link2 className="h-3 w-3 shrink-0" aria-label="Linked design" />}
                     </button>
                     )}
@@ -886,7 +887,7 @@ export function BinControlsPanel({
 
               <PocketInsertionControls cutout={selectedCutout} shape={selectedShape} />
               {!inspector && <LinkedDesignControls kind="pocket" activeId={selectedCutout.id} labels={new Map(cutouts.map(c => [c.id, pocketName(c, shapesById.get(c.shapeId))]))} />}
-              <PocketDepthSummary cutout={depthCutout!} shape={depthShape!} section={section} inspect={inspectPocket}>
+              {selectedCutout.depthPending ? <Button variant="outline" onClick={() => onRevealIssue({ code: "pocket-depth-needed", severity: "error", message: "Depth needed", cutoutIds: [selectedCutout.id] })}>Set pocket depth</Button> : <PocketDepthSummary cutout={depthCutout!} shape={depthShape!} section={section} inspect={inspectPocket}>
                 {selectedCutout.split && <div className="flex gap-1 pb-2" role="group" aria-label="Section to edit">
                   {([0, 1] as const).map(index => <Button key={index} type="button" size="sm"
                     className="flex-1" variant={selectedPocketSection === index ? "secondary" : "outline"}
@@ -944,8 +945,8 @@ export function BinControlsPanel({
                   {hasRigidPocket(selectedCutout) && depthCutout!.depth.mode === "through" && <p className="text-[11px] text-muted-foreground">Preserves the original shape. Z movement stops when the lowest point reaches the bin underside; raising it restores material.</p>}
                   {selectedCutout.split && <p className="text-[11px] text-muted-foreground">Depth applies to the selected section. Size and edges apply to the whole pocket.</p>}
                 </section>
-              </PocketDepthSummary>
-              {!selectedCutout.profileBottom && <PocketSplitControls cutout={selectedCutout} />}
+              </PocketDepthSummary>}
+              {!selectedCutout.depthPending && !selectedCutout.profileBottom && <PocketSplitControls cutout={selectedCutout} />}
               <details className="group/size border-t pt-1 text-xs" aria-label="Pocket size and scale" data-testid="pocket-size-settings">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-2 py-2 font-medium [&::-webkit-details-marker]:hidden">
                   Size &amp; scale
