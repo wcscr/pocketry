@@ -54,7 +54,7 @@ import {
   type TemplateVariant,
 } from "@/lib/calibrate/template";
 import { describeScale, exportScale } from "@/lib/export/scale";
-import { TraceHandoffOptions, useTraceHandoff } from "./trace-handoff";
+import { TraceHandoffOptions, type TraceHandoff } from "./trace-handoff";
 import type { ImageRotationDirection } from "@/lib/geometry/image-rotation";
 import {
   adjustOutlineMargin,
@@ -80,6 +80,8 @@ const RESPONSIVE_PANEL_ACTION =
   "h-auto min-h-9 w-full whitespace-normal break-words px-2 py-2 text-sm leading-tight";
 
 export interface TraceControlsPanelProps {
+  /** One choice shared with the mobile action bar and across layout changes. */
+  handoff: TraceHandoff;
   /** Defer guided focus while the desktop controls are collapsed. */
   active?: boolean;
   settingsSectionRequest?: { id: string };
@@ -109,6 +111,7 @@ const TRACE_SETTINGS_SECTION_DETAILS = TRACE_WORKFLOW_SECTIONS;
  * card padding and borders waste roughly a tenth of the usable width.
  */
 export function TraceControlsPanel({
+  handoff,
   active = true,
   onReplaceImage,
   onStartOver,
@@ -429,7 +432,6 @@ export function TraceControlsPanel({
         }
       : null;
 
-  const handoff = useTraceHandoff(onCanvasInteraction);
   const [clearRequest, setClearRequest] = useState<{ kind: "region" | "scale"; sourceRevision: number } | null>(null);
 
   const handleClearRegion = () => {

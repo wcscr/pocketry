@@ -137,7 +137,7 @@ same depth for all. Names start at **Tool 1** and can be changed in Bin.
 **Set later** keeps the outlines arrangeable with a **Depth needed** marker.
 That state survives project backups, reload, and undo. No cavity is cut until you
 choose its depth, and printable bin export waits until all depths are set.
-Under **Other depth options**, **To bin floor** keeps the destination's default
+The depth options are always visible below the depth field. **To bin floor** keeps the destination's default
 floor (7 mm above the underside for Gridfinity, 2 mm for flat-bottom bins).
 **Through — no bottom** is for a tool supported by the surface beneath the bin.
 Depth remains editable in pocket properties. Bin height stays unchanged.

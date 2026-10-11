@@ -41,8 +41,10 @@ export function useTraceHandoff(onCanvasInteraction?: () => void) {
     destinationName: destination?.name ?? "Untitled project", destinationStatus: destination?.status };
 }
 
+export type TraceHandoff = ReturnType<typeof useTraceHandoff>;
+
 /** A short destination reminder; grouping is available without a blocking form. */
-export function TraceHandoffOptions({ handoff }: { handoff: ReturnType<typeof useTraceHandoff> }) {
+export function TraceHandoffOptions({ handoff }: { handoff: TraceHandoff }) {
   return <div className="space-y-1 text-xs text-muted-foreground">
     <p className="truncate" title={handoff.destinationName}>
       {handoff.destinationStatus === "loading" ? "Reading destination…"

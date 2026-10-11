@@ -700,6 +700,28 @@ describe("BinDesignerPage", () => {
     } finally { unmount(); }
   });
 
+  it("continues to the next unresolved pocket after a depth also resolves linked copies", async () => {
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT,
+      spec: { ...EMPTY_PROJECT.spec, fill: "solid" }, shapes: [rectangularShape("tool", "Tool")],
+      cutouts: ["Original", "Linked copy", "Independent"].map((name, index) => parseCutoutPlacement({
+        id: name, name, shapeId: "tool", position: { x: index * 15, y: 0 }, depthPending: true,
+        designLink: index < 2 ? { id: "linked-tools", tilt: false } : undefined,
+      })),
+    });
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      const button = (host: ParentNode, label: string) => [...host.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === label)!;
+      React.act(() => button(container, "Set depth").click());
+      const prompt = () => container.querySelector('[data-testid="pending-pocket-depth"]')!;
+      expect(prompt().textContent).toContain("Original");
+      React.act(() => button(prompt(), "To bin floor").click());
+      React.act(() => button(prompt(), "Done").click());
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts.filter(c => c.depthPending).map(c => c.id)).toEqual(["Independent"]);
+      expect(prompt()?.textContent).toContain("Independent");
+    } finally { unmount(); }
+  });
+
   it.each([
     { fixed: false, flatBottom: false }, { fixed: true, flatBottom: false },
     { fixed: false, flatBottom: true }, { fixed: true, flatBottom: true },

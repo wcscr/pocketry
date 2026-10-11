@@ -39,15 +39,15 @@ export function PocketDepthQuestion({ spec, name, count = 1, onSave, onLater }: 
     </div>
     <div className="flex items-center gap-3">
       <div className="min-w-0 flex-1">
-        {mode === "mm" ? <label className="flex items-center gap-2 text-sm">
+        <label className="flex items-center gap-2 text-sm">
           <span className="sr-only">Pocket depth (mm)</span>
-          <Input aria-label="Pocket depth (mm)" inputMode="decimal" className="h-11 w-24" value={value} placeholder="Depth" aria-invalid={value !== "" && !valid}
+          <Input aria-label="Pocket depth (mm)" inputMode="decimal" className="h-11 w-24" value={value} placeholder="Depth" disabled={mode !== "mm"} aria-invalid={mode === "mm" && value !== "" && !valid}
             aria-describedby={guidanceId} onChange={event => setValue(event.target.value)} />
           <span>mm</span>
-        </label> : <p className="text-sm font-medium">{mode === "remaining" ? "To bin floor" : "Through — no bottom"}</p>}
-        <p id={guidanceId} className="mt-1 text-xs text-muted-foreground">
+        </label>
+        <p id={guidanceId} className="mt-1 text-xs text-muted-foreground" aria-live="polite">
           {mode === "through" ? "Cuts through the bottom. The surface underneath must support the tool."
-            : mode === "remaining" ? `Keeps a ${floor} mm floor above the bin underside.`
+            : mode === "remaining" && maximum > 0 ? `Keeps a ${floor} mm floor above the bin underside.`
             : maximum < 1 ? "Increase the bin height to leave room for a pocket."
             : value !== "" && !valid ? `Enter a depth from 1 to ${maximum} mm, or increase the bin height.`
             : "Measure below the bin surface."}
@@ -60,14 +60,11 @@ export function PocketDepthQuestion({ spec, name, count = 1, onSave, onLater }: 
         <path d="M25 5 H75" stroke="currentColor" strokeDasharray="2 2" />
       </svg>
     </div>
-    <details className="text-xs">
-      <summary className="w-fit cursor-pointer py-1 text-muted-foreground">Other depth options</summary>
-      <div className="mt-1 flex flex-wrap gap-1" role="group" aria-label="Pocket depth options">
+      <div className="grid grid-cols-3 gap-1" role="group" aria-label="Pocket depth options">
         {([ ["mm", "Fixed depth"], ["remaining", "To bin floor"], ["through", "Through — no bottom"] ] as const).map(([choice, label]) =>
-          <Button key={choice} type="button" size="sm" className="min-h-9 whitespace-normal" variant={mode === choice ? "secondary" : "outline"}
+          <Button key={choice} type="button" size="sm" className="h-auto min-h-11 whitespace-normal px-2 py-1 text-xs leading-tight" variant={mode === choice ? "secondary" : "outline"}
             aria-pressed={mode === choice} onClick={() => setMode(choice)}>{label}</Button>)}
       </div>
-    </details>
     {count > 1 && <label className="flex min-h-8 items-center gap-2 text-xs">
       <input type="checkbox" checked={all} onChange={event => setAll(event.target.checked)} />
       Use this depth for all {count} pockets
@@ -121,7 +118,10 @@ export function PendingPocketDepthPrompt({ request, fallback }: { request: numbe
       </div> : <PocketDepthQuestion key={selected.id} spec={spec} name={name} count={pending.length}
         onLater={() => { setDismissed(new Set(pending.map(cutout => cutout.id))); setFinished(true); }}
         onSave={(depth, all) => {
-          const targets = all ? pending : [selected];
+          // Linked copies receive the same depth in the reducer. Skip those
+          // copies when choosing the next unresolved pocket, too.
+          const targets = all ? pending : pending.filter(cutout => cutout.id === selected.id
+            || (selected.designLink && cutout.designLink?.id === selected.designLink.id));
           dispatch({ type: "UPDATE_OBJECTS", edits: { cutouts: targets.map(cutout => ({ ...cutout, depth, depthPending: undefined, fillHeightReference: undefined })), fingerHoles: [] }, historyLabel: all ? "Set pocket depths" : "Set pocket depth" });
           const next = pending.find(cutout => !targets.includes(cutout) && !dismissed.has(cutout.id));
           if (next) dispatch({ type: "SELECT_CUTOUT", id: next.id });

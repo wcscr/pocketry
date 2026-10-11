@@ -7,6 +7,7 @@ import { memoryLocation } from "wouter/memory-location";
 
 import { PanelProvider, usePanelState } from "@/components/layout/panel-context";
 import type { TraceControlsPanelProps } from "@/components/trace/trace-controls-panel";
+import { TraceHandoffOptions } from "@/components/trace/trace-handoff";
 import { initialTraceState, TraceProvider, useTrace } from "@/state/trace-store";
 import { BinProvider, useBin } from "@/state/bin-store";
 import { PendingPocketDepthPrompt } from "@/components/gridfinity/pocket-depth-question";
@@ -69,7 +70,8 @@ vi.mock("@/components/layout/workspace-layout", () => ({
 }));
 
 vi.mock("@/components/trace/trace-controls-panel", () => ({
-  TraceControlsPanel: ({ onExport, onApplyPerspective }: TraceControlsPanelProps) => <>
+  TraceControlsPanel: ({ handoff, onExport, onApplyPerspective }: TraceControlsPanelProps) => <>
+    <div data-testid="controls-handoff"><TraceHandoffOptions handoff={handoff} /></div>
     <button onClick={onExport} data-testid="export-trace">Export trace</button>
     <button data-testid="perspective-only" onClick={() => onApplyPerspective({ source: "manual", paper: "letter",
       points: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }],
@@ -481,6 +483,27 @@ describe("Trace detection workflow", () => {
       expect(bin.cutouts).toBe(placed);
     },
   );
+
+  it("keeps the grouping choice when closing mobile controls and adding from the action bar", async () => {
+    vi.stubGlobal("matchMedia", () => ({ matches: true, addEventListener: () => {}, removeEventListener: () => {} }));
+    Object.defineProperty(window, "innerWidth", { value: 390, configurable: true, writable: true });
+    let trace!: ReturnType<typeof useTrace>, panel!: ReturnType<typeof usePanelState>, library!: ReturnType<typeof useShapeLibrary>;
+    function Probe() { trace = useTrace(); panel = usePanelState(); library = useShapeLibrary(); return null; }
+    await React.act(async () => root.render(<Router hook={memoryLocation({ path: "/" }).hook}><PanelProvider><ShapeLibraryProvider><TraceProvider>
+      <Probe /><SeedExportOutline format="svg" /><TraceWorkspacePage />
+    </TraceProvider></ShapeLibraryProvider></PanelProvider></Router>));
+    React.act(() => {
+      trace.dispatch({ type: "OUTLINE_COMMITTED", outline: [...exportOutline, ...exportOutline] });
+      panel.setPanelOpen(true);
+    });
+    React.act(() => host.querySelector<HTMLInputElement>('[data-testid="controls-handoff"] input[type="checkbox"]')!.click());
+    React.act(() => panel.setPanelOpen(false));
+    expect(host.querySelector<HTMLInputElement>('input[type="checkbox"]')!.checked).toBe(true);
+    expect(host.textContent).toContain("One combined pocket");
+    React.act(() => [...host.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "Add to bin")!.click());
+    expect(library.shapes).toHaveLength(1);
+    expect(library.shapes[0].outlineMm).toHaveLength(2);
+  });
 
   afterEach(() => {
     React.act(() => root.unmount());

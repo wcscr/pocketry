@@ -724,6 +724,7 @@ function TraceWorkspace(): JSX.Element {
         />}
         panel={
           <TraceControlsPanel
+            handoff={handoff}
             active={workflowLayout || panelOpen}
             settingsSectionRequest={settingsSectionRequest}
             onCanvasInteraction={showCanvas}

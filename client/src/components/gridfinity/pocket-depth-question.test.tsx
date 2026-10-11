@@ -14,10 +14,12 @@ function render(flatBottom = false, count = 1) {
 function button(label: string) { return [...host.querySelectorAll("button")].find(button => button.textContent === label)!; }
 function enter(value: string) { React.act(() => { const input = host.querySelector<HTMLInputElement>('input[inputmode="decimal"]')!; Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value); input.dispatchEvent(new Event("input", { bubbles: true })); }); }
 
-it("starts blank, keeps extra options collapsed, and lets the user defer without a guessed depth", () => {
+it("starts blank with every depth option visible and lets the user defer without a guessed depth", () => {
   render();
   expect(button("Done").disabled).toBe(true);
-  expect(host.querySelector("details")!.open).toBe(false);
+  expect(host.querySelector("details")).toBeNull();
+  expect([...host.querySelectorAll('[aria-label="Pocket depth options"] button')].map(button => button.textContent))
+    .toEqual(["Fixed depth", "To bin floor", "Through — no bottom"]);
   React.act(() => button("Set later").click());
   expect(later).toHaveBeenCalledOnce(); expect(save).not.toHaveBeenCalled();
 });
@@ -42,8 +44,10 @@ it("explains through only when selected and retains the fixed-depth draft", () =
   expect(host.textContent).not.toContain("surface underneath must support");
   React.act(() => button("Through — no bottom").click());
   expect(host.textContent).toContain("surface underneath must support");
+  expect(host.querySelector<HTMLInputElement>('input[inputmode="decimal"]')!.disabled).toBe(true);
   React.act(() => button("Fixed depth").click());
   expect(host.querySelector<HTMLInputElement>('input[inputmode="decimal"]')!.value).toBe("8");
+  expect(host.querySelector<HTMLInputElement>('input[inputmode="decimal"]')!.disabled).toBe(false);
   React.act(() => button("Through — no bottom").click()); React.act(() => button("Done").click());
   expect(save).toHaveBeenCalledWith({ mode: "through" }, false);
 });

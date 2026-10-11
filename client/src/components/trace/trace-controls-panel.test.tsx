@@ -11,6 +11,7 @@ import { ShapeLibraryProvider } from "@/state/shape-library";
 import { TraceProvider, useTrace, type TraceStore } from "@/state/trace-store";
 
 import { TraceControlsPanel } from "./trace-controls-panel";
+import { useTraceHandoff } from "./trace-handoff";
 
 vi.mock("@/lib/download", () => ({ downloadBlob: vi.fn() }));
 
@@ -36,6 +37,7 @@ class NoopResizeObserver implements ResizeObserver {
 
 function Harness(): JSX.Element {
   const [active, setActive] = React.useState(true);
+  const handoff = useTraceHandoff();
   trace = useTrace();
   const { dispatch } = trace;
   return (
@@ -160,6 +162,7 @@ function Harness(): JSX.Element {
         Commit region
       </button>
       <TraceControlsPanel
+        handoff={handoff}
         active={active}
         onReplaceImage={() => {}}
         onStartOver={() => dispatch({ type: "SOURCE_CLEARED" })}
