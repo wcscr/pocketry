@@ -1,8 +1,11 @@
 # ULTIM8 jig peg bottoms
 
-In Bin → Construction → Bottom, choose **ULTIM8 jig pegs**. This replaces
+Enable **Experimental features** in App settings, then in Bin → Construction →
+Bottom, choose **ULTIM8 jig pegs**. This replaces
 Gridfinity feet and hides their magnet/screw controls while retaining those
 preferences for switching back. Peg settings travel with projects and undo history.
+Turning Experimental off hides the peg controls while keeping existing designs
+visible and exportable. Opening a peg project never turns Experimental on automatically.
 Upright sloped and bridged modes use every fitting mat hole. Saved
 preview projects return to the full lattice without losing their other settings.
 

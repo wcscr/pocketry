@@ -35,8 +35,9 @@ export function BinEditingWorkspace({ enabled, ...props }: WorkspaceLayoutProps 
   const setTool = useCallback((next: InspectorTool) => { setActiveSection(null); updateTool(next); if (!isMobile && next !== "properties") openInspector(); }, [isMobile, openInspector]);
   const keepList = useRef(false);
   const keepObjectsOpen = useCallback(() => { keepList.current = true; setActiveSection(null); updateTool("properties"); }, []);
-  const { selection, selectedSurfaceTextId, editorMode, viewMode } = useBin();
-  const textSelection = experimentalEnabled ? selectedSurfaceTextId : null;
+  const { selection, selectedSurfaceTextId, editorMode, viewMode, cutouts } = useBin();
+  const pendingDepth = selection.some(ref => ref.kind === "pocket" && cutouts.some(c => c.id === ref.id && c.depthPending));
+  const textSelection = selectedSurfaceTextId;
   const showSection = useCallback((id: string) => {
     setActiveSection(id); updateTool("properties");
     // Object navigation keeps the list available, including in the phone drawer.
@@ -44,19 +45,19 @@ export function BinEditingWorkspace({ enabled, ...props }: WorkspaceLayoutProps 
     if (!BIN_OBJECT_SECTIONS.has(id)) openInspector();
   }, [openInspector]);
   const selectionKey = JSON.stringify(selection);
-  useEffect(() => { if (enabled && (selection.length || textSelection)) { setActiveSection(null); if (!isMobile && !keepList.current) openInspector(); } keepList.current = false; }, [enabled, isMobile, selectionKey, textSelection, openInspector]);
+  useEffect(() => { if (enabled && !pendingDepth && (selection.length || textSelection)) { setActiveSection(null); if (!isMobile && !keepList.current) openInspector(); } keepList.current = false; }, [enabled, isMobile, selectionKey, textSelection, openInspector, pendingDepth]);
   useEffect(() => { if (!selection.length && !textSelection || selection.length < 2 && (tool === "arrange" || tool === "links")) updateTool("properties"); }, [selection.length, textSelection, viewMode, tool]);
   useEffect(() => { if (props.inspectorRequest) setActiveSection(null); }, [props.inspectorRequest]);
   const targets = useMemo(() => ({ activeSection, properties, transforms, settings, projectHeader, toolbar, showSection, tool, setTool, openInspector, keepObjectsOpen }),
     [activeSection, properties, transforms, settings, projectHeader, toolbar, showSection, tool, setTool, openInspector, keepObjectsOpen]);
   return <MobileObjectToolsContext.Provider value={isMobile ? { tool, setTool, controls: mobileControls, setControls: setMobileControls } : null}>
     {!enabled ? <ObjectToolbarContext.Provider value={{ toolbar, tool, setTool }}><WorkspaceLayout {...props}
-      inspectorToolbar={<div ref={setToolbar} className="flex w-full min-w-0 items-center gap-1" />} /></ObjectToolbarContext.Provider> : <SelectionInspectorContext.Provider value={targets}>
+      inspectorToolbar={<div ref={setToolbar} className={isMobile ? "flex w-full min-w-0 items-center justify-between" : "flex w-full min-w-0 items-center gap-1"} />} /></ObjectToolbarContext.Provider> : <SelectionInspectorContext.Provider value={targets}>
     <WorkspaceLayout {...props} autoSaveId={`${props.autoSaveId}:inspector`} inspectorPanelTitle="Workflow"
       inspectorRequest={(props.inspectorRequest ?? 0) + openRequest}
       canvasEditingMode={editorMode}
       inspectorHeader={<div ref={setProjectHeader} />}
-      inspectorToolbar={<div ref={setToolbar} className="flex w-full min-w-0 items-center gap-1" />}
+      inspectorToolbar={<div ref={setToolbar} className={isMobile ? "flex w-full min-w-0 items-center justify-between" : "flex w-full min-w-0 items-center gap-1"} />}
       inspector={<SelectionInspector propertiesRef={setProperties} transformsRef={setTransforms} settingsRef={setSettings} />} />
     </SelectionInspectorContext.Provider>}
   </MobileObjectToolsContext.Provider>;
@@ -96,8 +97,7 @@ export function SelectionInspector({ propertiesRef, transformsRef, settingsRef }
   settingsRef: (node: HTMLDivElement | null) => void;
 }): JSX.Element {
   const bin = useBin();
-  const { enabled: experimentalEnabled } = useExperimentalFeatures();
-  const selectedText = experimentalEnabled ? bin.spec.surfaceTexts.find(label => label.id === bin.selectedSurfaceTextId) : undefined;
+  const selectedText = bin.spec.surfaceTexts.find(label => label.id === bin.selectedSurfaceTextId);
   const inspector = useSelectionInspector();
   const { shapes } = useShapeLibrary();
   const objects: EditableObject[] = [...bin.cutouts.flatMap(cutout => {

@@ -1,9 +1,11 @@
+import "@/lib/project/mock-storage";
 import * as React from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setMany } from "idb-keyval";
 import { PanelProvider } from "@/components/layout/panel-context";
 import { ShapeLibraryProvider } from "@/state/shape-library";
+import { TraceProvider } from "@/state/trace-store";
 import { recordTransformOrigins } from "@shared/gridfinity/transform-origins";
 import { parseProjectDoc } from "@shared/gridfinity/project";
 import { DEFAULT_BIN_MATERIALS, type BinMaterials } from "@shared/gridfinity/materials";
@@ -40,8 +42,8 @@ vi.mock("@/lib/gridfinity/use-bin-geometry", () => ({
 const { toast } = vi.hoisted(() => ({ toast: vi.fn() }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }) }));
 
-beforeEach(() => {
-  memory.clear();
+beforeEach(async () => {
+  memory.clear(); await loadProjectDoc();
   vi.clearAllMocks();
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
@@ -59,7 +61,7 @@ async function mountPage() {
   document.body.appendChild(container);
   const root = createRoot(container);
   await React.act(async () => root.render(
-    <PanelProvider><ShapeLibraryProvider><BinDesignerPage /></ShapeLibraryProvider></PanelProvider>,
+    <PanelProvider><ShapeLibraryProvider><TraceProvider><BinDesignerPage /></TraceProvider></ShapeLibraryProvider></PanelProvider>,
   ));
   return { container, async unmount() {
     await React.act(async () => root.unmount());

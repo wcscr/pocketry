@@ -25,7 +25,8 @@ in the editable project before exporting a revised print model.
 
 <a href="photos/printed-bin-pocket.jpg"><img src="photos/printed-bin-pocket.jpg" width="640" alt="Two Wiha screwdrivers removed beside the bin, revealing the shaped pockets and orange pocket floors"></a>
 
-The lettering shown in the photos is not included in the project or 3MF.
+The editable project includes raised lettering approximating the printed photo.
+The supplied 3MF is unchanged; export the updated project for a model with these labels.
 
 ## Stacked in a drawer
 

@@ -1,6 +1,5 @@
-import { Fragment } from "react";
+import { Fragment, useEffect } from "react";
 import { surfaceTextName } from "@shared/gridfinity/surface-text";
-import { useExperimentalFeatures } from "@/state/experimental-features";
 import { SurfaceTextProperties, SurfaceTextTransformControls } from "./surface-text-controls";
 import { useMobileObjectTools } from "./mobile-object-tools-context";
 import { SlidersHorizontal } from "lucide-react";
@@ -25,14 +24,18 @@ export function MobileBinActions({ open, onOpenChange, onMore, onExport, onWorkf
   const workspace = useMobileWorkspaceActions();
   const inspector = useSelectionInspector();
   const mobileTools = useMobileObjectTools();
-  const { enabled: experimentalEnabled } = useExperimentalFeatures();
-  const text = experimentalEnabled ? bin.spec.surfaceTexts.find(item => item.id === bin.selectedSurfaceTextId) : undefined;
+  const text = bin.spec.surfaceTexts.find(item => item.id === bin.selectedSurfaceTextId);
   const { shapes } = useShapeLibrary();
   const cutout = bin.cutouts.find(item => item.id === bin.selectedCutoutId);
   const finger = bin.fingerHoles.find(item => item.id === bin.selectedFingerHoleId);
   const shape = shapes.find(item => item.id === cutout?.shapeId);
   const selectionTitle = bin.selection.length > 1 ? `${bin.selection.length} objects selected` : text ? surfaceTextName(text) : cutout ? pocketName(cutout, shape) : finger ? finger.name ?? "Finger access" : "Bin";
   const activeTool = mobileTools && mobileTools.tool !== "properties" && bin.editorMode === "placement" && (bin.selection.length > 0 || text) ? mobileTools.tool : null;
+  const canvasTool = activeTool === "translate" || activeTool === "rotate";
+  const toolTitle = `${activeTool === "translate" ? "Move" : activeTool === "rotate" ? "Rotate" : activeTool === "arrange" ? "Arrange" : "Link"} · ${selectionTitle}`;
+  // Choosing an on-canvas tool must not shrink the canvas. Numeric values are
+  // opt-in each time; Arrange and Link still need their command controls.
+  useEffect(() => { onOpenChange(false); }, [activeTool, onOpenChange]);
   const resetTool = () => { if (mobileTools?.tool !== "properties") mobileTools?.setTool("properties"); };
   const openProperties = () => {
     onOpenChange(false);
@@ -54,15 +57,15 @@ export function MobileBinActions({ open, onOpenChange, onMore, onExport, onWorkf
   };
   const mm = (value: number) => `${value.toFixed(1)} mm`;
   return <div>
-    {!open && !activeTool && <p className="mb-1 truncate text-[11px] text-muted-foreground" aria-live="polite">{selectionTitle}</p>}
-    {activeTool && <MobileAdjustmentTray className="max-h-[200px]" title={`${activeTool === "translate" ? "Move" : activeTool === "rotate" ? "Rotate" : activeTool === "arrange" ? "Arrange" : "Link"} · ${selectionTitle}`}
-      onClose={() => { mobileTools!.setTool("properties"); onOpenChange(false); }} onMore={openProperties}>
+    {!open && (!activeTool || canvasTool) && <p className="mb-1 truncate text-[11px] text-muted-foreground" aria-live="polite">{activeTool ? toolTitle : selectionTitle}</p>}
+    {activeTool && (!canvasTool || open) && <MobileAdjustmentTray className="max-h-[200px] [&_input]:text-base" title={toolTitle}
+      onClose={() => { if (!canvasTool) resetTool(); onOpenChange(false); }} onMore={openProperties}>
       {text && (activeTool === "translate" || activeTool === "rotate") ? <SurfaceTextTransformControls mode={activeTool} /> :
         <div ref={mobileTools!.setControls} className="[&_button]:min-h-11 [&_input:not([type=checkbox])]:min-h-11 [&_select]:min-h-11" data-testid="mobile-object-tool-controls" />}
     </MobileAdjustmentTray>}
     {open && !activeTool && <MobileAdjustmentTray title={selectionTitle === "Bin" ? "Adjust bin" : selectionTitle}
       onClose={() => onOpenChange(false)} onMore={openProperties}>
-      {text ? <SurfaceTextProperties /> : bin.selection.length > 1 ? <p className="text-xs">Use All properties to adjust the selection together.</p> : finger ? <LabelledSlider id="quick-finger-depth" label="Finger access depth" value={finger.depthMm} min={0.5} max={bin.spec.heightUnits * 7} step={0.5} format={mm} touchTarget onChange={depthMm => bin.dispatch({ type: "UPDATE_FINGER_HOLE", id: finger.id, patch: { depthMm }, transient: true })} onCommit={depthMm => bin.dispatch({ type: "UPDATE_FINGER_HOLE", id: finger.id, patch: { depthMm } })} /> : cutout && depth ? <Fragment key={`${cutout.id}-${bin.selectedPocketSection}-${depth.mode}`}>
+      {text ? <SurfaceTextProperties /> : bin.selection.length > 1 ? <p className="text-xs">Use All properties to adjust the selection together.</p> : finger ? <LabelledSlider id="quick-finger-depth" label="Finger access depth" value={finger.depthMm} min={0.5} max={bin.spec.heightUnits * 7} step={0.5} format={mm} touchTarget onChange={depthMm => bin.dispatch({ type: "UPDATE_FINGER_HOLE", id: finger.id, patch: { depthMm }, transient: true })} onCommit={depthMm => bin.dispatch({ type: "UPDATE_FINGER_HOLE", id: finger.id, patch: { depthMm } })} /> : cutout?.depthPending ? <p className="text-xs">Depth needed. Choose Set depth beside the bin.</p> : cutout && depth ? <Fragment key={`${cutout.id}-${bin.selectedPocketSection}-${depth.mode}`}>
         {cutout.split && <div className="mb-2 flex gap-2" role="group" aria-label="Section to edit">
           {([0, 1] as const).map(section => <Button key={section} className="min-h-11 flex-1" variant={bin.selectedPocketSection === section ? "secondary" : "outline"}
             aria-pressed={bin.selectedPocketSection === section} onClick={() => bin.dispatch({ type: "SELECT_CUTOUT", id: cutout.id, section })}>Section {section === 0 ? "A" : "B"}</Button>)}
@@ -85,7 +88,11 @@ export function MobileBinActions({ open, onOpenChange, onMore, onExport, onWorkf
     </MobileAdjustmentTray>}
     <div className="flex gap-2">
       <Button variant="outline" className="min-h-11 min-w-0 flex-1 px-2" onClick={() => { resetTool(); onOpenChange(false); (workspace?.toggleWorkflow ?? onWorkflow ?? (() => onMore("bin-settings-size")))(); }}>Workflow</Button>
-      <Button variant="outline" className="min-h-11 min-w-0 flex-1 px-2" onClick={() => { resetTool(); workspace?.showCanvas(); onOpenChange(activeTool ? true : !open); }} aria-expanded={open && !activeTool}>Adjust</Button>
+      <Button variant="outline" className="min-h-11 min-w-0 flex-1 px-2" onClick={() => {
+        workspace?.showCanvas();
+        if (activeTool && !canvasTool) { resetTool(); onOpenChange(false); }
+        else onOpenChange(!open);
+      }} aria-expanded={open || !!activeTool && !canvasTool}>Adjust</Button>
       <Button className="min-h-11 min-w-0 flex-1 px-2" onClick={() => { resetTool(); onExport(); }}>Export</Button>
     </div>
   </div>;

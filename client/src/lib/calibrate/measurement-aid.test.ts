@@ -3,6 +3,8 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { strFromU8, unzipSync } from "fflate";
 import { loadManifold, withKernel } from "@/lib/manifold/runtime";
 import type { ThreeMfMesh } from "@/lib/mesh/threemf";
+import { extractMeshData } from "@/lib/mesh/mesh-data";
+import { expectPartitionOccupancy, expectPrintableTopology, signedMeshVolume } from "@/lib/mesh/mesh-contract.test-helpers";
 import { mmPerPixel } from "@shared/geometry/scale";
 import { runAutoCalibration } from "./auto-calibrate";
 import { MEASUREMENT_AIDS, MEASUREMENT_AID_LENGTHS, referenceStripMarkers } from "./reference-strip";
@@ -57,6 +59,15 @@ describe("50/100/200 mm printable measurement aids", () => {
     const wasm = await loadManifold();
     await withKernel((kernel) => {
       const parts = measurementAidMeshes(kernel, length);
+      const blank = measurementAidBlank(kernel, length);
+      const reference = extractMeshData(kernel, blank);
+      const meshes = parts.map(({ mesh }) => ({ positions: new Float32Array(mesh.positions), indices: new Uint32Array(mesh.indices), normals: null }));
+      // Preserve an independent reference before any importer can repair or
+      // reinterpret the exported geometry. The checks below this block remain
+      // separate evidence that the kernel also accepts the printable meshes.
+      for (const mesh of meshes) expectPrintableTopology(mesh, "measurement aid material");
+      expect(meshes.reduce((sum, mesh) => sum + signedMeshVolume(mesh), 0)).toBeCloseTo(signedMeshVolume(reference), 4);
+      expectPartitionOccupancy(reference, meshes);
       const solids = parts.map(({ mesh }) => {
         expectClosed(mesh);
         const solid = kernel.arena.track(new kernel.Manifold(new wasm.Mesh({ numProp: 3, vertProperties: new Float32Array(mesh.positions), triVerts: new Uint32Array(mesh.indices) })));
@@ -64,7 +75,6 @@ describe("50/100/200 mm printable measurement aids", () => {
         expect(solid.volume()).toBeGreaterThan(0);
         return solid;
       });
-      const blank = measurementAidBlank(kernel, length);
       expect(solids[0].volume() + solids[1].volume()).toBeCloseTo(blank.volume(), 4);
       expect(kernel.arena.track(solids[0].intersect(solids[1])).volume()).toBeCloseTo(0, 6);
       const combined = kernel.arena.track(solids[0].add(solids[1]));
@@ -101,7 +111,7 @@ describe("50/100/200 mm printable measurement aids", () => {
       }
       expect(deepestDetail).toBe(true);
     });
-  });
+  }, 30_000);
 
   it.each(MEASUREMENT_AID_LENGTHS)("automatically selects the %s mm design from its exported markers, with labels and ticks visible", async (length) => {
     const parts = await withKernel((kernel) => measurementAidMeshes(kernel, length));

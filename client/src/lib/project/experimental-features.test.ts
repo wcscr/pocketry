@@ -18,14 +18,14 @@ it("does not enable experimental tools for ordinary positions, heading or zero t
   ] })).toBe(false);
 });
 
-it("detects surface text in the current design and in saved undo/redo history", () => {
+it("treats surface text as standard in the current design and in saved undo/redo history", () => {
   const label = surfaceTextSchema.parse({ id: "label", text: "METRIC", position: { x: 0, y: 0 } });
   const spec = { ...ordinary.spec, surfaceTexts: [label] };
-  expect(projectUsesExperimentalFeatures({ ...ordinary, spec })).toBe(true);
+  expect(projectUsesExperimentalFeatures({ ...ordinary, spec })).toBe(false);
   expect(projectUsesExperimentalFeatures({ ...ordinary, history: { index: 1, stack: [
     { label: "Text", doc: { spec, cutouts: [], fingerHoles: [] } },
     { label: "Removed", doc: { spec: ordinary.spec, cutouts: [], fingerHoles: [] } },
-  ] } })).toBe(true);
+  ] } })).toBe(false);
   expect(projectUsesExperimentalFeatures({ ...ordinary, spec: { ...ordinary.spec, textColor: "#ff8800" } })).toBe(false);
 });
 
@@ -60,4 +60,13 @@ it.each([0, 2])("detects linked thumb access only in undo/redo history at index 
       { label: "Before", doc: plain }, { label: "Linked access", doc: experimental }, { label: "Removed", doc: plain },
     ],
   } })).toBe(true);
+});
+
+it.each([0, 1, 2])("detects ULTIM8 pegs in saved undo/redo history at index %s", index => {
+  const plain = { spec: ordinary.spec, cutouts: ordinary.cutouts, fingerHoles: [] };
+  const pegged = { ...plain, spec: parseBinSpec({ ...ordinary.spec, pegBottom: { underside: "flat", density: "corners" } }) };
+  expect(projectUsesExperimentalFeatures({ ...ordinary, ...pegged })).toBe(true);
+  expect(projectUsesExperimentalFeatures({ ...ordinary, history: { index, stack: [
+    { label: "Before", doc: plain }, { label: "Add pegs", doc: pegged }, { label: "Remove pegs", doc: plain },
+  ] } })).toBe(true);
 });

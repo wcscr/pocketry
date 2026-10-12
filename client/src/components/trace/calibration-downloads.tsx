@@ -23,7 +23,7 @@ export function CalibrationDownloads({ onPaperSelected, open: controlledOpen, on
         <p className="text-xs text-muted-foreground">
           <DialogTrigger asChild>
             <button type="button" className="font-medium text-primary underline underline-offset-2 hover:no-underline">
-              Download calibration aids
+              Download optional calibration aids
             </button>
           </DialogTrigger>
         </p>

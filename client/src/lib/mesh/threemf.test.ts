@@ -71,6 +71,21 @@ const TRIANGLE: ThreeMfObject = {
 };
 
 describe("writeThreeMf", () => {
+  it("preserves stored coordinates when XML is read as double precision", () => {
+    const positions = new Float32Array([
+      40.29875183, -7.5280714, 14.10840797,
+      40.29848099, -7.52843237, 14.10831356,
+      0.1, -0.2, 1e-8,
+    ]);
+    const { model } = unzipModel(writeThreeMf([{ name: "precision", mesh: {
+      positions, indices: new Uint32Array([0, 1, 2]),
+    } }]));
+    const parsed = [...model.matchAll(/<vertex x="([^"]+)" y="([^"]+)" z="([^"]+)"\/>/g)]
+      .flatMap(match => match.slice(1).map(Number));
+    // Parsing into Float32 would conceal a second decimal rounding step.
+    expect(parsed).toEqual([...positions]);
+  });
+
   it("emits a valid OPC package with the three required entries", () => {
     const { entries, model } = unzipModel(writeThreeMf([TRIANGLE]));
     expect(entries).toEqual(["3D/3dmodel.model", "[Content_Types].xml", "_rels/.rels"]);

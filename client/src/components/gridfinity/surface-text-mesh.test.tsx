@@ -22,6 +22,18 @@ describe("3D surface-text selection", () => {
     plane.geometry.dispose(); plane.material.dispose(); geometry.dispose();
   });
 
+  it("shades text without changing its printable geometry", () => {
+    const geometry = new BufferGeometry();
+    geometry.setAttribute("position", new Float32BufferAttribute([0, 0, 0, 1, 0, 0, 0, 1, 0], 3));
+    const tree = SurfaceTextMesh({ label, geometry, color: "#000000", selected: false });
+    const mesh = React.Children.toArray(tree.props.children)[0] as React.ReactElement<{
+      geometry: BufferGeometry; children: React.ReactElement<{ flatShading: boolean }>;
+    }>;
+    expect(mesh.props.geometry).toBe(geometry);
+    expect(mesh.props.children.props.flatShading).toBe(true);
+    geometry.dispose();
+  });
+
   it.each([
     { enabled: true, button: 0, delta: 0, selects: true },
     { enabled: true, button: 0, delta: 3, selects: true },

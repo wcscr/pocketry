@@ -16,7 +16,7 @@ export function SurfaceTextMesh({ label, geometry, color, selected, onSelect }: 
   };
   return <group name={`Text: ${surfaceTextName(label)}`} onClick={select}>
     <mesh geometry={geometry}>
-      <meshStandardMaterial color={color} roughness={0.55} metalness={0.02}
+      <meshStandardMaterial flatShading={!geometry.hasAttribute("normal")} color={color} roughness={0.55} metalness={0.02}
         emissive={selected ? "#0891b2" : "#000000"} emissiveIntensity={selected ? 0.35 : 0} />
     </mesh>
     {onSelect && bounds && !bounds.isEmpty() && <mesh name="surface-text-hit-area"

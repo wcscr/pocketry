@@ -64,7 +64,7 @@ export function SurfaceTextLayer({ interactive, onSelect, inverseScale = 1, edge
     return () => { window.removeEventListener("blur", commit); commit(); };
   }, []);
   // Match the existing Layout shortcuts while leaving text inputs, dialogs,
-  // panning, and experimental opt-out in control of their own keyboard events.
+  // and panning in control of their own keyboard events.
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
       if (!interactive || editingId || !canHandleCanvasShortcut(event) || event.altKey || event.ctrlKey || event.metaKey) return;

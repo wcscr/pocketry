@@ -2,6 +2,7 @@ import type { Outline } from "@shared/geometry/types";
 
 import { toCrossSection } from "@/lib/geometry/offset";
 import { withKernel, type Kernel } from "@/lib/manifold/runtime";
+import { extractPrintableMeshData } from "@/lib/mesh/mesh-data";
 
 import { toModelSpace, type ExportScale } from "./scale";
 import { writeBinarySTL, type StlMesh } from "./stl-writer";
@@ -101,39 +102,10 @@ export function extrudeOutlineWithKernel(
   const grounded =
     minZ === 0 ? solid : kernel.arena.track(solid.translate(0, 0, -minZ));
 
-  return toStlMesh(grounded.getMesh());
+  return extractPrintableMeshData(kernel, grounded);
 }
 
 function emptyMesh(): StlMesh {
   return { positions: new Float32Array(), indices: new Uint32Array() };
-}
-
-/**
- * Copies the position channel out of a manifold `Mesh`.
- *
- * `vertProperties` interleaves `numProp` floats per vertex with position in the
- * first three, so it can only be used directly when `numProp === 3`. The copy
- * is deliberate either way: it detaches the result from anything the kernel
- * owns before the arena is disposed.
- */
-function toStlMesh(mesh: {
-  numProp: number;
-  vertProperties: Float32Array;
-  triVerts: Uint32Array;
-}): StlMesh {
-  const indices = new Uint32Array(mesh.triVerts);
-  if (mesh.numProp === 3) {
-    return { positions: new Float32Array(mesh.vertProperties), indices };
-  }
-
-  const vertexCount = Math.floor(mesh.vertProperties.length / mesh.numProp);
-  const positions = new Float32Array(vertexCount * 3);
-  for (let vertex = 0; vertex < vertexCount; vertex++) {
-    const source = vertex * mesh.numProp;
-    positions[vertex * 3] = mesh.vertProperties[source];
-    positions[vertex * 3 + 1] = mesh.vertProperties[source + 1];
-    positions[vertex * 3 + 2] = mesh.vertProperties[source + 2];
-  }
-  return { positions, indices };
 }
 

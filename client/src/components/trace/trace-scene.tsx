@@ -72,6 +72,8 @@ export interface TraceSceneProps {
   hoveredVertexIndex?: number | null;
   selectedVertexIndex?: number | null;
   compactHandles?: boolean;
+  /** Selection can highlight a contour without offering point editing. */
+  showVertices?: boolean;
   /** Handles for the interaction layer above. */
   onPointerDown?: (event: ReactPointerEvent<SVGSVGElement>) => void;
   onPointerMove?: (event: ReactPointerEvent<SVGSVGElement>) => void;
@@ -147,6 +149,7 @@ export function TraceScene({
   hoveredVertexIndex = null,
   selectedVertexIndex = null,
   compactHandles = false,
+  showVertices = true,
   onPointerDown,
   onPointerMove,
   onPointerUp,
@@ -254,7 +257,7 @@ export function TraceScene({
           can carry thousands of points per ring; rendering a handle for every
           one of them is unusable and janks the whole canvas.
         */}
-        {selectedRing?.map((point, index) => {
+        {showVertices && selectedRing?.map((point, index) => {
           const hovered = index === hoveredVertexIndex;
           const selected = index === selectedVertexIndex;
           return (

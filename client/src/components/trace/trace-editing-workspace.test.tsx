@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ShapeLibraryProvider } from "@/state/shape-library";
 import { TraceProvider, useTrace, type TraceStore } from "@/state/trace-store";
 import { TraceControlsPanel } from "./trace-controls-panel";
+import { useTraceHandoff } from "./trace-handoff";
 import { TraceEditingWorkspace } from "./trace-editing-workspace";
 
 vi.mock("@/lib/image-processor", async importOriginal => ({
@@ -29,9 +30,10 @@ function Canvas(): JSX.Element {
 }
 function Harness({ enabled = true }: { enabled?: boolean }): JSX.Element {
   trace = useTrace();
+  const handoff = useTraceHandoff();
   const [panelOpen, setPanelOpen] = React.useState(true);
   return <TraceEditingWorkspace enabled={enabled} autoSaveId="test-trace" panelOpen={panelOpen} onPanelOpenChange={setPanelOpen}
-    panel={<TraceControlsPanel active onReplaceImage={() => {}} onRotateImage={() => {}} onExport={exportTrace}
+    panel={<TraceControlsPanel handoff={handoff} active onReplaceImage={() => {}} onStartOver={() => trace.dispatch({ type: "SOURCE_CLEARED" })} onRotateImage={() => {}} onExport={exportTrace}
       onReprocess={reprocess} onDetectMarkers={() => {}} onApplyPerspective={() => {}} />}
     canvas={<Canvas />} />;
 }
@@ -81,6 +83,28 @@ afterEach(() => {
 });
 
 describe("trace workflow and properties", () => {
+  it.each([true, false])("offers a guarded New trace in the Photo step (workflow=%s)", async enabled => {
+    await act(() => root.render(<TooltipProvider><ShapeLibraryProvider><TraceProvider><Harness enabled={enabled} /></TraceProvider></ShapeLibraryProvider></TooltipProvider>));
+    await finishTrace();
+    if (enabled) await act(() => button("trace-workflow-photo").click());
+    else await act(() => host.querySelector<HTMLButtonElement>('#trace-settings-source [data-panel-section-trigger]')!.click());
+    const before = { imageUrl: trace.imageUrl, outline: trace.outline, calibration: trace.calibration, region: trace.region, history: trace.history };
+    const dialogButton = (text: string) => [...document.querySelectorAll<HTMLButtonElement>('[role="alertdialog"] button')].find(button => button.textContent === text)!;
+    await act(() => button("button-new-trace").click());
+    expect(document.activeElement).toBe(dialogButton("Keep working"));
+    expect(document.querySelector('[role="alertdialog"]')?.textContent).toContain("Pockets already added to Bin stay there");
+    await act(() => dialogButton("Keep working").click());
+    expect(trace).toMatchObject(before);
+    await act(() => button("button-new-trace").click());
+    await act(() => dialogButton("Clear trace and start over").click());
+    expect(trace.imageUrl).toBeNull();
+    expect(trace.calibration).toBeNull();
+    expect(trace.region).toBeNull();
+    expect(trace.outline).toEqual([]);
+    expect(trace.history.stack).toHaveLength(1);
+    expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+  });
+
   it("keeps simple steps left and one copy of the selected form right", async () => {
     expect(host.querySelector('[aria-label="Photo tracing workflow"]')).not.toBeNull();
     expect(button("trace-workflow-scale").disabled).toBe(true);

@@ -54,7 +54,7 @@ import {
   type TemplateVariant,
 } from "@/lib/calibrate/template";
 import { describeScale, exportScale } from "@/lib/export/scale";
-import { TraceHandoffDialog } from "./trace-handoff-dialog";
+import { TraceHandoffOptions, type TraceHandoff } from "./trace-handoff";
 import type { ImageRotationDirection } from "@/lib/geometry/image-rotation";
 import {
   adjustOutlineMargin,
@@ -64,7 +64,7 @@ import { cn } from "@/lib/utils";
 import { HelpHint } from "@/components/ui/help-hint";
 import { useToast } from "@/hooks/use-toast";
 import { useShapeLibrary } from "@/state/shape-library";
-import { useTrace, type ExportFormat } from "@/state/trace-store";
+import { hasPendingManualCalibration, useTrace, type ExportFormat } from "@/state/trace-store";
 
 import { CalibrationDownloads } from "./calibration-downloads";
 import { AutoCalibrationOptions } from "./auto-calibration-options";
@@ -74,16 +74,20 @@ import { TracePhotoBoundsControl } from "./trace-photo-bounds-control";
 import { TracePanelSections } from "./trace-panel-sections";
 import { useTraceInspector } from "./trace-inspector-context";
 import { TRACE_WORKFLOW_SECTIONS } from "./trace-workflow";
+import { TraceRestartDialog } from "./trace-restart-dialog";
 
 const RESPONSIVE_PANEL_ACTION =
   "h-auto min-h-9 w-full whitespace-normal break-words px-2 py-2 text-sm leading-tight";
 
 export interface TraceControlsPanelProps {
+  /** One choice shared with the mobile action bar and across layout changes. */
+  handoff: TraceHandoff;
   /** Defer guided focus while the desktop controls are collapsed. */
   active?: boolean;
   settingsSectionRequest?: { id: string };
   onCanvasInteraction?: () => void;
   onReplaceImage: () => void;
+  onStartOver: () => void;
   onRotateImage: (direction: ImageRotationDirection) => void;
   onExport: () => void;
   onReprocess: (settings?: { sensitivity: number; includeInteriorHoles: boolean }) => void;
@@ -107,8 +111,10 @@ const TRACE_SETTINGS_SECTION_DETAILS = TRACE_WORKFLOW_SECTIONS;
  * card padding and borders waste roughly a tenth of the usable width.
  */
 export function TraceControlsPanel({
+  handoff,
   active = true,
   onReplaceImage,
+  onStartOver,
   onRotateImage,
   onExport,
   onReprocess,
@@ -118,6 +124,7 @@ export function TraceControlsPanel({
   onCanvasInteraction: onCanvasInteractionProp,
 }: TraceControlsPanelProps): JSX.Element {
   const store = useTrace();
+  const [restartRevision, setRestartRevision] = useState<number | null>(null);
   const inspector = useTraceInspector();
   const showSection = inspector?.showSection;
   const onCanvasInteraction = () => { inspector?.showCanvas(); onCanvasInteractionProp?.(); };
@@ -158,14 +165,14 @@ export function TraceControlsPanel({
   );
   const hasImage = imageSize.width > 0;
   const hasOutline = outline.length > 0;
-  const reviewingScale = pendingAutoCalibration !== null;
+  const replacingRuler = hasPendingManualCalibration(store);
+  const reviewingScale = pendingAutoCalibration !== null || replacingRuler;
   const usingReferenceStrip =
     pendingCalibrationSource === "strip" || calibrationSource === "strip";
   const hasDetectionRegion = Boolean(
     region && region.width > 5 && region.height > 5,
   );
-  const manualRulerPending =
-    calibration === null && hasCalibrationEndpoints(draftCalibration);
+  const manualRulerPending = hasCalibrationEndpoints(draftCalibration);
   const traceSettingsSections = TRACE_SETTINGS_SECTION_DETAILS.map((item) => {
     if (item.id === "trace-settings-source") return item;
     if (item.id === "trace-settings-scale") {
@@ -425,8 +432,8 @@ export function TraceControlsPanel({
         }
       : null;
 
-  const [handoffOpen, setHandoffOpen] = useState(false);
-  const openHandoff = () => setHandoffOpen(true);
+  const [clearRequest, setClearRequest] = useState<{ kind: "region" | "scale"; sourceRevision: number } | null>(null);
+
   const handleClearRegion = () => {
     dispatch({ type: "SET_MODE", mode: "region" });
     onCanvasInteraction?.();
@@ -437,12 +444,12 @@ export function TraceControlsPanel({
   };
 
   const handleSetScale = () => {
-    const nextMode = store.mode === "calibrate" ? "pan" : "calibrate";
-    dispatch({
-      type: "SET_MODE",
-      mode: nextMode,
-    });
-    if (nextMode === "calibrate") onCanvasInteraction?.();
+    if (store.mode === "calibrate") {
+      dispatch({ type: "CANCEL_MANUAL_CALIBRATION" });
+      return;
+    }
+    dispatch({ type: "SET_MODE", mode: "calibrate" });
+    onCanvasInteraction?.();
   };
 
   const manualScaleAction = (
@@ -468,7 +475,7 @@ export function TraceControlsPanel({
           ? "Redraw ruler"
           : pendingAutoCalibration
             ? "Set manually instead"
-            : "Set scale"}
+            : calibration ? "Replace scale" : "Set scale"}
     </Button>
   );
 
@@ -537,6 +544,8 @@ export function TraceControlsPanel({
                   Rotate right 90°
                 </Button>
               </div>
+              <Button variant="ghost" size="sm" className="w-full" onClick={() => setRestartRevision(sourceRevision)}
+                data-testid="button-new-trace">New trace</Button>
             </>
           ) : (
             <div className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">
@@ -574,6 +583,12 @@ export function TraceControlsPanel({
           {!pendingAutoCalibration && (
             <div className="space-y-3" data-testid="manual-scale-placement">
               {manualScaleAction}
+              {replacingRuler && <div className="space-y-1">
+                {calibration && <p className="text-xs text-muted-foreground">Your current scale is kept until you confirm the new ruler.</p>}
+                <Button variant="outline" size="sm" className="w-full" onClick={() => dispatch({ type: "CANCEL_MANUAL_CALIBRATION" })}>
+                  Cancel ruler
+                </Button>
+              </div>}
 
               {store.mode === "calibrate" ? (
                 <div
@@ -596,7 +611,7 @@ export function TraceControlsPanel({
             </div>
           )}
 
-          {!pendingAutoCalibration && (!calibration || calibrationSource === "manual") && (
+          {!pendingAutoCalibration && (!calibration || calibrationSource === "manual" || replacingRuler) && (
             <div
               className={cn(
                 "space-y-1.5 rounded-md",
@@ -648,7 +663,7 @@ export function TraceControlsPanel({
               variant="ghost"
               size="sm"
               className="w-full"
-              onClick={() => dispatch({ type: "SET_CALIBRATION", calibration: null })}
+              onClick={() => setClearRequest({ kind: "scale", sourceRevision })}
             >
               Clear scale
             </Button>
@@ -839,7 +854,7 @@ export function TraceControlsPanel({
               size="sm"
               disabled={region === null}
               data-testid="button-clear-region"
-              onClick={handleClearRegion}
+              onClick={() => setClearRequest({ kind: "region", sourceRevision })}
             >
               Clear region
             </Button>
@@ -876,7 +891,7 @@ export function TraceControlsPanel({
             <div className="flex items-center gap-1">
               <p className="text-xs font-semibold">Detected Contours</p>
               <HelpHint label="contour editing">
-                Choose Edit contours. Drag a point to move it; click an edge to add one. On a phone, use Move, Add, or Remove and pinch to zoom.
+                Choose Edit contours. Drag a point to move it; click an edge to add one. On a phone, tap a point to show Delete point and pinch to zoom. Select only changes the selection.
                 Simplification adjusts your edited contour. Sensitivity and interior holes re-detect from the photo and ask before replacing manual edits. Undo restores your contour.
               </HelpHint>
             </div>
@@ -998,9 +1013,35 @@ export function TraceControlsPanel({
         </AlertDialogContent>
       </AlertDialog>
 
-      {handoffOpen && <TraceHandoffDialog onClose={() => setHandoffOpen(false)}
-        onChoosePhoto={onReplaceImage} onCanvasInteraction={onCanvasInteraction} />}
+      <AlertDialog open={clearRequest !== null && clearRequest.sourceRevision === sourceRevision} onOpenChange={open => { if (!open) setClearRequest(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{clearRequest?.kind === "region" ? "Clear region and outline?" : "Clear the accepted scale?"}</AlertDialogTitle>
+            <AlertDialogDescription>{clearRequest?.kind === "region"
+              ? "This removes the detection region, outline, and contour edit history. You cannot undo this reset. The photo and accepted scale stay in place."
+              : "You will need to set the scale again before adding pockets to Bin or exporting in millimeters. The photo, region, and outline stay in place."}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep working</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => {
+              if (clearRequest?.sourceRevision !== sourceRevision) return;
+              if (clearRequest.kind === "region") handleClearRegion();
+              else dispatch({ type: "SET_CALIBRATION", calibration: null });
+              setClearRequest(null);
+            }}>{clearRequest?.kind === "region" ? "Clear region and outline" : "Clear scale"}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <TraceRestartDialog open={restartRevision !== null && restartRevision === sourceRevision}
+        onOpenChange={open => { if (!open) setRestartRevision(null); }} onConfirm={() => {
+          if (restartRevision !== sourceRevision) return;
+          setRestartRevision(null);
+          onStartOver();
+        }} />
+
       <PanelFooter>
+        <div className="mb-2"><TraceHandoffOptions handoff={handoff} /></div>
         {shapeLibrary.pendingIds.length > 0 && <Button variant="secondary" className="mb-2 w-full" onClick={() => navigate("/bin")}>
           Arrange {shapeLibrary.pendingIds.length} queued tool{shapeLibrary.pendingIds.length === 1 ? "" : "s"}
         </Button>}
@@ -1014,8 +1055,8 @@ export function TraceControlsPanel({
               <span className="block w-full">
                 <Button
                   className="w-full"
-                  onClick={openHandoff}
-                  disabled={!hasOutline || !scale.mmPerPx || reviewingScale}
+                  onClick={handoff.addToBin}
+                  disabled={!handoff.ready}
                   data-testid="button-add-to-bin"
                 >
                   <Box className="h-4 w-4" />

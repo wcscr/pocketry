@@ -9,6 +9,11 @@ import { strFromU8, unzipSync } from "fflate";
 import { ExperimentalFeaturesProvider, useExperimentalFeatures, EXPERIMENTAL_FEATURES_KEY } from "@/state/experimental-features";
 import { PanelProvider, usePanelState } from "@/components/layout/panel-context";
 import { AppHeader } from "@/components/layout/app-header";
+import { ProjectStatusBar } from "@/components/layout/project-status-bar";
+import { ProjectActivityProvider } from "@/state/project-activity";
+import { TraceHandoffOptions, useTraceHandoff } from "@/components/trace/trace-handoff";
+function TraceHandoff() { const handoff = useTraceHandoff(); return <><TraceHandoffOptions handoff={handoff} /><button disabled={!handoff.ready} onClick={handoff.addToBin}>Add to bin</button></>; }
+import * as TraceStoreReview from "@/state/trace-store";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { WORKSPACES } from "@/components/layout/workspaces";
 import type { MaterialColorTarget } from "@/components/gridfinity/bin-viewport";
@@ -23,6 +28,7 @@ import { fingerHoleSchema, resolvePocketDepth, resolvePlacedPocketDepth, parseCu
 import { resolvePocketSplit } from "@shared/gridfinity/pocket-split";
 import { parseBinSpec } from "@shared/gridfinity/types";
 import { downloadBlob } from "@/lib/download";
+import { projectDestinationKey } from "@/lib/project/destination";
 import { useBinGeometry } from "@/lib/gridfinity/use-bin-geometry";
 import { createBasicPocket } from "@/lib/gridfinity/basic-shape";
 import { footprintOuterRingMm, occupiedCellCount } from "@shared/gridfinity/footprint";
@@ -103,8 +109,8 @@ vi.mock("@/components/gridfinity/bin-viewport", () => ({
       data-text-color={textColor}
       data-measurement-splits={JSON.stringify(measurementSplitBoundaries)}
     >
+      {pocketEditor && <SelectionToolButtons count={surfaceTextEditor ? 1 : pocketEditor.selection?.length ?? 0} onActivate={() => {}} />}
       {surfaceTextEditor && <>
-        <SelectionToolButtons count={1} onActivate={() => {}} />
         <button data-testid="commit-text-move" onClick={() => surfaceTextEditor.onCommit({ ...surfaceTextEditor.label, position: { x: 8, y: 20 } }, "translate")} />
         <button data-testid="commit-text-rotation" onClick={() => surfaceTextEditor.onCommit({ ...surfaceTextEditor.label, rotationDeg: 45 }, "rotate")} />
       </>}
@@ -164,9 +170,10 @@ vi.mock("@/lib/gridfinity/use-bin-geometry", () => ({
 
 // Deterministic persistence: no stored project, writes are no-ops. Hydration
 // still resolves asynchronously, hence the `flushHydration` below.
-const projectSaveMock = vi.hoisted(() => ({ onSaved: undefined as ((success: boolean) => void) | undefined }));
+const projectSaveMock = vi.hoisted(() => ({ onSaved: undefined as ((success: boolean, error?: Error) => void) | undefined }));
 vi.mock("@/lib/project/persist", () => ({
   loadProjectDoc: vi.fn(async () => null),
+  readProjectOverview: vi.fn(async () => ({ doc: null, activeProjectId: null })),
   loadProjectLibrary: vi.fn(async () => ({ activeProjectId: null, projects: [] })),
   saveProjectDoc: vi.fn(async () => true),
   saveProjectToLibrary: vi.fn(),
@@ -178,13 +185,15 @@ vi.mock("@/lib/project/persist", () => ({
   importProjectLibrary: vi.fn(),
   importProjectToLibrary: vi.fn(),
   startNewProject: vi.fn(async () => ({ activeProjectId: null, projects: [] })),
-  createDebouncedProjectSaver: (_delay: number, onSaved?: (success: boolean) => void) => {
+  createDebouncedProjectSaver: (_delay: number, onSaved?: (success: boolean, error?: Error) => void) => {
     projectSaveMock.onSaved = onSaved;
     return Object.assign(vi.fn(), { cancel: vi.fn(), flush: vi.fn(async () => true) });
   },
 }));
 
 import * as ProjectPersistence from "@/lib/project/persist";
+import { loadSampleLibrary } from "@/lib/project/samples";
+vi.mock("@/lib/project/samples", () => ({ loadSampleLibrary: vi.fn() }));
 
 const EMPTY_PROJECT: ProjectDoc = {
   schemaVersion: PROJECT_SCHEMA_VERSION,
@@ -259,7 +268,7 @@ function render(ui: React.ReactElement, { mobile = false, experimental = true } 
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
-  React.act(() => root.render(<ExperimentalFeaturesProvider><ExperimentalProbe>{ui}</ExperimentalProbe></ExperimentalFeaturesProvider>));
+  React.act(() => root.render(<ExperimentalFeaturesProvider><TraceStoreReview.TraceProvider><ExperimentalProbe>{ui}</ExperimentalProbe></TraceStoreReview.TraceProvider></ExperimentalFeaturesProvider>));
 
   let unmounted = false;
   const result = {
@@ -377,12 +386,576 @@ function toolButton(container: HTMLElement, label: string) {
   return button!;
 }
 
+function binHistoryButton(container: HTMLElement, action: "undo" | "redo") {
+  const selector = `[data-testid="button-bin-${action}"]`;
+  const direct = container.querySelector<HTMLButtonElement>(selector);
+  if (direct) {
+    const menu = document.querySelector('[role="menu"]');
+    if (menu) React.act(() => menu.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+    return direct;
+  }
+  if (!document.querySelector(selector)) React.act(() => container.querySelector('[aria-label="Tools"]')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
+  return document.querySelector<HTMLButtonElement>(selector)!;
+}
+
+function clickBinHistory(container: HTMLElement, action: "undo" | "redo") {
+  const button = binHistoryButton(container, action);
+  React.act(() => button.click());
+}
+
 /** Use the compact pocket list without entering rename or changing geometry. */
 function selectPocket(container: HTMLElement, id: string): void {
   React.act(() => container.querySelector<HTMLButtonElement>(`[data-testid="button-select-${id}"]`)!.click());
 }
 
 describe("BinDesignerPage", () => {
+  const sampleDoc = { ...EMPTY_PROJECT, name: "Sample tray", spec: parseBinSpec({ ...EMPTY_PROJECT.spec, gridX: 4 }) };
+  const sampleLibrary = { format: "pocketry-library" as const, schemaVersion: 1 as const,
+    projects: [{ id: "sample", name: "Sample tray", updatedAt: "2026-10-08T12:00:00Z", doc: sampleDoc }] };
+  const sampleButton = (label: string) => [...document.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === label)!;
+  const browseSamples = async (container: HTMLElement) => {
+    vi.mocked(loadSampleLibrary).mockResolvedValue(sampleLibrary);
+    openSettingsSection(container, "project");
+    await React.act(async () => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
+    await React.act(async () => sampleButton("Sample Library").click());
+  };
+
+  it("preserves an unnamed draft while browsing or cancelling samples, then saves it before opening a copy", async () => {
+    const draft = { ...EMPTY_PROJECT, spec: parseBinSpec({ ...EMPTY_PROJECT.spec, gridX: 3 }) };
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(draft);
+    const { container } = renderPage();
+    await flushHydration();
+    await browseSamples(container);
+    expect(ProjectPersistence.importProjectToLibrary).not.toHaveBeenCalled();
+    await React.act(async () => document.querySelector<HTMLButtonElement>('[aria-label="Open sample Sample tray"]')!.click());
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Save or export before continuing?");
+    expect(ProjectPersistence.importProjectToLibrary).not.toHaveBeenCalled();
+    await React.act(async () => sampleButton("Cancel").click());
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Sample Library");
+    expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toEqual(draft.spec);
+    await React.act(async () => document.querySelector<HTMLButtonElement>('[aria-label="Open sample Sample tray"]')!.click());
+    await React.act(async () => sampleButton("Export current project").click());
+    expect(downloadBlob).toHaveBeenCalledOnce();
+    expect(ProjectPersistence.importProjectToLibrary).not.toHaveBeenCalled();
+    const input = document.querySelector<HTMLInputElement>('#sample-backup-project-name')!;
+    React.act(() => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "My draft"); input.dispatchEvent(new Event("input", { bubbles: true })); });
+    await React.act(async () => sampleButton("Save project to Library").click());
+    expect(ProjectPersistence.saveProjectToLibrary).toHaveBeenCalledWith(expect.objectContaining({ spec: draft.spec }), "My draft", null);
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Project saved");
+    expect(ProjectPersistence.importProjectToLibrary).not.toHaveBeenCalled();
+    await React.act(async () => sampleButton("Open sample").click());
+    expect(ProjectPersistence.importProjectToLibrary).toHaveBeenCalledExactlyOnceWith(sampleDoc);
+    expect(ProjectPersistence.saveProjectDoc).toHaveBeenCalledWith(expect.objectContaining({ name: "My draft" }), "project-1");
+    expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toEqual(sampleDoc.spec);
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it("keeps the backup prompt and current project if saving before a sample switch fails", async () => {
+    const current = { id: "current", name: "My tray", updatedAt: "2026-10-08T12:00:00Z" };
+    const doc = { ...EMPTY_PROJECT, name: current.name };
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(doc);
+    vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId: current.id, projects: [current] });
+    vi.mocked(ProjectPersistence.saveProjectDoc).mockResolvedValue(false);
+    const { container } = renderPage();
+    await flushHydration(); await browseSamples(container);
+    await React.act(async () => document.querySelector<HTMLButtonElement>('[aria-label="Open sample Sample tray"]')!.click());
+    await React.act(async () => sampleButton("Open sample").click());
+    expect(ProjectPersistence.importProjectToLibrary).not.toHaveBeenCalled();
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Save or export before continuing?");
+    expect(sampleButton("Open sample").disabled).toBe(false);
+    expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toEqual(doc.spec);
+  });
+
+  it("exports the existing library and merges samples only after explicit confirmation", async () => {
+    const current = { id: "current", name: "My tray", updatedAt: "2026-10-08T12:00:00Z" };
+    const doc = { ...EMPTY_PROJECT, name: current.name, keepBinSize: true };
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(doc);
+    vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId: current.id, projects: [current] });
+    vi.mocked(ProjectPersistence.exportProjectLibrary).mockResolvedValue({ format: "pocketry-library", schemaVersion: 1, projects: [{ ...current, doc }] });
+    vi.mocked(ProjectPersistence.importProjectLibrary).mockResolvedValue({ library: { activeProjectId: current.id, projects: [current, sampleLibrary.projects[0]] }, imported: 1, upgraded: 0, renamed: 0 });
+    // jsdom lacks Blob.text; exercise the generated File through FileReader.
+    const textDescriptor = Object.getOwnPropertyDescriptor(File.prototype, "text");
+    Object.defineProperty(File.prototype, "text", { configurable: true, value: function(this: File) {
+      return new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = reject; reader.readAsText(this); });
+    } });
+    try {
+      const { container } = renderPage();
+      await flushHydration(); await browseSamples(container);
+      await React.act(async () => sampleButton("Add all 1 projects to Library").click());
+      expect(ProjectPersistence.importProjectLibrary).not.toHaveBeenCalled();
+      await React.act(async () => sampleButton("Export existing library").click());
+      expect(ProjectPersistence.exportProjectLibrary).toHaveBeenCalledWith(expect.objectContaining({ name: current.name, keepBinSize: true }));
+      expect(downloadBlob).toHaveBeenCalledOnce();
+      expect(ProjectPersistence.importProjectLibrary).not.toHaveBeenCalled();
+      await React.act(async () => { sampleButton("Add sample library").click(); await new Promise(resolve => setTimeout(resolve, 20)); });
+      expect(ProjectPersistence.importProjectLibrary).toHaveBeenCalledWith(sampleLibrary, "merge", undefined);
+      expect(ProjectPersistence.importProjectToLibrary).not.toHaveBeenCalled();
+      expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Manage browser library");
+      expect(document.querySelector('[data-testid="managed-project-list"]')?.textContent).toContain(current.name);
+      expect(document.querySelector('[data-testid="managed-project-list"]')?.textContent).toContain(sampleDoc.name);
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toEqual(doc.spec);
+    } finally {
+      if (textDescriptor) Object.defineProperty(File.prototype, "text", textDescriptor);
+      else Reflect.deleteProperty(File.prototype, "text");
+    }
+  });
+
+  it("opens a requested sample without a backup prompt when there is no existing work", async () => {
+    vi.mocked(loadSampleLibrary).mockResolvedValue(sampleLibrary);
+    function RequestSamples() { const { setSampleLibraryRequested } = usePanelState(); React.useEffect(() => setSampleLibraryRequested(true), [setSampleLibraryRequested]); return null; }
+    render(<PanelProvider><ShapeLibraryProvider><RequestSamples /><BinDesignerPage /></ShapeLibraryProvider></PanelProvider>);
+    await flushHydration();
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Sample Library");
+    await React.act(async () => document.querySelector<HTMLButtonElement>('[aria-label="Open sample Sample tray"]')!.click());
+    expect(ProjectPersistence.importProjectToLibrary).toHaveBeenCalledExactlyOnceWith(sampleDoc);
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it.each(["accept", "open intended project"])("retains traced tools after a destination change until %s", async resolution => {
+    const first = { ...EMPTY_PROJECT, name: "Project A" };
+    const second = { ...EMPTY_PROJECT, name: "Project B" };
+    vi.mocked(ProjectPersistence.readProjectOverview).mockResolvedValue({ doc: first, activeProjectId: "a" });
+    // Another tab switches the durable current project after Trace read A.
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(second);
+    const projects = [{ id: "a", name: "Project A", updatedAt: "2026-10-08T12:00:00Z" }, { id: "b", name: "Project B", updatedAt: "2026-10-08T12:00:00Z" }];
+    vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId: "b", projects });
+    vi.mocked(ProjectPersistence.openProjectFromLibrary).mockResolvedValue({ doc: first, project: projects[0], library: { activeProjectId: "a", projects } });
+    const trace = vi.spyOn(TraceStoreReview, "useTrace").mockReturnValue({ ...TraceStoreReview.initialTraceState,
+      dispatch: vi.fn(), canUndo: false, canRedo: false, undo: vi.fn(), redo: vi.fn(), draftSaveStatus: "saved",
+      fileName: "Test tool", imageSize: { width: 100, height: 100 },
+      calibration: { startX: 0, startY: 0, endX: 100, endY: 0, lengthMm: 50 },
+      outline: [{ outer: [{ x: 10, y: 10 }, { x: 50, y: 10 }, { x: 50, y: 30 }, { x: 10, y: 30 }], holes: [] }] });
+    const route = memoryLocation({ path: "/" });
+    const { container, unmount } = render(<Router hook={route.hook}><PanelProvider><ProjectActivityProvider><ShapeLibraryProvider>
+      <ProjectStatusBar /><Route path="/"><TraceHandoff /></Route><Route path="/bin"><BinDesignerPage /></Route>
+    </ShapeLibraryProvider></ProjectActivityProvider></PanelProvider></Router>);
+    try {
+      await flushHydration();
+      expect(document.body.textContent).toContain("Adding to: Project A");
+      React.act(() => [...document.querySelectorAll("button")].find(button => button.textContent === "Add to bin")!.click());
+      await flushHydration();
+      expect(container.querySelector('[data-testid="global-project-status"]')!.textContent).toContain("Project B");
+      // A wrong destination must be rejected, not modified and autosaved.
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toHaveLength(0);
+      expect(container.querySelector('[data-testid="queued-destination-changed"]')?.textContent).toContain("Project A");
+      const queued = JSON.parse(sessionStorage.getItem("pocketry:queued-tools")!);
+      expect(queued).toHaveLength(1);
+      expect(queued[0].pendingDestination).toEqual({ key: "project:a", name: "Project A" });
+      React.act(() => [...document.querySelectorAll("button")].find(button => button.textContent === "Backups")!.click());
+      React.act(() => [...document.querySelectorAll("button")].find(button => button.textContent === "Download current project backup")!.click());
+      const [blob] = vi.mocked(downloadBlob).mock.lastCall!;
+      const json = await new Promise<string>(resolve => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.readAsText(blob); });
+      expect(JSON.parse(json).shapes).toHaveLength(0);
+      React.act(() => [...document.querySelectorAll("button")].find(button => button.textContent === "Close")!.click());
+      if (resolution === "accept") {
+        React.act(() => [...document.querySelectorAll("button")].find(button => button.textContent === "Add waiting tools to Project B")!.click());
+      } else {
+        React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Manage project: Project B"]')!.click());
+        await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-open-project-a"]')!.click());
+        expect(container.querySelector('[data-testid="global-project-status"]')!.textContent).toContain("Project A");
+      }
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toHaveLength(1);
+      expect(container.querySelector('[data-testid="queued-destination-changed"]')).toBeNull();
+    } finally { unmount(); trace.mockRestore(); }
+  });
+
+  it("keeps a changed unnamed draft's queue through reload and places it only in the matching draft", async () => {
+    const edited = { ...EMPTY_PROJECT, spec: { ...EMPTY_PROJECT.spec, gridX: 5 } };
+    sessionStorage.setItem("pocketry:queued-tools", JSON.stringify([{ ...rectangularShape("draft-tool", "Draft tool"), pendingDepth: { mode: "mm", value: 8 }, pendingDestination: { key: projectDestinationKey(EMPTY_PROJECT, null), name: "Untitled project" } }]));
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(edited);
+    const first = renderPage();
+    await flushHydration();
+    expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toHaveLength(0);
+    expect(first.container.querySelector('[data-testid="queued-destination-changed"]')).not.toBeNull();
+    first.unmount();
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(EMPTY_PROJECT);
+    const reopened = renderPage();
+    await flushHydration();
+    expect(reopened.container.querySelector('[data-testid="queued-destination-changed"]')).toBeNull();
+    expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toHaveLength(1);
+  });
+
+  it("keeps geometry needed by undo history when the same tool is waiting for another destination", async () => {
+    const shape = rectangularShape("historic-tool", "Historic tool");
+    const pocket = parseCutoutPlacement({ id: "historic-pocket", shapeId: shape.id, position: { x: 0, y: 0 } });
+    const stored: ProjectDoc = { ...EMPTY_PROJECT, shapes: [shape], history: { index: 1, stack: [
+      { label: "Add tool", doc: { spec: EMPTY_PROJECT.spec, cutouts: [pocket], fingerHoles: [] } },
+      { label: "Remove tool", doc: { spec: EMPTY_PROJECT.spec, cutouts: [], fingerHoles: [] } },
+    ] } };
+    sessionStorage.setItem("pocketry:queued-tools", JSON.stringify([{ ...shape, pendingDestination: { key: "project:other", name: "Other project" } }]));
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(stored);
+    render(<PanelProvider><ProjectActivityProvider><ShapeLibraryProvider><ProjectStatusBar /><BinDesignerPage /></ShapeLibraryProvider></ProjectActivityProvider></PanelProvider>);
+    await flushHydration();
+    const button = (text: string) => [...document.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === text)!;
+    React.act(() => button("Backups").click());
+    React.act(() => button("Download current project backup").click());
+    const [blob] = vi.mocked(downloadBlob).mock.lastCall!;
+    const json = await new Promise<string>(resolve => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.readAsText(blob); });
+    const exported = parseProjectDoc(JSON.parse(json))!;
+    expect(exported.shapes.map(shape => shape.id)).toEqual([shape.id]);
+    expect(exported.cutouts).toHaveLength(0);
+    expect(exported.history!.stack[0].doc.cutouts).toHaveLength(1);
+  });
+
+  it("retains failed edits separately when Manage projects reopens Bin", async () => {
+    const stored = { ...EMPTY_PROJECT, name: "Socket tray" };
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(stored);
+    vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId: "socket", projects: [{ id: "socket", name: "Socket tray", updatedAt: "2026-10-08T12:00:00Z" }] });
+    const route = memoryLocation({ path: "/bin" });
+    const { container, unmount } = render(<Router hook={route.hook}><PanelProvider><ProjectActivityProvider><ShapeLibraryProvider>
+      <ProjectStatusBar /><Route path="/bin"><BinDesignerPage /></Route>
+    </ShapeLibraryProvider></ProjectActivityProvider></PanelProvider></Router>);
+    const button = (text: string) => [...document.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === text)!;
+    const backupWidth = async () => {
+      React.act(() => button("Backups").click());
+      React.act(() => button("Download unsaved edits: Socket tray").click());
+      const [blob] = vi.mocked(downloadBlob).mock.lastCall!;
+      const json = await new Promise<string>(resolve => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.readAsText(blob); });
+      React.act(() => button("Close").click());
+      return JSON.parse(json).spec.gridX;
+    };
+    try {
+      await flushHydration();
+      const input = container.querySelector<HTMLInputElement>('[aria-label="Width in standard cells"]')!;
+      React.act(() => { input.focus(); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "5"); input.dispatchEvent(new Event("input", { bubbles: true })); });
+      React.act(() => input.blur());
+      React.act(() => projectSaveMock.onSaved?.(false, new Error("Storage is full")));
+      React.act(() => route.navigate("/"));
+      expect(await backupWidth()).toBe(5);
+      React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Manage project: Socket tray"]')!.click());
+      await flushHydration();
+      React.act(() => button("Close").click());
+      React.act(() => projectSaveMock.onSaved?.(true));
+      expect(await backupWidth()).toBe(5);
+    } finally { unmount(); }
+  });
+  it.each([false, true])("keeps deferred depths through backup, reload, export recovery, and undo (mobile=%s)", async mobile => {
+    sessionStorage.setItem("pocketry:queued-tools", JSON.stringify([
+      { ...rectangularShape("first", "Tool 1"), pendingDepth: { mode: "unset" } },
+      { ...rectangularShape("second", "Tool 2"), pendingDepth: { mode: "unset" } },
+    ]));
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, spec: { ...EMPTY_PROJECT.spec, fill: "solid" } });
+    const first = renderPage({ mobile });
+    const layout = () => vi.mocked(useBinGeometry).mock.lastCall![2]!;
+    const button = (host: ParentNode, label: string) => [...host.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === label)!;
+    await flushHydration();
+    expect(layout().cutouts.every(c => c.depthPending)).toBe(true);
+    const prompt = first.container.querySelector('[data-testid="pending-pocket-depth"]')!;
+    expect(prompt.textContent).toContain("Tool 1");
+    expect(first.container.querySelector('[role="dialog"]')).toBeNull();
+    React.act(() => button(prompt, "Set later").click());
+    expect(prompt.textContent).toContain("Depth needed");
+    expect(layout().cutouts.every(c => c.depthPending)).toBe(true);
+    openSettingsSection(first.container, "project");
+    React.act(() => first.container.querySelector<HTMLButtonElement>('[data-testid="button-export-project"]')!.click());
+    const [blob] = vi.mocked(downloadBlob).mock.lastCall!;
+    const json = await new Promise<string>(resolve => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.readAsText(blob); });
+    const saved = parseProjectDoc(JSON.parse(json))!;
+    expect(saved.cutouts.every(c => c.depthPending)).toBe(true);
+    expect(saved.history!.stack[saved.history!.index].doc.cutouts).toEqual(saved.cutouts);
+    first.unmount(); sessionStorage.clear();
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(saved);
+    const reopened = renderPage({ mobile });
+    try {
+      await flushHydration();
+      expect(layout().cutouts.every(c => c.depthPending)).toBe(true);
+      openSettingsSection(reopened.container, "export");
+      expect(reopened.container.querySelector<HTMLButtonElement>('[data-testid="button-export-3mf"]')!.disabled).toBe(true);
+      React.act(() => reopened.container.querySelector<HTMLButtonElement>('[data-export-issue="pocket-depth-needed"]')!.click());
+      const question = reopened.container.querySelector('[data-testid="pending-pocket-depth"]')!;
+      expect(question.textContent).toContain("How deep should this pocket be?");
+      const input = question.querySelector<HTMLInputElement>('input[inputmode="decimal"]')!;
+      React.act(() => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "8"); input.dispatchEvent(new Event("input", { bubbles: true })); });
+      React.act(() => question.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click());
+      React.act(() => button(question, "Done").click());
+      expect(layout().cutouts.every(c => !c.depthPending && c.depth.mode === "mm" && c.depth.value === 8)).toBe(true);
+      openSettingsSection(reopened.container, "export");
+      expect(reopened.container.querySelector<HTMLButtonElement>('[data-testid="button-export-3mf"]')!.disabled).toBe(false);
+      // The entire batch is one edit and undo restores the unresolved state.
+      React.act(() => reopened.container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+      expect(layout().cutouts.every(c => c.depthPending)).toBe(true);
+    } finally { reopened.unmount(); }
+  });
+
+  it("asks about multiple traced pockets one at a time", async () => {
+    sessionStorage.setItem("pocketry:queued-tools", JSON.stringify([
+      { ...rectangularShape("first", "Tool 1"), pendingDepth: { mode: "unset" } },
+      { ...rectangularShape("second", "Tool 2"), pendingDepth: { mode: "unset" } },
+    ]));
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(EMPTY_PROJECT);
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      const prompt = () => container.querySelector('[data-testid="pending-pocket-depth"]')!;
+      const button = (label: string) => [...prompt().querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === label)!;
+      React.act(() => button("To bin floor").click());
+      React.act(() => button("Done").click());
+      expect(prompt().textContent).toContain("Tool 2");
+      expect(prompt().querySelector<HTMLInputElement>('input[inputmode="decimal"]')!.value).toBe("");
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts.filter(c => c.depthPending)).toHaveLength(1);
+      React.act(() => button("Through — no bottom").click());
+      React.act(() => button("Done").click());
+      expect(prompt()).toBeNull();
+      expect(container.textContent).toContain("Trace another photo");
+    } finally { unmount(); }
+  });
+
+  it("continues to the next unresolved pocket after a depth also resolves linked copies", async () => {
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT,
+      spec: { ...EMPTY_PROJECT.spec, fill: "solid" }, shapes: [rectangularShape("tool", "Tool")],
+      cutouts: ["Original", "Linked copy", "Independent"].map((name, index) => parseCutoutPlacement({
+        id: name, name, shapeId: "tool", position: { x: index * 15, y: 0 }, depthPending: true,
+        designLink: index < 2 ? { id: "linked-tools", tilt: false } : undefined,
+      })),
+    });
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      const button = (host: ParentNode, label: string) => [...host.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === label)!;
+      React.act(() => button(container, "Set depth").click());
+      const prompt = () => container.querySelector('[data-testid="pending-pocket-depth"]')!;
+      expect(prompt().textContent).toContain("Original");
+      React.act(() => button(prompt(), "To bin floor").click());
+      React.act(() => button(prompt(), "Done").click());
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts.filter(c => c.depthPending).map(c => c.id)).toEqual(["Independent"]);
+      expect(prompt()?.textContent).toContain("Independent");
+    } finally { unmount(); }
+  });
+
+  it.each([
+    { fixed: false, flatBottom: false }, { fixed: true, flatBottom: false },
+    { fixed: false, flatBottom: true }, { fixed: true, flatBottom: true },
+  ])("places queued tools at chosen depths and preserves them in history and export: %o", async ({ fixed, flatBottom }) => {
+    sessionStorage.setItem("pocketry:queued-tools", JSON.stringify([
+      { ...rectangularShape("shallow", "Shallow tool"), pendingDepth: { mode: "mm", value: 7.5 } },
+      { ...rectangularShape("through", "Through jig"), pendingDepth: { mode: "through" } },
+      { ...rectangularShape("floor", "To Floor tool"), pendingDepth: { mode: "to-floor" } },
+    ]));
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, keepBinSize: fixed,
+      spec: parseBinSpec({ ...EMPTY_PROJECT.spec, fill: "solid", flatBottom }) });
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      const layout = () => vi.mocked(useBinGeometry).mock.lastCall![2]!;
+      const depths = () => Object.fromEntries(layout().cutouts.map(pocket => [pocket.shapeId, pocket.depth]));
+      const expected = { shallow: { mode: "mm", value: 7.5 }, through: { mode: "through" },
+        floor: { mode: "remaining", floorThicknessMm: flatBottom ? 2 : 7 } };
+      expect(depths()).toEqual(expected);
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0].heightUnits).toBe(6);
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+      expect(layout().cutouts).toHaveLength(0);
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+      expect(depths()).toEqual(expected);
+      openSettingsSection(container, "project");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-export-project"]')!.click());
+      const [blob] = vi.mocked(downloadBlob).mock.lastCall!;
+      const json = await new Promise<string>(resolve => {
+        const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.readAsText(blob);
+      });
+      const saved = parseProjectDoc(JSON.parse(json))!;
+      expect(saved).not.toBeNull();
+      expect(Object.fromEntries(saved.cutouts.map(pocket => [pocket.shapeId, pocket.depth]))).toEqual(expected);
+      expect(saved.history!.stack[saved.history!.index].doc.cutouts).toEqual(saved.cutouts);
+      expect(saved.shapes.every(shape => !("pendingDepth" in shape))).toBe(true);
+    } finally { unmount(); }
+  });
+
+  it.each([
+    { layout: "standard", mobile: false }, { layout: "workflow", mobile: false },
+    { layout: "standard", mobile: true }, { layout: "workflow", mobile: true },
+  ])("explains blocked export and opens Solid fill to fix it: %o", async ({ layout, mobile }) => {
+    const originalUrl = window.location.href;
+    window.history.replaceState(null, "", `/bin?layout=${layout}`);
+    const shape = rectangularShape("tool", "Wrench");
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape],
+      spec: parseBinSpec({ ...EMPTY_PROJECT.spec, fill: "none" }),
+      cutouts: [parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 0, y: 0 }, depth: { mode: "mm", value: 5 } })] });
+    const { container, unmount } = renderPage({ mobile });
+    try {
+      await flushHydration();
+      openSettingsSection(container, "export");
+      expect(container.querySelector('[data-testid="export-blocked-reasons"]')?.textContent).toContain("3D export");
+      expect(container.querySelector<HTMLButtonElement>('[data-testid="button-export-3mf"]')!.disabled).toBe(true);
+      await React.act(async () => container.querySelector<HTMLButtonElement>('[data-export-issue="cutouts-require-solid-fill"]')!.click());
+      await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 60)); });
+      const solidFill = container.querySelector<HTMLButtonElement>('#bin-solid-fill')!;
+      expect(solidFill.closest('[hidden], [inert]')).toBeNull();
+      expect(document.activeElement).toBe(solidFill);
+      React.act(() => solidFill.click());
+      openSettingsSection(container, "export");
+      expect(container.querySelector('[data-testid="export-blocked-reasons"]')).toBeNull();
+      expect(container.querySelector<HTMLButtonElement>('[data-testid="button-export-3mf"]')!.disabled).toBe(false);
+    } finally { unmount(); window.history.replaceState(null, "", originalUrl); }
+  });
+
+  it.each([false, true])("shows save failure and downloads a backup outside the controls (mobile=%s)", async mobile => {
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(EMPTY_PROJECT);
+    const { container, unmount } = renderPage({ mobile });
+    try {
+      await flushHydration();
+      React.act(() => projectSaveMock.onSaved?.(false, new Error("Projects changed in another tab. Download a backup, then reload.")));
+      const banner = container.querySelector('[data-testid="bin-save-error"]')!;
+      expect(banner.getAttribute("role")).toBe("alert");
+      expect(banner.closest('[data-testid="bin-canvas"]')).not.toBeNull();
+      expect(banner.textContent).toContain("another tab");
+      React.act(() => banner.querySelector<HTMLButtonElement>("button")!.click());
+      expect(downloadBlob).toHaveBeenCalledOnce();
+      const [backup, filename] = vi.mocked(downloadBlob).mock.calls[0];
+      expect(filename).toMatch(/\.pocketry\.json$/);
+      const text = await new Promise<string>(resolve => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.readAsText(backup); });
+      expect(JSON.parse(text).spec.gridX).toBe(EMPTY_PROJECT.spec.gridX);
+      expect(container.querySelector('[data-testid="bin-save-error"]')).not.toBeNull();
+      React.act(() => projectSaveMock.onSaved?.(true));
+      expect(container.querySelector('[data-testid="bin-save-error"]')).toBeNull();
+    } finally { unmount(); }
+  });
+
+  it("keeps project identity and a failed save visible after leaving Bin", async () => {
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, name: "Socket tray" });
+    const route = memoryLocation({ path: "/bin" });
+    const { container } = render(<Router hook={route.hook}><PanelProvider><ProjectActivityProvider>
+      <ProjectStatusBar /><Route path="/bin"><ShapeLibraryProvider><BinDesignerPage /></ShapeLibraryProvider></Route>
+    </ProjectActivityProvider></PanelProvider></Router>);
+    await flushHydration();
+    expect(container.querySelector('[data-testid="global-project-status"]')!.textContent).toContain("Socket tray");
+    const completion = projectSaveMock.onSaved;
+    React.act(() => route.navigate("/"));
+    React.act(() => completion?.(false, new Error("Could not save the last edit")));
+    expect(container.querySelector('[data-testid="global-project-status"]')!.textContent).toContain("Project storage needs attention");
+    React.act(() => [...container.querySelectorAll("button")].find(button => button.textContent === "Backups")!.click());
+    expect(document.body.textContent).toContain("Could not save the last edit");
+    React.act(() => [...document.querySelectorAll("button")].find(button => button.textContent === "Download current project backup")!.click());
+    expect(downloadBlob).toHaveBeenCalledOnce();
+  });
+
+  it("reports a failed project restore without writing an empty replacement", async () => {
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockRejectedValue(new Error("Saved project is unreadable; it has been kept intact."));
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      expect(container.querySelector('[data-testid="bin-save-error"]')?.textContent).toContain("kept intact");
+      expect(container.querySelector('[data-testid="bin-save-error"] button')).toBeNull();
+      expect(ProjectPersistence.saveProjectDoc).not.toHaveBeenCalled();
+      expect(ProjectPersistence.loadProjectLibrary).toHaveBeenCalledWith();
+      openSettingsSection(container, "project");
+      expect(container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.disabled).toBe(false);
+      expect(container.querySelector<HTMLButtonElement>('[data-testid="button-new-project"]')!.disabled).toBe(true);
+    } finally { unmount(); }
+  });
+
+  it.each([
+    { layout: "standard", mobile: false }, { layout: "workflow", mobile: false },
+    { layout: "standard", mobile: true }, { layout: "workflow", mobile: true },
+  ])("offers saving a draft before starting new and retains it on failure: %o", async ({ layout, mobile }) => {
+    const originalUrl = window.location.href;
+    window.history.replaceState(null, "", `/bin?layout=${layout}`);
+    const draft = { ...EMPTY_PROJECT, spec: parseBinSpec({ ...EMPTY_PROJECT.spec, gridX: 3 }),
+      materials: { ...DEFAULT_BIN_MATERIALS, binColor: "#123456" } };
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(draft);
+    vi.mocked(ProjectPersistence.startNewProject).mockRejectedValueOnce(new Error("Storage is full"));
+    const { container, unmount } = renderPage({ mobile });
+    try {
+      await flushHydration();
+      openSettingsSection(container, "project");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-new-project"]')!.click());
+      const dialog = document.querySelector('[role="alertdialog"]')!;
+      expect(dialog.textContent).toContain("Save this draft before starting over?");
+      expect(dialog.textContent).toContain("Discard draft and start new");
+      const input = dialog.querySelector<HTMLInputElement>('[data-testid="input-new-project-draft-name"]')!;
+      const save = dialog.querySelector<HTMLButtonElement>('[data-testid="button-save-draft-start-new"]')!;
+      expect(save.disabled).toBe(true);
+      React.act(() => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "My draft");
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      await React.act(async () => save.click());
+      expect(dialog.querySelector('[role="alert"]')?.textContent).toContain("Your current work is still open");
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0].gridX).toBe(3);
+      expect(ProjectPersistence.startNewProject).toHaveBeenCalledWith(expect.objectContaining({ shapes: [] }), {
+        name: "My draft", doc: expect.objectContaining({ spec: draft.spec, materials: draft.materials }),
+      });
+      await React.act(async () => save.click());
+      expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0].gridX).toBe(2);
+    } finally { unmount(); window.history.replaceState(null, "", originalUrl); }
+  });
+
+  it("keeps newer and unreadable library entries visible, blocks editing, and retains backup access", async () => {
+    const projects: ProjectPersistence.ProjectLibraryItem[] = [
+      { id: "future", name: "Future tray", updatedAt: "2026-10-08T00:00:00Z", unavailable: "newer-version" },
+      { id: "broken", name: "Unreadable tray", updatedAt: "2026-10-08T00:00:00Z", unavailable: "unreadable" },
+    ];
+    vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId: null, projects });
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      openSettingsSection(container, "project");
+      await React.act(async () => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
+      const dialog = document.querySelector('[role="dialog"]')!;
+      expect(dialog.textContent).toContain("2 saved projects");
+      expect(dialog.textContent).toContain("Saved by a newer Pocketry version");
+      expect(dialog.textContent).toContain("could not be read by this version");
+      for (const project of projects) {
+        for (const action of ["open", "rename", "duplicate"]) {
+          expect(dialog.querySelector<HTMLButtonElement>(`[data-testid="button-${action}-project-${project.id}"]`)!.disabled).toBe(true);
+        }
+        const row = dialog.querySelector(`[data-testid="library-project-${project.id}"]`)!;
+        await React.act(async () => {
+          row.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+          row.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+        });
+      }
+      expect(ProjectPersistence.openProjectFromLibrary).not.toHaveBeenCalled();
+      expect(dialog.querySelector<HTMLButtonElement>('[data-testid="button-export-library"]')!.disabled).toBe(false);
+    } finally { unmount(); }
+  });
+
+  it("exports the intact library without an empty fallback after the working copy cannot be restored", async () => {
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockRejectedValue(new Error("Saved by a newer version"));
+    vi.mocked(ProjectPersistence.exportProjectLibrary).mockResolvedValue({ format: "pocketry-library", schemaVersion: 1, projects: [] });
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      openSettingsSection(container, "project");
+      await React.act(async () => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
+      await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-export-library"]')!.click());
+      expect(ProjectPersistence.exportProjectLibrary).toHaveBeenCalledExactlyOnceWith(undefined);
+      expect(downloadBlob).toHaveBeenCalledOnce();
+      expect(ProjectPersistence.saveProjectDoc).not.toHaveBeenCalled();
+    } finally { unmount(); }
+  });
+
+  it("shows a failed library refresh as an error and allows a retry", async () => {
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      vi.mocked(ProjectPersistence.loadProjectLibrary).mockRejectedValueOnce(new Error("Browser storage could not be read."));
+      openSettingsSection(container, "project");
+      await React.act(async () => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
+      const dialog = document.querySelector('[role="dialog"]')!;
+      expect(dialog.textContent).toContain("Browser storage could not be read.");
+      expect(dialog.textContent).not.toContain("No named projects yet.");
+      await React.act(async () => [...dialog.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "Try again")!.click());
+      expect(dialog.textContent).toContain("No named projects yet.");
+    } finally { unmount(); }
+  });
+
+  it("keeps this tab's project identity when refreshing a library changed by another tab", async () => {
+    const projects = ["First", "Second"].map(name => ({ id: name, name, updatedAt: "2026-10-08T00:00:00Z" }));
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, name: "First" });
+    vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId: "First", projects });
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId: "Second", projects });
+      openSettingsSection(container, "project");
+      await React.act(async () => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
+      expect(container.querySelector('[data-testid="button-edit-project-name"]')?.parentElement?.textContent).toContain("First");
+      const dialog = document.querySelector('[role="dialog"]')!;
+      expect(dialog.querySelector('[data-testid="managed-project-list"]')?.textContent).toContain("Second");
+    } finally { unmount(); }
+  });
+
   it.each([
     { layout: "standard", mobile: false }, { layout: "workflow", mobile: false },
     { layout: "standard", mobile: true }, { layout: "workflow", mobile: true },
@@ -392,7 +965,7 @@ describe("BinDesignerPage", () => {
     vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT,
       spec: parseBinSpec({ ...EMPTY_PROJECT.spec, surfaceTexts: [{ id: "canvas-label", name: "Tool label", text: "METRIC", position: { x: 0, y: 25 } }] }),
     });
-    const { container, unmount } = renderPage({ mobile });
+    const { container, unmount } = renderPage({ mobile, experimental: false });
     try {
       await flushHydration();
       const click3D = () => React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-select-text-3d-canvas-label"]')!.click());
@@ -427,9 +1000,9 @@ describe("BinDesignerPage", () => {
       expect(wording().closest("[hidden]")).toBeNull();
       expect(container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.disabled).toBe(true);
       React.act(() => experimentalSettings.setEnabled(false));
-      expect(document.querySelector('[data-testid="surface-text-editor"]')).toBeNull();
+      expect(document.querySelector('[data-testid="surface-text-editor"]')).not.toBeNull();
       React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-3d"]')!.click());
-      expect(container.querySelector<HTMLButtonElement>('[data-testid="button-select-text-3d-canvas-label"]')!.disabled).toBe(true);
+      expect(container.querySelector<HTMLButtonElement>('[data-testid="button-select-text-3d-canvas-label"]')!.disabled).toBe(false);
     } finally { unmount(); window.history.replaceState(null, "", originalUrl); }
   });
 
@@ -439,7 +1012,7 @@ describe("BinDesignerPage", () => {
     vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT,
       spec: parseBinSpec({ ...EMPTY_PROJECT.spec, surfaceTexts: [{ id: "transform-text", name: "Tool label", text: "METRIC", position: { x: 0, y: 25 } }] }),
     });
-    const { container, unmount } = renderPage();
+    const { container, unmount } = renderPage({ experimental: false });
     try {
       await flushHydration();
       React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-select-text-3d-transform-text"]')!.click());
@@ -464,8 +1037,8 @@ describe("BinDesignerPage", () => {
       expect(container.querySelector('[data-testid="inspector-properties-header"] h3')!.textContent).toBe("Materials & Colors");
       expect(container.querySelector('[data-testid="input-text-color"]')!.closest('[hidden]')).toBeNull();
       React.act(() => experimentalSettings.setEnabled(false));
-      expect(container.querySelector('[data-testid="commit-text-move"]')).toBeNull();
-      expect(container.querySelector('[data-testid="input-text-color"]')).toBeNull();
+      expect(container.querySelector('[data-testid="commit-text-move"]')).not.toBeNull();
+      expect(container.querySelector('[data-testid="input-text-color"]')).not.toBeNull();
     } finally { unmount(); window.history.replaceState(null, "", originalUrl); }
   });
 
@@ -481,7 +1054,7 @@ describe("BinDesignerPage", () => {
         { id: "second-text", text: "SAE", position: { x: 0, y: 10 } },
       ] }),
     });
-    const { container, unmount } = renderPage({ mobile });
+    const { container, unmount } = renderPage({ mobile, experimental: false });
     try {
       await flushHydration();
       const left = container.querySelector<HTMLElement>("#workflow-panel")!;
@@ -532,7 +1105,7 @@ describe("BinDesignerPage", () => {
     } finally { unmount(); window.history.replaceState(null, "", originalUrl); }
   });
 
-  it.each([false, true])("adds surface text from the toolbar and gates the menu and instance limit (mobile=%s)", async mobile => {
+  it.each([false, true])("adds surface text from the toolbar by default and enforces the instance limit (mobile=%s)", async mobile => {
     const originalUrl = window.location.href;
     window.history.replaceState(null, "", "/bin?layout=workflow");
     const { container, unmount } = renderPage({ mobile, experimental: false });
@@ -543,9 +1116,8 @@ describe("BinDesignerPage", () => {
       const openAdd = () => React.act(() => container.querySelector('[data-testid="toolbar-add-object"]')!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
       const closeAdd = () => React.act(() => document.querySelector('[role="menu"]')!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
       openAdd();
-      expect(menu()).toBeUndefined();
+      expect(menu()).toBeDefined();
       closeAdd();
-      React.act(() => experimentalSettings.setEnabled(true));
       for (let i = 0; i < 32; i++) {
         openAdd();
         React.act(() => menu()!.click());
@@ -565,7 +1137,7 @@ describe("BinDesignerPage", () => {
       expect(container.querySelector('[data-testid="surface-text-editor"]')).toBeNull();
       React.act(() => experimentalSettings.setEnabled(false));
       openAdd();
-      expect(menu()).toBeUndefined();
+      expect(menu()).toBeDefined();
       closeAdd();
     } finally { unmount(); window.history.replaceState(null, "", originalUrl); }
   });
@@ -582,7 +1154,7 @@ describe("BinDesignerPage", () => {
       cutouts: [pocket.cutout], shapes: [pocket.shape],
     });
     binGeometryMock.error = 'Text “Wiha” must fit on the flat surface, clear of pockets and openings.';
-    const { container, unmount } = renderPage({ mobile });
+    const { container, unmount } = renderPage({ mobile, experimental: false });
     try {
       await flushHydration();
       expect(container.querySelector('[data-testid="bin-viewport-stub"]')).not.toBeNull();
@@ -626,7 +1198,7 @@ describe("BinDesignerPage", () => {
       expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toEqual([pocket.cutout]);
       React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
       expect(current().surfaceTexts[0].position).toEqual({ x: 0, y: 0 });
-      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+      clickBinHistory(container, "redo");
       expect(current().surfaceTexts[0].position).toEqual({ x: 0, y: 60 });
     } finally { unmount(); window.history.replaceState(null, "", originalUrl); }
   });
@@ -634,42 +1206,33 @@ describe("BinDesignerPage", () => {
   it.each([
     { layout: "standard", mobile: false }, { layout: "workflow", mobile: false },
     { layout: "standard", mobile: true }, { layout: "workflow", mobile: true },
-  ])("gates text editing and dragging while retaining the design: %o", async ({ layout, mobile }) => {
+  ])("keeps text controls available without experimental opt-in: %o", async ({ layout, mobile }) => {
     const originalUrl = window.location.href;
     window.history.replaceState(null, "", `/bin?layout=${layout}`);
     const { container, unmount } = renderPage({ mobile, experimental: false });
-    const addText = () => document.querySelector<HTMLButtonElement>('[data-testid="button-add-surface-text"]');
-    const textNavigation = () => document.querySelector('[data-testid="bin-settings-jump-surface-text"], #workflow-panel #bin-settings-text');
     try {
       await flushHydration();
       if (mobile && layout === "standard") {
         React.act(() => [...container.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "Adjust")!.click());
         React.act(() => [...document.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "All properties")!.click());
       }
-      expect(addText()).toBeNull();
-      expect(textNavigation()).toBeNull();
-      React.act(() => experimentalSettings.setEnabled(true));
-      expect(textNavigation()).not.toBeNull();
       openSettingsSection(document.body, "text");
-      React.act(() => addText()!.click());
+      React.act(() => document.querySelector<HTMLButtonElement>('[data-testid="button-add-surface-text"]')!.click());
       const before = structuredClone(vi.mocked(useBinGeometry).mock.lastCall![0]);
-      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
-      const path = () => container.querySelector('[data-testid="surface-text-layer"] rect')!;
-      expect(path().getAttribute("pointer-events")).toBe("all");
+      const hit = () => container.querySelector('[data-testid="surface-text-layer"] rect')!;
+      expect(hit().getAttribute("pointer-events")).toBe("all");
+      React.act(() => experimentalSettings.setEnabled(true));
       React.act(() => experimentalSettings.setEnabled(false));
-      expect(addText()).toBeNull();
-      expect(textNavigation()).toBeNull();
-      expect(document.querySelector('[aria-label="Text color"]')).toBeNull();
-      expect(path().getAttribute("pointer-events")).toBe("none");
+      expect(hit().getAttribute("pointer-events")).toBe("all");
       expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toEqual(before);
-      expect(document.querySelector('[data-testid="experimental-design-notice"]')!.textContent).toContain("surface text");
+      expect(document.querySelector('[data-testid="experimental-design-notice"]')).toBeNull();
       React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-3d"]')!.click());
       React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="legend-text"]')!.click());
-      expect(experimentalSettings.settingsOpen).toBe(true);
-      expect(addText()).toBeNull();
-      React.act(() => { experimentalSettings.setSettingsOpen(false); experimentalSettings.setEnabled(true); });
+      expect(experimentalSettings.settingsOpen).toBe(false);
+      expect(document.querySelector('[aria-label="Text color"]')).not.toBeNull();
       openSettingsSection(document.body, "text");
       expect(document.querySelector<HTMLInputElement>('[data-testid="surface-text-editor"] input[type="text"]')!.value).toBe("Text");
+      expect(experimentalSettings.enabled).toBe(false);
       expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toEqual(before);
     } finally { unmount(); window.history.replaceState(null, "", originalUrl); }
   });
@@ -690,10 +1253,11 @@ describe("BinDesignerPage", () => {
       await flushHydration();
       expect(experimentalSettings.enabled).toBe(false);
       expect(projectToast).not.toHaveBeenCalledWith(expect.objectContaining({ title: "Experimental features enabled" }));
-      expect(container.querySelector('[data-testid="experimental-design-notice"]') === null).toBe(historyOnly);
+      expect(container.querySelector('[data-testid="experimental-design-notice"]')).toBeNull();
       if (historyOnly) React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
       expect(experimentalSettings.enabled).toBe(false);
-      expect(container.querySelector('[data-testid="button-add-surface-text"]')).toBeNull();
+      openSettingsSection(container, "text");
+      expect(container.querySelector('[data-testid="button-add-surface-text"]')).not.toBeNull();
       expect(vi.mocked(useBinGeometry).mock.lastCall![0].surfaceTexts).toEqual(spec.surfaceTexts);
     } finally { unmount(); }
   });
@@ -701,7 +1265,7 @@ describe("BinDesignerPage", () => {
   it.each(["standard", "workflow"])("edits surface text with undo and exports independent 3MF parts (%s)", async layout => {
     const originalUrl = window.location.href;
     window.history.replaceState(null, "", `/bin?layout=${layout}`);
-    const { container, unmount } = renderPage();
+    const { container, unmount } = renderPage({ experimental: false });
     try {
       await flushHydration();
       React.act(() => {
@@ -725,7 +1289,7 @@ describe("BinDesignerPage", () => {
       expect(current()[0].text).toBe("Metric & SAE");
       React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
       expect(current()[0].text).toBe("Text");
-      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+      clickBinHistory(container, "redo");
       expect(current()[0].text).toBe("Metric & SAE");
       const textColor = () => vi.mocked(useBinGeometry).mock.lastCall![0].textColor;
       expect(textColor()).toBeNull();
@@ -739,7 +1303,7 @@ describe("BinDesignerPage", () => {
       expect(current()[0].font).toBe("sans-bold");
       React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
       expect(current()[0].font).toBe("helvetiker");
-      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+      clickBinHistory(container, "redo");
       expect(current()[0].font).toBe("sans-bold");
       openSettingsSection(container, "materials");
       expect(document.querySelector<HTMLInputElement>('[aria-label="Text color"]')!.value).toBe("#000000");
@@ -760,7 +1324,7 @@ describe("BinDesignerPage", () => {
       expect(textColor()).toBe("#2244ff");
       React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
       expect(textColor()).toBe("#ff6600");
-      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+      clickBinHistory(container, "redo");
       expect(textColor()).toBe("#2244ff");
       expect([...container.querySelectorAll('[data-testid="surface-text-layer"] path')].map(path => path.getAttribute("fill"))).toEqual(["#2244ff", "#2244ff"]);
       const mesh = { positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]), indices: new Uint32Array([0, 1, 2]), normals: null };
@@ -868,7 +1432,7 @@ describe("BinDesignerPage", () => {
         const after = committed();
         React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
         expect(committed()).toEqual(before);
-        React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+        clickBinHistory(container, "redo");
         expect(committed()).toEqual(after);
       } finally {
         unmount();
@@ -942,7 +1506,7 @@ describe("BinDesignerPage", () => {
         expect(container.querySelector<HTMLInputElement>(`[aria-label="${label}"]`)!.value).toBe(value);
         React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
         expect(committed()).toEqual(before);
-        React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+        clickBinHistory(container, "redo");
         expect(committed()).toEqual([edited, before[1]]);
       } finally {
         unmount();
@@ -998,7 +1562,7 @@ describe("BinDesignerPage", () => {
       expect(latest().find(c => c.id === copy.id)).toEqual(beforeMove.find(c => c.id === copy.id));
       React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
       expect(latest()).toEqual(beforeMove);
-      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+      clickBinHistory(container, "redo");
       expect(latest().map(c => c.rotationDeg)).toEqual([0, 180]);
     } finally {
       unmount();
@@ -1037,7 +1601,7 @@ describe("BinDesignerPage", () => {
       expect(latest()).toMatchObject({elevationMm:80,rotationDeg:20,position:original.position,depth:original.depth,split:original.split});
       React.act(()=>container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
       expect(latest().tilt).toEqual({xDeg:135,yDeg:-24});
-      React.act(()=>container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+      clickBinHistory(container, "redo");
       expect(latest().tilt).toEqual({xDeg:0,yDeg:0});
       expect(parseProjectDoc({...EMPTY_PROJECT,shapes:[shape],cutouts:[latest()]})?.cutouts[0]).toEqual(latest());
     } finally {unmount();}
@@ -1120,7 +1684,7 @@ describe("BinDesignerPage", () => {
       }
       React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
       expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.fingerHoles).toEqual([existing]);
-      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+      clickBinHistory(container, "redo");
       expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.fingerHoles).toEqual([existing, added]);
     } finally { unmount(); }
   });
@@ -1222,7 +1786,9 @@ describe("BinDesignerPage", () => {
       openSettingsSection(container, "project");
       const replace = async () => {
         if (action === "new") {
-          React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-new-project"]')!.click());
+          if (!document.querySelector('[role="alertdialog"]')) {
+            React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-new-project"]')!.click());
+          }
           await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-confirm-new-project"]')!.click());
         } else {
           const input = container.querySelector<HTMLInputElement>('input[type="file"][accept*=".pocketry.json"]')!;
@@ -1238,6 +1804,7 @@ describe("BinDesignerPage", () => {
       expect(replaceProject).not.toHaveBeenCalled();
       await React.act(async () => finishSave(false));
       expect(replaceProject).not.toHaveBeenCalled();
+      if (action === "new") expect(document.querySelector('[role="alertdialog"] [role="alert"]')?.textContent).toContain("Your current work is still open");
       expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toEqual(edited);
       await replace();
       expect(replaceProject).not.toHaveBeenCalled();
@@ -1361,7 +1928,7 @@ describe("BinDesignerPage", () => {
       expect(latest.cutouts[0].shapeId).not.toBe(shape.id);
       React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
       expect(guide()).toBe(originalGuide);
-      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+      clickBinHistory(container, "redo");
       expect(guide()).toBe('M41.75,51.75 L41.75,29.75');
       expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0].split).toEqual(cutout.split);
       React.act(() => [...container.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === '3D')!.click());
@@ -1466,7 +2033,7 @@ describe("BinDesignerPage", () => {
     expect(path.getAttribute('d')).toBe(outline);
     React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
     expect(depth().value).toBe('6');
-    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+    clickBinHistory(container, "redo");
     pointer('pointerdown', 31.75, 41.75); pointer('pointerup', 31.75, 41.75);
     expect(depth().value).toBe('6');
     React.act(() => button("Remove split").click());
@@ -2076,7 +2643,7 @@ describe("BinDesignerPage", () => {
       expect(ringHandles()).toHaveLength(4);
       expect(svg.querySelector('[data-cutout-id="pocket"]')!.getAttribute('d')).toBe(original);
       expect(container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.disabled).toBe(true);
-      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+      clickBinHistory(container, "redo");
       expect(ringHandles()).toHaveLength(3);
       const first = ringHandles()[0];
       const x = Number(first.getAttribute('cx')), y = Number(first.getAttribute('cy'));
@@ -2085,9 +2652,10 @@ describe("BinDesignerPage", () => {
       pointer(svg, 'pointerup', x + 10, y + 10);
       expect(ringHandles()).toHaveLength(3);
       expect(Number(ringHandles()[0].getAttribute('cx'))).toBeCloseTo(x + 10);
-      const edit = container.querySelector<HTMLButtonElement>('[data-testid="button-layout-edit-contour"]')!;
-      React.act(() => edit.click());
+      const finish = toolButton(container, 'Finish contour editing');
+      React.act(() => finish.click());
       expect(container.querySelector('[aria-label="Contour editing tools"]')).toBeNull();
+      const edit = toolButton(container, 'Edit contour');
       React.act(() => edit.click());
       expect(deleteButton()).toBeUndefined();
     } finally { unmount(); }
@@ -2429,7 +2997,7 @@ describe("BinDesignerPage", () => {
       expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toMatchObject({ fill: "none", wallThicknessMm: 2.4 });
       React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
       expect(field()!.value).toBe("0.95");
-      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+      clickBinHistory(container, "redo");
       expect(field()!.value).toBe("2.4");
       React.act(() => toggle().click());
       expect(field()).toBeNull();
@@ -2495,6 +3063,58 @@ describe("BinDesignerPage", () => {
     chooseBottom("Gridfinity feet");
     expect(control("Magnet holes").getAttribute("aria-checked")).toBe("true");
     unmount();
+  });
+
+  it.each(["standard", "workflow"])("requires Experimental to create ULTIM8 pegs in the %s layout", async layout => {
+    window.history.replaceState(null, "", `/bin?layout=${layout}`);
+    const { container, unmount } = renderPage({ experimental: false });
+    await flushHydration();
+    try {
+      openSettingsSection(container, "construction");
+      const trigger = () => container.querySelector<HTMLButtonElement>('[data-testid="select-bin-bottom"]')!;
+      React.act(() => trigger().dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true })));
+      const options = () => [...document.querySelectorAll<HTMLElement>('[role="option"]')];
+      expect(options().map(o => o.textContent)).toEqual(["Gridfinity feet", "Flat bottom"]);
+      React.act(() => options().find(o => o.textContent === "Flat bottom")!.click());
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0].flatBottom).toBe(true);
+      React.act(() => experimentalSettings.setEnabled(true));
+      React.act(() => trigger().dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true })));
+      React.act(() => options().find(o => o.textContent === "ULTIM8 jig pegs")!.click());
+      expect(container.querySelector('[aria-label="Peg diameter in millimetres"]')).not.toBeNull();
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0].pegBottom).not.toBeNull();
+    } finally { unmount(); }
+  });
+
+  it.each(["standard", "workflow"])("keeps restored ULTIM8 pegs visible without opting into editing in the %s layout", async layout => {
+    window.history.replaceState(null, "", `/bin?layout=${layout}`);
+    const spec = parseBinSpec({ ...EMPTY_PROJECT.spec, lip: "none", heightUnits: 8.5 / 7,
+      arbitrarySizeMm: { width: 159.4, length: 75 }, pegBottom: { underside: "flat", density: "corners", lengthMm: 3.5 } });
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, spec });
+    const { container, unmount } = renderPage({ experimental: false });
+    await flushHydration();
+    try {
+      openSettingsSection(container, "construction");
+      const current = () => vi.mocked(useBinGeometry).mock.lastCall![0];
+      expect(experimentalSettings.enabled).toBe(false);expect(current().pegBottom).toEqual(spec.pegBottom);
+      expect(container.querySelector('[data-testid="select-bin-bottom"]')!.textContent).toBe("ULTIM8 jig pegs");
+      expect(container.querySelector('[aria-label="Peg underside"]')).toBeNull();
+      expect(container.querySelector('[aria-label="Peg density"]')).toBeNull();
+      expect(container.querySelector('[aria-label="Peg diameter in millimetres"]')).toBeNull();
+      const notice = container.querySelector('[data-testid="experimental-design-notice"]')!;
+      expect(notice.textContent).toContain("ULTIM8 jig pegs");
+      React.act(() => notice.querySelector<HTMLButtonElement>('button')!.click());
+      expect(experimentalSettings.enabled).toBe(true);
+      expect(container.querySelector('[aria-label="Peg density"]')).not.toBeNull();
+      const diameter = container.querySelector<HTMLInputElement>('[aria-label="Peg diameter in millimetres"]')!;
+      React.act(() => { diameter.focus(); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(diameter,"4.6");diameter.dispatchEvent(new Event("input", { bubbles: true })); });
+      React.act(() => diameter.blur());
+      React.act(() => experimentalSettings.setEnabled(false));
+      expect(current().pegBottom).toEqual({ ...spec.pegBottom!, diameterMm: 4.6 });
+      expect(current().arbitrarySizeMm).toEqual(spec.arbitrarySizeMm);expect(current().heightUnits).toBe(spec.heightUnits);
+      expect(container.querySelector('[aria-label="Peg diameter in millimetres"]')).toBeNull();
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+      expect(experimentalSettings.enabled).toBe(false);expect(current().pegBottom).toEqual(spec.pegBottom);
+    } finally { unmount(); }
   });
 
   it.each(["standard", "workflow"])("edits ULTIM8 peg bottoms, restores base holes, and undoes fit edits in the %s layout", async layout => {
@@ -2808,7 +3428,7 @@ describe("BinDesignerPage", () => {
     expect(properties.firstElementChild?.textContent).toContain("Thumb access");
     React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
     expect(select().textContent).toBe("Finger access 1");
-    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+    clickBinHistory(container, "redo");
     expect(select().textContent).toBe("Thumb access");
     input = editName("Cancelled name");
     React.act(() => input.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
@@ -2844,7 +3464,7 @@ describe("BinDesignerPage", () => {
     expect(current()?.cornerRoundMm).toBe(5);
     React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
     expect(input()!.value).toBe("0");
-    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+    clickBinHistory(container, "redo");
     expect(input()!.value).toBe("5");
     edit("Width", "6");
     expect(input()!.max).toBe("3");
@@ -3567,7 +4187,8 @@ describe("BinDesignerPage", () => {
     expect(container.querySelector('[data-testid="pocket-properties-heading"]')!.textContent).toContain('Wrench');
     openSettingsSection(container, 'export');
     expect(container.querySelector<HTMLButtonElement>('[data-testid="button-export-stl"]')!.disabled).toBe(true);
-    expect(container.querySelector('#bin-settings-export [data-issue-code]')).toBeNull();
+    expect(container.querySelector('[data-testid="export-blocked-reasons"]')?.textContent).toContain("3D export");
+    expect(container.querySelector('[data-export-issue="out-of-bounds"]')).not.toBeNull();
     unmount();
   });
 
@@ -3639,7 +4260,8 @@ describe("BinDesignerPage", () => {
     expect(issue.textContent).toContain("Air Duster");
     expect(issue.textContent).toContain("Floor color may show on the underside");
     React.act(() => issue.click());
-    expect(container.querySelector('[data-testid="pocket-properties-heading"]')!.textContent).toContain("Air Duster");
+    expect(container.querySelector('#bin-settings-materials')).not.toBeNull();
+    expect(issue.textContent).toContain("Edit floor color thickness");
     expect(issue.closest('[data-testid="bin-canvas"]')).not.toBeNull();
     expect(container.querySelectorAll(issueSelector)).toHaveLength(1);
     expect(container.querySelector('[data-testid="selected-object-issues"]')).toBeNull();
@@ -3648,6 +4270,8 @@ describe("BinDesignerPage", () => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
       input.dispatchEvent(new Event("input", { bubbles: true }));
     });
+    openSettingsSection(container, "tool-cutouts");
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-select-pocket"]')!.click());
     const depthInput = container.querySelector<HTMLInputElement>('[aria-label="Pocket cut depth in millimetres"]')!;
     setNumber(depthInput, "38.8");
     expect(container.querySelector(issueSelector)).toBeNull();
@@ -4040,7 +4664,8 @@ describe("BinDesignerPage", () => {
     await flushHydration();
     try {
       React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
-      React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Pan layout"]')!.click());
+      const pan = toolButton(container, "Pan layout");
+    React.act(() => pan.click());
       const add = container.querySelector<HTMLButtonElement>('[data-testid="toolbar-add-object"]')!;
       React.act(() => add.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
       React.act(() => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(item => item.textContent === `${kind} pocket`)!.click());
@@ -4076,7 +4701,7 @@ describe("BinDesignerPage", () => {
       React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
       expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toEqual([]);
       expect(container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.disabled).toBe(true);
-      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+      clickBinHistory(container, "redo");
       expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toEqual(layout.cutouts);
     } finally { unmount(); }
   });
@@ -4634,7 +5259,7 @@ describe("BinDesignerPage", () => {
       expect(document.querySelector('[role="alertdialog"]')?.textContent).toContain("Saved tray");
       expect(ProjectPersistence.openProjectFromLibrary).not.toHaveBeenCalled();
       expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toEqual(draft.cutouts);
-      const keep = document.querySelector<HTMLButtonElement>('[role="alertdialog"] button')!;
+      const keep = [...document.querySelectorAll<HTMLButtonElement>('[role="alertdialog"] button')].find(button => button.textContent === "Keep working")!;
       expect(keep.textContent).toBe("Keep working");
       React.act(() => keep.click());
       // Radix restores focus after the closing focus scope has unmounted.
@@ -4675,7 +5300,7 @@ describe("BinDesignerPage", () => {
       expect(document.querySelector('[role="alertdialog"]')).not.toBeNull();
       expect(confirm().disabled).toBe(false);
       expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toEqual(draft.spec);
-      React.act(() => document.querySelector<HTMLButtonElement>('[role="alertdialog"] button')!.click());
+      React.act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="alertdialog"] button')].find(button => button.textContent === "Keep working")!.click());
       expect(document.querySelector('[role="alertdialog"]')).toBeNull();
       expect(document.querySelector('[data-testid="managed-project-list"]')).not.toBeNull();
     } finally { unmount(); }
@@ -4733,7 +5358,7 @@ describe("BinDesignerPage", () => {
         expect(document.querySelector('[role="alertdialog"]')?.textContent).toContain("Replace the current draft?");
         expect(ProjectPersistence.importProjectToLibrary).not.toHaveBeenCalled();
         expect(vi.mocked(useBinGeometry).mock.lastCall![0].heightUnits).toBe(9);
-        React.act(() => document.querySelector<HTMLButtonElement>('[role="alertdialog"] button')!.click());
+        React.act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="alertdialog"] button')].find(button => button.textContent === "Keep working")!.click());
         expect(vi.mocked(useBinGeometry).mock.lastCall![0].heightUnits).toBe(9);
       } else {
         expect(ProjectPersistence.saveProjectDoc).toHaveBeenCalledWith(expect.objectContaining({
@@ -4814,7 +5439,7 @@ describe("BinDesignerPage", () => {
     } finally { unmount(); }
   });
 
-  it("keeps a nonempty draft and returns focus to Open project file when replacement is cancelled", async () => {
+  it("keeps a nonempty draft and returns focus to Import Project file when replacement is cancelled", async () => {
     const draft = parseProjectDoc(ryobiReloadFixture)!;
     vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(draft);
     const { container, unmount } = renderPage();
@@ -4831,7 +5456,7 @@ describe("BinDesignerPage", () => {
       await React.act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
       expect(document.querySelector('[role="alertdialog"]')?.textContent).toContain('Opening “Replacement”');
       expect(ProjectPersistence.importProjectToLibrary).not.toHaveBeenCalled();
-      React.act(() => document.querySelector<HTMLButtonElement>('[role="alertdialog"] button')!.click());
+      React.act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="alertdialog"] button')].find(button => button.textContent === "Keep working")!.click());
       await React.act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
       expect(document.querySelector('[role="alertdialog"]')).toBeNull();
       expect(document.activeElement).toBe(button);
@@ -5147,6 +5772,11 @@ describe("BinDesignerPage", () => {
       expect(ProjectPersistence.importProjectLibrary).not.toHaveBeenCalled();
       const dialog = document.querySelector('[data-testid="button-confirm-import-library"]')!.closest('[role="dialog"]')!;
       expect(dialog.textContent).toContain('unnamed draft');
+      expect(dialog.textContent).toContain('Would you like to export a backup before importing?');
+      React.act(() => [...dialog.querySelectorAll<HTMLButtonElement>('button')].find(b => b.textContent === 'Export current project')!.click());
+      expect(downloadBlob).toHaveBeenCalledOnce();
+      expect(ProjectPersistence.importProjectLibrary).not.toHaveBeenCalled();
+      expect(document.querySelector('[data-testid="button-confirm-import-library"]')).not.toBeNull();
       React.act(() => [...dialog.querySelectorAll<HTMLButtonElement>('button')].find(b => b.textContent === 'Cancel')!.click());
       expect(ProjectPersistence.importProjectLibrary).not.toHaveBeenCalled();
       chooseFile();
@@ -5776,8 +6406,8 @@ describe("project history restoration", () => {
     { doc: material(4), label: "Widen again" },
   ], index: 1 };
   const a: ProjectDoc = { ...EMPTY_PROJECT, ...material(3), history, name: "A" };
-  const button = (container: HTMLElement, action: string) =>
-    container.querySelector<HTMLButtonElement>(`[data-testid="button-bin-${action}"]`)!;
+  const button = (container: HTMLElement, action: "undo" | "redo") =>
+    binHistoryButton(container, action);
 
   it.each([false, true])("restores the cursor and undo/redo controls after A → B → A (mobile: %s)", async (mobile) => {
     const projects = ["A", "B"].map(id => ({ id, name: id, updatedAt: "2026-09-13T12:00:00.000Z" }));
@@ -5802,8 +6432,8 @@ describe("project history restoration", () => {
       await flushHydration();
       expect(button(container, "undo").getAttribute("aria-label")).toBe("Undo Widen tray");
       expect(button(container, "redo").getAttribute("aria-label")).toBe("Redo Widen again");
-      React.act(() => button(container, "redo").click());
-      React.act(() => button(container, "undo").click());
+      clickBinHistory(container, "redo");
+      clickBinHistory(container, "undo");
       if (mobile) {
         React.act(() => Array.from(container.querySelectorAll("button")).find(button => button.textContent === "Adjust")!.click());
         React.act(() => Array.from(container.querySelectorAll("button")).find(button => button.textContent === "All properties")!.click());
@@ -5819,10 +6449,10 @@ describe("project history restoration", () => {
       await open("A");
       expect(button(container, "undo").getAttribute("aria-label")).toBe("Undo Widen tray");
       expect(button(container, "redo").getAttribute("aria-label")).toBe("Redo Widen again");
-      React.act(() => button(container, "undo").click());
+      clickBinHistory(container, "undo");
       expect(vi.mocked(useBinGeometry).mock.lastCall![0].gridX).toBe(2);
       expect(button(container, "undo").disabled).toBe(true);
-      React.act(() => button(container, "redo").click());
+      clickBinHistory(container, "redo");
       expect(vi.mocked(useBinGeometry).mock.lastCall![0].gridX).toBe(3);
       expect(saved.get("A")!.history).toEqual(history);
     } finally { unmount(); }
@@ -6145,14 +6775,15 @@ it.each([
   const { container, unmount } = renderPage({ mobile, experimental });
   try {
     await flushHydration();
-    const click = (id: string) => React.act(() => container.querySelector<HTMLButtonElement>(`[data-testid="${id}"]`)!.click());
+    const click = (id: string) => { const target = id === "button-bin-redo" ? binHistoryButton(container, "redo") : container.querySelector<HTMLButtonElement>(`[data-testid="${id}"]`)!; React.act(() => target.click()); };
     click("view-toggle-2d");
     const toolbar = container.querySelector('[aria-label="Editing tools"]')!;
     let add = toolbar.querySelector('[data-testid="toolbar-add-object"]')!;
     expect(toolbar.querySelectorAll('[data-testid="toolbar-add-object"]')).toHaveLength(1);
     expect([...toolbar.querySelectorAll('button')][0]).toBe(add);
     expect(container.querySelector('[data-testid="layout-add-pocket"]')).toBeNull();
-    React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Pan layout"]')!.click());
+    const pan = toolButton(container, "Pan layout");
+    React.act(() => pan.click());
     const choose = (itemLabel: string) => {
       add = toolbar.querySelector('[data-testid="toolbar-add-object"]')!;
       React.act(() => add.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
@@ -6160,7 +6791,7 @@ it.each([
     };
     choose("Rectangle pocket");
     if (mobile) React.act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(button => button.textContent === "Draw on canvas")!.click());
-    expect(container.querySelector('[aria-label="Pan layout"]')!.getAttribute("aria-pressed")).toBe("false");
+    if (!mobile) expect(container.querySelector('[aria-label="Pan layout"]')!.getAttribute("aria-pressed")).toBe("false");
     const svg = container.querySelector<SVGSVGElement>('[data-testid="layout-canvas"]')!;
     Object.defineProperty(svg.querySelector('g')!, 'getScreenCTM', { value: () => ({ inverse: () => ({}) }) });
     Object.defineProperties(svg, {
@@ -6367,9 +6998,10 @@ it.each([false, true])("prototype toolbar opens scoped link/unlink controls with
 });
 
 it.each([
+  { layout: "standard", width: 320 }, { layout: "workflow", width: 320 },
   { layout: "standard", width: 390 }, { layout: "workflow", width: 390 },
   { layout: "standard", width: 844 }, { layout: "workflow", width: 844 },
-])("phone Move and Rotate stay docked outside the canvas in $layout layout at $width px", async ({ layout, width }) => {
+])("phone Move and Rotate only open numeric adjustments on request in $layout layout at $width px", async ({ layout, width }) => {
   window.history.replaceState(null, "", `/bin?layout=${layout}`);
   const shape = rectangularShape("docked-tool", "Tool");
   const cutout = parseCutoutPlacement({ id: "docked-pocket", name: "Tool", shapeId: shape.id, position: { x: 0, y: 0 }, depth: { mode: "mm", value: 10 } });
@@ -6384,11 +7016,19 @@ it.each([
     const panel = container.querySelector<HTMLElement>(layout === "workflow" ? "#objects-panel" : '[data-testid="mobile-properties-panel"]')!;
     expect(panel.hidden).toBe(true);
     const toolbar = container.querySelector('[aria-label="Editing tools"]')!;
+    expect(toolbar.querySelector('[data-testid="button-bin-undo"]')).not.toBeNull();
+    expect(toolbar.querySelector('[data-testid="button-layout-ruler"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="bin-history-toolbar"]')).toBeNull();
+    expect(container.querySelector('[data-testid="layout-tool-toolbar"]')).toBeNull();
     const dock = () => container.querySelector('[data-testid="mobile-object-tool-controls"]')!;
+    const adjust = () => React.act(() => [...container.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === 'Adjust')!.click());
     const doc = () => vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0];
     for (const [tool, axis, value] of [["Move", "X", "5"], ["Rotate", "Z", "30"]]) {
       React.act(() => toolbar.querySelector<HTMLButtonElement>(`[aria-label="${tool} selected objects"]`)!.click());
       expect(panel.hidden).toBe(true);
+      expect(dock()).toBeNull();
+      expect(container.querySelector('.mobile-adjustment-tray')).toBeNull();
+      adjust();
       expect(dock().closest('[data-testid="mobile-workspace-actions"]')).not.toBeNull();
       expect(canvas.contains(dock())).toBe(false);
       expect(dock().querySelector('[data-testid="pocket-3d-controls"]')!.classList.contains("absolute")).toBe(false);
@@ -6408,24 +7048,58 @@ it.each([
     React.act(() => [...container.querySelectorAll<HTMLButtonElement>(".mobile-adjustment-tray button")].find(button => button.textContent === "Done")!.click());
     expect(dock()).toBeNull();
     expect(panel.hidden).toBe(true);
+    expect(toolbar.querySelector('[aria-label="Rotate selected objects"]')!.getAttribute('aria-pressed')).toBe('true');
     React.act(() => toolbar.querySelector<HTMLButtonElement>('[aria-label="Move selected objects"]')!.click());
+    adjust();
     React.act(() => [...container.querySelectorAll<HTMLButtonElement>(".mobile-adjustment-tray button")].find(button => button.textContent === "All properties")!.click());
     expect(panel.hidden).toBe(false);
     expect(container.querySelector('[data-testid="layout-canvas"]')).toBe(canvas);
   } finally { unmount(); }
 });
 
-it.each(["standard", "workflow"])("phone text transforms use the dock in %s layout and respect opt-out", async layout => {
+it.each(["standard", "workflow"])("mobile toolbar history can restore an earlier design (%s)", async layout => {
+  window.history.replaceState(null, "", `/bin?layout=${layout}`);
+  const shape = rectangularShape("history-tool", "Tool");
+  const cutout = parseCutoutPlacement({ id: "history-pocket", name: "Tool", shapeId: shape.id, position: { x: 0, y: 0 } });
+  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape], cutouts: [cutout] });
+  const { container, unmount } = renderPage({ mobile: true });
+  try {
+    await flushHydration();
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
+    selectPocket(container, cutout.id);
+    React.act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })));
+    expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0].position.x).not.toBe(0);
+    const history = toolButton(container, 'Show edit history');
+    React.act(() => history.click());
+    expect(document.querySelectorAll('[role="menu"]')).toHaveLength(1);
+    const back = document.querySelector<HTMLElement>('[aria-label="Back to tools"]')!;
+    expect(document.activeElement).toBe(back);
+    React.act(() => back.click());
+    const historyAgain = document.querySelector<HTMLElement>('[aria-label="Show edit history"]')!;
+    expect(historyAgain).not.toBeNull();
+    React.act(() => historyAgain.click());
+    const first = document.querySelector<HTMLElement>('[data-testid="history-step-0"]')!;
+    expect(first).not.toBeNull();
+    React.act(() => first.click());
+    expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0].position.x).toBe(0);
+    clickBinHistory(container, 'redo');
+    expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0].position.x).not.toBe(0);
+  } finally { unmount(); }
+});
+
+it.each(["standard", "workflow"])("phone text transforms use the dock in %s layout without experimental opt-in", async layout => {
   window.history.replaceState(null, "", `/bin?layout=${layout}`);
   const spec = parseBinSpec({ ...EMPTY_PROJECT.spec, surfaceTexts: [{ id: "docked-label", text: "Metric", position: { x: 0, y: 0 } }] });
   vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, spec });
-  const { container, unmount } = renderPage({ mobile: true, experimental: true });
+  const { container, unmount } = renderPage({ mobile: true, experimental: false });
   try {
     await flushHydration();
     React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-select-text-3d-docked-label"]')!.click());
     const panel = container.querySelector<HTMLElement>(layout === "workflow" ? "#objects-panel" : '[data-testid="mobile-properties-panel"]')!;
     React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Move selected objects"]')!.click());
     const dock = container.querySelector('[data-testid="mobile-workspace-actions"]')!;
+    expect(dock.querySelector('[aria-label="Move text X"]')).toBeNull();
+    React.act(() => [...dock.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === 'Adjust')!.click());
     const input = dock.querySelector<HTMLInputElement>('[aria-label="Move text X"]')!;
     expect(input).not.toBeNull();
     expect(panel.hidden).toBe(true);
@@ -6439,7 +7113,7 @@ it.each(["standard", "workflow"])("phone text transforms use the dock in %s layo
     React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
     expect(vi.mocked(useBinGeometry).mock.lastCall![0].surfaceTexts[0].position.x).toBe(0);
     React.act(() => experimentalSettings.setEnabled(false));
-    expect(dock.querySelector('[data-testid="text-transform-controls"]')).toBeNull();
+    expect(dock.querySelector('[data-testid="text-transform-controls"]')).not.toBeNull();
     expect(panel.hidden).toBe(true);
   } finally { unmount(); }
 });
@@ -6722,7 +7396,7 @@ it.each([
     React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
     expect(nameButton().textContent).toBe(originalName);
     expect(container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.disabled).toBe(true);
-    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+    clickBinHistory(container, "redo");
     expect(nameButton().textContent).toBe('Renamed item');
     input = beginRename();
     typeName(input, 'Cancelled');
@@ -6886,11 +7560,11 @@ it.each(["standard", "workflow"])("selecting text leaves contour editing and res
     expect(container.querySelector('[data-testid="surface-text-hit-audit-text"]')!.getAttribute("pointer-events")).toBe("all");
   } finally {unmount();window.history.replaceState(null,"",originalUrl);}
 });
-it.each(["standard", "workflow"])("3D text deletion respects inputs, undo, and opt-out (%s)", async layout => {
+it.each(["standard", "workflow"])("3D text deletion respects inputs and undo without experimental opt-in (%s)", async layout => {
   const originalUrl=window.location.href; window.history.replaceState(null,"",`/bin?layout=${layout}`);
   vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({...EMPTY_PROJECT,
     spec:parseBinSpec({...EMPTY_PROJECT.spec,surfaceTexts:[{id:"audit-text",text:"Audit text",position:{x:0,y:20}}]})});
-  const {container,unmount}=renderPage();
+  const {container,unmount}=renderPage({experimental:false});
   try {
     await flushHydration();
     React.act(()=>container.querySelector<HTMLButtonElement>('[data-testid="button-select-text-3d-audit-text"]')!.click());
@@ -6906,7 +7580,7 @@ it.each(["standard", "workflow"])("3D text deletion respects inputs, undo, and o
     React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-select-text-3d-audit-text"]')!.click());
     React.act(() => experimentalSettings.setEnabled(false));
     React.act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Backspace", cancelable: true })));
-    expect(current()).toHaveLength(1);
+    expect(current()).toHaveLength(0);
   } finally {unmount();window.history.replaceState(null,"",originalUrl);}
 });
 
@@ -6914,7 +7588,7 @@ it.each(["standard", "workflow"])("mobile canvas selection and inline editing re
   const originalUrl=window.location.href; window.history.replaceState(null,"",`/bin?layout=${layout}`);
   vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({...EMPTY_PROJECT,
     spec:parseBinSpec({...EMPTY_PROJECT.spec,surfaceTexts:[{id:"audit-text",text:"Audit text",position:{x:0,y:20}}]})});
-  const {container,unmount}=renderPage({mobile:true});
+  const {container,unmount}=renderPage({mobile:true,experimental:false});
   try {
     await flushHydration();
     React.act(()=>container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
@@ -6937,7 +7611,7 @@ it.each(["standard", "workflow"])("mobile canvas selection and inline editing re
   } finally {unmount();window.history.replaceState(null,"",originalUrl);}
 });
 
-it.each([false, true])("offers surface text in the Original Layout toolbar only with opt-in (mobile=%s)", async mobile => {
+it.each([false, true])("offers surface text in the Original Layout toolbar by default (mobile=%s)", async mobile => {
   const originalUrl = window.location.href;
   window.history.replaceState(null, "", "/bin?layout=standard");
   const { container, unmount } = renderPage({ mobile, experimental: false });
@@ -6948,10 +7622,9 @@ it.each([false, true])("offers surface text in the Original Layout toolbar only 
     const openAdd = () => React.act(() => add().dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
     const textOption = () => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(item => item.textContent === "Surface text");
     openAdd();
-    expect(textOption()).toBeUndefined();
+    expect(textOption()).toBeDefined();
     expect([...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].some(item => item.textContent === "Finger access")).toBe(true);
     React.act(() => document.querySelector('[role="menu"]')!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
-    React.act(() => experimentalSettings.setEnabled(true));
     openAdd();
     React.act(() => textOption()!.click());
     const labels = vi.mocked(useBinGeometry).mock.lastCall![0].surfaceTexts;

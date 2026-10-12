@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { Check, ChevronRight } from "lucide-react";
 import { PanelBody, type PanelSectionProps } from "@/components/layout/panel-section";
 import { PropertySurface } from "@/components/layout/property-surface";
-import { useTrace } from "@/state/trace-store";
+import { hasPendingManualCalibration, useTrace } from "@/state/trace-store";
 import { useTraceInspector } from "./trace-inspector-context";
 import { TRACE_WORKFLOW_SECTIONS } from "./trace-workflow";
 
@@ -22,9 +22,10 @@ export function TracePanelSections({ children }: { children: ReactNode }): JSX.E
   if (!inspector) return <PanelBody className="[overflow-anchor:none]">
     {sections.map(child => child.props.disabled ? cloneElement(child, { children: null }) : child)}
   </PanelBody>;
-  const complete = [!!trace.imageSize.width, !!trace.calibration && !trace.pendingAutoCalibration,
+  const acceptedScale = !!trace.calibration && !trace.pendingAutoCalibration && !hasPendingManualCalibration(trace);
+  const complete = [!!trace.imageSize.width, acceptedScale,
     !!trace.region && trace.region.width > 5 && trace.region.height > 5, !!trace.outline.length,
-    inspector.marginVisited && !!trace.outline.length && !!trace.calibration && !trace.pendingAutoCalibration && trace.margin !== null, false];
+    inspector.marginVisited && !!trace.outline.length && acceptedScale && trace.margin !== null, false];
   const active = TRACE_WORKFLOW_SECTIONS.find(section => section.id === inspector.activeSection);
   return <>
     <nav className="min-h-0 flex-1 overflow-y-auto overscroll-contain" aria-label="Photo tracing workflow">

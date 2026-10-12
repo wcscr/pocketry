@@ -68,13 +68,15 @@ export { serializeProjectDoc } from "./project-font-sources";
  * Version 35 retains finite through-pocket objects during rigid movement.
  * Version 36 was used by two branches: ULTIM8 peg bottoms and saved project
  * colors/material regions. Both fields are optional, so either variant migrates.
- * Version 37 previewed optional peg density.
+ * Version 37 was used by two branches: optional peg density and traced pockets
+ * that still need a depth before printing.
  * Version 38 restores every-hole pegs and repairs unraised surface-through pockets.
  * Version 39 adds pegs-up flat backing, sparse pegs and arbitrary millimetre sizes.
  * Version 40 combines ULTIM8 sizes and bottoms with saved project colors.
+ * Version 41 combines ULTIM8 projects with main's pending-depth pockets.
  */
 
-export const PROJECT_SCHEMA_VERSION = 40 as const;
+export const PROJECT_SCHEMA_VERSION = 41 as const;
 
 const projectFields = {
   shapes: z.array(tracedShapeSchema),
@@ -341,7 +343,7 @@ export function parseProjectDoc(input: unknown): ProjectDoc | null {
     input = expandProjectFontSources(input);
   }
   if (input && typeof input === "object" && !Array.isArray(input)
-      && [26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39].includes((input as Record<string, unknown>).schemaVersion as number)) {
+      && [26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40].includes((input as Record<string, unknown>).schemaVersion as number)) {
     // Strict current schemas still reject unsupported data from version-27 prototypes.
     const legacy = input as Record<string, unknown>;
     const cleaned = legacy.schemaVersion === 37 ? removePreviewPegDensity(legacy) : legacy;

@@ -3,6 +3,7 @@ import type { Outline } from "@shared/geometry/types";
 import { describe, expect, it } from "vitest";
 
 import {
+  hasPendingManualCalibration,
   initialTraceState,
   traceReducer,
   type TraceAction,
@@ -117,7 +118,7 @@ describe("reviewing a replacement reference scale", () => {
     const original = run(existingTrace(), { type: "SET_MODE", mode: "calibrate" },
       { type: "SET_DRAFT_CALIBRATION", draftCalibration: draft });
     const dismissed = traceReducer(propose(original), { type: "DISMISS_AUTO_CALIBRATION" });
-    expect(dismissed.calibration).toBeNull();
+    expect(dismissed.calibration).toBe(original.calibration);
     expect(dismissed.draftCalibration).toBe(draft);
     expect(dismissed.rulerLengthMm).toBe(137);
   });
@@ -515,6 +516,35 @@ describe("loading a new image", () => {
 });
 
 describe("modes and calibration", () => {
+  it.each(["manual", "sheet", "strip"] as const)("keeps an accepted %s scale until replacement is confirmed", calibrationSource => {
+    const calibration = { startX: 0, startY: 0, endX: 100, endY: 0, lengthMm: 50 };
+    const before = { ...run(initialTraceState, detected(ringA),
+      { type: "SET_CALIBRATION", calibration },
+      { type: "OUTLINE_COMMITTED", outline: ringB }), calibrationSource };
+    const started = traceReducer(before, { type: "SET_MODE", mode: "calibrate" });
+    const partial = traceReducer(started, { type: "SET_DRAFT_CALIBRATION", draftCalibration: { startX: 20, startY: 10 } });
+    const draftCalibration = { startX: 20, startY: 10, endX: 80, endY: 10 };
+    const completed = run(partial, { type: "SET_DRAFT_CALIBRATION", draftCalibration }, { type: "SET_MODE", mode: "pan" });
+    for (const pending of [started, partial, completed]) {
+      expect(hasPendingManualCalibration(pending)).toBe(true);
+      expect(pending.calibration).toBe(before.calibration);
+      expect(pending.calibrationSource).toBe(calibrationSource);
+      expect(traceReducer(pending, { type: "SET_RULER_LENGTH", rulerLengthMm: 75 }).calibration).toBe(before.calibration);
+      const cancelled = run(pending, { type: "SET_RULER_LENGTH_INPUT", value: "75" }, { type: "CANCEL_MANUAL_CALIBRATION" });
+      expect(hasPendingManualCalibration(cancelled)).toBe(false);
+      expect(cancelled.calibration).toBe(before.calibration);
+      expect(cancelled.calibrationSource).toBe(calibrationSource);
+      expect(cancelled.rulerLengthInput).toBe(String(before.rulerLengthMm));
+      expect(cancelled.outline).toBe(before.outline);
+      expect(cancelled.history).toBe(before.history);
+    }
+    const confirmed = run(completed, { type: "SET_RULER_LENGTH", rulerLengthMm: 75 },
+      { type: "SET_CALIBRATION", calibration: { ...draftCalibration, lengthMm: 75 } });
+    expect(confirmed.calibration).toEqual({ ...draftCalibration, lengthMm: 75 });
+    expect(confirmed.calibrationSource).toBe("manual");
+    expect(hasPendingManualCalibration(confirmed)).toBe(false);
+  });
+
   it("opens manual ruler placement after upload-time calibration fails", () => {
     const loaded = run(
       initialTraceState,
@@ -639,6 +669,7 @@ describe("modes and calibration", () => {
     );
     expect(state.draftCalibration).toBeNull();
     expect(state.calibration?.endX).toBe(9);
+    expect(hasPendingManualCalibration(state)).toBe(false);
     expect(state.calibrationSource).toBe("manual");
     expect(state.margin).toBe(0);
   });
@@ -660,8 +691,8 @@ describe("modes and calibration", () => {
     );
 
     expect(state.mode).toBe("calibrate");
-    expect(state.calibration).toBeNull();
-    expect(state.calibrationSource).toBeNull();
+    expect(state.calibration?.lengthMm).toBe(10);
+    expect(state.calibrationSource).toBe("manual");
     expect(state.draftCalibration).toBeNull();
   });
 

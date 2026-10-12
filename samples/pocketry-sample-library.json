@@ -1165,9 +1165,9 @@
     {
       "id": "pocketry-sample-dewalt-right-angle-tools",
       "name": "DeWalt Right-Angle Tools",
-      "updatedAt": "2026-09-21T15:01:08.806Z",
+      "updatedAt": "2026-10-08T20:05:00.000Z",
       "doc": {
-        "schemaVersion": 19,
+        "schemaVersion": 36,
         "shapes": [
           {
             "id": "956523ba-b502-49df-9a2f-f0a8466cd09c",
@@ -2032,16 +2032,35 @@
           "heightUnits": 5.5,
           "lip": "standard",
           "fill": "solid",
+          "wallThicknessMm": 0.95,
+          "fillHeightPercent": 100,
+          "adjustFixedPocketDepths": true,
           "flatBottom": false,
           "magnetHoles": false,
           "magnetCrushRibs": false,
           "screwHoles": false,
-          "labelTab": null
+          "labelTab": null,
+          "textColor": "#000000",
+          "surfaceTexts": [
+            {
+              "id": "sample-dewalt-right-angle-tools-text-1",
+              "text": "Dewalt Right Angle Adapters",
+              "position": {
+                "x": 0,
+                "y": 91
+              },
+              "font": "sans-bold",
+              "sizeMm": 5.25,
+              "heightMm": 0.8,
+              "rotationDeg": 0
+            }
+          ]
         },
         "cutouts": [
           {
             "id": "cutout-956523ba-b502-49df-9a2f-f0a8466cd09c-s9dwym",
             "shapeId": "956523ba-b502-49df-9a2f-f0a8466cd09c",
+            "name": "Long right-angle adapter",
             "position": {
               "x": -22.7,
               "y": -8.3
@@ -2059,12 +2078,12 @@
             "cornerRoundMm": 1,
             "topFilletMm": 1,
             "bottomFilletMm": 2.8,
-            "fingerHoles": [],
-            "name": "Long right-angle adapter"
+            "fingerHoles": []
           },
           {
             "id": "cutout-208dd28b-cf8f-4577-9190-2d1307bade2c-3otld6",
             "shapeId": "98bbf9e4-b434-4d21-a8cf-0dfffe48f385",
+            "name": "Adapter handle",
             "position": {
               "x": 30.5,
               "y": -15.6
@@ -2082,12 +2101,12 @@
             "cornerRoundMm": 1,
             "topFilletMm": 1,
             "bottomFilletMm": 2.8,
-            "fingerHoles": [],
-            "name": "Adapter handle"
+            "fingerHoles": []
           },
           {
             "id": "cutout-00167d86-c9eb-40df-8ac5-3e65b0d40708-wu3qyh",
             "shapeId": "00167d86-c9eb-40df-8ac5-3e65b0d40708",
+            "name": "Short right-angle adapter",
             "position": {
               "x": 6.1,
               "y": -7.8
@@ -2105,13 +2124,13 @@
             "cornerRoundMm": 1,
             "topFilletMm": 1,
             "bottomFilletMm": 2.8,
-            "fingerHoles": [],
-            "name": "Short right-angle adapter"
+            "fingerHoles": []
           }
         ],
         "fingerHoles": [
           {
             "id": "abaada13-19b1-4859-97a5-7e1c3ac97c74",
+            "name": "Adapters and handle access",
             "center": {
               "x": 0,
               "y": -2.9
@@ -2122,8 +2141,7 @@
             "bottomFilletMm": 0,
             "lengthMm": 118,
             "rotationDeg": 359.5,
-            "kind": "oblong-deep-scoop",
-            "name": "Adapters and handle access"
+            "kind": "oblong-deep-scoop"
           }
         ],
         "name": "DeWalt Right-Angle Tools",
@@ -2133,9 +2151,9 @@
     {
       "id": "pocketry-sample-ryobi-cutter",
       "name": "Ryobi Cutter",
-      "updatedAt": "2026-09-21T15:01:08.806Z",
+      "updatedAt": "2026-10-08T20:05:00.000Z",
       "doc": {
-        "schemaVersion": 19,
+        "schemaVersion": 36,
         "shapes": [
           {
             "id": "ryobi-recovered-3mf",
@@ -3269,16 +3287,35 @@
           "heightUnits": 9,
           "lip": "standard",
           "fill": "solid",
+          "wallThicknessMm": 0.95,
+          "fillHeightPercent": 100,
+          "adjustFixedPocketDepths": true,
           "flatBottom": false,
           "magnetHoles": false,
           "magnetCrushRibs": false,
           "screwHoles": false,
-          "labelTab": null
+          "labelTab": null,
+          "textColor": "#e8783d",
+          "surfaceTexts": [
+            {
+              "id": "sample-ryobi-cutter-text-1",
+              "text": "Ryobi Cutter",
+              "position": {
+                "x": 66,
+                "y": -9
+              },
+              "font": "helvetiker",
+              "sizeMm": 9.25,
+              "heightMm": 0.8,
+              "rotationDeg": 0
+            }
+          ]
         },
         "cutouts": [
           {
             "id": "ryobi-recovered-pocket",
             "shapeId": "ryobi-recovered-3mf",
+            "name": "Ryobi cutter",
             "position": {
               "x": 0,
               "y": 0
@@ -3318,8 +3355,7 @@
             "cornerRoundMm": 0,
             "topFilletMm": 1,
             "bottomFilletMm": 2.8,
-            "fingerHoles": [],
-            "name": "Ryobi cutter"
+            "fingerHoles": []
           }
         ],
         "fingerHoles": [
@@ -4272,9 +4308,9 @@
     {
       "id": "pocketry-sample-wire-strippers",
       "name": "Wire Strippers",
-      "updatedAt": "2026-09-21T15:01:08.806Z",
+      "updatedAt": "2026-10-08T20:05:00.000Z",
       "doc": {
-        "schemaVersion": 19,
+        "schemaVersion": 36,
         "shapes": [
           {
             "id": "47587930-216b-44f6-b384-5f41b739b198",
@@ -4735,16 +4771,35 @@
           "heightUnits": 3.5,
           "lip": "standard",
           "fill": "solid",
+          "wallThicknessMm": 0.95,
+          "fillHeightPercent": 100,
+          "adjustFixedPocketDepths": true,
           "flatBottom": false,
           "magnetHoles": false,
           "magnetCrushRibs": false,
           "screwHoles": false,
-          "labelTab": null
+          "labelTab": null,
+          "textColor": "#000000",
+          "surfaceTexts": [
+            {
+              "id": "sample-wire-strippers-text-1",
+              "text": "Wire Stripper",
+              "position": {
+                "x": -81,
+                "y": 27
+              },
+              "font": "sans-bold",
+              "sizeMm": 5.75,
+              "heightMm": 0.8,
+              "rotationDeg": 0
+            }
+          ]
         },
         "cutouts": [
           {
             "id": "cutout-191f8fff-2906-4f82-92de-6dc2d81d94b1-sx4unv",
             "shapeId": "47587930-216b-44f6-b384-5f41b739b198",
+            "name": "Wire strippers",
             "position": {
               "x": 8.7,
               "y": 0.5
@@ -4762,13 +4817,13 @@
             "cornerRoundMm": 1,
             "topFilletMm": 1.2,
             "bottomFilletMm": 1.2,
-            "fingerHoles": [],
-            "name": "Wire strippers"
+            "fingerHoles": []
           }
         ],
         "fingerHoles": [
           {
             "id": "469aefc8-4798-4b2d-baab-9df5bf77b66d",
+            "name": "Wire strippers grip access",
             "center": {
               "x": -30.3,
               "y": -2.3
@@ -4779,8 +4834,7 @@
             "bottomFilletMm": 0,
             "lengthMm": 66.2,
             "rotationDeg": 270.1,
-            "kind": "oblong-deep-scoop",
-            "name": "Wire strippers grip access"
+            "kind": "oblong-deep-scoop"
           }
         ],
         "name": "Wire Strippers",
@@ -5450,9 +5504,9 @@
     {
       "id": "pocketry-sample-mouldline-remover",
       "name": "Citadel Mouldline Remover",
-      "updatedAt": "2026-09-21T15:27:45.554Z",
+      "updatedAt": "2026-10-08T20:05:00.000Z",
       "doc": {
-        "schemaVersion": 19,
+        "schemaVersion": 36,
         "shapes": [
           {
             "id": "5061c843-8c0c-4f3a-9356-f6094c197164",
@@ -5589,16 +5643,47 @@
           "heightUnits": 3.5,
           "lip": "standard",
           "fill": "solid",
+          "wallThicknessMm": 0.95,
+          "fillHeightPercent": 100,
+          "adjustFixedPocketDepths": true,
           "flatBottom": false,
           "magnetHoles": false,
           "magnetCrushRibs": false,
           "screwHoles": false,
-          "labelTab": null
+          "labelTab": null,
+          "textColor": "#e8783d",
+          "surfaceTexts": [
+            {
+              "id": "sample-mouldline-remover-text-1",
+              "text": "Mouldline",
+              "position": {
+                "x": 0,
+                "y": 75
+              },
+              "font": "helvetiker",
+              "sizeMm": 5.75,
+              "heightMm": 0.8,
+              "rotationDeg": 0
+            },
+            {
+              "id": "sample-mouldline-remover-text-2",
+              "text": "Remover",
+              "position": {
+                "x": 0,
+                "y": 67
+              },
+              "font": "helvetiker",
+              "sizeMm": 5.75,
+              "heightMm": 0.8,
+              "rotationDeg": 0
+            }
+          ]
         },
         "cutouts": [
           {
             "id": "cutout-5061c843-8c0c-4f3a-9356-f6094c197164-ysixs9",
             "shapeId": "5061c843-8c0c-4f3a-9356-f6094c197164",
+            "name": "Citadel mouldline remover",
             "position": {
               "x": 0,
               "y": -8.1
@@ -5616,13 +5701,13 @@
             "cornerRoundMm": 1,
             "topFilletMm": 1.8,
             "bottomFilletMm": 1,
-            "fingerHoles": [],
-            "name": "Citadel mouldline remover"
+            "fingerHoles": []
           }
         ],
         "fingerHoles": [
           {
             "id": "64528d59-2762-44b7-9a1e-e04598757008",
+            "name": "Mouldline remover grip access",
             "center": {
               "x": -0.1,
               "y": 10
@@ -5634,8 +5719,7 @@
             "lengthMm": 31.5,
             "rotationDeg": 359.5,
             "slotEnds": "rounded",
-            "kind": "oblong-deep-scoop",
-            "name": "Mouldline remover grip access"
+            "kind": "oblong-deep-scoop"
           }
         ],
         "name": "Citadel Mouldline Remover",
@@ -5645,11 +5729,9 @@
     {
       "id": "pocketry-sample-wiha-drivers",
       "name": "Wiha 150 mm drivers",
-      "updatedAt": "2026-09-26T12:19:51.817Z",
+      "updatedAt": "2026-10-08T20:05:00.000Z",
       "doc": {
-        "schemaVersion": 20,
-        "name": "Wiha 150 mm drivers",
-        "keepBinSize": false,
+        "schemaVersion": 36,
         "shapes": [
           {
             "id": "11ab9d7d-9d59-43bd-8172-37d756c4b8fe",
@@ -6590,17 +6672,35 @@
           "heightUnits": 3.5,
           "lip": "standard",
           "fill": "solid",
+          "wallThicknessMm": 0.95,
           "fillHeightPercent": 80,
+          "adjustFixedPocketDepths": true,
           "flatBottom": false,
           "magnetHoles": false,
           "magnetCrushRibs": false,
           "screwHoles": false,
-          "labelTab": null
+          "labelTab": null,
+          "textColor": "#e8783d",
+          "surfaceTexts": [
+            {
+              "id": "sample-wiha-drivers-text-1",
+              "text": "Wiha Drivers",
+              "position": {
+                "x": 0,
+                "y": 137
+              },
+              "font": "helvetiker",
+              "sizeMm": 7.5,
+              "heightMm": 0.8,
+              "rotationDeg": 0
+            }
+          ]
         },
         "cutouts": [
           {
             "id": "9e7fe5bf-a67b-45fa-9175-42c159ef853a",
             "shapeId": "11ab9d7d-9d59-43bd-8172-37d756c4b8fe",
+            "name": "Wiha driver 1",
             "position": {
               "x": 47.01493215560915,
               "y": -7.431233991234521
@@ -6640,12 +6740,12 @@
             "cornerRoundMm": 1,
             "topFilletMm": 1,
             "bottomFilletMm": 2.8,
-            "fingerHoles": [],
-            "name": "Wiha driver 1"
+            "fingerHoles": []
           },
           {
             "id": "cutout-9d022f8f-3d8b-491a-b0e1-0eed3d24a656-gmxol4",
             "shapeId": "beeb1a28-5d84-4480-aa92-100c7f274043",
+            "name": "Wiha driver 2",
             "position": {
               "x": 21.19483331785485,
               "y": 0.5679281098398832
@@ -6685,12 +6785,12 @@
             "cornerRoundMm": 1,
             "topFilletMm": 1,
             "bottomFilletMm": 2.8,
-            "fingerHoles": [],
-            "name": "Wiha driver 2"
+            "fingerHoles": []
           },
           {
             "id": "76a5b7e1-1325-4d66-8436-9cc834d88c27",
             "shapeId": "de01b40b-64ce-4957-bd18-94fc0bcc20ba",
+            "name": "Wiha driver 3",
             "position": {
               "x": -24.180160522460916,
               "y": 1.9781148774180082
@@ -6730,12 +6830,12 @@
             "cornerRoundMm": 1,
             "topFilletMm": 1,
             "bottomFilletMm": 2.8,
-            "fingerHoles": [],
-            "name": "Wiha driver 3"
+            "fingerHoles": []
           },
           {
             "id": "046dd850-67e6-447b-bce4-16fc24e4c496",
             "shapeId": "11ab9d7d-9d59-43bd-8172-37d756c4b8fe",
+            "name": "Wiha driver 4",
             "position": {
               "x": 1.8198394775390838,
               "y": -7.932071890160117
@@ -6775,12 +6875,12 @@
             "cornerRoundMm": 1,
             "topFilletMm": 1,
             "bottomFilletMm": 2.8,
-            "fingerHoles": [],
-            "name": "Wiha driver 4"
+            "fingerHoles": []
           },
           {
             "id": "42b45a6f-def1-4433-9e47-afe61403fe8c",
             "shapeId": "11ab9d7d-9d59-43bd-8172-37d756c4b8fe",
+            "name": "Wiha driver 5",
             "position": {
               "x": -43.180160522460916,
               "y": -6.932071890160117
@@ -6820,8 +6920,7 @@
             "cornerRoundMm": 1,
             "topFilletMm": 1,
             "bottomFilletMm": 2.8,
-            "fingerHoles": [],
-            "name": "Wiha driver 5"
+            "fingerHoles": []
           }
         ],
         "fingerHoles": [
@@ -6840,7 +6939,9 @@
             "rotationDeg": 0.09855401344935899,
             "kind": "oblong-deep-scoop"
           }
-        ]
+        ],
+        "name": "Wiha 150 mm drivers",
+        "keepBinSize": false
       }
     },
     {
@@ -8960,9 +9061,9 @@
     {
       "id": "pocketry-sample-bessey-gerber",
       "name": "Bessey Utility Knife and Gerber Multitool",
-      "updatedAt": "2026-10-06T17:50:00.000Z",
+      "updatedAt": "2026-10-08T20:05:00.000Z",
       "doc": {
-        "schemaVersion": 35,
+        "schemaVersion": 36,
         "shapes": [
           {
             "id": "54e9ef0a-cc47-4024-9eb4-a0175f87004d",
@@ -9243,8 +9344,33 @@
           "magnetCrushRibs": false,
           "screwHoles": false,
           "labelTab": null,
-          "textColor": null,
-          "surfaceTexts": []
+          "textColor": "#7151a3",
+          "surfaceTexts": [
+            {
+              "id": "sample-bessey-gerber-text-1",
+              "text": "Bessey",
+              "position": {
+                "x": -53.5,
+                "y": -27.5
+              },
+              "font": "helvetiker",
+              "sizeMm": 7,
+              "heightMm": 0.8,
+              "rotationDeg": 90
+            },
+            {
+              "id": "sample-bessey-gerber-text-2",
+              "text": "Gerber",
+              "position": {
+                "x": -58.5,
+                "y": 25.5
+              },
+              "font": "helvetiker",
+              "sizeMm": 7,
+              "heightMm": 0.8,
+              "rotationDeg": 90
+            }
+          ]
         },
         "cutouts": [
           {

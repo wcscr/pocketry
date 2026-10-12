@@ -77,6 +77,11 @@ export type TraceMode =
 export type ExportFormat = "svg" | "dxf" | "stl";
 export type CalibrationSource = "manual" | "sheet" | "strip";
 
+/** A replacement ruler is a proposal; the accepted scale stays intact. */
+export function hasPendingManualCalibration(state: Pick<TraceState, "mode" | "draftCalibration">): boolean {
+  return state.mode === "calibrate" || state.draftCalibration !== null;
+}
+
 export type TracePhotoFrame = Pick<TraceState, "imageSize" | "imageRotation" | "imageAlignment" |
   "calibration" | "pendingAutoCalibration" | "pendingPaperCalibration" | "draftCalibration" |
   "region" | "pendingPerspective" | "manualPerspectivePoints" | "perspectiveCorrection">;
@@ -265,6 +270,7 @@ export type TraceAction =
   | { type: "JUMP_TO_HISTORY"; index: number }
   | { type: "SELECT_RING"; selection: RingRef | null }
   | { type: "SET_MODE"; mode: TraceMode }
+  | { type: "CANCEL_MANUAL_CALIBRATION" }
   | { type: "SET_REGION"; region: Rect | null }
   | { type: "REGION_PREVIEW"; region: Rect | null }
   | { type: "SET_PERSPECTIVE_PAPER"; paper: TemplatePaper | null }
@@ -790,13 +796,9 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         selection: action.mode === "edit" || action.mode === "remove"
           ? retainedEditSelection(state, state.outline) ?? primaryContour(state.outline)
           : state.selection,
-        // Redrawing is a replacement, not a second ruler layered over the
-        // accepted one. Invalidate both the old scale and any completed draft
-        // when manual placement starts; repeat clicks on the active tool leave
-        // the ruler currently being placed alone.
+        // Keep the accepted scale until the replacement is confirmed. Only
+        // the new draft is reset when placement starts.
         manualPerspectivePoints: startsCalibration ? [] : state.manualPerspectivePoints,
-        calibration: startsCalibration ? null : state.calibration,
-        calibrationSource: startsCalibration ? null : state.calibrationSource,
         // Choosing a manual tool is an explicit rejection of the automatic
         // candidate, including all of its canvas overlays.
         pendingAutoCalibration:
@@ -815,6 +817,10 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
               : null,
       };
     }
+
+    case "CANCEL_MANUAL_CALIBRATION":
+      return { ...state, mode: "pan", draftCalibration: null,
+        rulerLengthInput: String(state.rulerLengthMm) };
 
     case "SET_PERSPECTIVE_PAPER":
       return { ...state, manualPerspectivePaper: action.paper };
@@ -865,6 +871,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
     case "SET_CALIBRATION":
       return {
         ...state,
+        mode: state.mode === "calibrate" ? "pan" : state.mode,
         calibration: action.calibration,
         pendingAutoCalibration: null,
         pendingPaperCalibration: null,
@@ -961,7 +968,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         // Sheet calibration has an independently detected physical scale, so
         // this preference must not overwrite it.
         calibration:
-          state.calibrationSource === "manual" && state.calibration
+          state.calibrationSource === "manual" && state.calibration && !hasPendingManualCalibration(state)
             ? { ...state.calibration, lengthMm: action.rulerLengthMm }
             : state.calibration,
       };

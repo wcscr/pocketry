@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { parseProjectDoc, PROJECT_SCHEMA_VERSION } from "./project";
+import { parseProjectDoc, serializeProjectDoc, PROJECT_SCHEMA_VERSION } from "./project";
 import { parseBinSpec } from "./types";
 import { rigidPocket } from "./rigid-pocket";
 import { DEFAULT_PEG_BOTTOM } from "./peg-bottom";
+import { DEFAULT_BIN_MATERIALS } from "./materials";
 import airdusterV9 from "./fixtures/airduster-v9.pocketry.json";
 
 const VALID = {
@@ -727,4 +728,34 @@ it("preserves tilted, raised, and unproven finite Through pockets on upgrade", (
   for (const cutout of [through, { ...through, elevationMm: 20 }, { ...through, tilt: { xDeg: 20, yDeg: 0 } }]) {
     expect(parseProjectDoc({ ...base, schemaVersion: 36, cutouts: [cutout] })!.cutouts[0]).toEqual(cutout);
   }
+});
+
+it("migrates main v37 pending pocket depths, colors, history and creation references", () => {
+  const parsed = parseProjectDoc(VALID)!;
+  const cutout = { ...parsed.cutouts[0], depthPending: true };
+  const snapshot = { spec: parsed.spec, cutouts: [cutout], fingerHoles: parsed.fingerHoles };
+  const legacy = { ...parsed, ...snapshot, schemaVersion: 37,
+    materials: { ...DEFAULT_BIN_MATERIALS, binColor: "#1256ab" },
+    history: { index: 0, stack: [{ label: "Add traced tool", doc: snapshot }] },
+    transformOrigins: { pockets: [{ cutout, spec: snapshot.spec }], fingerHoles: [] } };
+  const migrated = parseProjectDoc(JSON.parse(JSON.stringify(legacy)))!;
+  expect(migrated).not.toBeNull();expect(migrated.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
+  expect(migrated.cutouts).toEqual(snapshot.cutouts);
+  expect(migrated.history!.stack[0].doc).toEqual(snapshot);
+  expect(migrated.transformOrigins).toEqual(legacy.transformOrigins);
+  expect(migrated.materials).toEqual(legacy.materials);
+  expect(parseProjectDoc(JSON.parse(JSON.stringify(serializeProjectDoc(migrated))))).toEqual(migrated);
+});
+
+it("migrates v40 ULTIM8 sizes, sparse pegs and colors without changing history", () => {
+  const parsed = parseProjectDoc(VALID)!;
+  const spec = parseBinSpec({ ...parsed.spec, arbitrarySizeMm: { width: 159.4, length: 75 }, heightUnits: 8.5 / 7,
+    pegBottom: { underside: "flat", density: "corners", lengthMm: 3.5 } });
+  const snapshot = { spec, cutouts: parsed.cutouts, fingerHoles: parsed.fingerHoles };
+  const legacy = { ...parsed, ...snapshot, schemaVersion: 40, materials: { ...DEFAULT_BIN_MATERIALS, binColor: "#abcd12" },
+    history: { index: 0, stack: [{ label: "Raise jig", doc: snapshot }] },
+    transformOrigins: { pockets: [{ cutout: parsed.cutouts[0], spec }], fingerHoles: [] } };
+  const migrated = parseProjectDoc(JSON.parse(JSON.stringify(legacy)))!;
+  expect(migrated).toEqual({ ...legacy, schemaVersion: PROJECT_SCHEMA_VERSION });
+  expect(parseProjectDoc(JSON.parse(JSON.stringify(serializeProjectDoc(migrated))))).toEqual(migrated);
 });

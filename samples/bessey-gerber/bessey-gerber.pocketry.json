@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 35,
+  "schemaVersion": 36,
   "shapes": [
     {
       "id": "54e9ef0a-cc47-4024-9eb4-a0175f87004d",
@@ -280,8 +280,33 @@
     "magnetCrushRibs": false,
     "screwHoles": false,
     "labelTab": null,
-    "textColor": null,
-    "surfaceTexts": []
+    "textColor": "#7151a3",
+    "surfaceTexts": [
+      {
+        "id": "sample-bessey-gerber-text-1",
+        "text": "Bessey",
+        "position": {
+          "x": -53.5,
+          "y": -27.5
+        },
+        "font": "helvetiker",
+        "sizeMm": 7,
+        "heightMm": 0.8,
+        "rotationDeg": 90
+      },
+      {
+        "id": "sample-bessey-gerber-text-2",
+        "text": "Gerber",
+        "position": {
+          "x": -58.5,
+          "y": 25.5
+        },
+        "font": "helvetiker",
+        "sizeMm": 7,
+        "heightMm": 0.8,
+        "rotationDeg": 90
+      }
+    ]
   },
   "cutouts": [
     {

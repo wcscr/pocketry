@@ -11,6 +11,9 @@ A fitted wire-stripper pocket with a slot for lifting the tool.
 
 ## Printed bin
 
+The editable project includes raised lettering approximating the printed photo.
+The supplied 3MF is unchanged; export the updated project for a model with these labels.
+
 <a href="photos/printed-bin-loaded.jpg"><img src="photos/printed-bin-loaded.jpg" width="640" alt="Printed bin holding the wire strippers"></a>
 
 <a href="photos/printed-bin-pocket.jpg"><img src="photos/printed-bin-pocket.jpg" width="640" alt="Empty wire-stripper bin showing the fitted pocket and finger access"></a>

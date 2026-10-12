@@ -174,7 +174,7 @@ describe("WorkspaceLayout", () => {
       expect(controls.hasAttribute('inert')).toBe(true);
       const show = container.querySelector<HTMLButtonElement>('[aria-label="Show controls"]')!;
       expect(show.closest('[data-testid="desktop-workspace-controls"]')).toBeNull();
-      expect(show.dataset.testid).toBe('controls-restore-rail');
+      expect(show.textContent).toBe('Bin designer');
       React.act(() => show.click());
       expect(controls.hasAttribute('inert')).toBe(false);
       expect(controls.querySelector('input')).toBe(field);
@@ -182,7 +182,7 @@ describe("WorkspaceLayout", () => {
     } });
   });
 
-  it("restores either desktop panel from its own strip without remounting its fields or canvas", () => {
+  it("restores either desktop panel from a labeled vertical rail without remounting its fields or canvas", () => {
     function Harness() {
       const [open, setOpen] = React.useState(true);
       return <WorkspaceLayout autoSaveId="test:workflow-restore" panelOpen={open} onPanelOpenChange={setOpen}
@@ -201,10 +201,12 @@ describe("WorkspaceLayout", () => {
       expect(properties.hasAttribute('hidden')).toBe(true);
       const restore = container.querySelector<HTMLButtonElement>('[aria-label="Expand workflow panel"]')!;
       const restoreProperties = container.querySelector<HTMLButtonElement>('[aria-label="Expand properties panel"]')!;
-      expect(restore.dataset.testid).toBe('left-panel-restore-rail');
-      expect(restoreProperties.dataset.testid).toBe('right-panel-restore-rail');
+      expect(restore.textContent).toBe('Workflow');
+      expect(restoreProperties.textContent).toBe('Properties');
       expect(restore.closest('[aria-label="Editing tools"]')).toBeNull();
       expect(restoreProperties.closest('[aria-label="Editing tools"]')).toBeNull();
+      expect(restore.title).toBe('Workflow collapsed — click to expand');
+      expect(restore.getAttribute('aria-expanded')).toBe('false');
       React.act(() => restore.click());
       expect(panel.hasAttribute('hidden')).toBe(false);
       expect(properties.hasAttribute('hidden')).toBe(true);
