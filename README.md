@@ -105,7 +105,7 @@ reload the original photo to recover detail discarded by older versions.
 Choose **Region → Set region** and draw a box around the tool. In **Outline**,
 adjust **Sensitivity** to refine detection and **Simplification** to control the
 number of points. Use **Symmetry & straighten** when the tool needs a symmetric
-outline or upright alignment. Choose **Straighten only** to rotate the photo and
+outline or upright alignment. It opens with **Straighten only** selected to rotate the photo and
 all contours using the suggested axis without mirroring or changing their shape;
 adjust the blue handles if needed. **Edit Contour**, directly below it, lets you correct
 individual points.

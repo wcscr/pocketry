@@ -47,7 +47,7 @@ function SymmetryEditor({ session, onClose, cancelDrag }: {
   const [shapeIndex, setShapeIndex] = useState(session.shapeIndex);
   const shape = session.outline[shapeIndex];
   const [axis, setAxis] = useState(() => suggestSymmetryAxis(shape.outer));
-  const [side, setSide] = useState<SymmetrySide | "none">("average");
+  const [side, setSide] = useState<SymmetrySide | "none">("none");
   const [alignUpright, setAlignUpright] = useState(false);
   const straightenOnly = side === "none";
   const rotate = straightenOnly || alignUpright;
