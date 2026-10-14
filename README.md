@@ -96,12 +96,14 @@ choose **Correct perspective & use scale**; other detected references offer
 **Accept detected scale**. For manual calibration, choose **Set scale**, place
 the ruler endpoints a known distance apart, enter that distance in millimetres,
 and choose **Confirm scale**. If perspective correction crops a larger tool,
-enable **Region → Show full corrected photo**.
+enable **Show full photo** above the canvas (below it on phones). It stays accessible with the workflow
+panels closed and preserves the scale, selected region, and contour edits.
 
 Choose **Region → Set region** and draw a box around the tool. In **Outline**,
 adjust **Sensitivity** to refine detection and **Simplification** to control the
-number of points. Use **Edit contours** to correct individual points, or
-**Symmetry & straighten** when the tool needs a symmetric outline or upright alignment.
+number of points. Use **Symmetry & straighten** when the tool needs a symmetric
+outline or upright alignment. **Edit Contour**, directly below it, lets you correct
+individual points.
 **Margin** optionally adds clearance around the traced tool.
 
 **Select** only selects contours. Choose **Edit contours** to move points or add
@@ -118,7 +120,7 @@ closing the page. This recovery copy is local to the browser; replacing the phot
 or choosing **Start over** replaces or clears it. Export a project backup for a
 portable copy of a calibrated outline and its bin settings.
 
-Choose **New trace** in the Photo step (or **Start over** in the phone menu) to
+Choose **Start over** at the bottom of the Trace workflow panel (or in the phone menu) to
 begin again. Confirming clears the current trace and its edit history; pockets
 already added to Bin remain. Photo selection accepts one PNG, JPG, or WebP up to
 10 MB. Rejected or unreadable photos show a persistent message and leave the
@@ -146,13 +148,15 @@ and choose **Keep these outlines together**.
 
 The status bar above either workspace shows the active bin project and its local
 save state, even with the controls closed. Select the project name to manage the
-browser library, or **Backups** to download the current project. Projects are
+browser library. Use **Project → Export project** in Bin to download the current
+project, or **Export library** in the library to download all named projects. Projects are
 stored only in this browser and do not sync between devices. Back up after
 important changes and before clearing browser data. Library backups contain named
 projects; an unnamed draft needs its own project backup. Project backups preserve
 bin geometry and edit history, but do not include the original Trace photo.
-If saving fails, **Backups** retains a separate **Download unsaved edits** copy
-even after reopening Bin or switching projects. Download it before closing or
+If saving fails, **Download unsaved work** appears in the status bar and retains
+a separate recovery copy even after reopening Bin or switching projects. If more
+than one project needs recovery, it lists each copy. Download before closing or
 reloading the tab, then import it in Bin to recover those edits.
 Traced tools keep their chosen destination through navigation and reload. If the
 destination changes, they wait outside the current project until you open the

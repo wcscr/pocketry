@@ -70,8 +70,10 @@ vi.mock("@/components/layout/workspace-layout", () => ({
 }));
 
 vi.mock("@/components/trace/trace-controls-panel", () => ({
-  TraceControlsPanel: ({ handoff, onExport, onApplyPerspective }: TraceControlsPanelProps) => <>
+  TraceControlsPanel: ({ handoff, onExport, onApplyPerspective, onStartOver }: TraceControlsPanelProps) => <>
     <div data-testid="controls-handoff"><TraceHandoffOptions handoff={handoff} /></div>
+    <button data-testid="controls-add-to-bin" onClick={handoff.addToBin}>Add to bin</button>
+    <button data-testid="controls-start-over" onClick={onStartOver}>Reset confirmed trace</button>
     <button onClick={onExport} data-testid="export-trace">Export trace</button>
     <button data-testid="perspective-only" onClick={() => onApplyPerspective({ source: "manual", paper: "letter",
       points: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }],
@@ -372,6 +374,49 @@ describe("Trace detection workflow", () => {
     Object.defineProperty(window, "innerWidth", { value: 1024, configurable: true, writable: true });
   });
 
+  it.each([true, false])("keeps full-photo access beside the canvas with controls closed and preserves edits (mobile=%s)", async mobile => {
+    vi.stubGlobal("matchMedia", () => ({ matches: mobile, addEventListener() {}, removeEventListener() {} }));
+    Object.defineProperty(window, "innerWidth", { value: mobile ? 390 : 1440, configurable: true, writable: true });
+    let current!: ReturnType<typeof useTrace>;
+    let panel!: ReturnType<typeof usePanelState>;
+    function Probe(): null { current = useTrace(); panel = usePanelState(); return null; }
+    await React.act(async () => root.render(<PanelProvider><TraceProvider><Probe /><TracePage /></TraceProvider></PanelProvider>));
+    const boundsControl = () => host.querySelector('[data-testid="trace-photo-bounds-control"]');
+    expect(boundsControl()).toBeNull();
+    await React.act(async () => {
+      current.dispatch({ type: "SOURCE_LOADED", imageUrl: "photo", fileName: "Large tool" });
+      current.dispatch({ type: "SOURCE_READY", imageSize: { width: 800, height: 600 } });
+      current.dispatch({ type: "PERSPECTIVE_APPLIED", sourceImageUrl: "photo", imageUrl: "corrected",
+        imageSize: { width: 800, height: 600 }, source: "template", paper: "a4",
+        calibration: { startX: 200, startY: 50, endX: 500, endY: 50, lengthMm: 210 },
+        paperBounds: { x: 200, y: 50, width: 300, height: 450 } });
+      panel.setPanelOpen(false);
+    });
+    expect(host.querySelectorAll('[data-testid="trace-photo-bounds-control"]')).toHaveLength(1);
+    expect(boundsControl()!.textContent).toContain("Show full photo");
+    const toggle = boundsControl()!.querySelector<HTMLButtonElement>('[role="switch"]')!;
+    expect(toggle.getAttribute("aria-checked")).toBe("false");
+    await React.act(async () => toggle.click());
+    expect(current.perspectiveCorrection?.showFullPhoto).toBe(true);
+    await React.act(async () => {
+      current.dispatch({ type: "SET_REGION", region: { x: 100, y: 10, width: 500, height: 580 } });
+      current.dispatch({ type: "REGION_COMMITTED" });
+      current.dispatch({ type: "OUTLINE_COMMITTED", outline: exportOutline });
+    });
+    const before = current;
+    await React.act(async () => toggle.click());
+    expect(current.perspectiveCorrection?.showFullPhoto).toBe(false);
+    await React.act(async () => toggle.click());
+    expect(current.perspectiveCorrection?.showFullPhoto).toBe(true);
+    expect(current.imageUrl).toBe(before.imageUrl);
+    expect(current.calibration).toBe(before.calibration);
+    expect(current.region).toBe(before.region);
+    expect(current.outline).toBe(before.outline);
+    expect(current.history).toBe(before.history);
+    await React.act(async () => current.dispatch({ type: "SOURCE_CLEARED" }));
+    expect(boundsControl()).toBeNull();
+  });
+
   it.each([true, false])("closes the mobile drawer only after successful perspective-only correction (success=%s)", async (success) => {
     vi.stubGlobal("matchMedia", () => ({ matches: true, addEventListener: () => {}, removeEventListener: () => {} }));
     Object.defineProperty(window, "innerWidth", { value: 390, configurable: true, writable: true });
@@ -428,6 +473,21 @@ describe("Trace detection workflow", () => {
     expect(current!.processing).toBe(false);
   });
 
+  it.each([false, true].flatMap(mobile => ["controls-start-over", "controls-add-to-bin"].map(action => ({ mobile, action }))))(
+    "keeps the desktop workflow open after $action and the mobile canvas clear (mobile=$mobile)", async ({ mobile, action }) => {
+      vi.stubGlobal("matchMedia", () => ({ matches: mobile, addEventListener: () => {}, removeEventListener: () => {} }));
+      Object.defineProperty(window, "innerWidth", { value: mobile ? 390 : 1440, configurable: true, writable: true });
+      let panel!: ReturnType<typeof usePanelState>;
+      function Probe() { panel = usePanelState(); return null; }
+      await React.act(async () => root.render(<Router hook={memoryLocation({ path: "/" }).hook}><PanelProvider><TraceProvider>
+        <Probe /><SeedExportOutline format="svg" /><TracePage />
+      </TraceProvider></PanelProvider></Router>));
+      React.act(() => panel.setPanelOpen(true));
+      await React.act(async () => host.querySelector<HTMLButtonElement>(`[data-testid="${action}"]`)!.click());
+      expect(panel.panelOpen).toBe(!mobile);
+    },
+  );
+
   it.each([false, true].flatMap(mobile => ["Done", "Set later"].map(action => ({ mobile, action }))))(
     "starts another photo at the empty drop zone after $action (mobile=$mobile)", async ({ mobile, action }) => {
       vi.stubGlobal("matchMedia", () => ({ matches: mobile, addEventListener: () => {}, removeEventListener: () => {} }));
@@ -462,7 +522,7 @@ describe("Trace detection workflow", () => {
       vi.mocked(saveTraceDraft).mockClear();
       await React.act(async () => button("Trace another photo").click());
       expect(location).toBe("/");
-      expect(panel.panelOpen).toBe(false);
+      expect(panel.panelOpen).toBe(!mobile);
       expect(trace.imageUrl).toBeNull();
       expect(trace.outline).toEqual([]);
       expect(trace.calibration).toBeNull();
@@ -508,6 +568,7 @@ describe("Trace detection workflow", () => {
   afterEach(() => {
     React.act(() => root.unmount());
     host.remove();
+    sessionStorage.clear();
     vi.clearAllMocks();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();

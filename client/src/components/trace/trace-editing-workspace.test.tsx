@@ -83,25 +83,28 @@ afterEach(() => {
 });
 
 describe("trace workflow and properties", () => {
-  it.each([true, false])("offers a guarded New trace in the Photo step (workflow=%s)", async enabled => {
+  it.each([true, false])("offers a guarded Start over in the persistent workflow footer (workflow=%s)", async enabled => {
     await act(() => root.render(<TooltipProvider><ShapeLibraryProvider><TraceProvider><Harness enabled={enabled} /></TraceProvider></ShapeLibraryProvider></TooltipProvider>));
+    expect(button("button-start-over").disabled).toBe(true);
     await finishTrace();
-    if (enabled) await act(() => button("trace-workflow-photo").click());
-    else await act(() => host.querySelector<HTMLButtonElement>('#trace-settings-source [data-panel-section-trigger]')!.click());
+    expect(button("button-start-over").closest('[data-testid="desktop-workspace-controls"]')).not.toBeNull();
+    expect(button("button-start-over").closest('#trace-settings-source, #objects-panel')).toBeNull();
+    expect(button("button-start-over").disabled).toBe(false);
     const before = { imageUrl: trace.imageUrl, outline: trace.outline, calibration: trace.calibration, region: trace.region, history: trace.history };
     const dialogButton = (text: string) => [...document.querySelectorAll<HTMLButtonElement>('[role="alertdialog"] button')].find(button => button.textContent === text)!;
-    await act(() => button("button-new-trace").click());
+    await act(() => button("button-start-over").click());
     expect(document.activeElement).toBe(dialogButton("Keep working"));
     expect(document.querySelector('[role="alertdialog"]')?.textContent).toContain("Pockets already added to Bin stay there");
     await act(() => dialogButton("Keep working").click());
     expect(trace).toMatchObject(before);
-    await act(() => button("button-new-trace").click());
+    await act(() => button("button-start-over").click());
     await act(() => dialogButton("Clear trace and start over").click());
     expect(trace.imageUrl).toBeNull();
     expect(trace.calibration).toBeNull();
     expect(trace.region).toBeNull();
     expect(trace.outline).toEqual([]);
     expect(trace.history.stack).toHaveLength(1);
+    expect(button("button-start-over").disabled).toBe(true);
     expect(document.querySelector('[role="alertdialog"]')).toBeNull();
   });
 
@@ -188,6 +191,26 @@ describe("trace workflow and properties", () => {
     expect(canvasMounts).toBe(1);
   });
 
+  it.each([1440, 900])("starts contour editing from Outline properties without changing the trace (width=%s)", async width => {
+    await finishTrace();
+    await act(() => {
+      Object.defineProperty(window, "innerWidth", { configurable: true, value: width });
+      window.dispatchEvent(new Event("resize"));
+    });
+    await act(() => button("trace-workflow-outline").click());
+    const before = { outline: trace.outline, calibration: trace.calibration, history: trace.history };
+    expect(button("button-edit-contour").closest("#objects-panel")).not.toBeNull();
+    await act(() => button("button-edit-contour").click());
+    expect(trace.mode).toBe("edit");
+    expect(trace.selection).not.toBeNull();
+    expect(trace).toMatchObject(before);
+    expect(reprocess).not.toHaveBeenCalled();
+    expect(canvasMounts).toBe(1);
+    // On compact screens the properties sheet must yield to the editing canvas.
+    expect(host.querySelector("#objects-panel")!.hasAttribute("hidden")).toBe(width < 1100);
+    expect(button("button-edit-contour").getAttribute("aria-pressed")).toBe("true");
+  });
+
   it("keeps a compact canvas accessible during ruler placement, then shows confirmation", async () => {
     await loadPhoto();
     await act(() => {
@@ -247,34 +270,6 @@ describe("trace workflow and properties", () => {
       trace.dispatch({ type: "REGION_COMMITTED" });
     });
     expect(host.querySelector("#include-interior-holes")).not.toBeNull();
-  });
-
-  it("defaults to the paper and lets Region reveal the full corrected photo without losing edits", async () => {
-    await loadPhoto();
-    await act(() => trace.dispatch({ type: "PERSPECTIVE_APPLIED", sourceImageUrl: trace.imageUrl!, imageUrl: "corrected",
-      imageSize: { width: 800, height: 600 }, source: "template", paper: "a4", calibration,
-      paperBounds: { x: 200, y: 50, width: 300, height: 450 } }));
-    await act(() => {
-      trace.dispatch({ type: "SET_REGION", region: { x: 250, y: 100, width: 200, height: 200 } });
-      trace.dispatch({ type: "REGION_COMMITTED" });
-      trace.dispatch({ type: "OUTLINE_COMMITTED", outline });
-    });
-    await act(() => button("trace-workflow-region").click());
-    const toggle = host.querySelector<HTMLButtonElement>('[role="switch"]')!;
-    expect(toggle.getAttribute("aria-checked")).toBe("false");
-    const before = trace;
-    await act(() => toggle.click());
-    expect(toggle.getAttribute("aria-checked")).toBe("true");
-    expect(trace.perspectiveCorrection?.showFullPhoto).toBe(true);
-    expect(trace.imageUrl).toBe(before.imageUrl);
-    expect(trace.calibration).toBe(before.calibration);
-    expect(trace.region).toBe(before.region);
-    expect(trace.outline).toBe(before.outline);
-    expect(trace.history).toBe(before.history);
-    await act(() => toggle.click());
-    expect(trace.perspectiveCorrection?.showFullPhoto).toBe(false);
-    expect(canvasMounts).toBe(1);
-    expect(reprocess).not.toHaveBeenCalled();
   });
 
   it("gives margin its own optional properties and resets it without re-detection", async () => {

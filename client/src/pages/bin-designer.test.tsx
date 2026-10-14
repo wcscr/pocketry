@@ -541,12 +541,11 @@ describe("BinDesignerPage", () => {
       const queued = JSON.parse(sessionStorage.getItem("pocketry:queued-tools")!);
       expect(queued).toHaveLength(1);
       expect(queued[0].pendingDestination).toEqual({ key: "project:a", name: "Project A" });
-      React.act(() => [...document.querySelectorAll("button")].find(button => button.textContent === "Backups")!.click());
-      React.act(() => [...document.querySelectorAll("button")].find(button => button.textContent === "Download current project backup")!.click());
+      openSettingsSection(container, "project");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-export-project"]')!.click());
       const [blob] = vi.mocked(downloadBlob).mock.lastCall!;
       const json = await new Promise<string>(resolve => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.readAsText(blob); });
       expect(JSON.parse(json).shapes).toHaveLength(0);
-      React.act(() => [...document.querySelectorAll("button")].find(button => button.textContent === "Close")!.click());
       if (resolution === "accept") {
         React.act(() => [...document.querySelectorAll("button")].find(button => button.textContent === "Add waiting tools to Project B")!.click());
       } else {
@@ -584,11 +583,10 @@ describe("BinDesignerPage", () => {
     ] } };
     sessionStorage.setItem("pocketry:queued-tools", JSON.stringify([{ ...shape, pendingDestination: { key: "project:other", name: "Other project" } }]));
     vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(stored);
-    render(<PanelProvider><ProjectActivityProvider><ShapeLibraryProvider><ProjectStatusBar /><BinDesignerPage /></ShapeLibraryProvider></ProjectActivityProvider></PanelProvider>);
+    const { container } = render(<PanelProvider><ProjectActivityProvider><ShapeLibraryProvider><ProjectStatusBar /><BinDesignerPage /></ShapeLibraryProvider></ProjectActivityProvider></PanelProvider>);
     await flushHydration();
-    const button = (text: string) => [...document.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === text)!;
-    React.act(() => button("Backups").click());
-    React.act(() => button("Download current project backup").click());
+    openSettingsSection(container, "project");
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-export-project"]')!.click());
     const [blob] = vi.mocked(downloadBlob).mock.lastCall!;
     const json = await new Promise<string>(resolve => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.readAsText(blob); });
     const exported = parseProjectDoc(JSON.parse(json))!;
@@ -607,11 +605,9 @@ describe("BinDesignerPage", () => {
     </ShapeLibraryProvider></ProjectActivityProvider></PanelProvider></Router>);
     const button = (text: string) => [...document.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === text)!;
     const backupWidth = async () => {
-      React.act(() => button("Backups").click());
-      React.act(() => button("Download unsaved edits: Socket tray").click());
+      React.act(() => button("Download unsaved work").click());
       const [blob] = vi.mocked(downloadBlob).mock.lastCall!;
       const json = await new Promise<string>(resolve => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.readAsText(blob); });
-      React.act(() => button("Close").click());
       return JSON.parse(json).spec.gridX;
     };
     try {
@@ -642,6 +638,7 @@ describe("BinDesignerPage", () => {
     expect(layout().cutouts.every(c => c.depthPending)).toBe(true);
     const prompt = first.container.querySelector('[data-testid="pending-pocket-depth"]')!;
     expect(prompt.textContent).toContain("Tool 1");
+    if (!mobile) expect(first.container.querySelector('[data-testid="desktop-workspace-controls"]')?.getAttribute("aria-hidden")).toBeNull();
     expect(first.container.querySelector('[role="dialog"]')).toBeNull();
     React.act(() => button(prompt, "Set later").click());
     expect(prompt.textContent).toContain("Depth needed");
@@ -662,6 +659,7 @@ describe("BinDesignerPage", () => {
       openSettingsSection(reopened.container, "export");
       expect(reopened.container.querySelector<HTMLButtonElement>('[data-testid="button-export-3mf"]')!.disabled).toBe(true);
       React.act(() => reopened.container.querySelector<HTMLButtonElement>('[data-export-issue="pocket-depth-needed"]')!.click());
+      if (!mobile) expect(reopened.container.querySelector('[data-testid="desktop-workspace-controls"]')?.getAttribute("aria-hidden")).toBeNull();
       const question = reopened.container.querySelector('[data-testid="pending-pocket-depth"]')!;
       expect(question.textContent).toContain("How deep should this pocket be?");
       const input = question.querySelector<HTMLInputElement>('input[inputmode="decimal"]')!;
@@ -822,9 +820,8 @@ describe("BinDesignerPage", () => {
     React.act(() => route.navigate("/"));
     React.act(() => completion?.(false, new Error("Could not save the last edit")));
     expect(container.querySelector('[data-testid="global-project-status"]')!.textContent).toContain("Project storage needs attention");
-    React.act(() => [...container.querySelectorAll("button")].find(button => button.textContent === "Backups")!.click());
     expect(document.body.textContent).toContain("Could not save the last edit");
-    React.act(() => [...document.querySelectorAll("button")].find(button => button.textContent === "Download current project backup")!.click());
+    React.act(() => [...document.querySelectorAll("button")].find(button => button.textContent === "Download unsaved work")!.click());
     expect(downloadBlob).toHaveBeenCalledOnce();
   });
 

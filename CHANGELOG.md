@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Keep the Trace and Bin workflows expanded on wide screens when adding tools or starting another trace. Start over is directly available at the bottom of the Trace workflow panel.
+- Edit Contour is directly available below Symmetry & straighten in the Outline properties.
+- Show full photo stays visible beside the Trace canvas after perspective correction, so tools extending beyond the calibration sheet can be traced without changing the scale.
+- Remove the permanent Backups button. Use Export project or Export library for downloads; Download unsaved work appears in the status bar when edits need recovery.
+
 - Add traced tools straight to Bin, then choose depth beside the selected pocket. Set it later while arranging; printable export waits for all pocket depths. Trace another photo opens a fresh canvas and photo drop zone.
 
 - Keep all pocket depth choices visible below the depth field. Collapsed Workflow and Properties panels remain as slim, labeled edge rails with an expand arrow and subtle highlight in Trace and Bin.
@@ -17,10 +22,10 @@
 
 - Preserve native bin geometry and color partitions during STL and 3MF export; repair Float32 topology without rebuilding rounded solids.
 
-- The active bin project and local save status stay visible in Trace and Bin, including on phones. Backups are available above the workspace, and Add to bin names its destination and explains that each addition creates a new pocket.
+- The active bin project and local save status stay visible in Trace and Bin, including on phones. Add to bin names its destination and explains that each addition creates a new pocket.
 - Failed edits retain a separate recovery download when reopening Bin. Queued tools wait for their intended project when another tab changes the destination, with an explicit option to add them to the current bin.
 
-- Trace offers a confirmed New trace action on desktop, explains empty detection results, and shows persistent photo-selection errors. File selection states supported formats, the 10 MB limit, and that photos stay on your device.
+- Trace explains empty detection results and shows persistent photo-selection errors. File selection states supported formats, the 10 MB limit, and that photos stay on your device.
 
 - Adding traced tools now requires an explicit Fixed depth, To Floor, or Through choice for each tool. To Floor respects the destination bin’s base style. Depth choices survive queued-tool recovery without changing bin height automatically.
 - Export shows blocking problems beside its controls, with links to the relevant settings. Bin warnings now open the appropriate controls for solid fill, label tabs, grid pitch, and floor colors.

@@ -37,13 +37,15 @@ it("shows the saved project on Trace, updates the tab title and opens its librar
   await render();
   expect(host.textContent).toContain("Bin project: Socket tray");
   expect(host.textContent).toContain("Saved in this browser");
+  expect(button("Backups")).toBeUndefined();
+  expect(button("Download unsaved work")).toBeUndefined();
   expect(document.title).toBe("Socket tray · Trace · Pocketry");
   React.act(() => host.querySelector<HTMLButtonElement>('[aria-label="Manage project: Socket tray"]')!.click());
   expect(host.querySelector("output")!.dataset.libraryRequested).toBe("true");
   expect(document.title).toBe("Socket tray · Bin · Pocketry");
 });
 
-it("explains backup scope and exports the latest in-memory edits after leaving Bin", async () => {
+it("offers a direct recovery download of the latest in-memory edits after leaving Bin", async () => {
   await render();
   React.act(() => actions.publish({ name: "Unsaved changes", activeProjectId: "socket", status: "saving", error: null, hasDocument: true }, { ...DOC, name: "Unsaved changes", spec: { ...DOC.spec, gridX: 5 } }));
   React.act(() => route.navigate("/bin"));
@@ -51,11 +53,9 @@ it("explains backup scope and exports the latest in-memory edits after leaving B
   // Completion may arrive after the Bin page has unmounted.
   React.act(() => actions.saved(false, new Error("Storage is full")));
   expect(host.textContent).toContain("Project storage needs attention");
-  React.act(() => button("Backups").click());
   expect(document.body.textContent).toContain("Storage is full");
-  expect(document.body.textContent).toContain("does not include the original Trace photo");
-  expect(document.body.textContent).toContain("An unnamed draft needs its own project backup");
-  React.act(() => button("Download current project backup").click());
+  React.act(() => button("Download unsaved work").click());
+  expect(document.querySelector('[role="dialog"]')).toBeNull();
   const [blob, name] = vi.mocked(downloadBlob).mock.calls[0];
   expect(name).toMatch(/^Unsaved-changes-.*\.pocketry\.json$/);
   const json = await new Promise<string>(resolve => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.readAsText(blob); });
@@ -74,11 +74,17 @@ it("does not let a slow initial read replace a newer workspace identity", async 
   expect(host.textContent).toContain("Saved in this browser");
 });
 
-it("returns keyboard focus to Backups when its dialog closes", async () => {
+it("lists multiple failed visits and returns focus to the recovery action when closed", async () => {
   await render();
-  React.act(() => button("Backups").click());
+  for (const name of ["First tray", "Second tray"]) {
+    React.act(() => actions.publish({ name, activeProjectId: name, status: "error", error: "Storage is full", hasDocument: true }, { ...DOC, name }, Symbol(name)));
+  }
+  React.act(() => button("Download unsaved work").click());
+  expect(button("Download unsaved edits: First tray")).toBeTruthy();
+  React.act(() => button("Download unsaved edits: Second tray").click());
+  expect(vi.mocked(downloadBlob).mock.lastCall![1]).toMatch(/^Second-tray-.*-unsaved\.pocketry\.json$/);
   await React.act(async () => button("Close").click());
-  await vi.waitFor(() => expect(document.activeElement).toBe(button("Backups")));
+  await vi.waitFor(() => expect(document.activeElement).toBe(button("Download unsaved work")));
 });
 
 it("retains an old visit's late failure without changing the new project's status", async () => {
@@ -89,10 +95,10 @@ it("retains an old visit's late failure without changing the new project's statu
   React.act(() => actions.saved(false, new Error("Storage is full"), oldVisit));
   expect(host.textContent).toContain("Bin project: New tray");
   expect(host.textContent).toContain("Saved in this browser");
-  expect(host.textContent).toContain("Unsaved edits available in Backups");
+  expect(host.textContent).toContain("Unsaved work: Old tray");
   React.act(() => actions.saved(true, undefined, newVisit));
-  React.act(() => button("Backups").click());
-  React.act(() => button("Download unsaved edits: Old tray").click());
+  expect(button("Download unsaved work").title).toContain("Old tray");
+  React.act(() => button("Download unsaved work").click());
   const [blob] = vi.mocked(downloadBlob).mock.lastCall!;
   const json = await new Promise<string>(resolve => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.readAsText(blob); });
   expect(JSON.parse(json).spec.gridX).toBe(5);
@@ -105,18 +111,17 @@ it("does not let an old visit's successful flush clear a new save error", async 
   React.act(() => actions.publish({ name: "New tray", activeProjectId: "new", status: "error", error: "New save failed", hasDocument: true }, { ...DOC, name: "New tray" }, newVisit));
   React.act(() => actions.saved(true, undefined, oldVisit));
   expect(host.textContent).toContain("Project storage needs attention");
-  React.act(() => button("Backups").click());
   expect(document.body.textContent).toContain("New save failed");
-  expect(button("Download unsaved edits: New tray")).toBeTruthy();
+  expect(button("Download unsaved work").title).toContain("New tray");
   React.act(() => actions.saved(true, undefined, newVisit));
-  expect(document.querySelector('[aria-label="Unsaved edit recovery"]')).toBeNull();
+  expect(button("Download unsaved work")).toBeUndefined();
 });
 
 it.each(["empty", "unreadable"])("does not offer a fabricated project backup for %s storage", async kind => {
   if (kind === "empty") vi.mocked(readProjectOverview).mockResolvedValue({ doc: null, activeProjectId: null });
   else vi.mocked(readProjectOverview).mockRejectedValue(new Error("Saved by a newer Pocketry version"));
   await render();
-  React.act(() => button("Backups").click());
-  expect(button("Download current project backup").disabled).toBe(true);
+  expect(button("Backups")).toBeUndefined();
+  expect(button("Download unsaved work")).toBeUndefined();
   expect(document.body.textContent).toContain(kind === "empty" ? "No bin project yet" : "Saved by a newer Pocketry version");
 });
