@@ -131,6 +131,52 @@ describe("symmetry preview", () => {
     expect(preview()).toEqual(path); expect(trace.outline).toBe(original); expect(trace.history).toBe(history);
   });
 
+  it("straightens asymmetric shapes with holes without mirroring, and restores photo and scale on undo", () => {
+    ready();
+    React.act(() => trace.dispatch({ type: "OUTLINE_COMMITTED", outline: [outline[0],
+      { ...outline[1], holes: [rectRing(83, 20, 2, 5).reverse()] }] }));
+    const original = trace.outline, history = trace.history;
+    click("Symmetry & straighten");
+    expect(button("Apply symmetry").disabled).toBe(true);
+    click("Straighten only");
+    expect(document.querySelector('[role="status"]')).toBeNull();
+    expect(document.querySelector('[role="checkbox"]')).toBeNull();
+    expect(preview()).toBe(outlineToPathData([original[1]]));
+    const expected = uprightPreview();
+    expect(button("Straighten photo").disabled).toBe(false);
+    click("Straighten photo");
+    expect(outlineToPathData([trace.outline[1]])).toBe(expected);
+    const matrix = trace.imageAlignment!.matrix;
+    for (let i = 0; i < original.length; i++) {
+      expect(trace.outline[i].outer).toEqual(original[i].outer.map(p => transformImagePoint(p, matrix)));
+      expect(trace.outline[i].holes).toEqual(original[i].holes.map(ring => ring.map(p => transformImagePoint(p, matrix))));
+    }
+    const axis = suggestSymmetryAxis(trace.outline[1].outer);
+    expect(axis.start.x).toBeCloseTo(axis.end.x, 8);
+    expect(mmPerPixel(trace.calibration)).toBeCloseTo(mmPerPixel(calibration)!, 8);
+    expect(trace.history.index).toBe(history.index + 1);
+    expect(trace.history.stack[trace.history.index].label).toBe("Straighten photo");
+    const changed = trace.outline;
+    React.act(() => trace.undo());
+    expect(trace.outline).toBe(original); expect(trace.imageAlignment).toBeNull(); expect(trace.calibration).toBe(calibration);
+    React.act(() => trace.redo()); expect(trace.outline).toBe(changed);
+  });
+
+  it("keeps straightening previews local and restores the selected symmetry behavior when switching modes", () => {
+    ready(); const original = trace.outline, history = trace.history;
+    click("Symmetry & straighten"); const symmetric = preview();
+    click("Straighten only");
+    expect(uprightPreview()).toBeTruthy();
+    expect(preview()).toBe(outlineToPathData([original[1]]));
+    React.act(() => document.querySelector('[aria-label="First axis handle"]')!.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })));
+    expect(preview()).toBe(outlineToPathData([original[1]]));
+    click("Reset axis"); click("Average both");
+    expect(preview()).toBe(symmetric); expect(uprightPreview()).toBeUndefined();
+    click("Straighten only"); click("Cancel");
+    expect(trace.outline).toBe(original); expect(trace.history).toBe(history); expect(trace.imageAlignment).toBeNull();
+  });
+
 
   it("maps axis dragging through the zoomed and panned scene", () => {
     ready(); const history = trace.history;

@@ -12,6 +12,7 @@ import {
   IMAGE_CANVAS_MAX,
 } from "./use-image-source";
 import { rotateImageAlignment } from "@shared/geometry/image-alignment";
+import { RECTIFIED_IMAGE_MAX } from "@/lib/calibrate/perspective";
 
 it("uses the same photo matrix for working pixels and high-resolution re-detection", () => {
   const { alignment } = rotateImageAlignment({ width: 400, height: 600 }, .6);
@@ -123,6 +124,17 @@ describe("fitWithin", () => {
 });
 
 describe("detectionGeometry", () => {
+  it("reads correction detail independently of marker detection while bounding memory and preserving coordinates", () => {
+    const natural = { width: 3000, height: 4000 };
+    const marker = detectionGeometry(natural);
+    const correction = detectionGeometry(natural, IMAGE_CANVAS_MAX, RECTIFIED_IMAGE_MAX);
+    expect(correction.detect.width * correction.detect.height).toBeLessThanOrEqual(6_000_000);
+    expect(correction.detect.height).toBeGreaterThan(2800);
+    expect(correction.detect.width * correction.toWorking.x).toBeCloseTo(marker.detect.width * marker.toWorking.x, 9);
+    expect(correction.detect.height * correction.toWorking.y).toBeCloseTo(marker.detect.height * marker.toWorking.y, 9);
+    // Saved corrected rasters retain their established coordinate space.
+    expect(fitWithin({ width: 1200, height: 928 }, RECTIFIED_IMAGE_MAX)).toEqual({ width: 1200, height: 928 });
+  });
   it("reads more original detail for an aid retry without changing working coordinates", () => {
     const natural = { width: 3000, height: 4000 };
     const normal = detectionGeometry(natural);

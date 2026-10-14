@@ -98,11 +98,16 @@ the ruler endpoints a known distance apart, enter that distance in millimetres,
 and choose **Confirm scale**. If perspective correction crops a larger tool,
 enable **Show full photo** above the canvas (below it on phones). It stays accessible with the workflow
 panels closed and preserves the scale, selected region, and contour edits.
+Correction reads from the original photo and retains up to six megapixels, with a
+4,096-pixel side limit. Previously corrected drafts keep their existing resolution;
+reload the original photo to recover detail discarded by older versions.
 
 Choose **Region → Set region** and draw a box around the tool. In **Outline**,
 adjust **Sensitivity** to refine detection and **Simplification** to control the
 number of points. Use **Symmetry & straighten** when the tool needs a symmetric
-outline or upright alignment. **Edit Contour**, directly below it, lets you correct
+outline or upright alignment. Choose **Straighten only** to rotate the photo and
+all contours using the suggested axis without mirroring or changing their shape;
+adjust the blue handles if needed. **Edit Contour**, directly below it, lets you correct
 individual points.
 **Margin** optionally adds clearance around the traced tool.
 

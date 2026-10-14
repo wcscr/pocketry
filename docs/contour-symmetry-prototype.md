@@ -6,10 +6,11 @@ Available under **Outline → Symmetry & straighten**, and in the phone’s
 - Drag the two handles to set the centerline; arrow keys make small adjustments.
 - Zoom with the buttons, scroll wheel, or pinch. Drag the photo to pan; **Fit** restores the full contour.
 - Mirror the cleaner side or average both sides, preserving tapers and shoulders.
+- **Straighten only** uses the suggested axis to rotate the photo and all contours without mirroring. Asymmetry, holes, and branched shapes are preserved; the axis handles can still be adjusted.
 - **Align upright** rotates the photo and all contours together. Size and scale stay unchanged.
 - Symmetry affects only the selected shape. Apply makes one undoable edit; Cancel discards the preview.
 - Photo alignment survives reloads and re-detection. The original pixels are retained to avoid repeated resampling.
 
-The tool supports straight silhouettes with a continuous cross-section. Holes,
+Mirroring supports straight silhouettes with a continuous cross-section. Holes,
 branched cross-sections, and split mirrored halves are rejected. Shadows can
 bias the suggested axis; the user chooses the centerline and cleaner edge.

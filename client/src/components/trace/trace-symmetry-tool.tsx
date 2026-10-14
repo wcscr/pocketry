@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { outlineToPathData } from "@/lib/export/svg";
 import { mapOutline, normalizeOutline, outlineBounds } from "@/lib/geometry/outline";
-import { suggestSymmetryAxis, symmetrizeShape, type SymmetryAxis, type SymmetrySide } from "@/lib/geometry/symmetry";
+import { suggestSymmetryAxis, symmetrizeShape, type SymmetryAxis, type SymmetrySide, type SymmetryResult } from "@/lib/geometry/symmetry";
 import { rotateImageAlignment, transformImagePoint } from "@shared/geometry/image-alignment";
 import { useElementSize } from "@/hooks/use-element-size";
 import { useViewportTransform } from "@/hooks/use-viewport-transform";
@@ -47,19 +47,25 @@ function SymmetryEditor({ session, onClose, cancelDrag }: {
   const [shapeIndex, setShapeIndex] = useState(session.shapeIndex);
   const shape = session.outline[shapeIndex];
   const [axis, setAxis] = useState(() => suggestSymmetryAxis(shape.outer));
-  const [side, setSide] = useState<SymmetrySide>("average");
+  const [side, setSide] = useState<SymmetrySide | "none">("average");
   const [alignUpright, setAlignUpright] = useState(false);
+  const straightenOnly = side === "none";
+  const rotate = straightenOnly || alignUpright;
   const [svg, previewSize] = useElementSize<SVGSVGElement>();
   const scene = useRef<SVGGElement>(null);
   const touchPointers = useRef(new Set<number>());
   const drag = useRef<{ endpoint: keyof SymmetryAxis; axis: SymmetryAxis; pointerId: number } | null>(null);
-  const result = useMemo(() => symmetrizeShape(shape, axis, side), [shape, axis, side]);
+  const result = useMemo<SymmetryResult>(() => {
+    if (side !== "none") return symmetrizeShape(shape, axis, side);
+    const length = Math.hypot(axis.end.x - axis.start.x, axis.end.y - axis.start.y);
+    return Number.isFinite(length) && length >= 1 ? { shape } : { error: "Move the axis endpoints farther apart." };
+  }, [shape, axis, side]);
   const radians = Math.atan2(axis.end.x - axis.start.x, axis.end.y - axis.start.y);
   const rotation = useMemo(() => rotateImageAlignment(trace.imageSize, radians, trace.imageAlignment),
     [trace.imageSize, radians, trace.imageAlignment]);
-  const output = useMemo(() => alignUpright && result.shape ? {
+  const output = useMemo(() => rotate && result.shape ? {
     shape: normalizeOutline(mapOutline([result.shape], p => transformImagePoint(p, rotation.transform)))[0],
-  } : result, [alignUpright, result, rotation]);
+  } : result, [rotate, result, rotation]);
   const uprightBounds = useMemo(() => output.shape ? outlineBounds([output.shape]) : null, [output]);
   const uprightWidth = uprightBounds ? uprightBounds.maxX - uprightBounds.minX : 0;
   const uprightHeight = uprightBounds ? uprightBounds.maxY - uprightBounds.minY : 0;
@@ -98,8 +104,9 @@ function SymmetryEditor({ session, onClose, cancelDrag }: {
   const apply = () => {
     if (!output.shape || stale) return;
     if (!result.shape) return;
-    const outline = session.outline.map((item, index) => index === shapeIndex ? result.shape : item);
-    if (alignUpright) trace.dispatch({ type: "ALIGN_UPRIGHT", outline, expectedOutline: session.outline, radians });
+    const outline = straightenOnly ? session.outline : session.outline.map((item, index) => index === shapeIndex ? result.shape : item);
+    if (rotate) trace.dispatch({ type: "ALIGN_UPRIGHT", outline, expectedOutline: session.outline, radians,
+      label: straightenOnly ? "Straighten photo" : "Make contour symmetric and upright" });
     else trace.dispatch({ type: "OUTLINE_COMMITTED", label: "Make contour symmetric", outline });
     onClose();
   };
@@ -109,7 +116,7 @@ function SymmetryEditor({ session, onClose, cancelDrag }: {
   return <>
     <DialogHeader>
       <DialogTitle>Symmetry &amp; straighten</DialogTitle>
-      <DialogDescription>Drag the two blue handles onto the tool’s centerline. Choose the cleaner side to mirror, or average both.</DialogDescription>
+      <DialogDescription>Check the suggested blue axis, or drag its handles to adjust it. Straighten the photo, or choose a side to mirror.</DialogDescription>
     </DialogHeader>
     <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_220px]">
       <div className="min-w-0 overflow-hidden rounded-md border bg-muted/30">
@@ -150,7 +157,7 @@ function SymmetryEditor({ session, onClose, cancelDrag }: {
             stroke="white" strokeWidth={4} vectorEffect="non-scaling-stroke" />
           <line x1={axis.start.x} y1={axis.start.y} x2={axis.end.x} y2={axis.end.y}
             stroke="#0284c7" strokeWidth={2} strokeDasharray="6 4" vectorEffect="non-scaling-stroke" />
-          {([-1, 1] as const).map(sign => <text key={sign} x={center.x + sign * right.x * sideLabelDistance}
+          {!straightenOnly && ([-1, 1] as const).map(sign => <text key={sign} x={center.x + sign * right.x * sideLabelDistance}
             y={center.y + sign * right.y * sideLabelDistance} textAnchor="middle" dominantBaseline="middle"
             fontSize={handleRadius * 1.6} fontWeight="bold" fill="#0369a1" stroke="white" strokeWidth={handleRadius / 4}
             paintOrder="stroke" pointerEvents="none">{sign < 0 ? "L" : "R"}</text>)}
@@ -183,22 +190,24 @@ function SymmetryEditor({ session, onClose, cancelDrag }: {
         {session.outline.length > 1 && <Select value={String(shapeIndex)} onValueChange={value => {
           const index = Number(value); setShapeIndex(index); setAxis(suggestSymmetryAxis(session.outline[index].outer));
         }}>
-          <SelectTrigger aria-label="Shape to make symmetric"><SelectValue /></SelectTrigger>
+          <SelectTrigger aria-label="Reference shape"><SelectValue /></SelectTrigger>
           <SelectContent>{session.outline.map((_, i) => <SelectItem key={i} value={String(i)}>Shape {i + 1}</SelectItem>)}</SelectContent>
         </Select>}
-        <div className="grid grid-cols-3 gap-2 sm:grid-cols-1" role="group" aria-label="Symmetry source">
-          {([ ["left", "Use left side"], ["right", "Use right side"], ["average", "Average both"] ] as const).map(([value, label]) =>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-1" role="group" aria-label="Symmetry and straightening options">
+          {([ ["none", "Straighten only"], ["left", "Use left side"], ["right", "Use right side"], ["average", "Average both"] ] as const).map(([value, label]) =>
             <Button key={value} variant={side === value ? "default" : "outline"} aria-pressed={side === value}
               className="h-auto min-h-11 whitespace-normal px-2" onClick={() => setSide(value)}>{label}</Button>)}
         </div>
         <Button variant="ghost" size="sm" className="w-full" onClick={() => setAxis(suggestSymmetryAxis(shape.outer))}>Reset axis</Button>
-        <p className="text-xs text-muted-foreground">Dashed: original · Purple: preview<br />The profile is centered on the blue axis. Lengthwise tapers and shoulders are retained.</p>
-        <label className="flex min-h-11 cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium">
+        <p className="text-xs text-muted-foreground">{straightenOnly
+          ? "Rotate the photo and all contours so the blue axis is vertical. The tool’s shape and holes stay unchanged."
+          : <>Dashed: original · Purple: preview<br />The profile is centered on the blue axis. Lengthwise tapers and shoulders are retained.</>}</p>
+        {!straightenOnly && <><label className="flex min-h-11 cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium">
           <Checkbox checked={alignUpright} onCheckedChange={checked => setAlignUpright(checked === true)} />
           Align upright
         </label>
-        <p className="text-xs text-muted-foreground">Rotate the photo and contours together so this tool points straight up and down.</p>
-        {alignUpright && output.shape && uprightBounds && <figure className="rounded-md border bg-muted/30 p-2">
+        <p className="text-xs text-muted-foreground">Rotate the photo and contours together so this tool points straight up and down.</p></>}
+        {rotate && output.shape && uprightBounds && <figure className="rounded-md border bg-muted/30 p-2">
           <figcaption className="mb-1 text-center text-xs font-medium">Upright result</figcaption>
           <svg viewBox={`${uprightBounds.minX - uprightPadding} ${uprightBounds.minY - uprightPadding} ${uprightWidth + uprightPadding * 2} ${uprightHeight + uprightPadding * 2}`}
             className="h-40 w-full" aria-label="Contour after upright rotation">
@@ -208,12 +217,12 @@ function SymmetryEditor({ session, onClose, cancelDrag }: {
           </svg>
         </figure>}
         {output.error && <p role="status" className="text-sm text-destructive">{output.error}</p>}
-        <p className="text-xs text-muted-foreground">Symmetry changes only this shape. Upright alignment rotates the whole photo. Undo restores both.</p>
+        <p className="text-xs text-muted-foreground">{straightenOnly ? "Scale stays the same. Undo restores the original orientation." : "Symmetry changes only this shape. Upright alignment rotates the whole photo. Undo restores both."}</p>
       </div>
     </div>
     <DialogFooter>
       <Button variant="outline" onClick={onClose}>Cancel</Button>
-      <Button onClick={apply} disabled={!output.shape || stale}>{alignUpright ? "Apply symmetry & rotation" : "Apply symmetry"}</Button>
+      <Button onClick={apply} disabled={!output.shape || stale}>{straightenOnly ? "Straighten photo" : alignUpright ? "Apply symmetry & rotation" : "Apply symmetry"}</Button>
     </DialogFooter>
   </>;
 }

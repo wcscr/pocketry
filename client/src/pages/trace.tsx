@@ -432,7 +432,7 @@ function TraceWorkspace(): JSX.Element {
   const performPerspectiveCorrection = useCallback(
     async (proposal: PerspectiveProposal, template: TemplateVariant, usePaperScale: boolean | Calibration = true) => {
       const sourceRevision = latestStore.current.sourceRevision;
-      const frame = getDetectionFrame();
+      const frame = getDetectionFrame(RECTIFIED_IMAGE_MAX);
       if (
         !frame ||
         frame.toWorking.x <= 0 ||
@@ -449,7 +449,8 @@ function TraceWorkspace(): JSX.Element {
       dispatch({ type: "SET_PROCESSING", processing: true });
       try {
         // Canvas points live in working-image coordinates. Correct from the
-        // larger marker-detection raster so the warp preserves source detail.
+        // original photo at the correction budget, not the smaller marker
+        // detection copy. Map the detected coordinates into this frame once.
         const detectionProposal = scalePerspectiveProposal(
           proposal,
           1 / frame.toWorking.x,

@@ -8,6 +8,7 @@ import {
   fitImageWithin,
   rotatedImageDimensions,
   type ImageQuarterTurns,
+  type ImageRasterLimit,
 } from "@/lib/geometry/image-rotation";
 
 /**
@@ -113,8 +114,8 @@ export function decodeImageFile(file: File): Promise<DecodedImageFile> {
 /** Sizes the detection frame and the factor back into working space. */
 export function detectionGeometry(
   natural: Size,
-  max: Size = IMAGE_CANVAS_MAX,
-  detectMax: Size = DETECTION_CANVAS_MAX,
+  max: ImageRasterLimit = IMAGE_CANVAS_MAX,
+  detectMax: ImageRasterLimit = DETECTION_CANVAS_MAX,
 ): { detect: Size; toWorking: { x: number; y: number } } {
   const working = fitWithin(natural, max);
   const detect = fitWithin(natural, detectMax);
@@ -138,11 +139,11 @@ export interface UseImageSourceResult {
    * The full frame at the requested cap (normally {@link DETECTION_CANVAS_MAX}),
    * or `null` until the image is ready.
    */
-  getDetectionFrame(detectMax?: Size): DetectionFrame | null;
+  getDetectionFrame(detectMax?: ImageRasterLimit): DetectionFrame | null;
 }
 
 /** Fits `natural` inside `max` without changing its aspect ratio. */
-export function fitWithin(natural: Size, max: Size): Size {
+export function fitWithin(natural: Size, max: ImageRasterLimit): Size {
   return fitImageWithin(natural, max);
 }
 
@@ -194,7 +195,7 @@ export function drawAlignedImage(context: CanvasRenderingContext2D, image: Canva
 export function useImageSource(
   url: string | null,
   fileName = "",
-  max: Size = IMAGE_CANVAS_MAX,
+  max: ImageRasterLimit = IMAGE_CANVAS_MAX,
   rotation: ImageQuarterTurns = 0,
   alignment: ImageAlignment | null = null,
 ): UseImageSourceResult {
@@ -303,7 +304,7 @@ export function useImageSource(
     [source],
   );
 
-  const getDetectionFrame = useCallback((detectMax: Size = DETECTION_CANVAS_MAX): DetectionFrame | null => {
+  const getDetectionFrame = useCallback((detectMax: ImageRasterLimit = DETECTION_CANVAS_MAX): DetectionFrame | null => {
     const image = imageRef.current;
     if (!image || source.status !== "ready") return null;
 

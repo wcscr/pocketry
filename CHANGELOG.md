@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add Straighten only in Symmetry & straighten to rotate the photo using the suggested axis while preserving asymmetric contours and holes, with undo and unchanged scale.
+- Preserve more photo detail during perspective correction: use original-source pixels with a six-megapixel budget instead of reducing the corrected photo to 1,200 pixels per side.
 - Keep the Trace and Bin workflows expanded on wide screens when adding tools or starting another trace. Start over is directly available at the bottom of the Trace workflow panel.
 - Edit Contour is directly available below Symmetry & straighten in the Outline properties.
 - Show full photo stays visible beside the Trace canvas after perspective correction, so tools extending beyond the calibration sheet can be traced without changing the scale.

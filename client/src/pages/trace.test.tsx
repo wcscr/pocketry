@@ -434,6 +434,7 @@ describe("Trace detection workflow", () => {
     expect(correctPerspectiveMock).not.toHaveBeenCalled();
     await React.act(async () => [...document.querySelectorAll<HTMLButtonElement>('[role="alertdialog"] button')].find(button => button.textContent === "Correct and clear trace")!.click());
     expect(panel.panelOpen).toBe(!success);
+    expect(getDetectionFrameMock).toHaveBeenLastCalledWith({ width: 4096, height: 4096, maxPixels: 6_000_000 });
     expect(current.calibration).toBeNull();
     if (success) {
       expect(current.mode).toBe("calibrate");
