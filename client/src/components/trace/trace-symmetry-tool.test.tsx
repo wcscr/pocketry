@@ -62,7 +62,7 @@ describe("symmetry preview", () => {
     expect(button("Straighten only").getAttribute("aria-pressed")).toBe("true");
     expect(document.querySelector('[role="status"]')).toBeNull();
     expect(button("Straighten photo").disabled).toBe(false);
-    click("Average both"); toggleUpright();
+    click("Average"); toggleUpright();
     expect(document.querySelector('[role="status"]')?.textContent).toContain("separate parts");
     expect(button("Apply symmetry & rotation").disabled).toBe(true);
     click("Cancel"); click("Symmetry & straighten");
@@ -75,11 +75,11 @@ describe("symmetry preview", () => {
 
   it("previews either side and keyboard axis changes without altering the trace on Cancel", () => {
     ready(); const original = trace.outline, history = trace.history;
-    click("Symmetry & straighten"); click("Average both"); const average = preview();
-    click("Use left side"); const left = preview();
+    click("Symmetry & straighten"); click("Average"); const average = preview();
+    click("Left"); const left = preview();
     expect(left).not.toEqual(average);
-    click("Use right side"); expect(preview()).not.toEqual(left);
-    click("Average both");
+    click("Right"); expect(preview()).not.toEqual(left);
+    click("Average");
     React.act(() => document.querySelector('[aria-label="First axis handle"]')!.dispatchEvent(
       new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }),
     ));
@@ -91,7 +91,7 @@ describe("symmetry preview", () => {
 
   it("changes only the selected shape in one undoable edit and preserves calibration", () => {
     ready(); const original = trace.outline, history = trace.history;
-    click("Symmetry & straighten"); click("Use left side"); click("Apply symmetry");
+    click("Symmetry & straighten"); click("Left"); click("Apply symmetry");
     expect(document.querySelector('[role="dialog"]')).toBeNull();
     expect(trace.outline[0]).toBe(original[0]); expect(trace.outline[1]).not.toEqual(original[1]);
     expect(trace.history.index).toBe(history.index + 1);
@@ -105,7 +105,7 @@ describe("symmetry preview", () => {
 
   it("previews upright rotation without moving the photo comparison or committing on Cancel", () => {
     ready(); const original = trace.outline, history = trace.history;
-    click("Symmetry & straighten"); click("Average both"); const originalPreview = preview();
+    click("Symmetry & straighten"); click("Average"); const originalPreview = preview();
     expect(uprightPreview()).toBeUndefined();
     toggleUpright();
     expect(uprightPreview()).toBeTruthy(); expect(uprightPreview()).not.toEqual(originalPreview);
@@ -117,7 +117,7 @@ describe("symmetry preview", () => {
 
   it("applies the upright preview and matching photo rotation as one undoable edit", () => {
     ready(); const original = trace.outline, history = trace.history, image = trace.imageUrl;
-    click("Symmetry & straighten"); click("Average both"); toggleUpright(); const expected = uprightPreview();
+    click("Symmetry & straighten"); click("Average"); toggleUpright(); const expected = uprightPreview();
     const previewMatrix = document.querySelector('[data-testid="trace-image-alignment"]')!.getAttribute("transform");
     click("Apply symmetry & rotation");
     expect(outlineToPathData([trace.outline[1]])).toEqual(expected);
@@ -186,14 +186,14 @@ describe("symmetry preview", () => {
 
   it("keeps straightening previews local and restores the selected symmetry behavior when switching modes", () => {
     ready(); const original = trace.outline, history = trace.history;
-    click("Symmetry & straighten"); click("Average both"); const symmetric = preview();
+    click("Symmetry & straighten"); click("Average"); const symmetric = preview();
     click("Straighten only");
     expect(uprightPreview()).toBeTruthy();
     expect(preview()).toBe(outlineToPathData([original[1]]));
     React.act(() => document.querySelector('[aria-label="First axis handle"]')!.dispatchEvent(
       new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })));
     expect(preview()).toBe(outlineToPathData([original[1]]));
-    click("Reset axis"); click("Average both");
+    click("Reset axis"); click("Average");
     expect(preview()).toBe(symmetric); expect(uprightPreview()).toBeUndefined();
     click("Straighten only"); click("Cancel");
     expect(trace.outline).toBe(original); expect(trace.history).toBe(history); expect(trace.imageAlignment).toBeNull();
@@ -202,7 +202,7 @@ describe("symmetry preview", () => {
 
   it("maps axis dragging through the zoomed and panned scene", () => {
     ready(); const history = trace.history;
-    click("Symmetry & straighten"); click("Average both");
+    click("Symmetry & straighten"); click("Average");
     React.act(() => document.querySelector<HTMLButtonElement>('[aria-label="Zoom in symmetry preview"]')!.click());
     const canvas = document.querySelector<SVGSVGElement>('[data-testid="symmetry-preview"]')!;
     const scene = document.querySelector('[data-testid="symmetry-scene"]')!;
@@ -257,14 +257,14 @@ describe("symmetry preview", () => {
     React.act(() => trace.dispatch({ type: "OUTLINE_COMMITTED", outline: [
       outline[0], { ...outline[1], holes: [rectRing(83, 20, 2, 5)] },
     ] }));
-    click("Symmetry & straighten"); click("Average both");
+    click("Symmetry & straighten"); click("Average");
     expect(document.querySelector('[role="status"]')?.textContent).toContain("interior holes");
     expect(button("Apply symmetry").disabled).toBe(true);
   });
 
   it("rolls back a cancelled pointer drag without committing anything", () => {
     ready(); const history = trace.history;
-    click("Symmetry & straighten"); click("Average both"); const initial = preview();
+    click("Symmetry & straighten"); click("Average"); const initial = preview();
     const canvas = document.querySelector<SVGSVGElement>('[data-testid="symmetry-preview"]')!;
     const handle = document.querySelector('[aria-label="First axis handle"]')!;
     Object.defineProperty(handle, "setPointerCapture", { value: vi.fn() });

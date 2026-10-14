@@ -193,11 +193,16 @@ function SymmetryEditor({ session, onClose, cancelDrag }: {
           <SelectTrigger aria-label="Reference shape"><SelectValue /></SelectTrigger>
           <SelectContent>{session.outline.map((_, i) => <SelectItem key={i} value={String(i)}>Shape {i + 1}</SelectItem>)}</SelectContent>
         </Select>}
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-1" role="group" aria-label="Symmetry and straightening options">
-          {([ ["none", "Straighten only"], ["left", "Use left side"], ["right", "Use right side"], ["average", "Average both"] ] as const).map(([value, label]) =>
+        <Button variant={straightenOnly ? "default" : "outline"} aria-pressed={straightenOnly}
+          className="min-h-11 w-full" onClick={() => setSide("none")}>Straighten only</Button>
+        <fieldset className="min-w-0 space-y-2">
+          <legend className="text-sm font-medium">Align with side</legend>
+          <div className="grid grid-cols-3 gap-1">
+          {([ ["left", "Left"], ["right", "Right"], ["average", "Average"] ] as const).map(([value, label]) =>
             <Button key={value} variant={side === value ? "default" : "outline"} aria-pressed={side === value}
-              className="h-auto min-h-11 whitespace-normal px-2" onClick={() => setSide(value)}>{label}</Button>)}
-        </div>
+              size="sm" className="h-11 min-w-0 px-2 sm:h-9" onClick={() => setSide(value)}>{label}</Button>)}
+          </div>
+        </fieldset>
         <Button variant="ghost" size="sm" className="w-full" onClick={() => setAxis(suggestSymmetryAxis(shape.outer))}>Reset axis</Button>
         <p className="text-xs text-muted-foreground">{straightenOnly
           ? "Rotate the photo and all contours so the blue axis is vertical. The tool’s shape and holes stay unchanged."
