@@ -242,6 +242,7 @@ export function TraceControlsPanel({
   latestMarginGeometry.current = { outline, margin, calibration };
 
   const handleMarginChange = (nextMargin: number): void => {
+    if (store.curves) return;
     const request = ++marginRequest.current;
 
     void (async () => {
@@ -927,7 +928,7 @@ export function TraceControlsPanel({
             <Select
               value={scale.mmPerPx && margin !== null ? String(margin) : undefined}
               onValueChange={(value) => handleMarginChange(Number(value))}
-              disabled={!scale.mmPerPx}
+              disabled={!scale.mmPerPx || !!store.curves}
             >
               <SelectTrigger id="margin" className="w-full">
                 <SelectValue
@@ -944,7 +945,8 @@ export function TraceControlsPanel({
             </Select>
           </div>
 
-          <Button variant="outline" size="sm" className="w-full" disabled={!margin}
+          {store.curves && <p className="text-xs text-muted-foreground">Curve prototype: use Bin clearance to adjust fit without flattening your curves.</p>}
+          <Button variant="outline" size="sm" className="w-full" disabled={!margin || !!store.curves}
             data-testid="button-reset-margin" onClick={() => handleMarginChange(0)}>Reset to zero</Button>
         </PanelSection>
 

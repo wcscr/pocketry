@@ -72,6 +72,16 @@ Draw a **Region** around each tool and refine its **Outline**. Add clearance wit
 **Margin**, then choose **Add to bin**. Review any amber edges: the tool shape
 there was estimated. You’ll set pocket depths in Bin.
 
+For the curve prototype, choose **Edit contours → Edit curves (prototype)** in
+Trace, or **Edit contour → Edit curves (prototype)** in Bin. Drag an edge to bend
+it, move its handles, or use **Split edge**, **Straight**, **Smooth**, and **Corner**.
+Curves stay editable in Trace recovery, Add to bin, and saved Pocketry projects,
+including undo/redo. Trace margin must be zero before starting; simplification,
+symmetry, and trace margin are locked once curves are authored. Use Bin clearance
+to adjust fit. Trace SVG retains native curves; solid exports and DXF use sampled
+outlines. See [prototype scope and verification](docs/contour-curves-prototype.md).
+
+
 ![The Wolfbox duster outline in the default Trace layout, with workflow steps on the left and contour controls on the right](docs/images/trace-outline.jpg)
 
 ### 2. Arrange the pockets

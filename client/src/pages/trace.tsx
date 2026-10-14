@@ -62,6 +62,7 @@ import { generateSTL } from "@/lib/export/stl";
 import { traceMaterialOutline } from "@/lib/geometry/contour-role";
 import { withKernel } from "@/lib/manifold/runtime";
 import { generateOutlineSVG } from "@/lib/export/svg";
+import { CURVE_TOLERANCE_MM, sampleCurves } from "@shared/geometry/curves";
 import type { ImageRotationDirection } from "@/lib/geometry/image-rotation";
 import { processImage } from "@/lib/image-processor";
 import { hasPendingManualCalibration, useTrace } from "@/state/trace-store";
@@ -648,15 +649,18 @@ function TraceWorkspace(): JSX.Element {
     const stem = `${exportFormat === "stl" ? "model" : "outline"}_${base}`;
 
     try {
+      // Resample at the current calibration, which may have changed since editing.
+      const sampled = store.curves ? sampleCurves(store.curves, CURVE_TOLERANCE_MM / (scale.mmPerPx ?? 0.1)) : outline;
       // Capture the optional editable outline before asynchronous STL generation.
       const backup = includeProject
-        ? new Blob([JSON.stringify(projectFromTrace(outline, scale, fileName || "Traced outline", margin ?? 0), null, 2)], { type: "application/json" })
+        ? new Blob([JSON.stringify(projectFromTrace(outline, scale, fileName || "Traced outline", margin ?? 0, store.curves), null, 2)], { type: "application/json" })
         : null;
       const exportOutline = outline.some(part => part.holes.length)
         ? await withKernel(kernel => traceMaterialOutline(kernel, outline)) : outline;
       let model: Blob;
       if (exportFormat === "svg") {
         model = new Blob([generateOutlineSVG(exportOutline, {
+          curves: outline.some(part => part.holes.length) ? undefined : store.curves,
           width: imageSize.width,
           height: imageSize.height,
           mmPerPx: scale.mmPerPx,

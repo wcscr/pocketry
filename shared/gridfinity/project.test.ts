@@ -49,6 +49,13 @@ const VALID = {
 };
 
 describe("parseProjectDoc", () => {
+  it("migrates point-only v37 projects without inventing curves or moving vertices", () => {
+    const legacy = { ...VALID, schemaVersion: 37 };
+    const restored = parseProjectDoc(legacy)!;
+    expect(restored.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
+    expect(restored.shapes).toEqual(VALID.shapes);
+    expect(restored.shapes[0].curvesMm).toBeUndefined();
+  });
   it("migrates omitted tab sizes and round-trips requested sizes in every history snapshot", () => {
     const before = parseBinSpec({ ...VALID.spec, labelTab: { width: "center", recessMm: 0.5, frontRim: true } });
     const old = parseProjectDoc({ ...VALID, schemaVersion: 57, spec: before, cutouts: [],

@@ -52,6 +52,7 @@ export function useOutlineRefinement(
     imageRotation,
     sourceRevision,
     history,
+    curves,
     dispatch,
   } = useTrace();
   const settings: TraceRefinementSettings = { tolerancePx, smoothing, margin, calibration,
@@ -72,7 +73,7 @@ export function useOutlineRefinement(
 
     // A committed edit, undo or recovered/photo-transformed source already
     // supplies its geometry and controls together. It becomes the new baseline.
-    if (outlineChanged || sourceReplaced || imageRotated || (rawOutline.length === 0 && !entry?.refinementBase?.length)) {
+    if (curves || outlineChanged || sourceReplaced || imageRotated || (rawOutline.length === 0 && !entry?.refinementBase?.length)) {
       applied.current = settings;
       return;
     }
@@ -133,6 +134,7 @@ export function useOutlineRefinement(
     };
   }, [
     rawOutline,
+    curves,
     outline,
     tolerancePx,
     smoothing,
