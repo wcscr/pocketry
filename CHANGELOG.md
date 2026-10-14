@@ -6,7 +6,7 @@
 - Preserve more photo detail during perspective correction: use original-source pixels with a six-megapixel budget instead of reducing the corrected photo to 1,200 pixels per side.
 - Keep the Trace and Bin workflows expanded on wide screens when adding tools or starting another trace. Start over is directly available at the bottom of the Trace workflow panel.
 - Edit Contour is directly available below Symmetry & straighten in the Outline properties.
-- Show full photo stays visible beside the Trace canvas after perspective correction, so tools extending beyond the calibration sheet can be traced without changing the scale.
+- Show full photo stays visible beside the Trace canvas after perspective correction, with its explanation behind a hover hint, so tools extending beyond the calibration sheet can be traced without changing the scale.
 - Remove the permanent Backups button. Use Export project or Export library for downloads; Download unsaved work appears in the status bar when edits need recovery.
 
 - Add traced tools straight to Bin, then choose depth beside the selected pocket. Set it later while arranging; printable export waits for all pocket depths. Trace another photo opens a fresh canvas and photo drop zone.
