@@ -2,6 +2,7 @@ import { mmPerPixel, type Calibration } from "@shared/geometry/scale";
 import type { Point, Rect } from "@shared/geometry/types";
 
 import { loadOpenCV } from "@/lib/opencv";
+import { fitImageWithin, type ImageRasterLimit } from "../geometry/image-rotation";
 
 import {
   TEMPLATE_MARKER_IDS,
@@ -56,11 +57,12 @@ export interface PerspectiveCorrectionResult extends PerspectiveLayout {
 
 /**
  * Perspective correction keeps the full photographed plane. Target four pixels
- * per millimetre, then uniformly reduce the result to this bounded working
- * raster when the photographed area extends beyond the reference sheet.
+ * per millimetre, with up to six megapixels for tools extending beyond the
+ * sheet. Correction also reads original pixels at this budget, independently
+ * of the smaller marker-detection frame. Existing saved rasters are not resized.
  */
 export const RECTIFIED_PX_PER_MM = 4;
-export const RECTIFIED_IMAGE_MAX = { width: 1200, height: 1200 } as const;
+export const RECTIFIED_IMAGE_MAX = { width: 4096, height: 4096, maxPixels: 6_000_000 } as const;
 
 /** Reject a template fit whose residual exceeds 0.75 mm on the output plane. */
 export const MAX_REPROJECTION_RMS_PX =
@@ -268,13 +270,17 @@ export function scalePerspectiveProposal(
 export function perspectiveLayout(
   proposal: PerspectiveProposal,
   template: TemplateVariant,
-  max: { width: number; height: number } = RECTIFIED_IMAGE_MAX,
+  max: ImageRasterLimit = RECTIFIED_IMAGE_MAX,
 ): PerspectiveLayout {
   const paper = templatePaper(template);
   const page = TEMPLATE_PAPER_MM[paper];
   const availableX = Math.max(1, max.width - 1) / page.width;
   const availableY = Math.max(1, max.height - 1) / page.height;
-  const pxPerMm = Math.min(RECTIFIED_PX_PER_MM, availableX, availableY);
+  let pxPerMm = Math.min(RECTIFIED_PX_PER_MM, availableX, availableY);
+  if (max.maxPixels !== undefined) {
+    const bounded = fitImageWithin({ width: Math.ceil(page.width * pxPerMm) + 1, height: Math.ceil(page.height * pxPerMm) + 1 }, max);
+    pxPerMm = Math.min(pxPerMm, (bounded.width - 1) / page.width, (bounded.height - 1) / page.height);
+  }
   const width = Math.ceil(page.width * pxPerMm) + 1;
   const height = Math.ceil(page.height * pxPerMm) + 1;
 
@@ -328,7 +334,7 @@ export function runPerspectiveCorrection(
   image: ImageData,
   proposal: PerspectiveProposal,
   template: TemplateVariant,
-  max: { width: number; height: number } = RECTIFIED_IMAGE_MAX,
+  max: ImageRasterLimit = RECTIFIED_IMAGE_MAX,
   referenceCalibration?: Calibration,
 ): PerspectiveCorrectionResult {
   if (!validPerspectiveQuad(proposal.points)) {
@@ -509,7 +515,7 @@ export async function correctPerspective(
   image: ImageData,
   proposal: PerspectiveProposal,
   template: TemplateVariant,
-  max: { width: number; height: number } = RECTIFIED_IMAGE_MAX,
+  max: ImageRasterLimit = RECTIFIED_IMAGE_MAX,
   referenceCalibration?: Calibration,
 ): Promise<PerspectiveCorrectionResult> {
   const cv = await loadOpenCV();

@@ -9,6 +9,7 @@ import { useShapeLibrary } from "@/state/shape-library";
 import { useTrace } from "@/state/trace-store";
 import { usePanelState } from "@/components/layout/panel-context";
 import { useMobileWorkspaceActions } from "@/components/layout/mobile-workspace-actions";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 /** One depth decision, shared by the canvas prompt and ordinary pocket properties. */
 export function PocketDepthQuestion({ spec, name, count = 1, onSave, onLater }: {
@@ -82,10 +83,11 @@ export function PendingPocketDepthPrompt({ request, fallback }: { request: numbe
   const { shapes } = useShapeLibrary();
   const { dispatch: dispatchTrace } = useTrace();
   const { setPanelOpen } = usePanelState();
+  const isMobile = useIsMobile();
   const [, navigate] = useLocation();
   const traceAnotherPhoto = () => {
     dispatchTrace({ type: "SOURCE_CLEARED" });
-    setPanelOpen(false);
+    setPanelOpen(!isMobile);
     navigate("/");
   };
   const [dismissed, setDismissed] = useState<Set<string>>(() => new Set());

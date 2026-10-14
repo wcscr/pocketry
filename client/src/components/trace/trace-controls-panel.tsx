@@ -10,6 +10,7 @@ import {
   RotateCw,
   ScanLine,
   Settings2,
+  Spline,
   Expand,
 } from "lucide-react";
 import { useLocation } from "wouter";
@@ -70,7 +71,6 @@ import { CalibrationDownloads } from "./calibration-downloads";
 import { AutoCalibrationOptions } from "./auto-calibration-options";
 import { RingList } from "./ring-list";
 import { revealTraceStep } from "./reveal-trace-step";
-import { TracePhotoBoundsControl } from "./trace-photo-bounds-control";
 import { TracePanelSections } from "./trace-panel-sections";
 import { useTraceInspector } from "./trace-inspector-context";
 import { TRACE_WORKFLOW_SECTIONS } from "./trace-workflow";
@@ -544,8 +544,6 @@ export function TraceControlsPanel({
                   Rotate right 90°
                 </Button>
               </div>
-              <Button variant="ghost" size="sm" className="w-full" onClick={() => setRestartRevision(sourceRevision)}
-                data-testid="button-new-trace">New trace</Button>
             </>
           ) : (
             <div className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">
@@ -818,7 +816,6 @@ export function TraceControlsPanel({
           className="scroll-mt-16"
           disabled={!scale.mmPerPx || reviewingScale}
         >
-          <TracePhotoBoundsControl />
           {region ? (
             <p className="text-xs text-muted-foreground">
               {Math.round(region.width)} × {Math.round(region.height)} px at{" "}
@@ -886,12 +883,19 @@ export function TraceControlsPanel({
           disabled={!scale.mmPerPx || !hasDetectionRegion || reviewingScale}
         >
           <TraceDetectionControls onReprocess={onReprocess} />
+          <Button variant={store.mode === "edit" || store.mode === "remove" ? "secondary" : "outline"}
+            size="sm" className="w-full" disabled={!hasOutline || processing}
+            aria-pressed={store.mode === "edit" || store.mode === "remove"}
+            onClick={() => { dispatch({ type: "SET_MODE", mode: "edit" }); onCanvasInteraction(); }}
+            data-testid="button-edit-contour">
+            <Spline className="h-4 w-4" />Edit Contour
+          </Button>
 
           <div className="space-y-1.5" data-testid="detection-contours">
             <div className="flex items-center gap-1">
               <p className="text-xs font-semibold">Detected Contours</p>
               <HelpHint label="contour editing">
-                Choose Edit contours. Drag a point to move it; click an edge to add one. On a phone, tap a point to show Delete point and pinch to zoom. Select only changes the selection.
+                Choose Edit Contour. Drag a point to move it; click an edge to add one. On a phone, tap a point to show Delete point and pinch to zoom. Select only changes the selection.
                 Simplification adjusts your edited contour. Sensitivity and interior holes re-detect from the photo and ask before replacing manual edits. Undo restores your contour.
               </HelpHint>
             </div>
@@ -1084,6 +1088,10 @@ export function TraceControlsPanel({
           </Button>
         </div>
         {hasOutline && !scale.mmPerPx && <p className="mt-2 text-xs text-muted-foreground">Set scale for STL or DXF. Choose SVG in Export Outline to save image pixels without a physical size.</p>}
+        <Button variant="ghost" size="sm" className="mt-2 w-full" disabled={!hasImage}
+          onClick={() => setRestartRevision(sourceRevision)} data-testid="button-start-over">
+          <RotateCcw className="h-4 w-4" />Start over
+        </Button>
       </PanelFooter>
     </div>
   );

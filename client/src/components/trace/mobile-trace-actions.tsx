@@ -13,7 +13,6 @@ import type { TemplateVariant } from "@/lib/calibrate/template";
 import { hasPendingManualCalibration, useTrace } from "@/state/trace-store";
 import { AutoCalibrationOptions } from "./auto-calibration-options";
 import { TraceDetectionControls, type DetectionSettings } from "./trace-detection-controls";
-import { TracePhotoBoundsControl } from "./trace-photo-bounds-control";
 import { RulerLengthInput, useRulerConfirmation } from "./ruler-length-input";
 
 export interface MobileTraceActionsProps {
@@ -104,7 +103,6 @@ export function MobileTraceActions({ onChoosePhoto, onAddToBin, addToBinReady = 
         <Button variant="ghost" className="h-11" onClick={() => openFullSettings("trace-settings-output")}>Export Outline</Button>
       </div>
     </MobileAdjustmentTray>}
-    {step === "region" && <div className="mb-2"><TracePhotoBoundsControl /></div>}
     {step === "scale" && replacingRuler && <Button variant="outline" className="mb-2 min-h-11 w-full"
       onClick={() => dispatch({ type: "CANCEL_MANUAL_CALIBRATION" })}>Cancel ruler</Button>}
     {step === "scale" && manualPending && !pendingAutoCalibration && !processing && <div className="mb-2 space-y-1" data-mobile-expanded="true">

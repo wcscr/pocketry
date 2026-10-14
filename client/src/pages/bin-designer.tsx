@@ -217,7 +217,7 @@ function BinDesignerWorkspace(): JSX.Element {
       const next = issue.cutoutIds.find((id) => id !== bin.selectedCutoutId) ?? issue.cutoutIds[0];
       dispatch({ type: "SELECT_CUTOUT", id: next });
       if (issue.code === "pocket-depth-needed") {
-        setPanelOpen(false);
+        if (isMobile) setPanelOpen(false);
         setDepthRequest(request => request + 1);
       } else editSelectedPocket();
     } else {
@@ -415,7 +415,7 @@ function BinDesignerWorkspace(): JSX.Element {
     if (firstPending) {
       dispatch({ type: "SELECT_CUTOUT", id: firstPending.id });
       dispatch({ type: "SET_VIEW_MODE", viewMode: "2d" });
-      setPanelOpen(false);
+      if (isMobile) setPanelOpen(false);
     }
     if (gridX !== spec.gridX || gridY !== spec.gridY) toast({ title: "Bin resized for new tools", description: "Undo restores the previous layout. Turn on Keep bin size fixed to prevent automatic growth." });
     if (spec.fill !== "solid") {
