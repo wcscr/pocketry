@@ -111,6 +111,15 @@ adjust the blue handles if needed. **Edit Contour**, directly below it, lets you
 individual points.
 **Margin** optionally adds clearance around the traced tool.
 
+For the curve prototype, choose **Edit contours → Edit curves (prototype)** in
+Trace, or **Edit contour → Edit curves (prototype)** in Bin. Drag an edge to bend
+it, move its handles, or use **Split edge**, **Straight**, **Smooth**, and **Corner**.
+Curves stay editable in Trace recovery, Add to bin, and saved Pocketry projects,
+including undo/redo. Trace margin must be zero before starting; simplification,
+symmetry, and trace margin are locked once curves are authored. Use Bin clearance
+to adjust fit. Trace SVG retains native curves; solid exports and DXF use sampled
+outlines. See [prototype scope and verification](docs/contour-curves-prototype.md).
+
 **Select** only selects contours. Choose **Edit contours** to move points or add
 one near an edge; clicking empty space clears the selection. Ctrl/Cmd+Z and
 Ctrl/Cmd+Shift+Z undo and redo contour edits, including after toolbar clicks.

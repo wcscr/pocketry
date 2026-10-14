@@ -231,6 +231,30 @@ afterEach(() => {
 });
 
 describe("TraceCanvas edit history", () => {
+  it("opens curve editing on the real canvas and keeps an edge bend as one undoable source edit", async () => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+    vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
+    const restore = installIdentitySvgCoordinates();
+    const host = document.createElement("div"); document.body.append(host); const root = createRoot(host);
+    let trace: TraceStore;
+    function Probe() { trace = useTrace(); return null; }
+    try {
+      await React.act(async () => root.render(<TraceProvider><SeedTrace /><Probe /><TooltipProvider><TraceCanvas onReprocess={() => {}} /></TooltipProvider></TraceProvider>));
+      React.act(() => trace!.dispatch({ type: "SET_MODE", mode: "edit" }));
+      const entry = host.querySelector<HTMLButtonElement>('[data-testid="button-edit-curves"]');
+      expect(entry).not.toBeNull(); React.act(() => entry!.click());
+      const before = trace!.history.stack.length;
+      const bend = host.querySelector<HTMLButtonElement>('[aria-label="Bend curve outward"]')!;
+      React.act(() => bend.click());
+      const curves = trace!.curves;
+      expect(curves?.[0].outer).toHaveLength(edited[0].outer.length);
+      expect(host.querySelector('[data-testid="curve-source-path"]')!.getAttribute("d")).toContain("C");
+      expect(trace!.history.stack).toHaveLength(before + 1);
+      React.act(() => trace!.undo()); expect(trace!.curves).toBeUndefined(); expect(trace!.outline).toEqual(edited);
+      React.act(() => trace!.redo()); expect(trace!.curves).toEqual(curves);
+    } finally { React.act(() => root.unmount()); restore(); }
+  });
   it.each(["click", "tiny", "cancel", "escape", "commit", "decline"])("preserves edited geometry through region %s", async gesture => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     vi.stubGlobal("ResizeObserver", NoopResizeObserver);

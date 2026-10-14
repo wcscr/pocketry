@@ -83,6 +83,8 @@ import {
 } from "@/components/canvas/canvas-viewport";
 import { Button } from "@/components/ui/button";
 import { ContourEditTools } from "@/components/canvas/contour-edit-tools";
+import { useCurveEditor } from "@/components/canvas/use-curve-editor";
+import { CURVE_TOLERANCE_MM } from "@shared/geometry/curves";
 import { MobileContourTools } from "@/components/canvas/mobile-contour-tools";
 import { ContourMagnifier } from "@/components/canvas/contour-magnifier";
 import { useMobileContourEditor } from "@/hooks/use-mobile-contour-editor";
@@ -449,6 +451,20 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
   }, [layoutIssues]);
 
   const selected = placed.find((p) => p.cutout.id === selectedCutoutId) ?? null;
+  const curveEditor = useCurveEditor({
+    outline: selected?.shape.outlineMm ?? [], curves: selected?.shape.curvesMm,
+    enabled: editorMode === "contour" && !!selected && !panActive && !selected.cutout.profileBottom && !hasPocketTilt(selected.cutout),
+    contextKey: selectedCutoutId ?? "", scale, tolerance: CURVE_TOLERANCE_MM,
+    viewport: viewport.handlers, panRequested: viewport.isSpaceHeld,
+    fromClient: (x, y) => { const p = toBin(x, y); return p && selected ? untransformPointPlacement(p, selected.cutout) : null; },
+    toCanvas: p => selected ? binToCanvas(transformPointPlacement(p, selected.cutout), spec) : p,
+    onCommit: (curves, label) => {
+      if (!selected) return;
+      const revision = reviseTracedShape(selected.shape, selected.shape.outlineMm, crypto.randomUUID(), curves);
+      storeShape(revision);
+      dispatch({ type: "UPDATE_CUTOUT", id: selected.cutout.id, patch: { shapeId: revision.id }, historyLabel: label });
+    },
+  });
   useEffect(() => {
     if ((selected?.cutout.profileBottom || (selected && hasPocketTilt(selected.cutout))) && (editorMode === "contour" || editorMode === "split")) {
       dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" });
@@ -456,7 +472,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
   }, [selected?.cutout.profileBottom, editorMode, dispatch]);
   const desktopPoint = useContourPointFocus({
     outline: selected?.shape.outlineMm ?? [],
-    enabled: !isMobile && editorMode === "contour" && !!selected && !selected.cutout.profileBottom && !hasPocketTilt(selected.cutout) && !panActive,
+    enabled: !curveEditor.active && !isMobile && editorMode === "contour" && !!selected && !selected.cutout.profileBottom && !hasPocketTilt(selected.cutout) && !panActive,
     contextKey: selectedCutoutId,
   });
   const splitEditor = usePocketSplit({ cutout: selected?.cutout ?? null, shape: selected?.shape ?? null,
@@ -701,7 +717,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
   };
 
   const mobileEditor = useMobileContourEditor({
-    enabled: isMobile && editorMode === "contour" && !!selected && !selected.cutout.profileBottom && !hasPocketTilt(selected.cutout) && !panActive,
+    enabled: !curveEditor.active && isMobile && editorMode === "contour" && !!selected && !selected.cutout.profileBottom && !hasPocketTilt(selected.cutout) && !panActive,
     outline: selected?.shape.outlineMm ?? [],
     selectionKey: selectedCutoutId,
     toLocal: point => {
@@ -822,6 +838,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
   };
 
   const handlePointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
+    if (curveEditor.down(event)) return;
     if (mobileEditor.down(event)) return;
     if (!panActive && editorMode === "placement" && !rulerActive && event.button === 0 && !viewport.isSpaceHeld && (event.shiftKey || event.metaKey || event.ctrlKey)) {
       const point = toBin(event.clientX, event.clientY);
@@ -1103,6 +1120,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
   };
 
   const handlePointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
+    if (curveEditor.move(event)) return;
     if (mobileEditor.move(event)) return;
     if (panActive) { viewport.handlers.onPointerMove(event); return; }
     if (editorMode === "footprint" && event.pointerType === "touch") {
@@ -1264,6 +1282,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
   };
 
   const endDrag = (event: ReactPointerEvent<SVGSVGElement>) => {
+    if (curveEditor.end(event)) return;
     if (mobileEditor.end(event)) return;
     desktopPoint.finish();
     if (panActive) { viewport.handlers.onPointerUp(event); return; }
@@ -1348,6 +1367,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
   };
 
   const handleContextMenu = (event: React.MouseEvent<SVGSVGElement>) => {
+    if (curveEditor.active) { event.preventDefault(); return; }
     if (editorMode !== "contour" || !selected) return;
     const handle = contourHandle(event.target as Element);
     if (!handle || handle.cutoutId !== selected.cutout.id) return;
@@ -1705,7 +1725,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
         onPointerMove={handlePointerMove}
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
-        onLostPointerCapture={basicPocket.cancel}
+        onLostPointerCapture={event => { basicPocket.cancel(); curveEditor.lostCapture(event); }}
         onContextMenu={handleContextMenu}
       >
         <g
@@ -1955,7 +1975,8 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
               pockets/openings they may overlap while being positioned. */}
           <SurfaceTextLayer inverseScale={inv} onSelect={onSelectSurfaceText} edgeBandColor={edgeBandColor} interactive={editorMode === "placement" && !rulerActive && !panActive && !viewport.isSpaceHeld} />
 
-          {editorMode === "contour" &&
+          {curveEditor.overlay}
+          {!curveEditor.active && editorMode === "contour" &&
             selected &&
             selected.shape.outlineMm.flatMap((shape, shapeIndex) => {
               const rings = [
@@ -2201,12 +2222,14 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
 
       {editorMode === "contour" && selected && !panActive ? (
         <div className="bin-canvas-guidance absolute bottom-2 left-2 z-30">
-          {isMobile ? <MobileContourTools selected={!!mobileEditor.selectedPoint} canRemove={mobileEditor.canRemove} onRemove={mobileEditor.removeSelected}
+          {curveEditor.active ? curveEditor.controls : isMobile ? <MobileContourTools selected={!!mobileEditor.selectedPoint} canRemove={mobileEditor.canRemove} onRemove={mobileEditor.removeSelected}
             onDone={() => dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" })} /> :
             <ContourEditTools removeActive={removeVertices} onChange={setRemoveVertices}
               onDeletePoint={desktopPoint.selectedPoint ? deleteFocusedPoint : undefined} canDeletePoint={desktopPoint.canDelete} />}
+          {curveEditor.startButton}
           <WorkflowHint hintKey="contour-edit" className="mt-1 max-w-[min(22rem,calc(100vw-1rem))]">
-            {isMobile ? "Drag points to move. Tap the line to add; tap a point for Delete. Pinch to zoom."
+            {curveEditor.active ? "Drag an edge to bend · Drag handles to shape · Esc cancels a drag" :
+            isMobile ? "Drag points to move. Tap the line to add; tap a point for Delete. Pinch to zoom."
               : removeVertices ? "Tap a vertex to remove it · Undo restores it" : "Drag points to move · Click near an edge to add · Select a point for Delete"}
           </WorkflowHint>
         </div>

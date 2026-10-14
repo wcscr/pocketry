@@ -4,6 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { TracedShape } from "@shared/gridfinity/cutout";
+import { curvesFromOutline, editCurves, sampleCurves } from "@shared/geometry/curves";
 
 import { ShapeLibraryProvider, useShapeLibrary, type ShapeLibrary } from "./shape-library";
 
@@ -67,6 +68,16 @@ function mountLibrary(): { library: () => ShapeLibrary; act: (fn: () => void) =>
 }
 
 describe("shape library", () => {
+  it("retains authored curves through queued-tool reload and rebuilds their samples", () => {
+    const first = mountLibrary(), shape = makeShape("curved");
+    const curvesMm = editCurves(curvesFromOutline(shape.outlineMm), { shapeIndex: 0, ringIndex: -1 },
+      { kind: "bend", index: 0, t: 0.5, delta: { x: 0, y: -0.3 } });
+    first.act(() => first.library().addShape({ ...shape, curvesMm }, { mode: "unset" }));
+    const restored = mountLibrary().library();
+    expect(restored.shapes[0].curvesMm).toEqual(curvesMm);
+    expect(restored.shapes[0].outlineMm).toEqual(sampleCurves(curvesMm));
+    expect(restored.pendingDepths.curved).toEqual({ mode: "unset" });
+  });
   it("retains destination-bound tools when opening a project and through reload", () => {
     const first = mountLibrary();
     const destination = { key: "project:a", name: "Project A" };

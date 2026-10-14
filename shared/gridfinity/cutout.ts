@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { curveOutlineSchema } from "../geometry/curve-schema";
+import { normalizeCurves, sampleCurves } from "../geometry/curves";
 import { hasPocketTilt, pocketAxis, pocketMouthBasis, rotatePocketVector } from "./pocket-orientation";
 import { profileAlongX, profileBottomSchema, profileFloorSegments, profileFootprint, profilePrisms, hasProfileRotation } from "./profile-bottom";
 import { objectRotationSchema } from "./object-pose";
@@ -76,12 +78,14 @@ export const boundsSchema = z.object({
 });
 
 /** A traced or directly drawn outline, normalised into the shape-local mm frame. */
-export const tracedShapeSchema = z
+export const tracedShapeObjectSchema = z
   .object({
     id: z.string().min(1),
     name: z.string().min(1),
     /** Full-resolution outline; vertex budgets are applied at build time. */
     outlineMm: outlineSchema,
+    /** Editable source; outlineMm is its sampled geometry for the solid kernel. */
+    curvesMm: curveOutlineSchema.min(1).optional(),
     /** Bbox of `outlineMm` (centred, so roughly symmetric around 0). */
     bboxMm: boundsSchema,
     pointCount: z.number().int().positive(),
@@ -98,6 +102,25 @@ export const tracedShapeSchema = z
   })
   .strict();
 
+/** Authored curves are authoritative at every import/worker boundary. Rebuild
+ * disposable samples and metadata rather than trusting a stale saved cache. */
+export function restoreTracedShapeCurves<T extends z.infer<typeof tracedShapeObjectSchema>>(shape: T, ctx: z.RefinementCtx): T {
+  if (!shape.curvesMm) return shape;
+  try {
+    const curvesMm = normalizeCurves(shape.curvesMm);
+    const outlineMm = sampleCurves(curvesMm);
+    const points = outlineMm.flatMap(s => [s.outer, ...s.holes]).flat();
+    const bboxMm = points.reduce((b, p) => ({ minX: Math.min(b.minX, p.x), minY: Math.min(b.minY, p.y),
+      maxX: Math.max(b.maxX, p.x), maxY: Math.max(b.maxY, p.y) }),
+    { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity });
+    return { ...shape, curvesMm, outlineMm, bboxMm, pointCount: points.length };
+  } catch (error) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["curvesMm"], message: error instanceof Error ? error.message : "Invalid curves." });
+    return z.NEVER;
+  }
+}
+
+export const tracedShapeSchema = tracedShapeObjectSchema.transform(restoreTracedShapeCurves);
 export type TracedShape = z.infer<typeof tracedShapeSchema>;
 
 export const depthSpecSchema = z.discriminatedUnion("mode", [

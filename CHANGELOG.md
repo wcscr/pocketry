@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Prototype editable Bézier contours in Trace and Bin: bend edges, edit handles, split curves, and preserve curve sources through saving, undo/redo, and Trace → Bin transfer.
+
 - Default to Straighten only in Symmetry & straighten to rotate the photo using the suggested axis while preserving asymmetric contours and holes, with undo and unchanged scale. Compact mode and side selectors separate straightening from symmetry, with contextual help behind hover hints and a single Apply action.
 - Preserve more photo detail during perspective correction: use original-source pixels with a six-megapixel budget instead of reducing the corrected photo to 1,200 pixels per side.
 - Keep the Trace and Bin workflows expanded on wide screens when adding tools or starting another trace. Start over is directly available at the bottom of the Trace workflow panel.

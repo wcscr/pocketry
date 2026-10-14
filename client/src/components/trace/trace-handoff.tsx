@@ -23,10 +23,10 @@ export function useTraceHandoff(onCanvasInteraction?: () => void) {
     const names = new Set(library.shapes.map(shape => shape.name));
     let number = 1;
     const parts = separateTools ? trace.outline.map(part => [part]) : [trace.outline];
-    const shapes = parts.map(part => {
+    const shapes = parts.map((part, index) => {
       while (names.has(`Tool ${number}`)) number++;
       const name = `Tool ${number++}`;
-      return normalizeTracedShape(part, scale, name);
+      return normalizeTracedShape(part, scale, name, trace.curves && (separateTools ? [trace.curves[index]] : trace.curves));
     });
     if (shapes.some(shape => !shape)) return;
     adding.current = true;

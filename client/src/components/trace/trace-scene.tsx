@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
+  type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
 
@@ -31,6 +32,7 @@ export interface SceneTransform {
 }
 
 export interface TraceSceneProps {
+  contourOverlay?: ReactNode;
   imageUrl: string;
   imageSize: { width: number; height: number };
   imageRotation?: ImageQuarterTurns;
@@ -79,6 +81,7 @@ export interface TraceSceneProps {
   onPointerMove?: (event: ReactPointerEvent<SVGSVGElement>) => void;
   onPointerUp?: (event: ReactPointerEvent<SVGSVGElement>) => void;
   onPointerCancel?: (event: ReactPointerEvent<SVGSVGElement>) => void;
+  onLostPointerCapture?: (event: ReactPointerEvent<SVGSVGElement>) => void;
   onPointerLeave?: (event: ReactPointerEvent<SVGSVGElement>) => void;
   onContextMenu?: (event: React.MouseEvent<SVGSVGElement>) => void;
   svgRef?: React.Ref<SVGSVGElement>;
@@ -124,6 +127,7 @@ const PERSPECTIVE_HIT_RADIUS = 15;
  * removed here.
  */
 export function TraceScene({
+  contourOverlay,
   imageUrl,
   imageSize,
   imageRotation = 0,
@@ -154,6 +158,7 @@ export function TraceScene({
   onPointerMove,
   onPointerUp,
   onPointerCancel,
+  onLostPointerCapture,
   onPointerLeave,
   onContextMenu,
   svgRef,
@@ -182,6 +187,7 @@ export function TraceScene({
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerCancel}
+      onLostPointerCapture={onLostPointerCapture}
       onPointerLeave={onPointerLeave}
       onContextMenu={onContextMenu}
     >
@@ -296,6 +302,7 @@ export function TraceScene({
           />
         )}
 
+        {contourOverlay}
         <RulerOverlay
           calibration={calibration}
           draft={draftCalibration}

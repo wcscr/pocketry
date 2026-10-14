@@ -57,6 +57,7 @@ import { generateDXF } from "@/lib/export/dxf";
 import { exportScale } from "@/lib/export/scale";
 import { generateSTL } from "@/lib/export/stl";
 import { generateOutlineSVG } from "@/lib/export/svg";
+import { CURVE_TOLERANCE_MM, sampleCurves } from "@shared/geometry/curves";
 import type { ImageRotationDirection } from "@/lib/geometry/image-rotation";
 import { processImage } from "@/lib/image-processor";
 import { hasPendingManualCalibration, useTrace } from "@/state/trace-store";
@@ -607,22 +608,25 @@ function TraceWorkspace(): JSX.Element {
     const stem = `${exportFormat === "stl" ? "model" : "outline"}_${base}`;
 
     try {
+      // Resample at the current calibration, which may have changed since editing.
+      const sampled = store.curves ? sampleCurves(store.curves, CURVE_TOLERANCE_MM / (scale.mmPerPx ?? 0.1)) : outline;
       // Capture the optional editable outline before asynchronous STL generation.
       const backup = includeProject
-        ? new Blob([JSON.stringify(projectFromTrace(outline, scale, fileName || "Traced outline", margin ?? 0), null, 2)], { type: "application/json" })
+        ? new Blob([JSON.stringify(projectFromTrace(outline, scale, fileName || "Traced outline", margin ?? 0, store.curves), null, 2)], { type: "application/json" })
         : null;
       let model: Blob;
       if (exportFormat === "svg") {
         model = new Blob([generateOutlineSVG(outline, {
+          curves: store.curves,
           width: imageSize.width,
           height: imageSize.height,
           mmPerPx: scale.mmPerPx,
           calibration,
         })], { type: "image/svg+xml" });
       } else if (exportFormat === "dxf") {
-        model = new Blob([generateDXF(outline, scale)], { type: "application/dxf" });
+        model = new Blob([generateDXF(sampled, scale)], { type: "application/dxf" });
       } else {
-        const stl = await generateSTL(outline, { heightMm: extrusionHeight, scale });
+        const stl = await generateSTL(sampled, { heightMm: extrusionHeight, scale });
         model = new Blob([stl], { type: "application/octet-stream" });
       }
       if (backup) downloadBlob(backup, `${stem}.pocketry.json`);

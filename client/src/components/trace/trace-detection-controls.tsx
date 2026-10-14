@@ -64,10 +64,11 @@ export function TraceDetectionControls({ onReprocess, compact = false }: {
         hint={compact ? undefined : "Higher includes more of the image. Updates when you release the slider; asks before replacing manual edits."} />
       <LabelledSlider id={compact ? "mobile-detail" : "detail"} label="Simplification"
         value={tolerancePx} min={0.1} max={8} step={0.1} format={(value) => `${value.toFixed(1)} px`}
-        disabled={processing} onChange={(value) => dispatch({ type: "SET_TOLERANCE", tolerancePx: value })}
+        disabled={processing || !!trace.curves} onChange={(value) => dispatch({ type: "SET_TOLERANCE", tolerancePx: value })}
         touchTarget={compact} hint={compact ? undefined : "Higher values use fewer points and may omit small features. Your edits are preserved."} />
     </div>
     {trace.outline.length > 0 && <TraceSymmetryTool />}
+    {trace.curves && <p className="text-xs text-muted-foreground">Curve prototype: simplification, symmetry and trace margin are locked to preserve your curves. Use Bin clearance to adjust fit.</p>}
     <Dialog open={pendingDetection !== null} onOpenChange={(open) => { if (!open) cancel(); }}>
       <DialogContent>
         <DialogHeader><DialogTitle>Re-detect from the photo?</DialogTitle>
