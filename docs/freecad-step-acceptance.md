@@ -23,6 +23,8 @@ A separate OCCT 7.8 reader validates **32 native STEP comparisons**: twelve adde
 
 ## Unresolved desktop import issue
 
+Follow-up on 2026-10-15: a geometry-free control and shipped-library inspection identify Qt accessibility defect QTBUG-134784. See [root-cause investigation](freecad-import-crash-root-cause.md). A corrected-build desktop import remains unpassed; the original results below are retained as historical evidence.
+
 The normal STEP Import Settings dialog was accepted with its existing options unchanged on macOS **26.6.2 (25G83)**. Three dedicated irregular-bin attempts crashed, including fresh sessions and keyboard confirmation; the unified irregular-bin attempt also crashed. A fifth fresh-session attempt used a simple 10 × 10 × 10 mm box STEP authored by this installed FreeCAD, containing one valid closed solid with a 1000 mm³ volume and no Pocketry geometry, and crashed at the same dialog. The macOS crash reports show SIGSEGV/EXC_BAD_ACCESS in Objective-C autorelease / Qt Cocoa accessibility/event handling. The control suggests a broader desktop/dialog runtime issue; the stack and control do not prove the root cause. Native API import/edit/save success is retained as separate evidence and does not excuse these failures.
 
 No import preferences were changed to make a check pass. The normal desktop workflow needs diagnosis and a passing rerun before release. Broader feature support, mobile and printing qualification, and backend selection remain separate gates. Neither approach became the production default.

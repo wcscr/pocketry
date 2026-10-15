@@ -11,6 +11,8 @@ native API editing pass all six fixtures in each approach; see
 [freecad-step-acceptance.md](freecad-step-acceptance.md). FreeCAD's normal import
 dialog crashes remain an explicit failed workflow check.
 
+The 2026-10-15 [root-cause investigation](freecad-import-crash-root-cause.md) isolates the Qt 6.8.3 macOS accessibility cache defect without STEP or geometry. A corrected-build desktop import is still required.
+
 ## Isolated implementation
 
 | Investigation | Branch | Local preview | Integration |
