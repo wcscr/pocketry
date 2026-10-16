@@ -10,6 +10,7 @@
 - Safer Trace selection, undo/redo, ruler replacement, and destructive-edit confirmation, with clearer photo-upload and empty-detection errors. Improve desktop workflow panels and collapsed rails, mobile move/rotate controls, pinch navigation, and mouse/pen panning.
 - Expand the sample library to 16 designs with Bessey/Gerber projects, print photos, and grouped downloads; add editable photo-matched labels to six projects. Refresh Help, screenshots, Gridfinity attribution, and flat-bottom/jig/Through-pocket guidance.
 - Restrict development hosting to loopback, restore Vite Host/filesystem checks, and block Vite's desktop-editor launch endpoint, including dot-segment bypasses. Pocketry's Trace/Bin editors and production hosting remain unchanged.
+- Remove the unused server image API, upload parsing, and image storage; projects and traces remain browser-local.
 
 ## 1.4.0 — 2026-10-06
 

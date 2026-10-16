@@ -15,8 +15,8 @@ CNC work.
 The Gridfinity G1–G5 bin software scope is implemented: bins support
 full/half/quarter pitches, configurable preview/material colors, and
 single- or multi-color 3MF export. Baseplate generation is intentionally left
-to dedicated Gridfinity tools. Optional server persistence and lower-priority
-upstream parity remain deferred. The G1 empty-bin and G3 real-tool physical
+to dedicated Gridfinity tools. Server-side image persistence has been removed; lower-priority
+upstream parity remains deferred. The G1 empty-bin and G3 real-tool physical
 print gates are still pending. See `docs/gridfinity-plan.md` for the completion
 ledger and roadmap.
 
@@ -53,16 +53,13 @@ client/               # React 18 frontend (Vite)
       worker/         # Typed worker RPC with supersede + cancel
     pages/            # Routed workspaces (wouter)
     state/            # Trace/bin reducers and the cross-workspace shape library
-server/               # Express backend
-  index.ts            # App entry — serves API + Vite middleware on port 5000
-  routes.ts           # REST API (/api/images CRUD, session-scoped)
-  storage.ts          # IStorage abstraction; currently MemStorage only
+server/               # Local editor/static-asset host
+  index.ts            # App entry — serves Vite or built assets on port 5000
+  app.ts              # App factory; rejects retired /api routes before SPA fallback
   vite.ts             # Dev-mode Vite middleware integration
 shared/
-  schema.ts           # Drizzle table definitions + Zod schemas (client + server)
   geometry/           # Dependency-free ring types, ring maths, and scale/calibration
   gridfinity/         # Bin/project schemas, constants, placement, and validation
-drizzle.config.ts     # Drizzle Kit migration config (PostgreSQL / Neon)
 vite.config.ts        # Vite build config
 vitest.config.ts      # Test config (mergeConfig over vite.config.ts)
 ```
@@ -131,7 +128,6 @@ npm run start        # Run the production build
 npm run check        # TypeScript type-check (tsc)
 npm test             # Vitest (run once)
 npm run test:watch   # Vitest in watch mode
-npm run db:push      # Push Drizzle schema to the database (needs DATABASE_URL)
 ```
 
 **`npm run check && npm test` is the required gate for every change.**
@@ -159,8 +155,8 @@ No linter is configured yet (prefer ESLint when one lands).
 
 - TypeScript strict mode; no `any` unless annotated with a reason.
 - Path aliases per `tsconfig.json` (`@/...` for client src, `@shared/...` for shared).
-- Shared validation lives in `shared/schema.ts` as Zod schemas derived from Drizzle tables (`drizzle-zod`); never duplicate validation logic client- or server-side.
-- Storage access goes through the `IStorage` interface in `server/storage.ts` — do not reach around it to Drizzle directly from routes.
+- Shared project and geometry validation lives under `shared/`; never duplicate validation logic client- or server-side.
+- Projects and traces are browser-local. Do not restore the retired image upload API or server-side session/storage scaffold.
 - UI additions should maintain a consistent style, interaction design, and layout with existing controls. Reuse established patterns for similar tasks (including compact label/input rows, object lists, selection, renaming, property panels, toolbars, and hover hints) before introducing a new pattern.
 - UI: compose shadcn/ui components from `client/src/components/ui`; TailwindCSS for styling, with the shadcn design tokens defined as CSS variables at the top of `client/src/index.css`; `lucide-react` for icons.
 - Keep build tooling platform-independent. The app builds and runs anywhere with plain Node; do not add hosted-IDE-specific build plugins or theme configuration.
