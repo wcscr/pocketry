@@ -292,7 +292,9 @@ existing experimental geometry stays visible and exportable.
 
 The static application processes images and generates models locally in the
 browser. Projects are stored in the browser using IndexedDB. The hosted version
-does not require uploading tool photographs to Pocketry's server.
+does not require uploading tool photographs to Pocketry's server. The local Node
+server serves the editor and static assets only; the retired `/api/images` endpoints
+return 404 and do not accept or store uploads.
 
 ## Run locally
 
