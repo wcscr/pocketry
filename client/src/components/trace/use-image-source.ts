@@ -1,3 +1,5 @@
+import { checkPhotoDimensions, normalizePhotoDataUrl } from "@/lib/photo-dimensions";
+import { tracePhotoError, TRACE_PHOTO_MAX_BYTES } from "@/lib/trace-photo";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { Rect } from "@shared/geometry/types";
@@ -84,6 +86,8 @@ export interface DecodedImageFile {
  */
 export function decodeImageFile(file: File): Promise<DecodedImageFile> {
   return new Promise((resolve, reject) => {
+    const error = tracePhotoError(file);
+    if (error) { reject(new Error(error)); return; }
     const reader = new FileReader();
     reader.onerror = () => reject(new Error("That file could not be read."));
     reader.onload = () => {
@@ -92,7 +96,9 @@ export function decodeImageFile(file: File): Promise<DecodedImageFile> {
         return;
       }
 
-      const imageUrl = reader.result;
+      let imageUrl: string;
+      try { imageUrl = normalizePhotoDataUrl(reader.result, TRACE_PHOTO_MAX_BYTES, file.type === ""); }
+      catch (cause) { reject(cause); return; }
       const image = new Image();
       image.onerror = () =>
         reject(new Error("That file could not be decoded as an image."));
@@ -103,6 +109,8 @@ export function decodeImageFile(file: File): Promise<DecodedImageFile> {
           reject(new Error("That image has invalid dimensions."));
           return;
         }
+        try { checkPhotoDimensions({ width, height }); }
+        catch (cause) { reject(cause); return; }
         resolve({ imageUrl, naturalSize: { width, height } });
       };
       image.src = imageUrl;
@@ -228,7 +236,12 @@ export function useImageSource(
     image.onload = () => {
       if (cancelled) return;
 
-      const naturalSize = { width: image.width, height: image.height };
+      const naturalSize = { width: image.naturalWidth || image.width, height: image.naturalHeight || image.height };
+      try { checkPhotoDimensions(naturalSize); }
+      catch (cause) {
+        setSource({ status: "error", url, fileName, message: (cause as Error).message });
+        return;
+      }
       const size = alignment?.size ?? fitWithin(rotatedImageDimensions(naturalSize, rotation), max);
 
       const canvas = canvasRef.current ?? document.createElement("canvas");

@@ -1,3 +1,4 @@
+import { withinImportLimits } from "./import-limits";
 import { z } from "zod";
 
 import {
@@ -275,6 +276,7 @@ function migrateLegacyProject(doc: LegacyProjectDoc): ProjectDoc {
  * an empty designer beats crashing the workspace.
  */
 export function parseProjectDoc(input: unknown): ProjectDoc | null {
+  if (!withinImportLimits(input)) return null;
   if (input && typeof input === "object" && "schemaVersion" in input && input.schemaVersion === PROJECT_SCHEMA_VERSION) {
     input = expandProjectFontSources(input);
   }

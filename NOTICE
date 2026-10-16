@@ -402,7 +402,7 @@ Apache License 2.0:
 
 MIT License:
 
-  @tailwindcss/typography
+  @tailwindcss/postcss
   @types/express
   @types/node
   @types/react
@@ -410,7 +410,6 @@ MIT License:
   @types/three
   @vitejs/plugin-react
   @vitest/coverage-v8
-  autoprefixer
   esbuild
   jsdom
   postcss
