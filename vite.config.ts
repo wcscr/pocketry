@@ -24,8 +24,35 @@ function legalFilesPlugin(): Plugin {
   };
 }
 
+/** Editor launching is unnecessary for the browser editor, including local requests. */
+function disableEditorLaunchPlugin(): Plugin {
+  return {
+    name: "pocketry-disable-editor-launch",
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        let pathname: string;
+        try {
+          // Handle absolute-form requests as well as ordinary request targets.
+          pathname = new URL(req.url ?? "/", "http://localhost").pathname.toLowerCase();
+        } catch {
+          res.statusCode = 400;
+          res.end("Bad Request");
+          return;
+        }
+        // Connect's mounted middleware also accepts suffixes such as `.json`.
+        if (pathname.startsWith("/__open-in-editor")) {
+          res.statusCode = 404;
+          res.end("Not Found");
+          return;
+        }
+        next();
+      });
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), legalFilesPlugin()],
+  plugins: [react(), legalFilesPlugin(), disableEditorLaunchPlugin()],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "client", "src"),
@@ -51,8 +78,13 @@ export default defineConfig({
     format: "es",
   },
   server: {
+    host: "127.0.0.1",
+    allowedHosts: [],
     fs: {
-      allow: [".."],
+      strict: true,
+      // Shared source and dependencies are imported by the client and its workers.
+      // Other repository files are denied unless explicitly imported by client code.
+      allow: ["client", "shared", "node_modules"].map(directory => path.resolve(__dirname, directory)),
     },
   },
   assetsInclude: ["**/*.wasm"],

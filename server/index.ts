@@ -56,7 +56,8 @@ app.use((req, res, next) => {
   // No `reusePort`: it is a Linux-only listen option (SO_REUSEPORT) that makes
   // macOS fail with ENOTSUP, and nothing here needs it.
   const port = Number(process.env.PORT) || 5000;
-  server.listen({ port, host: "0.0.0.0" }, () => {
+  const host = app.get("env") === "development" ? "127.0.0.1" : "0.0.0.0";
+  server.listen({ port, host }, () => {
     log(`serving on port ${port}`);
   });
 })();

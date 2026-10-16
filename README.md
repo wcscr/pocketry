@@ -303,8 +303,14 @@ npm ci
 npm run dev
 ```
 
-The development server defaults to <http://localhost:5000>. If that port is in
-use, choose another one:
+The development server binds to IPv4 loopback at <http://127.0.0.1:5000>
+(`localhost` also works when it resolves to IPv4). It is not exposed to other
+computers on your network. Vite rejects untrusted Host names, serves only the
+client, shared source, dependencies, explicit client imports (such as version
+metadata), and public/legal assets. Its editor-launch endpoint is disabled. Production `npm start` keeps its existing
+all-interface listener for deliberate hosting.
+
+If the default port is in use, choose another one:
 
 ```sh
 PORT=5001 npm run dev

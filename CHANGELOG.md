@@ -57,6 +57,8 @@
 
 - Upright alignment rotates the photo with its contours; symmetry previews support zoom and pan.
 
+- Restrict the development server to loopback, restore Vite Host validation, limit served source directories, and disable editor launching. Production hosting remains unchanged.
+
 ## 1.4.0 — 2026-10-06
 
 - Improved photo tracing for thin reflective tools, with symmetry, upright alignment, and clearer sensitivity controls.
