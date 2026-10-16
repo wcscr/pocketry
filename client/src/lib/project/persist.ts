@@ -1,3 +1,4 @@
+import { withinImportLimits, IMPORT_LIMIT_ERROR } from "@shared/gridfinity/import-limits";
 import {
   CURRENT_PROJECT_KEY, PROJECT_LIBRARY_KEY, commitProjectStorage, readProjectStorage,
   sameProjectStorage, ProjectStorageConflictError, type ProjectStorageSnapshot,
@@ -327,6 +328,7 @@ export async function importProjectToLibrary(input: ProjectDoc): Promise<OpenedL
  * draft in the same transaction so autosave cannot overwrite an imported entry.
  */
 export async function importProjectLibrary(input: unknown, mode: LibraryImportMode = "merge", currentDoc?: ProjectDoc): Promise<LibraryImportResult> {
+  if (!withinImportLimits(input, true)) throw new Error(IMPORT_LIMIT_ERROR);
   const backup = libraryBackupSchema.safeParse(input);
   if (!backup.success) {
     throw new Error("Not a supported Pocketry library JSON file. No designs were imported.");

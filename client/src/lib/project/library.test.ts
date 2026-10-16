@@ -253,3 +253,12 @@ describe("library JSON transfer", () => {
   });
 
 });
+
+it.each(["merge", "replace"] as const)("rejects an over-budget final document atomically during %s", async mode => {
+  await saveProjectToLibrary(DOC, "Keep me", null);
+  const before = JSON.stringify([...memory]);
+  const oversized = structuredClone(DOC);
+  oversized.shapes[0].outlineMm[0].outer = Array(10_001).fill({ x: 0, y: 0 });
+  await expect(importProjectLibrary(backup([DOC, oversized]), mode)).rejects.toThrow();
+  expect(JSON.stringify([...memory])).toBe(before);
+});

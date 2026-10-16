@@ -128,7 +128,7 @@ portable copy of a calibrated outline and its bin settings.
 Choose **Start over** at the bottom of the Trace workflow panel (or in the phone menu) to
 begin again. Confirming clears the current trace and its edit history; pockets
 already added to Bin remain. Photo selection accepts one PNG, JPG, or WebP up to
-10 MB. Rejected or unreadable photos show a persistent message and leave the
+10 MB, 50 megapixels, and 16,384 pixels per side. Animated PNG/WebP files are not supported. Rejected or unreadable photos show a persistent message and leave the
 current trace intact. If no outline is found, increase **Sensitivity** or redraw
 the region around the whole tool.
 
@@ -369,3 +369,12 @@ acknowledgment includes work not individually credited in the commit history.
 Issues and pull requests are welcome. Keep changes focused, add or update tests,
 run the required verification commands, and update `NOTICE` whenever adding a
 direct dependency, bundled artifact, copied component, or adapted source.
+
+### Browser and import limits
+
+Use Safari 16.4+, Chrome/Edge 111+, or Firefox 128+ for the current styling engine.
+Project imports are limited to 64 MiB and library backups to 128 MiB / 500 designs.
+Resource checks also limit ring length, total geometry, and repeated placements
+across undo history and transform sources. Over-limit imports are rejected in full;
+existing work is kept. Split large library backups or simplify unusually detailed
+designs before importing. See [import limits](docs/import-limits.md) for exact bounds.

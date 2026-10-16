@@ -1,3 +1,5 @@
+import { readImportJson, withinImportLimits, IMPORT_LIMIT_ERROR } from "@shared/gridfinity/import-limits";
+import { sameJsonData } from "@shared/json-data-equal";
 import { SampleLibraryDialog } from "@/components/project/sample-library-dialog";
 import { ProjectBackupPrompt } from "@/components/project/project-backup-prompt";
 import type { SampleLibrary } from "@/lib/project/samples";
@@ -1392,7 +1394,7 @@ export function BinControlsPanel({
             activeProjectId={activeProjectId}
             hasDraftWork={!!currentProjectName || keepBinSize || shapes.length > 0 || cutouts.length > 0
               || fingerHoles.length > 0 || history.stack.length > 1 || hasMaterialEdits
-              || JSON.stringify(spec) !== JSON.stringify(INITIAL_BIN_SPEC)}
+              || !sameJsonData(spec, INITIAL_BIN_SPEC)}
             currentProjectName={currentProjectName}
             projects={projects}
             onSaveProject={onSaveProject}
@@ -2480,9 +2482,12 @@ function ProjectControls({
     if (busy) return;
     const revision = ++projectFileReadRevision.current;
     let parsed: unknown;
+    let limitError = false;
     try {
-      parsed = JSON.parse(await file.text());
-    } catch {
+      parsed = await readImportJson(file);
+      limitError = !withinImportLimits(parsed);
+    } catch (cause) {
+      limitError = cause instanceof Error && cause.message === IMPORT_LIMIT_ERROR;
       parsed = null;
     }
     if (revision !== projectFileReadRevision.current) return;
@@ -2490,7 +2495,7 @@ function ProjectControls({
     if (!doc) {
       toast({
         title: "Not a Pocketry project",
-        description: `${file.name} is not a readable .pocketry.json or legacy .tooltrace.json file.`,
+        description: limitError ? IMPORT_LIMIT_ERROR : `${file.name} is not a readable .pocketry.json or legacy .tooltrace.json file.`,
         variant: "destructive",
       });
       return;
