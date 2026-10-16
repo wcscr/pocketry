@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Remove unused database/session/authentication dependencies and update the Express, Vite, and Vitest security dependency chains.
+- Add Docker self-hosting with a static web server and instructions for browser-local storage, backups, and upgrades.
 
 ## 1.5.0 — 2026-10-16
 

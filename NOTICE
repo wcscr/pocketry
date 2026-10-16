@@ -422,3 +422,22 @@ MIT License:
 The full licence text and package-specific copyright notice for an installed
 npm dependency can be found in that package's `node_modules` directory and its
 upstream source repository.
+
+================================================================================
+Docker self-hosting base images
+================================================================================
+
+The optional Docker distribution uses official Docker images, pinned by digest
+in Dockerfile. Node.js 22 (MIT, with its own third-party notices) is build tooling
+only; it is not copied into the final image. The runtime is NGINX (2-clause BSD)
+on Alpine Linux. Operating-system packages retain their individual licences and
+package metadata; they are not relicensed under Pocketry's AGPL licence.
+
+Sources and upstream licence information:
+  https://github.com/nodejs/docker-node
+  https://github.com/nodejs/node/blob/main/LICENSE
+  https://github.com/nginx/docker-nginx
+  https://nginx.org/LICENSE
+  https://www.alpinelinux.org/about/
+
+The runtime serves Pocketry's LICENSE.txt and NOTICE.txt alongside the app.
