@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { commitProjectStorage, CURRENT_PROJECT_KEY, PROJECT_LIBRARY_KEY, readProjectStorage } from "./storage";
+import { commitProjectStorage, CURRENT_PROJECT_KEY, PROJECT_LIBRARY_KEY, readProjectStorage, sameProjectStorage } from "./storage";
 
 const adapter = vi.hoisted(() => ({ run: vi.fn(), getMany: vi.fn() }));
 vi.mock("idb-keyval", async importOriginal => ({
@@ -42,6 +42,14 @@ function transactionFixture(current: unknown, library: unknown, putError?: Error
 }
 
 describe("atomic project storage", () => {
+  it("compares old inline font histories without expanding strings and detects changed unknown fields", () => {
+    const data = "A".repeat(17_000_000);
+    const snapshot = () => ({ current: { history: Array.from({ length: 50 }, () => ({ data })) }, library: { future: 1 } });
+    const first = snapshot(), second = snapshot();
+    expect(sameProjectStorage(first, second)).toBe(true);
+    second.library.future = 2;
+    expect(sameProjectStorage(first, second)).toBe(false);
+  });
   it("reads the working copy and library together", async () => {
     adapter.getMany.mockResolvedValue([{ name: "Current" }, { projects: [] }]);
     expect(await readProjectStorage()).toEqual({ current: { name: "Current" }, library: { projects: [] } });

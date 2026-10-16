@@ -22,6 +22,10 @@ schema limits can be stricter. Geometry includes undo history and transform sour
 claimed point counts in the file are not trusted. Repeated label characters count
 each glyph again, with 12 samples per quadratic/cubic segment. Portable font source strings
 are counted once, so repeated references do not multiply their storage budget.
+History and save-conflict comparisons do not serialize repeated font bytes.
+Each distinct source is validated once per project parse, and geometry previews
+and worker requests use glyph outlines without copying the editable font source.
+The source remains in project backups for offline text editing.
 
 If a backup exceeds a limit, split the library or simplify the design in the version
 that created it. Keep the original backup. Pocketry never silently trims imported

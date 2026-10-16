@@ -4,7 +4,7 @@
 
 ## 1.5.1 — 2026-10-16
 
-- Reject oversized project/library backups and excessive geometry before processing; preserve existing work on rejected imports.
+- Reject oversized project/library backups and excessive geometry before processing; preserve existing work on rejected imports. Prevent repeated portable fonts from multiplying validation, history, and preview memory use.
 - Check photo dimensions before decoding, including recovered Trace photos; accept still images up to 50 megapixels.
 - Remove the remaining vulnerable Tailwind dependency chains. Styling now requires Safari 16.4+, Chrome/Edge 111+, or Firefox 128+.
 - Remove unused database/session/authentication dependencies and update the Express, Vite, and Vitest security dependency chains.

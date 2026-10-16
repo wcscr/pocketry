@@ -1,4 +1,5 @@
 import type { ValidationIssue } from "@shared/gridfinity/validate";
+import { withoutFontSources } from "@shared/gridfinity/project-font-sources";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import type { BufferGeometry } from "three";
@@ -199,7 +200,7 @@ export function useBinGeometry(
   const modelInputs = useMemo(
     () =>
       ({
-        spec: previewSpec,
+        spec: withoutFontSources(previewSpec),
         segments: quality.circularSegments,
         fingerHoleChordTolerance: quality.fingerHoleChordToleranceMm,
         budget: quality.cutoutVertexBudget,
@@ -272,7 +273,7 @@ export function useBinGeometry(
     setValidationIssues([]);
 
     const request: BuildBinRequest = {
-      spec: previewSpec,
+      spec: withoutFontSources(previewSpec),
       quality,
       layout:
         previewLayout && (previewLayout.cutouts.length > 0 || previewLayout.fingerHoles.length > 0)
@@ -459,7 +460,7 @@ export function useBinGeometry(
       } = {},
     ): Promise<BuildBinResult> => {
       const request: BuildBinRequest = {
-        spec,
+        spec: withoutFontSources(spec),
         quality: exportQuality,
         exportTopology: true,
         layout:
@@ -519,7 +520,7 @@ export function useBinGeometry(
         );
       }
       const request: BuildSurfaceFitCheckRequest = {
-        spec,
+        spec: withoutFontSources(spec),
         layout: {
           shapes: layout.shapes,
           cutouts: layout.cutouts,

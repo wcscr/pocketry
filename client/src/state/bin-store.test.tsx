@@ -52,6 +52,30 @@ const CUTOUT = parseCutoutPlacement({
 });
 
 describe("bin store", () => {
+  it("edits and selects portable-font labels without serializing their source bytes", () => {
+    const { store, act } = mountBin();
+    const font = { kind: "local", name: "Portable", resolution: 1000,
+      source: { data: "A".repeat(1_000_000), byteLength: 750_000 },
+      glyphs: { A: { ha: 500, o: "m 0 0 l 500 0 l 500 500 z" } } };
+    const labels = ["a", "b"].map(id => surfaceTextSchema.parse({ id, text: "A", font, position: { x: 0, y: 0 } }));
+    const native = JSON.stringify;
+    const spy = vi.spyOn(JSON, "stringify").mockImplementation((value, replacer, space) => {
+      if (value?.spec?.surfaceTexts?.length) throw new Error("Expanded material serialization");
+      return native(value, replacer, space);
+    });
+    try {
+      act(() => store().dispatch({ type: "PATCH_SPEC", patch: { surfaceTexts: labels } }));
+      act(() => store().dispatch({ type: "SELECT_SURFACE_TEXT", id: "a" }));
+      const index = store().history.index;
+      act(() => store().dispatch({ type: "PATCH_SPEC", patch: { surfaceTexts: [{ ...labels[0], sizeMm: 12 }, labels[1]] }, transient: true, historyLabel: "Resize text" }));
+      act(() => store().dispatch({ type: "SELECT_SURFACE_TEXT", id: "b" }));
+      expect(store().history.index).toBe(index + 1);
+      act(() => store().dispatch({ type: "UPDATE_OBJECTS", edits: { cutouts: [], fingerHoles: [] }, historyLabel: "Unchanged" }));
+      expect(store().history.index).toBe(index + 1);
+      act(() => store().dispatch({ type: "UNDO" }));
+      expect(store().spec.surfaceTexts[0].sizeMm).toBe(labels[0].sizeMm);
+    } finally { spy.mockRestore(); }
+  });
   it("commits pending text properties on selection changes and clears stale text selection", () => {
     const { store, act } = mountBin();
     const labels = ["a", "b"].map(id => surfaceTextSchema.parse({ id, text: id, position: { x: 0, y: 0 } }));

@@ -1,12 +1,30 @@
 import { z } from "zod";
+import { PROJECT_FILE_MAX_BYTES, PROJECT_MAX_VALUES } from "./import-limits";
+
+// A project can alternate large sources through many labels and undo entries.
+// Retain successful checks for this synchronous parse, without cache eviction
+// rescanning the same bytes. Release all references when the parse finishes.
+let projectSources: { values: Set<string>; characters: number } | undefined;
+export function withFontSourceValidationCache<T>(parse: () => T): T {
+  if (projectSources) return parse();
+  projectSources = { values: new Set(), characters: 0 };
+  try { return parse(); }
+  finally { projectSources = undefined; }
+}
 
 // Cache only successful validation of immutable strings. The length and all
 // other fields are still checked on every parse; retained data is bounded.
 const validatedSources = new Map<string, true>();
 let validatedSourceCharacters = 0;
 const sourceData = z.string().max(28_000_000).refine(data => {
+  if (projectSources?.values.has(data)) return true;
+  if (!validatedSources.has(data) && !/^[A-Za-z0-9+/]+={0,2}$/.test(data)) return false;
+  if (projectSources && projectSources.characters + data.length <= PROJECT_FILE_MAX_BYTES
+      && projectSources.values.size < PROJECT_MAX_VALUES) {
+    projectSources.values.add(data);
+    projectSources.characters += data.length;
+  }
   if (validatedSources.has(data)) return true;
-  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(data)) return false;
   validatedSources.set(data, true);
   validatedSourceCharacters += data.length;
   while (validatedSources.size > 8 || validatedSourceCharacters > 32_000_000) {

@@ -1,6 +1,17 @@
 import { z } from "zod";
 import { localFontSourceSchema, type LocalFontSource } from "./local-font";
 import type { ProjectDoc } from "./project";
+import type { BinSpec } from "./types";
+
+/** Geometry uses saved glyph outlines. Source font bytes are only needed by
+ * the editor when adding glyphs; omit them from keys and worker messages. */
+export function withoutFontSources(spec: BinSpec): BinSpec {
+  return { ...spec, surfaceTexts: spec.surfaceTexts.map(label => {
+    if (typeof label.font === "string" || !label.font.source) return label;
+    const { source: _source, ...font } = label.font;
+    return { ...label, font };
+  }) };
+}
 
 const record = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);

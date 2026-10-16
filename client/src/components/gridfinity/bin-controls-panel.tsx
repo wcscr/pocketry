@@ -1,4 +1,5 @@
 import { readImportJson, withinImportLimits, IMPORT_LIMIT_ERROR } from "@shared/gridfinity/import-limits";
+import { sameJsonData } from "@shared/json-data-equal";
 import { SampleLibraryDialog } from "@/components/project/sample-library-dialog";
 import { ProjectBackupPrompt } from "@/components/project/project-backup-prompt";
 import type { SampleLibrary } from "@/lib/project/samples";
@@ -1393,7 +1394,7 @@ export function BinControlsPanel({
             activeProjectId={activeProjectId}
             hasDraftWork={!!currentProjectName || keepBinSize || shapes.length > 0 || cutouts.length > 0
               || fingerHoles.length > 0 || history.stack.length > 1 || hasMaterialEdits
-              || JSON.stringify(spec) !== JSON.stringify(INITIAL_BIN_SPEC)}
+              || !sameJsonData(spec, INITIAL_BIN_SPEC)}
             currentProjectName={currentProjectName}
             projects={projects}
             onSaveProject={onSaveProject}

@@ -7,13 +7,14 @@ export const PROJECT_FILE_MAX_BYTES = 64 * 1024 * 1024;
 export const LIBRARY_FILE_MAX_BYTES = 128 * 1024 * 1024;
 export const PROJECT_MAX_POINTS = 100_000;
 export const LIBRARY_MAX_POINTS = 500_000;
+export const PROJECT_MAX_VALUES = 400_000;
 export const IMPORT_LIMIT_ERROR = "This backup exceeds Pocketry's import limits. Split the library or simplify the design before importing. No designs were imported.";
 
 export function withinImportLimits(input: unknown, library = false): boolean {
   let nodes = 0, points = 0, characters = 0, outlineCharacters = 0;
   const ancestors = new Set<object>();
   const strings = new Set<string>();
-  const maxNodes = library ? 2_000_000 : 400_000;
+  const maxNodes = library ? 2_000_000 : PROJECT_MAX_VALUES;
   const maxPoints = library ? LIBRARY_MAX_POINTS : PROJECT_MAX_POINTS;
   const maxCharacters = library ? LIBRARY_FILE_MAX_BYTES : PROJECT_FILE_MAX_BYTES;
   function visit(value: unknown, depth: number, key: string): boolean {
