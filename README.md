@@ -307,8 +307,9 @@ The development server binds to IPv4 loopback at <http://127.0.0.1:5000>
 (`localhost` also works when it resolves to IPv4). It is not exposed to other
 computers on your network. Vite rejects untrusted Host names, serves only the
 client, shared source, dependencies, explicit client imports (such as version
-metadata), and public/legal assets. Its editor-launch endpoint is disabled. Production `npm start` keeps its existing
-all-interface listener for deliberate hosting.
+metadata), and public/legal assets. Vite's desktop-editor launch endpoint is disabled;
+Pocketry's Trace and Bin editors remain available. Production `npm start` keeps its
+existing all-interface listener for deliberate hosting.
 
 If the default port is in use, choose another one:
 

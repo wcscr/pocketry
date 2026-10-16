@@ -24,28 +24,16 @@ function legalFilesPlugin(): Plugin {
   };
 }
 
-/** Editor launching is unnecessary for the browser editor, including local requests. */
+/** Disable Vite's desktop-editor shortcut; Pocketry's browser editors are unaffected. */
 function disableEditorLaunchPlugin(): Plugin {
   return {
     name: "pocketry-disable-editor-launch",
     configureServer(server) {
-      server.middlewares.use((req, res, next) => {
-        let pathname: string;
-        try {
-          // Handle absolute-form requests as well as ordinary request targets.
-          pathname = new URL(req.url ?? "/", "http://localhost").pathname.toLowerCase();
-        } catch {
-          res.statusCode = 400;
-          res.end("Bad Request");
-          return;
-        }
-        // Connect's mounted middleware also accepts suffixes such as `.json`.
-        if (pathname.startsWith("/__open-in-editor")) {
-          res.statusCode = 404;
-          res.end("Not Found");
-          return;
-        }
-        next();
+      // Mount before Vite's launcher using the same Connect path matching. Parsing
+      // with new URL would normalize dot segments that Connect still routes here.
+      server.middlewares.use("/__open-in-editor", (_req, res) => {
+        res.statusCode = 404;
+        res.end("Not Found");
       });
     },
   };

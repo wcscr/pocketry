@@ -57,7 +57,7 @@
 
 - Upright alignment rotates the photo with its contours; symmetry previews support zoom and pan.
 
-- Restrict the development server to loopback, restore Vite Host validation, limit served source directories, and disable editor launching. Production hosting remains unchanged.
+- Restrict the development server to loopback, restore Vite Host validation, limit served source directories, and disable Vite's desktop-editor launcher. Pocketry's Trace/Bin editors and production hosting remain unchanged.
 
 ## 1.4.0 — 2026-10-06
 

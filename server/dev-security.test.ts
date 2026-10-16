@@ -1,9 +1,9 @@
 import express from "express";
-import { createServer, request, type Server } from "node:http";
+import { createServer, request, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { writeFile, rm } from "node:fs/promises";
 import path from "node:path";
 import type { ViteDevServer } from "vite";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { setupVite } from "./vite";
 
 let server: Server;
@@ -12,12 +12,22 @@ let baseUrl: string;
 const root = path.resolve(import.meta.dirname, "..");
 const canary = path.join(root, `.security-canary-${process.pid}.txt`);
 const secret = "not-a-public-pocketry-asset";
+// Record entry without opening a desktop editor if the guard regresses.
+const viteEditorLauncher = vi.fn((_req: IncomingMessage, res: ServerResponse) => {
+  res.end("Vite editor launcher reached");
+});
 
 beforeAll(async () => {
   await writeFile(canary, secret);
   const app = express();
   server = createServer(app);
   vite = await setupVite(app, server);
+  const launchers = vite.middlewares.stack.filter(layer =>
+    layer.route === "/__open-in-editor" &&
+    typeof layer.handle === "function" && layer.handle.name === "launchEditorMiddleware",
+  );
+  if (launchers.length !== 1) throw new Error("Expected one Vite editor-launch middleware");
+  launchers[0].handle = viteEditorLauncher;
   // Exercise explicit requests without pre-transforming the entire editor import graph.
   vite.config.server.preTransformRequests = false;
   server.listen(0, "127.0.0.1");
@@ -83,23 +93,39 @@ describe("development security boundary", () => {
     expect([400, 403]).toContain(status);
   });
 
-  it.each(["/__open-in-editor", "/__OPEN-IN-EDITOR/", "/__open-in-editor.json"])(
-    "disables editor-launch endpoint %s", async route => {
-      const response = await fetch(`${baseUrl}${route}?file=${encodeURIComponent(canary)}`);
+  describe.each([
+    ["origin", "GET"], ["absolute", "GET"],
+    ["origin", "POST"], ["absolute", "POST"],
+  ])("Vite launcher denial (%s-form %s)", (form, method) => {
+    it.each([
+      "/__open-in-editor",
+      "/__OPEN-IN-EDITOR/",
+      "/__open-in-editor.json",
+      "/__open-in-editor/../",
+      "/__open-in-editor/%2e%2e/",
+      "/__open-in-editor/.%2E/",
+      "/__open-in-editor/%2e./",
+      "/__OPEN-IN-EDITOR/../../bin",
+      "/__open-in-editor.json/../",
+    ])("rejects %s before reaching Vite's desktop editor launcher", async route => {
+      viteEditorLauncher.mockClear();
+      // Pass the raw target: fetch/new URL would remove the regression's dot segments.
+      const target = `${form === "absolute" ? baseUrl : ""}${route}?file=${encodeURIComponent(canary)}`;
+      const response = await new Promise<{status: number | undefined; body: string}>((resolve, reject) => {
+        const req = request(baseUrl, { path: target, method }, res => {
+          let body = "";
+          res.setEncoding("utf8");
+          res.on("data", chunk => { body += chunk; });
+          res.on("end", () => resolve({ status: res.statusCode, body }));
+        });
+        req.on("error", reject);
+        req.setTimeout(5000, () => req.destroy(new Error("Vite route request timed out")));
+        req.end();
+      });
       expect(response.status).toBe(404);
-      expect(await response.text()).toBe("Not Found");
-    },
-  );
-
-  it("also disables editor launching for absolute-form request targets", async () => {
-    const status = await new Promise<number | undefined>((resolve, reject) => {
-      const req = request(baseUrl, {
-        path: `${baseUrl}/__open-in-editor.json?file=${encodeURIComponent(canary)}`,
-      }, res => { res.resume(); resolve(res.statusCode); });
-      req.on("error", reject);
-      req.end();
+      expect(response.body).toBe("Not Found");
+      expect(viteEditorLauncher).not.toHaveBeenCalled();
     });
-    expect(status).toBe(404);
   });
 
   it.each(["", "?raw", "?url"])(
