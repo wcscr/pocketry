@@ -122,7 +122,7 @@ disagreed about Y, which shipped mirrored STLs.
 
 ```
 npm ci               # Install dependencies from lockfile
-npm run dev          # Express + Vite dev server with HMR on http://localhost:5000
+npm run dev          # Express + Vite with HMR on loopback http://127.0.0.1:5000
 npm run build        # Vite bundles client to dist/public; esbuild bundles server to dist/index.js
 npm run start        # Run the production build
 npm run check        # TypeScript type-check (tsc)
