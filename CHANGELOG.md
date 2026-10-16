@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-## 1.6.0 — 2026-10-16
+## 1.5.1 — 2026-10-16
 
 - Reject oversized project/library backups and excessive geometry before processing; preserve existing work on rejected imports.
 - Check photo dimensions before decoding, including recovered Trace photos; accept still images up to 50 megapixels.
