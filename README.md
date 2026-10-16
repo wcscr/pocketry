@@ -321,17 +321,10 @@ PORT=5001 npm run dev
 
 ## Self-host with Docker
 
-With Docker Engine/Desktop and Docker Compose installed, run from this checkout:
-
-```sh
-docker compose up -d --build
-```
-
-Open <http://localhost:8080>. The container serves the built app; projects and
-photos stay in each browser, with no shared server storage. **Export project**
-and **Export library** are your backups; copying the container is not a backup
-of your designs. See [Docker self-hosting](docs/self-hosting.md) for backup and
-restore instructions, upgrades, and access from other devices.
+Follow the [Docker self-hosting guide](docs/self-hosting.md) for setup, upgrades,
+remote access, and backup/restore instructions. Docker serves the app; projects
+remain in each user's browser. Use **Export project** and **Export library** for
+backups—copying the container does not back up your designs.
 
 ## Verify and build
 
