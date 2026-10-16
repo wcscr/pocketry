@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Remove unused database/session/authentication dependencies and update the Express, Vite, and Vitest security dependency chains.
+
 ## 1.5.0 — 2026-10-16
 
 - Clearer photo-to-bin onboarding, workspace shortcuts, calibration downloads, and in-app sample project/library import with save protection. Surface text and its font, color, placement, and editing controls are available by default.

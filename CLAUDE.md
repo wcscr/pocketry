@@ -115,7 +115,7 @@ disagreed about Y, which shipped mirrored STLs.
   The standalone
   ArUco library from the University of Córdoba is **GPLv3 and specifically
   off-limits**, including as a porting reference.
-- Keep one major version of Vite in the tree. Vitest must dedupe onto the app's Vite so tests transform what actually ships (this is why Vitest is pinned to v3 while the app is on Vite 5).
+- Keep one major version of Vite in the tree. Vitest must dedupe onto the app's Vite so tests transform what actually ships. Vite 6 and Vitest 4 share the same installed Vite; keep Vitest and its coverage package on matching versions.
 - `manifold-3d` (Apache-2.0) is the single geometry kernel — Clipper2-backed 2D offsetting, triangulation, and CSG. Do not add a second geometry library (`earcut`, `polygon-clipping`, `clipper-lib`); two kernels disagree at the seams.
 
 ## Build & Development Commands
