@@ -1,10 +1,13 @@
-# Docker self-hosting
+# Self-hosting Pocketry
 
-Pocketry runs in your browser. This container serves the built app with Nginx;
-it has no account system, upload API, database, or project-storage volume.
-Node and Vite are used only while building the image.
+Pocketry runs in your browser. Use [Docker](#with-docker) for the packaged static
+server, or [host without Docker](#without-docker) using Node or an existing static
+web host. All options keep designs in each browser; there is no account system,
+upload API, database, shared library, or server-side project storage.
 
-## Start
+## With Docker
+
+The container serves the built app with Nginx. Node and Vite are build tools only.
 
 Install Docker Engine/Desktop with Docker Compose, then clone the repository:
 
@@ -27,10 +30,44 @@ POCKETRY_PORT=8081 docker compose up -d --build
 Use that same setting for subsequent starts. `docker compose logs --tail=50`
 shows startup errors; `docker compose down` stops and removes the container.
 
+## Without Docker
+
+Install Node.js 22 and npm, then build from a repository checkout:
+
+```sh
+git clone https://github.com/wcscr/pocketry.git
+cd pocketry
+npm ci
+npm run build
+npm start
+```
+
+Open **http://localhost:5000**. `npm start` runs the production static-file server;
+`PORT=8080 npm start` selects another port on macOS/Linux. It listens on **all
+host interfaces**, unlike the Docker example's loopback binding. Use a firewall
+and HTTPS reverse proxy for deliberate remote hosting. Keep the checkout,
+`node_modules`, and `dist` together, and use your operating system's service manager
+if it should keep running after logout. Do not use `npm run dev` or `vite preview`
+for production hosting.
+
+Alternatively, copy the **contents of `dist/public`** to an existing static web
+host. Node is then needed only for building. Serve the app at a hostname's root,
+route app URLs such as `/bin` to `index.html`, return 404 for `/api` and missing
+assets, and serve JavaScript/CSS/WebAssembly with their correct MIME types
+(`application/wasm` for `.wasm`). Keep `LICENSE.txt` and `NOTICE.txt` with the app.
+Revalidate HTML and unversioned files after updates; only hashed `/assets/` files
+should have long-lived immutable caching. [Our Nginx configuration](../deploy/nginx.conf)
+is a reference for these rules; adapt it to your host rather than replacing an
+existing server's global configuration.
+
+For upgrades, export backups, stop the Node service if used, run
+`git pull --ff-only`, `npm ci`, and `npm run build`, then restart the service or
+replace the static host's files. Reload the browser and keep the same address.
+
 ## Where designs are saved
 
 Projects, library entries, and Trace recovery data are stored **in the browser**,
-primarily in IndexedDB. The container stores none of them. There is no shared
+primarily in IndexedDB. The hosting server stores none of them. There is no shared
 library or automatic synchronization between users, browsers, or devices.
 
 Browser storage belongs to an **origin**: the exact scheme, hostname, and port.
@@ -70,7 +107,7 @@ That outline backup does not preserve the complete Trace workspace or original
 photo; retain the photo separately. An unnamed Trace draft is not included in a
 library export.
 
-## Upgrade
+## Docker upgrades
 
 Export project/library backups first. In a clean checkout, update the source and
 rebuild, then reload the browser page:
@@ -92,7 +129,7 @@ This repository does not publish images or run hosted CI as part of this setup.
 ## Other devices and HTTPS
 
 For access beyond this computer, use a dedicated HTTPS hostname and a reverse
-proxy in front of port 8080. A proxy on the Docker host can reach the default
+proxy in front of the chosen server port (8080 for Docker, 5000 for Node by default). A proxy on the Docker host can reach the default
 loopback binding; a proxy in another container needs a shared Docker network or
 an explicitly reachable host address. The app is built for the hostname's root
 path, not a subpath such as `/pocketry/`.

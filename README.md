@@ -319,10 +319,10 @@ If the default port is in use, choose another one:
 PORT=5001 npm run dev
 ```
 
-## Self-host with Docker
+## Self-host Pocketry
 
-Follow the [Docker self-hosting guide](docs/self-hosting.md) for setup, upgrades,
-remote access, and backup/restore instructions. Docker serves the app; projects
+Follow the [self-hosting guide](docs/self-hosting.md) for Docker, production Node,
+or static hosting, including upgrades and backup/restore instructions. Projects
 remain in each user's browser. Use **Export project** and **Export library** for
 backups—copying the container does not back up your designs.
 
