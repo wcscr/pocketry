@@ -2249,9 +2249,12 @@ export function BinControlsPanel({
 
           {exportOnly && fitTestControls}
 
-          {cutouts.length > 0 && (
+          {(cutouts.length > 0 || spec.pegBottom) && (
             <div className="space-y-2 rounded-md border border-emerald-500/30 bg-emerald-500/5 p-2.5">
-              <SettingLabel label="Export shadow-board layout (top view)" hint="Bin footprint and pocket silhouettes in millimetres, for CNC or laser shadow boards." />
+              <SettingLabel label={spec.pegBottom ? "ULTIM8 jig layout" : "Export shadow-board layout (top view)"}
+                hint={spec.pegBottom
+                  ? "Save jig SVG includes the bin outline, pocket openings, finger access, and actual peg locations at 1:1 scale. Align its peg circles with a zero-point-calibrated mat template. The origin is the bin’s top-left, not a bed position. DXF saves the ordinary pocket layout without pegs."
+                  : "Bin footprint and pocket silhouettes in millimetres, for CNC or laser shadow boards."} />
               <div className="flex gap-2">
                 <Button
                   variant="outline"
@@ -2272,14 +2275,17 @@ export function BinControlsPanel({
                   size="sm"
                   className="flex-1"
                   onClick={() => setPendingExport({
-                    title: "Save layout SVG?",
-                    description: "Download the bin footprint and pocket outlines in millimetres.",
+                    title: spec.pegBottom ? "Save ULTIM8 jig layout SVG?" : "Save layout SVG?",
+                    description: spec.pegBottom
+                      ? "Installed top view at 1:1 millimetres: bin outline, pocket openings, finger access, and retained pegs. Align the blue peg circles with matching holes in your calibrated mat template. The SVG origin is the bin’s top-left; it does not set a bed position."
+                      : "Download the bin footprint and pocket outlines in millimetres.",
                     confirmLabel: "Download SVG",
                     onConfirm: (includeProject) => onExportLayout("svg", includeProject),
                   })}
+                  disabled={Boolean(spec.pegBottom) && (exporting || hasErrors)}
                   data-testid="button-layout-svg"
                 >
-                  Save SVG
+                  {spec.pegBottom ? "Save jig SVG" : "Save SVG"}
                 </Button>
               </div>
             </div>

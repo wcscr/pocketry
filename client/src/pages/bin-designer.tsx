@@ -58,7 +58,7 @@ import {
   exportFilePart,
   prepareProjectExport,
 } from "@/lib/project/export";
-import { generateLayoutDXF, generateLayoutSVG } from "@/lib/export/layout";
+import { generateLayoutDXF, generateLayoutSVG, generateUltim8JigSVG } from "@/lib/export/layout";
 import { writeBinarySTL } from "@/lib/export/stl-writer";
 import { writeThreeMf, type ThreeMfObject } from "@/lib/mesh/threemf";
 import {
@@ -579,15 +579,20 @@ function BinDesignerWorkspace(): JSX.Element {
 
   const handleExportLayout = useCallback(
     async (format: "dxf" | "svg", includeProject: boolean) => {
-      const { spec, cutouts, fingerHoles, shapes } = exportProjectDoc;
-      const shapesById = new Map(shapes.map((shape) => [shape.id, shape]));
-      const project = prepareProjectExport(exportProjectDoc, currentProjectName, "layout");
-      const model = format === "dxf"
-        ? new Blob([await generateLayoutDXF(spec, cutouts, shapesById, fingerHoles)], { type: "application/dxf" })
-        : new Blob([await generateLayoutSVG(spec, cutouts, shapesById, fingerHoles)], { type: "image/svg+xml" });
-      downloadModelWithProject(model, format, project, includeProject);
+      try {
+        const { spec, cutouts, fingerHoles, shapes } = exportProjectDoc;
+        const shapesById = new Map(shapes.map((shape) => [shape.id, shape]));
+        const jig = format === "svg" && Boolean(spec.pegBottom);
+        const project = prepareProjectExport(exportProjectDoc, currentProjectName, jig ? "ultim8-jig-layout" : "layout");
+        const model = format === "dxf"
+          ? new Blob([await generateLayoutDXF(spec, cutouts, shapesById, fingerHoles)], { type: "application/dxf" })
+          : new Blob([await (jig ? generateUltim8JigSVG : generateLayoutSVG)(spec, cutouts, shapesById, fingerHoles)], { type: "image/svg+xml" });
+        downloadModelWithProject(model, format, project, includeProject);
+      } catch (error) {
+        toast({ title: "Layout export failed", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
+      }
     },
-    [exportProjectDoc, currentProjectName],
+    [exportProjectDoc, currentProjectName, toast],
   );
 
   const handleExportProject = useCallback(() => {

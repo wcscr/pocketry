@@ -27,6 +27,8 @@ import { DEFAULT_BIN_MATERIALS } from "@shared/gridfinity/materials";
 import { fingerHoleSchema, resolvePocketDepth, resolvePlacedPocketDepth, parseCutoutPlacement, type TracedShape } from "@shared/gridfinity/cutout";
 import { resolvePocketSplit } from "@shared/gridfinity/pocket-split";
 import { parseBinSpec } from "@shared/gridfinity/types";
+import { generateUltim8JigSVG } from "@/lib/export/layout";
+import { DEFAULT_PEG_BOTTOM } from "@shared/gridfinity/peg-bottom";
 import { downloadBlob } from "@/lib/download";
 import { projectDestinationKey } from "@/lib/project/destination";
 import { useBinGeometry } from "@/lib/gridfinity/use-bin-geometry";
@@ -129,6 +131,11 @@ vi.mock("@/components/gridfinity/bin-viewport", () => ({
       ))}
     </div>
   ),
+}));
+
+vi.mock("@/lib/export/layout", async original => ({
+  ...await original<typeof import("@/lib/export/layout")>(),
+  generateUltim8JigSVG: vi.fn(async () => '<svg xmlns="http://www.w3.org/2000/svg" width="83.5mm" height="83.5mm"><g id="peg-locations"><circle cx="11.75" cy="11.75" r="2.4"/></g></svg>'),
 }));
 
 const binGeometryMock = vi.hoisted(() => ({
@@ -7810,4 +7817,74 @@ it.each([false, true])("offers surface text in the Original Layout toolbar by de
     expect(container.querySelector(`[data-testid="surface-text-hit-${labels[0].id}"]`)!.getAttribute("pointer-events")).toBe("all");
     if (mobile) expect(document.querySelector('[role="dialog"][data-state="open"]')).toBeNull();
   } finally { unmount(); window.history.replaceState(null, "", originalUrl); }
+});
+
+
+it.each(["controls", "workflow"] as const)("exports a jig SVG and matching optional backup in %s layout with Experimental off", async layout => {
+  const originalUrl = window.location.href;
+  window.history.replaceState(null, "", `/bin?layout=${layout}`);
+  const shape = rectangularShape("jig-tool", "Tool");
+  const finger = fingerHoleSchema.parse({ id: "jig-access", center: { x: 0, y: 25 }, diameterMm: 10, depthMm: 5 });
+  const cutout = parseCutoutPlacement({ id: "jig-pocket", shapeId: shape.id, depth: { mode: "through" }, position: { x: 0, y: 0 } });
+  const doc = { ...EMPTY_PROJECT, spec: parseBinSpec({ ...EMPTY_PROJECT.spec, lip: "none", pegBottom: DEFAULT_PEG_BOTTOM }), shapes: [shape], cutouts: [cutout], fingerHoles: [finger] };
+  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(doc);
+  const { container, unmount } = renderPage({ experimental: false });
+  try {
+    await flushHydration();
+    openSettingsSection(container, "export");
+    expect(container.textContent).toContain("ULTIM8 jig layout");
+    expect(container.textContent).not.toContain("Export shadow-board layout (top view)");
+    const button = container.querySelector<HTMLButtonElement>('[data-testid="button-layout-svg"]')!;
+    expect(button.textContent).toBe("Save jig SVG");
+    expect(button.disabled).toBe(false);
+    expect(container.querySelector('[data-testid="button-layout-dxf"]')).not.toBeNull();
+    for (const includeProject of [false, true]) {
+      vi.mocked(downloadBlob).mockClear();
+      React.act(() => button.click());
+      expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Save ULTIM8 jig layout SVG?");
+      expect(document.querySelector('[role="dialog"]')?.textContent).toContain("does not set a bed position");
+      expect(downloadBlob).not.toHaveBeenCalled();
+      if (includeProject) React.act(() => document.querySelector<HTMLButtonElement>('[data-testid="checkbox-export-project"]')!.click());
+      await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-confirm-export"]')!.click());
+      expect(generateUltim8JigSVG).toHaveBeenLastCalledWith(doc.spec, [cutout], new Map([[shape.id, shape]]), [finger]);
+      expect(downloadBlob).toHaveBeenCalledTimes(includeProject ? 2 : 1);
+      const [model, name] = vi.mocked(downloadBlob).mock.calls.at(-1)!;
+      expect(model.type).toBe("image/svg+xml");
+      expect(name).toMatch(/-ultim8-jig-layout-.*\.svg$/);
+      if (includeProject) {
+        const [backup, backupName] = vi.mocked(downloadBlob).mock.calls[0];
+        expect(backupName).toBe(name.replace(/\.svg$/, ".pocketry.json"));
+        const json = await new Promise<string>(resolve => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.readAsText(backup); });
+        expect(parseProjectDoc(JSON.parse(json))).toMatchObject({ spec: doc.spec, cutouts: [cutout], fingerHoles: [finger] });
+      }
+    }
+  } finally { unmount(); window.history.replaceState(null, "", originalUrl); }
+});
+
+it("offers the jig reference for a peg-only bin and preserves ordinary empty-bin controls", async () => {
+  for (const jig of [false, true]) {
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, spec: parseBinSpec({ ...EMPTY_PROJECT.spec, lip: "none", pegBottom: jig ? DEFAULT_PEG_BOTTOM : null }) });
+    const { container, unmount } = renderPage({ experimental: true });
+    try {
+      await flushHydration();
+      openSettingsSection(container, "export");
+      expect(container.querySelector('[data-testid="button-layout-svg"]') !== null).toBe(jig);
+      expect(container.textContent?.includes("ULTIM8 jig layout")).toBe(jig);
+    } finally { unmount(); }
+  }
+});
+
+it("downloads neither jig SVG nor backup when generation fails", async () => {
+  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, spec: parseBinSpec({ ...EMPTY_PROJECT.spec, pegBottom: DEFAULT_PEG_BOTTOM }) });
+  vi.mocked(generateUltim8JigSVG).mockRejectedValueOnce(new Error("Jig geometry unavailable"));
+  const { container, unmount } = renderPage();
+  try {
+    await flushHydration();
+    openSettingsSection(container, "export");
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-layout-svg"]')!.click());
+    React.act(() => document.querySelector<HTMLButtonElement>('[data-testid="checkbox-export-project"]')!.click());
+    await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-confirm-export"]')!.click());
+    expect(downloadBlob).not.toHaveBeenCalled();
+    expect(projectToast).toHaveBeenCalledWith(expect.objectContaining({ title: "Layout export failed", description: "Jig geometry unavailable" }));
+  } finally { unmount(); }
 });

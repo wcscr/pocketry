@@ -1,9 +1,34 @@
 import type { Manifold } from "manifold-3d";
+import type { Point } from "@shared/geometry/types";
 import type { BinSpec } from "@shared/gridfinity/types";
 import { BASE_HEIGHT, binHeightMm } from "@shared/gridfinity/standard";
 import { pegBottomExtensionMm, pegBottomRootHeightMm, pegBridgeSpanMm, ultim8PegCenters, selectUltim8PegCenters, ULTIM8_COLLAR_HEIGHT_MM } from "@shared/gridfinity/peg-bottom";
 import type { Kernel } from "@/lib/manifold/runtime";
 import { footprintOuterSection } from "./footprint-section";
+
+/** Shared by the printed base and its SVG registration reference. Through
+ * sweeps remove complete shafts before sparse/corner anchors are selected. */
+export function retainedUltim8PegCenters(
+  kernel: Kernel, spec: BinSpec, segments: number, through: Manifold | null,
+  latticeCenters: readonly Point[] = ultim8PegCenters(spec),
+): Point[] {
+  if (!spec.pegBottom) return [];
+  const { arena, CrossSection } = kernel;
+  const radius = spec.pegBottom.diameterMm / 2;
+  const bottomZ = -pegBottomExtensionMm(spec);
+  // Limit the projected outline to the underside. Tilted tools can sweep
+  // sideways below the floor; top flares and blind split seats must not
+  // accidentally remove pegs elsewhere.
+  const belowSlab = through ? arena.track(arena.track(
+    through.trimByPlane([0, 0, -1], 0),
+  ).trimByPlane([0, 0, 1], bottomZ)) : null;
+  const exclusion = belowSlab ? arena.track(belowSlab.project()) : null;
+  const available = exclusion && !exclusion.isEmpty() ? latticeCenters.filter(({ x, y }) => {
+    const shaft = arena.track(arena.track(CrossSection.circle(radius, segments)).translate([x, y]));
+    return arena.track(shaft.intersect(exclusion)).area() <= 1e-8;
+  }) : latticeCenters;
+  return selectUltim8PegCenters(spec, available);
+}
 
 /** Upright printing: chamfered tips, straight shafts, then 45 degree roots.
  * Sloped mode fully covers the slab; bridged mode joins flared collars with
@@ -28,18 +53,7 @@ export function buildPegBottom(
   const outer = footprintOuterSection(kernel, spec, segments);
   const bottomZ = -pegBottomExtensionMm(spec);
   const through = throughCutters.length ? arena.track(Manifold.union(throughCutters)) : null;
-  // Limit the projected outline to the underside. Tilted tools can sweep
-  // sideways below the floor; top flares and blind split seats must not
-  // accidentally remove pegs elsewhere.
-  const belowSlab = through ? arena.track(arena.track(
-    through.trimByPlane([0, 0, -1], 0),
-  ).trimByPlane([0, 0, 1], bottomZ)) : null;
-  const exclusion = belowSlab ? arena.track(belowSlab.project()) : null;
-  const available = exclusion && !exclusion.isEmpty() ? latticeCenters.filter(({ x, y }) => {
-    const shaft = arena.track(arena.track(CrossSection.circle(radius, segments)).translate([x, y]));
-    return arena.track(shaft.intersect(exclusion)).area() <= 1e-8;
-  }) : latticeCenters;
-  const centers = selectUltim8PegCenters(spec, available);
+  const centers = retainedUltim8PegCenters(kernel, spec, segments, through, latticeCenters);
   if (!centers.length) {
     throw new Error("Through pockets overlap every ULTIM8 peg. Move or resize the pockets, enlarge the footprint, or choose a flat bottom.");
   }

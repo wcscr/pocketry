@@ -107,3 +107,26 @@ inspection. A successful support-free slice does not qualify print quality.
 millimetres with flat or ULTIM8 bottoms. Switching preserves the existing size.
 Body heights may go down to 2 mm; below 7 mm the stacking lip is off. Returning
 to a grid requires exactly matching grid dimensions and height increments.
+
+## Jig layout SVG
+
+With an ULTIM8 bottom selected, Export labels the existing layout SVG action
+**Save jig SVG**. Ordinary bins retain their shadow-board SVG/DXF controls.
+Existing jig projects can export this reference with Experimental editing off.
+The optional editable-project download uses the same design snapshot.
+
+The SVG is an installed top view at 1:1 millimetres, independent of the pegs-up
+STL/3MF print orientation. It has separate groups/colors for the actual rounded
+bin boundary (gray), pocket openings including clearance/rounding (black),
+finger access (orange), and retained peg shafts (blue). Peg circles use the
+configured shaft diameter and the same through-cut exclusion and density
+selection as the printed base. Corner anchors relocated around openings are
+included; removed pegs are absent. No text or registration marks are added to
+the printable artwork.
+
+The SVG origin is the top-left of the bin bounds. Match the blue peg circles to
+the corresponding holes in your zero-point-calibrated mat template, then keep
+the artwork grouped and at 100% scale. The SVG does not assign an absolute bed
+position or calibrate Studio. Mat/template registration and physical placement
+still need verification in the user's setup. DXF retains the ordinary nominal
+pocket layout without peg references.
