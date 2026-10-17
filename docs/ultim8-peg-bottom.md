@@ -1,7 +1,11 @@
 # ULTIM8 jig peg bottoms
 
 Enable **Experimental features** in App settings, then in Bin → Construction →
-Bottom, choose **ULTIM8 jig pegs**. This replaces
+Bottom, choose **ULTIM8 jig pegs**. The confirmation offers to remove the stacking
+lip, set Solid fill to 100%, and match floors, rim, and text to the bin body color.
+Choose **Keep current settings** to change only the bottom, or **Cancel** to leave
+the design as it is. Opening an existing jig does not show this prompt.
+This replaces
 Gridfinity feet and hides their magnet/screw controls while retaining those
 preferences for switching back. Peg settings travel with projects and undo history.
 Turning Experimental off hides the peg controls while keeping existing designs
@@ -23,10 +27,14 @@ The default straight locating shafts are 4.8 mm diameter and 4 mm long, with a
 These are Pocketry print-fit defaults, not manufacturer-specified tolerances.
 Print a small bin first to confirm fit in your own mat.
 
-Print **upright, pegs on the build plate, with supports disabled**.
-Choose the **Underside** construction:
+New peg bottoms default to **Flat backing · pegs up**: pegs attach directly to the
+backing, without tall roots. STL and 3MF export pocket-side down, with pegs up.
+Check pocket bridges and overhangs in the slicer; see the flat-backing guidance below.
+Existing projects retain their saved underside, including older sloped-root designs.
 
-- **Sloped roots** (default): eight-millimetre roots expand upward at 45° into
+The other **Underside** options print **upright, pegs on the build plate, with supports disabled**:
+
+- **Sloped roots**: eight-millimetre roots expand upward at 45° into
   the flat base, avoiding bridges. This works with rectangular and custom footprints.
 - **Short bridges**: 1.6 mm flared collars join a bridged web and a sloped
   perimeter. The perimeter height follows the actual footprint. At default fit

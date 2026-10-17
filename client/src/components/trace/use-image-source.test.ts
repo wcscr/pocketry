@@ -12,6 +12,7 @@ import {
   IMAGE_CANVAS_MAX,
 } from "./use-image-source";
 import { rotateImageAlignment } from "@shared/geometry/image-alignment";
+import { RECTIFIED_IMAGE_MAX } from "@/lib/calibrate/perspective";
 
 it("uses the same photo matrix for working pixels and high-resolution re-detection", () => {
   const { alignment } = rotateImageAlignment({ width: 400, height: 600 }, .6);
@@ -49,7 +50,7 @@ describe("decodeImageFile", () => {
       onerror: (() => void) | null = null;
 
       readAsDataURL(): void {
-        this.result = "data:image/png;base64,replacement";
+        this.result = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=";
         queueMicrotask(() => this.onload?.());
       }
     }
@@ -73,7 +74,7 @@ describe("decodeImageFile", () => {
     await expect(
       decodeImageFile(new File(["image"], "replacement.png")),
     ).resolves.toEqual({
-      imageUrl: "data:image/png;base64,replacement",
+      imageUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=",
       naturalSize: { width: 1600, height: 1200 },
     });
   });
@@ -123,6 +124,17 @@ describe("fitWithin", () => {
 });
 
 describe("detectionGeometry", () => {
+  it("reads correction detail independently of marker detection while bounding memory and preserving coordinates", () => {
+    const natural = { width: 3000, height: 4000 };
+    const marker = detectionGeometry(natural);
+    const correction = detectionGeometry(natural, IMAGE_CANVAS_MAX, RECTIFIED_IMAGE_MAX);
+    expect(correction.detect.width * correction.detect.height).toBeLessThanOrEqual(6_000_000);
+    expect(correction.detect.height).toBeGreaterThan(2800);
+    expect(correction.detect.width * correction.toWorking.x).toBeCloseTo(marker.detect.width * marker.toWorking.x, 9);
+    expect(correction.detect.height * correction.toWorking.y).toBeCloseTo(marker.detect.height * marker.toWorking.y, 9);
+    // Saved corrected rasters retain their established coordinate space.
+    expect(fitWithin({ width: 1200, height: 928 }, RECTIFIED_IMAGE_MAX)).toEqual({ width: 1200, height: 928 });
+  });
   it("reads more original detail for an aid retry without changing working coordinates", () => {
     const natural = { width: 3000, height: 4000 };
     const normal = detectionGeometry(natural);
@@ -215,4 +227,38 @@ describe("drawImageWithRotation", () => {
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+});
+
+it("rejects oversized headers before constructing a native decoder", async () => {
+  const bytes = new Uint8Array(45); bytes.set([137,80,78,71,13,10,26,10]);
+  const view = new DataView(bytes.buffer); view.setUint32(8,13); bytes.set([73,72,68,82],12);
+  view.setUint32(16,100000); view.setUint32(20,100000);
+  class Reader {
+    result = `data:image/png;base64,${btoa(String.fromCharCode(...bytes))}`;
+    onload: (() => void) | null = null;
+    readAsDataURL() { queueMicrotask(() => this.onload?.()); }
+  }
+  const image = vi.fn(); vi.stubGlobal("Image", image); vi.stubGlobal("FileReader", Reader);
+  await expect(decodeImageFile(new File(["small compressed file"], "bomb.png"))).rejects.toThrow("too large to decode");
+  expect(image).not.toHaveBeenCalled();
+});
+
+it("rejects oversized files before reading them", async () => {
+  const reader = vi.fn(); vi.stubGlobal("FileReader", reader);
+  const file = new File([], "large.png"); Object.defineProperty(file, "size", { value: 10 * 1024 * 1024 + 1 });
+  await expect(decodeImageFile(file)).rejects.toThrow("10 MB");
+  expect(reader).not.toHaveBeenCalled();
+});
+
+it("preserves extension-only PNG uploads from file pickers with no MIME", async () => {
+  const data = Uint8Array.from(atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII="), c => c.charCodeAt(0));
+  class ImageStub {
+    naturalWidth = 1; naturalHeight = 1;
+    onload: (() => void) | null = null;
+    set src(_url: string) { queueMicrotask(() => this.onload?.()); }
+  }
+  vi.stubGlobal("Image", ImageStub);
+  const result = await decodeImageFile(new File([data], "valid.png"));
+  expect(result.imageUrl).toMatch(/^data:image\/png;base64,/);
+  expect(result.naturalSize).toEqual({ width: 1, height: 1 });
 });

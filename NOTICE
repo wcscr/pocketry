@@ -352,8 +352,6 @@ Each project retains its own copyright and licence notices.
 Apache License 2.0:
 
   class-variance-authority
-  drizzle-orm
-  drizzle-zod
   idb-keyval
   manifold-3d (described separately above)
 
@@ -373,24 +371,18 @@ MIT License:
 
   @hookform/resolvers
   @jridgewell/trace-mapping
-  @neondatabase/serverless
   @radix-ui/react-* packages declared in package.json
   @react-three/drei
   @react-three/fiber
   @tanstack/react-query
   clsx
   cmdk
-  connect-pg-simple
   date-fns
   embla-carousel-react
   express
-  express-session
   fflate
   framer-motion
   input-otp
-  memorystore
-  passport
-  passport-local
   react
   react-day-picker
   react-dom
@@ -403,9 +395,7 @@ MIT License:
   tailwindcss-animate
   three
   vaul
-  ws
   zod
-  zod-validation-error
 
 Direct development and optional packages are build/test tooling rather than
 Pocketry application code. They are also retained here for acknowledgement:
@@ -417,22 +407,14 @@ Apache License 2.0:
 
 MIT License:
 
-  @tailwindcss/typography
-  @types/connect-pg-simple
+  @tailwindcss/postcss
   @types/express
-  @types/express-session
   @types/node
-  @types/passport
-  @types/passport-local
   @types/react
   @types/react-dom
   @types/three
-  @types/ws
   @vitejs/plugin-react
   @vitest/coverage-v8
-  autoprefixer
-  bufferutil
-  drizzle-kit
   esbuild
   jsdom
   postcss
@@ -444,3 +426,22 @@ MIT License:
 The full licence text and package-specific copyright notice for an installed
 npm dependency can be found in that package's `node_modules` directory and its
 upstream source repository.
+
+================================================================================
+Docker self-hosting base images
+================================================================================
+
+The optional Docker distribution uses official Docker images, pinned by digest
+in Dockerfile. Node.js 22 (MIT, with its own third-party notices) is build tooling
+only; it is not copied into the final image. The runtime is NGINX (2-clause BSD)
+on Alpine Linux. Operating-system packages retain their individual licences and
+package metadata; they are not relicensed under Pocketry's AGPL licence.
+
+Sources and upstream licence information:
+  https://github.com/nodejs/docker-node
+  https://github.com/nodejs/node/blob/main/LICENSE
+  https://github.com/nginx/docker-nginx
+  https://nginx.org/LICENSE
+  https://www.alpinelinux.org/about/
+
+The runtime serves Pocketry's LICENSE.txt and NOTICE.txt alongside the app.

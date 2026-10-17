@@ -566,9 +566,8 @@ Other validation errors continue to block export.
 
 ## Persistence: none server-side in v1
 
-`server/storage.ts` has only `MemStorage` (a `Map`, wiped on restart), there is no Drizzle
-implementation and no `migrations/`, and the client never reads anything back. Instead,
-the landed client implementation uses a `ProjectDoc` with **`schemaVersion: 10`**, a
+The unused image API, in-memory storage, and database scaffold have been removed.
+The original browser-local implementation uses a `ProjectDoc` with **`schemaVersion: 10`**, a
 hand-rolled reducer history, `idb-keyval` autosave to IndexedDB (not localStorage —
 traced shapes plus thumbnails blow past 5 MB), a browser-local named Project
 Library with active-project autosave, and explicit `.pocketry.json` backup
@@ -587,8 +586,9 @@ server-side queries individual rings.
 
 Separately: the fire-and-forget `POST /api/images` was removed from the client
 (2026-08-15) — nothing ever read the copies back, and silently uploading every
-trace was the wrong default. The server routes remain for a future explicit
-opt-in; `images.svgData` must not become the de facto geometry store.
+trace was the wrong default. The unused server routes were removed on 2026-10-16
+to eliminate their authorization and unbounded-storage risks. Any future server
+persistence needs an explicit opt-in and a new security design.
 
 ## Export
 

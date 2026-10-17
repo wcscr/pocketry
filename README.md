@@ -57,190 +57,39 @@ Printables, or elsewhere, please give Pocketry a shout-out and link to
 
 ## Basic Process
 
-### Find your way around
-
-Use **Trace** to turn a photo into an outline, **Bin** to design the bin, and
-**Library** to reopen saved designs. On a phone, these are in the workspace menu
-at the top of the screen.
-
-On desktop, **Workflow + properties** is the default for new sessions with no
-saved layout choice. Choose a workflow step on the left; its controls appear on
-the right, with the canvas in the middle. Selecting a pocket or finger access
-shows that object's properties. Smaller screens start with a single panel.
-To change layouts, open **App settings → Editor layout** and choose
-**Workflow + properties** or **Original Single Panel UI**. Your choice is remembered.
-
-In **Bin** on a phone, use **Workflow** to find a section, **Adjust** for quick
-changes, and **All properties** for the full editor. One icon row holds **Add**,
-**Select**, **Move**, **Rotate**, **Undo**, the ruler, and **Tools**. Redo,
-navigation, and edit history are under **Tools**; its menus scroll on short screens.
-Move and Rotate keep the canvas clear, with larger draggable axis labels.
-**Adjust** opens exact X/Y/Z values or rotation angles below or beside the canvas;
-**Done** hides those values while keeping the tool active. Canvas pinches zoom
-the design; adding a second finger cancels any unfinished handle edit.
-Edit history has a back arrow to return to the tools. **Export** opens the export controls.
-App settings and Help are in **More options**.
-
 ### 1. Trace the tools
 
-This walkthrough uses the [Wolfbox MF70 Airduster Kit](samples/wolfbox-mf70-airduster-kit/).
-The Trace image demonstrates outlining the original duster photo. The layout
-and ruler images show the supplied editable project for the printed bin.
-
-In **Trace**, choose a PNG or JPEG taken from above, with the whole tool visible
-against a contrasting background. Include a known measurement at the tool's
-height, or use one of the downloadable calibration aids.
-
-In **Scale**, review the reference detection. For a detected calibration sheet,
-choose **Correct perspective & use scale**; other detected references offer
-**Accept detected scale**. For manual calibration, choose **Set scale**, place
-the ruler endpoints a known distance apart, enter that distance in millimetres,
-and choose **Confirm scale**. If perspective correction crops a larger tool,
-enable **Region → Show full corrected photo**.
-
-Choose **Region → Set region** and draw a box around the tool. In **Outline**,
-adjust **Sensitivity** to refine detection and **Simplification** to control the
-number of points. Use **Edit contours** to correct individual points, or
-**Symmetry & straighten** when the tool needs a symmetric outline or upright alignment.
-**Margin** optionally adds clearance around the traced tool.
-
-**Select** only selects contours. Choose **Edit contours** to move points or add
-one near an edge; clicking empty space clears the selection. Ctrl/Cmd+Z and
-Ctrl/Cmd+Shift+Z undo and redo contour edits, including after toolbar clicks.
-Replacing a ruler keeps the accepted scale until you confirm the new one;
-**Cancel ruler** restores it. Clearing the region or redrawing it over manual
-edits asks before replacing your work. Clearing the region also clears contour
-history and cannot be undone.
-
-The current Trace draft is saved in this browser, including its photo, scale,
-edited contours, and undo history. Wait for **Trace draft saved in this browser** before
-closing the page. This recovery copy is local to the browser; replacing the photo
-or choosing **Start over** replaces or clears it. Export a project backup for a
-portable copy of a calibrated outline and its bin settings.
-
-Choose **New trace** in the Photo step (or **Start over** in the phone menu) to
-begin again. Confirming clears the current trace and its edit history; pockets
-already added to Bin remain. Photo selection accepts one PNG, JPG, or WebP up to
-10 MB. Rejected or unreadable photos show a persistent message and leave the
-current trace intact. If no outline is found, increase **Sensitivity** or redraw
-the region around the whole tool.
-
-The current destination is shown beside **Add to bin**. Each addition creates a new
-pocket; later edits to the trace do not update existing pockets. To use another
-project, open it in Bin first, then return to Trace.
-**Add to bin** places the outlines immediately and highlights the first pocket.
-Answer **How deep should this pocket be?** beside the bin, then choose **Done**.
-Measure how far the tool should sit below the surface, leaving enough exposed to
-lift it out. For several tools, set depths one at a time or explicitly use the
-same depth for all. Names start at **Tool 1** and can be changed in Bin.
-
-**Set later** keeps the outlines arrangeable with a **Depth needed** marker.
-That state survives project backups, reload, and undo. No cavity is cut until you
-choose its depth, and printable bin export waits until all depths are set.
-The depth options are always visible below the depth field. **To bin floor** keeps the destination's default
-floor (7 mm above the underside for Gridfinity, 2 mm for flat-bottom bins).
-**Through — no bottom** is for a tool supported by the surface beneath the bin.
-Depth remains editable in pocket properties. Bin height stays unchanged.
-For disconnected parts of one tool, expand the pocket count beside **Add to bin**
-and choose **Keep these outlines together**.
-
-The status bar above either workspace shows the active bin project and its local
-save state, even with the controls closed. Select the project name to manage the
-browser library, or **Backups** to download the current project. Projects are
-stored only in this browser and do not sync between devices. Back up after
-important changes and before clearing browser data. Library backups contain named
-projects; an unnamed draft needs its own project backup. Project backups preserve
-bin geometry and edit history, but do not include the original Trace photo.
-If saving fails, **Backups** retains a separate **Download unsaved edits** copy
-even after reopening Bin or switching projects. Download it before closing or
-reloading the tab, then import it in Bin to recover those edits.
-Traced tools keep their chosen destination through navigation and reload. If the
-destination changes, they wait outside the current project until you open the
-intended project or explicitly choose **Add waiting tools** to the current bin.
-
-After adding a tool, **Trace another photo** clears the previous photo and trace,
-then opens a blank canvas with the photo drop zone. Pockets already added to Bin
-stay in the project. For a
-standalone outline, **Export Outline** offers SVG, DXF, and STL. Confirm the scale
-before exporting files for printing or cutting.
+This example uses the [Wolfbox MF70 Airduster Kit](samples/wolfbox-mf70-airduster-kit/).
+In **Trace**, add a clear, top-down photo with a known measurement or calibration
+aid. Set the scale, draw a **Region** around the tool, and refine its **Outline**.
+Use **Edit Contour** for manual corrections and **Margin** for clearance.
+Choose **Add to bin**, then set how deep the tool should sit. Repeat for each tool.
 
 ![The Wolfbox duster outline in the default Trace layout, with workflow steps on the left and contour controls on the right](docs/images/trace-outline.jpg)
 
 ### 2. Arrange the pockets
 
-In **Bin**, choose **Bin size** to set the footprint, height, and grid pitch.
-This example uses **4 × 4 cells** and **6.5u** height. Enable **Keep bin size fixed**
-to keep that footprint while arranging the tools. Use **Construction** for the
-base, rim, and solid fill height, and **Materials & Colors** for colors. Solid
-fill height sets the pocketed surface; it is separate from slicer infill.
-
-For a standalone bin with a smooth underside, turn on
-**Construction → Flat bottom**. This removes the Gridfinity base. **Stacking lip**
-is a separate option in the same section; turn it off if you do not need the rim.
-The tracing, pocket editing, and export workflow stays the same for either base.
-
-Use custom pockets to hold parts in repeatable positions during engraving or
-printing. For flat-bottomed positioning jigs, consider **Through** under a
-pocket's **Depth** settings to save filament. The parts rest directly on the
-work surface while the pocket walls hold them in position. Keep a pocket floor
-when the jig needs to support the parts, set their height, or carry them between
-work areas.
-
-Switch to **Layout** for a top-down view. Drag pockets into place, or select one
-and use **Move** or **Rotate**. Use **Add** for extra pockets, or
-**Add finger access** for lifting scoops such as the shared slot and round
-nozzle access shown below.
-
-Select a pocket on the canvas or in **Pockets**, then edit **Depth**,
-**Size & scale**, **Edges & corners**, or **Position & rotation** in its
-properties. Select several objects with their checkboxes or Shift/Ctrl/⌘-click
-to move or arrange them together. Additional toolbar actions appear under
-**Tools** when space is limited.
-
-Numeric fields preview valid changes immediately. Enter or leaving the field
-commits once; Escape restores the whole edit, including dependent geometry.
-Invalid Enter keeps focus; invalid blur discards the edit. Batch fields still use
-**Apply**. Autosave and export use committed changes. An unnamed draft is separate
-from named Library storage; choose **Save this draft to Library** to name it.
-
-Bin projects are also saved only in this browser. If another tab changes the
-saved projects, a stale tab stops saving and shows a notice above the canvas.
-Use **Download backup** to keep that tab's edits, then reload to use the latest
-saved work. Storage errors keep the same backup action visible even when the
-controls are closed. A failed library read is shown as an error, not an empty
-library.
-
-**New project** offers to save an unnamed draft with a name before starting over.
-Saving the draft and starting the empty project succeed together; a storage or
-name-conflict error keeps your draft open. Discarding the draft is a separate,
-explicit choice. Named projects save their latest changes before starting new.
-Projects saved by a newer version, or ones this version cannot read, remain
-visible in the library and included in **Export library** backups. Their Open,
-Rename, and Copy actions stay disabled to preserve the saved document.
+In **Bin**, set **Bin size** (the Wolfbox example is **4 × 4 cells**, **6.5u** high).
+Use **Construction → Flat bottom** if you want a standalone bin. In **Layout**,
+drag pockets into place and add finger access where needed. Select a pocket to
+adjust its size, position, and depth.
 
 ![The four Wolfbox kit pockets and two lifting scoops in Layout, with the 4 by 4 cell and 6.5u bin settings visible](docs/images/bin-layout.jpg)
 
 ### 3. Check tool shapes and sizes
 
-Use **Measure between contours** in Layout to compare the outlines with
-measurements of the real tools. Select a pocket and open **Size & scale** to
-adjust its width and length. Keep proportions linked for a uniform correction,
-or unlock them when the two dimensions need different corrections. A ruler
-reading between two contour points can differ from the overall bounding size.
-
-Measure pocket depths too. Check the remaining floor in **3D**, or use
-**Check fit → Inspect inside** for a cross-section. Pockets can overlap to form
-a shared opening; review any warnings before printing.
+Compare the pockets with measurements of the real tools using
+**Measure between contours** and **Size & scale**. Check depth and remaining
+floor in **3D** or **Check fit → Inspect inside**.
 
 ![The Layout ruler measures 145.31 mm along the duster contour beside its width, length, and depth controls](docs/images/ruler-check.jpg)
 
 ### 4. Print a fit check
 
-Open **Check fit**. Under **Prepare fit test templates**, choose **Full surface**
-or **Tool outlines**. We recommend a thickness of **0.6–0.8 mm** for fit checks.
-Choose **Save surface fit test STL**, print at **100% scale**, and try the real
-tools. Adjust the outline, scale, or clearance as needed. These thin templates
-check the surface openings; they do not test pocket depth or baseplate fit.
+In **Check fit**, save a **Full surface** or **Tool outlines** fit test STL.
+Print it at **100% scale** (we recommend **0.6–0.8 mm** thick) and try the real
+tools. Adjust the outline or clearance if needed. This checks the openings,
+not pocket depth or baseplate fit.
 
 The original slicer screenshot below shows an earlier **1.2 mm** fit check.
 
@@ -248,11 +97,10 @@ The original slicer screenshot below shows an earlier **1.2 mm** fit check.
 
 ### 5. Export and print the finished bin
 
-When the fit and depths are right, open **Export** and choose **Save 3MF** or
-**Save STL**. Choose **Multi-color 3MF** to keep your selected material colors.
-Open the file in your slicer at **100% scale**, choose filament and print
-settings, and review the layer preview before printing. SVG and DXF bin layouts
-are also available for shadow boards and CNC work.
+Set every pocket's depth, then use **Export → Save 3MF** or **Save STL**.
+Open the file in your slicer at **100% scale** and review the layer preview
+before printing. **Multi-color 3MF** preserves selected colors; SVG and DXF
+layouts are available for shadow boards and CNC work.
 
 ![The original printed black-and-orange Wolfbox bin with the duster, nozzles, and cable in place](docs/images/printed-bin-loaded.jpg)
 
@@ -260,30 +108,18 @@ are also available for shadow boards and CNC work.
 
 ### Save an editable copy
 
-In **Project**, choose **Save this draft to Library** to name an unnamed draft.
-Named projects save changes in this browser; reopen them from **Library**.
-**Export project** downloads an editable `.pocketry.json` backup, including the
-project's colors. **Import Project** restores a downloaded design to the browser
-library. A printable STL or 3MF is separate from this editable project.
-
-The current Trace draft also saves locally, including its photo, scale, contours,
-and undo history. Wait for **Trace draft saved in this browser** before closing
-the page. Replacing the photo or choosing **Start over** replaces or clears that
-recovery copy. Keep exported project backups for designs you want to move to
-another browser or device.
-
-Use **Add → Surface text** to add editable labels with built-in or supported
-system fonts. Text editing is available by default.
-
-Optional tools such as ULTIM8 jig pegs, adjustable empty-bin walls, and linked designs are under **App settings → Enable experimental features**. The basic
-workflow above does not require them. Opening a project keeps your preference;
-existing experimental geometry stays visible and exportable.
+Use **Project → Save this draft to Library** to name your design, then
+**Export project** for an editable `.pocketry.json` backup. Projects live in
+this browser and do not sync between devices. The backup does not include the
+original Trace photo, so keep that separately.
 
 ## Privacy
 
 The static application processes images and generates models locally in the
 browser. Projects are stored in the browser using IndexedDB. The hosted version
-does not require uploading tool photographs to Pocketry's server.
+does not require uploading tool photographs to Pocketry's server. The local Node
+server serves the editor and static assets only; the retired `/api/images` endpoints
+return 404 and do not accept or store uploads.
 
 ## Run locally
 
@@ -294,12 +130,26 @@ npm ci
 npm run dev
 ```
 
-The development server defaults to <http://localhost:5000>. If that port is in
-use, choose another one:
+The development server binds to IPv4 loopback at <http://127.0.0.1:5000>
+(`localhost` also works when it resolves to IPv4). It is not exposed to other
+computers on your network. Vite rejects untrusted Host names, serves only the
+client, shared source, dependencies, explicit client imports (such as version
+metadata), and public/legal assets. Vite's desktop-editor launch endpoint is disabled;
+Pocketry's Trace and Bin editors remain available. Production `npm start` keeps its
+existing all-interface listener for deliberate hosting.
+
+If the default port is in use, choose another one:
 
 ```sh
 PORT=5001 npm run dev
 ```
+
+## Self-host Pocketry
+
+Follow the [self-hosting guide](docs/self-hosting.md) for Docker, production Node,
+or static hosting, including upgrades and backup/restore instructions. Projects
+remain in each user's browser. Use **Export project** and **Export library** for
+backups—copying the container does not back up your designs.
 
 ## Verify and build
 
@@ -351,3 +201,12 @@ acknowledgment includes work not individually credited in the commit history.
 Issues and pull requests are welcome. Keep changes focused, add or update tests,
 run the required verification commands, and update `NOTICE` whenever adding a
 direct dependency, bundled artifact, copied component, or adapted source.
+
+### Browser and import limits
+
+Use Safari 16.4+, Chrome/Edge 111+, or Firefox 128+ for the current styling engine.
+Project imports are limited to 64 MiB and library backups to 128 MiB / 500 designs.
+Resource checks also limit ring length, total geometry, and repeated placements
+across undo history and transform sources. Over-limit imports are rejected in full;
+existing work is kept. Split large library backups or simplify unusually detailed
+designs before importing. See [import limits](docs/import-limits.md) for exact bounds.

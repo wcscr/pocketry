@@ -16,7 +16,8 @@ export const ULTIM8_ROW_OFFSET_MM = 5;
 /** Roots grow at 45 degrees above the mat; never flare inside its holes. */
 export const ULTIM8_ROOT_HEIGHT_MM = 8;
 export const ULTIM8_COLLAR_HEIGHT_MM = 1.6;
-export const DEFAULT_PEG_BOTTOM = { diameterMm: 4.8, lengthMm: 4, underside: "sloped", density: 1 } as const;
+/** New bottoms use the slimmer backing and export pocket-side down, pegs up. */
+export const DEFAULT_PEG_BOTTOM = { diameterMm: 4.8, lengthMm: 4, underside: "flat", density: 1 } as const;
 
 export function hasSmoothBase(spec: Pick<BinSpec, "flatBottom"> & Partial<Pick<BinSpec, "pegBottom">>): boolean {
   return spec.flatBottom || spec.pegBottom != null;

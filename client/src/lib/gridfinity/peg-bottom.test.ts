@@ -16,7 +16,7 @@ let wasm: ManifoldToplevel;
 let arena = new Arena();
 beforeAll(async () => { wasm = await loadManifold(); });
 afterEach(() => { arena.dispose(); arena = new Arena(); });
-const spec = (patch: Record<string, unknown> = {}) => parseBinSpec({ gridX: 1, gridY: 1, heightUnits: 3, lip: "none", pegBottom: DEFAULT_PEG_BOTTOM, ...patch });
+const spec = (patch: Record<string, unknown> = {}) => parseBinSpec({ gridX: 1, gridY: 1, heightUnits: 3, lip: "none", pegBottom: { ...DEFAULT_PEG_BOTTOM, underside: "sloped" }, ...patch });
 
 /** All down-facing faces except build-plate contacts must be 45 degrees or steeper. */
 function checkSupportFree(mesh: Mesh, bottom: number, bridgeZ?: number): void {

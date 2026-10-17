@@ -11,6 +11,7 @@ import { TraceHandoffOptions, useTraceHandoff } from "@/components/trace/trace-h
 import { MobileTraceActions } from "@/components/trace/mobile-trace-actions";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { TraceCanvas } from "@/components/trace/trace-canvas";
+import { TracePhotoBoundsControl } from "@/components/trace/trace-photo-bounds-control";
 import { CalibrationDownloads } from "@/components/trace/calibration-downloads";
 import { referenceStripFromRulerLength } from "@/lib/calibrate/reference-strip";
 import { TraceControlsPanel } from "@/components/trace/trace-controls-panel";
@@ -99,7 +100,7 @@ function TraceWorkspace(): JSX.Element {
   const isMobile = useIsMobile();
   const { inspectorEnabled } = useExperimentalFeatures();
   const workflowLayout = inspectorEnabled && !isMobile;
-  const handoff = useTraceHandoff(() => setPanelOpen(false));
+  const handoff = useTraceHandoff(() => setPanelOpen(!isMobile));
   const [settingsSectionRequest, setSettingsSectionRequest] = useState<{ id: string }>();
   const openSettings = (id: string) => {
     setSettingsSectionRequest({ id });
@@ -147,7 +148,7 @@ function TraceWorkspace(): JSX.Element {
     setPhotoError(null);
     setPhotoReplacement(null);
     setPerspectiveReplacement(null);
-    setPanelOpen(false);
+    setPanelOpen(!isMobile);
     dispatch({ type: "SOURCE_CLEARED" });
   };
 
@@ -431,7 +432,7 @@ function TraceWorkspace(): JSX.Element {
   const performPerspectiveCorrection = useCallback(
     async (proposal: PerspectiveProposal, template: TemplateVariant, usePaperScale: boolean | Calibration = true) => {
       const sourceRevision = latestStore.current.sourceRevision;
-      const frame = getDetectionFrame();
+      const frame = getDetectionFrame(RECTIFIED_IMAGE_MAX);
       if (
         !frame ||
         frame.toWorking.x <= 0 ||
@@ -448,7 +449,8 @@ function TraceWorkspace(): JSX.Element {
       dispatch({ type: "SET_PROCESSING", processing: true });
       try {
         // Canvas points live in working-image coordinates. Correct from the
-        // larger marker-detection raster so the warp preserves source detail.
+        // original photo at the correction budget, not the smaller marker
+        // detection copy. Map the detected coordinates into this frame once.
         const detectionProposal = scalePerspectiveProposal(
           proposal,
           1 / frame.toWorking.x,
@@ -741,6 +743,7 @@ function TraceWorkspace(): JSX.Element {
         }
         canvas={
           <div className="flex h-full min-h-0 flex-col">
+            <TracePhotoBoundsControl />
             {photoError && <div role="alert" data-testid="trace-photo-error"
               className={`flex shrink-0 items-start gap-2 bg-destructive/10 px-3 py-2 text-sm ${isMobile ? "order-last border-t" : "border-b"}`}>
               <p className="min-w-0 flex-1">{photoError}</p>

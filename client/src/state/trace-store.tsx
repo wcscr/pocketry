@@ -260,7 +260,7 @@ export type TraceAction =
   | { type: "SET_INCLUDE_INTERIOR_HOLES"; include: boolean }
   /** A committed edit: pushes onto the undo stack. */
   | { type: "OUTLINE_COMMITTED"; outline: Outline; label?: string }
-  | { type: "ALIGN_UPRIGHT"; outline: Outline; expectedOutline: Outline; radians: number }
+  | { type: "ALIGN_UPRIGHT"; outline: Outline; expectedOutline: Outline; radians: number; label?: string }
   /** An offset of the current edited contour and its physical setting. */
   | { type: "MARGIN_COMMITTED"; outline: Outline; margin: Margin }
   /** A mid-drag update: previews without touching the committed history. */
@@ -709,7 +709,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
 
     case "ALIGN_UPRIGHT":
       if (action.expectedOutline !== state.outline) return state;
-      return commitPhotoRotation(state, action.radians, action.outline, "Make contour symmetric and upright", true);
+      return commitPhotoRotation(state, action.radians, action.outline, action.label ?? "Make contour symmetric and upright", true);
 
     case "MARGIN_COMMITTED":
       if (state.margin === action.margin && state.outline === action.outline) {

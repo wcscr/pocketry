@@ -678,7 +678,8 @@ it("keeps migrated linked through designs consistent even when creation depths d
 
 it.each(["corners", 1, 2, 3, 4, 5])("restores every-hole pegs from v37 density %s throughout saved projects", density => {
   const base = parseProjectDoc(VALID)!;
-  const spec = { ...base.spec, pegBottom: { ...DEFAULT_PEG_BOTTOM, density } };
+  const legacyPegs = { ...DEFAULT_PEG_BOTTOM, underside: "sloped" as const };
+  const spec = { ...base.spec, pegBottom: { ...legacyPegs, density } };
   const snapshot = { spec, cutouts: base.cutouts, fingerHoles: base.fingerHoles };
   const legacy = { ...base, ...snapshot, schemaVersion: 37,
     history: { index: 0, stack: [{ label: "Start", doc: snapshot }] },
@@ -686,9 +687,9 @@ it.each(["corners", 1, 2, 3, 4, 5])("restores every-hole pegs from v37 density %
   const original = JSON.stringify(legacy);
   const migrated = parseProjectDoc(legacy)!;
   expect(migrated.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
-  expect(migrated.spec.pegBottom).toEqual(DEFAULT_PEG_BOTTOM);
-  expect(migrated.history!.stack[0].doc.spec.pegBottom).toEqual(DEFAULT_PEG_BOTTOM);
-  expect(migrated.transformOrigins!.pockets[0].spec.pegBottom).toEqual(DEFAULT_PEG_BOTTOM);
+  expect(migrated.spec.pegBottom).toEqual(legacyPegs);
+  expect(migrated.history!.stack[0].doc.spec.pegBottom).toEqual(legacyPegs);
+  expect(migrated.transformOrigins!.pockets[0].spec.pegBottom).toEqual(legacyPegs);
   expect(migrated.cutouts).toEqual(base.cutouts);
   expect(JSON.stringify(legacy)).toBe(original);
   expect(parseProjectDoc(JSON.parse(JSON.stringify(migrated)))).toEqual(migrated);

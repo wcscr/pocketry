@@ -1,4 +1,5 @@
 import { surfaceTextSchema, type SurfaceText } from "@shared/gridfinity/surface-text";
+import { sameJsonData } from "@shared/json-data-equal";
 import { adjustPocketsForFillHeight, reconcileFillHeightReferences } from "@shared/gridfinity/fill-height-edit";
 import { recordTransformOrigins, type TransformOrigins } from "@shared/gridfinity/transform-origins";
 import { applyLinkedEdits, clampLinkedFingerHoles, pocketDesign, fingerDesign, type DesignObjectKind } from "@shared/gridfinity/design-links";
@@ -316,7 +317,7 @@ function changeSelection(state: BinState, selection: ObjectRef[], section: Pocke
   const changed = textId !== state.selectedSurfaceTextId || section !== state.selectedPocketSection || JSON.stringify(selection) !== JSON.stringify(state.selection);
   if (changed && state.pendingHistoryLabel) {
     const doc = { spec: state.spec, cutouts: state.cutouts, fingerHoles: state.fingerHoles };
-    state = JSON.stringify(doc) === JSON.stringify(getCommittedBinDoc(state))
+    state = sameJsonData(doc, getCommittedBinDoc(state))
       ? { ...state, pendingHistoryLabel: null }
       : commit(state, doc, state.pendingHistoryLabel);
   }
@@ -358,7 +359,7 @@ function finishFieldEdit(state: BinState, cancel = false): BinState {
   if (!state.fieldEdit) return state;
   const baseline = getCommittedBinDoc(state);
   const doc = { spec: state.spec, cutouts: state.cutouts, fingerHoles: state.fingerHoles };
-  const changed = JSON.stringify(doc) !== JSON.stringify(baseline);
+  const changed = !sameJsonData(doc, baseline);
   const valid = state.fieldEdit.valid;
   const label = state.pendingHistoryLabel ?? "Edit dimensions";
   state = { ...state, fieldEdit: null, pendingHistoryLabel: null };
@@ -695,7 +696,7 @@ function reduceBin(state: BinState, action: BinAction): BinState {
       const edits = applyLinkedEdits(state, action.edits);
       if (!edits) return linkedEditError(state);
       const doc = { spec: state.spec, ...edits };
-      if (JSON.stringify(doc) === JSON.stringify(getCommittedBinDoc(state))) return preview(state, doc);
+      if (sameJsonData(doc, getCommittedBinDoc(state))) return preview(state, doc);
       return action.transient ? preview(state, doc, action.historyLabel) : commit(state, doc, action.historyLabel);
     }
     case "REMOVE_SELECTION": {

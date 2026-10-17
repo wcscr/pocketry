@@ -78,7 +78,7 @@ describe("first-use welcome", () => {
     expect(dialog()?.textContent).toContain("Design custom Gridfinity or flat-bottom bins, or create templates for laser etching and UV printing.");
     expect(dialog()!.querySelectorAll('ol[aria-label="From photo to bin"] li')).toHaveLength(3);
     expect(dialog()?.textContent).toContain("Projects are saved only in this browser.");
-    expect(dialog()?.textContent).toContain("Backups");
+    expect(dialog()?.textContent).toContain("Export project");
     expect(dialog()?.textContent).toContain("Or skip this and go to step 3 to create an empty bin or one with basic shapes.");
     expect(document.activeElement?.textContent?.trim()).toBe("Welcome to Pocketry");
     expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(1);

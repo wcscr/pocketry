@@ -69,6 +69,38 @@ describe("bin preview worker lifecycle", () => {
     React.act(() => root.unmount()); host.remove(); vi.useRealTimers(); vi.unstubAllGlobals();
   });
 
+  it("keeps portable sources in the editor but out of preview keys and all geometry requests", async () => {
+    const source = { data: "A".repeat(1_000_000), byteLength: 750_000 };
+    const input = parseBinSpec({ ...spec(3), surfaceTexts: [{ id: "text", text: "A", position: { x: 0, y: 0 },
+      font: { kind: "local", name: "Portable", resolution: 1000, source,
+        glyphs: { A: { ha: 500, o: "m 0 0 l 500 0 l 500 500 z" } } },
+    }] });
+    const native = JSON.stringify;
+    const spy = vi.spyOn(JSON, "stringify").mockImplementation((value, replacer, space) => {
+      if (value?.spec?.surfaceTexts?.[0]?.font?.source) throw new Error("Source bytes in geometry key");
+      return native(value, replacer, space);
+    });
+    try {
+      await React.act(async () => root.render(<Probe args={[input, PREVIEW_QUALITY, layout]} />));
+      await tick();
+      const preview = worker().calls[0].payload as BuildBinRequest;
+      expect(preview.spec.surfaceTexts?.[0].font).toMatchObject({ kind: "local", glyphs: { A: { ha: 500 } } });
+      expect(preview.spec.surfaceTexts?.[0].font).not.toHaveProperty("source");
+      expect(input.surfaceTexts[0].font).toHaveProperty("source.data", source.data);
+      let exported!: Promise<BuildBinResult>;
+      let surface!: ReturnType<BinGeometryState["buildSurfaceFitCheck"]>;
+      await React.act(async () => {
+        exported = state.buildOnce(EXPORT_QUALITY);
+        surface = state.buildSurfaceFitCheck(1, EXPORT_QUALITY);
+      });
+      for (const call of detailWorker().calls) {
+        expect((call.payload as BuildBinRequest).spec.surfaceTexts?.[0].font).not.toHaveProperty("source");
+      }
+      await reply(() => { detailWorker().finish(0); detailWorker().finish(1); });
+      await Promise.all([exported, surface]);
+    } finally { spy.mockRestore(); }
+  });
+
   it("batches initial edits and keeps only the newest pending preview without cancellation", async () => {
     await render(2); await tick(16); await render(3); await tick();
     expect(worker().calls).toHaveLength(1);

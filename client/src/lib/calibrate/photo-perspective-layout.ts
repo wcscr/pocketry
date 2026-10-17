@@ -1,5 +1,6 @@
 import type { Point } from "@shared/geometry/types";
 import type { PerspectiveLayout, PerspectiveQuad } from "./perspective";
+import { fitImageWithin, type ImageRasterLimit } from "../geometry/image-rotation";
 
 export class PhotoPerspectiveBoundsError extends Error {}
 
@@ -16,12 +17,13 @@ export function photoPerspectiveLayout(
   matrix: ArrayLike<number>,
   image: { width: number; height: number },
   paperLayout: PerspectiveLayout,
-  max: { width: number; height: number },
+  max: ImageRasterLimit,
 ): PhotoPerspectiveLayout {
   const h = Array.from(matrix);
   if (h.length !== 9 || h.some(value => !Number.isFinite(value)) ||
     !Number.isFinite(image.width) || !Number.isFinite(image.height) || image.width < 2 || image.height < 2 ||
-    !Number.isFinite(max.width) || !Number.isFinite(max.height) || max.width < 2 || max.height < 2) {
+    !Number.isFinite(max.width) || !Number.isFinite(max.height) || max.width < 2 || max.height < 2 ||
+    (max.maxPixels !== undefined && (!Number.isFinite(max.maxPixels) || max.maxPixels < 4))) {
     throw new PhotoPerspectiveBoundsError("The photo could not define a stable correction area.");
   }
   const corners = [
@@ -49,7 +51,11 @@ export function photoPerspectiveLayout(
   }
   const widthLimit = Math.floor(max.width);
   const heightLimit = Math.floor(max.height);
-  const scale = Math.min(1, (widthLimit - 1) / spanX, (heightLimit - 1) / spanY);
+  let scale = Math.min(1, (widthLimit - 1) / spanX, (heightLimit - 1) / spanY);
+  if (max.maxPixels !== undefined) {
+    const bounded = fitImageWithin({ width: Math.ceil(spanX * scale) + 1, height: Math.ceil(spanY * scale) + 1 }, max);
+    scale = Math.min(scale, (bounded.width - 1) / spanX, (bounded.height - 1) / spanY);
+  }
   const destination = paperLayout.destination.map(({ x, y }: Point) => ({
     x: (x - minX) * scale, y: (y - minY) * scale,
   })) as PerspectiveQuad;

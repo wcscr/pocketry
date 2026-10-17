@@ -1,4 +1,6 @@
 import { arbitrarySizePatch, gridSizeFromArbitrary } from "@shared/gridfinity/bin-size";
+import { readImportJson, withinImportLimits, IMPORT_LIMIT_ERROR } from "@shared/gridfinity/import-limits";
+import { sameJsonData } from "@shared/json-data-equal";
 import { SampleLibraryDialog } from "@/components/project/sample-library-dialog";
 import { ProjectBackupPrompt } from "@/components/project/project-backup-prompt";
 import type { SampleLibrary } from "@/lib/project/samples";
@@ -398,6 +400,7 @@ export function BinControlsPanel({
     SURFACE_FIT_CHECK_DEFAULT_THICKNESS_MM,
   );
   const [surfaceFitCheckStyle, setSurfaceFitCheckStyle] = useState<SurfaceFitCheckStyle>("outline");
+  const [ultim8DialogOpen, setUltim8DialogOpen] = useState(false);
   const [threeMfDialogOpen, setThreeMfDialogOpen] = useState(false);
   const [projectNameOpen, setProjectNameOpen] = useState(false);
   const threeMfTitleRef = useRef<HTMLHeadingElement>(null);
@@ -438,6 +441,22 @@ export function BinControlsPanel({
     transient = false,
     historyLabel?: string,
   ) => dispatch({ type: "PATCH_SPEC", patch, transient, historyLabel });
+
+  const applyUltim8Bottom = (useJigSettings: boolean) => {
+    if (!experimentalEnabled) return;
+    patchSpec({
+      flatBottom: false,
+      pegBottom: { ...DEFAULT_PEG_BOTTOM },
+      ...(useJigSettings ? { lip: "none", fill: "solid", fillHeightPercent: 100, textColor: null } : {}),
+    }, false, "Use ULTIM8 jig pegs");
+    if (useJigSettings) {
+      onColorPocketFloorsChange(false);
+      onColorStackingRimChange(false);
+      onPocketFloorColorChange(binColor);
+      onStackingRimColorChange(binColor);
+    }
+    setUltim8DialogOpen(false);
+  };
 
   const setRectangularCellSpan = (
     axis: "x" | "y",
@@ -1387,7 +1406,7 @@ export function BinControlsPanel({
             activeProjectId={activeProjectId}
             hasDraftWork={!!currentProjectName || keepBinSize || shapes.length > 0 || cutouts.length > 0
               || fingerHoles.length > 0 || history.stack.length > 1 || hasMaterialEdits
-              || JSON.stringify(spec) !== JSON.stringify(INITIAL_BIN_SPEC)}
+              || !sameJsonData(spec, INITIAL_BIN_SPEC)}
             currentProjectName={currentProjectName}
             projects={projects}
             onSaveProject={onSaveProject}
@@ -1690,8 +1709,11 @@ export function BinControlsPanel({
               <SettingLabel label="Bottom" htmlFor="select-bin-bottom" hint={<><p>{experimentalEnabled ? "Choose Gridfinity feet, a flat underside, or locating pegs for the ULTIM8 jig." : "Choose Gridfinity feet or a flat underside."}</p>{spec.pegBottom && <p className="mt-2">For Wham Bam ULTIM8 mats on eufyMake E1. The underside adds {pegBottomExtensionMm(spec).toFixed(1)} mm below the bin.</p>}</>} />
               <Select value={spec.pegBottom ? "ultim8" : spec.flatBottom ? "flat" : "gridfinity"}
                 onValueChange={(bottom) => {
-                  if (bottom === "ultim8" && !experimentalEnabled) return;
-                  patchSpec({ flatBottom: bottom === "flat", pegBottom: bottom === "ultim8" ? { ...DEFAULT_PEG_BOTTOM } : null });
+                  if (bottom === "ultim8") {
+                    if (experimentalEnabled) setUltim8DialogOpen(true);
+                    return;
+                  }
+                  patchSpec({ flatBottom: bottom === "flat", pegBottom: null });
                 }}>
                 <SelectTrigger id="select-bin-bottom" className="h-8 flex-1" aria-label="Bottom" data-testid="select-bin-bottom"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -1701,7 +1723,8 @@ export function BinControlsPanel({
                 </SelectContent>
               </Select>
             </div>
-            {experimentalEnabled && spec.pegBottom && <>
+            {experimentalEnabled && spec.pegBottom && <PropertySurface tone="rose" role="group" aria-label="ULTIM8 peg settings" className="space-y-2">
+              <p className="text-xs font-medium">Peg settings</p>
               <div className="flex items-center gap-2">
                 <SettingLabel label="Underside" htmlFor="select-peg-underside" hint={spec.pegBottom.underside === "flat" ? "Flat backing removes tall peg roots and exports pocket-side down, with pegs up. Check pocket bridges and overhangs in your slicer." : spec.pegBottom.underside === "bridged" ? "Short bridges join the flared peg collars. Print upright with pegs down and supports off. Print a small fit check before a full fixture." : "Sloped roots print upright with pegs down and supports off."} />
                 <Select value={spec.pegBottom.underside} onValueChange={(underside: "sloped" | "bridged" | "flat") => patchSpec({ pegBottom: { ...spec.pegBottom!, underside, density: underside === "flat" ? spec.pegBottom!.density : 1 } })}>
@@ -1722,7 +1745,7 @@ export function BinControlsPanel({
               </div>}
               {(["diameterMm", "lengthMm"] as const).map((key) => <div key={key} className="flex items-center justify-between gap-3">
                 <SettingLabel label={key === "diameterMm" ? "Peg diameter" : "Peg length"} htmlFor={`peg-bottom-${key}`}
-                  hint={key === "diameterMm" ? "Locating pegs fit the jig’s 5 mm holes. Print a small fit check before a full bin." : "Straight length below the sloped root; tune it to your mat depth."} />
+                  hint={key === "diameterMm" ? "Locating pegs fit the jig’s 5 mm holes. Print a small fit check before a full bin." : "Straight peg length below the backing or root; tune it to your mat depth."} />
                 <div className="flex items-center gap-1.5">
                   <DraftNumberInput id={`peg-bottom-${key}`} className="h-8 w-20" aria-label={key === "diameterMm" ? "Peg diameter in millimetres" : "Peg length in millimetres"}
                     value={spec.pegBottom![key]} min={key === "diameterMm" ? 4 : 2} max={5} step={0.1}
@@ -1731,7 +1754,7 @@ export function BinControlsPanel({
                   <span className="text-xs text-muted-foreground">mm</span>
                 </div>
               </div>)}
-            </>}
+            </PropertySurface>}
           </div>
 
           <div className="space-y-2 border-t pt-3">
@@ -2230,6 +2253,23 @@ export function BinControlsPanel({
         </PanelSection>
       </InspectorPanelSections>
 
+      <AlertDialog open={ultim8DialogOpen && experimentalEnabled} onOpenChange={setUltim8DialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Use jig settings?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Remove the stacking lip, set Solid fill to 100%, and use the bin body color for floors, rim, and text?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-wrap gap-2 sm:space-x-0">
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction className="bg-secondary text-secondary-foreground hover:bg-secondary/80"
+              onClick={() => applyUltim8Bottom(false)}>Keep current settings</AlertDialogAction>
+            <AlertDialogAction onClick={() => applyUltim8Bottom(true)}>Use jig settings</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <AlertDialog
         open={pendingRemoval !== null}
         onOpenChange={(open) => {
@@ -2540,9 +2580,12 @@ function ProjectControls({
     if (busy) return;
     const revision = ++projectFileReadRevision.current;
     let parsed: unknown;
+    let limitError = false;
     try {
-      parsed = JSON.parse(await file.text());
-    } catch {
+      parsed = await readImportJson(file);
+      limitError = !withinImportLimits(parsed);
+    } catch (cause) {
+      limitError = cause instanceof Error && cause.message === IMPORT_LIMIT_ERROR;
       parsed = null;
     }
     if (revision !== projectFileReadRevision.current) return;
@@ -2550,7 +2593,7 @@ function ProjectControls({
     if (!doc) {
       toast({
         title: "Not a Pocketry project",
-        description: `${file.name} is not a readable .pocketry.json or legacy .tooltrace.json file.`,
+        description: limitError ? IMPORT_LIMIT_ERROR : `${file.name} is not a readable .pocketry.json or legacy .tooltrace.json file.`,
         variant: "destructive",
       });
       return;

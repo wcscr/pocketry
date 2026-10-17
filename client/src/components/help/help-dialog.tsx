@@ -57,7 +57,7 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
             <p className="text-muted-foreground">
               Choose <strong>Region → Set region</strong> and draw a box around
               the tool. If perspective correction crops the tool, enable
-              <strong> Show full corrected photo</strong> in Region. In
+              <strong> Show full photo</strong> beside the canvas. In
               <strong> Outline</strong>, adjust <strong>Sensitivity</strong> and
               <strong> Simplification</strong>, or use <strong>Edit contours</strong>{" "}
               to correct points. <strong>Margin</strong> adds optional clearance.

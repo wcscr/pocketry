@@ -541,12 +541,11 @@ describe("BinDesignerPage", () => {
       const queued = JSON.parse(sessionStorage.getItem("pocketry:queued-tools")!);
       expect(queued).toHaveLength(1);
       expect(queued[0].pendingDestination).toEqual({ key: "project:a", name: "Project A" });
-      React.act(() => [...document.querySelectorAll("button")].find(button => button.textContent === "Backups")!.click());
-      React.act(() => [...document.querySelectorAll("button")].find(button => button.textContent === "Download current project backup")!.click());
+      openSettingsSection(container, "project");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-export-project"]')!.click());
       const [blob] = vi.mocked(downloadBlob).mock.lastCall!;
       const json = await new Promise<string>(resolve => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.readAsText(blob); });
       expect(JSON.parse(json).shapes).toHaveLength(0);
-      React.act(() => [...document.querySelectorAll("button")].find(button => button.textContent === "Close")!.click());
       if (resolution === "accept") {
         React.act(() => [...document.querySelectorAll("button")].find(button => button.textContent === "Add waiting tools to Project B")!.click());
       } else {
@@ -584,11 +583,10 @@ describe("BinDesignerPage", () => {
     ] } };
     sessionStorage.setItem("pocketry:queued-tools", JSON.stringify([{ ...shape, pendingDestination: { key: "project:other", name: "Other project" } }]));
     vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(stored);
-    render(<PanelProvider><ProjectActivityProvider><ShapeLibraryProvider><ProjectStatusBar /><BinDesignerPage /></ShapeLibraryProvider></ProjectActivityProvider></PanelProvider>);
+    const { container } = render(<PanelProvider><ProjectActivityProvider><ShapeLibraryProvider><ProjectStatusBar /><BinDesignerPage /></ShapeLibraryProvider></ProjectActivityProvider></PanelProvider>);
     await flushHydration();
-    const button = (text: string) => [...document.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === text)!;
-    React.act(() => button("Backups").click());
-    React.act(() => button("Download current project backup").click());
+    openSettingsSection(container, "project");
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-export-project"]')!.click());
     const [blob] = vi.mocked(downloadBlob).mock.lastCall!;
     const json = await new Promise<string>(resolve => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.readAsText(blob); });
     const exported = parseProjectDoc(JSON.parse(json))!;
@@ -607,11 +605,9 @@ describe("BinDesignerPage", () => {
     </ShapeLibraryProvider></ProjectActivityProvider></PanelProvider></Router>);
     const button = (text: string) => [...document.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === text)!;
     const backupWidth = async () => {
-      React.act(() => button("Backups").click());
-      React.act(() => button("Download unsaved edits: Socket tray").click());
+      React.act(() => button("Download unsaved work").click());
       const [blob] = vi.mocked(downloadBlob).mock.lastCall!;
       const json = await new Promise<string>(resolve => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.readAsText(blob); });
-      React.act(() => button("Close").click());
       return JSON.parse(json).spec.gridX;
     };
     try {
@@ -642,6 +638,7 @@ describe("BinDesignerPage", () => {
     expect(layout().cutouts.every(c => c.depthPending)).toBe(true);
     const prompt = first.container.querySelector('[data-testid="pending-pocket-depth"]')!;
     expect(prompt.textContent).toContain("Tool 1");
+    if (!mobile) expect(first.container.querySelector('[data-testid="desktop-workspace-controls"]')?.getAttribute("aria-hidden")).toBeNull();
     expect(first.container.querySelector('[role="dialog"]')).toBeNull();
     React.act(() => button(prompt, "Set later").click());
     expect(prompt.textContent).toContain("Depth needed");
@@ -662,6 +659,7 @@ describe("BinDesignerPage", () => {
       openSettingsSection(reopened.container, "export");
       expect(reopened.container.querySelector<HTMLButtonElement>('[data-testid="button-export-3mf"]')!.disabled).toBe(true);
       React.act(() => reopened.container.querySelector<HTMLButtonElement>('[data-export-issue="pocket-depth-needed"]')!.click());
+      if (!mobile) expect(reopened.container.querySelector('[data-testid="desktop-workspace-controls"]')?.getAttribute("aria-hidden")).toBeNull();
       const question = reopened.container.querySelector('[data-testid="pending-pocket-depth"]')!;
       expect(question.textContent).toContain("How deep should this pocket be?");
       const input = question.querySelector<HTMLInputElement>('input[inputmode="decimal"]')!;
@@ -822,9 +820,8 @@ describe("BinDesignerPage", () => {
     React.act(() => route.navigate("/"));
     React.act(() => completion?.(false, new Error("Could not save the last edit")));
     expect(container.querySelector('[data-testid="global-project-status"]')!.textContent).toContain("Project storage needs attention");
-    React.act(() => [...container.querySelectorAll("button")].find(button => button.textContent === "Backups")!.click());
     expect(document.body.textContent).toContain("Could not save the last edit");
-    React.act(() => [...document.querySelectorAll("button")].find(button => button.textContent === "Download current project backup")!.click());
+    React.act(() => [...document.querySelectorAll("button")].find(button => button.textContent === "Download unsaved work")!.click());
     expect(downloadBlob).toHaveBeenCalledOnce();
   });
 
@@ -3080,8 +3077,61 @@ describe("BinDesignerPage", () => {
       React.act(() => experimentalSettings.setEnabled(true));
       React.act(() => trigger().dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true })));
       React.act(() => options().find(o => o.textContent === "ULTIM8 jig pegs")!.click());
-      expect(container.querySelector('[aria-label="Peg diameter in millimetres"]')).not.toBeNull();
-      expect(vi.mocked(useBinGeometry).mock.lastCall![0].pegBottom).not.toBeNull();
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0].pegBottom).toBeNull();
+      React.act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="alertdialog"] button')].find(button => button.textContent === "Keep current settings")!.click());
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0].pegBottom?.underside).toBe("flat");
+      const group = container.querySelector('[role="group"][aria-label="ULTIM8 peg settings"]')!;
+      expect(group.getAttribute("data-property-tone")).toBe("rose");
+      expect(group.hasAttribute("data-property-surface")).toBe(true);
+      for (const label of ["Peg underside", "Peg density", "Peg diameter in millimetres", "Peg length in millimetres"]) {
+        expect(group.querySelector(`[aria-label="${label}"]`)).not.toBeNull();
+      }
+      expect(group.contains(trigger())).toBe(false);
+      expect(group.querySelector('[aria-label="Peg underside"]')!.textContent).toBe("Flat backing · pegs up");
+    } finally { unmount(); }
+  });
+
+  it.each(["standard", "workflow"])("confirms ULTIM8 jig settings without changing a cancelled design in the %s layout", async layout => {
+    window.history.replaceState(null, "", `/bin?layout=${layout}`);
+    const original = parseBinSpec({ ...EMPTY_PROJECT.spec, fill: "none", fillHeightPercent: 55, textColor: "#fedcba" });
+    const materials = { ...DEFAULT_BIN_MATERIALS, binColor: "#123456", pocketFloorColor: "#abcdef", stackingRimColor: "#654321" };
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, spec: original, materials });
+    binGeometryMock.hasPocketFloor = true;
+    const { container, unmount } = renderPage();
+    await flushHydration();
+    const current = () => vi.mocked(useBinGeometry).mock.lastCall![0];
+    const viewport = () => container.querySelector('[data-testid="bin-viewport-stub"]')!;
+    const choosePegs = () => {
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="select-bin-bottom"]')!
+        .dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true })));
+      React.act(() => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(option => option.textContent === "ULTIM8 jig pegs")!.click());
+    };
+    const respond = (label: string) => React.act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="alertdialog"] button')].find(button => button.textContent === label)!.click());
+    try {
+      openSettingsSection(container, "construction");
+      choosePegs();
+      expect(document.querySelector('[role="alertdialog"]')!.textContent).toContain("set Solid fill to 100%");
+      expect(current()).toEqual(original);
+      respond("Cancel");
+      expect(current()).toEqual(original);
+      expect(viewport().getAttribute("data-rim-color")).toBe(materials.stackingRimColor);
+      expect(viewport().getAttribute("data-text-color")).toBe(original.textColor);
+      choosePegs();
+      respond("Use jig settings");
+      expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+      expect(current()).toMatchObject({ lip: "none", fill: "solid", fillHeightPercent: 100, flatBottom: false,
+        pegBottom: { underside: "flat", density: 1 }, textColor: null });
+      for (const region of ["bin", "floor", "rim", "text"]) expect(viewport().getAttribute(`data-${region}-color`)).toBe(materials.binColor);
+      expect(viewport().getAttribute("data-pocket-floor-color")).toBe("off");
+      expect(viewport().getAttribute("data-stacking-rim-color")).toBe("off");
+      openSettingsSection(container, "project");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-export-project"]')!.click());
+      const [blob] = vi.mocked(downloadBlob).mock.lastCall!;
+      const json = await new Promise<string>(resolve => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.readAsText(blob); });
+      const exported = parseProjectDoc(JSON.parse(json))!;
+      expect(exported.spec).toEqual(current());
+      expect(exported.materials).toEqual({ ...materials, colorPocketFloors: false, colorStackingRim: false,
+        pocketFloorColor: materials.binColor, stackingRimColor: materials.binColor });
     } finally { unmount(); }
   });
 
@@ -3096,6 +3146,8 @@ describe("BinDesignerPage", () => {
       openSettingsSection(container, "construction");
       const current = () => vi.mocked(useBinGeometry).mock.lastCall![0];
       expect(experimentalSettings.enabled).toBe(false);expect(current().pegBottom).toEqual(spec.pegBottom);
+      expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+      expect(container.querySelector('[aria-label="ULTIM8 peg settings"]')).toBeNull();
       expect(container.querySelector('[data-testid="select-bin-bottom"]')!.textContent).toBe("ULTIM8 jig pegs");
       expect(container.querySelector('[aria-label="Peg underside"]')).toBeNull();
       expect(container.querySelector('[aria-label="Peg density"]')).toBeNull();
@@ -3131,13 +3183,16 @@ describe("BinDesignerPage", () => {
       const magnet = () => container.querySelector<HTMLButtonElement>('[role="switch"][aria-label="Magnet holes"]');
       React.act(() => magnet()!.click());
       choose("ULTIM8 jig pegs");
+      React.act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="alertdialog"] button')].find(button => button.textContent === "Keep current settings")!.click());
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0].lip).toBe("standard");
+      expect(container.querySelector('[data-testid="bin-viewport-stub"]')!.getAttribute("data-stacking-rim-color")).toBe("on");
       expect(magnet()).toBeNull();
       expect(container.textContent).not.toContain("For Wham Bam ULTIM8 mats");
       await React.act(async () => container.querySelector<HTMLButtonElement>('[aria-label="About bottom"]')!.click());
       expect(document.querySelector('[role="tooltip"]')!.textContent).toContain("For Wham Bam ULTIM8 mats on eufyMake E1");
-      expect(document.querySelector('[role="tooltip"]')!.textContent).toContain("12.0 mm below the bin");
+      expect(document.querySelector('[role="tooltip"]')!.textContent).toContain("4.0 mm below the bin");
       React.act(() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
-      expect(vi.mocked(useBinGeometry).mock.lastCall?.[0].pegBottom).toEqual({ diameterMm: 4.8, lengthMm: 4, underside: "sloped", density: 1 });
+      expect(vi.mocked(useBinGeometry).mock.lastCall?.[0].pegBottom).toEqual({ diameterMm: 4.8, lengthMm: 4, underside: "flat", density: 1 });
       const input = () => container.querySelector<HTMLInputElement>('[aria-label="Peg diameter in millimetres"]')!;
       React.act(() => {
         input().focus();
@@ -3158,8 +3213,9 @@ describe("BinDesignerPage", () => {
       expect(document.querySelector('[role="tooltip"]')!.textContent).toContain("Short bridges join the flared peg collars");
       React.act(() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
       React.act(() => undo.click());
-      expect(vi.mocked(useBinGeometry).mock.lastCall?.[0].pegBottom?.underside).toBe("sloped");
+      expect(vi.mocked(useBinGeometry).mock.lastCall?.[0].pegBottom?.underside).toBe("flat");
       choose("Gridfinity feet");
+      expect(container.querySelector('[aria-label="ULTIM8 peg settings"]')).toBeNull();
       expect(magnet()!.getAttribute("aria-checked")).toBe("true");
       expect(vi.mocked(useBinGeometry).mock.lastCall?.[0].pegBottom).toBeNull();
       choose("Flat bottom");

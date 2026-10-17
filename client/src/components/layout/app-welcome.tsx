@@ -117,8 +117,8 @@ export function AppWelcome(): JSX.Element {
             </button>
           </div>
           <p className="mt-1 text-xs leading-4 text-muted-foreground">
-            Projects are saved only in this browser. Use <strong>Backups</strong>{" "}
-            to keep a copy.
+            Projects are saved only in this browser. Use <strong>Export project</strong>{" "}
+            in Bin to keep a copy.
           </p>
         </div>
         <div className="grid grid-cols-2 gap-2 border-t bg-muted/20 p-3 sm:px-5">

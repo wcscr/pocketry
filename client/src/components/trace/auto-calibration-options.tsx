@@ -38,7 +38,7 @@ export function AutoCalibrationOptions({ onSetManually, onApplyPerspective, onDe
       <div className="flex items-center gap-2 text-sm font-semibold text-amber-800 dark:text-amber-200">
         <Sparkles className="h-4 w-4 shrink-0" />
         {paper ? "Paper and measurement aid detected" : source === "strip" ? "Scale detected from the reference strip" : "Scale detected from the sheet"}
-        {hasPerspective && <HelpHint label="perspective correction">Correction starts cropped to the paper. Reveal the full corrected photo in Region for larger tools.</HelpHint>}
+        {hasPerspective && <HelpHint label="perspective correction">Correction starts cropped to the paper. Use Show full photo beside the canvas for larger tools.</HelpHint>}
       </div>
       {hasPerspective ? paper ? (
         <Button size="sm" className={actionClass} disabled={processing}

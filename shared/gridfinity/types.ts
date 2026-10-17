@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { surfaceTextSchema, textColorSchema } from "./surface-text";
+import { withFontSourceValidationCache } from "./local-font";
 
 import {
   footprintTopologyError,
@@ -84,6 +85,7 @@ export const binSpecSchema = z
     pegBottom: z.object({
       diameterMm: z.number().min(4).max(5).default(4.8),
       lengthMm: z.number().min(2).max(5).default(4),
+      // Preserve pre-underside projects; new bottoms use DEFAULT_PEG_BOTTOM.
       underside: z.enum(["sloped", "bridged", "flat"]).default("sloped"),
       density: z.union([z.literal("corners"), z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)]).default(1),
     }).strict().nullable().default(null),
@@ -173,5 +175,5 @@ export type { BinFootprint, BoundaryEdge, GridCell };
 
 /** Parses unknown input into a {@link BinSpec}, throwing on invalid shape. */
 export function parseBinSpec(input: unknown): BinSpec {
-  return binSpecSchema.parse(input);
+  return withFontSourceValidationCache(() => binSpecSchema.parse(input));
 }

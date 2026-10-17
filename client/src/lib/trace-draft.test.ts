@@ -11,7 +11,7 @@ vi.mock("idb-keyval", () => ({
 import { set } from "idb-keyval";
 import { loadTraceDraft, saveTraceDraft, traceDraftSnapshot, TRACE_DRAFT_KEY } from "./trace-draft";
 
-const image = "data:image/png;base64,AA==";
+const image = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=";
 const outline = [{ outer: [{ x: 0, y: 0 }, { x: 20, y: 0 }, { x: 0, y: 30 }], holes: [] }];
 const calibrated = () => {
   let state = traceReducer(initialTraceState, { type: "SOURCE_LOADED", imageUrl: image, fileName: "Driver" });
@@ -148,4 +148,15 @@ describe("browser-local Trace recovery", () => {
     await saveTraceDraft(traceDraftSnapshot(calibrated()));
     expect((await loadTraceDraft())?.state.fileName).toBe("Driver");
   });
+});
+
+it.each(["imageUrl", "perspectiveOriginalImageUrl"] as const)("rejects unsafe recovered %s before publishing either image", async field => {
+  const snapshot = traceDraftSnapshot(calibrated())!;
+  const bytes = Uint8Array.from(atob(image.split(",")[1]), c => c.charCodeAt(0));
+  new DataView(bytes.buffer).setUint32(16, 100_000);
+  const unsafe = `data:image/png;base64,${btoa(String.fromCharCode(...bytes))}`;
+  const stored = { ...snapshot, state: { ...snapshot.state, [field]: unsafe } };
+  storage.set(TRACE_DRAFT_KEY, stored);
+  await expect(loadTraceDraft()).rejects.toThrow("too large to decode");
+  expect(storage.get(TRACE_DRAFT_KEY)).toBe(stored);
 });
