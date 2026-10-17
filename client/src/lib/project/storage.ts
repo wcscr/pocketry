@@ -1,4 +1,5 @@
 import { createStore, getMany, promisifyRequest, type UseStore } from "idb-keyval";
+import { sameJsonData } from "@shared/json-data-equal";
 
 // Keep the original idb-keyval database and keys so existing work stays readable.
 export const CURRENT_PROJECT_KEY = "tooltrace:project:v1";
@@ -14,7 +15,7 @@ export class ProjectStorageConflictError extends Error {
 
 /** Compare the raw stored documents, including unsupported fields and versions. */
 export function sameProjectStorage(a: ProjectStorageSnapshot, b: ProjectStorageSnapshot): boolean {
-  return JSON.stringify(a) === JSON.stringify(b);
+  return sameJsonData(a, b);
 }
 
 export async function readProjectStorage(): Promise<ProjectStorageSnapshot> {

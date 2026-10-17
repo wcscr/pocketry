@@ -1,6 +1,6 @@
 {
   "name": "rest-express",
-  "version": "1.4.0",
+  "version": "1.5.1",
   "type": "module",
   "license": "AGPL-3.0-only",
   "scripts": {
@@ -13,13 +13,11 @@
     "test:coverage": "vitest run --coverage",
     "generate:calibration-templates": "tsx scripts/generate-calibration-templates.ts",
     "generate:reference-strip": "tsx scripts/generate-reference-strip.ts",
-    "export:bin": "tsx scripts/export-bin.ts",
-    "db:push": "drizzle-kit push"
+    "export:bin": "tsx scripts/export-bin.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
     "@jridgewell/trace-mapping": "^0.3.25",
-    "@neondatabase/serverless": "^0.10.4",
     "@radix-ui/react-accordion": "^1.2.1",
     "@radix-ui/react-alert-dialog": "^1.1.2",
     "@radix-ui/react-aspect-ratio": "^1.1.0",
@@ -53,22 +51,15 @@
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "cmdk": "^1.0.0",
-    "connect-pg-simple": "^10.0.0",
     "date-fns": "^3.6.0",
-    "drizzle-orm": "^0.39.1",
-    "drizzle-zod": "^0.7.0",
     "embla-carousel-react": "^8.3.0",
-    "express": "^4.21.2",
-    "express-session": "^1.18.1",
+    "express": "^4.22.3",
     "fflate": "^0.8.3",
     "framer-motion": "^11.13.1",
     "idb-keyval": "^6.3.0",
     "input-otp": "^1.2.4",
     "lucide-react": "^0.453.0",
     "manifold-3d": "^3.5.1",
-    "memorystore": "^1.6.7",
-    "passport": "^0.7.0",
-    "passport-local": "^1.0.0",
     "react": "^18.3.1",
     "react-day-picker": "^8.10.1",
     "react-dom": "^18.3.1",
@@ -82,37 +73,25 @@
     "three": "^0.180.0",
     "vaul": "^1.1.0",
     "wouter": "^3.3.5",
-    "ws": "^8.18.0",
-    "zod": "^3.23.8",
-    "zod-validation-error": "^3.4.0"
+    "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@tailwindcss/typography": "^0.5.15",
     "@techstark/opencv-js": "^4.11.0-release.1",
-    "@types/connect-pg-simple": "^7.0.3",
     "@types/express": "4.17.21",
-    "@types/express-session": "^1.18.0",
     "@types/node": "20.16.11",
-    "@types/passport": "^1.0.16",
-    "@types/passport-local": "^1.0.38",
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.1",
     "@types/three": "^0.180.0",
-    "@types/ws": "^8.5.13",
-    "@vitejs/plugin-react": "^4.3.2",
-    "@vitest/coverage-v8": "^3.2.7",
-    "autoprefixer": "^10.4.20",
-    "drizzle-kit": "^0.30.4",
+    "@vitejs/plugin-react": "^4.7.0",
+    "@vitest/coverage-v8": "4.1.11",
     "esbuild": "^0.25.0",
     "jsdom": "^30.0.1",
     "postcss": "^8.4.47",
-    "tailwindcss": "^3.4.14",
+    "tailwindcss": "^4.3.3",
     "tsx": "^4.19.1",
     "typescript": "5.6.3",
-    "vite": "^5.4.14",
-    "vitest": "^3.2.7"
-  },
-  "optionalDependencies": {
-    "bufferutil": "^4.0.8"
+    "vite": "^6.4.4",
+    "vitest": "4.1.11",
+    "@tailwindcss/postcss": "^4.3.3"
   }
 }

@@ -1,3 +1,4 @@
+import { readImportJson, IMPORT_LIMIT_ERROR } from "@shared/gridfinity/import-limits";
 import { surfaceTextZ } from "@/lib/gridfinity/surface-text";
 import { DEFAULT_BIN_MATERIALS, type BinMaterials } from "@shared/gridfinity/materials";
 import { hasRigidPocket } from "@shared/gridfinity/rigid-pocket";
@@ -621,8 +622,9 @@ function BinDesignerWorkspace(): JSX.Element {
     try {
       let input: unknown;
       try {
-        input = JSON.parse(await file.text());
-      } catch {
+        input = await readImportJson(file, true);
+      } catch (cause) {
+        if (cause instanceof Error && cause.message === IMPORT_LIMIT_ERROR) throw cause;
         throw new Error("The file could not be read as JSON. No designs were imported.");
       }
       const result = await importProjectLibrary(input, mode, mode === "replace" ? currentProjectDoc : undefined);

@@ -137,7 +137,7 @@ portable copy of a calibrated outline and its bin settings.
 Choose **Start over** at the bottom of the Trace workflow panel (or in the phone menu) to
 begin again. Confirming clears the current trace and its edit history; pockets
 already added to Bin remain. Photo selection accepts one PNG, JPG, or WebP up to
-10 MB. Rejected or unreadable photos show a persistent message and leave the
+10 MB, 50 megapixels, and 16,384 pixels per side. Animated PNG/WebP files are not supported. Rejected or unreadable photos show a persistent message and leave the
 current trace intact. If no outline is found, increase **Sensitivity** or redraw
 the region around the whole tool.
 
@@ -301,7 +301,9 @@ existing experimental geometry stays visible and exportable.
 
 The static application processes images and generates models locally in the
 browser. Projects are stored in the browser using IndexedDB. The hosted version
-does not require uploading tool photographs to Pocketry's server.
+does not require uploading tool photographs to Pocketry's server. The local Node
+server serves the editor and static assets only; the retired `/api/images` endpoints
+return 404 and do not accept or store uploads.
 
 ## Run locally
 
@@ -312,8 +314,15 @@ npm ci
 npm run dev
 ```
 
-The development server defaults to <http://localhost:5000>. If that port is in
-use, choose another one:
+The development server binds to IPv4 loopback at <http://127.0.0.1:5000>
+(`localhost` also works when it resolves to IPv4). It is not exposed to other
+computers on your network. Vite rejects untrusted Host names, serves only the
+client, shared source, dependencies, explicit client imports (such as version
+metadata), and public/legal assets. Vite's desktop-editor launch endpoint is disabled;
+Pocketry's Trace and Bin editors remain available. Production `npm start` keeps its
+existing all-interface listener for deliberate hosting.
+
+If the default port is in use, choose another one:
 
 ```sh
 PORT=5001 npm run dev
@@ -369,3 +378,12 @@ acknowledgment includes work not individually credited in the commit history.
 Issues and pull requests are welcome. Keep changes focused, add or update tests,
 run the required verification commands, and update `NOTICE` whenever adding a
 direct dependency, bundled artifact, copied component, or adapted source.
+
+### Browser and import limits
+
+Use Safari 16.4+, Chrome/Edge 111+, or Firefox 128+ for the current styling engine.
+Project imports are limited to 64 MiB and library backups to 128 MiB / 500 designs.
+Resource checks also limit ring length, total geometry, and repeated placements
+across undo history and transform sources. Over-limit imports are rejected in full;
+existing work is kept. Split large library backups or simplify unusually detailed
+designs before importing. See [import limits](docs/import-limits.md) for exact bounds.

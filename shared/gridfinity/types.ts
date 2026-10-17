@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { surfaceTextSchema, textColorSchema } from "./surface-text";
+import { withFontSourceValidationCache } from "./local-font";
 
 import {
   footprintTopologyError,
@@ -148,5 +149,5 @@ export type { BinFootprint, BoundaryEdge, GridCell };
 
 /** Parses unknown input into a {@link BinSpec}, throwing on invalid shape. */
 export function parseBinSpec(input: unknown): BinSpec {
-  return binSpecSchema.parse(input);
+  return withFontSourceValidationCache(() => binSpecSchema.parse(input));
 }

@@ -1,3 +1,6 @@
+import { withinImportLimits } from "./import-limits";
+import { sameJsonData } from "../json-data-equal";
+import { withFontSourceValidationCache } from "./local-font";
 import { z } from "zod";
 
 import {
@@ -133,7 +136,7 @@ const version24ProjectSchema = version23ProjectSchema.extend({
 const version25ProjectSchema = version24ProjectSchema.extend({ schemaVersion: z.literal(25) });
 
 /** History and the visible design must describe one consistent saved snapshot. */
-export const projectDocSchema = version16ProjectSchema.extend({
+const validatedProjectDocSchema = version16ProjectSchema.extend({
   schemaVersion: z.literal(PROJECT_SCHEMA_VERSION),
   /** Absent in older designs; the editor applies DEFAULT_BIN_MATERIALS. */
   materials: binMaterialsSchema.optional(),
@@ -144,7 +147,7 @@ export const projectDocSchema = version16ProjectSchema.extend({
   if (!project.history) return;
   const current = project.history.stack[project.history.index]?.doc;
   const material = { spec: project.spec, cutouts: project.cutouts, fingerHoles: project.fingerHoles };
-  if (JSON.stringify(current) !== JSON.stringify(material)) {
+  if (!sameJsonData(current, material)) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["history"], message: "History does not match the saved design" });
   }
   // Shapes are immutable by id. Store one shared collection, including shapes
@@ -155,6 +158,15 @@ export const projectDocSchema = version16ProjectSchema.extend({
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["history"], message: "History requires unique, available shapes" });
   }
 });
+
+// Direct schema callers also need bounded font validation, including exports
+// and destination checks on the expanded in-memory editing representation.
+export const projectDocSchema = z.unknown().transform((input, ctx) => withFontSourceValidationCache(() => {
+  const result = validatedProjectDocSchema.safeParse(input);
+  if (result.success) return result.data;
+  for (const issue of result.error.issues) ctx.addIssue(issue);
+  return z.NEVER;
+}));
 
 const version14ProjectSchema = version16ProjectSchema.extend({ schemaVersion: z.literal(14) });
 const version15ProjectSchema = version16ProjectSchema.extend({ schemaVersion: z.literal(15) });
@@ -276,6 +288,11 @@ function migrateLegacyProject(doc: LegacyProjectDoc): ProjectDoc {
  * an empty designer beats crashing the workspace.
  */
 export function parseProjectDoc(input: unknown): ProjectDoc | null {
+  return withFontSourceValidationCache(() => parseProjectInput(input));
+}
+
+function parseProjectInput(input: unknown): ProjectDoc | null {
+  if (!withinImportLimits(input)) return null;
   if (input && typeof input === "object" && "schemaVersion" in input && input.schemaVersion === PROJECT_SCHEMA_VERSION) {
     input = expandProjectFontSources(input);
   }

@@ -347,8 +347,6 @@ Each project retains its own copyright and licence notices.
 Apache License 2.0:
 
   class-variance-authority
-  drizzle-orm
-  drizzle-zod
   idb-keyval
   manifold-3d (described separately above)
 
@@ -368,24 +366,18 @@ MIT License:
 
   @hookform/resolvers
   @jridgewell/trace-mapping
-  @neondatabase/serverless
   @radix-ui/react-* packages declared in package.json
   @react-three/drei
   @react-three/fiber
   @tanstack/react-query
   clsx
   cmdk
-  connect-pg-simple
   date-fns
   embla-carousel-react
   express
-  express-session
   fflate
   framer-motion
   input-otp
-  memorystore
-  passport
-  passport-local
   react
   react-day-picker
   react-dom
@@ -398,9 +390,7 @@ MIT License:
   tailwindcss-animate
   three
   vaul
-  ws
   zod
-  zod-validation-error
 
 Direct development and optional packages are build/test tooling rather than
 Pocketry application code. They are also retained here for acknowledgement:
@@ -412,22 +402,14 @@ Apache License 2.0:
 
 MIT License:
 
-  @tailwindcss/typography
-  @types/connect-pg-simple
+  @tailwindcss/postcss
   @types/express
-  @types/express-session
   @types/node
-  @types/passport
-  @types/passport-local
   @types/react
   @types/react-dom
   @types/three
-  @types/ws
   @vitejs/plugin-react
   @vitest/coverage-v8
-  autoprefixer
-  bufferutil
-  drizzle-kit
   esbuild
   jsdom
   postcss
