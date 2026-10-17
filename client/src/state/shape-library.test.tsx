@@ -67,6 +67,20 @@ function mountLibrary(): { library: () => ShapeLibrary; act: (fn: () => void) =>
 }
 
 describe("shape library", () => {
+  it("keeps photo arrangements through reload, hydration and retargeting without altering library geometry", () => {
+    const first = mountLibrary();
+    const placement = { batchId: "photo-a", center: { x: 24, y: -18 } };
+    first.act(() => first.library().addShape(makeShape("a"), { mode: "unset" }, undefined, placement));
+    first.act(() => first.library().replaceShapes([makeShape("stored")], true));
+    first.act(() => first.library().retargetPending({ key: "project:b", name: "B" }));
+    const reloaded = mountLibrary();
+    expect(reloaded.library().pendingPlacements).toEqual({ a: placement });
+    expect(reloaded.library().shapes).toEqual([makeShape("a")]);
+    reloaded.act(() => reloaded.library().removeShape("a"));
+    expect(reloaded.library().pendingPlacements).toEqual({});
+    expect(mountLibrary().library().pendingPlacements).toEqual({});
+  });
+
   it("retains destination-bound tools when opening a project and through reload", () => {
     const first = mountLibrary();
     const destination = { key: "project:a", name: "Project A" };

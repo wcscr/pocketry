@@ -61,8 +61,11 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
               <strong> Outline</strong>, adjust <strong>Sensitivity</strong> and
               <strong> Simplification</strong>, or use <strong>Edit contours</strong>{" "}
               to correct points. <strong>Margin</strong> adds optional clearance.
+              In <strong>Detected Contours</strong>, choose <strong>Pocket</strong> to cut
+              material or <strong>Hole</strong> to keep material inside a pocket.
               When the outline looks right, choose <strong>Add to bin</strong>{" "}
-              to place it immediately. Set the pocket depth beside the bin, or choose <strong>Set later</strong>{" "}
+              to place it immediately. Objects traced together keep their relative positions, including overlaps.
+              Set the pocket depth beside the bin, or choose <strong>Set later</strong>{" "}
               to arrange it first. Every pocket needs a depth before printable export.
               Choose <strong>Trace another photo</strong> for a blank canvas and photo drop zone; pockets already added to Bin stay in the project.
             </p>

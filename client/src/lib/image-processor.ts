@@ -175,6 +175,11 @@ export async function processImage(
     );
   }
 
+  if (result.inferredOccludedEdge) {
+    onNotice?.("Review the edge beneath the measurement aid",
+      "The aid was removed from the trace. The edge it covers is estimated from the visible outline; check those points, or retake the photo with the aid fully inside the tool.");
+  }
+
   const origin = cropped
     ? { x: region.originalRegion.x, y: region.originalRegion.y }
     : { x: 0, y: 0 };

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Preserve the relative positions of outlines sent from Trace to Bin, including overlaps. Choose Pocket or Hole for a contour to cut material or intentionally keep it.
+- Ignore recognized measurement aids when tracing; flag estimated edges hidden beneath an aid for review.
+- Use a small hollow crosshair in the contour magnifier so vertex handles no longer cover the placement point.
+
 ## 1.5.1 — 2026-10-16
 
 - Reject oversized project/library backups and excessive geometry before processing; preserve existing work on rejected imports. Prevent repeated portable fonts from multiplying validation, history, and preview memory use.

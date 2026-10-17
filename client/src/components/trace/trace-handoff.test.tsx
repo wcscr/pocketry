@@ -56,6 +56,17 @@ it.each([false, true])("keeps grouping optional: combined %s", combined => {
   expect(mocks.addShape.mock.calls.every(call => call[1].mode === "unset")).toBe(true);
 });
 
+it("queues photo-relative centres in millimetres with one Y flip for separate pockets", () => {
+  const first = trace.outline[0];
+  trace = { ...trace, outline: [first, { outer: first.outer.map(p => ({ x: p.x + 24, y: p.y + 12 })), holes: [] }] };
+  render(); add();
+  const [a, b] = mocks.addShape.mock.calls;
+  expect(a[3].batchId).toBe(b[3].batchId);
+  expect(b[3].center.x - a[3].center.x).toBe(12);
+  expect(b[3].center.y - a[3].center.y).toBe(-6);
+  expect(a[0].bboxMm).toEqual(b[0].bboxMm);
+});
+
 it.each(["scale", "processing", "empty", "uncalibrated"])("retains the %s handoff guard", guard => {
   trace = { ...trace, ...(guard === "scale" ? { mode: "calibrate" as const }
     : guard === "processing" ? { processing: true } : guard === "empty" ? { outline: [] } : { calibration: null }) };

@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { exportScale } from "@/lib/export/scale";
-import { normalizeTracedShape } from "@/lib/gridfinity/traced-shape";
+import { normalizeTracedShapeWithPlacement } from "@/lib/gridfinity/traced-shape";
 import { useShapeLibrary } from "@/state/shape-library";
 import { hasPendingManualCalibration, useTrace } from "@/state/trace-store";
 import { useProjectActivity } from "@/state/project-activity";
@@ -26,13 +26,17 @@ export function useTraceHandoff(onCanvasInteraction?: () => void) {
     const shapes = parts.map(part => {
       while (names.has(`Tool ${number}`)) number++;
       const name = `Tool ${number++}`;
-      return normalizeTracedShape(part, scale, name);
+      return normalizeTracedShapeWithPlacement(part, scale, name);
     });
     if (shapes.some(shape => !shape)) return;
     adding.current = true;
-    for (const shape of shapes) {
-      if (shape) library.addShape({ ...shape, traceMarginMm: trace.margin ?? 0 }, { mode: "unset" },
-        destination ? { key: destination.destinationKey ?? `project:${destination.activeProjectId}`, name: destination.name ?? "Untitled project" } : undefined);
+    const target = destination ? { key: destination.destinationKey ?? `project:${destination.activeProjectId}`, name: destination.name ?? "Untitled project" } : undefined;
+    for (const entry of shapes) {
+      if (!entry) continue;
+      const shape = { ...entry.shape, traceMarginMm: trace.margin ?? 0 };
+      if (shapes.length > 1) library.addShape(shape, { mode: "unset" }, target,
+        { batchId: shapes[0]!.shape.id, center: entry.center });
+      else library.addShape(shape, { mode: "unset" }, target);
     }
     onCanvasInteraction?.();
     navigate("/bin");
@@ -53,6 +57,7 @@ export function TraceHandoffOptions({ handoff }: { handoff: TraceHandoff }) {
     </p>
     {handoff.objectCount > 1 && <details>
       <summary className="cursor-pointer py-1">{handoff.separateTools ? `${handoff.objectCount} separate pockets` : "One combined pocket"}</summary>
+      <p>Positions from the photo are preserved, including overlaps.</p>
       <label className="flex min-h-9 items-center gap-2">
         <input type="checkbox" checked={!handoff.separateTools}
           onChange={event => handoff.setSeparateTools(!event.target.checked)} />

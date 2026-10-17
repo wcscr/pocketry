@@ -274,6 +274,7 @@ export function TraceScene({
               strokeWidth={1.5}
               vectorEffect="non-scaling-stroke"
               data-vertex={index}
+              style={{ visibility: "var(--contour-handle-visibility, visible)" as "visible" }}
               data-vertex-hovered={hovered || undefined}
               data-point-selected={selected || undefined}
             />

@@ -913,4 +913,16 @@ describe("Trace detection workflow", () => {
     });
     expect(processImageMock).toHaveBeenCalledTimes(1);
   });
+
+  it("recognizes an aid independently of the accepted ruler and maps it into the cropped trace", async () => {
+    await React.act(async () => root.render(<PanelProvider><TraceProvider><WorkflowController /><TracePage /></TraceProvider></PanelProvider>));
+    getDetectionFrameMock.mockReturnValue({ imageData: getImageDataMock(), toWorking: { x: .5, y: .25 }, sourceImageUrl: "data:image/png;base64,source" });
+    vi.mocked(autoCalibrate).mockResolvedValue({ kind: "calibrated-strip",
+      calibration: { startX: 200, startY: 400, endX: 200, endY: 500, lengthMm: 35 },
+      solution: { mmPerPx: .35, markerIds: [22, 23], pairCount: 1, maxDeviation: 0, ruler: { a: { x: 200, y: 400 }, b: { x: 200, y: 500 }, lengthMm: 35 } },
+      aidOutline: [{ x: 200, y: 400 }, { x: 240, y: 400 }, { x: 240, y: 600 }, { x: 200, y: 600 }],
+    });
+    await React.act(async () => host.querySelector<HTMLButtonElement>('[data-testid="commit-new-region"]')!.click());
+    expect(processImageMock.mock.lastCall![1].detect.occlusions).toEqual([[{ x: 20, y: 10 }, { x: 40, y: 10 }, { x: 40, y: 60 }, { x: 20, y: 60 }]]);
+  });
 });

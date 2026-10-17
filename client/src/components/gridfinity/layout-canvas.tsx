@@ -1980,7 +1980,8 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
                       data-point-selected={pointSelected || undefined}
                       strokeWidth={2}
                       vectorEffect="non-scaling-stroke"
-                      style={{ cursor: showRemoval ? "pointer" : "move" }}
+                      style={{ cursor: showRemoval ? "pointer" : "move",
+                        visibility: "var(--contour-handle-visibility, visible)" as "visible" }}
                       data-contour-of={selected.cutout.id}
                       data-contour-shape={shapeIndex}
                       data-contour-ring={ringIndex}

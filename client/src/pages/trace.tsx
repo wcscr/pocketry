@@ -2,7 +2,7 @@ import { useLocation } from "wouter";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { mmPerPixel, type Calibration } from "@shared/geometry/scale";
-import type { Rect } from "@shared/geometry/types";
+import type { Rect, Ring } from "@shared/geometry/types";
 
 import { usePanelState } from "@/components/layout/panel-context";
 import { TraceEditingWorkspace } from "@/components/trace/trace-editing-workspace";
@@ -205,8 +205,32 @@ function TraceWorkspace(): JSX.Element {
     if (!imageData) return;
 
     const request = ++detectionRequest.current;
+    const sourceRevision = store.sourceRevision;
     dispatch({ type: "SET_PROCESSING", processing: true });
     try {
+      // Re-read the current photo, including any rotation/perspective warp.
+      // This also works after draft recovery or choosing a manual/paper scale;
+      // the carrier footprint is independent of the accepted scale ruler.
+      let occlusions: Ring[] = [];
+      try {
+        for (const limit of [undefined, AID_RETRY_CANVAS_MAX]) {
+          const frame = getDetectionFrame(limit);
+          if (frame?.sourceImageUrl !== source.url) break;
+          const reference = await autoCalibrate(frame.imageData);
+          if (reference.kind === "calibrated-strip" && reference.aidOutline) {
+            occlusions = [reference.aidOutline.map(p => ({
+              x: p.x * frame.toWorking.x - Math.max(0, Math.round(region.x)),
+              y: p.y * frame.toWorking.y - Math.max(0, Math.round(region.y)),
+            }))];
+            break;
+          }
+          if (!(reference.kind === "invalid-strip" ||
+            (reference.kind === "calibrated" && reference.stripFallbackReason))) break;
+        }
+      } catch {
+        // Optional reference recognition must not disable ordinary tracing.
+      }
+      if (request !== detectionRequest.current || latestStore.current.sourceRevision !== sourceRevision) return;
       const result = await processImage(imageData, {
         includeInteriorHoles: settings?.includeInteriorHoles ?? store.includeInteriorHoles,
         region: region
@@ -215,6 +239,7 @@ function TraceWorkspace(): JSX.Element {
         margin: store.margin,
         calibration: store.calibration,
         detect: {
+          occlusions,
           sensitivity: settings?.sensitivity ?? store.sensitivity,
           tolerancePx: store.tolerancePx,
           smoothing: store.smoothing,
@@ -222,7 +247,7 @@ function TraceWorkspace(): JSX.Element {
         onNotice: notice,
       });
 
-      if (request !== detectionRequest.current) return;
+      if (request !== detectionRequest.current || latestStore.current.sourceRevision !== sourceRevision) return;
       dispatch({
         type: "DETECTED",
         expectedOutline: store.outline,
@@ -250,6 +275,7 @@ function TraceWorkspace(): JSX.Element {
   }, [
     source,
     getImageData,
+    getDetectionFrame,
     dispatch,
     notice,
     toast,
@@ -262,6 +288,7 @@ function TraceWorkspace(): JSX.Element {
     store.tolerancePx,
     store.smoothing,
     store.fileName,
+    store.sourceRevision,
   ]);
 
   /**

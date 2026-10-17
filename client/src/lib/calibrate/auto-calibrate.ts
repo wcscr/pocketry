@@ -1,4 +1,6 @@
 import type { Calibration } from "@shared/geometry/scale";
+import type { Ring } from "@shared/geometry/types";
+import { aidFootprint } from "./aid-footprint";
 
 import { loadOpenCV } from "@/lib/opencv";
 
@@ -36,6 +38,8 @@ import {
 export type AutoCalibrationResult =
   | {
       kind: "calibrated-strip";
+      /** Recognized carrier in source pixels, independent of the chosen scale. */
+      aidOutline?: Ring;
       calibration: Calibration;
       /** For recovered aids this solution uses paper-rectified coordinates. */
       solution: ScaleSolution;
@@ -111,6 +115,7 @@ function calibrateStrip(
   if (stripSolution) {
     return {
       kind: "calibrated-strip",
+      aidOutline: aidFootprint(cv, stripMarkers) ?? undefined,
       solution: stripSolution,
       calibration: {
         startX: stripSolution.ruler.a.x,
@@ -137,6 +142,7 @@ function calibrateStrip(
       if (recovered) {
         return {
           kind: "calibrated-strip",
+          aidOutline: aidFootprint(cv, stripMarkers) ?? undefined,
           requiresPerspectiveCorrection: true,
           solution: recovered,
           // Keep the original detected endpoints for the exact image warp.

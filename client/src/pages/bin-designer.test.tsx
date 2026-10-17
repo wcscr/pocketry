@@ -625,6 +625,42 @@ describe("BinDesignerPage", () => {
       expect(await backupWidth()).toBe(5);
     } finally { unmount(); }
   });
+  it("preserves a photo arrangement and its retained hole through Bin placement, project backup and reload", async () => {
+    const firstShape = rectangularShape("photo-first", "Tool 1");
+    const secondShape = rectangularShape("photo-second", "Tool 2");
+    firstShape.outlineMm[0].holes = [[{ x: -2, y: -2 }, { x: -2, y: 2 }, { x: 2, y: 2 }, { x: 2, y: -2 }]];
+    firstShape.pointCount += 4;
+    sessionStorage.setItem("pocketry:queued-tools", JSON.stringify([
+      { ...firstShape, pendingDepth: { mode: "unset" }, pendingPlacement: { batchId: "photo", center: { x: 40, y: 70 } } },
+      { ...secondShape, pendingDepth: { mode: "unset" }, pendingPlacement: { batchId: "photo", center: { x: 52, y: 64 } } },
+    ]));
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, spec: { ...EMPTY_PROJECT.spec, fill: "solid" } });
+    const first = renderPage();
+    const layout = () => vi.mocked(useBinGeometry).mock.lastCall![2]!;
+    const check = () => {
+      const a = layout().cutouts.find(c => c.shapeId === firstShape.id)!;
+      const b = layout().cutouts.find(c => c.shapeId === secondShape.id)!;
+      expect({ x: b.position.x - a.position.x, y: b.position.y - a.position.y }).toEqual({ x: 12, y: -6 });
+      expect(layout().shapes.find(s => s.id === firstShape.id)!.outlineMm[0].holes).toEqual(firstShape.outlineMm[0].holes);
+    };
+    await flushHydration(); check();
+    React.act(() => first.container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+    expect(layout().cutouts).toHaveLength(0);
+    React.act(() => first.container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+    check();
+    openSettingsSection(first.container, "project");
+    React.act(() => first.container.querySelector<HTMLButtonElement>('[data-testid="button-export-project"]')!.click());
+    const [blob] = vi.mocked(downloadBlob).mock.lastCall!;
+    const json = await new Promise<string>(resolve => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.readAsText(blob); });
+    const saved = parseProjectDoc(JSON.parse(json))!;
+    expect(saved.shapes.every(shape => !("pendingPlacement" in shape))).toBe(true);
+    first.unmount(); sessionStorage.clear();
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(saved);
+    const reopened = renderPage();
+    await flushHydration(); check();
+    reopened.unmount();
+  });
+
   it.each([false, true])("keeps deferred depths through backup, reload, export recovery, and undo (mobile=%s)", async mobile => {
     sessionStorage.setItem("pocketry:queued-tools", JSON.stringify([
       { ...rectangularShape("first", "Tool 1"), pendingDepth: { mode: "unset" } },

@@ -64,6 +64,11 @@ In **Trace**, add a clear, top-down photo with a known measurement or calibratio
 aid. Set the scale, draw a **Region** around the tool, and refine its **Outline**.
 Use **Edit Contour** for manual corrections and **Margin** for clearance.
 Choose **Add to bin**, then set how deep the tool should sit. Repeat for each tool.
+Multiple objects traced together keep their relative positions in Bin, including
+overlaps. They remain separate pockets unless you choose **Keep these outlines together**.
+In **Detected Contours**, choose **Pocket** to cut material or **Hole** to keep
+material inside the surrounding pockets. A hole crossing a pocket edge makes a
+notch. Changes can be undone; the retained areas travel with their pocket outlines.
 
 ![The Wolfbox duster outline in the default Trace layout, with workflow steps on the left and contour controls on the right](docs/images/trace-outline.jpg)
 
