@@ -9,6 +9,8 @@ export interface FitSize {
   widthMm: number;
   lengthMm: number;
   heightMm: number;
+  /** Model bottom in the bin frame; pegs extend below the original slab. */
+  bottomZMm?: number;
 }
 
 /** Headroom so the bin never kisses the viewport edge. */

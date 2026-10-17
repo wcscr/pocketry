@@ -1,3 +1,4 @@
+import { pegBottomExtensionMm } from "@shared/gridfinity/peg-bottom";
 import { readImportJson, IMPORT_LIMIT_ERROR } from "@shared/gridfinity/import-limits";
 import { surfaceTextZ } from "@/lib/gridfinity/surface-text";
 import { DEFAULT_BIN_MATERIALS, type BinMaterials } from "@shared/gridfinity/materials";
@@ -57,7 +58,7 @@ import {
   exportFilePart,
   prepareProjectExport,
 } from "@/lib/project/export";
-import { generateLayoutDXF, generateLayoutSVG } from "@/lib/export/layout";
+import { generateLayoutDXF, generateLayoutSVG, generateUltim8JigSVG } from "@/lib/export/layout";
 import { writeBinarySTL } from "@/lib/export/stl-writer";
 import { writeThreeMf, type ThreeMfObject } from "@/lib/mesh/threemf";
 import {
@@ -383,7 +384,7 @@ function BinDesignerWorkspace(): JSX.Element {
 
     const shapesById = new Map(library.shapes.map((shape) => [shape.id, shape]));
     const result =
-      cutouts.length === 0 && !keepBinSize
+      cutouts.length === 0 && !keepBinSize && !spec.arbitrarySizeMm
         ? autoPlaceFresh(newShapes, spec.lip, spec.gridPitch)
         : autoPlaceIncremental(newShapes, {
             spec,
@@ -523,8 +524,9 @@ function BinDesignerWorkspace(): JSX.Element {
       widthMm: builtDimensions.widthMm,
       lengthMm: builtDimensions.lengthMm,
       heightMm: builtDimensions.totalHeightMm,
+      bottomZMm: -pegBottomExtensionMm(builtSpec ?? committedSpec),
     };
-  }, [builtDimensions]);
+  }, [builtDimensions, builtSpec, committedSpec]);
 
   // Surface collapsed cutouts once per occurrence, not once per rebuild.
   const emptiedSeenRef = useRef<Set<string>>(new Set());
@@ -552,8 +554,8 @@ function BinDesignerWorkspace(): JSX.Element {
       spec.lip,
       spec.gridPitch,
       fingerHoles,
-      undefined,
-      keepBinSize ? spec : undefined,
+      spec,
+      (keepBinSize || spec.arbitrarySizeMm) ? spec : undefined,
     );
     if (!result) return;
     dispatch({
@@ -577,15 +579,20 @@ function BinDesignerWorkspace(): JSX.Element {
 
   const handleExportLayout = useCallback(
     async (format: "dxf" | "svg", includeProject: boolean) => {
-      const { spec, cutouts, fingerHoles, shapes } = exportProjectDoc;
-      const shapesById = new Map(shapes.map((shape) => [shape.id, shape]));
-      const project = prepareProjectExport(exportProjectDoc, currentProjectName, "layout");
-      const model = format === "dxf"
-        ? new Blob([await generateLayoutDXF(spec, cutouts, shapesById, fingerHoles)], { type: "application/dxf" })
-        : new Blob([await generateLayoutSVG(spec, cutouts, shapesById, fingerHoles)], { type: "image/svg+xml" });
-      downloadModelWithProject(model, format, project, includeProject);
+      try {
+        const { spec, cutouts, fingerHoles, shapes } = exportProjectDoc;
+        const shapesById = new Map(shapes.map((shape) => [shape.id, shape]));
+        const jig = format === "svg" && Boolean(spec.pegBottom);
+        const project = prepareProjectExport(exportProjectDoc, currentProjectName, jig ? "ultim8-jig-layout" : "layout");
+        const model = format === "dxf"
+          ? new Blob([await generateLayoutDXF(spec, cutouts, shapesById, fingerHoles)], { type: "application/dxf" })
+          : new Blob([await (jig ? generateUltim8JigSVG : generateLayoutSVG)(spec, cutouts, shapesById, fingerHoles)], { type: "image/svg+xml" });
+        downloadModelWithProject(model, format, project, includeProject);
+      } catch (error) {
+        toast({ title: "Layout export failed", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
+      }
     },
-    [exportProjectDoc, currentProjectName],
+    [exportProjectDoc, currentProjectName, toast],
   );
 
   const handleExportProject = useCallback(() => {

@@ -1,3 +1,4 @@
+import { binWidthMm, binLengthMm, type BinSizeSpec } from "@shared/gridfinity/bin-size";
 import {
   cutoutPlacementSchema,
   DEFAULT_TOP_EDGE_FILLET_MM,
@@ -156,13 +157,13 @@ function gridCandidates(gridPitch: GridPitch = "full", minX = 1, minY = 1): { gr
 }
 
 function interiorMm(
-  grid: { gridX: number; gridY: number },
+  grid: BinSizeSpec,
   inset: number,
   gridPitch: GridPitch = "full",
 ) {
   return {
-    widthMm: binFootprintMm(grid.gridX, gridPitch) - 2 * inset,
-    heightMm: binFootprintMm(grid.gridY, gridPitch) - 2 * inset,
+    widthMm: binWidthMm({ ...grid, gridPitch }) - 2 * inset,
+    heightMm: binLengthMm({ ...grid, gridPitch }) - 2 * inset,
   };
 }
 
@@ -310,8 +311,8 @@ export function autoPlaceIncremental(
 ): AutoPlaceResult {
   const occupied = existingBounds(options.existing, options.shapesById, [], options.spec);
   if (!occupied) {
-    if (options.keepBinSize) {
-      const interior = interiorMm(options, placementInsetMm(options.lip), options.gridPitch);
+    if (options.keepBinSize || options.spec?.arbitrarySizeMm) {
+      const interior = interiorMm(options.spec ?? options, placementInsetMm(options.lip), options.gridPitch);
       const block = shelfPack(shapeTargets(shapes), interior.widthMm);
       const byId = new Map(shapes.map((shape) => [shape.id, shape]));
       return { cutouts: block.items.map((item) => toPlacement(item, byId, 0, 0)),
@@ -338,7 +339,7 @@ export function autoPlaceIncremental(
   const byId = new Map(shapes.map((shape) => [shape.id, shape]));
   const targets = shapeTargets(shapes);
 
-  for (const grid of options.keepBinSize ? [options] : gridCandidates(options.gridPitch, options.gridX, options.gridY)) {
+  for (const grid of (options.keepBinSize || options.spec?.arbitrarySizeMm) ? [options.spec ?? options] : gridCandidates(options.gridPitch, options.gridX, options.gridY)) {
     const interior = interiorMm(grid, inset, options.gridPitch);
     const halfW = interior.widthMm / 2;
     const halfH = interior.heightMm / 2;
@@ -380,7 +381,7 @@ export function autoPlaceIncremental(
   const cx = occupied.maxX + ITEM_GAP_MM + block.widthMm / 2;
   return {
     cutouts: block.items.map((item) => toPlacement(item, byId, cx, 0)),
-    gridX: options.keepBinSize ? options.gridX : maxGridCells(options.gridPitch),
+    gridX: (options.keepBinSize || options.spec?.arbitrarySizeMm) ? options.gridX : maxGridCells(options.gridPitch),
     gridY: Math.max(options.gridY, 1),
     overflow: true,
   };
@@ -612,7 +613,18 @@ export function fitRectangularBinToPlacements(
   gridX: number;
   gridY: number;
   footprint: BinFootprint;
+  specPatch?: Partial<BinSpec>;
 } {
+  if (spec.arbitrarySizeMm) {
+    const bounds = existingBounds(cutouts, shapesById, fingerHoles, spec);
+    if (!bounds) return { cutouts: [...cutouts], fingerHoles: [...fingerHoles], gridX: spec.gridX, gridY: spec.gridY, footprint: { kind: "rectangle" } };
+    const x = (bounds.minX + bounds.maxX) / 2, y = (bounds.minY + bounds.maxY) / 2;
+    const inset = placementInsetMm(spec.lip, 0);
+    const size = { width: Math.min(671.5, Math.max(10, bounds.maxX - bounds.minX + 2 * inset)), length: Math.min(671.5, Math.max(10, bounds.maxY - bounds.minY + 2 * inset)) };
+    return { cutouts: cutouts.map(c => ({ ...c, position: { x: c.position.x - x, y: c.position.y - y } })),
+      fingerHoles: fingerHoles.map(h => ({ ...h, center: { x: h.center.x - x, y: h.center.y - y } })),
+      gridX: spec.gridX, gridY: spec.gridY, footprint: { kind: "rectangle" }, specPatch: { arbitrarySizeMm: size } };
+  }
   return {
     ...fitLayoutToPlacements(
       cutouts,
@@ -640,7 +652,7 @@ export function autoArrangeLayout(
   gridPitch: GridPitch = "full",
   fingerHoles: readonly FingerHole[] = [],
   baseSpec?: BinSpec,
-  fixedGrid?: { gridX: number; gridY: number },
+  fixedGrid?: BinSizeSpec,
 ): AutoArrangeResult | null {
   const items: ArrangeItem[] = [];
   for (const cutout of cutouts) {

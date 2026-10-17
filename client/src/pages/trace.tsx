@@ -14,6 +14,7 @@ import { TraceCanvas } from "@/components/trace/trace-canvas";
 import { TracePhotoBoundsControl } from "@/components/trace/trace-photo-bounds-control";
 import { CalibrationDownloads } from "@/components/trace/calibration-downloads";
 import { referenceStripFromRulerLength } from "@/lib/calibrate/reference-strip";
+import { TraceExportOptions } from "@/components/trace/trace-export-options";
 import { TraceControlsPanel } from "@/components/trace/trace-controls-panel";
 import { ExportConfirmationDialog } from "@/components/gridfinity/export-confirmation-dialog";
 import {
@@ -642,11 +643,7 @@ function TraceWorkspace(): JSX.Element {
       openSettings("trace-settings-scale");
       return;
     }
-    if (mmPerPixel(store.calibration) === null && store.exportFormat !== "svg") {
-      openSettings("trace-settings-scale");
-      toast({ title: "Set scale before exporting", description: "STL and DXF need a physical scale. Set scale, or choose SVG to save image pixels.", variant: "destructive" });
-      return;
-    }
+    dispatch({ type: "SET_EXPORT_FORMAT", exportFormat: "svg" });
     setExportDialogOpen(true);
   };
   const exportMmPerPx = mmPerPixel(store.calibration);
@@ -668,14 +665,16 @@ function TraceWorkspace(): JSX.Element {
     <>
       {exportDialogOpen && (
         <ExportConfirmationDialog
-          title={`Save outline ${store.exportFormat.toUpperCase()}?`}
+          title="Export Tool Outline"
           description={exportDescription}
           confirmLabel={exportMmPerPx === null && store.exportFormat !== "svg" ? "Set scale" : `Download ${store.exportFormat.toUpperCase()}${exportMmPerPx === null ? " (pixels)" : ""}`}
           backupDescription="Reopen this calibrated outline as an editable pocket in Bin."
           backupDisabledReason={mmPerPixel(store.calibration) === null ? "Set the scale to include an editable Pocketry project." : undefined}
           onCancel={() => setExportDialogOpen(false)}
           onConfirm={(includeProject) => { setExportDialogOpen(false); void handleExport(includeProject); }}
-        />
+        >
+          <TraceExportOptions />
+        </ExportConfirmationDialog>
       )}
       <AlertDialog open={perspectiveReplacement !== null && perspectiveReplacement.sourceRevision === store.sourceRevision}
         onOpenChange={(open) => { if (!open) setPerspectiveReplacement(null); }}>
@@ -715,6 +714,7 @@ function TraceWorkspace(): JSX.Element {
         mobileActionsLayout="landscape-side"
         mobileActions={<MobileTraceActions
           onAddToBin={handoff.addToBin}
+          onExport={requestExport}
           addToBinReady={handoff.ready}
           addToBinHint={<TraceHandoffOptions handoff={handoff} />}
           onChoosePhoto={() => photoInputRef.current?.click()}

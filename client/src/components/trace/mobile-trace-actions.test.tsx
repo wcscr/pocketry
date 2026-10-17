@@ -14,6 +14,7 @@ let overlay: HTMLDivElement;
 let root: Root;
 const openSettings = vi.fn();
 const addToBin = vi.fn();
+const exportOutline = vi.fn();
 const choosePhoto = vi.fn();
 const applyPerspective = vi.fn();
 const startOver = vi.fn();
@@ -23,7 +24,7 @@ const calibration = { startX: 0, startY: 0, endX: 100, endY: 0, lengthMm: 50 };
 function Harness(): JSX.Element {
   trace = useTrace();
   const { traceRestart } = usePanelState();
-  return <><button onClick={() => traceRestart?.()}>Start over</button><MobileTraceActions onAddToBin={addToBin} onChoosePhoto={choosePhoto} onOpenSettings={openSettings} onApplyPerspective={applyPerspective}
+  return <><button onClick={() => traceRestart?.()}>Start over</button><MobileTraceActions onExport={exportOutline} onAddToBin={addToBin} onChoosePhoto={choosePhoto} onOpenSettings={openSettings} onApplyPerspective={applyPerspective}
     onReprocess={reprocess} onDetectMarkers={detectMarkers} onStartOver={() => { startOver(); trace.dispatch({ type: "SOURCE_CLEARED" }); }} /></>;
 }
 function button(text: string): HTMLButtonElement {
@@ -309,6 +310,14 @@ describe("Mobile trace progression", () => {
     expect(overlay.querySelector('[aria-label="Dismiss hint"]')).toBeNull();
     React.act(() => trace.dispatch({ type: "SET_MODE", mode: "edit" }));
     expect(overlay.querySelector('[aria-label="Dismiss hint"]')).toBeNull();
+  });
+  it("opens the shared export prompt from outline adjustments", () => {
+    readyOutline();
+    React.act(() => button("Adjust").click());
+    React.act(() => button("Export Tool Outline").click());
+    expect(exportOutline).toHaveBeenCalledOnce();
+    expect(openSettings).not.toHaveBeenCalled();
+    expect(host.querySelector('[data-testid="mobile-adjustment-tray"]')).toBeNull();
   });
   it("opens naming directly once a calibrated outline is available", () => {
     load();

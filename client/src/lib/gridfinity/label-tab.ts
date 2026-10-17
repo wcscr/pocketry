@@ -1,8 +1,8 @@
+import { binWidthMm, binLengthMm } from "@shared/gridfinity/bin-size";
 // Type-only import: the kernel is injected (see `Kernel` in ../manifold/runtime).
 import type { Manifold } from "manifold-3d";
 
 import {
-  binFootprintMm,
   binHeightMm,
   D_WALL,
   R_F2,
@@ -101,8 +101,8 @@ export function buildLabelTab(
   const placed = arena.track(rotated.translate([midpoint.x, midpoint.y, 0]));
 
   // Trim to the rounded interior so the ends follow the corner fillets.
-  const interiorW = binFootprintMm(spec.gridX, spec.gridPitch) - 2 * D_WALL;
-  const interiorL = binFootprintMm(spec.gridY, spec.gridPitch) - 2 * D_WALL;
+  const interiorW = binWidthMm(spec) - 2 * D_WALL;
+  const interiorL = binLengthMm(spec) - 2 * D_WALL;
   const columnSection = spec.footprint.kind === "custom"
     ? footprintInteriorSection(kernel, spec, circularSegments)
     : arena.track(new CrossSection([

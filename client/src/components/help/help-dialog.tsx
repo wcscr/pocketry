@@ -61,10 +61,10 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
               <strong> Outline</strong>, adjust <strong>Sensitivity</strong> and
               <strong> Simplification</strong>, or use <strong>Edit contours</strong>{" "}
               to correct points. <strong>Margin</strong> adds optional clearance.
-              When the outline looks right, choose <strong>Add to bin</strong>{" "}
+              When the outline looks right, choose <strong>Add to Bin</strong>{" "}
               to place it immediately. Set the pocket depth beside the bin, or choose <strong>Set later</strong>{" "}
               to arrange it first. Every pocket needs a depth before printable export.
-              Choose <strong>Trace another photo</strong> for a blank canvas and photo drop zone; pockets already added to Bin stay in the project.
+              Choose <strong>Export Tool Outline</strong> to save SVG (the default), DXF, or STL. <strong>Start Over</strong> clears the trace after confirmation; pockets already added to Bin stay in the project.
             </p>
           </li>
           <li className="pl-1">
@@ -143,7 +143,7 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
             <strong>On a phone:</strong> switch between Trace, Bin, and Library
             using the workspace menu at the top. In Bin, use <strong>Workflow</strong>{" "}
             to find a section, <strong>Adjust</strong> for quick changes, or
-            <strong> All properties</strong> for the full editor. Move and Rotate
+            <strong> All properties</strong> for the full editor. Use <strong>Back to Canvas</strong> at the top to return. Move and Rotate
             keep the canvas clear; <strong>Adjust</strong> opens their exact values
             below or beside it. <strong>Done</strong> hides those values while
             keeping the tool active. Redo, navigation, and history are under
@@ -155,7 +155,7 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
             available by default.
           </p>
           <p>
-            <strong>Optional tools:</strong> adjustable empty-bin walls and linked
+            <strong>Optional tools:</strong> ULTIM8 jig pegs, adjustable empty-bin walls, and linked
             designs require <strong>App settings → Enable
             experimental features</strong>. The steps above work without them.
             Opening a project keeps your preference; existing experimental
