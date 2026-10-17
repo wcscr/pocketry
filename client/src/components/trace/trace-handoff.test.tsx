@@ -3,6 +3,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { beforeEach, afterEach, expect, it, vi } from "vitest";
 import { initialTraceState, type TraceState } from "@/state/trace-store";
 import { TraceHandoffOptions, useTraceHandoff } from "./trace-handoff";
+import { curvesFromOutline, editCurves, sampleCurves, type CurveOutline } from "@shared/geometry/curves";
 
 const mocks = vi.hoisted(() => ({ addShape: vi.fn(), navigate: vi.fn(), destination: null as import("@/state/project-activity").ProjectActivity | null }));
 vi.mock("@/state/project-activity", () => ({ useProjectActivity: () => mocks.destination }));
@@ -54,6 +55,20 @@ it.each([false, true])("keeps grouping optional: combined %s", combined => {
   expect(mocks.addShape).toHaveBeenCalledTimes(combined ? 1 : 2);
   expect(mocks.addShape.mock.calls.map(call => call[0].name)).toEqual(combined ? ["Tool 2"] : ["Tool 2", "Tool 3"]);
   expect(mocks.addShape.mock.calls.every(call => call[1].mode === "unset")).toBe(true);
+});
+
+it.each([false, true])("preserves editable curves in the actual handoff (combined: %s)", combined => {
+  const curves = editCurves(curvesFromOutline([trace.outline[0], trace.outline[0]]), { shapeIndex: 1, ringIndex: -1 },
+    { kind: "bend", index: 0, t: 0.5, delta: { x: 0, y: -5 } });
+  trace = { ...trace, curves, outline: sampleCurves(curves), margin: 0 };
+  render();
+  if (combined) React.act(() => host.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click());
+  add();
+  const sources = mocks.addShape.mock.calls.flatMap(call => call[0].curvesMm as CurveOutline);
+  expect(sources).toHaveLength(2);
+  expect(sources.map(s => s.outer.length)).toEqual([4, 4]);
+  expect(sources[0].outer.some(a => a.in || a.out)).toBe(false);
+  expect(sources[1].outer.some(a => a.in || a.out)).toBe(true);
 });
 
 it.each(["scale", "processing", "empty", "uncalibrated"])("retains the %s handoff guard", guard => {

@@ -1,4 +1,7 @@
 import { z } from "zod";
+import { curveOutlineSchema } from "./geometry/curve-schema";
+import { CURVE_TOLERANCE_MM, normalizeCurves, sampleCurves } from "./geometry/curves";
+import { mmPerPixel } from "./geometry/scale";
 import { outlineSchema, vec2Schema } from "./gridfinity/cutout";
 
 const finite = z.number().finite();
@@ -37,7 +40,7 @@ const frameFields = {
   pendingPerspective: perspective.nullable(), manualPerspectivePoints: z.array(vec2Schema).max(4), perspectiveCorrection,
 };
 const historyEntry = z.object({
-  outline, label: z.string(), margin,
+  outline, curves: curveOutlineSchema.optional(), label: z.string(), margin,
   refinementBase: outline.optional(), baselineMarginPx: finite.optional(),
   tolerancePx: finite.nonnegative().optional(), smoothing: finite.nonnegative().optional(),
   hasManualEdits: z.boolean().optional(),
@@ -48,7 +51,7 @@ const historyEntry = z.object({
  * Runtime-only processing flags and repeated image URLs are deliberately omitted.
  */
 export const traceDraftSchema = z.object({
-  schemaVersion: z.literal(1),
+  schemaVersion: z.union([z.literal(1), z.literal(2)]).transform(() => 2 as const),
   detectionComplete: z.boolean(),
   referencesAttempted: z.boolean(),
   state: z.object({
@@ -56,7 +59,7 @@ export const traceDraftSchema = z.object({
     imageSize: z.object({ width: finite.positive(), height: finite.positive() }),
     imageRotation: rotation,
     imageAlignment: imageAlignment.nullable().default(null),
-    outline, rawOutline: outline,
+    outline, rawOutline: outline, curves: curveOutlineSchema.optional(),
     selection: z.object({ shapeIndex: finite.int().nonnegative(), ringIndex: finite.int().min(-1) }).nullable(),
     history: z.object({ stack: z.array(historyEntry).min(1).max(50), index: finite.int().nonnegative() })
       .refine((value) => value.index < value.stack.length),
@@ -78,6 +81,23 @@ export const traceDraftSchema = z.object({
     exportFormat: z.enum(["svg", "dxf", "dwg", "stl"]).transform(format => format === "dwg" ? "dxf" : format),
     extrusionHeight: finite.positive(),
   }),
+}).transform((draft, ctx) => {
+  try {
+    const restore = <T extends { curves?: z.infer<typeof curveOutlineSchema> }>(value: T, scale: number | null) => {
+      if (!value.curves) return value;
+      const tolerance = CURVE_TOLERANCE_MM / (scale ?? 0.1);
+      const curves = normalizeCurves(value.curves, tolerance);
+      return { ...value, curves, outline: sampleCurves(curves, tolerance) };
+    };
+    const state = restore(draft.state, mmPerPixel(draft.state.calibration));
+    return { ...draft, state: { ...state, history: { ...state.history, stack: state.history.stack.map(entry => {
+      const restored = restore(entry, mmPerPixel(entry.photoFrame?.calibration ?? state.calibration));
+      return restored.curves ? { ...restored, refinementBase: restored.outline } : restored;
+    }) } } };
+  } catch (error) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: error instanceof Error ? error.message : "Invalid curves." });
+    return z.NEVER;
+  }
 });
 
 export type TraceDraft = z.infer<typeof traceDraftSchema>;

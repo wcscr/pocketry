@@ -50,6 +50,7 @@ export function useOutlineRefinement(
     imageRotation,
     sourceRevision,
     history,
+    curves,
     dispatch,
   } = useTrace();
   const detectionSignature = JSON.stringify([tolerancePx, smoothing]);
@@ -75,6 +76,7 @@ export function useOutlineRefinement(
     // Loading/recovering a source restores its contour and controls atomically.
     // The saved outline already includes its margin and simplification.
     if (sourceReplaced) return;
+    if (curves) return;
 
     // ROTATE_SOURCE already transforms the margin-bearing edited outline and
     // its calibration into the new pixel scale atomically. Applying the usual
@@ -130,6 +132,7 @@ export function useOutlineRefinement(
     };
   }, [
     rawOutline,
+    curves,
     outline,
     tolerancePx,
     smoothing,

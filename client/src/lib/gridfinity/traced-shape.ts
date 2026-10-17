@@ -1,7 +1,8 @@
 import type { TracedShape } from "@shared/gridfinity/cutout";
 import type { Outline } from "@shared/geometry/types";
+import { mapCurves, sampleCurves, type CurveOutline } from "@shared/geometry/curves";
 
-import { toModelSpace, type ExportScale } from "@/lib/export/scale";
+import { curvesToModelSpace, toModelSpace, type ExportScale } from "@/lib/export/scale";
 import {
   normalizeOutline,
   outlineBounds,
@@ -23,10 +24,12 @@ export function normalizeTracedShape(
   outlinePx: Outline,
   scale: ExportScale,
   name: string,
+  curves?: CurveOutline,
 ): TracedShape | null {
   if (scale.mmPerPx === null || outlinePx.length === 0) return null;
 
-  const modelMm = normalizeOutline(toModelSpace(outlinePx, scale));
+  const modelCurves = curves && curvesToModelSpace(curves, scale);
+  const modelMm = modelCurves ? sampleCurves(modelCurves) : normalizeOutline(toModelSpace(outlinePx, scale));
   const bounds = outlineBounds(modelMm);
   if (!bounds) return null;
 
@@ -41,6 +44,7 @@ export function normalizeTracedShape(
         : `shape-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     name,
     outlineMm: centred,
+    ...(modelCurves ? { curvesMm: mapCurves(modelCurves, p => ({ x: p.x - centreX, y: p.y - centreY })) } : {}),
     bboxMm: {
       minX: bounds.minX - centreX,
       minY: bounds.minY - centreY,

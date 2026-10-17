@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initialTraceState, traceReducer } from "@/state/trace-store";
 import { traceDraftSchema } from "@shared/trace-draft";
+import { curvesFromOutline, editCurves, sampleCurves, CURVE_TOLERANCE_MM } from "@shared/geometry/curves";
+import { mmPerPixel } from "@shared/geometry/scale";
 
 const storage = vi.hoisted(() => new Map<string, unknown>());
 vi.mock("idb-keyval", () => ({
@@ -26,6 +28,52 @@ const calibrated = () => {
 beforeEach(() => { storage.clear(); vi.clearAllMocks(); });
 
 describe("browser-local Trace recovery", () => {
+  it("preserves authored handles through reload and undo/redo, rebuilding stale samples", async () => {
+    const before = { ...calibrated(), margin: 0, processing: false };
+    const curves = editCurves(curvesFromOutline(before.outline), { shapeIndex: 0, ringIndex: -1 }, { kind: "bend", index: 0, t: 0.5, delta: { x: 0, y: -4 } });
+    const edited = traceReducer(before, { type: "CURVES_COMMITTED", curves, label: "Bend contour curve" });
+    expect(edited.curves).toEqual(curves);
+    const snapshot = traceDraftSnapshot(edited)!;
+    snapshot.state.outline = outline; // Simulate an obsolete polygon cache.
+    await saveTraceDraft(snapshot);
+    const restored = traceReducer(initialTraceState, { type: "TRACE_DRAFT_RESTORED", draft: (await loadTraceDraft())! });
+    expect(restored.curves).toEqual(curves);
+    expect(restored.outline).toEqual(sampleCurves(curves, CURVE_TOLERANCE_MM / mmPerPixel(before.calibration)!));
+    const undo = traceReducer(restored, { type: "UNDO" });
+    expect(undo.curves).toBeUndefined();
+    expect(undo.outline).toEqual(before.outline);
+    const redo = traceReducer(undo, { type: "REDO" });
+    expect(redo.curves).toEqual(curves);
+    expect(redo.outline).toEqual(restored.outline);
+    expect(traceReducer(redo, { type: "OUTLINE_REFINED", outline })).toBe(redo);
+    expect(traceReducer(redo, { type: "MARGIN_COMMITTED", outline, margin: 1 })).toBe(redo);
+    expect(traceReducer(redo, { type: "CURVES_COMMITTED", curves, label: "No change" })).toBe(redo);
+  });
+
+  it("migrates version-one drafts without creating curve data or changing vertices", () => {
+    const snapshot = traceDraftSnapshot(calibrated())!;
+    const recovered = traceDraftSchema.parse({ ...snapshot, schemaVersion: 1 });
+    expect(recovered.schemaVersion).toBe(2);
+    expect(recovered.state.curves).toBeUndefined();
+    expect(recovered.state.outline).toEqual(outline);
+  });
+
+  it("keeps curves and matching history through photo rotation and contour removal", async () => {
+    const before = { ...calibrated(), margin: 0, processing: false };
+    const sources = curvesFromOutline([before.outline[0], { ...before.outline[0], outer: before.outline[0].outer.map(p => ({ x: p.x + 100, y: p.y })) }]);
+    const curves = editCurves(sources, { shapeIndex: 0, ringIndex: -1 }, { kind: "bend", index: 0, t: 0.5, delta: { x: 0, y: -4 } });
+    const edited = traceReducer(before, { type: "CURVES_COMMITTED", curves, label: "Bend curve" });
+    const removed = traceReducer(edited, { type: "OUTLINE_COMMITTED", outline: [edited.outline[0]], label: "Delete shape" });
+    expect(removed.curves).toEqual([curves[0]]);
+    expect(traceReducer(removed, { type: "UNDO" }).curves).toEqual(curves);
+    const rotated = traceReducer(edited, { type: "ROTATE_SOURCE", direction: "clockwise", naturalSize: before.imageSize, maxSize: { width: 1600, height: 1600 } });
+    expect(rotated.curves![0].outer[0].out).not.toEqual(curves[0].outer[0].out);
+    await saveTraceDraft(traceDraftSnapshot(rotated));
+    const restored = traceReducer(initialTraceState, { type: "TRACE_DRAFT_RESTORED", draft: (await loadTraceDraft())! });
+    expect(restored.curves).toEqual(rotated.curves);
+    expect(traceReducer(restored, { type: "UNDO" }).curves).toEqual(curves);
+    expect(traceReducer(traceReducer(restored, { type: "UNDO" }), { type: "REDO" }).curves).toEqual(rotated.curves);
+  });
   it.each([false, true])("recovers a replacement ruler without losing accepted scale (complete: %s)", async complete => {
     const before = calibrated();
     let pending = traceReducer(before, { type: "SET_MODE", mode: "calibrate" });

@@ -30,7 +30,7 @@ export function TraceSymmetryTool() {
     if (session && (trace.outline !== session.outline || trace.sourceRevision !== session.sourceRevision)) setSession(null);
   }, [trace.outline, trace.sourceRevision, session]);
   return <>
-    <Button variant="outline" size="sm" className="w-full" disabled={trace.processing || !trace.outline.length}
+    <Button variant="outline" size="sm" className="w-full" disabled={!!trace.curves || trace.processing || !trace.outline.length}
       onClick={() => setSession({ outline: trace.outline, sourceRevision: trace.sourceRevision,
         shapeIndex: trace.selection?.shapeIndex ?? 0 })}>
       <FlipHorizontal2 className="mr-2 h-4 w-4" />Symmetry &amp; straighten

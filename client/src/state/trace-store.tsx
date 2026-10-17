@@ -9,6 +9,8 @@ import {
   type ReactNode,
 } from "react";
 import type { TraceDraft } from "@shared/trace-draft";
+import { mmPerPixel } from "@shared/geometry/scale";
+import { CURVE_TOLERANCE_MM, mapCurves, normalizeCurves, sampleCurves, type CurveOutline } from "@shared/geometry/curves";
 import { useTraceDraftPersistence, type TraceDraftSaveStatus } from "@/hooks/use-trace-draft-persistence";
 
 import {
@@ -88,6 +90,7 @@ export type TracePhotoFrame = Pick<TraceState, "imageSize" | "imageRotation" | "
 
 export interface TraceHistoryEntry {
   outline: Outline;
+  curves?: CurveOutline;
   /** Human-readable operation that produced this state. */
   label: string;
   /** Physical clearance paired with this exact contour state. */
@@ -104,6 +107,8 @@ export interface TraceHistoryEntry {
 }
 
 export interface TraceState {
+  /** Authoritative manual curves in image pixels, retained independently of samples. */
+  curves?: CurveOutline;
   /** Data URL of the loaded image, or null. */
   imageUrl: string | null;
   /** Increments for every source choice, including choosing the same file again. */
@@ -234,6 +239,7 @@ export const initialTraceState: TraceState = {
 };
 
 export type TraceAction =
+  | { type: "CURVES_COMMITTED"; curves: CurveOutline; label: string }
   | { type: "TRACE_DRAFT_RESTORED"; draft: TraceDraft }
   | { type: "SOURCE_LOADED"; imageUrl: string; fileName: string }
   | { type: "SOURCE_READY"; imageSize: { width: number; height: number } }
@@ -436,6 +442,7 @@ function commitPhotoRotation(state: TraceState, radians: number, outline: Outlin
   const rotated = transformOutline(outline, transform);
   const next: TraceState = {
     ...state, imageSize: alignment.size, imageAlignment: alignment, outline: rotated,
+    curves: state.curves && mapCurves(state.curves, point),
     rawOutline: transformOutline(state.rawOutline, transform), svg: null, sourceRevision: state.sourceRevision + 1,
     calibration: ruler(state.calibration), pendingAutoCalibration: ruler(state.pendingAutoCalibration),
     pendingPaperCalibration: ruler(state.pendingPaperCalibration), draftCalibration: ruler(state.draftCalibration),
@@ -459,7 +466,7 @@ function commitPhotoRotation(state: TraceState, radians: number, outline: Outlin
   }
   next.history = pushHistory({ ...state.history, stack: state.history.stack.map(entry => ({ ...entry,
     photoFrame: !entry.photoFrame || samePhotoFrame(entry.photoFrame, before) ? before : entry.photoFrame })) },
-    rotated, label, state.margin, { ...current, photoFrame: photoFrame(next), hasManualEdits: manual || current?.hasManualEdits,
+    rotated, label, state.margin, { ...current, curves: next.curves, photoFrame: photoFrame(next), hasManualEdits: manual || current?.hasManualEdits,
       refinementBase: manual ? rotated : transformOutline(current?.refinementBase ?? state.rawOutline, transform),
       baselineMarginPx: manual ? marginToPixels(state.margin, state.calibration) : current?.baselineMarginPx,
       tolerancePx: state.tolerancePx, smoothing: state.smoothing });
@@ -482,7 +489,20 @@ function retainedEditSelection(state: TraceState, outline: Outline): RingRef | n
 }
 
 export function traceReducer(state: TraceState, action: TraceAction): TraceState {
+  // Polygon-only reshaping cannot silently bake editable curve sources. These
+  // controls are disabled in the prototype; also reject stale async results.
+  if (state.curves && ["OUTLINE_REFINED", "OUTLINE_DRAGGING", "MARGIN_COMMITTED", "SET_MARGIN", "SET_SMOOTHING", "SET_TOLERANCE", "ALIGN_UPRIGHT"].includes(action.type)) return state;
   switch (action.type) {
+    case "CURVES_COMMITTED": {
+      if ((state.margin ?? 0) !== 0) return state;
+      const tolerance = CURVE_TOLERANCE_MM / (mmPerPixel(state.calibration) ?? 0.1);
+      const curves = normalizeCurves(action.curves, tolerance);
+      if (JSON.stringify(curves) === JSON.stringify(state.curves)) return state;
+      const outline = sampleCurves(curves, tolerance);
+      return { ...state, curves, outline, margin: 0, history: pushHistory(state.history, outline, action.label, 0,
+        { curves, refinementBase: outline, hasManualEdits: true, baselineMarginPx: 0,
+          tolerancePx: state.tolerancePx, smoothing: state.smoothing, ...historyPhotoFrame(state) }) };
+    }
     case "TRACE_DRAFT_RESTORED": {
       const { state: saved, detectionComplete, referencesAttempted } = action.draft;
       return {
@@ -516,7 +536,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
       return { ...state, imageSize: action.imageSize };
 
     case "ROTATE_SOURCE": {
-      if (state.imageAlignment || state.history.stack.some(entry => entry.photoFrame)) {
+      if (state.curves || state.imageAlignment || state.history.stack.some(entry => entry.photoFrame)) {
         return commitPhotoRotation(state, action.direction === "clockwise" ? Math.PI / 2 : -Math.PI / 2,
           state.outline, "Rotate photo", false, action.direction);
       }
@@ -553,6 +573,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         ...state,
         imageSize,
         imageRotation,
+        curves: state.curves && mapCurves(state.curves, point => rotateImagePoint(point, state.imageSize, imageSize, action.direction)),
         perspectiveCorrection: state.perspectiveCorrection?.paperBounds ? {
           ...state.perspectiveCorrection,
           paperBounds: rotateImageRect(state.perspectiveCorrection.paperBounds, state.imageSize, imageSize, action.direction),
@@ -576,6 +597,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
           ...state.history,
           stack: state.history.stack.map((entry) => ({
             ...entry,
+            curves: entry.curves && mapCurves(entry.curves, point => rotateImagePoint(point, state.imageSize, imageSize, action.direction)),
             refinementBase: entry.refinementBase && rotateImageOutline(
               entry.refinementBase, state.imageSize, imageSize, action.direction,
             ),
@@ -662,6 +684,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         ...state,
         outline: action.outline,
         rawOutline: action.rawOutline,
+        curves: undefined,
         svg: action.svg,
         detectedImageUrl: action.imageUrl,
         selection: state.mode === "edit" || state.mode === "remove" ? primaryContour(action.outline) : null,
@@ -691,15 +714,32 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
     case "OUTLINE_COMMITTED": {
       const current = state.history.stack[state.history.index];
       if (current?.outline === action.outline) return state;
+      // Ring-list deletion keeps the exact surviving curve sources. Other
+      // polygon edits are blocked while curves are authoritative.
+      let curves: CurveOutline | undefined;
+      if (state.curves) {
+        const sourceFor = (ring: Point[]) => {
+          for (let i = 0; i < state.outline.length; i++) {
+            const old = state.outline[i], source = state.curves![i];
+            if (JSON.stringify(old.outer) === JSON.stringify(ring)) return source.outer;
+            const hole = old.holes.findIndex(r => JSON.stringify(r) === JSON.stringify(ring));
+            if (hole >= 0) return source.holes[hole];
+          }
+          return undefined;
+        };
+        if (action.outline.some(s => !sourceFor(s.outer) || s.holes.some(r => !sourceFor(r)))) return state;
+        curves = action.outline.length ? action.outline.map(s => ({ outer: sourceFor(s.outer)!, holes: s.holes.map(r => sourceFor(r)!) })) : undefined;
+      }
       return {
         ...state,
         outline: action.outline,
+        curves,
         history: pushHistory(
           state.history,
           action.outline,
           action.label ?? "Edit contour",
           state.margin,
-          { refinementBase: action.outline, hasManualEdits: true,
+          { curves, refinementBase: action.outline, hasManualEdits: true,
             ...historyPhotoFrame(state),
             baselineMarginPx: marginToPixels(state.margin, state.calibration),
             tolerancePx: state.tolerancePx, smoothing: state.smoothing },
@@ -737,6 +777,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
       return {
         ...restorePhotoFrame(state, state.history.stack[index]),
         outline: state.history.stack[index].outline,
+        curves: state.history.stack[index].curves,
         margin: state.history.stack[index].margin,
         tolerancePx: state.history.stack[index].tolerancePx ?? state.tolerancePx,
         smoothing: state.history.stack[index].smoothing ?? state.smoothing,
@@ -751,6 +792,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
       return {
         ...restorePhotoFrame(state, state.history.stack[index]),
         outline: state.history.stack[index].outline,
+        curves: state.history.stack[index].curves,
         margin: state.history.stack[index].margin,
         tolerancePx: state.history.stack[index].tolerancePx ?? state.tolerancePx,
         smoothing: state.history.stack[index].smoothing ?? state.smoothing,
@@ -771,6 +813,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
       return {
         ...restorePhotoFrame(state, state.history.stack[action.index]),
         outline: state.history.stack[action.index].outline,
+        curves: state.history.stack[action.index].curves,
         margin: state.history.stack[action.index].margin,
         tolerancePx: state.history.stack[action.index].tolerancePx ?? state.tolerancePx,
         smoothing: state.history.stack[action.index].smoothing ?? state.smoothing,
@@ -837,6 +880,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         ...state,
         region: null,
         outline: [],
+        curves: undefined,
         rawOutline: [],
         svg: null,
         detectedImageUrl: null,

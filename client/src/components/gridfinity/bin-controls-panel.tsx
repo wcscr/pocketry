@@ -1042,8 +1042,9 @@ export function BinControlsPanel({
 
               {editorMode === "contour" && (
                 <p className="rounded-md bg-violet-500/10 px-2.5 py-2 text-[11px] text-violet-800 dark:text-violet-200">
-                  Drag points to reshape. Click near an edge to add a point; right-click a
-                  point to remove it.
+                  {selectedShape?.curvesMm
+                    ? "Drag an edge to bend it or drag a handle to shape the curve. Use Split edge to add an anchor."
+                    : "Drag points to reshape. Click near an edge to add a point; right-click a point to remove it."}
                 </p>
               )}
 

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Fit a selected run of points or explicitly Auto-fit a contour into editable curves in Trace and Bin. Preview the result with an adjustable maximum deviation; Apply is one undoable edit. Preserve corners, existing curves, and other contours.
+
+- Prototype editable Bézier contours in Trace and Bin: bend edges, edit handles, split curves, and preserve curve sources through saving, undo/redo, and Trace → Bin transfer.
+
 ## 1.5.1 — 2026-10-16
 
 - Reject oversized project/library backups and excessive geometry before processing; preserve existing work on rejected imports. Prevent repeated portable fonts from multiplying validation, history, and preview memory use.

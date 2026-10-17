@@ -65,6 +65,12 @@ aid. Set the scale, draw a **Region** around the tool, and refine its **Outline*
 Use **Edit Contour** for manual corrections and **Margin** for clearance.
 Choose **Add to bin**, then set how deep the tool should sit. Repeat for each tool.
 
+For editable curves, choose **Edit curves (prototype)** in either contour editor.
+Use **Fit selected points** or the opt-in **Auto-fit contour**, preview the result,
+then **Apply fit** for one undoable edit. Trace margin must be zero. See the
+[curve editing and fitting guide](docs/contour-curves-prototype.md) for controls,
+saving, and export limits.
+
 ![The Wolfbox duster outline in the default Trace layout, with workflow steps on the left and contour controls on the right](docs/images/trace-outline.jpg)
 
 ### 2. Arrange the pockets
