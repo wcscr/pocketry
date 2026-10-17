@@ -62,8 +62,8 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
               <strong> Simplification</strong>, or use <strong>Edit contours</strong>{" "}
               to correct points. <strong>Margin</strong> adds optional clearance.
               When the outline looks right, choose <strong>Add to Bin</strong>{" "}
-              to place it immediately. Set the pocket depth beside the bin, or choose <strong>Set later</strong>{" "}
-              to arrange it first. Every pocket needs a depth before printable export.
+              to place it immediately. New pockets default to <strong>To bin floor</strong>.{" "}
+              Adjust the depth in Bin as needed before printable export.
               Choose <strong>Export Tool Outline</strong> to save SVG (the default), DXF, or STL. <strong>Start Over</strong> clears the trace after confirmation; pockets already added to Bin stay in the project.
             </p>
           </li>
