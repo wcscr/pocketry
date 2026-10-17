@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Default new pockets without a chosen depth to the bin floor so they appear immediately in the 3D preview.
 - Preserve the relative positions of outlines sent from Trace to Bin, including overlaps. Choose Pocket or Hole for a contour to cut material or intentionally keep it.
 - Ignore recognized measurement aids when tracing; flag estimated edges hidden beneath an aid for review.
 - Use a small hollow crosshair in the contour magnifier so vertex handles no longer cover the placement point.

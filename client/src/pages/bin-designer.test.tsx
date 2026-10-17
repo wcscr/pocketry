@@ -631,8 +631,8 @@ describe("BinDesignerPage", () => {
     firstShape.outlineMm[0].holes = [[{ x: -2, y: -2 }, { x: -2, y: 2 }, { x: 2, y: 2 }, { x: 2, y: -2 }]];
     firstShape.pointCount += 4;
     sessionStorage.setItem("pocketry:queued-tools", JSON.stringify([
-      { ...firstShape, pendingDepth: { mode: "unset" }, pendingPlacement: { batchId: "photo", center: { x: 40, y: 70 } } },
-      { ...secondShape, pendingDepth: { mode: "unset" }, pendingPlacement: { batchId: "photo", center: { x: 52, y: 64 } } },
+      { ...firstShape, pendingDepth: { mode: "to-floor" }, pendingPlacement: { batchId: "photo", center: { x: 40, y: 70 } } },
+      { ...secondShape, pendingDepth: { mode: "to-floor" }, pendingPlacement: { batchId: "photo", center: { x: 52, y: 64 } } },
     ]));
     vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, spec: { ...EMPTY_PROJECT.spec, fill: "solid" } });
     const first = renderPage();
@@ -641,6 +641,8 @@ describe("BinDesignerPage", () => {
       const a = layout().cutouts.find(c => c.shapeId === firstShape.id)!;
       const b = layout().cutouts.find(c => c.shapeId === secondShape.id)!;
       expect({ x: b.position.x - a.position.x, y: b.position.y - a.position.y }).toEqual({ x: 12, y: -6 });
+      expect([a.depth, b.depth]).toEqual(Array(2).fill({ mode: "remaining", floorThicknessMm: 7 }));
+      expect([a.depthPending, b.depthPending]).toEqual([undefined, undefined]);
       expect(layout().shapes.find(s => s.id === firstShape.id)!.outlineMm[0].holes).toEqual(firstShape.outlineMm[0].holes);
     };
     await flushHydration(); check();
@@ -661,17 +663,17 @@ describe("BinDesignerPage", () => {
     reopened.unmount();
   });
 
-  it.each([false, true])("keeps deferred depths through backup, reload, export recovery, and undo (mobile=%s)", async mobile => {
-    sessionStorage.setItem("pocketry:queued-tools", JSON.stringify([
-      { ...rectangularShape("first", "Tool 1"), pendingDepth: { mode: "unset" } },
-      { ...rectangularShape("second", "Tool 2"), pendingDepth: { mode: "unset" } },
-    ]));
-    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, spec: { ...EMPTY_PROJECT.spec, fill: "solid" } });
+  it.each([false, true])("keeps saved deferred depths through backup, reload, export recovery, and undo (mobile=%s)", async mobile => {
+    const shapes = [rectangularShape("first", "Tool 1"), rectangularShape("second", "Tool 2")];
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, spec: { ...EMPTY_PROJECT.spec, fill: "solid" }, shapes,
+      cutouts: shapes.map((shape, index) => parseCutoutPlacement({ id: shape.id, shapeId: shape.id, position: { x: index * 15, y: 0 }, depthPending: true })),
+    });
     const first = renderPage({ mobile });
     const layout = () => vi.mocked(useBinGeometry).mock.lastCall![2]!;
     const button = (host: ParentNode, label: string) => [...host.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === label)!;
     await flushHydration();
     expect(layout().cutouts.every(c => c.depthPending)).toBe(true);
+    React.act(() => button(first.container, "Set depth").click());
     const prompt = first.container.querySelector('[data-testid="pending-pocket-depth"]')!;
     expect(prompt.textContent).toContain("Tool 1");
     if (!mobile) expect(first.container.querySelector('[data-testid="desktop-workspace-controls"]')?.getAttribute("aria-hidden")).toBeNull();
@@ -711,15 +713,15 @@ describe("BinDesignerPage", () => {
     } finally { reopened.unmount(); }
   });
 
-  it("asks about multiple traced pockets one at a time", async () => {
-    sessionStorage.setItem("pocketry:queued-tools", JSON.stringify([
-      { ...rectangularShape("first", "Tool 1"), pendingDepth: { mode: "unset" } },
-      { ...rectangularShape("second", "Tool 2"), pendingDepth: { mode: "unset" } },
-    ]));
-    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(EMPTY_PROJECT);
+  it("asks about saved unresolved pockets one at a time", async () => {
+    const shapes = [rectangularShape("first", "Tool 1"), rectangularShape("second", "Tool 2")];
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes,
+      cutouts: shapes.map((shape, index) => parseCutoutPlacement({ id: shape.id, shapeId: shape.id, position: { x: index * 15, y: 0 }, depthPending: true })),
+    });
     const { container, unmount } = renderPage();
     try {
       await flushHydration();
+      React.act(() => [...container.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "Set depth")!.click());
       const prompt = () => container.querySelector('[data-testid="pending-pocket-depth"]')!;
       const button = (label: string) => [...prompt().querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === label)!;
       React.act(() => button("To bin floor").click());
@@ -759,11 +761,14 @@ describe("BinDesignerPage", () => {
   it.each([
     { fixed: false, flatBottom: false }, { fixed: true, flatBottom: false },
     { fixed: false, flatBottom: true }, { fixed: true, flatBottom: true },
-  ])("places queued tools at chosen depths and preserves them in history and export: %o", async ({ fixed, flatBottom }) => {
+  ])("defaults unmeasured tools to the bin floor and preserves chosen depths, history, and export: %o", async ({ fixed, flatBottom }) => {
     sessionStorage.setItem("pocketry:queued-tools", JSON.stringify([
       { ...rectangularShape("shallow", "Shallow tool"), pendingDepth: { mode: "mm", value: 7.5 } },
       { ...rectangularShape("through", "Through jig"), pendingDepth: { mode: "through" } },
       { ...rectangularShape("floor", "To Floor tool"), pendingDepth: { mode: "to-floor" } },
+      { ...rectangularShape("unset", "Unmeasured tool"), pendingDepth: { mode: "unset" } },
+      rectangularShape("missing", "Tool without a depth"),
+      { ...rectangularShape("custom-floor", "Custom floor tool"), pendingDepth: { mode: "remaining", floorThicknessMm: 10 } },
     ]));
     vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, keepBinSize: fixed,
       spec: parseBinSpec({ ...EMPTY_PROJECT.spec, fill: "solid", flatBottom }) });
@@ -773,8 +778,13 @@ describe("BinDesignerPage", () => {
       const layout = () => vi.mocked(useBinGeometry).mock.lastCall![2]!;
       const depths = () => Object.fromEntries(layout().cutouts.map(pocket => [pocket.shapeId, pocket.depth]));
       const expected = { shallow: { mode: "mm", value: 7.5 }, through: { mode: "through" },
-        floor: { mode: "remaining", floorThicknessMm: flatBottom ? 2 : 7 } };
+        floor: { mode: "remaining", floorThicknessMm: flatBottom ? 2 : 7 },
+        unset: { mode: "remaining", floorThicknessMm: flatBottom ? 2 : 7 },
+        missing: { mode: "remaining", floorThicknessMm: flatBottom ? 2 : 7 },
+        "custom-floor": { mode: "remaining", floorThicknessMm: 10 } };
       expect(depths()).toEqual(expected);
+      expect(layout().cutouts.every(cutout => !cutout.depthPending)).toBe(true);
+      expect(container.querySelector('[data-testid="pending-pocket-depth"]')).toBeNull();
       expect(vi.mocked(useBinGeometry).mock.lastCall![0].heightUnits).toBe(6);
       React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
       expect(layout().cutouts).toHaveLength(0);

@@ -65,9 +65,9 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
               material or <strong>Hole</strong> to keep material inside a pocket.
               When the outline looks right, choose <strong>Add to bin</strong>{" "}
               to place it immediately. Objects traced together keep their relative positions, including overlaps.
-              Set the pocket depth beside the bin, or choose <strong>Set later</strong>{" "}
-              to arrange it first. Every pocket needs a depth before printable export.
-              Choose <strong>Trace another photo</strong> for a blank canvas and photo drop zone; pockets already added to Bin stay in the project.
+              New pockets default to <strong>To bin floor</strong>.{" "}
+              Adjust the depth in Bin as needed before printable export.
+              To trace another photo, return to <strong>Trace</strong> and choose <strong>Start over</strong>; pockets already added to Bin stay in the project.
             </p>
           </li>
           <li className="pl-1">

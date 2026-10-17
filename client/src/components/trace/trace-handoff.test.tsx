@@ -29,9 +29,9 @@ function Handoff() {
 function render() { React.act(() => root.render(<Handoff />)); }
 function add() { React.act(() => host.querySelector("button")!.click()); }
 
-it("adds immediately with a readable unique name and explicitly unresolved depth", () => {
+it("adds immediately with a readable unique name and depth to the bin floor", () => {
   render(); add(); add();
-  expect(mocks.addShape).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ name: "Tool 2", sourceMmPerPx: 0.5 }), { mode: "unset" }, undefined);
+  expect(mocks.addShape).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ name: "Tool 2", sourceMmPerPx: 0.5 }), { mode: "to-floor" }, undefined);
   expect(mocks.navigate).toHaveBeenCalledWith("/bin");
   expect(document.querySelector('[role="dialog"]')).toBeNull();
 });
@@ -53,7 +53,7 @@ it.each([false, true])("keeps grouping optional: combined %s", combined => {
   add();
   expect(mocks.addShape).toHaveBeenCalledTimes(combined ? 1 : 2);
   expect(mocks.addShape.mock.calls.map(call => call[0].name)).toEqual(combined ? ["Tool 2"] : ["Tool 2", "Tool 3"]);
-  expect(mocks.addShape.mock.calls.every(call => call[1].mode === "unset")).toBe(true);
+  expect(mocks.addShape.mock.calls.every(call => call[1].mode === "to-floor")).toBe(true);
 });
 
 it("queues photo-relative centres in millimetres with one Y flip for separate pockets", () => {

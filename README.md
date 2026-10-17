@@ -63,7 +63,8 @@ This example uses the [Wolfbox MF70 Airduster Kit](samples/wolfbox-mf70-airduste
 In **Trace**, add a clear, top-down photo with a known measurement or calibration
 aid. Set the scale, draw a **Region** around the tool, and refine its **Outline**.
 Use **Edit Contour** for manual corrections and **Margin** for clearance.
-Choose **Add to bin**, then set how deep the tool should sit. Repeat for each tool.
+Choose **Add to bin**. New pockets default to **To bin floor**; adjust the depth
+in Bin as needed. Repeat for each tool.
 Multiple objects traced together keep their relative positions in Bin, including
 overlaps. They remain separate pockets unless you choose **Keep these outlines together**.
 In **Detected Contours**, choose **Pocket** to cut material or **Hole** to keep
