@@ -87,6 +87,7 @@ export const binSpecSchema = z
       lengthMm: z.number().min(2).max(5).default(4),
       // Preserve pre-underside projects; new bottoms use DEFAULT_PEG_BOTTOM.
       underside: z.enum(["sloped", "bridged", "flat"]).default("sloped"),
+      // Preserve every-hole geometry in projects saved before density was explicit.
       density: z.union([z.literal("corners"), z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)]).default(1),
     }).strict().nullable().default(null),
     /** ⌀6.5 × 2.4 mm magnet pockets, four per cell, opening downward. */

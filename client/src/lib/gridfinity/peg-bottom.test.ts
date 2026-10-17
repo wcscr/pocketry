@@ -16,7 +16,7 @@ let wasm: ManifoldToplevel;
 let arena = new Arena();
 beforeAll(async () => { wasm = await loadManifold(); });
 afterEach(() => { arena.dispose(); arena = new Arena(); });
-const spec = (patch: Record<string, unknown> = {}) => parseBinSpec({ gridX: 1, gridY: 1, heightUnits: 3, lip: "none", pegBottom: { ...DEFAULT_PEG_BOTTOM, underside: "sloped" }, ...patch });
+const spec = (patch: Record<string, unknown> = {}) => parseBinSpec({ gridX: 1, gridY: 1, heightUnits: 3, lip: "none", pegBottom: { ...DEFAULT_PEG_BOTTOM, underside: "sloped", density: 1 }, ...patch });
 
 /** All down-facing faces except build-plate contacts must be 45 degrees or steeper. */
 function checkSupportFree(mesh: Mesh, bottom: number, bridgeZ?: number): void {
@@ -61,7 +61,7 @@ describe("support-free peg bottoms", () => {
   });
   it.each([PREVIEW_QUALITY, EXPORT_QUALITY])("builds a shorter connected bridged web with a 45 degree perimeter at %j quality", quality => {
     const kernel = createKernel(wasm, arena);
-    const s = spec({ gridPitch: "quarter", gridX: 2, gridY: 2, pegBottom: { ...DEFAULT_PEG_BOTTOM, underside: "bridged" } });
+    const s = spec({ gridPitch: "quarter", gridX: 2, gridY: 2, pegBottom: { ...DEFAULT_PEG_BOTTOM, underside: "bridged", density: 1 } });
     const solid = buildPegBottom(kernel, s, quality.circularSegments);
     expect(solid.status()).toBe("NoError");
     const pieces = solid.decompose();
@@ -75,7 +75,7 @@ describe("support-free peg bottoms", () => {
   it.each(["full", "half", "quarter"] as const)("handles single, collinear and wider rectangular peg layouts on %s pitch", gridPitch => {
     const kernel = createKernel(wasm, arena);
     for (const [gridX, gridY] of [[1, 1], [1, 3], [2, 2], [3, 3]]) {
-      const s = spec({ gridPitch, gridX, gridY, pegBottom: { ...DEFAULT_PEG_BOTTOM, underside: "bridged" } });
+      const s = spec({ gridPitch, gridX, gridY, pegBottom: { ...DEFAULT_PEG_BOTTOM, underside: "bridged", density: 1 } });
       const solid = buildPegBottom(kernel, s, 24);
       expect(solid.status()).toBe("NoError");
       checkSupportFree(solid.getMesh(), -pegBottomExtensionMm(s), -pegBottomRootHeightMm(s) + ULTIM8_COLLAR_HEIGHT_MM);
@@ -85,7 +85,7 @@ describe("support-free peg bottoms", () => {
     const kernel = createKernel(wasm, arena);
     expect(() => buildPegBottom(kernel, spec({ gridX: 2, gridY: 2,
       footprint: { kind: "custom", cells: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }] },
-      pegBottom: { ...DEFAULT_PEG_BOTTOM, underside: "bridged" } }), 24)).toThrow(/sloped underside/);
+      pegBottom: { ...DEFAULT_PEG_BOTTOM, underside: "bridged", density: 1 } }), 24)).toThrow(/sloped underside/);
   });
   it("includes extension in overall dimensions without moving the rim", () => {
     const normal = binDimensionsMm(spec({ pegBottom: null }));
@@ -134,7 +134,7 @@ describe("support-free peg bottoms", () => {
   );
   it.each(overlapCases)("omits complete partially and fully overlapped pegs at $underside/$quality.circularSegments quality", ({ quality, underside }) => {
     const kernel = createKernel(wasm, arena);
-    const s = spec({ fill: "none", pegBottom: { ...DEFAULT_PEG_BOTTOM, underside } });
+    const s = spec({ fill: "none", pegBottom: { ...DEFAULT_PEG_BOTTOM, underside, density: 1 } });
     const centers = ultim8PegCenters(s);
     const z = -pegBottomRootHeightMm(s) - 1;
     const fullPegArea = arena.track(kernel.CrossSection.circle(s.pegBottom!.diameterMm / 2, quality.circularSegments)).area();
@@ -236,7 +236,7 @@ describe("support-free peg bottoms", () => {
   });
   it.each(overlapCases)("restores pegs when a finite through pocket is raised at $underside/$quality.circularSegments quality", ({ quality, underside }) => {
     const kernel = createKernel(wasm, arena);
-    const s = spec({ pegBottom: { ...DEFAULT_PEG_BOTTOM, underside } });
+    const s = spec({ pegBottom: { ...DEFAULT_PEG_BOTTOM, underside, density: 1 } });
     const pocket = createBasicPocket("rectangle", { x: 1.8, y: -1 }, { x: 4, y: 1 }, "finite through")!;
     const source: CutoutPlacement = { ...pocket.cutout, elevationMm: 0, insertionMode: "vertical",
       depth: { mode: "through", sourceDepthMm: 16 } };
@@ -273,14 +273,14 @@ describe("support-free peg bottoms", () => {
 
   it.each(["sloped", "bridged"] as const)("rejects an unsupported corner after omitting a peg in %s mode", underside => {
     const kernel = createKernel(wasm, arena);
-    const s = spec({ gridX: 2, gridY: 2, gridPitch: "quarter", pegBottom: { ...DEFAULT_PEG_BOTTOM, underside } });
+    const s = spec({ gridX: 2, gridY: 2, gridPitch: "quarter", pegBottom: { ...DEFAULT_PEG_BOTTOM, underside, density: 1 } });
     const pocket = createBasicPocket("rectangle", { x: 4, y: 4 }, { x: 6, y: 6 }, "corner")!;
     pocket.cutout.depth = { mode: "through" };
     expect(() => buildBinWithCutouts(kernel, s, { shapesById: new Map([[pocket.shape.id, pocket.shape]]), cutouts: [pocket.cutout], fingerHoles: [] }, EXPORT_QUALITY)).toThrow(/unsupported/);
   });
   it("rejects a wide retained bridge when through pockets remove its anchors", () => {
     const kernel = createKernel(wasm, arena);
-    const s = spec({ pegBottom: { ...DEFAULT_PEG_BOTTOM, underside: "bridged" } });
+    const s = spec({ pegBottom: { ...DEFAULT_PEG_BOTTOM, underside: "bridged", density: 1 } });
     const pocket = createBasicPocket("rectangle", { x: -13, y: -13 }, { x: 13, y: 13 }, "unsupported-island")!;
     pocket.shape.outlineMm[0].holes = [[{ x: -1, y: -1 }, { x: -1, y: 1 }, { x: 1, y: 1 }, { x: 1, y: -1 }]];
     pocket.cutout.depth = { mode: "through" };

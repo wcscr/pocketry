@@ -10,6 +10,7 @@ import { pocketDepthChangePatch } from "@shared/gridfinity/pocket-depth-change";
 import { MaterialColorSwatch } from "./material-color-swatch";
 import { DEFAULT_BIN_MATERIALS } from "@shared/gridfinity/materials";
 import { createPortal } from "react-dom";
+import { ZodError } from "zod";
 import { useSelectionInspector } from "./selection-inspector-context";
 import { useExperimentalFeatures } from "@/state/experimental-features";
 import { hasPocketTilt } from "@shared/gridfinity/pocket-orientation";
@@ -94,8 +95,8 @@ import {
   type GridPitch,
 } from "@shared/gridfinity/standard";
 import { DEFAULT_PEG_BOTTOM, PEG_DENSITIES, hasSmoothBase, pegBottomExtensionMm } from "@shared/gridfinity/peg-bottom";
-import { MAX_GRID, maxGridCells, type BinSpecInput } from "@shared/gridfinity/types";
-import type { ValidationIssue } from "@shared/gridfinity/validate";
+import { MAX_GRID, MAX_HEIGHT_UNITS, maxGridCells, type BinSpecInput } from "@shared/gridfinity/types";
+import { validateLayout, type ValidationIssue } from "@shared/gridfinity/validate";
 
 import {
   PanelSectionFilterContext,
@@ -167,7 +168,7 @@ import { changeBinGridPitchPreservingSize } from "@shared/gridfinity/grid-pitch"
 import { PocketDepthSummary, PocketInsertionControls, PocketMeasurements, PocketSizeInputs, PositionInputs } from "./pocket-measurements";
 import { ExportConfirmationDialog, ProjectBackupOption } from "./export-confirmation-dialog";
 import { FingerAccessShapeControls } from "./finger-access-shape-controls";
-import { INITIAL_BIN_SPEC, useBin } from "@/state/bin-store";
+import { INITIAL_BIN_SPEC, binReducer, useBin, type BinState } from "@/state/bin-store";
 import { useShapeLibrary } from "@/state/shape-library";
 
 /** Slider ceiling for height; the schema allows more, the UI keeps it sane. */
@@ -305,6 +306,7 @@ export function BinControlsPanel({
   const showPreviewBusy = useDelayedBusy(building);
   const inspector = useSelectionInspector();
   const { enabled: experimentalEnabled, setEnabled: setExperimentalEnabled, setSettingsOpen } = useExperimentalFeatures();
+  const bin = useBin();
   const {
     spec,
     adjustFixedPocketDepths,
@@ -322,7 +324,7 @@ export function BinControlsPanel({
     hydrated,
     history,
     dispatch,
-  } = useBin();
+  } = bin;
   // Pocket inspection belongs to the selected pocket. General Check fit
   // cross-sections remain independent of object selection and navigation.
   const inspectedPocketId = useRef<string | null>(null);
@@ -401,6 +403,8 @@ export function BinControlsPanel({
   );
   const [surfaceFitCheckStyle, setSurfaceFitCheckStyle] = useState<SurfaceFitCheckStyle>("outline");
   const [ultim8DialogOpen, setUltim8DialogOpen] = useState(false);
+  const [jigThicknessDraft, setJigThicknessDraft] = useState("");
+  const jigThicknessRef = useRef<HTMLInputElement>(null);
   const [threeMfDialogOpen, setThreeMfDialogOpen] = useState(false);
   const [projectNameOpen, setProjectNameOpen] = useState(false);
   const threeMfTitleRef = useRef<HTMLHeadingElement>(null);
@@ -442,15 +446,39 @@ export function BinControlsPanel({
     historyLabel?: string,
   ) => dispatch({ type: "PATCH_SPEC", patch, transient, historyLabel });
 
+  const jigSetup = useMemo(() => {
+    if (!ultim8DialogOpen) return null;
+    const thicknessMm = jigThicknessDraft.trim() === "" ? NaN : Number(jigThicknessDraft);
+    const min = spec.footprint.kind === "rectangle" ? 2 : HEIGHT_UNIT_MM;
+    const max = MAX_HEIGHT_UNITS * HEIGHT_UNIT_MM;
+    if (!Number.isFinite(thicknessMm) || thicknessMm < min || thicknessMm > max) {
+      return { patch: null, error: `Enter a body thickness from ${min} to ${max} mm.`, warnings: [] };
+    }
+    const patch: Partial<BinSpecInput> = {
+      flatBottom: false, pegBottom: { ...DEFAULT_PEG_BOTTOM },
+      arbitrarySizeMm: arbitrarySizePatch(spec)?.arbitrarySizeMm ?? spec.arbitrarySizeMm,
+      heightUnits: thicknessMm / HEIGHT_UNIT_MM,
+      lip: "none", fill: "solid", fillHeightPercent: 100, textColor: null,
+    };
+    // Preview the same validation and adjustments as Apply, without changing the store.
+    let next: BinState;
+    try { next = binReducer(bin, { type: "PATCH_SPEC", patch }); }
+    catch (error) {
+      if (error instanceof ZodError) return { patch: null, error: error.issues[0].message, warnings: [] };
+      throw error;
+    }
+    if (next.editError) return { patch: null, error: next.editError, warnings: [] };
+    // Check original access depths before the reducer can clamp them to a thinner body.
+    const depthIssues = validateLayout(next.spec, next.cutouts, shapesById, fingerHoles).filter(issue =>
+      ["too-deep", "too-shallow", "floor-too-thin", "finger-hole-too-deep", "finger-hole-floor-too-thin"].includes(issue.code));
+    return { patch, error: depthIssues.filter(issue => issue.severity === "error").map(issue => issue.message).join(" ") || null,
+      warnings: depthIssues.filter(issue => issue.severity === "warning") };
+  }, [ultim8DialogOpen, jigThicknessDraft, bin, spec, shapesById, fingerHoles]);
+
   const applyUltim8Bottom = (useJigSettings: boolean) => {
-    if (!experimentalEnabled) return;
-    patchSpec({
-      flatBottom: false,
-      pegBottom: { ...DEFAULT_PEG_BOTTOM },
-      ...(useJigSettings ? {
-        arbitrarySizeMm: arbitrarySizePatch(spec)?.arbitrarySizeMm ?? spec.arbitrarySizeMm,
-        lip: "none", fill: "solid", fillHeightPercent: 100, textColor: null,
-      } : {}),
+    if (!experimentalEnabled || useJigSettings && (!jigSetup?.patch || jigSetup.error)) return;
+    patchSpec(useJigSettings ? jigSetup!.patch! : {
+      flatBottom: false, pegBottom: { ...DEFAULT_PEG_BOTTOM },
     }, false, "Use ULTIM8 jig pegs");
     if (useJigSettings) {
       onColorPocketFloorsChange(false);
@@ -1713,7 +1741,10 @@ export function BinControlsPanel({
               <Select value={spec.pegBottom ? "ultim8" : spec.flatBottom ? "flat" : "gridfinity"}
                 onValueChange={(bottom) => {
                   if (bottom === "ultim8") {
-                    if (experimentalEnabled) setUltim8DialogOpen(true);
+                    if (experimentalEnabled) {
+                      setJigThicknessDraft(String(Number((spec.heightUnits * HEIGHT_UNIT_MM).toFixed(6))));
+                      setUltim8DialogOpen(true);
+                    }
                     return;
                   }
                   patchSpec({ flatBottom: bottom === "flat", pegBottom: null });
@@ -2257,18 +2288,39 @@ export function BinControlsPanel({
       </InspectorPanelSections>
 
       <AlertDialog open={ultim8DialogOpen && experimentalEnabled} onOpenChange={setUltim8DialogOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent onOpenAutoFocus={event => {
+          event.preventDefault(); jigThicknessRef.current?.focus(); jigThicknessRef.current?.select();
+        }}>
           <AlertDialogHeader>
             <AlertDialogTitle>Use jig settings?</AlertDialogTitle>
             <AlertDialogDescription>
               Remove the stacking lip, set Solid fill to 100%, {spec.footprint.kind === "rectangle" ? "switch Grid pitch to Arbitrary, " : ""}and use the bin body color for floors, rim, and text?
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <div className="flex items-center justify-between gap-3">
+            <SettingLabel label="Jig body thickness" htmlFor="ultim8-jig-thickness" hint={<>
+              <p>Body height only; peg length is added below it. The field starts at the current body height.</p>
+              {spec.footprint.kind !== "rectangle" && <p className="mt-2">Custom footprints use 3.5 mm height increments.</p>}
+            </>} />
+            <div className="flex shrink-0 items-center gap-1.5">
+              <Input ref={jigThicknessRef} id="ultim8-jig-thickness" type="number" className="h-8 w-24"
+                aria-label="Jig body thickness in millimetres" aria-invalid={!!jigSetup?.error}
+                aria-describedby={jigSetup?.error ? "ultim8-jig-thickness-error" : undefined}
+                min={spec.footprint.kind === "rectangle" ? 2 : HEIGHT_UNIT_MM} max={MAX_HEIGHT_UNITS * HEIGHT_UNIT_MM}
+                step={spec.footprint.kind === "rectangle" ? 0.1 : HEIGHT_UNIT_MM / 2}
+                value={jigThicknessDraft} onChange={event => setJigThicknessDraft(event.target.value)} />
+              <span className="text-xs text-muted-foreground">mm</span>
+            </div>
+          </div>
+          {jigSetup?.error && <p id="ultim8-jig-thickness-error" role="alert" className="text-xs text-destructive">{jigSetup.error}</p>}
+          {!!jigSetup?.warnings.length && <ul aria-label="Jig thickness warnings" className="list-disc space-y-1 pl-4 text-xs text-amber-800 dark:text-amber-200">
+            {jigSetup.warnings.map((issue, index) => <li key={index}>{issue.message}</li>)}
+          </ul>}
           <AlertDialogFooter className="flex-wrap gap-2 sm:space-x-0">
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction className="bg-secondary text-secondary-foreground hover:bg-secondary/80"
               onClick={() => applyUltim8Bottom(false)}>Keep current settings</AlertDialogAction>
-            <AlertDialogAction onClick={() => applyUltim8Bottom(true)}>Use jig settings</AlertDialogAction>
+            <AlertDialogAction disabled={!jigSetup?.patch || !!jigSetup.error} onClick={() => applyUltim8Bottom(true)}>Use jig settings</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

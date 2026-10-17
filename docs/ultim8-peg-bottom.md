@@ -5,7 +5,10 @@ Bottom, choose **ULTIM8 jig pegs**. The confirmation offers to remove the stacki
 lip, set Solid fill to 100%, and match floors, rim, and text to the bin body color.
 Rectangular bins also switch Grid pitch to Arbitrary, keeping their body dimensions.
 Custom footprints retain their grid because Arbitrary sizing requires a rectangle.
-Choose **Keep current settings** to change only the bottom, or **Cancel** to leave
+**Jig body thickness** starts at the current body height, excluding pegs. Editing it
+stays local to the dialog until **Use jig settings**. Depth errors disable that
+action; thin-floor warnings remain visible.
+Choose **Keep current settings** to change only the bottom at its current height, or **Cancel** to leave
 the design as it is. Opening an existing jig does not show this prompt.
 This replaces
 Gridfinity feet and hides their magnet/screw controls while retaining those
@@ -29,8 +32,8 @@ The default straight locating shafts are 4.8 mm diameter and 4 mm long, with a
 These are Pocketry print-fit defaults, not manufacturer-specified tolerances.
 Print a small bin first to confirm fit in your own mat.
 
-New peg bottoms default to **Flat backing · pegs up**: pegs attach directly to the
-backing, without tall roots. STL and 3MF export pocket-side down, with pegs up.
+New peg bottoms default to **Flat backing · pegs up** with **Corners only** density.
+Pegs attach directly to the backing, without tall roots. STL and 3MF export pocket-side down, with pegs up.
 Check pocket bridges and overhangs in the slicer; see the flat-backing guidance below.
 Existing projects retain their saved underside, including older sloped-root designs.
 

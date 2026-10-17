@@ -371,6 +371,25 @@ function openSettingsSection(
   });
 }
 
+function openUltim8Setup(container: HTMLElement): void {
+  openSettingsSection(container, "construction");
+  React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="select-bin-bottom"]')!
+    .dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true })));
+  React.act(() => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(option => option.textContent === "ULTIM8 jig pegs")!.click());
+}
+
+function enterJigThickness(value: string): void {
+  const input = document.querySelector<HTMLInputElement>('[aria-label="Jig body thickness in millimetres"]')!;
+  React.act(() => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+}
+
+function jigDialogButton(label: string): HTMLButtonElement {
+  return [...document.querySelectorAll<HTMLButtonElement>('[role="alertdialog"] button')].find(button => button.textContent === label)!;
+}
+
 function openMobileProperties() {
   const button = (text: string) => [...document.querySelectorAll<HTMLButtonElement>('button')].find(item => item.textContent === text)!;
   if (!document.querySelector('.mobile-adjustment-tray')) React.act(() => button('Adjust').click());
@@ -3077,10 +3096,12 @@ describe("BinDesignerPage", () => {
       React.act(() => experimentalSettings.setEnabled(true));
       React.act(() => trigger().dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true })));
       React.act(() => options().find(o => o.textContent === "ULTIM8 jig pegs")!.click());
+      enterJigThickness("8.5");
       expect(vi.mocked(useBinGeometry).mock.lastCall![0].pegBottom).toBeNull();
       React.act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="alertdialog"] button')].find(button => button.textContent === "Keep current settings")!.click());
       expect(vi.mocked(useBinGeometry).mock.lastCall![0].pegBottom?.underside).toBe("flat");
       expect(vi.mocked(useBinGeometry).mock.lastCall![0].arbitrarySizeMm).toBeNull();
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0].heightUnits).toBe(6);
       const group = container.querySelector('[role="group"][aria-label="ULTIM8 peg settings"]')!;
       expect(group.getAttribute("data-property-tone")).toBe("rose");
       expect(group.hasAttribute("data-property-surface")).toBe(true);
@@ -3089,6 +3110,7 @@ describe("BinDesignerPage", () => {
       }
       expect(group.contains(trigger())).toBe(false);
       expect(group.querySelector('[aria-label="Peg underside"]')!.textContent).toBe("Flat backing · pegs up");
+      expect(group.querySelector('[aria-label="Peg density"]')!.textContent).toBe("Corners only");
     } finally { unmount(); }
   });
 
@@ -3119,6 +3141,9 @@ describe("BinDesignerPage", () => {
       expect(prompt).toContain("set Solid fill to 100%");
       expect(prompt.includes("switch Grid pitch to Arbitrary")).toBe(footprint === "rectangle");
       expect(current()).toEqual(original);
+      expect(document.querySelector<HTMLInputElement>('[aria-label="Jig body thickness in millimetres"]')!.value).toBe("42");
+      enterJigThickness("8.5");
+      expect(jigDialogButton("Use jig settings").disabled).toBe(footprint === "custom");
       respond("Cancel");
       expect(current()).toEqual(original);
       expect(viewport().getAttribute("data-rim-color")).toBe(materials.stackingRimColor);
@@ -3127,7 +3152,7 @@ describe("BinDesignerPage", () => {
       respond("Use jig settings");
       expect(document.querySelector('[role="alertdialog"]')).toBeNull();
       expect(current()).toMatchObject({ lip: "none", fill: "solid", fillHeightPercent: 100, flatBottom: false,
-        pegBottom: { underside: "flat", density: 1 }, textColor: null,
+        pegBottom: { underside: "flat", density: "corners" }, textColor: null,
         arbitrarySizeMm: footprint === "rectangle" ? { width: 83.5, length: 83.5 } : null });
       expect(current().heightUnits).toBe(original.heightUnits);
       expect(current().footprint).toEqual(original.footprint);
@@ -3149,6 +3174,85 @@ describe("BinDesignerPage", () => {
       expect(exported.spec).toEqual(current());
       expect(exported.materials).toEqual({ ...materials, colorPocketFloors: false, colorStackingRim: false,
         pocketFloorColor: materials.binColor, stackingRimColor: materials.binColor });
+    } finally { unmount(); }
+  });
+
+  it.each(["standard", "workflow"])("edits and exports ULTIM8 jig body thickness with undo in the %s layout", async layout => {
+    window.history.replaceState(null, "", `/bin?layout=${layout}`);
+    const original = parseBinSpec({ ...EMPTY_PROJECT.spec, heightUnits: 3, lip: "none", flatBottom: true });
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, spec: original });
+    const { container, unmount } = renderPage(); await flushHydration();
+    const current = () => vi.mocked(useBinGeometry).mock.lastCall![0];
+    try {
+      openUltim8Setup(container);
+      expect(document.querySelector<HTMLInputElement>('[aria-label="Jig body thickness in millimetres"]')!.value).toBe("21");
+      for (const value of ["", "1.9", "295"]) {
+        enterJigThickness(value);
+        expect(jigDialogButton("Use jig settings").disabled).toBe(true);
+        expect(document.querySelector('[role="alertdialog"] [role="alert"]')!.textContent).toContain("body thickness");
+        expect(current()).toEqual(original);
+      }
+      enterJigThickness("8.5");
+      expect(jigDialogButton("Use jig settings").disabled).toBe(false);
+      expect(current()).toEqual(original);
+      React.act(() => jigDialogButton("Use jig settings").click());
+      const jig = current();
+      expect(jig.heightUnits * 7).toBe(8.5);
+      expect(jig.pegBottom).toMatchObject({ underside: "flat", density: "corners", lengthMm: 4 });
+      expect(jig.arbitrarySizeMm).toEqual({ width: 83.5, length: 83.5 });
+      openSettingsSection(container, "project");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-export-project"]')!.click());
+      const [blob] = vi.mocked(downloadBlob).mock.lastCall!;
+      const json = await new Promise<string>(resolve => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.readAsText(blob); });
+      expect(parseProjectDoc(JSON.parse(json))!.spec).toEqual(jig);
+      clickBinHistory(container, "undo");
+      expect(current()).toEqual(original);
+      clickBinHistory(container, "redo");
+      expect(current()).toEqual(jig);
+    } finally { unmount(); }
+  });
+
+  it.each(["standard", "workflow"])("checks ULTIM8 jig thickness before clamping finger access in the %s layout", async layout => {
+    window.history.replaceState(null, "", `/bin?layout=${layout}`);
+    const original = parseBinSpec({ ...EMPTY_PROJECT.spec, heightUnits: 3, lip: "none", flatBottom: true });
+    const finger = fingerHoleSchema.parse({ id: "access", kind: "flat-ended-scoop", center: { x: 0, y: 0 }, diameterMm: 11.4, lengthMm: 30, depthMm: 4 });
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, spec: original, fingerHoles: [finger] });
+    const { container, unmount } = renderPage(); await flushHydration();
+    try {
+      openUltim8Setup(container);
+      enterJigThickness("3");
+      expect(jigDialogButton("Use jig settings").disabled).toBe(true);
+      expect(document.querySelector('[role="alertdialog"] [role="alert"]')!.textContent).toContain("Finger access 1 is deeper than the bin itself");
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toEqual(original);
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.fingerHoles[0].depthMm).toBe(4);
+      enterJigThickness("4.5");
+      expect(jigDialogButton("Use jig settings").disabled).toBe(false);
+      expect(document.querySelector('[aria-label="Jig thickness warnings"]')!.textContent).toContain("0.5 mm floor");
+      React.act(() => jigDialogButton("Use jig settings").click());
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0].heightUnits * 7).toBe(4.5);
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.fingerHoles[0].depthMm).toBe(4);
+    } finally { unmount(); }
+  });
+
+  it.each(["standard", "workflow"])("checks fixed pocket adjustment before applying ULTIM8 thickness in the %s layout", async layout => {
+    window.history.replaceState(null, "", `/bin?layout=${layout}`);
+    const original = parseBinSpec({ ...EMPTY_PROJECT.spec, heightUnits: 3, lip: "none", flatBottom: true });
+    const shape = rectangularShape("tool", "Tool");
+    const pocket = parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 0, y: 0 }, depth: { mode: "mm", value: 10 } });
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, spec: original, shapes: [shape], cutouts: [pocket] });
+    const { container, unmount } = renderPage(); await flushHydration();
+    try {
+      openUltim8Setup(container);
+      enterJigThickness("8.5");
+      expect(jigDialogButton("Use jig settings").disabled).toBe(true);
+      expect(document.querySelector('[role="alertdialog"] [role="alert"]')!.textContent).toContain("fixed pocket with no depth");
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toEqual(original);
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0].depth).toEqual(pocket.depth);
+      enterJigThickness("14");
+      expect(jigDialogButton("Use jig settings").disabled).toBe(false);
+      React.act(() => jigDialogButton("Use jig settings").click());
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0].heightUnits * 7).toBe(14);
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0].depth).toEqual({ mode: "mm", value: 3 });
     } finally { unmount(); }
   });
 
@@ -3209,7 +3313,7 @@ describe("BinDesignerPage", () => {
       expect(document.querySelector('[role="tooltip"]')!.textContent).toContain("For Wham Bam ULTIM8 mats on eufyMake E1");
       expect(document.querySelector('[role="tooltip"]')!.textContent).toContain("4.0 mm below the bin");
       React.act(() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
-      expect(vi.mocked(useBinGeometry).mock.lastCall?.[0].pegBottom).toEqual({ diameterMm: 4.8, lengthMm: 4, underside: "flat", density: 1 });
+      expect(vi.mocked(useBinGeometry).mock.lastCall?.[0].pegBottom).toEqual({ diameterMm: 4.8, lengthMm: 4, underside: "flat", density: "corners" });
       const input = () => container.querySelector<HTMLInputElement>('[aria-label="Peg diameter in millimetres"]')!;
       React.act(() => {
         input().focus();

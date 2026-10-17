@@ -678,7 +678,7 @@ it("keeps migrated linked through designs consistent even when creation depths d
 
 it.each(["corners", 1, 2, 3, 4, 5])("restores every-hole pegs from v37 density %s throughout saved projects", density => {
   const base = parseProjectDoc(VALID)!;
-  const legacyPegs = { ...DEFAULT_PEG_BOTTOM, underside: "sloped" as const };
+  const legacyPegs = { ...DEFAULT_PEG_BOTTOM, underside: "sloped" as const, density: 1 as const };
   const spec = { ...base.spec, pegBottom: { ...legacyPegs, density } };
   const snapshot = { spec, cutouts: base.cutouts, fingerHoles: base.fingerHoles };
   const legacy = { ...base, ...snapshot, schemaVersion: 37,

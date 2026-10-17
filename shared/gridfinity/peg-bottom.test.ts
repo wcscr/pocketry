@@ -11,9 +11,10 @@ const bin = (patch: Record<string, unknown> = {}) => parseBinSpec({ gridX: 2, gr
 describe("ULTIM8 peg specification", () => {
   it("retains existing bases by default and validates fit settings", () => {
     expect(bin({ pegBottom: undefined }).pegBottom).toBeNull();
-    expect(bin().pegBottom).toEqual({ diameterMm: 4.8, lengthMm: 4, underside: "flat", density: 1 });
+    expect(bin().pegBottom).toEqual({ diameterMm: 4.8, lengthMm: 4, underside: "flat", density: "corners" });
+    expect(selectUltim8PegCenters(bin(), ultim8PegCenters(bin()))).toHaveLength(4);
     expect(pegBottomExtensionMm(bin())).toBe(4);
-    expect(bin({ pegBottom: {} }).pegBottom).toEqual({ ...DEFAULT_PEG_BOTTOM, underside: "sloped" });
+    expect(bin({ pegBottom: {} }).pegBottom).toEqual({ ...DEFAULT_PEG_BOTTOM, underside: "sloped", density: 1 });
     expect(() => bin({ flatBottom: true })).toThrow(/either/);
     for (const pegBottom of [{ diameterMm: 5.1 }, { diameterMm: 3.9 }, { lengthMm: 1 }, { lengthMm: 6 }]) {
       expect(() => bin({ pegBottom })).toThrow();
@@ -41,10 +42,10 @@ describe("ULTIM8 peg specification", () => {
     expect(ultim8PegCenters(converted)).toEqual(ultim8PegCenters(original));
   });
   it("sizes bridged roots for the actual footprint and fit diameter", () => {
-    const small = bin({ gridX: 2, gridY: 2, gridPitch: "quarter", pegBottom: { ...DEFAULT_PEG_BOTTOM, underside: "bridged" } });
+    const small = bin({ gridX: 2, gridY: 2, gridPitch: "quarter", pegBottom: { ...DEFAULT_PEG_BOTTOM, underside: "bridged", density: 1 } });
     expect(pegBottomExtensionMm(small)).toBeCloseTo(7.8);
-    expect(pegBottomExtensionMm(bin({ pegBottom: { ...DEFAULT_PEG_BOTTOM, underside: "bridged" } }))).toBeCloseTo(9.8);
-    expect(pegBottomExtensionMm(small)).toBeLessThan(pegBottomExtensionMm(bin({ pegBottom: { ...DEFAULT_PEG_BOTTOM, underside: "sloped" } })));
+    expect(pegBottomExtensionMm(bin({ pegBottom: { ...DEFAULT_PEG_BOTTOM, underside: "bridged", density: 1 } }))).toBeCloseTo(9.8);
+    expect(pegBottomExtensionMm(small)).toBeLessThan(pegBottomExtensionMm(bin({ pegBottom: { ...DEFAULT_PEG_BOTTOM, underside: "sloped", density: 1 } })));
     expect(() => bin({ pegBottom: { underside: "invalid" } })).toThrow();
     expect(pegBridgeSpanMm(ultim8PegCenters(small))).toBe(10);
     expect(pegBridgeSpanMm([{ x: 0, y: 0 }])).toBe(0);
