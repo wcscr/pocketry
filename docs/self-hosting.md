@@ -121,9 +121,11 @@ Keep the same address and browser profile. If a previous release must be restore
 use a separate checkout of that release and rebuild; saved-project compatibility
 with older versions is not guaranteed. Keep pre-upgrade backups.
 
-Base images are pinned to multi-platform digests in `Dockerfile` for reproducible
-builds. Pulling alone does not advance those pins; maintainers must update the
-version/digest, rebuild, and verify when base-image security updates are available.
+Base images are pinned to multi-platform digests in `Dockerfile`. The runtime
+uses the slim Nginx image and updates zlib from Alpine's package repository at
+build time, so its exact package version can advance between rebuilds. Pulling
+alone does not advance the base-image pins; maintainers must update the
+version/digest, rebuild, and scan when base-image security updates are available.
 This repository does not publish images or run hosted CI as part of this setup.
 
 ## Other devices and HTTPS

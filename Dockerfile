@@ -9,12 +9,13 @@ COPY samples/pocketry-sample-library.json ./samples/pocketry-sample-library.json
 COPY vite.config.ts tsconfig.json tailwind.config.ts postcss.config.js LICENSE NOTICE ./
 RUN ./node_modules/.bin/vite build
 
-FROM nginx:1.30.6-alpine@sha256:970364228b1e4f932abc22d321932816782cca8a20b85a77552a7cfe9acfb3b5
+FROM nginx:1.30.6-alpine-slim@sha256:3028fc1419f99b95c1c69f844bbaf49dc1b881750c51b497fc721ac4f02a14e6
 LABEL org.opencontainers.image.title="Pocketry" \
       org.opencontainers.image.source="https://github.com/wcscr/pocketry" \
       org.opencontainers.image.licenses="AGPL-3.0-only"
 COPY deploy/nginx.conf /etc/nginx/nginx.conf
-RUN rm -rf /usr/share/nginx/html/*
+# The slim image omits unused modules; update zlib to Alpine's patched release.
+RUN apk upgrade --no-cache zlib && rm -rf /usr/share/nginx/html/*
 COPY --from=build /app/dist/public /usr/share/nginx/html
 USER nginx
 EXPOSE 8080
