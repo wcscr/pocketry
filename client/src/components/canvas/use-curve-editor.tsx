@@ -5,6 +5,7 @@ import type { Outline, Point, RingRef } from "@shared/geometry/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { ViewportPointerHandlers } from "@/hooks/use-viewport-transform";
+import { useCurveFitting } from "./use-curve-fitting";
 
 type Target = { kind: "edge" | "point" | "in" | "out"; index: number };
 interface Options {
@@ -15,6 +16,8 @@ interface Options {
   /** Screen pixels per canvas unit; control handles stay the same screen size. */
   scale: number;
   tolerance: number;
+  fitUnitsPerUnit?: number;
+  fitUnit?: "mm" | "px";
   fromClient: (x: number, y: number) => Point | null;
   toCanvas?: (point: Point) => Point;
   onCommit: (curves: CurveOutline, label: string) => void;
@@ -28,7 +31,8 @@ const identity = (p: Point) => p;
 /** Shared editing interaction. All gesture drafts are local until pointer-up;
  * cancel, selection and pointer clicks never create source revisions. */
 export function useCurveEditor({ outline, curves, enabled, contextKey, scale, tolerance,
-  fromClient, toCanvas = identity, onCommit, viewport, panRequested, startDisabled, startHint }: Options) {
+  fromClient, toCanvas = identity, onCommit, viewport, panRequested, startDisabled, startHint,
+  fitUnitsPerUnit = 1, fitUnit = "mm" }: Options) {
   const [started, setStarted] = useState(false);
   const [ref, setRef] = useState<RingRef>({ shapeIndex: 0, ringIndex: -1 });
   const [target, setTarget] = useState<Target>({ kind: "edge", index: 0 });
@@ -62,6 +66,9 @@ export function useCurveEditor({ outline, curves, enabled, contextKey, scale, to
     setDraft(null);
   };
   const edit = (change: CurveEdit, label: string) => commit(editCurves(base, ringRef, change), label);
+  const fitting = useCurveFitting({ source: base, ringRef, enabled: active, contextKey, unitsPerUnit: fitUnitsPerUnit,
+    unit: fitUnit, scale, toCanvas, onCommit: (next, label) => { cancel(); commit(next, label); setTarget({ kind: "edge", index: 0 }); } });
+  useEffect(() => { if (fitting.open) cancel(); }, [fitting.open]);
   const down = (e: ReactPointerEvent<SVGSVGElement>): boolean => {
     if (!active) return false;
     if (e.pointerType === "touch") pointers.current.add(e.pointerId);
@@ -75,6 +82,7 @@ export function useCurveEditor({ outline, curves, enabled, contextKey, scale, to
     const picked: Target = { kind: hit.dataset.curveKind as Target["kind"], index: Number(hit.dataset.curveIndex) };
     const pickedRef = { shapeIndex: Number(hit.dataset.curveShape), ringIndex: Number(hit.dataset.curveRing) };
     const pickedRing = curveRing(base, pickedRef); if (!pickedRing) return true;
+    if (fitting.open) { if (picked.kind === "point") fitting.pick(pickedRef, picked.index); return true; }
     setRef(pickedRef); setTarget(picked);
     let t = 0.5, distance = Infinity;
     if (picked.kind === "edge") for (let k = 1; k < 100; k++) {
@@ -120,7 +128,7 @@ export function useCurveEditor({ outline, curves, enabled, contextKey, scale, to
     {value.flatMap((shape, shapeIndex) => [{ ring: shape.outer, ringIndex: -1 }, ...shape.holes.map((r, ringIndex) => ({ ring: r, ringIndex }))].map(({ ring: r, ringIndex }) => {
       const rRef = { shapeIndex, ringIndex }, selectedRing = rRef.shapeIndex === ringRef.shapeIndex && rRef.ringIndex === ringRef.ringIndex;
       return <g key={`${shapeIndex}:${ringIndex}`}>
-        <path d={curvePath(r, toCanvas)} fill="none" className="stroke-primary" strokeWidth={2} vectorEffect="non-scaling-stroke" pointerEvents="none" data-testid="curve-source-path" />
+        <path d={curvePath(r, toCanvas)} fill="none" className={fitting.open ? "stroke-muted-foreground" : "stroke-primary"} strokeDasharray={fitting.open ? "4 4" : undefined} strokeWidth={2} vectorEffect="non-scaling-stroke" pointerEvents="none" data-testid="curve-source-path" />
         {r.map((a, i) => {
           const c = curveControls(r, i).map(toCanvas), curved = a.out || r[(i + 1) % r.length].in;
           const d = `M${c[0].x},${c[0].y} ` + (curved ? `C${c[1].x},${c[1].y} ${c[2].x},${c[2].y} ${c[3].x},${c[3].y}` : `L${c[3].x},${c[3].y}`);
@@ -146,14 +154,16 @@ export function useCurveEditor({ outline, curves, enabled, contextKey, scale, to
         })}
       </g>;
     }))}
+    {fitting.overlay}
   </g>;
   const coordinate = anchor && (selected.kind === "in" || selected.kind === "out" ? anchor[selected.kind] : anchor.point);
-  const controls = active && ring && anchor && <div className="flex max-w-[min(38rem,calc(100vw-2rem))] flex-wrap items-center gap-1.5 rounded-md border bg-background/95 p-2 shadow-sm" aria-label="Curve editing controls" data-testid="curve-editor-controls">
+  const controls = active && ring && anchor && <div className="flex max-h-[60vh] max-w-[min(38rem,calc(100vw-2rem))] flex-wrap items-center gap-1.5 overflow-y-auto rounded-md border bg-background/95 p-2 shadow-sm" aria-label="Curve editing controls" data-testid="curve-editor-controls">
     <span className="text-xs text-muted-foreground">Curves · prototype</span>
     <select aria-label="Curve contour" className="h-9 max-w-40 rounded border bg-background px-1 text-xs" value={`${ringRef.shapeIndex}:${ringRef.ringIndex}`}
       onChange={e => { const [shapeIndex, ringIndex] = e.target.value.split(":").map(Number); setRef({ shapeIndex, ringIndex }); setTarget({ kind: "edge", index: 0 }); }}>
       {value.flatMap((s, i) => [<option key={`${i}:-1`} value={`${i}:-1`}>Contour {i + 1}</option>, ...s.holes.map((_, j) => <option key={`${i}:${j}`} value={`${i}:${j}`}>Contour {i + 1} · Hole {j + 1}</option>)])}
     </select>
+    {fitting.open ? fitting.controls : <>
     <select aria-label="Curve selection" className="h-9 max-w-36 rounded border bg-background px-1 text-xs" value={`${selected.kind}:${selected.index}`}
       onChange={e => { const [kind, index] = e.target.value.split(":"); setTarget({ kind: kind as Target["kind"], index: Number(index) }); }}>
       {ring.flatMap((a, i) => [<option key={`e${i}`} value={`edge:${i}`}>Edge {i + 1}</option>, <option key={`p${i}`} value={`point:${i}`}>Point {i + 1}</option>,
@@ -178,6 +188,8 @@ export function useCurveEditor({ outline, curves, enabled, contextKey, scale, to
           onBlur={e => { const n = Number(e.target.value); if (!e.target.value || !Number.isFinite(n) || n === coordinate[axis] || n === Number(coordinate[axis].toFixed(4))) return;
             const point = { ...coordinate, [axis]: n }; edit(selected.kind === "in" || selected.kind === "out" ? { kind: "handle", side: selected.kind, index: selected.index, point } : { kind: "move", index: selected.index, point }, "Move curve anchor or handle"); }} />
       </label>)}
+    </>}
+    {fitting.actions}
     </>}
     {error && <span role="alert" className="w-full text-xs text-destructive">{error}</span>}
   </div>;

@@ -69,3 +69,38 @@ it("edits a placed contour in local coordinates, retaining source revisions thro
   expect(saved.shapes.find(s => s.id === revised.id)!.curvesMm).toEqual(revised.curvesMm);
   expect(saved.history!.stack[saved.history!.index].doc.cutouts[0].shapeId).toBe(revised.id);
 });
+
+it.each(["auto", "range"])("applies %s fitting once in Bin and restores the original points on undo and project reload", mode => {
+  const pocket = createBasicPocket("circle", { x: -20, y: -20 }, { x: 20, y: 20 }, "fit-pocket")!;
+  const cutout = { ...pocket.cutout, rotationDeg: 37, mirrored: true, scaleX: 1.7, scaleY: 0.8 };
+  React.act(() => {
+    library.storeShape(pocket.shape);
+    store.dispatch({ type: "HYDRATE", spec: parseBinSpec({ gridX: 3, gridY: 3, heightUnits: 6 }), cutouts: [cutout], fingerHoles: [] });
+    store.dispatch({ type: "SELECT_CUTOUT", id: cutout.id });
+    store.dispatch({ type: "SET_EDITOR_MODE", editorMode: "contour" });
+  });
+  const click = (name: string) => React.act(() => [...host.querySelectorAll<HTMLButtonElement>("button")].find(b => b.textContent === name)!.click());
+  const before = store.history.stack.length;
+  expect(library.shapes[0].curvesMm).toBeUndefined();
+  click("Edit curves (prototype)"); click(mode === "auto" ? "Auto-fit contour" : "Fit selected points");
+  if (mode === "range") {
+    for (const [label, value] of [["First fit point", "0"], ["Last fit point", "16"]]) React.act(() => {
+      const select = host.querySelector<HTMLSelectElement>(`[aria-label="${label}"]`)!;
+      select.value = value; select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    click("Preview fit");
+  }
+  expect(host.querySelector('[data-testid="curve-fit-preview"]')).not.toBeNull();
+  expect(store.history.stack).toHaveLength(before); expect(library.shapes).toHaveLength(1);
+  click("Apply fit");
+  const revised = library.shapes.find(s => s.id === store.cutouts[0].shapeId)!;
+  expect(revised.id).not.toBe(pocket.shape.id); expect(revised.curvesMm).toBeDefined();
+  expect(revised.curvesMm![0].outer.length).toBeLessThan(pocket.shape.outlineMm[0].outer.length);
+  expect(store.history.stack).toHaveLength(before + 1);
+  React.act(() => store.dispatch({ type: "UNDO" })); expect(store.cutouts[0].shapeId).toBe(pocket.shape.id);
+  React.act(() => store.dispatch({ type: "REDO" })); expect(store.cutouts[0].shapeId).toBe(revised.id);
+  const project = parseProjectDoc(JSON.parse(JSON.stringify({ schemaVersion: PROJECT_SCHEMA_VERSION, name: "Fitted",
+    shapes: library.shapes, spec: store.spec, cutouts: store.cutouts, fingerHoles: store.fingerHoles, history: store.history })))!;
+  expect(project).not.toBeNull(); expect(project.shapes.find(s => s.id === revised.id)!.curvesMm).toEqual(revised.curvesMm);
+  expect(project.history!.stack[project.history!.index - 1].doc.cutouts[0].shapeId).toBe(pocket.shape.id);
+});
