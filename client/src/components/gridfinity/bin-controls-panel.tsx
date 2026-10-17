@@ -447,7 +447,10 @@ export function BinControlsPanel({
     patchSpec({
       flatBottom: false,
       pegBottom: { ...DEFAULT_PEG_BOTTOM },
-      ...(useJigSettings ? { lip: "none", fill: "solid", fillHeightPercent: 100, textColor: null } : {}),
+      ...(useJigSettings ? {
+        arbitrarySizeMm: arbitrarySizePatch(spec)?.arbitrarySizeMm ?? spec.arbitrarySizeMm,
+        lip: "none", fill: "solid", fillHeightPercent: 100, textColor: null,
+      } : {}),
     }, false, "Use ULTIM8 jig pegs");
     if (useJigSettings) {
       onColorPocketFloorsChange(false);
@@ -1431,45 +1434,6 @@ export function BinControlsPanel({
           summary={spec.arbitrarySizeMm ? `${dims.widthMm} × ${dims.lengthMm} × ${Number((spec.heightUnits * HEIGHT_UNIT_MM).toFixed(3))} mm` : `${formatUnitCount(widthCellSpan)} × ${formatUnitCount(lengthCellSpan)} × ${formatUnitCount(spec.heightUnits)}u`}
           className="scroll-mt-16"
         >
-          <div className="flex items-center gap-2">
-            <SettingLabel label="Grid pitch" hint="Grid pitches preserve the outer size. Arbitrary sizes use millimetres and do not support Gridfinity feet; choose a flat bottom or ULTIM8 pegs. Returning to a grid requires sizes that fit its pitch and height increments." className="shrink-0" />
-            <Select
-              value={spec.arbitrarySizeMm ? "arbitrary" : spec.gridPitch}
-              onValueChange={(value) => {
-                if (value === "arbitrary") {
-                  const patch = arbitrarySizePatch(spec);
-                  if (patch) { patchSpec(patch); dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" }); }
-                  return;
-                }
-                const gridPitch = value as GridPitch;
-                const resized = spec.arbitrarySizeMm ? gridSizeFromArbitrary(spec, gridPitch) : changeBinGridPitchPreservingSize(spec, gridPitch);
-                if (!resized || resized.gridX > maxGridCells(gridPitch) || resized.gridY > maxGridCells(gridPitch)) return;
-                patchSpec({
-                  ...resized,
-                  ...(gridPitch === "full"
-                    ? {}
-                    : {
-                        magnetHoles: false,
-                        magnetCrushRibs: false,
-                        screwHoles: false,
-                      }),
-                });
-              }}
-            >
-              <SelectTrigger id="bin-grid-pitch" aria-label="Grid pitch" className="h-8 flex-1" data-testid="select-grid-pitch">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {(["full", "half", "quarter"] as const).map((pitch) => {
-                  const resized = spec.arbitrarySizeMm ? gridSizeFromArbitrary(spec, pitch) : changeBinGridPitchPreservingSize(spec, pitch);
-                  const available = resized && resized.gridX <= maxGridCells(pitch) && resized.gridY <= maxGridCells(pitch);
-                  return <SelectItem key={pitch} value={pitch} disabled={!available}>{pitch === "full" ? "Full · 42 mm" : pitch === "half" ? "Half · 21 mm" : "Quarter · 10.5 mm"}{!available ? " (would change shape)" : ""}</SelectItem>;
-                })}
-                <SelectItem value="arbitrary" disabled={spec.footprint.kind !== "rectangle"}>Arbitrary · no Gridfinity{spec.footprint.kind !== "rectangle" ? " (rectangles only)" : ""}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <FeatureSwitch label="Keep bin size fixed" description="Adding tools keeps these dimensions. Tools that do not fit stay visible for adjustment." checked={keepBinSize} onChange={(fixed) => onKeepBinSizeChange?.(fixed)} />
           {spec.arbitrarySizeMm ? (
             <>
               {(["width", "length"] as const).map(axis => <div key={axis} className="flex items-center justify-between gap-2">
@@ -1562,6 +1526,45 @@ export function BinControlsPanel({
               </p>
             </HelpHint>
           </div>
+          <div className="flex items-center gap-2">
+            <SettingLabel label="Grid pitch" hint="Grid pitches preserve the outer size. Arbitrary sizes use millimetres and do not support Gridfinity feet; choose a flat bottom or ULTIM8 pegs. Returning to a grid requires sizes that fit its pitch and height increments." className="shrink-0" />
+            <Select
+              value={spec.arbitrarySizeMm ? "arbitrary" : spec.gridPitch}
+              onValueChange={(value) => {
+                if (value === "arbitrary") {
+                  const patch = arbitrarySizePatch(spec);
+                  if (patch) { patchSpec(patch); dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" }); }
+                  return;
+                }
+                const gridPitch = value as GridPitch;
+                const resized = spec.arbitrarySizeMm ? gridSizeFromArbitrary(spec, gridPitch) : changeBinGridPitchPreservingSize(spec, gridPitch);
+                if (!resized || resized.gridX > maxGridCells(gridPitch) || resized.gridY > maxGridCells(gridPitch)) return;
+                patchSpec({
+                  ...resized,
+                  ...(gridPitch === "full"
+                    ? {}
+                    : {
+                        magnetHoles: false,
+                        magnetCrushRibs: false,
+                        screwHoles: false,
+                      }),
+                });
+              }}
+            >
+              <SelectTrigger id="bin-grid-pitch" aria-label="Grid pitch" className="h-8 flex-1" data-testid="select-grid-pitch">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(["full", "half", "quarter"] as const).map((pitch) => {
+                  const resized = spec.arbitrarySizeMm ? gridSizeFromArbitrary(spec, pitch) : changeBinGridPitchPreservingSize(spec, pitch);
+                  const available = resized && resized.gridX <= maxGridCells(pitch) && resized.gridY <= maxGridCells(pitch);
+                  return <SelectItem key={pitch} value={pitch} disabled={!available}>{pitch === "full" ? "Full · 42 mm" : pitch === "half" ? "Half · 21 mm" : "Quarter · 10.5 mm"}{!available ? " (would change shape)" : ""}</SelectItem>;
+                })}
+                <SelectItem value="arbitrary" disabled={spec.footprint.kind !== "rectangle"}>Arbitrary · no Gridfinity{spec.footprint.kind !== "rectangle" ? " (rectangles only)" : ""}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <FeatureSwitch label="Keep bin size fixed" description="Adding tools keeps these dimensions. Tools that do not fit stay visible for adjustment." checked={keepBinSize} onChange={(fixed) => onKeepBinSizeChange?.(fixed)} />
           {showPreviewBusy && (
             <div
               className="flex items-center gap-1.5 rounded-md border border-blue-500/25 bg-blue-500/10 px-2.5 py-1.5 text-xs font-medium text-blue-800 dark:text-blue-100"
@@ -2258,7 +2261,7 @@ export function BinControlsPanel({
           <AlertDialogHeader>
             <AlertDialogTitle>Use jig settings?</AlertDialogTitle>
             <AlertDialogDescription>
-              Remove the stacking lip, set Solid fill to 100%, and use the bin body color for floors, rim, and text?
+              Remove the stacking lip, set Solid fill to 100%, {spec.footprint.kind === "rectangle" ? "switch Grid pitch to Arbitrary, " : ""}and use the bin body color for floors, rim, and text?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-wrap gap-2 sm:space-x-0">

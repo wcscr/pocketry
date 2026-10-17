@@ -3,6 +3,8 @@
 Enable **Experimental features** in App settings, then in Bin → Construction →
 Bottom, choose **ULTIM8 jig pegs**. The confirmation offers to remove the stacking
 lip, set Solid fill to 100%, and match floors, rim, and text to the bin body color.
+Rectangular bins also switch Grid pitch to Arbitrary, keeping their body dimensions.
+Custom footprints retain their grid because Arbitrary sizing requires a rectangle.
 Choose **Keep current settings** to change only the bottom, or **Cancel** to leave
 the design as it is. Opening an existing jig does not show this prompt.
 This replaces

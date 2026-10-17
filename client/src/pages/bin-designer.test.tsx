@@ -3080,6 +3080,7 @@ describe("BinDesignerPage", () => {
       expect(vi.mocked(useBinGeometry).mock.lastCall![0].pegBottom).toBeNull();
       React.act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="alertdialog"] button')].find(button => button.textContent === "Keep current settings")!.click());
       expect(vi.mocked(useBinGeometry).mock.lastCall![0].pegBottom?.underside).toBe("flat");
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0].arbitrarySizeMm).toBeNull();
       const group = container.querySelector('[role="group"][aria-label="ULTIM8 peg settings"]')!;
       expect(group.getAttribute("data-property-tone")).toBe("rose");
       expect(group.hasAttribute("data-property-surface")).toBe(true);
@@ -3091,9 +3092,13 @@ describe("BinDesignerPage", () => {
     } finally { unmount(); }
   });
 
-  it.each(["standard", "workflow"])("confirms ULTIM8 jig settings without changing a cancelled design in the %s layout", async layout => {
+  it.each([
+    ["standard", "rectangle"], ["workflow", "rectangle"],
+    ["standard", "custom"], ["workflow", "custom"],
+  ] as const)("confirms ULTIM8 jig settings without changing a cancelled design in the %s layout (%s)", async (layout, footprint) => {
     window.history.replaceState(null, "", `/bin?layout=${layout}`);
-    const original = parseBinSpec({ ...EMPTY_PROJECT.spec, fill: "none", fillHeightPercent: 55, textColor: "#fedcba" });
+    const original = parseBinSpec({ ...EMPTY_PROJECT.spec, fill: "none", fillHeightPercent: 55, textColor: "#fedcba",
+      ...(footprint === "custom" ? { footprint: { kind: "custom", cells: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }] } } : {}) });
     const materials = { ...DEFAULT_BIN_MATERIALS, binColor: "#123456", pocketFloorColor: "#abcdef", stackingRimColor: "#654321" };
     vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, spec: original, materials });
     binGeometryMock.hasPocketFloor = true;
@@ -3110,7 +3115,9 @@ describe("BinDesignerPage", () => {
     try {
       openSettingsSection(container, "construction");
       choosePegs();
-      expect(document.querySelector('[role="alertdialog"]')!.textContent).toContain("set Solid fill to 100%");
+      const prompt = document.querySelector('[role="alertdialog"]')!.textContent!;
+      expect(prompt).toContain("set Solid fill to 100%");
+      expect(prompt.includes("switch Grid pitch to Arbitrary")).toBe(footprint === "rectangle");
       expect(current()).toEqual(original);
       respond("Cancel");
       expect(current()).toEqual(original);
@@ -3120,7 +3127,17 @@ describe("BinDesignerPage", () => {
       respond("Use jig settings");
       expect(document.querySelector('[role="alertdialog"]')).toBeNull();
       expect(current()).toMatchObject({ lip: "none", fill: "solid", fillHeightPercent: 100, flatBottom: false,
-        pegBottom: { underside: "flat", density: 1 }, textColor: null });
+        pegBottom: { underside: "flat", density: 1 }, textColor: null,
+        arbitrarySizeMm: footprint === "rectangle" ? { width: 83.5, length: 83.5 } : null });
+      expect(current().heightUnits).toBe(original.heightUnits);
+      expect(current().footprint).toEqual(original.footprint);
+      openSettingsSection(container, "size");
+      expect(container.querySelector('[aria-label="Grid pitch"]')!.textContent).toBe(footprint === "rectangle" ? "Arbitrary · no Gridfinity" : "Full · 42 mm");
+      if (footprint === "rectangle") {
+        expect(container.querySelector<HTMLInputElement>('[aria-label="Bin width in millimetres"]')!.value).toBe("83.5");
+        expect(container.querySelector<HTMLInputElement>('[aria-label="Bin length in millimetres"]')!.value).toBe("83.5");
+        expect(container.querySelector<HTMLInputElement>('[aria-label="Bin height in millimetres"]')!.value).toBe("42");
+      }
       for (const region of ["bin", "floor", "rim", "text"]) expect(viewport().getAttribute(`data-${region}-color`)).toBe(materials.binColor);
       expect(viewport().getAttribute("data-pocket-floor-color")).toBe("off");
       expect(viewport().getAttribute("data-stacking-rim-color")).toBe("off");
