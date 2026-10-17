@@ -993,7 +993,7 @@ describe("BinDesignerPage", () => {
       expect(container.querySelector('[data-testid="bin-viewport-stub"]')).not.toBeNull();
       if (layout === "workflow") {
         expect(container.querySelector('[data-testid="inspector-properties-header"] h3')!.textContent).toBe("Tool label");
-        React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Collapse properties panel"]')!.click());
+        React.act(() => container.querySelector<HTMLButtonElement>(mobile ? '#objects-panel [data-testid="button-back-to-canvas"]' : '[aria-label="Collapse properties panel"]')!.click());
         click3D();
         if (mobile) openMobileProperties();
         expect(wording().closest("[hidden]")).toBeNull();
@@ -1659,7 +1659,7 @@ describe("BinDesignerPage", () => {
       React.act(() => document.querySelector<HTMLButtonElement>('[data-testid="library-manager-header"] [aria-label="Close"]')!.click());
       expect(document.querySelector('[data-testid="managed-project-list"]')).toBeNull();
       if (mobile) {
-        React.act(() => [...document.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === "Back to canvas")!.click());
+        React.act(() => [...document.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === "Back to Canvas")!.click());
       } else {
         React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Hide controls"]')!.click());
       }
@@ -2425,7 +2425,7 @@ describe("BinDesignerPage", () => {
           expect(downloadBlob).not.toHaveBeenCalled();
           React.act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(button => button.textContent === "Cancel")!.click());
         }
-        React.act(() => [...document.querySelectorAll('button')].find(button => button.textContent === 'Back to canvas')!.click());
+        React.act(() => [...document.querySelectorAll('button')].find(button => button.textContent === 'Back to Canvas')!.click());
         React.act(() => [...container.querySelectorAll('button')].find(button => button.textContent === 'Adjust')!.click());
         React.act(() => [...container.querySelectorAll('button')].find(button => button.textContent === 'All properties')!.click());
         expect(document.querySelector('#bin-settings-pockets')).not.toBeNull();
@@ -6911,7 +6911,8 @@ it.each([false, true])("prototype has one object list and preserves identity whe
 
     // Choosing the same item must reopen the inspector and leave a transform tool.
     click('Rotate selected objects');
-    click('Collapse properties panel');
+    if (mobile) React.act(() => container.querySelector<HTMLButtonElement>('#objects-panel [data-testid="button-back-to-canvas"]')!.click());
+    else click('Collapse properties panel');
     showWorkflow();
     React.act(() => leftButton('pocket', 'workflow-0').click());
     if (mobile) openMobileProperties();
@@ -7317,7 +7318,7 @@ it("phone panes require explicit opening and keep canvas and selection through e
     expect(container.querySelector('.mobile-adjustment-tray')?.textContent).toContain('Tool 2');
     click('All properties'); expect(properties.hidden).toBe(false);
     expect(container.querySelector('.mobile-adjustment-tray')).toBeNull();
-    React.act(()=>container.querySelector<HTMLButtonElement>('[aria-label="Collapse properties panel"]')!.click());
+    React.act(()=>container.querySelector<HTMLButtonElement>('#objects-panel [data-testid="button-back-to-canvas"]')!.click());
     selectPocket(container,'phone-0'); expect(properties.hidden).toBe(true);
     click('Export'); expect(properties.hidden).toBe(false);
     expect(container.querySelector('[data-testid="button-export-3mf"]')!.closest('[hidden]')).toBeNull();

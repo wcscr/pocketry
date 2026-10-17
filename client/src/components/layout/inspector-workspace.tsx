@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { MobileCanvasOverlayContext } from "./mobile-canvas-overlay";
 import { useWorkspaceViewport } from "@/hooks/use-workspace-viewport";
 import { MobileWorkspaceActionsContext } from "./mobile-workspace-actions";
+import { CanvasReturnButton } from "./canvas-return-button";
 import { CollapsedPanelRail } from "./collapsed-panel-rail";
 
 /** Objects and properties have stable homes. Mobile sheets are siblings of the
@@ -46,9 +47,10 @@ export function InspectorWorkspace({ panel, canvas, inspector, panelOpen, onPane
       {header && <div className={cn("shrink-0 border-b bg-background", phone && "hidden")}>{header}</div>}
       <div className="relative grid min-h-0 flex-1" style={{ gridTemplateColumns: `${!phone && leftVisible ? "min(280px, max(0px, calc(100% - 480px)))" : showLeftRestore ? "32px" : "0px"} minmax(0,1fr) ${!phone && rightVisible ? "min(340px, max(0px, calc(100% - 480px)))" : showRightRestore ? "32px" : "0px"}` }}>
         <div id="workflow-panel" hidden={!leftVisible} data-testid="desktop-workspace-controls" aria-label={`Design ${panelTitle.toLowerCase()}`}
-          className={cn("relative min-h-0 min-w-0 overflow-hidden border-r bg-background", phone && "absolute inset-y-0 left-0 z-40 w-[min(320px,calc(100%-48px))] shadow-xl")}>
-          {panel}
-          <Button variant="ghost" size="icon" className={collapseClass} aria-label={`Collapse ${panelTitle.toLowerCase()} panel`} aria-controls="workflow-panel" onClick={toggleLeft}><PanelLeftClose /></Button>
+          className={cn("relative min-h-0 min-w-0 overflow-hidden border-r bg-background", leftVisible && "flex flex-col", phone && "absolute inset-y-0 left-0 z-40 w-[min(320px,calc(100%-48px))] shadow-xl")}>
+          {compact && <div className="shrink-0 border-b bg-background p-3"><CanvasReturnButton onClick={toggleLeft} /></div>}
+          <div className="min-h-0 flex-1 overflow-hidden">{panel}</div>
+          {!compact && <Button variant="ghost" size="icon" className={collapseClass} aria-label={`Collapse ${panelTitle.toLowerCase()} panel`} aria-controls="workflow-panel" onClick={toggleLeft}><PanelLeftClose /></Button>}
         </div>
         {showLeftRestore && <CollapsedPanelRail label={panelTitle} side="left" controls="workflow-panel" onExpand={toggleLeft} className="col-start-1 row-start-1" testId="workflow-restore-rail" />}
         <div className="col-start-2 flex min-h-0 min-w-0 flex-col overflow-hidden">
@@ -61,9 +63,10 @@ export function InspectorWorkspace({ panel, canvas, inspector, panelOpen, onPane
           </div>
         </div>
         {showRightRestore && <CollapsedPanelRail label="Properties" side="right" controls="objects-panel" onExpand={toggleRight} className="col-start-3 row-start-1" testId="properties-restore-rail" />}
-        <div id="objects-panel" hidden={!rightVisible} className={cn("relative min-h-0 min-w-0 overflow-hidden border-l bg-background", phone ? "absolute inset-x-0 bottom-0 top-0 z-40 rounded-t-xl border-t shadow-xl" : "col-start-3")}>
-          {inspector}
-          <Button variant="ghost" size="icon" className={collapseClass} aria-label="Collapse properties panel" aria-controls="objects-panel" onClick={toggleRight}><PanelRightClose /></Button>
+        <div id="objects-panel" hidden={!rightVisible} className={cn("relative min-h-0 min-w-0 overflow-hidden border-l bg-background", rightVisible && "flex flex-col", phone ? "absolute inset-x-0 bottom-0 top-0 z-40 rounded-t-xl border-t shadow-xl" : "col-start-3")}>
+          {compact && <div className="shrink-0 border-b bg-background p-3"><CanvasReturnButton onClick={toggleRight} /></div>}
+          <div className="min-h-0 flex-1 overflow-hidden">{inspector}</div>
+          {!compact && <Button variant="ghost" size="icon" className={collapseClass} aria-label="Collapse properties panel" aria-controls="objects-panel" onClick={toggleRight}><PanelRightClose /></Button>}
         </div>
       </div>
       {compact && (!phone || !mobileActions) && <nav className="flex shrink-0 border-t bg-background px-2 pb-[env(safe-area-inset-bottom)]" aria-label="Editor panels">

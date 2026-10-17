@@ -306,13 +306,13 @@ describe("TraceControlsPanel guided workflow", () => {
     await click("button-set-scale");
     const button = (text: string) => [...host.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent?.trim() === text)!;
     expect(trace.calibration).toBe(before);
-    expect(button("Add to bin").disabled).toBe(true);
-    expect(button("Save SVG").disabled).toBe(true);
+    expect(button("Add to Bin").disabled).toBe(true);
+    expect(button("Export Tool Outline").disabled).toBe(true);
     expect(host.textContent).toContain("Your current scale is kept until you confirm the new ruler.");
     await React.act(async () => button("Cancel ruler").click());
     expect(trace.calibration).toBe(before);
-    expect(button("Add to bin").disabled).toBe(false);
-    expect(button("Save SVG").disabled).toBe(false);
+    expect(button("Add to Bin").disabled).toBe(false);
+    expect(button("Export Tool Outline").disabled).toBe(false);
   });
 
   it("opens measurement-aid downloads from the hint and keeps them open after hover ends", async () => {
@@ -389,7 +389,7 @@ describe("TraceControlsPanel guided workflow", () => {
     expect(document.querySelector('[role="dialog"]')).toBeNull();
   });
 
-  it("collapses every section, opens Scale, and pulses its action after source load", async () => {
+  it("opens Scale with its guided action and keeps the output actions available after source load", async () => {
     expect(host.textContent).toContain("Choose or drop an image");
     expect(host.querySelector('[data-testid="button-source-image"]')).toBeNull();
     expect(sectionTrigger("scale")?.disabled).toBe(true);
@@ -414,13 +414,14 @@ describe("TraceControlsPanel guided workflow", () => {
       "trace-settings-output",
     ]);
 
-    for (const id of ["source", "detect", "crop", "margin", "output"]) {
+    for (const id of ["source", "detect", "crop", "margin"]) {
       expect(section(id)?.dataset.state).toBe("closed");
     }
+    expect(section("output")?.dataset.state).toBe("open");
     expect(section("scale")?.dataset.state).toBe("open");
     expect(section("source")?.textContent).toContain("new-source");
     expect(sectionTrigger("scale")?.disabled).toBe(false);
-    for (const id of ["crop", "detect", "margin", "output"]) {
+    for (const id of ["crop", "detect", "margin"]) {
       expect(sectionTrigger(id)?.disabled).toBe(true);
     }
     expect(document.activeElement).toBe(sectionTrigger("scale"));
@@ -947,16 +948,14 @@ describe("automatic sensitivity detection", () => {
 });
 
 
-it("blocks physical Save after Clear scale while keeping pixel SVG reachable", async () => {
+it("keeps the export format prompt reachable after clearing scale", async () => {
   await prepareOutline();
   await React.act(async () => {
     trace.dispatch({ type: "SET_EXPORT_FORMAT", exportFormat: "stl" });
     trace.dispatch({ type: "SET_CALIBRATION", calibration: null });
   });
-  const save = (name: string) => Array.from(host.querySelectorAll("button")).find(button => button.textContent?.trim() === name)!;
-  expect(save("Save STL").disabled).toBe(true);
+  const exportButton = host.querySelector<HTMLButtonElement>('[data-testid="button-export-outline"]')!;
+  expect(exportButton.disabled).toBe(false);
+  expect(host.querySelector<HTMLButtonElement>('[data-testid="button-add-to-bin"]')!.disabled).toBe(true);
   expect(sectionTrigger("output")?.disabled).toBe(false);
-  expect(host.textContent).toContain("Set scale for STL or DXF");
-  await React.act(async () => trace.dispatch({ type: "SET_EXPORT_FORMAT", exportFormat: "svg" }));
-  expect(save("Save SVG (pixels)").disabled).toBe(false);
 });

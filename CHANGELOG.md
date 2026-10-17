@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Trace workflow puts Add to Bin and Export Tool Outline together in step 6, with SVG/DXF/STL choices in the download dialog and a separate Start Over step. Compact and mobile panels have a prominent Back to Canvas button.
+
 - Added arbitrary rectangular bin sizes in millimetres, including height, for flat bottoms and ULTIM8 pegs; the grid selector marks Arbitrary as non-Gridfinity. Bin size shows dimensions above grid options.
 - Added Experimental ULTIM8 jig peg bottoms with adjustable fit, sloped/bridged roots, and flat backing (the default, exported pegs up). Flat backing defaults to corner-only pegs and supports denser spacing; through openings omit overlapping pegs.
 - Grouped peg settings with floating help hints. Switching to ULTIM8 offers to remove the stacking lip, set Solid fill to 100%, switch rectangular bins to Arbitrary sizing, and use one color. The setup dialog offers body thickness, prefilled from the current height, with depth-conflict checks.

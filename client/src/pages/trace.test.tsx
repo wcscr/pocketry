@@ -109,6 +109,11 @@ function SeedExportOutline({ format, calibrated = true }: { format: "svg" | "dxf
   return null;
 }
 
+async function chooseExportFormat(format: "dxf" | "stl"): Promise<void> {
+  await React.act(async () => document.querySelector<HTMLButtonElement>("#trace-export-format")!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+  await React.act(async () => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(option => option.textContent?.startsWith(format.toUpperCase()))!.click());
+}
+
 vi.mock("@/components/trace/trace-canvas", () => ({
   TraceCanvas: ({
     emptyState,
@@ -227,9 +232,13 @@ function SourceStateProbe(): JSX.Element {
 describe("Trace detection workflow", () => {
   let host: HTMLDivElement;
   let root: Root;
+  let previousScrollIntoView: PropertyDescriptor | undefined;
 
   beforeEach(() => {
+    previousScrollIntoView = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollIntoView");
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: vi.fn() });
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
     vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener: () => {}, removeEventListener: () => {} }));
     vi.mocked(generateSTL).mockResolvedValue(new ArrayBuffer(100));
     vi.mocked(loadTraceDraft).mockResolvedValue(null);
@@ -569,6 +578,8 @@ describe("Trace detection workflow", () => {
   afterEach(() => {
     React.act(() => root.unmount());
     host.remove();
+    if (previousScrollIntoView) Object.defineProperty(HTMLElement.prototype, "scrollIntoView", previousScrollIntoView);
+    else Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
     sessionStorage.clear();
     vi.clearAllMocks();
     vi.restoreAllMocks();
@@ -581,6 +592,8 @@ describe("Trace detection workflow", () => {
     async ({ format, includeProject }) => {
       await React.act(async () => root.render(<PanelProvider><TraceProvider><SeedExportOutline format={format} /><TracePage /></TraceProvider></PanelProvider>));
       React.act(() => host.querySelector<HTMLButtonElement>('[data-testid="export-trace"]')!.click());
+      expect(document.querySelector("#trace-export-format")?.textContent).toBe("SVG — vector outline");
+      if (format !== "svg") await chooseExportFormat(format);
       const checkbox = document.querySelector<HTMLButtonElement>('[data-testid="checkbox-export-project"]')!;
       expect(checkbox.getAttribute("aria-checked")).toBe("false");
       expect(downloadBlob).not.toHaveBeenCalled();
@@ -617,12 +630,33 @@ describe("Trace detection workflow", () => {
     expect(vi.mocked(downloadBlob).mock.calls[0][1]).toMatch(/\.svg$/);
   });
 
-  it.each(["stl", "dxf"] as const)("blocks uncalibrated %s even when a caller bypasses the disabled UI", async (format) => {
+  it.each(["stl", "dxf"] as const)("opens with SVG for an uncalibrated draft last exported as %s", async (format) => {
     await React.act(async () => root.render(<PanelProvider><TraceProvider><SeedExportOutline format={format} calibrated={false} /><TracePage /></TraceProvider></PanelProvider>));
     React.act(() => host.querySelector<HTMLButtonElement>('[data-testid="export-trace"]')!.click());
-    expect(document.querySelector('[data-testid="button-confirm-export"]')).toBeNull();
+    expect(document.querySelector("#trace-export-format")?.textContent).toBe("SVG — image pixels (unscaled)");
+    await React.act(async () => document.querySelector<HTMLButtonElement>("#trace-export-format")!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+    const physicalOptions = [...document.querySelectorAll('[role="option"]')].filter(option => /^(STL|DXF)/.test(option.textContent ?? ""));
+    expect(physicalOptions).toHaveLength(2);
+    expect(physicalOptions.every(option => option.getAttribute("aria-disabled") === "true")).toBe(true);
+    await React.act(async () => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
     expect(generateSTL).not.toHaveBeenCalled();
     expect(downloadBlob).not.toHaveBeenCalled();
+  });
+
+  it("cancels without downloading and starts each export with SVG", async () => {
+    let current!: ReturnType<typeof useTrace>;
+    function Probe(): null { current = useTrace(); return null; }
+    await React.act(async () => root.render(<PanelProvider><TraceProvider><Probe /><SeedExportOutline format="stl" /><TracePage /></TraceProvider></PanelProvider>));
+    const before = { outline: current.outline, calibration: current.calibration, history: current.history };
+    React.act(() => host.querySelector<HTMLButtonElement>('[data-testid="export-trace"]')!.click());
+    await chooseExportFormat("stl");
+    expect(document.querySelector('[role="slider"][aria-label="Extrusion height"]')).not.toBeNull();
+    await React.act(async () => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(button => button.textContent === "Cancel")!.click());
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    expect(downloadBlob).not.toHaveBeenCalled();
+    expect(current).toMatchObject(before);
+    React.act(() => host.querySelector<HTMLButtonElement>('[data-testid="export-trace"]')!.click());
+    expect(document.querySelector("#trace-export-format")?.textContent).toBe("SVG — vector outline");
   });
 
   it("rechecks physical scale when confirming an already-open export", async () => {
@@ -630,6 +664,7 @@ describe("Trace detection workflow", () => {
     function Probe(): null { current = useTrace(); return null; }
     await React.act(async () => root.render(<PanelProvider><TraceProvider><Probe /><SeedExportOutline format="stl" /><TracePage /></TraceProvider></PanelProvider>));
     React.act(() => host.querySelector<HTMLButtonElement>('[data-testid="export-trace"]')!.click());
+    await chooseExportFormat("stl");
     React.act(() => current.dispatch({ type: "SET_CALIBRATION", calibration: null }));
     await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-confirm-export"]')!.click());
     expect(generateSTL).not.toHaveBeenCalled();
@@ -796,6 +831,7 @@ describe("Trace detection workflow", () => {
     await React.act(async () => root.render(<PanelProvider><TraceProvider><SeedExportOutline format="stl" /><TracePage /></TraceProvider></PanelProvider>));
     React.act(() => host.querySelector<HTMLButtonElement>('[data-testid="export-trace"]')!.click());
     React.act(() => document.querySelector<HTMLButtonElement>('[data-testid="checkbox-export-project"]')!.click());
+    await chooseExportFormat("stl");
     await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-confirm-export"]')!.click());
     expect(generateSTL).toHaveBeenCalledTimes(1);
     expect(downloadBlob).not.toHaveBeenCalled();
