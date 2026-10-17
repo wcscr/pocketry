@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Default new pockets without a chosen depth to the bin floor so they appear immediately in the 3D preview.
+
 ## 1.5.1 — 2026-10-16
 
 - Reject oversized project/library backups and excessive geometry before processing; preserve existing work on rejected imports. Prevent repeated portable fonts from multiplying validation, history, and preview memory use.
