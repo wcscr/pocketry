@@ -402,9 +402,11 @@ function BinDesignerWorkspace(): JSX.Element {
       type: "ADD_PLACED",
       cutouts: result.cutouts.map(cutout => {
         const chosen = library.pendingDepths[cutout.shapeId];
-        return { ...cutout, ...(chosen?.mode === "unset" ? { depthPending: true as const } : {}), depth: chosen?.mode === "to-floor"
+        // Resolve defaults against the loaded bin, including older queued tools
+        // that have no depth choice yet.
+        return { ...cutout, depth: !chosen || chosen.mode === "unset" || chosen.mode === "to-floor"
           ? { mode: "remaining" as const, floorThicknessMm: defaultPocketFloorThicknessMm(spec) }
-          : !chosen || chosen.mode === "unset" ? cutout.depth : chosen };
+          : chosen };
       }),
       gridX,
       gridY,
@@ -412,12 +414,6 @@ function BinDesignerWorkspace(): JSX.Element {
       // Irregular footprints require the explicit footprint editor.
       footprint: keepBinSize ? spec.footprint : { kind: "rectangle" },
     });
-    const firstPending = result.cutouts.find(cutout => library.pendingDepths[cutout.shapeId]?.mode === "unset");
-    if (firstPending) {
-      dispatch({ type: "SELECT_CUTOUT", id: firstPending.id });
-      dispatch({ type: "SET_VIEW_MODE", viewMode: "2d" });
-      if (isMobile) setPanelOpen(false);
-    }
     if (gridX !== spec.gridX || gridY !== spec.gridY) toast({ title: "Bin resized for new tools", description: "Undo restores the previous layout. Turn on Keep bin size fixed to prevent automatic growth." });
     if (spec.fill !== "solid") {
       dispatch({ type: "PATCH_SPEC", patch: { fill: "solid" } });

@@ -6,7 +6,7 @@ import { useShapeLibrary } from "@/state/shape-library";
 import { hasPendingManualCalibration, useTrace } from "@/state/trace-store";
 import { useProjectActivity } from "@/state/project-activity";
 
-/** Place first, then ask about depth where the user can see the bin. */
+/** Place pockets to the destination bin's floor; depth can be edited in Bin. */
 export function useTraceHandoff(onCanvasInteraction?: () => void) {
   const trace = useTrace();
   const destination = useProjectActivity();
@@ -31,7 +31,7 @@ export function useTraceHandoff(onCanvasInteraction?: () => void) {
     if (shapes.some(shape => !shape)) return;
     adding.current = true;
     for (const shape of shapes) {
-      if (shape) library.addShape({ ...shape, traceMarginMm: trace.margin ?? 0 }, { mode: "unset" },
+      if (shape) library.addShape({ ...shape, traceMarginMm: trace.margin ?? 0 }, { mode: "to-floor" },
         destination ? { key: destination.destinationKey ?? `project:${destination.activeProjectId}`, name: destination.name ?? "Untitled project" } : undefined);
     }
     onCanvasInteraction?.();
