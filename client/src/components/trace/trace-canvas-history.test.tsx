@@ -11,6 +11,10 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 
 import { TraceCanvas } from "./trace-canvas";
 import { TracePhotoBoundsControl } from "./trace-photo-bounds-control";
+import { traceDraftSnapshot } from "@/lib/trace-draft";
+import { traceDraftSchema } from "@shared/trace-draft";
+import { projectFromTrace } from "@/lib/project/trace-export";
+import { parseProjectDoc } from "@shared/gridfinity/project";
 
 class NoopResizeObserver implements ResizeObserver {
   observe() {}
@@ -231,6 +235,44 @@ afterEach(() => {
 });
 
 describe("TraceCanvas edit history", () => {
+  it.each(["auto", "range"])("keeps %s fitting opt-in and undoable through Trace recovery and Bin transfer", async mode => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+    vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
+    const host = document.createElement("div"); document.body.append(host); const root = createRoot(host);
+    let trace: TraceStore;
+    function Probe() { trace = useTrace(); return null; }
+    const rounded: Outline = [{ outer: Array.from({ length: 48 }, (_, i) => ({ x: 50 + 40 * Math.cos(i * Math.PI / 24), y: 50 + 40 * Math.sin(i * Math.PI / 24) })), holes: [] }];
+    try {
+      await React.act(async () => root.render(<TraceProvider><SeedTrace /><Probe /><TooltipProvider><TraceCanvas onReprocess={() => {}} /></TooltipProvider></TraceProvider>));
+      React.act(() => { trace!.dispatch({ type: "OUTLINE_COMMITTED", outline: rounded }); trace!.dispatch({ type: "SET_MODE", mode: "edit" }); });
+      const before = trace!.history.stack.length;
+      const click = (name: string) => React.act(() => [...host.querySelectorAll<HTMLButtonElement>("button")].find(b => b.textContent === name)!.click());
+      expect(trace!.curves).toBeUndefined();
+      click("Edit curves (prototype)"); click(mode === "auto" ? "Auto-fit contour" : "Fit selected points");
+      if (mode === "range") {
+        for (const [label, value] of [["First fit point", "0"], ["Last fit point", "16"]]) React.act(() => {
+          const select = host.querySelector<HTMLSelectElement>(`[aria-label="${label}"]`)!;
+          select.value = value; select.dispatchEvent(new Event("change", { bubbles: true }));
+        });
+        click("Preview fit");
+      }
+      expect(host.querySelector('[data-testid="curve-fit-preview"]')).not.toBeNull();
+      expect(trace!.history.stack).toHaveLength(before); expect(trace!.curves).toBeUndefined();
+      click("Apply fit");
+      const curves = trace!.curves!;
+      expect(curves[0].outer.length).toBeLessThan(48); expect(trace!.history.stack).toHaveLength(before + 1);
+      const draft = traceDraftSchema.parse(JSON.parse(JSON.stringify(traceDraftSnapshot(trace!)!)));
+      React.act(() => trace!.dispatch({ type: "TRACE_DRAFT_RESTORED", draft }));
+      expect(trace!.curves).toEqual(curves);
+      React.act(() => trace!.undo()); expect(trace!.curves).toBeUndefined(); expect(trace!.outline).toEqual(rounded);
+      React.act(() => trace!.redo()); expect(trace!.curves).toEqual(curves);
+      const project = projectFromTrace(trace!.outline, { mmPerPx: mmPerPixel(trace!.calibration)!, imageHeight: 100 }, "Fitted trace", 0, curves);
+      const saved = parseProjectDoc(JSON.parse(JSON.stringify(project)))!;
+      expect(saved.shapes[0].curvesMm).toEqual(project.shapes[0].curvesMm);
+      expect(saved.shapes[0].curvesMm![0].outer).toHaveLength(curves[0].outer.length);
+    } finally { React.act(() => root.unmount()); }
+  });
   it("opens curve editing on the real canvas and keeps an edge bend as one undoable source edit", async () => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     vi.stubGlobal("ResizeObserver", NoopResizeObserver);

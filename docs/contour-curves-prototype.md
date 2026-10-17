@@ -23,6 +23,47 @@ editing restriction.
   preserves them whether tools are separated or combined. Existing polygon
   projects keep their original vertices until an explicit curve edit.
 
+## Fitting existing points
+
+Both editors offer two explicit actions after entering curve editing:
+
+- **Fit selected points**: tap the first and last anchor or choose them from the
+  First/Last menus. The amber section follows increasing point numbers, including
+  the closing edge. **Swap ends** selects the complementary path. Select at least
+  three adjacent points on one ring, then **Preview fit**.
+- **Auto-fit contour**: preview a fit of the ring chosen in **Curve contour**.
+  Outer contours and holes are fitted separately. Other contours and previously
+  authored curved edges stay unchanged. Sharp turns of 45 degrees or more and
+  explicitly marked Corner anchors remain fixed.
+
+The dashed original and green preview can be compared before **Apply fit**.
+Changing the deviation or selection discards the pending result; preview it again
+to apply. Cancel/Escape discards it without changing save data or history. Apply
+creates one undo entry and, in Bin, one immutable shape revision. Undo/Redo also
+survives project/draft recovery. Source changes, contour switches, and calibration
+or placement scale changes invalidate a pending preview.
+
+**Max deviation** defaults to 0.1 mm after calibration (1 px without calibration).
+It measures fitting error against the current edited polygon, not the photo or
+the earlier unsimplified detection. It is separate from the downstream 0.025 mm
+sampling tolerance. Bin converts the requested bound using the largest placement
+scale, so stretching a pocket does not weaken the physical fitting bound.
+
+The dependency-free fitter solves endpoint-constrained cubic least squares with
+chord-length parameters. It checks the continuous difference between each cubic
+subsegment and its original straight edge using recursive control-hull bounds.
+Failed spans split in half and retry; exact straight edges are the fallback.
+This supplies a conservative bound in both directions, including between input
+vertices. Endpoints and unselected edges are retained. Closed rings retain at
+least three anchors. Existing curves are protected from automatic refitting;
+selected sections that already contain curves are rejected.
+
+Fine adaptive samples additionally check winding, edge crossings/touching, and
+containment relationships with holes and other contours. This topology check is
+sampled, not a proof about arbitrarily small features. Oversized or excessively
+complex fits fail without committing. Fitting does not run on load, detection,
+save, transfer, or export. Its preview settings are not persistent automation.
+
 ## Representation and compatibility
 
 `CurveOutline` has the same outer/hole hierarchy as `Outline`. Each anchor stores
@@ -50,7 +91,8 @@ scale, offsets, kernel simplification and mesh serialization are separate steps.
 
 ## Current limits
 
-- Manual cubic editing only; no automatic curve fitting or exact circular arcs.
+- Cubic fitting approximates the selected polygon; it does not infer hidden photo
+  details or produce exact circular arcs.
 - Trace simplification, symmetry/upright alignment and margin reshaping are
   disabled while curves are present. Bin clearance offsets derived geometry
   while retaining the source. Ordinary re-detection replaces the authored trace;
@@ -68,6 +110,9 @@ Focused tests cover exact cubic subdivision (including the closing segment),
 finite-chord sampling of loops/overshoot, winding and affine transforms, gesture
 commit/cancel/pinch behavior, Trace canvas undo, draft recovery, project migration,
 queue recovery, both handoff grouping modes, Bin revisions, and native Trace SVG.
+Fitting tests cover selected/wrapped runs, automatic corner protection, continuous
+deviation, holes, stretched placements, opt-in preview/cancel, one-step undo in
+both editors, saved fitted sources, and watertight STL output of fitted rings.
 Run `npm run check`, `npm test`, `npm run build`, and `git diff --check` with Node 22.
 Browser workflow checks are separate from these automated gates; slicer and
 physical-fit qualification remain outside this prototype.

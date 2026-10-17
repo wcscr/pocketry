@@ -120,6 +120,14 @@ symmetry, and trace margin are locked once curves are authored. Use Bin clearanc
 to adjust fit. Trace SVG retains native curves; solid exports and DXF use sampled
 outlines. See [prototype scope and verification](docs/contour-curves-prototype.md).
 
+In curve editing, **Fit selected points** lets you choose the first and last point
+of a connected section, then **Preview fit**. **Swap ends** selects the other way
+around the contour. **Auto-fit contour** previews fitting the chosen outer contour
+or hole while preserving sharp corners and existing curves. Adjust **Max deviation**
+to control how closely it follows the current outline; **Apply fit** commits one
+undoable edit. **Cancel fit** or Escape discards the preview. Auto-fit is always
+opt-in; detection, opening projects, and saving never run it automatically.
+
 **Select** only selects contours. Choose **Edit contours** to move points or add
 one near an edge; clicking empty space clears the selection. Ctrl/Cmd+Z and
 Ctrl/Cmd+Shift+Z undo and redo contour edits, including after toolbar clicks.
