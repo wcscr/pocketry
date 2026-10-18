@@ -1157,11 +1157,12 @@ export function resolvePocketDepth(
 /** Initial access bottom sits 1 mm above the highest usable pocket floor. */
 export function defaultFingerAccessDepthMm(
   spec: FillHeightSpec,
-  cutouts: readonly Pick<CutoutPlacement, "depth" | "split">[],
+  cutouts: readonly Pick<CutoutPlacement, "depth" | "split" | "role">[],
 ): number {
   const { infillTopZ } = resolvePocketDepth(spec, { mode: "through" });
   let highestFloor: number | null = null;
   for (const cutout of cutouts) {
+    if (cutout.role === "hole") continue;
     for (const depth of pocketDepths(cutout)) {
       const { floorZ, depthMm } = resolvePocketDepth(spec, depth);
       if (floorZ === null || floorZ < 0 || depthMm === null || depthMm <= 0) continue;

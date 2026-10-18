@@ -9,7 +9,7 @@ import type { ScoreField } from "./types";
  * background. Mixed boundaries are estimates and must be reported for review.
  * This shared step changes neither source pixels nor scores outside the mask.
  */
-export function restoreOccludedScore(field: ScoreField, footprints: readonly Ring[]): boolean {
+export function restoreOccludedScore(field: ScoreField, footprints: readonly Ring[], inferredRegions?: Ring[]): boolean {
   let inferredEdge = false;
   for (const footprint of footprints) {
     if (footprint.length < 3 || footprint.some(p => !Number.isFinite(p.x) || !Number.isFinite(p.y))) continue;
@@ -44,6 +44,7 @@ export function restoreOccludedScore(field: ScoreField, footprints: readonly Rin
     if (!samples) continue; // A crop wholly covered by the aid cannot be inferred.
     const mixed = foreground > 0 && foreground < samples;
     inferredEdge ||= mixed;
+    if (mixed) inferredRegions?.push(footprint);
     for (const i of unknown) values[i] = foreground / samples;
     if (mixed) {
       // Successive over-relaxation on a bounded local patch. Convergence only

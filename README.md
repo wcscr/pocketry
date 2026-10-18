@@ -73,7 +73,14 @@ notch. Holes arrive in Bin as separate objects, including when the pockets are
 combined. Select a hole to move, resize, edit its contour, change its type, or
 remove it; deleting it restores the original pocket. Undo/redo and project
 backups preserve these objects. Automatic arrangement keeps overlapping holes
-and pockets together.
+and pockets together. Trace margin and detail edits preserve the separate objects;
+a hole shared by overlapping pockets appears once in the contour list. In Bin,
+positive **Hole offset** expands the kept area. Holes must connect to a pocket
+floor or wall; printable export blocks floating caps and detached islands.
+
+Recognized calibration aids are excluded from tracing. If an aid hides a tool
+edge, a persistent notice and amber outline identify the estimated area. Choose
+**Show estimated area** to zoom in and review the contour against the photo.
 
 ![The Wolfbox duster outline in the default Trace layout, with workflow steps on the left and contour controls on the right](docs/images/trace-outline.jpg)
 

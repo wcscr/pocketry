@@ -4,7 +4,9 @@
 
 - Default new pockets without a chosen depth to the bin floor so they appear immediately in the 3D preview.
 - Preserve the relative positions of outlines sent from Trace to Bin, including overlaps. Choose Pocket or Hole to cut or keep material; holes remain independent, editable objects in Bin and saved projects.
-- Ignore recognized measurement aids when tracing; flag estimated edges hidden beneath an aid for review.
+- Preserve separate pockets and shared holes through Trace margin/detail edits; list each shared hole once. Match hole selection to the visible drawing order and clarify hole offset, kept depth, and linked-copy behavior.
+- Block printable export of floating caps or detached material created by hole objects; hole depths no longer change finger-access defaults.
+- Ignore recognized measurement aids when tracing; keep estimated edges highlighted with persistent guidance and a zoom-to-area action.
 - Use a small hollow crosshair in the contour magnifier so vertex handles no longer cover the placement point.
 
 ## 1.5.1 — 2026-10-16

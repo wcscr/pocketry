@@ -81,3 +81,28 @@ it("distinguishes a missing region, active detection, and an empty result", () =
   React.act(() => trace.dispatch({ type: "SET_REGION", region: null }));
   expect(host.textContent).toContain("Set a detection region around the tool");
 });
+
+it("shows a shared hole once and selects/deletes all references as one object", () => {
+  const hole = square(30, 20).reverse();
+  const outline: Outline = [
+    { outer: square(0, 100), holes: [hole] },
+    { outer: square(20, 100), holes: [[...hole.slice(1), hole[0]]] },
+  ];
+  React.act(() => {
+    trace.dispatch({ type: "SOURCE_LOADED", imageUrl: "photo", fileName: "test" });
+    trace.dispatch({ type: "DETECTED", outline, rawOutline: outline, svg: "", imageUrl: "photo", region: null });
+    trace.dispatch({ type: "SELECT_RING", selection: { shapeIndex: 1, ringIndex: 0 } });
+  });
+  expect(host.querySelectorAll("li")).toHaveLength(3);
+  expect(host.querySelectorAll('[aria-label="Delete hole 1"]')).toHaveLength(1);
+  expect(host.querySelector('[title="Shared by 2 pockets"]')).not.toBeNull();
+  const selected = host.querySelector<HTMLButtonElement>('button[aria-pressed="true"]')!;
+  expect(selected.textContent).toContain("Hole 1");
+  React.act(() => selected.click());
+  expect(trace.selection).toBeNull();
+  React.act(() => host.querySelector<HTMLButtonElement>('[aria-label="Delete hole 1"]')!.click());
+  expect(trace.outline.every(part => part.holes.length === 0)).toBe(true);
+  React.act(() => trace.undo());
+  expect(host.querySelectorAll("li")).toHaveLength(3);
+  expect(trace.outline.every(part => part.holes.length === 1)).toBe(true);
+});

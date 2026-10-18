@@ -134,6 +134,8 @@ export interface CutoutCutters {
   reports: CutoutBuildReport[];
   validationIssues?: ValidationIssue[];
   cutterGroups?: { id: string; cutters: Manifold[] }[];
+  /** Original retained volumes, for checking the connectivity of the finished bin. */
+  retainedGroups?: { id: string; volumes: Manifold[] }[];
 }
 
 export interface CutoutBuildOptions {
@@ -843,5 +845,6 @@ export function buildCutoutCutters(kernel: Kernel, shapesById: ReadonlyMap<strin
   return { cutters: pockets.flatMap(g => g.built.cutters), floorInserts: pockets.flatMap(g => g.built.floorInserts),
     floorRegions: pockets.flatMap(g => g.built.floorRegions), reports: groups.flatMap(g => g.built.reports),
     validationIssues: groups.flatMap(g => g.built.validationIssues ?? []),
-    cutterGroups: pockets.map(g => ({ id: g.id, cutters: g.built.cutters })) };
+    cutterGroups: pockets.map(g => ({ id: g.id, cutters: g.built.cutters })),
+    retainedGroups: groups.filter(g => g.role === "hole").map(g => ({ id: g.id, volumes: g.built.cutters })) };
 }

@@ -14,18 +14,18 @@ export function PocketSplitControls({ cutout }: { cutout: CutoutPlacement }): JS
   return <details className="group/split border-t pt-1 text-xs" data-testid="pocket-split-settings"
     open={!!cutout.split || editorMode === "split" || undefined}>
     <summary className="flex cursor-pointer items-center justify-between gap-2 py-2 font-medium">
-      <span>Split pocket{cutout.split && <span className="ml-2 text-[10px] font-normal text-muted-foreground">Two sections</span>}</span>
+      <span>{cutout.role === "hole" ? "Split hole" : "Split pocket"}{cutout.split && <span className="ml-2 text-[10px] font-normal text-muted-foreground">Two sections</span>}</span>
       <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/split:rotate-180" />
     </summary>
-    <div className="space-y-2 pb-2" aria-label="Pocket sections">
+    <div className="space-y-2 pb-2" aria-label={cutout.role === "hole" ? "Hole sections" : "Pocket sections"}>
     <div className="flex flex-wrap gap-1">
       <Button type="button" size="sm" variant="outline" onClick={begin} disabled={editorMode === "split" || hasPocketTilt(cutout)} title={hasPocketTilt(cutout) ? "Reset to X–Y plane before drawing the split." : undefined}>
-        {cutout.split ? "Redraw split" : "Split pocket"}
+        {cutout.split ? "Redraw split" : cutout.role === "hole" ? "Split hole" : "Split pocket"}
       </Button>
       {cutout.split && <Button type="button" size="sm" variant="ghost"
-        title="Restore the original whole-pocket depth"
+        title={cutout.role === "hole" ? "Restore the original whole-hole depth" : "Restore the original whole-pocket depth"}
         onClick={() => {
-          dispatch({ type: "UPDATE_CUTOUT", id: cutout.id, patch: { split: undefined }, historyLabel: "Remove pocket split" });
+          dispatch({ type: "UPDATE_CUTOUT", id: cutout.id, patch: { split: undefined }, historyLabel: cutout.role === "hole" ? "Remove hole split" : "Remove pocket split" });
           dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" });
         }}>Remove split</Button>}
       {editorMode === "split" && <Button type="button" size="sm" variant="ghost"

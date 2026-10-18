@@ -57,6 +57,8 @@ export interface DetectOptions {
 export interface DetectResult {
   /** True when a recognized carrier hid a foreground/background transition. */
   inferredOccludedEdge?: boolean;
+  /** Carrier regions containing estimated edges, in input-image pixels. */
+  estimatedEdgeRegions?: Ring[];
   /** Simplified and smoothed, in the coordinate space of the input image. */
   outline: Outline;
   /**

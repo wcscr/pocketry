@@ -41,6 +41,7 @@ const historyEntry = z.object({
   refinementBase: outline.optional(), baselineMarginPx: finite.optional(),
   tolerancePx: finite.nonnegative().optional(), smoothing: finite.nonnegative().optional(),
   hasManualEdits: z.boolean().optional(),
+  estimatedEdgeRegions: z.array(z.array(vec2Schema).min(3)).optional(),
   photoFrame: z.object(frameFields).optional(),
 });
 
@@ -57,6 +58,7 @@ export const traceDraftSchema = z.object({
     imageRotation: rotation,
     imageAlignment: imageAlignment.nullable().default(null),
     outline, rawOutline: outline,
+    estimatedEdgeRegions: z.array(z.array(vec2Schema).min(3)).default([]),
     selection: z.object({ shapeIndex: finite.int().nonnegative(), ringIndex: finite.int().min(-1) }).nullable(),
     history: z.object({ stack: z.array(historyEntry).min(1).max(50), index: finite.int().nonnegative() })
       .refine((value) => value.index < value.stack.length),

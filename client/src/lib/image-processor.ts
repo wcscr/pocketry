@@ -1,10 +1,10 @@
 import { mmPerPixel, type Calibration } from "@shared/geometry/scale";
-import type { Outline, Point, Rect } from "@shared/geometry/types";
+import type { Outline, Point, Rect, Ring } from "@shared/geometry/types";
 import { pointInRing, ringArea } from "@shared/geometry/rings";
 
-import { detectOutline, refineOutline } from "./detect/pipeline";
+import { detectOutline } from "./detect/pipeline";
 import type { DetectOptions, DetectResult, ImageLike } from "./detect/types";
-import { offsetOutline } from "./geometry/offset";
+import { offsetDetectedOutline, offsetTraceOutline, refineTraceOutline, retainSurvivingDetectionHoles } from "./geometry/trace-refinement";
 import {
   flattenOutline,
   outlineBounds,
@@ -95,7 +95,7 @@ export async function adjustOutlineMargin(
     marginToPixels(nextMargin, calibration) -
     marginToPixels(previousMargin, calibration);
   if (deltaPx === 0) return outline;
-  return withoutNewInteriorHoles(await offsetOutline(outline, deltaPx), outline);
+  return withoutNewInteriorHoles(await offsetTraceOutline(outline, deltaPx), outline);
 }
 
 export interface ProcessOptions {
@@ -111,6 +111,8 @@ export interface ProcessOptions {
 }
 
 export interface ProcessResult {
+  /** Source-image regions where a calibration aid hid an estimated edge. */
+  estimatedEdgeRegions?: Ring[];
   /** Rings in source-image coordinates, margin applied. */
   outline: Outline;
   /** Dense pre-simplification rings, so the detail controls can re-derive. */
@@ -188,18 +190,22 @@ export async function processImage(
     ? outline
     : outsideSilhouettes(outline);
   let outline = translate(silhouette(result.outline), origin);
-  const rawOutline = translate(silhouette(result.rawOutline), origin);
+  let rawOutline = translate(silhouette(result.rawOutline), origin);
 
   const marginPx = marginToPixels(margin, calibration);
   if (marginPx !== 0) {
-    // Offsets the whole polygon set at once, so holes shrink as shells grow.
-    outline = await offsetOutline(outline, marginPx);
+    // Keep independently detected tools separate as their margins grow.
+    outline = await offsetDetectedOutline(outline, marginPx);
   }
-  outline = silhouette(outline);
+  // Initial containment was resolved before clearance. The offset may now
+  // overlap neighbouring tools, so do not treat one as an interior island.
+  if (!options.includeInteriorHoles) outline = outline.map(part => ({ ...part, holes: [] }));
+  if (marginPx !== 0) rawOutline = await retainSurvivingDetectionHoles(rawOutline, outline);
 
   return {
     outline,
     rawOutline,
+    estimatedEdgeRegions: (result.estimatedEdgeRegions ?? []).map(ring => ring.map(p => ({ x: p.x + origin.x, y: p.y + origin.y }))),
     svg: generateOutlineSVG(outline, {
       width: imageData.width,
       height: imageData.height,
@@ -231,9 +237,9 @@ export async function reprocessOutline(
 ): Promise<Outline> {
   const { detect = {}, margin = null, calibration = null } = options;
 
-  const outline = refineOutline(rawOutline, detect);
+  const outline = refineTraceOutline(rawOutline, detect);
   const marginPx = marginToPixels(margin, calibration);
-  const adjusted = marginPx === 0 ? outline : await offsetOutline(outline, marginPx);
+  const adjusted = marginPx === 0 ? outline : await offsetTraceOutline(outline, marginPx);
   return withoutNewInteriorHoles(adjusted, rawOutline);
 }
 

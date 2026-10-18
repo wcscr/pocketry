@@ -113,14 +113,17 @@ vi.mock("@/components/trace/trace-canvas", () => ({
   TraceCanvas: ({
     emptyState,
     onReprocess,
+    estimatedEdgeFocusRequest = 0,
   }: {
     emptyState?: React.ReactNode;
     onReprocess: (region?: Rect) => void;
+    estimatedEdgeFocusRequest?: number;
   }) => {
     const { dispatch, imageUrl } = useTrace();
     return (
     <>
       {!imageUrl && emptyState}
+      <output data-testid="estimated-focus-request">{estimatedEdgeFocusRequest}</output>
       <button data-testid="run-detection" onClick={() => onReprocess()}>
         Run detection
       </button>
@@ -251,6 +254,30 @@ describe("Trace detection workflow", () => {
     host = document.createElement("div");
     document.body.appendChild(host);
     root = createRoot(host);
+  });
+
+  it.each([false, true])("keeps estimated-edge guidance visible after editing and recovery (mobile=%s)", async mobile => {
+    vi.stubGlobal("matchMedia", () => ({ matches: mobile, addEventListener: () => {}, removeEventListener: () => {} }));
+    Object.defineProperty(window, "innerWidth", { value: mobile ? 390 : 1440, configurable: true, writable: true });
+    const areas = [[{ x: 10, y: 20 }, { x: 30, y: 20 }, { x: 30, y: 50 }]];
+    let current!: ReturnType<typeof useTrace>;
+    function Probe(): null { current = useTrace(); return null; }
+    const recovered = traceDraftSnapshot({ ...initialTraceState, imageUrl: "data:image/png;base64,source", fileName: "Tool",
+      imageSize: { width: 800, height: 600 }, outline: exportOutline, estimatedEdgeRegions: areas })!;
+    await React.act(async () => root.render(<PanelProvider><TraceProvider><Probe /><TracePage /></TraceProvider></PanelProvider>));
+    await React.act(async () => current.dispatch({ type: "TRACE_DRAFT_RESTORED", draft: recovered }));
+    const notice = () => host.querySelector('[data-testid="estimated-edge-notice"]')!;
+    expect(notice().textContent).toContain("An edge hidden by the measurement aid is estimated");
+    React.act(() => notice().querySelector('button')!.click());
+    expect(host.querySelector('[data-testid="estimated-focus-request"]')?.textContent).toBe("1");
+    React.act(() => current.dispatch({ type: "OUTLINE_COMMITTED", outline: [...exportOutline] }));
+    expect(notice()).not.toBeNull();
+    React.act(() => current.dispatch({ type: "SET_REGION", region: null }));
+    expect(host.querySelector('[data-testid="estimated-edge-notice"]')).toBeNull();
+    await React.act(async () => current.dispatch({ type: "TRACE_DRAFT_RESTORED", draft: recovered }));
+    expect(notice()).not.toBeNull();
+    React.act(() => current.dispatch({ type: "SOURCE_LOADED", imageUrl: "data:image/png;base64,new", fileName: "New" }));
+    expect(host.querySelector('[data-testid="estimated-edge-notice"]')).toBeNull();
   });
 
   it("offers the sample browser from the initial Trace screen without importing a project", async () => {

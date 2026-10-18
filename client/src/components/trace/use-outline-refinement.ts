@@ -12,8 +12,8 @@ import {
   withoutNewInteriorHoles,
   type Margin,
 } from "@/lib/image-processor";
-import { offsetOutline } from "@/lib/geometry/offset";
-import { useTrace } from "@/state/trace-store";
+import { offsetTraceOutline } from "@/lib/geometry/trace-refinement";
+import { useTrace, type TraceRefinementSettings } from "@/state/trace-store";
 import { useToast } from "@/hooks/use-toast";
 
 export type OutlineRefiner = (
@@ -37,7 +37,7 @@ export type OutlineOffsetter = (
  */
 export function useOutlineRefinement(
   refineOutline: OutlineRefiner = reprocessOutline,
-  offsetEditedOutline: OutlineOffsetter = offsetOutline,
+  offsetEditedOutline: OutlineOffsetter = offsetTraceOutline,
 ): void {
   const { toast } = useToast();
   const {
@@ -47,48 +47,50 @@ export function useOutlineRefinement(
     smoothing,
     margin,
     calibration,
+    calibrationSource,
+    rulerLengthMm,
     imageRotation,
     sourceRevision,
     history,
     dispatch,
   } = useTrace();
-  const detectionSignature = JSON.stringify([tolerancePx, smoothing]);
-  const scaleMmPerPx = mmPerPixel(calibration);
-  const previousDetectionSignature = useRef(detectionSignature);
-  const previousScaleMmPerPx = useRef(scaleMmPerPx);
+  const settings: TraceRefinementSettings = { tolerancePx, smoothing, margin, calibration,
+    calibrationSource, rulerLengthMm, rulerLengthInput: String(rulerLengthMm) };
+  const applied = useRef(settings);
+  const previousOutline = useRef(outline);
   const previousImageRotation = useRef(imageRotation);
   const previousSourceRevision = useRef(sourceRevision);
   const entry = history.stack[history.index];
 
   useEffect(() => {
-    const detectionSettingsChanged =
-      previousDetectionSignature.current !== detectionSignature;
-    const previousMmPerPx = previousScaleMmPerPx.current;
-    const scaleChanged = previousMmPerPx !== scaleMmPerPx;
+    const outlineChanged = previousOutline.current !== outline;
     const imageRotated = previousImageRotation.current !== imageRotation;
     const sourceReplaced = previousSourceRevision.current !== sourceRevision;
-    previousDetectionSignature.current = detectionSignature;
-    previousScaleMmPerPx.current = scaleMmPerPx;
+    previousOutline.current = outline;
     previousImageRotation.current = imageRotation;
     previousSourceRevision.current = sourceRevision;
 
-    // Loading/recovering a source restores its contour and controls atomically.
-    // The saved outline already includes its margin and simplification.
-    if (sourceReplaced) return;
+    // A committed edit, undo or recovered/photo-transformed source already
+    // supplies its geometry and controls together. It becomes the new baseline.
+    if (outlineChanged || sourceReplaced || imageRotated || rawOutline.length === 0) {
+      applied.current = settings;
+      return;
+    }
+    const previous = applied.current;
+    const detectionSettingsChanged = previous.tolerancePx !== tolerancePx || previous.smoothing !== smoothing;
+    const scaleChanged = mmPerPixel(previous.calibration) !== mmPerPixel(calibration);
 
-    // ROTATE_SOURCE already transforms the margin-bearing edited outline and
-    // its calibration into the new pixel scale atomically. Applying the usual
-    // scale-change offset again would double-adjust the physical margin.
-    if (imageRotated) return;
-
-    // Undo restores both the exact contour and its controls. Do not refine an
-    // already-restored snapshot a second time.
+    // Undo can restore the same outline reference with different controls.
     if (detectionSettingsChanged && !scaleChanged &&
-        entry?.tolerancePx === tolerancePx && entry?.smoothing === smoothing) return;
+        entry?.tolerancePx === tolerancePx && entry?.smoothing === smoothing) {
+      applied.current = settings;
+      return;
+    }
 
     // Detection supplies a dense baseline; a manual edit replaces that base.
     // Margin changes are committed directly by TraceControlsPanel.
-    if ((!detectionSettingsChanged && !scaleChanged) || rawOutline.length === 0) {
+    if (!detectionSettingsChanged && !scaleChanged) {
+      applied.current = settings;
       return;
     }
     let cancelled = false;
@@ -103,10 +105,7 @@ export function useOutlineRefinement(
           return deltaPx === 0 ? refined : offsetEditedOutline(refined, deltaPx);
         })
       : (() => {
-          const previousMarginPx =
-            margin !== null && margin > 0 && previousMmPerPx !== null
-              ? margin / previousMmPerPx
-              : 0;
+          const previousMarginPx = marginToPixels(previous.margin, previous.calibration);
           const nextMarginPx = marginToPixels(margin, calibration);
           const deltaPx = nextMarginPx - previousMarginPx;
           return deltaPx === 0
@@ -116,13 +115,21 @@ export function useOutlineRefinement(
 
     void refinement.then((refined) => {
       if (!cancelled) {
+        applied.current = settings;
         dispatch({
           type: "OUTLINE_REFINED",
           outline: withoutNewInteriorHoles(refined, outline),
         });
       }
     }).catch(() => {
-      if (!cancelled) toast({ title: "Could not refine outline", description: "Your current contour has been kept. Try a smaller adjustment.", variant: "destructive" });
+      if (cancelled) return;
+      dispatch({ type: "REFINEMENT_REJECTED", expectedOutline: outline, expectedSourceRevision: sourceRevision,
+        expected: { tolerancePx, smoothing, margin, calibration }, settings: previous });
+      toast({ title: scaleChanged ? "Could not apply the new scale" : "Could not refine outline",
+        description: scaleChanged
+          ? "The previous scale, margin and contour have been kept. Reduce the margin before changing scale."
+          : "The previous detail, smoothing and contour have been kept. Try a smaller adjustment.",
+        variant: "destructive" });
     });
 
     return () => {
@@ -134,8 +141,9 @@ export function useOutlineRefinement(
     tolerancePx,
     smoothing,
     margin,
-    detectionSignature,
-    scaleMmPerPx,
+    calibration,
+    calibrationSource,
+    rulerLengthMm,
     imageRotation,
     sourceRevision,
     dispatch,

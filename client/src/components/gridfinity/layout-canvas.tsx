@@ -381,7 +381,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
         const footprint = hasRigidPocket(cutout) && cutout.insertionMode === "vertical"
           ? {outline:pocketOccupiedOutline(shape,cutout,spec)} : placementFootprint(shape, cutout);
         return [{ cutout, shape, outline: profileOutlines.get(cutout.id)?.full ?? footprint.outline }];
-      }),
+      }).sort((a, b) => Number(a.cutout.role === "hole") - Number(b.cutout.role === "hole")),
     [cutouts, shapesById, draftContour, profileOutlines, spec],
   );
 
@@ -584,7 +584,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
   }, [hasPlacedObjects, editorMode]);
 
   const hitCutout = (point: Point): CutoutPlacement | null => {
-    // Topmost = later in the list.
+    // Use the same order as rendering: retained holes sit above pocket bodies.
     for (let i = placed.length - 1; i >= 0; i--) {
       if (pointInOutline(placed[i].outline, point)) return placed[i].cutout;
     }
@@ -1792,7 +1792,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
               );
             })}
 
-          {[...placed].sort((a, b) => Number(a.cutout.role === "hole") - Number(b.cutout.role === "hole")).map(({ cutout, shape, outline }) => {
+          {placed.map(({ cutout, shape, outline }) => {
             const severity = severityByCutout.get(cutout.id);
             const isSelected = selection.some(ref => ref.kind === "pocket" && ref.id === cutout.id);
             const tone = cutout.role === "hole" ? "fill-background/80 stroke-emerald-600" : cutout.depthPending ? "fill-primary/10 stroke-primary" :
@@ -2223,17 +2223,17 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
           ? "Label tab · tap a highlighted boundary edge"
           : !hasPlacedObjects
           ? `Choose ${inspector ? "Add" : "Add pocket"} to draw a shape`
-          : editorMode === "split" ? "Split pocket · draw a straight line between two outer edge points" : editorMode === "contour"
+          : editorMode === "split" ? `${selected?.cutout.role === "hole" ? "Split hole" : "Split pocket"} · draw a straight line between two outer edge points` : editorMode === "contour"
           ? selectedCutoutId
             ? "Contour edit · drag points · click near an edge to add · right-click a point to remove · Esc finishes"
-            : "Contour edit · tap a pocket to select it"
+            : "Contour edit · tap an object to select it"
           : selectedFingerHoleId
             ? isMobile ? "Drag the finger access to move. Drag its white handle to resize." : "Finger access · drag moves · white handle resizes · arrows nudge · Del removes"
             : selectedCutoutId
-              ? selected && (hasProfileRotation(selected.cutout) || hasPocketTilt(selected.cutout)) ? "Pocket · drag to move · round handle rotates · edit dimensions in Depth and Size & scale"
-                : isMobile ? "Drag the pocket to move. Drag corners to resize or the round handle to rotate." : "Pocket · drag edges/corners to resize · Option resizes from center · round handle rotates"
+              ? selected && (hasProfileRotation(selected.cutout) || hasPocketTilt(selected.cutout)) ? "Object · drag to move · round handle rotates · edit dimensions in Depth and Size & scale"
+                : isMobile ? "Drag the object to move. Drag corners to resize or the round handle to rotate." : "Object · drag edges/corners to resize · Option resizes from center · round handle rotates"
               : spec.surfaceTexts.length > 0 ? "Drag text to move · Drag the round handle to rotate · Double-click to edit wording"
-              : isMobile ? "Tap a pocket to select it. Use the hand to pan and pinch to zoom." : "Click a pocket or finger access to select · Shift-drag pans · Ctrl-scroll zooms"}
+              : isMobile ? "Tap an object to select it. Use the hand to pan and pinch to zoom." : "Click an object to select · Shift-drag pans · Ctrl-scroll zooms"}
       </WorkflowHint>
       )}
       {selected && magnifiedPoint && (() => {

@@ -180,6 +180,8 @@ function TraceWorkspace(): JSX.Element {
     }
   }, [source, dispatch, toast]);
 
+  const [estimatedEdgeFocusRequest, setEstimatedEdgeFocusRequest] = useState(0);
+
   const notice = useCallback(
     (title: string, description: string) => {
       toast({ title, description });
@@ -256,6 +258,7 @@ function TraceWorkspace(): JSX.Element {
         imageUrl: source.url,
         outline: result.outline,
         rawOutline: result.rawOutline,
+        estimatedEdgeRegions: result.estimatedEdgeRegions,
         svg: result.svg,
         region,
       });
@@ -783,8 +786,17 @@ function TraceWorkspace(): JSX.Element {
             {store.imageUrl && store.draftSaveStatus === "error" && <p role="status" data-testid="trace-save-error" className="shrink-0 border-b bg-destructive/10 px-3 py-2 text-sm text-destructive">
               Couldn’t save the trace draft. Keep this page open; your latest edits may not survive a refresh.
             </p>}
+            {store.estimatedEdgeRegions.length > 0 && <div role="status" data-testid="estimated-edge-notice"
+              className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b bg-amber-500/10 px-3 py-2 text-xs">
+              <p className="min-w-0 flex-1">An edge hidden by the measurement aid is estimated. Review the contour in the amber area before using it.</p>
+              <Button variant="outline" size="sm" className="min-h-9" onClick={() => {
+                if (store.perspectiveCorrection?.paperBounds) dispatch({ type: "SET_SHOW_FULL_PHOTO", show: true });
+                setEstimatedEdgeFocusRequest(value => value + 1);
+              }}>Show estimated area</Button>
+            </div>}
             <div className="relative min-h-0 flex-1">
                 <TraceCanvas
+                  estimatedEdgeFocusRequest={estimatedEdgeFocusRequest}
                   onReprocess={(region) => void runDetection(undefined, region)}
                   emptyState={
                     <div className="flex h-full min-h-[24rem] w-full flex-col gap-3 text-center">

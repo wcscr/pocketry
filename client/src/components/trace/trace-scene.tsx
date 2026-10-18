@@ -16,6 +16,7 @@ import {
   type Point,
   type Rect,
   type RingRef,
+  type Ring,
 } from "@shared/geometry/types";
 
 import { iterateRings, sameRingRef } from "@/lib/geometry/outline";
@@ -39,6 +40,7 @@ export interface TraceSceneProps {
   imageCrop?: Rect | null;
   transform: SceneTransform;
   outline: Outline;
+  estimatedEdgeRegions?: readonly Ring[];
   selection: RingRef | null;
   region: Rect | null;
   /** Keeps the crop boundary prominent only while the region tool is active. */
@@ -131,6 +133,7 @@ export function TraceScene({
   imageCrop = null,
   transform,
   outline,
+  estimatedEdgeRegions = [],
   selection,
   region,
   regionActive = false,
@@ -201,6 +204,12 @@ export function TraceScene({
           rotation={imageRotation}
           alignment={imageAlignment}
         />
+
+        {estimatedEdgeRegions.map((ring, index) => <path key={`estimated-${index}`} d={ringToPath(ring)}
+          fill="none" className="pointer-events-none stroke-amber-600" strokeWidth={2} strokeDasharray="7 4"
+          vectorEffect="non-scaling-stroke" data-testid="estimated-edge-region">
+          <title>Estimated edge area: review the contour hidden by the measurement aid.</title>
+        </path>)}
 
         {/* The traced material, with holes punched out by the even-odd rule. */}
         {fillPath && <>

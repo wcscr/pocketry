@@ -82,10 +82,10 @@ export function RingList(): JSX.Element {
     return mm2 >= 100 ? `${(mm2 / 100).toFixed(1)} cm²` : `${mm2.toFixed(1)} mm²`;
   };
 
-  const select = (ref: RingRef) => {
+  const select = (ref: RingRef, references: RingRef[]) => {
     dispatch({
       type: "SELECT_RING",
-      selection: sameRingRef(selection, ref) ? null : ref,
+      selection: references.some(reference => sameRingRef(selection, reference)) ? null : ref,
     });
   };
 
@@ -99,7 +99,22 @@ export function RingList(): JSX.Element {
     dispatch({ type: "SELECT_RING", selection: null });
   };
 
-  const rings = [...iterateRings(outline)];
+  // A shared exclusion has several storage references but is one user object.
+  const rings: { ref: RingRef; ring: (typeof outline)[number]["outer"]; references: RingRef[]; holeNumber?: number }[] = [];
+  const holes = new Map<string, typeof rings[number]>();
+  for (const { ref, ring } of iterateRings(outline)) {
+    if (ref.ringIndex === OUTER_RING) rings.push({ ref, ring, references: [ref] });
+    else {
+      const key = traceRingKey(ring);
+      const existing = holes.get(key);
+      if (existing) existing.references.push(ref);
+      else {
+        const entry = { ref, ring, references: [ref], holeNumber: holes.size + 1 };
+        holes.set(key, entry);
+        rings.push(entry);
+      }
+    }
+  }
   // A shell may only be deleted while another shape survives; deleting the
   // last one would leave the holes with nothing to belong to.
   const shellCount = outline.length;
@@ -108,9 +123,9 @@ export function RingList(): JSX.Element {
   return (
     <div className="space-y-2">
     <ul className="space-y-0.5">
-      {rings.map(({ ref, ring }) => {
+      {rings.map(({ ref, ring, references, holeNumber }) => {
         const isOuter = ref.ringIndex === OUTER_RING;
-        const isSelected = sameRingRef(selection, ref);
+        const isSelected = references.some(reference => sameRingRef(selection, reference));
         const canDelete = isOuter ? shellCount > 1 : true;
 
         return (
@@ -124,7 +139,7 @@ export function RingList(): JSX.Element {
               <button
                 type="button"
                 className="flex min-w-0 flex-1 items-center gap-2 text-left"
-                onClick={() => select(ref)}
+                onClick={() => select(ref, references)}
                 aria-pressed={isSelected}
               >
                 {isOuter ? (
@@ -135,15 +150,16 @@ export function RingList(): JSX.Element {
                 <span className="truncate">
                   {isOuter
                     ? `Shape ${ref.shapeIndex + 1}`
-                    : `Hole ${ref.ringIndex + 1}`}
+                    : `Hole ${holeNumber}`}
                 </span>
+                {references.length > 1 && <span className="shrink-0 text-muted-foreground" title={`Shared by ${references.length} pockets`}>Shared</span>}
                 <span className="ml-auto shrink-0 tabular-nums text-muted-foreground">
                   {ring.length} pts · {describeArea(ringArea(ring))}
                 </span>
               </button>
 
               <select
-                aria-label={`${isOuter ? `Shape ${ref.shapeIndex + 1}` : `Hole ${ref.ringIndex + 1} of shape ${ref.shapeIndex + 1}`} type`}
+                aria-label={`${isOuter ? `Shape ${ref.shapeIndex + 1}` : `Hole ${holeNumber} of shape ${ref.shapeIndex + 1}`} type`}
                 className="h-7 max-w-24 rounded border border-input bg-background px-1 text-xs"
                 value={isOuter ? "pocket" : "hole"}
                 disabled={processing || changingRole}
@@ -161,7 +177,7 @@ export function RingList(): JSX.Element {
                 aria-label={
                   isOuter
                     ? `Delete shape ${ref.shapeIndex + 1}`
-                    : `Delete hole ${ref.ringIndex + 1}`
+                    : `Delete hole ${holeNumber}`
                 }
               >
                 <Trash2 className="h-3 w-3" />

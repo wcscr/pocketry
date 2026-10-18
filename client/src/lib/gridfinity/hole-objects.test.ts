@@ -73,3 +73,54 @@ it("blocks invalid or pending hole volumes instead of silently omitting their pr
   expect(validateLayout(spec, [pocket, { ...hole, depthPending: true }], byId).some(issue => issue.code === "pocket-depth-needed")).toBe(true);
   expect(validateLayout(spec, [pocket, { ...hole, tilt: { xDeg: 90, yDeg: 0 } }], byId).some(issue => issue.code === "invalid-pocket-tilt")).toBe(true);
 });
+
+it.each([PREVIEW_QUALITY, EXPORT_QUALITY])("reports loose retained islands and floating caps at $circularSegments quality", async quality => {
+  await withKernel(kernel => {
+    for (const cutouts of [
+      [{ ...pocket, depth: { mode: "through" as const } }, hole],
+      [pocket, { ...hole, depth: { mode: "mm" as const, value: 5 } }],
+      [pocket, { ...hole, depth: { mode: "mm" as const, value: 5 }, tilt: { xDeg: 10, yDeg: 0 } }],
+    ]) {
+      const built = buildBinWithCutouts(kernel, spec, { shapesById: byId, cutouts, fingerHoles: [] }, quality);
+      expect(built.solid.decompose().map(part => kernel.arena.track(part))).toHaveLength(2);
+      expect(built.validationIssues).toContainEqual(expect.objectContaining({
+        code: "disconnected-retained-material", severity: "error", cutoutIds: [hole.id],
+        message: expect.stringContaining("pocket floor or wall"),
+      }));
+    }
+  });
+});
+
+it("allows retained caps and overlapping holes connected to a floor or wall", async () => {
+  await withKernel(kernel => {
+    const shallow = { ...hole, depth: { mode: "mm" as const, value: 5 } };
+    const deep = { ...hole, id: "deep", position: { x: 8, y: 1 }, depth: { mode: "mm" as const, value: 10 } };
+    const bridge = { ...hole, id: "bridge", position: { x: 10, y: 1 }, scaleX: 2 };
+    const split = { ...hole, split: { boundary: [{ x: 0, y: -3 }, { x: 0, y: 3 }],
+      depths: [{ mode: "mm" as const, value: 5 }, { mode: "mm" as const, value: 10 }] as [typeof shallow.depth, typeof deep.depth] } };
+    for (const cutouts of [
+      [pocket, { ...shallow, position: { x: 15, y: 0 } }],
+      [pocket, shallow, deep],
+      [{ ...pocket, depth: { mode: "through" as const } }, hole, bridge],
+      [pocket, split],
+      [pocket, { ...hole, tilt: { xDeg: 10, yDeg: 0 } }],
+    ]) {
+      const built = buildBinWithCutouts(kernel, spec, { shapesById: byId, cutouts, fingerHoles: [] }, EXPORT_QUALITY);
+      expect(built.solid.decompose().map(part => kernel.arena.track(part))).toHaveLength(1);
+      expect(built.validationIssues.filter(issue => issue.code === "disconnected-retained-material")).toEqual([]);
+    }
+  });
+});
+
+it("does not blame a remote hole for an existing embedded through island", async () => {
+  const embedded = { ...pocketShape, outlineMm: [{ outer: pocketShape.outlineMm[0].outer,
+    holes: [holeShape.outlineMm[0].outer.slice().reverse()] }] };
+  const localShapes = new Map([[embedded.id, embedded], [holeShape.id, holeShape]]);
+  const cutouts = [{ ...pocket, depth: { mode: "through" as const } }, { ...hole, position: { x: 100, y: 0 } }];
+  expect(validateLayout(spec, cutouts, localShapes)).toContainEqual(expect.objectContaining({ code: "through-island", severity: "error" }));
+  await withKernel(kernel => {
+    const built = buildBinWithCutouts(kernel, spec, { shapesById: localShapes, cutouts, fingerHoles: [] }, EXPORT_QUALITY);
+    expect(built.solid.decompose().map(part => kernel.arena.track(part))).toHaveLength(2);
+    expect(built.validationIssues.filter(issue => issue.code === "disconnected-retained-material")).toEqual([]);
+  });
+});

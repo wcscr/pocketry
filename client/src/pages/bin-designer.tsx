@@ -1269,6 +1269,7 @@ function BinDesignerWorkspace(): JSX.Element {
           </div>}
           <div className="relative min-h-0 flex-1">
           <CanvasWarnings
+            holeIds={new Set(bin.cutouts.filter(cutout => cutout.role === "hole").map(cutout => cutout.id))}
             issues={issues.filter(issue => issue.code !== "pocket-depth-needed")}
             selectedCutoutId={bin.selectedCutoutId}
             selectedFingerHoleId={bin.selectedFingerHoleId}

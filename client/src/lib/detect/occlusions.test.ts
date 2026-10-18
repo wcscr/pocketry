@@ -42,7 +42,9 @@ describe("recognized aid occlusion", () => {
       const image = photograph(placement);
       const field = engine === "js" ? buildScoreFieldJS(image) : buildScoreFieldOpenCV(cv, image);
       const before = field.score.slice();
-      const inferred = restoreOccludedScore(field, [footprint]);
+      const regions: Ring[] = [];
+      const inferred = restoreOccludedScore(field, [footprint], regions);
+      expect(regions).toEqual(placement === "edge" ? [footprint] : []);
       const outline = outlines(field);
       expect(inferred).toBe(placement === "edge");
       expect(outline).toHaveLength(1);
@@ -82,6 +84,15 @@ describe("recognized aid occlusion", () => {
       expect(result.outline[0].holes).toHaveLength(1);
       expect(outlineArea(result.rawOutline)).toBeCloseTo(outlineArea(result.outline), 5);
       expect(notices).toEqual(placement === "edge" ? ["Review the edge beneath the measurement aid"] : []);
+      expect(result.estimatedEdgeRegions).toEqual(placement === "edge" ? [footprint] : []);
     }
   });
+});
+
+it("returns estimated areas in the same source frame as a cropped trace", async () => {
+  const result = await processImage(photograph("edge"), {
+    region: { originalRegion: { x: 20, y: 30, width: 180, height: 160 }, isCropped: true },
+    detect: { engine: "js", occlusions: [footprint], smoothing: 0, tolerancePx: 0 },
+  });
+  expect(result.estimatedEdgeRegions).toEqual([footprint.map(p => ({ x: p.x + 20, y: p.y + 30 }))]);
 });

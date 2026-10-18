@@ -422,6 +422,7 @@ function validateAgainstBin(spec: BinSpec, p: PlacedCutout): ValidationIssue[] {
   }];
   // A retained volume cannot cut a wall or floor. Its transform and source are
   // still validated above, and a missing depth must never silently drop it.
+  // The geometry worker checks whether retained material connects to the bin.
   if (cutout.role === "hole") return [];
 
   const halfW = binFootprintMm(spec.gridX, spec.gridPitch) / 2;

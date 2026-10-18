@@ -47,8 +47,9 @@ export function selectionCenter(objects: readonly EditableObject[]): Point {
 export function pickObject(objects: readonly EditableObject[], point: Point,
   pocketGeometry?: ReadonlyMap<string, { full: Outline }>,
 ): ObjectRef | null {
-  // Access slots take priority where their mouths overlap a pocket.
-  const ordered = [...objects.filter(o => o.kind === "pocket"), ...objects.filter(o => o.kind === "finger")];
+  // Match Layout stacking: retained holes above pockets, access slots above both.
+  const ordered = [...objects.filter(o => o.kind === "pocket" && o.cutout.role !== "hole"),
+    ...objects.filter(o => o.kind === "pocket" && o.cutout.role === "hole"), ...objects.filter(o => o.kind === "finger")];
   const hit = ordered.reverse().find(o => pointInOutline(
     o.kind === "pocket" ? pocketGeometry?.get(o.cutout.id)?.full ?? objectOutline(o) : objectOutline(o), point));
   return hit ? objectRef(hit) : null;
