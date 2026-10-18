@@ -43,6 +43,9 @@ export function BinObjectMenuProvider({ children, onProperties }: {
     ...bin.fingerHoles.map((h, i) => [h.id, h.name ?? `Finger access ${i + 1}`] as const),
     ...bin.spec.surfaceTexts.map(label => [label.id, surfaceTextName(label)] as const),
   ]);
+  const renameNoun = target?.kind === "pocket"
+    ? bin.cutouts.find(c => c.id === target.id)?.role === "hole" ? "hole" : "pocket"
+    : target?.kind === "finger" ? "finger access" : "surface text";
   const owner = target?.kind === "hole" ? bin.cutouts.find(c => c.id === target.id) : null;
   const ownerShape = owner ? shapes.find(shape => shape.id === owner.shapeId) : null;
   const exists = !!target && labels.has(target.id) && (target.kind !== "hole" || owner?.shapeId === target.shapeId && !!ownerShape && !!getRing(ownerShape.outlineMm, target.ref));
@@ -97,7 +100,7 @@ export function BinObjectMenuProvider({ children, onProperties }: {
   const rename = () => {
     if (!target || target.kind === "hole" || !name.trim() || !exists) return;
     if (target.kind === "text") bin.dispatch({ type: "PATCH_SPEC", patch: { surfaceTexts: bin.spec.surfaceTexts.map(label => label.id === target.id ? { ...label, name: name.trim() } : label) }, historyLabel: "Rename surface text" });
-    else if (target.kind === "pocket") bin.dispatch({ type: "UPDATE_CUTOUT", id: target.id, patch: { name: name.trim() }, historyLabel: "Rename pocket" });
+    else if (target.kind === "pocket") bin.dispatch({ type: "UPDATE_CUTOUT", id: target.id, patch: { name: name.trim() }, historyLabel: `Rename ${renameNoun}` });
     else bin.dispatch({ type: "UPDATE_FINGER_HOLE", id: target.id, patch: { name: name.trim() }, historyLabel: "Rename finger access" });
     setRenaming(false);
   };
@@ -133,7 +136,7 @@ export function BinObjectMenuProvider({ children, onProperties }: {
     </DialogContent></Dialog>
     <Dialog open={renaming} onOpenChange={setRenaming}><DialogContent onCloseAutoFocus={restoreFocus}>
       <form onSubmit={event => { event.preventDefault(); rename(); }} className="space-y-4">
-        <DialogHeader><DialogTitle>Rename {target?.kind === "pocket" ? "pocket" : target?.kind === "finger" ? "finger access" : "surface text"}</DialogTitle><DialogDescription>Names apply to this copy only.</DialogDescription></DialogHeader>
+        <DialogHeader><DialogTitle>Rename {renameNoun}</DialogTitle><DialogDescription>Names apply to this copy only.</DialogDescription></DialogHeader>
         <Input aria-label="Object name" value={name} onChange={event => setName(event.target.value)} />
         <DialogFooter><Button type="button" variant="outline" onClick={() => setRenaming(false)}>Cancel</Button><Button type="submit" disabled={!name.trim()}>Save name</Button></DialogFooter>
       </form>

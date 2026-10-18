@@ -8275,10 +8275,10 @@ it('Layout context menus expose retained-hole actions through the parent and und
   } finally { unmount(); }
 });
 
-it('context menus leave native name editing alone and rename only the clicked copy', async () => {
+it.each(["pocket", "hole"])("context menus leave native name editing alone and rename the clicked %s with matching wording", async kind => {
   window.history.replaceState(null, '', '/bin?layout=standard');
   const shape = rectangularShape('name-context', 'Tool');
-  const cutout = parseCutoutPlacement({ id: 'name-context-pocket', shapeId: shape.id, position: { x: 0, y: 0 } });
+  const cutout = parseCutoutPlacement({ id: 'name-context-pocket', shapeId: shape.id, role: kind === 'hole' ? 'hole' : undefined, position: { x: 0, y: 0 } });
   vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape], cutouts: [cutout] });
   const { container, unmount } = renderPage({ experimental: false });
   try {
@@ -8289,10 +8289,12 @@ it('context menus leave native name editing alone and rename only the clicked co
     expect(native.defaultPrevented).toBe(false); expect(document.querySelector('[role="menu"]')).toBeNull();
     React.act(() => container.querySelector('[aria-label="Pocket name"]')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
     openObjectContext(container.querySelector('[data-testid="cutout-row-name-context-pocket"]')!); contextCommand('Rename…');
+    expect(document.querySelector('[role="dialog"] h2')!.textContent).toBe(`Rename ${kind}`);
     const input = document.querySelector<HTMLInputElement>('[aria-label="Object name"]')!;
     React.act(() => { const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!; setter.call(input, 'Socket'); input.dispatchEvent(new Event('input', { bubbles: true })); });
     React.act(() => input.closest('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })));
-    expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0].name).toBe('Socket');
+    expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toEqual([{ ...cutout, name: 'Socket' }]);
+    expect(binHistoryButton(container, 'undo').getAttribute('aria-label')).toBe(`Undo Rename ${kind}`);
     clickBinHistory(container, 'undo'); expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toEqual([cutout]);
   } finally { unmount(); }
 });
