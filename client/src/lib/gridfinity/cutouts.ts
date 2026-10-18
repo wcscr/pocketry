@@ -1,11 +1,12 @@
 // Type-only import: the kernel is injected (see `Kernel` in ../manifold/runtime).
-import type { Manifold } from "manifold-3d";
+import type { Manifold, Vec2 } from "manifold-3d";
 import { hasPocketTilt, pocketAxis } from "@shared/gridfinity/pocket-orientation";
 import { hasRigidPocket, pocketRotation, rigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { pocketInsertionAxis, pocketInsertionError } from "@shared/gridfinity/pocket-insertion";
 import { rotateObjectVector } from "@shared/gridfinity/object-pose";
 import { buildObjectCavity } from "./object-cavity";
 import { directionalInsertionCutter } from "./insertion-sweep";
+import { clipExtrusionBands, planarInsertionCutter } from "./planar-insertion-sweep";
 
 import {
   effectiveDeepScoopDepthMm,
@@ -46,6 +47,7 @@ import { buildProfileBottomCutout } from "./profile-bottom";
 import { buildRoundedFingerAccessCutter } from "./finger-access-rounding";
 import {
   bottomFilletCutter,
+  type ExtrusionBand,
   FILLET_PROFILE_STEP_MM,
   topEdgeFilletCutter,
 } from "./fillet-stack";
@@ -143,6 +145,8 @@ export interface CutoutBuildOptions {
   floorInsertThicknessMm?: number;
   /** Internal axial frame: extend the shaft enough to clear the real bin. */
   axialHeadroomMm?: number;
+  /** Internal capture of the finite source before posing or insertion clearance. */
+  sourceBands?: ExtrusionBand[];
 }
 
 const BIN_LOCAL_PLACEMENT = {
@@ -576,8 +580,11 @@ function buildCutoutCuttersInternal(
       let emptied = false;
       for (const [index, depth] of cutout.split.depths.entries()) {
         if (sameDepth && index !== shallowIndex) continue;
-        const part = buildCutoutCutters(kernel, shapesById, [{ ...cutout, split: undefined, depth, topFilletMm }], spec, quality, options);
+        const partBands: ExtrusionBand[] | undefined = options.sourceBands ? [] : undefined;
+        const part = buildCutoutCutters(kernel, shapesById, [{ ...cutout, split: undefined, depth, topFilletMm }], spec, quality,
+          { ...options, sourceBands: partBands });
         if (sameDepth) {
+          if (partBands) options.sourceBands!.push(...partBands);
           cutters.push(...part.cutters);
           floorInserts.push(...part.floorInserts);
           emptied ||= part.reports.some(report => report.emptied);
@@ -595,6 +602,8 @@ function buildCutoutCuttersInternal(
         // deep side. Opposing trims of independently built solids can disagree
         // by a rounding error and leave a zero-thickness wall above the shelf.
         cutters.push(...(index === shallowIndex ? part.cutters : sectionCutters));
+        if (partBands) options.sourceBands!.push(...(index === shallowIndex ? partBands
+          : clipExtrusionBands(kernel, partBands, [nx * side, ny * side], (nx * a.x + ny * a.y) * side)));
         floorInserts.push(...part.floorInserts.map(trim));
       }
       reports.push({ id: cutout.id, emptied });
@@ -675,11 +684,14 @@ function buildCutoutCuttersInternal(
           );
         }
       }
+      const bands: ExtrusionBand[] | undefined = options.sourceBands ? [] : undefined;
       const localCutter = bottomFilletCutter(kernel, section, pocket.cutterTopZ - pocket.floorZ, {
         radiusMm: Math.max(effectiveFillet, 0),
         profileStepMm: filletProfileStepMm,
         circularSegments: segments,
-      });
+      }, bands);
+      if (bands) options.sourceBands!.push(...bands.map(band => ({ ...band,
+        bottom: band.bottom + pocket.floorZ! })));
       cutter = arena.track(localCutter.translate([0, 0, pocket.floorZ]));
     }
 
@@ -726,7 +738,11 @@ export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: Cut
   const local = {...cutout,position:{x:0,y:0},rotationDeg:0,tilt:undefined,
     elevationMm:undefined,zOffsetMm:undefined,insertionMode:undefined,depth:depths[0],topFilletMm:0,
     split:cutout.split ? {...cutout.split,depths:[depths[0],depths[1]] as [typeof depths[number],typeof depths[number]]} : undefined};
-  const built = buildCutoutCuttersInternal(kernel,new Map([[shape.id,shape]]),[local],localSpec,quality,{axialHeadroomMm:0});
+  const lateralAxis = cutout.insertionMode === "axis" && cutout.insertionAxis && cutout.insertionAxis !== "z"
+    ? cutout.insertionAxis : null;
+  const sourceBands: ExtrusionBand[] | undefined = lateralAxis ? [] : undefined;
+  const built = buildCutoutCuttersInternal(kernel,new Map([[shape.id,shape]]),[local],localSpec,quality,{axialHeadroomMm:0,sourceBands});
+  const localBands = sourceBands?.map(band => ({ ...band, bottom: band.bottom - localTop }));
   const source = arena.track(Manifold.union(built.cutters.map(s => arena.track(s.translate([0,0,-localTop])))));
   const anchor = source;
   const pose = { rotation: pocketRotation(cutout), position: cutout.position, elevationMm: cutout.elevationMm ?? 0 };
@@ -734,29 +750,41 @@ export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: Cut
   // through the surface, while an object wholly above the bin leaves no cut.
   let cutter = buildObjectCavity(kernel, source, pose, cutout.insertionMode ? Infinity : top, anchor);
   const projectedSource = cutter && cutout.insertionMode === "vertical" ? arena.track(arena.track(cutter.project()).simplify(0.0001)) : null;
-  // Generated pockets are extrusions with a rounded underside. Along their
-  // own axis, extend the native shaft before posing instead of sweeping every
-  // mesh triangle. Complex photo traces otherwise create hundreds of thousands
-  // of overlapping prisms. Keep the finite source as the placement anchor.
+  // Sweep native sections in the authored frame: X/Y extend each horizontal
+  // band, while Z extends the shaft. Complex photo traces otherwise require
+  // hundreds of thousands of triangle prisms. Keep the finite source anchor.
   let insertionSource = source;
+  let lateralDelta: Vec2 | null = null;
   if (cutter && cutout.insertionMode === "axis") {
     const axis = pocketInsertionAxis(cutout);
     const ceiling = Math.max(realTop, cutter.boundingBox().max[2], Number.isFinite(top) ? top : realTop) + 1;
     const travel = (ceiling - cutter.boundingBox().min[2]) / axis.z;
-    const localUp = rotateObjectVector({ x: 0, y: 0, z: 1 }, pose.rotation).z > 0;
-    // Slice inside the common straight shaft, above every bottom fillet.
-    // Extend this cap without rebuilding the rounded source: the very long
-    // shafts needed near horizontal must not perturb the original seat.
-    const capZ = -Math.min(...dimensions) / 4;
-    const cap = arena.track(source.slice(capZ));
-    if (localUp) {
-      const shaft = arena.track(arena.track(cap.extrude(travel - capZ)).translate([0, 0, capZ]));
-      insertionSource = arena.track(source.add(shaft));
+    if (lateralAxis && localBands) {
+      const basis = lateralAxis === "x" ? { x: 1, y: 0, z: 0 } : { x: 0, y: 1, z: 0 };
+      const sign = rotateObjectVector(basis, pose.rotation).z < 0 ? -1 : 1;
+      lateralDelta = lateralAxis === "x" ? [travel * sign, 0] : [0, travel * sign];
+      if (!cutout.split || !depthSpecs.some(depth => depth.mode === "remaining")) {
+        // Each swept band already contains its original section. Adding the
+        // source again creates coincident sheets that collapse in STL's Float32
+        // coordinates, even when indexed kernel topology remains manifold.
+        insertionSource = planarInsertionCutter(kernel, localBands, lateralDelta);
+      }
     } else {
-      // Inverted insertion carries the full top cap past every lower seat,
-      // clearing its bottom rounding and any split-depth shelf along the way.
-      const bottom = source.boundingBox().min[2] - travel;
-      insertionSource = arena.track(arena.track(cap.extrude(-bottom)).translate([0, 0, bottom]));
+      const localUp = rotateObjectVector({ x: 0, y: 0, z: 1 }, pose.rotation).z > 0;
+      // Slice inside the common straight shaft, above every bottom fillet.
+      // Extend this cap without rebuilding the rounded source: the very long
+      // shafts needed near horizontal must not perturb the original seat.
+      const capZ = -Math.min(...dimensions) / 4;
+      const cap = arena.track(source.slice(capZ));
+      if (localUp) {
+        const shaft = arena.track(arena.track(cap.extrude(travel - capZ)).translate([0, 0, capZ]));
+        insertionSource = arena.track(source.add(shaft));
+      } else {
+        // Inverted insertion carries the full top cap past every lower seat,
+        // clearing its bottom rounding and any split-depth shelf along the way.
+        const bottom = source.boundingBox().min[2] - travel;
+        insertionSource = arena.track(arena.track(cap.extrude(-bottom)).translate([0, 0, bottom]));
+      }
     }
     cutter = buildObjectCavity(kernel, insertionSource, pose, Infinity, anchor);
   }
@@ -782,7 +810,10 @@ export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: Cut
     const pieces = depthSpecs.flatMap((depth,i) => {
       const sign = (cutout.mirrored ? -1 : 1)*(i === 0 ? 1 : -1);
       const nx = -(b.y-a.y)/length*sign, ny = (b.x-a.x)/length*sign;
-      const part = arena.track(insertionSource.trimByPlane([nx,ny,0],nx*a.x+ny*a.y));
+      const part = lateralDelta && localBands
+        ? planarInsertionCutter(kernel,
+          clipExtrusionBands(kernel, localBands, [nx, ny], nx*a.x+ny*a.y), lateralDelta)
+        : arena.track(insertionSource.trimByPlane([nx,ny,0],nx*a.x+ny*a.y));
       const posed = buildObjectCavity(kernel,part,pose,Infinity,anchor);
       return posed ? [clearAndLimit(posed,depth)] : [];
     });

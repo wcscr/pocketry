@@ -70,9 +70,10 @@ export { serializeProjectDoc } from "./project-font-sources";
  * Version 36 saves each project's colors and material-region settings.
  * Version 37 preserves traced pockets that still need a depth before printing.
  * Version 38 adds independent, editable retained-material hole objects.
+ * Version 39 adds a local X/Y/Z insertion axis; older pockets keep local Z.
  */
 
-export const PROJECT_SCHEMA_VERSION = 38 as const;
+export const PROJECT_SCHEMA_VERSION = 39 as const;
 
 const projectFields = {
   shapes: z.array(tracedShapeSchema),
@@ -297,7 +298,7 @@ function parseProjectInput(input: unknown): ProjectDoc | null {
     input = expandProjectFontSources(input);
   }
   if (input && typeof input === "object" && !Array.isArray(input)
-      && [26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37].includes((input as Record<string, unknown>).schemaVersion as number)) {
+      && [26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38].includes((input as Record<string, unknown>).schemaVersion as number)) {
     // Strict current schemas still reject unsupported data from version-27 prototypes.
     return parseProjectDoc({ ...input, schemaVersion: PROJECT_SCHEMA_VERSION });
   }

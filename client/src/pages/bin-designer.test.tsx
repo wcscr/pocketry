@@ -1712,7 +1712,16 @@ describe("BinDesignerPage", () => {
       expect(container.querySelector('[aria-label="Use profile as bottom"]')).toBeNull();
       expect(container.querySelector('[aria-label="Pocket depth mode"]')).not.toBeNull();
       expect(container.querySelector('[data-testid="pocket-edge-settings"]')).not.toBeNull();
-      edit("Pocket X rotation in degrees","135"); edit("Pocket Y rotation in degrees","-24");
+      edit("Pocket X rotation in degrees","135");
+      const clearanceDialog = document.querySelector('[data-testid="pocket-clearance-dialog"]');
+      expect(clearanceDialog).not.toBeNull();
+      await React.act(async () => {
+        [...clearanceDialog!.querySelectorAll<HTMLButtonElement>("button")]
+          .find(button => button.textContent === "Keep current settings")!.click();
+        await new Promise(resolve => setTimeout(resolve, 5));
+      });
+      expect(document.querySelector('[data-testid="pocket-clearance-dialog"]')).toBeNull();
+      edit("Pocket Y rotation in degrees","-24");
       edit("Pocket elevation in millimetres","80");
       expect(latest().tilt).toEqual({xDeg:135,yDeg:-24});
       expect(latest().elevationMm).toBe(80);

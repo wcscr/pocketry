@@ -12,6 +12,7 @@ import { defaultPocketFloorThicknessMm, pocketDepths, pocketName, resolvePocketD
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { PendingPocketDepthPrompt } from "@/components/gridfinity/pocket-depth-question";
+import { PocketClearanceDialog } from "@/components/gridfinity/pocket-clearance-dialog";
 import { CanvasWarnings } from "@/components/gridfinity/canvas-warnings";
 import { validateBinSpec, validateLayout, validatePocketFloorMaterials, type ValidationIssue } from "@shared/gridfinity/validate";
 import { issueSettingsTarget } from "@/lib/gridfinity/issue-settings";
@@ -103,6 +104,7 @@ export default function BinDesignerPage(): JSX.Element {
   return (
     <BinProvider>
       <BinDesignerWorkspace />
+      <PocketClearanceDialog />
     </BinProvider>
   );
 }

@@ -594,6 +594,8 @@ const cutoutPlacementInputSchema = z
     elevationMm: z.number().finite().min(0).max(300).optional(),
     /** Optional upward clearance; absent preserves the finite authored pocket. */
     insertionMode: z.enum(["axis", "vertical"]).optional(),
+    /** Local object axis for axial insertion; absent retains the original Z axis. */
+    insertionAxis: z.enum(["x", "y", "z"]).optional(),
     /** CCW-positive in the y-up bin frame. */
     rotationDeg: z.number().finite().default(0),
     /** X/Y orientation in the authored frame; Z heading remains rotationDeg. */
@@ -700,7 +702,7 @@ export function parseCutoutPlacement(input: unknown): CutoutPlacement {
 export type PlacementTransform = Pick<
   CutoutPlacement,
   "position" | "rotationDeg" | "mirrored"
-> & Partial<Pick<CutoutPlacement, "scaleX" | "scaleY" | "tilt" | "zOffsetMm" | "profileBottom" | "profileRotation" | "elevationMm" | "depth" | "split" | "insertionMode">>;
+> & Partial<Pick<CutoutPlacement, "scaleX" | "scaleY" | "tilt" | "zOffsetMm" | "profileBottom" | "profileRotation" | "elevationMm" | "depth" | "split" | "insertionMode" | "insertionAxis">>;
 
 /** Applies scale → mirror → rotate → translate to one shape-local point. */
 export function transformPointPlacement(

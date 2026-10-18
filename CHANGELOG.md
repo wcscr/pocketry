@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Choose object X, Y, or Z for pocket insertion clearance. The first 3D tilt prompts for clearance style and axis, with another prompt if a later rotation makes that axis invalid.
 - Fix distorted tilted cutouts and striped floor colors for complex traces, and speed up full-detail exports along the pocket axis.
 
 - Default new pockets without a chosen depth to the bin floor so they appear immediately in the 3D preview.

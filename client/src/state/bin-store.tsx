@@ -1,3 +1,5 @@
+import { rotatePocketVector } from "@shared/gridfinity/pocket-orientation";
+import { pocketInsertionError } from "@shared/gridfinity/pocket-insertion";
 import { surfaceTextSchema, type SurfaceText } from "@shared/gridfinity/surface-text";
 import { sameJsonData } from "@shared/json-data-equal";
 import { adjustPocketsForFillHeight, reconcileFillHeightReferences } from "@shared/gridfinity/fill-height-edit";
@@ -44,6 +46,8 @@ export type BinEditorMode = "placement" | "contour" | "footprint" | "label-edge"
 
 const BIN_SIZE_KEYS = ["gridX", "gridY", "gridPitch", "heightUnits", "lip", "fillHeightPercent"] as const;
 
+export interface PendingPocketClearance { cutoutIds: string[]; checkpoint: BinHistory }
+
 export interface BinState {
   /** Session-only permissions and field ownership; never serialized. */
   experimentalEditing: boolean;
@@ -64,6 +68,9 @@ export interface BinState {
   selectedSurfaceTextId: string | null;
   /** Pocket awaiting the user's remove/resize decision. */
   pendingRemovalId: string | null;
+  /** Session-only guidance after a committed rotation; never part of project history. */
+  pendingPocketClearance: PendingPocketClearance | null;
+  clearancePromptedIds: string[];
   viewMode: BinViewMode;
   /** Active interaction grammar in the 2D layout view. */
   editorMode: BinEditorMode;
@@ -90,6 +97,8 @@ export type BinAction = (
   | { type: "SET_TEXT_TOOL"; tool: "translate" | "rotate" }
   | { type: "SET_TEXT_SNAP"; snap: boolean }
   | { type: "CANCEL_PREVIEW"; expectedHistory: BinHistory }
+  | { type: "DISMISS_POCKET_CLEARANCE"; checkpoint: BinHistory }
+  | { type: "APPLY_POCKET_CLEARANCE"; checkpoint: BinHistory; edits: ObjectEdits }
   | { type: "BEGIN_FIELD_EDIT"; owner: string; token: string }
   | { type: "FIELD_VALIDITY"; valid: boolean }
   | { type: "FINISH_FIELD_EDIT"; cancel?: boolean }
@@ -200,6 +209,8 @@ const INITIAL: BinState = {
   selectedFingerHoleId: null,
   selectedSurfaceTextId: null,
   pendingRemovalId: null,
+  pendingPocketClearance: null,
+  clearancePromptedIds: [],
   viewMode: "3d",
   editorMode: "placement",
   hydrated: false,
@@ -233,6 +244,27 @@ function copyNameAllocator(state: BinDoc, labels?: ReadonlyMap<string, string>):
   };
 }
 
+/** Inclination ignores bin Z heading and equivalent full-turn Euler values. */
+function pocketInclination(cutout: CutoutPlacement): number[] {
+  return [{ x: 1, y: 0, z: 0 }, { x: 0, y: 1, z: 0 }, { x: 0, y: 0, z: 1 }]
+    .map(axis => rotatePocketVector(axis, cutout).z);
+}
+function isInclinedPocket(cutout: CutoutPlacement): boolean {
+  return !cutout.profileBottom && pocketInclination(cutout).some((value, i) => Math.abs(value - (i === 2 ? 1 : 0)) > 1e-9);
+}
+function clearancePromptIds(state: BinState, doc: BinDoc): string[] {
+  const previous = new Map(getCommittedBinDoc(state).cutouts.map(c => [c.id, c]));
+  const prompted = new Set(state.clearancePromptedIds);
+  return doc.cutouts.filter(next => {
+    const before = previous.get(next.id);
+    if (!before || before.profileBottom || next.profileBottom) return false;
+    const inclination = pocketInclination(before);
+    if (!pocketInclination(next).some((value, i) => Math.abs(value - inclination[i]) > 1e-9)) return false;
+    return !prompted.has(next.id) && !isInclinedPocket(before) && isInclinedPocket(next)
+      || before.insertionMode === "axis" && !pocketInsertionError(before) && !!pocketInsertionError(next);
+  }).map(c => c.id);
+}
+
 /** Applies a material change: new doc becomes present, redo tail is cut. */
 function commit(
   state: BinState,
@@ -247,6 +279,8 @@ function commit(
     { doc, label },
   ];
   const overflow = Math.max(0, stack.length - BIN_HISTORY_LIMIT);
+  const history = { stack: stack.slice(overflow), index: stack.length - 1 - overflow };
+  const cutoutIds = clearancePromptIds(state, doc);
   return {
     ...state,
     ...rest,
@@ -256,7 +290,9 @@ function commit(
     spec: doc.spec,
     cutouts: doc.cutouts,
     fingerHoles: doc.fingerHoles,
-    history: { stack: stack.slice(overflow), index: stack.length - 1 - overflow },
+    history,
+    pendingPocketClearance: cutoutIds.length ? { cutoutIds, checkpoint: history } : null,
+    clearancePromptedIds: [...new Set([...state.clearancePromptedIds, ...doc.cutouts.filter(isInclinedPocket).map(c => c.id)])],
   };
 }
 
@@ -383,6 +419,15 @@ function changesLinkedDesign(before: BinDoc, after: BinDoc): boolean {
 }
 
 export function binReducer(state: BinState, action: BinAction): BinState {
+  if (action.type === "DISMISS_POCKET_CLEARANCE" || action.type === "APPLY_POCKET_CLEARANCE") {
+    if (state.pendingPocketClearance?.checkpoint !== action.checkpoint || state.history !== action.checkpoint) return state;
+    if (action.type === "DISMISS_POCKET_CLEARANCE") return { ...state, pendingPocketClearance: null };
+    // A response belongs only to this committed rotation, never to a live field
+    // preview or a document changed while the dialog was open.
+    if (state.fieldEdit || state.pendingHistoryLabel) return state;
+    const next = binReducer(state, { type: "UPDATE_OBJECTS", edits: action.edits, historyLabel: "Choose pocket clearance" });
+    return next.editError ? next : { ...next, pendingPocketClearance: null };
+  }
   if (action.fieldEditToken && (state.fieldEdit?.token !== action.fieldEditToken || state.fieldEdit.checkpoint !== state.history)) return state;
   if (action.type === "BEGIN_FIELD_EDIT") {
     state = finishFieldEdit(state);
@@ -397,6 +442,7 @@ export function binReducer(state: BinState, action: BinAction): BinState {
       pendingHistoryLabel: null, editError: null, ...(!action.enabled ? { editorMode: "placement" as const } : {}) };
   }
   const restoring = ["HYDRATE", "UNDO", "REDO", "JUMP_TO_HISTORY"].includes(action.type);
+  if (restoring && state.pendingPocketClearance) state = { ...state, pendingPocketClearance: null };
   if (!action.fieldEditToken) state = finishFieldEdit(state, restoring);
   else state = { ...state, ...getCommittedBinDoc(state) };
   if (!state.experimentalEditing && ["LINK_DESIGNS", "UNLINK_DESIGNS", "SET_LINKED_TILT", "DUPLICATE_LINKED"].includes(action.type)) {
@@ -424,7 +470,8 @@ function reduceBin(state: BinState, action: BinAction): BinState {
       ? { ...state, ...getCommittedBinDoc(state), pendingHistoryLabel: null } : state;
     case "SET_TEXT_TOOL": return { ...state, textTool: action.tool };
     case "SET_TEXT_SNAP": return { ...state, textSnap: action.snap };
-    case "BEGIN_FIELD_EDIT": case "FIELD_VALIDITY": case "FINISH_FIELD_EDIT": case "SET_EDITING_CAPABILITY": return state;
+    case "BEGIN_FIELD_EDIT": case "FIELD_VALIDITY": case "FINISH_FIELD_EDIT": case "SET_EDITING_CAPABILITY":
+    case "DISMISS_POCKET_CLEARANCE": case "APPLY_POCKET_CLEARANCE": return state;
     case "HYDRATE": {
       // Replace the outgoing project's entire history. Legacy projects start
       // at one baseline; saved histories retain their undo and redo branches.
@@ -445,6 +492,11 @@ function reduceBin(state: BinState, action: BinAction): BinState {
         selectedFingerHoleId: null,
         selectedSurfaceTextId: null,
         pendingRemovalId: null,
+        pendingPocketClearance: null,
+        clearancePromptedIds: [...new Set([
+          ...doc.cutouts, ...(action.history?.stack.flatMap(entry => entry.doc.cutouts) ?? []),
+          ...(action.transformOrigins?.pockets.map(origin => origin.cutout) ?? []),
+        ].filter(isInclinedPocket).map(c => c.id))],
         editorMode: "placement",
         hydrated: true,
         pendingHistoryLabel: null,
