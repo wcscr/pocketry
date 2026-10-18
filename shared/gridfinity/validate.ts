@@ -102,7 +102,7 @@ export function validatePocketFloorMaterials(
   const recess = hasScrewBores ? "the screw holes" : "the recesses between the base feet";
   const issues: ValidationIssue[] = [];
   for (const cutout of cutouts) {
-    if (cutout.depthPending) continue;
+    if (cutout.depthPending || cutout.role === "hole") continue;
     const shape = shapesById.get(cutout.shapeId);
     for (const depth of pocketDepths(cutout)) {
       const { floorZ, depthMm } = shape ? resolvePlacedPocketDepth(spec, depth, shape, cutout) : resolvePocketDepth(spec, depth);
@@ -298,7 +298,7 @@ export function validateLayout(
   const issues: ValidationIssue[] = [];
   if (cutouts.length === 0 && fingerHoles.length === 0) return issues;
 
-  if (spec.fill !== "solid") {
+  if (spec.fill !== "solid" && (cutouts.some(c => c.role !== "hole") || fingerHoles.length > 0)) {
     issues.push({
       code: "cutouts-require-solid-fill",
       severity: "error",
@@ -369,7 +369,7 @@ export function validateLayout(
 
   for (const p of placed) {
     issues.push(...validateAgainstBin(spec, p));
-    if (hasPocketTilt(p.cutout)) {
+    if (p.cutout.role !== "hole" && hasPocketTilt(p.cutout)) {
       const occupied = pocketOccupiedOutline(p.shape, p.cutout, spec);
       const allowance = pocketLayoutAllowanceMm(p.cutout);
       if (occupied.some(s => s.outer.some(point => signedDistanceToInterior(point, spec) < allowance))) {
@@ -394,6 +394,7 @@ export function validateLayout(
   const tabStrip = labelTabStripMm(spec);
   if (tabStrip) {
     for (const p of placed) {
+      if (p.cutout.role === "hole") continue;
       const overlaps =
         p.bounds.minX < tabStrip.maxX &&
         p.bounds.maxX > tabStrip.minX &&
@@ -419,6 +420,9 @@ function validateAgainstBin(spec: BinSpec, p: PlacedCutout): ValidationIssue[] {
     code: "pocket-depth-needed", severity: "error", cutoutIds: [cutout.id],
     message: `“${label}”: Choose a pocket depth before exporting a printable bin.`,
   }];
+  // A retained volume cannot cut a wall or floor. Its transform and source are
+  // still validated above, and a missing depth must never silently drop it.
+  if (cutout.role === "hole") return [];
 
   const halfW = binFootprintMm(spec.gridX, spec.gridPitch) / 2;
   const halfL = binFootprintMm(spec.gridY, spec.gridPitch) / 2;
@@ -692,6 +696,7 @@ function segmentsIntersect(a1: Point, a2: Point, b1: Point, b2: Point): boolean 
 }
 
 function validatePair(a: PlacedCutout, b: PlacedCutout): ValidationIssue | null {
+  if (a.cutout.role === "hole" || b.cutout.role === "hole") return null;
   // Projected solids can overlap while occupying different heights. The worker
   // checks their actual intersection, including buried and raised objects.
   if (hasRigidPocket(a.cutout) || hasRigidPocket(b.cutout)) return null;

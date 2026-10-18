@@ -574,6 +574,8 @@ const cutoutPlacementInputSchema = z
   .object({
     id: z.string().min(1),
     shapeId: z.string().min(1),
+    /** Hole objects retain material wherever their volume overlaps a pocket. */
+    role: z.literal("hole").optional(),
     designLink: designLinkSchema.optional(),
     /** Unadjusted depths and mouth anchor retained for reversible fill edits. */
     fillHeightReference: z.object({

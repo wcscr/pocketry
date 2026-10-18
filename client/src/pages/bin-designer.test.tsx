@@ -625,6 +625,86 @@ describe("BinDesignerPage", () => {
       expect(await backupWidth()).toBe(5);
     } finally { unmount(); }
   });
+  it.each(["standard", "workflow"])("keeps an editable hole object through removal, undo and project reload (%s)", async layoutMode => {
+    const originalUrl = window.location.href;
+    window.history.replaceState(null, "", `/bin?layout=${layoutMode}`);
+    const pocket = rectangularShape("independent-tool", "Tool 1");
+    const hole = rectangularShape("independent-hole", "Hole 1");
+    hole.outlineMm = [{ outer: [{ x: -3, y: -2 }, { x: 3, y: -2 }, { x: 3, y: 2 }, { x: -3, y: 2 }], holes: [] }];
+    hole.bboxMm = { minX: -3, minY: -2, maxX: 3, maxY: 2 };
+    sessionStorage.setItem("pocketry:queued-tools", JSON.stringify([
+      { ...pocket, pendingDepth: { mode: "to-floor" }, pendingPlacement: { batchId: "photo", center: { x: 40, y: 70 } } },
+      { ...hole, pendingDepth: { mode: "to-floor" }, pendingPlacement: { batchId: "photo", center: { x: 42, y: 71 }, role: "hole" } },
+    ]));
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, spec: { ...EMPTY_PROJECT.spec, fill: "solid" } });
+    const first = renderPage();
+    const current = () => vi.mocked(useBinGeometry).mock.lastCall![2]!;
+    await flushHydration();
+    const retained = current().cutouts.find(c => c.role === "hole")!;
+    const tool = current().cutouts.find(c => c.role !== "hole")!;
+    expect({ x: retained.position.x - tool.position.x, y: retained.position.y - tool.position.y }).toEqual({ x: 2, y: 1 });
+    expect(retained.depth).toEqual({ mode: "through" });
+    openSettingsSection(first.container, "tool-cutouts");
+    selectPocket(first.container, retained.id);
+    const type = first.container.querySelector<HTMLSelectElement>('[aria-label="Outline type"]')!;
+    expect(type.value).toBe("hole");
+    expect(first.container.textContent).toContain("Hole properties");
+    React.act(() => { type.value = "pocket"; type.dispatchEvent(new Event("change", { bubbles: true })); });
+    expect(current().cutouts.find(c => c.id === retained.id)!.role).toBeUndefined();
+    clickBinHistory(first.container, "undo");
+    expect(current().cutouts.find(c => c.id === retained.id)!.role).toBe("hole");
+    React.act(() => first.container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
+    React.act(() => first.container.querySelector<HTMLButtonElement>('[data-testid="button-edit-contour"]')!.click());
+    const svg = first.container.querySelector<SVGSVGElement>('[data-testid="layout-canvas"]')!;
+    Object.defineProperty(svg.querySelector('g')!, 'getScreenCTM', { value: () => ({ inverse: () => ({}) }) });
+    Object.defineProperties(svg, {
+      createSVGPoint: { value: () => ({ x: 0, y: 0, matrixTransform() { return { x: this.x, y: this.y }; } }) },
+      setPointerCapture: { value: () => {} },
+    });
+    const pointer = (target: Element, type: string, x: number, y: number) => React.act(() => {
+      const event = new MouseEvent(type, { bubbles: true, button: 0, clientX: x, clientY: y });
+      Object.defineProperty(event, 'pointerId', { value: 1 }); target.dispatchEvent(event);
+    });
+    const handles = first.container.querySelectorAll<SVGCircleElement>('[data-testid="contour-vertex-handle"]');
+    expect(handles.length).toBeGreaterThan(0);
+    const handle = handles[0];
+    const x = Number(handle.getAttribute("cx")), y = Number(handle.getAttribute("cy"));
+    pointer(handle, "pointerdown", x, y);
+    pointer(svg, "pointermove", x + 2, y - 1);
+    pointer(svg, "pointerup", x + 2, y - 1);
+    const edited = current().cutouts.find(c => c.id === retained.id)!;
+    expect(edited.role).toBe("hole");
+    expect(edited.shapeId).not.toBe(hole.id);
+    expect(current().cutouts.find(c => c.id === tool.id)).toEqual(tool);
+    React.act(() => first.container.querySelector<HTMLButtonElement>('[data-testid="button-edit-contour"]')!.click());
+    openSettingsSection(first.container, "tool-cutouts");
+    if (layoutMode === "workflow") {
+      React.act(() => first.container.querySelector('[aria-label="Actions for Hole 1"]')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
+      await React.act(async () => document.querySelector<HTMLElement>('[role="menuitem"][aria-label="Remove Hole 1"]')!.click());
+    } else React.act(() => first.container.querySelector<HTMLButtonElement>(`[data-testid="button-remove-${retained.id}"]`)!.click());
+    React.act(() => document.querySelector<HTMLButtonElement>('[data-testid="button-remove-pocket-only"]')!.click());
+    expect(current().cutouts).toEqual([tool]);
+    clickBinHistory(first.container, "undo");
+    expect(current().cutouts.find(c => c.id === retained.id)).toEqual(edited);
+    openSettingsSection(first.container, "project");
+    React.act(() => first.container.querySelector<HTMLButtonElement>('[data-testid="button-export-project"]')!.click());
+    const [blob] = vi.mocked(downloadBlob).mock.lastCall!;
+    const json = await new Promise<string>(resolve => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.readAsText(blob); });
+    const saved = parseProjectDoc(JSON.parse(json))!;
+    expect(saved.cutouts.find(c => c.id === retained.id)).toEqual(edited);
+    first.unmount(); sessionStorage.clear();
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(saved);
+    const reopened = renderPage();
+    try {
+      await flushHydration();
+      expect(current().cutouts.find(c => c.id === retained.id)).toEqual(edited);
+      clickBinHistory(reopened.container, "redo");
+      expect(current().cutouts).toEqual([tool]);
+      clickBinHistory(reopened.container, "undo");
+      expect(current().cutouts.find(c => c.id === retained.id)).toEqual(edited);
+    } finally { reopened.unmount(); window.history.replaceState(null, "", originalUrl); }
+  });
+
   it("preserves a photo arrangement and its retained hole through Bin placement, project backup and reload", async () => {
     const firstShape = rectangularShape("photo-first", "Tool 1");
     const secondShape = rectangularShape("photo-second", "Tool 2");

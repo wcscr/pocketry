@@ -816,13 +816,32 @@ export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: Cut
     validationIssues, reports: [{ id: cutout.id, emptied: source.isEmpty() }] };
 }
 
-/** Preserve placement identity for exact 3D validation, including split cutters. */
+/** Build holes as independent volumes, then protect them from every pocket cutter.
+ * Never union them back into the bin: an exclusion cannot create material outside
+ * the original bin or fill base hardware recesses. All generated handles use Arena.
+ */
 export function buildCutoutCutters(kernel: Kernel, shapesById: ReadonlyMap<string, TracedShape>, cutouts: readonly CutoutPlacement[], spec: BinSpec, quality: BuildQuality, options: CutoutBuildOptions = {}): CutoutCutters {
-  // An unmeasured trace is an outline only, never a guessed cavity in the preview.
-  const groups: { id: string; built: CutoutCutters }[] = cutouts.filter(cutout => !cutout.depthPending).map(cutout => ({ id: cutout.id, built: cutout.profileBottom && shapesById.has(cutout.shapeId)
-    ? buildProfileBottomCutout(kernel, shapesById.get(cutout.shapeId)!, cutout, spec, options.floorInsertThicknessMm)
-    : (hasRigidPocket(cutout) || cutout.insertionMode) && shapesById.has(cutout.shapeId)
-      ? buildRigidPocket(kernel, shapesById.get(cutout.shapeId)!, rigidPocket(cutout, shapesById.get(cutout.shapeId)!, spec), spec, quality, options, resolvePocketDepth(spec, cutout.depth).cutterTopZ)
-    : buildCutoutCuttersInternal(kernel, shapesById, [cutout], spec, quality, options) }));
-  return { cutters: groups.flatMap(g => g.built.cutters), floorInserts: groups.flatMap(g => g.built.floorInserts), floorRegions: groups.flatMap(g => g.built.floorRegions ?? g.built.floorInserts), reports: groups.flatMap(g => g.built.reports), validationIssues: groups.flatMap(g => g.built.validationIssues ?? []), cutterGroups: groups.map(g => ({ id: g.id, cutters: g.built.cutters })) };
+  const groups = cutouts.filter(cutout => !cutout.depthPending).map(source => {
+    // Recursive split/tilt construction builds the volume, independently of its role.
+    const cutout = { ...source, role: undefined };
+    const shape = shapesById.get(cutout.shapeId);
+    const built: CutoutCutters = cutout.profileBottom && shape
+      ? buildProfileBottomCutout(kernel, shape, cutout, spec, options.floorInsertThicknessMm)
+      : (hasRigidPocket(cutout) || cutout.insertionMode) && shape
+        ? buildRigidPocket(kernel, shape, rigidPocket(cutout, shape, spec), spec, quality, options, resolvePocketDepth(spec, cutout.depth).cutterTopZ)
+        : buildCutoutCuttersInternal(kernel, shapesById, [cutout], spec, quality, options);
+    return { id: cutout.id, role: source.role, built };
+  });
+  const masks = groups.filter(g => g.role === "hole").flatMap(g => g.built.cutters);
+  const mask = masks.length ? kernel.arena.track(kernel.Manifold.union(masks)) : null;
+  const protect = (solids: Manifold[]) => mask
+    ? solids.map(solid => kernel.arena.track(solid.subtract(mask))).filter(solid => !solid.isEmpty()) : solids;
+  const pockets = groups.filter(g => g.role !== "hole").map(g => ({ ...g, built: { ...g.built,
+    cutters: protect(g.built.cutters), floorInserts: protect(g.built.floorInserts),
+    floorRegions: protect(g.built.floorRegions ?? g.built.floorInserts),
+  } }));
+  return { cutters: pockets.flatMap(g => g.built.cutters), floorInserts: pockets.flatMap(g => g.built.floorInserts),
+    floorRegions: pockets.flatMap(g => g.built.floorRegions), reports: groups.flatMap(g => g.built.reports),
+    validationIssues: groups.flatMap(g => g.built.validationIssues ?? []),
+    cutterGroups: pockets.map(g => ({ id: g.id, cutters: g.built.cutters })) };
 }

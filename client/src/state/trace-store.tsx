@@ -8,6 +8,7 @@ import {
   type Dispatch,
   type ReactNode,
 } from "react";
+import { syncHoleEdit } from "@/lib/geometry/ring-key";
 import type { TraceDraft } from "@shared/trace-draft";
 import { useTraceDraftPersistence, type TraceDraftSaveStatus } from "@/hooks/use-trace-draft-persistence";
 
@@ -689,17 +690,18 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
     }
 
     case "OUTLINE_COMMITTED": {
+      const outline = syncHoleEdit(state.outline, action.outline, state.selection);
       const current = state.history.stack[state.history.index];
-      if (current?.outline === action.outline) return state;
+      if (current?.outline === outline) return state;
       return {
         ...state,
-        outline: action.outline,
+        outline,
         history: pushHistory(
           state.history,
-          action.outline,
+          outline,
           action.label ?? "Edit contour",
           state.margin,
-          { refinementBase: action.outline, hasManualEdits: true,
+          { refinementBase: outline, hasManualEdits: true,
             ...historyPhotoFrame(state),
             baselineMarginPx: marginToPixels(state.margin, state.calibration),
             tolerancePx: state.tolerancePx, smoothing: state.smoothing },
@@ -729,7 +731,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
       };
 
     case "OUTLINE_DRAGGING":
-      return { ...state, outline: action.outline };
+      return { ...state, outline: syncHoleEdit(state.outline, action.outline, state.selection) };
 
     case "UNDO": {
       if (state.history.index <= 0) return state;

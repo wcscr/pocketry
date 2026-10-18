@@ -69,7 +69,11 @@ Multiple objects traced together keep their relative positions in Bin, including
 overlaps. They remain separate pockets unless you choose **Keep these outlines together**.
 In **Detected Contours**, choose **Pocket** to cut material or **Hole** to keep
 material inside the surrounding pockets. A hole crossing a pocket edge makes a
-notch. Changes can be undone; the retained areas travel with their pocket outlines.
+notch. Holes arrive in Bin as separate objects, including when the pockets are
+combined. Select a hole to move, resize, edit its contour, change its type, or
+remove it; deleting it restores the original pocket. Undo/redo and project
+backups preserve these objects. Automatic arrangement keeps overlapping holes
+and pockets together.
 
 ![The Wolfbox duster outline in the default Trace layout, with workflow steps on the left and contour controls on the right](docs/images/trace-outline.jpg)
 

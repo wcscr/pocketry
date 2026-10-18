@@ -198,12 +198,12 @@ export function PocketDepthSummary({ cutout, shape, section, inspect, children }
       </summary>
       {children}
       <div className="rounded border bg-muted/30 p-2">
-        <p className="text-muted-foreground">{rigid ? "Depth" : cutout.profileBottom ? "Deepest cut" : hasPocketTilt(cutout) ? "Vertical depth" : "Cut depth"}: {displayedDepth === null ? "through" : `${displayedDepth.toFixed(1)} mm`} · {cutout.profileBottom || rigid ? "Lowest point" : "Floor"}: {(pocket.floorZ ?? 0).toFixed(1)} mm</p>
+        <p className="text-muted-foreground">{cutout.role === "hole" ? "Kept depth" : rigid ? "Depth" : cutout.profileBottom ? "Deepest cut" : hasPocketTilt(cutout) ? "Vertical depth" : "Cut depth"}: {displayedDepth === null ? "through" : `${displayedDepth.toFixed(1)} mm`} · {cutout.role === "hole" ? "Bottom" : cutout.profileBottom || rigid ? "Lowest point" : "Floor"}: {(pocket.floorZ ?? 0).toFixed(1)} mm</p>
         <p className="text-muted-foreground">Infill top: {pocket.infillTopZ.toFixed(1)} mm · Total bin: {total.toFixed(1)} mm</p>
         {hasPocketTilt(cutout) && <p className="mt-1 text-muted-foreground">Along pocket axis: {pocket.axialDepthMm === null ? "through" : `${pocket.axialDepthMm.toFixed(1)} mm`} · Axis tilt: {(Math.acos(pocketAxis(cutout).z) * 180 / Math.PI).toFixed(1)}°</p>}
         {cutout.profileBottom && !hasProfileRotation(cutout) && <ProfileSectionPreview cutout={cutout} shape={shape} top={pocket.infillTopZ} />}
         {hasProfileRotation(cutout) && <p className="mt-1 text-muted-foreground">Rotated profile · Inspect in 3D to see the supporting contour.</p>}
-        {!cutout.profileBottom && !hasRigidPocket(cutout) && !hasPocketTilt(cutout) && <svg viewBox="0 0 240 65" className="mt-2 h-16 w-full" role="img" aria-label="Cross-section: pocket depth above remaining floor, with stacking rim above infill">
+        {cutout.role !== "hole" && !cutout.profileBottom && !hasRigidPocket(cutout) && !hasPocketTilt(cutout) && <svg viewBox="0 0 240 65" className="mt-2 h-16 w-full" role="img" aria-label="Cross-section: pocket depth above remaining floor, with stacking rim above infill">
           <path d="M20 5 H40 V15 H200 V5 H220 V60 H20 Z" fill="currentColor" opacity="0.2" />
           <rect x="70" y="15" width="100" height={45 * Math.min(1, Math.max(0, (pocket.depthMm ?? pocket.infillTopZ) / pocket.infillTopZ))} fill="hsl(var(--background))" stroke="currentColor" />
           <text x="120" y="28" textAnchor="middle" fontSize="9" fill="currentColor">Pocket</text>
@@ -213,7 +213,7 @@ export function PocketDepthSummary({ cutout, shape, section, inspect, children }
       <Button className="mt-2 h-8 w-full text-xs" size="sm" variant="outline" data-testid="button-inspect-pocket" onClick={() => {
         dispatch({ type: "SET_VIEW_MODE", viewMode: "3d" });
         inspect(section ? null : inspectionSection(inspectionAxis));
-      }}>{section ? "Show full bin" : "Inspect this pocket in 3D"}</Button>
+      }}>{section ? "Show full bin" : cutout.role === "hole" ? "Inspect this hole in 3D" : "Inspect this pocket in 3D"}</Button>
       {section && <div className="mt-2 flex items-center gap-2" role="group" aria-label="Pocket inspection axis">
         <span className="text-muted-foreground">Cut axis</span>
         {(["x", "y"] as const).map(axis => <Button key={axis} size="sm" variant={section.axis === axis ? "secondary" : "outline"}

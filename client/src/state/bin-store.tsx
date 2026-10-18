@@ -514,7 +514,7 @@ function reduceBin(state: BinState, action: BinAction): BinState {
           fingerHoles: state.fingerHoles,
         },
         action.historyLabel ??
-          `Add ${action.cutouts.length === 1 ? "tool pocket" : `${action.cutouts.length} tool pockets`}`,
+          action.cutouts.some(c => c.role === "hole") ? `Add ${action.cutouts.length} traced objects` : `Add ${action.cutouts.length === 1 ? "tool pocket" : `${action.cutouts.length} tool pockets`}`,
         {
           selection: action.cutouts.at(-1) ? [{ kind: "pocket", id: action.cutouts.at(-1)!.id }] : state.selection,
           selectedCutoutId: action.cutouts.at(-1)?.id ?? state.selectedCutoutId,
@@ -585,7 +585,7 @@ function reduceBin(state: BinState, action: BinAction): BinState {
           cutouts: state.cutouts.filter((cutout) => cutout.id !== action.id),
           fingerHoles: state.fingerHoles,
         },
-        "Remove tool pocket",
+        state.cutouts.find(c => c.id === action.id)?.role === "hole" ? "Remove hole" : "Remove tool pocket",
         {
           selectedCutoutId:
             state.selectedCutoutId === action.id ? null : state.selectedCutoutId,

@@ -681,7 +681,27 @@ export function autoArrangeLayout(
   if (items.length === 0) return null;
 
   const byKey = new Map(items.map((item) => [item.cutout.id, item]));
-  const targets: PackTarget[] = items.map((item) => ({
+  const parents = new Map(cutouts.map(c => [c.id, c.id]));
+  const root = (id: string): string => { while (parents.get(id) !== id) id = parents.get(id)!; return id; };
+  const bounds = new Map(cutouts.map(c => [c.id, existingBounds([c], shapesById, [], baseSpec)]));
+  for (const hole of cutouts.filter(c => c.role === "hole")) {
+    const a = bounds.get(hole.id);
+    if (!a) continue;
+    for (const other of cutouts) {
+      const b = bounds.get(other.id);
+      if (b && a.minX < b.maxX && a.maxX > b.minX && a.minY < b.maxY && a.maxY > b.minY) parents.set(root(other.id), root(hole.id));
+    }
+  }
+  const groups = new Map<string, CutoutPlacement[]>();
+  for (const cutout of cutouts) { const key = root(cutout.id); groups.set(key, [...(groups.get(key) ?? []), cutout]); }
+  const retainedGroups = new Map([...groups].filter(([, members]) => members.length > 1).map(([key, members]) => {
+    const box = existingBounds(members, shapesById, [], baseSpec)!;
+    return [key, { members, box }];
+  }));
+  const groupedIds = new Set([...retainedGroups.values()].flatMap(g => g.members.map(c => c.id)));
+  const targets: PackTarget[] = [...retainedGroups].map(([key, { box }]) => ({ key,
+    widthMm: box.maxX - box.minX, heightMm: box.maxY - box.minY }));
+  targets.push(...items.filter(item => !groupedIds.has(item.cutout.id)).map((item) => ({
     key: item.cutout.id,
     widthMm:
       item.widthMm +
@@ -689,7 +709,7 @@ export function autoArrangeLayout(
     heightMm:
       item.heightMm +
       2 * pocketLayoutAllowanceMm(item.cutout),
-  }));
+  })));
   const inset = placementInsetMm(lip);
   const fixedHoleBounds = existingBounds([], shapesById, fingerHoles);
   const containsFixedHoles = (widthMm: number, heightMm: number): boolean =>
@@ -700,7 +720,12 @@ export function autoArrangeLayout(
       fixedHoleBounds.maxY <= heightMm / 2);
 
   const placeBlock = (block: PackedBlock): CutoutPlacement[] =>
-    block.items.map((packed) => {
+    block.items.flatMap((packed) => {
+      const group = retainedGroups.get(packed.key);
+      if (group) return group.members.map(cutout => ({ ...cutout, position: {
+        x: cutout.position.x + packed.x - (group.box.minX + group.box.maxX) / 2,
+        y: cutout.position.y + packed.y - (group.box.minY + group.box.maxY) / 2,
+      } }));
       const item = byKey.get(packed.key)!;
       // The packed point is where the rotated OBB centre must land:
       // position = packed − R(θ)·centre.

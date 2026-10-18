@@ -403,6 +403,8 @@ function BinDesignerWorkspace(): JSX.Element {
       type: "ADD_PLACED",
       cutouts: result.cutouts.map(cutout => {
         const chosen = library.pendingDepths[cutout.shapeId];
+        if (library.pendingPlacements[cutout.shapeId]?.role === "hole") return { ...cutout, role: "hole" as const,
+          depth: { mode: "through" as const }, cornerRoundMm: 0, topFilletMm: 0, bottomFilletMm: 0 };
         // Resolve defaults against the loaded bin, including older queued tools
         // that have no depth choice yet.
         return { ...cutout, depth: !chosen || chosen.mode === "unset" || chosen.mode === "to-floor"

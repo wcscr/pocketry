@@ -73,3 +73,18 @@ it.each(["scale", "processing", "empty", "uncalibrated"])("retains the %s handof
   render(); add();
   expect(mocks.addShape).not.toHaveBeenCalled();
 });
+
+it.each([false, true])("keeps holes as independent objects with their photo position, combined=%s", combined => {
+  const hole = [{ x: 25, y: 15 }, { x: 35, y: 15 }, { x: 35, y: 25 }, { x: 25, y: 25 }];
+  trace = { ...trace, outline: [{ ...trace.outline[0], holes: [hole] }, { ...trace.outline[0], holes: [...[hole.map(p => ({ ...p }))].map(r => r.reverse())] }] };
+  render();
+  if (combined) React.act(() => host.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click());
+  add();
+  const calls = mocks.addShape.mock.calls;
+  expect(calls).toHaveLength(combined ? 2 : 3);
+  const retained = calls.filter(call => call[3]?.role === "hole");
+  expect(retained).toHaveLength(1);
+  expect(retained[0][0].name).toBe("Hole 1");
+  expect(retained[0][3]).toMatchObject({ batchId: calls[0][3].batchId, center: { x: 15, y: 40 }, role: "hole" });
+  expect(calls.every(call => call[0].outlineMm.every((part: { holes: unknown[] }) => part.holes.length === 0))).toBe(true);
+});

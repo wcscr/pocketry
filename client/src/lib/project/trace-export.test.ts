@@ -16,8 +16,13 @@ describe("editable project from a Trace export", () => {
     const restored = parseProjectDoc(JSON.parse(JSON.stringify(project)))!;
     const shape = restored.shapes[0];
     expect(shape.bboxMm).toEqual({ minX: -15, minY: -10, maxX: 15, maxY: 10 });
-    expect(shape.outlineMm[0].holes).toHaveLength(1);
-    expect(shape.outlineMm[0].holes[0]).toContainEqual({ x: -10, y: 5 });
+    expect(shape.outlineMm[0].holes).toHaveLength(0);
+    const hole = restored.cutouts.find(c => c.role === "hole")!;
+    const holeShape = restored.shapes.find(s => s.id === hole.shapeId)!;
+    expect(holeShape.outlineMm[0].outer).toContainEqual({ x: -2.5, y: 2.5 });
+    const pocket = restored.cutouts.find(c => c.role !== "hole")!;
+    expect(hole.position.x - pocket.position.x).toBe(-7.5);
+    expect(hole.position.y - pocket.position.y).toBe(2.5);
     expect(shape.sourceMmPerPx).toBe(0.5);
     expect(shape.traceMarginMm).toBe(0.75);
     expect(restored.cutouts[0].shapeId).toBe(shape.id);

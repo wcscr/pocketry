@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { exportScale } from "@/lib/export/scale";
+import { traceObjects } from "@/lib/gridfinity/trace-objects";
 import { normalizeTracedShapeWithPlacement } from "@/lib/gridfinity/traced-shape";
 import { useShapeLibrary } from "@/state/shape-library";
 import { hasPendingManualCalibration, useTrace } from "@/state/trace-store";
@@ -22,11 +23,14 @@ export function useTraceHandoff(onCanvasInteraction?: () => void) {
     if (!ready || adding.current) return;
     const names = new Set(library.shapes.map(shape => shape.name));
     let number = 1;
-    const parts = separateTools ? trace.outline.map(part => [part]) : [trace.outline];
+    const parts = traceObjects(trace.outline, separateTools);
+    let holeNumber = 1;
     const shapes = parts.map(part => {
       while (names.has(`Tool ${number}`)) number++;
-      const name = `Tool ${number++}`;
-      return normalizeTracedShapeWithPlacement(part, scale, name);
+      while (names.has(`Hole ${holeNumber}`)) holeNumber++;
+      const name = part.role === "hole" ? `Hole ${holeNumber++}` : `Tool ${number++}`;
+      const normalized = normalizeTracedShapeWithPlacement(part.outline, scale, name);
+      return normalized ? { ...normalized, role: part.role } : null;
     });
     if (shapes.some(shape => !shape)) return;
     adding.current = true;
@@ -35,7 +39,7 @@ export function useTraceHandoff(onCanvasInteraction?: () => void) {
       if (!entry) continue;
       const shape = { ...entry.shape, traceMarginMm: trace.margin ?? 0 };
       if (shapes.length > 1) library.addShape(shape, { mode: "to-floor" }, target,
-        { batchId: shapes[0]!.shape.id, center: entry.center });
+        { batchId: shapes[0]!.shape.id, center: entry.center, ...(entry.role ? { role: entry.role } : {}) });
       else library.addShape(shape, { mode: "to-floor" }, target);
     }
     onCanvasInteraction?.();
@@ -55,6 +59,7 @@ export function TraceHandoffOptions({ handoff }: { handoff: TraceHandoff }) {
         : handoff.destinationStatus === "error" ? "Open Bin to resolve the project storage problem."
         : <>Adding to: {handoff.destinationName}</>}
     </p>
+    <p>Holes stay separate and editable in Bin.</p>
     {handoff.objectCount > 1 && <details>
       <summary className="cursor-pointer py-1">{handoff.separateTools ? `${handoff.objectCount} separate pockets` : "One combined pocket"}</summary>
       <p>Positions from the photo are preserved, including overlaps.</p>

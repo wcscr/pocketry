@@ -690,6 +690,8 @@ export function BinControlsPanel({
           </div>
   );
 
+  const retainedHoleCount = cutouts.filter(c => c.role === "hole").length;
+  const pocketCount = cutouts.length - retainedHoleCount;
   const pocketList = cutouts.length > 0 && (
             <div className="space-y-1" aria-label="Choose a pocket to edit">
               {cutouts.map((cutout) => {
@@ -714,7 +716,7 @@ export function BinControlsPanel({
                     <button
                       type="button"
                       className="flex min-h-8 min-w-0 flex-1 items-center gap-2 rounded px-2 py-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [@media(pointer:coarse)]:min-h-11"
-                      aria-label={`${name} — edit pocket properties`}
+                      aria-label={`${name} — edit ${cutout.role === "hole" ? "hole" : "pocket"} properties`}
                       aria-pressed={isSelected}
                       aria-controls="pocket-properties"
                       data-testid={`button-select-${cutout.id}`}
@@ -729,6 +731,7 @@ export function BinControlsPanel({
                       }}
                     >
                       <span className={cn("min-w-0 flex-1 truncate", isSelected && "font-medium text-violet-700 dark:text-violet-300")}>{name}</span>
+                      {cutout.role === "hole" && <span className="text-[10px] text-muted-foreground">Hole</span>}
                       {cutout.depthPending && <span className="text-[10px] text-muted-foreground">Depth needed</span>}
                       {cutout.designLink && <Link2 className="h-3 w-3 shrink-0" aria-label="Linked design" />}
                     </button>
@@ -857,9 +860,9 @@ export function BinControlsPanel({
               </details>
   );
   const pocketProperties = selectedCutout && selectedShape && (
-            <PropertySurface tone="violet" id="pocket-properties" role="region" aria-label="Selected pocket properties">
+            <PropertySurface tone="violet" id="pocket-properties" role="region" aria-label={selectedCutout.role === "hole" ? "Selected hole properties" : "Selected pocket properties"}>
               <div className="property-heading -mx-3 -mt-3 flex min-w-0 flex-wrap items-center gap-2 rounded-t-lg border-b px-3 py-2" data-testid="pocket-properties-heading">
-                <h3 className="text-xs font-semibold">Pocket properties</h3>
+                <h3 className="text-xs font-semibold">{selectedCutout.role === "hole" ? "Hole properties" : "Pocket properties"}</h3>
                 <span className={inspector ? "sr-only" : "min-w-0 flex-1 truncate text-xs"} title={pocketName(selectedCutout, selectedShape)}>{pocketName(selectedCutout, selectedShape)}</span>
                 <Button
                   variant={editorMode === "contour" ? "default" : "outline"}
@@ -887,6 +890,16 @@ export function BinControlsPanel({
               </div>
 
 
+              <label className="flex items-center gap-2 py-2 text-xs">
+                Type
+                <select aria-label="Outline type" className="h-9 min-w-0 flex-1 rounded border border-input bg-background px-2"
+                  value={selectedCutout.role ?? "pocket"} onChange={event => dispatch({ type: "UPDATE_CUTOUT", id: selectedCutout.id,
+                    patch: { role: event.target.value === "hole" ? "hole" : undefined }, historyLabel: "Change outline type" })}>
+                  <option value="pocket">Pocket — cut material</option>
+                  <option value="hole">Hole — keep material</option>
+                </select>
+              </label>
+              {selectedCutout.role === "hole" && <p className="pb-2 text-xs text-muted-foreground">Keeps material wherever this object overlaps a pocket. Move, resize, edit its contour, or remove it independently. Depth sets how far down material is kept.</p>}
               <PocketInsertionControls cutout={selectedCutout} shape={selectedShape} />
               {!inspector && <LinkedDesignControls kind="pocket" activeId={selectedCutout.id} labels={new Map(cutouts.map(c => [c.id, pocketName(c, shapesById.get(c.shapeId))]))} />}
               {selectedCutout.depthPending ? <Button variant="outline" onClick={() => onRevealIssue({ code: "pocket-depth-needed", severity: "error", message: "Depth needed", cutoutIds: [selectedCutout.id] })}>Set pocket depth</Button> : <PocketDepthSummary cutout={depthCutout!} shape={depthShape!} section={section} inspect={inspectPocket}>
@@ -1751,10 +1764,10 @@ export function BinControlsPanel({
         <PanelSection
           key={cutouts.length > 0 ? "pockets" : "pockets-empty"}
           id="bin-settings-pockets"
-          title="Pockets"
+          title={retainedHoleCount ? "Pockets & holes" : "Pockets"}
           icon={Scissors}
           tone="violet"
-          summary={`${cutouts.length} pocket${cutouts.length === 1 ? "" : "s"}`}
+          summary={`${pocketCount} pocket${pocketCount === 1 ? "" : "s"}${retainedHoleCount ? ` · ${retainedHoleCount} hole${retainedHoleCount === 1 ? "" : "s"}` : ""}`}
           defaultOpen={!!inspector || cutouts.length > 0}
           className="scroll-mt-16"
         >

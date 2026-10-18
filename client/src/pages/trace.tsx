@@ -56,6 +56,8 @@ import { projectFromTrace } from "@/lib/project/trace-export";
 import { generateDXF } from "@/lib/export/dxf";
 import { exportScale } from "@/lib/export/scale";
 import { generateSTL } from "@/lib/export/stl";
+import { traceMaterialOutline } from "@/lib/geometry/contour-role";
+import { withKernel } from "@/lib/manifold/runtime";
 import { generateOutlineSVG } from "@/lib/export/svg";
 import type { ImageRotationDirection } from "@/lib/geometry/image-rotation";
 import { processImage } from "@/lib/image-processor";
@@ -638,18 +640,20 @@ function TraceWorkspace(): JSX.Element {
       const backup = includeProject
         ? new Blob([JSON.stringify(projectFromTrace(outline, scale, fileName || "Traced outline", margin ?? 0), null, 2)], { type: "application/json" })
         : null;
+      const exportOutline = outline.some(part => part.holes.length)
+        ? await withKernel(kernel => traceMaterialOutline(kernel, outline)) : outline;
       let model: Blob;
       if (exportFormat === "svg") {
-        model = new Blob([generateOutlineSVG(outline, {
+        model = new Blob([generateOutlineSVG(exportOutline, {
           width: imageSize.width,
           height: imageSize.height,
           mmPerPx: scale.mmPerPx,
           calibration,
         })], { type: "image/svg+xml" });
       } else if (exportFormat === "dxf") {
-        model = new Blob([generateDXF(outline, scale)], { type: "application/dxf" });
+        model = new Blob([generateDXF(exportOutline, scale)], { type: "application/dxf" });
       } else {
-        const stl = await generateSTL(outline, { heightMm: extrusionHeight, scale });
+        const stl = await generateSTL(exportOutline, { heightMm: extrusionHeight, scale });
         model = new Blob([stl], { type: "application/octet-stream" });
       }
       if (backup) downloadBlob(backup, `${stem}.pocketry.json`);

@@ -1155,3 +1155,23 @@ it("exports a Z-translated upright pocket and rejects its floor below the bin", 
   expect(nonManifoldEdgeCount(built.value.mesh)).toBe(0);
   await expect(handler({ ...request, layout: { ...request.layout!, cutouts: [{ ...cutout, zOffsetMm: -20 }] } }, context())).rejects.toThrow(/deeper than the bin/);
 });
+
+it("keeps editable hole roles in the worker and exports closed STL and material 3MF meshes", async () => {
+  const tool = createBasicPocket("rectangle", { x: -15, y: -10 }, { x: 15, y: 10 }, "tool")!;
+  const retained = createBasicPocket("rectangle", { x: -4, y: -3 }, { x: 4, y: 3 }, "hole")!;
+  const pocket = parseCutoutPlacement({ ...tool.cutout, depth: { mode: "mm", value: 12 }, topFilletMm: 0, bottomFilletMm: 0, cornerRoundMm: 0 });
+  const hole = parseCutoutPlacement({ ...retained.cutout, role: "hole", depth: { mode: "through" }, topFilletMm: 0, bottomFilletMm: 0, cornerRoundMm: 0 });
+  const request: BuildBinRequest = { spec: { gridX: 2, gridY: 2, heightUnits: 6, fill: "solid", lip: "none" },
+    quality: EXPORT_QUALITY, exportTopology: true, pocketFloorMaterialThicknessMm: 0.6,
+    layout: { shapes: [tool.shape, retained.shape], cutouts: [pocket, hole], fingerHoles: [] } };
+  const result = (await getHandler()(request, context())).value;
+  const removed = (await getHandler()({ ...request, layout: { ...request.layout!, cutouts: [pocket] } }, context())).value;
+  expect(result.stats.volumeMm3 - removed.stats.volumeMm3).toBeCloseTo(8 * 6 * 12, 4);
+  expect(result.validationIssues?.filter(issue => issue.severity === "error")).toEqual([]);
+  const volume = printableMeshVolume(result.mesh);
+  const parts = Object.entries(result.materialMeshes!).map(([name, mesh]) => ({ name, mesh }));
+  expect(Math.abs(parts.reduce((sum, part) => sum + printableMeshVolume(part.mesh), 0) - volume)).toBeLessThan(0.1);
+  expect(writeBinarySTL(result.mesh).byteLength).toBe(84 + result.mesh.indices.length / 3 * 50);
+  const model = strFromU8(unzipSync(writeThreeMf(parts))["3D/3dmodel.model"]);
+  expect(model.match(/<triangle /g)?.length).toBe(parts.reduce((sum, part) => sum + part.mesh.indices.length / 3, 0));
+});

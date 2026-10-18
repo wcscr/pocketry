@@ -203,15 +203,15 @@ export function TraceScene({
         />
 
         {/* The traced material, with holes punched out by the even-odd rule. */}
-        {fillPath && (
-          <path
-            d={fillPath}
-            fillRule="evenodd"
-            className="fill-fuchsia-500/10"
-            style={{ opacity: busy ? 0.4 : 1, transition: "opacity 120ms" }}
-            data-testid="detected-contour-fill"
-          />
-        )}
+        {fillPath && <>
+          <defs><mask id={`${sceneId}-holes`} maskUnits="userSpaceOnUse" x={0} y={0} width={imageSize.width} height={imageSize.height}>
+            <rect width={imageSize.width} height={imageSize.height} fill="white" />
+            {outline.flatMap(part => part.holes).map((ring, index) => <path key={index} d={ringToPath(ring)} fill="black" />)}
+          </mask></defs>
+          <path d={outlineToPathData(outline.map(part => ({ ...part, holes: [] })))} fillRule="nonzero"
+            mask={`url(#${sceneId}-holes)`} className="fill-fuchsia-500/10"
+            style={{ opacity: busy ? 0.4 : 1, transition: "opacity 120ms" }} data-testid="detected-contour-fill" />
+        </>}
 
         {/*
           A bright contour alone disappears wherever the photo contains that

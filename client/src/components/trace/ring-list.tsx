@@ -8,6 +8,8 @@ import { OUTER_RING, type RingRef } from "@shared/geometry/types";
 import { HelpHint } from "@/components/ui/help-hint";
 import { Button } from "@/components/ui/button";
 import { iterateRings, removeRing, sameRingRef } from "@/lib/geometry/outline";
+import { traceRingKey } from "@/lib/geometry/ring-key";
+import { getRing } from "@/lib/geometry/outline";
 import { changeContourRole } from "@/lib/geometry/contour-role";
 import { withKernel } from "@/lib/manifold/runtime";
 import { cn } from "@/lib/utils";
@@ -90,7 +92,8 @@ export function RingList(): JSX.Element {
   const remove = (ref: RingRef) => {
     dispatch({
       type: "OUTLINE_COMMITTED",
-      outline: removeRing(outline, ref),
+      outline: ref.ringIndex === OUTER_RING ? removeRing(outline, ref) : outline.map(part => ({ ...part,
+        holes: part.holes.filter(hole => traceRingKey(hole) !== traceRingKey(getRing(outline, ref)!)) })),
       label: ref.ringIndex === OUTER_RING ? "Remove tool shape" : "Remove interior hole",
     });
     dispatch({ type: "SELECT_RING", selection: null });
