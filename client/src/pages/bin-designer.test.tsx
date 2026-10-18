@@ -3604,7 +3604,9 @@ describe("BinDesignerPage", () => {
     for (const id of ["finger-size-settings", "finger-edge-settings", "finger-position-settings"]) {
       expect(properties.querySelector<HTMLDetailsElement>(`[data-testid="${id}"]`)!.open).toBe(false);
     }
-    expect(properties.lastElementChild?.getAttribute("data-testid")).toBe("finger-position-settings");
+    expect(properties.lastElementChild?.getAttribute("data-testid")).toBe("linked-copies-disclosure");
+    expect(properties.lastElementChild?.previousElementSibling?.getAttribute("data-testid")).toBe("finger-position-settings");
+    expect((properties.lastElementChild as HTMLDetailsElement).open).toBe(false);
     const editName = (value: string) => {
       React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-rename-finger-hole-named-hole"]')!.click());
       const input = container.querySelector<HTMLInputElement>('[aria-label="Finger access name"]')!;
@@ -7129,12 +7131,70 @@ it("prototype keeps selection and list position while batch editing, undoing and
   } finally { unmount(); window.history.replaceState(null, '', originalUrl); }
 });
 
+it.each([
+  { layout: "standard", mobile: false }, { layout: "workflow", mobile: false },
+  { layout: "standard", mobile: true }, { layout: "workflow", mobile: true },
+])("link management works for a single linked copy in $layout (mobile: $mobile)", async ({ layout, mobile }) => {
+  window.history.replaceState(null, '', `/bin?layout=${layout}`);
+  const shape = rectangularShape('single-link', 'Tool');
+  const cutouts = [-20, 20].map((x, i) => parseCutoutPlacement({ id: `link-${i}`, name: `Tool ${i + 1}`, shapeId: shape.id,
+    position: { x, y: 0 }, depth: { mode: 'mm', value: 10 }, designLink: { id: 'set' } }));
+  const finger = fingerHoleSchema.parse({ id: 'separate-access', name: 'Access', center: { x: 0, y: 25 } });
+  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape], cutouts, fingerHoles: [finger] });
+  const { container, unmount } = renderPage({ mobile, experimental: true });
+  try {
+    await flushHydration();
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
+    selectPocket(container, cutouts[0].id);
+    expect(toolButton(container, 'Link and unlink selected objects').hasAttribute('disabled')).toBe(false);
+    React.act(() => toolButton(container, 'Link and unlink selected objects').click());
+    const controls = container.querySelector('[data-testid="pocket-3d-controls"]')!;
+    expect(controls.textContent).toContain('Edits update all 2 copies.');
+    expect(controls.querySelector('[aria-label="Linked design source"]')).toBeNull();
+    React.act(() => [...controls.querySelectorAll<HTMLButtonElement>('button')].find(b => b.textContent === 'Unlink')!.click());
+    const edited = vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts;
+    expect(edited[0].designLink).toBeUndefined();
+    expect(edited[1]).toEqual(cutouts[1]);
+    const action = toolButton(container, 'Link and unlink selected objects');
+    expect(action.hasAttribute('disabled') || action.getAttribute('aria-disabled') === 'true').toBe(true);
+    openSettingsSection(container, 'finger-holes');
+    React.act(() => container.querySelector<HTMLInputElement>('[aria-label="Include Access in selection"]')!.click());
+    const mixed = toolButton(container, 'Link and unlink selected objects');
+    expect(mixed.hasAttribute('disabled') || mixed.getAttribute('aria-disabled') === 'true').toBe(true);
+  } finally { unmount(); }
+});
+
+it.each([
+  { layout: "standard", experimental: false }, { layout: "workflow", experimental: false },
+  { layout: "standard", experimental: true }, { layout: "workflow", experimental: true },
+])("ordinary properties keep linking optional in $layout (experimental: $experimental)", async ({ layout, experimental }) => {
+  window.history.replaceState(null, '', `/bin?layout=${layout}`);
+  const shape = rectangularShape('ordinary-link-review', 'Tool');
+  const cutout = parseCutoutPlacement({ id: 'ordinary', shapeId: shape.id, position: { x: 0, y: 0 } });
+  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape], cutouts: [cutout] });
+  const { container, unmount } = renderPage({ experimental });
+  try {
+    await flushHydration(); selectPocket(container, cutout.id);
+    const disclosure = container.querySelector<HTMLDetailsElement>('[data-testid="linked-copies-disclosure"]');
+    if (experimental) {
+      expect(disclosure).not.toBeNull(); expect(disclosure!.open).toBe(false);
+      expect(disclosure!.querySelector('[aria-label="Linked design"]')).not.toBeNull();
+    } else {
+      expect(disclosure).toBeNull();
+      expect(container.querySelector('[aria-label="Linked design"]')).toBeNull();
+      expect(container.querySelector('[aria-label="Link and unlink selected objects"]')).toBeNull();
+    }
+    expect(container.querySelector('[data-testid="pocket-depth-summary"]')).not.toBeNull();
+    expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toEqual([cutout]);
+  } finally { unmount(); }
+});
+
 it.each([false, true])("prototype toolbar opens scoped link/unlink controls with undo on mobile=%s", async mobile => {
   const originalUrl = window.location.href;
   window.history.replaceState(null, '', '/bin?layout=workflow');
   const shape = rectangularShape('toolbar-links', 'Tool');
   const cutouts = [10, 20].map((value, i) => parseCutoutPlacement({ id: `linked-tool-${i}`, name: `Tool ${i + 1}`, shapeId: shape.id,
-    position: { x: i * 40 - 20, y: 0 }, depth: { mode: 'mm', value } }));
+    position: { x: i * 40 - 20, y: 0 }, depth: { mode: 'mm', value }, ...(i === 0 ? { elevationMm: 7, insertionMode: 'axis', tilt: { xDeg: 15, yDeg: 0 } } : {}) }));
   const finger = fingerHoleSchema.parse({ id: 'toolbar-access', name: 'Tool access', center: { x: 0, y: 0 }, depthMm: 8 });
   vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, spec: parseBinSpec({ gridX: 4, gridY: 4, heightUnits: 6 }), shapes: [shape], cutouts, fingerHoles: [finger] });
   const { container, unmount } = renderPage({ mobile, experimental: true });
@@ -7172,6 +7232,7 @@ it.each([false, true])("prototype toolbar opens scoped link/unlink controls with
     expect(doc().cutouts.map(c => c.depth)).toEqual([cutouts[0].depth, cutouts[0].depth]);
     expect(doc().cutouts.map(c => ({ name: c.name, position: c.position }))).toEqual(cutouts.map(c => ({ name: c.name, position: c.position })));
     expect(doc().fingers).toEqual([finger]);
+    expect(parseProjectDoc({ ...EMPTY_PROJECT, spec: parseBinSpec({ gridX: 4, gridY: 4, heightUnits: 6 }), shapes: [shape], cutouts: doc().cutouts, fingerHoles: doc().fingers })).not.toBeNull();
     action('Unlink 2 pockets');
     expect(doc().cutouts.every(c => !c.designLink)).toBe(true);
     React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fix linking insertion paths to ordinary pockets so projects reopen correctly. Keep optional linking controls collapsed, show shared-edit scope for existing links, and allow Link management from one linked copy.
+
 - Default new pockets without a chosen depth to the bin floor so they appear immediately in the 3D preview.
 - ULTIM8 mode exports a 1:1 jig layout SVG with the bin outline, actual pocket openings, finger access, and retained peg locations for alignment to a calibrated mat template.
 

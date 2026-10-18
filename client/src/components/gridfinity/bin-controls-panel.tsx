@@ -930,7 +930,7 @@ export function BinControlsPanel({
 
 
               <PocketInsertionControls cutout={selectedCutout} shape={selectedShape} />
-              {!inspector && <LinkedDesignControls kind="pocket" activeId={selectedCutout.id} labels={new Map(cutouts.map(c => [c.id, pocketName(c, shapesById.get(c.shapeId))]))} />}
+              {!inspector && !!selectedCutout.designLink && <LinkedDesignControls kind="pocket" activeId={selectedCutout.id} labels={new Map(cutouts.map(c => [c.id, pocketName(c, shapesById.get(c.shapeId))]))} />}
               {selectedCutout.depthPending ? <Button variant="outline" onClick={() => onRevealIssue({ code: "pocket-depth-needed", severity: "error", message: "Depth needed", cutoutIds: [selectedCutout.id] })}>Set pocket depth</Button> : <PocketDepthSummary cutout={depthCutout!} shape={depthShape!} section={section} inspect={inspectPocket}>
                 {selectedCutout.split && <div className="flex gap-1 pb-2" role="group" aria-label="Section to edit">
                   {([0, 1] as const).map(index => <Button key={index} type="button" size="sm"
@@ -1089,7 +1089,7 @@ export function BinControlsPanel({
                 </p>
               )}
 
-              {inspector && <AdvancedLinks><LinkedDesignControls kind="pocket" activeId={selectedCutout.id} labels={new Map(cutouts.map(c => [c.id, pocketName(c, shapesById.get(c.shapeId))]))} /></AdvancedLinks>}
+              {(inspector || !selectedCutout.designLink) && <AdvancedLinks linked={!!selectedCutout.designLink}><LinkedDesignControls kind="pocket" activeId={selectedCutout.id} labels={new Map(cutouts.map(c => [c.id, pocketName(c, shapesById.get(c.shapeId))]))} /></AdvancedLinks>}
               {!selectedCutout.profileBottom && pocketClearance}
             </PropertySurface>
           );
@@ -1099,7 +1099,7 @@ export function BinControlsPanel({
                   <h3 className="text-xs font-semibold">Finger access properties</h3>
                   <span className={inspector ? "sr-only" : "min-w-0 flex-1 truncate text-xs"}>{selectedFingerHole.name ?? `Finger access ${fingerHoles.indexOf(selectedFingerHole) + 1}`}</span>
                 </div>
-              {!inspector && <LinkedDesignControls kind="finger" activeId={selectedFingerHole.id} labels={new Map(fingerHoles.map((h, i) => [h.id, h.name ?? `Finger access ${i + 1}`]))} />}
+              {!inspector && !!selectedFingerHole.designLink && <LinkedDesignControls kind="finger" activeId={selectedFingerHole.id} labels={new Map(fingerHoles.map((h, i) => [h.id, h.name ?? `Finger access ${i + 1}`]))} />}
 
 
                 <FingerAccessShapeControls
@@ -1362,7 +1362,7 @@ export function BinControlsPanel({
                 <PositionInputs position={selectedFingerHole.center} onChange={(center, transient) => dispatch({ type: "UPDATE_FINGER_HOLE", id: selectedFingerHole.id, patch: { center }, transient, historyLabel: "Position finger access" })} />
                   </div>
                 </details>
-                {inspector && <AdvancedLinks><LinkedDesignControls kind="finger" activeId={selectedFingerHole.id} labels={new Map(fingerHoles.map((h, i) => [h.id, h.name ?? `Finger access ${i + 1}`]))} /></AdvancedLinks>}
+                {(inspector || !selectedFingerHole.designLink) && <AdvancedLinks linked={!!selectedFingerHole.designLink}><LinkedDesignControls kind="finger" activeId={selectedFingerHole.id} labels={new Map(fingerHoles.map((h, i) => [h.id, h.name ?? `Finger access ${i + 1}`]))} /></AdvancedLinks>}
             </PropertySurface>
             );
 
@@ -3306,7 +3306,9 @@ function FeatureSwitch({
   );
 }
 
-function AdvancedLinks({ children }: { children: ReactNode }): JSX.Element {
-  const inspector = useSelectionInspector();
-  return inspector ? <details className="group/links border-t pt-1 text-xs"><summary className="flex cursor-pointer items-center justify-between gap-2 py-2 font-medium">Linked copies<ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/links:rotate-180" /></summary>{children}</details> : <>{children}</>;
+/** Optional linking stays collapsed; existing links always show their scope. */
+function AdvancedLinks({ linked, children }: { linked: boolean; children: ReactNode }): JSX.Element | null {
+  const { enabled } = useExperimentalFeatures();
+  if (!enabled && !linked) return null;
+  return linked ? <>{children}</> : <details className="group/links border-t pt-1 text-xs" data-testid="linked-copies-disclosure"><summary className="flex cursor-pointer items-center justify-between gap-2 py-2 font-medium">Linked copies<ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/links:rotate-180" /></summary>{children}</details>;
 }

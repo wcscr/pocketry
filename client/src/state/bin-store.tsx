@@ -2,6 +2,7 @@ import { surfaceTextSchema, type SurfaceText } from "@shared/gridfinity/surface-
 import { sameJsonData } from "@shared/json-data-equal";
 import { adjustPocketsForFillHeight, reconcileFillHeightReferences } from "@shared/gridfinity/fill-height-edit";
 import { recordTransformOrigins, type TransformOrigins } from "@shared/gridfinity/transform-origins";
+import { hasRigidPocket, rigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { applyLinkedEdits, clampLinkedFingerHoles, pocketDesign, fingerDesign, type DesignObjectKind } from "@shared/gridfinity/design-links";
 import { sameObject, type ObjectRef, type ObjectEdits } from "@/lib/gridfinity/object-arrangement";
 import { NumericEditContext, type NumericEditSession } from "@/components/ui/numeric-edit-context";
@@ -19,7 +20,7 @@ import {
   type ReactNode,
 } from "react";
 
-import { clampFingerHoleToBin, defaultPocketFloorThicknessMm, type CutoutPlacement, type DepthSpec, type FingerHole, type PocketSectionIndex } from "@shared/gridfinity/cutout";
+import { clampFingerHoleToBin, defaultPocketFloorThicknessMm, type CutoutPlacement, type DepthSpec, type FingerHole, type PocketSectionIndex, type TracedShape } from "@shared/gridfinity/cutout";
 import { BIN_HISTORY_LIMIT, type BinDoc, type BinHistory, type BinHistoryEntry } from "@shared/gridfinity/history";
 export type { BinDoc, BinHistoryEntry } from "@shared/gridfinity/history";
 
@@ -149,7 +150,7 @@ export type BinAction = (
   | { type: "REMOVE_CUTOUT"; id: string }
   | { type: "DUPLICATE_CUTOUT"; id: string; newId: string; labels?: ReadonlyMap<string, string> }
   | { type: "DUPLICATE_LINKED"; kind: DesignObjectKind; id: string; newId: string; linkId: string; labels?: ReadonlyMap<string, string> }
-  | { type: "LINK_DESIGNS"; kind: DesignObjectKind; ids: string[]; sourceId: string; linkId: string; tilt: boolean }
+  | { type: "LINK_DESIGNS"; kind: DesignObjectKind; ids: string[]; sourceId: string; linkId: string; tilt: boolean; shapes?: readonly TracedShape[] }
   | { type: "UNLINK_DESIGNS"; kind: DesignObjectKind; ids: string[] }
   | { type: "SET_LINKED_TILT"; id: string; enabled: boolean }
   | {
@@ -619,8 +620,19 @@ function reduceBin(state: BinState, action: BinAction): BinState {
       const source = action.kind === "pocket" ? state.cutouts.find(c => c.id === action.sourceId) : state.fingerHoles.find(h => h.id === action.sourceId);
       if (!source || ids.size < 2 || !ids.has(source.id)) return state;
       const designLink = { id: action.linkId, tilt: action.kind === "pocket" && action.tilt };
+      let cutouts = state.cutouts;
+      if (action.kind === "pocket" && (source as CutoutPlacement).insertionMode) {
+        const legacy = cutouts.filter(c => ids.has(c.id) && !hasRigidPocket(c));
+        const shapes = new Map(action.shapes?.map(shape => [shape.id, shape]));
+        if (legacy.some(c => !shapes.has(c.shapeId))) {
+          return { ...state, editError: "Cannot link this insertion path because a pocket outline is unavailable. Your change was not applied." };
+        }
+        // Insertion clearance requires a rigid pose. Resolve each old floor in
+        // its original outline and orientation before adopting the shared design.
+        cutouts = cutouts.map(c => legacy.includes(c) ? rigidPocket(c, shapes.get(c.shapeId)!, state.spec) : c);
+      }
       const doc = action.kind === "pocket"
-        ? { spec: state.spec, fingerHoles: state.fingerHoles, cutouts: state.cutouts.map(c => ids.has(c.id)
+        ? { spec: state.spec, fingerHoles: state.fingerHoles, cutouts: cutouts.map(c => ids.has(c.id)
           ? { ...c, ...pocketDesign({ ...source as CutoutPlacement, designLink }), designLink } : c) }
         : { spec: state.spec, cutouts: state.cutouts, fingerHoles: clampLinkedFingerHoles(state.fingerHoles.map(h => ids.has(h.id)
           ? { ...h, ...fingerDesign(source as FingerHole), designLink } : h), state.spec, ids) };

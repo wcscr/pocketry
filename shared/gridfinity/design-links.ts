@@ -4,6 +4,15 @@ import type { BinSpec } from "./types";
 export type DesignObjectKind = "pocket" | "finger";
 export interface DesignObjects { cutouts: CutoutPlacement[]; fingerHoles: FingerHole[] }
 
+/** Link like objects, or manage an existing link from any selected member. */
+export function canManageDesignLinks(objects: DesignObjects, selection: readonly { kind: DesignObjectKind; id: string }[]): boolean {
+  return (["pocket", "finger"] as const).some(kind => {
+    const selected = (kind === "pocket" ? objects.cutouts : objects.fingerHoles)
+      .filter(item => selection.some(ref => ref.kind === kind && ref.id === item.id));
+    return selected.length > 1 || selected.some(item => item.designLink);
+  });
+}
+
 // Copies retain complete geometry for the existing worker/export paths. The
 // explicit link id, validated in every saved snapshot, makes these fields one
 // shared design. Shape revisions remain immutable and update all references.
