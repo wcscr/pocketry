@@ -1250,6 +1250,26 @@ it("exports a surface Through rectangle inside a finger groove without a floor o
   expect(model.match(/<triangle /g)?.length).toBe(parts.reduce((sum, part) => sum + part.mesh.indices.length / 3, 0));
 });
 
+it("keeps editable hole roles in the worker and exports closed STL and material 3MF meshes", async () => {
+  const tool = createBasicPocket("rectangle", { x: -15, y: -10 }, { x: 15, y: 10 }, "tool")!;
+  const retained = createBasicPocket("rectangle", { x: -4, y: -3 }, { x: 4, y: 3 }, "hole")!;
+  const pocket = parseCutoutPlacement({ ...tool.cutout, depth: { mode: "mm", value: 12 }, topFilletMm: 0, bottomFilletMm: 0, cornerRoundMm: 0 });
+  const hole = parseCutoutPlacement({ ...retained.cutout, role: "hole", depth: { mode: "through" }, topFilletMm: 0, bottomFilletMm: 0, cornerRoundMm: 0 });
+  const request: BuildBinRequest = { spec: { gridX: 2, gridY: 2, heightUnits: 6, fill: "solid", lip: "none" },
+    quality: EXPORT_QUALITY, exportTopology: true, pocketFloorMaterialThicknessMm: 0.6,
+    layout: { shapes: [tool.shape, retained.shape], cutouts: [pocket, hole], fingerHoles: [] } };
+  const result = (await getHandler()(request, context())).value;
+  const removed = (await getHandler()({ ...request, layout: { ...request.layout!, cutouts: [pocket] } }, context())).value;
+  expect(result.stats.volumeMm3 - removed.stats.volumeMm3).toBeCloseTo(8 * 6 * 12, 4);
+  expect(result.validationIssues?.filter(issue => issue.severity === "error")).toEqual([]);
+  const volume = printableMeshVolume(result.mesh);
+  const parts = Object.entries(result.materialMeshes!).map(([name, mesh]) => ({ name, mesh }));
+  expect(Math.abs(parts.reduce((sum, part) => sum + printableMeshVolume(part.mesh), 0) - volume)).toBeLessThan(0.1);
+  expect(writeBinarySTL(result.mesh).byteLength).toBe(84 + result.mesh.indices.length / 3 * 50);
+  const model = strFromU8(unzipSync(writeThreeMf(parts))["3D/3dmodel.model"]);
+  expect(model.match(/<triangle /g)?.length).toBe(parts.reduce((sum, part) => sum + part.mesh.indices.length / 3, 0));
+});
+
 it("exports overlapping upright finite Through pockets as one surface opening", async () => {
   const rectangle = createBasicPocket("rectangle", { x: 16.875925, y: -2.82763855 }, { x: 67.124075, y: 2.87236145 }, "rect")!;
   const circle = createBasicPocket("circle", { x: 52.408386, y: 0.03009 }, { x: 56.708386, y: 0.03009 }, "circle")!;
@@ -1315,4 +1335,24 @@ it("keeps floor and border colour volumes inside a thin arbitrary body", async (
     const zs = Array.from(part.positions).filter((_, i) => i % 3 === 2);
     expect(Math.min(...zs)).toBeGreaterThanOrEqual(0); expect(Math.max(...zs)).toBeLessThanOrEqual(2.4 + 1e-6);
   }
+});
+
+it.each(["through island", "floating cap"])("blocks printable export of a retained %s and identifies the hole in preview", async kind => {
+  const tool = createBasicPocket("rectangle", { x: -15, y: -10 }, { x: 15, y: 10 }, "tool")!;
+  const retained = createBasicPocket("rectangle", { x: -4, y: -3 }, { x: 4, y: 3 }, "hole")!;
+  const pocket = parseCutoutPlacement({ ...tool.cutout, depth: kind === "through island" ? { mode: "through" } : { mode: "mm", value: 10 },
+    topFilletMm: 0, bottomFilletMm: 0, cornerRoundMm: 0 });
+  const hole = parseCutoutPlacement({ ...retained.cutout, name: "Retained center", role: "hole",
+    depth: kind === "through island" ? { mode: "through" } : { mode: "mm", value: 5 }, topFilletMm: 0, bottomFilletMm: 0, cornerRoundMm: 0 });
+  const request: BuildBinRequest = { spec: { gridX: 2, gridY: 2, heightUnits: 6, fill: "solid", lip: "none" },
+    quality: EXPORT_QUALITY, layout: { shapes: [tool.shape, retained.shape], cutouts: [pocket, hole], fingerHoles: [] } };
+  const handler = getHandler();
+  const preview = (await handler(request, context())).value;
+  expect(preview.validationIssues).toContainEqual(expect.objectContaining({ code: "disconnected-retained-material",
+    severity: "error", cutoutIds: [hole.id], message: expect.stringContaining("Retained center") }));
+  await expect(handler({ ...request, exportTopology: true }, context())).rejects.toThrow("disconnected from the bin");
+  await expect(handler({ ...request, exportTopology: true, pocketFloorMaterialThicknessMm: 0.6 }, context())).rejects.toThrow("disconnected from the bin");
+  const attached = (await handler({ ...request, exportTopology: true, layout: { ...request.layout!,
+    cutouts: [pocket, { ...hole, position: { x: 15, y: 0 } }] } }, context())).value;
+  expect(attached.validationIssues?.some(issue => issue.code === "disconnected-retained-material")).toBe(false);
 });

@@ -652,6 +652,124 @@ describe("BinDesignerPage", () => {
       expect(await backupWidth()).toBe(5);
     } finally { unmount(); }
   });
+  it.each(["standard", "workflow"])("keeps an editable hole object through removal, undo and project reload (%s)", async layoutMode => {
+    const originalUrl = window.location.href;
+    window.history.replaceState(null, "", `/bin?layout=${layoutMode}`);
+    const pocket = rectangularShape("independent-tool", "Tool 1");
+    const hole = rectangularShape("independent-hole", "Hole 1");
+    hole.outlineMm = [{ outer: [{ x: -3, y: -2 }, { x: 3, y: -2 }, { x: 3, y: 2 }, { x: -3, y: 2 }], holes: [] }];
+    hole.bboxMm = { minX: -3, minY: -2, maxX: 3, maxY: 2 };
+    sessionStorage.setItem("pocketry:queued-tools", JSON.stringify([
+      { ...pocket, pendingDepth: { mode: "to-floor" }, pendingPlacement: { batchId: "photo", center: { x: 40, y: 70 } } },
+      { ...hole, pendingDepth: { mode: "to-floor" }, pendingPlacement: { batchId: "photo", center: { x: 42, y: 71 }, role: "hole" } },
+    ]));
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, spec: { ...EMPTY_PROJECT.spec, fill: "solid" } });
+    const first = renderPage();
+    const current = () => vi.mocked(useBinGeometry).mock.lastCall![2]!;
+    await flushHydration();
+    const retained = current().cutouts.find(c => c.role === "hole")!;
+    const tool = current().cutouts.find(c => c.role !== "hole")!;
+    expect({ x: retained.position.x - tool.position.x, y: retained.position.y - tool.position.y }).toEqual({ x: 2, y: 1 });
+    expect(retained.depth).toEqual({ mode: "through" });
+    openSettingsSection(first.container, "tool-cutouts");
+    selectPocket(first.container, retained.id);
+    const type = first.container.querySelector<HTMLSelectElement>('[aria-label="Outline type"]')!;
+    expect(type.value).toBe("hole");
+    expect(first.container.textContent).toContain("Hole properties");
+    React.act(() => { type.value = "pocket"; type.dispatchEvent(new Event("change", { bubbles: true })); });
+    expect(current().cutouts.find(c => c.id === retained.id)!.role).toBeUndefined();
+    clickBinHistory(first.container, "undo");
+    expect(current().cutouts.find(c => c.id === retained.id)!.role).toBe("hole");
+    React.act(() => first.container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
+    React.act(() => first.container.querySelector<HTMLButtonElement>('[data-testid="button-edit-contour"]')!.click());
+    const svg = first.container.querySelector<SVGSVGElement>('[data-testid="layout-canvas"]')!;
+    Object.defineProperty(svg.querySelector('g')!, 'getScreenCTM', { value: () => ({ inverse: () => ({}) }) });
+    Object.defineProperties(svg, {
+      createSVGPoint: { value: () => ({ x: 0, y: 0, matrixTransform() { return { x: this.x, y: this.y }; } }) },
+      setPointerCapture: { value: () => {} },
+    });
+    const pointer = (target: Element, type: string, x: number, y: number) => React.act(() => {
+      const event = new MouseEvent(type, { bubbles: true, button: 0, clientX: x, clientY: y });
+      Object.defineProperty(event, 'pointerId', { value: 1 }); target.dispatchEvent(event);
+    });
+    const handles = first.container.querySelectorAll<SVGCircleElement>('[data-testid="contour-vertex-handle"]');
+    expect(handles.length).toBeGreaterThan(0);
+    const handle = handles[0];
+    const x = Number(handle.getAttribute("cx")), y = Number(handle.getAttribute("cy"));
+    pointer(handle, "pointerdown", x, y);
+    pointer(svg, "pointermove", x + 2, y - 1);
+    pointer(svg, "pointerup", x + 2, y - 1);
+    const edited = current().cutouts.find(c => c.id === retained.id)!;
+    expect(edited.role).toBe("hole");
+    expect(edited.shapeId).not.toBe(hole.id);
+    expect(current().cutouts.find(c => c.id === tool.id)).toEqual(tool);
+    React.act(() => first.container.querySelector<HTMLButtonElement>('[data-testid="button-edit-contour"]')!.click());
+    openSettingsSection(first.container, "tool-cutouts");
+    if (layoutMode === "workflow") {
+      React.act(() => first.container.querySelector('[aria-label="Actions for Hole 1"]')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
+      await React.act(async () => document.querySelector<HTMLElement>('[role="menuitem"][aria-label="Remove Hole 1"]')!.click());
+    } else React.act(() => first.container.querySelector<HTMLButtonElement>(`[data-testid="button-remove-${retained.id}"]`)!.click());
+    React.act(() => document.querySelector<HTMLButtonElement>('[data-testid="button-remove-pocket-only"]')!.click());
+    expect(current().cutouts).toEqual([tool]);
+    clickBinHistory(first.container, "undo");
+    expect(current().cutouts.find(c => c.id === retained.id)).toEqual(edited);
+    openSettingsSection(first.container, "project");
+    React.act(() => first.container.querySelector<HTMLButtonElement>('[data-testid="button-export-project"]')!.click());
+    const [blob] = vi.mocked(downloadBlob).mock.lastCall!;
+    const json = await new Promise<string>(resolve => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.readAsText(blob); });
+    const saved = parseProjectDoc(JSON.parse(json))!;
+    expect(saved.cutouts.find(c => c.id === retained.id)).toEqual(edited);
+    first.unmount(); sessionStorage.clear();
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(saved);
+    const reopened = renderPage();
+    try {
+      await flushHydration();
+      expect(current().cutouts.find(c => c.id === retained.id)).toEqual(edited);
+      clickBinHistory(reopened.container, "redo");
+      expect(current().cutouts).toEqual([tool]);
+      clickBinHistory(reopened.container, "undo");
+      expect(current().cutouts.find(c => c.id === retained.id)).toEqual(edited);
+    } finally { reopened.unmount(); window.history.replaceState(null, "", originalUrl); }
+  });
+
+  it("preserves a photo arrangement and its retained hole through Bin placement, project backup and reload", async () => {
+    const firstShape = rectangularShape("photo-first", "Tool 1");
+    const secondShape = rectangularShape("photo-second", "Tool 2");
+    firstShape.outlineMm[0].holes = [[{ x: -2, y: -2 }, { x: -2, y: 2 }, { x: 2, y: 2 }, { x: 2, y: -2 }]];
+    firstShape.pointCount += 4;
+    sessionStorage.setItem("pocketry:queued-tools", JSON.stringify([
+      { ...firstShape, pendingDepth: { mode: "to-floor" }, pendingPlacement: { batchId: "photo", center: { x: 40, y: 70 } } },
+      { ...secondShape, pendingDepth: { mode: "to-floor" }, pendingPlacement: { batchId: "photo", center: { x: 52, y: 64 } } },
+    ]));
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, spec: { ...EMPTY_PROJECT.spec, fill: "solid" } });
+    const first = renderPage();
+    const layout = () => vi.mocked(useBinGeometry).mock.lastCall![2]!;
+    const check = () => {
+      const a = layout().cutouts.find(c => c.shapeId === firstShape.id)!;
+      const b = layout().cutouts.find(c => c.shapeId === secondShape.id)!;
+      expect({ x: b.position.x - a.position.x, y: b.position.y - a.position.y }).toEqual({ x: 12, y: -6 });
+      expect([a.depth, b.depth]).toEqual(Array(2).fill({ mode: "remaining", floorThicknessMm: 7 }));
+      expect([a.depthPending, b.depthPending]).toEqual([undefined, undefined]);
+      expect(layout().shapes.find(s => s.id === firstShape.id)!.outlineMm[0].holes).toEqual(firstShape.outlineMm[0].holes);
+    };
+    await flushHydration(); check();
+    React.act(() => first.container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+    expect(layout().cutouts).toHaveLength(0);
+    React.act(() => first.container.querySelector<HTMLButtonElement>('[data-testid="button-bin-redo"]')!.click());
+    check();
+    openSettingsSection(first.container, "project");
+    React.act(() => first.container.querySelector<HTMLButtonElement>('[data-testid="button-export-project"]')!.click());
+    const [blob] = vi.mocked(downloadBlob).mock.lastCall!;
+    const json = await new Promise<string>(resolve => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.readAsText(blob); });
+    const saved = parseProjectDoc(JSON.parse(json))!;
+    expect(saved.shapes.every(shape => !("pendingPlacement" in shape))).toBe(true);
+    first.unmount(); sessionStorage.clear();
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(saved);
+    const reopened = renderPage();
+    await flushHydration(); check();
+    reopened.unmount();
+  });
+
   it.each([false, true])("keeps saved deferred depths through backup, reload, export recovery, and undo (mobile=%s)", async mobile => {
     const shapes = [rectangularShape("first", "Tool 1"), rectangularShape("second", "Tool 2")];
     vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, spec: { ...EMPTY_PROJECT.spec, fill: "solid" }, shapes,
@@ -1621,7 +1739,16 @@ describe("BinDesignerPage", () => {
       expect(container.querySelector('[aria-label="Use profile as bottom"]')).toBeNull();
       expect(container.querySelector('[aria-label="Pocket depth mode"]')).not.toBeNull();
       expect(container.querySelector('[data-testid="pocket-edge-settings"]')).not.toBeNull();
-      edit("Pocket X rotation in degrees","135"); edit("Pocket Y rotation in degrees","-24");
+      edit("Pocket X rotation in degrees","135");
+      const clearanceDialog = document.querySelector('[data-testid="pocket-clearance-dialog"]');
+      expect(clearanceDialog).not.toBeNull();
+      await React.act(async () => {
+        [...clearanceDialog!.querySelectorAll<HTMLButtonElement>("button")]
+          .find(button => button.textContent === "Keep current settings")!.click();
+        await new Promise(resolve => setTimeout(resolve, 5));
+      });
+      expect(document.querySelector('[data-testid="pocket-clearance-dialog"]')).toBeNull();
+      edit("Pocket Y rotation in degrees","-24");
       edit("Pocket elevation in millimetres","80");
       expect(latest().tilt).toEqual({xDeg:135,yDeg:-24});
       expect(latest().elevationMm).toBe(80);
@@ -8202,4 +8329,106 @@ it('right-clicking a selected split pocket preserves the active section', async 
     expect(sectionB().getAttribute('aria-pressed')).toBe('true');
     expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toEqual([cutout]);
   } finally { unmount(); }
+});
+
+it.each(["standard", "workflow"])("selects and moves the visible hole above a later pocket in %s layout", async layoutMode => {
+  const { binToCanvas } = await import("@shared/gridfinity/cutout");
+  const originalUrl = window.location.href;
+  window.history.replaceState(null, "", `/bin?layout=${layoutMode}`);
+  const pocketShape = rectangularShape("pick-pocket-shape", "Later pocket");
+  const holeShape = rectangularShape("pick-hole-shape", "Visible hole");
+  holeShape.outlineMm = [{ outer: [{x:-3,y:-3},{x:3,y:-3},{x:3,y:3},{x:-3,y:3}], holes: [] }];
+  holeShape.bboxMm = {minX:-3,minY:-3,maxX:3,maxY:3};
+  const hole = parseCutoutPlacement({id:"pick-hole",shapeId:holeShape.id,role:"hole",position:{x:0,y:0},depth:{mode:"through"}});
+  const pocket = parseCutoutPlacement({id:"pick-pocket",shapeId:pocketShape.id,position:{x:0,y:0},depth:{mode:"mm",value:15}});
+  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({...EMPTY_PROJECT,shapes:[holeShape,pocketShape],cutouts:[hole,pocket]});
+  const {container,unmount}=renderPage();
+  try {
+    await flushHydration();
+    React.act(()=>container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
+    const svg=container.querySelector<SVGSVGElement>('[data-testid="layout-canvas"]')!;
+    Object.defineProperty(svg.querySelector('g')!, 'getScreenCTM', {value:()=>({inverse:()=>({})})});
+    Object.defineProperties(svg, {createSVGPoint:{value:()=>({x:0,y:0,matrixTransform(){return {x:this.x,y:this.y}}})},setPointerCapture:{value:()=>{}}});
+    const paths=[...container.querySelectorAll('[data-cutout-id]')];
+    expect(paths.at(-1)!.getAttribute('data-cutout-id')).toBe(hole.id);
+    const center=binToCanvas({x:0,y:0},EMPTY_PROJECT.spec);
+    const target=container.querySelector('[data-cutout-id="pick-hole"]')!;
+    const pointer=(type:string,x:number,y:number)=>React.act(()=>{
+      const e=new MouseEvent(type,{bubbles:true,button:0,clientX:x,clientY:y});
+      Object.defineProperty(e,'pointerId',{value:1});target.dispatchEvent(e);
+    });
+    pointer("pointerdown",center.x,center.y);
+    pointer("pointerup",center.x,center.y);
+    expect(container.querySelector('[data-testid="button-select-pick-hole"]')!.getAttribute('aria-pressed')).toBe('true');
+    expect(container.querySelector('[aria-label="Hole depth mode"]')!.textContent).toContain("Keep full depth");
+    expect(container.querySelector('[data-testid="pocket-clearance-settings"]')!.textContent).toContain("Hole offset");
+    expect(container.querySelector('[data-testid="pocket-split-settings"]')!.textContent).toContain("Split hole");
+    expect(container.querySelector('[aria-label="Hole size and scale"]')).not.toBeNull();
+    pointer("pointerdown",center.x,center.y);
+    pointer("pointermove",center.x+8,center.y+7);
+    pointer("pointerup",center.x+8,center.y+7);
+    const current = vi.mocked(useBinGeometry).mock.lastCall![2]!;
+    expect(current.cutouts.find(c=>c.id===hole.id)!.position).not.toEqual(hole.position);
+    expect(current.cutouts.find(c=>c.id===pocket.id)!.position).toEqual(pocket.position);
+  } finally {unmount();window.history.replaceState(null,"",originalUrl);}
+});
+
+
+it("explains mixed pocket and hole batch depths and offsets without changing their roles", async () => {
+  const originalUrl = window.location.href;
+  window.history.replaceState(null, "", "/bin?layout=workflow");
+  const shape = rectangularShape("batch-roles", "Object");
+  const pocket = parseCutoutPlacement({id:"batch-pocket",shapeId:shape.id,position:{x:-20,y:0},depth:{mode:"mm",value:15}});
+  const hole = parseCutoutPlacement({id:"batch-hole",shapeId:shape.id,role:"hole",position:{x:20,y:0},depth:{mode:"through"}});
+  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({...EMPTY_PROJECT,shapes:[shape],cutouts:[hole,pocket]});
+  const {container,unmount}=renderPage();
+  try {
+    await flushHydration();
+    openSettingsSection(container,"tool-cutouts");
+    selectPocket(container,pocket.id);
+    React.act(()=>container.querySelector<HTMLButtonElement>('[data-testid="button-select-batch-hole"]')!.dispatchEvent(new MouseEvent("click",{bubbles:true,ctrlKey:true})));
+    const batch=container.querySelector('[data-testid="batch-properties"]')!;
+    expect(batch.textContent).toContain("2 selected pockets and holes");
+    expect(batch.textContent).toContain("Fixed cut and kept depth");
+    expect(batch.textContent).toContain("Pocket clearance and hole offset");
+    expect(batch.textContent).toContain("Positive hole offset keeps more material");
+    const input=container.querySelector<HTMLInputElement>('[aria-label="Fixed cut and kept depth for selected pockets and holes"]')!;
+    React.act(()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value")!.set!.call(input,"8");input.dispatchEvent(new Event("input",{bubbles:true}));});
+    React.act(()=>input.closest("form")!.dispatchEvent(new Event("submit",{bubbles:true,cancelable:true})));
+    const current=vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts;
+    expect(current.map(c=>c.depth)).toEqual([{mode:"mm",value:8},{mode:"mm",value:8}]);
+    expect(current.find(c=>c.id===hole.id)!.role).toBe("hole");
+    expect(current.find(c=>c.id===pocket.id)!.role).toBeUndefined();
+  } finally {unmount();window.history.replaceState(null,"",originalUrl);}
+});
+
+
+it.each(["standard", "workflow"])("restores full hole protection from fixed or bottom-limited depth in %s layout", async layoutMode => {
+  const originalUrl = window.location.href;
+  window.history.replaceState(null,"",`/bin?layout=${layoutMode}`);
+  const shape=rectangularShape("full-hole-shape","Retained hole");
+  const hole=parseCutoutPlacement({id:"full-hole",shapeId:shape.id,role:"hole",position:{x:0,y:0},depth:{mode:"mm",value:5}});
+  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({...EMPTY_PROJECT,shapes:[shape],cutouts:[hole]});
+  const {container,unmount}=renderPage();
+  try {
+    await flushHydration();selectPocket(container,hole.id);
+    const current=()=>vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0];
+    const changeMode=(label:string)=>{
+      React.act(()=>container.querySelector<HTMLButtonElement>('[aria-label="Hole depth mode"]')!.dispatchEvent(new KeyboardEvent("keydown",{key:" ",bubbles:true})));
+      const option=[...document.querySelectorAll<HTMLElement>('[role="option"]')].find(node=>node.textContent===label)!;
+      React.act(()=>option.click());
+    };
+    changeMode("Keep full depth");
+    expect(current().depth).toEqual({mode:"through"});
+    expect(current().elevationMm).toBeUndefined();
+    expect(resolvePlacedPocketDepth(EMPTY_PROJECT.spec,current().depth,shape,current()).depthMm).toBeNull();
+    clickBinHistory(container,"undo");
+    expect(current().depth).toEqual({mode:"mm",value:5});
+    changeMode("Set bottom height");
+    expect(current().depth.mode).toBe("remaining");
+    changeMode("Keep full depth");
+    expect(current().depth).toEqual({mode:"through"});
+    expect(current().elevationMm).toBeUndefined();
+    expect(container.querySelector('[aria-label="Hole depth mode"]')!.textContent).toContain("Keep full depth");
+  } finally {unmount();window.history.replaceState(null,"",originalUrl);}
 });

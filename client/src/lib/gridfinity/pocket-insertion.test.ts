@@ -320,3 +320,31 @@ it("keeps each split section's floor constraint separate from the original seat"
   expect(undersideAt(raised,0,6)).toBeCloseTo(12,4);
   expect(undersideAt(raised,0,-6)).toBeCloseTo(12,4);
 });
+
+it("preserves the original split seats when axial insertion is nearly horizontal", () => {
+  const concave: TracedShape = {
+    id: "near-horizontal", name: "Concave split tool", sourceMmPerPx: 1, pointCount: 16,
+    bboxMm: { minX: -20, maxX: 20, minY: -20, maxY: 20 },
+    outlineMm: [{
+      outer: [[-20,-20],[20,-20],[20,-5],[6,-5],[6,10],[20,10],[20,20],[-20,20]]
+        .map(([x,y]) => ({x,y})),
+      holes: [[[-15,-12],[-15,-5],[-8,-5],[-8,-12]], [[-15,4],[-15,12],[-8,12],[-8,4]]]
+        .map(ring => ring.map(([x,y]) => ({x,y}))),
+    }],
+  };
+  const depths = [
+    { mode: "remaining" as const, floorThicknessMm: 9, sourceDepthMm: 6 },
+    { mode: "remaining" as const, floorThicknessMm: 17, sourceDepthMm: 15 },
+  ];
+  const p = parseCutoutPlacement({
+    id: "near-horizontal", shapeId: concave.id, position: { x: 3, y: -2 },
+    rotationDeg: 17, tilt: { xDeg: 89, yDeg: 25 }, mirrored: true, elevationMm: 7,
+    depth: depths[0], cornerRoundMm: 0, bottomFilletMm: 0.8, topFilletMm: 0, clearanceMm: 0,
+    split: { boundary: [{x:-30,y:0},{x:30,y:0}], depths },
+  });
+  const tall = { ...spec, heightUnits: 8 };
+  const finite = buildRigidPocket(kernel, concave, p, tall, PREVIEW_QUALITY).cutters[0];
+  const swept = buildRigidPocket(kernel, concave, { ...p, insertionMode: "axis" }, tall, PREVIEW_QUALITY).cutters[0];
+  // Extending a rebuilt fillet stack can perturb this seat by over 55 mm³.
+  expect(arena.track(finite.subtract(swept)).volume()).toBeLessThan(0.001);
+});

@@ -22,7 +22,7 @@ describe("saved project materials", () => {
     expect(parseProjectDoc(JSON.parse(JSON.stringify(serializeProjectDoc(doc))))).toEqual(doc);
   });
 
-  it.each([36, 39, 41])("preserves colors and ULTIM8 sizing/history from version %i", version => {
+  it.each([36, 39, 41, 42])("preserves colors and ULTIM8 sizing/history from version %i", version => {
     const spec = parseBinSpec({ ...design.spec,
       arbitrarySizeMm: version === 39 ? { width: 167.5, length: 31 } : null,
       pegBottom: version === 39 ? { ...DEFAULT_PEG_BOTTOM, underside: "flat", density: "corners" } : null,

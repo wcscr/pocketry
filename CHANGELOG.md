@@ -18,6 +18,14 @@
 - Grouped peg settings with floating help hints. Switching to ULTIM8 offers to remove the stacking lip, set Solid fill to 100%, switch rectangular bins to Arbitrary sizing, and use one color. The setup dialog offers body thickness, prefilled from the current height, with depth-conflict checks.
 - Surface pockets set to Through open the full bin bottom, including peg roots, when overlapping finger access.
 - Failed 3D updates clear obsolete bin meshes so they cannot appear beside the current pocket outline as misplaced duplicates.
+- Choose object X, Y, or Z for pocket insertion clearance. The first 3D tilt prompts for clearance style and axis, with another prompt if a later rotation makes that axis invalid.
+- Fix distorted tilted cutouts and striped floor colors for complex traces, and speed up full-detail exports along the pocket axis.
+
+- Preserve the relative positions of outlines sent from Trace to Bin, including overlaps. Choose Pocket or Hole to cut or keep material; holes remain independent, editable objects in Bin and saved projects.
+- Preserve separate pockets and shared holes through Trace margin/detail edits; list each shared hole once. Match hole selection to the visible drawing order and clarify hole offset, kept depth, and linked-copy behavior.
+- Block printable export of floating caps or detached material created by hole objects; hole depths no longer change finger-access defaults.
+- Ignore recognized measurement aids when tracing; keep estimated edges highlighted with persistent guidance and a zoom-to-area action.
+- Use a small hollow crosshair in the contour magnifier so vertex handles no longer cover the placement point.
 
 ## 1.5.1 — 2026-10-16
 

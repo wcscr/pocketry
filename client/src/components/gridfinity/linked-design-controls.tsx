@@ -43,15 +43,16 @@ export function LinkedDesignControls({ kind, activeId, labels }: {
     <p className="mt-1 text-muted-foreground">Placement stays independent. Shared geometry requires experimental tools.</p>
     <Button variant="link" className="h-auto whitespace-normal px-0 text-xs" onClick={() => setEnabled(true)}>Enable experimental tools</Button>
   </section> : null;
-  const noun = kind === "pocket" ? "pockets" : "finger accesses";
-  const memberNoun = members.length === 1 ? kind === "pocket" ? "pocket" : "finger access" : noun;
+  const hasHoles = kind === "pocket" && cutouts.some(c => (ids.includes(c.id) || members.some(m => m.id === c.id)) && c.role === "hole");
+  const noun = kind === "pocket" ? hasHoles ? "objects" : "pockets" : "finger accesses";
+  const memberNoun = members.length === 1 ? kind === "pocket" ? hasHoles ? "object" : "pocket" : "finger access" : noun;
   const canLink = ids.length >= 2 && !sameDesign;
   const linkedSelected = items.filter(item => ids.includes(item.id) && item.designLink);
   const unlinkNoun = linkedSelected.length === 1 ? kind === "pocket" ? "pocket" : "finger access" : noun;
   return <section aria-label="Linked design" data-property-tone={kind === "pocket" ? "violet" : "cyan"} className="property-surface space-y-2 rounded-lg border p-3 text-xs">
     <div className="flex flex-wrap items-center gap-2 font-medium"><Link2 className="h-3.5 w-3.5 shrink-0" />
       <span title={members.map(m => labels.get(m.id) ?? m.id).join(", ")}>{sameDesign ? `Linked design · ${members.length} ${memberNoun}` : ids.length > 1 ? `${ids.length} selected ${noun}` : "Independent design"}</span>
-      <HelpHint label="linked copies">Linked copies share shape, size, depth, clearance, edge rounding and insertion settings. Placement, names, mirroring and Z rotation stay independent. Select multiple pockets or finger accesses using their checkboxes to link them. Ordinary Duplicate makes an independent copy.{members.length > 1 && <p className="mt-2">Linked copies: {members.map(m => labels.get(m.id) ?? m.id).join(", ")}.</p>}</HelpHint>
+      <HelpHint label="linked copies">Linked copies share {kind === "pocket" ? "Pocket or Hole type, " : ""}shape, size, depth, clearance, edge rounding and insertion settings. Placement, names, mirroring and Z rotation stay independent. Select multiple pockets or finger accesses using their checkboxes to link them. Ordinary Duplicate makes an independent copy.{members.length > 1 && <p className="mt-2">Linked copies: {members.map(m => labels.get(m.id) ?? m.id).join(", ")}.</p>}</HelpHint>
       {members.length > 1 && <Button size="sm" variant="ghost" className="ml-auto" onClick={() => dispatch({ type: "SET_SELECTION", selection: members.map(item => ({ kind, id: item.id })) })}>Select linked</Button>}
     </div>
     {sameDesign && <>
@@ -68,7 +69,7 @@ export function LinkedDesignControls({ kind, activeId, labels }: {
           {ids.map(id => <option key={id} value={id}>{labels.get(id) ?? id}</option>)}
         </select>
       </label>
-      <p className="text-[10px] text-muted-foreground">Copies adopt this shape, size and depth. Their positions and names stay the same.</p>
+      <p className="text-[10px] text-muted-foreground">Copies adopt this shape, size and depth{kind === "pocket" ? ", including its Pocket or Hole type" : ""}. Their positions and names stay the same.</p>
       {kind === "pocket" && <label className="flex min-h-8 items-center gap-2"><input type="checkbox" className="h-4 w-4 accent-primary" checked={linkTilt} onChange={e => setLinkTilt(e.target.checked)} />Also share X/Y tilt</label>}
     </>}
     <div className="flex flex-wrap gap-1.5">

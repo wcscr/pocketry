@@ -7,12 +7,14 @@ import { pickObject, type EditableObject, type ObjectRef } from "./object-arrang
 export type BinContextTarget = ObjectRef | { kind: "text"; id: string }
   | { kind: "hole"; id: string; shapeId: string; ref: RingRef };
 
-/** Finger access stays on top. Retained-material holes belong to their pocket. */
+/** Finger access and independent retained objects follow the visible draw order.
+ * Embedded legacy holes still expose their owner's contour actions. */
 export function pickBinContextTarget(objects: readonly EditableObject[], point: Point,
   geometry?: ReadonlyMap<string, { full: Outline }>,
 ): BinContextTarget | null {
   const object = pickObject(objects, point, geometry);
-  if (object?.kind === "finger") return object;
+  if (object?.kind === "finger" || object?.kind === "pocket" && objects.some(item =>
+    item.kind === "pocket" && item.cutout.id === object.id && item.cutout.role === "hole")) return object;
   for (const item of [...objects].reverse()) {
     if (item.kind !== "pocket" || item.cutout.profileBottom || hasPocketTilt(item.cutout)) continue;
     const placed = transformOutlinePlacement(item.shape.outlineMm, item.cutout);

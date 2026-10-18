@@ -1,12 +1,13 @@
 import { pegBottomExtensionMm } from "@shared/gridfinity/peg-bottom";
 // Type-only import: the kernel is injected (see `Kernel` in ../manifold/runtime).
-import type { Manifold } from "manifold-3d";
+import type { Manifold, Vec2 } from "manifold-3d";
 import { hasPocketTilt, pocketAxis } from "@shared/gridfinity/pocket-orientation";
 import { hasRigidPocket, pocketRotation, rigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { pocketInsertionAxis, pocketInsertionError } from "@shared/gridfinity/pocket-insertion";
 import { rotateObjectVector } from "@shared/gridfinity/object-pose";
 import { buildObjectCavity } from "./object-cavity";
 import { directionalInsertionCutter } from "./insertion-sweep";
+import { clipExtrusionBands, planarInsertionCutter } from "./planar-insertion-sweep";
 
 import {
   effectiveDeepScoopDepthMm,
@@ -47,6 +48,7 @@ import { buildProfileBottomCutout } from "./profile-bottom";
 import { buildRoundedFingerAccessCutter } from "./finger-access-rounding";
 import {
   bottomFilletCutter,
+  type ExtrusionBand,
   FILLET_PROFILE_STEP_MM,
   topEdgeFilletCutter,
 } from "./fillet-stack";
@@ -137,6 +139,8 @@ export interface CutoutCutters {
   reports: CutoutBuildReport[];
   validationIssues?: ValidationIssue[];
   cutterGroups?: { id: string; cutters: Manifold[] }[];
+  /** Original retained volumes, for checking the connectivity of the finished bin. */
+  retainedGroups?: { id: string; volumes: Manifold[] }[];
 }
 
 export interface CutoutBuildOptions {
@@ -144,6 +148,8 @@ export interface CutoutBuildOptions {
   floorInsertThicknessMm?: number;
   /** Internal axial frame: extend the shaft enough to clear the real bin. */
   axialHeadroomMm?: number;
+  /** Internal capture of the finite source before posing or insertion clearance. */
+  sourceBands?: ExtrusionBand[];
 }
 
 const BIN_LOCAL_PLACEMENT = {
@@ -579,8 +585,11 @@ function buildCutoutCuttersInternal(
       let emptied = false;
       for (const [index, depth] of cutout.split.depths.entries()) {
         if (sameDepth && index !== shallowIndex) continue;
-        const part = buildCutoutCutters(kernel, shapesById, [{ ...cutout, split: undefined, depth, topFilletMm }], spec, quality, options);
+        const partBands: ExtrusionBand[] | undefined = options.sourceBands ? [] : undefined;
+        const part = buildCutoutCutters(kernel, shapesById, [{ ...cutout, split: undefined, depth, topFilletMm }], spec, quality,
+          { ...options, sourceBands: partBands });
         if (sameDepth) {
+          if (partBands) options.sourceBands!.push(...partBands);
           cutters.push(...part.cutters);
           throughCutters.push(...(part.throughCutters ?? []));
           floorInserts.push(...part.floorInserts);
@@ -600,6 +609,8 @@ function buildCutoutCuttersInternal(
         // by a rounding error and leave a zero-thickness wall above the shelf.
         cutters.push(...(index === shallowIndex ? part.cutters : sectionCutters));
         throughCutters.push(...(part.throughCutters ?? []).map(trim));
+        if (partBands) options.sourceBands!.push(...(index === shallowIndex ? partBands
+          : clipExtrusionBands(kernel, partBands, [nx * side, ny * side], (nx * a.x + ny * a.y) * side)));
         floorInserts.push(...part.floorInserts.map(trim));
       }
       reports.push({ id: cutout.id, emptied });
@@ -680,11 +691,14 @@ function buildCutoutCuttersInternal(
           );
         }
       }
+      const bands: ExtrusionBand[] | undefined = options.sourceBands ? [] : undefined;
       const localCutter = bottomFilletCutter(kernel, section, pocket.cutterTopZ - pocket.floorZ, {
         radiusMm: Math.max(effectiveFillet, 0),
         profileStepMm: filletProfileStepMm,
         circularSegments: segments,
-      });
+      }, bands);
+      if (bands) options.sourceBands!.push(...bands.map(band => ({ ...band,
+        bottom: band.bottom + pocket.floorZ! })));
       cutter = arena.track(localCutter.translate([0, 0, pocket.floorZ]));
     }
 
@@ -732,7 +746,11 @@ export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: Cut
   const local = {...cutout,position:{x:0,y:0},rotationDeg:0,tilt:undefined,
     elevationMm:undefined,zOffsetMm:undefined,insertionMode:undefined,depth:depths[0],topFilletMm:0,
     split:cutout.split ? {...cutout.split,depths:[depths[0],depths[1]] as [typeof depths[number],typeof depths[number]]} : undefined};
-  const built = buildCutoutCuttersInternal(kernel,new Map([[shape.id,shape]]),[local],localSpec,quality,{axialHeadroomMm:0});
+  const lateralAxis = cutout.insertionMode === "axis" && cutout.insertionAxis && cutout.insertionAxis !== "z"
+    ? cutout.insertionAxis : null;
+  const sourceBands: ExtrusionBand[] | undefined = lateralAxis ? [] : undefined;
+  const built = buildCutoutCuttersInternal(kernel,new Map([[shape.id,shape]]),[local],localSpec,quality,{axialHeadroomMm:0,sourceBands});
+  const localBands = sourceBands?.map(band => ({ ...band, bottom: band.bottom - localTop }));
   const source = arena.track(Manifold.union(built.cutters.map(s => arena.track(s.translate([0,0,-localTop])))));
   const anchor = source;
   const pose = { rotation: pocketRotation(cutout), position: cutout.position, elevationMm: cutout.elevationMm ?? 0 };
@@ -740,11 +758,49 @@ export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: Cut
   // through the surface, while an object wholly above the bin leaves no cut.
   let cutter = buildObjectCavity(kernel, source, pose, cutout.insertionMode ? Infinity : top, anchor);
   const projectedSource = cutter && cutout.insertionMode === "vertical" ? arena.track(arena.track(cutter.project()).simplify(0.0001)) : null;
+  // Sweep native sections in the authored frame: X/Y extend each horizontal
+  // band, while Z extends the shaft. Complex photo traces otherwise require
+  // hundreds of thousands of triangle prisms. Keep the finite source anchor.
+  let insertionSource = source;
+  let lateralDelta: Vec2 | null = null;
+  if (cutter && cutout.insertionMode === "axis") {
+    const axis = pocketInsertionAxis(cutout);
+    const ceiling = Math.max(realTop, cutter.boundingBox().max[2], Number.isFinite(top) ? top : realTop) + 1;
+    const travel = (ceiling - cutter.boundingBox().min[2]) / axis.z;
+    if (lateralAxis && localBands) {
+      const basis = lateralAxis === "x" ? { x: 1, y: 0, z: 0 } : { x: 0, y: 1, z: 0 };
+      const sign = rotateObjectVector(basis, pose.rotation).z < 0 ? -1 : 1;
+      lateralDelta = lateralAxis === "x" ? [travel * sign, 0] : [0, travel * sign];
+      if (!cutout.split || !depthSpecs.some(depth => depth.mode === "remaining")) {
+        // Each swept band already contains its original section. Adding the
+        // source again creates coincident sheets that collapse in STL's Float32
+        // coordinates, even when indexed kernel topology remains manifold.
+        insertionSource = planarInsertionCutter(kernel, localBands, lateralDelta);
+      }
+    } else {
+      const localUp = rotateObjectVector({ x: 0, y: 0, z: 1 }, pose.rotation).z > 0;
+      // Slice inside the common straight shaft, above every bottom fillet.
+      // Extend this cap without rebuilding the rounded source: the very long
+      // shafts needed near horizontal must not perturb the original seat.
+      const capZ = -Math.min(...dimensions) / 4;
+      const cap = arena.track(source.slice(capZ));
+      if (localUp) {
+        const shaft = arena.track(arena.track(cap.extrude(travel - capZ)).translate([0, 0, capZ]));
+        insertionSource = arena.track(source.add(shaft));
+      } else {
+        // Inverted insertion carries the full top cap past every lower seat,
+        // clearing its bottom rounding and any split-depth shelf along the way.
+        const bottom = source.boundingBox().min[2] - travel;
+        insertionSource = arena.track(arena.track(cap.extrude(-bottom)).translate([0, 0, bottom]));
+      }
+    }
+    cutter = buildObjectCavity(kernel, insertionSource, pose, Infinity, anchor);
+  }
   const validationIssues: ValidationIssue[] = [];
   const throughCutters: Manifold[] = [];
   const clearAndLimit = (posed: Manifold, depth: DepthSpec): Manifold => {
     let result = posed;
-    if (cutout.insertionMode) {
+    if (cutout.insertionMode === "vertical") {
       if (!result.isEmpty()) {
         const ceiling = Math.max(realTop, result.boundingBox().max[2], Number.isFinite(top) ? top : realTop) + 1;
         result = directionalInsertionCutter(kernel, result, ceiling, pocketInsertionAxis(cutout));
@@ -777,7 +833,10 @@ export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: Cut
     const pieces = depthSpecs.flatMap((depth,i) => {
       const sign = (cutout.mirrored ? -1 : 1)*(i === 0 ? 1 : -1);
       const nx = -(b.y-a.y)/length*sign, ny = (b.x-a.x)/length*sign;
-      const part = arena.track(source.trimByPlane([nx,ny,0],nx*a.x+ny*a.y));
+      const part = lateralDelta && localBands
+        ? planarInsertionCutter(kernel,
+          clipExtrusionBands(kernel, localBands, [nx, ny], nx*a.x+ny*a.y), lateralDelta)
+        : arena.track(insertionSource.trimByPlane([nx,ny,0],nx*a.x+ny*a.y));
       const posed = buildObjectCavity(kernel,part,pose,Infinity,anchor);
       return posed ? [clearAndLimit(posed,depth)] : [];
     });
@@ -818,7 +877,9 @@ export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: Cut
     // independently exported materials do not share a vertical wall seam.
     let region = arena.track(seatedCutter.translate([0,0,-distance]));
     if (cutout.bottomFilletMm > 0) {
-      const projection = projectedSource ?? arena.track(seatedCutter.project());
+      // Remove projection seams before the inset expands sub-micron slits
+      // into visible uncolored stripes across an otherwise continuous floor.
+      const projection = projectedSource ?? arena.track(arena.track(seatedCutter.project()).simplify(0.0001));
       const floorOutline = arena.track(projection.offset(-cutout.bottomFilletMm,"Round",2,quality.circularSegments));
       const bounds = region.boundingBox();
       const floorColumn = arena.track(arena.track(floorOutline.extrude(bounds.max[2]-bounds.min[2]+2)).translate([0,0,bounds.min[2]-1]));
@@ -839,13 +900,35 @@ export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: Cut
     validationIssues, reports: [{ id: cutout.id, emptied: source.isEmpty() }] };
 }
 
-/** Preserve placement identity for exact 3D validation, including split cutters. */
+/** Build holes as independent volumes, then protect them from every pocket cutter.
+ * Never union them back into the bin: an exclusion cannot create material outside
+ * the original bin or fill base hardware recesses. All generated handles use Arena.
+ */
 export function buildCutoutCutters(kernel: Kernel, shapesById: ReadonlyMap<string, TracedShape>, cutouts: readonly CutoutPlacement[], spec: BinSpec, quality: BuildQuality, options: CutoutBuildOptions = {}): CutoutCutters {
-  // An unmeasured trace is an outline only, never a guessed cavity in the preview.
-  const groups: { id: string; built: CutoutCutters }[] = cutouts.filter(cutout => !cutout.depthPending).map(cutout => ({ id: cutout.id, built: cutout.profileBottom && shapesById.has(cutout.shapeId)
-    ? buildProfileBottomCutout(kernel, shapesById.get(cutout.shapeId)!, cutout, spec, options.floorInsertThicknessMm)
-    : (hasRigidPocket(cutout) || cutout.insertionMode) && shapesById.has(cutout.shapeId)
-      ? buildRigidPocket(kernel, shapesById.get(cutout.shapeId)!, rigidPocket(cutout, shapesById.get(cutout.shapeId)!, spec), spec, quality, options, resolvePocketDepth(spec, cutout.depth).cutterTopZ)
-    : buildCutoutCuttersInternal(kernel, shapesById, [cutout], spec, quality, options) }));
-  return { cutters: groups.flatMap(g => g.built.cutters), throughCutters: groups.flatMap(g => g.built.throughCutters ?? []), floorInserts: groups.flatMap(g => g.built.floorInserts), floorRegions: groups.flatMap(g => g.built.floorRegions ?? g.built.floorInserts), reports: groups.flatMap(g => g.built.reports), validationIssues: groups.flatMap(g => g.built.validationIssues ?? []), cutterGroups: groups.map(g => ({ id: g.id, cutters: g.built.cutters })) };
+  const groups = cutouts.filter(cutout => !cutout.depthPending).map(source => {
+    // Recursive split/tilt construction builds the volume, independently of its role.
+    const cutout = { ...source, role: undefined };
+    const shape = shapesById.get(cutout.shapeId);
+    const built: CutoutCutters = cutout.profileBottom && shape
+      ? buildProfileBottomCutout(kernel, shape, cutout, spec, options.floorInsertThicknessMm)
+      : (hasRigidPocket(cutout) || cutout.insertionMode) && shape
+        ? buildRigidPocket(kernel, shape, rigidPocket(cutout, shape, spec), spec, quality, options, resolvePocketDepth(spec, cutout.depth).cutterTopZ)
+        : buildCutoutCuttersInternal(kernel, shapesById, [cutout], spec, quality, options);
+    return { id: cutout.id, role: source.role, built };
+  });
+  const masks = groups.filter(g => g.role === "hole").flatMap(g => g.built.cutters);
+  const mask = masks.length ? kernel.arena.track(kernel.Manifold.union(masks)) : null;
+  const protect = (solids: Manifold[]) => mask
+    ? solids.map(solid => kernel.arena.track(solid.subtract(mask))).filter(solid => !solid.isEmpty()) : solids;
+  const pockets = groups.filter(g => g.role !== "hole").map(g => ({ ...g, built: { ...g.built,
+    throughCutters: protect(g.built.throughCutters ?? []),
+    cutters: protect(g.built.cutters), floorInserts: protect(g.built.floorInserts),
+    floorRegions: protect(g.built.floorRegions ?? g.built.floorInserts),
+  } }));
+  return { cutters: pockets.flatMap(g => g.built.cutters), throughCutters: pockets.flatMap(g => g.built.throughCutters),
+    floorInserts: pockets.flatMap(g => g.built.floorInserts),
+    floorRegions: pockets.flatMap(g => g.built.floorRegions), reports: groups.flatMap(g => g.built.reports),
+    validationIssues: groups.flatMap(g => g.built.validationIssues ?? []),
+    cutterGroups: pockets.map(g => ({ id: g.id, cutters: g.built.cutters })),
+    retainedGroups: groups.filter(g => g.role === "hole").map(g => ({ id: g.id, volumes: g.built.cutters })) };
 }

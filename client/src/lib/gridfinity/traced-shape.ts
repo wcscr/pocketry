@@ -24,6 +24,15 @@ export function normalizeTracedShape(
   scale: ExportScale,
   name: string,
 ): TracedShape | null {
+  return normalizeTracedShapeWithPlacement(outlinePx, scale, name)?.shape ?? null;
+}
+
+/** Also retains the source centre for placing a batch without changing its spacing. */
+export function normalizeTracedShapeWithPlacement(
+  outlinePx: Outline,
+  scale: ExportScale,
+  name: string,
+): { shape: TracedShape; center: { x: number; y: number } } | null {
   if (scale.mmPerPx === null || outlinePx.length === 0) return null;
 
   const modelMm = normalizeOutline(toModelSpace(outlinePx, scale));
@@ -34,7 +43,7 @@ export function normalizeTracedShape(
   const centreY = (bounds.minY + bounds.maxY) / 2;
   const centred = translateOutline(modelMm, -centreX, -centreY);
 
-  return {
+  return { center: { x: centreX, y: centreY }, shape: {
     id:
       typeof crypto !== "undefined" && "randomUUID" in crypto
         ? crypto.randomUUID()
@@ -49,5 +58,5 @@ export function normalizeTracedShape(
     },
     pointCount: outlinePointCount(centred),
     sourceMmPerPx: scale.mmPerPx,
-  };
+  } };
 }

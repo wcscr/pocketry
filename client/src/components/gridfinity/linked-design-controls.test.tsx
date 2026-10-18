@@ -73,3 +73,17 @@ it("keeps mixed pocket and thumb selections in separate design sets", () => {
   expect(button("Link 2 finger accesses")).toBeUndefined();
   expect(host.textContent).toContain("Pockets and finger access link separately");
 });
+
+
+it("discloses hole type adoption and propagation for linked copies", () => {
+  const { host, click, store } = mount();
+  React.act(() => store().dispatch({ type: "UPDATE_CUTOUT", id: "b", patch: { role: "hole" } }));
+  expect(host.textContent).toContain("including its Pocket or Hole type");
+  click("Link 2 objects");
+  expect(store().cutouts.every(c => c.role === "hole")).toBe(true);
+  expect(host.textContent).toContain("Edits update all 2 copies.");
+  React.act(() => (host.querySelector('[aria-label="About linked copies"]') as HTMLButtonElement).click());
+  expect(document.body.textContent).toContain("Linked copies share Pocket or Hole type, shape, size, depth");
+  React.act(() => store().dispatch({ type: "UPDATE_CUTOUT", id: "b", patch: { role: undefined } }));
+  expect(store().cutouts.every(c => c.role === undefined)).toBe(true);
+});

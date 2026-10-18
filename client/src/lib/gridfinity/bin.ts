@@ -2,6 +2,7 @@ import { binWidthMm, binLengthMm } from "@shared/gridfinity/bin-size";
 import { validateLayout, type ValidationIssue } from "@shared/gridfinity/validate";
 import { buildSurfaceTexts } from "./surface-text";
 import { validateTiltedSolids } from "./validate-tilted-solids";
+import { validateRetainedMaterial } from "./validate-retained-material";
 // Type-only import: the kernel is injected (see `Kernel` in ../manifold/runtime).
 import type { Manifold } from "manifold-3d";
 
@@ -263,6 +264,7 @@ export function buildBinWithCutouts(
           : arena.track(Manifold.union(allCutters));
       solid = arena.track(base.solid.subtract(cutter));
     }
+    validationIssues.push(...validateRetainedMaterial(kernel, solid, builtCutouts?.retainedGroups ?? [], layout.cutouts, layout.shapesById));
   }
   const status = solid.status();
   if (status !== "NoError") {

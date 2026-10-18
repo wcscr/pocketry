@@ -42,8 +42,10 @@ export function verticalDropInCutter(kernel: Kernel, source: Manifold, ceiling: 
     const start = points.flatMap(([x,y,z]) => [-1,1].flatMap(dx =>
       [-1,1].map(dy => [x+dx*overlap,y+dy*overlap,z] as Vec3)));
     const exit = start.map(([x,y,z]) => [x,y,z+ceiling-bounds.min[2]] as Vec3);
-    const hull = arena.track(M.hull([...start, ...exit]));
-    const prism = arena.track(hull.setTolerance(tolerance));
+    // Keep native hull precision. Raising each prism's tolerance simplifies
+    // thin facets before the union and can remove whole strips of a complex
+    // pocket. The small lateral overlap above already covers Float32 seams.
+    const prism = arena.track(M.hull([...start, ...exit]));
     if (!prism.isEmpty()) prisms.push(prism);
   }
   const joined = arena.track(M.union(prisms));

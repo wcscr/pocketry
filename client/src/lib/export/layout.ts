@@ -26,6 +26,7 @@ import { retainedUltim8PegCenters } from "@/lib/gridfinity/peg-bottom";
 import { EXPORT_QUALITY } from "@/lib/gridfinity/bin";
 import { buildCutoutCutters, buildFingerHoleCutters } from "@/lib/gridfinity/cutouts";
 
+import { toCrossSection, polygonsToOutline } from "@/lib/geometry/offset";
 import { budgetOutline } from "@/lib/gridfinity/cutouts";
 
 import { dxfFromModelRings } from "./dxf";
@@ -61,16 +62,25 @@ export function layoutRingsMm(
         ),
   ];
 
-  for (const cutout of cutouts) {
+  const placedOpening = (cutout: CutoutPlacement) => {
     const shape = shapesById.get(cutout.shapeId);
-    if (!shape) continue;
+    if (!shape) return [];
     const budgeted = budgetOutline(shape.outlineMm, EXPORT_VERTEX_BUDGET);
-    const outline = hasRigidPocket(cutout) ? kernel ? resolvedPocketGeometry(kernel, shape, cutout, spec).opening
+    return hasRigidPocket(cutout) ? kernel ? resolvedPocketGeometry(kernel, shape, cutout, spec).opening
       : rigidPocketFootprint(shape.outlineMm, cutout, resolvePocketDepth(spec, cutout.depth).infillTopZ) : cutout.profileBottom
       ? kernel ? resolvedProfileFootprint(kernel, shape.outlineMm, cutout, resolvePocketDepth(spec, { mode: "through" }).infillTopZ)
         : profileFootprint(shape.outlineMm, cutout, resolvePocketDepth(spec, { mode: "through" }).infillTopZ)
       : transformOutlinePlacement(budgeted, cutout);
-    for (const placedShape of outline) {
+  };
+  const holeParts = cutouts.filter(c => c.role === "hole").flatMap(placedOpening);
+  if (holeParts.length && !kernel) throw new Error("Hole layout export requires the geometry kernel.");
+  const mask = kernel && holeParts.length ? toCrossSection(kernel, holeParts) : null;
+  for (const cutout of cutouts) {
+    if (cutout.role === "hole") continue;
+    const outline = placedOpening(cutout);
+    const opening = mask && kernel
+      ? polygonsToOutline(kernel.arena.track(toCrossSection(kernel, outline).subtract(mask)).toPolygons()) : outline;
+    for (const placedShape of opening) {
       rings.push(placedShape.outer, ...placedShape.holes);
     }
   }
@@ -157,7 +167,7 @@ export async function generateLayoutSVG(
 }
 
 async function exportLayoutRings(spec: BinSpec, cutouts: readonly CutoutPlacement[], shapes: ReadonlyMap<string, TracedShape>, fingers: readonly FingerHole[]): Promise<Ring[]> {
-  return cutouts.some(c => c.profileBottom || hasRigidPocket(c))
+  return cutouts.some(c => c.role === "hole" || c.profileBottom || hasRigidPocket(c))
     ? withKernel(kernel => layoutRingsMm(spec, cutouts, shapes, fingers, kernel))
     : layoutRingsMm(spec, cutouts, shapes, fingers);
 }

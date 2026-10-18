@@ -16,6 +16,13 @@ import type { Kernel } from "@/lib/manifold/runtime";
  * it with real traced outlines.
  */
 
+/** Exact constant-section pieces used to build a stepped pocket solid. */
+export interface ExtrusionBand {
+  section: CrossSection;
+  bottom: number;
+  height: number;
+}
+
 export interface FilletOptions {
   /** Fillet radius where the pocket wall meets the floor. */
   radiusMm: number;
@@ -68,6 +75,7 @@ export function bottomFilletCutter(
   section: CrossSection,
   depthMm: number,
   options: FilletOptions,
+  bands?: ExtrusionBand[],
 ): Manifold {
   const { Manifold, arena } = kernel;
   const { profileStepMm, circularSegments } = options;
@@ -86,17 +94,15 @@ export function bottomFilletCutter(
     );
   }
 
-  if (radiusMm === 0) {
-    return arena.track(section.extrude(depthMm));
-  }
+  const extrudeBand = (profile: CrossSection, bottom: number, height: number): Manifold => {
+    bands?.push({ section: profile, bottom, height });
+    return arena.track(arena.track(profile.extrude(height)).translate([0, 0, bottom]));
+  };
+  if (radiusMm === 0) return extrudeBand(section, 0, depthMm);
 
   const pieces: Manifold[] = [];
   if (depthMm > radiusMm) {
-    pieces.push(
-      arena.track(
-        arena.track(section.extrude(depthMm - radiusMm)).translate([0, 0, radiusMm]),
-      ),
-    );
+    pieces.push(extrudeBand(section, radiusMm, depthMm - radiusMm));
   }
 
   const sliceCount = filletSliceCount(
@@ -123,11 +129,7 @@ export function bottomFilletCutter(
               .simplify(CLEANUP_EPSILON),
           );
     if (shrunk.isEmpty()) continue;
-    pieces.push(
-      arena.track(
-        arena.track(shrunk.extrude(sliceHeight + overlap)).translate([0, 0, bottom]),
-      ),
-    );
+    pieces.push(extrudeBand(shrunk, bottom, sliceHeight + overlap));
   }
 
   if (pieces.length === 0) {

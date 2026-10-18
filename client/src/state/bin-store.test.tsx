@@ -1162,3 +1162,11 @@ it("changes peg bottoms and fit settings with undo, retaining custom pocket floo
   expect(store().spec.screwHoles).toBe(true);
   expect(store().cutouts[0].depth).toEqual(CUTOUT.depth);
 });
+
+it("keeps authored placement labels and describes single hole additions", () => {
+  const { store, act } = mountBin();
+  act(() => store().dispatch({ type: "ADD_PLACED", cutouts: [CUTOUT], gridX: 2, gridY: 2, historyLabel: "Add circle pocket" }));
+  expect(store().history.stack.at(-1)!.label).toBe("Add circle pocket");
+  act(() => store().dispatch({ type: "ADD_PLACED", cutouts: [{ ...CUTOUT, id: "kept", role: "hole" }], gridX: 2, gridY: 2 }));
+  expect(store().history.stack.at(-1)!.label).toBe("Add 1 traced object");
+});

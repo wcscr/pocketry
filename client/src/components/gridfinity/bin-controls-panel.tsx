@@ -525,7 +525,7 @@ export function BinControlsPanel({
     if (!selectedCutout || !selectedShape) return;
     dispatch({ type: "UPDATE_CUTOUT", id: selectedCutout.id,
       patch: pocketDepthChangePatch(spec, selectedShape, selectedCutout, depth, selectedPocketSection),
-      transient, historyLabel: selectedCutout.split ? "Change section depth" : "Change pocket depth" });
+      transient, historyLabel: selectedCutout.split ? "Change section depth" : selectedCutout.role === "hole" ? "Change kept depth" : "Change pocket depth" });
   };
   const selectedShape = selectedCutout
     ? (shapesById.get(selectedCutout.shapeId) ?? null)
@@ -732,6 +732,8 @@ export function BinControlsPanel({
           </div>
   );
 
+  const retainedHoleCount = cutouts.filter(c => c.role === "hole").length;
+  const pocketCount = cutouts.length - retainedHoleCount;
   const pocketList = cutouts.length > 0 && (
             <div className="space-y-1" aria-label="Choose a pocket to edit">
               {cutouts.map((cutout) => {
@@ -756,7 +758,7 @@ export function BinControlsPanel({
                     <button
                       type="button"
                       className="flex min-h-8 min-w-0 flex-1 items-center gap-2 rounded px-2 py-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [@media(pointer:coarse)]:min-h-11"
-                      aria-label={`${name} — edit pocket properties`}
+                      aria-label={`${name} — edit ${cutout.role === "hole" ? "hole" : "pocket"} properties`}
                       aria-pressed={isSelected}
                       aria-controls="pocket-properties"
                       data-testid={`button-select-${cutout.id}`}
@@ -771,6 +773,7 @@ export function BinControlsPanel({
                       }}
                     >
                       <span className={cn("min-w-0 flex-1 truncate", isSelected && "font-medium text-violet-700 dark:text-violet-300")}>{name}</span>
+                      {cutout.role === "hole" && <span className="text-[10px] text-muted-foreground">Hole</span>}
                       {cutout.depthPending && <span className="text-[10px] text-muted-foreground">Depth needed</span>}
                       {cutout.designLink && <Link2 className="h-3 w-3 shrink-0" aria-label="Linked design" />}
                     </button>
@@ -858,27 +861,31 @@ export function BinControlsPanel({
                       })
                     }
                     hintAsTooltip
-                    hint="Rounds the pocket wall into the top surface of the bin."
+                    hint={selectedCutout.role === "hole" ? "Expands the kept outline near its top edge, reducing the surrounding pocket opening." : "Rounds the pocket wall into the top surface of the bin."}
                   />
   );
   const pocketClearance = selectedCutout && selectedShape && (
               <details className="group/clearance border-t pt-1 text-xs" data-testid="pocket-clearance-settings">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-2 py-2 font-medium [&::-webkit-details-marker]:hidden">
-                  <span className="flex items-center gap-1">Extra pocket clearance
-                    <HelpHint label="extra pocket clearance">
-                      Adjusts each edge after scaling. Negative values shrink the pocket; positive values enlarge it. Zero keeps the original outline size. Narrow features can disappear when shrunk.
-                      <span className="mt-1 block">{selectedShape.source === "basic-shape"
-                        ? `Drawn in millimetres. Extra allowance: ${selectedCutout.clearanceMm.toFixed(2)} mm per edge.`
-                        : selectedShape.traceMarginMm === undefined
-                        ? `Original trace margin unknown (older project). Extra allowance: ${selectedCutout.clearanceMm.toFixed(2)} mm per edge.`
-                        : `Trace margin: ${selectedShape.traceMarginMm.toFixed(2)} mm per edge before scaling. Nominal total allowance X/Y: ${(selectedShape.traceMarginMm * selectedCutout.scaleX + selectedCutout.clearanceMm).toFixed(2)} / ${(selectedShape.traceMarginMm * selectedCutout.scaleY + selectedCutout.clearanceMm).toFixed(2)} mm per edge.`}</span>
+                  <span className="flex items-center gap-1">{selectedCutout.role === "hole" ? "Hole offset" : "Extra pocket clearance"}
+                    <HelpHint label={selectedCutout.role === "hole" ? "hole offset" : "extra pocket clearance"}>
+                      {selectedCutout.role === "hole" ? "Adjusts the kept outline after scaling. Positive values enlarge the kept area and reduce the surrounding pocket opening; negative values shrink the kept area. Zero keeps the original outline size. Narrow features can disappear when shrunk." : "Adjusts each edge after scaling. Negative values shrink the pocket; positive values enlarge it. Zero keeps the original outline size. Narrow features can disappear when shrunk."}
+                      <span className="mt-1 block">{selectedCutout.role === "hole"
+                        ? selectedShape.source === "basic-shape" ? `Drawn in millimetres. Kept outline offset: ${selectedCutout.clearanceMm.toFixed(2)} mm per edge.`
+                          : selectedShape.traceMarginMm === undefined ? `Original trace margin unknown (older project). Kept outline offset: ${selectedCutout.clearanceMm.toFixed(2)} mm per edge.`
+                          : `Trace margin included in this outline: ${selectedShape.traceMarginMm.toFixed(2)} mm before scaling. Additional kept outline offset: ${selectedCutout.clearanceMm.toFixed(2)} mm per edge.`
+                        : selectedShape.source === "basic-shape"
+                          ? `Drawn in millimetres. Extra allowance: ${selectedCutout.clearanceMm.toFixed(2)} mm per edge.`
+                          : selectedShape.traceMarginMm === undefined
+                          ? `Original trace margin unknown (older project). Extra allowance: ${selectedCutout.clearanceMm.toFixed(2)} mm per edge.`
+                          : `Trace margin included in this outline: ${selectedShape.traceMarginMm.toFixed(2)} mm before scaling. Additional pocket clearance: ${selectedCutout.clearanceMm.toFixed(2)} mm per edge.`}</span>
                     </HelpHint>
                   </span>
                   <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/clearance:rotate-180" />
                 </summary>
                 <div className="space-y-2 pb-2" key={selectedCutout.id}>
                   <MmSlider
-                    label="Extra pocket clearance"
+                    label={selectedCutout.role === "hole" ? "Hole offset" : "Extra pocket clearance"}
                     value={selectedCutout.clearanceMm}
                     centered
                     inline
@@ -890,7 +897,7 @@ export function BinControlsPanel({
                         type: "UPDATE_CUTOUT",
                         id: selectedCutout.id,
                         patch: { clearanceMm },
-                        historyLabel: "Change pocket clearance",
+                        historyLabel: selectedCutout.role === "hole" ? "Change hole offset" : "Change pocket clearance",
                         transient,
                       })
                     }
@@ -899,9 +906,9 @@ export function BinControlsPanel({
               </details>
   );
   const pocketProperties = selectedCutout && selectedShape && (
-            <PropertySurface tone="violet" id="pocket-properties" role="region" aria-label="Selected pocket properties">
+            <PropertySurface tone="violet" id="pocket-properties" role="region" aria-label={selectedCutout.role === "hole" ? "Selected hole properties" : "Selected pocket properties"}>
               <div className="property-heading -mx-3 -mt-3 flex min-w-0 flex-wrap items-center gap-2 rounded-t-lg border-b px-3 py-2" data-testid="pocket-properties-heading">
-                <h3 className="text-xs font-semibold">Pocket properties</h3>
+                <h3 className="text-xs font-semibold">{selectedCutout.role === "hole" ? "Hole properties" : "Pocket properties"}</h3>
                 <span className={inspector ? "sr-only" : "min-w-0 flex-1 truncate text-xs"} title={pocketName(selectedCutout, selectedShape)}>{pocketName(selectedCutout, selectedShape)}</span>
                 <Button
                   variant={editorMode === "contour" ? "default" : "outline"}
@@ -929,9 +936,20 @@ export function BinControlsPanel({
               </div>
 
 
+              <label className="flex items-center gap-2 py-2 text-xs">
+                Type
+                <select aria-label="Outline type" className="h-9 min-w-0 flex-1 rounded border border-input bg-background px-2"
+                  value={selectedCutout.role ?? "pocket"} onChange={event => dispatch({ type: "UPDATE_CUTOUT", id: selectedCutout.id,
+                    patch: { role: event.target.value === "hole" ? "hole" : undefined }, historyLabel: "Change outline type" })}>
+                  <option value="pocket">Pocket — cut material</option>
+                  <option value="hole">Hole — keep material</option>
+                </select>
+              </label>
+              {selectedCutout.designLink && <p className="pb-2 text-xs text-muted-foreground">Changing type updates every linked copy.</p>}
+              {selectedCutout.role === "hole" && <p className="pb-2 text-xs text-muted-foreground">Keeps material wherever this object overlaps a pocket. Move, resize, edit its contour, or remove it independently. Depth sets how far down material is kept.</p>}
               <PocketInsertionControls cutout={selectedCutout} shape={selectedShape} />
               {!inspector && !!selectedCutout.designLink && <LinkedDesignControls kind="pocket" activeId={selectedCutout.id} labels={new Map(cutouts.map(c => [c.id, pocketName(c, shapesById.get(c.shapeId))]))} />}
-              {selectedCutout.depthPending ? <Button variant="outline" onClick={() => onRevealIssue({ code: "pocket-depth-needed", severity: "error", message: "Depth needed", cutoutIds: [selectedCutout.id] })}>Set pocket depth</Button> : <PocketDepthSummary cutout={depthCutout!} shape={depthShape!} section={section} inspect={inspectPocket}>
+              {selectedCutout.depthPending ? <Button variant="outline" onClick={() => onRevealIssue({ code: "pocket-depth-needed", severity: "error", message: "Depth needed", cutoutIds: [selectedCutout.id] })}>{selectedCutout.role === "hole" ? "Set hole depth" : "Set pocket depth"}</Button> : <PocketDepthSummary cutout={depthCutout!} shape={depthShape!} section={section} inspect={inspectPocket}>
                 {selectedCutout.split && <div className="flex gap-1 pb-2" role="group" aria-label="Section to edit">
                   {([0, 1] as const).map(index => <Button key={index} type="button" size="sm"
                     className="flex-1" variant={selectedPocketSection === index ? "secondary" : "outline"}
@@ -940,7 +958,7 @@ export function BinControlsPanel({
                     Section {index === 0 ? "A" : "B"}
                   </Button>)}
                 </div>}
-                <section className="space-y-2 pb-2" aria-label="Pocket depth" key={`${selectedCutout.id}-${selectedPocketSection}-${!!selectedCutout.split}`}>
+                <section className="space-y-2 pb-2" aria-label={selectedCutout.role === "hole" ? "Hole depth" : "Pocket depth"} key={`${selectedCutout.id}-${selectedPocketSection}-${!!selectedCutout.split}`}>
                   <div className="flex items-center gap-2">
                     <Select
                       value={depthCutout!.depth.mode}
@@ -955,20 +973,20 @@ export function BinControlsPanel({
                         updatePocketDepth(depth);
                       }}
                     >
-                      <SelectTrigger className="h-9 flex-1" aria-label="Pocket depth mode">
+                      <SelectTrigger className="h-9 flex-1" aria-label={selectedCutout.role === "hole" ? "Hole depth mode" : "Pocket depth mode"}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="remaining">Keep floor thickness</SelectItem>
-                        <SelectItem value="mm">Fixed depth</SelectItem>
-                        <SelectItem value="through">Through</SelectItem>
+                        <SelectItem value="remaining">{selectedCutout.role === "hole" ? "Set bottom height" : "Keep floor thickness"}</SelectItem>
+                        <SelectItem value="mm">{selectedCutout.role === "hole" ? "Fixed kept depth" : "Fixed depth"}</SelectItem>
+                        <SelectItem value="through">{selectedCutout.role === "hole" ? hasRigidPocket(selectedCutout) ? "Keep original depth" : "Keep full depth" : "Through"}</SelectItem>
                       </SelectContent>
                     </Select>
-                    {hasSmoothBase(spec) && depthCutout!.depth.mode === "remaining" && <HelpHint label="remaining floor thickness">Measured from the flat slab underside above any peg roots. A 2 mm floor lets pockets extend into the former base area.</HelpHint>}
+                    {selectedCutout.role !== "hole" && hasSmoothBase(spec) && depthCutout!.depth.mode === "remaining" && <HelpHint label="remaining floor thickness">Measured from the flat slab underside above any peg roots. A 2 mm floor lets pockets extend into the former base area.</HelpHint>}
                     {depthCutout!.depth.mode === "mm" && (
                       <DraftNumberInput
                         className="h-9 w-20 text-base font-semibold"
-                        aria-label="Pocket cut depth in millimetres"
+                        aria-label={selectedCutout.role === "hole" ? "Hole kept depth in millimetres" : "Pocket cut depth in millimetres"}
                         value={depthCutout!.depth.value}
                         displayPrecision={3}
                         min={1}
@@ -983,15 +1001,15 @@ export function BinControlsPanel({
                     )}
                   </div>
 
-                  {depthCutout!.depth.mode === "remaining" && <MmSlider label="Remaining floor thickness" value={depthCutout!.depth.floorThicknessMm} min={0} max={Math.max(7, spec.heightUnits * 7)} step={0.5}
+                  {depthCutout!.depth.mode === "remaining" && <MmSlider label={selectedCutout.role === "hole" ? "Bottom height above underside" : "Remaining floor thickness"} value={depthCutout!.depth.floorThicknessMm} min={0} max={Math.max(7, spec.heightUnits * 7)} step={0.5}
                     onChange={(floorThicknessMm, transient) => updatePocketDepth({ mode: "remaining", floorThicknessMm }, transient)} />}
-                  {hasRigidPocket(selectedCutout) && depthCutout!.depth.mode === "remaining" && <p className="text-[11px] text-muted-foreground">The floor limit clips only the cut. Raising the pocket restores its original profile.</p>}
-                  {hasRigidPocket(selectedCutout) && depthCutout!.depth.mode === "through" && <p className="text-[11px] text-muted-foreground">Preserves the original shape. Z movement stops when the lowest point reaches the bin underside; raising it restores material.</p>}
-                  {selectedCutout.split && <p className="text-[11px] text-muted-foreground">Depth applies to the selected section. Size and edges apply to the whole pocket.</p>}
+                  {hasRigidPocket(selectedCutout) && depthCutout!.depth.mode === "remaining" && <p className="text-[11px] text-muted-foreground">{selectedCutout.role === "hole" ? "The bottom height limits the kept volume without changing its original profile." : "The floor limit clips only the cut. Raising the pocket restores its original profile."}</p>}
+                  {hasRigidPocket(selectedCutout) && depthCutout!.depth.mode === "through" && <p className="text-[11px] text-muted-foreground">{selectedCutout.role === "hole" ? "Preserves the kept volume. Z movement stops when its lowest point reaches the bin underside." : "Preserves the original shape. Z movement stops when the lowest point reaches the bin underside; raising it restores material."}</p>}
+                  {selectedCutout.split && <p className="text-[11px] text-muted-foreground">Depth applies to the selected section. Size and edges apply to the whole object.</p>}
                 </section>
               </PocketDepthSummary>}
               {!selectedCutout.depthPending && !selectedCutout.profileBottom && <PocketSplitControls cutout={selectedCutout} />}
-              <details className="group/size border-t pt-1 text-xs" aria-label="Pocket size and scale" data-testid="pocket-size-settings">
+              <details className="group/size border-t pt-1 text-xs" aria-label={selectedCutout.role === "hole" ? "Hole size and scale" : "Pocket size and scale"} data-testid="pocket-size-settings">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-2 py-2 font-medium [&::-webkit-details-marker]:hidden">
                   Size &amp; scale
                   <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/size:rotate-180" />
@@ -1022,7 +1040,7 @@ export function BinControlsPanel({
                       })
                     }
                     hintAsTooltip
-                    hint="Rounds the wall into the floor; the transition ends one radius above the floor."
+                    hint={selectedCutout.role === "hole" ? "Narrows the kept volume near its bottom; the transition ends one radius above the bottom." : "Rounds the wall into the floor; the transition ends one radius above the floor."}
                   />
                   <MmSlider
                     label="Outline corner rounding"
@@ -1040,7 +1058,7 @@ export function BinControlsPanel({
                       })
                     }
                     hintAsTooltip
-                    hint="Rounds sharp corners in the pocket outline from top to bottom."
+                    hint={selectedCutout.role === "hole" ? "Rounds sharp corners in the kept outline from top to bottom." : "Rounds sharp corners in the pocket outline from top to bottom."}
                   />
 
                 </div>
@@ -1051,7 +1069,7 @@ export function BinControlsPanel({
                   <Label className="w-16 shrink-0 text-xs">Rotation</Label>
                   <DraftNumberInput
                     className="h-8"
-                    aria-label="Pocket rotation in degrees"
+                    aria-label={selectedCutout.role === "hole" ? "Hole rotation in degrees" : "Pocket rotation in degrees"}
                     value={selectedCutout.rotationDeg}
                     displayPrecision={1}
                     step={15}
@@ -1061,7 +1079,7 @@ export function BinControlsPanel({
                         type: "UPDATE_CUTOUT",
                         id: selectedCutout.id,
                         patch: { rotationDeg },
-                        historyLabel: "Rotate tool pocket",
+                        historyLabel: selectedCutout.role === "hole" ? "Rotate hole" : "Rotate tool pocket",
                       })
                     }
                   />
@@ -1074,7 +1092,7 @@ export function BinControlsPanel({
                         type: "UPDATE_CUTOUT",
                         id: selectedCutout.id,
                         patch: { mirrored },
-                        historyLabel: "Mirror tool pocket",
+                        historyLabel: selectedCutout.role === "hole" ? "Mirror hole" : "Mirror tool pocket",
                       })
                     }
                   />
@@ -1875,10 +1893,10 @@ export function BinControlsPanel({
         <PanelSection
           key={cutouts.length > 0 ? "pockets" : "pockets-empty"}
           id="bin-settings-pockets"
-          title="Pockets"
+          title={retainedHoleCount ? "Pockets & holes" : "Pockets"}
           icon={Scissors}
           tone="violet"
-          summary={`${cutouts.length} pocket${cutouts.length === 1 ? "" : "s"}`}
+          summary={`${pocketCount} pocket${pocketCount === 1 ? "" : "s"}${retainedHoleCount ? ` · ${retainedHoleCount} hole${retainedHoleCount === 1 ? "" : "s"}` : ""}`}
           defaultOpen={!!inspector || cutouts.length > 0}
           className="scroll-mt-16"
         >

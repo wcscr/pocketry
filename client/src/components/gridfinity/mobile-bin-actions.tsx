@@ -1,4 +1,5 @@
 import { Fragment, useEffect } from "react";
+import { hasRigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { surfaceTextName } from "@shared/gridfinity/surface-text";
 import { SurfaceTextProperties, SurfaceTextTransformControls } from "./surface-text-controls";
 import { useMobileObjectTools } from "./mobile-object-tools-context";
@@ -50,10 +51,10 @@ export function MobileBinActions({ open, onOpenChange, onMore, onExport, onWorkf
     if (depths) depths[bin.selectedPocketSection] = next;
     bin.dispatch({ type: "UPDATE_CUTOUT", id: cutout.id,
       patch: cutout.split && depths ? { split: { ...cutout.split, depths } } : { depth: next },
-      transient, historyLabel: cutout.split ? "Change section depth" : "Change pocket depth" });
+      transient, historyLabel: cutout.split ? "Change section depth" : cutout.role === "hole" ? "Change kept depth" : "Change pocket depth" });
   };
   const updateClearance = (clearanceMm: number, transient: boolean) => {
-    if (cutout) bin.dispatch({ type: "UPDATE_CUTOUT", id: cutout.id, patch: { clearanceMm }, transient, historyLabel: "Change pocket clearance" });
+    if (cutout) bin.dispatch({ type: "UPDATE_CUTOUT", id: cutout.id, patch: { clearanceMm }, transient, historyLabel: cutout.role === "hole" ? "Change hole offset" : "Change pocket clearance" });
   };
   const mm = (value: number) => `${value.toFixed(1)} mm`;
   return <div>
@@ -71,15 +72,16 @@ export function MobileBinActions({ open, onOpenChange, onMore, onExport, onWorkf
             aria-pressed={bin.selectedPocketSection === section} onClick={() => bin.dispatch({ type: "SELECT_CUTOUT", id: cutout.id, section })}>Section {section === 0 ? "A" : "B"}</Button>)}
         </div>}
         <div className="grid grid-cols-2 gap-4">
-          {depth.mode === "through" ? <p className="text-xs">Through pocket. Change depth mode in All properties.</p> :
-            <LabelledSlider id="quick-pocket-depth" label={depth.mode === "remaining" ? "Floor thickness" : "Pocket depth"}
+          {depth.mode === "through" ? <p className="text-xs">{cutout.role === "hole" ? hasRigidPocket(cutout) ? "Keeps the original volume. Change kept depth in All properties." : "Keeps material through the bin. Change kept depth in All properties." : "Through pocket. Change depth mode in All properties."}</p> :
+            <LabelledSlider id="quick-pocket-depth" label={cutout.role === "hole" ? depth.mode === "remaining" ? "Bottom height" : "Kept depth" : depth.mode === "remaining" ? "Floor thickness" : "Pocket depth"}
               value={depth.mode === "remaining" ? depth.floorThicknessMm : depth.value} min={depth.mode === "remaining" ? 0 : 0.5}
               max={Math.max(7, bin.spec.heightUnits * 7)} step={0.5} format={mm} touchTarget
               onChange={value => updateDepth(depth.mode === "remaining" ? { ...depth, floorThicknessMm: value } : { mode: "mm", value }, true)}
               onCommit={value => updateDepth(depth.mode === "remaining" ? { ...depth, floorThicknessMm: value } : { mode: "mm", value }, false)} />}
-          <LabelledSlider id="quick-pocket-clearance" label="Extra clearance" value={cutout.clearanceMm} min={-2} max={2} step={0.1} format={mm} touchTarget
+          <LabelledSlider id="quick-pocket-clearance" label={cutout.role === "hole" ? "Hole offset" : "Extra clearance"} value={cutout.clearanceMm} min={-2} max={2} step={0.1} format={mm} touchTarget
             onChange={value => updateClearance(value, true)} onCommit={value => updateClearance(value, false)} />
         </div>
+        {cutout.role === "hole" && <p className="mt-2 text-xs text-muted-foreground">Positive offset keeps more material and reduces the surrounding pocket opening.</p>}
       </Fragment> : <>
         <LabelledSlider id="quick-bin-height" label="Bin height" value={bin.spec.heightUnits} min={1} max={12} step={0.5} format={value => `${value} units`} touchTarget
           onChange={heightUnits => bin.dispatch({ type: "PATCH_SPEC", patch: { heightUnits }, transient: true })}

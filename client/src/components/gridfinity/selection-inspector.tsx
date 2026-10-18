@@ -75,23 +75,25 @@ function BatchField({ objects, all, kind, property, label }: {
   const [draft, setDraft] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const value = commonSelectionValue(objects, property);
+  const holeCount = objects.filter(o => o.kind === "pocket" && o.cutout.role === "hole").length;
+  const noun = kind === "finger" ? "finger accesses" : holeCount === objects.length ? "holes" : holeCount ? "pockets and holes" : "pockets";
   return <form className="space-y-1.5" onSubmit={event => {
     event.preventDefault();
     if (draft === null || !draft.trim()) return;
     try {
       const edits = selectionPropertyEdits(all, selection, kind, property, Number(draft), spec);
-      dispatch({ type: "UPDATE_OBJECTS", edits, historyLabel: `Change ${label.toLowerCase()} for ${objects.length} ${kind === "pocket" ? "pockets" : "finger accesses"}` });
+      dispatch({ type: "UPDATE_OBJECTS", edits, historyLabel: `Change ${label.toLowerCase()} for ${objects.length} ${noun}` });
       setDraft(null); setError(null);
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not apply this change."); }
   }}>
     <label className="block text-xs font-medium" htmlFor={`batch-${kind}-${property}`}>{label}</label>
     <div className="flex items-center gap-2">
-      <Input id={`batch-${kind}-${property}`} aria-label={`${label} for selected ${kind === "pocket" ? "pockets" : "finger accesses"}`}
+      <Input id={`batch-${kind}-${property}`} aria-label={`${label} for selected ${noun}`}
         className="h-9 min-w-0 flex-1 text-sm" type="number" step="any" placeholder="Mixed" value={draft ?? value ?? ""}
         onChange={event => { setDraft(event.target.value); setError(null); }}
         onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setDraft(null); setError(null); event.currentTarget.blur(); } }} />
       <span className="text-xs text-muted-foreground">mm</span>
-      <Button type="submit" variant="outline" size="sm" disabled={draft === null || !draft.trim()} aria-label={`Apply ${label.toLowerCase()} to selected ${kind === "pocket" ? "pockets" : "finger accesses"}`}>Apply</Button>
+      <Button type="submit" variant="outline" size="sm" disabled={draft === null || !draft.trim()} aria-label={`Apply ${label.toLowerCase()} to selected ${noun}`}>Apply</Button>
     </div>
     {error && <p className="text-xs text-destructive" role="alert">{error}</p>}
   </form>;
@@ -125,7 +127,7 @@ export function SelectionInspector({ propertiesRef, transformsRef, settingsRef }
   return <aside className="flex h-full min-h-0 flex-col bg-background [@media(pointer:coarse)]:[&_button]:min-h-11 [@media(pointer:coarse)]:[&_input:not([type=checkbox])]:min-h-11 [@media(pointer:coarse)]:[&_select]:min-h-11" aria-label="Selection inspector" data-testid="selection-inspector">
     <header data-property-tone={tone} className="property-heading flex min-h-14 shrink-0 items-center gap-1 border-b py-2 pl-3 pr-12" data-testid="inspector-properties-header">
       <div className="mr-auto min-w-0" aria-live="polite">
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{section ? "Workflow properties" : selectedText ? "Surface text" : single ? single.kind === "pocket" ? "Pocket" : "Finger access" : chosen.length ? "Selection" : "Properties"}</p>
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{section ? "Workflow properties" : selectedText ? "Surface text" : single ? single.kind === "pocket" ? single.cutout.role === "hole" ? "Hole" : "Pocket" : "Finger access" : chosen.length ? "Selection" : "Properties"}</p>
         <h3 className="truncate text-sm font-semibold" title={title}>{title}</h3>
       </div>
       {!showingSection && (chosen.length > 1 || single?.kind === "finger") && <Button size="icon" variant="ghost" className="h-8 w-8" title="Duplicate selection" aria-label="Duplicate selection" onClick={() => bin.dispatch({ type: "DUPLICATE_SELECTION", labels: new Map(objects.map(o => [objectRef(o).id, o.kind === "pocket" ? pocketName(o.cutout, o.shape) : o.hole.name ?? `Finger access ${bin.fingerHoles.indexOf(o.hole) + 1}`])), ids: chosen.map(o => ({ source: objectRef(o), id: crypto.randomUUID() })) })}><Copy /></Button>}
@@ -142,13 +144,20 @@ export function SelectionInspector({ propertiesRef, transformsRef, settingsRef }
       <div hidden={showingSection || !hasSelection || !selectedText && inspector?.tool !== "properties"}>
       {!!extraLinked && <p className="m-3 rounded-md border border-violet-500/30 bg-violet-500/5 p-2 text-xs" role="status">Design edits also update {extraLinked} unselected linked {extraLinked === 1 ? "copy" : "copies"}. Movement stays independent.</p>}
       {chosen.length > 1 && <div className="space-y-4 p-3" data-testid="batch-properties">
-        {([pockets, fingers]).filter(items => items.length).map(items => <PropertySurface key={items[0].kind} tone={items[0].kind === "pocket" ? "violet" : "cyan"} role="region" aria-label={`${items.length} selected ${items[0].kind === "pocket" ? `pocket${items.length === 1 ? "" : "s"}` : `finger access${items.length === 1 ? "" : "es"}`}`}>
-          <h3 className="border-b pb-2 text-xs font-semibold">{items.length} selected {items[0].kind === "pocket" ? `pocket${items.length === 1 ? "" : "s"}` : `finger access${items.length === 1 ? "" : "es"}`}</h3>
-          {(["depth", "topFilletMm", ...(items[0].kind === "pocket" ? ["clearanceMm"] : [])] as SelectionProperty[]).map(property => <BatchField
-            key={`${JSON.stringify(bin.selection)}:${JSON.stringify(items)}:${property}`} objects={items} all={objects} kind={items[0].kind} property={property}
-            label={property === "depth" ? "Fixed cut depth" : property === "topFilletMm" ? "Top rounding" : "Extra clearance"} />)}
-          {items.some(o => o.kind === "pocket" && o.cutout.split) && <p className="text-xs text-muted-foreground">Setting depth updates both sections of selected split pockets.</p>}
-        </PropertySurface>)}
+        {([pockets, fingers]).filter(items => items.length).map(items => {
+          const holes = items.filter(o => o.kind === "pocket" && o.cutout.role === "hole").length;
+          const noun = items[0].kind === "finger" ? `finger access${items.length === 1 ? "" : "es"}`
+            : holes === items.length ? `hole${holes === 1 ? "" : "s"}` : holes ? "pockets and holes" : `pocket${items.length === 1 ? "" : "s"}`;
+          return <PropertySurface key={items[0].kind} tone={items[0].kind === "pocket" ? "violet" : "cyan"} role="region" aria-label={`${items.length} selected ${noun}`}>
+            <h3 className="border-b pb-2 text-xs font-semibold">{items.length} selected {noun}</h3>
+            {holes > 0 && <p className="text-xs text-muted-foreground">Depth sets how far down holes keep material{holes < items.length ? " and pockets cut material" : ""}. Positive hole offset keeps more material and reduces the surrounding opening.</p>}
+            {(["depth", "topFilletMm", ...(items[0].kind === "pocket" ? ["clearanceMm"] : [])] as SelectionProperty[]).map(property => <BatchField
+              key={`${JSON.stringify(bin.selection)}:${JSON.stringify(items)}:${property}`} objects={items} all={objects} kind={items[0].kind} property={property}
+              label={property === "depth" ? holes === items.length ? "Fixed kept depth" : holes ? "Fixed cut and kept depth" : "Fixed cut depth"
+                : property === "topFilletMm" ? "Top rounding" : holes === items.length ? "Hole offset" : holes ? "Pocket clearance and hole offset" : "Extra clearance"} />)}
+            {items.some(o => o.kind === "pocket" && o.cutout.split) && <p className="text-xs text-muted-foreground">Setting depth updates both sections of selected split objects.</p>}
+          </PropertySurface>;
+        })}
       </div>}
       <div ref={propertiesRef} className="p-3 empty:hidden" data-testid="inspector-properties" />
       </div>

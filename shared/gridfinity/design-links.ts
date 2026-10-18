@@ -16,12 +16,12 @@ export function canManageDesignLinks(objects: DesignObjects, selection: readonly
 // Copies retain complete geometry for the existing worker/export paths. The
 // explicit link id, validated in every saved snapshot, makes these fields one
 // shared design. Shape revisions remain immutable and update all references.
-const pocketFields = ["shapeId", "scaleX", "scaleY", "aspectRatioLocked", "depth", "depthPending", "split", "profileBottom", "clearanceMm", "cornerRoundMm", "topFilletMm", "bottomFilletMm", "insertionMode"] as const;
+const pocketFields = ["shapeId", "role", "scaleX", "scaleY", "aspectRatioLocked", "depth", "depthPending", "split", "profileBottom", "clearanceMm", "cornerRoundMm", "topFilletMm", "bottomFilletMm", "insertionMode", "insertionAxis"] as const;
 const fingerFields = ["kind", "diameterMm", "lengthMm", "depthMm", "topFilletMm", "bottomFilletMm", "cornerRoundMm", "slotEnds"] as const;
 const equal = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
 export function pocketDesign(pocket: CutoutPlacement): Partial<CutoutPlacement> {
-  return { ...Object.fromEntries(pocketFields.map(key => [key, pocket[key]])),
+  return { ...Object.fromEntries(pocketFields.map(key => [key, pocket[key]])), insertionAxis: pocket.insertionAxis ?? "z",
     ...(pocket.designLink?.tilt ? { tilt: pocket.tilt ?? { xDeg: 0, yDeg: 0 }, profileRotation: pocket.profileRotation ?? { xDeg: 0, yDeg: 0 } } : {}) };
 }
 export function fingerDesign(hole: FingerHole): Partial<FingerHole> {

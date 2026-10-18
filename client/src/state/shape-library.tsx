@@ -10,6 +10,7 @@ import {
 } from "react";
 
 import { z } from "zod";
+import { tracePlacementSchema, type TracePlacement, type TracePlacements } from "@shared/gridfinity/trace-placement";
 import { depthSpecSchema, tracedShapeSchema, type TracedShape } from "@shared/gridfinity/cutout";
 
 // Placement choices travel with the session queue, not with reusable geometry
@@ -19,7 +20,7 @@ const pendingDepthSchema = z.union([depthSpecSchema, z.object({ mode: z.literal(
 export type PendingPocketDepth = z.infer<typeof pendingDepthSchema>;
 const destinationSchema = z.object({ key: z.string(), name: z.string() }).strict();
 export type PendingDestination = z.infer<typeof destinationSchema>;
-const queuedToolSchema = tracedShapeSchema.extend({ pendingDepth: pendingDepthSchema.optional(), pendingDestination: destinationSchema.optional() });
+const queuedToolSchema = tracedShapeSchema.extend({ pendingDepth: pendingDepthSchema.optional(), pendingDestination: destinationSchema.optional(), pendingPlacement: tracePlacementSchema.optional() });
 
 /**
  * The app-level shape library: traced shapes on their way to (or living in)
@@ -41,10 +42,11 @@ interface ShapeLibraryState {
   pendingIds: string[];
   pendingDepths: Record<string, PendingPocketDepth>;
   pendingDestinations: Record<string, PendingDestination>;
+  pendingPlacements: Record<string, TracePlacement>;
 }
 
 type ShapeLibraryAction =
-  | { type: "ADD_SHAPE"; shape: TracedShape; depth?: PendingPocketDepth; destination?: PendingDestination }
+  | { type: "ADD_SHAPE"; shape: TracedShape; depth?: PendingPocketDepth; destination?: PendingDestination; placement?: TracePlacement }
   | { type: "STORE_SHAPE"; shape: TracedShape }
   | { type: "REMOVE_SHAPE"; id: string }
   | { type: "CONSUME_PENDING" }
@@ -60,6 +62,7 @@ function reducer(state: ShapeLibraryState, action: ShapeLibraryAction): ShapeLib
         pendingIds: [...state.pendingIds, action.shape.id],
         pendingDepths: { ...state.pendingDepths, ...(action.depth ? { [action.shape.id]: action.depth } : {}) },
         pendingDestinations: { ...state.pendingDestinations, ...(action.destination ? { [action.shape.id]: action.destination } : {}) },
+        pendingPlacements: { ...state.pendingPlacements, ...(action.placement ? { [action.shape.id]: action.placement } : {}) },
       };
     case "STORE_SHAPE":
       // An in-place editor revision already belongs to an existing pocket.
@@ -74,9 +77,10 @@ function reducer(state: ShapeLibraryState, action: ShapeLibraryAction): ShapeLib
         pendingIds: state.pendingIds.filter((id) => id !== action.id),
         pendingDepths: Object.fromEntries(Object.entries(state.pendingDepths).filter(([id]) => id !== action.id)),
         pendingDestinations: Object.fromEntries(Object.entries(state.pendingDestinations).filter(([id]) => id !== action.id)),
+        pendingPlacements: Object.fromEntries(Object.entries(state.pendingPlacements).filter(([id]) => id !== action.id)),
       };
     case "CONSUME_PENDING":
-      return state.pendingIds.length === 0 ? state : { ...state, pendingIds: [], pendingDepths: {}, pendingDestinations: {} };
+      return state.pendingIds.length === 0 ? state : { ...state, pendingIds: [], pendingDepths: {}, pendingDestinations: {}, pendingPlacements: {} };
     case "RETARGET_PENDING":
       return { ...state, pendingDestinations: Object.fromEntries(state.pendingIds.map(id => [id, action.destination])) };
     case "REPLACE_SHAPES":
@@ -86,7 +90,7 @@ function reducer(state: ShapeLibraryState, action: ShapeLibraryAction): ShapeLib
         ...action.shapes.filter(shape => !state.pendingIds.includes(shape.id)),
         ...state.shapes.filter(shape => state.pendingIds.includes(shape.id)),
       ] };
-      return { shapes: action.shapes, pendingIds: [], pendingDepths: {}, pendingDestinations: {} };
+      return { shapes: action.shapes, pendingIds: [], pendingDepths: {}, pendingDestinations: {}, pendingPlacements: {} };
     case "MERGE_SHAPES": {
       // Hydration path: restored shapes join the collection *behind* any
       // shapes already present (a pending arrival from the trace workspace
@@ -103,7 +107,8 @@ export interface ShapeLibrary {
   pendingIds: string[];
   pendingDepths: Readonly<Record<string, PendingPocketDepth>>;
   pendingDestinations: Readonly<Record<string, PendingDestination>>;
-  addShape(shape: TracedShape, depth?: PendingPocketDepth, destination?: PendingDestination): void;
+  pendingPlacements: TracePlacements;
+  addShape(shape: TracedShape, depth?: PendingPocketDepth, destination?: PendingDestination, placement?: TracePlacement): void;
   /** Stores an editor revision without marking it for bin auto-placement. */
   storeShape(shape: TracedShape): void;
   removeShape(id: string): void;
@@ -118,14 +123,15 @@ export interface ShapeLibrary {
 const ShapeLibraryContext = createContext<ShapeLibrary | null>(null);
 
 export function ShapeLibraryProvider({ children }: { children: ReactNode }): JSX.Element {
-  const [state, dispatch] = useReducer(reducer, { shapes: [], pendingIds: [], pendingDepths: {}, pendingDestinations: {} }, (initial) => {
+  const [state, dispatch] = useReducer(reducer, { shapes: [], pendingIds: [], pendingDepths: {}, pendingDestinations: {}, pendingPlacements: {} }, (initial) => {
     try {
       const parsed = queuedToolSchema.array().safeParse(JSON.parse(sessionStorage.getItem("pocketry:queued-tools") ?? "[]"));
       return parsed.success ? {
-        shapes: parsed.data.map(({ pendingDepth, pendingDestination, ...shape }) => shape),
+        shapes: parsed.data.map(({ pendingDepth, pendingDestination, pendingPlacement, ...shape }) => shape),
         pendingIds: parsed.data.map((shape) => shape.id),
         pendingDepths: Object.fromEntries(parsed.data.flatMap(shape => shape.pendingDepth ? [[shape.id, shape.pendingDepth]] : [])),
         pendingDestinations: Object.fromEntries(parsed.data.flatMap(shape => shape.pendingDestination ? [[shape.id, shape.pendingDestination]] : [])),
+        pendingPlacements: Object.fromEntries(parsed.data.flatMap(shape => shape.pendingPlacement ? [[shape.id, shape.pendingPlacement]] : [])),
       } : initial;
     } catch { return initial; }
   });
@@ -133,7 +139,7 @@ export function ShapeLibraryProvider({ children }: { children: ReactNode }): JSX
     if (state.pendingIds.length === 0) return;
     try { sessionStorage.setItem("pocketry:queued-tools", JSON.stringify(state.shapes
       .filter((shape) => state.pendingIds.includes(shape.id))
-      .map(shape => ({ ...shape, pendingDepth: state.pendingDepths[shape.id], pendingDestination: state.pendingDestinations[shape.id] })))); }
+      .map(shape => ({ ...shape, pendingDepth: state.pendingDepths[shape.id], pendingDestination: state.pendingDestinations[shape.id], pendingPlacement: state.pendingPlacements[shape.id] })))); }
     catch { /* The in-memory queue remains usable when browser storage is unavailable. */ }
   }, [state]);
 
@@ -142,8 +148,8 @@ export function ShapeLibraryProvider({ children }: { children: ReactNode }): JSX
   const stateRef = useRef(state);
   stateRef.current = state;
 
-  const addShape = useCallback((shape: TracedShape, depth?: PendingPocketDepth, destination?: PendingDestination) => {
-    dispatch({ type: "ADD_SHAPE", shape, depth, destination });
+  const addShape = useCallback((shape: TracedShape, depth?: PendingPocketDepth, destination?: PendingDestination, placement?: TracePlacement) => {
+    dispatch({ type: "ADD_SHAPE", shape, depth, destination, placement });
   }, []);
   const storeShape = useCallback((shape: TracedShape) => {
     dispatch({ type: "STORE_SHAPE", shape });
@@ -164,7 +170,7 @@ export function ShapeLibraryProvider({ children }: { children: ReactNode }): JSX
   }, []);
   const consumePending = useCallback((): string[] => {
     const pending = stateRef.current.pendingIds;
-    stateRef.current = { ...stateRef.current, pendingIds: [], pendingDepths: {}, pendingDestinations: {} };
+    stateRef.current = { ...stateRef.current, pendingIds: [], pendingDepths: {}, pendingDestinations: {}, pendingPlacements: {} };
     if (pending.length > 0) dispatch({ type: "CONSUME_PENDING" });
     return pending;
   }, []);
@@ -183,6 +189,7 @@ export function ShapeLibraryProvider({ children }: { children: ReactNode }): JSX
       pendingIds: state.pendingIds,
       pendingDepths: state.pendingDepths,
       pendingDestinations: state.pendingDestinations,
+      pendingPlacements: state.pendingPlacements,
       addShape,
       storeShape,
       removeShape,

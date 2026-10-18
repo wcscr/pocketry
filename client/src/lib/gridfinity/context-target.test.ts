@@ -17,3 +17,9 @@ it("keeps an overlapping finger-access target above a retained-material hole", (
   const finger: EditableObject = { kind: "finger", hole: fingerHoleSchema.parse({ id: "f", center: { x: 20, y: 10 }, diameterMm: 6 }) };
   expect(pickBinContextTarget([pocket, finger], { x: 20, y: 10 })).toEqual({ kind: "finger", id: "f" });
 });
+
+it("targets an independent hole above an embedded hole and later pocket", () => {
+  const kept: EditableObject = { kind: "pocket", shape: { ...shape, id: "kept-shape", outlineMm: [{ ...shape.outlineMm[0], holes: [] }] },
+    cutout: parseCutoutPlacement({ id: "kept", shapeId: "kept-shape", role: "hole", position: { x: 20, y: 10 } }) };
+  expect(pickBinContextTarget([kept, pocket], { x: 20, y: 10 })).toEqual({ kind: "pocket", id: "kept" });
+});

@@ -13,6 +13,7 @@ import { defaultPocketFloorThicknessMm, pocketDepths, pocketName, resolvePocketD
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { PendingPocketDepthPrompt } from "@/components/gridfinity/pocket-depth-question";
+import { PocketClearanceDialog } from "@/components/gridfinity/pocket-clearance-dialog";
 import { CanvasWarnings } from "@/components/gridfinity/canvas-warnings";
 import { validateBinSpec, validateLayout, validatePocketFloorMaterials, type ValidationIssue } from "@shared/gridfinity/validate";
 import { issueSettingsTarget } from "@/lib/gridfinity/issue-settings";
@@ -104,6 +105,7 @@ export default function BinDesignerPage(): JSX.Element {
   return (
     <BinProvider>
       <BinDesignerWorkspace />
+      <PocketClearanceDialog />
     </BinProvider>
   );
 }
@@ -386,7 +388,7 @@ function BinDesignerWorkspace(): JSX.Element {
     const shapesById = new Map(library.shapes.map((shape) => [shape.id, shape]));
     const result =
       cutouts.length === 0 && !fixedBinSize
-        ? autoPlaceFresh(newShapes, spec.lip, spec.gridPitch)
+        ? autoPlaceFresh(newShapes, spec.lip, spec.gridPitch, library.pendingPlacements)
         : autoPlaceIncremental(newShapes, {
             spec,
             lip: spec.lip,
@@ -396,6 +398,7 @@ function BinDesignerWorkspace(): JSX.Element {
             existing: cutouts,
             keepBinSize: fixedBinSize,
             shapesById,
+            placements: library.pendingPlacements,
           });
 
     const gridX = fixedBinSize ? spec.gridX : Math.max(result.gridX, cutouts.length > 0 ? spec.gridX : 0);
@@ -404,6 +407,8 @@ function BinDesignerWorkspace(): JSX.Element {
       type: "ADD_PLACED",
       cutouts: result.cutouts.map(cutout => {
         const chosen = library.pendingDepths[cutout.shapeId];
+        if (library.pendingPlacements[cutout.shapeId]?.role === "hole") return { ...cutout, role: "hole" as const,
+          depth: { mode: "through" as const }, cornerRoundMm: 0, topFilletMm: 0, bottomFilletMm: 0 };
         // Resolve defaults against the loaded bin, including older queued tools
         // that have no depth choice yet.
         return { ...cutout, depth: !chosen || chosen.mode === "unset" || chosen.mode === "to-floor"
@@ -1279,6 +1284,7 @@ function BinDesignerWorkspace(): JSX.Element {
           </div>}
           <div className="relative min-h-0 flex-1">
           <CanvasWarnings
+            holeIds={new Set(bin.cutouts.filter(cutout => cutout.role === "hole").map(cutout => cutout.id))}
             issues={issues.filter(issue => issue.code !== "pocket-depth-needed")}
             selectedCutoutId={bin.selectedCutoutId}
             selectedFingerHoleId={bin.selectedFingerHoleId}

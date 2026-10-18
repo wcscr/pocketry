@@ -31,6 +31,7 @@ function renderRuler({
   measurement = null,
   measurementPreview = null,
   measurementMmPerPx = null,
+  estimatedEdgeRegions = [],
 }: {
   completed?: Calibration | null;
   draft?: DraftCalibration | null;
@@ -44,6 +45,7 @@ function renderRuler({
   measurement?: { start: Point; end: Point | null } | null;
   measurementPreview?: Point | null;
   measurementMmPerPx?: number | null;
+  estimatedEdgeRegions?: Point[][];
 }): string {
   return renderToStaticMarkup(
     <TraceScene
@@ -53,6 +55,7 @@ function renderRuler({
       imageAlignment={imageAlignment}
       transform={{ scale: 1, translateX: 0, translateY: 0 }}
       outline={[]}
+      estimatedEdgeRegions={estimatedEdgeRegions}
       selection={null}
       region={null}
       calibration={completed}
@@ -269,4 +272,12 @@ describe("TraceScene ruler overlay", () => {
     expect(markup).toContain('data-perspective-preview="true"');
     expect(markup).toContain("L 180 90");
   });
+});
+
+it("marks estimated-edge regions without obscuring the photo or intercepting editing", () => {
+  const markup = renderRuler({ estimatedEdgeRegions: [[{ x: 10, y: 20 }, { x: 30, y: 20 }, { x: 30, y: 50 }]] });
+  expect(markup).toContain('data-testid="estimated-edge-region"');
+  expect(markup).toContain('pointer-events-none stroke-amber-600');
+  expect(markup).toContain('Estimated edge area: review the contour hidden by the measurement aid.');
+  expect(markup).toContain('fill="none"');
 });

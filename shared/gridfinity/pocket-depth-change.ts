@@ -11,7 +11,7 @@ export function pocketDepthChangePatch(spec: BinSpec, shape: TracedShape, cutout
   requested: DepthSpec, section: 0 | 1 = 0,
 ): Partial<CutoutPlacement> {
   const surfaceThrough = requested.mode === "through" && !hasRigidPocket(cutout)
-    && !hasPocketTilt(cutout) && !(cutout.zOffsetMm ?? 0) && !cutout.profileBottom;
+    && (cutout.role === "hole" || (!hasPocketTilt(cutout) && !(cutout.zOffsetMm ?? 0) && !cutout.profileBottom));
   const source = surfaceThrough ? { ...cutout, elevationMm: undefined, zOffsetMm: undefined, insertionMode: undefined }
     : requested.mode === "through" ? rigidPocket(cutout, shape, spec) : cutout;
   let depth = requested;

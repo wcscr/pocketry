@@ -67,6 +67,8 @@ import { TraceScene } from "./trace-scene";
 const PICK_RADIUS_PX = 10;
 
 export interface TraceCanvasProps {
+  /** Incremented by the persistent review notice to focus the estimated area. */
+  estimatedEdgeFocusRequest?: number;
   onReprocess: (region?: Rect) => void;
   /** Rendered when no image is loaded. */
   emptyState?: React.ReactNode;
@@ -102,7 +104,7 @@ export function TraceCanvas(props: TraceCanvasProps): JSX.Element {
   );
 }
 
-function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element {
+function TraceStage({ onReprocess, emptyState, estimatedEdgeFocusRequest = 0 }: TraceCanvasProps): JSX.Element {
   const openContourMenu = useContourContextMenu();
   const store = useTrace();
   const isMobile = useIsMobile();
@@ -180,6 +182,18 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
   const fitVisiblePhoto = useCallback(() => imageCrop ? fitToRect(imageCrop) : fit(), [imageCrop, fit, fitToRect]);
   const viewportReady = containerSize.width > 0 && containerSize.height > 0;
   useEffect(() => { if (viewportReady) fitVisiblePhoto(); }, [fitVisiblePhoto, viewportReady, imageSize.width, imageSize.height]);
+  const lastEstimatedFocus = useRef(estimatedEdgeFocusRequest);
+  useEffect(() => {
+    if (lastEstimatedFocus.current === estimatedEdgeFocusRequest || !viewportReady) return;
+    lastEstimatedFocus.current = estimatedEdgeFocusRequest;
+    const bounds = outlineBounds(store.estimatedEdgeRegions.map(outer => ({ outer, holes: [] })));
+    if (bounds) {
+      const padding = Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY) * 0.3;
+      fitToRect({ x: bounds.minX - padding, y: bounds.minY - padding,
+        width: bounds.maxX - bounds.minX + 2 * padding, height: bounds.maxY - bounds.minY + 2 * padding });
+    }
+  }, [estimatedEdgeFocusRequest, store.estimatedEdgeRegions, viewportReady, fitToRect]);
+
 
   // Mirrors the hook's space tracking so the cursor can promise a pan before
   // the drag starts.
@@ -819,6 +833,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
           imageCrop={imageCrop}
           transform={viewport.transform}
           outline={outline}
+          estimatedEdgeRegions={store.estimatedEdgeRegions}
           selection={selection}
           region={region}
           regionActive={mode === "region"}
