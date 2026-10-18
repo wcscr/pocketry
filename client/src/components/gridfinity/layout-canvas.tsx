@@ -51,6 +51,7 @@ import {
   binFootprintMm,
   gridPitchMm,
 } from "@shared/gridfinity/standard";
+import { wallSlantTopOffsetMm } from "@shared/gridfinity/wall-slant";
 import { maxGridCells } from "@shared/gridfinity/types";
 import {
   OUTER_RING,
@@ -298,7 +299,9 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
   const [objectSnap, setObjectSnap] = useState(false);
   const widthMm = binFootprintMm(spec.gridX, spec.gridPitch);
   const lengthMm = binFootprintMm(spec.gridY, spec.gridPitch);
-  const footprintEditorPaddingMm = editorMode === "footprint" ? pitchMm : 0;
+  const topOffset = wallSlantTopOffsetMm(spec);
+  const footprintEditorPaddingMm = Math.max(editorMode === "footprint" ? pitchMm : 0,
+    Math.abs(topOffset.x), Math.abs(topOffset.y));
 
   const containerSize = useCanvasViewportSize();
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -1570,6 +1573,9 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
   }, [spec.gridX, spec.gridY, pitchMm, widthMm, lengthMm]);
 
   const outerFootprint = useMemo(() => footprintOuterRingMm(spec), [spec]);
+  const topFootprint = useMemo(() => spec.wallSlant && spec.wallSlant.angleDeg !== 0
+    ? outerFootprint.map(point => ({ x: point.x + topOffset.x, y: point.y + topOffset.y }))
+    : null, [outerFootprint, spec.wallSlant, topOffset.x, topOffset.y]);
   const interiorFootprint = useMemo(() => footprintInteriorRingMm(spec), [spec]);
   const footprintCells = useMemo(() => occupiedCells(spec), [spec]);
   const footprintEditorCells = useMemo(
@@ -1720,6 +1726,15 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
             strokeWidth={1.5}
             vectorEffect="non-scaling-stroke"
           />
+          {topFootprint && <path
+            d={ringToCanvasPath(topFootprint, spec)}
+            data-testid="slanted-rim-outline"
+            fill="none"
+            className="stroke-primary/75"
+            strokeWidth={1.5}
+            strokeDasharray="5 3"
+            vectorEffect="non-scaling-stroke"
+          />}
           {/* Interior boundary the pockets must respect. */}
           <path
             d={ringToCanvasPath(interiorFootprint, spec)}

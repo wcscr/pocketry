@@ -10,7 +10,8 @@ import { hasRigidPocket, rigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { createPortal } from "react-dom";
 import { useSelectionInspector } from "./selection-inspector-context";
 import { useExperimentalFeatures } from "@/state/experimental-features";
-import { hasPocketTilt } from "@shared/gridfinity/pocket-orientation";
+import { hasPocketTilt, pocketAxis } from "@shared/gridfinity/pocket-orientation";
+import { wallSlantTopOffsetMm } from "@shared/gridfinity/wall-slant";
 import {
   Box,
   ChevronDown,
@@ -392,6 +393,7 @@ export function BinControlsPanel({
     !spec.flatBottom && spec.magnetHoles,
     !spec.flatBottom && spec.screwHoles,
     spec.labelTab !== null,
+    spec.wallSlant !== null,
   ].filter(Boolean).length;
   const [fitCheckDepthMm, setFitCheckDepthMm] = useState(2);
   const [surfaceFitCheckThicknessMm, setSurfaceFitCheckThicknessMm] = useState(
@@ -465,6 +467,17 @@ export function BinControlsPanel({
   };
 
   const selectedCutout = cutouts.find((cutout) => cutout.id === selectedCutoutId) ?? null;
+  const matchedPocketSlant = (() => {
+    if (!selectedCutout || selectedCutout.role === "hole" || !hasPocketTilt(selectedCutout)) return null;
+    const direction = pocketAxis(selectedCutout);
+    if (direction.z <= 0) return null;
+    const axis = Math.abs(direction.x) >= Math.abs(direction.y) ? "x" : "y";
+    const across = axis === "x" ? direction.x : direction.y;
+    const other = axis === "x" ? direction.y : direction.x;
+    const angleDeg = Math.atan2(across, direction.z) * 180 / Math.PI;
+    return Math.abs(other / direction.z) < Math.tan(Math.PI / 180) && Math.abs(angleDeg) <= 60
+      ? { axis, angleDeg } as const : null;
+  })();
   const selectedFingerHole =
     fingerHoles.find((hole) => hole.id === selectedFingerHoleId) ?? null;
   const fingerSizeLimits = selectedFingerHole ? fingerHoleSizeLimits(selectedFingerHole, spec) : null;
@@ -1374,8 +1387,9 @@ export function BinControlsPanel({
   return (
     <PanelSectionFilterContext.Provider value={!inspector && exportOnly ? "bin-settings-export" : null}>
     <div className="flex h-full flex-col">
-      {!experimentalEnabled && (spec.wallThicknessMm !== D_WALL || cutouts.some(c => c.designLink) || fingerHoles.some(h => h.designLink)) && <div className="shrink-0 border-b bg-amber-50/60 px-3 py-2 text-xs dark:bg-amber-950/20" data-testid="experimental-design-notice">
+      {!experimentalEnabled && (spec.wallSlant !== null || spec.wallThicknessMm !== D_WALL || cutouts.some(c => c.designLink) || fingerHoles.some(h => h.designLink)) && <div className="shrink-0 border-b bg-amber-50/60 px-3 py-2 text-xs dark:bg-amber-950/20" data-testid="experimental-design-notice">
         <p>Saved experimental features: {[
+          spec.wallSlant !== null && "slanted walls",
           spec.wallThicknessMm !== D_WALL && "wall thickness",
           (cutouts.some(c => c.designLink) || fingerHoles.some(h => h.designLink)) && "linked designs",
         ].filter(Boolean).join(", ")}. Preserved in previews and exports.</p>
@@ -1605,10 +1619,37 @@ export function BinControlsPanel({
         >
           <FeatureSwitch
             label="Stacking lip"
-            description={spec.flatBottom ? "Receives a Gridfinity bin on top" : "Lets another bin stack on top"}
+            description={spec.wallSlant ? "Slanted bins use a flush rim in this prototype" : spec.flatBottom ? "Receives a Gridfinity bin on top" : "Lets another bin stack on top"}
             checked={spec.lip === "standard"}
+            disabled={spec.wallSlant !== null}
             onChange={(on) => patchSpec({ lip: on ? "standard" : "none" })}
           />
+          {experimentalEnabled && <FeatureSwitch
+            label="Slanted walls (prototype)"
+            description="Lean the whole bin body along X or Y while keeping the Gridfinity base flat"
+            checked={spec.wallSlant !== null}
+            onChange={(on) => patchSpec(on
+              ? { wallSlant: { axis: "y", angleDeg: 20 }, lip: "none" }
+              : { wallSlant: null })}
+          />}
+          {experimentalEnabled && spec.wallSlant && <div className="space-y-2 rounded-md border bg-muted/30 p-2.5">
+            <div className="flex items-center gap-2">
+              <SettingLabel label="Slant axis" hint="One axis only. The upper body moves along this axis; the base stays fixed." />
+              <Select value={spec.wallSlant.axis} onValueChange={(axis) => patchSpec({ wallSlant: { ...spec.wallSlant!, axis: axis === "x" ? "x" : "y" } })}>
+                <SelectTrigger className="ml-auto h-8 w-36" aria-label="Wall slant axis"><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="x">Width (X)</SelectItem><SelectItem value="y">Length (Y)</SelectItem></SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <SettingLabel label="Wall angle" hint="Degrees from vertical. Positive moves the top toward the positive end of the chosen axis; negative moves it the other way." />
+              <DraftNumberInput className="ml-auto h-8 w-20" aria-label="Wall angle in degrees" value={spec.wallSlant.angleDeg} min={-60} max={60} step={0.5} displayPrecision={1}
+                onValueChange={(angleDeg) => patchSpec({ wallSlant: { ...spec.wallSlant!, angleDeg } }, true)}
+                onValueCommit={(angleDeg) => patchSpec({ wallSlant: { ...spec.wallSlant!, angleDeg } })} />
+              <span className="text-xs text-muted-foreground">°</span>
+            </div>
+            <p className="text-[11px] text-muted-foreground">Top shift: {Math.hypot(...Object.values(wallSlantTopOffsetMm(spec))).toFixed(1)} mm. The body can extend over adjacent grid cells.</p>
+            {matchedPocketSlant && <Button size="sm" variant="outline" className="w-full" onClick={() => patchSpec({ wallSlant: matchedPocketSlant, lip: "none" })}>Match selected pocket angle</Button>}
+          </div>}
           <FeatureSwitch
             label="Solid fill"
             id="bin-solid-fill"

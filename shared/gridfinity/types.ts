@@ -73,6 +73,11 @@ export const binSpecSchema = z
     fill: z.enum(["none", "solid"]).default("solid"),
     /** Main hollow-wall thickness; retained while solid fill is enabled. */
     wallThicknessMm: z.number().min(D_WALL).max(MAX_HOLLOW_WALL_THICKNESS_MM).default(D_WALL),
+    /** Prototype: shear the body above the fixed Gridfinity base along one axis. */
+    wallSlant: z.object({
+      axis: z.enum(["x", "y"]),
+      angleDeg: z.number().min(-60).max(60),
+    }).strict().nullable().default(null),
     /** Percentage of available fill height above the fixed base; retained while hollow. */
     fillHeightPercent: z.number().min(1).max(100).default(100),
     /** Resize existing fixed depths with fill edits; unchecking restores their baseline. */

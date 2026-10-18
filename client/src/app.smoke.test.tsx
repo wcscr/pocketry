@@ -208,6 +208,10 @@ describe("App", () => {
     expect(openSourceStatement?.textContent).toContain("Fully open source under");
     expect(openSourceStatement?.getAttribute("href")).toBe("/LICENSE.txt");
     expect(container.textContent).toContain("OpenCV/OpenCV.js");
+    const slantedAttribution = container.querySelector<HTMLAnchorElement>('a[href="https://github.com/cdslug/slanted-gridfinity"]');
+    expect(slantedAttribution?.textContent).toBe("slanted-gridfinity project");
+    expect(slantedAttribution?.parentElement?.textContent).toContain("Slanted bin walls were inspired by");
+    expect(slantedAttribution?.target).toBe("_blank");
     expect(container.textContent).toContain("Gridfinity Rebuilt OpenSCAD");
     expect(container.textContent).toContain("Gridfinity Extended");
     expect(container.textContent).toContain("Gridfinity Layout Tool");
@@ -235,6 +239,7 @@ describe("App", () => {
     expect(closedSourceTools?.textContent).toContain("Perplexing Labs");
     expect(closedSourceTools?.textContent).toContain("ToolTrace.ai");
     expect(closedSourceTools?.textContent).toContain("Systemax DIY");
+    expect(closedSourceTools?.querySelector('a[href="https://formfitprint.com/"]')?.textContent).toContain("Form Fit Print");
     for (const href of [
       "https://www.tooltrace.ai",
       "https://www.systemax.no/diy",
@@ -251,6 +256,7 @@ describe("App", () => {
     expect(container.textContent).not.toContain("Visit open-source project");
     expect(container.textContent).not.toContain("Visit service");
     for (const [name, href] of [
+      ["Form Fit Print", "https://formfitprint.com/"],
       ["GridFlock", "https://github.com/yawkat/GridFlock"],
       [
         "Perplexing Labs Gridfinity Generator",

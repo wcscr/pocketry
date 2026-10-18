@@ -44,6 +44,17 @@ const VALID = {
 };
 
 describe("parseProjectDoc", () => {
+  it.each([37, 38, 39])("migrates v%s projects and saves a slanted wall through history", schemaVersion => {
+    const old = { ...VALID, schemaVersion };
+    const migrated = parseProjectDoc(old)!;
+    expect(migrated.spec.wallSlant).toBeNull();
+    const slanted = { ...migrated.spec, lip: "none" as const, wallSlant: { axis: "y" as const, angleDeg: 30 } };
+    const saved = { ...migrated, spec: slanted, history: { index: 1, stack: [
+      { doc: { spec: migrated.spec, cutouts: migrated.cutouts, fingerHoles: migrated.fingerHoles }, label: "Before" },
+      { doc: { spec: slanted, cutouts: migrated.cutouts, fingerHoles: migrated.fingerHoles }, label: "Slant walls" },
+    ] } };
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(saved)))).toEqual(saved);
+  });
   it("migrates v31 wall thickness through the design, history, and transform references", () => {
     const { wallThicknessMm: _removed, ...spec } = VALID.spec;
     const cutouts = [parseProjectDoc(VALID)!.cutouts[0]];
@@ -201,7 +212,7 @@ describe("parseProjectDoc", () => {
     const original = JSON.stringify(airdusterV9);
     const doc = parseProjectDoc(airdusterV9);
     const { liteBase: _removed, ...spec } = airdusterV9.spec;
-    expect(doc).toEqual({ ...airdusterV9, spec: { ...spec, flatBottom: false, fillHeightPercent: 100, adjustFixedPocketDepths: true, surfaceTexts: [], textColor: null, wallThicknessMm: 0.95 }, schemaVersion: PROJECT_SCHEMA_VERSION });
+    expect(doc).toEqual({ ...airdusterV9, spec: { ...spec, flatBottom: false, fillHeightPercent: 100, adjustFixedPocketDepths: true, surfaceTexts: [], textColor: null, wallThicknessMm: 0.95, wallSlant: null }, schemaVersion: PROJECT_SCHEMA_VERSION });
     expect(doc!.shapes).toHaveLength(7);
     expect(doc!.cutouts).toHaveLength(4);
     expect(doc!.fingerHoles).toHaveLength(2);

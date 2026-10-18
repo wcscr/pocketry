@@ -49,6 +49,7 @@ import {
 import type { BinSpec } from "./types";
 import { infillHeightMm } from "./fill";
 import { resolvePocketSplit } from "./pocket-split";
+import { wallSlantTopOffsetMm } from "./wall-slant";
 
 /**
  * Pure validation of a bin specification — no WASM, cheap enough to run on
@@ -132,6 +133,17 @@ export function validateBinSpec(spec: BinSpec): ValidationResult {
   const issues: ValidationIssue[] = [];
   const wallHeight = binWallHeightMm(spec.heightUnits);
 
+  if (spec.wallSlant) {
+    if (spec.lip === "standard") issues.push({ code: "slanted-wall-lip", severity: "error",
+      message: "Slanted walls need a flush rim; turn off the stacking lip." });
+    if (spec.labelTab) issues.push({ code: "slanted-wall-label-tab", severity: "error",
+      message: "Remove the label tab before slanting the bin body." });
+    if (spec.surfaceTexts.length) issues.push({ code: "slanted-wall-surface-text", severity: "error",
+      message: "Remove surface text before slanting the bin body." });
+    if (wallHeight <= 0) issues.push({ code: "slanted-wall-height", severity: "error",
+      message: "Increase bin height above 1u to slant its walls." });
+  }
+
   if (spec.lip === "standard" && wallHeight < STACKING_LIP_SUPPORT_HEIGHT_MM) {
     issues.push({
       code: "lip-support-clipped",
@@ -160,15 +172,16 @@ export function validateBinSpec(spec: BinSpec): ValidationResult {
     ["x", spec.gridX],
     ["y", spec.gridY],
   ] as const) {
-    const span = binFootprintMm(cells, spec.gridPitch);
+    const topOffset = wallSlantTopOffsetMm(spec);
+    const span = binFootprintMm(cells, spec.gridPitch) + Math.abs(topOffset[axis]);
     const pitchMm = gridPitchMm(spec.gridPitch);
     if (span > FOOTPRINT_WARN_MM) {
       issues.push({
         code: "large-footprint",
         severity: "warning",
         message:
-          `${cells} ${spec.gridPitch}-pitch cells along ${axis} is ${span.toFixed(1)} mm ` +
-          `(${cells} × ${pitchMm} − gap) — check it fits the print bed.`,
+          `${cells} ${spec.gridPitch}-pitch cells along ${axis} span ${span.toFixed(1)} mm ` +
+          `${spec.wallSlant ? "including the slanted body" : `(${cells} × ${pitchMm} − gap)`} — check it fits the print bed.`,
       });
     }
   }
@@ -305,6 +318,11 @@ export function validateLayout(
       message: "Cutouts need material to cut into — switch the bin to solid fill.",
     });
   }
+  if (spec.wallSlant && fingerHoles.length) issues.push({
+    code: "slanted-wall-finger-access", severity: "error",
+    message: "Separate finger access is not yet supported with slanted walls.",
+    fingerHoleIds: fingerHoles.map(hole => hole.id),
+  });
 
   const placed: PlacedCutout[] = [];
   for (const cutout of cutouts) {
@@ -369,7 +387,7 @@ export function validateLayout(
 
   for (const p of placed) {
     issues.push(...validateAgainstBin(spec, p));
-    if (p.cutout.role !== "hole" && hasPocketTilt(p.cutout)) {
+    if (p.cutout.role !== "hole" && hasPocketTilt(p.cutout) && !spec.wallSlant) {
       const occupied = pocketOccupiedOutline(p.shape, p.cutout, spec);
       const allowance = pocketLayoutAllowanceMm(p.cutout);
       if (occupied.some(s => s.outer.some(point => signedDistanceToInterior(point, spec) < allowance))) {
@@ -428,12 +446,12 @@ function validateAgainstBin(spec: BinSpec, p: PlacedCutout): ValidationIssue[] {
   const halfW = binFootprintMm(spec.gridX, spec.gridPitch) / 2;
   const halfL = binFootprintMm(spec.gridY, spec.gridPitch) / 2;
   const outerBoundary = spec.footprint.kind === "custom" ? footprintOuterRingMm(spec) : null;
-  const outside = outerBoundary
+  const outside = !spec.wallSlant && (outerBoundary
     ? p.rings.some((ring) => !ringInsideBoundary(ring, outerBoundary))
     : p.bounds.minX < -halfW ||
       p.bounds.maxX > halfW ||
       p.bounds.minY < -halfL ||
-      p.bounds.maxY > halfL;
+      p.bounds.maxY > halfL);
   if (outside) {
     issues.push({
       code: "out-of-bounds",
@@ -464,7 +482,7 @@ function validateAgainstBin(spec: BinSpec, p: PlacedCutout): ValidationIssue[] {
     if (d < minDistFeature) minDistFeature = d;
   }
   const outlineAllowance = pocketLayoutAllowanceMm(cutout);
-  const wallMargin = Math.min(minDistOutline - outlineAllowance, minDistFeature);
+  const wallMargin = spec.wallSlant ? Infinity : Math.min(minDistOutline - outlineAllowance, minDistFeature);
 
   if (wallMargin < 0) {
     issues.push({

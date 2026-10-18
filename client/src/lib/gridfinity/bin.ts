@@ -23,6 +23,7 @@ import {
   D_WALL,
 } from "@shared/gridfinity/standard";
 import type { BinSpec } from "@shared/gridfinity/types";
+import { wallSlantTopOffsetMm } from "@shared/gridfinity/wall-slant";
 import { infillHeightMm } from "@shared/gridfinity/fill";
 export { infillHeightMm } from "@shared/gridfinity/fill";
 
@@ -109,6 +110,18 @@ export interface BinParts {
   infill: Manifold | null;
 }
 
+/** Shear a body part around the top of the fixed base, preserving horizontal slices. */
+function slantBodyPart(kernel: Kernel, solid: Manifold, spec: BinSpec): Manifold {
+  if (!spec.wallSlant || spec.wallSlant.angleDeg === 0) return solid;
+  const slope = Math.tan(spec.wallSlant.angleDeg * Math.PI / 180);
+  const x = spec.wallSlant.axis === "x" ? slope : 0;
+  const y = spec.wallSlant.axis === "y" ? slope : 0;
+  return kernel.arena.track(solid.transform([
+    1, 0, 0, 0, 0, 1, 0, 0, x, y, 1, 0,
+    -x * BASE_HEIGHT, -y * BASE_HEIGHT, 0, 1,
+  ]));
+}
+
 /** Outer dimensions of the bin a spec describes, without building it. */
 export function binDimensionsMm(spec: BinSpec): {
   widthMm: number;
@@ -116,9 +129,10 @@ export function binDimensionsMm(spec: BinSpec): {
   heightToRimMm: number;
   totalHeightMm: number;
 } {
+  const slant = wallSlantTopOffsetMm(spec);
   return {
-    widthMm: binFootprintMm(spec.gridX, spec.gridPitch),
-    lengthMm: binFootprintMm(spec.gridY, spec.gridPitch),
+    widthMm: binFootprintMm(spec.gridX, spec.gridPitch) + Math.abs(slant.x),
+    lengthMm: binFootprintMm(spec.gridY, spec.gridPitch) + Math.abs(slant.y),
     heightToRimMm: binHeightMm(spec.heightUnits),
     totalHeightMm: binTotalHeightMm(spec.heightUnits, spec.lip === "standard"),
   };
@@ -175,7 +189,11 @@ export function buildBinParts(
     );
   }
 
-  return { base, wall, lip, infill };
+  if (wall) wall = slantBodyPart(kernel, wall, spec);
+  if (infill) infill = slantBodyPart(kernel, infill, spec);
+  const slantedLip = lip ? slantBodyPart(kernel, lip, spec) : null;
+
+  return { base, wall, lip: slantedLip, infill };
 }
 
 export interface BinLayout {
@@ -245,7 +263,7 @@ export function buildBinWithCutouts(
       ...(builtCutouts.validationIssues ?? []),
       ...validateLayout(spec, layout.cutouts, layout.shapesById, layout.fingerHoles)
         .filter(issue => issue.code === "invalid-pocket-insertion" || issue.code === "pocket-depth-needed"),
-      ...validateTiltedSolids(kernel, spec, layout.cutouts, layout.shapesById, builtCutouts.cutterGroups ?? [], base.parts.wall, base.parts.lip),
+      ...validateTiltedSolids(kernel, spec, layout.cutouts, layout.shapesById, builtCutouts.cutterGroups ?? [], base.parts.wall, base.parts.lip, base.solid),
     ];
     floorInserts = builtCutouts.floorInserts;
     floorRegions = builtCutouts.floorRegions ?? floorInserts;
@@ -311,12 +329,12 @@ export function buildBinWithCutouts(
     // intersecting the finished solid preserves base profiles and all cutouts.
     const requestedRim = base.parts.lip
       ? arena.track(base.parts.lip.trimByPlane([0, 0, 1], topZ - options.rimInsertThicknessMm))
-      : arena.track(
+      : slantBodyPart(kernel, arena.track(
           arena.track(buildWallSection(kernel, spec, quality.circularSegments,
             options.borderWidthMm ?? MULTICOLOR_BORDER_WIDTH_MM)
             .extrude(options.rimInsertThicknessMm))
             .translate([0, 0, topZ - options.rimInsertThicknessMm]),
-        );
+        ), spec);
     let clippedRim = arena.track(requestedRim.intersect(solid));
     if (pocketFloors) {
       clippedRim = arena.track(clippedRim.subtract(pocketFloors));

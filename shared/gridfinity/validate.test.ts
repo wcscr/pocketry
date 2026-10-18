@@ -9,6 +9,12 @@ function spec(partial: Partial<BinSpecInput> = {}) {
 }
 
 describe("binSpecSchema", () => {
+  it("accepts only a single slant axis and a bounded angle", () => {
+    expect(spec({ wallSlant: { axis: "y", angleDeg: -45 } }).wallSlant).toEqual({ axis: "y", angleDeg: -45 });
+    expect(() => spec({ wallSlant: { axis: "z", angleDeg: 20 } as never })).toThrow();
+    expect(() => spec({ wallSlant: { axis: "x", angleDeg: 61 } })).toThrow();
+    expect(() => spec({ wallSlant: { axis: "x", angleDeg: 20, yDeg: 10 } as never })).toThrow();
+  });
   it("applies defaults for lip, fill, and grid pitch", () => {
     const parsed = spec();
     expect(parsed.lip).toBe("standard");
@@ -110,6 +116,12 @@ describe("validateBinSpec", () => {
   it("warns on footprints beyond a typical print bed", () => {
     const result = validateBinSpec(spec({ gridX: 7 }));
     expect(result.issues.map((issue) => issue.code)).toContain("large-footprint");
+  });
+
+  it("includes the shifted rim when checking print-bed span", () => {
+    const result = validateBinSpec(spec({ gridX: 5, heightUnits: 10, lip: "none",
+      wallSlant: { axis: "x", angleDeg: 45 } }));
+    expect(result.issues.some(issue => issue.code === "large-footprint" && issue.message.includes("slanted body"))).toBe(true);
   });
 });
 

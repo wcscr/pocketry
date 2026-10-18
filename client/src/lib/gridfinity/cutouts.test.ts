@@ -436,6 +436,18 @@ describe("buildBinWithCutouts", () => {
     }
   });
 
+  it("keeps a colored flush border aligned with a slanted rim", () => {
+    const spec = parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6, lip: "none",
+      wallSlant: { axis: "y", angleDeg: 30 } });
+    const built = buildBinWithCutouts(kernel, spec, null, QUALITY, { rimInsertThicknessMm: 1.25 });
+    const { body, stackingRim: border } = built.materialParts!;
+    expect(border).not.toBeNull();
+    expect(border!.status()).toBe("NoError");
+    expect(border!.boundingBox().max[1]).toBeCloseTo(built.solid.boundingBox().max[1], 5);
+    expect(arena.track(body.intersect(border!)).volume()).toBeLessThan(1e-7);
+    expect(arena.track(body.add(border!)).volume()).toBeCloseTo(built.solid.volume(), 5);
+  });
+
   it.each(["rectangle", "custom"] as const)("changes border width independently of depth on a %s bin", kind => {
     const spec = parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6, lip: "none",
       footprint: kind === "rectangle" ? { kind } : {
