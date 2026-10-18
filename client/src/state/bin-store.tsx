@@ -1,5 +1,6 @@
 import { surfaceTextSchema, type SurfaceText } from "@shared/gridfinity/surface-text";
 import { sameJsonData } from "@shared/json-data-equal";
+import { binMaterialsSchema, DEFAULT_BIN_MATERIALS, type BinMaterials } from "@shared/gridfinity/materials";
 import { adjustPocketsForFillHeight, reconcileFillHeightReferences } from "@shared/gridfinity/fill-height-edit";
 import { recordTransformOrigins, type TransformOrigins } from "@shared/gridfinity/transform-origins";
 import { hasRigidPocket, rigidPocket } from "@shared/gridfinity/rigid-pocket";
@@ -30,8 +31,9 @@ import { parseBinSpec, type BinSpec, type BinSpecInput } from "@shared/gridfinit
  * The bin designer's state: spec + placed cutouts + editor selection. Same
  * reducer-provider shape as the trace store, scoped to the /bin page.
  *
- * Undo/redo covers the **material document** — `{spec, cutouts, fingerHoles}` — and
- * nothing else: selection, view mode and hydration are transient UI state
+ * Undo/redo covers the **material document** — `{spec, cutouts, fingerHoles}`.
+ * Compound commands can also retain their appearance changes. Selection,
+ * view mode and hydration are transient UI state
  * that undoing should not yank around. The stack holds full snapshots with
  * `index` pointing at the present; drag frames dispatch with
  * `transient: true` so a whole gesture collapses into one undo step (the
@@ -53,6 +55,7 @@ export interface BinState {
   textSnap: boolean;
   fieldEdit: { owner: string; token: string; checkpoint: BinHistory; valid: boolean } | null;
   transformOrigins: TransformOrigins;
+  materials: BinMaterials;
   spec: BinSpec;
   cutouts: CutoutPlacement[];
   fingerHoles: FingerHole[];
@@ -96,6 +99,7 @@ export type BinAction = (
   | { type: "FINISH_FIELD_EDIT"; cancel?: boolean }
   | {
       type: "HYDRATE";
+      materials?: BinMaterials;
       spec: BinSpec;
       cutouts: CutoutPlacement[];
       fingerHoles?: FingerHole[];
@@ -104,10 +108,13 @@ export type BinAction = (
       transformOrigins?: TransformOrigins;
     }
   | { type: "MARK_HYDRATED" }
+  | { type: "PATCH_MATERIALS"; patch: Partial<BinMaterials> }
   | { type: "SET_ADJUST_FIXED_POCKET_DEPTHS"; enabled: boolean }
   | {
       type: "PATCH_SPEC";
       patch: Partial<BinSpecInput>;
+      /** Applied and undone atomically with this construction change. */
+      materialPatch?: Partial<BinMaterials>;
       transient?: boolean;
       historyLabel?: string;
     }
@@ -191,6 +198,7 @@ const INITIAL: BinState = {
   textSnap: false,
   fieldEdit: null,
   transformOrigins: { pockets: [], fingerHoles: [] },
+  materials: DEFAULT_BIN_MATERIALS,
   spec: INITIAL_BIN_SPEC,
   cutouts: [],
   fingerHoles: [],
@@ -240,17 +248,21 @@ function commit(
   doc: BinDoc,
   label: string,
   rest: Partial<BinState> = {},
+  materialPatch?: Partial<BinMaterials>,
 ): BinState {
+  const materials = materialPatch ? binMaterialsSchema.parse({ ...state.materials, ...materialPatch }) : state.materials;
+  const materialChange = sameJsonData(materials, state.materials) ? undefined : { before: state.materials, after: materials };
   doc = reconcileFillHeightReferences(state, doc);
   doc = limitFingerAccessForBinChange(state, doc);
   const stack = [
     ...state.history.stack.slice(0, state.history.index + 1),
-    { doc, label },
+    { doc, label, ...(materialChange ? { materialChange } : {}) },
   ];
   const overflow = Math.max(0, stack.length - BIN_HISTORY_LIMIT);
   return {
     ...state,
     ...rest,
+    materials,
     editError: null,
     pendingHistoryLabel: null,
     ...selectionState(existingSelection(rest.selection ?? state.selection, doc)),
@@ -426,6 +438,7 @@ function reduceBin(state: BinState, action: BinAction): BinState {
     case "SET_TEXT_TOOL": return { ...state, textTool: action.tool };
     case "SET_TEXT_SNAP": return { ...state, textSnap: action.snap };
     case "BEGIN_FIELD_EDIT": case "FIELD_VALIDITY": case "FINISH_FIELD_EDIT": case "SET_EDITING_CAPABILITY": return state;
+    case "PATCH_MATERIALS": return { ...state, materials: binMaterialsSchema.parse({ ...state.materials, ...action.patch }) };
     case "HYDRATE": {
       // Replace the outgoing project's entire history. Legacy projects start
       // at one baseline; saved histories retain their undo and redo branches.
@@ -436,6 +449,7 @@ function reduceBin(state: BinState, action: BinAction): BinState {
       };
       return {
         ...state,
+        materials: action.materials ?? DEFAULT_BIN_MATERIALS,
         spec: doc.spec,
         cutouts: doc.cutouts,
         fingerHoles: doc.fingerHoles,
@@ -495,7 +509,7 @@ function reduceBin(state: BinState, action: BinAction): BinState {
       }
       return action.transient
         ? preview(state, doc, action.historyLabel ?? specPatchLabel(action.patch))
-        : commit(state, doc, action.historyLabel ?? specPatchLabel(action.patch));
+        : commit(state, doc, action.historyLabel ?? specPatchLabel(action.patch), {}, action.materialPatch);
     }
     case "ADD_PLACED":
       return commit(
@@ -814,8 +828,21 @@ function reduceBin(state: BinState, action: BinAction): BinState {
 
 function restore(state: BinState, entry: BinHistoryEntry, index: number): BinState {
   const { doc } = entry;
+  let materials = state.materials;
+  const backwards = index < state.history.index;
+  for (let step = state.history.index; step !== index; step += backwards ? -1 : 1) {
+    const change = state.history.stack[backwards ? step : step + 1].materialChange;
+    if (!change) continue;
+    // Only restore fields changed by the command. Later independent color edits
+    // to other regions must survive unrelated geometry undo/redo.
+    const patch = Object.fromEntries((Object.keys(change.before) as (keyof BinMaterials)[])
+      .filter(key => change.before[key] !== change.after[key])
+      .map(key => [key, (backwards ? change.before : change.after)[key]]));
+    materials = binMaterialsSchema.parse({ ...materials, ...patch });
+  }
   return {
     ...state,
+    materials,
     editError: null,
     pendingHistoryLabel: null,
     spec: doc.spec,

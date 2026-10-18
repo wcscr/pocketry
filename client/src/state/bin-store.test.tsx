@@ -9,6 +9,8 @@ import { rigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { clampFingerHoleToBin, fingerHoleSchema, parseCutoutPlacement, resolvePocketDepth, type TracedShape } from "@shared/gridfinity/cutout";
 
 import { surfaceTextSchema } from "@shared/gridfinity/surface-text";
+import { DEFAULT_BIN_MATERIALS } from "@shared/gridfinity/materials";
+import { DEFAULT_PEG_BOTTOM } from "@shared/gridfinity/peg-bottom";
 import { parseProjectDoc, PROJECT_SCHEMA_VERSION } from "@shared/gridfinity/project";
 
 import {
@@ -53,6 +55,42 @@ const CUTOUT = parseCutoutPlacement({
 });
 
 describe("bin store", () => {
+  it("undoes compound material changes across history jumps, reloads and redo branches", () => {
+    const { store, act } = mountBin();
+    const original = { ...DEFAULT_BIN_MATERIALS, pocketFloorColor: "#123456", stackingRimColor: "#abcdef" };
+    act(() => store().dispatch({ type: "HYDRATE", spec: store().spec, cutouts: [], materials: original }));
+    const spec = store().spec;
+    const materialPatch = { colorPocketFloors: false, colorStackingRim: false,
+      pocketFloorColor: original.binColor, stackingRimColor: original.binColor };
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { pegBottom: DEFAULT_PEG_BOTTOM, lip: "none", textColor: null },
+      materialPatch, historyLabel: "Use ULTIM8 jig pegs" }));
+    expect(store().history.index).toBe(1);
+    expect(store().materials).toEqual({ ...original, ...materialPatch });
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { heightUnits: 3 } }));
+    // Appearance edits outside the preset stay independent of geometry history.
+    act(() => store().dispatch({ type: "PATCH_MATERIALS", patch: { binColor: "#fedcba" } }));
+    expect(store().history.index).toBe(2);
+    act(() => store().dispatch({ type: "UNDO" }));
+    expect(store().materials.binColor).toBe("#fedcba");
+    expect(store().materials.colorStackingRim).toBe(false);
+    act(() => store().dispatch({ type: "UNDO" }));
+    expect(store().spec).toEqual(spec);
+    expect(store().materials).toEqual({ ...original, binColor: "#fedcba" });
+    const saved = parseProjectDoc(JSON.parse(JSON.stringify({ schemaVersion: PROJECT_SCHEMA_VERSION,
+      ...getCommittedBinDoc(store()), shapes: [], materials: store().materials, history: store().history })))!;
+    expect(saved).not.toBeNull();
+    act(() => store().dispatch({ type: "HYDRATE", ...saved }));
+    act(() => store().dispatch({ type: "JUMP_TO_HISTORY", index: 2 }));
+    expect(store().spec.heightUnits).toBe(3);
+    expect(store().materials).toEqual({ ...original, ...materialPatch, binColor: "#fedcba" });
+    act(() => store().dispatch({ type: "JUMP_TO_HISTORY", index: 0 }));
+    expect(store().materials).toEqual({ ...original, binColor: "#fedcba" });
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { heightUnits: 4 } }));
+    expect(store().canRedo).toBe(false);
+    act(() => store().dispatch({ type: "UNDO" }));
+    expect(store().materials).toEqual({ ...original, binColor: "#fedcba" });
+  });
+
   it("edits and selects portable-font labels without serializing their source bytes", () => {
     const { store, act } = mountBin();
     const font = { kind: "local", name: "Portable", resolution: 1000,

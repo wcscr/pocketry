@@ -6,7 +6,8 @@ lip, set Solid fill to 100%, and match floors, rim, and text to the bin body col
 Rectangular bins also switch Grid pitch to Arbitrary, keeping their body dimensions.
 Custom footprints retain their grid because Arbitrary sizing requires a rectangle.
 **Jig body thickness** starts at the current body height, excluding pegs. Editing it
-stays local to the dialog until **Use jig settings**. Depth errors disable that
+stays local to the dialog until **Use jig settings**. The preset, including its
+color changes, is one undoable step retained when saving and reopening. Depth errors disable that
 action; thin-floor warnings remain visible.
 Choose **Keep current settings** to change only the bottom at its current height, or **Cancel** to leave
 the design as it is. Opening an existing jig does not show this prompt.
@@ -105,6 +106,10 @@ inspection. A successful support-free slice does not qualify print quality.
 
 **Grid pitch → Arbitrary** sets exact outer width, length and body height in
 millimetres with flat or ULTIM8 bottoms. Switching preserves the existing size.
+Arbitrary dimensions stay fixed when adding or arranging tools; the checked lock
+is read-only, with details in its help hint. Edit the millimetre fields or choose
+**Fit bin to contents** to resize. Display rounding does not change the saved
+dimensions.
 Body heights may go down to 2 mm; below 7 mm the stacking lip is off. Returning
 to a grid requires exactly matching grid dimensions and height increments.
 

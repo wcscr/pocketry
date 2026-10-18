@@ -480,15 +480,12 @@ export function BinControlsPanel({
 
   const applyUltim8Bottom = (useJigSettings: boolean) => {
     if (!experimentalEnabled || useJigSettings && (!jigSetup?.patch || jigSetup.error)) return;
-    patchSpec(useJigSettings ? jigSetup!.patch! : {
+    dispatch({ type: "PATCH_SPEC", patch: useJigSettings ? jigSetup!.patch! : {
       flatBottom: false, pegBottom: { ...DEFAULT_PEG_BOTTOM },
-    }, false, "Use ULTIM8 jig pegs");
-    if (useJigSettings) {
-      onColorPocketFloorsChange(false);
-      onColorStackingRimChange(false);
-      onPocketFloorColorChange(binColor);
-      onStackingRimColorChange(binColor);
-    }
+    }, historyLabel: "Use ULTIM8 jig pegs", ...(useJigSettings ? { materialPatch: {
+      colorPocketFloors: false, colorStackingRim: false,
+      pocketFloorColor: binColor, stackingRimColor: binColor,
+    } } : {}) });
     setUltim8DialogOpen(false);
   };
 
@@ -1462,7 +1459,7 @@ export function BinControlsPanel({
           title="Bin size"
           icon={Scaling}
           tone="blue"
-          summary={spec.arbitrarySizeMm ? `${dims.widthMm} × ${dims.lengthMm} × ${Number((spec.heightUnits * HEIGHT_UNIT_MM).toFixed(3))} mm` : `${formatUnitCount(widthCellSpan)} × ${formatUnitCount(lengthCellSpan)} × ${formatUnitCount(spec.heightUnits)}u`}
+          summary={spec.arbitrarySizeMm ? `${Number(dims.widthMm.toFixed(2))} × ${Number(dims.lengthMm.toFixed(2))} × ${Number((spec.heightUnits * HEIGHT_UNIT_MM).toFixed(2))} mm` : `${formatUnitCount(widthCellSpan)} × ${formatUnitCount(lengthCellSpan)} × ${formatUnitCount(spec.heightUnits)}u`}
           className="scroll-mt-16"
         >
           {spec.arbitrarySizeMm ? (
@@ -1470,7 +1467,7 @@ export function BinControlsPanel({
               {(["width", "length"] as const).map(axis => <div key={axis} className="flex items-center justify-between gap-2">
                 <Label className="text-xs" htmlFor={`arbitrary-${axis}`}>{axis === "width" ? "Width" : "Length"}</Label>
                 <div className="flex items-center gap-1.5">
-                  <DraftNumberInput id={`arbitrary-${axis}`} className="h-8 w-24" aria-label={`Bin ${axis} in millimetres`} value={spec.arbitrarySizeMm![axis]} min={10} max={671.5} step={0.1}
+                  <DraftNumberInput id={`arbitrary-${axis}`} className="h-8 w-24" aria-label={`Bin ${axis} in millimetres`} value={spec.arbitrarySizeMm![axis]} displayPrecision={2} min={10} max={671.5} step={0.1}
                     onValueChange={value => patchSpec({ arbitrarySizeMm: { ...spec.arbitrarySizeMm!, [axis]: value } }, true)}
                     onValueCommit={value => patchSpec({ arbitrarySizeMm: { ...spec.arbitrarySizeMm!, [axis]: value } })} />
                   <span className="text-xs text-muted-foreground">mm</span>
@@ -1505,7 +1502,7 @@ export function BinControlsPanel({
           {spec.arbitrarySizeMm ? <div className="flex items-center justify-between gap-2">
             <SettingLabel label="Height" htmlFor="arbitrary-height" hint="Body height, excluding the stacking lip and peg length. Pocket floors stay measured from the flat backing." />
             <div className="flex items-center gap-1.5">
-              <DraftNumberInput id="arbitrary-height" className="h-8 w-24" aria-label="Bin height in millimetres" value={Number((spec.heightUnits * HEIGHT_UNIT_MM).toFixed(6))} min={2} max={294} step={0.1}
+              <DraftNumberInput id="arbitrary-height" className="h-8 w-24" aria-label="Bin height in millimetres" value={spec.heightUnits * HEIGHT_UNIT_MM} displayPrecision={2} min={2} max={294} step={0.1}
                 onValueChange={value => patchSpec({ heightUnits: value / HEIGHT_UNIT_MM, ...(value < 7 ? { lip: "none" } : {}) }, true)}
                 onValueCommit={value => patchSpec({ heightUnits: value / HEIGHT_UNIT_MM, ...(value < 7 ? { lip: "none" } : {}) })} />
               <span className="text-xs text-muted-foreground">mm</span>
@@ -1595,7 +1592,10 @@ export function BinControlsPanel({
               </SelectContent>
             </Select>
           </div>
-          <FeatureSwitch label="Keep bin size fixed" description="Adding tools keeps these dimensions. Tools that do not fit stay visible for adjustment." checked={keepBinSize} onChange={(fixed) => onKeepBinSizeChange?.(fixed)} />
+          {spec.arbitrarySizeMm ? <div className="flex items-center justify-between gap-3">
+            <SettingLabel label="Keep bin size fixed" hint="Arbitrary sizes always keep the entered dimensions. Change the millimetre fields or use Fit bin to contents to resize." />
+            <Switch checked disabled aria-label="Keep bin size fixed" />
+          </div> : <FeatureSwitch label="Keep bin size fixed" description="Adding tools keeps these dimensions. Tools that do not fit stay visible for adjustment." checked={keepBinSize} onChange={(fixed) => onKeepBinSizeChange?.(fixed)} />}
           {showPreviewBusy && (
             <div
               className="flex items-center gap-1.5 rounded-md border border-blue-500/25 bg-blue-500/10 px-2.5 py-1.5 text-xs font-medium text-blue-800 dark:text-blue-100"

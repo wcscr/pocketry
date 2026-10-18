@@ -3192,6 +3192,15 @@ describe("BinDesignerPage", () => {
       expect(exported.spec).toEqual(current());
       expect(exported.materials).toEqual({ ...materials, colorPocketFloors: false, colorStackingRim: false,
         pocketFloorColor: materials.binColor, stackingRimColor: materials.binColor });
+      expect(exported.history!.stack[exported.history!.index].materialChange?.before).toEqual(materials);
+      clickBinHistory(container, "undo");
+      expect(current()).toEqual(original);
+      expect(viewport().getAttribute("data-rim-color")).toBe(materials.stackingRimColor);
+      expect(viewport().getAttribute("data-text-color")).toBe(original.textColor);
+      expect(viewport().getAttribute("data-pocket-floor-color")).toBe("on");
+      expect(viewport().getAttribute("data-stacking-rim-color")).toBe("on");
+      clickBinHistory(container, "redo");
+      for (const region of ["bin", "floor", "rim", "text"]) expect(viewport().getAttribute(`data-${region}-color`)).toBe(materials.binColor);
     } finally { unmount(); }
   });
 
@@ -3359,6 +3368,75 @@ describe("BinDesignerPage", () => {
       expect(vi.mocked(useBinGeometry).mock.lastCall?.[0].pegBottom).toBeNull();
       choose("Flat bottom");
       expect(vi.mocked(useBinGeometry).mock.lastCall?.[0].flatBottom).toBe(true);
+    } finally { unmount(); }
+  });
+
+  it.each(["standard", "workflow"] as const)("shows Arbitrary sizes as fixed and explains arrange overflow in the %s layout", async layout => {
+    window.history.replaceState(null, "", `/bin?layout=${layout}`);
+    const shape = rectangularShape("tool", "Oversized tool");
+    const spec = parseBinSpec({ ...EMPTY_PROJECT.spec, flatBottom: true, arbitrarySizeMm: { width: 10, length: 10 } });
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, spec, keepBinSize: false,
+      shapes: [shape], cutouts: [parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 0, y: 0 } })] });
+    const { container, unmount } = renderPage(); await flushHydration();
+    try {
+      openSettingsSection(container, "size");
+      const fixed = container.querySelector<HTMLButtonElement>('[aria-label="Keep bin size fixed"]')!;
+      expect(fixed.getAttribute("aria-checked")).toBe("true");
+      expect(fixed.disabled).toBe(true);
+      openSettingsSection(container, "tool-cutouts");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-auto-arrange"]')!.click());
+      expect(projectToast).toHaveBeenLastCalledWith(expect.objectContaining({ title: "Does not fit", description: expect.stringContaining("bin size is fixed") }));
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0].arbitrarySizeMm).toEqual({ width: 10, length: 10 });
+      // Returning to a matching grid restores the prior user preference.
+      openSettingsSection(container, "size");
+      for (const axis of ["width", "length"]) {
+        const input = container.querySelector<HTMLInputElement>(`[aria-label="Bin ${axis} in millimetres"]`)!;
+        React.act(() => { input.focus(); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "83.5"); input.dispatchEvent(new Event("input", { bubbles: true })); });
+        React.act(() => input.blur());
+      }
+      React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Grid pitch"]')!.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true })));
+      React.act(() => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(option => option.textContent === "Full · 42 mm")!.click());
+      const restored = container.querySelector<HTMLButtonElement>('[aria-label="Keep bin size fixed"]')!;
+      expect(restored.disabled).toBe(false);
+      expect(restored.getAttribute("aria-checked")).toBe("false");
+    } finally { unmount(); }
+  });
+
+  it("explains a queued tool overflowing an Arbitrary bin as a fixed-size layout", async () => {
+    sessionStorage.setItem("pocketry:queued-tools", JSON.stringify([rectangularShape("tool", "Oversized tool")]));
+    const spec = parseBinSpec({ ...EMPTY_PROJECT.spec, flatBottom: true, arbitrarySizeMm: { width: 10, length: 10 } });
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, spec, keepBinSize: false });
+    const { unmount } = renderPage();
+    try {
+      await flushHydration();
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0].arbitrarySizeMm).toEqual({ width: 10, length: 10 });
+      expect(projectToast).toHaveBeenCalledWith(expect.objectContaining({ title: "Tool does not fit", description: expect.stringContaining("bin size is fixed") }));
+    } finally { unmount(); }
+  });
+
+  it.each(["standard", "workflow"] as const)("formats fitted millimetre sizes without changing precision in the %s layout", async layout => {
+    window.history.replaceState(null, "", `/bin?layout=${layout}`);
+    const shape = rectangularShape("tool", "Tool");
+    const cutout = parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 0, y: 0 }, scaleX: 1.123456789, scaleY: 1.234567891 });
+    const spec = parseBinSpec({ ...EMPTY_PROJECT.spec, flatBottom: true, arbitrarySizeMm: { width: 83.5, length: 83.5 } });
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, spec, shapes: [shape], cutouts: [cutout] });
+    const { container, unmount } = renderPage(); await flushHydration();
+    try {
+      openSettingsSection(container, "size");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-fit-bin"]')!.click());
+      const fitted = vi.mocked(useBinGeometry).mock.lastCall![0].arbitrarySizeMm!;
+      const width = container.querySelector<HTMLInputElement>('[aria-label="Bin width in millimetres"]')!;
+      const length = container.querySelector<HTMLInputElement>('[aria-label="Bin length in millimetres"]')!;
+      expect(width.value).toBe(String(Number(fitted.width.toFixed(2))));
+      expect(length.value).toBe(String(Number(fitted.length.toFixed(2))));
+      expect(fitted.width).not.toBe(Number(width.value));
+      expect(fitted.length).not.toBe(Number(length.value));
+      expect(container.textContent).not.toContain(String(fitted.width));
+      React.act(() => width.focus()); React.act(() => width.blur());
+      React.act(() => length.focus()); React.act(() => length.blur());
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0].arbitrarySizeMm).toEqual(fitted);
+      clickBinHistory(container, "undo");
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0].arbitrarySizeMm).toEqual(spec.arbitrarySizeMm);
     } finally { unmount(); }
   });
 
