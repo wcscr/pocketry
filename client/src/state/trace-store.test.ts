@@ -1119,3 +1119,14 @@ describe("reference strip scale", () => {
     expect(traceReducer(replaced, { type: "AUTO_CALIBRATION_DETECTED", sourceImageUrl: imageUrl, calibration, source: "strip" })).toBe(replaced);
   });
 });
+
+it("edits a shared retained contour once across overlapping Trace pockets and undo", () => {
+  const hole = [{ x: 2, y: 2 }, { x: 2, y: 4 }, { x: 4, y: 4 }, { x: 4, y: 2 }];
+  const outline = [{ ...ringA[0], holes: [hole] }, { ...ringB[0], holes: [hole] }];
+  let state = run(initialTraceState, detected(outline), { type: "SELECT_RING", selection: { shapeIndex: 0, ringIndex: 0 } });
+  const changed = hole.map(p => ({ x: p.x + 1, y: p.y }));
+  state = run(state, { type: "OUTLINE_DRAGGING", outline: [{ ...outline[0], holes: [changed] }, outline[1]] });
+  expect(state.outline.map(s => s.holes[0])).toEqual([changed, changed]);
+  state = run(state, { type: "OUTLINE_COMMITTED", outline: state.outline });
+  expect(run(state, { type: "UNDO" }).outline).toEqual(outline);
+});

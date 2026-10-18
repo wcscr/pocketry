@@ -47,7 +47,7 @@ export function usePocketSplit({ cutout, shape, scale, toBin, viewport, onComple
     const boundary = cutout.split ? orientRedrawnPocketSplit(drawn, cutout.split.boundary) : drawn;
     dispatch({ type: "UPDATE_CUTOUT", id: cutout.id,
       patch: { split: { boundary, depths: cutout.split?.depths ?? [cutout.depth, cutout.depth] } },
-      historyLabel: cutout.split ? "Redraw pocket split" : "Split pocket" });
+      historyLabel: cutout.split ? cutout.role === "hole" ? "Redraw hole split" : "Redraw pocket split" : cutout.role === "hole" ? "Split hole" : "Split pocket" });
     dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" });
     reset();
     onComplete?.();

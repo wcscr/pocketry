@@ -41,7 +41,8 @@ export function LinkedDesignControls({ kind, activeId, labels }: {
     <p className="mt-1 text-muted-foreground">Placement stays independent. Shared geometry requires experimental tools.</p>
     <Button variant="link" className="h-auto whitespace-normal px-0 text-xs" onClick={() => setEnabled(true)}>Enable experimental tools</Button>
   </section> : null;
-  const noun = kind === "pocket" ? "pockets" : "thumb slots";
+  const hasHoles = kind === "pocket" && cutouts.some(c => (ids.includes(c.id) || members.some(m => m.id === c.id)) && c.role === "hole");
+  const noun = kind === "pocket" ? hasHoles ? "objects" : "pockets" : "thumb slots";
   const canLink = ids.length >= 2 && !sameDesign;
   const linkedSelected = items.filter(item => ids.includes(item.id) && item.designLink);
   return <section aria-label="Linked design" data-property-tone={kind === "pocket" ? "violet" : "cyan"} className="property-surface space-y-2 rounded-lg border p-3 text-xs">
@@ -51,7 +52,7 @@ export function LinkedDesignControls({ kind, activeId, labels }: {
     </div>
     {sameDesign && <>
       <p className="truncate text-[10px] text-muted-foreground" title={members.map(m => labels.get(m.id) ?? m.id).join(", ")}>{members.map(m => labels.get(m.id) ?? m.id).join(", ")}</p>
-      <p className="text-[10px] text-muted-foreground">Editing size, shape or depth updates every linked copy. Placement stays independent.</p>
+      <p className="text-[10px] text-muted-foreground">{kind === "pocket" ? "Editing type, size, shape or depth updates every linked copy." : "Editing size, shape or depth updates every linked copy."} Placement stays independent.</p>
       {kind === "pocket" && <label className="flex min-h-8 items-center gap-2">
         <input type="checkbox" className="h-4 w-4 accent-primary" checked={active.designLink!.tilt}
           onChange={e => dispatch({ type: "SET_LINKED_TILT", id: activeId, enabled: e.target.checked })} />
@@ -64,7 +65,7 @@ export function LinkedDesignControls({ kind, activeId, labels }: {
           {ids.map(id => <option key={id} value={id}>{labels.get(id) ?? id}</option>)}
         </select>
       </label>
-      <p className="text-[10px] text-muted-foreground">Copies adopt this shape, size and depth. Their positions and names stay the same.</p>
+      <p className="text-[10px] text-muted-foreground">Copies adopt this shape, size and depth{kind === "pocket" ? ", including its Pocket or Hole type" : ""}. Their positions and names stay the same.</p>
       {kind === "pocket" && <label className="flex min-h-8 items-center gap-2"><input type="checkbox" className="h-4 w-4 accent-primary" checked={linkTilt} onChange={e => setLinkTilt(e.target.checked)} />Also share X/Y tilt</label>}
     </>}
     <div className="flex flex-wrap gap-1.5">

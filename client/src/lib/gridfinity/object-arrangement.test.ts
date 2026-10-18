@@ -193,3 +193,15 @@ it("moving a pocket leaves the unselected linked seat unchanged", () => {
   expect(moved.cutouts[1]).toEqual(b.cutout);
   expect(moved.cutouts[0].depth).toEqual(a.cutout.depth);
 });
+
+
+it.each([false, true])("picks retained holes above later pockets in either insertion order (%s)", reverse => {
+  const body = pocket("body", 0, 0, 30, 20);
+  const kept = pocket("kept", 0, 0, 6, 6);
+  kept.cutout.role = "hole";
+  const objects = reverse ? [body, kept] : [kept, body];
+  expect(pickObject(objects, { x: 0, y: 0 })).toEqual({ kind: "pocket", id: kept.cutout.id });
+  expect(pickObject(objects, { x: 8, y: 0 })).toEqual({ kind: "pocket", id: body.cutout.id });
+  const access: EditableObject = { kind: "finger", hole: fingerHoleSchema.parse({ id: "access", center: { x: 0, y: 0 } }) };
+  expect(pickObject([access, ...objects], { x: 0, y: 0 })).toEqual({ kind: "finger", id: "access" });
+});

@@ -45,3 +45,31 @@ it.each(["depth", "clearance"])("keeps the mobile %s slider tied to its pocket a
     React.act(() => root.unmount()); host.remove(); vi.unstubAllGlobals();
   }
 });
+
+
+it("describes hole protection and offsets in mobile adjustment controls", () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
+  const host = document.createElement("div"); document.body.append(host);
+  const root = createRoot(host);
+  let store!: BinStore;
+  function Probe() {
+    store = useBin();
+    return <MobileBinActions open onOpenChange={() => {}} onMore={() => {}} onExport={() => {}} />;
+  }
+  try {
+    React.act(() => root.render(<ShapeLibraryProvider><BinProvider><Probe /></BinProvider></ShapeLibraryProvider>));
+    const hole = parseCutoutPlacement({ id: "hole", shapeId: "source", role: "hole", position: { x: 0, y: 0 }, depth: { mode: "through" } });
+    React.act(() => store.dispatch({ type: "ADD_PLACED", cutouts: [hole], gridX: 2, gridY: 2 }));
+    expect(host.textContent).toContain("Keeps material through the bin");
+    expect(host.textContent).toContain("Hole offset");
+    expect(host.textContent).toContain("reduces the surrounding pocket opening");
+    expect(host.textContent).not.toContain("Through pocket");
+    React.act(() => store.dispatch({ type: "UPDATE_CUTOUT", id: hole.id, patch: { depth: { mode: "mm", value: 5 } } }));
+    expect(host.textContent).toContain("Kept depth");
+    const slider = host.querySelector<HTMLElement>('#quick-pocket-clearance [role="slider"]')!;
+    React.act(() => slider.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })));
+    expect(store.cutouts[0].clearanceMm).toBeCloseTo(0.1);
+    expect(store.history.stack.at(-1)!.label).toBe("Change hole offset");
+  } finally { React.act(() => root.unmount()); host.remove(); vi.unstubAllGlobals(); }
+});

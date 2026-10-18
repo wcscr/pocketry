@@ -160,3 +160,33 @@ it.each(["imageUrl", "perspectiveOriginalImageUrl"] as const)("rejects unsafe re
   await expect(loadTraceDraft()).rejects.toThrow("too large to decode");
   expect(storage.get(TRACE_DRAFT_KEY)).toBe(stored);
 });
+
+it("retains estimated-edge review regions through edits, recovery, rotation and undo", async () => {
+  const region = [{ x: 10, y: 15 }, { x: 20, y: 15 }, { x: 20, y: 25 }, { x: 10, y: 25 }];
+  const before = { ...calibrated(), processing: false, region: null };
+  const detected = traceReducer(before, { type: "DETECTED", imageUrl: image, region: null,
+    outline, rawOutline: outline, svg: "", estimatedEdgeRegions: [region] });
+  const edited = traceReducer(detected, { type: "OUTLINE_COMMITTED", outline: outline.map(s => ({ ...s, outer: [...s.outer] })) });
+  const aligned = traceReducer(edited, { type: "ALIGN_UPRIGHT", outline: edited.outline, expectedOutline: edited.outline, radians: 0.5 });
+  expect(aligned.estimatedEdgeRegions).not.toEqual([region]);
+  await saveTraceDraft(traceDraftSnapshot(aligned));
+  const recovered = traceReducer(initialTraceState, { type: "TRACE_DRAFT_RESTORED", draft: (await loadTraceDraft())! });
+  expect(recovered.estimatedEdgeRegions).toEqual(aligned.estimatedEdgeRegions);
+  const undone = traceReducer(recovered, { type: "UNDO" });
+  expect(undone.estimatedEdgeRegions).toEqual([region]);
+  expect(traceReducer(undone, { type: "REDO" }).estimatedEdgeRegions).toEqual(aligned.estimatedEdgeRegions);
+  const redetected = traceReducer(undone, { type: "DETECTED", imageUrl: image, region: null, outline, rawOutline: outline, svg: "" });
+  expect(redetected.estimatedEdgeRegions).toEqual([]);
+  expect(traceReducer(redetected, { type: "UNDO" }).estimatedEdgeRegions).toEqual([region]);
+  expect(traceReducer(undone, { type: "SOURCE_LOADED", imageUrl: image, fileName: "New photo" }).estimatedEdgeRegions).toEqual([]);
+  const { estimatedEdgeRegions: _areas, ...legacy } = traceDraftSnapshot(detected)!.state;
+  expect(traceDraftSchema.parse({ ...traceDraftSnapshot(detected), state: legacy }).state.estimatedEdgeRegions).toEqual([]);
+});
+
+it("rotates estimated areas together with a quarter-turned photo and history", () => {
+  const state = { ...calibrated(), processing: false, estimatedEdgeRegions: [outline[0].outer],
+    history: { stack: [{ outline, margin: 0, label: "Detected", estimatedEdgeRegions: [outline[0].outer] }], index: 0 } };
+  const rotated = traceReducer(state, { type: "ROTATE_SOURCE", direction: "clockwise", naturalSize: state.imageSize, maxSize: { width: 800, height: 800 } });
+  expect(rotated.estimatedEdgeRegions).toEqual([rotated.outline[0].outer]);
+  expect(rotated.history.stack[0].estimatedEdgeRegions).toEqual(rotated.estimatedEdgeRegions);
+});

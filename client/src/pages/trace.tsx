@@ -2,7 +2,7 @@ import { useLocation } from "wouter";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { mmPerPixel, type Calibration } from "@shared/geometry/scale";
-import type { Rect } from "@shared/geometry/types";
+import type { Rect, Ring } from "@shared/geometry/types";
 
 import { usePanelState } from "@/components/layout/panel-context";
 import { TraceEditingWorkspace } from "@/components/trace/trace-editing-workspace";
@@ -56,6 +56,8 @@ import { projectFromTrace } from "@/lib/project/trace-export";
 import { generateDXF } from "@/lib/export/dxf";
 import { exportScale } from "@/lib/export/scale";
 import { generateSTL } from "@/lib/export/stl";
+import { traceMaterialOutline } from "@/lib/geometry/contour-role";
+import { withKernel } from "@/lib/manifold/runtime";
 import { generateOutlineSVG } from "@/lib/export/svg";
 import type { ImageRotationDirection } from "@/lib/geometry/image-rotation";
 import { processImage } from "@/lib/image-processor";
@@ -178,6 +180,8 @@ function TraceWorkspace(): JSX.Element {
     }
   }, [source, dispatch, toast]);
 
+  const [estimatedEdgeFocusRequest, setEstimatedEdgeFocusRequest] = useState(0);
+
   const notice = useCallback(
     (title: string, description: string) => {
       toast({ title, description });
@@ -205,8 +209,32 @@ function TraceWorkspace(): JSX.Element {
     if (!imageData) return;
 
     const request = ++detectionRequest.current;
+    const sourceRevision = store.sourceRevision;
     dispatch({ type: "SET_PROCESSING", processing: true });
     try {
+      // Re-read the current photo, including any rotation/perspective warp.
+      // This also works after draft recovery or choosing a manual/paper scale;
+      // the carrier footprint is independent of the accepted scale ruler.
+      let occlusions: Ring[] = [];
+      try {
+        for (const limit of [undefined, AID_RETRY_CANVAS_MAX]) {
+          const frame = getDetectionFrame(limit);
+          if (frame?.sourceImageUrl !== source.url) break;
+          const reference = await autoCalibrate(frame.imageData);
+          if (reference.kind === "calibrated-strip" && reference.aidOutline) {
+            occlusions = [reference.aidOutline.map(p => ({
+              x: p.x * frame.toWorking.x - Math.max(0, Math.round(region.x)),
+              y: p.y * frame.toWorking.y - Math.max(0, Math.round(region.y)),
+            }))];
+            break;
+          }
+          if (!(reference.kind === "invalid-strip" ||
+            (reference.kind === "calibrated" && reference.stripFallbackReason))) break;
+        }
+      } catch {
+        // Optional reference recognition must not disable ordinary tracing.
+      }
+      if (request !== detectionRequest.current || latestStore.current.sourceRevision !== sourceRevision) return;
       const result = await processImage(imageData, {
         includeInteriorHoles: settings?.includeInteriorHoles ?? store.includeInteriorHoles,
         region: region
@@ -215,6 +243,7 @@ function TraceWorkspace(): JSX.Element {
         margin: store.margin,
         calibration: store.calibration,
         detect: {
+          occlusions,
           sensitivity: settings?.sensitivity ?? store.sensitivity,
           tolerancePx: store.tolerancePx,
           smoothing: store.smoothing,
@@ -222,13 +251,14 @@ function TraceWorkspace(): JSX.Element {
         onNotice: notice,
       });
 
-      if (request !== detectionRequest.current) return;
+      if (request !== detectionRequest.current || latestStore.current.sourceRevision !== sourceRevision) return;
       dispatch({
         type: "DETECTED",
         expectedOutline: store.outline,
         imageUrl: source.url,
         outline: result.outline,
         rawOutline: result.rawOutline,
+        estimatedEdgeRegions: result.estimatedEdgeRegions,
         svg: result.svg,
         region,
       });
@@ -250,6 +280,7 @@ function TraceWorkspace(): JSX.Element {
   }, [
     source,
     getImageData,
+    getDetectionFrame,
     dispatch,
     notice,
     toast,
@@ -262,6 +293,7 @@ function TraceWorkspace(): JSX.Element {
     store.tolerancePx,
     store.smoothing,
     store.fileName,
+    store.sourceRevision,
   ]);
 
   /**
@@ -611,18 +643,20 @@ function TraceWorkspace(): JSX.Element {
       const backup = includeProject
         ? new Blob([JSON.stringify(projectFromTrace(outline, scale, fileName || "Traced outline", margin ?? 0), null, 2)], { type: "application/json" })
         : null;
+      const exportOutline = outline.some(part => part.holes.length)
+        ? await withKernel(kernel => traceMaterialOutline(kernel, outline)) : outline;
       let model: Blob;
       if (exportFormat === "svg") {
-        model = new Blob([generateOutlineSVG(outline, {
+        model = new Blob([generateOutlineSVG(exportOutline, {
           width: imageSize.width,
           height: imageSize.height,
           mmPerPx: scale.mmPerPx,
           calibration,
         })], { type: "image/svg+xml" });
       } else if (exportFormat === "dxf") {
-        model = new Blob([generateDXF(outline, scale)], { type: "application/dxf" });
+        model = new Blob([generateDXF(exportOutline, scale)], { type: "application/dxf" });
       } else {
-        const stl = await generateSTL(outline, { heightMm: extrusionHeight, scale });
+        const stl = await generateSTL(exportOutline, { heightMm: extrusionHeight, scale });
         model = new Blob([stl], { type: "application/octet-stream" });
       }
       if (backup) downloadBlob(backup, `${stem}.pocketry.json`);
@@ -752,8 +786,17 @@ function TraceWorkspace(): JSX.Element {
             {store.imageUrl && store.draftSaveStatus === "error" && <p role="status" data-testid="trace-save-error" className="shrink-0 border-b bg-destructive/10 px-3 py-2 text-sm text-destructive">
               Couldn’t save the trace draft. Keep this page open; your latest edits may not survive a refresh.
             </p>}
+            {store.estimatedEdgeRegions.length > 0 && <div role="status" data-testid="estimated-edge-notice"
+              className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b bg-amber-500/10 px-3 py-2 text-xs">
+              <p className="min-w-0 flex-1">An edge hidden by the measurement aid is estimated. Review the contour in the amber area before using it.</p>
+              <Button variant="outline" size="sm" className="min-h-9" onClick={() => {
+                if (store.perspectiveCorrection?.paperBounds) dispatch({ type: "SET_SHOW_FULL_PHOTO", show: true });
+                setEstimatedEdgeFocusRequest(value => value + 1);
+              }}>Show estimated area</Button>
+            </div>}
             <div className="relative min-h-0 flex-1">
                 <TraceCanvas
+                  estimatedEdgeFocusRequest={estimatedEdgeFocusRequest}
                   onReprocess={(region) => void runDetection(undefined, region)}
                   emptyState={
                     <div className="flex h-full min-h-[24rem] w-full flex-col gap-3 text-center">

@@ -1062,3 +1062,12 @@ it("recovers legacy origins from the earliest retained state, including redo-onl
   ], index: 1 } }));
   expect(store().transformOrigins.pockets[0].cutout).toEqual(CUTOUT);
 });
+
+
+it("keeps authored placement labels and describes single hole additions", () => {
+  const { store, act } = mountBin();
+  act(() => store().dispatch({ type: "ADD_PLACED", cutouts: [CUTOUT], gridX: 2, gridY: 2, historyLabel: "Add circle pocket" }));
+  expect(store().history.stack.at(-1)!.label).toBe("Add circle pocket");
+  act(() => store().dispatch({ type: "ADD_PLACED", cutouts: [{ ...CUTOUT, id: "kept", role: "hole" }], gridX: 2, gridY: 2 }));
+  expect(store().history.stack.at(-1)!.label).toBe("Add 1 traced object");
+});

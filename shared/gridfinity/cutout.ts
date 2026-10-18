@@ -574,6 +574,8 @@ const cutoutPlacementInputSchema = z
   .object({
     id: z.string().min(1),
     shapeId: z.string().min(1),
+    /** Hole objects retain material wherever their volume overlaps a pocket. */
+    role: z.literal("hole").optional(),
     designLink: designLinkSchema.optional(),
     /** Unadjusted depths and mouth anchor retained for reversible fill edits. */
     fillHeightReference: z.object({
@@ -592,6 +594,8 @@ const cutoutPlacementInputSchema = z
     elevationMm: z.number().finite().min(0).max(300).optional(),
     /** Optional upward clearance; absent preserves the finite authored pocket. */
     insertionMode: z.enum(["axis", "vertical"]).optional(),
+    /** Local object axis for axial insertion; absent retains the original Z axis. */
+    insertionAxis: z.enum(["x", "y", "z"]).optional(),
     /** CCW-positive in the y-up bin frame. */
     rotationDeg: z.number().finite().default(0),
     /** X/Y orientation in the authored frame; Z heading remains rotationDeg. */
@@ -698,7 +702,7 @@ export function parseCutoutPlacement(input: unknown): CutoutPlacement {
 export type PlacementTransform = Pick<
   CutoutPlacement,
   "position" | "rotationDeg" | "mirrored"
-> & Partial<Pick<CutoutPlacement, "scaleX" | "scaleY" | "tilt" | "zOffsetMm" | "profileBottom" | "profileRotation" | "elevationMm" | "depth" | "split" | "insertionMode">>;
+> & Partial<Pick<CutoutPlacement, "scaleX" | "scaleY" | "tilt" | "zOffsetMm" | "profileBottom" | "profileRotation" | "elevationMm" | "depth" | "split" | "insertionMode" | "insertionAxis">>;
 
 /** Applies scale → mirror → rotate → translate to one shape-local point. */
 export function transformPointPlacement(
@@ -1155,11 +1159,12 @@ export function resolvePocketDepth(
 /** Initial access bottom sits 1 mm above the highest usable pocket floor. */
 export function defaultFingerAccessDepthMm(
   spec: FillHeightSpec,
-  cutouts: readonly Pick<CutoutPlacement, "depth" | "split">[],
+  cutouts: readonly Pick<CutoutPlacement, "depth" | "split" | "role">[],
 ): number {
   const { infillTopZ } = resolvePocketDepth(spec, { mode: "through" });
   let highestFloor: number | null = null;
   for (const cutout of cutouts) {
+    if (cutout.role === "hole") continue;
     for (const depth of pocketDepths(cutout)) {
       const { floorZ, depthMm } = resolvePocketDepth(spec, depth);
       if (floorZ === null || floorZ < 0 || depthMm === null || depthMm <= 0) continue;

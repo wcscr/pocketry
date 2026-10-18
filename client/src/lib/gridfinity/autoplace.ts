@@ -28,6 +28,7 @@ import { parseBinSpec } from "@shared/gridfinity/types";
 import { validateBinSpec, validateLayout } from "@shared/gridfinity/validate";
 import { minAreaObb } from "@shared/geometry/obb";
 import type { Bounds, Point } from "@shared/geometry/types";
+import type { TracePlacements } from "@shared/gridfinity/trace-placement";
 
 /**
  * Automatic placement and bin sizing — pure math, no WASM, so the designer
@@ -139,6 +140,34 @@ function shapeTargets(shapes: readonly TracedShape[]): PackTarget[] {
   }));
 }
 
+/** Pack each photo's arrangement as a rigid block, then restore its individual pockets. */
+function packShapes(shapes: readonly TracedShape[], maxWidthMm: number, placements: TracePlacements): PackedBlock {
+  if (shapes.length === 0) return { items: [], widthMm: 0, heightMm: 0 };
+  const groups = new Map<string, PackTarget[]>();
+  for (const target of shapeTargets(shapes)) {
+    const placement = placements[target.key];
+    const key = placement ? `batch:${placement.batchId}` : `shape:${target.key}`;
+    const members = groups.get(key) ?? [];
+    members.push(target);
+    groups.set(key, members);
+  }
+  const blocks = [...groups].map(([key, members]) => {
+    const positions = members.map(member => ({ ...member, center: placements[member.key]?.center ?? { x: 0, y: 0 } }));
+    const minX = Math.min(...positions.map(item => item.center.x - item.widthMm / 2));
+    const maxX = Math.max(...positions.map(item => item.center.x + item.widthMm / 2));
+    const minY = Math.min(...positions.map(item => item.center.y - item.heightMm / 2));
+    const maxY = Math.max(...positions.map(item => item.center.y + item.heightMm / 2));
+    return { key, widthMm: maxX - minX, heightMm: maxY - minY,
+      items: positions.map(item => ({ key: item.key, x: item.center.x - (minX + maxX) / 2,
+        y: item.center.y - (minY + maxY) / 2 })) };
+  });
+  const byKey = new Map(blocks.map(block => [block.key, block]));
+  const packed = shelfPack(blocks, maxWidthMm);
+  return { ...packed, items: packed.items.flatMap(group => byKey.get(group.key)!.items.map(item => ({
+    key: item.key, x: group.x + item.x, y: group.y + item.y,
+  }))) };
+}
+
 /** Candidate grids ordered by cell count, then by squareness. */
 function gridCandidates(gridPitch: GridPitch = "full", minX = 1, minY = 1): { gridX: number; gridY: number }[] {
   const candidates: { gridX: number; gridY: number }[] = [];
@@ -204,18 +233,18 @@ export function autoPlaceFresh(
   shapes: readonly TracedShape[],
   lip: BinSpec["lip"],
   gridPitch: GridPitch = "full",
+  placements: TracePlacements = {},
 ): AutoPlaceResult {
   if (shapes.length === 0) {
     return { cutouts: [], gridX: 1, gridY: 1, overflow: false };
   }
   const inset = placementInsetMm(lip);
   const byId = new Map(shapes.map((shape) => [shape.id, shape]));
-  const targets = shapeTargets(shapes);
 
   for (const grid of gridCandidates(gridPitch)) {
     const interior = interiorMm(grid, inset, gridPitch);
     if (interior.widthMm <= 0 || interior.heightMm <= 0) continue;
-    const block = shelfPack(targets, interior.widthMm);
+    const block = packShapes(shapes, interior.widthMm, placements);
     if (block.widthMm <= interior.widthMm && block.heightMm <= interior.heightMm) {
       return {
         cutouts: block.items.map((item) => toPlacement(item, byId, 0, 0)),
@@ -229,9 +258,10 @@ export function autoPlaceFresh(
   // Nothing fits at the maximum span: return the biggest bin and let the
   // validation rules paint the problem rather than silently dropping shapes.
   const maximum = maxGridCells(gridPitch);
-  const block = shelfPack(
-    targets,
+  const block = packShapes(
+    shapes,
     interiorMm({ gridX: maximum, gridY: maximum }, inset, gridPitch).widthMm,
+    placements,
   );
   return {
     cutouts: block.items.map((item) => toPlacement(item, byId, 0, 0)),
@@ -288,6 +318,7 @@ function existingBounds(
 }
 
 export interface AutoPlaceIncrementalOptions {
+  placements?: TracePlacements;
   spec?: BinSpec;
   keepBinSize?: boolean;
   lip: BinSpec["lip"];
@@ -312,13 +343,13 @@ export function autoPlaceIncremental(
   if (!occupied) {
     if (options.keepBinSize) {
       const interior = interiorMm(options, placementInsetMm(options.lip), options.gridPitch);
-      const block = shelfPack(shapeTargets(shapes), interior.widthMm);
+      const block = packShapes(shapes, interior.widthMm, options.placements ?? {});
       const byId = new Map(shapes.map((shape) => [shape.id, shape]));
       return { cutouts: block.items.map((item) => toPlacement(item, byId, 0, 0)),
         gridX: options.gridX, gridY: options.gridY,
         overflow: block.widthMm > interior.widthMm || block.heightMm > interior.heightMm };
     }
-    const fresh = autoPlaceFresh(shapes, options.lip, options.gridPitch);
+    const fresh = autoPlaceFresh(shapes, options.lip, options.gridPitch, options.placements);
     return {
       ...fresh,
       gridX: Math.max(fresh.gridX, options.gridX),
@@ -336,7 +367,6 @@ export function autoPlaceIncremental(
 
   const inset = placementInsetMm(options.lip);
   const byId = new Map(shapes.map((shape) => [shape.id, shape]));
-  const targets = shapeTargets(shapes);
 
   for (const grid of options.keepBinSize ? [options] : gridCandidates(options.gridPitch, options.gridX, options.gridY)) {
     const interior = interiorMm(grid, inset, options.gridPitch);
@@ -361,7 +391,7 @@ export function autoPlaceIncremental(
       .sort((a, b) => b.width * b.height - a.width * a.height);
 
     for (const strip of strips) {
-      const block = shelfPack(targets, strip.width);
+      const block = packShapes(shapes, strip.width, options.placements ?? {});
       if (block.widthMm <= strip.width && block.heightMm <= strip.height) {
         const cx = strip.minX + strip.width / 2;
         const cy = strip.minY + strip.height / 2;
@@ -376,7 +406,7 @@ export function autoPlaceIncremental(
   }
 
   // Give up gracefully: drop the block to the right of everything.
-  const block = shelfPack(targets, Number.POSITIVE_INFINITY);
+  const block = packShapes(shapes, Number.POSITIVE_INFINITY, options.placements ?? {});
   const cx = occupied.maxX + ITEM_GAP_MM + block.widthMm / 2;
   return {
     cutouts: block.items.map((item) => toPlacement(item, byId, cx, 0)),
@@ -651,7 +681,27 @@ export function autoArrangeLayout(
   if (items.length === 0) return null;
 
   const byKey = new Map(items.map((item) => [item.cutout.id, item]));
-  const targets: PackTarget[] = items.map((item) => ({
+  const parents = new Map(cutouts.map(c => [c.id, c.id]));
+  const root = (id: string): string => { while (parents.get(id) !== id) id = parents.get(id)!; return id; };
+  const bounds = new Map(cutouts.map(c => [c.id, existingBounds([c], shapesById, [], baseSpec)]));
+  for (const hole of cutouts.filter(c => c.role === "hole")) {
+    const a = bounds.get(hole.id);
+    if (!a) continue;
+    for (const other of cutouts) {
+      const b = bounds.get(other.id);
+      if (b && a.minX < b.maxX && a.maxX > b.minX && a.minY < b.maxY && a.maxY > b.minY) parents.set(root(other.id), root(hole.id));
+    }
+  }
+  const groups = new Map<string, CutoutPlacement[]>();
+  for (const cutout of cutouts) { const key = root(cutout.id); groups.set(key, [...(groups.get(key) ?? []), cutout]); }
+  const retainedGroups = new Map([...groups].filter(([, members]) => members.length > 1).map(([key, members]) => {
+    const box = existingBounds(members, shapesById, [], baseSpec)!;
+    return [key, { members, box }];
+  }));
+  const groupedIds = new Set([...retainedGroups.values()].flatMap(g => g.members.map(c => c.id)));
+  const targets: PackTarget[] = [...retainedGroups].map(([key, { box }]) => ({ key,
+    widthMm: box.maxX - box.minX, heightMm: box.maxY - box.minY }));
+  targets.push(...items.filter(item => !groupedIds.has(item.cutout.id)).map((item) => ({
     key: item.cutout.id,
     widthMm:
       item.widthMm +
@@ -659,7 +709,7 @@ export function autoArrangeLayout(
     heightMm:
       item.heightMm +
       2 * pocketLayoutAllowanceMm(item.cutout),
-  }));
+  })));
   const inset = placementInsetMm(lip);
   const fixedHoleBounds = existingBounds([], shapesById, fingerHoles);
   const containsFixedHoles = (widthMm: number, heightMm: number): boolean =>
@@ -670,7 +720,12 @@ export function autoArrangeLayout(
       fixedHoleBounds.maxY <= heightMm / 2);
 
   const placeBlock = (block: PackedBlock): CutoutPlacement[] =>
-    block.items.map((packed) => {
+    block.items.flatMap((packed) => {
+      const group = retainedGroups.get(packed.key);
+      if (group) return group.members.map(cutout => ({ ...cutout, position: {
+        x: cutout.position.x + packed.x - (group.box.minX + group.box.maxX) / 2,
+        y: cutout.position.y + packed.y - (group.box.minY + group.box.maxY) / 2,
+      } }));
       const item = byKey.get(packed.key)!;
       // The packed point is where the rotated OBB centre must land:
       // position = packed − R(θ)·centre.
