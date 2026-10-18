@@ -1,3 +1,4 @@
+import { ContourMenuProvider } from "@/components/trace/contour-context-menu";
 import { useLocation } from "wouter";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -662,7 +663,7 @@ function TraceWorkspace(): JSX.Element {
   );
 
   return (
-    <>
+    <ContourMenuProvider onProperties={() => openSettings("trace-settings-detect")} onEdit={showCanvas}>
       {exportDialogOpen && (
         <ExportConfirmationDialog
           title="Export Tool Outline"
@@ -790,6 +791,6 @@ function TraceWorkspace(): JSX.Element {
           {dropzone}
         </DialogContent>
       </Dialog>
-    </>
+    </ContourMenuProvider>
   );
 }

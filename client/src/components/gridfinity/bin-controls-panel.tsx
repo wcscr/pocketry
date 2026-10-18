@@ -1,3 +1,5 @@
+import { useBinObjectContextMenu } from "./object-context-menu";
+import { contextMenuPoint, usesNativeEditingMenu } from "@/components/ui/pointer-context-menu";
 import { arbitrarySizePatch, gridSizeFromArbitrary } from "@shared/gridfinity/bin-size";
 import { readImportJson, withinImportLimits, IMPORT_LIMIT_ERROR } from "@shared/gridfinity/import-limits";
 import { sameJsonData } from "@shared/json-data-equal";
@@ -305,6 +307,7 @@ export function BinControlsPanel({
 }: BinControlsPanelProps): JSX.Element {
   const showPreviewBusy = useDelayedBusy(building);
   const inspector = useSelectionInspector();
+  const openObjectMenu = useBinObjectContextMenu();
   const { enabled: experimentalEnabled, setEnabled: setExperimentalEnabled, setSettingsOpen } = useExperimentalFeatures();
   const bin = useBin();
   const {
@@ -744,7 +747,7 @@ export function BinControlsPanel({
                   setRenamingPocketId(cutout.id);
                 };
                 return (
-                  <div key={cutout.id} data-testid={`cutout-row-${cutout.id}`} className={cn(
+                  <div key={cutout.id} data-testid={`cutout-row-${cutout.id}`} onContextMenu={event => { if (!usesNativeEditingMenu(event.target) && openObjectMenu?.({ kind: "pocket", id: cutout.id }, contextMenuPoint(event))) event.preventDefault(); }} className={cn(
                     "flex items-center rounded-md border text-xs",
                     isSelected ? "border-violet-500/50 bg-violet-500/10" : "border-transparent hover:bg-accent",
                   )}>
@@ -801,7 +804,7 @@ export function BinControlsPanel({
                     setRenamingFingerId(hole.id);
                   };
                   return (
-                    <div key={hole.id} data-testid={`finger-hole-row-${hole.id}`} className={cn(
+                    <div key={hole.id} data-testid={`finger-hole-row-${hole.id}`} onContextMenu={event => { if (!usesNativeEditingMenu(event.target) && openObjectMenu?.({ kind: "finger", id: hole.id }, contextMenuPoint(event))) event.preventDefault(); }} className={cn(
                       "flex items-center rounded-md border text-xs",
                       isSelected ? "border-cyan-500/50 bg-cyan-500/10" : "border-transparent hover:bg-accent",
                     )}>
@@ -1085,7 +1088,7 @@ export function BinControlsPanel({
               {editorMode === "contour" && (
                 <p className="rounded-md bg-violet-500/10 px-2.5 py-2 text-[11px] text-violet-800 dark:text-violet-200">
                   Drag points to reshape. Click near an edge to add a point; right-click a
-                  point to remove it.
+                  point for actions.
                 </p>
               )}
 

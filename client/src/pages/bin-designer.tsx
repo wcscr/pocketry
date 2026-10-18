@@ -1183,6 +1183,11 @@ function BinDesignerWorkspace(): JSX.Element {
 
   return (
     <BinEditingWorkspace
+      onObjectProperties={kind => {
+        if (!inspectorPrototype || isMobile) setSettingsSectionRequest({ id: (kind === "pocket" || kind === "hole") ? "bin-settings-pockets" : kind === "finger" ? "bin-settings-finger-holes" : "bin-settings-text" });
+        setPanelOpen(true);
+        setPocketEditorRequest(request => request + 1);
+      }}
       enabled={inspectorPrototype}
       inspectorRequest={pocketEditorRequest}
       controlsRequest={settingsSectionRequest}

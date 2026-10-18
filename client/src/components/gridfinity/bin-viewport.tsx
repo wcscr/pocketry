@@ -1,3 +1,4 @@
+import { useBinObjectContextMenu } from "./object-context-menu";
 import { SurfaceTextTransformScene, type SurfaceTextEditor } from "./surface-text-transform-scene";
 import { SurfaceTextMesh } from "./surface-text-mesh";
 import { useExperimentalFeatures } from "@/state/experimental-features";
@@ -319,6 +320,7 @@ export function BinViewport({
   const [rulerFeedback, setRulerFeedback] = useState<{ screen: Point; snapped: boolean } | null>(null);
   const laidOut = containerSize.width > 0 && containerSize.height > 0;
   const [rulerActive, setRulerActive] = useState(false);
+  const openObjectMenu = useBinObjectContextMenu();
   const inspector = useSelectionInspector();
   const toolbar = useObjectToolbar();
   const { enabled: experimentalEnabled } = useExperimentalFeatures();
@@ -473,6 +475,7 @@ export function BinViewport({
             rotation={[0, 0, (display.rotationDeg - part.label.rotationDeg) * Math.PI / 180]}>
           <group position={[-part.label.position.x, -part.label.position.y, 0]}>
           <SurfaceTextMesh key={part.label.id} {...part} color={textColor} selected={selectedSurfaceTextId === part.label.id}
+            onContextMenu={!rulerActive && !dragPreview && !textPreview && openObjectMenu ? (id, point) => openObjectMenu({ kind: "text", id }, point) : undefined}
             onSelect={!rulerActive && !dragPreview && !textPreview && onSelectSurfaceText ? id => {
               setObjectControlsOpen(false);
               inspector?.setTool("properties");
@@ -489,7 +492,7 @@ export function BinViewport({
             />
           </mesh>
         ) : null}
-        {pocketEditor && <PocketSelectionPlane editor={pocketEditor} width={fitSize.widthMm} length={fitSize.lengthMm} disabled={rulerActive || !!dragPreview || !!textPreview} />}
+        {pocketEditor && <PocketSelectionPlane editor={{ ...pocketEditor, onContextMenu: openObjectMenu ?? undefined }} width={fitSize.widthMm} length={fitSize.lengthMm} disabled={rulerActive || !!dragPreview || !!textPreview} />}
         {pocketEditor && !rulerActive && displayedObjects.filter(object => showPocketOutlines || object.kind !== "pocket")
           .map(object => <ObjectTransformWire key={objectKey(objectRef(object))} object={object} spec={pocketEditor.spec} />)}
         {selectedObjects.length > 0 && pocketEditor && (inspector ? (inspector.tool === "translate" || inspector.tool === "rotate") : objectControlsOpen) && !rulerActive && <SelectionTransformScene

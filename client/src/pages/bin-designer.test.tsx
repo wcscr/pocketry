@@ -1,3 +1,4 @@
+import { surfaceTextSchema } from "@shared/gridfinity/surface-text";
 // @vitest-environment jsdom
 import * as React from "react";
 import { createRoot } from "react-dom/client";
@@ -2590,6 +2591,8 @@ describe("BinDesignerPage", () => {
       React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
       expect(handles()).toHaveLength(4);
       React.act(() => handles()[0].dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })));
+      expect(handles()).toHaveLength(4);
+      React.act(() => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(item => item.textContent === "Remove contour node")!.click());
       expect(handles()).toHaveLength(3);
       pointer(handles()[0], 'pointerdown', coords(handles()[0])); pointer(svg, 'pointerup', coords(handles()[0]));
       expect(remove()!.disabled).toBe(true);
@@ -6373,6 +6376,8 @@ describe("BinDesignerPage", () => {
           new MouseEvent("contextmenu", { bubbles: true, cancelable: true }),
         );
     });
+    expect(container.querySelectorAll('[data-testid="contour-vertex-handle"]')).toHaveLength(4);
+    React.act(() => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(item => item.textContent === "Remove contour node")!.click());
     expect(
       container.querySelectorAll('[data-testid="contour-vertex-handle"]'),
     ).toHaveLength(3);
@@ -7955,5 +7960,168 @@ it("downloads neither jig SVG nor backup when generation fails", async () => {
     await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-confirm-export"]')!.click());
     expect(downloadBlob).not.toHaveBeenCalled();
     expect(projectToast).toHaveBeenCalledWith(expect.objectContaining({ title: "Layout export failed", description: "Jig geometry unavailable" }));
+  } finally { unmount(); }
+});
+
+function openObjectContext(node: Element): HTMLElement {
+  const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 180, clientY: 120 });
+  React.act(() => node.dispatchEvent(event));
+  expect(event.defaultPrevented).toBe(true);
+  return document.querySelector<HTMLElement>('[role="menu"]')!;
+}
+function contextCommand(text: string): void {
+  React.act(() => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(item => item.textContent === text)!.click());
+}
+
+it.each([
+  { layout: 'standard', experimental: false }, { layout: 'workflow', experimental: false },
+  { layout: 'standard', experimental: true }, { layout: 'workflow', experimental: true },
+])('object context menus target the clicked pocket, respect Experimental, and duplicate independently in $layout (experimental: $experimental)', async ({ layout, experimental }) => {
+  window.history.replaceState(null, '', `/bin?layout=${layout}`);
+  const shape = rectangularShape('context-shape', 'Tool');
+  const cutouts = [-20, 20].map((x, i) => parseCutoutPlacement({ id: `context-${i}`, name: `Tool ${i + 1}`, shapeId: shape.id, position: { x, y: 0 } }));
+  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape], cutouts });
+  const { container, unmount } = renderPage({ experimental });
+  try {
+    await flushHydration(); openSettingsSection(container, 'tool-cutouts');
+    selectPocket(container, cutouts[0].id);
+    const menu = openObjectContext(container.querySelector(`[data-testid="cutout-row-${cutouts[1].id}"]`)!);
+    expect(menu.textContent).toContain('Tool 2'); expect(menu.textContent).toContain('Properties');
+    expect(menu.textContent?.includes('Duplicate linked')).toBe(experimental);
+    expect(container.querySelector(`[data-testid="button-select-${cutouts[1].id}"]`)?.getAttribute('aria-pressed')).toBe('true');
+    expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toEqual(cutouts);
+    expect(container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.disabled).toBe(true);
+    contextCommand('Duplicate');
+    const copied = vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts;
+    expect(copied).toHaveLength(3); expect(copied[2].name).toBe('Tool 2 (copy)'); expect(copied[2].designLink).toBeUndefined();
+    clickBinHistory(container, 'undo'); expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toEqual(cutouts);
+    openObjectContext(container.querySelector(`[data-testid="cutout-row-${cutouts[0].id}"]`)!);
+    contextCommand('Properties');
+    expect(container.querySelector('#pocket-properties')).not.toBeNull();
+    expect(document.querySelector('[role="menu"]')).toBeNull();
+  } finally { unmount(); }
+});
+
+it('context unlink preserves mixed selection and changes both kinds in one undo step', async () => {
+  window.history.replaceState(null, '', '/bin?layout=workflow');
+  const shape = rectangularShape('mixed-context', 'Tool');
+  const cutouts = [-20, 20].map((x, i) => parseCutoutPlacement({ id: `mc-${i}`, name: `Tool ${i + 1}`, shapeId: shape.id, position: { x, y: 0 }, designLink: { id: 'pockets' } }));
+  const fingerHoles = [-20, 20].map((x, i) => fingerHoleSchema.parse({ id: `mf-${i}`, name: `Access ${i + 1}`, center: { x, y: 25 }, designLink: { id: 'fingers' } }));
+  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape], cutouts, fingerHoles });
+  const { container, unmount } = renderPage({ experimental: true });
+  const doc = () => vi.mocked(useBinGeometry).mock.lastCall![2]!;
+  try {
+    await flushHydration(); selectPocket(container, cutouts[0].id);
+    openSettingsSection(container, 'finger-holes');
+    React.act(() => container.querySelector<HTMLInputElement>('[aria-label="Include Access 1 in selection"]')!.click());
+    const menu = openObjectContext(container.querySelector('[data-testid="finger-hole-row-mf-0"]')!);
+    expect(menu.textContent).toContain('2 selected objects'); expect(menu.textContent).not.toContain('Link selected…');
+    contextCommand('Unlink selected');
+    expect(doc().cutouts[0].designLink).toBeUndefined(); expect(doc().fingerHoles[0].designLink).toBeUndefined();
+    expect(doc().cutouts[1]).toEqual(cutouts[1]); expect(doc().fingerHoles[1]).toEqual(fingerHoles[1]);
+    clickBinHistory(container, 'undo'); expect(doc().cutouts).toEqual(cutouts); expect(doc().fingerHoles).toEqual(fingerHoles);
+    expect(binHistoryButton(container, 'undo').disabled).toBe(true);
+  } finally { unmount(); }
+});
+
+it('context linking reuses source choice, preserves multi-selection, and saves a valid insertion path', async () => {
+  window.history.replaceState(null, '', '/bin?layout=workflow');
+  const shape = rectangularShape('context-link-shape', 'Tool');
+  const cutouts = [parseCutoutPlacement({ id: 'context-source', name: 'Source', shapeId: shape.id, position: { x: -20, y: 0 }, depth: { mode: 'mm', value: 10 }, elevationMm: 7, insertionMode: 'axis' }),
+    parseCutoutPlacement({ id: 'context-target', name: 'Target', shapeId: shape.id, position: { x: 20, y: 0 } })];
+  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape], cutouts });
+  const { container, unmount } = renderPage({ experimental: true });
+  try {
+    await flushHydration(); selectPocket(container, cutouts[0].id);
+    React.act(() => container.querySelector<HTMLInputElement>('[aria-label="Include Target in selection"]')!.click());
+    openObjectContext(container.querySelector('[data-testid="cutout-row-context-source"]')!);
+    contextCommand('Link selected…');
+    const dialog = document.querySelector('[role="dialog"]')!;
+    const source = dialog.querySelector<HTMLSelectElement>('[aria-label="Linked design source"]')!;
+    React.act(() => { source.value = cutouts[0].id; source.dispatchEvent(new Event('change', { bubbles: true })); });
+    React.act(() => [...dialog.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === 'Link 2 pockets')!.click());
+    const linked = vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts;
+    expect(linked[0].designLink).toEqual(linked[1].designLink); expect(linked[1].elevationMm).toBeDefined();
+    expect(parseProjectDoc({ ...EMPTY_PROJECT, shapes: [shape], cutouts: linked })).not.toBeNull();
+  } finally { unmount(); }
+});
+
+it('Layout context menus expose retained-hole actions through the parent and undo the immutable revision', async () => {
+  window.history.replaceState(null, '', '/bin?layout=workflow');
+  const shape = rectangularShape('retained-context', 'Frame');
+  shape.outlineMm[0].holes = [[{ x: -2, y: -2 }, { x: -2, y: 2 }, { x: 2, y: 2 }, { x: 2, y: -2 }]]; shape.pointCount += 4;
+  const cutout = parseCutoutPlacement({ id: 'frame-pocket', shapeId: shape.id, position: { x: 0, y: 0 } });
+  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape], cutouts: [cutout] });
+  const { container, unmount } = renderPage({ experimental: false });
+  try {
+    await flushHydration(); React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
+    const svg = container.querySelector<SVGSVGElement>('[data-testid="layout-canvas"]')!;
+    Object.defineProperty(svg.querySelector('g')!, 'getScreenCTM', { value: () => ({ inverse: () => ({}) }) });
+    Object.defineProperty(svg, 'createSVGPoint', { value: () => ({ x: 0, y: 0, matrixTransform() { return { x: this.x, y: this.y }; } }) });
+    React.act(() => svg.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 41.75, clientY: 41.75 })));
+    const menu = document.querySelector('[role="menu"]')!;
+    expect(menu.textContent).toContain('Hole 1'); expect(menu.textContent).toContain('Pocket properties');
+    expect(menu.textContent).not.toContain('Duplicate');
+    contextCommand('Remove hole');
+    const doc = vi.mocked(useBinGeometry).mock.lastCall![2]!;
+    expect(doc.cutouts[0].shapeId).not.toBe(shape.id);
+    expect(doc.shapes.find(s => s.id === doc.cutouts[0].shapeId)!.outlineMm[0].holes).toHaveLength(0);
+    clickBinHistory(container, 'undo'); expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toEqual([cutout]);
+  } finally { unmount(); }
+});
+
+it('context menus leave native name editing alone and rename only the clicked copy', async () => {
+  window.history.replaceState(null, '', '/bin?layout=standard');
+  const shape = rectangularShape('name-context', 'Tool');
+  const cutout = parseCutoutPlacement({ id: 'name-context-pocket', shapeId: shape.id, position: { x: 0, y: 0 } });
+  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape], cutouts: [cutout] });
+  const { container, unmount } = renderPage({ experimental: false });
+  try {
+    await flushHydration(); selectPocket(container, cutout.id);
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-rename-name-context-pocket"]')!.click());
+    const native = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+    React.act(() => container.querySelector('[aria-label="Pocket name"]')!.dispatchEvent(native));
+    expect(native.defaultPrevented).toBe(false); expect(document.querySelector('[role="menu"]')).toBeNull();
+    React.act(() => container.querySelector('[aria-label="Pocket name"]')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+    openObjectContext(container.querySelector('[data-testid="cutout-row-name-context-pocket"]')!); contextCommand('Rename…');
+    const input = document.querySelector<HTMLInputElement>('[aria-label="Object name"]')!;
+    React.act(() => { const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!; setter.call(input, 'Socket'); input.dispatchEvent(new Event('input', { bubbles: true })); });
+    React.act(() => input.closest('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })));
+    expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0].name).toBe('Socket');
+    clickBinHistory(container, 'undo'); expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toEqual([cutout]);
+  } finally { unmount(); }
+});
+
+it('surface text context actions stay independent, obey bounds, and undo normally', async () => {
+  window.history.replaceState(null, '', '/bin?layout=standard');
+  const label = surfaceTextSchema.parse({ id: 'context-label', text: 'Jig', position: { x: 672, y: -672 } });
+  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, spec: parseBinSpec({ ...EMPTY_PROJECT.spec, surfaceTexts: [label] }) });
+  const { container, unmount } = renderPage({ experimental: true });
+  try {
+    await flushHydration(); openSettingsSection(container, 'text');
+    const menu = openObjectContext(container.querySelector('[data-testid="surface-text-row-context-label"]')!);
+    expect(menu.textContent).not.toContain('linked'); contextCommand('Duplicate');
+    const spec = vi.mocked(useBinGeometry).mock.lastCall![0];
+    expect(spec.surfaceTexts).toHaveLength(2); expect(spec.surfaceTexts[1].name).toBe('Jig (copy)');
+    expect(parseProjectDoc({ ...EMPTY_PROJECT, spec })).not.toBeNull();
+    clickBinHistory(container, 'undo'); expect(vi.mocked(useBinGeometry).mock.lastCall![0].surfaceTexts).toEqual([label]);
+  } finally { unmount(); }
+});
+
+it('right-clicking a selected split pocket preserves the active section', async () => {
+  window.history.replaceState(null, '', '/bin?layout=standard');
+  const shape = rectangularShape('split-context-shape', 'Tool');
+  const cutout = parseCutoutPlacement({ id: 'split-context', shapeId: shape.id, position: { x: 0, y: 0 }, split: {
+    boundary: [{ x: 0, y: -10 }, { x: 0, y: 10 }], depths: [{ mode: 'mm', value: 8 }, { mode: 'mm', value: 12 }],
+  } });
+  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape], cutouts: [cutout] });
+  const { container, unmount } = renderPage({ experimental: false });
+  try {
+    await flushHydration(); selectPocket(container, cutout.id);
+    const sectionB = () => [...container.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === 'Section B')!;
+    React.act(() => sectionB().click());
+    openObjectContext(container.querySelector('[data-testid="cutout-row-split-context"]')!); contextCommand('Properties');
+    expect(sectionB().getAttribute('aria-pressed')).toBe('true');
+    expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toEqual([cutout]);
   } finally { unmount(); }
 });

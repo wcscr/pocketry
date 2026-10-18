@@ -150,6 +150,22 @@ Regression coverage includes oblique opening dimensions, axial and remaining
 floor depths, combined transforms, resize anchors, split seats, floor colors,
 hidden intersections, through cuts, packing, legacy saves and export validation.
 
+## Object context menus
+
+Right-click an object in Layout, 3D, or the object list for Properties,
+Duplicate, Rename and Remove. Right-clicking an unselected object selects it;
+right-clicking a selected member keeps the current selection. Ordinary
+Duplicate creates independent copies. Experimental linking commands appear
+only when enabled and applicable; Link selected opens the existing source
+chooser, and mixed pocket/finger-access unlinking is one undo step.
+
+Retained-material holes are inner contours owned by their pocket, including
+holes created by Trace's Pocket/Hole workflow. Their menu opens the parent
+properties or removes the hole through an immutable contour revision. Trace
+contours have Properties, Edit contour and applicable removal commands.
+Right-clicking a contour node offers explicit removal rather than deleting it
+immediately. Name fields keep the browser's native editing menu.
+
 ## Linked designs
 
 **Duplicate linked** creates another instance of the selected pocket or thumb

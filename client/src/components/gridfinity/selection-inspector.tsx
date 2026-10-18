@@ -1,3 +1,4 @@
+import { BinObjectMenuProvider, type BinContextTarget } from "./object-context-menu";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PropertySurface } from "@/components/layout/property-surface";
 import { BIN_OBJECT_SECTIONS, BIN_WORKFLOW_SECTIONS } from "./bin-workflow";
@@ -19,7 +20,7 @@ import { MobileObjectToolsContext } from "./mobile-object-tools-context";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 /** Both layouts reuse the editor, geometry, persistence and history. */
-export function BinEditingWorkspace({ enabled, ...props }: WorkspaceLayoutProps & { enabled: boolean }): JSX.Element {
+export function BinEditingWorkspace({ enabled, onObjectProperties, ...props }: WorkspaceLayoutProps & { enabled: boolean; onObjectProperties: (kind: BinContextTarget["kind"]) => void }): JSX.Element {
   const isMobile = useIsMobile();
   const [mobileControls, setMobileControls] = useState<HTMLDivElement | null>(null);
   const [activeSection, setActiveSection] = useState<string | null>("bin-settings-size");
@@ -55,15 +56,15 @@ export function BinEditingWorkspace({ enabled, ...props }: WorkspaceLayoutProps 
   const targets = useMemo(() => ({ activeSection, properties, transforms, settings, projectHeader, toolbar, showSection, tool, setTool, openInspector, keepObjectsOpen }),
     [activeSection, properties, transforms, settings, projectHeader, toolbar, showSection, tool, setTool, openInspector, keepObjectsOpen]);
   return <MobileObjectToolsContext.Provider value={isMobile ? { tool, setTool, controls: mobileControls, setControls: setMobileControls } : null}>
-    {!enabled ? <ObjectToolbarContext.Provider value={{ toolbar, tool, setTool }}><WorkspaceLayout {...props}
-      inspectorToolbar={<div ref={setToolbar} className={isMobile ? "flex w-full min-w-0 items-center justify-between" : "flex w-full min-w-0 items-center gap-1"} />} /></ObjectToolbarContext.Provider> : <SelectionInspectorContext.Provider value={targets}>
+    {!enabled ? <ObjectToolbarContext.Provider value={{ toolbar, tool, setTool }}><BinObjectMenuProvider onProperties={onObjectProperties}><WorkspaceLayout {...props}
+      inspectorToolbar={<div ref={setToolbar} className={isMobile ? "flex w-full min-w-0 items-center justify-between" : "flex w-full min-w-0 items-center gap-1"} />} /></BinObjectMenuProvider></ObjectToolbarContext.Provider> : <SelectionInspectorContext.Provider value={targets}><BinObjectMenuProvider onProperties={onObjectProperties}>
     <WorkspaceLayout {...props} autoSaveId={`${props.autoSaveId}:inspector`} inspectorPanelTitle="Workflow"
       inspectorRequest={(props.inspectorRequest ?? 0) + openRequest}
       canvasEditingMode={editorMode}
       inspectorHeader={<div ref={setProjectHeader} />}
       inspectorToolbar={<div ref={setToolbar} className={isMobile ? "flex w-full min-w-0 items-center justify-between" : "flex w-full min-w-0 items-center gap-1"} />}
       inspector={<SelectionInspector propertiesRef={setProperties} transformsRef={setTransforms} settingsRef={setSettings} />} />
-    </SelectionInspectorContext.Provider>}
+    </BinObjectMenuProvider></SelectionInspectorContext.Provider>}
   </MobileObjectToolsContext.Provider>;
 }
 

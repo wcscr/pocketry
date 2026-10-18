@@ -155,6 +155,9 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
             available by default.
           </p>
           <p>
+            Right-click a pocket, finger access, text label, or traced contour for its available actions. Right-clicking a selected object keeps the current multi-selection. The regular controls remain available.
+          </p>
+          <p>
             <strong>Optional tools:</strong> ULTIM8 jig pegs, adjustable empty-bin walls, and linked
             designs require <strong>App settings → Enable
             experimental features</strong>. The steps above work without them.

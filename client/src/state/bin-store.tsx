@@ -151,7 +151,7 @@ export type BinAction = (
   | { type: "DUPLICATE_CUTOUT"; id: string; newId: string; labels?: ReadonlyMap<string, string> }
   | { type: "DUPLICATE_LINKED"; kind: DesignObjectKind; id: string; newId: string; linkId: string; labels?: ReadonlyMap<string, string> }
   | { type: "LINK_DESIGNS"; kind: DesignObjectKind; ids: string[]; sourceId: string; linkId: string; tilt: boolean; shapes?: readonly TracedShape[] }
-  | { type: "UNLINK_DESIGNS"; kind: DesignObjectKind; ids: string[] }
+  | { type: "UNLINK_DESIGNS"; kind: DesignObjectKind | "selection"; ids: string[] }
   | { type: "SET_LINKED_TILT"; id: string; enabled: boolean }
   | {
       type: "REPLACE_LAYOUT";
@@ -643,8 +643,8 @@ function reduceBin(state: BinState, action: BinAction): BinState {
       const clear = <T extends { id: string; designLink?: { id: string; tilt: boolean } }>(items: T[]) =>
         items.map(item => ids.has(item.id) ? { ...item, designLink: undefined } : item);
       return commit(state, { spec: state.spec,
-        cutouts: action.kind === "pocket" ? clear(state.cutouts) : state.cutouts,
-        fingerHoles: action.kind === "finger" ? clear(state.fingerHoles) : state.fingerHoles }, "Make designs independent");
+        cutouts: action.kind !== "finger" ? clear(state.cutouts) : state.cutouts,
+        fingerHoles: action.kind !== "pocket" ? clear(state.fingerHoles) : state.fingerHoles }, "Make designs independent");
     }
     case "SET_LINKED_TILT": {
       const source = state.cutouts.find(c => c.id === action.id);

@@ -1,3 +1,5 @@
+import { ContourMenuProvider, useContourContextMenu } from "./contour-context-menu";
+import { contextMenuPoint, usesNativeEditingMenu } from "@/components/ui/pointer-context-menu";
 import { Circle, Square, Trash2 } from "lucide-react";
 
 import { ringArea } from "@shared/geometry/rings";
@@ -19,6 +21,12 @@ import { useTrace } from "@/state/trace-store";
  * it doubles as the readout that tells the user a hole was actually found.
  */
 export function RingList(): JSX.Element {
+  const menu = useContourContextMenu();
+  return menu ? <RingListContent /> : <ContourMenuProvider><RingListContent /></ContourMenuProvider>;
+}
+
+function RingListContent(): JSX.Element {
+  const openMenu = useContourContextMenu();
   const { outline, selection, calibration, region, processing, dispatch } = useTrace();
 
   if (outline.length === 0) {
@@ -70,7 +78,7 @@ export function RingList(): JSX.Element {
         const canDelete = isOuter ? shellCount > 1 : true;
 
         return (
-          <li key={`${ref.shapeIndex}:${ref.ringIndex}`}>
+          <li key={`${ref.shapeIndex}:${ref.ringIndex}`} onContextMenu={event => { if (!usesNativeEditingMenu(event.target) && openMenu?.(ref, contextMenuPoint(event))) event.preventDefault(); }}>
             <div
               className={cn(
                 "flex items-center gap-2 rounded px-2 py-1 text-xs",
