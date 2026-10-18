@@ -43,17 +43,25 @@ length and floor limit. Imported-model PR #118 remains separate.
 
 ## Geometry and responsiveness
 
+Follow pocket angle extends the common top profile along the pocket's local axis
+before applying its pose. The original finite solid remains the placement anchor.
+An overlapping cap extrusion preserves the original rounded and split-depth seats;
+for inverted insertion, the cap clears the lower seats it travels through. This
+avoids generating a separate sweep prism for every triangle of a detailed trace.
+
 Vertical drop-in continuously sweeps each downward-facing source triangle upward.
 The resulting lower surface is the object's underside at each XY point, preserving
 slopes, steps, concavities and holes. A 0.001 mm lateral facet overlap prevents
 coincident Float32 seams in exports. Clipping that overlap to the object's
 projection preserves the outside perimeter. Projection cleanup at 0.0001 mm
-removes numerical slivers from edge-on rounded faces. No whole-object convex hull
+removes numerical slivers from edge-on rounded faces. Sweep prisms retain their
+native precision so thin facets survive the union. No whole-object convex hull
 or whole-solid Minkowski operation is used.
 
 Floor limits apply after the sweep, independently for each split section, and
 never modify the source. Top rounding is applied at the actual fill surface.
-Floor colors follow the finished seat, including floor-limited cuts, and the
+Floor colors follow the finished seat, including floor-limited cuts. Projection
+seams are cleaned before floor-color insets can widen them into stripes, and the
 material parts are clipped to the finished bin.
 
 Through retains the original finite extrusion, pose and rounding. It allows the
@@ -86,7 +94,11 @@ actual rotated source at preview and export quality, including compound tilt,
 mirroring, holes, split seats, horizontal and inverted poses. They also check
 continuous translated-object clearance in both directions, fully submerged
 compound and inverted objects, full projections and finite disabled cavities.
-Worker regressions verify closed colored STL/3MF exports for submerged pockets.
+Photo-derived regressions cover detailed X/Y and compound rotation at preview
+and export quality, including continuous floor colors and material volumes. A
+near-horizontal split-depth regression verifies that extending the insertion path
+preserves the original seats. Worker regressions verify closed colored STL/3MF
+exports for submerged pockets.
 Minimum-floor regressions lower, raise and lower the same pocket while
 checking source preservation, independent split limits and save/history/reference
 round trips. Worker tests check closed, nondegenerate STL/3MF meshes and floor-color

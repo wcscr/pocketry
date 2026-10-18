@@ -734,10 +734,36 @@ export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: Cut
   // through the surface, while an object wholly above the bin leaves no cut.
   let cutter = buildObjectCavity(kernel, source, pose, cutout.insertionMode ? Infinity : top, anchor);
   const projectedSource = cutter && cutout.insertionMode === "vertical" ? arena.track(arena.track(cutter.project()).simplify(0.0001)) : null;
+  // Generated pockets are extrusions with a rounded underside. Along their
+  // own axis, extend the native shaft before posing instead of sweeping every
+  // mesh triangle. Complex photo traces otherwise create hundreds of thousands
+  // of overlapping prisms. Keep the finite source as the placement anchor.
+  let insertionSource = source;
+  if (cutter && cutout.insertionMode === "axis") {
+    const axis = pocketInsertionAxis(cutout);
+    const ceiling = Math.max(realTop, cutter.boundingBox().max[2], Number.isFinite(top) ? top : realTop) + 1;
+    const travel = (ceiling - cutter.boundingBox().min[2]) / axis.z;
+    const localUp = rotateObjectVector({ x: 0, y: 0, z: 1 }, pose.rotation).z > 0;
+    // Slice inside the common straight shaft, above every bottom fillet.
+    // Extend this cap without rebuilding the rounded source: the very long
+    // shafts needed near horizontal must not perturb the original seat.
+    const capZ = -Math.min(...dimensions) / 4;
+    const cap = arena.track(source.slice(capZ));
+    if (localUp) {
+      const shaft = arena.track(arena.track(cap.extrude(travel - capZ)).translate([0, 0, capZ]));
+      insertionSource = arena.track(source.add(shaft));
+    } else {
+      // Inverted insertion carries the full top cap past every lower seat,
+      // clearing its bottom rounding and any split-depth shelf along the way.
+      const bottom = source.boundingBox().min[2] - travel;
+      insertionSource = arena.track(arena.track(cap.extrude(-bottom)).translate([0, 0, bottom]));
+    }
+    cutter = buildObjectCavity(kernel, insertionSource, pose, Infinity, anchor);
+  }
   const validationIssues: ValidationIssue[] = [];
   const clearAndLimit = (posed: Manifold, depth: DepthSpec): Manifold => {
     let result = posed;
-    if (cutout.insertionMode) {
+    if (cutout.insertionMode === "vertical") {
       if (!result.isEmpty()) {
         const ceiling = Math.max(realTop, result.boundingBox().max[2], Number.isFinite(top) ? top : realTop) + 1;
         result = directionalInsertionCutter(kernel, result, ceiling, pocketInsertionAxis(cutout));
@@ -756,7 +782,7 @@ export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: Cut
     const pieces = depthSpecs.flatMap((depth,i) => {
       const sign = (cutout.mirrored ? -1 : 1)*(i === 0 ? 1 : -1);
       const nx = -(b.y-a.y)/length*sign, ny = (b.x-a.x)/length*sign;
-      const part = arena.track(source.trimByPlane([nx,ny,0],nx*a.x+ny*a.y));
+      const part = arena.track(insertionSource.trimByPlane([nx,ny,0],nx*a.x+ny*a.y));
       const posed = buildObjectCavity(kernel,part,pose,Infinity,anchor);
       return posed ? [clearAndLimit(posed,depth)] : [];
     });
@@ -797,7 +823,9 @@ export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: Cut
     // independently exported materials do not share a vertical wall seam.
     let region = arena.track(seatedCutter.translate([0,0,-distance]));
     if (cutout.bottomFilletMm > 0) {
-      const projection = projectedSource ?? arena.track(seatedCutter.project());
+      // Remove projection seams before the inset expands sub-micron slits
+      // into visible uncolored stripes across an otherwise continuous floor.
+      const projection = projectedSource ?? arena.track(arena.track(seatedCutter.project()).simplify(0.0001));
       const floorOutline = arena.track(projection.offset(-cutout.bottomFilletMm,"Round",2,quality.circularSegments));
       const bounds = region.boundingBox();
       const floorColumn = arena.track(arena.track(floorOutline.extrude(bounds.max[2]-bounds.min[2]+2)).translate([0,0,bounds.min[2]-1]));
