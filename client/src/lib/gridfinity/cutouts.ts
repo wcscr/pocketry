@@ -1,7 +1,9 @@
+import { pocketColorAxis, pocketColorLocalAxis } from "@shared/gridfinity/pocket-color";
+import { outsetColorBands, extrudeColorBands, sweepColorBands } from "./pocket-color";
 // Type-only import: the kernel is injected (see `Kernel` in ../manifold/runtime).
 import type { Manifold, Vec2 } from "manifold-3d";
 import { hasPocketTilt, pocketAxis } from "@shared/gridfinity/pocket-orientation";
-import { hasRigidPocket, pocketRotation, rigidPocket } from "@shared/gridfinity/rigid-pocket";
+import { hasRigidPocket, pocketRotation, rigidPocket, migrateProfilePocket } from "@shared/gridfinity/rigid-pocket";
 import { pocketInsertionAxis, pocketInsertionError } from "@shared/gridfinity/pocket-insertion";
 import { rotateObjectVector } from "@shared/gridfinity/object-pose";
 import { buildObjectCavity } from "./object-cavity";
@@ -147,6 +149,10 @@ export interface CutoutBuildOptions {
   axialHeadroomMm?: number;
   /** Internal capture of the finite source before posing or insertion clearance. */
   sourceBands?: ExtrusionBand[];
+  /** Internal material mask; never used for the actual cavity or validation. */
+  colorOutsetMm?: number;
+  /** Restrict the material mask's expansion to this local supporting axis. */
+  colorAxis?: "x" | "y" | "z";
 }
 
 const BIN_LOCAL_PLACEMENT = {
@@ -740,11 +746,19 @@ export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: Cut
     split:cutout.split ? {...cutout.split,depths:[depths[0],depths[1]] as [typeof depths[number],typeof depths[number]]} : undefined};
   const lateralAxis = cutout.insertionMode === "axis" && cutout.insertionAxis && cutout.insertionAxis !== "z"
     ? cutout.insertionAxis : null;
-  const sourceBands: ExtrusionBand[] | undefined = lateralAxis ? [] : undefined;
+  const padding = options.colorOutsetMm ?? 0;
+  const sourceBands: ExtrusionBand[] | undefined = lateralAxis || padding > 0 ? [] : undefined;
   const built = buildCutoutCuttersInternal(kernel,new Map([[shape.id,shape]]),[local],localSpec,quality,{axialHeadroomMm:0,sourceBands});
-  const localBands = sourceBands?.map(band => ({ ...band, bottom: band.bottom - localTop }));
-  const source = arena.track(Manifold.union(built.cutters.map(s => arena.track(s.translate([0,0,-localTop])))));
-  const anchor = source;
+  const finiteBands = sourceBands?.map(band => ({ ...band, bottom: band.bottom - localTop }));
+  const anchor = arena.track(Manifold.union(built.cutters.map(s => arena.track(s.translate([0,0,-localTop])))));
+  const colorBasis = options.colorAxis === "x" ? {x:1,y:0,z:0}
+    : options.colorAxis === "y" ? {x:0,y:1,z:0} : {x:0,y:0,z:1};
+  const colorSign = rotateObjectVector(colorBasis, pocketRotation(cutout)).z < 0 ? 1 : -1;
+  const localBands = padding > 0 && finiteBands
+    ? options.colorAxis ? sweepColorBands(kernel, finiteBands, options.colorAxis, colorSign * padding)
+      : outsetColorBands(kernel, finiteBands, padding, quality.circularSegments)
+    : finiteBands;
+  const source = padding > 0 && localBands ? extrudeColorBands(kernel, localBands) : anchor;
   const pose = { rotation: pocketRotation(cutout), position: cutout.position, elevationMm: cutout.elevationMm ?? 0 };
   // Sweep the complete source before clipping; a submerged cap must still open
   // through the surface, while an object wholly above the bin leaves no cut.
@@ -799,7 +813,9 @@ export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: Cut
     }
     // Apply the floor constraint to the generated cavity, never the source.
     // Rebuilding after raising the object therefore restores its whole profile.
-    if (depth.mode === "remaining") result = arena.track(result.trimByPlane([0,0,1],depth.floorThicknessMm));
+    const colorReach = options.colorAxis
+      ? padding * pocketColorAxis({...cutout,colorFloorAxis:options.colorAxis}).z : padding;
+    if (depth.mode === "remaining") result = arena.track(result.trimByPlane([0,0,1],depth.floorThicknessMm-colorReach));
     if (Number.isFinite(top)) result = arena.track(result.trimByPlane([0,0,-1],-top));
     return result;
   };
@@ -886,11 +902,34 @@ export function buildCutoutCutters(kernel: Kernel, shapesById: ReadonlyMap<strin
     // Recursive split/tilt construction builds the volume, independently of its role.
     const cutout = { ...source, role: undefined };
     const shape = shapesById.get(cutout.shapeId);
+    // Custom coverage replaces the legacy floor mask. Avoid building an
+    // expensive tilted mask that will immediately be discarded.
+    const colorAxis = pocketColorLocalAxis(cutout);
+    const customColor = cutout.colorCoverage === "interior" || colorAxis !== null;
+    const cavityOptions = customColor ? { ...options, floorInsertThicknessMm: 0 } : options;
     const built: CutoutCutters = cutout.profileBottom && shape
-      ? buildProfileBottomCutout(kernel, shape, cutout, spec, options.floorInsertThicknessMm)
+      ? buildProfileBottomCutout(kernel, shape, cutout, spec, cavityOptions.floorInsertThicknessMm)
       : (hasRigidPocket(cutout) || cutout.insertionMode) && shape
-        ? buildRigidPocket(kernel, shape, rigidPocket(cutout, shape, spec), spec, quality, options, resolvePocketDepth(spec, cutout.depth).cutterTopZ)
-        : buildCutoutCuttersInternal(kernel, shapesById, [cutout], spec, quality, options);
+        ? buildRigidPocket(kernel, shape, rigidPocket(cutout, shape, spec), spec, quality, cavityOptions, resolvePocketDepth(spec, cutout.depth).cutterTopZ)
+        : buildCutoutCuttersInternal(kernel, shapesById, [cutout], spec, quality, cavityOptions);
+    const thickness = options.floorInsertThicknessMm ?? 0;
+    if (shape && source.role !== "hole" && thickness > 0 && built.cutters.length > 0) {
+      if (customColor) {
+        const colorPocket = rigidPocket(migrateProfilePocket(cutout), shape, spec);
+        // Floor-only color belongs to the finite object's supporting surface.
+        // Sweeping this mask through the insertion path also paints clearance
+        // walls far above that surface when the color axis is tilted.
+        const maskPocket = cutout.colorCoverage === "interior" ? colorPocket
+          : {...colorPocket, insertionMode: undefined, topFilletMm: 0};
+        const expanded = buildRigidPocket(kernel, shape, maskPocket, spec, quality,
+          { colorOutsetMm: thickness, colorAxis: cutout.colorCoverage === "interior" ? undefined : colorAxis ?? undefined },
+          resolvePocketDepth(spec, cutout.depth).cutterTopZ);
+        const top = resolvePocketDepth(spec, cutout.depth).infillTopZ;
+        const regions = expanded.cutters.map(region => kernel.arena.track(region.trimByPlane([0,0,-1], -top)));
+        built.floorInserts = regions;
+        built.floorRegions = regions;
+      }
+    }
     return { id: cutout.id, role: source.role, built };
   });
   const masks = groups.filter(g => g.role === "hole").flatMap(g => g.built.cutters);

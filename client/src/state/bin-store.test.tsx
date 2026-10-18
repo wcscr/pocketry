@@ -272,6 +272,7 @@ describe("bin store", () => {
     const { store, act } = mountBin();
     const hole = fingerHoleSchema.parse({ id: "f", center: { x: 10, y: 0 }, depthMm: 12 });
     act(() => store().dispatch({ type: "ADD_PLACED", cutouts: [CUTOUT], gridX: 4, gridY: 4 }));
+    const placed = store().cutouts[0];
     act(() => store().dispatch({ type: "ADD_FINGER_HOLE", hole }));
     const selection = [{ kind: "pocket" as const, id: CUTOUT.id }, { kind: "finger" as const, id: hole.id }];
     act(() => store().dispatch({ type: "SET_SELECTION", selection }));
@@ -279,16 +280,16 @@ describe("bin store", () => {
     act(() => store().dispatch({ type: "DUPLICATE_SELECTION", ids: [{ source: selection[0], id: "copy-p" }, { source: selection[1], id: "copy-f" }] }));
     expect(store().history.stack).toHaveLength(steps + 1);
     expect(store().selection).toEqual([{ kind: "pocket", id: "copy-p" }, { kind: "finger", id: "copy-f" }]);
-    expect(store().cutouts[0]).toEqual(CUTOUT);
+    expect(store().cutouts[0]).toEqual(placed);
     expect(store().fingerHoles[1].center).toEqual({ x: 20, y: -10 });
     act(() => store().dispatch({ type: "REMOVE_SELECTION" }));
     expect(store().history.stack).toHaveLength(steps + 2);
-    expect(store().cutouts).toEqual([CUTOUT]); expect(store().fingerHoles).toEqual([hole]);
+    expect(store().cutouts).toEqual([placed]); expect(store().fingerHoles).toEqual([hole]);
     expect(store().spec.gridX).toBe(4);
     act(() => store().dispatch({ type: "UNDO" }));
     expect(store().cutouts).toHaveLength(2); expect(store().fingerHoles).toHaveLength(2);
     act(() => store().dispatch({ type: "UNDO" }));
-    expect(store().cutouts).toEqual([CUTOUT]); expect(store().fingerHoles).toEqual([hole]);
+    expect(store().cutouts).toEqual([placed]); expect(store().fingerHoles).toEqual([hole]);
   });
 
   it("previews fill height with recoverable finger depths and commits one undoable change", () => {
@@ -706,11 +707,12 @@ describe("bin store history (G4 undo/redo)", () => {
     const { store, act } = mountBin();
     const source = { ...CUTOUT, name: "Pliers" };
     act(() => store().dispatch({ type: "ADD_PLACED", cutouts: [source], gridX: 2, gridY: 2 }));
+    const placedSource = store().cutouts[0];
     act(() => store().dispatch({ type: "DUPLICATE_CUTOUT", id: "c1", newId: "copy-1" }));
     act(() => store().dispatch({ type: "DUPLICATE_CUTOUT", id: "c1", newId: "copy-2" }));
     act(() => store().dispatch({ type: "DUPLICATE_CUTOUT", id: "copy-2", newId: "copy-3" }));
     expect(store().cutouts.map(c => c.name)).toEqual(["Pliers", "Pliers (copy)", "Pliers (copy 2)", "Pliers (copy 3)"]);
-    expect(store().cutouts[0]).toEqual(source);
+    expect(store().cutouts[0]).toEqual(placedSource);
     const doc = getCommittedBinDoc(store());
     act(() => store().dispatch({ type: "UNDO" }));
     expect(store().cutouts).toHaveLength(3);
@@ -838,7 +840,7 @@ it("uses a deeper default floor for flat bins and restores it with undo and base
   const original = store().cutouts;
   act(() => store().dispatch({ type: "PATCH_SPEC", patch: { flatBottom: true } }));
   expect(store().cutouts[0].depth).toEqual({ mode: "remaining", floorThicknessMm: 2 });
-  expect(store().cutouts.slice(1)).toEqual([custom, fixed]);
+  expect(store().cutouts.slice(1)).toEqual(original.slice(1));
   act(() => store().dispatch({ type: "UNDO" }));
   expect(store().spec.flatBottom).toBe(false);
   expect(store().cutouts).toEqual(original);
@@ -849,7 +851,7 @@ it("uses a deeper default floor for flat bins and restores it with undo and base
   act(() => store().dispatch({ type: "PATCH_SPEC", patch: { flatBottom: false } }));
   expect(store().cutouts[0].depth).toEqual(CUTOUT.depth);
   expect(store().cutouts.at(-1)!.depth).toEqual(CUTOUT.depth);
-  expect(store().cutouts.slice(1, 3)).toEqual([custom, fixed]);
+  expect(store().cutouts.slice(1, 3)).toEqual(original.slice(1));
 });
 
 describe("restored project history", () => {

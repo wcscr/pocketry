@@ -1,3 +1,5 @@
+import { PocketColorControls } from "./pocket-color-controls";
+import { hasColorablePocketSurfaces } from "@shared/gridfinity/pocket-color";
 import { readImportJson, withinImportLimits, IMPORT_LIMIT_ERROR } from "@shared/gridfinity/import-limits";
 import { sameJsonData } from "@shared/json-data-equal";
 import { SampleLibraryDialog } from "@/components/project/sample-library-dialog";
@@ -73,7 +75,6 @@ import {
   fingerHoleSizeLimits,
   resolvePlacedPocketDepth,
   resolvePocketDepth,
-  pocketDepths,
   pocketName,
   type DepthSpec,
   type TracedShape,
@@ -408,11 +409,9 @@ export function BinControlsPanel({
     confirmLabel: string;
     onConfirm: (includeProject: boolean) => void;
   } | null>(null);
-  const hasBlindPocket = cutouts.some(
-    (cutout) => pocketDepths(cutout).some(depth => depth.mode !== "through"),
-  );
-  const hasSelectedFloorColor = colorPocketFloors && (spec.fill === "none" || hasBlindPocket);
-  const floorColorLabel = spec.fill === "none" ? "Bin floor" : "Pocket floors";
+  const hasColorablePocket = cutouts.some(hasColorablePocketSurfaces);
+  const hasSelectedFloorColor = colorPocketFloors && (spec.fill === "none" || hasColorablePocket);
+  const floorColorLabel = spec.fill === "none" ? "Bin floor" : cutouts.some(c => c.role !== "hole" && c.colorCoverage === "interior") ? "Pocket interiors" : "Pocket floors";
   const hasSelectedRimColor = colorStackingRim;
   const edgeBandColor = colorStackingRim ? stackingRimColor : binColor;
   const rimColorLabel = spec.lip === "standard" ? "Stacking rim top" : "Top border";
@@ -909,6 +908,7 @@ export function BinControlsPanel({
               {selectedCutout.designLink && <p className="pb-2 text-xs text-muted-foreground">Changing type updates every linked copy.</p>}
               {selectedCutout.role === "hole" && <p className="pb-2 text-xs text-muted-foreground">Keeps material wherever this object overlaps a pocket. Move, resize, edit its contour, or remove it independently. Depth sets how far down material is kept.</p>}
               <PocketInsertionControls cutout={selectedCutout} shape={selectedShape} />
+              <PocketColorControls key={selectedCutout.id} cutout={selectedCutout} enabled={colorPocketFloors} onEnable={() => onColorPocketFloorsChange(true)} />
               {!inspector && <LinkedDesignControls kind="pocket" activeId={selectedCutout.id} labels={new Map(cutouts.map(c => [c.id, pocketName(c, shapesById.get(c.shapeId))]))} />}
               {selectedCutout.depthPending ? <Button variant="outline" onClick={() => onRevealIssue({ code: "pocket-depth-needed", severity: "error", message: "Depth needed", cutoutIds: [selectedCutout.id] })}>{selectedCutout.role === "hole" ? "Set hole depth" : "Set pocket depth"}</Button> : <PocketDepthSummary cutout={depthCutout!} shape={depthShape!} section={section} inspect={inspectPocket}>
                 {selectedCutout.split && <div className="flex gap-1 pb-2" role="group" aria-label="Section to edit">
@@ -1864,7 +1864,7 @@ export function BinControlsPanel({
               <div className="min-w-0">
                 <SettingLabel label={floorColorLabel} hint={spec.fill === "none"
                   ? "Uses the pocket-floor color and thickness for the interior floor of a hollow bin."
-                  : "Separate material below blind-pocket surfaces."} />
+                  : "Separate material on pocket floors or entire interiors. Choose coverage in each pocket’s properties."} />
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <MaterialColorSwatch
@@ -1883,7 +1883,7 @@ export function BinControlsPanel({
               </div>
             </div>
             <div className="flex items-center justify-between gap-3">
-              <SettingLabel label="Color thickness" htmlFor="input-pocket-floor-thickness" hint="Accent thickness replaces existing material downward from the original surface; it never adds height to the bin." />
+              <SettingLabel label="Color thickness" htmlFor="input-pocket-floor-thickness" hint="Accent thickness replaces existing material behind the selected pocket surfaces; it never changes pocket dimensions." />
               <div className="flex items-center gap-1.5">
                 <DraftNumberInput
                   id="input-pocket-floor-thickness"
@@ -2296,7 +2296,7 @@ export function BinControlsPanel({
                   {hasSelectedMulticolor
                     ? `Separate ${[
                         hasSelectedFloorColor
-                          ? `${floorColorLabel.toLowerCase()} (${pocketFloorThicknessMm} mm down)`
+                          ? `${floorColorLabel.toLowerCase()} (${pocketFloorThicknessMm} mm thick)`
                           : null,
                         hasSelectedRimColor
                           ? `${spec.lip === "standard" ? "rim top" : "top border"} (${spec.lip === "none" ? `${borderWidthMm} mm wide, ` : ""}${stackingRimThicknessMm} mm down)`

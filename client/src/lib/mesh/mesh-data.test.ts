@@ -105,6 +105,20 @@ describe("extractMeshData", () => {
       expect(dot).toBeGreaterThan(0.99);
     }
   });
+
+  it("changes shading only, preserving the kernel's preview triangles and printable mesh", () => {
+    const sphere = arena.track(kernel.Manifold.sphere(5, 32));
+    const original = extractPrintableMeshData(kernel, sphere);
+    const native = arena.track(sphere.calculateNormals(0, 60)).getMesh();
+    const preview = extractMeshData(kernel, sphere, { normals: true });
+    expect(preview.indices).toEqual(native.triVerts);
+    for (let vertex = 0; vertex < preview.positions.length / 3; vertex++) {
+      for (let axis = 0; axis < 3; axis++) {
+        expect(preview.positions[vertex * 3 + axis]).toBe(native.vertProperties[vertex * native.numProp + axis]);
+      }
+    }
+    expect(extractPrintableMeshData(kernel, sphere)).toEqual(original);
+  });
 });
 
 describe("extractPrintableMeshData", () => {

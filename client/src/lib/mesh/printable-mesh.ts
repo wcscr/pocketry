@@ -419,7 +419,32 @@ function refineParallelEdges(p: Float32Array, input: Uint32Array, labels: number
       }
       set.add(face.edges[j]);
     }
-  const targets = [...groups.values()].flatMap(set => [...set].sort((a, b) => a - b).slice(1));
+  const preservesFace = (positions: Float32Array, before: number[], after: number[]) =>
+    predicates.isZeroArea(positions, before)
+      ? predicates.isZeroArea(positions, after)
+      : predicates.sameOrientation(positions, before, after);
+  // Only one edge instance per endpoint pair may remain unsplit. Prefer an
+  // instance whose incident skinny faces cannot tolerate midpoint rounding;
+  // splitting the other instance preserves the same topology without moving
+  // any existing vertex or weakening the orientation check.
+  const canRefine = (target: number): boolean => {
+    const selected = faces.filter(face => face.edges.includes(target));
+    if (selected.length !== 2) return false;
+    const edge = selected[0].edges.indexOf(target);
+    const a = selected[0].vertices[edge], b = selected[0].vertices[(edge + 1) % 3];
+    let midpoint: Midpoint;
+    try { midpoint = predicates.midpoint(p, a, b); } catch { return false; }
+    const expanded = new Float32Array(p.length + 3);
+    expanded.set(p); expanded.set(midpoint.point, p.length);
+    return selected.every(face => splitTriangle(face.vertices, a, b, p.length / 3)
+      .every(part => preservesFace(expanded, face.vertices, part)));
+  };
+  const targets = [...groups.values()].flatMap(set => {
+    const labels = [...set].sort((a, b) => a - b);
+    if (labels.length < 2) return [];
+    const keep = labels.find(label => !canRefine(label)) ?? labels[0];
+    return labels.filter(label => label !== keep);
+  });
   let label = labels.reduce((m, n) => Math.max(m, n), -1) + 1;
   for (const target of targets) {
     const selected = faces.filter(f => f.edges.includes(target));
@@ -448,7 +473,7 @@ function refineParallelEdges(p: Float32Array, input: Uint32Array, labels: number
         throw new Error("Refinement twin endpoints mismatch");
       const internal = label++;
       const parts = splitTriangle(face.vertices, a, b, mid);
-      if (parts.some(t => !predicates.sameOrientation(p, face.vertices, t)))
+      if (parts.some(t => !preservesFace(p, face.vertices, t)))
         throw new Error("Refinement creates a degenerate or reversed triangle");
       return [{ vertices: parts[0], edges: [start === a ? first : second, internal, face.edges[(e + 2) % 3]] }, { vertices: parts[1], edges: [end === b ? second : first, face.edges[(e + 1) % 3], internal] }];
     });

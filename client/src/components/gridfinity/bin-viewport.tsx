@@ -89,7 +89,7 @@ export interface BinViewportProps {
   binColor?: string;
   pocketFloorColor?: string;
   /** Name of the shared floor material in the displayed bin. */
-  floorColorLabel?: "Pocket floor" | "Bin floor";
+  floorColorLabel?: "Pocket floor" | "Pocket interior" | "Bin floor";
   stackingRimColor?: string;
   showPocketFloorColor?: boolean;
   showStackingRimColor?: boolean;

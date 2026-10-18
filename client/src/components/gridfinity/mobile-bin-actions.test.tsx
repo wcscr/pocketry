@@ -24,6 +24,7 @@ it.each(["depth", "clearance"])("keeps the mobile %s slider tied to its pocket a
         depths: [{ mode: "remaining", floorThicknessMm: 6, sourceDepthMm: 16 }, { mode: "remaining", floorThicknessMm: 4, sourceDepthMm: 20 }] } });
     const second = { ...first, id: "second", position: { x: 15, y: 0 }, clearanceMm: 0.5 };
     React.act(() => store.dispatch({ type: "ADD_PLACED", cutouts: [first, second], gridX: 2, gridY: 2 }));
+    const placedSecond = store.cutouts[1];
     React.act(() => store.dispatch({ type: "SELECT_CUTOUT", id: first.id }));
     const slider = () => host.querySelector<HTMLElement>(`#quick-pocket-${property} [role="slider"]`)!;
     const previous = slider();
@@ -37,10 +38,10 @@ it.each(["depth", "clearance"])("keeps the mobile %s slider tied to its pocket a
     React.act(() => store.dispatch({ type: "SELECT_CUTOUT", id: second.id }));
     expect(slider().getAttribute("aria-valuenow")).toBe(property === "depth" ? "6" : "0.5");
     React.act(() => previous.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })));
-    expect(store.cutouts).toEqual([edited, second]);
+    expect(store.cutouts).toEqual([edited, placedSecond]);
     React.act(() => slider().dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })));
     expect(store.cutouts[0]).toEqual(edited);
-    expect(store.cutouts[1]).not.toEqual(second);
+    expect(store.cutouts[1]).not.toEqual(placedSecond);
   } finally {
     React.act(() => root.unmount()); host.remove(); vi.unstubAllGlobals();
   }

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Choose floor-only or entire-interior coloring per pocket, with an independent bin or object-axis reference. New pockets follow their insertion axis; saved projects retain existing coloring.
+- Prevent microscopic mesh seams from creating exaggerated folds in the shading of tilted pocket floors, without changing printable geometry.
+
 - Choose object X, Y, or Z for pocket insertion clearance. The first 3D tilt prompts for clearance style and axis, with another prompt if a later rotation makes that axis invalid.
 - Fix distorted tilted cutouts and striped floor colors for complex traces, and speed up full-detail exports along the pocket axis.
 

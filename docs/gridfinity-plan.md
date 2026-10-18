@@ -375,6 +375,22 @@ depths are independently selectable from 0.2–3.0 mm for pocket floors and
 0.2–7.35 mm for the stacking rim (0.6 mm pocket-floor and 1.25 mm rim
 defaults). The rim limit is the full
 modeled lip depth and does not extend into the bin wall when a lip is enabled.
+Each pocket's **Pocket color** properties choose **Floor only** or **Entire
+interior**. Floor-only coverage can follow the insertion axis, stay aligned with
+the bin's vertical direction, or use object X/Y/Z. With no insertion clearance,
+Follow insertion axis uses object Z. This reference changes the material split,
+not the cavity or insertion clearance. Entire interior colors a lining around
+the walls and floor below the fill surface; its thickness is measured laterally
+and axially in the object's frame. All masks replace existing material and keep
+retained holes and through openings intact. Color and thickness remain shared
+under **Materials & Colors**, while coverage and reference are independent for
+each placement, including linked copies. New pockets follow insertion; schema
+40 preserves the bin-vertical appearance of older saved projects.
+Axis-based floor masks extend the native extrusion bands by the color thickness
+before posing the finite object. They do not follow its insertion clearance:
+walls above the selected supporting surface remain the bin color. Object-Z
+floor color has a 0.01 mm setback from parallel walls to avoid
+coincident material faces; this does not change the cavity or axial color depth.
 With Solid fill off, the pocket-floor color and thickness apply to the hollow
 bin's interior floor, labeled **Bin floor** in Materials & Colors and exports.
 This layer extends down from the base top without changing the floor height,
@@ -383,8 +399,8 @@ Without a lip, Materials & Colors offers **Top border** with independent color
 width (0.2–20 mm inward, default 0.95 mm) and depth settings. Wider borders extend
 into the filled top or label shelf; hollow bins color only existing wall material.
 The band follows the perimeter, including custom bins, and also supports 1u bins,
-with the requested depth clipped to existing bin material. Both accents are cut
-downward from the original surfaces, never added above them; STL warns before
+with the requested depth clipped to existing bin material. Accents replace
+existing material behind their selected surfaces; STL warns before
 dropping those color assignments. Pocket controls, Materials, and export show a
 nonblocking warning when a pocket's colored floor layer reaches the underside
 recesses. This uses the resolved depth and selected color thickness: ordinary

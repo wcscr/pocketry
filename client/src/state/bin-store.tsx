@@ -558,11 +558,12 @@ function reduceBin(state: BinState, action: BinAction): BinState {
             gridY: action.gridY,
             ...(action.footprint ? { footprint: action.footprint } : {}),
           }),
-          cutouts: [...state.cutouts, ...action.cutouts.map((cutout): CutoutPlacement =>
-            state.spec.flatBottom
-              ? changeDefaultFloor(cutout, defaultPocketFloorThicknessMm({ flatBottom: false }), defaultPocketFloorThicknessMm(state.spec))
-              : cutout,
-          )],
+          cutouts: [...state.cutouts, ...action.cutouts.map((cutout): CutoutPlacement => {
+            const colored: CutoutPlacement = { ...cutout, colorFloorAxis: cutout.colorFloorAxis ?? "insertion" };
+            return state.spec.flatBottom
+              ? changeDefaultFloor(colored, defaultPocketFloorThicknessMm({ flatBottom: false }), defaultPocketFloorThicknessMm(state.spec))
+              : colored;
+          })],
           fingerHoles: state.fingerHoles,
         },
         action.historyLabel ??
