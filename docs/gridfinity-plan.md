@@ -386,11 +386,13 @@ retained holes and through openings intact. Color and thickness remain shared
 under **Materials & Colors**, while coverage and reference are independent for
 each placement, including linked copies. New pockets follow insertion; schema
 40 preserves the bin-vertical appearance of older saved projects.
-Axis-based floor masks extend the native extrusion bands by the color thickness
-before posing the finite object. They do not follow its insertion clearance:
-walls above the selected supporting surface remain the bin color. Object-Z
-floor color has a 0.01 mm setback from parallel walls to avoid
-coincident material faces; this does not change the cavity or axial color depth.
+Axis-based floor masks use only the layer behind the finite object's supporting
+surface. Extra insertion-clearance walls and surfaces introduced by the remaining
+floor limit keep the bin color; **Bin vertical** colors the bin's bottom surface.
+Native extrusion bands define the lining before posing the object. A 0.01 mm
+setback from parallel faces and a 0.01 mm overlap into the cavity prevent
+coincident material sheets, without changing the cavity. Color-only edits retain
+the complete previous preview until one fully rounded replacement is ready.
 With Solid fill off, the pocket-floor color and thickness apply to the hollow
 bin's interior floor, labeled **Bin floor** in Materials & Colors and exports.
 This layer extends down from the base top without changing the floor height,

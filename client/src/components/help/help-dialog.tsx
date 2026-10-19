@@ -109,7 +109,10 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
               <strong> Floor only</strong> or <strong>Entire interior</strong>.
               The floor reference can follow insertion, stay vertical, or follow
               an object axis as it rotates. These choices change color without
-              changing fit. Set the color and thickness in
+              changing fit. Object-axis references keep extra clearance walls
+              and surfaces created by the remaining-floor limit in the bin color.
+              Choose <strong>Bin vertical</strong> to color the bin's bottom surface.
+              Set the color and thickness in
               <strong> Materials &amp; Colors</strong>.
             </p>
           </li>

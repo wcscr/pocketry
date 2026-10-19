@@ -34,7 +34,7 @@ export function PocketColorControls({ cutout, enabled, onEnable }: {
         </select>
       </Label>
       {coverage === "floor" ? <>
-        <Label className="block space-y-1 text-xs"><span className="flex items-center gap-1">Floor reference <HelpHint label="floor color reference">Colors the object's supporting surface opposite this direction, including curved or stepped bottoms. Extra insertion-clearance walls keep the bin color. This changes color only; insertion clearance and pocket dimensions stay the same.</HelpHint></span>
+        <Label className="block space-y-1 text-xs"><span className="flex items-center gap-1">Floor reference <HelpHint label="floor color reference">Colors the object's supporting surface opposite this direction, including curved or stepped bottoms. Extra insertion-clearance walls keep the bin color. With an object-axis reference, surfaces created by the remaining-floor limit also keep the bin color. Choose Bin vertical to color the bin's bottom surface. This changes color only; insertion clearance and pocket dimensions stay the same.</HelpHint></span>
           <select className="h-9 w-full rounded border bg-background px-2" aria-label="Pocket floor color reference" value={reference}
             onChange={event => update({ colorFloorAxis: event.target.value as NonNullable<CutoutPlacement["colorFloorAxis"]> })}>
             <option value="insertion">Follow insertion axis</option><option value="vertical">Bin vertical</option>

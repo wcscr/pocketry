@@ -1,5 +1,5 @@
 import { pocketColorAxis, pocketColorLocalAxis } from "@shared/gridfinity/pocket-color";
-import { outsetColorBands, extrudeColorBands, sweepColorBands } from "./pocket-color";
+import { outsetColorBands, extrudeColorBands, sweepColorBands, floorColorMask } from "./pocket-color";
 // Type-only import: the kernel is injected (see `Kernel` in ../manifold/runtime).
 import type { Manifold, Vec2 } from "manifold-3d";
 import { hasPocketTilt, pocketAxis } from "@shared/gridfinity/pocket-orientation";
@@ -758,7 +758,11 @@ export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: Cut
     ? options.colorAxis ? sweepColorBands(kernel, finiteBands, options.colorAxis, colorSign * padding)
       : outsetColorBands(kernel, finiteBands, padding, quality.circularSegments)
     : finiteBands;
-  const source = padding > 0 && localBands ? extrudeColorBands(kernel, localBands) : anchor;
+  const expanded = padding > 0 && localBands ? extrudeColorBands(kernel, localBands) : anchor;
+  const sourceIsClipped = depthSpecs.some(depth => depth.mode === "remaining"
+    && depth.floorThicknessMm > (cutout.elevationMm ?? 0));
+  const source = padding > 0 && options.colorAxis
+    ? floorColorMask(kernel, expanded, anchor, options.colorAxis, colorSign * padding, sourceIsClipped) : expanded;
   const pose = { rotation: pocketRotation(cutout), position: cutout.position, elevationMm: cutout.elevationMm ?? 0 };
   // Sweep the complete source before clipping; a submerged cap must still open
   // through the surface, while an object wholly above the bin leaves no cut.
