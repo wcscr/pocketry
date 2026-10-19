@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Offer Auto-arrange beside oversized-bin warnings, explaining layout changes and preserving fixed sizes; fix arranging arbitrary-sized bins with multiple retained grid cells.
+
 - Fixed side mirroring in Symmetry & straighten for syringe grips and other concave outlines; averaging now explains when to choose a side.
 
 - Preserve unresolved pocket-depth drafts while switching pockets or reopening the prompt, and link depth-limit warnings directly to bin height controls. Explain tool exposure and show Through pockets with an open bottom.

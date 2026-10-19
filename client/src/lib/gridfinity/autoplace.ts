@@ -775,7 +775,9 @@ export function autoArrangeLayout(
         overflow: false,
         ...(arrangedSpec
           ? {
-              footprint: trimFootprintToPlacements(
+              // Fixed bins retain their footprint. Arbitrary millimetre sizes
+              // cannot be converted into a trimmed grid-cell footprint.
+              footprint: fixedGrid ? baseSpec!.footprint : trimFootprintToPlacements(
                 placed,
                 shapesById,
                 arrangedSpec,

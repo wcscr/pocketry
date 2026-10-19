@@ -34,6 +34,8 @@ import { downloadBlob } from "@/lib/download";
 import { projectDestinationKey } from "@/lib/project/destination";
 import { useBinGeometry } from "@/lib/gridfinity/use-bin-geometry";
 import { createBasicPocket } from "@/lib/gridfinity/basic-shape";
+import { fitLayoutToPlacements } from "@/lib/gridfinity/autoplace";
+import { validateBinSpec, validateLayout } from "@shared/gridfinity/validate";
 import { footprintOuterRingMm, occupiedCellCount } from "@shared/gridfinity/footprint";
 import ryobiReloadFixture from "@shared/gridfinity/fixtures/ryobi-split-reload.pocketry.json";
 
@@ -4736,6 +4738,84 @@ describe("BinDesignerPage", () => {
       changeMode("Fixed depth");
       const restored = vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0];
       expect(restored.split?.depths ?? restored.depth).toEqual(original.split?.depths ?? original.depth);
+    } finally { unmount(); }
+  });
+
+  it.each([
+    { layout: "standard", mobile: false },
+    { layout: "workflow", mobile: false },
+    { layout: "standard", mobile: true },
+  ])("compacts repeated photo additions from the canvas warning with one selected pocket: $layout, mobile=$mobile", async ({layout, mobile}) => {
+    localStorage.setItem("pocketry:editor-layout", layout);
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT,
+      spec: parseBinSpec({gridX:2,gridY:2,heightUnits:6,fill:"solid",lip:"none"}) });
+    let library!: ShapeLibraryModule.ShapeLibrary;
+    let panels!: ReturnType<typeof usePanelState>;
+    function Arrivals() { library = ShapeLibraryModule.useShapeLibrary(); panels = usePanelState(); return null; }
+    const {container, unmount} = render(<PanelProvider><ShapeLibraryProvider><Arrivals /><BinDesignerPage /></ShapeLibraryProvider></PanelProvider>, {mobile});
+    try {
+      await flushHydration();
+      // Four separate photo handoffs with five differently sized tools. These
+      // synthetic outlines reproduce sparse growth without private photo data.
+      const sizes = [[160,45],[190,30],[65,20],[55,18],[240,75]];
+      const shapes = sizes.map(([width,height], i) => createBasicPocket("rectangle", {x:-width/2,y:-height/2}, {x:width/2,y:height/2}, `photo-tool-${i}`)!.shape);
+      for (const batch of [[0],[1],[2,3],[4]]) {
+        React.act(() => batch.forEach((i, offset) => library.addShape(shapes[i], {mode:"mm",value:12+i}, undefined,
+          {batchId:`photo-${batch[0]}`,center:{x:offset*200,y:0}})));
+        await flushHydration();
+      }
+      const current = () => vi.mocked(useBinGeometry).mock.lastCall!;
+      const beforeSpec = current()[0], beforePockets = current()[2]!.cutouts;
+      expect(beforePockets).toHaveLength(5);
+      expect(validateBinSpec(beforeSpec).issues.some(issue => issue.code === "large-footprint")).toBe(true);
+      const byId = new Map(shapes.map(shape => [shape.id,shape]));
+      const fitted = fitLayoutToPlacements(beforePockets, byId, beforeSpec.lip, beforeSpec.gridPitch, [], beforeSpec);
+      expect(validateBinSpec({...beforeSpec,gridX:fitted.gridX,gridY:fitted.gridY}).issues.some(issue => issue.code === "large-footprint")).toBe(true);
+      selectPocket(container, beforePockets[0].id);
+      React.act(() => panels.setPanelOpen(false));
+      const warnings = container.querySelector<HTMLElement>('[data-testid="canvas-warnings"]')!;
+      React.act(() => warnings.querySelector<HTMLButtonElement>('button[aria-expanded]')!.click());
+      expect(current()[2]!.cutouts).toEqual(beforePockets);
+      const arrange = warnings.querySelector<HTMLButtonElement>('[data-testid="button-warning-auto-arrange"]')!;
+      expect(arrange.disabled).toBe(false);
+      expect(arrange.closest('[data-testid="bin-canvas"]')).not.toBeNull();
+      React.act(() => arrange.click());
+      const afterSpec = current()[0], afterPockets = current()[2]!.cutouts;
+      expect(afterSpec.gridX*afterSpec.gridY).toBeLessThan(fitted.gridX*fitted.gridY);
+      expect(validateBinSpec(afterSpec).issues.some(issue => issue.code === "large-footprint")).toBe(false);
+      expect(validateLayout(afterSpec, afterPockets, byId).filter(issue => issue.severity === "error")).toEqual([]);
+      expect(afterSpec.heightUnits).toBe(beforeSpec.heightUnits);
+      expect(afterPockets).toHaveLength(5);
+      for (const pocket of afterPockets) {
+        const original = beforePockets.find(p => p.id === pocket.id)!;
+        expect({...pocket,position:original.position,rotationDeg:original.rotationDeg}).toEqual(original);
+      }
+      expect(container.querySelector('[data-testid="button-warning-auto-arrange"]')).toBeNull();
+      clickBinHistory(container, "undo");
+      expect(current()[0]).toEqual(beforeSpec);
+      expect(current()[2]!.cutouts).toEqual(beforePockets);
+      clickBinHistory(container, "redo");
+      expect(current()[0]).toEqual(afterSpec);
+      expect(current()[2]!.cutouts).toEqual(afterPockets);
+    } finally { unmount(); }
+  });
+
+  it.each([false,true])("keeps fixed dimensions when arranging from the warning, arbitrary=%s", async arbitrary => {
+    const shapes = [rectangularShape("first","First"), rectangularShape("second","Second")];
+    const spec = parseBinSpec({...EMPTY_PROJECT.spec,gridX:8,gridY:2,flatBottom:arbitrary,
+      ...(arbitrary ? {arbitrarySizeMm:{width:330,length:80}} : {})});
+    const cutouts = shapes.map((shape,i) => parseCutoutPlacement({id:`pocket-${i}`,shapeId:shape.id,position:{x:i*100-50,y:0},depth:{mode:"mm",value:12+i}}));
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({...EMPTY_PROJECT,spec,shapes,cutouts,keepBinSize:!arbitrary});
+    const {container,unmount} = renderPage();
+    try {
+      await flushHydration();
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="canvas-warnings"] button[aria-expanded]')!.click());
+      expect(container.querySelector('[data-testid="compact-layout-action"]')!.textContent).toContain("within the fixed bin size");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-warning-auto-arrange"]')!.click());
+      const current = vi.mocked(useBinGeometry).mock.lastCall!;
+      expect(current[0]).toEqual(spec);
+      expect(current[2]!.cutouts.map(p => p.depth)).toEqual(cutouts.map(p => p.depth));
+      expect(current[2]!.cutouts.map(p => p.position)).not.toEqual(cutouts.map(p => p.position));
     } finally { unmount(); }
   });
 
