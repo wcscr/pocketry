@@ -6,7 +6,7 @@
 - Fix distorted tilted cutouts and striped floor colors for complex traces, and speed up full-detail exports along the pocket axis.
 - Add experimental one-axis slanted bin walls above a fixed Gridfinity base, with X/Y angle controls, a shifted rim outline, and a shortcut to match a selected tilted pocket. Export checks pocket collisions against the slanted wall.
 - Allow label tabs on slanted bin walls, including shifted pocket-shadow warnings.
-- Keep short slanted label tabs above the base and stabilize the colored rim band around their corners.
+- Keep short slanted label tabs above the base and prevent preview flicker along their colored rim band.
 - Link to Form Fit Print from About and credit the slanted-gridfinity project for inspiring slanted bin walls.
 - Default new pockets without a chosen depth to the bin floor so they appear immediately in the 3D preview.
 - Preserve the relative positions of outlines sent from Trace to Bin, including overlaps. Choose Pocket or Hole to cut or keep material; holes remain independent, editable objects in Bin and saved projects.
