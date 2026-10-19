@@ -1697,7 +1697,7 @@ export function BinControlsPanel({
           />
           {experimentalEnabled && <FeatureSwitch
             label="Slanted walls (prototype)"
-            description="Lean the whole bin body along X or Y while keeping the Gridfinity base flat"
+            description="Tilt either opposing wall or both along X or Y, with a flat base"
             checked={spec.wallSlant !== null}
             onChange={(on) => patchSpec(on
               ? { wallSlant: { axis: "y", angleDeg: 20 }, lip: "none" }
@@ -1705,10 +1705,21 @@ export function BinControlsPanel({
           />}
           {experimentalEnabled && spec.wallSlant && <div className="space-y-2 rounded-md border bg-muted/30 p-2.5">
             <div className="flex items-center gap-2">
-              <SettingLabel label="Slant axis" hint="One axis only. The upper body moves along this axis; the base stays fixed." />
+              <SettingLabel label="Slant axis" hint="Choose the opposing pair of walls. Tilt moves along this axis; the base stays fixed." />
               <Select value={spec.wallSlant.axis} onValueChange={(axis) => patchSpec({ wallSlant: { ...spec.wallSlant!, axis: axis === "x" ? "x" : "y" } })}>
                 <SelectTrigger className="ml-auto h-8 w-36" aria-label="Wall slant axis"><SelectValue /></SelectTrigger>
                 <SelectContent><SelectItem value="x">Width (X)</SelectItem><SelectItem value="y">Length (Y)</SelectItem></SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <SettingLabel label="Walls to tilt" hint="Tilt both opposing walls together, or keep one wall vertical. The connecting side walls taper to meet them." />
+              <Select value={spec.wallSlant.side ?? "both"} onValueChange={(side) => patchSpec({ wallSlant: { ...spec.wallSlant!, side: side === "negative" ? "negative" : side === "positive" ? "positive" : "both" } })}>
+                <SelectTrigger className="ml-auto h-8 w-40" aria-label="Walls to tilt"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="both">Both walls</SelectItem>
+                  <SelectItem value="negative">{spec.wallSlant.axis === "x" ? "Left only (−X)" : "Front only (−Y)"}</SelectItem>
+                  <SelectItem value="positive">{spec.wallSlant.axis === "x" ? "Right only (+X)" : "Back only (+Y)"}</SelectItem>
+                </SelectContent>
               </Select>
             </div>
             <div className="flex items-center gap-2">
@@ -1718,8 +1729,8 @@ export function BinControlsPanel({
                 onValueCommit={(angleDeg) => patchSpec({ wallSlant: { ...spec.wallSlant!, angleDeg } })} />
               <span className="text-xs text-muted-foreground">°</span>
             </div>
-            <p className="text-[11px] text-muted-foreground">Top shift: {Math.hypot(...Object.values(wallSlantTopOffsetMm(spec))).toFixed(1)} mm. The body can extend over adjacent grid cells.</p>
-            {matchedPocketSlant && <Button size="sm" variant="outline" className="w-full" onClick={() => patchSpec({ wallSlant: matchedPocketSlant, lip: "none" })}>Match selected pocket angle</Button>}
+            <p className="text-[11px] text-muted-foreground">Tilted wall shift at rim: {Math.hypot(...Object.values(wallSlantTopOffsetMm(spec))).toFixed(1)} mm. The body can extend over adjacent grid cells.</p>
+            {matchedPocketSlant && <Button size="sm" variant="outline" className="w-full" onClick={() => patchSpec({ wallSlant: { ...spec.wallSlant, ...matchedPocketSlant }, lip: "none" })}>Match selected pocket angle</Button>}
           </div>}
           <FeatureSwitch
             label="Solid fill"

@@ -3163,6 +3163,7 @@ describe("BinDesignerPage", () => {
       const angle = () => container.querySelector<HTMLInputElement>('[aria-label="Wall angle in degrees"]');
       expect(toggle()).toBeNull();
       expect(angle()).toBeNull();
+      expect(container.querySelector('[aria-label="Walls to tilt"]')).toBeNull();
       React.act(() => experimentalSettings.setEnabled(true));
       React.act(() => toggle()!.click());
       expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toMatchObject({
@@ -3177,6 +3178,7 @@ describe("BinDesignerPage", () => {
       expect(toggle()).toBeNull();
       expect(angle()).toBeNull();
       expect(container.querySelector('[aria-label="Wall slant axis"]')).toBeNull();
+      expect(container.querySelector('[aria-label="Walls to tilt"]')).toBeNull();
       expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toMatchObject({ wallSlant: { axis: "y", angleDeg: 20 }, lip: "none" });
       expect(container.querySelector('[data-testid="experimental-design-notice"]')!.textContent).toContain("slanted walls");
       React.act(() => experimentalSettings.setEnabled(true));
@@ -3185,6 +3187,35 @@ describe("BinDesignerPage", () => {
       unmount();
       window.history.replaceState(null, "", originalUrl);
     }
+  });
+
+  it.each(["standard", "workflow"])("selects a single tilted wall with undo and axis-aware labels in %s layout", async layout => {
+    const originalUrl = window.location.href;
+    window.history.replaceState(null, "", `/bin?layout=${layout}`);
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      openSettingsSection(container, "construction");
+      expect(container.querySelector('[aria-label="Walls to tilt"]')).toBeNull();
+      React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Slanted walls (prototype)"]')!.click());
+      const choose = (field: string, label: string) => {
+        React.act(() => container.querySelector<HTMLButtonElement>(`[aria-label="${field}"]`)!.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true })));
+        React.act(() => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(option => option.textContent === label)!.click());
+      };
+      choose("Walls to tilt", "Back only (+Y)");
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0].wallSlant).toMatchObject({ axis: "y", side: "positive", angleDeg: 20 });
+      clickBinHistory(container, "undo");
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0].wallSlant?.side).toBeUndefined();
+      clickBinHistory(container, "redo");
+      expect(container.querySelector('[aria-label="Walls to tilt"]')!.textContent).toContain("Back only (+Y)");
+      choose("Wall slant axis", "Width (X)");
+      expect(container.querySelector('[aria-label="Walls to tilt"]')!.textContent).toContain("Right only (+X)");
+      choose("Walls to tilt", "Left only (−X)");
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0].wallSlant).toMatchObject({ axis: "x", side: "negative", angleDeg: 20 });
+      React.act(() => experimentalSettings.setEnabled(false));
+      expect(container.querySelector('[aria-label="Walls to tilt"]')).toBeNull();
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0].wallSlant?.side).toBe("negative");
+    } finally { unmount(); window.history.replaceState(null, "", originalUrl); }
   });
 
   it.each([
@@ -3197,7 +3228,7 @@ describe("BinDesignerPage", () => {
     const pocket = parseCutoutPlacement({ id: "tilted", shapeId: shape.id, position: { x: 0, y: 0 }, tilt, role,
       depth: { mode: "mm", value: 10 } });
     vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape], cutouts: [pocket],
-      spec: parseBinSpec({ ...EMPTY_PROJECT.spec, lip: "none", wallSlant: { axis: "y", angleDeg: 20 } }) });
+      spec: parseBinSpec({ ...EMPTY_PROJECT.spec, lip: "none", wallSlant: { axis: "y", angleDeg: 20, side: "positive" } }) });
     const { container, unmount } = renderPage();
     try {
       await flushHydration();
@@ -3211,6 +3242,7 @@ describe("BinDesignerPage", () => {
         const slant = vi.mocked(useBinGeometry).mock.lastCall![0].wallSlant!;
         expect(slant.axis).toBe(expected.axis);
         expect(slant.angleDeg).toBeCloseTo(expected.angleDeg, 8);
+        expect(slant.side).toBe("positive");
       } else expect(match).toBeUndefined();
     } finally { unmount(); }
   });

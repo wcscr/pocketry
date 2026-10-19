@@ -25,6 +25,20 @@ beforeAll(async () => { arena = new Arena(); kernel = createKernel(await loadMan
 afterAll(() => arena.dispose());
 
 describe("tilted pockets", () => {
+  it.each(["negative", "positive"] as const)("keeps a matched pocket within the bin when only the %s wall tilts", side => {
+    const slantedSpec = parseBinSpec({ ...spec, wallSlant: { axis: "x", angleDeg: 45, side } });
+    const built = buildBinWithCutouts(kernel, slantedSpec,
+      { shapesById: shapes, cutouts: [pocket], fingerHoles: [] }, EXPORT_QUALITY);
+    expect(built.solid.status()).toBe("NoError");
+    expect(built.validationIssues.filter(issue => issue.severity === "error")).toEqual([]);
+  });
+
+  it("checks tilted pockets against the wall left vertical", () => {
+    const slantedSpec = parseBinSpec({ ...spec, wallSlant: { axis: "x", angleDeg: 45, side: "negative" } });
+    const built = buildBinWithCutouts(kernel, slantedSpec,
+      { shapesById: shapes, cutouts: [{ ...pocket, position: { x: 90, y: 0 } }], fingerHoles: [] }, EXPORT_QUALITY);
+    expect(built.validationIssues.some(issue => issue.code === "tilted-pocket-wall" && issue.severity === "error")).toBe(true);
+  });
   it("keeps a matching tilted pocket inside a body slanted along X", () => {
     const slantedSpec = parseBinSpec({ ...spec, wallSlant: { axis: "x", angleDeg: 45 } });
     const placed = { ...pocket, position: { x: 65, y: 0 } };

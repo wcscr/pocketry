@@ -24,7 +24,7 @@ import {
   D_WALL,
 } from "@shared/gridfinity/standard";
 import type { BinSpec } from "@shared/gridfinity/types";
-import { wallSlantTopOffsetMm } from "@shared/gridfinity/wall-slant";
+import { wallSlantExtraSizeMm, wallSlantPointMm, wallSlantError } from "@shared/gridfinity/wall-slant";
 import { infillHeightMm } from "@shared/gridfinity/fill";
 export { infillHeightMm } from "@shared/gridfinity/fill";
 
@@ -113,9 +113,18 @@ export interface BinParts {
   infill: Manifold | null;
 }
 
-/** Shear a body part around the top of the fixed base, preserving horizontal slices. */
+/** Deform a body part above the fixed base along the selected bin axis. */
 function slantBodyPart(kernel: Kernel, solid: Manifold, spec: BinSpec): Manifold {
   if (!spec.wallSlant || spec.wallSlant.angleDeg === 0) return solid;
+  const slantError = wallSlantError(spec);
+  if (slantError) throw new Error(slantError);
+  if (spec.wallSlant.side && spec.wallSlant.side !== "both") {
+    return kernel.arena.track(solid.warp(vertex => {
+      const point = wallSlantPointMm(spec, { x: vertex[0], y: vertex[1] }, vertex[2]);
+      vertex[0] = point.x;
+      vertex[1] = point.y;
+    }));
+  }
   const slope = Math.tan(spec.wallSlant.angleDeg * Math.PI / 180);
   const x = spec.wallSlant.axis === "x" ? slope : 0;
   const y = spec.wallSlant.axis === "y" ? slope : 0;
@@ -132,7 +141,7 @@ export function binDimensionsMm(spec: BinSpec): {
   heightToRimMm: number;
   totalHeightMm: number;
 } {
-  const slant = wallSlantTopOffsetMm(spec);
+  const slant = wallSlantExtraSizeMm(spec);
   return {
     widthMm: binWidthMm(spec) + Math.abs(slant.x),
     lengthMm: binLengthMm(spec) + Math.abs(slant.y),

@@ -85,6 +85,12 @@ describe("binSpecSchema", () => {
 });
 
 describe("validateBinSpec", () => {
+  it("rejects an inward slant that closes the space between the walls", () => {
+    const result = validateBinSpec(spec({ gridX: 1, heightUnits: 12, lip: "none",
+      wallSlant: { axis: "x", angleDeg: 45, side: "negative" } }));
+    expect(result.ok).toBe(false);
+    expect(result.issues.some(issue => issue.code === "slanted-wall-collapse")).toBe(true);
+  });
   it("accepts the reference 2×3×6 bin without issues", () => {
     const result = validateBinSpec(spec());
     expect(result.issues).toEqual([]);

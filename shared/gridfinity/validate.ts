@@ -50,7 +50,7 @@ import {
 import type { BinSpec } from "./types";
 import { infillHeightMm } from "./fill";
 import { resolvePocketSplit } from "./pocket-split";
-import { wallSlantOffsetMm, wallSlantTopOffsetMm } from "./wall-slant";
+import { wallSlantPointMm, wallSlantExtraSizeMm, wallSlantError } from "./wall-slant";
 import { labelTabProfileMm } from "./label-tab";
 
 /**
@@ -152,6 +152,8 @@ export function validateBinSpec(spec: BinSpec): ValidationResult {
   }
 
   if (spec.wallSlant) {
+    const slantError = wallSlantError(spec);
+    if (slantError) issues.push({ code: "slanted-wall-collapse", severity: "error", message: slantError });
     if (spec.lip === "standard") issues.push({ code: "slanted-wall-lip", severity: "error",
       message: "Slanted walls need a flush rim; turn off the stacking lip." });
     if (spec.surfaceTexts.length) issues.push({ code: "slanted-wall-surface-text", severity: "error",
@@ -188,7 +190,7 @@ export function validateBinSpec(spec: BinSpec): ValidationResult {
     ["x", spec.gridX],
     ["y", spec.gridY],
   ] as const) {
-    const topOffset = wallSlantTopOffsetMm(spec);
+    const topOffset = wallSlantExtraSizeMm(spec);
     const span = (axis === "x" ? binWidthMm(spec) : binLengthMm(spec)) + Math.abs(topOffset[axis]);
     const pitchMm = gridPitchMm(spec.gridPitch);
     if (span > FOOTPRINT_WARN_MM) {
@@ -285,10 +287,8 @@ export function labelTabStripMm(spec: BinSpec): Bounds | null {
   }));
   // The tab is sheared together with the wall. Its footprint sweeps between
   // the lower edge of the tab and the rim, so warn over that full XY extent.
-  const lowerOffset = wallSlantOffsetMm(spec, binHeightMm(spec.heightUnits) - profile.heightMm);
-  const topOffset = wallSlantTopOffsetMm(spec);
-  const sweptCorners = [lowerOffset, topOffset].flatMap(offset =>
-    corners.map(point => ({ x: point.x + offset.x, y: point.y + offset.y })));
+  const sweptCorners = [binHeightMm(spec.heightUnits) - profile.heightMm, binHeightMm(spec.heightUnits)]
+    .flatMap(z => corners.map(point => wallSlantPointMm(spec, point, z)));
   return {
     minX: Math.min(...sweptCorners.map(point => point.x)),
     maxX: Math.max(...sweptCorners.map(point => point.x)),
