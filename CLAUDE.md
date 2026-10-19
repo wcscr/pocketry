@@ -126,11 +126,52 @@ npm run dev          # Express + Vite with HMR on loopback http://127.0.0.1:5000
 npm run build        # Vite bundles client to dist/public; esbuild bundles server to dist/index.js
 npm run start        # Run the production build
 npm run check        # TypeScript type-check (tsc)
-npm test             # Vitest (run once)
-npm run test:watch   # Vitest in watch mode
+npm test             # Quick unit/component/small-geometry checks (default)
+npm run test:quick   # Same quick suite, explicitly named
+npm run test:geometry # Detailed geometry/export qualification (2 workers)
+npm run test:workflows # Bin-designer UI workflows, grouped by feature
+npm run test:full    # All quick, geometry/export, and workflow tests
+npm run test:watch   # Quick suite in watch mode
+npm run test:coverage # Coverage across the full suite
 ```
 
-**`npm run check && npm test` is the required gate for every change.**
+**`npm run check && npm test` is the routine gate for every change.** `npm test`
+runs the quick suite. Add the relevant qualification/workflow tests below; a quick
+pass alone does not qualify changes to detailed CAD geometry or serialized exports.
+Run `npm run build` for application/build changes and `git diff --check` before delivery.
+
+### Choose tests by the change
+
+| Change | Additional verification |
+| --- | --- |
+| UI behavior, controls, project management, or canvas interaction | Run the affected feature file(s) with `npm run test:workflows -- bin-designer.pockets` (replace the filter as needed). Run all workflows for shared page/provider changes. |
+| Pocket construction, insertion, rounding, bases, or material masks | Run the affected `*.qualification.test.ts` files with `npm run test:geometry -- pocket-color.qualification pocket-insertion.qualification`. Include related interactions and inspect a representative exported artifact. |
+| Shared kernel/mesh preparation, material partitioning, or STL/3MF serialization | Run the complete `npm run test:geometry`; check the serialized meshes as well as in-memory geometry. |
+| Sample documents or labels | Quick tests check metadata, hashes, and library agreement. Also run the affected sample export, e.g. `npm run test:geometry -- sample-labels -t wiha-drivers`. |
+| Printable calibration/measurement aids | Run the measurement-aid qualification tests and the relevant calibration tests. |
+| Release, broad cross-cutting change, or uncertainty about affected areas | Run `npm run test:full`. |
+
+File filters and `-t` work with every command. `npm run test:full -- <file>` can
+run a specific file from any group. A filter passed to `npm test` searches only
+the quick projects; use the appropriate command for qualification/workflow files.
+`npm run test:coverage` measures the full suite, rather than quick-only coverage.
+
+Keep small synthetic geometry regressions, schema/persistence checks, worker
+boundary checks, and component tests in the quick suite. Put detailed real-project
+CAD, parameter matrices, material/topology contracts, and sample exports in
+`*.qualification.test.ts`. Put page-level UI workflows in feature-specific
+`*.workflow.test.tsx` files; keep a small page smoke test in the quick suite.
+Use `*.test-support.ts(x)` for shared fixtures and hooks, never import another
+`*.test.ts(x)` file for setup. Separate inexpensive metadata assertions from
+expensive model generation. Preserve assertions when moving a test; verify full
+collection after a suite split so tests are neither dropped nor run twice.
+
+Report which commands/files ran, their results, and any unrun relevant coverage.
+Timeouts are failures, not passes. For a timeout, rerun the affected case in
+isolation or profile its cost instead of repeatedly rerunning the full suite or
+blindly increasing limits. Full-resolution CAD can take minutes, and synchronous
+WASM work may finish after Vitest's timeout. Avoid concurrent full-suite runs;
+`test:geometry` limits workers to two to reduce local CPU/memory contention.
 
 ### Local-only verification
 
@@ -145,8 +186,12 @@ npm run test:watch   # Vitest in watch mode
 
 Vitest config lives in its own `vitest.config.ts` that `mergeConfig`s `vite.config.ts` —
 never add a `test` key to `vite.config.ts`, because `server/vite.ts` imports that file
-into the bundled Node server. Two projects are configured: `geometry` (node env, covers
-`shared/**` and `client/src/lib/**`) and `ui` (jsdom, covers components/hooks/pages/state).
+into the bundled Node server. Four disjoint projects are configured:
+`quick-unit` (node: ordinary shared/lib/server tests), `quick-ui` (jsdom: ordinary
+component/hook/page/state tests), `geometry` (node: qualification tests), and
+`workflows` (jsdom: feature workflow tests). The default and watch commands select
+only the two quick projects; `test:full` selects all four. New qualification tests
+belong under `client/src/lib/`, and workflow tests under `client/src/`.
 Tests are type-checked — `tsconfig.json` deliberately does *not* exclude `*.test.ts`.
 
 No linter is configured yet (prefer ESLint when one lands).
@@ -175,7 +220,7 @@ No linter is configured yet (prefer ESLint when one lands).
 ## Agent Working Principles
 
 1. Ask if unclear, don't assume.
-2. One PR = one concern. Small diffs, full tests.
+2. One PR = one concern. Small diffs, quick tests plus relevant qualification/workflow coverage as described above.
 3. Evidence beats speculation. Include test proof or benchmark.
 4. All code must be typed and documented.
 5. All new code must have tests.

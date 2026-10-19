@@ -1,5 +1,10 @@
 import { afterEach, beforeAll, beforeEach, expect, it } from "vitest";
-import { parseCutoutPlacement, resolvePocketDepth, tracedShapeSchema, type CutoutPlacement } from "@shared/gridfinity/cutout";
+import {
+  parseCutoutPlacement,
+  resolvePocketDepth,
+  tracedShapeSchema,
+  type CutoutPlacement,
+} from "@shared/gridfinity/cutout";
 import { pocketInsertionAxis } from "@shared/gridfinity/pocket-insertion";
 import { rigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { parseBinSpec } from "@shared/gridfinity/types";
@@ -91,7 +96,6 @@ it.each(poses.slice(0, 2))("exports closed meshes and continuous floor material 
     expect(highestAt(materials.body, 0.31, y)).toBeLessThan(top - 0.5);
   }
 }, 120_000);
-
 
 const standingSpec = { ...spec, heightUnits: 14 };
 const standingPoses = [
