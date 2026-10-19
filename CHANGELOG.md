@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Offer Auto-arrange beside oversized-bin warnings, explaining layout changes and preserving fixed sizes; fix arranging arbitrary-sized bins with multiple retained grid cells.
+
 - Simplify App settings with a bulleted experimental-feature list and shorter explanations.
 - Allow wall slants up to 89°. Inward walls can meet the vertical wall below the requested height to form a support wedge, with a warning and printable export.
 - Fixed side mirroring in Symmetry & straighten for syringe grips and other concave outlines; averaging now explains when to choose a side.

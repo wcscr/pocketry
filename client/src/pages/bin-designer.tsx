@@ -1294,6 +1294,8 @@ function BinDesignerWorkspace(): JSX.Element {
             selectedCutoutId={bin.selectedCutoutId}
             selectedFingerHoleId={bin.selectedFingerHoleId}
             onRevealIssue={revealIssue}
+            onAutoArrange={cutouts.filter(cutout => cutout.role !== "hole").length > 1 ? handleAutoArrange : undefined}
+            fixedBinSize={fixedBinSize}
           />
           {viewMode === "3d" ? (
             <BinViewport
