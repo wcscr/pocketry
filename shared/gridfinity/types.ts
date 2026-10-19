@@ -24,6 +24,8 @@ import { D_WALL, GRID_PITCH_DIVISOR, MAX_HOLLOW_WALL_THICKNESS_MM, type GridPitc
 /** Maximum span per axis in standard 42 mm cells, independent of grid pitch. */
 export const MAX_GRID = 16;
 export const MAX_HEIGHT_UNITS = 42;
+/** Stay below the horizontal-wall singularity at 90 degrees. */
+export const MAX_WALL_SLANT_ANGLE_DEG = 89;
 
 /** Selected-pitch cell ceiling for the same maximum physical bin size. */
 export function maxGridCells(pitch: GridPitch = "full"): number {
@@ -78,7 +80,7 @@ export const binSpecSchema = z
     /** Prototype: tilt one or both opposing walls above the fixed base along one axis. */
     wallSlant: z.object({
       axis: z.enum(["x", "y"]),
-      angleDeg: z.number().min(-60).max(60),
+      angleDeg: z.number().min(-MAX_WALL_SLANT_ANGLE_DEG).max(MAX_WALL_SLANT_ANGLE_DEG),
       /** Missing keeps older designs slanting both opposing walls. */
       side: z.enum(["both", "negative", "positive"]).optional(),
     }).strict().nullable().default(null),

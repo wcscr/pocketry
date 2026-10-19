@@ -55,7 +55,7 @@ import {
   gridPitchMm,
   binHeightMm,
 } from "@shared/gridfinity/standard";
-import { wallSlantTopOffsetMm, wallSlantPointMm } from "@shared/gridfinity/wall-slant";
+import { wallSlantTopOffsetMm, wallSlantOutlineMm, wallSlantHeightMm } from "@shared/gridfinity/wall-slant";
 import { maxGridCells } from "@shared/gridfinity/types";
 import {
   OUTER_RING,
@@ -1593,7 +1593,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
 
   const outerFootprint = useMemo(() => footprintOuterRingMm(spec), [spec]);
   const topFootprint = useMemo(() => spec.wallSlant && spec.wallSlant.angleDeg !== 0
-    ? outerFootprint.map(point => wallSlantPointMm(spec, point, binHeightMm(spec.heightUnits)))
+    ? wallSlantOutlineMm(spec, outerFootprint, wallSlantHeightMm(spec))
     : null, [outerFootprint, spec.wallSlant, topOffset.x, topOffset.y]);
   const interiorFootprint = useMemo(() => footprintInteriorRingMm(spec), [spec]);
   const footprintCells = useMemo(() => occupiedCells(spec), [spec]);

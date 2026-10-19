@@ -14,7 +14,10 @@ describe("binSpecSchema", () => {
   it("accepts only a single slant axis and a bounded angle", () => {
     expect(spec({ wallSlant: { axis: "y", angleDeg: -45 } }).wallSlant).toEqual({ axis: "y", angleDeg: -45 });
     expect(() => spec({ wallSlant: { axis: "z", angleDeg: 20 } as never })).toThrow();
-    expect(() => spec({ wallSlant: { axis: "x", angleDeg: 61 } })).toThrow();
+    for (const angleDeg of [-89, -75, 61, 75, 89]) {
+      expect(spec({ wallSlant: { axis: "x", angleDeg } }).wallSlant!.angleDeg).toBe(angleDeg);
+    }
+    for (const angleDeg of [-90, 90]) expect(() => spec({ wallSlant: { axis: "x", angleDeg } })).toThrow();
     expect(() => spec({ wallSlant: { axis: "x", angleDeg: 20, yDeg: 10 } as never })).toThrow();
   });
   it("applies defaults for lip, fill, and grid pitch", () => {
@@ -85,11 +88,11 @@ describe("binSpecSchema", () => {
 });
 
 describe("validateBinSpec", () => {
-  it("rejects an inward slant that closes the space between the walls", () => {
+  it("warns but allows an inward slant that meets the vertical wall", () => {
     const result = validateBinSpec(spec({ gridX: 1, heightUnits: 12, lip: "none",
       wallSlant: { axis: "x", angleDeg: 45, side: "negative" } }));
-    expect(result.ok).toBe(false);
-    expect(result.issues.some(issue => issue.code === "slanted-wall-collapse")).toBe(true);
+    expect(result.ok).toBe(true);
+    expect(result.issues.find(issue => issue.code === "slanted-wall-closure")).toMatchObject({ severity: "warning" });
   });
   it("accepts the reference 2×3×6 bin without issues", () => {
     const result = validateBinSpec(spec());

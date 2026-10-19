@@ -3171,6 +3171,8 @@ describe("BinDesignerPage", () => {
       });
       expect(container.querySelector<HTMLButtonElement>('[role="switch"][aria-label="Stacking lip"]')!.disabled).toBe(true);
       expect(angle()?.value).toBe("20");
+      expect(angle()?.min).toBe("-89");
+      expect(angle()?.max).toBe("89");
       React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
       expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toMatchObject({ wallSlant: null, lip: "standard" });
       clickBinHistory(container, "redo");
@@ -3212,6 +3214,13 @@ describe("BinDesignerPage", () => {
       expect(container.querySelector('[aria-label="Walls to tilt"]')!.textContent).toContain("Right only (+X)");
       choose("Walls to tilt", "Left only (−X)");
       expect(vi.mocked(useBinGeometry).mock.lastCall![0].wallSlant).toMatchObject({ axis: "x", side: "negative", angleDeg: 20 });
+      const angle = container.querySelector<HTMLInputElement>('[aria-label="Wall angle in degrees"]')!;
+      React.act(() => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(angle, "75");
+        angle.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      React.act(() => angle.dispatchEvent(new FocusEvent("focusout", { bubbles: true })));
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0].wallSlant?.angleDeg).toBe(75);
       React.act(() => experimentalSettings.setEnabled(false));
       expect(container.querySelector('[aria-label="Walls to tilt"]')).toBeNull();
       expect(vi.mocked(useBinGeometry).mock.lastCall![0].wallSlant?.side).toBe("negative");
@@ -3220,6 +3229,7 @@ describe("BinDesignerPage", () => {
 
   it.each([
     { tilt: { xDeg: 0, yDeg: 30 }, role: undefined, expected: { axis: "x", angleDeg: 30 } },
+    { tilt: { xDeg: 0, yDeg: 75 }, role: undefined, expected: { axis: "x", angleDeg: 75 } },
     { tilt: { xDeg: -30, yDeg: 0 }, role: undefined, expected: { axis: "y", angleDeg: 30 } },
     { tilt: { xDeg: 20, yDeg: 30 }, role: undefined, expected: null },
     { tilt: { xDeg: 0, yDeg: 30 }, role: "hole" as const, expected: null },

@@ -50,7 +50,7 @@ import {
 import type { BinSpec } from "./types";
 import { infillHeightMm } from "./fill";
 import { resolvePocketSplit } from "./pocket-split";
-import { wallSlantPointMm, wallSlantExtraSizeMm, wallSlantError } from "./wall-slant";
+import { wallSlantPointMm, wallSlantExtraSizeMm, wallSlantCloses, wallSlantHeightMm } from "./wall-slant";
 import { labelTabProfileMm } from "./label-tab";
 
 /**
@@ -152,8 +152,8 @@ export function validateBinSpec(spec: BinSpec): ValidationResult {
   }
 
   if (spec.wallSlant) {
-    const slantError = wallSlantError(spec);
-    if (slantError) issues.push({ code: "slanted-wall-collapse", severity: "error", message: slantError });
+    if (wallSlantCloses(spec)) issues.push({ code: "slanted-wall-closure", severity: "warning",
+      message: `The slanted wall meets the vertical wall before the requested height. The body is clipped to a support wedge (${wallSlantHeightMm(spec).toFixed(1)} mm tall). Features above the intersection are clipped.` });
     if (spec.lip === "standard") issues.push({ code: "slanted-wall-lip", severity: "error",
       message: "Slanted walls need a flush rim; turn off the stacking lip." });
     if (spec.surfaceTexts.length) issues.push({ code: "slanted-wall-surface-text", severity: "error",

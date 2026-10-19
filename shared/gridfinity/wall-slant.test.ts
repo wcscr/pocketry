@@ -2,9 +2,15 @@ import { describe, expect, it } from "vitest";
 import { parseBinSpec } from "./types";
 import { binWidthMm, binLengthMm } from "./bin-size";
 import { BASE_HEIGHT, binHeightMm } from "./standard";
-import { wallSlantPointMm, wallSlantExtraSizeMm, wallSlantError } from "./wall-slant";
+import { wallSlantPointMm, wallSlantExtraSizeMm, wallSlantCloses, wallSlantHeightMm, wallSlantOutlineMm } from "./wall-slant";
 
 describe("single-wall slant", () => {
+  it("does not construct a closing wall below the fixed base", () => {
+    const spec = parseBinSpec({ gridX: 1, gridY: 1, arbitrarySizeMm: { width: 10, length: 10 }, flatBottom: true,
+      heightUnits: 2 / 7, lip: "none", wallSlant: { axis: "x", side: "positive", angleDeg: 89 } });
+    expect(wallSlantCloses(spec)).toBe(false);
+    expect(wallSlantHeightMm(spec)).toBe(2);
+  });
   it.each(["x", "y"] as const)("moves either %s wall while keeping the opposite wall vertical", axis => {
     for (const side of ["negative", "positive"] as const) {
       for (const angleDeg of [-20, 20]) {
@@ -21,9 +27,20 @@ describe("single-wall slant", () => {
     }
   });
 
-  it("rejects inward walls that would meet, while allowing outward tilt", () => {
+  it("clips inward walls at their meeting height without enlarging the base", () => {
     const spec = parseBinSpec({ gridX: 1, gridY: 1, heightUnits: 12, lip: "none", wallSlant: { axis: "x", angleDeg: 45, side: "negative" } });
-    expect(wallSlantError(spec)).toContain("opposite wall");
-    expect(wallSlantError({ ...spec, wallSlant: { ...spec.wallSlant!, side: "positive" } })).toBeNull();
+    expect(wallSlantCloses(spec)).toBe(true);
+    expect(wallSlantHeightMm(spec)).toBeCloseTo(BASE_HEIGHT + binWidthMm(spec));
+    expect(wallSlantExtraSizeMm(spec)).toEqual({ x: 0, y: 0 });
+    expect(wallSlantCloses({ ...spec, wallSlant: { ...spec.wallSlant!, side: "positive" } })).toBe(false);
+  });
+
+  it.each(["x", "y"] as const)("clips a steep %s rim outline instead of reflecting it through the upright wall", axis => {
+    const spec = parseBinSpec({ gridX: 1, gridY: 1, heightUnits: 12, lip: "none", wallSlant: { axis, angleDeg: -75, side: "positive" } });
+    const half = binWidthMm(spec) / 2;
+    const ring = [{ x: -half, y: -half }, { x: half, y: -half }, { x: half, y: half }, { x: -half, y: half }];
+    const clipped = wallSlantOutlineMm(spec, ring, wallSlantHeightMm(spec));
+    expect(clipped.length).toBeGreaterThan(1);
+    clipped.forEach(point => expect(point[axis]).toBeCloseTo(-half, 6));
   });
 });

@@ -5,7 +5,7 @@ import { validateTiltedSolids } from "./validate-tilted-solids";
 import { validateRetainedMaterial } from "./validate-retained-material";
 import { validateInsertionPaths, type PocketInsertionPath } from "./validate-insertion-paths";
 // Type-only import: the kernel is injected (see `Kernel` in ../manifold/runtime).
-import type { Manifold } from "manifold-3d";
+import type { CrossSection, Manifold } from "manifold-3d";
 
 import type {
   CutoutPlacement,
@@ -22,9 +22,10 @@ import {
   binHeightMm,
   binTotalHeightMm,
   D_WALL,
+  binWallThicknessMm,
 } from "@shared/gridfinity/standard";
 import type { BinSpec } from "@shared/gridfinity/types";
-import { wallSlantExtraSizeMm, wallSlantPointMm, wallSlantError } from "@shared/gridfinity/wall-slant";
+import { wallSlantExtraSizeMm, wallSlantPointMm, wallSlantCloses, wallSlantHeightMm } from "@shared/gridfinity/wall-slant";
 import { infillHeightMm } from "@shared/gridfinity/fill";
 export { infillHeightMm } from "@shared/gridfinity/fill";
 
@@ -116,8 +117,7 @@ export interface BinParts {
 /** Deform a body part above the fixed base along the selected bin axis. */
 function slantBodyPart(kernel: Kernel, solid: Manifold, spec: BinSpec): Manifold {
   if (!spec.wallSlant || spec.wallSlant.angleDeg === 0) return solid;
-  const slantError = wallSlantError(spec);
-  if (slantError) throw new Error(slantError);
+  if (wallSlantCloses(spec)) return clipClosingSlant(kernel, shearBodyPart(kernel, solid, spec), spec, 0);
   if (spec.wallSlant.side && spec.wallSlant.side !== "both") {
     return kernel.arena.track(solid.warp(vertex => {
       const point = wallSlantPointMm(spec, { x: vertex[0], y: vertex[1] }, vertex[2]);
@@ -125,13 +125,40 @@ function slantBodyPart(kernel: Kernel, solid: Manifold, spec: BinSpec): Manifold
       vertex[1] = point.y;
     }));
   }
-  const slope = Math.tan(spec.wallSlant.angleDeg * Math.PI / 180);
-  const x = spec.wallSlant.axis === "x" ? slope : 0;
-  const y = spec.wallSlant.axis === "y" ? slope : 0;
+  return shearBodyPart(kernel, solid, spec);
+}
+
+function shearBodyPart(kernel: Kernel, solid: Manifold, spec: BinSpec): Manifold {
+  const slope = Math.tan(spec.wallSlant!.angleDeg * Math.PI / 180);
+  const x = spec.wallSlant!.axis === "x" ? slope : 0;
+  const y = spec.wallSlant!.axis === "y" ? slope : 0;
   return kernel.arena.track(solid.transform([
     1, 0, 0, 0, 0, 1, 0, 0, x, y, 1, 0,
     -x * BASE_HEIGHT, -y * BASE_HEIGHT, 0, 1,
   ]));
+}
+
+/** Keep the inward-leaning envelope on the material side of the upright wall. */
+function clipClosingSlant(kernel: Kernel, solid: Manifold, spec: BinSpec, insetMm: number): Manifold {
+  const slant = spec.wallSlant!;
+  const sign = slant.side === "positive" ? 1 : -1;
+  const half = (slant.axis === "x" ? binWidthMm(spec) : binLengthMm(spec)) / 2;
+  const normal: [number, number, number] = slant.axis === "x" ? [sign, 0, 0] : [0, sign, 0];
+  return kernel.arena.track(solid.trimByPlane(normal, -half + insetMm));
+}
+
+/** Separate outer and cavity envelopes close cleanly; no inverted warp or crossing faces. */
+function closingWallPart(kernel: Kernel, spec: BinSpec, quality: BuildQuality,
+  widthMm = binWallThicknessMm(spec), overhangMm = 0): Manifold {
+  const { arena } = kernel;
+  const section = footprintOuterSection(kernel, spec, quality.circularSegments);
+  const outer = overhangMm > 0
+    ? arena.track(section.offset(overhangMm, "Round", 2, quality.circularSegments)) : section;
+  const inner = arena.track(outer.subtract(buildWallSection(kernel, spec, quality.circularSegments, widthMm, overhangMm)));
+  const envelope = (profile: CrossSection, inset: number) => clipClosingSlant(kernel,
+    shearBodyPart(kernel, arena.track(arena.track(profile.extrude(binHeightMm(spec.heightUnits) - BASE_HEIGHT))
+      .translate([0, 0, BASE_HEIGHT])), spec), spec, inset);
+  return arena.track(envelope(outer, -overhangMm).subtract(envelope(inner, widthMm)));
 }
 
 /** Outer dimensions of the bin a spec describes, without building it. */
@@ -142,11 +169,13 @@ export function binDimensionsMm(spec: BinSpec): {
   totalHeightMm: number;
 } {
   const slant = wallSlantExtraSizeMm(spec);
+  const heightToRimMm = wallSlantHeightMm(spec);
   return {
     widthMm: binWidthMm(spec) + Math.abs(slant.x),
     lengthMm: binLengthMm(spec) + Math.abs(slant.y),
-    heightToRimMm: binHeightMm(spec.heightUnits),
-    totalHeightMm: binTotalHeightMm(spec.heightUnits, spec.lip === "standard") + pegBottomExtensionMm(spec),
+    heightToRimMm,
+    totalHeightMm: binTotalHeightMm(spec.heightUnits, spec.lip === "standard") -
+      (binHeightMm(spec.heightUnits) - heightToRimMm) + pegBottomExtensionMm(spec),
   };
 }
 
@@ -170,7 +199,8 @@ export function buildBinParts(
         segments,
         spec.gridPitch === "full" ? holeOptionsFromSpec(spec) : undefined,
       );
-  let wall = buildWallRing(kernel, spec, segments);
+  const closes = wallSlantCloses(spec);
+  let wall = closes ? closingWallPart(kernel, spec, quality) : buildWallRing(kernel, spec, segments);
   const lip = spec.lip === "standard"
     ? buildStackingLip(kernel, spec, segments, quality.filletProfileStepMm)
     : null;
@@ -179,7 +209,8 @@ export function buildBinParts(
   // BinParts' tag set stable preserves the multicolor hook unchanged.
   const tab = buildLabelTab(kernel, spec, segments);
   if (tab) {
-    wall = wall ? arena.track(wall.add(tab)) : tab;
+    const placedTab = closes ? slantBodyPart(kernel, tab, spec) : tab;
+    wall = wall ? arena.track(wall.add(placedTab)) : placedTab;
   }
 
   let infill: Manifold | null = null;
@@ -204,7 +235,7 @@ export function buildBinParts(
     );
   }
 
-  if (wall) wall = slantBodyPart(kernel, wall, spec);
+  if (wall && !closes) wall = slantBodyPart(kernel, wall, spec);
   if (infill) infill = slantBodyPart(kernel, infill, spec);
   const slantedLip = lip ? slantBodyPart(kernel, lip, spec) : null;
 
@@ -339,7 +370,8 @@ export function buildBinWithCutouts(
   if (
     options.rimInsertThicknessMm !== undefined &&
     Number.isFinite(options.rimInsertThicknessMm) &&
-    options.rimInsertThicknessMm > 0
+    options.rimInsertThicknessMm > 0 &&
+    wallSlantHeightMm(spec) >= binHeightMm(spec.heightUnits)
   ) {
     const topZ = binTotalHeightMm(spec.heightUnits, spec.lip === "standard");
     // Without a lip, extend the color inward from the outer perimeter.
@@ -347,6 +379,10 @@ export function buildBinWithCutouts(
     // intersecting the finished solid preserves base profiles and all cutouts.
     const requestedRim = base.parts.lip
       ? arena.track(base.parts.lip.trimByPlane([0, 0, 1], topZ - options.rimInsertThicknessMm))
+      : wallSlantCloses(spec)
+      ? arena.track(closingWallPart(kernel, spec, quality,
+          (options.borderWidthMm ?? MULTICOLOR_BORDER_WIDTH_MM) + SLANTED_BORDER_MASK_OVERHANG_MM,
+          SLANTED_BORDER_MASK_OVERHANG_MM).trimByPlane([0, 0, 1], topZ - options.rimInsertThicknessMm))
       : slantBodyPart(kernel, arena.track(
           arena.track(buildWallSection(kernel, spec, quality.circularSegments,
             (options.borderWidthMm ?? MULTICOLOR_BORDER_WIDTH_MM) +

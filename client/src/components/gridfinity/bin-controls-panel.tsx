@@ -99,7 +99,7 @@ import {
   type GridPitch,
 } from "@shared/gridfinity/standard";
 import { DEFAULT_PEG_BOTTOM, PEG_DENSITIES, hasSmoothBase, pegBottomExtensionMm } from "@shared/gridfinity/peg-bottom";
-import { MAX_GRID, MAX_HEIGHT_UNITS, maxGridCells, type BinSpecInput } from "@shared/gridfinity/types";
+import { MAX_GRID, MAX_HEIGHT_UNITS, MAX_WALL_SLANT_ANGLE_DEG, maxGridCells, type BinSpecInput } from "@shared/gridfinity/types";
 import { validateLayout, type ValidationIssue } from "@shared/gridfinity/validate";
 
 import {
@@ -525,7 +525,7 @@ export function BinControlsPanel({
     const across = axis === "x" ? direction.x : direction.y;
     const other = axis === "x" ? direction.y : direction.x;
     const angleDeg = Math.atan2(across, direction.z) * 180 / Math.PI;
-    return Math.abs(other / direction.z) < Math.tan(Math.PI / 180) && Math.abs(angleDeg) <= 60
+    return Math.abs(other / direction.z) < Math.tan(Math.PI / 180) && Math.abs(angleDeg) <= MAX_WALL_SLANT_ANGLE_DEG
       ? { axis, angleDeg } as const : null;
   })();
   const selectedFingerHole =
@@ -1724,7 +1724,7 @@ export function BinControlsPanel({
             </div>
             <div className="flex items-center gap-2">
               <SettingLabel label="Wall angle" hint="Degrees from vertical. Positive moves the top toward the positive end of the chosen axis; negative moves it the other way." />
-              <DraftNumberInput className="ml-auto h-8 w-20" aria-label="Wall angle in degrees" value={spec.wallSlant.angleDeg} min={-60} max={60} step={0.5} displayPrecision={1}
+              <DraftNumberInput className="ml-auto h-8 w-20" aria-label="Wall angle in degrees" value={spec.wallSlant.angleDeg} min={-MAX_WALL_SLANT_ANGLE_DEG} max={MAX_WALL_SLANT_ANGLE_DEG} step={0.5} displayPrecision={1}
                 onValueChange={(angleDeg) => patchSpec({ wallSlant: { ...spec.wallSlant!, angleDeg } }, true)}
                 onValueCommit={(angleDeg) => patchSpec({ wallSlant: { ...spec.wallSlant!, angleDeg } })} />
               <span className="text-xs text-muted-foreground">°</span>
