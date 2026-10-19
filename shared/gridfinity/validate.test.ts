@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 import { parseBinSpec, binSpecSchema, type BinSpecInput } from "./types";
 import { labelTabStripMm, validateBinSpec } from "./validate";
 import { wallSlantOffsetMm, wallSlantTopOffsetMm } from "./wall-slant";
-import { binFootprintMm, binHeightMm, TAB_HEIGHT_MM } from "./standard";
+import { labelTabProfileMm } from "./label-tab";
+import { binFootprintMm, binHeightMm, TAB_DEPTH_MM, TAB_HEIGHT_MM } from "./standard";
 
 function spec(partial: Partial<BinSpecInput> = {}) {
   return parseBinSpec({ gridX: 2, gridY: 3, heightUnits: 6, ...partial });
@@ -169,6 +170,16 @@ describe("label tab spec rule (G5)", () => {
       }),
     );
     expect(tall.issues.map((issue) => issue.code)).not.toContain("label-tab-clipped");
+  });
+
+  it("reduces slanted tab depth to fit a 2.5u wall", () => {
+    const short = spec({ heightUnits: 2.5, lip: "none",
+      wallSlant: { axis: "y", angleDeg: 45 }, labelTab: { wall: "north", width: "full" } });
+    const profile = labelTabProfileMm(short)!;
+    expect(profile.heightMm).toBeCloseTo(2.5 * 7 - 7, 6);
+    expect(profile.depthMm).toBeLessThan(TAB_DEPTH_MM);
+    expect(validateBinSpec(short).issues.find(issue => issue.code === "label-tab-clipped")?.message)
+      .toContain("depth is reduced");
   });
 });
 

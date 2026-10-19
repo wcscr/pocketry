@@ -41,7 +41,6 @@ import {
   gridPitchMm,
   STACKING_LIP_DEPTH,
   STACKING_LIP_SUPPORT_HEIGHT_MM,
-  TAB_DEPTH_MM,
   TAB_HEIGHT_MM,
   TAB_WIDTH_NOMINAL_MM,
   binFootprintMm,
@@ -50,6 +49,7 @@ import type { BinSpec } from "./types";
 import { infillHeightMm } from "./fill";
 import { resolvePocketSplit } from "./pocket-split";
 import { wallSlantOffsetMm, wallSlantTopOffsetMm } from "./wall-slant";
+import { labelTabProfileMm } from "./label-tab";
 
 /**
  * Pure validation of a bin specification — no WASM, cheap enough to run on
@@ -200,9 +200,10 @@ export function validateBinSpec(spec: BinSpec): ValidationResult {
     issues.push({
       code: "label-tab-clipped",
       severity: "warning",
-      message:
-        `A ${spec.heightUnits}u bin is shorter than the ${TAB_HEIGHT_MM.toFixed(1)} mm ` +
-        `label tab — the tab reaches down into the base and will look truncated.`,
+      message: spec.wallSlant
+        ? `A ${spec.heightUnits}u bin has too little wall for the full label tab; its depth is reduced to stay above the base.`
+        : `A ${spec.heightUnits}u bin is shorter than the ${TAB_HEIGHT_MM.toFixed(1)} mm ` +
+          `label tab — the tab reaches down into the base and will look truncated.`,
     });
   }
 
@@ -225,6 +226,8 @@ export function validateBinSpec(spec: BinSpec): ValidationResult {
 export function labelTabStripMm(spec: BinSpec): Bounds | null {
   const tab = spec.labelTab;
   if (!tab) return null;
+  const profile = labelTabProfileMm(spec);
+  if (!profile) return null;
 
   const edge = tab.edge ?? edgeForWall(spec, tab.wall);
   const run = resolveBoundaryRun(spec, edge);
@@ -250,8 +253,8 @@ export function labelTabStripMm(spec: BinSpec): Bounds | null {
   const localCorners: Point[] = [
     { x: alongStart, y: 0 },
     { x: alongEnd, y: 0 },
-    { x: alongEnd, y: -TAB_DEPTH_MM },
-    { x: alongStart, y: -TAB_DEPTH_MM },
+    { x: alongEnd, y: -profile.depthMm },
+    { x: alongStart, y: -profile.depthMm },
   ];
   const angle = edge.side === "north" ? 0 : edge.side === "east" ? -90 : edge.side === "south" ? 180 : 90;
   const radians = angle * Math.PI / 180;
@@ -261,7 +264,7 @@ export function labelTabStripMm(spec: BinSpec): Bounds | null {
   }));
   // The tab is sheared together with the wall. Its footprint sweeps between
   // the lower edge of the tab and the rim, so warn over that full XY extent.
-  const lowerOffset = wallSlantOffsetMm(spec, binHeightMm(spec.heightUnits) - TAB_HEIGHT_MM);
+  const lowerOffset = wallSlantOffsetMm(spec, binHeightMm(spec.heightUnits) - profile.heightMm);
   const topOffset = wallSlantTopOffsetMm(spec);
   const sweptCorners = [lowerOffset, topOffset].flatMap(offset =>
     corners.map(point => ({ x: point.x + offset.x, y: point.y + offset.y })));

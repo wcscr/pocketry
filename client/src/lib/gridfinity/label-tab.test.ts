@@ -5,6 +5,7 @@ import {
   TAB_SUPPORT_HEIGHT_MM,
   TAB_WIDTH_NOMINAL_MM,
   binFootprintMm,
+  BASE_HEIGHT,
   D_WALL,
 } from "@shared/gridfinity/standard";
 import { parseBinSpec, type BinSpecInput } from "@shared/gridfinity/types";
@@ -76,6 +77,22 @@ describe("buildLabelTab (via buildBin)", () => {
     expect(addedBounds[outwardBound][shiftedAxis]).toBeCloseTo(
       flatAddedBounds[outwardBound][shiftedAxis] + topShift, 2);
     expect(added.volume()).toBeCloseTo(flatAdded.volume(), 3);
+    expect(extractPrintableMeshData(kernel, tabbed).indices.length).toBeGreaterThan(0);
+  });
+
+  it.each([
+    { heightUnits: 1.5, wallSlant: { axis: "y" as const, angleDeg: 45 }, wall: "north" as const },
+    { heightUnits: 2, wallSlant: { axis: "y" as const, angleDeg: -45 }, wall: "south" as const },
+    { heightUnits: 2.5, wallSlant: { axis: "x" as const, angleDeg: -45 }, wall: "east" as const },
+  ])("keeps a full-width slanted tab above the fixed base on a $heightUnits u bin", ({ heightUnits, wallSlant, wall }) => {
+    const plain = buildBin(kernel, spec({ gridX: 1, gridY: 1, heightUnits, wallSlant }), QUALITY).solid;
+    const tabbed = buildBin(kernel, spec({ gridX: 1, gridY: 1, heightUnits, wallSlant,
+      labelTab: { wall, width: "full" } }), QUALITY).solid;
+    const added = arena.track(tabbed.subtract(plain));
+    expect(tabbed.status()).toBe("NoError");
+    expect(tabbed.decompose()).toHaveLength(1);
+    expect(added.volume()).toBeGreaterThan(0);
+    expect(added.boundingBox().min[2]).toBeGreaterThanOrEqual(BASE_HEIGHT - 1e-4);
     expect(extractPrintableMeshData(kernel, tabbed).indices.length).toBeGreaterThan(0);
   });
 

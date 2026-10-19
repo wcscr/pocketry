@@ -222,6 +222,9 @@ export interface BuildBinWithCutoutsOptions {
   borderWidthMm?: number;
 }
 
+/** Keep the color cutter clear of coincident wall and tab faces during CSG. */
+const SLANTED_BORDER_MASK_OVERHANG_MM = 0.02;
+
 /**
  * Builds a bin and subtracts the layout's pocket cutters from the fused
  * solid. When requested for multi-color export, thin floor and rim volumes
@@ -331,7 +334,9 @@ export function buildBinWithCutouts(
       ? arena.track(base.parts.lip.trimByPlane([0, 0, 1], topZ - options.rimInsertThicknessMm))
       : slantBodyPart(kernel, arena.track(
           arena.track(buildWallSection(kernel, spec, quality.circularSegments,
-            options.borderWidthMm ?? MULTICOLOR_BORDER_WIDTH_MM)
+            (options.borderWidthMm ?? MULTICOLOR_BORDER_WIDTH_MM) +
+              (spec.wallSlant ? SLANTED_BORDER_MASK_OVERHANG_MM : 0),
+            spec.wallSlant ? SLANTED_BORDER_MASK_OVERHANG_MM : 0)
             .extrude(options.rimInsertThicknessMm))
             .translate([0, 0, topZ - options.rimInsertThicknessMm]),
         ), spec);

@@ -77,13 +77,17 @@ export function buildWallSection(
   spec: WallSpec,
   circularSegments: number,
   widthMm = binWallThicknessMm(spec),
+  outerOverhangMm = 0,
 ): CrossSection {
   const { CrossSection, arena } = kernel;
   if (!Number.isFinite(widthMm) || widthMm <= 0) {
     throw new Error("buildWallSection: border width must be positive and finite");
   }
   if (spec.footprint?.kind === "custom") {
-    const outer = footprintOuterSection(kernel, spec, circularSegments);
+    const footprint = footprintOuterSection(kernel, spec, circularSegments);
+    const outer = outerOverhangMm > 0
+      ? arena.track(footprint.offset(outerOverhangMm, "Round", 2, circularSegments))
+      : footprint;
     const wallInterior = footprintInteriorSection(kernel, spec, circularSegments);
     const inner = widthMm === D_WALL ? wallInterior
       : arena.track(wallInterior.offset(D_WALL - widthMm, "Round", 2, circularSegments));
@@ -92,7 +96,8 @@ export function buildWallSection(
 
   const binWidthMm = binFootprintMm(spec.gridX, spec.gridPitch);
   const lengthMm = binFootprintMm(spec.gridY, spec.gridPitch);
-  const outer = roundedRectPolygon(binWidthMm, lengthMm, BASE_TOP_RADIUS, circularSegments);
+  const outer = roundedRectPolygon(binWidthMm + 2 * outerOverhangMm,
+    lengthMm + 2 * outerOverhangMm, BASE_TOP_RADIUS + outerOverhangMm, circularSegments);
   // A wide border can consume a narrow footprint; never create a negative-size hole.
   if (2 * widthMm >= Math.min(binWidthMm, lengthMm)) {
     return arena.track(new CrossSection([outer]));
