@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fixed side mirroring in Symmetry & straighten for syringe grips and other concave outlines; averaging now explains when to choose a side.
+
 - Preserve unresolved pocket-depth drafts while switching pockets or reopening the prompt, and link depth-limit warnings directly to bin height controls. Explain tool exposure and show Through pockets with an open bottom.
 
 - Add another Trace contour as an editable four-point square without changing zoom or pan, with point insertion, undo/redo, and saved-project recovery.
