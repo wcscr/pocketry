@@ -51,6 +51,13 @@ const BIN_SIZE_KEYS = ["gridX", "gridY", "gridPitch", "arbitrarySizeMm", "height
 
 export interface PendingPocketClearance { cutoutIds: string[]; checkpoint: BinHistory }
 
+/** Uncommitted recovery input; kept per pocket, outside saved geometry/history. */
+export interface PendingPocketDepthDraft {
+  value: string;
+  mode: DepthSpec["mode"];
+  all: boolean;
+}
+
 export interface BinState {
   /** Session-only permissions and field ownership; never serialized. */
   experimentalEditing: boolean;
@@ -74,6 +81,7 @@ export interface BinState {
   pendingRemovalId: string | null;
   /** Session-only guidance after a committed rotation; never part of project history. */
   pendingPocketClearance: PendingPocketClearance | null;
+  pendingDepthDrafts: Record<string, PendingPocketDepthDraft>;
   clearancePromptedIds: string[];
   viewMode: BinViewMode;
   /** Active interaction grammar in the 2D layout view. */
@@ -97,6 +105,7 @@ export function getCommittedBinDoc(
 }
 
 export type BinAction = (
+  | { type: "SET_PENDING_DEPTH_DRAFT"; id: string; draft: PendingPocketDepthDraft }
   | { type: "SET_EDITING_CAPABILITY"; enabled: boolean }
   | { type: "SET_TEXT_TOOL"; tool: "translate" | "rotate" }
   | { type: "SET_TEXT_SNAP"; snap: boolean }
@@ -219,6 +228,7 @@ const INITIAL: BinState = {
   selectedSurfaceTextId: null,
   pendingRemovalId: null,
   pendingPocketClearance: null,
+  pendingDepthDrafts: {},
   clearancePromptedIds: [],
   viewMode: "3d",
   editorMode: "placement",
@@ -433,6 +443,10 @@ function changesLinkedDesign(before: BinDoc, after: BinDoc, includeElevation = t
 }
 
 export function binReducer(state: BinState, action: BinAction): BinState {
+  if (action.type === "SET_PENDING_DEPTH_DRAFT") {
+    if (!state.cutouts.some(cutout => cutout.id === action.id && cutout.depthPending)) return state;
+    return { ...state, pendingDepthDrafts: { ...state.pendingDepthDrafts, [action.id]: action.draft } };
+  }
   if (action.type === "DISMISS_POCKET_CLEARANCE" || action.type === "APPLY_POCKET_CLEARANCE") {
     if (state.pendingPocketClearance?.checkpoint !== action.checkpoint || state.history !== action.checkpoint) return state;
     if (action.type === "DISMISS_POCKET_CLEARANCE") return { ...state, pendingPocketClearance: null };
@@ -473,6 +487,11 @@ export function binReducer(state: BinState, action: BinAction): BinState {
   if (next.selectedSurfaceTextId && (next.selection.length > 0 || !next.spec.surfaceTexts.some(label => label.id === next.selectedSurfaceTextId))) {
     next = { ...next, selectedSurfaceTextId: null };
   }
+  // Resolved/deleted pockets must not recover stale input after undo or reuse.
+  if (next.cutouts !== state.cutouts && Object.keys(next.pendingDepthDrafts).length) {
+    const pendingIds = new Set(next.cutouts.filter(cutout => cutout.depthPending).map(cutout => cutout.id));
+    next = { ...next, pendingDepthDrafts: Object.fromEntries(Object.entries(next.pendingDepthDrafts).filter(([id]) => pendingIds.has(id))) };
+  }
   const origins = action.type === "HYDRATE" ? action.transformOrigins ?? { pockets: [], fingerHoles: [] } : state.transformOrigins;
   const docs = action.type === "HYDRATE" ? [...next.history.stack.map(e => e.doc), next] : [getCommittedBinDoc(next)];
   const transformOrigins = recordTransformOrigins(origins, docs);
@@ -486,6 +505,7 @@ function reduceBin(state: BinState, action: BinAction): BinState {
     case "SET_TEXT_TOOL": return { ...state, textTool: action.tool };
     case "SET_TEXT_SNAP": return { ...state, textSnap: action.snap };
     case "BEGIN_FIELD_EDIT": case "FIELD_VALIDITY": case "FINISH_FIELD_EDIT": case "SET_EDITING_CAPABILITY":
+    case "SET_PENDING_DEPTH_DRAFT":
     case "DISMISS_POCKET_CLEARANCE": case "APPLY_POCKET_CLEARANCE": return state;
     case "PATCH_MATERIALS": return { ...state, materials: binMaterialsSchema.parse({ ...state.materials, ...action.patch }) };
     case "HYDRATE": {
@@ -510,6 +530,7 @@ function reduceBin(state: BinState, action: BinAction): BinState {
         selectedSurfaceTextId: null,
         pendingRemovalId: null,
         pendingPocketClearance: null,
+        pendingDepthDrafts: {},
         clearancePromptedIds: [...new Set([
           ...doc.cutouts, ...(action.history?.stack.flatMap(entry => entry.doc.cutouts) ?? []),
           ...(action.transformOrigins?.pockets.map(origin => origin.cutout) ?? []),

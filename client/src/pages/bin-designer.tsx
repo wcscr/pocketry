@@ -143,6 +143,10 @@ function BinDesignerWorkspace(): JSX.Element {
       action: <ToastAction altText="Enable experimental tools" onClick={() => setExperimentalEnabled(true)}>Enable tools</ToastAction> });
   }, [bin.editError, setExperimentalEnabled, toast]);
   const { spec, cutouts, fingerHoles, viewMode, dispatch } = bin;
+  const editBinHeight = () => {
+    setSettingsSectionRequest({ id: "bin-settings-size", focusId: spec.arbitrarySizeMm ? "arbitrary-height" : "bin-height-units" });
+    setPanelOpen(true);
+  };
   const isMobile = useIsMobile();
   const [textPositionRequest, setTextPositionRequest] = useState(0);
   const editSurfaceText = (id: string, inline = false) => {
@@ -1203,7 +1207,7 @@ function BinDesignerWorkspace(): JSX.Element {
       onPanelOpenChange={setPanelOpen}
       panelTitle={isMobile && settingsSectionRequest?.id === "bin-settings-export" ? "Export bin" : "Bin designer"}
       mobileActionsLayout="landscape-side"
-      mobileActions={<PendingPocketDepthPrompt request={depthRequest} fallback={<MobileBinActions open={quickAdjustOpen} onOpenChange={setQuickAdjustOpen}
+      mobileActions={<PendingPocketDepthPrompt request={depthRequest} onEditBinHeight={editBinHeight} fallback={<MobileBinActions open={quickAdjustOpen} onOpenChange={setQuickAdjustOpen}
         onWorkflow={() => { setSettingsSectionRequest(undefined); setPanelOpen(!panelOpen); }}
         onMore={id => { setSettingsSectionRequest({ id }); setPanelOpen(true); }}
         onExport={() => { setSettingsSectionRequest({ id: "bin-settings-export" }); setPanelOpen(true); }} />} />}
@@ -1413,7 +1417,7 @@ function BinDesignerWorkspace(): JSX.Element {
             </Button>
           </div>}
           </div>
-          {!isMobile && <PendingPocketDepthPrompt request={depthRequest} />}
+          {!isMobile && <PendingPocketDepthPrompt request={depthRequest} onEditBinHeight={editBinHeight} />}
         </div>
       }
     />
