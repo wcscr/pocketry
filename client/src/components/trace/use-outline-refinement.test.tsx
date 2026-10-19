@@ -71,6 +71,33 @@ function mountHook(
 }
 
 describe("useOutlineRefinement", () => {
+  it("refines a manually started contour even when detection found nothing", async () => {
+    const refiner = vi.fn<OutlineRefiner>(async outline => outline.map(shape => ({ ...shape })));
+    const mounted = mountHook(refiner);
+    try {
+      await React.act(async () => {
+        mounted.store().dispatch({ type: "SOURCE_LOADED", imageUrl: "photo", fileName: "tool" });
+        mounted.store().dispatch({ type: "SOURCE_READY", imageSize: { width: 800, height: 600 } });
+        mounted.store().dispatch({ type: "SET_MARGIN", margin: 0 });
+        mounted.store().dispatch({ type: "ADD_CONTOUR" });
+      });
+      const added = mounted.store().outline;
+      expect(mounted.store().rawOutline).toEqual([]);
+      expect(refiner).not.toHaveBeenCalled();
+      const history = mounted.store().history;
+      await React.act(async () => {
+        mounted.store().dispatch({ type: "SET_CALIBRATION", calibration: { startX: 0, startY: 0, endX: 100, endY: 0, lengthMm: 50 } });
+      });
+      expect(mounted.store().outline).toBe(added);
+      expect(mounted.store().history).toBe(history);
+      await React.act(async () => { mounted.store().dispatch({ type: "SET_TOLERANCE", tolerancePx: 2 }); });
+      expect(refiner.mock.calls[0][0]).toBe(added);
+      await React.act(async () => { mounted.store().dispatch({ type: "UNDO" }); });
+      expect(mounted.store().outline).toBe(added);
+      await React.act(async () => { mounted.store().dispatch({ type: "UNDO" }); });
+      expect(mounted.store().outline).toEqual([]);
+    } finally { mounted.unmount(); }
+  });
   it("recovers an edited contour and its margin exactly, then refines subsequent scale changes", async () => {
     const refiner = vi.fn<OutlineRefiner>(async (outline) => outline);
     const offsetter = vi.fn<OutlineOffsetter>(async (outline) => outline);

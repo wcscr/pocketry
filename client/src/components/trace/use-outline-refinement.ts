@@ -72,7 +72,7 @@ export function useOutlineRefinement(
 
     // A committed edit, undo or recovered/photo-transformed source already
     // supplies its geometry and controls together. It becomes the new baseline.
-    if (outlineChanged || sourceReplaced || imageRotated || rawOutline.length === 0) {
+    if (outlineChanged || sourceReplaced || imageRotated || (rawOutline.length === 0 && !entry?.refinementBase?.length)) {
       applied.current = settings;
       return;
     }
@@ -89,7 +89,10 @@ export function useOutlineRefinement(
 
     // Detection supplies a dense baseline; a manual edit replaces that base.
     // Margin changes are committed directly by TraceControlsPanel.
-    if (!detectionSettingsChanged && !scaleChanged) {
+    const scaleMarginDeltaPx = marginToPixels(margin, calibration) - marginToPixels(previous.margin, previous.calibration);
+    // A new scale with no effective margin change does not change geometry or
+    // deserve an undo step, including for a manually started contour.
+    if (!detectionSettingsChanged && (!scaleChanged || scaleMarginDeltaPx === 0)) {
       applied.current = settings;
       return;
     }
@@ -104,14 +107,7 @@ export function useOutlineRefinement(
           const deltaPx = marginToPixels(margin, calibration) - (entry?.baselineMarginPx ?? 0);
           return deltaPx === 0 ? refined : offsetEditedOutline(refined, deltaPx);
         })
-      : (() => {
-          const previousMarginPx = marginToPixels(previous.margin, previous.calibration);
-          const nextMarginPx = marginToPixels(margin, calibration);
-          const deltaPx = nextMarginPx - previousMarginPx;
-          return deltaPx === 0
-            ? Promise.resolve(outline)
-            : offsetEditedOutline(outline, deltaPx);
-        })();
+      : offsetEditedOutline(outline, scaleMarginDeltaPx);
 
     void refinement.then((refined) => {
       if (!cancelled) {

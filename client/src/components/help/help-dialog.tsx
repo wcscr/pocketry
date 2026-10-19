@@ -60,8 +60,10 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
               <strong> Show full photo</strong> beside the canvas. In
               <strong> Outline</strong>, adjust <strong>Sensitivity</strong> and
               <strong> Simplification</strong>, or use <strong>Edit contours</strong>{" "}
-              to correct points. <strong>Margin</strong> adds optional clearance.
-              In <strong>Detected Contours</strong>, choose <strong>Pocket</strong> to cut
+              to correct points. Choose <strong>Add contour</strong> to start another
+              trace with a four-point square, then drag its corners and add points on its edges.
+              <strong> Margin</strong> adds optional clearance.
+              In <strong>Contours</strong>, choose <strong>Pocket</strong> to cut
               material or <strong>Hole</strong> to keep material inside a pocket.
               When the outline looks right, choose <strong>Add to Bin</strong>{" "}
               to place it immediately. Objects traced together keep their relative positions, including overlaps.

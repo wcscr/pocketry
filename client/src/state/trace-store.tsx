@@ -274,6 +274,8 @@ export type TraceAction =
   | { type: "SET_INCLUDE_INTERIOR_HOLES"; include: boolean }
   /** A committed edit: pushes onto the undo stack. */
   | { type: "OUTLINE_COMMITTED"; outline: Outline; label?: string }
+  /** Start a manually traced outer contour with four editable corners. */
+  | { type: "ADD_CONTOUR" }
   | { type: "ALIGN_UPRIGHT"; outline: Outline; expectedOutline: Outline; radians: number; label?: string }
   /** An offset of the current edited contour and its physical setting. */
   | { type: "MARGIN_COMMITTED"; outline: Outline; margin: Margin }
@@ -684,7 +686,8 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         detectedImageUrl: action.imageUrl,
         selection: state.mode === "edit" || state.mode === "remove" ? primaryContour(action.outline) : null,
         history: pushHistory(
-          state.rawOutline.length > 0 && state.detectedImageUrl === action.imageUrl ? state.history : { stack: [], index: -1 },
+          (state.rawOutline.length > 0 && state.detectedImageUrl === action.imageUrl) ||
+            state.history.stack[state.history.index]?.hasManualEdits ? state.history : { stack: [], index: -1 },
           action.outline, "Detected outline", state.margin,
           { refinementBase: action.rawOutline, baselineMarginPx: 0, hasManualEdits: false, estimatedEdgeRegions: action.estimatedEdgeRegions ?? [],
             ...historyPhotoFrame(state),
@@ -712,6 +715,36 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         outline: action.outline,
         history,
       };
+    }
+
+    case "ADD_CONTOUR": {
+      if (!state.imageUrl || state.processing || state.pendingAutoCalibration ||
+          hasPendingManualCalibration(state) || state.mode === "perspective" ||
+          state.imageSize.width <= 0 || state.imageSize.height <= 0) return state;
+      // Keep the starter inside the visible photo, including a corrected paper
+      // crop. A detection region narrows placement without changing that region.
+      const frame = (!state.perspectiveCorrection?.showFullPhoto && state.perspectiveCorrection?.paperBounds)
+        || { x: 0, y: 0, ...state.imageSize };
+      const region = state.region ?? frame;
+      const left = Math.max(frame.x, region.x);
+      const top = Math.max(frame.y, region.y);
+      const right = Math.min(frame.x + frame.width, region.x + region.width);
+      const bottom = Math.min(frame.y + frame.height, region.y + region.height);
+      const bounds = right > left && bottom > top
+        ? { x: left, y: top, width: right - left, height: bottom - top } : frame;
+      const side = Math.min(bounds.width, bounds.height) / 4;
+      const x = bounds.x + (bounds.width - side) / 2;
+      const y = bounds.y + (bounds.height - side) / 2;
+      // Normalize only the new shape: normalizing all shapes would reorder
+      // existing contours and invalidate their selection references.
+      const square = normalizeOutline([{ outer: [
+        { x, y }, { x: x + side, y }, { x: x + side, y: y + side }, { x, y: y + side },
+      ], holes: [] }]);
+      if (!square.length) return state;
+      const committed = traceReducer(state, {
+        type: "OUTLINE_COMMITTED", outline: [...state.outline, ...square], label: "Add contour",
+      });
+      return { ...committed, mode: "edit", selection: { shapeIndex: state.outline.length, ringIndex: OUTER_RING } };
     }
 
     case "OUTLINE_COMMITTED": {

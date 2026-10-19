@@ -75,7 +75,7 @@ function RingListContent(): JSX.Element {
     return (
       <p role="status" className="text-xs text-muted-foreground">
         {processing ? "Looking for the tool’s outline…"
-          : region ? "No outline found. Increase Sensitivity or redraw the region around the whole tool."
+          : region ? "No outline found. Choose Add contour to trace manually, increase Sensitivity, or redraw the region around the whole tool."
           : "No outline yet. Set a detection region around the tool."}
       </p>
     );
