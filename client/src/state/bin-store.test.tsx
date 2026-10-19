@@ -1001,6 +1001,25 @@ describe("linked design transactions", () => {
     ], gridX: 3, gridY: 3 }));
     return test;
   }
+  it("shares thickness and elevation in one history step and preserves independent copies", () => {
+    const { store, act } = setup();
+    act(() => store().dispatch({ type: "LINK_DESIGNS", kind: "pocket", ids: ["c1", "c2"], sourceId: "c1", linkId: "g", tilt: false }));
+    const original = getCommittedBinDoc(store()), index = store().history.index;
+    act(() => store().dispatch({ type: "UPDATE_CUTOUT", id: "c1", patch: { elevationMm: 12, depth: { mode: "mm", value: 8 } }, transient: true }));
+    expect(store().cutouts.slice(0, 2).map(c => c.elevationMm)).toEqual([12, 12]);
+    expect(store().history.index).toBe(index);
+    act(() => store().dispatch({ type: "UPDATE_CUTOUT", id: "c1", patch: { elevationMm: 12, depth: { mode: "mm", value: 8 } } }));
+    expect(store().history.index).toBe(index + 1);
+    expect(store().cutouts.slice(0, 2).map(c => c.depth)).toEqual([{ mode: "mm", value: 8 }, { mode: "mm", value: 8 }]);
+    expect(store().cutouts.map(c => c.position)).toEqual(original.cutouts.map(c => c.position));
+    expect(store().cutouts[2]).toEqual(original.cutouts[2]);
+    const changed = getCommittedBinDoc(store());
+    act(() => store().dispatch({ type: "UNDO" })); expect(getCommittedBinDoc(store())).toEqual(original);
+    act(() => store().dispatch({ type: "REDO" })); expect(getCommittedBinDoc(store())).toEqual(changed);
+    act(() => store().dispatch({ type: "UNLINK_DESIGNS", kind: "pocket", ids: ["c1"] }));
+    act(() => store().dispatch({ type: "UPDATE_CUTOUT", id: "c1", patch: { elevationMm: 18 } }));
+    expect(store().cutouts.slice(0, 2).map(c => c.elevationMm)).toEqual([18, 12]);
+  });
   it("links existing pockets from the chosen source, with one reversible step", () => {
     const { store, act } = setup(), old = getCommittedBinDoc(store()), index = store().history.index;
     act(() => store().dispatch({ type: "LINK_DESIGNS", kind: "pocket", ids: ["c1", "c2"], sourceId: "c2", linkId: "g", tilt: false }));

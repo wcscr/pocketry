@@ -178,7 +178,7 @@ it("explains locked linked choices and enables them without blocking independent
   const linkedStyle = document.querySelector<HTMLSelectElement>('[aria-label="Clearance style for Linked tool"]')!;
   expect(linkedStyle.disabled).toBe(true);
   expect(document.querySelector<HTMLSelectElement>('[aria-label="Insertion axis for Linked tool"]')!.disabled).toBe(true);
-  expect(dialog()!.textContent).toContain("Shared depth and clearance settings require experimental tools");
+  expect(dialog()!.textContent).toContain("Shared depth, height and clearance settings require experimental tools");
   expect(document.querySelector<HTMLSelectElement>('[aria-label="Clearance style for Independent tool"]')!.disabled).toBe(false);
   choose("Clearance style for Independent tool", "none");
   React.act(() => button("Enable experimental tools").click());

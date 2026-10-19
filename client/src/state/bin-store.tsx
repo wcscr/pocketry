@@ -6,7 +6,7 @@ import { binMaterialsSchema, DEFAULT_BIN_MATERIALS, type BinMaterials } from "@s
 import { adjustPocketsForFillHeight, reconcileFillHeightReferences } from "@shared/gridfinity/fill-height-edit";
 import { recordTransformOrigins, type TransformOrigins } from "@shared/gridfinity/transform-origins";
 import { hasRigidPocket, rigidPocket } from "@shared/gridfinity/rigid-pocket";
-import { applyLinkedEdits, clampLinkedFingerHoles, pocketDesign, fingerDesign, type DesignObjectKind } from "@shared/gridfinity/design-links";
+import { applyLinkedEdits, clampLinkedFingerHoles, pocketDesign, pocketElevationEdited, fingerDesign, type DesignObjectKind } from "@shared/gridfinity/design-links";
 import { sameObject, type ObjectRef, type ObjectEdits } from "@/lib/gridfinity/object-arrangement";
 import { NumericEditContext, type NumericEditSession } from "@/components/ui/numeric-edit-context";
 import { useExperimentalFeatures } from "./experimental-features";
@@ -418,12 +418,13 @@ function finishFieldEdit(state: BinState, cancel = false): BinState {
 }
 
 /** Compare material design fields after all linked propagation and bin clamps.
- * Placement, names, independent copies and removal remain available. */
-function changesLinkedDesign(before: BinDoc, after: BinDoc): boolean {
+ * X/Y placement, names, independent copies and removal remain available. */
+function changesLinkedDesign(before: BinDoc, after: BinDoc, includeElevation = true): boolean {
   return before.cutouts.some(old => {
     const next = after.cutouts.find(item => item.id === old.id);
     return old.designLink && next && (JSON.stringify(old.designLink) !== JSON.stringify(next.designLink)
-      || JSON.stringify(pocketDesign(old)) !== JSON.stringify(pocketDesign(next)));
+      || JSON.stringify(pocketDesign(old)) !== JSON.stringify(pocketDesign(next))
+      || includeElevation && pocketElevationEdited(old, next));
   }) || before.fingerHoles.some(old => {
     const next = after.fingerHoles.find(item => item.id === old.id);
     return old.designLink && next && (JSON.stringify(old.designLink) !== JSON.stringify(next.designLink)
@@ -465,7 +466,8 @@ export function binReducer(state: BinState, action: BinAction): BinState {
   if (!state.experimentalEditing && !restoring && next.spec.wallThicknessMm !== state.spec.wallThicknessMm) {
     return { ...state, editError: "Enable experimental tools to edit wall thickness. Your change was not applied." };
   }
-  if (!state.experimentalEditing && !restoring && changesLinkedDesign(state, next)) {
+  if (!state.experimentalEditing && !restoring && changesLinkedDesign(state, next,
+    action.type !== "UPDATE_OBJECTS" || action.edits.linkedElevation !== "preserve")) {
     return { ...state, editError: "Enable experimental tools to change a linked design. This change affects linked copies and was not applied." };
   }
   if (next.selectedSurfaceTextId && (next.selection.length > 0 || !next.spec.surfaceTexts.some(label => label.id === next.selectedSurfaceTextId))) {
@@ -772,7 +774,7 @@ function reduceBin(state: BinState, action: BinAction): BinState {
         },
       );
     case "UPDATE_OBJECTS": {
-      const edits = applyLinkedEdits(state, action.edits);
+      const edits = applyLinkedEdits(state, action.edits, { shareElevation: action.edits.linkedElevation === undefined });
       if (!edits) return linkedEditError(state);
       const doc = { spec: state.spec, ...edits };
       if (sameJsonData(doc, getCommittedBinDoc(state))) return preview(state, doc);

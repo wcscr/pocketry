@@ -7,7 +7,7 @@ import { pointInOutline, outlineBounds } from "@/lib/geometry/outline";
 import {
   defaultPocketFloorThicknessMm, effectiveFingerHoleDepthMm, fingerHoleFootprintRing, resolvePocketDepth,
   resolvePlacedPocketDepth, transformOutlinePlacement, maximumFingerAccessDepth,
-  type CutoutPlacement, type FingerHole,
+  type CutoutPlacement, type DepthSpec, type FingerHole,
 } from "@shared/gridfinity/cutout";
 import { resolvePocketSplit } from "@shared/gridfinity/pocket-split";
 import type { BinSpec } from "@shared/gridfinity/types";
@@ -15,7 +15,11 @@ import { pocketTransformChanged, pocketTransformPatch, surfaceAnchoredPocket, ty
 
 export type ObjectRef = { kind: "pocket" | "finger"; id: string };
 export type EditableObject = ({ kind: "pocket" } & EditablePocket) | { kind: "finger"; hole: FingerHole };
-export interface ObjectEdits { cutouts: CutoutPlacement[]; fingerHoles: FingerHole[] }
+export interface ObjectEdits {
+  cutouts: CutoutPlacement[]; fingerHoles: FingerHole[];
+  /** Rotations retain height; group Z moves share a delta; full-group resets use each target. */
+  linkedElevation?: "preserve" | "offset" | "targets";
+}
 export type ArrangementAxis = "x" | "y";
 export type RotationPivot = "individual" | "selection";
 export const objectKey = (ref: ObjectRef): string => `${ref.kind}:${ref.id}`;
@@ -82,12 +86,15 @@ export function transformObjects(objects: readonly EditableObject[], spec: BinSp
   if (![...delta.toArray(), ...rotation.toArray()].every(Number.isFinite)) return null;
   const rotating = 1 - Math.abs(rotation.w) > 1e-12;
   if (objects.some(o => o.kind === "finger") && (Math.abs(rotation.x) > 1e-8 || Math.abs(rotation.y) > 1e-8)) return null;
-  const [lower, upper] = selectionZRange(objects, spec);
+  const movingLinks = new Set(objects.flatMap(o => o.kind === "pocket" && o.cutout.designLink ? [o.cutout.designLink.id] : []));
+  const heightObjects = !rotating && Math.abs(delta.z) > 1e-7 ? allObjects.filter(o => objects.some(selected => sameObject(objectRef(selected), objectRef(o)))
+    || o.kind === "pocket" && o.cutout.designLink && movingLinks.has(o.cutout.designLink.id)) : objects;
+  const [lower, upper] = selectionZRange(heightObjects, spec);
   if (Math.abs(delta.z) > 1e-7 && lower > upper) return null;
   const dz = Math.abs(delta.z) > 1e-7 ? Math.max(lower, Math.min(upper, delta.z)) : 0;
   const center = selectionCenter(objects);
   const top = resolvePocketDepth(spec, { mode: "through" }).infillTopZ;
-  const result: ObjectEdits = { cutouts: [], fingerHoles: [] };
+  const result: ObjectEdits = { cutouts: [], fingerHoles: [], linkedElevation: !rotating && Math.abs(dz) > 1e-7 ? "offset" : "preserve" };
   for (const object of objects) {
     const start = objectPosition(object);
     const offset = pivot === "selection" && rotating
@@ -125,11 +132,60 @@ export function transformObjects(objects: readonly EditableObject[], spec: BinSp
 
 /** Preview and validate every affected linked copy, including unselected ones. */
 export function expandLinkedObjectEdits(objects: readonly EditableObject[], spec: BinSpec, edits: ObjectEdits): ObjectEdits | null {
+  let editedCutouts = edits.cutouts;
+  if (edits.linkedElevation === "offset" || edits.linkedElevation === "targets") {
+    // A first rigid Z edit freezes legacy to-floor/through dimensions. Different
+    // independent tilts can resolve different source thicknesses: adopt the
+    // active (last selected) member once, just as editing that copy alone does.
+    const active = new Map(edits.cutouts.flatMap(c => {
+      const object = objects.find(o => o.kind === "pocket" && o.cutout.id === c.id);
+      // An active copy already at its target can still be legacy. Resolve it
+      // before sharing dimensions, even though its own requested move is zero.
+      return c.designLink && !c.profileBottom && object?.kind === "pocket"
+        ? [[c.designLink.id, rigidPocket(surfaceAnchoredPocket(c), object.shape, spec)] as const] : [];
+    }));
+    const freeze = (old: DepthSpec, next: DepthSpec, source: DepthSpec): DepthSpec => old.mode !== "mm"
+      && old.sourceDepthMm === undefined && next.mode === old.mode && source.mode === old.mode
+      ? { ...next, sourceDepthMm: source.sourceDepthMm } : next;
+    editedCutouts = edits.cutouts.map(next => {
+      const source = next.designLink && active.get(next.designLink.id);
+      const old = objects.find(o => o.kind === "pocket" && o.cutout.id === next.id);
+      if (!source || old?.kind !== "pocket" || next.profileBottom) return next;
+      const frozen: CutoutPlacement = next.split && old.cutout.split && source.split
+        ? { ...next, split: { ...next.split, depths: [freeze(old.cutout.split.depths[0], next.split.depths[0], source.split.depths[0]),
+          freeze(old.cutout.split.depths[1], next.split.depths[1], source.split.depths[1])] } }
+        : { ...next, depth: freeze(old.cutout.depth, next.depth, source.depth) };
+      if (hasRigidPocket(next) || JSON.stringify(next.split ?? next.depth) === JSON.stringify(frozen.split ?? frozen.depth)) return frozen;
+      // Freezing a zero-move copy must also freeze its own current floor. A
+      // source dimension alone does not opt a legacy surface pocket into a rigid pose.
+      return { ...frozen, elevationMm: rigidPocket(surfaceAnchoredPocket(next), old.shape, spec).elevationMm, zOffsetMm: undefined };
+    });
+  }
   const expanded = applyLinkedEdits({ cutouts: objects.flatMap(o => o.kind === "pocket" ? [o.cutout] : []),
-    fingerHoles: objects.flatMap(o => o.kind === "finger" ? [o.hole] : []) }, edits);
+    fingerHoles: objects.flatMap(o => o.kind === "finger" ? [o.hole] : []) }, { ...edits, cutouts: editedCutouts },
+  { shareElevation: edits.linkedElevation === undefined });
   if (!expanded) return null;
-  // Linked orientation is shared; elevation remains placement-local. Initialize
-  // an untouched legacy copy in its own frame before applying a rigid rotation.
+  if (edits.linkedElevation === "offset") {
+    const deltas = new Map<string, number>();
+    for (const next of edits.cutouts) {
+      if (!next.designLink || next.profileBottom || next.elevationMm === undefined) continue;
+      const old = objects.find(o => o.kind === "pocket" && o.cutout.id === next.id);
+      if (old?.kind !== "pocket") continue;
+      const delta = next.elevationMm - rigidPocket(surfaceAnchoredPocket(old.cutout), old.shape, spec).elevationMm!;
+      const previous = deltas.get(next.designLink.id);
+      if (previous !== undefined && Math.abs(previous - delta) > 1e-6) return null;
+      deltas.set(next.designLink.id, delta);
+    }
+    expanded.cutouts = expanded.cutouts.map(next => {
+      const delta = next.designLink && deltas.get(next.designLink.id);
+      const old = objects.find(o => o.kind === "pocket" && o.cutout.id === next.id);
+      if (delta === undefined || old?.kind !== "pocket") return next;
+      const elevationMm = rigidPocket(surfaceAnchoredPocket(old.cutout), old.shape, spec).elevationMm! + delta;
+      return { ...next, elevationMm: tidy(elevationMm), zOffsetMm: undefined };
+    });
+  }
+  // A rotation or insertion conversion initializes each untouched legacy copy
+  // in its own frame. Only an intentional height edit shares its elevation.
   expanded.cutouts = expanded.cutouts.map(next => {
     const old = objects.find(o => o.kind === "pocket" && o.cutout.id === next.id);
     const linkedRotation = next.designLink?.tilt
@@ -155,7 +211,7 @@ export function expandLinkedObjectEdits(objects: readonly EditableObject[], spec
       if (seat.floorZ !== null && (seat.floorZ < -1e-7 || seat.highestFloorZ! > top - 0.5 + 1e-7)) return null;
     }
   }
-  return expanded;
+  return { ...expanded, ...(edits.linkedElevation ? { linkedElevation: edits.linkedElevation } : {}) };
 }
 
 export function applyObjectEdits(objects: readonly EditableObject[], edits: ObjectEdits): EditableObject[] {

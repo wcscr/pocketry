@@ -899,9 +899,11 @@ export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: Cut
   const floorInserts: Manifold[] = [], floorRegions: Manifold[] = [];
   const distance = Math.min(options.floorInsertThicknessMm ?? 0, Math.max(0, seatedCutter?.boundingBox().min[2] ?? pose.elevationMm));
   if (cutter && seatedCutter && distance > 0 && (cutout.insertionMode || depthSpecs.some(d => d.mode !== "mm"))) {
-    // Color the actual rotated underside beneath the cleared insertion path.
-    // Inset the color at the wall fillet, as for ordinary pocket floors, so
-    // independently exported materials do not share a vertical wall seam.
+    // Resolve the finite underside band before intersecting it with the bin.
+    // A full-height translated cavity shares its vertical faces with the cut;
+    // partitioning that mask against the finished bin leaves zero-volume wall
+    // sheets that render in the floor color. Subtracting the original cavity
+    // here cancels those faces, including internal split-seat walls.
     let region = arena.track(seatedCutter.translate([0,0,-distance]));
     if (cutout.bottomFilletMm > 0) {
       // Remove projection seams before the inset expands sub-micron slits
@@ -912,7 +914,9 @@ export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: Cut
       const floorColumn = arena.track(arena.track(floorOutline.extrude(bounds.max[2]-bounds.min[2]+2)).translate([0,0,bounds.min[2]-1]));
       region = arena.track(region.intersect(floorColumn));
     }
-    floorInserts.push(region);
+    floorInserts.push(arena.track(region.subtract(seatedCutter)));
+    // The body still subtracts the full mask: subtracting the finite lining
+    // from an already-cut cavity would reintroduce coincident floor faces.
     floorRegions.push(region);
   } else if (cutter && distance > 0) {
     const axes = [{x:1,y:0,z:0},{x:0,y:1,z:0},{x:0,y:0,z:1}].map(v => rotateObjectVector(v, pose.rotation));

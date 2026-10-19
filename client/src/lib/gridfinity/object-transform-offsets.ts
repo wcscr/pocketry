@@ -78,8 +78,20 @@ export function setObjectTransformOffsets(selected: readonly EditableObject[], s
     if (!edit) return null;
     result.cutouts.push(...edit.cutouts); result.fingerHoles.push(...edit.fingerHoles);
   }
+  // Restoring every member to its own as-drawn Z is an explicit collection of
+  // targets, not one shared translation. Keep those targets when the whole
+  // link is selected; otherwise the unselected copies have no unambiguous move.
+  if (mode === "translate" && values[2] !== undefined) {
+    const links = new Set(selected.flatMap(o => o.kind === "pocket" && o.cutout.designLink ? [o.cutout.designLink.id] : []));
+    const wholeLinks = allObjects.every(o => o.kind !== "pocket" || !o.cutout.designLink || !links.has(o.cutout.designLink.id)
+      || selected.some(s => s.kind === "pocket" && s.cutout.id === o.cutout.id));
+    if (wholeLinks) result.linkedElevation = "targets";
+  } else result.linkedElevation = "preserve";
   const expanded = expandLinkedObjectEdits(allObjects, spec, result);
   // Propagation must not override another selected member's requested reset,
   // including a member that was already at zero and needed no design change.
-  return expanded && !objectEditsChanged(applyObjectEdits(selected, result), expanded) ? expanded : null;
+  const requested = applyObjectEdits(selected, result).map(object => object.kind === "pocket"
+    && !hasRigidPocket(object.cutout) && expanded?.cutouts.some(c => c.id === object.cutout.id && hasRigidPocket(c))
+    ? { ...object, cutout: rigidPocket(surfaceAnchoredPocket(object.cutout), object.shape, spec) } : object);
+  return expanded && !objectEditsChanged(requested, expanded) ? expanded : null;
 }

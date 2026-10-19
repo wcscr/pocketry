@@ -88,6 +88,7 @@ function ClearanceChoices({ bin, prompt, shapes, returnFocus }: {
     return shape ? [{ kind: "pocket" as const, cutout, shape }] : [];
   });
   const edits = missing.length ? null : expandLinkedObjectEdits(objects, bin.spec, {
+    linkedElevation: "preserve",
     cutouts: groups.map(group => {
       const original = group.representative, choice = choices[group.key];
       const shape = shapeMap.get(original.shapeId)!;
@@ -139,7 +140,7 @@ function ClearanceChoices({ bin, prompt, shapes, returnFocus }: {
             <legend className="max-w-full px-1 text-sm font-medium [overflow-wrap:anywhere]">{name(group.representative)}</legend>
             {group.members.length > 1 && <p className="text-xs text-muted-foreground">Applies to {group.members.length} linked copies.</p>}
             {locked && <div className="text-xs">
-              <p className="text-muted-foreground">Shared depth and clearance settings require experimental tools. Placement stays independent.</p>
+              <p className="text-muted-foreground">Shared depth, height and clearance settings require experimental tools. X/Y placement stays independent.</p>
               <Button variant="link" className="h-auto whitespace-normal px-0 text-xs" onClick={() => setExperimentalEnabled(true)}>Enable experimental tools</Button>
             </div>}
             {choice.depths.map((depth, index) => {

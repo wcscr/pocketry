@@ -177,7 +177,7 @@ selected objects join the new set; unselected members of previous sets retain
 their links and designs. Pockets and thumb slots use separate design sets.
 
 Linked pockets share their outline, dimensions, aspect-ratio preference, depth,
-split settings, fit clearance, and edge rounding. Names, positions, mirroring,
+split settings, fit clearance, and edge rounding. Names, X/Y positions, mirroring,
 and orientation remain independent. **Share X/Y tilt** optionally shares tilt;
 Z heading always remains independent. Enabling it adopts the active pocket's
 tilt for the set. Thumb slots share opening shape, width, length, depth and edge
@@ -194,8 +194,16 @@ does not delete or disconnect the remaining copies. Every link, unlink, linked
 edit and linked duplication is one undo step, including changes to unselected
 copies. Links survive project/library export, import and saved undo/redo history.
 
-Placement, including rigid Z elevation, stays independent. Depth edits update
-the shared source dimensions. Linking an insertion path initializes any legacy
+Depth edits update the shared source dimensions. An **Elevation** edit sets every
+linked copy's lowest point to the entered height. Z gizmo moves and **Move Z**
+offsets raise or lower the linked copies together, preserving any existing height
+differences; X/Y movement remains independent. Existing projects retain their
+placements until a height edit, and rotation alone does not synchronize elevations.
+When a group first becomes rigid, unresolved source thicknesses use the last
+selected copy, matching a height edit of that copy alone; existing frozen
+thicknesses stay unchanged. Selecting the entire linked set also allows restoring
+each copy's original Z offset independently.
+Linking an insertion path initializes any legacy
 copy's rigid elevation from its own original outline and orientation before
 adopting the shared design, retaining its current floor. If that outline is
 unavailable, the entire link operation is rejected without changing history. A group transform that gives linked
