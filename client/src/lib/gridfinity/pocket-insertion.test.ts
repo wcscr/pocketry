@@ -286,3 +286,28 @@ it("preserves the original split seats when axial insertion is nearly horizontal
   // Extending a rebuilt fillet stack can perturb this seat by over 55 mm³.
   expect(arena.track(finite.subtract(swept)).volume()).toBeLessThan(0.001);
 });
+
+it.each([PREVIEW_QUALITY, EXPORT_QUALITY])("rounds a tilted floor exit without cutting a flat shelf at quality=%j", quality => {
+  const longShape: TracedShape = { ...shape, bboxMm: { minX: -17, maxX: 17, minY: -42, maxY: 42 },
+    outlineMm: [{ outer: [[-17,-42],[17,-42],[17,42],[-17,42]].map(([x,y]) => ({x,y})), holes: [] }] };
+  const tall = { ...spec, heightUnits: 6 };
+  const angle = 15 * Math.PI / 180, s = Math.sin(angle), c = Math.cos(angle);
+  const top = resolvePocketDepth(tall, { mode: "mm", value: 17 }).infillTopZ;
+  for (const direction of [-1, 1]) {
+    const p = { ...pocket, elevationMm: 23.8, depth: { mode: "mm" as const, value: 17 },
+      tilt: { xDeg: direction * 15, yDeg: 0 }, insertionMode: "vertical" as const, topFilletMm: 1 };
+    const sharp = buildRigidPocket(kernel, longShape, { ...p, topFilletMm: 0 }, tall, quality).cutters[0];
+    const rounded = buildRigidPocket(kernel, longShape, p, tall, quality).cutters[0];
+    // The rotated bottom plane has its lowest corner at z=23.8. Probe where
+    // that plane is half a millimetre below the bin surface, near its exit.
+    const y = direction * (17 * s + (top - .5 - 23.8 - 42 * s) * c / s);
+    expect(undersideAt(sharp, 0, y)).toBeCloseTo(top - .5, 3);
+    // Rounding must follow this rising plane. Projecting the surface opening
+    // down to the full fillet depth previously cut a 0.5 mm-deep shelf here.
+    expect(undersideAt(rounded, 0, y)!).toBeGreaterThan(top - .65);
+    expect(undersideAt(rounded, 0, y)!).toBeLessThanOrEqual(top - .5 + .001);
+    // The vertical side still receives the requested outward rounding.
+    expect(arena.track(rounded.slice(top - 1e-6)).bounds().max[0]).toBeCloseTo(18, 3);
+    expect(arena.track(sharp.subtract(rounded)).volume()).toBeLessThan(.001);
+  }
+});

@@ -47,6 +47,7 @@ export function PocketColorControls({ cutout, enabled, onEnable }: {
         </Label>
         <p className="text-muted-foreground">{angle.toFixed(1)}° from vertical. {referenceDescription}</p>
       </> : <p className="text-muted-foreground">Colors a lining on the walls and floor below the bin surface.</p>}
+      {cutout.topFilletMm > 0 && <p className="text-muted-foreground">The rounded entry keeps the bin color.</p>}
       <p className="text-muted-foreground">Color and lining thickness are set in Materials &amp; Colors. Applies only to this pocket.</p>
     </div>
   </details>;

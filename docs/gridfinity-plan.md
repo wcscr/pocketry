@@ -381,8 +381,10 @@ the bin's vertical direction, or use object X/Y/Z. With no insertion clearance,
 Follow insertion axis uses object Z. This reference changes the material split,
 not the cavity or insertion clearance. Entire interior colors a lining around
 the walls and floor below the fill surface; its thickness is measured laterally
-and axially in the object's frame. All masks replace existing material and keep
-retained holes and through openings intact. Color and thickness remain shared
+and axially in the object's frame. For every coverage mode, top-edge rounding
+keeps the bin color, and pocket color starts below the actual rounding depth.
+All masks replace existing material and keep retained holes and through openings
+intact. Color and thickness remain shared
 under **Materials & Colors**, while coverage and reference are independent for
 each placement, including linked copies. New pockets follow insertion; schema
 40 preserves the bin-vertical appearance of older saved projects.
